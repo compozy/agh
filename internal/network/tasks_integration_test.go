@@ -29,9 +29,10 @@ func TestNetworkTaskIngressCreateAndEnqueueRun(t *testing.T) {
 	registerRemoteTaskPeer(t, manager, now, "ops", peerID, []string{networkTaskWriteCapability, "task.read"})
 
 	created, err := manager.CreateTaskFromPeer(ctx, TaskIngressContext{
-		PeerID:    peerID,
-		Channel:   "ops",
-		RequestID: "req-create-1",
+		WorkspaceID: testWorkspaceID,
+		PeerID:      peerID,
+		Channel:     "ops",
+		RequestID:   "req-create-1",
 	}, taskpkg.CreateTask{
 		Scope:          taskpkg.ScopeGlobal,
 		Title:          "Peer-created task",
@@ -51,13 +52,14 @@ func TestNetworkTaskIngressCreateAndEnqueueRun(t *testing.T) {
 	}
 
 	run, err := manager.EnqueueRunFromPeer(ctx, TaskIngressContext{
-		PeerID:    peerID,
-		Channel:   "ops",
-		RequestID: "req-enqueue-1",
-		Surface:   SurfaceThread,
-		ThreadID:  "thread_task_ingress",
-		WorkID:    "work_task_ingress",
-		TraceID:   "trace-task-ingress",
+		WorkspaceID: testWorkspaceID,
+		PeerID:      peerID,
+		Channel:     "ops",
+		RequestID:   "req-enqueue-1",
+		Surface:     SurfaceThread,
+		ThreadID:    "thread_task_ingress",
+		WorkID:      "work_task_ingress",
+		TraceID:     "trace-task-ingress",
 	}, taskpkg.EnqueueRun{
 		TaskID:         created.ID,
 		IdempotencyKey: "idem-peer-enqueue-1",
@@ -165,12 +167,13 @@ func TestNetworkTaskIngressMismatchRecordsAuditWithoutMutation(t *testing.T) {
 	originalUpdatedAt := taskRecord.UpdatedAt
 
 	_, err = manager.EnqueueRunFromPeer(ctx, TaskIngressContext{
-		PeerID:    peerID,
-		Channel:   "ops",
-		RequestID: "req-enqueue-mismatch",
-		Surface:   SurfaceThread,
-		ThreadID:  "thread_task_mismatch",
-		WorkID:    "work_task_mismatch",
+		WorkspaceID: testWorkspaceID,
+		PeerID:      peerID,
+		Channel:     "ops",
+		RequestID:   "req-enqueue-mismatch",
+		Surface:     SurfaceThread,
+		ThreadID:    "thread_task_mismatch",
+		WorkID:      "work_task_mismatch",
 	}, taskpkg.EnqueueRun{
 		TaskID:         taskRecord.ID,
 		IdempotencyKey: "idem-mismatch",
@@ -223,9 +226,10 @@ func TestNetworkTaskIngressDuplicateEnqueueUsesCanonicalRun(t *testing.T) {
 	registerRemoteTaskPeer(t, manager, now, "ops", peerID, []string{networkTaskWriteCapability})
 
 	taskRecord, err := manager.CreateTaskFromPeer(ctx, TaskIngressContext{
-		PeerID:    peerID,
-		Channel:   "ops",
-		RequestID: "req-create-dup",
+		WorkspaceID: testWorkspaceID,
+		PeerID:      peerID,
+		Channel:     "ops",
+		RequestID:   "req-create-dup",
 	}, taskpkg.CreateTask{
 		Scope:          taskpkg.ScopeGlobal,
 		Title:          "Idempotent peer task",
@@ -236,12 +240,13 @@ func TestNetworkTaskIngressDuplicateEnqueueUsesCanonicalRun(t *testing.T) {
 	}
 
 	firstRun, err := manager.EnqueueRunFromPeer(ctx, TaskIngressContext{
-		PeerID:    peerID,
-		Channel:   "ops",
-		RequestID: "req-enqueue-dup-1",
-		Surface:   SurfaceThread,
-		ThreadID:  "thread_task_dup",
-		WorkID:    "work_task_dup",
+		WorkspaceID: testWorkspaceID,
+		PeerID:      peerID,
+		Channel:     "ops",
+		RequestID:   "req-enqueue-dup-1",
+		Surface:     SurfaceThread,
+		ThreadID:    "thread_task_dup",
+		WorkID:      "work_task_dup",
 	}, taskpkg.EnqueueRun{
 		TaskID:         taskRecord.ID,
 		IdempotencyKey: "idem-dup-1",
@@ -250,12 +255,13 @@ func TestNetworkTaskIngressDuplicateEnqueueUsesCanonicalRun(t *testing.T) {
 		t.Fatalf("EnqueueRunFromPeer(first) error = %v", err)
 	}
 	secondRun, err := manager.EnqueueRunFromPeer(ctx, TaskIngressContext{
-		PeerID:    peerID,
-		Channel:   "ops",
-		RequestID: "req-enqueue-dup-2",
-		Surface:   SurfaceThread,
-		ThreadID:  "thread_task_dup",
-		WorkID:    "work_task_dup",
+		WorkspaceID: testWorkspaceID,
+		PeerID:      peerID,
+		Channel:     "ops",
+		RequestID:   "req-enqueue-dup-2",
+		Surface:     SurfaceThread,
+		ThreadID:    "thread_task_dup",
+		WorkID:      "work_task_dup",
 	}, taskpkg.EnqueueRun{
 		TaskID:         taskRecord.ID,
 		IdempotencyKey: "idem-dup-1",
@@ -336,7 +342,7 @@ func registerRemoteTaskPeer(t *testing.T, manager *Manager, now time.Time, chann
 		t.Fatalf("DefaultPeerCard(%q) error = %v", peerID, err)
 	}
 	card.Capabilities = append([]string(nil), capabilities...)
-	if _, stored, err := manager.peers.RefreshRemote(channel, card, now); err != nil {
+	if _, stored, err := manager.peers.RefreshRemote(testWorkspaceID, channel, card, now); err != nil {
 		t.Fatalf("RefreshRemote(%q, %q) error = %v", channel, peerID, err)
 	} else if !stored {
 		t.Fatalf("RefreshRemote(%q, %q) stored = false, want true", channel, peerID)

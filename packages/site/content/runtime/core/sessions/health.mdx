@@ -14,7 +14,8 @@ answers four questions without ever calling the model:
 <OperatorNote>
   Session health is not authored content and not the same thing as `HEARTBEAT.md` wake policy or
   task-run lease heartbeat. It is a daemon-owned metadata table consumed by wake decisions, the `agh
-  session health|status|inspect` commands, and `GET /api/sessions/:id/health|status|inspect`.
+  session health|status|inspect` commands, and `GET
+  /api/workspaces/:workspace_id/sessions/:session_id/health|status|inspect`.
 </OperatorNote>
 
 ## What health describes
@@ -63,9 +64,9 @@ agh session inspect sess_123 --json
 ```
 
 ```bash
-curl -s http://localhost:2123/api/sessions/sess_123/health
-curl -s http://localhost:2123/api/sessions/sess_123/status
-curl -s http://localhost:2123/api/sessions/sess_123/inspect
+curl -s http://localhost:2123/api/workspaces/ws_alpha/sessions/sess_123/health
+curl -s http://localhost:2123/api/workspaces/ws_alpha/sessions/sess_123/status
+curl -s http://localhost:2123/api/workspaces/ws_alpha/sessions/sess_123/inspect
 ```
 
 To list sessions with health summary attached:

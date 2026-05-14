@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 
+import { storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
 import { PanelSurface } from "@/storybook/story-layout";
 import {
   networkDirectRoomsFixture,
@@ -63,6 +64,7 @@ export const Threads: Story = {
   args: {},
   render: () => (
     <ThreadsList
+      workspaceId={storyDefaultWorkspaceId}
       channel={channel}
       threads={networkThreadsFixture}
       activeThreadId={networkThreadsFixture[0]?.thread_id ?? null}
@@ -79,6 +81,7 @@ export const Directs: Story = {
   args: {},
   render: () => (
     <DirectsList
+      workspaceId={storyDefaultWorkspaceId}
       channel={channel}
       directs={networkDirectRoomsFixture}
       activeDirectId={networkDirectRoomsFixture[0]?.direct_id ?? null}
@@ -105,6 +108,7 @@ export const Activity: Story = {
   args: {},
   render: () => (
     <ActivityFeed
+      workspaceId={storyDefaultWorkspaceId}
       channel={channel}
       threads={networkThreadsFixture}
       directs={networkDirectRoomsFixture}

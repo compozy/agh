@@ -13,7 +13,7 @@ import { isAgentEventPayload, parseToolUseResult } from "./message-parts";
 
 type SessionToolPartProps = ToolCallMessagePartProps<Record<string, unknown>, unknown>;
 
-function toLegacyToolMessage(part: SessionToolPartProps): UIMessage {
+export function toLegacyToolMessage(part: SessionToolPartProps): UIMessage {
   const result = isAgentEventPayload(part.result) ? parseToolUseResult(part.result) : null;
 
   return {
@@ -29,7 +29,7 @@ function toLegacyToolMessage(part: SessionToolPartProps): UIMessage {
   };
 }
 
-function BackendToolPart({ part }: { part: SessionToolPartProps }) {
+export function BackendToolPart(part: SessionToolPartProps) {
   if (part.status.type === "running" && Object.keys(part.args ?? {}).length === 0) {
     return (
       <div
@@ -71,34 +71,36 @@ function createBackendTool() {
 export const sessionToolkit: Toolkit = {
   Bash: {
     ...createBackendTool(),
-    render: part => <BackendToolPart part={part} />,
+    render: part => <BackendToolPart {...part} />,
   },
   Read: {
     ...createBackendTool(),
-    render: part => <BackendToolPart part={part} />,
+    render: part => <BackendToolPart {...part} />,
   },
   Write: {
     ...createBackendTool(),
-    render: part => <BackendToolPart part={part} />,
+    render: part => <BackendToolPart {...part} />,
   },
   Edit: {
     ...createBackendTool(),
-    render: part => <BackendToolPart part={part} />,
+    render: part => <BackendToolPart {...part} />,
   },
   Grep: {
     ...createBackendTool(),
-    render: part => <BackendToolPart part={part} />,
+    render: part => <BackendToolPart {...part} />,
   },
   Glob: {
     ...createBackendTool(),
-    render: part => <BackendToolPart part={part} />,
+    render: part => <BackendToolPart {...part} />,
   },
 };
 
-export function createAghPermissionDataUI(sessionId: string) {
+export function createAghPermissionDataUI(workspaceId: string, sessionId: string) {
   return makeAssistantDataUI<AghPermissionData>({
     name: "agh-permission",
-    render: ({ data }) => <PermissionDataPart data={data} sessionId={sessionId} />,
+    render: ({ data }) => (
+      <PermissionDataPart data={data} sessionId={sessionId} workspaceId={workspaceId} />
+    ),
   });
 }
 

@@ -36,6 +36,53 @@ import (
 	skillbundled "github.com/pedronauck/agh/skills"
 )
 
+const nativeNetworkTestWorkspaceID = "ws-native-network"
+
+func nativeNetworkTestWorkspaceService(t *testing.T) apitest.StubWorkspaceService {
+	t.Helper()
+
+	root := t.TempDir()
+	resolve := func(ctx context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+		if err := ctx.Err(); err != nil {
+			return workspacepkg.ResolvedWorkspace{}, err
+		}
+		workspaceID := strings.TrimSpace(ref)
+		if workspaceID == "" {
+			return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+		}
+		return workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{
+				ID:      workspaceID,
+				RootDir: root,
+				Name:    workspaceID,
+			},
+			WorkspaceID: workspaceID,
+		}, nil
+	}
+	return apitest.StubWorkspaceService{
+		GetFn: func(ctx context.Context, ref string) (workspacepkg.Workspace, error) {
+			resolved, err := resolve(ctx, ref)
+			return resolved.Workspace, err
+		},
+		ResolveFn: resolve,
+	}
+}
+
+func nativeNetworkTestSessionManager(workspaceID string) apitest.StubSessionManager {
+	return apitest.StubSessionManager{
+		StatusFn: func(ctx context.Context, id string) (*session.Info, error) {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			sessionID := strings.TrimSpace(id)
+			if sessionID == "" {
+				return nil, session.ErrSessionNotFound
+			}
+			return &session.Info{ID: sessionID, WorkspaceID: workspaceID}, nil
+		},
+	}
+}
+
 func TestDaemonNativeTools(t *testing.T) {
 	t.Parallel()
 
@@ -719,6 +766,24 @@ func TestDaemonNativeTools(t *testing.T) {
 	t.Run("Should read hook introspection tools through observer without leaking secret fields", func(t *testing.T) {
 		t.Parallel()
 
+		stableWorkspaceID := "ws-stable"
+		registryWorkspaceID := "ws-registry"
+		workspaceRoot := t.TempDir()
+		workspaces := apitest.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				if ref != stableWorkspaceID && ref != registryWorkspaceID {
+					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+				}
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{
+						ID:      registryWorkspaceID,
+						RootDir: workspaceRoot,
+						Name:    "hooks",
+					},
+					WorkspaceID: stableWorkspaceID,
+				}, nil
+			},
+		}
 		observer := &nativeObserverStub{
 			catalog: []hookspkg.CatalogEntry{{
 				Order:        1,
@@ -757,7 +822,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			}},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Observer: observer,
+			Observer:   observer,
+			Sessions:   nativeNetworkTestSessionManager(registryWorkspaceID),
+			Workspaces: workspaces,
 		}, nativeApproveAllPolicyInputs())
 
 		listResult, err := registry.Call(
@@ -804,7 +871,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDHooksRuns,
-				Input:  json.RawMessage(`{"event":"tool.pre_call","outcome":"applied","last":1}`),
+				Input: json.RawMessage(
+					`{"workspace_id":"ws-stable","session_id":"sess-hooks","event":"tool.pre_call","outcome":"applied","last":1}`,
+				),
 			},
 		)
 		if err != nil {
@@ -815,6 +884,34 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeStructuredExcludes(t, runsResult, []byte(`secret-value`))
 		if observer.catalogCall != 2 {
 			t.Fatalf("QueryHookCatalog calls = %d, want 2", observer.catalogCall)
+		}
+		if observer.hookRunCalls != 1 || observer.lastHookRunQuery.SessionID != "sess-hooks" {
+			t.Fatalf("QueryHookRuns query = %#v after %d calls", observer.lastHookRunQuery, observer.hookRunCalls)
+		}
+
+		foreignObserver := &nativeObserverStub{runs: observer.runs}
+		foreignRegistry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Observer: foreignObserver,
+			Sessions: apitest.StubSessionManager{
+				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+					return &session.Info{ID: strings.TrimSpace(id), WorkspaceID: "ws-other"}, nil
+				},
+			},
+			Workspaces: workspaces,
+		}, nativeApproveAllPolicyInputs())
+		_, err = foreignRegistry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDHooksRuns,
+				Input:  json.RawMessage(`{"workspace_id":"ws-stable","session_id":"sess-hooks"}`),
+			},
+		)
+		if err == nil {
+			t.Fatal("Registry.Call(hooks_runs foreign session) error = nil, want non-nil")
+		}
+		if foreignObserver.hookRunCalls != 0 {
+			t.Fatalf("foreign QueryHookRuns calls = %d, want 0", foreignObserver.hookRunCalls)
 		}
 	})
 
@@ -1877,7 +1974,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			peers: []network.PeerInfo{{PeerID: "peer-1"}},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Network: networkService,
+			Network:    networkService,
+			Sessions:   nativeNetworkTestSessionManager(nativeNetworkTestWorkspaceID),
+			Workspaces: nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
 		result, err := registry.Call(
@@ -1885,17 +1984,20 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDNetworkPeers,
-				Input:  json.RawMessage(`{"channel":"default"}`),
+				Input:  json.RawMessage(`{"workspace_id":"ws-native-network","channel":"default"}`),
 			},
 		)
 		if err != nil {
 			t.Fatalf("Registry.Call(network_peers) error = %v", err)
 		}
 		requireNativeStructuredContains(t, result, []byte(`"peer-1"`))
-		if networkService.peersCalls != 1 || networkService.peersChannel != "default" {
+		if networkService.peersCalls != 1 ||
+			networkService.peersWorkspaceID != nativeNetworkTestWorkspaceID ||
+			networkService.peersChannel != "default" {
 			t.Fatalf(
-				"ListPeers calls/channel = %d/%q, want default channel",
+				"ListPeers calls/workspace/channel = %d/%q/%q, want native workspace/default channel",
 				networkService.peersCalls,
+				networkService.peersWorkspaceID,
 				networkService.peersChannel,
 			)
 		}
@@ -1916,7 +2018,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			}},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Network: networkService,
+			Network:    networkService,
+			Sessions:   nativeNetworkTestSessionManager(nativeNetworkTestWorkspaceID),
+			Workspaces: nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
 		statusResult, err := registry.Call(
@@ -1932,7 +2036,10 @@ func TestDaemonNativeTools(t *testing.T) {
 		channelsResult, err := registry.Call(
 			t.Context(),
 			toolspkg.Scope{},
-			toolspkg.CallRequest{ToolID: toolspkg.ToolIDNetworkChannels},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDNetworkChannels,
+				Input:  json.RawMessage(`{"workspace_id":"ws-native-network"}`),
+			},
 		)
 		if err != nil {
 			t.Fatalf("Registry.Call(network_channels) error = %v", err)
@@ -1942,7 +2049,10 @@ func TestDaemonNativeTools(t *testing.T) {
 		inboxResult, err := registry.Call(
 			t.Context(),
 			toolspkg.Scope{SessionID: "sess-1"},
-			toolspkg.CallRequest{ToolID: toolspkg.ToolIDNetworkInbox},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDNetworkInbox,
+				Input:  json.RawMessage(`{"workspace_id":"ws-native-network"}`),
+			},
 		)
 		if err != nil {
 			t.Fatalf("Registry.Call(network_inbox) error = %v", err)
@@ -1963,7 +2073,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			sendErr: fmt.Errorf("%w: session=sess-missing", network.ErrLocalPeerNotFound),
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Network: networkService,
+			Network:    networkService,
+			Sessions:   nativeNetworkTestSessionManager(nativeNetworkTestWorkspaceID),
+			Workspaces: nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
 		_, err := registry.Call(
@@ -1972,7 +2084,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDNetworkSend,
 				Input: json.RawMessage(
-					`{"session_id":"sess-missing","channel":"default","surface":"thread","thread_id":"thread_native_send","kind":"say","body":{"text":"hello"}}`,
+					`{"workspace_id":"ws-native-network","session_id":"sess-missing","channel":"default","surface":"thread","thread_id":"thread_native_send","kind":"say","body":{"text":"hello"}}`,
 				),
 			},
 		)
@@ -1998,7 +2110,12 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		now := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
 		sessionID := "sess-local"
-		directID, peerA, peerB, err := network.DirectRoomIdentity("builders", "coder.sess-abc", "reviewer.sess-xyz")
+		directID, peerA, peerB, err := network.DirectRoomIdentity(
+			nativeNetworkTestWorkspaceID,
+			"builders",
+			"coder.sess-abc",
+			"reviewer.sess-xyz",
+		)
 		if err != nil {
 			t.Fatalf("DirectRoomIdentity() error = %v", err)
 		}
@@ -2007,14 +2124,16 @@ func TestDaemonNativeTools(t *testing.T) {
 		storeStub := apitest.StubNetworkStore{
 			ListThreadsFn: func(
 				_ context.Context,
-				channel string,
+				ref store.NetworkChannelRef,
 				query store.NetworkThreadQuery,
 			) ([]store.NetworkThreadSummary, error) {
-				if channel != "builders" || query.Limit != 2 || query.After != "thread_root" {
-					t.Fatalf("ListThreads channel/query = %q/%#v, want requested filters", channel, query)
+				if ref.WorkspaceID != nativeNetworkTestWorkspaceID || ref.Channel != "builders" || query.Limit != 2 ||
+					query.After != "thread_root" {
+					t.Fatalf("ListThreads ref/query = %#v/%#v, want requested filters", ref, query)
 				}
 				return []store.NetworkThreadSummary{{
-					Channel:            channel,
+					WorkspaceID:        ref.WorkspaceID,
+					Channel:            ref.Channel,
 					ThreadID:           "thread_launch",
 					RootMessageID:      "msg_thread_root",
 					Title:              "Launch",
@@ -2030,14 +2149,17 @@ func TestDaemonNativeTools(t *testing.T) {
 			},
 			ListDirectRoomsFn: func(
 				_ context.Context,
-				channel string,
+				ref store.NetworkChannelRef,
 				query store.NetworkDirectRoomQuery,
 			) ([]store.NetworkDirectRoomSummary, error) {
-				if channel != "builders" || query.PeerID != "reviewer.sess-xyz" || query.Limit != 3 {
-					t.Fatalf("ListDirectRooms channel/query = %q/%#v, want requested filters", channel, query)
+				if ref.WorkspaceID != nativeNetworkTestWorkspaceID || ref.Channel != "builders" ||
+					query.PeerID != "reviewer.sess-xyz" ||
+					query.Limit != 3 {
+					t.Fatalf("ListDirectRooms ref/query = %#v/%#v, want requested filters", ref, query)
 				}
 				return []store.NetworkDirectRoomSummary{{
-					Channel:            channel,
+					WorkspaceID:        ref.WorkspaceID,
+					Channel:            ref.Channel,
 					DirectID:           directID,
 					PeerA:              peerA,
 					PeerB:              peerB,
@@ -2053,7 +2175,8 @@ func TestDaemonNativeTools(t *testing.T) {
 				entry store.NetworkDirectRoomEntry,
 			) (store.NetworkDirectRoomSummary, error) {
 				resolveCalls++
-				if entry.Channel != "builders" || entry.DirectID != directID || entry.PeerA != peerA ||
+				if entry.WorkspaceID != nativeNetworkTestWorkspaceID || entry.Channel != "builders" ||
+					entry.DirectID != directID || entry.PeerA != peerA ||
 					entry.PeerB != peerB {
 					t.Fatalf("ResolveDirectRoom entry = %#v, want deterministic direct room", entry)
 				}
@@ -2061,6 +2184,7 @@ func TestDaemonNativeTools(t *testing.T) {
 					return summary, nil
 				}
 				summary := store.NetworkDirectRoomSummary{
+					WorkspaceID:        entry.WorkspaceID,
 					Channel:            entry.Channel,
 					DirectID:           entry.DirectID,
 					PeerA:              entry.PeerA,
@@ -2081,7 +2205,8 @@ func TestDaemonNativeTools(t *testing.T) {
 			) ([]store.NetworkConversationMessage, error) {
 				switch ref.Surface {
 				case store.NetworkSurfaceThread:
-					if ref.Channel != "builders" || ref.ThreadID != "thread_launch" ||
+					if ref.WorkspaceID != nativeNetworkTestWorkspaceID || ref.Channel != "builders" ||
+						ref.ThreadID != "thread_launch" ||
 						query.Kind != store.NetworkKindSay || query.WorkID != "work_launch" {
 						t.Fatalf("ListConversationMessages thread ref/query = %#v/%#v", ref, query)
 					}
@@ -2100,7 +2225,8 @@ func TestDaemonNativeTools(t *testing.T) {
 						Timestamp:   now,
 					}}, nil
 				case store.NetworkSurfaceDirect:
-					if ref.Channel != "builders" || ref.DirectID != directID || query.Limit != 4 {
+					if ref.WorkspaceID != nativeNetworkTestWorkspaceID || ref.Channel != "builders" ||
+						ref.DirectID != directID || query.Limit != 4 {
 						t.Fatalf("ListConversationMessages direct ref/query = %#v/%#v", ref, query)
 					}
 					return []store.NetworkConversationMessage{{
@@ -2121,12 +2247,17 @@ func TestDaemonNativeTools(t *testing.T) {
 					return nil, nil
 				}
 			},
-			GetWorkFn: func(_ context.Context, workID string) (store.NetworkWorkEntry, error) {
-				if workID != "work_launch" {
-					t.Fatalf("GetWork workID = %q, want work_launch", workID)
+			GetWorkFn: func(_ context.Context, workspaceID string, workID string) (store.NetworkWorkEntry, error) {
+				if workspaceID != nativeNetworkTestWorkspaceID || workID != "work_launch" {
+					t.Fatalf(
+						"GetWork workspaceID/workID = %q/%q, want native workspace/work_launch",
+						workspaceID,
+						workID,
+					)
 				}
 				return store.NetworkWorkEntry{
 					WorkID:          workID,
+					WorkspaceID:     workspaceID,
 					Channel:         "builders",
 					Surface:         store.NetworkSurfaceThread,
 					ThreadID:        "thread_launch",
@@ -2148,6 +2279,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Network:      networkService,
 			NetworkStore: storeStub,
+			Workspaces:   nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
 		threadsResult, err := registry.Call(
@@ -2155,7 +2287,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDNetworkThreads,
-				Input:  json.RawMessage(`{"channel":"builders","limit":2,"after":"thread_root"}`),
+				Input: json.RawMessage(
+					`{"workspace_id":"ws-native-network","channel":"builders","limit":2,"after":"thread_root"}`,
+				),
 			},
 		)
 		if err != nil {
@@ -2169,7 +2303,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDNetworkThreadMessages,
 				Input: json.RawMessage(
-					`{"channel":"builders","thread_id":"thread_launch","kind":"say","work_id":"work_launch","limit":5}`,
+					`{"workspace_id":"ws-native-network","channel":"builders","thread_id":"thread_launch","kind":"say","work_id":"work_launch","limit":5}`,
 				),
 			},
 		)
@@ -2185,7 +2319,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDNetworkDirects,
-				Input:  json.RawMessage(`{"channel":"builders","peer_id":"reviewer.sess-xyz","limit":3}`),
+				Input: json.RawMessage(
+					`{"workspace_id":"ws-native-network","channel":"builders","peer_id":"reviewer.sess-xyz","limit":3}`,
+				),
 			},
 		)
 		if err != nil {
@@ -2199,7 +2335,9 @@ func TestDaemonNativeTools(t *testing.T) {
 				toolspkg.Scope{SessionID: sessionID},
 				toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDNetworkDirectResolve,
-					Input:  json.RawMessage(`{"channel":"builders","peer_id":"reviewer.sess-xyz"}`),
+					Input: json.RawMessage(
+						`{"workspace_id":"ws-native-network","channel":"builders","peer_id":"reviewer.sess-xyz"}`,
+					),
 				},
 			)
 			if err != nil {
@@ -2222,7 +2360,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				ToolID: toolspkg.ToolIDNetworkDirectMessages,
 				Input: json.RawMessage(
 					fmt.Sprintf(
-						`{"channel":"builders","direct_id":%q,"kind":"trace","work_id":"work_direct","limit":4}`,
+						`{"workspace_id":"ws-native-network","channel":"builders","direct_id":%q,"kind":"trace","work_id":"work_direct","limit":4}`,
 						directID,
 					),
 				),
@@ -2238,7 +2376,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDNetworkWork,
-				Input:  json.RawMessage(`{"work_id":"work_launch"}`),
+				Input:  json.RawMessage(`{"workspace_id":"ws-native-network","work_id":"work_launch"}`),
 			},
 		)
 		if err != nil {
@@ -2254,23 +2392,25 @@ func TestDaemonNativeTools(t *testing.T) {
 
 			networkService := &nativeNetworkStub{}
 			registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-				Network: networkService,
+				Network:    networkService,
+				Sessions:   nativeNetworkTestSessionManager(nativeNetworkTestWorkspaceID),
+				Workspaces: nativeNetworkTestWorkspaceService(t),
 			}, nativeApproveAllPolicyInputs())
 			invalidPayloads := []json.RawMessage{
 				json.RawMessage(
-					`{"session_id":"sess-scope","channel":"","surface":"thread","thread_id":"thread_bad","kind":"say","body":{"text":"blank channel"}}`,
+					`{"workspace_id":"ws-native-network","session_id":"sess-scope","channel":"","surface":"thread","thread_id":"thread_bad","kind":"say","body":{"text":"blank channel"}}`,
 				),
 				json.RawMessage(
-					`{"session_id":"sess-scope","channel":"default","surface":"thread","kind":"say","body":{"text":"missing thread"}}`,
+					`{"workspace_id":"ws-native-network","session_id":"sess-scope","channel":"default","surface":"thread","kind":"say","body":{"text":"missing thread"}}`,
 				),
 				json.RawMessage(
-					`{"session_id":"sess-scope","channel":"default","surface":"direct","kind":"say","body":{"text":"missing direct"}}`,
+					`{"workspace_id":"ws-native-network","session_id":"sess-scope","channel":"default","surface":"direct","kind":"say","body":{"text":"missing direct"}}`,
 				),
 				json.RawMessage(
-					`{"session_id":"sess-scope","channel":"default","surface":"thread","thread_id":"thread_bad","direct_id":"direct_99401d24bee62651d189e5a561785466","kind":"say","body":{"text":"both"}}`,
+					`{"workspace_id":"ws-native-network","session_id":"sess-scope","channel":"default","surface":"thread","thread_id":"thread_bad","direct_id":"direct_99401d24bee62651d189e5a561785466","kind":"say","body":{"text":"both"}}`,
 				),
 				json.RawMessage(
-					`{"session_id":"sess-scope","channel":"default","surface":"thread","thread_id":"thread_bad","kind":"receipt","body":{"status":"accepted"}}`,
+					`{"workspace_id":"ws-native-network","session_id":"sess-scope","channel":"default","surface":"thread","thread_id":"thread_bad","kind":"receipt","body":{"status":"accepted"}}`,
 				),
 			}
 			for _, input := range invalidPayloads {
@@ -2302,56 +2442,62 @@ func TestDaemonNativeTools(t *testing.T) {
 			{
 				name:  "Should reject blank thread list channel",
 				id:    toolspkg.ToolIDNetworkThreads,
-				input: json.RawMessage(`{"channel":""}`),
+				input: json.RawMessage(`{"workspace_id":"ws-native-network","channel":""}`),
 			},
 			{
 				name:  "Should reject negative thread list limit",
 				id:    toolspkg.ToolIDNetworkThreads,
-				input: json.RawMessage(`{"channel":"builders","limit":-1}`),
+				input: json.RawMessage(`{"workspace_id":"ws-native-network","channel":"builders","limit":-1}`),
 			},
 			{
 				name:  "Should reject invalid thread message container",
 				id:    toolspkg.ToolIDNetworkThreadMessages,
-				input: json.RawMessage(`{"channel":"builders","thread_id":"bad"}`),
+				input: json.RawMessage(`{"workspace_id":"ws-native-network","channel":"builders","thread_id":"bad"}`),
 			},
 			{
 				name: "Should reject conflicting thread message cursors",
 				id:   toolspkg.ToolIDNetworkThreadMessages,
 				input: json.RawMessage(
-					`{"channel":"builders","thread_id":"thread_launch","before":"msg_later","after":"msg_earlier"}`,
+					`{"workspace_id":"ws-native-network","channel":"builders","thread_id":"thread_launch","before":"msg_later","after":"msg_earlier"}`,
 				),
 			},
 			{
 				name:  "Should reject negative direct list limit",
 				id:    toolspkg.ToolIDNetworkDirects,
-				input: json.RawMessage(`{"channel":"builders","limit":-1}`),
+				input: json.RawMessage(`{"workspace_id":"ws-native-network","channel":"builders","limit":-1}`),
 			},
 			{
 				name:  "Should reject invalid direct message container",
 				id:    toolspkg.ToolIDNetworkDirectMessages,
-				input: json.RawMessage(`{"channel":"builders","direct_id":"bad"}`),
+				input: json.RawMessage(`{"workspace_id":"ws-native-network","channel":"builders","direct_id":"bad"}`),
 			},
 			{
-				name:  "Should require direct resolve caller session",
-				id:    toolspkg.ToolIDNetworkDirectResolve,
-				input: json.RawMessage(`{"channel":"builders","peer_id":"coder.sess-abc"}`),
+				name: "Should require direct resolve caller session",
+				id:   toolspkg.ToolIDNetworkDirectResolve,
+				input: json.RawMessage(
+					`{"workspace_id":"ws-native-network","channel":"builders","peer_id":"coder.sess-abc"}`,
+				),
 			},
 			{
 				name:  "Should reject invalid direct resolve peer id",
 				scope: toolspkg.Scope{SessionID: sessionID},
 				id:    toolspkg.ToolIDNetworkDirectResolve,
-				input: json.RawMessage(`{"channel":"builders","peer_id":"bad peer"}`),
+				input: json.RawMessage(
+					`{"workspace_id":"ws-native-network","channel":"builders","peer_id":"bad peer"}`,
+				),
 			},
 			{
 				name:  "Should reject same-peer direct resolve",
 				scope: toolspkg.Scope{SessionID: sessionID},
 				id:    toolspkg.ToolIDNetworkDirectResolve,
-				input: json.RawMessage(`{"channel":"builders","peer_id":"coder.sess-abc"}`),
+				input: json.RawMessage(
+					`{"workspace_id":"ws-native-network","channel":"builders","peer_id":"coder.sess-abc"}`,
+				),
 			},
 			{
 				name:  "Should reject invalid work lookup id",
 				id:    toolspkg.ToolIDNetworkWork,
-				input: json.RawMessage(`{"work_id":"bad/path"}`),
+				input: json.RawMessage(`{"workspace_id":"ws-native-network","work_id":"bad/path"}`),
 			},
 		}
 		for _, tc := range cases {
@@ -2369,6 +2515,7 @@ func TestDaemonNativeTools(t *testing.T) {
 				registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 					Network:      networkService,
 					NetworkStore: apitest.StubNetworkStore{},
+					Workspaces:   nativeNetworkTestWorkspaceService(t),
 				}, nativeApproveAllPolicyInputs())
 				_, err := registry.Call(t.Context(), tc.scope, toolspkg.CallRequest{ToolID: tc.id, Input: tc.input})
 				requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
@@ -2391,13 +2538,16 @@ func TestDaemonNativeTools(t *testing.T) {
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Network:      networkService,
 			NetworkStore: apitest.StubNetworkStore{},
+			Workspaces:   nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 		_, err := registry.Call(
 			t.Context(),
 			toolspkg.Scope{SessionID: sessionID},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDNetworkDirectResolve,
-				Input:  json.RawMessage(`{"channel":"builders","peer_id":"reviewer.sess-xyz"}`),
+				Input: json.RawMessage(
+					`{"workspace_id":"ws-native-network","channel":"builders","peer_id":"reviewer.sess-xyz"}`,
+				),
 			},
 		)
 		if !errors.Is(err, network.ErrTargetPeerNotFound) || !errors.Is(err, toolspkg.ErrToolBackendFailed) {
@@ -2413,11 +2563,12 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		storeErr := errors.New("direct list failed")
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Network: &nativeNetworkStub{},
+			Network:    &nativeNetworkStub{},
+			Workspaces: nativeNetworkTestWorkspaceService(t),
 			NetworkStore: apitest.StubNetworkStore{
 				ListDirectRoomsFn: func(
 					context.Context,
-					string,
+					store.NetworkChannelRef,
 					store.NetworkDirectRoomQuery,
 				) ([]store.NetworkDirectRoomSummary, error) {
 					return nil, storeErr
@@ -2429,7 +2580,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDNetworkDirects,
-				Input:  json.RawMessage(`{"channel":"builders","peer_id":"reviewer.sess-xyz"}`),
+				Input: json.RawMessage(
+					`{"workspace_id":"ws-native-network","channel":"builders","peer_id":"reviewer.sess-xyz"}`,
+				),
 			},
 		)
 		if !errors.Is(err, storeErr) || !errors.Is(err, toolspkg.ErrToolBackendFailed) {
@@ -2442,7 +2595,9 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		networkService := &nativeNetworkStub{}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Network: networkService,
+			Network:    networkService,
+			Sessions:   nativeNetworkTestSessionManager(nativeNetworkTestWorkspaceID),
+			Workspaces: nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
 		_, err := registry.Call(
@@ -2451,7 +2606,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDNetworkSend,
 				Input: json.RawMessage(
-					`{"session_id":"sess-scope","channel":"default","surface":"thread","thread_id":"thread_claim_token","kind":"say","body":{"claim_token":"agh_claim_SECRET123"}}`,
+					`{"workspace_id":"ws-native-network","session_id":"sess-scope","channel":"default","surface":"thread","thread_id":"thread_claim_token","kind":"say","body":{"claim_token":"agh_claim_SECRET123"}}`,
 				),
 			},
 		)
@@ -2471,7 +2626,9 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		networkService := &nativeNetworkStub{}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Network: networkService,
+			Network:    networkService,
+			Sessions:   nativeNetworkTestSessionManager("ws-1"),
+			Workspaces: nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 		executable, err := os.Executable()
 		if err != nil {
@@ -2527,7 +2684,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			BindID:   bind.BindID,
 			ToolName: toolspkg.ToolIDNetworkSend.String(),
 			Input: json.RawMessage(
-				`{"session_id":"sess-scope","channel":"default","surface":"thread","thread_id":"thread_claim_token","kind":"say","body":{"claim_token":"agh_claim_HOSTED123"}}`,
+				`{"workspace_id":"ws-1","session_id":"sess-scope","channel":"default","surface":"thread","thread_id":"thread_claim_token","kind":"say","body":{"claim_token":"agh_claim_HOSTED123"}}`,
 			),
 		}, peer)
 		var toolErr *toolspkg.ToolError
@@ -2548,6 +2705,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Network:      networkService,
 			NetworkStore: apitest.StubNetworkStore{},
+			Workspaces:   nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 		executable, err := os.Executable()
 		if err != nil {
@@ -2632,13 +2790,34 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
+		stableWorkspaceID := "ws-stable"
+		registryWorkspaceID := "ws-1"
+		foreignStableWorkspaceID := "ws-foreign-stable"
 		info := &session.Info{
 			ID:          "sess-1",
 			AgentName:   "coder",
-			WorkspaceID: "ws-1",
+			WorkspaceID: registryWorkspaceID,
 			State:       session.StateActive,
 			CreatedAt:   now,
 			UpdatedAt:   now,
+		}
+		workspaces := apitest.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				switch ref {
+				case stableWorkspaceID, registryWorkspaceID:
+					return workspacepkg.ResolvedWorkspace{
+						Workspace:   workspacepkg.Workspace{ID: registryWorkspaceID},
+						WorkspaceID: stableWorkspaceID,
+					}, nil
+				case foreignStableWorkspaceID, "ws-other":
+					return workspacepkg.ResolvedWorkspace{
+						Workspace:   workspacepkg.Workspace{ID: "ws-other"},
+						WorkspaceID: foreignStableWorkspaceID,
+					}, nil
+				default:
+					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+				}
+			},
 		}
 		manager := apitest.StubSessionManager{
 			ListAllFn: func(context.Context) ([]*session.Info, error) {
@@ -2685,7 +2864,8 @@ func TestDaemonNativeTools(t *testing.T) {
 			},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Sessions: manager,
+			Workspaces: workspaces,
+			Sessions:   manager,
 		}, nativeApproveAllPolicyInputs())
 
 		for _, tc := range []struct {
@@ -2694,10 +2874,10 @@ func TestDaemonNativeTools(t *testing.T) {
 			want  []byte
 		}{
 			{toolspkg.ToolIDSessionList, nil, []byte(`"sess-1"`)},
-			{toolspkg.ToolIDSessionStatus, json.RawMessage(`{"session_id":"sess-1"}`), []byte(`"session"`)},
-			{toolspkg.ToolIDSessionEvents, json.RawMessage(`{"session_id":"sess-1","limit":1}`), []byte(`"event-1"`)},
-			{toolspkg.ToolIDSessionHistory, json.RawMessage(`{"session_id":"sess-1","limit":1}`), []byte(`"turn-1"`)},
-			{toolspkg.ToolIDSessionDescribe, json.RawMessage(`{"session_id":"sess-1","limit":1}`), []byte(`"history"`)},
+			{toolspkg.ToolIDSessionStatus, json.RawMessage(`{"workspace_id":"ws-stable","session_id":"sess-1"}`), []byte(`"session"`)},
+			{toolspkg.ToolIDSessionEvents, json.RawMessage(`{"workspace_id":"ws-stable","session_id":"sess-1","limit":1}`), []byte(`"event-1"`)},
+			{toolspkg.ToolIDSessionHistory, json.RawMessage(`{"workspace_id":"ws-stable","session_id":"sess-1","limit":1}`), []byte(`"turn-1"`)},
+			{toolspkg.ToolIDSessionDescribe, json.RawMessage(`{"workspace_id":"ws-stable","session_id":"sess-1","limit":1}`), []byte(`"history"`)},
 		} {
 			t.Run(tc.id.String(), func(t *testing.T) {
 				result, err := registry.Call(
@@ -2710,6 +2890,18 @@ func TestDaemonNativeTools(t *testing.T) {
 				}
 				requireNativeStructuredContains(t, result, tc.want)
 			})
+		}
+
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionStatus,
+				Input:  json.RawMessage(`{"workspace_id":"ws-foreign-stable","session_id":"sess-1"}`),
+			},
+		)
+		if err == nil {
+			t.Fatal("Registry.Call(session_status foreign workspace) error = nil, want ownership rejection")
 		}
 	})
 
@@ -2739,6 +2931,7 @@ func TestDaemonNativeTools(t *testing.T) {
 						RootDir: "/workspace/agh",
 						Name:    "agh",
 					},
+					WorkspaceID: "ws-1",
 					Config: aghconfig.Config{
 						Agents: aghconfig.AgentsConfig{Heartbeat: aghconfig.DefaultHeartbeatConfig()},
 					},
@@ -2795,7 +2988,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			ExpiresAt:        now.Add(time.Hour),
 		}}}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Workspaces:        nativeNetworkTestWorkspaceService(t),
 			WorkspaceResolver: workspace,
+			Sessions:          nativeNetworkTestSessionManager("ws-1"),
 			SessionHealth:     nativeSessionHealthStub{health: health},
 			HeartbeatStatus:   status,
 			HeartbeatWake:     wake,
@@ -2807,7 +3002,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDSessionHealth,
-				Input:  json.RawMessage(`{"session_id":"sess-heartbeat"}`),
+				Input:  json.RawMessage(`{"workspace_id":"ws-1","session_id":"sess-heartbeat"}`),
 			},
 		)
 		if err != nil {
@@ -2854,6 +3049,46 @@ func TestDaemonNativeTools(t *testing.T) {
 			wake.last.Source != heartbeat.WakeSourceManual {
 			t.Fatalf("heartbeat wake request = %#v, want managed manual wake target", wake.last)
 		}
+		if status.calls != 1 {
+			t.Fatalf("heartbeat status calls = %d, want 1 after owned session status", status.calls)
+		}
+		if wake.calls != 1 {
+			t.Fatalf("heartbeat wake calls = %d, want 1 after owned session wake", wake.calls)
+		}
+
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAgentHeartbeatStatus,
+				Input: json.RawMessage(
+					[]byte(
+						"{\"workspace_id\":\"ws-foreign\",\"agent_name\":\"coder\",\"session_id\":\"sess-heartbeat\",\"include_session_health\":true}",
+					),
+				),
+			},
+		)
+		requireToolCode(t, err, toolspkg.ErrorCodeBackendFailed)
+		if status.calls != 1 {
+			t.Fatalf("heartbeat status calls = %d, want unchanged after foreign workspace rejection", status.calls)
+		}
+
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAgentHeartbeatWake,
+				Input: json.RawMessage(
+					[]byte(
+						"{\"workspace_id\":\"ws-foreign\",\"agent_name\":\"coder\",\"session_id\":\"sess-heartbeat\",\"dry_run\":true}",
+					),
+				),
+			},
+		)
+		requireToolCode(t, err, toolspkg.ErrorCodeBackendFailed)
+		if wake.calls != 1 {
+			t.Fatalf("heartbeat wake calls = %d, want unchanged after foreign workspace rejection", wake.calls)
+		}
 	})
 
 	t.Run("Should read workspace tools through the existing workspace service boundary", func(t *testing.T) {
@@ -2888,9 +3123,10 @@ func TestDaemonNativeTools(t *testing.T) {
 					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 				}
 				return workspacepkg.ResolvedWorkspace{
-					Workspace: workspace,
-					Agents:    []aghconfig.AgentDef{{Name: "coder", Provider: "codex"}},
-					Skills:    []workspacepkg.SkillPath{{Dir: "/workspace/agh/skills/review", Source: "workspace"}},
+					Workspace:   workspace,
+					WorkspaceID: "ws-1",
+					Agents:      []aghconfig.AgentDef{{Name: "coder", Provider: "codex"}},
+					Skills:      []workspacepkg.SkillPath{{Dir: "/workspace/agh/skills/review", Source: "workspace"}},
 				}, nil
 			},
 		}
@@ -3167,6 +3403,8 @@ func TestDaemonNativeTools(t *testing.T) {
 			MemoryExtractor:     extractor,
 			MemoryProviders:     providers,
 			MemorySessionLedger: ledger,
+			Sessions:            nativeNetworkTestSessionManager("ws-1"),
+			Workspaces:          nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
 		healthResult, err := registry.Call(
@@ -3214,7 +3452,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMemorySessionLedger,
-				Input:  json.RawMessage(`{"session_id":"sess-memory"}`),
+				Input:  json.RawMessage(`{"workspace_id":"ws-1","session_id":"sess-memory"}`),
 			},
 		)
 		if err != nil {
@@ -3223,6 +3461,45 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeStructuredContains(t, ledgerResult, []byte(`"session_id":"sess-memory"`))
 		if ledger.getCalls != 1 || ledger.lastSessionID != "sess-memory" {
 			t.Fatalf("session ledger id = %q after %d calls", ledger.lastSessionID, ledger.getCalls)
+		}
+
+		foreignLedger := &nativeMemorySessionLedgerService{}
+		foreignRegistry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			MemorySessionLedger: foreignLedger,
+			Sessions: apitest.StubSessionManager{
+				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+					return &session.Info{ID: strings.TrimSpace(id), WorkspaceID: "ws-other"}, nil
+				},
+			},
+			Workspaces: nativeNetworkTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		for _, tc := range []struct {
+			name  string
+			id    toolspkg.ToolID
+			input json.RawMessage
+		}{
+			{
+				name:  "session ledger",
+				id:    toolspkg.ToolIDMemorySessionLedger,
+				input: json.RawMessage(`{"workspace_id":"ws-1","session_id":"sess-memory"}`),
+			},
+			{
+				name:  "session replay",
+				id:    toolspkg.ToolIDMemorySessionReplay,
+				input: json.RawMessage(`{"workspace_id":"ws-1","session_id":"sess-memory"}`),
+			},
+		} {
+			_, err := foreignRegistry.Call(
+				t.Context(),
+				toolspkg.Scope{},
+				toolspkg.CallRequest{ToolID: tc.id, Input: tc.input},
+			)
+			if err == nil {
+				t.Fatalf("Registry.Call(%s foreign session) error = nil, want non-nil", tc.name)
+			}
+		}
+		if foreignLedger.totalCalls() != 0 {
+			t.Fatalf("foreign memory ledger calls = %d, want 0", foreignLedger.totalCalls())
 		}
 
 		_, err = registry.Get(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.ToolIDMemoryAdminHistory)
@@ -3428,14 +3705,14 @@ func TestDaemonNativeTools(t *testing.T) {
 			{
 				name:  "session ledger",
 				id:    toolspkg.ToolIDMemorySessionLedger,
-				input: staticNativeInput(`{"session_id":"sess-memory"}`),
+				input: staticNativeInput(`{"workspace_id":"ws-1","session_id":"sess-memory"}`),
 				want:  []byte(`"session_id":"sess-memory"`),
 			},
 			{
 				name: "session replay",
 				id:   toolspkg.ToolIDMemorySessionReplay,
 				input: staticNativeInput(
-					`{"session_id":"sess-memory","include_tool_events":true,"include_memory":true}`,
+					`{"workspace_id":"ws-1","session_id":"sess-memory","include_tool_events":true,"include_memory":true}`,
 				),
 				want: []byte(`"session_id":"sess-memory"`),
 			},
@@ -3936,7 +4213,8 @@ func TestDaemonNativeTools(t *testing.T) {
 			},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Observer: observer,
+			Observer:   observer,
+			Workspaces: nativeNetworkTestWorkspaceService(t),
 		}, nativeApproveAllPolicyInputs())
 
 		eventsResult, err := registry.Call(
@@ -3944,7 +4222,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDObserveEvents,
-				Input:  json.RawMessage(`{"limit":1}`),
+				Input:  json.RawMessage(`{"workspace_id":"ws-native-network","limit":1}`),
 			},
 		)
 		if err != nil {
@@ -3958,7 +4236,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDObserveEvents,
-				Input:  json.RawMessage(`{"session_id":"sess-2","since":"2026-04-29T15:00:00Z"}`),
+				Input: json.RawMessage(
+					`{"workspace_id":"ws-native-network","session_id":"sess-2","since":"2026-04-29T15:00:00Z"}`,
+				),
 			},
 		)
 		if err != nil {
@@ -3972,7 +4252,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDObserveSearch,
-				Input:  json.RawMessage(`{"query":"deploy","limit":10}`),
+				Input:  json.RawMessage(`{"workspace_id":"ws-native-network","query":"deploy","limit":10}`),
 			},
 		)
 		if err != nil {
@@ -4010,7 +4290,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDObserveSearch,
-				Input:  json.RawMessage(`{"query":""}`),
+				Input:  json.RawMessage(`{"workspace_id":"ws-native-network","query":""}`),
 			},
 		)
 		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
@@ -4546,6 +4826,8 @@ func newNativeMemoryAdminFixture(t *testing.T) nativeMemoryAdminFixture {
 		MemoryExtractor:     extractor,
 		MemoryProviders:     providers,
 		MemorySessionLedger: ledger,
+		Sessions:            nativeNetworkTestSessionManager("ws-1"),
+		Workspaces:          nativeNetworkTestWorkspaceService(t),
 	}, nativeApproveAllPolicyInputs())
 	return nativeMemoryAdminFixture{
 		registry:      registry,
@@ -5034,13 +5316,15 @@ func (b *nativeHookBindingsStub) Sync(context.Context) error {
 }
 
 type nativeObserverStub struct {
-	catalog        []hookspkg.CatalogEntry
-	catalogCall    int
-	runs           []hookspkg.HookRunRecord
-	events         []hookspkg.EventDescriptor
-	eventSummaries []store.EventSummary
-	bridgeHealth   []observe.BridgeInstanceHealth
-	health         observe.Health
+	catalog          []hookspkg.CatalogEntry
+	catalogCall      int
+	runs             []hookspkg.HookRunRecord
+	hookRunCalls     int
+	lastHookRunQuery store.HookRunQuery
+	events           []hookspkg.EventDescriptor
+	eventSummaries   []store.EventSummary
+	bridgeHealth     []observe.BridgeInstanceHealth
+	health           observe.Health
 }
 
 func (o *nativeObserverStub) QueryEvents(
@@ -5078,9 +5362,11 @@ func (o *nativeObserverStub) QueryHookCatalog(
 }
 
 func (o *nativeObserverStub) QueryHookRuns(
-	context.Context,
-	store.HookRunQuery,
+	_ context.Context,
+	query store.HookRunQuery,
 ) ([]hookspkg.HookRunRecord, error) {
+	o.hookRunCalls++
+	o.lastHookRunQuery = query
 	return append([]hookspkg.HookRunRecord(nil), o.runs...), nil
 }
 
@@ -5118,19 +5404,21 @@ func (o *nativeObserverStub) QueryTaskInbox(
 }
 
 type nativeNetworkStub struct {
-	sendErr        error
-	sendCalls      int
-	lastSend       network.SendRequest
-	peers          []network.PeerInfo
-	peersCalls     int
-	peersChannel   string
-	status         *network.Status
-	statusCalls    int
-	channels       []network.ChannelInfo
-	channelsCalls  int
-	inbox          []network.Envelope
-	inboxCalls     int
-	inboxSessionID string
+	sendErr             error
+	sendCalls           int
+	lastSend            network.SendRequest
+	peers               []network.PeerInfo
+	peersCalls          int
+	peersWorkspaceID    string
+	peersChannel        string
+	status              *network.Status
+	statusCalls         int
+	channels            []network.ChannelInfo
+	channelsCalls       int
+	channelsWorkspaceID string
+	inbox               []network.Envelope
+	inboxCalls          int
+	inboxSessionID      string
 }
 
 func (n *nativeNetworkStub) Send(_ context.Context, req network.SendRequest) (string, error) {
@@ -5142,8 +5430,13 @@ func (n *nativeNetworkStub) Send(_ context.Context, req network.SendRequest) (st
 	return "msg-1", nil
 }
 
-func (n *nativeNetworkStub) ListPeers(_ context.Context, channel string) ([]network.PeerInfo, error) {
+func (n *nativeNetworkStub) ListPeers(
+	_ context.Context,
+	workspaceID string,
+	channel string,
+) ([]network.PeerInfo, error) {
 	n.peersCalls++
+	n.peersWorkspaceID = workspaceID
 	n.peersChannel = channel
 	return append([]network.PeerInfo(nil), n.peers...), nil
 }
@@ -5152,8 +5445,9 @@ func (n *nativeNetworkStub) totalCalls() int {
 	return n.sendCalls + n.peersCalls + n.statusCalls + n.channelsCalls + n.inboxCalls
 }
 
-func (n *nativeNetworkStub) ListChannels(context.Context) ([]network.ChannelInfo, error) {
+func (n *nativeNetworkStub) ListChannels(_ context.Context, workspaceID string) ([]network.ChannelInfo, error) {
 	n.channelsCalls++
+	n.channelsWorkspaceID = workspaceID
 	return append([]network.ChannelInfo(nil), n.channels...), nil
 }
 
@@ -5194,6 +5488,7 @@ func (s nativeSessionHealthStub) GetSessionHealth(
 type nativeHeartbeatStatusStub struct {
 	result heartbeat.StatusResult
 	err    error
+	calls  int
 	last   heartbeat.StatusRequest
 }
 
@@ -5208,6 +5503,7 @@ func (s *nativeHeartbeatStatusStub) Status(
 	_ context.Context,
 	req heartbeat.StatusRequest,
 ) (heartbeat.StatusResult, error) {
+	s.calls++
 	s.last = req
 	if s.err != nil {
 		return heartbeat.StatusResult{}, s.err
@@ -5218,6 +5514,7 @@ func (s *nativeHeartbeatStatusStub) Status(
 type nativeHeartbeatWakeStub struct {
 	result heartbeat.WakeDecision
 	err    error
+	calls  int
 	last   heartbeat.WakeRequest
 }
 
@@ -5225,6 +5522,7 @@ func (s *nativeHeartbeatWakeStub) Wake(
 	_ context.Context,
 	req heartbeat.WakeRequest,
 ) (heartbeat.WakeDecision, error) {
+	s.calls++
 	s.last = req
 	if s.err != nil {
 		return heartbeat.WakeDecision{}, s.err

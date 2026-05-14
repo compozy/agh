@@ -34,6 +34,9 @@ const mockPermissionData: AghPermissionData = {
   raw: { command: "rm -rf /tmp/test" },
 };
 
+const WORKSPACE_ID = "ws_alpha";
+const SESSION_ID = "sess-001";
+
 describe("PermissionPrompt — inline sticky anatomy", () => {
   beforeEach(() => {
     vi.mocked(approveSession).mockResolvedValue(undefined);
@@ -45,7 +48,12 @@ describe("PermissionPrompt — inline sticky anatomy", () => {
 
   it("Should mark the inline prompt as sticky-scroll so it stays in viewport", () => {
     render(
-      <PermissionPrompt permission={mockPermission} sessionId="sess-001" onResolved={vi.fn()} />
+      <PermissionPrompt
+        permission={mockPermission}
+        sessionId={SESSION_ID}
+        workspaceId={WORKSPACE_ID}
+        onResolved={vi.fn()}
+      />
     );
 
     const root = screen.getByTestId("permission-prompt");
@@ -54,7 +62,12 @@ describe("PermissionPrompt — inline sticky anatomy", () => {
 
   it("Should render a 24x24 tone tile coloured danger for high-stakes filesystem/network tools", () => {
     render(
-      <PermissionPrompt permission={mockPermission} sessionId="sess-001" onResolved={vi.fn()} />
+      <PermissionPrompt
+        permission={mockPermission}
+        sessionId={SESSION_ID}
+        workspaceId={WORKSPACE_ID}
+        onResolved={vi.fn()}
+      />
     );
 
     const root = screen.getByTestId("permission-prompt");
@@ -70,7 +83,12 @@ describe("PermissionPrompt — inline sticky anatomy", () => {
       resource: "agent todo list",
     };
     render(
-      <PermissionPrompt permission={safePermission} sessionId="sess-001" onResolved={vi.fn()} />
+      <PermissionPrompt
+        permission={safePermission}
+        sessionId={SESSION_ID}
+        workspaceId={WORKSPACE_ID}
+        onResolved={vi.fn()}
+      />
     );
 
     expect(screen.getByTestId("permission-prompt").getAttribute("data-tone")).toBe("warning");
@@ -79,7 +97,12 @@ describe("PermissionPrompt — inline sticky anatomy", () => {
 
   it("Should render tool name, action, and resource in the meta row", () => {
     render(
-      <PermissionPrompt permission={mockPermission} sessionId="sess-001" onResolved={vi.fn()} />
+      <PermissionPrompt
+        permission={mockPermission}
+        sessionId={SESSION_ID}
+        workspaceId={WORKSPACE_ID}
+        onResolved={vi.fn()}
+      />
     );
 
     expect(screen.getByText("Bash")).toBeInTheDocument();
@@ -89,7 +112,12 @@ describe("PermissionPrompt — inline sticky anatomy", () => {
 
   it("Should expose the four canonical decision buttons", () => {
     render(
-      <PermissionPrompt permission={mockPermission} sessionId="sess-001" onResolved={vi.fn()} />
+      <PermissionPrompt
+        permission={mockPermission}
+        sessionId={SESSION_ID}
+        workspaceId={WORKSPACE_ID}
+        onResolved={vi.fn()}
+      />
     );
 
     expect(screen.getByTestId("permission-allow-once")).toBeInTheDocument();
@@ -101,13 +129,18 @@ describe("PermissionPrompt — inline sticky anatomy", () => {
   it("Should call approveSession with allow-once on Allow Once click and resolve", async () => {
     const onResolved = vi.fn();
     render(
-      <PermissionPrompt permission={mockPermission} sessionId="sess-001" onResolved={onResolved} />
+      <PermissionPrompt
+        permission={mockPermission}
+        sessionId={SESSION_ID}
+        workspaceId={WORKSPACE_ID}
+        onResolved={onResolved}
+      />
     );
 
     fireEvent.click(screen.getByTestId("permission-allow-once"));
 
     await waitFor(() => {
-      expect(approveSession).toHaveBeenCalledWith("sess-001", {
+      expect(approveSession).toHaveBeenCalledWith(WORKSPACE_ID, SESSION_ID, {
         request_id: "req-123",
         turn_id: "",
         decision: "allow-once",
@@ -122,13 +155,18 @@ describe("PermissionPrompt — inline sticky anatomy", () => {
   it("Should call approveSession with allow-always on Allow Always click", async () => {
     const onResolved = vi.fn();
     render(
-      <PermissionPrompt permission={mockPermission} sessionId="sess-001" onResolved={onResolved} />
+      <PermissionPrompt
+        permission={mockPermission}
+        sessionId={SESSION_ID}
+        workspaceId={WORKSPACE_ID}
+        onResolved={onResolved}
+      />
     );
 
     fireEvent.click(screen.getByTestId("permission-allow-always"));
 
     await waitFor(() => {
-      expect(approveSession).toHaveBeenCalledWith("sess-001", {
+      expect(approveSession).toHaveBeenCalledWith(WORKSPACE_ID, SESSION_ID, {
         request_id: "req-123",
         turn_id: "",
         decision: "allow-always",
@@ -140,13 +178,18 @@ describe("PermissionPrompt — inline sticky anatomy", () => {
   it("Should call approveSession with reject-once on Reject Once click", async () => {
     const onResolved = vi.fn();
     render(
-      <PermissionPrompt permission={mockPermission} sessionId="sess-001" onResolved={onResolved} />
+      <PermissionPrompt
+        permission={mockPermission}
+        sessionId={SESSION_ID}
+        workspaceId={WORKSPACE_ID}
+        onResolved={onResolved}
+      />
     );
 
     fireEvent.click(screen.getByTestId("permission-reject-once"));
 
     await waitFor(() => {
-      expect(approveSession).toHaveBeenCalledWith("sess-001", {
+      expect(approveSession).toHaveBeenCalledWith(WORKSPACE_ID, SESSION_ID, {
         request_id: "req-123",
         turn_id: "",
         decision: "reject-once",
@@ -158,13 +201,18 @@ describe("PermissionPrompt — inline sticky anatomy", () => {
   it("Should call approveSession with reject-always on Reject Always click", async () => {
     const onResolved = vi.fn();
     render(
-      <PermissionPrompt permission={mockPermission} sessionId="sess-001" onResolved={onResolved} />
+      <PermissionPrompt
+        permission={mockPermission}
+        sessionId={SESSION_ID}
+        workspaceId={WORKSPACE_ID}
+        onResolved={onResolved}
+      />
     );
 
     fireEvent.click(screen.getByTestId("permission-reject-always"));
 
     await waitFor(() => {
-      expect(approveSession).toHaveBeenCalledWith("sess-001", {
+      expect(approveSession).toHaveBeenCalledWith(WORKSPACE_ID, SESSION_ID, {
         request_id: "req-123",
         turn_id: "",
         decision: "reject-always",
@@ -178,7 +226,12 @@ describe("PermissionPrompt — inline sticky anatomy", () => {
     const onResolved = vi.fn();
 
     render(
-      <PermissionPrompt permission={mockPermission} sessionId="sess-001" onResolved={onResolved} />
+      <PermissionPrompt
+        permission={mockPermission}
+        sessionId={SESSION_ID}
+        workspaceId={WORKSPACE_ID}
+        onResolved={onResolved}
+      />
     );
 
     fireEvent.click(screen.getByTestId("permission-allow-once"));
@@ -196,7 +249,12 @@ describe("PermissionPrompt — inline sticky anatomy", () => {
 
   it("Should render the tool input JSON when keys exist and hide when empty", () => {
     const { rerender } = render(
-      <PermissionPrompt permission={mockPermission} sessionId="sess-001" onResolved={vi.fn()} />
+      <PermissionPrompt
+        permission={mockPermission}
+        sessionId={SESSION_ID}
+        workspaceId={WORKSPACE_ID}
+        onResolved={vi.fn()}
+      />
     );
 
     const inputEl = screen.getByTestId("permission-tool-input");
@@ -206,7 +264,8 @@ describe("PermissionPrompt — inline sticky anatomy", () => {
     rerender(
       <PermissionPrompt
         permission={{ ...mockPermission, toolInput: {} }}
-        sessionId="sess-001"
+        sessionId={SESSION_ID}
+        workspaceId={WORKSPACE_ID}
         onResolved={vi.fn()}
       />
     );
@@ -216,7 +275,12 @@ describe("PermissionPrompt — inline sticky anatomy", () => {
 
   it("Should render the Permission Required eyebrow", () => {
     render(
-      <PermissionPrompt permission={mockPermission} sessionId="sess-001" onResolved={vi.fn()} />
+      <PermissionPrompt
+        permission={mockPermission}
+        sessionId={SESSION_ID}
+        workspaceId={WORKSPACE_ID}
+        onResolved={vi.fn()}
+      />
     );
 
     expect(screen.getByTestId("permission-prompt-eyebrow")).toHaveTextContent(
@@ -235,7 +299,13 @@ describe("PermissionDataPart", () => {
   });
 
   it("Should render an actionable prompt for pending permission data", () => {
-    render(<PermissionDataPart data={mockPermissionData} sessionId="sess-001" />);
+    render(
+      <PermissionDataPart
+        data={mockPermissionData}
+        sessionId={SESSION_ID}
+        workspaceId={WORKSPACE_ID}
+      />
+    );
 
     expect(screen.getByTestId("permission-prompt")).toBeInTheDocument();
     expect(screen.getByTestId("permission-allow-once")).toBeInTheDocument();
@@ -249,7 +319,8 @@ describe("PermissionDataPart", () => {
           ...mockPermissionData,
           decision: "allow-once",
         }}
-        sessionId="sess-001"
+        sessionId={SESSION_ID}
+        workspaceId={WORKSPACE_ID}
       />
     );
 
@@ -265,7 +336,8 @@ describe("PermissionDataPart", () => {
           ...mockPermissionData,
           decision: "reject-once",
         }}
-        sessionId="sess-001"
+        sessionId={SESSION_ID}
+        workspaceId={WORKSPACE_ID}
       />
     );
 

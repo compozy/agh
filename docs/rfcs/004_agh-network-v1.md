@@ -1,20 +1,28 @@
 # RFC: AGH Network v1
 
-- **Status:** Draft
+- **Status:** Future draft profile
 - **Authors:** AGH Core Team
 - **Created:** 2026-04-08
-- **Updated:** 2026-05-05
+- **Updated:** 2026-05-13
 - **Depends on:** `003_agh-network-v0`
 - **Primary addition:** `AGH Network Baseline Trust Profile`
+- **Runtime base:** [RFC 003: AGH Network v0](003_agh-network-v0.md) is the current workspace-qualified runtime contract.
 
 ---
 
+> This RFC is future auth/proofs/trust-profile work. It does not describe a shipped AGH Runtime
+> protocol version today. Current runtime and transport identity are defined by
+> [RFC 003](003_agh-network-v0.md): every envelope and NATS subject is scoped by a stable
+> `workspace_id` under `agh-network/v0`.
+
 ## Abstract
 
-`AGH Network v1` extends v0 with cryptographic identity verification, formal conformance levels, extension-key
-processing, and NATS request/reply guidance. The core conversation model remains the v0 model:
+`AGH Network v1` is the planned profile that extends v0 with cryptographic identity verification,
+formal conformance levels, extension-key processing, and NATS request/reply guidance. The core
+conversation model remains the v0 model:
 
-- `channel` is the audience and discovery scope.
+- `workspace_id` is the isolation boundary.
+- `channel` is the audience and discovery scope inside one workspace.
 - `surface:"thread"` with `thread_id` identifies a public thread.
 - `surface:"direct"` with `direct_id` identifies a two-party direct room.
 - `work_id` identifies lifecycle-bearing work inside one conversation container.
@@ -29,7 +37,7 @@ This RFC defines:
 6. Extension-key processing.
 7. NATS request/reply correlation and verified-peer route tokens.
 
-Everything defined in v0 remains normative unless this RFC explicitly tightens it.
+Everything defined in current v0 remains normative unless this future profile explicitly tightens it.
 
 ---
 
@@ -115,8 +123,8 @@ When a receiver processes a core envelope it MUST, in this order:
 4. Validate surface/container symmetry and reject legacy or unknown conversation fields.
 5. Evaluate expiration if `expires_at` is present.
 6. Evaluate trust state: check `proof` if present, or check `from` format if `proof` is absent.
-7. Route discovery messages by `kind`, `channel`, and `to`.
-8. Route conversation messages by `channel`, `surface`, matching container ID, and `to`.
+7. Route discovery messages by `kind`, `workspace_id`, `channel`, and `to`.
+8. Route conversation messages by `workspace_id`, `channel`, `surface`, matching container ID, and `to`.
 9. Apply work lifecycle semantics if `work_id` is present.
 10. Apply extension-specific handling only after successful core validation and trust classification.
 
@@ -338,7 +346,7 @@ When a peer is operating in baseline verified mode and its identity is a self-ce
 
 This means a verified peer's peer-targeted subject is:
 
-`agh.network.v1.<channel>.peer.<fingerprint>`
+`agh.network.v1.<workspace_id>.<channel>.peer.<fingerprint>`
 
 Where `<fingerprint>` is the first 32 hex characters from the `from` field.
 
@@ -351,7 +359,8 @@ The v1 subject prefix is:
 
 `agh.network.v1`
 
-This differs from v0's `agh.network.v0`. Peers that support both versions MUST subscribe to both prefixes.
+This differs from v0's `agh.network.v0`, but keeps the same workspace-qualified hierarchy. Peers
+that support both versions MUST subscribe to the appropriate workspace-qualified prefixes.
 
 ### 6.3 Request/reply behavior
 
@@ -406,6 +415,7 @@ will not verify until replaced by real signatures over the canonical bytes for t
 {
   "protocol": "agh-network/v1",
   "id": "msg_verified_thread_say_01",
+  "workspace_id": "ws_alpha",
   "kind": "say",
   "channel": "builders",
   "surface": "thread",
@@ -438,6 +448,7 @@ will not verify until replaced by real signatures over the canonical bytes for t
 {
   "protocol": "agh-network/v1",
   "id": "msg_verified_direct_trace_01",
+  "workspace_id": "ws_alpha",
   "kind": "trace",
   "channel": "builders",
   "surface": "direct",

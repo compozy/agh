@@ -42,6 +42,7 @@ import type {
   TaskViewMode,
 } from "@/systems/tasks";
 import { useActiveWorkspace } from "@/systems/workspace";
+import { workspaceFilterForActiveScope } from "./workspace-scope-filter";
 
 type TaskScopeFilter = "all" | TaskScope;
 type InboxLaneFilter = InboxLaneFilterId;
@@ -96,8 +97,7 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
 
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const deferredInboxQuery = useDeferredValue(inboxSearchQuery);
-  const scopedWorkspace =
-    scopeFilter === "workspace" ? (activeWorkspaceId ?? undefined) : undefined;
+  const scopedWorkspace = workspaceFilterForActiveScope(scopeFilter, activeWorkspaceId);
 
   const listFilters: TaskListFilter = useMemo(
     () => ({

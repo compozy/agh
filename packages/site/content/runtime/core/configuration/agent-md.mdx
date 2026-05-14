@@ -36,7 +36,7 @@ The parser is strict. Unknown frontmatter fields fail loading.
 | `category_path` | string array                | empty                                       | Non-empty path segments without `.`, `..`, `/`, or `\`.             | Display-only hierarchy used by CLI/API/Web views.                         |
 | `mcp_servers`   | array of MCP server objects | empty                                       | Each object requires `name` and `command`.                          | Agent-local MCP servers.                                                  |
 | `hooks`         | array of hook declarations  | empty                                       | Same declaration shape as config hooks.                             | Agent-scoped hook declarations.                                           |
-| Markdown body   | Markdown text               | required                                    | Non-empty after trimming.                                           | Startup prompt sent as the agent system prompt.                           |
+| Markdown body   | Markdown text               | required                                    | Non-empty after trimming.                                           | Agent-owned role prompt included in the assembled startup prompt.         |
 
 Even when `tools` and `toolsets` are empty, AGH adds the discovery toolsets `agh__bootstrap` and
 `agh__catalog` at runtime unless effective policy denies them. Agents should discover AGH-native
@@ -44,6 +44,10 @@ runtime capabilities with `agh__tool_search`, inspect descriptors with `agh__too
 dedicated tools before shelling out to equivalent `agh ...` commands. Operator-only management
 flows — daemon lifecycle, MCP OAuth login/logout, raw secret writes, and trust-root config —
 remain CLI/HTTP/UDS by design and are not promoted into the tool surface.
+
+AGH also adds a daemon-owned runtime envelope around the agent body at session startup. The envelope
+states that the session is running inside AGH, carries session/workspace facts, and is not something
+agent authors need to repeat in every `AGENT.md`.
 
 ## Discovery And Precedence
 

@@ -121,8 +121,10 @@ describe("runtime docs truth", () => {
   it("does not route session SSE examples through the replay events endpoint", () => {
     const content = manualContent().replaceAll("\\\n", " ");
 
-    expect(content).not.toMatch(/curl\s+-N\b[\s\S]{0,240}\/api\/sessions\/[^/\s]+\/events\b/);
-    expect(content).toContain("/api/sessions/sess_1234/stream");
+    expect(content).not.toMatch(
+      /curl\s+-N\b[\s\S]{0,240}\/api\/workspaces\/[^/\s]+\/sessions\/[^/\s]+\/events\b/
+    );
+    expect(content).toContain("/api/workspaces/ws_alpha/sessions/sess_1234/stream");
   });
 
   it("declares the API reference as built from the canonical OpenAPI spec on every site build", () => {
@@ -321,7 +323,7 @@ describe("runtime docs truth", () => {
     expect(apiMemory).toContain('{"path":"/api/memory/{filename}","method":"patch"}');
     expect(apiMemory).toContain('{"path":"/api/memory/ad-hoc","method":"post"}');
     expect(apiMemory).toContain(
-      '{"path":"/api/memory/sessions/{session_id}/ledger","method":"get"}'
+      '{"path":"/api/workspaces/{workspace_id}/memory/sessions/{session_id}/ledger","method":"get"}'
     );
 
     expect(apiMemory).not.toContain('"/api/memory/search","method":"get"');

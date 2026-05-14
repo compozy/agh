@@ -52,6 +52,7 @@ import type {
   MemoryRecallParams,
   MemoryForgetParams,
   NetworkChannelPayload,
+  NetworkChannelsParams,
   NetworkConversationMessagePayload,
   NetworkDirectMessagesParams,
   NetworkDirectResolveParams,
@@ -157,8 +158,8 @@ export class HostAPI {
 
   public readonly network: {
     status: () => Promise<NetworkStatusPayload>;
-    channels: () => Promise<NetworkChannelPayload[]>;
-    peers: (params?: NetworkPeersParams) => Promise<NetworkPeerPayload[]>;
+    channels: (params: NetworkChannelsParams) => Promise<NetworkChannelPayload[]>;
+    peers: (params: NetworkPeersParams) => Promise<NetworkPeerPayload[]>;
     threads: (params: NetworkThreadsParams) => Promise<NetworkThreadSummaryPayload[]>;
     thread: {
       get: (params: NetworkThreadTargetParams) => Promise<NetworkThreadSummaryPayload>;
@@ -247,7 +248,7 @@ export class HostAPI {
 
     this.network = {
       status: async () => await this.request("network/status", undefined),
-      channels: async () => await this.request("network/channels", undefined),
+      channels: async params => await this.request("network/channels", params),
       peers: async params => await this.request("network/peers", params),
       threads: async params => await this.request("network/threads", params),
       thread: {

@@ -4,6 +4,7 @@ import { useCreateNetworkThread } from "../../hooks/use-network-actions";
 import { Composer } from "./composer";
 
 export interface ChannelThreadComposerProps {
+  workspaceId: string;
   channel: string;
   /** The session id used by the operator to author messages in this channel. */
   sessionId: string;
@@ -15,6 +16,7 @@ export interface ChannelThreadComposerProps {
 }
 
 export function ChannelThreadComposer({
+  workspaceId,
   channel,
   sessionId,
   peerFrom,
@@ -22,8 +24,8 @@ export function ChannelThreadComposer({
   disabledReason,
 }: ChannelThreadComposerProps) {
   const navigate = useNavigate();
-  const { createThread, isCreating } = useCreateNetworkThread();
-  const disabled = disabledReason != null;
+  const { createThread, isCreating } = useCreateNetworkThread({ workspaceId });
+  const disabled = disabledReason != null || workspaceId === "";
 
   const handleSubmit = async ({ text, reset }: { text: string; reset: () => void }) => {
     try {
@@ -35,10 +37,12 @@ export function ChannelThreadComposer({
         displayName,
       });
       reset();
-      void navigate({
-        to: "/network/$channel/threads/$threadId",
-        params: { channel, threadId: result.threadId },
-      });
+      if (workspaceId) {
+        void navigate({
+          to: "/network/$workspaceId/$channel/threads/$threadId",
+          params: { workspaceId, channel, threadId: result.threadId },
+        });
+      }
     } catch {
       // The hook surfaces a Sonner toast on the second collision. Keep the
       // textarea contents so the user can adjust + retry.

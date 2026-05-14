@@ -836,7 +836,7 @@ func (h *HostAPIHandler) resolveTaskWorkspaceID(ctx context.Context, workspaceRe
 		}
 		return "", err
 	}
-	return strings.TrimSpace(resolved.ID), nil
+	return hostAPIResolvedWorkspaceID(&resolved)
 }
 
 func validateTaskChannel(path string, channel string) error {

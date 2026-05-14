@@ -217,7 +217,7 @@ func InstallerCheck() error {
 }
 
 func WebLint() error {
-	return runCommandInDir(context.Background(), "web", "bun", "run", "lint")
+	return BunLint()
 }
 
 func WebTypecheck() error {

@@ -18,10 +18,10 @@ SSE surfaces.
 
 AGH exposes two different streaming models for session work:
 
-| Surface                  | Endpoint                        | What you get                                                                                |
-| ------------------------ | ------------------------------- | ------------------------------------------------------------------------------------------- |
-| Persisted session stream | `GET /api/sessions/:id/stream`  | Stored `SessionEventPayload` rows with stable sequence numbers and SSE replay support       |
-| Prompt stream            | `POST /api/sessions/:id/prompt` | Raw live prompt events in the AI SDK UI stream format (`x-vercel-ai-ui-message-stream: v1`) |
+| Surface                  | Endpoint                                                         | What you get                                                                                |
+| ------------------------ | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Persisted session stream | `GET /api/workspaces/:workspace_id/sessions/:session_id/stream`  | Stored `SessionEventPayload` rows with stable sequence numbers and SSE replay support       |
+| Prompt stream            | `POST /api/workspaces/:workspace_id/sessions/:session_id/prompt` | Raw live prompt events in the AI SDK UI stream format (`x-vercel-ai-ui-message-stream: v1`) |
 
 Use the persisted session stream when you need auditability or reconnect support. Use the prompt
 stream when you are driving one interactive prompt call.
@@ -197,7 +197,7 @@ agh session events sess-1234 --follow
 Open the raw SSE stream directly:
 
 ```bash
-curl -N http://localhost:2123/api/sessions/sess-1234/stream
+curl -N http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/stream
 ```
 
 The stream writes:
@@ -221,7 +221,7 @@ Reconnect from a known sequence:
 ```bash
 curl -N \
   -H "Last-Event-ID: 42" \
-  http://localhost:2123/api/sessions/sess-1234/stream
+  http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/stream
 ```
 
 `Last-Event-ID` must be a numeric persisted sequence. AGH first replays backlog rows after that
@@ -282,7 +282,7 @@ matching rows first and then re-sorts them ascending before returning them.
 The [resume and replay](/runtime/core/sessions/resume) path depends on this stored event log:
 
 - `agh session history` groups the stored rows by `turn_id`
-- `GET /api/sessions/:id/transcript` assembles canonical replay messages from these rows
+- `GET /api/workspaces/:workspace_id/sessions/:session_id/transcript` assembles canonical replay messages from these rows
 - resume validation requires `events.db` to exist and contain at least one event
 
 ## Next steps

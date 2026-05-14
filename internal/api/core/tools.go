@@ -181,7 +181,11 @@ func (h *BaseHandlers) ListSessionTools(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("tool registry is not configured"))
 		return
 	}
-	scope := h.sessionToolScope(c)
+	routeScope, routeSessionID, _, ok := h.routeSessionInWorkspace(c)
+	if !ok {
+		return
+	}
+	scope := h.sessionToolScope(c, routeScope.ID, routeSessionID)
 	views, err := h.Tools.List(c.Request.Context(), scope)
 	if err != nil {
 		h.respondToolError(c, err)
@@ -200,8 +204,22 @@ func (h *BaseHandlers) SearchSessionTools(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("tool registry is not configured"))
 		return
 	}
-	scope := h.sessionToolScope(c)
-	scope.WorkspaceID = firstNonEmpty(req.WorkspaceID, scope.WorkspaceID)
+	routeScope, routeSessionID, _, ok := h.routeSessionInWorkspace(c)
+	if !ok {
+		return
+	}
+	scope := h.sessionToolScope(c, routeScope.ID, routeSessionID)
+	if reqWorkspaceID := strings.TrimSpace(
+		req.WorkspaceID,
+	); reqWorkspaceID != "" &&
+		reqWorkspaceID != scope.WorkspaceID {
+		h.respondError(c, http.StatusBadRequest, errors.New("workspace_id does not match path"))
+		return
+	}
+	if reqSessionID := strings.TrimSpace(req.SessionID); reqSessionID != "" && reqSessionID != scope.SessionID {
+		h.respondError(c, http.StatusBadRequest, errors.New("session_id does not match path"))
+		return
+	}
 	scope.AgentName = firstNonEmpty(req.AgentName, scope.AgentName)
 	views, err := h.Tools.Search(c.Request.Context(), scope, toolspkg.SearchQuery{
 		Query: req.Query,
@@ -408,11 +426,11 @@ func (h *BaseHandlers) operatorToolScope(c *gin.Context) toolspkg.Scope {
 	}
 }
 
-// sessionToolScope anchors session projections to the route session ID.
-func (h *BaseHandlers) sessionToolScope(c *gin.Context) toolspkg.Scope {
+// sessionToolScope anchors session projections to the resolved route workspace and session IDs.
+func (h *BaseHandlers) sessionToolScope(c *gin.Context, workspaceID string, sessionID string) toolspkg.Scope {
 	return toolspkg.Scope{
-		WorkspaceID: strings.TrimSpace(firstNonEmpty(c.Query("workspace_id"), c.Query("workspace"))),
-		SessionID:   strings.TrimSpace(c.Param("id")),
+		WorkspaceID: strings.TrimSpace(workspaceID),
+		SessionID:   strings.TrimSpace(sessionID),
 		AgentName:   strings.TrimSpace(c.Query("agent_name")),
 	}
 }

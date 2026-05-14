@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import type { NetworkChannelSummary } from "../../types";
 
 export interface ChannelRailRowProps {
+  workspaceId: string;
   channel: NetworkChannelSummary;
   active: boolean;
   hasUnread: boolean;
@@ -15,6 +16,7 @@ export interface ChannelRailRowProps {
 }
 
 export function ChannelRailRow({
+  workspaceId,
   channel,
   active,
   hasUnread,
@@ -37,7 +39,12 @@ export function ChannelRailRow({
         data-active={active}
         data-testid={`network-channel-link-${channel.channel}`}
         indicator={active ? "rail" : "none"}
-        render={<Link params={{ channel: channel.channel }} to="/network/$channel/threads" />}
+        render={
+          <Link
+            params={{ workspaceId, channel: channel.channel }}
+            to="/network/$workspaceId/$channel/threads"
+          />
+        }
         selectable
         selected={active}
         size="xs"

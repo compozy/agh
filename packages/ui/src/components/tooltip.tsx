@@ -5,27 +5,15 @@ import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 import { AnimatePresence, m } from "motion/react";
 
 import { cn } from "../lib/utils";
+import {
+  TooltipMotionContext,
+  type TooltipMotionContextValue,
+  useTooltipMotion,
+} from "./hooks/use-tooltip-motion";
 import { useInitialState } from "./use-initial-state";
 
 function TooltipProvider({ delay = 0, ...props }: TooltipPrimitive.Provider.Props) {
   return <TooltipPrimitive.Provider data-slot="tooltip-provider" delay={delay} {...props} />;
-}
-
-type TooltipActionsRef = React.RefObject<TooltipPrimitive.Root.Actions | null>;
-
-interface TooltipMotionContextValue {
-  actionsRef: TooltipActionsRef;
-  open: boolean;
-}
-
-const TooltipMotionContext = React.createContext<TooltipMotionContextValue | null>(null);
-
-function useTooltipMotion(): TooltipMotionContextValue {
-  const ctx = React.use(TooltipMotionContext);
-  if (!ctx) {
-    throw new Error("Tooltip.* components must be used inside <Tooltip>.");
-  }
-  return ctx;
 }
 
 type TooltipRootProps = TooltipPrimitive.Root.Props;

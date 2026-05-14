@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/pedronauck/agh/internal/session"
 	settingspkg "github.com/pedronauck/agh/internal/settings"
 	"github.com/pedronauck/agh/internal/vault"
+	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 type stubSessionManager = testutil.StubSessionManager
@@ -270,6 +272,8 @@ func newTestHandlersWithAutomationBridgesTasksAndWorkspace(
 	cfg := testConfigWithDisabledNetwork(homePaths)
 	cfg.HTTP.Host = "127.0.0.1"
 	cfg.HTTP.Port = 2123
+	manager = defaultTestSessionManager(manager)
+	workspaces = defaultTestWorkspaceService(workspaces)
 
 	return newHandlers(&handlerConfig{
 		sessions:     manager,
@@ -289,6 +293,51 @@ func newTestHandlersWithAutomationBridgesTasksAndWorkspace(
 		agentLoader:  aghconfig.LoadAgentDef,
 		httpPort:     cfg.HTTP.Port,
 	})
+}
+
+func defaultTestSessionManager(manager core.SessionManager) core.SessionManager {
+	stub, ok := manager.(stubSessionManager)
+	if !ok || stub.StatusFn != nil {
+		return manager
+	}
+	stub.StatusFn = func(ctx context.Context, id string) (*session.Info, error) {
+		trimmedID := strings.TrimSpace(id)
+		if stub.ListAllFn != nil {
+			infos, err := stub.ListAllFn(ctx)
+			if err != nil {
+				return nil, err
+			}
+			for _, info := range infos {
+				if info != nil && strings.TrimSpace(info.ID) == trimmedID {
+					return info, nil
+				}
+			}
+			return nil, session.ErrSessionNotFound
+		}
+		info := newSessionInfo(trimmedID)
+		info.WorkspaceID = "ws-workspace"
+		info.Workspace = "/workspace"
+		info.State = session.StateActive
+		return info, nil
+	}
+	return stub
+}
+
+func defaultTestWorkspaceService(workspaces core.WorkspaceService) core.WorkspaceService {
+	stub, ok := workspaces.(stubWorkspaceService)
+	if !ok || stub.ResolveFn != nil {
+		return workspaces
+	}
+	stub.ResolveFn = func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+		if ref != "ws-workspace" {
+			return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+		}
+		return workspacepkg.ResolvedWorkspace{
+			Workspace:   workspacepkg.Workspace{ID: "ws-workspace", RootDir: "/workspace", Name: "Workspace"},
+			WorkspaceID: "ws-workspace",
+		}, nil
+	}
+	return stub
 }
 
 func newTestHandlersWithWorkspace(

@@ -74,14 +74,16 @@ type managerOptions struct {
 }
 
 type managedSession struct {
-	sessionID string
-	peerID    string
-	channel   string
-	directSub *nats.Subscription
-	heartbeat *Heartbeat
+	sessionID   string
+	peerID      string
+	workspaceID string
+	channel     string
+	directSub   *nats.Subscription
+	heartbeat   *Heartbeat
 }
 
 type managedChannel struct {
+	workspaceID  string
 	channel      string
 	broadcastSub *nats.Subscription
 	refCount     int
@@ -389,6 +391,7 @@ func (m *Manager) JoinChannel(ctx context.Context, join sessionpkg.NetworkPeerJo
 		"network.peer.joined",
 		"session_id", local.SessionID,
 		"peer_id", local.PeerID,
+		"workspace_id", local.WorkspaceID,
 		"channel", local.Channel,
 	)
 	return nil
@@ -397,6 +400,7 @@ func (m *Manager) JoinChannel(ctx context.Context, join sessionpkg.NetworkPeerJo
 type joinChannelRequest struct {
 	sessionID    string
 	peerID       string
+	workspaceID  string
 	displayName  string
 	channel      string
 	capabilities []sessionpkg.NetworkPeerCapability
@@ -423,6 +427,7 @@ func normalizeJoinChannelRequest(
 	request := joinChannelRequest{
 		sessionID:    strings.TrimSpace(join.SessionID),
 		peerID:       strings.TrimSpace(join.PeerID),
+		workspaceID:  strings.TrimSpace(join.WorkspaceID),
 		displayName:  strings.TrimSpace(join.DisplayName),
 		channel:      strings.TrimSpace(join.Channel),
 		capabilities: cloneJoinCapabilities(join.Capabilities),
@@ -432,6 +437,9 @@ func normalizeJoinChannelRequest(
 	}
 	if request.peerID == "" {
 		return joinChannelRequest{}, fmt.Errorf("%w: peer id is required", ErrMissingField)
+	}
+	if err := ValidateWorkspaceID(request.workspaceID); err != nil {
+		return joinChannelRequest{}, err
 	}
 	if err := ValidateChannel(request.channel); err != nil {
 		return joinChannelRequest{}, err
@@ -448,7 +456,9 @@ func (m *Manager) prepareJoinLocalPeer(
 	request joinChannelRequest,
 ) (LocalPeer, bool, error) {
 	if current, ok := m.sessionSnapshot(request.sessionID); ok {
-		if current.peerID == request.peerID && current.channel == request.channel {
+		if current.peerID == request.peerID &&
+			current.workspaceID == request.workspaceID &&
+			current.channel == request.channel {
 			return LocalPeer{}, true, nil
 		}
 		if err := m.LeaveChannel(ctx, request.sessionID); err != nil {
@@ -462,6 +472,7 @@ func (m *Manager) prepareJoinLocalPeer(
 	}
 	local, err := m.peers.RegisterLocalWithCapabilityCatalog(
 		request.sessionID,
+		request.workspaceID,
 		request.channel,
 		card,
 		request.capabilities,
@@ -489,12 +500,12 @@ func localPeerCardFromJoinRequest(request joinChannelRequest) (PeerCard, error) 
 }
 
 func (m *Manager) newManagedSession(local LocalPeer) (*managedSession, error) {
-	if err := m.acquireBroadcastSubscription(local.Channel); err != nil {
+	if err := m.acquireBroadcastSubscription(local.WorkspaceID, local.Channel); err != nil {
 		m.router.Leave(local.SessionID)
 		return nil, err
 	}
 
-	directSub, err := m.subscribeDirect(local.Channel, local.PeerID)
+	directSub, err := m.subscribeDirect(local.WorkspaceID, local.Channel, local.PeerID)
 	if err != nil {
 		return nil, m.rollbackManagedSessionJoin(local, nil, err)
 	}
@@ -504,11 +515,12 @@ func (m *Manager) newManagedSession(local LocalPeer) (*managedSession, error) {
 	}
 
 	return &managedSession{
-		sessionID: local.SessionID,
-		peerID:    local.PeerID,
-		channel:   local.Channel,
-		directSub: directSub,
-		heartbeat: heartbeat,
+		sessionID:   local.SessionID,
+		peerID:      local.PeerID,
+		workspaceID: local.WorkspaceID,
+		channel:     local.Channel,
+		directSub:   directSub,
+		heartbeat:   heartbeat,
 	}, nil
 }
 
@@ -526,7 +538,7 @@ func (m *Manager) rollbackManagedSessionJoin(
 			joinErr = errors.Join(joinErr, unsubscribeErr)
 		}
 	}
-	if releaseErr := m.releaseBroadcastSubscription(local.Channel); releaseErr != nil {
+	if releaseErr := m.releaseBroadcastSubscription(local.WorkspaceID, local.Channel); releaseErr != nil {
 		joinErr = errors.Join(joinErr, releaseErr)
 	}
 	m.router.Leave(local.SessionID)
@@ -574,7 +586,7 @@ func (m *Manager) LeaveChannel(ctx context.Context, sessionID string) error {
 			errs = append(errs, fmt.Errorf("network: unsubscribe direct subject for %q: %w", targetSession, err))
 		}
 	}
-	if err := m.releaseBroadcastSubscription(runtime.channel); err != nil {
+	if err := m.releaseBroadcastSubscription(runtime.workspaceID, runtime.channel); err != nil {
 		errs = append(errs, err)
 	}
 	m.router.Leave(targetSession)
@@ -583,6 +595,7 @@ func (m *Manager) LeaveChannel(ctx context.Context, sessionID string) error {
 		"network.peer.left",
 		"session_id", runtime.sessionID,
 		"peer_id", runtime.peerID,
+		"workspace_id", runtime.workspaceID,
 		"channel", runtime.channel,
 	)
 	return errors.Join(errs...)
@@ -693,7 +706,7 @@ func (m *Manager) publishGreetWithAudit(ctx context.Context, sessionID string, s
 }
 
 // ListPeers returns the current visible local+remote peer snapshot.
-func (m *Manager) ListPeers(ctx context.Context, channel string) ([]PeerInfo, error) {
+func (m *Manager) ListPeers(ctx context.Context, workspaceID string, channel string) ([]PeerInfo, error) {
 	if ctx == nil {
 		return nil, errors.New("network: list peers context is required")
 	}
@@ -703,11 +716,11 @@ func (m *Manager) ListPeers(ctx context.Context, channel string) ([]PeerInfo, er
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return m.peers.ListPeers(strings.TrimSpace(channel), m.now()), nil
+	return m.peers.ListPeers(strings.TrimSpace(workspaceID), strings.TrimSpace(channel), m.now()), nil
 }
 
 // ListChannels returns the currently active runtime channels.
-func (m *Manager) ListChannels(ctx context.Context) ([]ChannelInfo, error) {
+func (m *Manager) ListChannels(ctx context.Context, workspaceID string) ([]ChannelInfo, error) {
 	if ctx == nil {
 		return nil, errors.New("network: list channels context is required")
 	}
@@ -717,7 +730,7 @@ func (m *Manager) ListChannels(ctx context.Context) ([]ChannelInfo, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return m.peers.ListChannels(m.now()), nil
+	return m.peers.ListChannels(strings.TrimSpace(workspaceID), m.now()), nil
 }
 
 // Status returns a safe diagnostics snapshot without exposing transport credentials.
@@ -732,8 +745,8 @@ func (m *Manager) Status(ctx context.Context) (*Status, error) {
 		return nil, err
 	}
 
-	peers := m.peers.ListPeers("", m.now())
-	channels := m.peers.ListChannels(m.now())
+	peers := m.peers.ListPeers("", "", m.now())
+	channels := m.peers.ListChannels("", m.now())
 	localPeers := 0
 	for _, peer := range peers {
 		if peer.Local {
@@ -966,7 +979,7 @@ func (m *Manager) writeInboundConversationMessages(
 	}
 
 	for _, envelope := range result.Generated {
-		local, ok := m.peers.LocalByPeer(envelope.Channel, envelope.From)
+		local, ok := m.peers.LocalByPeer(envelope.WorkspaceID, envelope.Channel, envelope.From)
 		if !ok {
 			continue
 		}
@@ -985,7 +998,7 @@ func (m *Manager) isLocalEnvelopeSender(envelope Envelope) bool {
 	if m == nil || m.peers == nil {
 		return false
 	}
-	_, ok := m.peers.LocalByPeer(envelope.Channel, envelope.From)
+	_, ok := m.peers.LocalByPeer(envelope.WorkspaceID, envelope.Channel, envelope.From)
 	return ok
 }
 
@@ -1041,7 +1054,7 @@ func inboundRejectedSessionID(manager *Manager, envelope Envelope) string {
 	if manager == nil || manager.peers == nil || !envelope.IsDirected() {
 		return ""
 	}
-	target, ok := manager.peers.LocalByPeer(envelope.Channel, *envelope.To)
+	target, ok := manager.peers.LocalByPeer(envelope.WorkspaceID, envelope.Channel, *envelope.To)
 	if !ok {
 		return ""
 	}
@@ -1056,7 +1069,11 @@ func (m *Manager) recordInboundAudit(result RouteResult, persisted map[string]st
 	if result.Envelope != nil && result.Rejected {
 		sessionID := ""
 		if result.Envelope.IsDirected() {
-			if target, ok := m.peers.LocalByPeer(result.Envelope.Channel, *result.Envelope.To); ok {
+			if target, ok := m.peers.LocalByPeer(
+				result.Envelope.WorkspaceID,
+				result.Envelope.Channel,
+				*result.Envelope.To,
+			); ok {
 				sessionID = target.SessionID
 			}
 		}
@@ -1080,7 +1097,7 @@ func (m *Manager) recordInboundAudit(result RouteResult, persisted map[string]st
 		m.recordReceivedDelivery(m.lifecycleCtx, sessionID, *result.Envelope, durable)
 	}
 	for _, envelope := range result.Generated {
-		local, ok := m.peers.LocalByPeer(envelope.Channel, envelope.From)
+		local, ok := m.peers.LocalByPeer(envelope.WorkspaceID, envelope.Channel, envelope.From)
 		if !ok {
 			continue
 		}
@@ -1150,7 +1167,7 @@ func (m *Manager) controlMessageReceivers(result RouteResult) []string {
 	envelope := *result.Envelope
 	switch envelope.Kind {
 	case KindGreet:
-		locals := m.peers.LocalPeers(envelope.Channel)
+		locals := m.peers.LocalPeers(envelope.WorkspaceID, envelope.Channel)
 		receivers := make([]string, 0, len(locals))
 		for _, local := range locals {
 			if isEnvelopeSender(local, envelope) {
@@ -1169,7 +1186,7 @@ func (m *Manager) controlMessageReceivers(result RouteResult) []string {
 			return nil
 		}
 		if envelope.IsDirected() {
-			if target, ok := m.peers.LocalByPeer(envelope.Channel, *envelope.To); ok {
+			if target, ok := m.peers.LocalByPeer(envelope.WorkspaceID, envelope.Channel, *envelope.To); ok {
 				return []string{target.SessionID}
 			}
 			return nil
@@ -1178,7 +1195,7 @@ func (m *Manager) controlMessageReceivers(result RouteResult) []string {
 		seen := make(map[string]struct{})
 		receivers := make([]string, 0, len(result.Generated))
 		for _, generated := range result.Generated {
-			local, ok := m.peers.LocalByPeer(generated.Channel, generated.From)
+			local, ok := m.peers.LocalByPeer(generated.WorkspaceID, generated.Channel, generated.From)
 			if !ok {
 				continue
 			}
@@ -1194,18 +1211,20 @@ func (m *Manager) controlMessageReceivers(result RouteResult) []string {
 	}
 }
 
-func (m *Manager) acquireBroadcastSubscription(channel string) error {
+func (m *Manager) acquireBroadcastSubscription(workspaceID string, channel string) error {
+	targetWorkspaceID := strings.TrimSpace(workspaceID)
 	targetChannel := strings.TrimSpace(channel)
+	key := peerChannelKey(targetWorkspaceID, targetChannel)
 
 	m.mu.Lock()
-	if runtime, ok := m.channels[targetChannel]; ok {
+	if runtime, ok := m.channels[key]; ok {
 		runtime.refCount++
 		m.mu.Unlock()
 		return nil
 	}
 	m.mu.Unlock()
 
-	subject, err := BroadcastSubject(targetChannel)
+	subject, err := BroadcastSubject(targetWorkspaceID, targetChannel)
 	if err != nil {
 		return err
 	}
@@ -1218,14 +1237,15 @@ func (m *Manager) acquireBroadcastSubscription(channel string) error {
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if runtime, ok := m.channels[targetChannel]; ok {
+	if runtime, ok := m.channels[key]; ok {
 		runtime.refCount++
 		if err := cleanupDuplicateBroadcastSubscription(targetChannel, runtime, subscription.Unsubscribe); err != nil {
 			return err
 		}
 		return nil
 	}
-	m.channels[targetChannel] = &managedChannel{
+	m.channels[key] = &managedChannel{
+		workspaceID:  targetWorkspaceID,
 		channel:      targetChannel,
 		broadcastSub: subscription,
 		refCount:     1,
@@ -1233,11 +1253,13 @@ func (m *Manager) acquireBroadcastSubscription(channel string) error {
 	return nil
 }
 
-func (m *Manager) releaseBroadcastSubscription(channel string) error {
+func (m *Manager) releaseBroadcastSubscription(workspaceID string, channel string) error {
+	targetWorkspaceID := strings.TrimSpace(workspaceID)
 	targetChannel := strings.TrimSpace(channel)
+	key := peerChannelKey(targetWorkspaceID, targetChannel)
 
 	m.mu.Lock()
-	runtime, ok := m.channels[targetChannel]
+	runtime, ok := m.channels[key]
 	if !ok {
 		m.mu.Unlock()
 		return nil
@@ -1247,7 +1269,7 @@ func (m *Manager) releaseBroadcastSubscription(channel string) error {
 		m.mu.Unlock()
 		return nil
 	}
-	delete(m.channels, targetChannel)
+	delete(m.channels, key)
 	m.mu.Unlock()
 
 	if runtime.broadcastSub == nil {
@@ -1259,8 +1281,8 @@ func (m *Manager) releaseBroadcastSubscription(channel string) error {
 	return nil
 }
 
-func (m *Manager) subscribeDirect(channel string, peerID string) (*nats.Subscription, error) {
-	subject, err := DirectSubject(channel, peerID)
+func (m *Manager) subscribeDirect(workspaceID string, channel string, peerID string) (*nats.Subscription, error) {
+	subject, err := DirectSubject(workspaceID, channel, peerID)
 	if err != nil {
 		return nil, err
 	}

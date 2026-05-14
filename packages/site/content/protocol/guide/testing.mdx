@@ -43,26 +43,28 @@ import (
 )
 
 type Envelope struct {
-	Protocol  string          `json:"protocol"`
-	ID        string          `json:"id"`
-	Kind      string          `json:"kind"`
-	Channel   string          `json:"channel"`
-	Surface   *string         `json:"surface,omitempty"`
-	ThreadID  *string         `json:"thread_id,omitempty"`
-	DirectID  *string         `json:"direct_id,omitempty"`
-	From      string          `json:"from"`
-	To        *string         `json:"to"`
-	WorkID    *string         `json:"work_id,omitempty"`
-	ReplyTo   *string         `json:"reply_to,omitempty"`
-	TS        int64           `json:"ts"`
-	Body      json.RawMessage `json:"body"`
-	Proof     map[string]any  `json:"proof"`
+	Protocol    string          `json:"protocol"`
+	ID          string          `json:"id"`
+	WorkspaceID string        `json:"workspace_id"`
+	Kind        string          `json:"kind"`
+	Channel     string          `json:"channel"`
+	Surface     *string         `json:"surface,omitempty"`
+	ThreadID    *string         `json:"thread_id,omitempty"`
+	DirectID    *string         `json:"direct_id,omitempty"`
+	From        string          `json:"from"`
+	To          *string         `json:"to"`
+	WorkID      *string         `json:"work_id,omitempty"`
+	ReplyTo     *string         `json:"reply_to,omitempty"`
+	TS          int64           `json:"ts"`
+	Body        json.RawMessage `json:"body"`
+	Proof       map[string]any  `json:"proof"`
 }
 
 func TestCoreSenderFixture(t *testing.T) {
 	raw := []byte(`{
 		"protocol": "agh-network/v0",
 		"id": "msg_fixture_01",
+		"workspace_id": "ws_alpha",
 		"kind": "say",
 		"channel": "builders",
 		"surface": "thread",
@@ -104,10 +106,10 @@ func TestCoreSenderFixture(t *testing.T) {
 }
 
 func TestNATSSubjectMapping(t *testing.T) {
-	if got, want := broadcastSubject("builders"), "agh.network.v0.builders.broadcast"; got != want {
+	if got, want := broadcastSubject("ws_alpha", "builders"), "agh.network.v0.ws_alpha.builders.broadcast"; got != want {
 		t.Fatalf("broadcast subject = %q, want %q", got, want)
 	}
-	if got, want := directSubject("builders", "echo.demo"), "agh.network.v0.builders.peer.96b61db360703e491489caf5fbbd45bc"; got != want {
+	if got, want := directSubject("ws_alpha", "builders", "echo.demo"), "agh.network.v0.ws_alpha.builders.peer.96b61db360703e491489caf5fbbd45bc"; got != want {
 		t.Fatalf("direct subject = %q, want %q", got, want)
 	}
 }
@@ -117,18 +119,19 @@ func TestLocalEchoPeer(t *testing.T) {
 	surface := "thread"
 	threadID := "thread_echo_demo"
 	request := Envelope{
-		Protocol: "agh-network/v0",
-		ID:       "msg_say_work_01",
-		Kind:     "say",
-		Channel:  "builders",
-		Surface:  &surface,
-		ThreadID: &threadID,
-		From:     "sender.demo",
-		To:       &to,
-		WorkID:   ptr("work_echo_01"),
-		TS:       1775606300,
-		Body:     json.RawMessage(`{"text":"ping","intent":"request"}`),
-		Proof:    nil,
+		Protocol:    "agh-network/v0",
+		ID:          "msg_say_work_01",
+		WorkspaceID: "ws_alpha",
+		Kind:        "say",
+		Channel:     "builders",
+		Surface:     &surface,
+		ThreadID:    &threadID,
+		From:        "sender.demo",
+		To:          &to,
+		WorkID:      ptr("work_echo_01"),
+		TS:          1775606300,
+		Body:        json.RawMessage(`{"text":"ping","intent":"request"}`),
+		Proof:       nil,
 	}
 
 	response, err := echoPeer(request)
@@ -162,29 +165,30 @@ func echoPeer(request Envelope) (Envelope, error) {
 		return Envelope{}, err
 	}
 	return Envelope{
-		Protocol: "agh-network/v0",
-		ID:       "msg_receipt_01",
-		Kind:     "receipt",
-		Channel:  request.Channel,
-		Surface:  request.Surface,
-		ThreadID: request.ThreadID,
-		DirectID: request.DirectID,
-		From:     "echo.demo",
-		To:       &request.From,
-		WorkID:   request.WorkID,
-		ReplyTo:  &request.ID,
-		TS:       request.TS + 1,
-		Body:     encoded,
-		Proof:    nil,
+		Protocol:    "agh-network/v0",
+		ID:          "msg_receipt_01",
+		WorkspaceID: request.WorkspaceID,
+		Kind:        "receipt",
+		Channel:     request.Channel,
+		Surface:     request.Surface,
+		ThreadID:    request.ThreadID,
+		DirectID:    request.DirectID,
+		From:        "echo.demo",
+		To:          &request.From,
+		WorkID:      request.WorkID,
+		ReplyTo:     &request.ID,
+		TS:          request.TS + 1,
+		Body:        encoded,
+		Proof:       nil,
 	}, nil
 }
 
-func broadcastSubject(channel string) string {
-	return "agh.network.v0." + channel + ".broadcast"
+func broadcastSubject(workspaceID string, channel string) string {
+	return "agh.network.v0." + workspaceID + "." + channel + ".broadcast"
 }
 
-func directSubject(channel string, peerID string) string {
-	return "agh.network.v0." + channel + ".peer." + routeToken(peerID)
+func directSubject(workspaceID string, channel string, peerID string) string {
+	return "agh.network.v0." + workspaceID + "." + channel + ".peer." + routeToken(peerID)
 }
 
 func routeToken(peerID string) string {
@@ -209,8 +213,8 @@ test core sender fixture:
   require body.text is not blank
 
 test nats subject mapping:
-  broadcast_subject("builders") must equal "agh.network.v0.builders.broadcast"
-  direct_subject("builders", "echo.demo") must use sha256(peer_id)[0:32]
+  broadcast_subject("ws_alpha", "builders") must equal "agh.network.v0.ws_alpha.builders.broadcast"
+  direct_subject("ws_alpha", "builders", "echo.demo") must use sha256(peer_id)[0:32]
 
 test local echo peer:
   build say request with surface=thread, thread_id, work_id

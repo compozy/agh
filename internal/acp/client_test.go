@@ -360,6 +360,114 @@ func TestPromptPrependsSystemPromptOnce(t *testing.T) {
 	}
 }
 
+func TestPromptAttachesSystemPromptDeliveryMetadata(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should annotate first-turn system prompt fallback", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		proc := startHelperProcess(t, driver, "echo_prompt_meta", "", StartOpts{
+			SystemPrompt: "AGH runtime envelope.",
+		})
+		defer stopProcess(t, driver, proc)
+
+		eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
+			TurnID:  "turn-system-meta",
+			Message: "first request",
+		})
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+
+		events := collectEvents(t, eventsCh)
+		if len(events) == 0 {
+			t.Fatal("Prompt() returned no events")
+		}
+
+		var payload PromptMeta
+		if err := json.Unmarshal([]byte(events[0].Text), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(prompt meta echo) error = %v", err)
+		}
+		if payload.System == nil {
+			t.Fatal("payload.System = nil, want system prompt delivery metadata")
+		}
+		if got, want := payload.System.PromptDelivery, string(SystemPromptDeliveryFirstTurnPrefix); got != want {
+			t.Fatalf("payload.System.PromptDelivery = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should annotate native system prompt delivery without fallback prefix", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		proc := startHelperProcess(t, driver, "echo_prompt_meta", "", StartOpts{
+			SystemPrompt:         "AGH runtime envelope.",
+			SystemPromptDelivery: SystemPromptDeliveryNative,
+		})
+		defer stopProcess(t, driver, proc)
+
+		eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
+			TurnID:  "turn-system-native",
+			Message: "first request",
+		})
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+
+		events := collectEvents(t, eventsCh)
+		if len(events) == 0 {
+			t.Fatal("Prompt() returned no events")
+		}
+
+		var payload PromptMeta
+		if err := json.Unmarshal([]byte(events[0].Text), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(prompt meta echo) error = %v", err)
+		}
+		if payload.System == nil {
+			t.Fatal("payload.System = nil, want system prompt delivery metadata")
+		}
+		if got, want := payload.System.PromptDelivery, string(SystemPromptDeliveryNative); got != want {
+			t.Fatalf("payload.System.PromptDelivery = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestPromptSkipsFirstTurnPrefixForNativeSystemPromptDelivery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should send plain user request when system prompt is native", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		proc := startHelperProcess(t, driver, "echo_prompt", "", StartOpts{
+			SystemPrompt:         "AGH runtime envelope.",
+			SystemPromptDelivery: SystemPromptDeliveryNative,
+		})
+		defer stopProcess(t, driver, proc)
+
+		eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
+			TurnID:  "turn-native-text",
+			Message: "first request",
+		})
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+
+		events := collectEvents(t, eventsCh)
+		if len(events) == 0 {
+			t.Fatal("Prompt() returned no events")
+		}
+		if got, want := events[0].Text, "first request"; got != want {
+			t.Fatalf("first prompt text = %q, want %q", got, want)
+		}
+		if strings.Contains(events[0].Text, "AGH runtime envelope.") ||
+			strings.Contains(events[0].Text, "Session instructions") {
+			t.Fatalf("first prompt text = %q, want no fallback prefix", events[0].Text)
+		}
+	})
+}
+
 func TestPromptActivityReporterReportsWhilePromptIsInFlight(t *testing.T) {
 	t.Run("ShouldReportWhilePromptIsInFlight", func(t *testing.T) {
 		t.Parallel()
@@ -1533,6 +1641,9 @@ func startHelperProcess(
 	}
 	if overrides.SystemPrompt != "" {
 		opts.SystemPrompt = overrides.SystemPrompt
+	}
+	if overrides.SystemPromptDelivery != "" {
+		opts.SystemPromptDelivery = overrides.SystemPromptDelivery
 	}
 	if overrides.PreferredModel != "" {
 		opts.PreferredModel = overrides.PreferredModel

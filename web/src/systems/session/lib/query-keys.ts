@@ -2,9 +2,15 @@ export const sessionKeys = {
   all: ["sessions"] as const,
   lists: () => [...sessionKeys.all, "list"] as const,
   list: (workspace: string | null = null) => [...sessionKeys.lists(), workspace ?? "all"] as const,
-  detail: (id: string) => [...sessionKeys.all, "detail", id] as const,
-  events: (id: string) => [...sessionKeys.all, "detail", id, "events"] as const,
-  history: (id: string) => [...sessionKeys.all, "detail", id, "history"] as const,
-  transcript: (id: string) => [...sessionKeys.all, "detail", id, "transcript"] as const,
-  ledger: (id: string) => [...sessionKeys.all, "detail", id, "ledger"] as const,
+  workspace: (workspace: string) => [...sessionKeys.all, "workspace", workspace] as const,
+  detail: (workspace: string, id: string) =>
+    [...sessionKeys.workspace(workspace), "detail", id] as const,
+  events: (workspace: string, id: string) =>
+    [...sessionKeys.detail(workspace, id), "events"] as const,
+  history: (workspace: string, id: string) =>
+    [...sessionKeys.detail(workspace, id), "history"] as const,
+  transcript: (workspace: string, id: string) =>
+    [...sessionKeys.detail(workspace, id), "transcript"] as const,
+  ledger: (workspace: string, id: string) =>
+    [...sessionKeys.detail(workspace, id), "ledger"] as const,
 };

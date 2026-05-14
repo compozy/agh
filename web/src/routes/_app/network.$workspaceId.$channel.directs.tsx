@@ -17,7 +17,7 @@ interface DirectDetailParams {
   directId?: string;
 }
 
-export const Route = createFileRoute("/_app/network/$channel/directs")({
+export const Route = createFileRoute("/_app/network/$workspaceId/$channel/directs")({
   beforeLoad: ({ params }): { topbar: TopbarRouteContext } => ({
     topbar: { title: `#${params.channel} · Directs`, icon: NetworkIcon },
   }),
@@ -25,7 +25,7 @@ export const Route = createFileRoute("/_app/network/$channel/directs")({
 });
 
 function NetworkChannelDirectsRoute() {
-  const { channel } = Route.useParams();
+  const { workspaceId, channel } = Route.useParams();
   const detailParams = useParams({ strict: false }) as DirectDetailParams;
   const route = useNetworkChannelDirectsRoute(channel);
   const { filteredDirects } = useNetworkListFiltersContext();
@@ -89,6 +89,7 @@ function NetworkChannelDirectsRoute() {
         </div>
       ) : (
         <DirectsList
+          workspaceId={workspaceId}
           activeDirectId={null}
           channel={channel}
           directs={visibleDirects}

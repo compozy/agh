@@ -19,7 +19,9 @@ discovery, and explicit `kind:"capability"` transfer. See
 [Agent Capabilities](/runtime/core/agents/capabilities) for the catalog format.
 
 `AGENT.md` is a Markdown file with required frontmatter and a required body. AGH parses the
-frontmatter into runtime configuration, then uses the Markdown body as the startup system prompt.
+frontmatter into runtime configuration, then uses the Markdown body as the agent-owned role portion
+of the assembled startup prompt. The runtime adds its own AGH envelope and context around that body
+when it starts a session.
 
 <OperatorNote>
   RFC 001 is a draft and is ahead of the current parser. This page documents what the current

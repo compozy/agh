@@ -913,7 +913,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			},
 		})
 	})
-	mux.HandleFunc("/api/sessions/sess-1", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/workspaces/ws-1/sessions/sess-1", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodDelete {
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -937,14 +937,14 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			},
 		})
 	})
-	mux.HandleFunc("/api/sessions/sess-1/stop", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/workspaces/ws-1/sessions/sess-1/stop", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})
-	mux.HandleFunc("/api/sessions/sess-1/resume", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/workspaces/ws-1/sessions/sess-1/resume", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
@@ -968,7 +968,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			},
 		})
 	})
-	mux.HandleFunc("/api/sessions/sess-1/transcript", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/workspaces/ws-1/sessions/sess-1/transcript", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, map[string]any{
 			"messages": []map[string]any{
 				{"role": "user", "content": "hello world"},
@@ -976,7 +976,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			},
 		})
 	})
-	mux.HandleFunc("/api/sessions/sess-1/events", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/workspaces/ws-1/sessions/sess-1/events", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, map[string]any{
 			"events": []map[string]any{
 				{"id": "evt-1", "type": "agent_message"},
@@ -984,7 +984,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			},
 		})
 	})
-	mux.HandleFunc("/api/sessions/sess-1/prompt", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/workspaces/ws-1/sessions/sess-1/prompt", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		if _, err := fmt.Fprint(
 			w,
@@ -996,25 +996,28 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			reportHarnessHandlerError(w, handlerErrs, http.StatusInternalServerError, "write prompt stream: %v", err)
 		}
 	})
-	mux.HandleFunc("/api/network/channels/builders/threads", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, aghcontract.NetworkThreadsResponse{
-			Threads: []aghcontract.NetworkThreadSummaryPayload{{
-				Channel:            "builders",
-				ThreadID:           harnessNetworkThreadID,
-				RootMessageID:      "msg-1",
-				Title:              "Migration test repair",
-				OpenedByPeerID:     "coder.sess-1",
-				OpenedSessionID:    "sess-1",
-				OpenedAt:           &now,
-				LastActivityAt:     &now,
-				MessageCount:       1,
-				ParticipantCount:   1,
-				OpenWorkCount:      1,
-				LastMessagePreview: "hello",
-			}},
-		})
-	})
-	mux.HandleFunc("/api/network/channels/builders/threads/"+harnessNetworkThreadID, func(
+	mux.HandleFunc(
+		"/api/workspaces/ws-1/network/channels/builders/threads",
+		func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, aghcontract.NetworkThreadsResponse{
+				Threads: []aghcontract.NetworkThreadSummaryPayload{{
+					Channel:            "builders",
+					ThreadID:           harnessNetworkThreadID,
+					RootMessageID:      "msg-1",
+					Title:              "Migration test repair",
+					OpenedByPeerID:     "coder.sess-1",
+					OpenedSessionID:    "sess-1",
+					OpenedAt:           &now,
+					LastActivityAt:     &now,
+					MessageCount:       1,
+					ParticipantCount:   1,
+					OpenWorkCount:      1,
+					LastMessagePreview: "hello",
+				}},
+			})
+		},
+	)
+	mux.HandleFunc("/api/workspaces/ws-1/network/channels/builders/threads/"+harnessNetworkThreadID, func(
 		w http.ResponseWriter,
 		_ *http.Request,
 	) {
@@ -1035,7 +1038,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			},
 		})
 	})
-	mux.HandleFunc("/api/network/channels/builders/threads/"+harnessNetworkThreadID+"/messages", func(
+	mux.HandleFunc("/api/workspaces/ws-1/network/channels/builders/threads/"+harnessNetworkThreadID+"/messages", func(
 		w http.ResponseWriter,
 		_ *http.Request,
 	) {
@@ -1057,22 +1060,25 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			}},
 		})
 	})
-	mux.HandleFunc("/api/network/channels/builders/directs", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, aghcontract.NetworkDirectRoomsResponse{
-			Directs: []aghcontract.NetworkDirectRoomPayload{{
-				Channel:            "builders",
-				DirectID:           harnessNetworkDirectID,
-				PeerA:              "coder.sess-1",
-				PeerB:              "reviewer.sess-2",
-				OpenedAt:           &now,
-				LastActivityAt:     &now,
-				MessageCount:       1,
-				OpenWorkCount:      1,
-				LastMessagePreview: "direct hello",
-			}},
-		})
-	})
-	mux.HandleFunc("/api/network/channels/builders/directs/resolve", func(
+	mux.HandleFunc(
+		"/api/workspaces/ws-1/network/channels/builders/directs",
+		func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, aghcontract.NetworkDirectRoomsResponse{
+				Directs: []aghcontract.NetworkDirectRoomPayload{{
+					Channel:            "builders",
+					DirectID:           harnessNetworkDirectID,
+					PeerA:              "coder.sess-1",
+					PeerB:              "reviewer.sess-2",
+					OpenedAt:           &now,
+					LastActivityAt:     &now,
+					MessageCount:       1,
+					OpenWorkCount:      1,
+					LastMessagePreview: "direct hello",
+				}},
+			})
+		},
+	)
+	mux.HandleFunc("/api/workspaces/ws-1/network/channels/builders/directs/resolve", func(
 		w http.ResponseWriter,
 		r *http.Request,
 	) {
@@ -1118,7 +1124,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			},
 		})
 	})
-	mux.HandleFunc("/api/network/channels/builders/directs/"+harnessNetworkDirectID, func(
+	mux.HandleFunc("/api/workspaces/ws-1/network/channels/builders/directs/"+harnessNetworkDirectID, func(
 		w http.ResponseWriter,
 		_ *http.Request,
 	) {
@@ -1136,7 +1142,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			},
 		})
 	})
-	mux.HandleFunc("/api/network/channels/builders/directs/"+harnessNetworkDirectID+"/messages", func(
+	mux.HandleFunc("/api/workspaces/ws-1/network/channels/builders/directs/"+harnessNetworkDirectID+"/messages", func(
 		w http.ResponseWriter,
 		_ *http.Request,
 	) {
@@ -1161,22 +1167,25 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			}},
 		})
 	})
-	mux.HandleFunc("/api/network/work/"+harnessNetworkWorkID, func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, aghcontract.NetworkWorkResponse{
-			Work: aghcontract.NetworkWorkPayload{
-				WorkID:          harnessNetworkWorkID,
-				Channel:         "builders",
-				Surface:         "thread",
-				ThreadID:        harnessNetworkThreadID,
-				OpenedByPeerID:  "coder.sess-1",
-				OpenedSessionID: "sess-1",
-				TargetPeerID:    "reviewer.sess-2",
-				State:           "running",
-				OpenedAt:        &now,
-				LastActivityAt:  &now,
-			},
-		})
-	})
+	mux.HandleFunc(
+		"/api/workspaces/ws-1/network/work/"+harnessNetworkWorkID,
+		func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(w, aghcontract.NetworkWorkResponse{
+				Work: aghcontract.NetworkWorkPayload{
+					WorkID:          harnessNetworkWorkID,
+					Channel:         "builders",
+					Surface:         "thread",
+					ThreadID:        harnessNetworkThreadID,
+					OpenedByPeerID:  "coder.sess-1",
+					OpenedSessionID: "sess-1",
+					TargetPeerID:    "reviewer.sess-2",
+					State:           "running",
+					OpenedAt:        &now,
+					LastActivityAt:  &now,
+				},
+			})
+		},
+	)
 	mux.HandleFunc("/api/network/status", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, aghcontract.NetworkStatusResponse{
 			Network: aghcontract.NetworkStatusPayload{
@@ -1190,7 +1199,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			},
 		})
 	})
-	mux.HandleFunc("/api/network/peers", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/workspaces/ws-1/network/peers", func(w http.ResponseWriter, r *http.Request) {
 		if got, want := r.URL.Query().Get("channel"), "builders"; got != want {
 			reportHarnessHandlerError(
 				w,
@@ -1221,7 +1230,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			}},
 		})
 	})
-	mux.HandleFunc("/api/network/channels", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/workspaces/ws-1/network/channels", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
 			w.WriteHeader(http.StatusCreated)
 			writeJSON(w, aghcontract.CreateNetworkChannelResponse{
@@ -1250,7 +1259,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			}},
 		})
 	})
-	mux.HandleFunc("/api/network/channels/builders", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/workspaces/ws-1/network/channels/builders", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, aghcontract.NetworkChannelResponse{
 			Channel: aghcontract.NetworkChannelDetailPayload{
 				Channel:   "builders",
@@ -1280,7 +1289,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			},
 		})
 	})
-	mux.HandleFunc("/api/network/inbox", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/workspaces/ws-1/network/inbox", func(w http.ResponseWriter, r *http.Request) {
 		if got, want := r.URL.Query().Get("session_id"), "sess-1"; got != want {
 			reportHarnessHandlerError(
 				w,
@@ -1310,7 +1319,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 			}},
 		})
 	})
-	mux.HandleFunc("/api/network/send", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/workspaces/ws-1/network/send", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return

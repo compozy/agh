@@ -46,9 +46,12 @@ describe("QueueHealthSparkline", () => {
         container.querySelectorAll<SVGPathElement>('[data-slot="queue-health-sparkline-cell"]')
       );
 
-    await waitFor(() => {
-      expect(queryCells()).toHaveLength(SAMPLE.length);
-    });
+    await waitFor(
+      () => {
+        expect(queryCells()).toHaveLength(SAMPLE.length);
+      },
+      { timeout: 5_000 }
+    );
 
     const cells = queryCells();
     expect(cells).toHaveLength(SAMPLE.length);

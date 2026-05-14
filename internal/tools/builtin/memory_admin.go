@@ -482,10 +482,13 @@ var (
 		[]string{"name"},
 		`"name":{"type":"string"},"workspace_id":{"type":"string"},"reason":{"type":"string"}`,
 	)
-	memoryAdminSessionIDInputSchema     = memoryAdminSchema([]string{"session_id"}, `"session_id":{"type":"string"}`)
+	memoryAdminSessionIDInputSchema = memoryAdminSchema(
+		[]string{"workspace_id", "session_id"},
+		`"workspace_id":{"type":"string"},"session_id":{"type":"string"}`,
+	)
 	memoryAdminSessionReplayInputSchema = memoryAdminSchema(
-		[]string{"session_id"},
-		`"session_id":{"type":"string"},"include_tool_events":{"type":"boolean"},"include_memory":{"type":"boolean"}`,
+		[]string{"workspace_id", "session_id"},
+		`"workspace_id":{"type":"string"},"session_id":{"type":"string"},"include_tool_events":{"type":"boolean"},"include_memory":{"type":"boolean"}`,
 	)
 	memoryAdminSessionsPruneInputSchema = memoryAdminSchema(
 		[]string{"older_than_hours"},

@@ -131,7 +131,12 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
 
-				approveSession := operationFor(t, doc, "/api/sessions/{id}/approve", "POST")
+				approveSession := operationFor(
+					t,
+					doc,
+					"/api/workspaces/{workspace_id}/sessions/{session_id}/approve",
+					"POST",
+				)
 				approveSchema := jsonRequestSchema(t, approveSession)
 				assertRequired(t, approveSchema, "request_id", "turn_id", "decision")
 			},
@@ -393,6 +398,11 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
 
+				listBridges := operationFor(t, doc, "/api/bridges", "GET")
+				assertParameter(t, listBridges, "scope", openapi3.ParameterInQuery, false)
+				assertParameter(t, listBridges, "workspace_id", openapi3.ParameterInQuery, false)
+				assertParameter(t, listBridges, "workspace", openapi3.ParameterInQuery, false)
+
 				providers := operationFor(t, doc, "/api/bridges/providers", "GET")
 				providersSchema := jsonResponseSchema(t, providers, 200)
 				assertRequired(t, providersSchema, "providers")
@@ -534,12 +544,25 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"input_digest",
 				)
 
-				sessionTools := operationFor(t, doc, "/api/sessions/{id}/tools", "GET")
+				sessionTools := operationFor(
+					t,
+					doc,
+					"/api/workspaces/{workspace_id}/sessions/{session_id}/tools",
+					"GET",
+				)
 				assertTagsContain(t, sessionTools, "sessions", "tools")
+				assertParameter(t, sessionTools, "workspace_id", openapi3.ParameterInPath, true)
+				assertParameter(t, sessionTools, "session_id", openapi3.ParameterInPath, true)
 				assertResponseStatus(t, sessionTools, 200)
-				sessionSearch := operationFor(t, doc, "/api/sessions/{id}/tools/search", "POST")
+				sessionSearch := operationFor(
+					t,
+					doc,
+					"/api/workspaces/{workspace_id}/sessions/{session_id}/tools/search",
+					"POST",
+				)
 				assertTagsContain(t, sessionSearch, "sessions", "tools")
-				assertParameter(t, sessionSearch, "id", openapi3.ParameterInPath, true)
+				assertParameter(t, sessionSearch, "workspace_id", openapi3.ParameterInPath, true)
+				assertParameter(t, sessionSearch, "session_id", openapi3.ParameterInPath, true)
 				sessionSearchRequest := jsonRequestSchema(t, sessionSearch)
 				assertRequired(t, sessionSearchRequest, "query")
 				assertNotRequired(t, sessionSearchRequest, "limit", "workspace_id", "session_id", "agent_name")
@@ -1152,34 +1175,38 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 func TestWriteFileAndEnumHelpers(t *testing.T) {
 	t.Parallel()
 
-	path := filepath.Join(t.TempDir(), "openapi", "agh.json")
-	if err := WriteFile(path); err != nil {
-		t.Fatalf("WriteFile() error = %v", err)
-	}
+	t.Run("Should write the document and keep enum helpers populated", func(t *testing.T) {
+		t.Parallel()
 
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("os.ReadFile() error = %v", err)
-	}
-	if !json.Valid(data) {
-		t.Fatalf("WriteFile() output is not valid JSON: %s", string(data))
-	}
-	if !strings.HasSuffix(string(data), "\n") {
-		t.Fatalf("WriteFile() output must end with newline: %q", string(data))
-	}
+		path := filepath.Join(t.TempDir(), "openapi", "agh.json")
+		if err := WriteFile(path); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
 
-	if got := hookSkillSourceValues(); len(got) == 0 {
-		t.Fatal("hookSkillSourceValues() returned no values")
-	}
-	if got := hookExecutorKindValues(); len(got) == 0 {
-		t.Fatal("hookExecutorKindValues() returned no values")
-	}
-	if got := toolSourceValues(); len(got) == 0 {
-		t.Fatal("toolSourceValues() returned no values")
-	}
-	if got := hostAPIMethodValues(); len(got) == 0 || !slices.IsSorted(got) {
-		t.Fatalf("hostAPIMethodValues() = %v, want non-empty sorted values", got)
-	}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("os.ReadFile() error = %v", err)
+		}
+		if !json.Valid(data) {
+			t.Fatalf("WriteFile() output is not valid JSON: %s", string(data))
+		}
+		if !strings.HasSuffix(string(data), "\n") {
+			t.Fatalf("WriteFile() output must end with newline: %q", string(data))
+		}
+
+		if got := hookSkillSourceValues(); len(got) == 0 {
+			t.Fatal("hookSkillSourceValues() returned no values")
+		}
+		if got := hookExecutorKindValues(); len(got) == 0 {
+			t.Fatal("hookExecutorKindValues() returned no values")
+		}
+		if got := toolSourceValues(); len(got) == 0 {
+			t.Fatal("toolSourceValues() returned no values")
+		}
+		if got := hostAPIMethodValues(); len(got) == 0 || !slices.IsSorted(got) {
+			t.Fatalf("hostAPIMethodValues() = %v, want non-empty sorted values", got)
+		}
+	})
 }
 
 func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {
@@ -1355,21 +1382,25 @@ func TestEnumHelpersReturnStableValues(t *testing.T) {
 func TestOperationsRemainUniqueWithExpandedTaskSurface(t *testing.T) {
 	t.Parallel()
 
-	seenRouteMethods := make(map[string]struct{}, len(Operations()))
-	seenOperationIDs := make(map[string]struct{}, len(Operations()))
+	t.Run("Should keep expanded task operations unique by route and operation id", func(t *testing.T) {
+		t.Parallel()
 
-	for _, operation := range Operations() {
-		routeMethodKey := operation.Method + " " + operation.Path
-		if _, ok := seenRouteMethods[routeMethodKey]; ok {
-			t.Fatalf("duplicate route+method %q", routeMethodKey)
-		}
-		seenRouteMethods[routeMethodKey] = struct{}{}
+		seenRouteMethods := make(map[string]struct{}, len(Operations()))
+		seenOperationIDs := make(map[string]struct{}, len(Operations()))
 
-		if _, ok := seenOperationIDs[operation.OperationID]; ok {
-			t.Fatalf("duplicate operation id %q", operation.OperationID)
+		for _, operation := range Operations() {
+			routeMethodKey := operation.Method + " " + operation.Path
+			if _, ok := seenRouteMethods[routeMethodKey]; ok {
+				t.Fatalf("duplicate route+method %q", routeMethodKey)
+			}
+			seenRouteMethods[routeMethodKey] = struct{}{}
+
+			if _, ok := seenOperationIDs[operation.OperationID]; ok {
+				t.Fatalf("duplicate operation id %q", operation.OperationID)
+			}
+			seenOperationIDs[operation.OperationID] = struct{}{}
 		}
-		seenOperationIDs[operation.OperationID] = struct{}{}
-	}
+	})
 }
 
 func operationFor(t *testing.T, doc *openapi3.T, path string, method string) *openapi3.Operation {

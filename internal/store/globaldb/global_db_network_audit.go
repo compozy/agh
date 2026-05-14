@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -31,7 +32,7 @@ func (g *GlobalDB) WriteNetworkAudit(ctx context.Context, entry store.NetworkAud
 func (g *GlobalDB) ListNetworkAudit(
 	ctx context.Context,
 	query store.NetworkAuditQuery,
-) ([]store.NetworkAuditEntry, error) {
+) (entries []store.NetworkAuditEntry, err error) {
 	if err := g.checkReady(ctx, "list network audit"); err != nil {
 		return nil, err
 	}
@@ -40,10 +41,11 @@ func (g *GlobalDB) ListNetworkAudit(
 	}
 
 	sqlQuery := `SELECT
-		id, session_id, direction, kind, channel, surface, thread_id, direct_id, work_id,
+		id, session_id, workspace_id, direction, kind, channel, surface, thread_id, direct_id, work_id,
 		peer_from, peer_to, message_id, reason, size, timestamp
 	FROM network_audit_log`
 	where, args := store.BuildClauses(
+		store.StringClause("workspace_id", query.WorkspaceID),
 		store.StringClause("session_id", query.SessionID),
 		store.StringClause("direction", query.Direction),
 		store.StringClause("kind", query.Kind),
@@ -64,10 +66,17 @@ func (g *GlobalDB) ListNetworkAudit(
 		return nil, fmt.Errorf("store: query network audit: %w", err)
 	}
 	defer func() {
-		_ = rows.Close()
+		if closeErr := rows.Close(); closeErr != nil {
+			closeErr = fmt.Errorf("store: close network audit rows: %w", closeErr)
+			if err != nil {
+				err = errors.Join(err, closeErr)
+				return
+			}
+			err = closeErr
+		}
 	}()
 
-	entries := make([]store.NetworkAuditEntry, 0)
+	entries = make([]store.NetworkAuditEntry, 0)
 	for rows.Next() {
 		entry, scanErr := scanNetworkAudit(rows)
 		if scanErr != nil {
@@ -96,6 +105,7 @@ func scanNetworkAudit(scanner rowScanner) (store.NetworkAuditEntry, error) {
 	if err := scanner.Scan(
 		&entry.ID,
 		&entry.SessionID,
+		&entry.WorkspaceID,
 		&entry.Direction,
 		&entry.Kind,
 		&entry.Channel,
@@ -147,11 +157,12 @@ func insertNetworkAuditWithExecutor(ctx context.Context, exec networkSQLExecutor
 	if _, err := exec.ExecContext(
 		ctx,
 		`INSERT INTO network_audit_log (
-			id, session_id, direction, kind, channel, surface, thread_id, direct_id, work_id,
+			id, session_id, workspace_id, direction, kind, channel, surface, thread_id, direct_id, work_id,
 			peer_from, peer_to, message_id, reason, size, timestamp
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		entry.ID,
 		entry.SessionID,
+		entry.WorkspaceID,
 		entry.Direction,
 		entry.Kind,
 		entry.Channel,

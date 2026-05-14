@@ -339,6 +339,12 @@ func (m *Manager) prepareSessionStartRuntime(
 	}
 
 	startupCtx := spec.startupPromptContext(updatedAt)
+	if strings.TrimSpace(startupCtx.AgentName) == "" {
+		startupCtx.AgentName = strings.TrimSpace(agentDef.Name)
+	}
+	if strings.TrimSpace(startupCtx.Provider) == "" {
+		startupCtx.Provider = strings.TrimSpace(agentDef.Provider)
+	}
 	startupPrompt, err := m.startupPrompt(
 		ctx,
 		spec.startupSessionContext(updatedAt),

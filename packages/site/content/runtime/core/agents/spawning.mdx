@@ -36,17 +36,17 @@ caption="AGH resolves workspace and provider configuration before launching an A
 
 The session manager builds `acp.StartOpts` from the resolved workspace and agent:
 
-| Start option      | Source                                                                   |
-| ----------------- | ------------------------------------------------------------------------ |
-| `AgentName`       | resolved `AGENT.md` name                                                 |
-| `Command`         | `agent.command` or provider `command`                                    |
-| `Cwd`             | primary workspace root                                                   |
-| `AdditionalDirs`  | registered workspace additional roots                                    |
-| `Env`             | provider-policy environment plus AGH session variables and bound secrets |
-| `MCPServers`      | resolved config/provider/agent/skill MCP server list                     |
-| `Permissions`     | resolved agent or global permission mode                                 |
-| `SystemPrompt`    | assembled startup prompt built from `AGENT.md` body plus runtime context |
-| `ResumeSessionID` | stored ACP session ID when resuming                                      |
+| Start option      | Source                                                                                             |
+| ----------------- | -------------------------------------------------------------------------------------------------- |
+| `AgentName`       | resolved `AGENT.md` name                                                                           |
+| `Command`         | `agent.command` or provider `command`                                                              |
+| `Cwd`             | primary workspace root                                                                             |
+| `AdditionalDirs`  | registered workspace additional roots                                                              |
+| `Env`             | provider-policy environment plus AGH session variables and bound secrets                           |
+| `MCPServers`      | resolved config/provider/agent/skill MCP server list                                               |
+| `Permissions`     | resolved agent or global permission mode                                                           |
+| `SystemPrompt`    | assembled startup prompt built from the AGH runtime envelope, runtime context, and `AGENT.md` body |
+| `ResumeSessionID` | stored ACP session ID when resuming                                                                |
 
 The ACP driver validates these before launch:
 
@@ -196,13 +196,23 @@ permission policy. Filesystem permission checks use the primary workspace root a
 
 ## Prompt startup behavior
 
-The `AGENT.md` body becomes part of the startup system prompt. The current prompt path sends that
-startup prompt together with the first user prompt, then sends only user prompt text on later turns.
+The `AGENT.md` body becomes the agent-owned role portion of the startup prompt. AGH wraps it with a
+daemon-owned runtime envelope that states the session is running inside AGH, records session and
+workspace facts, and explains that AGH owns the session lifecycle, runtime context, native tool
+gateway, and observable event stream.
+
+Generic ACP does not provide a system-role field in `session/new` or `session/load`, so AGH sends the
+assembled startup prompt with the first user prompt and annotates that fallback in prompt metadata.
+Later turns send only user prompt text plus any live turn context AGH adds through its prompt
+augmenters. Provider-native system-prompt channels can receive the same rendered startup guidance
+directly when a harness supports them.
 
 That means:
 
-- the body should contain durable role and operating instructions
-- per-turn details belong in the user prompt
+- the body should contain durable role and operating instructions, not the fact that the process is
+  running inside AGH
+- AGH runtime identity, session facts, and daemon-owned tool guidance are added by the runtime
+- per-turn details belong in the user prompt or daemon-provided turn context
 - changing `AGENT.md` affects new processes, not a process that is already running
 
 ## Stop behavior

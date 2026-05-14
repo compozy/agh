@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+const networkConversationTestWorkspaceID = "ws_store_validation"
+
 func TestNetworkConversationRefValidation(t *testing.T) {
 	t.Parallel()
 
@@ -17,43 +19,48 @@ func TestNetworkConversationRefValidation(t *testing.T) {
 		{
 			name: "Should accept thread references",
 			ref: NetworkConversationRef{
-				Channel:  "builders",
-				Surface:  NetworkSurfaceThread,
-				ThreadID: "thread_patch_42",
+				WorkspaceID: networkConversationTestWorkspaceID,
+				Channel:     "builders",
+				Surface:     NetworkSurfaceThread,
+				ThreadID:    "thread_patch_42",
 			},
 		},
 		{
 			name: "Should accept direct references",
 			ref: NetworkConversationRef{
-				Channel:  "builders",
-				Surface:  NetworkSurfaceDirect,
-				DirectID: "direct_0123456789abcdef0123456789abcdef",
+				WorkspaceID: networkConversationTestWorkspaceID,
+				Channel:     "builders",
+				Surface:     NetworkSurfaceDirect,
+				DirectID:    "direct_0123456789abcdef0123456789abcdef",
 			},
 		},
 		{
 			name: "Should reject missing thread ids",
 			ref: NetworkConversationRef{
-				Channel: "builders",
-				Surface: NetworkSurfaceThread,
+				WorkspaceID: networkConversationTestWorkspaceID,
+				Channel:     "builders",
+				Surface:     NetworkSurfaceThread,
 			},
 			wantErr: "thread_id",
 		},
 		{
 			name: "Should reject dual containers",
 			ref: NetworkConversationRef{
-				Channel:  "builders",
-				Surface:  NetworkSurfaceThread,
-				ThreadID: "thread_patch_42",
-				DirectID: "direct_0123456789abcdef0123456789abcdef",
+				WorkspaceID: networkConversationTestWorkspaceID,
+				Channel:     "builders",
+				Surface:     NetworkSurfaceThread,
+				ThreadID:    "thread_patch_42",
+				DirectID:    "direct_0123456789abcdef0123456789abcdef",
 			},
 			wantErr: "direct_id",
 		},
 		{
 			name: "Should reject unknown surfaces",
 			ref: NetworkConversationRef{
-				Channel:  "builders",
-				Surface:  "room",
-				ThreadID: "thread_patch_42",
+				WorkspaceID: networkConversationTestWorkspaceID,
+				Channel:     "builders",
+				Surface:     "room",
+				ThreadID:    "thread_patch_42",
 			},
 			wantErr: "surface",
 		},
@@ -123,6 +130,7 @@ func TestNetworkConversationSummaryValidation(t *testing.T) {
 		t.Parallel()
 
 		summary := NetworkThreadSummary{
+			WorkspaceID:        networkConversationTestWorkspaceID,
 			Channel:            "builders",
 			ThreadID:           "thread_patch_42",
 			RootMessageID:      "msg_patch_42",
@@ -148,6 +156,7 @@ func TestNetworkConversationSummaryValidation(t *testing.T) {
 		t.Parallel()
 
 		summary := NetworkDirectRoomSummary{
+			WorkspaceID:    networkConversationTestWorkspaceID,
 			Channel:        "builders",
 			DirectID:       "direct_0123456789abcdef0123456789abcdef",
 			PeerA:          "coder.sess-abc",
@@ -177,6 +186,7 @@ func TestNetworkDirectRoomEntryValidation(t *testing.T) {
 
 		now := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
 		entry := NetworkDirectRoomEntry{
+			WorkspaceID:    networkConversationTestWorkspaceID,
 			Channel:        "builders",
 			DirectID:       "direct_0123456789abcdef0123456789abcdef",
 			PeerA:          "coder.sess-abc",
@@ -200,6 +210,7 @@ func TestNetworkWorkEntryValidation(t *testing.T) {
 
 	now := time.Date(2026, 5, 5, 12, 0, 0, 0, time.UTC)
 	valid := NetworkWorkEntry{
+		WorkspaceID:    networkConversationTestWorkspaceID,
 		WorkID:         "work_patch_42",
 		Channel:        "builders",
 		Surface:        NetworkSurfaceThread,
@@ -309,6 +320,7 @@ func TestNetworkConversationMessageValidation(t *testing.T) {
 	t.Parallel()
 
 	valid := NetworkConversationMessage{
+		WorkspaceID: networkConversationTestWorkspaceID,
 		MessageID:   "msg_patch_42",
 		Channel:     "builders",
 		Surface:     NetworkSurfaceDirect,

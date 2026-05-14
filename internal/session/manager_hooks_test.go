@@ -699,6 +699,61 @@ func TestCreateUsesPatchedPrompt(t *testing.T) {
 	}
 }
 
+func TestCreateAppliesStartupPromptOverlayAfterPromptPatch(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve daemon startup overlay after prompt hook replacement", func(t *testing.T) {
+		t.Parallel()
+
+		hooks := newNativeHookDispatcher(t,
+			[]hookspkg.HookDecl{{
+				Name:         "patch-prompt",
+				Event:        hookspkg.HookPromptPostAssemble,
+				Mode:         hookspkg.HookModeSync,
+				ExecutorKind: hookspkg.HookExecutorNative,
+			}},
+			map[string]hookspkg.Executor{
+				"patch-prompt": hookspkg.NewTypedNativeExecutor(
+					func(
+						_ context.Context,
+						_ hookspkg.RegisteredHook,
+						_ hookspkg.PromptPayload,
+					) (hookspkg.PromptPatch, error) {
+						prompt := "patched system prompt"
+						return hookspkg.PromptPatch{Prompt: &prompt}, nil
+					},
+				),
+			},
+		)
+
+		h := newHarness(
+			t,
+			WithHookSet(fullHookSet(hooks)),
+			WithStartupPromptOverlay(
+				startupPromptOverlayFunc(func(
+					_ context.Context,
+					_ StartupPromptContext,
+					prompt string,
+				) (string, error) {
+					return "protected runtime envelope\n\n" + prompt, nil
+				}),
+			),
+		)
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+				t.Errorf("Stop() error = %v", err)
+			}
+		})
+
+		got := h.driver.startCalls[0].SystemPrompt
+		want := "protected runtime envelope\n\npatched system prompt"
+		if got != want {
+			t.Fatalf("start system prompt = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestAgentCrashedHookFiresOnProcessCrash(t *testing.T) {
 	t.Parallel()
 

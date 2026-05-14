@@ -35,11 +35,21 @@ export function createSessionThreadListAdapter({
       };
     },
     async fetch(threadId: string) {
-      const session = await queryClient.ensureQueryData(sessionDetailOptions(threadId));
+      if (!workspaceId) {
+        throw new Error("AGH session thread fetch requires a workspace id");
+      }
+      const session = await queryClient.ensureQueryData(
+        sessionDetailOptions(workspaceId, threadId)
+      );
       return toThreadMetadata(session);
     },
     async initialize(threadId: string) {
-      const session = await queryClient.ensureQueryData(sessionDetailOptions(threadId));
+      if (!workspaceId) {
+        throw new Error("AGH session thread initialization requires a workspace id");
+      }
+      const session = await queryClient.ensureQueryData(
+        sessionDetailOptions(workspaceId, threadId)
+      );
 
       return {
         remoteId: session.id,

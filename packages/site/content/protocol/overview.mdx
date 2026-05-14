@@ -46,18 +46,18 @@ messages to its own session model.
 
 ## Protocol at a glance
 
-| Concept               | What it does                                                                 | v0 shape                                                                                                                                                       |
-| --------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Envelope              | Wraps every message in a stable JSON wire format.                            | `protocol`, `id`, `kind`, `channel`, `surface`, `thread_id`, `direct_id`, `from`, `to`, `work_id`, timestamps, correlation fields, `body`, `proof`, and `ext`. |
-| Peer                  | Identifies an agent runtime participant inside a channel.                    | Peer IDs use lowercase letters, digits, dots, underscores, and hyphens.                                                                                        |
-| Channel               | Scopes discovery, routing, and conversation containers.                      | Channel names match `[a-z0-9][a-z0-9_-]{0,63}`.                                                                                                                |
-| Conversation surfaces | Carry conversation messages with explicit visibility.                        | `surface:"thread"` with `thread_id` for public N-to-N threads; `surface:"direct"` with `direct_id` for restricted two-party direct rooms.                      |
-| Message kinds         | Define the six protocol actions.                                             | `greet`, `whois`, `say`, `capability`, `receipt`, `trace`.                                                                                                     |
-| Work lifecycle        | Correlates directed work and progress inside one conversation container.     | `work_id` scopes receipts, follow-up messages, and trace updates within a single `(channel, surface, container_id)` tuple.                                     |
-| Discovery             | Lets peers announce and query capability claims.                             | `greet` advertises a Peer Card with brief capabilities; `whois` asks for matching peers and optionally the rich catalog.                                       |
-| Delivery              | Defines expectations without pretending to guarantee exactly-once messaging. | Receivers deduplicate, expire stale messages, and use receipts where useful.                                                                                   |
-| Transport             | Binds the core envelope to a carrier.                                        | The v0 reference transport profile uses NATS subjects.                                                                                                         |
-| Trust                 | Leaves room for stronger verification later.                                 | v0 treats identity and capability claims as unverified; `proof` is reserved for future trust processing.                                                       |
+| Concept               | What it does                                                                 | v0 shape                                                                                                                                                                       |
+| --------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Envelope              | Wraps every message in a stable JSON wire format.                            | `protocol`, `id`, `workspace_id`, `kind`, `channel`, `surface`, `thread_id`, `direct_id`, `from`, `to`, `work_id`, timestamps, correlation fields, `body`, `proof`, and `ext`. |
+| Peer                  | Identifies an agent runtime participant inside a workspace channel.          | Peer IDs use lowercase letters, digits, dots, underscores, and hyphens.                                                                                                        |
+| Channel               | Scopes discovery, routing, and conversation containers inside a workspace.   | Channel names match `[a-z0-9][a-z0-9_-]{0,63}`; the same slug in different workspaces is distinct.                                                                             |
+| Conversation surfaces | Carry conversation messages with explicit visibility.                        | `surface:"thread"` with `thread_id` for public N-to-N threads; `surface:"direct"` with `direct_id` for restricted two-party direct rooms.                                      |
+| Message kinds         | Define the six protocol actions.                                             | `greet`, `whois`, `say`, `capability`, `receipt`, `trace`.                                                                                                                     |
+| Work lifecycle        | Correlates directed work and progress inside one conversation container.     | `work_id` scopes receipts, follow-up messages, and trace updates within a single `(workspace_id, channel, surface, container_id)` tuple.                                       |
+| Discovery             | Lets peers announce and query capability claims.                             | `greet` advertises a Peer Card with brief capabilities; `whois` asks for matching peers and optionally the rich catalog.                                                       |
+| Delivery              | Defines expectations without pretending to guarantee exactly-once messaging. | Receivers deduplicate, expire stale messages, and use receipts where useful.                                                                                                   |
+| Transport             | Binds the core envelope to a carrier.                                        | The v0 reference transport profile uses NATS subjects.                                                                                                                         |
+| Trust                 | Leaves room for stronger verification later.                                 | v0 treats identity and capability claims as unverified; `proof` is reserved for future trust processing.                                                                       |
 
 ## Layer model
 
@@ -106,7 +106,7 @@ Start here when you want working interop quickly:
 
 1. Map your runtime's agents to Peer IDs and Peer Cards.
 2. Accept and emit the canonical envelope.
-3. Implement `greet`, `whois`, `say`, and `direct`.
+3. Implement `greet`, `whois`, `say`, and the `surface:"direct"` conversation rules.
 
 ### Lifecycle-complete coordination
 

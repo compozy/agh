@@ -42,6 +42,8 @@ const (
 type HarnessPromptSection string
 
 const (
+	// HarnessPromptSectionRuntimeIdentity injects the daemon-owned AGH runtime envelope.
+	HarnessPromptSectionRuntimeIdentity HarnessPromptSection = "runtime_identity"
 	// HarnessPromptSectionSituation injects the bounded AGH situation context.
 	HarnessPromptSectionSituation HarnessPromptSection = "situation"
 	// HarnessPromptSectionMemory injects durable memory prompt context.
@@ -98,15 +100,16 @@ const (
 
 // HarnessRuntimeSignals captures daemon-owned capability flags available to the resolver.
 type HarnessRuntimeSignals struct {
-	SituationPromptSectionEnabled bool
-	MemoryPromptSectionEnabled    bool
-	SkillsPromptSectionEnabled    bool
-	ToolsPromptSectionEnabled     bool
-	SkillsAugmenter               bool
-	SituationAugmenter            bool
-	DurableMemoryAugmenter        bool
-	SyntheticTurnsEnabled         bool
-	DetachedTaskRuntimeEnabled    bool
+	RuntimeIdentityPromptSectionEnabled bool
+	SituationPromptSectionEnabled       bool
+	MemoryPromptSectionEnabled          bool
+	SkillsPromptSectionEnabled          bool
+	ToolsPromptSectionEnabled           bool
+	SkillsAugmenter                     bool
+	SituationAugmenter                  bool
+	DurableMemoryAugmenter              bool
+	SyntheticTurnsEnabled               bool
+	DetachedTaskRuntimeEnabled          bool
 }
 
 // HarnessSessionInput carries durable session metadata into the resolver.
@@ -499,7 +502,10 @@ func normalizeDetachedRunMetadata(input *DetachedRunMetadata) (*DetachedRunMetad
 }
 
 func (r *HarnessContextResolver) resolveSections(sessionCtx HarnessSessionContext) []HarnessPromptSection {
-	sections := make([]HarnessPromptSection, 0, 5)
+	sections := make([]HarnessPromptSection, 0, 6)
+	if r.runtime.RuntimeIdentityPromptSectionEnabled {
+		sections = append(sections, HarnessPromptSectionRuntimeIdentity)
+	}
 	if r.runtime.SituationPromptSectionEnabled {
 		sections = append(sections, HarnessPromptSectionSituation)
 	}

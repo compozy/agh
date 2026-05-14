@@ -373,6 +373,7 @@ func networkHookTestEnvelope(t *testing.T) Envelope {
 	t.Helper()
 	return Envelope{
 		Protocol:    ProtocolV0,
+		WorkspaceID: testWorkspaceID,
 		ID:          "msg-hook",
 		Kind:        KindSay,
 		Channel:     "builders",

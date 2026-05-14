@@ -141,7 +141,7 @@ A handful of CLAUDE.md statements no longer match the codebase or how Pedro curr
 **1. Phase ordering**
 
 - CLAUDE.md says phases are 1) Agent core (current) → 2) Memory/Skills/State → 3) Agent network protocol.
-- Reality (per recent commits and the user-memory `project_site_docs.md`): network protocol exists today (`agh-network/v0`, seven-kind wire), channels are first-class, network workspace was redesigned in `feat: redesign network workspace (#59)`. The current major effort is the autonomy kernel (situation surface, claim/lease, coordinator), which doesn't cleanly map to any of the three named phases.
+- Reality (per recent commits and the user-memory `project_site_docs.md`): network protocol exists today (`agh-network/v0`, six-kind wire), channels are first-class, network workspace was redesigned in `feat: redesign network workspace (#59)`. The current major effort is the autonomy kernel (situation surface, claim/lease, coordinator), which doesn't cleanly map to any of the three named phases.
 - Phase labels are stale; they predate the autonomous mode.
 
 **2. Package layout table**

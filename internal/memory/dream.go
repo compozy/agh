@@ -434,7 +434,11 @@ func (s *Service) prepareWorkspace(ctx context.Context, workspaceRef string) (dr
 	if err != nil {
 		return dreamRunWorkspace{}, fmt.Errorf("memory: resolve workspace %q: %w", trimmedRef, err)
 	}
-	if strings.TrimSpace(resolved.ID) == "" {
+	workspaceID := strings.TrimSpace(resolved.WorkspaceID)
+	if workspaceID == "" {
+		workspaceID = strings.TrimSpace(resolved.ID)
+	}
+	if workspaceID == "" {
 		return dreamRunWorkspace{}, errors.New("memory: workspace id is required")
 	}
 	workspaceStore := s.memStore
@@ -450,7 +454,7 @@ func (s *Service) prepareWorkspace(ctx context.Context, workspaceRef string) (dr
 	}
 
 	return dreamRunWorkspace{
-		id:    strings.TrimSpace(resolved.ID),
+		id:    workspaceID,
 		store: workspaceStore,
 		scope: memcontract.ScopeWorkspace,
 	}, nil

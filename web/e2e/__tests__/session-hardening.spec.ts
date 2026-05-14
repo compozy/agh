@@ -100,7 +100,7 @@ test("operator rejects a permission request, records tool output, and keeps sess
   const approvalResponsePromise = appPage.waitForResponse(
     response =>
       response.request().method() === "POST" &&
-      response.url().endsWith(`/api/sessions/${encodeURIComponent(session.id)}/approve`)
+      response.url().endsWith(sessionAPIPath(workspace.id, session.id, "/approve"))
   );
   await appPage.getByTestId("permission-reject-always").click();
   expect((await approvalResponsePromise).ok()).toBe(true);
@@ -108,7 +108,7 @@ test("operator rejects a permission request, records tool output, and keeps sess
   await expect(ui.permissionPrompt).toBeHidden();
   await expect(appPage.getByTestId("composer-clear-button")).toBeEnabled();
 
-  const snapshot = await captureSessionSnapshot(runtime, session.id);
+  const snapshot = await captureSessionSnapshot(runtime, workspace.id, session.id);
   expect(JSON.stringify(snapshot.events)).toContain("tool-hardening-read-1");
   expect(JSON.stringify(snapshot.events)).toContain("hardening read complete");
   expect(JSON.stringify(snapshot.events)).toContain("reject-always");
@@ -159,14 +159,14 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
   const cancelResponsePromise = appPage.waitForResponse(
     response =>
       response.request().method() === "POST" &&
-      response.url().endsWith(`/api/sessions/${encodeURIComponent(session.id)}/prompt/cancel`)
+      response.url().endsWith(sessionAPIPath(workspace.id, session.id, "/prompt/cancel"))
   );
   await expect(ui.stopButton).toBeVisible();
   await ui.stopButton.click();
   expect((await cancelResponsePromise).ok()).toBe(true);
 
   await expect(appPage.getByTestId("composer-clear-button")).toBeEnabled({ timeout: 60_000 });
-  const beforeClear = await captureSessionSnapshot(runtime, session.id);
+  const beforeClear = await captureSessionSnapshot(runtime, workspace.id, session.id);
   expect(JSON.stringify(beforeClear.history)).toContain("block until canceled");
 
   await appPage.getByTestId("composer-clear-button").click();
@@ -174,13 +174,13 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
   const clearResponsePromise = appPage.waitForResponse(
     response =>
       response.request().method() === "POST" &&
-      response.url().endsWith(`/api/sessions/${encodeURIComponent(session.id)}/clear`)
+      response.url().endsWith(sessionAPIPath(workspace.id, session.id, "/clear"))
   );
   await appPage.getByTestId("composer-clear-confirm").click();
   expect((await clearResponsePromise).ok()).toBe(true);
   await expect(ui.chatView).not.toContainText("block until canceled");
 
-  const afterClear = await captureSessionSnapshot(runtime, session.id);
+  const afterClear = await captureSessionSnapshot(runtime, workspace.id, session.id);
   expect(JSON.stringify(afterClear.history)).not.toContain("block until canceled");
 
   const deletableSession = await createSession(runtime, faultAgent, workspace.id);
@@ -193,22 +193,20 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
   const deleteResponsePromise = appPage.waitForResponse(
     response =>
       response.request().method() === "DELETE" &&
-      response.url().endsWith(`/api/sessions/${encodeURIComponent(deletableSession.id)}`)
+      response.url().endsWith(sessionAPIPath(workspace.id, deletableSession.id))
   );
   await appPage.getByTestId("delete-dialog-confirm").click();
   expect((await deleteResponsePromise).ok()).toBe(true);
   await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/agents/${faultAgent}`);
 
   await expect(
-    runtime.requestJSON<SessionEnvelope>(`/api/sessions/${encodeURIComponent(deletableSession.id)}`)
+    runtime.requestJSON<SessionEnvelope>(sessionAPIPath(workspace.id, deletableSession.id))
   ).rejects.toThrow("404");
   if (!runtime.requestOperatorJSON) {
     throw new Error("session delete parity check requires launch-mode UDS access.");
   }
   await expect(
-    runtime.requestOperatorJSON<SessionEnvelope>(
-      `/api/sessions/${encodeURIComponent(deletableSession.id)}`
-    )
+    runtime.requestOperatorJSON<SessionEnvelope>(sessionAPIPath(workspace.id, deletableSession.id))
   ).rejects.toThrow("404");
   const cliSessions = await listSessionsViaCLI(runtime);
   expect(cliSessions.some(record => record.id === deletableSession.id)).toBe(false);
@@ -248,12 +246,12 @@ test("operator repairs an interrupted session through HTTP, UDS, and CLI without
   await expect(ui.chatView).toContainText("partial before crash", { timeout: 15_000 });
   await expect(ui.resumeButton).toBeVisible({ timeout: 20_000 });
 
-  const beforeRepair = await captureSessionSnapshot(runtime, session.id);
+  const beforeRepair = await captureSessionSnapshot(runtime, workspace.id, session.id);
   expect(JSON.stringify(beforeRepair.history)).toContain("trigger crash mid-stream");
   expect(JSON.stringify(beforeRepair.history)).toContain("partial before crash");
 
   const httpRepair = await runtime.requestJSON<SessionRepairEnvelope>(
-    `/api/sessions/${encodeURIComponent(session.id)}/repair?dry_run=true&force=true`,
+    sessionAPIPath(workspace.id, session.id, "/repair?dry_run=true&force=true"),
     { method: "POST" }
   );
   expect(httpRepair.repair.session_id).toBe(session.id);
@@ -262,7 +260,7 @@ test("operator repairs an interrupted session through HTTP, UDS, and CLI without
     throw new Error("session repair E2E requires launch-mode UDS access.");
   }
   const udsRepair = await runtime.requestOperatorJSON<SessionRepairEnvelope>(
-    `/api/sessions/${encodeURIComponent(session.id)}/repair?dry_run=true&force=true`,
+    sessionAPIPath(workspace.id, session.id, "/repair?dry_run=true&force=true"),
     { method: "POST" }
   );
   expect(udsRepair.repair.session_id).toBe(session.id);
@@ -270,7 +268,7 @@ test("operator repairs an interrupted session through HTTP, UDS, and CLI without
   const cliRepair = await repairSessionViaCLI(runtime, session.id);
   expect(JSON.stringify(cliRepair)).toContain(session.id);
 
-  const afterRepair = await captureSessionSnapshot(runtime, session.id);
+  const afterRepair = await captureSessionSnapshot(runtime, workspace.id, session.id);
   expect(JSON.stringify(afterRepair.history)).toContain("trigger crash mid-stream");
   expect(JSON.stringify(afterRepair.history)).toContain("partial before crash");
   expect(afterRepair.session.session.state).toBe("stopped");
@@ -325,6 +323,7 @@ async function createSession(
 
 async function captureSessionSnapshot(
   runtime: BrowserRuntime,
+  workspaceID: string,
   sessionID: string
 ): Promise<{
   events: SessionEventEnvelope;
@@ -333,7 +332,7 @@ async function captureSessionSnapshot(
   transcript: unknown;
   udsSession?: SessionEnvelope;
 }> {
-  const sessionPathname = `/api/sessions/${encodeURIComponent(sessionID)}`;
+  const sessionPathname = sessionAPIPath(workspaceID, sessionID);
   const snapshot = {
     events: await runtime.requestJSON<SessionEventEnvelope>(`${sessionPathname}/events`),
     history: await runtime.requestJSON<SessionHistoryEnvelope>(`${sessionPathname}/history`),
@@ -387,6 +386,12 @@ function cliEnv(paths: { cliShim: string; homeDir: string }): NodeJS.ProcessEnv 
 
 function sessionPath(agentName: string, sessionID: string): string {
   return `/agents/${agentName}/sessions/${sessionID}`;
+}
+
+function sessionAPIPath(workspaceID: string, sessionID: string, suffix = ""): string {
+  return `/api/workspaces/${encodeURIComponent(workspaceID)}/sessions/${encodeURIComponent(
+    sessionID
+  )}${suffix}`;
 }
 
 async function assertNoSensitiveLeak(

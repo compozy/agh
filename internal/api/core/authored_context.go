@@ -34,6 +34,7 @@ var (
 
 type authoredAgentTarget struct {
 	workspaceID         string
+	sessionWorkspaceID  string
 	workspaceRoot       string
 	agentName           string
 	agentPath           string
@@ -386,9 +387,13 @@ func (h *BaseHandlers) RefreshSessionSoul(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
+	_, sessionID, _, ok := h.routeSessionInWorkspace(c)
+	if !ok {
+		return
+	}
 	result, err := h.SoulRefresher.RefreshSoulWithExpectedDigest(
 		c.Request.Context(),
-		c.Param("id"),
+		sessionID,
 		req.ExpectedDigest,
 	)
 	if err != nil {
@@ -652,6 +657,16 @@ func (h *BaseHandlers) GetAgentHeartbeatStatus(c *gin.Context) {
 		return
 	}
 	sessionID := strings.TrimSpace(c.Query("session_id"))
+	if sessionID != "" {
+		if _, err := h.requireSessionInWorkspace(
+			c.Request.Context(),
+			target.sessionWorkspaceID,
+			sessionID,
+		); err != nil {
+			h.respondError(c, statusForWorkspaceScopedResourceError(err), err)
+			return
+		}
+	}
 	result, err := h.HeartbeatStatus.Status(c.Request.Context(), heartbeat.StatusRequest{
 		Target:               target.heartbeatAuthoringTarget(),
 		SessionID:            sessionID,
@@ -706,10 +721,21 @@ func (h *BaseHandlers) WakeAgentHeartbeat(c *gin.Context) {
 	if source == "" {
 		source = heartbeat.WakeSourceManual
 	}
+	sessionID := strings.TrimSpace(req.SessionID)
+	if sessionID != "" {
+		if _, err := h.requireSessionInWorkspace(
+			c.Request.Context(),
+			target.sessionWorkspaceID,
+			sessionID,
+		); err != nil {
+			h.respondError(c, statusForWorkspaceScopedResourceError(err), err)
+			return
+		}
+	}
 	decision, err := h.HeartbeatWake.Wake(c.Request.Context(), heartbeat.WakeRequest{
 		WorkspaceID: target.workspaceID,
 		AgentName:   target.agentName,
-		SessionID:   strings.TrimSpace(req.SessionID),
+		SessionID:   sessionID,
 		Source:      source,
 		DryRun:      req.DryRun,
 	})
@@ -994,12 +1020,13 @@ func (h *BaseHandlers) resolveAuthoredAgentTarget(
 		return authoredAgentTarget{}, workspacepkg.ErrWorkspaceRootMissing
 	}
 	return authoredAgentTarget{
-		workspaceID:     strings.TrimSpace(resolved.ID),
-		workspaceRoot:   root,
-		agentName:       name,
-		agentPath:       authoredAgentPath(&resolved, name),
-		soulConfig:      resolved.Config.Agents.Soul,
-		heartbeatConfig: resolved.Config.Agents.Heartbeat,
+		workspaceID:        strings.TrimSpace(resolved.WorkspaceID),
+		sessionWorkspaceID: strings.TrimSpace(resolved.ID),
+		workspaceRoot:      root,
+		agentName:          name,
+		agentPath:          authoredAgentPath(&resolved, name),
+		soulConfig:         resolved.Config.Agents.Soul,
+		heartbeatConfig:    resolved.Config.Agents.Heartbeat,
 	}.withAgentArtifacts(h.AgentCatalog, name, &resolved), nil
 }
 
@@ -1256,9 +1283,17 @@ func (h *BaseHandlers) sessionHealthPayloadForRoute(c *gin.Context) (contract.Se
 		h.respondError(c, StatusForHeartbeatError(errSessionHealthMissing), errSessionHealthMissing)
 		return contract.SessionHealthPayload{}, false
 	}
-	health, err := h.SessionHealth.GetSessionHealth(c.Request.Context(), c.Param("id"))
+	scope, sessionID, _, ok := h.routeSessionInWorkspace(c)
+	if !ok {
+		return contract.SessionHealthPayload{}, false
+	}
+	health, err := h.SessionHealth.GetSessionHealth(c.Request.Context(), sessionID)
 	if err != nil {
 		h.respondError(c, StatusForHeartbeatError(err), err)
+		return contract.SessionHealthPayload{}, false
+	}
+	if strings.TrimSpace(health.WorkspaceID) != scope.SessionWorkspaceID() {
+		h.respondError(c, http.StatusNotFound, errWorkspaceScopedResourceNotFound)
 		return contract.SessionHealthPayload{}, false
 	}
 	payload, err := contract.SessionHealthPayloadFromDomain(health)

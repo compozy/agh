@@ -21,6 +21,8 @@ vi.mock("../../adapters/network-api", async () => {
 
 import { useActiveNetworkSession } from "../use-active-session";
 
+const WORKSPACE_ID = "ws";
+
 function makeWrapper() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return ({ children }: { children: ReactNode }) =>
@@ -77,16 +79,27 @@ describe("useActiveNetworkSession", () => {
       })
     );
 
-    const { result } = renderHook(() => useActiveNetworkSession("ops"), { wrapper: makeWrapper() });
+    const { result } = renderHook(
+      () => useActiveNetworkSession("ops", { workspaceId: WORKSPACE_ID }),
+      { wrapper: makeWrapper() }
+    );
     await waitFor(() => expect(result.current.session).not.toBeNull());
     expect(result.current.session?.peerId).toBe("peer-self");
     expect(result.current.session?.sessionId).toBe("sess-1");
     expect(result.current.disabledReason).toBeNull();
+    expect(getNetworkChannelMock).toHaveBeenCalledWith(
+      WORKSPACE_ID,
+      "ops",
+      expect.any(AbortSignal)
+    );
   });
 
   it("Should expose a disabled reason when the channel has no local peer", async () => {
     getNetworkChannelMock.mockResolvedValue(buildChannel({ peers: [] }));
-    const { result } = renderHook(() => useActiveNetworkSession("ops"), { wrapper: makeWrapper() });
+    const { result } = renderHook(
+      () => useActiveNetworkSession("ops", { workspaceId: WORKSPACE_ID }),
+      { wrapper: makeWrapper() }
+    );
     await waitFor(() => expect(result.current.disabledReason).not.toBeNull());
     expect(result.current.session).toBeNull();
   });

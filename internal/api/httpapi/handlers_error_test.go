@@ -39,22 +39,22 @@ func TestCreateGetResumeDeleteAndStopHandlersReturnExpectedErrors(t *testing.T) 
 		{
 			name:   "ShouldReturnNotFoundWhenSessionLookupFails",
 			method: http.MethodGet,
-			path:   "/api/sessions/missing",
+			path:   "/api/workspaces/ws-workspace/sessions/missing",
 		},
 		{
 			name:   "ShouldReturnNotFoundWhenResumeFails",
 			method: http.MethodPost,
-			path:   "/api/sessions/missing/resume",
+			path:   "/api/workspaces/ws-workspace/sessions/missing/resume",
 		},
 		{
 			name:   "ShouldReturnNotFoundWhenDeleteFails",
 			method: http.MethodDelete,
-			path:   "/api/sessions/missing",
+			path:   "/api/workspaces/ws-workspace/sessions/missing",
 		},
 		{
 			name:   "ShouldReturnNotFoundWhenStopFails",
 			method: http.MethodPost,
-			path:   "/api/sessions/missing/stop",
+			path:   "/api/workspaces/ws-workspace/sessions/missing/stop",
 		},
 	}
 
@@ -228,12 +228,24 @@ func TestHandlersRejectBadPromptAndQueryValues(t *testing.T) {
 	}
 	engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, homePaths))
 
-	badPrompt := performRequest(t, engine, http.MethodPost, "/api/sessions/sess-123/prompt", []byte(`{"message":""}`))
+	badPrompt := performRequest(
+		t,
+		engine,
+		http.MethodPost,
+		"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
+		[]byte(`{"message":""}`),
+	)
 	if badPrompt.Code != http.StatusBadRequest {
 		t.Fatalf("bad prompt status = %d, want %d", badPrompt.Code, http.StatusBadRequest)
 	}
 
-	eventsResp := performRequest(t, engine, http.MethodGet, "/api/sessions/sess-123/events?since=bad", nil)
+	eventsResp := performRequest(
+		t,
+		engine,
+		http.MethodGet,
+		"/api/workspaces/ws-workspace/sessions/sess-123/events?since=bad",
+		nil,
+	)
 	if eventsResp.Code != http.StatusBadRequest {
 		t.Fatalf("events bad query status = %d, want %d", eventsResp.Code, http.StatusBadRequest)
 	}
@@ -242,7 +254,7 @@ func TestHandlersRejectBadPromptAndQueryValues(t *testing.T) {
 		t,
 		engine,
 		http.MethodGet,
-		"/api/sessions/sess-123/stream",
+		"/api/workspaces/ws-workspace/sessions/sess-123/stream",
 		nil,
 		map[string]string{"Last-Event-ID": "bad"},
 	)
@@ -281,7 +293,13 @@ func TestPromptSessionHandlerCoversThoughtPermissionAndErrorBranches(t *testing.
 	}
 	engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, homePaths))
 
-	resp := performRequest(t, engine, http.MethodPost, "/api/sessions/sess-123/prompt", []byte(`{"message":"hello"}`))
+	resp := performRequest(
+		t,
+		engine,
+		http.MethodPost,
+		"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
+		[]byte(`{"message":"hello"}`),
+	)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
 	}
@@ -336,7 +354,7 @@ func TestAgentObserveHealthAndDaemonStatusErrorPaths(t *testing.T) {
 		t.Fatalf("agent status = %d, want %d", agentResp.Code, http.StatusNotFound)
 	}
 
-	observeResp := performRequest(t, engine, http.MethodGet, "/api/observe/events", nil)
+	observeResp := performRequest(t, engine, http.MethodGet, "/api/workspaces/ws-workspace/observe/events", nil)
 	if observeResp.Code != http.StatusInternalServerError {
 		t.Fatalf("observe status = %d, want %d", observeResp.Code, http.StatusInternalServerError)
 	}
@@ -485,7 +503,7 @@ func TestObserveStreamBadHeaderAndMissingAgentsDir(t *testing.T) {
 		t,
 		engine,
 		http.MethodGet,
-		"/api/observe/events/stream",
+		"/api/workspaces/ws-workspace/observe/events/stream",
 		nil,
 		map[string]string{"Last-Event-ID": "bad"},
 	)

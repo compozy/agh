@@ -41,7 +41,7 @@ export const Loading: Story = {
     ...appRouteParameters(fraudSessionRoute),
     ...storybookMswParameters({
       session: [
-        http.get("/api/sessions/:id", async () => {
+        http.get("/api/workspaces/:workspace_id/sessions/:id", async () => {
           await delay("infinite");
           return HttpResponse.json({ session: null });
         }),
@@ -67,7 +67,7 @@ export const PendingPermission: Story = {
     ...appRouteParameters(fraudSessionRoute),
     ...storybookMswParameters({
       session: [
-        http.get("/api/sessions/:id/transcript", () =>
+        http.get("/api/workspaces/:workspace_id/sessions/:id/transcript", () =>
           HttpResponse.json({ messages: sessionTranscriptPermissionFixture })
         ),
       ],
@@ -84,7 +84,7 @@ export const NotFoundRedirect: Story = {
     ...appRouteParameters(missingSessionRoute),
     ...storybookMswParameters({
       session: [
-        http.get("/api/sessions/:id", ({ params }) =>
+        http.get("/api/workspaces/:workspace_id/sessions/:id", ({ params }) =>
           HttpResponse.json({ error: `Session not found: ${String(params.id)}` }, { status: 404 })
         ),
       ],

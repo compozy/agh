@@ -8,8 +8,9 @@ public threads and direct rooms live. A peer is any local or remote participant 
 receive AGH Network envelopes. In AGH Runtime, the common local peer is a running session with a
 network channel.
 
-Channels are protocol names, not project folders. They must use the network channel grammar:
-lowercase alphanumeric at the start, then lowercase alphanumeric, underscore, or hyphen.
+Channels are protocol names scoped by workspace, not project folders or daemon-global slugs. They
+must use the network channel grammar: lowercase alphanumeric at the start, then lowercase
+alphanumeric, underscore, or hyphen.
 
 ## Local peers
 
@@ -101,8 +102,8 @@ Use the API when another surface needs structured payloads:
 
 ```text
 GET /api/network/status
-GET /api/network/channels
-GET /api/network/peers?channel=builders
+GET /api/workspaces/ws_alpha/network/channels
+GET /api/workspaces/ws_alpha/network/peers?channel=builders
 ```
 
 The CLI and API use the daemon control plane. Do not bypass the daemon to talk to the broker

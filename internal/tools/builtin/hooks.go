@@ -174,7 +174,9 @@ const hooksEventsInputSchema = `{
 
 const hooksRunsInputSchema = `{
 	"type":"object",
+	"required":["workspace_id","session_id"],
 	"properties":{
+		"workspace_id":{"type":"string"},
 		"session_id":{"type":"string"},
 		"event":{"type":"string"},
 		"outcome":{"type":"string"},

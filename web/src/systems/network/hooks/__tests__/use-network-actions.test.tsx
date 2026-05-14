@@ -33,6 +33,10 @@ vi.mock("@agh/ui", async () => {
   };
 });
 
+vi.mock("@/systems/workspace", () => ({
+  useActiveWorkspace: () => ({ activeWorkspaceId: "ws_alpha" }),
+}));
+
 import {
   THREAD_COLLISION_TOAST,
   useCreateNetworkThread,
@@ -58,7 +62,7 @@ describe("useSendNetworkMessage", () => {
   it("Should append an optimistic message immediately and replace it on success", async () => {
     const { queryClient, wrapper } = createWrapper();
     queryClient.setQueryData(
-      networkKeys.threadMessages("ops", "thread-1"),
+      networkKeys.threadMessages("ws_alpha", "ops", "thread-1"),
       [] as NetworkConversationMessage[]
     );
     sendNetworkMessageMock.mockResolvedValue({
@@ -88,7 +92,7 @@ describe("useSendNetworkMessage", () => {
     });
 
     const cacheAfterMutate = queryClient.getQueryData<NetworkConversationMessage[]>(
-      networkKeys.threadMessages("ops", "thread-1")
+      networkKeys.threadMessages("ws_alpha", "ops", "thread-1")
     );
     expect(cacheAfterMutate).toBeDefined();
     expect(cacheAfterMutate?.length).toBe(1);
@@ -99,7 +103,7 @@ describe("useSendNetworkMessage", () => {
     });
 
     const cacheAfterSuccess = queryClient.getQueryData<NetworkConversationMessage[]>(
-      networkKeys.threadMessages("ops", "thread-1")
+      networkKeys.threadMessages("ws_alpha", "ops", "thread-1")
     );
     expect(cacheAfterSuccess?.length).toBe(1);
     const replaced = cacheAfterSuccess?.[0] as NetworkConversationMessage & {
@@ -111,7 +115,7 @@ describe("useSendNetworkMessage", () => {
   it("Should mark the optimistic message as failed when the send rejects", async () => {
     const { queryClient, wrapper } = createWrapper();
     queryClient.setQueryData(
-      networkKeys.threadMessages("ops", "thread-1"),
+      networkKeys.threadMessages("ws_alpha", "ops", "thread-1"),
       [] as NetworkConversationMessage[]
     );
     sendNetworkMessageMock.mockRejectedValue(new Error("boom"));
@@ -132,7 +136,7 @@ describe("useSendNetworkMessage", () => {
     ).rejects.toThrow("boom");
 
     const cache = queryClient.getQueryData<NetworkConversationMessage[]>(
-      networkKeys.threadMessages("ops", "thread-1")
+      networkKeys.threadMessages("ws_alpha", "ops", "thread-1")
     );
     const failed = cache?.[0] as NetworkConversationMessage & { optimistic?: string };
     expect(failed?.optimistic).toBe("failed");
@@ -141,7 +145,7 @@ describe("useSendNetworkMessage", () => {
   it("Should never construct a request body containing kind:'direct'", async () => {
     const { queryClient, wrapper } = createWrapper();
     queryClient.setQueryData(
-      networkKeys.directMessages("ops", "direct-1"),
+      networkKeys.directMessages("ws_alpha", "ops", "direct-1"),
       [] as NetworkConversationMessage[]
     );
     sendNetworkMessageMock.mockResolvedValue({
@@ -161,7 +165,8 @@ describe("useSendNetworkMessage", () => {
     });
 
     expect(sendNetworkMessageMock).toHaveBeenCalledTimes(1);
-    const sent = sendNetworkMessageMock.mock.calls[0]?.[0] as Record<string, unknown>;
+    const sent = sendNetworkMessageMock.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(sendNetworkMessageMock.mock.calls[0]?.[0]).toBe("ws_alpha");
     expect(sent.kind).toBe("say");
     expect(sent.surface).toBe("direct");
     expect(sent.direct_id).toBe("direct-1");
@@ -171,7 +176,7 @@ describe("useSendNetworkMessage", () => {
   it("Should drop the optimistic message when discard is invoked", async () => {
     const { queryClient, wrapper } = createWrapper();
     queryClient.setQueryData(
-      networkKeys.threadMessages("ops", "thread-1"),
+      networkKeys.threadMessages("ws_alpha", "ops", "thread-1"),
       [] as NetworkConversationMessage[]
     );
     sendNetworkMessageMock.mockRejectedValue(new Error("boom"));
@@ -194,7 +199,7 @@ describe("useSendNetworkMessage", () => {
     });
 
     const cache = queryClient.getQueryData<NetworkConversationMessage[]>(
-      networkKeys.threadMessages("ops", "thread-1")
+      networkKeys.threadMessages("ws_alpha", "ops", "thread-1")
     );
     failedId = cache?.[0]?.message_id ?? "";
     expect(failedId).toBeTruthy();
@@ -214,7 +219,7 @@ describe("useSendNetworkMessage", () => {
     });
 
     const after = queryClient.getQueryData<NetworkConversationMessage[]>(
-      networkKeys.threadMessages("ops", "thread-1")
+      networkKeys.threadMessages("ws_alpha", "ops", "thread-1")
     );
     expect(after?.length).toBe(0);
   });
@@ -253,8 +258,8 @@ describe("useCreateNetworkThread", () => {
     expect(finalOutcome?.threadId.startsWith("thread_")).toBe(true);
     const firstCall = sendNetworkMessageMock.mock.calls[0] ?? [];
     const secondCall = sendNetworkMessageMock.mock.calls[1] ?? [];
-    const firstThreadId = (firstCall[0] as { thread_id: string }).thread_id;
-    const secondThreadId = (secondCall[0] as { thread_id: string }).thread_id;
+    const firstThreadId = (firstCall[1] as { thread_id: string }).thread_id;
+    const secondThreadId = (secondCall[1] as { thread_id: string }).thread_id;
     expect(firstThreadId).not.toBe(secondThreadId);
     expect(toastErrorMock).not.toHaveBeenCalled();
   });
@@ -309,7 +314,7 @@ describe("useResolveNetworkDirectRoom", () => {
     });
 
     await waitFor(() => expect(result.current.isResolving).toBe(false));
-    expect(resolveNetworkDirectRoomMock).toHaveBeenCalledWith("ops", {
+    expect(resolveNetworkDirectRoomMock).toHaveBeenCalledWith("ws_alpha", "ops", {
       peer_id: "a",
       session_id: "sess-1",
     });

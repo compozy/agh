@@ -21,43 +21,47 @@ export function sessionsListOptions(workspace: string | null = null) {
   });
 }
 
-export function sessionDetailOptions(id: string) {
+export function sessionDetailOptions(workspace: string, id: string) {
   return queryOptions({
-    queryKey: sessionKeys.detail(id),
-    queryFn: ({ signal }) => fetchSession(id, signal),
+    queryKey: sessionKeys.detail(workspace, id),
+    queryFn: ({ signal }) => fetchSession(workspace, id, signal),
     refetchInterval: query => {
       const state = query.state.data?.state;
       return state === "active" || state === "starting" || state === "stopping" ? 5_000 : false;
     },
     staleTime: 2_000,
-    enabled: !!id,
+    enabled: !!workspace && !!id,
   });
 }
 
-export function sessionEventsOptions(id: string, params?: FetchSessionEventsParams) {
+export function sessionEventsOptions(
+  workspace: string,
+  id: string,
+  params?: FetchSessionEventsParams
+) {
   return queryOptions({
-    queryKey: sessionKeys.events(id),
-    queryFn: ({ signal }) => fetchSessionEvents(id, params, signal),
+    queryKey: sessionKeys.events(workspace, id),
+    queryFn: ({ signal }) => fetchSessionEvents(workspace, id, params, signal),
     staleTime: 5_000,
-    enabled: !!id,
+    enabled: !!workspace && !!id,
   });
 }
 
-export function sessionHistoryOptions(id: string) {
+export function sessionHistoryOptions(workspace: string, id: string) {
   return queryOptions({
-    queryKey: sessionKeys.history(id),
-    queryFn: ({ signal }) => fetchSessionHistory(id, signal),
+    queryKey: sessionKeys.history(workspace, id),
+    queryFn: ({ signal }) => fetchSessionHistory(workspace, id, signal),
     staleTime: 10_000,
-    enabled: !!id,
+    enabled: !!workspace && !!id,
   });
 }
 
-export function sessionTranscriptOptions(id: string) {
+export function sessionTranscriptOptions(workspace: string, id: string) {
   return queryOptions({
-    queryKey: sessionKeys.transcript(id),
-    queryFn: ({ signal }) => fetchSessionTranscript(id, signal),
+    queryKey: sessionKeys.transcript(workspace, id),
+    queryFn: ({ signal }) => fetchSessionTranscript(workspace, id, signal),
     staleTime: 10_000,
-    enabled: !!id,
+    enabled: !!workspace && !!id,
   });
 }
 
@@ -65,11 +69,15 @@ export interface SessionLedgerQueryOptions {
   enabled?: boolean;
 }
 
-export function sessionLedgerOptions(id: string, options?: SessionLedgerQueryOptions) {
-  const enabled = (options?.enabled ?? true) && !!id;
+export function sessionLedgerOptions(
+  workspace: string,
+  id: string,
+  options?: SessionLedgerQueryOptions
+) {
+  const enabled = (options?.enabled ?? true) && !!workspace && !!id;
   return queryOptions({
-    queryKey: sessionKeys.ledger(id),
-    queryFn: ({ signal }) => fetchSessionLedger(id, signal),
+    queryKey: sessionKeys.ledger(workspace, id),
+    queryFn: ({ signal }) => fetchSessionLedger(workspace, id, signal),
     staleTime: 10_000,
     enabled,
     retry: (failureCount, error) => {

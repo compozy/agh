@@ -22,12 +22,18 @@ vi.mock("../../adapters/session-api", () => ({
   resumeSession: vi.fn(),
 }));
 
+vi.mock("@/systems/workspace", () => ({
+  useActiveWorkspace: () => ({ activeWorkspaceId: "ws_alpha" }),
+}));
+
 import {
   clearSessionConversation,
   createSession,
   deleteSession,
   repairSession,
 } from "../../adapters/session-api";
+
+const WORKSPACE_ID = "ws_alpha";
 
 function createWrapper(queryClient: QueryClient) {
   return ({ children }: { children: ReactNode }) =>
@@ -103,7 +109,9 @@ describe("session actions", () => {
       agent_name: createdSession.agent_name,
       workspace: createdSession.workspace_id,
     });
-    expect(queryClient.getQueryData(sessionKeys.detail(createdSession.id))).toEqual(createdSession);
+    expect(queryClient.getQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id))).toEqual(
+      createdSession
+    );
     expect(queryClient.getQueryData(sessionKeys.list())).toEqual([createdSession, existingSession]);
     expect(queryClient.getQueryData(sessionKeys.list("ws_alpha"))).toEqual([
       createdSession,
@@ -111,7 +119,7 @@ describe("session actions", () => {
     ]);
     expect(queryClient.getQueryData(sessionKeys.list("ws_beta"))).toEqual([otherWorkspaceSession]);
     expect(invalidateSpy).toHaveBeenNthCalledWith(1, {
-      queryKey: sessionKeys.detail(createdSession.id),
+      queryKey: sessionKeys.detail(WORKSPACE_ID, createdSession.id),
     });
     expect(invalidateSpy).toHaveBeenNthCalledWith(2, { queryKey: sessionKeys.lists() });
   });
@@ -122,11 +130,13 @@ describe("session actions", () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
-    queryClient.setQueryData(sessionKeys.detail(createdSession.id), createdSession);
-    queryClient.setQueryData(sessionKeys.transcript(createdSession.id), [
+    queryClient.setQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id), createdSession);
+    queryClient.setQueryData(sessionKeys.transcript(WORKSPACE_ID, createdSession.id), [
       { id: "history-1", role: "assistant", content: "existing" },
     ]);
-    queryClient.setQueryData(sessionKeys.history(createdSession.id), [{ id: "turn-1" }]);
+    queryClient.setQueryData(sessionKeys.history(WORKSPACE_ID, createdSession.id), [
+      { id: "turn-1" },
+    ]);
     useSessionStore.getState().setDraft(createdSession.id, { text: "keep me" });
 
     const { result } = renderHook(() => useClearSessionConversation(), {
@@ -137,10 +147,16 @@ describe("session actions", () => {
       await result.current.mutateAsync(createdSession.id);
     });
 
-    expect(clearSessionConversation).toHaveBeenCalledWith(createdSession.id);
-    expect(queryClient.getQueryData(sessionKeys.detail(createdSession.id))).toEqual(createdSession);
-    expect(queryClient.getQueryData(sessionKeys.transcript(createdSession.id))).toEqual([]);
-    expect(queryClient.getQueryData(sessionKeys.history(createdSession.id))).toEqual([]);
+    expect(clearSessionConversation).toHaveBeenCalledWith(WORKSPACE_ID, createdSession.id);
+    expect(queryClient.getQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id))).toEqual(
+      createdSession
+    );
+    expect(
+      queryClient.getQueryData(sessionKeys.transcript(WORKSPACE_ID, createdSession.id))
+    ).toEqual([]);
+    expect(queryClient.getQueryData(sessionKeys.history(WORKSPACE_ID, createdSession.id))).toEqual(
+      []
+    );
     expect(useSessionStore.getState().drafts[createdSession.id]?.text).toBe("keep me");
   });
 
@@ -150,12 +166,15 @@ describe("session actions", () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
-    queryClient.setQueryData(sessionKeys.detail(createdSession.id), createdSession);
+    queryClient.setQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id), createdSession);
 
     const transcriptSnapshot = [{ id: "history-1", role: "assistant", content: "existing" }];
     const historySnapshot = [{ id: "turn-1" }];
-    queryClient.setQueryData(sessionKeys.transcript(createdSession.id), transcriptSnapshot);
-    queryClient.setQueryData(sessionKeys.history(createdSession.id), historySnapshot);
+    queryClient.setQueryData(
+      sessionKeys.transcript(WORKSPACE_ID, createdSession.id),
+      transcriptSnapshot
+    );
+    queryClient.setQueryData(sessionKeys.history(WORKSPACE_ID, createdSession.id), historySnapshot);
     useSessionStore.getState().setDraft(createdSession.id, { text: "keep me" });
 
     const { result } = renderHook(() => useClearSessionConversation(), {
@@ -166,10 +185,10 @@ describe("session actions", () => {
       await expect(result.current.mutateAsync(createdSession.id)).rejects.toThrow("clear failed");
     });
 
-    expect(queryClient.getQueryData(sessionKeys.transcript(createdSession.id))).toEqual(
-      transcriptSnapshot
-    );
-    expect(queryClient.getQueryData(sessionKeys.history(createdSession.id))).toEqual(
+    expect(
+      queryClient.getQueryData(sessionKeys.transcript(WORKSPACE_ID, createdSession.id))
+    ).toEqual(transcriptSnapshot);
+    expect(queryClient.getQueryData(sessionKeys.history(WORKSPACE_ID, createdSession.id))).toEqual(
       historySnapshot
     );
     expect(useSessionStore.getState().drafts[createdSession.id]?.text).toBe("keep me");
@@ -182,12 +201,16 @@ describe("session actions", () => {
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
-    queryClient.setQueryData(sessionKeys.detail(createdSession.id), createdSession);
-    queryClient.setQueryData(sessionKeys.transcript(createdSession.id), [
+    queryClient.setQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id), createdSession);
+    queryClient.setQueryData(sessionKeys.transcript(WORKSPACE_ID, createdSession.id), [
       { id: "history-1", role: "assistant", content: "existing" },
     ]);
-    queryClient.setQueryData(sessionKeys.history(createdSession.id), [{ id: "turn-1" }]);
-    queryClient.setQueryData(sessionKeys.events(createdSession.id), [{ id: "event-1" }]);
+    queryClient.setQueryData(sessionKeys.history(WORKSPACE_ID, createdSession.id), [
+      { id: "turn-1" },
+    ]);
+    queryClient.setQueryData(sessionKeys.events(WORKSPACE_ID, createdSession.id), [
+      { id: "event-1" },
+    ]);
     useSessionStore.getState().setDraft(createdSession.id, { text: "remove me" });
 
     const { result } = renderHook(() => useDeleteSession(), {
@@ -198,11 +221,19 @@ describe("session actions", () => {
       await result.current.mutateAsync(createdSession.id);
     });
 
-    expect(deleteSession).toHaveBeenCalledWith(createdSession.id);
-    expect(queryClient.getQueryData(sessionKeys.detail(createdSession.id))).toBeUndefined();
-    expect(queryClient.getQueryData(sessionKeys.transcript(createdSession.id))).toBeUndefined();
-    expect(queryClient.getQueryData(sessionKeys.history(createdSession.id))).toBeUndefined();
-    expect(queryClient.getQueryData(sessionKeys.events(createdSession.id))).toBeUndefined();
+    expect(deleteSession).toHaveBeenCalledWith(WORKSPACE_ID, createdSession.id);
+    expect(
+      queryClient.getQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id))
+    ).toBeUndefined();
+    expect(
+      queryClient.getQueryData(sessionKeys.transcript(WORKSPACE_ID, createdSession.id))
+    ).toBeUndefined();
+    expect(
+      queryClient.getQueryData(sessionKeys.history(WORKSPACE_ID, createdSession.id))
+    ).toBeUndefined();
+    expect(
+      queryClient.getQueryData(sessionKeys.events(WORKSPACE_ID, createdSession.id))
+    ).toBeUndefined();
     expect(useSessionStore.getState().drafts[createdSession.id]).toBeUndefined();
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sessionKeys.lists() });
   });
@@ -213,14 +244,17 @@ describe("session actions", () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
-    queryClient.setQueryData(sessionKeys.detail(createdSession.id), createdSession);
+    queryClient.setQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id), createdSession);
 
     const transcriptSnapshot = [{ id: "history-1", role: "assistant", content: "existing" }];
     const historySnapshot = [{ id: "turn-1" }];
     const eventsSnapshot = [{ id: "event-1" }];
-    queryClient.setQueryData(sessionKeys.transcript(createdSession.id), transcriptSnapshot);
-    queryClient.setQueryData(sessionKeys.history(createdSession.id), historySnapshot);
-    queryClient.setQueryData(sessionKeys.events(createdSession.id), eventsSnapshot);
+    queryClient.setQueryData(
+      sessionKeys.transcript(WORKSPACE_ID, createdSession.id),
+      transcriptSnapshot
+    );
+    queryClient.setQueryData(sessionKeys.history(WORKSPACE_ID, createdSession.id), historySnapshot);
+    queryClient.setQueryData(sessionKeys.events(WORKSPACE_ID, createdSession.id), eventsSnapshot);
     useSessionStore.getState().setDraft(createdSession.id, { text: "keep me" });
 
     const { result } = renderHook(() => useDeleteSession(), {
@@ -231,14 +265,18 @@ describe("session actions", () => {
       await expect(result.current.mutateAsync(createdSession.id)).rejects.toThrow("delete failed");
     });
 
-    expect(queryClient.getQueryData(sessionKeys.detail(createdSession.id))).toEqual(createdSession);
-    expect(queryClient.getQueryData(sessionKeys.transcript(createdSession.id))).toEqual(
-      transcriptSnapshot
+    expect(queryClient.getQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id))).toEqual(
+      createdSession
     );
-    expect(queryClient.getQueryData(sessionKeys.history(createdSession.id))).toEqual(
+    expect(
+      queryClient.getQueryData(sessionKeys.transcript(WORKSPACE_ID, createdSession.id))
+    ).toEqual(transcriptSnapshot);
+    expect(queryClient.getQueryData(sessionKeys.history(WORKSPACE_ID, createdSession.id))).toEqual(
       historySnapshot
     );
-    expect(queryClient.getQueryData(sessionKeys.events(createdSession.id))).toEqual(eventsSnapshot);
+    expect(queryClient.getQueryData(sessionKeys.events(WORKSPACE_ID, createdSession.id))).toEqual(
+      eventsSnapshot
+    );
     expect(useSessionStore.getState().drafts[createdSession.id]?.text).toBe("keep me");
   });
 
@@ -274,18 +312,22 @@ describe("session actions", () => {
       });
     });
 
-    expect(repairSession).toHaveBeenCalledWith(createdSession.id, {
+    expect(repairSession).toHaveBeenCalledWith(WORKSPACE_ID, createdSession.id, {
       dry_run: true,
       force: true,
     });
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sessionKeys.detail(createdSession.id) });
     expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: sessionKeys.history(createdSession.id),
+      queryKey: sessionKeys.detail(WORKSPACE_ID, createdSession.id),
     });
     expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: sessionKeys.transcript(createdSession.id),
+      queryKey: sessionKeys.history(WORKSPACE_ID, createdSession.id),
     });
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sessionKeys.events(createdSession.id) });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: sessionKeys.transcript(WORKSPACE_ID, createdSession.id),
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: sessionKeys.events(WORKSPACE_ID, createdSession.id),
+    });
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: sessionKeys.lists() });
   });
 });

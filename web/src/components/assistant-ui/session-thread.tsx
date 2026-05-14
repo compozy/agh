@@ -1,10 +1,18 @@
-import { AuiIf, ComposerPrimitive, MessagePrimitive, ThreadPrimitive } from "@assistant-ui/react";
-import { SendHorizontal, Square, Trash2 } from "lucide-react";
+import {
+  AuiIf,
+  ComposerPrimitive,
+  type DataMessagePartProps,
+  MessagePrimitive,
+  ThreadPrimitive,
+  type ToolCallMessagePartProps,
+} from "@assistant-ui/react";
+import { Activity, SendHorizontal, Square, Trash2 } from "lucide-react";
 import { type ComponentPropsWithoutRef, useCallback, useState } from "react";
 
 import { cn } from "@/lib/utils";
 import { MessageMarkdown } from "@/systems/session/components/message-markdown";
 import { ThinkingBlock } from "@/systems/session/components/thinking-block";
+import { BackendToolPart } from "@/systems/session/lib/session-toolkit";
 import {
   Button,
   Dialog,
@@ -28,16 +36,63 @@ interface SessionThreadProps {
   isClearingConversation?: boolean;
 }
 
-function SessionTextPart({ text }: { text: string }) {
+function SessionTextPart({ text, state }: { text: string; state?: { type: string } }) {
   return (
     <div className="text-sm leading-7 text-fg">
-      <MessageMarkdown content={text} />
+      <MessageMarkdown content={text} streaming={state?.type === "running"} />
     </div>
   );
 }
 
 function SessionReasoningPart({ text, state }: { text: string; state?: { type: string } }) {
   return <ThinkingBlock thinking={text} thinkingComplete={state?.type !== "running"} />;
+}
+
+function formatDataPreview(data: unknown): string | null {
+  if (data === undefined || data === null) {
+    return null;
+  }
+
+  if (typeof data === "string") {
+    return data;
+  }
+
+  try {
+    return JSON.stringify(data);
+  } catch {
+    return String(data);
+  }
+}
+
+function SessionDataPart(part: DataMessagePartProps<unknown>) {
+  const preview = formatDataPreview(part.data);
+  const clippedPreview =
+    preview && preview.length > 180 ? `${preview.slice(0, 180).trimEnd()}...` : preview;
+
+  return (
+    <div
+      data-testid="session-data-part"
+      className={cn(
+        "my-2 flex max-w-3xl items-start gap-2 rounded-lg border px-3 py-2",
+        "border-line bg-canvas-soft text-form-input text-muted"
+      )}
+    >
+      <Activity aria-hidden="true" className="mt-0.5 size-3 shrink-0 text-info" />
+      <div className="min-w-0">
+        <div className="text-card-title text-fg">Data event</div>
+        <div className="truncate text-form-label text-subtle">{part.name}</div>
+        {clippedPreview ? (
+          <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap break-words font-mono text-small-body text-muted">
+            {clippedPreview}
+          </pre>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function SessionToolPart(part: ToolCallMessagePartProps<Record<string, unknown>, unknown>) {
+  return <BackendToolPart {...part} />;
 }
 
 function SessionMessageEmpty({ status }: { status: { type: string } }) {
@@ -64,7 +119,10 @@ function UserMessage() {
       >
         <MessagePrimitive.Parts
           components={{
-            Text: ({ text }) => <SessionTextPart text={text} />,
+            Text: ({ text, status }) => <SessionTextPart text={text} state={status} />,
+            data: {
+              Fallback: SessionDataPart,
+            },
           }}
         />
       </div>
@@ -78,9 +136,15 @@ function AssistantMessage() {
       <div className="flex min-w-0 flex-1 flex-col gap-3">
         <MessagePrimitive.Parts
           components={{
-            Text: ({ text }) => <SessionTextPart text={text} />,
+            Text: ({ text, status }) => <SessionTextPart text={text} state={status} />,
             Reasoning: ({ text, status }) => <SessionReasoningPart text={text} state={status} />,
             Empty: ({ status }) => <SessionMessageEmpty status={status} />,
+            tools: {
+              Fallback: SessionToolPart,
+            },
+            data: {
+              Fallback: SessionDataPart,
+            },
           }}
         />
         <AuiIf

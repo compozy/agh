@@ -123,6 +123,132 @@ func (c packageOwnedAgentCatalog) ResolveAgentArtifacts(
 	return c.artifacts, nil
 }
 
+type heartbeatStatusSpy struct {
+	calls int
+	last  heartbeat.StatusRequest
+}
+
+func (s *heartbeatStatusSpy) Inspect(context.Context, heartbeat.InspectRequest) (heartbeat.InspectResult, error) {
+	return heartbeat.InspectResult{}, nil
+}
+
+func (s *heartbeatStatusSpy) Status(
+	_ context.Context,
+	req heartbeat.StatusRequest,
+) (heartbeat.StatusResult, error) {
+	s.calls++
+	s.last = req
+	return heartbeat.StatusResult{
+		AgentName: req.Target.AgentName,
+		Enabled:   true,
+		Present:   true,
+		Active:    true,
+		Valid:     true,
+	}, nil
+}
+
+type heartbeatWakeSpy struct {
+	calls int
+	last  heartbeat.WakeRequest
+}
+
+func (s *heartbeatWakeSpy) Wake(
+	_ context.Context,
+	req heartbeat.WakeRequest,
+) (heartbeat.WakeDecision, error) {
+	s.calls++
+	s.last = req
+	return heartbeat.WakeDecision{
+		Result: heartbeat.WakeResultSkipped,
+		Reason: heartbeat.WakeReasonHeartbeatNoEligible,
+	}, nil
+}
+
+func TestAuthoredContextHeartbeatStatusAndWakeRejectForeignSessionWorkspace(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	manager := testutil.StubSessionManager{
+		StatusFn: func(ctx context.Context, id string) (*session.Info, error) {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			return &session.Info{ID: strings.TrimSpace(id), WorkspaceID: "ws-owned", AgentName: "coder"}, nil
+		},
+	}
+	workspaces := testutil.StubWorkspaceService{
+		ResolveFn: func(ctx context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+			if err := ctx.Err(); err != nil {
+				return workspacepkg.ResolvedWorkspace{}, err
+			}
+			workspaceID := strings.TrimSpace(ref)
+			if workspaceID == "" {
+				return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+			}
+			return workspacepkg.ResolvedWorkspace{
+				Workspace:   workspacepkg.Workspace{ID: workspaceID, RootDir: workspaceRoot, Name: workspaceID},
+				WorkspaceID: workspaceID,
+				Config: aghconfig.Config{
+					Agents: aghconfig.AgentsConfig{Heartbeat: aghconfig.DefaultHeartbeatConfig()},
+				},
+			}, nil
+		},
+	}
+	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces, nil, nil)
+	statusSpy := &heartbeatStatusSpy{}
+	wakeSpy := &heartbeatWakeSpy{}
+	fixture.Handlers.HeartbeatStatus = statusSpy
+	fixture.Handlers.HeartbeatWake = wakeSpy
+	fixture.Engine.GET("/agents/:name/heartbeat/status", fixture.Handlers.GetAgentHeartbeatStatus)
+	fixture.Engine.POST("/agents/:name/heartbeat/wake", fixture.Handlers.WakeAgentHeartbeat)
+
+	t.Run("Should reject foreign workspace heartbeat status session", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			"/agents/coder/heartbeat/status?workspace_id=ws-foreign&session_id=sess-owned&include_session_health=true",
+			nil,
+		)
+		recorder := httptest.NewRecorder()
+		fixture.Engine.ServeHTTP(recorder, req)
+
+		if got, want := recorder.Code, http.StatusNotFound; got != want {
+			t.Fatalf("heartbeat status code = %d, want %d body=%s", got, want, recorder.Body.String())
+		}
+		if !strings.Contains(recorder.Body.String(), `"error":"api: workspace-scoped resource not found"`) {
+			t.Fatalf("heartbeat status body = %s, want workspace-scoped resource error payload", recorder.Body.String())
+		}
+		if statusSpy.calls != 0 {
+			t.Fatalf("heartbeat status calls = %d, want 0 before ownership validation", statusSpy.calls)
+		}
+	})
+
+	t.Run("Should reject foreign workspace heartbeat wake session", func(t *testing.T) {
+		body := []byte(
+			"{\"workspace_id\":\"ws-foreign\",\"agent_name\":\"coder\",\"session_id\":\"sess-owned\",\"source\":\"manual\"}",
+		)
+		req := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
+			"/agents/coder/heartbeat/wake",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		recorder := httptest.NewRecorder()
+		fixture.Engine.ServeHTTP(recorder, req)
+
+		if got, want := recorder.Code, http.StatusNotFound; got != want {
+			t.Fatalf("heartbeat wake code = %d, want %d body=%s", got, want, recorder.Body.String())
+		}
+		if !strings.Contains(recorder.Body.String(), `"error":"api: workspace-scoped resource not found"`) {
+			t.Fatalf("heartbeat wake body = %s, want workspace-scoped resource error payload", recorder.Body.String())
+		}
+		if wakeSpy.calls != 0 {
+			t.Fatalf("heartbeat wake calls = %d, want 0 before ownership validation", wakeSpy.calls)
+		}
+	})
+}
+
 func TestAuthoredContextRejectsPackageOwnedSidecarMutations(t *testing.T) {
 	t.Parallel()
 
@@ -332,10 +458,13 @@ func TestSoulHandlersRejectIfMatchHeader(t *testing.T) {
 		{
 			name:   "Should reject If-Match on session soul refresh",
 			method: http.MethodPost,
-			path:   "/sessions/sess_1/soul/refresh",
+			path:   "/workspaces/ws-workspace/sessions/sess_1/soul/refresh",
 			body:   []byte(`{"expected_digest":"sha256:old"}`),
 			registerRoute: func(fixture handlerFixture) {
-				fixture.Engine.POST("/sessions/:id/soul/refresh", fixture.Handlers.RefreshSessionSoul)
+				fixture.Engine.POST(
+					"/workspaces/ws-workspace/sessions/:id/soul/refresh",
+					fixture.Handlers.RefreshSessionSoul,
+				)
 			},
 			wantError: "authored context validation error: soul_if_match_header_unsupported: use expected_digest in request body",
 			assertCalls: func(t *testing.T, authoring *soulIfMatchTestAuthoring, refresher *soulIfMatchTestRefresher) {

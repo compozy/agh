@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -11,6 +11,25 @@ const activeProtocolDocs = [
   "docs/rfcs/004_agh-network-v1.md",
   "docs/_memory/glossary.md",
 ] as const;
+
+function listMDXDocs(dir: string): string[] {
+  return readdirSync(dir).flatMap(entry => {
+    const fullPath = resolve(dir, entry);
+    const stat = statSync(fullPath);
+    if (stat.isDirectory()) {
+      return listMDXDocs(fullPath);
+    }
+    return stat.isFile() && fullPath.endsWith(".mdx") ? [relative(repoRoot, fullPath)] : [];
+  });
+}
+
+const workspaceQualifiedProtocolDocs = [
+  "docs/rfcs/003_agh-network-v0.md",
+  ...listMDXDocs(resolve(siteRoot, "content/protocol")),
+  ...listMDXDocs(resolve(siteRoot, "content/runtime/core/network")),
+  "packages/site/content/runtime/guides/coordinate-agents-over-network.mdx",
+  "docs/_memory/glossary.md",
+];
 
 const envelopeKinds = new Set(["greet", "whois", "say", "capability", "receipt", "trace"]);
 const conversationKinds = new Set(["say", "capability", "receipt", "trace"]);
@@ -106,6 +125,65 @@ describe("protocol RFC hard cut", () => {
           ),
         ].map(match => `${path}: ${match[0]}`)
       );
+    });
+
+    expect(violations).toEqual([]);
+  });
+
+  it("keeps active public protocol docs on workspace-qualified v0 network identity", () => {
+    const legacyPatterns = [
+      /agh-network\/v2/,
+      /agh\.network\.v2/,
+      /ProtocolV2/,
+      /006_agh-network-v2/,
+      /agh\.network\.v0\.<channel>/,
+      /agh\.network\.v1\.<channel>/,
+      /agh\.network\.v0\.builders\.(?:broadcast|peer)/,
+      /agh\.network\.v1\.builders\.(?:broadcast|peer)/,
+      /\/api\/network\/(?:channels|peers|send|work)/,
+    ];
+
+    const violations = workspaceQualifiedProtocolDocs.flatMap(path => {
+      const content = readRepoFile(path);
+      return legacyPatterns.flatMap(pattern =>
+        [
+          ...content.matchAll(
+            new RegExp(
+              pattern.source,
+              pattern.flags.includes("g") ? pattern.flags : pattern.flags + "g"
+            )
+          ),
+        ].map(match => path + ": " + match[0])
+      );
+    });
+
+    expect(violations).toEqual([]);
+  });
+
+  it("keeps RFC 003 as current v0 and RFC 004 as future v1 trust work", () => {
+    const rfc003 = readRepoFile("docs/rfcs/003_agh-network-v0.md");
+    expect(rfc003).toContain("**Status:** Current runtime contract");
+    expect(rfc003).toContain("agh-network/v0");
+    expect(rfc003).toContain("agh.network.v0.<workspace_id>.<channel>.broadcast");
+    expect(rfc003).toContain("agh.network.v0.<workspace_id>.<channel>.peer.<route_token>");
+    expect(rfc003).not.toContain("RFC 006");
+
+    const rfc004 = readRepoFile("docs/rfcs/004_agh-network-v1.md");
+    expect(rfc004).toContain("**Status:** Future draft profile");
+    expect(rfc004).toContain("future auth/proofs/trust-profile work");
+    expect(rfc004).toContain("[RFC 003: AGH Network v0](003_agh-network-v0.md)");
+    expect(rfc004).not.toContain("RFC 006");
+  });
+
+  it("requires active RFC envelope examples to carry workspace_id", () => {
+    const envelopes = activeEnvelopeExamples([
+      "docs/rfcs/003_agh-network-v0.md",
+      "docs/rfcs/004_agh-network-v1.md",
+    ]);
+
+    const violations = envelopes.flatMap(example => {
+      const workspaceID = stringField(example.value, "workspace_id");
+      return workspaceID ? [] : [location(example) + ": missing workspace_id"];
     });
 
     expect(violations).toEqual([]);

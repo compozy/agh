@@ -586,12 +586,12 @@ test("operator approves and denies tool permission prompts with accessible brows
   const approveResponsePromise = appPage.waitForResponse(
     response =>
       response.request().method() === "POST" &&
-      response.url().endsWith(`/api/sessions/${encodeURIComponent(approved.session.id)}/approve`)
+      response.url().endsWith(sessionAPIPath(workspace.id, approved.session.id, "/approve"))
   );
   await appPage.getByTestId("permission-allow-always").click();
   expect((await approveResponsePromise).ok()).toBe(true);
   await expect(ui.permissionPrompt).toBeHidden();
-  const approvedSnapshot = await captureSessionSnapshot(runtime, approved.session.id);
+  const approvedSnapshot = await captureSessionSnapshot(runtime, workspace.id, approved.session.id);
   expect(JSON.stringify(approvedSnapshot.events)).toContain("allow-always");
 
   const denied = await createSession(runtime, denyPermissionAgent, workspace.id);
@@ -608,7 +608,7 @@ test("operator approves and denies tool permission prompts with accessible brows
   const rejectResponsePromise = appPage.waitForResponse(
     response =>
       response.request().method() === "POST" &&
-      response.url().endsWith(`/api/sessions/${encodeURIComponent(denied.session.id)}/approve`)
+      response.url().endsWith(sessionAPIPath(workspace.id, denied.session.id, "/approve"))
   );
   await appPage.getByTestId("permission-reject-always").click();
   expect((await rejectResponsePromise).ok()).toBe(true);
@@ -616,7 +616,7 @@ test("operator approves and denies tool permission prompts with accessible brows
   await expect(appPage.getByTestId("permission-rejected-notice")).toContainText(
     "Permission Rejected"
   );
-  const deniedSnapshot = await captureSessionSnapshot(runtime, denied.session.id);
+  const deniedSnapshot = await captureSessionSnapshot(runtime, workspace.id, denied.session.id);
   expect(JSON.stringify(deniedSnapshot.events)).toContain("perm-hardening-reject-1");
   expect(JSON.stringify(deniedSnapshot.events)).toContain("reject-always");
 
@@ -1029,6 +1029,7 @@ async function createSession(
 
 async function captureSessionSnapshot(
   runtime: BrowserRuntime,
+  workspaceID: string,
   sessionID: string
 ): Promise<{
   events: SessionEventEnvelope;
@@ -1036,7 +1037,7 @@ async function captureSessionSnapshot(
   session: SessionEnvelope;
   udsSession?: SessionEnvelope;
 }> {
-  const basePath = `/api/sessions/${encodeURIComponent(sessionID)}`;
+  const basePath = sessionAPIPath(workspaceID, sessionID);
   const snapshot = {
     events: await runtime.requestJSON<SessionEventEnvelope>(`${basePath}/events`),
     history: await runtime.requestJSON<SessionHistoryEnvelope>(`${basePath}/history`),
@@ -1050,6 +1051,12 @@ async function captureSessionSnapshot(
     expect(snapshot.udsSession.session.state).toBe(snapshot.session.session.state);
   }
   return snapshot;
+}
+
+function sessionAPIPath(workspaceID: string, sessionID: string, suffix = ""): string {
+  return `/api/workspaces/${encodeURIComponent(workspaceID)}/sessions/${encodeURIComponent(
+    sessionID
+  )}${suffix}`;
 }
 
 async function assertPermissionKeyboardPath(page: Page): Promise<void> {

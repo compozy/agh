@@ -66,8 +66,8 @@ The AGH reference implementation binds the core protocol to NATS Core.
 | Setting                   | Value                                                                                    |
 | ------------------------- | ---------------------------------------------------------------------------------------- |
 | Subject prefix            | `agh.network.v0`                                                                         |
-| Broadcast subject         | `agh.network.v0.<channel>.broadcast`                                                     |
-| Direct subject            | `agh.network.v0.<channel>.peer.<route_token>`                                            |
+| Broadcast subject         | `agh.network.v0.<workspace_id>.<channel>.broadcast`                                      |
+| Direct subject            | `agh.network.v0.<workspace_id>.<channel>.peer.<route_token>`                             |
 | Route token               | First 16 bytes of SHA-256 over the UTF-8 Peer ID, hex encoded as 32 lowercase characters |
 | Listener host             | `127.0.0.1`                                                                              |
 | Default port              | `-1`, meaning auto-select a local port                                                   |
@@ -83,13 +83,13 @@ The route token is derived from the canonical Peer ID, not the display name.
 ```text
 peer_id: reviewer.sess-xyz
 sha256 first 16 bytes as hex: 790dd5515558f7784877abcbca51c5ba
-direct subject: agh.network.v0.builders.peer.790dd5515558f7784877abcbca51c5ba
+direct subject: agh.network.v0.ws_alpha.builders.peer.790dd5515558f7784877abcbca51c5ba
 ```
 
 ### Broadcast subject example
 
 ```text
-agh.network.v0.builders.broadcast
+agh.network.v0.ws_alpha.builders.broadcast
 ```
 
 ## Local delivery queues
@@ -151,7 +151,7 @@ The core protocol is transport-independent. A different transport profile MUST p
 - Extension and proof compatibility.
 
 A transport profile MAY add operational details such as subject names, authentication, TLS,
-persistence, or broker-specific limits. Those details MUST NOT change the core meaning of the seven
+persistence, or broker-specific limits. Those details MUST NOT change the core meaning of the six
 message kinds.
 
 ## Related pages

@@ -15,6 +15,8 @@ import (
 	"github.com/pedronauck/agh/internal/store"
 )
 
+const networkUDSTestWorkspaceID = "ws-workspace"
+
 func TestNetworkHandlersValidateRequestsAndMapErrors(t *testing.T) {
 	t.Parallel()
 
@@ -30,7 +32,7 @@ func TestNetworkHandlersValidateRequestsAndMapErrors(t *testing.T) {
 	}
 	engine := newTestRouter(t, handlers)
 
-	inboxResp := performRequest(t, engine, http.MethodGet, "/api/network/inbox", nil)
+	inboxResp := performRequest(t, engine, http.MethodGet, "/api/workspaces/ws-workspace/network/inbox", nil)
 	if inboxResp.Code != http.StatusBadRequest {
 		t.Fatalf("inbox status = %d, want %d", inboxResp.Code, http.StatusBadRequest)
 	}
@@ -38,7 +40,7 @@ func TestNetworkHandlersValidateRequestsAndMapErrors(t *testing.T) {
 		t.Fatalf("inbox body = %q, want session_id validation", inboxResp.Body.String())
 	}
 
-	sendResp := performRequest(t, engine, http.MethodPost, "/api/network/send", []byte(`{}`))
+	sendResp := performRequest(t, engine, http.MethodPost, "/api/workspaces/ws-workspace/network/send", []byte(`{}`))
 	if sendResp.Code != http.StatusBadRequest {
 		t.Fatalf("send status = %d, want %d; body=%s", sendResp.Code, http.StatusBadRequest, sendResp.Body.String())
 	}
@@ -51,7 +53,7 @@ func TestNetworkHandlersValidateRequestsAndMapErrors(t *testing.T) {
 			t,
 			engine,
 			http.MethodPost,
-			"/api/network/send",
+			"/api/workspaces/ws-workspace/network/send",
 			[]byte(
 				`{"session_id":"sess-a","channel":"builders","kind":"say","body":{"claim_token":"agh_claim_uds"}}`,
 			),
@@ -109,7 +111,7 @@ func TestNetworkHandlersPreserveWorkflowMetadata(t *testing.T) {
 			t,
 			engine,
 			http.MethodPost,
-			"/api/network/send",
+			"/api/workspaces/ws-workspace/network/send",
 			[]byte(
 				`{"session_id":"sess-a","channel":"builders","surface":"thread","thread_id":"thread_launch_db","kind":"say","body":{"text":"hello"},"ext":{"agh.workflow_id":"wf-1","agh.handoff_version":3}}`,
 			),
@@ -131,7 +133,13 @@ func TestNetworkHandlersPreserveWorkflowMetadata(t *testing.T) {
 			t.Fatalf("seenRequest.ThreadID = %#v, want thread_launch_db", seenRequest.ThreadID)
 		}
 
-		inboxResp := performRequest(t, engine, http.MethodGet, "/api/network/inbox?session_id=sess-a", nil)
+		inboxResp := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/api/workspaces/ws-workspace/network/inbox?session_id=sess-a",
+			nil,
+		)
 		if inboxResp.Code != http.StatusOK {
 			t.Fatalf("inbox status = %d, want %d", inboxResp.Code, http.StatusOK)
 		}
@@ -153,7 +161,10 @@ func TestNetworkDirectResolveCreatesRoom(t *testing.T) {
 
 		localSessionID := "sess-local"
 		handlers.Network = stubNetworkService{
-			ListPeersFn: func(_ context.Context, channel string) ([]network.PeerInfo, error) {
+			ListPeersFn: func(_ context.Context, workspaceID string, channel string) ([]network.PeerInfo, error) {
+				if workspaceID != networkUDSTestWorkspaceID {
+					t.Fatalf("ListPeers() workspaceID = %q, want %q", workspaceID, networkUDSTestWorkspaceID)
+				}
 				if channel != "builders" {
 					t.Fatalf("ListPeers() channel = %q, want builders", channel)
 				}
@@ -173,6 +184,7 @@ func TestNetworkDirectResolveCreatesRoom(t *testing.T) {
 		}
 
 		wantDirectID, wantPeerA, wantPeerB, err := network.DirectRoomIdentity(
+			networkUDSTestWorkspaceID,
 			"builders",
 			"coder.sess-abc",
 			"reviewer.sess-xyz",
@@ -207,7 +219,7 @@ func TestNetworkDirectResolveCreatesRoom(t *testing.T) {
 			t,
 			engine,
 			http.MethodPost,
-			"/api/network/channels/builders/directs/resolve",
+			"/api/workspaces/ws-workspace/network/channels/builders/directs/resolve",
 			[]byte(`{"session_id":"sess-local","peer_id":"reviewer.sess-xyz"}`),
 		)
 		if resp.Code != http.StatusOK {
@@ -232,7 +244,13 @@ func TestNetworkHandlersExposeTypedCapabilityPayloads(t *testing.T) {
 		handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths)
 		handlers.Config.Network.Enabled = true
 		handlers.Network = stubNetworkService{
-			ListPeersFn: func(context.Context, string) ([]network.PeerInfo, error) {
+			ListPeersFn: func(_ context.Context, workspaceID string, channel string) ([]network.PeerInfo, error) {
+				if workspaceID != networkUDSTestWorkspaceID {
+					t.Fatalf("ListPeers() workspaceID = %q, want %q", workspaceID, networkUDSTestWorkspaceID)
+				}
+				if channel != "" {
+					t.Fatalf("ListPeers() channel = %q, want empty", channel)
+				}
 				return []network.PeerInfo{{
 					PeerID:  "reviewer.sess-a",
 					Channel: "builders",
@@ -255,7 +273,7 @@ func TestNetworkHandlersExposeTypedCapabilityPayloads(t *testing.T) {
 		}
 		engine := newTestRouter(t, handlers)
 
-		resp := performRequest(t, engine, http.MethodGet, "/api/network/peers", nil)
+		resp := performRequest(t, engine, http.MethodGet, "/api/workspaces/ws-workspace/network/peers", nil)
 		if resp.Code != http.StatusOK {
 			t.Fatalf("peers status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
 		}

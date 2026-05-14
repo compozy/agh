@@ -47,7 +47,10 @@ export function useNetworkCreateChannelAction({ enabled }: { enabled: boolean })
       const channel = response.channel.channel;
       setCreateDraft(createNetworkChannelDraft());
       setCreateOpen(false);
-      void navigate({ params: { channel }, to: "/network/$channel/threads" });
+      void navigate({
+        params: { workspaceId: activeWorkspaceId, channel },
+        to: "/network/$workspaceId/$channel/threads",
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to create network channel";
       toast.error(message);

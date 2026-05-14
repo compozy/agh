@@ -139,7 +139,12 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 		{
 			name: "event summary valid",
 			validate: func() error {
-				return (EventSummary{SessionID: "sess-1", Type: "agent_message", AgentName: "coder"}).Validate()
+				return (EventSummary{
+					SessionID:   "sess-1",
+					WorkspaceID: "ws-store-helpers",
+					Type:        "agent_message",
+					AgentName:   "coder",
+				}).Validate()
 			},
 		},
 		{
@@ -152,7 +157,7 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 		{
 			name: "event summary missing type",
 			validate: func() error {
-				return (EventSummary{SessionID: "sess-1"}).Validate()
+				return (EventSummary{SessionID: "sess-1", WorkspaceID: "ws-store-helpers"}).Validate()
 			},
 			wantError: true,
 		},
@@ -166,7 +171,11 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 		{
 			name: "event summary missing agent",
 			validate: func() error {
-				return (EventSummary{SessionID: "sess-1", Type: "agent_message"}).Validate()
+				return (EventSummary{
+					SessionID:   "sess-1",
+					WorkspaceID: "ws-store-helpers",
+					Type:        "agent_message",
+				}).Validate()
 			},
 			wantError: true,
 		},
@@ -319,14 +328,15 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			name: "network audit entry valid",
 			validate: func() error {
 				return (NetworkAuditEntry{
-					SessionID: "sess-1",
-					Direction: "rejected",
-					Kind:      "message",
-					Channel:   "builders",
-					PeerFrom:  "peer-a",
-					MessageID: "msg-1",
-					Reason:    "policy",
-					Size:      0,
+					SessionID:   "sess-1",
+					WorkspaceID: "ws-store-helpers",
+					Direction:   "rejected",
+					Kind:        "message",
+					Channel:     "builders",
+					PeerFrom:    "peer-a",
+					MessageID:   "msg-1",
+					Reason:      "policy",
+					Size:        0,
 				}).Validate()
 			},
 		},
@@ -334,12 +344,13 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			name: "network audit entry invalid direction",
 			validate: func() error {
 				return (NetworkAuditEntry{
-					SessionID: "sess-1",
-					Direction: "replayed",
-					Kind:      "message",
-					Channel:   "builders",
-					PeerFrom:  "peer-a",
-					MessageID: "msg-1",
+					SessionID:   "sess-1",
+					WorkspaceID: "ws-store-helpers",
+					Direction:   "replayed",
+					Kind:        "message",
+					Channel:     "builders",
+					PeerFrom:    "peer-a",
+					MessageID:   "msg-1",
 				}).Validate()
 			},
 			wantError: true,
@@ -348,12 +359,13 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			name: "network audit entry rejected requires reason",
 			validate: func() error {
 				return (NetworkAuditEntry{
-					SessionID: "sess-1",
-					Direction: "rejected",
-					Kind:      "message",
-					Channel:   "builders",
-					PeerFrom:  "peer-a",
-					MessageID: "msg-1",
+					SessionID:   "sess-1",
+					WorkspaceID: "ws-store-helpers",
+					Direction:   "rejected",
+					Kind:        "message",
+					Channel:     "builders",
+					PeerFrom:    "peer-a",
+					MessageID:   "msg-1",
 				}).Validate()
 			},
 			wantError: true,
@@ -369,6 +381,7 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			name: "network message entry valid",
 			validate: func() error {
 				return (NetworkMessageEntry{
+					WorkspaceID: "ws-store-helpers",
 					MessageID:   "msg-1",
 					Channel:     "builders",
 					Surface:     NetworkSurfaceThread,

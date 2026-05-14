@@ -1680,7 +1680,7 @@ func (s networkStub) Inbox(_ context.Context, _ string) ([]network.Envelope, err
 	return slices.Clone(s.envelopes), nil
 }
 
-func (s networkStub) ListPeers(_ context.Context, _ string) ([]network.PeerInfo, error) {
+func (s networkStub) ListPeers(_ context.Context, _ string, _ string) ([]network.PeerInfo, error) {
 	return slices.Clone(s.peers), nil
 }
 

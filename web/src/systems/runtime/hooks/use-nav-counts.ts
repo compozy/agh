@@ -6,6 +6,8 @@
  */
 import { useEffect, useSyncExternalStore } from "react";
 
+import { useActiveWorkspace } from "@/systems/workspace";
+
 import {
   type NavCount,
   type NavCountKey,
@@ -28,7 +30,8 @@ export interface UseNavCountsOptions {
 }
 
 export function useNavCounts(options: UseNavCountsOptions = {}): UseNavCountsResult {
-  const store = options.store ?? getNavCountsStore();
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const store = options.store ?? getNavCountsStore(activeWorkspaceId);
   const counts = useSyncExternalStore(
     store.subscribe,
     () => store.getState().counts,

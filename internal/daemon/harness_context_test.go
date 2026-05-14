@@ -265,6 +265,38 @@ func TestHarnessContextResolverIncludesToolsSectionWhenEnabled(t *testing.T) {
 			t.Fatalf("IncludeSections = %#v, want %#v", got.Policy.IncludeSections, wantSections)
 		}
 	})
+
+	t.Run("Should include runtime identity section when enabled", func(t *testing.T) {
+		t.Parallel()
+
+		resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
+			RuntimeIdentityPromptSectionEnabled: true,
+			MemoryPromptSectionEnabled:          true,
+			SkillsPromptSectionEnabled:          true,
+		})
+
+		got, err := resolver.Resolve(HarnessResolutionInput{
+			Surface: ResolutionSurfaceStartup,
+			Session: HarnessSessionInput{
+				Type: session.SessionTypeUser,
+			},
+			Turn: HarnessTurnRequest{
+				Source: session.TurnSourceUser,
+			},
+		})
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+
+		wantSections := []HarnessPromptSection{
+			HarnessPromptSectionRuntimeIdentity,
+			HarnessPromptSectionMemory,
+			HarnessPromptSectionSkills,
+		}
+		if !slices.Equal(got.Policy.IncludeSections, wantSections) {
+			t.Fatalf("IncludeSections = %#v, want %#v", got.Policy.IncludeSections, wantSections)
+		}
+	})
 }
 
 func TestHarnessContextResolverValidation(t *testing.T) {

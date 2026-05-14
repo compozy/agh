@@ -66,6 +66,7 @@ interface SessionEnvelope {
   session: {
     acp_session_id?: string;
     id: string;
+    workspace_id: string;
   };
 }
 
@@ -238,12 +239,17 @@ test("operator manages Skills against a real daemon and proves next-session prom
   const baselinePrompt = await promptForSession(
     runtime,
     skillsContextAgentName,
-    await acpSessionIDForSession(runtime, baselineSession.session.id)
+    await acpSessionIDForSession(
+      runtime,
+      baselineSession.session.workspace_id,
+      baselineSession.session.id
+    )
   );
   expect(baselinePrompt).toContain("<current-available-skills>");
   expect(baselinePrompt).toContain(`name="${contextSkillName}"`);
   await assertStoredUserMessageClean(
     runtime,
+    baselineSession.session.workspace_id,
     baselineSession.session.id,
     "skill context before disable"
   );
@@ -280,11 +286,16 @@ test("operator manages Skills against a real daemon and proves next-session prom
   const disabledPrompt = await promptForSession(
     runtime,
     skillsContextAgentName,
-    await acpSessionIDForSession(runtime, disabledSession.session.id)
+    await acpSessionIDForSession(
+      runtime,
+      disabledSession.session.workspace_id,
+      disabledSession.session.id
+    )
   );
   expect(disabledPrompt).not.toContain(`name="${contextSkillName}"`);
   await assertStoredUserMessageClean(
     runtime,
+    disabledSession.session.workspace_id,
     disabledSession.session.id,
     "skill context after disable"
   );
@@ -315,12 +326,17 @@ test("operator manages Skills against a real daemon and proves next-session prom
   const restoredPrompt = await promptForSession(
     runtime,
     skillsContextAgentName,
-    await acpSessionIDForSession(runtime, restoredSession.session.id)
+    await acpSessionIDForSession(
+      runtime,
+      restoredSession.session.workspace_id,
+      restoredSession.session.id
+    )
   );
   expect(restoredPrompt).toContain(`name="${contextSkillName}"`);
   expect(restoredPrompt).not.toMatch(sensitivePattern);
   await assertStoredUserMessageClean(
     runtime,
+    restoredSession.session.workspace_id,
     restoredSession.session.id,
     "skill context after enable"
   );
@@ -539,12 +555,16 @@ async function promptDiagnostics(
     .filter(record => !record.lifecycle_event && record.prompt_index > 0);
 }
 
-async function acpSessionIDForSession(runtime: BrowserRuntime, sessionID: string): Promise<string> {
+async function acpSessionIDForSession(
+  runtime: BrowserRuntime,
+  workspaceID: string,
+  sessionID: string
+): Promise<string> {
   let acpSessionID = "";
   await expect
     .poll(async () => {
       const detail = await runtime.requestJSON<SessionEnvelope>(
-        `/api/sessions/${encodeURIComponent(sessionID)}`
+        sessionAPIPath(workspaceID, sessionID)
       );
       acpSessionID = detail.session.acp_session_id ?? "";
       return acpSessionID !== "";
@@ -555,6 +575,7 @@ async function acpSessionIDForSession(runtime: BrowserRuntime, sessionID: string
 
 async function assertStoredUserMessageClean(
   runtime: BrowserRuntime,
+  workspaceID: string,
   sessionID: string,
   expectedText: string
 ): Promise<void> {
@@ -562,7 +583,7 @@ async function assertStoredUserMessageClean(
   await expect
     .poll(async () => {
       const transcript = await runtime.requestJSON<{ messages: TranscriptMessage[] }>(
-        `/api/sessions/${encodeURIComponent(sessionID)}/transcript`
+        sessionAPIPath(workspaceID, sessionID, "/transcript")
       );
       userMessage = transcript.messages.find(message => message.role === "user");
       return transcriptMessageText(userMessage);
@@ -571,6 +592,12 @@ async function assertStoredUserMessageClean(
   const serialized = JSON.stringify(userMessage ?? {});
   expect(serialized).not.toContain("<current-available-skills>");
   expect(serialized).not.toMatch(sensitivePattern);
+}
+
+function sessionAPIPath(workspaceID: string, sessionID: string, suffix = ""): string {
+  return `/api/workspaces/${encodeURIComponent(workspaceID)}/sessions/${encodeURIComponent(
+    sessionID
+  )}${suffix}`;
 }
 
 function transcriptMessageText(message: TranscriptMessage | undefined): string {

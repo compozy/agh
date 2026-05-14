@@ -23,7 +23,7 @@ export function RuntimeMicroDiagram({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "relative aspect-3/4 w-full max-w-65 overflow-hidden rounded-(--radius-diagram) border border-line bg-rail",
+        "relative aspect-3/4 w-full max-w-65 overflow-hidden rounded-diagram border border-line bg-rail",
         className
       )}
       aria-hidden="true"

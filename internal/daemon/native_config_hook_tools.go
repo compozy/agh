@@ -361,7 +361,7 @@ func (n *daemonNativeTools) hooksEvents(
 
 func (n *daemonNativeTools) hooksRuns(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input hooksRunsInput
@@ -371,6 +371,17 @@ func (n *daemonNativeTools) hooksRuns(
 	query, err := input.query()
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeHookValidationError(req.ToolID, err)
+	}
+	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.WorkspaceID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	sessionWorkspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	if _, err := n.nativeSessionInWorkspace(ctx, req.ToolID, sessionWorkspaceID, query.SessionID); err != nil {
+		return toolspkg.ToolResult{}, err
 	}
 	runs, err := n.deps.Observer.QueryHookRuns(ctx, query)
 	if err != nil {
@@ -1036,11 +1047,12 @@ type hooksEventsInput struct {
 }
 
 type hooksRunsInput struct {
-	SessionID string `json:"session_id,omitempty"`
-	Event     string `json:"event,omitempty"`
-	Outcome   string `json:"outcome,omitempty"`
-	Since     string `json:"since,omitempty"`
-	Last      int    `json:"last,omitempty"`
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	SessionID   string `json:"session_id,omitempty"`
+	Event       string `json:"event,omitempty"`
+	Outcome     string `json:"outcome,omitempty"`
+	Since       string `json:"since,omitempty"`
+	Last        int    `json:"last,omitempty"`
 }
 
 func (i hooksRunsInput) query() (store.HookRunQuery, error) {

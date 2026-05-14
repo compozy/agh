@@ -98,13 +98,15 @@ type decodedStoredEvent struct {
 }
 
 type uiMessageBuilder struct {
-	id             string
-	role           string
-	finished       bool
-	parts          []UIMessagePart
-	textIndex      int
-	reasoningIndex int
-	toolIndices    map[string]int
+	id               string
+	role             string
+	finished         bool
+	parts            []UIMessagePart
+	activePartType   string
+	activePartIndex  int
+	textPartSeq      int
+	reasoningPartSeq int
+	toolIndices      map[string]int
 }
 
 // UIAgentEventPayloadFromEvent converts an ACP event into the prompt-stream data payload.
@@ -216,11 +218,10 @@ func ToUIMessages(events []store.SessionEvent) ([]UIMessage, error) {
 
 func newUIMessageBuilder(id string, role string) *uiMessageBuilder {
 	return &uiMessageBuilder{
-		id:             id,
-		role:           role,
-		textIndex:      -1,
-		reasoningIndex: -1,
-		toolIndices:    make(map[string]int),
+		id:              id,
+		role:            role,
+		activePartIndex: -1,
+		toolIndices:     make(map[string]int),
 	}
 }
 
@@ -283,7 +284,7 @@ func applyDecodedEvent(builder *uiMessageBuilder, decoded *decodedStoredEvent) {
 
 func (b *uiMessageBuilder) appendText(text string) {
 	trimmed := strings.TrimSpace(text)
-	if trimmed == "" && b.textIndex < 0 {
+	if trimmed == "" && b.activePartType != uiPartText {
 		return
 	}
 	index := b.ensureTextPart()
@@ -295,7 +296,7 @@ func (b *uiMessageBuilder) appendText(text string) {
 
 func (b *uiMessageBuilder) appendReasoning(text string) {
 	trimmed := strings.TrimSpace(text)
-	if trimmed == "" && b.reasoningIndex < 0 {
+	if trimmed == "" && b.activePartType != uiPartReasoning {
 		return
 	}
 	index := b.ensureReasoningPart()
@@ -306,27 +307,54 @@ func (b *uiMessageBuilder) appendReasoning(text string) {
 }
 
 func (b *uiMessageBuilder) ensureTextPart() int {
-	if b.textIndex >= 0 {
-		return b.textIndex
+	if b.activePartType == uiPartText && b.activePartIndex >= 0 {
+		return b.activePartIndex
 	}
-	b.parts = append(b.parts, UIMessagePart{Type: uiPartText})
-	b.textIndex = len(b.parts) - 1
-	return b.textIndex
+	b.closeActiveStreamPart()
+	b.textPartSeq++
+	b.parts = append(b.parts, UIMessagePart{
+		Type:  uiPartText,
+		ID:    fmt.Sprintf("%s-text-%d", b.id, b.textPartSeq),
+		State: uiPartStateStreaming,
+	})
+	b.activePartType = uiPartText
+	b.activePartIndex = len(b.parts) - 1
+	return b.activePartIndex
 }
 
 func (b *uiMessageBuilder) ensureReasoningPart() int {
-	if b.reasoningIndex >= 0 {
-		return b.reasoningIndex
+	if b.activePartType == uiPartReasoning && b.activePartIndex >= 0 {
+		return b.activePartIndex
 	}
-	b.parts = append(b.parts, UIMessagePart{Type: uiPartReasoning})
-	b.reasoningIndex = len(b.parts) - 1
-	return b.reasoningIndex
+	b.closeActiveStreamPart()
+	b.reasoningPartSeq++
+	b.parts = append(b.parts, UIMessagePart{
+		Type:  uiPartReasoning,
+		ID:    fmt.Sprintf("%s-reasoning-%d", b.id, b.reasoningPartSeq),
+		State: uiPartStateStreaming,
+	})
+	b.activePartType = uiPartReasoning
+	b.activePartIndex = len(b.parts) - 1
+	return b.activePartIndex
+}
+
+func (b *uiMessageBuilder) closeActiveStreamPart() {
+	if b.activePartIndex < 0 {
+		return
+	}
+	switch b.activePartType {
+	case uiPartText, uiPartReasoning:
+		b.parts[b.activePartIndex].State = uiPartStateDone
+	}
+	b.activePartType = ""
+	b.activePartIndex = -1
 }
 
 func (b *uiMessageBuilder) appendDataPart(partType string, partID string, payload json.RawMessage) {
 	if len(payload) == 0 {
 		return
 	}
+	b.closeActiveStreamPart()
 	if partID != "" {
 		for index := range b.parts {
 			if b.parts[index].Type != partType || b.parts[index].ID != partID {
@@ -359,6 +387,7 @@ func uiPermissionDataPartID(event acp.AgentEvent) string {
 }
 
 func (b *uiMessageBuilder) applyToolCall(decoded *decodedStoredEvent) {
+	b.closeActiveStreamPart()
 	part, _ := b.ensureToolPart(decoded)
 	if input, ready := toolInputFromDecoded(decoded); ready {
 		part.State = uiToolStateAvailable
@@ -371,6 +400,7 @@ func (b *uiMessageBuilder) applyToolCall(decoded *decodedStoredEvent) {
 }
 
 func (b *uiMessageBuilder) applyToolResult(decoded *decodedStoredEvent) {
+	b.closeActiveStreamPart()
 	part, existed := b.ensureToolPart(decoded)
 	input := acp.CloneRawMessage(part.Input)
 	if len(input) == 0 {

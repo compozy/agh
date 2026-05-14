@@ -62,6 +62,48 @@ const aghPermissionDataSchema = aghEventDataSchema.extend({
   raw: z.record(z.string(), z.unknown()).optional(),
 });
 
+const unknownDataSchema = z.unknown();
+
+const knownDataSchemas: Record<string, z.ZodType<unknown>> = {
+  "agh-event": aghEventDataSchema,
+  "agh-permission": aghPermissionDataSchema,
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function dataPartName(part: unknown): string | null {
+  if (!isRecord(part) || typeof part.type !== "string" || !part.type.startsWith("data-")) {
+    return null;
+  }
+
+  const name = part.type.slice(5);
+  return name === "" ? null : name;
+}
+
+function dataSchemasForMessages(messages: unknown): Record<string, z.ZodType<unknown>> {
+  const dataSchemas = { ...knownDataSchemas };
+  if (!Array.isArray(messages)) {
+    return dataSchemas;
+  }
+
+  for (const message of messages) {
+    if (!isRecord(message) || !Array.isArray(message.parts)) {
+      continue;
+    }
+
+    for (const part of message.parts) {
+      const name = dataPartName(part);
+      if (name && dataSchemas[name] === undefined) {
+        dataSchemas[name] = unknownDataSchema;
+      }
+    }
+  }
+
+  return dataSchemas;
+}
+
 export async function normalizeTranscriptMessages(messages: unknown): Promise<SessionMessage[]> {
   if (Array.isArray(messages) && messages.length === 0) {
     return [];
@@ -69,9 +111,6 @@ export async function normalizeTranscriptMessages(messages: unknown): Promise<Se
 
   return validateUIMessages<SessionMessage>({
     messages,
-    dataSchemas: {
-      "agh-event": aghEventDataSchema,
-      "agh-permission": aghPermissionDataSchema,
-    },
+    dataSchemas: dataSchemasForMessages(messages),
   });
 }

@@ -191,6 +191,7 @@ export type {
   MessageStartPayload,
   NetworkCapabilityBriefPayload,
   NetworkChannelPayload,
+  NetworkChannelsParams,
   NetworkConversationMessagePayload,
   NetworkConversationRef,
   NetworkConversationSurface,

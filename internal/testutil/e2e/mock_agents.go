@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -88,10 +87,14 @@ func (h *RuntimeHarness) PromptSessionHTTPWithEvents(
 	onEvent func(SSEEvent) error,
 ) ([]SSEEvent, error) {
 	body := map[string]string{"message": message}
+	path, err := h.sessionScopedAPIPath(sessionID, "/prompt")
+	if err != nil {
+		return nil, err
+	}
 	response, err := doRequest(
 		ctx,
 		h.HTTPClient,
-		h.HTTPURL("/api/sessions/"+url.PathEscape(sessionID)+"/prompt"),
+		h.HTTPURL(path),
 		http.MethodPost,
 		body,
 	)
@@ -120,10 +123,14 @@ func (h *RuntimeHarness) PromptSessionHTTPUntil(
 	predicate func(SSEEvent) bool,
 ) ([]SSEEvent, error) {
 	body := map[string]string{"message": message}
+	path, err := h.sessionScopedAPIPath(sessionID, "/prompt")
+	if err != nil {
+		return nil, err
+	}
 	response, err := doRequest(
 		ctx,
 		h.HTTPClient,
-		h.HTTPURL("/api/sessions/"+url.PathEscape(sessionID)+"/prompt"),
+		h.HTTPURL(path),
 		http.MethodPost,
 		body,
 	)
@@ -150,10 +157,14 @@ func (h *RuntimeHarness) StreamSessionHTTPUntil(
 	sessionID string,
 	predicate func(SSEEvent) bool,
 ) ([]SSEEvent, error) {
+	path, err := h.sessionScopedAPIPath(sessionID, "/stream")
+	if err != nil {
+		return nil, err
+	}
 	response, err := doRequest(
 		ctx,
 		h.HTTPClient,
-		h.HTTPURL("/api/sessions/"+url.PathEscape(sessionID)+"/stream"),
+		h.HTTPURL(path),
 		http.MethodGet,
 		nil,
 	)
@@ -179,10 +190,14 @@ func (h *RuntimeHarness) ApproveSessionPermission(
 	sessionID string,
 	request aghcontract.ApproveSessionRequest,
 ) error {
+	path, err := h.sessionScopedAPIPath(sessionID, "/approve")
+	if err != nil {
+		return err
+	}
 	response, err := doRequest(
 		ctx,
 		h.HTTPClient,
-		h.HTTPURL("/api/sessions/"+url.PathEscape(sessionID)+"/approve"),
+		h.HTTPURL(path),
 		http.MethodPost,
 		request,
 	)

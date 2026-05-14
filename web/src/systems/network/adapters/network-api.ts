@@ -49,8 +49,17 @@ export async function getNetworkStatus(signal?: AbortSignal): Promise<NetworkSta
   return requireResponseData(data, response, "Failed to fetch network status").network;
 }
 
-export async function listNetworkChannels(signal?: AbortSignal): Promise<NetworkChannelsResponse> {
-  const { data, error, response } = await apiClient.GET("/api/network/channels", { signal });
+export async function listNetworkChannels(
+  workspaceId: string,
+  signal?: AbortSignal
+): Promise<NetworkChannelsResponse> {
+  const { data, error, response } = await apiClient.GET(
+    "/api/workspaces/{workspace_id}/network/channels",
+    {
+      params: { path: { workspace_id: workspaceId } },
+      signal,
+    }
+  );
 
   if (apiRequestFailed(response, error)) {
     throw new NetworkApiError(
@@ -63,13 +72,17 @@ export async function listNetworkChannels(signal?: AbortSignal): Promise<Network
 }
 
 export async function getNetworkChannel(
+  workspaceId: string,
   channel: string,
   signal?: AbortSignal
 ): Promise<NetworkChannel> {
-  const { data, error, response } = await apiClient.GET("/api/network/channels/{channel}", {
-    params: { path: { channel } },
-    signal,
-  });
+  const { data, error, response } = await apiClient.GET(
+    "/api/workspaces/{workspace_id}/network/channels/{channel}",
+    {
+      params: { path: { workspace_id: workspaceId, channel } },
+      signal,
+    }
+  );
 
   if (apiRequestFailed(response, error)) {
     if (response.status === 404) {
@@ -91,14 +104,21 @@ export interface NetworkThreadsListQuery {
 }
 
 export async function listNetworkThreads(
+  workspaceId: string,
   channel: string,
   query: NetworkThreadsListQuery = {},
   signal?: AbortSignal
 ): Promise<NetworkThreadSummary[]> {
-  const { data, error, response } = await apiClient.GET("/api/network/channels/{channel}/threads", {
-    params: { path: { channel }, query: toThreadsListQuery(query) },
-    signal,
-  });
+  const { data, error, response } = await apiClient.GET(
+    "/api/workspaces/{workspace_id}/network/channels/{channel}/threads",
+    {
+      params: {
+        path: { workspace_id: workspaceId, channel },
+        query: toThreadsListQuery(query),
+      },
+      signal,
+    }
+  );
 
   if (apiRequestFailed(response, error)) {
     if (response.status === 404) {
@@ -115,14 +135,15 @@ export async function listNetworkThreads(
 }
 
 export async function getNetworkThread(
+  workspaceId: string,
   channel: string,
   threadId: string,
   signal?: AbortSignal
 ): Promise<NetworkThreadDetail> {
   const { data, error, response } = await apiClient.GET(
-    "/api/network/channels/{channel}/threads/{thread_id}",
+    "/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}",
     {
-      params: { path: { channel, thread_id: threadId } },
+      params: { path: { workspace_id: workspaceId, channel, thread_id: threadId } },
       signal,
     }
   );
@@ -142,16 +163,17 @@ export async function getNetworkThread(
 }
 
 export async function listNetworkThreadMessages(
+  workspaceId: string,
   channel: string,
   threadId: string,
   query: NetworkConversationMessagesQuery = {},
   signal?: AbortSignal
 ): Promise<NetworkThreadMessage[]> {
   const { data, error, response } = await apiClient.GET(
-    "/api/network/channels/{channel}/threads/{thread_id}/messages",
+    "/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}/messages",
     {
       params: {
-        path: { channel, thread_id: threadId },
+        path: { workspace_id: workspaceId, channel, thread_id: threadId },
         query: toConversationMessageQuery(query),
       },
       signal,
@@ -180,14 +202,21 @@ export interface NetworkDirectsListQuery {
 }
 
 export async function listNetworkDirectRooms(
+  workspaceId: string,
   channel: string,
   query: NetworkDirectsListQuery = {},
   signal?: AbortSignal
 ): Promise<NetworkDirectRoomSummary[]> {
-  const { data, error, response } = await apiClient.GET("/api/network/channels/{channel}/directs", {
-    params: { path: { channel }, query: toDirectsListQuery(query) },
-    signal,
-  });
+  const { data, error, response } = await apiClient.GET(
+    "/api/workspaces/{workspace_id}/network/channels/{channel}/directs",
+    {
+      params: {
+        path: { workspace_id: workspaceId, channel },
+        query: toDirectsListQuery(query),
+      },
+      signal,
+    }
+  );
 
   if (apiRequestFailed(response, error)) {
     if (response.status === 404) {
@@ -205,14 +234,15 @@ export async function listNetworkDirectRooms(
 }
 
 export async function getNetworkDirectRoom(
+  workspaceId: string,
   channel: string,
   directId: string,
   signal?: AbortSignal
 ): Promise<NetworkDirectRoomDetail> {
   const { data, error, response } = await apiClient.GET(
-    "/api/network/channels/{channel}/directs/{direct_id}",
+    "/api/workspaces/{workspace_id}/network/channels/{channel}/directs/{direct_id}",
     {
-      params: { path: { channel, direct_id: directId } },
+      params: { path: { workspace_id: workspaceId, channel, direct_id: directId } },
       signal,
     }
   );
@@ -232,16 +262,17 @@ export async function getNetworkDirectRoom(
 }
 
 export async function listNetworkDirectRoomMessages(
+  workspaceId: string,
   channel: string,
   directId: string,
   query: NetworkConversationMessagesQuery = {},
   signal?: AbortSignal
 ): Promise<NetworkDirectRoomMessage[]> {
   const { data, error, response } = await apiClient.GET(
-    "/api/network/channels/{channel}/directs/{direct_id}/messages",
+    "/api/workspaces/{workspace_id}/network/channels/{channel}/directs/{direct_id}/messages",
     {
       params: {
-        path: { channel, direct_id: directId },
+        path: { workspace_id: workspaceId, channel, direct_id: directId },
         query: toConversationMessageQuery(query),
       },
       signal,
@@ -264,14 +295,15 @@ export async function listNetworkDirectRoomMessages(
 }
 
 export async function resolveNetworkDirectRoom(
+  workspaceId: string,
   channel: string,
   body: NetworkResolveDirectRoomRequest,
   signal?: AbortSignal
 ): Promise<NetworkDirectRoomDetail> {
   const { data, error, response } = await apiClient.POST(
-    "/api/network/channels/{channel}/directs/resolve",
+    "/api/workspaces/{workspace_id}/network/channels/{channel}/directs/resolve",
     {
-      params: { path: { channel } },
+      params: { path: { workspace_id: workspaceId, channel } },
       body,
       signal,
     }
@@ -289,13 +321,17 @@ export async function resolveNetworkDirectRoom(
 }
 
 export async function getNetworkWork(
+  workspaceId: string,
   workId: string,
   signal?: AbortSignal
 ): Promise<NetworkWorkDetail> {
-  const { data, error, response } = await apiClient.GET("/api/network/work/{work_id}", {
-    params: { path: { work_id: workId } },
-    signal,
-  });
+  const { data, error, response } = await apiClient.GET(
+    "/api/workspaces/{workspace_id}/network/work/{work_id}",
+    {
+      params: { path: { workspace_id: workspaceId, work_id: workId } },
+      signal,
+    }
+  );
 
   if (apiRequestFailed(response, error)) {
     if (response.status === 404) {
@@ -312,15 +348,20 @@ export async function getNetworkWork(
 }
 
 export async function listNetworkPeers(
+  workspaceId: string,
   channel?: string,
   signal?: AbortSignal
 ): Promise<NetworkPeerSummary[]> {
-  const { data, error, response } = await apiClient.GET("/api/network/peers", {
-    params: {
-      query: channel ? { channel } : undefined,
-    },
-    signal,
-  });
+  const { data, error, response } = await apiClient.GET(
+    "/api/workspaces/{workspace_id}/network/peers",
+    {
+      params: {
+        path: { workspace_id: workspaceId },
+        query: channel ? { channel } : undefined,
+      },
+      signal,
+    }
+  );
 
   if (apiRequestFailed(response, error)) {
     throw new NetworkApiError(
@@ -333,13 +374,17 @@ export async function listNetworkPeers(
 }
 
 export async function getNetworkPeer(
+  workspaceId: string,
   peerId: string,
   signal?: AbortSignal
 ): Promise<NetworkPeerDetail> {
-  const { data, error, response } = await apiClient.GET("/api/network/peers/{peer_id}", {
-    params: { path: { peer_id: peerId } },
-    signal,
-  });
+  const { data, error, response } = await apiClient.GET(
+    "/api/workspaces/{workspace_id}/network/peers/{peer_id}",
+    {
+      params: { path: { workspace_id: workspaceId, peer_id: peerId } },
+      signal,
+    }
+  );
 
   if (apiRequestFailed(response, error)) {
     if (response.status === 404) {
@@ -356,13 +401,18 @@ export async function getNetworkPeer(
 }
 
 export async function createNetworkChannel(
+  workspaceId: string,
   body: CreateNetworkChannelRequest,
   signal?: AbortSignal
 ): Promise<CreateNetworkChannelResponse> {
-  const { data, error, response } = await apiClient.POST("/api/network/channels", {
-    body,
-    signal,
-  });
+  const { data, error, response } = await apiClient.POST(
+    "/api/workspaces/{workspace_id}/network/channels",
+    {
+      params: { path: { workspace_id: workspaceId } },
+      body: { ...body, workspace_id: workspaceId },
+      signal,
+    }
+  );
 
   if (apiRequestFailed(response, error)) {
     throw new NetworkApiError(
@@ -375,13 +425,18 @@ export async function createNetworkChannel(
 }
 
 export async function sendNetworkMessage(
+  workspaceId: string,
   body: NetworkSendRequest,
   signal?: AbortSignal
 ): Promise<NetworkSendResponse> {
-  const { data, error, response } = await apiClient.POST("/api/network/send", {
-    body,
-    signal,
-  });
+  const { data, error, response } = await apiClient.POST(
+    "/api/workspaces/{workspace_id}/network/send",
+    {
+      params: { path: { workspace_id: workspaceId } },
+      body: { ...body, workspace_id: workspaceId },
+      signal,
+    }
+  );
 
   if (apiRequestFailed(response, error)) {
     throw new NetworkApiError(

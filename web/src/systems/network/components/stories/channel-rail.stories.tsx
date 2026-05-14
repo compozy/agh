@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
+import { storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
 import { PanelSurface } from "@/storybook/story-layout";
 import {
   networkChannelsFixture,
@@ -54,6 +55,7 @@ export const Default: Story = {
   render: () => (
     <PanelSurface className="min-h-[640px]">
       <ChannelRail
+        workspaceId={storyDefaultWorkspaceId}
         activeChannel={allChannels[0]?.channel ?? null}
         activeDirectId={null}
         directs={networkDirectRoomsFixture}
@@ -74,6 +76,7 @@ export const Loading: Story = {
   render: () => (
     <PanelSurface className="min-h-[640px]">
       <ChannelRail
+        workspaceId={storyDefaultWorkspaceId}
         activeChannel={null}
         activeDirectId={null}
         directs={[]}
@@ -94,6 +97,7 @@ export const Empty: Story = {
   render: () => (
     <PanelSurface className="min-h-[640px]">
       <ChannelRail
+        workspaceId={storyDefaultWorkspaceId}
         activeChannel={null}
         activeDirectId={null}
         directs={[]}
@@ -119,6 +123,7 @@ export const RailPrimitives: StoryObj<typeof ChannelRailRow> = {
       <div className="grid max-w-sm gap-5">
         <div className="space-y-1">
           <ChannelRailRow
+            workspaceId={storyDefaultWorkspaceId}
             active
             channel={allChannels[0]!}
             hasUnread
@@ -126,6 +131,7 @@ export const RailPrimitives: StoryObj<typeof ChannelRailRow> = {
             onTogglePinned={() => undefined}
           />
           <ChannelRailRow
+            workspaceId={storyDefaultWorkspaceId}
             active={false}
             channel={allChannels[1]!}
             hasUnread={false}
@@ -133,7 +139,11 @@ export const RailPrimitives: StoryObj<typeof ChannelRailRow> = {
             onTogglePinned={() => undefined}
           />
         </div>
-        <ChannelRailRecents recents={recents} isLoading={false} />
+        <ChannelRailRecents
+          workspaceId={storyDefaultWorkspaceId}
+          recents={recents}
+          isLoading={false}
+        />
       </div>
     </PanelSurface>
   ),

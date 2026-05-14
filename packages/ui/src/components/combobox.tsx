@@ -6,10 +6,7 @@ import { CheckIcon, ChevronDownIcon, XIcon } from "lucide-react";
 
 import { cn } from "../lib/utils";
 import { Button } from "./button";
-
-function useComboboxAnchor() {
-  return React.useRef<HTMLDivElement | null>(null);
-}
+import { useComboboxAnchor } from "./hooks/use-combobox-anchor";
 
 function ComboboxInputGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (

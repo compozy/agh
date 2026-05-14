@@ -53,7 +53,7 @@ describe("applyBridgeHealthSnapshot", () => {
       defaultOptions: { queries: { retry: false } },
     });
 
-    queryClient.setQueryData(["bridges", "list", "all"], {
+    queryClient.setQueryData(["bridges", "list", "all", "ws_test", ""], {
       bridge_health: {},
       bridges: [
         {
@@ -98,6 +98,15 @@ describe("applyBridgeHealthSnapshot", () => {
 
     applyBridgeHealthSnapshot(queryClient, {
       bridge_health: {
+        brg_other: {
+          auth_failures_total: 0,
+          bridge_instance_id: "brg_other",
+          delivery_backlog: 9,
+          delivery_dropped_total: 0,
+          delivery_failures_total: 0,
+          route_count: 1,
+          status: "ready",
+        },
         brg_support: {
           auth_failures_total: 1,
           bridge_instance_id: "brg_support",
@@ -114,8 +123,13 @@ describe("applyBridgeHealthSnapshot", () => {
     expect(
       queryClient.getQueryData<{
         bridge_health: Record<string, { status: string }>;
-      }>(["bridges", "list", "all"])?.bridge_health.brg_support.status
+      }>(["bridges", "list", "all", "ws_test", ""])?.bridge_health.brg_support.status
     ).toBe("ready");
+    expect(
+      queryClient.getQueryData<{
+        bridge_health: Record<string, { status: string }>;
+      }>(["bridges", "list", "all", "ws_test", ""])?.bridge_health.brg_other
+    ).toBeUndefined();
     expect(
       queryClient.getQueryData<{
         health: { route_count: number; status: string };
@@ -163,20 +177,40 @@ describe("useBridgeHealthStream", () => {
       defaultOptions: { queries: { retry: false } },
     });
     const eventSource = new FakeEventSource();
+    const eventSourceFactory = vi.fn((_url: string) => eventSource);
 
-    queryClient.setQueryData(["bridges", "list", "all"], {
+    queryClient.setQueryData(["bridges", "list", "all", "ws_test", ""], {
       bridge_health: {},
-      bridges: [],
+      bridges: [
+        {
+          created_at: "2026-04-13T12:00:00Z",
+          display_name: "Support",
+          enabled: true,
+          extension_name: "ext-telegram",
+          id: "brg_support",
+          platform: "telegram",
+          routing_policy: { include_group: true, include_peer: true, include_thread: true },
+          scope: "workspace",
+          status: "starting",
+          updated_at: "2026-04-13T12:00:00Z",
+          workspace_id: "ws_test",
+        },
+      ],
     });
 
     const { unmount } = renderHook(
       () =>
         useBridgeHealthStream({
-          eventSourceFactory: () => eventSource,
+          eventSourceFactory,
+          filters: { scope: "all", workspace_id: "ws_test" },
         }),
       {
         wrapper: createWrapper(queryClient),
       }
+    );
+
+    expect(eventSourceFactory).toHaveBeenCalledWith(
+      "/api/bridges/health/stream?scope=all&workspace_id=ws_test"
     );
 
     act(() => {
@@ -199,7 +233,7 @@ describe("useBridgeHealthStream", () => {
     expect(
       queryClient.getQueryData<{
         bridge_health: Record<string, { delivery_backlog: number }>;
-      }>(["bridges", "list", "all"])?.bridge_health.brg_support.delivery_backlog
+      }>(["bridges", "list", "all", "ws_test", ""])?.bridge_health.brg_support.delivery_backlog
     ).toBe(1);
 
     unmount();

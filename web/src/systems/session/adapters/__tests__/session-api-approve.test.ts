@@ -4,6 +4,8 @@ import { expectFetchRequest, mockEmptyResponse } from "@/test/fetch-test-utils";
 
 import { approveSession } from "../session-api";
 
+const WORKSPACE_ID = "ws_alpha";
+
 beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn());
 });
@@ -16,7 +18,7 @@ describe("approveSession", () => {
   it("sends correct POST body with request_id, turn_id, and decision", async () => {
     mockEmptyResponse();
 
-    await approveSession("sess-001", {
+    await approveSession(WORKSPACE_ID, "sess-001", {
       request_id: "req-123",
       turn_id: "turn-1",
       decision: "allow-once",
@@ -29,14 +31,14 @@ describe("approveSession", () => {
         decision: "allow-once",
       },
       method: "POST",
-      path: "/api/sessions/sess-001/approve",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/approve",
     });
   });
 
   it("sends allow-always decision", async () => {
     mockEmptyResponse();
 
-    await approveSession("sess-001", {
+    await approveSession(WORKSPACE_ID, "sess-001", {
       request_id: "req-123",
       turn_id: "",
       decision: "allow-always",
@@ -44,7 +46,7 @@ describe("approveSession", () => {
 
     const request = await expectFetchRequest({
       method: "POST",
-      path: "/api/sessions/sess-001/approve",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/approve",
     });
 
     expect((await request.clone().json()).decision).toBe("allow-always");
@@ -53,7 +55,7 @@ describe("approveSession", () => {
   it("sends reject-once decision", async () => {
     mockEmptyResponse();
 
-    await approveSession("sess-001", {
+    await approveSession(WORKSPACE_ID, "sess-001", {
       request_id: "req-123",
       turn_id: "",
       decision: "reject-once",
@@ -61,7 +63,7 @@ describe("approveSession", () => {
 
     const request = await expectFetchRequest({
       method: "POST",
-      path: "/api/sessions/sess-001/approve",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/approve",
     });
 
     expect((await request.clone().json()).decision).toBe("reject-once");
@@ -70,7 +72,7 @@ describe("approveSession", () => {
   it("sends reject-always decision", async () => {
     mockEmptyResponse();
 
-    await approveSession("sess-001", {
+    await approveSession(WORKSPACE_ID, "sess-001", {
       request_id: "req-123",
       turn_id: "",
       decision: "reject-always",
@@ -78,7 +80,7 @@ describe("approveSession", () => {
 
     const request = await expectFetchRequest({
       method: "POST",
-      path: "/api/sessions/sess-001/approve",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/approve",
     });
 
     expect((await request.clone().json()).decision).toBe("reject-always");
@@ -88,7 +90,7 @@ describe("approveSession", () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
     await expect(
-      approveSession("unknown", {
+      approveSession(WORKSPACE_ID, "unknown", {
         request_id: "req-1",
         turn_id: "",
         decision: "allow-once",
@@ -100,7 +102,7 @@ describe("approveSession", () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));
 
     await expect(
-      approveSession("sess-001", {
+      approveSession(WORKSPACE_ID, "sess-001", {
         request_id: "req-1",
         turn_id: "",
         decision: "allow-once",
@@ -113,6 +115,7 @@ describe("approveSession", () => {
 
     const controller = new AbortController();
     await approveSession(
+      WORKSPACE_ID,
       "sess-001",
       {
         request_id: "req-1",
@@ -124,7 +127,7 @@ describe("approveSession", () => {
 
     await expectFetchRequest({
       method: "POST",
-      path: "/api/sessions/sess-001/approve",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/approve",
       signal: controller.signal,
     });
   });
@@ -132,7 +135,7 @@ describe("approveSession", () => {
   it("encodes session id in URL", async () => {
     mockEmptyResponse();
 
-    await approveSession("id with spaces", {
+    await approveSession(WORKSPACE_ID, "id with spaces", {
       request_id: "req-1",
       turn_id: "",
       decision: "allow-once",
@@ -140,7 +143,7 @@ describe("approveSession", () => {
 
     await expectFetchRequest({
       method: "POST",
-      path: "/api/sessions/id%20with%20spaces/approve",
+      path: "/api/workspaces/ws_alpha/sessions/id%20with%20spaces/approve",
     });
   });
 });

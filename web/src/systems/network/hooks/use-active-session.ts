@@ -1,6 +1,8 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+import { useActiveWorkspace } from "@/systems/workspace";
+
 import { networkChannelDetailOptions } from "../lib/query-options";
 import type { NetworkChannel } from "../types";
 
@@ -42,10 +44,13 @@ function pickLocalPeer(channel: NetworkChannel | null | undefined) {
  * is disabled when the channel has no local peer (`_design.md` §7.4).
  */
 export function useActiveNetworkSession(
-  channel: string | null | undefined
+  channel: string | null | undefined,
+  options?: { workspaceId?: string | null }
 ): UseActiveNetworkSessionResult {
-  const enabled = Boolean(channel);
-  const detailQuery = useQuery(networkChannelDetailOptions(channel ?? "", enabled));
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = options?.workspaceId ?? activeWorkspaceId ?? "";
+  const enabled = Boolean(channel) && workspaceId !== "";
+  const detailQuery = useQuery(networkChannelDetailOptions(workspaceId, channel ?? "", enabled));
 
   return useMemo(() => {
     if (!enabled) {

@@ -17,6 +17,8 @@ import (
 	"github.com/pedronauck/agh/internal/store"
 )
 
+const networkHTTPTestWorkspaceID = "ws-workspace"
+
 func TestNetworkDirectResolveCreatesRoom(t *testing.T) {
 	t.Parallel()
 
@@ -29,7 +31,7 @@ func TestNetworkDirectResolveCreatesRoom(t *testing.T) {
 
 		localSessionID := "sess-local"
 		handlers.Network = testutil.StubNetworkService{
-			ListPeersFn: func(_ context.Context, channel string) ([]network.PeerInfo, error) {
+			ListPeersFn: func(_ context.Context, _ string, channel string) ([]network.PeerInfo, error) {
 				if channel != "builders" {
 					t.Fatalf("ListPeers() channel = %q, want builders", channel)
 				}
@@ -49,6 +51,7 @@ func TestNetworkDirectResolveCreatesRoom(t *testing.T) {
 		}
 
 		wantDirectID, wantPeerA, wantPeerB, err := network.DirectRoomIdentity(
+			networkHTTPTestWorkspaceID,
 			"builders",
 			"coder.sess-abc",
 			"reviewer.sess-xyz",
@@ -83,7 +86,7 @@ func TestNetworkDirectResolveCreatesRoom(t *testing.T) {
 			t,
 			engine,
 			http.MethodPost,
-			"/api/network/channels/builders/directs/resolve",
+			"/api/workspaces/ws-workspace/network/channels/builders/directs/resolve",
 			[]byte(`{"session_id":"sess-local","peer_id":"reviewer.sess-xyz"}`),
 		)
 		if resp.Code != http.StatusOK {
@@ -110,7 +113,7 @@ func TestNetworkPeerMessagesPreserveConversationRouting(t *testing.T) {
 		handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths)
 		handlers.Config.Network.Enabled = true
 		handlers.Network = testutil.StubNetworkService{
-			ListPeersFn: func(_ context.Context, channel string) ([]network.PeerInfo, error) {
+			ListPeersFn: func(_ context.Context, _ string, channel string) ([]network.PeerInfo, error) {
 				if got, want := channel, ""; got != want {
 					t.Fatalf("ListPeers() channel = %q, want %q", got, want)
 				}
@@ -142,9 +145,15 @@ func TestNetworkPeerMessagesPreserveConversationRouting(t *testing.T) {
 		}
 
 		engine := gin.New()
-		engine.GET("/api/network/peers/:peer_id/messages", handlers.NetworkPeerMessages)
+		engine.GET("/api/workspaces/:workspace_id/network/peers/:peer_id/messages", handlers.NetworkPeerMessages)
 
-		resp := performRequest(t, engine, http.MethodGet, "/api/network/peers/reviewer.sess-remote/messages", nil)
+		resp := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/api/workspaces/ws-workspace/network/peers/reviewer.sess-remote/messages",
+			nil,
+		)
 		if resp.Code != http.StatusOK {
 			t.Fatalf("peer messages status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
 		}
@@ -175,7 +184,7 @@ func TestNetworkPeerMessagesKeepPresenceEpisodesScopedByRouting(t *testing.T) {
 		handlers.Config.Network.Enabled = true
 		handlers.Config.Network.GreetInterval = 30
 		handlers.Network = testutil.StubNetworkService{
-			ListPeersFn: func(_ context.Context, channel string) ([]network.PeerInfo, error) {
+			ListPeersFn: func(_ context.Context, _ string, channel string) ([]network.PeerInfo, error) {
 				if got, want := channel, ""; got != want {
 					t.Fatalf("ListPeers() channel = %q, want %q", got, want)
 				}
@@ -235,12 +244,12 @@ func TestNetworkPeerMessagesKeepPresenceEpisodesScopedByRouting(t *testing.T) {
 		}
 
 		engine := gin.New()
-		engine.GET("/api/network/peers/:peer_id/messages", handlers.NetworkPeerMessages)
+		engine.GET("/api/workspaces/:workspace_id/network/peers/:peer_id/messages", handlers.NetworkPeerMessages)
 		resp := performRequest(
 			t,
 			engine,
 			http.MethodGet,
-			"/api/network/peers/reviewer.sess-remote/messages?include_presence=true",
+			"/api/workspaces/ws-workspace/network/peers/reviewer.sess-remote/messages?include_presence=true",
 			nil,
 		)
 		if resp.Code != http.StatusOK {

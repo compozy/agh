@@ -19,54 +19,65 @@ import (
 func TestAgentContextReturnsSituationPayload(t *testing.T) {
 	t.Parallel()
 
-	manager := activeAgentSessionManager(t)
-	handlers := newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t))
-	handlers.AgentContextService = agentContextServiceFunc(
-		func(_ context.Context, info *session.Info) (contract.AgentContextPayload, error) {
-			if info.ID != "sess-agent" || info.AgentName != "coder" {
-				t.Fatalf("ContextForSession() info = %#v, want caller session", info)
-			}
-			return contract.AgentContextPayload{
-				Self: contract.AgentIdentityPayload{
-					SessionID: info.ID,
-					AgentName: info.AgentName,
-					Provider:  info.Provider,
-				},
-				Workspace: contract.AgentWorkspacePayload{ID: info.WorkspaceID, RootDir: info.Workspace},
-				Session: contract.AgentSessionPayload{
-					ID:        info.ID,
-					State:     info.State,
-					Channel:   info.Channel,
-					CreatedAt: info.CreatedAt,
-					UpdatedAt: info.UpdatedAt,
-				},
-				Task:                contract.AgentTaskContextPayload{Available: true},
-				CoordinationChannel: contract.AgentCoordinationChannelContextPayload{Available: true},
-				InboxSummary:        contract.AgentInboxSummaryPayload{},
-				PeerRoster:          contract.AgentPeerRosterPayload{},
-				Capabilities:        contract.AgentCapabilitySectionPayload{},
-				Limits:              contract.AgentLimitsPayload{ContextSectionLimit: 20},
-				Provenance: contract.AgentContextProvenancePayload{
-					GeneratedAt: time.Date(2026, 4, 26, 10, 0, 0, 0, time.UTC),
-					Source:      "test",
-				},
-			}, nil
-		},
-	)
-	engine := newTestRouter(t, handlers)
+	t.Run("Should return the situation payload for the caller session", func(t *testing.T) {
+		t.Parallel()
 
-	recorder := performAgentKernelRequest(t, engine, http.MethodGet, "/api/agent/context", nil, agentKernelHeaders())
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
-	}
+		manager := activeAgentSessionManager(t)
+		handlers := newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t))
+		handlers.AgentContextService = agentContextServiceFunc(
+			func(_ context.Context, info *session.Info) (contract.AgentContextPayload, error) {
+				if info.ID != "sess-agent" || info.AgentName != "coder" {
+					t.Fatalf("ContextForSession() info = %#v, want caller session", info)
+				}
+				return contract.AgentContextPayload{
+					Self: contract.AgentIdentityPayload{
+						SessionID: info.ID,
+						AgentName: info.AgentName,
+						Provider:  info.Provider,
+					},
+					Workspace: contract.AgentWorkspacePayload{ID: info.WorkspaceID, RootDir: info.Workspace},
+					Session: contract.AgentSessionPayload{
+						ID:        info.ID,
+						State:     info.State,
+						Channel:   info.Channel,
+						CreatedAt: info.CreatedAt,
+						UpdatedAt: info.UpdatedAt,
+					},
+					Task:                contract.AgentTaskContextPayload{Available: true},
+					CoordinationChannel: contract.AgentCoordinationChannelContextPayload{Available: true},
+					InboxSummary:        contract.AgentInboxSummaryPayload{},
+					PeerRoster:          contract.AgentPeerRosterPayload{},
+					Capabilities:        contract.AgentCapabilitySectionPayload{},
+					Limits:              contract.AgentLimitsPayload{ContextSectionLimit: 20},
+					Provenance: contract.AgentContextProvenancePayload{
+						GeneratedAt: time.Date(2026, 4, 26, 10, 0, 0, 0, time.UTC),
+						Source:      "test",
+					},
+				}, nil
+			},
+		)
+		engine := newTestRouter(t, handlers)
 
-	var response contract.AgentContextResponse
-	decodeJSONResponse(t, recorder, &response)
-	if response.Context.Self.SessionID != "sess-agent" ||
-		response.Context.Workspace.ID != "ws-1" ||
-		!response.Context.Task.Available {
-		t.Fatalf("context = %#v, want validated situation payload", response.Context)
-	}
+		recorder := performAgentKernelRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/api/agent/context",
+			nil,
+			agentKernelHeaders(),
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
+
+		var response contract.AgentContextResponse
+		decodeJSONResponse(t, recorder, &response)
+		if response.Context.Self.SessionID != "sess-agent" ||
+			response.Context.Workspace.ID != "ws-1" ||
+			!response.Context.Task.Available {
+			t.Fatalf("context = %#v, want validated situation payload", response.Context)
+		}
+	})
 }
 
 func TestAgentCoordinatorConfigRouteReturnsResolvedPayload(t *testing.T) {
@@ -209,33 +220,40 @@ func TestAgentChannelSendUsesCallerIdentityAndRejectsRawClaimToken(t *testing.T)
 func TestAgentChannelsListsCallerVisibleChannels(t *testing.T) {
 	t.Parallel()
 
-	handlers := newAgentChannelHandlers(t, stubNetworkService{
-		ListChannelsFn: func(context.Context) ([]network.ChannelInfo, error) {
-			return []network.ChannelInfo{{Channel: "builders", PeerCount: 2}}, nil
-		},
+	t.Run("Should list caller-visible channels for the caller workspace", func(t *testing.T) {
+		t.Parallel()
+
+		handlers := newAgentChannelHandlers(t, stubNetworkService{
+			ListChannelsFn: func(_ context.Context, workspaceID string) ([]network.ChannelInfo, error) {
+				if workspaceID != "ws-1" {
+					t.Fatalf("ListChannels() workspaceID = %q, want ws-1", workspaceID)
+				}
+				return []network.ChannelInfo{{Channel: "builders", PeerCount: 2}}, nil
+			},
+		})
+		engine := newTestRouter(t, handlers)
+
+		recorder := performAgentKernelRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/api/agent/channels",
+			nil,
+			agentKernelHeaders(),
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
+
+		var response contract.AgentChannelsResponse
+		decodeJSONResponse(t, recorder, &response)
+		if len(response.Channels) != 1 ||
+			response.Channels[0].ID != "builders" ||
+			response.Channels[0].WorkspaceID != "ws-1" ||
+			len(response.Channels[0].AllowedMessageKinds) != len(contract.CoordinationMessageKinds()) {
+			t.Fatalf("channels = %#v, want caller workspace builders channel", response.Channels)
+		}
 	})
-	engine := newTestRouter(t, handlers)
-
-	recorder := performAgentKernelRequest(
-		t,
-		engine,
-		http.MethodGet,
-		"/api/agent/channels",
-		nil,
-		agentKernelHeaders(),
-	)
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
-	}
-
-	var response contract.AgentChannelsResponse
-	decodeJSONResponse(t, recorder, &response)
-	if len(response.Channels) != 1 ||
-		response.Channels[0].ID != "builders" ||
-		response.Channels[0].WorkspaceID != "ws-1" ||
-		len(response.Channels[0].AllowedMessageKinds) != len(contract.CoordinationMessageKinds()) {
-		t.Fatalf("channels = %#v, want caller workspace builders channel", response.Channels)
-	}
 }
 
 func TestAgentChannelRecvUsesInboxMode(t *testing.T) {
@@ -332,61 +350,65 @@ func TestAgentChannelRecvUsesInboxMode(t *testing.T) {
 func TestAgentChannelReplyResolvesSourceMessageMetadata(t *testing.T) {
 	t.Parallel()
 
-	var seen network.SendRequest
-	source := agentChannelEnvelope(t, "msg-source", "builders", contract.CoordinationMessageRequest)
-	source.From = "reviewer.sess-peer"
-	directID := "direct_reply_01"
-	source.Surface = ptrNetworkSurface(network.SurfaceDirect)
-	source.DirectID = &directID
-	wantDirectID, _, _, err := network.DirectRoomIdentity("builders", "coder.sess-agent", source.From)
-	if err != nil {
-		t.Fatalf("DirectRoomIdentity() error = %v", err)
-	}
-	handlers := newAgentChannelHandlers(t, stubNetworkService{
-		InboxFn: func(_ context.Context, sessionID string) ([]network.Envelope, error) {
-			if sessionID != "sess-agent" {
-				t.Fatalf("Inbox() sessionID = %q, want sess-agent", sessionID)
-			}
-			return []network.Envelope{source}, nil
-		},
-		SendFn: func(_ context.Context, request network.SendRequest) (string, error) {
-			seen = request
-			return "msg-reply", nil
-		},
-	})
-	engine := newTestRouter(t, handlers)
+	t.Run("Should resolve source metadata into a direct reply request", func(t *testing.T) {
+		t.Parallel()
 
-	recorder := performAgentKernelRequest(
-		t,
-		engine,
-		http.MethodPost,
-		"/api/agent/channels/reply",
-		[]byte(`{"reply_to_message_id":"msg-source","body":{"text":"ack"}}`),
-		agentKernelHeaders(),
-	)
-	if recorder.Code != http.StatusAccepted {
-		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusAccepted, recorder.Body.String())
-	}
-	if seen.SessionID != "sess-agent" ||
-		seen.Channel != "builders" ||
-		seen.Kind != network.KindSay ||
-		seen.Surface == nil ||
-		*seen.Surface != network.SurfaceDirect ||
-		seen.DirectID == nil ||
-		*seen.DirectID != wantDirectID ||
-		seen.To == nil ||
-		*seen.To != "reviewer.sess-peer" ||
-		seen.ReplyTo == nil ||
-		*seen.ReplyTo != "msg-source" {
-		t.Fatalf("reply send request = %#v, want direct reply to source peer/message", seen)
-	}
-	metadata := decodeCoordinationExt(t, seen.Ext)
-	if metadata.TaskID != "task-1" ||
-		metadata.RunID != "run-1" ||
-		metadata.CoordinationChannelID != "builders" ||
-		metadata.MessageKind != contract.CoordinationMessageReply {
-		t.Fatalf("reply metadata = %#v, want inherited source metadata with reply kind", metadata)
-	}
+		var seen network.SendRequest
+		source := agentChannelEnvelope(t, "msg-source", "builders", contract.CoordinationMessageRequest)
+		source.From = "reviewer.sess-peer"
+		directID := "direct_reply_01"
+		source.Surface = ptrNetworkSurface(network.SurfaceDirect)
+		source.DirectID = &directID
+		wantDirectID, _, _, err := network.DirectRoomIdentity("ws-1", "builders", "coder.sess-agent", source.From)
+		if err != nil {
+			t.Fatalf("DirectRoomIdentity() error = %v", err)
+		}
+		handlers := newAgentChannelHandlers(t, stubNetworkService{
+			InboxFn: func(_ context.Context, sessionID string) ([]network.Envelope, error) {
+				if sessionID != "sess-agent" {
+					t.Fatalf("Inbox() sessionID = %q, want sess-agent", sessionID)
+				}
+				return []network.Envelope{source}, nil
+			},
+			SendFn: func(_ context.Context, request network.SendRequest) (string, error) {
+				seen = request
+				return "msg-reply", nil
+			},
+		})
+		engine := newTestRouter(t, handlers)
+
+		recorder := performAgentKernelRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/agent/channels/reply",
+			[]byte(`{"reply_to_message_id":"msg-source","body":{"text":"ack"}}`),
+			agentKernelHeaders(),
+		)
+		if recorder.Code != http.StatusAccepted {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusAccepted, recorder.Body.String())
+		}
+		if seen.SessionID != "sess-agent" ||
+			seen.Channel != "builders" ||
+			seen.Kind != network.KindSay ||
+			seen.Surface == nil ||
+			*seen.Surface != network.SurfaceDirect ||
+			seen.DirectID == nil ||
+			*seen.DirectID != wantDirectID ||
+			seen.To == nil ||
+			*seen.To != "reviewer.sess-peer" ||
+			seen.ReplyTo == nil ||
+			*seen.ReplyTo != "msg-source" {
+			t.Fatalf("reply send request = %#v, want direct reply to source peer/message", seen)
+		}
+		metadata := decodeCoordinationExt(t, seen.Ext)
+		if metadata.TaskID != "task-1" ||
+			metadata.RunID != "run-1" ||
+			metadata.CoordinationChannelID != "builders" ||
+			metadata.MessageKind != contract.CoordinationMessageReply {
+			t.Fatalf("reply metadata = %#v, want inherited source metadata with reply kind", metadata)
+		}
+	})
 }
 
 type agentContextServiceFunc func(context.Context, *session.Info) (contract.AgentContextPayload, error)
@@ -488,14 +510,15 @@ func agentChannelEnvelopeWithExt(
 	ext network.ExtensionMap,
 ) network.Envelope {
 	return network.Envelope{
-		Protocol: network.ProtocolV0,
-		ID:       messageID,
-		Kind:     network.KindSay,
-		Channel:  channel,
-		From:     "coder.sess-peer",
-		TS:       time.Date(2026, 4, 26, 10, 1, 0, 0, time.UTC).Unix(),
-		Body:     json.RawMessage(`{"text":"coordination"}`),
-		Ext:      ext,
+		Protocol:    network.ProtocolV0,
+		WorkspaceID: "ws-1",
+		ID:          messageID,
+		Kind:        network.KindSay,
+		Channel:     channel,
+		From:        "coder.sess-peer",
+		TS:          time.Date(2026, 4, 26, 10, 1, 0, 0, time.UTC).Unix(),
+		Body:        json.RawMessage(`{"text":"coordination"}`),
+		Ext:         ext,
 	}
 }
 

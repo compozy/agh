@@ -7,7 +7,7 @@ import { SectionFrame } from "./primitives/section-frame";
 export function FinalCta() {
   return (
     <SectionFrame background="surface" padY="lg" className="border-b border-line">
-      <div className="grid gap-8 rounded-(--radius-diagram) border border-line bg-canvas px-6 py-10 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-center lg:px-10">
+      <div className="grid gap-8 rounded-diagram border border-line bg-canvas px-6 py-10 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-center lg:px-10">
         <div>
           <Eyebrow className="text-accent">Ship it</Eyebrow>
           <h2 className="mt-4 max-w-[18ch] text-site-cta-title leading-none font-normal tracking-tight text-fg">

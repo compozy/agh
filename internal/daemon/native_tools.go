@@ -1095,14 +1095,18 @@ func (n *daemonNativeTools) skillView(
 
 func (n *daemonNativeTools) networkPeers(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input networkPeersInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	peers, err := n.deps.Network.ListPeers(ctx, input.Channel)
+	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	peers, err := n.deps.Network.ListPeers(ctx, workspaceID, input.Channel)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -1131,24 +1135,34 @@ func (n *daemonNativeTools) networkStatus(
 
 func (n *daemonNativeTools) networkChannels(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	var input struct{}
+	var input networkChannelsInput
 	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	var channels any
 	var count int
 	if n.deps.Sessions != nil && n.deps.NetworkStore != nil {
-		payload, err := core.NetworkChannelPayloads(ctx, n.deps.Network, n.deps.Sessions, n.deps.NetworkStore)
+		payload, err := core.NetworkChannelPayloads(
+			ctx,
+			n.deps.Network,
+			n.deps.Sessions,
+			n.deps.NetworkStore,
+			workspaceID,
+		)
 		if err != nil {
 			return toolspkg.ToolResult{}, err
 		}
 		channels = payload
 		count = len(payload)
 	} else {
-		infos, err := n.deps.Network.ListChannels(ctx)
+		infos, err := n.deps.Network.ListChannels(ctx, workspaceID)
 		if err != nil {
 			return toolspkg.ToolResult{}, err
 		}
@@ -1172,6 +1186,17 @@ func (n *daemonNativeTools) networkInbox(
 	if sessionID == "" {
 		return toolspkg.ToolResult{}, nativeRequiredInputError(req.ToolID, "session_id")
 	}
+	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.WorkspaceID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	sessionWorkspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	if err := n.requireNativeSessionWorkspace(ctx, req.ToolID, sessionWorkspaceID, sessionID); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	messages, err := n.deps.Network.Inbox(ctx, sessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -1190,7 +1215,23 @@ func (n *daemonNativeTools) networkSend(
 		return toolspkg.ToolResult{}, err
 	}
 	sessionID := firstNonEmpty(input.SessionID, req.SessionID, scope.SessionID)
+	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.WorkspaceID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	workspaceID, err := nativeResolvedNetworkWorkspaceID(&resolved)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	sessionWorkspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	if err := n.requireNativeSessionWorkspace(ctx, req.ToolID, sessionWorkspaceID, sessionID); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	sendReq, err := core.NetworkSendRequestFromPayload(contract.NetworkSendRequest{
+		WorkspaceID: workspaceID,
 		SessionID:   sessionID,
 		Channel:     strings.TrimSpace(input.Channel),
 		Surface:     strings.TrimSpace(input.Surface),
@@ -1219,7 +1260,7 @@ func (n *daemonNativeTools) networkSend(
 
 func (n *daemonNativeTools) networkThreads(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input networkThreadsInput
@@ -1237,17 +1278,28 @@ func (n *daemonNativeTools) networkThreads(
 	if err := query.Validate(); err != nil {
 		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
 	}
-	threads, err := n.deps.NetworkStore.ListThreads(ctx, channel, query)
+	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	threads, err := n.deps.NetworkStore.ListThreads(
+		ctx,
+		store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: channel},
+		query,
+	)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
 	payload := core.NetworkThreadSummaryPayloadsFromStore(threads)
-	return structuredNetworkResult(map[string]any{"threads": payload}, fmt.Sprintf("%d threads", len(payload)))
+	return structuredNetworkResult(
+		map[string]any{"threads": payload},
+		fmt.Sprintf("%d threads", len(payload)),
+	)
 }
 
 func (n *daemonNativeTools) networkThreadMessages(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input networkThreadMessagesInput
@@ -1258,10 +1310,15 @@ func (n *daemonNativeTools) networkThreadMessages(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	ref := store.NetworkConversationRef{
-		Channel:  channel,
-		Surface:  store.NetworkSurfaceThread,
-		ThreadID: strings.TrimSpace(input.ThreadID),
+		WorkspaceID: workspaceID,
+		Channel:     channel,
+		Surface:     store.NetworkSurfaceThread,
+		ThreadID:    strings.TrimSpace(input.ThreadID),
 	}
 	payload, err := n.networkConversationMessages(ctx, req.ToolID, ref, networkConversationMessageQueryInput{
 		Before: strings.TrimSpace(input.Before),
@@ -1278,7 +1335,7 @@ func (n *daemonNativeTools) networkThreadMessages(
 
 func (n *daemonNativeTools) networkDirects(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input networkDirectsInput
@@ -1297,7 +1354,15 @@ func (n *daemonNativeTools) networkDirects(
 	if err := query.Validate(); err != nil {
 		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
 	}
-	directs, err := n.deps.NetworkStore.ListDirectRooms(ctx, channel, query)
+	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	directs, err := n.deps.NetworkStore.ListDirectRooms(
+		ctx,
+		store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: channel},
+		query,
+	)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -1326,16 +1391,21 @@ func (n *daemonNativeTools) networkDirectResolve(
 	if err := network.ValidatePeerID(peerID); err != nil {
 		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
 	}
-	localPeer, remotePeer, err := n.resolveNetworkDirectRoomPeers(ctx, channel, sessionID, peerID)
+	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	localPeer, remotePeer, err := n.resolveNetworkDirectRoomPeers(ctx, workspaceID, channel, sessionID, peerID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeNetworkToolError(req.ToolID, err)
 	}
-	directID, peerA, peerB, err := network.DirectRoomIdentity(channel, localPeer.PeerID, remotePeer.PeerID)
+	directID, peerA, peerB, err := network.DirectRoomIdentity(workspaceID, channel, localPeer.PeerID, remotePeer.PeerID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeNetworkToolError(req.ToolID, err)
 	}
 	now := time.Now().UTC()
 	direct, err := n.deps.NetworkStore.ResolveDirectRoom(ctx, store.NetworkDirectRoomEntry{
+		WorkspaceID:    workspaceID,
 		Channel:        channel,
 		DirectID:       directID,
 		PeerA:          peerA,
@@ -1352,7 +1422,7 @@ func (n *daemonNativeTools) networkDirectResolve(
 
 func (n *daemonNativeTools) networkDirectMessages(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input networkDirectMessagesInput
@@ -1363,10 +1433,15 @@ func (n *daemonNativeTools) networkDirectMessages(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	ref := store.NetworkConversationRef{
-		Channel:  channel,
-		Surface:  store.NetworkSurfaceDirect,
-		DirectID: strings.TrimSpace(input.DirectID),
+		WorkspaceID: workspaceID,
+		Channel:     channel,
+		Surface:     store.NetworkSurfaceDirect,
+		DirectID:    strings.TrimSpace(input.DirectID),
 	}
 	payload, err := n.networkConversationMessages(ctx, req.ToolID, ref, networkConversationMessageQueryInput{
 		Before: strings.TrimSpace(input.Before),
@@ -1383,7 +1458,7 @@ func (n *daemonNativeTools) networkDirectMessages(
 
 func (n *daemonNativeTools) networkWork(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input networkWorkInput
@@ -1394,7 +1469,11 @@ func (n *daemonNativeTools) networkWork(
 	if err := network.ValidateWorkID(workID); err != nil {
 		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
 	}
-	work, err := n.deps.NetworkStore.GetWork(ctx, workID)
+	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	work, err := n.deps.NetworkStore.GetWork(ctx, workspaceID, workID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -1430,11 +1509,12 @@ func (n *daemonNativeTools) networkConversationMessages(
 
 func (n *daemonNativeTools) resolveNetworkDirectRoomPeers(
 	ctx context.Context,
+	workspaceID string,
 	channel string,
 	sessionID string,
 	peerID string,
 ) (network.PeerInfo, network.PeerInfo, error) {
-	peers, err := n.deps.Network.ListPeers(ctx, channel)
+	peers, err := n.deps.Network.ListPeers(ctx, workspaceID, channel)
 	if err != nil {
 		return network.PeerInfo{}, network.PeerInfo{}, err
 	}
@@ -1506,7 +1586,7 @@ func (n *daemonNativeTools) sessionList(
 
 func (n *daemonNativeTools) sessionStatus(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input sessionIDInput
@@ -1517,7 +1597,15 @@ func (n *daemonNativeTools) sessionStatus(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	info, err := n.deps.Sessions.Status(ctx, sessionID)
+	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.WorkspaceID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	sessionWorkspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	info, err := n.nativeSessionInWorkspace(ctx, req.ToolID, sessionWorkspaceID, sessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -1527,7 +1615,7 @@ func (n *daemonNativeTools) sessionStatus(
 
 func (n *daemonNativeTools) sessionHealth(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input sessionIDInput
@@ -1537,6 +1625,20 @@ func (n *daemonNativeTools) sessionHealth(
 	sessionID, err := requiredNativeString(req.ToolID, "session_id", input.SessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
+	}
+	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.WorkspaceID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	sessionWorkspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	if _, err := n.nativeSessionInWorkspace(ctx, req.ToolID, sessionWorkspaceID, sessionID); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	if n == nil || n.deps == nil || n.deps.SessionHealth == nil {
+		return toolspkg.ToolResult{}, errors.New("daemon: session health service is required")
 	}
 	health, err := n.deps.SessionHealth.GetSessionHealth(ctx, sessionID)
 	if err != nil {
@@ -1565,9 +1667,15 @@ func (n *daemonNativeTools) agentHeartbeatStatus(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	sessionID := strings.TrimSpace(input.SessionID)
+	if sessionID != "" {
+		if _, err := n.nativeSessionInWorkspace(ctx, req.ToolID, target.workspaceID, sessionID); err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+	}
 	status, err := n.deps.HeartbeatStatus.Status(ctx, heartbeat.StatusRequest{
 		Target:               target.heartbeatAuthoringTarget(),
-		SessionID:            strings.TrimSpace(input.SessionID),
+		SessionID:            sessionID,
 		IncludeSessionHealth: input.IncludeSessionHealth,
 	})
 	if err != nil {
@@ -1581,7 +1689,7 @@ func (n *daemonNativeTools) agentHeartbeatStatus(
 		events, err := n.deps.WakeEvents.ListHeartbeatWakeEvents(ctx, heartbeat.WakeEventListQuery{
 			WorkspaceID: target.workspaceID,
 			AgentName:   target.agentName,
-			SessionID:   strings.TrimSpace(input.SessionID),
+			SessionID:   sessionID,
 			Limit:       defaultNativeWakeEventLimit,
 		})
 		if err != nil {
@@ -1619,6 +1727,9 @@ func (n *daemonNativeTools) agentHeartbeatWake(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if _, err := n.nativeSessionInWorkspace(ctx, req.ToolID, target.workspaceID, sessionID); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	source := heartbeat.WakeSource(strings.TrimSpace(input.Source))
 	if source == "" {
 		source = heartbeat.WakeSourceManual
@@ -1646,14 +1757,22 @@ func (n *daemonNativeTools) agentHeartbeatWake(
 
 func (n *daemonNativeTools) sessionEvents(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	input, query, err := decodeSessionEventQueryInput(req)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	info, err := n.deps.Sessions.Status(ctx, input.SessionID)
+	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.WorkspaceID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	sessionWorkspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	info, err := n.nativeSessionInWorkspace(ctx, req.ToolID, sessionWorkspaceID, input.SessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -1670,14 +1789,22 @@ func (n *daemonNativeTools) sessionEvents(
 
 func (n *daemonNativeTools) sessionHistory(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	input, query, err := decodeSessionEventQueryInput(req)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	info, err := n.deps.Sessions.Status(ctx, input.SessionID)
+	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.WorkspaceID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	sessionWorkspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	info, err := n.nativeSessionInWorkspace(ctx, req.ToolID, sessionWorkspaceID, input.SessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -1691,14 +1818,22 @@ func (n *daemonNativeTools) sessionHistory(
 
 func (n *daemonNativeTools) sessionDescribe(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	input, query, err := decodeSessionEventQueryInput(req)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	info, err := n.deps.Sessions.Status(ctx, input.SessionID)
+	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.WorkspaceID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	sessionWorkspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+	}
+	info, err := n.nativeSessionInWorkspace(ctx, req.ToolID, sessionWorkspaceID, input.SessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -1787,13 +1922,17 @@ func (n *daemonNativeTools) workspaceDescribe(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	workspaceID, err := nativeResolvedNetworkWorkspaceID(&resolved)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	return structuredResult(map[string]any{
 		"workspace": core.WorkspacePayloadFromWorkspace(resolved.Workspace),
-		"sessions":  core.SessionPayloadsForWorkspace(sessions, resolved.ID),
+		"sessions":  core.SessionPayloadsForWorkspace(sessions, workspaceID),
 		"agents":    core.AgentPayloadsFromDefs(agents),
 		"skills":    core.WorkspaceSkillPayloads(resolved.Skills),
 		"providers": core.SessionProviderOptionPayloadsFromConfig(&resolved.Config),
-	}, resolved.ID)
+	}, workspaceID)
 }
 
 func (n *daemonNativeTools) memoryList(
@@ -2025,13 +2164,18 @@ func (n *daemonNativeTools) memoryNote(
 
 func (n *daemonNativeTools) observeEvents(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	input, query, err := decodeObserveEventQueryInput(req)
+	input, query, err := decodeObserveEventQueryInput(req, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	query.WorkspaceID = workspaceID
 	events, err := n.deps.Observer.QueryEvents(ctx, query)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -2060,13 +2204,18 @@ func (n *daemonNativeTools) observeMetrics(
 
 func (n *daemonNativeTools) observeSearch(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	input, query, err := decodeObserveSearchInput(req)
+	input, query, err := decodeObserveSearchInput(req, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	query.WorkspaceID = workspaceID
 	query.Limit = 0
 	events, err := n.deps.Observer.QueryEvents(ctx, query)
 	if err != nil {
@@ -2576,8 +2725,12 @@ func (n *daemonNativeTools) authoredAgentTarget(
 	if root == "" {
 		return nativeAuthoredAgentTarget{}, workspacepkg.ErrWorkspaceRootMissing
 	}
+	resolvedWorkspaceID, err := nativeResolvedNetworkWorkspaceID(&resolved)
+	if err != nil {
+		return nativeAuthoredAgentTarget{}, err
+	}
 	return nativeAuthoredAgentTarget{
-		workspaceID:     strings.TrimSpace(resolved.ID),
+		workspaceID:     resolvedWorkspaceID,
 		workspaceRoot:   root,
 		agentName:       name,
 		agentPath:       nativeAuthoredAgentPath(&resolved, name),
@@ -2739,14 +2892,21 @@ type skillViewInput struct {
 }
 
 type networkPeersInput struct {
-	Channel string `json:"channel,omitempty"`
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel,omitempty"`
+}
+
+type networkChannelsInput struct {
+	WorkspaceID string `json:"workspace_id"`
 }
 
 type networkInboxInput struct {
-	SessionID string `json:"session_id,omitempty"`
+	WorkspaceID string `json:"workspace_id"`
+	SessionID   string `json:"session_id,omitempty"`
 }
 
 type networkSendInput struct {
+	WorkspaceID string               `json:"workspace_id"`
 	SessionID   string               `json:"session_id,omitempty"`
 	Channel     string               `json:"channel"`
 	Surface     string               `json:"surface,omitempty"`
@@ -2765,42 +2925,47 @@ type networkSendInput struct {
 }
 
 type networkThreadsInput struct {
-	Channel string `json:"channel"`
-	Limit   int    `json:"limit,omitempty"`
-	After   string `json:"after,omitempty"`
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel"`
+	Limit       int    `json:"limit,omitempty"`
+	After       string `json:"after,omitempty"`
 }
 
 type networkThreadMessagesInput struct {
-	Channel  string `json:"channel"`
-	ThreadID string `json:"thread_id"`
-	Before   string `json:"before,omitempty"`
-	After    string `json:"after,omitempty"`
-	Kind     string `json:"kind,omitempty"`
-	WorkID   string `json:"work_id,omitempty"`
-	Limit    int    `json:"limit,omitempty"`
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel"`
+	ThreadID    string `json:"thread_id"`
+	Before      string `json:"before,omitempty"`
+	After       string `json:"after,omitempty"`
+	Kind        string `json:"kind,omitempty"`
+	WorkID      string `json:"work_id,omitempty"`
+	Limit       int    `json:"limit,omitempty"`
 }
 
 type networkDirectsInput struct {
-	Channel string `json:"channel"`
-	PeerID  string `json:"peer_id,omitempty"`
-	Limit   int    `json:"limit,omitempty"`
-	After   string `json:"after,omitempty"`
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel"`
+	PeerID      string `json:"peer_id,omitempty"`
+	Limit       int    `json:"limit,omitempty"`
+	After       string `json:"after,omitempty"`
 }
 
 type networkDirectResolveInput struct {
-	SessionID string `json:"session_id,omitempty"`
-	Channel   string `json:"channel"`
-	PeerID    string `json:"peer_id"`
+	WorkspaceID string `json:"workspace_id"`
+	SessionID   string `json:"session_id,omitempty"`
+	Channel     string `json:"channel"`
+	PeerID      string `json:"peer_id"`
 }
 
 type networkDirectMessagesInput struct {
-	Channel  string `json:"channel"`
-	DirectID string `json:"direct_id"`
-	Before   string `json:"before,omitempty"`
-	After    string `json:"after,omitempty"`
-	Kind     string `json:"kind,omitempty"`
-	WorkID   string `json:"work_id,omitempty"`
-	Limit    int    `json:"limit,omitempty"`
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel"`
+	DirectID    string `json:"direct_id"`
+	Before      string `json:"before,omitempty"`
+	After       string `json:"after,omitempty"`
+	Kind        string `json:"kind,omitempty"`
+	WorkID      string `json:"work_id,omitempty"`
+	Limit       int    `json:"limit,omitempty"`
 }
 
 type networkConversationMessageQueryInput struct {
@@ -2812,7 +2977,8 @@ type networkConversationMessageQueryInput struct {
 }
 
 type networkWorkInput struct {
-	WorkID string `json:"work_id"`
+	WorkspaceID string `json:"workspace_id"`
+	WorkID      string `json:"work_id"`
 }
 
 type sessionListInput struct {
@@ -2821,10 +2987,12 @@ type sessionListInput struct {
 }
 
 type sessionIDInput struct {
-	SessionID string `json:"session_id"`
+	WorkspaceID string `json:"workspace_id"`
+	SessionID   string `json:"session_id"`
 }
 
 type sessionEventQueryInput struct {
+	WorkspaceID   string `json:"workspace_id"`
 	SessionID     string `json:"session_id"`
 	Type          string `json:"type,omitempty"`
 	AgentName     string `json:"agent_name,omitempty"`
@@ -2985,11 +3153,12 @@ type nativeMemoryRecallEntry struct {
 }
 
 type observeEventQueryInput struct {
-	SessionID string `json:"session_id,omitempty"`
-	AgentName string `json:"agent_name,omitempty"`
-	Type      string `json:"type,omitempty"`
-	Since     string `json:"since,omitempty"`
-	Limit     int    `json:"limit,omitempty"`
+	WorkspaceID string `json:"workspace_id"`
+	SessionID   string `json:"session_id,omitempty"`
+	AgentName   string `json:"agent_name,omitempty"`
+	Type        string `json:"type,omitempty"`
+	Since       string `json:"since,omitempty"`
+	Limit       int    `json:"limit,omitempty"`
 }
 
 func (i observeEventQueryInput) eventSummaryQuery(id toolspkg.ToolID) (store.EventSummaryQuery, error) {
@@ -2998,11 +3167,12 @@ func (i observeEventQueryInput) eventSummaryQuery(id toolspkg.ToolID) (store.Eve
 		return store.EventSummaryQuery{}, err
 	}
 	query := store.EventSummaryQuery{
-		SessionID: strings.TrimSpace(i.SessionID),
-		AgentName: strings.TrimSpace(i.AgentName),
-		Type:      strings.TrimSpace(i.Type),
-		Since:     since,
-		Limit:     i.Limit,
+		WorkspaceID: strings.TrimSpace(i.WorkspaceID),
+		SessionID:   strings.TrimSpace(i.SessionID),
+		AgentName:   strings.TrimSpace(i.AgentName),
+		Type:        strings.TrimSpace(i.Type),
+		Since:       since,
+		Limit:       i.Limit,
 	}
 	if err := query.Validate(); err != nil {
 		return store.EventSummaryQuery{}, toolspkg.NewToolError(
@@ -3421,6 +3591,100 @@ func nativeNetworkInputError(id toolspkg.ToolID, err error) error {
 		fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
 		toolspkg.ReasonSchemaInvalid,
 	)
+}
+
+func (n *daemonNativeTools) nativeResolvedWorkspace(
+	ctx context.Context,
+	id toolspkg.ToolID,
+	workspaceRef string,
+	scope toolspkg.Scope,
+) (workspacepkg.ResolvedWorkspace, error) {
+	ref := firstNonEmpty(workspaceRef, scope.WorkspaceID)
+	if ref == "" {
+		return workspacepkg.ResolvedWorkspace{}, nativeRequiredInputError(id, "workspace_id")
+	}
+	if n == nil || n.deps == nil || n.deps.Workspaces == nil {
+		return workspacepkg.ResolvedWorkspace{}, nativeNetworkInputError(
+			id,
+			workspacepkg.ErrWorkspaceResolverUnavailable,
+		)
+	}
+	resolved, err := n.deps.Workspaces.Resolve(ctx, ref)
+	if err != nil {
+		return workspacepkg.ResolvedWorkspace{}, nativeNetworkInputError(id, err)
+	}
+	return resolved, nil
+}
+
+func (n *daemonNativeTools) nativeNetworkWorkspaceID(
+	ctx context.Context,
+	id toolspkg.ToolID,
+	workspaceRef string,
+	scope toolspkg.Scope,
+) (string, error) {
+	resolved, err := n.nativeResolvedWorkspace(ctx, id, workspaceRef, scope)
+	if err != nil {
+		return "", err
+	}
+	workspaceID, err := nativeResolvedNetworkWorkspaceID(&resolved)
+	if err != nil {
+		return "", nativeNetworkInputError(id, err)
+	}
+	return workspaceID, nil
+}
+
+func nativeResolvedNetworkWorkspaceID(resolved *workspacepkg.ResolvedWorkspace) (string, error) {
+	if resolved == nil {
+		return "", errors.New("daemon: resolved workspace is required")
+	}
+	workspaceID := strings.TrimSpace(resolved.WorkspaceID)
+	if workspaceID == "" {
+		return "", errors.New("daemon: resolved workspace_id is empty")
+	}
+	return workspaceID, nil
+}
+
+func nativeResolvedRegistryWorkspaceID(resolved *workspacepkg.ResolvedWorkspace) (string, error) {
+	if resolved == nil {
+		return "", errors.New("daemon: resolved workspace is required")
+	}
+	workspaceID := strings.TrimSpace(resolved.ID)
+	if workspaceID == "" {
+		return "", errors.New("daemon: resolved workspace registry id is empty")
+	}
+	return workspaceID, nil
+}
+
+func (n *daemonNativeTools) requireNativeSessionWorkspace(
+	ctx context.Context,
+	id toolspkg.ToolID,
+	workspaceID string,
+	sessionID string,
+) error {
+	_, err := n.nativeSessionInWorkspace(ctx, id, workspaceID, sessionID)
+	return err
+}
+
+func (n *daemonNativeTools) nativeSessionInWorkspace(
+	ctx context.Context,
+	id toolspkg.ToolID,
+	workspaceID string,
+	sessionID string,
+) (*session.Info, error) {
+	if strings.TrimSpace(sessionID) == "" {
+		return nil, nativeRequiredInputError(id, "session_id")
+	}
+	if n == nil || n.deps == nil || n.deps.Sessions == nil {
+		return nil, errors.New("daemon: sessions are required")
+	}
+	info, err := n.deps.Sessions.Status(ctx, strings.TrimSpace(sessionID))
+	if err != nil {
+		return nil, err
+	}
+	if info == nil || strings.TrimSpace(info.WorkspaceID) != strings.TrimSpace(workspaceID) {
+		return nil, fmt.Errorf("%w: session=%q workspace_id=%q", session.ErrSessionNotFound, sessionID, workspaceID)
+	}
+	return info, nil
 }
 
 func nativeNetworkChannel(id toolspkg.ToolID, value string) (string, error) {
@@ -3869,8 +4133,11 @@ func (n *daemonNativeTools) memoryWorkspaceIdentity(ctx context.Context, ref str
 		case err == nil:
 			root := firstNonEmpty(resolved.RootDir, trimmed)
 			workspaceRoot, resolveErr := core.ResolveMemoryWorkspace(root)
-			workspaceID := firstNonEmpty(resolved.WorkspaceID, resolved.ID)
-			return strings.TrimSpace(workspaceID), workspaceRoot, resolveErr
+			workspaceID := strings.TrimSpace(resolved.WorkspaceID)
+			if workspaceID == "" {
+				return "", "", errors.New("daemon: resolved workspace_id is empty")
+			}
+			return workspaceID, workspaceRoot, resolveErr
 		case !errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
 			return "", "", err
 		}
@@ -4147,11 +4414,15 @@ func nativeMemoryToolError(id toolspkg.ToolID, err error) error {
 	}
 }
 
-func decodeObserveEventQueryInput(req toolspkg.CallRequest) (observeEventQueryInput, store.EventSummaryQuery, error) {
+func decodeObserveEventQueryInput(
+	req toolspkg.CallRequest,
+	scope toolspkg.Scope,
+) (observeEventQueryInput, store.EventSummaryQuery, error) {
 	var input observeEventQueryInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return observeEventQueryInput{}, store.EventSummaryQuery{}, err
 	}
+	input.WorkspaceID = firstNonEmpty(input.WorkspaceID, scope.WorkspaceID)
 	query, err := input.eventSummaryQuery(req.ToolID)
 	if err != nil {
 		return observeEventQueryInput{}, store.EventSummaryQuery{}, err
@@ -4159,7 +4430,10 @@ func decodeObserveEventQueryInput(req toolspkg.CallRequest) (observeEventQueryIn
 	return input, query, nil
 }
 
-func decodeObserveSearchInput(req toolspkg.CallRequest) (observeSearchInput, store.EventSummaryQuery, error) {
+func decodeObserveSearchInput(
+	req toolspkg.CallRequest,
+	scope toolspkg.Scope,
+) (observeSearchInput, store.EventSummaryQuery, error) {
 	var input observeSearchInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return observeSearchInput{}, store.EventSummaryQuery{}, err
@@ -4167,6 +4441,7 @@ func decodeObserveSearchInput(req toolspkg.CallRequest) (observeSearchInput, sto
 	if _, err := requiredNativeString(req.ToolID, "query", input.Query); err != nil {
 		return observeSearchInput{}, store.EventSummaryQuery{}, err
 	}
+	input.WorkspaceID = firstNonEmpty(input.WorkspaceID, scope.WorkspaceID)
 	query, err := input.eventSummaryQuery(req.ToolID)
 	if err != nil {
 		return observeSearchInput{}, store.EventSummaryQuery{}, err

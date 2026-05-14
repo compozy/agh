@@ -3,42 +3,10 @@
 import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
 import type { ItemInstance, TreeInstance } from "@headless-tree/core";
-import { createContext, use } from "react";
 
 import { cn } from "@agh/ui/lib/utils";
 import { ChevronDownIcon, MinusIcon, PlusIcon } from "lucide-react";
-
-type ToggleIconType = "chevron" | "plus-minus";
-
-// TreeInstance and ItemInstance are invariant in T (they expose write paths
-// like updateCachedData that take T), so the shared context type erases T to
-// `any`. Each consumer hook re-narrows on read via a generic cast.
-interface TreeContextValue {
-  indent: number;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  currentItem?: ItemInstance<any>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  tree?: TreeInstance<any>;
-  toggleIconType: ToggleIconType;
-}
-
-const TreeContext = createContext<TreeContextValue>({
-  indent: 20,
-  currentItem: undefined,
-  tree: undefined,
-  toggleIconType: "plus-minus",
-});
-
-interface TypedTreeContext<T> {
-  indent: number;
-  currentItem?: ItemInstance<T>;
-  tree?: TreeInstance<T>;
-  toggleIconType: ToggleIconType;
-}
-
-function useTreeContext<T>(): TypedTreeContext<T> {
-  return use(TreeContext) as TypedTreeContext<T>;
-}
+import { TreeContext, type ToggleIconType, useTreeContext } from "./hooks/use-tree-context";
 
 function optionalFeatureCall<T, K extends keyof ItemInstance<T>>(
   item: ItemInstance<T>,
@@ -116,7 +84,7 @@ function TreeItem<T>({ item, className, render, children, ...props }: TreeItemPr
     type: "button" as const,
     style: mergedStyle,
     className: cn(
-      "z-10 ps-(--tree-padding) outline-hidden select-none not-last:pb-0.5 focus:z-20 data-disabled:pointer-events-none data-disabled:opacity-50",
+      "z-10 ps-(--tree-padding) outline-hidden select-none focus:z-20 data-disabled:pointer-events-none data-disabled:opacity-50",
       className
     ),
     "data-focus": focused,
@@ -177,7 +145,7 @@ function TreeItemLabel<T>({
             <PlusIcon className="text-muted size-3" stroke="currentColor" strokeWidth="1" />
           )
         ) : (
-          <ChevronDownIcon className="text-muted size-4 in-aria-[expanded=false]:-rotate-90" />
+          <ChevronDownIcon className="text-muted size-3 in-aria-[expanded=false]:-rotate-90" />
         ))}
       {children ?? item.getItemName()}
     </span>

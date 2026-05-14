@@ -7,8 +7,12 @@ import type { ReactNode } from "react";
 
 import { useNetworkRecents } from "../use-recents";
 
+vi.mock("@/systems/workspace", () => ({
+  useActiveWorkspace: () => ({ activeWorkspaceId: "w1" }),
+}));
+
 vi.mock("../../adapters/network-api", () => ({
-  listNetworkThreads: vi.fn(async (channel: string) => {
+  listNetworkThreads: vi.fn(async (_workspaceId: string, channel: string) => {
     if (channel === "ops") {
       return [
         {
@@ -46,7 +50,7 @@ vi.mock("../../adapters/network-api", () => ({
     }
     return [];
   }),
-  listNetworkDirectRooms: vi.fn(async (channel: string) => {
+  listNetworkDirectRooms: vi.fn(async (_workspaceId: string, channel: string) => {
     if (channel === "ops") {
       return [
         {
@@ -151,7 +155,7 @@ describe("useNetworkRecents", () => {
     window.localStorage.setItem(
       "network:last-read",
       JSON.stringify({
-        "ops:thread:thread_ops_one": "2026-04-17T18:00:00Z",
+        "w1:ops:thread:thread_ops_one": "2026-04-17T18:00:00Z",
       })
     );
     const { result } = renderHook(() => useNetworkRecents(channels, { limit: 5 }), {

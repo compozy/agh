@@ -4,6 +4,7 @@ import * as React from "react";
 
 import { formatAbsoluteTime, formatRelativeTime } from "../../lib/format-time";
 import { cn } from "../../lib/utils";
+import { useRelativeTick } from "./hooks/use-relative-tick";
 
 export type TimeMode = "relative" | "absolute";
 
@@ -20,18 +21,6 @@ export interface TimeProps extends Omit<React.ComponentProps<"time">, "title" | 
 }
 
 const DEFAULT_REFRESH_MS = 30_000;
-
-function useRelativeTick(active: boolean, refreshMs: number): number {
-  const [, setTick] = React.useState(0);
-  React.useEffect(() => {
-    if (!active) return undefined;
-    const id = setInterval(() => {
-      setTick(n => n + 1);
-    }, refreshMs);
-    return () => clearInterval(id);
-  }, [active, refreshMs]);
-  return 0;
-}
 
 function Time({
   iso,

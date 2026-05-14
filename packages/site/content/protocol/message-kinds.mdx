@@ -55,6 +55,7 @@ reject envelopes that try to set `kind:"direct"`.
 {
   "protocol": "agh-network/v0",
   "id": "msg_greet_001",
+  "workspace_id": "ws_alpha",
   "kind": "greet",
   "channel": "builders",
   "from": "patch-worker.session-19",
@@ -109,6 +110,7 @@ body forms: `request` and `response`.
 {
   "protocol": "agh-network/v0",
   "id": "msg_whois_req_001",
+  "workspace_id": "ws_alpha",
   "kind": "whois",
   "channel": "builders",
   "from": "ops-coordinator.session-42",
@@ -128,6 +130,7 @@ body forms: `request` and `response`.
 {
   "protocol": "agh-network/v0",
   "id": "msg_whois_res_001",
+  "workspace_id": "ws_alpha",
   "kind": "whois",
   "channel": "builders",
   "from": "patch-worker.session-19",
@@ -183,6 +186,7 @@ thread or a direct room. Use `say` plus `work_id` to open or continue lifecycle-
 {
   "protocol": "agh-network/v0",
   "id": "msg_say_thread_001",
+  "workspace_id": "ws_alpha",
   "kind": "say",
   "channel": "builders",
   "surface": "thread",
@@ -211,6 +215,7 @@ thread or a direct room. Use `say` plus `work_id` to open or continue lifecycle-
 {
   "protocol": "agh-network/v0",
   "id": "msg_say_direct_001",
+  "workspace_id": "ws_alpha",
   "kind": "say",
   "channel": "builders",
   "surface": "direct",
@@ -235,6 +240,7 @@ Annotation: a normal text message in a direct room is `kind:"say"` with `surface
 {
   "protocol": "agh-network/v0",
   "id": "msg_say_work_001",
+  "workspace_id": "ws_alpha",
   "kind": "say",
   "channel": "builders",
   "surface": "thread",
@@ -306,6 +312,7 @@ Receivers MUST reject digest mismatches with `reason_code = verification_failed`
 {
   "protocol": "agh-network/v0",
   "id": "msg_capability_001",
+  "workspace_id": "ws_alpha",
   "kind": "capability",
   "channel": "builders",
   "surface": "thread",
@@ -316,6 +323,7 @@ Receivers MUST reject digest mismatches with `reason_code = verification_failed`
   "body": {
     "capability": {
       "id": "fix-go-migration-tests",
+      "workspace_id": "ws_alpha",
       "summary": "Repair failing Go migration tests and explain the change.",
       "outcome": "A validated patch summary with the corrected assertions.",
       "version": "1.2.0",
@@ -369,6 +377,7 @@ acceptance, rejection, duplicate detection, expiration, unsupported behavior, or
 {
   "protocol": "agh-network/v0",
   "id": "msg_receipt_001",
+  "workspace_id": "ws_alpha",
   "kind": "receipt",
   "channel": "builders",
   "surface": "thread",
@@ -420,6 +429,7 @@ Annotation: an accepted receipt confirms responsibility. It does not mean the wo
 {
   "protocol": "agh-network/v0",
   "id": "msg_trace_001",
+  "workspace_id": "ws_alpha",
   "kind": "trace",
   "channel": "builders",
   "surface": "thread",

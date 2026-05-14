@@ -38,6 +38,8 @@ import {
 } from "../channel-rail";
 import type { NetworkChannelSummary, NetworkRecentEntry } from "@/systems/network";
 
+const WORKSPACE_ID = "ws_alpha";
+
 interface InstallMatchMediaArgs {
   matches: (query: string) => boolean;
 }
@@ -123,6 +125,7 @@ function Harness({ pinnedIds = ["alpha"], togglePinned = () => undefined }: Harn
   const pinnedSet = new Set(pinnedIds);
   return (
     <ChannelRail
+      workspaceId={WORKSPACE_ID}
       activeChannel="ops"
       activeDirectId={null}
       directs={[]}
@@ -184,6 +187,7 @@ describe("ChannelRail", () => {
   it("renders empty-state copy when no channels are visible", () => {
     render(
       <ChannelRail
+        workspaceId={WORKSPACE_ID}
         activeChannel={null}
         activeDirectId={null}
         directs={[]}

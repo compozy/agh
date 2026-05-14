@@ -214,12 +214,20 @@ func TestComposedAssemblerAssembleStartupUsesEligibleSectionOrdering(t *testing.
 	t.Parallel()
 
 	resolver := NewHarnessContextResolver(HarnessRuntimeSignals{
-		MemoryPromptSectionEnabled: true,
-		SkillsPromptSectionEnabled: true,
+		RuntimeIdentityPromptSectionEnabled: true,
+		MemoryPromptSectionEnabled:          true,
+		SkillsPromptSectionEnabled:          true,
 	})
 	assembler := NewComposedAssembler(
 		WithSectionSelector(NewSectionSelector(resolver, nil)),
 		WithPromptSectionDescriptors(
+			PromptSectionDescriptor{
+				Name:      string(HarnessPromptSectionRuntimeIdentity),
+				Position:  PromptSectionPositionPrepend,
+				Order:     10,
+				Provider:  staticPromptProvider("runtime block"),
+				Predicate: policyIncludesSection(HarnessPromptSectionRuntimeIdentity),
+			},
 			PromptSectionDescriptor{
 				Name:     string(HarnessPromptSectionNetwork),
 				Position: PromptSectionPositionAppend,
@@ -261,7 +269,7 @@ func TestComposedAssemblerAssembleStartupUsesEligibleSectionOrdering(t *testing.
 		t.TempDir(),
 	)
 
-	want := "memory block\n\nBase prompt.\n\nskills block\n\nnetwork block"
+	want := "runtime block\n\nmemory block\n\nBase prompt.\n\nskills block\n\nnetwork block"
 	if got != want {
 		t.Fatalf("AssembleStartup() = %q, want %q", got, want)
 	}

@@ -20,6 +20,7 @@ func TestOpenGlobalDBCreatesNetworkTimelineLogSchema(t *testing.T) {
 	assertTableColumns(t, globalDB.db, "network_timeline_log", []string{
 		"message_id",
 		"session_id",
+		"workspace_id",
 		"channel",
 		"surface",
 		"thread_id",
@@ -45,12 +46,14 @@ func TestGlobalDBWriteAndListNetworkMessages(t *testing.T) {
 	t.Parallel()
 
 	globalDB := openTestGlobalDB(t)
+	workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "network-messages", t.TempDir())
 	recordedAt := time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)
 	globalDB.now = func() time.Time { return recordedAt }
 
 	if err := globalDB.WriteNetworkMessage(testutil.Context(t), store.NetworkMessageEntry{
 		MessageID:   "msg_say_01",
 		SessionID:   "sess-audit",
+		WorkspaceID: workspaceID,
 		Channel:     "builders",
 		Surface:     store.NetworkSurfaceThread,
 		ThreadID:    "thread_patch_42",
@@ -66,6 +69,7 @@ func TestGlobalDBWriteAndListNetworkMessages(t *testing.T) {
 	}
 	if err := globalDB.WriteNetworkMessage(testutil.Context(t), store.NetworkMessageEntry{
 		MessageID:   "msg_say_01",
+		WorkspaceID: workspaceID,
 		Channel:     "builders",
 		Surface:     store.NetworkSurfaceThread,
 		ThreadID:    "thread_patch_42",
@@ -82,6 +86,7 @@ func TestGlobalDBWriteAndListNetworkMessages(t *testing.T) {
 	}
 	if err := globalDB.WriteNetworkMessage(testutil.Context(t), store.NetworkMessageEntry{
 		MessageID:   "msg_say_02",
+		WorkspaceID: workspaceID,
 		Channel:     "builders",
 		Surface:     store.NetworkSurfaceDirect,
 		DirectID:    "direct_0123456789abcdef0123456789abcdef",
@@ -99,8 +104,9 @@ func TestGlobalDBWriteAndListNetworkMessages(t *testing.T) {
 	}
 
 	entries, err := globalDB.ListNetworkMessages(testutil.Context(t), store.NetworkMessageQuery{
-		Channel: "builders",
-		Limit:   10,
+		WorkspaceID: workspaceID,
+		Channel:     "builders",
+		Limit:       10,
 	})
 	if err != nil {
 		t.Fatalf("ListNetworkMessages() error = %v", err)
@@ -144,6 +150,7 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 	t.Parallel()
 
 	globalDB := openTestGlobalDB(t)
+	workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "network-cursors", t.TempDir())
 	recordedAt := time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)
 
 	entries := []store.NetworkMessageEntry{
@@ -210,6 +217,9 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 			Timestamp:   recordedAt.Add(3 * time.Minute),
 		},
 	}
+	for index := range entries {
+		entries[index].WorkspaceID = workspaceID
+	}
 	for _, entry := range entries {
 		if err := globalDB.WriteNetworkMessage(testutil.Context(t), entry); err != nil {
 			t.Fatalf("WriteNetworkMessage(%q) error = %v", entry.MessageID, err)
@@ -217,6 +227,7 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 	}
 
 	before, err := globalDB.ListNetworkMessages(testutil.Context(t), store.NetworkMessageQuery{
+		WorkspaceID:     workspaceID,
 		Channel:         "builders",
 		BeforeMessageID: "msg-2b",
 		Limit:           10,
@@ -235,6 +246,7 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 	}
 
 	after, err := globalDB.ListNetworkMessages(testutil.Context(t), store.NetworkMessageQuery{
+		WorkspaceID:    workspaceID,
 		Channel:        "builders",
 		AfterMessageID: "msg-2a",
 		Limit:          10,
@@ -253,6 +265,7 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 	}
 
 	_, err = globalDB.ListNetworkMessages(testutil.Context(t), store.NetworkMessageQuery{
+		WorkspaceID:     workspaceID,
 		Channel:         "builders",
 		BeforeMessageID: "msg-4",
 		Limit:           10,
@@ -262,6 +275,7 @@ func TestGlobalDBListNetworkMessagesSupportsMessageIDCursors(t *testing.T) {
 	}
 
 	_, err = globalDB.ListNetworkMessages(testutil.Context(t), store.NetworkMessageQuery{
+		WorkspaceID:     workspaceID,
 		PeerID:          "peer-a",
 		DirectedOnly:    true,
 		BeforeMessageID: "msg-4",
@@ -349,11 +363,13 @@ func TestGlobalDBListNetworkMessagesWrapsTimestampParseFailures(t *testing.T) {
 	t.Parallel()
 
 	globalDB := openTestGlobalDB(t)
+	workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "network-bad-timestamp", t.TempDir())
 	if _, err := globalDB.db.ExecContext(
 		testutil.Context(t),
 		`INSERT INTO network_timeline_log (
 			message_id,
 			session_id,
+			workspace_id,
 			channel,
 			surface,
 			thread_id,
@@ -371,9 +387,10 @@ func TestGlobalDBListNetworkMessagesWrapsTimestampParseFailures(t *testing.T) {
 			preview_text,
 			body_json,
 			timestamp
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		"msg_bad_timestamp",
 		nil,
+		workspaceID,
 		"builders",
 		store.NetworkSurfaceThread,
 		"thread_bad_timestamp",
@@ -395,7 +412,10 @@ func TestGlobalDBListNetworkMessagesWrapsTimestampParseFailures(t *testing.T) {
 		t.Fatalf("ExecContext(insert invalid network message) error = %v", err)
 	}
 
-	_, err := globalDB.ListNetworkMessages(testutil.Context(t), store.NetworkMessageQuery{Channel: "builders"})
+	_, err := globalDB.ListNetworkMessages(testutil.Context(t), store.NetworkMessageQuery{
+		WorkspaceID: workspaceID,
+		Channel:     "builders",
+	})
 	if err == nil {
 		t.Fatal("ListNetworkMessages(invalid timestamp) error = nil, want non-nil")
 	}
@@ -408,8 +428,10 @@ func TestGlobalDBWriteNetworkMessageRejectsNonCanonicalDirection(t *testing.T) {
 	t.Parallel()
 
 	globalDB := openTestGlobalDB(t)
+	workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "network-bad-direction", t.TempDir())
 	err := globalDB.WriteNetworkMessage(testutil.Context(t), store.NetworkMessageEntry{
 		MessageID:   "msg_bad_direction",
+		WorkspaceID: workspaceID,
 		Channel:     "builders",
 		Surface:     store.NetworkSurfaceThread,
 		ThreadID:    "thread_bad_direction",

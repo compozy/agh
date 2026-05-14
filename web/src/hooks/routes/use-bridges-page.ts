@@ -28,6 +28,7 @@ import {
 } from "@/systems/bridges";
 import type {
   BridgeCreateDraft,
+  BridgeListFilter,
   BridgeScopeFilter,
   BridgeSummary,
   BridgeTestDeliveryDraft,
@@ -42,7 +43,7 @@ function matchesBridgeScope(
   activeWorkspaceId: string | null
 ) {
   if (activeScope === "all") {
-    return true;
+    return bridge.scope === "global" || bridge.workspace_id === activeWorkspaceId;
   }
 
   if (activeScope === "global") {
@@ -108,9 +109,19 @@ function useBridgesPage() {
   );
 
   const deferredSearchQuery = useDeferredValue(searchQuery);
-  useBridgeHealthStream();
 
-  const bridgesQuery = useBridges();
+  const bridgeListFilters = useMemo<BridgeListFilter>(() => {
+    if (activeScope === "global" || (activeScope === "all" && !activeWorkspaceId)) {
+      return { scope: "global" };
+    }
+    if (!activeWorkspaceId) {
+      return { scope: "workspace" };
+    }
+    return { scope: activeScope, workspace_id: activeWorkspaceId };
+  }, [activeScope, activeWorkspaceId]);
+  const bridgeListEnabled = activeScope !== "workspace" || Boolean(activeWorkspaceId);
+  useBridgeHealthStream({ enabled: bridgeListEnabled, filters: bridgeListFilters });
+  const bridgesQuery = useBridges(bridgeListFilters, { enabled: bridgeListEnabled });
   const providersQuery = useBridgeProviders();
   const createBridgeMutation = useCreateBridge();
   const updateBridgeMutation = useUpdateBridge();
@@ -124,7 +135,6 @@ function useBridgesPage() {
   const bridges = bridgesQuery.data?.bridges ?? [];
   const bridgeHealth = bridgesQuery.data?.bridge_health ?? {};
   const providers = providersQuery.data ?? [];
-  const totalBridgeCount = bridges.length;
   const canCreateBridge = providers.some(isBridgeProviderSelectable);
 
   const visibleBridges = useMemo(
@@ -138,6 +148,7 @@ function useBridgesPage() {
       ),
     [activeScope, activeWorkspaceId, bridges, deferredSearchQuery]
   );
+  const totalBridgeCount = visibleBridges.length;
 
   const effectiveSelectedBridgeId = useMemo(() => {
     if (selectedBridgeId && visibleBridges.some(bridge => bridge.id === selectedBridgeId)) {

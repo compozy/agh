@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { bridgeKeys } from "../lib/query-keys";
 import type {
   BridgeDetailResponse,
+  BridgeListFilter,
   BridgeRoute,
   BridgesListResponse,
   BridgeHealthStreamSnapshot,
@@ -19,12 +20,42 @@ interface BridgeHealthEventSource {
 interface UseBridgeHealthStreamOptions {
   enabled?: boolean;
   eventSourceFactory?: (url: string) => BridgeHealthEventSource;
+  filters?: BridgeListFilter;
 }
 
 const BRIDGE_HEALTH_STREAM_URL = "/api/bridges/health/stream";
 
 function defaultEventSourceFactory(url: string): BridgeHealthEventSource {
   return new EventSource(url);
+}
+
+function normalizeOptionalText(value?: string | null): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.trim();
+  return normalized === "" ? undefined : normalized;
+}
+
+function buildBridgeHealthStreamUrl(filters: BridgeListFilter = {}) {
+  const params = new URLSearchParams();
+  const scope = normalizeOptionalText(filters.scope);
+  const workspaceId = normalizeOptionalText(filters.workspace_id);
+  const workspace = normalizeOptionalText(filters.workspace);
+
+  if (scope) {
+    params.set("scope", scope);
+  }
+  if (workspaceId) {
+    params.set("workspace_id", workspaceId);
+  }
+  if (workspace) {
+    params.set("workspace", workspace);
+  }
+
+  const query = params.toString();
+  return query ? `${BRIDGE_HEALTH_STREAM_URL}?${query}` : BRIDGE_HEALTH_STREAM_URL;
 }
 
 function invalidateBridgeRoutesWhenCountChanges(
@@ -46,18 +77,35 @@ function invalidateBridgeRoutesWhenCountChanges(
   void queryClient.invalidateQueries({ queryKey: bridgeKeys.routes(bridgeID) });
 }
 
+function mergeBridgeHealthSnapshot(
+  current: BridgesListResponse | undefined,
+  snapshot: BridgeHealthStreamSnapshot
+): BridgesListResponse | undefined {
+  if (!current) {
+    return current;
+  }
+
+  const visibleBridgeIds = new Set(current.bridges.map(bridge => bridge.id));
+  const bridge_health = Object.fromEntries(
+    Object.entries(snapshot.bridge_health).filter(([bridgeID]) => visibleBridgeIds.has(bridgeID))
+  );
+  return {
+    ...current,
+    bridge_health,
+  };
+}
+
 export function applyBridgeHealthSnapshot(
   queryClient: ReturnType<typeof useQueryClient>,
   snapshot: BridgeHealthStreamSnapshot
 ) {
-  queryClient.setQueryData<BridgesListResponse | undefined>(bridgeKeys.list(), current =>
-    current
-      ? {
-          ...current,
-          bridge_health: snapshot.bridge_health,
-        }
-      : current
-  );
+  for (const [queryKey] of queryClient.getQueriesData<BridgesListResponse | undefined>({
+    queryKey: bridgeKeys.lists(),
+  })) {
+    queryClient.setQueryData<BridgesListResponse | undefined>(queryKey, current =>
+      mergeBridgeHealthSnapshot(current, snapshot)
+    );
+  }
 
   for (const [bridgeID, health] of Object.entries(snapshot.bridge_health)) {
     queryClient.setQueryData<BridgeDetailResponse | undefined>(
@@ -78,6 +126,9 @@ export function useBridgeHealthStream(options?: UseBridgeHealthStreamOptions) {
   const enabled = options?.enabled ?? true;
   const eventSourceFactory = options?.eventSourceFactory ?? defaultEventSourceFactory;
   const hasCustomFactory = Boolean(options?.eventSourceFactory);
+  const scope = options?.filters?.scope;
+  const workspaceId = options?.filters?.workspace_id;
+  const workspace = options?.filters?.workspace;
   const queryClient = useQueryClient();
 
   useEffect(() => {
@@ -89,7 +140,9 @@ export function useBridgeHealthStream(options?: UseBridgeHealthStreamOptions) {
       return undefined;
     }
 
-    const source = eventSourceFactory(BRIDGE_HEALTH_STREAM_URL);
+    const source = eventSourceFactory(
+      buildBridgeHealthStreamUrl({ scope, workspace_id: workspaceId, workspace })
+    );
     const handleSnapshot = (event: Event) => {
       if (!(event instanceof MessageEvent) || typeof event.data !== "string") {
         return;
@@ -115,5 +168,5 @@ export function useBridgeHealthStream(options?: UseBridgeHealthStreamOptions) {
       source.onerror = null;
       source.close();
     };
-  }, [enabled, eventSourceFactory, hasCustomFactory, queryClient]);
+  }, [enabled, eventSourceFactory, hasCustomFactory, queryClient, scope, workspaceId, workspace]);
 }

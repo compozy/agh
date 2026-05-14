@@ -316,7 +316,7 @@ describe("compozy-design-system lint plugin", () => {
       ).toHaveLength(0);
     });
 
-    it("respects no-inline-eyebrow exemptions", () => {
+    it("respects no-inline-eyebrow exemptions without exempting packages/ui", () => {
       expect(
         runClassNameRule(
           "no-inline-eyebrow",
@@ -339,10 +339,10 @@ describe("compozy-design-system lint plugin", () => {
           "/repo/packages/ui/src/components/foo.tsx",
           literal("font-mono uppercase tracking-mono")
         )
-      ).toHaveLength(0);
+      ).toHaveLength(1);
     });
 
-    it("reports no-design-glaze-rgba only in runtime source", () => {
+    it("reports no-design-glaze-rgba across frontend source", () => {
       expect(
         runClassNameRule(
           "no-design-glaze-rgba",
@@ -356,7 +356,7 @@ describe("compozy-design-system lint plugin", () => {
           "/repo/packages/site/components/foo.tsx",
           literal("bg-[rgba(255,255,255,0.022)]")
         )
-      ).toHaveLength(0);
+      ).toHaveLength(1);
       expect(
         runClassNameRule(
           "no-design-glaze-rgba",
@@ -378,6 +378,14 @@ describe("compozy-design-system lint plugin", () => {
           importSpecifier("RefreshCw"),
         ])
       ).toHaveLength(0);
+      expect(
+        runImportRule(
+          "no-banned-imports",
+          "/repo/packages/site/components/foo.tsx",
+          "lucide-react",
+          [importSpecifier("Loader2")]
+        )
+      ).toHaveLength(1);
       expect(
         runImportRule(
           "no-banned-imports",
@@ -407,6 +415,13 @@ describe("compozy-design-system lint plugin", () => {
           jsxExpression(
             call(call(identifier("cva"), [literal("text-[22px] tracking-[-0.026em]")]), [])
           )
+        )[0]?.messageId
+      ).toBe("pageH1Tuple");
+      expect(
+        runClassNameRule(
+          "no-inline-design-tuples",
+          "/repo/packages/site/components/foo.tsx",
+          literal("text-[22px] tracking-[-0.026em]")
         )[0]?.messageId
       ).toBe("pageH1Tuple");
       expect(
@@ -460,6 +475,21 @@ describe("compozy-design-system lint plugin", () => {
       expect(message).not.toContain("case=");
       expect(message).not.toContain("size=");
       expect(message).not.toContain("family=");
+    });
+
+    it("reports inline eyebrow tuples in packages/ui source", async () => {
+      await expectViolation(
+        {
+          filename: "packages/ui/src/components/foo.tsx",
+          rule,
+          source: `
+            export function View() {
+              return <span className="font-mono uppercase tracking-mono">x</span>;
+            }
+          `,
+        },
+        "Inlined eyebrow tuple in className. Use <Eyebrow> from @agh/ui"
+      );
     });
 
     it("allows unrelated className strings", async () => {
@@ -535,6 +565,21 @@ describe("compozy-design-system lint plugin", () => {
       );
     });
 
+    it("reports inline glaze rgba classes in packages/site source", async () => {
+      await expectViolation(
+        {
+          filename: "packages/site/components/foo.tsx",
+          rule,
+          source: `
+            export function View() {
+              return <div className="bg-[rgba(255,255,255,0.022)]">x</div>;
+            }
+          `,
+        },
+        "Inline surface glaze rgba in className."
+      );
+    });
+
     it("allows tokenized glaze classes", async () => {
       await expectAllowed({
         filename: "web/src/foo.tsx",
@@ -574,7 +619,7 @@ describe("compozy-design-system lint plugin", () => {
             export const Icon = Loader2;
           `,
         },
-        "Importing Loader2 from lucide-react is banned in runtime code."
+        "Importing Loader2 from lucide-react is banned in frontend code."
       );
     });
 
@@ -589,7 +634,22 @@ describe("compozy-design-system lint plugin", () => {
             export const Icon = Loader2Icon;
           `,
         },
-        "Importing Loader2Icon from lucide-react is banned in runtime code."
+        "Importing Loader2Icon from lucide-react is banned in frontend code."
+      );
+    });
+
+    it("reports Loader2 imports from lucide-react in packages/site source", async () => {
+      await expectViolation(
+        {
+          filename: "packages/site/components/foo.tsx",
+          rule,
+          source: `
+            import { Loader2 } from "lucide-react";
+
+            export const Icon = Loader2;
+          `,
+        },
+        "Importing Loader2 from lucide-react is banned in frontend code."
       );
     });
 
@@ -617,6 +677,21 @@ describe("compozy-design-system lint plugin", () => {
           source: `
             export function View() {
               return <h1 className={cva("text-[22px] tracking-[-0.026em]")()}>Title</h1>;
+            }
+          `,
+        },
+        "Inline 22px page H1 tuple in className."
+      );
+    });
+
+    it("reports the 22px page-h1 tuple in packages/site source", async () => {
+      await expectViolation(
+        {
+          filename: "packages/site/components/foo.tsx",
+          rule,
+          source: `
+            export function View() {
+              return <h1 className="text-[22px] tracking-[-0.026em]">Title</h1>;
             }
           `,
         },
@@ -670,6 +745,21 @@ describe("compozy-design-system lint plugin", () => {
       await expectViolation(
         {
           filename: "web/src/foo.tsx",
+          rule,
+          source: `
+            export function View() {
+              return <div className="text-(--muted)">x</div>;
+            }
+          `,
+        },
+        "text-(--muted)"
+      );
+    });
+
+    it("flags bare-token arbitrary syntax in packages/site source", async () => {
+      await expectViolation(
+        {
+          filename: "packages/site/components/foo.tsx",
           rule,
           source: `
             export function View() {

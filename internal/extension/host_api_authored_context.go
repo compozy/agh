@@ -225,6 +225,9 @@ func (h *HostAPIHandler) handleSessionsSoulRefresh(ctx context.Context, raw json
 	if sessionID == "" {
 		return nil, invalidParamsRPCError(errors.New("session_id is required"))
 	}
+	if _, err := h.requireHostAPISessionWorkspace(ctx, params.WorkspaceID, sessionID); err != nil {
+		return nil, err
+	}
 	result, err := h.soulRefresher.RefreshSoulWithExpectedDigest(
 		ctx,
 		sessionID,
@@ -385,9 +388,15 @@ func (h *HostAPIHandler) handleAgentsHeartbeatStatus(ctx context.Context, raw js
 	if err != nil {
 		return nil, mapHostAPIHeartbeatRPCError(err)
 	}
+	sessionID := strings.TrimSpace(params.SessionID)
+	if sessionID != "" {
+		if _, err := h.requireHostAPISessionWorkspace(ctx, target.workspaceID, sessionID); err != nil {
+			return nil, err
+		}
+	}
 	result, err := h.heartbeatStatus.Status(ctx, heartbeat.StatusRequest{
 		Target:               target.heartbeatAuthoringTarget(),
-		SessionID:            strings.TrimSpace(params.SessionID),
+		SessionID:            sessionID,
 		IncludeSessionHealth: params.IncludeSessionHealth,
 	})
 	if err != nil {
@@ -398,7 +407,7 @@ func (h *HostAPIHandler) handleAgentsHeartbeatStatus(ctx context.Context, raw js
 		return nil, mapHostAPIHeartbeatRPCError(err)
 	}
 	if params.IncludeRecentWakeEvents {
-		events, err := h.hostAPIWakeEvents(ctx, target, params.SessionID)
+		events, err := h.hostAPIWakeEvents(ctx, target, sessionID)
 		if err != nil {
 			return nil, mapHostAPIHeartbeatRPCError(err)
 		}
@@ -419,6 +428,12 @@ func (h *HostAPIHandler) handleAgentsHeartbeatWake(ctx context.Context, raw json
 	if err != nil {
 		return nil, mapHostAPIHeartbeatRPCError(err)
 	}
+	sessionID := strings.TrimSpace(params.SessionID)
+	if sessionID != "" {
+		if _, err := h.requireHostAPISessionWorkspace(ctx, target.workspaceID, sessionID); err != nil {
+			return nil, err
+		}
+	}
 	source := heartbeat.WakeSource(params.Source)
 	if source == "" {
 		source = heartbeat.WakeSourceManual
@@ -426,7 +441,7 @@ func (h *HostAPIHandler) handleAgentsHeartbeatWake(ctx context.Context, raw json
 	decision, err := h.heartbeatWake.Wake(ctx, heartbeat.WakeRequest{
 		WorkspaceID: target.workspaceID,
 		AgentName:   target.agentName,
-		SessionID:   strings.TrimSpace(params.SessionID),
+		SessionID:   sessionID,
 		Source:      source,
 		DryRun:      params.DryRun,
 	})
@@ -445,7 +460,7 @@ func (h *HostAPIHandler) handleSessionsHealthGet(ctx context.Context, raw json.R
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
 	}
-	health, err := h.hostAPISessionHealthPayload(ctx, params.SessionID)
+	health, err := h.hostAPISessionHealthPayload(ctx, params.WorkspaceID, params.SessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -457,7 +472,7 @@ func (h *HostAPIHandler) handleSessionsStatusGet(ctx context.Context, raw json.R
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
 	}
-	health, err := h.hostAPISessionHealthPayload(ctx, params.SessionID)
+	health, err := h.hostAPISessionHealthPayload(ctx, params.WorkspaceID, params.SessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -519,8 +534,12 @@ func (h *HostAPIHandler) resolveHostAPIAuthoredAgentTarget(
 	if root == "" {
 		return hostAPIAuthoredAgentTarget{}, workspacepkg.ErrWorkspaceRootMissing
 	}
+	workspaceID, err := hostAPIResolvedWorkspaceID(&resolved)
+	if err != nil {
+		return hostAPIAuthoredAgentTarget{}, err
+	}
 	return hostAPIAuthoredAgentTarget{
-		workspaceID:     strings.TrimSpace(resolved.ID),
+		workspaceID:     workspaceID,
 		workspaceRoot:   root,
 		agentName:       name,
 		agentPath:       hostAPIAuthoredAgentPath(&resolved, name),
@@ -704,6 +723,7 @@ func hostAPIHeartbeatHistoryResponse(result heartbeat.HistoryResult) (apicontrac
 
 func (h *HostAPIHandler) hostAPISessionHealthPayload(
 	ctx context.Context,
+	workspaceRef string,
 	sessionID string,
 ) (apicontract.SessionHealthPayload, error) {
 	if h.sessionHealth == nil {
@@ -715,6 +735,10 @@ func (h *HostAPIHandler) hostAPISessionHealthPayload(
 	if id == "" {
 		return apicontract.SessionHealthPayload{}, invalidParamsRPCError(errors.New("session_id is required"))
 	}
+	info, err := h.requireHostAPISessionWorkspace(ctx, workspaceRef, id)
+	if err != nil {
+		return apicontract.SessionHealthPayload{}, err
+	}
 	health, err := h.sessionHealth.GetSessionHealth(ctx, id)
 	if err != nil {
 		return apicontract.SessionHealthPayload{}, mapHostAPIHeartbeatRPCError(err)
@@ -725,6 +749,16 @@ func (h *HostAPIHandler) hostAPISessionHealthPayload(
 	}
 	if err := apicontract.ValidateAuthoredContextRedacted(payload); err != nil {
 		return apicontract.SessionHealthPayload{}, mapHostAPIHeartbeatRPCError(err)
+	}
+	if strings.TrimSpace(payload.WorkspaceID) != strings.TrimSpace(info.WorkspaceID) {
+		return apicontract.SessionHealthPayload{}, mapHostAPIHeartbeatRPCError(
+			fmt.Errorf(
+				"%w: session=%q workspace_id=%q",
+				session.ErrSessionNotFound,
+				id,
+				strings.TrimSpace(info.WorkspaceID),
+			),
+		)
 	}
 	return payload, nil
 }

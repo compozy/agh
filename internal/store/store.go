@@ -83,9 +83,9 @@ type NetworkAuditStore interface {
 // NetworkChannelStore manages durable network channel metadata.
 type NetworkChannelStore interface {
 	WriteNetworkChannel(ctx context.Context, entry NetworkChannelEntry) error
-	GetNetworkChannel(ctx context.Context, channel string) (NetworkChannelEntry, error)
+	GetNetworkChannel(ctx context.Context, ref NetworkChannelRef) (NetworkChannelEntry, error)
 	ListNetworkChannels(ctx context.Context, query NetworkChannelQuery) ([]NetworkChannelEntry, error)
-	DeleteNetworkChannel(ctx context.Context, channel string) error
+	DeleteNetworkChannel(ctx context.Context, ref NetworkChannelRef) error
 }
 
 // NetworkMessageStore manages persisted network timeline messages.
@@ -101,20 +101,20 @@ type NetworkConversationStore interface {
 		ctx context.Context,
 		entry NetworkConversationMessage,
 	) (NetworkConversationWriteResult, error)
-	ListThreads(ctx context.Context, channel string, query NetworkThreadQuery) ([]NetworkThreadSummary, error)
-	GetThread(ctx context.Context, channel string, threadID string) (NetworkThreadSummary, error)
+	ListThreads(ctx context.Context, ref NetworkChannelRef, query NetworkThreadQuery) ([]NetworkThreadSummary, error)
+	GetThread(ctx context.Context, ref NetworkChannelRef, threadID string) (NetworkThreadSummary, error)
 	ListDirectRooms(
 		ctx context.Context,
-		channel string,
+		ref NetworkChannelRef,
 		query NetworkDirectRoomQuery,
 	) ([]NetworkDirectRoomSummary, error)
-	GetDirectRoom(ctx context.Context, channel string, directID string) (NetworkDirectRoomSummary, error)
+	GetDirectRoom(ctx context.Context, ref NetworkChannelRef, directID string) (NetworkDirectRoomSummary, error)
 	ListConversationMessages(
 		ctx context.Context,
 		ref NetworkConversationRef,
 		query NetworkConversationMessageQuery,
 	) ([]NetworkConversationMessage, error)
-	GetWork(ctx context.Context, workID string) (NetworkWorkEntry, error)
+	GetWork(ctx context.Context, workspaceID string, workID string) (NetworkWorkEntry, error)
 }
 
 // SessionRegistry composes the global persistence surfaces used by runtime consumers.

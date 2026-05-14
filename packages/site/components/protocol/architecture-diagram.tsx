@@ -30,7 +30,7 @@ export function ArchitectureDiagram() {
 function renderArchitectureDiagram() {
   return (
     <section className="bg-canvas-soft px-4 py-16 md:py-20">
-      <div className="mx-auto max-w-(--site-layout-width)">
+      <div className="mx-auto max-w-site-layout-width">
         <div className="flex flex-col gap-12 lg:flex-row lg:items-start lg:justify-between lg:gap-16">
           <div className="max-w-135">
             <Eyebrow className="text-subtle">CONTROL PLANE</Eyebrow>

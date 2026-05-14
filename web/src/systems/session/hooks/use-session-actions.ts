@@ -7,8 +7,10 @@ import {
   deleteSession,
   repairSession,
   resumeSession,
+  SessionApiError,
   stopSession,
 } from "../adapters/session-api";
+import { useActiveWorkspace } from "@/systems/workspace";
 import { useSessionStore } from "./use-session-store";
 import { sessionKeys } from "../lib/query-keys";
 import type { SessionPayload, SessionRepairQuery } from "../types";
@@ -34,13 +36,32 @@ function shouldSeedList(queryKey: QueryKey, workspaceId?: string): boolean {
   return scope === "all" || (typeof workspaceId === "string" && scope === workspaceId);
 }
 
+function requireWorkspace(workspaceId: string | null | undefined): string {
+  if (!workspaceId) {
+    throw new SessionApiError("No active workspace selected", 400);
+  }
+  return workspaceId;
+}
+
+interface UseSessionWorkspaceOptions {
+  workspaceId?: string | null;
+}
+
+function resolveWorkspaceId(
+  workspaceId: string | null | undefined,
+  activeWorkspaceId: string | null | undefined
+): string | null {
+  return workspaceId ?? activeWorkspaceId ?? null;
+}
+
 export function useCreateSession() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (params: CreateSessionParams) => createSession(params),
     onSuccess: session => {
-      queryClient.setQueryData(sessionKeys.detail(session.id), session);
+      const workspaceId = requireWorkspace(session.workspace_id);
+      queryClient.setQueryData(sessionKeys.detail(workspaceId, session.id), session);
 
       for (const [queryKey] of queryClient.getQueriesData<SessionPayload[]>({
         queryKey: sessionKeys.lists(),
@@ -54,48 +75,57 @@ export function useCreateSession() {
         );
       }
 
-      void queryClient.invalidateQueries({ queryKey: sessionKeys.detail(session.id) });
+      void queryClient.invalidateQueries({ queryKey: sessionKeys.detail(workspaceId, session.id) });
       void queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
     },
   });
 }
 
-export function useStopSession() {
+export function useStopSession(options: UseSessionWorkspaceOptions = {}) {
   const queryClient = useQueryClient();
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
 
   return useMutation({
-    mutationFn: (id: string) => stopSession(id),
+    mutationFn: (id: string) => stopSession(requireWorkspace(workspaceId), id),
     onSettled: (_data, _error, id) => {
-      queryClient.invalidateQueries({ queryKey: sessionKeys.detail(id) });
+      const settledWorkspaceId = workspaceId ?? "";
+      queryClient.invalidateQueries({ queryKey: sessionKeys.detail(settledWorkspaceId, id) });
       queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
     },
   });
 }
 
-export function useDeleteSession() {
+export function useDeleteSession(options: UseSessionWorkspaceOptions = {}) {
   const queryClient = useQueryClient();
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
 
   return useMutation({
-    mutationFn: (id: string) => deleteSession(id),
+    mutationFn: (id: string) => deleteSession(requireWorkspace(workspaceId), id),
     onSuccess: (_data, id) => {
+      const successWorkspaceId = workspaceId ?? "";
       useSessionStore.getState().clearDraft(id);
-      queryClient.removeQueries({ queryKey: sessionKeys.detail(id) });
-      queryClient.removeQueries({ queryKey: sessionKeys.history(id) });
-      queryClient.removeQueries({ queryKey: sessionKeys.transcript(id) });
-      queryClient.removeQueries({ queryKey: sessionKeys.events(id) });
+      queryClient.removeQueries({ queryKey: sessionKeys.detail(successWorkspaceId, id) });
+      queryClient.removeQueries({ queryKey: sessionKeys.history(successWorkspaceId, id) });
+      queryClient.removeQueries({ queryKey: sessionKeys.transcript(successWorkspaceId, id) });
+      queryClient.removeQueries({ queryKey: sessionKeys.events(successWorkspaceId, id) });
 
       return queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
     },
   });
 }
 
-export function useResumeSession() {
+export function useResumeSession(options: UseSessionWorkspaceOptions = {}) {
   const queryClient = useQueryClient();
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
 
   return useMutation({
-    mutationFn: (id: string) => resumeSession(id),
+    mutationFn: (id: string) => resumeSession(requireWorkspace(workspaceId), id),
     onSettled: (_data, _error, id) => {
-      queryClient.invalidateQueries({ queryKey: sessionKeys.detail(id) });
+      const settledWorkspaceId = workspaceId ?? "";
+      queryClient.invalidateQueries({ queryKey: sessionKeys.detail(settledWorkspaceId, id) });
       queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
     },
   });
@@ -105,16 +135,28 @@ export interface RepairSessionParams extends SessionRepairQuery {
   id: string;
 }
 
-export function useRepairSession() {
+export function useRepairSession(options: UseSessionWorkspaceOptions = {}) {
   const queryClient = useQueryClient();
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
 
   return useMutation({
-    mutationFn: ({ id, ...query }: RepairSessionParams) => repairSession(id, query),
+    mutationFn: ({ id, ...query }: RepairSessionParams) =>
+      repairSession(requireWorkspace(workspaceId), id, query),
     onSettled: (_data, _error, params) => {
-      queryClient.invalidateQueries({ queryKey: sessionKeys.detail(params.id) });
-      queryClient.invalidateQueries({ queryKey: sessionKeys.history(params.id) });
-      queryClient.invalidateQueries({ queryKey: sessionKeys.transcript(params.id) });
-      queryClient.invalidateQueries({ queryKey: sessionKeys.events(params.id) });
+      const settledWorkspaceId = workspaceId ?? "";
+      queryClient.invalidateQueries({
+        queryKey: sessionKeys.detail(settledWorkspaceId, params.id),
+      });
+      queryClient.invalidateQueries({
+        queryKey: sessionKeys.history(settledWorkspaceId, params.id),
+      });
+      queryClient.invalidateQueries({
+        queryKey: sessionKeys.transcript(settledWorkspaceId, params.id),
+      });
+      queryClient.invalidateQueries({
+        queryKey: sessionKeys.events(settledWorkspaceId, params.id),
+      });
       queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
     },
   });
@@ -126,24 +168,29 @@ interface ClearConversationSnapshot {
   history: unknown;
 }
 
-export function useClearSessionConversation() {
+export function useClearSessionConversation(options: UseSessionWorkspaceOptions = {}) {
   const queryClient = useQueryClient();
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
 
   return useMutation({
-    mutationFn: (id: string) => clearSessionConversation(id),
+    mutationFn: (id: string) => clearSessionConversation(requireWorkspace(workspaceId), id),
     onMutate: async (id): Promise<ClearConversationSnapshot> => {
-      await queryClient.cancelQueries({ queryKey: sessionKeys.detail(id) });
-      await queryClient.cancelQueries({ queryKey: sessionKeys.history(id) });
-      await queryClient.cancelQueries({ queryKey: sessionKeys.transcript(id) });
+      const mutateWorkspaceId = requireWorkspace(workspaceId);
+      await queryClient.cancelQueries({ queryKey: sessionKeys.detail(mutateWorkspaceId, id) });
+      await queryClient.cancelQueries({ queryKey: sessionKeys.history(mutateWorkspaceId, id) });
+      await queryClient.cancelQueries({ queryKey: sessionKeys.transcript(mutateWorkspaceId, id) });
 
       const snapshot: ClearConversationSnapshot = {
-        session: queryClient.getQueryData<SessionPayload>(sessionKeys.detail(id)),
-        transcript: queryClient.getQueryData(sessionKeys.transcript(id)),
-        history: queryClient.getQueryData(sessionKeys.history(id)),
+        session: queryClient.getQueryData<SessionPayload>(
+          sessionKeys.detail(mutateWorkspaceId, id)
+        ),
+        transcript: queryClient.getQueryData(sessionKeys.transcript(mutateWorkspaceId, id)),
+        history: queryClient.getQueryData(sessionKeys.history(mutateWorkspaceId, id)),
       };
 
-      queryClient.setQueryData(sessionKeys.transcript(id), []);
-      queryClient.setQueryData(sessionKeys.history(id), []);
+      queryClient.setQueryData(sessionKeys.transcript(mutateWorkspaceId, id), []);
+      queryClient.setQueryData(sessionKeys.history(mutateWorkspaceId, id), []);
 
       return snapshot;
     },
@@ -153,21 +200,28 @@ export function useClearSessionConversation() {
       }
 
       if (snapshot.session) {
-        queryClient.setQueryData(sessionKeys.detail(snapshot.session.id), snapshot.session);
+        const snapshotWorkspaceId = requireWorkspace(snapshot.session.workspace_id);
+        queryClient.setQueryData(
+          sessionKeys.detail(snapshotWorkspaceId, snapshot.session.id),
+          snapshot.session
+        );
       }
 
-      queryClient.setQueryData(sessionKeys.transcript(id), snapshot.transcript);
-      queryClient.setQueryData(sessionKeys.history(id), snapshot.history);
+      const errorWorkspaceId = workspaceId ?? "";
+      queryClient.setQueryData(sessionKeys.transcript(errorWorkspaceId, id), snapshot.transcript);
+      queryClient.setQueryData(sessionKeys.history(errorWorkspaceId, id), snapshot.history);
     },
     onSuccess: (session, id) => {
-      queryClient.setQueryData(sessionKeys.detail(id), session);
-      queryClient.setQueryData(sessionKeys.transcript(id), []);
-      queryClient.setQueryData(sessionKeys.history(id), []);
+      const workspaceId = requireWorkspace(session.workspace_id);
+      queryClient.setQueryData(sessionKeys.detail(workspaceId, id), session);
+      queryClient.setQueryData(sessionKeys.transcript(workspaceId, id), []);
+      queryClient.setQueryData(sessionKeys.history(workspaceId, id), []);
     },
     onSettled: (_data, _error, id) => {
-      queryClient.invalidateQueries({ queryKey: sessionKeys.detail(id) });
-      queryClient.invalidateQueries({ queryKey: sessionKeys.history(id) });
-      queryClient.invalidateQueries({ queryKey: sessionKeys.transcript(id) });
+      const settledWorkspaceId = workspaceId ?? "";
+      queryClient.invalidateQueries({ queryKey: sessionKeys.detail(settledWorkspaceId, id) });
+      queryClient.invalidateQueries({ queryKey: sessionKeys.history(settledWorkspaceId, id) });
+      queryClient.invalidateQueries({ queryKey: sessionKeys.transcript(settledWorkspaceId, id) });
       queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
     },
   });

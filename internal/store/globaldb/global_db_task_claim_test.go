@@ -1184,7 +1184,10 @@ func TestGlobalDBReserveQueuedRunCreatesStableWorkspaceCoordinationChannel(t *te
 	if got, want := first.CoordinationChannelID, "coord-run-derived-channel"; got != want {
 		t.Fatalf("first.CoordinationChannelID = %q, want %q", got, want)
 	}
-	channel, err := globalDB.GetNetworkChannel(ctx, first.CoordinationChannelID)
+	channel, err := globalDB.GetNetworkChannel(ctx, store.NetworkChannelRef{
+		WorkspaceID: workspaceID,
+		Channel:     first.CoordinationChannelID,
+	})
 	if err != nil {
 		t.Fatalf("GetNetworkChannel(derived) error = %v", err)
 	}

@@ -69,6 +69,7 @@ interface AutomationRun {
   session_id?: string | null;
   status: "scheduled" | "running" | "delegated" | "completed" | "failed" | "canceled";
   trigger_id?: string | null;
+  workspace_id?: string | null;
 }
 
 interface TriggerRequest {
@@ -371,8 +372,8 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
     parity,
     routeState,
   });
-  await deleteSessionIfExists(runtime, firstRun.session_id);
-  await deleteSessionIfExists(runtime, reenabledRun.session_id);
+  await deleteSessionIfExists(runtime, firstRun.workspace_id, firstRun.session_id);
+  await deleteSessionIfExists(runtime, reenabledRun.workspace_id, reenabledRun.session_id);
 });
 
 test("failed webhook trigger run is diagnosable with retry evidence and no secret leakage", async ({
@@ -524,7 +525,7 @@ test("operator sees fire-limit rejection across browser and runtime surfaces", a
   );
   await browserArtifacts.persist(appPage);
   await assertNoTriggerSensitiveLeak(appPage, runtime, { limited, parity });
-  await deleteSessionIfExists(runtime, acceptedRun.session_id);
+  await deleteSessionIfExists(runtime, acceptedRun.workspace_id, acceptedRun.session_id);
   await deleteTriggerIfExists(runtime, trigger.id);
 });
 
@@ -586,12 +587,17 @@ async function deleteTriggerIfExists(runtime: BrowserRuntime, id: string): Promi
 
 async function deleteSessionIfExists(
   runtime: BrowserRuntime,
+  workspaceID: string | null | undefined,
   id: string | null | undefined
 ): Promise<void> {
   if (!id) {
     return;
   }
-  const response = await fetch(runtime.url(`/api/sessions/${encodeURIComponent(id)}`), {
+  const workspace = workspaceID?.trim();
+  if (!workspace) {
+    throw new Error(`delete session ${id} requires workspace_id`);
+  }
+  const response = await fetch(runtime.url(sessionAPIPath(workspace, id)), {
     method: "DELETE",
   });
   expect([204, 404]).toContain(response.status);
@@ -706,7 +712,7 @@ async function captureTriggerParity(runtime: BrowserRuntime, triggerID: string, 
   const cliRun = await automationCLI<AutomationRun>(runtime, ["automation", "runs", "get", runID]);
   const observe = httpRun.run.session_id
     ? await runtime.requestJSON<ObserveEventsResponse>(
-        `/api/observe/events?session_id=${encodeURIComponent(httpRun.run.session_id)}&limit=20`
+        workspaceObserveEventsPath(httpRun.run.workspace_id, httpRun.run.session_id)
       )
     : { events: [] };
   return {
@@ -719,6 +725,24 @@ async function captureTriggerParity(runtime: BrowserRuntime, triggerID: string, 
     observe,
     uds,
   };
+}
+
+function workspaceObserveEventsPath(
+  workspaceID: string | null | undefined,
+  sessionID: string | null | undefined
+): string {
+  const workspace = workspaceID?.trim();
+  const session = sessionID?.trim();
+  if (!workspace || !session) {
+    throw new Error("observe events parity requires workspace_id and session_id");
+  }
+  return `/api/workspaces/${encodeURIComponent(workspace)}/observe/events?session_id=${encodeURIComponent(
+    session
+  )}&limit=20`;
+}
+
+function sessionAPIPath(workspaceID: string, sessionID: string): string {
+  return `/api/workspaces/${encodeURIComponent(workspaceID)}/sessions/${encodeURIComponent(sessionID)}`;
 }
 
 async function automationCLI<T>(runtime: BrowserRuntime, args: string[]): Promise<T> {

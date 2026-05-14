@@ -8,17 +8,19 @@ import {
   listBridges,
 } from "../adapters/bridges-api";
 import { bridgeKeys } from "./query-keys";
+import type { BridgeListFilter } from "../types";
 
 const DEFAULT_STALE_TIME = 15_000;
 const DEFAULT_REFETCH_INTERVAL = 30_000;
 const PROVIDERS_REFETCH_INTERVAL = 60_000;
 
-export function bridgesListOptions() {
+export function bridgesListOptions(filters: BridgeListFilter = {}, enabled = true) {
   return queryOptions({
-    queryKey: bridgeKeys.list(),
-    queryFn: ({ signal }) => listBridges(signal),
+    queryKey: bridgeKeys.list(filters),
+    queryFn: ({ signal }) => listBridges(filters, signal),
     staleTime: DEFAULT_STALE_TIME,
     refetchInterval: DEFAULT_REFETCH_INTERVAL,
+    enabled,
   });
 }
 

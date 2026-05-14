@@ -11,7 +11,10 @@ import (
 	"github.com/pedronauck/agh/internal/testutil"
 )
 
-const networkConversationMigrationVersion = 21
+const (
+	networkConversationMigrationVersion = 21
+	networkConversationTestWorkspaceID  = "ws-network-conversation"
+)
 
 func TestOpenGlobalDBCreatesNetworkConversationSchema(t *testing.T) {
 	t.Parallel()
@@ -63,7 +66,12 @@ func TestOpenGlobalDBCreatesNetworkConversationSchema(t *testing.T) {
 			"idx_network_work_conversation",
 			"idx_network_work_state",
 		)
-		assertUniqueIndexColumns(t, globalDB.db, "network_direct_rooms", []string{"channel", "peer_a", "peer_b"})
+		assertUniqueIndexColumns(
+			t,
+			globalDB.db,
+			"network_direct_rooms",
+			[]string{"workspace_id", "channel", "peer_a", "peer_b"},
+		)
 		assertForeignKeysEnabled(t, globalDB.db)
 	})
 }
@@ -71,7 +79,7 @@ func TestOpenGlobalDBCreatesNetworkConversationSchema(t *testing.T) {
 func TestNetworkConversationMigrationRebuildsLegacyTimeline(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should preserve only legacy presence rows and remove flat timeline columns", func(t *testing.T) {
+	t.Run("Should remove legacy network timeline rows during the workspace-qualified hard cut", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
@@ -142,7 +150,7 @@ func TestNetworkConversationMigrationRebuildsLegacyTimeline(t *testing.T) {
 		if err := rows.Err(); err != nil {
 			t.Fatalf("rows.Err() error = %v", err)
 		}
-		if got, want := strings.Join(gotIDs, ","), "msg_greet_01,msg_whois_01"; got != want {
+		if got, want := strings.Join(gotIDs, ","), ""; got != want {
 			t.Fatalf("migrated timeline ids = %q, want %q", got, want)
 		}
 
@@ -291,6 +299,7 @@ func TestNetworkConversationConstraints(t *testing.T) {
 		insertDirectRoom(
 			t,
 			globalDB.db,
+			networkConversationTestWorkspaceID,
 			"builders",
 			"direct_0123456789abcdef0123456789abcdef",
 			"coder.sess-abc",
@@ -299,8 +308,9 @@ func TestNetworkConversationConstraints(t *testing.T) {
 		_, err := globalDB.db.ExecContext(
 			ctx,
 			`INSERT INTO network_direct_rooms (
-				channel, direct_id, peer_a, peer_b, opened_at, last_activity_at
-			) VALUES (?, ?, ?, ?, ?, ?)`,
+				workspace_id, channel, direct_id, peer_a, peer_b, opened_at, last_activity_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			networkConversationTestWorkspaceID,
 			"builders",
 			"direct_fedcba9876543210fedcba9876543210",
 			"coder.sess-abc",
@@ -313,8 +323,9 @@ func TestNetworkConversationConstraints(t *testing.T) {
 		_, err = globalDB.db.ExecContext(
 			ctx,
 			`INSERT INTO network_direct_rooms (
-				channel, direct_id, peer_a, peer_b, opened_at, last_activity_at
-			) VALUES (?, ?, ?, ?, ?, ?)`,
+				workspace_id, channel, direct_id, peer_a, peer_b, opened_at, last_activity_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			networkConversationTestWorkspaceID,
 			"builders",
 			"direct_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 			"reviewer.sess-xyz",
@@ -335,9 +346,10 @@ func TestNetworkConversationConstraints(t *testing.T) {
 		_, err := globalDB.db.ExecContext(
 			ctx,
 			`INSERT INTO network_work (
-				work_id, channel, surface, thread_id, opened_by_peer_id, state, opened_at, last_activity_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+				work_id, workspace_id, channel, surface, thread_id, opened_by_peer_id, state, opened_at, last_activity_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			"work_missing_thread",
+			networkConversationTestWorkspaceID,
 			"builders",
 			store.NetworkSurfaceThread,
 			"thread_missing",
@@ -352,7 +364,8 @@ func TestNetworkConversationConstraints(t *testing.T) {
 		insertWorkForThread(t, globalDB.db, "work_thread_restrict", "builders", "thread_restrict")
 		_, err = globalDB.db.ExecContext(
 			ctx,
-			`DELETE FROM network_threads WHERE channel = ? AND thread_id = ?`,
+			`DELETE FROM network_threads WHERE workspace_id = ? AND channel = ? AND thread_id = ?`,
+			networkConversationTestWorkspaceID,
 			"builders",
 			"thread_restrict",
 		)
@@ -361,6 +374,7 @@ func TestNetworkConversationConstraints(t *testing.T) {
 		insertDirectRoom(
 			t,
 			globalDB.db,
+			networkConversationTestWorkspaceID,
 			"builders",
 			"direct_0123456789abcdef0123456789abcdef",
 			"coder.sess-abc",
@@ -375,7 +389,8 @@ func TestNetworkConversationConstraints(t *testing.T) {
 		)
 		_, err = globalDB.db.ExecContext(
 			ctx,
-			`DELETE FROM network_direct_rooms WHERE channel = ? AND direct_id = ?`,
+			`DELETE FROM network_direct_rooms WHERE workspace_id = ? AND channel = ? AND direct_id = ?`,
+			networkConversationTestWorkspaceID,
 			"builders",
 			"direct_0123456789abcdef0123456789abcdef",
 		)
@@ -393,8 +408,9 @@ func TestNetworkConversationConstraints(t *testing.T) {
 		if _, err := globalDB.db.ExecContext(
 			ctx,
 			`INSERT INTO network_thread_participants (
-				channel, thread_id, peer_id, first_message_id, first_seen_at, last_seen_at
-			) VALUES (?, ?, ?, ?, ?, ?)`,
+				workspace_id, channel, thread_id, peer_id, first_message_id, first_seen_at, last_seen_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			networkConversationTestWorkspaceID,
 			"builders",
 			"thread_cascade",
 			"coder.sess-abc",
@@ -406,7 +422,8 @@ func TestNetworkConversationConstraints(t *testing.T) {
 		}
 		if _, err := globalDB.db.ExecContext(
 			ctx,
-			`DELETE FROM network_threads WHERE channel = ? AND thread_id = ?`,
+			`DELETE FROM network_threads WHERE workspace_id = ? AND channel = ? AND thread_id = ?`,
+			networkConversationTestWorkspaceID,
 			"builders",
 			"thread_cascade",
 		); err != nil {
@@ -416,7 +433,8 @@ func TestNetworkConversationConstraints(t *testing.T) {
 		var count int
 		if err := globalDB.db.QueryRowContext(
 			ctx,
-			`SELECT COUNT(*) FROM network_thread_participants WHERE channel = ? AND thread_id = ?`,
+			`SELECT COUNT(*) FROM network_thread_participants WHERE workspace_id = ? AND channel = ? AND thread_id = ?`,
+			networkConversationTestWorkspaceID,
 			"builders",
 			"thread_cascade",
 		).Scan(&count); err != nil {
@@ -558,8 +576,9 @@ func insertThread(t *testing.T, db *sql.DB, channel string, threadID string, roo
 	if _, err := db.ExecContext(
 		testutil.Context(t),
 		`INSERT INTO network_threads (
-			channel, thread_id, root_message_id, opened_by_peer_id, opened_at, last_activity_at
-		) VALUES (?, ?, ?, ?, ?, ?)`,
+			workspace_id, channel, thread_id, root_message_id, opened_by_peer_id, opened_at, last_activity_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		networkConversationTestWorkspaceID,
 		channel,
 		threadID,
 		rootMessageID,
@@ -571,14 +590,23 @@ func insertThread(t *testing.T, db *sql.DB, channel string, threadID string, roo
 	}
 }
 
-func insertDirectRoom(t *testing.T, db *sql.DB, channel string, directID string, peerA string, peerB string) {
+func insertDirectRoom(
+	t *testing.T,
+	db *sql.DB,
+	workspaceID string,
+	channel string,
+	directID string,
+	peerA string,
+	peerB string,
+) {
 	t.Helper()
 
 	if _, err := db.ExecContext(
 		testutil.Context(t),
 		`INSERT INTO network_direct_rooms (
-			channel, direct_id, peer_a, peer_b, opened_at, last_activity_at
-		) VALUES (?, ?, ?, ?, ?, ?)`,
+			workspace_id, channel, direct_id, peer_a, peer_b, opened_at, last_activity_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		workspaceID,
 		channel,
 		directID,
 		peerA,
@@ -596,9 +624,10 @@ func insertWorkForThread(t *testing.T, db *sql.DB, workID string, channel string
 	if _, err := db.ExecContext(
 		testutil.Context(t),
 		`INSERT INTO network_work (
-			work_id, channel, surface, thread_id, opened_by_peer_id, state, opened_at, last_activity_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			work_id, workspace_id, channel, surface, thread_id, opened_by_peer_id, state, opened_at, last_activity_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		workID,
+		networkConversationTestWorkspaceID,
 		channel,
 		store.NetworkSurfaceThread,
 		threadID,
@@ -617,9 +646,10 @@ func insertWorkForDirect(t *testing.T, db *sql.DB, workID string, channel string
 	if _, err := db.ExecContext(
 		testutil.Context(t),
 		`INSERT INTO network_work (
-			work_id, channel, surface, direct_id, opened_by_peer_id, state, opened_at, last_activity_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			work_id, workspace_id, channel, surface, direct_id, opened_by_peer_id, state, opened_at, last_activity_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		workID,
+		networkConversationTestWorkspaceID,
 		channel,
 		store.NetworkSurfaceDirect,
 		directID,

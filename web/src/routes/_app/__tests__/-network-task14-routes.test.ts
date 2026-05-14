@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { Route as ThreadDetailRoute } from "../network.$channel.threads.$threadId";
-import { Route as DirectDetailRoute } from "../network.$channel.directs.$directId";
-import { Route as ActivityRoute } from "../network.$channel.activity";
+import { Route as ThreadDetailRoute } from "../network.$workspaceId.$channel.threads.$threadId";
+import { Route as DirectDetailRoute } from "../network.$workspaceId.$channel.directs.$directId";
+import { Route as ActivityRoute } from "../network.$workspaceId.$channel.activity";
 
 interface RouteShape {
   options?: { component?: unknown; validateSearch?: (search: Record<string, unknown>) => unknown };

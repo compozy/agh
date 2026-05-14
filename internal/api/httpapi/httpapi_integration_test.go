@@ -204,7 +204,7 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodPost,
-		mustURL(runtime.host, runtime.port, "/api/sessions/"+created.Session.ID+"/prompt"),
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+created.Session.ID+"/prompt"),
 		[]byte(`{"message":"hello"}`),
 		nil,
 	)
@@ -233,7 +233,7 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/sessions/"+created.Session.ID+"/events"),
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+created.Session.ID+"/events"),
 		nil,
 		nil,
 	)
@@ -257,7 +257,7 @@ func TestHTTPPromptPersistsTerminalEventsAfterClientDisconnect(t *testing.T) {
 	req, err := http.NewRequestWithContext(
 		requestCtx,
 		http.MethodPost,
-		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/prompt"),
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/prompt"),
 		strings.NewReader(`{"message":"hello"}`),
 	)
 	if err != nil {
@@ -369,7 +369,7 @@ func TestHTTPPromptRejectsConcurrentRequestWithConflictAndNoGhostInput(t *testin
 	go func() {
 		req, err := http.NewRequest(
 			http.MethodPost,
-			mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/prompt"),
+			mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/prompt"),
 			strings.NewReader(`{"message":"first prompt"}`),
 		)
 		if err != nil {
@@ -387,7 +387,7 @@ func TestHTTPPromptRejectsConcurrentRequestWithConflictAndNoGhostInput(t *testin
 		t,
 		runtime.client,
 		http.MethodPost,
-		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/prompt"),
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/prompt"),
 		[]byte(`{"message":"second prompt"}`),
 		nil,
 	)
@@ -460,7 +460,7 @@ func TestHTTPSessionTranscriptEndpointWithRealSessionManager(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/transcript"),
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/transcript"),
 		nil,
 		nil,
 	)
@@ -527,7 +527,7 @@ func TestHTTPSessionTranscriptEndpointIncludesSyntheticTurns(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/transcript"),
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/transcript"),
 		nil,
 		nil,
 	)
@@ -621,7 +621,7 @@ func TestHTTPSessionStreamReconnectsWithLastEventID(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/stream"),
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/stream"),
 		nil,
 		nil,
 	)
@@ -644,7 +644,7 @@ func TestHTTPSessionStreamReconnectsWithLastEventID(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/stream"),
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/stream"),
 		nil,
 		headers,
 	)
@@ -713,7 +713,7 @@ func TestHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t *tes
 	go func() {
 		req, err := http.NewRequest(
 			http.MethodPost,
-			mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/prompt"),
+			mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/prompt"),
 			strings.NewReader(`{"message":"hello"}`),
 		)
 		if err != nil {
@@ -731,7 +731,7 @@ func TestHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t *tes
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/stream"),
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/stream"),
 		nil,
 		nil,
 	)
@@ -754,7 +754,7 @@ func TestHTTPSessionStreamReconnectPreservesCursorWhenNoNewEventsExistYet(t *tes
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/stream"),
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/stream"),
 		nil,
 		map[string]string{"Last-Event-ID": lastEventID},
 	)
@@ -850,7 +850,7 @@ func TestHTTPSessionStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID),
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID),
 		nil,
 		nil,
 	)
@@ -930,7 +930,7 @@ func TestHTTPSessionChannelRoundTrip(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/sessions/"+created.Session.ID),
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+created.Session.ID),
 		nil,
 		nil,
 	)
@@ -962,7 +962,7 @@ func TestHTTPSessionChannelRoundTrip(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodPost,
-		mustURL(runtime.host, runtime.port, "/api/sessions/"+created.Session.ID+"/resume"),
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+created.Session.ID+"/resume"),
 		nil,
 		nil,
 	)
@@ -1033,7 +1033,7 @@ func TestHTTPSessionCrashStopReasonPropagatesToGlobalDBAndAPI(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID),
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID),
 		nil,
 		nil,
 	)
@@ -1059,7 +1059,7 @@ func TestHTTPApprovePermissionFullFlow(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodPost,
-		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/prompt"),
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/prompt"),
 		[]byte(`{"message":"request permission"}`),
 		nil,
 	)
@@ -1087,7 +1087,7 @@ func TestHTTPApprovePermissionFullFlow(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodPost,
-		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/approve"),
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/approve"),
 		[]byte(fmt.Sprintf(`{"request_id":"%s","decision":"allow-always"}`, requestID)),
 		nil,
 	)
@@ -1128,7 +1128,7 @@ func TestHTTPApprovePermissionTimeout(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodPost,
-		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/prompt"),
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/prompt"),
 		[]byte(`{"message":"request permission"}`),
 		nil,
 	)
@@ -3631,7 +3631,7 @@ func sendPrompt(t *testing.T, runtime integrationRuntime, sessionID string, mess
 		t,
 		runtime.client,
 		http.MethodPost,
-		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/prompt"),
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/prompt"),
 		mustIntegrationJSON(map[string]any{"message": message}),
 		nil,
 	)
@@ -3691,7 +3691,7 @@ func stopIntegrationSession(t *testing.T, runtime integrationRuntime, sessionID 
 		t,
 		runtime.client,
 		http.MethodPost,
-		mustURL(runtime.host, runtime.port, "/api/sessions/"+sessionID+"/stop"),
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+sessionID+"/stop"),
 		nil,
 		nil,
 	)

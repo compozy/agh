@@ -161,7 +161,7 @@ export function InstallSection() {
           {STEPS.map(item => (
             <div
               key={item.step}
-              className="flex flex-col gap-4 rounded-(--radius-diagram) border border-line bg-canvas p-6"
+              className="flex flex-col gap-4 rounded-diagram border border-line bg-canvas p-6"
             >
               <div className="flex items-start gap-4">
                 <span className="mt-0.5 font-mono text-lg font-medium text-accent">

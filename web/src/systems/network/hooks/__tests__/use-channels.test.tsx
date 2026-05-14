@@ -7,6 +7,10 @@ import type { ReactNode } from "react";
 
 import { PINNED_CHANNELS_STORAGE_KEY_FOR_TESTS, useNetworkChannels } from "../use-channels";
 
+vi.mock("@/systems/workspace", () => ({
+  useActiveWorkspace: () => ({ activeWorkspaceId: "w1" }),
+}));
+
 vi.mock("../../adapters/network-api", () => ({
   listNetworkChannels: vi.fn().mockResolvedValue({
     channels: [
@@ -85,9 +89,9 @@ describe("useNetworkChannels", () => {
     expect(result.current.pinned.map(channel => channel.channel)).toEqual(["ops"]);
 
     const stored = JSON.parse(
-      window.localStorage.getItem(PINNED_CHANNELS_STORAGE_KEY_FOR_TESTS) ?? "[]"
-    ) as string[];
-    expect(stored).toEqual(["ops"]);
+      window.localStorage.getItem(PINNED_CHANNELS_STORAGE_KEY_FOR_TESTS) ?? "{}"
+    ) as Record<string, string[]>;
+    expect(stored).toEqual({ w1: ["ops"] });
 
     act(() => {
       result.current.togglePinned("ops");

@@ -32,6 +32,7 @@ These are NOT speculative warnings — every lesson here has either an ADR, a co
 | [L-022](L-022-eyebrow-canonical-source.md)                    | Eyebrow typography needs one canonical source                                    | Frontend / Design system         |
 | [L-023](L-023-token-utility-canonical-form.md)                | Design tokens belong in `@theme`, not in `:root` aliased through `@theme inline` | Frontend / Design system / Build |
 | [L-024](L-024-design-md-generated-tokens.md)                  | Generated design-token specs prevent documentation drift                         | Frontend / Design system / Docs  |
+| [L-025](L-025-greenfield-hardcut-current-protocol-version.md) | On greenfield, hard-cut the current protocol version — don't bump to a new one   | Project posture / RFC discipline |
 
 ## How to use
 

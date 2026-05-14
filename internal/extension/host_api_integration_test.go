@@ -67,7 +67,10 @@ func TestHostAPIIntegrationSessionLifecycleThroughHostAPI(t *testing.T) {
 		t.Fatal("sessions/prompt turn_id = empty, want non-empty")
 	}
 
-	statusResult, err := env.call(t, "ext-integration", "sessions/status", map[string]string{"session_id": created.SessionID})
+	statusResult, err := env.call(t, "ext-integration", "sessions/status", map[string]string{
+		"workspace_id": env.workspaceID,
+		"session_id":   created.SessionID,
+	})
 	if err != nil {
 		t.Fatalf("Handle(sessions/status) error = %v", err)
 	}
@@ -82,9 +85,10 @@ func TestHostAPIIntegrationSessionLifecycleThroughHostAPI(t *testing.T) {
 	}
 
 	eventsResult, err := env.call(t, "ext-integration", "sessions/events", map[string]any{
-		"session_id": created.SessionID,
-		"turn_id":    prompt.TurnID,
-		"limit":      10,
+		"workspace_id": env.workspaceID,
+		"session_id":   created.SessionID,
+		"turn_id":      prompt.TurnID,
+		"limit":        10,
 	})
 	if err != nil {
 		t.Fatalf("Handle(sessions/events) error = %v", err)
@@ -1110,10 +1114,10 @@ func TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod(t *testin
 	}{
 		{method: "sessions/list", params: map[string]any{"workspace": env.workspaceID}},
 		{method: "sessions/create", params: map[string]any{"agent": "coder", "workspace": env.workspaceID}},
-		{method: "sessions/prompt", params: map[string]any{"session_id": session.ID, "message": "hello"}},
-		{method: "sessions/stop", params: map[string]any{"session_id": session.ID}},
-		{method: "sessions/status", params: map[string]any{"session_id": session.ID}},
-		{method: "sessions/events", params: map[string]any{"session_id": session.ID, "limit": 1}},
+		{method: "sessions/prompt", params: map[string]any{"workspace_id": env.workspaceID, "session_id": session.ID, "message": "hello"}},
+		{method: "sessions/stop", params: map[string]any{"workspace_id": env.workspaceID, "session_id": session.ID}},
+		{method: "sessions/status", params: map[string]any{"workspace_id": env.workspaceID, "session_id": session.ID}},
+		{method: "sessions/events", params: map[string]any{"workspace_id": env.workspaceID, "session_id": session.ID, "limit": 1}},
 		{method: "memory/recall", params: map[string]any{"query": "needle"}},
 		{method: "memory/store", params: map[string]any{"key": "note", "content": "body"}},
 		{method: "memory/forget", params: map[string]any{"key": "note"}},

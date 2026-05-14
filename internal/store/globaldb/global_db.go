@@ -39,10 +39,11 @@ var taskEventIndexStatements = []string{
 }
 
 const networkAuditLogTableStatement = `CREATE TABLE IF NOT EXISTS network_audit_log (
-		id         TEXT PRIMARY KEY,
-		session_id TEXT NOT NULL,
-		direction  TEXT NOT NULL,
-		kind       TEXT NOT NULL,
+			id         TEXT PRIMARY KEY,
+			session_id TEXT NOT NULL,
+			workspace_id TEXT NOT NULL,
+			direction  TEXT NOT NULL,
+			kind       TEXT NOT NULL,
 		channel    TEXT NOT NULL,
 		surface    TEXT,
 		thread_id  TEXT,
@@ -57,9 +58,10 @@ const networkAuditLogTableStatement = `CREATE TABLE IF NOT EXISTS network_audit_
 	);`
 
 const networkTimelineLogTableStatement = `CREATE TABLE IF NOT EXISTS network_timeline_log (
-		message_id    TEXT PRIMARY KEY,
-		session_id    TEXT,
-		channel       TEXT NOT NULL,
+			message_id    TEXT NOT NULL,
+			session_id    TEXT,
+			workspace_id  TEXT NOT NULL,
+			channel       TEXT NOT NULL,
 		surface       TEXT CHECK (surface IN ('thread', 'direct') OR surface IS NULL),
 		thread_id     TEXT,
 		direct_id     TEXT,
@@ -81,36 +83,38 @@ const networkTimelineLogTableStatement = `CREATE TABLE IF NOT EXISTS network_tim
 			OR (surface = 'thread' AND thread_id IS NOT NULL AND direct_id IS NULL)
 			OR (surface = 'direct' AND direct_id IS NOT NULL AND thread_id IS NULL)
 		),
-		CHECK (kind IN ('greet', 'whois', 'say', 'capability', 'receipt', 'trace'))
-	);`
+			CHECK (kind IN ('greet', 'whois', 'say', 'capability', 'receipt', 'trace')),
+			PRIMARY KEY (workspace_id, message_id)
+		);`
 
 var networkConversationSchemaStatements = []string{
 	networkAuditLogTableStatement,
 	`CREATE INDEX IF NOT EXISTS idx_net_audit_ts ON network_audit_log(timestamp);`,
-	`CREATE INDEX IF NOT EXISTS idx_net_audit_session ON network_audit_log(session_id);`,
+	`CREATE INDEX IF NOT EXISTS idx_net_audit_workspace_session ON network_audit_log(workspace_id, session_id);`,
 	`CREATE INDEX IF NOT EXISTS idx_net_audit_conversation
-		ON network_audit_log(channel, surface, thread_id, direct_id, timestamp);`,
+			ON network_audit_log(workspace_id, channel, surface, thread_id, direct_id, timestamp);`,
 	`CREATE INDEX IF NOT EXISTS idx_net_audit_work
-		ON network_audit_log(work_id, timestamp)
-		WHERE work_id IS NOT NULL;`,
+			ON network_audit_log(workspace_id, work_id, timestamp)
+			WHERE work_id IS NOT NULL;`,
 	networkTimelineLogTableStatement,
 	`CREATE INDEX IF NOT EXISTS idx_net_timeline_thread_ts
-		ON network_timeline_log(channel, thread_id, timestamp, message_id)
-		WHERE surface = 'thread';`,
+			ON network_timeline_log(workspace_id, channel, thread_id, timestamp, message_id)
+			WHERE surface = 'thread';`,
 	`CREATE INDEX IF NOT EXISTS idx_net_timeline_direct_ts
-		ON network_timeline_log(channel, direct_id, timestamp, message_id)
-		WHERE surface = 'direct';`,
+			ON network_timeline_log(workspace_id, channel, direct_id, timestamp, message_id)
+			WHERE surface = 'direct';`,
 	`CREATE INDEX IF NOT EXISTS idx_net_timeline_work_ts
-		ON network_timeline_log(work_id, timestamp, message_id)
-		WHERE work_id IS NOT NULL;`,
+			ON network_timeline_log(workspace_id, work_id, timestamp, message_id)
+			WHERE work_id IS NOT NULL;`,
 	`CREATE INDEX IF NOT EXISTS idx_net_timeline_presence_ts
-		ON network_timeline_log(channel, timestamp, message_id)
-		WHERE surface IS NULL;`,
+			ON network_timeline_log(workspace_id, channel, timestamp, message_id)
+			WHERE surface IS NULL;`,
 	`CREATE INDEX IF NOT EXISTS idx_net_timeline_kind_ts
-		ON network_timeline_log(kind, timestamp, message_id);`,
+			ON network_timeline_log(workspace_id, kind, timestamp, message_id);`,
 	`CREATE TABLE IF NOT EXISTS network_threads (
-		channel              TEXT NOT NULL,
-		thread_id            TEXT NOT NULL,
+			workspace_id         TEXT NOT NULL,
+			channel              TEXT NOT NULL,
+			thread_id            TEXT NOT NULL,
 		root_message_id      TEXT NOT NULL,
 		title                TEXT NOT NULL DEFAULT '',
 		opened_by_peer_id    TEXT NOT NULL DEFAULT '',
@@ -121,26 +125,28 @@ var networkConversationSchemaStatements = []string{
 		participant_count    INTEGER NOT NULL DEFAULT 0 CHECK (participant_count >= 0),
 		open_work_count      INTEGER NOT NULL DEFAULT 0 CHECK (open_work_count >= 0),
 		last_message_preview TEXT NOT NULL DEFAULT '',
-		PRIMARY KEY (channel, thread_id)
-	);`,
+			PRIMARY KEY (workspace_id, channel, thread_id)
+		);`,
 	`CREATE INDEX IF NOT EXISTS idx_network_threads_activity
-		ON network_threads(channel, last_activity_at DESC, thread_id);`,
+			ON network_threads(workspace_id, channel, last_activity_at DESC, thread_id);`,
 	`CREATE TABLE IF NOT EXISTS network_thread_participants (
-		channel          TEXT NOT NULL,
-		thread_id        TEXT NOT NULL,
+			workspace_id     TEXT NOT NULL,
+			channel          TEXT NOT NULL,
+			thread_id        TEXT NOT NULL,
 		peer_id          TEXT NOT NULL,
 		first_message_id TEXT NOT NULL,
 		first_seen_at    TEXT NOT NULL,
 		last_seen_at     TEXT NOT NULL,
-		PRIMARY KEY (channel, thread_id, peer_id),
-		FOREIGN KEY (channel, thread_id)
-			REFERENCES network_threads(channel, thread_id)
-			ON DELETE CASCADE
-	);`,
+			PRIMARY KEY (workspace_id, channel, thread_id, peer_id),
+			FOREIGN KEY (workspace_id, channel, thread_id)
+				REFERENCES network_threads(workspace_id, channel, thread_id)
+				ON DELETE CASCADE
+		);`,
 	`CREATE INDEX IF NOT EXISTS idx_network_thread_participants_peer
-		ON network_thread_participants(peer_id, last_seen_at DESC);`,
+			ON network_thread_participants(workspace_id, peer_id, last_seen_at DESC);`,
 	`CREATE TABLE IF NOT EXISTS network_direct_rooms (
-		channel              TEXT NOT NULL,
+			workspace_id         TEXT NOT NULL,
+			channel              TEXT NOT NULL,
 		direct_id            TEXT NOT NULL,
 		peer_a               TEXT NOT NULL,
 		peer_b               TEXT NOT NULL,
@@ -149,19 +155,20 @@ var networkConversationSchemaStatements = []string{
 		message_count        INTEGER NOT NULL DEFAULT 0 CHECK (message_count >= 0),
 		open_work_count      INTEGER NOT NULL DEFAULT 0 CHECK (open_work_count >= 0),
 		last_message_preview TEXT NOT NULL DEFAULT '',
-		PRIMARY KEY (channel, direct_id),
-		UNIQUE (channel, peer_a, peer_b),
-		CHECK (peer_a < peer_b)
-	);`,
+			PRIMARY KEY (workspace_id, channel, direct_id),
+			UNIQUE (workspace_id, channel, peer_a, peer_b),
+			CHECK (peer_a < peer_b)
+		);`,
 	`CREATE INDEX IF NOT EXISTS idx_network_direct_rooms_activity
-		ON network_direct_rooms(channel, last_activity_at DESC, direct_id);`,
+			ON network_direct_rooms(workspace_id, channel, last_activity_at DESC, direct_id);`,
 	`CREATE INDEX IF NOT EXISTS idx_network_direct_rooms_peer_a
-		ON network_direct_rooms(channel, peer_a, last_activity_at DESC);`,
+			ON network_direct_rooms(workspace_id, channel, peer_a, last_activity_at DESC);`,
 	`CREATE INDEX IF NOT EXISTS idx_network_direct_rooms_peer_b
-		ON network_direct_rooms(channel, peer_b, last_activity_at DESC);`,
+			ON network_direct_rooms(workspace_id, channel, peer_b, last_activity_at DESC);`,
 	`CREATE TABLE IF NOT EXISTS network_work (
-		work_id           TEXT PRIMARY KEY,
-		channel           TEXT NOT NULL,
+			work_id           TEXT NOT NULL,
+			workspace_id      TEXT NOT NULL,
+			channel           TEXT NOT NULL,
 		surface           TEXT NOT NULL CHECK (surface IN ('thread', 'direct')),
 		thread_id         TEXT,
 		direct_id         TEXT,
@@ -178,17 +185,18 @@ var networkConversationSchemaStatements = []string{
 			(surface = 'thread' AND thread_id IS NOT NULL AND direct_id IS NULL)
 			OR (surface = 'direct' AND direct_id IS NOT NULL AND thread_id IS NULL)
 		),
-		FOREIGN KEY (channel, thread_id)
-			REFERENCES network_threads(channel, thread_id)
-			ON DELETE RESTRICT,
-		FOREIGN KEY (channel, direct_id)
-			REFERENCES network_direct_rooms(channel, direct_id)
-			ON DELETE RESTRICT
-	);`,
+			PRIMARY KEY (workspace_id, work_id),
+			FOREIGN KEY (workspace_id, channel, thread_id)
+				REFERENCES network_threads(workspace_id, channel, thread_id)
+				ON DELETE RESTRICT,
+			FOREIGN KEY (workspace_id, channel, direct_id)
+				REFERENCES network_direct_rooms(workspace_id, channel, direct_id)
+				ON DELETE RESTRICT
+		);`,
 	`CREATE INDEX IF NOT EXISTS idx_network_work_conversation
-		ON network_work(channel, surface, thread_id, direct_id, last_activity_at DESC);`,
+			ON network_work(workspace_id, channel, surface, thread_id, direct_id, last_activity_at DESC);`,
 	`CREATE INDEX IF NOT EXISTS idx_network_work_state
-		ON network_work(state, last_activity_at DESC);`,
+			ON network_work(workspace_id, state, last_activity_at DESC);`,
 }
 
 var globalSchemaStatements = appendSchemaStatements(
@@ -236,6 +244,7 @@ var globalSchemaStatements = appendSchemaStatements(
 		`CREATE TABLE IF NOT EXISTS event_summaries (
 		id                     TEXT PRIMARY KEY,
 		session_id             TEXT NOT NULL DEFAULT '',
+		workspace_id           TEXT NOT NULL DEFAULT '',
 		type                   TEXT NOT NULL,
 		agent_name             TEXT NOT NULL DEFAULT '',
 		content_json           TEXT NOT NULL DEFAULT '',
@@ -300,13 +309,14 @@ var globalSchemaStatements = appendSchemaStatements(
 	);`,
 		`CREATE INDEX IF NOT EXISTS idx_perm_session ON permission_log(session_id);`,
 		`CREATE TABLE IF NOT EXISTS network_channels (
-		channel      TEXT PRIMARY KEY,
-		workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-		purpose      TEXT NOT NULL,
-		created_by   TEXT NOT NULL DEFAULT '',
-		created_at   TEXT NOT NULL,
-		updated_at   TEXT NOT NULL
-	);`,
+			workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+			channel      TEXT NOT NULL,
+			purpose      TEXT NOT NULL,
+			created_by   TEXT NOT NULL DEFAULT '',
+			created_at   TEXT NOT NULL,
+			updated_at   TEXT NOT NULL,
+			PRIMARY KEY (workspace_id, channel)
+		);`,
 		`CREATE INDEX IF NOT EXISTS idx_network_channels_workspace ON network_channels(workspace_id);`,
 		`CREATE INDEX IF NOT EXISTS idx_network_channels_updated_at ON network_channels(updated_at);`,
 		`CREATE INDEX IF NOT EXISTS idx_network_channels_workspace_updated_at ON network_channels(workspace_id, updated_at DESC, channel ASC);`,
@@ -887,6 +897,142 @@ var globalSchemaMigrations = []store.Migration{
 		Up:       migrateModelCatalogSourceConstraints,
 		Checksum: "2026-05-07-rebuild-model-catalog-source-constraints",
 	},
+	{
+		Version:  25,
+		Name:     "workspace_qualified_network_identity",
+		Up:       migrateWorkspaceQualifiedNetworkIdentity,
+		Checksum: "2026-05-12-workspace-qualified-network-identity",
+	},
+}
+
+func migrateWorkspaceQualifiedNetworkIdentity(ctx context.Context, tx *sql.Tx) error {
+	if err := snapshotNetworkChannelsForWorkspaceIdentity(ctx, tx); err != nil {
+		return err
+	}
+	for _, statement := range workspaceQualifiedNetworkIdentityStatements() {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("store: apply workspace-qualified network identity migration: %w", err)
+		}
+	}
+	return nil
+}
+
+func snapshotNetworkChannelsForWorkspaceIdentity(ctx context.Context, tx *sql.Tx) error {
+	if _, err := tx.ExecContext(ctx, `DROP TABLE IF EXISTS temp.network_channels_v25_keep;`); err != nil {
+		return fmt.Errorf("store: prepare workspace-qualified network channel snapshot: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `CREATE TEMP TABLE network_channels_v25_keep (
+		workspace_id TEXT NOT NULL,
+		channel      TEXT NOT NULL,
+		purpose      TEXT NOT NULL,
+		created_by   TEXT NOT NULL,
+		created_at   TEXT NOT NULL,
+		updated_at   TEXT NOT NULL
+	);`); err != nil {
+		return fmt.Errorf("store: create workspace-qualified network channel snapshot: %w", err)
+	}
+	hasNetworkChannels, err := tableExists(ctx, tx, "network_channels")
+	if err != nil {
+		return fmt.Errorf("store: inspect network_channels before workspace-qualified rebuild: %w", err)
+	}
+	if hasNetworkChannels {
+		_, err := tx.ExecContext(ctx, `INSERT OR IGNORE INTO network_channels_v25_keep (
+			workspace_id, channel, purpose, created_by, created_at, updated_at
+		)
+		SELECT
+			TRIM(nc.workspace_id),
+			TRIM(nc.channel),
+			nc.purpose,
+			nc.created_by,
+			nc.created_at,
+			nc.updated_at
+		FROM network_channels nc
+		INNER JOIN workspaces w ON w.id = TRIM(nc.workspace_id)
+		WHERE TRIM(nc.workspace_id) <> '' AND TRIM(nc.channel) <> '';`)
+		if err != nil {
+			return fmt.Errorf("store: snapshot workspace-qualified network channels: %w", err)
+		}
+	}
+	return nil
+}
+
+func workspaceQualifiedNetworkIdentityStatements() []string {
+	statements := []string{
+		`DROP TABLE IF EXISTS event_summaries;`,
+		`CREATE TABLE IF NOT EXISTS event_summaries (
+			id                     TEXT PRIMARY KEY,
+			session_id             TEXT NOT NULL DEFAULT '',
+			workspace_id           TEXT NOT NULL DEFAULT '',
+			type                   TEXT NOT NULL,
+			agent_name             TEXT NOT NULL DEFAULT '',
+			content_json           TEXT NOT NULL DEFAULT '',
+			task_id                TEXT NOT NULL DEFAULT '',
+			run_id                 TEXT NOT NULL DEFAULT '',
+			workflow_id            TEXT NOT NULL DEFAULT '',
+			claim_token_hash       TEXT NOT NULL DEFAULT '',
+			lease_until            TEXT NOT NULL DEFAULT '',
+			coordinator_session_id TEXT NOT NULL DEFAULT '',
+			scheduler_reason       TEXT NOT NULL DEFAULT '',
+			hook_event             TEXT NOT NULL DEFAULT '',
+			hook_name              TEXT NOT NULL DEFAULT '',
+			actor_kind             TEXT NOT NULL DEFAULT '',
+			actor_id               TEXT NOT NULL DEFAULT '',
+			release_reason         TEXT NOT NULL DEFAULT '',
+			parent_session_id      TEXT NOT NULL DEFAULT '',
+			root_session_id        TEXT NOT NULL DEFAULT '',
+			spawn_depth            INTEGER NOT NULL DEFAULT 0,
+			summary                TEXT,
+			timestamp              TEXT NOT NULL
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_workspace ON event_summaries(workspace_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_session ON event_summaries(session_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_type ON event_summaries(type);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_timestamp ON event_summaries(timestamp);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_task ON event_summaries(task_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_run ON event_summaries(run_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_workflow ON event_summaries(workflow_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_hook_event ON event_summaries(hook_event);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_actor ON event_summaries(actor_kind, actor_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_parent ON event_summaries(parent_session_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_summaries_root ON event_summaries(root_session_id);`,
+		`DROP TABLE IF EXISTS network_thread_participants;`,
+		`DROP TABLE IF EXISTS network_work;`,
+		`DROP TABLE IF EXISTS network_direct_rooms;`,
+		`DROP TABLE IF EXISTS network_threads;`,
+		`DROP TABLE IF EXISTS network_timeline_log;`,
+		`DROP TABLE IF EXISTS network_audit_log;`,
+		`DROP TABLE IF EXISTS network_channels;`,
+		`CREATE TABLE IF NOT EXISTS workspaces (
+			id            TEXT PRIMARY KEY,
+			root_dir      TEXT NOT NULL UNIQUE,
+			add_dirs      TEXT NOT NULL DEFAULT '[]',
+			name          TEXT NOT NULL UNIQUE,
+			default_agent TEXT DEFAULT '',
+			sandbox_ref   TEXT NOT NULL DEFAULT '',
+			created_at    TEXT NOT NULL,
+			updated_at    TEXT NOT NULL
+		);`,
+		`CREATE TABLE IF NOT EXISTS network_channels (
+			workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+			channel      TEXT NOT NULL,
+			purpose      TEXT NOT NULL,
+			created_by   TEXT NOT NULL DEFAULT '',
+			created_at   TEXT NOT NULL,
+			updated_at   TEXT NOT NULL,
+			PRIMARY KEY (workspace_id, channel)
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_network_channels_workspace ON network_channels(workspace_id);`,
+		`CREATE INDEX IF NOT EXISTS idx_network_channels_updated_at ON network_channels(updated_at);`,
+		`CREATE INDEX IF NOT EXISTS idx_network_channels_workspace_updated_at
+			ON network_channels(workspace_id, updated_at DESC, channel ASC);`,
+		`INSERT OR IGNORE INTO network_channels (
+			workspace_id, channel, purpose, created_by, created_at, updated_at
+		)
+		SELECT workspace_id, channel, purpose, created_by, created_at, updated_at
+		FROM network_channels_v25_keep;`,
+		`DROP TABLE IF EXISTS temp.network_channels_v25_keep;`,
+	}
+	return append(statements, networkConversationSchemaStatements...)
 }
 
 func migrateModelCatalogSourceConstraints(ctx context.Context, tx *sql.Tx) error {
@@ -947,9 +1093,10 @@ func migrateNetworkTimelineLogConversationColumns(ctx context.Context, tx *sql.T
 		`DROP TABLE IF EXISTS network_timeline_log_new`,
 		strings.Replace(networkTimelineLogTableStatement, "network_timeline_log", "network_timeline_log_new", 1),
 		`INSERT INTO network_timeline_log_new (
-			message_id,
-			session_id,
-			channel,
+				message_id,
+				session_id,
+				workspace_id,
+				channel,
 			surface,
 			thread_id,
 			direct_id,
@@ -967,10 +1114,11 @@ func migrateNetworkTimelineLogConversationColumns(ctx context.Context, tx *sql.T
 			body_json,
 			timestamp
 		)
-		SELECT
-			message_id,
-			session_id,
-			channel,
+			SELECT
+				message_id,
+				session_id,
+				'legacy_workspace',
+				channel,
 			NULL,
 			NULL,
 			NULL,
@@ -1026,9 +1174,10 @@ func migrateNetworkAuditLogConversationColumns(ctx context.Context, tx *sql.Tx) 
 		`DROP TABLE IF EXISTS network_audit_log_new`,
 		strings.Replace(networkAuditLogTableStatement, "network_audit_log", "network_audit_log_new", 1),
 		`INSERT INTO network_audit_log_new (
-			id,
-			session_id,
-			direction,
+				id,
+				session_id,
+				workspace_id,
+				direction,
 			kind,
 			channel,
 			surface,
@@ -1042,10 +1191,11 @@ func migrateNetworkAuditLogConversationColumns(ctx context.Context, tx *sql.Tx) 
 			size,
 			timestamp
 		)
-		SELECT
-			id,
-			session_id,
-			direction,
+			SELECT
+				id,
+				session_id,
+				'legacy_workspace',
+				direction,
 			kind,
 			channel,
 			NULL,

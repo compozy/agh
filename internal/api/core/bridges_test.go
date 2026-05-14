@@ -183,6 +183,189 @@ func TestBridgeHandlersCreateListGetAndUpdate(t *testing.T) {
 	}
 }
 
+func TestBridgeHandlersListFiltersActiveWorkspaceScope(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return global and active-workspace bridges without leaking other workspaces", func(t *testing.T) {
+		t.Parallel()
+
+		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			ListInstancesFn: func(context.Context) ([]bridgepkg.BridgeInstance, error) {
+				return []bridgepkg.BridgeInstance{
+					{
+						ID:            "brg-global",
+						Scope:         bridgepkg.ScopeGlobal,
+						Platform:      "telegram",
+						ExtensionName: "ext-telegram",
+						DisplayName:   "Global",
+						Enabled:       true,
+						Status:        bridgepkg.BridgeStatusReady,
+						RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+					},
+					{
+						ID:            "brg-alpha",
+						Scope:         bridgepkg.ScopeWorkspace,
+						WorkspaceID:   "ws-alpha",
+						Platform:      "telegram",
+						ExtensionName: "ext-telegram",
+						DisplayName:   "Alpha",
+						Enabled:       true,
+						Status:        bridgepkg.BridgeStatusReady,
+						RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+					},
+					{
+						ID:            "brg-beta",
+						Scope:         bridgepkg.ScopeWorkspace,
+						WorkspaceID:   "ws-beta",
+						Platform:      "telegram",
+						ExtensionName: "ext-telegram",
+						DisplayName:   "Beta",
+						Enabled:       true,
+						Status:        bridgepkg.BridgeStatusReady,
+						RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+					},
+				}, nil
+			},
+		})
+
+		resp := performRequest(t, engine, http.MethodGet, "/bridges?scope=all&workspace_id=ws-alpha", nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("list status = %d body=%s", resp.Code, resp.Body.String())
+		}
+		var payload contract.BridgesResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if got, want := len(payload.Bridges), 2; got != want {
+			t.Fatalf("len(bridges) = %d, want %d: %#v", got, want, payload.Bridges)
+		}
+		gotIDs := []string{payload.Bridges[0].ID, payload.Bridges[1].ID}
+		wantIDs := []string{"brg-global", "brg-alpha"}
+		for index, want := range wantIDs {
+			if gotIDs[index] != want {
+				t.Fatalf("bridge ids = %#v, want %#v", gotIDs, wantIDs)
+			}
+		}
+	})
+}
+
+func TestBridgeHandlersHealthStreamFiltersActiveWorkspaceScope(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should stream only global and active-workspace bridge health", func(t *testing.T) {
+		t.Parallel()
+
+		gin.SetMode(gin.TestMode)
+		streamDone := make(chan struct{})
+		close(streamDone)
+		homePaths := testutil.NewTestHomePaths(t)
+		cfg := aghconfig.DefaultWithHome(homePaths)
+		cfg.HTTP.Host = "127.0.0.1"
+		cfg.HTTP.Port = 2123
+		instances := []bridgepkg.BridgeInstance{
+			{
+				ID:            "brg-global",
+				Scope:         bridgepkg.ScopeGlobal,
+				Platform:      "telegram",
+				ExtensionName: "ext-telegram",
+				DisplayName:   "Global",
+				Enabled:       true,
+				Status:        bridgepkg.BridgeStatusReady,
+				RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+			},
+			{
+				ID:            "brg-alpha",
+				Scope:         bridgepkg.ScopeWorkspace,
+				WorkspaceID:   "ws-alpha",
+				Platform:      "telegram",
+				ExtensionName: "ext-telegram",
+				DisplayName:   "Alpha",
+				Enabled:       true,
+				Status:        bridgepkg.BridgeStatusReady,
+				RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+			},
+			{
+				ID:            "brg-beta",
+				Scope:         bridgepkg.ScopeWorkspace,
+				WorkspaceID:   "ws-beta",
+				Platform:      "telegram",
+				ExtensionName: "ext-telegram",
+				DisplayName:   "Beta",
+				Enabled:       true,
+				Status:        bridgepkg.BridgeStatusReady,
+				RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+			},
+		}
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			TransportName:                "api-core-test",
+			MaskInternalErrors:           false,
+			IncludeSessionWorkspaceInSSE: true,
+			Sessions:                     testutil.StubSessionManager{},
+			Observer: testutil.StubObserver{
+				QueryBridgeHealthFn: func(context.Context) ([]observe.BridgeInstanceHealth, error) {
+					return []observe.BridgeInstanceHealth{
+						{
+							BridgeInstanceID: "brg-global",
+							Status:           bridgepkg.BridgeStatusReady,
+							RouteCount:       1,
+						},
+						{
+							BridgeInstanceID: "brg-alpha",
+							Status:           bridgepkg.BridgeStatusReady,
+							RouteCount:       2,
+						},
+						{
+							BridgeInstanceID: "brg-beta",
+							Status:           bridgepkg.BridgeStatusReady,
+							RouteCount:       3,
+						},
+					}, nil
+				},
+			},
+			Bridges: testutil.StubBridgeService{
+				ListInstancesFn: func(context.Context) ([]bridgepkg.BridgeInstance, error) {
+					return instances, nil
+				},
+			},
+			Workspaces:   testutil.StubWorkspaceService{},
+			HomePaths:    homePaths,
+			Config:       cfg,
+			Logger:       testutil.DiscardLogger(),
+			StartedAt:    time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+			Now:          func() time.Time { return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC) },
+			PollInterval: time.Millisecond,
+			StreamDone:   streamDone,
+			HTTPPort:     cfg.HTTP.Port,
+		})
+		engine := gin.New()
+		engine.GET("/bridges/health/stream", handlers.StreamBridgeHealth)
+
+		resp := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/bridges/health/stream?scope=all&workspace_id=ws-alpha",
+			nil,
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("stream status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		records := testutil.ParseSSE(t, resp.Body.String())
+		if got, want := len(records), 1; got != want {
+			t.Fatalf("stream records = %d, want %d; body=%s", got, want, resp.Body.String())
+		}
+		var payload contract.BridgeHealthStreamPayload
+		testutil.DecodeSSEData(t, records[0], &payload)
+		if _, ok := payload.BridgeHealth["brg-global"]; !ok {
+			t.Fatalf("stream bridge_health missing global bridge: %#v", payload.BridgeHealth)
+		}
+		if _, ok := payload.BridgeHealth["brg-alpha"]; !ok {
+			t.Fatalf("stream bridge_health missing active workspace bridge: %#v", payload.BridgeHealth)
+		}
+		if _, ok := payload.BridgeHealth["brg-beta"]; ok {
+			t.Fatalf("stream bridge_health leaked inactive workspace bridge: %#v", payload.BridgeHealth)
+		}
+	})
+}
+
 func TestBridgeHandlersLifecycleTransitions(t *testing.T) {
 	t.Parallel()
 

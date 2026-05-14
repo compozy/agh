@@ -18,7 +18,7 @@ implementers and future compatibility.
 | Area                  | Current AGH Runtime                                                                                                   | Protocol docs                                          |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
 | Protocol identifier   | `agh-network/v0`                                                                                                      | v0 core pages plus v1 trust pages                      |
-| Message kinds         | `greet`, `whois`, `say`, `direct`, `capability`, `receipt`, `trace`                                                   | [Message Kinds](/protocol/message-kinds)               |
+| Message kinds         | `greet`, `whois`, `say`, `capability`, `receipt`, `trace`                                                             | [Message Kinds](/protocol/message-kinds)               |
 | Envelope validation   | Implemented for v0 core fields, freshness, IDs, routing, body shape, and lifecycle requirements                       | [Envelope](/protocol/envelope)                         |
 | Peer discovery        | Implemented through Peer Cards, `greet`, `whois`, and capability projections                                          | [Peer Discovery](/protocol/peer-discovery)             |
 | Capability discovery  | Implemented for brief Peer Card projection, rich catalog retrieval, and capability transfer semantics                 | [Capability Discovery](/protocol/capability-discovery) |
@@ -32,9 +32,9 @@ implementers and future compatibility.
 
 The shipped runtime validates and routes v0 envelopes. It supports:
 
-- the seven core message kinds
+- the six core message kinds
 - channel-scoped peer discovery
-- directed work through `direct`
+- directed work through `surface:"direct"` on conversation-bearing messages
 - admission and progress through `receipt` and `trace`
 - capability advertisement and transfer
 - duplicate, expiry, unsupported-kind, not-target, not-found, busy, and internal rejection reasons
@@ -64,14 +64,14 @@ Read these when you need the implemented wire model:
     href="/protocol/message-kinds"
     label="v0 Core"
     title="Message Kinds"
-    description="The seven message kinds, their required body fields, and examples with `proof: null`."
+    description="The six message kinds, their required body fields, and examples with `proof: null`."
     meta="Implemented core"
   />
   <RouteRow
     href="/protocol/interactions"
     label="v0 Core"
     title="Interaction Lifecycle"
-    description="How `direct`, `receipt`, and `trace` correlate delegated work and progress."
+    description="How direct-room surfaces, `receipt`, and `trace` correlate delegated work and progress."
     meta="Implemented core"
   />
   <RouteRow
@@ -88,12 +88,12 @@ Read these when you need the implemented wire model:
 These pages are still useful, but read them as implementer contracts and future-compatible design
 profiles:
 
-| Page                                                           | What it describes                                                                | Current runtime note                                |
-| -------------------------------------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------- |
-| [Ed25519 + JCS Trust Profile](/protocol/ed25519-jcs)           | How a peer signs an envelope with Ed25519 over JCS-canonical JSON.               | AGH Runtime does not verify this profile yet.       |
-| [Signature Verification](/protocol/verification)               | How a receiver classifies `verified`, `unverified`, and `rejected` trust states. | AGH Runtime v0 routes opaque `proof` values.        |
-| [NATS Transport Binding](/protocol/nats)                       | Subject mapping, route tokens, request-reply posture, and v1 prefix behavior.    | Use runtime network docs for AGH operator behavior. |
-| [Trust Verification Guide](/protocol/guide/trust-verification) | A tutorial for implementing the trust profile outside current AGH Runtime.       | Third-party/future-profile path.                    |
+| Page                                                           | What it describes                                                                                  | Current runtime note                                |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| [Ed25519 + JCS Trust Profile](/protocol/ed25519-jcs)           | How a peer signs an envelope with Ed25519 over JCS-canonical JSON.                                 | AGH Runtime does not verify this profile yet.       |
+| [Signature Verification](/protocol/verification)               | How a receiver classifies `verified`, `unverified`, and `rejected` trust states.                   | AGH Runtime v0 routes opaque `proof` values.        |
+| [NATS Transport Binding](/protocol/nats)                       | Subject mapping, route tokens, request-reply posture, and v0 workspace-qualified subject behavior. | Use runtime network docs for AGH operator behavior. |
+| [Trust Verification Guide](/protocol/guide/trust-verification) | A tutorial for implementing the trust profile outside current AGH Runtime.                         | Third-party/future-profile path.                    |
 
 ## Choosing the right page
 

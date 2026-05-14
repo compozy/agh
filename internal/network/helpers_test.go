@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+const testWorkspaceID = "wks_test"
+
 func TestEnumValidationAndBodyKindHelpers(t *testing.T) {
 	t.Parallel()
 
@@ -100,17 +102,18 @@ func TestValidateEnvelopeAndDecodeBodyErrors(t *testing.T) {
 
 	now := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
 	valid := Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_direct_01",
-		Kind:     KindSay,
-		Channel:  "builders",
-		Surface:  surfacePtr(SurfaceDirect),
-		DirectID: stringPtr(testDirectRef().DirectID),
-		From:     "coder.sess-abc",
-		To:       stringPtr("reviewer.sess-xyz"),
-		WorkID:   stringPtr("work_patch_42"),
-		TS:       now.Unix(),
-		Body:     mustRawJSON(t, map[string]any{"text": "please review auth.go"}),
+		Protocol:    ProtocolV0,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_direct_01",
+		Kind:        KindSay,
+		Channel:     "builders",
+		Surface:     surfacePtr(SurfaceDirect),
+		DirectID:    stringPtr(testDirectRef().DirectID),
+		From:        "coder.sess-abc",
+		To:          stringPtr("reviewer.sess-xyz"),
+		WorkID:      stringPtr("work_patch_42"),
+		TS:          now.Unix(),
+		Body:        mustRawJSON(t, map[string]any{"text": "please review auth.go"}),
 	}
 
 	if err := ValidateEnvelope(valid, ValidateOptions{Now: now}); err != nil {
@@ -198,15 +201,16 @@ func TestWorkValidationAndTraceMatrix(t *testing.T) {
 	}
 
 	openErrEnv := Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_trace_01",
-		Kind:     KindTrace,
-		Channel:  "builders",
-		From:     "reviewer.sess-xyz",
-		To:       stringPtr("coder.sess-abc"),
-		WorkID:   stringPtr("work_patch_42"),
-		TS:       time.Now().Unix(),
-		Body:     mustRawJSON(t, map[string]any{"state": "working"}),
+		Protocol:    ProtocolV0,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_trace_01",
+		Kind:        KindTrace,
+		Channel:     "builders",
+		From:        "reviewer.sess-xyz",
+		To:          stringPtr("coder.sess-abc"),
+		WorkID:      stringPtr("work_patch_42"),
+		TS:          time.Now().Unix(),
+		Body:        mustRawJSON(t, map[string]any{"state": "working"}),
 	}
 	if _, err := OpenWork(withDirectSurface(openErrEnv), time.Time{}); !errors.Is(err, ErrInvalidField) {
 		t.Fatalf("OpenWork(non-opener) error = %v, want ErrInvalidField", err)
@@ -296,12 +300,13 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 	now := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
 
 	greetMismatch := Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_greet_01",
-		Kind:     KindGreet,
-		Channel:  "builders",
-		From:     "coder.sess-abc",
-		TS:       now.Unix(),
+		Protocol:    ProtocolV0,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_greet_01",
+		Kind:        KindGreet,
+		Channel:     "builders",
+		From:        "coder.sess-abc",
+		TS:          now.Unix(),
 		Body: mustRawJSON(t, map[string]any{
 			"peer_card": map[string]any{
 				"peer_id":               "reviewer.sess-xyz",
@@ -317,14 +322,15 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 	}
 
 	receiptMissingWork := Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_receipt_01",
-		Kind:     KindReceipt,
-		Channel:  "builders",
-		Surface:  surfacePtr(SurfaceDirect),
-		DirectID: stringPtr(testDirectRef().DirectID),
-		From:     "reviewer.sess-xyz",
-		TS:       now.Unix(),
+		Protocol:    ProtocolV0,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_receipt_01",
+		Kind:        KindReceipt,
+		Channel:     "builders",
+		Surface:     surfacePtr(SurfaceDirect),
+		DirectID:    stringPtr(testDirectRef().DirectID),
+		From:        "reviewer.sess-xyz",
+		TS:          now.Unix(),
 		Body: mustRawJSON(t, map[string]any{
 			"for_id": "msg_direct_01",
 			"status": "accepted",
@@ -362,15 +368,16 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 	}
 
 	traceEnv := Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_trace_01",
-		Kind:     KindTrace,
-		Channel:  "builders",
-		From:     "reviewer.sess-xyz",
-		To:       stringPtr("coder.sess-abc"),
-		WorkID:   stringPtr("work_patch_42"),
-		TS:       now.Unix(),
-		Body:     mustRawJSON(t, map[string]any{"state": "working"}),
+		Protocol:    ProtocolV0,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_trace_01",
+		Kind:        KindTrace,
+		Channel:     "builders",
+		From:        "reviewer.sess-xyz",
+		To:          stringPtr("coder.sess-abc"),
+		WorkID:      stringPtr("work_patch_42"),
+		TS:          now.Unix(),
+		Body:        mustRawJSON(t, map[string]any{"state": "working"}),
 	}
 	if _, err := ApplyWorkEnvelope(nil, withDirectSurface(traceEnv), now); !errors.Is(err, ErrWorkNotFound) {
 		t.Fatalf("ApplyWorkEnvelope(nil trace) error = %v, want ErrWorkNotFound", err)
@@ -386,14 +393,15 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 		UpdatedAt: now,
 	}
 	receiptEnv := Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_receipt_02",
-		Kind:     KindReceipt,
-		Channel:  "builders",
-		From:     "coder.sess-abc",
-		To:       stringPtr("reviewer.sess-xyz"),
-		WorkID:   stringPtr("work_patch_42"),
-		TS:       now.Unix(),
+		Protocol:    ProtocolV0,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_receipt_02",
+		Kind:        KindReceipt,
+		Channel:     "builders",
+		From:        "coder.sess-abc",
+		To:          stringPtr("reviewer.sess-xyz"),
+		WorkID:      stringPtr("work_patch_42"),
+		TS:          now.Unix(),
 		Body: mustRawJSON(t, map[string]any{
 			"for_id": "msg_direct_01",
 			"status": "canceled",

@@ -60,9 +60,11 @@ describe("network query options , surface isolation", () => {
   });
 
   it("threads tab queries are namespaced with channel + surface + thread id", async () => {
-    const options = networkThreadMessagesOptions("builders", "thread_one");
+    const options = networkThreadMessagesOptions("ws_alpha", "builders", "thread_one");
     expect(options.queryKey).toEqual([
       "network",
+      "workspace",
+      "ws_alpha",
       "channel",
       "builders",
       "thread",
@@ -76,6 +78,7 @@ describe("network query options , surface isolation", () => {
     ]);
     await requireQueryFn(options.queryFn)(makeQueryContext(options.queryKey));
     expect(mocks.listNetworkThreadMessages).toHaveBeenCalledWith(
+      "ws_alpha",
       "builders",
       "thread_one",
       { limit: 120 },
@@ -84,9 +87,11 @@ describe("network query options , surface isolation", () => {
   });
 
   it("directs tab queries are namespaced with channel + surface + direct id", async () => {
-    const options = networkDirectMessagesOptions("builders", "direct_one");
+    const options = networkDirectMessagesOptions("ws_alpha", "builders", "direct_one");
     expect(options.queryKey).toEqual([
       "network",
+      "workspace",
+      "ws_alpha",
       "channel",
       "builders",
       "direct",
@@ -100,6 +105,7 @@ describe("network query options , surface isolation", () => {
     ]);
     await requireQueryFn(options.queryFn)(makeQueryContext(options.queryKey));
     expect(mocks.listNetworkDirectRoomMessages).toHaveBeenCalledWith(
+      "ws_alpha",
       "builders",
       "direct_one",
       { limit: 120 },
@@ -108,20 +114,24 @@ describe("network query options , surface isolation", () => {
   });
 
   it("a directs query never shares the same key as a threads query in the same channel", () => {
-    const threadsOpts = networkThreadMessagesOptions("builders", "shared_id");
-    const directsOpts = networkDirectMessagesOptions("builders", "shared_id");
+    const threadsOpts = networkThreadMessagesOptions("ws_alpha", "builders", "shared_id");
+    const directsOpts = networkDirectMessagesOptions("ws_alpha", "builders", "shared_id");
     expect(threadsOpts.queryKey).not.toEqual(directsOpts.queryKey);
 
     // Hierarchical key check using factories.
-    expect(networkKeys.threadsList("builders").slice(0, 5)).toEqual([
+    expect(networkKeys.threadsList("ws_alpha", "builders").slice(0, 7)).toEqual([
       "network",
+      "workspace",
+      "ws_alpha",
       "channel",
       "builders",
       "thread",
       "list",
     ]);
-    expect(networkKeys.directsList("builders").slice(0, 5)).toEqual([
+    expect(networkKeys.directsList("ws_alpha", "builders").slice(0, 7)).toEqual([
       "network",
+      "workspace",
+      "ws_alpha",
       "channel",
       "builders",
       "direct",
@@ -131,8 +141,8 @@ describe("network query options , surface isolation", () => {
 
   it("a directs query never matches threads query under TanStack predicate", () => {
     const client = new QueryClient();
-    const threadOpts = networkThreadMessagesOptions("builders", "container_x");
-    const directOpts = networkDirectMessagesOptions("builders", "container_x");
+    const threadOpts = networkThreadMessagesOptions("ws_alpha", "builders", "container_x");
+    const directOpts = networkDirectMessagesOptions("ws_alpha", "builders", "container_x");
     client.setQueryData(threadOpts.queryKey, [
       {
         message_id: "thread-msg",
@@ -165,12 +175,14 @@ describe("network query options , surface isolation", () => {
     expect(threadCacheValue?.[0]?.message_id).toBe("thread-msg");
     expect(directCacheValue?.[0]?.message_id).toBe("direct-msg");
 
-    const threadEntry = client
-      .getQueryCache()
-      .findAll({ queryKey: networkKeys.threadsList("builders").slice(0, 4), exact: false });
-    const directEntry = client
-      .getQueryCache()
-      .findAll({ queryKey: networkKeys.directsList("builders").slice(0, 4), exact: false });
+    const threadEntry = client.getQueryCache().findAll({
+      queryKey: networkKeys.threadsList("ws_alpha", "builders").slice(0, 6),
+      exact: false,
+    });
+    const directEntry = client.getQueryCache().findAll({
+      queryKey: networkKeys.directsList("ws_alpha", "builders").slice(0, 6),
+      exact: false,
+    });
 
     expect(threadEntry.flatMap(query => query.queryKey)).toContain("thread");
     expect(threadEntry.flatMap(query => query.queryKey)).not.toContain("direct");
@@ -179,11 +191,14 @@ describe("network query options , surface isolation", () => {
   });
 
   it("normalizes message limit defaults inside both surfaces", async () => {
-    const noLimit = networkThreadMessagesOptions("builders", "thread_one");
-    const explicit = networkThreadMessagesOptions("builders", "thread_one", { limit: 120 });
+    const noLimit = networkThreadMessagesOptions("ws_alpha", "builders", "thread_one");
+    const explicit = networkThreadMessagesOptions("ws_alpha", "builders", "thread_one", {
+      limit: 120,
+    });
     expect(noLimit.queryKey).toEqual(explicit.queryKey);
     await requireQueryFn(noLimit.queryFn)(makeQueryContext(noLimit.queryKey));
     expect(mocks.listNetworkThreadMessages).toHaveBeenLastCalledWith(
+      "ws_alpha",
       "builders",
       "thread_one",
       { limit: 120 },
@@ -192,15 +207,21 @@ describe("network query options , surface isolation", () => {
   });
 
   it("does not retry 4xx conversation detail failures", () => {
-    const threadRetry = requireRetry(networkThreadDetailOptions("builders", "missing").retry);
-    const directRetry = requireRetry(networkDirectDetailOptions("builders", "missing").retry);
+    const threadRetry = requireRetry(
+      networkThreadDetailOptions("ws_alpha", "builders", "missing").retry
+    );
+    const directRetry = requireRetry(
+      networkDirectDetailOptions("ws_alpha", "builders", "missing").retry
+    );
 
     expect(threadRetry(0, new NetworkApiError("Thread not found", 404))).toBe(false);
     expect(directRetry(0, new NetworkApiError("Invalid direct id", 400))).toBe(false);
   });
 
   it("retries transient conversation detail failures within the detail retry budget", () => {
-    const retry = requireRetry(networkThreadDetailOptions("builders", "thread_one").retry);
+    const retry = requireRetry(
+      networkThreadDetailOptions("ws_alpha", "builders", "thread_one").retry
+    );
 
     expect(retry(0, new Error("temporary network failure"))).toBe(true);
     expect(retry(1, new Error("temporary network failure"))).toBe(true);

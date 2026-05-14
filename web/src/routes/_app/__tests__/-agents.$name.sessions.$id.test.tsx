@@ -51,7 +51,11 @@ const {
     error: null,
   })),
   mockUseSessionLedger: vi.fn<
-    (sessionId: string, options?: SessionLedgerHookOptions) => SessionLedgerQueryState
+    (
+      sessionId: string,
+      workspaceId?: string | null,
+      options?: SessionLedgerHookOptions
+    ) => SessionLedgerQueryState
   >(() => ({
     data: undefined,
     isLoading: false,
@@ -106,8 +110,8 @@ vi.mock("@/systems/session/components/session-inspector", () => ({
 
 vi.mock("@/systems/session/hooks/use-sessions", () => ({
   useSession: (id: string) => mockUseSession(id),
-  useSessionLedger: (id: string, options?: SessionLedgerHookOptions) =>
-    mockUseSessionLedger(id, options),
+  useSessionLedger: (id: string, workspaceId?: string | null, options?: SessionLedgerHookOptions) =>
+    mockUseSessionLedger(id, workspaceId, options),
 }));
 
 vi.mock("@/systems/vault", () => ({
@@ -402,7 +406,9 @@ describe("Nested agent session route — resume failure UX", () => {
 
     renderSessionPage();
 
-    expect(mockUseSessionLedger).toHaveBeenCalledWith("sess_123", { enabled: true });
+    expect(mockUseSessionLedger).toHaveBeenCalledWith("sess_123", "ws_alpha", {
+      enabled: true,
+    });
     const inspectorProps =
       mockSessionInspector.mock.calls[mockSessionInspector.mock.calls.length - 1]?.[0];
     expect(inspectorProps?.memory).toEqual({
@@ -435,7 +441,9 @@ describe("Nested agent session route — resume failure UX", () => {
 
     renderSessionPage();
 
-    expect(mockUseSessionLedger).toHaveBeenCalledWith("sess_123", { enabled: false });
+    expect(mockUseSessionLedger).toHaveBeenCalledWith("sess_123", "ws_alpha", {
+      enabled: false,
+    });
   });
 
   it("disables the ledger query while the session is starting", () => {
@@ -447,7 +455,9 @@ describe("Nested agent session route — resume failure UX", () => {
 
     renderSessionPage();
 
-    expect(mockUseSessionLedger).toHaveBeenCalledWith("sess_123", { enabled: false });
+    expect(mockUseSessionLedger).toHaveBeenCalledWith("sess_123", "ws_alpha", {
+      enabled: false,
+    });
   });
 
   it("disables the ledger query while the session is stopping", () => {
@@ -459,7 +469,9 @@ describe("Nested agent session route — resume failure UX", () => {
 
     renderSessionPage();
 
-    expect(mockUseSessionLedger).toHaveBeenCalledWith("sess_123", { enabled: false });
+    expect(mockUseSessionLedger).toHaveBeenCalledWith("sess_123", "ws_alpha", {
+      enabled: false,
+    });
   });
 
   it("enables the ledger query once the session has stopped", () => {
@@ -471,6 +483,8 @@ describe("Nested agent session route — resume failure UX", () => {
 
     renderSessionPage();
 
-    expect(mockUseSessionLedger).toHaveBeenCalledWith("sess_123", { enabled: true });
+    expect(mockUseSessionLedger).toHaveBeenCalledWith("sess_123", "ws_alpha", {
+      enabled: true,
+    });
   });
 });

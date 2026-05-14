@@ -47,7 +47,7 @@ export default async function CategoryArchivePage({ params }: PageProps) {
   return (
     <>
       <section className="border-b border-line px-4 pt-14 pb-12">
-        <div className="mx-auto max-w-(--site-layout-width)">
+        <div className="mx-auto max-w-site-layout-width">
           <div className="flex items-center gap-3">
             <Eyebrow className="text-accent">CATEGORY</Eyebrow>
             <span className="inline-block h-px w-9 bg-line" />
@@ -77,7 +77,7 @@ export default async function CategoryArchivePage({ params }: PageProps) {
       </section>
 
       <section className="px-4 pt-10 pb-20">
-        <div className="mx-auto max-w-(--site-layout-width)">
+        <div className="mx-auto max-w-site-layout-width">
           {posts.length === 0 ? (
             <BlogEmptyState
               eyebrow="Category pending"

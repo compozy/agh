@@ -101,11 +101,11 @@ func (s networkServiceStub) Send(context.Context, network.SendRequest) (string, 
 	return "", nil
 }
 
-func (s networkServiceStub) ListPeers(context.Context, string) ([]network.PeerInfo, error) {
+func (s networkServiceStub) ListPeers(context.Context, string, string) ([]network.PeerInfo, error) {
 	return nil, nil
 }
 
-func (s networkServiceStub) ListChannels(context.Context) ([]network.ChannelInfo, error) {
+func (s networkServiceStub) ListChannels(context.Context, string) ([]network.ChannelInfo, error) {
 	return nil, nil
 }
 
@@ -402,7 +402,11 @@ func TestNetworkChannelPayloadsRejectNilReceiver(t *testing.T) {
 		t.Parallel()
 
 		var handlers *BaseHandlers
-		_, err := handlers.networkChannelPayloads(context.Background(), networkServiceStub{})
+		_, err := handlers.networkChannelPayloads(
+			context.Background(),
+			networkServiceStub{},
+			networkCoreTestWorkspaceID,
+		)
 		if err == nil {
 			t.Fatal("networkChannelPayloads() error = nil, want dependency error")
 		}

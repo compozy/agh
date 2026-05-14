@@ -146,9 +146,9 @@ export interface CalloutProps {
 const calloutBorderClass: Record<NonNullable<CalloutProps["tone"]>, string> = {
   accent: "border-l-accent",
   success: "border-l-success",
-  danger: "border-l-(--danger)",
-  warning: "border-l-(--warning)",
-  info: "border-l-(--info)",
+  danger: "border-l-danger",
+  warning: "border-l-warning",
+  info: "border-l-info",
 };
 
 const calloutEyebrowToneClass: Record<NonNullable<CalloutProps["tone"]>, string> = {

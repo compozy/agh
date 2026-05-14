@@ -6,6 +6,7 @@ import { Button, DetailHeader, Eyebrow } from "@agh/ui";
 import type { NetworkThreadDetail } from "../../types";
 
 export interface ThreadOverlayHeaderProps {
+  workspaceId: string;
   channel: string;
   threadId: string;
   detail: NetworkThreadDetail | null;
@@ -22,7 +23,12 @@ function buildParticipantLabel(detail: NetworkThreadDetail | null): string {
   return participants === 1 ? "1 peer" : `${participants} peers`;
 }
 
-export function ThreadOverlayHeader({ channel, threadId, detail }: ThreadOverlayHeaderProps) {
+export function ThreadOverlayHeader({
+  workspaceId,
+  channel,
+  threadId,
+  detail,
+}: ThreadOverlayHeaderProps) {
   const navigate = useNavigate();
   const title = detail?.title ?? "Thread";
   const participantLabel = buildParticipantLabel(detail);
@@ -34,10 +40,12 @@ export function ThreadOverlayHeader({ channel, threadId, detail }: ThreadOverlay
           aria-label="Close thread overlay"
           data-testid="network-thread-overlay-close"
           onClick={() => {
-            void navigate({
-              params: { channel },
-              to: "/network/$channel/threads",
-            });
+            if (workspaceId) {
+              void navigate({
+                params: { workspaceId, channel },
+                to: "/network/$workspaceId/$channel/threads",
+              });
+            }
           }}
           size="icon-sm"
           type="button"
@@ -56,11 +64,13 @@ export function ThreadOverlayHeader({ channel, threadId, detail }: ThreadOverlay
             className="h-7 text-xs text-muted"
             data-testid="network-thread-overlay-open-main"
             onClick={() => {
-              void navigate({
-                params: { channel, threadId },
-                search: { view: "full" },
-                to: "/network/$channel/threads/$threadId",
-              });
+              if (workspaceId) {
+                void navigate({
+                  params: { workspaceId, channel, threadId },
+                  search: { view: "full" },
+                  to: "/network/$workspaceId/$channel/threads/$threadId",
+                });
+              }
             }}
             size="sm"
             type="button"

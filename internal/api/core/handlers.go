@@ -349,9 +349,8 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 
 // GetSession returns one session snapshot.
 func (h *BaseHandlers) GetSession(c *gin.Context) {
-	info, err := h.Sessions.Status(c.Request.Context(), c.Param("id"))
-	if err != nil {
-		h.respondError(c, StatusForSessionError(err), err)
+	_, _, info, ok := h.routeSessionInWorkspace(c)
+	if !ok {
 		return
 	}
 	includeHealth, err := parseBoolQuery(c, "include_health")
@@ -370,7 +369,11 @@ func (h *BaseHandlers) GetSession(c *gin.Context) {
 
 // DeleteSession removes one session from the runtime catalog and persisted history.
 func (h *BaseHandlers) DeleteSession(c *gin.Context) {
-	if err := h.Sessions.Delete(c.Request.Context(), c.Param("id")); err != nil {
+	_, sessionID, _, ok := h.routeSessionInWorkspace(c)
+	if !ok {
+		return
+	}
+	if err := h.Sessions.Delete(c.Request.Context(), sessionID); err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
@@ -380,7 +383,11 @@ func (h *BaseHandlers) DeleteSession(c *gin.Context) {
 
 // StopSession stops a running session without deleting persisted history.
 func (h *BaseHandlers) StopSession(c *gin.Context) {
-	if err := h.Sessions.Stop(c.Request.Context(), c.Param("id")); err != nil {
+	_, sessionID, _, ok := h.routeSessionInWorkspace(c)
+	if !ok {
+		return
+	}
+	if err := h.Sessions.Stop(c.Request.Context(), sessionID); err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
@@ -390,7 +397,11 @@ func (h *BaseHandlers) StopSession(c *gin.Context) {
 
 // ResumeSession resumes a stopped session.
 func (h *BaseHandlers) ResumeSession(c *gin.Context) {
-	sess, err := h.Sessions.Resume(c.Request.Context(), c.Param("id"))
+	_, sessionID, _, ok := h.routeSessionInWorkspace(c)
+	if !ok {
+		return
+	}
+	sess, err := h.Sessions.Resume(c.Request.Context(), sessionID)
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
@@ -401,6 +412,10 @@ func (h *BaseHandlers) ResumeSession(c *gin.Context) {
 
 // RepairSession inspects and optionally repairs an interrupted persisted session transcript.
 func (h *BaseHandlers) RepairSession(c *gin.Context) {
+	_, sessionID, _, ok := h.routeSessionInWorkspace(c)
+	if !ok {
+		return
+	}
 	dryRun, err := repairBoolQuery(c, "dry_run", "dry-run")
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
@@ -413,7 +428,7 @@ func (h *BaseHandlers) RepairSession(c *gin.Context) {
 	}
 
 	result, err := h.Sessions.RepairSession(c.Request.Context(), session.RepairOpts{
-		SessionID: c.Param("id"),
+		SessionID: sessionID,
 		DryRun:    dryRun,
 		Force:     force,
 	})
@@ -428,7 +443,11 @@ func (h *BaseHandlers) RepairSession(c *gin.Context) {
 // ClearSessionConversation clears persisted conversation history and restarts the
 // session with a fresh ACP conversation context while preserving the same id.
 func (h *BaseHandlers) ClearSessionConversation(c *gin.Context) {
-	sess, err := h.Sessions.ClearConversation(c.Request.Context(), c.Param("id"))
+	_, sessionID, _, ok := h.routeSessionInWorkspace(c)
+	if !ok {
+		return
+	}
+	sess, err := h.Sessions.ClearConversation(c.Request.Context(), sessionID)
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
@@ -445,13 +464,15 @@ func (h *BaseHandlers) SessionEvents(c *gin.Context) {
 		return
 	}
 
-	info, err := h.sessionEventInfo(c.Request.Context(), c.Param("id"))
-	if err != nil {
-		h.respondError(c, StatusForSessionError(err), err)
+	_, sessionID, info, ok := h.routeSessionInWorkspace(c)
+	if !ok {
 		return
 	}
+	if !h.IncludeSessionWorkspaceInSSE {
+		info = nil
+	}
 
-	events, err := h.Sessions.Events(c.Request.Context(), c.Param("id"), query)
+	events, err := h.Sessions.Events(c.Request.Context(), sessionID, query)
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
@@ -473,13 +494,15 @@ func (h *BaseHandlers) SessionHistory(c *gin.Context) {
 		return
 	}
 
-	info, err := h.sessionEventInfo(c.Request.Context(), c.Param("id"))
-	if err != nil {
-		h.respondError(c, StatusForSessionError(err), err)
+	_, sessionID, info, ok := h.routeSessionInWorkspace(c)
+	if !ok {
 		return
 	}
+	if !h.IncludeSessionWorkspaceInSSE {
+		info = nil
+	}
 
-	history, err := h.Sessions.History(c.Request.Context(), c.Param("id"), query)
+	history, err := h.Sessions.History(c.Request.Context(), sessionID, query)
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
@@ -502,7 +525,11 @@ func (h *BaseHandlers) SessionHistory(c *gin.Context) {
 
 // SessionTranscript returns the stored transcript for a session.
 func (h *BaseHandlers) SessionTranscript(c *gin.Context) {
-	messages, err := h.Sessions.Transcript(c.Request.Context(), c.Param("id"))
+	_, sessionID, _, ok := h.routeSessionInWorkspace(c)
+	if !ok {
+		return
+	}
+	messages, err := h.Sessions.Transcript(c.Request.Context(), sessionID)
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
@@ -539,10 +566,12 @@ func repairBoolQuery(c *gin.Context, names ...string) (bool, error) {
 
 // StreamSession streams session events over SSE.
 func (h *BaseHandlers) StreamSession(c *gin.Context) {
-	info, err := h.streamSessionInfo(c.Request.Context(), c.Param("id"))
-	if err != nil {
-		h.respondError(c, StatusForSessionError(err), err)
+	_, sessionID, info, ok := h.routeSessionInWorkspace(c)
+	if !ok {
 		return
+	}
+	if !h.IncludeSessionWorkspaceInSSE {
+		info = nil
 	}
 
 	query, err := ParseSessionEventQuery(c)
@@ -555,7 +584,7 @@ func (h *BaseHandlers) StreamSession(c *gin.Context) {
 		return
 	}
 
-	initial, err := h.Sessions.Events(c.Request.Context(), c.Param("id"), query)
+	initial, err := h.Sessions.Events(c.Request.Context(), sessionID, query)
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
@@ -578,7 +607,7 @@ func (h *BaseHandlers) StreamSession(c *gin.Context) {
 
 	pollQuery := query
 	pollQuery.Limit = 0
-	h.pollAndStreamSessionEvents(c, writer, c.Param("id"), info, pollQuery, afterSequence)
+	h.pollAndStreamSessionEvents(c, writer, sessionID, info, pollQuery, afterSequence)
 }
 
 // ListAgents returns all readable agent definitions in home paths.
@@ -781,7 +810,7 @@ func (h *BaseHandlers) HookCatalog(c *gin.Context) {
 			h.respondError(c, StatusForWorkspaceError(err), err)
 			return
 		}
-		filter.WorkspaceID = strings.TrimSpace(resolved.ID)
+		filter.WorkspaceID = strings.TrimSpace(resolved.WorkspaceID)
 		filter.WorkspaceRoot = strings.TrimSpace(resolved.RootDir)
 	}
 
@@ -806,8 +835,16 @@ func (h *BaseHandlers) HookRuns(c *gin.Context) {
 		return
 	}
 
-	if _, err := h.Sessions.Status(c.Request.Context(), query.SessionID); err != nil {
-		h.respondError(c, StatusForSessionError(err), err)
+	scope, ok := h.resolveWorkspaceScope(c)
+	if !ok {
+		return
+	}
+	if _, err := h.requireSessionInWorkspace(
+		c.Request.Context(),
+		scope.SessionWorkspaceID(),
+		query.SessionID,
+	); err != nil {
+		h.respondError(c, statusForWorkspaceScopedResourceError(err), err)
 		return
 	}
 
@@ -844,6 +881,11 @@ func (h *BaseHandlers) ObserveEvents(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
+	scope, ok := h.resolveWorkspaceScope(c)
+	if !ok {
+		return
+	}
+	query.WorkspaceID = scope.SessionWorkspaceID()
 
 	events, err := h.Observer.QueryEvents(c.Request.Context(), query)
 	if err != nil {
@@ -866,6 +908,11 @@ func (h *BaseHandlers) StreamObserveEvents(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
+	scope, ok := h.resolveWorkspaceScope(c)
+	if !ok {
+		return
+	}
+	query.WorkspaceID = scope.SessionWorkspaceID()
 
 	cursor, err := ParseObserveCursor(c.GetHeader("Last-Event-ID"))
 	if err != nil {

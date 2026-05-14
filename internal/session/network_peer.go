@@ -81,6 +81,7 @@ func cloneNetworkPeerCapabilityStrings(values []string) []string {
 func newNetworkPeerJoin(
 	sessionID string,
 	peerID string,
+	workspaceID string,
 	displayName string,
 	channel string,
 	capabilities []NetworkPeerCapability,
@@ -88,6 +89,7 @@ func newNetworkPeerJoin(
 	return NetworkPeerJoin{
 		SessionID:    strings.TrimSpace(sessionID),
 		PeerID:       strings.TrimSpace(peerID),
+		WorkspaceID:  strings.TrimSpace(workspaceID),
 		DisplayName:  strings.TrimSpace(displayName),
 		Channel:      strings.TrimSpace(channel),
 		Capabilities: cloneNetworkPeerCapabilities(capabilities),

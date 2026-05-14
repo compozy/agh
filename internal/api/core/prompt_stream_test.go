@@ -2,6 +2,7 @@ package core_test
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -57,6 +58,134 @@ func TestPromptStreamEncoderPermissionDataPartIdentity(t *testing.T) {
 	})
 }
 
+func TestPromptStreamEncoderPartBoundaries(t *testing.T) {
+	t.Run("ShouldPreserveTextToolTextOrderWithDistinctTextBlocks", func(t *testing.T) {
+		t.Parallel()
+
+		writer := &bufferFlusher{}
+		encoder := core.NewPromptStreamEncoder(func() time.Time {
+			return time.Date(2026, 5, 13, 9, 0, 0, 0, time.UTC)
+		})
+
+		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
+			Type:   acp.EventTypeAgentMessage,
+			TurnID: "turn-mixed",
+			Text:   "text 1",
+		})
+		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
+			Type:       acp.EventTypeToolCall,
+			TurnID:     "turn-mixed",
+			ToolCallID: "tool-2",
+			Title:      "Bash",
+			Raw:        json.RawMessage("{\"tool_input\":{\"command\":\"pwd\"}}"),
+		})
+		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
+			Type:       acp.EventTypeToolCall,
+			TurnID:     "turn-mixed",
+			ToolCallID: "tool-3",
+			Title:      "Read",
+			Raw:        json.RawMessage("{\"tool_input\":{\"file_path\":\"README.md\"}}"),
+		})
+		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
+			Type:   acp.EventTypeAgentMessage,
+			TurnID: "turn-mixed",
+			Text:   "text 4",
+		})
+		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
+			Type:   acp.EventTypeAgentMessage,
+			TurnID: "turn-mixed",
+			Text:   "text 5",
+		})
+		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
+			Type:       acp.EventTypeDone,
+			TurnID:     "turn-mixed",
+			StopReason: "end_turn",
+		})
+
+		got := promptFrameSignatures(t, writer.String())
+		want := []string{
+			"start",
+			"text-start:turn-mixed-text-1",
+			"text-delta:turn-mixed-text-1:text 1",
+			"text-end:turn-mixed-text-1",
+			"tool-input-start:tool-2",
+			"tool-input-available:tool-2",
+			"data-agh-event",
+			"tool-input-start:tool-3",
+			"tool-input-available:tool-3",
+			"data-agh-event",
+			"text-start:turn-mixed-text-2",
+			"text-delta:turn-mixed-text-2:text 4",
+			"text-delta:turn-mixed-text-2:text 5",
+			"text-end:turn-mixed-text-2",
+			"finish",
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("frame signatures = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("ShouldCloseTextBeforeReasoningAndResumeTextInANewBlock", func(t *testing.T) {
+		t.Parallel()
+
+		writer := &bufferFlusher{}
+		encoder := core.NewPromptStreamEncoder(func() time.Time {
+			return time.Date(2026, 5, 13, 9, 1, 0, 0, time.UTC)
+		})
+
+		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
+			Type:   acp.EventTypeAgentMessage,
+			TurnID: "turn-reasoning",
+			Text:   "visible",
+		})
+		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
+			Type:   acp.EventTypeThought,
+			TurnID: "turn-reasoning",
+			Text:   "checking",
+		})
+		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
+			Type:   acp.EventTypeAgentMessage,
+			TurnID: "turn-reasoning",
+			Text:   "answer",
+		})
+		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
+			Type:       acp.EventTypeDone,
+			TurnID:     "turn-reasoning",
+			StopReason: "end_turn",
+		})
+
+		got := promptFrameSignatures(t, writer.String())
+		want := []string{
+			"start",
+			"text-start:turn-reasoning-text-1",
+			"text-delta:turn-reasoning-text-1:visible",
+			"text-end:turn-reasoning-text-1",
+			"reasoning-start:turn-reasoning-reasoning-1",
+			"reasoning-delta:turn-reasoning-reasoning-1:checking",
+			"reasoning-end:turn-reasoning-reasoning-1",
+			"text-start:turn-reasoning-text-2",
+			"text-delta:turn-reasoning-text-2:answer",
+			"text-end:turn-reasoning-text-2",
+			"finish",
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("frame signatures = %#v, want %#v", got, want)
+		}
+	})
+}
+
+func mustEmitPromptEvent(
+	t *testing.T,
+	encoder *core.PromptStreamEncoder,
+	writer *bufferFlusher,
+	event acp.AgentEvent,
+) {
+	t.Helper()
+	if err := encoder.Emit(writer, event); err != nil {
+		t.Fatalf("Emit(%s) error = %v", event.Type, err)
+	}
+}
+
 type promptPermissionFrame struct {
 	Type string `json:"type"`
 	ID   string `json:"id"`
@@ -64,6 +193,65 @@ type promptPermissionFrame struct {
 		RequestID string `json:"request_id"`
 		Decision  string `json:"decision"`
 	} `json:"data"`
+}
+
+func promptFrameSignatures(t *testing.T, body string) []string {
+	t.Helper()
+
+	signatures := make([]string, 0)
+	for record := range strings.SplitSeq(body, "\n\n") {
+		record = strings.TrimSpace(record)
+		if record == "" {
+			continue
+		}
+		data := ""
+		for line := range strings.SplitSeq(record, "\n") {
+			if after, ok := strings.CutPrefix(line, "data: "); ok {
+				data += after
+			}
+		}
+		if data == "" || data == "[DONE]" {
+			continue
+		}
+
+		var frame map[string]any
+		if err := json.Unmarshal([]byte(data), &frame); err != nil {
+			t.Fatalf("json.Unmarshal(%q) error = %v", data, err)
+		}
+		signatures = append(signatures, promptFrameSignature(t, frame))
+	}
+	return signatures
+}
+
+func promptFrameSignature(t *testing.T, frame map[string]any) string {
+	t.Helper()
+
+	frameType := promptRequiredString(t, frame, "type")
+	switch frameType {
+	case "text-start", "text-end", "reasoning-start", "reasoning-end":
+		return frameType + ":" + promptRequiredString(t, frame, "id")
+	case "text-delta", "reasoning-delta":
+		return frameType + ":" + promptRequiredString(t, frame, "id") + ":" +
+			promptRequiredString(t, frame, "delta")
+	case "tool-input-start", "tool-input-available", "tool-output-available":
+		return frameType + ":" + promptRequiredString(t, frame, "toolCallId")
+	default:
+		return frameType
+	}
+}
+
+func promptRequiredString(t *testing.T, frame map[string]any, key string) string {
+	t.Helper()
+
+	value, ok := frame[key]
+	if !ok {
+		t.Fatalf("frame missing %q: %#v", key, frame)
+	}
+	text, ok := value.(string)
+	if !ok {
+		t.Fatalf("frame[%q] = %#v, want string", key, value)
+	}
+	return text
 }
 
 func promptPermissionFramesFromSSE(t *testing.T, body string) []promptPermissionFrame {

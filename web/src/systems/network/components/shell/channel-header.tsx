@@ -12,12 +12,12 @@ import {
 } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
-
 import { useChannelMembers } from "../../hooks/use-channel-members";
 import { networkKeys } from "../../lib/query-keys";
 import type { NetworkChannel, NetworkChannelSummary } from "../../types";
 
 export interface ChannelHeaderProps {
+  workspaceId: string;
   channel: NetworkChannelSummary;
   detail: NetworkChannel | null;
   openWorkCount: number;
@@ -74,6 +74,7 @@ function buildMetaSegments({
 }
 
 export function ChannelHeader({
+  workspaceId,
   channel,
   detail,
   openWorkCount,
@@ -82,7 +83,7 @@ export function ChannelHeader({
 }: ChannelHeaderProps) {
   const queryClient = useQueryClient();
   const [overflowOpen, setOverflowOpen] = useState(false);
-  const members = useChannelMembers(channel.channel);
+  const members = useChannelMembers(channel.channel, { workspaceId });
   const metaSegments = buildMetaSegments({
     channel,
     detail,
@@ -92,7 +93,11 @@ export function ChannelHeader({
   });
 
   const handleRefresh = () => {
-    void queryClient.invalidateQueries({ queryKey: networkKeys.channelScope(channel.channel) });
+    if (workspaceId) {
+      void queryClient.invalidateQueries({
+        queryKey: networkKeys.channelScope(workspaceId, channel.channel),
+      });
+    }
     setOverflowOpen(false);
   };
 

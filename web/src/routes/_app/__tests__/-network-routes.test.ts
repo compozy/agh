@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { Route as NetworkLayoutRoute } from "../network";
-import { Route as NetworkActivityRoute } from "../network.$channel.activity";
-import { Route as NetworkDirectsRoute } from "../network.$channel.directs";
-import { Route as NetworkDirectDetailRoute } from "../network.$channel.directs.$directId";
-import { Route as NetworkThreadsRoute } from "../network.$channel.threads";
-import { Route as NetworkThreadDetailRoute } from "../network.$channel.threads.$threadId";
+import { Route as NetworkActivityRoute } from "../network.$workspaceId.$channel.activity";
+import { Route as NetworkDirectsRoute } from "../network.$workspaceId.$channel.directs";
+import { Route as NetworkDirectDetailRoute } from "../network.$workspaceId.$channel.directs.$directId";
+import { Route as NetworkThreadsRoute } from "../network.$workspaceId.$channel.threads";
+import { Route as NetworkThreadDetailRoute } from "../network.$workspaceId.$channel.threads.$threadId";
 import { routeTree } from "@/routeTree.gen";
 
 interface RouteShape {

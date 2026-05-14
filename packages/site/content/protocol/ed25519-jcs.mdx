@@ -213,8 +213,9 @@ patch-worker@56475aa75463474c0285df5dbf2bcab7
 
 ```json
 {
-  "protocol": "agh-network/v1",
+  "protocol": "agh-network/v0",
   "id": "msg_ed25519_jcs_01",
+  "workspace_id": "ws_alpha",
   "kind": "greet",
   "channel": "builders",
   "from": "patch-worker@56475aa75463474c0285df5dbf2bcab7",
@@ -228,7 +229,7 @@ patch-worker@56475aa75463474c0285df5dbf2bcab7
     "peer_card": {
       "peer_id": "patch-worker@56475aa75463474c0285df5dbf2bcab7",
       "display_name": "Patch Worker",
-      "profiles_supported": ["agh-network/v1", "agh-network.trust.ed25519-jcs/v1"],
+      "profiles_supported": ["agh-network/v0", "agh-network.trust.ed25519-jcs/v1"],
       "capabilities": ["test.run"],
       "artifacts_supported": ["capability"],
       "trust_modes_supported": ["verified"]
@@ -257,7 +258,7 @@ canonical form of the envelope above looks like:
       "capabilities": ["test.run"],
       "display_name": "Patch Worker",
       "peer_id": "patch-worker@56475aa75463474c0285df5dbf2bcab7",
-      "profiles_supported": ["agh-network/v1", "agh-network.trust.ed25519-jcs/v1"],
+      "profiles_supported": ["agh-network/v0", "agh-network.trust.ed25519-jcs/v1"],
       "trust_modes_supported": ["verified"]
     }
   },
@@ -267,6 +268,7 @@ canonical form of the envelope above looks like:
   "ext": {},
   "from": "patch-worker@56475aa75463474c0285df5dbf2bcab7",
   "id": "msg_ed25519_jcs_01",
+  "workspace_id": "ws_alpha",
   "kind": "greet",
   "proof": {
     "alg": "Ed25519",
@@ -274,7 +276,7 @@ canonical form of the envelope above looks like:
     "profile": "agh-network.trust.ed25519-jcs/v1",
     "pubkey": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg"
   },
-  "protocol": "agh-network/v1",
+  "protocol": "agh-network/v0",
   "reply_to": null,
   "to": null,
   "trace_id": "trace_ed25519_jcs_01",
@@ -300,8 +302,9 @@ A correct verifier MUST reproduce the canonical bytes from the unsigned envelope
 
 ```json
 {
-  "protocol": "agh-network/v1",
+  "protocol": "agh-network/v0",
   "id": "msg_ed25519_jcs_01",
+  "workspace_id": "ws_alpha",
   "kind": "greet",
   "channel": "builders",
   "from": "patch-worker@56475aa75463474c0285df5dbf2bcab7",
@@ -315,7 +318,7 @@ A correct verifier MUST reproduce the canonical bytes from the unsigned envelope
     "peer_card": {
       "peer_id": "patch-worker@56475aa75463474c0285df5dbf2bcab7",
       "display_name": "Patch Worker",
-      "profiles_supported": ["agh-network/v1", "agh-network.trust.ed25519-jcs/v1"],
+      "profiles_supported": ["agh-network/v0", "agh-network.trust.ed25519-jcs/v1"],
       "capabilities": ["test.run"],
       "artifacts_supported": ["capability"],
       "trust_modes_supported": ["verified"]

@@ -31,27 +31,52 @@ func TestNewTransportRejectsMissingRuntimeInputs(t *testing.T) {
 func TestTransportSubjectHelpers(t *testing.T) {
 	t.Parallel()
 
-	broadcast, err := BroadcastSubject("builders")
+	broadcast, err := BroadcastSubject(testWorkspaceID, "builders")
 	if err != nil {
 		t.Fatalf("BroadcastSubject() error = %v", err)
 	}
-	if got, want := broadcast, "agh.network.v0.builders.broadcast"; got != want {
+	if got, want := broadcast, "agh.network.v0.wks_test.builders.broadcast"; got != want {
 		t.Fatalf("BroadcastSubject() = %q, want %q", got, want)
 	}
 
-	direct, err := DirectSubject("builders", "reviewer.sess-xyz")
+	direct, err := DirectSubject(testWorkspaceID, "builders", "reviewer.sess-xyz")
 	if err != nil {
 		t.Fatalf("DirectSubject() error = %v", err)
 	}
-	if !strings.HasPrefix(direct, "agh.network.v0.builders.peer.") {
+	if !strings.HasPrefix(direct, "agh.network.v0.wks_test.builders.peer.") {
 		t.Fatalf("DirectSubject() = %q, want peer subject", direct)
 	}
 
-	if _, err := BroadcastSubject("Bad Channel"); err == nil {
+	if _, err := BroadcastSubject(testWorkspaceID, "Bad Channel"); err == nil {
 		t.Fatal("BroadcastSubject(invalid channel) error = nil, want non-nil")
 	}
-	if _, err := DirectSubject("builders", "BadPeer"); err == nil {
+	if _, err := BroadcastSubject("", "builders"); err == nil {
+		t.Fatal("BroadcastSubject(empty workspace) error = nil, want non-nil")
+	}
+	if _, err := BroadcastSubject("   ", "builders"); err == nil {
+		t.Fatal("BroadcastSubject(blank workspace) error = nil, want non-nil")
+	}
+	if _, err := DirectSubject(testWorkspaceID, "builders", "BadPeer"); err == nil {
 		t.Fatal("DirectSubject(invalid peer) error = nil, want non-nil")
+	}
+	if _, err := DirectSubject("", "builders", "reviewer.sess-xyz"); err == nil {
+		t.Fatal("DirectSubject(empty workspace) error = nil, want non-nil")
+	}
+
+	otherBroadcast, err := BroadcastSubject("wks_other", "builders")
+	if err != nil {
+		t.Fatalf("BroadcastSubject(other workspace) error = %v", err)
+	}
+	if otherBroadcast == broadcast {
+		t.Fatalf("BroadcastSubject(other workspace) = %q, want workspace-qualified subject", otherBroadcast)
+	}
+
+	otherDirect, err := DirectSubject("wks_other", "builders", "reviewer.sess-xyz")
+	if err != nil {
+		t.Fatalf("DirectSubject(other workspace) error = %v", err)
+	}
+	if otherDirect == direct {
+		t.Fatalf("DirectSubject(other workspace) = %q, want workspace-qualified subject", otherDirect)
 	}
 }
 
@@ -94,7 +119,7 @@ func TestTransportLifecycleAndMethodGuards(t *testing.T) {
 		t.Fatalf("resolvedTransportPort(nil) = %d, want 0", got)
 	}
 
-	subject, err := BroadcastSubject("builders")
+	subject, err := BroadcastSubject(testWorkspaceID, "builders")
 	if err != nil {
 		t.Fatalf("BroadcastSubject() error = %v", err)
 	}

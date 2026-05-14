@@ -3,6 +3,7 @@ import { useChildMatches, useNavigate, useParams } from "@tanstack/react-router"
 
 import type { ChannelTab } from "../components/shell/channel-tabs-types";
 import type { NetworkChannelSummary, NetworkRecentEntry } from "../types";
+import { useActiveWorkspace } from "@/systems/workspace";
 import { useLastRead } from "./use-last-read";
 import { useNetworkPage, type UseNetworkPageResult } from "./use-network-page";
 
@@ -29,15 +30,18 @@ export interface NetworkRouteShellResult {
   activeThreadId: string | null;
   /** Active direct-room route id when the URL targets `/directs/$directId`. */
   activeDirectId: string | null;
+  activeWorkspaceId: string | null;
   hasUnread: (channelId: string) => boolean;
 }
 
 export function useNetworkRouteShell(): NetworkRouteShellResult {
   const page = useNetworkPage();
+  const { activeWorkspaceId, setActiveWorkspaceId } = useActiveWorkspace();
   const { lastReadAt } = useLastRead();
   const navigate = useNavigate();
   const childMatches = useChildMatches();
   const childParams = useParams({ strict: false }) as {
+    workspaceId?: string;
     channel?: string;
     threadId?: string;
     directId?: string;
@@ -45,19 +49,37 @@ export function useNetworkRouteShell(): NetworkRouteShellResult {
   const childPathname = childMatches.at(-1)?.pathname ?? "";
 
   useEffect(() => {
-    if (childParams.channel != null) {
+    if (!childParams.workspaceId || childParams.workspaceId === activeWorkspaceId) {
+      return;
+    }
+    setActiveWorkspaceId(childParams.workspaceId);
+  }, [activeWorkspaceId, childParams.workspaceId, setActiveWorkspaceId]);
+
+  useEffect(() => {
+    if (childParams.workspaceId != null && childParams.channel != null) {
       return;
     }
     const target = page.firstVisibleChannel?.channel;
-    if (!target) {
+    if (!target || !activeWorkspaceId) {
       return;
     }
-    void navigate({ params: { channel: target }, to: "/network/$channel/threads" });
-  }, [childParams.channel, navigate, page.firstVisibleChannel]);
+    void navigate({
+      params: { workspaceId: activeWorkspaceId, channel: target },
+      to: "/network/$workspaceId/$channel/threads",
+    });
+  }, [
+    activeWorkspaceId,
+    childParams.channel,
+    childParams.workspaceId,
+    navigate,
+    page.firstVisibleChannel,
+  ]);
 
   return useMemo(() => {
     const activeChannel =
-      page.channels.find(channel => channel.channel === childParams.channel) ?? null;
+      childParams.workspaceId === activeWorkspaceId
+        ? (page.channels.find(channel => channel.channel === childParams.channel) ?? null)
+        : null;
     const activeTab = detectActiveTab(childPathname);
     const activeThreadId = childParams.threadId ?? null;
     const activeDirectId = childParams.directId ?? null;
@@ -68,6 +90,7 @@ export function useNetworkRouteShell(): NetworkRouteShellResult {
       activeTab,
       activeThreadId,
       activeDirectId,
+      activeWorkspaceId,
       hasUnread: (channelId: string): boolean => {
         const summary = page.channels.find(channel => channel.channel === channelId);
         if (!summary?.last_activity_at) {
@@ -100,7 +123,16 @@ export function useNetworkRouteShell(): NetworkRouteShellResult {
         return lastActivityMs > lastReadMs;
       },
     };
-  }, [childParams.channel, childPathname, lastReadAt, page]);
+  }, [
+    activeWorkspaceId,
+    childParams.channel,
+    childParams.workspaceId,
+    childParams.threadId,
+    childParams.directId,
+    childPathname,
+    lastReadAt,
+    page,
+  ]);
 }
 
 export type { NetworkRecentEntry };

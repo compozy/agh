@@ -21,6 +21,7 @@ import { DirectsEmpty } from "../empty-states/directs-empty";
 import { MessageAvatar } from "../timeline/message-avatar";
 
 export interface DirectsListProps {
+  workspaceId: string;
   channel: string;
   directs: ReadonlyArray<NetworkDirectRoomSummary>;
   activeDirectId: string | null;
@@ -42,6 +43,7 @@ function pickOtherPeerId(direct: NetworkDirectRoomSummary, selfPeerId?: string):
 }
 
 interface DirectsListRowProps {
+  workspaceId: string;
   channel: string;
   direct: NetworkDirectRoomSummary;
   active: boolean;
@@ -49,7 +51,14 @@ interface DirectsListRowProps {
   role?: ChannelMemberRole;
 }
 
-function DirectsListRow({ channel, direct, active, selfPeerId, role }: DirectsListRowProps) {
+function DirectsListRow({
+  workspaceId,
+  channel,
+  direct,
+  active,
+  selfPeerId,
+  role,
+}: DirectsListRowProps) {
   const otherPeerId = pickOtherPeerId(direct, selfPeerId);
   const lastActivity = formatNetworkRelativeTime(direct.last_activity_at ?? null);
   const avatarRole = role === "human" ? "human" : "agent";
@@ -62,8 +71,8 @@ function DirectsListRow({ channel, direct, active, selfPeerId, role }: DirectsLi
       indicator={active ? "rail" : "none"}
       render={
         <Link
-          params={{ channel, directId: direct.direct_id }}
-          to="/network/$channel/directs/$directId"
+          params={{ workspaceId, channel, directId: direct.direct_id }}
+          to="/network/$workspaceId/$channel/directs/$directId"
         />
       }
       selectable
@@ -136,6 +145,7 @@ function buildRoleLookup(
 }
 
 export function DirectsList({
+  workspaceId,
   channel,
   directs,
   activeDirectId,
@@ -175,6 +185,7 @@ export function DirectsList({
             key={direct.direct_id}
             role={roleByPeerId.get(otherPeerId)}
             selfPeerId={selfPeerId}
+            workspaceId={workspaceId}
           />
         );
       })}

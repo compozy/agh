@@ -157,12 +157,13 @@ var authoredContextOperationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "POST",
-		Path:        "/api/sessions/{session_id}/soul/refresh",
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/soul/refresh",
 		OperationID: "refreshSessionSoul",
 		Summary:     "Refresh an idle session's Soul snapshot through body-level CAS",
 		Tags:        []string{"sessions"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
 			pathParam("session_id", "Session id"),
 		},
 		RequestBody: contract.SessionSoulRefreshRequest{},
@@ -346,12 +347,13 @@ var authoredContextOperationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "GET",
-		Path:        "/api/sessions/{session_id}/health",
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/health",
 		OperationID: "getSessionHealth",
 		Summary:     "Read metadata-only session health and wake eligibility",
 		Tags:        []string{"sessions"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
 			pathParam("session_id", "Session id"),
 		},
 		Responses: []ResponseSpec{
@@ -363,12 +365,13 @@ var authoredContextOperationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "GET",
-		Path:        "/api/sessions/{session_id}/status",
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/status",
 		OperationID: "getSessionStatus",
 		Summary:     "Read compact session status and wake eligibility",
 		Tags:        []string{"sessions"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
 			pathParam("session_id", "Session id"),
 		},
 		Responses: []ResponseSpec{
@@ -380,12 +383,13 @@ var authoredContextOperationRegistry = []OperationSpec{
 	},
 	{
 		Method:      "GET",
-		Path:        "/api/sessions/{session_id}/inspect",
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/inspect",
 		OperationID: "inspectSession",
 		Summary:     "Inspect session health, wake audit, and policy correlation metadata",
 		Tags:        []string{"sessions"},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
 			pathParam("session_id", "Session id"),
 			boolQueryParam("include_recent_wake_events", "Include recent wake audit rows"),
 		},

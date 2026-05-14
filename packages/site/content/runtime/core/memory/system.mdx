@@ -248,8 +248,8 @@ Memory is reachable from CLI, HTTP, UDS, and native tools with parity. The Slice
 | Provider select    | n/a                                                            | `POST /api/memory/providers/select`                                       | `agh__memory_provider_select`                           |
 | Provider enable    | `agh memory provider enable <name>`                            | `POST /api/memory/providers/{provider_name}/enable`                       | `agh__memory_provider_enable`                           |
 | Provider disable   | `agh memory provider disable <name>`                           | `POST /api/memory/providers/{provider_name}/disable`                      | `agh__memory_provider_disable`                          |
-| Session ledger     | n/a                                                            | `GET /api/memory/sessions/{session_id}/ledger`                            | `agh__memory_session_ledger`                            |
-| Session replay     | n/a                                                            | `POST /api/memory/sessions/{session_id}/replay`                           | `agh__memory_session_replay`                            |
+| Session ledger     | n/a                                                            | `GET /api/workspaces/{workspace_id}/memory/sessions/{session_id}/ledger`  | `agh__memory_session_ledger`                            |
+| Session replay     | n/a                                                            | `POST /api/workspaces/{workspace_id}/memory/sessions/{session_id}/replay` | `agh__memory_session_replay`                            |
 | Session prune      | n/a                                                            | `POST /api/memory/sessions/prune`                                         | `agh__memory_sessions_prune`                            |
 | Session repair     | n/a                                                            | `POST /api/memory/sessions/repair`                                        | `agh__memory_sessions_repair`                           |
 

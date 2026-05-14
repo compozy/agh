@@ -26,7 +26,7 @@ func TestEmbeddedTransportLifecycle(t *testing.T) {
 		t.Fatalf("NewTransport() error = %v", err)
 	}
 
-	subject, err := BroadcastSubject("builders")
+	subject, err := BroadcastSubject(testWorkspaceID, "builders")
 	if err != nil {
 		t.Fatalf("BroadcastSubject() error = %v", err)
 	}
@@ -94,7 +94,11 @@ func TestAuditWriterPersistsToDatabaseAndFileWithoutLeakingBrokerToken(t *testin
 		t.Fatalf("RecordRejected() error = %v", err)
 	}
 
-	entries, err := db.ListNetworkAudit(ctx, store.NetworkAuditQuery{SessionID: sessionID, Limit: 10})
+	entries, err := db.ListNetworkAudit(ctx, store.NetworkAuditQuery{
+		WorkspaceID: testWorkspaceID,
+		SessionID:   sessionID,
+		Limit:       10,
+	})
 	if err != nil {
 		t.Fatalf("ListNetworkAudit() error = %v", err)
 	}
@@ -146,7 +150,7 @@ func openNetworkAuditIntegrationDB(t *testing.T) (*globaldb.GlobalDB, string) {
 	}
 
 	workspace := aghworkspace.Workspace{
-		ID:        "ws-network-audit",
+		ID:        testWorkspaceID,
 		RootDir:   workspaceRoot,
 		Name:      "network-audit",
 		CreatedAt: time.Date(2026, 4, 10, 11, 0, 0, 0, time.UTC),

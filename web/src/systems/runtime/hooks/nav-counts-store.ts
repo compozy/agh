@@ -106,7 +106,8 @@ export interface NavCountsTimerAPI {
 
 export interface NavCountsStoreOptions {
   eventSourceFactory?: NavCountsEventSourceFactory;
-  observeStreamUrl?: string;
+  observeStreamUrl?: string | null;
+  workspaceId?: string | null;
   fetchers?: NavCountFetchers;
   now?: () => number;
   pollIntervalMs?: number;
@@ -118,15 +119,19 @@ export interface NavCountsStoreOptions {
 
 export type NavCountsStore = StoreApi<NavCountsState>;
 
-const DEFAULT_OBSERVE_STREAM_URL = "/api/observe/events/stream";
+const DEFAULT_OBSERVE_STREAM_URL: string | null = null;
 const DEFAULT_POLL_INTERVAL_MS = 5_000;
 const DEFAULT_HEARTBEAT_WINDOW_MS = 5_000;
 const DEFAULT_STALE_CHECK_INTERVAL_MS = 1_000;
 
 export function createNavCountsStore(options: NavCountsStoreOptions = {}): NavCountsStore {
   const eventSourceFactory = options.eventSourceFactory ?? defaultEventSourceFactory;
-  const observeStreamUrl = options.observeStreamUrl ?? DEFAULT_OBSERVE_STREAM_URL;
-  const fetchers = options.fetchers ?? createDefaultFetchers();
+  const observeStreamUrl =
+    options.observeStreamUrl ??
+    (options.workspaceId
+      ? observeStreamUrlForWorkspace(options.workspaceId)
+      : DEFAULT_OBSERVE_STREAM_URL);
+  const fetchers = options.fetchers ?? createDefaultFetchers(options.workspaceId);
   const now = options.now ?? defaultNow;
   const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
   const heartbeatWindowMs = options.heartbeatWindowMs ?? DEFAULT_HEARTBEAT_WINDOW_MS;
@@ -220,6 +225,10 @@ export function createNavCountsStore(options: NavCountsStoreOptions = {}): NavCo
   }
 
   function openEventSource() {
+    if (!observeStreamUrl) {
+      sseConnected = false;
+      return;
+    }
     try {
       const source = eventSourceFactory(observeStreamUrl);
       eventSource = source;
@@ -374,10 +383,17 @@ function defaultLogger(message: string, err: unknown): void {
  * Exported for test coverage of the per-endpoint mapping; runtime callers
  * receive these automatically via createNavCountsStore() without override.
  */
-export function createDefaultFetchers(): NavCountFetchers {
+export function observeStreamUrlForWorkspace(workspaceId: string): string {
+  return `/api/workspaces/${encodeURIComponent(workspaceId)}/observe/events/stream`;
+}
+
+export function createDefaultFetchers(workspaceId?: string | null): NavCountFetchers {
   return {
     tasks: async signal => {
       const { data, error, response } = await apiClient.GET("/api/observe/tasks/dashboard", {
+        params: workspaceId
+          ? { query: { scope: "workspace" as const, workspace: workspaceId } }
+          : undefined,
         signal,
       });
       if (apiRequestFailed(response, error)) {
@@ -441,17 +457,27 @@ export function createDefaultFetchers(): NavCountFetchers {
   };
 }
 
-let processSingleton: NavCountsStore | null = null;
+const processSingletons = new Map<string, NavCountsStore>();
 
 /** Process-wide singleton store used by useNavCounts(). */
-export function getNavCountsStore(): NavCountsStore {
-  if (!processSingleton) {
-    processSingleton = createNavCountsStore();
+export function getNavCountsStore(workspaceId?: string | null): NavCountsStore {
+  const key = workspaceId ?? "";
+  const existing = processSingletons.get(key);
+  if (existing) {
+    return existing;
   }
-  return processSingleton;
+  const store = createNavCountsStore({
+    workspaceId,
+    observeStreamUrl: workspaceId ? observeStreamUrlForWorkspace(workspaceId) : null,
+  });
+  processSingletons.set(key, store);
+  return store;
 }
 
 /** Test helper: replace the singleton (or reset it) before mounting consumers. */
 export function setNavCountsStoreForTests(store: NavCountsStore | null): void {
-  processSingleton = store;
+  processSingletons.clear();
+  if (store) {
+    processSingletons.set("", store);
+  }
 }

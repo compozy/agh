@@ -41,13 +41,14 @@ type AuditWriter interface {
 // TaskIngressAudit captures one task-domain ingress decision originating from a
 // validated network peer.
 type TaskIngressAudit struct {
-	Action    string
-	Direction string
-	PeerID    string
-	Channel   string
-	RequestID string
-	Reason    string
-	Payload   any
+	Action      string
+	Direction   string
+	PeerID      string
+	WorkspaceID string
+	Channel     string
+	RequestID   string
+	Reason      string
+	Payload     any
 }
 
 // TaskIngressAuditWriter is the optional audit extension used by task-aware
@@ -212,21 +213,22 @@ func NormalizeAuditEntry(
 	}
 
 	entry := store.NetworkAuditEntry{
-		ID:        store.NewID("naud"),
-		SessionID: strings.TrimSpace(sessionID),
-		Direction: strings.TrimSpace(direction),
-		Kind:      strings.TrimSpace(string(envelope.Kind)),
-		Channel:   strings.TrimSpace(envelope.Channel),
-		Surface:   trimmedSurfaceValue(envelope.Surface),
-		ThreadID:  trimmedPointerValue(envelope.ThreadID),
-		DirectID:  trimmedPointerValue(envelope.DirectID),
-		WorkID:    trimmedPointerValue(envelope.WorkID),
-		PeerFrom:  strings.TrimSpace(envelope.From),
-		PeerTo:    peerTo,
-		MessageID: strings.TrimSpace(envelope.ID),
-		Reason:    strings.TrimSpace(reason),
-		Size:      len(canonicalEnvelope),
-		Timestamp: at.UTC(),
+		ID:          store.NewID("naud"),
+		SessionID:   strings.TrimSpace(sessionID),
+		WorkspaceID: strings.TrimSpace(envelope.WorkspaceID),
+		Direction:   strings.TrimSpace(direction),
+		Kind:        strings.TrimSpace(string(envelope.Kind)),
+		Channel:     strings.TrimSpace(envelope.Channel),
+		Surface:     trimmedSurfaceValue(envelope.Surface),
+		ThreadID:    trimmedPointerValue(envelope.ThreadID),
+		DirectID:    trimmedPointerValue(envelope.DirectID),
+		WorkID:      trimmedPointerValue(envelope.WorkID),
+		PeerFrom:    strings.TrimSpace(envelope.From),
+		PeerTo:      peerTo,
+		MessageID:   strings.TrimSpace(envelope.ID),
+		Reason:      strings.TrimSpace(reason),
+		Size:        len(canonicalEnvelope),
+		Timestamp:   at.UTC(),
 	}
 	if err := entry.Validate(); err != nil {
 		return store.NetworkAuditEntry{}, err
@@ -262,6 +264,7 @@ func normalizeTimelineMessageEntry(
 	entry := store.NetworkMessageEntry{
 		MessageID:   strings.TrimSpace(envelope.ID),
 		SessionID:   strings.TrimSpace(sessionID),
+		WorkspaceID: strings.TrimSpace(envelope.WorkspaceID),
 		Channel:     strings.TrimSpace(envelope.Channel),
 		Surface:     trimmedSurfaceValue(envelope.Surface),
 		ThreadID:    trimmedPointerValue(envelope.ThreadID),
@@ -302,16 +305,17 @@ func normalizeTaskIngressAuditEntry(audit TaskIngressAudit, at time.Time) (store
 	}
 
 	entry := store.NetworkAuditEntry{
-		ID:        store.NewID("naud"),
-		SessionID: "netpeer:" + strings.TrimSpace(audit.PeerID),
-		Direction: strings.TrimSpace(audit.Direction),
-		Kind:      strings.TrimSpace(audit.Action),
-		Channel:   strings.TrimSpace(audit.Channel),
-		PeerFrom:  strings.TrimSpace(audit.PeerID),
-		MessageID: strings.TrimSpace(audit.RequestID),
-		Reason:    strings.TrimSpace(audit.Reason),
-		Size:      payloadSize,
-		Timestamp: at.UTC(),
+		ID:          store.NewID("naud"),
+		SessionID:   "netpeer:" + strings.TrimSpace(audit.PeerID),
+		WorkspaceID: strings.TrimSpace(audit.WorkspaceID),
+		Direction:   strings.TrimSpace(audit.Direction),
+		Kind:        strings.TrimSpace(audit.Action),
+		Channel:     strings.TrimSpace(audit.Channel),
+		PeerFrom:    strings.TrimSpace(audit.PeerID),
+		MessageID:   strings.TrimSpace(audit.RequestID),
+		Reason:      strings.TrimSpace(audit.Reason),
+		Size:        payloadSize,
+		Timestamp:   at.UTC(),
 	}
 	if err := entry.Validate(); err != nil {
 		return store.NetworkAuditEntry{}, fmt.Errorf("network: validate audit entry: %w", err)

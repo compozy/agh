@@ -545,7 +545,11 @@ func (s *daemonMemoryProposalSink) resolveWorkspace(
 	}
 	workspaceID = strings.TrimSpace(candidate.WorkspaceID)
 	if root != "" {
-		return root, workspaceID, nil
+		identity, identityErr := workspacepkg.EnsureIdentity(ctx, root)
+		if identityErr != nil {
+			return "", "", fmt.Errorf("daemon: resolve memory candidate workspace identity: %w", identityErr)
+		}
+		return root, identity.WorkspaceID, nil
 	}
 	if workspaceID == "" {
 		return "", "", errors.New("daemon: workspace memory candidate requires workspace id")

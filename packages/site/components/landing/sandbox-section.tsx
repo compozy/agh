@@ -30,7 +30,7 @@ const CARDS = [
 function SandboxDiagram() {
   return (
     <div
-      className="relative min-h-90 overflow-hidden rounded-(--radius-diagram) border border-line bg-canvas-soft p-5"
+      className="relative min-h-90 overflow-hidden rounded-diagram border border-line bg-canvas-soft p-5"
       aria-label="AGH sandbox lifecycle diagram"
       role="img"
     >
@@ -107,10 +107,7 @@ export function SandboxSection() {
       <div className="mt-12 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.9fr)] lg:items-stretch">
         <div className="grid gap-4">
           {CARDS.map(card => (
-            <article
-              key={card.eyebrow}
-              className="rounded-(--radius-card) border border-line bg-canvas p-5"
-            >
+            <article key={card.eyebrow} className="rounded-md border border-line bg-canvas p-5">
               <div className="flex items-center gap-3">
                 <span className="inline-flex size-8 items-center justify-center rounded-mono-badge border border-line text-accent">
                   {card.icon}

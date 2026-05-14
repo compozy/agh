@@ -113,7 +113,7 @@ The approval request body accepts these decisions:
 Example HTTP approval:
 
 ```bash
-curl -X POST http://localhost:2123/api/sessions/sess-1234/approve \
+curl -X POST http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/approve \
   -H "Content-Type: application/json" \
   -d '{
     "request_id": "req-42",
@@ -177,11 +177,11 @@ yet. The resolved decision appears when approval completes.
 
 Interactive approval is exposed differently across AGH transports today:
 
-| Transport | Status                                          |
-| --------- | ----------------------------------------------- |
-| HTTP      | implemented at `POST /api/sessions/:id/approve` |
-| UDS       | implemented at `POST /api/sessions/:id/approve` |
-| CLI       | implemented at `agh session approve <id>`       |
+| Transport | Status                                                                           |
+| --------- | -------------------------------------------------------------------------------- |
+| HTTP      | implemented at `POST /api/workspaces/:workspace_id/sessions/:session_id/approve` |
+| UDS       | implemented at `POST /api/workspaces/:workspace_id/sessions/:session_id/approve` |
+| CLI       | implemented at `agh session approve <id>`                                        |
 
 That means browser-facing clients, UDS clients, and the local CLI all drive the same approval
 surface today.

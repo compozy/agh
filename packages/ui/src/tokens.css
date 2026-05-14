@@ -167,22 +167,22 @@
   --font-weight-bold: 700;
 
   /* Type scale shared with both web and site surfaces. */
-  --text-item-title: 0.9375rem;
+  --text-item-title: 0.9375rem; /* 15px */
   --text-item-title--line-height: 1.375rem;
-  --text-small-body: 0.8125rem;
+  --text-small-body: 0.8125rem; /* 13px */
   --text-small-body--line-height: 1.125rem;
-  --text-badge: 0.625rem;
+  --text-badge: 0.625rem; /* 10px */
   --text-badge--line-height: 0.75rem;
-  --text-eyebrow: 0.6875rem;
+  --text-eyebrow: 0.6875rem; /* 11px */
   --text-eyebrow--line-height: 1rem;
-  --text-display-2xl: 1.75rem;
+  --text-display-2xl: 1.75rem; /* 28px */
   --text-display-2xl--line-height: 1;
-  --text-site-lead: 1.1875rem;
+  --text-site-lead: 1.1875rem; /* 19px */
   --text-site-lead--line-height: 1.5;
-  --text-micro: 0.5625rem;
+  --text-micro: 0.5625rem; /* 9px */
   --text-micro--line-height: 0.75rem;
-  --text-inline-code: 0.9em;
-  --text-accent-glyph: 0.85em;
+  --text-inline-code: 0.9em; /* 14.4px */
+  --text-accent-glyph: 0.85em; /* 13.6px */
   --text-ui-title-lg: 1.35rem;
 
   /* Type ladder additions. */
@@ -290,6 +290,9 @@
   --height-pill-xs: 17px;
   --height-pill-sm: 19px;
   --height-pill-md: 22px;
+
+  /* Sidebar nav row — leaf links and folder headers share one height. */
+  --height-sidebar-row: 28px;
 
   /* Tabs list + count chip + tab underline. */
   --height-tabs-list: 40px;

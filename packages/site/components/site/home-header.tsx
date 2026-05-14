@@ -54,7 +54,7 @@ export function HomeHeader(props: ComponentProps<"header">) {
         props.className
       )}
     >
-      <div className="mx-auto flex h-14 w-full max-w-(--site-layout-width) items-center gap-3 lg:gap-5">
+      <div className="mx-auto flex h-14 w-full max-w-site-layout-width items-center gap-3 lg:gap-5">
         <Link href="/" aria-label="AGH home" className="shrink-0">
           <Logo variant="logo" decorative className="h-8 w-auto" />
         </Link>
@@ -106,7 +106,7 @@ export function HomeHeader(props: ComponentProps<"header">) {
       </div>
 
       <div className="border-t border-line md:hidden">
-        <nav className="mx-auto flex w-full max-w-(--site-layout-width) items-center gap-1 overflow-x-auto px-4 py-2">
+        <nav className="mx-auto flex w-full max-w-site-layout-width items-center gap-1 overflow-x-auto px-4 py-2">
           {primaryLinks.map(link => (
             <HeaderLink key={link.href} href={link.href} label={link.label} pathname={pathname} />
           ))}

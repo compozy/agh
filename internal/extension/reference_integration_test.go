@@ -478,7 +478,7 @@ func (h *referenceHarness) hookRuns(t *testing.T, sessionID string, last int) []
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	runs, err := h.client.HookRuns(ctx, cli.HookRunsQuery{
+	runs, err := h.client.HookRuns(ctx, h.workspace.WorkspaceID, cli.HookRunsQuery{
 		Session: sessionID,
 		Last:    last,
 	})

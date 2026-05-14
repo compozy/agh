@@ -80,11 +80,18 @@ vi.mock("../../../hooks/use-active-session", () => ({
 
 import { ThreadOverlay } from "../thread-overlay";
 
+const WORKSPACE_ID = "ws_alpha";
+
 function renderOverlay({ fullPage = false }: { fullPage?: boolean } = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <ThreadOverlay channel="ops" fullPage={fullPage} threadId="thread-test" />
+      <ThreadOverlay
+        workspaceId={WORKSPACE_ID}
+        channel="ops"
+        fullPage={fullPage}
+        threadId="thread-test"
+      />
     </QueryClientProvider>
   );
 }
@@ -126,8 +133,8 @@ describe("ThreadOverlay", () => {
     const user = userEvent.setup();
     await user.click(screen.getByTestId("network-thread-overlay-close"));
     expect(navigateMock).toHaveBeenCalledWith({
-      params: { channel: "ops" },
-      to: "/network/$channel/threads",
+      params: { workspaceId: WORKSPACE_ID, channel: "ops" },
+      to: "/network/$workspaceId/$channel/threads",
     });
   });
 
@@ -136,8 +143,8 @@ describe("ThreadOverlay", () => {
     renderOverlay({ fullPage: false });
     fireEvent.keyDown(window, { key: "Escape" });
     expect(navigateMock).toHaveBeenCalledWith({
-      params: { channel: "ops" },
-      to: "/network/$channel/threads",
+      params: { workspaceId: WORKSPACE_ID, channel: "ops" },
+      to: "/network/$workspaceId/$channel/threads",
     });
   });
 

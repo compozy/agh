@@ -24,13 +24,17 @@ func (h *BaseHandlers) NetworkThreads(c *gin.Context) {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
+	scope, ok := h.resolveWorkspaceScope(c)
+	if !ok {
+		return
+	}
 	query, err := parseNetworkThreadQuery(c)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
 
-	threads, err := networkStore.ListThreads(c.Request.Context(), channel, query)
+	threads, err := networkStore.ListThreads(c.Request.Context(), scope.NetworkChannelRef(channel), query)
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
@@ -50,13 +54,17 @@ func (h *BaseHandlers) NetworkThread(c *gin.Context) {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
+	scope, ok := h.resolveWorkspaceScope(c)
+	if !ok {
+		return
+	}
 	threadID := strings.TrimSpace(c.Param("thread_id"))
 	if err := network.ValidateConversationID(threadID, "thread_id"); err != nil {
 		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
 		return
 	}
 
-	thread, err := h.NetworkStore.GetThread(c.Request.Context(), channel, threadID)
+	thread, err := h.NetworkStore.GetThread(c.Request.Context(), scope.NetworkChannelRef(channel), threadID)
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
@@ -76,11 +84,16 @@ func (h *BaseHandlers) NetworkThreadMessages(c *gin.Context) {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
+	scope, ok := h.resolveWorkspaceScope(c)
+	if !ok {
+		return
+	}
 	threadID := strings.TrimSpace(c.Param("thread_id"))
 	ref := store.NetworkConversationRef{
-		Channel:  channel,
-		Surface:  store.NetworkSurfaceThread,
-		ThreadID: threadID,
+		WorkspaceID: scope.ID,
+		Channel:     channel,
+		Surface:     store.NetworkSurfaceThread,
+		ThreadID:    threadID,
 	}
 	h.respondNetworkConversationMessages(c, ref)
 }
@@ -95,13 +108,17 @@ func (h *BaseHandlers) NetworkDirectRooms(c *gin.Context) {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
+	scope, ok := h.resolveWorkspaceScope(c)
+	if !ok {
+		return
+	}
 	query, err := parseNetworkDirectRoomQuery(c)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
 
-	directs, err := h.NetworkStore.ListDirectRooms(c.Request.Context(), channel, query)
+	directs, err := h.NetworkStore.ListDirectRooms(c.Request.Context(), scope.NetworkChannelRef(channel), query)
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
@@ -120,6 +137,10 @@ func (h *BaseHandlers) ResolveNetworkDirectRoom(c *gin.Context) {
 	channel, err := normalizeNetworkChannel(c.Param("channel"))
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
+		return
+	}
+	scope, ok := h.resolveWorkspaceScope(c)
+	if !ok {
 		return
 	}
 
@@ -143,18 +164,26 @@ func (h *BaseHandlers) ResolveNetworkDirectRoom(c *gin.Context) {
 		return
 	}
 
-	localPeer, remotePeer, err := h.resolveDirectRoomPeers(c.Request.Context(), service, channel, sessionID, peerID)
+	localPeer, remotePeer, err := h.resolveDirectRoomPeers(
+		c.Request.Context(),
+		service,
+		scope.ID,
+		channel,
+		sessionID,
+		peerID,
+	)
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
-	directID, peerA, peerB, err := network.DirectRoomIdentity(channel, localPeer.PeerID, remotePeer.PeerID)
+	directID, peerA, peerB, err := network.DirectRoomIdentity(scope.ID, channel, localPeer.PeerID, remotePeer.PeerID)
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
 	now := h.nowUTC()
 	direct, err := h.NetworkStore.ResolveDirectRoom(c.Request.Context(), store.NetworkDirectRoomEntry{
+		WorkspaceID:    scope.ID,
 		Channel:        channel,
 		DirectID:       directID,
 		PeerA:          peerA,
@@ -181,13 +210,17 @@ func (h *BaseHandlers) NetworkDirectRoom(c *gin.Context) {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
+	scope, ok := h.resolveWorkspaceScope(c)
+	if !ok {
+		return
+	}
 	directID := strings.TrimSpace(c.Param("direct_id"))
 	if err := network.ValidateConversationID(directID, "direct_id"); err != nil {
 		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
 		return
 	}
 
-	direct, err := h.NetworkStore.GetDirectRoom(c.Request.Context(), channel, directID)
+	direct, err := h.NetworkStore.GetDirectRoom(c.Request.Context(), scope.NetworkChannelRef(channel), directID)
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
@@ -207,11 +240,16 @@ func (h *BaseHandlers) NetworkDirectRoomMessages(c *gin.Context) {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
+	scope, ok := h.resolveWorkspaceScope(c)
+	if !ok {
+		return
+	}
 	directID := strings.TrimSpace(c.Param("direct_id"))
 	ref := store.NetworkConversationRef{
-		Channel:  channel,
-		Surface:  store.NetworkSurfaceDirect,
-		DirectID: directID,
+		WorkspaceID: scope.ID,
+		Channel:     channel,
+		Surface:     store.NetworkSurfaceDirect,
+		DirectID:    directID,
 	}
 	h.respondNetworkConversationMessages(c, ref)
 }
@@ -226,7 +264,11 @@ func (h *BaseHandlers) NetworkWork(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
 		return
 	}
-	work, err := h.NetworkStore.GetWork(c.Request.Context(), workID)
+	scope, ok := h.resolveWorkspaceScope(c)
+	if !ok {
+		return
+	}
+	work, err := h.NetworkStore.GetWork(c.Request.Context(), scope.ID, workID)
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
@@ -276,11 +318,12 @@ func (h *BaseHandlers) respondNetworkConversationMessages(c *gin.Context, ref st
 func (h *BaseHandlers) resolveDirectRoomPeers(
 	ctx context.Context,
 	service NetworkService,
+	workspaceID string,
 	channel string,
 	sessionID string,
 	peerID string,
 ) (network.PeerInfo, network.PeerInfo, error) {
-	peers, err := service.ListPeers(ctx, channel)
+	peers, err := service.ListPeers(ctx, workspaceID, channel)
 	if err != nil {
 		return network.PeerInfo{}, network.PeerInfo{}, err
 	}
@@ -380,6 +423,7 @@ func NetworkThreadSummaryPayloadsFromStore(
 // NetworkThreadSummaryPayloadFromStore converts one stored thread summary into a public payload.
 func NetworkThreadSummaryPayloadFromStore(thread store.NetworkThreadSummary) contract.NetworkThreadSummaryPayload {
 	return contract.NetworkThreadSummaryPayload{
+		WorkspaceID:        strings.TrimSpace(thread.WorkspaceID),
 		Channel:            strings.TrimSpace(thread.Channel),
 		ThreadID:           strings.TrimSpace(thread.ThreadID),
 		RootMessageID:      strings.TrimSpace(thread.RootMessageID),
@@ -409,6 +453,7 @@ func NetworkDirectRoomPayloadsFromStore(
 // NetworkDirectRoomPayloadFromStore converts one stored direct-room summary into a public payload.
 func NetworkDirectRoomPayloadFromStore(direct store.NetworkDirectRoomSummary) contract.NetworkDirectRoomPayload {
 	return contract.NetworkDirectRoomPayload{
+		WorkspaceID:        strings.TrimSpace(direct.WorkspaceID),
 		Channel:            strings.TrimSpace(direct.Channel),
 		DirectID:           strings.TrimSpace(direct.DirectID),
 		PeerA:              strings.TrimSpace(direct.PeerA),
@@ -438,6 +483,7 @@ func NetworkConversationMessagePayloadFromStore(
 ) contract.NetworkConversationMessagePayload {
 	return contract.NetworkConversationMessagePayload{
 		MessageID:   strings.TrimSpace(message.MessageID),
+		WorkspaceID: strings.TrimSpace(message.WorkspaceID),
 		Channel:     strings.TrimSpace(message.Channel),
 		Surface:     strings.TrimSpace(message.Surface),
 		ThreadID:    strings.TrimSpace(message.ThreadID),
@@ -463,6 +509,7 @@ func NetworkConversationMessagePayloadFromStore(
 func NetworkWorkPayloadFromStore(work store.NetworkWorkEntry) contract.NetworkWorkPayload {
 	return contract.NetworkWorkPayload{
 		WorkID:          strings.TrimSpace(work.WorkID),
+		WorkspaceID:     strings.TrimSpace(work.WorkspaceID),
 		Channel:         strings.TrimSpace(work.Channel),
 		Surface:         strings.TrimSpace(work.Surface),
 		ThreadID:        strings.TrimSpace(work.ThreadID),

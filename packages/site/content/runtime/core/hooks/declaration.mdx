@@ -313,7 +313,7 @@ Inspect the resolved catalog and execution history through the parallel CLI and 
 ```bash
 agh hooks list --workspace checkout --event tool.pre_call
 agh hooks info block-secret-file-edits --workspace checkout
-agh hooks runs --session sess_9f4a --event tool.pre_call --last 20 -o json
+agh hooks runs --workspace checkout --session sess_9f4a --event tool.pre_call --last 20 -o json
 ```
 
 Agents can read the same projection through `agh__hooks_list`, `agh__hooks_info`,

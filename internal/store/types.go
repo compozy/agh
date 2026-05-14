@@ -380,12 +380,13 @@ func validateSessionSoulProvenance(snapshotID string, digest string) error {
 
 // EventSummary is the global, cross-session observability record for one event.
 type EventSummary struct {
-	ID        string
-	SessionID string
-	Sequence  int64
-	Type      string
-	AgentName string
-	Content   json.RawMessage
+	ID          string
+	SessionID   string
+	WorkspaceID string
+	Sequence    int64
+	Type        string
+	AgentName   string
+	Content     json.RawMessage
 	EventCorrelation
 	ParentSessionID string
 	RootSessionID   string
@@ -402,6 +403,9 @@ func (s EventSummary) Validate() error {
 	}
 	if eventSummaryAllowsGlobalScope(eventType) {
 		return nil
+	}
+	if err := requireField(s.WorkspaceID, "event summary workspace_id"); err != nil {
+		return err
 	}
 	if err := requireField(s.SessionID, "event summary session id"); err != nil {
 		return err
@@ -436,11 +440,12 @@ func eventSummaryAllowsGlobalScope(eventType string) bool {
 
 // EventSummaryQuery filters global event summary queries.
 type EventSummaryQuery struct {
-	SessionID string
-	AgentName string
-	Type      string
-	Since     time.Time
-	Limit     int
+	SessionID   string
+	WorkspaceID string
+	AgentName   string
+	Type        string
+	Since       time.Time
+	Limit       int
 }
 
 // Validate ensures the query uses sane bounds.
@@ -558,21 +563,22 @@ func (q PermissionLogQuery) Validate() error {
 
 // NetworkAuditEntry is an audit row for one network message event.
 type NetworkAuditEntry struct {
-	ID        string
-	SessionID string
-	Direction string
-	Kind      string
-	Channel   string
-	Surface   string
-	ThreadID  string
-	DirectID  string
-	WorkID    string
-	PeerFrom  string
-	PeerTo    string
-	MessageID string
-	Reason    string
-	Size      int
-	Timestamp time.Time
+	ID          string
+	SessionID   string
+	Direction   string
+	Kind        string
+	WorkspaceID string
+	Channel     string
+	Surface     string
+	ThreadID    string
+	DirectID    string
+	WorkID      string
+	PeerFrom    string
+	PeerTo      string
+	MessageID   string
+	Reason      string
+	Size        int
+	Timestamp   time.Time
 }
 
 // Validate ensures the network audit entry is complete and internally consistent.
@@ -602,13 +608,15 @@ func (e NetworkAuditEntry) Validate() error {
 	if err := requireField(e.Kind, "network audit kind"); err != nil {
 		return err
 	}
-	if err := requireField(e.Channel, "network audit channel"); err != nil {
+	if err := (NetworkChannelRef{WorkspaceID: e.WorkspaceID, Channel: e.Channel}).Validate(); err != nil {
 		return err
 	}
 	if err := requireField(e.PeerFrom, "network audit peer_from"); err != nil {
 		return err
 	}
 	if err := validateOptionalNetworkConversation(
+		e.WorkspaceID,
+		e.Channel,
 		e.Surface,
 		e.ThreadID,
 		e.DirectID,
@@ -638,7 +646,11 @@ func (e NetworkAuditEntry) Validate() error {
 
 // NetworkAuditQuery filters network audit lookups.
 type NetworkAuditQuery struct {
-	SessionID string
+	SessionID   string
+	WorkspaceID string
+	// Global explicitly allows daemon-admin aggregate callers to scan audit rows
+	// across workspaces. Workspace-scoped API surfaces must leave this false.
+	Global    bool
 	Direction string
 	Kind      string
 	Channel   string
@@ -653,6 +665,15 @@ type NetworkAuditQuery struct {
 
 // Validate ensures the query uses sane bounds.
 func (q NetworkAuditQuery) Validate() error {
+	workspaceID := strings.TrimSpace(q.WorkspaceID)
+	if q.Global && workspaceID != "" {
+		return errors.New("store: network audit query cannot combine global scan with workspace_id")
+	}
+	if !q.Global {
+		if err := requireField(workspaceID, "network audit query workspace_id"); err != nil {
+			return err
+		}
+	}
 	return requirePositiveLimit(q.Limit, "network audit limit")
 }
 
@@ -667,12 +688,26 @@ type NetworkChannelEntry struct {
 	UpdatedAt   time.Time
 }
 
-// Validate ensures the persisted channel metadata is complete.
-func (e NetworkChannelEntry) Validate() error {
-	if err := requireField(e.Channel, "network channel channel"); err != nil {
+// NetworkChannelRef identifies one workspace-qualified network channel.
+type NetworkChannelRef struct {
+	WorkspaceID string
+	Channel     string
+}
+
+// Validate ensures the channel reference is workspace-qualified.
+func (r NetworkChannelRef) Validate() error {
+	if err := requireField(r.WorkspaceID, "network channel workspace_id"); err != nil {
 		return err
 	}
-	if err := requireField(e.WorkspaceID, "network channel workspace_id"); err != nil {
+	if err := requireField(r.Channel, "network channel channel"); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Validate ensures the persisted channel metadata is complete.
+func (e NetworkChannelEntry) Validate() error {
+	if err := (NetworkChannelRef{WorkspaceID: e.WorkspaceID, Channel: e.Channel}).Validate(); err != nil {
 		return err
 	}
 	if err := requireField(e.Purpose, "network channel purpose"); err != nil {
@@ -690,20 +725,24 @@ type NetworkChannelQuery struct {
 
 // Validate ensures the query uses sane bounds.
 func (q NetworkChannelQuery) Validate() error {
+	if err := requireField(q.WorkspaceID, "network channel query workspace_id"); err != nil {
+		return err
+	}
 	return requirePositiveLimit(q.Limit, "network channel limit")
 }
 
 // NetworkConversationRef identifies one persisted network conversation container.
 type NetworkConversationRef struct {
-	Channel  string
-	Surface  string
-	ThreadID string
-	DirectID string
+	WorkspaceID string
+	Channel     string
+	Surface     string
+	ThreadID    string
+	DirectID    string
 }
 
 // Validate ensures the reference identifies exactly one supported container.
 func (r NetworkConversationRef) Validate() error {
-	if err := requireField(r.Channel, "network conversation channel"); err != nil {
+	if err := (NetworkChannelRef{WorkspaceID: r.WorkspaceID, Channel: r.Channel}).Validate(); err != nil {
 		return err
 	}
 	surface := strings.TrimSpace(r.Surface)
@@ -747,6 +786,7 @@ func (r NetworkConversationRef) ContainerID() string {
 
 // NetworkThreadSummary is the list/detail projection for a public thread.
 type NetworkThreadSummary struct {
+	WorkspaceID        string
 	Channel            string
 	ThreadID           string
 	RootMessageID      string
@@ -764,9 +804,10 @@ type NetworkThreadSummary struct {
 // Validate ensures the public-thread summary is internally consistent.
 func (s NetworkThreadSummary) Validate() error {
 	ref := NetworkConversationRef{
-		Channel:  s.Channel,
-		Surface:  NetworkSurfaceThread,
-		ThreadID: s.ThreadID,
+		WorkspaceID: s.WorkspaceID,
+		Channel:     s.Channel,
+		Surface:     NetworkSurfaceThread,
+		ThreadID:    s.ThreadID,
 	}
 	if err := ref.Validate(); err != nil {
 		return err
@@ -797,6 +838,7 @@ func (s NetworkThreadSummary) Validate() error {
 
 // NetworkDirectRoomSummary is the list/detail projection for a direct room.
 type NetworkDirectRoomSummary struct {
+	WorkspaceID        string
 	Channel            string
 	DirectID           string
 	PeerA              string
@@ -810,7 +852,7 @@ type NetworkDirectRoomSummary struct {
 
 // Validate ensures the direct-room summary is internally consistent.
 func (s NetworkDirectRoomSummary) Validate() error {
-	if err := validateNetworkDirectRoom(s.Channel, s.DirectID, s.PeerA, s.PeerB); err != nil {
+	if err := validateNetworkDirectRoom(s.WorkspaceID, s.Channel, s.DirectID, s.PeerA, s.PeerB); err != nil {
 		return err
 	}
 	if s.OpenedAt.IsZero() {
@@ -830,6 +872,7 @@ func (s NetworkDirectRoomSummary) Validate() error {
 
 // NetworkDirectRoomEntry is the write DTO for a direct-room row.
 type NetworkDirectRoomEntry struct {
+	WorkspaceID    string
 	Channel        string
 	DirectID       string
 	PeerA          string
@@ -840,7 +883,7 @@ type NetworkDirectRoomEntry struct {
 
 // Validate ensures direct-room membership is stable and ordered.
 func (e NetworkDirectRoomEntry) Validate() error {
-	if err := validateNetworkDirectRoom(e.Channel, e.DirectID, e.PeerA, e.PeerB); err != nil {
+	if err := validateNetworkDirectRoom(e.WorkspaceID, e.Channel, e.DirectID, e.PeerA, e.PeerB); err != nil {
 		return err
 	}
 	if e.OpenedAt.IsZero() {
@@ -855,6 +898,7 @@ func (e NetworkDirectRoomEntry) Validate() error {
 // NetworkWorkEntry stores lifecycle metadata for work inside one conversation.
 type NetworkWorkEntry struct {
 	WorkID          string
+	WorkspaceID     string
 	Channel         string
 	Surface         string
 	ThreadID        string
@@ -874,10 +918,11 @@ func (e NetworkWorkEntry) Validate() error {
 		return err
 	}
 	ref := NetworkConversationRef{
-		Channel:  e.Channel,
-		Surface:  e.Surface,
-		ThreadID: e.ThreadID,
-		DirectID: e.DirectID,
+		WorkspaceID: e.WorkspaceID,
+		Channel:     e.Channel,
+		Surface:     e.Surface,
+		ThreadID:    e.ThreadID,
+		DirectID:    e.DirectID,
 	}
 	if err := ref.Validate(); err != nil {
 		return err
@@ -904,6 +949,7 @@ func (e NetworkWorkEntry) Validate() error {
 type NetworkConversationMessage struct {
 	MessageID   string
 	SessionID   string
+	WorkspaceID string
 	Channel     string
 	Surface     string
 	ThreadID    string
@@ -931,7 +977,7 @@ func (e NetworkConversationMessage) Validate() error {
 	if err := requireField(e.MessageID, "network message id"); err != nil {
 		return err
 	}
-	if err := requireField(e.Channel, "network message channel"); err != nil {
+	if err := (NetworkChannelRef{WorkspaceID: e.WorkspaceID, Channel: e.Channel}).Validate(); err != nil {
 		return err
 	}
 	if err := requireField(e.Direction, "network message direction"); err != nil {
@@ -985,10 +1031,11 @@ func (e NetworkConversationMessage) validateConversationFields() error {
 		return nil
 	case NetworkKindSay:
 		if err := (NetworkConversationRef{
-			Channel:  e.Channel,
-			Surface:  e.Surface,
-			ThreadID: e.ThreadID,
-			DirectID: e.DirectID,
+			WorkspaceID: e.WorkspaceID,
+			Channel:     e.Channel,
+			Surface:     e.Surface,
+			ThreadID:    e.ThreadID,
+			DirectID:    e.DirectID,
 		}).Validate(); err != nil {
 			return err
 		}
@@ -998,10 +1045,11 @@ func (e NetworkConversationMessage) validateConversationFields() error {
 		return nil
 	case NetworkKindCapability, NetworkKindReceipt, NetworkKindTrace:
 		if err := (NetworkConversationRef{
-			Channel:  e.Channel,
-			Surface:  e.Surface,
-			ThreadID: e.ThreadID,
-			DirectID: e.DirectID,
+			WorkspaceID: e.WorkspaceID,
+			Channel:     e.Channel,
+			Surface:     e.Surface,
+			ThreadID:    e.ThreadID,
+			DirectID:    e.DirectID,
 		}).Validate(); err != nil {
 			return err
 		}
@@ -1028,6 +1076,7 @@ type NetworkConversationWriteResult struct {
 // NetworkMessageQuery filters persisted network timeline lookups.
 type NetworkMessageQuery struct {
 	SessionID       string
+	WorkspaceID     string
 	Channel         string
 	PeerID          string
 	PeerFrom        string
@@ -1113,7 +1162,16 @@ func NormalizeNetworkDirectRoomPeers(peerA string, peerB string) (string, string
 }
 
 // NetworkDirectRoomIdentity derives the stable direct-room id for one ordered peer pair.
-func NetworkDirectRoomIdentity(channel string, peerA string, peerB string) (string, string, string, error) {
+func NetworkDirectRoomIdentity(
+	workspaceID string,
+	channel string,
+	peerA string,
+	peerB string,
+) (string, string, string, error) {
+	trimmedWorkspaceID := strings.TrimSpace(workspaceID)
+	if err := requireField(trimmedWorkspaceID, "network direct room workspace_id"); err != nil {
+		return "", "", "", err
+	}
 	trimmedChannel := strings.TrimSpace(channel)
 	if err := requireField(trimmedChannel, "network direct room channel"); err != nil {
 		return "", "", "", err
@@ -1123,31 +1181,41 @@ func NetworkDirectRoomIdentity(channel string, peerA string, peerB string) (stri
 		return "", "", "", err
 	}
 	sum := sha256.Sum256([]byte(
-		"agh-network/direct-room/v1\x00" + trimmedChannel + "\x00" + normalizedA + "\x00" + normalizedB,
+		"agh-network/direct-room/v0\x00" + trimmedWorkspaceID + "\x00" + trimmedChannel + "\x00" +
+			normalizedA + "\x00" + normalizedB,
 	))
 	return "direct_" + hex.EncodeToString(sum[:])[:32], normalizedA, normalizedB, nil
 }
 
-func validateOptionalNetworkConversation(surface string, threadID string, directID string, label string) error {
+func validateOptionalNetworkConversation(
+	workspaceID string,
+	channel string,
+	surface string,
+	threadID string,
+	directID string,
+	label string,
+) error {
 	if strings.TrimSpace(surface) == "" && strings.TrimSpace(threadID) == "" && strings.TrimSpace(directID) == "" {
 		return nil
 	}
 	if err := (NetworkConversationRef{
-		Channel:  "audit",
-		Surface:  surface,
-		ThreadID: threadID,
-		DirectID: directID,
+		WorkspaceID: workspaceID,
+		Channel:     channel,
+		Surface:     surface,
+		ThreadID:    threadID,
+		DirectID:    directID,
 	}).Validate(); err != nil {
 		return fmt.Errorf("store: invalid %s: %w", label, err)
 	}
 	return nil
 }
 
-func validateNetworkDirectRoom(channel string, directID string, peerA string, peerB string) error {
+func validateNetworkDirectRoom(workspaceID string, channel string, directID string, peerA string, peerB string) error {
 	ref := NetworkConversationRef{
-		Channel:  channel,
-		Surface:  NetworkSurfaceDirect,
-		DirectID: directID,
+		WorkspaceID: workspaceID,
+		Channel:     channel,
+		Surface:     NetworkSurfaceDirect,
+		DirectID:    directID,
 	}
 	if err := ref.Validate(); err != nil {
 		return err
@@ -1338,6 +1406,9 @@ func networkStringContainsRawClaimToken(value string) bool {
 
 // Validate ensures the query uses sane bounds.
 func (q NetworkMessageQuery) Validate() error {
+	if err := requireField(q.WorkspaceID, "network message query workspace_id"); err != nil {
+		return err
+	}
 	if strings.TrimSpace(q.BeforeMessageID) != "" && strings.TrimSpace(q.AfterMessageID) != "" {
 		return fmt.Errorf("store: network message query cannot specify both before and after cursors")
 	}

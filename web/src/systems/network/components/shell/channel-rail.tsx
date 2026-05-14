@@ -42,6 +42,7 @@ function resolveChannelRailWidth(viewport: "default" | "md" | "drawer"): number 
 }
 
 export interface ChannelRailProps {
+  workspaceId: string;
   pinnedChannels: ReadonlyArray<NetworkChannelSummary>;
   unpinnedChannels: ReadonlyArray<NetworkChannelSummary>;
   recents: ReadonlyArray<NetworkRecentEntry>;
@@ -73,13 +74,20 @@ function pickOtherPeerId(
 }
 
 interface DirectRoomRailRowProps {
+  workspaceId: string;
   channel: string;
   direct: NetworkDirectRoomSummary;
   active: boolean;
   selfPeerId: string | null;
 }
 
-function DirectRoomRailRow({ channel, direct, active, selfPeerId }: DirectRoomRailRowProps) {
+function DirectRoomRailRow({
+  workspaceId,
+  channel,
+  direct,
+  active,
+  selfPeerId,
+}: DirectRoomRailRowProps) {
   const otherPeerId = pickOtherPeerId(direct, selfPeerId);
   const lastActivity = direct.last_activity_at
     ? formatNetworkRelativeTime(direct.last_activity_at)
@@ -90,8 +98,8 @@ function DirectRoomRailRow({ channel, direct, active, selfPeerId }: DirectRoomRa
       className={cn(NAV_ROW_CLASS, active && ACTIVE_NAV_ROW_CLASS)}
       data-active={active}
       data-testid={`network-direct-rail-row-${direct.direct_id}`}
-      params={{ channel, directId: direct.direct_id }}
-      to="/network/$channel/directs/$directId"
+      params={{ workspaceId, channel, directId: direct.direct_id }}
+      to="/network/$workspaceId/$channel/directs/$directId"
     >
       {active ? <span aria-hidden="true" className={ACTIVE_NAV_INDICATOR_CLASS} /> : null}
       <MessageAvatar
@@ -110,6 +118,7 @@ function DirectRoomRailRow({ channel, direct, active, selfPeerId }: DirectRoomRa
 }
 
 export function ChannelRail({
+  workspaceId,
   pinnedChannels,
   unpinnedChannels,
   recents,
@@ -173,6 +182,7 @@ export function ChannelRail({
                   isPinned={true}
                   key={channel.channel}
                   onTogglePinned={onTogglePinned}
+                  workspaceId={workspaceId}
                 />
               ))}
               {unpinnedChannels.map(channel => (
@@ -183,6 +193,7 @@ export function ChannelRail({
                   isPinned={isPinned(channel.channel)}
                   key={channel.channel}
                   onTogglePinned={onTogglePinned}
+                  workspaceId={workspaceId}
                 />
               ))}
             </div>
@@ -220,13 +231,18 @@ export function ChannelRail({
                   direct={direct}
                   key={direct.direct_id}
                   selfPeerId={selfPeerId}
+                  workspaceId={workspaceId}
                 />
               ))}
             </div>
           )}
         </section>
 
-        <ChannelRailRecents recents={recents} isLoading={isRecentsLoading} />
+        <ChannelRailRecents
+          recents={recents}
+          isLoading={isRecentsLoading}
+          workspaceId={workspaceId}
+        />
       </div>
     </aside>
   );

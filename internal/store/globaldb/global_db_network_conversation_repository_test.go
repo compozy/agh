@@ -18,6 +18,7 @@ func TestGlobalDBResolveDirectRoom(t *testing.T) {
 
 		globalDB := openTestGlobalDB(t)
 		expectedID, expectedPeerA, expectedPeerB, err := store.NetworkDirectRoomIdentity(
+			networkStoreTestWorkspaceID,
 			"builders",
 			"reviewer.sess-xyz",
 			"coder.sess-abc",
@@ -40,9 +41,10 @@ func TestGlobalDBResolveDirectRoom(t *testing.T) {
 					peerA, peerB = peerB, peerA
 				}
 				summary, resolveErr := globalDB.ResolveDirectRoom(testutil.Context(t), store.NetworkDirectRoomEntry{
-					Channel: "builders",
-					PeerA:   peerA,
-					PeerB:   peerB,
+					WorkspaceID: networkStoreTestWorkspaceID,
+					Channel:     "builders",
+					PeerA:       peerA,
+					PeerB:       peerB,
 				})
 				if resolveErr != nil {
 					errs <- resolveErr
@@ -61,7 +63,11 @@ func TestGlobalDBResolveDirectRoom(t *testing.T) {
 			}
 		}
 
-		rooms, err := globalDB.ListDirectRooms(testutil.Context(t), "builders", store.NetworkDirectRoomQuery{Limit: 10})
+		rooms, err := globalDB.ListDirectRooms(
+			testutil.Context(t),
+			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
+			store.NetworkDirectRoomQuery{Limit: 10},
+		)
 		if err != nil {
 			t.Fatalf("ListDirectRooms() error = %v", err)
 		}
@@ -77,16 +83,22 @@ func TestGlobalDBResolveDirectRoom(t *testing.T) {
 		t.Parallel()
 
 		globalDB := openTestGlobalDB(t)
-		directID, _, _, err := store.NetworkDirectRoomIdentity("builders", "coder.sess-abc", "reviewer.sess-xyz")
+		directID, _, _, err := store.NetworkDirectRoomIdentity(
+			networkStoreTestWorkspaceID,
+			"builders",
+			"coder.sess-abc",
+			"reviewer.sess-xyz",
+		)
 		if err != nil {
 			t.Fatalf("NetworkDirectRoomIdentity() error = %v", err)
 		}
-		insertDirectRoom(t, globalDB.db, "builders", directID, "alpha.sess", "zulu.sess")
+		insertDirectRoom(t, globalDB.db, networkStoreTestWorkspaceID, "builders", directID, "alpha.sess", "zulu.sess")
 
 		_, err = globalDB.ResolveDirectRoom(testutil.Context(t), store.NetworkDirectRoomEntry{
-			Channel: "builders",
-			PeerA:   "coder.sess-abc",
-			PeerB:   "reviewer.sess-xyz",
+			WorkspaceID: networkStoreTestWorkspaceID,
+			Channel:     "builders",
+			PeerA:       "coder.sess-abc",
+			PeerB:       "reviewer.sess-xyz",
 		})
 		if !errors.Is(err, store.ErrNetworkDirectRoomCollision) {
 			t.Fatalf("ResolveDirectRoom(collision) error = %v, want ErrNetworkDirectRoomCollision", err)
@@ -137,7 +149,11 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 			}
 		}
 
-		thread, err := globalDB.GetThread(testutil.Context(t), "builders", "thread_store_counts")
+		thread, err := globalDB.GetThread(
+			testutil.Context(t),
+			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
+			"thread_store_counts",
+		)
 		if err != nil {
 			t.Fatalf("GetThread() error = %v", err)
 		}
@@ -154,7 +170,11 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 			t.Fatalf("thread.LastMessagePreview = %q, want %q", got, want)
 		}
 
-		threads, err := globalDB.ListThreads(testutil.Context(t), "builders", store.NetworkThreadQuery{Limit: 10})
+		threads, err := globalDB.ListThreads(
+			testutil.Context(t),
+			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
+			store.NetworkThreadQuery{Limit: 10},
+		)
 		if err != nil {
 			t.Fatalf("ListThreads() error = %v", err)
 		}
@@ -168,9 +188,10 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 		entries, err := globalDB.ListConversationMessages(
 			testutil.Context(t),
 			store.NetworkConversationRef{
-				Channel:  "builders",
-				Surface:  store.NetworkSurfaceThread,
-				ThreadID: "thread_store_counts",
+				WorkspaceID: networkStoreTestWorkspaceID,
+				Channel:     "builders",
+				Surface:     store.NetworkSurfaceThread,
+				ThreadID:    "thread_store_counts",
 			},
 			store.NetworkConversationMessageQuery{Limit: 10},
 		)
@@ -182,8 +203,9 @@ func TestGlobalDBWriteConversationMessageThreadSummaries(t *testing.T) {
 		}
 
 		auditRows, err := globalDB.ListNetworkAudit(testutil.Context(t), store.NetworkAuditQuery{
-			MessageID: "msg_thread_root",
-			Limit:     10,
+			WorkspaceID: networkStoreTestWorkspaceID,
+			MessageID:   "msg_thread_root",
+			Limit:       10,
 		})
 		if err != nil {
 			t.Fatalf("ListNetworkAudit(root) error = %v", err)
@@ -205,13 +227,19 @@ func TestGlobalDBWriteConversationMessageDirectIsolationAndWorkLookup(t *testing
 
 		globalDB := openTestGlobalDB(t)
 		startedAt := time.Date(2026, 5, 5, 15, 0, 0, 0, time.UTC)
-		directID, _, _, err := store.NetworkDirectRoomIdentity("builders", "coder.sess-abc", "reviewer.sess-xyz")
+		directID, _, _, err := store.NetworkDirectRoomIdentity(
+			networkStoreTestWorkspaceID,
+			"builders",
+			"coder.sess-abc",
+			"reviewer.sess-xyz",
+		)
 		if err != nil {
 			t.Fatalf("NetworkDirectRoomIdentity() error = %v", err)
 		}
 		direct := store.NetworkConversationMessage{
 			MessageID:   "msg_direct_review",
 			SessionID:   "sess-direct",
+			WorkspaceID: networkStoreTestWorkspaceID,
 			Channel:     "builders",
 			Surface:     store.NetworkSurfaceDirect,
 			DirectID:    directID,
@@ -241,7 +269,11 @@ func TestGlobalDBWriteConversationMessageDirectIsolationAndWorkLookup(t *testing
 			t.Fatalf("WriteConversationMessage(thread) error = %v", err)
 		}
 
-		directSummary, err := globalDB.GetDirectRoom(testutil.Context(t), "builders", directID)
+		directSummary, err := globalDB.GetDirectRoom(
+			testutil.Context(t),
+			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
+			directID,
+		)
 		if err != nil {
 			t.Fatalf("GetDirectRoom() error = %v", err)
 		}
@@ -255,9 +287,10 @@ func TestGlobalDBWriteConversationMessageDirectIsolationAndWorkLookup(t *testing
 		directMessages, err := globalDB.ListConversationMessages(
 			testutil.Context(t),
 			store.NetworkConversationRef{
-				Channel:  "builders",
-				Surface:  store.NetworkSurfaceDirect,
-				DirectID: directID,
+				WorkspaceID: networkStoreTestWorkspaceID,
+				Channel:     "builders",
+				Surface:     store.NetworkSurfaceDirect,
+				DirectID:    directID,
 			},
 			store.NetworkConversationMessageQuery{Limit: 10},
 		)
@@ -274,9 +307,10 @@ func TestGlobalDBWriteConversationMessageDirectIsolationAndWorkLookup(t *testing
 		threadMessages, err := globalDB.ListConversationMessages(
 			testutil.Context(t),
 			store.NetworkConversationRef{
-				Channel:  "builders",
-				Surface:  store.NetworkSurfaceThread,
-				ThreadID: "thread_store_isolation",
+				WorkspaceID: networkStoreTestWorkspaceID,
+				Channel:     "builders",
+				Surface:     store.NetworkSurfaceThread,
+				ThreadID:    "thread_store_isolation",
 			},
 			store.NetworkConversationMessageQuery{Limit: 10},
 		)
@@ -290,7 +324,7 @@ func TestGlobalDBWriteConversationMessageDirectIsolationAndWorkLookup(t *testing
 			t.Fatalf("threadMessages[0].MessageID = %q, want %q", got, want)
 		}
 
-		work, err := globalDB.GetWork(testutil.Context(t), "work_direct_review")
+		work, err := globalDB.GetWork(testutil.Context(t), networkStoreTestWorkspaceID, "work_direct_review")
 		if err != nil {
 			t.Fatalf("GetWork() error = %v", err)
 		}
@@ -344,8 +378,7 @@ func TestGlobalDBConversationQueriesSupportCursorsAndFilters(t *testing.T) {
 		}
 
 		firstThreadPage, err := globalDB.ListThreads(
-			testutil.Context(t),
-			"builders",
+			testutil.Context(t), store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
 			store.NetworkThreadQuery{Limit: 1},
 		)
 		if err != nil {
@@ -357,10 +390,14 @@ func TestGlobalDBConversationQueriesSupportCursorsAndFilters(t *testing.T) {
 		if got, want := firstThreadPage[0].ThreadID, "thread_query_other"; got != want {
 			t.Fatalf("firstThreadPage[0].ThreadID = %q, want %q", got, want)
 		}
-		secondThreadPage, err := globalDB.ListThreads(testutil.Context(t), "builders", store.NetworkThreadQuery{
-			Limit: 10,
-			After: firstThreadPage[0].ThreadID,
-		})
+		secondThreadPage, err := globalDB.ListThreads(
+			testutil.Context(t),
+			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
+			store.NetworkThreadQuery{
+				Limit: 10,
+				After: firstThreadPage[0].ThreadID,
+			},
+		)
 		if err != nil {
 			t.Fatalf("ListThreads(second page) error = %v", err)
 		}
@@ -372,9 +409,10 @@ func TestGlobalDBConversationQueriesSupportCursorsAndFilters(t *testing.T) {
 		}
 
 		ref := store.NetworkConversationRef{
-			Channel:  "builders",
-			Surface:  store.NetworkSurfaceThread,
-			ThreadID: "thread_query_cursors",
+			WorkspaceID: networkStoreTestWorkspaceID,
+			Channel:     "builders",
+			Surface:     store.NetworkSurfaceThread,
+			ThreadID:    "thread_query_cursors",
 		}
 		before, err := globalDB.ListConversationMessages(
 			testutil.Context(t),
@@ -440,10 +478,14 @@ func TestGlobalDBConversationQueriesSupportCursorsAndFilters(t *testing.T) {
 			t.Fatalf("writeDirectMessage(second) error = %v", err)
 		}
 
-		firstDirectPage, err := globalDB.ListDirectRooms(testutil.Context(t), "builders", store.NetworkDirectRoomQuery{
-			PeerID: "coder.sess-abc",
-			Limit:  1,
-		})
+		firstDirectPage, err := globalDB.ListDirectRooms(
+			testutil.Context(t),
+			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
+			store.NetworkDirectRoomQuery{
+				PeerID: "coder.sess-abc",
+				Limit:  1,
+			},
+		)
 		if err != nil {
 			t.Fatalf("ListDirectRooms(first page) error = %v", err)
 		}
@@ -453,11 +495,15 @@ func TestGlobalDBConversationQueriesSupportCursorsAndFilters(t *testing.T) {
 		if got, want := firstDirectPage[0].DirectID, secondDirectID; got != want {
 			t.Fatalf("firstDirectPage[0].DirectID = %q, want %q", got, want)
 		}
-		secondDirectPage, err := globalDB.ListDirectRooms(testutil.Context(t), "builders", store.NetworkDirectRoomQuery{
-			PeerID: "coder.sess-abc",
-			Limit:  10,
-			After:  firstDirectPage[0].DirectID,
-		})
+		secondDirectPage, err := globalDB.ListDirectRooms(
+			testutil.Context(t),
+			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
+			store.NetworkDirectRoomQuery{
+				PeerID: "coder.sess-abc",
+				Limit:  10,
+				After:  firstDirectPage[0].DirectID,
+			},
+		)
 		if err != nil {
 			t.Fatalf("ListDirectRooms(second page) error = %v", err)
 		}
@@ -506,7 +552,7 @@ func TestGlobalDBWriteConversationMessageWorkReceiptTransitions(t *testing.T) {
 		if !result.WorkTransitioned || result.WorkState != store.NetworkWorkStateFailed {
 			t.Fatalf("rejected receipt result = %#v, want failed transition", result)
 		}
-		failedWork, err := globalDB.GetWork(testutil.Context(t), "work_receipt_failed")
+		failedWork, err := globalDB.GetWork(testutil.Context(t), networkStoreTestWorkspaceID, "work_receipt_failed")
 		if err != nil {
 			t.Fatalf("GetWork(failed) error = %v", err)
 		}
@@ -553,7 +599,7 @@ func TestGlobalDBWriteConversationMessageWorkReceiptTransitions(t *testing.T) {
 		if !resumeResult.WorkTransitioned || resumeResult.WorkState != store.NetworkWorkStateWorking {
 			t.Fatalf("resume result = %#v, want working transition", resumeResult)
 		}
-		resumedWork, err := globalDB.GetWork(testutil.Context(t), "work_needs_input")
+		resumedWork, err := globalDB.GetWork(testutil.Context(t), networkStoreTestWorkspaceID, "work_needs_input")
 		if err != nil {
 			t.Fatalf("GetWork(resumed) error = %v", err)
 		}
@@ -739,42 +785,59 @@ func TestGlobalDBConversationQueryErrors(t *testing.T) {
 			t.Fatalf("writeDirectMessage() error = %v", err)
 		}
 
-		_, err = globalDB.GetThread(testutil.Context(t), "builders", "thread_missing")
+		_, err = globalDB.GetThread(
+			testutil.Context(t),
+			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
+			"thread_missing",
+		)
 		if !errors.Is(err, store.ErrNetworkConversationNotFound) {
 			t.Fatalf("GetThread(missing) error = %v, want ErrNetworkConversationNotFound", err)
 		}
-		_, err = globalDB.GetDirectRoom(testutil.Context(t), "builders", "direct_missing")
+		_, err = globalDB.GetDirectRoom(
+			testutil.Context(t),
+			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
+			"direct_missing",
+		)
 		if err == nil {
 			t.Fatal("GetDirectRoom(invalid id) error = nil, want non-nil")
 		}
-		_, err = globalDB.GetWork(testutil.Context(t), "")
+		_, err = globalDB.GetWork(testutil.Context(t), networkStoreTestWorkspaceID, "")
 		if err == nil {
 			t.Fatal("GetWork(empty) error = nil, want non-nil")
 		}
-		_, err = globalDB.GetWork(testutil.Context(t), "work_missing")
+		_, err = globalDB.GetWork(testutil.Context(t), networkStoreTestWorkspaceID, "work_missing")
 		if !errors.Is(err, store.ErrNetworkConversationNotFound) {
 			t.Fatalf("GetWork(missing) error = %v, want ErrNetworkConversationNotFound", err)
 		}
 
-		_, err = globalDB.ListThreads(testutil.Context(t), "builders", store.NetworkThreadQuery{
-			Limit: 10,
-			After: "thread_missing",
-		})
+		_, err = globalDB.ListThreads(
+			testutil.Context(t),
+			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
+			store.NetworkThreadQuery{
+				Limit: 10,
+				After: "thread_missing",
+			},
+		)
 		if err == nil {
 			t.Fatal("ListThreads(missing cursor) error = nil, want non-nil")
 		}
-		_, err = globalDB.ListDirectRooms(testutil.Context(t), "builders", store.NetworkDirectRoomQuery{
-			PeerID: "other.sess-peer",
-			Limit:  10,
-			After:  directID,
-		})
+		_, err = globalDB.ListDirectRooms(
+			testutil.Context(t),
+			store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
+			store.NetworkDirectRoomQuery{
+				PeerID: "other.sess-peer",
+				Limit:  10,
+				After:  directID,
+			},
+		)
 		if err == nil {
 			t.Fatal("ListDirectRooms(missing cursor for peer) error = nil, want non-nil")
 		}
 		ref := store.NetworkConversationRef{
-			Channel:  "builders",
-			Surface:  store.NetworkSurfaceThread,
-			ThreadID: "thread_query_error",
+			WorkspaceID: networkStoreTestWorkspaceID,
+			Channel:     "builders",
+			Surface:     store.NetworkSurfaceThread,
+			ThreadID:    "thread_query_error",
 		}
 		_, err = globalDB.ListConversationMessages(testutil.Context(t), ref, store.NetworkConversationMessageQuery{
 			BeforeMessageID: "msg_missing",
@@ -863,7 +926,11 @@ func TestGlobalDBWriteConversationMessageIdempotencyAndRollback(t *testing.T) {
 				t.Fatalf("WriteConversationMessage(after terminal) error = %v, want ErrNetworkWorkClosed", err)
 			}
 
-			thread, err := globalDB.GetThread(testutil.Context(t), "builders", "thread_store_work")
+			thread, err := globalDB.GetThread(
+				testutil.Context(t),
+				store.NetworkChannelRef{WorkspaceID: networkStoreTestWorkspaceID, Channel: "builders"},
+				"thread_store_work",
+			)
 			if err != nil {
 				t.Fatalf("GetThread() error = %v", err)
 			}
@@ -898,13 +965,19 @@ func TestGlobalDBWriteConversationMessageIdempotencyAndRollback(t *testing.T) {
 		t.Parallel()
 
 		globalDB := openTestGlobalDB(t)
-		directID, _, _, err := store.NetworkDirectRoomIdentity("builders", "coder.sess-abc", "reviewer.sess-xyz")
+		directID, _, _, err := store.NetworkDirectRoomIdentity(
+			networkStoreTestWorkspaceID,
+			"builders",
+			"coder.sess-abc",
+			"reviewer.sess-xyz",
+		)
 		if err != nil {
 			t.Fatalf("NetworkDirectRoomIdentity() error = %v", err)
 		}
 		message := store.NetworkConversationMessage{
 			MessageID:   "msg_direct_collision_rollback",
 			SessionID:   "sess-direct-collision",
+			WorkspaceID: networkStoreTestWorkspaceID,
 			Channel:     "builders",
 			Surface:     store.NetworkSurfaceDirect,
 			DirectID:    directID,
@@ -986,14 +1059,15 @@ func TestGlobalDBWriteConversationMessageRejectsRawClaimTokens(t *testing.T) {
 
 		globalDB := openTestGlobalDB(t)
 		err := globalDB.WriteNetworkAudit(testutil.Context(t), store.NetworkAuditEntry{
-			SessionID: "sess-audit-token",
-			Direction: "rejected",
-			Kind:      store.NetworkKindSay,
-			Channel:   "builders",
-			PeerFrom:  "coder.sess-abc",
-			MessageID: "msg_audit_token",
-			Reason:    "agh_claim_NET05TOKEN123",
-			Size:      1,
+			WorkspaceID: networkStoreTestWorkspaceID,
+			SessionID:   "sess-audit-token",
+			Direction:   "rejected",
+			Kind:        store.NetworkKindSay,
+			Channel:     "builders",
+			PeerFrom:    "coder.sess-abc",
+			MessageID:   "msg_audit_token",
+			Reason:      "agh_claim_NET05TOKEN123",
+			Size:        1,
 		})
 		if err == nil {
 			t.Fatal("WriteNetworkAudit(raw claim token) error = nil, want non-nil")
@@ -1014,6 +1088,7 @@ func threadMessage(
 	return store.NetworkConversationMessage{
 		MessageID:   messageID,
 		SessionID:   "sess-" + messageID,
+		WorkspaceID: networkStoreTestWorkspaceID,
 		Channel:     "builders",
 		Surface:     store.NetworkSurfaceThread,
 		ThreadID:    threadID,
@@ -1038,6 +1113,7 @@ func threadTraceMessage(
 	return store.NetworkConversationMessage{
 		MessageID:   messageID,
 		SessionID:   "sess-" + messageID,
+		WorkspaceID: networkStoreTestWorkspaceID,
 		Channel:     "builders",
 		Surface:     store.NetworkSurfaceThread,
 		ThreadID:    threadID,
@@ -1062,6 +1138,7 @@ func threadReceiptMessage(
 	return store.NetworkConversationMessage{
 		MessageID:   messageID,
 		SessionID:   "sess-" + messageID,
+		WorkspaceID: networkStoreTestWorkspaceID,
 		Channel:     "builders",
 		Surface:     store.NetworkSurfaceThread,
 		ThreadID:    threadID,
@@ -1086,13 +1163,14 @@ func writeDirectMessage(
 ) (string, error) {
 	t.Helper()
 
-	directID, _, _, err := store.NetworkDirectRoomIdentity("builders", peerFrom, peerTo)
+	directID, _, _, err := store.NetworkDirectRoomIdentity(networkStoreTestWorkspaceID, "builders", peerFrom, peerTo)
 	if err != nil {
 		return "", err
 	}
 	_, err = globalDB.WriteConversationMessage(testutil.Context(t), store.NetworkConversationMessage{
 		MessageID:   messageID,
 		SessionID:   "sess-" + messageID,
+		WorkspaceID: networkStoreTestWorkspaceID,
 		Channel:     "builders",
 		Surface:     store.NetworkSurfaceDirect,
 		DirectID:    directID,

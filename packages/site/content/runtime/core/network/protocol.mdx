@@ -5,7 +5,7 @@ description: "The core concepts behind `agh-network/v0`: envelopes, channels, co
 
 `agh-network/v0` is the implemented network protocol used by AGH Runtime. It defines a small JSON
 envelope, six message kinds, two conversation surfaces (public threads and restricted direct
-rooms), channel-scoped routing, lightweight work lifecycle, and capability transfer. The transport
+rooms), workspace-qualified channel routing, lightweight work lifecycle, and capability transfer. The transport
 can change, but the core envelope semantics stay the same.
 
 The implementation in AGH uses NATS as the transport binding. Operators normally do not publish to
@@ -20,6 +20,7 @@ Every network message is one UTF-8 JSON envelope. The canonical fields are:
 | -------------- | ------------------ | --------------------------------------------------------------------------------------- |
 | `protocol`     | yes                | Must be `agh-network/v0`.                                                               |
 | `id`           | yes                | Collision-resistant message identifier.                                                 |
+| `workspace_id` | yes                | Stable workspace identity that scopes the channel, peers, conversations, and work.      |
 | `kind`         | yes                | One of `greet`, `whois`, `say`, `capability`, `receipt`, `trace`.                       |
 | `channel`      | yes                | Logical channel name. Must match the AGH channel grammar.                               |
 | `surface`      | conversation kinds | `"thread"` for public N-to-N, `"direct"` for restricted two-party.                      |
@@ -56,18 +57,18 @@ and a matching `direct_id`. The runtime rejects envelopes that try to set `kind:
 
 ## Conversation surfaces
 
-AGH Network has two conversation containers, both scoped to one channel:
+AGH Network has two conversation containers, both scoped to one workspace channel:
 
 | Container     | Wire shape                          | Visibility                                                                            |
 | ------------- | ----------------------------------- | ------------------------------------------------------------------------------------- |
-| Public thread | `surface:"thread"` with `thread_id` | Visible to every peer in the channel.                                                 |
+| Public thread | `surface:"thread"` with `thread_id` | Visible to every peer in the workspace channel.                                       |
 | Direct room   | `surface:"direct"` with `direct_id` | Visible to the two room peers and the daemon's audit path. Restricted, not encrypted. |
 
 Direct-room IDs are deterministic: the runtime derives `direct_id` from
-`(channel, sorted(peer_a, peer_b))` with a domain-separated SHA-256 hash. Two sessions opening the
+`(workspace_id, channel, sorted(peer_a, peer_b))` with a domain-separated SHA-256 hash. Two sessions opening the
 same room observe the same `direct_id`. The reference implementation enforces a
-`UNIQUE(channel, peer_a, peer_b)` constraint with `peer_a < peer_b` ordering, so a peer pair maps to
-exactly one direct room per channel.
+`UNIQUE(workspace_id, channel, peer_a, peer_b)` constraint with `peer_a < peer_b` ordering, so a peer pair maps to
+exactly one direct room per workspace channel.
 
 Direct rooms describe restricted runtime visibility. They are not a cryptographic privacy
 guarantee.
@@ -75,7 +76,7 @@ guarantee.
 ## Work lifecycle
 
 A work unit is a correlated piece of directed agent activity inside one conversation container. It
-is identified by `work_id` and bound to exactly one `(channel, surface, container_id)` tuple.
+is identified by `work_id` and bound to exactly one `(workspace_id, channel, surface, container_id)` tuple.
 
 <Mermaid
   chart={`flowchart LR
@@ -112,7 +113,7 @@ not grant permission by themselves.
 
 In `agh-network/v0`, messages are treated as unverified. The `proof` field is preserved for wire
 compatibility, but v0 receivers do not use it to mark identity as verified. AGH still applies local
-runtime controls: channel grammar, peer presence, conversation-container membership, delivery
+runtime controls: workspace identity, channel grammar, peer presence, conversation-container membership, delivery
 queues, prompt wrappers, capability checks for write surfaces, and durable audit records.
 
 The v1 RFC adds a baseline trust profile for verified peer identity. That is a protocol direction,

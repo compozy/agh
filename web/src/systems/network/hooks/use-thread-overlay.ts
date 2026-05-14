@@ -7,6 +7,7 @@ import { useNetworkMessages } from "./use-messages";
 import { useNetworkThreadDetail } from "./use-threads";
 
 export interface UseThreadOverlayArgs {
+  workspaceId: string;
   channel: string;
   threadId: string;
   fullPage: boolean;
@@ -39,6 +40,7 @@ function pickRoot(
 }
 
 export function useThreadOverlay({
+  workspaceId,
   channel,
   threadId,
   fullPage,
@@ -78,11 +80,16 @@ export function useThreadOverlay({
       if (event.key !== "Escape") {
         return;
       }
-      void navigate({ params: { channel }, to: "/network/$channel/threads" });
+      if (workspaceId) {
+        void navigate({
+          params: { workspaceId, channel },
+          to: "/network/$workspaceId/$channel/threads",
+        });
+      }
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [channel, fullPage, navigate]);
+  }, [channel, fullPage, navigate, workspaceId]);
 
   useEffect(() => {
     const lastTimestamp = messagesQuery.messages.at(-1)?.timestamp;

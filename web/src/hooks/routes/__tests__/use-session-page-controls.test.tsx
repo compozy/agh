@@ -57,6 +57,17 @@ vi.mock("@/systems/session", () => ({
 
 import { useSessionPageControls } from "../use-session-page-controls";
 
+const WORKSPACE_ID = "ws_alpha";
+
+function renderControls(
+  state: Parameters<typeof useSessionPageControls>[1],
+  options: Parameters<typeof useSessionPageControls>[2] = {}
+) {
+  return renderHook(() =>
+    useSessionPageControls("sess-1", state, { workspaceId: WORKSPACE_ID, ...options })
+  );
+}
+
 function createDeferredPromise<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
   let reject!: (reason?: unknown) => void;
@@ -90,7 +101,7 @@ describe("useSessionPageControls", () => {
     routeHookMocks.auiState.thread.isRunning = true;
     routeHookMocks.cancelSessionPrompt.mockReturnValue(cancelPrompt.promise);
 
-    const { result } = renderHook(() => useSessionPageControls("sess-1", "active"));
+    const { result } = renderControls("active");
 
     await act(async () => {
       result.current.handleCancelPrompt();
@@ -101,6 +112,7 @@ describe("useSessionPageControls", () => {
     });
 
     expect(routeHookMocks.deleteMutation.mutate).not.toHaveBeenCalled();
+    expect(routeHookMocks.cancelSessionPrompt).toHaveBeenCalledWith(WORKSPACE_ID, "sess-1");
 
     await act(async () => {
       cancelPrompt.resolve();
@@ -112,7 +124,7 @@ describe("useSessionPageControls", () => {
     routeHookMocks.auiState.thread.messages = [{ id: "message-1" }];
     routeHookMocks.resumeMutation.isPending = true;
 
-    const { result } = renderHook(() => useSessionPageControls("sess-1", "active"));
+    const { result } = renderControls("active");
 
     act(() => {
       result.current.handleClear();
@@ -125,7 +137,7 @@ describe("useSessionPageControls", () => {
     routeHookMocks.auiState.thread.isRunning = true;
     routeHookMocks.auiState.thread.messages = [{ id: "message-1" }];
 
-    const { result } = renderHook(() => useSessionPageControls("sess-1", "active"));
+    const { result } = renderControls("active");
 
     act(() => {
       result.current.handleClear();
@@ -138,7 +150,7 @@ describe("useSessionPageControls", () => {
     routeHookMocks.auiState.thread.isRunning = true;
     routeHookMocks.clearMutation.isPending = true;
 
-    const { result } = renderHook(() => useSessionPageControls("sess-1", "active"));
+    const { result } = renderControls("active");
 
     act(() => {
       result.current.handleStop();
@@ -151,7 +163,7 @@ describe("useSessionPageControls", () => {
   it("blocks resume while another control action is pending", () => {
     routeHookMocks.deleteMutation.isPending = true;
 
-    const { result } = renderHook(() => useSessionPageControls("sess-1", "stopped"));
+    const { result } = renderControls("stopped");
 
     act(() => {
       result.current.handleResume();
@@ -162,9 +174,7 @@ describe("useSessionPageControls", () => {
 
   it("runs delete success side effects when controls are idle", () => {
     const onDeleteSuccess = vi.fn();
-    const { result } = renderHook(() =>
-      useSessionPageControls("sess-1", "active", { onDeleteSuccess })
-    );
+    const { result } = renderControls("active", { onDeleteSuccess });
 
     act(() => {
       result.current.handleDelete();
@@ -189,7 +199,7 @@ describe("useSessionPageControls", () => {
   });
 
   it("shows the delete error toast from the mutation callback", () => {
-    const { result } = renderHook(() => useSessionPageControls("sess-1", "active"));
+    const { result } = renderControls("active");
 
     act(() => {
       result.current.handleDelete();

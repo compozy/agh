@@ -61,6 +61,7 @@ type TaskService interface {
 // TaskIngressContext captures the trusted peer identity and delivery metadata
 // that network ingress derives from the live runtime rather than the payload.
 type TaskIngressContext struct {
+	WorkspaceID string
 	PeerID      string
 	Channel     string
 	RequestID   string
@@ -76,6 +77,12 @@ type TaskIngressContext struct {
 // Validate reports whether the ingress context contains the mandatory peer and
 // delivery identifiers.
 func (c TaskIngressContext) Validate() error {
+	if strings.TrimSpace(c.WorkspaceID) == "" {
+		return fmt.Errorf("%w: workspace_id is required", ErrMissingField)
+	}
+	if err := ValidateWorkspaceID(strings.TrimSpace(c.WorkspaceID)); err != nil {
+		return err
+	}
 	if strings.TrimSpace(c.PeerID) == "" {
 		return fmt.Errorf("%w: peer id is required", ErrMissingField)
 	}
@@ -104,10 +111,11 @@ func (c TaskIngressContext) validateConversationMetadata() error {
 			return err
 		}
 		ref := ConversationRef{
-			Channel:  strings.TrimSpace(c.Channel),
-			Surface:  surface,
-			ThreadID: strings.TrimSpace(c.ThreadID),
-			DirectID: strings.TrimSpace(c.DirectID),
+			WorkspaceID: strings.TrimSpace(c.WorkspaceID),
+			Channel:     strings.TrimSpace(c.Channel),
+			Surface:     surface,
+			ThreadID:    strings.TrimSpace(c.ThreadID),
+			DirectID:    strings.TrimSpace(c.DirectID),
 		}
 		if err := ValidateConversationRef(ref); err != nil {
 			return err
@@ -348,8 +356,11 @@ func (m *Manager) resolveTaskPeerContext(
 	if m.peers == nil {
 		return resolvedTaskPeerContext{}, m.rejectTaskIngress(ctx, ingress, action, ErrTaskIngressPeerNotFound, nil)
 	}
+	ingress.WorkspaceID = strings.TrimSpace(ingress.WorkspaceID)
+	ingress.Channel = strings.TrimSpace(ingress.Channel)
+	ingress.PeerID = strings.TrimSpace(ingress.PeerID)
 
-	peer, ok := m.peers.RemoteByPeer(ingress.Channel, ingress.PeerID, m.now().UTC())
+	peer, ok := m.peers.RemoteByPeer(ingress.WorkspaceID, ingress.Channel, ingress.PeerID, m.now().UTC())
 	if !ok {
 		return resolvedTaskPeerContext{}, m.rejectTaskIngress(ctx, ingress, action, ErrTaskIngressPeerNotFound, nil)
 	}
@@ -401,13 +412,14 @@ func (m *Manager) recordTaskIngress(
 		return
 	}
 	if err := writer.RecordTaskIngress(ctx, TaskIngressAudit{
-		Action:    strings.TrimSpace(action),
-		Direction: strings.TrimSpace(direction),
-		PeerID:    strings.TrimSpace(ingress.PeerID),
-		Channel:   strings.TrimSpace(ingress.Channel),
-		RequestID: strings.TrimSpace(ingress.RequestID),
-		Reason:    strings.TrimSpace(reason),
-		Payload:   payload,
+		WorkspaceID: strings.TrimSpace(ingress.WorkspaceID),
+		Action:      strings.TrimSpace(action),
+		Direction:   strings.TrimSpace(direction),
+		PeerID:      strings.TrimSpace(ingress.PeerID),
+		Channel:     strings.TrimSpace(ingress.Channel),
+		RequestID:   strings.TrimSpace(ingress.RequestID),
+		Reason:      strings.TrimSpace(reason),
+		Payload:     payload,
 	}); err != nil {
 		m.logger.Warn(
 			"network.audit.record_task_ingress_failed",
@@ -487,7 +499,12 @@ func patchAllowsStaleChannelRepair(ingressChannel string, patch taskpkg.Patch) b
 }
 
 func networkTaskOriginRef(ingress TaskIngressContext) string {
-	return fmt.Sprintf("peer:%s/channel:%s", strings.TrimSpace(ingress.PeerID), strings.TrimSpace(ingress.Channel))
+	return fmt.Sprintf(
+		"workspace:%s/channel:%s/peer:%s",
+		strings.TrimSpace(ingress.WorkspaceID),
+		strings.TrimSpace(ingress.Channel),
+		strings.TrimSpace(ingress.PeerID),
+	)
 }
 
 func withNetworkRunMetadata(spec taskpkg.EnqueueRun, ingress TaskIngressContext) (taskpkg.EnqueueRun, error) {
@@ -509,6 +526,7 @@ func networkRunMetadataValues(ingress TaskIngressContext) (map[string]string, er
 		return nil, fmt.Errorf("%w: network work_id is required", ErrMissingField)
 	}
 	values := map[string]string{
+		"network_workspace_id": strings.TrimSpace(ingress.WorkspaceID),
 		"network_work_id":      workID,
 		"network_message_id":   strings.TrimSpace(ingress.RequestID),
 		"network_channel":      strings.TrimSpace(ingress.Channel),

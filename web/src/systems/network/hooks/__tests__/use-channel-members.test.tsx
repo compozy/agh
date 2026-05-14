@@ -19,6 +19,8 @@ vi.mock("../../adapters/network-api", async original => {
 
 import { useChannelMembers } from "../use-channel-members";
 
+const WORKSPACE_ID = "ws";
+
 function buildPeer(overrides: Partial<NetworkPeerSummary> & Pick<NetworkPeerSummary, "peer_id">) {
   return {
     channel: "ops",
@@ -49,7 +51,9 @@ describe("useChannelMembers", () => {
       buildPeer({ peer_id: "human-a" }),
     ]);
 
-    const { result } = renderHook(() => useChannelMembers("ops"), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useChannelMembers("ops", { workspaceId: WORKSPACE_ID }), {
+      wrapper: createWrapper(),
+    });
 
     await waitFor(() => {
       expect(result.current.isLoading).toBe(false);
@@ -64,6 +68,7 @@ describe("useChannelMembers", () => {
     ]);
     expect(result.current.members[0].role).toBe("agent");
     expect(result.current.members[2].role).toBe("human");
+    expect(listNetworkPeersMock).toHaveBeenCalledWith(WORKSPACE_ID, "ops", expect.any(AbortSignal));
   });
 
   it("Should stay disabled and report zero counts when no channel is supplied", () => {

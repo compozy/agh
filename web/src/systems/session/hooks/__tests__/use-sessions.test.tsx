@@ -81,7 +81,7 @@ describe("useSession", () => {
       updated_at: "2026-04-06T10:00:00Z",
     });
 
-    const { result } = renderHook(() => useSession("sess-001"), {
+    const { result } = renderHook(() => useSession("sess-001", "ws_alpha"), {
       wrapper: createWrapper(),
     });
 
@@ -90,6 +90,6 @@ describe("useSession", () => {
     });
 
     expect(result.current.data?.provider).toBe("claude");
-    expect(fetchSession).toHaveBeenCalledWith("sess-001", expect.any(AbortSignal));
+    expect(fetchSession).toHaveBeenCalledWith("ws_alpha", "sess-001", expect.any(AbortSignal));
   });
 });

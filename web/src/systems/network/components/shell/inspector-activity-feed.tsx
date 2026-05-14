@@ -13,6 +13,7 @@ import {
 } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 import { formatNetworkRelativeTime } from "../../lib/network-formatters";
 import type { NetworkDirectRoomSummary, NetworkThreadSummary } from "../../types";
@@ -99,6 +100,8 @@ export function InspectorActivityFeed({
   className,
   limit = 10,
 }: InspectorActivityFeedProps) {
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = activeWorkspaceId ?? "";
   const entries = buildEntries(threads, directs, limit);
 
   if (isLoading && entries.length === 0) {
@@ -133,9 +136,15 @@ export function InspectorActivityFeed({
           key={entry.id}
           render={
             entry.kind === "thread" ? (
-              <Link params={{ channel, threadId: href }} to="/network/$channel/threads/$threadId" />
+              <Link
+                params={{ workspaceId, channel, threadId: href }}
+                to="/network/$workspaceId/$channel/threads/$threadId"
+              />
             ) : (
-              <Link params={{ channel, directId: href }} to="/network/$channel/directs/$directId" />
+              <Link
+                params={{ workspaceId, channel, directId: href }}
+                to="/network/$workspaceId/$channel/directs/$directId"
+              />
             )
           }
           role="listitem"

@@ -158,11 +158,15 @@ describe("HostAPI", () => {
       return { soul: soulPayload, revision: { id: "rev-1", agent_name: "coder" } };
     });
     pair.host.handle("sessions/soul/refresh", async params => {
-      expect(params).toEqual({ session_id: "sess-1", expected_digest: "sha256:soul" });
+      expect(params).toEqual({
+        workspace_id: "ws-1",
+        session_id: "sess-1",
+        expected_digest: "sha256:soul",
+      });
       return soulPayload;
     });
     pair.host.handle("sessions/health/get", async params => {
-      expect(params).toEqual({ session_id: "sess-1" });
+      expect(params).toEqual({ workspace_id: "ws-1", session_id: "sess-1" });
       return {
         health: {
           session_id: "sess-1",
@@ -221,9 +225,15 @@ describe("HostAPI", () => {
       })
     ).resolves.toMatchObject({ soul: soulPayload });
     await expect(
-      host.sessions.refreshSoul({ session_id: "sess-1", expected_digest: "sha256:soul" })
+      host.sessions.refreshSoul({
+        workspace_id: "ws-1",
+        session_id: "sess-1",
+        expected_digest: "sha256:soul",
+      })
     ).resolves.toEqual(soulPayload);
-    await expect(host.sessions.health({ session_id: "sess-1" })).resolves.toMatchObject({
+    await expect(
+      host.sessions.health({ workspace_id: "ws-1", session_id: "sess-1" })
+    ).resolves.toMatchObject({
       health: { eligible_for_wake: true },
     });
     await expect(
@@ -254,6 +264,7 @@ describe("HostAPI", () => {
 
     pair.host.handle("observe/events", async params => {
       expect(params).toEqual({
+        workspace_id: "ws-1",
         since: "2026-04-10T12:00:00.000Z",
         limit: 5,
       });
@@ -267,7 +278,7 @@ describe("HostAPI", () => {
     });
 
     await expect(
-      host.observe.events({ since: "2026-04-10T12:00:00.000Z", limit: 5 })
+      host.observe.events({ workspace_id: "ws-1", since: "2026-04-10T12:00:00.000Z", limit: 5 })
     ).resolves.toHaveLength(1);
   });
 
@@ -280,11 +291,11 @@ describe("HostAPI", () => {
       return { enabled: true, status: "running", channels: 1 };
     });
     pair.host.handle("network/channels", async params => {
-      expect(params).toBeUndefined();
+      expect(params).toEqual({ workspace_id: "ws-1" });
       return [{ channel: "builders", peer_count: 2 }];
     });
     pair.host.handle("network/peers", async params => {
-      expect(params).toEqual({ channel: "builders" });
+      expect(params).toEqual({ workspace_id: "ws-1", channel: "builders" });
       return [
         {
           peer_id: "peer.remote",
@@ -302,15 +313,24 @@ describe("HostAPI", () => {
       ];
     });
     pair.host.handle("network/threads", async params => {
-      expect(params).toEqual({ channel: "builders", limit: 10 });
+      expect(params).toEqual({ workspace_id: "ws-1", channel: "builders", limit: 10 });
       return [{ channel: "builders", thread_id: "thread_alpha01", root_message_id: "msg-root" }];
     });
     pair.host.handle("network/thread/get", async params => {
-      expect(params).toEqual({ channel: "builders", thread_id: "thread_alpha01" });
+      expect(params).toEqual({
+        workspace_id: "ws-1",
+        channel: "builders",
+        thread_id: "thread_alpha01",
+      });
       return { channel: "builders", thread_id: "thread_alpha01", root_message_id: "msg-root" };
     });
     pair.host.handle("network/thread/messages", async params => {
-      expect(params).toEqual({ channel: "builders", thread_id: "thread_alpha01", limit: 5 });
+      expect(params).toEqual({
+        workspace_id: "ws-1",
+        channel: "builders",
+        thread_id: "thread_alpha01",
+        limit: 5,
+      });
       return [
         {
           message_id: "msg-root",
@@ -326,7 +346,11 @@ describe("HostAPI", () => {
       ];
     });
     pair.host.handle("network/directs", async params => {
-      expect(params).toEqual({ channel: "builders", peer_id: "peer.remote" });
+      expect(params).toEqual({
+        workspace_id: "ws-1",
+        channel: "builders",
+        peer_id: "peer.remote",
+      });
       return [
         {
           channel: "builders",
@@ -338,6 +362,7 @@ describe("HostAPI", () => {
     });
     pair.host.handle("network/direct/resolve", async params => {
       expect(params).toEqual({
+        workspace_id: "ws-1",
         channel: "builders",
         session_id: "sess-local",
         peer_id: "peer.remote",
@@ -351,6 +376,7 @@ describe("HostAPI", () => {
     });
     pair.host.handle("network/direct/messages", async params => {
       expect(params).toEqual({
+        workspace_id: "ws-1",
         channel: "builders",
         direct_id: "direct_0123456789abcdef0123456789abcdef",
         limit: 5,
@@ -358,7 +384,7 @@ describe("HostAPI", () => {
       return [];
     });
     pair.host.handle("network/work/get", async params => {
-      expect(params).toEqual({ work_id: "work-alpha" });
+      expect(params).toEqual({ workspace_id: "ws-1", work_id: "work-alpha" });
       return {
         work_id: "work-alpha",
         channel: "builders",
@@ -387,20 +413,38 @@ describe("HostAPI", () => {
     });
 
     await expect(host.network.status()).resolves.toMatchObject({ status: "running" });
-    await expect(host.network.channels()).resolves.toHaveLength(1);
-    await expect(host.network.peers({ channel: "builders" })).resolves.toHaveLength(1);
-    await expect(host.network.threads({ channel: "builders", limit: 10 })).resolves.toHaveLength(1);
+    await expect(host.network.channels({ workspace_id: "ws-1" })).resolves.toHaveLength(1);
     await expect(
-      host.network.thread.get({ channel: "builders", thread_id: "thread_alpha01" })
-    ).resolves.toMatchObject({ thread_id: "thread_alpha01" });
-    await expect(
-      host.network.thread.messages({ channel: "builders", thread_id: "thread_alpha01", limit: 5 })
+      host.network.peers({ workspace_id: "ws-1", channel: "builders" })
     ).resolves.toHaveLength(1);
     await expect(
-      host.network.directs({ channel: "builders", peer_id: "peer.remote" })
+      host.network.threads({ workspace_id: "ws-1", channel: "builders", limit: 10 })
+    ).resolves.toHaveLength(1);
+    await expect(
+      host.network.thread.get({
+        workspace_id: "ws-1",
+        channel: "builders",
+        thread_id: "thread_alpha01",
+      })
+    ).resolves.toMatchObject({ thread_id: "thread_alpha01" });
+    await expect(
+      host.network.thread.messages({
+        workspace_id: "ws-1",
+        channel: "builders",
+        thread_id: "thread_alpha01",
+        limit: 5,
+      })
+    ).resolves.toHaveLength(1);
+    await expect(
+      host.network.directs({
+        workspace_id: "ws-1",
+        channel: "builders",
+        peer_id: "peer.remote",
+      })
     ).resolves.toHaveLength(1);
     await expect(
       host.network.direct.resolve({
+        workspace_id: "ws-1",
         channel: "builders",
         session_id: "sess-local",
         peer_id: "peer.remote",
@@ -408,12 +452,15 @@ describe("HostAPI", () => {
     ).resolves.toMatchObject({ direct_id: "direct_0123456789abcdef0123456789abcdef" });
     await expect(
       host.network.direct.messages({
+        workspace_id: "ws-1",
         channel: "builders",
         direct_id: "direct_0123456789abcdef0123456789abcdef",
         limit: 5,
       })
     ).resolves.toEqual([]);
-    await expect(host.network.work.get({ work_id: "work-alpha" })).resolves.toMatchObject({
+    await expect(
+      host.network.work.get({ workspace_id: "ws-1", work_id: "work-alpha" })
+    ).resolves.toMatchObject({
       work_id: "work-alpha",
     });
     await expect(
@@ -433,11 +480,11 @@ describe("HostAPI", () => {
     const host = new HostAPI(pair.extension, { isReady: () => true });
 
     pair.host.handle("sessions/prompt", async params => {
-      expect(params).toEqual({ session_id: "sess-1", message: "hello" });
+      expect(params).toEqual({ workspace_id: "ws-1", session_id: "sess-1", message: "hello" });
       return { turn_id: "turn-1" };
     });
     pair.host.handle("sessions/stop", async params => {
-      expect(params).toEqual({ session_id: "sess-1" });
+      expect(params).toEqual({ workspace_id: "ws-1", session_id: "sess-1" });
       return {};
     });
     pair.host.handle("sessions/status", async () => ({
@@ -531,13 +578,17 @@ describe("HostAPI", () => {
       };
     });
 
-    await expect(host.sessions.prompt({ session_id: "sess-1", message: "hello" })).resolves.toEqual(
-      {
-        turn_id: "turn-1",
-      }
-    );
-    await expect(host.sessions.stop({ session_id: "sess-1" })).resolves.toEqual({});
-    await expect(host.sessions.status({ session_id: "sess-1" })).resolves.toMatchObject({
+    await expect(
+      host.sessions.prompt({ workspace_id: "ws-1", session_id: "sess-1", message: "hello" })
+    ).resolves.toEqual({
+      turn_id: "turn-1",
+    });
+    await expect(
+      host.sessions.stop({ workspace_id: "ws-1", session_id: "sess-1" })
+    ).resolves.toEqual({});
+    await expect(
+      host.sessions.status({ workspace_id: "ws-1", session_id: "sess-1" })
+    ).resolves.toMatchObject({
       session_id: "sess-1",
       state: "active",
     });

@@ -63,9 +63,9 @@ func registerWorkspaceRoutes(api gin.IRouter, handlers *Handlers) {
 	workspaces := api.Group("/workspaces")
 	workspaces.POST("", handlers.CreateWorkspace)
 	workspaces.GET("", handlers.ListWorkspaces)
-	workspaces.GET("/:id", handlers.GetWorkspace)
-	workspaces.PATCH("/:id", handlers.UpdateWorkspace)
-	workspaces.DELETE("/:id", handlers.DeleteWorkspace)
+	workspaces.GET("/:workspace_id", handlers.GetWorkspace)
+	workspaces.PATCH("/:workspace_id", handlers.UpdateWorkspace)
+	workspaces.DELETE("/:workspace_id", handlers.DeleteWorkspace)
 	workspaces.POST("/resolve", handlers.ResolveWorkspace)
 }
 
@@ -73,23 +73,25 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 	sessions := api.Group("/sessions")
 	sessions.GET("", handlers.ListSessions)
 	sessions.POST("", handlers.CreateSession)
-	sessions.GET("/:id", handlers.GetSession)
-	sessions.POST("/:id/soul/refresh", handlers.RefreshSessionSoul)
-	sessions.GET("/:id/health", handlers.GetSessionHealth)
-	sessions.GET("/:id/status", handlers.GetSessionStatus)
-	sessions.GET("/:id/inspect", handlers.InspectSession)
-	sessions.DELETE("/:id", handlers.DeleteSession)
-	sessions.POST("/:id/stop", handlers.StopSession)
-	sessions.POST("/:id/resume", handlers.ResumeSession)
-	sessions.POST("/:id/repair", handlers.RepairSession)
-	sessions.POST("/:id/clear", handlers.ClearSessionConversation)
-	sessions.POST("/:id/prompt", handlers.promptSession)
-	sessions.POST("/:id/prompt/cancel", handlers.cancelSessionPrompt)
-	sessions.GET("/:id/events", handlers.SessionEvents)
-	sessions.GET("/:id/history", handlers.SessionHistory)
-	sessions.GET("/:id/transcript", handlers.SessionTranscript)
-	sessions.GET("/:id/stream", handlers.StreamSession)
-	sessions.POST("/:id/approve", handlers.approveSession)
+
+	workspaceSessions := api.Group("/workspaces/:workspace_id/sessions")
+	workspaceSessions.GET("/:session_id", handlers.GetSession)
+	workspaceSessions.POST("/:session_id/soul/refresh", handlers.RefreshSessionSoul)
+	workspaceSessions.GET("/:session_id/health", handlers.GetSessionHealth)
+	workspaceSessions.GET("/:session_id/status", handlers.GetSessionStatus)
+	workspaceSessions.GET("/:session_id/inspect", handlers.InspectSession)
+	workspaceSessions.DELETE("/:session_id", handlers.DeleteSession)
+	workspaceSessions.POST("/:session_id/stop", handlers.StopSession)
+	workspaceSessions.POST("/:session_id/resume", handlers.ResumeSession)
+	workspaceSessions.POST("/:session_id/repair", handlers.RepairSession)
+	workspaceSessions.POST("/:session_id/clear", handlers.ClearSessionConversation)
+	workspaceSessions.POST("/:session_id/prompt", handlers.promptSession)
+	workspaceSessions.POST("/:session_id/prompt/cancel", handlers.cancelSessionPrompt)
+	workspaceSessions.GET("/:session_id/events", handlers.SessionEvents)
+	workspaceSessions.GET("/:session_id/history", handlers.SessionHistory)
+	workspaceSessions.GET("/:session_id/transcript", handlers.SessionTranscript)
+	workspaceSessions.GET("/:session_id/stream", handlers.StreamSession)
+	workspaceSessions.POST("/:session_id/approve", handlers.approveSession)
 }
 
 func registerAgentRoutes(api gin.IRouter, handlers *Handlers) {
@@ -133,9 +135,11 @@ func registerAgentRoutes(api gin.IRouter, handlers *Handlers) {
 
 func registerObserveRoutes(api gin.IRouter, handlers *Handlers) {
 	observeGroup := api.Group("/observe")
-	observeGroup.GET("/events", handlers.ObserveEvents)
-	observeGroup.GET("/events/stream", handlers.StreamObserveEvents)
 	observeGroup.GET("/health", handlers.Health)
+
+	workspaceObserveGroup := api.Group("/workspaces/:workspace_id/observe")
+	workspaceObserveGroup.GET("/events", handlers.ObserveEvents)
+	workspaceObserveGroup.GET("/events/stream", handlers.StreamObserveEvents)
 
 	taskObserveGroup := observeGroup.Group("/tasks")
 	taskObserveGroup.GET("/dashboard", handlers.TaskDashboard)
@@ -145,8 +149,10 @@ func registerObserveRoutes(api gin.IRouter, handlers *Handlers) {
 func registerHookRoutes(api gin.IRouter, handlers *Handlers) {
 	hooksGroup := api.Group("/hooks")
 	hooksGroup.GET("/catalog", handlers.HookCatalog)
-	hooksGroup.GET("/runs", handlers.HookRuns)
 	hooksGroup.GET("/events", handlers.HookEvents)
+
+	workspaceHooksGroup := api.Group("/workspaces/:workspace_id/hooks")
+	workspaceHooksGroup.GET("/runs", handlers.HookRuns)
 }
 
 func registerResourceRoutes(api gin.IRouter, handlers *Handlers) {
@@ -176,9 +182,9 @@ func registerToolRoutes(api gin.IRouter, handlers *Handlers) {
 	tools.POST("/:id/invoke", privileged, handlers.InvokeTool)
 	tools.GET("/:id", handlers.GetTool)
 
-	sessions := api.Group("/sessions")
-	sessions.GET("/:id/tools", handlers.ListSessionTools)
-	sessions.POST("/:id/tools/search", handlers.SearchSessionTools)
+	workspaceSessions := api.Group("/workspaces/:workspace_id/sessions")
+	workspaceSessions.GET("/:session_id/tools", handlers.ListSessionTools)
+	workspaceSessions.POST("/:session_id/tools/search", handlers.SearchSessionTools)
 
 	toolsets := api.Group("/toolsets")
 	toolsets.GET("", handlers.ListToolsets)
@@ -301,13 +307,15 @@ func registerMemoryRoutes(api gin.IRouter, handlers *Handlers) {
 	memoryGroup.POST("/providers/:provider_name/enable", handlers.EnableMemoryProvider)
 	memoryGroup.POST("/providers/:provider_name/disable", handlers.DisableMemoryProvider)
 	memoryGroup.POST("/ad-hoc", handlers.CreateMemoryAdhocNote)
-	memoryGroup.GET("/sessions/:session_id/ledger", handlers.GetMemorySessionLedger)
-	memoryGroup.POST("/sessions/:session_id/replay", handlers.ReplayMemorySession)
 	memoryGroup.POST("/sessions/prune", handlers.PruneMemorySessions)
 	memoryGroup.POST("/sessions/repair", handlers.RepairMemorySessions)
 	memoryGroup.GET("/:filename", handlers.ReadMemory)
 	memoryGroup.PATCH("/:filename", handlers.EditMemory)
 	memoryGroup.DELETE("/:filename", handlers.DeleteMemory)
+
+	workspaceMemorySessions := api.Group("/workspaces/:workspace_id/memory/sessions")
+	workspaceMemorySessions.GET("/:session_id/ledger", handlers.GetMemorySessionLedger)
+	workspaceMemorySessions.POST("/:session_id/replay", handlers.ReplayMemorySession)
 }
 
 func registerDaemonRoutes(api gin.IRouter, handlers *Handlers) {
@@ -318,21 +326,23 @@ func registerDaemonRoutes(api gin.IRouter, handlers *Handlers) {
 func registerNetworkRoutes(api gin.IRouter, handlers *Handlers) {
 	networkGroup := api.Group("/network")
 	networkGroup.GET("/status", handlers.NetworkStatus)
-	networkGroup.GET("/peers", handlers.NetworkPeers)
-	networkGroup.GET("/peers/:peer_id", handlers.NetworkPeer)
-	networkGroup.GET("/channels", handlers.NetworkChannels)
-	networkGroup.POST("/channels", handlers.CreateNetworkChannel)
-	networkGroup.GET("/channels/:channel", handlers.NetworkChannel)
-	networkGroup.GET("/channels/:channel/threads", handlers.NetworkThreads)
-	networkGroup.GET("/channels/:channel/threads/:thread_id", handlers.NetworkThread)
-	networkGroup.GET("/channels/:channel/threads/:thread_id/messages", handlers.NetworkThreadMessages)
-	networkGroup.GET("/channels/:channel/directs", handlers.NetworkDirectRooms)
-	networkGroup.POST("/channels/:channel/directs/resolve", handlers.ResolveNetworkDirectRoom)
-	networkGroup.GET("/channels/:channel/directs/:direct_id", handlers.NetworkDirectRoom)
-	networkGroup.GET("/channels/:channel/directs/:direct_id/messages", handlers.NetworkDirectRoomMessages)
-	networkGroup.GET("/work/:work_id", handlers.NetworkWork)
-	networkGroup.POST("/send", handlers.NetworkSend)
-	networkGroup.GET("/inbox", handlers.NetworkInbox)
+
+	workspaceNetwork := api.Group("/workspaces/:workspace_id/network")
+	workspaceNetwork.GET("/peers", handlers.NetworkPeers)
+	workspaceNetwork.GET("/peers/:peer_id", handlers.NetworkPeer)
+	workspaceNetwork.GET("/channels", handlers.NetworkChannels)
+	workspaceNetwork.POST("/channels", handlers.CreateNetworkChannel)
+	workspaceNetwork.GET("/channels/:channel", handlers.NetworkChannel)
+	workspaceNetwork.GET("/channels/:channel/threads", handlers.NetworkThreads)
+	workspaceNetwork.GET("/channels/:channel/threads/:thread_id", handlers.NetworkThread)
+	workspaceNetwork.GET("/channels/:channel/threads/:thread_id/messages", handlers.NetworkThreadMessages)
+	workspaceNetwork.GET("/channels/:channel/directs", handlers.NetworkDirectRooms)
+	workspaceNetwork.POST("/channels/:channel/directs/resolve", handlers.ResolveNetworkDirectRoom)
+	workspaceNetwork.GET("/channels/:channel/directs/:direct_id", handlers.NetworkDirectRoom)
+	workspaceNetwork.GET("/channels/:channel/directs/:direct_id/messages", handlers.NetworkDirectRoomMessages)
+	workspaceNetwork.GET("/work/:work_id", handlers.NetworkWork)
+	workspaceNetwork.POST("/send", handlers.NetworkSend)
+	workspaceNetwork.GET("/inbox", handlers.NetworkInbox)
 }
 
 func registerBundleRoutes(api gin.IRouter, handlers *Handlers) {

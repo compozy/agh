@@ -41,6 +41,8 @@ vi.mock("../../../hooks/use-channel-members", () => ({
 import { ChannelHeader } from "../channel-header";
 import type { NetworkChannel, NetworkChannelSummary } from "@/systems/network";
 
+const WORKSPACE_ID = "w1";
+
 function renderHeader({
   channel = sampleChannel,
   detail = null,
@@ -56,6 +58,7 @@ function renderHeader({
   );
   return render(
     <ChannelHeader
+      workspaceId={WORKSPACE_ID}
       channel={channel}
       detail={detail}
       inspectorOpen={inspectorOpen}

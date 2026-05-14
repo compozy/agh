@@ -46,9 +46,9 @@
  *   - Runtime vars (--anchor-*, --available-*, --accordion-*,
  *     --detail-inspector-*, --radix-*, --overlay-blur) are likewise
  *     untouched.
- *   - Scope: `.tsx` / `.ts` files under `web/src/**` and
- *     `packages/ui/src/**`. Tests and stories included (they exercise
- *     the same className contract).
+ *   - Scope: `.tsx` / `.ts` files under `web/src/**`,
+ *     `packages/ui/src/**`, and `packages/site/**`. Tests and stories
+ *     included (they exercise the same className contract).
  *
  *   Dry-run is the default; pass `--write` to apply.
  */
@@ -60,6 +60,7 @@ import url from "node:url";
 const __filename = url.fileURLToPath(import.meta.url);
 const REPO_ROOT = path.resolve(path.dirname(__filename), "..", "..");
 const TOKENS_CSS = path.join(REPO_ROOT, "packages", "ui", "src", "tokens.css");
+const SITE_GLOBAL_CSS = path.join(REPO_ROOT, "packages", "site", "app", "global.css");
 
 const WRITE = process.argv.includes("--write");
 
@@ -104,6 +105,7 @@ const PREFIXES_BY_NAMESPACE = {
   "drop-shadow": ["drop-shadow"],
   duration: ["duration"],
   ease: ["ease"],
+  container: ["max-w", "min-w", "w"],
 };
 
 // Namespaces sorted longest-first so multi-segment prefixes match before
@@ -123,9 +125,13 @@ const EXPLICIT_RENAMES = new Map([
  * declared name (without leading `--`). Each value is { namespace, stem }.
  */
 function parseTheme(cssSource) {
-  const themeMatch = cssSource.match(/@theme\s*\{([\s\S]*?)\n\}/);
-  if (!themeMatch) throw new Error("Could not locate `@theme { ... }` in tokens.css");
-  const body = themeMatch[1];
+  const themeBlocks = [...cssSource.matchAll(/@theme(?:\s+inline)?\s*\{([\s\S]*?)\n\}/g)].map(
+    match => match[1]
+  );
+  if (themeBlocks.length === 0) {
+    throw new Error("Could not locate any `@theme { ... }` or `@theme inline { ... }` blocks");
+  }
+  const body = themeBlocks.join("\n");
   const declRegex = /--([a-zA-Z0-9-]+)\s*:/g;
   const result = new Map();
   for (const m of body.matchAll(declRegex)) {
@@ -242,16 +248,18 @@ function walkDir(dir, results = []) {
 }
 
 function main() {
-  const cssSource = fs.readFileSync(TOKENS_CSS, "utf8");
+  const themeFiles = [TOKENS_CSS, SITE_GLOBAL_CSS].filter(file => fs.existsSync(file));
+  const cssSource = themeFiles.map(file => fs.readFileSync(file, "utf8")).join("\n");
   const themeTokens = parseTheme(cssSource);
   const aliasMap = buildAliasMap(themeTokens);
 
-  console.log(`Parsed ${themeTokens.size} tokens from @theme.`);
+  console.log(`Parsed ${themeTokens.size} tokens from ${themeFiles.length} @theme source file(s).`);
   console.log(`Built ${aliasMap.size} OLD→NEW alias entries.\n`);
 
   const targets = [
     path.join(REPO_ROOT, "web", "src"),
     path.join(REPO_ROOT, "packages", "ui", "src"),
+    path.join(REPO_ROOT, "packages", "site"),
   ];
   const files = targets.flatMap(dir => (fs.existsSync(dir) ? walkDir(dir) : []));
   console.log(`Scanning ${files.length} TS/TSX files…\n`);

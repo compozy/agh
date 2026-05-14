@@ -4,7 +4,14 @@ import { bridgeKeys } from "../query-keys";
 
 describe("bridgeKeys", () => {
   it("creates stable list and providers keys", () => {
-    expect(bridgeKeys.list()).toEqual(["bridges", "list", "all"]);
+    expect(bridgeKeys.list()).toEqual(["bridges", "list", "all", "", ""]);
+    expect(bridgeKeys.list({ scope: "all", workspace_id: "ws_alpha" })).toEqual([
+      "bridges",
+      "list",
+      "all",
+      "ws_alpha",
+      "",
+    ]);
     expect(bridgeKeys.providers()).toEqual(["bridges", "providers"]);
   });
 

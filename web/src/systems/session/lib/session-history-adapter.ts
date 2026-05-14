@@ -48,12 +48,15 @@ function toLinearRepository(messages: SessionMessage[]): MessageFormatRepository
 }
 
 function createAISDKV6HistoryAdapter(
+  workspaceId: string,
   sessionId: string,
   queryClient: QueryClient
 ): GenericThreadHistoryAdapter<SessionMessage> {
   const adapter = {
     async load() {
-      const messages = await queryClient.ensureQueryData(sessionTranscriptOptions(sessionId));
+      const messages = await queryClient.ensureQueryData(
+        sessionTranscriptOptions(workspaceId, sessionId)
+      );
       return toLinearRepository(messages);
     },
     async append() {},
@@ -62,10 +65,11 @@ function createAISDKV6HistoryAdapter(
 }
 
 export function createSessionHistoryAdapter(
+  workspaceId: string,
   sessionId: string,
   queryClient: QueryClient
 ): ThreadHistoryAdapter {
-  const aiSDKV6History = createAISDKV6HistoryAdapter(sessionId, queryClient);
+  const aiSDKV6History = createAISDKV6HistoryAdapter(workspaceId, sessionId, queryClient);
 
   const adapter = {
     async load() {

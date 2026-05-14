@@ -50,57 +50,64 @@ export function networkStatusOptions() {
   });
 }
 
-export function networkChannelsOptions(enabled = true) {
+export function networkChannelsOptions(workspaceId: string, enabled = true) {
   return queryOptions({
-    queryKey: networkKeys.channels(),
-    queryFn: ({ signal }) => listNetworkChannels(signal),
+    queryKey: networkKeys.channels(workspaceId),
+    queryFn: ({ signal }) => listNetworkChannels(workspaceId, signal),
     staleTime: LIST_STALE_TIME,
     refetchInterval: CHANNELS_REFETCH_INTERVAL,
     refetchOnWindowFocus: true,
-    enabled,
+    enabled: Boolean(workspaceId) && enabled,
   });
 }
 
-export function networkChannelDetailOptions(channel: string, enabled = true) {
+export function networkChannelDetailOptions(workspaceId: string, channel: string, enabled = true) {
   return queryOptions({
-    queryKey: networkKeys.channelDetail(channel),
-    queryFn: ({ signal }) => getNetworkChannel(channel, signal),
+    queryKey: networkKeys.channelDetail(workspaceId, channel),
+    queryFn: ({ signal }) => getNetworkChannel(workspaceId, channel, signal),
     staleTime: LIST_STALE_TIME,
     refetchInterval: LIST_REFETCH_INTERVAL,
     refetchOnWindowFocus: true,
-    enabled: Boolean(channel) && enabled,
+    enabled: Boolean(workspaceId) && Boolean(channel) && enabled,
   });
 }
 
 export function networkThreadsOptions(
+  workspaceId: string,
   channel: string,
   query: NetworkThreadsListQuery = {},
   enabled = true
 ) {
   const normalizedQuery = { ...query, limit: query.limit ?? DEFAULT_LIST_LIMIT };
   return queryOptions({
-    queryKey: networkKeys.threadsList(channel, normalizedQuery),
-    queryFn: ({ signal }) => listNetworkThreads(channel, normalizedQuery, signal),
+    queryKey: networkKeys.threadsList(workspaceId, channel, normalizedQuery),
+    queryFn: ({ signal }) => listNetworkThreads(workspaceId, channel, normalizedQuery, signal),
     staleTime: LIST_STALE_TIME,
     refetchInterval: LIST_REFETCH_INTERVAL,
     refetchOnWindowFocus: true,
-    enabled: Boolean(channel) && enabled,
+    enabled: Boolean(workspaceId) && Boolean(channel) && enabled,
   });
 }
 
-export function networkThreadDetailOptions(channel: string, threadId: string, enabled = true) {
+export function networkThreadDetailOptions(
+  workspaceId: string,
+  channel: string,
+  threadId: string,
+  enabled = true
+) {
   return queryOptions({
-    queryKey: networkKeys.threadDetail(channel, threadId),
-    queryFn: ({ signal }) => getNetworkThread(channel, threadId, signal),
+    queryKey: networkKeys.threadDetail(workspaceId, channel, threadId),
+    queryFn: ({ signal }) => getNetworkThread(workspaceId, channel, threadId, signal),
     retry: shouldRetryDetailQuery,
     staleTime: LIST_STALE_TIME,
     refetchInterval: LIST_REFETCH_INTERVAL,
     refetchOnWindowFocus: true,
-    enabled: Boolean(channel) && Boolean(threadId) && enabled,
+    enabled: Boolean(workspaceId) && Boolean(channel) && Boolean(threadId) && enabled,
   });
 }
 
 export function networkThreadMessagesOptions(
+  workspaceId: string,
   channel: string,
   threadId: string,
   query: NetworkConversationMessagesQuery = {},
@@ -108,44 +115,52 @@ export function networkThreadMessagesOptions(
 ) {
   const normalizedQuery = { ...query, limit: query.limit ?? DEFAULT_TIMELINE_LIMIT };
   return queryOptions({
-    queryKey: networkKeys.threadMessages(channel, threadId, normalizedQuery),
-    queryFn: ({ signal }) => listNetworkThreadMessages(channel, threadId, normalizedQuery, signal),
+    queryKey: networkKeys.threadMessages(workspaceId, channel, threadId, normalizedQuery),
+    queryFn: ({ signal }) =>
+      listNetworkThreadMessages(workspaceId, channel, threadId, normalizedQuery, signal),
     staleTime: MESSAGES_STALE_TIME,
     refetchInterval: MESSAGES_REFETCH_INTERVAL,
     refetchOnWindowFocus: true,
-    enabled: Boolean(channel) && Boolean(threadId) && enabled,
+    enabled: Boolean(workspaceId) && Boolean(channel) && Boolean(threadId) && enabled,
   });
 }
 
 export function networkDirectsOptions(
+  workspaceId: string,
   channel: string,
   query: NetworkDirectsListQuery = {},
   enabled = true
 ) {
   const normalizedQuery = { ...query, limit: query.limit ?? DEFAULT_LIST_LIMIT };
   return queryOptions({
-    queryKey: networkKeys.directsList(channel, normalizedQuery),
-    queryFn: ({ signal }) => listNetworkDirectRooms(channel, normalizedQuery, signal),
+    queryKey: networkKeys.directsList(workspaceId, channel, normalizedQuery),
+    queryFn: ({ signal }) => listNetworkDirectRooms(workspaceId, channel, normalizedQuery, signal),
     staleTime: LIST_STALE_TIME,
     refetchInterval: LIST_REFETCH_INTERVAL,
     refetchOnWindowFocus: true,
-    enabled: Boolean(channel) && enabled,
+    enabled: Boolean(workspaceId) && Boolean(channel) && enabled,
   });
 }
 
-export function networkDirectDetailOptions(channel: string, directId: string, enabled = true) {
+export function networkDirectDetailOptions(
+  workspaceId: string,
+  channel: string,
+  directId: string,
+  enabled = true
+) {
   return queryOptions({
-    queryKey: networkKeys.directDetail(channel, directId),
-    queryFn: ({ signal }) => getNetworkDirectRoom(channel, directId, signal),
+    queryKey: networkKeys.directDetail(workspaceId, channel, directId),
+    queryFn: ({ signal }) => getNetworkDirectRoom(workspaceId, channel, directId, signal),
     retry: shouldRetryDetailQuery,
     staleTime: LIST_STALE_TIME,
     refetchInterval: LIST_REFETCH_INTERVAL,
     refetchOnWindowFocus: true,
-    enabled: Boolean(channel) && Boolean(directId) && enabled,
+    enabled: Boolean(workspaceId) && Boolean(channel) && Boolean(directId) && enabled,
   });
 }
 
 export function networkDirectMessagesOptions(
+  workspaceId: string,
   channel: string,
   directId: string,
   query: NetworkConversationMessagesQuery = {},
@@ -153,45 +168,45 @@ export function networkDirectMessagesOptions(
 ) {
   const normalizedQuery = { ...query, limit: query.limit ?? DEFAULT_TIMELINE_LIMIT };
   return queryOptions({
-    queryKey: networkKeys.directMessages(channel, directId, normalizedQuery),
+    queryKey: networkKeys.directMessages(workspaceId, channel, directId, normalizedQuery),
     queryFn: ({ signal }) =>
-      listNetworkDirectRoomMessages(channel, directId, normalizedQuery, signal),
+      listNetworkDirectRoomMessages(workspaceId, channel, directId, normalizedQuery, signal),
     staleTime: MESSAGES_STALE_TIME,
     refetchInterval: MESSAGES_REFETCH_INTERVAL,
     refetchOnWindowFocus: true,
-    enabled: Boolean(channel) && Boolean(directId) && enabled,
+    enabled: Boolean(workspaceId) && Boolean(channel) && Boolean(directId) && enabled,
   });
 }
 
-export function networkWorkOptions(workId: string, enabled = true) {
+export function networkWorkOptions(workspaceId: string, workId: string, enabled = true) {
   return queryOptions({
-    queryKey: networkKeys.work(workId),
-    queryFn: ({ signal }) => getNetworkWork(workId, signal),
+    queryKey: networkKeys.work(workspaceId, workId),
+    queryFn: ({ signal }) => getNetworkWork(workspaceId, workId, signal),
     staleTime: MESSAGES_STALE_TIME,
     refetchInterval: WORK_REFETCH_INTERVAL,
     refetchOnWindowFocus: true,
-    enabled: Boolean(workId) && enabled,
+    enabled: Boolean(workspaceId) && Boolean(workId) && enabled,
   });
 }
 
-export function networkPeersOptions(channel?: string, enabled = true) {
+export function networkPeersOptions(workspaceId: string, channel?: string, enabled = true) {
   return queryOptions({
-    queryKey: networkKeys.peers(channel),
-    queryFn: ({ signal }) => listNetworkPeers(channel, signal),
+    queryKey: networkKeys.peers(workspaceId, channel),
+    queryFn: ({ signal }) => listNetworkPeers(workspaceId, channel, signal),
     staleTime: LIST_STALE_TIME,
     refetchInterval: LIST_REFETCH_INTERVAL,
     refetchOnWindowFocus: true,
-    enabled,
+    enabled: Boolean(workspaceId) && enabled,
   });
 }
 
-export function networkPeerDetailOptions(peerId: string, enabled = true) {
+export function networkPeerDetailOptions(workspaceId: string, peerId: string, enabled = true) {
   return queryOptions({
-    queryKey: networkKeys.peerDetail(peerId),
-    queryFn: ({ signal }) => getNetworkPeer(peerId, signal),
+    queryKey: networkKeys.peerDetail(workspaceId, peerId),
+    queryFn: ({ signal }) => getNetworkPeer(workspaceId, peerId, signal),
     staleTime: LIST_STALE_TIME,
     refetchInterval: LIST_REFETCH_INTERVAL,
     refetchOnWindowFocus: true,
-    enabled: Boolean(peerId) && enabled,
+    enabled: Boolean(workspaceId) && Boolean(peerId) && enabled,
   });
 }

@@ -13,6 +13,7 @@ import {
 
 interface UseSessionPageControlsOptions {
   onDeleteSuccess?: () => void;
+  workspaceId?: string;
 }
 
 export interface ResumeProviderUnavailableDetail {
@@ -64,13 +65,14 @@ export function useSessionPageControls(
   options: UseSessionPageControlsOptions = {}
 ) {
   const aui = useAui();
+  const workspaceId = options.workspaceId ?? "";
   const onDeleteSuccess = options.onDeleteSuccess;
   const messages = useAuiState(state => state.thread.messages);
   const isRunning = useAuiState(state => state.thread.isRunning);
-  const deleteMutation = useDeleteSession();
-  const stopMutation = useStopSession();
-  const resumeMutation = useResumeSession();
-  const clearMutation = useClearSessionConversation();
+  const deleteMutation = useDeleteSession({ workspaceId });
+  const stopMutation = useStopSession({ workspaceId });
+  const resumeMutation = useResumeSession({ workspaceId });
+  const clearMutation = useClearSessionConversation({ workspaceId });
   const [isCancellingPrompt, setIsCancellingPrompt] = useState(false);
   const [resumeFailure, setResumeFailure] = useState<SessionResumeFailure | null>(null);
 
@@ -82,14 +84,14 @@ export function useSessionPageControls(
     }
 
     setIsCancellingPrompt(true);
-    void cancelSessionPrompt(sessionId)
+    void cancelSessionPrompt(workspaceId, sessionId)
       .catch(() => {
         toast.error("Failed to stop the current prompt.");
       })
       .finally(() => {
         setIsCancellingPrompt(false);
       });
-  }, [isCancellingPrompt, isRunning, sessionId]);
+  }, [isCancellingPrompt, isRunning, sessionId, workspaceId]);
 
   const isStopping = stopMutation.isPending || isCancellingPrompt;
   const isResuming = resumeMutation.isPending;

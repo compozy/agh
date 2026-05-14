@@ -5,24 +5,12 @@ import { AnimatePresence, m } from "motion/react";
 import * as React from "react";
 
 import { cn } from "../lib/utils";
+import {
+  PopoverMotionContext,
+  type PopoverMotionContextValue,
+  usePopoverMotion,
+} from "./hooks/use-popover-motion";
 import { useInitialState } from "./use-initial-state";
-
-type PopoverActionsRef = React.RefObject<PopoverPrimitive.Root.Actions | null>;
-
-interface PopoverMotionContextValue {
-  actionsRef: PopoverActionsRef;
-  open: boolean;
-}
-
-const PopoverMotionContext = React.createContext<PopoverMotionContextValue | null>(null);
-
-function usePopoverMotion(): PopoverMotionContextValue {
-  const ctx = React.use(PopoverMotionContext);
-  if (!ctx) {
-    throw new Error("Popover.* components must be used inside <Popover>.");
-  }
-  return ctx;
-}
 
 type PopoverRootProps = PopoverPrimitive.Root.Props;
 

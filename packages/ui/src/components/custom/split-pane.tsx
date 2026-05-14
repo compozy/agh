@@ -5,6 +5,7 @@ import { AnimatePresence, m, useReducedMotionConfig } from "motion/react";
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
+import { useNarrowViewport } from "./hooks/use-narrow-viewport";
 
 const SPLIT_LIST_WIDTH_DEFAULT = 340;
 const SPLIT_NARROW_BREAKPOINT_DEFAULT = 768;
@@ -18,21 +19,6 @@ export interface SplitPaneProps extends Omit<React.ComponentProps<"div">, "onCha
   onDetailClose?: () => void;
   narrowBreakpoint?: number;
   backLabel?: string;
-}
-
-function useNarrowViewport(breakpoint: number): boolean {
-  const [narrow, setNarrow] = React.useState(false);
-  React.useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
-    const query = window.matchMedia(`(max-width: ${Math.max(0, breakpoint - 1)}px)`);
-    const handler = (event: MediaQueryListEvent | MediaQueryList) => {
-      setNarrow(event.matches);
-    };
-    handler(query);
-    query.addEventListener("change", handler);
-    return () => query.removeEventListener("change", handler);
-  }, [breakpoint]);
-  return narrow;
 }
 
 function isDetailPresent(detail: React.ReactNode): boolean {

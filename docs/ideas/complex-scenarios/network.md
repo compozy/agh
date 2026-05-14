@@ -39,13 +39,13 @@ are useful readiness gates. They do not complete a scenario by themselves.
 
 These are the surfaces the scenarios can exercise today.
 
-| Surface                | Testable behavior                                                                                                                                                                                                                                  |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Daemon/runtime         | Embedded network manager, local peer lifecycle, channels, direct/say messages, inbox queues, audit/message store projection, task ingress guards.                                                                                                  |
-| CLI                    | `agh network status`, `agh network peers [channel]`, `agh network channels`, `agh network send --session --channel --kind --body`, `agh network inbox --session`.                                                                                  |
-| HTTP/UDS API           | `/api/network/status`, `/api/network/peers`, `/api/network/peers/{peer_id}`, `/api/network/peers/{peer_id}/messages`, `/api/network/channels`, `/api/network/channels/{channel}`, `/api/network/channels/{channel}/messages`, `/api/network/send`. |
-| Web                    | `web/` route `/network`, backed by `web/src/routes/_app/network.tsx` and `web/src/systems/network`, including status, channel list, channel detail, peer rooms, timelines, kind filters, create-channel dialog, and compose actions.               |
-| Session/task adjacency | Network channels can be created from selected local agents; sessions join channels; tasks and runs can carry `network_channel` and validate against active channels.                                                                               |
+| Surface                | Testable behavior                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Daemon/runtime         | Embedded network manager, local peer lifecycle, channels, direct/say messages, inbox queues, audit/message store projection, task ingress guards.                                                                                                                                                                                                                                                                                        |
+| CLI                    | `agh network status`, `agh network peers [channel]`, `agh network channels`, `agh network send --session --channel --kind --body`, `agh network inbox --session`.                                                                                                                                                                                                                                                                        |
+| HTTP/UDS API           | `/api/network/status`, `/api/workspaces/{workspace_id}/network/peers`, `/api/workspaces/{workspace_id}/network/peers/{peer_id}`, `/api/workspaces/{workspace_id}/network/peers/{peer_id}/messages`, `/api/workspaces/{workspace_id}/network/channels`, `/api/workspaces/{workspace_id}/network/channels/{channel}`, `/api/workspaces/{workspace_id}/network/channels/{channel}/messages`, `/api/workspaces/{workspace_id}/network/send`. |
+| Web                    | `web/` route `/network`, backed by `web/src/routes/_app/network.tsx` and `web/src/systems/network`, including status, channel list, channel detail, peer rooms, timelines, kind filters, create-channel dialog, and compose actions.                                                                                                                                                                                                     |
+| Session/task adjacency | Network channels can be created from selected local agents; sessions join channels; tasks and runs can carry `network_channel` and validate against active channels.                                                                                                                                                                                                                                                                     |
 
 Use `AGH_WEB_API_PROXY_TARGET` from the active bootstrap manifest/env whenever an
 isolated daemon is not running on the default port.
@@ -83,14 +83,14 @@ proof with fake final confidence.
 
 ## 3. Startup scenario matrix
 
-| Scenario                   | Startup outcome                                                              | Agents/roles                                      | CLI evidence                                                 | Web evidence                                                                    | API/runtime evidence                                     | Disruption probe                                  |
-| -------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------- |
-| Launch room coordination   | Cross-functional launch team shares status and handoffs in one channel.      | founder, product, engineering, support, QA, comms | `status`, `channels`, `peers launch`, `send`, `inbox`        | Create/open `launch`, inspect timeline, peer rail, kind filters, compose result | `/api/network/channels/launch`, `/messages`, `/send`     | Wrong recipient or missing local peer for compose |
-| Customer escalation room   | Support escalates a customer issue to engineering and confirms handoff.      | support, backend, founder, QA                     | `send --kind direct`, `inbox`, `peers support-escalation`    | Direct peer room shows handoff and receipt-like timeline                        | peer messages endpoint and task/run linked to channel    | Missed handoff or stale direct room               |
-| Release triage             | Bug bash produces task/run evidence tied to a network channel.               | QA, frontend, backend, release lead               | channel list, task CLI/API where available, network messages | `/network` plus task/run Web route when in scope                                | task/run `network_channel`, channel messages             | Failed run or blocked dependency is visible       |
-| Daily operating digest     | Operators reconstruct yesterday/today status from persisted network history. | founder, ops, product, engineering                | `channels`, `peers`, historical message query via API        | Browser shows understandable channel timeline and not protocol noise only       | message store rows through supported API                 | Presence noise hides useful history               |
-| Hiring funnel coordination | Synthetic candidate review is coordinated without leaking unsafe data.       | recruiter, screener, founder, hiring manager      | `send`, `inbox`, channel/peer listing                        | Candidate review channel and peer lanes are readable                            | channel messages and task state with synthetic data only | Wrong channel assignment or stale task channel    |
-| Capability handoff         | Operator chooses the right peer after inspecting advertised capabilities.    | researcher, coder, reviewer, operator             | `peers`, `send --kind direct`, `inbox`                       | Peer detail shows capability brief and directed room                            | whois/capability discovery through runtime/API           | Capability exists but no usable peer or channel   |
+| Scenario                   | Startup outcome                                                              | Agents/roles                                      | CLI evidence                                                 | Web evidence                                                                    | API/runtime evidence                                                           | Disruption probe                                  |
+| -------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------- |
+| Launch room coordination   | Cross-functional launch team shares status and handoffs in one channel.      | founder, product, engineering, support, QA, comms | `status`, `channels`, `peers launch`, `send`, `inbox`        | Create/open `launch`, inspect timeline, peer rail, kind filters, compose result | `/api/workspaces/{workspace_id}/network/channels/launch`, `/messages`, `/send` | Wrong recipient or missing local peer for compose |
+| Customer escalation room   | Support escalates a customer issue to engineering and confirms handoff.      | support, backend, founder, QA                     | `send --kind direct`, `inbox`, `peers support-escalation`    | Direct peer room shows handoff and receipt-like timeline                        | peer messages endpoint and task/run linked to channel                          | Missed handoff or stale direct room               |
+| Release triage             | Bug bash produces task/run evidence tied to a network channel.               | QA, frontend, backend, release lead               | channel list, task CLI/API where available, network messages | `/network` plus task/run Web route when in scope                                | task/run `network_channel`, channel messages                                   | Failed run or blocked dependency is visible       |
+| Daily operating digest     | Operators reconstruct yesterday/today status from persisted network history. | founder, ops, product, engineering                | `channels`, `peers`, historical message query via API        | Browser shows understandable channel timeline and not protocol noise only       | message store rows through supported API                                       | Presence noise hides useful history               |
+| Hiring funnel coordination | Synthetic candidate review is coordinated without leaking unsafe data.       | recruiter, screener, founder, hiring manager      | `send`, `inbox`, channel/peer listing                        | Candidate review channel and peer lanes are readable                            | channel messages and task state with synthetic data only                       | Wrong channel assignment or stale task channel    |
+| Capability handoff         | Operator chooses the right peer after inspecting advertised capabilities.    | researcher, coder, reviewer, operator             | `peers`, `send --kind direct`, `inbox`                       | Peer detail shows capability brief and directed room                            | whois/capability discovery through runtime/API                                 | Capability exists but no usable peer or channel   |
 
 ---
 
@@ -108,7 +108,8 @@ the browser that the room state is understandable before the launch window.
 - Use configured real agents when possible. Minimum local roles: `founder`,
   `product`, `engineer`, `support`, `qa`, `comms`.
 - Create the `launch` channel from the Web create-channel dialog when possible; if the
-  UI cannot create it, create it through `POST /api/network/channels` and file the Web
+  UI cannot create it, create it through
+  `POST /api/workspaces/{workspace_id}/network/channels` and file the Web
   issue instead of skipping browser validation.
 
 **Journey.**
@@ -122,8 +123,9 @@ the browser that the room state is understandable before the launch window.
    `agh network send --session <session_id> --channel launch --kind say --body '{"text":"Launch checklist ready","stage":"launch"}'`.
 5. Browser reopens the `launch` room and verifies both messages, peer membership,
    message counts, and useful metadata.
-6. API validates the same objects through `/api/network/channels/launch` and
-   `/api/network/channels/launch/messages`.
+6. API validates the same objects through
+   `/api/workspaces/{workspace_id}/network/channels/launch` and
+   `/api/workspaces/{workspace_id}/network/channels/launch/messages`.
 
 **Assertions.**
 
@@ -161,8 +163,8 @@ QA knows what to retest.
 4. Browser opens `/network`, selects the backend peer room, and confirms the directed
    timeline is scoped to that peer while the channel room still contains the public
    escalation summary.
-5. API reads `/api/network/peers/{peer_id}/messages` and
-   `/api/network/channels/support-escalation/messages`.
+5. API reads `/api/workspaces/{workspace_id}/network/peers/{peer_id}/messages` and
+   `/api/workspaces/{workspace_id}/network/channels/support-escalation/messages`.
 
 **Assertions.**
 

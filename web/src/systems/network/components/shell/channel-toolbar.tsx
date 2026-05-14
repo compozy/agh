@@ -73,7 +73,10 @@ const CHIP_FIELDS: ReadonlyArray<ChipFieldDescriptor> = [
 ];
 
 interface TabItem extends LaneTabsItem<ChannelTab> {
-  to: "/network/$channel/threads" | "/network/$channel/directs" | "/network/$channel/activity";
+  to:
+    | "/network/$workspaceId/$channel/threads"
+    | "/network/$workspaceId/$channel/directs"
+    | "/network/$workspaceId/$channel/activity";
 }
 
 function buildTabs({
@@ -88,26 +91,27 @@ function buildTabs({
       value: "threads",
       label: "Threads",
       count: threadCount ?? undefined,
-      to: "/network/$channel/threads",
+      to: "/network/$workspaceId/$channel/threads",
       testId: "network-tab-threads",
     },
     {
       value: "directs",
       label: "Directs",
       count: directCount ?? undefined,
-      to: "/network/$channel/directs",
+      to: "/network/$workspaceId/$channel/directs",
       testId: "network-tab-directs",
     },
     {
       value: "activity",
       label: "Activity",
-      to: "/network/$channel/activity",
+      to: "/network/$workspaceId/$channel/activity",
       testId: "network-tab-activity",
     },
   ];
 }
 
 export interface ChannelToolbarProps {
+  workspaceId: string;
   channel: string;
   activeTab: ChannelTab;
   threadCount: number | null;
@@ -115,6 +119,7 @@ export interface ChannelToolbarProps {
 }
 
 export function ChannelToolbar({
+  workspaceId,
   channel,
   activeTab,
   threadCount,
@@ -136,8 +141,8 @@ export function ChannelToolbar({
 
   const handleTabChange = (next: ChannelTab) => {
     const target = tabs.find(tab => tab.value === next);
-    if (!target) return;
-    void navigate({ params: { channel }, to: target.to });
+    if (!target || !workspaceId) return;
+    void navigate({ params: { workspaceId, channel }, to: target.to });
   };
 
   return (

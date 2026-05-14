@@ -31,6 +31,7 @@ type RouterTransport interface {
 // SendRequest carries one caller-supplied outbound envelope request.
 type SendRequest struct {
 	SessionID   string
+	WorkspaceID string
 	Channel     string
 	Surface     *Surface
 	ThreadID    *string
@@ -193,10 +194,11 @@ func (r *Router) PublishGreet(ctx context.Context, sessionID string, summary str
 	}
 
 	return r.Send(ctx, SendRequest{
-		SessionID: local.SessionID,
-		Channel:   local.Channel,
-		Kind:      KindGreet,
-		Body:      body,
+		SessionID:   local.SessionID,
+		WorkspaceID: local.WorkspaceID,
+		Channel:     local.Channel,
+		Kind:        KindGreet,
+		Body:        body,
 	})
 }
 
@@ -268,7 +270,7 @@ func (r *Router) PrepareSend(ctx context.Context, req SendRequest) (SendResult, 
 	if err != nil {
 		return SendResult{}, err
 	}
-	if envelope.IsDirected() && !r.peers.HasPresence(envelope.Channel, *envelope.To, now) {
+	if envelope.IsDirected() && !r.peers.HasPresence(envelope.WorkspaceID, envelope.Channel, *envelope.To, now) {
 		return SendResult{}, fmt.Errorf(
 			"%w: peer_id=%q channel=%q",
 			ErrTargetPeerNotFound,
@@ -474,7 +476,12 @@ func (r *Router) handleReceivedGreet(state *receiveState) (RouteResult, error) {
 	if err != nil {
 		return RouteResult{}, err
 	}
-	if _, _, refreshErr := r.peers.RefreshRemote(state.envelope.Channel, body.PeerCard, state.now); refreshErr != nil {
+	if _, _, refreshErr := r.peers.RefreshRemote(
+		state.envelope.WorkspaceID,
+		state.envelope.Channel,
+		body.PeerCard,
+		state.now,
+	); refreshErr != nil {
 		return RouteResult{}, refreshErr
 	}
 	return state.result, nil
@@ -499,7 +506,10 @@ func (r *Router) handleReceivedSay(ctx context.Context, state *receiveState) (Ro
 		}
 		return result, nil
 	}
-	result.Deliveries = deliveriesFromLocalPeers(r.peers.LocalPeers(state.envelope.Channel), state.envelope)
+	result.Deliveries = deliveriesFromLocalPeers(
+		r.peers.LocalPeers(state.envelope.WorkspaceID, state.envelope.Channel),
+		state.envelope,
+	)
 	return result, nil
 }
 
@@ -517,7 +527,10 @@ func (r *Router) handleReceivedCapability(ctx context.Context, state *receiveSta
 		}
 		return result, nil
 	}
-	result.Deliveries = deliveriesFromLocalPeers(r.peers.LocalPeers(state.envelope.Channel), state.envelope)
+	result.Deliveries = deliveriesFromLocalPeers(
+		r.peers.LocalPeers(state.envelope.WorkspaceID, state.envelope.Channel),
+		state.envelope,
+	)
 	return result, nil
 }
 
@@ -665,6 +678,7 @@ func (r *Router) handleWhois(
 		if whois.PeerCard != nil {
 			capabilityCatalog, capabilityCatalogKnown := decodeWhoisCapabilityCatalogResponseExt(envelope.Ext)
 			if _, _, refreshErr := r.peers.RefreshRemoteWithCapabilityCatalog(
+				envelope.WorkspaceID,
 				envelope.Channel,
 				*whois.PeerCard,
 				capabilityCatalog,
@@ -733,7 +747,7 @@ func (r *Router) whoisRequestResponders(
 		}
 		return nil
 	}
-	matches := r.peers.MatchLocalPeers(envelope.Channel, whois.Query)
+	matches := r.peers.MatchLocalPeers(envelope.WorkspaceID, envelope.Channel, whois.Query)
 	responders := make([]LocalPeer, 0, len(matches))
 	for _, peer := range matches {
 		if isEnvelopeSender(peer, envelope) {
@@ -780,17 +794,18 @@ func (r *Router) buildWhoisResponseEnvelope(
 	}
 
 	reply := Envelope{
-		Protocol: ProtocolV0,
-		ID:       store.NewID("msg"),
-		Kind:     KindWhois,
-		Channel:  request.Channel,
-		From:     responder.PeerID,
-		To:       ptrString(request.From),
-		ReplyTo:  ptrString(request.ID),
-		TS:       now.Unix(),
-		Body:     payload,
-		Proof:    nil,
-		Ext:      responseExt,
+		Protocol:    ProtocolV0,
+		ID:          store.NewID("msg"),
+		WorkspaceID: request.WorkspaceID,
+		Kind:        KindWhois,
+		Channel:     request.Channel,
+		From:        responder.PeerID,
+		To:          ptrString(request.From),
+		ReplyTo:     ptrString(request.ID),
+		TS:          now.Unix(),
+		Body:        payload,
+		Proof:       nil,
+		Ext:         responseExt,
 	}
 	if err := ValidateEnvelope(reply, ValidateOptions{Now: now, MaxReplayAge: r.maxReplayAge}); err != nil {
 		return Envelope{}, err
@@ -823,6 +838,17 @@ func (r *Router) buildEnvelope(req SendRequest, now time.Time) (Envelope, error)
 	if local.Channel != channel {
 		return Envelope{}, fmt.Errorf("%w: session=%q channel=%q", ErrLocalPeerNotFound, sessionID, channel)
 	}
+	if reqWorkspaceID := strings.TrimSpace(
+		req.WorkspaceID,
+	); reqWorkspaceID != "" &&
+		reqWorkspaceID != local.WorkspaceID {
+		return Envelope{}, fmt.Errorf(
+			"%w: session=%q workspace_id=%q",
+			ErrLocalPeerNotFound,
+			sessionID,
+			reqWorkspaceID,
+		)
+	}
 
 	id := normalizeOptionalIdentifier(req.ID)
 	if id == nil {
@@ -831,6 +857,7 @@ func (r *Router) buildEnvelope(req SendRequest, now time.Time) (Envelope, error)
 	envelope := Envelope{
 		Protocol:    ProtocolV0,
 		ID:          *id,
+		WorkspaceID: local.WorkspaceID,
 		Kind:        Kind(strings.TrimSpace(string(req.Kind))),
 		Channel:     channel,
 		Surface:     normalizeOptionalSurface(req.Surface),
@@ -852,7 +879,7 @@ func (r *Router) buildEnvelope(req SendRequest, now time.Time) (Envelope, error)
 		envelope.Surface != nil &&
 		*envelope.Surface == SurfaceDirect &&
 		envelope.To != nil {
-		directID, _, _, err := DirectRoomIdentity(channel, envelope.From, *envelope.To)
+		directID, _, _, err := DirectRoomIdentity(envelope.WorkspaceID, channel, envelope.From, *envelope.To)
 		if err != nil {
 			return Envelope{}, err
 		}
@@ -873,7 +900,7 @@ func (r *Router) resolveDirectedTarget(envelope Envelope) (LocalPeer, bool, erro
 		return LocalPeer{}, false, fmt.Errorf("%w: peer registry is required", ErrInvalidField)
 	}
 
-	local, ok := r.peers.LocalByPeer(envelope.Channel, *envelope.To)
+	local, ok := r.peers.LocalByPeer(envelope.WorkspaceID, envelope.Channel, *envelope.To)
 	if !ok {
 		return LocalPeer{}, false, nil
 	}
@@ -897,7 +924,7 @@ func (r *Router) markSeen(envelope Envelope, now time.Time) bool {
 }
 
 func (r *Router) applyLifecycle(envelope Envelope, now time.Time) (LifecycleResult, error) {
-	key := workKey(*envelope.WorkID)
+	key := workKey(envelope.WorkspaceID, *envelope.WorkID)
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -911,7 +938,7 @@ func (r *Router) applyLifecycle(envelope Envelope, now time.Time) (LifecycleResu
 }
 
 func (r *Router) evaluateLifecycle(envelope Envelope, now time.Time) (LifecycleResult, error) {
-	key := workKey(*envelope.WorkID)
+	key := workKey(envelope.WorkspaceID, *envelope.WorkID)
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -976,7 +1003,7 @@ func (r *Router) shouldSyncSentLifecycle(envelope Envelope) bool {
 
 	switch envelope.Kind {
 	case KindReceipt, KindTrace:
-		_, ok := r.peers.LocalByPeer(envelope.Channel, *envelope.To)
+		_, ok := r.peers.LocalByPeer(envelope.WorkspaceID, envelope.Channel, *envelope.To)
 		return !ok
 	default:
 		return true
@@ -1026,9 +1053,9 @@ func (r *Router) publishGenerated(ctx context.Context, envelopes []Envelope) err
 
 func subjectForEnvelope(envelope Envelope) (string, error) {
 	if envelope.IsDirected() {
-		return DirectSubject(envelope.Channel, *envelope.To)
+		return DirectSubject(envelope.WorkspaceID, envelope.Channel, *envelope.To)
 	}
-	return BroadcastSubject(envelope.Channel)
+	return BroadcastSubject(envelope.WorkspaceID, envelope.Channel)
 }
 
 func replayDeadline(envelope Envelope, now time.Time, maxReplayAge time.Duration) time.Time {
@@ -1046,8 +1073,8 @@ func replayDeadline(envelope Envelope, now time.Time, maxReplayAge time.Duration
 	return deadline
 }
 
-func workKey(workID string) string {
-	return strings.TrimSpace(workID)
+func workKey(workspaceID string, workID string) string {
+	return strings.TrimSpace(workspaceID) + "\x00" + strings.TrimSpace(workID)
 }
 
 func deliveriesFromLocalPeers(peers []LocalPeer, envelope Envelope) []Delivery {
@@ -1087,7 +1114,7 @@ func localPeerMatchesConversation(peer LocalPeer, envelope Envelope) bool {
 	if envelope.DirectID == nil {
 		return false
 	}
-	directID, _, _, err := DirectRoomIdentity(envelope.Channel, envelope.From, peer.PeerID)
+	directID, _, _, err := DirectRoomIdentity(envelope.WorkspaceID, envelope.Channel, envelope.From, peer.PeerID)
 	if err != nil {
 		return false
 	}
@@ -1124,6 +1151,7 @@ func buildWorkReceipt(
 	receipt := Envelope{
 		Protocol:    ProtocolV0,
 		ID:          store.NewID("msg"),
+		WorkspaceID: envelope.WorkspaceID,
 		Kind:        KindReceipt,
 		Channel:     envelope.Channel,
 		Surface:     cloneSurfacePtr(envelope.Surface),
@@ -1175,6 +1203,7 @@ func parseEnvelopeSummary(data []byte) *Envelope {
 	return &Envelope{
 		Protocol:    strings.TrimSpace(env.Protocol),
 		ID:          strings.TrimSpace(env.ID),
+		WorkspaceID: strings.TrimSpace(env.WorkspaceID),
 		Kind:        Kind(strings.TrimSpace(string(env.Kind))),
 		Channel:     strings.TrimSpace(env.Channel),
 		Surface:     normalizeOptionalSurface(env.Surface),

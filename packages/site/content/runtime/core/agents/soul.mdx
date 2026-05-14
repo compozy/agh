@@ -117,16 +117,16 @@ hooks, extensions, tools, resources, bundles, MCP sidecars, bridge adapters, or 
 explicitly forbidden. Every write/delete/rollback against an existing file requires
 `expected_digest`; stale writes fail without persistence and never partially replace the file.
 
-| Action   | CLI                        | HTTP                                    | UDS                            | Host API               |
-| -------- | -------------------------- | --------------------------------------- | ------------------------------ | ---------------------- |
-| Inspect  | `agh agent soul inspect`   | `GET /api/agents/{name}/soul`           | `agent.soul.inspectDefinition` | `agents/soul/get`      |
-| Validate | `agh agent soul validate`  | `POST /api/agent/soul/validate`         | `agent.soul.validate`          | `agents/soul/validate` |
-| Write    | `agh agent soul write`     | `PUT /api/agents/{name}/soul`           | `agent.soul.put`               | `agents/soul/put`      |
-| Delete   | `agh agent soul delete`    | `DELETE /api/agents/{name}/soul`        | `agent.soul.delete`            | `agents/soul/delete`   |
-| History  | `agh agent soul history`   | `GET /api/agents/{name}/soul/history`   | `agent.soul.history`           | `agents/soul/history`  |
-| Rollback | `agh agent soul rollback`  | `POST /api/agents/{name}/soul/rollback` | `agent.soul.rollback`          | `agents/soul/rollback` |
-| Refresh  | `agh session soul refresh` | `POST /api/sessions/{id}/soul/refresh`  | `session.soul.refresh`         | n/a                    |
-| Compact  | `agh agent context`        | `GET /api/agent/context`                | `agent.context.get`            | n/a                    |
+| Action   | CLI                        | HTTP                                                                   | UDS                            | Host API               |
+| -------- | -------------------------- | ---------------------------------------------------------------------- | ------------------------------ | ---------------------- |
+| Inspect  | `agh agent soul inspect`   | `GET /api/agents/{name}/soul`                                          | `agent.soul.inspectDefinition` | `agents/soul/get`      |
+| Validate | `agh agent soul validate`  | `POST /api/agent/soul/validate`                                        | `agent.soul.validate`          | `agents/soul/validate` |
+| Write    | `agh agent soul write`     | `PUT /api/agents/{name}/soul`                                          | `agent.soul.put`               | `agents/soul/put`      |
+| Delete   | `agh agent soul delete`    | `DELETE /api/agents/{name}/soul`                                       | `agent.soul.delete`            | `agents/soul/delete`   |
+| History  | `agh agent soul history`   | `GET /api/agents/{name}/soul/history`                                  | `agent.soul.history`           | `agents/soul/history`  |
+| Rollback | `agh agent soul rollback`  | `POST /api/agents/{name}/soul/rollback`                                | `agent.soul.rollback`          | `agents/soul/rollback` |
+| Refresh  | `agh session soul refresh` | `POST /api/workspaces/:workspace_id/sessions/:session_id/soul/refresh` | `session.soul.refresh`         | n/a                    |
+| Compact  | `agh agent context`        | `GET /api/agent/context`                                               | `agent.context.get`            | n/a                    |
 
 CAS contract: every mutating transport carries `expected_digest` in the request body. HTTP
 `If-Match` headers are not honored — the body field is the deterministic CAS shape across CLI,

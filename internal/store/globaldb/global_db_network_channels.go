@@ -37,8 +37,7 @@ func (g *GlobalDB) WriteNetworkChannel(ctx context.Context, entry store.NetworkC
 			created_at,
 			updated_at
 		) VALUES (?, ?, ?, ?, ?, ?)
-			ON CONFLICT(channel) DO UPDATE SET
-				workspace_id = excluded.workspace_id,
+			ON CONFLICT(workspace_id, channel) DO UPDATE SET
 				purpose = excluded.purpose,
 				updated_at = excluded.updated_at,
 				created_by = CASE
@@ -59,21 +58,28 @@ func (g *GlobalDB) WriteNetworkChannel(ctx context.Context, entry store.NetworkC
 }
 
 // GetNetworkChannel returns one persisted network channel metadata row.
-func (g *GlobalDB) GetNetworkChannel(ctx context.Context, channel string) (store.NetworkChannelEntry, error) {
+func (g *GlobalDB) GetNetworkChannel(
+	ctx context.Context,
+	ref store.NetworkChannelRef,
+) (store.NetworkChannelEntry, error) {
 	if err := g.checkReady(ctx, "get network channel"); err != nil {
 		return store.NetworkChannelEntry{}, err
 	}
-	trimmed := strings.TrimSpace(channel)
-	if trimmed == "" {
-		return store.NetworkChannelEntry{}, fmt.Errorf("store: network channel is required")
+	normalized := store.NetworkChannelRef{
+		WorkspaceID: strings.TrimSpace(ref.WorkspaceID),
+		Channel:     strings.TrimSpace(ref.Channel),
+	}
+	if err := normalized.Validate(); err != nil {
+		return store.NetworkChannelEntry{}, err
 	}
 
 	row := g.db.QueryRowContext(
 		ctx,
 		`SELECT channel, workspace_id, purpose, created_by, created_at, updated_at
 		FROM network_channels
-		WHERE channel = ?`,
-		trimmed,
+		WHERE workspace_id = ? AND channel = ?`,
+		normalized.WorkspaceID,
+		normalized.Channel,
 	)
 
 	entry, err := scanNetworkChannel(row)
@@ -138,16 +144,24 @@ func (g *GlobalDB) ListNetworkChannels(
 }
 
 // DeleteNetworkChannel removes one persisted channel metadata row.
-func (g *GlobalDB) DeleteNetworkChannel(ctx context.Context, channel string) error {
+func (g *GlobalDB) DeleteNetworkChannel(ctx context.Context, ref store.NetworkChannelRef) error {
 	if err := g.checkReady(ctx, "delete network channel"); err != nil {
 		return err
 	}
-	trimmed := strings.TrimSpace(channel)
-	if trimmed == "" {
-		return fmt.Errorf("store: network channel is required")
+	normalized := store.NetworkChannelRef{
+		WorkspaceID: strings.TrimSpace(ref.WorkspaceID),
+		Channel:     strings.TrimSpace(ref.Channel),
+	}
+	if err := normalized.Validate(); err != nil {
+		return err
 	}
 
-	if _, err := g.db.ExecContext(ctx, `DELETE FROM network_channels WHERE channel = ?`, trimmed); err != nil {
+	if _, err := g.db.ExecContext(
+		ctx,
+		`DELETE FROM network_channels WHERE workspace_id = ? AND channel = ?`,
+		normalized.WorkspaceID,
+		normalized.Channel,
+	); err != nil {
 		return fmt.Errorf("store: delete network channel: %w", err)
 	}
 	return nil

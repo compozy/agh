@@ -83,7 +83,7 @@ agh session prompt sess-1234 "Explain how the stop path works."
 ```
 
 ```bash
-curl -N -X POST http://localhost:2123/api/sessions/sess-1234/prompt \
+curl -N -X POST http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/prompt \
   -H "Content-Type: application/json" \
   -d '{"message":"Explain how the stop path works."}'
 ```
@@ -135,7 +135,7 @@ agh session stop sess-1234
 Stop it over HTTP:
 
 ```bash
-curl -X DELETE http://localhost:2123/api/sessions/sess-1234
+curl -X DELETE http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234
 ```
 
 The stop path is cooperative first and forceful only when needed:

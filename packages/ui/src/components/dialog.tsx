@@ -7,24 +7,12 @@ import * as React from "react";
 
 import { cn } from "../lib/utils";
 import { Button } from "./button";
+import {
+  DialogMotionContext,
+  type DialogMotionContextValue,
+  useDialogMotion,
+} from "./hooks/use-dialog-motion";
 import { useInitialState } from "./use-initial-state";
-
-type DialogActionsRef = React.RefObject<DialogPrimitive.Root.Actions | null>;
-
-interface DialogMotionContextValue {
-  actionsRef: DialogActionsRef;
-  open: boolean;
-}
-
-const DialogMotionContext = React.createContext<DialogMotionContextValue | null>(null);
-
-function useDialogMotion(): DialogMotionContextValue {
-  const ctx = React.use(DialogMotionContext);
-  if (!ctx) {
-    throw new Error("Dialog.* components must be used inside <Dialog>.");
-  }
-  return ctx;
-}
 
 type DialogRootProps = DialogPrimitive.Root.Props;
 

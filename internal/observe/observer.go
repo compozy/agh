@@ -717,6 +717,7 @@ func (o *Observer) writeObservedEventSummary(
 	correlation := event.Normalize()
 	return o.registry.WriteEventSummary(ctx, store.EventSummary{
 		SessionID:        sessionID,
+		WorkspaceID:      snapshot.workspaceID,
 		Type:             strings.TrimSpace(event.Type),
 		AgentName:        snapshot.agentName,
 		EventCorrelation: correlation,

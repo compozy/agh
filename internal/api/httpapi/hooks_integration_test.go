@@ -114,6 +114,7 @@ func TestHTTPHookCatalogEndpointFiltersWorkspaceScopedHooks(t *testing.T) {
 					ID:      "ws-alpha",
 					RootDir: "/workspace/alpha",
 				},
+				WorkspaceID: "ws-alpha",
 			}, nil
 		},
 	}
@@ -165,7 +166,13 @@ func TestHTTPHookRunsEndpointReturnsExecutionHistoryWithPatchDiffs(t *testing.T)
 	}
 
 	engine := newTestRouter(t, newTestHandlers(t, manager, observer, homePaths))
-	recorder := performRequest(t, engine, http.MethodGet, "/api/hooks/runs?session="+sessionID, nil)
+	recorder := performRequest(
+		t,
+		engine,
+		http.MethodGet,
+		"/api/workspaces/ws-workspace/hooks/runs?session="+sessionID,
+		nil,
+	)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
 	}
@@ -311,7 +318,13 @@ func TestHTTPHookRunsEndpointFiltersByOutcomeAndLast(t *testing.T) {
 	}
 
 	engine := newTestRouter(t, newTestHandlers(t, manager, observer, homePaths))
-	recorder := performRequest(t, engine, http.MethodGet, "/api/hooks/runs?session="+sessionID+"&event=permission.request&outcome=denied&last=1", nil)
+	recorder := performRequest(
+		t,
+		engine,
+		http.MethodGet,
+		"/api/workspaces/ws-workspace/hooks/runs?session="+sessionID+"&event=permission.request&outcome=denied&last=1",
+		nil,
+	)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
 	}
@@ -398,7 +411,13 @@ func TestHTTPHookRunsEndpointDispatchStoreQueryCycle(t *testing.T) {
 	}
 
 	engine := newTestRouter(t, newTestHandlers(t, manager, observer, homePaths))
-	recorder := performRequest(t, engine, http.MethodGet, "/api/hooks/runs?session="+sessionID+"&event=permission.request", nil)
+	recorder := performRequest(
+		t,
+		engine,
+		http.MethodGet,
+		"/api/workspaces/ws-workspace/hooks/runs?session="+sessionID+"&event=permission.request",
+		nil,
+	)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
 	}

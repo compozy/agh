@@ -141,29 +141,33 @@ type SessionsCreateParams struct {
 
 // SessionsPromptParams submits one prompt to an existing session.
 type SessionsPromptParams struct {
-	SessionID string `json:"session_id"`
-	Message   string `json:"message"`
+	WorkspaceID string `json:"workspace_id"`
+	SessionID   string `json:"session_id"`
+	Message     string `json:"message"`
 }
 
 // SessionTargetParams identifies an existing session.
 type SessionTargetParams struct {
-	SessionID string `json:"session_id"`
+	WorkspaceID string `json:"workspace_id"`
+	SessionID   string `json:"session_id"`
 }
 
 // SessionEventsParams filters persisted session events.
 type SessionEventsParams struct {
-	SessionID string    `json:"session_id"`
-	Type      string    `json:"type,omitempty"`
-	AgentName string    `json:"agent_name,omitempty"`
-	TurnID    string    `json:"turn_id,omitempty"`
-	Limit     int       `json:"limit,omitempty"`
-	Offset    int64     `json:"offset,omitempty"`
-	Since     time.Time `json:"since,omitzero"`
+	WorkspaceID string    `json:"workspace_id"`
+	SessionID   string    `json:"session_id"`
+	Type        string    `json:"type,omitempty"`
+	AgentName   string    `json:"agent_name,omitempty"`
+	TurnID      string    `json:"turn_id,omitempty"`
+	Limit       int       `json:"limit,omitempty"`
+	Offset      int64     `json:"offset,omitempty"`
+	Since       time.Time `json:"since,omitzero"`
 }
 
 // SessionSoulRefreshParams refreshes one session's Soul snapshot through managed CAS.
 type SessionSoulRefreshParams struct {
-	SessionID string `json:"session_id"`
+	WorkspaceID string `json:"workspace_id"`
+	SessionID   string `json:"session_id"`
 	apicontract.SessionSoulRefreshRequest
 }
 
@@ -180,14 +184,16 @@ type SandboxListParams struct {
 
 // SandboxInfoParams identifies one session sandbox.
 type SandboxInfoParams struct {
-	SessionID string `json:"session_id"`
+	WorkspaceID string `json:"workspace_id"`
+	SessionID   string `json:"session_id"`
 }
 
 // SandboxExecParams executes one command inside a session sandbox.
 type SandboxExecParams struct {
-	SessionID string `json:"session_id"`
-	Command   string `json:"command"`
-	Timeout   int    `json:"timeout,omitempty"`
+	WorkspaceID string `json:"workspace_id"`
+	SessionID   string `json:"session_id"`
+	Command     string `json:"command"`
+	Timeout     int    `json:"timeout,omitempty"`
 }
 
 // MemoryStoreParams persists one memory document.
@@ -214,13 +220,14 @@ type MemoryForgetParams struct {
 	Workspace string            `json:"workspace,omitempty"`
 }
 
-// ObserveEventsParams filters global observability events.
+// ObserveEventsParams filters workspace observability events.
 type ObserveEventsParams struct {
-	SessionID string    `json:"session_id,omitempty"`
-	AgentName string    `json:"agent_name,omitempty"`
-	Type      string    `json:"type,omitempty"`
-	Since     time.Time `json:"since,omitzero"`
-	Limit     int       `json:"limit,omitempty"`
+	WorkspaceID string    `json:"workspace_id"`
+	SessionID   string    `json:"session_id,omitempty"`
+	AgentName   string    `json:"agent_name,omitempty"`
+	Type        string    `json:"type,omitempty"`
+	Since       time.Time `json:"since,omitzero"`
+	Limit       int       `json:"limit,omitempty"`
 }
 
 // SkillsListParams filters skills by workspace scope.
@@ -497,63 +504,76 @@ type TaskRunCancelParams struct {
 	apicontract.CancelTaskRunRequest
 }
 
-// NetworkPeersParams filters visible peers by channel.
-type NetworkPeersParams struct {
-	Channel string `json:"channel,omitempty"`
+// NetworkChannelsParams filters visible channels by workspace.
+type NetworkChannelsParams struct {
+	WorkspaceID string `json:"workspace_id"`
 }
 
-// NetworkThreadsParams filters public-thread summaries by channel.
+// NetworkPeersParams filters visible peers by workspace and channel.
+type NetworkPeersParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel,omitempty"`
+}
+
+// NetworkThreadsParams filters public-thread summaries by workspace and channel.
 type NetworkThreadsParams struct {
-	Channel string `json:"channel"`
-	Limit   int    `json:"limit,omitempty"`
-	After   string `json:"after,omitempty"`
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel"`
+	Limit       int    `json:"limit,omitempty"`
+	After       string `json:"after,omitempty"`
 }
 
 // NetworkThreadTargetParams identifies one public thread.
 type NetworkThreadTargetParams struct {
-	Channel  string `json:"channel"`
-	ThreadID string `json:"thread_id"`
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel"`
+	ThreadID    string `json:"thread_id"`
 }
 
 // NetworkThreadMessagesParams filters messages inside one public thread.
 type NetworkThreadMessagesParams struct {
-	Channel  string `json:"channel"`
-	ThreadID string `json:"thread_id"`
-	Before   string `json:"before,omitempty"`
-	After    string `json:"after,omitempty"`
-	Kind     string `json:"kind,omitempty"`
-	WorkID   string `json:"work_id,omitempty"`
-	Limit    int    `json:"limit,omitempty"`
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel"`
+	ThreadID    string `json:"thread_id"`
+	Before      string `json:"before,omitempty"`
+	After       string `json:"after,omitempty"`
+	Kind        string `json:"kind,omitempty"`
+	WorkID      string `json:"work_id,omitempty"`
+	Limit       int    `json:"limit,omitempty"`
 }
 
 // NetworkDirectsParams filters direct-room summaries by channel.
 type NetworkDirectsParams struct {
-	Channel string `json:"channel"`
-	PeerID  string `json:"peer_id,omitempty"`
-	Limit   int    `json:"limit,omitempty"`
-	After   string `json:"after,omitempty"`
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel"`
+	PeerID      string `json:"peer_id,omitempty"`
+	Limit       int    `json:"limit,omitempty"`
+	After       string `json:"after,omitempty"`
 }
 
 // NetworkDirectResolveParams creates or returns a deterministic direct room.
 type NetworkDirectResolveParams struct {
-	Channel string `json:"channel"`
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel"`
 	apicontract.NetworkDirectResolveRequest
 }
 
 // NetworkDirectMessagesParams filters messages inside one direct room.
 type NetworkDirectMessagesParams struct {
-	Channel  string `json:"channel"`
-	DirectID string `json:"direct_id"`
-	Before   string `json:"before,omitempty"`
-	After    string `json:"after,omitempty"`
-	Kind     string `json:"kind,omitempty"`
-	WorkID   string `json:"work_id,omitempty"`
-	Limit    int    `json:"limit,omitempty"`
+	WorkspaceID string `json:"workspace_id"`
+	Channel     string `json:"channel"`
+	DirectID    string `json:"direct_id"`
+	Before      string `json:"before,omitempty"`
+	After       string `json:"after,omitempty"`
+	Kind        string `json:"kind,omitempty"`
+	WorkID      string `json:"work_id,omitempty"`
+	Limit       int    `json:"limit,omitempty"`
 }
 
 // NetworkWorkGetParams identifies one network work row.
 type NetworkWorkGetParams struct {
-	WorkID string `json:"work_id"`
+	WorkspaceID string `json:"workspace_id"`
+	WorkID      string `json:"work_id"`
 }
 
 // NetworkSendParams is the shared daemon network send request payload.
@@ -1087,16 +1107,14 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 		OptionalParams: true,
 	},
 	{
-		Method:         HostAPIMethodNetworkChannels,
-		Params:         NamedType{Name: "EmptyResult", Value: EmptyResult{}},
-		Result:         NamedType{Name: "NetworkChannelPayload", Value: []apicontract.NetworkChannelPayload{}},
-		OptionalParams: true,
+		Method: HostAPIMethodNetworkChannels,
+		Params: NamedType{Name: "NetworkChannelsParams", Value: NetworkChannelsParams{}},
+		Result: NamedType{Name: "NetworkChannelPayload", Value: []apicontract.NetworkChannelPayload{}},
 	},
 	{
-		Method:         HostAPIMethodNetworkPeers,
-		Params:         NamedType{Name: "NetworkPeersParams", Value: NetworkPeersParams{}},
-		Result:         NamedType{Name: "NetworkPeerPayload", Value: []apicontract.NetworkPeerPayload{}},
-		OptionalParams: true,
+		Method: HostAPIMethodNetworkPeers,
+		Params: NamedType{Name: "NetworkPeersParams", Value: NetworkPeersParams{}},
+		Result: NamedType{Name: "NetworkPeerPayload", Value: []apicontract.NetworkPeerPayload{}},
 	},
 	{
 		Method: HostAPIMethodNetworkThreads,

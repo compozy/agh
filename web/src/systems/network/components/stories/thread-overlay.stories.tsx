@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
+import { storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
 import { PanelSurface } from "@/storybook/story-layout";
 import { networkThreadDetailFixture, networkThreadMessagesFixture } from "@/systems/network/mocks";
 import {
@@ -37,6 +38,7 @@ export const Header: Story = {
     <PanelSurface className="min-h-[160px] p-0">
       <div className="flex w-[420px] flex-col bg-canvas">
         <ThreadOverlayHeader
+          workspaceId={storyDefaultWorkspaceId}
           channel="ops"
           detail={networkThreadDetailFixture}
           threadId="thread_launch_command"

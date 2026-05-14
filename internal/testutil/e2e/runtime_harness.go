@@ -660,6 +660,32 @@ func (h *RuntimeHarness) GetWorkspace(
 	return response.Workspace, nil
 }
 
+func (h *RuntimeHarness) workspaceScopedAPIPath(workspaceID string, suffix string) (string, error) {
+	workspaceID = strings.TrimSpace(workspaceID)
+	if workspaceID == "" {
+		workspaceID = strings.TrimSpace(h.WorkspaceID)
+	}
+	if workspaceID == "" {
+		return "", errors.New("runtime harness workspace ID is required")
+	}
+	if !strings.HasPrefix(suffix, "/") {
+		suffix = "/" + suffix
+	}
+	return "/api/workspaces/" + url.PathEscape(workspaceID) + suffix, nil
+}
+
+func (h *RuntimeHarness) sessionScopedAPIPath(sessionID string, suffix string) (string, error) {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return "", errors.New("session ID is required")
+	}
+	return h.workspaceScopedAPIPath("", "/sessions/"+url.PathEscape(sessionID)+suffix)
+}
+
+func (h *RuntimeHarness) networkScopedAPIPath(workspaceID string, suffix string) (string, error) {
+	return h.workspaceScopedAPIPath(workspaceID, "/network"+suffix)
+}
+
 // CreateSession creates one session through the operator surface.
 func (h *RuntimeHarness) CreateSession(
 	ctx context.Context,
@@ -678,7 +704,11 @@ func (h *RuntimeHarness) GetSession(
 	sessionID string,
 ) (aghcontract.SessionPayload, error) {
 	var response aghcontract.SessionResponse
-	if err := h.UDSJSON(ctx, http.MethodGet, "/api/sessions/"+sessionID, nil, &response); err != nil {
+	path, err := h.sessionScopedAPIPath(sessionID, "")
+	if err != nil {
+		return aghcontract.SessionPayload{}, err
+	}
+	if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		return aghcontract.SessionPayload{}, err
 	}
 	return response.Session, nil
@@ -686,10 +716,14 @@ func (h *RuntimeHarness) GetSession(
 
 // StopSession stops one session through the operator surface.
 func (h *RuntimeHarness) StopSession(ctx context.Context, sessionID string) error {
+	path, err := h.sessionScopedAPIPath(sessionID, "/stop")
+	if err != nil {
+		return err
+	}
 	response, err := doRequest(
 		ctx,
 		h.UDSClient,
-		h.UDSURL("/api/sessions/"+sessionID+"/stop"),
+		h.UDSURL(path),
 		http.MethodPost,
 		nil,
 	)
@@ -714,10 +748,14 @@ func (h *RuntimeHarness) ResumeSession(
 	sessionID string,
 ) (aghcontract.SessionPayload, error) {
 	var response aghcontract.SessionResponse
+	path, err := h.sessionScopedAPIPath(sessionID, "/resume")
+	if err != nil {
+		return aghcontract.SessionPayload{}, err
+	}
 	if err := h.UDSJSON(
 		ctx,
 		http.MethodPost,
-		"/api/sessions/"+sessionID+"/resume",
+		path,
 		nil,
 		&response,
 	); err != nil {
@@ -744,7 +782,11 @@ func (h *RuntimeHarness) PromptSessionWithEvents(
 	onEvent func(SSEEvent) error,
 ) ([]SSEEvent, error) {
 	body := map[string]string{"message": message}
-	response, err := doRequest(ctx, h.UDSClient, h.UDSURL("/api/sessions/"+sessionID+"/prompt"), http.MethodPost, body)
+	path, err := h.sessionScopedAPIPath(sessionID, "/prompt")
+	if err != nil {
+		return nil, err
+	}
+	response, err := doRequest(ctx, h.UDSClient, h.UDSURL(path), http.MethodPost, body)
 	if err != nil {
 		return nil, err
 	}
@@ -773,7 +815,11 @@ func (h *RuntimeHarness) PromptSessionUntil(
 		return nil, errors.New("SSE predicate is required")
 	}
 	body := map[string]string{"message": message}
-	response, err := doRequest(ctx, h.UDSClient, h.UDSURL("/api/sessions/"+sessionID+"/prompt"), http.MethodPost, body)
+	path, err := h.sessionScopedAPIPath(sessionID, "/prompt")
+	if err != nil {
+		return nil, err
+	}
+	response, err := doRequest(ctx, h.UDSClient, h.UDSURL(path), http.MethodPost, body)
 	if err != nil {
 		return nil, err
 	}
@@ -796,7 +842,11 @@ func (h *RuntimeHarness) SessionTranscript(
 	sessionID string,
 ) (aghcontract.SessionTranscriptResponse, error) {
 	var response aghcontract.SessionTranscriptResponse
-	if err := h.UDSJSON(ctx, http.MethodGet, "/api/sessions/"+sessionID+"/transcript", nil, &response); err != nil {
+	path, err := h.sessionScopedAPIPath(sessionID, "/transcript")
+	if err != nil {
+		return aghcontract.SessionTranscriptResponse{}, err
+	}
+	if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		return aghcontract.SessionTranscriptResponse{}, err
 	}
 	return response, nil
@@ -808,7 +858,11 @@ func (h *RuntimeHarness) SessionEvents(
 	sessionID string,
 ) (aghcontract.SessionEventsResponse, error) {
 	var response aghcontract.SessionEventsResponse
-	if err := h.UDSJSON(ctx, http.MethodGet, "/api/sessions/"+sessionID+"/events", nil, &response); err != nil {
+	path, err := h.sessionScopedAPIPath(sessionID, "/events")
+	if err != nil {
+		return aghcontract.SessionEventsResponse{}, err
+	}
+	if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		return aghcontract.SessionEventsResponse{}, err
 	}
 	return response, nil
@@ -820,7 +874,11 @@ func (h *RuntimeHarness) CreateNetworkChannel(
 	request aghcontract.CreateNetworkChannelRequest,
 ) (aghcontract.NetworkChannelDetailPayload, error) {
 	var response aghcontract.CreateNetworkChannelResponse
-	if err := h.UDSJSON(ctx, http.MethodPost, "/api/network/channels", request, &response); err != nil {
+	path, err := h.networkScopedAPIPath(request.WorkspaceID, "/channels")
+	if err != nil {
+		return aghcontract.NetworkChannelDetailPayload{}, err
+	}
+	if err := h.UDSJSON(ctx, http.MethodPost, path, request, &response); err != nil {
 		return aghcontract.NetworkChannelDetailPayload{}, err
 	}
 	return response.Channel, nil
@@ -846,12 +904,16 @@ func (h *RuntimeHarness) NetworkPeers(
 	if trimmed := strings.TrimSpace(channel); trimmed != "" {
 		values.Set("channel", trimmed)
 	}
+	path, err := h.networkScopedAPIPath("", "/peers"+encodeQuery(values))
+	if err != nil {
+		return nil, err
+	}
 
 	var response aghcontract.NetworkPeersResponse
 	if err := h.UDSJSON(
 		ctx,
 		http.MethodGet,
-		"/api/network/peers"+encodeQuery(values),
+		path,
 		nil,
 		&response,
 	); err != nil {
@@ -865,7 +927,11 @@ func (h *RuntimeHarness) NetworkChannels(
 	ctx context.Context,
 ) ([]aghcontract.NetworkChannelPayload, error) {
 	var response aghcontract.NetworkChannelsResponse
-	if err := h.UDSJSON(ctx, http.MethodGet, "/api/network/channels", nil, &response); err != nil {
+	path, err := h.networkScopedAPIPath("", "/channels")
+	if err != nil {
+		return nil, err
+	}
+	if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		return nil, err
 	}
 	return response.Channels, nil
@@ -877,10 +943,14 @@ func (h *RuntimeHarness) NetworkChannel(
 	channel string,
 ) (aghcontract.NetworkChannelDetailPayload, error) {
 	var response aghcontract.NetworkChannelResponse
+	path, err := h.networkScopedAPIPath("", "/channels/"+url.PathEscape(channel))
+	if err != nil {
+		return aghcontract.NetworkChannelDetailPayload{}, err
+	}
 	if err := h.UDSJSON(
 		ctx,
 		http.MethodGet,
-		"/api/network/channels/"+url.PathEscape(channel),
+		path,
 		nil,
 		&response,
 	); err != nil {
@@ -895,7 +965,10 @@ func (h *RuntimeHarness) NetworkThreads(
 	channel string,
 ) ([]aghcontract.NetworkThreadSummaryPayload, error) {
 	var response aghcontract.NetworkThreadsResponse
-	path := "/api/network/channels/" + url.PathEscape(channel) + "/threads"
+	path, err := h.networkScopedAPIPath("", "/channels/"+url.PathEscape(channel)+"/threads")
+	if err != nil {
+		return nil, err
+	}
 	if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		return nil, err
 	}
@@ -909,8 +982,11 @@ func (h *RuntimeHarness) NetworkThread(
 	threadID string,
 ) (aghcontract.NetworkThreadSummaryPayload, error) {
 	var response aghcontract.NetworkThreadResponse
-	path := "/api/network/channels/" + url.PathEscape(channel) +
-		"/threads/" + url.PathEscape(threadID)
+	path, err := h.networkScopedAPIPath("", "/channels/"+url.PathEscape(channel)+
+		"/threads/"+url.PathEscape(threadID))
+	if err != nil {
+		return aghcontract.NetworkThreadSummaryPayload{}, err
+	}
 	if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		return aghcontract.NetworkThreadSummaryPayload{}, err
 	}
@@ -924,8 +1000,11 @@ func (h *RuntimeHarness) NetworkThreadMessages(
 	threadID string,
 ) ([]aghcontract.NetworkConversationMessagePayload, error) {
 	var response aghcontract.NetworkThreadMessagesResponse
-	path := "/api/network/channels/" + url.PathEscape(channel) +
-		"/threads/" + url.PathEscape(threadID) + "/messages"
+	path, err := h.networkScopedAPIPath("", "/channels/"+url.PathEscape(channel)+
+		"/threads/"+url.PathEscape(threadID)+"/messages")
+	if err != nil {
+		return nil, err
+	}
 	if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		return nil, err
 	}
@@ -938,7 +1017,10 @@ func (h *RuntimeHarness) NetworkDirectRooms(
 	channel string,
 ) ([]aghcontract.NetworkDirectRoomPayload, error) {
 	var response aghcontract.NetworkDirectRoomsResponse
-	path := "/api/network/channels/" + url.PathEscape(channel) + "/directs"
+	path, err := h.networkScopedAPIPath("", "/channels/"+url.PathEscape(channel)+"/directs")
+	if err != nil {
+		return nil, err
+	}
 	if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		return nil, err
 	}
@@ -952,8 +1034,11 @@ func (h *RuntimeHarness) NetworkDirectRoom(
 	directID string,
 ) (aghcontract.NetworkDirectRoomPayload, error) {
 	var response aghcontract.NetworkDirectRoomResponse
-	path := "/api/network/channels/" + url.PathEscape(channel) +
-		"/directs/" + url.PathEscape(directID)
+	path, err := h.networkScopedAPIPath("", "/channels/"+url.PathEscape(channel)+
+		"/directs/"+url.PathEscape(directID))
+	if err != nil {
+		return aghcontract.NetworkDirectRoomPayload{}, err
+	}
 	if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		return aghcontract.NetworkDirectRoomPayload{}, err
 	}
@@ -967,8 +1052,11 @@ func (h *RuntimeHarness) NetworkDirectRoomMessages(
 	directID string,
 ) ([]aghcontract.NetworkConversationMessagePayload, error) {
 	var response aghcontract.NetworkDirectRoomMessagesResponse
-	path := "/api/network/channels/" + url.PathEscape(channel) +
-		"/directs/" + url.PathEscape(directID) + "/messages"
+	path, err := h.networkScopedAPIPath("", "/channels/"+url.PathEscape(channel)+
+		"/directs/"+url.PathEscape(directID)+"/messages")
+	if err != nil {
+		return nil, err
+	}
 	if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		return nil, err
 	}
@@ -982,7 +1070,10 @@ func (h *RuntimeHarness) NetworkDirectResolve(
 	request aghcontract.NetworkDirectResolveRequest,
 ) (aghcontract.NetworkDirectRoomPayload, error) {
 	var response aghcontract.NetworkDirectRoomResponse
-	path := "/api/network/channels/" + url.PathEscape(channel) + "/directs/resolve"
+	path, err := h.networkScopedAPIPath("", "/channels/"+url.PathEscape(channel)+"/directs/resolve")
+	if err != nil {
+		return aghcontract.NetworkDirectRoomPayload{}, err
+	}
 	if err := h.UDSJSON(ctx, http.MethodPost, path, request, &response); err != nil {
 		return aghcontract.NetworkDirectRoomPayload{}, err
 	}
@@ -995,7 +1086,10 @@ func (h *RuntimeHarness) NetworkWork(
 	workID string,
 ) (aghcontract.NetworkWorkPayload, error) {
 	var response aghcontract.NetworkWorkResponse
-	path := "/api/network/work/" + url.PathEscape(workID)
+	path, err := h.networkScopedAPIPath("", "/work/"+url.PathEscape(workID))
+	if err != nil {
+		return aghcontract.NetworkWorkPayload{}, err
+	}
 	if err := h.UDSJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
 		return aghcontract.NetworkWorkPayload{}, err
 	}
@@ -1031,12 +1125,16 @@ func (h *RuntimeHarness) NetworkInbox(
 	if trimmed := strings.TrimSpace(sessionID); trimmed != "" {
 		values.Set("session_id", trimmed)
 	}
+	path, err := h.networkScopedAPIPath("", "/inbox"+encodeQuery(values))
+	if err != nil {
+		return nil, err
+	}
 
 	var response aghcontract.NetworkInboxResponse
 	if err := h.UDSJSON(
 		ctx,
 		http.MethodGet,
-		"/api/network/inbox"+encodeQuery(values),
+		path,
 		nil,
 		&response,
 	); err != nil {
@@ -1051,7 +1149,14 @@ func (h *RuntimeHarness) NetworkSend(
 	request aghcontract.NetworkSendRequest,
 ) (aghcontract.NetworkSendPayload, error) {
 	var response aghcontract.NetworkSendResponse
-	if err := h.UDSJSON(ctx, http.MethodPost, "/api/network/send", request, &response); err != nil {
+	path, err := h.networkScopedAPIPath(request.WorkspaceID, "/send")
+	if err != nil {
+		return aghcontract.NetworkSendPayload{}, err
+	}
+	if strings.TrimSpace(request.WorkspaceID) == "" {
+		request.WorkspaceID = strings.TrimSpace(h.WorkspaceID)
+	}
+	if err := h.UDSJSON(ctx, http.MethodPost, path, request, &response); err != nil {
 		return aghcontract.NetworkSendPayload{}, err
 	}
 	return response.Message, nil

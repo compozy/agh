@@ -67,7 +67,7 @@ type TaskStore interface {
 
 // NetworkReader is the narrowed network read surface required by agent context.
 type NetworkReader interface {
-	ListPeers(ctx context.Context, channel string) ([]network.PeerInfo, error)
+	ListPeers(ctx context.Context, workspaceID string, channel string) ([]network.PeerInfo, error)
 	Inbox(ctx context.Context, sessionID string) ([]network.Envelope, error)
 }
 
@@ -253,7 +253,13 @@ func (s *Service) ContextForSession(
 	payload.CoordinationChannel = channelContext
 
 	networkChannel := firstTrimmed(activeChannel, info.Channel)
-	inbox, peers, err := s.networkSections(ctx, info.ID, networkChannel, coordinationChannelID(channelContext))
+	inbox, peers, err := s.networkSections(
+		ctx,
+		info.ID,
+		workspaceSection.ID,
+		networkChannel,
+		coordinationChannelID(channelContext),
+	)
 	if err != nil {
 		return contract.AgentContextPayload{}, err
 	}
@@ -636,6 +642,7 @@ func (s *Service) sessionContextBundle(
 func (s *Service) networkSections(
 	ctx context.Context,
 	sessionID string,
+	workspaceID string,
 	channel string,
 	activeCoordinationChannelID string,
 ) (contract.AgentInboxSummaryPayload, contract.AgentPeerRosterPayload, error) {
@@ -658,7 +665,7 @@ func (s *Service) networkSections(
 
 	peers := contract.AgentPeerRosterPayload{Section: emptySectionMeta(s.limit())}
 	if strings.TrimSpace(channel) != "" {
-		peerInfos, err := reader.ListPeers(ctx, strings.TrimSpace(channel))
+		peerInfos, err := reader.ListPeers(ctx, strings.TrimSpace(workspaceID), strings.TrimSpace(channel))
 		if err != nil {
 			if isContextError(err) {
 				return contract.AgentInboxSummaryPayload{}, contract.AgentPeerRosterPayload{}, err

@@ -196,7 +196,12 @@ test("operator manages a local sandbox profile and binds it to real session exec
   await expect
     .poll(async () => await readFile(sideEffectPath, "utf8"))
     .toBe("sandbox-browser-allowed");
-  const metadata = await assertSessionSandboxMetadata(runtime, session.id, sandboxProfileName);
+  const metadata = await assertSessionSandboxMetadata(
+    runtime,
+    workspace.id,
+    session.id,
+    sandboxProfileName
+  );
   expect(metadata.session.sandbox?.backend).toBe("local");
   expect(metadata.session.sandbox?.state).toBe("prepared");
 
@@ -284,10 +289,15 @@ test("operator sees blocked sandbox diagnostics without leaking secrets or writi
   await expect(
     readFile(path.join(workspaceRoot, "toolhost", "browser-blocked.txt"), "utf8")
   ).rejects.toThrow();
-  const metadata = await assertSessionSandboxMetadata(runtime, session.id, sandboxProfileName);
+  const metadata = await assertSessionSandboxMetadata(
+    runtime,
+    workspace.id,
+    session.id,
+    sandboxProfileName
+  );
   expect(metadata.session.sandbox?.state).toBe("prepared");
   const events = await runtime.requestJSON<SessionEventsEnvelope>(
-    `/api/sessions/${encodeURIComponent(session.id)}/events`
+    sessionAPIPath(workspace.id, session.id, "/events")
   );
   expect(JSON.stringify(events)).toContain("browser-sandbox-blocked-command");
   expect(JSON.stringify(events)).toContain("terminal/create");
@@ -366,16 +376,13 @@ async function setWorkspaceSandbox(
 
 async function assertSessionSandboxMetadata(
   runtime: BrowserRuntime,
+  workspaceID: string,
   sessionID: string,
   profileName: string
 ): Promise<SessionEnvelope> {
-  const httpSession = await runtime.requestJSON<SessionEnvelope>(
-    `/api/sessions/${encodeURIComponent(sessionID)}`
-  );
-  const udsSession = await operatorJSON<SessionEnvelope>(
-    runtime,
-    `/api/sessions/${encodeURIComponent(sessionID)}`
-  );
+  const path = sessionAPIPath(workspaceID, sessionID);
+  const httpSession = await runtime.requestJSON<SessionEnvelope>(path);
+  const udsSession = await operatorJSON<SessionEnvelope>(runtime, path);
 
   expect(httpSession.session.sandbox).toMatchObject({
     backend: "local",
@@ -386,6 +393,12 @@ async function assertSessionSandboxMetadata(
   expect(udsSession.session.sandbox?.profile).toBe(httpSession.session.sandbox?.profile);
   expect(udsSession.session.sandbox?.state).toBe(httpSession.session.sandbox?.state);
   return httpSession;
+}
+
+function sessionAPIPath(workspaceID: string, sessionID: string, suffix = ""): string {
+  return `/api/workspaces/${encodeURIComponent(workspaceID)}/sessions/${encodeURIComponent(
+    sessionID
+  )}${suffix}`;
 }
 
 async function operatorJSON<T>(runtime: BrowserRuntime, pathname: string): Promise<T> {

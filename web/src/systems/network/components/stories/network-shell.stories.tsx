@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
+import { storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
 import { PanelSurface } from "@/storybook/story-layout";
 import {
   networkChannelsFixture,
@@ -84,6 +85,7 @@ function NetworkShellHarness({
     <PanelSurface className="min-h-[760px]">
       <NetworkListFiltersProvider value={filters}>
         <NetworkShell
+          workspaceId={storyDefaultWorkspaceId}
           activeChannel={channels[0] ?? null}
           activeChannelDetail={null}
           activeDirectId={null}

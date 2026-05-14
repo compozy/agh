@@ -31,6 +31,8 @@ vi.mock("@tanstack/react-router", () => ({
 import { DirectsList } from "../directs-list";
 import type { NetworkDirectRoomSummary } from "../../../types";
 
+const WORKSPACE_ID = "ws_alpha";
+
 const directs: NetworkDirectRoomSummary[] = [
   {
     channel: "ops",
@@ -54,6 +56,7 @@ describe("DirectsList", () => {
         directs={directs}
         isLoading={false}
         selfPeerId="peer-self"
+        workspaceId={WORKSPACE_ID}
       />
     );
 
@@ -62,12 +65,28 @@ describe("DirectsList", () => {
   });
 
   it("Should render the empty state when no directs exist", () => {
-    render(<DirectsList activeDirectId={null} channel="ops" directs={[]} isLoading={false} />);
+    render(
+      <DirectsList
+        activeDirectId={null}
+        channel="ops"
+        directs={[]}
+        isLoading={false}
+        workspaceId={WORKSPACE_ID}
+      />
+    );
     expect(screen.getByText("No direct rooms yet.")).toBeInTheDocument();
   });
 
   it("Should render the loading skeleton when no directs are available yet", () => {
-    render(<DirectsList activeDirectId={null} channel="ops" directs={[]} isLoading />);
+    render(
+      <DirectsList
+        activeDirectId={null}
+        channel="ops"
+        directs={[]}
+        isLoading
+        workspaceId={WORKSPACE_ID}
+      />
+    );
     expect(screen.getByTestId("network-direct-list-skeleton")).toBeInTheDocument();
   });
 });

@@ -24,20 +24,36 @@ const (
 )
 
 func newNetworkCommand(deps commandDeps) *cobra.Command {
+	var workspaceRef string
 	cmd := &cobra.Command{
 		Use:   "network",
 		Short: "Operate the daemon-owned network runtime",
 	}
 
 	cmd.AddCommand(newNetworkStatusCommand(deps))
-	cmd.AddCommand(newNetworkPeersCommand(deps))
-	cmd.AddCommand(newNetworkChannelsCommand(deps))
-	cmd.AddCommand(newNetworkThreadsCommand(deps))
-	cmd.AddCommand(newNetworkDirectsCommand(deps))
-	cmd.AddCommand(newNetworkWorkCommand(deps))
-	cmd.AddCommand(newNetworkSendCommand(deps))
-	cmd.AddCommand(newNetworkInboxCommand(deps))
+	cmd.PersistentFlags().
+		StringVar(&workspaceRef, "workspace", "", "Workspace root, name, or ID for scoped network data")
+	cmd.AddCommand(newNetworkPeersCommand(deps, &workspaceRef))
+	cmd.AddCommand(newNetworkChannelsCommand(deps, &workspaceRef))
+	cmd.AddCommand(newNetworkThreadsCommand(deps, &workspaceRef))
+	cmd.AddCommand(newNetworkDirectsCommand(deps, &workspaceRef))
+	cmd.AddCommand(newNetworkWorkCommand(deps, &workspaceRef))
+	cmd.AddCommand(newNetworkSendCommand(deps, &workspaceRef))
+	cmd.AddCommand(newNetworkInboxCommand(deps, &workspaceRef))
 	return cmd
+}
+
+func resolveNetworkWorkspaceRef(
+	cmd *cobra.Command,
+	deps commandDeps,
+	client DaemonClient,
+	workspaceRef *string,
+) (string, error) {
+	raw := ""
+	if workspaceRef != nil {
+		raw = strings.TrimSpace(*workspaceRef)
+	}
+	return resolveCLIWorkspaceRouteRef(cmd.Context(), deps, client, raw)
 }
 
 func newNetworkStatusCommand(deps commandDeps) *cobra.Command {
@@ -59,7 +75,7 @@ func newNetworkStatusCommand(deps commandDeps) *cobra.Command {
 	}
 }
 
-func newNetworkPeersCommand(deps commandDeps) *cobra.Command {
+func newNetworkPeersCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
 	return &cobra.Command{
 		Use:   "peers [channel]",
 		Short: "List visible local and remote peers",
@@ -69,8 +85,12 @@ func newNetworkPeersCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			workspace, err := resolveNetworkWorkspaceRef(cmd, deps, client, workspaceRef)
+			if err != nil {
+				return err
+			}
 
-			query := NetworkPeersQuery{}
+			query := NetworkPeersQuery{WorkspaceRef: workspace}
 			if len(args) == 1 {
 				query.Channel = strings.TrimSpace(args[0])
 			}
@@ -84,7 +104,7 @@ func newNetworkPeersCommand(deps commandDeps) *cobra.Command {
 	}
 }
 
-func newNetworkChannelsCommand(deps commandDeps) *cobra.Command {
+func newNetworkChannelsCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
 	return &cobra.Command{
 		Use:   "channels",
 		Short: "List active runtime channels",
@@ -93,8 +113,12 @@ func newNetworkChannelsCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			workspace, err := resolveNetworkWorkspaceRef(cmd, deps, client, workspaceRef)
+			if err != nil {
+				return err
+			}
 
-			channels, err := client.NetworkChannels(cmd.Context())
+			channels, err := client.NetworkChannels(cmd.Context(), workspace)
 			if err != nil {
 				return err
 			}
@@ -113,18 +137,18 @@ type networkThreadsFlags struct {
 	workID   string
 }
 
-func newNetworkThreadsCommand(deps commandDeps) *cobra.Command {
+func newNetworkThreadsCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "threads",
 		Short: "Inspect public network threads",
 	}
-	cmd.AddCommand(newNetworkThreadsListCommand(deps))
-	cmd.AddCommand(newNetworkThreadsShowCommand(deps))
-	cmd.AddCommand(newNetworkThreadsMessagesCommand(deps))
+	cmd.AddCommand(newNetworkThreadsListCommand(deps, workspaceRef))
+	cmd.AddCommand(newNetworkThreadsShowCommand(deps, workspaceRef))
+	cmd.AddCommand(newNetworkThreadsMessagesCommand(deps, workspaceRef))
 	return cmd
 }
 
-func newNetworkThreadsListCommand(deps commandDeps) *cobra.Command {
+func newNetworkThreadsListCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
 	var flags networkThreadsFlags
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -134,10 +158,15 @@ func newNetworkThreadsListCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			workspace, err := resolveNetworkWorkspaceRef(cmd, deps, client, workspaceRef)
+			if err != nil {
+				return err
+			}
 			threads, err := client.NetworkThreads(cmd.Context(), NetworkThreadsQuery{
-				Channel: strings.TrimSpace(flags.channel),
-				Limit:   flags.limit,
-				After:   strings.TrimSpace(flags.after),
+				WorkspaceRef: workspace,
+				Channel:      strings.TrimSpace(flags.channel),
+				Limit:        flags.limit,
+				After:        strings.TrimSpace(flags.after),
 			})
 			if err != nil {
 				return err
@@ -152,7 +181,7 @@ func newNetworkThreadsListCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
-func newNetworkThreadsShowCommand(deps commandDeps) *cobra.Command {
+func newNetworkThreadsShowCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
 	var flags networkThreadsFlags
 	cmd := &cobra.Command{
 		Use:   "show",
@@ -162,8 +191,13 @@ func newNetworkThreadsShowCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			workspace, err := resolveNetworkWorkspaceRef(cmd, deps, client, workspaceRef)
+			if err != nil {
+				return err
+			}
 			thread, err := client.NetworkThread(
 				cmd.Context(),
+				workspace,
 				strings.TrimSpace(flags.channel),
 				strings.TrimSpace(flags.threadID),
 			)
@@ -180,7 +214,7 @@ func newNetworkThreadsShowCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
-func newNetworkThreadsMessagesCommand(deps commandDeps) *cobra.Command {
+func newNetworkThreadsMessagesCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
 	var flags networkThreadsFlags
 	cmd := &cobra.Command{
 		Use:   "messages",
@@ -190,14 +224,19 @@ func newNetworkThreadsMessagesCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			workspace, err := resolveNetworkWorkspaceRef(cmd, deps, client, workspaceRef)
+			if err != nil {
+				return err
+			}
 			messages, err := client.NetworkThreadMessages(cmd.Context(), NetworkConversationMessagesQuery{
-				Channel:  strings.TrimSpace(flags.channel),
-				ThreadID: strings.TrimSpace(flags.threadID),
-				Limit:    flags.limit,
-				Before:   strings.TrimSpace(flags.before),
-				After:    strings.TrimSpace(flags.after),
-				Kind:     strings.TrimSpace(flags.kind),
-				WorkID:   strings.TrimSpace(flags.workID),
+				WorkspaceRef: workspace,
+				Channel:      strings.TrimSpace(flags.channel),
+				ThreadID:     strings.TrimSpace(flags.threadID),
+				Limit:        flags.limit,
+				Before:       strings.TrimSpace(flags.before),
+				After:        strings.TrimSpace(flags.after),
+				Kind:         strings.TrimSpace(flags.kind),
+				WorkID:       strings.TrimSpace(flags.workID),
 			})
 			if err != nil {
 				return err
@@ -235,19 +274,19 @@ type networkDirectsFlags struct {
 	workID   string
 }
 
-func newNetworkDirectsCommand(deps commandDeps) *cobra.Command {
+func newNetworkDirectsCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "directs",
 		Short: "Inspect restricted direct rooms",
 	}
-	cmd.AddCommand(newNetworkDirectsListCommand(deps))
-	cmd.AddCommand(newNetworkDirectsResolveCommand(deps))
-	cmd.AddCommand(newNetworkDirectsShowCommand(deps))
-	cmd.AddCommand(newNetworkDirectsMessagesCommand(deps))
+	cmd.AddCommand(newNetworkDirectsListCommand(deps, workspaceRef))
+	cmd.AddCommand(newNetworkDirectsResolveCommand(deps, workspaceRef))
+	cmd.AddCommand(newNetworkDirectsShowCommand(deps, workspaceRef))
+	cmd.AddCommand(newNetworkDirectsMessagesCommand(deps, workspaceRef))
 	return cmd
 }
 
-func newNetworkDirectsListCommand(deps commandDeps) *cobra.Command {
+func newNetworkDirectsListCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
 	var flags networkDirectsFlags
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -257,11 +296,16 @@ func newNetworkDirectsListCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			workspace, err := resolveNetworkWorkspaceRef(cmd, deps, client, workspaceRef)
+			if err != nil {
+				return err
+			}
 			directs, err := client.NetworkDirects(cmd.Context(), NetworkDirectsQuery{
-				Channel: strings.TrimSpace(flags.channel),
-				PeerID:  strings.TrimSpace(flags.peerID),
-				Limit:   flags.limit,
-				After:   strings.TrimSpace(flags.after),
+				WorkspaceRef: workspace,
+				Channel:      strings.TrimSpace(flags.channel),
+				PeerID:       strings.TrimSpace(flags.peerID),
+				Limit:        flags.limit,
+				After:        strings.TrimSpace(flags.after),
 			})
 			if err != nil {
 				return err
@@ -277,7 +321,7 @@ func newNetworkDirectsListCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
-func newNetworkDirectsResolveCommand(deps commandDeps) *cobra.Command {
+func newNetworkDirectsResolveCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
 	var flags networkDirectsFlags
 	cmd := &cobra.Command{
 		Use:   "resolve",
@@ -287,8 +331,13 @@ func newNetworkDirectsResolveCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			workspace, err := resolveNetworkWorkspaceRef(cmd, deps, client, workspaceRef)
+			if err != nil {
+				return err
+			}
 			direct, err := client.NetworkDirectResolve(
 				cmd.Context(),
+				workspace,
 				strings.TrimSpace(flags.channel),
 				NetworkDirectResolveRequest{
 					SessionID: strings.TrimSpace(flags.session),
@@ -310,7 +359,7 @@ func newNetworkDirectsResolveCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
-func newNetworkDirectsShowCommand(deps commandDeps) *cobra.Command {
+func newNetworkDirectsShowCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
 	var flags networkDirectsFlags
 	cmd := &cobra.Command{
 		Use:   "show",
@@ -320,8 +369,13 @@ func newNetworkDirectsShowCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			workspace, err := resolveNetworkWorkspaceRef(cmd, deps, client, workspaceRef)
+			if err != nil {
+				return err
+			}
 			direct, err := client.NetworkDirect(
 				cmd.Context(),
+				workspace,
 				strings.TrimSpace(flags.channel),
 				strings.TrimSpace(flags.directID),
 			)
@@ -338,7 +392,7 @@ func newNetworkDirectsShowCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
-func newNetworkDirectsMessagesCommand(deps commandDeps) *cobra.Command {
+func newNetworkDirectsMessagesCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
 	var flags networkDirectsFlags
 	cmd := &cobra.Command{
 		Use:   "messages",
@@ -348,14 +402,19 @@ func newNetworkDirectsMessagesCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			workspace, err := resolveNetworkWorkspaceRef(cmd, deps, client, workspaceRef)
+			if err != nil {
+				return err
+			}
 			messages, err := client.NetworkDirectMessages(cmd.Context(), NetworkConversationMessagesQuery{
-				Channel:  strings.TrimSpace(flags.channel),
-				DirectID: strings.TrimSpace(flags.directID),
-				Limit:    flags.limit,
-				Before:   strings.TrimSpace(flags.before),
-				After:    strings.TrimSpace(flags.after),
-				Kind:     strings.TrimSpace(flags.kind),
-				WorkID:   strings.TrimSpace(flags.workID),
+				WorkspaceRef: workspace,
+				Channel:      strings.TrimSpace(flags.channel),
+				DirectID:     strings.TrimSpace(flags.directID),
+				Limit:        flags.limit,
+				Before:       strings.TrimSpace(flags.before),
+				After:        strings.TrimSpace(flags.after),
+				Kind:         strings.TrimSpace(flags.kind),
+				WorkID:       strings.TrimSpace(flags.workID),
 			})
 			if err != nil {
 				return err
@@ -401,17 +460,17 @@ func registerNetworkMessageReadFlags(
 	cmd.Flags().StringVar(workID, "work", "", "Work id filter")
 }
 
-func newNetworkWorkCommand(deps commandDeps) *cobra.Command {
+func newNetworkWorkCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "work",
 		Short: "Inspect lifecycle-bearing network work",
 	}
-	cmd.AddCommand(newNetworkWorkLookupCommand(deps, "lookup"))
-	cmd.AddCommand(newNetworkWorkLookupCommand(deps, "status"))
+	cmd.AddCommand(newNetworkWorkLookupCommand(deps, workspaceRef, "lookup"))
+	cmd.AddCommand(newNetworkWorkLookupCommand(deps, workspaceRef, "status"))
 	return cmd
 }
 
-func newNetworkWorkLookupCommand(deps commandDeps, use string) *cobra.Command {
+func newNetworkWorkLookupCommand(deps commandDeps, workspaceRef *string, use string) *cobra.Command {
 	var workID string
 	cmd := &cobra.Command{
 		Use:   use,
@@ -421,7 +480,11 @@ func newNetworkWorkLookupCommand(deps commandDeps, use string) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			work, err := client.NetworkWork(cmd.Context(), strings.TrimSpace(workID))
+			workspace, err := resolveNetworkWorkspaceRef(cmd, deps, client, workspaceRef)
+			if err != nil {
+				return err
+			}
+			work, err := client.NetworkWork(cmd.Context(), workspace, strings.TrimSpace(workID))
 			if err != nil {
 				return err
 			}
@@ -451,17 +514,12 @@ type networkSendFlags struct {
 	extRaw       string
 }
 
-func newNetworkSendCommand(deps commandDeps) *cobra.Command {
+func newNetworkSendCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
 	var flags networkSendFlags
 	cmd := &cobra.Command{
 		Use:   "send",
 		Short: "Send one envelope through the daemon-owned network runtime",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-
 			body, err := parseNetworkJSONValue("--body", flags.bodyRaw)
 			if err != nil {
 				return err
@@ -480,8 +538,17 @@ func newNetworkSendCommand(deps commandDeps) *cobra.Command {
 			if err := validateNetworkSendFlags(flags); err != nil {
 				return err
 			}
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			workspace, err := resolveNetworkWorkspaceRef(cmd, deps, client, workspaceRef)
+			if err != nil {
+				return err
+			}
 
 			message, err := client.NetworkSend(cmd.Context(), NetworkSendRequest{
+				WorkspaceID: workspace,
 				SessionID:   strings.TrimSpace(flags.sessionID),
 				Channel:     strings.TrimSpace(flags.channel),
 				Surface:     strings.TrimSpace(flags.surface),
@@ -531,7 +598,7 @@ func registerNetworkSendFlags(cmd *cobra.Command, flags *networkSendFlags) {
 	cmd.Flags().StringVar(&flags.extRaw, "ext", "", "Optional JSON object of extension metadata")
 }
 
-func newNetworkInboxCommand(deps commandDeps) *cobra.Command {
+func newNetworkInboxCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
 	var sessionID string
 
 	cmd := &cobra.Command{
@@ -542,8 +609,12 @@ func newNetworkInboxCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			workspace, err := resolveNetworkWorkspaceRef(cmd, deps, client, workspaceRef)
+			if err != nil {
+				return err
+			}
 
-			messages, err := client.NetworkInbox(cmd.Context(), strings.TrimSpace(sessionID))
+			messages, err := client.NetworkInbox(cmd.Context(), workspace, strings.TrimSpace(sessionID))
 			if err != nil {
 				return err
 			}

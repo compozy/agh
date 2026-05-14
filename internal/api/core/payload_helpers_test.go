@@ -21,6 +21,8 @@ import (
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
+const networkCoreTestWorkspaceID = "ws-network-core"
+
 func TestBundleCatalogPayloadsAndDeclaredChannels(t *testing.T) {
 	t.Parallel()
 
@@ -133,11 +135,21 @@ func TestStatusForBundleErrorAndChannelHelpers(t *testing.T) {
 		t.Parallel()
 
 		sessions := []*session.Info{
-			{ID: "sess-visible", Channel: " builders ", State: session.StateActive},
-			{ID: "sess-stopped", Channel: "builders", State: session.StateStopped},
+			{
+				ID:          "sess-visible",
+				WorkspaceID: networkCoreTestWorkspaceID,
+				Channel:     " builders ",
+				State:       session.StateActive,
+			},
+			{
+				ID:          "sess-stopped",
+				WorkspaceID: networkCoreTestWorkspaceID,
+				Channel:     "builders",
+				State:       session.StateStopped,
+			},
 		}
-		peers := []network.PeerInfo{{PeerID: "peer-1", Channel: "operators"}}
-		if !networkChannelExists(sessions, peers, nil, "builders") {
+		peers := []network.PeerInfo{{PeerID: "peer-1", WorkspaceID: networkCoreTestWorkspaceID, Channel: "operators"}}
+		if !networkChannelExists(sessions, peers, nil, networkCoreTestWorkspaceID, "builders") {
 			t.Fatal("networkChannelExists() = false, want true for visible session channel")
 		}
 	})
@@ -145,7 +157,11 @@ func TestStatusForBundleErrorAndChannelHelpers(t *testing.T) {
 	t.Run("Should report peer-backed channels", func(t *testing.T) {
 		t.Parallel()
 
-		if !networkChannelExists(nil, []network.PeerInfo{{PeerID: "peer-2", Channel: "match"}}, nil, "match") {
+		if !networkChannelExists(nil, []network.PeerInfo{{
+			PeerID:      "peer-2",
+			WorkspaceID: networkCoreTestWorkspaceID,
+			Channel:     "match",
+		}}, nil, networkCoreTestWorkspaceID, "match") {
 			t.Fatal("networkChannelExists() = false, want true for peer channel")
 		}
 	})
@@ -153,8 +169,8 @@ func TestStatusForBundleErrorAndChannelHelpers(t *testing.T) {
 	t.Run("Should report persisted metadata channels", func(t *testing.T) {
 		t.Parallel()
 
-		metadata := &store.NetworkChannelEntry{Channel: "builders"}
-		if !networkChannelExists(nil, nil, metadata, "builders") {
+		metadata := &store.NetworkChannelEntry{WorkspaceID: networkCoreTestWorkspaceID, Channel: "builders"}
+		if !networkChannelExists(nil, nil, metadata, networkCoreTestWorkspaceID, "builders") {
 			t.Fatal("networkChannelExists() = false, want true for persisted metadata")
 		}
 	})
@@ -162,8 +178,8 @@ func TestStatusForBundleErrorAndChannelHelpers(t *testing.T) {
 	t.Run("Should report missing channels as absent", func(t *testing.T) {
 		t.Parallel()
 
-		peers := []network.PeerInfo{{PeerID: "peer-1", Channel: "operators"}}
-		if networkChannelExists(nil, peers, nil, "missing") {
+		peers := []network.PeerInfo{{PeerID: "peer-1", WorkspaceID: networkCoreTestWorkspaceID, Channel: "operators"}}
+		if networkChannelExists(nil, peers, nil, networkCoreTestWorkspaceID, "missing") {
 			t.Fatal("networkChannelExists() = true, want false for missing channel")
 		}
 	})
@@ -187,9 +203,10 @@ func TestNetworkChannelAggregateKeepsConversationActivitySeparateFromMetadata(t 
 		metadataAt := recordedAt.Add(10 * time.Minute)
 		aggregates := make(map[string]*networkChannelAggregate)
 
-		applyNetworkChannelMetadata(aggregates, []store.NetworkChannelEntry{{
-			Channel:   "builders",
-			UpdatedAt: metadataAt,
+		applyNetworkChannelMetadata(aggregates, networkCoreTestWorkspaceID, []store.NetworkChannelEntry{{
+			WorkspaceID: networkCoreTestWorkspaceID,
+			Channel:     "builders",
+			UpdatedAt:   metadataAt,
 		}})
 		applyNetworkChannelMessages(aggregates, []store.NetworkMessageEntry{{
 			Channel:   "builders",

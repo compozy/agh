@@ -289,12 +289,13 @@ func TestAuditWriterRecordTaskIngress(t *testing.T) {
 		}
 
 		if err := writer.RecordTaskIngress(context.Background(), TaskIngressAudit{
-			Action:    networkTaskActionEnqueue,
-			Direction: AuditDirectionRejected,
-			PeerID:    "reviewer.sess-ops",
-			Channel:   "ops",
-			RequestID: "req-enqueue-1",
-			Reason:    "channel_mismatch",
+			WorkspaceID: testWorkspaceID,
+			Action:      networkTaskActionEnqueue,
+			Direction:   AuditDirectionRejected,
+			PeerID:      "reviewer.sess-ops",
+			Channel:     "ops",
+			RequestID:   "req-enqueue-1",
+			Reason:      "channel_mismatch",
 			Payload: map[string]any{
 				"task_id": "task-1",
 			},
@@ -327,12 +328,13 @@ func TestAuditWriterRecordTaskIngress(t *testing.T) {
 		writer := &FileAuditWriter{}
 
 		err := writer.RecordTaskIngress(context.Background(), TaskIngressAudit{
-			Action:    networkTaskActionEnqueue,
-			Direction: AuditDirectionRejected,
-			PeerID:    "reviewer.sess-ops",
-			Channel:   "ops",
-			RequestID: "req-enqueue-2",
-			Reason:    "channel_mismatch",
+			WorkspaceID: testWorkspaceID,
+			Action:      networkTaskActionEnqueue,
+			Direction:   AuditDirectionRejected,
+			PeerID:      "reviewer.sess-ops",
+			Channel:     "ops",
+			RequestID:   "req-enqueue-2",
+			Reason:      "channel_mismatch",
 		})
 		if err == nil || !strings.Contains(err.Error(), "audit sink is required") {
 			t.Fatalf("RecordTaskIngress(no sink) error = %v, want audit sink validation", err)
@@ -344,12 +346,13 @@ func TestAuditWriterRecordTaskIngress(t *testing.T) {
 		writer := &FileAuditWriter{store: storeSink}
 
 		if err := writer.RecordTaskIngress(context.Background(), TaskIngressAudit{
-			Action:    networkTaskActionEnqueue,
-			Direction: AuditDirectionRejected,
-			PeerID:    "reviewer.sess-ops",
-			Channel:   "ops",
-			RequestID: "req-enqueue-3",
-			Reason:    "channel_mismatch",
+			WorkspaceID: testWorkspaceID,
+			Action:      networkTaskActionEnqueue,
+			Direction:   AuditDirectionRejected,
+			PeerID:      "reviewer.sess-ops",
+			Channel:     "ops",
+			RequestID:   "req-enqueue-3",
+			Reason:      "channel_mismatch",
 		}); err != nil {
 			t.Fatalf("RecordTaskIngress(nil now) error = %v", err)
 		}
@@ -393,12 +396,13 @@ func TestAuditWriterRecordTaskIngress(t *testing.T) {
 		}
 
 		err := writer.RecordTaskIngress(context.Background(), TaskIngressAudit{
-			Action:    networkTaskActionEnqueue,
-			Direction: AuditDirectionRejected,
-			PeerID:    "reviewer.sess-ops",
-			Channel:   "ops",
-			RequestID: "req-enqueue-5",
-			Reason:    "channel_mismatch",
+			WorkspaceID: testWorkspaceID,
+			Action:      networkTaskActionEnqueue,
+			Direction:   AuditDirectionRejected,
+			PeerID:      "reviewer.sess-ops",
+			Channel:     "ops",
+			RequestID:   "req-enqueue-5",
+			Reason:      "channel_mismatch",
 		})
 		if err == nil {
 			t.Fatal("RecordTaskIngress(sink failures) error = nil, want joined error")
@@ -438,17 +442,18 @@ func testAuditEnvelope(t *testing.T) Envelope {
 	t.Helper()
 
 	return Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_direct_01",
-		Kind:     KindSay,
-		Channel:  "builders",
-		Surface:  surfacePtr(SurfaceDirect),
-		DirectID: stringPtr("direct_0123456789abcdef0123456789abcdef"),
-		From:     "coder.sess-audit",
-		To:       stringPtr("reviewer.sess-xyz"),
-		WorkID:   stringPtr("work_patch_42"),
-		TS:       time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC).Unix(),
-		Body:     mustRawJSON(t, map[string]any{"text": "Please inspect auth.go"}),
+		Protocol:    ProtocolV0,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_direct_01",
+		Kind:        KindSay,
+		Channel:     "builders",
+		Surface:     surfacePtr(SurfaceDirect),
+		DirectID:    stringPtr("direct_0123456789abcdef0123456789abcdef"),
+		From:        "coder.sess-audit",
+		To:          stringPtr("reviewer.sess-xyz"),
+		WorkID:      stringPtr("work_patch_42"),
+		TS:          time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC).Unix(),
+		Body:        mustRawJSON(t, map[string]any{"text": "Please inspect auth.go"}),
 	}
 }
 
@@ -456,15 +461,16 @@ func testSayAuditEnvelope(t *testing.T) Envelope {
 	t.Helper()
 
 	return Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_say_01",
-		Kind:     KindSay,
-		Channel:  "builders",
-		Surface:  surfacePtr(SurfaceThread),
-		ThreadID: stringPtr("thread_patch_42"),
-		From:     "coder.sess-audit",
-		TS:       time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC).Unix(),
-		Body:     mustRawJSON(t, SayBody{Text: "  hello builders  \n", Intent: "announce"}),
+		Protocol:    ProtocolV0,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_say_01",
+		Kind:        KindSay,
+		Channel:     "builders",
+		Surface:     surfacePtr(SurfaceThread),
+		ThreadID:    stringPtr("thread_patch_42"),
+		From:        "coder.sess-audit",
+		TS:          time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC).Unix(),
+		Body:        mustRawJSON(t, SayBody{Text: "  hello builders  \n", Intent: "announce"}),
 	}
 }
 
@@ -472,15 +478,16 @@ func testInvalidSayAuditEnvelope(t *testing.T) Envelope {
 	t.Helper()
 
 	return Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_say_invalid_01",
-		Kind:     KindSay,
-		Channel:  "builders",
-		Surface:  surfacePtr(SurfaceThread),
-		ThreadID: stringPtr("thread_patch_42"),
-		From:     "coder.sess-audit",
-		TS:       time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC).Unix(),
-		Body:     mustRawJSON(t, []string{"not", "an", "object"}),
+		Protocol:    ProtocolV0,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_say_invalid_01",
+		Kind:        KindSay,
+		Channel:     "builders",
+		Surface:     surfacePtr(SurfaceThread),
+		ThreadID:    stringPtr("thread_patch_42"),
+		From:        "coder.sess-audit",
+		TS:          time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC).Unix(),
+		Body:        mustRawJSON(t, []string{"not", "an", "object"}),
 	}
 }
 
@@ -488,16 +495,17 @@ func testCapabilityAuditEnvelope(t *testing.T) Envelope {
 	t.Helper()
 
 	return Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg_capability_01",
-		Kind:     KindCapability,
-		Channel:  "builders",
-		Surface:  surfacePtr(SurfaceDirect),
-		DirectID: stringPtr("direct_0123456789abcdef0123456789abcdef"),
-		From:     "coder.sess-audit",
-		To:       stringPtr("reviewer.sess-xyz"),
-		WorkID:   stringPtr("work_capability_42"),
-		TS:       time.Date(2026, 4, 20, 12, 0, 0, 0, time.UTC).Unix(),
+		Protocol:    ProtocolV0,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg_capability_01",
+		Kind:        KindCapability,
+		Channel:     "builders",
+		Surface:     surfacePtr(SurfaceDirect),
+		DirectID:    stringPtr("direct_0123456789abcdef0123456789abcdef"),
+		From:        "coder.sess-audit",
+		To:          stringPtr("reviewer.sess-xyz"),
+		WorkID:      stringPtr("work_capability_42"),
+		TS:          time.Date(2026, 4, 20, 12, 0, 0, 0, time.UTC).Unix(),
 		Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
 			ID:               "review-fix",
 			Summary:          "Review fix flow",
@@ -514,12 +522,13 @@ func testGreetAuditEnvelope(t *testing.T, recordedAt time.Time, messageID string
 
 	displayName := "Reviewer"
 	return Envelope{
-		Protocol: ProtocolV0,
-		ID:       messageID,
-		Kind:     KindGreet,
-		Channel:  "builders",
-		From:     "reviewer.sess-audit",
-		TS:       recordedAt.Unix(),
+		Protocol:    ProtocolV0,
+		WorkspaceID: testWorkspaceID,
+		ID:          messageID,
+		Kind:        KindGreet,
+		Channel:     "builders",
+		From:        "reviewer.sess-audit",
+		TS:          recordedAt.Unix(),
 		Body: mustRawJSON(t, GreetBody{
 			PeerCard: PeerCard{
 				PeerID:              "reviewer.sess-audit",

@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 
+import { useActiveWorkspace } from "@/systems/workspace";
+
 import { networkWorkOptions } from "../lib/query-options";
 import { isTerminalNetworkWorkState } from "../lib/network-formatters";
 import type { NetworkConversationMessage, NetworkSurface, NetworkWorkDetail } from "../types";
@@ -30,8 +32,10 @@ export function useNetworkWork({
   inspectorOpen = false,
   enabled = true,
 }: UseNetworkWorkArgs): UseNetworkWorkResult {
-  const isReady = enabled && Boolean(workId);
-  const baseOptions = networkWorkOptions(workId ?? "", isReady);
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = activeWorkspaceId ?? "";
+  const isReady = enabled && Boolean(workId) && activeWorkspaceId != null;
+  const baseOptions = networkWorkOptions(workspaceId, workId ?? "", isReady);
   const query = useQuery({
     ...baseOptions,
     refetchInterval: query => {

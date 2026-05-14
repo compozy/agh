@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -58,7 +58,38 @@ vi.mock("@/systems/daemon/hooks/use-daemon-connection-status", () => ({
   useDaemonConnectionStatus: () => mockConnectionStatus,
 }));
 
+vi.mock("@/systems/runtime/hooks/use-nav-counts", () => ({
+  useNavCounts: () => ({
+    counts: {},
+    refresh: () => {},
+    status: "connected",
+  }),
+}));
+
+const mockTriggerAsync = vi.fn();
+const mockToastError = vi.fn();
+
+vi.mock("sonner", () => ({
+  toast: {
+    error: (...args: unknown[]) => mockToastError(...args),
+  },
+}));
+
+vi.mock("@/systems/settings", () => ({
+  useSettingsRestart: () => ({
+    trigger: vi.fn(),
+    triggerAsync: mockTriggerAsync,
+    isTriggerPending: mockRestartFlags.isTriggerPending,
+    isPolling: mockRestartFlags.isPolling,
+    triggerError: null,
+  }),
+}));
+
 let mockConnectionStatus: "connected" | "connecting" | "disconnected" | "error" = "connected";
+const mockRestartFlags = {
+  isTriggerPending: false,
+  isPolling: false,
+};
 
 function renderSidebar(props: AppSidebarProps) {
   return render(
@@ -96,7 +127,6 @@ function makeProps(overrides: Partial<AppSidebarProps> = {}): AppSidebarProps {
     activeWorkspace: workspaces[0],
     onSelectWorkspace,
     onAddWorkspace,
-    health: { version: "0.1.0" },
     agents: [],
     agentsLoading: false,
     agentsError: false,
@@ -110,6 +140,15 @@ describe("AppSidebar", () => {
     matchedRoute = {};
     matchedRouteFuzzy = {};
     mockConnectionStatus = "connected";
+    mockRestartFlags.isTriggerPending = false;
+    mockRestartFlags.isPolling = false;
+    mockTriggerAsync.mockReset();
+    mockTriggerAsync.mockResolvedValue({
+      operation_id: "op-1",
+      status: "started",
+      active_session_count: 0,
+    });
+    mockToastError.mockReset();
     onSelectWorkspace.mockReset();
     onCollapseChange.mockReset();
     onAddWorkspace.mockReset();
@@ -596,14 +635,106 @@ describe("AppSidebar", () => {
       expect(indicator).toHaveAttribute("data-pulse", "false");
     });
 
-    it("Should render the daemon version from health", () => {
+    it("Should not render the daemon version badge in the footer", () => {
       renderSidebar(makeProps());
-      expect(screen.getByTestId("sidebar-version")).toHaveTextContent("v0.1.0");
+      expect(screen.queryByTestId("sidebar-version")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Should render the restart daemon control", () => {
+    it("Should mount the restart button in the footer with an accessible label", () => {
+      renderSidebar(makeProps());
+      const footer = screen.getByTestId("sidebar-footer");
+      const button = screen.getByTestId("sidebar-restart-daemon");
+      expect(footer).toContainElement(button);
+      expect(button).toHaveAttribute("aria-label", "Restart daemon");
     });
 
-    it("Should omit the version when health is missing", () => {
-      renderSidebar(makeProps({ health: undefined }));
-      expect(screen.queryByTestId("sidebar-version")).not.toBeInTheDocument();
+    it("Should disable the restart button while the daemon is reconnecting", () => {
+      mockConnectionStatus = "connecting";
+      renderSidebar(makeProps());
+      expect(screen.getByTestId("sidebar-restart-daemon")).toBeDisabled();
+    });
+
+    it("Should disable the restart button when the daemon is unreachable", () => {
+      mockConnectionStatus = "disconnected";
+      renderSidebar(makeProps());
+      expect(screen.getByTestId("sidebar-restart-daemon")).toBeDisabled();
+    });
+
+    it("Should disable the restart button while a restart operation is polling", () => {
+      mockRestartFlags.isPolling = true;
+      renderSidebar(makeProps());
+      expect(screen.getByTestId("sidebar-restart-daemon")).toBeDisabled();
+    });
+
+    it("Should open the confirm dialog with the active-session impact line", () => {
+      renderSidebar(
+        makeProps({
+          sessions: [
+            {
+              id: "s1",
+              name: "L1",
+              agent_name: "coder",
+              provider: "claude",
+              workspace_id: "ws_alpha",
+              workspace_path: "/workspace/alpha",
+              state: "active",
+              updated_at: "2026-04-06T10:00:00Z",
+              created_at: "2026-04-06T10:00:00Z",
+            },
+            {
+              id: "s2",
+              name: "L2",
+              agent_name: "writer",
+              provider: "openai",
+              workspace_id: "ws_alpha",
+              workspace_path: "/workspace/alpha",
+              state: "active",
+              updated_at: "2026-04-06T10:00:00Z",
+              created_at: "2026-04-06T10:00:00Z",
+            },
+          ],
+        })
+      );
+
+      fireEvent.click(screen.getByTestId("sidebar-restart-daemon"));
+      expect(screen.getByTestId("sidebar-restart-confirm-detail")).toHaveTextContent(
+        "2 active sessions will be interrupted."
+      );
+    });
+
+    it("Should describe a zero-session restart explicitly", () => {
+      renderSidebar(makeProps());
+      fireEvent.click(screen.getByTestId("sidebar-restart-daemon"));
+      expect(screen.getByTestId("sidebar-restart-confirm-detail")).toHaveTextContent(
+        "No active sessions will be interrupted."
+      );
+    });
+
+    it("Should call triggerAsync when the user confirms the restart", async () => {
+      renderSidebar(makeProps());
+      fireEvent.click(screen.getByTestId("sidebar-restart-daemon"));
+      fireEvent.click(screen.getByTestId("sidebar-restart-confirm-button"));
+      await waitFor(() => expect(mockTriggerAsync).toHaveBeenCalledTimes(1));
+      expect(mockToastError).not.toHaveBeenCalled();
+    });
+
+    it("Should toast an error when triggerAsync rejects", async () => {
+      mockTriggerAsync.mockRejectedValueOnce(new Error("network"));
+      renderSidebar(makeProps());
+      fireEvent.click(screen.getByTestId("sidebar-restart-daemon"));
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("sidebar-restart-confirm-button"));
+      });
+      await waitFor(() => expect(mockToastError).toHaveBeenCalledWith("Failed to restart daemon."));
+    });
+
+    it("Should dismiss the dialog without calling triggerAsync on cancel", () => {
+      renderSidebar(makeProps());
+      fireEvent.click(screen.getByTestId("sidebar-restart-daemon"));
+      fireEvent.click(screen.getByTestId("sidebar-restart-cancel"));
+      expect(mockTriggerAsync).not.toHaveBeenCalled();
     });
   });
 });

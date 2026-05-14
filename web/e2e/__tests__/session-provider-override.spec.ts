@@ -178,7 +178,12 @@ test("operator can create a provider/model override session and gets an inline r
   await expect(appPage.getByTestId("session-provider-badge")).toHaveText(overrideProvider);
   await browserArtifacts.captureScreenshot("session-provider-created", appPage);
 
-  await assertSessionParity(runtime, createdSession.session.id, overrideProvider);
+  await assertSessionParity(
+    runtime,
+    createdSession.session.workspace_id,
+    createdSession.session.id,
+    overrideProvider
+  );
 
   await ui.stopButton.click();
   await expect(ui.resumeButton).toBeVisible();
@@ -193,7 +198,12 @@ test("operator can create a provider/model override session and gets an inline r
   await ui.resumeButton.click();
   await expect(ui.stopButton).toBeVisible();
   await expect(appPage.getByTestId("session-provider-badge")).toHaveText(overrideProvider);
-  await assertSessionParity(runtime, createdSession.session.id, overrideProvider);
+  await assertSessionParity(
+    runtime,
+    createdSession.session.workspace_id,
+    createdSession.session.id,
+    overrideProvider
+  );
 
   await ui.stopButton.click();
   await expect(ui.resumeButton).toBeVisible();
@@ -208,7 +218,11 @@ test("operator can create a provider/model override session and gets an inline r
   const failedResumeResponsePromise = appPage.waitForResponse(
     response =>
       response.request().method() === "POST" &&
-      response.url().endsWith(`/api/sessions/${createdSession.session.id}/resume`)
+      response
+        .url()
+        .endsWith(
+          sessionAPIPath(createdSession.session.workspace_id, createdSession.session.id, "/resume")
+        )
   );
 
   await ui.resumeButton.click();
@@ -241,20 +255,18 @@ async function assertSessionParity(
     requestOperatorJSON?: <T>(pathname: string, init?: RequestInit) => Promise<T>;
     paths?: { cliShim: string; homeDir: string };
   },
+  workspaceID: string,
   sessionID: string,
   expectedProvider: string
 ): Promise<void> {
-  const httpRecord = await runtime.requestJSON<SessionEnvelope>(
-    `/api/sessions/${encodeURIComponent(sessionID)}`
-  );
+  const path = sessionAPIPath(workspaceID, sessionID);
+  const httpRecord = await runtime.requestJSON<SessionEnvelope>(path);
   expect(httpRecord.session.provider).toBe(expectedProvider);
 
   if (!runtime.requestOperatorJSON) {
     throw new Error("provider override parity check requires operator UDS access");
   }
-  const udsRecord = await runtime.requestOperatorJSON<SessionEnvelope>(
-    `/api/sessions/${encodeURIComponent(sessionID)}`
-  );
+  const udsRecord = await runtime.requestOperatorJSON<SessionEnvelope>(path);
   expect(udsRecord.session.provider).toBe(expectedProvider);
 
   if (!runtime.paths) {
@@ -270,6 +282,12 @@ async function assertSessionParity(
   const cliRecords = JSON.parse(stdout) as SessionPayload[];
   const cliRecord = cliRecords.find(session => session.id === sessionID);
   expect(cliRecord?.provider).toBe(expectedProvider);
+}
+
+function sessionAPIPath(workspaceID: string, sessionID: string, suffix = ""): string {
+  return `/api/workspaces/${encodeURIComponent(workspaceID)}/sessions/${encodeURIComponent(
+    sessionID
+  )}${suffix}`;
 }
 
 function cliEnv(paths: { cliShim: string; homeDir: string }): NodeJS.ProcessEnv {

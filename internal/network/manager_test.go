@@ -37,6 +37,7 @@ func testJoinRequest(
 	return sessionpkg.NetworkPeerJoin{
 		SessionID:    sessionID,
 		PeerID:       peerID,
+		WorkspaceID:  testWorkspaceID,
 		Channel:      channel,
 		Capabilities: append([]sessionpkg.NetworkPeerCapability(nil), capabilities...),
 	}
@@ -272,7 +273,13 @@ func TestManagerPersistsConversationsBeforeRuntimeSideEffects(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewPeerRegistry() error = %v", err)
 		}
-		if _, err := registry.RegisterLocal("sess-a", "builders", mustPeerCard(t, "coder.sess-a"), now); err != nil {
+		if _, err := registry.RegisterLocal(
+			"sess-a",
+			testWorkspaceID,
+			"builders",
+			mustPeerCard(t, "coder.sess-a"),
+			now,
+		); err != nil {
 			t.Fatalf("RegisterLocal() error = %v", err)
 		}
 		transport := &spyRouterTransport{}
@@ -332,7 +339,13 @@ func TestManagerPersistsConversationsBeforeRuntimeSideEffects(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewPeerRegistry() error = %v", err)
 		}
-		if _, err := registry.RegisterLocal("sess-a", "builders", mustPeerCard(t, "coder.sess-a"), now); err != nil {
+		if _, err := registry.RegisterLocal(
+			"sess-a",
+			testWorkspaceID,
+			"builders",
+			mustPeerCard(t, "coder.sess-a"),
+			now,
+		); err != nil {
 			t.Fatalf("RegisterLocal() error = %v", err)
 		}
 		router, err := NewRouter(
@@ -383,7 +396,13 @@ func TestManagerPersistsConversationsBeforeRuntimeSideEffects(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewPeerRegistry() error = %v", err)
 		}
-		if _, err := registry.RegisterLocal("sess-b", "builders", mustPeerCard(t, "reviewer.sess-b"), now); err != nil {
+		if _, err := registry.RegisterLocal(
+			"sess-b",
+			testWorkspaceID,
+			"builders",
+			mustPeerCard(t, "reviewer.sess-b"),
+			now,
+		); err != nil {
 			t.Fatalf("RegisterLocal() error = %v", err)
 		}
 		prompter := newFakeDeliveryPrompter()
@@ -421,13 +440,14 @@ func TestManagerPersistsConversationsBeforeRuntimeSideEffects(t *testing.T) {
 		}
 
 		payload, err := json.Marshal(withThreadSurface(Envelope{
-			Protocol: ProtocolV0,
-			ID:       "msg-store-receive",
-			Kind:     KindSay,
-			Channel:  "builders",
-			From:     "coder.sess-remote",
-			TS:       now.Unix(),
-			Body:     mustRawJSON(t, SayBody{Text: "commit before prompt"}),
+			Protocol:    ProtocolV0,
+			WorkspaceID: testWorkspaceID,
+			ID:          "msg-store-receive",
+			Kind:        KindSay,
+			Channel:     "builders",
+			From:        "coder.sess-remote",
+			TS:          now.Unix(),
+			Body:        mustRawJSON(t, SayBody{Text: "commit before prompt"}),
 		}))
 		if err != nil {
 			t.Fatalf("json.Marshal(inbound) error = %v", err)
@@ -479,6 +499,7 @@ func TestPrepareJoinLocalPeerUsesCapabilityAwareRuntimeInput(t *testing.T) {
 			ArtifactsExpected: []string{"review summary"},
 		}}
 		local, alreadyJoined, err := manager.prepareJoinLocalPeer(context.Background(), joinChannelRequest{
+			workspaceID:  testWorkspaceID,
 			sessionID:    "sess-capabilities",
 			peerID:       "reviewer.sess-capabilities",
 			channel:      "builders",
@@ -541,6 +562,7 @@ func TestPrepareJoinLocalPeerUsesCapabilityAwareRuntimeInput(t *testing.T) {
 
 	t.Run("Should keep empty capability projection non-nil when runtime supplied none", func(t *testing.T) {
 		local, alreadyJoined, err := manager.prepareJoinLocalPeer(context.Background(), joinChannelRequest{
+			workspaceID:  testWorkspaceID,
 			sessionID:    "sess-empty-capabilities",
 			peerID:       "reviewer.sess-empty-capabilities",
 			channel:      "builders",
@@ -891,12 +913,13 @@ func TestManagerRejectsBogusWhoisFloodWithoutResourceGrowth(t *testing.T) {
 
 		const floodCount = 10_000
 		bogusWhoisPayload, err := json.Marshal(Envelope{
-			Protocol: ProtocolV0,
-			ID:       "msg-bogus-whois",
-			Kind:     KindWhois,
-			Channel:  "builders",
-			From:     "attacker.sess-bogus",
-			TS:       fixedNow.Unix(),
+			Protocol:    ProtocolV0,
+			WorkspaceID: testWorkspaceID,
+			ID:          "msg-bogus-whois",
+			Kind:        KindWhois,
+			Channel:     "builders",
+			From:        "attacker.sess-bogus",
+			TS:          fixedNow.Unix(),
 			Body: mustRawJSON(t, map[string]any{
 				"type": "bogus-peer-card-request",
 			}),
@@ -1399,13 +1422,14 @@ func TestManagerListsPeersAndAuditsInboundRemoteDeliveries(t *testing.T) {
 		t.Fatalf("DefaultPeerCard() error = %v", err)
 	}
 	greetPayload, err := json.Marshal(Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg-greet-remote",
-		Kind:     KindGreet,
-		Channel:  "builders",
-		From:     remoteCard.PeerID,
-		TS:       fixedNow.Unix(),
-		Body:     mustRawJSON(t, GreetBody{PeerCard: remoteCard, Summary: "remote hello"}),
+		Protocol:    ProtocolV0,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg-greet-remote",
+		Kind:        KindGreet,
+		Channel:     "builders",
+		From:        remoteCard.PeerID,
+		TS:          fixedNow.Unix(),
+		Body:        mustRawJSON(t, GreetBody{PeerCard: remoteCard, Summary: "remote hello"}),
 	})
 	if err != nil {
 		t.Fatalf("json.Marshal(greet envelope) error = %v", err)
@@ -1413,7 +1437,7 @@ func TestManagerListsPeersAndAuditsInboundRemoteDeliveries(t *testing.T) {
 	manager.handleInboundMessage(greetPayload)
 	auditor.reset()
 
-	peers, err := manager.ListPeers(ctx, "builders")
+	peers, err := manager.ListPeers(ctx, testWorkspaceID, "builders")
 	if err != nil {
 		t.Fatalf("ListPeers() error = %v", err)
 	}
@@ -1431,7 +1455,7 @@ func TestManagerListsPeersAndAuditsInboundRemoteDeliveries(t *testing.T) {
 		t.Fatalf("remote peer last_seen = %v, want %s", remoteSeen, fixedNow)
 	}
 
-	channels, err := manager.ListChannels(ctx)
+	channels, err := manager.ListChannels(ctx, testWorkspaceID)
 	if err != nil {
 		t.Fatalf("ListChannels() error = %v", err)
 	}
@@ -1440,13 +1464,14 @@ func TestManagerListsPeersAndAuditsInboundRemoteDeliveries(t *testing.T) {
 	}
 
 	sayPayload, err := json.Marshal(withThreadSurface(Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg-say-remote",
-		Kind:     KindSay,
-		Channel:  "builders",
-		From:     remoteCard.PeerID,
-		TS:       fixedNow.Unix(),
-		Body:     mustRawJSON(t, map[string]any{"text": "remote delivery"}),
+		Protocol:    ProtocolV0,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg-say-remote",
+		Kind:        KindSay,
+		Channel:     "builders",
+		From:        remoteCard.PeerID,
+		TS:          fixedNow.Unix(),
+		Body:        mustRawJSON(t, map[string]any{"text": "remote delivery"}),
 	}))
 	if err != nil {
 		t.Fatalf("json.Marshal(say envelope) error = %v", err)
@@ -1523,13 +1548,14 @@ func TestManagerAuditsGeneratedGreetsAndControlReceivers(t *testing.T) {
 		t.Fatalf("DefaultPeerCard() error = %v", err)
 	}
 	greetPayload, err := json.Marshal(Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg-greet-control-audit",
-		Kind:     KindGreet,
-		Channel:  "builders",
-		From:     remoteCard.PeerID,
-		TS:       fixedNow.Unix(),
-		Body:     mustRawJSON(t, GreetBody{PeerCard: remoteCard, Summary: "remote hello"}),
+		Protocol:    ProtocolV0,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg-greet-control-audit",
+		Kind:        KindGreet,
+		Channel:     "builders",
+		From:        remoteCard.PeerID,
+		TS:          fixedNow.Unix(),
+		Body:        mustRawJSON(t, GreetBody{PeerCard: remoteCard, Summary: "remote hello"}),
 	})
 	if err != nil {
 		t.Fatalf("json.Marshal(greet envelope) error = %v", err)
@@ -1544,12 +1570,13 @@ func TestManagerAuditsGeneratedGreetsAndControlReceivers(t *testing.T) {
 
 	auditor.reset()
 	whoisPayload, err := json.Marshal(Envelope{
-		Protocol: ProtocolV0,
-		ID:       "msg-whois-control-audit",
-		Kind:     KindWhois,
-		Channel:  "builders",
-		From:     remoteCard.PeerID,
-		TS:       fixedNow.Unix(),
+		Protocol:    ProtocolV0,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg-whois-control-audit",
+		Kind:        KindWhois,
+		Channel:     "builders",
+		From:        remoteCard.PeerID,
+		TS:          fixedNow.Unix(),
 		Body: mustRawJSON(t, WhoisBody{
 			Type:  WhoisTypeRequest,
 			Query: "",
@@ -1581,10 +1608,10 @@ func TestManagerValidationAndNilGuards(t *testing.T) {
 	if _, err := nilManager.Status(context.Background()); err == nil {
 		t.Fatal("nil manager Status() error = nil, want non-nil")
 	}
-	if _, err := nilManager.ListPeers(context.Background(), "builders"); err == nil {
+	if _, err := nilManager.ListPeers(context.Background(), testWorkspaceID, "builders"); err == nil {
 		t.Fatal("nil manager ListPeers() error = nil, want non-nil")
 	}
-	if _, err := nilManager.ListChannels(context.Background()); err == nil {
+	if _, err := nilManager.ListChannels(context.Background(), testWorkspaceID); err == nil {
 		t.Fatal("nil manager ListChannels() error = nil, want non-nil")
 	}
 	if _, err := nilManager.Inbox(context.Background(), "sess"); err == nil {
@@ -1631,10 +1658,10 @@ func TestManagerValidationAndNilGuards(t *testing.T) {
 	if _, err := manager.Status(nilTestContext()); err == nil {
 		t.Fatal("Status(nil ctx) error = nil, want non-nil")
 	}
-	if _, err := manager.ListPeers(nilTestContext(), "builders"); err == nil {
+	if _, err := manager.ListPeers(nilTestContext(), testWorkspaceID, "builders"); err == nil {
 		t.Fatal("ListPeers(nil ctx) error = nil, want non-nil")
 	}
-	if _, err := manager.ListChannels(nilTestContext()); err == nil {
+	if _, err := manager.ListChannels(nilTestContext(), testWorkspaceID); err == nil {
 		t.Fatal("ListChannels(nil ctx) error = nil, want non-nil")
 	}
 	if _, err := manager.Inbox(nilTestContext(), "sess"); err == nil {
@@ -1729,7 +1756,7 @@ func TestManagerRecordInboundAuditCapturesRejectedAndGeneratedEntries(t *testing
 	if err != nil {
 		t.Fatalf("DefaultPeerCard() error = %v", err)
 	}
-	if _, err := peers.RegisterLocal("sess-local", "builders", card, time.Now().UTC()); err != nil {
+	if _, err := peers.RegisterLocal("sess-local", testWorkspaceID, "builders", card, time.Now().UTC()); err != nil {
 		t.Fatalf("RegisterLocal() error = %v", err)
 	}
 
@@ -1742,18 +1769,20 @@ func TestManagerRecordInboundAuditCapturesRejectedAndGeneratedEntries(t *testing
 	reason := ReasonCodeBusy
 	manager.recordInboundAudit(RouteResult{
 		Envelope: &Envelope{
-			ID:      "msg-rejected",
-			Kind:    KindSay,
-			Channel: "builders",
-			From:    "coder.sess-remote",
+			WorkspaceID: testWorkspaceID,
+			ID:          "msg-rejected",
+			Kind:        KindSay,
+			Channel:     "builders",
+			From:        "coder.sess-remote",
 		},
 		Rejected:   true,
 		ReasonCode: &reason,
 		Generated: []Envelope{{
-			ID:      "msg-receipt",
-			Kind:    KindReceipt,
-			Channel: "builders",
-			From:    "reviewer.sess-local",
+			WorkspaceID: testWorkspaceID,
+			ID:          "msg-receipt",
+			Kind:        KindReceipt,
+			Channel:     "builders",
+			From:        "reviewer.sess-local",
 		}},
 	}, nil)
 

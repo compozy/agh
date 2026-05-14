@@ -1,6 +1,8 @@
 import { useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
 
+import { useActiveWorkspace } from "@/systems/workspace";
+
 import { networkDirectsOptions, networkThreadsOptions } from "../lib/query-options";
 import type {
   NetworkChannelSummary,
@@ -86,18 +88,20 @@ export function useNetworkRecents(
   channels: ReadonlyArray<NetworkChannelSummary>,
   options?: { enabled?: boolean; limit?: number }
 ): UseNetworkRecentsResult {
-  const enabled = options?.enabled ?? true;
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = activeWorkspaceId ?? "";
+  const enabled = (options?.enabled ?? true) && activeWorkspaceId != null;
   const limit = options?.limit ?? RECENTS_LIMIT;
   const { lastReadAt } = useLastRead();
 
   const threadQueries = useQueries({
     queries: channels.map(channel => ({
-      ...networkThreadsOptions(channel.channel, { limit }, enabled),
+      ...networkThreadsOptions(workspaceId, channel.channel, { limit }, enabled),
     })),
   });
   const directQueries = useQueries({
     queries: channels.map(channel => ({
-      ...networkDirectsOptions(channel.channel, { limit }, enabled),
+      ...networkDirectsOptions(workspaceId, channel.channel, { limit }, enabled),
     })),
   });
 

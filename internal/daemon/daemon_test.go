@@ -2891,8 +2891,8 @@ func TestBootInjectsComposedAssemblerForFeatureFlagCombinations(t *testing.T) {
 			if _, ok := capturedDeps.PromptAssembler.(session.StartupPromptAssembler); !ok {
 				t.Fatal("boot() did not inject a startup-aware prompt assembler")
 			}
-			if capturedDeps.StartupPromptOverlay != nil {
-				t.Fatal("boot() unexpectedly injected the deprecated startup prompt overlay")
+			if capturedDeps.StartupPromptOverlay == nil {
+				t.Fatal("boot() did not inject the AGH runtime startup prompt overlay")
 			}
 			if capturedDeps.PromptInputAugmenter == nil {
 				t.Fatal("boot() did not inject the prompt input augmenter")
@@ -3061,7 +3061,7 @@ args = ["-c", "printf '{}'"]
 
 		waitForCondition(t, "workspace hook binding refresh", func() bool {
 			entries, catalogErr := hooksRuntime.Catalog(hookspkg.CatalogFilter{
-				WorkspaceID: resolved.ID,
+				WorkspaceID: resolved.WorkspaceID,
 				Event:       hookspkg.HookSessionPostCreate,
 			})
 			if catalogErr != nil {
@@ -3766,7 +3766,8 @@ func canonicalDaemonRoot(t *testing.T, root string) string {
 }
 
 func orderedFragments(wantMemory bool, wantSkills bool) []string {
-	fragments := make([]string, 0, 4)
+	fragments := make([]string, 0, 6)
+	fragments = append(fragments, aghRuntimeEnvelopeStart, "# AGH Runtime")
 	if wantMemory {
 		fragments = append(fragments, "# Persistent Memory")
 	}
@@ -5213,11 +5214,11 @@ func (f *fakeNetworkRuntime) Send(_ context.Context, req network.SendRequest) (s
 	return "msg-test", nil
 }
 
-func (f *fakeNetworkRuntime) ListPeers(context.Context, string) ([]network.PeerInfo, error) {
+func (f *fakeNetworkRuntime) ListPeers(context.Context, string, string) ([]network.PeerInfo, error) {
 	return nil, nil
 }
 
-func (f *fakeNetworkRuntime) ListChannels(context.Context) ([]network.ChannelInfo, error) {
+func (f *fakeNetworkRuntime) ListChannels(context.Context, string) ([]network.ChannelInfo, error) {
 	return nil, nil
 }
 
@@ -5578,7 +5579,7 @@ func (r *recordingRegistry) WriteNetworkChannel(context.Context, store.NetworkCh
 
 func (r *recordingRegistry) GetNetworkChannel(
 	context.Context,
-	string,
+	store.NetworkChannelRef,
 ) (store.NetworkChannelEntry, error) {
 	return store.NetworkChannelEntry{}, sql.ErrNoRows
 }
@@ -5590,7 +5591,7 @@ func (r *recordingRegistry) ListNetworkChannels(
 	return nil, nil
 }
 
-func (r *recordingRegistry) DeleteNetworkChannel(context.Context, string) error {
+func (r *recordingRegistry) DeleteNetworkChannel(context.Context, store.NetworkChannelRef) error {
 	return nil
 }
 
@@ -5621,7 +5622,7 @@ func (r *recordingRegistry) WriteConversationMessage(
 
 func (r *recordingRegistry) ListThreads(
 	context.Context,
-	string,
+	store.NetworkChannelRef,
 	store.NetworkThreadQuery,
 ) ([]store.NetworkThreadSummary, error) {
 	return nil, nil
@@ -5629,7 +5630,7 @@ func (r *recordingRegistry) ListThreads(
 
 func (r *recordingRegistry) GetThread(
 	context.Context,
-	string,
+	store.NetworkChannelRef,
 	string,
 ) (store.NetworkThreadSummary, error) {
 	return store.NetworkThreadSummary{}, store.ErrNetworkConversationNotFound
@@ -5637,7 +5638,7 @@ func (r *recordingRegistry) GetThread(
 
 func (r *recordingRegistry) ListDirectRooms(
 	context.Context,
-	string,
+	store.NetworkChannelRef,
 	store.NetworkDirectRoomQuery,
 ) ([]store.NetworkDirectRoomSummary, error) {
 	return nil, nil
@@ -5645,7 +5646,7 @@ func (r *recordingRegistry) ListDirectRooms(
 
 func (r *recordingRegistry) GetDirectRoom(
 	context.Context,
-	string,
+	store.NetworkChannelRef,
 	string,
 ) (store.NetworkDirectRoomSummary, error) {
 	return store.NetworkDirectRoomSummary{}, store.ErrNetworkConversationNotFound
@@ -5659,7 +5660,7 @@ func (r *recordingRegistry) ListConversationMessages(
 	return nil, nil
 }
 
-func (r *recordingRegistry) GetWork(context.Context, string) (store.NetworkWorkEntry, error) {
+func (r *recordingRegistry) GetWork(context.Context, string, string) (store.NetworkWorkEntry, error) {
 	return store.NetworkWorkEntry{}, store.ErrNetworkConversationNotFound
 }
 

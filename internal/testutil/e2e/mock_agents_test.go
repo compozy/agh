@@ -132,16 +132,18 @@ func TestRuntimeHarnessPromptSessionHTTPAndApprovePermissionUsePublicSurface(t *
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == http.MethodPost && r.URL.Path == "/api/sessions/sess-1/prompt":
+		case r.Method == http.MethodPost && r.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/prompt":
 			w.Header().Set("Content-Type", "text/event-stream")
-			_, _ = fmt.Fprint(
+			if _, err := fmt.Fprint(
 				w,
 				"event: agent_message\n"+
 					"data: {\"delta\":\"hello\"}\n\n"+
 					"event: done\n"+
 					"data: [DONE]\n\n",
-			)
-		case r.Method == http.MethodPost && r.URL.Path == "/api/sessions/sess-1/approve":
+			); err != nil {
+				t.Errorf("write prompt stream error = %v", err)
+			}
+		case r.Method == http.MethodPost && r.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/approve":
 			w.WriteHeader(http.StatusNoContent)
 		default:
 			http.NotFound(w, r)
@@ -150,6 +152,7 @@ func TestRuntimeHarnessPromptSessionHTTPAndApprovePermissionUsePublicSurface(t *
 	defer server.Close()
 
 	harness := &RuntimeHarness{
+		WorkspaceID: "ws-1",
 		HTTPBaseURL: server.URL,
 		HTTPClient:  server.Client(),
 	}
@@ -195,20 +198,22 @@ func TestRuntimeHarnessPromptSessionHTTPEscapesSessionIDs(t *testing.T) {
 	t.Parallel()
 
 	sessionID := "sess/ops worker"
-	expectedPromptPath := "/api/sessions/" + url.PathEscape(sessionID) + "/prompt"
-	expectedApprovePath := "/api/sessions/" + url.PathEscape(sessionID) + "/approve"
+	expectedPromptPath := "/api/workspaces/ws-1/sessions/" + url.PathEscape(sessionID) + "/prompt"
+	expectedApprovePath := "/api/workspaces/ws-1/sessions/" + url.PathEscape(sessionID) + "/approve"
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodPost && r.URL.EscapedPath() == expectedPromptPath:
 			w.Header().Set("Content-Type", "text/event-stream")
-			_, _ = fmt.Fprint(
+			if _, err := fmt.Fprint(
 				w,
 				"event: agent_message\n"+
 					"data: {\"delta\":\"hello\"}\n\n"+
 					"event: done\n"+
 					"data: [DONE]\n\n",
-			)
+			); err != nil {
+				t.Errorf("write escaped prompt stream error = %v", err)
+			}
 		case r.Method == http.MethodPost && r.URL.EscapedPath() == expectedApprovePath:
 			w.WriteHeader(http.StatusNoContent)
 		default:
@@ -218,6 +223,7 @@ func TestRuntimeHarnessPromptSessionHTTPEscapesSessionIDs(t *testing.T) {
 	defer server.Close()
 
 	harness := &RuntimeHarness{
+		WorkspaceID: "ws-1",
 		HTTPBaseURL: server.URL,
 		HTTPClient:  server.Client(),
 	}
@@ -244,9 +250,9 @@ func TestRuntimeHarnessPromptSessionHTTPAndApprovePermissionReportFailures(t *te
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == http.MethodPost && r.URL.Path == "/api/sessions/sess-1/prompt":
+		case r.Method == http.MethodPost && r.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/prompt":
 			http.Error(w, "permission denied", http.StatusForbidden)
-		case r.Method == http.MethodPost && r.URL.Path == "/api/sessions/sess-1/approve":
+		case r.Method == http.MethodPost && r.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/approve":
 			http.Error(w, "approval failed", http.StatusBadRequest)
 		default:
 			http.NotFound(w, r)
@@ -255,6 +261,7 @@ func TestRuntimeHarnessPromptSessionHTTPAndApprovePermissionReportFailures(t *te
 	defer server.Close()
 
 	harness := &RuntimeHarness{
+		WorkspaceID: "ws-1",
 		HTTPBaseURL: server.URL,
 		HTTPClient:  server.Client(),
 	}

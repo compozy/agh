@@ -67,6 +67,7 @@ interface AutomationRun {
   scheduled_at?: string | null;
   session_id?: string | null;
   status: "scheduled" | "running" | "delegated" | "completed" | "failed" | "canceled";
+  workspace_id?: string | null;
 }
 
 interface AutomationSchedule {
@@ -286,7 +287,7 @@ test("operator creates edits disables enables triggers and deletes a dynamic job
     routeState,
     workspaceJob,
   });
-  await deleteSessionIfExists(runtime, completedRun.session_id);
+  await deleteSessionIfExists(runtime, completedRun.workspace_id, completedRun.session_id);
   await deleteJobIfExists(runtime, workspaceJob.id);
 });
 
@@ -481,15 +482,24 @@ async function deleteJobIfExists(runtime: BrowserRuntime, id: string): Promise<v
 
 async function deleteSessionIfExists(
   runtime: BrowserRuntime,
+  workspaceID: string | null | undefined,
   id: string | null | undefined
 ): Promise<void> {
   if (!id) {
     return;
   }
-  const response = await fetch(runtime.url(`/api/sessions/${encodeURIComponent(id)}`), {
+  const workspace = workspaceID?.trim();
+  if (!workspace) {
+    throw new Error(`delete session ${id} requires workspace_id`);
+  }
+  const response = await fetch(runtime.url(sessionAPIPath(workspace, id)), {
     method: "DELETE",
   });
   expect([204, 404]).toContain(response.status);
+}
+
+function sessionAPIPath(workspaceID: string, sessionID: string): string {
+  return `/api/workspaces/${encodeURIComponent(workspaceID)}/sessions/${encodeURIComponent(sessionID)}`;
 }
 
 async function getAutomationHealth(runtime: BrowserRuntime): Promise<AutomationHealth> {

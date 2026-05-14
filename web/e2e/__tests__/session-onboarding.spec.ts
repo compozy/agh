@@ -23,6 +23,12 @@ function browserLifecycleSessionPath(agentName: string, sessionId: string): stri
   return `/agents/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(sessionId)}`;
 }
 
+function sessionAPIPath(workspaceID: string, sessionID: string, suffix = ""): string {
+  return `/api/workspaces/${encodeURIComponent(workspaceID)}/sessions/${encodeURIComponent(
+    sessionID
+  )}${suffix}`;
+}
+
 test.use({
   runtimeOptions: {
     seed: {
@@ -83,9 +89,13 @@ test("operator can onboard, create a session, submit work, approve a permission 
   await appPage.getByTestId("session-create-dialog-submit").click();
   const createResponse = await createResponsePromise;
   expect(createResponse.ok()).toBeTruthy();
-  const createPayload = (await createResponse.json()) as { session?: { id?: string } };
+  const createPayload = (await createResponse.json()) as {
+    session?: { id?: string; workspace_id?: string };
+  };
   const sessionId = createPayload.session?.id ?? "";
+  const workspaceId = createPayload.session?.workspace_id ?? "";
   expect(sessionId).not.toBe("");
+  expect(workspaceId).not.toBe("");
 
   await expect
     .poll(() => new URL(appPage.url()).pathname)
@@ -105,7 +115,7 @@ test("operator can onboard, create a session, submit work, approve a permission 
   const approvalResponsePromise = appPage.waitForResponse(response => {
     return (
       response.request().method() === "POST" &&
-      response.url().endsWith(`/api/sessions/${encodeURIComponent(sessionId)}/approve`)
+      response.url().endsWith(sessionAPIPath(workspaceId, sessionId, "/approve"))
     );
   });
   await ui.permissionAllowOnce.click();

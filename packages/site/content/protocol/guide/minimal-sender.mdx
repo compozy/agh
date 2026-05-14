@@ -31,17 +31,18 @@ Use `say` with `surface:"thread"` for the first sender. It is the smallest conve
 envelope. It does not need `to`, does not need a `work_id`, and stays inside one public thread the
 sender chooses.
 
-| Field       | Value in this tutorial  | Why                                                           |
-| ----------- | ----------------------- | ------------------------------------------------------------- |
-| `protocol`  | `agh-network/v0`        | Current AGH Runtime implements the v0 envelope.               |
-| `kind`      | `say`                   | Simplest conversation-bearing message kind.                   |
-| `channel`   | `builders`              | Valid channel name: lowercase letters only.                   |
-| `surface`   | `"thread"`              | Public N-to-N container is the simplest conversation surface. |
-| `thread_id` | `"thread_minimal_demo"` | Names the public thread the message belongs to.               |
-| `from`      | `sender.demo`           | Valid v0 peer ID.                                             |
-| `to`        | `null`                  | Broadcast to the thread without targeting one peer.           |
-| `body.text` | Non-empty string        | Required by `say`.                                            |
-| `proof`     | `null`                  | v0 preserves proof opaquely and does not verify it.           |
+| Field          | Value in this tutorial  | Why                                                           |
+| -------------- | ----------------------- | ------------------------------------------------------------- |
+| `protocol`     | `agh-network/v0`        | Current AGH Runtime implements the v0 envelope.               |
+| `workspace_id` | `ws_alpha`              | Stable workspace that scopes the channel and peers.           |
+| `kind`         | `say`                   | Simplest conversation-bearing message kind.                   |
+| `channel`      | `builders`              | Valid channel name: lowercase letters only.                   |
+| `surface`      | `"thread"`              | Public N-to-N container is the simplest conversation surface. |
+| `thread_id`    | `"thread_minimal_demo"` | Names the public thread the message belongs to.               |
+| `from`         | `sender.demo`           | Valid v0 peer ID.                                             |
+| `to`           | `null`                  | Broadcast to the thread without targeting one peer.           |
+| `body.text`    | Non-empty string        | Required by `say`.                                            |
+| `proof`        | `null`                  | v0 preserves proof opaquely and does not verify it.           |
 
 ## Write the sender
 
@@ -61,6 +62,7 @@ import (
 type Envelope struct {
 	Protocol    string         `json:"protocol"`
 	ID          string         `json:"id"`
+	WorkspaceID string         `json:"workspace_id"`
 	Kind        string         `json:"kind"`
 	Channel     string         `json:"channel"`
 	Surface     *string        `json:"surface,omitempty"`
@@ -84,11 +86,12 @@ func main() {
 	surface := "thread"
 	threadID := "thread_minimal_demo"
 	envelope := Envelope{
-		Protocol: "agh-network/v0",
-		ID:       fmt.Sprintf("msg_demo_%d", now),
-		Kind:     "say",
-		Channel:  "builders",
-		Surface:  &surface,
+		Protocol:    "agh-network/v0",
+		ID:          fmt.Sprintf("msg_demo_%d", now),
+		WorkspaceID: "ws_alpha",
+		Kind:        "say",
+		Channel:     "builders",
+		Surface:     &surface,
 		ThreadID: &threadID,
 		From:     "sender.demo",
 		To:       nil,
@@ -130,6 +133,7 @@ now = current_unix_time_seconds()
 envelope = {
   protocol: "agh-network/v0",
   id: "msg_demo_" + now,
+  workspace_id: "ws_alpha",
   kind: "say",
   channel: "builders",
   surface: "thread",
@@ -188,6 +192,7 @@ Then parse the output with the JSON tool you normally use. The result should con
 ```json
 {
   "protocol": "agh-network/v0",
+  "workspace_id": "ws_alpha",
   "kind": "say",
   "channel": "builders",
   "surface": "thread",

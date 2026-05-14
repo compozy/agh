@@ -1,19 +1,8 @@
 "use client";
 
-import { useRender } from "@base-ui/react/use-render";
 import { cva } from "class-variance-authority";
 import type React from "react";
-import {
-  createContext,
-  use,
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useReducer,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useMemo } from "react";
 
 import { Button } from "@agh/ui/components/button";
 import { ButtonGroup, ButtonGroupText } from "@agh/ui/components/button-group";
@@ -43,190 +32,21 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@agh/ui/components/tool
 import { cn } from "@agh/ui/lib/utils";
 import { AlertCircleIcon, CheckIcon, XIcon } from "lucide-react";
 
-// i18n Configuration Interface
-export interface FilterI18nConfig {
-  // UI Labels
-  addFilter: string;
-  searchFields: string;
-  noFieldsFound: string;
-  noResultsFound: string;
-  select: string;
-  true: string;
-  false: string;
-  min: string;
-  max: string;
-  to: string;
-  typeAndPressEnter: string;
-  selected: string;
-  selectedCount: string;
-  percent: string;
-  defaultCurrency: string;
-  defaultColor: string;
-  addFilterTitle: string;
+import { createFilter, createFilterGroup, getFieldsMap } from "./hooks/filter-helpers";
+import {
+  DEFAULT_I18N,
+  FilterContext,
+  type FilterContextValue,
+  type FilterI18nConfig,
+  useFilterContext,
+} from "./hooks/use-filter-context";
+import { useFilterInput } from "./hooks/use-filter-input";
+import { useFilterSubmenuContent } from "./hooks/use-filter-submenu-content";
+import { useFilters, type FiltersMenuAction } from "./hooks/use-filters";
+import { useSelectOptionsPopover } from "./hooks/use-select-options-popover";
 
-  // Operators
-  operators: {
-    is: string;
-    isNot: string;
-    isAnyOf: string;
-    isNotAnyOf: string;
-    includesAll: string;
-    excludesAll: string;
-    before: string;
-    after: string;
-    between: string;
-    notBetween: string;
-    contains: string;
-    notContains: string;
-    startsWith: string;
-    endsWith: string;
-    isExactly: string;
-    equals: string;
-    notEquals: string;
-    greaterThan: string;
-    lessThan: string;
-    overlaps: string;
-    includes: string;
-    excludes: string;
-    includesAllOf: string;
-    includesAnyOf: string;
-    empty: string;
-    notEmpty: string;
-  };
-
-  // Placeholders
-  placeholders: {
-    enterField: (fieldType: string) => string;
-    selectField: string;
-    searchField: (fieldName: string) => string;
-    enterKey: string;
-    enterValue: string;
-  };
-
-  // Helper functions
-  helpers: {
-    formatOperator: (operator: string) => string;
-  };
-
-  // Validation
-  validation: {
-    invalidEmail: string;
-    invalidUrl: string;
-    invalidTel: string;
-    invalid: string;
-  };
-}
-
-// Default English i18n configuration
-export const DEFAULT_I18N: FilterI18nConfig = {
-  // UI Labels
-  addFilter: "Filter",
-  searchFields: "Filter...",
-  noFieldsFound: "No filters found.",
-  noResultsFound: "No results found.",
-  select: "Select...",
-  true: "True",
-  false: "False",
-  min: "Min",
-  max: "Max",
-  to: "to",
-  typeAndPressEnter: "Type and press Enter to add tag",
-  selected: "selected",
-  selectedCount: "selected",
-  percent: "%",
-  defaultCurrency: "$",
-  defaultColor: "#000000",
-  addFilterTitle: "Add filter",
-
-  // Operators
-  operators: {
-    is: "is",
-    isNot: "is not",
-    isAnyOf: "is any of",
-    isNotAnyOf: "is not any of",
-    includesAll: "includes all",
-    excludesAll: "excludes all",
-    before: "before",
-    after: "after",
-    between: "between",
-    notBetween: "not between",
-    contains: "contains",
-    notContains: "does not contain",
-    startsWith: "starts with",
-    endsWith: "ends with",
-    isExactly: "is exactly",
-    equals: "equals",
-    notEquals: "not equals",
-    greaterThan: "greater than",
-    lessThan: "less than",
-    overlaps: "overlaps",
-    includes: "includes",
-    excludes: "excludes",
-    includesAllOf: "includes all of",
-    includesAnyOf: "includes any of",
-    empty: "is empty",
-    notEmpty: "is not empty",
-  },
-
-  // Placeholders
-  placeholders: {
-    enterField: (fieldType: string) => `Enter ${fieldType}...`,
-    selectField: "Select...",
-    searchField: (fieldName: string) => `Search ${fieldName.toLowerCase()}...`,
-    enterKey: "Enter key...",
-    enterValue: "Enter value...",
-  },
-
-  // Helper functions
-  helpers: {
-    formatOperator: (operator: string) => operator.replace(/_/g, " "),
-  },
-
-  // Validation
-  validation: {
-    invalidEmail: "Invalid email format",
-    invalidUrl: "Invalid URL format",
-    invalidTel: "Invalid phone format",
-    invalid: "Invalid input format",
-  },
-};
-
-// Context for all Filter component props
-interface FilterContextValue {
-  variant: "solid" | "default";
-  size: "sm" | "default" | "lg";
-  radius: "default" | "full";
-  i18n: FilterI18nConfig;
-  className?: string;
-  showSearchInput?: boolean;
-  trigger?: React.ReactNode;
-  allowMultiple?: boolean;
-}
-
-const FilterContext = createContext<FilterContextValue>({
-  variant: "default",
-  size: "default",
-  radius: "default",
-  i18n: DEFAULT_I18N,
-  className: undefined,
-  showSearchInput: true,
-  trigger: undefined,
-  allowMultiple: true,
-});
-
-const useFilterContext = () => use(FilterContext);
-
-function scheduleFilterDomSync(callback: () => void) {
-  if (typeof window === "undefined") return;
-  window.requestAnimationFrame(callback);
-}
-
-function scrollFilterOptionIntoView(baseId: string, index: number) {
-  if (index < 0) return;
-  scheduleFilterDomSync(() => {
-    document.getElementById(`${baseId}-item-${index}`)?.scrollIntoView({ block: "nearest" });
-  });
-}
+export { createFilter, createFilterGroup, DEFAULT_I18N };
+export type { FilterI18nConfig };
 
 // Container variant for filters wrapper
 const filtersContainerVariants = cva("flex flex-wrap items-center", {
@@ -259,82 +79,20 @@ function FilterInput<T = unknown>({
   field?: FilterFieldConfig<T>;
   focusOnMount?: boolean;
 }) {
-  const context = useFilterContext();
-  const [isValid, setIsValid] = useState(true);
-  const [validationMessage, setValidationMessage] = useState("");
-
-  const focusInputOnMount = useCallback(
-    (node: HTMLInputElement | null) => {
-      if (node && focusOnMount) {
-        scheduleFilterDomSync(() => node.focus());
-      }
-    },
-    [focusOnMount]
-  );
-
-  // Validation function to check if input matches pattern
-  const validateInput = (value: string, pattern?: string): boolean => {
-    if (!pattern || !value) return true;
-    const regex = new RegExp(pattern);
-    return regex.test(value);
-  };
-
-  // Get validation message for field type
-  const getValidationMessage = (): string => {
-    return context.i18n.validation.invalid;
-  };
-
-  // Handle blur event - validate when user leaves input
-  const validateFilterInputOnBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    const pattern = field?.pattern || props.pattern;
-
-    // Only validate if there's a value and (pattern or validation function)
-    if (value && (pattern || field?.validation)) {
-      let valid = true;
-      let customMessage = "";
-
-      // If there's a custom validation function, use it
-      if (field?.validation) {
-        const result = field.validation(value);
-        // Handle both boolean and object return types
-        if (typeof result === "boolean") {
-          valid = result;
-        } else {
-          valid = result.valid;
-          customMessage = result.message || "";
-        }
-      } else if (pattern) {
-        // Use pattern validation
-        valid = validateInput(value, pattern);
-      }
-
-      setIsValid(valid);
-      setValidationMessage(valid ? "" : customMessage || getValidationMessage());
-    } else {
-      // Reset validation state for empty values or no validation
-      setIsValid(true);
-      setValidationMessage("");
-    }
-
-    // Call the original onBlur if provided
-    onBlur?.(e);
-  };
-
-  // Handle keydown event - hide validation error when user starts typing
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    // Hide validation error when user starts typing (any key except special keys)
-    if (
-      !isValid &&
-      !["Tab", "Escape", "Enter", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)
-    ) {
-      setIsValid(true);
-      setValidationMessage("");
-    }
-
-    // Call the original onKeyDown if provided
-    onKeyDown?.(e);
-  };
+  const {
+    context,
+    focusInputOnMount,
+    handleKeyDown,
+    isValid,
+    validateFilterInputOnBlur,
+    validationMessage,
+  } = useFilterInput({
+    field,
+    focusOnMount,
+    onBlur,
+    onKeyDown,
+    pattern: props.pattern,
+  });
 
   return (
     <InputGroup
@@ -478,47 +236,6 @@ export interface FilterFieldConfig<T = unknown> {
   value?: T[];
   onValueChange?: (values: T[]) => void;
 }
-
-// Helper functions to handle both flat and grouped field configurations
-const isFieldGroup = <T = unknown,>(
-  item: FilterFieldConfig<T> | FilterFieldGroup<T>
-): item is FilterFieldGroup<T> => {
-  return "fields" in item && Array.isArray(item.fields);
-};
-
-// Helper function to check if a FilterFieldConfig is a group-level configuration
-const isGroupLevelField = <T = unknown,>(field: FilterFieldConfig<T>): boolean => {
-  return Boolean(field.group && field.fields);
-};
-
-const flattenFields = <T = unknown,>(fields: FilterFieldsConfig<T>): FilterFieldConfig<T>[] => {
-  return fields.reduce<FilterFieldConfig<T>[]>((acc, item) => {
-    if (isFieldGroup(item)) {
-      return [...acc, ...item.fields];
-    }
-    // Handle group-level fields (new structure)
-    if (isGroupLevelField(item)) {
-      return [...acc, ...item.fields!];
-    }
-    return [...acc, item];
-  }, []);
-};
-
-const getFieldsMap = <T = unknown,>(
-  fields: FilterFieldsConfig<T>
-): Record<string, FilterFieldConfig<T>> => {
-  const flatFields = flattenFields(fields);
-  return flatFields.reduce(
-    (acc, field) => {
-      // Only add fields that have a key (skip group-level configurations)
-      if (field.key) {
-        acc[field.key] = field;
-      }
-      return acc;
-    },
-    {} as Record<string, FilterFieldConfig<T>>
-  );
-};
 
 // Helper function to create operators from i18n config
 const createOperatorsFromI18n = (i18n: FilterI18nConfig): Record<string, FilterOperator[]> => ({
@@ -851,74 +568,24 @@ function SelectOptionsPopover<T = unknown>({
   onClose,
   inline = false,
 }: SelectOptionsPopoverProps<T>) {
-  const [open, setOpen] = useState(false);
-  const [searchInput, setSearchInput] = useState("");
-  const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const context = useFilterContext();
-  const baseId = useId();
-
-  const focusSearchInput = useCallback(
-    (node: HTMLInputElement | null) => {
-      inputRef.current = node;
-      if (node && open) {
-        scheduleFilterDomSync(() => node.focus());
-      }
-    },
-    [open]
-  );
-
-  const highlightOption = (index: number) => {
-    setHighlightedIndex(index);
-    if (open) {
-      scrollFilterOptionIntoView(baseId, index);
-    }
-  };
-
-  const isMultiSelect = field.type === "multiselect" || values.length > 1;
-  const effectiveValues = (field.value !== undefined ? (field.value as T[]) : values) || [];
-
-  const selectedOptions = field.options?.filter(opt => effectiveValues.includes(opt.value)) || [];
-  const unselectedOptions =
-    field.options?.filter(opt => !effectiveValues.includes(opt.value)) || [];
-
-  // Filter options based on search input
-  const filteredSelectedOptions = selectedOptions; // Keep all selected visible
-  const filteredUnselectedOptions = unselectedOptions.filter(opt =>
-    opt.label.toLowerCase().includes(searchInput.toLowerCase())
-  );
-
-  const allFilteredOptions = useMemo(
-    () => [...filteredSelectedOptions, ...filteredUnselectedOptions],
-    [filteredSelectedOptions, filteredUnselectedOptions]
-  );
-
-  const handleClose = () => {
-    setOpen(false);
-    setSearchInput("");
-    setHighlightedIndex(-1);
-    onClose?.();
-  };
-
-  const toggleOption = (option: FilterOption<T>) => {
-    const isSelected = effectiveValues.includes(option.value as T);
-    const next = isSelected
-      ? (effectiveValues.filter(value => value !== option.value) as T[])
-      : isMultiSelect
-        ? ([...effectiveValues, option.value] as T[])
-        : ([option.value] as T[]);
-
-    if (!isSelected && isMultiSelect && field.maxSelections && next.length > field.maxSelections) {
-      return;
-    }
-
-    if (field.onValueChange) {
-      field.onValueChange(next);
-    } else {
-      onChange(next);
-    }
-    if (!isMultiSelect) handleClose();
-  };
+  const {
+    allFilteredOptions,
+    baseId,
+    context,
+    filteredSelectedOptions,
+    filteredUnselectedOptions,
+    focusSearchInput,
+    handleClose,
+    handleOpenChange,
+    handleSearchInputChange,
+    highlightOption,
+    highlightedIndex,
+    inputRef,
+    open,
+    searchInput,
+    selectedOptions,
+    toggleOption,
+  } = useSelectOptionsPopover({ field, values, onChange, onClose });
 
   const menuContent = (
     <SelectOptionsMenuContent
@@ -934,10 +601,7 @@ function SelectOptionsPopover<T = unknown>({
       filteredSelectedOptions={filteredSelectedOptions}
       filteredUnselectedOptions={filteredUnselectedOptions}
       allFilteredOptions={allFilteredOptions}
-      onSearchInputChange={value => {
-        setSearchInput(value);
-        setHighlightedIndex(-1);
-      }}
+      onSearchInputChange={handleSearchInputChange}
       onHighlightOption={highlightOption}
       onRequestClose={handleClose}
       onToggleOption={toggleOption}
@@ -949,18 +613,7 @@ function SelectOptionsPopover<T = unknown>({
   }
 
   return (
-    <DropdownMenu
-      open={open}
-      onOpenChange={open => {
-        setOpen(open);
-        if (!open) {
-          setSearchInput("");
-          setHighlightedIndex(-1);
-        } else {
-          setHighlightedIndex(-1);
-        }
-      }}
-    >
+    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger
         render={
           <Button variant="outline" size={context.size}>
@@ -1171,35 +824,6 @@ interface FiltersProps<T = unknown> {
   shortcutLabel?: string;
 }
 
-interface FiltersMenuState {
-  addFilterOpen: boolean;
-  menuSearchInput: string;
-  activeMenu: string;
-  openSubMenu: string | null;
-  highlightedIndex: number;
-  lastAddedFilterId: string | null;
-  sessionFilterIds: Record<string, string>;
-}
-
-type FiltersMenuAction =
-  | Partial<FiltersMenuState>
-  | ((state: FiltersMenuState) => Partial<FiltersMenuState>);
-
-const FILTERS_MENU_INITIAL_STATE: FiltersMenuState = {
-  addFilterOpen: false,
-  menuSearchInput: "",
-  activeMenu: "root",
-  openSubMenu: null,
-  highlightedIndex: -1,
-  lastAddedFilterId: null,
-  sessionFilterIds: {},
-};
-
-function filtersMenuReducer(state: FiltersMenuState, action: FiltersMenuAction): FiltersMenuState {
-  const patch = typeof action === "function" ? action(state) : action;
-  return { ...state, ...patch };
-}
-
 interface FilterSubmenuContentProps<T = unknown> {
   field: FilterFieldConfig<T>;
   currentValues: T[];
@@ -1223,50 +847,27 @@ function FilterSubmenuContent<T = unknown>({
   onBack,
   onClose,
 }: FilterSubmenuContentProps<T>) {
-  const [searchInput, setSearchInput] = useState("");
-  const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const baseId = useId();
-
-  const focusSubmenuSearchInput = useCallback(
-    (node: HTMLInputElement | null) => {
-      inputRef.current = node;
-      if (node && isActive && field.searchable !== false) {
-        scheduleFilterDomSync(() => node.focus());
-      }
-    },
-    [field.searchable, isActive]
-  );
-
-  const focusSubmenuListbox = useCallback(
-    (node: HTMLDivElement | null) => {
-      if (node && isActive && field.searchable === false) {
-        scheduleFilterDomSync(() => node.focus());
-      }
-    },
-    [field.searchable, isActive]
-  );
-
-  const highlightSubmenuOption = (index: number) => {
-    setHighlightedIndex(index);
-    if (isActive) {
-      scrollFilterOptionIntoView(baseId, index);
-    }
-  };
-
-  const filteredOptions = useMemo(() => {
-    return (
-      field.options?.filter(option => {
-        const isSelected = currentValues.includes(option.value);
-        if (isSelected) return true;
-        if (!searchInput) return true;
-        return option.label.toLowerCase().includes(searchInput.toLowerCase());
-      }) || []
-    );
-  }, [field.options, searchInput, currentValues]);
-
-  const activeHighlightedIndex =
-    highlightedIndex >= 0 ? highlightedIndex : isActive && filteredOptions.length > 0 ? 0 : -1;
+  const {
+    activeHighlightedIndex,
+    baseId,
+    filteredOptions,
+    focusSubmenuListbox,
+    focusSubmenuSearchInput,
+    handleListboxKeyDown,
+    handleSearchInputChange,
+    handleSearchInputKeyDown,
+    highlightSubmenuOption,
+    inputRef,
+    searchInput,
+  } = useFilterSubmenuContent({
+    field,
+    currentValues,
+    isMultiSelect,
+    isActive,
+    onBack,
+    onClose,
+    onToggle,
+  });
 
   return (
     <div className="flex flex-col" onMouseEnter={onActive}>
@@ -1290,53 +891,14 @@ function FilterSubmenuContent<T = unknown>({
             )}
             value={searchInput}
             onBlur={() => isActive && inputRef.current?.focus()}
-            onChange={e => {
-              setSearchInput(e.target.value);
-              setHighlightedIndex(-1);
-            }}
+            onChange={handleSearchInputChange}
             onFocus={() => onActive?.()}
             onMouseEnter={e => {
               onActive?.();
               e.stopPropagation();
             }}
             onClick={e => e.stopPropagation()}
-            onKeyDown={e => {
-              if (e.key === "ArrowDown") {
-                e.preventDefault();
-                if (filteredOptions.length > 0) {
-                  highlightSubmenuOption(
-                    activeHighlightedIndex < filteredOptions.length - 1
-                      ? activeHighlightedIndex + 1
-                      : 0
-                  );
-                }
-              } else if (e.key === "ArrowUp") {
-                e.preventDefault();
-                if (filteredOptions.length > 0) {
-                  highlightSubmenuOption(
-                    activeHighlightedIndex > 0
-                      ? activeHighlightedIndex - 1
-                      : filteredOptions.length - 1
-                  );
-                }
-              } else if (e.key === "ArrowLeft") {
-                e.preventDefault();
-                onBack?.();
-              } else if (e.key === "Enter" && activeHighlightedIndex >= 0) {
-                e.preventDefault();
-                const option = filteredOptions[activeHighlightedIndex];
-                if (option) {
-                  onToggle(option.value as T, currentValues.includes(option.value));
-                  if (!isMultiSelect) {
-                    onBack?.();
-                  }
-                }
-              } else if (e.key === "Escape") {
-                e.preventDefault();
-                onClose?.();
-              }
-              e.stopPropagation();
-            }}
+            onKeyDown={handleSearchInputKeyDown}
           />
           <DropdownMenuSeparator />
         </>
@@ -1348,45 +910,7 @@ function FilterSubmenuContent<T = unknown>({
           id={`${baseId}-listbox`}
           ref={focusSubmenuListbox}
           tabIndex={field.searchable === false ? 0 : -1}
-          onKeyDown={e => {
-            if (field.searchable === false) {
-              if (e.key === "ArrowDown") {
-                e.preventDefault();
-                if (filteredOptions.length > 0) {
-                  highlightSubmenuOption(
-                    activeHighlightedIndex < filteredOptions.length - 1
-                      ? activeHighlightedIndex + 1
-                      : 0
-                  );
-                }
-              } else if (e.key === "ArrowUp") {
-                e.preventDefault();
-                if (filteredOptions.length > 0) {
-                  highlightSubmenuOption(
-                    activeHighlightedIndex > 0
-                      ? activeHighlightedIndex - 1
-                      : filteredOptions.length - 1
-                  );
-                }
-              } else if (e.key === "ArrowLeft") {
-                e.preventDefault();
-                onBack?.();
-              } else if (e.key === "Enter" && activeHighlightedIndex >= 0) {
-                e.preventDefault();
-                const option = filteredOptions[activeHighlightedIndex];
-                if (option) {
-                  onToggle(option.value as T, currentValues.includes(option.value));
-                  if (!isMultiSelect) {
-                    onBack?.();
-                  }
-                }
-              } else if (e.key === "Escape") {
-                e.preventDefault();
-                onClose?.();
-              }
-              e.stopPropagation();
-            }
-          }}
+          onKeyDown={handleListboxKeyDown}
         >
           <ScrollArea className="size-full min-h-0 **:data-[slot=scroll-area-scrollbar]:m-0 **:data-[slot=scroll-area-viewport]:h-full **:data-[slot=scroll-area-viewport]:overscroll-contain">
             {filteredOptions.length === 0 ? (
@@ -1743,129 +1267,36 @@ export function Filters<T = unknown>({
   shortcutKey = "f",
   shortcutLabel = "F",
 }: FiltersProps<T>) {
-  const [menuState, setMenuState] = useReducer(filtersMenuReducer, FILTERS_MENU_INITIAL_STATE);
   const {
-    addFilterOpen,
-    menuSearchInput,
+    activateRootMenu,
     activeMenu,
-    openSubMenu,
-    highlightedIndex,
+    addFilter,
+    addFilterOpen,
+    filteredFields,
+    focusRootInput,
+    handleAddFilterOpenChange,
+    highlightRootOption,
     lastAddedFilterId,
+    markLastAddedFilter,
+    mergedI18n,
+    menuSearchInput,
+    openSubMenu,
+    rootHighlightedIndex,
+    rootId,
+    rootInputRef,
+    selectableFields,
     sessionFilterIds,
-  } = menuState;
-  const rootInputRef = useRef<HTMLInputElement>(null);
-  const lastAddedFilterTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const rootId = useId();
-
-  useEffect(() => {
-    if (!enableShortcut) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (
-        e.key.toLowerCase() === shortcutKey.toLowerCase() &&
-        !addFilterOpen &&
-        !(
-          document.activeElement instanceof HTMLInputElement ||
-          document.activeElement instanceof HTMLTextAreaElement
-        )
-      ) {
-        e.preventDefault();
-        setMenuState({ addFilterOpen: true });
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [enableShortcut, shortcutKey, addFilterOpen]);
-
-  useEffect(() => {
-    return () => {
-      if (lastAddedFilterTimerRef.current) {
-        clearTimeout(lastAddedFilterTimerRef.current);
-      }
-    };
-  }, []);
-
-  const focusRootInput = useCallback(
-    (node: HTMLInputElement | null) => {
-      rootInputRef.current = node;
-      if (node && addFilterOpen && activeMenu === "root") {
-        scheduleFilterDomSync(() => node.focus());
-      }
-    },
-    [activeMenu, addFilterOpen]
-  );
-
-  const markLastAddedFilter = useCallback((filterId: string) => {
-    if (lastAddedFilterTimerRef.current) {
-      clearTimeout(lastAddedFilterTimerRef.current);
-    }
-    setMenuState({ lastAddedFilterId: filterId });
-    lastAddedFilterTimerRef.current = setTimeout(() => {
-      setMenuState({ lastAddedFilterId: null });
-      lastAddedFilterTimerRef.current = null;
-    }, 1000);
-  }, []);
-
-  const mergedI18n: FilterI18nConfig = {
-    ...DEFAULT_I18N,
-    ...i18n,
-    operators: { ...DEFAULT_I18N.operators, ...i18n?.operators },
-    placeholders: { ...DEFAULT_I18N.placeholders, ...i18n?.placeholders },
-    validation: { ...DEFAULT_I18N.validation, ...i18n?.validation },
-  };
-
-  const fieldsMap = useMemo(() => getFieldsMap(fields), [fields]);
-
-  const addFilter = useCallback(
-    (fieldKey: string) => {
-      const field = fieldsMap[fieldKey];
-      if (field && field.key) {
-        const defaultOperator =
-          field.defaultOperator || (field.type === "multiselect" ? "is_any_of" : "is");
-        const defaultValues: unknown[] =
-          field.type === "text" ? [""] : field.type === "toggle" ? [true] : [];
-        const newFilter = createFilter<T>(fieldKey, defaultOperator, defaultValues as T[]);
-        markLastAddedFilter(newFilter.id);
-        onChange([...filters, newFilter]);
-        setMenuState({
-          addFilterOpen: false,
-          menuSearchInput: "",
-          highlightedIndex: -1,
-        });
-      }
-    },
-    [fieldsMap, filters, markLastAddedFilter, onChange]
-  );
-
-  const selectableFields = useMemo(() => {
-    const flatFields = flattenFields(fields);
-    return flatFields.filter(field => {
-      if (!field.key || field.type === "separator") return false;
-      if (allowMultiple) return true;
-      return !filters.some(filter => filter.field === field.key);
-    });
-  }, [fields, filters, allowMultiple]);
-
-  const filteredFields = useMemo(() => {
-    return selectableFields.filter(
-      f => !menuSearchInput || f.label?.toLowerCase().includes(menuSearchInput.toLowerCase())
-    );
-  }, [selectableFields, menuSearchInput]);
-
-  const rootHighlightedIndex =
-    highlightedIndex >= 0 ? highlightedIndex : addFilterOpen && filteredFields.length > 0 ? 0 : -1;
-
-  const highlightRootOption = (index: number) => {
-    setMenuState({ highlightedIndex: index });
-    if (addFilterOpen) {
-      scrollFilterOptionIntoView(rootId, index);
-    }
-  };
-
-  const triggerButton = useRender({
-    render: trigger as React.ReactElement,
-    defaultTagName: "button",
+    setMenuState,
+    triggerButton,
+  } = useFilters({
+    allowMultiple,
+    enableShortcut,
+    fields,
+    filters,
+    i18n,
+    onChange,
+    shortcutKey,
+    trigger,
   });
 
   return (
@@ -1882,22 +1313,7 @@ export function Filters<T = unknown>({
     >
       <div className={cn(filtersContainerVariants({ variant, size }), className)}>
         {selectableFields.length > 0 && (
-          <DropdownMenu
-            open={addFilterOpen}
-            onOpenChange={open => {
-              setMenuState({ addFilterOpen: open });
-              if (!open) {
-                setMenuState({
-                  menuSearchInput: "",
-                  sessionFilterIds: {},
-                  openSubMenu: null,
-                  highlightedIndex: -1,
-                });
-              } else {
-                setMenuState({ activeMenu: "root", highlightedIndex: -1 });
-              }
-            }}
-          >
+          <DropdownMenu open={addFilterOpen} onOpenChange={handleAddFilterOpenChange}>
             <DropdownMenuTrigger render={triggerButton} />
             <DropdownMenuContent
               className={cn("w-filters-menu-stack", menuPopupClassName)}
@@ -1928,7 +1344,7 @@ export function Filters<T = unknown>({
                   className="flex max-h-[min(var(--available-height),24rem)] w-full scroll-pt-2 scroll-pb-2 flex-col overscroll-contain"
                   role="listbox"
                   id={`${rootId}-listbox`}
-                  onMouseEnter={() => setMenuState({ activeMenu: "root" })}
+                  onMouseEnter={activateRootMenu}
                 >
                   <ScrollArea className="**:data-[slot=scroll-area-scrollbar]:m-0">
                     <FiltersMenuFieldList
@@ -1963,26 +1379,3 @@ export function Filters<T = unknown>({
     </FilterContext.Provider>
   );
 }
-
-export const createFilter = <T = unknown,>(
-  field: string,
-  operator?: string,
-  values: T[] = []
-): Filter<T> => ({
-  id: `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`,
-  field,
-  operator: operator || "is",
-  values,
-});
-
-export const createFilterGroup = <T = unknown,>(
-  id: string,
-  label: string,
-  fields: FilterFieldConfig<T>[],
-  initialFilters: Filter<T>[] = []
-): FilterGroup<T> => ({
-  id,
-  label,
-  filters: initialFilters,
-  fields,
-});

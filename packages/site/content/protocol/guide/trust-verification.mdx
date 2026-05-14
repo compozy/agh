@@ -80,7 +80,7 @@ func main() {
 	publicKey := privateKey.Public().(ed25519.PublicKey)
 
 	envelope := map[string]any{
-		"protocol":     "agh-network/v1",
+		"protocol":     "agh-network/v0",
 		"id":           "msg_trust_01",
 		"kind":         "say",
 		"channel":      "builders",

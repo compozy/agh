@@ -174,20 +174,24 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 			return NetworkStatusRecord{Enabled: true, Status: "running"}, nil
 		},
 		networkPeersFn: func(_ context.Context, query NetworkPeersQuery) ([]NetworkPeerRecord, error) {
-			if query.Channel != "builders" {
-				t.Fatalf("NetworkPeers() query = %#v, want builders channel", query)
+			if query.WorkspaceRef != "ws-1" || query.Channel != "builders" {
+				t.Fatalf("NetworkPeers() query = %#v, want ws-1/builders scope", query)
 			}
 			return []NetworkPeerRecord{{PeerID: "reviewer.sess-1", Channel: "builders"}}, nil
 		},
-		networkChannelsFn: func(context.Context) ([]NetworkChannelRecord, error) {
+		networkChannelsFn: func(_ context.Context, workspaceRef string) ([]NetworkChannelRecord, error) {
+			if workspaceRef != "ws-1" {
+				t.Fatalf("NetworkChannels() workspaceRef = %q, want ws-1", workspaceRef)
+			}
 			networkChannelsCalled = true
 			return []NetworkChannelRecord{{Channel: "builders", PeerCount: 1}}, nil
 		},
 		networkSendFn: func(_ context.Context, request NetworkSendRequest) (NetworkSendRecord, error) {
-			if request.SessionID != "sess-1" || request.Channel != "builders" || request.Kind != "say" ||
+			if request.WorkspaceID != "ws-1" ||
+				request.SessionID != "sess-1" || request.Channel != "builders" || request.Kind != "say" ||
 				request.Surface != "thread" || request.ThreadID != "thread-command-path" ||
 				string(request.Body) != `{"text":"hello"}` {
-				t.Fatalf("NetworkSend() request = %#v, want thread session/channel/kind/body", request)
+				t.Fatalf("NetworkSend() request = %#v, want workspace thread session/channel/kind/body", request)
 			}
 			return NetworkSendRecord{
 				ID:        "msg-1",
@@ -198,7 +202,10 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 				Kind:      "say",
 			}, nil
 		},
-		networkInboxFn: func(_ context.Context, sessionID string) ([]NetworkEnvelopeRecord, error) {
+		networkInboxFn: func(_ context.Context, workspaceRef string, sessionID string) ([]NetworkEnvelopeRecord, error) {
+			if workspaceRef != "ws-1" {
+				t.Fatalf("NetworkInbox() workspaceRef = %q, want ws-1", workspaceRef)
+			}
 			if sessionID != "sess-1" {
 				t.Fatalf("NetworkInbox() sessionID = %q, want sess-1", sessionID)
 			}
@@ -206,12 +213,18 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 				{ID: "msg-1", Kind: "say", Channel: "builders", From: "reviewer.sess-1"},
 			}, nil
 		},
-		observeEventsFn: func(context.Context, ObserveEventQuery) ([]ObserveEventRecord, error) {
+		observeEventsFn: func(_ context.Context, query ObserveEventQuery) ([]ObserveEventRecord, error) {
+			if query.WorkspaceRef != "ws-1" {
+				t.Fatalf("ObserveEvents() workspaceRef = %q, want ws-1", query.WorkspaceRef)
+			}
 			return []ObserveEventRecord{
 				{ID: "sum-1", SessionID: "sess-1", Type: "done", AgentName: "coder", Timestamp: fixedTestNow},
 			}, nil
 		},
-		streamObserveEventsFn: func(_ context.Context, _ ObserveEventQuery, _ string, handler SSEHandler) error {
+		streamObserveEventsFn: func(_ context.Context, query ObserveEventQuery, _ string, handler SSEHandler) error {
+			if query.WorkspaceRef != "ws-1" {
+				t.Fatalf("StreamObserveEvents() workspaceRef = %q, want ws-1", query.WorkspaceRef)
+			}
 			return handler(
 				SSEEvent{
 					Event: "done",
@@ -361,10 +374,12 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 		},
 		{"agent", "heartbeat", "status", "coder", "-o", "json"},
 		{"network", "status", "-o", "json"},
-		{"network", "peers", "builders", "-o", "json"},
-		{"network", "channels", "-o", "json"},
+		{"network", "--workspace", "ws-1", "peers", "builders", "-o", "json"},
+		{"network", "--workspace", "ws-1", "channels", "-o", "json"},
 		{
 			"network",
+			"--workspace",
+			"ws-1",
 			"send",
 			"--session",
 			"sess-1",
@@ -381,9 +396,9 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 			"-o",
 			"json",
 		},
-		{"network", "inbox", "--session", "sess-1", "-o", "json"},
-		{"observe", "events", "-o", "json"},
-		{"observe", "events", "--follow", "-o", "json"},
+		{"network", "--workspace", "ws-1", "inbox", "--session", "sess-1", "-o", "json"},
+		{"observe", "events", "--workspace", "ws-1", "-o", "json"},
+		{"observe", "events", "--workspace", "ws-1", "--follow", "-o", "json"},
 		{"observe", "health", "-o", "json"},
 		{"bridge", "get", "brg-1", "-o", "json"},
 		{"bridge", "routes", "brg-1", "-o", "json"},

@@ -107,7 +107,7 @@
     },
     "overrides": [
         {
-            "files": ["web/src/**/*.tsx"],
+            "files": ["web/src/**/*.tsx", "packages/ui/src/**/*.tsx", "packages/site/**/*.tsx"],
             "rules": {
                 "compozy-react/max-component-complexity": [
                     "error",
@@ -117,13 +117,17 @@
                         "maxTotal": 7
                     }
                 ],
-                "compozy-react-hooks/no-mixed-hooks-and-components": "warn"
+                "compozy-react-hooks/no-mixed-hooks-and-components": "error"
             }
         },
         {
-            "files": ["web/src/**/*.{ts,tsx}"],
+            "files": [
+                "web/src/**/*.{ts,tsx}",
+                "packages/ui/src/**/*.{ts,tsx}",
+                "packages/site/**/*.{ts,tsx}"
+            ],
             "rules": {
-                "compozy-react-hooks/hooks-in-hooks-folder": "warn"
+                "compozy-react-hooks/hooks-in-hooks-folder": "error"
             }
         },
         {

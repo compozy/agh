@@ -48,4 +48,39 @@ describe("MessageMarkdown", () => {
     expect(container.querySelector('[data-slot="code-block"]')).toBeNull();
     expect(container.querySelector("code")?.textContent).toBe("agh start");
   });
+
+  it("renders incomplete fenced code while streaming", async () => {
+    const { container } = render(
+      <MessageMarkdown content={"Plan:\n\n```ts\nconst value = 1"} streaming />
+    );
+
+    const codeBlock = container.querySelector<HTMLElement>('[data-slot="code-block"]');
+    expect(codeBlock).toBeInTheDocument();
+    expect(codeBlock).toHaveTextContent("const value = 1");
+    await waitFor(
+      () => {
+        expect(codeBlock).toHaveAttribute("data-highlight-state", "highlighted");
+      },
+      { timeout: 5_000 }
+    );
+  });
+
+  it("renders GFM tables without raw HTML elements", () => {
+    const { container } = render(
+      <MessageMarkdown
+        content={[
+          "| Area | Status |",
+          "| --- | --- |",
+          "| Stream | Fixed |",
+          "",
+          "<script>alert('xss')</script>",
+        ].join("\n")}
+      />
+    );
+
+    expect(container.querySelector("table")).toBeInTheDocument();
+    expect(screen.getByText("Stream")).toBeInTheDocument();
+    expect(screen.getByText("Fixed")).toBeInTheDocument();
+    expect(container.querySelector("script")).toBeNull();
+  });
 });

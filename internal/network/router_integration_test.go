@@ -40,10 +40,10 @@ func TestRoutersDiscoverEachOtherAndExchangeDirectAndBroadcastMessages(t *testin
 
 	peerA := mustPeerCard(t, "coder.sess-a")
 	peerB := mustPeerCard(t, "reviewer.sess-b")
-	if _, err := registryA.RegisterLocal("sess-a", "builders", peerA, now); err != nil {
+	if _, err := registryA.RegisterLocal("sess-a", testWorkspaceID, "builders", peerA, now); err != nil {
 		t.Fatalf("RegisterLocal(A) error = %v", err)
 	}
-	if _, err := registryB.RegisterLocal("sess-b", "builders", peerB, now); err != nil {
+	if _, err := registryB.RegisterLocal("sess-b", testWorkspaceID, "builders", peerB, now); err != nil {
 		t.Fatalf("RegisterLocal(B) error = %v", err)
 	}
 
@@ -142,10 +142,10 @@ func TestRoutersExchangeThreadCapabilityTransfers(t *testing.T) {
 
 		peerA := mustPeerCard(t, "coder.sess-a")
 		peerB := mustPeerCard(t, "reviewer.sess-b")
-		if _, err := registryA.RegisterLocal("sess-a", "builders", peerA, now); err != nil {
+		if _, err := registryA.RegisterLocal("sess-a", testWorkspaceID, "builders", peerA, now); err != nil {
 			t.Fatalf("RegisterLocal(A) error = %v", err)
 		}
-		if _, err := registryB.RegisterLocal("sess-b", "builders", peerB, now); err != nil {
+		if _, err := registryB.RegisterLocal("sess-b", testWorkspaceID, "builders", peerB, now); err != nil {
 			t.Fatalf("RegisterLocal(B) error = %v", err)
 		}
 
@@ -251,10 +251,10 @@ func TestRoutersPreserveCapabilityLifecycleAcrossPeers(t *testing.T) {
 
 		peerA := mustPeerCard(t, "coder.sess-a")
 		peerB := mustPeerCard(t, "reviewer.sess-b")
-		if _, err := registryA.RegisterLocal("sess-a", "builders", peerA, now); err != nil {
+		if _, err := registryA.RegisterLocal("sess-a", testWorkspaceID, "builders", peerA, now); err != nil {
 			t.Fatalf("RegisterLocal(A) error = %v", err)
 		}
-		if _, err := registryB.RegisterLocal("sess-b", "builders", peerB, now); err != nil {
+		if _, err := registryB.RegisterLocal("sess-b", testWorkspaceID, "builders", peerB, now); err != nil {
 			t.Fatalf("RegisterLocal(B) error = %v", err)
 		}
 
@@ -442,10 +442,10 @@ func TestHeartbeatExpiryAndFreshGreetRecovery(t *testing.T) {
 
 	peerA := mustPeerCard(t, "coder.sess-a")
 	peerB := mustPeerCard(t, "reviewer.sess-b")
-	if _, err := registryA.RegisterLocal("sess-a", "builders", peerA, time.Now().UTC()); err != nil {
+	if _, err := registryA.RegisterLocal("sess-a", testWorkspaceID, "builders", peerA, time.Now().UTC()); err != nil {
 		t.Fatalf("RegisterLocal(A) error = %v", err)
 	}
-	if _, err := registryB.RegisterLocal("sess-b", "builders", peerB, time.Now().UTC()); err != nil {
+	if _, err := registryB.RegisterLocal("sess-b", testWorkspaceID, "builders", peerB, time.Now().UTC()); err != nil {
 		t.Fatalf("RegisterLocal(B) error = %v", err)
 	}
 
@@ -522,7 +522,7 @@ func TestDirectedWhoisRichDiscoveryDeliversPeerCardAndCapabilityCatalog(t *testi
 
 	peerA := mustPeerCard(t, "coder.sess-a")
 	peerB := mustPeerCard(t, "reviewer.sess-b")
-	if _, err := registryA.RegisterLocal("sess-a", "builders", peerA, now); err != nil {
+	if _, err := registryA.RegisterLocal("sess-a", testWorkspaceID, "builders", peerA, now); err != nil {
 		t.Fatalf("RegisterLocal(A) error = %v", err)
 	}
 	catalog := []sessionpkg.NetworkPeerCapability{
@@ -545,7 +545,7 @@ func TestDirectedWhoisRichDiscoveryDeliversPeerCardAndCapabilityCatalog(t *testi
 			Requirements: []string{"repo-map"},
 		},
 	}
-	if _, err := registryB.RegisterLocalWithCapabilityCatalog("sess-b", "builders", peerB, catalog, now); err != nil {
+	if _, err := registryB.RegisterLocalWithCapabilityCatalog("sess-b", testWorkspaceID, "builders", peerB, catalog, now); err != nil {
 		t.Fatalf("RegisterLocalWithCapabilityCatalog(B) error = %v", err)
 	}
 
@@ -626,7 +626,7 @@ func TestDirectedWhoisRichDiscoveryDeliversPeerCardAndCapabilityCatalog(t *testi
 	if !reflect.DeepEqual(payload, wantPayload) {
 		t.Fatalf("rich capability catalog = %#v, want %#v", payload, wantPayload)
 	}
-	if remote, ok := registryA.RemoteByPeer("builders", peerB.PeerID, time.Now().UTC()); !ok {
+	if remote, ok := registryA.RemoteByPeer(testWorkspaceID, "builders", peerB.PeerID, time.Now().UTC()); !ok {
 		t.Fatalf("RemoteByPeer(%q) missing after rich whois response", peerB.PeerID)
 	} else if !remote.CapabilityCatalogKnown || !reflect.DeepEqual(remote.CapabilityCatalog, catalog) {
 		t.Fatalf("remote capability catalog = %#v known=%v, want %#v known=true", remote.CapabilityCatalog, remote.CapabilityCatalogKnown, catalog)
@@ -664,11 +664,12 @@ func TestDirectedWhoisRichDiscoveryFilteringRefreshesRemotePresence(t *testing.T
 
 	peerA := mustPeerCard(t, "coder.sess-a")
 	peerB := mustPeerCard(t, "reviewer.sess-b")
-	if _, err := registryA.RegisterLocal("sess-a", "builders", peerA, time.Now().UTC()); err != nil {
+	if _, err := registryA.RegisterLocal("sess-a", testWorkspaceID, "builders", peerA, time.Now().UTC()); err != nil {
 		t.Fatalf("RegisterLocal(A) error = %v", err)
 	}
 	if _, err := registryB.RegisterLocalWithCapabilityCatalog(
 		"sess-b",
+		testWorkspaceID,
 		"builders",
 		peerB,
 		[]sessionpkg.NetworkPeerCapability{
@@ -721,7 +722,7 @@ func TestDirectedWhoisRichDiscoveryFilteringRefreshesRemotePresence(t *testing.T
 		return registryA.HasPresence("builders", peerB.PeerID, time.Now().UTC())
 	}, "peerB discoverability before filtered rich whois")
 
-	before, ok := registryA.RemoteByPeer("builders", peerB.PeerID, time.Now().UTC())
+	before, ok := registryA.RemoteByPeer(testWorkspaceID, "builders", peerB.PeerID, time.Now().UTC())
 	if !ok {
 		t.Fatalf("RemoteByPeer(%q) missing after greet", peerB.PeerID)
 	}
@@ -758,10 +759,10 @@ func TestDirectedWhoisRichDiscoveryFilteringRefreshesRemotePresence(t *testing.T
 	}
 
 	waitForRouterCondition(t, ctx, func() bool {
-		entry, ok := registryA.RemoteByPeer("builders", peerB.PeerID, time.Now().UTC())
+		entry, ok := registryA.RemoteByPeer(testWorkspaceID, "builders", peerB.PeerID, time.Now().UTC())
 		return ok && entry.LastSeen.After(before.LastSeen)
 	}, "remote presence refresh from rich whois response")
-	if remote, ok := registryA.RemoteByPeer("builders", peerB.PeerID, time.Now().UTC()); !ok {
+	if remote, ok := registryA.RemoteByPeer(testWorkspaceID, "builders", peerB.PeerID, time.Now().UTC()); !ok {
 		t.Fatalf("RemoteByPeer(%q) missing after filtered rich whois response", peerB.PeerID)
 	} else if !remote.CapabilityCatalogKnown {
 		t.Fatalf("remote.CapabilityCatalogKnown = false, want true")
@@ -794,11 +795,11 @@ func subscribeRouter(
 ) []*nats.Subscription {
 	t.Helper()
 
-	broadcastSubject, err := BroadcastSubject(channel)
+	broadcastSubject, err := BroadcastSubject(testWorkspaceID, channel)
 	if err != nil {
 		t.Fatalf("BroadcastSubject(%q) error = %v", channel, err)
 	}
-	directSubject, err := DirectSubject(channel, peerID)
+	directSubject, err := DirectSubject(testWorkspaceID, channel, peerID)
 	if err != nil {
 		t.Fatalf("DirectSubject(%q, %q) error = %v", channel, peerID, err)
 	}

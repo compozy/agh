@@ -9,7 +9,6 @@
 
 const ALLOW_PATH_SEGMENTS = ["__tests__", "/.storybook/", "/storybook-static/"];
 const ALLOW_FILE_SUFFIXES = [".test.tsx", ".test.ts", ".stories.tsx", ".stories.ts"];
-const ALLOW_PACKAGE_DIRS = ["/packages/ui/src/"];
 // Files whose entire purpose is to BE a typographic primitive (avatars whose
 // rendered glyph happens to use mono uppercase, custom site eyebrows, etc.).
 // New consumers go through `<Eyebrow>` from `@agh/ui`; these declare it.
@@ -64,9 +63,6 @@ function isExemptPath(filename) {
   for (const suf of ALLOW_FILE_SUFFIXES) {
     if (normalized.endsWith(suf)) return true;
   }
-  for (const dir of ALLOW_PACKAGE_DIRS) {
-    if (normalized.includes(dir)) return true;
-  }
   for (const path of ALLOW_FILE_PATHS) {
     if (normalized.endsWith(path) || normalized.includes(path)) return true;
   }
@@ -85,9 +81,13 @@ function isTestOrStoryPath(filename) {
   return false;
 }
 
-function isRuntimeSourcePath(filename) {
+function isFrontendSourcePath(filename) {
   const normalized = normalizeFilename(filename);
-  return normalized.includes("/web/src/") || normalized.includes("/packages/ui/src/");
+  return (
+    normalized.includes("/web/src/") ||
+    normalized.includes("/packages/ui/src/") ||
+    normalized.includes("/packages/site/")
+  );
 }
 
 function isDesignGlazeAllowedPath(filename) {
@@ -130,9 +130,14 @@ function isViolation(value) {
     return true;
   }
   if (hasMono && (ARBITRARY_TEXT_RE.test(value) || ARBITRARY_TRACKING_RE.test(value))) {
-    // Allow plain mono code/badge styling without uppercase — only flag when
-    // arbitrary values are present alongside mono, since those bypass tokens.
-    return ARBITRARY_TEXT_RE.test(value) && ARBITRARY_TRACKING_RE.test(value);
+    // Allow plain mono code/badge styling without uppercase. Flag typography
+    // tuples when an arbitrary text/tracking value is paired with its sibling.
+    const hasTracking = tokens.some(token => token.startsWith("tracking-"));
+    const hasText = tokens.some(token => token.startsWith("text-"));
+    return (
+      (ARBITRARY_TEXT_RE.test(value) && hasTracking) ||
+      (ARBITRARY_TRACKING_RE.test(value) && hasText)
+    );
   }
   return false;
 }
@@ -239,7 +244,7 @@ const noDesignGlazeRgba = {
     type: "problem",
     docs: {
       description:
-        "Forbid inline white rgba glaze backgrounds in JSX className. Use named AGH glaze tokens instead.",
+        "Forbid inline white rgba glaze backgrounds in frontend JSX className. Use named AGH glaze tokens instead.",
       recommended: false,
     },
     messages: {
@@ -250,7 +255,7 @@ const noDesignGlazeRgba = {
   },
   create(context) {
     const filename = context.filename || "";
-    if (!isRuntimeSourcePath(filename) || isDesignGlazeAllowedPath(filename)) {
+    if (!isFrontendSourcePath(filename) || isDesignGlazeAllowedPath(filename)) {
       return {};
     }
 
@@ -277,18 +282,18 @@ const noBannedImports = {
     type: "problem",
     docs: {
       description:
-        "Forbid direct Loader2/Loader2Icon imports from lucide-react in runtime source; use the Spinner primitive.",
+        "Forbid direct Loader2/Loader2Icon imports from lucide-react in frontend source; use the Spinner primitive.",
       recommended: false,
     },
     messages: {
       bannedImport:
-        "Importing {{name}} from lucide-react is banned in runtime code. Use <Spinner> from @agh/ui instead. See DESIGN.md §10.",
+        "Importing {{name}} from lucide-react is banned in frontend code. Use <Spinner> from @agh/ui instead. See DESIGN.md §10.",
     },
     schema: [],
   },
   create(context) {
     const filename = context.filename || "";
-    if (!isRuntimeSourcePath(filename) || isBannedImportAllowedPath(filename)) {
+    if (!isFrontendSourcePath(filename) || isBannedImportAllowedPath(filename)) {
       return {};
     }
 
@@ -326,7 +331,7 @@ const noInlineDesignTuples = {
   },
   create(context) {
     const filename = context.filename || "";
-    if (!isRuntimeSourcePath(filename) || isTestOrStoryPath(filename)) {
+    if (!isFrontendSourcePath(filename) || isTestOrStoryPath(filename)) {
       return {};
     }
 
@@ -362,6 +367,7 @@ const PREFER_BARE_UTILITY_WHITELIST = new Set([
   "available-height",
   "transform-origin",
   "accordion-panel-height",
+  "fd-docs-row-1",
   // App-injected runtime
   "detail-inspector-width",
   "tree-padding",
@@ -414,7 +420,7 @@ const preferBareTokenUtility = {
   },
   create(context) {
     const filename = context.filename || "";
-    if (!isRuntimeSourcePath(filename) || isTestOrStoryPath(normalizeFilename(filename))) {
+    if (!isFrontendSourcePath(filename) || isTestOrStoryPath(normalizeFilename(filename))) {
       return {};
     }
     return {
