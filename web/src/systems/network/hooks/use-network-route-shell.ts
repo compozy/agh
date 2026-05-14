@@ -36,7 +36,7 @@ export interface NetworkRouteShellResult {
 
 export function useNetworkRouteShell(): NetworkRouteShellResult {
   const page = useNetworkPage();
-  const { activeWorkspaceId, setActiveWorkspaceId } = useActiveWorkspace();
+  const { activeWorkspaceId, selectedWorkspaceId, setActiveWorkspaceId } = useActiveWorkspace();
   const { lastReadAt } = useLastRead();
   const navigate = useNavigate();
   const childMatches = useChildMatches();
@@ -52,8 +52,18 @@ export function useNetworkRouteShell(): NetworkRouteShellResult {
     if (!childParams.workspaceId || childParams.workspaceId === activeWorkspaceId) {
       return;
     }
+    if (selectedWorkspaceId !== null && selectedWorkspaceId !== childParams.workspaceId) {
+      void navigate({ to: "/network" });
+      return;
+    }
     setActiveWorkspaceId(childParams.workspaceId);
-  }, [activeWorkspaceId, childParams.workspaceId, setActiveWorkspaceId]);
+  }, [
+    activeWorkspaceId,
+    childParams.workspaceId,
+    navigate,
+    selectedWorkspaceId,
+    setActiveWorkspaceId,
+  ]);
 
   useEffect(() => {
     if (childParams.workspaceId != null && childParams.channel != null) {

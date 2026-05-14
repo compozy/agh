@@ -344,7 +344,7 @@ func TestLoopbackServerAllowsSettingsAndExtensionMutations(t *testing.T) {
 			body: mustJSONBody(t, contract.UpdateSettingsGeneralRequest{
 				Config: contract.SettingsGeneralConfigPayload{
 					Defaults: contract.SettingsDefaultsPayload{Agent: "coder"},
-					Limits:   contract.SettingsLimitsPayload{MaxSessions: 4, MaxConcurrentAgents: 2},
+					Limits:   contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
 					Permissions: contract.SettingsPermissionsPayload{
 						Mode: contract.SettingsPermissionModeApproveReads,
 					},

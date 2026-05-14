@@ -125,7 +125,7 @@ func statusForAgentSpawnError(err error) int {
 		return http.StatusCreated
 	case errors.Is(err, session.ErrSpawnPermissionDenied):
 		return http.StatusForbidden
-	case errors.Is(err, session.ErrSpawnLimitExceeded), errors.Is(err, session.ErrMaxSessionsReached):
+	case errors.Is(err, session.ErrSpawnLimitExceeded):
 		return http.StatusConflict
 	case errors.Is(err, session.ErrSpawnValidation):
 		return http.StatusUnprocessableEntity

@@ -55,7 +55,11 @@ func (h *BaseHandlers) NetworkPeers(c *gin.Context) {
 		return
 	}
 
-	peers, err := service.ListPeers(c.Request.Context(), scope.ID, strings.TrimSpace(c.Query("channel")))
+	peers, err := service.ListPeers(
+		c.Request.Context(),
+		scope.NetworkWorkspaceID(),
+		strings.TrimSpace(c.Query("channel")),
+	)
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
@@ -133,7 +137,7 @@ func (h *BaseHandlers) NetworkChannels(c *gin.Context) {
 		return
 	}
 
-	channels, err := h.networkChannelPayloads(c.Request.Context(), service, scope.ID)
+	channels, err := h.networkChannelPayloads(c.Request.Context(), service, scope.NetworkWorkspaceID())
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
@@ -162,7 +166,7 @@ func (h *BaseHandlers) NetworkSend(c *gin.Context) {
 		)
 		return
 	}
-	if bodyWorkspaceID := strings.TrimSpace(req.WorkspaceID); bodyWorkspaceID != "" && bodyWorkspaceID != scope.ID {
+	if !scope.BodyWorkspaceIDMatches(req.WorkspaceID) {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -170,7 +174,7 @@ func (h *BaseHandlers) NetworkSend(c *gin.Context) {
 		)
 		return
 	}
-	req.WorkspaceID = scope.ID
+	req.WorkspaceID = scope.NetworkWorkspaceID()
 	if strings.TrimSpace(req.SessionID) == "" {
 		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(errors.New("session_id is required")))
 		return

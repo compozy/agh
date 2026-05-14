@@ -423,8 +423,8 @@ func TestPayloadAndStatusHelpersCoverRemainingBranches(t *testing.T) {
 	if status := core.StatusForSessionError(os.ErrNotExist); status != http.StatusNotFound {
 		t.Fatalf("statusForSessionError(os.ErrNotExist) = %d, want %d", status, http.StatusNotFound)
 	}
-	if status := core.StatusForSessionError(session.ErrMaxSessionsReached); status != http.StatusConflict {
-		t.Fatalf("statusForSessionError(ErrMaxSessionsReached) = %d, want %d", status, http.StatusConflict)
+	if status := core.StatusForSessionError(session.ErrPromptInProgress); status != http.StatusConflict {
+		t.Fatalf("statusForSessionError(ErrPromptInProgress) = %d, want %d", status, http.StatusConflict)
 	}
 	if status := core.StatusForSessionError(workspacepkg.ErrWorkspaceNotFound); status != http.StatusNotFound {
 		t.Fatalf("statusForSessionError(ErrWorkspaceNotFound) = %d, want %d", status, http.StatusNotFound)

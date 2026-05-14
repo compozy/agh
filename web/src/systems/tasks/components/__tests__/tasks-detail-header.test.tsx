@@ -153,6 +153,21 @@ describe("TasksDetailHeader", () => {
     );
   });
 
+  it("hides the start-run action while an active run is open", () => {
+    const activeRun = {
+      id: "run_42",
+      task_id: "task_001",
+      attempt: 1,
+      status: "queued",
+      queued_at: "2026-04-11T09:30:00Z",
+    } as TaskListItem["active_run"];
+    const detail = buildDetail({ status: "ready" }, { active_run: activeRun });
+
+    render(<TasksDetailHeader detail={detail} onEnqueueRun={() => {}} />);
+
+    expect(screen.queryByTestId("tasks-detail-enqueue")).not.toBeInTheDocument();
+  });
+
   it("surfaces the coordination channel chip when the active run is bound to a channel", () => {
     const activeRun = {
       id: "run_42",

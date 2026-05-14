@@ -59,8 +59,14 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 vi.mock("@/systems/runtime", () => ({
-  AppSidebar: ({ onAddWorkspace }: { onAddWorkspace: () => void }) => (
-    <button data-testid="app-sidebar" onClick={onAddWorkspace} type="button">
+  AppSidebar: ({
+    className,
+    onAddWorkspace,
+  }: {
+    className?: string;
+    onAddWorkspace: () => void;
+  }) => (
+    <button className={className} data-testid="app-sidebar" onClick={onAddWorkspace} type="button">
       Sidebar
     </button>
   ),
@@ -213,6 +219,19 @@ describe("AppLayout", () => {
     expect(content).toContainElement(screen.getByTestId("outlet"));
     expect(screen.queryByTestId("animate-presence")).not.toBeInTheDocument();
     expect(screen.queryByTestId("app-route-motion")).not.toBeInTheDocument();
+  });
+
+  it("uses the drawer shell column map before the sidebar drawer breakpoint", () => {
+    render(<AppLayout />);
+
+    expect(screen.getByTestId("app-grid")).toHaveClass("grid-cols-[56px_minmax(0,1fr)]");
+    expect(screen.getByTestId("app-grid")).toHaveClass(
+      "min-[880px]:grid-cols-[56px_220px_minmax(0,1fr)]"
+    );
+    expect(screen.getByTestId("app-sidebar")).toHaveClass("col-span-1");
+    expect(screen.getByTestId("app-sidebar")).toHaveClass("min-[880px]:col-span-2");
+    expect(screen.getByTestId("app-content")).toHaveClass("col-start-2");
+    expect(screen.getByTestId("app-content")).toHaveClass("min-[880px]:col-start-3");
   });
 
   it("renders onboarding instead of the shell when no workspaces exist", () => {

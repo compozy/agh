@@ -275,7 +275,10 @@ func applyDecodedEvent(builder *uiMessageBuilder, decoded *decodedStoredEvent) {
 		builder.applyToolResult(decoded)
 	case acp.EventTypePermission:
 		builder.appendDataPart(uiPartDataPermission, uiPermissionDataPartID(decoded.agent), decoded.dataPayload())
-	case acp.EventTypeDone, acp.EventTypeError:
+	case acp.EventTypeError:
+		builder.appendDataPart(uiPartDataEvent, "", decoded.dataPayload())
+		builder.finished = true
+	case acp.EventTypeDone:
 		builder.finished = true
 	default:
 		builder.appendDataPart(uiPartDataEvent, "", decoded.dataPayload())
@@ -634,6 +637,13 @@ func inputMessageID(decoded *decodedStoredEvent, role string) string {
 }
 
 func assistantMessageID(decoded *decodedStoredEvent) string {
+	if decoded != nil && decoded.parsed.Type == acp.EventTypeError {
+		return fallbackMessageID(
+			strings.TrimSpace(decoded.stored.ID),
+			strings.TrimSpace(decoded.parsed.TurnID),
+			"assistant-error",
+		)
+	}
 	return fallbackMessageID(
 		strings.TrimSpace(decoded.parsed.TurnID),
 		strings.TrimSpace(decoded.stored.ID),

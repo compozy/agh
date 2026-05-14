@@ -105,7 +105,7 @@ func (h *BaseHandlers) CreateNetworkChannel(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if bodyWorkspaceID := strings.TrimSpace(req.WorkspaceID); bodyWorkspaceID != "" && bodyWorkspaceID != scope.ID {
+	if !scope.BodyWorkspaceIDMatches(req.WorkspaceID) {
 		h.respondError(
 			c,
 			http.StatusBadRequest,
@@ -113,8 +113,10 @@ func (h *BaseHandlers) CreateNetworkChannel(c *gin.Context) {
 		)
 		return
 	}
+	networkWorkspaceID := scope.NetworkWorkspaceID()
+	req.WorkspaceID = networkWorkspaceID
 
-	channel, purpose, resolved, agentNames, err := h.resolveCreateNetworkChannelRequest(
+	channel, purpose, agentNames, err := h.resolveCreateNetworkChannelRequest(
 		c.Request.Context(),
 		req,
 		&scope.Resolved,
@@ -127,7 +129,7 @@ func (h *BaseHandlers) CreateNetworkChannel(c *gin.Context) {
 	createdIDs, err := h.createNetworkChannelSessions(
 		c.Request.Context(),
 		channel,
-		resolved.WorkspaceID,
+		networkWorkspaceID,
 		agentNames,
 	)
 	if err != nil {
@@ -141,7 +143,7 @@ func (h *BaseHandlers) CreateNetworkChannel(c *gin.Context) {
 		networkStore,
 		store.NetworkChannelEntry{
 			Channel:     channel,
-			WorkspaceID: resolved.WorkspaceID,
+			WorkspaceID: networkWorkspaceID,
 			Purpose:     purpose,
 			CreatedBy:   agentNames[0],
 		},
@@ -173,7 +175,7 @@ func (h *BaseHandlers) NetworkChannel(c *gin.Context) {
 		return
 	}
 
-	detail, err := h.networkChannelDetailPayload(c.Request.Context(), service, scope.ID, channel)
+	detail, err := h.networkChannelDetailPayload(c.Request.Context(), service, scope.NetworkWorkspaceID(), channel)
 	if err != nil {
 		if isNetworkChannelNotFound(err) {
 			h.respondError(c, http.StatusNotFound, err)
@@ -219,13 +221,14 @@ func (h *BaseHandlers) NetworkChannelMessages(c *gin.Context) {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
-	peers, err := service.ListPeers(c.Request.Context(), scope.ID, channel)
+	networkWorkspaceID := scope.NetworkWorkspaceID()
+	peers, err := service.ListPeers(c.Request.Context(), networkWorkspaceID, channel)
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
 
-	query.WorkspaceID = scope.ID
+	query.WorkspaceID = networkWorkspaceID
 	query.Channel = channel
 	if err := query.Validate(); err != nil {
 		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
@@ -242,7 +245,7 @@ func (h *BaseHandlers) NetworkChannelMessages(c *gin.Context) {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
-	if len(rawMessages) == 0 && !networkChannelExists(sessions, peers, metadata, scope.ID, channel) {
+	if len(rawMessages) == 0 && !networkChannelExists(sessions, peers, metadata, networkWorkspaceID, channel) {
 		notFoundErr := fmt.Errorf("%w: %s", errNetworkChannelNotFound, channel)
 		h.respondError(c, http.StatusNotFound, notFoundErr)
 		return
@@ -294,7 +297,8 @@ func (h *BaseHandlers) NetworkPeerMessages(c *gin.Context) {
 	if !ok {
 		return
 	}
-	peers, err := service.ListPeers(c.Request.Context(), scope.ID, "")
+	networkWorkspaceID := scope.NetworkWorkspaceID()
+	peers, err := service.ListPeers(c.Request.Context(), networkWorkspaceID, "")
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
@@ -310,7 +314,7 @@ func (h *BaseHandlers) NetworkPeerMessages(c *gin.Context) {
 		return
 	}
 
-	query.WorkspaceID = scope.ID
+	query.WorkspaceID = networkWorkspaceID
 	query.PeerID = peerID
 	query.DirectedOnly = !query.IncludePresence
 	if err := query.Validate(); err != nil {
@@ -364,7 +368,7 @@ func (h *BaseHandlers) NetworkPeer(c *gin.Context) {
 	if !ok {
 		return
 	}
-	peers, err := service.ListPeers(c.Request.Context(), scope.ID, "")
+	peers, err := service.ListPeers(c.Request.Context(), scope.NetworkWorkspaceID(), "")
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
@@ -399,32 +403,32 @@ func (h *BaseHandlers) resolveCreateNetworkChannelRequest(
 	ctx context.Context,
 	req contract.CreateNetworkChannelRequest,
 	resolved *workspacepkg.ResolvedWorkspace,
-) (string, string, workspacepkg.ResolvedWorkspace, []string, error) {
+) (string, string, []string, error) {
 	_ = ctx
 	if resolved == nil {
-		return "", "", workspacepkg.ResolvedWorkspace{}, nil, NewNetworkValidationError(
+		return "", "", nil, NewNetworkValidationError(
 			errors.New("workspace is required"),
 		)
 	}
 	channel, err := normalizeNetworkChannel(req.Channel)
 	if err != nil {
-		return "", "", workspacepkg.ResolvedWorkspace{}, nil, err
+		return "", "", nil, err
 	}
 	purpose, err := normalizeNetworkChannelPurpose(req.Purpose)
 	if err != nil {
-		return "", "", workspacepkg.ResolvedWorkspace{}, nil, err
+		return "", "", nil, err
 	}
 
-	workspaceID := strings.TrimSpace(resolved.WorkspaceID)
+	workspaceID := strings.TrimSpace(resolved.ID)
 	if workspaceID == "" {
-		return "", "", workspacepkg.ResolvedWorkspace{}, nil, NewNetworkValidationError(
+		return "", "", nil, NewNetworkValidationError(
 			errors.New("workspace_id is required"),
 		)
 	}
 
 	agentNames, err := normalizeNetworkAgentNames(req.AgentNames)
 	if err != nil {
-		return "", "", workspacepkg.ResolvedWorkspace{}, nil, err
+		return "", "", nil, err
 	}
 	available := make(map[string]struct{}, len(resolved.Agents))
 	for _, agent := range resolved.Agents {
@@ -434,14 +438,14 @@ func (h *BaseHandlers) resolveCreateNetworkChannelRequest(
 		if _, ok := available[agentName]; ok {
 			continue
 		}
-		return "", "", workspacepkg.ResolvedWorkspace{}, nil, fmt.Errorf(
+		return "", "", nil, fmt.Errorf(
 			"%w: %s",
 			workspacepkg.ErrAgentNotAvailable,
 			agentName,
 		)
 	}
 
-	return channel, purpose, *resolved, agentNames, nil
+	return channel, purpose, agentNames, nil
 }
 
 func normalizeNetworkChannel(channel string) (string, error) {

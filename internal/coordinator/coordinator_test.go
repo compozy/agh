@@ -270,9 +270,11 @@ func TestPromptOverlayUsesPublicAPIsAndRunChannel(t *testing.T) {
 		})
 		for _, required := range []string{
 			"agh me context",
+			"agh task create|start",
 			"agh task next|heartbeat|complete|fail|release",
 			"agh ch list|recv|send|reply",
 			"agh spawn",
+			"Creating a task only records intent",
 			"coordination_channel_id: ch-run-1",
 			"Never spawn another coordinator",
 		} {

@@ -29,8 +29,6 @@ var (
 	ErrSessionNotFound = errors.New("session: session not found")
 	// ErrSessionNotActive reports that a known session cannot accept live approvals or prompts.
 	ErrSessionNotActive = errors.New("session: session is not active")
-	// ErrMaxSessionsReached reports that the active plus pending session count hit the configured limit.
-	ErrMaxSessionsReached = errors.New("session: max sessions reached")
 	// ErrPendingPermissionNotFound reports that no waiting permission matched the approval request.
 	ErrPendingPermissionNotFound = errors.New("session: pending permission not found")
 	// ErrPendingPermissionConflict reports that the approval request matched multiple pending permissions.
@@ -131,7 +129,6 @@ type Manager struct {
 	newSessionID                 IDGenerator
 	newSandboxID                 IDGenerator
 	newTurnID                    IDGenerator
-	maxSessions                  int
 	promptBufSize                int
 	soulRefreshTimeout           time.Duration
 	sessionHealthHookMinInterval time.Duration
@@ -318,13 +315,6 @@ func WithSandboxIDGenerator(generator IDGenerator) Option {
 func WithTurnIDGenerator(generator IDGenerator) Option {
 	return func(manager *Manager) {
 		manager.newTurnID = generator
-	}
-}
-
-// WithMaxSessions overrides the config-derived max session limit.
-func WithMaxSessions(limit int) Option {
-	return func(manager *Manager) {
-		manager.maxSessions = limit
 	}
 }
 
@@ -635,7 +625,7 @@ func (m *Manager) lookup(id string) (*Session, error) {
 	return session, nil
 }
 
-func (m *Manager) reserve(id string, maxSessions int) error {
+func (m *Manager) reserve(id string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -644,11 +634,6 @@ func (m *Manager) reserve(id string, maxSessions int) error {
 	}
 	if _, ok := m.pending[id]; ok {
 		return fmt.Errorf("session: session %q is already pending", id)
-	}
-
-	active := len(m.sessions) + len(m.pending)
-	if active >= maxSessions {
-		return maxSessionsReachedError{active: active, limit: maxSessions}
 	}
 
 	m.pending[id] = struct{}{}
@@ -798,17 +783,4 @@ func (m *Manager) WaitForFinalizations(ctx context.Context) error {
 			}
 		}
 	}
-}
-
-type maxSessionsReachedError struct {
-	active int
-	limit  int
-}
-
-func (e maxSessionsReachedError) Error() string {
-	return fmt.Sprintf("session: max sessions reached (%d/%d)", e.active, e.limit)
-}
-
-func (e maxSessionsReachedError) Is(target error) bool {
-	return target == ErrMaxSessionsReached
 }

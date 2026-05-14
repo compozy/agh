@@ -1,4 +1,4 @@
-import { Activity, AlertTriangle, Clock, Wrench } from "lucide-react";
+import { Activity, AlertCircle, AlertTriangle, Clock, Wrench } from "lucide-react";
 
 import { Alert, AlertDescription, AlertMeta, AlertTitle, Pill, cn } from "@agh/ui";
 
@@ -8,6 +8,14 @@ const RUNTIME_EVENT_TYPES = new Set(["runtime_progress", "runtime_warning"]);
 
 export function isRuntimeActivityEvent(event: AgentEventPayload): boolean {
   return RUNTIME_EVENT_TYPES.has(event.type) && event.runtime !== undefined;
+}
+
+export function isSessionErrorEvent(event: AgentEventPayload): boolean {
+  return event.type === "error" && (hasText(event.error) || hasText(event.failure?.summary));
+}
+
+function hasText(value: string | undefined): value is string {
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 function formatDuration(seconds: number | undefined): string | null {
@@ -69,7 +77,72 @@ function activityMeta(activity: RuntimeActivityPayload | undefined): string | nu
   return null;
 }
 
+function normalizeErrorText(error: string | undefined): string | null {
+  if (!hasText(error)) {
+    return null;
+  }
+
+  const trimmed = error.trim();
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    if (typeof parsed === "object" && parsed !== null && "data" in parsed) {
+      const data = (parsed as { data?: unknown }).data;
+      if (typeof data === "object" && data !== null && "error" in data) {
+        const nested = (data as { error?: unknown }).error;
+        if (typeof nested === "string" && nested.trim().length > 0) {
+          return nested.trim();
+        }
+      }
+    }
+    if (typeof parsed === "object" && parsed !== null && "message" in parsed) {
+      const message = (parsed as { message?: unknown }).message;
+      if (typeof message === "string" && message.trim().length > 0) {
+        return message.trim();
+      }
+    }
+  } catch {
+    return trimmed;
+  }
+
+  return trimmed;
+}
+
+function sessionErrorDescription(event: AgentEventPayload): string {
+  return (
+    normalizeErrorText(event.error) ||
+    normalizeErrorText(event.failure?.summary) ||
+    "The session stopped before completing this turn."
+  );
+}
+
 export function RuntimeActivityNotice({ event }: { event: AgentEventPayload }) {
+  if (isSessionErrorEvent(event)) {
+    const failureKind = event.failure?.kind?.trim();
+
+    return (
+      <Alert
+        role="alert"
+        data-testid="session-error-notice"
+        data-tone="danger"
+        className="my-2 max-w-3xl px-3 py-2"
+        variant="danger"
+      >
+        <AlertCircle aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
+        <AlertTitle>Session failed</AlertTitle>
+        {failureKind ? (
+          <AlertMeta data-testid="session-error-meta">
+            <Pill mono tone="danger">
+              {failureKind}
+            </Pill>
+          </AlertMeta>
+        ) : null}
+        <AlertDescription className="break-words" data-testid="session-error-detail">
+          {sessionErrorDescription(event)}
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
   if (!isRuntimeActivityEvent(event)) {
     return null;
   }

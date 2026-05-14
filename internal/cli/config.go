@@ -142,7 +142,6 @@ var (
 		"defaults.agent":               configSetString,
 		"defaults.provider":            configSetString,
 		"defaults.sandbox":             configSetString,
-		"limits.max_sessions":          configSetInt,
 		"limits.max_concurrent_agents": configSetInt,
 		"session.limits.timeout":       configSetDuration,
 		"session.supervision.activity_heartbeat_interval": configSetDuration,

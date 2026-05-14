@@ -175,7 +175,6 @@ type SettingsDefaultsPayload struct {
 }
 
 type SettingsLimitsPayload struct {
-	MaxSessions         int `json:"max_sessions"`
 	MaxConcurrentAgents int `json:"max_concurrent_agents"`
 }
 

@@ -182,7 +182,7 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 
 	if _, err := generalSettingsFromPayload(contract.SettingsGeneralConfigPayload{
 		Defaults:       contract.SettingsDefaultsPayload{Agent: "coder"},
-		Limits:         contract.SettingsLimitsPayload{MaxSessions: 4, MaxConcurrentAgents: 2},
+		Limits:         contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
 		Permissions:    contract.SettingsPermissionsPayload{Mode: contract.SettingsPermissionModeApproveReads},
 		SessionTimeout: "bad",
 		HTTP:           contract.SettingsHTTPPayload{Host: "127.0.0.1", Port: 2123},

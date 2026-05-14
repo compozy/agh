@@ -33,9 +33,11 @@ For skills, search with agh**skill_search and load full instructions with agh**s
 The prompt catalog lists skill names and descriptions, not full bodies. Load the full body on demand:
 
     agh skill view agh
-    agh skill view agh --file references/network.md
 
 Inside a tool-capable session, use the equivalent skill search/view tools.
+For resource files inside daemon-managed AGH sessions, use the native skill view tool with the resource path instead of the CLI `--file` fallback. The CLI resource form is for local operator mode where skill resolution reads directly from the filesystem:
+
+    agh skill view agh --file references/network.md
 
 ## Bundled Skill Resources
 

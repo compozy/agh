@@ -29,7 +29,7 @@ Use only `[sandboxes.<name>]` for session execution boundaries.
 | `[daemon]`                           | Unix domain socket path for CLI and UDS API traffic.                            | `socket = "$AGH_HOME/daemon.sock"`                                                 |
 | `[http]`                             | HTTP and SSE bind address.                                                      | `host = "localhost"`, `port = 2123`                                                |
 | `[defaults]`                         | Default agent, provider, and sandbox resolution.                                | `agent = "general"`, `provider = ""`, `sandbox = ""`                               |
-| `[limits]`                           | Daemon-level session and agent caps.                                            | `max_sessions = 10`, `max_concurrent_agents = 20`                                  |
+| `[limits]`                           | Daemon-level concurrently running agent cap.                                    | `max_concurrent_agents = 20`                                                       |
 | `[session.limits]`                   | Session-scoped wall-clock timeout.                                              | `timeout = "0s"`                                                                   |
 | `[session.supervision]`              | Runtime activity heartbeat, progress, warning, and inactivity timeout controls. | heartbeat 30 seconds, progress 10 minutes, warning 15 minutes, timeout 30 minutes  |
 | `[agents.soul]`                      | Optional `SOUL.md` parsing, body limits, and compact projection budget.         | enabled, 32 KiB body, 2 KiB compact projection                                     |
@@ -112,8 +112,7 @@ provider = "claude"
 sandbox = "local"
 
 [limits]
-# Positive daemon-wide limits.
-max_sessions = 10
+# Positive daemon-wide agent concurrency bound.
 max_concurrent_agents = 20
 
 [session.limits]
@@ -550,10 +549,9 @@ max_queue_depth = 100
 
 ## `[limits]`
 
-| Field                   | Type    | Default | Valid values      | Description                                                    |
-| ----------------------- | ------- | ------- | ----------------- | -------------------------------------------------------------- |
-| `max_sessions`          | integer | `10`    | Positive integer. | Daemon-wide cap for sessions retained in active runtime state. |
-| `max_concurrent_agents` | integer | `20`    | Positive integer. | Daemon-wide cap for concurrently running agent subprocesses.   |
+| Field                   | Type    | Default | Valid values      | Description                                                  |
+| ----------------------- | ------- | ------- | ----------------- | ------------------------------------------------------------ |
+| `max_concurrent_agents` | integer | `20`    | Positive integer. | Daemon-wide cap for concurrently running agent subprocesses. |
 
 ## `[session.limits]`
 

@@ -133,6 +133,10 @@ func (s *promptActivitySupervisor) report(report acp.PromptActivityReport) {
 	if kind == "" {
 		kind = runtimeActivityKindAgentWaiting
 	}
+	if kind == runtimeActivityKindAgentWaiting {
+		s.recordWaitingHeartbeat(ts, report.Detail)
+		return
+	}
 	s.touch(ts, kind, report.Detail)
 }
 
@@ -394,6 +398,49 @@ func (s *promptActivitySupervisor) timeoutStopDeadline() time.Duration {
 
 func (s *promptActivitySupervisor) touch(now time.Time, kind string, detail string) {
 	s.touchWithTool(now, kind, detail, "", "", false)
+}
+
+func (s *promptActivitySupervisor) recordWaitingHeartbeat(now time.Time, detail string) {
+	if s == nil || s.manager == nil || s.session == nil {
+		return
+	}
+	if now.IsZero() {
+		now = s.now()
+	}
+	processUnhealthy := s.handleUnhealthyProcess(now, true)
+	if processUnhealthy {
+		return
+	}
+
+	s.mu.Lock()
+	s.unhealthy = false
+	s.unhealthyWarned = false
+	s.activity.TurnID = s.turnID
+	s.activity.TurnSource = string(s.turnSource)
+	s.activity.TurnStartedAt = timePtr(s.startedAt)
+	if s.activity.LastActivityAt == nil || s.activity.LastActivityAt.IsZero() {
+		startedAt := s.startedAt.UTC()
+		s.activity.LastActivityAt = &startedAt
+	}
+	s.activity.LastActivityKind = runtimeActivityKindAgentWaiting
+	s.activity.LastActivityDetail = strings.TrimSpace(detail)
+	s.activity.IdleSeconds = store.SessionActivityIdleSeconds(&s.activity, now)
+	activity := *store.CloneSessionActivityMeta(&s.activity)
+	lastActivityAt := time.Time{}
+	if s.activity.LastActivityAt != nil {
+		lastActivityAt = s.activity.LastActivityAt.UTC()
+	}
+	s.mu.Unlock()
+
+	s.session.observeRuntimeActivity(activity, now)
+	if err := s.manager.writeMeta(s.session); err != nil {
+		s.manager.sessionLogger(s.session).
+			Warn("session: persist runtime heartbeat failed", "turn_id", s.turnID, "error", err)
+	}
+	if _, err := s.manager.persistSessionPromptActivity(s.ctx, s.session, lastActivityAt); err != nil {
+		s.manager.sessionLogger(s.session).
+			Warn("session: persist runtime heartbeat health failed", "turn_id", s.turnID, "error", err)
+	}
 }
 
 func (s *promptActivitySupervisor) touchWithTool(

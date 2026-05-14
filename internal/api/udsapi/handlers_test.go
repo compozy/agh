@@ -434,7 +434,7 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 			body: mustJSONBody(t, contract.UpdateSettingsGeneralRequest{
 				Config: contract.SettingsGeneralConfigPayload{
 					Defaults: contract.SettingsDefaultsPayload{Agent: "coder"},
-					Limits:   contract.SettingsLimitsPayload{MaxSessions: 4, MaxConcurrentAgents: 2},
+					Limits:   contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
 					Permissions: contract.SettingsPermissionsPayload{
 						Mode: contract.SettingsPermissionModeApproveReads,
 					},
@@ -2035,7 +2035,7 @@ func TestSessionErrorMappingUsesNotFoundAndConflict(t *testing.T) {
 			return nil, session.ErrSessionNotFound
 		},
 		CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
-			return nil, session.ErrMaxSessionsReached
+			return nil, session.ErrPromptInProgress
 		},
 	}
 	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)

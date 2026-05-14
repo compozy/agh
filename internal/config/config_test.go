@@ -61,7 +61,6 @@ session_health_stale_after = "3m"
 session_health_hook_min_interval = "90s"
 
 [limits]
-max_sessions = 11
 max_concurrent_agents = 22
 
 [session.limits]
@@ -215,7 +214,7 @@ max_queue_depth = 250
 	if got, want := cfg.Agents.Heartbeat.SessionHealthHookMinInterval, 90*time.Second; got != want {
 		t.Fatalf("Load() Agents.Heartbeat.SessionHealthHookMinInterval = %s, want %s", got, want)
 	}
-	if cfg.Limits.MaxSessions != 11 || cfg.Limits.MaxConcurrentAgents != 22 {
+	if cfg.Limits.MaxConcurrentAgents != 22 {
 		t.Fatalf("Load() Limits = %#v", cfg.Limits)
 	}
 	if got, want := cfg.Session.Limits.Timeout, 30*time.Minute; got != want {

@@ -21,6 +21,7 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 		directID := "direct_99401d24bee62651d189e5a561785466"
 		workID := "work_1"
 		var seenPeersQuery NetworkPeersQuery
+		var seenCreateRequest CreateNetworkChannelRequest
 		var seenSendRequest NetworkSendRequest
 
 		client := &stubClient{
@@ -83,6 +84,24 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 					t.Fatalf("NetworkChannels() workspace = %q, want ws-alpha", workspaceRef)
 				}
 				return []NetworkChannelRecord{{Channel: "builders", PeerCount: 2}}, nil
+			},
+			createNetworkChannelFn: func(
+				_ context.Context,
+				workspaceRef string,
+				request CreateNetworkChannelRequest,
+			) (NetworkChannelDetailRecord, error) {
+				if workspaceRef != "ws-alpha" {
+					t.Fatalf("CreateNetworkChannel() workspace = %q, want ws-alpha", workspaceRef)
+				}
+				seenCreateRequest = request
+				return NetworkChannelDetailRecord{
+					Channel:      request.Channel,
+					WorkspaceID:  workspaceRef,
+					Purpose:      request.Purpose,
+					CreatedBy:    request.AgentNames[0],
+					PeerCount:    len(request.AgentNames),
+					SessionCount: len(request.AgentNames),
+				}, nil
 			},
 			networkSendFn: func(_ context.Context, request NetworkSendRequest) (NetworkSendRecord, error) {
 				seenSendRequest = request
@@ -181,6 +200,39 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 		}
 		if !strings.Contains(channelsOut, "network_channels[1]{channel,peer_count}:") {
 			t.Fatalf("network channels toon = %q, want TOON list", channelsOut)
+		}
+
+		createOut, _, err := executeRootCommand(
+			t,
+			deps,
+			"network",
+			"--workspace",
+			"ws-alpha",
+			"channels",
+			"create",
+			"launch_ops",
+			"--purpose",
+			"Coordinate launch work",
+			"--agent",
+			"site_copywriter",
+			"--agent",
+			"growth_marketer",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("network channels create error = %v", err)
+		}
+		if seenCreateRequest.Channel != "launch_ops" || seenCreateRequest.Purpose != "Coordinate launch work" ||
+			len(seenCreateRequest.AgentNames) != 2 || seenCreateRequest.AgentNames[1] != "growth_marketer" {
+			t.Fatalf("seenCreateRequest = %#v, want launch channel with two agents", seenCreateRequest)
+		}
+		var created NetworkChannelDetailRecord
+		if err := json.Unmarshal([]byte(createOut), &created); err != nil {
+			t.Fatalf("json.Unmarshal(network channels create) error = %v", err)
+		}
+		if created.Channel != "launch_ops" || created.SessionCount != 2 {
+			t.Fatalf("created channel = %#v, want launch_ops with two sessions", created)
 		}
 
 		sendOut, _, err := executeRootCommand(t, deps,

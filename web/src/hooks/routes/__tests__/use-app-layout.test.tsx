@@ -4,12 +4,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   mockNavigate,
   mockMutateAsync,
+  mockSetActiveWorkspaceId,
   mockToastError,
   mockWorkspaceQuery,
   mockUseCreateSessionPending,
 } = vi.hoisted(() => ({
   mockNavigate: vi.fn<(input: unknown) => Promise<void>>(),
   mockMutateAsync: vi.fn<(input: unknown) => Promise<{ id: string; agent_name: string }>>(),
+  mockSetActiveWorkspaceId: vi.fn<(workspaceId: string | null) => void>(),
   mockToastError: vi.fn(),
   mockWorkspaceQuery: vi.fn(),
   mockUseCreateSessionPending: { current: false as boolean },
@@ -129,7 +131,7 @@ vi.mock("@/systems/workspace", () => ({
             updated_at: "2026-04-20T10:00:00Z",
           },
     activeWorkspaceId: mockActiveWorkspaceId,
-    setActiveWorkspaceId: vi.fn(),
+    setActiveWorkspaceId: mockSetActiveWorkspaceId,
     isLoading: false,
     isError: false,
   }),
@@ -150,6 +152,7 @@ describe("useAppLayout", () => {
     mockAgentsError = false;
     mockNavigate.mockReset();
     mockMutateAsync.mockReset();
+    mockSetActiveWorkspaceId.mockReset();
     mockToastError.mockReset();
     mockWorkspaceQuery.mockReset();
     mockUseCreateSessionPending.current = false;

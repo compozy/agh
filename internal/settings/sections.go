@@ -749,9 +749,6 @@ func diffGeneralSettings(cfg *aghconfig.Config, desired GeneralSettings) []strin
 	if cfg.Defaults.Sandbox != desired.Defaults.Sandbox {
 		changed = append(changed, "defaults.sandbox")
 	}
-	if cfg.Limits.MaxSessions != desired.Limits.MaxSessions {
-		changed = append(changed, "limits.max_sessions")
-	}
 	if cfg.Limits.MaxConcurrentAgents != desired.Limits.MaxConcurrentAgents {
 		changed = append(changed, "limits.max_concurrent_agents")
 	}
@@ -921,7 +918,6 @@ func applyGeneralSettings(editor *aghconfig.OverlayEditor, settings GeneralSetti
 		{path: []string{"defaults", "agent"}, value: settings.Defaults.Agent},
 		{path: []string{"defaults", "provider"}, value: settings.Defaults.Provider},
 		{path: []string{"defaults", "sandbox"}, value: settings.Defaults.Sandbox},
-		{path: []string{"limits", "max_sessions"}, value: settings.Limits.MaxSessions},
 		{path: []string{"limits", "max_concurrent_agents"}, value: settings.Limits.MaxConcurrentAgents},
 		{path: []string{"session", "limits", "timeout"}, value: settings.SessionTimeout.String()},
 		{path: []string{"permissions", "mode"}, value: string(settings.Permissions.Mode)},

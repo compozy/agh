@@ -22,8 +22,8 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			kind: ConfigValueString,
 		},
 		{
-			name: "Should allow runtime limit mutation",
-			path: "limits.max_sessions",
+			name: "Should allow concurrent agent limit mutation",
+			path: "limits.max_concurrent_agents",
 			kind: ConfigValueInt,
 		},
 		{

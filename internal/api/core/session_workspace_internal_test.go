@@ -230,6 +230,7 @@ func TestSessionProviderOptionPayloadsFromConfig(t *testing.T) {
 	t.Parallel()
 
 	cfg := &aghconfig.Config{
+		Defaults: aghconfig.DefaultsConfig{Provider: "codex"},
 		Providers: map[string]aghconfig.ProviderConfig{
 			"alpha":  {Command: "alpha --acp"},
 			"claude": {Command: "claude-overlay --acp"},
@@ -253,9 +254,29 @@ func TestSessionProviderOptionPayloadsFromConfig(t *testing.T) {
 	if got, want := len(payloads), len(expected); got != want {
 		t.Fatalf("len(payloads) = %d, want %d (%#v)", got, want, payloads)
 	}
-	for i, want := range expected {
-		if got := payloads[i].Name; got != want.Name {
-			t.Fatalf("payloads[%d].Name = %q, want %q (%#v)", i, got, want.Name, payloads)
+	if got, want := payloads[0].Name, "codex"; got != want {
+		t.Fatalf("payloads[0].Name = %q, want default provider %q first (%#v)", got, want, payloads)
+	}
+	seen := make(map[string]bool, len(payloads))
+	for _, payload := range payloads {
+		seen[payload.Name] = true
+	}
+	for _, want := range expected {
+		if !seen[want.Name] {
+			t.Fatalf("payloads missing provider %q (%#v)", want.Name, payloads)
+		}
+	}
+	remainder := make([]string, 0, len(expected)-1)
+	for _, want := range expected {
+		if want.Name == "codex" {
+			continue
+		}
+		remainder = append(remainder, want.Name)
+	}
+	for i, want := range remainder {
+		payload := payloads[i+1]
+		if payload.Name != want {
+			t.Fatalf("payloads[%d].Name = %q, want %q after default (%#v)", i+1, payload.Name, want, payloads)
 		}
 	}
 	for _, payload := range payloads {

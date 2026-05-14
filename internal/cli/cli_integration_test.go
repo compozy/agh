@@ -1608,9 +1608,10 @@ func TestCLITaskCreateListGetIntegration(t *testing.T) {
 		"--channel", "builders",
 		"--title", "Investigate flaky task runs",
 		"--description", "Capture root cause",
+		"--priority", "high",
 		"--owner-kind", "pool",
 		"--owner-ref", "triage",
-		"--metadata", `{"priority":"high"}`,
+		"--metadata", `{"source":"qa"}`,
 		"-o", "json",
 	)
 	if err != nil {
@@ -1621,7 +1622,11 @@ func TestCLITaskCreateListGetIntegration(t *testing.T) {
 	if err := json.Unmarshal([]byte(createOut), &created); err != nil {
 		t.Fatalf("json.Unmarshal(task create) error = %v", err)
 	}
-	if created.ID == "" || created.Scope != taskpkg.ScopeWorkspace || created.WorkspaceID == "" || created.NetworkChannel != "builders" {
+	if created.ID == "" ||
+		created.Scope != taskpkg.ScopeWorkspace ||
+		created.WorkspaceID == "" ||
+		created.NetworkChannel != "builders" ||
+		created.Priority != taskpkg.PriorityHigh {
 		t.Fatalf("created task = %#v, want workspace task with id/channel", created)
 	}
 

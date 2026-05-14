@@ -95,6 +95,7 @@ function SessionCreateDialog({
   const activeAgent = workspaceSelected
     ? agents.find(agent => agent.name === trimmedSelectedAgentName)
     : undefined;
+  const activeAgentProvider = activeAgent?.provider.trim() ?? "";
   const hasAgents = agents.length > 0;
   const hasProviderOptions = providerOptions.length > 0;
   const hasSelectedAgent = agents.some(agent => agent.name === trimmedSelectedAgentName);
@@ -172,13 +173,13 @@ function SessionCreateDialog({
                 triggerTestId="session-create-agent-select"
                 placeholder={agentPlaceholder}
               />
-              {activeAgent ? (
+              {activeAgent && activeAgentProvider.length > 0 ? (
                 <div
                   className="mt-1 flex items-center gap-1.5 text-xs text-subtle"
                   data-testid="session-create-agent-default"
                 >
-                  <AgentIcon className="size-3 text-subtle" provider={activeAgent.provider} />
-                  <span>Agent default provider: {activeAgent.provider}</span>
+                  <AgentIcon className="size-3 text-subtle" provider={activeAgentProvider} />
+                  <span>Agent default provider: {activeAgentProvider}</span>
                 </div>
               ) : null}
             </Field>

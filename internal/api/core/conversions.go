@@ -1047,7 +1047,11 @@ func SessionProviderOptionPayloadsFromConfig(cfg *aghconfig.Config) []contract.S
 		}
 	}
 
-	return sortSessionProviderOptionPayloads(payloadsByName)
+	defaultProvider := ""
+	if cfg != nil {
+		defaultProvider = aghconfig.CanonicalProviderName(cfg.Defaults.Provider)
+	}
+	return sortSessionProviderOptionPayloads(payloadsByName, defaultProvider)
 }
 
 func sessionProviderOptionPayloadFromConfig(
@@ -1089,17 +1093,29 @@ func sessionProviderOptionPayloads(names []string) []contract.SessionProviderOpt
 		}
 		values[trimmed] = contract.SessionProviderOptionPayload{Name: trimmed}
 	}
-	return sortSessionProviderOptionPayloads(values)
+	return sortSessionProviderOptionPayloads(values, "")
 }
 
 func sortSessionProviderOptionPayloads(
 	values map[string]contract.SessionProviderOptionPayload,
+	defaultProvider string,
 ) []contract.SessionProviderOptionPayload {
 	names := make([]string, 0, len(values))
 	for name := range values {
 		names = append(names, name)
 	}
 	sort.Strings(names)
+	defaultProvider = aghconfig.CanonicalProviderName(defaultProvider)
+	if defaultProvider != "" {
+		for i, name := range names {
+			if name != defaultProvider {
+				continue
+			}
+			copy(names[1:i+1], names[:i])
+			names[0] = defaultProvider
+			break
+		}
+	}
 	payloads := make([]contract.SessionProviderOptionPayload, 0, len(names))
 	for _, name := range names {
 		payloads = append(payloads, values[name])
@@ -1568,7 +1584,6 @@ func settingsGeneralConfigPayload(value settingspkg.GeneralSettings) contract.Se
 			Sandbox:  strings.TrimSpace(value.Defaults.Sandbox),
 		},
 		Limits: contract.SettingsLimitsPayload{
-			MaxSessions:         value.Limits.MaxSessions,
 			MaxConcurrentAgents: value.Limits.MaxConcurrentAgents,
 		},
 		Permissions: contract.SettingsPermissionsPayload{

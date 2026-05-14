@@ -138,19 +138,47 @@ describe("TaskEditorModal", () => {
     expect(draft.maxAttempts).toBe(1);
   });
 
-  it("Should render the 6-kind owner enum matching the backend OwnerKind", () => {
+  it("Should render user-facing owner options while preserving backend values", () => {
     renderNewModal();
     const select = screen.getByTestId("task-editor-owner-kind");
-    const options = Array.from(select.querySelectorAll("option")).map(option => option.value);
+    const options = Array.from(select.querySelectorAll("option")).map(option => ({
+      label: option.textContent,
+      value: option.value,
+    }));
     expect(options).toEqual([
-      "",
-      "agent_session",
-      "human",
-      "automation",
-      "extension",
-      "network_peer",
-      "pool",
+      { label: "Unassigned", value: "" },
+      { label: "Agent / pool", value: "pool" },
+      { label: "Exact session", value: "agent_session" },
+      { label: "Human", value: "human" },
+      { label: "Automation", value: "automation" },
+      { label: "Extension", value: "extension" },
+      { label: "Network peer", value: "network_peer" },
     ]);
+  });
+
+  it("Should explain that agent names use pool ownership instead of session ownership", () => {
+    const draft: TaskEditorDraft = {
+      ...createTaskEditorDraft("one_shot", "ws_alpha"),
+      ownerKind: "agent_session",
+    };
+
+    renderNewModal({ draft });
+
+    expect(screen.getByTestId("task-editor-owner-ref")).toHaveAttribute(
+      "placeholder",
+      "Session id (e.g. sess-...)"
+    );
+    expect(screen.getByTestId("task-editor-owner-help")).toHaveTextContent(
+      "Use the exact session id. Agent names belong under Agent / pool."
+    );
+  });
+
+  it("Should disable owner reference input until an owner kind is selected", () => {
+    renderNewModal();
+    expect(screen.getByTestId("task-editor-owner-ref")).toBeDisabled();
+    expect(screen.getByTestId("task-editor-owner-help")).toHaveTextContent(
+      "Leave ownership empty unless a specific agent, session, human, automation, extension, or peer owns the work."
+    );
   });
 
   it("Should invoke onOpenChange when Cancel is clicked", () => {

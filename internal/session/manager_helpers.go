@@ -64,16 +64,6 @@ func (m *Manager) startPermissions(sessionType Type, configured string) aghconfi
 	return mode
 }
 
-func (m *Manager) effectiveMaxSessions(cfg *aghconfig.Config) int {
-	if m.maxSessions > 0 {
-		return m.maxSessions
-	}
-	if cfg != nil && cfg.Limits.MaxSessions > 0 {
-		return cfg.Limits.MaxSessions
-	}
-	return aghconfig.DefaultWithHome(m.homePaths).Limits.MaxSessions
-}
-
 func (m *Manager) writeMeta(session *Session) error {
 	if session == nil {
 		return errors.New("session: session is required")

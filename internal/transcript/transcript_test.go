@@ -803,6 +803,79 @@ func TestToUIMessagesPermissionDataParts(t *testing.T) {
 }
 
 func TestToUIMessagesOrderedAssistantParts(t *testing.T) {
+	t.Run("ShouldPreserveFatalPromptErrorAsDataPart", func(t *testing.T) {
+		t.Parallel()
+
+		timestamp := time.Date(2026, 5, 14, 15, 32, 0, 0, time.UTC)
+		errorText := `{"code":-32603,"message":"Internal error","data":{"error":"peer disconnected before response"}}`
+		events := []store.SessionEvent{
+			mustUIAgentSessionEvent(t, "ev-text", 1, timestamp, acp.AgentEvent{
+				Type:      acp.EventTypeAgentMessage,
+				SessionID: "sess-failed",
+				TurnID:    "turn-failed",
+				Timestamp: timestamp,
+				Text:      "partial response",
+			}),
+			mustUIAgentSessionEvent(t, "ev-error", 2, timestamp.Add(time.Second), acp.AgentEvent{
+				Type:      acp.EventTypeError,
+				SessionID: "sess-failed",
+				TurnID:    "turn-failed",
+				Timestamp: timestamp.Add(time.Second),
+				Error:     errorText,
+				Failure: &store.SessionFailure{
+					Kind:    store.FailureProcess,
+					Summary: "peer disconnected before response",
+				},
+			}),
+		}
+
+		messages, err := ToUIMessages(events)
+		if err != nil {
+			t.Fatalf("ToUIMessages() error = %v", err)
+		}
+		if got, want := len(messages), 2; got != want {
+			t.Fatalf("len(messages) = %d, want %d; messages=%#v", got, want, messages)
+		}
+		if got, want := len(messages[0].Parts), 1; got != want {
+			t.Fatalf("len(messages[0].Parts) = %d, want %d; parts=%#v", got, want, messages[0].Parts)
+		}
+		if got, want := messages[0].Parts[0].Type, uiPartText; got != want {
+			t.Fatalf("parts[0].Type = %q, want %q", got, want)
+		}
+		if got, want := messages[0].Parts[0].State, uiPartStateDone; got != want {
+			t.Fatalf("parts[0].State = %q, want %q", got, want)
+		}
+
+		if got, want := messages[1].ID, "ev-error"; got != want {
+			t.Fatalf("messages[1].ID = %q, want %q", got, want)
+		}
+		if got, want := len(messages[1].Parts), 1; got != want {
+			t.Fatalf("len(messages[1].Parts) = %d, want %d; parts=%#v", got, want, messages[1].Parts)
+		}
+
+		errorPart := messages[1].Parts[0]
+		if got, want := errorPart.Type, uiPartDataEvent; got != want {
+			t.Fatalf("parts[1].Type = %q, want %q", got, want)
+		}
+
+		var payload UIAgentEventPayload
+		if err := json.Unmarshal(errorPart.Data, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(errorPart.Data) error = %v", err)
+		}
+		if got, want := payload.Type, acp.EventTypeError; got != want {
+			t.Fatalf("payload.Type = %q, want %q", got, want)
+		}
+		if got, want := payload.Error, errorText; got != want {
+			t.Fatalf("payload.Error = %q, want %q", got, want)
+		}
+		if payload.Failure == nil {
+			t.Fatal("payload.Failure = nil, want process failure")
+		}
+		if got, want := payload.Failure.Kind, store.FailureProcess; got != want {
+			t.Fatalf("payload.Failure.Kind = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("ShouldPreserveTextToolTextOrderInsideOneAssistantMessage", func(t *testing.T) {
 		t.Parallel()
 

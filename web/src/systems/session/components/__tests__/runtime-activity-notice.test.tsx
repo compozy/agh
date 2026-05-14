@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AgentEventPayload, RuntimeActivityPayload } from "../../types";
 import {
+  isSessionErrorEvent,
   isRuntimeActivityEvent,
   RuntimeActivityNotice,
   SessionActivityInline,
@@ -25,6 +26,23 @@ describe("RuntimeActivityNotice", () => {
     expect(isRuntimeActivityEvent({ type: "runtime_warning", runtime })).toBe(true);
     expect(isRuntimeActivityEvent({ type: "runtime_progress" })).toBe(false);
     expect(isRuntimeActivityEvent({ type: "agent_message", runtime })).toBe(false);
+  });
+
+  it("recognizes fatal session errors when error or failure details exist", () => {
+    expect(
+      isSessionErrorEvent({
+        type: "error",
+        error: '{"code":-32603,"message":"Internal error"}',
+      })
+    ).toBe(true);
+    expect(isSessionErrorEvent({ type: "error", failure: { kind: "process_exit" } })).toBe(false);
+    expect(
+      isSessionErrorEvent({
+        type: "error",
+        failure: { kind: "process_exit", summary: "peer disconnected before response" },
+      })
+    ).toBe(true);
+    expect(isSessionErrorEvent({ type: "runtime_warning", error: "failed" })).toBe(false);
   });
 
   it("renders progress as a separate status notice", () => {
@@ -58,6 +76,29 @@ describe("RuntimeActivityNotice", () => {
     expect(screen.getByText("Runtime warning")).toBeInTheDocument();
     expect(screen.getByTestId("runtime-activity-detail")).toHaveTextContent(
       "no provider activity observed"
+    );
+  });
+
+  it("renders session errors with alert semantics and failure detail", () => {
+    render(
+      <RuntimeActivityNotice
+        event={{
+          type: "error",
+          error:
+            '{"code":-32603,"message":"Internal error","data":{"error":"peer disconnected before response"}}',
+          failure: {
+            kind: "process_exit",
+            summary: "peer disconnected before response",
+          },
+        }}
+      />
+    );
+
+    expect(screen.getByRole("alert")).toHaveAttribute("data-tone", "danger");
+    expect(screen.getByTestId("session-error-notice")).toHaveTextContent("Session failed");
+    expect(screen.getByTestId("session-error-meta")).toHaveTextContent("process_exit");
+    expect(screen.getByTestId("session-error-detail")).toHaveTextContent(
+      "peer disconnected before response"
     );
   });
 

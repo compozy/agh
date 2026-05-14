@@ -27,3 +27,4 @@ namespaces:
       - .compozy/tasks/**/.gitkeep
       - .compozy/tasks/**/.empty
       - .codex/loop/**
+      - .codex/qa/**

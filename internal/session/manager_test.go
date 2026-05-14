@@ -898,7 +898,7 @@ func TestActivateAndWatchUpdatesStateAndStartsWatcher(t *testing.T) {
 		recorder:    recorder,
 	}
 
-	if err := h.manager.reserve(session.ID, h.cfg.Limits.MaxSessions); err != nil {
+	if err := h.manager.reserve(session.ID); err != nil {
 		t.Fatalf("reserve() error = %v", err)
 	}
 
@@ -2744,7 +2744,7 @@ func TestListAndGet(t *testing.T) {
 }
 
 func TestConcurrentCreateStopGet(t *testing.T) {
-	h := newHarness(t, WithMaxSessions(32))
+	h := newHarness(t)
 
 	done := make(chan struct{})
 	var readers sync.WaitGroup
@@ -2796,24 +2796,22 @@ func TestConcurrentCreateStopGet(t *testing.T) {
 	}
 }
 
-func TestCreateEnforcesMaxSessions(t *testing.T) {
+func TestCreateDoesNotEnforceSessionCap(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t, WithMaxSessions(1))
-	first := createSession(t, h)
-	t.Cleanup(func() {
-		_ = h.manager.Stop(testutil.Context(t), first.ID)
-	})
-
-	_, err := h.manager.Create(testutil.Context(t), CreateOpts{
-		AgentName: "coder",
-		Workspace: h.workspaceID,
-	})
-	if err == nil {
-		t.Fatal("Create(second) error = nil, want non-nil")
+	h := newHarness(t)
+	const total = 12
+	for range total {
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil &&
+				!errors.Is(err, ErrSessionNotFound) {
+				t.Errorf("Stop(%q) error = %v", session.ID, err)
+			}
+		})
 	}
-	if !errors.Is(err, ErrMaxSessionsReached) {
-		t.Fatalf("Create(second) error = %v, want ErrMaxSessionsReached", err)
+	if list := h.manager.List(); len(list) != total {
+		t.Fatalf("List() = %d sessions, want %d", len(list), total)
 	}
 }
 

@@ -10,7 +10,6 @@ agent = "general"
 provider = "claude"
 
 [limits]
-max_sessions = 10
 max_concurrent_agents = 20
 
 [permissions]

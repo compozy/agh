@@ -42,10 +42,10 @@ function AppLayout() {
     >
       <div
         data-testid="app-grid"
-        className="grid min-h-0 flex-1 grid-cols-[56px_244px_1fr] grid-rows-[48px_1fr] overflow-hidden"
+        className="grid min-h-0 flex-1 grid-cols-[56px_minmax(0,1fr)] grid-rows-[48px_1fr] overflow-hidden min-[880px]:grid-cols-[56px_220px_minmax(0,1fr)] min-[1100px]:grid-cols-[56px_244px_minmax(0,1fr)]"
       >
         <AppSidebar
-          className="col-span-2 row-span-2"
+          className="col-span-1 row-span-2 min-[880px]:col-span-2"
           collapsed={page.collapsed}
           onCollapseChange={page.setCollapsed}
           workspaces={
@@ -64,7 +64,7 @@ function AppLayout() {
           <main
             id="app-content"
             data-testid="app-content"
-            className="relative col-start-3 row-start-2 flex min-h-0 flex-col overflow-hidden bg-canvas"
+            className="relative col-start-2 row-start-2 flex min-h-0 flex-col overflow-hidden bg-canvas min-[880px]:col-start-3"
           >
             <Outlet />
           </main>

@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -162,6 +165,141 @@ func (s *heartbeatWakeSpy) Wake(
 		Result: heartbeat.WakeResultSkipped,
 		Reason: heartbeat.WakeReasonHeartbeatNoEligible,
 	}, nil
+}
+
+type workspaceIDCaptureSoulAuthoring struct {
+	putCalls int
+	last     soul.PutRequest
+}
+
+func (s *workspaceIDCaptureSoulAuthoring) Validate(context.Context, soul.ValidateRequest) (soul.ValidateResult, error) {
+	return soul.ValidateResult{}, nil
+}
+
+func (s *workspaceIDCaptureSoulAuthoring) Put(
+	_ context.Context,
+	req soul.PutRequest,
+) (soul.MutationResult, error) {
+	s.putCalls++
+	s.last = req
+	return soul.MutationResult{}, errors.New("captured soul put request")
+}
+
+func (s *workspaceIDCaptureSoulAuthoring) Delete(context.Context, soul.DeleteRequest) (soul.MutationResult, error) {
+	return soul.MutationResult{}, nil
+}
+
+func (s *workspaceIDCaptureSoulAuthoring) History(context.Context, soul.HistoryRequest) (soul.HistoryResult, error) {
+	return soul.HistoryResult{}, nil
+}
+
+func (s *workspaceIDCaptureSoulAuthoring) Rollback(context.Context, soul.RollbackRequest) (soul.MutationResult, error) {
+	return soul.MutationResult{}, nil
+}
+
+func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	agentDir := filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.AgentsDirName, "coder")
+	if err := os.MkdirAll(agentDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(agent dir) error = %v", err)
+	}
+	agentBody := []byte("---\nname: coder\nprovider: claude\n---\nReview startup launch work.\n")
+	if err := os.WriteFile(filepath.Join(agentDir, "AGENT.md"), agentBody, 0o644); err != nil {
+		t.Fatalf("WriteFile(AGENT.md) error = %v", err)
+	}
+
+	workspaces := testutil.StubWorkspaceService{
+		ResolveFn: func(ctx context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+			if err := ctx.Err(); err != nil {
+				return workspacepkg.ResolvedWorkspace{}, err
+			}
+			if strings.TrimSpace(ref) != "ws-stable" {
+				return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+			}
+			return workspacepkg.ResolvedWorkspace{
+				Workspace:   workspacepkg.Workspace{ID: "ws-registry", RootDir: workspaceRoot, Name: "Ad8 QA"},
+				WorkspaceID: "ws-stable",
+				Config: aghconfig.Config{
+					Agents: aghconfig.AgentsConfig{
+						Soul:      aghconfig.DefaultSoulConfig(),
+						Heartbeat: aghconfig.DefaultHeartbeatConfig(),
+					},
+				},
+			}, nil
+		},
+	}
+	fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, workspaces, nil, nil)
+	soulAuthoring := &workspaceIDCaptureSoulAuthoring{}
+	statusSpy := &heartbeatStatusSpy{}
+	wakeSpy := &heartbeatWakeSpy{}
+	fixture.Handlers.SoulAuthoring = soulAuthoring
+	fixture.Handlers.HeartbeatStatus = statusSpy
+	fixture.Handlers.HeartbeatWake = wakeSpy
+	fixture.Engine.PUT("/agents/:agent_name/soul", fixture.Handlers.PutAgentSoul)
+	fixture.Engine.GET("/agents/:name/heartbeat/status", fixture.Handlers.GetAgentHeartbeatStatus)
+	fixture.Engine.POST("/agents/:name/heartbeat/wake", fixture.Handlers.WakeAgentHeartbeat)
+
+	t.Run("Should pass registry workspace id to Soul authoring", func(t *testing.T) {
+		body := []byte("{\"workspace_id\":\"ws-stable\",\"agent_name\":\"coder\",\"body\":\"# Soul\"}")
+		req := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodPut,
+			"/agents/coder/soul",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		recorder := httptest.NewRecorder()
+		fixture.Engine.ServeHTTP(recorder, req)
+
+		if soulAuthoring.putCalls != 1 {
+			t.Fatalf("soul put calls = %d, want 1", soulAuthoring.putCalls)
+		}
+		if got, want := soulAuthoring.last.Target.WorkspaceID, "ws-registry"; got != want {
+			t.Fatalf("Soul target WorkspaceID = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should pass registry workspace id to Heartbeat status", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			"/agents/coder/heartbeat/status?workspace_id=ws-stable",
+			nil,
+		)
+		recorder := httptest.NewRecorder()
+		fixture.Engine.ServeHTTP(recorder, req)
+
+		if statusSpy.calls != 1 {
+			t.Fatalf("heartbeat status calls = %d, want 1", statusSpy.calls)
+		}
+		if got, want := statusSpy.last.Target.WorkspaceID, "ws-registry"; got != want {
+			t.Fatalf("Heartbeat status target WorkspaceID = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should pass registry workspace id to Heartbeat wake", func(t *testing.T) {
+		body := []byte(
+			"{\"workspace_id\":\"ws-stable\",\"agent_name\":\"coder\",\"source\":\"manual\",\"dry_run\":true}",
+		)
+		req := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
+			"/agents/coder/heartbeat/wake",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		recorder := httptest.NewRecorder()
+		fixture.Engine.ServeHTTP(recorder, req)
+
+		if wakeSpy.calls != 1 {
+			t.Fatalf("heartbeat wake calls = %d, want 1", wakeSpy.calls)
+		}
+		if got, want := wakeSpy.last.WorkspaceID, "ws-registry"; got != want {
+			t.Fatalf("Heartbeat wake WorkspaceID = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestAuthoredContextHeartbeatStatusAndWakeRejectForeignSessionWorkspace(t *testing.T) {

@@ -435,7 +435,6 @@ func TestUpdateSectionGeneralReturnsRestartRequired(t *testing.T) {
 				Sandbox:  "dev",
 			},
 			Limits: aghconfig.LimitsConfig{
-				MaxSessions:         7,
 				MaxConcurrentAgents: 11,
 			},
 			Permissions:    aghconfig.PermissionsConfig{Mode: aghconfig.PermissionModeApproveReads},
@@ -1602,7 +1601,6 @@ func TestUpdateSectionNoChangesReturnsWarning(t *testing.T) {
 				Sandbox:  "dev",
 			},
 			Limits: aghconfig.LimitsConfig{
-				MaxSessions:         7,
 				MaxConcurrentAgents: 11,
 			},
 			Permissions:    aghconfig.PermissionsConfig{Mode: aghconfig.PermissionModeApproveReads},
@@ -1965,8 +1963,7 @@ func TestSettingsMutationsEmitObserveEvents(t *testing.T) {
 			General: &GeneralSettings{
 				Defaults: cfg.Defaults,
 				Limits: aghconfig.LimitsConfig{
-					MaxSessions:         cfg.Limits.MaxSessions + 1,
-					MaxConcurrentAgents: cfg.Limits.MaxConcurrentAgents,
+					MaxConcurrentAgents: cfg.Limits.MaxConcurrentAgents + 1,
 				},
 				Permissions:    cfg.Permissions,
 				SessionTimeout: cfg.Session.Limits.Timeout,
@@ -2066,7 +2063,6 @@ provider = "codex"
 sandbox = "dev"
 
 [limits]
-max_sessions = 7
 max_concurrent_agents = 11
 
 [session.limits]

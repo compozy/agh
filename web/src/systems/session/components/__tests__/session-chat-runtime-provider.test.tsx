@@ -163,6 +163,47 @@ describe("SessionChatRuntimeProvider", () => {
     expect(screen.getByTestId("runtime-activity-detail")).toHaveTextContent("Using Bash");
   }, 10_000);
 
+  it("renders persisted session error events as failure notices", async () => {
+    transcriptMessages = [
+      ...sessionTranscriptFixture.slice(0, 1),
+      {
+        id: "transcript_error_001",
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            text: "Partial response before failure.",
+            state: "done",
+          },
+          {
+            type: "data-agh-event",
+            data: {
+              type: "error",
+              error:
+                '{"code":-32603,"message":"Internal error","data":{"error":"peer disconnected before response"}}',
+              failure: {
+                kind: "process_exit",
+                summary: "peer disconnected before response",
+              },
+            },
+          },
+        ],
+      },
+    ];
+
+    renderSessionThread();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("session-error-notice")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Partial response before failure.")).toBeInTheDocument();
+    expect(screen.getByTestId("session-error-notice")).toHaveTextContent("Session failed");
+    expect(screen.getByTestId("session-error-detail")).toHaveTextContent(
+      "peer disconnected before response"
+    );
+  }, 10_000);
+
   it("renders only unresolved permission events as interactive prompts", async () => {
     transcriptMessages = [
       ...sessionTranscriptFixture.slice(0, 1),

@@ -39,7 +39,7 @@ const envelope: SettingsGeneralSection = {
     daemon: { socket: "/tmp/agh.sock" },
     defaults: { agent: "general", provider: "claude" },
     http: { host: "127.0.0.1", port: 2123 },
-    limits: { max_sessions: 10, max_concurrent_agents: 20 },
+    limits: { max_concurrent_agents: 20 },
     permissions: { mode: "approve-all" },
     session_timeout: "0s",
   },
@@ -125,7 +125,7 @@ describe("useSettingsGeneralPage", () => {
     act(() => {
       result.current.setDraft({
         ...envelope.config,
-        limits: { ...envelope.config.limits, max_sessions: 50 },
+        limits: { ...envelope.config.limits, max_concurrent_agents: 50 },
       });
       result.current.handleSave();
     });

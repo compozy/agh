@@ -21933,7 +21933,6 @@ export interface operations {
               };
               limits: {
                 max_concurrent_agents: number;
-                max_sessions: number;
               };
               permissions: {
                 /** @enum {string} */
@@ -22023,7 +22022,6 @@ export interface operations {
             };
             limits: {
               max_concurrent_agents: number;
-              max_sessions: number;
             };
             permissions: {
               /** @enum {string} */

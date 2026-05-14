@@ -185,10 +185,7 @@ function RuntimeSection({ envelope }: { envelope: SettingsGeneralSection }) {
               : `${envelope.config.http.host}:${envelope.config.http.port}`
           }
         />
-        <Metric
-          label="Active sessions"
-          value={`${runtime.active_sessions} / ${envelope.config.limits.max_sessions} max`}
-        />
+        <Metric label="Active sessions" value={String(runtime.active_sessions)} />
         <Metric
           label="Concurrent agents"
           value={`${runtime.active_agents} / ${envelope.config.limits.max_concurrent_agents} max`}

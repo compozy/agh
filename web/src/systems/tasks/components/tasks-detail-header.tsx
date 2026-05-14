@@ -71,6 +71,11 @@ export function TasksDetailHeader({
     record.status === "ready" || record.status === "in_progress" || record.status === "blocked";
   const signal = taskStatusSignal(record.status);
   const activeRun = detail.summary?.active_run ?? null;
+  const hasOpenRun =
+    activeRun?.status === "queued" ||
+    activeRun?.status === "claimed" ||
+    activeRun?.status === "starting" ||
+    activeRun?.status === "running";
   const lifecyclePhase = taskLifecyclePhase({
     status: record.status,
     approval_state: record.approval_state,
@@ -215,7 +220,7 @@ export function TasksDetailHeader({
               {publishCopy.label}
             </Button>
           ) : null}
-          {!isDraft && onEnqueueRun ? (
+          {!isDraft && !hasOpenRun && onEnqueueRun ? (
             <Button
               data-testid="tasks-detail-enqueue"
               disabled={isEnqueuePending}
