@@ -14,6 +14,7 @@ import { Button, Empty, buttonVariants } from "@agh/ui";
 
 import { TopbarShell } from "@/components/topbar-shell";
 import { useAppLayout } from "@/hooks/routes/use-app-layout";
+import { AgentCreateDialog } from "@/systems/agent";
 import { AppSidebar } from "@/systems/runtime";
 import { SessionCreateDialog, SessionCreateProvider } from "@/systems/session";
 import { WorkspaceOnboarding, WorkspaceSetupDialog } from "@/systems/workspace";
@@ -54,6 +55,7 @@ function AppLayout() {
           activeWorkspaceId={page.activeWorkspaceId}
           onSelectWorkspace={page.setActiveWorkspaceId}
           onAddWorkspace={page.openWorkspaceSetup}
+          onAddAgent={page.agentCreate.openDialog}
           agents={page.agents}
           agentsLoading={page.agentsLoading}
           agentsError={page.agentsError}
@@ -74,6 +76,23 @@ function AppLayout() {
         open={page.isWorkspaceSetupOpen}
         onOpenChange={page.setWorkspaceSetupOpen}
         onWorkspaceResolved={page.setActiveWorkspaceId}
+      />
+      <AgentCreateDialog
+        draft={page.agentCreate.draft}
+        hasActiveWorkspace={page.agentCreate.hasActiveWorkspace}
+        isSubmitting={page.agentCreate.isSubmitting}
+        modelCatalogError={page.agentCreate.modelCatalogError}
+        modelCatalogLoading={page.agentCreate.modelCatalogLoading}
+        modelOptions={page.agentCreate.modelOptions}
+        onDraftChange={page.agentCreate.onDraftChange}
+        onOpenChange={page.agentCreate.onOpenChange}
+        onSubmit={page.agentCreate.onSubmit}
+        open={page.agentCreate.open}
+        providerOptions={page.agentCreate.providerOptions}
+        providersError={page.agentCreate.providersError}
+        providersLoading={page.agentCreate.providersLoading}
+        submitError={page.agentCreate.submitError}
+        workspaceName={page.agentCreate.workspaceName}
       />
       <SessionCreateDialog
         agents={page.sessionCreate.agents}

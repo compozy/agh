@@ -10,10 +10,7 @@ import (
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 )
-
-const cliAgentDefinitionFileName = "AGENT.md"
 
 func newAgentCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
@@ -42,18 +39,6 @@ type agentCreateFlags struct {
 	permissions  string
 	categoryPath []string
 	force        bool
-}
-
-type agentDefinitionFrontmatter struct {
-	Name         string   `yaml:"name"`
-	Provider     string   `yaml:"provider,omitempty"`
-	Command      string   `yaml:"command,omitempty"`
-	Model        string   `yaml:"model,omitempty"`
-	Tools        []string `yaml:"tools,omitempty"`
-	Toolsets     []string `yaml:"toolsets,omitempty"`
-	DenyTools    []string `yaml:"deny_tools,omitempty"`
-	Permissions  string   `yaml:"permissions,omitempty"`
-	CategoryPath []string `yaml:"category_path,omitempty"`
 }
 
 func newAgentCreateCommand(deps commandDeps) *cobra.Command {
@@ -111,19 +96,33 @@ func createAgentDefinition(
 	if err != nil {
 		return aghconfig.AgentDef{}, err
 	}
-	contents, agent, err := renderAgentDefinition(agentName, prompt, flags)
-	if err != nil {
-		return aghconfig.AgentDef{}, err
-	}
 	agentsDir, err := resolveAgentCreateDirectory(cmd, deps, flags.workspace)
 	if err != nil {
 		return aghconfig.AgentDef{}, err
 	}
-	path := filepath.Join(agentsDir, agentName, cliAgentDefinitionFileName)
-	if err := writeAgentDefinitionFile(path, contents, flags.force); err != nil {
+	path := filepath.Join(agentsDir, agentName, aghconfig.AgentDefinitionFileName)
+	agent, err := aghconfig.CreateAgentDefFile(path, aghconfig.AgentDefinitionDraft{
+		Name:         agentName,
+		Provider:     flags.provider,
+		Command:      flags.command,
+		Model:        flags.model,
+		Tools:        flags.tools,
+		Toolsets:     flags.toolsets,
+		DenyTools:    flags.denyTools,
+		Permissions:  flags.permissions,
+		CategoryPath: flags.categoryPath,
+		Prompt:       prompt,
+	}, flags.force)
+	if err != nil {
+		if errors.Is(err, aghconfig.ErrAgentDefinitionExists) {
+			return aghconfig.AgentDef{}, fmt.Errorf(
+				"cli: agent definition already exists at %s (use --force to overwrite): %w",
+				path,
+				err,
+			)
+		}
 		return aghconfig.AgentDef{}, err
 	}
-	agent.SourcePath = filepath.Clean(path)
 	return agent, nil
 }
 
@@ -144,41 +143,6 @@ func agentCreatePrompt(flags agentCreateFlags) (string, error) {
 		return "", errors.New("cli: --prompt or --prompt-file is required")
 	}
 	return prompt, nil
-}
-
-func renderAgentDefinition(
-	agentName string,
-	prompt string,
-	flags agentCreateFlags,
-) (string, aghconfig.AgentDef, error) {
-	metadata := agentDefinitionFrontmatter{
-		Name:         agentName,
-		Provider:     strings.TrimSpace(flags.provider),
-		Command:      strings.TrimSpace(flags.command),
-		Model:        strings.TrimSpace(flags.model),
-		Tools:        trimSpawnAtoms(flags.tools),
-		Toolsets:     trimSpawnAtoms(flags.toolsets),
-		DenyTools:    trimSpawnAtoms(flags.denyTools),
-		Permissions:  strings.TrimSpace(flags.permissions),
-		CategoryPath: trimSpawnAtoms(flags.categoryPath),
-	}
-	frontmatter, err := yaml.Marshal(metadata)
-	if err != nil {
-		return "", aghconfig.AgentDef{}, fmt.Errorf("cli: render agent frontmatter: %w", err)
-	}
-	contents := fmt.Sprintf("---\n%s---\n\n%s\n", string(frontmatter), prompt)
-	agent, err := aghconfig.ParseAgentDef([]byte(contents))
-	if err != nil {
-		return "", aghconfig.AgentDef{}, fmt.Errorf("cli: validate generated agent definition: %w", err)
-	}
-	if agent.Name != agentName {
-		return "", aghconfig.AgentDef{}, fmt.Errorf(
-			"cli: generated agent name %q does not match %q",
-			agent.Name,
-			agentName,
-		)
-	}
-	return contents, agent, nil
 }
 
 func resolveAgentCreateDirectory(cmd *cobra.Command, deps commandDeps, workspaceRef string) (string, error) {
@@ -208,23 +172,6 @@ func resolveAgentCreateDirectory(cmd *cobra.Command, deps commandDeps, workspace
 		return "", errors.New("cli: resolved workspace root_dir is empty")
 	}
 	return filepath.Join(rootDir, aghconfig.DirName, aghconfig.AgentsDirName), nil
-}
-
-func writeAgentDefinitionFile(path string, contents string, force bool) error {
-	if !force {
-		if _, err := os.Stat(path); err == nil {
-			return fmt.Errorf("cli: agent definition already exists at %s (use --force to overwrite)", path)
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("cli: inspect agent definition %q: %w", path, err)
-		}
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return fmt.Errorf("cli: create agent directory %q: %w", filepath.Dir(path), err)
-	}
-	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
-		return fmt.Errorf("cli: write agent definition %q: %w", path, err)
-	}
-	return nil
 }
 
 func agentRecordFromDefinition(agent aghconfig.AgentDef) AgentRecord {

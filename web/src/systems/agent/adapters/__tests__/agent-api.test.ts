@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { expectFetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
 
-import { fetchAgent, fetchAgents } from "../agent-api";
+import type { CreateAgentParams } from "../../types";
+import { createAgent, fetchAgent, fetchAgents } from "../agent-api";
 
 describe("fetchAgents", () => {
   const validResponse = {
@@ -128,5 +129,74 @@ describe("fetchAgent", () => {
     await fetchAgent("my agent");
 
     await expectFetchRequest({ path: "/api/agents/my%20agent" });
+  });
+});
+
+describe("createAgent", () => {
+  const request: CreateAgentParams = {
+    scope: "workspace",
+    workspace: "ws_alpha",
+    agent: {
+      name: "release-captain",
+      provider: "codex",
+      prompt: "Own release readiness.",
+      model: "gpt-5.4",
+      tools: ["agh__skill_view"],
+    },
+  };
+
+  const response = {
+    agent: {
+      name: "release-captain",
+      provider: "codex",
+      model: "gpt-5.4",
+      prompt: "Own release readiness.",
+      tools: ["agh__skill_view"],
+    },
+  };
+
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("posts the create-agent payload and returns the created agent", async () => {
+    mockJsonResponse(response, { status: 201 });
+
+    const result = await createAgent(request);
+
+    expect(result).toEqual(response.agent);
+    await expectFetchRequest({
+      path: "/api/agents",
+      method: "POST",
+      body: request,
+    });
+  });
+
+  it("passes abort signal to the create request", async () => {
+    mockJsonResponse(response, { status: 201 });
+
+    const controller = new AbortController();
+    await createAgent(request, controller.signal);
+
+    await expectFetchRequest({
+      path: "/api/agents",
+      method: "POST",
+      signal: controller.signal,
+    });
+  });
+
+  it("throws backend duplicate errors with the response status", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(JSON.stringify({ error: "agent definition already exists" }), {
+        status: 409,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    await expect(createAgent(request)).rejects.toThrow("agent definition already exists");
   });
 });

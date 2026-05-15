@@ -269,7 +269,8 @@ export interface paths {
     /** List all readable agent definitions, optionally resolved for a workspace */
     get: operations["listAgents"];
     put?: never;
-    post?: never;
+    /** Create a global or workspace-local AGENT.md definition */
+    post: operations["createAgent"];
     delete?: never;
     options?: never;
     head?: never;
@@ -6757,6 +6758,165 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  createAgent: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          agent: {
+            category_path?: string[];
+            command?: string;
+            deny_tools?: string[];
+            model?: string;
+            name: string;
+            /** @enum {string} */
+            permissions?: "deny-all" | "approve-reads" | "approve-all";
+            prompt: string;
+            provider: string;
+            skills?: {
+              disabled?: string[];
+            } | null;
+            tools?: string[];
+            toolsets?: string[];
+          };
+          /** @enum {string} */
+          scope: "workspace" | "global";
+          workspace?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            agent: {
+              category_path?: string[];
+              command?: string;
+              deny_tools?: string[];
+              diagnostics?: {
+                error_kind: string;
+                message: string;
+                path: string;
+              }[];
+              mcp_servers?: {
+                args?: string[];
+                auth?: {
+                  authorization_url?: string;
+                  client_id?: string;
+                  client_secret_ref?: string;
+                  issuer_url?: string;
+                  metadata_url?: string;
+                  revocation_url?: string;
+                  scopes?: string[];
+                  token_url?: string;
+                  type?: string;
+                } | null;
+                command?: string;
+                env?: {
+                  [key: string]: string;
+                };
+                name: string;
+                secret_env?: {
+                  [key: string]: string;
+                };
+                transport?: string;
+                url?: string;
+              }[];
+              model?: string;
+              name: string;
+              permissions?: string;
+              prompt: string;
+              provider: string;
+              tools?: string[];
+              toolsets?: string[];
+            };
+          };
+        };
+      };
+      /** @description Invalid agent definition request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Agent definition already exists */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace root missing */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: string;
+          };
+        };
+      };
+      /** @description Workspace resolver unavailable */
+      503: {
         headers: {
           [name: string]: unknown;
         };

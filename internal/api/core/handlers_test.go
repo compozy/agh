@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -450,6 +451,281 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 	if missingResp.Code != http.StatusInternalServerError {
 		t.Fatalf("missing agent status = %d, want %d", missingResp.Code, http.StatusInternalServerError)
 	}
+}
+
+func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should create a global AGENT.md definition", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		body := mustJSON(t, contract.CreateAgentRequest{
+			Scope: contract.AgentCreateScopeGlobal,
+			Agent: contract.CreateAgentPayload{
+				Name:         "pricing_strategist",
+				Provider:     "claude",
+				Model:        "claude-sonnet-4-6",
+				Tools:        []string{"builtin__shell"},
+				Permissions:  contract.SettingsPermissionModeApproveReads,
+				CategoryPath: []string{"Strategy"},
+				Skills:       &contract.CreateAgentSkillsConfig{Disabled: []string{"legacy-skill"}},
+				Prompt:       "You own pricing strategy.",
+			},
+		})
+
+		resp := performRequest(t, fixture.Engine, http.MethodPost, "/agents", body)
+		if resp.Code != http.StatusCreated {
+			t.Fatalf(
+				"create global agent status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusCreated,
+				resp.Body.String(),
+			)
+		}
+		var payload contract.AgentResponse
+		decodeJSON(t, resp.Body.Bytes(), &payload)
+		if payload.Agent.Name != "pricing_strategist" || payload.Agent.Provider != "claude" {
+			t.Fatalf("created agent payload = %#v, want pricing strategist", payload.Agent)
+		}
+		path := filepath.Join(
+			fixture.HomePaths.AgentsDir,
+			"pricing_strategist",
+			aghconfig.AgentDefinitionFileName,
+		)
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("os.Stat(created AGENT.md) error = %v", err)
+		}
+		if info.Mode().Perm() != 0o600 {
+			t.Fatalf("created AGENT.md mode = %v, want 0600", info.Mode().Perm())
+		}
+		loaded, err := aghconfig.LoadAgentDefFile(path)
+		if err != nil {
+			t.Fatalf("LoadAgentDefFile(created AGENT.md) error = %v", err)
+		}
+		if loaded.Permissions != string(contract.SettingsPermissionModeApproveReads) ||
+			len(loaded.Skills.Disabled) != 1 || loaded.Skills.Disabled[0] != "legacy-skill" {
+			t.Fatalf("loaded agent = %#v, want permissions and disabled skill", loaded)
+		}
+	})
+
+	t.Run("Should create a workspace AGENT.md definition", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := t.TempDir()
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{
+				ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+					if ref != "alpha" {
+						t.Fatalf("Resolve() ref = %q, want alpha", ref)
+					}
+					return workspacepkg.ResolvedWorkspace{
+						Workspace: workspacepkg.Workspace{
+							ID:      "ws-alpha",
+							Name:    "alpha",
+							RootDir: workspaceRoot,
+						},
+						WorkspaceID: "ws-alpha",
+					}, nil
+				},
+			},
+			nil,
+			nil,
+		)
+		body := mustJSON(t, contract.CreateAgentRequest{
+			Scope:     contract.AgentCreateScopeWorkspace,
+			Workspace: "alpha",
+			Agent: contract.CreateAgentPayload{
+				Name:     "qa_operator",
+				Provider: "codex",
+				Prompt:   "Stress test the workspace.",
+			},
+		})
+
+		resp := performRequest(t, fixture.Engine, http.MethodPost, "/agents", body)
+		if resp.Code != http.StatusCreated {
+			t.Fatalf(
+				"create workspace agent status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusCreated,
+				resp.Body.String(),
+			)
+		}
+		path := filepath.Join(
+			workspaceRoot,
+			aghconfig.DirName,
+			aghconfig.AgentsDirName,
+			"qa_operator",
+			aghconfig.AgentDefinitionFileName,
+		)
+		loaded, err := aghconfig.LoadAgentDefFile(path)
+		if err != nil {
+			t.Fatalf("LoadAgentDefFile(workspace AGENT.md) error = %v", err)
+		}
+		if loaded.Name != "qa_operator" || loaded.Provider != "codex" {
+			t.Fatalf("loaded workspace agent = %#v, want qa_operator", loaded)
+		}
+	})
+
+	t.Run("Should reject duplicate AGENT.md definitions", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		body := mustJSON(t, contract.CreateAgentRequest{
+			Scope: contract.AgentCreateScopeGlobal,
+			Agent: contract.CreateAgentPayload{
+				Name:     "duplicate",
+				Provider: "codex",
+				Prompt:   "First definition.",
+			},
+		})
+		first := performRequest(t, fixture.Engine, http.MethodPost, "/agents", body)
+		if first.Code != http.StatusCreated {
+			t.Fatalf(
+				"initial create status = %d, want %d; body=%s",
+				first.Code,
+				http.StatusCreated,
+				first.Body.String(),
+			)
+		}
+		second := performRequest(t, fixture.Engine, http.MethodPost, "/agents", body)
+		if second.Code != http.StatusConflict {
+			t.Fatalf(
+				"duplicate create status = %d, want %d; body=%s",
+				second.Code,
+				http.StatusConflict,
+				second.Body.String(),
+			)
+		}
+	})
+
+	t.Run("Should reject invalid simple AGENT.md fields", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name string
+			req  contract.CreateAgentRequest
+		}{
+			{
+				name: "missing provider",
+				req: contract.CreateAgentRequest{
+					Scope: contract.AgentCreateScopeGlobal,
+					Agent: contract.CreateAgentPayload{Name: "missing_provider", Prompt: "Prompt."},
+				},
+			},
+			{
+				name: "invalid permission",
+				req: contract.CreateAgentRequest{
+					Scope: contract.AgentCreateScopeGlobal,
+					Agent: contract.CreateAgentPayload{
+						Name:        "bad_permission",
+						Provider:    "codex",
+						Permissions: "maybe",
+						Prompt:      "Prompt.",
+					},
+				},
+			},
+			{
+				name: "invalid tool",
+				req: contract.CreateAgentRequest{
+					Scope: contract.AgentCreateScopeGlobal,
+					Agent: contract.CreateAgentPayload{
+						Name:     "bad_tool",
+						Provider: "codex",
+						Tools:    []string{"shell"},
+						Prompt:   "Prompt.",
+					},
+				},
+			},
+			{
+				name: "invalid category",
+				req: contract.CreateAgentRequest{
+					Scope: contract.AgentCreateScopeGlobal,
+					Agent: contract.CreateAgentPayload{
+						Name:         "bad_category",
+						Provider:     "codex",
+						CategoryPath: []string{"Engineering/Platform"},
+						Prompt:       "Prompt.",
+					},
+				},
+			},
+		}
+		for _, tc := range tests {
+			t.Run("Should reject "+tc.name, func(t *testing.T) {
+				t.Parallel()
+				fixture := newHandlerFixture(
+					t,
+					testutil.StubSessionManager{},
+					testutil.StubObserver{},
+					testutil.StubWorkspaceService{},
+					nil,
+					nil,
+				)
+				resp := performRequest(t, fixture.Engine, http.MethodPost, "/agents", mustJSON(t, tc.req))
+				if resp.Code != http.StatusBadRequest {
+					t.Fatalf(
+						"invalid create status = %d, want %d; body=%s",
+						resp.Code,
+						http.StatusBadRequest,
+						resp.Body.String(),
+					)
+				}
+			})
+		}
+	})
+
+	t.Run("Should map unresolved workspaces through workspace errors", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{
+				ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+				},
+			},
+			nil,
+			nil,
+		)
+		body := mustJSON(t, contract.CreateAgentRequest{
+			Scope:     contract.AgentCreateScopeWorkspace,
+			Workspace: "missing",
+			Agent: contract.CreateAgentPayload{
+				Name:     "operator",
+				Provider: "codex",
+				Prompt:   "Operate.",
+			},
+		})
+		resp := performRequest(t, fixture.Engine, http.MethodPost, "/agents", body)
+		if resp.Code != http.StatusNotFound {
+			t.Fatalf(
+				"missing workspace status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusNotFound,
+				resp.Body.String(),
+			)
+		}
+	})
 }
 
 func TestBaseHandlersAgentCatalogEndpoints(t *testing.T) {

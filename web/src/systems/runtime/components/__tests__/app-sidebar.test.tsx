@@ -10,6 +10,7 @@ import { computeAgentsCount } from "../app-sidebar";
 const onSelectWorkspace = vi.fn();
 const onCollapseChange = vi.fn();
 const onAddWorkspace = vi.fn();
+const onAddAgent = vi.fn();
 let matchedRoute: Record<string, boolean> = {};
 let matchedRouteFuzzy: Record<string, boolean> = {};
 
@@ -127,6 +128,7 @@ function makeProps(overrides: Partial<AppSidebarProps> = {}): AppSidebarProps {
     activeWorkspace: workspaces[0],
     onSelectWorkspace,
     onAddWorkspace,
+    onAddAgent,
     agents: [],
     agentsLoading: false,
     agentsError: false,
@@ -152,6 +154,7 @@ describe("AppSidebar", () => {
     onSelectWorkspace.mockReset();
     onCollapseChange.mockReset();
     onAddWorkspace.mockReset();
+    onAddAgent.mockReset();
   });
 
   describe("Should render the header slot", () => {
@@ -348,6 +351,17 @@ describe("AppSidebar", () => {
     it("Should show the loading state when agents are loading", () => {
       renderSidebar(makeProps({ agentsLoading: true, agents: undefined }));
       expect(screen.getByText("Loading agents...")).toBeInTheDocument();
+    });
+
+    it("Should expose an icon button for creating an agent", () => {
+      renderSidebar(makeProps());
+
+      const button = screen.getByRole("button", { name: "Create agent" });
+      expect(button).toBeInTheDocument();
+
+      fireEvent.click(button);
+
+      expect(onAddAgent).toHaveBeenCalledOnce();
     });
 
     it("Should render categorized agents grouped by category_path", () => {

@@ -21,6 +21,7 @@ const mockNavigate = vi.fn();
 
 const mockSetActiveWorkspaceId = vi.fn();
 const mockCreateSessionMutateAsync = vi.fn();
+const mockOpenAgentCreate = vi.fn();
 
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute:
@@ -62,13 +63,20 @@ vi.mock("@/systems/runtime", () => ({
   AppSidebar: ({
     className,
     onAddWorkspace,
+    onAddAgent,
   }: {
     className?: string;
     onAddWorkspace: () => void;
+    onAddAgent: () => void;
   }) => (
-    <button className={className} data-testid="app-sidebar" onClick={onAddWorkspace} type="button">
-      Sidebar
-    </button>
+    <div className={className} data-testid="app-sidebar">
+      <button data-testid="app-sidebar-add-workspace" onClick={onAddWorkspace} type="button">
+        Add workspace
+      </button>
+      <button data-testid="app-sidebar-add-agent" onClick={onAddAgent} type="button">
+        Add agent
+      </button>
+    </div>
   ),
 }));
 
@@ -101,6 +109,39 @@ vi.mock("@/systems/agent", () => ({
     isLoading: false,
     isError: false,
   }),
+  useAgentCreateDialog: () => ({
+    open: false,
+    draft: {
+      scope: "workspace",
+      name: "",
+      categoryPath: "",
+      provider: "",
+      model: "",
+      command: "",
+      prompt: "",
+      permissions: "",
+      tools: [],
+      toolsets: [],
+      denyTools: [],
+      disabledSkills: [],
+    },
+    providerOptions: [],
+    providersLoading: false,
+    providersError: null,
+    modelOptions: [],
+    modelCatalogLoading: false,
+    modelCatalogError: null,
+    submitError: null,
+    isSubmitting: false,
+    hasActiveWorkspace: true,
+    workspaceName: "alpha",
+    openDialog: mockOpenAgentCreate,
+    onDraftChange: vi.fn(),
+    onOpenChange: vi.fn(),
+    onSubmit: vi.fn(),
+  }),
+  AgentCreateDialog: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="agent-create-dialog" /> : null,
 }));
 
 vi.mock("@/systems/session", () => ({
@@ -207,6 +248,7 @@ describe("AppLayout", () => {
     mockReset.mockReset();
     mockSetActiveWorkspaceId.mockReset();
     mockCreateSessionMutateAsync.mockReset();
+    mockOpenAgentCreate.mockReset();
   });
 
   it("renders sidebar, topbar shell, and outlet inside the app shell", () => {
@@ -261,11 +303,19 @@ describe("AppLayout", () => {
   it("opens workspace setup from the sidebar trigger and selects the resolved workspace", () => {
     render(<AppLayout />);
 
-    fireEvent.click(screen.getByTestId("app-sidebar"));
+    fireEvent.click(screen.getByTestId("app-sidebar-add-workspace"));
     expect(screen.getByTestId("workspace-setup-dialog")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("workspace-setup-dialog"));
     expect(mockSetActiveWorkspaceId).toHaveBeenCalledWith("ws_new");
+  });
+
+  it("opens agent creation from the sidebar trigger", () => {
+    render(<AppLayout />);
+
+    fireEvent.click(screen.getByTestId("app-sidebar-add-agent"));
+
+    expect(mockOpenAgentCreate).toHaveBeenCalledOnce();
   });
 
   it("renders an app-level not-found fallback with a path back home", () => {

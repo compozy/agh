@@ -300,6 +300,43 @@ type SessionRepairActionPayload struct {
 	Persisted  bool   `json:"persisted"`
 }
 
+// AgentCreateScope identifies where a newly authored AGENT.md definition is stored.
+type AgentCreateScope string
+
+const (
+	// AgentCreateScopeWorkspace writes the agent under one workspace's .agh directory.
+	AgentCreateScopeWorkspace AgentCreateScope = "workspace"
+	// AgentCreateScopeGlobal writes the agent under AGH_HOME.
+	AgentCreateScopeGlobal AgentCreateScope = "global"
+)
+
+// CreateAgentRequest is the shared agent definition authoring request payload.
+type CreateAgentRequest struct {
+	Scope     AgentCreateScope   `json:"scope"`
+	Workspace string             `json:"workspace,omitempty"`
+	Agent     CreateAgentPayload `json:"agent"`
+}
+
+// CreateAgentPayload captures the simple AGENT.md fields supported by v1 authoring.
+type CreateAgentPayload struct {
+	Name         string                   `json:"name"`
+	Provider     string                   `json:"provider"`
+	Command      string                   `json:"command,omitempty"`
+	Model        string                   `json:"model,omitempty"`
+	Tools        []string                 `json:"tools,omitempty"`
+	Toolsets     []string                 `json:"toolsets,omitempty"`
+	DenyTools    []string                 `json:"deny_tools,omitempty"`
+	Permissions  SettingsPermissionMode   `json:"permissions,omitempty"`
+	CategoryPath []string                 `json:"category_path,omitempty"`
+	Skills       *CreateAgentSkillsConfig `json:"skills,omitempty"`
+	Prompt       string                   `json:"prompt"`
+}
+
+// CreateAgentSkillsConfig captures agent-local skill policy stored in AGENT.md.
+type CreateAgentSkillsConfig struct {
+	Disabled []string `json:"disabled,omitempty"`
+}
+
 // AgentPayload is the shared agent definition response payload.
 type AgentPayload struct {
 	Name         string                   `json:"name"`

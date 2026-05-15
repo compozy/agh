@@ -87,6 +87,49 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			},
 		},
 		{
+			name: "ShouldDescribeCreateAgentContract",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				createAgent := operationFor(t, doc, "/api/agents", "POST")
+				assertTagsContain(t, createAgent, "agents")
+				assertResponseStatus(t, createAgent, 400)
+				assertResponseStatus(t, createAgent, 409)
+				assertResponseStatus(t, createAgent, 503)
+
+				requestSchema := jsonRequestSchema(t, createAgent)
+				assertRequired(t, requestSchema, "scope", "agent")
+				assertEnumValues(t, propertySchema(t, requestSchema, "scope"), "workspace", "global")
+
+				agentSchema := propertySchema(t, requestSchema, "agent")
+				assertRequired(t, agentSchema, "name", "provider", "prompt")
+				assertNotRequired(
+					t,
+					agentSchema,
+					"command",
+					"model",
+					"tools",
+					"toolsets",
+					"deny_tools",
+					"permissions",
+					"category_path",
+					"skills",
+				)
+				assertEnumValues(
+					t,
+					propertySchema(t, agentSchema, "permissions"),
+					"deny-all",
+					"approve-reads",
+					"approve-all",
+				)
+				assertPropertyAbsent(t, agentSchema, "mcp_servers")
+				assertPropertyAbsent(t, agentSchema, "hooks")
+
+				responseSchema := jsonResponseSchema(t, createAgent, 201)
+				assertRequired(t, responseSchema, "agent")
+			},
+		},
+		{
 			name: "ShouldDescribeProviderModelCatalogAndOpenAIProjection",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()

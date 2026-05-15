@@ -58,6 +58,7 @@ var schemaEnumValues = map[reflect.Type][]string{
 	reflect.TypeFor[taskpkg.RunReviewOutcome]():                  taskRunReviewOutcomeValues(),
 	reflect.TypeFor[contract.TaskInboxLane]():                    taskInboxLaneValues(),
 	reflect.TypeFor[contract.CoordinationMessageKind]():          coordinationMessageKindValues(),
+	reflect.TypeFor[contract.AgentCreateScope]():                 agentCreateScopeValues(),
 	reflect.TypeFor[contract.CoordinatorConfigSource]():          coordinatorConfigSourceValues(),
 	reflect.TypeFor[contract.AuthoredValidationStatus]():         contract.AuthoredValidationStatusValues(),
 	reflect.TypeFor[contract.AuthoredDiagnosticSeverity]():       contract.AuthoredDiagnosticSeverityValues(),
@@ -590,6 +591,24 @@ var operationRegistry = []OperationSpec{
 			{Status: 404, Description: "Toolset not found", Body: contract.ToolErrorResponse{}},
 			{Status: 500, Description: "Internal daemon error", Body: contract.ToolErrorResponse{}},
 			{Status: 503, Description: "Toolset registry unavailable", Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      "POST",
+		Path:        "/api/agents",
+		OperationID: "createAgent",
+		Summary:     "Create a global or workspace-local AGENT.md definition",
+		Tags:        []string{"agents"},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		RequestBody: contract.CreateAgentRequest{},
+		Responses: []ResponseSpec{
+			{Status: 201, Description: "Created", Body: contract.AgentResponse{}},
+			{Status: 400, Description: "Invalid agent definition request", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Workspace not found", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Agent definition already exists", Body: contract.ErrorPayload{}},
+			{Status: 410, Description: "Workspace root missing", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: "Internal server error", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: "Workspace resolver unavailable", Body: contract.ErrorPayload{}},
 		},
 	},
 	{
@@ -5237,6 +5256,13 @@ func coordinationMessageKindValues() []string {
 		values = append(values, string(kind))
 	}
 	return values
+}
+
+func agentCreateScopeValues() []string {
+	return []string{
+		string(contract.AgentCreateScopeWorkspace),
+		string(contract.AgentCreateScopeGlobal),
+	}
 }
 
 func coordinatorConfigSourceValues() []string {

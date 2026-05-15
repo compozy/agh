@@ -7,6 +7,7 @@ const {
   mockSetActiveWorkspaceId,
   mockToastError,
   mockWorkspaceQuery,
+  mockOpenAgentCreate,
   mockUseCreateSessionPending,
 } = vi.hoisted(() => ({
   mockNavigate: vi.fn<(input: unknown) => Promise<void>>(),
@@ -14,6 +15,7 @@ const {
   mockSetActiveWorkspaceId: vi.fn<(workspaceId: string | null) => void>(),
   mockToastError: vi.fn(),
   mockWorkspaceQuery: vi.fn(),
+  mockOpenAgentCreate: vi.fn<() => void>(),
   mockUseCreateSessionPending: { current: false as boolean },
 }));
 
@@ -53,6 +55,37 @@ vi.mock("@/systems/agent", () => ({
     data: mockAgents,
     isLoading: mockAgentsLoading,
     isError: mockAgentsError,
+  }),
+  useAgentCreateDialog: () => ({
+    open: false,
+    draft: {
+      scope: "workspace",
+      name: "",
+      categoryPath: "",
+      provider: "",
+      model: "",
+      command: "",
+      prompt: "",
+      permissions: "",
+      tools: [],
+      toolsets: [],
+      denyTools: [],
+      disabledSkills: [],
+    },
+    providerOptions: [],
+    providersLoading: false,
+    providersError: null,
+    modelOptions: [],
+    modelCatalogLoading: false,
+    modelCatalogError: null,
+    submitError: null,
+    isSubmitting: false,
+    hasActiveWorkspace: mockActiveWorkspaceId !== null,
+    workspaceName: mockActiveWorkspaceId === null ? null : "alpha",
+    openDialog: mockOpenAgentCreate,
+    onDraftChange: vi.fn(),
+    onOpenChange: vi.fn(),
+    onSubmit: vi.fn(),
   }),
 }));
 
@@ -155,6 +188,7 @@ describe("useAppLayout", () => {
     mockSetActiveWorkspaceId.mockReset();
     mockToastError.mockReset();
     mockWorkspaceQuery.mockReset();
+    mockOpenAgentCreate.mockReset();
     mockUseCreateSessionPending.current = false;
     mockWorkspaceQuery.mockReturnValue({
       data: {
@@ -351,5 +385,15 @@ describe("useAppLayout", () => {
     expect(mockToastError).toHaveBeenCalledWith(
       "Select an active workspace before starting a session."
     );
+  });
+
+  it("exposes the agent creation dialog controller", () => {
+    const { result } = renderHook(() => useAppLayout());
+
+    act(() => {
+      result.current.agentCreate.openDialog();
+    });
+
+    expect(mockOpenAgentCreate).toHaveBeenCalledOnce();
   });
 });

@@ -2,8 +2,10 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -24,6 +26,8 @@ import (
 )
 
 const defaultPollInterval = 100 * time.Millisecond
+
+var errCreateAgentRequestInvalid = errors.New("api: invalid create agent request")
 
 // TaskActorContextResolver derives the trusted task-domain actor envelope for one API request.
 type TaskActorContextResolver func(c *gin.Context, action string) (taskpkg.ActorContext, error)
@@ -680,6 +684,32 @@ func (h *BaseHandlers) ListAgents(c *gin.Context) {
 	h.respondAgentDefs(c, agentDefs)
 }
 
+// CreateAgent writes a new global or workspace-local AGENT.md definition.
+func (h *BaseHandlers) CreateAgent(c *gin.Context) {
+	var req contract.CreateAgentRequest
+	if err := decodeStrictCreateAgentRequest(c, &req); err != nil {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			fmt.Errorf("%s: decode create agent request: %w", h.transportName(), err),
+		)
+		return
+	}
+
+	draft, path, err := h.createAgentDraftAndPath(c.Request.Context(), req)
+	if err != nil {
+		h.respondError(c, statusForCreateAgentError(err), err)
+		return
+	}
+
+	agent, err := aghconfig.CreateAgentDefFile(path, draft, false)
+	if err != nil {
+		h.respondError(c, statusForCreateAgentError(err), err)
+		return
+	}
+	c.JSON(http.StatusCreated, contract.AgentResponse{Agent: AgentPayloadFromDef(agent)})
+}
+
 // GetAgent returns one agent definition by name.
 func (h *BaseHandlers) GetAgent(c *gin.Context) {
 	if workspaceRef := strings.TrimSpace(c.Query("workspace")); workspaceRef != "" {
@@ -717,6 +747,125 @@ func (h *BaseHandlers) GetAgent(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, contract.AgentResponse{Agent: AgentPayloadFromDef(agent)})
+}
+
+func decodeStrictCreateAgentRequest(c *gin.Context, req *contract.CreateAgentRequest) error {
+	if c == nil || c.Request == nil || c.Request.Body == nil {
+		return io.EOF
+	}
+	decoder := json.NewDecoder(c.Request.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(req); err != nil {
+		return err
+	}
+	var extra struct{}
+	if err := decoder.Decode(&extra); err != nil && !errors.Is(err, io.EOF) {
+		return err
+	} else if err == nil {
+		return errors.New("request body must contain a single JSON object")
+	}
+	return nil
+}
+
+func (h *BaseHandlers) createAgentDraftAndPath(
+	ctx context.Context,
+	req contract.CreateAgentRequest,
+) (aghconfig.AgentDefinitionDraft, string, error) {
+	draft, err := createAgentDraftFromRequest(req)
+	if err != nil {
+		return aghconfig.AgentDefinitionDraft{}, "", err
+	}
+
+	path, err := h.createAgentDefinitionPath(ctx, req)
+	if err != nil {
+		return aghconfig.AgentDefinitionDraft{}, "", err
+	}
+	return draft, path, nil
+}
+
+func createAgentDraftFromRequest(req contract.CreateAgentRequest) (aghconfig.AgentDefinitionDraft, error) {
+	agent := req.Agent
+	if strings.TrimSpace(agent.Name) == "" {
+		return aghconfig.AgentDefinitionDraft{}, errors.Join(
+			errCreateAgentRequestInvalid,
+			errors.New("agent.name is required"),
+		)
+	}
+	if strings.TrimSpace(agent.Provider) == "" {
+		return aghconfig.AgentDefinitionDraft{}, errors.Join(
+			errCreateAgentRequestInvalid,
+			errors.New("agent.provider is required"),
+		)
+	}
+	if strings.TrimSpace(agent.Prompt) == "" {
+		return aghconfig.AgentDefinitionDraft{}, errors.Join(
+			errCreateAgentRequestInvalid,
+			errors.New("agent.prompt is required"),
+		)
+	}
+	disabledSkills := []string(nil)
+	if agent.Skills != nil {
+		disabledSkills = append([]string(nil), agent.Skills.Disabled...)
+	}
+	return aghconfig.AgentDefinitionDraft{
+		Name:         agent.Name,
+		Provider:     agent.Provider,
+		Command:      agent.Command,
+		Model:        agent.Model,
+		Tools:        append([]string(nil), agent.Tools...),
+		Toolsets:     append([]string(nil), agent.Toolsets...),
+		DenyTools:    append([]string(nil), agent.DenyTools...),
+		Permissions:  string(agent.Permissions),
+		Skills:       aghconfig.AgentSkillsConfig{Disabled: disabledSkills},
+		CategoryPath: append([]string(nil), agent.CategoryPath...),
+		Prompt:       agent.Prompt,
+	}, nil
+}
+
+func (h *BaseHandlers) createAgentDefinitionPath(
+	ctx context.Context,
+	req contract.CreateAgentRequest,
+) (string, error) {
+	name := aghconfig.NormalizeAgentName(req.Agent.Name)
+	switch req.Scope {
+	case contract.AgentCreateScopeGlobal:
+		return filepath.Join(h.HomePaths.AgentsDir, name, aghconfig.AgentDefinitionFileName), nil
+	case contract.AgentCreateScopeWorkspace:
+		workspaceRef := strings.TrimSpace(req.Workspace)
+		if workspaceRef == "" {
+			return "", errors.Join(
+				errCreateAgentRequestInvalid,
+				errors.New("workspace is required for workspace-scoped agents"),
+			)
+		}
+		if h.Workspaces == nil {
+			return "", fmt.Errorf("%s: %w", h.transportName(), workspacepkg.ErrWorkspaceResolverUnavailable)
+		}
+		resolved, err := h.Workspaces.Resolve(ctx, workspaceRef)
+		if err != nil {
+			return "", err
+		}
+		rootDir := strings.TrimSpace(resolved.RootDir)
+		if rootDir == "" {
+			return "", fmt.Errorf("%s: resolved workspace root_dir is empty", h.transportName())
+		}
+		return filepath.Join(
+			rootDir,
+			aghconfig.DirName,
+			aghconfig.AgentsDirName,
+			name,
+			aghconfig.AgentDefinitionFileName,
+		), nil
+	default:
+		return "", errors.Join(
+			errCreateAgentRequestInvalid,
+			fmt.Errorf(
+				"scope must be %q or %q",
+				contract.AgentCreateScopeWorkspace,
+				contract.AgentCreateScopeGlobal,
+			),
+		)
+	}
 }
 
 func (h *BaseHandlers) workspaceAgentDefs(ctx context.Context, workspaceRef string) ([]aghconfig.AgentDef, error) {
@@ -800,6 +949,25 @@ func statusForAgentWorkspaceError(err error) int {
 		return http.StatusNotFound
 	default:
 		return StatusForWorkspaceError(err)
+	}
+}
+
+func statusForCreateAgentError(err error) int {
+	switch {
+	case errors.Is(err, errCreateAgentRequestInvalid),
+		errors.Is(err, aghconfig.ErrInvalidAgentDefinition):
+		return http.StatusBadRequest
+	case errors.Is(err, aghconfig.ErrAgentDefinitionExists):
+		return http.StatusConflict
+	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound),
+		errors.Is(err, workspacepkg.ErrWorkspaceRootMissing),
+		errors.Is(err, workspacepkg.ErrWorkspaceNameTaken),
+		errors.Is(err, workspacepkg.ErrWorkspacePathTaken),
+		errors.Is(err, workspacepkg.ErrWorkspaceHasSessions),
+		errors.Is(err, workspacepkg.ErrWorkspaceResolverUnavailable):
+		return StatusForWorkspaceError(err)
+	default:
+		return http.StatusInternalServerError
 	}
 }
 

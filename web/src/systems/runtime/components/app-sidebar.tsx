@@ -15,7 +15,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { Logo, Sidebar, SidebarSectionLabel, cn } from "@agh/ui";
+import { Button, Logo, Sidebar, SidebarSectionLabel, cn } from "@agh/ui";
 
 import {
   ACTIVE_NAV_INDICATOR_CLASS,
@@ -181,9 +181,10 @@ interface NavSlotProps {
   agentsLoading: boolean;
   agentsError: boolean;
   sessions: SessionPayload[] | undefined;
+  onAddAgent: () => void;
 }
 
-function NavSlot({ agents, agentsLoading, agentsError, sessions }: NavSlotProps) {
+function NavSlot({ agents, agentsLoading, agentsError, sessions, onAddAgent }: NavSlotProps) {
   const agentsCount = computeAgentsCount(agents, sessions);
   return (
     <div data-testid="sidebar-nav" className="flex flex-col gap-1 px-2 py-3">
@@ -195,11 +196,24 @@ function NavSlot({ agents, agentsLoading, agentsError, sessions }: NavSlotProps)
 
       <SectionLabel className="mt-4">
         <span>Agents</span>
-        {agentsCount.total > 0 ? (
-          <span className="ml-auto tabular-nums text-subtle" data-testid="agents-live-count">
-            {agentsCount.live}/{agentsCount.total} live
-          </span>
-        ) : null}
+        <span className="ml-auto flex items-center gap-1.5">
+          {agentsCount.total > 0 ? (
+            <span className="tabular-nums text-subtle" data-testid="agents-live-count">
+              {agentsCount.live}/{agentsCount.total} live
+            </span>
+          ) : null}
+          <Button
+            aria-label="Create agent"
+            className="-mr-1 text-muted hover:text-fg"
+            data-testid="sidebar-create-agent"
+            onClick={onAddAgent}
+            size="icon-xs"
+            type="button"
+            variant="ghost"
+          >
+            <Plus aria-hidden="true" className="size-3" />
+          </Button>
+        </span>
       </SectionLabel>
       <AgentCategoryTree
         agents={agents}
@@ -297,6 +311,7 @@ export interface AppSidebarProps {
   activeWorkspace: WorkspacePayload | undefined;
   onSelectWorkspace: (id: string) => void;
   onAddWorkspace: () => void;
+  onAddAgent: () => void;
   agents: AgentPayload[] | undefined;
   agentsLoading: boolean;
   agentsError: boolean;
@@ -312,6 +327,7 @@ function AppSidebar({
   activeWorkspace,
   onSelectWorkspace,
   onAddWorkspace,
+  onAddAgent,
   agents,
   agentsLoading,
   agentsError,
@@ -340,6 +356,7 @@ function AppSidebar({
           agentsLoading={agentsLoading}
           agentsError={agentsError}
           sessions={sessions}
+          onAddAgent={onAddAgent}
         />
       }
       footer={<FooterSlot activeSessionCount={activeSessionCount} />}

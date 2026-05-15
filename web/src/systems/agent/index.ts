@@ -1,14 +1,39 @@
 // Types
-export type { AgentMCPServer, AgentPayload, AgentResponse, AgentsResponse } from "./types";
+export type {
+  AgentMCPServer,
+  AgentPayload,
+  AgentResponse,
+  AgentsResponse,
+  CreateAgentParams,
+} from "./types";
 
 // Adapters
-export { fetchAgent, fetchAgents } from "./adapters/agent-api";
+export { AgentApiError, createAgent, fetchAgent, fetchAgents } from "./adapters/agent-api";
 
 // Query infrastructure
 export { agentKeys } from "./lib/query-keys";
 export { agentDetailOptions, agentsListOptions } from "./lib/query-options";
 
 // Lib
+export {
+  AGENT_CREATE_PERMISSION_OPTIONS,
+  appendAgentCreateTokens,
+  buildCreateAgentParams,
+  createDefaultAgentCreateDraft,
+  parseAgentCreateCategoryPath,
+  removeAgentCreateToken,
+  splitAgentCreateTokens,
+  updateAgentCreateScope,
+  validateAgentCreateDraft,
+  type AgentCreateDialogDraft,
+  type AgentCreatePermission,
+  type AgentCreatePermissionChoice,
+  type AgentCreateProviderOption,
+  type AgentCreateScope,
+  type AgentCreateStep,
+  type AgentCreateValidation,
+  type AgentCreateValidationContext,
+} from "./lib/agent-create-draft";
 export {
   getAgentSessionStatus,
   type AgentSessionStatus,
@@ -30,7 +55,12 @@ export {
 } from "./lib/agent-category";
 
 // Hooks
-export { useAgent, useAgents } from "./hooks/use-agents";
+export { useAgent, useAgents, useCreateAgent } from "./hooks/use-agents";
+export {
+  useAgentCreateDialog,
+  type AgentCreateDialogApi,
+  type AgentCreateDialogState,
+} from "./hooks/use-agent-create-dialog";
 export { useAgentSessions } from "./hooks/use-agent-sessions";
 
 // Components
@@ -56,3 +86,4 @@ export {
   AgentCommandMultiSelect,
   type AgentCommandMultiSelectProps,
 } from "./components/agent-command-multi-select";
+export { AgentCreateDialog, type AgentCreateDialogProps } from "./components/agent-create-dialog";

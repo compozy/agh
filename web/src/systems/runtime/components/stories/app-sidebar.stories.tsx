@@ -69,6 +69,7 @@ const meta: Meta<typeof AppSidebarHarness> = {
     workspaces: workspaceFixtures,
     activeWorkspaceId: workspaceFixtures[1].id,
     onAddWorkspace: () => undefined,
+    onAddAgent: () => undefined,
     agents: agentFixtures,
     agentsLoading: false,
     agentsError: false,

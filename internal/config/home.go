@@ -33,7 +33,9 @@ const (
 	LogFileName = "agh.log"
 	// NetworkAuditFileName is the append-only network audit filename.
 	NetworkAuditFileName = "network.audit"
-	agentDefName         = "AGENT.md"
+	// AgentDefinitionFileName is the canonical file name for persisted agent definitions.
+	AgentDefinitionFileName = "AGENT.md"
+	agentDefName            = AgentDefinitionFileName
 )
 
 // HomePaths captures the filesystem layout for the AGH home directory.
