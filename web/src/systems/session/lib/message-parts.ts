@@ -12,6 +12,7 @@ import {
 import type {
   AghPermissionData,
   AgentEventPayload,
+  PermissionDecision,
   PermissionRequest,
   SessionMessage,
   ToolUseResult,
@@ -86,13 +87,47 @@ export function isPermissionRequestData(value: unknown): value is AghPermissionD
   return isRecord(value) && typeof value.request_id === "string";
 }
 
+function normalizePermissionDecision(value: unknown): PermissionDecision | null {
+  switch (typeof value === "string" ? value.trim() : "") {
+    case "allow-once":
+      return "allow-once";
+    case "allow-always":
+      return "allow-always";
+    case "reject-once":
+      return "reject-once";
+    case "reject-always":
+      return "reject-always";
+    default:
+      return null;
+  }
+}
+
+function permissionSupportedDecisions(raw: Record<string, unknown> | undefined) {
+  const options = Array.isArray(raw?.options) ? raw.options : [];
+  const decisions: PermissionDecision[] = [];
+  for (const option of options) {
+    if (!isRecord(option)) continue;
+    const decision = normalizePermissionDecision(option.decision ?? option.option_id);
+    if (decision != null && !decisions.includes(decision)) {
+      decisions.push(decision);
+    }
+  }
+  return decisions.length > 0 ? decisions : undefined;
+}
+
+function permissionToolInput(raw: Record<string, unknown> | undefined): Record<string, unknown> {
+  return isRecord(raw?.tool_input) ? raw.tool_input : {};
+}
+
 export function toPermissionRequest(data: AghPermissionData): PermissionRequest {
+  const raw = data.raw;
   return {
     requestId: data.request_id,
     toolName: data.title ?? "unknown",
-    toolInput: data.raw ?? {},
+    toolInput: permissionToolInput(raw),
     action: data.action ?? "",
     resource: data.resource ?? "",
+    supportedDecisions: permissionSupportedDecisions(raw),
     turnId: data.turn_id,
     toolCallId: data.tool_call_id,
   };

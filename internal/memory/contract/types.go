@@ -218,6 +218,7 @@ type RecallOptions struct {
 	IncludeAlreadySurfaced bool     `json:"include_already_surfaced,omitempty"`
 	IncludeSystem          bool     `json:"include_system,omitempty"`
 	AlreadySurfaced        []string `json:"already_surfaced,omitempty"`
+	AllowTrivialQuery      bool     `json:"allow_trivial_query,omitempty"`
 }
 
 // CacheStableHeader identifies the prompt-cache-stable header for a recall package.
@@ -241,15 +242,16 @@ type Block struct {
 
 // PackagedEntry is one prompt-ready recalled memory entry.
 type PackagedEntry struct {
-	ID              string   `json:"id"`
-	Filename        string   `json:"filename,omitempty"`
-	Title           string   `json:"title"`
-	Type            Type     `json:"type,omitempty"`
-	WorkspaceID     string   `json:"workspace_id,omitempty"`
-	Body            string   `json:"body"`
-	AgeDays         int      `json:"age_days"`
-	StalenessBanner string   `json:"staleness_banner,omitempty"`
-	WhyRecalled     []string `json:"why_recalled,omitempty"`
+	ID              string    `json:"id"`
+	Filename        string    `json:"filename,omitempty"`
+	Title           string    `json:"title"`
+	Type            Type      `json:"type,omitempty"`
+	WorkspaceID     string    `json:"workspace_id,omitempty"`
+	Body            string    `json:"body"`
+	ModTime         time.Time `json:"mod_time"`
+	AgeDays         int       `json:"age_days"`
+	StalenessBanner string    `json:"staleness_banner,omitempty"`
+	WhyRecalled     []string  `json:"why_recalled,omitempty"`
 }
 
 // Recaller retrieves prompt-ready memory for a query.

@@ -107,6 +107,51 @@ func (s *stubSettingsService) DeleteCollectionItem(
 	return settingspkg.MutationResult{}, nil
 }
 
+type unavailableSettingsMemoryProviderService struct {
+	err error
+}
+
+func (s unavailableSettingsMemoryProviderService) List(
+	context.Context,
+	string,
+) ([]contract.MemoryProviderPayload, error) {
+	return nil, s.err
+}
+
+func (s unavailableSettingsMemoryProviderService) Get(
+	context.Context,
+	string,
+	string,
+) (contract.MemoryProviderPayload, error) {
+	return contract.MemoryProviderPayload{}, s.err
+}
+
+func (s unavailableSettingsMemoryProviderService) Select(
+	context.Context,
+	string,
+	string,
+) (contract.MemoryProviderPayload, error) {
+	return contract.MemoryProviderPayload{}, s.err
+}
+
+func (s unavailableSettingsMemoryProviderService) Enable(
+	context.Context,
+	string,
+	string,
+	string,
+) (contract.MemoryProviderLifecycleResponse, error) {
+	return contract.MemoryProviderLifecycleResponse{}, s.err
+}
+
+func (s unavailableSettingsMemoryProviderService) Disable(
+	context.Context,
+	string,
+	string,
+	string,
+) (contract.MemoryProviderLifecycleResponse, error) {
+	return contract.MemoryProviderLifecycleResponse{}, s.err
+}
+
 type stubSettingsRestartController struct {
 	RequestFn func(context.Context) (core.SettingsRestartOperation, error)
 	StatusFn  func(context.Context, string) (core.SettingsRestartOperation, error)
@@ -841,6 +886,34 @@ func TestUpdateSettingsSectionHandlersRejectMissingConfig(t *testing.T) {
 				t.Fatalf("payload.Error = %q, want substring %q", payload.Error, tc.want)
 			}
 		})
+	}
+}
+
+func TestUpdateSettingsMemoryRejectsUnavailableProvider(t *testing.T) {
+	t.Parallel()
+
+	service := &stubSettingsService{}
+	fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+	fixture.Handlers.MemoryProviders = unavailableSettingsMemoryProviderService{
+		err: errors.New("provider not registered"),
+	}
+
+	memoryPayload := validSettingsMemoryConfigPayload()
+	memoryPayload.Provider.Name = "qa-missing-provider"
+	body := contract.UpdateSettingsMemoryRequest{Config: memoryPayload}
+
+	resp := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/memory", mustJSON(t, body))
+	if got, want := resp.Code, http.StatusBadRequest; got != want {
+		t.Fatalf("status = %d, want %d; body=%s", got, want, resp.Body.String())
+	}
+	if service.UpdateSectionCalls != 0 {
+		t.Fatalf("UpdateSectionCalls = %d, want 0", service.UpdateSectionCalls)
+	}
+
+	var payload contract.ErrorPayload
+	decodeJSON(t, resp.Body.Bytes(), &payload)
+	if !strings.Contains(payload.Error, "qa-missing-provider") {
+		t.Fatalf("payload.Error = %q, want provider name", payload.Error)
 	}
 }
 

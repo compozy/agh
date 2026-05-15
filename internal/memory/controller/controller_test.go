@@ -212,11 +212,95 @@ func TestControllerDecide(t *testing.T) {
 		}
 	})
 
-	t.Run("Should collapse surface ambiguity to noop", func(t *testing.T) {
+	t.Run("Should add direct explicit targets despite surface ambiguity", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		candidate := controllerTestCandidate(
+			"Task010 Auth Sentinel",
+			"Auth browser login keeps release operators unblocked.\n",
+		)
+		candidate.Entity = ""
+		candidate.Attribute = ""
+		candidate.Metadata = map[string]string{"target_filename": "project_new_auth.md"}
+		targets := []Target{
+			controllerTestTarget(
+				"target-auth-a",
+				"project_auth_device.md",
+				"Auth device login keeps release operators unblocked.\n",
+			),
+			controllerTestTarget(
+				"target-auth-b",
+				"project_auth_cli.md",
+				"Auth CLI login keeps release operators unblocked.\n",
+			),
+		}
+		for idx := range targets {
+			targets[idx].Entity = ""
+			targets[idx].Attribute = ""
+		}
+		decision, err := New(fakeIndex{targets: targets}).Decide(ctx, candidate)
+		if err != nil {
+			t.Fatalf("Decide() error = %v", err)
+		}
+
+		if decision.Op != memcontract.OpAdd {
+			t.Fatalf("Decision.Op = %q, want add", decision.Op.String())
+		}
+		if decision.TargetFilename != "project_new_auth.md" {
+			t.Fatalf("Decision.TargetFilename = %q, want project_new_auth.md", decision.TargetFilename)
+		}
+		if len(decision.Targets) != 0 {
+			t.Fatalf("Decision.Targets length = %d, want 0", len(decision.Targets))
+		}
+	})
+
+	t.Run("Should add direct distinct names despite generated filename ambiguity", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		candidate := controllerTestCandidate(
+			"Task010 Auth Sentinel",
+			"Auth browser login keeps release operators unblocked. Task010 distinct memory.\n",
+		)
+		candidate.Entity = ""
+		candidate.Attribute = ""
+		candidate.Metadata = nil
+		targets := []Target{
+			controllerTestTarget(
+				"target-auth-a",
+				"project_auth_device.md",
+				"Auth device login keeps release operators unblocked.\n",
+			),
+			controllerTestTarget(
+				"target-auth-b",
+				"project_auth_cli.md",
+				"Auth CLI login keeps release operators unblocked.\n",
+			),
+		}
+		for idx := range targets {
+			targets[idx].Entity = ""
+			targets[idx].Attribute = ""
+		}
+		decision, err := New(fakeIndex{targets: targets}).Decide(ctx, candidate)
+		if err != nil {
+			t.Fatalf("Decide() error = %v", err)
+		}
+
+		if decision.Op != memcontract.OpAdd {
+			t.Fatalf("Decision.Op = %q, want add", decision.Op.String())
+		}
+		if decision.TargetFilename != "project_task010_auth_sentinel.md" {
+			t.Fatalf("Decision.TargetFilename = %q, want project_task010_auth_sentinel.md", decision.TargetFilename)
+		}
+	})
+
+	t.Run("Should collapse extractor surface ambiguity to noop", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
 		candidate := controllerTestCandidate("Project Auth", "Auth browser login keeps release operators unblocked.\n")
+		candidate.Origin = memcontract.OriginExtractor
 		candidate.Entity = ""
 		candidate.Attribute = ""
 		candidate.Metadata = map[string]string{"target_filename": "project_new_auth.md"}

@@ -64,6 +64,90 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		}
 	})
 
+	t.Run("Should exclude the requesting agent session from active reviewer candidates", func(t *testing.T) {
+		t.Parallel()
+
+		tasks := &reviewRouterTasksStub{
+			profile: taskpkg.ExecutionProfile{
+				TaskID: "task-1",
+				Review: taskpkg.ReviewProfile{},
+			},
+		}
+		sessions := &coordinatorRuntimeSessions{
+			infos: []*session.Info{
+				reviewRouterSessionInfo("sess-worker", "worker", "reviews"),
+				reviewRouterSessionInfo("sess-requester", "requester", "reviews"),
+				reviewRouterSessionInfo("sess-reviewer", "reviewer", "reviews"),
+			},
+		}
+		router := newReviewRouterForTest(
+			t,
+			tasks,
+			reviewRouterStoreForTest(),
+			sessions,
+			reviewRouterAgentResolverStub{
+				"requester": reviewRouterAgentDef("requester"),
+				"reviewer":  reviewRouterAgentDef("reviewer"),
+				"worker":    reviewRouterAgentDef("worker"),
+			},
+		)
+
+		notification := reviewRouterNotificationForTest()
+		notification.Actor = taskpkg.ActorContext{
+			Actor: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-requester"},
+		}
+		router.OnRunReviewRequested(context.Background(), &notification)
+
+		if got, want := len(tasks.binds), 1; got != want {
+			t.Fatalf("bind calls = %d, want %d", got, want)
+		}
+		if got, want := tasks.binds[0].SessionID, "sess-reviewer"; got != want {
+			t.Fatalf("BindRunReviewSession.SessionID = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should not create a reviewer session using the requesting agent", func(t *testing.T) {
+		t.Parallel()
+
+		tasks := &reviewRouterTasksStub{
+			profile: taskpkg.ExecutionProfile{
+				TaskID: "task-1",
+				Review: taskpkg.ReviewProfile{AgentName: "requester"},
+			},
+		}
+		sessions := &coordinatorRuntimeSessions{
+			infos: []*session.Info{
+				reviewRouterSessionInfo("sess-requester", "requester", "reviews"),
+			},
+		}
+		router := newReviewRouterForTest(
+			t,
+			tasks,
+			reviewRouterStoreForTest(),
+			sessions,
+			reviewRouterAgentResolverStub{"requester": reviewRouterAgentDef("requester")},
+		)
+
+		notification := reviewRouterNotificationForTest()
+		notification.Actor = taskpkg.ActorContext{
+			Actor: taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-requester"},
+		}
+		router.OnRunReviewRequested(context.Background(), &notification)
+
+		if got := sessions.createCount(); got != 0 {
+			t.Fatalf("session create calls = %d, want 0", got)
+		}
+		if len(tasks.binds) != 0 {
+			t.Fatalf("BindRunReviewSession calls = %#v, want none", tasks.binds)
+		}
+		if got, want := len(tasks.records), 1; got != want {
+			t.Fatalf("RecordRunReview calls = %d, want %d", got, want)
+		}
+		if !strings.Contains(tasks.records[0].Verdict.Reason, "exclude all eligible reviewer agents") {
+			t.Fatalf("RecordRunReview reason = %q, want selector diagnostic", tasks.records[0].Verdict.Reason)
+		}
+	})
+
 	t.Run("Should create and bind a reviewer session when no active reviewer exists", func(t *testing.T) {
 		t.Parallel()
 
@@ -228,6 +312,124 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 		}
 		if got, want := len(tasks.records), 1; got != want {
 			t.Fatalf("RecordRunReview calls = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should rebind in review requests when reviewer session stops", func(t *testing.T) {
+		t.Parallel()
+
+		stoppedReview := reviewRouterNotificationForTest().Review
+		stoppedReview.Status = taskpkg.RunReviewStatusInReview
+		stoppedReview.ReviewerSessionID = "sess-stopped-reviewer"
+		tasks := &reviewRouterTasksStub{
+			profile: taskpkg.ExecutionProfile{
+				TaskID: "task-1",
+				Review: taskpkg.ReviewProfile{},
+			},
+			listReviews: []taskpkg.RunReview{stoppedReview},
+		}
+		sessions := &coordinatorRuntimeSessions{
+			infos: []*session.Info{
+				reviewRouterSessionInfo("sess-worker", "worker", "reviews"),
+				stoppedReviewRouterSessionInfo("sess-stopped-reviewer", "reviewer", "reviews"),
+				reviewRouterSessionInfo("sess-active-reviewer", "reviewer", "reviews"),
+			},
+		}
+		router := newReviewRouterForTest(
+			t,
+			tasks,
+			reviewRouterStoreForTest(),
+			sessions,
+			reviewRouterAgentResolverStub{
+				"worker":   reviewRouterAgentDef("worker"),
+				"reviewer": reviewRouterAgentDef("reviewer"),
+			},
+		)
+
+		router.OnSessionStopped(context.Background(), &session.Session{
+			ID:          "sess-stopped-reviewer",
+			AgentName:   "reviewer",
+			WorkspaceID: "ws-1",
+			Workspace:   "ws-1",
+			Channel:     "reviews",
+			Type:        session.SessionTypeSystem,
+			State:       session.StateStopped,
+		})
+
+		if got, want := len(tasks.listQueries), 1; got != want {
+			t.Fatalf("ListRunReviews calls = %d, want %d", got, want)
+		}
+		query := tasks.listQueries[0]
+		if query.Status != taskpkg.RunReviewStatusInReview ||
+			query.ReviewerSessionID != "sess-stopped-reviewer" {
+			t.Fatalf("ListRunReviews query = %#v, want stopped in-review binding", query)
+		}
+		if got, want := len(tasks.binds), 1; got != want {
+			t.Fatalf("BindRunReviewSession calls = %d, want %d", got, want)
+		}
+		if got, want := tasks.binds[0].SessionID, "sess-active-reviewer"; got != want {
+			t.Fatalf("BindRunReviewSession.SessionID = %q, want %q", got, want)
+		}
+		if got := len(tasks.records); got != 0 {
+			t.Fatalf("RecordRunReview calls = %d, want 0 after rebind", got)
+		}
+	})
+
+	t.Run("Should record blocked diagnostic when stopped reviewer has no recovery route", func(t *testing.T) {
+		t.Parallel()
+
+		stoppedReview := reviewRouterNotificationForTest().Review
+		stoppedReview.Status = taskpkg.RunReviewStatusInReview
+		stoppedReview.ReviewerSessionID = "sess-stopped-reviewer"
+		tasks := &reviewRouterTasksStub{
+			profile: taskpkg.ExecutionProfile{
+				TaskID: "task-1",
+				Review: taskpkg.ReviewProfile{
+					AllowedPeerIDs: []string{"missing-peer"},
+				},
+			},
+			listReviews: []taskpkg.RunReview{stoppedReview},
+		}
+		sessions := &coordinatorRuntimeSessions{
+			infos: []*session.Info{
+				reviewRouterSessionInfo("sess-worker", "worker", "reviews"),
+				stoppedReviewRouterSessionInfo("sess-stopped-reviewer", "reviewer", "reviews"),
+			},
+		}
+		router := newReviewRouterForTest(
+			t,
+			tasks,
+			reviewRouterStoreForTest(),
+			sessions,
+			reviewRouterAgentResolverStub{
+				"worker":   reviewRouterAgentDef("worker"),
+				"reviewer": reviewRouterAgentDef("reviewer"),
+			},
+		)
+
+		router.OnSessionStopped(context.Background(), &session.Session{
+			ID:          "sess-stopped-reviewer",
+			AgentName:   "reviewer",
+			WorkspaceID: "ws-1",
+			Workspace:   "ws-1",
+			Channel:     "reviews",
+			Type:        session.SessionTypeSystem,
+			State:       session.StateStopped,
+		})
+
+		if len(tasks.binds) != 0 {
+			t.Fatalf("BindRunReviewSession calls = %#v, want none", tasks.binds)
+		}
+		if got, want := len(tasks.records), 1; got != want {
+			t.Fatalf("RecordRunReview calls = %d, want %d", got, want)
+		}
+		record := tasks.records[0]
+		if got, want := record.Verdict.Outcome, taskpkg.RunReviewOutcomeBlocked; got != want {
+			t.Fatalf("RecordRunReview outcome = %q, want %q", got, want)
+		}
+		if !strings.Contains(record.Verdict.Reason, "sess-stopped-reviewer") ||
+			!strings.Contains(record.Verdict.Reason, "allows only explicit peers") {
+			t.Fatalf("RecordRunReview reason = %q, want stopped-session no-route diagnostic", record.Verdict.Reason)
 		}
 	})
 
@@ -478,6 +680,12 @@ func reviewRouterSessionInfo(id string, agent string, channel string) *session.I
 	}
 }
 
+func stoppedReviewRouterSessionInfo(id string, agent string, channel string) *session.Info {
+	info := reviewRouterSessionInfo(id, agent, channel)
+	info.State = session.StateStopped
+	return info
+}
+
 func reviewRouterAgentDef(name string, capabilities ...string) aghconfig.AgentDef {
 	agent := aghconfig.AgentDef{Name: name, Provider: "codex", Model: "gpt-5"}
 	if len(capabilities) == 0 {
@@ -544,8 +752,11 @@ func (s *reviewRouterStoreStub) GetTaskRun(ctx context.Context, id string) (task
 type reviewRouterTasksStub struct {
 	mu                    sync.Mutex
 	profile               taskpkg.ExecutionProfile
+	listReviews           []taskpkg.RunReview
+	listQueries           []taskpkg.RunReviewQuery
 	binds                 []taskpkg.BindRunReviewSessionRequest
 	records               []taskpkg.RecordRunReviewRequest
+	listErr               error
 	bindErr               error
 	rejectCanceledContext bool
 	requireDeadline       bool
@@ -565,6 +776,30 @@ func (s *reviewRouterTasksStub) GetExecutionProfile(
 		}
 	}
 	return s.profile, nil
+}
+
+func (s *reviewRouterTasksStub) ListRunReviews(
+	ctx context.Context,
+	query taskpkg.RunReviewQuery,
+	_ taskpkg.ActorContext,
+) ([]taskpkg.RunReview, error) {
+	if s.rejectCanceledContext && ctx != nil && ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	if s.requireDeadline {
+		if _, ok := ctx.Deadline(); !ok {
+			return nil, context.DeadlineExceeded
+		}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.listQueries = append(s.listQueries, query)
+	if s.listErr != nil {
+		return nil, s.listErr
+	}
+	reviews := make([]taskpkg.RunReview, len(s.listReviews))
+	copy(reviews, s.listReviews)
+	return reviews, nil
 }
 
 func (s *reviewRouterTasksStub) BindRunReviewSession(

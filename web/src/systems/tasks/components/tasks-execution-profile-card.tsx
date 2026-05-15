@@ -2,6 +2,8 @@ import { AlertCircle, Edit3, Settings2, Trash2 } from "lucide-react";
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 
 import {
+  Alert,
+  AlertDescription,
   BlockLoading,
   Button,
   Dialog,
@@ -146,6 +148,7 @@ function TasksExecutionProfileCardView({
   return (
     <Section
       aria-label="Execution profile"
+      bodyClassName="gap-4"
       className="w-full gap-4"
       data-testid={cardTestId}
       icon={Settings2}
@@ -178,16 +181,13 @@ function TasksExecutionProfileCardView({
       }
     >
       {hasActiveRun ? (
-        <div
-          className="flex items-start gap-2 rounded bg-warning-tint px-3 py-2 text-form-label leading-relaxed text-warning"
-          data-testid="tasks-execution-profile-active-run-warning"
-        >
-          <AlertCircle className="mt-0.5 size-3 shrink-0" />
-          <span>
+        <Alert variant="warning" data-testid="tasks-execution-profile-active-run-warning">
+          <AlertCircle />
+          <AlertDescription>
             Profile mutation is blocked while this task has an active run. Cancel or wait for the
             current run to terminate before editing or deleting the profile.
-          </span>
-        </div>
+          </AlertDescription>
+        </Alert>
       ) : null}
       {isLoading && !profile ? (
         <BlockLoading

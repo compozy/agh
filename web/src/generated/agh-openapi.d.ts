@@ -17877,6 +17877,7 @@ export interface operations {
               /** Format: date-time */
               executed_at: string;
               options: {
+                allow_trivial_query?: boolean;
                 already_surfaced?: string[];
                 include_already_surfaced?: boolean;
                 include_system?: boolean;
@@ -17898,6 +17899,8 @@ export interface operations {
                     body: string;
                     filename?: string;
                     id: string;
+                    /** Format: date-time */
+                    mod_time: string;
                     staleness_banner?: string;
                     title: string;
                     /** @enum {string} */
@@ -18320,6 +18323,8 @@ export interface operations {
                   body: string;
                   filename?: string;
                   id: string;
+                  /** Format: date-time */
+                  mod_time: string;
                   staleness_banner?: string;
                   title: string;
                   /** @enum {string} */

@@ -261,6 +261,7 @@ export const memorySearchFixture: MemorySearchResponse = {
             title: "Pricing Claims Guardrails",
             body: "Approved phrasing for pricing.",
             age_days: 0,
+            mod_time: "2026-04-17T15:15:00Z",
             why_recalled: ["fts5:exact-match"],
           },
         ],

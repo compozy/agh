@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useSettingsPage } from "@/hooks/routes/use-settings-page";
 import {
@@ -9,6 +9,7 @@ import {
   type SettingsGeneralSection,
   type SettingsUpdateGeneralRequest,
 } from "@/systems/settings";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 type GeneralConfig = SettingsGeneralSection["config"];
 
@@ -17,17 +18,37 @@ export function useSettingsGeneralPage() {
   const update = useSettingsUpdate();
   const mutation = useUpdateSettingsGeneral();
   const page = useSettingsPage({ currentSlug: "general" });
+  const { activeWorkspaceId } = useActiveWorkspace();
 
   const envelope = query.data ?? null;
+  const workspaceContextKey = activeWorkspaceId ?? "__none__";
 
   const [draft, setDraft] = useState<GeneralConfig | null>(null);
   const [lastAppliedLabel, setLastAppliedLabel] = useState<string | null>(null);
+  const draftWorkspaceContext = useRef<string | null>(null);
 
   useEffect(() => {
     if (envelope && draft === null) {
       setDraft(envelope.config);
+      draftWorkspaceContext.current = workspaceContextKey;
+      return;
     }
-  }, [envelope, draft]);
+
+    if (!envelope || draft === null) {
+      return;
+    }
+
+    if (draftWorkspaceContext.current === null) {
+      draftWorkspaceContext.current = workspaceContextKey;
+      return;
+    }
+
+    if (draftWorkspaceContext.current !== workspaceContextKey) {
+      setDraft(envelope.config);
+      setLastAppliedLabel(null);
+      draftWorkspaceContext.current = workspaceContextKey;
+    }
+  }, [envelope, draft, workspaceContextKey]);
 
   const isDirty = useMemo(() => {
     if (!envelope || !draft) return false;

@@ -129,6 +129,7 @@ function AutomationSettingsPage() {
       }
     >
       <OperationalLinksRow />
+      {!runtime.available ? <AutomationRuntimeUnavailable runtime={runtime} /> : null}
       <ManagerSummarySection runtime={runtime} />
       <EngineSection draft={draft} setDraft={setDraft} />
       <LimitsSection
@@ -138,6 +139,32 @@ function AutomationSettingsPage() {
         setValidationError={setValidationError}
       />
     </PageShell>
+  );
+}
+
+function AutomationRuntimeUnavailable({ runtime }: { runtime: AutomationRuntime }) {
+  const unavailableParts = [
+    !runtime.running ? "engine stopped" : null,
+    !runtime.scheduler_running ? "scheduler stopped" : null,
+  ].filter((part): part is string => part !== null);
+  const detail =
+    unavailableParts.length > 0 ? unavailableParts.join(" · ") : "automation runtime unavailable";
+
+  return (
+    <div
+      className="flex items-start gap-2 border border-warning/40 bg-warning-soft px-4 py-3 text-sm text-fg"
+      data-testid="settings-page-automation-runtime-unavailable"
+      role="alert"
+    >
+      <AlertCircle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
+      <div className="min-w-0">
+        <p className="font-medium">Automation runtime is unavailable</p>
+        <p className="mt-1 text-xs text-muted">
+          Jobs and triggers cannot run until automation is enabled and the daemon is restarted.
+        </p>
+        <p className="mt-1 font-mono text-mono-id text-muted">{detail}</p>
+      </div>
+    </div>
   );
 }
 

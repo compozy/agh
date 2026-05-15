@@ -178,8 +178,9 @@ func (h *BaseHandlers) SearchMemory(c *gin.Context) {
 		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
 		return
 	}
+	recallWorkspaceID := memoryRecallQueryWorkspaceID(selector)
 	recall, err := store.Recall(c.Request.Context(), memcontract.Query{
-		WorkspaceID: selector.WorkspaceID,
+		WorkspaceID: recallWorkspaceID,
 		AgentName:   selector.AgentName,
 		QueryText:   req.QueryText,
 		ContextHint: req.ContextHint,
@@ -189,16 +190,97 @@ func (h *BaseHandlers) SearchMemory(c *gin.Context) {
 		IncludeAlreadySurfaced: req.IncludeAlreadySurfaced,
 		IncludeSystem:          req.IncludeSystem,
 		AlreadySurfaced:        req.AlreadySurfaced,
+		AllowTrivialQuery:      true,
 	})
 	if err != nil {
 		h.respondMemoryError(c, StatusForMemoryError(err), err, nil)
 		return
 	}
+	results := memorySearchResultPayloads(recall)
+	if len(results) == 0 {
+		searchResults, searchErr := h.memoryExplicitSearchFallback(
+			c.Request.Context(),
+			selector,
+			req.QueryText,
+			req.TopK,
+		)
+		if searchErr != nil {
+			h.respondMemoryError(c, StatusForMemoryError(searchErr), searchErr, nil)
+			return
+		}
+		results = memorySearchResultPayloadsFromSearchResults(searchResults)
+	}
 
 	c.JSON(http.StatusOK, contract.MemorySearchResponse{
-		Results: memorySearchResultPayloads(recall),
+		Results: results,
 		Recall:  recall,
 	})
+}
+
+func memoryRecallQueryWorkspaceID(selector memorySelector) string {
+	switch selector.Scope.Normalize() {
+	case memcontract.ScopeWorkspace:
+		return strings.TrimSpace(selector.WorkspaceID)
+	case memcontract.ScopeAgent:
+		if selector.AgentTier.Normalize() == memcontract.AgentTierWorkspace {
+			return strings.TrimSpace(selector.WorkspaceID)
+		}
+		return ""
+	case "":
+		return strings.TrimSpace(selector.WorkspaceID)
+	default:
+		return ""
+	}
+}
+
+func (h *BaseHandlers) memoryExplicitSearchFallback(
+	ctx context.Context,
+	selector memorySelector,
+	queryText string,
+	limit int,
+) ([]memcontract.SearchResult, error) {
+	if h.MemoryStore == nil {
+		return nil, errors.New("memory store is not configured")
+	}
+	workspace := ""
+	switch selector.Scope.Normalize() {
+	case memcontract.ScopeWorkspace:
+		workspace = strings.TrimSpace(selector.Workspace)
+	case memcontract.ScopeGlobal:
+		workspace = ""
+	default:
+		return nil, nil
+	}
+	return h.MemoryStore.Search(ctx, queryText, memcontract.SearchOptions{
+		Scope:     selector.Scope,
+		Workspace: workspace,
+		Limit:     limit,
+	})
+}
+
+func memorySearchResultPayloadsFromSearchResults(
+	results []memcontract.SearchResult,
+) []contract.MemorySearchResultPayload {
+	if len(results) == 0 {
+		return nil
+	}
+	payloads := make([]contract.MemorySearchResultPayload, 0, len(results))
+	for _, result := range results {
+		payloads = append(payloads, contract.MemorySearchResultPayload{
+			Memory: contract.MemoryEntrySummaryPayload{
+				Filename:    result.Filename,
+				Name:        result.Name,
+				Description: result.Description,
+				Type:        result.Type,
+				Scope:       result.Scope,
+				WorkspaceID: result.Workspace,
+				ModTime:     result.ModTime,
+			},
+			Score:   result.Score,
+			Snippet: result.Snippet,
+		})
+	}
+	return payloads
 }
 
 // ReadMemory returns one memory document.
@@ -2240,6 +2322,7 @@ func memorySearchResultPayloads(recall memcontract.Packaged) []contract.MemorySe
 					Scope:           block.Scope.Normalize(),
 					WorkspaceID:     strings.TrimSpace(entry.WorkspaceID),
 					AgentTier:       block.AgentTier.Normalize(),
+					ModTime:         entry.ModTime.UTC(),
 					StalenessBanner: strings.TrimSpace(entry.StalenessBanner),
 					Injection:       true,
 				},

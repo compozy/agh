@@ -199,6 +199,7 @@ function renderTasksBridgeNotificationsCard({
   return (
     <Section
       aria-label="Bridge notification subscriptions"
+      bodyClassName="gap-4"
       className="w-full gap-4"
       count={subscriptions.length > 0 ? subscriptions.length : undefined}
       data-testid="tasks-bridge-notifications-card"
@@ -218,10 +219,6 @@ function renderTasksBridgeNotificationsCard({
         </Button>
       }
     >
-      <p className="text-xs text-subtle" data-testid="tasks-bridge-notifications-disclaimer">
-        Cursor diagnostics are read-only delivery progress. Zero-state cursors render as no sequence
-        and no delivery id; advancement happens only after a confirmed bridge delivery.
-      </p>
       {isLoading && subscriptions.length === 0 ? (
         <BlockLoading
           label="Loading bridge notifications"

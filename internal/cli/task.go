@@ -177,6 +177,7 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 		ownerRef     string
 		metadataRaw  string
 		priorityRaw  string
+		asAgent      bool
 	)
 
 	cmd := &cobra.Command{
@@ -206,7 +207,21 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			created, err := client.CreateTask(cmd.Context(), request)
+			var created TaskRecord
+			if asAgent {
+				credentials, identityErr := requireAgentCommandIdentity(
+					cmd.Context(),
+					deps,
+					client,
+					agentActionCLI("task.create"),
+				)
+				if identityErr != nil {
+					return identityErr
+				}
+				created, err = client.CreateTaskAsAgent(cmd.Context(), request, credentials)
+			} else {
+				created, err = client.CreateTask(cmd.Context(), request)
+			}
 			if err != nil {
 				return err
 			}
@@ -225,6 +240,7 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&ownerKindRaw, "owner-kind", "", "Optional owner kind")
 	cmd.Flags().StringVar(&ownerRef, "owner-ref", "", "Optional owner reference")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional metadata JSON")
+	cmd.Flags().BoolVar(&asAgent, "as-agent", false, "Create using the current AGH-managed agent session identity")
 	mustMarkFlagRequired(cmd, "scope")
 	mustMarkFlagRequired(cmd, "title")
 	return cmd
@@ -716,6 +732,7 @@ func newTaskReviewRequestCommand(deps commandDeps) *cobra.Command {
 		round     int
 		attempt   int
 		parentID  string
+		asAgent   bool
 	)
 	cmd := &cobra.Command{
 		Use:   "request <run-id>",
@@ -730,7 +747,21 @@ func newTaskReviewRequestCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			review, err := client.RequestTaskRunReview(cmd.Context(), args[0], request)
+			var review TaskRunReviewRequestRecord
+			if asAgent {
+				credentials, identityErr := requireAgentCommandIdentity(
+					cmd.Context(),
+					deps,
+					client,
+					agentActionCLI("task.review.request"),
+				)
+				if identityErr != nil {
+					return identityErr
+				}
+				review, err = client.RequestTaskRunReviewAsAgent(cmd.Context(), args[0], request, credentials)
+			} else {
+				review, err = client.RequestTaskRunReview(cmd.Context(), args[0], request)
+			}
 			if err != nil {
 				return err
 			}
@@ -742,6 +773,8 @@ func newTaskReviewRequestCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().IntVar(&round, "round", 0, "Review round number")
 	cmd.Flags().IntVar(&attempt, "attempt", 0, "Review attempt number")
 	cmd.Flags().StringVar(&parentID, "parent-review", "", "Parent review ID for continuation rounds")
+	cmd.Flags().
+		BoolVar(&asAgent, "as-agent", false, "Request review using the current AGH-managed agent session identity")
 	return cmd
 }
 
@@ -802,6 +835,7 @@ func newTaskReviewShowCommand(deps commandDeps) *cobra.Command {
 
 func newTaskReviewSubmitCommand(deps commandDeps) *cobra.Command {
 	input := taskReviewSubmitInput{}
+	var asAgent bool
 	cmd := &cobra.Command{
 		Use:   "submit <review-id>",
 		Short: "Submit one task-run review verdict",
@@ -815,7 +849,21 @@ func newTaskReviewSubmitCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result, err := client.SubmitTaskRunReviewVerdict(cmd.Context(), args[0], request)
+			var result TaskRunReviewVerdictRecord
+			if asAgent {
+				credentials, identityErr := requireAgentCommandIdentity(
+					cmd.Context(),
+					deps,
+					client,
+					agentActionCLI("task.review.submit"),
+				)
+				if identityErr != nil {
+					return identityErr
+				}
+				result, err = client.SubmitTaskRunReviewVerdictAsAgent(cmd.Context(), args[0], request, credentials)
+			} else {
+				result, err = client.SubmitTaskRunReviewVerdict(cmd.Context(), args[0], request)
+			}
 			if err != nil {
 				return err
 			}
@@ -831,6 +879,8 @@ func newTaskReviewSubmitCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&input.MissingWorkRaw, "missing-work-json", "", "Missing work JSON array")
 	cmd.Flags().StringVar(&input.NextRoundGuidance, "next-round-guidance", "", "Guidance for continuation rounds")
 	cmd.Flags().StringVar(&input.ReviewText, "review-text", "", "Full review text")
+	cmd.Flags().
+		BoolVar(&asAgent, "as-agent", false, "Submit review using the current AGH-managed agent session identity")
 	mustMarkFlagRequired(cmd, "run")
 	mustMarkFlagRequired(cmd, "outcome")
 	mustMarkFlagRequired(cmd, "confidence")

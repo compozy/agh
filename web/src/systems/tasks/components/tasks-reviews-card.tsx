@@ -84,6 +84,7 @@ export function TasksReviewsCard({
     return (
       <Section
         aria-label={label}
+        bodyClassName="gap-4"
         className="w-full gap-4"
         data-testid={`${testId}-loading-section`}
         label={label}
@@ -100,7 +101,13 @@ export function TasksReviewsCard({
 
   if (errorMessage && reviews.length === 0) {
     return (
-      <Section aria-label={label} className="w-full gap-4" data-testid={testId} label={label}>
+      <Section
+        aria-label={label}
+        bodyClassName="gap-4"
+        className="w-full gap-4"
+        data-testid={testId}
+        label={label}
+      >
         <Empty
           data-testid={`${testId}-error`}
           description={errorMessage}
@@ -113,7 +120,13 @@ export function TasksReviewsCard({
 
   if (reviews.length === 0) {
     return (
-      <Section aria-label={label} className="w-full gap-4" data-testid={testId} label={label}>
+      <Section
+        aria-label={label}
+        bodyClassName="gap-4"
+        className="w-full gap-4"
+        data-testid={testId}
+        label={label}
+      >
         <Empty
           data-testid={`${testId}-empty`}
           description="Review-on-stop is off or no reviews have been requested yet. Verdicts are recorded only after a reviewer-bound session submits through submit_run_review."
@@ -127,17 +140,13 @@ export function TasksReviewsCard({
   return (
     <Section
       aria-label={label}
+      bodyClassName="gap-4"
       className="w-full gap-4"
       count={reviews.length}
       data-testid={testId}
       icon={Gavel}
       label={label}
     >
-      <p className="text-xs text-subtle" data-testid={`${testId}-disclaimer`}>
-        Status reflects the persisted review row. Outcomes appear once a bound reviewer session
-        submits through submit_run_review. This view is read-only -- operator sessions cannot bind a
-        verdict.
-      </p>
       <Table>
         <TableHeader>
           <TableRow>

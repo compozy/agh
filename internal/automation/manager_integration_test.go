@@ -3,6 +3,7 @@
 package automation
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -267,6 +268,95 @@ func TestManagerIntegrationAutomationSessionCanCreateTaskWithAutomationOrigin(t 
 
 	if _, err := manager.TaskActorContextForSession("sess-automation-agent"); !errors.Is(err, ErrSessionTaskActorNotFound) {
 		t.Fatalf("TaskActorContextForSession(after completion) error = %v, want ErrSessionTaskActorNotFound", err)
+	}
+}
+
+func TestManagerIntegrationManualTriggerSurvivesCallerCancellation(t *testing.T) {
+	t.Parallel()
+
+	promptStarted := make(chan struct{}, 1)
+	promptRelease := make(chan struct{})
+
+	h := newManagerHarness(t)
+	h.sessions = newManagerSessionStub(sessionAttemptPlan{
+		sessionID:     "sess-trigger-cancel",
+		promptStarted: promptStarted,
+		promptRelease: promptRelease,
+	})
+
+	manager := h.newManager(t, integrationAutomationConfig())
+	if err := manager.Start(h.ctx); err != nil {
+		t.Fatalf("manager.Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("manager.Shutdown() error = %v", err)
+		}
+	})
+
+	job, err := manager.CreateJob(h.ctx, Job{
+		Scope:       AutomationScopeWorkspace,
+		Name:        "manual-trigger-cancel",
+		AgentName:   "researcher",
+		WorkspaceID: h.workspace.ID,
+		Prompt:      "Run the accepted automation.",
+		Schedule: &ScheduleSpec{
+			Mode:     ScheduleModeEvery,
+			Interval: "1h",
+		},
+		Enabled:   true,
+		Retry:     DefaultRetryConfig(),
+		FireLimit: DefaultFireLimitConfig(),
+	})
+	if err != nil {
+		t.Fatalf("manager.CreateJob() error = %v", err)
+	}
+
+	triggerCtx, cancel := context.WithCancel(h.ctx)
+	runCh := make(chan Run, 1)
+	errCh := make(chan error, 1)
+	go func() {
+		run, triggerErr := manager.TriggerJob(triggerCtx, job.ID)
+		runCh <- run
+		errCh <- triggerErr
+	}()
+
+	select {
+	case <-promptStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("automation session did not reach Prompt() in time")
+	}
+
+	runs, err := h.db.ListRuns(h.ctx, RunQuery{JobID: job.ID})
+	if err != nil {
+		t.Fatalf("ListRuns() error = %v", err)
+	}
+	if got, want := len(runs), 1; got != want {
+		t.Fatalf("len(runs) = %d, want %d", got, want)
+	}
+	if got, want := runs[0].Status, RunRunning; got != want {
+		t.Fatalf("runs[0].Status = %q, want %q", got, want)
+	}
+
+	cancel()
+	close(promptRelease)
+
+	var completedRun Run
+	select {
+	case completedRun = <-runCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("manager.TriggerJob() did not return after prompt release")
+	}
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("manager.TriggerJob() error = %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("manager.TriggerJob() error channel did not return")
+	}
+	if got, want := completedRun.Status, RunCompleted; got != want {
+		t.Fatalf("completedRun.Status = %q, want %q", got, want)
 	}
 }
 

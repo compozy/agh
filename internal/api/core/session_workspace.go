@@ -155,6 +155,8 @@ func statusForSessionError(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, session.ErrInvalidRuntimeOverride):
 		return http.StatusBadRequest
+	case errors.Is(err, session.ErrInvalidPermissionDecision):
+		return http.StatusBadRequest
 	case errors.Is(err, session.ErrSessionNotActive):
 		return http.StatusBadRequest
 	case errors.Is(err, session.ErrPromptInProgress),

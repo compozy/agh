@@ -762,8 +762,11 @@ func mapReviewContinuationInsertError(reviewID string, err error) error {
 }
 
 func validateRunReviewBindingTransition(review taskpkg.RunReview, sessionID string) error {
-	if strings.TrimSpace(review.ReviewerSessionID) != "" &&
-		strings.TrimSpace(review.ReviewerSessionID) != strings.TrimSpace(sessionID) {
+	currentSessionID := strings.TrimSpace(review.ReviewerSessionID)
+	nextSessionID := strings.TrimSpace(sessionID)
+	if currentSessionID != "" &&
+		currentSessionID != nextSessionID &&
+		review.Status.Normalize() != taskpkg.RunReviewStatusInReview {
 		return fmt.Errorf(
 			"%w: task run review %q is already bound to session %q",
 			taskpkg.ErrInvalidStatusTransition,

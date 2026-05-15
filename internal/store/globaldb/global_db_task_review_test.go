@@ -95,6 +95,64 @@ func TestGlobalDBTaskRunReviewStore(t *testing.T) {
 		}
 	})
 
+	t.Run("Should rebind in review rows when reviewer sessions stop", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		globalDB.now = fixedTaskReviewStoreTime
+		taskRecord, runRecord := createReviewStoreTaskRun(t, globalDB, taskpkg.TaskRunStatusFailed)
+
+		review := taskReviewForGlobalDBTest("review-rebind", taskRecord.ID, runRecord.ID)
+		review.Policy = taskpkg.ReviewPolicyOnFailure
+		stored, _, err := globalDB.RequestRunReview(ctx, &review)
+		if err != nil {
+			t.Fatalf("RequestRunReview() error = %v", err)
+		}
+		_, err = globalDB.BindRunReviewSession(ctx, taskpkg.BindRunReviewSessionRequest{
+			ReviewID:          stored.ReviewID,
+			SessionID:         "sess-stopped-reviewer",
+			ReviewerAgentName: "reviewer",
+			ReviewerPeerID:    "peer-stopped-reviewer",
+			ReviewerChannelID: "channel-review",
+		}, fixedTaskReviewStoreTime().Add(time.Minute))
+		if err != nil {
+			t.Fatalf("BindRunReviewSession(initial) error = %v", err)
+		}
+
+		bound, err := globalDB.BindRunReviewSession(ctx, taskpkg.BindRunReviewSessionRequest{
+			ReviewID:          stored.ReviewID,
+			SessionID:         "sess-active-reviewer",
+			ReviewerAgentName: "reviewer",
+			ReviewerPeerID:    "peer-active-reviewer",
+			ReviewerChannelID: "channel-review",
+		}, fixedTaskReviewStoreTime().Add(2*time.Minute))
+		if err != nil {
+			t.Fatalf("BindRunReviewSession(rebind) error = %v", err)
+		}
+		assertTaskRunReviewShape(t, bound, stored.ReviewID, taskpkg.RunReviewStatusInReview)
+		if got, want := bound.ReviewerSessionID, "sess-active-reviewer"; got != want {
+			t.Fatalf("ReviewerSessionID = %q, want %q", got, want)
+		}
+		if got, want := bound.ReviewerPeerID, "peer-active-reviewer"; got != want {
+			t.Fatalf("ReviewerPeerID = %q, want %q", got, want)
+		}
+
+		if _, err := globalDB.LookupRunReviewBySession(ctx, "sess-stopped-reviewer"); !errors.Is(
+			err,
+			taskpkg.ErrRunReviewNotFound,
+		) {
+			t.Fatalf("LookupRunReviewBySession(stopped) error = %v, want ErrRunReviewNotFound", err)
+		}
+		lookup, err := globalDB.LookupRunReviewBySession(ctx, "sess-active-reviewer")
+		if err != nil {
+			t.Fatalf("LookupRunReviewBySession(active) error = %v", err)
+		}
+		if got, want := lookup.ReviewID, stored.ReviewID; got != want {
+			t.Fatalf("lookup ReviewID = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("Should classify active reviewer session unique conflicts as invalid transitions", func(t *testing.T) {
 		t.Parallel()
 

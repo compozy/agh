@@ -1,6 +1,6 @@
 import { Activity, AlertCircle } from "lucide-react";
 
-import { Metric, Pill, PillDot, Section, type PillTone } from "@agh/ui";
+import { Alert, AlertDescription, Metric, Pill, PillDot, Section, type PillTone } from "@agh/ui";
 
 import type { StreamConnectionState } from "@/hooks/routes/use-task-detail-orchestration-tab";
 
@@ -41,16 +41,12 @@ export function TasksStreamResumeCard({
   return (
     <Section
       aria-label="Stream resume"
+      bodyClassName="gap-4"
       className="w-full gap-4"
       data-testid="tasks-stream-resume-card"
       icon={Activity}
       label="Stream resume"
     >
-      <p className="text-xs text-subtle" data-testid="tasks-stream-resume-disclaimer">
-        The web client seeds task SSE through Last-Event-ID derived from the task's latest_event_seq
-        projection. Reconnects resume from the seeded sequence; named SSE frames invalidate read
-        queries without inferring authority.
-      </p>
       <div className="grid gap-3 md:grid-cols-3" data-testid="tasks-stream-resume-summary">
         <Metric
           data-testid="tasks-stream-resume-latest"
@@ -74,22 +70,18 @@ export function TasksStreamResumeCard({
         />
       </div>
       {streamState === "error" && streamErrorMessage ? (
-        <div
-          className="flex items-start gap-2 rounded bg-danger-tint px-3 py-2 text-form-label leading-relaxed text-danger"
-          data-testid="tasks-stream-resume-error"
-        >
-          <AlertCircle className="mt-0.5 size-3 shrink-0" />
-          <span>{streamErrorMessage}</span>
-        </div>
+        <Alert variant="danger" data-testid="tasks-stream-resume-error">
+          <AlertCircle />
+          <AlertDescription>{streamErrorMessage}</AlertDescription>
+        </Alert>
       ) : null}
       {streamState === "disabled" ? (
-        <div
-          className="flex items-start gap-2 text-form-label leading-relaxed text-faint"
-          data-testid="tasks-stream-resume-disabled"
-        >
-          <Activity className="mt-0.5 size-3 shrink-0" />
-          <span>Stream disabled. Open the orchestration tab on a real task to subscribe.</span>
-        </div>
+        <Alert variant="neutral" role="status" data-testid="tasks-stream-resume-disabled">
+          <Activity />
+          <AlertDescription>
+            Stream disabled. Open the orchestration tab on a real task to subscribe.
+          </AlertDescription>
+        </Alert>
       ) : null}
     </Section>
   );

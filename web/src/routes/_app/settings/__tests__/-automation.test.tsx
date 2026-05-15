@@ -161,6 +161,28 @@ describe("AutomationSettingsPage", () => {
     );
   });
 
+  it("surfaces an unavailable automation runtime instead of only showing stopped metrics", () => {
+    pageState.envelope = {
+      ...envelope,
+      runtime: {
+        ...envelope.runtime,
+        available: false,
+        running: false,
+        scheduler_running: false,
+        job_enabled: 0,
+        job_total: 0,
+        trigger_enabled: 0,
+        trigger_total: 0,
+      },
+    };
+
+    render(<AutomationSettingsPage />);
+
+    expect(screen.getByTestId("settings-page-automation-runtime-unavailable")).toHaveTextContent(
+      "Automation runtime is unavailable"
+    );
+  });
+
   it("wires save bar buttons to the restart-required page handlers", () => {
     pageState.isDirty = true;
     render(<AutomationSettingsPage />);

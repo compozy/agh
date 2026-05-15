@@ -134,6 +134,11 @@ func (m *Manager) handleProcessExit(ctx context.Context, session *Session, waitE
 	if !session.stopWasRequested() {
 		switch waitErr {
 		case nil:
+			if session.IsPrompting() {
+				waitErr = errors.New("process exited during active prompt")
+				session.setStopCause(CauseProcessExited)
+				break
+			}
 			session.setStopCause(CauseCompleted)
 		default:
 			session.setStopCause(CauseProcessExited)

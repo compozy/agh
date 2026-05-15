@@ -41,7 +41,7 @@ func (r *Registry) ForAgent(
 	agent, err := r.resolveAgentScope(resolved, target)
 	if err != nil {
 		if errors.Is(err, ErrAgentLocalInvalid) {
-			r.emitSkillsLoadFailed(ctx, target, err)
+			r.emitSkillsLoadFailed(ctx, resourceWorkspaceKey(resolved), target, err)
 		}
 		return nil, err
 	}
@@ -59,7 +59,7 @@ func (r *Registry) ForAgent(
 	agentSkillsDir := filepath.Join(filepath.Dir(agent.SourcePath), aghconfig.SkillsDirName)
 	agentLocalSkills, err := r.loadAgentLocalSkills(ctx, agentSkillsDir, target, agent.Skills.Disabled)
 	if err != nil {
-		r.emitSkillsLoadFailed(ctx, target, err)
+		r.emitSkillsLoadFailed(ctx, resourceWorkspaceKey(resolved), target, err)
 		return nil, err
 	}
 	r.emitEventSummaries(

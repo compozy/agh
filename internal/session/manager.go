@@ -33,6 +33,8 @@ var (
 	ErrPendingPermissionNotFound = errors.New("session: pending permission not found")
 	// ErrPendingPermissionConflict reports that the approval request matched multiple pending permissions.
 	ErrPendingPermissionConflict = errors.New("session: pending permission lookup is ambiguous")
+	// ErrInvalidPermissionDecision reports an approval decision unsupported by the pending provider request.
+	ErrInvalidPermissionDecision = errors.New("session: invalid permission decision")
 	// ErrInvalidRuntimeOverride reports that a session runtime override is invalid.
 	ErrInvalidRuntimeOverride = errors.New("session: invalid runtime override")
 )

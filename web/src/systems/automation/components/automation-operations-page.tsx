@@ -20,6 +20,7 @@ interface AutomationOperationsPageProps {
     initialError: Error | null;
     isInitialLoading: boolean;
     listPanelProps: ComponentProps<typeof AutomationListPanel>;
+    runtimeUnavailableMessage?: string | null;
     scopeFilter: AutomationScopeFilter;
   };
   title: string;
@@ -66,29 +67,46 @@ export function AutomationOperationsPage({
     ),
   });
 
+  const runtimeAlert = page.runtimeUnavailableMessage ? (
+    <div
+      className="flex items-start gap-2 border-b border-line bg-warning-soft px-6 py-3 text-sm text-fg"
+      data-testid={`${titlePrefix}-runtime-alert`}
+      role="alert"
+    >
+      <AlertCircle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
+      <span>{page.runtimeUnavailableMessage}</span>
+    </div>
+  ) : null;
+
   if (page.isInitialLoading) {
     return (
-      <div
-        className="flex min-h-0 flex-1 items-center justify-center"
-        data-testid={`${titlePrefix}-loading`}
-      >
-        <Spinner className="size-5 text-subtle" />
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {runtimeAlert}
+        <div
+          className="flex min-h-0 flex-1 items-center justify-center"
+          data-testid={`${titlePrefix}-loading`}
+        >
+          <Spinner className="size-5 text-subtle" />
+        </div>
       </div>
     );
   }
 
   if (page.initialError) {
     return (
-      <div
-        className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
-        data-testid={`${titlePrefix}-error`}
-      >
-        <Empty
-          className="max-w-md"
-          description={page.initialError.message ?? `Failed to load ${title.toLowerCase()}`}
-          icon={AlertCircle}
-          title={`Unable to load ${title.toLowerCase()}`}
-        />
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {runtimeAlert}
+        <div
+          className="flex min-h-0 flex-1 items-center justify-center px-6 py-10"
+          data-testid={`${titlePrefix}-error`}
+        >
+          <Empty
+            className="max-w-md"
+            description={page.initialError.message ?? `Failed to load ${title.toLowerCase()}`}
+            icon={AlertCircle}
+            title={`Unable to load ${title.toLowerCase()}`}
+          />
+        </div>
       </div>
     );
   }
@@ -99,6 +117,7 @@ export function AutomationOperationsPage({
         className="flex min-h-0 flex-1 flex-col overflow-hidden"
         data-testid={`${titlePrefix}-shell`}
       >
+        {runtimeAlert}
         <SplitPane
           data-testid={`${titlePrefix}-split-pane`}
           detail={<AutomationDetailPanel {...page.detailPanelProps} />}

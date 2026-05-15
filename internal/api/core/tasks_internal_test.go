@@ -13,7 +13,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pedronauck/agh/internal/agentidentity"
 	"github.com/pedronauck/agh/internal/api/contract"
+	"github.com/pedronauck/agh/internal/session"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -64,6 +66,28 @@ func assertTaskValidationError(t *testing.T, err error, wantSubstring string) {
 	if wantSubstring != "" && !strings.Contains(err.Error(), wantSubstring) {
 		t.Fatalf("error = %q, want substring %q", err.Error(), wantSubstring)
 	}
+}
+
+func TestStatusForTaskAgentIdentityErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should map agent identity failures to stable task statuses", func(t *testing.T) {
+		t.Parallel()
+
+		if got := StatusForTaskError(agentidentity.ErrIdentityRequired); got != http.StatusUnauthorized {
+			t.Fatalf("StatusForTaskError(identity required) = %d, want %d", got, http.StatusUnauthorized)
+		}
+		if got := StatusForTaskError(agentidentity.ErrIdentityLookupUnavailable); got != http.StatusServiceUnavailable {
+			t.Fatalf(
+				"StatusForTaskError(identity lookup unavailable) = %d, want %d",
+				got,
+				http.StatusServiceUnavailable,
+			)
+		}
+		if got := StatusForTaskError(agentidentity.ErrIdentityUnauthorized); got != http.StatusForbidden {
+			t.Fatalf("StatusForTaskError(identity unauthorized) = %d, want %d", got, http.StatusForbidden)
+		}
+	})
 }
 
 func TestTaskActorContextAndTransportHelpers(t *testing.T) {
@@ -118,6 +142,41 @@ func TestTaskActorContextAndTransportHelpers(t *testing.T) {
 		}
 		if actor.Actor.Ref != "user-2" || actor.Origin.Ref != "custom.list" {
 			t.Fatalf("taskActorContext(custom) = %#v", actor)
+		}
+	})
+
+	t.Run("Should use validated agent identity headers", func(t *testing.T) {
+		t.Parallel()
+
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		ctx.Request = httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/tasks", http.NoBody)
+		ctx.Request.Header.Set(agentidentity.HeaderSessionID, "sess-agent")
+		ctx.Request.Header.Set(agentidentity.HeaderAgent, "coder")
+		handlers := &BaseHandlers{
+			TransportName: "uds-api",
+			Sessions: sessionManagerStub{status: func(_ context.Context, id string) (*session.Info, error) {
+				if id != "sess-agent" {
+					t.Fatalf("session id = %q, want sess-agent", id)
+				}
+				return &session.Info{
+					ID:          "sess-agent",
+					AgentName:   "coder",
+					WorkspaceID: "ws-1",
+					State:       session.StateActive,
+				}, nil
+			}},
+		}
+
+		actor, err := handlers.taskActorContextForWorkspace(ctx, taskActionCreate, "ws-1")
+		if err != nil {
+			t.Fatalf("taskActorContextForWorkspace(agent) error = %v", err)
+		}
+		if actor.Actor.Kind != taskpkg.ActorKindAgentSession ||
+			actor.Actor.Ref != "sess-agent" ||
+			actor.Origin.Kind != taskpkg.OriginKindUDS ||
+			actor.Origin.Ref != "tasks.create" {
+			t.Fatalf("taskActorContextForWorkspace(agent) = %#v", actor)
 		}
 	})
 }
@@ -276,32 +335,36 @@ func TestTaskParsingAndValidationHelpers(t *testing.T) {
 func TestTaskHandlerInfrastructureHelpers(t *testing.T) {
 	t.Parallel()
 
-	gin.SetMode(gin.TestMode)
+	t.Run("Should expose nil-safe payload and required service helpers", func(t *testing.T) {
+		t.Parallel()
 
-	recorder := httptest.NewRecorder()
-	ctx, _ := gin.CreateTestContext(recorder)
-	handlers := &BaseHandlers{TransportName: "api-core-test"}
+		gin.SetMode(gin.TestMode)
 
-	service, ok := handlers.requireTaskManager(ctx)
-	if ok || service != nil {
-		t.Fatalf("requireTaskManager() = (%v, %v), want (nil, false)", service, ok)
-	}
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		handlers := &BaseHandlers{TransportName: "api-core-test"}
 
-	if !reflect.DeepEqual(TaskPayloadFromTask(nil), contract.TaskPayload{}) {
-		t.Fatal("TaskPayloadFromTask(nil) should return zero payload")
-	}
-	if !reflect.DeepEqual(TaskRunPayloadFromRun(nil), contract.TaskRunPayload{}) {
-		t.Fatal("TaskRunPayloadFromRun(nil) should return zero payload")
-	}
-	if !reflect.DeepEqual(TaskDetailPayloadFromView(nil), contract.TaskDetailPayload{}) {
-		t.Fatal("TaskDetailPayloadFromView(nil) should return zero payload")
-	}
+		service, ok := handlers.requireTaskManager(ctx)
+		if ok || service != nil {
+			t.Fatalf("requireTaskManager() = (%v, %v), want (nil, false)", service, ok)
+		}
 
-	idOnly := json.RawMessage(`{"ok":true}`)
-	ptr := cloneRawMessagePtr(&idOnly)
-	if ptr == nil || string(*ptr) != `{"ok":true}` {
-		t.Fatalf("cloneRawMessagePtr() = %v", ptr)
-	}
+		if !reflect.DeepEqual(TaskPayloadFromTask(nil), contract.TaskPayload{}) {
+			t.Fatal("TaskPayloadFromTask(nil) should return zero payload")
+		}
+		if !reflect.DeepEqual(TaskRunPayloadFromRun(nil), contract.TaskRunPayload{}) {
+			t.Fatal("TaskRunPayloadFromRun(nil) should return zero payload")
+		}
+		if !reflect.DeepEqual(TaskDetailPayloadFromView(nil), contract.TaskDetailPayload{}) {
+			t.Fatal("TaskDetailPayloadFromView(nil) should return zero payload")
+		}
+
+		idOnly := json.RawMessage("{\"ok\":true}")
+		ptr := cloneRawMessagePtr(&idOnly)
+		if ptr == nil || string(*ptr) != "{\"ok\":true}" {
+			t.Fatalf("cloneRawMessagePtr() = %v", ptr)
+		}
+	})
 }
 
 func TestTaskRunPayloadFromRunExposesLeaseStateWithoutRawClaimToken(t *testing.T) {

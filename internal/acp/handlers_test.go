@@ -506,6 +506,37 @@ func TestResolvePermissionUnknownRequest(t *testing.T) {
 	}
 }
 
+func TestResolvePermissionRejectsUnsupportedPersistentDecision(t *testing.T) {
+	t.Parallel()
+
+	proc := newDirectProcess(t, aghconfig.PermissionModeDenyAll)
+	requestID, pending := proc.registerPendingPermission("turn-unsupported", acpsdk.RequestPermissionRequest{
+		Options: []acpsdk.PermissionOption{
+			{OptionId: "reject-once", Name: "reject once", Kind: acpsdk.PermissionOptionKindRejectOnce},
+		},
+		ToolCall: acpsdk.ToolCallUpdate{ToolCallId: "tool-unsupported"},
+	})
+	t.Cleanup(func() {
+		proc.clearPendingPermission(requestID)
+	})
+
+	err := proc.ResolvePermission(ApproveRequest{
+		RequestID: requestID,
+		Decision:  string(decisionRejectAlways),
+	})
+	if !errors.Is(err, ErrPermissionDecisionUnsupported) {
+		t.Fatalf("ResolvePermission() error = %v, want ErrPermissionDecisionUnsupported", err)
+	}
+	select {
+	case decision := <-pending.response:
+		t.Fatalf("pending response = %q, want none", decision)
+	default:
+	}
+	if _, ok := proc.pendingPermissions[requestID]; !ok {
+		t.Fatal("pending permission was removed after unsupported decision")
+	}
+}
+
 func TestHandleInboundPermissionRequestTimeout(t *testing.T) {
 	t.Parallel()
 

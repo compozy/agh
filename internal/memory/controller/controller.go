@@ -181,17 +181,28 @@ func (c *Controller) writeDecision(
 	targets []Target,
 	trace []memcontract.RuleHit,
 ) (memcontract.Decision, error) {
+	if collision := exactFilenameTarget(normalized, targets); collision != nil {
+		return c.updateDecision(normalized, *collision, append(
+			trace,
+			passedRule("exact_slug_collision", "target filename already exists", collision.ID),
+		))
+	}
 	slotMatches := entitySlotTargets(normalized, targets)
 	switch len(slotMatches) {
 	case 0:
-		if collision := exactFilenameTarget(normalized, targets); collision != nil {
-			return c.updateDecision(normalized, *collision, append(
-				trace,
-				passedRule("exact_slug_collision", "target filename already exists", collision.ID),
-			))
-		}
 		if surface := surfaceTargets(normalized, targets); len(surface) > 1 &&
 			normalized.Origin.Normalize() != memcontract.OriginDreaming {
+			if !isAutonomousWriteOrigin(normalized.Origin) &&
+				directTargetIdentifiesNewMemory(normalized, surface) {
+				return c.addDecision(normalized, append(
+					trace,
+					passedRule(
+						"explicit_target_filename",
+						"direct write supplied a distinct target filename",
+						targetFilename(normalized),
+					),
+				))
+			}
 			return c.ambiguousDecision(normalized, surface, trace)
 		}
 		return c.addDecision(normalized, trace)
@@ -217,6 +228,17 @@ func (c *Controller) writeDecision(
 			passedRule("entity_slot_update", "single entity slot target differs", target.ID),
 		))
 	default:
+		if !isAutonomousWriteOrigin(normalized.Origin) &&
+			directTargetIdentifiesNewMemory(normalized, slotMatches) {
+			return c.addDecision(normalized, append(
+				trace,
+				passedRule(
+					"explicit_target_filename",
+					"direct write supplied a distinct target filename",
+					targetFilename(normalized),
+				),
+			))
+		}
 		return c.ambiguousDecision(normalized, slotMatches, trace)
 	}
 }
@@ -574,6 +596,41 @@ func targetFilename(candidate memcontract.Candidate) string {
 		prefix = "memory"
 	}
 	return prefix + "_" + slugify(base) + ".md"
+}
+
+func isAutonomousWriteOrigin(origin memcontract.Origin) bool {
+	switch origin.Normalize() {
+	case memcontract.OriginDreaming, memcontract.OriginExtractor, memcontract.OriginProvider:
+		return true
+	default:
+		return false
+	}
+}
+
+func hasExplicitTargetFilename(candidate memcontract.Candidate) bool {
+	for _, key := range []string{metadataTargetFilenameKey, metadataFilenameKey} {
+		if cleanFilename(metadataValue(candidate.Metadata, key)) != "" {
+			return true
+		}
+	}
+	return cleanFilename(candidate.Frontmatter.Filename) != ""
+}
+
+func directTargetIdentifiesNewMemory(candidate memcontract.Candidate, targets []Target) bool {
+	hasFilename := hasExplicitTargetFilename(candidate)
+	candidateName := normalizeSlot(candidate.Frontmatter.Name)
+	if !hasFilename && candidateName == "" {
+		return false
+	}
+	if candidateName == "" {
+		return true
+	}
+	for _, target := range targets {
+		if normalizeSlot(target.Frontmatter.Name) == candidateName {
+			return false
+		}
+	}
+	return true
 }
 
 func cleanFilename(filename string) string {

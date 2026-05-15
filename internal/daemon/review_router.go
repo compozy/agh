@@ -69,6 +69,11 @@ type reviewRouterTasks interface {
 		taskID string,
 		actor taskpkg.ActorContext,
 	) (taskpkg.ExecutionProfile, error)
+	ListRunReviews(
+		ctx context.Context,
+		query taskpkg.RunReviewQuery,
+		actor taskpkg.ActorContext,
+	) ([]taskpkg.RunReview, error)
 	BindRunReviewSession(
 		ctx context.Context,
 		req taskpkg.BindRunReviewSessionRequest,
@@ -112,6 +117,7 @@ type reviewRouter struct {
 }
 
 var _ taskpkg.RunReviewRequestedObserver = (*reviewRouter)(nil)
+var _ sessionLifecycleObserver = (*reviewRouter)(nil)
 
 type reviewRouterOption func(*reviewRouter)
 
@@ -206,6 +212,86 @@ func (r *reviewRouter) OnRunReviewRequested(
 	}
 }
 
+func (r *reviewRouter) OnSessionCreated(context.Context, *session.Session) {
+}
+
+func (r *reviewRouter) OnSessionStopped(ctx context.Context, sess *session.Session) {
+	if r == nil || sess == nil {
+		return
+	}
+	info := sess.Info()
+	if info == nil {
+		return
+	}
+	sessionID := strings.TrimSpace(info.ID)
+	if sessionID == "" {
+		return
+	}
+	actor, err := taskpkg.DeriveDaemonActorContext(reviewRouterActorRef, reviewRouterOriginRef)
+	if err != nil {
+		r.logger.Warn("daemon: review router failed to derive actor for stopped reviewer recovery", "error", err)
+		return
+	}
+	routeCtx, cancel := detachedDaemonOperationContext(ctx, reviewRouterRouteTimeout)
+	defer cancel()
+	reviews, err := r.tasks.ListRunReviews(
+		routeCtx,
+		taskpkg.RunReviewQuery{
+			Status:            taskpkg.RunReviewStatusInReview,
+			ReviewerSessionID: sessionID,
+		},
+		actor,
+	)
+	if err != nil {
+		r.logger.Warn(
+			"daemon: review router failed to list stopped reviewer bindings",
+			"session_id", sessionID,
+			"error", err,
+		)
+		return
+	}
+	for _, review := range reviews {
+		r.recoverStoppedReviewerReview(routeCtx, review, sessionID)
+	}
+}
+
+func (r *reviewRouter) recoverStoppedReviewerReview(
+	ctx context.Context,
+	review taskpkg.RunReview,
+	stoppedSessionID string,
+) {
+	reviewID := strings.TrimSpace(review.ReviewID)
+	if reviewID == "" {
+		return
+	}
+	routed, diagnostic, err := r.routeRunReview(ctx, &taskpkg.RunReviewRequestedNotification{Review: review})
+	if err != nil {
+		r.logger.Warn(
+			"daemon: review router failed to recover stopped reviewer binding",
+			"review_id", reviewID,
+			"task_id", review.TaskID,
+			"run_id", review.RunID,
+			"stopped_session_id", stoppedSessionID,
+			"error", err,
+		)
+		return
+	}
+	if routed {
+		return
+	}
+	diagnostic = stoppedReviewerDiagnostic(stoppedSessionID, diagnostic)
+	if err := r.recordNoRouteDiagnostic(ctx, review, diagnostic); err != nil {
+		r.logger.Warn(
+			"daemon: review router failed to record stopped reviewer diagnostic",
+			"review_id", reviewID,
+			"task_id", review.TaskID,
+			"run_id", review.RunID,
+			"stopped_session_id", stoppedSessionID,
+			"error", err,
+		)
+	}
+}
+
 func (r *reviewRouter) routeRunReview(
 	ctx context.Context,
 	notification *taskpkg.RunReviewRequestedNotification,
@@ -228,7 +314,7 @@ func (r *reviewRouter) routeRunReview(
 		return false, "", fmt.Errorf("daemon: review router load profile for task %q: %w", taskRecord.ID, err)
 	}
 
-	route, diagnostic, err := r.selectRoute(ctx, taskRecord, run, &profile)
+	route, diagnostic, err := r.selectRoute(ctx, taskRecord, run, &profile, notification.Actor)
 	if err != nil || diagnostic != "" {
 		return false, diagnostic, err
 	}
@@ -273,6 +359,7 @@ func (r *reviewRouter) selectRoute(
 	taskRecord taskpkg.Task,
 	run taskpkg.Run,
 	profile *taskpkg.ExecutionProfile,
+	requesterActor taskpkg.ActorContext,
 ) (reviewRoute, string, error) {
 	resolved, err := r.resolveWorkspace(ctx, taskRecord.WorkspaceID)
 	if err != nil {
@@ -280,7 +367,8 @@ func (r *reviewRouter) selectRoute(
 	}
 	review := profile.Review
 	original := r.originalWorkerIdentity(ctx, taskRecord.WorkspaceID, run)
-	existing, err := r.selectExistingRoute(ctx, taskRecord, &review, original, resolved)
+	requester := r.requesterIdentity(ctx, taskRecord.WorkspaceID, requesterActor)
+	existing, err := r.selectExistingRoute(ctx, taskRecord, &review, original, requester, resolved)
 	if err != nil {
 		return reviewRoute{}, "", err
 	}
@@ -288,7 +376,7 @@ func (r *reviewRouter) selectRoute(
 		return reviewRoute{info: existing}, "", nil
 	}
 
-	create, diagnostic, err := r.createRoute(ctx, taskRecord, run, &review, original, resolved)
+	create, diagnostic, err := r.createRoute(ctx, taskRecord, run, &review, original, requester, resolved)
 	if err != nil || diagnostic != "" {
 		return reviewRoute{}, diagnostic, err
 	}
@@ -337,6 +425,41 @@ func (r *reviewRouter) originalWorkerIdentity(
 	return identity
 }
 
+func (r *reviewRouter) requesterIdentity(
+	ctx context.Context,
+	workspaceID string,
+	actor taskpkg.ActorContext,
+) originalWorkerIdentity {
+	if actor.Actor.Kind.Normalize() != taskpkg.ActorKindAgentSession {
+		return originalWorkerIdentity{}
+	}
+	identity := originalWorkerIdentity{sessionID: strings.TrimSpace(actor.Actor.Ref)}
+	if identity.sessionID == "" {
+		return identity
+	}
+	infos, err := r.sessions.ListAll(ctx)
+	if err != nil {
+		r.logger.Warn(
+			"daemon: review router could not list sessions for requester exclusion",
+			"session_id", identity.sessionID,
+			"error", err,
+		)
+		return identity
+	}
+	for _, info := range infos {
+		if info == nil || strings.TrimSpace(info.ID) != identity.sessionID {
+			continue
+		}
+		if workspaceID != "" && strings.TrimSpace(info.WorkspaceID) != strings.TrimSpace(workspaceID) {
+			continue
+		}
+		identity.agentName = strings.TrimSpace(info.AgentName)
+		identity.peerID = reviewRouterPeerID(info)
+		return identity
+	}
+	return identity
+}
+
 type existingReviewCandidate struct {
 	info  *session.Info
 	score int
@@ -347,6 +470,7 @@ func (r *reviewRouter) selectExistingRoute(
 	taskRecord taskpkg.Task,
 	review *taskpkg.ReviewProfile,
 	original originalWorkerIdentity,
+	requester originalWorkerIdentity,
 	resolved *workspacepkg.ResolvedWorkspace,
 ) (*session.Info, error) {
 	infos, err := r.sessions.ListAll(ctx)
@@ -358,7 +482,7 @@ func (r *reviewRouter) selectExistingRoute(
 		if info == nil {
 			continue
 		}
-		score, ok, err := r.existingCandidateScore(ctx, taskRecord, review, original, resolved, info)
+		score, ok, err := r.existingCandidateScore(ctx, taskRecord, review, original, requester, resolved, info)
 		if err != nil {
 			return nil, err
 		}
@@ -383,6 +507,7 @@ func (r *reviewRouter) existingCandidateScore(
 	taskRecord taskpkg.Task,
 	review *taskpkg.ReviewProfile,
 	original originalWorkerIdentity,
+	requester originalWorkerIdentity,
 	resolved *workspacepkg.ResolvedWorkspace,
 	info *session.Info,
 ) (int, bool, error) {
@@ -393,7 +518,7 @@ func (r *reviewRouter) existingCandidateScore(
 		strings.TrimSpace(info.WorkspaceID) != strings.TrimSpace(taskRecord.WorkspaceID) {
 		return 0, false, nil
 	}
-	if r.isOriginalWorker(info, original) {
+	if r.isOriginalWorker(info, original) || r.isOriginalWorker(info, requester) {
 		return 0, false, nil
 	}
 	agentName := strings.TrimSpace(info.AgentName)
@@ -439,12 +564,13 @@ func (r *reviewRouter) createRoute(
 	run taskpkg.Run,
 	review *taskpkg.ReviewProfile,
 	original originalWorkerIdentity,
+	requester originalWorkerIdentity,
 	resolved *workspacepkg.ResolvedWorkspace,
 ) (*session.CreateOpts, string, error) {
 	if len(review.AllowedPeerIDs) > 0 {
 		return nil, "review profile allows only explicit peers and no active eligible peer is available", nil
 	}
-	agentName, diagnostic, err := r.selectCreateAgent(ctx, review, original, resolved)
+	agentName, diagnostic, err := r.selectCreateAgent(ctx, review, original, requester, resolved)
 	if err != nil || diagnostic != "" {
 		return nil, diagnostic, err
 	}
@@ -473,6 +599,7 @@ func (r *reviewRouter) selectCreateAgent(
 	ctx context.Context,
 	review *taskpkg.ReviewProfile,
 	original originalWorkerIdentity,
+	requester originalWorkerIdentity,
 	resolved *workspacepkg.ResolvedWorkspace,
 ) (string, string, error) {
 	candidates := reviewCreateAgentCandidates(review, resolved)
@@ -482,6 +609,9 @@ func (r *reviewRouter) selectCreateAgent(
 			continue
 		}
 		if strings.TrimSpace(original.agentName) != "" && candidate == strings.TrimSpace(original.agentName) {
+			continue
+		}
+		if strings.TrimSpace(requester.agentName) != "" && candidate == strings.TrimSpace(requester.agentName) {
 			continue
 		}
 		ok, err := r.agentHasCapabilities(ctx, resolved, candidate, review.RequiredCapabilities)
@@ -508,6 +638,9 @@ func (r *reviewRouter) selectCreateAgent(
 				continue
 			}
 			if strings.TrimSpace(original.agentName) != "" && agentName == strings.TrimSpace(original.agentName) {
+				continue
+			}
+			if strings.TrimSpace(requester.agentName) != "" && agentName == strings.TrimSpace(requester.agentName) {
 				continue
 			}
 			return agentName, "", nil
@@ -736,6 +869,22 @@ func normalizeReviewRouterDiagnostic(diagnostic string) string {
 		return "review router found no eligible reviewer"
 	}
 	return "review router found no eligible reviewer: " + trimmed
+}
+
+func stoppedReviewerDiagnostic(stoppedSessionID string, diagnostic string) string {
+	trimmedID := strings.TrimSpace(stoppedSessionID)
+	trimmedDiagnostic := strings.TrimSpace(diagnostic)
+	if trimmedDiagnostic == "" {
+		trimmedDiagnostic = "no eligible reviewer route is available"
+	}
+	if trimmedID == "" {
+		return "reviewer session stopped before submitting review; " + trimmedDiagnostic
+	}
+	return fmt.Sprintf(
+		"reviewer session %q stopped before submitting review; %s",
+		trimmedID,
+		trimmedDiagnostic,
+	)
 }
 
 func uniqueTrimmedStrings(values []string) []string {

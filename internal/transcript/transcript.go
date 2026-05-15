@@ -762,6 +762,9 @@ func MarshalAgentEvent(event acp.AgentEvent) (string, error) {
 	if len(event.Raw) > 0 {
 		var rawPayload map[string]any
 		if err := json.Unmarshal(event.Raw, &rawPayload); err == nil {
+			if event.Type == acp.EventTypePermission {
+				payload.Raw = acp.CloneRawMessage(event.Raw)
+			}
 			payload.ToolName = legacyToolName(rawPayload)
 			payload.ToolInput = acp.CloneRawMessage(rawMessageFromValue(rawPayload["rawInput"]))
 			if event.Type == acp.EventTypeToolResult {

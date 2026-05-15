@@ -5,6 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useResolveWorkspace, useWorkspace, useWorkspaces } from "../use-workspaces";
 import { workspaceKeys } from "../../lib/query-keys";
+import {
+  WORKSPACE_REFETCH_INTERVAL,
+  workspaceDetailOptions,
+  workspacesListOptions,
+} from "../../lib/query-options";
 
 vi.mock("@/systems/workspace/adapters/workspace-api", () => ({
   fetchWorkspace: vi.fn(),
@@ -57,6 +62,11 @@ describe("workspace hooks", () => {
     });
 
     expect(fetchWorkspaces).toHaveBeenCalledOnce();
+  });
+
+  it("keeps workspace registry and detail queries fresh for external workspace removal", () => {
+    expect(workspacesListOptions().refetchInterval).toBe(WORKSPACE_REFETCH_INTERVAL);
+    expect(workspaceDetailOptions("ws_removed").refetchInterval).toBe(WORKSPACE_REFETCH_INTERVAL);
   });
 
   it("loads one resolved workspace detail", async () => {

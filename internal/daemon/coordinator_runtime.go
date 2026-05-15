@@ -158,6 +158,7 @@ func (d *Daemon) bootCoordinator(ctx context.Context, state *bootState, _ *bootC
 	}
 	if state.lifecycleObservers != nil {
 		state.lifecycleObservers.Add(runtime)
+		state.lifecycleObservers.Add(router)
 	}
 	if state.reviewRequests != nil {
 		state.reviewRequests.Set(router)

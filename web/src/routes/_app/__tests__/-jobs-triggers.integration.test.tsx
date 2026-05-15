@@ -6,7 +6,24 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AutomationJob, AutomationRun, AutomationTrigger } from "@/systems/automation";
 
-const { toast } = vi.hoisted(() => ({
+const { settingsAutomationQuery, toast } = vi.hoisted(() => ({
+  settingsAutomationQuery: {
+    current: {
+      data: {
+        runtime: {
+          available: true,
+          running: true,
+          scheduler_running: true,
+          job_enabled: 1,
+          job_total: 1,
+          trigger_enabled: 1,
+          trigger_total: 1,
+        },
+      },
+      error: null,
+      isLoading: false,
+    },
+  },
   toast: {
     error: vi.fn(),
     success: vi.fn(),
@@ -74,6 +91,10 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("sonner", () => ({
   toast,
+}));
+
+vi.mock("@/systems/settings", () => ({
+  useSettingsAutomation: () => settingsAutomationQuery.current,
 }));
 
 vi.mock("@/systems/workspace", () => ({
@@ -274,6 +295,21 @@ beforeEach(() => {
   mockDeleteTriggerMutateAsync.mockReset();
   toast.success.mockReset();
   toast.error.mockReset();
+  settingsAutomationQuery.current = {
+    data: {
+      runtime: {
+        available: true,
+        running: true,
+        scheduler_running: true,
+        job_enabled: 1,
+        job_total: 1,
+        trigger_enabled: 1,
+        trigger_total: 1,
+      },
+    },
+    error: null,
+    isLoading: false,
+  };
 
   mockCreateJobMutateAsync.mockResolvedValue(makeJob({ id: "job_created", name: "nightly-docs" }));
   mockCreateTriggerMutateAsync.mockResolvedValue(
@@ -317,6 +353,30 @@ describe("Jobs route integration", () => {
     expect(within(detailPanel).getByText("Review recent changes.")).toBeInTheDocument();
     expect(within(detailPanel).getByText("0 9 * * *")).toBeInTheDocument();
     expect(screen.getByTestId("automation-run-run_001")).toBeInTheDocument();
+  });
+
+  it("shows a runtime-unavailable alert instead of treating cached jobs as healthy", () => {
+    settingsAutomationQuery.current = {
+      data: {
+        runtime: {
+          available: false,
+          running: false,
+          scheduler_running: false,
+          job_enabled: 0,
+          job_total: 0,
+          trigger_enabled: 0,
+          trigger_total: 0,
+        },
+      },
+      error: null,
+      isLoading: false,
+    };
+
+    render(<JobsPage />);
+
+    expect(screen.getByTestId("jobs-runtime-alert")).toHaveTextContent(
+      "automation runtime is disabled"
+    );
   });
 
   it("opens a create job modal and submits a workspace-scoped payload", async () => {

@@ -110,6 +110,61 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should search explicit single-token workspace memory", func(t *testing.T) {
+		t.Parallel()
+
+		fixture, workspace, _ := setup(t)
+		wantModTime := time.Date(2026, 5, 15, 9, 30, 0, 0, time.UTC)
+		workspaceMemoryPath := filepath.Join(workspace, ".agh", "memory", "workspace.md")
+		if err := os.Chtimes(workspaceMemoryPath, wantModTime, wantModTime); err != nil {
+			t.Fatalf("os.Chtimes(workspace memory) error = %v", err)
+		}
+		reindexBody, err := json.Marshal(contract.MemoryReindexV2Request{
+			Scope:       memcontract.ScopeWorkspace,
+			WorkspaceID: workspace,
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(reindex) error = %v", err)
+		}
+		reindexResp := performRequest(t, fixture.Engine, http.MethodPost, "/memory/reindex", reindexBody)
+		if reindexResp.Code != http.StatusOK {
+			t.Fatalf(
+				"reindex memory status = %d, want %d; body=%s",
+				reindexResp.Code,
+				http.StatusOK,
+				reindexResp.Body.String(),
+			)
+		}
+
+		body, err := json.Marshal(contract.MemorySearchRequest{
+			QueryText:   "workspace",
+			Scope:       memcontract.ScopeWorkspace,
+			WorkspaceID: workspace,
+			TopK:        3,
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(search) error = %v", err)
+		}
+		searchResp := performRequest(t, fixture.Engine, http.MethodPost, "/memory/search", body)
+		if searchResp.Code != http.StatusOK {
+			t.Fatalf(
+				"search memory status = %d, want %d; body=%s",
+				searchResp.Code,
+				http.StatusOK,
+				searchResp.Body.String(),
+			)
+		}
+
+		var payload contract.MemorySearchResponse
+		testutil.DecodeJSONResponse(t, searchResp, &payload)
+		if len(payload.Results) == 0 || payload.Results[0].Memory.Filename != "workspace.md" {
+			t.Fatalf("search results = %#v, want workspace.md", payload.Results)
+		}
+		if got := payload.Results[0].Memory.ModTime; !got.Equal(wantModTime) {
+			t.Fatalf("search result mod time = %v, want %v", got, wantModTime)
+		}
+	})
+
 	t.Run("Should read global memory", func(t *testing.T) {
 		t.Parallel()
 

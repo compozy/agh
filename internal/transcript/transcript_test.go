@@ -800,6 +800,81 @@ func TestToUIMessagesPermissionDataParts(t *testing.T) {
 			t.Fatalf("payload.Decision = %q, want empty", payload.Decision)
 		}
 	})
+
+	t.Run("ShouldPreservePermissionOptionsForReplay", func(t *testing.T) {
+		t.Parallel()
+
+		timestamp := time.Date(2026, 5, 15, 10, 0, 0, 0, time.UTC)
+		content, err := MarshalAgentEvent(acp.AgentEvent{
+			Type:      acp.EventTypePermission,
+			SessionID: "sess-permission",
+			TurnID:    "turn-permission",
+			RequestID: "req-permission-options",
+			Timestamp: timestamp,
+			Title:     "Bash",
+			Action:    "session/request_permission",
+			Resource:  "Bash",
+			Raw: json.RawMessage(`{
+				"request_id":"req-permission-options",
+				"options":[
+					{"decision":"allow-once","option_id":"allow-once","kind":"allow_once"},
+					{"decision":"reject-once","option_id":"reject-once","kind":"reject_once"}
+				],
+				"tool_input":{"command":"touch blocked.txt"}
+			}`),
+		})
+		if err != nil {
+			t.Fatalf("MarshalAgentEvent() error = %v", err)
+		}
+
+		event := store.SessionEvent{
+			ID:        "ev-permission-options",
+			SessionID: "sess-permission",
+			TurnID:    "turn-permission",
+			Sequence:  1,
+			Type:      acp.EventTypePermission,
+			Content:   content,
+			Timestamp: timestamp,
+		}
+		messages, err := ToUIMessages([]store.SessionEvent{event})
+		if err != nil {
+			t.Fatalf("ToUIMessages() error = %v", err)
+		}
+		if got, want := len(messages), 1; got != want {
+			t.Fatalf("len(messages) = %d, want %d", got, want)
+		}
+		if got, want := len(messages[0].Parts), 1; got != want {
+			t.Fatalf("len(parts) = %d, want %d; parts=%#v", got, want, messages[0].Parts)
+		}
+
+		var payload UIAgentEventPayload
+		if err := json.Unmarshal(messages[0].Parts[0].Data, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(part.Data) error = %v", err)
+		}
+		var raw struct {
+			Options []struct {
+				Decision string `json:"decision"`
+			} `json:"options"`
+			ToolInput struct {
+				Command string `json:"command"`
+			} `json:"tool_input"`
+		}
+		if err := json.Unmarshal(payload.Raw, &raw); err != nil {
+			t.Fatalf("json.Unmarshal(payload.Raw) error = %v", err)
+		}
+		if got, want := len(raw.Options), 2; got != want {
+			t.Fatalf("len(raw.Options) = %d, want %d", got, want)
+		}
+		if got, want := raw.Options[0].Decision, "allow-once"; got != want {
+			t.Fatalf("raw.Options[0].Decision = %q, want %q", got, want)
+		}
+		if got, want := raw.Options[1].Decision, "reject-once"; got != want {
+			t.Fatalf("raw.Options[1].Decision = %q, want %q", got, want)
+		}
+		if got, want := raw.ToolInput.Command, "touch blocked.txt"; got != want {
+			t.Fatalf("raw.ToolInput.Command = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestToUIMessagesOrderedAssistantParts(t *testing.T) {

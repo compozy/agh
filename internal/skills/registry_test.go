@@ -17,6 +17,7 @@ import (
 	"testing/fstest"
 	"time"
 
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/store"
@@ -142,6 +143,9 @@ func TestRegistryObserveEvents(t *testing.T) {
 		if got, want := summaries[0].Type, "skills.shadow"; got != want {
 			t.Fatalf("summaries[0].Type = %q, want %q", got, want)
 		}
+		if got, want := summaries[0].WorkspaceID, "ws-shadow"; got != want {
+			t.Fatalf("summaries[0].WorkspaceID = %q, want %q", got, want)
+		}
 
 		var content map[string]string
 		if err := json.Unmarshal(summaries[0].Content, &content); err != nil {
@@ -196,7 +200,13 @@ func TestRegistryObserveEvents(t *testing.T) {
 			UserAgentsDir: agentsDir,
 		}, WithEventSummaryStore(eventStore))
 
-		_, err := registry.ForAgent(context.Background(), nil, "writer")
+		_, err := registry.ForAgent(context.Background(), &workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{ID: "ws-load-failed"},
+			Agents: []aghconfig.AgentDef{{
+				Name:       "writer",
+				SourcePath: writeFilePath,
+			}},
+		}, "writer")
 		if err == nil {
 			t.Fatal("ForAgent() error = nil, want invalid agent-local layer")
 		}
@@ -210,6 +220,9 @@ func TestRegistryObserveEvents(t *testing.T) {
 		}
 		if got, want := summaries[0].Type, "skills.load_failed"; got != want {
 			t.Fatalf("summaries[0].Type = %q, want %q", got, want)
+		}
+		if got, want := summaries[0].WorkspaceID, "ws-load-failed"; got != want {
+			t.Fatalf("summaries[0].WorkspaceID = %q, want %q", got, want)
 		}
 
 		var content map[string]string

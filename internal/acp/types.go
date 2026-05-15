@@ -614,9 +614,10 @@ type activePromptState struct {
 const maxPendingToolResults = 128
 
 type pendingPermission struct {
-	requestID string
-	turnID    string
-	response  chan permissionDecision
+	requestID          string
+	turnID             string
+	response           chan permissionDecision
+	supportedDecisions map[permissionDecision]struct{}
 }
 
 type lockedBuffer struct {

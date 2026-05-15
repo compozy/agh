@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pedronauck/agh/internal/agentidentity"
 	"github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
@@ -284,6 +285,15 @@ func StatusForTaskError(err error) int {
 		return http.StatusRequestEntityTooLarge
 	case errors.Is(err, taskpkg.ErrPermissionDenied):
 		return http.StatusForbidden
+	case errors.Is(err, errAgentIdentityUnavailable),
+		errors.Is(err, agentidentity.ErrIdentityLookupUnavailable):
+		return http.StatusServiceUnavailable
+	case errors.Is(err, agentidentity.ErrIdentityUnauthorized):
+		return http.StatusForbidden
+	case errors.Is(err, agentidentity.ErrIdentityRequired),
+		errors.Is(err, agentidentity.ErrIdentityMismatch),
+		errors.Is(err, agentidentity.ErrIdentityStale):
+		return http.StatusUnauthorized
 	case errors.Is(err, taskpkg.ErrTaskNotFound),
 		errors.Is(err, taskpkg.ErrTaskRunNotFound),
 		errors.Is(err, taskpkg.ErrTaskDependencyNotFound),

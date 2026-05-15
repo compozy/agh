@@ -27,6 +27,8 @@ var (
 	ErrPendingPermissionNotFound = errors.New("acp: pending permission not found")
 	// ErrPendingPermissionConflict reports that a fallback lookup by turn ID matched multiple pending requests.
 	ErrPendingPermissionConflict = errors.New("acp: pending permission lookup is ambiguous")
+	// ErrPermissionDecisionUnsupported reports a persisted decision that the provider did not offer.
+	ErrPermissionDecisionUnsupported = errors.New("acp: permission decision unsupported")
 )
 
 type permissionPolicy struct {
@@ -310,6 +312,17 @@ func permissionDecisionFromKind(kind acpsdk.PermissionOptionKind) permissionDeci
 	}
 }
 
+func supportedPermissionDecisions(options []acpsdk.PermissionOption) map[permissionDecision]struct{} {
+	supported := make(map[permissionDecision]struct{}, len(options))
+	for _, option := range options {
+		decision := permissionDecisionFromKind(option.Kind)
+		if decision != "" {
+			supported[decision] = struct{}{}
+		}
+	}
+	return supported
+}
+
 func buildPermissionEventRaw(
 	requestID string,
 	decision permissionDecision,
@@ -375,9 +388,10 @@ func (p *AgentProcess) registerPendingPermission(
 	}
 	requestID := p.allocatePermissionRequestIDLocked(turnID, request)
 	pending := &pendingPermission{
-		requestID: requestID,
-		turnID:    strings.TrimSpace(turnID),
-		response:  make(chan permissionDecision, 1),
+		requestID:          requestID,
+		turnID:             strings.TrimSpace(turnID),
+		response:           make(chan permissionDecision, 1),
+		supportedDecisions: supportedPermissionDecisions(request.Options),
 	}
 	p.pendingPermissions[requestID] = pending
 	return requestID, pending
@@ -453,6 +467,12 @@ func (p *AgentProcess) ResolvePermission(req ApproveRequest) error {
 	if err != nil {
 		p.pendingPermissionMu.Unlock()
 		return err
+	}
+	if len(pending.supportedDecisions) > 0 {
+		if _, ok := pending.supportedDecisions[decision]; !ok {
+			p.pendingPermissionMu.Unlock()
+			return fmt.Errorf("%w: %s", ErrPermissionDecisionUnsupported, decision)
+		}
 	}
 	delete(p.pendingPermissions, requestID)
 	p.pendingPermissionMu.Unlock()

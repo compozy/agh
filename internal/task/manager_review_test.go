@@ -151,7 +151,8 @@ func (s *inMemoryManagerStore) BindRunReviewSession(
 		return RunReview{}, ErrRunReviewNotFound
 	}
 	if strings.TrimSpace(review.ReviewerSessionID) != "" &&
-		strings.TrimSpace(review.ReviewerSessionID) != normalized.SessionID {
+		strings.TrimSpace(review.ReviewerSessionID) != normalized.SessionID &&
+		review.Status.Normalize() != RunReviewStatusInReview {
 		return RunReview{}, ErrInvalidStatusTransition
 	}
 	for _, existing := range s.reviews {

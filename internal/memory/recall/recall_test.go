@@ -69,6 +69,39 @@ func TestRecallerRecall(t *testing.T) {
 		}
 	})
 
+	t.Run("Should allow explicit trivial query recall", func(t *testing.T) {
+		t.Parallel()
+
+		source := &fakeSource{candidates: []Candidate{
+			recallCandidate("chunk-launch", memcontract.ScopeWorkspace, "", "launch", 1.0, 0.1, now),
+		}}
+		recaller := New(source, WithClock(func() time.Time { return now }))
+
+		packaged, err := recaller.Recall(
+			context.Background(),
+			memcontract.Query{QueryText: "launch"},
+			memcontract.RecallOptions{TopK: 3, AllowTrivialQuery: true},
+		)
+		if err != nil {
+			t.Fatalf("Recall(explicit trivial) error = %v", err)
+		}
+		if source.candidateCalls != 1 {
+			t.Fatalf("candidate calls = %d, want 1", source.candidateCalls)
+		}
+		if source.skippedReason != "" {
+			t.Fatalf("skipped reason = %q, want empty", source.skippedReason)
+		}
+		if got := packagedIDs(packaged); !reflect.DeepEqual(got, []string{"chunk-launch"}) {
+			t.Fatalf("packaged IDs = %#v, want chunk-launch", got)
+		}
+		if len(packaged.Blocks) != 1 || len(packaged.Blocks[0].Entries) != 1 {
+			t.Fatalf("packaged blocks = %#v, want one launch entry", packaged.Blocks)
+		}
+		if got := packaged.Blocks[0].Entries[0].ModTime; !got.Equal(now) {
+			t.Fatalf("packaged entry mod time = %v, want %v", got, now)
+		}
+	})
+
 	t.Run("Should recall two meaningful ASCII tokens", func(t *testing.T) {
 		t.Parallel()
 

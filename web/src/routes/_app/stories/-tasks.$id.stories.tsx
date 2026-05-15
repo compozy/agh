@@ -105,6 +105,22 @@ export const DependenciesTab: Story = {
 };
 
 /**
+ * Orchestration tab with execution profile, reviews, bridge notifications, and
+ * stream resume cards.
+ */
+export const OrchestrationTab: Story = {
+  args: {},
+  parameters: appRouteParameters("/tasks/task_001"),
+  render: () => <StorybookWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(await canvas.findByTestId("tasks-detail-tab-orchestration"));
+    await expect(canvas.findByTestId("tasks-detail-orchestration-panel")).resolves.toBeDefined();
+  },
+};
+
+/**
  * Loading branch while the detail payload is still being fetched.
  */
 export const Loading: Story = {

@@ -1667,23 +1667,18 @@ func skillDeclarationProvider(
 						err,
 					)
 				}
-				for _, skill := range activeSkills {
-					if !marketplaceHookAllowed(skill, allowed) {
-						logger.Warn(
-							"daemon: blocked hook",
-							"skill_name", skill.Meta.Name,
-							"workspace_id", resolved.WorkspaceID,
-							"source", skills.SkillSourceName(skill.Source),
-						)
-						continue
-					}
-					decls = append(decls, scopeWorkspaceHookDecls(skill.Hooks, resolved)...)
-				}
+				decls = appendWorkspaceSkillHookDecls(decls, activeSkills, allowed, resolved, logger)
 				continue
 			}
 
 			for _, agent := range resolved.Agents {
-				activeSkills, err := skillsRegistry.ForAgent(ctx, resolved, agent.Name)
+				activeSkills, err := activeSkillsForHookDeclarations(
+					ctx,
+					skillsRegistry,
+					resolved,
+					agent.Name,
+					logger,
+				)
 				if err != nil {
 					return nil, fmt.Errorf(
 						"daemon: resolve active skills for workspace %q agent %q: %w",
@@ -1693,24 +1688,102 @@ func skillDeclarationProvider(
 					)
 				}
 
-				for _, skill := range activeSkills {
-					if !marketplaceHookAllowed(skill, allowed) {
-						logger.Warn(
-							"daemon: blocked hook",
-							"skill_name", skill.Meta.Name,
-							"workspace_id", resolved.WorkspaceID,
-							"agent_name", agent.Name,
-							"source", skills.SkillSourceName(skill.Source),
-						)
-						continue
-					}
-					decls = append(decls, scopeWorkspaceAgentHookDecls(skill.Hooks, resolved, agent.Name)...)
-				}
+				decls = appendAgentSkillHookDecls(decls, activeSkills, allowed, resolved, agent.Name, logger)
 			}
 		}
 
 		return decls, nil
 	}
+}
+
+func appendWorkspaceSkillHookDecls(
+	decls []hookspkg.HookDecl,
+	activeSkills []*skills.Skill,
+	allowed map[string]struct{},
+	resolved *workspacepkg.ResolvedWorkspace,
+	logger *slog.Logger,
+) []hookspkg.HookDecl {
+	for _, skill := range activeSkills {
+		if !marketplaceHookAllowed(skill, allowed) {
+			logBlockedSkillHook(logger, skill, resolved, "")
+			continue
+		}
+		decls = append(decls, scopeWorkspaceHookDecls(skill.Hooks, resolved)...)
+	}
+	return decls
+}
+
+func appendAgentSkillHookDecls(
+	decls []hookspkg.HookDecl,
+	activeSkills []*skills.Skill,
+	allowed map[string]struct{},
+	resolved *workspacepkg.ResolvedWorkspace,
+	agentName string,
+	logger *slog.Logger,
+) []hookspkg.HookDecl {
+	for _, skill := range activeSkills {
+		if !marketplaceHookAllowed(skill, allowed) {
+			logBlockedSkillHook(logger, skill, resolved, agentName)
+			continue
+		}
+		decls = append(decls, scopeWorkspaceAgentHookDecls(skill.Hooks, resolved, agentName)...)
+	}
+	return decls
+}
+
+func logBlockedSkillHook(
+	logger *slog.Logger,
+	skill *skills.Skill,
+	resolved *workspacepkg.ResolvedWorkspace,
+	agentName string,
+) {
+	if logger == nil || skill == nil {
+		return
+	}
+	attrs := []any{
+		"skill_name", skill.Meta.Name,
+		"workspace_id", resolvedHookWorkspaceID(resolved),
+		"source", skills.SkillSourceName(skill.Source),
+	}
+	if agentName != "" {
+		attrs = append(attrs, "agent_name", agentName)
+	}
+	logger.Warn("daemon: blocked hook", attrs...)
+}
+
+func activeSkillsForHookDeclarations(
+	ctx context.Context,
+	skillsRegistry *skills.Registry,
+	resolved *workspacepkg.ResolvedWorkspace,
+	agentName string,
+	logger *slog.Logger,
+) ([]*skills.Skill, error) {
+	activeSkills, err := skillsRegistry.ForAgent(ctx, resolved, agentName)
+	if err == nil {
+		return activeSkills, nil
+	}
+	if errors.Is(err, skills.ErrAgentLocalInvalid) {
+		if logger != nil {
+			logger.Warn(
+				"daemon: skipped invalid agent-local skills while rebuilding hooks",
+				"workspace_id", resolvedHookWorkspaceID(resolved),
+				"agent_name", agentName,
+				"error", err,
+			)
+		}
+		return nil, nil
+	}
+	return nil, err
+}
+
+func resolvedHookWorkspaceID(resolved *workspacepkg.ResolvedWorkspace) string {
+	if resolved == nil {
+		return ""
+	}
+	if workspaceID := strings.TrimSpace(resolved.WorkspaceID); workspaceID != "" {
+		return workspaceID
+	}
+	return strings.TrimSpace(resolved.ID)
 }
 
 func workspaceHookDeclarations(

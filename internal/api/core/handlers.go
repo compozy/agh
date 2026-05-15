@@ -463,6 +463,13 @@ func (h *BaseHandlers) SessionEvents(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
+	if lastEventID := strings.TrimSpace(c.GetHeader("Last-Event-ID")); lastEventID != "" {
+		query.AfterSequence, err = parseLastEventID(lastEventID, h.transportName())
+		if err != nil {
+			h.respondError(c, http.StatusBadRequest, err)
+			return
+		}
+	}
 
 	_, sessionID, info, ok := h.routeSessionInWorkspace(c)
 	if !ok {

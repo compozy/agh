@@ -181,6 +181,7 @@ type stubClient struct {
 	getAutomationRunFn            func(context.Context, string) (RunRecord, error)
 	listTasksFn                   func(context.Context, TaskListQuery) ([]TaskSummaryRecord, error)
 	createTaskFn                  func(context.Context, CreateTaskRequest) (TaskRecord, error)
+	createTaskAsAgentFn           func(context.Context, CreateTaskRequest, agentidentity.Credentials) (TaskRecord, error)
 	getTaskFn                     func(context.Context, string) (TaskDetailRecord, error)
 	updateTaskFn                  func(context.Context, string, UpdateTaskRequest) (TaskRecord, error)
 	deleteTaskFn                  func(context.Context, string) error
@@ -204,12 +205,24 @@ type stubClient struct {
 	getTaskBridgeNotificationSubscriptionFn    func(context.Context, string, string) (TaskBridgeNotificationSubscriptionRecord, error)
 	deleteTaskBridgeNotificationSubscriptionFn func(context.Context, string, string) error
 	requestTaskRunReviewFn                     func(context.Context, string, *TaskRunReviewRequest) (TaskRunReviewRequestRecord, error)
-	listTaskRunReviewsFn                       func(context.Context, TaskRunReviewListQuery) ([]TaskRunReviewRecord, error)
-	getTaskRunReviewFn                         func(context.Context, string) (TaskRunReviewRecord, error)
-	submitTaskRunReviewVerdictFn               func(
+	requestTaskRunReviewAsAgentFn              func(
+		context.Context,
+		string,
+		*TaskRunReviewRequest,
+		agentidentity.Credentials,
+	) (TaskRunReviewRequestRecord, error)
+	listTaskRunReviewsFn         func(context.Context, TaskRunReviewListQuery) ([]TaskRunReviewRecord, error)
+	getTaskRunReviewFn           func(context.Context, string) (TaskRunReviewRecord, error)
+	submitTaskRunReviewVerdictFn func(
 		context.Context,
 		string,
 		*TaskRunReviewVerdictRequest,
+	) (TaskRunReviewVerdictRecord, error)
+	submitTaskRunReviewVerdictAsAgentFn func(
+		context.Context,
+		string,
+		*TaskRunReviewVerdictRequest,
+		agentidentity.Credentials,
 	) (TaskRunReviewVerdictRecord, error)
 	publishTaskFn          func(context.Context, string, TaskExecutionRequest) (TaskExecutionRecord, error)
 	startTaskFn            func(context.Context, string, TaskExecutionRequest) (TaskExecutionRecord, error)
@@ -1718,6 +1731,17 @@ func (s *stubClient) CreateTask(
 	return TaskRecord{}, errors.New("unexpected CreateTask call")
 }
 
+func (s *stubClient) CreateTaskAsAgent(
+	ctx context.Context,
+	request CreateTaskRequest,
+	credentials agentidentity.Credentials,
+) (TaskRecord, error) {
+	if s.createTaskAsAgentFn != nil {
+		return s.createTaskAsAgentFn(ctx, request, credentials)
+	}
+	return TaskRecord{}, errors.New("unexpected CreateTaskAsAgent call")
+}
+
 func (s *stubClient) GetTask(ctx context.Context, id string) (TaskDetailRecord, error) {
 	if s.getTaskFn != nil {
 		return s.getTaskFn(ctx, id)
@@ -1830,6 +1854,18 @@ func (s *stubClient) RequestTaskRunReview(
 	return TaskRunReviewRequestRecord{}, errors.New("unexpected RequestTaskRunReview call")
 }
 
+func (s *stubClient) RequestTaskRunReviewAsAgent(
+	ctx context.Context,
+	runID string,
+	request *TaskRunReviewRequest,
+	credentials agentidentity.Credentials,
+) (TaskRunReviewRequestRecord, error) {
+	if s.requestTaskRunReviewAsAgentFn != nil {
+		return s.requestTaskRunReviewAsAgentFn(ctx, runID, request, credentials)
+	}
+	return TaskRunReviewRequestRecord{}, errors.New("unexpected RequestTaskRunReviewAsAgent call")
+}
+
 func (s *stubClient) ListTaskRunReviews(
 	ctx context.Context,
 	query TaskRunReviewListQuery,
@@ -1856,6 +1892,18 @@ func (s *stubClient) SubmitTaskRunReviewVerdict(
 		return s.submitTaskRunReviewVerdictFn(ctx, reviewID, request)
 	}
 	return TaskRunReviewVerdictRecord{}, errors.New("unexpected SubmitTaskRunReviewVerdict call")
+}
+
+func (s *stubClient) SubmitTaskRunReviewVerdictAsAgent(
+	ctx context.Context,
+	reviewID string,
+	request *TaskRunReviewVerdictRequest,
+	credentials agentidentity.Credentials,
+) (TaskRunReviewVerdictRecord, error) {
+	if s.submitTaskRunReviewVerdictAsAgentFn != nil {
+		return s.submitTaskRunReviewVerdictAsAgentFn(ctx, reviewID, request, credentials)
+	}
+	return TaskRunReviewVerdictRecord{}, errors.New("unexpected SubmitTaskRunReviewVerdictAsAgent call")
 }
 
 func (s *stubClient) PublishTask(

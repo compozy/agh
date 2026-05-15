@@ -59,9 +59,4 @@ describe("TasksReviewsCard", () => {
       "Missing work · 2"
     );
   });
-
-  it("surfaces a read-only disclaimer about reviewer authority", () => {
-    render(<TasksReviewsCard reviews={[buildTaskRunReviewFixture()]} />);
-    expect(screen.getByTestId("tasks-reviews-card-disclaimer")).toHaveTextContent(/read-only/i);
-  });
 });

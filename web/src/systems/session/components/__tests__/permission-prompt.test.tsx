@@ -126,6 +126,22 @@ describe("PermissionPrompt — inline sticky anatomy", () => {
     expect(screen.getByTestId("permission-reject-always")).toBeInTheDocument();
   });
 
+  it("Should hide persistent decisions when the provider did not offer them", () => {
+    render(
+      <PermissionPrompt
+        permission={{ ...mockPermission, supportedDecisions: ["allow-once", "reject-once"] }}
+        sessionId={SESSION_ID}
+        workspaceId={WORKSPACE_ID}
+        onResolved={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId("permission-allow-once")).toBeInTheDocument();
+    expect(screen.queryByTestId("permission-allow-always")).not.toBeInTheDocument();
+    expect(screen.getByTestId("permission-reject-once")).toBeInTheDocument();
+    expect(screen.queryByTestId("permission-reject-always")).not.toBeInTheDocument();
+  });
+
   it("Should call approveSession with allow-once on Allow Once click and resolve", async () => {
     const onResolved = vi.fn();
     render(
@@ -310,6 +326,31 @@ describe("PermissionDataPart", () => {
     expect(screen.getByTestId("permission-prompt")).toBeInTheDocument();
     expect(screen.getByTestId("permission-allow-once")).toBeInTheDocument();
     expect(screen.getByTestId("permission-reject-once")).toBeInTheDocument();
+  });
+
+  it("Should derive actionable decisions from the raw provider option list", () => {
+    render(
+      <PermissionDataPart
+        data={{
+          ...mockPermissionData,
+          raw: {
+            options: [
+              { decision: "allow-once", option_id: "allow-once" },
+              { decision: "reject-once", option_id: "reject-once" },
+            ],
+            tool_input: { command: "touch blocked.txt" },
+          },
+        }}
+        sessionId={SESSION_ID}
+        workspaceId={WORKSPACE_ID}
+      />
+    );
+
+    expect(screen.getByTestId("permission-allow-once")).toBeInTheDocument();
+    expect(screen.queryByTestId("permission-allow-always")).not.toBeInTheDocument();
+    expect(screen.getByTestId("permission-reject-once")).toBeInTheDocument();
+    expect(screen.queryByTestId("permission-reject-always")).not.toBeInTheDocument();
+    expect(screen.getByTestId("permission-tool-input").textContent).toContain("touch blocked.txt");
   });
 
   it("Should render nothing for allowed resolved permission data", () => {

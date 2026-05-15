@@ -87,8 +87,29 @@ func (h *BaseHandlers) requireTaskObserver(c *gin.Context) (Observer, bool) {
 }
 
 func (h *BaseHandlers) taskActorContext(c *gin.Context, action string) (taskpkg.ActorContext, error) {
+	return h.taskActorContextForWorkspace(c, action, "")
+}
+
+func (h *BaseHandlers) taskActorContextForWorkspace(
+	c *gin.Context,
+	action string,
+	expectedWorkspaceID string,
+) (taskpkg.ActorContext, error) {
 	if h.TaskActorContextResolver != nil {
 		return h.TaskActorContextResolver(c, action)
+	}
+	credentials := agentCallerCredentialsFromRequest(c)
+	if hasAgentCallerIdentityCredentials(credentials) {
+		caller, err := h.resolveAgentCallerForWorkspace(
+			c.Request.Context(),
+			credentials,
+			"tasks."+strings.TrimSpace(action),
+			expectedWorkspaceID,
+		)
+		if err != nil {
+			return taskpkg.ActorContext{}, err
+		}
+		return caller.Actor, nil
 	}
 	return taskpkg.DeriveHumanActorContext(
 		defaultTaskActorRef,
@@ -168,13 +189,12 @@ func (h *BaseHandlers) CreateTask(c *gin.Context) {
 		return
 	}
 
-	actor, err := h.taskActorContext(c, taskActionCreate)
+	spec, err := h.createTaskSpecFromRequest(c.Request.Context(), req)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
-
-	spec, err := h.createTaskSpecFromRequest(c.Request.Context(), req)
+	actor, err := h.taskActorContextForWorkspace(c, taskActionCreate, spec.WorkspaceID)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
 		return

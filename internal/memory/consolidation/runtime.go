@@ -56,7 +56,8 @@ type checkRequest struct {
 }
 
 const (
-	defaultSessionStopTimeout = 10 * time.Second
+	defaultSessionStopTimeout    = 10 * time.Second
+	dreamGatesNotSatisfiedReason = "dream consolidation gates are not satisfied"
 	// DreamingCuratorAgentName is the dedicated default agent for memory dreaming.
 	DreamingCuratorAgentName = "dreaming-curator"
 )
@@ -107,14 +108,14 @@ func (r *Runtime) Trigger(ctx context.Context, workspace string) (bool, string, 
 		return false, "", err
 	}
 	if !shouldRun {
-		return false, "dream consolidation gates are not satisfied", nil
+		return false, dreamGatesNotSatisfiedReason, nil
 	}
 	if err := r.service.Run(ctx, r.spawner, strings.TrimSpace(workspace)); err != nil {
 		if errors.Is(err, memory.ErrLockUnavailable) {
 			return false, "dream consolidation is already running", nil
 		}
 		if errors.Is(err, memory.ErrDreamGateNotSatisfied) {
-			return false, "dream consolidation gates are not satisfied", nil
+			return false, dreamGatesNotSatisfiedReason, nil
 		}
 		return false, "", err
 	}

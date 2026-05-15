@@ -129,9 +129,10 @@ func (r *Registry) buildSkillShadowSummaries(
 		}
 
 		summaries = append(summaries, store.EventSummary{
-			AgentName: strings.TrimSpace(agentName),
-			Type:      "skills.shadow",
-			Content:   content,
+			WorkspaceID: strings.TrimSpace(workspaceID),
+			AgentName:   strings.TrimSpace(agentName),
+			Type:        "skills.shadow",
+			Content:     content,
 			Summary: fmt.Sprintf(
 				"skill %s shadowed %s with %s",
 				strings.TrimSpace(next.Meta.Name),
@@ -157,7 +158,7 @@ func (r *Registry) emitEventSummaries(ctx context.Context, summaries []store.Eve
 	}
 }
 
-func (r *Registry) emitSkillsLoadFailed(ctx context.Context, agentName string, err error) {
+func (r *Registry) emitSkillsLoadFailed(ctx context.Context, workspaceID string, agentName string, err error) {
 	if r == nil || r.events == nil || err == nil {
 		return
 	}
@@ -179,10 +180,11 @@ func (r *Registry) emitSkillsLoadFailed(ctx context.Context, agentName string, e
 		ctx = context.Background()
 	}
 	if writeErr := r.events.WriteEventSummary(ctx, store.EventSummary{
-		AgentName: strings.TrimSpace(agentName),
-		Type:      "skills.load_failed",
-		Content:   content,
-		Summary:   fmt.Sprintf("agent-local skills load failed for %s", strings.TrimSpace(agentName)),
+		WorkspaceID: strings.TrimSpace(workspaceID),
+		AgentName:   strings.TrimSpace(agentName),
+		Type:        "skills.load_failed",
+		Content:     content,
+		Summary:     fmt.Sprintf("agent-local skills load failed for %s", strings.TrimSpace(agentName)),
 	}); writeErr != nil {
 		r.logger.Warn("skills: write skills.load_failed failed", "agent_name", agentName, "error", writeErr)
 	}

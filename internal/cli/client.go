@@ -301,6 +301,11 @@ type DaemonClient interface {
 	GetAutomationRun(ctx context.Context, id string) (RunRecord, error)
 	ListTasks(ctx context.Context, query TaskListQuery) ([]TaskSummaryRecord, error)
 	CreateTask(ctx context.Context, request CreateTaskRequest) (TaskRecord, error)
+	CreateTaskAsAgent(
+		ctx context.Context,
+		request CreateTaskRequest,
+		credentials agentidentity.Credentials,
+	) (TaskRecord, error)
 	GetTask(ctx context.Context, id string) (TaskDetailRecord, error)
 	UpdateTask(ctx context.Context, id string, request UpdateTaskRequest) (TaskRecord, error)
 	DeleteTask(ctx context.Context, id string) error
@@ -332,12 +337,24 @@ type DaemonClient interface {
 		runID string,
 		request *TaskRunReviewRequest,
 	) (TaskRunReviewRequestRecord, error)
+	RequestTaskRunReviewAsAgent(
+		ctx context.Context,
+		runID string,
+		request *TaskRunReviewRequest,
+		credentials agentidentity.Credentials,
+	) (TaskRunReviewRequestRecord, error)
 	ListTaskRunReviews(ctx context.Context, query TaskRunReviewListQuery) ([]TaskRunReviewRecord, error)
 	GetTaskRunReview(ctx context.Context, reviewID string) (TaskRunReviewRecord, error)
 	SubmitTaskRunReviewVerdict(
 		ctx context.Context,
 		reviewID string,
 		request *TaskRunReviewVerdictRequest,
+	) (TaskRunReviewVerdictRecord, error)
+	SubmitTaskRunReviewVerdictAsAgent(
+		ctx context.Context,
+		reviewID string,
+		request *TaskRunReviewVerdictRequest,
+		credentials agentidentity.Credentials,
 	) (TaskRunReviewVerdictRecord, error)
 	PublishTask(ctx context.Context, id string, request TaskExecutionRequest) (TaskExecutionRecord, error)
 	StartTask(ctx context.Context, id string, request TaskExecutionRequest) (TaskExecutionRecord, error)
@@ -3438,6 +3455,18 @@ func (c *unixSocketClient) CreateTask(ctx context.Context, request CreateTaskReq
 	return response.Task, nil
 }
 
+func (c *unixSocketClient) CreateTaskAsAgent(
+	ctx context.Context,
+	request CreateTaskRequest,
+	credentials agentidentity.Credentials,
+) (TaskRecord, error) {
+	var response contract.TaskResponse
+	if err := c.doAgentJSON(ctx, http.MethodPost, "/api/tasks", nil, request, credentials, &response); err != nil {
+		return TaskRecord{}, err
+	}
+	return response.Task, nil
+}
+
 func (c *unixSocketClient) GetTask(ctx context.Context, id string) (TaskDetailRecord, error) {
 	var response contract.TaskDetailResponse
 	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(id))
@@ -3570,6 +3599,23 @@ func (c *unixSocketClient) RequestTaskRunReview(
 	return response, nil
 }
 
+func (c *unixSocketClient) RequestTaskRunReviewAsAgent(
+	ctx context.Context,
+	runID string,
+	request *TaskRunReviewRequest,
+	credentials agentidentity.Credentials,
+) (TaskRunReviewRequestRecord, error) {
+	if request == nil {
+		return TaskRunReviewRequestRecord{}, errors.New("cli: task run review request is required")
+	}
+	var response contract.TaskRunReviewRequestResponse
+	path := "/api/task-runs/" + url.PathEscape(strings.TrimSpace(runID)) + "/reviews"
+	if err := c.doAgentJSON(ctx, http.MethodPost, path, nil, request, credentials, &response); err != nil {
+		return TaskRunReviewRequestRecord{}, err
+	}
+	return response, nil
+}
+
 func (c *unixSocketClient) ListTaskRunReviews(
 	ctx context.Context,
 	query TaskRunReviewListQuery,
@@ -3608,6 +3654,23 @@ func (c *unixSocketClient) SubmitTaskRunReviewVerdict(
 	var response contract.TaskRunReviewVerdictResponse
 	path := "/api/task-reviews/" + url.PathEscape(strings.TrimSpace(reviewID)) + "/verdict"
 	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return TaskRunReviewVerdictRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) SubmitTaskRunReviewVerdictAsAgent(
+	ctx context.Context,
+	reviewID string,
+	request *TaskRunReviewVerdictRequest,
+	credentials agentidentity.Credentials,
+) (TaskRunReviewVerdictRecord, error) {
+	if request == nil {
+		return TaskRunReviewVerdictRecord{}, errors.New("cli: task run review verdict request is required")
+	}
+	var response contract.TaskRunReviewVerdictResponse
+	path := "/api/task-reviews/" + url.PathEscape(strings.TrimSpace(reviewID)) + "/verdict"
+	if err := c.doAgentJSON(ctx, http.MethodPost, path, nil, request, credentials, &response); err != nil {
 		return TaskRunReviewVerdictRecord{}, err
 	}
 	return response, nil

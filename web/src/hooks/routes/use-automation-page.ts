@@ -25,6 +25,7 @@ import {
   useTriggerAutomationJob,
   useUpdateAutomationJob,
   useUpdateAutomationTrigger,
+  AutomationApiError,
 } from "@/systems/automation";
 import type {
   AutomationRun,
@@ -32,6 +33,8 @@ import type {
   CreateAutomationJobRequest,
   CreateAutomationTriggerRequest,
 } from "@/systems/automation";
+import { useSettingsAutomation } from "@/systems/settings";
+import type { SettingsAutomationSection } from "@/systems/settings";
 import { useActiveWorkspace } from "@/systems/workspace";
 import { workspaceFilterForActiveScope } from "./workspace-scope-filter";
 
@@ -103,8 +106,27 @@ function resolveSelectedId<T extends { id: string }>(selectedId: string | null, 
   return items[0]?.id ?? null;
 }
 
+function automationUnavailableMessage(
+  kind: "jobs" | "triggers",
+  runtime: SettingsAutomationSection["runtime"] | null,
+  error: Error | null
+): string | null {
+  if (runtime && !runtime.available) {
+    const noun = kind === "jobs" ? "Jobs" : "Triggers";
+    return `${noun} are unavailable because the automation runtime is disabled. Enable automation and restart the daemon before using this surface.`;
+  }
+
+  if (error instanceof AutomationApiError && error.status === 503) {
+    const noun = kind === "jobs" ? "jobs" : "triggers";
+    return `Automation runtime is unavailable, so ${noun} cannot be loaded.`;
+  }
+
+  return null;
+}
+
 function useAutomationPageBase() {
   const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
+  const settingsQuery = useSettingsAutomation();
   const [scopeFilter, setScopeFilter] = useState<AutomationScopeFilter>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -124,6 +146,7 @@ function useAutomationPageBase() {
   return {
     activeWorkspace,
     activeWorkspaceId,
+    automationRuntime: settingsQuery.data?.runtime ?? null,
     deferredSearchQuery,
     listFilters,
     scopeFilter,
@@ -143,6 +166,11 @@ function useAutomationJobsPage() {
 
   const jobsQuery = useAutomationJobs(page.listFilters);
   const jobs = jobsQuery.data ?? [];
+  const runtimeUnavailableMessage = automationUnavailableMessage(
+    "jobs",
+    page.automationRuntime,
+    jobsQuery.error
+  );
   const visibleJobs = useMemo(
     () => sortAutomationJobs(filterAutomationJobs(jobs, page.deferredSearchQuery)),
     [jobs, page.deferredSearchQuery]
@@ -363,9 +391,15 @@ function useAutomationJobsPage() {
     editorDialogProps,
     handleCreate,
     handleScopeChange,
-    initialError: jobsQuery.error && jobs.length === 0 ? jobsQuery.error : null,
+    initialError:
+      runtimeUnavailableMessage && jobs.length === 0
+        ? new Error(runtimeUnavailableMessage)
+        : jobsQuery.error && jobs.length === 0
+          ? jobsQuery.error
+          : null,
     isInitialLoading: jobsQuery.isLoading && jobs.length === 0,
     listPanelProps,
+    runtimeUnavailableMessage,
     scopeFilter: page.scopeFilter,
   };
 }
@@ -377,6 +411,11 @@ function useAutomationTriggersPage() {
 
   const triggersQuery = useAutomationTriggers(page.listFilters);
   const triggers = triggersQuery.data ?? [];
+  const runtimeUnavailableMessage = automationUnavailableMessage(
+    "triggers",
+    page.automationRuntime,
+    triggersQuery.error
+  );
   const visibleTriggers = useMemo(
     () => sortAutomationTriggers(filterAutomationTriggers(triggers, page.deferredSearchQuery)),
     [page.deferredSearchQuery, triggers]
@@ -565,9 +604,15 @@ function useAutomationTriggersPage() {
     editorDialogProps,
     handleCreate,
     handleScopeChange,
-    initialError: triggersQuery.error && triggers.length === 0 ? triggersQuery.error : null,
+    initialError:
+      runtimeUnavailableMessage && triggers.length === 0
+        ? new Error(runtimeUnavailableMessage)
+        : triggersQuery.error && triggers.length === 0
+          ? triggersQuery.error
+          : null,
     isInitialLoading: triggersQuery.isLoading && triggers.length === 0,
     listPanelProps,
+    runtimeUnavailableMessage,
     scopeFilter: page.scopeFilter,
   };
 }

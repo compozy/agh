@@ -7,6 +7,16 @@ vi.mock("@tanstack/react-router", () => ({
   useMatchRoute: () => () => false,
 }));
 
+const workspaceState = vi.hoisted(() => ({
+  activeWorkspaceId: "ws_alpha" as string | null,
+}));
+
+vi.mock("@/systems/workspace", () => ({
+  useActiveWorkspace: () => ({
+    activeWorkspaceId: workspaceState.activeWorkspaceId,
+  }),
+}));
+
 vi.mock("@/systems/settings/adapters/settings-api", () => ({
   getSettingsGeneral: vi.fn(),
   getSettingsUpdate: vi.fn(),
@@ -70,6 +80,7 @@ function createWrapper() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  workspaceState.activeWorkspaceId = "ws_alpha";
   useSettingsRestartStore.setState({
     ...initialSettingsRestartState,
     startRestart: useSettingsRestartStore.getState().startRestart,
@@ -132,6 +143,32 @@ describe("useSettingsGeneralPage", () => {
 
     await waitFor(() => {
       expect(result.current.lastAppliedLabel).toContain("restart required");
+    });
+  });
+
+  it("clears a dirty draft when the active workspace changes", async () => {
+    const { wrapper } = createWrapper();
+    const { result, rerender } = renderHook(() => useSettingsGeneralPage(), { wrapper });
+
+    await waitFor(() => expect(result.current.draft).toBeTruthy());
+
+    act(() => {
+      result.current.setDraft({
+        ...envelope.config,
+        defaults: { ...envelope.config.defaults, provider: "stale-provider" },
+      });
+    });
+
+    await waitFor(() => expect(result.current.isDirty).toBe(true));
+
+    act(() => {
+      workspaceState.activeWorkspaceId = "ws_beta";
+      rerender();
+    });
+
+    await waitFor(() => {
+      expect(result.current.draft).toEqual(envelope.config);
+      expect(result.current.isDirty).toBe(false);
     });
   });
 });

@@ -743,7 +743,7 @@ func (m *Manager) TriggerJob(ctx context.Context, id string) (Run, error) {
 		return Run{}, err
 	}
 
-	run, err := m.dispatcher.Dispatch(ctx, DispatchRequest{
+	run, err := m.dispatcher.Dispatch(context.WithoutCancel(ctx), DispatchRequest{
 		Kind: DispatchKindManual,
 		Job:  &job,
 	})

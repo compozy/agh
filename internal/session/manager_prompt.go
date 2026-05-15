@@ -423,6 +423,8 @@ func (m *Manager) ApprovePermission(ctx context.Context, id string, req acp.Appr
 			return fmt.Errorf("%w: %s", ErrPendingPermissionNotFound, target)
 		case errors.Is(err, acp.ErrPendingPermissionConflict):
 			return fmt.Errorf("%w: %s", ErrPendingPermissionConflict, target)
+		case errors.Is(err, acp.ErrPermissionDecisionUnsupported):
+			return fmt.Errorf("%w: %s", ErrInvalidPermissionDecision, target)
 		default:
 			return err
 		}

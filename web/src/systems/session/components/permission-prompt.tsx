@@ -32,6 +32,13 @@ const HIGH_STAKES_TOOLS = new Set([
   "WebSearch",
 ]);
 
+const FALLBACK_PERMISSION_DECISIONS = [
+  "allow-once",
+  "allow-always",
+  "reject-once",
+  "reject-always",
+] satisfies PermissionDecision[];
+
 function promptToneFor(toolName: string | undefined): PromptTone {
   if (toolName && HIGH_STAKES_TOOLS.has(toolName)) return "danger";
   return "warning";
@@ -50,6 +57,15 @@ function normalizePermissionDecision(value: string | undefined): PermissionDecis
     default:
       return null;
   }
+}
+
+function permissionDecisionOptions(permission: PermissionRequest): PermissionDecision[] {
+  if (permission.supportedDecisions == null || permission.supportedDecisions.length === 0) {
+    return FALLBACK_PERMISSION_DECISIONS;
+  }
+  return FALLBACK_PERMISSION_DECISIONS.filter(decision =>
+    permission.supportedDecisions?.includes(decision)
+  );
 }
 
 export function PermissionPrompt({
@@ -83,6 +99,7 @@ export function PermissionPrompt({
 
   const tone = promptToneFor(permission.toolName);
   const isHighStakes = tone === "danger";
+  const decisionOptions = permissionDecisionOptions(permission);
 
   return isResolved ? null : (
     <div
@@ -142,46 +159,54 @@ export function PermissionPrompt({
             />
           ) : null}
           <div className="mt-1 flex flex-wrap items-center gap-2">
-            <Button
-              variant={isHighStakes ? "outline" : "default"}
-              size="sm"
-              disabled={isSubmitting}
-              onClick={() => handleDecision("allow-once")}
-              data-testid="permission-allow-once"
-            >
-              <Check className="size-3" />
-              Allow Once
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={isSubmitting}
-              onClick={() => handleDecision("allow-always")}
-              data-testid="permission-allow-always"
-            >
-              <ShieldCheck className="size-3" />
-              Allow Always
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={isSubmitting}
-              onClick={() => handleDecision("reject-once")}
-              data-testid="permission-reject-once"
-            >
-              <X className="size-3" />
-              Reject Once
-            </Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              disabled={isSubmitting}
-              onClick={() => handleDecision("reject-always")}
-              data-testid="permission-reject-always"
-            >
-              <ShieldOff className="size-3" />
-              Reject Always
-            </Button>
+            {decisionOptions.includes("allow-once") ? (
+              <Button
+                variant={isHighStakes ? "outline" : "default"}
+                size="sm"
+                disabled={isSubmitting}
+                onClick={() => handleDecision("allow-once")}
+                data-testid="permission-allow-once"
+              >
+                <Check className="size-3" />
+                Allow Once
+              </Button>
+            ) : null}
+            {decisionOptions.includes("allow-always") ? (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isSubmitting}
+                onClick={() => handleDecision("allow-always")}
+                data-testid="permission-allow-always"
+              >
+                <ShieldCheck className="size-3" />
+                Allow Always
+              </Button>
+            ) : null}
+            {decisionOptions.includes("reject-once") ? (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isSubmitting}
+                onClick={() => handleDecision("reject-once")}
+                data-testid="permission-reject-once"
+              >
+                <X className="size-3" />
+                Reject Once
+              </Button>
+            ) : null}
+            {decisionOptions.includes("reject-always") ? (
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={isSubmitting}
+                onClick={() => handleDecision("reject-always")}
+                data-testid="permission-reject-always"
+              >
+                <ShieldOff className="size-3" />
+                Reject Always
+              </Button>
+            ) : null}
           </div>
         </div>
       </div>

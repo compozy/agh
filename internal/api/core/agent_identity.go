@@ -87,14 +87,24 @@ func (h *BaseHandlers) resolveAgentCaller(
 	credentials agentidentity.Credentials,
 	action string,
 ) (agentidentity.Caller, error) {
+	return h.resolveAgentCallerForWorkspace(ctx, credentials, action, "")
+}
+
+func (h *BaseHandlers) resolveAgentCallerForWorkspace(
+	ctx context.Context,
+	credentials agentidentity.Credentials,
+	action string,
+	expectedWorkspaceID string,
+) (agentidentity.Caller, error) {
 	if h == nil || h.Sessions == nil {
 		return agentidentity.Caller{}, errAgentIdentityUnavailable
 	}
 	return agentidentity.Resolve(ctx, agentidentity.ResolveOptions{
-		Credentials: credentials,
-		Lookup:      h.agentSessionLookup,
-		OriginKind:  taskOriginKindForTransport(h.transportName()),
-		OriginRef:   strings.TrimSpace(action),
+		Credentials:         credentials,
+		Lookup:              h.agentSessionLookup,
+		ExpectedWorkspaceID: strings.TrimSpace(expectedWorkspaceID),
+		OriginKind:          taskOriginKindForTransport(h.transportName()),
+		OriginRef:           strings.TrimSpace(action),
 	})
 }
 
@@ -118,6 +128,10 @@ func agentCallerCredentialsFromRequest(c *gin.Context) agentidentity.Credentials
 		AgentName:   c.GetHeader(agentidentity.HeaderAgent),
 		WorkspaceID: c.GetHeader(agentidentity.HeaderWorkspaceID),
 	}
+}
+
+func hasAgentCallerIdentityCredentials(credentials agentidentity.Credentials) bool {
+	return strings.TrimSpace(credentials.SessionID) != "" || strings.TrimSpace(credentials.AgentName) != ""
 }
 
 func agentMePayloadFromCaller(caller agentidentity.Caller) contract.AgentMePayload {

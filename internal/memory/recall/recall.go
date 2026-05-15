@@ -180,7 +180,7 @@ func (r *Recaller) Recall(
 
 	query.QueryText = strings.TrimSpace(query.QueryText)
 	normalizedOpts := normalizeOptions(opts)
-	if isTrivialQuery(query.QueryText) {
+	if !normalizedOpts.AllowTrivialQuery && isTrivialQuery(query.QueryText) {
 		r.recordSkipped(ctx, query, "trivial_query")
 		return emptyPackage(), nil
 	}
@@ -483,6 +483,7 @@ func packagedEntry(candidate rankedCandidate, now time.Time) memcontract.Package
 		Type:            candidate.Type.Normalize(),
 		WorkspaceID:     candidate.WorkspaceID,
 		Body:            candidate.Body,
+		ModTime:         candidate.ModTime.UTC(),
 		AgeDays:         age,
 		StalenessBanner: stalenessBanner(age),
 		WhyRecalled:     append([]string(nil), candidate.why...),
