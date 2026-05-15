@@ -21,10 +21,12 @@ import (
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/notifications"
 	observepkg "github.com/pedronauck/agh/internal/observe"
+	registrypkg "github.com/pedronauck/agh/internal/registry"
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
 	settingspkg "github.com/pedronauck/agh/internal/settings"
 	"github.com/pedronauck/agh/internal/skills"
+	skillmarketplace "github.com/pedronauck/agh/internal/skills/marketplace"
 	ssepkg "github.com/pedronauck/agh/internal/sse"
 	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
@@ -1201,6 +1203,101 @@ func SkillPayloadsFromSkills(skillList []*skills.Skill) []contract.SkillPayload 
 		payload = append(payload, SkillPayloadFromSkill(skill))
 	}
 	return payload
+}
+
+// SkillMarketplaceListingPayloadFromListing converts a remote listing into the shared payload.
+func SkillMarketplaceListingPayloadFromListing(
+	listing registrypkg.Listing,
+) contract.SkillMarketplaceListingPayload {
+	return contract.SkillMarketplaceListingPayload{
+		Slug:        listing.Slug,
+		Name:        listing.Name,
+		Description: listing.Description,
+		Author:      listing.Author,
+		Version:     listing.Version,
+		Downloads:   listing.Downloads,
+		Source:      listing.Source,
+	}
+}
+
+// SkillMarketplaceListingPayloadsFromListings converts remote listings into shared payloads.
+func SkillMarketplaceListingPayloadsFromListings(
+	listings []registrypkg.Listing,
+) []contract.SkillMarketplaceListingPayload {
+	payload := make([]contract.SkillMarketplaceListingPayload, 0, len(listings))
+	for _, listing := range listings {
+		payload = append(payload, SkillMarketplaceListingPayloadFromListing(listing))
+	}
+	return payload
+}
+
+// SkillMarketplaceDetailPayloadFromDetail converts a remote detail into the shared payload.
+func SkillMarketplaceDetailPayloadFromDetail(
+	detail *registrypkg.Detail,
+) contract.SkillMarketplaceDetailPayload {
+	if detail == nil {
+		return contract.SkillMarketplaceDetailPayload{}
+	}
+	return contract.SkillMarketplaceDetailPayload{
+		Slug:        detail.Slug,
+		Name:        detail.Name,
+		Description: detail.Description,
+		Author:      detail.Author,
+		Version:     detail.Version,
+		Downloads:   detail.Downloads,
+		Source:      detail.Source,
+		Readme:      detail.Readme,
+		MCPServers:  append([]string(nil), detail.MCPServers...),
+		Tags:        append([]string(nil), detail.Tags...),
+		License:     detail.License,
+		Repository:  detail.Repository,
+		Versions:    append([]string(nil), detail.Versions...),
+	}
+}
+
+// SkillMarketplaceInstallPayloadFromResult converts an install result into the shared payload.
+func SkillMarketplaceInstallPayloadFromResult(
+	result skillmarketplace.InstallResult,
+) contract.SkillMarketplaceInstallPayload {
+	return contract.SkillMarketplaceInstallPayload{
+		Name:     result.Name,
+		Slug:     result.Slug,
+		Version:  result.Version,
+		Registry: result.Registry,
+		Path:     result.Path,
+		Hash:     result.Hash,
+		Status:   result.Status,
+	}
+}
+
+// SkillMarketplaceUpdatePayloadsFromResults converts update results into shared payloads.
+func SkillMarketplaceUpdatePayloadsFromResults(
+	results []skillmarketplace.UpdateResult,
+) []contract.SkillMarketplaceUpdatePayload {
+	payload := make([]contract.SkillMarketplaceUpdatePayload, 0, len(results))
+	for _, result := range results {
+		payload = append(payload, contract.SkillMarketplaceUpdatePayload{
+			Name:           result.Name,
+			Slug:           result.Slug,
+			CurrentVersion: result.CurrentVersion,
+			LatestVersion:  result.LatestVersion,
+			Path:           result.Path,
+			Status:         result.Status,
+		})
+	}
+	return payload
+}
+
+// SkillMarketplaceRemovePayloadFromResult converts a removal result into the shared payload.
+func SkillMarketplaceRemovePayloadFromResult(
+	result skillmarketplace.RemoveResult,
+) contract.SkillMarketplaceRemovePayload {
+	return contract.SkillMarketplaceRemovePayload{
+		Name:   result.Name,
+		Slug:   result.Slug,
+		Path:   result.Path,
+		Status: result.Status,
+	}
 }
 
 func sessionWorkspaceFromInfo(info *session.Info) (string, string) {

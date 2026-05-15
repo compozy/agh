@@ -66,6 +66,7 @@ type BaseHandlerConfig struct {
 	HeartbeatWakeEvents          HeartbeatWakeEventReader
 	CoordinatorConfig            CoordinatorConfigResolver
 	SkillsRegistry               SkillsRegistry
+	SkillMarketplace             SkillMarketplaceService
 	TaskActorContextResolver     TaskActorContextResolver
 	MemoryStore                  *memory.Store
 	DreamTrigger                 DreamTrigger
@@ -118,6 +119,7 @@ type BaseHandlers struct {
 	HeartbeatWakeEvents          HeartbeatWakeEventReader
 	CoordinatorConfig            CoordinatorConfigResolver
 	SkillsRegistry               SkillsRegistry
+	SkillMarketplace             SkillMarketplaceService
 	TaskActorContextResolver     TaskActorContextResolver
 	MemoryStore                  *memory.Store
 	DreamTrigger                 DreamTrigger
@@ -171,6 +173,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		AgentContextService:          cfg.AgentContextService,
 		CoordinatorConfig:            cfg.CoordinatorConfig,
 		SkillsRegistry:               cfg.SkillsRegistry,
+		SkillMarketplace:             cfg.SkillMarketplace,
 		TaskActorContextResolver:     cfg.TaskActorContextResolver,
 		MemoryStore:                  cfg.MemoryStore,
 		DreamTrigger:                 cfg.DreamTrigger,

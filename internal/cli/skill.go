@@ -19,7 +19,6 @@ var (
 	skillXMLAttributeReplacer = strings.NewReplacer(`&`, "&amp;", `<`, "&lt;", `>`, "&gt;", `"`, "&quot;")
 	skillXMLTextReplacer      = strings.NewReplacer(`&`, "&amp;", `<`, "&lt;", `>`, "&gt;")
 	validSkillNamePattern     = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
-	validSkillSlugPattern     = regexp.MustCompile(`^@[^/\s]+/[^/\s]+$`)
 )
 
 type skillCommandContext struct {

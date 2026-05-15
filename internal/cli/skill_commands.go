@@ -459,7 +459,8 @@ func newSkillSearchCommand(deps commandDeps) *cobra.Command {
 }
 
 func newSkillInstallCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	version := ""
+	cmd := &cobra.Command{
 		Use:   "install <slug>",
 		Short: "Install a marketplace skill",
 		Example: `  # Install the latest marketplace version of a skill
@@ -479,7 +480,7 @@ func newSkillInstallCommand(deps commandDeps) *cobra.Command {
 				err = errors.Join(err, registry.Close())
 			}()
 
-			item, err := installMarketplaceSkill(cmd.Context(), runtime, registry, slug, "", "", deps.now)
+			item, err := installMarketplaceSkill(cmd.Context(), runtime, registry, slug, version, "", deps.now)
 			if err != nil {
 				return err
 			}
@@ -487,6 +488,8 @@ func newSkillInstallCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, skillInstallBundle(item))
 		},
 	}
+	cmd.Flags().StringVar(&version, "version", "", "Marketplace version to install")
+	return cmd
 }
 
 func newSkillRemoveCommand(deps commandDeps) *cobra.Command {

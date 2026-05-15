@@ -21,6 +21,7 @@ type StubSkillsRegistry struct {
 	LoadResourceFn       func(ctx context.Context, skill *skills.Skill, relativePath string) (string, error)
 	SetEnabledFn         func(name string, resolved *workspacepkg.ResolvedWorkspace, enabled bool) error
 	SetEnabledForAgentFn func(name string, resolved *workspacepkg.ResolvedWorkspace, agentName string, enabled bool) error
+	RefreshGlobalFn      func(ctx context.Context) error
 }
 
 func (s StubSkillsRegistry) Get(name string) (*skills.Skill, bool) {
@@ -101,4 +102,12 @@ func (s StubSkillsRegistry) SetEnabledForAgent(
 	return nil
 }
 
+func (s StubSkillsRegistry) RefreshGlobal(ctx context.Context) error {
+	if s.RefreshGlobalFn != nil {
+		return s.RefreshGlobalFn(ctx)
+	}
+	return nil
+}
+
 var _ core.SkillsRegistry = (*StubSkillsRegistry)(nil)
+var _ core.SkillsRegistryRefresher = (*StubSkillsRegistry)(nil)

@@ -79,7 +79,7 @@ export const DetailOpen: Story = {
  */
 export const MarketplaceGrid: Story = {
   args: {},
-  parameters: appRouteParameters("/skills"),
+  parameters: appRouteParameters("/skills?tab=marketplace&q=compozy"),
   render: () => (
     <>
       <StorybookWorkspaceSetup />

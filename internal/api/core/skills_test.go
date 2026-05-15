@@ -12,7 +12,9 @@ import (
 	"github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/api/testutil"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	registrypkg "github.com/pedronauck/agh/internal/registry"
 	"github.com/pedronauck/agh/internal/skills"
+	skillmarketplace "github.com/pedronauck/agh/internal/skills/marketplace"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -25,6 +27,15 @@ func newSkillsHandlerFixture(
 	registry core.SkillsRegistry,
 	workspaces testutil.StubWorkspaceService,
 ) *gin.Engine {
+	return newSkillsHandlerFixtureWithMarketplace(t, registry, workspaces, nil)
+}
+
+func newSkillsHandlerFixtureWithMarketplace(
+	t *testing.T,
+	registry core.SkillsRegistry,
+	workspaces testutil.StubWorkspaceService,
+	marketplace core.SkillMarketplaceService,
+) *gin.Engine {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
@@ -35,22 +46,28 @@ func newSkillsHandlerFixture(
 	cfg.Daemon.Socket = "/tmp/skills-test.sock"
 
 	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
-		TransportName:  "skills-test",
-		Sessions:       testutil.StubSessionManager{},
-		Observer:       testutil.StubObserver{},
-		Workspaces:     workspaces,
-		SkillsRegistry: registry,
-		HomePaths:      homePaths,
-		Config:         cfg,
-		Logger:         testutil.DiscardLogger(),
-		StartedAt:      time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-		Now:            func() time.Time { return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC) },
-		PollInterval:   5 * time.Millisecond,
-		HTTPPort:       cfg.HTTP.Port,
+		TransportName:    "skills-test",
+		Sessions:         testutil.StubSessionManager{},
+		Observer:         testutil.StubObserver{},
+		Workspaces:       workspaces,
+		SkillsRegistry:   registry,
+		SkillMarketplace: marketplace,
+		HomePaths:        homePaths,
+		Config:           cfg,
+		Logger:           testutil.DiscardLogger(),
+		StartedAt:        time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+		Now:              func() time.Time { return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC) },
+		PollInterval:     5 * time.Millisecond,
+		HTTPPort:         cfg.HTTP.Port,
 	})
 
 	engine := gin.New()
 	engine.GET("/api/skills", handlers.ListSkills)
+	engine.GET("/api/skills/marketplace/search", handlers.SearchSkillMarketplace)
+	engine.GET("/api/skills/marketplace/info", handlers.GetSkillMarketplaceInfo)
+	engine.POST("/api/skills/marketplace/install", handlers.InstallSkillMarketplace)
+	engine.POST("/api/skills/marketplace/update", handlers.UpdateSkillMarketplace)
+	engine.DELETE("/api/skills/marketplace/:name", handlers.RemoveSkillMarketplace)
 	engine.GET("/api/skills/:name", handlers.GetSkill)
 	engine.GET("/api/skills/:name/content", handlers.GetSkillContent)
 	engine.POST("/api/skills/:name/enable", handlers.EnableSkill)
@@ -58,6 +75,68 @@ func newSkillsHandlerFixture(
 
 	return engine
 }
+
+type stubSkillMarketplaceService struct {
+	SearchFn  func(ctx context.Context, query string, limit int) ([]registrypkg.Listing, error)
+	InfoFn    func(ctx context.Context, slug string) (*registrypkg.Detail, error)
+	InstallFn func(ctx context.Context, slug string, version string) (skillmarketplace.InstallResult, error)
+	UpdateFn  func(ctx context.Context, req skillmarketplace.UpdateRequest) ([]skillmarketplace.UpdateResult, error)
+	RemoveFn  func(ctx context.Context, name string) (skillmarketplace.RemoveResult, error)
+}
+
+func (s stubSkillMarketplaceService) Search(
+	ctx context.Context,
+	query string,
+	limit int,
+) ([]registrypkg.Listing, error) {
+	if s.SearchFn != nil {
+		return s.SearchFn(ctx, query, limit)
+	}
+	return nil, nil
+}
+
+func (s stubSkillMarketplaceService) Info(
+	ctx context.Context,
+	slug string,
+) (*registrypkg.Detail, error) {
+	if s.InfoFn != nil {
+		return s.InfoFn(ctx, slug)
+	}
+	return nil, nil
+}
+
+func (s stubSkillMarketplaceService) Install(
+	ctx context.Context,
+	slug string,
+	version string,
+) (skillmarketplace.InstallResult, error) {
+	if s.InstallFn != nil {
+		return s.InstallFn(ctx, slug, version)
+	}
+	return skillmarketplace.InstallResult{}, nil
+}
+
+func (s stubSkillMarketplaceService) Update(
+	ctx context.Context,
+	req skillmarketplace.UpdateRequest,
+) ([]skillmarketplace.UpdateResult, error) {
+	if s.UpdateFn != nil {
+		return s.UpdateFn(ctx, req)
+	}
+	return nil, nil
+}
+
+func (s stubSkillMarketplaceService) Remove(
+	ctx context.Context,
+	name string,
+) (skillmarketplace.RemoveResult, error) {
+	if s.RemoveFn != nil {
+		return s.RemoveFn(ctx, name)
+	}
+	return skillmarketplace.RemoveResult{}, nil
+}
+
+var _ core.SkillMarketplaceService = (*stubSkillMarketplaceService)(nil)
 
 func testSkill() *skills.Skill {
 	return &skills.Skill{
@@ -194,6 +273,330 @@ func TestStatusForSkillError(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestStatusForSkillMarketplaceError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		err        error
+		wantStatus int
+	}{
+		{"nil returns 200", nil, http.StatusOK},
+		{"validation returns 400", skillmarketplace.ErrValidation, http.StatusBadRequest},
+		{"not found returns 404", skillmarketplace.ErrNotFound, http.StatusNotFound},
+		{"not marketplace returns 422", skillmarketplace.ErrNotMarketplace, http.StatusUnprocessableEntity},
+		{"not configured returns 503", skillmarketplace.ErrNotConfigured, http.StatusServiceUnavailable},
+		{"unknown error returns 500", http.ErrServerClosed, http.StatusInternalServerError},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := core.StatusForSkillMarketplaceError(tt.err)
+			if got != tt.wantStatus {
+				t.Errorf(
+					"StatusForSkillMarketplaceError(%v) = %d, want %d",
+					tt.err,
+					got,
+					tt.wantStatus,
+				)
+			}
+		})
+	}
+}
+
+func TestSkillMarketplaceHandlers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should search remote marketplace skills", func(t *testing.T) {
+		t.Parallel()
+
+		marketplace := &stubSkillMarketplaceService{
+			SearchFn: func(_ context.Context, query string, limit int) ([]registrypkg.Listing, error) {
+				if query != "review" {
+					t.Errorf("Search query = %q, want review", query)
+				}
+				if limit != 5 {
+					t.Errorf("Search limit = %d, want 5", limit)
+				}
+				return []registrypkg.Listing{{
+					Slug:        "@agh/review",
+					Name:        "review",
+					Description: "Review helper",
+					Author:      "agh",
+					Version:     "1.2.0",
+					Downloads:   42,
+					Source:      "clawhub",
+				}}, nil
+			},
+		}
+		engine := newSkillsHandlerFixtureWithMarketplace(
+			t,
+			&stubSkillsRegistry{},
+			testutil.StubWorkspaceService{},
+			marketplace,
+		)
+		rec := testutil.PerformRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/api/skills/marketplace/search?query=review&limit=5",
+			nil,
+		)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+		}
+
+		var resp contract.SkillMarketplaceSearchResponse
+		testutil.DecodeJSONResponse(t, rec, &resp)
+		if len(resp.Skills) != 1 {
+			t.Fatalf("len(skills) = %d, want 1", len(resp.Skills))
+		}
+		if resp.Skills[0].Slug != "@agh/review" {
+			t.Fatalf("skills[0].Slug = %q, want @agh/review", resp.Skills[0].Slug)
+		}
+	})
+
+	t.Run("Should return remote marketplace detail", func(t *testing.T) {
+		t.Parallel()
+
+		marketplace := &stubSkillMarketplaceService{
+			InfoFn: func(_ context.Context, slug string) (*registrypkg.Detail, error) {
+				if slug != "@agh/review" {
+					t.Errorf("Info slug = %q, want @agh/review", slug)
+				}
+				return &registrypkg.Detail{
+					Listing: registrypkg.Listing{
+						Slug:        "@agh/review",
+						Name:        "review",
+						Description: "Review helper",
+						Author:      "agh",
+						Version:     "1.2.0",
+						Source:      "clawhub",
+					},
+					Readme:   "Readme",
+					Tags:     []string{"review"},
+					Versions: []string{"1.1.0", "1.2.0"},
+				}, nil
+			},
+		}
+		engine := newSkillsHandlerFixtureWithMarketplace(
+			t,
+			&stubSkillsRegistry{},
+			testutil.StubWorkspaceService{},
+			marketplace,
+		)
+		rec := testutil.PerformRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/api/skills/marketplace/info?slug=@agh/review",
+			nil,
+		)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+		}
+
+		var resp contract.SkillMarketplaceDetailResponse
+		testutil.DecodeJSONResponse(t, rec, &resp)
+		if resp.Skill.Readme != "Readme" {
+			t.Fatalf("skill.Readme = %q, want Readme", resp.Skill.Readme)
+		}
+	})
+
+	t.Run("Should install marketplace skill and refresh registry", func(t *testing.T) {
+		t.Parallel()
+
+		refreshed := false
+		registry := &stubSkillsRegistry{
+			RefreshGlobalFn: func(context.Context) error {
+				refreshed = true
+				return nil
+			},
+		}
+		marketplace := &stubSkillMarketplaceService{
+			InstallFn: func(_ context.Context, slug string, version string) (skillmarketplace.InstallResult, error) {
+				if slug != "@agh/review" {
+					t.Errorf("Install slug = %q, want @agh/review", slug)
+				}
+				if version != "1.2.0" {
+					t.Errorf("Install version = %q, want 1.2.0", version)
+				}
+				return skillmarketplace.InstallResult{
+					Name:     "review",
+					Slug:     "@agh/review",
+					Version:  "1.2.0",
+					Registry: "clawhub",
+					Path:     "/tmp/agh/skills/review",
+					Hash:     "sha256:abc",
+					Status:   "installed",
+				}, nil
+			},
+		}
+		engine := newSkillsHandlerFixtureWithMarketplace(
+			t,
+			registry,
+			testutil.StubWorkspaceService{},
+			marketplace,
+		)
+		rec := testutil.PerformRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/skills/marketplace/install",
+			testutil.MustJSONBody(t, contract.SkillMarketplaceInstallRequest{
+				Slug:    "@agh/review",
+				Version: "1.2.0",
+			}),
+		)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+		}
+		if !refreshed {
+			t.Fatal("RefreshGlobal() was not called after install")
+		}
+
+		var resp contract.SkillMarketplaceInstallResponse
+		testutil.DecodeJSONResponse(t, rec, &resp)
+		if resp.Skill.Status != "installed" {
+			t.Fatalf("skill.Status = %q, want installed", resp.Skill.Status)
+		}
+	})
+
+	t.Run("Should not refresh registry for update check only", func(t *testing.T) {
+		t.Parallel()
+
+		refreshCount := 0
+		registry := &stubSkillsRegistry{
+			RefreshGlobalFn: func(context.Context) error {
+				refreshCount++
+				return nil
+			},
+		}
+		marketplace := &stubSkillMarketplaceService{
+			UpdateFn: func(_ context.Context, req skillmarketplace.UpdateRequest) ([]skillmarketplace.UpdateResult, error) {
+				if req.Name != "review" {
+					t.Errorf("Update name = %q, want review", req.Name)
+				}
+				if !req.CheckOnly {
+					t.Error("Update CheckOnly = false, want true")
+				}
+				return []skillmarketplace.UpdateResult{{
+					Name:           "review",
+					Slug:           "@agh/review",
+					CurrentVersion: "1.1.0",
+					LatestVersion:  "1.2.0",
+					Path:           "/tmp/agh/skills/review",
+					Status:         skillmarketplace.UpdateStatusAvailable,
+				}}, nil
+			},
+		}
+		engine := newSkillsHandlerFixtureWithMarketplace(
+			t,
+			registry,
+			testutil.StubWorkspaceService{},
+			marketplace,
+		)
+		rec := testutil.PerformRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/skills/marketplace/update",
+			testutil.MustJSONBody(t, contract.SkillMarketplaceUpdateRequest{
+				Name:      "review",
+				CheckOnly: true,
+			}),
+		)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+		}
+		if refreshCount != 0 {
+			t.Fatalf("RefreshGlobal() calls = %d, want 0", refreshCount)
+		}
+	})
+
+	t.Run("Should remove marketplace skill and refresh registry", func(t *testing.T) {
+		t.Parallel()
+
+		refreshed := false
+		registry := &stubSkillsRegistry{
+			RefreshGlobalFn: func(context.Context) error {
+				refreshed = true
+				return nil
+			},
+		}
+		marketplace := &stubSkillMarketplaceService{
+			RemoveFn: func(_ context.Context, name string) (skillmarketplace.RemoveResult, error) {
+				if name != "review" {
+					t.Errorf("Remove name = %q, want review", name)
+				}
+				return skillmarketplace.RemoveResult{
+					Name:   "review",
+					Slug:   "@agh/review",
+					Path:   "/tmp/agh/skills/review",
+					Status: "removed",
+				}, nil
+			},
+		}
+		engine := newSkillsHandlerFixtureWithMarketplace(
+			t,
+			registry,
+			testutil.StubWorkspaceService{},
+			marketplace,
+		)
+		rec := testutil.PerformRequest(
+			t,
+			engine,
+			http.MethodDelete,
+			"/api/skills/marketplace/review",
+			nil,
+		)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+		}
+		if !refreshed {
+			t.Fatal("RefreshGlobal() was not called after remove")
+		}
+	})
+
+	t.Run("Should map non-marketplace removal to unprocessable entity", func(t *testing.T) {
+		t.Parallel()
+
+		marketplace := &stubSkillMarketplaceService{
+			RemoveFn: func(context.Context, string) (skillmarketplace.RemoveResult, error) {
+				return skillmarketplace.RemoveResult{}, skillmarketplace.ErrNotMarketplace
+			},
+		}
+		engine := newSkillsHandlerFixtureWithMarketplace(
+			t,
+			&stubSkillsRegistry{},
+			testutil.StubWorkspaceService{},
+			marketplace,
+		)
+		rec := testutil.PerformRequest(
+			t,
+			engine,
+			http.MethodDelete,
+			"/api/skills/marketplace/manual",
+			nil,
+		)
+
+		if rec.Code != http.StatusUnprocessableEntity {
+			t.Fatalf(
+				"status = %d, want %d; body=%s",
+				rec.Code,
+				http.StatusUnprocessableEntity,
+				rec.Body.String(),
+			)
+		}
+	})
 }
 
 func TestListSkills(t *testing.T) {

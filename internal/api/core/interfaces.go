@@ -16,10 +16,12 @@ import (
 	"github.com/pedronauck/agh/internal/modelcatalog"
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/observe"
+	registrypkg "github.com/pedronauck/agh/internal/registry"
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
 	settingspkg "github.com/pedronauck/agh/internal/settings"
 	"github.com/pedronauck/agh/internal/skills"
+	skillmarketplace "github.com/pedronauck/agh/internal/skills/marketplace"
 	"github.com/pedronauck/agh/internal/soul"
 	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
@@ -249,6 +251,20 @@ type SkillsRegistry interface {
 	LoadResource(ctx context.Context, skill *skills.Skill, relativePath string) (string, error)
 	SetEnabled(name string, resolved *workspacepkg.ResolvedWorkspace, enabled bool) error
 	SetEnabledForAgent(name string, resolved *workspacepkg.ResolvedWorkspace, agentName string, enabled bool) error
+}
+
+// SkillsRegistryRefresher refreshes the daemon global skill catalog after on-disk mutations.
+type SkillsRegistryRefresher interface {
+	RefreshGlobal(ctx context.Context) error
+}
+
+// SkillMarketplaceService exposes remote skill marketplace lifecycle operations.
+type SkillMarketplaceService interface {
+	Search(ctx context.Context, query string, limit int) ([]registrypkg.Listing, error)
+	Info(ctx context.Context, slug string) (*registrypkg.Detail, error)
+	Install(ctx context.Context, slug string, version string) (skillmarketplace.InstallResult, error)
+	Update(ctx context.Context, req skillmarketplace.UpdateRequest) ([]skillmarketplace.UpdateResult, error)
+	Remove(ctx context.Context, name string) (skillmarketplace.RemoveResult, error)
 }
 
 // VaultService exposes redacted secret metadata and write-only mutations to API transports.

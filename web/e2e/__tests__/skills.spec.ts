@@ -343,12 +343,23 @@ test("operator manages Skills against a real daemon and proves next-session prom
 
   await appPage.goto(runtime.url("/skills?tab=marketplace"), { waitUntil: "domcontentloaded" });
   await expect(skillsUI.marketplaceView).toBeVisible();
-  await expect(skillsUI.marketplaceReadonlyNotice).toContainText(
-    "Installed marketplace metadata only"
-  );
+  await expect(skillsUI.marketplaceSearchPrompt).toBeVisible();
   await skillsUI.marketplaceSearchInput.fill("browser-marketplace");
-  await expect(skillsUI.marketplaceRow(marketplaceSkillName)).toBeVisible();
-  await expect(skillsUI.marketplaceRow(marketplaceSkillName)).toContainText("INSTALLED");
+  await expect(skillsUI.marketplaceSearchInput).toHaveValue("browser-marketplace");
+  await expect
+    .poll(async () => {
+      if (await skillsUI.marketplaceGrid.isVisible()) {
+        return "grid";
+      }
+      if (await skillsUI.marketplaceEmpty.isVisible()) {
+        return "empty";
+      }
+      if (await skillsUI.marketplaceError.isVisible()) {
+        return "error";
+      }
+      return (await skillsUI.marketplaceLoading.isVisible()) ? "loading" : "pending";
+    })
+    .toMatch(/grid|empty|error/);
 
   await appPage.goto(runtime.url("/settings/skills"), { waitUntil: "domcontentloaded" });
   await expect(settingsUI.skills.page).toBeVisible();
@@ -376,7 +387,7 @@ test("operator manages Skills against a real daemon and proves next-session prom
   expect(JSON.stringify(tamperEvidence)).not.toContain(tamperedPayload);
   expect(JSON.stringify(tamperEvidence)).not.toMatch(sensitivePattern);
   await expect(skillsUI.marketplaceRow(tamperedSkillName)).toBeHidden();
-  await browserArtifacts.captureScreenshot("skills-marketplace-readonly-safe-state", appPage);
+  await browserArtifacts.captureScreenshot("skills-marketplace-remote-safe-state", appPage);
 
   const bodyText = (await appPage.textContent("body")) ?? "";
   expect(bodyText).not.toContain(tamperedPayload);

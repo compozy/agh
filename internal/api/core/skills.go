@@ -4,12 +4,14 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/skills"
+	skillmarketplace "github.com/pedronauck/agh/internal/skills/marketplace"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -211,6 +213,122 @@ func (h *BaseHandlers) DisableSkill(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.SkillActionResponse{OK: true})
 }
 
+// SearchSkillMarketplace searches the configured remote marketplace for skills.
+func (h *BaseHandlers) SearchSkillMarketplace(c *gin.Context) {
+	query := strings.TrimSpace(c.Query("query"))
+	limit := skillmarketplace.DefaultSearchLimit
+	if rawLimit := strings.TrimSpace(c.Query("limit")); rawLimit != "" {
+		parsedLimit, err := strconv.Atoi(rawLimit)
+		if err != nil {
+			h.respondError(
+				c,
+				http.StatusBadRequest,
+				fmt.Errorf("%w: marketplace search limit must be an integer", skillmarketplace.ErrValidation),
+			)
+			return
+		}
+		limit = parsedLimit
+	}
+
+	listings, err := h.skillMarketplaceService().Search(c.Request.Context(), query, limit)
+	if err != nil {
+		h.respondError(c, StatusForSkillMarketplaceError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusOK, contract.SkillMarketplaceSearchResponse{
+		Skills: SkillMarketplaceListingPayloadsFromListings(listings),
+	})
+}
+
+// GetSkillMarketplaceInfo returns remote marketplace metadata for one skill slug.
+func (h *BaseHandlers) GetSkillMarketplaceInfo(c *gin.Context) {
+	slug := strings.TrimSpace(c.Query("slug"))
+	detail, err := h.skillMarketplaceService().Info(c.Request.Context(), slug)
+	if err != nil {
+		h.respondError(c, StatusForSkillMarketplaceError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusOK, contract.SkillMarketplaceDetailResponse{
+		Skill: SkillMarketplaceDetailPayloadFromDetail(detail),
+	})
+}
+
+// InstallSkillMarketplace installs one remote marketplace skill.
+func (h *BaseHandlers) InstallSkillMarketplace(c *gin.Context) {
+	var req contract.SkillMarketplaceInstallRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.respondError(c, http.StatusBadRequest, fmt.Errorf("decode skill marketplace install request: %w", err))
+		return
+	}
+
+	result, err := h.skillMarketplaceService().Install(
+		c.Request.Context(),
+		req.Slug,
+		req.Version,
+	)
+	if err != nil {
+		h.respondError(c, StatusForSkillMarketplaceError(err), err)
+		return
+	}
+	if err := h.refreshSkillsAfterMarketplaceMutation(c); err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, contract.SkillMarketplaceInstallResponse{
+		Skill: SkillMarketplaceInstallPayloadFromResult(result),
+	})
+}
+
+// UpdateSkillMarketplace checks or applies updates for marketplace skills.
+func (h *BaseHandlers) UpdateSkillMarketplace(c *gin.Context) {
+	var req contract.SkillMarketplaceUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.respondError(c, http.StatusBadRequest, fmt.Errorf("decode skill marketplace update request: %w", err))
+		return
+	}
+
+	results, err := h.skillMarketplaceService().Update(c.Request.Context(), skillmarketplace.UpdateRequest{
+		Name:      req.Name,
+		All:       req.All,
+		CheckOnly: req.CheckOnly,
+	})
+	if err != nil {
+		h.respondError(c, StatusForSkillMarketplaceError(err), err)
+		return
+	}
+	if !req.CheckOnly {
+		if err := h.refreshSkillsAfterMarketplaceMutation(c); err != nil {
+			h.respondError(c, http.StatusInternalServerError, err)
+			return
+		}
+	}
+
+	c.JSON(http.StatusOK, contract.SkillMarketplaceUpdateResponse{
+		Skills: SkillMarketplaceUpdatePayloadsFromResults(results),
+	})
+}
+
+// RemoveSkillMarketplace removes one installed marketplace skill.
+func (h *BaseHandlers) RemoveSkillMarketplace(c *gin.Context) {
+	name := strings.TrimSpace(c.Param("name"))
+	result, err := h.skillMarketplaceService().Remove(c.Request.Context(), name)
+	if err != nil {
+		h.respondError(c, StatusForSkillMarketplaceError(err), err)
+		return
+	}
+	if err := h.refreshSkillsAfterMarketplaceMutation(c); err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, contract.SkillMarketplaceRemoveResponse{
+		Skill: SkillMarketplaceRemovePayloadFromResult(result),
+	})
+}
+
 func (h *BaseHandlers) resolveSkill(
 	c *gin.Context,
 	name string,
@@ -298,4 +416,30 @@ func mapSkillScopeError(err error) error {
 	default:
 		return err
 	}
+}
+
+func (h *BaseHandlers) skillMarketplaceService() SkillMarketplaceService {
+	if h.SkillMarketplace != nil {
+		return h.SkillMarketplace
+	}
+	return skillmarketplace.NewService(
+		h.HomePaths,
+		h.Config.Skills,
+		skillmarketplace.WithLogger(h.Logger),
+		skillmarketplace.WithNow(h.Now),
+	)
+}
+
+func (h *BaseHandlers) refreshSkillsAfterMarketplaceMutation(c *gin.Context) error {
+	if h.SkillsRegistry == nil {
+		return fmt.Errorf("%s: skills registry is not configured", h.transportName())
+	}
+	refresher, ok := h.SkillsRegistry.(SkillsRegistryRefresher)
+	if !ok {
+		return fmt.Errorf("%s: skills registry refresh is not configured", h.transportName())
+	}
+	if err := refresher.RefreshGlobal(c.Request.Context()); err != nil {
+		return fmt.Errorf("refresh skills registry after marketplace mutation: %w", err)
+	}
+	return nil
 }

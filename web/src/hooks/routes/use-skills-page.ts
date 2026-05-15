@@ -4,9 +4,13 @@ import { useNavigate } from "@tanstack/react-router";
 import {
   useDisableSkill,
   useEnableSkill,
+  useInstallSkillMarketplace,
+  useRemoveSkillMarketplace,
   useSkill,
   useSkillContent,
+  useSkillMarketplaceSearch,
   useSkills,
+  useUpdateSkillMarketplace,
 } from "@/systems/skill";
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -36,11 +40,7 @@ function useSkillsPage(search: SkillsRouteSearch = {}) {
   const searchQuery = search.q ?? "";
 
   const skillsQuery = useSkills(workspaceId);
-  const skills = skillsQuery.data ?? [];
-  const marketplaceSkills = useMemo(
-    () => skills.filter(skill => skill.source === "marketplace"),
-    [skills]
-  );
+  const skills = useMemo(() => skillsQuery.data ?? [], [skillsQuery.data]);
 
   const effectiveSelectedName = useMemo(() => {
     if (selectedSkillName && skills.some(skill => skill.name === selectedSkillName)) {
@@ -58,6 +58,9 @@ function useSkillsPage(search: SkillsRouteSearch = {}) {
 
   const disableMutation = useDisableSkill();
   const enableMutation = useEnableSkill();
+  const installMutation = useInstallSkillMarketplace();
+  const updateMutation = useUpdateSkillMarketplace();
+  const removeMutation = useRemoveSkillMarketplace();
 
   const installedSkillNames = useMemo(() => {
     return new Set(skills.map(skill => skill.name));
@@ -73,6 +76,16 @@ function useSkillsPage(search: SkillsRouteSearch = {}) {
     refetch: refetchSkillContent,
   } = useSkillContent(effectiveSelectedName ?? "", workspaceId, shouldLoadSelectedContent);
 
+  const marketplaceQueryActive = activeTab === "marketplace" && searchQuery.trim() !== "";
+  const marketplaceSearchQuery = useSkillMarketplaceSearch(
+    marketplaceQueryActive ? searchQuery : ""
+  );
+  const marketplaceListings = useMemo(
+    () => (marketplaceQueryActive ? (marketplaceSearchQuery.data ?? []) : []),
+    [marketplaceQueryActive, marketplaceSearchQuery.data]
+  );
+  const marketplaceListingCount = marketplaceListings.length;
+
   const handleDisable = (name: string) => {
     disableMutation.mutate({ name, workspace: workspaceId });
   };
@@ -80,6 +93,27 @@ function useSkillsPage(search: SkillsRouteSearch = {}) {
   const handleEnable = (name: string) => {
     enableMutation.mutate({ name, workspace: workspaceId });
   };
+
+  const handleInstallMarketplace = useCallback(
+    (slug: string) => {
+      installMutation.mutate({ body: { slug }, workspace: workspaceId });
+    },
+    [installMutation, workspaceId]
+  );
+
+  const handleUpdateMarketplace = useCallback(
+    (name: string) => {
+      updateMutation.mutate({ body: { name }, workspace: workspaceId });
+    },
+    [updateMutation, workspaceId]
+  );
+
+  const handleRemoveMarketplace = useCallback(
+    (name: string) => {
+      removeMutation.mutate({ name, workspace: workspaceId });
+    },
+    [removeMutation, workspaceId]
+  );
 
   const updateSearch = useCallback(
     (updater: (current: SkillsRouteSearch) => SkillsRouteSearch) => {
@@ -147,15 +181,24 @@ function useSkillsPage(search: SkillsRouteSearch = {}) {
     error,
     handleDisable,
     handleEnable,
+    handleInstallMarketplace,
+    handleRemoveMarketplace,
     handleRetryContent,
+    handleUpdateMarketplace,
     handleViewContent,
     installedSkillNames,
     isActionPending: disableMutation.isPending || enableMutation.isPending,
     isContentLoading: shouldLoadSelectedContent && isLoadingContent,
+    isInstalling: installMutation.isPending,
     isLoading: skillsQuery.isLoading && !hasSkills,
     isLoadingDetail: isLoadingDetail && effectiveSelectedName !== null,
-    marketplaceSkillCount: marketplaceSkills.length,
-    marketplaceSkills,
+    isMarketplaceSearchEnabled: marketplaceQueryActive,
+    isMarketplaceSearching: marketplaceQueryActive && marketplaceSearchQuery.isFetching,
+    isRemoving: removeMutation.isPending,
+    isUpdating: updateMutation.isPending,
+    marketplaceListingCount,
+    marketplaceListings,
+    marketplaceSearchError: marketplaceQueryActive ? (marketplaceSearchQuery.error ?? null) : null,
     searchQuery,
     selectedSkill: effectiveSelectedName
       ? (selectedSkill ?? skills.find(skill => skill.name === effectiveSelectedName))

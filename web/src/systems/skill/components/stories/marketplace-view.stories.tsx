@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { http, HttpResponse } from "msw";
+import { useState } from "react";
 import { expect, userEvent, within } from "storybook/test";
 
-import { useSkillsPage } from "@/hooks/routes/use-skills-page";
-import { storybookMswParameters } from "@/storybook/msw";
 import { PanelSurface } from "@/storybook/story-layout";
+import { skillMarketplaceListingFixtures } from "@/systems/skill/mocks";
+import type { SkillMarketplaceListingPayload } from "@/systems/skill";
 
 import { MarketplaceView } from "../marketplace-view";
 
@@ -19,106 +19,117 @@ const meta: Meta<typeof MarketplaceView> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-function MarketplaceViewFromPage() {
-  const page = useSkillsPage();
+interface StoryHarnessProps {
+  initialQuery?: string;
+  listings?: SkillMarketplaceListingPayload[];
+  installedSkillNames?: Set<string>;
+  isSearchEnabled?: boolean;
+  isSearching?: boolean;
+  searchError?: Error | null;
+  isInstalling?: boolean;
+  isUpdating?: boolean;
+  isRemoving?: boolean;
+}
+
+function MarketplaceViewHarness({
+  initialQuery = "",
+  listings = [],
+  installedSkillNames,
+  isSearchEnabled,
+  isSearching = false,
+  searchError = null,
+  isInstalling = false,
+  isUpdating = false,
+  isRemoving = false,
+}: StoryHarnessProps) {
+  const [query, setQuery] = useState(initialQuery);
+  const enabled = isSearchEnabled ?? query.trim() !== "";
   return (
     <PanelSurface>
       <MarketplaceView
-        installUnavailableReason="Marketplace install is not implemented yet"
-        installedSkillNames={new Set(page.skills.slice(0, 1).map(skill => skill.name))}
-        isInstalling={false}
+        installedSkillNames={installedSkillNames ?? new Set()}
+        isInstalling={isInstalling}
+        isRemoving={isRemoving}
+        isSearchEnabled={enabled}
+        isSearching={isSearching}
+        isUpdating={isUpdating}
+        listings={listings}
         onInstall={() => undefined}
-        skills={page.error ? [] : page.skills}
+        onRemove={() => undefined}
+        onSearchChange={setQuery}
+        onUpdate={() => undefined}
+        searchError={searchError}
+        searchQuery={query}
       />
     </PanelSurface>
   );
 }
 
-function DisabledInstallMarketplaceView() {
-  const page = useSkillsPage();
-  return (
-    <PanelSurface>
-      <MarketplaceView
-        installUnavailableReason="Daemon does not support marketplace installs"
-        installedSkillNames={new Set()}
-        isInstalling={false}
-        onInstall={undefined}
-        skills={page.skills}
-      />
-    </PanelSurface>
-  );
-}
+export const SearchPrompt: Story = {
+  render: () => <MarketplaceViewHarness />,
+};
 
-function BrowseOnlyMarketplaceView() {
-  const page = useSkillsPage();
-  return (
-    <PanelSurface>
-      <MarketplaceView
-        installUnavailableReason="Remote marketplace search and install are not available in this view yet."
-        installedSkillNames={new Set(page.skills.map(skill => skill.name))}
-        isInstalling={false}
-        onInstall={undefined}
-        skills={page.skills}
-      />
-    </PanelSurface>
-  );
-}
+export const SearchResults: Story = {
+  render: () => (
+    <MarketplaceViewHarness initialQuery="demo" listings={skillMarketplaceListingFixtures} />
+  ),
+};
 
-function AllInstalledMarketplaceView() {
-  const page = useSkillsPage();
-  return (
-    <PanelSurface>
-      <MarketplaceView
-        installUnavailableReason="Marketplace install is not implemented yet"
-        installedSkillNames={new Set(page.skills.map(skill => skill.name))}
-        isInstalling={false}
-        onInstall={() => undefined}
-        skills={page.skills}
-      />
-    </PanelSurface>
-  );
-}
+export const WithInstalled: Story = {
+  render: () => (
+    <MarketplaceViewHarness
+      initialQuery="demo"
+      installedSkillNames={new Set([skillMarketplaceListingFixtures[0].name])}
+      listings={skillMarketplaceListingFixtures}
+    />
+  ),
+};
 
-export const Default: Story = {
-  render: () => <MarketplaceViewFromPage />,
+export const Loading: Story = {
+  render: () => <MarketplaceViewHarness initialQuery="demo" isSearching listings={[]} />,
 };
 
 export const ErrorState: Story = {
-  parameters: {
-    ...storybookMswParameters({
-      skill: [
-        http.get("/api/skills", () =>
-          HttpResponse.json({ error: "marketplace unavailable" }, { status: 500 })
-        ),
-      ],
-    }),
-  },
-  render: () => <MarketplaceViewFromPage />,
+  render: () => (
+    <MarketplaceViewHarness
+      initialQuery="demo"
+      listings={[]}
+      searchError={new Error("Marketplace search failed with 503")}
+    />
+  ),
 };
 
-export const DisabledInstall: Story = {
-  render: () => <DisabledInstallMarketplaceView />,
+export const NoResults: Story = {
+  render: () => <MarketplaceViewHarness initialQuery="demo" listings={[]} />,
 };
 
-export const BrowseOnlyWithReason: Story = {
-  args: {},
-  render: () => <BrowseOnlyMarketplaceView />,
+export const InstallingDisablesAction: Story = {
+  render: () => (
+    <MarketplaceViewHarness
+      initialQuery="demo"
+      isInstalling
+      listings={skillMarketplaceListingFixtures}
+    />
+  ),
 };
 
-export const AllInstalled: Story = {
-  render: () => <AllInstalledMarketplaceView />,
-};
-
-/**
- * Interaction test: filter marketplace by a non-matching category shows Empty.
- */
-export const FilterToEmpty: Story = {
+export const RemoveConfirmation: Story = {
   tags: ["play-fn"],
-  render: () => <MarketplaceViewFromPage />,
+  render: () => (
+    <MarketplaceViewHarness
+      initialQuery="demo"
+      installedSkillNames={new Set([skillMarketplaceListingFixtures[0].name])}
+      listings={skillMarketplaceListingFixtures}
+    />
+  ),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const chip = await canvas.findByTestId("category-chip-SECURITY");
-    await userEvent.click(chip);
-    await expect(canvas.findByTestId("marketplace-empty")).resolves.toBeDefined();
+    const removeBtn = await canvas.findByTestId(
+      `remove-btn-${skillMarketplaceListingFixtures[0].name}`
+    );
+    await userEvent.click(removeBtn);
+    await expect(
+      within(document.body).findByTestId(`remove-dialog-${skillMarketplaceListingFixtures[0].name}`)
+    ).resolves.toBeDefined();
   },
 };

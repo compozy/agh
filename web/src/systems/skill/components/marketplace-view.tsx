@@ -1,5 +1,4 @@
-import { AlertCircle, Download, Wrench } from "lucide-react";
-import { useMemo, useState } from "react";
+import { AlertCircle, Download, RotateCw, Search, Trash2, Wrench } from "lucide-react";
 
 import {
   Alert,
@@ -7,107 +6,150 @@ import {
   AlertTitle,
   Button,
   CatalogCard,
+  ConfirmDialog,
+  DialogTrigger,
   Empty,
   Pill,
-  PillGroup,
   SearchInput,
+  Spinner,
 } from "@agh/ui";
 
-import {
-  MARKETPLACE_CATEGORIES,
-  type MarketplaceCategory,
-  deriveSkillAuthor,
-  deriveSkillTags,
-  filterSkillsByQuery,
-  matchesMarketplaceCategory,
-} from "../lib/skill-formatters";
-import type { SkillPayload } from "../types";
+import type { SkillMarketplaceListingPayload } from "../types";
 
 interface MarketplaceViewProps {
-  skills: SkillPayload[];
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
+  listings: SkillMarketplaceListingPayload[];
   installedSkillNames: Set<string>;
-  onInstall?: (name: string) => void;
+  isSearchEnabled: boolean;
+  isSearching: boolean;
+  searchError: Error | null;
+  onInstall: (slug: string) => void;
+  onUpdate: (name: string) => void;
+  onRemove: (name: string) => void;
   isInstalling: boolean;
-  installUnavailableReason?: string;
-  searchQuery?: string;
-  onSearchChange?: (query: string) => void;
+  isUpdating: boolean;
+  isRemoving: boolean;
 }
 
-interface SkillCatalogItemProps {
-  skill: SkillPayload;
+interface MarketplaceCatalogItemProps {
+  listing: SkillMarketplaceListingPayload;
   isInstalled: boolean;
-  onInstall?: () => void;
+  onInstall: () => void;
+  onUpdate: () => void;
+  onRemove: () => void;
   isInstalling: boolean;
+  isUpdating: boolean;
+  isRemoving: boolean;
 }
 
-function SkillCatalogItem({ skill, isInstalled, onInstall, isInstalling }: SkillCatalogItemProps) {
-  const author = deriveSkillAuthor(skill);
-  const tags = deriveSkillTags(skill);
-  const downloads = skill.metadata?.downloads;
-
+function MarketplaceCatalogItem({
+  listing,
+  isInstalled,
+  onInstall,
+  onUpdate,
+  onRemove,
+  isInstalling,
+  isUpdating,
+  isRemoving,
+}: MarketplaceCatalogItemProps) {
   return (
-    <CatalogCard data-testid={`marketplace-row-${skill.name}`}>
+    <CatalogCard data-testid={`marketplace-row-${listing.name}`}>
       <div className="flex items-start gap-3">
         <CatalogCard.Logo>
           <Wrench className="size-4" />
         </CatalogCard.Logo>
         <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <CatalogCard.Title>{skill.name}</CatalogCard.Title>
+          <CatalogCard.Title>{listing.name}</CatalogCard.Title>
           <CatalogCard.Meta>
-            {author ? <span>{`@${author}`}</span> : null}
-            {skill.version ? <span>{`v${skill.version}`}</span> : null}
-            {downloads !== undefined && downloads !== null ? (
-              <span className="inline-flex items-center gap-1">
-                <Download aria-hidden="true" className="size-3" />
-                {String(downloads)}
-              </span>
-            ) : null}
+            <span>{`@${listing.author}`}</span>
+            {listing.version ? <span>{`v${listing.version}`}</span> : null}
+            <span className="inline-flex items-center gap-1">
+              <Download aria-hidden="true" className="size-3" />
+              {String(listing.downloads)}
+            </span>
           </CatalogCard.Meta>
         </div>
       </div>
-      <div className="flex flex-col gap-2">
-        <CatalogCard.Description>{skill.description}</CatalogCard.Description>
-        {tags.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {tags.map(tag => (
-              <Pill
-                mono
-                data-testid={`marketplace-tag-${skill.name}-${tag}`}
-                key={tag}
-                tone="neutral"
-              >
-                {tag}
-              </Pill>
-            ))}
-          </div>
-        ) : null}
-      </div>
+      <CatalogCard.Description>{listing.description}</CatalogCard.Description>
       <CatalogCard.Actions>
         {isInstalled ? (
-          <Pill mono data-testid={`installed-pill-${skill.name}`} tone="success">
-            installed
-          </Pill>
-        ) : onInstall ? (
+          <>
+            <Pill mono data-testid={`installed-pill-${listing.name}`} tone="success">
+              installed
+            </Pill>
+            <Button
+              data-testid={`update-btn-${listing.name}`}
+              disabled={isUpdating || isRemoving}
+              onClick={onUpdate}
+              size="sm"
+              type="button"
+              variant="neutral"
+            >
+              {isUpdating ? (
+                <Spinner aria-hidden="true" className="size-3" />
+              ) : (
+                <RotateCw aria-hidden="true" className="size-3" />
+              )}
+              {isUpdating ? "Updating" : "Update"}
+            </Button>
+            <ConfirmDialog
+              cancelButtonProps={{
+                "data-testid": `cancel-remove-${listing.name}`,
+                disabled: isRemoving,
+              }}
+              cancelLabel="Cancel"
+              confirmButtonProps={{ "data-testid": `confirm-remove-${listing.name}` }}
+              confirmIcon={Trash2}
+              confirmLabel={isRemoving ? "Removing" : "Remove skill"}
+              contentProps={{ "data-testid": `remove-dialog-${listing.name}` }}
+              description={
+                <>
+                  This removes <strong>{listing.name}</strong> from the workspace. Marketplace
+                  metadata stays available so you can reinstall later.
+                </>
+              }
+              isPending={isRemoving}
+              onConfirm={onRemove}
+              title="Remove marketplace skill?"
+              tone="danger"
+            >
+              <DialogTrigger
+                render={
+                  <Button
+                    data-testid={`remove-btn-${listing.name}`}
+                    disabled={isRemoving || isUpdating}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  />
+                }
+              >
+                {isRemoving ? (
+                  <Spinner aria-hidden="true" className="size-3" />
+                ) : (
+                  <Trash2 aria-hidden="true" className="size-3" />
+                )}
+                Remove
+              </DialogTrigger>
+            </ConfirmDialog>
+          </>
+        ) : (
           <Button
-            data-testid={`install-btn-${skill.name}`}
+            data-testid={`install-btn-${listing.name}`}
             disabled={isInstalling}
-            onClick={() => onInstall()}
+            onClick={onInstall}
             size="sm"
             type="button"
             variant="neutral"
           >
-            Install
+            {isInstalling ? (
+              <Spinner aria-hidden="true" className="size-3" />
+            ) : (
+              <Download aria-hidden="true" className="size-3" />
+            )}
+            {isInstalling ? "Installing" : "Install"}
           </Button>
-        ) : (
-          <div
-            className="flex items-center gap-2 text-eyebrow text-muted"
-            data-testid={`catalog-state-${skill.name}`}
-          >
-            <Pill mono data-testid={`readonly-pill-${skill.name}`} tone="neutral">
-              read only
-            </Pill>
-            <span>Metadata only</span>
-          </div>
         )}
       </CatalogCard.Actions>
     </CatalogCard>
@@ -115,81 +157,71 @@ function SkillCatalogItem({ skill, isInstalled, onInstall, isInstalling }: Skill
 }
 
 function MarketplaceView({
-  skills,
-  installedSkillNames,
-  onInstall,
-  isInstalling,
-  installUnavailableReason,
   searchQuery,
   onSearchChange,
+  listings,
+  installedSkillNames,
+  isSearchEnabled,
+  isSearching,
+  searchError,
+  onInstall,
+  onUpdate,
+  onRemove,
+  isInstalling,
+  isUpdating,
+  isRemoving,
 }: MarketplaceViewProps) {
-  const [localSearch, setLocalSearch] = useState("");
-  const [activeCategory, setActiveCategory] = useState<MarketplaceCategory>("all");
-  const search = searchQuery ?? localSearch;
-  const handleSearchChange = onSearchChange ?? setLocalSearch;
-  const isBrowseOnly = !onInstall;
-  const hasFilters = search.trim() !== "" || activeCategory !== "all";
-
-  const filtered = useMemo(() => {
-    const byQuery = filterSkillsByQuery(skills, search);
-    return byQuery.filter(skill => matchesMarketplaceCategory(skill, activeCategory));
-  }, [skills, search, activeCategory]);
-
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="marketplace-view">
       <div className="flex flex-col gap-3 border-b border-line px-4 py-3">
-        {isBrowseOnly && installUnavailableReason ? (
-          <Alert data-testid="marketplace-readonly-notice" variant="warning">
-            <AlertCircle aria-hidden="true" className="size-4" />
-            <AlertTitle>Installed marketplace metadata only</AlertTitle>
-            <AlertDescription>{installUnavailableReason}</AlertDescription>
-          </Alert>
-        ) : null}
         <SearchInput
-          aria-label={
-            isBrowseOnly ? "Filter installed marketplace skills" : "Search marketplace skills"
-          }
+          aria-label="Search marketplace skills"
           data-testid="marketplace-search-input"
-          onChange={handleSearchChange}
-          placeholder={
-            isBrowseOnly
-              ? "Filter installed marketplace skills..."
-              : "Search skills on marketplace..."
-          }
-          value={search}
-        />
-        <PillGroup
-          aria-label="Marketplace category"
-          data-testid="marketplace-category-pills"
-          items={MARKETPLACE_CATEGORIES.map(cat => ({
-            value: cat,
-            label: cat,
-            testId: `category-chip-${cat}`,
-          }))}
-          onChange={setActiveCategory}
-          size="sm"
-          value={activeCategory}
+          onChange={onSearchChange}
+          placeholder="Search skills on the marketplace..."
+          value={searchQuery}
         />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        {filtered.length === 0 ? (
+        {!isSearchEnabled ? (
+          <div
+            className="flex min-h-60 items-center justify-center"
+            data-testid="marketplace-search-prompt"
+          >
+            <Empty
+              className="max-w-sm"
+              description="Type a skill name, author, or keyword to browse the marketplace."
+              icon={Search}
+              title="Search the marketplace"
+            />
+          </div>
+        ) : isSearching && listings.length === 0 ? (
+          <div
+            className="flex min-h-60 items-center justify-center"
+            data-testid="marketplace-loading"
+          >
+            <Spinner aria-hidden="true" className="size-5 text-subtle" />
+          </div>
+        ) : searchError ? (
+          <div className="px-2 py-2" data-testid="marketplace-error">
+            <Alert variant="danger">
+              <AlertCircle aria-hidden="true" className="size-4" />
+              <AlertTitle>Marketplace search failed</AlertTitle>
+              <AlertDescription>
+                {searchError.message ?? "The marketplace search request did not succeed."}
+              </AlertDescription>
+            </Alert>
+          </div>
+        ) : listings.length === 0 ? (
           <div
             className="flex min-h-60 items-center justify-center"
             data-testid="marketplace-empty"
           >
             <Empty
               className="max-w-sm"
-              description={
-                isBrowseOnly
-                  ? hasFilters
-                    ? "No installed marketplace skills match the current filters."
-                    : "No marketplace-installed skills are available in this workspace yet."
-                  : hasFilters
-                    ? "No skills match the current filters."
-                    : "No skills found on the marketplace."
-              }
+              description="No marketplace skills match this query. Try a different keyword or author."
               icon={Wrench}
-              title={isBrowseOnly ? "No marketplace-installed skills" : "No skills found"}
+              title="No skills found"
             />
           </div>
         ) : (
@@ -197,13 +229,17 @@ function MarketplaceView({
             className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
             data-testid="marketplace-grid"
           >
-            {filtered.map(skill => (
-              <SkillCatalogItem
-                isInstalled={installedSkillNames.has(skill.name)}
+            {listings.map(listing => (
+              <MarketplaceCatalogItem
+                isInstalled={installedSkillNames.has(listing.name)}
                 isInstalling={isInstalling}
-                key={skill.name}
-                onInstall={onInstall ? () => onInstall(skill.name) : undefined}
-                skill={skill}
+                isRemoving={isRemoving}
+                isUpdating={isUpdating}
+                key={listing.slug}
+                listing={listing}
+                onInstall={() => onInstall(listing.slug)}
+                onRemove={() => onRemove(listing.name)}
+                onUpdate={() => onUpdate(listing.name)}
               />
             ))}
           </div>

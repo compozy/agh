@@ -52,7 +52,7 @@ function SkillsPage() {
   const page = useSkillsPage(Route.useSearch());
 
   useTopbarSlot({
-    count: page.activeTab === "marketplace" ? page.marketplaceSkillCount : page.skillCount,
+    count: page.activeTab === "marketplace" ? page.marketplaceListingCount : page.skillCount,
     tabs: (
       <PillGroup<SkillsTabValue>
         aria-label="Skills tab"
@@ -134,11 +134,18 @@ function SkillsPage() {
       ) : (
         <MarketplaceView
           installedSkillNames={page.installedSkillNames}
-          installUnavailableReason="The daemon API only exposes metadata for already installed marketplace skills here. Remote marketplace search and install are not available in this view yet."
-          isInstalling={false}
+          isInstalling={page.isInstalling}
+          isRemoving={page.isRemoving}
+          isSearchEnabled={page.isMarketplaceSearchEnabled}
+          isSearching={page.isMarketplaceSearching}
+          isUpdating={page.isUpdating}
+          listings={page.marketplaceListings}
+          onInstall={page.handleInstallMarketplace}
+          onRemove={page.handleRemoveMarketplace}
           onSearchChange={page.setSearchQuery}
+          onUpdate={page.handleUpdateMarketplace}
+          searchError={page.marketplaceSearchError}
           searchQuery={page.searchQuery}
-          skills={page.marketplaceSkills}
         />
       )}
     </div>

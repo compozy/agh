@@ -1,4 +1,12 @@
-import type { SkillActionResponse, SkillPayload } from "../types";
+import type {
+  SkillActionResponse,
+  SkillMarketplaceDetailPayload,
+  SkillMarketplaceInstallPayload,
+  SkillMarketplaceListingPayload,
+  SkillMarketplaceRemovePayload,
+  SkillMarketplaceUpdatePayload,
+  SkillPayload,
+} from "../types";
 import {
   storySkillNames,
   storyWorkspacePaths,
@@ -79,7 +87,7 @@ export const skillFixtures: SkillPayload[] = [
     provenance: {
       installed_at: "2026-04-17T15:00:00Z",
       registry: "community",
-      slug: "community",
+      slug: "@community/merchant-escalation-handoff",
       version: "0.8.2",
     },
   },
@@ -102,4 +110,80 @@ export const skillContentFixtures: Record<string, string> = {
 
 export const skillActionFixture: SkillActionResponse = {
   ok: true,
+};
+
+export const skillMarketplaceListingFixtures: SkillMarketplaceListingPayload[] = [
+  {
+    name: "merchant-escalation-handoff",
+    slug: "@community/merchant-escalation-handoff",
+    author: "community",
+    description:
+      "Guide support and risk through launch-day merchant escalations with clear customer-safe next steps.",
+    downloads: 173,
+    source: "clawhub",
+    version: "0.9.0",
+  },
+  {
+    name: "release-notes-author",
+    slug: "@compozy/release-notes-author",
+    author: "compozy",
+    description:
+      "Draft release notes from merged PRs and runtime telemetry without leaking internal commentary.",
+    downloads: 612,
+    source: "clawhub",
+    version: "2.4.1",
+  },
+  {
+    name: "browser-explorer",
+    slug: "@compozy/browser-explorer",
+    author: "compozy",
+    description:
+      "Drive a controlled browser session to inspect public surfaces and capture deterministic screenshots.",
+    downloads: 308,
+    source: "clawhub",
+    version: "1.7.0",
+  },
+];
+
+export const skillMarketplaceListingByName = new Map(
+  skillMarketplaceListingFixtures.map(listing => [listing.name, listing])
+);
+
+export const skillMarketplaceListingBySlug = new Map(
+  skillMarketplaceListingFixtures.map(listing => [listing.slug, listing])
+);
+
+export const skillMarketplaceDetailFixture: SkillMarketplaceDetailPayload = {
+  ...skillMarketplaceListingFixtures[0],
+  readme: "## Merchant Escalation Handoff\n\nPrepare a merchant-safe escalation summary.",
+  tags: ["support", "risk", "merchant"],
+  versions: ["0.8.2", "0.9.0"],
+};
+
+export const skillMarketplaceInstallFixture: SkillMarketplaceInstallPayload = {
+  name: "merchant-escalation-handoff",
+  slug: "@community/merchant-escalation-handoff",
+  status: "installed",
+  hash: "sha256:fixture",
+  path: "/opt/agh/skills/merchant-escalation-handoff",
+  registry: "clawhub",
+  version: "0.9.0",
+};
+
+export const skillMarketplaceUpdateFixtures: SkillMarketplaceUpdatePayload[] = [
+  {
+    name: "merchant-escalation-handoff",
+    slug: "@community/merchant-escalation-handoff",
+    status: "updated",
+    path: "/opt/agh/skills/merchant-escalation-handoff",
+    current_version: "0.8.2",
+    latest_version: "0.9.0",
+  },
+];
+
+export const skillMarketplaceRemoveFixture: SkillMarketplaceRemovePayload = {
+  name: "merchant-escalation-handoff",
+  slug: "@community/merchant-escalation-handoff",
+  status: "removed",
+  path: "/opt/agh/skills/merchant-escalation-handoff",
 };

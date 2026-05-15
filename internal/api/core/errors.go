@@ -21,6 +21,7 @@ import (
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
 	settingspkg "github.com/pedronauck/agh/internal/settings"
+	skillmarketplace "github.com/pedronauck/agh/internal/skills/marketplace"
 	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
@@ -393,6 +394,24 @@ func StatusForSkillError(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, ErrSkillUnprocessable):
 		return http.StatusUnprocessableEntity
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
+// StatusForSkillMarketplaceError maps skill marketplace lifecycle failures to transport statuses.
+func StatusForSkillMarketplaceError(err error) int {
+	switch {
+	case err == nil:
+		return http.StatusOK
+	case errors.Is(err, skillmarketplace.ErrValidation):
+		return http.StatusBadRequest
+	case errors.Is(err, skillmarketplace.ErrNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, skillmarketplace.ErrNotMarketplace):
+		return http.StatusUnprocessableEntity
+	case errors.Is(err, skillmarketplace.ErrNotConfigured):
+		return http.StatusServiceUnavailable
 	default:
 		return http.StatusInternalServerError
 	}

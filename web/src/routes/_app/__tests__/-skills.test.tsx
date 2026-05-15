@@ -3,7 +3,7 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SkillPayload } from "@/systems/skill/types";
+import type { SkillMarketplaceListingPayload, SkillPayload } from "@/systems/skill/types";
 import { renderWithTopbar } from "@/test/render-with-topbar";
 
 function render(ui: React.ReactElement) {
@@ -36,8 +36,18 @@ const routerState = vi.hoisted(() => ({
 
 const mockDisableMutate = vi.fn();
 const mockEnableMutate = vi.fn();
+const mockInstallMutate = vi.fn();
+const mockUpdateMutate = vi.fn();
+const mockRemoveMutate = vi.fn();
 let mockDisablePending = false;
 let mockEnablePending = false;
+let mockInstallPending = false;
+let mockUpdatePending = false;
+let mockRemovePending = false;
+
+let mockMarketplaceListings: SkillMarketplaceListingPayload[] = [];
+let mockMarketplaceSearching = false;
+let mockMarketplaceError: Error | null = null;
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -154,6 +164,23 @@ vi.mock("@/systems/skill", async () => {
       mutate: mockEnableMutate,
       isPending: mockEnablePending,
     }),
+    useSkillMarketplaceSearch: () => ({
+      data: mockMarketplaceListings,
+      isFetching: mockMarketplaceSearching,
+      error: mockMarketplaceError,
+    }),
+    useInstallSkillMarketplace: () => ({
+      mutate: mockInstallMutate,
+      isPending: mockInstallPending,
+    }),
+    useUpdateSkillMarketplace: () => ({
+      mutate: mockUpdateMutate,
+      isPending: mockUpdatePending,
+    }),
+    useRemoveSkillMarketplace: () => ({
+      mutate: mockRemoveMutate,
+      isPending: mockRemovePending,
+    }),
   };
 });
 
@@ -199,6 +226,27 @@ const MARKETPLACE_SKILLS: SkillPayload[] = [
 
 const ALL_SKILLS = [...BUNDLED_SKILLS, ...WORKSPACE_SKILLS, ...MARKETPLACE_SKILLS];
 
+const MARKETPLACE_LISTINGS: SkillMarketplaceListingPayload[] = [
+  {
+    name: "mp-plugin",
+    slug: "@compozy/mp-plugin",
+    author: "compozy",
+    description: "An installable marketplace plugin",
+    downloads: 1234,
+    source: "clawhub",
+    version: "3.1.0",
+  },
+  {
+    name: "remote-only",
+    slug: "@community/remote-only",
+    author: "community",
+    description: "Not yet installed",
+    downloads: 42,
+    source: "clawhub",
+    version: "0.1.0",
+  },
+];
+
 // ---------------------------------------------------------------------------
 // Helper
 // ---------------------------------------------------------------------------
@@ -221,8 +269,17 @@ describe("SkillsPage", () => {
     mockRefetchSkillContent.mockReset();
     mockDisablePending = false;
     mockEnablePending = false;
+    mockInstallPending = false;
+    mockUpdatePending = false;
+    mockRemovePending = false;
     mockDisableMutate.mockReset();
     mockEnableMutate.mockReset();
+    mockInstallMutate.mockReset();
+    mockUpdateMutate.mockReset();
+    mockRemoveMutate.mockReset();
+    mockMarketplaceListings = MARKETPLACE_LISTINGS;
+    mockMarketplaceSearching = false;
+    mockMarketplaceError = null;
     routerState.searchListeners.clear();
     routerState.searchParams = {};
     routerState.navigateMock.mockReset();
@@ -460,60 +517,87 @@ describe("SkillsPage", () => {
   // Marketplace view
   // -----------------------------------------------------------------------
 
-  it("marketplace search input filters displayed skills", async () => {
+  it("marketplace tab shows a search prompt with no query and no listings fetched", async () => {
     const user = userEvent.setup();
+    mockMarketplaceListings = [];
     render(<SkillsPage />);
 
     await user.click(screen.getByTestId("tab-marketplace"));
 
-    expect(screen.getByTestId("marketplace-readonly-notice")).toHaveTextContent(
-      "The daemon API only exposes metadata for already installed marketplace skills here."
-    );
-    expect(screen.getByTestId("marketplace-row-mp-plugin")).toBeInTheDocument();
-    expect(screen.queryByTestId("marketplace-row-alpha-skill")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("marketplace-row-ws-tool")).not.toBeInTheDocument();
-
-    const searchInput = screen.getByTestId("marketplace-search-input");
-    await user.type(searchInput, "mp-plugin");
-
-    expect(getValidatedSearch()).toMatchObject({ q: "mp-plugin", tab: "marketplace" });
-    expect(screen.getByTestId("marketplace-row-mp-plugin")).toBeInTheDocument();
-    expect(screen.queryByTestId("marketplace-row-alpha-skill")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("marketplace-readonly-notice")).not.toBeInTheDocument();
+    expect(screen.getByTestId("marketplace-search-prompt")).toBeInTheDocument();
+    expect(screen.queryByTestId("marketplace-grid")).not.toBeInTheDocument();
   });
 
-  it("category filter chips toggle active state and filter results", async () => {
-    const user = userEvent.setup();
+  it("marketplace search query renders remote listings and installed state", () => {
+    routerState.searchParams = { q: "plugin", tab: "marketplace" };
     render(<SkillsPage />);
 
-    await user.click(screen.getByTestId("tab-marketplace"));
-    await user.click(screen.getByTestId("category-chip-testing"));
-
-    // mp-plugin has "testing" tag
     expect(screen.getByTestId("marketplace-row-mp-plugin")).toBeInTheDocument();
+    expect(screen.getByTestId("marketplace-row-remote-only")).toBeInTheDocument();
+
+    expect(screen.getByTestId("installed-pill-mp-plugin")).toBeInTheDocument();
+    expect(screen.getByTestId("update-btn-mp-plugin")).toBeInTheDocument();
+    expect(screen.getByTestId("remove-btn-mp-plugin")).toBeInTheDocument();
+    expect(screen.getByTestId("install-btn-remote-only")).toBeInTheDocument();
   });
 
-  it("marketplace row shows the sentence-case installed pill for already-installed skills", async () => {
+  it("marketplace install button triggers the install mutation with the slug", async () => {
     const user = userEvent.setup();
+    routerState.searchParams = { q: "plugin", tab: "marketplace" };
     render(<SkillsPage />);
 
-    await user.click(screen.getByTestId("tab-marketplace"));
+    await user.click(screen.getByTestId("install-btn-remote-only"));
 
-    expect(screen.getByTestId("installed-pill-mp-plugin")).toHaveTextContent("installed");
-    expect(screen.queryByTestId("installed-pill-alpha-skill")).not.toBeInTheDocument();
+    expect(mockInstallMutate).toHaveBeenCalledWith({
+      body: { slug: "@community/remote-only" },
+      workspace: "ws_test",
+    });
   });
 
-  it("marketplace category filter shows Empty when nothing matches", async () => {
+  it("marketplace update button triggers the update mutation with the installed name", async () => {
     const user = userEvent.setup();
-    mockSkills = BUNDLED_SKILLS; // no tags, so database matches nothing
+    routerState.searchParams = { q: "plugin", tab: "marketplace" };
     render(<SkillsPage />);
 
-    await user.click(screen.getByTestId("tab-marketplace"));
-    await user.click(screen.getByTestId("category-chip-database"));
+    await user.click(screen.getByTestId("update-btn-mp-plugin"));
+
+    expect(mockUpdateMutate).toHaveBeenCalledWith({
+      body: { name: "mp-plugin" },
+      workspace: "ws_test",
+    });
+  });
+
+  it("marketplace remove requires explicit confirmation before mutating", async () => {
+    const user = userEvent.setup();
+    routerState.searchParams = { q: "plugin", tab: "marketplace" };
+    render(<SkillsPage />);
+
+    await user.click(screen.getByTestId("remove-btn-mp-plugin"));
+    expect(mockRemoveMutate).not.toHaveBeenCalled();
+
+    await user.click(screen.getByTestId("confirm-remove-mp-plugin"));
+    expect(mockRemoveMutate).toHaveBeenCalledWith({
+      name: "mp-plugin",
+      workspace: "ws_test",
+    });
+  });
+
+  it("marketplace shows empty state when remote search returns nothing for the query", () => {
+    routerState.searchParams = { q: "no-match", tab: "marketplace" };
+    mockMarketplaceListings = [];
+    render(<SkillsPage />);
 
     expect(screen.getByTestId("marketplace-empty")).toBeInTheDocument();
-    expect(screen.getByTestId("marketplace-empty")).toHaveTextContent(
-      "No installed marketplace skills match the current filters."
-    );
+  });
+
+  it("marketplace surfaces remote search errors inline", () => {
+    routerState.searchParams = { q: "boom", tab: "marketplace" };
+    mockMarketplaceListings = [];
+    mockMarketplaceError = new Error("clawhub unavailable");
+    render(<SkillsPage />);
+
+    expect(screen.getByTestId("marketplace-error")).toHaveTextContent("clawhub unavailable");
   });
 
   // -----------------------------------------------------------------------

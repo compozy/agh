@@ -345,6 +345,31 @@ type SkillsResponse struct {
 	Skills []SkillPayload `json:"skills"`
 }
 
+// SkillMarketplaceSearchResponse wraps remote marketplace skill search results.
+type SkillMarketplaceSearchResponse struct {
+	Skills []SkillMarketplaceListingPayload `json:"skills"`
+}
+
+// SkillMarketplaceDetailResponse wraps one remote marketplace skill detail.
+type SkillMarketplaceDetailResponse struct {
+	Skill SkillMarketplaceDetailPayload `json:"skill"`
+}
+
+// SkillMarketplaceInstallResponse wraps one marketplace install result.
+type SkillMarketplaceInstallResponse struct {
+	Skill SkillMarketplaceInstallPayload `json:"skill"`
+}
+
+// SkillMarketplaceUpdateResponse wraps marketplace update results.
+type SkillMarketplaceUpdateResponse struct {
+	Skills []SkillMarketplaceUpdatePayload `json:"skills"`
+}
+
+// SkillMarketplaceRemoveResponse wraps one marketplace removal result.
+type SkillMarketplaceRemoveResponse struct {
+	Skill SkillMarketplaceRemovePayload `json:"skill"`
+}
+
 // SkillResponse wraps one shared skill payload.
 type SkillResponse struct {
 	Skill SkillPayload `json:"skill"`

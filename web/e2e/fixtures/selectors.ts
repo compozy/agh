@@ -217,8 +217,10 @@ export const skillsOperatorTestIds = {
   enabledToggle: "skill-enabled-toggle",
   listPanel: "skill-list-panel",
   marketplaceEmpty: "marketplace-empty",
+  marketplaceError: "marketplace-error",
   marketplaceGrid: "marketplace-grid",
-  marketplaceReadonlyNotice: "marketplace-readonly-notice",
+  marketplaceLoading: "marketplace-loading",
+  marketplaceSearchPrompt: "marketplace-search-prompt",
   marketplaceSearchInput: "marketplace-search-input",
   marketplaceView: "marketplace-view",
   navSkills: "nav-skills",
@@ -460,9 +462,11 @@ export interface SkillsOperatorSelectors {
   item(name: string): Locator;
   listPanel: Locator;
   marketplaceEmpty: Locator;
+  marketplaceError: Locator;
   marketplaceGrid: Locator;
-  marketplaceReadonlyNotice: Locator;
+  marketplaceLoading: Locator;
   marketplaceRow(name: string): Locator;
+  marketplaceSearchPrompt: Locator;
   marketplaceSearchInput: Locator;
   marketplaceView: Locator;
   navSkills: Locator;
@@ -976,8 +980,10 @@ export function skillsOperatorSelectors(page: Pick<Page, "getByTestId">): Skills
     item: (name: string) => page.getByTestId(`skill-item-${name}`),
     listPanel: page.getByTestId(skillsOperatorTestIds.listPanel),
     marketplaceEmpty: page.getByTestId(skillsOperatorTestIds.marketplaceEmpty),
+    marketplaceError: page.getByTestId(skillsOperatorTestIds.marketplaceError),
     marketplaceGrid: page.getByTestId(skillsOperatorTestIds.marketplaceGrid),
-    marketplaceReadonlyNotice: page.getByTestId(skillsOperatorTestIds.marketplaceReadonlyNotice),
+    marketplaceLoading: page.getByTestId(skillsOperatorTestIds.marketplaceLoading),
+    marketplaceSearchPrompt: page.getByTestId(skillsOperatorTestIds.marketplaceSearchPrompt),
     marketplaceRow: (name: string) => page.getByTestId(`marketplace-row-${name}`),
     marketplaceSearchInput: page.getByTestId(skillsOperatorTestIds.marketplaceSearchInput),
     marketplaceView: page.getByTestId(skillsOperatorTestIds.marketplaceView),

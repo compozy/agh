@@ -225,9 +225,13 @@ describe("skills operator selectors", () => {
     expect(selectors.enabledToggle).toBe(`locator:${skillsOperatorTestIds.enabledToggle}`);
     expect(selectors.listPanel).toBe(`locator:${skillsOperatorTestIds.listPanel}`);
     expect(selectors.marketplaceEmpty).toBe(`locator:${skillsOperatorTestIds.marketplaceEmpty}`);
+    expect(selectors.marketplaceError).toBe(`locator:${skillsOperatorTestIds.marketplaceError}`);
     expect(selectors.marketplaceGrid).toBe(`locator:${skillsOperatorTestIds.marketplaceGrid}`);
-    expect(selectors.marketplaceReadonlyNotice).toBe(
-      `locator:${skillsOperatorTestIds.marketplaceReadonlyNotice}`
+    expect(selectors.marketplaceLoading).toBe(
+      `locator:${skillsOperatorTestIds.marketplaceLoading}`
+    );
+    expect(selectors.marketplaceSearchPrompt).toBe(
+      `locator:${skillsOperatorTestIds.marketplaceSearchPrompt}`
     );
     expect(selectors.marketplaceSearchInput).toBe(
       `locator:${skillsOperatorTestIds.marketplaceSearchInput}`

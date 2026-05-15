@@ -366,9 +366,8 @@ describe("captureRouteState", () => {
         <button data-testid="tab-marketplace" aria-selected="true"></button>
         <input data-testid="marketplace-search-input" value="browser-marketplace" />
         <section data-testid="marketplace-view">
-          <div data-testid="marketplace-readonly-notice">Installed marketplace metadata only</div>
           <div data-testid="marketplace-grid">
-            <article data-testid="marketplace-row-browser-marketplace-skill">Installed</article>
+            <article data-testid="marketplace-row-browser-marketplace-skill">installed</article>
           </div>
         </section>
         <section data-testid="skill-detail-panel">
