@@ -172,7 +172,7 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 		}
 	}()
 
-	if err := m.reserve(spec.sessionID, m.effectiveMaxSessions(&spec.workspace.Config)); err != nil {
+	if err := m.reserve(spec.sessionID); err != nil {
 		return nil, err
 	}
 	defer func() {

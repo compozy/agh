@@ -33,7 +33,7 @@ export const settingsGeneralSectionFixture: SettingsGeneralSection = {
     daemon: { socket: "/tmp/agh.sock" },
     defaults: { agent: storyAgentNames.product, provider: "claude", sandbox: "local" },
     http: { host: "127.0.0.1", port: 2123 },
-    limits: { max_sessions: 10, max_concurrent_agents: 20 },
+    limits: { max_concurrent_agents: 20 },
     permissions: { mode: "approve-all" },
     session_timeout: "0s",
   },

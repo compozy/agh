@@ -38,6 +38,7 @@ export function useActiveWorkspace() {
     ...query,
     workspaces: query.data ?? [],
     hasWorkspaces: (query.data?.length ?? 0) > 0,
+    selectedWorkspaceId,
     activeWorkspace,
     activeWorkspaceId: activeWorkspace?.id ?? null,
     setActiveWorkspaceId: setSelectedWorkspaceId,

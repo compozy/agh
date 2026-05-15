@@ -1,4 +1,4 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -326,6 +326,20 @@ describe("ProvidersSettingsPage", () => {
     render(<ProvidersSettingsPage />);
     fireEvent.click(screen.getByTestId("settings-page-providers-create"));
     expect(pageState.openCreate).toHaveBeenCalled();
+  });
+
+  it("restores focus to the new-provider action after the create sheet closes", async () => {
+    pageState = makeState({ inspector: { mode: "create", draft: draftFor(builtinEntry) } });
+    const { rerender } = render(<ProvidersSettingsPage />);
+    const trigger = screen.getByTestId("settings-page-providers-create");
+
+    screen.getByTestId("provider-inspector-cancel").focus();
+    expect(screen.getByTestId("provider-inspector-cancel")).toHaveFocus();
+
+    pageState = makeState();
+    rerender(<ProvidersSettingsPage />);
+
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 
   it("renders each provider card with identity, summary, and state tone", () => {

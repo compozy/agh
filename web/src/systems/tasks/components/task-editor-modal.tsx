@@ -80,13 +80,54 @@ const PRIORITY_OPTIONS: PillGroupItem<TaskPriority>[] = [
   { value: "urgent", label: "Urgent", testId: "task-editor-priority-urgent" },
 ];
 
-const OWNER_KIND_OPTIONS: TaskOwnerKind[] = [
-  "agent_session",
-  "human",
-  "automation",
-  "extension",
-  "network_peer",
-  "pool",
+interface OwnerKindOption {
+  value: TaskOwnerKind;
+  label: string;
+  placeholder: string;
+  description: string;
+}
+
+const UNASSIGNED_OWNER_DESCRIPTION =
+  "Leave ownership empty unless a specific agent, session, human, automation, extension, or peer owns the work.";
+
+const OWNER_KIND_OPTIONS: OwnerKindOption[] = [
+  {
+    value: "pool",
+    label: "Agent / pool",
+    placeholder: "Agent name or pool id (e.g. landing_builder)",
+    description:
+      "Use an agent name or worker-pool id. Matching agent sessions can claim queued runs.",
+  },
+  {
+    value: "agent_session",
+    label: "Exact session",
+    placeholder: "Session id (e.g. sess-...)",
+    description: "Use the exact session id. Agent names belong under Agent / pool.",
+  },
+  {
+    value: "human",
+    label: "Human",
+    placeholder: "Human id or handle (e.g. pedro)",
+    description: "Use this when a human operator owns the task.",
+  },
+  {
+    value: "automation",
+    label: "Automation",
+    placeholder: "Automation id",
+    description: "Use this when a daemon automation owns the task.",
+  },
+  {
+    value: "extension",
+    label: "Extension",
+    placeholder: "Extension id",
+    description: "Use this when an installed extension owns the task.",
+  },
+  {
+    value: "network_peer",
+    label: "Network peer",
+    placeholder: "Peer id",
+    description: "Use this when a Network peer owns the task.",
+  },
 ];
 
 const APPROVAL_OPTIONS: PillGroupItem<"none" | "manual">[] = [
@@ -147,6 +188,13 @@ function resolveSubmitLabel(mode: TaskEditorModalMode, template?: TaskTemplate):
     return "Enqueue task";
   }
   return "Save draft";
+}
+
+function resolveOwnerKindOption(kind: TaskOwnerKind | ""): OwnerKindOption | null {
+  if (!kind) {
+    return null;
+  }
+  return OWNER_KIND_OPTIONS.find(option => option.value === kind) ?? null;
 }
 
 /**
@@ -300,6 +348,12 @@ function TaskEditorFormBody({
   templateId,
   workspaceName,
 }: TaskEditorFormBodyProps) {
+  const ownerHelpId = useId();
+  const ownerKindOption = resolveOwnerKindOption(draft.ownerKind);
+  const ownerDescription = ownerKindOption?.description ?? UNASSIGNED_OWNER_DESCRIPTION;
+  const ownerRefPlaceholder = ownerKindOption?.placeholder ?? "Select an owner kind first";
+  const ownerRefDisabled = draft.ownerKind === "";
+
   return (
     <div
       className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-5"
@@ -390,6 +444,7 @@ function TaskEditorFormBody({
             </FieldLabel>
             <NativeSelect
               aria-label="Owner kind"
+              aria-describedby={ownerHelpId}
               className="w-full"
               data-testid="task-editor-owner-kind"
               id="task-editor-owner-kind"
@@ -397,17 +452,22 @@ function TaskEditorFormBody({
               value={draft.ownerKind}
             >
               <NativeSelectOption value="">Unassigned</NativeSelectOption>
-              {OWNER_KIND_OPTIONS.map(kind => (
-                <NativeSelectOption key={kind} value={kind}>
-                  {kind}
+              {OWNER_KIND_OPTIONS.map(option => (
+                <NativeSelectOption key={option.value} value={option.value}>
+                  {option.label}
                 </NativeSelectOption>
               ))}
             </NativeSelect>
+            <FieldDescription data-testid="task-editor-owner-help" id={ownerHelpId}>
+              {ownerDescription}
+            </FieldDescription>
             <Input
+              aria-describedby={ownerHelpId}
               className="mt-2"
               data-testid="task-editor-owner-ref"
+              disabled={ownerRefDisabled}
               onChange={form.updateText("ownerRef")}
-              placeholder="Owner reference (e.g. coder)"
+              placeholder={ownerRefPlaceholder}
               value={draft.ownerRef}
             />
           </Field>

@@ -98,36 +98,40 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const deferredInboxQuery = useDeferredValue(inboxSearchQuery);
   const scopedWorkspace = workspaceFilterForActiveScope(scopeFilter, activeWorkspaceId);
+  // The "all" UI scope still reads the active workspace on the backend because
+  // the task endpoints remain workspace-scoped whenever a workspace is selected.
+  const backendScope =
+    scopeFilter === "all" ? (scopedWorkspace ? "workspace" : undefined) : scopeFilter;
 
   const listFilters: TaskListFilter = useMemo(
     () => ({
-      scope: scopeFilter === "all" ? undefined : scopeFilter,
+      scope: backendScope,
       workspace: scopedWorkspace,
       status: statusFilter ?? undefined,
       include_drafts: includeDrafts,
       owner_ref: ownerFilter ?? undefined,
       limit: 100,
     }),
-    [includeDrafts, ownerFilter, scopeFilter, scopedWorkspace, statusFilter]
+    [backendScope, includeDrafts, ownerFilter, scopedWorkspace, statusFilter]
   );
 
   const dashboardFilters: TaskDashboardFilter = useMemo(
     () => ({
-      scope: scopeFilter === "all" ? undefined : scopeFilter,
+      scope: backendScope,
       workspace: scopedWorkspace,
     }),
-    [scopeFilter, scopedWorkspace]
+    [backendScope, scopedWorkspace]
   );
 
   const inboxFilters: TaskInboxFilter = useMemo(
     () => ({
-      scope: scopeFilter === "all" ? undefined : scopeFilter,
+      scope: backendScope,
       workspace: scopedWorkspace,
       unread: inboxUnreadOnly ? true : undefined,
       query: deferredInboxQuery.trim() ? deferredInboxQuery.trim() : undefined,
       limit: 100,
     }),
-    [deferredInboxQuery, inboxUnreadOnly, scopeFilter, scopedWorkspace]
+    [backendScope, deferredInboxQuery, inboxUnreadOnly, scopedWorkspace]
   );
 
   const isListTab = mode === "list" || mode === "kanban" || options.forceListData === true;

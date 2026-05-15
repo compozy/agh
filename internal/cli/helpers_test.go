@@ -32,6 +32,7 @@ type stubClient struct {
 	networkStatusFn             func(context.Context) (NetworkStatusRecord, error)
 	networkPeersFn              func(context.Context, NetworkPeersQuery) ([]NetworkPeerRecord, error)
 	networkChannelsFn           func(context.Context, string) ([]NetworkChannelRecord, error)
+	createNetworkChannelFn      func(context.Context, string, CreateNetworkChannelRequest) (NetworkChannelDetailRecord, error)
 	networkThreadsFn            func(context.Context, NetworkThreadsQuery) ([]NetworkThreadRecord, error)
 	networkThreadFn             func(context.Context, string, string, string) (NetworkThreadRecord, error)
 	networkThreadMessagesFn     func(context.Context, NetworkConversationMessagesQuery) ([]NetworkConversationMessageRecord, error)
@@ -370,6 +371,17 @@ func (s *stubClient) NetworkChannels(ctx context.Context, workspaceRef string) (
 		return s.networkChannelsFn(ctx, workspaceRef)
 	}
 	return nil, errors.New("unexpected NetworkChannels call")
+}
+
+func (s *stubClient) CreateNetworkChannel(
+	ctx context.Context,
+	workspaceRef string,
+	request CreateNetworkChannelRequest,
+) (NetworkChannelDetailRecord, error) {
+	if s.createNetworkChannelFn != nil {
+		return s.createNetworkChannelFn(ctx, workspaceRef, request)
+	}
+	return NetworkChannelDetailRecord{}, errors.New("unexpected CreateNetworkChannel call")
 }
 
 func (s *stubClient) NetworkThreads(

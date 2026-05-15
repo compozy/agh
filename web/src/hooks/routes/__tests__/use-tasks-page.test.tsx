@@ -150,6 +150,10 @@ describe("useTasksPage", () => {
     });
 
     expect(result.current.mode).toBe("dashboard");
+    expect(getTaskDashboard).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope: "workspace", workspace: "ws_alpha" }),
+      expect.any(AbortSignal)
+    );
     expect(listTasks).not.toHaveBeenCalled();
     expect(getTaskInbox).not.toHaveBeenCalled();
   });
@@ -166,6 +170,10 @@ describe("useTasksPage", () => {
     });
 
     expect(result.current.mode).toBe("inbox");
+    expect(getTaskInbox).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope: "workspace", workspace: "ws_alpha" }),
+      expect.any(AbortSignal)
+    );
   });
 
   it("maps inbox unread + search state into the backend query (lane stays client-side)", async () => {

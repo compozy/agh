@@ -431,6 +431,23 @@ describe("SessionCreateDialog", () => {
     expect(screen.queryByTestId("session-create-providers-empty")).not.toBeInTheDocument();
   });
 
+  it("Should not render blank agent provider metadata for inherited providers", () => {
+    render(
+      <UIProvider reducedMotion="always">
+        <SessionCreateDialog
+          {...makeProps({
+            agents: [{ name: "general", provider: "", prompt: "help" }],
+            selectedAgentName: "general",
+            selectedProvider: "codex",
+          })}
+        />
+      </UIProvider>
+    );
+
+    expect(screen.queryByTestId("session-create-agent-default")).not.toBeInTheDocument();
+    expect(screen.getByTestId("session-create-provider-select")).toHaveTextContent("Codex");
+  });
+
   it("Should block backdrop dismissal while submit is in flight", () => {
     const onOpenChange = vi.fn();
     render(<SessionCreateDialog {...makeProps({ isSubmitting: true, onOpenChange })} />);

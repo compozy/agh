@@ -1134,7 +1134,6 @@ func generalSettingsFromPayload(payload contract.SettingsGeneralConfigPayload) (
 			Sandbox:  strings.TrimSpace(payload.Defaults.Sandbox),
 		},
 		Limits: aghconfig.LimitsConfig{
-			MaxSessions:         payload.Limits.MaxSessions,
 			MaxConcurrentAgents: payload.Limits.MaxConcurrentAgents,
 		},
 		Permissions: aghconfig.PermissionsConfig{

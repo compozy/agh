@@ -61,6 +61,17 @@ const warningEvent: AgentEventPayload = {
   runtime: { ...runtimeActivity, current_tool: undefined, idle_seconds: 74 },
 };
 
+const errorEvent: AgentEventPayload = {
+  type: "error",
+  error:
+    '{"code":-32603,"message":"Internal error","data":{"error":"peer disconnected before response"}}',
+  failure: {
+    kind: "process_exit",
+    summary: "peer disconnected before response",
+  },
+  timestamp: "2026-05-14T15:32:02Z",
+};
+
 const meta: Meta<typeof ModelCommandSelect> = {
   title: "systems/session/SessionCommandControls",
   component: ModelCommandSelect,
@@ -130,8 +141,8 @@ export const ReasoningSelect: StoryObj<typeof ReasoningCommandSelect> = {
 };
 
 /**
- * RuntimeActivityNotice and SessionActivityInline expose progress and warning
- * state without opening a live session.
+ * RuntimeActivityNotice and SessionActivityInline expose progress, warning,
+ * and failure states without opening a live session.
  */
 export const RuntimeActivity: StoryObj<typeof RuntimeActivityNotice> = {
   args: {},
@@ -139,6 +150,7 @@ export const RuntimeActivity: StoryObj<typeof RuntimeActivityNotice> = {
     <div className="grid gap-4">
       <RuntimeActivityNotice event={progressEvent} />
       <RuntimeActivityNotice event={warningEvent} />
+      <RuntimeActivityNotice event={errorEvent} />
       <SessionActivityInline activity={runtimeActivity} />
     </div>
   ),

@@ -98,4 +98,5 @@ docs/proposals/**
 .compozy/tasks/**/.gitkeep
 .compozy/tasks/**/.empty
 .codex/loop/**
+.codex/qa/**
 # <<< skeeper ignored specs <<<

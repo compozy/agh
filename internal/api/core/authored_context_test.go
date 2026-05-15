@@ -4,8 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -162,6 +165,222 @@ func (s *heartbeatWakeSpy) Wake(
 		Result: heartbeat.WakeResultSkipped,
 		Reason: heartbeat.WakeReasonHeartbeatNoEligible,
 	}, nil
+}
+
+type workspaceIDCaptureSoulAuthoring struct {
+	putCalls int
+	last     soul.PutRequest
+}
+
+func (s *workspaceIDCaptureSoulAuthoring) Validate(context.Context, soul.ValidateRequest) (soul.ValidateResult, error) {
+	return soul.ValidateResult{}, nil
+}
+
+func (s *workspaceIDCaptureSoulAuthoring) Put(
+	_ context.Context,
+	req soul.PutRequest,
+) (soul.MutationResult, error) {
+	s.putCalls++
+	s.last = req
+	return soul.MutationResult{}, errors.New("captured soul put request")
+}
+
+func (s *workspaceIDCaptureSoulAuthoring) Delete(context.Context, soul.DeleteRequest) (soul.MutationResult, error) {
+	return soul.MutationResult{}, nil
+}
+
+func (s *workspaceIDCaptureSoulAuthoring) History(context.Context, soul.HistoryRequest) (soul.HistoryResult, error) {
+	return soul.HistoryResult{}, nil
+}
+
+func (s *workspaceIDCaptureSoulAuthoring) Rollback(context.Context, soul.RollbackRequest) (soul.MutationResult, error) {
+	return soul.MutationResult{}, nil
+}
+
+func TestAuthoredContextUsesRegistryWorkspaceIDForStorageBackedOperations(t *testing.T) {
+	t.Parallel()
+
+	workspaceRoot := t.TempDir()
+	agentDir := filepath.Join(workspaceRoot, aghconfig.DirName, aghconfig.AgentsDirName, "coder")
+	if err := os.MkdirAll(agentDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(agent dir) error = %v", err)
+	}
+	agentBody := []byte("---\nname: coder\nprovider: claude\n---\nReview startup launch work.\n")
+	if err := os.WriteFile(filepath.Join(agentDir, "AGENT.md"), agentBody, 0o644); err != nil {
+		t.Fatalf("WriteFile(AGENT.md) error = %v", err)
+	}
+
+	workspaces := testutil.StubWorkspaceService{
+		ResolveFn: func(ctx context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+			if err := ctx.Err(); err != nil {
+				return workspacepkg.ResolvedWorkspace{}, err
+			}
+			if strings.TrimSpace(ref) != "ws-stable" {
+				return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+			}
+			return workspacepkg.ResolvedWorkspace{
+				Workspace:   workspacepkg.Workspace{ID: "ws-registry", RootDir: workspaceRoot, Name: "Ad8 QA"},
+				WorkspaceID: "ws-stable",
+				Config: aghconfig.Config{
+					Agents: aghconfig.AgentsConfig{
+						Soul:      aghconfig.DefaultSoulConfig(),
+						Heartbeat: aghconfig.DefaultHeartbeatConfig(),
+					},
+				},
+			}, nil
+		},
+	}
+	fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, workspaces, nil, nil)
+	soulAuthoring := &workspaceIDCaptureSoulAuthoring{}
+	statusSpy := &heartbeatStatusSpy{}
+	wakeSpy := &heartbeatWakeSpy{}
+	fixture.Handlers.SoulAuthoring = soulAuthoring
+	fixture.Handlers.HeartbeatStatus = statusSpy
+	fixture.Handlers.HeartbeatWake = wakeSpy
+	fixture.Engine.PUT("/agents/:agent_name/soul", fixture.Handlers.PutAgentSoul)
+	fixture.Engine.GET("/agents/:name/heartbeat/status", fixture.Handlers.GetAgentHeartbeatStatus)
+	fixture.Engine.POST("/agents/:name/heartbeat/wake", fixture.Handlers.WakeAgentHeartbeat)
+
+	t.Run("Should pass registry workspace id to Soul authoring", func(t *testing.T) {
+		body := []byte("{\"workspace_id\":\"ws-stable\",\"agent_name\":\"coder\",\"body\":\"# Soul\"}")
+		req := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodPut,
+			"/agents/coder/soul",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		recorder := httptest.NewRecorder()
+		fixture.Engine.ServeHTTP(recorder, req)
+
+		if soulAuthoring.putCalls != 1 {
+			t.Fatalf("soul put calls = %d, want 1", soulAuthoring.putCalls)
+		}
+		if got, want := soulAuthoring.last.Target.WorkspaceID, "ws-registry"; got != want {
+			t.Fatalf("Soul target WorkspaceID = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should pass registry workspace id to Heartbeat status", func(t *testing.T) {
+		req := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			"/agents/coder/heartbeat/status?workspace_id=ws-stable",
+			nil,
+		)
+		recorder := httptest.NewRecorder()
+		fixture.Engine.ServeHTTP(recorder, req)
+
+		if statusSpy.calls != 1 {
+			t.Fatalf("heartbeat status calls = %d, want 1", statusSpy.calls)
+		}
+		if got, want := statusSpy.last.Target.WorkspaceID, "ws-registry"; got != want {
+			t.Fatalf("Heartbeat status target WorkspaceID = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should pass registry workspace id to Heartbeat wake", func(t *testing.T) {
+		body := []byte(
+			"{\"workspace_id\":\"ws-stable\",\"agent_name\":\"coder\",\"source\":\"manual\",\"dry_run\":true}",
+		)
+		req := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
+			"/agents/coder/heartbeat/wake",
+			bytes.NewReader(body),
+		)
+		req.Header.Set("Content-Type", "application/json")
+		recorder := httptest.NewRecorder()
+		fixture.Engine.ServeHTTP(recorder, req)
+
+		if wakeSpy.calls != 1 {
+			t.Fatalf("heartbeat wake calls = %d, want 1", wakeSpy.calls)
+		}
+		if got, want := wakeSpy.last.WorkspaceID, "ws-registry"; got != want {
+			t.Fatalf("Heartbeat wake WorkspaceID = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should use the stable workspace id for session-gated heartbeat fallback checks", func(t *testing.T) {
+		manager := testutil.StubSessionManager{
+			StatusFn: func(ctx context.Context, id string) (*session.Info, error) {
+				if err := ctx.Err(); err != nil {
+					return nil, err
+				}
+				if id != "sess-owned" {
+					t.Fatalf("Status() session id = %q, want sess-owned", id)
+				}
+				return &session.Info{ID: id, WorkspaceID: "ws-stable", AgentName: "coder"}, nil
+			},
+		}
+		workspacesWithStableOnly := testutil.StubWorkspaceService{
+			ResolveFn: func(ctx context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				if err := ctx.Err(); err != nil {
+					return workspacepkg.ResolvedWorkspace{}, err
+				}
+				if strings.TrimSpace(ref) != "ws-stable" {
+					return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+				}
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{
+						RootDir: workspaceRoot,
+						Name:    "Ad8 QA",
+					},
+					WorkspaceID: "ws-stable",
+					Config: aghconfig.Config{
+						Agents: aghconfig.AgentsConfig{Heartbeat: aghconfig.DefaultHeartbeatConfig()},
+					},
+				}, nil
+			},
+		}
+		stableFixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspacesWithStableOnly, nil, nil)
+		stableStatusSpy := &heartbeatStatusSpy{}
+		stableWakeSpy := &heartbeatWakeSpy{}
+		stableFixture.Handlers.HeartbeatStatus = stableStatusSpy
+		stableFixture.Handlers.HeartbeatWake = stableWakeSpy
+		stableFixture.Engine.GET("/agents/:name/heartbeat/status", stableFixture.Handlers.GetAgentHeartbeatStatus)
+		stableFixture.Engine.POST("/agents/:name/heartbeat/wake", stableFixture.Handlers.WakeAgentHeartbeat)
+
+		statusReq := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			"/agents/coder/heartbeat/status?workspace_id=ws-stable&session_id=sess-owned",
+			nil,
+		)
+		statusRecorder := httptest.NewRecorder()
+		stableFixture.Engine.ServeHTTP(statusRecorder, statusReq)
+		if got, want := statusRecorder.Code, http.StatusOK; got != want {
+			t.Fatalf("heartbeat status code = %d, want %d body=%s", got, want, statusRecorder.Body.String())
+		}
+		if stableStatusSpy.calls != 1 {
+			t.Fatalf("heartbeat status calls = %d, want 1", stableStatusSpy.calls)
+		}
+		if got, want := stableStatusSpy.last.Target.WorkspaceID, "ws-stable"; got != want {
+			t.Fatalf("heartbeat status target WorkspaceID = %q, want %q", got, want)
+		}
+
+		wakeBody := []byte(
+			"{\"workspace_id\":\"ws-stable\",\"agent_name\":\"coder\",\"session_id\":\"sess-owned\",\"source\":\"manual\",\"dry_run\":true}",
+		)
+		wakeReq := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
+			"/agents/coder/heartbeat/wake",
+			bytes.NewReader(wakeBody),
+		)
+		wakeReq.Header.Set("Content-Type", "application/json")
+		wakeRecorder := httptest.NewRecorder()
+		stableFixture.Engine.ServeHTTP(wakeRecorder, wakeReq)
+		if got, want := wakeRecorder.Code, http.StatusConflict; got != want {
+			t.Fatalf("heartbeat wake code = %d, want %d body=%s", got, want, wakeRecorder.Body.String())
+		}
+		if stableWakeSpy.calls != 1 {
+			t.Fatalf("heartbeat wake calls = %d, want 1", stableWakeSpy.calls)
+		}
+		if got, want := stableWakeSpy.last.WorkspaceID, "ws-stable"; got != want {
+			t.Fatalf("heartbeat wake WorkspaceID = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestAuthoredContextHeartbeatStatusAndWakeRejectForeignSessionWorkspace(t *testing.T) {

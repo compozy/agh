@@ -16,6 +16,7 @@ import {
   useTopbarSlot,
 } from "@agh/ui";
 
+import { useCreateProviderFocusRestore } from "@/hooks/routes/use-create-provider-focus-restore";
 import {
   useSettingsProvidersPage,
   type ProviderLastAction,
@@ -39,6 +40,9 @@ export const Route = createFileRoute("/_app/settings/providers")({
 function ProvidersSettingsPage() {
   const page = useSettingsProvidersPage();
   const envelopeForSlot = page.envelope;
+  const inspectorOpen = page.inspector.mode !== "closed";
+  const createProviderButtonRef = useCreateProviderFocusRestore(page.inspector.mode);
+
   useTopbarSlot({
     tabs: envelopeForSlot ? (
       <StatusLineTopbarSlot
@@ -110,7 +114,6 @@ function ProvidersSettingsPage() {
   }
 
   const bannerProps = restartBannerPropsFor("providers", page.restart);
-  const inspectorOpen = page.inspector.mode !== "closed";
   const inspectorEntry =
     page.inspector.mode === "inspect" || page.inspector.mode === "edit"
       ? page.inspector.entry
@@ -135,6 +138,7 @@ function ProvidersSettingsPage() {
         }
         right={
           <Button
+            ref={createProviderButtonRef}
             type="button"
             variant="default"
             size="sm"

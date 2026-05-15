@@ -392,7 +392,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 				},
 				Settings: settingspkg.GeneralSettings{
 					Defaults: aghconfig.DefaultsConfig{Agent: "coder", Provider: "openai", Sandbox: "local"},
-					Limits:   aghconfig.LimitsConfig{MaxSessions: 4, MaxConcurrentAgents: 2},
+					Limits:   aghconfig.LimitsConfig{MaxConcurrentAgents: 2},
 					Permissions: aghconfig.PermissionsConfig{
 						Mode: aghconfig.PermissionModeApproveReads,
 					},
@@ -772,7 +772,6 @@ func TestUpdateSettingsGeneralRejectsInvalidPayload(t *testing.T) {
 				"agent": "coder",
 			},
 			"limits": map[string]any{
-				"max_sessions":          4,
 				"max_concurrent_agents": 2,
 			},
 			"permissions": map[string]any{
@@ -871,7 +870,7 @@ func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {
 						Provider: "openai",
 						Sandbox:  "local",
 					},
-					Limits: contract.SettingsLimitsPayload{MaxSessions: 4, MaxConcurrentAgents: 2},
+					Limits: contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
 					Permissions: contract.SettingsPermissionsPayload{
 						Mode: contract.SettingsPermissionModeApproveReads,
 					},
@@ -1768,7 +1767,7 @@ func TestSettingsHandlersReturnServiceUnavailableWithoutInjectedDependencies(t *
 			body: mustJSON(t, contract.UpdateSettingsGeneralRequest{
 				Config: contract.SettingsGeneralConfigPayload{
 					Defaults: contract.SettingsDefaultsPayload{Agent: "coder"},
-					Limits:   contract.SettingsLimitsPayload{MaxSessions: 4, MaxConcurrentAgents: 2},
+					Limits:   contract.SettingsLimitsPayload{MaxConcurrentAgents: 2},
 					Permissions: contract.SettingsPermissionsPayload{
 						Mode: contract.SettingsPermissionModeApproveReads,
 					},

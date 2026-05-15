@@ -97,7 +97,6 @@ type heartbeatOverlay struct {
 }
 
 type limitsOverlay struct {
-	MaxSessions         *int `toml:"max_sessions"`
 	MaxConcurrentAgents *int `toml:"max_concurrent_agents"`
 }
 
@@ -713,9 +712,6 @@ func (o heartbeatOverlay) Apply(dst *HeartbeatConfig) {
 }
 
 func (o limitsOverlay) Apply(dst *LimitsConfig) {
-	if o.MaxSessions != nil {
-		dst.MaxSessions = *o.MaxSessions
-	}
 	if o.MaxConcurrentAgents != nil {
 		dst.MaxConcurrentAgents = *o.MaxConcurrentAgents
 	}

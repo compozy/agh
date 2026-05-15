@@ -53,6 +53,11 @@ type DaemonClient interface {
 	NetworkStatus(ctx context.Context) (NetworkStatusRecord, error)
 	NetworkPeers(ctx context.Context, query NetworkPeersQuery) ([]NetworkPeerRecord, error)
 	NetworkChannels(ctx context.Context, workspaceRef string) ([]NetworkChannelRecord, error)
+	CreateNetworkChannel(
+		ctx context.Context,
+		workspaceRef string,
+		request CreateNetworkChannelRequest,
+	) (NetworkChannelDetailRecord, error)
 	NetworkThreads(ctx context.Context, query NetworkThreadsQuery) ([]NetworkThreadRecord, error)
 	NetworkThread(
 		ctx context.Context,
@@ -1030,6 +1035,12 @@ type NetworkPeerCardRecord = contract.NetworkPeerCardPayload
 // NetworkChannelRecord is the shared active-channel payload.
 type NetworkChannelRecord = contract.NetworkChannelPayload
 
+// NetworkChannelDetailRecord is the shared detailed channel payload.
+type NetworkChannelDetailRecord = contract.NetworkChannelDetailPayload
+
+// CreateNetworkChannelRequest captures one network channel creation payload.
+type CreateNetworkChannelRequest = contract.CreateNetworkChannelRequest
+
 // NetworkThreadRecord is the shared public-thread summary payload.
 type NetworkThreadRecord = contract.NetworkThreadSummaryPayload
 
@@ -1380,6 +1391,31 @@ func (c *unixSocketClient) NetworkChannels(ctx context.Context, workspaceRef str
 		return nil, err
 	}
 	return response.Channels, nil
+}
+
+func (c *unixSocketClient) CreateNetworkChannel(
+	ctx context.Context,
+	workspaceRef string,
+	request CreateNetworkChannelRequest,
+) (NetworkChannelDetailRecord, error) {
+	var response contract.CreateNetworkChannelResponse
+	path, err := networkBasePath(workspaceRef)
+	if err != nil {
+		return NetworkChannelDetailRecord{}, err
+	}
+	body := struct {
+		Channel    string   `json:"channel"`
+		Purpose    string   `json:"purpose"`
+		AgentNames []string `json:"agent_names"`
+	}{
+		Channel:    request.Channel,
+		Purpose:    request.Purpose,
+		AgentNames: request.AgentNames,
+	}
+	if err := c.doJSON(ctx, http.MethodPost, path+"/channels", nil, body, &response); err != nil {
+		return NetworkChannelDetailRecord{}, err
+	}
+	return response.Channel, nil
 }
 
 func (c *unixSocketClient) NetworkThreads(

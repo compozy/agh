@@ -3,8 +3,12 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	aghconfig "github.com/pedronauck/agh/internal/config"
 )
 
 func TestAgentListAndInfoCommands(t *testing.T) {
@@ -151,6 +155,87 @@ func TestAgentCommandsPassWorkspaceQuery(t *testing.T) {
 		}
 		if !strings.Contains(stdout, agent.Name) {
 			t.Fatalf("agent info --workspace output = %q, want %q", stdout, agent.Name)
+		}
+	})
+}
+
+func TestAgentCreateCommand(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should create a workspace-local agent definition", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := t.TempDir()
+		const workspaceRef = "ws-alpha"
+		deps := newTestDeps(t, &stubClient{
+			getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+				if ref != workspaceRef {
+					t.Fatalf("GetWorkspace() ref = %q, want %q", ref, workspaceRef)
+				}
+				return WorkspaceDetailRecord{
+					Workspace: WorkspaceRecord{
+						ID:      workspaceRef,
+						RootDir: workspaceRoot,
+						Name:    "Alpha",
+					},
+				}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"agent",
+			"create",
+			"pricing_strategist",
+			"--workspace",
+			workspaceRef,
+			"--provider",
+			"claude",
+			"--model",
+			"claude-sonnet-4-6",
+			"--prompt",
+			"You own Ad8 pricing strategy.",
+			"--tool",
+			"builtin__shell",
+			"--category",
+			"Strategy",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("agent create error = %v", err)
+		}
+		var created AgentRecord
+		if err := json.Unmarshal([]byte(stdout), &created); err != nil {
+			t.Fatalf("json.Unmarshal(agent create) error = %v", err)
+		}
+		if created.Name != "pricing_strategist" || created.Provider != "claude" ||
+			created.Model != "claude-sonnet-4-6" || created.Prompt != "You own Ad8 pricing strategy." {
+			t.Fatalf("created agent = %#v, want pricing strategist metadata", created)
+		}
+
+		path := filepath.Join(
+			workspaceRoot,
+			aghconfig.DirName,
+			aghconfig.AgentsDirName,
+			"pricing_strategist",
+			"AGENT.md",
+		)
+		fileInfo, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("os.Stat(created AGENT.md) error = %v", err)
+		}
+		if fileInfo.Mode().Perm() != 0o600 {
+			t.Fatalf("created AGENT.md mode = %v, want 0600", fileInfo.Mode().Perm())
+		}
+		loaded, err := aghconfig.LoadAgentDefFile(path)
+		if err != nil {
+			t.Fatalf("LoadAgentDefFile(created AGENT.md) error = %v", err)
+		}
+		if len(loaded.Tools) != 1 || loaded.Name != created.Name || loaded.Provider != created.Provider ||
+			loaded.Tools[0] != "builtin__shell" {
+			t.Fatalf("loaded agent = %#v, want created agent definition", loaded)
 		}
 	})
 }

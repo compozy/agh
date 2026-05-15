@@ -23,6 +23,7 @@ type taskCreateInput struct {
 	NetworkRaw   string
 	Title        string
 	Description  string
+	PriorityRaw  string
 	OwnerKindRaw string
 	OwnerRef     string
 	MetadataRaw  string
@@ -31,6 +32,7 @@ type taskCreateInput struct {
 type taskUpdateInput struct {
 	Title        string
 	Description  string
+	PriorityRaw  string
 	MetadataRaw  string
 	NetworkRaw   string
 	OwnerKindRaw string
@@ -174,6 +176,7 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 		ownerKindRaw string
 		ownerRef     string
 		metadataRaw  string
+		priorityRaw  string
 	)
 
 	cmd := &cobra.Command{
@@ -194,6 +197,7 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 				NetworkRaw:   networkRaw,
 				Title:        title,
 				Description:  description,
+				PriorityRaw:  priorityRaw,
 				OwnerKindRaw: ownerKindRaw,
 				OwnerRef:     ownerRef,
 				MetadataRaw:  metadataRaw,
@@ -217,6 +221,7 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&networkRaw, "channel", "", "Optional network channel binding")
 	cmd.Flags().StringVar(&title, "title", "", "Task title")
 	cmd.Flags().StringVar(&description, "description", "", "Task description")
+	cmd.Flags().StringVar(&priorityRaw, "priority", "", "Task priority: low, medium, high, or urgent")
 	cmd.Flags().StringVar(&ownerKindRaw, "owner-kind", "", "Optional owner kind")
 	cmd.Flags().StringVar(&ownerRef, "owner-ref", "", "Optional owner reference")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional metadata JSON")
@@ -251,6 +256,7 @@ func newTaskUpdateCommand(deps commandDeps) *cobra.Command {
 		description  string
 		metadataRaw  string
 		networkRaw   string
+		priorityRaw  string
 		ownerKindRaw string
 		ownerRef     string
 		clearOwner   bool
@@ -269,6 +275,7 @@ func newTaskUpdateCommand(deps commandDeps) *cobra.Command {
 			request, err := buildTaskUpdateRequest(cmd, taskUpdateInput{
 				Title:        title,
 				Description:  description,
+				PriorityRaw:  priorityRaw,
 				MetadataRaw:  metadataRaw,
 				NetworkRaw:   networkRaw,
 				OwnerKindRaw: ownerKindRaw,
@@ -291,6 +298,7 @@ func newTaskUpdateCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&title, "title", "", "Update the task title")
 	cmd.Flags().StringVar(&description, "description", "", "Update the task description")
+	cmd.Flags().StringVar(&priorityRaw, "priority", "", "Update the task priority: low, medium, high, or urgent")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Update metadata JSON")
 	cmd.Flags().
 		StringVar(&networkRaw, "channel", "", "Update the network channel; pass an empty value to clear it")
@@ -311,6 +319,13 @@ func buildTaskUpdateRequest(cmd *cobra.Command, input taskUpdateInput) (UpdateTa
 	}
 	if cmd.Flags().Changed("description") {
 		request.Description = stringPointer(strings.TrimSpace(input.Description))
+	}
+	if cmd.Flags().Changed("priority") {
+		priority, err := parseOptionalTaskPriority(input.PriorityRaw)
+		if err != nil {
+			return UpdateTaskRequest{}, err
+		}
+		request.Priority = &priority
 	}
 	if cmd.Flags().Changed("metadata") {
 		metadata, err := parseJSONFlag("metadata", input.MetadataRaw)
@@ -1308,6 +1323,7 @@ func newTaskChildCreateCommand(deps commandDeps) *cobra.Command {
 		networkRaw   string
 		title        string
 		description  string
+		priorityRaw  string
 		ownerKindRaw string
 		ownerRef     string
 		metadataRaw  string
@@ -1331,6 +1347,7 @@ func newTaskChildCreateCommand(deps commandDeps) *cobra.Command {
 				NetworkRaw:   networkRaw,
 				Title:        title,
 				Description:  description,
+				PriorityRaw:  priorityRaw,
 				OwnerKindRaw: ownerKindRaw,
 				OwnerRef:     ownerRef,
 				MetadataRaw:  metadataRaw,
@@ -1355,6 +1372,7 @@ func newTaskChildCreateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&networkRaw, "channel", "", "Optional network channel binding")
 	cmd.Flags().StringVar(&title, "title", "", "Child task title")
 	cmd.Flags().StringVar(&description, "description", "", "Child task description")
+	cmd.Flags().StringVar(&priorityRaw, "priority", "", "Child task priority: low, medium, high, or urgent")
 	cmd.Flags().StringVar(&ownerKindRaw, "owner-kind", "", "Optional child owner kind")
 	cmd.Flags().StringVar(&ownerRef, "owner-ref", "", "Optional child owner reference")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional child metadata JSON")
@@ -2044,6 +2062,10 @@ func buildTaskCreateRequest(cmd *cobra.Command, input taskCreateInput) (CreateTa
 	if err != nil {
 		return CreateTaskRequest{}, err
 	}
+	priority, err := parseOptionalChangedTaskPriority(cmd, input.PriorityRaw)
+	if err != nil {
+		return CreateTaskRequest{}, err
+	}
 
 	request := CreateTaskRequest{
 		ID:             strings.TrimSpace(input.ID),
@@ -2053,6 +2075,7 @@ func buildTaskCreateRequest(cmd *cobra.Command, input taskCreateInput) (CreateTa
 		NetworkChannel: strings.TrimSpace(input.NetworkRaw),
 		Title:          strings.TrimSpace(input.Title),
 		Description:    strings.TrimSpace(input.Description),
+		Priority:       priority,
 		Owner:          owner,
 		Metadata:       metadata,
 	}
@@ -2078,6 +2101,25 @@ func parseOptionalTaskMetadata(cmd *cobra.Command, metadataRaw string) (json.Raw
 		return nil, nil
 	}
 	return parseJSONFlag("metadata", metadataRaw)
+}
+
+func parseOptionalChangedTaskPriority(cmd *cobra.Command, raw string) (taskpkg.Priority, error) {
+	if !cmd.Flags().Changed("priority") {
+		return "", nil
+	}
+	return parseOptionalTaskPriority(raw)
+}
+
+func parseOptionalTaskPriority(raw string) (taskpkg.Priority, error) {
+	trimmed := strings.ToLower(strings.TrimSpace(raw))
+	if trimmed == "" {
+		return "", errors.New("cli: --priority cannot be blank")
+	}
+	priority := taskpkg.Priority(trimmed)
+	if err := priority.Validate("priority"); err != nil {
+		return "", fmt.Errorf("cli: %w", err)
+	}
+	return priority, nil
 }
 
 func validateTaskChannelFlag(channel string) error {

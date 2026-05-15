@@ -76,14 +76,14 @@ export function NetworkCreateChannelDialog({
             <Field>
               <FieldLabel htmlFor="network-channel-name">Channel name</FieldLabel>
               <FieldDescription>
-                Dot-notation encouraged; e.g. coord.core, ops.alerts.
+                Use lowercase letters, numbers, underscores, or hyphens; e.g. coord_core.
               </FieldDescription>
               <Input
                 className="h-10 font-mono"
                 data-testid="network-channel-name-input"
                 id="network-channel-name"
                 onChange={event => onChannelNameChange(event.target.value)}
-                placeholder="e.g. deployments"
+                placeholder="e.g. website_copy"
                 value={draft.channelName}
               />
             </Field>

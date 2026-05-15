@@ -4314,7 +4314,8 @@ func TestBaseHandlersCreateNetworkChannelCreatesSessionsPerAgent(t *testing.T) {
 						t.Fatalf("Resolve() ref = %q, want ws-workspace", ref)
 					}
 					return workspacepkg.ResolvedWorkspace{
-						Workspace: workspacepkg.Workspace{ID: "ws-1", Name: "Workspace"},
+						Workspace:   workspacepkg.Workspace{ID: "ws-workspace", Name: "Workspace"},
+						WorkspaceID: "ws-stable",
 						Agents: []aghconfig.AgentDef{
 							{Name: "coder"},
 							{Name: "reviewer"},
@@ -4325,7 +4326,10 @@ func TestBaseHandlersCreateNetworkChannelCreatesSessionsPerAgent(t *testing.T) {
 			fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces, nil, nil)
 			fixture.Handlers.Config.Network.Enabled = true
 			fixture.Handlers.Network = testutil.StubNetworkService{
-				ListPeersFn: func(_ context.Context, _ string, channel string) ([]network.PeerInfo, error) {
+				ListPeersFn: func(_ context.Context, workspaceID string, channel string) ([]network.PeerInfo, error) {
+					if workspaceID != "ws-workspace" {
+						t.Fatalf("ListPeers() workspaceID = %q, want ws-workspace", workspaceID)
+					}
 					if channel != "builders" {
 						return nil, nil
 					}
@@ -4350,6 +4354,12 @@ func TestBaseHandlersCreateNetworkChannelCreatesSessionsPerAgent(t *testing.T) {
 				},
 			}
 			fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+				WriteNetworkChannelFn: func(_ context.Context, entry store.NetworkChannelEntry) error {
+					if got, want := entry.WorkspaceID, "ws-workspace"; got != want {
+						t.Fatalf("WriteNetworkChannel() workspace_id = %q, want %q", got, want)
+					}
+					return nil
+				},
 				ListNetworkMessagesFn: func(_ context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
 					if query.Channel != "builders" {
 						return nil, nil
@@ -4423,6 +4433,133 @@ func TestBaseHandlersCreateNetworkChannelCreatesSessionsPerAgent(t *testing.T) {
 			}
 		},
 	)
+}
+
+func TestBaseHandlersNetworkUsesRegistryWorkspaceIdentity(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should list persisted channels with the registry workspace id", func(t *testing.T) {
+		t.Parallel()
+
+		workspaces := testutil.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				if ref != "ws-stable" {
+					t.Fatalf("Resolve() ref = %q, want ws-stable", ref)
+				}
+				return workspacepkg.ResolvedWorkspace{
+					Workspace:   workspacepkg.Workspace{ID: "ws-workspace", Name: "Workspace"},
+					WorkspaceID: "ws-stable",
+				}, nil
+			},
+		}
+		fixture := newHandlerFixture(
+			t,
+			networkTestSessionManager("ws-workspace", "sess-a"),
+			testutil.StubObserver{},
+			workspaces,
+			nil,
+			nil,
+		)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			ListPeersFn: func(_ context.Context, workspaceID string, channel string) ([]network.PeerInfo, error) {
+				if workspaceID != "ws-workspace" {
+					t.Fatalf("ListPeers() workspaceID = %q, want ws-workspace", workspaceID)
+				}
+				if channel != "" {
+					t.Fatalf("ListPeers() channel = %q, want empty list filter", channel)
+				}
+				return nil, nil
+			},
+		}
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+			ListNetworkChannelsFn: func(_ context.Context, query store.NetworkChannelQuery) ([]store.NetworkChannelEntry, error) {
+				if query.WorkspaceID != "ws-workspace" {
+					t.Fatalf("ListNetworkChannels() workspace_id = %q, want ws-workspace", query.WorkspaceID)
+				}
+				return []store.NetworkChannelEntry{{
+					WorkspaceID: "ws-workspace",
+					Channel:     "builders",
+					Purpose:     "Coordinate builders",
+					CreatedBy:   "general",
+					CreatedAt:   time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC),
+					UpdatedAt:   time.Date(2026, 4, 11, 18, 0, 0, 0, time.UTC),
+				}}, nil
+			},
+			ListNetworkMessagesFn: func(_ context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
+				if query.WorkspaceID != "ws-workspace" {
+					t.Fatalf("ListNetworkMessages() workspace_id = %q, want ws-workspace", query.WorkspaceID)
+				}
+				return nil, nil
+			},
+		}
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-stable/network/channels",
+			nil,
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("channels code = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+
+		var payload contract.NetworkChannelsResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if len(payload.Channels) != 1 || payload.Channels[0].Channel != "builders" {
+			t.Fatalf("channels payload = %#v, want builders channel", payload.Channels)
+		}
+		if got, want := payload.Channels[0].WorkspaceID, "ws-workspace"; got != want {
+			t.Fatalf("channel workspace_id = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should send messages with the registry workspace id", func(t *testing.T) {
+		t.Parallel()
+
+		workspaces := testutil.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				if ref != "ws-stable" {
+					t.Fatalf("Resolve() ref = %q, want ws-stable", ref)
+				}
+				return workspacepkg.ResolvedWorkspace{
+					Workspace:   workspacepkg.Workspace{ID: "ws-workspace", Name: "Workspace"},
+					WorkspaceID: "ws-stable",
+				}, nil
+			},
+		}
+		fixture := newHandlerFixture(
+			t,
+			networkTestSessionManager("ws-workspace", "sess-a"),
+			testutil.StubObserver{},
+			workspaces,
+			nil,
+			nil,
+		)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			SendFn: func(_ context.Context, req network.SendRequest) (string, error) {
+				if req.WorkspaceID != "ws-workspace" {
+					t.Fatalf("Send() workspace_id = %q, want ws-workspace", req.WorkspaceID)
+				}
+				return "msg-1", nil
+			},
+		}
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/workspaces/ws-stable/network/send",
+			[]byte(
+				"{\"workspace_id\":\"ws-stable\",\"session_id\":\"sess-a\",\"channel\":\"builders\",\"surface\":\"thread\",\"thread_id\":\"thread_launch_db\",\"kind\":\"say\",\"body\":{\"text\":\"hello\"}}",
+			),
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("send code = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+	})
 }
 
 func TestBaseHandlersNetworkPeerDetailUsesAuditMetrics(t *testing.T) {

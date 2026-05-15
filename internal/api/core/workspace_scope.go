@@ -23,13 +23,25 @@ type workspaceScope struct {
 
 func (s *workspaceScope) NetworkChannelRef(channel string) store.NetworkChannelRef {
 	return store.NetworkChannelRef{
-		WorkspaceID: strings.TrimSpace(s.ID),
+		WorkspaceID: s.NetworkWorkspaceID(),
 		Channel:     strings.TrimSpace(channel),
 	}
 }
 
+func (s *workspaceScope) NetworkWorkspaceID() string {
+	return strings.TrimSpace(s.RegistryID)
+}
+
 func (s *workspaceScope) SessionWorkspaceID() string {
 	return strings.TrimSpace(s.RegistryID)
+}
+
+func (s *workspaceScope) BodyWorkspaceIDMatches(workspaceID string) bool {
+	trimmed := strings.TrimSpace(workspaceID)
+	if trimmed == "" {
+		return true
+	}
+	return trimmed == strings.TrimSpace(s.ID) || trimmed == strings.TrimSpace(s.RegistryID)
 }
 
 func (h *BaseHandlers) resolveWorkspaceScope(c *gin.Context) (workspaceScope, bool) {

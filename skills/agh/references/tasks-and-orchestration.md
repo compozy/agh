@@ -23,10 +23,14 @@ Use this guidance only inside a daemon-managed coordinator session.
 1. Read agh me context or the provided task context bundle first.
 2. Identify task id, run id, workflow id, execution profile, review policy, coordination channel, and latest events.
 3. Break the objective into bounded worker prompts with acceptance criteria.
-4. Spawn or route only within daemon permissions and configured execution profile.
-5. Watch persisted task/run state rather than chat activity.
-6. Request or route reviews through the daemon review path.
-7. On rejection, continue from persisted missing_work and next_round_guidance.
+4. Create child tasks only when durable task intent is needed. Creation alone is not execution.
+5. When the objective requires work to begin now, start each executable task through the task start path so AGH enqueues a run and can route matching worker agents.
+6. Spawn or route only within daemon permissions and configured execution profile.
+7. Watch persisted task/run state rather than chat activity.
+8. Request or route reviews through the daemon review path.
+9. On rejection, continue from persisted missing_work and next_round_guidance.
+
+Do not leave ready tasks idle after telling the operator that work has been orchestrated. Either start the task runs or report that the tasks were created but not started.
 
 Never spawn another coordinator unless the runtime explicitly supports that delegation. Never use channel messages as task ownership state.
 

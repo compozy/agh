@@ -51,7 +51,7 @@ provider = "claude"
 mode = "approve-reads"
 
 [limits]
-max_sessions = 4
+max_concurrent_agents = 12
 
 [skills]
 disabled_skills = ["public-cloud-deploy"]
@@ -178,7 +178,7 @@ provider = "codex"
 mode = "approve-all"
 
 [limits]
-max_sessions = 10
+max_concurrent_agents = 20
 
 [skills]
 disabled_skills = ["legacy-notes"]
@@ -200,13 +200,13 @@ disabled_skills = ["deploy-production", "legacy-notes"]
 
 Effective result for the workspace:
 
-| Setting                  | Final value                             | Why                                             |
-| ------------------------ | --------------------------------------- | ----------------------------------------------- |
-| `defaults.agent`         | `reviewer`                              | Workspace scalar replaces global scalar.        |
-| `defaults.provider`      | `codex`                                 | Workspace omitted it, so global remains.        |
-| `permissions.mode`       | `approve-reads`                         | Workspace scalar replaces global scalar.        |
-| `limits.max_sessions`    | `10`                                    | Workspace omitted the table, so global remains. |
-| `skills.disabled_skills` | `["deploy-production", "legacy-notes"]` | Workspace slice replaces the global slice.      |
+| Setting                        | Final value                             | Why                                             |
+| ------------------------------ | --------------------------------------- | ----------------------------------------------- |
+| `defaults.agent`               | `reviewer`                              | Workspace scalar replaces global scalar.        |
+| `defaults.provider`            | `codex`                                 | Workspace omitted it, so global remains.        |
+| `permissions.mode`             | `approve-reads`                         | Workspace scalar replaces global scalar.        |
+| `limits.max_concurrent_agents` | `20`                                    | Workspace omitted the table, so global remains. |
+| `skills.disabled_skills`       | `["deploy-production", "legacy-notes"]` | Workspace slice replaces the global slice.      |
 
 ## `.env` And `AGH_HOME`
 

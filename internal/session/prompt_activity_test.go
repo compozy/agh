@@ -32,6 +32,7 @@ func TestPromptActivitySupervisorReportPersistsHeartbeatWithoutEvent(t *testing.
 		newPromptTurnDispatchState(session, "turn-activity", TurnSourceUser, "hello"),
 		testSupervisionConfig(),
 	)
+	supervisor.touch(now, runtimeActivityKindPromptStarted, "prompt started")
 	supervisor.report(acp.PromptActivityReport{
 		Timestamp: now.Add(5 * time.Second),
 		Kind:      "agent_waiting",
@@ -49,14 +50,57 @@ func TestPromptActivitySupervisorReportPersistsHeartbeatWithoutEvent(t *testing.
 		t.Fatalf("activity detail = %q, want %q", got, want)
 	}
 	if meta.Liveness.Activity.LastActivityAt == nil ||
-		!meta.Liveness.Activity.LastActivityAt.Equal(now.Add(5*time.Second)) {
-		t.Fatalf("activity LastActivityAt = %#v, want heartbeat timestamp", meta.Liveness.Activity.LastActivityAt)
+		!meta.Liveness.Activity.LastActivityAt.Equal(now) {
+		t.Fatalf(
+			"activity LastActivityAt = %#v, want last real activity timestamp",
+			meta.Liveness.Activity.LastActivityAt,
+		)
+	}
+	if got, want := meta.Liveness.Activity.IdleSeconds, int64(5); got != want {
+		t.Fatalf("activity IdleSeconds = %d, want %d", got, want)
 	}
 
 	select {
 	case event := <-supervisor.eventsChannel():
 		t.Fatalf("unexpected runtime event from heartbeat-only report: %#v", event)
 	default:
+	}
+}
+
+func TestPromptActivitySupervisorWaitingHeartbeatDoesNotPreventTimeout(t *testing.T) {
+	now := time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC)
+	h := newHarness(t, WithNow(func() time.Time { return now }))
+	session := createSession(t, h)
+	session.setCurrentTurnSource(TurnSourceUser)
+	session.setCurrentPromptMeta(acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser})
+
+	config := testSupervisionConfig()
+	config.InactivityTimeout = time.Second
+	config.TimeoutCancelGrace = 200 * time.Millisecond
+	supervisor := newPromptActivitySupervisor(
+		testutil.Context(t),
+		h.manager,
+		session,
+		newPromptTurnDispatchState(session, "turn-heartbeat-timeout", TurnSourceUser, "hello"),
+		config,
+	)
+	supervisor.touch(now, runtimeActivityKindPromptStarted, "prompt started")
+	supervisor.report(acp.PromptActivityReport{
+		Timestamp: now.Add(500 * time.Millisecond),
+		Kind:      runtimeActivityKindAgentWaiting,
+		Detail:    "waiting for provider",
+	})
+	supervisor.evaluate(now.Add(2 * time.Second))
+
+	if got := h.driver.cancelCalls; got != 1 {
+		t.Fatalf("driver cancel calls = %d, want 1", got)
+	}
+	if got := h.driver.stopCalls; got != 1 {
+		t.Fatalf("driver stop calls = %d, want 1", got)
+	}
+	meta := readMeta(t, session.MetaPath())
+	if meta.StopReason == nil || *meta.StopReason != store.StopTimeout {
+		t.Fatalf("meta.StopReason = %#v, want %q", meta.StopReason, store.StopTimeout)
 	}
 }
 

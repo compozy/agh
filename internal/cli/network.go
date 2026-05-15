@@ -105,7 +105,7 @@ func newNetworkPeersCommand(deps commandDeps, workspaceRef *string) *cobra.Comma
 }
 
 func newNetworkChannelsCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "channels",
 		Short: "List active runtime channels",
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -124,6 +124,89 @@ func newNetworkChannelsCommand(deps commandDeps, workspaceRef *string) *cobra.Co
 			}
 			return writeCommandOutput(cmd, networkChannelsBundle(channels))
 		},
+	}
+	cmd.AddCommand(newNetworkChannelsCreateCommand(deps, workspaceRef))
+	return cmd
+}
+
+type networkCreateChannelFlags struct {
+	channel    string
+	purpose    string
+	agentNames []string
+}
+
+func newNetworkChannelsCreateCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
+	var flags networkCreateChannelFlags
+	cmd := &cobra.Command{
+		Use:   "create [channel]",
+		Short: "Create a runtime channel and start one session per selected agent",
+		Args:  cobra.MaximumNArgs(1),
+		Example: `  # Create a launch channel with two local agents
+  agh network --workspace ~/dev/ad8 channels create ad8_launch \
+    --purpose "Coordinate launch work" \
+    --agent site_copywriter \
+    --agent growth_marketer \
+    -o json`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			workspace, err := resolveNetworkWorkspaceRef(cmd, deps, client, workspaceRef)
+			if err != nil {
+				return err
+			}
+			channel, err := resolveNetworkCreateChannelName(args, flags.channel)
+			if err != nil {
+				return err
+			}
+			agentNames := trimSpawnAtoms(flags.agentNames)
+			if len(agentNames) == 0 {
+				return errors.New("cli: at least one --agent is required")
+			}
+			purpose := strings.TrimSpace(flags.purpose)
+			if purpose == "" {
+				return errors.New("cli: --purpose cannot be empty")
+			}
+			created, err := client.CreateNetworkChannel(cmd.Context(), workspace, CreateNetworkChannelRequest{
+				Channel:    channel,
+				Purpose:    purpose,
+				AgentNames: agentNames,
+			})
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, networkChannelBundle(created))
+		},
+	}
+	cmd.Flags().StringVar(&flags.channel, "channel", "", "Channel name when not passed as an argument")
+	cmd.Flags().StringVar(&flags.purpose, "purpose", "", "Human-readable channel purpose")
+	cmd.Flags().StringArrayVar(
+		&flags.agentNames,
+		"agent",
+		nil,
+		"Agent definition name to launch in the channel (repeatable)",
+	)
+	mustMarkFlagRequired(cmd, "purpose")
+	mustMarkFlagRequired(cmd, "agent")
+	return cmd
+}
+
+func resolveNetworkCreateChannelName(args []string, channelFlag string) (string, error) {
+	fromArg := ""
+	if len(args) == 1 {
+		fromArg = strings.TrimSpace(args[0])
+	}
+	fromFlag := strings.TrimSpace(channelFlag)
+	switch {
+	case fromArg == "" && fromFlag == "":
+		return "", errors.New("cli: channel is required")
+	case fromArg != "" && fromFlag != "" && fromArg != fromFlag:
+		return "", errors.New("cli: channel argument and --channel must match")
+	case fromArg != "":
+		return fromArg, nil
+	default:
+		return fromFlag, nil
 	}
 }
 
@@ -752,6 +835,40 @@ func networkChannelsBundle(channels []NetworkChannelRecord) outputBundle {
 			}
 		},
 	)
+}
+
+func networkChannelBundle(channel NetworkChannelDetailRecord) outputBundle {
+	fields := []string{
+		"channel", "workspace_id", "purpose", "created_by", "peer_count", "session_count", "message_count",
+	}
+	values := []string{
+		channel.Channel,
+		channel.WorkspaceID,
+		channel.Purpose,
+		channel.CreatedBy,
+		strconv.Itoa(channel.PeerCount),
+		strconv.Itoa(channel.SessionCount),
+		strconv.Itoa(channel.MessageCount),
+	}
+	return outputBundle{
+		jsonValue: channel,
+		human: func() (string, error) {
+			return renderHumanBlocks(
+				renderHumanSection("Network Channel", []keyValue{
+					{Label: "Channel", Value: stringOrDash(channel.Channel)},
+					{Label: "Workspace", Value: stringOrDash(channel.WorkspaceID)},
+					{Label: "Purpose", Value: stringOrDash(channel.Purpose)},
+					{Label: "Created By", Value: stringOrDash(channel.CreatedBy)},
+					{Label: "Peers", Value: strconv.Itoa(channel.PeerCount)},
+					{Label: "Sessions", Value: strconv.Itoa(channel.SessionCount)},
+					{Label: "Messages", Value: strconv.Itoa(channel.MessageCount)},
+				}),
+			), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject("network_channel", fields, values), nil
+		},
+	}
 }
 
 func networkThreadsBundle(threads []NetworkThreadRecord) outputBundle {

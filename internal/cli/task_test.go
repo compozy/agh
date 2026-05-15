@@ -145,9 +145,10 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 					"--channel", "builders",
 					"--title", "Investigate flaky task runs",
 					"--description", "Capture root cause",
+					"--priority", "high",
 					"--owner-kind", "pool",
 					"--owner-ref", "triage",
-					"--metadata", `{"priority":"high"}`,
+					"--metadata", `{"source":"qa"}`,
 					"-o", "json",
 				)
 				if err != nil {
@@ -158,10 +159,11 @@ func TestTaskCreateAndListCommandsParseTaskFields(t *testing.T) {
 					createRequest.Workspace != "alpha" ||
 					createRequest.NetworkChannel != "builders" ||
 					createRequest.Title != "Investigate flaky task runs" ||
+					createRequest.Priority != taskpkg.PriorityHigh ||
 					createRequest.Owner == nil ||
 					createRequest.Owner.Kind != taskpkg.OwnerKindPool ||
 					createRequest.Owner.Ref != "triage" ||
-					string(createRequest.Metadata) != `{"priority":"high"}` {
+					string(createRequest.Metadata) != `{"source":"qa"}` {
 					t.Fatalf("createRequest = %#v, want parsed workspace/channel/owner/metadata", createRequest)
 				}
 
@@ -981,6 +983,7 @@ func TestTaskMutationCommandsMapRequests(t *testing.T) {
 					"task", "update", "task-1",
 					"--title", "Retitle triage task",
 					"--description", "Refined scope",
+					"--priority", "urgent",
 					"--channel", "builders",
 					"--owner-kind", "pool",
 					"--owner-ref", "triage",
@@ -992,6 +995,7 @@ func TestTaskMutationCommandsMapRequests(t *testing.T) {
 				if updateTaskID != "task-1" ||
 					updateRequest.Title == nil || *updateRequest.Title != "Retitle triage task" ||
 					updateRequest.Description == nil || *updateRequest.Description != "Refined scope" ||
+					updateRequest.Priority == nil || *updateRequest.Priority != taskpkg.PriorityUrgent ||
 					updateRequest.NetworkChannel == nil || *updateRequest.NetworkChannel != "builders" ||
 					updateRequest.Owner == nil || updateRequest.Owner.Kind != taskpkg.OwnerKindPool || updateRequest.Owner.Ref != "triage" ||
 					updateRequest.ClearOwner ||
@@ -1066,6 +1070,7 @@ func TestTaskMutationCommandsMapRequests(t *testing.T) {
 					"--channel", "builders",
 					"--title", "Check runtime logs",
 					"--description", "Focus on worker output",
+					"--priority", "urgent",
 					"--owner-kind", "human",
 					"--owner-ref", "alice",
 					"--metadata", `{"phase":"two"}`,
@@ -1081,6 +1086,7 @@ func TestTaskMutationCommandsMapRequests(t *testing.T) {
 					childCreateRequest.NetworkChannel != "builders" ||
 					childCreateRequest.Title != "Check runtime logs" ||
 					childCreateRequest.Description != "Focus on worker output" ||
+					childCreateRequest.Priority != taskpkg.PriorityUrgent ||
 					childCreateRequest.Owner == nil || childCreateRequest.Owner.Kind != taskpkg.OwnerKindHuman || childCreateRequest.Owner.Ref != "alice" ||
 					string(childCreateRequest.Metadata) != `{"phase":"two"}` {
 					t.Fatalf("childCreateRequest = %#v, want parsed child task payload", childCreateRequest)

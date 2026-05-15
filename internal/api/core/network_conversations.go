@@ -90,7 +90,7 @@ func (h *BaseHandlers) NetworkThreadMessages(c *gin.Context) {
 	}
 	threadID := strings.TrimSpace(c.Param("thread_id"))
 	ref := store.NetworkConversationRef{
-		WorkspaceID: scope.ID,
+		WorkspaceID: scope.NetworkWorkspaceID(),
 		Channel:     channel,
 		Surface:     store.NetworkSurfaceThread,
 		ThreadID:    threadID,
@@ -167,7 +167,7 @@ func (h *BaseHandlers) ResolveNetworkDirectRoom(c *gin.Context) {
 	localPeer, remotePeer, err := h.resolveDirectRoomPeers(
 		c.Request.Context(),
 		service,
-		scope.ID,
+		scope.NetworkWorkspaceID(),
 		channel,
 		sessionID,
 		peerID,
@@ -176,14 +176,20 @@ func (h *BaseHandlers) ResolveNetworkDirectRoom(c *gin.Context) {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
-	directID, peerA, peerB, err := network.DirectRoomIdentity(scope.ID, channel, localPeer.PeerID, remotePeer.PeerID)
+	networkWorkspaceID := scope.NetworkWorkspaceID()
+	directID, peerA, peerB, err := network.DirectRoomIdentity(
+		networkWorkspaceID,
+		channel,
+		localPeer.PeerID,
+		remotePeer.PeerID,
+	)
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
 	now := h.nowUTC()
 	direct, err := h.NetworkStore.ResolveDirectRoom(c.Request.Context(), store.NetworkDirectRoomEntry{
-		WorkspaceID:    scope.ID,
+		WorkspaceID:    networkWorkspaceID,
 		Channel:        channel,
 		DirectID:       directID,
 		PeerA:          peerA,
@@ -246,7 +252,7 @@ func (h *BaseHandlers) NetworkDirectRoomMessages(c *gin.Context) {
 	}
 	directID := strings.TrimSpace(c.Param("direct_id"))
 	ref := store.NetworkConversationRef{
-		WorkspaceID: scope.ID,
+		WorkspaceID: scope.NetworkWorkspaceID(),
 		Channel:     channel,
 		Surface:     store.NetworkSurfaceDirect,
 		DirectID:    directID,
@@ -268,7 +274,7 @@ func (h *BaseHandlers) NetworkWork(c *gin.Context) {
 	if !ok {
 		return
 	}
-	work, err := h.NetworkStore.GetWork(c.Request.Context(), scope.ID, workID)
+	work, err := h.NetworkStore.GetWork(c.Request.Context(), scope.NetworkWorkspaceID(), workID)
 	if err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return

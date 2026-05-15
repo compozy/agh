@@ -660,7 +660,7 @@ func (h *BaseHandlers) GetAgentHeartbeatStatus(c *gin.Context) {
 	if sessionID != "" {
 		if _, err := h.requireSessionInWorkspace(
 			c.Request.Context(),
-			target.sessionWorkspaceID,
+			target.storageWorkspaceID(),
 			sessionID,
 		); err != nil {
 			h.respondError(c, statusForWorkspaceScopedResourceError(err), err)
@@ -725,7 +725,7 @@ func (h *BaseHandlers) WakeAgentHeartbeat(c *gin.Context) {
 	if sessionID != "" {
 		if _, err := h.requireSessionInWorkspace(
 			c.Request.Context(),
-			target.sessionWorkspaceID,
+			target.storageWorkspaceID(),
 			sessionID,
 		); err != nil {
 			h.respondError(c, statusForWorkspaceScopedResourceError(err), err)
@@ -733,7 +733,7 @@ func (h *BaseHandlers) WakeAgentHeartbeat(c *gin.Context) {
 		}
 	}
 	decision, err := h.HeartbeatWake.Wake(c.Request.Context(), heartbeat.WakeRequest{
-		WorkspaceID: target.workspaceID,
+		WorkspaceID: target.storageWorkspaceID(),
 		AgentName:   target.agentName,
 		SessionID:   sessionID,
 		Source:      source,
@@ -1059,7 +1059,7 @@ func (t authoredAgentTarget) withAgentArtifacts(
 
 func (t authoredAgentTarget) soulAuthoringTarget() soul.AuthoringTarget {
 	return soul.AuthoringTarget{
-		WorkspaceID:   t.workspaceID,
+		WorkspaceID:   t.storageWorkspaceID(),
 		WorkspaceRoot: authoredContextSourceRoot(t.workspaceRoot, t.agentPath),
 		AgentName:     t.agentName,
 		AgentPath:     t.agentPath,
@@ -1070,12 +1070,19 @@ func (t authoredAgentTarget) soulAuthoringTarget() soul.AuthoringTarget {
 
 func (t authoredAgentTarget) heartbeatAuthoringTarget() heartbeat.AuthoringTarget {
 	return heartbeat.AuthoringTarget{
-		WorkspaceID:   t.workspaceID,
+		WorkspaceID:   t.storageWorkspaceID(),
 		WorkspaceRoot: authoredContextSourceRoot(t.workspaceRoot, t.agentPath),
 		AgentName:     t.agentName,
 		AgentPath:     t.agentPath,
 		Config:        t.heartbeatConfig,
 	}
+}
+
+func (t authoredAgentTarget) storageWorkspaceID() string {
+	if id := strings.TrimSpace(t.sessionWorkspaceID); id != "" {
+		return id
+	}
+	return strings.TrimSpace(t.workspaceID)
 }
 
 func authoredContextSourceRoot(workspaceRoot string, agentPath string) string {
@@ -1376,7 +1383,7 @@ func (h *BaseHandlers) heartbeatWakeEvents(
 		return nil, nil
 	}
 	events, err := h.HeartbeatWakeEvents.ListHeartbeatWakeEvents(ctx, heartbeat.WakeEventListQuery{
-		WorkspaceID: target.workspaceID,
+		WorkspaceID: target.storageWorkspaceID(),
 		AgentName:   target.agentName,
 		SessionID:   strings.TrimSpace(sessionID),
 		Limit:       defaultWakeEventInspectLimit,

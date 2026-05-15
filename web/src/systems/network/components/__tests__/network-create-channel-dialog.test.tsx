@@ -56,6 +56,13 @@ describe("NetworkCreateChannelDialog", () => {
       />
     );
 
+    expect(
+      screen.getByText("Use lowercase letters, numbers, underscores, or hyphens; e.g. coord_core.")
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("network-channel-name-input")).toHaveAttribute(
+      "placeholder",
+      "e.g. website_copy"
+    );
     fireEvent.change(screen.getByTestId("network-channel-name-input"), {
       target: { value: "deployments" },
     });

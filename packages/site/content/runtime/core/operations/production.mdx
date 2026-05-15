@@ -56,7 +56,6 @@ port = 2123
 level = "info"
 
 [limits]
-max_sessions = 10
 max_concurrent_agents = 20
 ```
 
@@ -65,7 +64,7 @@ max_concurrent_agents = 20
 | HTTP bind     | `[http].host` is `localhost` unless AGH is intentionally protected by a reverse proxy or host firewall.                               |
 | UDS path      | `[daemon].socket` is inside a directory owned by the daemon user.                                                                     |
 | Log level     | `[log].level` is `info` or `warn` for unattended operation; use `debug` only for short investigations.                                |
-| Limits        | Session and agent concurrency limits match the host capacity.                                                                         |
+| Limits        | Agent concurrency limits and host resource expectations match the host capacity.                                                      |
 | Provider auth | Native CLI providers are logged in for the service user, and `bound_secret` providers have resolvable `env:` or `vault:` credentials. |
 
 ## 3. Run under a service manager

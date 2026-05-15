@@ -83,7 +83,6 @@ var (
 		"agents.heartbeat.wake_event_retention":                   ConfigValueDuration,
 		"agents.heartbeat.session_health_stale_after":             ConfigValueDuration,
 		"agents.heartbeat.session_health_hook_min_interval":       ConfigValueDuration,
-		"limits.max_sessions":                                     ConfigValueInt,
 		"limits.max_concurrent_agents":                            ConfigValueInt,
 		"session.limits.timeout":                                  ConfigValueDuration,
 		"session.supervision.activity_heartbeat_interval":         ConfigValueDuration,

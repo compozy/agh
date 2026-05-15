@@ -42,6 +42,21 @@ func TestUnixSocketClientNetworkMethods(t *testing.T) {
 							http.StatusOK,
 							`{"channels":[{"channel":"builders","peer_count":2}]}`,
 						), nil
+					case req.Method == http.MethodPost && req.URL.Path == "/api/workspaces/ws-alpha/network/channels":
+						body, err := io.ReadAll(req.Body)
+						if err != nil {
+							t.Fatalf("io.ReadAll(network channels create body) error = %v", err)
+						}
+						if strings.Contains(string(body), `"workspace_id"`) ||
+							!strings.Contains(string(body), `"channel":"launch_ops"`) ||
+							!strings.Contains(string(body), `"purpose":"Coordinate launch work"`) ||
+							!strings.Contains(string(body), `"agent_names":["site_copywriter","growth_marketer"]`) {
+							t.Fatalf("network channels create body = %s, want route-scoped create payload", body)
+						}
+						return newHTTPResponse(
+							http.StatusCreated,
+							`{"channel":{"channel":"launch_ops","workspace_id":"ws-alpha","purpose":"Coordinate launch work","created_by":"site_copywriter","peer_count":2,"session_count":2}}`,
+						), nil
 					case req.Method == http.MethodGet && req.URL.Path == "/api/workspaces/ws-alpha/network/channels/builders/threads":
 						if got := req.URL.Query().Get("limit"); got != "2" {
 							t.Fatalf("network threads limit query = %q, want 2", got)
@@ -172,6 +187,16 @@ func TestUnixSocketClientNetworkMethods(t *testing.T) {
 		channels, err := client.NetworkChannels(ctx, "ws-alpha")
 		if err != nil || len(channels) != 1 || channels[0].PeerCount != 2 {
 			t.Fatalf("NetworkChannels() = %#v, %v", channels, err)
+		}
+
+		createdChannel, err := client.CreateNetworkChannel(ctx, "ws-alpha", CreateNetworkChannelRequest{
+			Channel:     "launch_ops",
+			WorkspaceID: "ws-alpha",
+			Purpose:     "Coordinate launch work",
+			AgentNames:  []string{"site_copywriter", "growth_marketer"},
+		})
+		if err != nil || createdChannel.Channel != "launch_ops" || createdChannel.SessionCount != 2 {
+			t.Fatalf("CreateNetworkChannel() = %#v, %v", createdChannel, err)
 		}
 
 		threads, err := client.NetworkThreads(ctx, NetworkThreadsQuery{
@@ -323,6 +348,16 @@ func TestNetworkClientHelpersAndAliases(t *testing.T) {
 			{name: "NetworkSendRecord", cliType: NetworkSendRecord{}, want: contract.NetworkSendPayload{}},
 			{name: "NetworkPeerRecord", cliType: NetworkPeerRecord{}, want: contract.NetworkPeerPayload{}},
 			{name: "NetworkChannelRecord", cliType: NetworkChannelRecord{}, want: contract.NetworkChannelPayload{}},
+			{
+				name:    "NetworkChannelDetailRecord",
+				cliType: NetworkChannelDetailRecord{},
+				want:    contract.NetworkChannelDetailPayload{},
+			},
+			{
+				name:    "CreateNetworkChannelRequest",
+				cliType: CreateNetworkChannelRequest{},
+				want:    contract.CreateNetworkChannelRequest{},
+			},
 			{
 				name:    "NetworkThreadRecord",
 				cliType: NetworkThreadRecord{},

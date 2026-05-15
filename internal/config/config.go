@@ -104,7 +104,6 @@ type HeartbeatConfig struct {
 
 // LimitsConfig defines runtime safety bounds.
 type LimitsConfig struct {
-	MaxSessions         int `toml:"max_sessions"`
 	MaxConcurrentAgents int `toml:"max_concurrent_agents"`
 }
 
@@ -622,7 +621,6 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			Heartbeat: DefaultHeartbeatConfig(),
 		},
 		Limits: LimitsConfig{
-			MaxSessions:         10,
 			MaxConcurrentAgents: 20,
 		},
 		Session: SessionConfig{
@@ -1247,8 +1245,6 @@ func (c HeartbeatConfig) Validate() error {
 // Validate ensures the configured limits are positive.
 func (c LimitsConfig) Validate() error {
 	switch {
-	case c.MaxSessions <= 0:
-		return fmt.Errorf("limits.max_sessions must be positive: %d", c.MaxSessions)
 	case c.MaxConcurrentAgents <= 0:
 		return fmt.Errorf("limits.max_concurrent_agents must be positive: %d", c.MaxConcurrentAgents)
 	default:

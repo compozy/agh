@@ -555,10 +555,6 @@ func TestHelperFunctionsAndUtilities(t *testing.T) {
 	if got := newID(""); got == "" {
 		t.Fatal("newID(\"\") = empty, want non-empty")
 	}
-
-	if got := (maxSessionsReachedError{active: 1, limit: 2}).Error(); !strings.Contains(got, "1/2") {
-		t.Fatalf("maxSessionsReachedError.Error() = %q", got)
-	}
 }
 
 func TestCreateWithBlankWorkspaceReturnsValidationError(t *testing.T) {
