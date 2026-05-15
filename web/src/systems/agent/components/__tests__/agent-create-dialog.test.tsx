@@ -89,7 +89,8 @@ async function reachRuntimeStep() {
 
 async function reachAccessStep() {
   const user = await reachRuntimeStep();
-  await user.selectOptions(screen.getByTestId("agent-create-provider"), "codex");
+  await user.click(screen.getByTestId("agent-create-provider"));
+  await user.click(screen.getByTestId("agent-create-provider-item-codex"));
   await user.click(screen.getByTestId("agent-create-next"));
   await user.type(screen.getByTestId("agent-create-prompt"), "Own release readiness.");
   await user.click(screen.getByTestId("agent-create-next"));
@@ -142,7 +143,7 @@ describe("AgentCreateDialog", () => {
       providersError: "Unable to load global provider settings.",
     });
 
-    await user.selectOptions(screen.getByTestId("agent-create-scope"), "global");
+    await user.click(screen.getByTestId("agent-create-scope-global"));
     await user.type(screen.getByTestId("agent-create-name"), "global-reviewer");
     await user.click(screen.getByTestId("agent-create-next"));
 

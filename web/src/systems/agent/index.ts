@@ -40,6 +40,11 @@ export {
   type AgentSessionStatusKind,
 } from "./lib/session-status";
 export {
+  isMemoryExtractionSession,
+  splitAgentSessions,
+  type AgentSessionSplit,
+} from "./lib/session-view";
+export {
   AGENT_CATEGORY_FOLDER_ID_PREFIX,
   AGENT_CATEGORY_LEAF_ID_PREFIX,
   AGENT_CATEGORY_LABEL_SEPARATOR,

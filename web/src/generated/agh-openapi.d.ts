@@ -4279,7 +4279,8 @@ export interface operations {
                 name?: string;
                 /** @enum {string} */
                 state: "starting" | "active" | "stopping" | "stopped";
-                type?: string;
+                /** @enum {string} */
+                type?: "user" | "dream" | "system" | "coordinator" | "spawned";
                 /** Format: date-time */
                 updated_at: string;
               };
@@ -5026,7 +5027,8 @@ export interface operations {
                 name?: string;
                 /** @enum {string} */
                 state: "starting" | "active" | "stopping" | "stopped";
-                type?: string;
+                /** @enum {string} */
+                type?: "user" | "dream" | "system" | "coordinator" | "spawned";
                 /** Format: date-time */
                 updated_at: string;
               };
@@ -5642,7 +5644,8 @@ export interface operations {
                   | "agent_crashed"
                   | "hook_stopped"
                   | "shutdown";
-                type?: string;
+                /** @enum {string} */
+                type?: "user" | "dream" | "system" | "coordinator" | "spawned";
                 /** Format: date-time */
                 updated_at: string;
                 workspace_id?: string;
@@ -21486,7 +21489,8 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
-              type?: string;
+              /** @enum {string} */
+              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
               workspace_id?: string;
@@ -21688,7 +21692,8 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
-              type?: string;
+              /** @enum {string} */
+              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
               workspace_id?: string;
@@ -38520,7 +38525,8 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
-              type?: string;
+              /** @enum {string} */
+              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
               workspace_id?: string;
@@ -39335,7 +39341,8 @@ export interface operations {
                   | "agent_crashed"
                   | "hook_stopped"
                   | "shutdown";
-                type?: string;
+                /** @enum {string} */
+                type?: "user" | "dream" | "system" | "coordinator" | "spawned";
                 /** Format: date-time */
                 updated_at: string;
                 workspace_id?: string;
@@ -39602,7 +39609,8 @@ export interface operations {
                   | "agent_crashed"
                   | "hook_stopped"
                   | "shutdown";
-                type?: string;
+                /** @enum {string} */
+                type?: "user" | "dream" | "system" | "coordinator" | "spawned";
                 /** Format: date-time */
                 updated_at: string;
                 workspace_id?: string;
@@ -41147,7 +41155,8 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
-              type?: string;
+              /** @enum {string} */
+              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
               workspace_id?: string;
@@ -42079,7 +42088,8 @@ export interface operations {
                 | "agent_crashed"
                 | "hook_stopped"
                 | "shutdown";
-              type?: string;
+              /** @enum {string} */
+              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
               /** Format: date-time */
               updated_at: string;
               workspace_id?: string;

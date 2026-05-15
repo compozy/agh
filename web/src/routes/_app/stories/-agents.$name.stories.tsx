@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, http, HttpResponse } from "msw";
-import { expect, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 
 import {
   storyAgentNames,
@@ -46,6 +46,14 @@ const fallbackFraudSession: SessionPayload = {
 };
 
 const failureBaseSession = fraudSessions[0] ?? fallbackFraudSession;
+const memoryExtractionSession: SessionPayload = {
+  ...failureBaseSession,
+  id: "sess_fraud_memory_extraction",
+  name: "Memory extractor",
+  type: "dream",
+  state: "stopped",
+  updated_at: "2026-04-17T18:44:00Z",
+};
 
 const fraudAgentRoute = `/agents/${storyAgentNames.fraud}`;
 const complianceAgentRoute = `/agents/${storyAgentNames.compliance}`;
@@ -63,6 +71,42 @@ export const Default: Story = {
     const canvas = within(canvasElement);
     await expect(canvas.findByTestId("agent-page-header")).resolves.toBeDefined();
     await expect(canvas.findByTestId("agent-sessions-table")).resolves.toBeDefined();
+  },
+};
+
+/**
+ * Mixed agent-detail data where memory extraction sessions are available through the view toggle.
+ */
+export const WithMemoryExtractionSessions: Story = {
+  args: {},
+  parameters: {
+    ...appRouteParameters(fraudAgentRoute),
+    ...storybookMswParameters({
+      session: [
+        http.get("/api/sessions", () =>
+          HttpResponse.json({ sessions: [memoryExtractionSession, ...fraudSessions] })
+        ),
+      ],
+    }),
+  },
+  render: () => <StorybookWorkspaceSetup />,
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.findByTestId("agent-session-view-toggle")).resolves.toBeDefined();
+    await expect(canvas.findByTestId("agent-session-view-normal")).resolves.toHaveTextContent(
+      "Sessions"
+    );
+    await expect(
+      canvas.findByTestId("agent-session-view-memory-extraction")
+    ).resolves.toHaveTextContent("Memory extraction");
+    expect(canvas.queryByTestId("agent-session-row-sess_fraud_memory_extraction")).toBeNull();
+
+    await userEvent.click(await canvas.findByTestId("agent-session-view-memory-extraction"));
+
+    await expect(
+      canvas.findByTestId("agent-session-row-sess_fraud_memory_extraction")
+    ).resolves.toBeDefined();
   },
 };
 

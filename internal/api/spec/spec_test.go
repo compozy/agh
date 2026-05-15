@@ -48,6 +48,15 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertNotRequired(t, sessionSchema, "workspace_id", "workspace_path", "stop_reason", "stop_detail")
 				assertEnumValues(
 					t,
+					propertySchema(t, sessionSchema, "type"),
+					"user",
+					"dream",
+					"system",
+					"coordinator",
+					"spawned",
+				)
+				assertEnumValues(
+					t,
 					propertySchema(t, sessionSchema, "state"),
 					"starting",
 					"active",

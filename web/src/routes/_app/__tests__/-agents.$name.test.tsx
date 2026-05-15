@@ -1,13 +1,15 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { UseAgentDetailPageResult } from "@/hooks/routes/use-agent-detail-page";
 import { primaryAgentFixture } from "@/systems/agent/testing";
+import type { SessionPayload } from "@/systems/session";
 import { primarySessionFixture } from "@/systems/session/testing";
 
 let childMatches: Array<{ id: string }> = [];
 const mockUseAgentDetailPage = vi.fn();
+const mockUseTopbarSlot = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (opts: { component: () => ReactNode }) => ({
@@ -22,16 +24,58 @@ vi.mock("@/hooks/routes/use-agent-detail-page", () => ({
   useAgentDetailPage: (name: string) => mockUseAgentDetailPage(name),
 }));
 
+vi.mock("@agh/ui", async importOriginal => {
+  const actual = await importOriginal<typeof import("@agh/ui")>();
+  return {
+    ...actual,
+    useTopbarSlot: mockUseTopbarSlot,
+  };
+});
+
 vi.mock("@/systems/agent", () => ({
   AgentInfoInspector: () => <aside data-testid="agent-info-inspector" />,
   AgentPageActions: () => <div data-testid="agent-page-actions" />,
-  AgentPageStatusPill: ({ sessions }: { sessions: unknown[] }) => (
+  AgentPageStatusPill: ({ sessions }: { sessions: SessionPayload[] }) => (
     <span data-testid="agent-page-status-pill">{sessions.length}</span>
   ),
-  AgentSessionsList: ({ isLoading, isError }: { isLoading: boolean; isError: boolean }) => (
-    <div data-testid="agent-sessions-list" data-loading={isLoading} data-error={isError} />
+  AgentSessionsList: ({
+    sessions,
+    isLoading,
+    isError,
+    emptyTitle,
+    emptyDescription,
+  }: {
+    sessions: SessionPayload[];
+    isLoading: boolean;
+    isError: boolean;
+    emptyTitle?: ReactNode;
+    emptyDescription?: ReactNode;
+  }) => (
+    <div
+      data-testid="agent-sessions-list"
+      data-loading={isLoading}
+      data-error={isError}
+      data-session-ids={sessions.map(session => session.id).join(",")}
+    >
+      {sessions.map(session => (
+        <span key={session.id}>{session.id}</span>
+      ))}
+      {emptyTitle ? <span data-testid="agent-sessions-empty-title">{emptyTitle}</span> : null}
+      {emptyDescription ? (
+        <span data-testid="agent-sessions-empty-description">{emptyDescription}</span>
+      ) : null}
+    </div>
   ),
-  AgentStatsGrid: () => <div data-testid="agent-stats-grid" />,
+  AgentStatsGrid: ({ sessions }: { sessions: SessionPayload[] }) => (
+    <div
+      data-testid="agent-stats-grid"
+      data-session-ids={sessions.map(session => session.id).join(",")}
+    />
+  ),
+  splitAgentSessions: (sessions: SessionPayload[]) => ({
+    normalSessions: sessions.filter(session => session.type !== "dream"),
+    memoryExtractionSessions: sessions.filter(session => session.type === "dream"),
+  }),
 }));
 
 import { Route } from "../agents.$name";
@@ -67,6 +111,7 @@ describe("Agent detail route", () => {
   beforeEach(() => {
     childMatches = [];
     mockUseAgentDetailPage.mockReset();
+    mockUseTopbarSlot.mockReset();
     mockUseAgentDetailPage.mockReturnValue(makePage());
   });
 
@@ -94,5 +139,52 @@ describe("Agent detail route", () => {
     render(<AgentDetailRoute />);
 
     expect(screen.getByTestId("agent-stats-grid")).toBeInTheDocument();
+  });
+
+  it("separates memory extraction sessions from default metrics and list", () => {
+    const normalSession = {
+      ...primarySessionFixture,
+      id: "sess-normal",
+      type: "user",
+      state: "active",
+    } satisfies SessionPayload;
+    const memoryExtractionSession = {
+      ...primarySessionFixture,
+      id: "sess-memory",
+      name: "Memory extractor",
+      type: "dream",
+      state: "active",
+    } satisfies SessionPayload;
+    mockUseAgentDetailPage.mockReturnValue(
+      makePage({ sessions: [memoryExtractionSession, normalSession] })
+    );
+
+    render(<AgentDetailRoute />);
+
+    const topbarSlot = mockUseTopbarSlot.mock.calls.at(-1)?.[0];
+    expect(topbarSlot).toMatchObject({ count: 1 });
+    expect(topbarSlot?.tabs.props.sessions.map((session: SessionPayload) => session.id)).toEqual([
+      "sess-normal",
+    ]);
+    expect(screen.getByTestId("agent-stats-grid")).toHaveAttribute(
+      "data-session-ids",
+      "sess-normal"
+    );
+    expect(screen.getByTestId("agent-sessions-list")).toHaveAttribute(
+      "data-session-ids",
+      "sess-normal"
+    );
+    expect(screen.getByTestId("agent-session-view-toggle")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("agent-session-view-memory-extraction"));
+
+    expect(screen.getByTestId("agent-stats-grid")).toHaveAttribute(
+      "data-session-ids",
+      "sess-normal"
+    );
+    expect(screen.getByTestId("agent-sessions-list")).toHaveAttribute(
+      "data-session-ids",
+      "sess-memory"
+    );
   });
 });

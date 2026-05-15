@@ -110,6 +110,7 @@ var schemaEnumValues = map[reflect.Type][]string{
 	reflect.TypeFor[bridgepkg.BridgeDMPolicy]():                  bridgeDMPolicyValues(),
 	reflect.TypeFor[bridgepkg.BridgeDegradationReason]():         bridgeDegradationReasonValues(),
 	reflect.TypeFor[bridgepkg.DeliveryMode]():                    deliveryModeValues(),
+	reflect.TypeFor[session.Type]():                              sessionTypeValues(),
 	reflect.TypeFor[session.State]():                             sessionStateValues(),
 	reflect.TypeFor[store.StopReason]():                          stopReasonValues(),
 	reflect.TypeFor[tools.ToolSource]():                          toolSourceValues(),
@@ -5472,6 +5473,16 @@ func sessionStateValues() []string {
 		string(session.StateActive),
 		string(session.StateStopping),
 		string(session.StateStopped),
+	}
+}
+
+func sessionTypeValues() []string {
+	return []string{
+		string(session.SessionTypeUser),
+		string(session.SessionTypeDream),
+		string(session.SessionTypeSystem),
+		string(session.SessionTypeCoordinator),
+		string(session.SessionTypeSpawned),
 	}
 }
 

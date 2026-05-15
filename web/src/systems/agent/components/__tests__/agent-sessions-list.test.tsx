@@ -41,6 +41,25 @@ describe("AgentSessionsList", () => {
     vi.restoreAllMocks();
   });
 
+  it("renders custom empty-state copy when provided", () => {
+    render(
+      <AgentSessionsList
+        agentName="codex-agent"
+        sessions={[]}
+        isLoading={false}
+        isError={false}
+        emptyTitle="No memory extraction sessions"
+        emptyDescription="Memory extraction sessions for codex-agent appear after recall processing."
+      />
+    );
+
+    expect(screen.getByTestId("agent-sessions-empty")).toBeInTheDocument();
+    expect(screen.getByText("No memory extraction sessions")).toBeInTheDocument();
+    expect(
+      screen.getByText("Memory extraction sessions for codex-agent appear after recall processing.")
+    ).toBeInTheDocument();
+  });
+
   it("formats relative times against one render-pass timestamp", () => {
     vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-04-17T18:11:00Z"));
     const sessions = [

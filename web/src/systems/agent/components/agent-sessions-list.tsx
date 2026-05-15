@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { MessageSquare } from "lucide-react";
+import type { ReactNode } from "react";
 
 import {
   Empty,
@@ -23,6 +24,8 @@ export interface AgentSessionsListProps {
   sessions: SessionPayload[];
   isLoading: boolean;
   isError: boolean;
+  emptyTitle?: ReactNode;
+  emptyDescription?: ReactNode;
 }
 
 export function AgentSessionsList({
@@ -30,6 +33,8 @@ export function AgentSessionsList({
   sessions,
   isLoading,
   isError,
+  emptyTitle = "No sessions yet",
+  emptyDescription = `Start a new session for ${agentName} from the toolbar above.`,
 }: AgentSessionsListProps) {
   if (isLoading) {
     return <AgentSessionsSkeleton />;
@@ -54,8 +59,8 @@ export function AgentSessionsList({
       <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
         <Empty
           icon={MessageSquare}
-          title="No sessions yet"
-          description={`Start a new session for ${agentName} from the toolbar above.`}
+          title={emptyTitle}
+          description={emptyDescription}
           data-testid="agent-sessions-empty"
           fill={false}
         />
