@@ -1,3 +1,5 @@
+import type { ProviderSelectOption } from "@/systems/runtime";
+
 import type { CreateAgentParams } from "../types";
 
 export type AgentCreateScope = CreateAgentParams["scope"];
@@ -20,16 +22,9 @@ export interface AgentCreateDialogDraft {
   disabledSkills: string[];
 }
 
-export interface AgentCreateProviderOption {
-  name: string;
-  display_name?: string;
-  harness?: string;
-  runtime_provider?: string;
-}
-
 export interface AgentCreateValidationContext {
   hasActiveWorkspace: boolean;
-  providerOptions: readonly AgentCreateProviderOption[];
+  providerOptions: readonly ProviderSelectOption[];
   providersError: string | null;
   providersLoading: boolean;
 }

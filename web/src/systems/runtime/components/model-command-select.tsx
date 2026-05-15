@@ -13,34 +13,34 @@ import {
   Pill,
 } from "@agh/ui";
 
-import {
-  modelAvailabilityLabel,
-  modelAvailabilityTone,
-  type ModelOption,
-} from "@/systems/model-catalog";
+import type { ModelSelectOption } from "../types";
 
 export interface ModelCommandSelectProps {
-  options: ModelOption[];
-  defaultModel: string | null;
+  options: ModelSelectOption[];
   value: string;
+  defaultModel?: string | null;
   onChange: (next: string) => void;
   placeholder?: string;
   disabled?: boolean;
+  loading?: boolean;
   triggerId?: string;
   triggerTestId?: string;
   className?: string;
+  testIdPrefix?: string;
 }
 
 export function ModelCommandSelect({
   options,
-  defaultModel,
   value,
+  defaultModel = null,
   onChange,
   placeholder = "Use provider default",
   disabled,
+  loading,
   triggerId,
   triggerTestId,
   className,
+  testIdPrefix = "model-command",
 }: ModelCommandSelectProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -48,7 +48,7 @@ export function ModelCommandSelect({
   const trimmedDefault = defaultModel?.trim() ?? "";
   const knownOptions = useMemo(() => {
     const seen = new Set<string>();
-    const result: ModelOption[] = [];
+    const result: ModelSelectOption[] = [];
     for (const option of options) {
       const id = option.id.trim();
       if (!id || seen.has(id)) continue;
@@ -82,9 +82,11 @@ export function ModelCommandSelect({
 
   const triggerLabel = trimmedValue
     ? trimmedValue
-    : trimmedDefault
-      ? `${placeholder} · ${trimmedDefault}`
-      : placeholder;
+    : loading
+      ? "Loading models..."
+      : trimmedDefault
+        ? `${placeholder} · ${trimmedDefault}`
+        : placeholder;
 
   return (
     <CommandSelect open={open} onOpenChange={next => setOpen(next)}>
@@ -107,26 +109,29 @@ export function ModelCommandSelect({
           value: query,
           onValueChange: setQuery,
           onKeyDown: handleInputKeyDown,
-          "data-testid": "model-command-input",
+          "data-testid": `${testIdPrefix}-input`,
         }}
       >
         <CommandList>
-          <CommandEmpty data-testid="model-command-empty">
+          <CommandEmpty data-testid={`${testIdPrefix}-empty`}>
             {trimmedQuery === ""
               ? "No models listed for this provider."
               : "Press Enter to use this name."}
           </CommandEmpty>
-          <CommandSelectGroup heading="Provider default" data-testid="model-command-default-group">
+          <CommandSelectGroup
+            heading="Provider default"
+            data-testid={`${testIdPrefix}-default-group`}
+          >
             <CommandItem
               value="provider-default"
               onSelect={handleClear}
               data-checked={trimmedValue === "" ? "true" : "false"}
-              data-testid="model-command-item-default"
+              data-testid={`${testIdPrefix}-item-default`}
             >
               <div className="flex min-w-0 flex-1 items-center gap-2">
                 <span className="truncate text-sm text-fg">Use provider default</span>
                 {trimmedDefault ? (
-                  <Eyebrow className="text-muted ml-auto truncate">{trimmedDefault}</Eyebrow>
+                  <Eyebrow className="ml-auto truncate text-muted">{trimmedDefault}</Eyebrow>
                 ) : null}
               </div>
             </CommandItem>
@@ -134,7 +139,7 @@ export function ModelCommandSelect({
           {knownOptions.length > 0 ? (
             <CommandSelectGroup
               heading="Available models"
-              data-testid="model-command-available-group"
+              data-testid={`${testIdPrefix}-available-group`}
             >
               {knownOptions.map(option => (
                 <CommandItem
@@ -142,30 +147,32 @@ export function ModelCommandSelect({
                   value={option.id}
                   onSelect={() => handleSelect(option.id)}
                   data-checked={trimmedValue === option.id ? "true" : "false"}
-                  data-testid={`model-command-item-${option.id}`}
-                  data-availability={option.availabilityState}
+                  data-testid={`${testIdPrefix}-item-${option.id}`}
+                  data-availability={option.availability?.state}
                 >
                   <div className="flex min-w-0 flex-1 items-center gap-2">
-                    <span className="truncate text-sm text-fg">{option.displayName}</span>
-                    <Pill
-                      mono
-                      tone={modelAvailabilityTone(option.availabilityState)}
-                      className="ml-auto"
-                      data-testid={`model-command-item-${option.id}-availability`}
-                    >
-                      {modelAvailabilityLabel(option.availabilityState)}
-                    </Pill>
+                    <span className="truncate text-sm text-fg">{option.label}</span>
+                    {option.availability ? (
+                      <Pill
+                        mono
+                        tone={option.availability.tone}
+                        className="ml-auto"
+                        data-testid={`${testIdPrefix}-item-${option.id}-availability`}
+                      >
+                        {option.availability.label}
+                      </Pill>
+                    ) : null}
                   </div>
                 </CommandItem>
               ))}
             </CommandSelectGroup>
           ) : null}
           {showCustomItem ? (
-            <CommandSelectGroup heading="Custom model" data-testid="model-command-custom-group">
+            <CommandSelectGroup heading="Custom model" data-testid={`${testIdPrefix}-custom-group`}>
               <CommandItem
                 value={`custom:${trimmedQuery}`}
                 onSelect={() => handleSelect(trimmedQuery)}
-                data-testid="model-command-item-custom"
+                data-testid={`${testIdPrefix}-item-custom`}
               >
                 <span className="truncate text-sm text-fg">Use "{trimmedQuery}"</span>
               </CommandItem>

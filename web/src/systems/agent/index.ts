@@ -28,7 +28,6 @@ export {
   type AgentCreateDialogDraft,
   type AgentCreatePermission,
   type AgentCreatePermissionChoice,
-  type AgentCreateProviderOption,
   type AgentCreateScope,
   type AgentCreateStep,
   type AgentCreateValidation,

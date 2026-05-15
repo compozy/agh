@@ -10,7 +10,7 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
-import { useId, useState, type KeyboardEvent } from "react";
+import { useId, useMemo, useState, type KeyboardEvent } from "react";
 
 import {
   Button,
@@ -37,18 +37,22 @@ import {
 } from "@agh/ui";
 
 import {
+  ModelCommandSelect,
+  ProviderCommandSelect,
+  type ModelSelectOption,
+  type ProviderSelectOption,
+} from "@/systems/runtime";
+
+import {
   AGENT_CREATE_PERMISSION_OPTIONS,
   appendAgentCreateTokens,
   removeAgentCreateToken,
   updateAgentCreateScope,
   type AgentCreateDialogDraft,
   type AgentCreatePermissionChoice,
-  type AgentCreateProviderOption,
   type AgentCreateScope,
   type AgentCreateStep,
 } from "../lib/agent-create-draft";
-import { AgentModelCommandSelect } from "./agent-model-command-select";
-import { AgentProviderCommandSelect } from "./agent-provider-command-select";
 import { useAgentCreateDialogViewState } from "../hooks/use-agent-create-dialog-view-state";
 
 const PERMISSION_DESCRIPTIONS: Record<AgentCreatePermissionChoice, string> = {
@@ -64,7 +68,7 @@ interface AgentCreateDialogProps {
   draft: AgentCreateDialogDraft;
   onDraftChange: (draft: AgentCreateDialogDraft) => void;
   onSubmit: () => void;
-  providerOptions: AgentCreateProviderOption[];
+  providerOptions: ProviderSelectOption[];
   providersLoading: boolean;
   providersError: string | null;
   modelOptions: string[];
@@ -408,10 +412,14 @@ function RuntimeStep({
   modelCatalogLoading: boolean;
   modelOptions: string[];
   onDraftChange: (draft: AgentCreateDialogDraft) => void;
-  providerOptions: AgentCreateProviderOption[];
+  providerOptions: ProviderSelectOption[];
   providersLoading: boolean;
 }) {
   const providerSelected = draft.provider.trim().length > 0;
+  const modelSelectOptions = useMemo<ModelSelectOption[]>(
+    () => modelOptions.map(id => ({ id, label: id })),
+    [modelOptions]
+  );
   return (
     <FormSection
       data-testid="agent-create-runtime"
@@ -423,14 +431,15 @@ function RuntimeStep({
       <Field data-invalid={Boolean(errors.provider)}>
         <FieldLabel id="agent-create-provider-label">Provider</FieldLabel>
         <FieldDescription>Provider options come from the selected scope.</FieldDescription>
-        <AgentProviderCommandSelect
+        <ProviderCommandSelect
           options={providerOptions}
-          value={draft.provider}
-          onChange={provider => onDraftChange({ ...draft, provider, model: "" })}
+          value={draft.provider || null}
+          onChange={next => onDraftChange({ ...draft, provider: next ?? "", model: "" })}
           disabled={providersLoading || providerOptions.length === 0}
           placeholder={providersLoading ? "Loading providers..." : "Select a provider"}
           triggerId="agent-create-provider"
           triggerTestId="agent-create-provider"
+          testIdPrefix="agent-create-provider"
         />
         <FieldError data-testid="agent-create-provider-error">{errors.provider}</FieldError>
       </Field>
@@ -440,14 +449,15 @@ function RuntimeStep({
         <FieldDescription>
           Pick a catalog model when available, or type a custom model id.
         </FieldDescription>
-        <AgentModelCommandSelect
-          options={modelOptions}
+        <ModelCommandSelect
+          options={modelSelectOptions}
           value={draft.model}
           onChange={model => onDraftChange({ ...draft, model })}
           disabled={!providerSelected}
           loading={modelCatalogLoading}
           triggerId="agent-create-model"
           triggerTestId="agent-create-model"
+          testIdPrefix="agent-create-model"
         />
         {modelCatalogError ? (
           <p className="text-small-body text-warning" data-testid="agent-create-model-error">
@@ -676,7 +686,7 @@ function TokenListField({
   );
 }
 
-function providerDisplayName(provider: AgentCreateProviderOption): string {
+function providerDisplayName(provider: ProviderSelectOption): string {
   return provider.display_name?.trim() || provider.name;
 }
 

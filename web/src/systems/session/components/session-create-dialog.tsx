@@ -1,5 +1,5 @@
 import { RefreshCw } from "lucide-react";
-import type { FormEvent } from "react";
+import { useMemo, type FormEvent } from "react";
 
 import {
   Button,
@@ -16,15 +16,20 @@ import {
 } from "@agh/ui";
 
 import { AgentCommandSelect, AgentIcon, type AgentPayload } from "@/systems/agent";
-import type { ModelOption, ReasoningOption } from "@/systems/model-catalog";
 import {
+  modelAvailabilityLabel,
+  modelAvailabilityTone,
+  type ModelOption,
+  type ReasoningOption,
+} from "@/systems/model-catalog";
+import {
+  ModelCommandSelect,
   ProviderCommandSelect,
-  type SessionProviderOption,
-  type WorkspacePayload,
-} from "@/systems/workspace";
-
-import { ModelCommandSelect } from "./model-command-select";
-import { ReasoningCommandSelect } from "./reasoning-command-select";
+  ReasoningCommandSelect,
+  type ModelSelectOption,
+  type ReasoningSelectOption,
+} from "@/systems/runtime";
+import type { SessionProviderOption, WorkspacePayload } from "@/systems/workspace";
 
 export interface SessionCreateDialogProps {
   open: boolean;
@@ -140,6 +145,29 @@ function SessionCreateDialog({
   const refreshDisabled =
     !hasSelectedProvider || isSubmitting || catalogRefreshing || catalogLoading;
 
+  const modelSelectOptions = useMemo<ModelSelectOption[]>(
+    () =>
+      modelOptions.map(option => ({
+        id: option.id,
+        label: option.displayName,
+        availability: {
+          label: modelAvailabilityLabel(option.availabilityState),
+          tone: modelAvailabilityTone(option.availabilityState),
+          state: option.availabilityState,
+        },
+      })),
+    [modelOptions]
+  );
+  const reasoningSelectOptions = useMemo<ReasoningSelectOption[]>(
+    () =>
+      reasoningOptions.map(option => ({
+        value: option.value,
+        label: option.label,
+        source: option.source,
+      })),
+    [reasoningOptions]
+  );
+
   return (
     <Dialog onOpenChange={handleOpenChange} open={open}>
       <DialogContent
@@ -238,7 +266,7 @@ function SessionCreateDialog({
                   Override the model for this session, or inherit the provider default.
                 </FieldDescription>
                 <ModelCommandSelect
-                  options={modelOptions}
+                  options={modelSelectOptions}
                   defaultModel={null}
                   value={selectedModel}
                   onChange={onModelChange}
@@ -280,7 +308,7 @@ function SessionCreateDialog({
                   Hint reasoning depth when the selected provider supports it.
                 </FieldDescription>
                 <ReasoningCommandSelect
-                  options={reasoningOptions}
+                  options={reasoningSelectOptions}
                   value={selectedReasoning}
                   onChange={onReasoningChange}
                   disabled={

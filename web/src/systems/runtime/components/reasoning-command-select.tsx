@@ -12,7 +12,7 @@ import {
   Eyebrow,
 } from "@agh/ui";
 
-import type { ReasoningOption } from "@/systems/model-catalog";
+import type { ReasoningSelectOption } from "../types";
 
 export const REASONING_EFFORTS = ["minimal", "low", "medium", "high", "xhigh"] as const;
 export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
@@ -26,7 +26,7 @@ const REASONING_LABELS: Record<ReasoningEffort, string> = {
 };
 
 export interface ReasoningCommandSelectProps {
-  options: ReasoningOption[];
+  options: ReasoningSelectOption[];
   value: string;
   onChange: (next: string) => void;
   placeholder?: string;
@@ -35,6 +35,7 @@ export interface ReasoningCommandSelectProps {
   triggerId?: string;
   triggerTestId?: string;
   className?: string;
+  testIdPrefix?: string;
 }
 
 export function ReasoningCommandSelect({
@@ -47,12 +48,13 @@ export function ReasoningCommandSelect({
   triggerId,
   triggerTestId,
   className,
+  testIdPrefix = "reasoning-command",
 }: ReasoningCommandSelectProps) {
   const [open, setOpen] = useState(false);
   const trimmedValue = value.trim();
   const knownOptions = useMemo(() => {
     const seen = new Set<string>();
-    const result: ReasoningOption[] = [];
+    const result: ReasoningSelectOption[] = [];
     for (const option of options) {
       const candidate = option.value.trim();
       if (!candidate || seen.has(candidate)) continue;
@@ -90,11 +92,11 @@ export function ReasoningCommandSelect({
       <CommandSelectShell
         inputProps={{
           placeholder: "Filter effort levels...",
-          "data-testid": "reasoning-command-input",
+          "data-testid": `${testIdPrefix}-input`,
         }}
       >
         <CommandList>
-          <CommandEmpty data-testid="reasoning-command-empty">
+          <CommandEmpty data-testid={`${testIdPrefix}-empty`}>
             No matching effort levels.
           </CommandEmpty>
           <CommandSelectGroup heading="Reasoning effort">
@@ -102,7 +104,7 @@ export function ReasoningCommandSelect({
               value="provider-default"
               onSelect={() => handleSelect("")}
               data-checked={trimmedValue === "" ? "true" : "false"}
-              data-testid="reasoning-command-item-default"
+              data-testid={`${testIdPrefix}-item-default`}
             >
               <span className="truncate text-sm text-fg">Use provider default</span>
             </CommandItem>
@@ -112,14 +114,14 @@ export function ReasoningCommandSelect({
                 value={option.value}
                 onSelect={() => handleSelect(option.value)}
                 data-checked={trimmedValue === option.value ? "true" : "false"}
-                data-testid={`reasoning-command-item-${option.value}`}
+                data-testid={`${testIdPrefix}-item-${option.value}`}
                 data-source={option.source}
               >
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                   <span className="truncate text-sm text-fg">
                     {option.label || labelFor(option.value)}
                   </span>
-                  <Eyebrow className="text-muted ml-auto">{option.value}</Eyebrow>
+                  <Eyebrow className="ml-auto text-muted">{option.value}</Eyebrow>
                 </div>
               </CommandItem>
             ))}

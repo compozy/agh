@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 
+import type { ProviderSelectOption } from "@/systems/runtime";
+
 import {
   validateAgentCreateDraft,
   type AgentCreateDialogDraft,
-  type AgentCreateProviderOption,
   type AgentCreateStep,
 } from "../lib/agent-create-draft";
 
@@ -20,7 +21,7 @@ interface AgentCreateDialogViewStateArgs {
   initialStep: AgentCreateStep;
   onOpenChange: (open: boolean) => void;
   open: boolean;
-  providerOptions: AgentCreateProviderOption[];
+  providerOptions: ProviderSelectOption[];
   providersError: string | null;
   providersLoading: boolean;
 }
@@ -94,7 +95,7 @@ function visibleAgentCreateErrors(
   draft: AgentCreateDialogDraft,
   errors: Record<string, string | undefined>,
   context: {
-    providerOptions: readonly AgentCreateProviderOption[];
+    providerOptions: readonly ProviderSelectOption[];
     providersError: string | null;
     providersLoading: boolean;
   }

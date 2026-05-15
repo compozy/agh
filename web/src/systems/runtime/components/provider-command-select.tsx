@@ -12,7 +12,7 @@ import {
   KindIcon,
 } from "@agh/ui";
 
-import type { AgentCreateProviderOption } from "../lib/agent-create-draft";
+import type { ProviderSelectOption } from "../types";
 
 const FALLBACK_GROUP_KEY = "general";
 const FALLBACK_GROUP_LABEL = "Providers";
@@ -20,7 +20,7 @@ const FALLBACK_GROUP_LABEL = "Providers";
 interface ProviderGroupBucket {
   key: string;
   heading: string;
-  options: AgentCreateProviderOption[];
+  options: ProviderSelectOption[];
 }
 
 function harnessGroupKey(harness: string | undefined | null): string {
@@ -33,7 +33,7 @@ function harnessGroupHeading(key: string): string {
   return key.toUpperCase();
 }
 
-function bucketByHarness(options: AgentCreateProviderOption[]): ProviderGroupBucket[] {
+function bucketByHarness(options: ProviderSelectOption[]): ProviderGroupBucket[] {
   const buckets = new Map<string, ProviderGroupBucket>();
   for (const option of options) {
     const key = harnessGroupKey(option.harness);
@@ -53,7 +53,7 @@ function bucketByHarness(options: AgentCreateProviderOption[]): ProviderGroupBuc
   return order;
 }
 
-function providerSearchKey(option: AgentCreateProviderOption): string {
+function providerSearchKey(option: ProviderSelectOption): string {
   const segments = [option.name];
   if (option.display_name) segments.push(option.display_name);
   if (option.harness) segments.push(option.harness);
@@ -61,22 +61,23 @@ function providerSearchKey(option: AgentCreateProviderOption): string {
   return segments.join(" ");
 }
 
-function providerDisplayName(option: AgentCreateProviderOption): string {
+function providerDisplayName(option: ProviderSelectOption): string {
   return option.display_name?.trim() || option.name;
 }
 
-export interface AgentProviderCommandSelectProps {
-  options: AgentCreateProviderOption[];
-  value: string;
-  onChange: (next: string) => void;
+export interface ProviderCommandSelectProps {
+  options: ProviderSelectOption[];
+  value: string | null;
+  onChange: (next: string | null) => void;
   placeholder?: string;
   disabled?: boolean;
   triggerId?: string;
   triggerTestId?: string;
   className?: string;
+  testIdPrefix?: string;
 }
 
-export function AgentProviderCommandSelect({
+export function ProviderCommandSelect({
   options,
   value,
   onChange,
@@ -85,16 +86,17 @@ export function AgentProviderCommandSelect({
   triggerId,
   triggerTestId,
   className,
-}: AgentProviderCommandSelectProps) {
+  testIdPrefix = "provider-command",
+}: ProviderCommandSelectProps) {
   const [open, setOpen] = useState(false);
-  const trimmedValue = value.trim();
+  const trimmedValue = value?.trim() ?? "";
   const selected = useMemo(
     () => options.find(option => option.name === trimmedValue) ?? null,
     [options, trimmedValue]
   );
   const groups = useMemo(() => bucketByHarness(options), [options]);
 
-  const handleSelect = (option: AgentCreateProviderOption) => {
+  const handleSelect = (option: ProviderSelectOption) => {
     onChange(option.name);
     setOpen(false);
   };
@@ -130,17 +132,17 @@ export function AgentProviderCommandSelect({
       <CommandSelectShell
         className="min-w-72"
         inputPlaceholder="Search providers..."
-        inputProps={{ "data-testid": "agent-create-provider-input" }}
+        inputProps={{ "data-testid": `${testIdPrefix}-input` }}
       >
         <CommandList>
-          <CommandEmpty data-testid="agent-create-provider-empty">
+          <CommandEmpty data-testid={`${testIdPrefix}-empty`}>
             No providers match your search.
           </CommandEmpty>
           {groups.map(group => (
             <CommandSelectGroup
               key={group.key}
               heading={group.heading}
-              data-testid={`agent-create-provider-group-${group.key}`}
+              data-testid={`${testIdPrefix}-group-${group.key}`}
             >
               {group.options.map(option => {
                 const isActive = option.name === trimmedValue;
@@ -150,7 +152,7 @@ export function AgentProviderCommandSelect({
                     value={providerSearchKey(option)}
                     onSelect={() => handleSelect(option)}
                     data-checked={isActive ? "true" : "false"}
-                    data-testid={`agent-create-provider-item-${option.name}`}
+                    data-testid={`${testIdPrefix}-item-${option.name}`}
                   >
                     <div className="flex min-w-0 flex-1 items-center gap-2">
                       <KindIcon

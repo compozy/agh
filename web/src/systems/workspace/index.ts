@@ -28,8 +28,4 @@ export type {
   OptionCardSize,
   OptionCardTone,
 } from "./components/option-card";
-export { ProviderCommandList } from "./components/provider-command-list";
-export type { ProviderCommandListProps } from "./components/provider-command-list";
-export { ProviderCommandSelect } from "./components/provider-command-select";
-export type { ProviderCommandSelectProps } from "./components/provider-command-select";
 export { WorkspaceOnboarding, WorkspaceSetupDialog } from "./components/workspace-setup";

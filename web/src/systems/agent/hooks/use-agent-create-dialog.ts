@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 
 import { useProviderModels } from "@/systems/model-catalog";
+import type { ProviderSelectOption } from "@/systems/runtime";
 import { useSettingsProviders, type SettingsProviderEntry } from "@/systems/settings";
 import type { SessionProviderOption, WorkspacePayload } from "@/systems/workspace";
 
@@ -13,7 +14,6 @@ import {
   updateAgentCreateScope,
   validateAgentCreateDraft,
   type AgentCreateDialogDraft,
-  type AgentCreateProviderOption,
 } from "../lib/agent-create-draft";
 import type { AgentPayload } from "../types";
 
@@ -27,7 +27,7 @@ interface AgentCreateDialogContext {
 export interface AgentCreateDialogState {
   open: boolean;
   draft: AgentCreateDialogDraft;
-  providerOptions: AgentCreateProviderOption[];
+  providerOptions: ProviderSelectOption[];
   providersLoading: boolean;
   providersError: string | null;
   modelOptions: string[];
@@ -53,7 +53,7 @@ function describeError(fallback: string, error: unknown): string {
   return fallback;
 }
 
-function settingsProviderToOption(provider: SettingsProviderEntry): AgentCreateProviderOption {
+function settingsProviderToOption(provider: SettingsProviderEntry): ProviderSelectOption {
   const displayName = provider.settings.display_name?.trim();
   const harness = provider.settings.harness?.trim();
   const runtimeProvider = provider.settings.runtime_provider?.trim();
@@ -85,12 +85,12 @@ export function useAgentCreateDialog({
   );
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const globalProviders = useMemo<AgentCreateProviderOption[]>(
+  const globalProviders = useMemo<ProviderSelectOption[]>(
     () => settingsProviders.data?.providers.map(settingsProviderToOption) ?? [],
     [settingsProviders.data?.providers]
   );
 
-  const providerOptions = useMemo<AgentCreateProviderOption[]>(
+  const providerOptions = useMemo<ProviderSelectOption[]>(
     () => (draft.scope === "workspace" ? workspaceProviders : globalProviders),
     [draft.scope, globalProviders, workspaceProviders]
   );
