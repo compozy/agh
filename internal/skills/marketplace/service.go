@@ -5,17 +5,20 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	registrypkg "github.com/pedronauck/agh/internal/registry"
 	registryclawhub "github.com/pedronauck/agh/internal/registry/clawhub"
 	"github.com/pedronauck/agh/internal/skills"
+	"golang.org/x/text/unicode/norm"
 )
 
 const (
@@ -801,20 +804,33 @@ func ReadInstalledSkill(skillDir string) (InstalledSkill, error) {
 
 // PathInsideRoot resolves a target path and validates it remains under root.
 func PathInsideRoot(root string, target string) (string, error) {
-	absRoot, err := filepath.Abs(strings.TrimSpace(root))
+	sanitizedRoot, err := sanitizePathKey(root)
+	if err != nil {
+		return "", fmt.Errorf("sanitize root %q: %w", root, err)
+	}
+	if sanitizedRoot == "" {
+		return "", registrypkg.ErrPathRootRequired
+	}
+
+	absRoot, err := filepath.Abs(sanitizedRoot)
 	if err != nil {
 		return "", fmt.Errorf("resolve root %q: %w", root, err)
 	}
-	resolvedRoot, err := filepath.EvalSymlinks(absRoot)
+	resolvedRoot, err := realpathDeepestExisting(absRoot)
 	if err != nil {
 		return "", fmt.Errorf("resolve root %q: %w", absRoot, err)
 	}
 
-	absTarget, err := filepath.Abs(strings.TrimSpace(target))
+	sanitizedTarget, err := sanitizePathKey(target)
+	if err != nil {
+		return "", fmt.Errorf("sanitize target %q: %w", target, err)
+	}
+
+	absTarget, err := filepath.Abs(sanitizedTarget)
 	if err != nil {
 		return "", fmt.Errorf("resolve target %q: %w", target, err)
 	}
-	resolvedTarget, err := resolvePathForContainment(absTarget)
+	resolvedTarget, err := realpathDeepestExisting(absTarget)
 	if err != nil {
 		return "", fmt.Errorf("resolve target %q: %w", absTarget, err)
 	}
@@ -824,13 +840,40 @@ func PathInsideRoot(root string, target string) (string, error) {
 		return "", fmt.Errorf("resolve target %q within %q: %w", resolvedTarget, resolvedRoot, err)
 	}
 	if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-		return "", errors.New("path must stay within the root directory")
+		return "", registrypkg.ErrPathOutsideRoot
 	}
 	return absTarget, nil
 }
 
-func resolvePathForContainment(target string) (string, error) {
-	current := target
+func sanitizePathKey(path string) (string, error) {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return "", nil
+	}
+	if strings.ContainsRune(trimmed, '\x00') {
+		return "", errors.New("path contains null byte")
+	}
+
+	decoded := trimmed
+	for {
+		unescaped, err := url.PathUnescape(decoded)
+		if err != nil {
+			return "", fmt.Errorf("decode path escapes: %w", err)
+		}
+		if unescaped == decoded {
+			break
+		}
+		decoded = unescaped
+	}
+	if !utf8.ValidString(decoded) {
+		return "", errors.New("path contains invalid UTF-8")
+	}
+
+	return norm.NFC.String(decoded), nil
+}
+
+func realpathDeepestExisting(target string) (string, error) {
+	current := filepath.Clean(target)
 	suffix := make([]string, 0, 4)
 
 	for {
@@ -839,7 +882,7 @@ func resolvePathForContainment(target string) (string, error) {
 			for index := len(suffix) - 1; index >= 0; index-- {
 				resolved = filepath.Join(resolved, suffix[index])
 			}
-			return resolved, nil
+			return filepath.Clean(resolved), nil
 		}
 		if !errors.Is(err, os.ErrNotExist) {
 			return "", err

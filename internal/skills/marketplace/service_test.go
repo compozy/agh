@@ -1,9 +1,12 @@
 package marketplace
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+
+	registrypkg "github.com/pedronauck/agh/internal/registry"
 )
 
 func TestPathInsideRoot(t *testing.T) {
@@ -24,8 +27,8 @@ func TestPathInsideRoot(t *testing.T) {
 		}
 
 		_, err := PathInsideRoot(root, filepath.Join(linkPath, "SKILL.md"))
-		if err == nil {
-			t.Fatal("PathInsideRoot() error = nil, want path escape error")
+		if !errors.Is(err, registrypkg.ErrPathOutsideRoot) {
+			t.Fatalf("PathInsideRoot() error = %v, want ErrPathOutsideRoot", err)
 		}
 	})
 
@@ -63,6 +66,26 @@ func TestPathInsideRoot(t *testing.T) {
 		}
 		if got := resolved; got != targetPath {
 			t.Fatalf("PathInsideRoot() = %q, want %q", got, targetPath)
+		}
+	})
+
+	t.Run("Should reject blank roots", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := PathInsideRoot("   ", "review/SKILL.md")
+		if !errors.Is(err, registrypkg.ErrPathRootRequired) {
+			t.Fatalf("PathInsideRoot() error = %v, want ErrPathRootRequired", err)
+		}
+	})
+
+	t.Run("Should reject percent-encoded traversal paths", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+
+		_, err := PathInsideRoot(root, filepath.Join(root, "%2e%2e", "escape", "SKILL.md"))
+		if !errors.Is(err, registrypkg.ErrPathOutsideRoot) {
+			t.Fatalf("PathInsideRoot() error = %v, want ErrPathOutsideRoot", err)
 		}
 	})
 }
