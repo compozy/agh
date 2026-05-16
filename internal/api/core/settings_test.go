@@ -21,6 +21,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/testutil"
 	automationmodel "github.com/pedronauck/agh/internal/automation/model"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/resources"
 	settingspkg "github.com/pedronauck/agh/internal/settings"
@@ -892,29 +893,61 @@ func TestUpdateSettingsSectionHandlersRejectMissingConfig(t *testing.T) {
 func TestUpdateSettingsMemoryRejectsUnavailableProvider(t *testing.T) {
 	t.Parallel()
 
-	service := &stubSettingsService{}
-	fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
-	fixture.Handlers.MemoryProviders = unavailableSettingsMemoryProviderService{
-		err: errors.New("provider not registered"),
-	}
+	t.Run("Should reject unknown provider names as validation errors", func(t *testing.T) {
+		t.Parallel()
 
-	memoryPayload := validSettingsMemoryConfigPayload()
-	memoryPayload.Provider.Name = "qa-missing-provider"
-	body := contract.UpdateSettingsMemoryRequest{Config: memoryPayload}
+		service := &stubSettingsService{}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		fixture.Handlers.MemoryProviders = unavailableSettingsMemoryProviderService{
+			err: extensionpkg.ErrMemoryProviderNotFound,
+		}
 
-	resp := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/memory", mustJSON(t, body))
-	if got, want := resp.Code, http.StatusBadRequest; got != want {
-		t.Fatalf("status = %d, want %d; body=%s", got, want, resp.Body.String())
-	}
-	if service.UpdateSectionCalls != 0 {
-		t.Fatalf("UpdateSectionCalls = %d, want 0", service.UpdateSectionCalls)
-	}
+		memoryPayload := validSettingsMemoryConfigPayload()
+		memoryPayload.Provider.Name = "qa-missing-provider"
+		body := contract.UpdateSettingsMemoryRequest{Config: memoryPayload}
 
-	var payload contract.ErrorPayload
-	decodeJSON(t, resp.Body.Bytes(), &payload)
-	if !strings.Contains(payload.Error, "qa-missing-provider") {
-		t.Fatalf("payload.Error = %q, want provider name", payload.Error)
-	}
+		resp := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/memory", mustJSON(t, body))
+		if got, want := resp.Code, http.StatusBadRequest; got != want {
+			t.Fatalf("status = %d, want %d; body=%s", got, want, resp.Body.String())
+		}
+		if service.UpdateSectionCalls != 0 {
+			t.Fatalf("UpdateSectionCalls = %d, want 0", service.UpdateSectionCalls)
+		}
+
+		var payload contract.ErrorPayload
+		decodeJSON(t, resp.Body.Bytes(), &payload)
+		if !strings.Contains(payload.Error, "qa-missing-provider") {
+			t.Fatalf("payload.Error = %q, want provider name", payload.Error)
+		}
+	})
+
+	t.Run("Should preserve provider lookup infrastructure failures as server errors", func(t *testing.T) {
+		t.Parallel()
+
+		service := &stubSettingsService{}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		fixture.Handlers.MemoryProviders = unavailableSettingsMemoryProviderService{
+			err: errors.New("catalog backend offline"),
+		}
+
+		memoryPayload := validSettingsMemoryConfigPayload()
+		memoryPayload.Provider.Name = "qa-provider"
+		body := contract.UpdateSettingsMemoryRequest{Config: memoryPayload}
+
+		resp := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/memory", mustJSON(t, body))
+		if got, want := resp.Code, http.StatusInternalServerError; got != want {
+			t.Fatalf("status = %d, want %d; body=%s", got, want, resp.Body.String())
+		}
+		if service.UpdateSectionCalls != 0 {
+			t.Fatalf("UpdateSectionCalls = %d, want 0", service.UpdateSectionCalls)
+		}
+
+		var payload contract.ErrorPayload
+		decodeJSON(t, resp.Body.Bytes(), &payload)
+		if !strings.Contains(payload.Error, "catalog backend offline") {
+			t.Fatalf("payload.Error = %q, want backend failure", payload.Error)
+		}
+	})
 }
 
 func TestUpdateSettingsSectionHandlersDelegateValidPayloads(t *testing.T) {

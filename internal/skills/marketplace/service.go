@@ -805,20 +805,53 @@ func PathInsideRoot(root string, target string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolve root %q: %w", root, err)
 	}
+	resolvedRoot, err := filepath.EvalSymlinks(absRoot)
+	if err != nil {
+		return "", fmt.Errorf("resolve root %q: %w", absRoot, err)
+	}
 
 	absTarget, err := filepath.Abs(strings.TrimSpace(target))
 	if err != nil {
 		return "", fmt.Errorf("resolve target %q: %w", target, err)
 	}
-
-	relative, err := filepath.Rel(absRoot, absTarget)
+	resolvedTarget, err := resolvePathForContainment(absTarget)
 	if err != nil {
-		return "", fmt.Errorf("resolve target %q within %q: %w", absTarget, absRoot, err)
+		return "", fmt.Errorf("resolve target %q: %w", absTarget, err)
+	}
+
+	relative, err := filepath.Rel(resolvedRoot, resolvedTarget)
+	if err != nil {
+		return "", fmt.Errorf("resolve target %q within %q: %w", resolvedTarget, resolvedRoot, err)
 	}
 	if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
 		return "", errors.New("path must stay within the root directory")
 	}
 	return absTarget, nil
+}
+
+func resolvePathForContainment(target string) (string, error) {
+	current := target
+	suffix := make([]string, 0, 4)
+
+	for {
+		resolved, err := filepath.EvalSymlinks(current)
+		if err == nil {
+			for index := len(suffix) - 1; index >= 0; index-- {
+				resolved = filepath.Join(resolved, suffix[index])
+			}
+			return resolved, nil
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return "", err
+		}
+
+		parent := filepath.Dir(current)
+		if parent == current {
+			return "", err
+		}
+		suffix = append(suffix, filepath.Base(current))
+		current = parent
+	}
 }
 
 // ResolveMarketplaceInstallTarget validates the final install destination.

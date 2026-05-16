@@ -33,6 +33,11 @@ function harnessGroupHeading(key: string): string {
   return key.toUpperCase();
 }
 
+function providerHarnessLabel(harness: string | undefined | null): string {
+  const trimmed = (harness ?? "").trim();
+  return trimmed === "" ? "acp" : trimmed;
+}
+
 function bucketByHarness(options: ProviderSelectOption[]): ProviderGroupBucket[] {
   const buckets = new Map<string, ProviderGroupBucket>();
   for (const option of options) {
@@ -123,7 +128,9 @@ export function ProviderCommandSelect({
             <span className="truncate text-small-body text-fg">
               {providerDisplayName(selected)}
             </span>
-            <Eyebrow className="ml-auto text-muted">{selected.harness ?? "acp"}</Eyebrow>
+            <Eyebrow className="ml-auto text-muted">
+              {providerHarnessLabel(selected.harness)}
+            </Eyebrow>
           </span>
         ) : (
           <span className="truncate text-subtle">{placeholder}</span>
@@ -164,7 +171,9 @@ export function ProviderCommandSelect({
                       <span className="truncate text-sm text-fg">
                         {providerDisplayName(option)}
                       </span>
-                      <Eyebrow className="ml-auto text-muted">{option.harness ?? "acp"}</Eyebrow>
+                      <Eyebrow className="ml-auto text-muted">
+                        {providerHarnessLabel(option.harness)}
+                      </Eyebrow>
                     </div>
                   </CommandItem>
                 );

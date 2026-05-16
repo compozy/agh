@@ -258,10 +258,10 @@ func TestStatusForSkillError(t *testing.T) {
 		err        error
 		wantStatus int
 	}{
-		{"nil returns 200", nil, http.StatusOK},
-		{"not found returns 404", core.ErrSkillNotFound, http.StatusNotFound},
-		{"validation returns 400", core.ErrSkillValidation, http.StatusBadRequest},
-		{"unknown error returns 500", http.ErrServerClosed, http.StatusInternalServerError},
+		{"Should return 200 for nil error", nil, http.StatusOK},
+		{"Should return 404 for skill not found", core.ErrSkillNotFound, http.StatusNotFound},
+		{"Should return 400 for validation error", core.ErrSkillValidation, http.StatusBadRequest},
+		{"Should return 500 for unknown error", http.ErrServerClosed, http.StatusInternalServerError},
 	}
 
 	for _, tt := range tests {
@@ -283,12 +283,20 @@ func TestStatusForSkillMarketplaceError(t *testing.T) {
 		err        error
 		wantStatus int
 	}{
-		{"nil returns 200", nil, http.StatusOK},
-		{"validation returns 400", skillmarketplace.ErrValidation, http.StatusBadRequest},
-		{"not found returns 404", skillmarketplace.ErrNotFound, http.StatusNotFound},
-		{"not marketplace returns 422", skillmarketplace.ErrNotMarketplace, http.StatusUnprocessableEntity},
-		{"not configured returns 503", skillmarketplace.ErrNotConfigured, http.StatusServiceUnavailable},
-		{"unknown error returns 500", http.ErrServerClosed, http.StatusInternalServerError},
+		{"Should return 200 for nil error", nil, http.StatusOK},
+		{"Should return 400 for validation error", skillmarketplace.ErrValidation, http.StatusBadRequest},
+		{"Should return 404 for not found error", skillmarketplace.ErrNotFound, http.StatusNotFound},
+		{
+			"Should return 422 for non-marketplace installed skills",
+			skillmarketplace.ErrNotMarketplace,
+			http.StatusUnprocessableEntity,
+		},
+		{
+			"Should return 503 when marketplace is not configured",
+			skillmarketplace.ErrNotConfigured,
+			http.StatusServiceUnavailable,
+		},
+		{"Should return 500 for unknown error", http.ErrServerClosed, http.StatusInternalServerError},
 	}
 
 	for _, tt := range tests {
@@ -405,6 +413,34 @@ func TestSkillMarketplaceHandlers(t *testing.T) {
 		testutil.DecodeJSONResponse(t, rec, &resp)
 		if resp.Skill.Readme != "Readme" {
 			t.Fatalf("skill.Readme = %q, want Readme", resp.Skill.Readme)
+		}
+	})
+
+	t.Run("Should reject empty marketplace detail slugs", func(t *testing.T) {
+		t.Parallel()
+
+		marketplace := &stubSkillMarketplaceService{
+			InfoFn: func(context.Context, string) (*registrypkg.Detail, error) {
+				t.Fatal("InfoFn should not be called for empty slug")
+				return nil, nil
+			},
+		}
+		engine := newSkillsHandlerFixtureWithMarketplace(
+			t,
+			&stubSkillsRegistry{},
+			testutil.StubWorkspaceService{},
+			marketplace,
+		)
+		rec := testutil.PerformRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/api/skills/marketplace/info?slug=%20%20%20",
+			nil,
+		)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
 		}
 	})
 
@@ -563,6 +599,34 @@ func TestSkillMarketplaceHandlers(t *testing.T) {
 		}
 		if !refreshed {
 			t.Fatal("RefreshGlobal() was not called after remove")
+		}
+	})
+
+	t.Run("Should reject empty marketplace remove names", func(t *testing.T) {
+		t.Parallel()
+
+		marketplace := &stubSkillMarketplaceService{
+			RemoveFn: func(context.Context, string) (skillmarketplace.RemoveResult, error) {
+				t.Fatal("RemoveFn should not be called for empty name")
+				return skillmarketplace.RemoveResult{}, nil
+			},
+		}
+		engine := newSkillsHandlerFixtureWithMarketplace(
+			t,
+			&stubSkillsRegistry{},
+			testutil.StubWorkspaceService{},
+			marketplace,
+		)
+		rec := testutil.PerformRequest(
+			t,
+			engine,
+			http.MethodDelete,
+			"/api/skills/marketplace/%20%20%20",
+			nil,
+		)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusBadRequest, rec.Body.String())
 		}
 	})
 

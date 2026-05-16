@@ -743,7 +743,14 @@ func (m *Manager) TriggerJob(ctx context.Context, id string) (Run, error) {
 		return Run{}, err
 	}
 
-	run, err := m.dispatcher.Dispatch(context.WithoutCancel(ctx), DispatchRequest{
+	dispatchCtx := context.WithoutCancel(ctx)
+	if deadline, ok := ctx.Deadline(); ok {
+		var cancel context.CancelFunc
+		dispatchCtx, cancel = context.WithDeadline(dispatchCtx, deadline)
+		defer cancel()
+	}
+
+	run, err := m.dispatcher.Dispatch(dispatchCtx, DispatchRequest{
 		Kind: DispatchKindManual,
 		Job:  &job,
 	})

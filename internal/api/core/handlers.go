@@ -850,7 +850,7 @@ func (h *BaseHandlers) createAgentDefinitionPath(
 		}
 		rootDir := strings.TrimSpace(resolved.RootDir)
 		if rootDir == "" {
-			return "", fmt.Errorf("%s: resolved workspace root_dir is empty", h.transportName())
+			return "", fmt.Errorf("%s: %w", h.transportName(), workspacepkg.ErrWorkspaceRootMissing)
 		}
 		return filepath.Join(
 			rootDir,
@@ -1344,19 +1344,4 @@ func (h *BaseHandlers) transportName() string {
 		return "apicore"
 	}
 	return h.TransportName
-}
-
-func (h *BaseHandlers) sessionEventInfo(ctx context.Context, id string) (*session.Info, error) {
-	if !h.IncludeSessionWorkspaceInSSE {
-		return nil, nil
-	}
-	return h.Sessions.Status(ctx, id)
-}
-
-func (h *BaseHandlers) streamSessionInfo(ctx context.Context, id string) (*session.Info, error) {
-	if h.IncludeSessionWorkspaceInSSE {
-		return h.Sessions.Status(ctx, id)
-	}
-	_, err := h.Sessions.Status(ctx, id)
-	return nil, err
 }

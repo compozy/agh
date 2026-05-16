@@ -11,6 +11,7 @@ const options: ProviderSelectOption[] = [
   { name: "codex", display_name: "Codex", harness: "openai", runtime_provider: "openai" },
   { name: "claude", display_name: "Claude", harness: "anthropic" },
   { name: "local-acp" },
+  { name: "trimmed-acp", display_name: "Trimmed ACP", harness: "   " },
 ];
 
 function renderSelect(props: Partial<React.ComponentProps<typeof ProviderCommandSelect>> = {}) {
@@ -66,5 +67,10 @@ describe("ProviderCommandSelect", () => {
     await user.click(screen.getByTestId("trigger"));
     expect(screen.getByTestId("agent-create-provider-input")).toBeInTheDocument();
     expect(screen.getByTestId("agent-create-provider-item-codex")).toBeInTheDocument();
+  });
+
+  it("Should render the ACP fallback label for blank harness values", () => {
+    renderSelect({ value: "trimmed-acp" });
+    expect(screen.getByTestId("trigger")).toHaveTextContent("acp");
   });
 });

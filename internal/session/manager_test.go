@@ -2509,55 +2509,59 @@ func TestAgentCrashTransitionsToStoppedAndNotifies(t *testing.T) {
 func TestProcessExitDuringActivePromptPersistsAgentCrashedStopReason(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t)
-	session := createSession(t, h)
-	source := make(chan acp.AgentEvent)
-	promptStarted := make(chan struct{})
-	var closePromptStarted sync.Once
+	t.Run("Should persist StopAgentCrashed when process exits during active prompt", func(t *testing.T) {
+		t.Parallel()
 
-	h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
-		closePromptStarted.Do(func() {
-			close(promptStarted)
+		h := newHarness(t)
+		session := createSession(t, h)
+		source := make(chan acp.AgentEvent)
+		promptStarted := make(chan struct{})
+		var closePromptStarted sync.Once
+
+		h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			closePromptStarted.Do(func() {
+				close(promptStarted)
+			})
+			return source, nil
+		}
+
+		_, err := h.manager.Prompt(testutil.Context(t), session.ID, "run a long command")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+
+		select {
+		case <-promptStarted:
+		case <-time.After(time.Second):
+			t.Fatal("prompt hook did not start")
+		}
+
+		h.driver.lastProcess().exit()
+
+		waitForCondition(t, "session stopped after clean process exit during prompt", func() bool {
+			meta := readMeta(t, session.MetaPath())
+			return meta.State == string(StateStopped) && meta.StopReason != nil
 		})
-		return source, nil
-	}
+		close(source)
 
-	_, err := h.manager.Prompt(testutil.Context(t), session.ID, "run a long command")
-	if err != nil {
-		t.Fatalf("Prompt() error = %v", err)
-	}
-
-	select {
-	case <-promptStarted:
-	case <-time.After(time.Second):
-		t.Fatal("prompt hook did not start")
-	}
-
-	h.driver.lastProcess().exit()
-
-	waitForCondition(t, "session stopped after clean process exit during prompt", func() bool {
 		meta := readMeta(t, session.MetaPath())
-		return meta.State == string(StateStopped) && meta.StopReason != nil
+		if got, want := *meta.StopReason, store.StopAgentCrashed; got != want {
+			t.Fatalf("meta.StopReason = %q, want %q", got, want)
+		}
+		if meta.Failure == nil || meta.Failure.Kind != store.FailureProcess {
+			t.Fatalf("meta.Failure = %#v, want process_exit", meta.Failure)
+		}
+
+		events := readStoredEvents(t, session)
+		if !containsEventType(events, acp.EventTypeError) {
+			t.Fatalf("stored events missing process-exit error: %#v", events)
+		}
+		stopEvent := storedEventByType(t, events, EventTypeSessionStopped)
+		stopPayload := decodeStoredEventPayload(t, stopEvent)
+		if got, want := stopPayload["stop_reason"], string(store.StopAgentCrashed); got != want {
+			t.Fatalf("session_stopped stop_reason = %v, want %q", got, want)
+		}
 	})
-	close(source)
-
-	meta := readMeta(t, session.MetaPath())
-	if got, want := *meta.StopReason, store.StopAgentCrashed; got != want {
-		t.Fatalf("meta.StopReason = %q, want %q", got, want)
-	}
-	if meta.Failure == nil || meta.Failure.Kind != store.FailureProcess {
-		t.Fatalf("meta.Failure = %#v, want process_exit", meta.Failure)
-	}
-
-	events := readStoredEvents(t, session)
-	if !containsEventType(events, acp.EventTypeError) {
-		t.Fatalf("stored events missing process-exit error: %#v", events)
-	}
-	stopEvent := storedEventByType(t, events, EventTypeSessionStopped)
-	stopPayload := decodeStoredEventPayload(t, stopEvent)
-	if got, want := stopPayload["stop_reason"], string(store.StopAgentCrashed); got != want {
-		t.Fatalf("session_stopped stop_reason = %v, want %q", got, want)
-	}
 }
 
 func TestStopAndProcessExitFinalizeOnlyOnce(t *testing.T) {

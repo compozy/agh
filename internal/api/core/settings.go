@@ -15,6 +15,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	automationmodel "github.com/pedronauck/agh/internal/automation/model"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/resources"
 	settingspkg "github.com/pedronauck/agh/internal/settings"
@@ -675,9 +676,12 @@ func (h *BaseHandlers) validateSettingsMemoryProvider(
 		)
 	}
 	if _, err := h.MemoryProviders.Get(ctx, req.WorkspaceID, name); err != nil {
-		return NewSettingsValidationError(
-			fmt.Errorf("memory.config.provider.name %q is not available: %w", name, err),
-		)
+		if errors.Is(err, extensionpkg.ErrMemoryProviderNotFound) {
+			return NewSettingsValidationError(
+				fmt.Errorf("memory.config.provider.name %q is not available: %w", name, err),
+			)
+		}
+		return fmt.Errorf("memory.config.provider.name %q lookup failed: %w", name, err)
 	}
 	return nil
 }

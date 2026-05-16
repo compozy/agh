@@ -244,6 +244,14 @@ func (h *BaseHandlers) SearchSkillMarketplace(c *gin.Context) {
 // GetSkillMarketplaceInfo returns remote marketplace metadata for one skill slug.
 func (h *BaseHandlers) GetSkillMarketplaceInfo(c *gin.Context) {
 	slug := strings.TrimSpace(c.Query("slug"))
+	if slug == "" {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			fmt.Errorf("%w: skill slug is required", skillmarketplace.ErrValidation),
+		)
+		return
+	}
 	detail, err := h.skillMarketplaceService().Info(c.Request.Context(), slug)
 	if err != nil {
 		h.respondError(c, StatusForSkillMarketplaceError(err), err)
@@ -314,6 +322,14 @@ func (h *BaseHandlers) UpdateSkillMarketplace(c *gin.Context) {
 // RemoveSkillMarketplace removes one installed marketplace skill.
 func (h *BaseHandlers) RemoveSkillMarketplace(c *gin.Context) {
 	name := strings.TrimSpace(c.Param("name"))
+	if name == "" {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			fmt.Errorf("%w: skill name is required", skillmarketplace.ErrValidation),
+		)
+		return
+	}
 	result, err := h.skillMarketplaceService().Remove(c.Request.Context(), name)
 	if err != nil {
 		h.respondError(c, StatusForSkillMarketplaceError(err), err)

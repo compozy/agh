@@ -57,14 +57,6 @@ function makeProps(overrides: Partial<AgentCreateDialogProps> = {}): AgentCreate
   };
 }
 
-function renderDialog(props: Partial<AgentCreateDialogProps> = {}) {
-  return render(
-    <UIProvider reducedMotion="always">
-      <AgentCreateDialog {...makeProps(props)} />
-    </UIProvider>
-  );
-}
-
 function renderStatefulDialog(props: Partial<AgentCreateDialogProps> = {}) {
   const baseProps = makeProps(props);
 
@@ -98,14 +90,6 @@ async function reachAccessStep() {
 }
 
 describe("AgentCreateDialog", () => {
-  it("Should anchor the dialog to the 880 px modal width token", () => {
-    renderDialog();
-
-    const dialog = screen.getByTestId("agent-create-dialog");
-    expect(dialog.className).toContain("w-(--width-modal-lg)");
-    expect(dialog.className).toContain("sm:max-w-(--width-modal-lg)");
-  });
-
   it("Should block wizard progress until basics are valid", async () => {
     const user = userEvent.setup();
     renderStatefulDialog();

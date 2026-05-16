@@ -63,9 +63,9 @@ function permissionDecisionOptions(permission: PermissionRequest): PermissionDec
   if (permission.supportedDecisions == null || permission.supportedDecisions.length === 0) {
     return FALLBACK_PERMISSION_DECISIONS;
   }
-  return FALLBACK_PERMISSION_DECISIONS.filter(decision =>
-    permission.supportedDecisions?.includes(decision)
-  );
+  const supported = new Set(permission.supportedDecisions);
+  const filtered = FALLBACK_PERMISSION_DECISIONS.filter(decision => supported.has(decision));
+  return filtered.length > 0 ? filtered : FALLBACK_PERMISSION_DECISIONS;
 }
 
 export function PermissionPrompt({

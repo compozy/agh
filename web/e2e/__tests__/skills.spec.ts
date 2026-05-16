@@ -360,6 +360,11 @@ test("operator manages Skills against a real daemon and proves next-session prom
       return (await skillsUI.marketplaceLoading.isVisible()) ? "loading" : "pending";
     })
     .toMatch(/grid|empty|error/);
+  const marketplaceInstalledRow = skillsUI.marketplaceRow("browser-marketplace-skill");
+  await expect(marketplaceInstalledRow).toBeVisible();
+  await expect(
+    marketplaceInstalledRow.getByTestId("installed-pill-browser-marketplace-skill")
+  ).toBeVisible();
 
   await appPage.goto(runtime.url("/settings/skills"), { waitUntil: "domcontentloaded" });
   await expect(settingsUI.skills.page).toBeVisible();

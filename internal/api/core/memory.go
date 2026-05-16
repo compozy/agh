@@ -208,7 +208,7 @@ func (h *BaseHandlers) SearchMemory(c *gin.Context) {
 			h.respondMemoryError(c, StatusForMemoryError(searchErr), searchErr, nil)
 			return
 		}
-		results = memorySearchResultPayloadsFromSearchResults(searchResults)
+		results = memorySearchResultPayloadsFromSearchResults(searchResults, selector.WorkspaceID)
 	}
 
 	c.JSON(http.StatusOK, contract.MemorySearchResponse{
@@ -260,10 +260,12 @@ func (h *BaseHandlers) memoryExplicitSearchFallback(
 
 func memorySearchResultPayloadsFromSearchResults(
 	results []memcontract.SearchResult,
+	workspaceID string,
 ) []contract.MemorySearchResultPayload {
 	if len(results) == 0 {
 		return nil
 	}
+	normalizedWorkspaceID := strings.TrimSpace(workspaceID)
 	payloads := make([]contract.MemorySearchResultPayload, 0, len(results))
 	for _, result := range results {
 		payloads = append(payloads, contract.MemorySearchResultPayload{
@@ -273,7 +275,7 @@ func memorySearchResultPayloadsFromSearchResults(
 				Description: result.Description,
 				Type:        result.Type,
 				Scope:       result.Scope,
-				WorkspaceID: result.Workspace,
+				WorkspaceID: normalizedWorkspaceID,
 				ModTime:     result.ModTime,
 			},
 			Score:   result.Score,

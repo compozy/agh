@@ -87,13 +87,20 @@ const workspaceProviders = [
   },
 ];
 
-function renderAgentCreateDialog() {
+function renderAgentCreateDialog(
+  overrides: Partial<{
+    activeWorkspace: typeof activeWorkspace | undefined;
+    workspaceProviders: typeof workspaceProviders;
+    workspaceProvidersError: string | null;
+    workspaceProvidersLoading: boolean;
+  }> = {}
+) {
   return renderHook(() =>
     useAgentCreateDialog({
-      activeWorkspace,
-      workspaceProviders,
-      workspaceProvidersError: null,
-      workspaceProvidersLoading: false,
+      activeWorkspace: overrides.activeWorkspace ?? activeWorkspace,
+      workspaceProviders: overrides.workspaceProviders ?? workspaceProviders,
+      workspaceProvidersError: overrides.workspaceProvidersError ?? null,
+      workspaceProvidersLoading: overrides.workspaceProvidersLoading ?? false,
     })
   );
 }
@@ -249,5 +256,30 @@ describe("useAgentCreateDialog", () => {
 
     expect(mockCreateAgent).not.toHaveBeenCalled();
     expect(result.current.submitError).toBe("Unable to load global provider settings.");
+  });
+
+  it("does not submit workspace-scoped agents when no active workspace is available", async () => {
+    const { result } = renderAgentCreateDialog({
+      activeWorkspace: undefined,
+      workspaceProviders: [],
+    });
+
+    act(() => {
+      result.current.openDialog();
+      result.current.onDraftChange({
+        ...result.current.draft,
+        scope: "workspace",
+        name: "release-captain",
+        provider: "claude",
+        prompt: "Own release readiness.",
+      });
+    });
+
+    await act(async () => {
+      await result.current.onSubmit();
+    });
+
+    expect(mockCreateAgent).not.toHaveBeenCalled();
+    expect(result.current.submitError).toBe("No providers are configured for this scope.");
   });
 });

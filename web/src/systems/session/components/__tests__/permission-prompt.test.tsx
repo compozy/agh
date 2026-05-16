@@ -142,6 +142,22 @@ describe("PermissionPrompt — inline sticky anatomy", () => {
     expect(screen.queryByTestId("permission-reject-always")).not.toBeInTheDocument();
   });
 
+  it("Should fall back to the canonical decisions when supported decisions are unknown", () => {
+    render(
+      <PermissionPrompt
+        permission={{ ...mockPermission, supportedDecisions: ["defer", "ignore"] as never[] }}
+        sessionId={SESSION_ID}
+        workspaceId={WORKSPACE_ID}
+        onResolved={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId("permission-allow-once")).toBeInTheDocument();
+    expect(screen.getByTestId("permission-allow-always")).toBeInTheDocument();
+    expect(screen.getByTestId("permission-reject-once")).toBeInTheDocument();
+    expect(screen.getByTestId("permission-reject-always")).toBeInTheDocument();
+  });
+
   it("Should call approveSession with allow-once on Allow Once click and resolve", async () => {
     const onResolved = vi.fn();
     render(

@@ -208,6 +208,10 @@ export function buildCreateAgentParams(
 ): CreateAgentParams | null {
   const validation = validateAgentCreateDraft(draft, context);
   if (!validation.canSubmit) return null;
+  const normalizedWorkspaceId = workspaceId?.trim() ?? "";
+  if (draft.scope === "workspace" && normalizedWorkspaceId.length === 0) {
+    return null;
+  }
 
   const name = draft.name.trim();
   const provider = draft.provider.trim();
@@ -222,7 +226,7 @@ export function buildCreateAgentParams(
 
   return {
     scope: draft.scope,
-    ...(draft.scope === "workspace" && workspaceId ? { workspace: workspaceId } : {}),
+    ...(draft.scope === "workspace" ? { workspace: normalizedWorkspaceId } : {}),
     agent: {
       name,
       provider,
