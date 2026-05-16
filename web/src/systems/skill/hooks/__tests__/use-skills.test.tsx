@@ -221,8 +221,39 @@ describe("useSkillMarketplaceInfo", () => {
     expect(getSkillMarketplaceInfo).toHaveBeenCalledWith("@compozy/alpha", expect.any(AbortSignal));
   });
 
+  it("trims padded marketplace slugs before fetching", async () => {
+    vi.mocked(getSkillMarketplaceInfo).mockResolvedValue({
+      name: "alpha",
+      slug: "@compozy/alpha",
+      author: "compozy",
+      description: "demo",
+      downloads: 1,
+      source: "clawhub",
+      version: "0.1.0",
+    });
+
+    renderHook(() => useSkillMarketplaceInfo("  @compozy/alpha  "), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(getSkillMarketplaceInfo).toHaveBeenCalledWith(
+        "@compozy/alpha",
+        expect.any(AbortSignal)
+      );
+    });
+  });
+
   it("does not fetch when explicitly disabled", () => {
     renderHook(() => useSkillMarketplaceInfo("@compozy/alpha", false), {
+      wrapper: createWrapper(),
+    });
+
+    expect(getSkillMarketplaceInfo).not.toHaveBeenCalled();
+  });
+
+  it("does not fetch when the slug is whitespace only", () => {
+    renderHook(() => useSkillMarketplaceInfo("   "), {
       wrapper: createWrapper(),
     });
 

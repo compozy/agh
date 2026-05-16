@@ -48,10 +48,11 @@ export function skillMarketplaceSearchOptions(query: string, limit?: number) {
 }
 
 export function skillMarketplaceInfoOptions(slug: string, enabled = true) {
+  const normalizedSlug = slug.trim();
   return queryOptions({
-    queryKey: skillKeys.marketplaceInfo(slug),
-    queryFn: ({ signal }) => getSkillMarketplaceInfo(slug, signal),
+    queryKey: skillKeys.marketplaceInfo(normalizedSlug),
+    queryFn: ({ signal }) => getSkillMarketplaceInfo(normalizedSlug, signal),
     staleTime: 30_000,
-    enabled: enabled && !!slug,
+    enabled: enabled && normalizedSlug !== "",
   });
 }

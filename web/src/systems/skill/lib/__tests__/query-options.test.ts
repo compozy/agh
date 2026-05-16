@@ -79,8 +79,17 @@ describe("skillMarketplaceInfoOptions", () => {
     expect(options.queryKey).toEqual(["skills", "marketplace", "info", "@compozy/alpha"]);
   });
 
+  it("trims the slug before building the query key", () => {
+    const options = skillMarketplaceInfoOptions("  @compozy/alpha  ");
+    expect(options.queryKey).toEqual(["skills", "marketplace", "info", "@compozy/alpha"]);
+  });
+
   it("is disabled when the slug is empty", () => {
     expect(skillMarketplaceInfoOptions("").enabled).toBe(false);
+  });
+
+  it("is disabled when the slug is whitespace only", () => {
+    expect(skillMarketplaceInfoOptions("   ").enabled).toBe(false);
   });
 
   it("respects the explicit enabled flag", () => {
