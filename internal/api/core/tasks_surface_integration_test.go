@@ -166,7 +166,11 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 				Queue:      observe.TaskDashboardQueue{Total: 1, OldestQueuedAt: now, BacklogStatus: "ok"},
 				Health:     observe.TaskDashboardHealth{Status: "ok"},
 				ActiveRuns: observe.TaskDashboardActiveRuns{Total: 1, Running: 1},
-				Freshness:  observe.TaskDashboardFreshness{ObservedAt: now, LatestActivityAt: lastActivity, Status: "live"},
+				Freshness: observe.TaskDashboardFreshness{
+					ObservedAt:       now,
+					LatestActivityAt: lastActivity,
+					Status:           "live",
+				},
 			}, nil
 		},
 		QueryTaskInboxFn: func(_ context.Context, query observe.TaskInboxQuery, actor taskpkg.ActorIdentity) (observe.TaskInboxView, error) {
@@ -197,7 +201,13 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 		return taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindHTTP, "tasks."+action)
 	}
 
-	listResp := performRequest(t, fixture.Engine, http.MethodGet, "/tasks?scope=workspace&workspace=alpha&priority=high&approval_state=pending&query=review&include_drafts=false&limit=2", nil)
+	listResp := performRequest(
+		t,
+		fixture.Engine,
+		http.MethodGet,
+		"/tasks?scope=workspace&workspace=alpha&priority=high&approval_state=pending&query=review&include_drafts=false&limit=2",
+		nil,
+	)
 	if listResp.Code != http.StatusOK {
 		t.Fatalf("list status = %d, want %d; body=%s", listResp.Code, http.StatusOK, listResp.Body.String())
 	}
@@ -206,7 +216,9 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 	if len(listPayload.Tasks) != 1 || listPayload.Tasks[0].ID != "task-1" {
 		t.Fatalf("list payload = %#v", listPayload)
 	}
-	if listQuery.WorkspaceID != "ws-alpha" || listQuery.Priority != taskpkg.PriorityHigh || listQuery.ApprovalState != taskpkg.ApprovalStatePending || listQuery.Search != "review" {
+	if listQuery.WorkspaceID != "ws-alpha" || listQuery.Priority != taskpkg.PriorityHigh ||
+		listQuery.ApprovalState != taskpkg.ApprovalStatePending ||
+		listQuery.Search != "review" {
 		t.Fatalf("list query = %#v", listQuery)
 	}
 	if listActor.Origin.Ref != "tasks.list" {
@@ -229,7 +241,13 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 		t.Fatalf("run detail actor = %#v", runDetailActor)
 	}
 
-	timelineResp := performRequest(t, fixture.Engine, http.MethodGet, "/tasks/task-1/timeline?after_sequence=5&limit=2", nil)
+	timelineResp := performRequest(
+		t,
+		fixture.Engine,
+		http.MethodGet,
+		"/tasks/task-1/timeline?after_sequence=5&limit=2",
+		nil,
+	)
 	if timelineResp.Code != http.StatusOK {
 		t.Fatalf("timeline status = %d, want %d; body=%s", timelineResp.Code, http.StatusOK, timelineResp.Body.String())
 	}
@@ -245,19 +263,40 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 		t.Fatalf("tree actor = %#v", treeActor)
 	}
 
-	dashboardResp := performRequest(t, fixture.Engine, http.MethodGet, "/observe/tasks/dashboard?scope=workspace&workspace=alpha&owner_kind=human&owner_ref=alice&network_channel=builders&origin_kind=http", nil)
+	dashboardResp := performRequest(
+		t,
+		fixture.Engine,
+		http.MethodGet,
+		"/observe/tasks/dashboard?scope=workspace&workspace=alpha&owner_kind=human&owner_ref=alice&network_channel=builders&origin_kind=http",
+		nil,
+	)
 	if dashboardResp.Code != http.StatusOK {
-		t.Fatalf("dashboard status = %d, want %d; body=%s", dashboardResp.Code, http.StatusOK, dashboardResp.Body.String())
+		t.Fatalf(
+			"dashboard status = %d, want %d; body=%s",
+			dashboardResp.Code,
+			http.StatusOK,
+			dashboardResp.Body.String(),
+		)
 	}
-	if dashboardQuery.WorkspaceID != "ws-alpha" || dashboardQuery.NetworkChannel != "builders" || dashboardQuery.OriginKind != taskpkg.OriginKindHTTP {
+	if dashboardQuery.WorkspaceID != "ws-alpha" || dashboardQuery.NetworkChannel != "builders" ||
+		dashboardQuery.OriginKind != taskpkg.OriginKindHTTP {
 		t.Fatalf("dashboard query = %#v", dashboardQuery)
 	}
 
-	inboxResp := performRequest(t, fixture.Engine, http.MethodGet, "/observe/tasks/inbox?scope=workspace&workspace=alpha&owner_kind=human&owner_ref=alice&lane=approvals&unread=true&query=review&limit=1", nil)
+	inboxResp := performRequest(
+		t,
+		fixture.Engine,
+		http.MethodGet,
+		"/observe/tasks/inbox?scope=workspace&workspace=alpha&owner_kind=human&owner_ref=alice&lane=approvals&unread=true&query=review&limit=1",
+		nil,
+	)
 	if inboxResp.Code != http.StatusOK {
 		t.Fatalf("inbox status = %d, want %d; body=%s", inboxResp.Code, http.StatusOK, inboxResp.Body.String())
 	}
-	if inboxQuery.WorkspaceID != "ws-alpha" || inboxQuery.Lane != observe.TaskInboxLaneApprovals || !inboxQuery.Unread || inboxQuery.Search != "review" || inboxActor.Ref != "user-1" {
+	if inboxQuery.WorkspaceID != "ws-alpha" || inboxQuery.Lane != observe.TaskInboxLaneApprovals ||
+		!inboxQuery.Unread ||
+		inboxQuery.Search != "review" ||
+		inboxActor.Ref != "user-1" {
 		t.Fatalf("inbox query/actor = %#v / %#v", inboxQuery, inboxActor)
 	}
 }
@@ -284,7 +323,17 @@ func TestExpandedTaskMutationHandlersDelegateIntegration(t *testing.T) {
 		) (*taskpkg.Execution, error) {
 			appendCall("publish", actor)
 			executionRequests["publish"] = req
-			taskRecord := taskpkg.Task{ID: id, Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-alpha", Title: "Publish", Status: taskpkg.TaskStatusReady, CreatedBy: actor.Actor, Origin: actor.Origin, CreatedAt: now, UpdatedAt: now}
+			taskRecord := taskpkg.Task{
+				ID:          id,
+				Scope:       taskpkg.ScopeWorkspace,
+				WorkspaceID: "ws-alpha",
+				Title:       "Publish",
+				Status:      taskpkg.TaskStatusReady,
+				CreatedBy:   actor.Actor,
+				Origin:      actor.Origin,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			}
 			return &taskpkg.Execution{Task: taskRecord, Run: taskpkg.Run{
 				ID:             "run-publish",
 				TaskID:         id,
@@ -305,7 +354,17 @@ func TestExpandedTaskMutationHandlersDelegateIntegration(t *testing.T) {
 		) (*taskpkg.Execution, error) {
 			appendCall("start", actor)
 			executionRequests["start"] = req
-			taskRecord := taskpkg.Task{ID: id, Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-alpha", Title: "Start", Status: taskpkg.TaskStatusReady, CreatedBy: actor.Actor, Origin: actor.Origin, CreatedAt: now, UpdatedAt: now}
+			taskRecord := taskpkg.Task{
+				ID:          id,
+				Scope:       taskpkg.ScopeWorkspace,
+				WorkspaceID: "ws-alpha",
+				Title:       "Start",
+				Status:      taskpkg.TaskStatusReady,
+				CreatedBy:   actor.Actor,
+				Origin:      actor.Origin,
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			}
 			return &taskpkg.Execution{Task: taskRecord, Run: taskpkg.Run{
 				ID:             "run-start",
 				TaskID:         id,
@@ -326,7 +385,19 @@ func TestExpandedTaskMutationHandlersDelegateIntegration(t *testing.T) {
 		) (*taskpkg.Execution, error) {
 			appendCall("approve", actor)
 			executionRequests["approve"] = req
-			taskRecord := taskpkg.Task{ID: id, Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-alpha", Title: "Approve", Status: taskpkg.TaskStatusReady, ApprovalPolicy: taskpkg.ApprovalPolicyManual, ApprovalState: taskpkg.ApprovalStateApproved, CreatedBy: actor.Actor, Origin: actor.Origin, CreatedAt: now, UpdatedAt: now}
+			taskRecord := taskpkg.Task{
+				ID:             id,
+				Scope:          taskpkg.ScopeWorkspace,
+				WorkspaceID:    "ws-alpha",
+				Title:          "Approve",
+				Status:         taskpkg.TaskStatusReady,
+				ApprovalPolicy: taskpkg.ApprovalPolicyManual,
+				ApprovalState:  taskpkg.ApprovalStateApproved,
+				CreatedBy:      actor.Actor,
+				Origin:         actor.Origin,
+				CreatedAt:      now,
+				UpdatedAt:      now,
+			}
 			return &taskpkg.Execution{Task: taskRecord, Run: taskpkg.Run{
 				ID:             "run-approve",
 				TaskID:         id,
@@ -341,7 +412,19 @@ func TestExpandedTaskMutationHandlersDelegateIntegration(t *testing.T) {
 		},
 		RejectTaskFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.Task, error) {
 			appendCall("reject", actor)
-			return &taskpkg.Task{ID: id, Scope: taskpkg.ScopeWorkspace, WorkspaceID: "ws-alpha", Title: "Reject", Status: taskpkg.TaskStatusBlocked, ApprovalPolicy: taskpkg.ApprovalPolicyManual, ApprovalState: taskpkg.ApprovalStateRejected, CreatedBy: actor.Actor, Origin: actor.Origin, CreatedAt: now, UpdatedAt: now}, nil
+			return &taskpkg.Task{
+				ID:             id,
+				Scope:          taskpkg.ScopeWorkspace,
+				WorkspaceID:    "ws-alpha",
+				Title:          "Reject",
+				Status:         taskpkg.TaskStatusBlocked,
+				ApprovalPolicy: taskpkg.ApprovalPolicyManual,
+				ApprovalState:  taskpkg.ApprovalStateRejected,
+				CreatedBy:      actor.Actor,
+				Origin:         actor.Origin,
+				CreatedAt:      now,
+				UpdatedAt:      now,
+			}, nil
 		},
 		MarkTaskReadFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (taskpkg.TriageState, error) {
 			appendCall("read", actor)
@@ -357,7 +440,15 @@ func TestExpandedTaskMutationHandlersDelegateIntegration(t *testing.T) {
 		},
 	}
 
-	fixture := newHandlerFixtureWithTasks(t, testutil.StubSessionManager{}, testutil.StubObserver{}, tasks, testutil.StubWorkspaceService{}, nil, nil)
+	fixture := newHandlerFixtureWithTasks(
+		t,
+		testutil.StubSessionManager{},
+		testutil.StubObserver{},
+		tasks,
+		testutil.StubWorkspaceService{},
+		nil,
+		nil,
+	)
 	fixture.Handlers.TaskActorContextResolver = func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
 		return taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindHTTP, "tasks."+action)
 	}
@@ -468,7 +559,18 @@ func TestExpandedTaskMutationHandlersDelegateIntegration(t *testing.T) {
 		})
 	}
 
-	if want := []string{"publish", "start", "approve", "reject", "read", "archive", "dismiss"}; !reflect.DeepEqual(calls, want) {
+	if want := []string{
+		"publish",
+		"start",
+		"approve",
+		"reject",
+		"read",
+		"archive",
+		"dismiss",
+	}; !reflect.DeepEqual(
+		calls,
+		want,
+	) {
 		t.Fatalf("mutation calls = %#v, want %#v", calls, want)
 	}
 	if want := []string{
@@ -521,7 +623,15 @@ func TestTaskStreamHandlerUsesSharedSSEPathIntegration(t *testing.T) {
 		},
 	}
 
-	fixture := newHandlerFixtureWithTasks(t, testutil.StubSessionManager{}, testutil.StubObserver{}, tasks, testutil.StubWorkspaceService{}, nil, nil)
+	fixture := newHandlerFixtureWithTasks(
+		t,
+		testutil.StubSessionManager{},
+		testutil.StubObserver{},
+		tasks,
+		testutil.StubWorkspaceService{},
+		nil,
+		nil,
+	)
 	fixture.Handlers.TaskActorContextResolver = func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
 		return taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindHTTP, "tasks."+action)
 	}

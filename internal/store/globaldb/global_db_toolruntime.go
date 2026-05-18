@@ -136,7 +136,7 @@ func (g *GlobalDB) UpdateProcessRecordState(ctx context.Context, update toolrunt
 	if strings.TrimSpace(update.ID) == "" {
 		return errors.New("store: tool process id is required")
 	}
-	_, err := g.db.ExecContext(
+	result, err := g.db.ExecContext(
 		ctx,
 		`UPDATE tool_processes
 		SET state = ?, exit_code = ?, error = ?, updated_at = ?, completed_at = ?
@@ -150,6 +150,13 @@ func (g *GlobalDB) UpdateProcessRecordState(ctx context.Context, update toolrunt
 	)
 	if err != nil {
 		return fmt.Errorf("store: update tool process record %q state: %w", update.ID, err)
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("store: inspect tool process record %q state update: %w", update.ID, err)
+	}
+	if rowsAffected == 0 {
+		return fmt.Errorf("%w: tool process record %q", toolruntime.ErrProcessNotFound, update.ID)
 	}
 	return nil
 }

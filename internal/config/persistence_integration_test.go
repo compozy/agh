@@ -200,7 +200,8 @@ func TestPutMCPSidecarServerRejectsDuplicateNamesAcrossTopLevelKeys(t *testing.T
 			Name:    "beta",
 			Command: "beta",
 		})
-		if err == nil || !strings.Contains(err.Error(), `duplicate MCP server name "alpha" across top-level collections`) {
+		if err == nil ||
+			!strings.Contains(err.Error(), `duplicate MCP server name "alpha" across top-level collections`) {
 			t.Fatalf("PutMCPSidecarServer() error = %v, want cross-collection duplicate failure", err)
 		}
 	})

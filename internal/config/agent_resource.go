@@ -51,9 +51,8 @@ func validateAgentResourceSpec(
 		}
 		normalized.Capabilities = capabilities
 	}
-	for idx := range normalized.MCPServers {
-		normalized.MCPServers[idx].Name = strings.TrimSpace(normalized.MCPServers[idx].Name)
-		normalized.MCPServers[idx].Command = strings.TrimSpace(normalized.MCPServers[idx].Command)
+	for idx, server := range normalized.MCPServers {
+		normalized.MCPServers[idx] = normalizeMCPServerResourceSpec(server)
 	}
 
 	if err := normalized.Validate(); err != nil {

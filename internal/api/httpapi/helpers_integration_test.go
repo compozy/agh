@@ -83,7 +83,13 @@ func collectLiveSSE(t *testing.T, body io.ReadCloser, want int, timeout time.Dur
 	return records
 }
 
-func mustHTTPRequest(t *testing.T, client *http.Client, method, url string, body []byte, headers map[string]string) *http.Response {
+func mustHTTPRequest(
+	t *testing.T,
+	client *http.Client,
+	method, url string,
+	body []byte,
+	headers map[string]string,
+) *http.Response {
 	t.Helper()
 
 	var reader io.Reader

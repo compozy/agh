@@ -1077,6 +1077,7 @@ func TestPumpPromptReturnsWhenContextIsCanceledWhileWaitingForSource(t *testing.
 		defer close(done)
 		h.manager.pumpPrompt(
 			ctx,
+			ctx,
 			nil,
 			newPromptTurnDispatchState(nil, "turn-1", TurnSourceUser, ""),
 			source,
@@ -1123,6 +1124,7 @@ func TestPumpPromptDrainsRuntimeEventsAfterTurnDone(t *testing.T) {
 	go func() {
 		defer close(done)
 		h.manager.pumpPrompt(
+			ctx,
 			ctx,
 			session,
 			newPromptTurnDispatchState(session, "turn-runtime-drain", TurnSourceUser, ""),
@@ -2911,8 +2913,9 @@ func TestCreatePassesMergedMCPServers(t *testing.T) {
 	})
 	skillRegistry.setSkills(h.workspaceID, []*skillspkg.Skill{
 		{
-			Source: skillspkg.SourceUser,
-			Meta:   skillspkg.SkillMeta{Name: "skill-mcp"},
+			Enabled: true,
+			Source:  skillspkg.SourceUser,
+			Meta:    skillspkg.SkillMeta{Name: "skill-mcp"},
 			MCPServers: []skillspkg.MCPServerDecl{
 				{Name: "override", Command: "skill-override", Args: []string{"--skill"}},
 				{Name: "skill-extra", Command: "skill-extra-command"},
@@ -3078,8 +3081,9 @@ func TestResumePassesMergedSkillMCPServers(t *testing.T) {
 	skillRegistry := newFakeSkillRegistry()
 	skillRegistry.setSkills(h.workspaceID, []*skillspkg.Skill{
 		{
-			Source: skillspkg.SourceUser,
-			Meta:   skillspkg.SkillMeta{Name: "resume-skill"},
+			Enabled: true,
+			Source:  skillspkg.SourceUser,
+			Meta:    skillspkg.SkillMeta{Name: "resume-skill"},
 			MCPServers: []skillspkg.MCPServerDecl{
 				{Name: "resume-extra", Command: "resume-extra-command"},
 			},
@@ -3124,8 +3128,9 @@ func TestCreateBlocksMarketplaceSkillMCPServersWithoutConsent(t *testing.T) {
 	skillRegistry := newFakeSkillRegistry()
 	skillRegistry.setSkills(h.workspaceID, []*skillspkg.Skill{
 		{
-			Source: skillspkg.SourceMarketplace,
-			Meta:   skillspkg.SkillMeta{Name: "market-skill"},
+			Enabled: true,
+			Source:  skillspkg.SourceMarketplace,
+			Meta:    skillspkg.SkillMeta{Name: "market-skill"},
 			MCPServers: []skillspkg.MCPServerDecl{
 				{Name: "market-extra", Command: "market-extra-command"},
 			},

@@ -219,32 +219,86 @@ func hostedToolCallID(req sdkmcp.CallToolRequest) string {
 }
 
 func hostedToolResult(result tools.ToolResult) (*sdkmcp.CallToolResult, error) {
+	isError, err := hostedToolResultIsError(result)
+	if err != nil {
+		return nil, err
+	}
 	if len(result.Structured) > 0 {
 		var structured any
 		if err := json.Unmarshal(result.Structured, &structured); err == nil {
-			return sdkmcp.NewToolResultStructured(structured, hostedResultFallback(result)), nil
+			converted := sdkmcp.NewToolResultStructured(structured, hostedResultFallback(result))
+			converted.IsError = isError
+			return converted, nil
 		}
 	}
 	if len(result.Content) == 0 {
-		return sdkmcp.NewToolResultText(hostedResultFallback(result)), nil
+		converted := sdkmcp.NewToolResultText(hostedResultFallback(result))
+		converted.IsError = isError
+		return converted, nil
 	}
 	content := make([]sdkmcp.Content, 0, len(result.Content))
 	for _, block := range result.Content {
-		switch strings.TrimSpace(block.Type) {
-		case "text":
-			content = append(content, sdkmcp.NewTextContent(block.Text))
-		default:
-			if len(block.Data) > 0 {
-				content = append(content, sdkmcp.NewTextContent(string(block.Data)))
-			} else if strings.TrimSpace(block.Text) != "" {
-				content = append(content, sdkmcp.NewTextContent(block.Text))
-			}
+		converted, err := hostedToolContent(block)
+		if err != nil {
+			return nil, err
+		}
+		if converted != nil {
+			content = append(content, converted)
 		}
 	}
 	if len(content) == 0 {
-		return sdkmcp.NewToolResultText(hostedResultFallback(result)), nil
+		converted := sdkmcp.NewToolResultText(hostedResultFallback(result))
+		converted.IsError = isError
+		return converted, nil
 	}
-	return &sdkmcp.CallToolResult{Content: content}, nil
+	return &sdkmcp.CallToolResult{Content: content, IsError: isError}, nil
+}
+
+func hostedToolResultIsError(result tools.ToolResult) (bool, error) {
+	raw, ok := result.Metadata[toolResultIsErrorKey]
+	if !ok || len(raw) == 0 {
+		return false, nil
+	}
+	var isError bool
+	if err := json.Unmarshal(raw, &isError); err != nil {
+		return false, fmt.Errorf("mcp: decode hosted MCP error flag: %w", err)
+	}
+	return isError, nil
+}
+
+func hostedToolContent(block tools.ToolContent) (sdkmcp.Content, error) {
+	switch strings.TrimSpace(block.Type) {
+	case "text":
+		return sdkmcp.NewTextContent(block.Text), nil
+	case "image":
+		data, err := hostedToolContentData(block, "image")
+		if err != nil {
+			return nil, err
+		}
+		return sdkmcp.NewImageContent(data, block.MIMEType), nil
+	case "audio":
+		data, err := hostedToolContentData(block, "audio")
+		if err != nil {
+			return nil, err
+		}
+		return sdkmcp.NewAudioContent(data, block.MIMEType), nil
+	default:
+		if len(block.Data) > 0 {
+			return sdkmcp.NewTextContent(string(block.Data)), nil
+		}
+		if strings.TrimSpace(block.Text) != "" {
+			return sdkmcp.NewTextContent(block.Text), nil
+		}
+	}
+	return nil, nil
+}
+
+func hostedToolContentData(block tools.ToolContent, contentType string) (string, error) {
+	var data string
+	if err := json.Unmarshal(block.Data, &data); err != nil {
+		return "", fmt.Errorf("mcp: decode hosted MCP %s content: %w", contentType, err)
+	}
+	return data, nil
 }
 
 func hostedResultFallback(result tools.ToolResult) string {

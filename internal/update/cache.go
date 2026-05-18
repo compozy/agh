@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/pedronauck/agh/internal/fileutil"
 )
@@ -32,6 +33,9 @@ func readCache(path string) (*cacheEntry, error) {
 	if strings.TrimSpace(entry.LatestVersion) == "" || entry.CheckedAt.IsZero() {
 		return nil, ErrNoCachedRelease
 	}
+	if len(entry.Assets) == 0 {
+		return nil, ErrNoCachedRelease
+	}
 	return &entry, nil
 }
 
@@ -45,6 +49,9 @@ func writeCache(path string, entry cacheEntry) error {
 	}
 	if entry.CheckedAt.IsZero() {
 		return errors.New("update: cached checked_at is required")
+	}
+	if len(entry.Assets) == 0 {
+		return errors.New("update: cached release assets are required")
 	}
 
 	if err := os.MkdirAll(filepath.Dir(trimmed), 0o755); err != nil {
@@ -60,4 +67,50 @@ func writeCache(path string, entry cacheEntry) error {
 		return fmt.Errorf("update: write cache %q: %w", trimmed, err)
 	}
 	return nil
+}
+
+func cacheEntryFromRelease(release *Release, checkedAt time.Time) (cacheEntry, error) {
+	if release == nil {
+		return cacheEntry{}, errors.New("update: release metadata is required")
+	}
+	entry := cacheEntry{
+		LatestVersion: strings.TrimSpace(release.Version),
+		ReleaseURL:    strings.TrimSpace(release.ReleaseURL),
+		PublishedAt:   release.PublishedAt.UTC(),
+		Assets:        cloneReleaseAssets(release.Assets),
+		CheckedAt:     checkedAt.UTC(),
+	}
+	if strings.TrimSpace(entry.LatestVersion) == "" {
+		return cacheEntry{}, errors.New("update: cached latest version is required")
+	}
+	if entry.CheckedAt.IsZero() {
+		return cacheEntry{}, errors.New("update: cached checked_at is required")
+	}
+	if len(entry.Assets) == 0 {
+		return cacheEntry{}, errors.New("update: cached release assets are required")
+	}
+	return entry, nil
+}
+
+func (entry cacheEntry) release() *Release {
+	return &Release{
+		Version:     strings.TrimSpace(entry.LatestVersion),
+		ReleaseURL:  strings.TrimSpace(entry.ReleaseURL),
+		PublishedAt: entry.PublishedAt.UTC(),
+		Assets:      cloneReleaseAssets(entry.Assets),
+	}
+}
+
+func cloneReleaseAssets(assets []ReleaseAsset) []ReleaseAsset {
+	if len(assets) == 0 {
+		return nil
+	}
+	cloned := make([]ReleaseAsset, 0, len(assets))
+	for _, asset := range assets {
+		cloned = append(cloned, ReleaseAsset{
+			Name:        strings.TrimSpace(asset.Name),
+			DownloadURL: strings.TrimSpace(asset.DownloadURL),
+		})
+	}
+	return cloned
 }

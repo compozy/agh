@@ -93,3 +93,107 @@ func TestSessionMetaValidateStopReason(t *testing.T) {
 		})
 	}
 }
+
+func TestSessionStopReasonValidationClawpatch(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 5, 17, 23, 0, 0, 0, time.UTC)
+
+	t.Run("Should reject invalid stop reason on session info", func(t *testing.T) {
+		t.Parallel()
+
+		info := SessionInfo{
+			ID:          "sess-info",
+			AgentName:   "coder",
+			WorkspaceID: "ws-info",
+			State:       "stopped",
+			StopReason:  StopReason("invalid"),
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}
+
+		err := info.Validate()
+		if err == nil || !strings.Contains(err.Error(), "invalid session stop reason") {
+			t.Fatalf("Validate() error = %v, want invalid session stop reason", err)
+		}
+	})
+
+	t.Run("Should accept omitted and supported stop reasons on session info", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name   string
+			reason StopReason
+		}{
+			{name: "omitted"},
+			{name: "supported", reason: StopCompleted},
+		} {
+			t.Run("Should accept "+tc.name+" reason", func(t *testing.T) {
+				t.Parallel()
+
+				info := SessionInfo{
+					ID:          "sess-info-" + tc.name,
+					AgentName:   "coder",
+					WorkspaceID: "ws-info",
+					State:       "stopped",
+					StopReason:  tc.reason,
+					CreatedAt:   now,
+					UpdatedAt:   now,
+				}
+				if err := info.Validate(); err != nil {
+					t.Fatalf("Validate() error = %v", err)
+				}
+			})
+		}
+	})
+
+	t.Run("Should reject invalid stop reason on session state update", func(t *testing.T) {
+		t.Parallel()
+
+		invalidReason := "invalid"
+		update := SessionStateUpdate{
+			ID:            "sess-update",
+			State:         "stopped",
+			StopReasonSet: true,
+			StopReason:    &invalidReason,
+			UpdatedAt:     now,
+		}
+
+		err := update.Validate()
+		if err == nil || !strings.Contains(err.Error(), "invalid session stop reason") {
+			t.Fatalf("Validate() error = %v, want invalid session stop reason", err)
+		}
+	})
+
+	t.Run("Should accept clear and supported stop reasons on session state update", func(t *testing.T) {
+		t.Parallel()
+
+		blankReason := "   "
+		validReason := string(StopUserCanceled)
+		for _, tc := range []struct {
+			name      string
+			setReason bool
+			reason    *string
+		}{
+			{name: "unset"},
+			{name: "nil clear", setReason: true},
+			{name: "blank clear", setReason: true, reason: &blankReason},
+			{name: "supported", setReason: true, reason: &validReason},
+		} {
+			t.Run("Should accept "+tc.name+" reason", func(t *testing.T) {
+				t.Parallel()
+
+				update := SessionStateUpdate{
+					ID:            "sess-update-" + strings.ReplaceAll(tc.name, " ", "-"),
+					State:         "stopped",
+					StopReasonSet: tc.setReason,
+					StopReason:    tc.reason,
+					UpdatedAt:     now,
+				}
+				if err := update.Validate(); err != nil {
+					t.Fatalf("Validate() error = %v", err)
+				}
+			})
+		}
+	})
+}

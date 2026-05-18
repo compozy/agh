@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"strings"
 	"time"
 
 	automationmodel "github.com/pedronauck/agh/internal/automation/model"
@@ -106,6 +107,26 @@ const (
 	// TargetSidecar edits the sidecar-backed source in the selected scope.
 	TargetSidecar TargetSelector = "sidecar"
 )
+
+// Normalize returns the canonical selector, defaulting an omitted selector to auto.
+func (s TargetSelector) Normalize() TargetSelector {
+	trimmed := TargetSelector(strings.TrimSpace(string(s)))
+	if trimmed == "" {
+		return TargetAuto
+	}
+	return trimmed
+}
+
+// Validate reports malformed MCP target selectors instead of silently selecting auto.
+func (s TargetSelector) Validate() error {
+	normalized := s.Normalize()
+	switch normalized {
+	case TargetAuto, TargetConfig, TargetSidecar:
+		return nil
+	default:
+		return validationError(fmt.Errorf("settings: unsupported MCP target selector %q", normalized))
+	}
+}
 
 // MutationBehavior classifies how a mutation takes effect at runtime.
 type MutationBehavior string

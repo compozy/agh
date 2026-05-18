@@ -143,7 +143,22 @@ func validateTemplateInvocationNode(node *parse.TemplateNode, state templateVali
 	if node == nil {
 		return nil
 	}
-	return validatePipeNodeWithState(node.Pipe, state)
+	if err := validatePipeNodeWithState(node.Pipe, state); err != nil {
+		return err
+	}
+	path, ok := scopedTemplateFieldPath(node.Pipe, state)
+	if !ok || len(path) != 0 {
+		scope := "<none>"
+		if node.Pipe != nil {
+			scope = node.Pipe.String()
+		}
+		return fmt.Errorf(
+			"unsupported template invocation %q scope %q; only root dot is supported",
+			node.Name,
+			scope,
+		)
+	}
+	return nil
 }
 
 func validatePipeNodeWithState(pipe *parse.PipeNode, state templateValidationState) error {

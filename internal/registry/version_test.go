@@ -21,6 +21,15 @@ func TestVersionIsNewer(t *testing.T) {
 		{name: "empty current with valid latest", current: "", latest: "1.0.0", want: true},
 		{name: "invalid latest", current: "1.0.0", latest: "banana", want: false},
 		{name: "invalid current", current: "banana", latest: "1.0.1", want: false},
+		{name: "malformed latest with extra core segment", current: "1.2.3", latest: "1.2.3.1", want: false},
+		{name: "malformed latest with leading zero core segment", current: "1.2.3", latest: "1.02.3", want: false},
+		{name: "malformed latest with negative core segment", current: "1.2.3", latest: "1.2.-1", want: false},
+		{
+			name:    "malformed latest with leading zero prerelease segment",
+			current: "1.2.3",
+			latest:  "1.2.4-alpha.01",
+			want:    false,
+		},
 	}
 
 	for _, tt := range tests {

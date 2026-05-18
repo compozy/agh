@@ -58,6 +58,11 @@ func TestScopeValidate(t *testing.T) {
 		},
 		{name: "Should reject empty scope", scope: Scope(" "), wantErr: "scope is required"},
 		{name: "Should reject unsupported scope", scope: Scope("tenant"), wantErr: `unsupported scope "tenant"`},
+		{
+			name:    "Should reject unsupported normalized scope",
+			scope:   Scope(" Tenant "),
+			wantErr: `unsupported scope "tenant"`,
+		},
 	}
 
 	for _, tt := range tests {

@@ -57,7 +57,20 @@ func TestCLIRoundTripIntegration(t *testing.T) {
 		t.Fatalf("start status = %q, want %q", started.Status, "running")
 	}
 
-	newOut, _, err := executeRootCommand(t, h.deps, "session", "new", "--agent", "coder", "--name", "demo", "--cwd", h.workspace, "-o", "json")
+	newOut, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"session",
+		"new",
+		"--agent",
+		"coder",
+		"--name",
+		"demo",
+		"--cwd",
+		h.workspace,
+		"-o",
+		"json",
+	)
 	if err != nil {
 		t.Fatalf("session new error = %v", err)
 	}
@@ -132,7 +145,20 @@ func TestSessionListOutputFormatsIntegration(t *testing.T) {
 		_ = h.runner.waitForExit()
 	}()
 
-	sessionOut, _, err := executeRootCommand(t, h.deps, "session", "new", "--agent", "coder", "--name", "demo", "--cwd", h.workspace, "-o", "json")
+	sessionOut, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"session",
+		"new",
+		"--agent",
+		"coder",
+		"--name",
+		"demo",
+		"--cwd",
+		h.workspace,
+		"-o",
+		"json",
+	)
 	if err != nil {
 		t.Fatalf("session new error = %v", err)
 	}
@@ -183,7 +209,22 @@ func TestCLISessionChannelRoundTripIntegration(t *testing.T) {
 		_ = h.runner.waitForExit()
 	}()
 
-	newOut, _, err := executeRootCommand(t, h.deps, "session", "new", "--agent", "coder", "--name", "demo", "--channel", "builders", "--cwd", h.workspace, "-o", "json")
+	newOut, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"session",
+		"new",
+		"--agent",
+		"coder",
+		"--name",
+		"demo",
+		"--channel",
+		"builders",
+		"--cwd",
+		h.workspace,
+		"-o",
+		"json",
+	)
 	if err != nil {
 		t.Fatalf("session new --channel error = %v", err)
 	}
@@ -511,7 +552,22 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 		_ = h.runner.waitForExit()
 	}()
 
-	newOut, _, err := executeRootCommand(t, h.deps, "session", "new", "--agent", "coder", "--name", "net-demo", "--channel", "builders", "--cwd", h.workspace, "-o", "json")
+	newOut, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"session",
+		"new",
+		"--agent",
+		"coder",
+		"--name",
+		"net-demo",
+		"--channel",
+		"builders",
+		"--cwd",
+		h.workspace,
+		"-o",
+		"json",
+	)
 	if err != nil {
 		t.Fatalf("session new --channel error = %v", err)
 	}
@@ -710,7 +766,16 @@ func TestCLINetworkRoundTripIntegration(t *testing.T) {
 	var inbox []NetworkEnvelopeRecord
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		inboxOut, _, inboxErr := executeRootCommand(t, h.deps, "network", "inbox", "--session", created.ID, "-o", "json")
+		inboxOut, _, inboxErr := executeRootCommand(
+			t,
+			h.deps,
+			"network",
+			"inbox",
+			"--session",
+			created.ID,
+			"-o",
+			"json",
+		)
 		if inboxErr != nil {
 			t.Fatalf("network inbox error = %v", inboxErr)
 		}
@@ -745,7 +810,22 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 	newSession := func(name string) SessionRecord {
 		t.Helper()
 
-		out, _, err := executeRootCommand(t, h.deps, "session", "new", "--agent", "coder", "--name", name, "--channel", "builders", "--cwd", h.workspace, "-o", "json")
+		out, _, err := executeRootCommand(
+			t,
+			h.deps,
+			"session",
+			"new",
+			"--agent",
+			"coder",
+			"--name",
+			name,
+			"--channel",
+			"builders",
+			"--cwd",
+			h.workspace,
+			"-o",
+			"json",
+		)
 		if err != nil {
 			t.Fatalf("session new %s error = %v", name, err)
 		}
@@ -955,7 +1035,17 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 		t.Fatalf("network direct messages = %#v, want accepted direct message", directMessages)
 	}
 
-	workOut, _, err := executeRootCommand(t, h.deps, "network", "work", "lookup", "--work", "work_review_1", "-o", "json")
+	workOut, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"network",
+		"work",
+		"lookup",
+		"--work",
+		"work_review_1",
+		"-o",
+		"json",
+	)
 	if err != nil {
 		t.Fatalf("network work lookup error = %v", err)
 	}
@@ -1113,7 +1203,20 @@ func TestSessionEventsFollowIntegration(t *testing.T) {
 		_ = h.runner.waitForExit()
 	}()
 
-	sessionOut, _, err := executeRootCommand(t, h.deps, "session", "new", "--agent", "coder", "--name", "demo", "--cwd", h.workspace, "-o", "json")
+	sessionOut, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"session",
+		"new",
+		"--agent",
+		"coder",
+		"--name",
+		"demo",
+		"--cwd",
+		h.workspace,
+		"-o",
+		"json",
+	)
 	if err != nil {
 		t.Fatalf("session new error = %v", err)
 	}
@@ -1205,7 +1308,20 @@ func TestWorkspaceCommandsIntegration(t *testing.T) {
 		t.Fatalf("workspace info id = %q, want %q", detail.Workspace.ID, registered.ID)
 	}
 
-	sessionOut, _, err := executeRootCommand(t, h.deps, "session", "new", "--agent", "coder", "--name", "demo", "--workspace", "alpha", "-o", "json")
+	sessionOut, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"session",
+		"new",
+		"--agent",
+		"coder",
+		"--name",
+		"demo",
+		"--workspace",
+		"alpha",
+		"-o",
+		"json",
+	)
 	if err != nil {
 		t.Fatalf("session new with workspace error = %v", err)
 	}
@@ -1240,7 +1356,21 @@ func TestMemoryWriteListIntegration(t *testing.T) {
 		_ = h.runner.waitForExit()
 	}()
 
-	if _, _, err := executeRootCommand(t, h.deps, "memory", "write", "prefs.md", "--type", "user", "--description", "cli memory", "--content", "remember this", "-o", "json"); err != nil {
+	if _, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"memory",
+		"write",
+		"prefs.md",
+		"--type",
+		"user",
+		"--description",
+		"cli memory",
+		"--content",
+		"remember this",
+		"-o",
+		"json",
+	); err != nil {
 		t.Fatalf("memory write error = %v", err)
 	}
 
@@ -1348,7 +1478,20 @@ func TestAutomationTriggerHistoryAndRunsIntegration(t *testing.T) {
 		t.Fatalf("created trigger = %#v, want workspace-bound trigger", createdTrigger)
 	}
 
-	sessionOut := mustExecuteRoot(t, h.deps, "session", "new", "--agent", "coder", "--name", "demo", "--workspace", "alpha", "-o", "json")
+	sessionOut := mustExecuteRoot(
+		t,
+		h.deps,
+		"session",
+		"new",
+		"--agent",
+		"coder",
+		"--name",
+		"demo",
+		"--workspace",
+		"alpha",
+		"-o",
+		"json",
+	)
 	var createdSession SessionRecord
 	if err := json.Unmarshal([]byte(sessionOut), &createdSession); err != nil {
 		t.Fatalf("json.Unmarshal(session new) error = %v", err)
@@ -1362,7 +1505,16 @@ func TestAutomationTriggerHistoryAndRunsIntegration(t *testing.T) {
 	}
 
 	waitForCondition(t, 5*time.Second, func() bool {
-		stdout, _, err := executeRootCommand(t, h.deps, "automation", "triggers", "history", createdTrigger.ID, "-o", "json")
+		stdout, _, err := executeRootCommand(
+			t,
+			h.deps,
+			"automation",
+			"triggers",
+			"history",
+			createdTrigger.ID,
+			"-o",
+			"json",
+		)
 		if err != nil {
 			return false
 		}
@@ -1373,15 +1525,34 @@ func TestAutomationTriggerHistoryAndRunsIntegration(t *testing.T) {
 		return len(runs.Runs) > 0
 	})
 
-	historyHuman, _, err := executeRootCommand(t, h.deps, "automation", "triggers", "history", createdTrigger.ID, "-o", "human")
+	historyHuman, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"automation",
+		"triggers",
+		"history",
+		createdTrigger.ID,
+		"-o",
+		"human",
+	)
 	if err != nil {
 		t.Fatalf("automation triggers history human error = %v", err)
 	}
-	if !strings.Contains(historyHuman, "Automation Runs") || !strings.Contains(historyHuman, "trigger:"+createdTrigger.ID) {
+	if !strings.Contains(historyHuman, "Automation Runs") ||
+		!strings.Contains(historyHuman, "trigger:"+createdTrigger.ID) {
 		t.Fatalf("history human output = %q, want trigger run table", historyHuman)
 	}
 
-	historyJSON, _, err := executeRootCommand(t, h.deps, "automation", "triggers", "history", createdTrigger.ID, "-o", "json")
+	historyJSON, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"automation",
+		"triggers",
+		"history",
+		createdTrigger.ID,
+		"-o",
+		"json",
+	)
 	if err != nil {
 		t.Fatalf("automation triggers history json error = %v", err)
 	}
@@ -1595,7 +1766,17 @@ func TestCLITaskCreateListGetIntegration(t *testing.T) {
 		_ = h.runner.waitForExit()
 	}()
 
-	if _, _, err := executeRootCommand(t, h.deps, "workspace", "add", h.workspace, "--name", "alpha", "-o", "json"); err != nil {
+	if _, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"workspace",
+		"add",
+		h.workspace,
+		"--name",
+		"alpha",
+		"-o",
+		"json",
+	); err != nil {
 		t.Fatalf("workspace add error = %v", err)
 	}
 
@@ -1630,7 +1811,20 @@ func TestCLITaskCreateListGetIntegration(t *testing.T) {
 		t.Fatalf("created task = %#v, want workspace task with id/channel", created)
 	}
 
-	listOut, _, err := executeRootCommand(t, h.deps, "task", "list", "--scope", "workspace", "--workspace", "alpha", "--status", "ready", "-o", "json")
+	listOut, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"task",
+		"list",
+		"--scope",
+		"workspace",
+		"--workspace",
+		"alpha",
+		"--status",
+		"ready",
+		"-o",
+		"json",
+	)
 	if err != nil {
 		t.Fatalf("task list error = %v", err)
 	}
@@ -1665,7 +1859,18 @@ func TestCLITaskRunLifecycleIntegration(t *testing.T) {
 		_ = h.runner.waitForExit()
 	}()
 
-	createOut := mustExecuteRoot(t, h.deps, "task", "create", "--scope", "global", "--title", "Review task lifecycle", "-o", "json")
+	createOut := mustExecuteRoot(
+		t,
+		h.deps,
+		"task",
+		"create",
+		"--scope",
+		"global",
+		"--title",
+		"Review task lifecycle",
+		"-o",
+		"json",
+	)
 	var created TaskRecord
 	if err := json.Unmarshal([]byte(createOut), &created); err != nil {
 		t.Fatalf("json.Unmarshal(task create) error = %v", err)
@@ -1717,7 +1922,18 @@ func TestCLITaskRunLifecycleIntegration(t *testing.T) {
 		t.Fatalf("started run = %#v, want running run with session", started)
 	}
 
-	completeOut := mustExecuteRoot(t, h.deps, "task", "run", "complete", enqueued.ID, "--result", `{"ok":true}`, "-o", "json")
+	completeOut := mustExecuteRoot(
+		t,
+		h.deps,
+		"task",
+		"run",
+		"complete",
+		enqueued.ID,
+		"--result",
+		`{"ok":true}`,
+		"-o",
+		"json",
+	)
 	var completed TaskRunRecord
 	if err := json.Unmarshal([]byte(completeOut), &completed); err != nil {
 		t.Fatalf("json.Unmarshal(task run complete) error = %v", err)
@@ -1772,7 +1988,17 @@ func TestCLIHistoricalChannelTaskRunStartAfterDaemonRestartIntegration(t *testin
 		_ = h.runner.waitForExit()
 	}()
 
-	if _, _, err := executeRootCommand(t, h.deps, "workspace", "add", h.workspace, "--name", "alpha", "-o", "json"); err != nil {
+	if _, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"workspace",
+		"add",
+		h.workspace,
+		"--name",
+		"alpha",
+		"-o",
+		"json",
+	); err != nil {
 		t.Fatalf("workspace add error = %v", err)
 	}
 
@@ -2006,7 +2232,17 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 		_ = h.runner.waitForExit()
 	}()
 
-	if _, _, err := executeRootCommand(t, h.deps, "workspace", "add", h.workspace, "--name", "alpha", "-o", "json"); err != nil {
+	if _, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"workspace",
+		"add",
+		h.workspace,
+		"--name",
+		"alpha",
+		"-o",
+		"json",
+	); err != nil {
 		t.Fatalf("workspace add error = %v", err)
 	}
 	sessionOut := mustExecuteRoot(
@@ -2145,7 +2381,8 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 		if err := json.Unmarshal([]byte(heartbeatOut), &heartbeat); err != nil {
 			t.Fatalf("json.Unmarshal(task heartbeat) error = %v", err)
 		}
-		if heartbeat.RunID != enqueued.ID || heartbeat.Status != taskpkg.TaskRunStatusClaimed || heartbeat.LeaseUntil == nil {
+		if heartbeat.RunID != enqueued.ID || heartbeat.Status != taskpkg.TaskRunStatusClaimed ||
+			heartbeat.LeaseUntil == nil {
 			t.Fatalf("heartbeat = %#v, want renewed claimed lease", heartbeat)
 		}
 	})
@@ -2372,7 +2609,17 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 		_ = h.runner.waitForExit()
 	}()
 
-	if _, _, err := executeRootCommand(t, h.deps, "workspace", "add", h.workspace, "--name", "alpha", "-o", "json"); err != nil {
+	if _, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"workspace",
+		"add",
+		h.workspace,
+		"--name",
+		"alpha",
+		"-o",
+		"json",
+	); err != nil {
 		t.Fatalf("workspace add error = %v", err)
 	}
 
@@ -2535,7 +2782,10 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 		if next.Claim.CoordinationChannel == nil {
 			t.Fatal("next.Claim.CoordinationChannel = nil, want historical coordination channel")
 		}
-		if got, want := firstCLIValue(next.Claim.CoordinationChannel.Channel, next.Claim.CoordinationChannel.ID), channel; got != want {
+		if got, want := firstCLIValue(
+			next.Claim.CoordinationChannel.Channel,
+			next.Claim.CoordinationChannel.ID,
+		), channel; got != want {
 			t.Fatalf("coordination channel = %q, want %q", got, want)
 		}
 		if next.Claim.Lease.ClaimTokenHash == "" {
@@ -2764,7 +3014,10 @@ func (s *integrationBridgeService) ListProviders(context.Context) ([]bridgepkg.B
 	return []bridgepkg.BridgeProvider{}, nil
 }
 
-func (s *integrationBridgeService) ListSecretBindings(ctx context.Context, bridgeInstanceID string) ([]bridgepkg.BridgeSecretBinding, error) {
+func (s *integrationBridgeService) ListSecretBindings(
+	ctx context.Context,
+	bridgeInstanceID string,
+) ([]bridgepkg.BridgeSecretBinding, error) {
 	if s == nil || s.store == nil {
 		return nil, errors.New("integration bridge secret store is not configured")
 	}
@@ -2782,7 +3035,11 @@ func (s *integrationBridgeService) PutSecretBinding(
 	return s.store.PutBridgeSecretBinding(ctx, binding)
 }
 
-func (s *integrationBridgeService) DeleteSecretBinding(ctx context.Context, bridgeInstanceID string, bindingName string) error {
+func (s *integrationBridgeService) DeleteSecretBinding(
+	ctx context.Context,
+	bridgeInstanceID string,
+	bindingName string,
+) error {
 	if s == nil || s.store == nil {
 		return errors.New("integration bridge secret store is not configured")
 	}
@@ -2845,7 +3102,10 @@ func (s *integrationExtensionService) List(ctx context.Context) ([]contract.Exte
 	return items, nil
 }
 
-func (s *integrationExtensionService) Install(ctx context.Context, req contract.InstallExtensionRequest) (contract.ExtensionPayload, error) {
+func (s *integrationExtensionService) Install(
+	ctx context.Context,
+	req contract.InstallExtensionRequest,
+) (contract.ExtensionPayload, error) {
 	manifest, err := extensionpkg.LoadManifest(req.Path)
 	if err != nil {
 		return contract.ExtensionPayload{}, err
@@ -3310,7 +3570,11 @@ func (e *integrationTaskExecutor) StartTaskSession(
 	return &taskpkg.SessionRef{SessionID: fmt.Sprintf("task-sess-%d", e.next)}, nil
 }
 
-func (e *integrationTaskExecutor) AttachTaskSession(_ context.Context, _ string, sessionID string) (*taskpkg.SessionRef, error) {
+func (e *integrationTaskExecutor) AttachTaskSession(
+	_ context.Context,
+	_ string,
+	sessionID string,
+) (*taskpkg.SessionRef, error) {
 	return &taskpkg.SessionRef{SessionID: strings.TrimSpace(sessionID)}, nil
 }
 
@@ -3355,7 +3619,11 @@ func (d *integrationDriver) Start(_ context.Context, opts acp.StartOpts) (*sessi
 	return proc, nil
 }
 
-func (d *integrationDriver) Prompt(_ context.Context, proc *session.AgentProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+func (d *integrationDriver) Prompt(
+	_ context.Context,
+	proc *session.AgentProcess,
+	req acp.PromptRequest,
+) (<-chan acp.AgentEvent, error) {
 	ch := make(chan acp.AgentEvent, 2)
 	ch <- acp.AgentEvent{
 		Type:      "agent_message",
@@ -3464,7 +3732,11 @@ func (d *integrationDaemon) releaseBlocked(sessionID string) {
 	}
 	target := sessionID
 	if manager != nil {
-		if info, err := manager.Status(context.Background(), sessionID); err == nil && strings.TrimSpace(info.ACPSessionID) != "" {
+		if info, err := manager.Status(
+			context.Background(),
+			sessionID,
+		); err == nil &&
+			strings.TrimSpace(info.ACPSessionID) != "" {
 			target = info.ACPSessionID
 		}
 	}
@@ -3481,7 +3753,11 @@ func (d *integrationDaemon) waitForBlocked(sessionID string, timeout time.Durati
 	}
 	target := sessionID
 	if manager != nil {
-		if info, err := manager.Status(context.Background(), sessionID); err == nil && strings.TrimSpace(info.ACPSessionID) != "" {
+		if info, err := manager.Status(
+			context.Background(),
+			sessionID,
+		); err == nil &&
+			strings.TrimSpace(info.ACPSessionID) != "" {
 			target = info.ACPSessionID
 		}
 	}

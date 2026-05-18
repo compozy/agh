@@ -171,7 +171,11 @@ func TestPromptInputCompositeIntegrationPreservesStoredMessagesAcrossUserAndNetw
 			t.Fatalf("resolver network work/reply = %q/%q, want work_patch_42/msg-root", got.WorkID, got.ReplyTo)
 		}
 		if got.TraceID != "trace_ops_patch_42" || got.CausationID != "msg-root" {
-			t.Fatalf("resolver network trace/causation = %q/%q, want final correlation ids", got.TraceID, got.CausationID)
+			t.Fatalf(
+				"resolver network trace/causation = %q/%q, want final correlation ids",
+				got.TraceID,
+				got.CausationID,
+			)
 		}
 		if got.Trust != "untrusted" {
 			t.Fatalf("resolver network trust = %q, want untrusted", got.Trust)

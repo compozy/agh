@@ -97,6 +97,7 @@ func (p *localProvider) Prepare(
 		p.permissionModeFor(req),
 		p.logger,
 		acp.WithLocalProcessRegistry(p.processRegistry),
+		acp.WithLocalAdditionalRoots(req.LocalAdditionalDirs...),
 	)
 	if err != nil {
 		return sandbox.Prepared{}, fmt.Errorf("sandbox/local: create tool host: %w", err)

@@ -348,7 +348,7 @@ func TestHandleBridgesDeliverKeepsLastErrorWhenReadyReportFails(t *testing.T) {
 	runtime, hostPeer, cleanup := newRuntimePeerPair(t)
 	defer cleanup()
 
-	runtime.apiFactory = func(resolvedInstanceConfig) gchatAPI {
+	runtime.apiFactory = func(*resolvedInstanceConfig) gchatAPI {
 		return &fakeGChatAPI{}
 	}
 
@@ -864,8 +864,8 @@ func TestResolveInstanceConfigAndInitialState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newGChatProvider() error = %v", err)
 	}
-	provider.apiFactory = func(cfg resolvedInstanceConfig) gchatAPI {
-		return &gchatBotClient{cfg: cfg}
+	provider.apiFactory = func(cfg *resolvedInstanceConfig) gchatAPI {
+		return &gchatBotClient{cfg: *cfg}
 	}
 
 	now := time.Date(2026, 4, 15, 20, 20, 0, 0, time.UTC)
@@ -1049,7 +1049,7 @@ func TestResolveInstanceConfigAndInitialState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newGChatProvider(authProvider) error = %v", err)
 	}
-	authProvider.apiFactory = func(resolvedInstanceConfig) gchatAPI {
+	authProvider.apiFactory = func(*resolvedInstanceConfig) gchatAPI {
 		return authFailingGChatAPI{}
 	}
 	authRequiredStatus, authRequiredDegradation, err := authProvider.determineInitialState(context.Background(), &cfg)
@@ -1067,7 +1067,7 @@ func TestResolveInstanceConfigAndInitialState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newGChatProvider(rateLimitProvider) error = %v", err)
 	}
-	rateLimitProvider.apiFactory = func(resolvedInstanceConfig) gchatAPI {
+	rateLimitProvider.apiFactory = func(*resolvedInstanceConfig) gchatAPI {
 		return rateLimitFailingGChatAPI{}
 	}
 	rateLimitedStatus, rateLimitedDegradation, err := rateLimitProvider.determineInitialState(
@@ -1328,9 +1328,9 @@ func TestGChatWebhookHandlersUseRequestContext(t *testing.T) {
 	t.Setenv(gchatTokenURLEnv, server.TokenURL())
 	t.Setenv(gchatDirectCertsEnv, server.DirectCertsURL())
 	t.Setenv(gchatPubSubCertsEnv, server.PubSubCertsURL())
-	runtime.apiFactory = func(cfg resolvedInstanceConfig) gchatAPI {
+	runtime.apiFactory = func(cfg *resolvedInstanceConfig) gchatAPI {
 		client := &gchatBotClient{
-			cfg: cfg,
+			cfg: *cfg,
 			httpClient: &http.Client{
 				Timeout: 10 * time.Second,
 			},
@@ -1583,7 +1583,7 @@ func TestGChatWebhookAndBatchErrorPaths(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newGChatProvider() error = %v", err)
 	}
-	provider.apiFactory = func(resolvedInstanceConfig) gchatAPI {
+	provider.apiFactory = func(*resolvedInstanceConfig) gchatAPI {
 		return &fakeGChatAPI{
 			messagesMap: map[string]gchatMessage{
 				"spaces/AAA/messages/msg-react": {
@@ -1887,7 +1887,6 @@ func TestReconcileInstanceConfigsDetectsSharedWebhookPaths(t *testing.T) {
 		},
 	)
 
-	t.Setenv(gchatListenAddrEnv, reserveListenAddr(t))
 	if err := hostPeer.Call(context.Background(), "initialize", testInitializeRequest(now, seed), nil); err != nil {
 		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
 	}
@@ -1902,7 +1901,7 @@ func TestReconcileInstanceConfigsDetectsSharedWebhookPaths(t *testing.T) {
 		t.Fatalf("newGChatProvider() error = %v", err)
 	}
 	defer provider.stop()
-	provider.apiFactory = func(resolvedInstanceConfig) gchatAPI { return &fakeGChatAPI{} }
+	provider.apiFactory = func(*resolvedInstanceConfig) gchatAPI { return &fakeGChatAPI{} }
 
 	first := testBridgeRuntime(t, now, "brg-one")
 	first.Instance.ProviderConfig = mustJSON(t, map[string]any{
@@ -1927,23 +1926,59 @@ func TestReconcileInstanceConfigsDetectsSharedWebhookPaths(t *testing.T) {
 		},
 	})
 
-	configs := provider.reconcileInstanceConfigs(
-		context.Background(),
+	configs, _ := provider.collectGChatConfigs(
 		session,
 		[]subprocess.InitializeBridgeManagedInstance{first, second},
 	)
 	if got, want := len(configs), 2; got != want {
 		t.Fatalf("len(configs) = %d, want %d", got, want)
 	}
+	if configs[0].configError == nil || !strings.Contains(configs[0].configError.Error(), "shared") {
+		t.Fatalf("configs[0].configError = %v, want shared webhook path error", configs[0].configError)
+	}
 	if configs[1].configError == nil || !strings.Contains(configs[1].configError.Error(), "shared") {
 		t.Fatalf("configs[1].configError = %v, want shared webhook path error", configs[1].configError)
 	}
+	provider.mu.Lock()
+	provider.routes = buildGChatRouteMap(configs)
+	provider.mu.Unlock()
+	if _, ok := provider.configForPath("/shared"); ok {
+		t.Fatal("configForPath(/shared) = ok, want conflicted path rejected")
+	}
+	recorder := httptest.NewRecorder()
+	provider.serveWebhookHTTP(
+		recorder,
+		httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
+			"http://example.test/shared",
+			strings.NewReader("{}"),
+		),
+	)
+	if got, want := recorder.Code, http.StatusNotFound; got != want {
+		t.Fatalf("serveWebhookHTTP() status = %d, want %d", got, want)
+	}
+	if got := recorder.Body.String(); !strings.Contains(got, "404 page not found") {
+		t.Fatalf("serveWebhookHTTP() body = %q, want 404 response", got)
+	}
 
+	firstWithListen := testBridgeRuntime(t, now, "brg-one-listen")
+	firstWithListen.Instance.ProviderConfig = mustJSON(t, map[string]any{
+		"mode": "pubsub",
+		"webhook": map[string]any{
+			"listen_addr": "127.0.0.1:21231",
+			"path":        "/first",
+		},
+		"verification": map[string]any{
+			"pubsub_audience":              "https://example.test/pubsub",
+			"pubsub_service_account_email": "push@example.iam.gserviceaccount.com",
+		},
+	})
 	third := testBridgeRuntime(t, now, "brg-three")
 	third.Instance.ProviderConfig = mustJSON(t, map[string]any{
 		"mode": "pubsub",
 		"webhook": map[string]any{
-			"listen_addr": reserveListenAddr(t),
+			"listen_addr": "127.0.0.1:21232",
 			"path":        "/unique",
 		},
 		"verification": map[string]any{
@@ -1951,11 +1986,13 @@ func TestReconcileInstanceConfigsDetectsSharedWebhookPaths(t *testing.T) {
 			"pubsub_service_account_email": "push@example.iam.gserviceaccount.com",
 		},
 	})
-	configs = provider.reconcileInstanceConfigs(
-		context.Background(),
+	configs, requestedListen := provider.collectGChatConfigs(
 		session,
-		[]subprocess.InitializeBridgeManagedInstance{first, third},
+		[]subprocess.InitializeBridgeManagedInstance{firstWithListen, third},
 	)
+	if got, want := requestedListen, "127.0.0.1:21231"; got != want {
+		t.Fatalf("requestedListen = %q, want %q", got, want)
+	}
 	if configs[1].configError == nil || !strings.Contains(configs[1].configError.Error(), "incompatible listen_addr") {
 		t.Fatalf("configs[1].configError = %v, want incompatible listen_addr error", configs[1].configError)
 	}

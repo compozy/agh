@@ -41,6 +41,7 @@ const (
 	linearWebhookSkew              = time.Minute
 	linearWebhookReadHeaderTimeout = 10 * time.Second
 	linearWebhookIdleTimeout       = 30 * time.Second
+	linearWebhookIngressTimeout    = 10 * time.Second
 
 	rpcCodeNotInitialized = -32003
 )
@@ -59,17 +60,18 @@ type linearProvider struct {
 	now     func() time.Time
 	session *bridgesdk.Session
 
-	mu             sync.RWMutex
-	lastError      string
-	server         *http.Server
-	serverAddr     string
-	listenAddr     string
-	routes         map[string]resolvedInstanceConfig
-	deliveries     map[string]deliveryState
-	reportedStatus map[string]bridgepkg.BridgeStatus
-	apiFactory     func(resolvedInstanceConfig) linearAPI
-	rateLimiter    *bridgesdk.FixedWindowRateLimiter
-	inFlight       *bridgesdk.InFlightLimiter
+	mu                    sync.RWMutex
+	lastError             string
+	server                *http.Server
+	serverAddr            string
+	listenAddr            string
+	routes                map[string]resolvedInstanceConfig
+	deliveries            map[string]deliveryState
+	reportedStatus        map[string]bridgepkg.BridgeStatus
+	apiFactory            func(resolvedInstanceConfig) linearAPI
+	rateLimiter           *bridgesdk.FixedWindowRateLimiter
+	inFlight              *bridgesdk.InFlightLimiter
+	webhookIngressTimeout time.Duration
 
 	stopCh   chan struct{}
 	stopOnce sync.Once
@@ -212,15 +214,16 @@ func newLinearProvider(stderr io.Writer) (*linearProvider, error) {
 	}
 
 	provider := &linearProvider{
-		stderr:         stderr,
-		env:            markerEnvFromProcess(),
-		now:            func() time.Time { return time.Now().UTC() },
-		routes:         make(map[string]resolvedInstanceConfig),
-		deliveries:     make(map[string]deliveryState),
-		reportedStatus: make(map[string]bridgepkg.BridgeStatus),
-		rateLimiter:    bridgesdk.NewFixedWindowRateLimiter(300, time.Minute),
-		inFlight:       bridgesdk.NewInFlightLimiter(48),
-		stopCh:         make(chan struct{}),
+		stderr:                stderr,
+		env:                   markerEnvFromProcess(),
+		now:                   func() time.Time { return time.Now().UTC() },
+		routes:                make(map[string]resolvedInstanceConfig),
+		deliveries:            make(map[string]deliveryState),
+		reportedStatus:        make(map[string]bridgepkg.BridgeStatus),
+		rateLimiter:           bridgesdk.NewFixedWindowRateLimiter(300, time.Minute),
+		inFlight:              bridgesdk.NewInFlightLimiter(48),
+		webhookIngressTimeout: linearWebhookIngressTimeout,
+		stopCh:                make(chan struct{}),
 	}
 	provider.apiFactory = func(cfg resolvedInstanceConfig) linearAPI {
 		return &linearClient{
@@ -914,7 +917,11 @@ func (p *linearProvider) serveWebhookHTTP(w http.ResponseWriter, r *http.Request
 		RateLimiter:         p.rateLimiter,
 		InFlightLimiter:     p.inFlight,
 		VerifySignature: func(_ context.Context, req *http.Request, body []byte) error {
-			return verifyLinearWebhookSignature(req, body, candidates)
+			scopedCandidates, err := selectLinearWebhookSignatureCandidates(body, candidates)
+			if err != nil {
+				return err
+			}
+			return verifyLinearWebhookSignature(req, body, scopedCandidates)
 		},
 		RequestKey: func(req *http.Request) string {
 			return req.RemoteAddr + "|" + normalizeWebhookPath(req.URL.Path)
@@ -933,7 +940,7 @@ func (p *linearProvider) serveWebhookHTTP(w http.ResponseWriter, r *http.Request
 
 func (p *linearProvider) handleWebhookRequest(
 	w http.ResponseWriter,
-	_ *http.Request,
+	r *http.Request,
 	candidates []resolvedInstanceConfig,
 	request bridgesdk.WebhookRequest,
 ) error {
@@ -941,15 +948,29 @@ func (p *linearProvider) handleWebhookRequest(
 	if err != nil {
 		return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: "invalid linear webhook payload"}
 	}
+	ctx, cancel := p.webhookIngressContext(r)
+	defer cancel()
 
 	switch strings.TrimSpace(eventType) {
 	case "Comment":
-		return p.handleLinearCommentWebhook(w, candidates, request)
+		return p.handleLinearCommentWebhook(ctx, w, candidates, request)
 	case "AgentSessionEvent":
-		return p.handleLinearAgentSessionWebhook(w, candidates, request)
+		return p.handleLinearAgentSessionWebhook(ctx, w, candidates, request)
 	default:
 		return writeWebhookText(w, http.StatusOK, "ok")
 	}
+}
+
+func (p *linearProvider) webhookIngressContext(r *http.Request) (context.Context, context.CancelFunc) {
+	base := context.Background()
+	if r != nil {
+		base = context.WithoutCancel(r.Context())
+	}
+	timeout := linearWebhookIngressTimeout
+	if p != nil && p.webhookIngressTimeout > 0 {
+		timeout = p.webhookIngressTimeout
+	}
+	return context.WithTimeout(base, timeout)
 }
 
 func (p *linearProvider) dispatchInboundEnvelope(
@@ -1389,6 +1410,42 @@ func verifyLinearWebhookSignature(req *http.Request, body []byte, candidates []r
 	return errors.New("linear: invalid webhook signature")
 }
 
+func selectLinearWebhookSignatureCandidates(
+	body []byte,
+	candidates []resolvedInstanceConfig,
+) ([]resolvedInstanceConfig, error) {
+	envelope := linearWebhookEnvelope{}
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return candidates, nil
+	}
+
+	mode, ok := linearWebhookModeForType(envelope.Type)
+	organizationID := strings.TrimSpace(envelope.OrganizationID)
+	if !ok || organizationID == "" {
+		return candidates, nil
+	}
+
+	cfg, found, err := selectLinearConfig(candidates, organizationID, mode)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		return nil, errors.New("linear: invalid webhook signature")
+	}
+	return []resolvedInstanceConfig{cfg}, nil
+}
+
+func linearWebhookModeForType(eventType string) (string, bool) {
+	switch strings.TrimSpace(eventType) {
+	case "Comment":
+		return linearModeComments, true
+	case "AgentSessionEvent":
+		return linearModeAgentSessions, true
+	default:
+		return "", false
+	}
+}
+
 func validateLinearWebhookTimestamp(timestampMS int64, receivedAt time.Time) error {
 	if timestampMS <= 0 {
 		return nil
@@ -1575,6 +1632,7 @@ func decodeLinearWebhookEnvelopeType(body []byte, receivedAt time.Time) (string,
 }
 
 func (p *linearProvider) handleLinearCommentWebhook(
+	ctx context.Context,
 	w http.ResponseWriter,
 	candidates []resolvedInstanceConfig,
 	request bridgesdk.WebhookRequest,
@@ -1602,13 +1660,14 @@ func (p *linearProvider) handleLinearCommentWebhook(
 	if ignored || cfg.dedup.Mark(mapped.Envelope.IdempotencyKey) || linearCommentIsSelf(cfg, payload) {
 		return writeWebhookText(w, http.StatusOK, "ok")
 	}
-	if err := p.dispatchInboundEnvelope(context.Background(), cfg.instanceID, mapped.Envelope); err != nil {
-		return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
+	if err := p.dispatchInboundEnvelope(ctx, cfg.instanceID, mapped.Envelope); err != nil {
+		return linearWebhookDispatchHTTPError(err)
 	}
 	return writeWebhookText(w, http.StatusOK, "ok")
 }
 
 func (p *linearProvider) handleLinearAgentSessionWebhook(
+	ctx context.Context,
 	w http.ResponseWriter,
 	candidates []resolvedInstanceConfig,
 	request bridgesdk.WebhookRequest,
@@ -1636,10 +1695,30 @@ func (p *linearProvider) handleLinearAgentSessionWebhook(
 	if ignored || cfg.dedup.Mark(mapped.Envelope.IdempotencyKey) {
 		return writeWebhookText(w, http.StatusOK, "ok")
 	}
-	if err := p.dispatchInboundEnvelope(context.Background(), cfg.instanceID, mapped.Envelope); err != nil {
-		return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
+	if err := p.dispatchInboundEnvelope(ctx, cfg.instanceID, mapped.Envelope); err != nil {
+		return linearWebhookDispatchHTTPError(err)
 	}
 	return writeWebhookText(w, http.StatusOK, "ok")
+}
+
+func linearWebhookDispatchHTTPError(err error) error {
+	if err == nil {
+		return nil
+	}
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return &bridgesdk.HTTPError{
+			StatusCode: http.StatusGatewayTimeout,
+			Message:    "linear: webhook ingestion timed out",
+		}
+	case errors.Is(err, context.Canceled):
+		return &bridgesdk.HTTPError{
+			StatusCode: http.StatusServiceUnavailable,
+			Message:    "linear: webhook ingestion canceled",
+		}
+	default:
+		return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
+	}
 }
 
 func linearSignature(secret string, body []byte) string {

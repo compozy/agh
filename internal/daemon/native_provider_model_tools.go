@@ -16,7 +16,6 @@ import (
 type providerModelsListInput struct {
 	ProviderID   string `json:"provider_id,omitempty"`
 	SourceID     string `json:"source_id,omitempty"`
-	Refresh      bool   `json:"refresh,omitempty"`
 	IncludeStale bool   `json:"include_stale,omitempty"`
 }
 
@@ -70,7 +69,6 @@ func (n *daemonNativeTools) providerModelsList(
 	models, err := n.deps.ModelCatalog.ListModels(ctx, modelcatalog.ListOptions{
 		ProviderID:   providerID,
 		SourceID:     sourceID,
-		Refresh:      input.Refresh,
 		IncludeStale: input.IncludeStale,
 		Now:          time.Now().UTC(),
 	})

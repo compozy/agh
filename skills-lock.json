@@ -341,6 +341,7 @@
         "firecrawl": {
             "source": "pedronauck/skills",
             "sourceType": "github",
+            "skillPath": "skills/curated/firecrawl/SKILL.md",
             "computedHash": "f79f957689cc705613a2731f2f35360192fc9a6a28bc3de73484c973621df5ed"
         },
         "fix-coderabbit-review": {

@@ -485,16 +485,25 @@ func (s *service) putProvider(
 	if len(values) == 0 && len(secrets) == 0 {
 		return MutationResult{}, validationError(errors.New("settings: provider overlay requires at least one field"))
 	}
-	if err := s.putProviderSecrets(ctx, name, secrets); err != nil {
+	secretWrites, err := s.prepareProviderSecretWrites(name, secrets)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	var target aghconfig.WriteTarget
+	if len(values) != 0 {
+		target, err = aghconfig.ResolveConfigWriteTarget(s.homePaths, "", aghconfig.WriteScopeGlobal)
+		if err != nil {
+			return MutationResult{}, err
+		}
+		if err := s.validateProviderWrite(ctx, name, settings); err != nil {
+			return MutationResult{}, fmt.Errorf("settings: write provider %q: %w", name, err)
+		}
+	}
+	if err := s.storePreparedSecrets(ctx, secretWrites); err != nil {
 		return MutationResult{}, err
 	}
 	if len(values) == 0 {
 		return mutationResultForCollection(CollectionProviders, ScopeGlobal, "", WriteTargetGlobalConfig), nil
-	}
-
-	target, err := aghconfig.ResolveConfigWriteTarget(s.homePaths, "", aghconfig.WriteScopeGlobal)
-	if err != nil {
-		return MutationResult{}, err
 	}
 
 	if _, err := aghconfig.EditConfigOverlay(s.homePaths, "", target, func(editor *aghconfig.OverlayEditor) error {
@@ -510,39 +519,169 @@ func (s *service) putProvider(
 	return mutationResultForCollection(CollectionProviders, ScopeGlobal, "", target.Kind()), nil
 }
 
-func (s *service) putProviderSecrets(ctx context.Context, providerName string, secrets []ProviderSecretWrite) error {
+type preparedSecretWrite struct {
+	description string
+	ref         string
+	kind        string
+	value       string
+}
+
+func (s *service) prepareProviderSecretWrites(
+	providerName string,
+	secrets []ProviderSecretWrite,
+) ([]preparedSecretWrite, error) {
 	if len(secrets) == 0 {
-		return nil
+		return nil, nil
 	}
 	if s.providerSecrets == nil {
-		return validationError(errors.New("settings: secret store is not available"))
+		return nil, validationError(errors.New("settings: secret store is not available"))
 	}
 	prefix, err := vaultSecretOwnerPrefix("providers", providerName)
 	if err != nil {
-		return validationError(err)
+		return nil, validationError(err)
 	}
+	writes := make([]preparedSecretWrite, 0, len(secrets))
 	for _, secret := range secrets {
 		ref := vault.NormalizeRef(secret.SecretRef)
 		if ref == "" {
-			return validationError(errors.New("settings: provider secret ref is required"))
+			return nil, validationError(errors.New("settings: provider secret ref is required"))
 		}
 		if err := vault.ValidateSecretRefNamespace(ref, "providers"); err != nil {
-			return validationError(
+			return nil, validationError(
 				fmt.Errorf("%w: provider secret refs must use vault:providers/<provider>/<slot>", err),
 			)
 		}
 		if !strings.HasPrefix(ref, prefix) {
-			return validationError(fmt.Errorf(
+			return nil, validationError(fmt.Errorf(
 				"settings: provider secret ref %q must be scoped under %s",
 				ref,
 				strings.TrimSuffix(prefix, "/"),
 			))
 		}
 		if strings.TrimSpace(secret.Value) == "" {
-			return validationError(errors.New("settings: provider secret value is required"))
+			return nil, validationError(errors.New("settings: provider secret value is required"))
 		}
-		if _, err := s.providerSecrets.PutSecret(ctx, ref, strings.TrimSpace(secret.Kind), secret.Value); err != nil {
-			return fmt.Errorf("settings: store provider secret %q: %w", strings.TrimSpace(secret.Name), err)
+		writes = append(writes, preparedSecretWrite{
+			description: fmt.Sprintf("provider secret %q", strings.TrimSpace(secret.Name)),
+			ref:         ref,
+			kind:        strings.TrimSpace(secret.Kind),
+			value:       secret.Value,
+		})
+	}
+	return writes, nil
+}
+
+func (s *service) validateProviderWrite(ctx context.Context, name string, settings ProviderSettings) error {
+	cfg, _, err := s.loadConfig(ctx, ScopeGlobal, "")
+	if err != nil {
+		return err
+	}
+	if cfg.Providers == nil {
+		cfg.Providers = make(map[string]aghconfig.ProviderConfig)
+	}
+	cfg.Providers[name] = providerConfigFromSettings(settings)
+	return cfg.Validate()
+}
+
+func providerConfigFromSettings(settings ProviderSettings) aghconfig.ProviderConfig {
+	return aghconfig.ProviderConfig{
+		Command:         strings.TrimSpace(settings.Command),
+		DisplayName:     strings.TrimSpace(settings.DisplayName),
+		Models:          providerModelsConfigFromSettings(settings.Models),
+		Harness:         settings.Harness,
+		RuntimeProvider: strings.TrimSpace(settings.RuntimeProvider),
+		Transport:       strings.TrimSpace(settings.Transport),
+		BaseURL:         strings.TrimSpace(settings.BaseURL),
+		AuthMode:        settings.AuthMode,
+		EnvPolicy:       settings.EnvPolicy,
+		HomePolicy:      settings.HomePolicy,
+		AuthStatusCmd:   strings.TrimSpace(settings.AuthStatusCmd),
+		AuthLoginCmd:    strings.TrimSpace(settings.AuthLoginCmd),
+		CredentialSlots: providerCredentialSlotsFromSettings(settings.CredentialSlots),
+	}
+}
+
+func providerModelsConfigFromSettings(models aghconfig.ProviderModelsConfig) aghconfig.ProviderModelsConfig {
+	return aghconfig.ProviderModelsConfig{
+		Default:   strings.TrimSpace(models.Default),
+		Curated:   providerModelConfigsFromSettings(models.Curated),
+		Discovery: providerModelsDiscoveryConfigFromSettings(models.Discovery),
+	}
+}
+
+func providerModelConfigsFromSettings(
+	models []aghconfig.ProviderModelConfig,
+) []aghconfig.ProviderModelConfig {
+	if models == nil {
+		return nil
+	}
+	values := make([]aghconfig.ProviderModelConfig, 0, len(models))
+	for _, model := range models {
+		id := strings.TrimSpace(model.ID)
+		if id == "" {
+			continue
+		}
+		values = append(values, aghconfig.ProviderModelConfig{
+			ID:                     id,
+			DisplayName:            strings.TrimSpace(model.DisplayName),
+			ContextWindow:          cloneInt64Ptr(model.ContextWindow),
+			MaxInputTokens:         cloneInt64Ptr(model.MaxInputTokens),
+			MaxOutputTokens:        cloneInt64Ptr(model.MaxOutputTokens),
+			SupportsTools:          cloneBoolPtr(model.SupportsTools),
+			SupportsReasoning:      cloneBoolPtr(model.SupportsReasoning),
+			ReasoningEfforts:       cloneStringSlicePreserveNil(model.ReasoningEfforts),
+			DefaultReasoningEffort: strings.TrimSpace(model.DefaultReasoningEffort),
+			CostInputPerMillion:    cloneFloat64Ptr(model.CostInputPerMillion),
+			CostOutputPerMillion:   cloneFloat64Ptr(model.CostOutputPerMillion),
+		})
+	}
+	return values
+}
+
+func providerModelsDiscoveryConfigFromSettings(
+	discovery aghconfig.ProviderModelsDiscoveryConfig,
+) aghconfig.ProviderModelsDiscoveryConfig {
+	return aghconfig.ProviderModelsDiscoveryConfig{
+		Enabled:  cloneBoolPtr(discovery.Enabled),
+		Command:  strings.TrimSpace(discovery.Command),
+		Endpoint: strings.TrimSpace(discovery.Endpoint),
+		Timeout:  strings.TrimSpace(discovery.Timeout),
+	}
+}
+
+func providerCredentialSlotsFromSettings(
+	slots []aghconfig.ProviderCredentialSlot,
+) []aghconfig.ProviderCredentialSlot {
+	values := make([]aghconfig.ProviderCredentialSlot, 0, len(slots))
+	for _, slot := range slots {
+		normalized := aghconfig.ProviderCredentialSlot{
+			Name:      strings.TrimSpace(slot.Name),
+			TargetEnv: strings.TrimSpace(slot.TargetEnv),
+			SecretRef: strings.TrimSpace(slot.SecretRef),
+			Kind:      strings.TrimSpace(slot.Kind),
+			Required:  slot.Required,
+		}
+		if normalized.Name == "" && normalized.TargetEnv == "" && normalized.SecretRef == "" && normalized.Kind == "" {
+			continue
+		}
+		values = append(values, normalized)
+	}
+	if len(values) == 0 {
+		return nil
+	}
+	return values
+}
+
+func (s *service) storePreparedSecrets(ctx context.Context, writes []preparedSecretWrite) error {
+	if len(writes) == 0 {
+		return nil
+	}
+	if s.providerSecrets == nil {
+		return validationError(errors.New("settings: secret store is not available"))
+	}
+	for _, write := range writes {
+		if _, err := s.providerSecrets.PutSecret(ctx, write.ref, write.kind, write.value); err != nil {
+			return fmt.Errorf("settings: store %s: %w", write.description, err)
 		}
 	}
 	return nil
@@ -695,7 +834,14 @@ func (s *service) putMCPServer(
 			name,
 		))
 	}
-	if err := s.putMCPSecrets(ctx, name, normalized, secrets); err != nil {
+	secretWrites, err := s.prepareMCPSecretWrites(name, normalized, secrets)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	if err := s.validateMCPServerWrite(ctx, scope, workspaceID, name, target.Kind(), sources, normalized); err != nil {
+		return MutationResult{}, fmt.Errorf("settings: write MCP server %q: %w", name, err)
+	}
+	if err := s.storePreparedSecrets(ctx, secretWrites); err != nil {
 		return MutationResult{}, err
 	}
 
@@ -719,51 +865,105 @@ func (s *service) putMCPServer(
 	return mutationResultForCollection(CollectionMCPServers, scope, workspaceID, target.Kind()), nil
 }
 
-func (s *service) putMCPSecrets(
-	ctx context.Context,
+func (s *service) prepareMCPSecretWrites(
 	serverName string,
 	server aghconfig.MCPServer,
 	secrets MCPSecretValues,
-) error {
+) ([]preparedSecretWrite, error) {
 	if secrets.Empty() {
-		return nil
+		return nil, nil
 	}
 	if s.providerSecrets == nil {
-		return validationError(errors.New("settings: secret store is not available"))
+		return nil, validationError(errors.New("settings: secret store is not available"))
 	}
 	prefix, err := vaultSecretOwnerPrefix("mcp", serverName)
 	if err != nil {
-		return validationError(err)
+		return nil, validationError(err)
 	}
-	if err := s.putMCPSecretEnvValues(ctx, prefix, server, secrets.SecretEnv); err != nil {
-		return err
+	envWrites, err := s.prepareMCPSecretEnvValues(prefix, server, secrets.SecretEnv)
+	if err != nil {
+		return nil, err
 	}
-	if err := s.putMCPAuthClientSecretValue(ctx, prefix, server, secrets.OAuthClientSecret); err != nil {
-		return err
+	writes := append([]preparedSecretWrite(nil), envWrites...)
+	oauthWrite, ok, err := s.prepareMCPAuthClientSecretValue(prefix, server, secrets.OAuthClientSecret)
+	if err != nil {
+		return nil, err
 	}
-	return nil
+	if ok {
+		writes = append(writes, oauthWrite)
+	}
+	return writes, nil
 }
 
-func (s *service) putMCPSecretEnvValues(
+func (s *service) validateMCPServerWrite(
 	ctx context.Context,
+	scope ScopeKind,
+	workspaceID string,
+	name string,
+	target WriteTargetKind,
+	sources map[string][]mcpSourceEntry,
+	server aghconfig.MCPServer,
+) error {
+	cfg, _, err := s.loadConfig(ctx, scope, workspaceID)
+	if err != nil {
+		return err
+	}
+	if projected, ok := projectedMCPServerForValidation(name, target, sources, server); ok {
+		cfg.MCPServers = upsertMCPServer(cfg.MCPServers, projected)
+	}
+	return cfg.Validate()
+}
+
+func projectedMCPServerForValidation(
+	name string,
+	target WriteTargetKind,
+	sources map[string][]mcpSourceEntry,
+	server aghconfig.MCPServer,
+) (aghconfig.MCPServer, bool) {
+	entries := sources[strings.TrimSpace(name)]
+	if len(entries) == 0 {
+		return server, true
+	}
+	effective := entries[len(entries)-1]
+	if (target == WriteTargetGlobalConfig && effective.Target == WriteTargetGlobalMCPSidecar) ||
+		(target == WriteTargetWorkspaceConfig && effective.Target == WriteTargetWorkspaceMCPSidecar) {
+		return aghconfig.MCPServer{}, false
+	}
+	return server, true
+}
+
+func upsertMCPServer(servers []aghconfig.MCPServer, server aghconfig.MCPServer) []aghconfig.MCPServer {
+	name := strings.TrimSpace(server.Name)
+	for idx := range servers {
+		if strings.TrimSpace(servers[idx].Name) != name {
+			continue
+		}
+		servers[idx] = server
+		return servers
+	}
+	return append(servers, server)
+}
+
+func (s *service) prepareMCPSecretEnvValues(
 	prefix string,
 	server aghconfig.MCPServer,
 	values map[string]string,
-) error {
+) ([]preparedSecretWrite, error) {
 	if len(values) == 0 {
-		return nil
+		return nil, nil
 	}
 	if server.EffectiveTransport() != aghconfig.MCPServerTransportStdio {
-		return validationError(errors.New("settings: MCP secret_env values require stdio transport"))
+		return nil, validationError(errors.New("settings: MCP secret_env values require stdio transport"))
 	}
+	writes := make([]preparedSecretWrite, 0, len(values))
 	for key, value := range values {
 		envName := strings.TrimSpace(key)
 		if !vault.EnvNamePattern.MatchString(envName) {
-			return validationError(fmt.Errorf("settings: MCP secret_env key %q is invalid", envName))
+			return nil, validationError(fmt.Errorf("settings: MCP secret_env key %q is invalid", envName))
 		}
 		ref, ok := declaredSecretEnvRef(server.SecretEnv, envName)
 		if !ok {
-			return validationError(
+			return nil, validationError(
 				fmt.Errorf(
 					"settings: MCP secret_env value %q has no matching server.secret_env ref",
 					envName,
@@ -772,53 +972,63 @@ func (s *service) putMCPSecretEnvValues(
 		}
 		expectedRef := prefix + "env/" + envName
 		if ref != expectedRef {
-			return validationError(fmt.Errorf(
+			return nil, validationError(fmt.Errorf(
 				"settings: MCP secret_env ref %q must be scoped under %s",
 				ref,
 				expectedRef,
 			))
 		}
 		if strings.TrimSpace(value) == "" {
-			return validationError(fmt.Errorf("settings: MCP secret_env value %q is required", envName))
+			return nil, validationError(fmt.Errorf("settings: MCP secret_env value %q is required", envName))
 		}
-		if _, err := s.providerSecrets.PutSecret(ctx, ref, "mcp_env", value); err != nil {
-			return fmt.Errorf("settings: store MCP secret_env %q: %w", envName, err)
-		}
+		writes = append(writes, preparedSecretWrite{
+			description: fmt.Sprintf("MCP secret_env %q", envName),
+			ref:         ref,
+			kind:        "mcp_env",
+			value:       value,
+		})
 	}
-	return nil
+	return writes, nil
 }
 
-func (s *service) putMCPAuthClientSecretValue(
-	ctx context.Context,
+func (s *service) prepareMCPAuthClientSecretValue(
 	prefix string,
 	server aghconfig.MCPServer,
 	value *string,
-) error {
+) (preparedSecretWrite, bool, error) {
 	if value == nil {
-		return nil
+		return preparedSecretWrite{}, false, nil
 	}
 	ref := vault.NormalizeRef(server.Auth.ClientSecretRef)
 	expectedRef := prefix + "oauth/client-secret"
 	if ref == "" {
-		return validationError(errors.New("settings: MCP OAuth client_secret_ref is required for oauth_client_secret"))
+		return preparedSecretWrite{}, false, validationError(
+			errors.New("settings: MCP OAuth client_secret_ref is required for oauth_client_secret"),
+		)
 	}
 	if ref != expectedRef {
-		return validationError(fmt.Errorf(
+		return preparedSecretWrite{}, false, validationError(fmt.Errorf(
 			"settings: MCP OAuth client_secret_ref %q must be %s",
 			ref,
 			expectedRef,
 		))
 	}
 	if err := vault.ValidateSecretRefNamespace(ref, "mcp"); err != nil {
-		return validationError(fmt.Errorf("settings: MCP OAuth client_secret_ref is invalid: %w", err))
+		return preparedSecretWrite{}, false, validationError(
+			fmt.Errorf("settings: MCP OAuth client_secret_ref is invalid: %w", err),
+		)
 	}
 	if strings.TrimSpace(*value) == "" {
-		return validationError(errors.New("settings: MCP OAuth client secret value is required"))
+		return preparedSecretWrite{}, false, validationError(
+			errors.New("settings: MCP OAuth client secret value is required"),
+		)
 	}
-	if _, err := s.providerSecrets.PutSecret(ctx, ref, "mcp_oauth_client_secret", *value); err != nil {
-		return fmt.Errorf("settings: store MCP OAuth client secret: %w", err)
-	}
-	return nil
+	return preparedSecretWrite{
+		description: "MCP OAuth client secret",
+		ref:         ref,
+		kind:        "mcp_oauth_client_secret",
+		value:       *value,
+	}, true, nil
 }
 
 func declaredSecretEnvRef(secretEnv map[string]string, envName string) (string, bool) {
@@ -973,7 +1183,10 @@ func (s *service) resolveMCPPutTarget(
 	selector TargetSelector,
 	sources map[string][]mcpSourceEntry,
 ) (aghconfig.WriteTarget, error) {
-	normalized := normalizeTargetSelector(selector)
+	normalized, err := normalizeTargetSelector(selector)
+	if err != nil {
+		return aghconfig.WriteTarget{}, err
+	}
 	if normalized == TargetConfig {
 		return aghconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
 	}
@@ -1001,7 +1214,10 @@ func (s *service) resolveMCPDeleteTarget(
 	selector TargetSelector,
 	sources map[string][]mcpSourceEntry,
 ) (aghconfig.WriteTarget, error) {
-	normalized := normalizeTargetSelector(selector)
+	normalized, err := normalizeTargetSelector(selector)
+	if err != nil {
+		return aghconfig.WriteTarget{}, err
+	}
 	if normalized == TargetConfig {
 		return aghconfig.ResolveConfigWriteTarget(s.homePaths, workspaceRoot, scope.configWriteScope())
 	}
@@ -1067,12 +1283,11 @@ func preferredMCPDeleteTarget(
 	return "", false
 }
 
-func normalizeTargetSelector(selector TargetSelector) TargetSelector {
-	trimmed := TargetSelector(strings.TrimSpace(string(selector)))
-	if trimmed == "" {
-		return TargetAuto
+func normalizeTargetSelector(selector TargetSelector) (TargetSelector, error) {
+	if err := selector.Validate(); err != nil {
+		return "", err
 	}
-	return trimmed
+	return selector.Normalize(), nil
 }
 
 func mutationResultForCollection(

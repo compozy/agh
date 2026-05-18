@@ -25,6 +25,7 @@ const (
 	uiToolStateStreaming = "input-streaming"
 	uiToolStateAvailable = "input-available"
 	uiToolStateOutput    = "output-available"
+	uiToolStateError     = "output-error"
 )
 
 var emptyJSONObject = json.RawMessage(`{}`)
@@ -98,6 +99,7 @@ type decodedStoredEvent struct {
 }
 
 type uiMessageBuilder struct {
+	logicalID        string
 	id               string
 	role             string
 	finished         bool
@@ -107,6 +109,11 @@ type uiMessageBuilder struct {
 	textPartSeq      int
 	reasoningPartSeq int
 	toolIndices      map[string]int
+	toolLifecycles   map[string]*uiToolLifecycle
+}
+
+type uiToolLifecycle struct {
+	input json.RawMessage
 }
 
 // UIAgentEventPayloadFromEvent converts an ACP event into the prompt-stream data payload.
@@ -178,13 +185,21 @@ func ToUIMessages(events []store.SessionEvent) ([]UIMessage, error) {
 	sorted := sortedTranscriptEvents(events)
 	messages := make([]UIMessage, 0, len(sorted))
 	var assistant *uiMessageBuilder
+	toolLifecycles := make(map[string]*uiToolLifecycle)
+	usedMessageIDs := make(map[string]struct{})
+
+	appendMessage := func(message UIMessage) {
+		message.ID = uniqueUIMessageID(message.ID, usedMessageIDs)
+		usedMessageIDs[message.ID] = struct{}{}
+		messages = append(messages, message)
+	}
 
 	flushAssistant := func(forceComplete bool) {
 		if assistant == nil {
 			return
 		}
 		if message := assistant.build(forceComplete || assistant.finished); message != nil {
-			messages = append(messages, *message)
+			appendMessage(*message)
 		}
 		assistant = nil
 	}
@@ -195,18 +210,23 @@ func ToUIMessages(events []store.SessionEvent) ([]UIMessage, error) {
 		case acp.EventTypeUserMessage:
 			flushAssistant(true)
 			if message := inputUIMessage(decoded, UIRoleUser); message != nil {
-				messages = append(messages, *message)
+				appendMessage(*message)
 			}
 		case acp.EventTypeSyntheticReentry:
 			flushAssistant(true)
 			if message := inputUIMessage(decoded, UIRoleSystem); message != nil {
-				messages = append(messages, *message)
+				appendMessage(*message)
 			}
 		default:
 			assistantID := assistantMessageID(decoded)
-			if assistant == nil || assistant.id != assistantID {
+			if assistant == nil || assistant.logicalID != assistantID {
 				flushAssistant(true)
-				assistant = newUIMessageBuilder(assistantID, UIRoleAssistant)
+				assistant = newUIMessageBuilder(
+					uniqueUIMessageID(assistantID, usedMessageIDs),
+					assistantID,
+					UIRoleAssistant,
+					toolLifecycles,
+				)
 			}
 			applyDecodedEvent(assistant, decoded)
 		}
@@ -216,12 +236,19 @@ func ToUIMessages(events []store.SessionEvent) ([]UIMessage, error) {
 	return messages, nil
 }
 
-func newUIMessageBuilder(id string, role string) *uiMessageBuilder {
+func newUIMessageBuilder(
+	id string,
+	logicalID string,
+	role string,
+	toolLifecycles map[string]*uiToolLifecycle,
+) *uiMessageBuilder {
 	return &uiMessageBuilder{
+		logicalID:       logicalID,
 		id:              id,
 		role:            role,
 		activePartIndex: -1,
 		toolIndices:     make(map[string]int),
+		toolLifecycles:  toolLifecycles,
 	}
 }
 
@@ -395,6 +422,7 @@ func (b *uiMessageBuilder) applyToolCall(decoded *decodedStoredEvent) {
 	if input, ready := toolInputFromDecoded(decoded); ready {
 		part.State = uiToolStateAvailable
 		part.Input = input
+		b.rememberToolInput(decoded, input)
 		return
 	}
 	if part.State == "" {
@@ -407,21 +435,74 @@ func (b *uiMessageBuilder) applyToolResult(decoded *decodedStoredEvent) {
 	part, existed := b.ensureToolPart(decoded)
 	input := acp.CloneRawMessage(part.Input)
 	if len(input) == 0 {
-		if next, ready := toolInputFromDecoded(decoded); ready {
+		if next, ok := b.rememberedToolInput(decoded); ok {
 			input = next
+		} else if next, ready := toolInputFromDecoded(decoded); ready {
+			input = next
+			b.rememberToolInput(decoded, next)
 		} else {
 			input = acp.CloneRawMessage(emptyJSONObject)
 		}
 	}
 
-	part.State = uiToolStateOutput
+	if decoded.parsed.ToolError {
+		part.State = uiToolStateError
+		part.ErrorText = firstNonEmpty(
+			toolResultErrorText(decoded.parsed.ToolResult),
+			decoded.agent.Error,
+			decoded.parsed.Text,
+		)
+	} else {
+		part.State = uiToolStateOutput
+		part.ErrorText = ""
+	}
 	part.Input = input
 	part.Output = decoded.dataPayload()
-	part.ErrorText = ""
 
 	if !existed {
 		part.RawInput = nil
 	}
+}
+
+func (b *uiMessageBuilder) rememberToolInput(decoded *decodedStoredEvent, input json.RawMessage) {
+	if b == nil || len(input) == 0 || rawMessageIsEmptyObject(input) {
+		return
+	}
+	key := toolLifecycleKey(decoded.parsed)
+	if key == "" {
+		return
+	}
+	if b.toolLifecycles == nil {
+		b.toolLifecycles = make(map[string]*uiToolLifecycle)
+	}
+	lifecycle := b.toolLifecycles[key]
+	if lifecycle == nil {
+		lifecycle = &uiToolLifecycle{}
+		b.toolLifecycles[key] = lifecycle
+	}
+	lifecycle.input = acp.CloneRawMessage(input)
+}
+
+func (b *uiMessageBuilder) rememberedToolInput(decoded *decodedStoredEvent) (json.RawMessage, bool) {
+	if b == nil || len(b.toolLifecycles) == 0 {
+		return nil, false
+	}
+	key := toolLifecycleKey(decoded.parsed)
+	if key == "" {
+		return nil, false
+	}
+	lifecycle := b.toolLifecycles[key]
+	if lifecycle == nil || len(lifecycle.input) == 0 {
+		return nil, false
+	}
+	return acp.CloneRawMessage(lifecycle.input), true
+}
+
+func toolResultErrorText(result *ToolResult) string {
+	if result == nil {
+		return ""
+	}
+	return firstNonEmpty(result.Error, result.Stderr, result.Content, result.Stdout)
 }
 
 func (b *uiMessageBuilder) ensureToolPart(decoded *decodedStoredEvent) (*UIMessagePart, bool) {
@@ -659,4 +740,17 @@ func fallbackMessageID(values ...string) string {
 		}
 	}
 	return fmt.Sprintf("msg-%s", CanonicalSchema)
+}
+
+func uniqueUIMessageID(id string, used map[string]struct{}) string {
+	base := fallbackMessageID(id, "message")
+	if _, ok := used[base]; !ok {
+		return base
+	}
+	for suffix := 2; ; suffix++ {
+		candidate := fmt.Sprintf("%s-%d", base, suffix)
+		if _, ok := used[candidate]; !ok {
+			return candidate
+		}
+	}
 }

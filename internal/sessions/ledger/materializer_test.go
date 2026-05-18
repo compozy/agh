@@ -1,9 +1,13 @@
 package ledger
 
 import (
+	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -169,6 +173,106 @@ func TestMaterializer(t *testing.T) {
 		}
 	})
 
+	t.Run("Should derive path without requiring an events database path", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		root := t.TempDir()
+		materializer := newTestMaterializer(t, root)
+		record := store.SessionLedgerRecord{
+			SessionID:   "sess-path-only",
+			WorkspaceID: "ws-primary",
+		}
+
+		path, err := materializer.Path(record)
+		if err != nil {
+			t.Fatalf("Path() error = %v", err)
+		}
+		wantPath := filepath.Join(root, "ws-primary", "sess-path-only", "ledger.jsonl")
+		if path != wantPath {
+			t.Fatalf("Path() = %q, want %q", path, wantPath)
+		}
+		if _, err := materializer.Materialize(ctx, record); !errors.Is(err, ErrInvalidRecord) {
+			t.Fatalf("Materialize(missing events db path) error = %v, want ErrInvalidRecord", err)
+		}
+	})
+
+	t.Run("Should fail corrupt event stores without replacing source evidence", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		root := t.TempDir()
+		eventsDBPath := filepath.Join(t.TempDir(), "events.db")
+		original := []byte("not a sqlite database\n")
+		if err := os.WriteFile(eventsDBPath, original, 0o644); err != nil {
+			t.Fatalf("WriteFile(%q) error = %v", eventsDBPath, err)
+		}
+		materializer := newTestMaterializer(t, root)
+		record := store.SessionLedgerRecord{
+			SessionID:    "sess-corrupt",
+			WorkspaceID:  "ws-primary",
+			EventsDBPath: eventsDBPath,
+		}
+		ledgerPath, err := materializer.Path(record)
+		if err != nil {
+			t.Fatalf("Path() error = %v", err)
+		}
+
+		if _, err := materializer.Materialize(ctx, record); err == nil {
+			t.Fatal("Materialize(corrupt events db) error = nil, want failure")
+		}
+		after, err := os.ReadFile(eventsDBPath)
+		if err != nil {
+			t.Fatalf("ReadFile(%q) error = %v", eventsDBPath, err)
+		}
+		if !bytes.Equal(after, original) {
+			t.Fatalf("events.db content after failed materialization = %q, want original corrupt bytes", string(after))
+		}
+		if matches, err := filepath.Glob(eventsDBPath + ".corrupt.*"); err != nil || len(matches) != 0 {
+			t.Fatalf("corrupt recovery files = %v, err = %v; want none", matches, err)
+		}
+		if _, err := os.Stat(ledgerPath); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("Stat(%q) error = %v, want os.ErrNotExist", ledgerPath, err)
+		}
+	})
+
+	t.Run("Should preserve legacy raw event payloads while materializing", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		root := t.TempDir()
+		eventsDBPath := createLegacyRawEventDB(ctx, t)
+		before, err := os.ReadFile(eventsDBPath)
+		if err != nil {
+			t.Fatalf("ReadFile(before %q) error = %v", eventsDBPath, err)
+		}
+		materializer := newTestMaterializer(t, root)
+		record := store.SessionLedgerRecord{
+			SessionID:    "sess-legacy-raw",
+			WorkspaceID:  "ws-primary",
+			EventsDBPath: eventsDBPath,
+		}
+
+		result, err := materializer.Materialize(ctx, record)
+		if err != nil {
+			t.Fatalf("Materialize(legacy raw events db) error = %v", err)
+		}
+		if result.Events != 1 {
+			t.Fatalf("Materialize().Events = %d, want 1", result.Events)
+		}
+		after, err := os.ReadFile(eventsDBPath)
+		if err != nil {
+			t.Fatalf("ReadFile(after %q) error = %v", eventsDBPath, err)
+		}
+		if !bytes.Equal(after, before) {
+			t.Fatal("events.db bytes changed during materialization, want read-only projection")
+		}
+		content := readEventContentDirect(ctx, t, eventsDBPath, "ev-raw")
+		if !strings.Contains(content, `"raw"`) {
+			t.Fatalf("legacy event content = %q, want raw payload preserved", content)
+		}
+	})
+
 	t.Run("Should reject unsafe inputs before reading event store", func(t *testing.T) {
 		t.Parallel()
 
@@ -267,6 +371,87 @@ func createLedgerRecord(
 		StartedAt: started,
 		EndedAt:   ended,
 	}
+}
+
+func createLegacyRawEventDB(ctx context.Context, t *testing.T) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "events.db")
+	legacyContent := `{"schema":"agh.session.event.v1","type":"tool_call","raw":{"content":"preserve"}}`
+	timestamp := store.FormatTimestamp(time.Date(2026, 5, 5, 12, 0, 1, 0, time.UTC))
+	db, err := store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
+		_, err := db.ExecContext(ctx, `CREATE TABLE events (
+			id TEXT PRIMARY KEY,
+			sequence INTEGER NOT NULL,
+			turn_id TEXT NOT NULL,
+			type TEXT NOT NULL,
+			agent_name TEXT NOT NULL,
+			content TEXT NOT NULL,
+			timestamp TEXT NOT NULL
+		);`)
+		if err != nil {
+			return fmt.Errorf("create legacy events table: %w", err)
+		}
+		_, err = db.ExecContext(
+			ctx,
+			`INSERT INTO events (id, sequence, turn_id, type, agent_name, content, timestamp)
+			 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			"ev-raw",
+			1,
+			"turn-raw",
+			"tool_call",
+			"coder",
+			legacyContent,
+			timestamp,
+		)
+		if err != nil {
+			return fmt.Errorf("insert legacy event: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("OpenSQLiteDatabase(legacy raw) error = %v", err)
+	}
+	if err := store.Checkpoint(ctx, db); err != nil {
+		t.Fatalf("Checkpoint(legacy raw) error = %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("legacy raw db Close() error = %v", err)
+	}
+	return path
+}
+
+func readEventContentDirect(ctx context.Context, t *testing.T, path string, eventID string) string {
+	t.Helper()
+
+	db, err := sql.Open("sqlite", readOnlyTestSQLiteDSN(path))
+	if err != nil {
+		t.Fatalf("sql.Open(read-only %q) error = %v", path, err)
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			t.Fatalf("read-only db Close() error = %v", err)
+		}
+	}()
+	if err := db.PingContext(ctx); err != nil {
+		t.Fatalf("PingContext(read-only %q) error = %v", path, err)
+	}
+	var content string
+	if err := db.QueryRowContext(ctx, `SELECT content FROM events WHERE id = ?`, eventID).Scan(&content); err != nil {
+		t.Fatalf("QueryRowContext(%q) error = %v", eventID, err)
+	}
+	return content
+}
+
+func readOnlyTestSQLiteDSN(path string) string {
+	u := url.URL{
+		Scheme: "file",
+		Path:   filepath.ToSlash(path),
+	}
+	query := u.Query()
+	query.Set("mode", "ro")
+	u.RawQuery = query.Encode()
+	return u.String()
 }
 
 func readLedgerLines(t *testing.T, path string) []string {

@@ -1,12 +1,14 @@
 package observe
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"sort"
 	"testing"
 	"time"
 
+	"github.com/pedronauck/agh/internal/soul"
 	"github.com/pedronauck/agh/internal/testutil"
 
 	"github.com/pedronauck/agh/internal/store"
@@ -15,102 +17,295 @@ import (
 func TestReconciliationIndexesSessionDirNotInDB(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t)
-	sessionDir := filepath.Join(h.home.SessionsDir, "sess-new")
-	metaPath := store.SessionMetaFile(sessionDir)
-	now := h.now.Add(30 * time.Minute)
-	stopReason := store.StopUserCanceled
+	t.Run("Should index a session directory not already in the registry", func(t *testing.T) {
+		t.Parallel()
 
-	if err := store.WriteSessionMeta(metaPath, store.SessionMeta{
-		ID:          "sess-new",
-		Name:        "New",
-		AgentName:   "coder",
-		Provider:    "claude",
-		WorkspaceID: h.workspaceID,
-		State:       "stopped",
-		StopReason:  &stopReason,
-		StopDetail:  "requested by API",
-		CreatedAt:   now,
-		UpdatedAt:   now,
-	}); err != nil {
-		t.Fatalf("WriteSessionMeta() error = %v", err)
-	}
+		h := newHarness(t)
+		sessionDir := filepath.Join(h.home.SessionsDir, "sess-new")
+		metaPath := store.SessionMetaFile(sessionDir)
+		now := h.now.Add(30 * time.Minute)
+		stopReason := store.StopUserCanceled
 
-	result, err := h.observer.Reconcile(testutil.Context(t))
-	if err != nil {
-		t.Fatalf("Reconcile() error = %v", err)
-	}
-	sort.Strings(result.Indexed)
-	if got, want := result.Indexed, []string{"sess-new"}; !testutil.EqualStringSlices(got, want) {
-		t.Fatalf("Indexed = %#v, want %#v", got, want)
-	}
+		if err := store.WriteSessionMeta(metaPath, store.SessionMeta{
+			ID:          "sess-new",
+			Name:        "New",
+			AgentName:   "coder",
+			Provider:    "claude",
+			WorkspaceID: h.workspaceID,
+			State:       "stopped",
+			StopReason:  &stopReason,
+			StopDetail:  "requested by API",
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}); err != nil {
+			t.Fatalf("WriteSessionMeta() error = %v", err)
+		}
 
-	sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{})
-	if err != nil {
-		t.Fatalf("ListSessions() error = %v", err)
-	}
-	if got, want := len(sessions), 1; got != want {
-		t.Fatalf("len(sessions) = %d, want %d", got, want)
-	}
-	if sessions[0].State != "stopped" {
-		t.Fatalf("sessions[0].State = %q, want stopped", sessions[0].State)
-	}
-	if sessions[0].StopReason != store.StopUserCanceled {
-		t.Fatalf("sessions[0].StopReason = %q, want %q", sessions[0].StopReason, store.StopUserCanceled)
-	}
-	if sessions[0].StopDetail != "requested by API" {
-		t.Fatalf("sessions[0].StopDetail = %q, want %q", sessions[0].StopDetail, "requested by API")
-	}
-	if sessions[0].Provider != "claude" {
-		t.Fatalf("sessions[0].Provider = %q, want claude", sessions[0].Provider)
-	}
+		result, err := h.observer.Reconcile(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("Reconcile() error = %v", err)
+		}
+		sort.Strings(result.Indexed)
+		if got, want := result.Indexed, []string{"sess-new"}; !testutil.EqualStringSlices(got, want) {
+			t.Fatalf("Indexed = %#v, want %#v", got, want)
+		}
 
-	meta, err := store.ReadSessionMeta(metaPath)
-	if err != nil {
-		t.Fatalf("ReadSessionMeta() error = %v", err)
-	}
-	if meta.State != "stopped" {
-		t.Fatalf("meta.State = %q, want stopped", meta.State)
-	}
+		sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{})
+		if err != nil {
+			t.Fatalf("ListSessions() error = %v", err)
+		}
+		if got, want := len(sessions), 1; got != want {
+			t.Fatalf("len(sessions) = %d, want %d", got, want)
+		}
+		if sessions[0].State != "stopped" {
+			t.Fatalf("sessions[0].State = %q, want stopped", sessions[0].State)
+		}
+		if sessions[0].StopReason != store.StopUserCanceled {
+			t.Fatalf("sessions[0].StopReason = %q, want %q", sessions[0].StopReason, store.StopUserCanceled)
+		}
+		if sessions[0].StopDetail != "requested by API" {
+			t.Fatalf("sessions[0].StopDetail = %q, want %q", sessions[0].StopDetail, "requested by API")
+		}
+		if sessions[0].Provider != "claude" {
+			t.Fatalf("sessions[0].Provider = %q, want claude", sessions[0].Provider)
+		}
+
+		meta, err := store.ReadSessionMeta(metaPath)
+		if err != nil {
+			t.Fatalf("ReadSessionMeta() error = %v", err)
+		}
+		if meta.State != "stopped" {
+			t.Fatalf("meta.State = %q, want stopped", meta.State)
+		}
+	})
+}
+
+func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve failure lineage and soul provenance metadata", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		rootID := "sess-a-root"
+		parentID := "sess-b-parent"
+		childID := "sess-c-child"
+		now := h.now.Add(35 * time.Minute)
+		stopReason := store.StopAgentCrashed
+		ttl := now.Add(time.Hour)
+		acpSessionID := "acp-child"
+		snapshot, err := h.registry.UpsertSoulSnapshot(testutil.Context(t), soul.Snapshot{
+			ID:          "soul-snapshot-1",
+			WorkspaceID: h.workspaceID,
+			AgentName:   "coder",
+			SourcePath:  "AGENT.md",
+			Digest:      "soul-digest-1",
+			ProfileJSON: json.RawMessage("{\"schema_version\":1}"),
+			Body:        "active soul profile",
+			CreatedAt:   now,
+		})
+		if err != nil {
+			t.Fatalf("UpsertSoulSnapshot() error = %v", err)
+		}
+
+		if err := store.WriteSessionMeta(
+			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, rootID)),
+			store.SessionMeta{
+				ID:          rootID,
+				Name:        "Root",
+				AgentName:   "coder",
+				Provider:    "claude",
+				WorkspaceID: h.workspaceID,
+				State:       "stopped",
+				CreatedAt:   now,
+				UpdatedAt:   now,
+			},
+		); err != nil {
+			t.Fatalf("WriteSessionMeta(root) error = %v", err)
+		}
+		if err := store.WriteSessionMeta(
+			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, parentID)),
+			store.SessionMeta{
+				ID:          parentID,
+				Name:        "Parent",
+				AgentName:   "coder",
+				Provider:    "claude",
+				WorkspaceID: h.workspaceID,
+				State:       "stopped",
+				Lineage: &store.SessionLineage{
+					ParentSessionID: rootID,
+					RootSessionID:   rootID,
+					SpawnDepth:      1,
+				},
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+		); err != nil {
+			t.Fatalf("WriteSessionMeta(parent) error = %v", err)
+		}
+		if err := store.WriteSessionMeta(
+			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, childID)),
+			store.SessionMeta{
+				ID:           childID,
+				Name:         "Child",
+				AgentName:    "coder",
+				Provider:     "claude",
+				WorkspaceID:  h.workspaceID,
+				SessionType:  "worker",
+				State:        "stopped",
+				ACPSessionID: &acpSessionID,
+				StopReason:   &stopReason,
+				StopDetail:   "agent process exited",
+				Failure: &store.SessionFailure{
+					Kind:            store.FailureProcess,
+					Summary:         "agent exited with status 1",
+					CrashBundlePath: "/tmp/agh-crash-bundle",
+				},
+				Lineage: &store.SessionLineage{
+					ParentSessionID:  parentID,
+					RootSessionID:    rootID,
+					SpawnDepth:       2,
+					SpawnRole:        "delegate_task",
+					TTLExpiresAt:     &ttl,
+					AutoStopOnParent: true,
+					SpawnBudget: store.SessionSpawnBudget{
+						MaxChildren:           2,
+						MaxDepth:              3,
+						TTLSeconds:            3600,
+						MaxActivePerWorkspace: 1,
+					},
+					PermissionPolicy: store.SessionPermissionPolicy{
+						Skills:         []string{"skill-alpha"},
+						WorkspacePaths: []string{h.workspace},
+					},
+				},
+				SoulSnapshotID:   " " + snapshot.ID + " ",
+				SoulDigest:       " " + snapshot.Digest + " ",
+				ParentSoulDigest: " parent-soul-digest ",
+				CreatedAt:        now,
+				UpdatedAt:        now,
+			},
+		); err != nil {
+			t.Fatalf("WriteSessionMeta(child) error = %v", err)
+		}
+
+		result, err := h.observer.Reconcile(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("Reconcile() error = %v", err)
+		}
+		sort.Strings(result.Indexed)
+		if got, want := result.Indexed, []string{rootID, parentID, childID}; !testutil.EqualStringSlices(got, want) {
+			t.Fatalf("Indexed = %#v, want %#v", got, want)
+		}
+
+		sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{})
+		if err != nil {
+			t.Fatalf("ListSessions() error = %v", err)
+		}
+		if got, want := len(sessions), 3; got != want {
+			t.Fatalf("len(sessions) = %d, want %d", got, want)
+		}
+		indexed := store.SessionInfo{}
+		for _, session := range sessions {
+			if session.ID == childID {
+				indexed = session
+				break
+			}
+		}
+		if indexed.ID == "" {
+			t.Fatalf("ListSessions() = %#v, want child session", sessions)
+		}
+		if indexed.Lineage == nil ||
+			indexed.Lineage.ParentSessionID != parentID ||
+			indexed.Lineage.RootSessionID != rootID ||
+			indexed.Lineage.SpawnDepth != 2 ||
+			indexed.Lineage.SpawnRole != "delegate_task" ||
+			indexed.Lineage.TTLExpiresAt == nil ||
+			!indexed.Lineage.TTLExpiresAt.Equal(ttl) ||
+			!indexed.Lineage.AutoStopOnParent {
+			t.Fatalf("indexed.Lineage = %#v, want durable lineage metadata", indexed.Lineage)
+		}
+		if indexed.Failure == nil || indexed.Failure.Kind != store.FailureProcess {
+			t.Fatalf("indexed.Failure = %#v, want process failure", indexed.Failure)
+		}
+		if got, want := indexed.Failure.Summary, "agent exited with status 1"; got != want {
+			t.Fatalf("indexed.Failure.Summary = %q, want %q", got, want)
+		}
+		if got, want := indexed.Failure.CrashBundlePath, "/tmp/agh-crash-bundle"; got != want {
+			t.Fatalf("indexed.Failure.CrashBundlePath = %q, want %q", got, want)
+		}
+		if got, want := indexed.SoulSnapshotID, "soul-snapshot-1"; got != want {
+			t.Fatalf("indexed.SoulSnapshotID = %q, want %q", got, want)
+		}
+		if got, want := indexed.SoulDigest, "soul-digest-1"; got != want {
+			t.Fatalf("indexed.SoulDigest = %q, want %q", got, want)
+		}
+		if got, want := indexed.ParentSoulDigest, "parent-soul-digest"; got != want {
+			t.Fatalf("indexed.ParentSoulDigest = %q, want %q", got, want)
+		}
+
+		health, err := h.observer.Health(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("Health() error = %v", err)
+		}
+		if got, want := health.Failures.Total, 1; got != want {
+			t.Fatalf("Health().Failures.Total = %d, want %d", got, want)
+		}
+		if got, want := health.Failures.ByKind[store.FailureProcess], 1; got != want {
+			t.Fatalf("Health().Failures.ByKind[process] = %d, want %d", got, want)
+		}
+		if got, want := len(health.Failures.Recent), 1; got != want {
+			t.Fatalf("len(Health().Failures.Recent) = %d, want %d", got, want)
+		}
+		if recent := health.Failures.Recent[0]; recent.SessionID != childID ||
+			recent.FailureKind != store.FailureProcess ||
+			recent.Summary != "agent exited with status 1" {
+			t.Fatalf("Health().Failures.Recent[0] = %#v, want reconstructed failure", recent)
+		}
+	})
 }
 
 func TestReconciliationMarksMissingDirectoryAsOrphaned(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t)
-	now := h.now
-	if err := h.observer.registry.RegisterSession(testutil.Context(t), store.SessionInfo{
-		ID:          "sess-orphan",
-		Name:        "Orphan",
-		AgentName:   "coder",
-		Provider:    "claude",
-		WorkspaceID: h.workspaceID,
-		State:       "active",
-		CreatedAt:   now,
-		UpdatedAt:   now,
-	}); err != nil {
-		t.Fatalf("RegisterSession() error = %v", err)
-	}
+	t.Run("Should mark indexed sessions missing from disk as orphaned", func(t *testing.T) {
+		t.Parallel()
 
-	result, err := h.observer.Reconcile(testutil.Context(t))
-	if err != nil {
-		t.Fatalf("Reconcile() error = %v", err)
-	}
-	sort.Strings(result.Orphaned)
-	if got, want := result.Orphaned, []string{"sess-orphan"}; !testutil.EqualStringSlices(got, want) {
-		t.Fatalf("Orphaned = %#v, want %#v", got, want)
-	}
+		h := newHarness(t)
+		now := h.now
+		if err := h.observer.registry.RegisterSession(testutil.Context(t), store.SessionInfo{
+			ID:          "sess-orphan",
+			Name:        "Orphan",
+			AgentName:   "coder",
+			Provider:    "claude",
+			WorkspaceID: h.workspaceID,
+			State:       "active",
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}); err != nil {
+			t.Fatalf("RegisterSession() error = %v", err)
+		}
 
-	sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{})
-	if err != nil {
-		t.Fatalf("ListSessions() error = %v", err)
-	}
-	if got, want := len(sessions), 1; got != want {
-		t.Fatalf("len(sessions) = %d, want %d", got, want)
-	}
-	if sessions[0].State != "orphaned" {
-		t.Fatalf("sessions[0].State = %q, want orphaned", sessions[0].State)
-	}
+		result, err := h.observer.Reconcile(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("Reconcile() error = %v", err)
+		}
+		sort.Strings(result.Orphaned)
+		if got, want := result.Orphaned, []string{"sess-orphan"}; !testutil.EqualStringSlices(got, want) {
+			t.Fatalf("Orphaned = %#v, want %#v", got, want)
+		}
+
+		sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{})
+		if err != nil {
+			t.Fatalf("ListSessions() error = %v", err)
+		}
+		if got, want := len(sessions), 1; got != want {
+			t.Fatalf("len(sessions) = %d, want %d", got, want)
+		}
+		if sessions[0].State != "orphaned" {
+			t.Fatalf("sessions[0].State = %q, want orphaned", sessions[0].State)
+		}
+	})
 }
 
 func TestReconciliationLegacyProviderRepair(t *testing.T) {
@@ -262,29 +457,32 @@ func TestReconciliationLegacyProviderRepair(t *testing.T) {
 func TestReconciliationSkipsLegacyStoppedSessionMetadata(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t)
+	t.Run("Should skip legacy stopped metadata that cannot be normalized", func(t *testing.T) {
+		t.Parallel()
 
-	validDir := filepath.Join(h.home.SessionsDir, "sess-valid")
-	validMetaPath := store.SessionMetaFile(validDir)
-	now := h.now.Add(45 * time.Minute)
-	if err := store.WriteSessionMeta(validMetaPath, store.SessionMeta{
-		ID:          "sess-valid",
-		Name:        "Valid",
-		AgentName:   "coder",
-		Provider:    "claude",
-		WorkspaceID: h.workspaceID,
-		State:       "active",
-		CreatedAt:   now,
-		UpdatedAt:   now,
-	}); err != nil {
-		t.Fatalf("WriteSessionMeta(valid) error = %v", err)
-	}
+		h := newHarness(t)
 
-	legacyDir := filepath.Join(h.home.SessionsDir, "sess-legacy")
-	if err := os.MkdirAll(legacyDir, 0o755); err != nil {
-		t.Fatalf("MkdirAll(legacyDir) error = %v", err)
-	}
-	legacyMeta := `{
+		validDir := filepath.Join(h.home.SessionsDir, "sess-valid")
+		validMetaPath := store.SessionMetaFile(validDir)
+		now := h.now.Add(45 * time.Minute)
+		if err := store.WriteSessionMeta(validMetaPath, store.SessionMeta{
+			ID:          "sess-valid",
+			Name:        "Valid",
+			AgentName:   "coder",
+			Provider:    "claude",
+			WorkspaceID: h.workspaceID,
+			State:       "active",
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}); err != nil {
+			t.Fatalf("WriteSessionMeta(valid) error = %v", err)
+		}
+
+		legacyDir := filepath.Join(h.home.SessionsDir, "sess-legacy")
+		if err := os.MkdirAll(legacyDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(legacyDir) error = %v", err)
+		}
+		legacyMeta := `{
   "id": "sess-legacy",
   "name": "legacy-session",
   "goal": "Legacy prompt",
@@ -294,38 +492,42 @@ func TestReconciliationSkipsLegacyStoppedSessionMetadata(t *testing.T) {
   "stopped_at": "2026-04-01T03:58:00.212132Z"
 }
 `
-	if err := os.WriteFile(store.SessionMetaFile(legacyDir), []byte(legacyMeta), 0o644); err != nil {
-		t.Fatalf("WriteFile(legacy meta) error = %v", err)
-	}
+		if err := os.WriteFile(store.SessionMetaFile(legacyDir), []byte(legacyMeta), 0o644); err != nil {
+			t.Fatalf("WriteFile(legacy meta) error = %v", err)
+		}
 
-	result, err := h.observer.Reconcile(testutil.Context(t))
-	if err != nil {
-		t.Fatalf("Reconcile() error = %v", err)
-	}
-	sort.Strings(result.Indexed)
-	if got, want := result.Indexed, []string{"sess-valid"}; !testutil.EqualStringSlices(got, want) {
-		t.Fatalf("Indexed = %#v, want %#v", got, want)
-	}
+		result, err := h.observer.Reconcile(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("Reconcile() error = %v", err)
+		}
+		sort.Strings(result.Indexed)
+		if got, want := result.Indexed, []string{"sess-valid"}; !testutil.EqualStringSlices(got, want) {
+			t.Fatalf("Indexed = %#v, want %#v", got, want)
+		}
 
-	sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{})
-	if err != nil {
-		t.Fatalf("ListSessions() error = %v", err)
-	}
-	if got, want := len(sessions), 1; got != want {
-		t.Fatalf("len(sessions) = %d, want %d", got, want)
-	}
-	if sessions[0].ID != "sess-valid" {
-		t.Fatalf("sessions[0].ID = %q, want %q", sessions[0].ID, "sess-valid")
-	}
+		sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{})
+		if err != nil {
+			t.Fatalf("ListSessions() error = %v", err)
+		}
+		if got, want := len(sessions), 1; got != want {
+			t.Fatalf("len(sessions) = %d, want %d", got, want)
+		}
+		if sessions[0].ID != "sess-valid" {
+			t.Fatalf("sessions[0].ID = %q, want %q", sessions[0].ID, "sess-valid")
+		}
+	})
 }
 
 func TestReconciliationSkipsSessionMetadataMissingWorkspaceID(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t)
+	t.Run("Should skip metadata missing workspace id", func(t *testing.T) {
+		t.Parallel()
 
-	sessionDir := filepath.Join(h.home.SessionsDir, "sess-missing-workspace")
-	meta := `{
+		h := newHarness(t)
+
+		sessionDir := filepath.Join(h.home.SessionsDir, "sess-missing-workspace")
+		meta := `{
   "id": "sess-missing-workspace",
   "name": "Missing Workspace",
   "agent_name": "coder",
@@ -334,29 +536,30 @@ func TestReconciliationSkipsSessionMetadataMissingWorkspaceID(t *testing.T) {
   "updated_at": "2026-04-03T18:30:00Z"
 }
 `
-	if err := os.MkdirAll(sessionDir, 0o755); err != nil {
-		t.Fatalf("MkdirAll(sessionDir) error = %v", err)
-	}
-	if err := os.WriteFile(store.SessionMetaFile(sessionDir), []byte(meta), 0o644); err != nil {
-		t.Fatalf("WriteFile(meta) error = %v", err)
-	}
+		if err := os.MkdirAll(sessionDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(sessionDir) error = %v", err)
+		}
+		if err := os.WriteFile(store.SessionMetaFile(sessionDir), []byte(meta), 0o644); err != nil {
+			t.Fatalf("WriteFile(meta) error = %v", err)
+		}
 
-	result, err := h.observer.Reconcile(testutil.Context(t))
-	if err != nil {
-		t.Fatalf("Reconcile() error = %v", err)
-	}
-	if len(result.Indexed) != 0 {
-		t.Fatalf("Indexed = %#v, want empty", result.Indexed)
-	}
-	if len(result.Orphaned) != 0 {
-		t.Fatalf("Orphaned = %#v, want empty", result.Orphaned)
-	}
+		result, err := h.observer.Reconcile(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("Reconcile() error = %v", err)
+		}
+		if len(result.Indexed) != 0 {
+			t.Fatalf("Indexed = %#v, want empty", result.Indexed)
+		}
+		if len(result.Orphaned) != 0 {
+			t.Fatalf("Orphaned = %#v, want empty", result.Orphaned)
+		}
 
-	sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{})
-	if err != nil {
-		t.Fatalf("ListSessions() error = %v", err)
-	}
-	if len(sessions) != 0 {
-		t.Fatalf("len(sessions) = %d, want 0", len(sessions))
-	}
+		sessions, err := h.observer.registry.ListSessions(testutil.Context(t), store.SessionListQuery{})
+		if err != nil {
+			t.Fatalf("ListSessions() error = %v", err)
+		}
+		if len(sessions) != 0 {
+			t.Fatalf("len(sessions) = %d, want 0", len(sessions))
+		}
+	})
 }

@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 )
@@ -70,6 +71,50 @@ func newManagerWithExecutable(t *testing.T, cfg Config) (*Manager, string) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 	return manager, executablePath
+}
+
+func testReleaseAssets(t testing.TB, manager *Manager) []ReleaseAsset {
+	t.Helper()
+
+	archiveName := "agh_linux_x86_64.tar.gz"
+	if manager != nil {
+		resolvedArchiveName, err := archiveAssetName(manager.runtimeOS, manager.runtimeArch)
+		if err != nil {
+			t.Fatalf("archiveAssetName() error = %v", err)
+		}
+		archiveName = resolvedArchiveName
+	}
+	return []ReleaseAsset{
+		{Name: archiveName, DownloadURL: "https://downloads.example/archive"},
+		{Name: checksumsAssetName, DownloadURL: "https://downloads.example/checksums.txt"},
+		{Name: checksumsBundleAssetName, DownloadURL: "https://downloads.example/checksums.txt.sigstore.json"},
+	}
+}
+
+func testGitHubAssets(t testing.TB, manager *Manager) []githubAssetResponse {
+	t.Helper()
+
+	assets := testReleaseAssets(t, manager)
+	responses := make([]githubAssetResponse, 0, len(assets))
+	for _, asset := range assets {
+		responses = append(responses, githubAssetResponse{
+			Name:               asset.Name,
+			BrowserDownloadURL: asset.DownloadURL,
+		})
+	}
+	return responses
+}
+
+func testCacheEntry(t testing.TB, manager *Manager, version string, releaseURL string, checkedAt time.Time) cacheEntry {
+	t.Helper()
+
+	return cacheEntry{
+		LatestVersion: strings.TrimSpace(version),
+		ReleaseURL:    strings.TrimSpace(releaseURL),
+		PublishedAt:   checkedAt.Add(-time.Hour),
+		Assets:        testReleaseAssets(t, manager),
+		CheckedAt:     checkedAt,
+	}
 }
 
 func jsonHTTPResponse(t *testing.T, statusCode int, payload any) *http.Response {
@@ -148,8 +193,9 @@ func (a *recordingBinaryApplier) RestoreBinary(
 }
 
 type assetResponse struct {
-	status int
-	body   []byte
+	status        int
+	body          []byte
+	contentLength string
 }
 
 func newReleaseAssetServer(t *testing.T, responses map[string]assetResponse) *httptest.Server {
@@ -164,6 +210,9 @@ func newReleaseAssetServer(t *testing.T, responses map[string]assetResponse) *ht
 		status := response.status
 		if status == 0 {
 			status = http.StatusOK
+		}
+		if strings.TrimSpace(response.contentLength) != "" {
+			w.Header().Set("Content-Length", response.contentLength)
 		}
 		w.WriteHeader(status)
 		if _, err := w.Write(response.body); err != nil {

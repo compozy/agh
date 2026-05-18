@@ -48,9 +48,6 @@ func Process(ctx context.Context, srcDir, dstDir string) error {
 	if err := prepareOutputDir(dstDir); err != nil {
 		return err
 	}
-	if err := cleanOutput(ctx, dstDir); err != nil {
-		return err
-	}
 
 	inputs, err := readInputs(ctx, srcDir)
 	if err != nil {
@@ -62,6 +59,9 @@ func Process(ctx context.Context, srcDir, dstDir string) error {
 		return err
 	}
 	targets := buildTargetMap(inputs)
+	if err := cleanOutput(ctx, dstDir); err != nil {
+		return err
+	}
 
 	for _, in := range inputs {
 		if err := ensureContext(ctx, fmt.Sprintf("write %s", in.fileName)); err != nil {

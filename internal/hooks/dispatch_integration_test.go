@@ -20,19 +20,24 @@ func TestDispatchInputPreSubmitOrdersNativeBeforeSubprocess(t *testing.T) {
 		}),
 		WithSkillDeclarations([]HookDecl{
 			{
-				Name:        "skill-shell",
-				Event:       HookInputPreSubmit,
-				Mode:        HookModeSync,
-				Command:     "/bin/sh",
-				Args:        []string{"-c", "payload=$(cat); if printf '%s' \"$payload\" | grep -q 'native'; then printf '{\"message\":\"native-shell\"}'; else printf '{\"message\":\"wrong-order\"}'; fi"},
+				Name:    "skill-shell",
+				Event:   HookInputPreSubmit,
+				Mode:    HookModeSync,
+				Command: "/bin/sh",
+				Args: []string{
+					"-c",
+					"payload=$(cat); if printf '%s' \"$payload\" | grep -q 'native'; then printf '{\"message\":\"native-shell\"}'; else printf '{\"message\":\"wrong-order\"}'; fi",
+				},
 				SkillSource: HookSkillSourceUser,
 			},
 		}),
 		WithExecutorResolver(testExecutorResolver(map[string]Executor{
-			"native-prefix": NewTypedNativeExecutor(func(_ context.Context, _ RegisteredHook, payload InputPreSubmitPayload) (InputPreSubmitPatch, error) {
-				msg := payload.Message + "native"
-				return InputPreSubmitPatch{Message: &msg}, nil
-			}),
+			"native-prefix": NewTypedNativeExecutor(
+				func(_ context.Context, _ RegisteredHook, payload InputPreSubmitPayload) (InputPreSubmitPatch, error) {
+					msg := payload.Message + "native"
+					return InputPreSubmitPatch{Message: &msg}, nil
+				},
+			),
 		})),
 	)
 

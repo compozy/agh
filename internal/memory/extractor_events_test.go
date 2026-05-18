@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"encoding/json"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -115,6 +116,63 @@ func TestStoreRecordExtractorEvent(t *testing.T) {
 		err := store.RecordExtractorEvent(testutil.Context(t), memoryextractor.Event{Op: "memory.extractor.unknown"})
 		if err == nil {
 			t.Fatal("RecordExtractorEvent(unsupported) error = nil, want non-nil")
+		}
+	})
+
+	t.Run("Should redact and bound failed extractor metadata before persistence", func(t *testing.T) {
+		t.Parallel()
+
+		store := NewStore(
+			filepath.Join(t.TempDir(), "memory"),
+			WithCatalogDatabasePath(filepath.Join(t.TempDir(), storepkg.GlobalDatabaseName)),
+		)
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("EnsureDirs() error = %v", err)
+		}
+		secret := "sk-test-secret"
+		longSuffix := strings.Repeat("x", maxOperationSummaryBytes*2)
+		err := store.RecordExtractorEvent(testutil.Context(t), memoryextractor.Event{
+			Op: memoryextractor.EventFailed,
+			Turn: memcontract.TurnRecord{
+				SessionID:   "sess-extractor",
+				WorkspaceID: "ws-extractor",
+				AgentID:     "coder",
+			},
+			Metadata: map[string]string{
+				"detail": "upstream authorization=Bearer " + secret,
+			},
+			Error: "request failed: token=" + secret + " " + longSuffix,
+		})
+		if err != nil {
+			t.Fatalf("RecordExtractorEvent(failed) error = %v", err)
+		}
+
+		var rawMetadata string
+		if err := store.catalog.db.QueryRowContext(
+			testutil.Context(t),
+			`SELECT metadata FROM memory_events WHERE op = ?`,
+			memoryextractor.EventFailed,
+		).Scan(&rawMetadata); err != nil {
+			t.Fatalf("QueryRowContext(memory_events.metadata) error = %v", err)
+		}
+		if strings.Contains(rawMetadata, secret) {
+			t.Fatalf("metadata = %q leaked secret %q", rawMetadata, secret)
+		}
+		metadata := map[string]string{}
+		if err := json.Unmarshal([]byte(rawMetadata), &metadata); err != nil {
+			t.Fatalf("json.Unmarshal(metadata) error = %v", err)
+		}
+		for _, key := range []string{"error", "detail"} {
+			value := metadata[key]
+			if strings.Contains(value, secret) {
+				t.Fatalf("metadata[%q] = %q leaked secret", key, value)
+			}
+			if !strings.Contains(value, "[REDACTED]") {
+				t.Fatalf("metadata[%q] = %q, want redacted placeholder", key, value)
+			}
+			if len(value) > maxOperationSummaryBytes {
+				t.Fatalf("len(metadata[%q]) = %d, want <= %d", key, len(value), maxOperationSummaryBytes)
+			}
 		}
 	})
 }

@@ -14,10 +14,12 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	"github.com/pedronauck/agh/internal/bridgesdk"
@@ -40,6 +42,15 @@ const (
 	rpcCodeNotInitialized = -32003
 )
 
+var (
+	errWhatsAppInstanceConfigUnavailable = errors.New(
+		"whatsapp: delivery targeted unmanaged instance",
+	)
+	errWhatsAppInstanceConfigInvalid = errors.New(
+		"whatsapp: bridge instance configuration invalid",
+	)
+)
+
 type whatsappProvider struct {
 	sdk     *bridgesdk.Runtime
 	stderr  io.Writer
@@ -49,6 +60,8 @@ type whatsappProvider struct {
 
 	mu             sync.RWMutex
 	lastError      string
+	lastErrorSeq   uint64
+	instanceErrors map[string]string
 	server         *http.Server
 	serverAddr     string
 	listenAddr     string
@@ -270,6 +283,7 @@ func newWhatsAppProvider(stderr io.Writer) (*whatsappProvider, error) {
 		routes:         make(map[string]resolvedInstanceConfig),
 		deliveries:     make(map[string]deliveryState),
 		reportedStatus: make(map[string]bridgepkg.BridgeStatus),
+		instanceErrors: make(map[string]string),
 		stopCh:         make(chan struct{}),
 	}
 	provider.apiFactory = func(cfg resolvedInstanceConfig) whatsappAPI {
@@ -321,15 +335,16 @@ func (p *whatsappProvider) handleInitialize(_ context.Context, session *bridgesd
 	}
 	p.reportSideEffectError("write initialize marker", writeJSONFile(p.env.handshakePath, marker))
 	p.clearLastError()
+	globalErrorSeq := p.currentGlobalErrorSeq()
 
 	p.wg.Go(func() {
-		p.afterInitialize(session)
+		p.afterInitialize(session, globalErrorSeq)
 	})
 
 	return nil
 }
 
-func (p *whatsappProvider) afterInitialize(session *bridgesdk.Session) {
+func (p *whatsappProvider) afterInitialize(session *bridgesdk.Session, globalErrorSeq uint64) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
@@ -381,7 +396,7 @@ func (p *whatsappProvider) afterInitialize(session *bridgesdk.Session) {
 	if ownershipErr != nil {
 		p.setLastError(ownershipErr)
 	} else {
-		p.clearLastError()
+		p.clearGlobalErrorIfUnchanged(globalErrorSeq)
 	}
 }
 
@@ -405,7 +420,7 @@ func (p *whatsappProvider) handleBridgesDeliver(
 			"write failed delivery marker",
 			appendJSONLine(p.env.deliveryPath, marker),
 		)
-		p.setLastError(err)
+		p.setInstanceError(request.Event.BridgeInstanceID, err)
 		return bridgepkg.DeliveryAck{}, err
 	}
 
@@ -443,18 +458,18 @@ func (p *whatsappProvider) handleBridgesDeliver(
 		classified := bridgesdk.ClassifyError(err)
 		_, _, reportErr := session.ReportClassifiedError(ctx, cfg.instanceID, classified)
 		if reportErr != nil {
-			p.setLastError(reportErr)
+			p.setInstanceError(cfg.instanceID, reportErr)
 		} else {
-			p.setLastError(err)
+			p.setInstanceError(cfg.instanceID, err)
 		}
 		return bridgepkg.DeliveryAck{}, err
 	}
 
 	p.storeDeliveryState(cfg.instanceID, request.Event.DeliveryID, state)
 	if err := p.reportReadyIfNeeded(ctx, session, cfg.instanceID); err != nil {
-		p.setLastError(err)
+		p.setInstanceError(cfg.instanceID, err)
 	} else {
-		p.clearLastError()
+		p.clearInstanceError(cfg.instanceID)
 	}
 
 	marker.Ack = &ack
@@ -464,11 +479,27 @@ func (p *whatsappProvider) handleBridgesDeliver(
 
 func (p *whatsappProvider) healthCheck() error {
 	p.mu.RLock()
-	defer p.mu.RUnlock()
-	if strings.TrimSpace(p.lastError) == "" {
+	globalError := strings.TrimSpace(p.lastError)
+	instanceErrors := make(map[string]string, len(p.instanceErrors))
+	for instanceID, message := range p.instanceErrors {
+		if strings.TrimSpace(message) == "" {
+			continue
+		}
+		instanceErrors[instanceID] = strings.TrimSpace(message)
+	}
+	p.mu.RUnlock()
+	if globalError != "" {
+		return errors.New(globalError)
+	}
+	if len(instanceErrors) == 0 {
 		return nil
 	}
-	return errors.New(strings.TrimSpace(p.lastError))
+	instanceIDs := make([]string, 0, len(instanceErrors))
+	for instanceID := range instanceErrors {
+		instanceIDs = append(instanceIDs, instanceID)
+	}
+	sort.Strings(instanceIDs)
+	return fmt.Errorf("%s: %s", instanceIDs[0], instanceErrors[instanceIDs[0]])
 }
 
 func (p *whatsappProvider) handleShutdown(
@@ -866,7 +897,7 @@ func (p *whatsappProvider) serveWebhookHTTP(w http.ResponseWriter, r *http.Reque
 			http.StatusText(http.StatusInternalServerError),
 			http.StatusInternalServerError,
 		)
-		p.setLastError(err)
+		p.setInstanceError(cfg.instanceID, err)
 		return
 	}
 	handler.ServeHTTP(w, r)
@@ -883,11 +914,11 @@ func (p *whatsappProvider) handleVerifyChallenge(
 	if mode == "subscribe" && token == strings.TrimSpace(cfg.verifyToken) {
 		if err != nil {
 			http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
-			p.setLastError(err)
+			p.setInstanceError(cfg.instanceID, err)
 			return
 		}
 		if err := writeWhatsAppVerifyChallenge(w, challenge); err != nil {
-			p.setLastError(err)
+			p.setInstanceError(cfg.instanceID, err)
 		}
 		return
 	}
@@ -978,12 +1009,20 @@ func (p *whatsappProvider) dispatchInboundBatch(
 	if len(batch.Items) == 0 {
 		return nil
 	}
+	if !canMergeWhatsAppInboundBatch(batch.Items) {
+		for _, item := range batch.Items {
+			if err := p.dispatchInboundEnvelope(ctx, bridgeInstanceID, item); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	merged := batch.Items[0]
 	if len(batch.Items) > 1 {
 		parts := make([]string, 0, len(batch.Items))
 		for _, item := range batch.Items {
-			if text := strings.TrimSpace(item.Content.Text); text != "" {
-				parts = append(parts, text)
+			if strings.TrimSpace(item.Content.Text) != "" {
+				parts = append(parts, item.Content.Text)
 			}
 		}
 		merged.Content.Text = strings.Join(parts, "\n")
@@ -1003,11 +1042,13 @@ func (p *whatsappProvider) dispatchInboundEnvelope(
 	}
 	cfg, err := p.configForInstance(bridgeInstanceID)
 	if err != nil {
+		p.setInstanceError(bridgeInstanceID, err)
 		return err
 	}
 
 	result, err := p.ingestBridgeMessage(ctx, session, envelope)
 	if err != nil {
+		p.setInstanceError(cfg.instanceID, err)
 		p.reportSideEffectError(
 			"write failed ingest marker",
 			appendJSONLine(p.env.ingestPath, ingestMarker{
@@ -1022,21 +1063,49 @@ func (p *whatsappProvider) dispatchInboundEnvelope(
 		Result:   *result,
 	}))
 	if err := p.reportReadyIfNeeded(ctx, session, cfg.instanceID); err != nil {
-		p.setLastError(err)
+		p.setInstanceError(cfg.instanceID, err)
 	} else {
-		p.clearLastError()
+		p.clearInstanceError(cfg.instanceID)
 	}
 	return nil
+}
+
+func canMergeWhatsAppInboundBatch(items []bridgepkg.InboundMessageEnvelope) bool {
+	for _, item := range items {
+		if len(item.Attachments) > 0 ||
+			len(bytes.TrimSpace(item.ProviderMetadata)) > 0 ||
+			item.Command != nil ||
+			item.Action != nil ||
+			item.Reaction != nil ||
+			item.Conversation != nil {
+			return false
+		}
+		family := item.EventFamily.Normalize()
+		if family != "" && family != bridgepkg.InboundEventFamilyMessage {
+			return false
+		}
+	}
+	return true
 }
 
 func (p *whatsappProvider) configForInstance(instanceID string) (resolvedInstanceConfig, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	cfg, ok := p.routes[strings.TrimSpace(instanceID)]
+	trimmedInstanceID := strings.TrimSpace(instanceID)
+	cfg, ok := p.routes[trimmedInstanceID]
 	if !ok {
 		return resolvedInstanceConfig{}, fmt.Errorf(
-			"whatsapp: delivery targeted unmanaged instance %q",
-			instanceID,
+			"%w: %q",
+			errWhatsAppInstanceConfigUnavailable,
+			trimmedInstanceID,
+		)
+	}
+	if cfg.configError != nil {
+		return resolvedInstanceConfig{}, fmt.Errorf(
+			"%w: %q: %w",
+			errWhatsAppInstanceConfigInvalid,
+			trimmedInstanceID,
+			cfg.configError,
 		)
 	}
 	return cfg, nil
@@ -1055,6 +1124,9 @@ func (p *whatsappProvider) waitForInstanceConfig(
 		cfg, err := p.configForInstance(instanceID)
 		if err == nil {
 			return cfg, nil
+		}
+		if !errors.Is(err, errWhatsAppInstanceConfigUnavailable) {
+			return resolvedInstanceConfig{}, err
 		}
 		if time.Now().After(deadline) {
 			return resolvedInstanceConfig{}, err
@@ -1075,12 +1147,20 @@ func (p *whatsappProvider) waitForInstanceConfig(
 func (p *whatsappProvider) configForPath(path string) (resolvedInstanceConfig, bool) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
+	normalizedPath := normalizeWebhookPath(path)
+	matched := false
+	selected := resolvedInstanceConfig{}
 	for _, cfg := range p.routes {
-		if cfg.webhookPath == normalizeWebhookPath(path) {
-			return cfg, true
+		if cfg.webhookPath != normalizedPath {
+			continue
 		}
+		if cfg.configError != nil || matched {
+			return resolvedInstanceConfig{}, false
+		}
+		selected = cfg
+		matched = true
 	}
-	return resolvedInstanceConfig{}, false
+	return selected, matched
 }
 
 func (p *whatsappProvider) currentSession() *bridgesdk.Session {
@@ -1106,18 +1186,67 @@ func (p *whatsappProvider) storeDeliveryState(
 }
 
 func (p *whatsappProvider) setLastError(err error) {
+	p.setInstanceError("", err)
+}
+
+func (p *whatsappProvider) setInstanceError(instanceID string, err error) {
 	if err == nil {
 		return
 	}
+	instanceID = strings.TrimSpace(instanceID)
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	if instanceID != "" {
+		if p.instanceErrors == nil {
+			p.instanceErrors = make(map[string]string)
+		}
+		p.instanceErrors[instanceID] = err.Error()
+		return
+	}
 	p.lastError = err.Error()
+	p.lastErrorSeq++
 }
 
 func (p *whatsappProvider) clearLastError() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.lastError = ""
+	p.lastErrorSeq++
+	p.instanceErrors = make(map[string]string)
+}
+
+func (p *whatsappProvider) clearGlobalError() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.lastError = ""
+	p.lastErrorSeq++
+}
+
+func (p *whatsappProvider) currentGlobalErrorSeq() uint64 {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.lastErrorSeq
+}
+
+func (p *whatsappProvider) clearGlobalErrorIfUnchanged(seq uint64) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.lastErrorSeq != seq {
+		return
+	}
+	p.lastError = ""
+	p.lastErrorSeq++
+}
+
+func (p *whatsappProvider) clearInstanceError(instanceID string) {
+	instanceID = strings.TrimSpace(instanceID)
+	if instanceID == "" {
+		p.clearGlobalError()
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	delete(p.instanceErrors, instanceID)
 }
 
 func (p *whatsappProvider) reportSideEffectError(action string, err error) {
@@ -1159,8 +1288,8 @@ func executeWhatsAppDelivery(
 	if err != nil {
 		return bridgepkg.DeliveryAck{}, state, err
 	}
-	text := strings.TrimSpace(event.Content.Text)
-	if text == "" {
+	text := event.Content.Text
+	if strings.TrimSpace(text) == "" {
 		return bridgepkg.DeliveryAck{}, state, &bridgesdk.PermanentError{
 			Err: errors.New("whatsapp: text delivery content is required"),
 		}
@@ -1636,7 +1765,9 @@ func (p *whatsappProvider) populateWhatsAppInitialStates(
 	for idx := range configs {
 		status, degradation, err := p.determineInitialState(ctx, configs[idx])
 		if err != nil {
-			p.setLastError(err)
+			p.setInstanceError(configs[idx].instanceID, err)
+		} else {
+			p.clearInstanceError(configs[idx].instanceID)
 		}
 		configs[idx].initialStatus = status
 		configs[idx].initialDegradation = degradation
@@ -2008,32 +2139,41 @@ func parseUnixTimestamp(value string) time.Time {
 }
 
 func splitMessage(text string) []string {
-	trimmed := strings.TrimSpace(text)
-	if len(trimmed) <= whatsappMessageLimit {
-		if trimmed == "" {
-			return []string{""}
-		}
-		return []string{trimmed}
+	if len(text) <= whatsappMessageLimit {
+		return []string{text}
 	}
 
-	chunks := make([]string, 0, (len(trimmed)/whatsappMessageLimit)+1)
-	remaining := trimmed
+	chunks := make([]string, 0, (len(text)/whatsappMessageLimit)+1)
+	remaining := text
 	for len(remaining) > whatsappMessageLimit {
-		slice := remaining[:whatsappMessageLimit]
-		breakIndex := strings.LastIndex(slice, "\n\n")
-		if breakIndex == -1 || breakIndex < whatsappMessageLimit/2 {
-			breakIndex = strings.LastIndex(slice, "\n")
-		}
-		if breakIndex == -1 || breakIndex < whatsappMessageLimit/2 {
-			breakIndex = whatsappMessageLimit
-		}
-		chunks = append(chunks, strings.TrimSpace(remaining[:breakIndex]))
-		remaining = strings.TrimSpace(remaining[breakIndex:])
+		breakIndex := whatsappMessageBreakIndex(remaining)
+		chunks = append(chunks, remaining[:breakIndex])
+		remaining = remaining[breakIndex:]
 	}
-	if remaining != "" {
-		chunks = append(chunks, remaining)
-	}
+	chunks = append(chunks, remaining)
 	return chunks
+}
+
+func whatsappMessageBreakIndex(text string) int {
+	limit := whatsappMessageLimit
+	if len(text) <= limit {
+		return len(text)
+	}
+	safeLimit := limit
+	for safeLimit > 0 && !utf8.RuneStart(text[safeLimit]) {
+		safeLimit--
+	}
+	if safeLimit == 0 {
+		safeLimit = limit
+	}
+	slice := text[:safeLimit]
+	if breakIndex := strings.LastIndex(slice, "\n\n"); breakIndex >= limit/2 {
+		return breakIndex + len("\n\n")
+	}
+	if breakIndex := strings.LastIndex(slice, "\n"); breakIndex >= limit/2 {
+		return breakIndex + len("\n")
+	}
+	return safeLimit
 }
 
 func deliveryStateKey(instanceID string, deliveryID string) string {

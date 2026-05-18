@@ -573,7 +573,8 @@ func (h *BaseHandlers) resolveAgentReplySource(
 		}
 		if len(entries) > 0 {
 			envelope := envelopeFromNetworkMessage(entries[0])
-			return envelope, sourceCoordinationMetadata{}, validateReplySource(envelope)
+			metadata, ok := coordinationMetadataFromEnvelope(envelope)
+			return envelope, sourceCoordinationMetadata{metadata: metadata, ok: ok}, validateReplySource(envelope)
 		}
 	}
 
@@ -815,10 +816,25 @@ func envelopeFromNetworkMessage(entry store.NetworkMessageEntry) network.Envelop
 		TS:          entry.Timestamp.Unix(),
 		Body:        cloneRawMessage(entry.Body),
 	}
+	if ext := extensionMapFromNetworkMessage(entry); len(ext) > 0 {
+		envelope.Ext = ext
+	}
 	if to := strings.TrimSpace(entry.PeerTo); to != "" {
 		envelope.To = &to
 	}
 	return envelope
+}
+
+func extensionMapFromNetworkMessage(entry store.NetworkMessageEntry) network.ExtensionMap {
+	trimmed := strings.TrimSpace(string(entry.ExtJSON))
+	if trimmed == "" || trimmed == "{}" {
+		return nil
+	}
+	var ext network.ExtensionMap
+	if err := json.Unmarshal([]byte(trimmed), &ext); err != nil {
+		return nil
+	}
+	return ext
 }
 
 func sessionInfoFromAgentCaller(caller agentidentity.Caller) *session.Info {

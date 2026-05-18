@@ -40,7 +40,13 @@ import (
 
 const daemonSessionStopHelperEnvKey = "AGH_TEST_DAEMON_SESSION_STOP_HELPER"
 
-func installExtensionForDaemonIntegration(t *testing.T, databasePath string, name string, opts daemonTestExtensionOptions, enabled bool) string {
+func installExtensionForDaemonIntegration(
+	t *testing.T,
+	databasePath string,
+	name string,
+	opts daemonTestExtensionOptions,
+	enabled bool,
+) string {
 	t.Helper()
 
 	db, err := globaldb.OpenGlobalDB(testutil.Context(t), databasePath)
@@ -109,7 +115,12 @@ func TestBootSequenceReady(t *testing.T) {
 	})
 
 	if d.sessions == nil || d.observer == nil || d.registry == nil {
-		t.Fatalf("boot() did not wire runtime dependencies: sessions=%v observer=%v registry=%v", d.sessions, d.observer, d.registry)
+		t.Fatalf(
+			"boot() did not wire runtime dependencies: sessions=%v observer=%v registry=%v",
+			d.sessions,
+			d.observer,
+			d.registry,
+		)
 	}
 	if d.workspaceResolver == nil {
 		t.Fatal("boot() did not wire the workspace resolver")
@@ -309,47 +320,56 @@ func testBootWiresDetachedHarnessTaskRuntimeAcrossScopes(t *testing.T) {
 		},
 	}
 
-	workspaceSubmission, err := daemonInstance.tasks.submitDetachedHarnessWork(testutil.Context(t), detachedHarnessSubmitRequest{
-		SubmissionKey:  "detached-integration-workspace",
-		OwnerSessionID: "sess-owner-workspace",
-		Scope:          taskpkg.ScopeWorkspace,
-		WorkspaceID:    workspace.ID,
-		Summary:        "Workspace detached work",
-		NetworkChannel: "builders",
-		TurnSource:     session.TurnSourceNetwork,
-		WakeTarget: detachedHarnessWakeTargetInput{
-			SessionID: "sess-wake-workspace",
+	workspaceSubmission, err := daemonInstance.tasks.submitDetachedHarnessWork(
+		testutil.Context(t),
+		detachedHarnessSubmitRequest{
+			SubmissionKey:  "detached-integration-workspace",
+			OwnerSessionID: "sess-owner-workspace",
+			Scope:          taskpkg.ScopeWorkspace,
+			WorkspaceID:    workspace.ID,
+			Summary:        "Workspace detached work",
+			NetworkChannel: "builders",
+			TurnSource:     session.TurnSourceNetwork,
+			WakeTarget: detachedHarnessWakeTargetInput{
+				SessionID: "sess-wake-workspace",
+			},
 		},
-	})
+	)
 	if err != nil {
 		t.Fatalf("submitDetachedHarnessWork(workspace) error = %v", err)
 	}
-	globalSubmission, err := daemonInstance.tasks.submitDetachedHarnessWork(testutil.Context(t), detachedHarnessSubmitRequest{
-		SubmissionKey:  "detached-integration-global",
-		OwnerSessionID: "sess-owner-global",
-		Scope:          taskpkg.ScopeGlobal,
-		Summary:        "Global detached work",
-		NetworkChannel: "ops",
-		TurnSource:     session.TurnSourceSynthetic,
-		WakeTarget: detachedHarnessWakeTargetInput{
-			SessionID: "sess-wake-global",
+	globalSubmission, err := daemonInstance.tasks.submitDetachedHarnessWork(
+		testutil.Context(t),
+		detachedHarnessSubmitRequest{
+			SubmissionKey:  "detached-integration-global",
+			OwnerSessionID: "sess-owner-global",
+			Scope:          taskpkg.ScopeGlobal,
+			Summary:        "Global detached work",
+			NetworkChannel: "ops",
+			TurnSource:     session.TurnSourceSynthetic,
+			WakeTarget: detachedHarnessWakeTargetInput{
+				SessionID: "sess-wake-global",
+			},
 		},
-	})
+	)
 	if err != nil {
 		t.Fatalf("submitDetachedHarnessWork(global) error = %v", err)
 	}
-	duplicateWorkspace, err := daemonInstance.tasks.submitDetachedHarnessWork(testutil.Context(t), detachedHarnessSubmitRequest{
-		SubmissionKey:  "detached-integration-workspace",
-		OwnerSessionID: "sess-owner-workspace",
-		Scope:          taskpkg.ScopeWorkspace,
-		WorkspaceID:    workspace.ID,
-		Summary:        "Workspace detached work",
-		NetworkChannel: "builders",
-		TurnSource:     session.TurnSourceNetwork,
-		WakeTarget: detachedHarnessWakeTargetInput{
-			SessionID: "sess-wake-workspace",
+	duplicateWorkspace, err := daemonInstance.tasks.submitDetachedHarnessWork(
+		testutil.Context(t),
+		detachedHarnessSubmitRequest{
+			SubmissionKey:  "detached-integration-workspace",
+			OwnerSessionID: "sess-owner-workspace",
+			Scope:          taskpkg.ScopeWorkspace,
+			WorkspaceID:    workspace.ID,
+			Summary:        "Workspace detached work",
+			NetworkChannel: "builders",
+			TurnSource:     session.TurnSourceNetwork,
+			WakeTarget: detachedHarnessWakeTargetInput{
+				SessionID: "sess-wake-workspace",
+			},
 		},
-	})
+	)
 	if err != nil {
 		t.Fatalf("submitDetachedHarnessWork(workspace duplicate) error = %v", err)
 	}
@@ -369,7 +389,11 @@ func testBootWiresDetachedHarnessTaskRuntimeAcrossScopes(t *testing.T) {
 		t.Fatalf("DeriveHumanActorContext() error = %v", err)
 	}
 
-	workspaceView, err := daemonInstance.tasks.manager.GetTask(testutil.Context(t), workspaceSubmission.Task.ID, readActor)
+	workspaceView, err := daemonInstance.tasks.manager.GetTask(
+		testutil.Context(t),
+		workspaceSubmission.Task.ID,
+		readActor,
+	)
 	if err != nil {
 		t.Fatalf("manager.GetTask(workspace) error = %v", err)
 	}
@@ -485,7 +509,12 @@ func testDetachedHarnessCompletionWakeEmitsSyntheticReentryEndToEnd(t *testing.T
 	})
 
 	completeDetachedHarnessRunForTest(t, daemonInstance.tasks, submission.Run.ID, "sess-owner")
-	metadata := waitForDetachedHarnessReentryState(t, daemonInstance.tasks, submission.Run.ID, harnessReentryOutcomeEmitted)
+	metadata := waitForDetachedHarnessReentryState(
+		t,
+		daemonInstance.tasks,
+		submission.Run.ID,
+		harnessReentryOutcomeEmitted,
+	)
 	if got, want := metadata.Reentry.Reason, harnessReentryReasonCompleted; got != want {
 		t.Fatalf("metadata.Reentry.Reason = %q, want %q", got, want)
 	}
@@ -596,7 +625,12 @@ func testDetachedHarnessCompletionSilentPolicyRecordsDropEndToEnd(t *testing.T) 
 	})
 
 	completeDetachedHarnessRunForTest(t, daemonInstance.tasks, submission.Run.ID, "sess-owner")
-	metadata := waitForDetachedHarnessReentryState(t, daemonInstance.tasks, submission.Run.ID, harnessReentryOutcomeSilent)
+	metadata := waitForDetachedHarnessReentryState(
+		t,
+		daemonInstance.tasks,
+		submission.Run.ID,
+		harnessReentryOutcomeSilent,
+	)
 	if got, want := metadata.Reentry.Reason, harnessReentryReasonPolicySilent; got != want {
 		t.Fatalf("metadata.Reentry.Reason = %q, want %q", got, want)
 	}
@@ -819,7 +853,12 @@ func testBootRecoveryDetachedHarnessWakeUsesPersistedSyntheticEventForDedupe(t *
 		}
 	})
 
-	metadata := waitForDetachedHarnessReentryState(t, secondDaemon.tasks, submission.Run.ID, harnessReentryOutcomeEmitted)
+	metadata := waitForDetachedHarnessReentryState(
+		t,
+		secondDaemon.tasks,
+		submission.Run.ID,
+		harnessReentryOutcomeEmitted,
+	)
 	if got, want := metadata.Reentry.Reason, harnessReentryReasonAlreadyRecorded; got != want {
 		t.Fatalf("metadata.Reentry.Reason = %q, want %q", got, want)
 	}
@@ -1115,12 +1154,19 @@ func TestBootRecoversOrphanedTaskRunsAndRecordsAudit(t *testing.T) {
 		t.Fatalf("claimed task events = %#v, want task.run_recovered", taskEventTypes(claimedEvents))
 	}
 
-	startingEvents, err := d.tasks.store.ListTaskEvents(testutil.Context(t), taskpkg.EventQuery{TaskID: startingTask.ID})
+	startingEvents, err := d.tasks.store.ListTaskEvents(
+		testutil.Context(t),
+		taskpkg.EventQuery{TaskID: startingTask.ID},
+	)
 	if err != nil {
 		t.Fatalf("ListTaskEvents(starting) error = %v", err)
 	}
-	if !containsTaskEventType(startingEvents, "task.run_failed") || !containsTaskEventType(startingEvents, "task.run_recovered") {
-		t.Fatalf("starting task events = %#v, want task.run_failed + task.run_recovered", taskEventTypes(startingEvents))
+	if !containsTaskEventType(startingEvents, "task.run_failed") ||
+		!containsTaskEventType(startingEvents, "task.run_recovered") {
+		t.Fatalf(
+			"starting task events = %#v, want task.run_failed + task.run_recovered",
+			taskEventTypes(startingEvents),
+		)
 	}
 }
 
@@ -1188,7 +1234,11 @@ func TestBootPublishesRunningAutomationBeforeServersStart(t *testing.T) {
 		t.Fatal("boot() did not publish the automation manager")
 	}
 	if !httpSawRunning || !udsSawRunning {
-		t.Fatalf("server factories observed automation running: http=%v uds=%v, want both true", httpSawRunning, udsSawRunning)
+		t.Fatalf(
+			"server factories observed automation running: http=%v uds=%v, want both true",
+			httpSawRunning,
+			udsSawRunning,
+		)
 	}
 }
 
@@ -2247,7 +2297,11 @@ func TestBootLoadsBundledSkillsIntoPromptAssemblerInSkillsOnlyMode(t *testing.T)
 	workspace := workspacepkg.ResolvedWorkspace{
 		Agents: []aghconfig.AgentDef{testPromptAgent("Base prompt.")},
 	}
-	prompt, err := capturedDeps.PromptAssembler.Assemble(context.Background(), testPromptAgent("Base prompt."), &workspace)
+	prompt, err := capturedDeps.PromptAssembler.Assemble(
+		context.Background(),
+		testPromptAgent("Base prompt."),
+		&workspace,
+	)
 	if err != nil {
 		t.Fatalf("PromptAssembler.Assemble() error = %v", err)
 	}
@@ -2411,10 +2465,20 @@ body
 		UpdatedAt:   time.Date(2026, 4, 9, 11, 0, 0, 0, time.UTC),
 	}
 
-	if _, err := capturedDeps.Hooks.Session.DispatchSessionPostCreate(testutil.Context(t), hookspkg.SessionPostCreatePayload(hookSessionLifecyclePayload(sess, hookspkg.HookSessionPostCreate, time.Now().UTC()))); err != nil {
+	if _, err := capturedDeps.Hooks.Session.DispatchSessionPostCreate(
+		testutil.Context(t),
+		hookspkg.SessionPostCreatePayload(
+			hookSessionLifecyclePayload(sess, hookspkg.HookSessionPostCreate, time.Now().UTC()),
+		),
+	); err != nil {
 		t.Fatalf("DispatchSessionPostCreate() error = %v", err)
 	}
-	if _, err := capturedDeps.Hooks.Session.DispatchSessionPostStop(testutil.Context(t), hookspkg.SessionPostStopPayload(hookSessionLifecyclePayload(sess, hookspkg.HookSessionPostStop, time.Now().UTC()))); err != nil {
+	if _, err := capturedDeps.Hooks.Session.DispatchSessionPostStop(
+		testutil.Context(t),
+		hookspkg.SessionPostStopPayload(
+			hookSessionLifecyclePayload(sess, hookspkg.HookSessionPostStop, time.Now().UTC()),
+		),
+	); err != nil {
 		t.Fatalf("DispatchSessionPostStop() error = %v", err)
 	}
 
@@ -2615,7 +2679,12 @@ body
 		UpdatedAt:   time.Date(2026, 4, 9, 12, 0, 0, 0, time.UTC),
 	}
 
-	if _, err := capturedDeps.Hooks.Session.DispatchSessionPostCreate(testutil.Context(t), hookspkg.SessionPostCreatePayload(hookSessionLifecyclePayload(sess, hookspkg.HookSessionPostCreate, time.Now().UTC()))); err != nil {
+	if _, err := capturedDeps.Hooks.Session.DispatchSessionPostCreate(
+		testutil.Context(t),
+		hookspkg.SessionPostCreatePayload(
+			hookSessionLifecyclePayload(sess, hookspkg.HookSessionPostCreate, time.Now().UTC()),
+		),
+	); err != nil {
 		t.Fatalf("DispatchSessionPostCreate() error = %v", err)
 	}
 	assertLifecycleHookPayload(t, outputPath, hookspkg.HookSessionPostCreate, resolvedWorkspace)
@@ -2691,7 +2760,7 @@ func TestRunDreamTickerAndSpawnerIntegration(t *testing.T) {
 	dream := &fakeDreamService{
 		shouldRun: true,
 		runHook: func(ctx context.Context, spawn memory.SessionSpawner, workspace string) error {
-			return spawn(ctx, "memory-consolidation", "integration prompt", workspace)
+			return spawn(ctx, "memory-consolidation", "integration prompt", workspace, time.Time{})
 		},
 	}
 	sessions := &fakeSessionManager{
@@ -2856,7 +2925,8 @@ func TestBootStartsBridgeExtensionWithBoundRuntime(t *testing.T) {
 	if got, want := managed.Instance.ID, instanceID; got != want {
 		t.Fatalf("initialize runtime bridge instance id = %q, want %q", got, want)
 	}
-	if got := managed.BoundSecrets; len(got) != 1 || got[0].BindingName != "bot_token" || got[0].Value != "token-daemon" {
+	if got := managed.BoundSecrets; len(got) != 1 || got[0].BindingName != "bot_token" ||
+		got[0].Value != "token-daemon" {
 		t.Fatalf("initialize runtime bridge bound secrets = %#v, want resolved bot_token binding", got)
 	}
 	if len(resolver.calls) != 1 || resolver.calls[0].BridgeInstanceID != instanceID {
@@ -2954,7 +3024,10 @@ func TestBootStartsBridgeExtensionWithDefaultVaultSecretResolver(t *testing.T) {
 		t.Fatalf("request.Runtime.Bridge.SingleManagedInstance() error = %v", err)
 	}
 	if got, want := managed.BoundSecrets[0].Value, "token-from-vault"; got != want {
-		t.Fatalf("initialize runtime bridge bound secrets = %#v, want vault-resolved bot_token binding", managed.BoundSecrets)
+		t.Fatalf(
+			"initialize runtime bridge bound secrets = %#v, want vault-resolved bot_token binding",
+			managed.BoundSecrets,
+		)
 	}
 }
 
@@ -3031,7 +3104,10 @@ func TestBootFailsWhenDefaultBridgeSecretVaultValueIsMissing(t *testing.T) {
 		t.Fatalf("extension last error = %q, want missing vault secret message", ext.Status.LastError)
 	}
 	if strings.Contains(ext.Status.LastError, errBridgeSecretResolverRequired.Error()) {
-		t.Fatalf("extension last error = %q, want missing vault failure instead of missing resolver", ext.Status.LastError)
+		t.Fatalf(
+			"extension last error = %q, want missing vault failure instead of missing resolver",
+			ext.Status.LastError,
+		)
 	}
 	if ext.Status.Active {
 		t.Fatalf("extension active = %v, want false after missing vault secret", ext.Status.Active)
@@ -3146,7 +3222,13 @@ func TestBootStartsBridgeExtensionWithMultipleOwnedInstances(t *testing.T) {
 	if request.Runtime.Bridge == nil {
 		t.Fatal("initialize runtime bridge = nil, want bound launch payload")
 	}
-	if got, want := request.Runtime.Bridge.ManagedBridgeInstanceIDs(), []string{firstID, secondID}; !slices.Equal(got, want) {
+	if got, want := request.Runtime.Bridge.ManagedBridgeInstanceIDs(), []string{
+		firstID,
+		secondID,
+	}; !slices.Equal(
+		got,
+		want,
+	) {
 		t.Fatalf("initialize runtime managed ids = %#v, want %#v", got, want)
 	}
 	firstManaged, ok := request.Runtime.Bridge.ManagedInstance(firstID)
@@ -3395,7 +3477,11 @@ func TestBridgeRuntimeRestartPreservesRouteContinuity(t *testing.T) {
 		t.Fatalf("delivery markers = %#v, want resume event", markers)
 	}
 	if markers[resumeIndex].PID == markers[0].PID {
-		t.Fatalf("resume marker pid = %d, want restart to use a different process than %d", markers[resumeIndex].PID, markers[0].PID)
+		t.Fatalf(
+			"resume marker pid = %d, want restart to use a different process than %d",
+			markers[resumeIndex].PID,
+			markers[0].PID,
+		)
 	}
 	if markers[resumeIndex].Request.Snapshot == nil {
 		t.Fatal("resume marker snapshot = nil, want resumable state")
@@ -3602,7 +3688,13 @@ func seedDetachedHarnessSessionIndex(
 			workspaceID = "global"
 		}
 		if _, ok := insertedWorkspaces[workspaceID]; !ok {
-			if err := ensureDetachedHarnessWorkspaceIndex(t, db, homePaths, workspaceID, strings.TrimSpace(info.Workspace)); err != nil {
+			if err := ensureDetachedHarnessWorkspaceIndex(
+				t,
+				db,
+				homePaths,
+				workspaceID,
+				strings.TrimSpace(info.Workspace),
+			); err != nil {
 				t.Fatalf("ensureDetachedHarnessWorkspaceIndex(%q) error = %v", workspaceID, err)
 			}
 			insertedWorkspaces[workspaceID] = struct{}{}
@@ -3967,11 +4059,17 @@ func readDaemonMarkerLines(path string) ([]string, error) {
 
 type daemonSessionStopACPAgent struct{}
 
-func (daemonSessionStopACPAgent) Authenticate(context.Context, acpsdk.AuthenticateRequest) (acpsdk.AuthenticateResponse, error) {
+func (daemonSessionStopACPAgent) Authenticate(
+	context.Context,
+	acpsdk.AuthenticateRequest,
+) (acpsdk.AuthenticateResponse, error) {
 	return acpsdk.AuthenticateResponse{}, nil
 }
 
-func (daemonSessionStopACPAgent) Initialize(context.Context, acpsdk.InitializeRequest) (acpsdk.InitializeResponse, error) {
+func (daemonSessionStopACPAgent) Initialize(
+	context.Context,
+	acpsdk.InitializeRequest,
+) (acpsdk.InitializeResponse, error) {
 	return acpsdk.InitializeResponse{
 		ProtocolVersion: acpsdk.ProtocolVersionNumber,
 		AgentCapabilities: acpsdk.AgentCapabilities{
@@ -3999,7 +4097,10 @@ func (daemonSessionStopACPAgent) ListSessions(
 	return acpsdk.ListSessionsResponse{Sessions: []acpsdk.SessionInfo{}}, nil
 }
 
-func (daemonSessionStopACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (acpsdk.NewSessionResponse, error) {
+func (daemonSessionStopACPAgent) NewSession(
+	context.Context,
+	acpsdk.NewSessionRequest,
+) (acpsdk.NewSessionResponse, error) {
 	return acpsdk.NewSessionResponse{SessionId: "daemon-stop-helper"}, nil
 }
 
@@ -4017,7 +4118,10 @@ func (daemonSessionStopACPAgent) SetSessionConfigOption(
 	return acpsdk.SetSessionConfigOptionResponse{ConfigOptions: []acpsdk.SessionConfigOption{}}, nil
 }
 
-func (daemonSessionStopACPAgent) LoadSession(context.Context, acpsdk.LoadSessionRequest) (acpsdk.LoadSessionResponse, error) {
+func (daemonSessionStopACPAgent) LoadSession(
+	context.Context,
+	acpsdk.LoadSessionRequest,
+) (acpsdk.LoadSessionResponse, error) {
 	return acpsdk.LoadSessionResponse{}, nil
 }
 
@@ -4025,11 +4129,19 @@ func (daemonSessionStopACPAgent) Prompt(context.Context, acpsdk.PromptRequest) (
 	return acpsdk.PromptResponse{StopReason: acpsdk.StopReasonEndTurn}, nil
 }
 
-func (daemonSessionStopACPAgent) SetSessionMode(context.Context, acpsdk.SetSessionModeRequest) (acpsdk.SetSessionModeResponse, error) {
+func (daemonSessionStopACPAgent) SetSessionMode(
+	context.Context,
+	acpsdk.SetSessionModeRequest,
+) (acpsdk.SetSessionModeResponse, error) {
 	return acpsdk.SetSessionModeResponse{}, nil
 }
 
-func assertLifecycleHookPayload(t *testing.T, path string, wantEvent hookspkg.HookEvent, wantWorkspace workspacepkg.ResolvedWorkspace) {
+func assertLifecycleHookPayload(
+	t *testing.T,
+	path string,
+	wantEvent hookspkg.HookEvent,
+	wantWorkspace workspacepkg.ResolvedWorkspace,
+) {
 	t.Helper()
 
 	var (

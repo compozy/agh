@@ -9,6 +9,8 @@ var (
 	ErrTriggerNotFound = modelpkg.ErrTriggerNotFound
 	// ErrRunNotFound reports that the requested automation run does not exist.
 	ErrRunNotFound = modelpkg.ErrRunNotFound
+	// ErrRunAlreadyExists reports that an automation run identity has already been claimed.
+	ErrRunAlreadyExists = modelpkg.ErrRunAlreadyExists
 	// ErrSchedulerStateNotFound reports that no durable scheduler cursor exists for a job.
 	ErrSchedulerStateNotFound = modelpkg.ErrSchedulerStateNotFound
 	// ErrScheduledFireAlreadyClaimed reports that a scheduled fire identity was already claimed.

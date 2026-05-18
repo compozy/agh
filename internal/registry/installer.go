@@ -32,7 +32,10 @@ const (
 )
 
 var (
-	errArchiveTooLargeCompressed = errors.New("registry: archive exceeds max compressed size")
+	// ErrArchiveTooLargeCompressed reports a compressed archive stream above its configured limit.
+	ErrArchiveTooLargeCompressed = errors.New("registry: archive exceeds max compressed size")
+
+	errArchiveTooLargeCompressed = ErrArchiveTooLargeCompressed
 	errInstallMissingManifest    = errors.New("registry: archive missing extension.toml or SKILL.md at root")
 	errUnexpectedContentType     = errors.New("registry: unexpected download content type")
 	errVerificationBlocked       = errors.New("registry: install blocked by content verification")
@@ -303,7 +306,10 @@ func (i *Installer) downloadInstallArchive(
 	ctx context.Context,
 	slug string,
 	opts DownloadOpts,
-) (*DownloadResult, error) {
+) (_ *DownloadResult, err error) {
+	if opts.MaxArchiveSize <= 0 {
+		opts.MaxArchiveSize = i.maxArchiveSize
+	}
 	download, err := i.downloader.Download(ctx, slug, opts)
 	if err != nil {
 		return nil, err
@@ -314,9 +320,16 @@ func (i *Installer) downloadInstallArchive(
 	if download.Reader == nil {
 		return nil, fmt.Errorf("registry: download returned no archive stream for %q", slug)
 	}
+	readerOwned := true
+	defer func() {
+		if readerOwned {
+			err = joinInstallerError(err, closeDownloadReader(download.Reader, slug))
+		}
+	}()
 	if err := validateDownloadContentType(download.ContentType); err != nil {
 		return nil, err
 	}
+	readerOwned = false
 	return download, nil
 }
 
@@ -335,12 +348,11 @@ func (i *Installer) installDownloadedPackage(
 	if err != nil {
 		return nil, err
 	}
-	if err := MoveInstalledDir(packageRoot, absTarget, true); err != nil {
+	checksum, err := computeInstallChecksum(packageRoot)
+	if err != nil {
 		return nil, err
 	}
-
-	checksum, err := computeInstallChecksum(absTarget)
-	if err != nil {
+	if err := MoveInstalledDir(packageRoot, absTarget, true); err != nil {
 		return nil, err
 	}
 

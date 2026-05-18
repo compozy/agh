@@ -38,6 +38,7 @@ func EditAgentDefFile(path string, mutate func(*AgentDef) error) (AgentDef, erro
 	if err != nil {
 		return AgentDef{}, err
 	}
+	originalAgentName := agent.Name
 
 	if err := mutate(&agent); err != nil {
 		return AgentDef{}, err
@@ -45,11 +46,17 @@ func EditAgentDefFile(path string, mutate func(*AgentDef) error) (AgentDef, erro
 	agent.Name = NormalizeAgentName(agent.Name)
 	agent.Skills = normalizeAgentSkillsConfig(agent.Skills)
 	agent.CategoryPath = normalizeAgentCategoryPath(agent.CategoryPath)
+	agent.Hooks, err = normalizeAgentDefinitionHookEdits(agent.Hooks, originalAgentName, agent.Name)
+	if err != nil {
+		return AgentDef{}, fmt.Errorf("validate agent file %q: %w", path, err)
+	}
 	if err := agent.Validate(); err != nil {
 		return AgentDef{}, fmt.Errorf("validate agent file %q: %w", path, err)
 	}
 
-	applyAgentDefToParsed(&parsed, agent)
+	if err := applyAgentDefToParsed(&parsed, agent); err != nil {
+		return AgentDef{}, fmt.Errorf("marshal agent file %q: %w", path, err)
+	}
 	meta, err := yaml.Marshal(parsed)
 	if err != nil {
 		return AgentDef{}, fmt.Errorf("marshal agent file %q: %w", path, err)
@@ -99,7 +106,7 @@ func agentDefFromParsedFile(
 	return agent, nil
 }
 
-func applyAgentDefToParsed(parsed *parsedAgentDef, agent AgentDef) {
+func applyAgentDefToParsed(parsed *parsedAgentDef, agent AgentDef) error {
 	parsed.Name = agent.Name
 	parsed.Provider = strings.TrimSpace(agent.Provider)
 	parsed.Command = strings.TrimSpace(agent.Command)
@@ -111,6 +118,37 @@ func applyAgentDefToParsed(parsed *parsedAgentDef, agent AgentDef) {
 	parsed.Skills = normalizeAgentSkillsConfig(agent.Skills)
 	parsed.CategoryPath = normalizeAgentCategoryPath(agent.CategoryPath)
 	parsed.MCPServers = cloneMCPServers(agent.MCPServers)
+	hooks, err := parsedHookDeclarationsFromHookDecls(agent.Hooks, agent.Name)
+	if err != nil {
+		return err
+	}
+	parsed.Hooks = hooks
+	return nil
+}
+
+func normalizeAgentDefinitionHookEdits(
+	hooks []hookspkg.HookDecl,
+	originalAgentName string,
+	agentName string,
+) ([]hookspkg.HookDecl, error) {
+	if len(hooks) == 0 {
+		return nil, nil
+	}
+
+	normalized := make([]hookspkg.HookDecl, 0, len(hooks))
+	for idx, hook := range hooks {
+		decl := cloneHookDecl(hook)
+		decl.Source = hookspkg.HookSourceAgentDefinition
+		matcherAgent := strings.TrimSpace(decl.Matcher.AgentName)
+		switch matcherAgent {
+		case "", originalAgentName, agentName:
+			decl.Matcher.AgentName = agentName
+		default:
+			return nil, fmt.Errorf("agent.hooks[%d]: matcher.agent_name must match agent name %q", idx, agentName)
+		}
+		normalized = append(normalized, decl)
+	}
+	return normalized, nil
 }
 
 func renderAgentMarkdown(meta []byte, prompt string) []byte {

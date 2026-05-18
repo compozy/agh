@@ -263,15 +263,14 @@ func NewSessionSpawner(
 	sessions SessionManager,
 	resolver workspacepkg.RuntimeResolver,
 	cfg *aghconfig.Config,
-	globalMemoryDir string,
 ) memory.SessionSpawner {
 	if cfg == nil || !cfg.Memory.Enabled || !cfg.Memory.Dream.Enabled || sessions == nil || resolver == nil {
 		return nil
 	}
 	agentName := dreamingAgentName(cfg.Memory.Dream.Agent)
 
-	return func(ctx context.Context, goal, prompt, workspace string) error {
-		workspaces, err := resolveWorkspaces(ctx, sessions, resolver, globalMemoryDir, workspace)
+	return func(ctx context.Context, goal, prompt, workspace string, lastConsolidatedAt time.Time) error {
+		workspaces, err := resolveWorkspaces(ctx, sessions, resolver, lastConsolidatedAt, workspace)
 		if err != nil {
 			return err
 		}
@@ -306,7 +305,7 @@ func resolveWorkspaces(
 	ctx context.Context,
 	sessions SessionManager,
 	resolver workspacepkg.RuntimeResolver,
-	globalMemoryDir string,
+	lastConsolidatedAt time.Time,
 	explicitWorkspace string,
 ) ([]string, error) {
 	if resolver == nil {
@@ -319,12 +318,6 @@ func resolveWorkspaces(
 			return nil, err
 		}
 		return []string{resolvedRef}, nil
-	}
-
-	lockPath := memory.ConsolidationLockPath(globalMemoryDir)
-	lastConsolidatedAt, err := memory.NewConsolidationLock(lockPath).LastConsolidatedAt()
-	if err != nil {
-		return nil, fmt.Errorf("daemon: read dream consolidation lock: %w", err)
 	}
 
 	infos, err := sessions.ListAll(ctx)

@@ -245,7 +245,7 @@ func (c *InboxConsumer) ConsumeOnce(ctx context.Context) (ConsumeResult, error) 
 			return result, fmt.Errorf("memory extractor: consume canceled: %w", err)
 		}
 		result.Files++
-		fileResult, fileErr := c.consumeFile(ctx, file.path)
+		fileResult, fileErr := c.consumeFile(ctx, file)
 		result.Proposed += fileResult.Proposed
 		result.Failed += fileResult.Failed
 		result.Decisions = append(result.Decisions, fileResult.Decisions...)
@@ -260,6 +260,7 @@ func (c *InboxConsumer) ConsumeOnce(ctx context.Context) (ConsumeResult, error) 
 type pendingFile struct {
 	path    string
 	modTime time.Time
+	claimed bool
 }
 
 func (c *InboxConsumer) pendingFiles() ([]pendingFile, error) {
@@ -281,7 +282,15 @@ func (c *InboxConsumer) pendingFiles() ([]pendingFile, error) {
 			return nil, fmt.Errorf("memory extractor: read inbox session %q: %w", sessionDir.Name(), err)
 		}
 		for _, entry := range entries {
-			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".jsonl") {
+			if entry.IsDir() {
+				continue
+			}
+			claimed := false
+			switch {
+			case strings.HasSuffix(entry.Name(), ".jsonl"):
+			case strings.HasSuffix(entry.Name(), ".jsonl"+processingSuffix):
+				claimed = true
+			default:
 				continue
 			}
 			info, err := entry.Info()
@@ -291,6 +300,7 @@ func (c *InboxConsumer) pendingFiles() ([]pendingFile, error) {
 			files = append(files, pendingFile{
 				path:    filepath.Join(dirPath, entry.Name()),
 				modTime: info.ModTime().UTC(),
+				claimed: claimed,
 			})
 		}
 	}
@@ -303,10 +313,14 @@ func (c *InboxConsumer) pendingFiles() ([]pendingFile, error) {
 	return files, nil
 }
 
-func (c *InboxConsumer) consumeFile(ctx context.Context, path string) (ConsumeResult, error) {
+func (c *InboxConsumer) consumeFile(ctx context.Context, file pendingFile) (ConsumeResult, error) {
 	result := ConsumeResult{Decisions: make([]memcontract.Decision, 0), Failures: make([]string, 0)}
+	path := file.path
 	processing := path + processingSuffix
-	if err := os.Rename(path, processing); err != nil {
+	if file.claimed {
+		processing = file.path
+		path = strings.TrimSuffix(file.path, processingSuffix)
+	} else if err := os.Rename(path, processing); err != nil {
 		return result, fmt.Errorf("memory extractor: claim inbox file %q: %w", path, err)
 	}
 
@@ -320,8 +334,14 @@ func (c *InboxConsumer) consumeFile(ctx context.Context, path string) (ConsumeRe
 	}
 
 	for _, candidate := range candidates {
+		if err := ctx.Err(); err != nil {
+			return result, c.requeueClaimedFile(processing, path, err)
+		}
 		decision, err := c.sink.ProposeCandidate(ctx, candidate)
 		if err != nil {
+			if isRetryableInboxError(ctx, err) {
+				return result, c.requeueClaimedFile(processing, path, err)
+			}
 			result.Failed++
 			failurePath, moveErr := c.moveToDLQ(processing, "controller", err)
 			result.Failures = append(result.Failures, failurePath)
@@ -339,6 +359,35 @@ func (c *InboxConsumer) consumeFile(ctx context.Context, path string) (ConsumeRe
 		return result, fmt.Errorf("memory extractor: remove consumed inbox file: %w", err)
 	}
 	return result, nil
+}
+
+func (c *InboxConsumer) requeueClaimedFile(processing string, path string, cause error) error {
+	if _, err := os.Stat(path); err == nil {
+		return fmt.Errorf("memory extractor: requeue inbox file %q: target already exists: %w", path, cause)
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("memory extractor: stat inbox requeue target %q: %w", path, err)
+	}
+	if err := os.Rename(processing, path); err != nil {
+		return errors.Join(
+			fmt.Errorf("memory extractor: requeue inbox file %q: %w", path, err),
+			cause,
+		)
+	}
+	return fmt.Errorf("memory extractor: consume interrupted for %q: %w", path, cause)
+}
+
+func isRetryableInboxError(ctx context.Context, err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	if ctx == nil {
+		return false
+	}
+	ctxErr := ctx.Err()
+	return ctxErr != nil && errors.Is(err, ctxErr)
 }
 
 func decodeCandidateFile(path string) ([]memcontract.Candidate, error) {

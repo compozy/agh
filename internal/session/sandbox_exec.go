@@ -91,7 +91,7 @@ func (m *Manager) ExecSandbox(ctx context.Context, req SandboxExecRequest) (Sand
 	if releaseErr != nil {
 		return result, fmt.Errorf("session: sandbox exec release terminal: %w", releaseErr)
 	}
-	if waitErr != nil && execCtx.Err() != nil {
+	if waitErr != nil {
 		return result, fmt.Errorf("session: sandbox exec wait: %w", waitErr)
 	}
 	return result, nil

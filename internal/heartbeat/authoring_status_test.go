@@ -157,6 +157,48 @@ func TestManagedHeartbeatAuthoringServicePutValidateAndCAS(t *testing.T) {
 		assertHeartbeatSnapshotCount(t, fixture, 1)
 	})
 
+	t.Run("Should repair invalid current HEARTBEAT content without an expected digest", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHeartbeatFixture(t)
+		invalid := "---\nversion: 2\n---\nWake gently.\n"
+		if err := os.WriteFile(fixture.heartbeatPath, []byte(invalid), 0o644); err != nil {
+			t.Fatalf("WriteFile(invalid HEARTBEAT.md) error = %v", err)
+		}
+		status, err := fixture.status.Status(fixture.ctx, heartbeat.StatusRequest{Target: fixture.target})
+		if err != nil {
+			t.Fatalf("Status(invalid policy) error = %v", err)
+		}
+		if !status.Present || status.Valid || status.Digest != "" {
+			t.Fatalf("Status(invalid policy) = %#v, want present invalid policy without digest", status)
+		}
+
+		repairedBody := validHeartbeatBody(
+			"Repair invalid policy",
+			"Repair this invalid policy through the managed authoring boundary.",
+		)
+		repaired, err := fixture.authoring.Put(fixture.ctx, heartbeat.PutRequest{
+			Target: fixture.target,
+			Body:   repairedBody,
+			Actor:  heartbeat.AuthoringIdentity{Kind: string(heartbeat.ActorKindAgent), Ref: "coder"},
+		})
+		if err != nil {
+			t.Fatalf("Put(repair invalid current) error = %v", err)
+		}
+		if !repaired.Policy.Valid || !repaired.Policy.Present || repaired.Policy.Digest == "" {
+			t.Fatalf("Put(repair invalid current).Policy = %#v, want valid present policy", repaired.Policy)
+		}
+		if repaired.Revision.Operation != heartbeat.RevisionOperationWrite ||
+			repaired.Revision.PreviousDigest != "" ||
+			repaired.Revision.NewDigest != repaired.Policy.Digest ||
+			repaired.Revision.Body != repairedBody {
+			t.Fatalf("Put(repair invalid current).Revision = %#v, want repair write revision", repaired.Revision)
+		}
+		assertHeartbeatFileContent(t, fixture.heartbeatPath, repairedBody)
+		assertHeartbeatRevisionCount(t, fixture, 1)
+		assertHeartbeatSnapshotCount(t, fixture, 1)
+	})
+
 	t.Run("Should reject missing and stale expected digests without appending revisions", func(t *testing.T) {
 		t.Parallel()
 
@@ -227,9 +269,15 @@ func TestManagedHeartbeatAuthoringServiceDeleteRollbackHistoryAndPersistence(t *
 		if deleted.Policy.Present || deleted.Policy.Digest != "" || !deleted.Policy.Valid {
 			t.Fatalf("Delete().Policy = %#v, want missing valid state", deleted.Policy)
 		}
+		if deleted.Snapshot.ID == "" ||
+			deleted.Snapshot.Digest == "" ||
+			deleted.Snapshot.Digest == created.Policy.Digest {
+			t.Fatalf("Delete().Snapshot = %#v, want persisted absent-state snapshot", deleted.Snapshot)
+		}
 		if deleted.Revision.Operation != heartbeat.RevisionOperationDelete ||
 			deleted.Revision.PreviousDigest != created.Policy.Digest ||
 			deleted.Revision.NewDigest != "" ||
+			deleted.Revision.NewSnapshotID != deleted.Snapshot.ID ||
 			deleted.Revision.Body != "" {
 			t.Fatalf("Delete().Revision = %#v, want delete transition", deleted.Revision)
 		}
@@ -240,7 +288,7 @@ func TestManagedHeartbeatAuthoringServiceDeleteRollbackHistoryAndPersistence(t *
 			t.Fatalf("Stat(AGENT.md) = %#v, error = %v, want managed delete to leave agent file", stat, err)
 		}
 		assertHeartbeatRevisionCount(t, fixture, 2)
-		assertHeartbeatSnapshotCount(t, fixture, 1)
+		assertHeartbeatSnapshotCount(t, fixture, 2)
 	})
 
 	t.Run("Should reject deleting absent HEARTBEAT content deterministically", func(t *testing.T) {
@@ -255,6 +303,152 @@ func TestManagedHeartbeatAuthoringServiceDeleteRollbackHistoryAndPersistence(t *
 		}
 		requireHeartbeatAuthoringCode(t, err, "heartbeat_no_policy")
 		assertHeartbeatRevisionCount(t, fixture, 0)
+	})
+
+	t.Run("Should delete invalid current HEARTBEAT content without an expected digest", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHeartbeatFixture(t)
+		invalid := "---\nversion: 2\n---\nWake gently.\n"
+		if err := os.WriteFile(fixture.heartbeatPath, []byte(invalid), 0o644); err != nil {
+			t.Fatalf("WriteFile(invalid HEARTBEAT.md) error = %v", err)
+		}
+		status, err := fixture.status.Status(fixture.ctx, heartbeat.StatusRequest{Target: fixture.target})
+		if err != nil {
+			t.Fatalf("Status(invalid policy) error = %v", err)
+		}
+		if !status.Present || status.Valid || status.Digest != "" {
+			t.Fatalf("Status(invalid policy) = %#v, want present invalid policy without digest", status)
+		}
+
+		deleted, err := fixture.authoring.Delete(fixture.ctx, heartbeat.DeleteRequest{
+			Target: fixture.target,
+			Actor:  heartbeat.AuthoringIdentity{Kind: string(heartbeat.ActorKindUser), Ref: "tester"},
+		})
+		if err != nil {
+			t.Fatalf("Delete(invalid current) error = %v", err)
+		}
+		if deleted.Policy.Present || deleted.Policy.Digest != "" || !deleted.Policy.Valid {
+			t.Fatalf("Delete(invalid current).Policy = %#v, want missing valid state", deleted.Policy)
+		}
+		if deleted.Revision.Operation != heartbeat.RevisionOperationDelete ||
+			deleted.Revision.PreviousDigest != "" ||
+			deleted.Revision.NewDigest != "" ||
+			deleted.Revision.NewSnapshotID != deleted.Snapshot.ID {
+			t.Fatalf("Delete(invalid current).Revision = %#v, want invalid delete transition", deleted.Revision)
+		}
+		if stat, err := os.Stat(fixture.heartbeatPath); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("Stat(HEARTBEAT.md) = %#v, error = %v, want %v", stat, err, os.ErrNotExist)
+		}
+		assertHeartbeatRevisionCount(t, fixture, 1)
+		assertHeartbeatSnapshotCount(t, fixture, 1)
+	})
+
+	t.Run("Should stop wake prompts after managed delete", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHeartbeatFixture(t)
+		created, err := fixture.authoring.Put(fixture.ctx, heartbeat.PutRequest{
+			Target: fixture.target,
+			Body:   validHeartbeatBody("Delete wake policy", "This policy must not survive deletion."),
+		})
+		if err != nil {
+			t.Fatalf("Put(create) error = %v", err)
+		}
+		if _, err := fixture.authoring.Delete(fixture.ctx, heartbeat.DeleteRequest{
+			Target:         fixture.target,
+			ExpectedDigest: created.Policy.Digest,
+		}); err != nil {
+			t.Fatalf("Delete() error = %v", err)
+		}
+		if err := fixture.db.RegisterSession(fixture.ctx, aghstore.SessionInfo{
+			ID:          "sess-delete",
+			AgentName:   "coder",
+			Provider:    "claude",
+			WorkspaceID: fixture.workspaceID,
+			State:       string(heartbeat.SessionHealthStateIdle),
+			CreatedAt:   fixture.now,
+			UpdatedAt:   fixture.now,
+		}); err != nil {
+			t.Fatalf("RegisterSession(sess-delete) error = %v", err)
+		}
+
+		prompter := &recordingHeartbeatPrompter{}
+		wakeService, err := heartbeat.NewManagedWakeService(
+			fixture.db,
+			managedHeartbeatHealthReader{health: eligibleManagedWakeHealth(fixture, "sess-delete")},
+			prompter,
+			aghconfig.DefaultHeartbeatConfig(),
+			heartbeat.WithWakeClock(deterministicHeartbeatClock(fixture.now)),
+		)
+		if err != nil {
+			t.Fatalf("NewManagedWakeService() error = %v", err)
+		}
+
+		decision, err := wakeService.Wake(fixture.ctx, heartbeat.WakeRequest{
+			WorkspaceID: fixture.workspaceID,
+			AgentName:   "coder",
+			SessionID:   "sess-delete",
+			Source:      heartbeat.WakeSourceManual,
+		})
+		if err != nil {
+			t.Fatalf("Wake(after delete) error = %v", err)
+		}
+		if decision.Result != heartbeat.WakeResultSkipped ||
+			decision.Reason != heartbeat.WakeReasonHeartbeatNoPolicy {
+			t.Fatalf("Wake(after delete) = %#v, want no-policy skip", decision)
+		}
+		if got := len(prompter.requestsSnapshot()); got != 0 {
+			t.Fatalf("wake prompts = %d, want 0 after managed delete", got)
+		}
+	})
+
+	t.Run("Should rollback to delete revisions as absent policy", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHeartbeatFixture(t)
+		first, err := fixture.authoring.Put(fixture.ctx, heartbeat.PutRequest{
+			Target: fixture.target,
+			Body:   validHeartbeatBody("Delete rollback first", "This policy will be deleted."),
+		})
+		if err != nil {
+			t.Fatalf("Put(first) error = %v", err)
+		}
+		deleted, err := fixture.authoring.Delete(fixture.ctx, heartbeat.DeleteRequest{
+			Target:         fixture.target,
+			ExpectedDigest: first.Policy.Digest,
+		})
+		if err != nil {
+			t.Fatalf("Delete(first) error = %v", err)
+		}
+		second, err := fixture.authoring.Put(fixture.ctx, heartbeat.PutRequest{
+			Target: fixture.target,
+			Body:   validHeartbeatBody("Delete rollback second", "Rollback should remove this policy."),
+		})
+		if err != nil {
+			t.Fatalf("Put(second) error = %v", err)
+		}
+
+		rolledBack, err := fixture.authoring.Rollback(fixture.ctx, heartbeat.RollbackRequest{
+			Target:         fixture.target,
+			RevisionID:     deleted.Revision.ID,
+			ExpectedDigest: second.Policy.Digest,
+		})
+		if err != nil {
+			t.Fatalf("Rollback(delete revision) error = %v", err)
+		}
+		if rolledBack.Policy.Present || rolledBack.Policy.Digest != "" || !rolledBack.Policy.Valid {
+			t.Fatalf("Rollback(delete revision).Policy = %#v, want absent valid policy", rolledBack.Policy)
+		}
+		if rolledBack.Revision.Operation != heartbeat.RevisionOperationRollback ||
+			rolledBack.Revision.PreviousDigest != second.Policy.Digest ||
+			rolledBack.Revision.NewDigest != "" ||
+			rolledBack.Revision.Body != "" {
+			t.Fatalf("Rollback(delete revision).Revision = %#v, want rollback to absence", rolledBack.Revision)
+		}
+		if stat, err := os.Stat(fixture.heartbeatPath); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("Stat(HEARTBEAT.md) = %#v, error = %v, want %v", stat, err, os.ErrNotExist)
+		}
 	})
 
 	t.Run("Should restore prior policy bodies through validation CAS and append rollback history", func(t *testing.T) {
@@ -665,6 +859,54 @@ func TestManagedHeartbeatStatusService(t *testing.T) {
 		}
 	})
 
+	t.Run("Should skip session health reads when session health is not requested", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHeartbeatFixture(t)
+		written, err := fixture.authoring.Put(fixture.ctx, heartbeat.PutRequest{
+			Target: fixture.target,
+			Body:   validHeartbeatBody("Wake-only status", "Wake-state reads do not require session health."),
+		})
+		if err != nil {
+			t.Fatalf("Put(policy) error = %v", err)
+		}
+		registerManagedHeartbeatSession(t, fixture, "sess-wake-only")
+		wakeState, err := fixture.db.UpsertHeartbeatWakeState(fixture.ctx, heartbeat.WakeState{
+			WorkspaceID:      fixture.workspaceID,
+			AgentName:        "coder",
+			SessionID:        "sess-wake-only",
+			PolicySnapshotID: written.Snapshot.ID,
+			LastWakeAt:       fixture.now.Add(2 * time.Minute),
+			NextAllowedAt:    fixture.now.Add(time.Hour),
+			CoalescedCount:   1,
+			LastResult:       heartbeat.WakeResultSent,
+			LastReason:       heartbeat.WakeReasonSent,
+			UpdatedAt:        fixture.now.Add(3 * time.Minute),
+		})
+		if err != nil {
+			t.Fatalf("UpsertHeartbeatWakeState() error = %v", err)
+		}
+		statusWithoutReader, err := heartbeat.NewManagedHeartbeatStatusService(fixture.db)
+		if err != nil {
+			t.Fatalf("NewManagedHeartbeatStatusService(no health reader) error = %v", err)
+		}
+
+		status, err := statusWithoutReader.Status(fixture.ctx, heartbeat.StatusRequest{
+			Target:    fixture.target,
+			SessionID: "sess-wake-only",
+		})
+		if err != nil {
+			t.Fatalf("Status(wake-only) error = %v", err)
+		}
+		if status.SessionHealth != nil {
+			t.Fatalf("Status(wake-only).SessionHealth = %#v, want nil", status.SessionHealth)
+		}
+		if status.WakeState == nil || status.WakeState.SessionID != wakeState.SessionID ||
+			status.WakeState.LastReason != heartbeat.WakeReasonSent {
+			t.Fatalf("Status(wake-only).WakeState = %#v, want wake state %#v", status.WakeState, wakeState)
+		}
+	})
+
 	t.Run("Should inspect missing policy with config provenance and no snapshot", func(t *testing.T) {
 		t.Parallel()
 
@@ -825,6 +1067,11 @@ type managedHeartbeatHealthReader struct {
 	err    error
 }
 
+type recordingHeartbeatPrompter struct {
+	mu       sync.Mutex
+	requests []heartbeat.SyntheticWakePromptRequest
+}
+
 func (r managedHeartbeatHealthReader) GetSessionHealth(
 	context.Context,
 	string,
@@ -833,6 +1080,37 @@ func (r managedHeartbeatHealthReader) GetSessionHealth(
 		return heartbeat.SessionHealth{}, r.err
 	}
 	return r.health, nil
+}
+
+func (p *recordingHeartbeatPrompter) PromptHeartbeatWake(
+	_ context.Context,
+	req heartbeat.SyntheticWakePromptRequest,
+) (heartbeat.SyntheticWakePromptResult, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.requests = append(p.requests, req)
+	return heartbeat.SyntheticWakePromptResult{SyntheticPromptID: req.TurnID}, nil
+}
+
+func (p *recordingHeartbeatPrompter) requestsSnapshot() []heartbeat.SyntheticWakePromptRequest {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return append([]heartbeat.SyntheticWakePromptRequest(nil), p.requests...)
+}
+
+func eligibleManagedWakeHealth(fixture heartbeatFixture, sessionID string) heartbeat.SessionHealth {
+	return heartbeat.SessionHealth{
+		SessionID:       sessionID,
+		WorkspaceID:     fixture.workspaceID,
+		AgentName:       "coder",
+		State:           heartbeat.SessionHealthStateIdle,
+		Health:          heartbeat.SessionHealthHealthy,
+		Attachable:      true,
+		EligibleForWake: true,
+		LastActivityAt:  fixture.now.Add(-2 * time.Minute),
+		LastPresenceAt:  fixture.now.Add(-time.Minute),
+		UpdatedAt:       fixture.now,
+	}
 }
 
 func newHeartbeatFixture(t *testing.T) heartbeatFixture {

@@ -3,37 +3,33 @@
 package hooks
 
 import (
-	"errors"
-	"os"
+	"fmt"
 	"os/exec"
+	"syscall"
 	"time"
+
+	"github.com/pedronauck/agh/internal/procutil"
 )
 
-func configureSubprocessCommand(_ *exec.Cmd) {}
+func configureSubprocessCommand(cmd *exec.Cmd) {
+	procutil.ConfigureCommandProcessGroup(cmd)
+}
 
 func terminateSubprocessCommand(cmd *exec.Cmd) error {
-	return signalSubprocessCommand(cmd, os.Kill)
+	return signalSubprocessCommand(cmd, syscall.SIGTERM)
 }
 
 func killSubprocessCommand(cmd *exec.Cmd) error {
-	return signalSubprocessCommand(cmd, os.Kill)
+	return signalSubprocessCommand(cmd, syscall.SIGKILL)
 }
 
-func signalSubprocessCommand(cmd *exec.Cmd, sig os.Signal) error {
-	if cmd == nil || cmd.Process == nil {
-		return nil
-	}
-	if err := cmd.Process.Signal(sig); err != nil {
-		if errors.Is(err, os.ErrProcessDone) {
-			return nil
-		}
-		return err
+func signalSubprocessCommand(cmd *exec.Cmd, sig syscall.Signal) error {
+	if err := procutil.SignalCommandProcessGroup(cmd, sig); err != nil {
+		return fmt.Errorf("kill process group (pid %d, sig %v): %w", cmd.Process.Pid, sig, err)
 	}
 	return nil
 }
 
-// Windows keeps an explicit no-op fallback until process-group parity lands for
-// hook subprocesses.
-func forceSubprocessCommandExit(_ *exec.Cmd, _ time.Duration) error {
-	return nil
+func forceSubprocessCommandExit(cmd *exec.Cmd, timeout time.Duration) error {
+	return procutil.KillCommandProcessGroupAndWait(cmd, timeout)
 }

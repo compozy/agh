@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/api/spec"
 	"github.com/pedronauck/agh/internal/codegen/sdkts"
+	"github.com/pedronauck/agh/internal/fileutil"
 )
 
 const defaultSDKContractsPath = "sdk/typescript/src/generated/contracts.ts"
@@ -47,10 +47,7 @@ func runWithPaths(ctx context.Context, args []string, openapiPath string, sdkCon
 	case "sdk-contracts":
 		return writeSDKContracts(ctx, sdkContractsPath)
 	case "all":
-		if err := writeOpenAPI(openapiPath); err != nil {
-			return err
-		}
-		return writeSDKContracts(ctx, sdkContractsPath)
+		return writeAll(ctx, openapiPath, sdkContractsPath)
 	case "check":
 		if err := checkOpenAPI(openapiPath); err != nil {
 			return err
@@ -62,7 +59,11 @@ func runWithPaths(ctx context.Context, args []string, openapiPath string, sdkCon
 }
 
 func writeOpenAPI(path string) error {
-	if err := spec.WriteFile(path); err != nil {
+	content, err := marshalOpenAPI()
+	if err != nil {
+		return fmt.Errorf("write openapi to %q: %w", path, err)
+	}
+	if err := publishGeneratedFile(path, content); err != nil {
 		return fmt.Errorf("write openapi to %q: %w", path, err)
 	}
 	return nil
@@ -73,11 +74,97 @@ func writeSDKContracts(ctx context.Context, path string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return fmt.Errorf("create sdk contracts directory %q: %w", filepath.Dir(path), err)
-	}
-	if err := os.WriteFile(path, content, 0o600); err != nil {
+	if err := publishGeneratedFile(path, content); err != nil {
 		return fmt.Errorf("write sdk contracts to %q: %w", path, err)
+	}
+	return nil
+}
+
+func writeAll(ctx context.Context, openapiPath string, sdkContractsPath string) error {
+	return writeAllWith(
+		ctx,
+		openapiPath,
+		sdkContractsPath,
+		marshalOpenAPI,
+		generateFormattedSDKContracts,
+		publishGeneratedFile,
+	)
+}
+
+func writeAllWith(
+	ctx context.Context,
+	openapiPath string,
+	sdkContractsPath string,
+	generateOpenAPI func() ([]byte, error),
+	generateSDK func(context.Context, string) ([]byte, error),
+	publishFile func(string, []byte) error,
+) error {
+	openapiContent, err := generateOpenAPI()
+	if err != nil {
+		return fmt.Errorf("write openapi to %q: %w", openapiPath, err)
+	}
+
+	sdkContent, err := generateSDK(ctx, sdkContractsPath)
+	if err != nil {
+		return err
+	}
+
+	previousOpenAPI, openapiExisted, err := readGeneratedFile(openapiPath)
+	if err != nil {
+		return fmt.Errorf("read existing openapi %q: %w", openapiPath, err)
+	}
+
+	if err := publishFile(openapiPath, openapiContent); err != nil {
+		return fmt.Errorf("write openapi to %q: %w", openapiPath, err)
+	}
+	if err := publishFile(sdkContractsPath, sdkContent); err != nil {
+		if restoreErr := restoreGeneratedFile(
+			openapiPath,
+			previousOpenAPI,
+			openapiExisted,
+			publishFile,
+		); restoreErr != nil {
+			return fmt.Errorf(
+				"write sdk contracts to %q: %w; restore openapi %q: %v",
+				sdkContractsPath,
+				err,
+				openapiPath,
+				restoreErr,
+			)
+		}
+		return fmt.Errorf("write sdk contracts to %q: %w", sdkContractsPath, err)
+	}
+
+	return nil
+}
+
+func publishGeneratedFile(path string, content []byte) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("create output directory %q: %w", filepath.Dir(path), err)
+	}
+	if err := fileutil.AtomicWriteFile(path, content, 0o600); err != nil {
+		return err
+	}
+	return nil
+}
+
+func readGeneratedFile(path string) ([]byte, bool, error) {
+	content, err := os.ReadFile(path)
+	if err == nil {
+		return content, true, nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, false, nil
+	}
+	return nil, false, err
+}
+
+func restoreGeneratedFile(path string, content []byte, existed bool, publishFile func(string, []byte) error) error {
+	if existed {
+		return publishFile(path, content)
+	}
+	if err := fileutil.AtomicRemoveFile(path); err != nil {
+		return err
 	}
 	return nil
 }
@@ -99,25 +186,9 @@ func checkSDKContracts(ctx context.Context, path string) error {
 }
 
 func marshalOpenAPI() ([]byte, error) {
-	file, err := os.CreateTemp("", "agh-openapi-*.json")
+	data, err := spec.Render()
 	if err != nil {
-		return nil, fmt.Errorf("create temporary openapi file: %w", err)
-	}
-	if err := file.Close(); err != nil {
-		return nil, fmt.Errorf("close temporary openapi file %q: %w", file.Name(), err)
-	}
-	defer func() {
-		if err := removeTemporaryFile(file.Name()); err != nil {
-			slog.Warn("remove temporary openapi file", "path", file.Name(), "err", err)
-		}
-	}()
-
-	if err := spec.WriteFile(file.Name()); err != nil {
-		return nil, fmt.Errorf("write openapi to temporary file %q: %w", file.Name(), err)
-	}
-	data, err := os.ReadFile(file.Name())
-	if err != nil {
-		return nil, fmt.Errorf("read temporary openapi file %q: %w", file.Name(), err)
+		return nil, fmt.Errorf("render openapi: %w", err)
 	}
 	return data, nil
 }

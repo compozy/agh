@@ -321,28 +321,7 @@ func (s *ManagedHeartbeatAuthoringService) Delete(
 			ErrAuthoringPathRejected,
 		)
 	}
-	resolved, err := Resolve(ctx, ResolveRequest{
-		AgentPath:     target.agentPath,
-		WorkspaceRoot: target.workspaceRoot,
-		Config:        target.config,
-	})
-	if err != nil {
-		return MutationResult{Policy: resolved}, authoringInvalidError(resolved.Diagnostics)
-	}
-	revision, err := s.appendRevision(
-		ctx,
-		target,
-		RevisionOperationDelete,
-		current.Digest,
-		"",
-		"",
-		"",
-		req.Actor,
-	)
-	if err != nil {
-		return MutationResult{}, err
-	}
-	return MutationResult{Policy: resolved, Revision: revision}, nil
+	return s.persistPostDelete(ctx, target, current.Digest, RevisionOperationDelete, req.Actor)
 }
 
 // History lists managed HEARTBEAT.md revision history.
@@ -384,14 +363,29 @@ func (s *ManagedHeartbeatAuthoringService) Rollback(
 	if err := validateExpectedDigest(&current, req.ExpectedDigest, target.sourcePath); err != nil {
 		return MutationResult{}, err
 	}
-	body, err := s.rollbackBody(ctx, target, req)
+	rollback, err := s.rollbackTarget(ctx, target, req)
 	if err != nil {
 		return MutationResult{}, err
+	}
+	if rollback.absent {
+		if err := s.verifyUnchangedHeartbeat(ctx, target, &current); err != nil {
+			return MutationResult{}, err
+		}
+		if err := fileutil.AtomicRemoveFile(target.heartbeatPath); err != nil {
+			return MutationResult{}, authoringDiagnosticError(
+				diagnosticHeartbeatPathError,
+				target.sourcePath,
+				"HEARTBEAT.md could not be rolled back",
+				err,
+				ErrAuthoringPathRejected,
+			)
+		}
+		return s.persistPostDelete(ctx, target, current.Digest, RevisionOperationRollback, req.Actor)
 	}
 	proposed, err := Parse(ctx, ParseRequest{
 		SourcePath:    target.heartbeatPath,
 		WorkspaceRoot: target.workspaceRoot,
-		Content:       []byte(body),
+		Content:       []byte(rollback.body),
 		Config:        target.config,
 	})
 	if err != nil {
@@ -400,7 +394,7 @@ func (s *ManagedHeartbeatAuthoringService) Rollback(
 	if err := s.verifyUnchangedHeartbeat(ctx, target, &current); err != nil {
 		return MutationResult{}, err
 	}
-	if err := fileutil.AtomicWriteFile(target.heartbeatPath, []byte(body), s.mode); err != nil {
+	if err := fileutil.AtomicWriteFile(target.heartbeatPath, []byte(rollback.body), s.mode); err != nil {
 		return MutationResult{}, authoringDiagnosticError(
 			diagnosticHeartbeatPathError,
 			target.sourcePath,
@@ -409,7 +403,7 @@ func (s *ManagedHeartbeatAuthoringService) Rollback(
 			ErrAuthoringPathRejected,
 		)
 	}
-	return s.persistPostWrite(ctx, target, current.Digest, RevisionOperationRollback, body, req.Actor)
+	return s.persistPostWrite(ctx, target, current.Digest, RevisionOperationRollback, rollback.body, req.Actor)
 }
 
 type resolvedAuthoringTarget struct {
@@ -573,6 +567,9 @@ func (s *ManagedHeartbeatAuthoringService) currentHeartbeatForMutation(
 	if !errors.Is(err, ErrInvalid) {
 		return ResolvedPolicy{}, fmt.Errorf("heartbeat: resolve current HEARTBEAT.md: %w", err)
 	}
+	if current.Present {
+		return current, nil
+	}
 	return current, authoringInvalidError(current.Diagnostics)
 }
 
@@ -589,6 +586,9 @@ func (s *ManagedHeartbeatAuthoringService) verifyUnchangedHeartbeat(
 		return conflictError(target.sourcePath, "current HEARTBEAT.md state is required")
 	}
 	if latest.Present != previous.Present || latest.Digest != previous.Digest {
+		return conflictError(target.sourcePath, "HEARTBEAT.md changed before managed mutation completed")
+	}
+	if latest.Digest == "" && previous.Present && latest.contentDigest != previous.contentDigest {
 		return conflictError(target.sourcePath, "HEARTBEAT.md changed before managed mutation completed")
 	}
 	return nil
@@ -641,11 +641,62 @@ func (s *ManagedHeartbeatAuthoringService) persistPostWrite(
 	return MutationResult{Policy: resolved, Snapshot: snapshot, Revision: revision}, nil
 }
 
-func (s *ManagedHeartbeatAuthoringService) rollbackBody(
+func (s *ManagedHeartbeatAuthoringService) persistPostDelete(
+	ctx context.Context,
+	target resolvedAuthoringTarget,
+	previousDigest string,
+	operation RevisionOperation,
+	actor AuthoringIdentity,
+) (MutationResult, error) {
+	resolved, err := Resolve(ctx, ResolveRequest{
+		AgentPath:     target.agentPath,
+		WorkspaceRoot: target.workspaceRoot,
+		Config:        target.config,
+	})
+	if err != nil {
+		return MutationResult{Policy: resolved}, authoringInvalidError(resolved.Diagnostics)
+	}
+	now := s.now()
+	snapshot, err := SnapshotFromResolved(
+		s.newID("hb"),
+		target.workspaceID,
+		target.agentName,
+		&resolved,
+		now,
+	)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	snapshot, err = s.store.UpsertHeartbeatSnapshot(ctx, snapshot)
+	if err != nil {
+		return MutationResult{}, fmt.Errorf("heartbeat: upsert post-delete snapshot: %w", err)
+	}
+	revision, err := s.appendRevision(
+		ctx,
+		target,
+		operation,
+		previousDigest,
+		"",
+		snapshot.ID,
+		"",
+		actor,
+	)
+	if err != nil {
+		return MutationResult{}, err
+	}
+	return MutationResult{Policy: resolved, Snapshot: snapshot, Revision: revision}, nil
+}
+
+type rollbackTarget struct {
+	body   string
+	absent bool
+}
+
+func (s *ManagedHeartbeatAuthoringService) rollbackTarget(
 	ctx context.Context,
 	target resolvedAuthoringTarget,
 	req RollbackRequest,
-) (string, error) {
+) (rollbackTarget, error) {
 	revisionID := strings.TrimSpace(req.RevisionID)
 	if revisionID != "" {
 		selected, err := s.store.FindHeartbeatRevisionForRollback(ctx, RollbackLookup{
@@ -655,29 +706,39 @@ func (s *ManagedHeartbeatAuthoringService) rollbackBody(
 		})
 		if err != nil {
 			if errors.Is(err, ErrRevisionNotFound) {
-				return "", revisionMissingError(target.sourcePath, err)
+				return rollbackTarget{}, revisionMissingError(target.sourcePath, err)
 			}
-			return "", fmt.Errorf("heartbeat: find rollback revision: %w", err)
+			return rollbackTarget{}, fmt.Errorf("heartbeat: find rollback revision: %w", err)
 		}
-		return selected.Body, nil
+		if selected.Operation == RevisionOperationDelete {
+			return rollbackTarget{absent: true}, nil
+		}
+		return rollbackTarget{body: selected.Body}, nil
 	}
 
 	targetDigest := strings.TrimSpace(req.TargetDigest)
 	if targetDigest == "" {
-		return "", revisionMissingError(target.sourcePath, ErrRevisionNotFound)
+		return rollbackTarget{}, revisionMissingError(target.sourcePath, ErrRevisionNotFound)
 	}
 	snapshot, ok, err := s.store.FindHeartbeatSnapshotByDigest(ctx, target.workspaceID, target.agentName, targetDigest)
 	if err != nil {
-		return "", fmt.Errorf("heartbeat: find rollback snapshot: %w", err)
+		return rollbackTarget{}, fmt.Errorf("heartbeat: find rollback snapshot: %w", err)
 	}
 	if !ok {
-		return "", revisionMissingError(target.sourcePath, ErrRevisionNotFound)
+		return rollbackTarget{}, revisionMissingError(target.sourcePath, ErrRevisionNotFound)
+	}
+	envelope, err := snapshot.ResolvedEnvelope()
+	if err != nil {
+		return rollbackTarget{}, fmt.Errorf("heartbeat: decode rollback snapshot: %w", err)
+	}
+	if !envelope.Present {
+		return rollbackTarget{absent: true}, nil
 	}
 	body, err := heartbeatSourceFromSnapshot(snapshot)
 	if err != nil {
-		return "", fmt.Errorf("heartbeat: rebuild rollback snapshot body: %w", err)
+		return rollbackTarget{}, fmt.Errorf("heartbeat: rebuild rollback snapshot body: %w", err)
 	}
-	return body, nil
+	return rollbackTarget{body: body}, nil
 }
 
 func heartbeatSourceFromSnapshot(snapshot Snapshot) (string, error) {

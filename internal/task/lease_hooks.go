@@ -12,7 +12,7 @@ func (m *Service) dispatchTaskRunLeaseExtended(
 	run Run,
 	taskRecord Task,
 	actor ActorContext,
-) error {
+) {
 	payload := hookspkg.TaskRunLeaseExtendedPayload{
 		PayloadBase: hookspkg.PayloadBase{
 			Event:     hookspkg.HookTaskRunLeaseExtended,
@@ -21,7 +21,7 @@ func (m *Service) dispatchTaskRunLeaseExtended(
 		TaskRunContext: m.taskRunHookContext(run, taskRecord, actor),
 	}
 	_, err := m.taskHooks.DispatchTaskRunLeaseExtended(taskRunObservationHookContext(ctx), payload)
-	return err
+	m.reportTaskRunHookFailure(hookspkg.HookTaskRunLeaseExtended, err, run, taskRecord)
 }
 
 func (m *Service) dispatchTaskRunLeaseExpired(
@@ -30,9 +30,9 @@ func (m *Service) dispatchTaskRunLeaseExpired(
 	taskRecord Task,
 	actor ActorContext,
 	recovery *ExpiredLeaseRecoveryResult,
-) error {
+) {
 	if recovery == nil {
-		return nil
+		return
 	}
 	contextPayload := m.taskRunHookContext(run, taskRecord, actor)
 	contextPayload.ReleaseReason = strings.TrimSpace(recovery.Reason)
@@ -48,7 +48,7 @@ func (m *Service) dispatchTaskRunLeaseExpired(
 		RecoveryReason:    strings.TrimSpace(recovery.Reason),
 	}
 	_, err := m.taskHooks.DispatchTaskRunLeaseExpired(taskRunObservationHookContext(ctx), payload)
-	return err
+	m.reportTaskRunHookFailure(hookspkg.HookTaskRunLeaseExpired, err, run, taskRecord)
 }
 
 func (m *Service) dispatchTaskRunLeaseRecoveredFromExpiration(
@@ -57,9 +57,9 @@ func (m *Service) dispatchTaskRunLeaseRecoveredFromExpiration(
 	taskRecord Task,
 	actor ActorContext,
 	recovery *ExpiredLeaseRecoveryResult,
-) error {
+) {
 	if recovery == nil {
-		return nil
+		return
 	}
 	payload := hookspkg.TaskRunLeaseRecoveredPayload{
 		PayloadBase: hookspkg.PayloadBase{
@@ -73,7 +73,7 @@ func (m *Service) dispatchTaskRunLeaseRecoveredFromExpiration(
 		RecoveryReason:    strings.TrimSpace(recovery.Reason),
 	}
 	_, err := m.taskHooks.DispatchTaskRunLeaseRecovered(taskRunObservationHookContext(ctx), payload)
-	return err
+	m.reportTaskRunHookFailure(hookspkg.HookTaskRunLeaseRecovered, err, run, taskRecord)
 }
 
 func (m *Service) dispatchTaskRunReleased(
@@ -83,7 +83,7 @@ func (m *Service) dispatchTaskRunReleased(
 	actor ActorContext,
 	previous Run,
 	reason string,
-) error {
+) {
 	contextPayload := m.taskRunHookContext(run, taskRecord, actor)
 	contextPayload.ReleaseReason = strings.TrimSpace(reason)
 	payload := hookspkg.TaskRunReleasedPayload{
@@ -97,7 +97,7 @@ func (m *Service) dispatchTaskRunReleased(
 		RecoveryReason:    strings.TrimSpace(reason),
 	}
 	_, err := m.taskHooks.DispatchTaskRunReleased(taskRunObservationHookContext(ctx), payload)
-	return err
+	m.reportTaskRunHookFailure(hookspkg.HookTaskRunReleased, err, run, taskRecord)
 }
 
 func (m *Service) dispatchTaskRunCompleted(
@@ -105,7 +105,7 @@ func (m *Service) dispatchTaskRunCompleted(
 	run Run,
 	taskRecord Task,
 	actor ActorContext,
-) error {
+) {
 	payload := hookspkg.TaskRunCompletedPayload{
 		PayloadBase: hookspkg.PayloadBase{
 			Event:     hookspkg.HookTaskRunCompleted,
@@ -114,7 +114,7 @@ func (m *Service) dispatchTaskRunCompleted(
 		TaskRunContext: m.taskRunHookContext(run, taskRecord, actor),
 	}
 	_, err := m.taskHooks.DispatchTaskRunCompleted(taskRunObservationHookContext(ctx), payload)
-	return err
+	m.reportTaskRunHookFailure(hookspkg.HookTaskRunCompleted, err, run, taskRecord)
 }
 
 func (m *Service) dispatchTaskRunFailed(
@@ -122,7 +122,7 @@ func (m *Service) dispatchTaskRunFailed(
 	run Run,
 	taskRecord Task,
 	actor ActorContext,
-) error {
+) {
 	payload := hookspkg.TaskRunFailedPayload{
 		PayloadBase: hookspkg.PayloadBase{
 			Event:     hookspkg.HookTaskRunFailed,
@@ -131,5 +131,5 @@ func (m *Service) dispatchTaskRunFailed(
 		TaskRunContext: m.taskRunHookContext(run, taskRecord, actor),
 	}
 	_, err := m.taskHooks.DispatchTaskRunFailed(taskRunObservationHookContext(ctx), payload)
-	return err
+	m.reportTaskRunHookFailure(hookspkg.HookTaskRunFailed, err, run, taskRecord)
 }

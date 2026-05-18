@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/diagnostics"
+	"github.com/pedronauck/agh/internal/procutil"
 	"github.com/pedronauck/agh/internal/toolruntime"
 	"github.com/pedronauck/agh/internal/vault"
 	"golang.org/x/sys/execabs"
@@ -238,6 +239,9 @@ func runSubprocessCommand(
 ) error {
 	if err := cmd.Start(); err != nil {
 		return err
+	}
+	if err := procutil.RegisterCommandProcessGroup(cmd); err != nil {
+		return errors.Join(err, cleanupStartedSubprocessCommand(cmd))
 	}
 
 	record, err := registerSubprocessHook(ctx, cmd, hook, payload, registry)

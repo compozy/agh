@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/acp"
@@ -17,8 +16,6 @@ type promptRequest struct {
 	Message  string              `json:"message"`
 	Messages []uiMessageEnvelope `json:"messages"`
 }
-
-const detachedPromptDrainTimeout = 30 * time.Second
 
 type uiMessageEnvelope struct {
 	Role    string              `json:"role"`
@@ -35,7 +32,7 @@ func (h *Handlers) promptSession(c *gin.Context) {
 	var req promptRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.Logger.Debug("httpapi: decode prompt request failed", "error", err)
-		core.RespondError(c, http.StatusBadRequest, errors.New("invalid request payload"), true)
+		core.RespondError(c, http.StatusBadRequest, invalidRequestPayloadError{cause: err}, true)
 		return
 	}
 
@@ -104,12 +101,10 @@ func (h *Handlers) drainPromptEventsAsync(
 		return
 	}
 	if ctx == nil {
-		cancelPrompt()
-		return
+		ctx = context.Background()
 	}
-	drainCtx, cancelDrain := context.WithTimeout(ctx, detachedPromptDrainTimeout)
+	drainCtx := context.WithoutCancel(ctx)
 	h.promptDrainWG.Go(func() {
-		defer cancelDrain()
 		defer cancelPrompt()
 		h.drainPromptEvents(drainCtx, events)
 	})
@@ -181,4 +176,16 @@ func extractPromptMessage(req promptRequest) (string, error) {
 	}
 
 	return "", errors.New("message is required")
+}
+
+type invalidRequestPayloadError struct {
+	cause error
+}
+
+func (e invalidRequestPayloadError) Error() string {
+	return "invalid request payload"
+}
+
+func (e invalidRequestPayloadError) Unwrap() error {
+	return e.cause
 }

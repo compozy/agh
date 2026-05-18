@@ -42,11 +42,12 @@ func (g *GlobalDB) UpsertSoulSnapshot(ctx context.Context, snapshot soul.Snapsho
 		return existing, nil
 	}
 
-	_, err = g.db.ExecContext(
+	result, err := g.db.ExecContext(
 		ctx,
 		`INSERT INTO agent_soul_snapshots (
 			id, workspace_id, agent_name, source_path, digest, profile_json, body, truncated, created_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(workspace_id, agent_name, digest) DO NOTHING`,
 		normalized.ID,
 		normalized.WorkspaceID,
 		normalized.AgentName,
@@ -59,6 +60,29 @@ func (g *GlobalDB) UpsertSoulSnapshot(ctx context.Context, snapshot soul.Snapsho
 	)
 	if err != nil {
 		return soul.Snapshot{}, fmt.Errorf("store: insert soul snapshot %q: %w", normalized.ID, err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return soul.Snapshot{}, fmt.Errorf("store: inspect inserted soul snapshot %q: %w", normalized.ID, err)
+	}
+	if affected == 0 {
+		existing, ok, err := g.FindSoulSnapshotByDigest(
+			ctx,
+			normalized.WorkspaceID,
+			normalized.AgentName,
+			normalized.Digest,
+		)
+		if err != nil {
+			return soul.Snapshot{}, err
+		}
+		if !ok {
+			return soul.Snapshot{}, fmt.Errorf(
+				"store: reload soul snapshot digest %q: %w",
+				normalized.Digest,
+				soul.ErrSnapshotNotFound,
+			)
+		}
+		return existing, nil
 	}
 	return normalized, nil
 }

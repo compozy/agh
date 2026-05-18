@@ -12,6 +12,47 @@ import (
 )
 
 var _ vault.Store = (*GlobalDB)(nil)
+var _ vault.Store = transactionVaultStore{}
+
+type transactionVaultStore struct {
+	owner *GlobalDB
+	exec  globalSQLExecutor
+}
+
+func (s transactionVaultStore) PutVaultSecret(ctx context.Context, record vault.Record) error {
+	if s.owner == nil {
+		return errors.New("store: global database is required")
+	}
+	if s.exec == nil {
+		return errors.New("store: vault transaction is required")
+	}
+	normalized, err := s.owner.normalizeVaultRecord(record)
+	if err != nil {
+		return err
+	}
+	return putVaultSecretWithExecutor(ctx, s.exec, normalized)
+}
+
+func (s transactionVaultStore) GetVaultSecret(ctx context.Context, ref string) (vault.Record, error) {
+	if s.exec == nil {
+		return vault.Record{}, errors.New("store: vault transaction is required")
+	}
+	return getVaultSecretWithExecutor(ctx, s.exec, ref)
+}
+
+func (s transactionVaultStore) ListVaultSecrets(ctx context.Context, prefix string) ([]vault.Record, error) {
+	if s.exec == nil {
+		return nil, errors.New("store: vault transaction is required")
+	}
+	return listVaultSecretsWithExecutor(ctx, s.exec, prefix)
+}
+
+func (s transactionVaultStore) DeleteVaultSecret(ctx context.Context, ref string) error {
+	if s.exec == nil {
+		return errors.New("store: vault transaction is required")
+	}
+	return deleteVaultSecretWithExecutor(ctx, s.exec, ref)
+}
 
 // PutVaultSecret stores one encrypted vault secret record.
 func (g *GlobalDB) PutVaultSecret(ctx context.Context, record vault.Record) error {
@@ -22,7 +63,14 @@ func (g *GlobalDB) PutVaultSecret(ctx context.Context, record vault.Record) erro
 	if err != nil {
 		return err
 	}
-	_, err = g.db.ExecContext(
+	if err := putVaultSecretWithExecutor(ctx, g.db, normalized); err != nil {
+		return err
+	}
+	return nil
+}
+
+func putVaultSecretWithExecutor(ctx context.Context, exec globalSQLExecutor, record vault.Record) error {
+	_, err := exec.ExecContext(
 		ctx,
 		`INSERT INTO vault_secrets (ref, kind, encrypted_value, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?)
@@ -30,14 +78,14 @@ func (g *GlobalDB) PutVaultSecret(ctx context.Context, record vault.Record) erro
 			kind = excluded.kind,
 			encrypted_value = excluded.encrypted_value,
 			updated_at = excluded.updated_at`,
-		normalized.Ref,
-		normalized.Kind,
-		normalized.EncryptedValue,
-		store.FormatTimestamp(normalized.CreatedAt),
-		store.FormatTimestamp(normalized.UpdatedAt),
+		record.Ref,
+		record.Kind,
+		record.EncryptedValue,
+		store.FormatTimestamp(record.CreatedAt),
+		store.FormatTimestamp(record.UpdatedAt),
 	)
 	if err != nil {
-		return fmt.Errorf("store: put vault secret %q: %w", normalized.Ref, err)
+		return fmt.Errorf("store: put vault secret %q: %w", record.Ref, err)
 	}
 	return nil
 }
@@ -51,7 +99,15 @@ func (g *GlobalDB) GetVaultSecret(ctx context.Context, ref string) (vault.Record
 	if normalized == "" {
 		return vault.Record{}, errors.New("store: vault secret ref is required")
 	}
-	row := g.db.QueryRowContext(
+	return getVaultSecretWithExecutor(ctx, g.db, normalized)
+}
+
+func getVaultSecretWithExecutor(ctx context.Context, exec globalSQLExecutor, ref string) (vault.Record, error) {
+	normalized := vault.NormalizeRef(ref)
+	if normalized == "" {
+		return vault.Record{}, errors.New("store: vault secret ref is required")
+	}
+	row := exec.QueryRowContext(
 		ctx,
 		`SELECT ref, kind, encrypted_value, created_at, updated_at
 		 FROM vault_secrets
@@ -73,6 +129,14 @@ func (g *GlobalDB) ListVaultSecrets(ctx context.Context, prefix string) (_ []vau
 	if err := g.checkReady(ctx, "list vault secrets"); err != nil {
 		return nil, err
 	}
+	return listVaultSecretsWithExecutor(ctx, g.db, prefix)
+}
+
+func listVaultSecretsWithExecutor(
+	ctx context.Context,
+	exec globalSQLExecutor,
+	prefix string,
+) (_ []vault.Record, err error) {
 	normalizedPrefix := strings.TrimSpace(prefix)
 	query := `SELECT ref, kind, encrypted_value, created_at, updated_at FROM vault_secrets`
 	args := make([]any, 0, 3)
@@ -88,7 +152,7 @@ func (g *GlobalDB) ListVaultSecrets(ctx context.Context, prefix string) (_ []vau
 	}
 	query += ` ORDER BY ref ASC`
 
-	rows, err := g.db.QueryContext(ctx, query, args...)
+	rows, err := exec.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: list vault secrets: %w", err)
 	}
@@ -135,7 +199,15 @@ func (g *GlobalDB) DeleteVaultSecret(ctx context.Context, ref string) error {
 	if normalized == "" {
 		return errors.New("store: vault secret ref is required")
 	}
-	result, err := g.db.ExecContext(ctx, `DELETE FROM vault_secrets WHERE ref = ?`, normalized)
+	return deleteVaultSecretWithExecutor(ctx, g.db, normalized)
+}
+
+func deleteVaultSecretWithExecutor(ctx context.Context, exec globalSQLExecutor, ref string) error {
+	normalized := vault.NormalizeRef(ref)
+	if normalized == "" {
+		return errors.New("store: vault secret ref is required")
+	}
+	result, err := exec.ExecContext(ctx, `DELETE FROM vault_secrets WHERE ref = ?`, normalized)
 	if err != nil {
 		return fmt.Errorf("store: delete vault secret %q: %w", normalized, err)
 	}

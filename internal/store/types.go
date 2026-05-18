@@ -288,6 +288,9 @@ func (s SessionInfo) Validate() error {
 	if err := ValidateSessionLineage(s.ID, s.Lineage); err != nil {
 		return err
 	}
+	if err := validateSessionStopReason(s.StopReason); err != nil {
+		return err
+	}
 	if err := s.Liveness.Validate(); err != nil {
 		return err
 	}
@@ -361,6 +364,11 @@ func (u SessionStateUpdate) Validate() error {
 	if err := u.Liveness.Validate(); err != nil {
 		return err
 	}
+	if u.StopReasonSet && u.StopReason != nil {
+		if err := validateSessionStopReason(StopReason(strings.TrimSpace(*u.StopReason))); err != nil {
+			return err
+		}
+	}
 	if u.Failure != nil {
 		if err := u.Failure.Validate(); err != nil {
 			return err
@@ -374,6 +382,16 @@ func validateSessionSoulProvenance(snapshotID string, digest string) error {
 	hasDigest := strings.TrimSpace(digest) != ""
 	if hasSnapshotID && !hasDigest {
 		return errors.New("store: session soul digest is required when soul snapshot id is set")
+	}
+	return nil
+}
+
+func validateSessionStopReason(reason StopReason) error {
+	if reason == "" {
+		return nil
+	}
+	if !ValidStopReason(reason) {
+		return fmt.Errorf("store: invalid session stop reason %q", reason)
 	}
 	return nil
 }
@@ -965,6 +983,7 @@ type NetworkConversationMessage struct {
 	Intent      string
 	Text        string
 	PreviewText string
+	ExtJSON     json.RawMessage
 	Body        json.RawMessage
 	Timestamp   time.Time
 }
@@ -1013,8 +1032,26 @@ func (e NetworkConversationMessage) Validate() error {
 	if networkRawJSONContainsClaimToken(e.Body) {
 		return fmt.Errorf("store: network message body contains raw claim_token material")
 	}
+	if err := validateNetworkMessageExtJSON(e.ExtJSON); err != nil {
+		return err
+	}
 	if networkConversationMessageContainsRawClaimToken(e) {
 		return fmt.Errorf("store: network message entry contains raw claim_token material")
+	}
+	return nil
+}
+
+func validateNetworkMessageExtJSON(raw json.RawMessage) error {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" {
+		return nil
+	}
+	var value map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(trimmed), &value); err != nil {
+		return fmt.Errorf("store: network message ext_json must be a JSON object: %w", err)
+	}
+	if networkRawJSONContainsClaimToken([]byte(trimmed)) {
+		return fmt.Errorf("store: network message ext_json contains raw claim_token material")
 	}
 	return nil
 }
@@ -1476,8 +1513,10 @@ func (m SessionMeta) Validate() error {
 	if err := requireField(m.State, "session state"); err != nil {
 		return err
 	}
-	if m.StopReason != nil && !ValidStopReason(*m.StopReason) {
-		return fmt.Errorf("store: invalid session stop reason %q", *m.StopReason)
+	if m.StopReason != nil {
+		if err := validateSessionStopReason(*m.StopReason); err != nil {
+			return err
+		}
 	}
 	if err := ValidateSessionLineage(m.ID, m.Lineage); err != nil {
 		return err

@@ -80,7 +80,9 @@ func RenderAgentDefinition(draft AgentDefinitionDraft) ([]byte, AgentDef, error)
 	}
 
 	parsed := parsedAgentDef{}
-	applyAgentDefToParsed(&parsed, agent)
+	if err := applyAgentDefToParsed(&parsed, agent); err != nil {
+		return nil, AgentDef{}, fmt.Errorf("config: render agent definition fields: %w", err)
+	}
 	frontmatter, err := yaml.Marshal(parsed)
 	if err != nil {
 		return nil, AgentDef{}, fmt.Errorf("config: render agent frontmatter: %w", err)

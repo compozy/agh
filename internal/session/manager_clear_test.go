@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/testutil"
 )
 
@@ -22,7 +23,7 @@ func TestClearConversationRestartsSameSessionWithFreshContext(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Prompt(before clear) error = %v", err)
 		}
-		_ = collectEvents(t, firstEvents)
+		collectEvents(t, firstEvents)
 
 		originalACP := session.Info().ACPSessionID
 
@@ -31,7 +32,9 @@ func TestClearConversationRestartsSameSessionWithFreshContext(t *testing.T) {
 			t.Fatalf("ClearConversation() error = %v", err)
 		}
 		t.Cleanup(func() {
-			_ = h.manager.Stop(testutil.Context(t), cleared.ID)
+			if err := h.manager.Stop(testutil.Context(t), cleared.ID); err != nil {
+				t.Fatalf("cleanup Stop() error = %v", err)
+			}
 		})
 
 		if got, want := cleared.ID, session.ID; got != want {
@@ -67,7 +70,7 @@ func TestClearConversationRestartsSameSessionWithFreshContext(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Prompt(after clear) error = %v", err)
 		}
-		_ = collectEvents(t, secondEvents)
+		collectEvents(t, secondEvents)
 
 		stored = readStoredEvents(t, cleared)
 		if got := len(stored); got == 0 {
@@ -116,7 +119,7 @@ func TestClearConversationRejectsPromptInProgress(t *testing.T) {
 		}
 
 		close(releasePrompt)
-		_ = collectEvents(t, eventsCh)
+		collectEvents(t, eventsCh)
 		if stopErr := h.manager.Stop(testutil.Context(t), session.ID); stopErr != nil {
 			t.Fatalf("cleanup Stop() error = %v", stopErr)
 		}
@@ -165,6 +168,79 @@ func TestBackupSessionDB(t *testing.T) {
 		}
 		if _, statErr := os.Stat(blockedBackupDir); statErr != nil {
 			t.Fatalf("Stat(blocked backup dir) error = %v", statErr)
+		}
+	})
+
+	t.Run("Should restore interrupted clear backups before stored event queries", func(t *testing.T) {
+		h := newHarness(t)
+		session := createSession(t, h)
+
+		eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "before interrupted clear")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		collectEvents(t, eventsCh)
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop() error = %v", err)
+		}
+
+		dbPath := session.DBPath()
+		backups, err := backupSessionDB(dbPath)
+		if err != nil {
+			t.Fatalf("backupSessionDB() error = %v", err)
+		}
+		if got := len(backups); got == 0 {
+			t.Fatal("backupSessionDB() backups = 0, want at least session database backup")
+		}
+		if _, statErr := os.Stat(dbPath); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("Stat(session database after backup) error = %v, want os.ErrNotExist", statErr)
+		}
+		if _, statErr := os.Stat(dbPath + ".clear-backup"); statErr != nil {
+			t.Fatalf("Stat(session database backup) error = %v", statErr)
+		}
+
+		freshManager := newManagerWithHarness(t, h)
+		events, err := freshManager.Events(testutil.Context(t), session.ID, store.EventQuery{})
+		if err != nil {
+			t.Fatalf("Events(after interrupted clear backup) error = %v", err)
+		}
+		if got := len(events); got == 0 {
+			t.Fatal("Events(after interrupted clear backup) = 0, want restored transcript events")
+		}
+		if _, statErr := os.Stat(dbPath); statErr != nil {
+			t.Fatalf("Stat(restored session database) error = %v", statErr)
+		}
+		if _, statErr := os.Stat(dbPath + ".clear-backup"); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("Stat(discarded interrupted backup) error = %v, want os.ErrNotExist", statErr)
+		}
+	})
+
+	t.Run("Should discard committed clear backups without restoring old events", func(t *testing.T) {
+		dir := t.TempDir()
+		dbPath := filepath.Join(dir, "session.db")
+		backupPath := dbPath + ".clear-backup"
+
+		if err := os.WriteFile(dbPath, []byte("fresh"), 0o600); err != nil {
+			t.Fatalf("WriteFile(fresh session.db) error = %v", err)
+		}
+		if err := os.WriteFile(backupPath, []byte("old"), 0o600); err != nil {
+			t.Fatalf("WriteFile(session.db clear backup) error = %v", err)
+		}
+		if err := commitSessionDBClear(dbPath); err != nil {
+			t.Fatalf("commitSessionDBClear() error = %v", err)
+		}
+
+		if err := recoverSessionDBClear(dbPath); err != nil {
+			t.Fatalf("recoverSessionDBClear(committed) error = %v", err)
+		}
+		if got, readErr := os.ReadFile(dbPath); readErr != nil || string(got) != "fresh" {
+			t.Fatalf("ReadFile(session.db) = %q, %v, want fresh", got, readErr)
+		}
+		if _, statErr := os.Stat(backupPath); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("Stat(committed backup) error = %v, want os.ErrNotExist", statErr)
+		}
+		if _, statErr := os.Stat(sessionDBClearCommitPath(dbPath)); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("Stat(clear commit marker) error = %v, want os.ErrNotExist", statErr)
 		}
 	})
 }

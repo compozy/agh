@@ -903,6 +903,21 @@ var globalSchemaMigrations = []store.Migration{
 		Up:       migrateWorkspaceQualifiedNetworkIdentity,
 		Checksum: "2026-05-12-workspace-qualified-network-identity",
 	},
+	{
+		Version:  26,
+		Name:     "add_network_timeline_extensions",
+		Up:       migrateNetworkTimelineExtensions,
+		Checksum: "2026-05-16-add-network-timeline-extensions",
+	},
+}
+
+func migrateNetworkTimelineExtensions(ctx context.Context, tx *sql.Tx) error {
+	return addMissingMigrationColumns(ctx, tx, "network_timeline_log", []migrationColumnSpec{
+		{
+			name: "ext_json",
+			sql:  `ALTER TABLE network_timeline_log ADD COLUMN ext_json TEXT NOT NULL DEFAULT '{}'`,
+		},
+	})
 }
 
 func migrateWorkspaceQualifiedNetworkIdentity(ctx context.Context, tx *sql.Tx) error {

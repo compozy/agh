@@ -14,211 +14,219 @@ import (
 func TestAgentContractNormalizationAndJSONShape(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, time.April, 26, 12, 0, 0, 0, time.UTC)
-	ttl := now.Add(2 * time.Hour)
-	channel := CoordinationChannelPayload{
-		ID:          "coord-run-1",
-		DisplayName: "TASK-1 coordination",
-		WorkspaceID: "ws-1",
-		TaskID:      "task-1",
-		RunID:       "run-1",
-	}
-	lease := TaskRunLeaseSummaryPayload{
-		TaskID:                "task-1",
-		RunID:                 "run-1",
-		Status:                taskpkg.TaskRunStatusRunning,
-		SessionID:             "sess-child",
-		ClaimTokenHash:        "sha256:abc",
-		CoordinationChannelID: channel.ID,
-		CoordinationChannel:   &channel,
-	}
-	lineage := &SessionLineagePayload{
-		ParentSessionID:  "sess-parent",
-		RootSessionID:    "sess-parent",
-		SpawnDepth:       1,
-		SpawnRole:        "worker",
-		TTLExpiresAt:     &ttl,
-		AutoStopOnParent: true,
-		SpawnBudget: SpawnBudgetPayload{
-			MaxChildren: 5,
-			MaxDepth:    1,
-			TTLSeconds:  int64((2 * time.Hour).Seconds()),
-		},
-	}
+	t.Run("Should normalize agent context JSON without raw claim tokens", func(t *testing.T) {
+		t.Parallel()
 
-	payload := NormalizeAgentContextPayload(&AgentContextPayload{
-		Self: AgentIdentityPayload{
-			SessionID: "sess-child",
-			AgentName: "codex",
-			Provider:  "openai",
-			Model:     "gpt-5.4",
-		},
-		Workspace: AgentWorkspacePayload{ID: "ws-1", Name: "agh", RootDir: "/workspace/agh"},
-		Session: AgentSessionPayload{
-			ID:        "sess-child",
-			Name:      "worker",
-			Type:      session.SessionTypeUser,
-			State:     session.StateActive,
-			Lineage:   lineage,
-			CreatedAt: now,
-			UpdatedAt: now,
-		},
-		Task: AgentTaskContextPayload{
-			Available: true,
-			Task: &TaskReferencePayload{
-				ID:          "task-1",
-				Identifier:  "TASK-1",
-				Title:       "Implement contracts",
-				Status:      taskpkg.TaskStatusInProgress,
-				Priority:    taskpkg.PriorityHigh,
-				Scope:       taskpkg.ScopeWorkspace,
-				WorkspaceID: "ws-1",
+		now := time.Date(2026, time.April, 26, 12, 0, 0, 0, time.UTC)
+		ttl := now.Add(2 * time.Hour)
+		channel := CoordinationChannelPayload{
+			ID:          "coord-run-1",
+			DisplayName: "TASK-1 coordination",
+			WorkspaceID: "ws-1",
+			TaskID:      "task-1",
+			RunID:       "run-1",
+		}
+		lease := TaskRunLeaseSummaryPayload{
+			TaskID:                "task-1",
+			RunID:                 "run-1",
+			Status:                taskpkg.TaskRunStatusRunning,
+			SessionID:             "sess-child",
+			ClaimTokenHash:        "sha256:abc",
+			CoordinationChannelID: channel.ID,
+			CoordinationChannel:   &channel,
+		}
+		lineage := &SessionLineagePayload{
+			ParentSessionID:  "sess-parent",
+			RootSessionID:    "sess-parent",
+			SpawnDepth:       1,
+			SpawnRole:        "worker",
+			TTLExpiresAt:     &ttl,
+			AutoStopOnParent: true,
+			SpawnBudget: SpawnBudgetPayload{
+				MaxChildren: 5,
+				MaxDepth:    1,
+				TTLSeconds:  int64((2 * time.Hour).Seconds()),
 			},
-			Lease: &lease,
-		},
-		CoordinationChannel: AgentCoordinationChannelContextPayload{Available: true, Channel: &channel},
-		InboxSummary: AgentInboxSummaryPayload{
-			Section: AgentContextSectionMetaPayload{Limit: 20},
-		},
-		PeerRoster: AgentPeerRosterPayload{
-			Section: AgentContextSectionMetaPayload{Limit: 10},
-		},
-		Capabilities: AgentCapabilitySectionPayload{
-			Section: AgentContextSectionMetaPayload{Limit: 10},
-		},
-		Limits: AgentLimitsPayload{
-			MaxChildren:         5,
-			MaxSpawnDepth:       1,
-			MaxActiveTaskLeases: 1,
-			ContextSectionLimit: 20,
-		},
-		Provenance: AgentContextProvenancePayload{GeneratedAt: now, Source: "test"},
+		}
+
+		payload := NormalizeAgentContextPayload(&AgentContextPayload{
+			Self: AgentIdentityPayload{
+				SessionID: "sess-child",
+				AgentName: "codex",
+				Provider:  "openai",
+				Model:     "gpt-5.4",
+			},
+			Workspace: AgentWorkspacePayload{ID: "ws-1", Name: "agh", RootDir: "/workspace/agh"},
+			Session: AgentSessionPayload{
+				ID:        "sess-child",
+				Name:      "worker",
+				Type:      session.SessionTypeUser,
+				State:     session.StateActive,
+				Lineage:   lineage,
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+			Task: AgentTaskContextPayload{
+				Available: true,
+				Task: &TaskReferencePayload{
+					ID:          "task-1",
+					Identifier:  "TASK-1",
+					Title:       "Implement contracts",
+					Status:      taskpkg.TaskStatusInProgress,
+					Priority:    taskpkg.PriorityHigh,
+					Scope:       taskpkg.ScopeWorkspace,
+					WorkspaceID: "ws-1",
+				},
+				Lease: &lease,
+			},
+			CoordinationChannel: AgentCoordinationChannelContextPayload{Available: true, Channel: &channel},
+			InboxSummary: AgentInboxSummaryPayload{
+				Section: AgentContextSectionMetaPayload{Limit: 20},
+			},
+			PeerRoster: AgentPeerRosterPayload{
+				Section: AgentContextSectionMetaPayload{Limit: 10},
+			},
+			Capabilities: AgentCapabilitySectionPayload{
+				Section: AgentContextSectionMetaPayload{Limit: 10},
+			},
+			Limits: AgentLimitsPayload{
+				MaxChildren:         5,
+				MaxSpawnDepth:       1,
+				MaxActiveTaskLeases: 1,
+				ContextSectionLimit: 20,
+			},
+			Provenance: AgentContextProvenancePayload{GeneratedAt: now, Source: "test"},
+		})
+
+		object := marshalContractObject(t, AgentContextResponse{Context: payload})
+		contextObject := nestedContractObject(t, object, "context")
+		assertContractKeys(t, contextObject, "self", "workspace", "session", "task", "coordination_channel",
+			"inbox_summary", "peer_roster", "capabilities", "limits", "provenance")
+
+		sessionObject := nestedContractObject(t, contextObject, "session")
+		lineageObject := nestedContractObject(t, sessionObject, "lineage")
+		assertContractKeys(t, lineageObject, "parent_session_id", "root_session_id", "spawn_depth", "spawn_role",
+			"ttl_expires_at", "auto_stop_on_parent", "spawn_budget", "permission_policy")
+		permissionPolicy := nestedContractObject(t, lineageObject, "permission_policy")
+		assertContractArray(t, permissionPolicy, "tools")
+		assertContractArray(t, permissionPolicy, "skills")
+		assertContractArray(t, permissionPolicy, "mcp_servers")
+		assertContractArray(t, permissionPolicy, "workspace_paths")
+		assertContractArray(t, permissionPolicy, "network_channels")
+		assertContractArray(t, permissionPolicy, "sandbox_profiles")
+
+		coordination := nestedContractObject(t, contextObject, "coordination_channel")
+		channelObject := nestedContractObject(t, coordination, "channel")
+		if channelObject["id"] != "coord-run-1" || channelObject["display_name"] != "TASK-1 coordination" {
+			t.Fatalf("coordination channel JSON = %#v", channelObject)
+		}
+		messageKinds := assertContractArray(t, channelObject, "allowed_message_kinds")
+		if len(messageKinds) != len(CoordinationMessageKinds()) {
+			t.Fatalf("allowed_message_kinds length = %d, want %d", len(messageKinds), len(CoordinationMessageKinds()))
+		}
+
+		inbox := nestedContractObject(t, contextObject, "inbox_summary")
+		if items := assertContractArray(t, inbox, "items"); len(items) != 0 {
+			t.Fatalf("inbox items length = %d, want 0", len(items))
+		}
+		peers := nestedContractObject(t, contextObject, "peer_roster")
+		if peerList := assertContractArray(t, peers, "peers"); len(peerList) != 0 {
+			t.Fatalf("peers length = %d, want 0", len(peerList))
+		}
+		capabilities := nestedContractObject(t, contextObject, "capabilities")
+		if capabilityList := assertContractArray(t, capabilities, "capabilities"); len(capabilityList) != 0 {
+			t.Fatalf("capabilities length = %d, want 0", len(capabilityList))
+		}
+
+		if err := ValidateNoRawClaimTokenField(AgentContextResponse{Context: payload}); err != nil {
+			t.Fatalf("ValidateNoRawClaimTokenField(context) error = %v", err)
+		}
 	})
-
-	object := marshalContractObject(t, AgentContextResponse{Context: payload})
-	contextObject := nestedContractObject(t, object, "context")
-	assertContractKeys(t, contextObject, "self", "workspace", "session", "task", "coordination_channel",
-		"inbox_summary", "peer_roster", "capabilities", "limits", "provenance")
-
-	sessionObject := nestedContractObject(t, contextObject, "session")
-	lineageObject := nestedContractObject(t, sessionObject, "lineage")
-	assertContractKeys(t, lineageObject, "parent_session_id", "root_session_id", "spawn_depth", "spawn_role",
-		"ttl_expires_at", "auto_stop_on_parent", "spawn_budget", "permission_policy")
-	permissionPolicy := nestedContractObject(t, lineageObject, "permission_policy")
-	assertContractArray(t, permissionPolicy, "tools")
-	assertContractArray(t, permissionPolicy, "skills")
-	assertContractArray(t, permissionPolicy, "mcp_servers")
-	assertContractArray(t, permissionPolicy, "workspace_paths")
-	assertContractArray(t, permissionPolicy, "network_channels")
-	assertContractArray(t, permissionPolicy, "sandbox_profiles")
-
-	coordination := nestedContractObject(t, contextObject, "coordination_channel")
-	channelObject := nestedContractObject(t, coordination, "channel")
-	if channelObject["id"] != "coord-run-1" || channelObject["display_name"] != "TASK-1 coordination" {
-		t.Fatalf("coordination channel JSON = %#v", channelObject)
-	}
-	messageKinds := assertContractArray(t, channelObject, "allowed_message_kinds")
-	if len(messageKinds) != len(CoordinationMessageKinds()) {
-		t.Fatalf("allowed_message_kinds length = %d, want %d", len(messageKinds), len(CoordinationMessageKinds()))
-	}
-
-	inbox := nestedContractObject(t, contextObject, "inbox_summary")
-	if items := assertContractArray(t, inbox, "items"); len(items) != 0 {
-		t.Fatalf("inbox items length = %d, want 0", len(items))
-	}
-	peers := nestedContractObject(t, contextObject, "peer_roster")
-	if peerList := assertContractArray(t, peers, "peers"); len(peerList) != 0 {
-		t.Fatalf("peers length = %d, want 0", len(peerList))
-	}
-	capabilities := nestedContractObject(t, contextObject, "capabilities")
-	if capabilityList := assertContractArray(t, capabilities, "capabilities"); len(capabilityList) != 0 {
-		t.Fatalf("capabilities length = %d, want 0", len(capabilityList))
-	}
-
-	if err := ValidateNoRawClaimTokenField(AgentContextResponse{Context: payload}); err != nil {
-		t.Fatalf("ValidateNoRawClaimTokenField(context) error = %v", err)
-	}
 }
 
 func TestClaimTokenExposureBoundaries(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, time.April, 26, 12, 0, 0, 0, time.UTC)
-	readRun := TaskRunPayload{
-		ID:             "run-1",
-		TaskID:         "task-1",
-		Status:         taskpkg.TaskRunStatusClaimed,
-		Attempt:        1,
-		Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindAgentSession, Ref: "sess-1"},
-		ClaimTokenHash: "sha256:abc",
-		QueuedAt:       now,
-	}
+	t.Run("Should expose only claim token hashes on public task payloads", func(t *testing.T) {
+		t.Parallel()
 
-	readJSON := marshalContractString(t, TaskRunResponse{Run: readRun})
-	if strings.Contains(readJSON, `"claim_token"`) {
-		t.Fatalf("read model leaked raw claim token: %s", readJSON)
-	}
-	if !strings.Contains(readJSON, `"claim_token_hash"`) {
-		t.Fatalf("read model missing claim token hash: %s", readJSON)
-	}
-	if err := ValidateNoRawClaimTokenField(TaskStreamEventPayload{
-		Sequence: 1,
-		Type:     "task.run.updated",
-		Timeline: TaskTimelineItemPayload{
+		now := time.Date(2026, time.April, 26, 12, 0, 0, 0, time.UTC)
+		readRun := TaskRunPayload{
+			ID:             "run-1",
+			TaskID:         "task-1",
+			Status:         taskpkg.TaskRunStatusClaimed,
+			Attempt:        1,
+			Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindAgentSession, Ref: "sess-1"},
+			ClaimTokenHash: "sha256:abc",
+			QueuedAt:       now,
+		}
+
+		readJSON := marshalContractString(t, TaskRunResponse{Run: readRun})
+		if strings.Contains(readJSON, `"claim_token"`) {
+			t.Fatalf("read model leaked raw claim token: %s", readJSON)
+		}
+		if !strings.Contains(readJSON, `"claim_token_hash"`) {
+			t.Fatalf("read model missing claim token hash: %s", readJSON)
+		}
+		if err := ValidateNoRawClaimTokenField(TaskStreamEventPayload{
 			Sequence: 1,
-			EventID:  "evt-1",
-			Task: TaskReferencePayload{
-				ID:     "task-1",
-				Title:  "Task",
-				Status: taskpkg.TaskStatusInProgress,
-				Scope:  taskpkg.ScopeWorkspace,
+			Type:     "task.run.updated",
+			Timeline: TaskTimelineItemPayload{
+				Sequence: 1,
+				EventID:  "evt-1",
+				Task: TaskReferencePayload{
+					ID:     "task-1",
+					Title:  "Task",
+					Status: taskpkg.TaskStatusInProgress,
+					Scope:  taskpkg.ScopeWorkspace,
+				},
+				Run: &TaskRunSummaryPayload{
+					ID:             "run-1",
+					TaskID:         "task-1",
+					Status:         taskpkg.TaskRunStatusClaimed,
+					Attempt:        1,
+					MaxAttempts:    1,
+					ClaimTokenHash: "sha256:abc",
+					QueuedAt:       now,
+				},
+				EventType: "task.run.updated",
+				Actor:     taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-1"},
+				Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindAgentSession, Ref: "sess-1"},
+				Timestamp: now,
 			},
-			Run: &TaskRunSummaryPayload{
-				ID:             "run-1",
-				TaskID:         "task-1",
-				Status:         taskpkg.TaskRunStatusClaimed,
-				Attempt:        1,
-				MaxAttempts:    1,
-				ClaimTokenHash: "sha256:abc",
-				QueuedAt:       now,
-			},
-			EventType: "task.run.updated",
-			Actor:     taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-1"},
-			Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindAgentSession, Ref: "sess-1"},
-			Timestamp: now,
-		},
-	}); err != nil {
-		t.Fatalf("SSE task stream payload leaked raw claim token: %v", err)
-	}
+		}); err != nil {
+			t.Fatalf("SSE task stream payload leaked raw claim token: %v", err)
+		}
 
-	claimResponse := AgentTaskClaimResponse{
-		Claim: AgentTaskClaimPayload{
-			Task: TaskReferencePayload{
-				ID:     "task-1",
-				Title:  "Task",
-				Status: taskpkg.TaskStatusInProgress,
-				Scope:  taskpkg.ScopeWorkspace,
+		claimResponse := AgentTaskClaimResponse{
+			Claim: AgentTaskClaimPayload{
+				Task: TaskReferencePayload{
+					ID:     "task-1",
+					Title:  "Task",
+					Status: taskpkg.TaskStatusInProgress,
+					Scope:  taskpkg.ScopeWorkspace,
+				},
+				Run: readRun,
+				Lease: TaskRunLeaseSummaryPayload{
+					TaskID:         "task-1",
+					RunID:          "run-1",
+					Status:         taskpkg.TaskRunStatusClaimed,
+					ClaimTokenHash: "sha256:abc",
+				},
 			},
-			Run: readRun,
-			Lease: TaskRunLeaseSummaryPayload{
-				TaskID:         "task-1",
-				RunID:          "run-1",
-				Status:         taskpkg.TaskRunStatusClaimed,
-				ClaimTokenHash: "sha256:abc",
-			},
-		},
-	}
-	claimJSON := marshalContractString(t, claimResponse)
-	if strings.Contains(claimJSON, `"claim_token"`) || strings.Contains(claimJSON, "raw-secret-token") {
-		t.Fatalf("claim response leaked raw token: %s", claimJSON)
-	}
-	found, err := ContainsRawClaimTokenField(claimResponse)
-	if err != nil {
-		t.Fatalf("ContainsRawClaimTokenField(claimResponse) error = %v", err)
-	}
-	if found {
-		t.Fatal("ContainsRawClaimTokenField(claimResponse) = true, want false")
-	}
+		}
+		claimJSON := marshalContractString(t, claimResponse)
+		if strings.Contains(claimJSON, `"claim_token"`) || strings.Contains(claimJSON, "raw-secret-token") {
+			t.Fatalf("claim response leaked raw token: %s", claimJSON)
+		}
+		found, err := ContainsRawClaimTokenField(claimResponse)
+		if err != nil {
+			t.Fatalf("ContainsRawClaimTokenField(claimResponse) error = %v", err)
+		}
+		if found {
+			t.Fatal("ContainsRawClaimTokenField(claimResponse) = true, want false")
+		}
+	})
 }
 
 func TestCoordinationMessageMetadataValidationRejectsRawClaimTokens(t *testing.T) {
@@ -246,12 +254,16 @@ func TestCoordinationMessageMetadataValidationRejectsRawClaimTokens(t *testing.T
 		body string
 	}{
 		{
-			name: "top level claim token",
+			name: "Should reject top level claim token",
 			body: `{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"coord-run-1","message_kind":"status","correlation_id":"corr-1","claim_token":"raw"}`,
 		},
 		{
-			name: "nested claim token",
+			name: "Should reject nested claim token",
 			body: `{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"coord-run-1","message_kind":"status","correlation_id":"corr-1","ext":{"nested":{"claim_token":"raw"}}}`,
+		},
+		{
+			name: "Should reject token-shaped ext value",
+			body: `{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"coord-run-1","message_kind":"status","correlation_id":"corr-1","ext":{"debug":"contains agh_claim_raw"}}`,
 		},
 	}
 	for _, tc := range testCases {

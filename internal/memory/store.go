@@ -177,7 +177,7 @@ func (s *Store) ListMemoryEventSummaries(
 
 	summaries := make([]storepkg.EventSummary, 0)
 	for _, source := range sources {
-		sourceSummaries, err := source.catalog.listEventSummaries(ctx, source.id, query)
+		sourceSummaries, err := source.catalog.listEventSummaries(ctx, source.id, source.filters, query)
 		if err != nil {
 			return nil, fmt.Errorf("memory: list %s memory events: %w", source.id, err)
 		}

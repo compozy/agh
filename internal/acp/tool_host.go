@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	aghconfig "github.com/pedronauck/agh/internal/config"
@@ -45,6 +46,7 @@ type localToolHost struct {
 
 type localRuntimeConfig struct {
 	processRegistry *toolruntime.Registry
+	additionalRoots []string
 }
 
 // LocalRuntimeOption customizes local ACP runtime helpers.
@@ -54,6 +56,13 @@ type LocalRuntimeOption func(*localRuntimeConfig)
 func WithLocalProcessRegistry(registry *toolruntime.Registry) LocalRuntimeOption {
 	return func(cfg *localRuntimeConfig) {
 		cfg.processRegistry = registry
+	}
+}
+
+// WithLocalAdditionalRoots authorizes local tool-host paths outside the primary root.
+func WithLocalAdditionalRoots(roots ...string) LocalRuntimeOption {
+	return func(cfg *localRuntimeConfig) {
+		cfg.additionalRoots = append([]string(nil), roots...)
 	}
 }
 
@@ -75,7 +84,13 @@ func newLocalToolHost(
 	logger *slog.Logger,
 	opts ...LocalRuntimeOption,
 ) (*localToolHost, error) {
-	policy, err := newPermissionPolicy(mode, root)
+	cfg := localRuntimeConfig{}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&cfg)
+		}
+	}
+	policy, err := newPermissionPolicy(mode, root, cfg.additionalRoots...)
 	if err != nil {
 		return nil, err
 	}
@@ -200,8 +215,14 @@ func (h *localToolHost) WaitForTerminalExit(ctx context.Context, id string) (int
 	if err != nil {
 		return 0, err
 	}
-	if exitStatus == nil || exitStatus.ExitCode == nil {
-		return 0, nil
+	if exitStatus == nil {
+		return 1, fmt.Errorf("acp: terminal %q exited without an exit code", id)
+	}
+	if exitStatus.ExitCode == nil {
+		if exitStatus.Signal != nil && strings.TrimSpace(*exitStatus.Signal) != "" {
+			return 1, fmt.Errorf("acp: terminal %q exited due to signal: %s", id, strings.TrimSpace(*exitStatus.Signal))
+		}
+		return 1, fmt.Errorf("acp: terminal %q exited without an exit code", id)
 	}
 	return *exitStatus.ExitCode, nil
 }

@@ -27,8 +27,11 @@ type observabilitySource struct {
 func (s *Store) observabilitySources(ctx context.Context, workspaces []string) ([]observabilitySource, error) {
 	sources := make([]observabilitySource, 0, len(workspaces)+1)
 	seenPaths := make(map[string]struct{})
+	globalSource := -1
+	seenGlobalWorkspaceIDs := make(map[string]struct{})
 	if s.catalog != nil {
 		path := filepath.Clean(s.catalog.path)
+		globalSource = len(sources)
 		sources = append(sources, observabilitySource{
 			id:      "global",
 			path:    path,
@@ -39,6 +42,19 @@ func (s *Store) observabilitySources(ctx context.Context, workspaces []string) (
 		seenPaths[path] = struct{}{}
 	}
 	for _, workspace := range workspaces {
+		if globalSource >= 0 {
+			filter, ok, err := workspaceObservabilityFilter(ctx, workspace)
+			if err != nil {
+				return nil, err
+			}
+			if ok {
+				workspaceID := strings.TrimSpace(filter.workspaceID)
+				if _, exists := seenGlobalWorkspaceIDs[workspaceID]; !exists {
+					seenGlobalWorkspaceIDs[workspaceID] = struct{}{}
+					sources[globalSource].filters = append(sources[globalSource].filters, filter)
+				}
+			}
+		}
 		source, ok, err := s.workspaceObservabilitySource(ctx, workspace)
 		if err != nil {
 			return nil, err
@@ -53,6 +69,26 @@ func (s *Store) observabilitySources(ctx context.Context, workspaces []string) (
 		sources = append(sources, source)
 	}
 	return sources, nil
+}
+
+func workspaceObservabilityFilter(ctx context.Context, workspace string) (catalogFilter, bool, error) {
+	workspaceRoot := canonicalWorkspaceRoot(workspace)
+	if workspaceRoot == "" {
+		return catalogFilter{}, false, nil
+	}
+	identity, err := aghworkspace.EnsureIdentity(ctx, workspaceRoot)
+	if err != nil {
+		return catalogFilter{}, false, fmt.Errorf(
+			"memory: resolve workspace identity for %q: %w",
+			workspaceRoot,
+			err,
+		)
+	}
+	return catalogFilter{
+		scope:         memcontract.ScopeWorkspace,
+		workspaceRoot: workspaceRoot,
+		workspaceID:   identity.WorkspaceID,
+	}, true, nil
 }
 
 func (s *Store) healthSources(ctx context.Context, workspaces []string) ([]observabilitySource, error) {
@@ -155,6 +191,7 @@ func filterCatalogFiltersByWorkspaceID(filters []catalogFilter, workspaceID stri
 func (c *catalog) listEventSummaries(
 	ctx context.Context,
 	sourceID string,
+	filters []catalogFilter,
 	query storepkg.EventSummaryQuery,
 ) ([]storepkg.EventSummary, error) {
 	db, err := c.ensureDB(ctx)
@@ -165,7 +202,7 @@ func (c *catalog) listEventSummaries(
 		return nil, nil
 	}
 
-	sqlQuery, args := memoryEventSummarySQL(query)
+	sqlQuery, args := memoryEventSummarySQL(query, filters)
 	rows, err := db.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("memory: query memory events: %w", err)
@@ -188,8 +225,9 @@ func (c *catalog) listEventSummaries(
 	return summaries, nil
 }
 
-func memoryEventSummarySQL(query storepkg.EventSummaryQuery) (string, []any) {
-	base := `SELECT id, op, COALESCE(session_id, '') AS session_id, COALESCE(agent_name, '') AS agent_name,
+func memoryEventSummarySQL(query storepkg.EventSummaryQuery, filters []catalogFilter) (string, []any) {
+	base := `SELECT id, op, COALESCE(session_id, '') AS session_id,
+		COALESCE(workspace_id, '') AS workspace_id, COALESCE(agent_name, '') AS agent_name,
 		COALESCE(actor_kind, '') AS actor_kind, '' AS actor_id, metadata, ts_ms
 		FROM memory_events`
 	since := int64(0)
@@ -197,33 +235,97 @@ func memoryEventSummarySQL(query storepkg.EventSummaryQuery) (string, []any) {
 		since = timeToUnixMillis(query.Since.UTC())
 	}
 	where, args := storepkg.BuildClauses(
+		storepkg.StringClause("workspace_id", query.WorkspaceID),
 		storepkg.StringClause("session_id", query.SessionID),
 		storepkg.StringClause("agent_name", query.AgentName),
 		storepkg.StringClause("op", query.Type),
 		storepkg.Int64Clause("ts_ms", ">=", since),
 	)
+	filterWhere, filterArgs := memoryEventSummaryVisibilityClause(filters)
+	if filterWhere != "" {
+		where = append(where, filterWhere)
+		args = append(args, filterArgs...)
+	}
 	base = storepkg.AppendWhere(base, where)
 	if query.Limit <= 0 {
 		return base + ` ORDER BY ts_ms ASC, id ASC`, args
 	}
 	args = append(args, query.Limit)
-	return `SELECT id, op, session_id, agent_name, actor_kind, actor_id, metadata, ts_ms
+	return `SELECT id, op, session_id, workspace_id, agent_name, actor_kind, actor_id, metadata, ts_ms
 		FROM (` + base + ` ORDER BY ts_ms DESC, id DESC LIMIT ?)
 		ORDER BY ts_ms ASC, id ASC`, args
 }
 
+func memoryEventSummaryVisibilityClause(filters []catalogFilter) (string, []any) {
+	if len(filters) == 0 {
+		return "", nil
+	}
+
+	clauses := make([]string, 0, len(filters))
+	args := make([]any, 0, len(filters))
+	hasWorkspaceFilter := false
+	for _, filter := range filters {
+		if filter.scope.Normalize() == memcontract.ScopeWorkspace {
+			hasWorkspaceFilter = true
+			break
+		}
+	}
+	for _, filter := range filters {
+		switch filter.scope.Normalize() {
+		case memcontract.ScopeGlobal:
+			if hasWorkspaceFilter {
+				clauses = append(
+					clauses,
+					"((COALESCE(scope, '') = '' AND COALESCE(workspace_id, '') = '') OR scope = 'global')",
+				)
+				continue
+			}
+			clauses = append(clauses, "(COALESCE(scope, '') = '' OR scope = 'global')")
+		case memcontract.ScopeWorkspace:
+			workspaceID := strings.TrimSpace(filter.workspaceID)
+			if workspaceID == "" {
+				continue
+			}
+			clauses = append(clauses, "((scope = 'workspace' OR COALESCE(scope, '') = '') AND workspace_id = ?)")
+			args = append(args, workspaceID)
+		case memcontract.ScopeAgent:
+			workspaceID := strings.TrimSpace(filter.workspaceID)
+			if workspaceID == "" {
+				continue
+			}
+			clauses = append(clauses, "(scope = 'agent' AND workspace_id = ?)")
+			args = append(args, workspaceID)
+		}
+	}
+	if len(clauses) == 0 {
+		return "1 = 0", nil
+	}
+	return "(" + strings.Join(clauses, " OR ") + ")", args
+}
+
 func scanMemoryEventSummary(scanner memoryEventSummaryScanner, sourceID string) (storepkg.EventSummary, error) {
 	var (
-		rowID     int64
-		op        string
-		sessionID string
-		agentName string
-		actorKind string
-		actorID   string
-		rawMeta   string
-		tsMillis  int64
+		rowID       int64
+		op          string
+		sessionID   string
+		workspaceID string
+		agentName   string
+		actorKind   string
+		actorID     string
+		rawMeta     string
+		tsMillis    int64
 	)
-	if err := scanner.Scan(&rowID, &op, &sessionID, &agentName, &actorKind, &actorID, &rawMeta, &tsMillis); err != nil {
+	if err := scanner.Scan(
+		&rowID,
+		&op,
+		&sessionID,
+		&workspaceID,
+		&agentName,
+		&actorKind,
+		&actorID,
+		&rawMeta,
+		&tsMillis,
+	); err != nil {
 		return storepkg.EventSummary{}, fmt.Errorf("memory: scan memory event summary: %w", err)
 	}
 	metadata, err := parseMemoryEventMetadata(rawMeta)
@@ -232,10 +334,11 @@ func scanMemoryEventSummary(scanner memoryEventSummaryScanner, sourceID string) 
 	}
 	id := fmt.Sprintf("memevt-%s-%020d", sanitizeEventSourceID(sourceID), rowID)
 	return storepkg.EventSummary{
-		ID:        id,
-		Type:      strings.TrimSpace(op),
-		SessionID: strings.TrimSpace(sessionID),
-		AgentName: strings.TrimSpace(agentName),
+		ID:          id,
+		Type:        strings.TrimSpace(op),
+		SessionID:   strings.TrimSpace(sessionID),
+		WorkspaceID: strings.TrimSpace(workspaceID),
+		AgentName:   strings.TrimSpace(agentName),
 		EventCorrelation: storepkg.EventCorrelation{
 			ActorKind: strings.TrimSpace(actorKind),
 			ActorID:   strings.TrimSpace(actorID),

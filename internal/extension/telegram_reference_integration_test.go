@@ -132,7 +132,10 @@ func TestTelegramReferenceAdapterIngressAndDeliveryConformance(t *testing.T) {
 		return len(records) > 0 && strings.TrimSpace(records[len(records)-1].Result.SessionID) != ""
 	})
 	deliveries := harness.WaitForDeliveries(t, 10*time.Second, func(records []extensiontest.DeliveryRecord) bool {
-		return len(records) > 0 && normalizeDeliveryEventType(records[len(records)-1].Request.Event.EventType) == bridgepkg.DeliveryEventTypeFinal
+		return len(records) > 0 &&
+			normalizeDeliveryEventType(
+				records[len(records)-1].Request.Event.EventType,
+			) == bridgepkg.DeliveryEventTypeFinal
 	})
 	report := harness.Report(t)
 
@@ -162,10 +165,14 @@ func TestTelegramReferenceAdapterIngressAndDeliveryConformance(t *testing.T) {
 	if len(deliveries) < 2 {
 		t.Fatalf("len(deliveries) = %d, want at least 2", len(deliveries))
 	}
-	if got, want := normalizeDeliveryEventType(deliveries[0].Request.Event.EventType), bridgepkg.DeliveryEventTypeStart; got != want {
+	if got, want := normalizeDeliveryEventType(
+		deliveries[0].Request.Event.EventType,
+	), bridgepkg.DeliveryEventTypeStart; got != want {
 		t.Fatalf("first delivery event type = %q, want %q", got, want)
 	}
-	if got, want := normalizeDeliveryEventType(deliveries[len(deliveries)-1].Request.Event.EventType), bridgepkg.DeliveryEventTypeFinal; got != want {
+	if got, want := normalizeDeliveryEventType(
+		deliveries[len(deliveries)-1].Request.Event.EventType,
+	), bridgepkg.DeliveryEventTypeFinal; got != want {
 		t.Fatalf("last delivery event type = %q, want %q", got, want)
 	}
 

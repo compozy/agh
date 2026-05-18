@@ -269,7 +269,10 @@ func TestManagerIntegrationWorkspaceExtensionCannotReceiveGlobalResourceScope(t 
 	if !slicesEqualResourceKinds(ext.GrantedResourceKinds, []resources.ResourceKind{resources.ResourceKind("tool")}) {
 		t.Fatalf("GrantedResourceKinds = %#v, want [tool]", ext.GrantedResourceKinds)
 	}
-	if !slicesEqualResourceScopes(ext.GrantedResourceScopes, []resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace}) {
+	if !slicesEqualResourceScopes(
+		ext.GrantedResourceScopes,
+		[]resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace},
+	) {
 		t.Fatalf("GrantedResourceScopes = %#v, want [workspace]", ext.GrantedResourceScopes)
 	}
 }
@@ -315,7 +318,10 @@ func TestManagerIntegrationResourceGrantsComeFromDaemonPolicy(t *testing.T) {
 	if !slicesEqualResourceKinds(ext.GrantedResourceKinds, []resources.ResourceKind{resources.ResourceKind("tool")}) {
 		t.Fatalf("GrantedResourceKinds = %#v, want [tool]", ext.GrantedResourceKinds)
 	}
-	if !slicesEqualResourceScopes(ext.GrantedResourceScopes, []resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace}) {
+	if !slicesEqualResourceScopes(
+		ext.GrantedResourceScopes,
+		[]resources.ResourceScopeKind{resources.ResourceScopeKindWorkspace},
+	) {
 		t.Fatalf("GrantedResourceScopes = %#v, want [workspace]", ext.GrantedResourceScopes)
 	}
 }
@@ -374,7 +380,10 @@ func TestManagerIntegrationInitializeIncludesSessionNonceAndResourceGrants(t *te
 	if strings.TrimSpace(request.SessionNonce) == "" {
 		t.Fatal("initialize session_nonce = empty, want daemon-issued nonce")
 	}
-	if !slicesEqualResourceKinds(request.Capabilities.GrantedResourceKinds, []resources.ResourceKind{resources.ResourceKind("tool")}) {
+	if !slicesEqualResourceKinds(
+		request.Capabilities.GrantedResourceKinds,
+		[]resources.ResourceKind{resources.ResourceKind("tool")},
+	) {
 		t.Fatalf(
 			"initialize granted_resource_kinds = %#v, want [tool]",
 			request.Capabilities.GrantedResourceKinds,
@@ -432,7 +441,10 @@ func TestManagerIntegrationNonBridgeExtensionStartsWithoutBridgeNegotiation(t *t
 	}
 	request := markers[0].Request
 	if slicesContainsString(request.Methods.ExtensionServices, "bridges/deliver") {
-		t.Fatalf("initialize extension services = %#v, want no bridges/deliver negotiation", request.Methods.ExtensionServices)
+		t.Fatalf(
+			"initialize extension services = %#v, want no bridges/deliver negotiation",
+			request.Methods.ExtensionServices,
+		)
 	}
 	if request.Runtime.Bridge != nil {
 		t.Fatalf("initialize runtime bridge = %#v, want nil for non-bridge extension", request.Runtime.Bridge)
@@ -506,12 +518,22 @@ func TestManagerIntegrationBridgeAdapterRestartPreservesNegotiatedSurface(t *tes
 	}
 	for index, marker := range markers[:2] {
 		if !slicesEqualStrings(marker.Request.Methods.ExtensionServices, []string{"bridges/deliver"}) {
-			t.Fatalf("marker %d extension services = %#v, want [bridges/deliver]", index, marker.Request.Methods.ExtensionServices)
+			t.Fatalf(
+				"marker %d extension services = %#v, want [bridges/deliver]",
+				index,
+				marker.Request.Methods.ExtensionServices,
+			)
 		}
 		if marker.Request.Runtime.Bridge == nil {
 			t.Fatalf("marker %d runtime bridge = nil, want bound bridge launch payload", index)
 		}
-		if got, want := marker.Request.Runtime.Bridge.ManagedBridgeInstanceIDs(), []string{"brg-restart-a", "brg-restart-b"}; !slicesEqualStrings(got, want) {
+		if got, want := marker.Request.Runtime.Bridge.ManagedBridgeInstanceIDs(), []string{
+			"brg-restart-a",
+			"brg-restart-b",
+		}; !slicesEqualStrings(
+			got,
+			want,
+		) {
 			t.Fatalf("marker %d runtime bridge managed ids = %#v, want %#v", index, got, want)
 		}
 	}

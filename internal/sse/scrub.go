@@ -52,21 +52,14 @@ func ScrubMemoryContextString(value string) string {
 }
 
 func nextMemoryContextOpen(value string) (int, bool) {
-	lower := strings.ToLower(value)
 	best := -1
-	for _, marker := range memoryContextOpenMarkers {
-		offset := 0
-		for {
-			idx := strings.Index(lower[offset:], marker)
-			if idx < 0 {
-				break
-			}
-			candidate := offset + idx
-			if memoryContextOpenBoundary(lower, candidate+len(marker)) &&
+	for candidate := 0; candidate < len(value); candidate++ {
+		for _, marker := range memoryContextOpenMarkers {
+			if asciiEqualFoldPrefix(value[candidate:], marker) &&
+				memoryContextOpenBoundary(value, candidate+len(marker)) &&
 				(best < 0 || candidate < best) {
 				best = candidate
 			}
-			offset = candidate + len(marker)
 		}
 	}
 	if best < 0 {
@@ -75,31 +68,50 @@ func nextMemoryContextOpen(value string) (int, bool) {
 	return best, true
 }
 
-func memoryContextOpenBoundary(lower string, after int) bool {
-	if after >= len(lower) {
+func memoryContextOpenBoundary(value string, after int) bool {
+	if after >= len(value) {
 		return true
 	}
-	switch lower[after] {
+	switch value[after] {
 	case '>', '/', ' ', '\t', '\r', '\n':
 		return true
 	default:
-		return strings.HasPrefix(lower[after:], "\\u003e")
+		return asciiEqualFoldPrefix(value[after:], "\\u003e")
 	}
 }
 
 func nextMemoryContextClose(value string) (int, int, bool) {
-	lower := strings.ToLower(value)
 	best := -1
 	bestLen := 0
-	for _, marker := range memoryContextCloseMarkers {
-		idx := strings.Index(lower, marker)
-		if idx >= 0 && (best < 0 || idx < best) {
-			best = idx
-			bestLen = len(marker)
+	for candidate := 0; candidate < len(value); candidate++ {
+		for _, marker := range memoryContextCloseMarkers {
+			if asciiEqualFoldPrefix(value[candidate:], marker) && (best < 0 || candidate < best) {
+				best = candidate
+				bestLen = len(marker)
+			}
 		}
 	}
 	if best < 0 {
 		return 0, 0, false
 	}
 	return best, bestLen, true
+}
+
+func asciiEqualFoldPrefix(value string, prefix string) bool {
+	if len(value) < len(prefix) {
+		return false
+	}
+	for idx := 0; idx < len(prefix); idx++ {
+		if asciiLower(value[idx]) != asciiLower(prefix[idx]) {
+			return false
+		}
+	}
+	return true
+}
+
+func asciiLower(value byte) byte {
+	if value >= 'A' && value <= 'Z' {
+		return value + ('a' - 'A')
+	}
+	return value
 }

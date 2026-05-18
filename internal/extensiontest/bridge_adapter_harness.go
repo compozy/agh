@@ -543,7 +543,7 @@ func validateDeliveryConformance(
 	}
 
 	lastSeq := make(map[string]int64)
-	pendingAckResume := make(map[string]bool)
+	pendingAckResume := make(map[deliveryAckKey]struct{})
 	sawResume := false
 	for _, record := range deliveries {
 		deliveryIssues, resumed := validateDeliveryRecord(record, expectedByID, lastSeq, pendingAckResume)
@@ -551,10 +551,14 @@ func validateDeliveryConformance(
 		sawResume = sawResume || resumed
 	}
 
-	for deliveryID := range pendingAckResume {
+	for key := range pendingAckResume {
 		issues = append(issues, ConformanceIssue{
-			Code:    "missing_ack",
-			Message: fmt.Sprintf("delivery %q did not return an ack or later resume", deliveryID),
+			Code: "missing_ack",
+			Message: fmt.Sprintf(
+				"delivery %q sequence %d did not return an ack or later resume",
+				key.deliveryID,
+				key.seq,
+			),
 		})
 	}
 	if expect.RequireResume && !sawResume {
@@ -570,7 +574,7 @@ func validateDeliveryRecord(
 	record DeliveryRecord,
 	expectedByID map[string]ManagedInstanceExpectation,
 	lastSeq map[string]int64,
-	pendingAckResume map[string]bool,
+	pendingAckResume map[deliveryAckKey]struct{},
 ) ([]ConformanceIssue, bool) {
 	issues := make([]ConformanceIssue, 0)
 	event := record.Request.Event
@@ -578,6 +582,13 @@ func validateDeliveryRecord(
 	instanceID := strings.TrimSpace(event.BridgeInstanceID)
 	eventType := normalizeEventType(event.EventType)
 	sawResume := false
+
+	if err := record.Request.Validate(); err != nil {
+		issues = append(issues, ConformanceIssue{
+			Code:    "invalid_delivery_request",
+			Message: fmt.Sprintf("delivery %q failed request validation: %v", deliveryID, err),
+		})
+	}
 
 	if len(expectedByID) > 0 {
 		if _, ok := expectedByID[instanceID]; !ok {
@@ -606,7 +617,7 @@ func validateDeliveryRecord(
 				Message: fmt.Sprintf("resume delivery %q omitted its snapshot", deliveryID),
 			})
 		}
-		delete(pendingAckResume, deliveryID)
+		clearPendingDeliveryAcks(pendingAckResume, deliveryID)
 	}
 	if eventType != bridgepkg.DeliveryEventTypeResume {
 		if previous, ok := lastSeq[deliveryID]; ok && event.Seq <= previous {
@@ -627,11 +638,12 @@ func validateDeliveryAck(
 	record DeliveryRecord,
 	deliveryID string,
 	eventType string,
-	pendingAckResume map[string]bool,
+	pendingAckResume map[deliveryAckKey]struct{},
 ) []ConformanceIssue {
 	event := record.Request.Event
+	ackKey := deliveryAckKey{deliveryID: deliveryID, seq: event.Seq}
 	if record.Ack == nil {
-		pendingAckResume[deliveryID] = true
+		pendingAckResume[ackKey] = struct{}{}
 		return nil
 	}
 
@@ -642,7 +654,7 @@ func validateDeliveryAck(
 			Message: err.Error(),
 		})
 	}
-	delete(pendingAckResume, deliveryID)
+	delete(pendingAckResume, ackKey)
 	if event.Seq > 0 && strings.TrimSpace(record.Ack.RemoteMessageID) == "" {
 		issues = append(issues, ConformanceIssue{
 			Code:    "missing_remote_message_id",
@@ -661,6 +673,19 @@ func validateDeliveryAck(
 		})
 	}
 	return issues
+}
+
+type deliveryAckKey struct {
+	deliveryID string
+	seq        int64
+}
+
+func clearPendingDeliveryAcks(pending map[deliveryAckKey]struct{}, deliveryID string) {
+	for key := range pending {
+		if key.deliveryID == deliveryID {
+			delete(pending, key)
+		}
+	}
 }
 
 func validateIngestConformance(

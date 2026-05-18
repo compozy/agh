@@ -238,6 +238,7 @@ func TestExecuteTeamsDeliveryConversationAndProactiveDM(t *testing.T) {
 		cfg,
 		startReq,
 		deliveryState{},
+		nil,
 		func(string, string) (teamsUserContext, bool) {
 			return teamsUserContext{}, false
 		},
@@ -263,6 +264,7 @@ func TestExecuteTeamsDeliveryConversationAndProactiveDM(t *testing.T) {
 		cfg,
 		finalReq,
 		state,
+		nil,
 		func(string, string) (teamsUserContext, bool) {
 			return teamsUserContext{}, false
 		},
@@ -291,6 +293,7 @@ func TestExecuteTeamsDeliveryConversationAndProactiveDM(t *testing.T) {
 		cfg,
 		deleteReq,
 		state,
+		nil,
 		func(string, string) (teamsUserContext, bool) {
 			return teamsUserContext{}, false
 		},
@@ -328,6 +331,7 @@ func TestExecuteTeamsDeliveryConversationAndProactiveDM(t *testing.T) {
 		cfg,
 		proactiveReq,
 		deliveryState{},
+		nil,
 		func(instanceID string, userID string) (teamsUserContext, bool) {
 			if instanceID != "brg-teams" || userID != "29:user-2" {
 				return teamsUserContext{}, false
@@ -372,6 +376,7 @@ func TestExecuteTeamsDeliveryConversationAndProactiveDM(t *testing.T) {
 		cfg,
 		resumeReq,
 		deliveryState{},
+		nil,
 		func(string, string) (teamsUserContext, bool) {
 			return teamsUserContext{}, false
 		},
@@ -1630,15 +1635,18 @@ func TestReconcileInstanceConfigCoverage(t *testing.T) {
 		t.Fatalf("len(configs) = %d, want %d", got, want)
 	}
 	if configs[0].configError == nil ||
-		!strings.Contains(configs[0].configError.Error(), "listen address") {
-		t.Fatalf("configs[0].configError = %v, want listen address error", configs[0].configError)
+		!strings.Contains(configs[0].configError.Error(), "shared") {
+		t.Fatalf("configs[0].configError = %v, want shared path error", configs[0].configError)
 	}
 	if configs[1].configError == nil ||
 		!strings.Contains(configs[1].configError.Error(), "shared") {
 		t.Fatalf(
-			"configs[1].configError = %v, want shared path or listen error",
+			"configs[1].configError = %v, want shared path error",
 			configs[1].configError,
 		)
+	}
+	if _, ok := runtime.configForPath("/shared"); ok {
+		t.Fatal("configForPath(/shared) = ok, want duplicate path to stay inactive")
 	}
 
 	badJSON := managed
@@ -1710,6 +1718,85 @@ func TestMarkerHelperCoverage(t *testing.T) {
 	}
 	if shouldCrashOnce(crashPath) {
 		t.Fatal("shouldCrashOnce(existing) = true, want false")
+	}
+}
+
+func TestWebhookRejectsDuplicateSharedPath(t *testing.T) {
+	t.Setenv(teamsListenAddrEnv, "")
+
+	runtime, hostPeer, cleanup := newRuntimePeerPair(t)
+	defer cleanup()
+
+	now := time.Date(2026, 4, 15, 19, 55, 0, 0, time.UTC)
+	managed := testTeamsManagedInstance(t, now, "brg-1", map[string]any{
+		"service_url": teamsDefaultServiceURL,
+		"webhook": map[string]any{
+			"path": "shared",
+		},
+	})
+	managed2 := testTeamsManagedInstance(t, now, "brg-2", map[string]any{
+		"service_url": teamsDefaultServiceURL,
+		"webhook": map[string]any{
+			"path": "shared",
+		},
+	})
+	managed2.Instance.WorkspaceID = "ws-other"
+	mustHandleLifecycle(t, hostPeer, managed, managed2)
+
+	if err := hostPeer.Call(
+		context.Background(),
+		"initialize",
+		testInitializeRequest(now, managed, managed2),
+		nil,
+	); err != nil {
+		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
+	}
+	session := runtime.currentSession()
+	if session == nil {
+		t.Fatal("runtime.currentSession() = nil, want session")
+	}
+	configs := runtime.reconcileInstanceConfigs(
+		context.Background(),
+		session,
+		[]subprocess.InitializeBridgeManagedInstance{managed, managed2},
+	)
+	if got, want := len(configs), 2; got != want {
+		t.Fatalf("len(configs) = %d, want %d", got, want)
+	}
+	for idx, cfg := range configs {
+		if got, want := cfg.initialStatus.Normalize(), bridgepkg.BridgeStatusDegraded; got != want {
+			t.Fatalf("states[%d].Status = %q, want %q", idx, got, want)
+		}
+		if cfg.initialDegradation == nil ||
+			cfg.initialDegradation.Reason != bridgepkg.BridgeDegradationReasonTenantConfigInvalid ||
+			!strings.Contains(cfg.initialDegradation.Message, "shared") {
+			t.Fatalf(
+				"configs[%d].initialDegradation = %#v, want shared-path tenant config invalid",
+				idx,
+				cfg.initialDegradation,
+			)
+		}
+	}
+	req := httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"http://teams.test/shared",
+		strings.NewReader(teamsMessageWebhook(teamsDefaultServiceURL, "Need a summary")),
+	)
+	req.Header.Set("Content-Type", "application/json")
+	resp := httptest.NewRecorder()
+	runtime.serveWebhookHTTP(resp, req)
+
+	result := resp.Result()
+	body, err := io.ReadAll(result.Body)
+	if err != nil {
+		t.Fatalf("io.ReadAll(result.Body) error = %v", err)
+	}
+	if err := result.Body.Close(); err != nil {
+		t.Fatalf("result.Body.Close() error = %v", err)
+	}
+	if got, want := result.StatusCode, http.StatusNotFound; got != want {
+		t.Fatalf("duplicate webhook status = %d, want %d (body=%q)", got, want, string(body))
 	}
 }
 

@@ -764,6 +764,7 @@ export interface AutomationJobPreFirePayload {
   workspace_id?: string;
   prompt?: string;
   schedule?: AutomationSchedulePayload;
+  payload?: Record<string, JSONValue>;
   attempt?: number;
 }
 

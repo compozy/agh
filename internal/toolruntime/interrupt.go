@@ -34,7 +34,7 @@ func (defaultInterrupter) InterruptProcess(ctx context.Context, record ProcessRe
 	if waitForRecordExit(ctx, record, defaultInterruptGrace) {
 		return nil
 	}
-	if !procutil.MatchesStartTime(record.PID, record.StartedAt) {
+	if record.ProcessGroupID <= 0 && !procutil.MatchesStartTime(record.PID, record.StartedAt) {
 		return nil
 	}
 	if err := signalRecord(record, syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
@@ -42,6 +42,13 @@ func (defaultInterrupter) InterruptProcess(ctx context.Context, record ProcessRe
 	}
 	if waitForRecordExit(ctx, record, defaultKillGrace) {
 		return nil
+	}
+	if record.ProcessGroupID > 0 {
+		return fmt.Errorf(
+			"toolruntime: process group %d for process %q did not exit after interrupt",
+			record.ProcessGroupID,
+			record.ID,
+		)
 	}
 	if procutil.MatchesStartTime(record.PID, record.StartedAt) {
 		return fmt.Errorf("toolruntime: process %q did not exit after interrupt", record.ID)
@@ -60,6 +67,9 @@ func waitForRecordExit(ctx context.Context, record ProcessRecord, timeout time.D
 	if timeout <= 0 {
 		timeout = time.Millisecond
 	}
+	if record.ProcessGroupID > 0 {
+		return waitForProcessGroupExit(ctx, record.ProcessGroupID, timeout)
+	}
 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
@@ -75,4 +85,11 @@ func waitForRecordExit(ctx context.Context, record ProcessRecord, timeout time.D
 		case <-ticker.C:
 		}
 	}
+}
+
+func waitForProcessGroupExit(ctx context.Context, pgid int, timeout time.Duration) bool {
+	if err := ctx.Err(); err != nil {
+		return false
+	}
+	return procutil.WaitForProcessGroupIDExit(pgid, timeout) == nil
 }

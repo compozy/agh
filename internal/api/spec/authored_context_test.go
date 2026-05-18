@@ -22,6 +22,7 @@ func TestAuthoredContextOpenAPIContracts(t *testing.T) {
 			{path: "/api/agents/{agent_name}/heartbeat/status", method: "GET", status: 200},
 			{path: "/api/agents/{agent_name}/heartbeat/wake", method: "POST", status: 200},
 			{path: "/api/workspaces/{workspace_id}/sessions/{session_id}/health", method: "GET", status: 200},
+			{path: "/api/workspaces/{workspace_id}/sessions/{session_id}/status", method: "GET", status: 200},
 			{path: "/api/workspaces/{workspace_id}/sessions/{session_id}/inspect", method: "GET", status: 200},
 		} {
 			operation := operationFor(t, doc, target.path, target.method)
@@ -49,39 +50,71 @@ func TestAuthoredContextOpenAPIContracts(t *testing.T) {
 		}
 	})
 
-	t.Run("Should require expected digest inside Soul mutation request bodies", func(t *testing.T) {
+	t.Run("Should keep path-bound Soul request identity path-only", func(t *testing.T) {
 		t.Parallel()
 
 		doc := authoredContextDocument(t)
+		validateSoul := operationFor(t, doc, "/api/agents/{agent_name}/soul/validate", "POST")
+		validateSoulSchema := jsonRequestSchema(t, validateSoul)
+		assertNotRequired(t, validateSoulSchema, "workspace_id", "body")
+		assertPropertyAbsent(t, validateSoulSchema, "agent_name")
+
 		putSoul := operationFor(t, doc, "/api/agents/{agent_name}/soul", "PUT")
 		putSoulSchema := jsonRequestSchema(t, putSoul)
-		assertRequired(t, putSoulSchema, "agent_name", "body", "expected_digest")
+		assertRequired(t, putSoulSchema, "body", "expected_digest")
 		assertNotRequired(t, putSoulSchema, "workspace_id", "idempotency_key")
+		assertPropertyAbsent(t, putSoulSchema, "agent_name")
 
 		deleteSoul := operationFor(t, doc, "/api/agents/{agent_name}/soul", "DELETE")
 		deleteSoulSchema := jsonRequestSchema(t, deleteSoul)
-		assertRequired(t, deleteSoulSchema, "agent_name", "expected_digest")
+		assertRequired(t, deleteSoulSchema, "expected_digest")
+		assertPropertyAbsent(t, deleteSoulSchema, "agent_name")
 		if property := deleteSoulSchema.Properties["if_match"]; property != nil {
 			t.Fatalf("Soul delete request schema exposed transport-specific if_match: %#v", property)
 		}
+
+		rollbackSoul := operationFor(t, doc, "/api/agents/{agent_name}/soul/rollback", "POST")
+		rollbackSoulSchema := jsonRequestSchema(t, rollbackSoul)
+		assertRequired(t, rollbackSoulSchema, "revision_id", "expected_digest")
+		assertNotRequired(t, rollbackSoulSchema, "idempotency_key")
+		assertPropertyAbsent(t, rollbackSoulSchema, "agent_name")
 	})
 
-	t.Run("Should require expected digest inside Heartbeat mutation request bodies", func(t *testing.T) {
+	t.Run("Should keep path-bound Heartbeat request identity path-only", func(t *testing.T) {
 		t.Parallel()
 
 		doc := authoredContextDocument(t)
+		validateHeartbeat := operationFor(t, doc, "/api/agents/{agent_name}/heartbeat/validate", "POST")
+		validateHeartbeatSchema := jsonRequestSchema(t, validateHeartbeat)
+		assertRequired(t, validateHeartbeatSchema, "body")
+		assertNotRequired(t, validateHeartbeatSchema, "workspace_id")
+		assertPropertyAbsent(t, validateHeartbeatSchema, "agent_name")
+
 		putHeartbeat := operationFor(t, doc, "/api/agents/{agent_name}/heartbeat", "PUT")
 		putHeartbeatSchema := jsonRequestSchema(t, putHeartbeat)
-		assertRequired(t, putHeartbeatSchema, "agent_name", "body", "expected_digest")
+		assertRequired(t, putHeartbeatSchema, "body", "expected_digest")
 		assertNotRequired(t, putHeartbeatSchema, "workspace_id", "idempotency_key")
+		assertPropertyAbsent(t, putHeartbeatSchema, "agent_name")
+
+		deleteHeartbeat := operationFor(t, doc, "/api/agents/{agent_name}/heartbeat", "DELETE")
+		deleteHeartbeatSchema := jsonRequestSchema(t, deleteHeartbeat)
+		assertRequired(t, deleteHeartbeatSchema, "expected_digest")
+		assertPropertyAbsent(t, deleteHeartbeatSchema, "agent_name")
 
 		rollbackHeartbeat := operationFor(t, doc, "/api/agents/{agent_name}/heartbeat/rollback", "POST")
 		rollbackHeartbeatSchema := jsonRequestSchema(t, rollbackHeartbeat)
-		assertRequired(t, rollbackHeartbeatSchema, "agent_name", "expected_digest")
+		assertRequired(t, rollbackHeartbeatSchema, "expected_digest")
 		assertNotRequired(t, rollbackHeartbeatSchema, "revision_id", "target_digest")
+		assertPropertyAbsent(t, rollbackHeartbeatSchema, "agent_name")
 		if property := rollbackHeartbeatSchema.Properties["if_match"]; property != nil {
 			t.Fatalf("Heartbeat rollback request schema exposed transport-specific if_match: %#v", property)
 		}
+
+		wakeHeartbeat := operationFor(t, doc, "/api/agents/{agent_name}/heartbeat/wake", "POST")
+		wakeHeartbeatSchema := jsonRequestSchema(t, wakeHeartbeat)
+		assertRequired(t, wakeHeartbeatSchema, "session_id", "source")
+		assertNotRequired(t, wakeHeartbeatSchema, "workspace_id", "dry_run", "idempotency_key")
+		assertPropertyAbsent(t, wakeHeartbeatSchema, "agent_name")
 	})
 
 	t.Run("Should describe closed diagnostics health and wake enums", func(t *testing.T) {
@@ -123,6 +156,48 @@ func TestAuthoredContextOpenAPIContracts(t *testing.T) {
 			"unknown",
 		)
 		assertEnumValues(t, propertySchema(t, healthSchema, "ineligibility_reason"),
+			"session_prompt_active",
+			"session_not_attachable",
+			"session_unhealthy",
+			"session_health_stale",
+			"session_health_hung",
+			"session_health_dead",
+			"session_health_unknown",
+		)
+		sessionStatusOperation := operationFor(
+			t,
+			doc,
+			"/api/workspaces/{workspace_id}/sessions/{session_id}/status",
+			"GET",
+		)
+		sessionStatusSchema := jsonResponseSchema(t, sessionStatusOperation, 200)
+		assertRequired(t,
+			sessionStatusSchema,
+			"session_id",
+			"workspace_id",
+			"agent_name",
+			"state",
+			"health",
+			"active_prompt",
+			"attachable",
+			"eligible_for_wake",
+			"updated_at",
+		)
+		assertNotRequired(t, sessionStatusSchema, "ineligibility_reason", "wake_state")
+		assertEnumValues(t, propertySchema(t, sessionStatusSchema, "state"),
+			"idle",
+			"prompting",
+			"stopped",
+			"detached",
+		)
+		assertEnumValues(t, propertySchema(t, sessionStatusSchema, "health"),
+			"healthy",
+			"degraded",
+			"stale",
+			"dead",
+			"unknown",
+		)
+		assertEnumValues(t, propertySchema(t, sessionStatusSchema, "ineligibility_reason"),
 			"session_prompt_active",
 			"session_not_attachable",
 			"session_unhealthy",

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -52,6 +54,70 @@ func TestManagerApplyRelease(t *testing.T) {
 		}
 		if got := string(applier.sourceBytes); !strings.Contains(got, "updated") {
 			t.Fatalf("applier.sourceBytes = %q, want extracted updated binary", got)
+		}
+	})
+
+	t.Run("Should preserve executable mode when archive mode is not executable", func(t *testing.T) {
+		t.Parallel()
+
+		verifier := &stubBundleVerifier{}
+		applier := &recordingBinaryApplier{}
+		manager, executablePath := newManagerWithExecutable(t, Config{
+			RuntimeOS:      runtimeOSLinux,
+			RuntimeArch:    runtimeArchAMD64,
+			BundleVerifier: verifier,
+			BinaryApplier:  applier,
+		})
+
+		archiveBody := createTarGzBinary(t, "agh", []byte("#!/bin/sh\necho updated\n"), 0o644)
+		release, _, server := newReleaseFixtureServer(t, manager, assetFixture{
+			archiveBody: archiveBody,
+			bundleBody:  []byte("{\"mediaType\":\"application/vnd.dev.sigstore.bundle+json;version=0.3\"}"),
+		})
+		defer server.Close()
+		manager.httpClient = server.Client()
+
+		_, err := manager.ApplyRelease(context.Background(), release)
+		if err != nil {
+			t.Fatalf("ApplyRelease() error = %v", err)
+		}
+		if applier.targetPath != executablePath || applier.mode != 0o755 {
+			t.Fatalf("binary apply = %#v, want target %q mode 0755", applier, executablePath)
+		}
+	})
+
+	t.Run("Should reject oversized archive download before verification", func(t *testing.T) {
+		t.Parallel()
+
+		verifier := &stubBundleVerifier{}
+		applier := &recordingBinaryApplier{}
+		manager, _ := newManagerWithExecutable(t, Config{
+			RuntimeOS:      runtimeOSLinux,
+			RuntimeArch:    runtimeArchAMD64,
+			BundleVerifier: verifier,
+			BinaryApplier:  applier,
+		})
+
+		release, _, server := newReleaseFixtureServer(t, manager, assetFixture{
+			archiveBody:          []byte("unused"),
+			archiveContentLength: fmt.Sprintf("%d", maxArchiveDownloadBytes+1),
+			bundleBody:           []byte("{}"),
+		})
+		defer server.Close()
+		manager.httpClient = server.Client()
+
+		_, err := manager.ApplyRelease(context.Background(), release)
+		if err == nil {
+			t.Fatal("ApplyRelease() error = nil, want oversized archive failure")
+		}
+		if !strings.Contains(err.Error(), "exceeds limit") {
+			t.Fatalf("ApplyRelease() error = %v, want download limit failure", err)
+		}
+		if verifier.calls != 0 {
+			t.Fatalf("VerifyChecksums() calls = %d, want 0 after oversized archive", verifier.calls)
+		}
+		if applier.applyCalls != 0 {
+			t.Fatalf("ApplyBinary() calls = %d, want 0 after oversized archive", applier.applyCalls)
 		}
 	})
 
@@ -218,11 +284,85 @@ func TestManagerApplyRelease(t *testing.T) {
 	})
 }
 
+func TestManagerDownloadFile(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject chunked downloads that exceed the limit", func(t *testing.T) {
+		t.Parallel()
+
+		manager, _ := newManagerWithExecutable(t, Config{
+			RuntimeOS:   runtimeOSLinux,
+			RuntimeArch: runtimeArchAMD64,
+		})
+		oversizedBody := strings.Repeat("x", int(maxChecksumsBytes)+1)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			flusher, ok := w.(http.Flusher)
+			if !ok {
+				t.Errorf("response writer does not implement http.Flusher")
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			flusher.Flush()
+			if _, err := w.Write([]byte(oversizedBody)); err != nil {
+				t.Errorf("Write(%q) error = %v", r.URL.Path, err)
+			}
+		}))
+		defer server.Close()
+		manager.httpClient = server.Client()
+		targetPath := filepath.Join(t.TempDir(), checksumsAssetName)
+
+		err := manager.downloadFile(context.Background(), server.URL, targetPath, maxChecksumsBytes)
+		if err == nil {
+			t.Fatal("downloadFile() error = nil, want oversized chunked response failure")
+		}
+		if !strings.Contains(err.Error(), "exceeds limit") {
+			t.Fatalf("downloadFile() error = %v, want download limit failure", err)
+		}
+		if _, statErr := os.Stat(targetPath); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("os.Stat(%q) error = %v, want partial file removed", targetPath, statErr)
+		}
+	})
+}
+
+func TestManagerRestore(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should restore backup executable mode when target mode is broken", func(t *testing.T) {
+		t.Parallel()
+
+		applier := &recordingBinaryApplier{}
+		manager, executablePath := newManagerWithExecutable(t, Config{
+			RuntimeOS:     runtimeOSLinux,
+			RuntimeArch:   runtimeArchAMD64,
+			BinaryApplier: applier,
+		})
+		if err := os.Chmod(executablePath, 0o644); err != nil {
+			t.Fatalf("Chmod(%q) error = %v", executablePath, err)
+		}
+		backupPath := filepath.Join(filepath.Dir(executablePath), ".agh.backup")
+		if err := os.WriteFile(backupPath, []byte("backup-binary"), 0o755); err != nil {
+			t.Fatalf("WriteFile(%q) error = %v", backupPath, err)
+		}
+
+		err := manager.Restore(AppliedBinary{TargetPath: executablePath, BackupPath: backupPath})
+		if err != nil {
+			t.Fatalf("Restore() error = %v", err)
+		}
+		if applier.restoreCalls != 1 {
+			t.Fatalf("RestoreBinary() calls = %d, want 1", applier.restoreCalls)
+		}
+		if applier.targetPath != executablePath || applier.backupPath != backupPath || applier.mode != 0o755 {
+			t.Fatalf("binary restore = %#v, want backup %q target %q mode 0755", applier, backupPath, executablePath)
+		}
+	})
+}
+
 type assetFixture struct {
-	archiveBody   []byte
-	checksumsBody []byte
-	bundleBody    []byte
-	archiveStatus int
+	archiveBody          []byte
+	checksumsBody        []byte
+	bundleBody           []byte
+	archiveStatus        int
+	archiveContentLength string
 }
 
 func newReleaseFixtureServer(
@@ -244,8 +384,9 @@ func newReleaseFixtureServer(
 
 	server := newReleaseAssetServer(t, map[string]assetResponse{
 		"/archive": {
-			status: fixture.archiveStatus,
-			body:   fixture.archiveBody,
+			status:        fixture.archiveStatus,
+			body:          fixture.archiveBody,
+			contentLength: fixture.archiveContentLength,
 		},
 		"/checksums.txt": {
 			body: checksumsBody,

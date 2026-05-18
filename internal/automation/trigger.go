@@ -56,6 +56,13 @@ type TriggerDispatcher interface {
 	Dispatch(ctx context.Context, req DispatchRequest) (*Run, error)
 }
 
+// WebhookDeliveryStore persists authenticated delivery claims across trigger-engine restarts.
+type WebhookDeliveryStore interface {
+	CreateRun(ctx context.Context, run Run) (Run, error)
+	GetRun(ctx context.Context, id string) (Run, error)
+	DeleteRun(ctx context.Context, id string) error
+}
+
 // HookSessionResolver resolves session metadata for hook-completion ingress.
 type HookSessionResolver interface {
 	Status(ctx context.Context, id string) (*session.Info, error)
@@ -154,6 +161,7 @@ type TriggerEngine struct {
 	webhookFreshnessWindow time.Duration
 	hookSessions           HookSessionResolver
 	webhookSecrets         WebhookSecretResolver
+	webhookDeliveries      WebhookDeliveryStore
 
 	mu            sync.RWMutex
 	stopped       bool
@@ -238,6 +246,13 @@ func WithTriggerEngineHookSessionResolver(resolver HookSessionResolver) TriggerE
 func WithTriggerEngineWebhookSecretResolver(resolver WebhookSecretResolver) TriggerEngineOption {
 	return func(engine *TriggerEngine) {
 		engine.webhookSecrets = resolver
+	}
+}
+
+// WithTriggerEngineWebhookDeliveryStore injects durable replay protection for webhook delivery IDs.
+func WithTriggerEngineWebhookDeliveryStore(store WebhookDeliveryStore) TriggerEngineOption {
+	return func(engine *TriggerEngine) {
+		engine.webhookDeliveries = store
 	}
 }
 
@@ -428,7 +443,7 @@ func (e *TriggerEngine) HandleWebhook(ctx context.Context, request WebhookReques
 	if err != nil {
 		return TriggerResult{}, err
 	}
-	registration, err := e.webhookRegistration(request.Scope, request.WorkspaceID, parsed.WebhookID)
+	registration, err := e.webhookRegistration(request.Scope, request.WorkspaceID, parsed)
 	if err != nil {
 		return TriggerResult{}, err
 	}
@@ -448,14 +463,19 @@ func (e *TriggerEngine) HandleWebhook(ctx context.Context, request WebhookReques
 	); err != nil {
 		return TriggerResult{}, err
 	}
-	if err := e.claimWebhookDelivery(registration.Trigger.ID, request.DeliveryID); err != nil {
+	claim, err := e.claimWebhookDelivery(ctx, registration.Trigger, request.DeliveryID)
+	if err != nil {
 		return TriggerResult{}, err
 	}
 
-	envelope := webhookEnvelope(request, parsed)
-	result, err := e.dispatchAfterFilter(ctx, envelope, []TriggerRegistration{registration})
+	envelope, err := webhookEnvelope(request, registration.Trigger)
+	if err != nil {
+		e.releaseWebhookDelivery(ctx, claim)
+		return TriggerResult{}, err
+	}
+	result, err := e.dispatchAfterFilter(ctx, envelope, []TriggerRegistration{registration}, claim.reservedRun)
 	if err != nil && len(result.Runs) == 0 {
-		e.releaseWebhookDelivery(registration.Trigger.ID, request.DeliveryID)
+		e.releaseWebhookDelivery(ctx, claim)
 	}
 	return result, err
 }
@@ -603,15 +623,16 @@ func (e *TriggerEngine) dispatchPreMatched(
 	envelope ActivationEnvelope,
 	registrations []TriggerRegistration,
 ) (TriggerResult, error) {
-	return e.dispatchMatches(ctx, envelope, registrations, false)
+	return e.dispatchMatches(ctx, envelope, registrations, false, nil)
 }
 
 func (e *TriggerEngine) dispatchAfterFilter(
 	ctx context.Context,
 	envelope ActivationEnvelope,
 	registrations []TriggerRegistration,
+	reservedRun *Run,
 ) (TriggerResult, error) {
-	return e.dispatchMatches(ctx, envelope, registrations, true)
+	return e.dispatchMatches(ctx, envelope, registrations, true, reservedRun)
 }
 
 func (e *TriggerEngine) dispatchMatches(
@@ -619,6 +640,7 @@ func (e *TriggerEngine) dispatchMatches(
 	envelope ActivationEnvelope,
 	registrations []TriggerRegistration,
 	filterRegistrations bool,
+	reservedRun *Run,
 ) (TriggerResult, error) {
 	result := TriggerResult{
 		Runs: make([]Run, 0, len(registrations)),
@@ -636,9 +658,10 @@ func (e *TriggerEngine) dispatchMatches(
 		result.Matched++
 		trigger := registration.Trigger
 		run, err := e.dispatcher.Dispatch(ctx, DispatchRequest{
-			Kind:     dispatchKind,
-			Trigger:  &trigger,
-			Envelope: pointerToActivationEnvelope(envelope),
+			Kind:        dispatchKind,
+			Trigger:     &trigger,
+			Envelope:    pointerToActivationEnvelope(envelope),
+			ReservedRun: cloneRun(reservedRun),
 		})
 		if run != nil {
 			result.Runs = append(result.Runs, *cloneRun(run))
@@ -656,7 +679,7 @@ func (e *TriggerEngine) dispatchMatches(
 func (e *TriggerEngine) webhookRegistration(
 	scope Scope,
 	workspaceID string,
-	webhookID string,
+	endpoint ParsedWebhookEndpoint,
 ) (TriggerRegistration, error) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
@@ -665,7 +688,7 @@ func (e *TriggerEngine) webhookRegistration(
 		return TriggerRegistration{}, ErrTriggerEngineStopped
 	}
 
-	triggerID, ok := e.webhookIndex[strings.TrimSpace(webhookID)]
+	triggerID, ok := e.webhookIndex[strings.TrimSpace(endpoint.WebhookID)]
 	if !ok {
 		return TriggerRegistration{}, ErrWebhookTriggerNotRegistered
 	}
@@ -675,6 +698,10 @@ func (e *TriggerEngine) webhookRegistration(
 	}
 	if registration.Trigger.Scope != scope ||
 		strings.TrimSpace(registration.Trigger.WorkspaceID) != strings.TrimSpace(workspaceID) {
+		return TriggerRegistration{}, ErrWebhookTriggerNotRegistered
+	}
+	if strings.TrimSpace(registration.Trigger.EndpointSlug) != strings.TrimSpace(endpoint.EndpointSlug) ||
+		strings.TrimSpace(registration.Trigger.WebhookID) != strings.TrimSpace(endpoint.WebhookID) {
 		return TriggerRegistration{}, ErrWebhookTriggerNotRegistered
 	}
 	return cloneTriggerRegistration(registration), nil
@@ -752,7 +779,33 @@ func (e *TriggerEngine) deleteWebhookIndexLocked(triggerID string) {
 	}
 }
 
-func (e *TriggerEngine) claimWebhookDelivery(triggerID string, deliveryID string) error {
+type webhookDeliveryClaim struct {
+	triggerID   string
+	deliveryID  string
+	reservedRun *Run
+}
+
+func (e *TriggerEngine) claimWebhookDelivery(
+	ctx context.Context,
+	trigger Trigger,
+	deliveryID string,
+) (webhookDeliveryClaim, error) {
+	claim := webhookDeliveryClaim{
+		triggerID:  strings.TrimSpace(trigger.ID),
+		deliveryID: strings.TrimSpace(deliveryID),
+	}
+	if e.webhookDeliveries != nil {
+		reserved, err := e.claimPersistentWebhookDelivery(ctx, trigger, deliveryID)
+		if err != nil {
+			return webhookDeliveryClaim{}, err
+		}
+		claim.reservedRun = reserved
+		return claim, nil
+	}
+	return claim, e.claimInMemoryWebhookDelivery(trigger.ID, deliveryID)
+}
+
+func (e *TriggerEngine) claimInMemoryWebhookDelivery(triggerID string, deliveryID string) error {
 	now := e.now()
 
 	e.mu.Lock()
@@ -773,11 +826,86 @@ func (e *TriggerEngine) claimWebhookDelivery(triggerID string, deliveryID string
 	return nil
 }
 
-func (e *TriggerEngine) releaseWebhookDelivery(triggerID string, deliveryID string) {
+func (e *TriggerEngine) claimPersistentWebhookDelivery(
+	ctx context.Context,
+	trigger Trigger,
+	deliveryID string,
+) (*Run, error) {
+	if ctx == nil {
+		return nil, errors.New("automation: webhook delivery claim context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	e.mu.RLock()
+	stopped := e.stopped
+	e.mu.RUnlock()
+	if stopped {
+		return nil, ErrTriggerEngineStopped
+	}
+
+	now := e.now()
+	runID := webhookDeliveryRunID(trigger.ID, deliveryID)
+	run := Run{
+		ID:        runID,
+		TriggerID: strings.TrimSpace(trigger.ID),
+		FireID:    webhookDeliveryFireID(trigger.ID, deliveryID),
+		Status:    RunScheduled,
+		Attempt:   1,
+		StartedAt: timePointer(now),
+	}
+	created, err := e.webhookDeliveries.CreateRun(ctx, run)
+	if err == nil {
+		return &created, nil
+	}
+	if !errors.Is(err, ErrRunAlreadyExists) {
+		return nil, fmt.Errorf("automation: claim webhook delivery: %w", err)
+	}
+
+	existing, getErr := e.webhookDeliveries.GetRun(ctx, runID)
+	if getErr != nil && !errors.Is(getErr, ErrRunNotFound) {
+		return nil, fmt.Errorf("automation: inspect webhook delivery claim: %w", getErr)
+	}
+	if getErr == nil && webhookDeliveryClaimActive(existing, now, e.webhookFreshnessWindow) {
+		return nil, ErrWebhookReplayDetected
+	}
+	if getErr == nil {
+		if err := e.webhookDeliveries.DeleteRun(ctx, runID); err != nil && !errors.Is(err, ErrRunNotFound) {
+			return nil, fmt.Errorf("automation: expire webhook delivery claim: %w", err)
+		}
+	}
+
+	created, err = e.webhookDeliveries.CreateRun(ctx, run)
+	if err != nil {
+		if errors.Is(err, ErrRunAlreadyExists) {
+			return nil, ErrWebhookReplayDetected
+		}
+		return nil, fmt.Errorf("automation: reclaim webhook delivery: %w", err)
+	}
+	return &created, nil
+}
+
+func (e *TriggerEngine) releaseWebhookDelivery(ctx context.Context, claim webhookDeliveryClaim) {
+	if claim.reservedRun != nil && e.webhookDeliveries != nil {
+		if err := e.webhookDeliveries.DeleteRun(
+			ctx,
+			claim.reservedRun.ID,
+		); err != nil &&
+			!errors.Is(err, ErrRunNotFound) {
+			e.logger.Warn(
+				"automation.trigger.webhook_delivery_release_failed",
+				"run_id", strings.TrimSpace(claim.reservedRun.ID),
+				"error", err,
+			)
+		}
+		return
+	}
+
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	delete(e.deliveries, webhookDeliveryKey(triggerID, deliveryID))
+	delete(e.deliveries, webhookDeliveryKey(claim.triggerID, claim.deliveryID))
 }
 
 func (e *TriggerEngine) purgeDeliveriesLocked(now time.Time) {
@@ -964,7 +1092,11 @@ func memoryConsolidatedEnvelope(event MemoryConsolidatedEvent) (ActivationEnvelo
 	return envelope, envelope.Validate("envelope")
 }
 
-func webhookEnvelope(request WebhookRequest, endpoint ParsedWebhookEndpoint) ActivationEnvelope {
+func webhookEnvelope(request WebhookRequest, trigger Trigger) (ActivationEnvelope, error) {
+	endpoint, err := FormatWebhookEndpoint(trigger.EndpointSlug, trigger.WebhookID)
+	if err != nil {
+		return ActivationEnvelope{}, err
+	}
 	data := cloneAnyMap(request.Data)
 	if data == nil {
 		data = make(map[string]any)
@@ -972,9 +1104,9 @@ func webhookEnvelope(request WebhookRequest, endpoint ParsedWebhookEndpoint) Act
 	if _, exists := data["payload"]; !exists {
 		data["payload"] = string(request.Payload)
 	}
-	data["endpoint"] = strings.TrimSpace(request.Endpoint)
-	data["endpoint_slug"] = endpoint.EndpointSlug
-	data["webhook_id"] = endpoint.WebhookID
+	data["endpoint"] = endpoint
+	data["endpoint_slug"] = strings.TrimSpace(trigger.EndpointSlug)
+	data["webhook_id"] = strings.TrimSpace(trigger.WebhookID)
 	data["timestamp"] = request.Timestamp.UTC().Format(time.RFC3339Nano)
 
 	return ActivationEnvelope{
@@ -983,7 +1115,7 @@ func webhookEnvelope(request WebhookRequest, endpoint ParsedWebhookEndpoint) Act
 		WorkspaceID: strings.TrimSpace(request.WorkspaceID),
 		Source:      ActivationSourceWebhook,
 		Data:        data,
-	}
+	}, nil
 }
 
 func webhookSignaturePayload(timestamp time.Time, payload []byte) []byte {
@@ -1045,8 +1177,69 @@ func cloneAnyMap(src map[string]any) map[string]any {
 		return nil
 	}
 	cloned := make(map[string]any, len(src))
-	maps.Copy(cloned, src)
+	for key, value := range src {
+		cloned[key] = cloneAnyValue(value)
+	}
 	return cloned
+}
+
+func cloneAnyValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		return cloneAnyMap(typed)
+	case map[string]string:
+		return cloneStringMap(typed)
+	case []any:
+		cloned := make([]any, len(typed))
+		for idx, item := range typed {
+			cloned[idx] = cloneAnyValue(item)
+		}
+		return cloned
+	case []string:
+		return append([]string(nil), typed...)
+	case []byte:
+		return append([]byte(nil), typed...)
+	case []map[string]any:
+		cloned := make([]map[string]any, len(typed))
+		for idx, item := range typed {
+			cloned[idx] = cloneAnyMap(item)
+		}
+		return cloned
+	case []map[string]string:
+		cloned := make([]map[string]string, len(typed))
+		for idx, item := range typed {
+			cloned[idx] = cloneStringMap(item)
+		}
+		return cloned
+	default:
+		return value
+	}
+}
+
+func webhookDeliveryClaimActive(run Run, now time.Time, window time.Duration) bool {
+	if window <= 0 {
+		window = DefaultWebhookFreshnessWindow
+	}
+	claimedAt := time.Time{}
+	if run.StartedAt != nil {
+		claimedAt = run.StartedAt.UTC()
+	} else if run.ScheduledAt != nil {
+		claimedAt = run.ScheduledAt.UTC()
+	}
+	if claimedAt.IsZero() {
+		return true
+	}
+	return claimedAt.Add(window).After(now.UTC())
+}
+
+func webhookDeliveryRunID(triggerID string, deliveryID string) string {
+	sum := sha256.Sum256([]byte(webhookDeliveryKey(triggerID, deliveryID)))
+	return "run_wbh_" + hex.EncodeToString(sum[:12])
+}
+
+func webhookDeliveryFireID(triggerID string, deliveryID string) string {
+	sum := sha256.Sum256([]byte(webhookDeliveryKey(triggerID, deliveryID)))
+	return "webhook:" + hex.EncodeToString(sum[:])
 }
 
 func scopeFromWorkspaceID(workspaceID string) Scope {

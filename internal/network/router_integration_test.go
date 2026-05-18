@@ -61,7 +61,9 @@ func TestRoutersDiscoverEachOtherAndExchangeDirectAndBroadcastMessages(t *testin
 	errCh := make(chan error, 4)
 
 	subscriptions := subscribeRouter(t, transport, routerA, peerA.PeerID, "builders", resultsA, errCh)
-	subscriptions = append(subscriptions, subscribeRouter(t, transport, routerB, peerB.PeerID, "builders", resultsB, errCh)...)
+	subscriptions = append(
+		subscriptions,
+		subscribeRouter(t, transport, routerB, peerB.PeerID, "builders", resultsB, errCh)...)
 	for _, subscription := range subscriptions {
 		subscription := subscription
 		t.Cleanup(func() {
@@ -163,7 +165,9 @@ func TestRoutersExchangeThreadCapabilityTransfers(t *testing.T) {
 		errCh := make(chan error, 4)
 
 		subscriptions := subscribeRouter(t, transport, routerA, peerA.PeerID, "builders", resultsA, errCh)
-		subscriptions = append(subscriptions, subscribeRouter(t, transport, routerB, peerB.PeerID, "builders", resultsB, errCh)...)
+		subscriptions = append(
+			subscriptions,
+			subscribeRouter(t, transport, routerB, peerB.PeerID, "builders", resultsB, errCh)...)
 		for _, subscription := range subscriptions {
 			subscription := subscription
 			t.Cleanup(func() {
@@ -272,7 +276,9 @@ func TestRoutersPreserveCapabilityLifecycleAcrossPeers(t *testing.T) {
 		errCh := make(chan error, 4)
 
 		subscriptions := subscribeRouter(t, transport, routerA, peerA.PeerID, "builders", resultsA, errCh)
-		subscriptions = append(subscriptions, subscribeRouter(t, transport, routerB, peerB.PeerID, "builders", resultsB, errCh)...)
+		subscriptions = append(
+			subscriptions,
+			subscribeRouter(t, transport, routerB, peerB.PeerID, "builders", resultsB, errCh)...)
 		for _, subscription := range subscriptions {
 			subscription := subscription
 			t.Cleanup(func() {
@@ -545,7 +551,14 @@ func TestDirectedWhoisRichDiscoveryDeliversPeerCardAndCapabilityCatalog(t *testi
 			Requirements: []string{"repo-map"},
 		},
 	}
-	if _, err := registryB.RegisterLocalWithCapabilityCatalog("sess-b", testWorkspaceID, "builders", peerB, catalog, now); err != nil {
+	if _, err := registryB.RegisterLocalWithCapabilityCatalog(
+		"sess-b",
+		testWorkspaceID,
+		"builders",
+		peerB,
+		catalog,
+		now,
+	); err != nil {
 		t.Fatalf("RegisterLocalWithCapabilityCatalog(B) error = %v", err)
 	}
 
@@ -561,7 +574,9 @@ func TestDirectedWhoisRichDiscoveryDeliversPeerCardAndCapabilityCatalog(t *testi
 	resultsA := make(chan RouteResult, 16)
 	errCh := make(chan error, 4)
 	subscriptions := subscribeRouter(t, transport, routerA, peerA.PeerID, "builders", resultsA, errCh)
-	subscriptions = append(subscriptions, subscribeRouter(t, transport, routerB, peerB.PeerID, "builders", nil, errCh)...)
+	subscriptions = append(
+		subscriptions,
+		subscribeRouter(t, transport, routerB, peerB.PeerID, "builders", nil, errCh)...)
 	for _, subscription := range subscriptions {
 		subscription := subscription
 		t.Cleanup(func() {
@@ -629,7 +644,12 @@ func TestDirectedWhoisRichDiscoveryDeliversPeerCardAndCapabilityCatalog(t *testi
 	if remote, ok := registryA.RemoteByPeer(testWorkspaceID, "builders", peerB.PeerID, time.Now().UTC()); !ok {
 		t.Fatalf("RemoteByPeer(%q) missing after rich whois response", peerB.PeerID)
 	} else if !remote.CapabilityCatalogKnown || !reflect.DeepEqual(remote.CapabilityCatalog, catalog) {
-		t.Fatalf("remote capability catalog = %#v known=%v, want %#v known=true", remote.CapabilityCatalog, remote.CapabilityCatalogKnown, catalog)
+		t.Fatalf(
+			"remote capability catalog = %#v known=%v, want %#v known=true",
+			remote.CapabilityCatalog,
+			remote.CapabilityCatalogKnown,
+			catalog,
+		)
 	}
 
 	select {
@@ -707,7 +727,9 @@ func TestDirectedWhoisRichDiscoveryFilteringRefreshesRemotePresence(t *testing.T
 	resultsA := make(chan RouteResult, 16)
 	errCh := make(chan error, 4)
 	subscriptions := subscribeRouter(t, transport, routerA, peerA.PeerID, "builders", resultsA, errCh)
-	subscriptions = append(subscriptions, subscribeRouter(t, transport, routerB, peerB.PeerID, "builders", nil, errCh)...)
+	subscriptions = append(
+		subscriptions,
+		subscribeRouter(t, transport, routerB, peerB.PeerID, "builders", nil, errCh)...)
 	for _, subscription := range subscriptions {
 		subscription := subscription
 		t.Cleanup(func() {
@@ -847,7 +869,13 @@ func waitForRouterCondition(t *testing.T, ctx context.Context, condition func() 
 	}
 }
 
-func waitForDelivery(t *testing.T, ctx context.Context, results <-chan RouteResult, sessionID string, kind Kind) RouteResult {
+func waitForDelivery(
+	t *testing.T,
+	ctx context.Context,
+	results <-chan RouteResult,
+	sessionID string,
+	kind Kind,
+) RouteResult {
 	t.Helper()
 
 	for {

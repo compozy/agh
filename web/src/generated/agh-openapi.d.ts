@@ -7384,7 +7384,6 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          agent_name: string;
           body: string;
           expected_digest: string;
           idempotency_key?: string;
@@ -7770,7 +7769,6 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          agent_name: string;
           expected_digest: string;
           workspace_id?: string;
         };
@@ -8118,7 +8116,6 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          agent_name: string;
           expected_digest: string;
           idempotency_key?: string;
           revision_id?: string;
@@ -8722,7 +8719,6 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          agent_name?: string;
           body: string;
           workspace_id?: string;
         };
@@ -9076,7 +9072,6 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          agent_name: string;
           dry_run?: boolean;
           idempotency_key?: string;
           session_id: string;
@@ -9380,7 +9375,6 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          agent_name: string;
           body: string;
           expected_digest: string;
           idempotency_key?: string;
@@ -9616,7 +9610,6 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          agent_name: string;
           expected_digest: string;
           workspace_id?: string;
         };
@@ -9910,7 +9903,6 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          agent_name: string;
           expected_digest: string;
           idempotency_key?: string;
           revision_id: string;
@@ -10146,7 +10138,6 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          agent_name?: string;
           body?: string;
           workspace_id?: string;
         };

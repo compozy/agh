@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"reflect"
 )
 
 const (
@@ -40,7 +41,7 @@ func NewRegistry(providers ...Provider) (*Registry, error) {
 
 // Register adds or replaces the provider for its backend.
 func (r *Registry) Register(provider Provider) error {
-	if provider == nil {
+	if providerIsNil(provider) {
 		return ErrNilProvider
 	}
 	backend := provider.Backend()
@@ -60,7 +61,7 @@ func (r *Registry) Provider(backend Backend) (Provider, error) {
 		return nil, fmt.Errorf("%w: %q", ErrProviderNotRegistered, backend)
 	}
 	provider, ok := r.providers[backend]
-	if !ok || provider == nil {
+	if !ok || providerIsNil(provider) {
 		return nil, fmt.Errorf("%w: %q", ErrProviderNotRegistered, backend)
 	}
 	return provider, nil
@@ -79,4 +80,17 @@ func (r *Registry) Providers() map[Backend]Provider {
 	providers := make(map[Backend]Provider, len(r.providers))
 	maps.Copy(providers, r.providers)
 	return providers
+}
+
+func providerIsNil(provider Provider) bool {
+	if provider == nil {
+		return true
+	}
+	value := reflect.ValueOf(provider)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
 }

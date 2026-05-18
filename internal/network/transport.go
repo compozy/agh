@@ -18,10 +18,11 @@ import (
 )
 
 const (
-	defaultTransportReadyTimeout   = 5 * time.Second
-	defaultTransportPublishTimeout = 5 * time.Second
-	subjectPrefix                  = "agh.network.v0"
-	maxNATSPayloadBytes            = int(^uint32(0) >> 1)
+	defaultTransportReadyTimeout    = 5 * time.Second
+	defaultTransportShutdownTimeout = 5 * time.Second
+	defaultTransportPublishTimeout  = 5 * time.Second
+	subjectPrefix                   = "agh.network.v0"
+	maxNATSPayloadBytes             = int(^uint32(0) >> 1)
 )
 
 // TransportOption customizes embedded transport startup behavior.
@@ -319,11 +320,6 @@ func (t *Transport) Shutdown(ctx context.Context) error {
 		return nil
 	}
 
-	drainErr := t.Drain(ctx)
-	if drainErr != nil && !errors.Is(drainErr, nats.ErrConnectionClosed) {
-		return drainErr
-	}
-
 	t.mu.Lock()
 	if t.stopped {
 		t.mu.Unlock()
@@ -333,22 +329,32 @@ func (t *Transport) Shutdown(ctx context.Context) error {
 	server := t.server
 	t.mu.Unlock()
 
-	if server == nil {
+	drainErr := t.Drain(ctx)
+
+	shutdownErr := shutdownEmbeddedNATSServer(server)
+	return errors.Join(drainErr, shutdownErr)
+}
+
+func shutdownEmbeddedNATSServer(natsServer *server.Server) error {
+	if natsServer == nil {
 		return nil
 	}
 
-	server.Shutdown()
+	natsServer.Shutdown()
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		server.WaitForShutdown()
+		natsServer.WaitForShutdown()
 	}()
 
 	select {
 	case <-done:
 		return nil
-	case <-ctx.Done():
-		return fmt.Errorf("network: wait for embedded nats shutdown: %w", ctx.Err())
+	case <-time.After(defaultTransportShutdownTimeout):
+		return fmt.Errorf(
+			"network: embedded nats server did not shut down within %s",
+			defaultTransportShutdownTimeout,
+		)
 	}
 }
 

@@ -61,7 +61,11 @@ func (e *observeSessionExecutor) StartTaskSession(
 	return &taskpkg.SessionRef{SessionID: e.nextSessionID, StartedAt: spec.Run.StartedAt}, nil
 }
 
-func (e *observeSessionExecutor) AttachTaskSession(_ context.Context, _ string, sessionID string) (*taskpkg.SessionRef, error) {
+func (e *observeSessionExecutor) AttachTaskSession(
+	_ context.Context,
+	_ string,
+	sessionID string,
+) (*taskpkg.SessionRef, error) {
 	e.attachCalls = append(e.attachCalls, sessionID)
 	return &taskpkg.SessionRef{SessionID: sessionID}, nil
 }
@@ -113,12 +117,22 @@ func TestObserveTaskLifecycleSummaryAndMetrics(t *testing.T) {
 	}
 
 	clock.Advance(2 * time.Minute)
-	if _, err := manager.ClaimRun(testutil.Context(t), run.ID, taskpkg.ClaimRun{IdempotencyKey: "claim-observe-1"}, daemonActor); err != nil {
+	if _, err := manager.ClaimRun(
+		testutil.Context(t),
+		run.ID,
+		taskpkg.ClaimRun{IdempotencyKey: "claim-observe-1"},
+		daemonActor,
+	); err != nil {
 		t.Fatalf("ClaimRun() error = %v", err)
 	}
 
 	clock.Advance(3 * time.Minute)
-	if _, err := manager.StartRun(testutil.Context(t), run.ID, taskpkg.StartRun{IdempotencyKey: "start-observe-1"}, daemonActor); err != nil {
+	if _, err := manager.StartRun(
+		testutil.Context(t),
+		run.ID,
+		taskpkg.StartRun{IdempotencyKey: "start-observe-1"},
+		daemonActor,
+	); err != nil {
 		t.Fatalf("StartRun() error = %v", err)
 	}
 
@@ -137,7 +151,13 @@ func TestObserveTaskLifecycleSummaryAndMetrics(t *testing.T) {
 	if !containsTaskOriginTotal(summary.TaskOrigins, taskpkg.OriginKindNetwork, "engineering", 1) {
 		t.Fatalf("summary.TaskOrigins = %#v, want network/engineering count 1", summary.TaskOrigins)
 	}
-	if !containsRunTotal(summary.RunTotals, taskpkg.TaskRunStatusCompleted, taskpkg.OriginKindNetwork, "engineering", 1) {
+	if !containsRunTotal(
+		summary.RunTotals,
+		taskpkg.TaskRunStatusCompleted,
+		taskpkg.OriginKindNetwork,
+		"engineering",
+		1,
+	) {
 		t.Fatalf("summary.RunTotals = %#v, want completed/network/engineering count 1", summary.RunTotals)
 	}
 
@@ -145,7 +165,13 @@ func TestObserveTaskLifecycleSummaryAndMetrics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("QueryTaskMetrics() error = %v", err)
 	}
-	if !containsRunTotal(metrics.TaskRunsTotal, taskpkg.TaskRunStatusCompleted, taskpkg.OriginKindNetwork, "engineering", 1) {
+	if !containsRunTotal(
+		metrics.TaskRunsTotal,
+		taskpkg.TaskRunStatusCompleted,
+		taskpkg.OriginKindNetwork,
+		"engineering",
+		1,
+	) {
 		t.Fatalf("metrics.TaskRunsTotal = %#v, want completed/network/engineering count 1", metrics.TaskRunsTotal)
 	}
 	if got, want := metrics.TaskClaimLatencyMillis.Samples, 1; got != want {
@@ -204,30 +230,59 @@ func TestObserveHealthReflectsRecoveryAndForcedStopOutcomes(t *testing.T) {
 		t.Fatalf("EnqueueRun(running) error = %v", err)
 	}
 	clock.Advance(time.Minute)
-	if _, err := manager.ClaimRun(testutil.Context(t), runningRun.ID, taskpkg.ClaimRun{IdempotencyKey: "claim-cancel-1"}, daemonActor); err != nil {
+	if _, err := manager.ClaimRun(
+		testutil.Context(t),
+		runningRun.ID,
+		taskpkg.ClaimRun{IdempotencyKey: "claim-cancel-1"},
+		daemonActor,
+	); err != nil {
 		t.Fatalf("ClaimRun(running) error = %v", err)
 	}
 	clock.Advance(time.Minute)
-	if _, err := manager.StartRun(testutil.Context(t), runningRun.ID, taskpkg.StartRun{IdempotencyKey: "start-cancel-1"}, daemonActor); err != nil {
+	if _, err := manager.StartRun(
+		testutil.Context(t),
+		runningRun.ID,
+		taskpkg.StartRun{IdempotencyKey: "start-cancel-1"},
+		daemonActor,
+	); err != nil {
 		t.Fatalf("StartRun(running) error = %v", err)
 	}
 	clock.Advance(time.Minute)
-	if _, err := manager.CancelTask(testutil.Context(t), cancelTask.ID, taskpkg.CancelTask{Reason: "shutdown"}, humanActor); err != nil {
+	if _, err := manager.CancelTask(
+		testutil.Context(t),
+		cancelTask.ID,
+		taskpkg.CancelTask{Reason: "shutdown"},
+		humanActor,
+	); err != nil {
 		t.Fatalf("CancelTask() error = %v", err)
 	}
 
 	executor.nextSessionID = "sess-observe-attach"
 	clock.Advance(time.Minute)
-	recoveredRun, err := manager.EnqueueRun(testutil.Context(t), taskpkg.EnqueueRun{TaskID: recoveryTask.ID}, humanActor)
+	recoveredRun, err := manager.EnqueueRun(
+		testutil.Context(t),
+		taskpkg.EnqueueRun{TaskID: recoveryTask.ID},
+		humanActor,
+	)
 	if err != nil {
 		t.Fatalf("EnqueueRun(recovery) error = %v", err)
 	}
 	clock.Advance(time.Minute)
-	if _, err := manager.ClaimRun(testutil.Context(t), recoveredRun.ID, taskpkg.ClaimRun{IdempotencyKey: "claim-recovery-1"}, daemonActor); err != nil {
+	if _, err := manager.ClaimRun(
+		testutil.Context(t),
+		recoveredRun.ID,
+		taskpkg.ClaimRun{IdempotencyKey: "claim-recovery-1"},
+		daemonActor,
+	); err != nil {
 		t.Fatalf("ClaimRun(recovery) error = %v", err)
 	}
 	clock.Advance(time.Minute)
-	if _, err := manager.AttachRunSession(testutil.Context(t), recoveredRun.ID, "sess-missing-on-boot", daemonActor); err != nil {
+	if _, err := manager.AttachRunSession(
+		testutil.Context(t),
+		recoveredRun.ID,
+		"sess-missing-on-boot",
+		daemonActor,
+	); err != nil {
 		t.Fatalf("AttachRunSession() error = %v", err)
 	}
 	clock.Advance(time.Minute)
@@ -435,7 +490,11 @@ func TestObserveTaskDashboardAggregatesPersistedLifecycleState(t *testing.T) {
 			t.Fatalf("EnqueueRun(queuedTask) error = %v", err)
 		}
 		clock.Advance(time.Minute)
-		runningRun, err := manager.EnqueueRun(testutil.Context(t), taskpkg.EnqueueRun{TaskID: runningTask.ID}, humanActor)
+		runningRun, err := manager.EnqueueRun(
+			testutil.Context(t),
+			taskpkg.EnqueueRun{TaskID: runningTask.ID},
+			humanActor,
+		)
 		if err != nil {
 			t.Fatalf("EnqueueRun(runningTask) error = %v", err)
 		}
@@ -482,12 +541,21 @@ func TestObserveTaskDashboardAggregatesPersistedLifecycleState(t *testing.T) {
 			t.Fatalf("StartRun(failedTask) error = %v", err)
 		}
 		clock.Advance(time.Minute)
-		if _, err := manager.FailRun(testutil.Context(t), failedRun.ID, taskpkg.RunFailure{Error: "boom"}, daemonActor); err != nil {
+		if _, err := manager.FailRun(
+			testutil.Context(t),
+			failedRun.ID,
+			taskpkg.RunFailure{Error: "boom"},
+			daemonActor,
+		); err != nil {
 			t.Fatalf("FailRun(failedTask) error = %v", err)
 		}
 
 		clock.Advance(time.Minute)
-		completedRun, err := manager.EnqueueRun(testutil.Context(t), taskpkg.EnqueueRun{TaskID: completedTask.ID}, humanActor)
+		completedRun, err := manager.EnqueueRun(
+			testutil.Context(t),
+			taskpkg.EnqueueRun{TaskID: completedTask.ID},
+			humanActor,
+		)
 		if err != nil {
 			t.Fatalf("EnqueueRun(completedTask) error = %v", err)
 		}
@@ -510,7 +578,12 @@ func TestObserveTaskDashboardAggregatesPersistedLifecycleState(t *testing.T) {
 			t.Fatalf("StartRun(completedTask) error = %v", err)
 		}
 		clock.Advance(time.Minute)
-		if _, err := manager.CompleteRun(testutil.Context(t), completedRun.ID, taskpkg.RunResult{}, daemonActor); err != nil {
+		if _, err := manager.CompleteRun(
+			testutil.Context(t),
+			completedRun.ID,
+			taskpkg.RunResult{},
+			daemonActor,
+		); err != nil {
 			t.Fatalf("CompleteRun(completedTask) error = %v", err)
 		}
 
@@ -546,7 +619,10 @@ func TestObserveTaskDashboardAggregatesPersistedLifecycleState(t *testing.T) {
 		if got, want := dashboard.ActiveRuns.Total, 2; got != want {
 			t.Fatalf("dashboard.ActiveRuns.Total = %d, want %d", got, want)
 		}
-		if got := activeRunIDs(dashboard.ActiveRuns.Items); len(got) < 2 || got[0] != runningRun.ID || got[1] != queuedRun.ID {
+		if got := activeRunIDs(
+			dashboard.ActiveRuns.Items,
+		); len(got) < 2 || got[0] != runningRun.ID ||
+			got[1] != queuedRun.ID {
 			t.Fatalf("dashboard.ActiveRuns.Items ids = %#v, want running then queued", got)
 		}
 	})
@@ -798,7 +874,12 @@ func TestObserveTaskInboxReflectsApprovalAndTriageTransitions(t *testing.T) {
 			t.Fatalf("DismissTask(failTask) error = %v", err)
 		}
 		clock.Advance(time.Minute)
-		if _, err := manager.ApproveTask(testutil.Context(t), approveTask.ID, taskpkg.ExecutionRequest{}, alice); err != nil {
+		if _, err := manager.ApproveTask(
+			testutil.Context(t),
+			approveTask.ID,
+			taskpkg.ExecutionRequest{},
+			alice,
+		); err != nil {
 			t.Fatalf("ApproveTask(approveTask) error = %v", err)
 		}
 		clock.Advance(time.Minute)
@@ -839,7 +920,15 @@ func TestObserveTaskInboxReflectsApprovalAndTriageTransitions(t *testing.T) {
 		if got, want := myWorkGroup.Count, 2; got != want {
 			t.Fatalf("updated my_work count = %d, want %d", got, want)
 		}
-		if got, want := inboxItemTaskIDs(myWorkGroup.Items), []string{approveTask.ID, myWork.ID}; !equalStringSlices(got, want) {
+		if got, want := inboxItemTaskIDs(
+			myWorkGroup.Items,
+		), []string{
+			approveTask.ID,
+			myWork.ID,
+		}; !equalStringSlices(
+			got,
+			want,
+		) {
 			t.Fatalf("updated my_work ids = %#v, want %#v", got, want)
 		}
 
@@ -859,7 +948,12 @@ func TestObserveTaskInboxReflectsApprovalAndTriageTransitions(t *testing.T) {
 	})
 }
 
-func newObserveTaskManager(t *testing.T, h *harness, executor *observeSessionExecutor, clock *observeTaskClock) *taskpkg.Service {
+func newObserveTaskManager(
+	t *testing.T,
+	h *harness,
+	executor *observeSessionExecutor,
+	clock *observeTaskClock,
+) *taskpkg.Service {
 	t.Helper()
 
 	sequence := 0

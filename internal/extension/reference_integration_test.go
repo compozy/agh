@@ -139,7 +139,8 @@ func TestReferenceExtensionsEndToEnd(t *testing.T) {
 	if got := secretHandshake.Request.Capabilities.GrantedSecurity; len(got) != 1 || got[0] != "session.read" {
 		t.Fatalf("secret granted security = %#v, want session.read", got)
 	}
-	if got := secretHandshake.Response.SupportedHookEvents; len(got) != 1 || got[0] != string(hookspkg.HookInputPreSubmit) {
+	if got := secretHandshake.Response.SupportedHookEvents; len(got) != 1 ||
+		got[0] != string(hookspkg.HookInputPreSubmit) {
 		t.Fatalf("secret supported hook events = %#v, want input.pre_submit", got)
 	}
 
@@ -156,7 +157,8 @@ func TestReferenceExtensionsEndToEnd(t *testing.T) {
 	if got := promptHandshake.Request.Capabilities.GrantedSecurity; len(got) != 1 || got[0] != "session.read" {
 		t.Fatalf("prompt granted security = %#v, want session.read", got)
 	}
-	if got := promptHandshake.Response.SupportedHookEvents; len(got) != 1 || got[0] != string(hookspkg.HookPromptPostAssemble) {
+	if got := promptHandshake.Response.SupportedHookEvents; len(got) != 1 ||
+		got[0] != string(hookspkg.HookPromptPostAssemble) {
 		t.Fatalf("prompt supported hook events = %#v, want prompt.post_assemble", got)
 	}
 
@@ -427,7 +429,11 @@ func (h *referenceHarness) createSession(t *testing.T) cli.SessionRecord {
 	return session
 }
 
-func (h *referenceHarness) promptSession(t *testing.T, sessionID string, message string) ([]cli.AgentEventRecord, error) {
+func (h *referenceHarness) promptSession(
+	t *testing.T,
+	sessionID string,
+	message string,
+) ([]cli.AgentEventRecord, error) {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -513,7 +519,10 @@ func (h *referenceHarness) shutdown(t *testing.T) {
 	}
 }
 
-func (referenceACPAgent) Authenticate(context.Context, acpsdk.AuthenticateRequest) (acpsdk.AuthenticateResponse, error) {
+func (referenceACPAgent) Authenticate(
+	context.Context,
+	acpsdk.AuthenticateRequest,
+) (acpsdk.AuthenticateResponse, error) {
 	return acpsdk.AuthenticateResponse{}, nil
 }
 
@@ -554,7 +563,10 @@ func (referenceACPAgent) Prompt(_ context.Context, params acpsdk.PromptRequest) 
 	}, nil
 }
 
-func (referenceACPAgent) SetSessionMode(context.Context, acpsdk.SetSessionModeRequest) (acpsdk.SetSessionModeResponse, error) {
+func (referenceACPAgent) SetSessionMode(
+	context.Context,
+	acpsdk.SetSessionModeRequest,
+) (acpsdk.SetSessionModeResponse, error) {
 	return acpsdk.SetSessionModeResponse{}, nil
 }
 
@@ -598,7 +610,15 @@ func appendJSONLine(path string, value any) error {
 func buildReferenceArtifacts(t *testing.T, repoRoot string) {
 	t.Helper()
 
-	runCommand(t, repoRoot, "go", "build", "-o", "./sdk/examples/secret-guard/bin/secret-guard", "./sdk/examples/secret-guard")
+	runCommand(
+		t,
+		repoRoot,
+		"go",
+		"build",
+		"-o",
+		"./sdk/examples/secret-guard/bin/secret-guard",
+		"./sdk/examples/secret-guard",
+	)
 	runCommand(t, repoRoot, "npm", "run", "build", "--workspace", "@agh/extension-sdk")
 	runCommand(t, repoRoot, "npm", "run", "build", "--workspace", "@agh/example-prompt-enhancer")
 }
@@ -730,7 +750,12 @@ func referenceConfig(t *testing.T, homePaths aghconfig.HomePaths) aghconfig.Conf
 	return cfg
 }
 
-func referenceSeedWorkspace(t *testing.T, homePaths aghconfig.HomePaths, cfg aghconfig.Config, root string) workspacepkg.ResolvedWorkspace {
+func referenceSeedWorkspace(
+	t *testing.T,
+	homePaths aghconfig.HomePaths,
+	cfg aghconfig.Config,
+	root string,
+) workspacepkg.ResolvedWorkspace {
 	t.Helper()
 
 	if err := os.MkdirAll(root, 0o755); err != nil {
@@ -965,7 +990,8 @@ func hookRunContains(runs []cli.HookRunRecord, event string, outcome string, fra
 		if item.Event != event || item.Outcome != outcome {
 			continue
 		}
-		if fragment == "" || strings.Contains(string(item.PatchApplied), fragment) || strings.Contains(item.Error, fragment) {
+		if fragment == "" || strings.Contains(string(item.PatchApplied), fragment) ||
+			strings.Contains(item.Error, fragment) {
 			return true
 		}
 	}

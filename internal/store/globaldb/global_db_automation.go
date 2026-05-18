@@ -394,7 +394,11 @@ func (g *GlobalDB) CreateRun(ctx context.Context, run automation.Run) (automatio
 		store.NullableString(normalized.DeliveryError),
 		nullableAutomationTimestamp(normalized.DeliveryErrorAt),
 	); err != nil {
-		return automation.Run{}, fmt.Errorf("store: create automation run %q: %w", normalized.ID, err)
+		return automation.Run{}, fmt.Errorf(
+			"store: create automation run %q: %w",
+			normalized.ID,
+			mapAutomationRunConstraintError(err),
+		)
 	}
 
 	return normalized, nil
@@ -436,7 +440,11 @@ func (g *GlobalDB) UpdateRun(ctx context.Context, run automation.Run) (automatio
 		normalized.ID,
 	)
 	if err != nil {
-		return automation.Run{}, fmt.Errorf("store: update automation run %q: %w", normalized.ID, err)
+		return automation.Run{}, fmt.Errorf(
+			"store: update automation run %q: %w",
+			normalized.ID,
+			mapAutomationRunConstraintError(err),
+		)
 	}
 
 	if err := requireRowsAffected(result, automation.ErrRunNotFound, normalized.ID, "automation run"); err != nil {
@@ -1411,6 +1419,24 @@ func mapAutomationTriggerConstraintError(err error) error {
 		return automation.ErrTriggerWebhookIDTaken
 	case strings.Contains(message, "foreign key constraint failed"):
 		return aghworkspace.ErrWorkspaceNotFound
+	default:
+		return err
+	}
+}
+
+func mapAutomationRunConstraintError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	message := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(message, "unique constraint failed: automation_runs.id"),
+		strings.Contains(message, "constraint failed: automation_runs.id"),
+		strings.Contains(message, "unique constraint failed: automation_runs.fire_id"),
+		strings.Contains(message, "constraint failed: automation_runs.fire_id"),
+		strings.Contains(message, "uq_automation_runs_fire_id"):
+		return automation.ErrRunAlreadyExists
 	default:
 		return err
 	}

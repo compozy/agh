@@ -118,10 +118,16 @@ func TestManagerJoinPublishesProjectedCapabilityBriefInInitialAndReconnectGreets
 			if got, want := body.PeerCard.Capabilities, []string{"review-pr", "draft-spec"}; !slices.Equal(got, want) {
 				t.Fatalf("%s greet capabilities = %#v, want %#v", label, got, want)
 			}
-			if got := decodeCapabilityBriefPayload(t, body.PeerCard.Ext[capabilityBriefExtKey]); !slices.Equal(got, []capabilityBrief{
-				{ID: "review-pr", Summary: "Review pull requests"},
-				{ID: "draft-spec", Summary: "Draft technical specs"},
-			}) {
+			if got := decodeCapabilityBriefPayload(
+				t,
+				body.PeerCard.Ext[capabilityBriefExtKey],
+			); !slices.Equal(
+				got,
+				[]capabilityBrief{
+					{ID: "review-pr", Summary: "Review pull requests"},
+					{ID: "draft-spec", Summary: "Draft technical specs"},
+				},
+			) {
 				t.Fatalf("%s greet capability brief = %#v, want projected brief entries", label, got)
 			}
 		case <-ctx.Done():
@@ -138,10 +144,16 @@ func TestManagerJoinPublishesProjectedCapabilityBriefInInitialAndReconnectGreets
 	if got, want := len(peers), 1; got != want {
 		t.Fatalf("len(ListPeers()) = %d, want %d", got, want)
 	}
-	if got := decodeCapabilityBriefPayload(t, peers[0].PeerCard.Ext[capabilityBriefExtKey]); !slices.Equal(got, []capabilityBrief{
-		{ID: "review-pr", Summary: "Review pull requests"},
-		{ID: "draft-spec", Summary: "Draft technical specs"},
-	}) {
+	if got := decodeCapabilityBriefPayload(
+		t,
+		peers[0].PeerCard.Ext[capabilityBriefExtKey],
+	); !slices.Equal(
+		got,
+		[]capabilityBrief{
+			{ID: "review-pr", Summary: "Review pull requests"},
+			{ID: "draft-spec", Summary: "Draft technical specs"},
+		},
+	) {
 		t.Fatalf("listed peer capability brief = %#v, want projected brief entries", got)
 	}
 
@@ -192,7 +204,12 @@ func TestManagerPersistsRuntimeConversationSurfacesAndHandoff(t *testing.T) {
 		if err != nil {
 			t.Fatalf("DefaultPeerCard(remote) error = %v", err)
 		}
-		if _, stored, err := manager.peers.RefreshRemote(testWorkspaceID, "builders", remoteCard, fixedNow); err != nil {
+		if _, stored, err := manager.peers.RefreshRemote(
+			testWorkspaceID,
+			"builders",
+			remoteCard,
+			fixedNow,
+		); err != nil {
 			t.Fatalf("RefreshRemote(remote) error = %v", err)
 		} else if !stored {
 			t.Fatal("RefreshRemote(remote) stored = false, want true")

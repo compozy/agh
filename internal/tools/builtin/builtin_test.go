@@ -231,6 +231,21 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep provider model refresh out of the read-only list schema", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := descriptorMap(NativeDescriptors())[toolspkg.ToolIDProviderModelsList]
+		var schema struct {
+			Properties map[string]json.RawMessage `json:"properties"`
+		}
+		if err := json.Unmarshal(descriptor.InputSchema, &schema); err != nil {
+			t.Fatalf("provider_models_list input schema unmarshal error = %v", err)
+		}
+		if _, ok := schema.Properties["refresh"]; ok {
+			t.Fatalf("provider_models_list input schema exposes refresh: %s", string(descriptor.InputSchema))
+		}
+	})
+
 	t.Run("Should classify read mutating open world and destructive risk flags", func(t *testing.T) {
 		t.Parallel()
 

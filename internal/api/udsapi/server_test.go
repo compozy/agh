@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
@@ -475,6 +476,54 @@ func TestServerStartRejectsRestartDuringShutdown(t *testing.T) {
 			}
 		case <-time.After(2 * time.Second):
 			t.Fatal("timed out waiting for response")
+		}
+	})
+}
+
+func TestServerShutdownResetsStateAfterPromptDrainTimeout(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reset the server state after prompt drain wait times out", func(t *testing.T) {
+		t.Parallel()
+
+		handlers := newHandlers(&handlerConfig{logger: discardLogger()})
+		streamCtx, streamCancel := context.WithCancel(context.Background())
+		handlers.setStreamDone(streamCtx.Done())
+		serveDone := make(chan struct{})
+		close(serveDone)
+		server := &Server{
+			handlers:     handlers,
+			serveDone:    serveDone,
+			streamCancel: streamCancel,
+			state:        serverStateRunning,
+		}
+
+		events := make(chan acp.AgentEvent)
+		promptCtx, cancelPrompt := context.WithCancel(context.Background())
+		t.Cleanup(func() {
+			cancelPrompt()
+			close(events)
+		})
+
+		server.handlers.setStreamDone(make(chan struct{}))
+		server.handlers.drainPromptEventsAsync(promptCtx, events, cancelPrompt)
+
+		shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 20*time.Millisecond)
+		defer cancelShutdown()
+		if err := server.Shutdown(shutdownCtx); err == nil {
+			t.Fatal("Shutdown() error = nil, want prompt drain timeout")
+		}
+
+		server.mu.Lock()
+		defer server.mu.Unlock()
+		if server.state != serverStateStopped {
+			t.Fatalf("server state after timed-out shutdown = %v, want %v", server.state, serverStateStopped)
+		}
+		if server.streamCancel != nil {
+			t.Fatal("streamCancel after timed-out shutdown = non-nil, want nil")
+		}
+		if server.serveDone != nil {
+			t.Fatal("serveDone after timed-out shutdown = non-nil, want nil")
 		}
 	})
 }

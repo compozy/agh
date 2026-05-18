@@ -67,12 +67,28 @@ func TestTaskHandlersCreateTaskAndListFiltersReachManagerIntegration(t *testing.
 		},
 	}
 
-	fixture := newHandlerFixtureWithTasks(t, testutil.StubSessionManager{}, testutil.StubObserver{}, tasks, workspaces, nil, nil)
+	fixture := newHandlerFixtureWithTasks(
+		t,
+		testutil.StubSessionManager{},
+		testutil.StubObserver{},
+		tasks,
+		workspaces,
+		nil,
+		nil,
+	)
 	fixture.Handlers.TaskActorContextResolver = func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
 		return taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindHTTP, "tasks."+action)
 	}
 
-	createResp := performRequest(t, fixture.Engine, "POST", "/tasks", []byte(`{"scope":"workspace","workspace":"alpha","identifier":"TASK-1","network_channel":"builders","title":"Review task API","description":"Check handler wiring","owner":{"kind":"pool","ref":"reviewers"},"metadata":{"priority":"high"}}`))
+	createResp := performRequest(
+		t,
+		fixture.Engine,
+		"POST",
+		"/tasks",
+		[]byte(
+			`{"scope":"workspace","workspace":"alpha","identifier":"TASK-1","network_channel":"builders","title":"Review task API","description":"Check handler wiring","owner":{"kind":"pool","ref":"reviewers"},"metadata":{"priority":"high"}}`,
+		),
+	)
 	if createResp.Code != 201 {
 		t.Fatalf("create status = %d, want %d; body=%s", createResp.Code, 201, createResp.Body.String())
 	}
@@ -80,14 +96,21 @@ func TestTaskHandlersCreateTaskAndListFiltersReachManagerIntegration(t *testing.
 	if capturedCreate.Scope != taskpkg.ScopeWorkspace || capturedCreate.WorkspaceID != "ws-alpha" {
 		t.Fatalf("create spec = %#v", capturedCreate)
 	}
-	if capturedCreate.NetworkChannel != "builders" || capturedCreate.Owner == nil || capturedCreate.Owner.Ref != "reviewers" {
+	if capturedCreate.NetworkChannel != "builders" || capturedCreate.Owner == nil ||
+		capturedCreate.Owner.Ref != "reviewers" {
 		t.Fatalf("create spec = %#v", capturedCreate)
 	}
 	if capturedCreateActor.Actor.Ref != "user-1" || capturedCreateActor.Origin.Ref != "tasks.create" {
 		t.Fatalf("create actor = %#v", capturedCreateActor)
 	}
 
-	listResp := performRequest(t, fixture.Engine, "GET", "/tasks?scope=workspace&workspace=alpha&status=ready&owner_kind=pool&owner_ref=reviewers&parent_task_id=task-root&network_channel=builders&limit=5", nil)
+	listResp := performRequest(
+		t,
+		fixture.Engine,
+		"GET",
+		"/tasks?scope=workspace&workspace=alpha&status=ready&owner_kind=pool&owner_ref=reviewers&parent_task_id=task-root&network_channel=builders&limit=5",
+		nil,
+	)
 	if listResp.Code != 200 {
 		t.Fatalf("list status = %d, want %d; body=%s", listResp.Code, 200, listResp.Body.String())
 	}
@@ -95,10 +118,12 @@ func TestTaskHandlersCreateTaskAndListFiltersReachManagerIntegration(t *testing.
 	if capturedList.Scope != taskpkg.ScopeWorkspace || capturedList.WorkspaceID != "ws-alpha" {
 		t.Fatalf("list query = %#v", capturedList)
 	}
-	if capturedList.Status != taskpkg.TaskStatusReady || capturedList.OwnerKind != taskpkg.OwnerKindPool || capturedList.OwnerRef != "reviewers" {
+	if capturedList.Status != taskpkg.TaskStatusReady || capturedList.OwnerKind != taskpkg.OwnerKindPool ||
+		capturedList.OwnerRef != "reviewers" {
 		t.Fatalf("list query = %#v", capturedList)
 	}
-	if capturedList.ParentTaskID != "task-root" || capturedList.NetworkChannel != "builders" || capturedList.Limit != 5 {
+	if capturedList.ParentTaskID != "task-root" || capturedList.NetworkChannel != "builders" ||
+		capturedList.Limit != 5 {
 		t.Fatalf("list query = %#v", capturedList)
 	}
 	if capturedListActor.Actor.Ref != "user-1" || capturedListActor.Origin.Ref != "tasks.list" {
@@ -167,12 +192,26 @@ func TestTaskRunHandlersDelegateLifecycleSequenceIntegration(t *testing.T) {
 		},
 	}
 
-	fixture := newHandlerFixtureWithTasks(t, testutil.StubSessionManager{}, testutil.StubObserver{}, tasks, testutil.StubWorkspaceService{}, nil, nil)
+	fixture := newHandlerFixtureWithTasks(
+		t,
+		testutil.StubSessionManager{},
+		testutil.StubObserver{},
+		tasks,
+		testutil.StubWorkspaceService{},
+		nil,
+		nil,
+	)
 	fixture.Handlers.TaskActorContextResolver = func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
 		return taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindHTTP, "tasks."+action)
 	}
 
-	resp := performRequest(t, fixture.Engine, "POST", "/tasks/task-1/runs", []byte(`{"idempotency_key":"key-1","network_channel":"builders"}`))
+	resp := performRequest(
+		t,
+		fixture.Engine,
+		"POST",
+		"/tasks/task-1/runs",
+		[]byte(`{"idempotency_key":"key-1","network_channel":"builders"}`),
+	)
 	if resp.Code != 201 {
 		t.Fatalf("enqueue status = %d, want %d; body=%s", resp.Code, 201, resp.Body.String())
 	}

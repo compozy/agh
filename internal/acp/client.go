@@ -192,7 +192,7 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 		return nil, err
 	}
 
-	policy, err := newPermissionPolicy(normalized.Permissions, normalized.Cwd)
+	policy, err := newPermissionPolicy(normalized.Permissions, normalized.Cwd, normalized.AdditionalDirs...)
 	if err != nil {
 		return nil, err
 	}
@@ -702,8 +702,7 @@ func IsLoadSessionResourceMissing(err error) bool {
 		return false
 	}
 
-	return reqErr.Code == requestErrorResourceNotFoundCode &&
-		strings.Contains(strings.ToLower(strings.TrimSpace(reqErr.Message)), "resource not found")
+	return reqErr.Code == requestErrorResourceNotFoundCode && requestErrorIndicatesSessionLoss(reqErr)
 }
 
 // Prompt starts one prompt turn and returns the streamed event channel.

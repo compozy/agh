@@ -39,9 +39,11 @@ func TestHTTPHookCatalogEndpointReturnsResolvedHooksInPipelineOrder(t *testing.T
 			Args:    []string{"-c", "printf '{}'"},
 		}}),
 		hookspkg.WithExecutorResolver(hookIntegrationResolver(map[string]hookspkg.Executor{
-			"native-first": hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, _ hookspkg.SessionPostCreatePayload) (hookspkg.SessionPostCreatePatch, error) {
-				return hookspkg.SessionPostCreatePatch{}, nil
-			}),
+			"native-first": hookspkg.NewTypedNativeExecutor(
+				func(_ context.Context, _ hookspkg.RegisteredHook, _ hookspkg.SessionPostCreatePayload) (hookspkg.SessionPostCreatePatch, error) {
+					return hookspkg.SessionPostCreatePatch{}, nil
+				},
+			),
 		})),
 	)
 	observer.AttachHooks(hooksRuntime)
@@ -59,13 +61,15 @@ func TestHTTPHookCatalogEndpointReturnsResolvedHooksInPipelineOrder(t *testing.T
 	if got, want := len(response.Hooks), 2; got != want {
 		t.Fatalf("len(hooks) = %d, want %d", got, want)
 	}
-	if response.Hooks[0].Name != "native-first" || response.Hooks[0].Order != 1 || response.Hooks[0].Source != "native" {
+	if response.Hooks[0].Name != "native-first" || response.Hooks[0].Order != 1 ||
+		response.Hooks[0].Source != "native" {
 		t.Fatalf("hooks[0] = %#v", response.Hooks[0])
 	}
 	if response.Hooks[0].ExecutorKind != string(hookspkg.HookExecutorNative) {
 		t.Fatalf("hooks[0].ExecutorKind = %q, want %q", response.Hooks[0].ExecutorKind, hookspkg.HookExecutorNative)
 	}
-	if response.Hooks[1].Name != "config-second" || response.Hooks[1].Order != 2 || response.Hooks[1].Source != "config" {
+	if response.Hooks[1].Name != "config-second" || response.Hooks[1].Order != 2 ||
+		response.Hooks[1].Source != "config" {
 		t.Fatalf("hooks[1] = %#v", response.Hooks[1])
 	}
 	if response.Hooks[1].ExecutorKind != string(hookspkg.HookExecutorSubprocess) {
@@ -184,7 +188,8 @@ func TestHTTPHookRunsEndpointReturnsExecutionHistoryWithPatchDiffs(t *testing.T)
 	if got, want := len(response.Runs), 1; got != want {
 		t.Fatalf("len(runs) = %d, want %d", got, want)
 	}
-	if response.Runs[0].HookName != "permission-history" || string(response.Runs[0].PatchApplied) != `{"decision":"deny","reason":"policy"}` {
+	if response.Runs[0].HookName != "permission-history" ||
+		string(response.Runs[0].PatchApplied) != `{"decision":"deny","reason":"policy"}` {
 		t.Fatalf("runs[0] = %#v", response.Runs[0])
 	}
 }
@@ -246,15 +251,23 @@ func TestHTTPHookCatalogEndpointFiltersByEventSourceAndMode(t *testing.T) {
 			},
 		}),
 		hookspkg.WithExecutorResolver(hookIntegrationResolver(map[string]hookspkg.Executor{
-			"native-tool": hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, _ hookspkg.ToolPreCallPayload) (hookspkg.ToolCallPatch, error) {
-				return hookspkg.ToolCallPatch{}, nil
-			}),
+			"native-tool": hookspkg.NewTypedNativeExecutor(
+				func(_ context.Context, _ hookspkg.RegisteredHook, _ hookspkg.ToolPreCallPayload) (hookspkg.ToolCallPatch, error) {
+					return hookspkg.ToolCallPatch{}, nil
+				},
+			),
 		})),
 	)
 	observer.AttachHooks(hooksRuntime)
 
 	engine := newTestRouter(t, newTestHandlers(t, stubSessionManager{}, observer, homePaths))
-	recorder := performRequest(t, engine, http.MethodGet, "/api/hooks/catalog?event=tool.pre_call&source=config&mode=sync", nil)
+	recorder := performRequest(
+		t,
+		engine,
+		http.MethodGet,
+		"/api/hooks/catalog?event=tool.pre_call&source=config&mode=sync",
+		nil,
+	)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
 	}
@@ -266,7 +279,8 @@ func TestHTTPHookCatalogEndpointFiltersByEventSourceAndMode(t *testing.T) {
 	if got, want := len(response.Hooks), 1; got != want {
 		t.Fatalf("len(hooks) = %d, want %d", got, want)
 	}
-	if response.Hooks[0].Name != "config-tool-sync" || response.Hooks[0].ExecutorKind != string(hookspkg.HookExecutorSubprocess) {
+	if response.Hooks[0].Name != "config-tool-sync" ||
+		response.Hooks[0].ExecutorKind != string(hookspkg.HookExecutorSubprocess) {
 		t.Fatalf("hooks[0] = %#v, want filtered config sync hook", response.Hooks[0])
 	}
 }
@@ -336,7 +350,8 @@ func TestHTTPHookRunsEndpointFiltersByOutcomeAndLast(t *testing.T) {
 	if got, want := len(response.Runs), 1; got != want {
 		t.Fatalf("len(runs) = %d, want %d", got, want)
 	}
-	if response.Runs[0].HookName != "denied-newer" || response.Runs[0].Outcome != string(hookspkg.HookRunOutcomeDenied) {
+	if response.Runs[0].HookName != "denied-newer" ||
+		response.Runs[0].Outcome != string(hookspkg.HookRunOutcomeDenied) {
 		t.Fatalf("runs[0] = %#v, want most recent denied run", response.Runs[0])
 	}
 }
@@ -383,13 +398,15 @@ func TestHTTPHookRunsEndpointDispatchStoreQueryCycle(t *testing.T) {
 			ExecutorKind: hookspkg.HookExecutorNative,
 		}}),
 		hookspkg.WithExecutorResolver(hookIntegrationResolver(map[string]hookspkg.Executor{
-			"permission-audit": hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, _ hookspkg.PermissionRequestPayload) (hookspkg.PermissionRequestPatch, error) {
-				deny := "deny"
-				return hookspkg.PermissionRequestPatch{
-					Decision: &deny,
-					Reason:   hookStringPointer("policy"),
-				}, nil
-			}),
+			"permission-audit": hookspkg.NewTypedNativeExecutor(
+				func(_ context.Context, _ hookspkg.RegisteredHook, _ hookspkg.PermissionRequestPayload) (hookspkg.PermissionRequestPatch, error) {
+					deny := "deny"
+					return hookspkg.PermissionRequestPatch{
+						Decision: &deny,
+						Reason:   hookStringPointer("policy"),
+					}, nil
+				},
+			),
 		})),
 	)
 
@@ -429,7 +446,8 @@ func TestHTTPHookRunsEndpointDispatchStoreQueryCycle(t *testing.T) {
 	if got, want := len(response.Runs), 1; got != want {
 		t.Fatalf("len(runs) = %d, want %d", got, want)
 	}
-	if response.Runs[0].HookName != "permission-audit" || response.Runs[0].Outcome != string(hookspkg.HookRunOutcomeDenied) {
+	if response.Runs[0].HookName != "permission-audit" ||
+		response.Runs[0].Outcome != string(hookspkg.HookRunOutcomeDenied) {
 		t.Fatalf("runs[0] = %#v", response.Runs[0])
 	}
 	if string(response.Runs[0].PatchApplied) != `{"decision":"deny","reason":"policy"}` {
@@ -489,7 +507,11 @@ func hookIntegrationResolver(overrides map[string]hookspkg.Executor) hookspkg.Ex
 func openHookRunSessionDB(t *testing.T, homePaths aghconfig.HomePaths, sessionID string) *sessiondb.SessionDB {
 	t.Helper()
 
-	db, err := sessiondb.OpenSessionDB(testutilpkg.Context(t), sessionID, store.SessionDBFile(filepath.Join(homePaths.SessionsDir, sessionID)))
+	db, err := sessiondb.OpenSessionDB(
+		testutilpkg.Context(t),
+		sessionID,
+		store.SessionDBFile(filepath.Join(homePaths.SessionsDir, sessionID)),
+	)
 	if err != nil {
 		t.Fatalf("OpenSessionDB(%q) error = %v", sessionID, err)
 	}

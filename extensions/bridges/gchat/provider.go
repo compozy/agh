@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
@@ -82,11 +83,17 @@ type gchatProvider struct {
 	routes         map[string]resolvedInstanceConfig
 	deliveries     map[string]deliveryState
 	reportedStatus map[string]bridgepkg.BridgeStatus
-	apiFactory     func(resolvedInstanceConfig) gchatAPI
+	apiFactory     func(*resolvedInstanceConfig) gchatAPI
+	apiClients     map[string]cachedGChatAPIClient
 
 	stopCh   chan struct{}
 	stopOnce sync.Once
 	wg       sync.WaitGroup
+}
+
+type cachedGChatAPIClient struct {
+	key    string
+	client *gchatBotClient
 }
 
 type deliveryState struct {
@@ -385,16 +392,10 @@ func newGChatProvider(stderr io.Writer) (*gchatProvider, error) {
 		routes:         make(map[string]resolvedInstanceConfig),
 		deliveries:     make(map[string]deliveryState),
 		reportedStatus: make(map[string]bridgepkg.BridgeStatus),
+		apiClients:     make(map[string]cachedGChatAPIClient),
 		stopCh:         make(chan struct{}),
 	}
-	provider.apiFactory = func(cfg resolvedInstanceConfig) gchatAPI {
-		return &gchatBotClient{
-			cfg: cfg,
-			httpClient: &http.Client{
-				Timeout: 10 * time.Second,
-			},
-		}
-	}
+	provider.apiFactory = provider.apiForConfig
 
 	sdkRuntime, err := bridgesdk.NewRuntime(bridgesdk.RuntimeConfig{
 		ExtensionInfo: subprocess.InitializeExtensionInfo{
@@ -413,6 +414,39 @@ func newGChatProvider(stderr io.Writer) (*gchatProvider, error) {
 	}
 	provider.sdk = sdkRuntime
 	return provider, nil
+}
+
+func (p *gchatProvider) apiForConfig(cfg *resolvedInstanceConfig) gchatAPI {
+	cacheKey := gchatAPIClientCacheKey(cfg)
+	instanceID := strings.TrimSpace(cfg.instanceID)
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.apiClients == nil {
+		p.apiClients = make(map[string]cachedGChatAPIClient)
+	}
+	if cached, ok := p.apiClients[instanceID]; ok && cached.key == cacheKey {
+		return cached.client
+	}
+	client := &gchatBotClient{
+		cfg: *cfg,
+		httpClient: &http.Client{
+			Timeout: 10 * time.Second,
+		},
+	}
+	p.apiClients[instanceID] = cachedGChatAPIClient{key: cacheKey, client: client}
+	return client
+}
+
+func gchatAPIClientCacheKey(cfg *resolvedInstanceConfig) string {
+	privateKeyHash := sha256.Sum256([]byte(strings.TrimSpace(cfg.credentials.PrivateKey)))
+	return strings.Join([]string{
+		strings.TrimSpace(cfg.instanceID),
+		normalizeURL(cfg.apiBaseURL),
+		normalizeURL(cfg.tokenURL),
+		strings.TrimSpace(cfg.credentials.ClientEmail),
+		fmt.Sprintf("%x", privateKeyHash),
+	}, "\x00")
 }
 
 func (p *gchatProvider) serve(stdin io.Reader, stdout io.Writer) error {
@@ -537,7 +571,7 @@ func (p *gchatProvider) handleBridgesDeliver(
 
 	ack, state, err := executeGChatDelivery(
 		ctx,
-		p.apiFactory(cfg),
+		p.apiFactory(&cfg),
 		request,
 		p.deliveryState(cfg.instanceID, request.Event.DeliveryID),
 	)
@@ -554,7 +588,7 @@ func (p *gchatProvider) handleBridgesDeliver(
 		return bridgepkg.DeliveryAck{}, err
 	}
 
-	p.storeDeliveryState(cfg.instanceID, request.Event.DeliveryID, state)
+	p.storeDeliveryState(cfg.instanceID, request.Event.DeliveryID, request.Event, state)
 	if err := p.reportReadyIfNeeded(ctx, session, cfg.instanceID); err != nil {
 		p.setLastError(err)
 	} else {
@@ -820,12 +854,12 @@ func (p *gchatProvider) collectGChatConfigs(
 ) ([]resolvedInstanceConfig, string) {
 	configs := make([]resolvedInstanceConfig, 0, len(managed))
 	requestedListen := strings.TrimSpace(os.Getenv(gchatListenAddrEnv))
-	usedPaths := make(map[string]string, len(managed))
+	usedPaths := make(map[string]int, len(managed))
 
 	for _, item := range managed {
 		cfg := p.resolveInstanceConfig(session, item)
 		requestedListen = applyGChatListenConstraint(&cfg, requestedListen)
-		applyGChatWebhookPathConflict(&cfg, usedPaths)
+		applyGChatWebhookPathConflict(&cfg, configs, usedPaths)
 		configs = append(configs, cfg)
 	}
 
@@ -850,19 +884,31 @@ func applyGChatListenConstraint(cfg *resolvedInstanceConfig, requestedListen str
 	return requestedListen
 }
 
-func applyGChatWebhookPathConflict(cfg *resolvedInstanceConfig, usedPaths map[string]string) {
+func applyGChatWebhookPathConflict(
+	cfg *resolvedInstanceConfig,
+	configs []resolvedInstanceConfig,
+	usedPaths map[string]int,
+) {
 	if cfg == nil || cfg.webhookPath == "" {
 		return
 	}
-	if owner, ok := usedPaths[cfg.webhookPath]; ok && cfg.configError == nil {
-		cfg.configError = fmt.Errorf(
+	if ownerIdx, ok := usedPaths[cfg.webhookPath]; ok {
+		owner := configs[ownerIdx].instanceID
+		conflictErr := fmt.Errorf(
 			"gchat: webhook path %q is shared by %q and %q",
 			cfg.webhookPath,
 			owner,
 			cfg.instanceID,
 		)
+		if configs[ownerIdx].configError == nil {
+			configs[ownerIdx].configError = conflictErr
+		}
+		if cfg.configError == nil {
+			cfg.configError = conflictErr
+		}
+		return
 	}
-	usedPaths[cfg.webhookPath] = cfg.instanceID
+	usedPaths[cfg.webhookPath] = len(configs)
 }
 
 func (p *gchatProvider) applyGChatListenErrors(configs []resolvedInstanceConfig, requestedListen string) {
@@ -906,6 +952,9 @@ func (p *gchatProvider) swapGChatRoutes(
 		if prior, ok := existing[instanceID]; ok && prior.batcher != nil && prior.batcher != cfg.batcher {
 			batchersToClose[prior.batcher] = struct{}{}
 		}
+		if cached, ok := p.apiClients[instanceID]; ok && cached.key != gchatAPIClientCacheKey(&cfg) {
+			delete(p.apiClients, instanceID)
+		}
 	}
 	for instanceID := range existing {
 		prior := existing[instanceID]
@@ -915,6 +964,7 @@ func (p *gchatProvider) swapGChatRoutes(
 		if prior.batcher != nil {
 			batchersToClose[prior.batcher] = struct{}{}
 		}
+		delete(p.apiClients, instanceID)
 	}
 	p.routes = nextRoutes
 	p.listenAddr = requestedListen
@@ -1016,11 +1066,16 @@ func (p *gchatProvider) newResolvedGChatConfig(
 			firstNonEmpty(cfg.Webhook.Path, "/gchat/"+strings.TrimSpace(managed.Instance.ID)),
 		),
 		apiBaseURL: normalizeURL(
-			firstNonEmpty(strings.TrimSpace(os.Getenv(gchatAPIBaseEnv)), gchatDefaultAPIBaseURL),
+			firstNonEmpty(
+				strings.TrimSpace(os.Getenv(gchatAPIBaseEnv)),
+				cfg.APIBaseURL,
+				gchatDefaultAPIBaseURL,
+			),
 		),
 		tokenURL: normalizeURL(
 			firstNonEmpty(
 				strings.TrimSpace(os.Getenv(gchatTokenURLEnv)),
+				cfg.TokenURL,
 				strings.TrimSpace(credentials.TokenURI),
 				gchatDefaultAuthEndpointURL,
 			),
@@ -1166,7 +1221,7 @@ func (p *gchatProvider) determineInitialState(
 			Message: err.Error(),
 		}, err
 	}
-	if err := p.apiFactory(*cfg).ValidateAuth(ctx); err != nil {
+	if err := p.apiFactory(cfg).ValidateAuth(ctx); err != nil {
 		classified := bridgesdk.ClassifyError(err)
 		recovery := classified.Recovery()
 		status := recovery.Status
@@ -1374,7 +1429,7 @@ func (p *gchatProvider) handlePubSubWebhook(
 			}
 		}
 	case notification.Reaction != nil:
-		item, mapErr := mapPubSubReactionEvent(ctx, p.apiFactory(*cfg), notification, cfg.managed, request.ReceivedAt)
+		item, mapErr := mapPubSubReactionEvent(ctx, p.apiFactory(cfg), notification, cfg.managed, request.ReceivedAt)
 		if mapErr != nil {
 			return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: mapErr.Error()}
 		}
@@ -1492,13 +1547,26 @@ func (p *gchatProvider) waitForInstanceConfig(
 func (p *gchatProvider) configForPath(path string) (resolvedInstanceConfig, bool) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
+	normalizedPath := normalizeWebhookPath(path)
+	var matched resolvedInstanceConfig
+	foundPath := false
+	foundUsable := false
 	for instanceID := range p.routes {
 		cfg := p.routes[instanceID]
-		if cfg.webhookPath == normalizeWebhookPath(path) {
-			return cfg, true
+		if cfg.webhookPath != normalizedPath {
+			continue
 		}
+		if foundPath {
+			return resolvedInstanceConfig{}, false
+		}
+		foundPath = true
+		if cfg.configError != nil {
+			continue
+		}
+		matched = cfg
+		foundUsable = true
 	}
-	return resolvedInstanceConfig{}, false
+	return matched, foundUsable
 }
 
 func (p *gchatProvider) currentSession() *bridgesdk.Session {
@@ -1513,10 +1581,32 @@ func (p *gchatProvider) deliveryState(instanceID string, deliveryID string) deli
 	return p.deliveries[deliveryStateKey(instanceID, deliveryID)]
 }
 
-func (p *gchatProvider) storeDeliveryState(instanceID string, deliveryID string, state deliveryState) {
+func (p *gchatProvider) storeDeliveryState(
+	instanceID string,
+	deliveryID string,
+	event bridgepkg.DeliveryEvent,
+	state deliveryState,
+) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.deliveries[deliveryStateKey(instanceID, deliveryID)] = state
+	key := deliveryStateKey(instanceID, deliveryID)
+	if isTerminalGChatDeliveryEvent(event) {
+		delete(p.deliveries, key)
+		return
+	}
+	p.deliveries[key] = state
+}
+
+func isTerminalGChatDeliveryEvent(event bridgepkg.DeliveryEvent) bool {
+	if event.Operation.Normalize() == bridgepkg.DeliveryOperationDelete {
+		return true
+	}
+	switch normalizeDeliveryEventType(event.EventType) {
+	case bridgepkg.DeliveryEventTypeFinal, bridgepkg.DeliveryEventTypeError, bridgepkg.DeliveryEventTypeDelete:
+		return true
+	default:
+		return false
+	}
 }
 
 func (p *gchatProvider) setLastError(err error) {

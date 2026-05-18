@@ -1,6 +1,7 @@
 package bridges
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -574,7 +575,9 @@ func redactTerminalTaskNotificationPayload(raw json.RawMessage) (json.RawMessage
 		return nil, nil
 	}
 	var payload any
-	if err := json.Unmarshal(raw, &payload); err != nil {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	if err := decoder.Decode(&payload); err != nil {
 		return nil, fmt.Errorf("bridges: decode terminal task notification payload: %w", err)
 	}
 	encoded, err := json.Marshal(redactTerminalTaskNotificationValue(payload))
@@ -604,6 +607,8 @@ func redactTerminalTaskNotificationValue(value any) any {
 		return redacted
 	case string:
 		return redactTerminalTaskNotificationText(typed)
+	case json.Number:
+		return typed
 	default:
 		return typed
 	}

@@ -31,6 +31,12 @@ import (
 	"github.com/pedronauck/agh/internal/subprocess"
 )
 
+type githubHTTPDoerFunc func(*http.Request) (*http.Response, error)
+
+func (fn githubHTTPDoerFunc) Do(req *http.Request) (*http.Response, error) {
+	return fn(req)
+}
+
 func TestMapGitHubWebhookCommentsAndThreadIDs(t *testing.T) {
 	t.Parallel()
 
@@ -682,6 +688,85 @@ func TestGitHubClientPATAndAppRequests(t *testing.T) {
 	if got, want := requests[3].Auth, "Bearer inst-token"; got != want {
 		t.Fatalf("installation auth header = %q, want %q", got, want)
 	}
+}
+
+func TestGitHubClientRefreshesInstallationTokenWhenInstallationChanges(t *testing.T) {
+	t.Run("Should request a new installation token when installation changes", func(t *testing.T) {
+		t.Parallel()
+
+		privateKey := mustGitHubTestPrivateKey(t)
+		var mu sync.Mutex
+		type recordedRequest struct {
+			Path string
+			Auth string
+		}
+		requests := make([]recordedRequest, 0, 4)
+
+		client := &githubClient{
+			cfg: resolvedInstanceConfig{
+				mode:       githubModeApp,
+				apiBaseURL: "https://api.github.test",
+				appID:      "12345",
+				privateKey: privateKey,
+			},
+			httpClient: githubHTTPDoerFunc(func(r *http.Request) (*http.Response, error) {
+				mu.Lock()
+				requests = append(requests, recordedRequest{
+					Path: r.URL.Path,
+					Auth: r.Header.Get("Authorization"),
+				})
+				mu.Unlock()
+
+				body := ""
+				switch r.URL.Path {
+				case "/app/installations/9002/access_tokens":
+					body = `{"token":"inst-token-9002","expires_at":"2026-04-15T23:00:00Z"}`
+				case "/app/installations/9003/access_tokens":
+					body = `{"token":"inst-token-9003","expires_at":"2026-04-15T23:00:00Z"}`
+				case "/user":
+					body = `{"id":1,"login":"bridge-bot"}`
+				default:
+					return &http.Response{
+						StatusCode: http.StatusNotFound,
+						Header:     make(http.Header),
+						Body:       io.NopCloser(strings.NewReader("not found")),
+					}, nil
+				}
+
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(strings.NewReader(body)),
+				}, nil
+			}),
+			now: func() time.Time { return time.Date(2026, 4, 15, 21, 0, 0, 0, time.UTC) },
+		}
+
+		if _, err := client.ValidateAuth(context.Background(), 9002); err != nil {
+			t.Fatalf("ValidateAuth(9002) error = %v", err)
+		}
+		if _, err := client.ValidateAuth(context.Background(), 9003); err != nil {
+			t.Fatalf("ValidateAuth(9003) error = %v", err)
+		}
+
+		mu.Lock()
+		defer mu.Unlock()
+		if got, want := len(requests), 4; got != want {
+			t.Fatalf("len(requests) = %d, want %d", got, want)
+		}
+		if got, want := requests[0].Path, "/app/installations/9002/access_tokens"; got != want {
+			t.Fatalf("first access token path = %q, want %q", got, want)
+		}
+		if got, want := requests[1].Auth, "Bearer inst-token-9002"; got != want {
+			t.Fatalf("first user auth header = %q, want %q", got, want)
+		}
+		if got, want := requests[2].Path, "/app/installations/9003/access_tokens"; got != want {
+			t.Fatalf("second access token path = %q, want %q", got, want)
+		}
+		if got, want := requests[3].Auth, "Bearer inst-token-9003"; got != want {
+			t.Fatalf("second user auth header = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestGitHubClientClassifiesHTTPFailures(t *testing.T) {

@@ -24,6 +24,55 @@ import (
 func TestManagedSoulAuthoringServicePutValidateAndCAS(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve context cancellation across validation parsing", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newAuthoringFixture(t)
+		ctx := &cancelAfterFirstErrContext{Context: fixture.ctx}
+		body := validSoulBody("coder", "Cancellation must not become validation failure.")
+
+		_, err := fixture.service.Validate(ctx, soul.ValidateRequest{
+			Target: fixture.target,
+			Body:   &body,
+		})
+		if err == nil {
+			t.Fatal("Validate(canceled) error = nil, want context cancellation")
+		}
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("Validate(canceled) error = %v, want context.Canceled", err)
+		}
+		if errors.Is(err, soul.ErrInvalid) {
+			t.Fatalf("Validate(canceled) error = %v, must not be classified as ErrInvalid", err)
+		}
+	})
+
+	t.Run("Should preserve parser configuration errors across validation", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newAuthoringFixture(t)
+		body := validSoulBody("coder", "Configuration failures must not become validation failures.")
+		target := fixture.target
+		target.Config = aghconfig.SoulConfig{
+			Enabled:                true,
+			MaxBodyBytes:           4096,
+			ContextProjectionBytes: 0,
+		}
+
+		_, err := fixture.service.Validate(fixture.ctx, soul.ValidateRequest{
+			Target: target,
+			Body:   &body,
+		})
+		if err == nil {
+			t.Fatal("Validate(invalid config) error = nil, want config validation error")
+		}
+		if !strings.Contains(err.Error(), "agents.soul.context_projection_bytes") {
+			t.Fatalf("Validate(invalid config) error = %v, want config validation", err)
+		}
+		if errors.Is(err, soul.ErrInvalid) {
+			t.Fatalf("Validate(invalid config) error = %v, must not be classified as ErrInvalid", err)
+		}
+	})
+
 	t.Run("Should reject nil authoring store", func(t *testing.T) {
 		t.Parallel()
 
@@ -506,6 +555,33 @@ type authoringFixture struct {
 	agentPath   string
 	soulPath    string
 	target      soul.AuthoringTarget
+}
+
+type cancelAfterFirstErrContext struct {
+	context.Context
+	mu    sync.Mutex
+	calls int
+}
+
+func (c *cancelAfterFirstErrContext) Done() <-chan struct{} {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.calls++
+	if c.calls <= 1 {
+		return nil
+	}
+	closed := make(chan struct{})
+	close(closed)
+	return closed
+}
+
+func (c *cancelAfterFirstErrContext) Err() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.calls > 1 {
+		return context.Canceled
+	}
+	return nil
 }
 
 func newAuthoringFixture(t *testing.T) authoringFixture {

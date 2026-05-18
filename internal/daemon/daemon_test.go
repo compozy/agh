@@ -3337,7 +3337,7 @@ func TestSessionStopNotifierQueuesDreamCheck(t *testing.T) {
 	dream := &fakeDreamService{
 		shouldRun: true,
 		runHook: func(ctx context.Context, spawn memory.SessionSpawner, workspace string) error {
-			return spawn(ctx, "memory-consolidation", "session-stop prompt", workspace)
+			return spawn(ctx, "memory-consolidation", "session-stop prompt", workspace, time.Time{})
 		},
 	}
 	var dispatcher session.HookSet
@@ -6044,7 +6044,15 @@ func (f *fakeAutomationManager) DeleteJob(_ context.Context, id string) error {
 	return automationpkg.ErrJobNotFound
 }
 
-func (f *fakeAutomationManager) TriggerJob(_ context.Context, id string) (automationpkg.Run, error) {
+func (f *fakeAutomationManager) TriggerJob(ctx context.Context, id string) (automationpkg.Run, error) {
+	return f.TriggerJobWithPayload(ctx, id, nil)
+}
+
+func (f *fakeAutomationManager) TriggerJobWithPayload(
+	_ context.Context,
+	id string,
+	_ map[string]any,
+) (automationpkg.Run, error) {
 	run := automationpkg.Run{
 		ID:      "run-" + strings.TrimSpace(id),
 		JobID:   strings.TrimSpace(id),

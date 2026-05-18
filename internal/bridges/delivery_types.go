@@ -15,6 +15,8 @@ var (
 	ErrDeliveryNotFound = errors.New("bridges: delivery not found")
 	// ErrDeliveryQueueSaturated reports that a bounded delivery queue could not accept more work.
 	ErrDeliveryQueueSaturated = errors.New("bridges: delivery queue saturated")
+	// ErrDeliveryIDConflict reports that a caller-supplied delivery id is already active.
+	ErrDeliveryIDConflict = errors.New("bridges: delivery id conflict")
 	// ErrDeliveryTransportUnavailable reports that the broker has no usable extension delivery transport.
 	ErrDeliveryTransportUnavailable = errors.New("bridges: delivery transport unavailable")
 )

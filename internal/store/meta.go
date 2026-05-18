@@ -57,20 +57,5 @@ func WriteSessionMeta(path string, meta SessionMeta) error {
 		return fmt.Errorf("store: write session meta %q: %w", cleanPath, err)
 	}
 
-	return syncDirectory(filepath.Dir(cleanPath))
-}
-
-func syncDirectory(path string) error {
-	dir, err := os.Open(path)
-	if err != nil {
-		return fmt.Errorf("store: open directory %q for sync: %w", path, err)
-	}
-	defer func() {
-		_ = dir.Close()
-	}()
-
-	if err := dir.Sync(); err != nil {
-		return fmt.Errorf("store: sync directory %q: %w", path, err)
-	}
 	return nil
 }

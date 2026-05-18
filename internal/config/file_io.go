@@ -48,7 +48,7 @@ func readOptionalRegularFile(path string, label string) ([]byte, bool, error) {
 
 func writePersistedFile(path string, contents []byte) (err error) {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	if err := os.MkdirAll(dir, privateDirMode); err != nil {
 		return fmt.Errorf("create config directory %q: %w", dir, err)
 	}
 
@@ -63,7 +63,7 @@ func writePersistedFile(path string, contents []byte) (err error) {
 		}
 	}()
 
-	if err := tmpFile.Chmod(0o600); err != nil {
+	if err := tmpFile.Chmod(privateFileMode); err != nil {
 		return closeFileAfterError(tmpFile, tmpPath, fmt.Errorf("chmod temp config file %q: %w", tmpPath, err))
 	}
 	if _, err := tmpFile.Write(contents); err != nil {

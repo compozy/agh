@@ -32,6 +32,7 @@ type routeWorker struct {
 	extensionName    string
 	queue            []deliveryQueueItem
 	wakeCh           chan struct{}
+	stopCh           chan struct{}
 }
 
 type turnIndexKey struct {
@@ -260,9 +261,10 @@ func (b *Broker) RegisterPromptDelivery(
 		return b.Snapshot(ctx, existingID)
 	}
 
-	deliveryID := normalized.DeliveryID
-	if deliveryID == "" {
-		deliveryID = newDeliveryID()
+	deliveryID, err := b.reserveDeliveryIDLocked(normalized.DeliveryID)
+	if err != nil {
+		b.mu.Unlock()
+		return nil, err
 	}
 	now := b.now()
 	delivery := &activeDelivery{
@@ -284,16 +286,41 @@ func (b *Broker) RegisterPromptDelivery(
 		b.sessionIndex[normalized.SessionID] = make(map[string]struct{})
 	}
 	b.sessionIndex[normalized.SessionID][deliveryID] = struct{}{}
-	b.ensureRouteLocked(routeHash, normalized.RoutingKey.BridgeInstanceID, normalized.ExtensionName)
-	b.mu.Unlock()
-
+	route := b.ensureRouteLocked(routeHash, normalized.RoutingKey.BridgeInstanceID, normalized.ExtensionName)
+	var routeToSignal *routeWorker
 	for _, event := range normalized.SeedEvents {
-		if err := b.ProjectEvent(ctx, normalized.SessionID, event); err != nil {
+		seedRoute, err := b.projectDeliveryEventLocked(delivery, event)
+		if err != nil {
+			b.removeDeliveryLocked(route, delivery)
+			b.mu.Unlock()
 			return nil, err
 		}
+		if seedRoute != nil {
+			routeToSignal = seedRoute
+		}
 	}
+	snapshot := cloneDeliverySnapshot(b.snapshotLocked(delivery))
+	b.mu.Unlock()
 
-	return b.Snapshot(ctx, deliveryID)
+	if routeToSignal != nil {
+		b.signalRoute(routeToSignal)
+	}
+	return &snapshot, nil
+}
+
+func (b *Broker) reserveDeliveryIDLocked(requestedID string) (string, error) {
+	if requestedID != "" {
+		if _, exists := b.deliveries[requestedID]; exists {
+			return "", fmt.Errorf("%w: %s", ErrDeliveryIDConflict, requestedID)
+		}
+		return requestedID, nil
+	}
+	for {
+		deliveryID := newDeliveryID()
+		if _, exists := b.deliveries[deliveryID]; !exists {
+			return deliveryID, nil
+		}
+	}
 }
 
 // Deliver enqueues one already-projected delivery event for ordered extension delivery.
@@ -400,37 +427,16 @@ func (b *Broker) ProjectEvent(ctx context.Context, sessionID string, event Deliv
 		return nil
 	}
 
-	fingerprint := agentEventFingerprint(event)
-	if fingerprint != "" {
-		if _, seen := delivery.seen[fingerprint]; seen {
-			b.mu.Unlock()
-			return nil
-		}
-	}
-
-	projected, ok, err := b.projectEventLocked(delivery, event)
+	route, err := b.projectDeliveryEventLocked(delivery, event)
 	if err != nil {
 		b.mu.Unlock()
 		return err
 	}
-	if !ok {
-		b.mu.Unlock()
-		return nil
-	}
-
-	route := b.ensureRouteLocked(delivery.routeHash, delivery.bridgeInstanceID, delivery.extensionName)
-	err = b.enqueueEventLocked(route, delivery, projected)
-	if err != nil {
-		b.mu.Unlock()
-		return err
-	}
-	if fingerprint != "" {
-		delivery.seen[fingerprint] = struct{}{}
-	}
-	b.applyQueuedEventLocked(delivery, projected)
 	b.mu.Unlock()
 
-	b.signalRoute(route)
+	if route != nil {
+		b.signalRoute(route)
+	}
 	return nil
 }
 
@@ -509,6 +515,7 @@ func (b *Broker) ensureRouteLocked(hash string, bridgeInstanceID string, extensi
 		bridgeInstanceID: strings.TrimSpace(bridgeInstanceID),
 		extensionName:    strings.TrimSpace(extensionName),
 		wakeCh:           make(chan struct{}, 1),
+		stopCh:           make(chan struct{}),
 	}
 	b.routes[hash] = route
 
@@ -526,6 +533,8 @@ func (b *Broker) runRouteWorker(route *routeWorker) {
 			select {
 			case <-route.wakeCh:
 				continue
+			case <-route.stopCh:
+				return
 			case <-b.lifecycleCtx.Done():
 				return
 			}
@@ -536,6 +545,14 @@ func (b *Broker) runRouteWorker(route *routeWorker) {
 			timer := time.NewTimer(b.retryDelay)
 			select {
 			case <-timer.C:
+			case <-route.stopCh:
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
+				return
 			case <-b.lifecycleCtx.Done():
 				if !timer.Stop() {
 					select {
@@ -855,6 +872,39 @@ func (b *Broker) enqueueEventLocked(route *routeWorker, delivery *activeDelivery
 	}
 }
 
+func (b *Broker) projectDeliveryEventLocked(
+	delivery *activeDelivery,
+	event DeliveryProjectionEvent,
+) (*routeWorker, error) {
+	fingerprint := agentEventFingerprint(event)
+	if fingerprint != "" {
+		if _, seen := delivery.seen[fingerprint]; seen {
+			return nil, nil
+		}
+	}
+
+	projected, ok, err := b.projectEventLocked(delivery, event)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, nil
+	}
+	if err := projected.Validate(); err != nil {
+		return nil, fmt.Errorf("bridges: validate projected delivery event: %w", err)
+	}
+
+	route := b.ensureRouteLocked(delivery.routeHash, delivery.bridgeInstanceID, delivery.extensionName)
+	if err := b.enqueueEventLocked(route, delivery, projected); err != nil {
+		return nil, err
+	}
+	if fingerprint != "" {
+		delivery.seen[fingerprint] = struct{}{}
+	}
+	b.applyQueuedEventLocked(delivery, projected)
+	return route, nil
+}
+
 func (b *Broker) projectEventLocked(
 	delivery *activeDelivery,
 	event DeliveryProjectionEvent,
@@ -986,6 +1036,33 @@ func (b *Broker) removeDeliveryLocked(route *routeWorker, delivery *activeDelive
 		b.removeQueuedSlotLocked(route, delivery.deliveryID, deliveryQueueKindTerminal)
 		b.removeQueuedSlotLocked(route, delivery.deliveryID, deliveryQueueKindResume)
 	}
+	b.retireIdleRouteLocked(route, delivery.routeHash)
+}
+
+func (b *Broker) retireIdleRouteLocked(route *routeWorker, routeHash string) {
+	if route == nil {
+		route = b.routes[routeHash]
+	}
+	if route == nil {
+		return
+	}
+	if b.routes[route.hash] != route {
+		return
+	}
+	if len(route.queue) > 0 || b.routeHasActiveDeliveriesLocked(route.hash) {
+		return
+	}
+	delete(b.routes, route.hash)
+	close(route.stopCh)
+}
+
+func (b *Broker) routeHasActiveDeliveriesLocked(routeHash string) bool {
+	for _, delivery := range b.deliveries {
+		if delivery != nil && delivery.routeHash == routeHash {
+			return true
+		}
+	}
+	return false
 }
 
 func (b *Broker) dropQueuedDeltaLocked(route *routeWorker) bool {

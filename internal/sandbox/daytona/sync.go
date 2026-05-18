@@ -195,7 +195,12 @@ func (p *daytonaProvider) syncOneFromRuntime(
 		)
 	}
 	stats, extractErr := extractTar(filepath.Clean(root.local), session)
-	waitErr := session.Wait()
+	var waitErr error
+	if extractErr != nil {
+		waitErr = session.Stop(ctx)
+	} else {
+		waitErr = session.Wait()
+	}
 	if waitErr != nil {
 		waitErr = fmt.Errorf(
 			"sandbox/daytona: remote archive %q failed: %w stderr=%q",

@@ -248,6 +248,54 @@ func TestExecuteDeliveryPostEditDeleteAndResume(t *testing.T) {
 	if got, want := resumeAck.RemoteMessageID, "peer-1:900"; got != want {
 		t.Fatalf("resumeAck.RemoteMessageID = %q, want %q", got, want)
 	}
+
+	resumeEditAPI := &fakeTelegramAPI{}
+	resumeEditReq := testDeliveryRequest(
+		"brg-1",
+		"delivery-3",
+		2,
+		bridgepkg.DeliveryEventTypeResume,
+		true,
+	)
+	resumeEditReq.Event.Content.Text = "hello world"
+	resumeEditReq.Event.Resume = &bridgepkg.DeliveryResumeState{
+		LatestEventType: bridgepkg.DeliveryEventTypeFinal,
+	}
+	resumeEditReq.Snapshot = &bridgepkg.DeliverySnapshot{
+		DeliveryID:       "delivery-3",
+		SessionID:        "sess-1",
+		TurnID:           "turn-2",
+		BridgeInstanceID: "brg-1",
+		RoutingKey:       resumeEditReq.Event.RoutingKey,
+		DeliveryTarget:   resumeEditReq.Event.DeliveryTarget,
+		LatestSeq:        2,
+		LatestEventType:  bridgepkg.DeliveryEventTypeFinal,
+		CurrentContent:   bridgepkg.MessageContent{Text: "hello world"},
+		LastSentSeq:      2,
+		LastAckedSeq:     1,
+		RemoteMessageID:  "peer-1:500",
+		Final:            true,
+		UpdatedAt:        time.Date(2026, 4, 15, 12, 6, 0, 0, time.UTC),
+	}
+	resumeEditAck, resumeEditState, err := executeDelivery(
+		context.Background(),
+		resumeEditAPI,
+		cfg,
+		resumeEditReq,
+		deliveryState{},
+	)
+	if err != nil {
+		t.Fatalf("executeDelivery(resume stale remote) error = %v", err)
+	}
+	if got, want := strings.Join(resumeEditAPI.methods, ","), "editMessageText"; got != want {
+		t.Fatalf("resume edit methods = %q, want %q", got, want)
+	}
+	if got, want := resumeEditAck.RemoteMessageID, "peer-1:500"; got != want {
+		t.Fatalf("resumeEditAck.RemoteMessageID = %q, want %q", got, want)
+	}
+	if got, want := resumeEditState.LastContent, "hello world"; got != want {
+		t.Fatalf("resumeEditState.LastContent = %q, want %q", got, want)
+	}
 }
 
 func TestVerifyWebhookSecret(t *testing.T) {
@@ -1055,10 +1103,14 @@ func TestTelegramBotClientAndClassificationHelpers(t *testing.T) {
 	if message := selectTelegramMessage(update); message == nil || message.MessageID != 1 {
 		t.Fatalf("selectTelegramMessage(edited) = %#v, want edited message", message)
 	}
-	if got, want := resolveTelegramThreadID("654", "-100777"), int64(654); got != want {
+	if got, err := resolveTelegramThreadID("654", "-100777"); err != nil {
+		t.Fatalf("resolveTelegramThreadID(valid) error = %v", err)
+	} else if want := int64(654); got != want {
 		t.Fatalf("resolveTelegramThreadID() = %d, want %d", got, want)
 	}
-	if got := resolveTelegramThreadID("1", "-100777"); got != 0 {
+	if got, err := resolveTelegramThreadID("1", "-100777"); err != nil {
+		t.Fatalf("resolveTelegramThreadID(general topic) error = %v", err)
+	} else if got != 0 {
 		t.Fatalf("resolveTelegramThreadID(general topic) = %d, want 0", got)
 	}
 	chatID, messageID, err := decodeRemoteMessageID("chat:321")
@@ -1276,6 +1328,39 @@ func TestWebhookShortCircuitsAndBatchDispatch(t *testing.T) {
 	if got, want := ingests[len(ingests)-1].Envelope.Content.Text, "hello\nworld"; got != want {
 		t.Fatalf("ingest marker text = %q, want %q", got, want)
 	}
+}
+
+func TestExecuteDeliveryRejectsMalformedThreadID(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should fail closed when thread id is malformed", func(t *testing.T) {
+		t.Parallel()
+
+		api := &fakeTelegramAPI{nextMessageID: 500}
+		cfg := resolvedInstanceConfig{instanceID: "brg-1"}
+		request := testDeliveryRequest(
+			"brg-1",
+			"delivery-invalid-thread",
+			1,
+			bridgepkg.DeliveryEventTypeStart,
+			false,
+		)
+		request.Event.DeliveryTarget.GroupID = "-100777"
+		request.Event.DeliveryTarget.ThreadID = "abc"
+		request.Event.RoutingKey.GroupID = "-100777"
+		request.Event.RoutingKey.ThreadID = "abc"
+
+		_, _, err := executeDelivery(context.Background(), api, cfg, request, deliveryState{})
+		if err == nil {
+			t.Fatal("executeDelivery(invalid thread id) error = nil, want non-nil")
+		}
+		if !strings.Contains(err.Error(), "invalid thread id") {
+			t.Fatalf("executeDelivery(invalid thread id) error = %v, want invalid-thread-id error", err)
+		}
+		if got := strings.Join(api.methods, ","); got != "" {
+			t.Fatalf("api methods = %q, want no API calls", got)
+		}
+	})
 }
 
 func TestRunRejectsUnsupportedCommand(t *testing.T) {
@@ -1584,12 +1669,10 @@ func testDeliveryRequest(
 				WorkspaceID:      "ws-telegram",
 				BridgeInstanceID: instanceID,
 				PeerID:           "peer-1",
-				ThreadID:         "thread-1",
 			},
 			DeliveryTarget: bridgepkg.DeliveryTarget{
 				BridgeInstanceID: instanceID,
 				PeerID:           "peer-1",
-				ThreadID:         "thread-1",
 				Mode:             bridgepkg.DeliveryModeReply,
 			},
 			Seq:       seq,

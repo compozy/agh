@@ -124,6 +124,59 @@ func LoadAgentCapabilities(agentDir string) (*CapabilityCatalog, error) {
 	}
 }
 
+// AgentCapabilityCatalogDependencyPaths returns the filesystem inputs that can
+// affect LoadAgentCapabilities for one agent directory.
+func AgentCapabilityCatalogDependencyPaths(agentDir string) ([]string, error) {
+	trimmedDir := strings.TrimSpace(agentDir)
+	if trimmedDir == "" {
+		return nil, errors.New("config: agent directory is required")
+	}
+
+	tomlPath := filepath.Join(trimmedDir, capabilityCatalogTOMLName)
+	jsonPath := filepath.Join(trimmedDir, capabilityCatalogJSONName)
+	dirPath := filepath.Join(trimmedDir, capabilityCatalogDirName)
+	paths := []string{tomlPath, jsonPath, dirPath}
+
+	info, err := os.Lstat(dirPath)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			sort.Strings(paths)
+			return paths, nil
+		}
+		return nil, fmt.Errorf("config: stat capability catalog directory %q: %w", dirPath, err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		sort.Strings(paths)
+		return paths, nil
+	}
+
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		return nil, fmt.Errorf("config: read capability catalog directory %q: %w", dirPath, err)
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if strings.HasPrefix(name, ".") || entry.IsDir() {
+			continue
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			return nil, fmt.Errorf("config: read capability catalog entry %q: %w", filepath.Join(dirPath, name), err)
+		}
+		if !info.Mode().IsRegular() {
+			continue
+		}
+		switch filepath.Ext(name) {
+		case capabilityFileExtTOML, capabilityFileExtJSON:
+			paths = append(paths, filepath.Join(dirPath, name))
+		}
+	}
+
+	sort.Strings(paths)
+	return paths, nil
+}
+
 func detectCapabilityCatalogLayout(agentDir string) (capabilityCatalogLayout, error) {
 	tomlPath := filepath.Join(agentDir, capabilityCatalogTOMLName)
 	jsonPath := filepath.Join(agentDir, capabilityCatalogJSONName)

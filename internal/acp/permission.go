@@ -32,8 +32,9 @@ var (
 )
 
 type permissionPolicy struct {
-	mode aghconfig.PermissionMode
-	root string
+	mode  aghconfig.PermissionMode
+	root  string
+	roots []string
 }
 
 // ApproveRequest resolves one pending permission request.
@@ -83,7 +84,11 @@ type permissionToolCallRaw struct {
 	Locations []acpsdk.ToolCallLocation `json:"locations,omitempty"`
 }
 
-func newPermissionPolicy(mode aghconfig.PermissionMode, root string) (permissionPolicy, error) {
+func newPermissionPolicy(
+	mode aghconfig.PermissionMode,
+	root string,
+	additionalRoots ...string,
+) (permissionPolicy, error) {
 	effectiveMode := mode
 	if effectiveMode == "" {
 		effectiveMode = aghconfig.PermissionModeApproveReads
@@ -92,19 +97,47 @@ func newPermissionPolicy(mode aghconfig.PermissionMode, root string) (permission
 		return permissionPolicy{}, err
 	}
 
-	absRoot, err := filepath.Abs(root)
+	primaryRoot, err := canonicalPermissionRoot(root, "permission root")
 	if err != nil {
-		return permissionPolicy{}, fmt.Errorf("acp: resolve permission root: %w", err)
+		return permissionPolicy{}, err
 	}
-	resolvedRoot, err := filepath.EvalSymlinks(absRoot)
-	if err != nil {
-		return permissionPolicy{}, fmt.Errorf("acp: evaluate permission root %q: %w", absRoot, err)
+	roots := []string{primaryRoot}
+	seen := map[string]struct{}{primaryRoot: {}}
+	for index, additionalRoot := range additionalRoots {
+		if strings.TrimSpace(additionalRoot) == "" {
+			continue
+		}
+		canonicalRoot, err := canonicalPermissionRoot(
+			additionalRoot,
+			fmt.Sprintf("additional permission root[%d]", index),
+		)
+		if err != nil {
+			return permissionPolicy{}, err
+		}
+		if _, exists := seen[canonicalRoot]; exists {
+			continue
+		}
+		seen[canonicalRoot] = struct{}{}
+		roots = append(roots, canonicalRoot)
 	}
 
 	return permissionPolicy{
-		mode: effectiveMode,
-		root: filepath.Clean(resolvedRoot),
+		mode:  effectiveMode,
+		root:  primaryRoot,
+		roots: roots,
 	}, nil
+}
+
+func canonicalPermissionRoot(root string, label string) (string, error) {
+	absRoot, err := filepath.Abs(root)
+	if err != nil {
+		return "", fmt.Errorf("acp: resolve %s: %w", label, err)
+	}
+	resolvedRoot, err := filepath.EvalSymlinks(absRoot)
+	if err != nil {
+		return "", fmt.Errorf("acp: evaluate %s %q: %w", label, absRoot, err)
+	}
+	return filepath.Clean(resolvedRoot), nil
 }
 
 func (p permissionPolicy) authorize(op permissionOperation) error {
@@ -169,11 +202,24 @@ func (p permissionPolicy) resolvePath(requestPath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if !isWithinRoot(p.root, resolvedTarget) {
+	if !p.isWithinAllowedRoot(resolvedTarget) {
 		return "", fmt.Errorf("%w: %s", ErrPathOutsideWorkspace, requestPath)
 	}
 
 	return resolvedTarget, nil
+}
+
+func (p permissionPolicy) isWithinAllowedRoot(target string) bool {
+	roots := p.roots
+	if len(roots) == 0 {
+		roots = []string{p.root}
+	}
+	for _, root := range roots {
+		if isWithinRoot(root, target) {
+			return true
+		}
+	}
+	return false
 }
 
 func (p permissionPolicy) resolvePathList(locations []acpsdk.ToolCallLocation) ([]string, error) {

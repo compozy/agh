@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -245,6 +246,65 @@ Guide the work without operational claims.
 		}
 		if strings.Contains(string(saved.ProfileJSON), root) {
 			t.Fatalf("ProfileJSON contains absolute workspace root %q: %s", root, string(saved.ProfileJSON))
+		}
+	})
+
+	t.Run("Should reuse one snapshot for concurrent duplicate digest upserts", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "soul-concurrent-digest", t.TempDir())
+		snapshot := soulSnapshotForTest("snap-concurrent-base", workspaceID, "coder", "sha256:concurrent-soul")
+		type outcome struct {
+			snapshot soul.Snapshot
+			err      error
+		}
+		const upsertCount = 32
+		start := make(chan struct{})
+		outcomes := make(chan outcome, upsertCount)
+		for index := range upsertCount {
+			go func() {
+				<-start
+				candidate := snapshot
+				candidate.ID = "snap-concurrent-" + strconv.Itoa(index)
+				saved, err := globalDB.UpsertSoulSnapshot(ctx, candidate)
+				outcomes <- outcome{snapshot: saved, err: err}
+			}()
+		}
+
+		close(start)
+		winnerID := ""
+		for index := range upsertCount {
+			got := <-outcomes
+			if got.err != nil {
+				t.Fatalf("UpsertSoulSnapshot(concurrent duplicate %d) error = %v", index, got.err)
+			}
+			if got.snapshot.Digest != snapshot.Digest {
+				t.Fatalf("snapshot.Digest = %q, want %q", got.snapshot.Digest, snapshot.Digest)
+			}
+			if winnerID == "" {
+				winnerID = got.snapshot.ID
+			}
+			if got.snapshot.ID != winnerID {
+				t.Fatalf("snapshot.ID = %q, want single winner %q", got.snapshot.ID, winnerID)
+			}
+		}
+
+		var rowCount int
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT COUNT(*)
+			FROM agent_soul_snapshots
+			WHERE workspace_id = ? AND agent_name = ? AND digest = ?`,
+			workspaceID,
+			"coder",
+			snapshot.Digest,
+		).Scan(&rowCount); err != nil {
+			t.Fatalf("QueryRowContext(agent_soul_snapshots count) error = %v", err)
+		}
+		if rowCount != 1 {
+			t.Fatalf("agent_soul_snapshots count = %d, want 1", rowCount)
 		}
 	})
 

@@ -109,7 +109,7 @@ func (s *operatorResourceService) Put(
 	}
 	if s.trigger != nil {
 		if err := s.trigger(ctx, next.Kind, resources.ReconcileReasonWrite); err != nil {
-			return resources.RawRecord{}, err
+			return record, nil
 		}
 	}
 	return record, nil
@@ -126,7 +126,7 @@ func (s *operatorResourceService) Delete(
 	}
 	if s.trigger != nil {
 		if err := s.trigger(ctx, kind, resources.ReconcileReasonWrite); err != nil {
-			return err
+			return nil
 		}
 	}
 	return nil

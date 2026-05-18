@@ -351,6 +351,7 @@ type AutomationJobPreFirePayload struct {
 	WorkspaceID string                     `json:"workspace_id,omitempty"`
 	Prompt      string                     `json:"prompt,omitempty"`
 	Schedule    *AutomationSchedulePayload `json:"schedule,omitempty"`
+	Payload     map[string]any             `json:"payload,omitempty"`
 	Attempt     int                        `json:"attempt,omitempty"`
 }
 

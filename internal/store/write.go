@@ -179,7 +179,6 @@ func executeWriteAttempt(
 		return fmt.Errorf("store: commit sqlite write: %w", err)
 	}
 	active = false
-	tx.conn = nil
 	return nil
 }
 

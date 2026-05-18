@@ -38,6 +38,7 @@ const (
 	teamsDefaultScope             = "https://api.botframework.com/.default"
 	teamsWebhookReadHeaderTimeout = 10 * time.Second
 	teamsWebhookIdleTimeout       = 30 * time.Second
+	teamsAuthCacheTTL             = 5 * time.Minute
 	rpcCodeNotInitialized         = -32003
 )
 
@@ -65,6 +66,7 @@ type teamsProvider struct {
 	routes         map[string]resolvedInstanceConfig
 	deliveries     map[string]deliveryState
 	reportedStatus map[string]bridgepkg.BridgeStatus
+	reportedHealth map[string]string
 	userContexts   map[string]teamsUserContext
 	apiFactory     func(resolvedInstanceConfig) teamsAPI
 
@@ -77,6 +79,27 @@ type deliveryState struct {
 	LastSeq                int64
 	RemoteMessageID        string
 	ReplaceRemoteMessageID string
+}
+
+type teamsDeliveryStateLookup func(deliveryID string) (deliveryState, bool)
+
+type teamsOpenIDMetadataCacheEntry struct {
+	metadata  teamsOpenIDMetadata
+	expiresAt time.Time
+}
+
+type teamsJWKSCacheEntry struct {
+	jwks      teamsJWKS
+	expiresAt time.Time
+}
+
+var teamsAuthCache = struct {
+	mu       sync.Mutex
+	metadata map[string]teamsOpenIDMetadataCacheEntry
+	jwks     map[string]teamsJWKSCacheEntry
+}{
+	metadata: make(map[string]teamsOpenIDMetadataCacheEntry),
+	jwks:     make(map[string]teamsJWKSCacheEntry),
 }
 
 type teamsProviderConfig struct {
@@ -314,6 +337,7 @@ func newTeamsProvider(stderr io.Writer) (*teamsProvider, error) {
 		routes:         make(map[string]resolvedInstanceConfig),
 		deliveries:     make(map[string]deliveryState),
 		reportedStatus: make(map[string]bridgepkg.BridgeStatus),
+		reportedHealth: make(map[string]string),
 		userContexts:   make(map[string]teamsUserContext),
 		stopCh:         make(chan struct{}),
 	}
@@ -474,6 +498,10 @@ func (p *teamsProvider) handleBridgesDeliver(
 		cfg,
 		request,
 		p.deliveryState(cfg.instanceID, request.Event.DeliveryID),
+		func(deliveryID string) (deliveryState, bool) {
+			state := p.deliveryState(cfg.instanceID, deliveryID)
+			return state, strings.TrimSpace(state.RemoteMessageID) != ""
+		},
 		p.userContext,
 	)
 	if err != nil {
@@ -507,6 +535,17 @@ func (p *teamsProvider) handleBridgesDeliver(
 func (p *teamsProvider) healthCheck() error {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
+	for instanceID, status := range p.reportedStatus {
+		normalized := status.Normalize()
+		if normalized == "" || normalized == bridgepkg.BridgeStatusReady {
+			continue
+		}
+		message := strings.TrimSpace(p.reportedHealth[instanceID])
+		if message != "" {
+			return fmt.Errorf("teams: bridge instance %s is %s: %s", instanceID, normalized, message)
+		}
+		return fmt.Errorf("teams: bridge instance %s is %s", instanceID, normalized)
+	}
 	if strings.TrimSpace(p.lastError) == "" {
 		return nil
 	}
@@ -639,7 +678,13 @@ func (p *teamsProvider) reportState(
 	}
 
 	p.mu.Lock()
-	p.reportedStatus[strings.TrimSpace(bridgeInstanceID)] = result.Status.Normalize()
+	instanceID := strings.TrimSpace(bridgeInstanceID)
+	p.reportedStatus[instanceID] = result.Status.Normalize()
+	if health := bridgeHealthMessage(result.Degradation); health != "" {
+		p.reportedHealth[instanceID] = health
+	} else {
+		delete(p.reportedHealth, instanceID)
+	}
 	p.mu.Unlock()
 	p.reportSideEffectError("write state marker", appendJSONLine(p.env.statePath, stateMarker{
 		BridgeInstanceID: result.ID,
@@ -1040,14 +1085,22 @@ func (p *teamsProvider) waitForInstanceConfig(
 }
 
 func (p *teamsProvider) configForPath(path string) (resolvedInstanceConfig, bool) {
+	normalizedPath := normalizeWebhookPath(path)
 	p.mu.RLock()
 	defer p.mu.RUnlock()
+	var match resolvedInstanceConfig
+	found := false
 	for _, cfg := range p.routes {
-		if cfg.webhookPath == normalizeWebhookPath(path) {
-			return cfg, true
+		if cfg.webhookPath != normalizedPath || cfg.configError != nil {
+			continue
 		}
+		if found {
+			return resolvedInstanceConfig{}, false
+		}
+		match = cfg
+		found = true
 	}
-	return resolvedInstanceConfig{}, false
+	return match, found
 }
 
 func (p *teamsProvider) currentSession() *bridgesdk.Session {
@@ -1085,6 +1138,16 @@ func (p *teamsProvider) clearLastError() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.lastError = ""
+}
+
+func bridgeHealthMessage(degradation *bridgepkg.BridgeDegradation) string {
+	if degradation == nil {
+		return ""
+	}
+	if message := strings.TrimSpace(degradation.Message); message != "" {
+		return message
+	}
+	return strings.TrimSpace(string(degradation.Reason))
 }
 
 func (p *teamsProvider) reportSideEffectError(action string, err error) {
@@ -1311,6 +1374,7 @@ func executeTeamsDelivery(
 	cfg resolvedInstanceConfig,
 	request bridgepkg.DeliveryRequest,
 	state deliveryState,
+	referenceStateLookup teamsDeliveryStateLookup,
 	userContextLookup func(string, string) (teamsUserContext, bool),
 ) (bridgepkg.DeliveryAck, deliveryState, error) {
 	if err := request.Validate(); err != nil {
@@ -1333,11 +1397,11 @@ func executeTeamsDelivery(
 
 	switch {
 	case isTeamsDeleteDelivery(event):
-		return executeTeamsDeleteDelivery(ctx, api, event, request.Snapshot, state)
+		return executeTeamsDeleteDelivery(ctx, api, event, request.Snapshot, state, referenceStateLookup)
 	case shouldPostTeamsMessage(event, state, request):
 		return executeTeamsPostDelivery(ctx, api, cfg, event, state, userContextLookup)
 	default:
-		return executeTeamsEditDelivery(ctx, api, event, request.Snapshot, state)
+		return executeTeamsEditDelivery(ctx, api, event, request.Snapshot, state, referenceStateLookup)
 	}
 }
 
@@ -1347,13 +1411,13 @@ func (p *teamsProvider) resolveTeamsManagedConfigs(
 ) ([]resolvedInstanceConfig, string) {
 	configs := make([]resolvedInstanceConfig, 0, len(managed))
 	requestedListen := strings.TrimSpace(os.Getenv(teamsListenAddrEnv))
-	usedPaths := make(map[string]string, len(managed))
+	usedPaths := make(map[string]int, len(managed))
 
 	for _, item := range managed {
 		cfg := p.resolveInstanceConfig(session, item)
 		requestedListen = updateTeamsRequestedListen(&cfg, requestedListen)
-		markDuplicateTeamsWebhookPath(&cfg, usedPaths)
 		configs = append(configs, cfg)
+		markDuplicateTeamsWebhookPath(configs, len(configs)-1, usedPaths)
 	}
 	return configs, requestedListen
 }
@@ -1376,19 +1440,41 @@ func updateTeamsRequestedListen(cfg *resolvedInstanceConfig, requestedListen str
 	return requestedListen
 }
 
-func markDuplicateTeamsWebhookPath(cfg *resolvedInstanceConfig, usedPaths map[string]string) {
-	if cfg == nil || cfg.webhookPath == "" {
+func markDuplicateTeamsWebhookPath(
+	configs []resolvedInstanceConfig,
+	idx int,
+	usedPaths map[string]int,
+) {
+	if idx < 0 || idx >= len(configs) {
 		return
 	}
-	if owner, ok := usedPaths[cfg.webhookPath]; ok && cfg.configError == nil {
-		cfg.configError = fmt.Errorf(
+	cfg := &configs[idx]
+	if cfg.webhookPath == "" {
+		return
+	}
+	if ownerIdx, ok := usedPaths[cfg.webhookPath]; ok {
+		ownerID := strings.TrimSpace(configs[ownerIdx].instanceID)
+		collisionErr := fmt.Errorf(
 			"teams: webhook path %q is shared by %q and %q",
 			cfg.webhookPath,
-			owner,
+			ownerID,
 			cfg.instanceID,
 		)
+		configs[ownerIdx].configError = joinTeamsConfigError(configs[ownerIdx].configError, collisionErr)
+		cfg.configError = joinTeamsConfigError(cfg.configError, collisionErr)
+		return
 	}
-	usedPaths[cfg.webhookPath] = cfg.instanceID
+	usedPaths[cfg.webhookPath] = idx
+}
+
+func joinTeamsConfigError(existing error, next error) error {
+	if next == nil {
+		return existing
+	}
+	if existing == nil {
+		return next
+	}
+	return errors.Join(existing, next)
 }
 
 func applyTeamsListenErrors(
@@ -1432,6 +1518,8 @@ func (p *teamsProvider) swapTeamsRoutes(configs []resolvedInstanceConfig, reques
 		if prior.batcher != nil {
 			prior.batcher.Close()
 		}
+		delete(p.reportedStatus, instanceID)
+		delete(p.reportedHealth, instanceID)
 	}
 	p.routes = nextRoutes
 	p.listenAddr = requestedListen
@@ -1803,11 +1891,9 @@ func executeTeamsDeleteDelivery(
 	event bridgepkg.DeliveryEvent,
 	snapshot *bridgepkg.DeliverySnapshot,
 	state deliveryState,
+	referenceStateLookup teamsDeliveryStateLookup,
 ) (bridgepkg.DeliveryAck, deliveryState, error) {
-	remoteID := firstNonEmpty(referenceRemoteMessageID(event.Reference), state.RemoteMessageID)
-	if remoteID == "" && snapshot != nil {
-		remoteID = strings.TrimSpace(snapshot.RemoteMessageID)
-	}
+	remoteID := resolveTeamsReferencedRemoteMessageID(event.Reference, snapshot, state, referenceStateLookup)
 	if remoteID == "" {
 		return bridgepkg.DeliveryAck{}, state, errors.New(
 			"teams: delete delivery requires a remote message id",
@@ -1909,11 +1995,9 @@ func executeTeamsEditDelivery(
 	event bridgepkg.DeliveryEvent,
 	snapshot *bridgepkg.DeliverySnapshot,
 	state deliveryState,
+	referenceStateLookup teamsDeliveryStateLookup,
 ) (bridgepkg.DeliveryAck, deliveryState, error) {
-	remoteID := state.RemoteMessageID
-	if remoteID == "" && snapshot != nil {
-		remoteID = strings.TrimSpace(snapshot.RemoteMessageID)
-	}
+	remoteID := resolveTeamsReferencedRemoteMessageID(event.Reference, snapshot, state, referenceStateLookup)
 	if remoteID == "" {
 		return bridgepkg.DeliveryAck{}, state, errors.New(
 			"teams: edit delivery requires a remote message id",
@@ -1936,6 +2020,31 @@ func executeTeamsEditDelivery(
 	state.RemoteMessageID = remoteID
 	state.ReplaceRemoteMessageID = ack.ReplaceRemoteMessageID
 	return ack, state, ack.ValidateFor(event)
+}
+
+func resolveTeamsReferencedRemoteMessageID(
+	reference *bridgepkg.DeliveryMessageReference,
+	snapshot *bridgepkg.DeliverySnapshot,
+	state deliveryState,
+	referenceStateLookup teamsDeliveryStateLookup,
+) string {
+	if remoteID := referenceRemoteMessageID(reference); remoteID != "" {
+		return remoteID
+	}
+	if deliveryID := referenceDeliveryID(reference); deliveryID != "" && referenceStateLookup != nil {
+		if referencedState, ok := referenceStateLookup(deliveryID); ok {
+			if remoteID := strings.TrimSpace(referencedState.RemoteMessageID); remoteID != "" {
+				return remoteID
+			}
+		}
+	}
+	if remoteID := strings.TrimSpace(state.RemoteMessageID); remoteID != "" {
+		return remoteID
+	}
+	if snapshot != nil {
+		return strings.TrimSpace(snapshot.RemoteMessageID)
+	}
+	return ""
 }
 
 func newTeamsDeliveryAck(
@@ -2091,6 +2200,12 @@ func verifyTeamsAuthorization(
 			}
 			jwk, err := jwks.keyByID(keyID)
 			if err != nil {
+				if refreshed, refreshErr := refreshTeamsJWKS(ctx, metadata.JWKSURI); refreshErr == nil {
+					jwks = refreshed
+					jwk, err = jwks.keyByID(keyID)
+				}
+			}
+			if err != nil {
 				return nil, err
 			}
 			if err := jwk.validateEndorsement(
@@ -2112,6 +2227,10 @@ func verifyTeamsAuthorization(
 	if !parsed.Valid {
 		return errors.New("teams: invalid bearer token")
 	}
+	return validateTeamsAuthorizationClaims(claims, serviceURL)
+}
+
+func validateTeamsAuthorizationClaims(claims *teamsAuthClaims, serviceURL string) error {
 	if normalizeURL(claims.ServiceURL) != serviceURL {
 		return fmt.Errorf(
 			"teams: token serviceUrl %q did not match activity serviceUrl %q",
@@ -2133,6 +2252,21 @@ func fetchTeamsOpenIDMetadata(
 	if err != nil {
 		return nil, err
 	}
+	if cached := cachedTeamsOpenIDMetadata(endpoint); cached != nil {
+		return cached, nil
+	}
+	metadata, err := fetchTeamsOpenIDMetadataUncached(ctx, endpoint)
+	if err != nil {
+		return nil, err
+	}
+	storeTeamsOpenIDMetadata(endpoint, metadata)
+	return cloneTeamsOpenIDMetadata(metadata), nil
+}
+
+func fetchTeamsOpenIDMetadataUncached(
+	ctx context.Context,
+	endpoint string,
+) (*teamsOpenIDMetadata, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, http.NoBody)
 	if err != nil {
 		return nil, err
@@ -2167,6 +2301,31 @@ func fetchTeamsJWKS(ctx context.Context, jwksURL string) (*teamsJWKS, error) {
 	if err != nil {
 		return nil, err
 	}
+	if cached := cachedTeamsJWKS(endpoint); cached != nil {
+		return cached, nil
+	}
+	keys, err := fetchTeamsJWKSUncached(ctx, endpoint)
+	if err != nil {
+		return nil, err
+	}
+	storeTeamsJWKS(endpoint, keys)
+	return cloneTeamsJWKS(keys), nil
+}
+
+func refreshTeamsJWKS(ctx context.Context, jwksURL string) (*teamsJWKS, error) {
+	endpoint, err := validatedTeamsCredentialedURL(jwksURL, "jwks url")
+	if err != nil {
+		return nil, err
+	}
+	keys, err := fetchTeamsJWKSUncached(ctx, endpoint)
+	if err != nil {
+		return nil, err
+	}
+	storeTeamsJWKS(endpoint, keys)
+	return cloneTeamsJWKS(keys), nil
+}
+
+func fetchTeamsJWKSUncached(ctx context.Context, endpoint string) (*teamsJWKS, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, http.NoBody)
 	if err != nil {
 		return nil, err
@@ -2191,6 +2350,76 @@ func fetchTeamsJWKS(ctx context.Context, jwksURL string) (*teamsJWKS, error) {
 		return nil, errors.New("teams: jwks document omitted signing keys")
 	}
 	return &keys, nil
+}
+
+func cachedTeamsOpenIDMetadata(endpoint string) *teamsOpenIDMetadata {
+	teamsAuthCache.mu.Lock()
+	defer teamsAuthCache.mu.Unlock()
+	entry, ok := teamsAuthCache.metadata[endpoint]
+	if !ok || time.Now().After(entry.expiresAt) {
+		if ok {
+			delete(teamsAuthCache.metadata, endpoint)
+		}
+		return nil
+	}
+	return cloneTeamsOpenIDMetadata(&entry.metadata)
+}
+
+func storeTeamsOpenIDMetadata(endpoint string, metadata *teamsOpenIDMetadata) {
+	if metadata == nil {
+		return
+	}
+	teamsAuthCache.mu.Lock()
+	defer teamsAuthCache.mu.Unlock()
+	teamsAuthCache.metadata[endpoint] = teamsOpenIDMetadataCacheEntry{
+		metadata:  *cloneTeamsOpenIDMetadata(metadata),
+		expiresAt: time.Now().Add(teamsAuthCacheTTL),
+	}
+}
+
+func cachedTeamsJWKS(endpoint string) *teamsJWKS {
+	teamsAuthCache.mu.Lock()
+	defer teamsAuthCache.mu.Unlock()
+	entry, ok := teamsAuthCache.jwks[endpoint]
+	if !ok || time.Now().After(entry.expiresAt) {
+		if ok {
+			delete(teamsAuthCache.jwks, endpoint)
+		}
+		return nil
+	}
+	return cloneTeamsJWKS(&entry.jwks)
+}
+
+func storeTeamsJWKS(endpoint string, keys *teamsJWKS) {
+	if keys == nil {
+		return
+	}
+	teamsAuthCache.mu.Lock()
+	defer teamsAuthCache.mu.Unlock()
+	teamsAuthCache.jwks[endpoint] = teamsJWKSCacheEntry{
+		jwks:      *cloneTeamsJWKS(keys),
+		expiresAt: time.Now().Add(teamsAuthCacheTTL),
+	}
+}
+
+func cloneTeamsOpenIDMetadata(metadata *teamsOpenIDMetadata) *teamsOpenIDMetadata {
+	if metadata == nil {
+		return nil
+	}
+	clone := *metadata
+	return &clone
+}
+
+func cloneTeamsJWKS(keys *teamsJWKS) *teamsJWKS {
+	if keys == nil {
+		return nil
+	}
+	clone := teamsJWKS{Keys: make([]teamsJWK, len(keys.Keys))}
+	copy(clone.Keys, keys.Keys)
+	for idx := range clone.Keys {
+		clone.Keys[idx].Endorsements = append([]string(nil), keys.Keys[idx].Endorsements...)
+	}
+	return &clone
 }
 
 func teamsCredentialedHTTPClient(base *http.Client) *http.Client {
@@ -2711,6 +2940,13 @@ func referenceRemoteMessageID(reference *bridgepkg.DeliveryMessageReference) str
 		return ""
 	}
 	return strings.TrimSpace(reference.RemoteMessageID)
+}
+
+func referenceDeliveryID(reference *bridgepkg.DeliveryMessageReference) string {
+	if reference == nil {
+		return ""
+	}
+	return strings.TrimSpace(reference.DeliveryID)
 }
 
 func classifyTeamsHTTPError(statusCode int, retryAfterHeader string, raw string) error {

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"maps"
 	"strings"
 	"sync"
 	"text/template"
@@ -94,13 +93,15 @@ func (k DispatchKind) Validate(path string) error {
 //
 // Exactly one of Job or Trigger must be provided. Triggers also require an
 // activation envelope so prompt templates can render against the normalized
-// trigger payload. Prompt allows later callers to inject a pre-render override
-// after pre-fire hooks patch the outbound prompt.
+// trigger payload. Manual job dispatch can carry caller-supplied payload for
+// job lifecycle hooks. Prompt allows later callers to inject a pre-render
+// override after pre-fire hooks patch the outbound prompt.
 type DispatchRequest struct {
 	Kind        DispatchKind        `json:"kind"`
 	Job         *Job                `json:"job,omitempty"`
 	Trigger     *Trigger            `json:"trigger,omitempty"`
 	Envelope    *ActivationEnvelope `json:"envelope,omitempty"`
+	Payload     map[string]any      `json:"payload,omitempty"`
 	Prompt      string              `json:"prompt,omitempty"`
 	ReservedRun *Run                `json:"-"`
 }
@@ -843,6 +844,7 @@ func (d *Dispatcher) dispatchPreFireHook(
 			WorkspaceID: strings.TrimSpace(req.Job.WorkspaceID),
 			Prompt:      prompt,
 			Schedule:    hookSchedulePayload(req.Job.Schedule),
+			Payload:     cloneJSONMap(req.Payload),
 			Attempt:     attempt,
 		}
 		next, err := d.hooks.DispatchAutomationJobPreFire(ctx, payload)
@@ -1372,12 +1374,7 @@ func runDurationMilliseconds(run Run) int64 {
 }
 
 func cloneJSONMap(source map[string]any) map[string]any {
-	if len(source) == 0 {
-		return nil
-	}
-	cloned := make(map[string]any, len(source))
-	maps.Copy(cloned, source)
-	return cloned
+	return cloneAnyMap(source)
 }
 
 func nestedPath(path string, field string) string {

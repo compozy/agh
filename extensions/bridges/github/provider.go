@@ -953,10 +953,8 @@ func (p *githubProvider) serveWebhookHTTP(w http.ResponseWriter, r *http.Request
 		VerifySignature: func(ctx context.Context, req *http.Request, body []byte) error {
 			return verifyGitHubWebhookSignature(ctx, req, body, candidates)
 		},
-		RequestKey: func(req *http.Request) string {
-			return req.RemoteAddr + "|" + normalizeWebhookPath(req.URL.Path)
-		},
-		Now: func() time.Time { return p.now() },
+		RequestKey: githubWebhookRequestKey,
+		Now:        func() time.Time { return p.now() },
 	}, func(w http.ResponseWriter, r *http.Request, request bridgesdk.WebhookRequest) error {
 		return p.handleWebhookRequest(w, r, candidates, request)
 	})
@@ -966,6 +964,22 @@ func (p *githubProvider) serveWebhookHTTP(w http.ResponseWriter, r *http.Request
 		return
 	}
 	handler.ServeHTTP(w, r)
+}
+
+func githubWebhookRequestKey(req *http.Request) string {
+	if req == nil {
+		return "global"
+	}
+
+	remote := strings.TrimSpace(req.RemoteAddr)
+	host, _, err := net.SplitHostPort(remote)
+	if err != nil || strings.TrimSpace(host) == "" {
+		host = remote
+	}
+	if strings.TrimSpace(host) == "" {
+		host = "global"
+	}
+	return strings.TrimSpace(host) + "|" + normalizeWebhookPath(req.URL.Path)
 }
 
 func (p *githubProvider) handleWebhookRequest(
@@ -1282,6 +1296,10 @@ func executeGitHubDelivery(
 	installationID int64,
 ) (bridgepkg.DeliveryAck, deliveryState, error) {
 	event := request.Event
+	if normalizeDeliveryEventType(event.EventType) == bridgepkg.DeliveryEventTypeResume &&
+		event.Seq == state.LastSeq {
+		return ackGitHubIdempotentResume(request, state)
+	}
 	if event.Seq <= state.LastSeq {
 		return bridgepkg.DeliveryAck{}, state, fmt.Errorf(
 			"github: out-of-order delivery seq %d after %d",
@@ -1303,6 +1321,32 @@ func executeGitHubDelivery(
 	}
 
 	return executeGitHubUpdate(ctx, api, request, state, installationID)
+}
+
+func ackGitHubIdempotentResume(
+	request bridgepkg.DeliveryRequest,
+	state deliveryState,
+) (bridgepkg.DeliveryAck, deliveryState, error) {
+	event := request.Event
+	remoteID := gitHubRemoteIDFromRequest(request, state)
+	if remoteID == "" {
+		return bridgepkg.DeliveryAck{}, state, errors.New("github: resume delivery requires remote message id")
+	}
+	replaceRemoteID := strings.TrimSpace(state.ReplaceRemoteMessageID)
+	if request.Snapshot != nil {
+		replaceRemoteID = firstNonEmpty(
+			replaceRemoteID,
+			strings.TrimSpace(request.Snapshot.ReplaceRemoteMessageID),
+		)
+	}
+	replaceRemoteID = firstNonEmpty(replaceRemoteID, remoteID)
+	ack := bridgepkg.DeliveryAck{
+		DeliveryID:             event.DeliveryID,
+		Seq:                    event.Seq,
+		RemoteMessageID:        remoteID,
+		ReplaceRemoteMessageID: replaceRemoteID,
+	}
+	return ack, state, ack.ValidateFor(event)
 }
 
 func isGitHubDeleteEvent(event bridgepkg.DeliveryEvent) bool {

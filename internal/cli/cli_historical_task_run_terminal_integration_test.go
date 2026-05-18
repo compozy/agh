@@ -23,19 +23,35 @@ func TestCLIHistoricalChannelTaskRunTerminalAfterDaemonRestartIntegration(t *tes
 		wantEventType  string
 	}{
 		{
-			name:           "Should fail a historical task run after daemon restart",
-			channel:        "history-run-fail",
-			title:          "CLI historical run fail restart",
-			terminalArgs:   []string{"task", "run", "fail", "--error", "operator-detected failure", "--metadata", `{"source":"integration","mode":"historical-restart"}`},
+			name:    "Should fail a historical task run after daemon restart",
+			channel: "history-run-fail",
+			title:   "CLI historical run fail restart",
+			terminalArgs: []string{
+				"task",
+				"run",
+				"fail",
+				"--error",
+				"operator-detected failure",
+				"--metadata",
+				`{"source":"integration","mode":"historical-restart"}`,
+			},
 			wantRunStatus:  taskpkg.TaskRunStatusFailed,
 			wantTaskStatus: taskpkg.TaskStatusReady,
 			wantEventType:  "task.run_failed",
 		},
 		{
-			name:           "Should cancel a historical task run after daemon restart",
-			channel:        "history-run-cancel",
-			title:          "CLI historical run cancel restart",
-			terminalArgs:   []string{"task", "run", "cancel", "--reason", "operator-request", "--metadata", `{"source":"integration","mode":"historical-restart"}`},
+			name:    "Should cancel a historical task run after daemon restart",
+			channel: "history-run-cancel",
+			title:   "CLI historical run cancel restart",
+			terminalArgs: []string{
+				"task",
+				"run",
+				"cancel",
+				"--reason",
+				"operator-request",
+				"--metadata",
+				`{"source":"integration","mode":"historical-restart"}`,
+			},
 			wantRunStatus:  taskpkg.TaskRunStatusCanceled,
 			wantTaskStatus: taskpkg.TaskStatusCanceled,
 			wantEventType:  "task.run_canceled",
@@ -58,7 +74,17 @@ func TestCLIHistoricalChannelTaskRunTerminalAfterDaemonRestartIntegration(t *tes
 				}
 			}()
 
-			if _, _, err := executeRootCommand(t, h.deps, "workspace", "add", h.workspace, "--name", "alpha", "-o", "json"); err != nil {
+			if _, _, err := executeRootCommand(
+				t,
+				h.deps,
+				"workspace",
+				"add",
+				h.workspace,
+				"--name",
+				"alpha",
+				"-o",
+				"json",
+			); err != nil {
 				t.Fatalf("workspace add error = %v", err)
 			}
 
@@ -103,7 +129,10 @@ func TestCLIHistoricalChannelTaskRunTerminalAfterDaemonRestartIntegration(t *tes
 				t.Fatalf("channelBeforeRestart.PresenceCount = %d, want at least 1", channelBeforeRestart.PresenceCount)
 			}
 			if channelBeforeRestart.HistoricalParticipantCount < 1 {
-				t.Fatalf("channelBeforeRestart.HistoricalParticipantCount = %d, want at least 1", channelBeforeRestart.HistoricalParticipantCount)
+				t.Fatalf(
+					"channelBeforeRestart.HistoricalParticipantCount = %d, want at least 1",
+					channelBeforeRestart.HistoricalParticipantCount,
+				)
 			}
 
 			createOut := mustExecuteRoot(
@@ -169,7 +198,10 @@ func TestCLIHistoricalChannelTaskRunTerminalAfterDaemonRestartIntegration(t *tes
 				t.Fatalf("channelAfterRestart.PresenceCount = %d, want at least 1", channelAfterRestart.PresenceCount)
 			}
 			if channelAfterRestart.HistoricalParticipantCount < 1 {
-				t.Fatalf("channelAfterRestart.HistoricalParticipantCount = %d, want at least 1", channelAfterRestart.HistoricalParticipantCount)
+				t.Fatalf(
+					"channelAfterRestart.HistoricalParticipantCount = %d, want at least 1",
+					channelAfterRestart.HistoricalParticipantCount,
+				)
 			}
 
 			claimOut := mustExecuteRoot(t, h.deps, "task", "run", "claim", enqueued.ID, "-o", "json")

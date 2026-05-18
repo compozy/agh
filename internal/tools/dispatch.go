@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -22,7 +23,10 @@ func (r *RuntimeRegistry) dispatch(ctx context.Context, scope Scope, req CallReq
 	if err := contextErr(ctx, req.ToolID); err != nil {
 		return ToolResult{}, err
 	}
-	req = normalizeCallRequest(scope, req)
+	req, err := normalizeCallRequest(scope, req)
+	if err != nil {
+		return ToolResult{}, err
+	}
 	if err := req.ToolID.Validate(); err != nil {
 		return ToolResult{}, invalidInputError(req.ToolID, "tool id is invalid", err)
 	}
@@ -93,20 +97,69 @@ func (r *RuntimeRegistry) dispatch(ctx context.Context, scope Scope, req CallReq
 	return limited, nil
 }
 
-func normalizeCallRequest(scope Scope, req CallRequest) CallRequest {
-	if req.SessionID == "" {
-		req.SessionID = scope.SessionID
+func normalizeCallRequest(scope Scope, req CallRequest) (CallRequest, error) {
+	if err := bindCallScopeField(req.ToolID, "session_id", scope.SessionID, &req.SessionID); err != nil {
+		return CallRequest{}, err
 	}
-	if req.WorkspaceID == "" {
-		req.WorkspaceID = scope.WorkspaceID
+	if err := bindCallScopeField(req.ToolID, "workspace_id", scope.WorkspaceID, &req.WorkspaceID); err != nil {
+		return CallRequest{}, err
 	}
-	if req.AgentName == "" {
-		req.AgentName = scope.AgentName
+	if err := bindCallScopeField(req.ToolID, "agent_name", scope.AgentName, &req.AgentName); err != nil {
+		return CallRequest{}, err
 	}
-	if req.ActorKind == "" {
-		req.ActorKind = scope.ActorKind
+	if err := bindCallScopeField(req.ToolID, "actor_kind", scope.ActorKind, &req.ActorKind); err != nil {
+		return CallRequest{}, err
 	}
-	return req
+	return req, nil
+}
+
+func bindCallScopeField(id ToolID, field string, trusted string, supplied *string) error {
+	if supplied == nil {
+		return nil
+	}
+	trusted = strings.TrimSpace(trusted)
+	current := strings.TrimSpace(*supplied)
+	if current == "" {
+		*supplied = trusted
+		return nil
+	}
+	if trusted != "" && current != trusted {
+		return callScopeMismatchError(id, field)
+	}
+	*supplied = current
+	return nil
+}
+
+func callScopeMismatchError(id ToolID, field string) error {
+	return NewToolError(
+		ErrorCodeDenied,
+		id,
+		fmt.Sprintf("tool %q call %s conflicts with caller scope", id, field),
+		ErrToolDenied,
+		ReasonScopeMismatch,
+	)
+}
+
+func validateHookCallRequestIdentity(original CallRequest, patched CallRequest) error {
+	checks := []struct {
+		field string
+		left  string
+		right string
+	}{
+		{field: "tool_call_id", left: original.ToolCallID, right: patched.ToolCallID},
+		{field: "turn_id", left: original.TurnID, right: patched.TurnID},
+		{field: "session_id", left: original.SessionID, right: patched.SessionID},
+		{field: "workspace_id", left: original.WorkspaceID, right: patched.WorkspaceID},
+		{field: "agent_name", left: original.AgentName, right: patched.AgentName},
+		{field: "actor_kind", left: original.ActorKind, right: patched.ActorKind},
+		{field: "approval_token", left: original.ApprovalToken, right: patched.ApprovalToken},
+	}
+	for _, check := range checks {
+		if strings.TrimSpace(check.left) != strings.TrimSpace(check.right) {
+			return callScopeMismatchError(original.ToolID, check.field)
+		}
+	}
+	return nil
 }
 
 func (r *RuntimeRegistry) resolveDispatchTarget(
@@ -280,6 +333,9 @@ func (r *RuntimeRegistry) runPreCallHook(
 	if err := validateCallInput(target.descriptor, normalizeCallInput(patched.Input)); err != nil {
 		return req, err
 	}
+	if err := validateHookCallRequestIdentity(req, patched); err != nil {
+		return req, err
+	}
 	patched.Input = normalizeCallInput(patched.Input)
 	return patched, nil
 }
@@ -357,6 +413,9 @@ func mergeHookCallRequest(original CallRequest, patched CallRequest) CallRequest
 	}
 	if patched.AgentName == "" {
 		patched.AgentName = original.AgentName
+	}
+	if patched.ActorKind == "" {
+		patched.ActorKind = original.ActorKind
 	}
 	if patched.CorrelationID == "" {
 		patched.CorrelationID = original.CorrelationID

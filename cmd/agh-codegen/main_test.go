@@ -408,6 +408,125 @@ func TestWriteSDKContracts(t *testing.T) {
 	})
 }
 
+func TestWriteAll(t *testing.T) {
+	t.Run("ShouldLeaveExistingArtifactsUnchangedWhenSDKGenerationFails", func(t *testing.T) {
+		t.Parallel()
+
+		errSDKGeneration := errors.New("sdk generation failed")
+		dir := t.TempDir()
+		openapiPath := filepath.Join(dir, "openapi", "agh.json")
+		sdkContractsPath := filepath.Join(dir, "sdk", "typescript", "src", "generated", "contracts.ts")
+		originalOpenAPI := []byte("{\"seed\":\"openapi\"}\n")
+		originalSDK := []byte("export type Seed = \"sdk\";\n")
+
+		if err := os.MkdirAll(filepath.Dir(openapiPath), 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(%q) error = %v", filepath.Dir(openapiPath), err)
+		}
+		if err := os.MkdirAll(filepath.Dir(sdkContractsPath), 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(%q) error = %v", filepath.Dir(sdkContractsPath), err)
+		}
+		if err := os.WriteFile(openapiPath, originalOpenAPI, 0o644); err != nil {
+			t.Fatalf("os.WriteFile(%q) error = %v", openapiPath, err)
+		}
+		if err := os.WriteFile(sdkContractsPath, originalSDK, 0o644); err != nil {
+			t.Fatalf("os.WriteFile(%q) error = %v", sdkContractsPath, err)
+		}
+
+		err := writeAllWith(
+			context.Background(),
+			openapiPath,
+			sdkContractsPath,
+			func() ([]byte, error) {
+				return []byte("{\"openapi\":\"3.0.3\"}\n"), nil
+			},
+			func(context.Context, string) ([]byte, error) {
+				return nil, errSDKGeneration
+			},
+			publishGeneratedFile,
+		)
+		if !errors.Is(err, errSDKGeneration) {
+			t.Fatalf("writeAllWith() error = %v, want %v", err, errSDKGeneration)
+		}
+
+		gotOpenAPI, err := os.ReadFile(openapiPath)
+		if err != nil {
+			t.Fatalf("os.ReadFile(%q) error = %v", openapiPath, err)
+		}
+		if !bytes.Equal(gotOpenAPI, originalOpenAPI) {
+			t.Fatalf("openapi after sdk generation failure = %q, want %q", string(gotOpenAPI), string(originalOpenAPI))
+		}
+
+		gotSDK, err := os.ReadFile(sdkContractsPath)
+		if err != nil {
+			t.Fatalf("os.ReadFile(%q) error = %v", sdkContractsPath, err)
+		}
+		if !bytes.Equal(gotSDK, originalSDK) {
+			t.Fatalf("sdk contracts after sdk generation failure = %q, want %q", string(gotSDK), string(originalSDK))
+		}
+	})
+
+	t.Run("ShouldRestoreOpenAPIWhenSDKPublishFails", func(t *testing.T) {
+		t.Parallel()
+
+		errSDKPublish := errors.New("sdk publish failed")
+		dir := t.TempDir()
+		openapiPath := filepath.Join(dir, "openapi", "agh.json")
+		sdkContractsPath := filepath.Join(dir, "sdk", "typescript", "src", "generated", "contracts.ts")
+		originalOpenAPI := []byte("{\"seed\":\"openapi\"}\n")
+		originalSDK := []byte("export type Seed = \"sdk\";\n")
+
+		if err := os.MkdirAll(filepath.Dir(openapiPath), 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(%q) error = %v", filepath.Dir(openapiPath), err)
+		}
+		if err := os.MkdirAll(filepath.Dir(sdkContractsPath), 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(%q) error = %v", filepath.Dir(sdkContractsPath), err)
+		}
+		if err := os.WriteFile(openapiPath, originalOpenAPI, 0o644); err != nil {
+			t.Fatalf("os.WriteFile(%q) error = %v", openapiPath, err)
+		}
+		if err := os.WriteFile(sdkContractsPath, originalSDK, 0o644); err != nil {
+			t.Fatalf("os.WriteFile(%q) error = %v", sdkContractsPath, err)
+		}
+
+		err := writeAllWith(
+			context.Background(),
+			openapiPath,
+			sdkContractsPath,
+			func() ([]byte, error) {
+				return []byte("{\"openapi\":\"3.0.3\"}\n"), nil
+			},
+			func(context.Context, string) ([]byte, error) {
+				return []byte("export type Value = \"fresh\";\n"), nil
+			},
+			func(path string, content []byte) error {
+				if path == sdkContractsPath {
+					return errSDKPublish
+				}
+				return publishGeneratedFile(path, content)
+			},
+		)
+		if !errors.Is(err, errSDKPublish) {
+			t.Fatalf("writeAllWith() error = %v, want %v", err, errSDKPublish)
+		}
+
+		gotOpenAPI, err := os.ReadFile(openapiPath)
+		if err != nil {
+			t.Fatalf("os.ReadFile(%q) error = %v", openapiPath, err)
+		}
+		if !bytes.Equal(gotOpenAPI, originalOpenAPI) {
+			t.Fatalf("openapi after sdk publish failure = %q, want %q", string(gotOpenAPI), string(originalOpenAPI))
+		}
+
+		gotSDK, err := os.ReadFile(sdkContractsPath)
+		if err != nil {
+			t.Fatalf("os.ReadFile(%q) error = %v", sdkContractsPath, err)
+		}
+		if !bytes.Equal(gotSDK, originalSDK) {
+			t.Fatalf("sdk contracts after sdk publish failure = %q, want %q", string(gotSDK), string(originalSDK))
+		}
+	})
+}
+
 func TestShutdownSignals(t *testing.T) {
 	t.Parallel()
 

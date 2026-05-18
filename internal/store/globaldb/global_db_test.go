@@ -440,6 +440,11 @@ func expectedGlobalMigrationPrefix() []expectedGlobalMigrationIdentity {
 			name:     "workspace_qualified_network_identity",
 			checksum: "2026-05-12-workspace-qualified-network-identity",
 		},
+		{
+			version:  26,
+			name:     "add_network_timeline_extensions",
+			checksum: "2026-05-16-add-network-timeline-extensions",
+		},
 	}
 }
 

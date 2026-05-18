@@ -187,6 +187,30 @@ func TestRuntime(t *testing.T) {
 		}
 	})
 
+	t.Run("Should consume multiple pending tool write markers independently", func(t *testing.T) {
+		t.Parallel()
+
+		fake := newFakeExtractor()
+		runtime := newTestRuntime(t, t.TempDir(), fake, nil)
+		runtime.RecordToolWrite("sess-tool-multi", 7)
+		runtime.RecordToolWrite("sess-tool-multi", 8)
+		for _, seq := range []int64{7, 8, 9} {
+			if err := runtime.HandleSessionMessagePersisted(
+				testutil.Context(t),
+				testPersistedPayload("sess-tool-multi", seq),
+			); err != nil {
+				t.Fatalf("HandleSessionMessagePersisted(seq %d) error = %v", seq, err)
+			}
+		}
+		if err := runtime.Drain(testutil.Context(t)); err != nil {
+			t.Fatalf("Drain() error = %v", err)
+		}
+		turns := fake.turns()
+		if len(turns) != 1 || turns[0].UntilMessageSeq != 9 {
+			t.Fatalf("extracted turns = %#v, want only unmarked turn 9", turns)
+		}
+	})
+
 	t.Run("Should keep extracting later turns after an older tool write marker", func(t *testing.T) {
 		t.Parallel()
 
@@ -472,6 +496,88 @@ func TestInbox(t *testing.T) {
 		}
 		if !events.containsOp(extractor.EventFailed) {
 			t.Fatalf("events = %#v, want %s", events.ops(), extractor.EventFailed)
+		}
+	})
+
+	t.Run("Should recover claimed processing files after restart", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		producer, err := extractor.NewProducer(root, testClock)
+		if err != nil {
+			t.Fatalf("NewProducer() error = %v", err)
+		}
+		path, _, err := producer.Write(
+			testutil.Context(t),
+			testTurn("sess-processing-recover", 4),
+			[]memcontract.Candidate{testCandidate("Pedro prefers recovered inbox claims.")},
+		)
+		if err != nil {
+			t.Fatalf("Producer.Write() error = %v", err)
+		}
+		processingPath := path + ".processing"
+		if err := os.Rename(path, processingPath); err != nil {
+			t.Fatalf("Rename(processing) error = %v", err)
+		}
+		sink := &recordingProposalSink{}
+		consumer, err := extractor.NewInboxConsumer(root, sink, extractor.WithConsumerClock(testClock))
+		if err != nil {
+			t.Fatalf("NewInboxConsumer() error = %v", err)
+		}
+
+		result, err := consumer.ConsumeOnce(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("ConsumeOnce() error = %v", err)
+		}
+		if result.Proposed != 1 || len(sink.candidates) != 1 {
+			t.Fatalf("ConsumeOnce() proposed/candidates = %d/%d, want 1/1", result.Proposed, len(sink.candidates))
+		}
+		if _, err := os.Stat(processingPath); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("processing file stat error = %v, want not exist after recovery", err)
+		}
+	})
+
+	t.Run("Should requeue canceled controller proposals without DLQ", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		producer, err := extractor.NewProducer(root, testClock)
+		if err != nil {
+			t.Fatalf("NewProducer() error = %v", err)
+		}
+		path, _, err := producer.Write(
+			testutil.Context(t),
+			testTurn("sess-canceled-proposal", 5),
+			[]memcontract.Candidate{testCandidate("Pedro prefers retryable inbox cancellation.")},
+		)
+		if err != nil {
+			t.Fatalf("Producer.Write() error = %v", err)
+		}
+		consumer, err := extractor.NewInboxConsumer(
+			root,
+			&recordingProposalSink{err: context.Canceled},
+			extractor.WithConsumerClock(testClock),
+		)
+		if err != nil {
+			t.Fatalf("NewInboxConsumer() error = %v", err)
+		}
+
+		result, err := consumer.ConsumeOnce(testutil.Context(t))
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("ConsumeOnce() error = %v, want context.Canceled", err)
+		}
+		if result.Failed != 0 || result.Proposed != 0 {
+			t.Fatalf("ConsumeOnce() failed/proposed = %d/%d, want 0/0", result.Failed, result.Proposed)
+		}
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("inbox file stat error = %v, want original file requeued", err)
+		}
+		failures, err := filepath.Glob(filepath.Join(root, "_system", "extractor", "failures", "*.json"))
+		if err != nil {
+			t.Fatalf("Glob(failures) error = %v", err)
+		}
+		if len(failures) != 0 {
+			t.Fatalf("DLQ failures = %#v, want none", failures)
 		}
 	})
 

@@ -14,6 +14,10 @@ import (
 
 const heartbeatOrderByCreatedDesc = " ORDER BY created_at DESC, id DESC"
 
+type heartbeatExecContext interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
 // UpsertHeartbeatSnapshot inserts a resolved Heartbeat snapshot or reuses the existing row for its digest.
 func (g *GlobalDB) UpsertHeartbeatSnapshot(
 	ctx context.Context,
@@ -47,12 +51,13 @@ func (g *GlobalDB) UpsertHeartbeatSnapshot(
 		return existing, nil
 	}
 
-	_, err = g.db.ExecContext(
+	result, err := g.db.ExecContext(
 		ctx,
 		`INSERT INTO agent_heartbeat_snapshots (
 			id, workspace_id, agent_name, source_path, schema_version, digest, config_digest,
 			body, frontmatter_json, resolved_json, diagnostics_json, created_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(workspace_id, agent_name, digest) DO NOTHING`,
 		normalized.ID,
 		normalized.WorkspaceID,
 		normalized.AgentName,
@@ -68,6 +73,29 @@ func (g *GlobalDB) UpsertHeartbeatSnapshot(
 	)
 	if err != nil {
 		return heartbeat.Snapshot{}, fmt.Errorf("store: insert heartbeat snapshot %q: %w", normalized.ID, err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return heartbeat.Snapshot{}, fmt.Errorf("store: inspect inserted heartbeat snapshot %q: %w", normalized.ID, err)
+	}
+	if affected == 0 {
+		existing, ok, err := g.FindHeartbeatSnapshotByDigest(
+			ctx,
+			normalized.WorkspaceID,
+			normalized.AgentName,
+			normalized.Digest,
+		)
+		if err != nil {
+			return heartbeat.Snapshot{}, err
+		}
+		if !ok {
+			return heartbeat.Snapshot{}, fmt.Errorf(
+				"store: reload heartbeat snapshot digest %q: %w",
+				normalized.Digest,
+				heartbeat.ErrSnapshotNotFound,
+			)
+		}
+		return existing, nil
 	}
 	return normalized, nil
 }
@@ -361,7 +389,7 @@ func (g *GlobalDB) FindHeartbeatRevisionForRollback(
 		`SELECT id, workspace_id, agent_name, source_path, operation, previous_digest, new_digest,
 			new_snapshot_id, body, actor_kind, actor_id, created_at
 		FROM agent_heartbeat_revisions
-		WHERE workspace_id = ? AND agent_name = ? AND id = ? AND operation IN ('write', 'rollback')`,
+		WHERE workspace_id = ? AND agent_name = ? AND id = ? AND operation IN ('write', 'delete', 'rollback')`,
 		strings.TrimSpace(query.WorkspaceID),
 		strings.TrimSpace(query.AgentName),
 		strings.TrimSpace(query.RevisionID),
@@ -563,32 +591,7 @@ func (g *GlobalDB) UpsertHeartbeatWakeState(
 		return heartbeat.WakeState{}, err
 	}
 
-	_, err := g.db.ExecContext(
-		ctx,
-		`INSERT INTO agent_heartbeat_wake_state (
-			workspace_id, agent_name, session_id, policy_snapshot_id, last_wake_at, next_allowed_at,
-			coalesced_count, last_result, last_reason, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(workspace_id, agent_name, session_id) DO UPDATE SET
-			policy_snapshot_id = excluded.policy_snapshot_id,
-			last_wake_at = excluded.last_wake_at,
-			next_allowed_at = excluded.next_allowed_at,
-			coalesced_count = excluded.coalesced_count,
-			last_result = excluded.last_result,
-			last_reason = excluded.last_reason,
-			updated_at = excluded.updated_at`,
-		normalized.WorkspaceID,
-		normalized.AgentName,
-		normalized.SessionID,
-		store.NullableString(normalized.PolicySnapshotID),
-		nullableHeartbeatTimestamp(normalized.LastWakeAt),
-		nullableHeartbeatTimestamp(normalized.NextAllowedAt),
-		normalized.CoalescedCount,
-		string(normalized.LastResult),
-		store.NullableString(string(normalized.LastReason)),
-		store.FormatTimestamp(normalized.UpdatedAt),
-	)
-	if err != nil {
+	if err := execHeartbeatWakeStateUpsert(ctx, g.db, normalized); err != nil {
 		return heartbeat.WakeState{}, fmt.Errorf("store: upsert heartbeat wake state %q: %w", normalized.SessionID, err)
 	}
 	return normalized, nil
@@ -685,6 +688,71 @@ func (g *GlobalDB) ListHeartbeatWakeState(
 	return states, nil
 }
 
+// RecordHeartbeatWakeDecision appends the audit row and updates cooldown state atomically.
+func (g *GlobalDB) RecordHeartbeatWakeDecision(
+	ctx context.Context,
+	event heartbeat.WakeEvent,
+	state heartbeat.WakeState,
+) (outEvent heartbeat.WakeEvent, outState heartbeat.WakeState, err error) {
+	if err := g.checkReady(ctx, "record heartbeat wake decision"); err != nil {
+		return heartbeat.WakeEvent{}, heartbeat.WakeState{}, err
+	}
+	normalizedEvent := event.Normalize()
+	if normalizedEvent.ID == "" {
+		normalizedEvent.ID = store.NewID("hwe")
+	}
+	if normalizedEvent.CreatedAt.IsZero() {
+		normalizedEvent.CreatedAt = g.now()
+	}
+	if err := normalizedEvent.Validate(); err != nil {
+		return heartbeat.WakeEvent{}, heartbeat.WakeState{}, err
+	}
+	normalizedState := state.Normalize()
+	if normalizedState.UpdatedAt.IsZero() {
+		normalizedState.UpdatedAt = g.now()
+	}
+	if err := normalizedState.Validate(); err != nil {
+		return heartbeat.WakeEvent{}, heartbeat.WakeState{}, err
+	}
+
+	tx, err := g.db.BeginTx(ctx, nil)
+	if err != nil {
+		return heartbeat.WakeEvent{}, heartbeat.WakeState{}, fmt.Errorf(
+			"store: begin heartbeat wake decision transaction: %w",
+			err,
+		)
+	}
+	finished := false
+	defer func() {
+		if !finished {
+			joinCleanupError(&err, rollbackTx(tx, "heartbeat wake decision"))
+		}
+	}()
+
+	if err := execHeartbeatWakeEventInsert(ctx, tx, normalizedEvent); err != nil {
+		return heartbeat.WakeEvent{}, heartbeat.WakeState{}, fmt.Errorf(
+			"store: append heartbeat wake event %q: %w",
+			normalizedEvent.ID,
+			err,
+		)
+	}
+	if err := execHeartbeatWakeStateUpsert(ctx, tx, normalizedState); err != nil {
+		return heartbeat.WakeEvent{}, heartbeat.WakeState{}, fmt.Errorf(
+			"store: upsert heartbeat wake state %q: %w",
+			normalizedState.SessionID,
+			err,
+		)
+	}
+	if err := tx.Commit(); err != nil {
+		return heartbeat.WakeEvent{}, heartbeat.WakeState{}, fmt.Errorf(
+			"store: commit heartbeat wake decision transaction: %w",
+			err,
+		)
+	}
+	finished = true
+	return normalizedEvent, normalizedState, nil
+}
+
 // AppendHeartbeatWakeEvent appends one retained Heartbeat wake audit row.
 func (g *GlobalDB) AppendHeartbeatWakeEvent(
 	ctx context.Context,
@@ -704,28 +772,61 @@ func (g *GlobalDB) AppendHeartbeatWakeEvent(
 		return heartbeat.WakeEvent{}, err
 	}
 
-	_, err := g.db.ExecContext(
+	if err := execHeartbeatWakeEventInsert(ctx, g.db, normalized); err != nil {
+		return heartbeat.WakeEvent{}, fmt.Errorf("store: append heartbeat wake event %q: %w", normalized.ID, err)
+	}
+	return normalized, nil
+}
+
+func execHeartbeatWakeStateUpsert(ctx context.Context, exec heartbeatExecContext, state heartbeat.WakeState) error {
+	_, err := exec.ExecContext(
+		ctx,
+		`INSERT INTO agent_heartbeat_wake_state (
+			workspace_id, agent_name, session_id, policy_snapshot_id, last_wake_at, next_allowed_at,
+			coalesced_count, last_result, last_reason, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(workspace_id, agent_name, session_id) DO UPDATE SET
+			policy_snapshot_id = excluded.policy_snapshot_id,
+			last_wake_at = excluded.last_wake_at,
+			next_allowed_at = excluded.next_allowed_at,
+			coalesced_count = excluded.coalesced_count,
+			last_result = excluded.last_result,
+			last_reason = excluded.last_reason,
+			updated_at = excluded.updated_at`,
+		state.WorkspaceID,
+		state.AgentName,
+		state.SessionID,
+		store.NullableString(state.PolicySnapshotID),
+		nullableHeartbeatTimestamp(state.LastWakeAt),
+		nullableHeartbeatTimestamp(state.NextAllowedAt),
+		state.CoalescedCount,
+		string(state.LastResult),
+		store.NullableString(string(state.LastReason)),
+		store.FormatTimestamp(state.UpdatedAt),
+	)
+	return err
+}
+
+func execHeartbeatWakeEventInsert(ctx context.Context, exec heartbeatExecContext, event heartbeat.WakeEvent) error {
+	_, err := exec.ExecContext(
 		ctx,
 		`INSERT INTO agent_heartbeat_wake_events (
 			id, workspace_id, agent_name, session_id, policy_snapshot_id, source, result, reason,
 			synthetic_prompt_id, created_at, expires_at
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		normalized.ID,
-		normalized.WorkspaceID,
-		normalized.AgentName,
-		store.NullableString(normalized.SessionID),
-		store.NullableString(normalized.PolicySnapshotID),
-		string(normalized.Source),
-		string(normalized.Result),
-		string(normalized.Reason),
-		store.NullableString(normalized.SyntheticPromptID),
-		store.FormatTimestamp(normalized.CreatedAt),
-		store.FormatTimestamp(normalized.ExpiresAt),
+		event.ID,
+		event.WorkspaceID,
+		event.AgentName,
+		store.NullableString(event.SessionID),
+		store.NullableString(event.PolicySnapshotID),
+		string(event.Source),
+		string(event.Result),
+		string(event.Reason),
+		store.NullableString(event.SyntheticPromptID),
+		store.FormatTimestamp(event.CreatedAt),
+		store.FormatTimestamp(event.ExpiresAt),
 	)
-	if err != nil {
-		return heartbeat.WakeEvent{}, fmt.Errorf("store: append heartbeat wake event %q: %w", normalized.ID, err)
-	}
-	return normalized, nil
+	return err
 }
 
 // GetHeartbeatWakeEvent returns one retained Heartbeat wake audit row.

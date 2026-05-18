@@ -34,6 +34,9 @@ func (h *Header) Normalize() {
 	h.Scope = h.Scope.Normalize()
 	h.AgentName = strings.TrimSpace(h.AgentName)
 	h.AgentTier = h.AgentTier.Normalize()
+	if h.Provenance != nil {
+		h.Provenance.Normalize()
+	}
 }
 
 // Validate reports whether the parsed memory header is complete and valid.
@@ -50,8 +53,26 @@ func (h *Header) Validate() error {
 			return err
 		}
 	}
-	if h.AgentTier != "" {
+	if h.Scope == ScopeAgent {
+		if h.AgentName == "" {
+			return fmt.Errorf("agent name is required for agent-scoped memory")
+		}
+		if h.AgentTier == "" {
+			return fmt.Errorf("agent tier is required for agent-scoped memory")
+		}
 		if err := h.AgentTier.Validate(); err != nil {
+			return err
+		}
+	} else {
+		if h.AgentName != "" {
+			return fmt.Errorf("agent name requires agent scope")
+		}
+		if h.AgentTier != "" {
+			return fmt.Errorf("agent tier requires agent scope")
+		}
+	}
+	if h.Provenance != nil {
+		if err := h.Provenance.Validate(); err != nil {
 			return err
 		}
 	}
@@ -66,6 +87,28 @@ type Provenance struct {
 	SupersededBy     string    `json:"superseded_by,omitempty"      yaml:"superseded_by,omitempty"`
 	CreatedAt        time.Time `json:"created_at"                   yaml:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"                   yaml:"updated_at"`
+}
+
+// Normalize trims and normalizes provenance metadata in place.
+func (p *Provenance) Normalize() {
+	p.SourceActor = p.SourceActor.Normalize()
+	p.Confidence = strings.TrimSpace(p.Confidence)
+	p.SupersededBy = strings.TrimSpace(p.SupersededBy)
+	for i, id := range p.SourceSessionIDs {
+		p.SourceSessionIDs[i] = strings.TrimSpace(id)
+	}
+}
+
+// Validate reports whether provenance metadata is complete and valid.
+func (p *Provenance) Validate() error {
+	if p == nil {
+		return nil
+	}
+	p.Normalize()
+	if err := p.SourceActor.Validate(); err != nil {
+		return fmt.Errorf("provenance source actor: %w", err)
+	}
+	return nil
 }
 
 // SearchOptions controls catalog-backed or fallback memory search behavior.
@@ -164,17 +207,18 @@ type LLMCall struct {
 
 // Candidate carries one fact proposed for the curated layer.
 type Candidate struct {
-	WorkspaceID string            `json:"workspace_id,omitempty"`
-	Scope       Scope             `json:"scope"`
-	AgentName   string            `json:"agent_name,omitempty"`
-	AgentTier   AgentTier         `json:"agent_tier,omitempty"`
-	Origin      Origin            `json:"origin"`
-	Content     string            `json:"content"`
-	Frontmatter Header            `json:"frontmatter"`
-	Entity      string            `json:"entity,omitempty"`
-	Attribute   string            `json:"attribute,omitempty"`
-	Metadata    map[string]string `json:"metadata,omitempty"`
-	SubmittedAt time.Time         `json:"submitted_at"`
+	WorkspaceID       string            `json:"workspace_id,omitempty"`
+	Scope             Scope             `json:"scope"`
+	AgentName         string            `json:"agent_name,omitempty"`
+	AgentTier         AgentTier         `json:"agent_tier,omitempty"`
+	Origin            Origin            `json:"origin"`
+	Content           string            `json:"content"`
+	Frontmatter       Header            `json:"frontmatter"`
+	TrustedRawContent string            `json:"-"`
+	Entity            string            `json:"entity,omitempty"`
+	Attribute         string            `json:"attribute,omitempty"`
+	Metadata          map[string]string `json:"metadata,omitempty"`
+	SubmittedAt       time.Time         `json:"submitted_at"`
 }
 
 // Decision carries enough material to deterministically replay a file mutation.
@@ -294,9 +338,10 @@ type Extractor interface {
 
 // ProviderInit configures a memory provider for one workspace.
 type ProviderInit struct {
-	WorkspaceID string         `json:"workspace_id,omitempty"`
-	Config      map[string]any `json:"config,omitempty"`
-	Logger      *slog.Logger   `json:"-"`
+	WorkspaceID   string         `json:"workspace_id,omitempty"`
+	WorkspaceRoot string         `json:"workspace_root,omitempty"`
+	Config        map[string]any `json:"config,omitempty"`
+	Logger        *slog.Logger   `json:"-"`
 }
 
 // SnapshotRequest asks a provider for a frozen prompt snapshot.

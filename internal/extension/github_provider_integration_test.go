@@ -128,8 +128,20 @@ func TestGitHubProviderSharedWebhookIngressAndDeliveryConformance(t *testing.T) 
 	waitForGitHubReadyStates(t, harness, []string{"brg-github-pat", "brg-github-app"})
 
 	webhookURL := fmt.Sprintf("http://%s/github", listenAddr)
-	postGitHubProviderWebhook(t, webhookURL, githubProviderWebhookSecret, "issue_comment", githubIssueCommentWebhookPayload(startTime))
-	postGitHubProviderWebhook(t, webhookURL, githubProviderWebhookSecret, "pull_request_review_comment", githubReviewCommentWebhookPayload(startTime))
+	postGitHubProviderWebhook(
+		t,
+		webhookURL,
+		githubProviderWebhookSecret,
+		"issue_comment",
+		githubIssueCommentWebhookPayload(startTime),
+	)
+	postGitHubProviderWebhook(
+		t,
+		webhookURL,
+		githubProviderWebhookSecret,
+		"pull_request_review_comment",
+		githubReviewCommentWebhookPayload(startTime),
+	)
 
 	ingests := harness.WaitForIngests(t, 10*time.Second, func(records []extensiontest.IngestRecord) bool {
 		if len(records) < 2 {
@@ -249,7 +261,11 @@ func buildGitHubProvider(t *testing.T, repoRoot string) {
 		cmd.Dir = repoRoot
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			buildGitHubProviderErr = fmt.Errorf("go build github provider: %w\n%s", err, strings.TrimSpace(string(output)))
+			buildGitHubProviderErr = fmt.Errorf(
+				"go build github provider: %w\n%s",
+				err,
+				strings.TrimSpace(string(output)),
+			)
 		}
 	})
 
@@ -327,7 +343,11 @@ func waitForGitHubReadyStates(t *testing.T, harness *extensiontest.Harness, inst
 	})
 }
 
-func githubFindIngestByInstance(t *testing.T, records []extensiontest.IngestRecord, instanceID string) extensiontest.IngestRecord {
+func githubFindIngestByInstance(
+	t *testing.T,
+	records []extensiontest.IngestRecord,
+	instanceID string,
+) extensiontest.IngestRecord {
 	t.Helper()
 
 	for _, record := range records {

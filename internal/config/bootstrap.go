@@ -97,10 +97,14 @@ func EnsureBootstrapAgent(homePaths HomePaths) (string, bool, error) {
 		return "", false, fmt.Errorf("stat bootstrap agent file %q: %w", path, err)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	agentDir := filepath.Dir(path)
+	if err := os.MkdirAll(agentDir, privateDirMode); err != nil {
 		return "", false, fmt.Errorf("create bootstrap agent directory %q: %w", filepath.Dir(path), err)
 	}
-	if err := os.WriteFile(path, []byte(bootstrapAgentContents()), 0o600); err != nil {
+	if err := os.Chmod(agentDir, privateDirMode); err != nil {
+		return "", false, fmt.Errorf("secure bootstrap agent directory %q: %w", agentDir, err)
+	}
+	if err := os.WriteFile(path, []byte(bootstrapAgentContents()), privateFileMode); err != nil {
 		return "", false, fmt.Errorf("write bootstrap agent file %q: %w", path, err)
 	}
 	return path, true, nil

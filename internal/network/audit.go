@@ -253,6 +253,10 @@ func normalizeTimelineMessageEntry(
 	if err != nil {
 		return store.NetworkMessageEntry{}, false, fmt.Errorf("network: decode timeline envelope body: %w", err)
 	}
+	extJSON, err := timelineExtensionJSON(envelope.Ext)
+	if err != nil {
+		return store.NetworkMessageEntry{}, false, err
+	}
 	if at.IsZero() {
 		at = time.Now().UTC()
 	}
@@ -285,10 +289,22 @@ func normalizeTimelineMessageEntry(
 		entry.Intent = strings.TrimSpace(value.Intent)
 		entry.Text = value.Text
 	}
+	entry.ExtJSON = extJSON
 	if err := entry.Validate(); err != nil {
 		return store.NetworkMessageEntry{}, false, err
 	}
 	return entry, true, nil
+}
+
+func timelineExtensionJSON(ext ExtensionMap) (json.RawMessage, error) {
+	if len(ext) == 0 {
+		return json.RawMessage("{}"), nil
+	}
+	raw, err := json.Marshal(ext)
+	if err != nil {
+		return nil, fmt.Errorf("network: marshal timeline envelope extensions: %w", err)
+	}
+	return raw, nil
 }
 
 func normalizeTaskIngressAuditEntry(audit TaskIngressAudit, at time.Time) (store.NetworkAuditEntry, error) {

@@ -84,8 +84,20 @@ func runGitHubMultiInstanceMatrixCase(t *testing.T, repoRoot string) extensionte
 	waitForGitHubReadyStates(t, harness, []string{"brg-github-pat", "brg-github-app"})
 
 	webhookURL := fmt.Sprintf("http://%s/github", listenAddr)
-	postGitHubProviderWebhook(t, webhookURL, githubProviderWebhookSecret, "issue_comment", githubIssueCommentWebhookPayload(startTime))
-	postGitHubProviderWebhook(t, webhookURL, githubProviderWebhookSecret, "pull_request_review_comment", githubReviewCommentWebhookPayload(startTime))
+	postGitHubProviderWebhook(
+		t,
+		webhookURL,
+		githubProviderWebhookSecret,
+		"issue_comment",
+		githubIssueCommentWebhookPayload(startTime),
+	)
+	postGitHubProviderWebhook(
+		t,
+		webhookURL,
+		githubProviderWebhookSecret,
+		"pull_request_review_comment",
+		githubReviewCommentWebhookPayload(startTime),
+	)
 
 	ingests := harness.WaitForIngests(t, 10*time.Second, func(records []extensiontest.IngestRecord) bool {
 		if len(records) < 2 {
@@ -318,7 +330,10 @@ func runWhatsAppDMPolicyMatrixCase(t *testing.T, repoRoot string) extensiontest.
 		return len(records) == 1 && records[0].Result.SessionID != ""
 	})
 	harness.WaitForDeliveries(t, 10*time.Second, func(records []extensiontest.DeliveryRecord) bool {
-		return len(records) > 0 && normalizeDeliveryEventType(records[len(records)-1].Request.Event.EventType) == bridgepkg.DeliveryEventTypeFinal
+		return len(records) > 0 &&
+			normalizeDeliveryEventType(
+				records[len(records)-1].Request.Event.EventType,
+			) == bridgepkg.DeliveryEventTypeFinal
 	})
 	report := harness.Report(t)
 
@@ -494,7 +509,12 @@ func runWhatsAppRateLimitMatrixCase(t *testing.T, repoRoot string) extensiontest
 
 	harness.WaitForHandshake(t, 10*time.Second)
 	webhookURL := fmt.Sprintf("http://%s/whatsapp/%s", listenAddr, harness.Instances[0].ID)
-	postWhatsAppProviderWebhook(t, webhookURL, "app-secret", whatsappProviderInboundWebhook("123456789", "Trigger rate limit"))
+	postWhatsAppProviderWebhook(
+		t,
+		webhookURL,
+		"app-secret",
+		whatsappProviderInboundWebhook("123456789", "Trigger rate limit"),
+	)
 
 	var instance *bridgepkg.BridgeInstance
 	waitForCondition(t, 10*time.Second, "bridge instance degraded after rate limit", func() bool {
@@ -523,7 +543,11 @@ func runWhatsAppRateLimitMatrixCase(t *testing.T, repoRoot string) extensiontest
 		}
 		return false
 	})
-	if !stateRecordsContainDegradation(states, bridgepkg.BridgeStatusDegraded, bridgepkg.BridgeDegradationReasonRateLimited) {
+	if !stateRecordsContainDegradation(
+		states,
+		bridgepkg.BridgeStatusDegraded,
+		bridgepkg.BridgeDegradationReasonRateLimited,
+	) {
 		t.Fatalf("state markers = %#v, want degraded rate-limited state report", states)
 	}
 

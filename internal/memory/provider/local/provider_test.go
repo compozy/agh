@@ -169,6 +169,36 @@ func TestProviderSystemPromptBlock(t *testing.T) {
 			t.Fatalf("SystemPromptBlock().AgeMs = %d, want non-negative", result.AgeMs)
 		}
 	})
+
+	t.Run("Should use initialized workspace root for workspace snapshots", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceBackend := &stubBackend{
+			prompt: "## Memory\n- Workspace-bound prompt\n",
+		}
+		rootBackend := &stubBackend{workspaceBackend: workspaceBackend}
+		provider := localprovider.New(rootBackend)
+		ctx := testutil.Context(t)
+		if err := provider.Initialize(ctx, memcontract.ProviderInit{
+			WorkspaceID:   "ws-alpha",
+			WorkspaceRoot: "/workspaces/alpha",
+		}); err != nil {
+			t.Fatalf("Initialize() error = %v", err)
+		}
+
+		result, err := provider.SystemPromptBlock(ctx, memcontract.SnapshotRequest{
+			Scope: memcontract.ScopeWorkspace,
+		})
+		if err != nil {
+			t.Fatalf("SystemPromptBlock(workspace) error = %v", err)
+		}
+		if result.Markdown != workspaceBackend.prompt {
+			t.Fatalf("SystemPromptBlock(workspace).Markdown = %q, want initialized workspace prompt", result.Markdown)
+		}
+		if len(rootBackend.workspaceRequests) != 1 || rootBackend.workspaceRequests[0].root != "/workspaces/alpha" {
+			t.Fatalf("workspace requests = %#v, want initialized workspace root", rootBackend.workspaceRequests)
+		}
+	})
 }
 
 func TestProviderRecall(t *testing.T) {
@@ -294,8 +324,108 @@ func TestProviderOnMemoryWrite(t *testing.T) {
 		if len(rootBackend.agentRequests) != 1 {
 			t.Fatalf("agent backend requests = %d, want 1", len(rootBackend.agentRequests))
 		}
+		request := rootBackend.agentRequests[0]
+		if request.workspaceID != "ws-alpha" || request.agentName != "reviewer" ||
+			request.tier != memcontract.AgentTierWorkspace {
+			t.Fatalf("agent backend request = %#v, want initialized workspace and default workspace tier", request)
+		}
 		if agentBackend.appliedDecision.ID != "dec_agent" {
 			t.Fatalf("agent applied decision = %q, want dec_agent", agentBackend.appliedDecision.ID)
+		}
+	})
+
+	t.Run("Should route workspace-scoped decisions through initialized workspace backend", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceBackend := &stubBackend{}
+		rootBackend := &stubBackend{workspaceBackend: workspaceBackend}
+		provider := localprovider.New(rootBackend)
+		ctx := testutil.Context(t)
+		if err := provider.Initialize(ctx, memcontract.ProviderInit{
+			WorkspaceID:   "ws-alpha",
+			WorkspaceRoot: "/workspaces/alpha",
+		}); err != nil {
+			t.Fatalf("Initialize() error = %v", err)
+		}
+		decision := memcontract.Decision{
+			ID:             "dec_workspace",
+			CandidateHash:  "hash_workspace",
+			IdempotencyKey: "key_workspace",
+			Op:             memcontract.OpNoop,
+			Frontmatter: memcontract.Header{
+				Name:  "Workspace rule",
+				Type:  memcontract.TypeProject,
+				Scope: memcontract.ScopeWorkspace,
+			},
+			Confidence: 1,
+			Source:     memcontract.SourceRule,
+			DecidedAt:  time.Date(2026, 5, 5, 8, 0, 0, 0, time.UTC),
+		}
+		if err := provider.OnMemoryWrite(ctx, memcontract.WriteRecord{Decision: decision}); err != nil {
+			t.Fatalf("OnMemoryWrite(workspace) error = %v", err)
+		}
+		if rootBackend.appliedDecision.ID != "" {
+			t.Fatalf("root applied decision = %q, want no root write", rootBackend.appliedDecision.ID)
+		}
+		if workspaceBackend.appliedDecision.ID != "dec_workspace" {
+			t.Fatalf("workspace applied decision = %q, want dec_workspace", workspaceBackend.appliedDecision.ID)
+		}
+		if len(rootBackend.workspaceRequests) != 1 || rootBackend.workspaceRequests[0].root != "/workspaces/alpha" {
+			t.Fatalf("workspace requests = %#v, want initialized workspace root", rootBackend.workspaceRequests)
+		}
+	})
+
+	t.Run("Should reject initialized workspace writes without workspace root", func(t *testing.T) {
+		t.Parallel()
+
+		provider := localprovider.New(&stubBackend{})
+		ctx := testutil.Context(t)
+		if err := provider.Initialize(ctx, memcontract.ProviderInit{WorkspaceID: "ws-alpha"}); err != nil {
+			t.Fatalf("Initialize() error = %v", err)
+		}
+		decision := memcontract.Decision{
+			ID:             "dec_workspace_missing_root",
+			CandidateHash:  "hash_workspace_missing_root",
+			IdempotencyKey: "key_workspace_missing_root",
+			Op:             memcontract.OpNoop,
+			Frontmatter: memcontract.Header{
+				Name:  "Workspace rule",
+				Type:  memcontract.TypeProject,
+				Scope: memcontract.ScopeWorkspace,
+			},
+			Confidence: 1,
+			Source:     memcontract.SourceRule,
+			DecidedAt:  time.Date(2026, 5, 5, 8, 0, 0, 0, time.UTC),
+		}
+		if err := provider.OnMemoryWrite(ctx, memcontract.WriteRecord{Decision: decision}); err == nil {
+			t.Fatal("OnMemoryWrite(workspace without root) error = nil, want error")
+		}
+	})
+
+	t.Run("Should reject agent-scoped decisions without agent name", func(t *testing.T) {
+		t.Parallel()
+
+		provider := localprovider.New(&stubBackend{})
+		ctx := testutil.Context(t)
+		if err := provider.Initialize(ctx, memcontract.ProviderInit{WorkspaceID: "ws-alpha"}); err != nil {
+			t.Fatalf("Initialize() error = %v", err)
+		}
+		decision := memcontract.Decision{
+			ID:             "dec_agent_missing_name",
+			CandidateHash:  "hash_agent_missing_name",
+			IdempotencyKey: "key_agent_missing_name",
+			Op:             memcontract.OpNoop,
+			Frontmatter: memcontract.Header{
+				Name:  "Agent rule",
+				Type:  memcontract.TypeFeedback,
+				Scope: memcontract.ScopeAgent,
+			},
+			Confidence: 1,
+			Source:     memcontract.SourceRule,
+			DecidedAt:  time.Date(2026, 5, 5, 8, 0, 0, 0, time.UTC),
+		}
+		if err := provider.OnMemoryWrite(ctx, memcontract.WriteRecord{Decision: decision}); err == nil {
+			t.Fatal("OnMemoryWrite(agent without name) error = nil, want error")
 		}
 	})
 }
@@ -493,6 +623,7 @@ func agentPayload(t *testing.T) []byte {
 	payload, err := yaml.Marshal(map[string]any{
 		"name":       "Reviewer Style",
 		"type":       memcontract.TypeFeedback,
+		"scope":      memcontract.ScopeAgent,
 		"agent":      "reviewer",
 		"agent_tier": memcontract.AgentTierWorkspace,
 	})

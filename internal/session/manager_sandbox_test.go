@@ -819,6 +819,63 @@ func TestManagerExecSandboxUsesPreparedToolHost(t *testing.T) {
 	}
 }
 
+func TestManagerExecSandboxReturnsWaitFailures(t *testing.T) {
+	t.Parallel()
+
+	runtimeRoot := filepath.Join(t.TempDir(), "runtime")
+	toolHost := &recordingSandboxToolHost{
+		exitCode: 1,
+		output:   "partial output",
+		waitErr:  errors.New("terminal exited due to signal"),
+	}
+	provider := &recordingSandboxProvider{
+		runtimeRoot: runtimeRoot,
+		toolHost:    toolHost,
+	}
+	h := newHarness(t, WithSandboxRegistry(newRegistryForProvider(t, provider)))
+	session := createSession(t, h)
+	t.Cleanup(func() {
+		_ = h.manager.Stop(testutil.Context(t), session.ID)
+	})
+
+	result, err := h.manager.ExecSandbox(testutil.Context(t), SandboxExecRequest{
+		SessionID: session.ID,
+		Command:   "echo ready",
+		Timeout:   time.Second,
+	})
+	if err == nil {
+		t.Fatal("ExecSandbox() error = nil, want wait failure")
+	}
+	if !strings.Contains(err.Error(), "sandbox exec wait") {
+		t.Fatalf("ExecSandbox() error = %v, want sandbox exec wait context", err)
+	}
+	if !errors.Is(err, toolHost.waitErr) {
+		t.Fatalf("ExecSandbox() error = %v, want wrapped wait error", err)
+	}
+	if result.ExitCode != toolHost.exitCode || result.Stdout != toolHost.output ||
+		result.Stderr != toolHost.waitErr.Error() {
+		t.Fatalf("ExecSandbox() result = %#v, want preserved wait failure result", result)
+	}
+	if got, want := len(toolHost.createRequests), 1; got != want {
+		t.Fatalf("CreateTerminal calls = %d, want %d", got, want)
+	}
+	if got, want := toolHost.createRequests[0].Command, "echo ready"; got != want {
+		t.Fatalf("CreateTerminal command = %q, want %q", got, want)
+	}
+	if toolHost.createRequests[0].Cwd == nil || *toolHost.createRequests[0].Cwd != runtimeRoot {
+		t.Fatalf("CreateTerminal cwd = %v, want %q", toolHost.createRequests[0].Cwd, runtimeRoot)
+	}
+	if got, want := toolHost.waitIDs, []string{"term-1"}; !slices.Equal(got, want) {
+		t.Fatalf("WaitForTerminalExit ids = %v, want %v", got, want)
+	}
+	if got, want := toolHost.outputIDs, []string{"term-1"}; !slices.Equal(got, want) {
+		t.Fatalf("TerminalOutput ids = %v, want %v", got, want)
+	}
+	if got, want := toolHost.releaseIDs, []string{"term-1"}; !slices.Equal(got, want) {
+		t.Fatalf("ReleaseTerminal ids = %v, want %v", got, want)
+	}
+}
+
 func TestManagerExecSandboxValidationErrors(t *testing.T) {
 	t.Parallel()
 
@@ -999,6 +1056,7 @@ type recordingSandboxToolHost struct {
 	releaseIDs     []string
 	exitCode       int
 	output         string
+	waitErr        error
 }
 
 func (h *recordingSandboxToolHost) ReadTextFile(context.Context, string) (string, error) {
@@ -1048,7 +1106,7 @@ func (h *recordingSandboxToolHost) WaitForTerminalExit(_ context.Context, id str
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.waitIDs = append(h.waitIDs, id)
-	return h.exitCode, nil
+	return h.exitCode, h.waitErr
 }
 
 func (h *recordingSandboxToolHost) ReleaseTerminal(id string) error {

@@ -33,6 +33,37 @@ type rawSpecCodec interface {
 	ValidateAndCanonicalizeRaw(ctx context.Context, scope ResourceScope, raw []byte) ([]byte, error)
 }
 
+type rawCodecAdapter[T any] struct {
+	codec KindCodec[T]
+}
+
+func (a rawCodecAdapter[T]) Kind() ResourceKind {
+	return a.codec.Kind()
+}
+
+func (a rawCodecAdapter[T]) MaxBytes() int {
+	return a.codec.MaxBytes()
+}
+
+func (a rawCodecAdapter[T]) ValidateAndCanonicalizeRaw(
+	ctx context.Context,
+	scope ResourceScope,
+	raw []byte,
+) ([]byte, error) {
+	validated, err := a.codec.DecodeAndValidate(ctx, scope, raw)
+	if err != nil {
+		return nil, err
+	}
+	canonical, err := a.codec.Encode(validated)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateCodecPayloadSize(len(canonical), a.codec.MaxBytes(), a.codec.Kind(), "encode"); err != nil {
+		return nil, err
+	}
+	return canonical, nil
+}
+
 // NewJSONCodec builds a JSON-backed codec with a typed validation hook.
 func NewJSONCodec[T any](kind ResourceKind, maxBytes int, validator SpecValidator[T]) (KindCodec[T], error) {
 	normalizedKind := kind.Normalize()
@@ -124,8 +155,9 @@ func validateCodecPayloadSize(size int, maxBytes int, kind ResourceKind, operati
 }
 
 type codecRegistration struct {
-	specType reflect.Type
-	codec    any
+	specType       reflect.Type
+	codec          any
+	rawCanonicaler rawSpecCodec
 }
 
 // CodecRegistry holds explicit kind-to-codec registrations for typed adapters.
@@ -191,8 +223,9 @@ func RegisterCodec[T any](registry *CodecRegistry, codec KindCodec[T]) error {
 	}
 
 	registry.codecs[normalizedKind] = codecRegistration{
-		specType: specTypeOf[T](),
-		codec:    codec,
+		specType:       specTypeOf[T](),
+		codec:          codec,
+		rawCanonicaler: rawCodecAdapter[T]{codec: codec},
 	}
 	return nil
 }
@@ -242,17 +275,7 @@ func ValidateAndCanonicalizeIfRegistered(
 		return append([]byte(nil), raw...), false, nil
 	}
 
-	codec, ok := entry.codec.(rawSpecCodec)
-	if !ok {
-		return nil, true, fmt.Errorf(
-			"%w: codec for kind %q is %s, not a raw validating codec",
-			ErrCodecTypeMismatch,
-			normalizedKind,
-			entry.specType,
-		)
-	}
-
-	canonical, err := codec.ValidateAndCanonicalizeRaw(ctx, scope, raw)
+	canonical, err := entry.rawCanonicaler.ValidateAndCanonicalizeRaw(ctx, scope, raw)
 	if err != nil {
 		return nil, true, err
 	}

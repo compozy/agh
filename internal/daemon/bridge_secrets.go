@@ -62,8 +62,7 @@ func (r vaultBridgeSecretResolver) ResolveBridgeSecret(
 	if err != nil {
 		return "", fmt.Errorf("%w: %w", bridgepkg.ErrInvalidBridgeSecretBinding, err)
 	}
-	value = strings.TrimSpace(value)
-	if value == "" {
+	if strings.TrimSpace(value) == "" {
 		return "", fmt.Errorf(
 			"%w: bridge secret %q is empty",
 			bridgepkg.ErrInvalidBridgeSecretBinding,

@@ -30,6 +30,51 @@ func TestProcessInputValidation(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve existing generated output when source validation fails", func(t *testing.T) {
+		t.Parallel()
+
+		srcDir := t.TempDir()
+		dstDir := t.TempDir()
+		if err := os.WriteFile(
+			filepath.Join(srcDir, "aghost.md"),
+			[]byte("## aghost\n\nBad input\n"),
+			0o600,
+		); err != nil {
+			t.Fatalf("write ambiguous source file: %v", err)
+		}
+		seeded := map[string]string{
+			"index.mdx":       "editorial index",
+			"meta.json":       "{\"title\":\"CLI Reference\"}",
+			"agh.mdx":         "previous root",
+			"agent/index.mdx": "previous agent index",
+			"agent/list.mdx":  "previous agent list",
+			"agent/meta.json": "{\"title\":\"Agent\"}",
+		}
+		for rel, body := range seeded {
+			path := filepath.Join(dstDir, rel)
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				t.Fatalf("mkdir %s: %v", rel, err)
+			}
+			if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+				t.Fatalf("write %s: %v", rel, err)
+			}
+		}
+
+		err := Process(context.Background(), srcDir, dstDir)
+		if err == nil || !strings.Contains(err.Error(), "must be 'agh.md' or start with 'agh_'") {
+			t.Fatalf("Process() error = %v, want ambiguous source filename rejection", err)
+		}
+		for rel, want := range seeded {
+			got, readErr := os.ReadFile(filepath.Join(dstDir, rel))
+			if readErr != nil {
+				t.Fatalf("seeded output %s should remain after rejected input: %v", rel, readErr)
+			}
+			if string(got) != want {
+				t.Fatalf("seeded output %s = %q, want %q", rel, string(got), want)
+			}
+		}
+	})
+
 	t.Run("Should reject invalid empty command segments", func(t *testing.T) {
 		t.Parallel()
 

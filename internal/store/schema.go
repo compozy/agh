@@ -83,25 +83,18 @@ func RunMigrations(ctx context.Context, db *sql.DB, migrations []Migration, opts
 	if err != nil {
 		return err
 	}
+	expected, err := expectedMigrationRecords(ordered)
+	if err != nil {
+		return err
+	}
+	if err := validateAppliedMigrationRecords(applied, expected); err != nil {
+		return err
+	}
 	for _, migration := range ordered {
-		checksum, err := migrationChecksum(migration)
-		if err != nil {
-			return err
-		}
-		if record, ok := applied[migration.Version]; ok {
-			if record.Name != strings.TrimSpace(migration.Name) || record.Checksum != checksum {
-				return fmt.Errorf(
-					"store: migration %d integrity mismatch: recorded %q/%s, current %q/%s",
-					migration.Version,
-					record.Name,
-					record.Checksum,
-					strings.TrimSpace(migration.Name),
-					checksum,
-				)
-			}
+		if _, ok := applied[migration.Version]; ok {
 			continue
 		}
-		if err := applyMigration(ctx, db, cfg.table, migration, checksum); err != nil {
+		if err := applyMigration(ctx, db, cfg.table, migration, expected[migration.Version].Checksum); err != nil {
 			return err
 		}
 	}
@@ -242,6 +235,52 @@ func appliedMigrationRecords(ctx context.Context, db *sql.DB, table string) (map
 		applied[record.Version] = record
 	}
 	return applied, nil
+}
+
+func expectedMigrationRecords(migrations []Migration) (map[int]MigrationRecord, error) {
+	expected := make(map[int]MigrationRecord, len(migrations))
+	for _, migration := range migrations {
+		checksum, err := migrationChecksum(migration)
+		if err != nil {
+			return nil, err
+		}
+		expected[migration.Version] = MigrationRecord{
+			Version:  migration.Version,
+			Name:     strings.TrimSpace(migration.Name),
+			Checksum: checksum,
+		}
+	}
+	return expected, nil
+}
+
+func validateAppliedMigrationRecords(applied map[int]MigrationRecord, expected map[int]MigrationRecord) error {
+	versions := make([]int, 0, len(applied))
+	for version := range applied {
+		versions = append(versions, version)
+	}
+	sort.Ints(versions)
+	for _, version := range versions {
+		record := applied[version]
+		current, ok := expected[version]
+		if !ok {
+			return fmt.Errorf(
+				"store: applied migration %d %q is not present in current registry",
+				record.Version,
+				record.Name,
+			)
+		}
+		if record.Name != current.Name || record.Checksum != current.Checksum {
+			return fmt.Errorf(
+				"store: migration %d integrity mismatch: recorded %q/%s, current %q/%s",
+				record.Version,
+				record.Name,
+				record.Checksum,
+				current.Name,
+				current.Checksum,
+			)
+		}
+	}
+	return nil
 }
 
 func applyMigration(ctx context.Context, db *sql.DB, table string, migration Migration, checksum string) (err error) {

@@ -100,6 +100,16 @@ func TestValidateTriggerPromptTemplateRejectsUnsupportedReferences(t *testing.T)
 			prompt: `{{ range $key, $value := .Data }}{{ $value.name }}{{ end }}`,
 			want:   []string{"variable-rooted"},
 		},
+		{
+			name:   "Should reject defined templates invoked with data scope",
+			prompt: `{{ define "body" }}{{ .Source }}{{ end }}{{ template "body" .Data }}`,
+			want:   []string{"template", ".Data", "root dot"},
+		},
+		{
+			name:   "Should reject defined templates invoked without explicit root scope",
+			prompt: `{{ define "body" }}static{{ end }}{{ template "body" }}`,
+			want:   []string{"template", "root dot"},
+		},
 	}
 
 	for _, tt := range tests {

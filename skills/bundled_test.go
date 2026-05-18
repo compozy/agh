@@ -152,6 +152,30 @@ func TestLoadResourceRejectsInvalidInputs(t *testing.T) {
 			resourcePath: `references\network.md`,
 			wantErr:      ErrInvalidResourcePath,
 		},
+		{
+			name:         "Should reject dot-prefixed resource alias",
+			skillName:    "agh",
+			resourcePath: "./references/network.md",
+			wantErr:      ErrInvalidResourcePath,
+		},
+		{
+			name:         "Should reject duplicate separator resource alias",
+			skillName:    "agh",
+			resourcePath: "references//network.md",
+			wantErr:      ErrInvalidResourcePath,
+		},
+		{
+			name:         "Should reject internal parent traversal resource alias",
+			skillName:    "agh",
+			resourcePath: "references/../SKILL.md",
+			wantErr:      ErrInvalidResourcePath,
+		},
+		{
+			name:         "Should reject surrounding whitespace resource alias",
+			skillName:    "agh",
+			resourcePath: " references/network.md ",
+			wantErr:      ErrInvalidResourcePath,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

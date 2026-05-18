@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -28,6 +29,7 @@ type networkMessageNullableFields struct {
 	intent       sql.NullString
 	text         sql.NullString
 	previewText  string
+	extRaw       string
 	bodyRaw      string
 	timestampRaw string
 }
@@ -65,9 +67,10 @@ func (g *GlobalDB) WriteNetworkMessage(ctx context.Context, entry store.NetworkM
 			intent,
 			text,
 			preview_text,
+			ext_json,
 			body_json,
 			timestamp
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT(workspace_id, message_id) DO NOTHING`,
 		entry.MessageID,
 		store.NullableString(entry.SessionID),
@@ -87,6 +90,7 @@ func (g *GlobalDB) WriteNetworkMessage(ctx context.Context, entry store.NetworkM
 		store.NullableString(entry.Intent),
 		store.NullableString(entry.Text),
 		entry.PreviewText,
+		networkMessageExtJSONString(entry.ExtJSON),
 		string(entry.Body),
 		store.FormatTimestamp(entry.Timestamp),
 	); err != nil {
@@ -162,6 +166,7 @@ func (g *GlobalDB) buildNetworkMessageListQuery(
 		intent,
 		text,
 		preview_text,
+		ext_json,
 		body_json,
 		timestamp
 	FROM network_timeline_log`
@@ -297,6 +302,7 @@ func scanNetworkMessage(scanner rowScanner) (store.NetworkMessageEntry, error) {
 		&nullable.intent,
 		&nullable.text,
 		&nullable.previewText,
+		&nullable.extRaw,
 		&nullable.bodyRaw,
 		&nullable.timestampRaw,
 	); err != nil {
@@ -348,5 +354,14 @@ func applyNetworkMessageNullableFields(entry *store.NetworkMessageEntry, nullabl
 		entry.Text = *value
 	}
 	entry.PreviewText = strings.TrimSpace(nullable.previewText)
+	entry.ExtJSON = []byte(networkMessageExtJSONString([]byte(nullable.extRaw)))
 	entry.Body = []byte(nullable.bodyRaw)
+}
+
+func networkMessageExtJSONString(raw json.RawMessage) string {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" {
+		return "{}"
+	}
+	return trimmed
 }

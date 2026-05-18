@@ -244,3 +244,105 @@ func TestMockAgentSessionConfigOptions(t *testing.T) {
 		}
 	})
 }
+
+func TestMockAgentLoadSessionValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject empty session id without panicking", func(t *testing.T) {
+		t.Parallel()
+
+		agent := &mockAgent{
+			sessions: map[string]*sessionState{},
+		}
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				t.Fatalf("LoadSession(empty) panic = %v, want validation error", recovered)
+			}
+		}()
+
+		_, err := agent.LoadSession(context.Background(), acpsdk.LoadSessionRequest{})
+		if err == nil || !strings.Contains(err.Error(), "session id is required") {
+			t.Fatalf("LoadSession(empty) error = %v, want session id validation", err)
+		}
+	})
+}
+
+func TestMockAgentSandboxTerminalCleanup(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should release terminal with detached context after wait cancellation", func(t *testing.T) {
+		t.Parallel()
+
+		conn := &recordingSandboxConnection{}
+		agent := &mockAgent{conn: conn}
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		result := agent.runSandboxCommand(ctx, acpsdk.SessionId("sess-1"), acpmock.Step{
+			Command: "/bin/sh",
+			Args:    []string{"-c", "sleep 30"},
+		})
+
+		if !conn.releaseCalled {
+			t.Fatal("ReleaseTerminal() was not called after terminal creation")
+		}
+		if conn.releaseContextErr != nil {
+			t.Fatalf("ReleaseTerminal() context error = %v, want detached cleanup context", conn.releaseContextErr)
+		}
+		if !strings.Contains(result.ObservedError, "context canceled") {
+			t.Fatalf("ObservedError = %q, want wait cancellation surfaced", result.ObservedError)
+		}
+	})
+}
+
+type recordingSandboxConnection struct {
+	releaseCalled     bool
+	releaseContextErr error
+}
+
+func (c *recordingSandboxConnection) SessionUpdate(
+	context.Context,
+	acpsdk.SessionNotification,
+) error {
+	return nil
+}
+
+func (c *recordingSandboxConnection) RequestPermission(
+	context.Context,
+	acpsdk.RequestPermissionRequest,
+) (acpsdk.RequestPermissionResponse, error) {
+	return acpsdk.RequestPermissionResponse{}, nil
+}
+
+func (c *recordingSandboxConnection) CreateTerminal(
+	context.Context,
+	acpsdk.CreateTerminalRequest,
+) (acpsdk.CreateTerminalResponse, error) {
+	return acpsdk.CreateTerminalResponse{TerminalId: "term-cancel"}, nil
+}
+
+func (c *recordingSandboxConnection) WaitForTerminalExit(
+	ctx context.Context,
+	_ acpsdk.WaitForTerminalExitRequest,
+) (acpsdk.WaitForTerminalExitResponse, error) {
+	return acpsdk.WaitForTerminalExitResponse{}, ctx.Err()
+}
+
+func (c *recordingSandboxConnection) TerminalOutput(
+	context.Context,
+	acpsdk.TerminalOutputRequest,
+) (acpsdk.TerminalOutputResponse, error) {
+	return acpsdk.TerminalOutputResponse{}, nil
+}
+
+func (c *recordingSandboxConnection) ReleaseTerminal(
+	ctx context.Context,
+	_ acpsdk.ReleaseTerminalRequest,
+) (acpsdk.ReleaseTerminalResponse, error) {
+	c.releaseCalled = true
+	c.releaseContextErr = ctx.Err()
+	if c.releaseContextErr != nil {
+		return acpsdk.ReleaseTerminalResponse{}, c.releaseContextErr
+	}
+	return acpsdk.ReleaseTerminalResponse{}, nil
+}

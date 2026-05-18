@@ -26,11 +26,13 @@ const (
 	// FileName is the canonical authored wake-policy filename.
 	FileName = "HEARTBEAT.md"
 
-	schemaVersion      = 1
-	digestPrefix       = "agh.heartbeat.v1\n"
-	configDigestPrefix = "agh.heartbeat.config.v1\n"
-	diagnosticError    = "error"
-	diagnosticWarning  = "warning"
+	schemaVersion       = 1
+	digestPrefix        = "agh.heartbeat.v1\n"
+	contentDigestPrefix = "agh.heartbeat.content.v1\n"
+	absentDigestPrefix  = "agh.heartbeat.absent.v1\n"
+	configDigestPrefix  = "agh.heartbeat.config.v1\n"
+	diagnosticError     = "error"
+	diagnosticWarning   = "warning"
 )
 
 var (
@@ -73,6 +75,7 @@ type ResolvedPolicy struct {
 	Prompt           PromptContribution
 	Status           StatusData
 	Diagnostics      []Diagnostic
+	contentDigest    string
 }
 
 // Frontmatter is the allowlisted strict HEARTBEAT.md metadata.
@@ -275,6 +278,7 @@ func Parse(ctx context.Context, req ParseRequest) (ResolvedPolicy, error) {
 	}
 	result.Present = true
 	result.Status.Present = true
+	result.contentDigest = digestHeartbeatContent(req.Content)
 
 	front, body, bodyLineOffset, parseDiagnostics := parseDocument(req.Content, req.Config, safePath)
 	if len(parseDiagnostics) > 0 {
@@ -857,6 +861,24 @@ func digestPolicy(front Frontmatter, body string, subset ConfigSubset) (string, 
 	}
 	sum := sha256.Sum256([]byte(digestPrefix + string(canonicalFront) + "\n" + body + "\n" + string(canonicalConfig)))
 	return "sha256:" + hex.EncodeToString(sum[:]), nil
+}
+
+func digestHeartbeatContent(content []byte) string {
+	payload := make([]byte, 0, len(contentDigestPrefix)+len(content))
+	payload = append(payload, contentDigestPrefix...)
+	payload = append(payload, content...)
+	sum := sha256.Sum256(payload)
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func digestAbsentPolicy(id string, sourcePath string, configDigest string) string {
+	sum := sha256.Sum256([]byte(
+		absentDigestPrefix +
+			strings.TrimSpace(id) + "\n" +
+			strings.TrimSpace(sourcePath) + "\n" +
+			strings.TrimSpace(configDigest),
+	))
+	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 func promptContribution(cfg aghconfig.HeartbeatConfig, policy *ResolvedPolicy) PromptContribution {

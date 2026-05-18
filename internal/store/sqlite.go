@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	// Register the pure-Go SQLite driver used by AGH stores.
-	_ "modernc.org/sqlite"
+	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 // OpenSQLiteDatabase opens a SQLite database, applies shared configuration,
@@ -216,20 +216,16 @@ func ShouldRecoverSQLite(err error) bool {
 		return false
 	}
 
-	message := strings.ToLower(err.Error())
-	for _, marker := range []string{
-		"not a database",
-		"database disk image is malformed",
-		"malformed database schema",
-		"malformed",
-		"file is encrypted or is not a database",
-	} {
-		if strings.Contains(message, marker) {
-			return true
-		}
+	var sqliteErr *sqlite.Error
+	if !errors.As(err, &sqliteErr) {
+		return false
 	}
-
-	return false
+	switch sqliteErr.Code() & sqlitePrimaryResultCodeMask {
+	case sqlite3.SQLITE_CORRUPT, sqlite3.SQLITE_NOTADB:
+		return true
+	default:
+		return false
+	}
 }
 
 func closeQuietly(db *sql.DB) {

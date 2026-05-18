@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -13,6 +14,14 @@ import (
 )
 
 const maxDetachedCommandErrorBytes = 4 * 1024
+const detachedCommandLogTailSlack = 4
+
+var (
+	startDetachedProcess    = os.StartProcess
+	closeDetachedLaunchFile = func(file *os.File) error {
+		return file.Close()
+	}
+)
 
 // DetachedLaunchRequest describes one detached process launch with log capture.
 type DetachedLaunchRequest struct {
@@ -138,6 +147,23 @@ func launchSandbox(sandbox []string) []string {
 	return FilteredDaemonEnv(nil)
 }
 
+func closeDetachedLaunchHandles(stdinFile *os.File, logFile *os.File, logPath string) error {
+	return errors.Join(
+		closeDetachedLaunchHandle(stdinFile, fmt.Sprintf("%q handle", os.DevNull)),
+		closeDetachedLaunchHandle(logFile, fmt.Sprintf("log handle %q", logPath)),
+	)
+}
+
+func closeDetachedLaunchHandle(file *os.File, label string) error {
+	if file == nil {
+		return nil
+	}
+	if err := closeDetachedLaunchFile(file); err != nil {
+		return fmt.Errorf("procutil: close %s: %w", label, err)
+	}
+	return nil
+}
+
 func launchArgv(binary string, args []string) []string {
 	argv := make([]string, 1, len(args)+1)
 	argv[0] = binary
@@ -159,15 +185,50 @@ func attachCommandLog(err error, logPath string, logOffset int64) error {
 	return fmt.Errorf("%w: stderr=%s", err, text)
 }
 
-func readCommandLog(path string, offset int64) (string, error) {
-	data, err := os.ReadFile(path)
+func readCommandLog(path string, offset int64) (text string, err error) {
+	file, err := os.Open(path)
 	if err != nil {
-		return "", fmt.Errorf("procutil: read log %q: %w", path, err)
+		return "", fmt.Errorf("procutil: open log %q: %w", path, err)
 	}
-	if offset < 0 || offset > int64(len(data)) {
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("procutil: close log %q: %w", path, closeErr)
+		}
+	}()
+
+	info, err := file.Stat()
+	if err != nil {
+		return "", fmt.Errorf("procutil: stat log %q: %w", path, err)
+	}
+	size := info.Size()
+	if offset < 0 || offset > size {
 		offset = 0
 	}
-	return strings.TrimSpace(string(data[offset:])), nil
+	start, length := commandLogTailWindow(offset, size)
+	if length == 0 {
+		return "", nil
+	}
+	data := make([]byte, length)
+	n, err := file.ReadAt(data, start)
+	if err != nil && !errors.Is(err, io.EOF) {
+		return "", fmt.Errorf("procutil: read log %q: %w", path, err)
+	}
+	if n == 0 {
+		return "", fmt.Errorf("procutil: read log %q: %w", path, err)
+	}
+	return strings.TrimSpace(string(data[:n])), nil
+}
+
+func commandLogTailWindow(offset int64, size int64) (int64, int64) {
+	if size <= offset {
+		return size, 0
+	}
+	maxBytes := int64(maxDetachedCommandErrorBytes * detachedCommandLogTailSlack)
+	available := size - offset
+	if available <= maxBytes {
+		return offset, available
+	}
+	return size - maxBytes, maxBytes
 }
 
 func recentCommandError(logText string) string {

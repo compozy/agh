@@ -3,6 +3,7 @@ package update
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -71,7 +72,10 @@ func (m *Manager) fetchLatestRelease(ctx context.Context) (*Release, error) {
 	return release, nil
 }
 
-func (m *Manager) downloadFile(ctx context.Context, url string, path string) error {
+func (m *Manager) downloadFile(ctx context.Context, url string, path string, maxBytes int64) (err error) {
+	if maxBytes <= 0 {
+		return fmt.Errorf("update: invalid download limit %d for %q", maxBytes, url)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return fmt.Errorf("update: create download request for %q: %w", url, err)
@@ -84,24 +88,57 @@ func (m *Manager) downloadFile(ctx context.Context, url string, path string) err
 		return fmt.Errorf("update: download %q: %w", url, err)
 	}
 	defer func() {
-		_ = resp.Body.Close()
+		if closeErr := resp.Body.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("update: close download response %q: %w", url, closeErr)
+		}
 	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("update: download %q returned %s", url, resp.Status)
+	}
+	if resp.ContentLength > maxBytes {
+		return fmt.Errorf(
+			"update: download %q size %d exceeds limit %d",
+			url,
+			resp.ContentLength,
+			maxBytes,
+		)
 	}
 
 	file, err := os.Create(path)
 	if err != nil {
 		return fmt.Errorf("update: create download target %q: %w", path, err)
 	}
+	removePartial := true
+	closed := false
 	defer func() {
-		_ = file.Close()
+		if !closed {
+			if closeErr := file.Close(); closeErr != nil && err == nil {
+				err = fmt.Errorf("update: close download target %q: %w", path, closeErr)
+			}
+		}
+		if removePartial {
+			if removeErr := os.Remove(path); removeErr != nil &&
+				!errors.Is(removeErr, os.ErrNotExist) &&
+				err == nil {
+				err = fmt.Errorf("update: remove partial download %q: %w", path, removeErr)
+			}
+		}
 	}()
 
-	if _, err := io.Copy(file, resp.Body); err != nil {
+	limited := &io.LimitedReader{R: resp.Body, N: maxBytes + 1}
+	written, err := io.Copy(file, limited)
+	if err != nil {
 		return fmt.Errorf("update: write download %q: %w", path, err)
 	}
+	if written > maxBytes {
+		return fmt.Errorf("update: download %q exceeds limit %d", url, maxBytes)
+	}
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("update: close download target %q: %w", path, err)
+	}
+	closed = true
+	removePartial = false
 	return nil
 }
 

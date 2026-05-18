@@ -547,7 +547,12 @@ func TestManagerIntegrationSyntheticQueuePreservesOrderingBehindActivePrompt(t *
 		t.Fatalf("stored events missing %q: %#v", acp.EventTypeSyntheticReentry, events)
 	}
 	if !(userIndex < doneIndex && doneIndex < syntheticIndex) {
-		t.Fatalf("event order user=%d done=%d synthetic=%d, want user < done < synthetic", userIndex, doneIndex, syntheticIndex)
+		t.Fatalf(
+			"event order user=%d done=%d synthetic=%d, want user < done < synthetic",
+			userIndex,
+			doneIndex,
+			syntheticIndex,
+		)
 	}
 
 	if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
@@ -968,56 +973,72 @@ func TestManagerIntegrationSandboxNativeHooksLifecycleOrder(t *testing.T) {
 			},
 		},
 		map[string]hookspkg.Executor{
-			"env-prepare": hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.SandboxPreparePayload) (hookspkg.SandboxPreparePatch, error) {
-				if payload.SandboxID == "" || payload.WorkspaceID == "" {
-					return hookspkg.SandboxPreparePatch{}, errors.New("sandbox.prepare missing identity fields")
-				}
-				record("sandbox.prepare")
-				return hookspkg.SandboxPreparePatch{}, nil
-			}),
-			"env-sync-before": hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.SandboxSyncBeforePayload) (hookspkg.SandboxSyncBeforePatch, error) {
-				if payload.SandboxID == "" || payload.Direction == "" || payload.Reason == "" {
-					return hookspkg.SandboxSyncBeforePatch{}, errors.New("sandbox.sync.before missing lifecycle fields")
-				}
-				record("sandbox.sync.before:" + payload.Direction)
-				return hookspkg.SandboxSyncBeforePatch{}, nil
-			}),
-			"env-sync-after": hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.SandboxSyncAfterPayload) (hookspkg.SandboxSyncAfterPatch, error) {
-				if payload.SandboxID == "" || payload.Direction == "" || payload.DurationMS < 0 {
-					return hookspkg.SandboxSyncAfterPatch{}, errors.New("sandbox.sync.after missing lifecycle fields")
-				}
-				record("sandbox.sync.after:" + payload.Direction)
-				switch payload.Direction {
-				case string(sandbox.SyncDirectionToRuntime):
-					close(afterTo)
-				case string(sandbox.SyncDirectionFromRuntime):
-					close(afterFrom)
-				default:
-					return hookspkg.SandboxSyncAfterPatch{}, errors.New("unexpected sync direction " + payload.Direction)
-				}
-				return hookspkg.SandboxSyncAfterPatch{}, nil
-			}),
-			"env-ready": hookspkg.NewTypedNativeExecutor(func(ctx context.Context, _ hookspkg.RegisteredHook, payload hookspkg.SandboxReadyPayload) (hookspkg.SandboxReadyPatch, error) {
-				if err := waitFor(ctx, afterTo, "sandbox.sync.after:to_runtime"); err != nil {
-					return hookspkg.SandboxReadyPatch{}, err
-				}
-				if payload.SandboxID == "" || payload.RuntimeRootDir == "" {
-					return hookspkg.SandboxReadyPatch{}, errors.New("sandbox.ready missing runtime fields")
-				}
-				record("sandbox.ready")
-				close(ready)
-				return hookspkg.SandboxReadyPatch{}, nil
-			}),
-			"env-stop": hookspkg.NewTypedNativeExecutor(func(ctx context.Context, _ hookspkg.RegisteredHook, payload hookspkg.SandboxStopPayload) (hookspkg.SandboxStopPatch, error) {
-				if err := waitFor(ctx, afterFrom, "sandbox.sync.after:from_runtime"); err != nil {
-					return hookspkg.SandboxStopPatch{}, err
-				}
-				if payload.SandboxID == "" || payload.StopReason == "" {
-					return hookspkg.SandboxStopPatch{}, errors.New("sandbox.stop missing stop fields")
-				}
-				record("sandbox.stop")
-				return hookspkg.SandboxStopPatch{}, nil
-			}),
+			"env-prepare": hookspkg.NewTypedNativeExecutor(
+				func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.SandboxPreparePayload) (hookspkg.SandboxPreparePatch, error) {
+					if payload.SandboxID == "" || payload.WorkspaceID == "" {
+						return hookspkg.SandboxPreparePatch{}, errors.New("sandbox.prepare missing identity fields")
+					}
+					record("sandbox.prepare")
+					return hookspkg.SandboxPreparePatch{}, nil
+				},
+			),
+			"env-sync-before": hookspkg.NewTypedNativeExecutor(
+				func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.SandboxSyncBeforePayload) (hookspkg.SandboxSyncBeforePatch, error) {
+					if payload.SandboxID == "" || payload.Direction == "" || payload.Reason == "" {
+						return hookspkg.SandboxSyncBeforePatch{}, errors.New(
+							"sandbox.sync.before missing lifecycle fields",
+						)
+					}
+					record("sandbox.sync.before:" + payload.Direction)
+					return hookspkg.SandboxSyncBeforePatch{}, nil
+				},
+			),
+			"env-sync-after": hookspkg.NewTypedNativeExecutor(
+				func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.SandboxSyncAfterPayload) (hookspkg.SandboxSyncAfterPatch, error) {
+					if payload.SandboxID == "" || payload.Direction == "" || payload.DurationMS < 0 {
+						return hookspkg.SandboxSyncAfterPatch{}, errors.New(
+							"sandbox.sync.after missing lifecycle fields",
+						)
+					}
+					record("sandbox.sync.after:" + payload.Direction)
+					switch payload.Direction {
+					case string(sandbox.SyncDirectionToRuntime):
+						close(afterTo)
+					case string(sandbox.SyncDirectionFromRuntime):
+						close(afterFrom)
+					default:
+						return hookspkg.SandboxSyncAfterPatch{}, errors.New(
+							"unexpected sync direction " + payload.Direction,
+						)
+					}
+					return hookspkg.SandboxSyncAfterPatch{}, nil
+				},
+			),
+			"env-ready": hookspkg.NewTypedNativeExecutor(
+				func(ctx context.Context, _ hookspkg.RegisteredHook, payload hookspkg.SandboxReadyPayload) (hookspkg.SandboxReadyPatch, error) {
+					if err := waitFor(ctx, afterTo, "sandbox.sync.after:to_runtime"); err != nil {
+						return hookspkg.SandboxReadyPatch{}, err
+					}
+					if payload.SandboxID == "" || payload.RuntimeRootDir == "" {
+						return hookspkg.SandboxReadyPatch{}, errors.New("sandbox.ready missing runtime fields")
+					}
+					record("sandbox.ready")
+					close(ready)
+					return hookspkg.SandboxReadyPatch{}, nil
+				},
+			),
+			"env-stop": hookspkg.NewTypedNativeExecutor(
+				func(ctx context.Context, _ hookspkg.RegisteredHook, payload hookspkg.SandboxStopPayload) (hookspkg.SandboxStopPatch, error) {
+					if err := waitFor(ctx, afterFrom, "sandbox.sync.after:from_runtime"); err != nil {
+						return hookspkg.SandboxStopPatch{}, err
+					}
+					if payload.SandboxID == "" || payload.StopReason == "" {
+						return hookspkg.SandboxStopPatch{}, errors.New("sandbox.stop missing stop fields")
+					}
+					record("sandbox.stop")
+					return hookspkg.SandboxStopPatch{}, nil
+				},
+			),
 		},
 	)
 
@@ -1068,16 +1089,20 @@ func TestManagerIntegrationContextCompactionUsesPatchedParams(t *testing.T) {
 			},
 		},
 		map[string]hookspkg.Executor{
-			"context-pre": hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.ContextPreCompactPayload) (hookspkg.ContextPreCompactPatch, error) {
-				return hookspkg.ContextPreCompactPatch{
-					Reason:   &reason,
-					Strategy: &strategy,
-				}, nil
-			}),
-			"context-post": hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.ContextPostCompactPayload) (hookspkg.ContextPostCompactPatch, error) {
-				postSeen <- payload
-				return hookspkg.ContextPostCompactPatch{}, nil
-			}),
+			"context-pre": hookspkg.NewTypedNativeExecutor(
+				func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.ContextPreCompactPayload) (hookspkg.ContextPreCompactPatch, error) {
+					return hookspkg.ContextPreCompactPatch{
+						Reason:   &reason,
+						Strategy: &strategy,
+					}, nil
+				},
+			),
+			"context-post": hookspkg.NewTypedNativeExecutor(
+				func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.ContextPostCompactPayload) (hookspkg.ContextPostCompactPatch, error) {
+					postSeen <- payload
+					return hookspkg.ContextPostCompactPatch{}, nil
+				},
+			),
 		},
 	)
 
@@ -1115,7 +1140,13 @@ func TestManagerIntegrationContextCompactionUsesPatchedParams(t *testing.T) {
 	select {
 	case payload := <-postSeen:
 		if payload.Reason != reason || payload.Strategy != strategy {
-			t.Fatalf("post hook saw reason/strategy = %q/%q, want %q/%q", payload.Reason, payload.Strategy, reason, strategy)
+			t.Fatalf(
+				"post hook saw reason/strategy = %q/%q, want %q/%q",
+				payload.Reason,
+				payload.Strategy,
+				reason,
+				strategy,
+			)
 		}
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for context.post_compact hook")
@@ -1132,9 +1163,11 @@ func TestManagerIntegrationPreStopRequiredHookErrorPreventsCleanStop(t *testing.
 			ExecutorKind: hookspkg.HookExecutorNative,
 		}},
 		map[string]hookspkg.Executor{
-			"required-pre-stop": hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, _ hookspkg.SessionPreStopPayload) (hookspkg.SessionPreStopPatch, error) {
-				return hookspkg.SessionPreStopPatch{}, errors.New("required hook failed")
-			}),
+			"required-pre-stop": hookspkg.NewTypedNativeExecutor(
+				func(_ context.Context, _ hookspkg.RegisteredHook, _ hookspkg.SessionPreStopPayload) (hookspkg.SessionPreStopPatch, error) {
+					return hookspkg.SessionPreStopPatch{}, errors.New("required hook failed")
+				},
+			),
 		},
 	)
 

@@ -134,8 +134,9 @@ func (r *Registry) GlobalVersion() int64 {
 // Get returns a cloned global skill by name when present.
 func (r *Registry) Get(name string) (*Skill, bool) {
 	r.mu.RLock()
+	defer r.mu.RUnlock()
+
 	skill, ok := r.lookupSkillLocked(name)
-	r.mu.RUnlock()
 	if !ok {
 		return nil, false
 	}
@@ -146,10 +147,9 @@ func (r *Registry) Get(name string) (*Skill, bool) {
 // List returns the current global skills sorted by skill name.
 func (r *Registry) List() []*Skill {
 	r.mu.RLock()
-	globalSkills := r.globalSkills
-	r.mu.RUnlock()
+	defer r.mu.RUnlock()
 
-	return mergedSkillList(globalSkills, nil)
+	return mergedSkillList(r.globalSkills, nil)
 }
 
 // LoadContent loads the full markdown body for one resolved skill.
@@ -168,6 +168,9 @@ func (r *Registry) LoadContent(ctx context.Context, skill *Skill) (string, error
 		}
 		return readBundledSkillContent(r.cfg.BundledFS, skill.FilePath)
 	default:
+		if err := r.verifyMarketplaceSkill(skill); err != nil {
+			return "", err
+		}
 		return ReadSkillContent(skill.FilePath)
 	}
 }
@@ -188,6 +191,9 @@ func (r *Registry) LoadResource(ctx context.Context, skill *Skill, relativePath 
 		}
 		return readBundledSkillResource(r.cfg.BundledFS, skill.Dir, relativePath)
 	default:
+		if err := r.verifyMarketplaceSkill(skill); err != nil {
+			return "", err
+		}
 		return ReadSkillResourceContent(skill.Dir, relativePath)
 	}
 }
@@ -199,18 +205,31 @@ func (r *Registry) ForWorkspace(ctx context.Context, resolved *workspacepkg.Reso
 	}
 
 	if skills, ok := r.resourceBackedWorkspaceSkills(resolved); ok {
+		applyDisabledSkillList(
+			skills,
+			r.workspaceDisabledSkillsSnapshot(
+				workspaceCacheKey(resolved, nil),
+				workspaceConfiguredDisabledSkills(resolved),
+			),
+		)
 		return skills, nil
+	}
+	if skills, ok, err := r.cachedWorkspaceSkillsFromResolved(ctx, resolved); ok || err != nil {
+		return skills, err
 	}
 
 	load, err := r.workspaceLoadFromResolved(ctx, resolved)
 	if err != nil {
 		return nil, err
 	}
+	cacheKey := workspaceCacheKey(resolved, load.paths)
+	workspaceDisabled := r.workspaceDisabledSkillsSnapshot(cacheKey, workspaceConfiguredDisabledSkills(resolved))
 	if len(load.paths) == 0 {
-		return r.List(), nil
+		skills := r.List()
+		applyDisabledSkillList(skills, workspaceDisabled)
+		return skills, nil
 	}
 
-	cacheKey := workspaceCacheKey(resolved, load.paths)
 	if cacheKey == "" {
 		return nil, errors.New("skills: workspace cache key is required")
 	}
@@ -225,14 +244,12 @@ func (r *Registry) ForWorkspace(ctx context.Context, resolved *workspacepkg.Reso
 		cached.globalVersion == currentGlobalVersion &&
 		filesnap.Equal(cached.snapshots, load.snapshots) {
 		cached.lastAccess = now
-		globalSkills := r.globalSkills
-		workspaceSkills := cached.skills
+		skills := mergedSkillListWithDisabled(r.globalSkills, cached.skills, workspaceDisabled)
 		r.mu.Unlock()
-		return mergedSkillList(globalSkills, workspaceSkills), nil
+		return skills, nil
 	}
 	r.mu.Unlock()
 
-	workspaceDisabled := r.workspaceDisabledSkillsSnapshot(cacheKey, resolved.Config.Skills.DisabledSkills)
 	workspaceSkills, err := r.loadWorkspaceSkills(ctx, load.paths, workspaceDisabled)
 	if err != nil {
 		return nil, err
@@ -258,10 +275,11 @@ func (r *Registry) ForWorkspace(ctx context.Context, resolved *workspacepkg.Reso
 		lastAccess:    now,
 		globalVersion: currentGlobalVersion,
 	}
+	skills := mergedSkillListWithDisabled(globalSkills, workspaceSkills, workspaceDisabled)
 	r.mu.Unlock()
 	r.emitEventSummaries(ctx, shadowEvents)
 
-	return mergedSkillList(globalSkills, workspaceSkills), nil
+	return skills, nil
 }
 
 // SetEnabled updates the runtime enabled state for a named skill and keeps the
@@ -294,7 +312,6 @@ func (r *Registry) SetEnabled(name string, resolved *workspacepkg.ResolvedWorksp
 	if cacheKey, workspaceSkill := r.workspaceSkillTargetLocked(trimmedName, resolved); workspaceSkill != nil {
 		workspaceSkill.Enabled = enabled
 		r.workspaceDisabled[cacheKey] = setDisabledSkill(r.workspaceDisabled[cacheKey], trimmedName, enabled)
-		r.globalVersion.Add(1)
 		return nil
 	}
 
@@ -305,7 +322,6 @@ func (r *Registry) SetEnabled(name string, resolved *workspacepkg.ResolvedWorksp
 
 	globalSkill.Enabled = enabled
 	r.cfg.DisabledSkills = setDisabledSkill(r.cfg.DisabledSkills, trimmedName, enabled)
-	r.globalVersion.Add(1)
 
 	return nil
 }

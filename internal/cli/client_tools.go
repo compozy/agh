@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"unicode"
 
 	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/diagnostics"
@@ -283,7 +284,8 @@ func redactToolMetadata(metadata map[string]json.RawMessage) map[string]json.Raw
 }
 
 func sensitiveToolFieldName(key string) bool {
-	normalized := strings.ToLower(strings.ReplaceAll(key, "-", "_"))
+	parts := sensitiveToolFieldNameParts(key)
+	normalized := strings.Join(parts, "_")
 	const tokenField = "token"
 	for _, marker := range []string{
 		"api_key",
@@ -296,9 +298,6 @@ func sensitiveToolFieldName(key string) bool {
 			return true
 		}
 	}
-	parts := strings.FieldsFunc(normalized, func(r rune) bool {
-		return (r < 'a' || r > 'z') && (r < '0' || r > '9')
-	})
 	if len(parts) == 1 {
 		return parts[0] == tokenField
 	}
@@ -307,6 +306,35 @@ func sensitiveToolFieldName(key string) bool {
 	}
 	last := parts[len(parts)-1]
 	return last == tokenField || last == "tokens"
+}
+
+func sensitiveToolFieldNameParts(key string) []string {
+	runes := []rune(strings.TrimSpace(key))
+	if len(runes) == 0 {
+		return nil
+	}
+	var normalized strings.Builder
+	for i, r := range runes {
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) {
+			normalized.WriteRune('_')
+			continue
+		}
+		if unicode.IsUpper(r) && i > 0 {
+			previous := runes[i-1]
+			var next rune
+			if i+1 < len(runes) {
+				next = runes[i+1]
+			}
+			if unicode.IsLower(previous) || unicode.IsDigit(previous) ||
+				(unicode.IsUpper(previous) && next != 0 && unicode.IsLower(next)) {
+				normalized.WriteRune('_')
+			}
+		}
+		normalized.WriteRune(unicode.ToLower(r))
+	}
+	return strings.FieldsFunc(normalized.String(), func(r rune) bool {
+		return r == '_'
+	})
 }
 
 func benignTokenMetric(parts []string) bool {

@@ -78,6 +78,8 @@ const (
 	ReasonApprovalTokenReplayed ReasonCode = "approval_token_replayed"
 	// ReasonSessionDenied reports session lineage denial.
 	ReasonSessionDenied ReasonCode = "session_denied"
+	// ReasonScopeMismatch reports caller-supplied scope conflicting with trusted scope.
+	ReasonScopeMismatch ReasonCode = "scope_mismatch"
 	// ReasonMemorySubagentWriteDenied reports a sub-agent direct memory write denial.
 	ReasonMemorySubagentWriteDenied ReasonCode = "memory_subagent_write_denied"
 	// ReasonHookDenied reports hook denial.

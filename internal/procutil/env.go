@@ -41,7 +41,8 @@ func IsolatedDaemonEnv(base []string) []string {
 		if len(parts) != 2 {
 			continue
 		}
-		if !safeDaemonEnvName(strings.ToUpper(strings.TrimSpace(parts[0]))) {
+		name := strings.ToUpper(strings.TrimSpace(parts[0]))
+		if SensitiveEnvName(name) || !safeDaemonEnvName(name) {
 			continue
 		}
 		filtered = append(filtered, entry)
@@ -55,9 +56,10 @@ func SensitiveEnvName(name string) bool {
 	if normalized == "" {
 		return false
 	}
-	if safeDaemonEnvName(normalized) {
-		return false
-	}
+	return credentialShapedEnvName(normalized)
+}
+
+func credentialShapedEnvName(normalized string) bool {
 	for _, marker := range []string{
 		"API_KEY",
 		"APIKEY",

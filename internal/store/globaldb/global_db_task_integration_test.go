@@ -23,7 +23,12 @@ func TestGlobalDBTaskPersistenceSurvivesReopenWithGlobalAndWorkspaceTasks(t *tes
 		t.Fatalf("OpenGlobalDB(first) error = %v", err)
 	}
 
-	workspaceID := registerWorkspaceForGlobalTests(t, first, "task-integration-workspace", filepath.Join(t.TempDir(), "workspace"))
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		first,
+		"task-integration-workspace",
+		filepath.Join(t.TempDir(), "workspace"),
+	)
 	globalTask := taskRecordForTest("task-integration-global")
 	globalTask.Status = taskpkg.TaskStatusDraft
 	globalTask.Priority = taskpkg.PriorityLow
@@ -212,7 +217,10 @@ func TestGlobalDBTaskRunSessionAttachmentSurvivesReopen(t *testing.T) {
 	}
 	assertTaskRunEqual(t, runs[0], storedQueued)
 
-	runsByChannel, err := third.ListTaskRuns(ctx, taskpkg.RunQuery{CoordinationChannelID: storedQueued.CoordinationChannelID})
+	runsByChannel, err := third.ListTaskRuns(
+		ctx,
+		taskpkg.RunQuery{CoordinationChannelID: storedQueued.CoordinationChannelID},
+	)
 	if err != nil {
 		t.Fatalf("ListTaskRuns(coordination channel) error = %v", err)
 	}
@@ -233,8 +241,18 @@ func TestGlobalDBTaskSearchFiltersAndOrderingSurviveReopen(t *testing.T) {
 		t.Fatalf("OpenGlobalDB(first) error = %v", err)
 	}
 
-	workspaceA := registerWorkspaceForGlobalTests(t, first, "task-search-reopen-a", filepath.Join(t.TempDir(), "workspace-a"))
-	workspaceB := registerWorkspaceForGlobalTests(t, first, "task-search-reopen-b", filepath.Join(t.TempDir(), "workspace-b"))
+	workspaceA := registerWorkspaceForGlobalTests(
+		t,
+		first,
+		"task-search-reopen-a",
+		filepath.Join(t.TempDir(), "workspace-a"),
+	)
+	workspaceB := registerWorkspaceForGlobalTests(
+		t,
+		first,
+		"task-search-reopen-b",
+		filepath.Join(t.TempDir(), "workspace-b"),
+	)
 
 	alpha := taskRecordForTest("task-reopen-alpha")
 	alpha.Scope = taskpkg.ScopeWorkspace

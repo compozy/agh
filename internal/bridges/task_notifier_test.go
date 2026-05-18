@@ -1,6 +1,7 @@
 package bridges
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -402,7 +403,7 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 						Ref:  "task-manager",
 					},
 					Payload: json.RawMessage(
-						`{"message":"saw agh_claim_EVENT_SECRET","claim_token":"agh_claim_EVENT_SECRET","mcp_auth_token":"mcp-secret","oauth_code":"oauth-secret","pkce_verifier":"pkce-secret","nested":{"token":"agh_claim_NESTED_SECRET","secret_binding":"vault-ref","session_secret":"super-secret"}}`,
+						`{"message":"saw agh_claim_EVENT_SECRET","cursor":9007199254740993,"claim_token":"agh_claim_EVENT_SECRET","mcp_auth_token":"mcp-secret","oauth_code":"oauth-secret","pkce_verifier":"pkce-secret","nested":{"checkpoint":9007199254740995,"token":"agh_claim_NESTED_SECRET","secret_binding":"vault-ref","session_secret":"super-secret"}}`,
 					),
 					Timestamp: terminalTaskNotifierTestTime(),
 				},
@@ -448,6 +449,30 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 		}
 		if !strings.Contains(string(calls[0].request.Event.ProviderMetadata), "[REDACTED]") {
 			t.Fatalf("provider metadata = %s, want redaction marker", string(calls[0].request.Event.ProviderMetadata))
+		}
+		var decodedPayload map[string]any
+		decoder := json.NewDecoder(bytes.NewReader(envelope.Payload))
+		decoder.UseNumber()
+		if err := decoder.Decode(&decodedPayload); err != nil {
+			t.Fatalf("Decode(envelope payload) error = %v", err)
+		}
+		cursor, ok := decodedPayload["cursor"].(json.Number)
+		if !ok {
+			t.Fatalf("payload cursor = %#v, want json.Number", decodedPayload["cursor"])
+		}
+		if got, want := cursor.String(), "9007199254740993"; got != want {
+			t.Fatalf("payload cursor = %s, want %s", got, want)
+		}
+		nested, ok := decodedPayload["nested"].(map[string]any)
+		if !ok {
+			t.Fatalf("payload nested = %#v, want object", decodedPayload["nested"])
+		}
+		checkpoint, ok := nested["checkpoint"].(json.Number)
+		if !ok {
+			t.Fatalf("payload nested checkpoint = %#v, want json.Number", nested["checkpoint"])
+		}
+		if got, want := checkpoint.String(), "9007199254740995"; got != want {
+			t.Fatalf("payload nested checkpoint = %s, want %s", got, want)
 		}
 	})
 

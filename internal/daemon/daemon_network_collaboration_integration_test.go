@@ -92,14 +92,22 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		)
 
 		mustSendNetworkCLI(t, ctx, harness, []string{
-			"--session", opsSession.ID,
-			"--channel", "builders",
-			"--kind", "say",
-			"--surface", "thread",
-			"--thread", buildersThreadID,
-			"--id", "msg_say_01",
-			"--trace-id", "trace_ops_patch_42",
-			"--body", `{"text":"Who can take the failing migration tests in internal/store/sessiondb?","intent":"request-help","artifacts":[]}`,
+			"--session",
+			opsSession.ID,
+			"--channel",
+			"builders",
+			"--kind",
+			"say",
+			"--surface",
+			"thread",
+			"--thread",
+			buildersThreadID,
+			"--id",
+			"msg_say_01",
+			"--trace-id",
+			"trace_ops_patch_42",
+			"--body",
+			`{"text":"Who can take the failing migration tests in internal/store/sessiondb?","intent":"request-help","artifacts":[]}`,
 		})
 
 		waitForRuntimeCondition(t, "builders say delivery", 10*time.Second, func() bool {
@@ -108,18 +116,30 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		})
 
 		mustSendNetworkCLI(t, ctx, harness, []string{
-			"--session", patchSession.ID,
-			"--channel", "builders",
-			"--kind", "say",
-			"--surface", "direct",
-			"--direct", patchDirectID,
-			"--work", patchWorkID,
-			"--to", opsPeerID,
-			"--reply-to", "msg_say_01",
-			"--trace-id", "trace_ops_patch_42",
-			"--causation-id", "msg_say_01",
-			"--id", "msg_direct_01",
-			"--body", `{"text":"I can take the failing migration tests and send back a patch summary.","intent":"handoff","artifacts":[]}`,
+			"--session",
+			patchSession.ID,
+			"--channel",
+			"builders",
+			"--kind",
+			"say",
+			"--surface",
+			"direct",
+			"--direct",
+			patchDirectID,
+			"--work",
+			patchWorkID,
+			"--to",
+			opsPeerID,
+			"--reply-to",
+			"msg_say_01",
+			"--trace-id",
+			"trace_ops_patch_42",
+			"--causation-id",
+			"msg_say_01",
+			"--id",
+			"msg_direct_01",
+			"--body",
+			`{"text":"I can take the failing migration tests and send back a patch summary.","intent":"handoff","artifacts":[]}`,
 		})
 
 		waitForRuntimeCondition(t, "direct delivery", 10*time.Second, func() bool {
@@ -135,18 +155,30 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		})
 
 		mustSendNetworkCLI(t, ctx, harness, []string{
-			"--session", opsSession.ID,
-			"--channel", "builders",
-			"--kind", "receipt",
-			"--surface", "direct",
-			"--direct", patchDirectID,
-			"--work", patchWorkID,
-			"--to", patchPeerID,
-			"--reply-to", "msg_direct_01",
-			"--trace-id", "trace_ops_patch_42",
-			"--causation-id", "msg_direct_01",
-			"--id", "msg_receipt_01",
-			"--body", `{"for_id":"msg_direct_01","status":"accepted","detail":"Proceed and report progress with trace messages."}`,
+			"--session",
+			opsSession.ID,
+			"--channel",
+			"builders",
+			"--kind",
+			"receipt",
+			"--surface",
+			"direct",
+			"--direct",
+			patchDirectID,
+			"--work",
+			patchWorkID,
+			"--to",
+			patchPeerID,
+			"--reply-to",
+			"msg_direct_01",
+			"--trace-id",
+			"trace_ops_patch_42",
+			"--causation-id",
+			"msg_direct_01",
+			"--id",
+			"msg_receipt_01",
+			"--body",
+			`{"for_id":"msg_direct_01","status":"accepted","detail":"Proceed and report progress with trace messages."}`,
 		})
 
 		waitForRuntimeCondition(t, "receipt delivery", 10*time.Second, func() bool {
@@ -162,18 +194,30 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		})
 
 		mustSendNetworkCLI(t, ctx, harness, []string{
-			"--session", patchSession.ID,
-			"--channel", "builders",
-			"--kind", "trace",
-			"--surface", "direct",
-			"--direct", patchDirectID,
-			"--work", patchWorkID,
-			"--to", opsPeerID,
-			"--reply-to", "msg_receipt_01",
-			"--trace-id", "trace_ops_patch_42",
-			"--causation-id", "msg_receipt_01",
-			"--id", "msg_trace_02",
-			"--body", `{"state":"completed","message":"Patch prepared and local tests now pass.","result":{"summary":"Fixed migration assertion mismatch in sessiondb tests."},"artifact_refs":[]}`,
+			"--session",
+			patchSession.ID,
+			"--channel",
+			"builders",
+			"--kind",
+			"trace",
+			"--surface",
+			"direct",
+			"--direct",
+			patchDirectID,
+			"--work",
+			patchWorkID,
+			"--to",
+			opsPeerID,
+			"--reply-to",
+			"msg_receipt_01",
+			"--trace-id",
+			"trace_ops_patch_42",
+			"--causation-id",
+			"msg_receipt_01",
+			"--id",
+			"msg_trace_02",
+			"--body",
+			`{"state":"completed","message":"Patch prepared and local tests now pass.","result":{"summary":"Fixed migration assertion mismatch in sessiondb tests."},"artifact_refs":[]}`,
 		})
 
 		waitForRuntimeCondition(t, "trace delivery", 10*time.Second, func() bool {
@@ -189,16 +233,26 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		})
 
 		mustSendNetworkCLI(t, ctx, harness, []string{
-			"--session", patchSession.ID,
-			"--channel", "builders",
-			"--kind", "say",
-			"--surface", "thread",
-			"--thread", buildersThreadID,
-			"--reply-to", "msg_trace_02",
-			"--trace-id", "trace_ops_patch_42",
-			"--causation-id", "msg_trace_02",
-			"--id", "msg_summary_01",
-			"--body", `{"text":"Summary: patch prepared and migration assertions now pass locally.","intent":"summarize-back","artifacts":[]}`,
+			"--session",
+			patchSession.ID,
+			"--channel",
+			"builders",
+			"--kind",
+			"say",
+			"--surface",
+			"thread",
+			"--thread",
+			buildersThreadID,
+			"--reply-to",
+			"msg_trace_02",
+			"--trace-id",
+			"trace_ops_patch_42",
+			"--causation-id",
+			"msg_trace_02",
+			"--id",
+			"msg_summary_01",
+			"--body",
+			`{"text":"Summary: patch prepared and migration assertions now pass locally.","intent":"summarize-back","artifacts":[]}`,
 		})
 
 		summarySurface := "thread"
@@ -220,20 +274,34 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		})
 
 		postTerminalDirectArgs := []string{
-			"network", "send",
-			"--session", patchSession.ID,
-			"--channel", "builders",
-			"--kind", "say",
-			"--surface", "direct",
-			"--direct", patchDirectID,
-			"--work", patchWorkID,
-			"--to", opsPeerID,
-			"--reply-to", "msg_say_01",
-			"--trace-id", "trace_ops_patch_42",
-			"--causation-id", "msg_say_01",
-			"--id", "msg_direct_after_closed",
-			"--body", `{"text":"I can take the failing migration tests and send back a patch summary.","intent":"handoff","artifacts":[]}`,
-			"-o", "json",
+			"network",
+			"send",
+			"--session",
+			patchSession.ID,
+			"--channel",
+			"builders",
+			"--kind",
+			"say",
+			"--surface",
+			"direct",
+			"--direct",
+			patchDirectID,
+			"--work",
+			patchWorkID,
+			"--to",
+			opsPeerID,
+			"--reply-to",
+			"msg_say_01",
+			"--trace-id",
+			"trace_ops_patch_42",
+			"--causation-id",
+			"msg_say_01",
+			"--id",
+			"msg_direct_after_closed",
+			"--body",
+			`{"text":"I can take the failing migration tests and send back a patch summary.","intent":"handoff","artifacts":[]}`,
+			"-o",
+			"json",
 		}
 		_, stderr, err := harness.CLI.Run(ctx, postTerminalDirectArgs...)
 		if err == nil {
@@ -283,7 +351,12 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 		}
 
 		channelMessages := mustHTTPNetworkChannelMessages(t, ctx, harness, "builders")
-		requireChannelMessage(t, channelMessages, "msg_say_01", "Who can take the failing migration tests in internal/store/sessiondb?")
+		requireChannelMessage(
+			t,
+			channelMessages,
+			"msg_say_01",
+			"Who can take the failing migration tests in internal/store/sessiondb?",
+		)
 		requireChannelMessage(t, channelMessages, "msg_summary_01", "Summary: patch prepared")
 		requireNoChannelMessage(t, channelMessages, "msg_direct_01")
 		requireNoChannelMessage(t, channelMessages, "msg_trace_02")
@@ -462,14 +535,22 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 		})
 
 		mustSendNetworkCLI(t, ctx, harness, []string{
-			"--session", releaseSession.ID,
-			"--channel", "capabilities",
-			"--kind", "say",
-			"--surface", "thread",
-			"--thread", capabilitiesThreadID,
-			"--id", "msg_capability_say_01",
-			"--trace-id", "trace_capability_apply_7",
-			"--body", `{"text":"Does anyone have a reusable migration test repair capability?","intent":"request-help","artifacts":[]}`,
+			"--session",
+			releaseSession.ID,
+			"--channel",
+			"capabilities",
+			"--kind",
+			"say",
+			"--surface",
+			"thread",
+			"--thread",
+			capabilitiesThreadID,
+			"--id",
+			"msg_capability_say_01",
+			"--trace-id",
+			"trace_capability_apply_7",
+			"--body",
+			`{"text":"Does anyone have a reusable migration test repair capability?","intent":"request-help","artifacts":[]}`,
 		})
 
 		waitForRuntimeCondition(t, "capability say delivery", 10*time.Second, func() bool {
@@ -529,18 +610,30 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 		})
 
 		mustSendNetworkCLI(t, ctx, harness, []string{
-			"--session", releaseSession.ID,
-			"--channel", "capabilities",
-			"--kind", "say",
-			"--surface", "direct",
-			"--direct", capabilityDirectID,
-			"--work", capabilityDirectWorkID,
-			"--to", curatorPeerID,
-			"--reply-to", "msg_capability_01",
-			"--trace-id", "trace_capability_apply_7",
-			"--causation-id", "msg_capability_01",
-			"--id", "msg_direct_20",
-			"--body", `{"text":"Can you adapt this capability to a failure in internal/store/sessiondb?","intent":"request-guidance","artifacts":[]}`,
+			"--session",
+			releaseSession.ID,
+			"--channel",
+			"capabilities",
+			"--kind",
+			"say",
+			"--surface",
+			"direct",
+			"--direct",
+			capabilityDirectID,
+			"--work",
+			capabilityDirectWorkID,
+			"--to",
+			curatorPeerID,
+			"--reply-to",
+			"msg_capability_01",
+			"--trace-id",
+			"trace_capability_apply_7",
+			"--causation-id",
+			"msg_capability_01",
+			"--id",
+			"msg_direct_20",
+			"--body",
+			`{"text":"Can you adapt this capability to a failure in internal/store/sessiondb?","intent":"request-guidance","artifacts":[]}`,
 		})
 
 		waitForRuntimeCondition(t, "capability direct delivery", 10*time.Second, func() bool {
@@ -556,18 +649,30 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 		})
 
 		mustSendNetworkCLI(t, ctx, harness, []string{
-			"--session", curatorSession.ID,
-			"--channel", "capabilities",
-			"--kind", "trace",
-			"--surface", "direct",
-			"--direct", capabilityDirectID,
-			"--work", capabilityDirectWorkID,
-			"--to", releasePeerID,
-			"--reply-to", "msg_direct_20",
-			"--trace-id", "trace_capability_apply_7",
-			"--causation-id", "msg_direct_20",
-			"--id", "msg_trace_21",
-			"--body", `{"state":"needs_input","message":"Send the exact package path and failing test output so I can tailor the capability.","result":{"capability_id":"fix-go-migration-tests"},"artifact_refs":[]}`,
+			"--session",
+			curatorSession.ID,
+			"--channel",
+			"capabilities",
+			"--kind",
+			"trace",
+			"--surface",
+			"direct",
+			"--direct",
+			capabilityDirectID,
+			"--work",
+			capabilityDirectWorkID,
+			"--to",
+			releasePeerID,
+			"--reply-to",
+			"msg_direct_20",
+			"--trace-id",
+			"trace_capability_apply_7",
+			"--causation-id",
+			"msg_direct_20",
+			"--id",
+			"msg_trace_21",
+			"--body",
+			`{"state":"needs_input","message":"Send the exact package path and failing test output so I can tailor the capability.","result":{"capability_id":"fix-go-migration-tests"},"artifact_refs":[]}`,
 		})
 
 		waitForRuntimeCondition(t, "capability trace delivery", 10*time.Second, func() bool {
@@ -619,7 +724,12 @@ func TestDaemonE2ENetworkWhoisAndCapabilityExchange(t *testing.T) {
 		}
 
 		channelMessages := mustHTTPNetworkChannelMessages(t, ctx, harness, "capabilities")
-		requireChannelMessage(t, channelMessages, "msg_capability_say_01", "Does anyone have a reusable migration test repair capability?")
+		requireChannelMessage(
+			t,
+			channelMessages,
+			"msg_capability_say_01",
+			"Does anyone have a reusable migration test repair capability?",
+		)
 
 		releaseTranscript := mustSessionTranscript(t, ctx, harness, releaseSession.ID)
 		curatorTranscript := mustSessionTranscript(t, ctx, harness, curatorSession.ID)

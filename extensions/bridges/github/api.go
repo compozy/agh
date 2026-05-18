@@ -46,9 +46,10 @@ type githubClient struct {
 	httpClient githubHTTPDoer
 	now        func() time.Time
 
-	mu                sync.Mutex
-	installationToken string
-	tokenExpiresAt    time.Time
+	mu                   sync.Mutex
+	cachedInstallationID int64
+	installationToken    string
+	tokenExpiresAt       time.Time
 }
 
 type githubAccessTokenResponse struct {
@@ -309,7 +310,9 @@ func (c *githubClient) installationAccessToken(ctx context.Context, installation
 	if c.now != nil {
 		now = c.now().UTC()
 	}
-	if strings.TrimSpace(c.installationToken) != "" && now.Add(30*time.Second).Before(c.tokenExpiresAt) {
+	if c.cachedInstallationID == installationID &&
+		strings.TrimSpace(c.installationToken) != "" &&
+		now.Add(30*time.Second).Before(c.tokenExpiresAt) {
 		return c.installationToken, nil
 	}
 
@@ -347,6 +350,7 @@ func (c *githubClient) installationAccessToken(ctx context.Context, installation
 		expiresAt = parsed.UTC()
 	}
 
+	c.cachedInstallationID = installationID
 	c.installationToken = strings.TrimSpace(response.Token)
 	c.tokenExpiresAt = expiresAt
 	return c.installationToken, nil

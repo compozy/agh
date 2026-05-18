@@ -2,6 +2,7 @@ package soul
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"os"
@@ -221,7 +222,7 @@ func (s *ManagedSoulAuthoringService) Validate(
 			Config:        target.config,
 		})
 		if err != nil {
-			return ValidateResult{Soul: resolved}, authoringInvalidError(resolved.Diagnostics)
+			return ValidateResult{Soul: resolved}, authoringSoulResolutionError(err, resolved.Diagnostics)
 		}
 		return ValidateResult{Soul: resolved}, nil
 	}
@@ -231,7 +232,7 @@ func (s *ManagedSoulAuthoringService) Validate(
 		Config:        target.config,
 	})
 	if err != nil {
-		return ValidateResult{Soul: resolved}, authoringInvalidError(resolved.Diagnostics)
+		return ValidateResult{Soul: resolved}, authoringSoulResolutionError(err, resolved.Diagnostics)
 	}
 	return ValidateResult{Soul: resolved}, nil
 }
@@ -249,7 +250,7 @@ func (s *ManagedSoulAuthoringService) Put(ctx context.Context, req PutRequest) (
 	if err != nil {
 		return MutationResult{}, err
 	}
-	if err := validateExpectedDigest(&current, req.ExpectedDigest, target.sourcePath); err != nil {
+	if err := validateExpectedDigest(&current.resolved, req.ExpectedDigest, target.sourcePath); err != nil {
 		return MutationResult{}, err
 	}
 	proposed, err := Parse(ctx, ParseRequest{
@@ -259,7 +260,7 @@ func (s *ManagedSoulAuthoringService) Put(ctx context.Context, req PutRequest) (
 		Config:        target.config,
 	})
 	if err != nil {
-		return MutationResult{Soul: proposed}, authoringInvalidError(proposed.Diagnostics)
+		return MutationResult{Soul: proposed}, authoringSoulResolutionError(err, proposed.Diagnostics)
 	}
 	if err := s.verifyUnchangedSoul(ctx, target, &current); err != nil {
 		return MutationResult{}, err
@@ -273,7 +274,15 @@ func (s *ManagedSoulAuthoringService) Put(ctx context.Context, req PutRequest) (
 			ErrAuthoringPathRejected,
 		)
 	}
-	return s.persistPostWrite(ctx, target, current.Digest, RevisionActionPut, req.Body, req.Actor, req.Origin)
+	return s.persistPostWrite(
+		ctx,
+		target,
+		current.resolved.Digest,
+		RevisionActionPut,
+		req.Body,
+		req.Actor,
+		req.Origin,
+	)
 }
 
 // Delete removes SOUL.md through CAS-protected managed authoring.
@@ -292,7 +301,7 @@ func (s *ManagedSoulAuthoringService) Delete(
 	if err != nil {
 		return MutationResult{}, err
 	}
-	if !current.Present {
+	if !current.resolved.Present {
 		return MutationResult{}, authoringDiagnosticError(
 			diagnosticSoulMissing,
 			target.sourcePath,
@@ -301,7 +310,7 @@ func (s *ManagedSoulAuthoringService) Delete(
 			ErrAuthoringMissing,
 		)
 	}
-	if err := validateExpectedDigest(&current, req.ExpectedDigest, target.sourcePath); err != nil {
+	if err := validateExpectedDigest(&current.resolved, req.ExpectedDigest, target.sourcePath); err != nil {
 		return MutationResult{}, err
 	}
 	if err := s.verifyUnchangedSoul(ctx, target, &current); err != nil {
@@ -322,13 +331,13 @@ func (s *ManagedSoulAuthoringService) Delete(
 		Config:        target.config,
 	})
 	if err != nil {
-		return MutationResult{Soul: resolved}, authoringInvalidError(resolved.Diagnostics)
+		return MutationResult{Soul: resolved}, authoringSoulResolutionError(err, resolved.Diagnostics)
 	}
 	revision, err := s.appendRevision(
 		ctx,
 		target,
 		RevisionActionDelete,
-		current.Digest,
+		current.resolved.Digest,
 		"",
 		"",
 		resolved.Diagnostics,
@@ -377,7 +386,7 @@ func (s *ManagedSoulAuthoringService) Rollback(
 	if err != nil {
 		return MutationResult{}, err
 	}
-	if err := validateExpectedDigest(&current, req.ExpectedDigest, target.sourcePath); err != nil {
+	if err := validateExpectedDigest(&current.resolved, req.ExpectedDigest, target.sourcePath); err != nil {
 		return MutationResult{}, err
 	}
 	selected, err := s.store.FindSoulRevisionForRollback(ctx, RollbackLookup{
@@ -404,7 +413,7 @@ func (s *ManagedSoulAuthoringService) Rollback(
 		Config:        target.config,
 	})
 	if err != nil {
-		return MutationResult{Soul: proposed}, authoringInvalidError(proposed.Diagnostics)
+		return MutationResult{Soul: proposed}, authoringSoulResolutionError(err, proposed.Diagnostics)
 	}
 	if err := s.verifyUnchangedSoul(ctx, target, &current); err != nil {
 		return MutationResult{}, err
@@ -421,7 +430,7 @@ func (s *ManagedSoulAuthoringService) Rollback(
 	return s.persistPostWrite(
 		ctx,
 		target,
-		current.Digest,
+		current.resolved.Digest,
 		RevisionActionRollback,
 		selected.Body,
 		req.Actor,
@@ -447,6 +456,11 @@ type normalizedAuthoringTarget struct {
 	agentPath     string
 	config        aghconfig.SoulConfig
 	configSource  string
+}
+
+type authoringMutationState struct {
+	resolved     ResolvedSoul
+	compareToken string
 }
 
 func (s *ManagedSoulAuthoringService) resolveTarget(
@@ -582,28 +596,63 @@ func resolveAuthoringSoulPath(workspaceRoot string, agentPath string) (string, s
 func (s *ManagedSoulAuthoringService) currentSoulForMutation(
 	ctx context.Context,
 	target resolvedAuthoringTarget,
-) (ResolvedSoul, error) {
+) (authoringMutationState, error) {
 	current, err := Resolve(ctx, ResolveRequest{
 		AgentPath:     target.agentPath,
 		WorkspaceRoot: target.workspaceRoot,
 		Config:        target.config,
 	})
 	if err == nil {
-		return current, nil
+		return authoringMutationState{
+			resolved:     current,
+			compareToken: authoringMutationCompareToken(&current, nil),
+		}, nil
 	}
 	if !errors.Is(err, ErrInvalid) {
-		return ResolvedSoul{}, fmt.Errorf("soul: resolve current SOUL.md: %w", err)
+		return authoringMutationState{}, fmt.Errorf("soul: resolve current SOUL.md: %w", err)
 	}
 	if hasBlockingCurrentDiagnostic(current.Diagnostics) {
-		return current, authoringInvalidError(current.Diagnostics)
+		return authoringMutationState{resolved: current}, authoringInvalidError(current.Diagnostics)
 	}
-	return current, nil
+	content, readErr := os.ReadFile(target.soulPath)
+	if readErr != nil {
+		if errors.Is(readErr, os.ErrNotExist) {
+			absent, emptyErr := Empty(target.config, target.sourcePath)
+			if emptyErr != nil {
+				return authoringMutationState{}, emptyErr
+			}
+			return authoringMutationState{
+				resolved:     absent,
+				compareToken: authoringMutationCompareToken(&absent, nil),
+			}, nil
+		}
+		return authoringMutationState{}, fmt.Errorf("soul: read current SOUL.md for mutation CAS: %w", readErr)
+	}
+	current, err = Parse(ctx, ParseRequest{
+		SourcePath:    target.soulPath,
+		WorkspaceRoot: target.workspaceRoot,
+		Content:       content,
+		Config:        target.config,
+	})
+	if err == nil {
+		return authoringMutationState{
+			resolved:     current,
+			compareToken: authoringMutationCompareToken(&current, nil),
+		}, nil
+	}
+	if !errors.Is(err, ErrInvalid) {
+		return authoringMutationState{}, fmt.Errorf("soul: parse current SOUL.md for mutation CAS: %w", err)
+	}
+	return authoringMutationState{
+		resolved:     current,
+		compareToken: authoringMutationCompareToken(&current, content),
+	}, nil
 }
 
 func (s *ManagedSoulAuthoringService) verifyUnchangedSoul(
 	ctx context.Context,
 	target resolvedAuthoringTarget,
-	previous *ResolvedSoul,
+	previous *authoringMutationState,
 ) error {
 	latest, err := s.currentSoulForMutation(ctx, target)
 	if err != nil {
@@ -612,10 +661,24 @@ func (s *ManagedSoulAuthoringService) verifyUnchangedSoul(
 	if previous == nil {
 		return conflictError(target.sourcePath, "current SOUL.md state is required")
 	}
-	if latest.Present != previous.Present || latest.Digest != previous.Digest {
+	if latest.resolved.Present != previous.resolved.Present || latest.compareToken != previous.compareToken {
 		return conflictError(target.sourcePath, "SOUL.md changed before managed mutation completed")
 	}
 	return nil
+}
+
+func authoringMutationCompareToken(resolved *ResolvedSoul, invalidContent []byte) string {
+	if resolved == nil {
+		return "absent"
+	}
+	if !resolved.Present {
+		return "absent"
+	}
+	if digest := strings.TrimSpace(resolved.Digest); digest != "" {
+		return "digest:" + digest
+	}
+	sum := sha256.Sum256(invalidContent)
+	return fmt.Sprintf("invalid:%x", sum[:])
 }
 
 func (s *ManagedSoulAuthoringService) persistPostWrite(
@@ -633,7 +696,7 @@ func (s *ManagedSoulAuthoringService) persistPostWrite(
 		Config:        target.config,
 	})
 	if err != nil {
-		return MutationResult{Soul: resolved}, authoringInvalidError(resolved.Diagnostics)
+		return MutationResult{Soul: resolved}, authoringSoulResolutionError(err, resolved.Diagnostics)
 	}
 	provenance, err := NewConfigProvenance(target.config, target.configSource)
 	if err != nil {
@@ -747,6 +810,16 @@ func authoringInvalidError(items []Diagnostic) error {
 		Diagnostics: cloneDiagnostics(sanitizeDiagnostics(items)),
 		cause:       ErrInvalid,
 	}
+}
+
+func authoringSoulResolutionError(err error, items []Diagnostic) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, ErrInvalid) {
+		return authoringInvalidError(items)
+	}
+	return err
 }
 
 func authoringDiagnosticError(code string, sourcePath string, message string, err error, cause error) error {

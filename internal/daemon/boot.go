@@ -936,7 +936,6 @@ func (d *Daemon) runtimeDeps(ctx context.Context, state *bootState, sessions Ses
 				sessions,
 				state.workspaceResolver,
 				&state.cfg,
-				state.globalMemoryDir,
 			),
 			state.cfg.Memory.Dream.CheckInterval,
 			state.logger,

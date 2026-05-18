@@ -212,7 +212,9 @@ func TestHeaderSerialization(t *testing.T) {
 		t.Parallel()
 
 		var header Header
-		raw := []byte("name: Prefs\ndescription: User preferences\ntype: user\nagent: codex\n")
+		raw := []byte(
+			"name: Prefs\ndescription: User preferences\ntype: user\nscope: agent\nagent: codex\nagent_tier: workspace\n",
+		)
 		if err := yaml.Unmarshal(raw, &header); err != nil {
 			t.Fatalf("yaml.Unmarshal(Header) error = %v", err)
 		}
@@ -251,16 +253,85 @@ func TestHeaderSerialization(t *testing.T) {
 	t.Run("Should reject invalid header metadata", func(t *testing.T) {
 		t.Parallel()
 
-		for _, header := range []Header{
-			{Type: TypeUser},
-			{Name: "Missing type"},
-			{Name: "Bad type", Type: Type("sideways")},
-			{Name: "Bad scope", Type: TypeUser, Scope: Scope("sideways")},
-			{Name: "Bad tier", Type: TypeUser, AgentTier: AgentTier("sideways")},
-		} {
-			if err := header.Validate(); err == nil {
-				t.Fatalf("Header(%#v).Validate() error = nil, want validation error", header)
-			}
+		tests := []struct {
+			name   string
+			header Header
+		}{
+			{name: "Should reject missing name", header: Header{Type: TypeUser}},
+			{name: "Should reject missing type", header: Header{Name: "Missing type"}},
+			{name: "Should reject bad type", header: Header{Name: "Bad type", Type: Type("sideways")}},
+			{
+				name:   "Should reject bad scope",
+				header: Header{Name: "Bad scope", Type: TypeUser, Scope: Scope("sideways")},
+			},
+			{
+				name:   "Should reject bad tier",
+				header: Header{Name: "Bad tier", Type: TypeUser, AgentTier: AgentTier("sideways")},
+			},
+			{
+				name:   "Should reject agent scope without agent name",
+				header: Header{Name: "Missing agent", Type: TypeUser, Scope: ScopeAgent, AgentTier: AgentTierWorkspace},
+			},
+			{
+				name:   "Should reject agent scope without agent tier",
+				header: Header{Name: "Missing tier", Type: TypeUser, Scope: ScopeAgent, AgentName: "codex"},
+			},
+			{
+				name:   "Should reject agent name outside agent scope",
+				header: Header{Name: "Wrong agent metadata", Type: TypeUser, Scope: ScopeWorkspace, AgentName: "codex"},
+			},
+			{
+				name: "Should reject agent tier outside agent scope",
+				header: Header{
+					Name:      "Wrong tier metadata",
+					Type:      TypeUser,
+					Scope:     ScopeGlobal,
+					AgentTier: AgentTierWorkspace,
+				},
+			},
+			{
+				name: "Should reject invalid provenance source actor",
+				header: Header{
+					Name:       "Bad provenance",
+					Type:       TypeUser,
+					Provenance: &Provenance{SourceActor: Origin("sideways")},
+				},
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				if err := tt.header.Validate(); err == nil {
+					t.Fatalf("Header(%#v).Validate() error = nil, want validation error", tt.header)
+				}
+			})
+		}
+	})
+
+	t.Run("Should normalize and validate provenance source actor", func(t *testing.T) {
+		t.Parallel()
+
+		header := Header{
+			Name: "Prefs",
+			Type: TypeUser,
+			Provenance: &Provenance{
+				SourceActor:      Origin(" Tool "),
+				Confidence:       " high ",
+				SourceSessionIDs: []string{" session-1 "},
+			},
+		}
+		if err := header.Validate(); err != nil {
+			t.Fatalf("Header.Validate() error = %v", err)
+		}
+		if header.Provenance.SourceActor != OriginTool {
+			t.Fatalf("Provenance.SourceActor = %q, want %q", header.Provenance.SourceActor, OriginTool)
+		}
+		if header.Provenance.Confidence != "high" {
+			t.Fatalf("Provenance.Confidence = %q, want high", header.Provenance.Confidence)
+		}
+		if got := header.Provenance.SourceSessionIDs[0]; got != "session-1" {
+			t.Fatalf("Provenance.SourceSessionIDs[0] = %q, want session-1", got)
 		}
 	})
 }

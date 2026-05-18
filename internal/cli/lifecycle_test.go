@@ -8,6 +8,7 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	aghupdate "github.com/pedronauck/agh/internal/update"
@@ -347,4 +348,56 @@ func TestUninstallContinuesWhenRunningDaemonAlreadyExited(t *testing.T) {
 	if record.Status != lifecycleStatusUninstalled || !record.DaemonStopped || len(record.Removed) != 3 {
 		t.Fatalf("uninstall record = %#v, want stopped uninstall with artifacts removed", record)
 	}
+}
+
+func TestUninstallIgnoresReusedPIDFromDaemonInfo(t *testing.T) {
+	t.Parallel()
+
+	t.Run(
+		"Should remove runtime artifacts without signaling when daemon info points to a reused PID",
+		func(t *testing.T) {
+			t.Parallel()
+
+			deps := newTestDeps(t, &stubClient{})
+			homePaths, err := deps.resolveHome()
+			if err != nil {
+				t.Fatalf("resolveHome() error = %v", err)
+			}
+			if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+				t.Fatalf("EnsureHomeLayout() error = %v", err)
+			}
+			for _, path := range []string{homePaths.DaemonSocket, homePaths.DaemonLock} {
+				writeFile(t, path, "runtime artifact")
+			}
+			writeFile(t, homePaths.DaemonInfo, `{"pid":999999,"port":0,"started_at":"2026-04-03T12:00:00Z"}`)
+
+			deps.processAlive = func(int) bool { return true }
+			deps.processMatchesStartTime = func(int, time.Time) bool { return false }
+
+			signalCalled := false
+			deps.signalProcess = func(int, syscall.Signal) error {
+				signalCalled = true
+				return nil
+			}
+
+			out, _, err := executeRootCommand(t, deps, "uninstall", "-o", "json")
+			if err != nil {
+				t.Fatalf("uninstall error = %v", err)
+			}
+			if signalCalled {
+				t.Fatal("signalProcess() called for reused PID, want no signal")
+			}
+
+			var record lifecycleRecord
+			if err := json.Unmarshal([]byte(out), &record); err != nil {
+				t.Fatalf("json.Unmarshal(uninstall) error = %v", err)
+			}
+			if record.Status != lifecycleStatusUninstalled || record.DaemonStopped || len(record.Removed) != 3 {
+				t.Fatalf(
+					"uninstall record = %#v, want uninstalled without daemon stop and with artifacts removed",
+					record,
+				)
+			}
+		},
+	)
 }

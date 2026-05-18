@@ -12,6 +12,7 @@ import (
 	"github.com/pedronauck/agh/internal/resources"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/pedronauck/agh/internal/vault"
 )
 
 func TestAutomationResourceCodecsRejectInvalidSpecs(t *testing.T) {
@@ -501,6 +502,241 @@ func TestAutomationResourceManagerCRUDUsesTypedResourceStores(t *testing.T) {
 	}
 }
 
+func TestAutomationResourceManagerCRUDRollsBackCommittedMutationsOnApplyFailure(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should rollback created job resources when projection apply fails", func(t *testing.T) {
+		t.Parallel()
+
+		h := newManagerResourceHarness(t)
+		ctx, cancel := context.WithCancel(h.ctx)
+		jobStore := &cancelAfterMutationStore[Job]{
+			store:       h.jobStore,
+			cancel:      cancel,
+			cancelOnPut: true,
+		}
+		manager := h.newResourceManager(t, WithResourceDefinitions(jobStore, h.triggerStore, h.actor, nil))
+
+		job := testJob(AutomationScopeGlobal, "rollback-created-job", "")
+		_, err := manager.CreateJob(ctx, job)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("manager.CreateJob() error = %v, want context.Canceled", err)
+		}
+		if _, err := h.jobStore.Get(h.ctx, h.actor, job.ID); !errors.Is(err, resources.ErrNotFound) {
+			t.Fatalf("jobStore.Get(created rollback) error = %v, want resources.ErrNotFound", err)
+		}
+		if _, err := manager.GetJob(h.ctx, job.ID); !errors.Is(err, ErrJobNotFound) {
+			t.Fatalf("manager.GetJob(created rollback) error = %v, want ErrJobNotFound", err)
+		}
+	})
+
+	t.Run("Should rollback updated job resources when projection apply fails", func(t *testing.T) {
+		t.Parallel()
+
+		h := newManagerResourceHarness(t)
+		jobStore := &cancelAfterMutationStore[Job]{store: h.jobStore}
+		manager := h.newResourceManager(t, WithResourceDefinitions(jobStore, h.triggerStore, h.actor, nil))
+
+		current := h.putJobResource(t, "job-rollback-update", "rollback-update-job")
+		if err := manager.applyJobResourcesFromStore(h.ctx); err != nil {
+			t.Fatalf("manager.applyJobResourcesFromStore() error = %v", err)
+		}
+
+		ctx, cancel := context.WithCancel(h.ctx)
+		jobStore.cancel = cancel
+		jobStore.cancelOnPut = true
+		next := cloneJob(current.Spec)
+		next.ID = current.ID
+		next.Prompt = "Review the updated rollback prompt"
+		_, err := manager.UpdateJob(ctx, next)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("manager.UpdateJob() error = %v, want context.Canceled", err)
+		}
+
+		stored, err := h.jobStore.Get(h.ctx, h.actor, current.ID)
+		if err != nil {
+			t.Fatalf("jobStore.Get(updated rollback) error = %v", err)
+		}
+		if stored.Spec.Prompt != current.Spec.Prompt {
+			t.Fatalf("stored job prompt after rollback = %q, want %q", stored.Spec.Prompt, current.Spec.Prompt)
+		}
+		effective, err := manager.GetJob(h.ctx, current.ID)
+		if err != nil {
+			t.Fatalf("manager.GetJob(updated rollback) error = %v", err)
+		}
+		if effective.Prompt != current.Spec.Prompt {
+			t.Fatalf("effective job prompt after rollback = %q, want %q", effective.Prompt, current.Spec.Prompt)
+		}
+	})
+
+	t.Run("Should rollback deleted job resources when projection apply fails", func(t *testing.T) {
+		t.Parallel()
+
+		h := newManagerResourceHarness(t)
+		jobStore := &cancelAfterMutationStore[Job]{store: h.jobStore}
+		manager := h.newResourceManager(t, WithResourceDefinitions(jobStore, h.triggerStore, h.actor, nil))
+
+		current := h.putJobResource(t, "job-rollback-delete", "rollback-delete-job")
+		if err := manager.applyJobResourcesFromStore(h.ctx); err != nil {
+			t.Fatalf("manager.applyJobResourcesFromStore() error = %v", err)
+		}
+
+		ctx, cancel := context.WithCancel(h.ctx)
+		jobStore.cancel = cancel
+		jobStore.cancelOnDelete = true
+		err := manager.DeleteJob(ctx, current.ID)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("manager.DeleteJob() error = %v, want context.Canceled", err)
+		}
+
+		if _, err := h.jobStore.Get(h.ctx, h.actor, current.ID); err != nil {
+			t.Fatalf("jobStore.Get(deleted rollback) error = %v", err)
+		}
+		if _, err := manager.GetJob(h.ctx, current.ID); err != nil {
+			t.Fatalf("manager.GetJob(deleted rollback) error = %v", err)
+		}
+	})
+
+	t.Run(
+		"Should rollback created trigger resources and owned secrets when projection apply fails",
+		func(t *testing.T) {
+			t.Parallel()
+
+			h := newManagerResourceHarness(t)
+			ctx, cancel := context.WithCancel(h.ctx)
+			triggerStore := &cancelAfterMutationStore[Trigger]{
+				store:       h.triggerStore,
+				cancel:      cancel,
+				cancelOnPut: true,
+			}
+			manager := h.newResourceManager(t, WithResourceDefinitions(h.jobStore, triggerStore, h.actor, nil))
+
+			trigger := testWebhookTrigger(AutomationScopeGlobal, "rollback-created-trigger", "")
+			trigger.WebhookSecretRef = ""
+			secretRef := defaultAutomationWebhookSecretRef(trigger.ID)
+			_, err := manager.CreateTrigger(ctx, trigger, webhookSecretWrite("secret-v1"))
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("manager.CreateTrigger() error = %v, want context.Canceled", err)
+			}
+			if _, err := h.triggerStore.Get(h.ctx, h.actor, trigger.ID); !errors.Is(err, resources.ErrNotFound) {
+				t.Fatalf("triggerStore.Get(created rollback) error = %v, want resources.ErrNotFound", err)
+			}
+			h.assertWebhookSecretMissing(t, secretRef)
+			if _, err := manager.GetTrigger(h.ctx, trigger.ID); !errors.Is(err, ErrTriggerNotFound) {
+				t.Fatalf("manager.GetTrigger(created rollback) error = %v, want ErrTriggerNotFound", err)
+			}
+		},
+	)
+
+	t.Run(
+		"Should rollback updated trigger resources and owned secret deletion when projection apply fails",
+		func(t *testing.T) {
+			t.Parallel()
+
+			h := newManagerResourceHarness(t)
+			secretStore := &cancelAfterWebhookSecretStore{
+				store:          h.webhookSecretStore(t),
+				cancelOnDelete: false,
+			}
+			manager := h.newResourceManager(t, WithWebhookSecretStore(secretStore))
+
+			current := h.putOwnedWebhookTriggerResource(
+				t,
+				"trigger-rollback-update",
+				"rollback-update-trigger",
+				"secret-v1",
+			)
+			if err := manager.applyTriggerResourcesFromStore(h.ctx); err != nil {
+				t.Fatalf("manager.applyTriggerResourcesFromStore() error = %v", err)
+			}
+
+			ctx, cancel := context.WithCancel(h.ctx)
+			secretStore.cancel = cancel
+			secretStore.cancelOnDelete = true
+			next := cloneTrigger(current.Spec)
+			next.ID = current.ID
+			next.Event = "session.stopped"
+			next.EndpointSlug = ""
+			next.WebhookID = ""
+			next.WebhookSecretRef = ""
+			_, err := manager.UpdateTrigger(ctx, next, nil)
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("manager.UpdateTrigger() error = %v, want context.Canceled", err)
+			}
+
+			stored, err := h.triggerStore.Get(h.ctx, h.actor, current.ID)
+			if err != nil {
+				t.Fatalf("triggerStore.Get(updated rollback) error = %v", err)
+			}
+			if stored.Spec.Event != current.Spec.Event ||
+				stored.Spec.WebhookSecretRef != current.Spec.WebhookSecretRef {
+				t.Fatalf(
+					"stored trigger after rollback = %#v, want event %q secret ref %q",
+					stored.Spec,
+					current.Spec.Event,
+					current.Spec.WebhookSecretRef,
+				)
+			}
+			if got := h.resolveWebhookSecret(t, current.Spec.WebhookSecretRef); got != "secret-v1" {
+				t.Fatalf("restored webhook secret = %q, want %q", got, "secret-v1")
+			}
+			effective, err := manager.GetTrigger(h.ctx, current.ID)
+			if err != nil {
+				t.Fatalf("manager.GetTrigger(updated rollback) error = %v", err)
+			}
+			if effective.Event != current.Spec.Event || effective.WebhookSecretRef != current.Spec.WebhookSecretRef {
+				t.Fatalf(
+					"effective trigger after rollback = %#v, want event %q secret ref %q",
+					effective,
+					current.Spec.Event,
+					current.Spec.WebhookSecretRef,
+				)
+			}
+		},
+	)
+
+	t.Run(
+		"Should rollback deleted trigger resources and owned secret deletion when projection apply fails",
+		func(t *testing.T) {
+			t.Parallel()
+
+			h := newManagerResourceHarness(t)
+			secretStore := &cancelAfterWebhookSecretStore{
+				store: h.webhookSecretStore(t),
+			}
+			manager := h.newResourceManager(t, WithWebhookSecretStore(secretStore))
+
+			current := h.putOwnedWebhookTriggerResource(
+				t,
+				"trigger-rollback-delete",
+				"rollback-delete-trigger",
+				"secret-v1",
+			)
+			if err := manager.applyTriggerResourcesFromStore(h.ctx); err != nil {
+				t.Fatalf("manager.applyTriggerResourcesFromStore() error = %v", err)
+			}
+
+			ctx, cancel := context.WithCancel(h.ctx)
+			secretStore.cancel = cancel
+			secretStore.cancelOnDelete = true
+			err := manager.DeleteTrigger(ctx, current.ID)
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("manager.DeleteTrigger() error = %v, want context.Canceled", err)
+			}
+
+			if _, err := h.triggerStore.Get(h.ctx, h.actor, current.ID); err != nil {
+				t.Fatalf("triggerStore.Get(deleted rollback) error = %v", err)
+			}
+			if got := h.resolveWebhookSecret(t, current.Spec.WebhookSecretRef); got != "secret-v1" {
+				t.Fatalf("restored deleted webhook secret = %q, want %q", got, "secret-v1")
+			}
+			if _, err := manager.GetTrigger(h.ctx, current.ID); err != nil {
+				t.Fatalf("manager.GetTrigger(deleted rollback) error = %v", err)
+			}
+		},
+	)
+}
+
 func TestAutomationResourceSyncManagedDefinitionsPublishesAndPrunesSourceRecords(t *testing.T) {
 	t.Parallel()
 
@@ -810,6 +1046,32 @@ func (h *managerResourceHarness) putTriggerResource(t *testing.T, id string, nam
 	return record
 }
 
+func (h *managerResourceHarness) putOwnedWebhookTriggerResource(
+	t *testing.T,
+	id string,
+	name string,
+	secret string,
+) resources.Record[Trigger] {
+	t.Helper()
+
+	trigger := testWebhookTrigger(AutomationScopeGlobal, name, "")
+	trigger.ID = id
+	trigger.Name = name
+	trigger.WebhookID = "wbh_" + name
+	trigger.WebhookSecretRef = defaultAutomationWebhookSecretRef(id)
+	record, err := h.triggerStore.Put(testutil.Context(t), h.actor, resources.Draft[Trigger]{
+		ID:              trigger.ID,
+		Scope:           ResourceScopeForAutomation(trigger.Scope, trigger.WorkspaceID),
+		ExpectedVersion: 0,
+		Spec:            trigger,
+	})
+	if err != nil {
+		t.Fatalf("triggerStore.Put(%q) error = %v", id, err)
+	}
+	h.putWebhookSecret(t, trigger.WebhookSecretRef, secret)
+	return record
+}
+
 func defaultAutomationTestConfig() aghconfig.AutomationConfig {
 	return aghconfig.AutomationConfig{
 		Enabled:           true,
@@ -852,4 +1114,84 @@ func shutdownTriggerResourcePlan(t *testing.T, manager *Manager, plan resources.
 	if err := manager.shutdownRuntimeComponent(testutil.Context(t), "trigger engine", typed.engine); err != nil {
 		t.Fatalf("shutdown trigger resource plan engine error = %v", err)
 	}
+}
+
+type cancelAfterMutationStore[T any] struct {
+	store          resources.Store[T]
+	cancel         context.CancelFunc
+	cancelOnPut    bool
+	cancelOnDelete bool
+}
+
+func (s *cancelAfterMutationStore[T]) Put(
+	ctx context.Context,
+	actor resources.MutationActor,
+	draft resources.Draft[T],
+) (resources.Record[T], error) {
+	record, err := s.store.Put(ctx, actor, draft)
+	if err == nil && s.cancelOnPut && s.cancel != nil {
+		s.cancel()
+	}
+	return record, err
+}
+
+func (s *cancelAfterMutationStore[T]) Delete(
+	ctx context.Context,
+	actor resources.MutationActor,
+	id string,
+	expectedVersion int64,
+) error {
+	err := s.store.Delete(ctx, actor, id, expectedVersion)
+	if err == nil && s.cancelOnDelete && s.cancel != nil {
+		s.cancel()
+	}
+	return err
+}
+
+func (s *cancelAfterMutationStore[T]) Get(
+	ctx context.Context,
+	actor resources.MutationActor,
+	id string,
+) (resources.Record[T], error) {
+	return s.store.Get(ctx, actor, id)
+}
+
+func (s *cancelAfterMutationStore[T]) List(
+	ctx context.Context,
+	actor resources.MutationActor,
+	filter resources.ResourceFilter,
+) ([]resources.Record[T], error) {
+	return s.store.List(ctx, actor, filter)
+}
+
+type cancelAfterWebhookSecretStore struct {
+	store          WebhookSecretStore
+	cancel         context.CancelFunc
+	cancelOnPut    bool
+	cancelOnDelete bool
+}
+
+func (s *cancelAfterWebhookSecretStore) ResolveRef(ctx context.Context, ref string) (string, error) {
+	return s.store.ResolveRef(ctx, ref)
+}
+
+func (s *cancelAfterWebhookSecretStore) PutSecret(
+	ctx context.Context,
+	ref string,
+	kind string,
+	value string,
+) (vault.Metadata, error) {
+	metadata, err := s.store.PutSecret(ctx, ref, kind, value)
+	if err == nil && s.cancelOnPut && s.cancel != nil {
+		s.cancel()
+	}
+	return metadata, err
+}
+
+func (s *cancelAfterWebhookSecretStore) DeleteSecret(ctx context.Context, ref string) error {
+	err := s.store.DeleteSecret(ctx, ref)
+	if err == nil && s.cancelOnDelete && s.cancel != nil {
+		s.cancel()
+	}
+	return err
 }

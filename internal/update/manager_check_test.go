@@ -17,6 +17,8 @@ func TestManagerCheck(t *testing.T) {
 		now := time.Date(2026, 5, 3, 21, 0, 0, 0, time.UTC)
 		var requests atomic.Int32
 		manager, _ := newManagerWithExecutable(t, Config{
+			RuntimeOS:   runtimeOSLinux,
+			RuntimeArch: runtimeArchAMD64,
 			Now: func() time.Time {
 				return now
 			},
@@ -29,11 +31,13 @@ func TestManagerCheck(t *testing.T) {
 		})
 
 		checkedAt := now.Add(-2 * time.Hour)
-		err := writeCache(manager.cachePath(), cacheEntry{
-			LatestVersion: "v1.1.0",
-			ReleaseURL:    "https://github.com/compozy/agh/releases/tag/v1.1.0",
-			CheckedAt:     checkedAt,
-		})
+		err := writeCache(manager.cachePath(), testCacheEntry(
+			t,
+			manager,
+			"v1.1.0",
+			"https://github.com/compozy/agh/releases/tag/v1.1.0",
+			checkedAt,
+		))
 		if err != nil {
 			t.Fatalf("writeCache() error = %v", err)
 		}
@@ -56,6 +60,60 @@ func TestManagerCheck(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve applyable release metadata across cache hits", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 3, 21, 30, 0, 0, time.UTC)
+		var requests atomic.Int32
+		manager, _ := newManagerWithExecutable(t, Config{
+			RuntimeOS:   runtimeOSLinux,
+			RuntimeArch: runtimeArchAMD64,
+			Now: func() time.Time {
+				return now
+			},
+		})
+		archiveName, err := archiveAssetName(manager.runtimeOS, manager.runtimeArch)
+		if err != nil {
+			t.Fatalf("archiveAssetName() error = %v", err)
+		}
+		manager.httpClient = &http.Client{
+			Transport: roundTripFunc(func(_ *http.Request) (*http.Response, error) {
+				requests.Add(1)
+				return jsonHTTPResponse(t, http.StatusOK, githubReleaseResponse{
+					TagName:     "v1.1.0",
+					HTMLURL:     "https://github.com/compozy/agh/releases/tag/v1.1.0",
+					PublishedAt: now.Add(-time.Hour),
+					Assets: []githubAssetResponse{
+						{Name: archiveName, BrowserDownloadURL: "https://downloads.example/archive"},
+						{Name: checksumsAssetName, BrowserDownloadURL: "https://downloads.example/checksums.txt"},
+						{
+							Name:               checksumsBundleAssetName,
+							BrowserDownloadURL: "https://downloads.example/checksums.txt.sigstore.json",
+						},
+					},
+				}), nil
+			}),
+		}
+
+		_, freshRelease, err := manager.Check(context.Background(), CheckOptions{})
+		if err != nil {
+			t.Fatalf("Check(fresh) error = %v", err)
+		}
+		if _, err := manager.resolveReleaseAssets(freshRelease); err != nil {
+			t.Fatalf("resolveReleaseAssets(fresh) error = %v", err)
+		}
+		_, cachedRelease, err := manager.Check(context.Background(), CheckOptions{})
+		if err != nil {
+			t.Fatalf("Check(cached) error = %v", err)
+		}
+		if got := requests.Load(); got != 1 {
+			t.Fatalf("release refresh requests = %d, want 1", got)
+		}
+		if _, err := manager.resolveReleaseAssets(cachedRelease); err != nil {
+			t.Fatalf("resolveReleaseAssets(cached) error = %v", err)
+		}
+	})
+
 	t.Run("Should refresh stale cache entries and persist the new latest release", func(t *testing.T) {
 		t.Parallel()
 
@@ -72,16 +130,19 @@ func TestManagerCheck(t *testing.T) {
 						TagName:     "v1.2.0",
 						HTMLURL:     "https://github.com/compozy/agh/releases/tag/v1.2.0",
 						PublishedAt: now.Add(-time.Hour),
+						Assets:      testGitHubAssets(t, nil),
 					}), nil
 				}),
 			},
 		})
 
-		err := writeCache(manager.cachePath(), cacheEntry{
-			LatestVersion: "v1.1.0",
-			ReleaseURL:    "https://github.com/compozy/agh/releases/tag/v1.1.0",
-			CheckedAt:     now.Add(-(cacheTTL + time.Hour)),
-		})
+		err := writeCache(manager.cachePath(), testCacheEntry(
+			t,
+			manager,
+			"v1.1.0",
+			"https://github.com/compozy/agh/releases/tag/v1.1.0",
+			now.Add(-(cacheTTL+time.Hour)),
+		))
 		if err != nil {
 			t.Fatalf("writeCache() error = %v", err)
 		}
@@ -126,11 +187,13 @@ func TestManagerCheck(t *testing.T) {
 				},
 			})
 
-			err := writeCache(manager.cachePath(), cacheEntry{
-				LatestVersion: "v1.1.0",
-				ReleaseURL:    "https://github.com/compozy/agh/releases/tag/v1.1.0",
-				CheckedAt:     now.Add(-(cacheTTL + time.Hour)),
-			})
+			err := writeCache(manager.cachePath(), testCacheEntry(
+				t,
+				manager,
+				"v1.1.0",
+				"https://github.com/compozy/agh/releases/tag/v1.1.0",
+				now.Add(-(cacheTTL+time.Hour)),
+			))
 			if err != nil {
 				t.Fatalf("writeCache() error = %v", err)
 			}

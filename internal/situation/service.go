@@ -182,6 +182,16 @@ func (s *Service) ContextForStartup(
 		return contract.AgentContextPayload{}, err
 	}
 
+	workspaceSection := workspacePayload(workspaceSnapshot, startup.WorkspaceID, startup.Workspace)
+	capabilities, err := s.capabilitiesSection(ctx, workspaceSnapshot, agentDef)
+	if err != nil {
+		return contract.AgentContextPayload{}, err
+	}
+	limits, err := s.limits(ctx, workspaceSection.ID)
+	if err != nil {
+		return contract.AgentContextPayload{}, err
+	}
+
 	payload := contract.AgentContextPayload{
 		Self: contract.AgentIdentityPayload{
 			SessionID: strings.TrimSpace(startup.SessionID),
@@ -189,10 +199,10 @@ func (s *Service) ContextForStartup(
 			Provider:  firstTrimmed(resolvedAgent.Provider, startup.Provider, agent.Provider),
 			Model:     firstTrimmed(resolvedAgent.Model, agent.Model),
 		},
-		Workspace:    workspacePayload(workspaceSnapshot, startup.WorkspaceID, startup.Workspace),
+		Workspace:    workspaceSection,
 		Session:      startupSessionPayload(startup),
-		Capabilities: s.capabilitiesSection(ctx, workspaceSnapshot, agentDef),
-		Limits:       s.limits(ctx, workspacePayload(workspaceSnapshot, startup.WorkspaceID, startup.Workspace).ID),
+		Capabilities: capabilities,
+		Limits:       limits,
 		Provenance:   s.provenance(),
 	}
 
@@ -230,6 +240,19 @@ func (s *Service) ContextForSession(
 	}
 
 	workspaceSection := workspacePayload(workspaceSnapshot, info.WorkspaceID, info.Workspace)
+	soulSection, err := s.soulPayload(ctx, info)
+	if err != nil {
+		return contract.AgentContextPayload{}, err
+	}
+	capabilities, err := s.capabilitiesSection(ctx, workspaceSnapshot, agentDef)
+	if err != nil {
+		return contract.AgentContextPayload{}, err
+	}
+	limits, err := s.limits(ctx, workspaceSection.ID)
+	if err != nil {
+		return contract.AgentContextPayload{}, err
+	}
+
 	payload := contract.AgentContextPayload{
 		Self: contract.AgentIdentityPayload{
 			SessionID: strings.TrimSpace(info.ID),
@@ -239,9 +262,9 @@ func (s *Service) ContextForSession(
 		},
 		Workspace:    workspaceSection,
 		Session:      sessionPayload(info),
-		Soul:         s.soulPayload(ctx, info),
-		Capabilities: s.capabilitiesSection(ctx, workspaceSnapshot, agentDef),
-		Limits:       s.limits(ctx, workspaceSection.ID),
+		Soul:         soulSection,
+		Capabilities: capabilities,
+		Limits:       limits,
 		Provenance:   s.provenance(),
 	}
 
@@ -414,7 +437,7 @@ func (s *Service) capabilitiesSection(
 	ctx context.Context,
 	workspaceSnapshot *workspacepkg.ResolvedWorkspace,
 	agent aghconfig.AgentDef,
-) contract.AgentCapabilitySectionPayload {
+) (contract.AgentCapabilitySectionPayload, error) {
 	capabilities := make([]contract.AgentCapabilityPayload, 0)
 	if catalog := agent.Capabilities; catalog != nil {
 		for _, capability := range catalog.Capabilities {
@@ -431,11 +454,20 @@ func (s *Service) capabilitiesSection(
 	}
 
 	if registry := s.skillRegistryValue(); registry != nil {
-		skills, err := registry.ForWorkspace(ctx, workspaceSnapshot)
+		var (
+			skills []*skillspkg.Skill
+			err    error
+		)
 		if strings.TrimSpace(agent.Name) != "" {
 			skills, err = registry.ForAgent(ctx, workspaceSnapshot, agent.Name)
+		} else {
+			skills, err = registry.ForWorkspace(ctx, workspaceSnapshot)
 		}
-		if err == nil {
+		if err != nil {
+			if isContextError(err) {
+				return contract.AgentCapabilitySectionPayload{}, err
+			}
+		} else {
 			for _, skill := range skills {
 				if skill == nil || !skill.Enabled {
 					continue
@@ -462,10 +494,10 @@ func (s *Service) capabilitiesSection(
 	return contract.AgentCapabilitySectionPayload{
 		Section:      sectionMeta(len(capabilities), s.limit()),
 		Capabilities: boundedCapabilities(capabilities, s.limit()),
-	}
+	}, nil
 }
 
-func (s *Service) limits(ctx context.Context, workspaceID string) contract.AgentLimitsPayload {
+func (s *Service) limits(ctx context.Context, workspaceID string) (contract.AgentLimitsPayload, error) {
 	limits := contract.AgentLimitsPayload{
 		MaxChildren:         aghconfig.DefaultCoordinatorMaxChildren,
 		MaxSpawnDepth:       defaultMaxSpawnDepth,
@@ -474,11 +506,14 @@ func (s *Service) limits(ctx context.Context, workspaceID string) contract.Agent
 	}
 	if resolver := s.coordinatorConfigValue(); resolver != nil {
 		cfg, err := resolver.ResolveCoordinatorConfig(ctx, strings.TrimSpace(workspaceID))
+		if err != nil && isContextError(err) {
+			return contract.AgentLimitsPayload{}, err
+		}
 		if err == nil && cfg.MaxChildren > 0 {
 			limits.MaxChildren = cfg.MaxChildren
 		}
 	}
-	return limits
+	return limits, nil
 }
 
 func (s *Service) taskAndChannelContext(
@@ -523,6 +558,9 @@ func (s *Service) taskAndChannelContext(
 		Status:                run.Status.Normalize(),
 		SessionID:             strings.TrimSpace(run.SessionID),
 		ClaimedBy:             cloneActorIdentity(run.ClaimedBy),
+		ClaimTokenHash:        strings.TrimSpace(run.ClaimTokenHash),
+		LeaseUntil:            optionalTimePtr(run.LeaseUntil),
+		HeartbeatAt:           optionalTimePtr(run.HeartbeatAt),
 		CoordinationChannelID: channel.ID,
 	}
 	if channel.ID != "" {
@@ -762,9 +800,9 @@ func (s *Service) soulSnapshotsValue() SoulSnapshotStore {
 	return s.soulSnapshots
 }
 
-func (s *Service) soulPayload(ctx context.Context, info *session.Info) contract.AgentSoulSectionPayload {
+func (s *Service) soulPayload(ctx context.Context, info *session.Info) (contract.AgentSoulSectionPayload, error) {
 	if info == nil || strings.TrimSpace(info.SoulSnapshotID) == "" {
-		return contract.AgentSoulSectionPayload{}
+		return contract.AgentSoulSectionPayload{}, nil
 	}
 	store := s.soulSnapshotsValue()
 	if store == nil {
@@ -774,12 +812,12 @@ func (s *Service) soulPayload(ctx context.Context, info *session.Info) contract.
 			Valid:      true,
 			SnapshotID: strings.TrimSpace(info.SoulSnapshotID),
 			Digest:     strings.TrimSpace(info.SoulDigest),
-		}
+		}, nil
 	}
 	snapshot, err := store.GetSoulSnapshot(ctx, info.SoulSnapshotID)
 	if err != nil {
 		if isContextError(err) {
-			return contract.AgentSoulSectionPayload{}
+			return contract.AgentSoulSectionPayload{}, err
 		}
 		return contract.AgentSoulSectionPayload{
 			Present:    true,
@@ -787,9 +825,9 @@ func (s *Service) soulPayload(ctx context.Context, info *session.Info) contract.
 			Valid:      false,
 			SnapshotID: strings.TrimSpace(info.SoulSnapshotID),
 			Digest:     strings.TrimSpace(info.SoulDigest),
-		}
+		}, nil
 	}
-	return soulPayloadFromSnapshot(&snapshot)
+	return soulPayloadFromSnapshot(&snapshot), nil
 }
 
 func startupSessionPayload(startup session.StartupPromptContext) contract.AgentSessionPayload {
@@ -899,15 +937,17 @@ func workspaceRoot(workspace *workspacepkg.ResolvedWorkspace) string {
 }
 
 func taskReferencePayload(taskRecord taskpkg.Task) *contract.TaskReferencePayload {
+	reference := taskReference(taskRecord)
 	return &contract.TaskReferencePayload{
-		ID:          strings.TrimSpace(taskRecord.ID),
-		Identifier:  strings.TrimSpace(taskRecord.Identifier),
-		Title:       strings.TrimSpace(taskRecord.Title),
-		Status:      taskRecord.Status,
-		Priority:    taskRecord.Priority,
-		Owner:       cloneOwnership(taskRecord.Owner),
-		Scope:       taskRecord.Scope,
-		WorkspaceID: strings.TrimSpace(taskRecord.WorkspaceID),
+		ID:             reference.ID,
+		Identifier:     reference.Identifier,
+		Title:          reference.Title,
+		Status:         reference.Status,
+		Priority:       reference.Priority,
+		Owner:          reference.Owner,
+		Scope:          reference.Scope,
+		WorkspaceID:    reference.WorkspaceID,
+		LatestEventSeq: reference.LatestEventSeq,
 	}
 }
 

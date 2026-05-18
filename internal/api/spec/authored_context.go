@@ -65,7 +65,7 @@ var authoredContextOperationRegistry = []OperationSpec{
 		Parameters: []ParameterSpec{
 			pathParam("agent_name", "Agent name"),
 		},
-		RequestBody: contract.AgentSoulValidateRequest{},
+		RequestBody: contract.AgentSoulValidateByPathRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.AgentSoulPayload{}},
 			{Status: 403, Description: "Forbidden - workspace or permission mismatch", Body: contract.ErrorPayload{}},
@@ -84,7 +84,7 @@ var authoredContextOperationRegistry = []OperationSpec{
 		Parameters: []ParameterSpec{
 			pathParam("agent_name", "Agent name"),
 		},
-		RequestBody: contract.AgentSoulPutRequest{},
+		RequestBody: contract.AgentSoulPutByPathRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.AgentSoulMutationResponse{}},
 			{Status: 403, Description: "Forbidden - workspace or permission mismatch", Body: contract.ErrorPayload{}},
@@ -104,7 +104,7 @@ var authoredContextOperationRegistry = []OperationSpec{
 		Parameters: []ParameterSpec{
 			pathParam("agent_name", "Agent name"),
 		},
-		RequestBody: contract.AgentSoulDeleteRequest{},
+		RequestBody: contract.AgentSoulDeleteByPathRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.AgentSoulMutationResponse{}},
 			{Status: 403, Description: "Forbidden - workspace or permission mismatch", Body: contract.ErrorPayload{}},
@@ -145,7 +145,7 @@ var authoredContextOperationRegistry = []OperationSpec{
 		Parameters: []ParameterSpec{
 			pathParam("agent_name", "Agent name"),
 		},
-		RequestBody: contract.AgentSoulRollbackRequest{},
+		RequestBody: contract.AgentSoulRollbackByPathRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.AgentSoulMutationResponse{}},
 			{Status: 403, Description: "Forbidden - workspace or permission mismatch", Body: contract.ErrorPayload{}},
@@ -205,7 +205,7 @@ var authoredContextOperationRegistry = []OperationSpec{
 		Parameters: []ParameterSpec{
 			pathParam("agent_name", "Agent name"),
 		},
-		RequestBody: contract.HeartbeatValidateRequest{},
+		RequestBody: contract.HeartbeatValidateByPathRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.HeartbeatPolicyPayload{}},
 			{Status: 403, Description: "Forbidden - workspace or permission mismatch", Body: contract.ErrorPayload{}},
@@ -224,7 +224,7 @@ var authoredContextOperationRegistry = []OperationSpec{
 		Parameters: []ParameterSpec{
 			pathParam("agent_name", "Agent name"),
 		},
-		RequestBody: contract.HeartbeatPutRequest{},
+		RequestBody: contract.HeartbeatPutByPathRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.HeartbeatMutationResponse{}},
 			{Status: 403, Description: "Forbidden - workspace or permission mismatch", Body: contract.ErrorPayload{}},
@@ -244,7 +244,7 @@ var authoredContextOperationRegistry = []OperationSpec{
 		Parameters: []ParameterSpec{
 			pathParam("agent_name", "Agent name"),
 		},
-		RequestBody: contract.HeartbeatDeleteRequest{},
+		RequestBody: contract.HeartbeatDeleteByPathRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.HeartbeatMutationResponse{}},
 			{Status: 403, Description: "Forbidden - workspace or permission mismatch", Body: contract.ErrorPayload{}},
@@ -285,7 +285,7 @@ var authoredContextOperationRegistry = []OperationSpec{
 		Parameters: []ParameterSpec{
 			pathParam("agent_name", "Agent name"),
 		},
-		RequestBody: contract.HeartbeatRollbackRequest{},
+		RequestBody: contract.HeartbeatRollbackByPathRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.HeartbeatMutationResponse{}},
 			{Status: 403, Description: "Forbidden - workspace or permission mismatch", Body: contract.ErrorPayload{}},
@@ -331,7 +331,7 @@ var authoredContextOperationRegistry = []OperationSpec{
 		Parameters: []ParameterSpec{
 			pathParam("agent_name", "Agent name"),
 		},
-		RequestBody: contract.HeartbeatWakeRequest{},
+		RequestBody: contract.HeartbeatWakeByPathRequest{},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.HeartbeatWakeResponse{}},
 			{Status: 403, Description: "Forbidden - workspace or permission mismatch", Body: contract.ErrorPayload{}},

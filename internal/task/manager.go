@@ -1210,7 +1210,7 @@ func (m *Service) recoverRunByRequeue(
 	if err != nil {
 		return nil, err
 	}
-	if err := m.dispatchTaskRunLeaseRecovered(
+	m.dispatchTaskRunLeaseRecovered(
 		ctx,
 		run,
 		reconciledTask,
@@ -1218,9 +1218,7 @@ func (m *Service) recoverRunByRequeue(
 		previousStatus,
 		previousSessionID,
 		recovery,
-	); err != nil {
-		return nil, err
-	}
+	)
 	return &run, nil
 }
 
@@ -1267,7 +1265,7 @@ func (m *Service) recoverRunByMarkRunning(
 	if err != nil {
 		return nil, err
 	}
-	if err := m.dispatchTaskRunLeaseRecovered(
+	m.dispatchTaskRunLeaseRecovered(
 		ctx,
 		run,
 		reconciledTask,
@@ -1275,9 +1273,7 @@ func (m *Service) recoverRunByMarkRunning(
 		previousStatus,
 		previousSessionID,
 		recovery,
-	); err != nil {
-		return nil, err
-	}
+	)
 	return &run, nil
 }
 
@@ -1309,7 +1305,7 @@ func (m *Service) recoverRunByFailure(
 	if err != nil {
 		return nil, err
 	}
-	if err := m.dispatchTaskRunLeaseRecovered(
+	m.dispatchTaskRunLeaseRecovered(
 		ctx,
 		*failedRun,
 		reconciledTask,
@@ -1317,9 +1313,7 @@ func (m *Service) recoverRunByFailure(
 		previousStatus,
 		previousSessionID,
 		recovery,
-	); err != nil {
-		return nil, err
-	}
+	)
 	if err := m.stopRecoveredRunSession(ctx, *failedRun, recovery); err != nil {
 		return nil, err
 	}
@@ -1654,9 +1648,7 @@ func (m *Service) EnqueueRun(ctx context.Context, spec EnqueueRun, actor ActorCo
 	}); err != nil {
 		return nil, err
 	}
-	if err := m.dispatchTaskRunEnqueued(ctx, run, reconciledTask, actor, normalizedSpec.IdempotencyKey); err != nil {
-		return nil, err
-	}
+	m.dispatchTaskRunEnqueued(ctx, run, reconciledTask, actor, normalizedSpec.IdempotencyKey)
 
 	return &run, nil
 }
@@ -1761,9 +1753,7 @@ func (m *Service) ClaimRun(
 	}); err != nil {
 		return nil, err
 	}
-	if err := m.dispatchTaskRunPostClaim(ctx, run, reconciledTask, actor); err != nil {
-		return nil, err
-	}
+	m.dispatchTaskRunPostClaim(ctx, run, reconciledTask, actor)
 
 	return &run, nil
 }
@@ -1948,6 +1938,9 @@ func (m *Service) CompleteRun(
 	run.LeaseUntil = time.Time{}
 	run.HeartbeatAt = time.Time{}
 	run.EndedAt = m.now().UTC()
+	if err := m.stopTerminalRunSession(ctx, run, StopReasonCompleted); err != nil {
+		return nil, err
+	}
 	if err := m.store.UpdateTaskRun(ctx, run); err != nil {
 		return nil, err
 	}
@@ -1961,10 +1954,6 @@ func (m *Service) CompleteRun(
 		TaskStatus: reconciledTask.Status,
 		Result:     cloneRawJSON(run.Result),
 	}); err != nil {
-		return nil, err
-	}
-
-	if err := m.stopTerminalRunSession(ctx, run, StopReasonCompleted); err != nil {
 		return nil, err
 	}
 
@@ -2092,7 +2081,7 @@ func (m *Service) dispatchTaskRunEnqueued(
 	taskRecord Task,
 	actor ActorContext,
 	idempotencyKey string,
-) error {
+) {
 	payload := hookspkg.TaskRunEnqueuedPayload{
 		PayloadBase: hookspkg.PayloadBase{
 			Event:     hookspkg.HookTaskRunEnqueued,
@@ -2102,7 +2091,7 @@ func (m *Service) dispatchTaskRunEnqueued(
 		IdempotencyKey: strings.TrimSpace(idempotencyKey),
 	}
 	_, err := m.taskHooks.DispatchTaskRunEnqueued(taskRunObservationHookContext(ctx), payload)
-	return err
+	m.reportTaskRunHookFailure(hookspkg.HookTaskRunEnqueued, err, run, taskRecord)
 }
 
 func (m *Service) dispatchTaskRunPreClaim(
@@ -2146,7 +2135,7 @@ func (m *Service) dispatchTaskRunPostClaim(
 	run Run,
 	taskRecord Task,
 	actor ActorContext,
-) error {
+) {
 	payload := hookspkg.TaskRunPostClaimPayload{
 		PayloadBase: hookspkg.PayloadBase{
 			Event:     hookspkg.HookTaskRunPostClaim,
@@ -2156,7 +2145,7 @@ func (m *Service) dispatchTaskRunPostClaim(
 		ClaimedAt:      run.ClaimedAt,
 	}
 	_, err := m.taskHooks.DispatchTaskRunPostClaim(taskRunObservationHookContext(ctx), payload)
-	return err
+	m.reportTaskRunHookFailure(hookspkg.HookTaskRunPostClaim, err, run, taskRecord)
 }
 
 func (m *Service) dispatchTaskRunLeaseRecovered(
@@ -2167,7 +2156,7 @@ func (m *Service) dispatchTaskRunLeaseRecovered(
 	previousStatus RunStatus,
 	previousSessionID string,
 	recovery RunBootRecovery,
-) error {
+) {
 	payload := hookspkg.TaskRunLeaseRecoveredPayload{
 		PayloadBase: hookspkg.PayloadBase{
 			Event:     hookspkg.HookTaskRunLeaseRecovered,
@@ -2180,7 +2169,26 @@ func (m *Service) dispatchTaskRunLeaseRecovered(
 		RecoveryReason:    strings.TrimSpace(recovery.Reason),
 	}
 	_, err := m.taskHooks.DispatchTaskRunLeaseRecovered(taskRunObservationHookContext(ctx), payload)
-	return err
+	m.reportTaskRunHookFailure(hookspkg.HookTaskRunLeaseRecovered, err, run, taskRecord)
+}
+
+func (m *Service) reportTaskRunHookFailure(
+	event hookspkg.HookEvent,
+	err error,
+	run Run,
+	taskRecord Task,
+) {
+	if err == nil {
+		return
+	}
+	slog.Error(
+		"task: task-run lifecycle hook failed after committed mutation",
+		"error", err,
+		"hook_event", event,
+		"task_id", taskRecord.ID,
+		"run_id", run.ID,
+		"run_status", run.Status,
+	)
 }
 
 func (m *Service) taskRunHookContext(run Run, taskRecord Task, actor ActorContext) hookspkg.TaskRunContext {
@@ -3110,6 +3118,11 @@ func (m *Service) failRunRecordWithOptions(
 	run.LeaseUntil = time.Time{}
 	run.HeartbeatAt = time.Time{}
 	run.EndedAt = m.now().UTC()
+	if opts.stopTerminalSession {
+		if err := m.stopTerminalRunSession(ctx, run, StopReasonFailed); err != nil {
+			return nil, err
+		}
+	}
 	if err := m.store.UpdateTaskRun(ctx, run); err != nil {
 		return nil, err
 	}
@@ -3125,12 +3138,6 @@ func (m *Service) failRunRecordWithOptions(
 		Metadata:   cloneRawJSON(failure.Metadata),
 	}); err != nil {
 		return nil, err
-	}
-
-	if opts.stopTerminalSession {
-		if err := m.stopTerminalRunSession(ctx, run, StopReasonFailed); err != nil {
-			return nil, err
-		}
 	}
 
 	return &run, nil
@@ -3163,9 +3170,6 @@ func (m *Service) cancelRunRecord(
 	run.Result = nil
 	run.Error = ""
 	run.EndedAt = m.now().UTC()
-	if err := m.store.UpdateTaskRun(ctx, run); err != nil {
-		return nil, err
-	}
 
 	cooperativeStopRequested := false
 	if activeSession {
@@ -3173,6 +3177,13 @@ func (m *Service) cancelRunRecord(
 			return nil, fmt.Errorf("task: request stop for session %q: %w", sessionID, err)
 		}
 		cooperativeStopRequested = true
+		if err := m.waitAndForceStopRun(ctx, sessionID, StopReasonCancellation); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := m.store.UpdateTaskRun(ctx, run); err != nil {
+		return nil, err
 	}
 
 	reconciledTask := taskRecord
@@ -3196,9 +3207,6 @@ func (m *Service) cancelRunRecord(
 	}
 
 	if activeSession {
-		if err := m.waitAndForceStopRun(ctx, sessionID, StopReasonCancellation); err != nil {
-			return nil, err
-		}
 		if err := m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunForceStopped, actor, forceStoppedRunPayload{
 			SessionID:            sessionID,
 			GraceTimeoutMillis:   m.cancelGracePeriod.Milliseconds(),

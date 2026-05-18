@@ -386,7 +386,7 @@ func (p *telegramProvider) handleBridgesDeliver(
 		return bridgepkg.DeliveryAck{}, err
 	}
 
-	p.storeDeliveryState(cfg.instanceID, request.Event.DeliveryID, state)
+	p.storeDeliveryState(cfg.instanceID, request.Event.DeliveryID, request.Event, state)
 	if err := p.reportReadyIfNeeded(ctx, session, cfg.instanceID); err != nil {
 		p.setLastError(err)
 	} else {
@@ -1068,6 +1068,9 @@ func (p *telegramProvider) configForPath(path string) (resolvedInstanceConfig, b
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	for _, cfg := range p.routes {
+		if cfg.configError != nil {
+			continue
+		}
 		if cfg.webhookPath == normalizeWebhookPath(path) {
 			return cfg, true
 		}
@@ -1090,11 +1093,17 @@ func (p *telegramProvider) deliveryState(instanceID string, deliveryID string) d
 func (p *telegramProvider) storeDeliveryState(
 	instanceID string,
 	deliveryID string,
+	event bridgepkg.DeliveryEvent,
 	state deliveryState,
 ) {
+	key := deliveryStateKey(instanceID, deliveryID)
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.deliveries[deliveryStateKey(instanceID, deliveryID)] = state
+	if isTerminalTelegramDeliveryEvent(event) {
+		delete(p.deliveries, key)
+		return
+	}
+	p.deliveries[key] = state
 }
 
 func (p *telegramProvider) setLastError(err error) {
@@ -1300,7 +1309,11 @@ func applyTelegramDeliverySnapshot(
 		return state
 	}
 	state.LastSeq = snapshot.LastAckedSeq
-	state.LastContent = snapshot.CurrentContent.Text
+	if snapshot.LastAckedSeq >= snapshot.LatestSeq {
+		state.LastContent = snapshot.CurrentContent.Text
+	} else {
+		state.LastContent = ""
+	}
 	state.RemoteMessageID = strings.TrimSpace(snapshot.RemoteMessageID)
 	state.ReplaceRemoteMessageID = strings.TrimSpace(snapshot.ReplaceRemoteMessageID)
 	return state
@@ -1309,6 +1322,18 @@ func applyTelegramDeliverySnapshot(
 func isTelegramDeleteDelivery(event bridgepkg.DeliveryEvent) bool {
 	return event.Operation.Normalize() == bridgepkg.DeliveryOperationDelete ||
 		normalizeDeliveryEventType(event.EventType) == bridgepkg.DeliveryEventTypeDelete
+}
+
+func isTerminalTelegramDeliveryEvent(event bridgepkg.DeliveryEvent) bool {
+	if event.Operation.Normalize() == bridgepkg.DeliveryOperationDelete {
+		return true
+	}
+	switch normalizeDeliveryEventType(event.EventType) {
+	case bridgepkg.DeliveryEventTypeFinal, bridgepkg.DeliveryEventTypeError, bridgepkg.DeliveryEventTypeDelete:
+		return true
+	default:
+		return false
+	}
 }
 
 func executeTelegramDelete(
@@ -1355,10 +1380,14 @@ func executeTelegramPost(
 	targetThreadID string,
 	state deliveryState,
 ) (bridgepkg.DeliveryAck, deliveryState, error) {
+	messageThreadID, err := resolveTelegramThreadID(targetThreadID, targetChatID)
+	if err != nil {
+		return bridgepkg.DeliveryAck{}, state, err
+	}
 	sent, err := api.SendMessage(ctx, telegramSendMessageRequest{
 		ChatID:          targetChatID,
 		Text:            event.Content.Text,
-		MessageThreadID: resolveTelegramThreadID(targetThreadID, targetChatID),
+		MessageThreadID: messageThreadID,
 	})
 	if err != nil {
 		return bridgepkg.DeliveryAck{}, state, err
@@ -1572,19 +1601,20 @@ func resolveDeliveryTarget(event bridgepkg.DeliveryEvent) (string, string, error
 	return chatID, threadID, nil
 }
 
-func resolveTelegramThreadID(threadID string, chatID string) int64 {
-	if strings.TrimSpace(threadID) == "" {
-		return 0
+func resolveTelegramThreadID(threadID string, chatID string) (int64, error) {
+	trimmedThreadID := strings.TrimSpace(threadID)
+	if trimmedThreadID == "" {
+		return 0, nil
 	}
-	if strings.TrimSpace(threadID) == telegramGeneralTopicID &&
+	if trimmedThreadID == telegramGeneralTopicID &&
 		strings.HasPrefix(strings.TrimSpace(chatID), "-") {
-		return 0
+		return 0, nil
 	}
-	value, err := strconv.ParseInt(strings.TrimSpace(threadID), 10, 64)
+	value, err := strconv.ParseInt(trimmedThreadID, 10, 64)
 	if err != nil {
-		return 0
+		return 0, fmt.Errorf("telegram: invalid thread id %q: %w", trimmedThreadID, err)
 	}
-	return value
+	return value, nil
 }
 
 func verifyWebhookSecret(_ context.Context, req *http.Request, _ []byte, secret string) error {

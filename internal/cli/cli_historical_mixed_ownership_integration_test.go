@@ -29,7 +29,17 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 		}
 	}()
 
-	if _, _, err := executeRootCommand(t, h.deps, "workspace", "add", h.workspace, "--name", "alpha", "-o", "json"); err != nil {
+	if _, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"workspace",
+		"add",
+		h.workspace,
+		"--name",
+		"alpha",
+		"-o",
+		"json",
+	); err != nil {
 		t.Fatalf("workspace add error = %v", err)
 	}
 
@@ -179,7 +189,10 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 		if claim.Claim.CoordinationChannel == nil {
 			t.Fatal("claim.Claim.CoordinationChannel = nil, want coordination channel")
 		}
-		if got, want := firstCLIValue(claim.Claim.CoordinationChannel.Channel, claim.Claim.CoordinationChannel.ID), channel; got != want {
+		if got, want := firstCLIValue(
+			claim.Claim.CoordinationChannel.Channel,
+			claim.Claim.CoordinationChannel.ID,
+		), channel; got != want {
 			t.Fatalf("coordination channel = %q, want %q", got, want)
 		}
 		if claim.Claim.Lease.ClaimTokenHash == "" {

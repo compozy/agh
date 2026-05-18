@@ -391,9 +391,14 @@ func TestDaemonNightlyE2EBridgeIngressUsesSandboxToolBeforeDelivery(t *testing.T
 		telegramRuntimeInboundUpdate(time.Now().UTC(), 9901, 777, nightlyBridgeIngressText),
 	)
 
-	ingests := extensiontest.WaitForIngestMarkers(t, markers, 15*time.Second, func(records []extensiontest.IngestRecord) bool {
-		return len(records) >= 1 && strings.TrimSpace(records[0].Result.SessionID) != ""
-	})
+	ingests := extensiontest.WaitForIngestMarkers(
+		t,
+		markers,
+		15*time.Second,
+		func(records []extensiontest.IngestRecord) bool {
+			return len(records) >= 1 && strings.TrimSpace(records[0].Result.SessionID) != ""
+		},
+	)
 	sessionID = ingests[0].Result.SessionID
 	combined.SessionID = sessionID
 
@@ -402,9 +407,14 @@ func TestDaemonNightlyE2EBridgeIngressUsesSandboxToolBeforeDelivery(t *testing.T
 			sessionTranscriptHasNeedle(ctx, harness, sessionID, nightlyBridgeAssistantPrefix+"bridge-nightly")
 	})
 
-	deliveries := extensiontest.WaitForDeliveryMarkers(t, markers, 15*time.Second, func(records []extensiontest.DeliveryRecord) bool {
-		return countDeliveryEvents(records, bridgepkg.DeliveryEventTypeFinal) >= 1
-	})
+	deliveries := extensiontest.WaitForDeliveryMarkers(
+		t,
+		markers,
+		15*time.Second,
+		func(records []extensiontest.DeliveryRecord) bool {
+			return countDeliveryEvents(records, bridgepkg.DeliveryEventTypeFinal) >= 1
+		},
+	)
 	if !hasDeliveryEventType(deliveries, bridgepkg.DeliveryEventTypeStart) {
 		t.Fatalf("deliveries = %#v, want start event", deliveries)
 	}

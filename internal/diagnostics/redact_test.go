@@ -31,6 +31,49 @@ func TestRedactHandlesQuotedJSONSecretsAndBounds(t *testing.T) {
 		}
 	})
 
+	t.Run("Should redact complete authorization header values", func(t *testing.T) {
+		t.Parallel()
+
+		testCases := []struct {
+			name  string
+			input string
+			leak  string
+			want  string
+		}{
+			{
+				name:  "Should redact basic authorization header",
+				input: "Authorization: Basic dXNlcjpwYXNz",
+				leak:  "dXNlcjpwYXNz",
+				want:  "Authorization: [REDACTED]",
+			},
+			{
+				name:  "Should redact proxy authorization header",
+				input: "Proxy-Authorization: Basic dXNlcjpwYXNz",
+				leak:  "dXNlcjpwYXNz",
+				want:  "Proxy-Authorization: [REDACTED]",
+			},
+			{
+				name:  "Should redact bearer authorization token",
+				input: "Authorization: Bearer token-value",
+				leak:  "token-value",
+				want:  "Authorization: [REDACTED]",
+			},
+		}
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				got := Redact(tc.input)
+				if strings.Contains(got, tc.leak) {
+					t.Fatalf("Redact(%q) = %q leaked %q", tc.input, got, tc.leak)
+				}
+				if got != tc.want {
+					t.Fatalf("Redact(%q) = %q, want %q", tc.input, got, tc.want)
+				}
+			})
+		}
+	})
+
 	t.Run("Should redact MCP OAuth PKCE and secret binding values", func(t *testing.T) {
 		t.Parallel()
 

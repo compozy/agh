@@ -21,12 +21,23 @@ type commandRunner interface {
 	Run(ctx context.Context, name string, args ...string) error
 }
 
+type temporaryOutputFile interface {
+	Name() string
+	Close() error
+}
+
+type temporaryOutputFactory func(dir string, pattern string) (temporaryOutputFile, error)
+
 type execRunner struct{}
 
 var _ commandRunner = execRunner{}
 
 func (execRunner) Run(ctx context.Context, name string, args ...string) error {
 	return runCommand(ctx, name, args...)
+}
+
+func createOSTemporaryOutput(dir string, pattern string) (temporaryOutputFile, error) {
+	return os.CreateTemp(dir, pattern)
 }
 
 // ErrInvalidArtifact reports an unusable OpenAPI TypeScript generation artifact.
@@ -52,32 +63,27 @@ func generateWithRunner(ctx context.Context, artifact Artifact, runner commandRu
 		return fmt.Errorf("create output directory %q: %w", outputDir, err)
 	}
 
-	file, err := os.CreateTemp(outputDir, ".openapi-types-*.d.ts")
-	if err != nil {
-		return fmt.Errorf("create temporary output for %q: %w", artifact.OutputPath, err)
-	}
-	if err := file.Close(); err != nil {
-		return fmt.Errorf("close temporary output for %q: %w", artifact.OutputPath, err)
-	}
-	defer func() {
-		if removeErr := removeFile(file.Name()); removeErr != nil {
-			err = errors.Join(err, removeErr)
-		}
-	}()
+	return withClosedTemporaryOutput(
+		outputDir,
+		".openapi-types-*.d.ts",
+		artifact.OutputPath,
+		createOSTemporaryOutput,
+		func(tempPath string) error {
+			if err := runner.Run(ctx, "bunx", "openapi-typescript", artifact.SpecPath, "-o", tempPath); err != nil {
+				return fmt.Errorf("generate %q from %q: %w", artifact.OutputPath, artifact.SpecPath, err)
+			}
 
-	if err := runner.Run(ctx, "bunx", "openapi-typescript", artifact.SpecPath, "-o", file.Name()); err != nil {
-		return fmt.Errorf("generate %q from %q: %w", artifact.OutputPath, artifact.SpecPath, err)
-	}
+			if err := runner.Run(ctx, "bunx", "oxfmt", tempPath); err != nil {
+				return fmt.Errorf("format %q: %w", artifact.OutputPath, err)
+			}
 
-	if err := runner.Run(ctx, "bunx", "oxfmt", file.Name()); err != nil {
-		return fmt.Errorf("format %q: %w", artifact.OutputPath, err)
-	}
+			if err := os.Rename(tempPath, artifact.OutputPath); err != nil {
+				return fmt.Errorf("publish %q: %w", artifact.OutputPath, err)
+			}
 
-	if err := os.Rename(file.Name(), artifact.OutputPath); err != nil {
-		return fmt.Errorf("publish %q: %w", artifact.OutputPath, err)
-	}
-
-	return nil
+			return nil
+		},
+	)
 }
 
 // Check regenerates one artifact into a temporary file and fails when the checked-in output differs.
@@ -85,32 +91,51 @@ func Check(ctx context.Context, artifact Artifact) (err error) {
 	if err := artifact.validate(); err != nil {
 		return err
 	}
-	file, err := os.CreateTemp("", "openapi-types-*.d.ts")
+	return withClosedTemporaryOutput(
+		"",
+		"openapi-types-*.d.ts",
+		artifact.OutputPath,
+		createOSTemporaryOutput,
+		func(tempPath string) error {
+			if err := Generate(ctx, Artifact{
+				SpecPath:   artifact.SpecPath,
+				OutputPath: tempPath,
+			}); err != nil {
+				return err
+			}
+
+			want, err := os.ReadFile(tempPath)
+			if err != nil {
+				return fmt.Errorf("read generated output %q: %w", tempPath, err)
+			}
+
+			return checkGeneratedFile(artifact.OutputPath, want)
+		},
+	)
+}
+
+func withClosedTemporaryOutput(
+	dir string,
+	pattern string,
+	outputPath string,
+	create temporaryOutputFactory,
+	use func(tempPath string) error,
+) (err error) {
+	file, err := create(dir, pattern)
 	if err != nil {
-		return fmt.Errorf("create temporary output for %q: %w", artifact.OutputPath, err)
+		return fmt.Errorf("create temporary output for %q: %w", outputPath, err)
 	}
-	if err := file.Close(); err != nil {
-		return fmt.Errorf("close temporary output for %q: %w", artifact.OutputPath, err)
-	}
+	tempPath := file.Name()
 	defer func() {
-		if removeErr := removeFile(file.Name()); removeErr != nil {
+		if removeErr := removeFile(tempPath); removeErr != nil {
 			err = errors.Join(err, removeErr)
 		}
 	}()
 
-	if err := Generate(ctx, Artifact{
-		SpecPath:   artifact.SpecPath,
-		OutputPath: file.Name(),
-	}); err != nil {
-		return err
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("close temporary output for %q: %w", outputPath, err)
 	}
-
-	want, err := os.ReadFile(file.Name())
-	if err != nil {
-		return fmt.Errorf("read generated output %q: %w", file.Name(), err)
-	}
-
-	return checkGeneratedFile(artifact.OutputPath, want)
+	return use(tempPath)
 }
 
 func (artifact Artifact) validate() error {

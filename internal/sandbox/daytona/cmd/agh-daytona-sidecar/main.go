@@ -12,13 +12,15 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
+	"net/url"
 	"os/exec"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/pedronauck/agh/internal/procutil"
 )
 
 const (
@@ -30,7 +32,13 @@ const (
 	clientStdinFrame      = 0x01
 	clientCloseStdinFrame = 0x02
 	clientStopFrame       = 0x03
+	stopTimeout           = 5 * time.Second
+	stdoutBufferLimit     = 4 * 1024 * 1024
+	stderrBufferLimit     = 1024 * 1024
+	stderrTruncatedMarker = "\n[stderr truncated]\n"
 )
+
+var errOutputBufferExceeded = errors.New("sidecar output buffer exceeded")
 
 type launchRequest struct {
 	Command string `json:"command"`
@@ -53,30 +61,39 @@ type exitPayload struct {
 type frameWriter func([]byte) error
 
 type chunkQueue struct {
-	mu     sync.Mutex
-	cond   *sync.Cond
-	chunks [][]byte
-	closed bool
+	mu            sync.Mutex
+	cond          *sync.Cond
+	chunks        [][]byte
+	bufferedBytes int
+	maxBytes      int
+	closed        bool
 }
 
 func newChunkQueue() *chunkQueue {
-	q := &chunkQueue{}
+	q := &chunkQueue{maxBytes: stdoutBufferLimit}
 	q.cond = sync.NewCond(&q.mu)
 	return q
 }
 
-func (q *chunkQueue) Push(chunk []byte) {
+func (q *chunkQueue) Push(chunk []byte) error {
 	if len(chunk) == 0 {
-		return
+		return nil
 	}
 	copied := append([]byte(nil), chunk...)
 	q.mu.Lock()
 	defer q.mu.Unlock()
 	if q.closed {
-		return
+		return nil
+	}
+	if q.maxBytes > 0 && q.bufferedBytes+len(copied) > q.maxBytes {
+		q.closed = true
+		q.cond.Broadcast()
+		return fmt.Errorf("%w: stdout buffer exceeds %d bytes", errOutputBufferExceeded, q.maxBytes)
 	}
 	q.chunks = append(q.chunks, copied)
+	q.bufferedBytes += len(copied)
 	q.cond.Signal()
+	return nil
 }
 
 func (q *chunkQueue) Close() {
@@ -101,26 +118,31 @@ func (q *chunkQueue) Pop() ([]byte, bool) {
 	chunk := q.chunks[0]
 	q.chunks[0] = nil
 	q.chunks = q.chunks[1:]
+	q.bufferedBytes -= len(chunk)
 	return chunk, true
 }
 
 type managedProcess struct {
-	id       string
-	command  string
-	cmd      *exec.Cmd
-	cancel   context.CancelFunc
-	stdin    io.WriteCloser
-	stdout   *chunkQueue
-	stderr   bytes.Buffer
-	stderrMu sync.Mutex
-	done     chan struct{}
-	exitCode int
-	stopOnce sync.Once
+	id              string
+	command         string
+	cmd             *exec.Cmd
+	cancel          context.CancelFunc
+	stdin           io.WriteCloser
+	stdout          *chunkQueue
+	stderr          bytes.Buffer
+	stderrMu        sync.Mutex
+	stderrTruncated bool
+	done            chan struct{}
+	exitCode        int
+	stopOnce        sync.Once
+	streamMu        sync.Mutex
+	streamClaimed   bool
 }
 
 func newManagedProcess(command string) (*managedProcess, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cmd := exec.CommandContext(ctx, "/bin/sh", "-lc", command)
+	procutil.ConfigureCommandProcessGroup(cmd)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		cancel()
@@ -140,6 +162,13 @@ func newManagedProcess(command string) (*managedProcess, error) {
 		cancel()
 		return nil, fmt.Errorf("start command: %w", err)
 	}
+	if err := procutil.RegisterCommandProcessGroup(cmd); err != nil {
+		cancel()
+		return nil, errors.Join(
+			fmt.Errorf("register command process group: %w", err),
+			cleanupStartedManagedCommand(cmd),
+		)
+	}
 	process := &managedProcess{
 		id:       randomID(),
 		command:  command,
@@ -156,6 +185,20 @@ func newManagedProcess(command string) (*managedProcess, error) {
 	return process, nil
 }
 
+func cleanupStartedManagedCommand(cmd *exec.Cmd) error {
+	var errs []error
+	if err := procutil.SignalCommandProcessGroup(cmd, syscall.SIGKILL); err != nil {
+		errs = append(errs, fmt.Errorf("signal command process group: %w", err))
+	}
+	if err := cmd.Wait(); err != nil {
+		errs = append(errs, fmt.Errorf("wait after cleanup: %w", err))
+	}
+	if err := procutil.KillCommandProcessGroupAndWait(cmd, stopTimeout); err != nil {
+		errs = append(errs, fmt.Errorf("wait for command process group exit: %w", err))
+	}
+	return errors.Join(errs...)
+}
+
 func (p *managedProcess) captureStdout(stdout io.ReadCloser) {
 	defer p.stdout.Close()
 	defer stdout.Close()
@@ -163,7 +206,13 @@ func (p *managedProcess) captureStdout(stdout io.ReadCloser) {
 	for {
 		n, err := stdout.Read(buf)
 		if n > 0 {
-			p.stdout.Push(buf[:n])
+			if pushErr := p.stdout.Push(buf[:n]); pushErr != nil {
+				p.appendStderr(pushErr.Error() + "\n")
+				if stopErr := p.Stop(); stopErr != nil {
+					p.appendStderr(fmt.Sprintf("stop after stdout buffer overflow: %v\n", stopErr))
+				}
+				return
+			}
 		}
 		if err != nil {
 			if !errors.Is(err, io.EOF) {
@@ -240,16 +289,22 @@ func (p *managedProcess) Stop() error {
 			}
 			return
 		}
-		if err := p.cmd.Process.Signal(os.Interrupt); err != nil && !errors.Is(err, os.ErrProcessDone) {
+		if err := procutil.SignalCommandProcessGroup(p.cmd, syscall.SIGTERM); err != nil {
 			stopErr = errors.Join(stopErr, err)
 		}
 		select {
 		case <-p.done:
+			if err := procutil.WaitForCommandProcessGroupExit(p.cmd, stopTimeout); err != nil {
+				stopErr = errors.Join(stopErr, err)
+			}
 			if p.cancel != nil {
 				p.cancel()
 			}
 			return
-		case <-time.After(5 * time.Second):
+		case <-time.After(stopTimeout):
+		}
+		if err := procutil.KillCommandProcessGroupAndWait(p.cmd, stopTimeout); err != nil {
+			stopErr = errors.Join(stopErr, err)
 		}
 		if p.cancel != nil {
 			p.cancel()
@@ -265,13 +320,43 @@ func (p *managedProcess) appendStderr(text string) {
 	}
 	p.stderrMu.Lock()
 	defer p.stderrMu.Unlock()
+	if p.stderr.Len() >= stderrBufferLimit {
+		p.stderrTruncated = true
+		return
+	}
+	remaining := stderrBufferLimit - p.stderr.Len()
+	if len(text) > remaining {
+		p.stderr.WriteString(text[:remaining])
+		p.stderrTruncated = true
+		return
+	}
 	p.stderr.WriteString(text)
 }
 
 func (p *managedProcess) stderrText() string {
 	p.stderrMu.Lock()
 	defer p.stderrMu.Unlock()
-	return p.stderr.String()
+	text := p.stderr.String()
+	if p.stderrTruncated {
+		return text + stderrTruncatedMarker
+	}
+	return text
+}
+
+func (p *managedProcess) claimStream() bool {
+	p.streamMu.Lock()
+	defer p.streamMu.Unlock()
+	if p.streamClaimed {
+		return false
+	}
+	p.streamClaimed = true
+	return true
+}
+
+func (p *managedProcess) releaseUnstartedStream() {
+	p.streamMu.Lock()
+	defer p.streamMu.Unlock()
+	p.streamClaimed = false
 }
 
 type processStore struct {
@@ -296,18 +381,33 @@ func (s *processStore) Get(id string) (*managedProcess, bool) {
 	return process, ok
 }
 
-func main() {
-	port := flag.Int("port", 0, "listen port")
-	flag.Parse()
-	if *port <= 0 {
-		log.Fatal("port is required")
+func (s *processStore) Take(id string) (*managedProcess, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	process, ok := s.processes[id]
+	if ok {
+		delete(s.processes, id)
 	}
+	return process, ok
+}
 
-	store := newProcessStore()
-	upgrader := websocket.Upgrader{
-		CheckOrigin: func(*http.Request) bool { return true },
+func sidecarListenAddr(port int) string {
+	return fmt.Sprintf("127.0.0.1:%d", port)
+}
+
+func allowWebSocketOrigin(r *http.Request) bool {
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	if origin == "" {
+		return true
 	}
+	parsed, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(parsed.Host, r.Host)
+}
 
+func newHandler(store *processStore, upgrader *websocket.Upgrader) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, healthResponse{OK: true, Version: version})
@@ -336,28 +436,47 @@ func main() {
 			http.NotFound(w, r)
 			return
 		}
-		process, found := store.Get(sessionID)
-		if !found {
-			http.Error(w, "session not found", http.StatusNotFound)
-			return
-		}
 		switch {
 		case r.Method == http.MethodDelete && suffix == "":
+			process, found := store.Take(sessionID)
+			if !found {
+				http.Error(w, "session not found", http.StatusNotFound)
+				return
+			}
 			if err := process.Stop(); err != nil {
 				http.Error(w, fmt.Sprintf("stop session: %v", err), http.StatusInternalServerError)
 				return
 			}
 			w.WriteHeader(http.StatusNoContent)
 		case r.Method == http.MethodGet && suffix == "/stream":
-			handleStream(w, r, process, &upgrader)
+			process, found := store.Get(sessionID)
+			if !found {
+				http.Error(w, "session not found", http.StatusNotFound)
+				return
+			}
+			handleStream(w, r, process, upgrader)
 		default:
 			http.NotFound(w, r)
 		}
 	})
+	return mux
+}
+
+func main() {
+	port := flag.Int("port", 0, "listen port")
+	flag.Parse()
+	if *port <= 0 {
+		log.Fatal("port is required")
+	}
+
+	store := newProcessStore()
+	upgrader := websocket.Upgrader{
+		CheckOrigin: allowWebSocketOrigin,
+	}
 
 	server := &http.Server{
-		Addr:              fmt.Sprintf(":%d", *port),
-		Handler:           mux,
+		Addr:              sidecarListenAddr(*port),
+		Handler:           newHandler(store, &upgrader),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	log.Fatal(server.ListenAndServe())
@@ -369,8 +488,13 @@ func handleStream(
 	process *managedProcess,
 	upgrader *websocket.Upgrader,
 ) {
+	if !process.claimStream() {
+		http.Error(w, "session stream already attached", http.StatusConflict)
+		return
+	}
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
+		process.releaseUnstartedStream()
 		return
 	}
 	defer conn.Close()

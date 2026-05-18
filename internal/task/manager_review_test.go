@@ -72,6 +72,10 @@ func (s *inMemoryManagerStore) RecordRunReview(
 	if !ok {
 		return RunReviewResult{}, ErrTaskRunNotFound
 	}
+	taskRecord, ok := s.tasks[review.TaskID]
+	if !ok {
+		return RunReviewResult{}, ErrTaskNotFound
+	}
 	if review.Status == RunReviewStatusRecorded {
 		result := RunReviewResult{Review: cloneRunReview(&review)}
 		if review.Outcome == RunReviewOutcomeRejected {
@@ -92,6 +96,19 @@ func (s *inMemoryManagerStore) RecordRunReview(
 		actor.Actor.Kind.Normalize() == ActorKindAgentSession &&
 		actor.Actor.Ref != review.ReviewerSessionID {
 		return RunReviewResult{}, ErrPermissionDenied
+	}
+	continuationAttempt := 0
+	if normalized.Verdict.Outcome.Normalize() == RunReviewOutcomeRejected {
+		continuationAttempt = nextRunAttempt(s.runsForTask(review.TaskID))
+		maxAttempts := normalizeTaskMaxAttemptsOrDefault(taskRecord.MaxAttempts)
+		if continuationAttempt > maxAttempts {
+			return RunReviewResult{}, fmtTestError(
+				"%w: task %q exhausted max_attempts=%d",
+				ErrInvalidStatusTransition,
+				taskRecord.ID,
+				maxAttempts,
+			)
+		}
 	}
 	review.Status = RunReviewStatusRecorded
 	review.Outcome = normalized.Verdict.Outcome
@@ -114,7 +131,7 @@ func (s *inMemoryManagerStore) RecordRunReview(
 		ID:             strings.TrimSpace(continuationRunID),
 		TaskID:         review.TaskID,
 		Status:         TaskRunStatusQueued,
-		Attempt:        nextRunAttempt(s.runsForTask(review.TaskID)),
+		Attempt:        continuationAttempt,
 		Origin:         actor.Origin,
 		NetworkChannel: run.NetworkChannel,
 		Review: &RunReviewLineage{
@@ -497,6 +514,87 @@ func TestTaskManagerRunReviews(t *testing.T) {
 		if !containsEventType(store.events, taskEventRunReviewRejected) ||
 			!containsEventType(store.events, taskEventRunReviewRetry) {
 			t.Fatalf("events = %#v, want rejected and retry", sortedEventTypes(store.events))
+		}
+	})
+
+	t.Run("Should reject rejected-review continuation when max attempts are exhausted", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTestWithOptions(t, store, WithSessionExecutor(testSessionExecutor{}))
+		actor := validActorContext()
+
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope:       ScopeGlobal,
+			Title:       "Review exhaustion",
+			MaxAttempts: ptr(1),
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		run, err = manager.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+		if err != nil {
+			t.Fatalf("ClaimRun() error = %v", err)
+		}
+		run, err = manager.StartRun(context.Background(), run.ID, StartRun{}, actor)
+		if err != nil {
+			t.Fatalf("StartRun() error = %v", err)
+		}
+		if _, err := manager.CompleteRun(context.Background(), run.ID, RunResult{
+			Value: []byte(`{"ok":true}`),
+		}, actor); err != nil {
+			t.Fatalf("CompleteRun() error = %v", err)
+		}
+
+		review, _, err := manager.RequestRunReview(
+			context.Background(),
+			RunReviewRequest{TaskID: taskRecord.ID, RunID: run.ID, Policy: ReviewPolicyAlways},
+			actor,
+		)
+		if err != nil {
+			t.Fatalf("RequestRunReview() error = %v", err)
+		}
+
+		confidence := 0.61
+		if _, err := manager.RecordRunReview(
+			context.Background(),
+			RecordRunReviewRequest{
+				ReviewID: review.ReviewID,
+				RunID:    review.RunID,
+				Verdict: RunReviewVerdict{
+					Outcome:           RunReviewOutcomeRejected,
+					Confidence:        &confidence,
+					Reason:            "needs another pass",
+					DeliveryID:        "delivery-exhausted",
+					MissingWork:       []byte(`["retry"]`),
+					NextRoundGuidance: "Try again.",
+				},
+			},
+			actor,
+		); !errors.Is(err, ErrInvalidStatusTransition) {
+			t.Fatalf("RecordRunReview(exhausted) error = %v, want %v", err, ErrInvalidStatusTransition)
+		}
+
+		storedReview, err := manager.GetRunReview(context.Background(), review.ReviewID, actor)
+		if err != nil {
+			t.Fatalf("GetRunReview() error = %v", err)
+		}
+		if got, want := storedReview.Status, RunReviewStatusRequested; got != want {
+			t.Fatalf("stored review status = %q, want %q", got, want)
+		}
+		runs, err := manager.ListTaskRuns(context.Background(), taskRecord.ID, RunQuery{}, actor)
+		if err != nil {
+			t.Fatalf("ListTaskRuns() error = %v", err)
+		}
+		if got, want := len(runs), 1; got != want {
+			t.Fatalf("len(runs) = %d, want %d", got, want)
+		}
+		if got := countEventType(store.events, taskEventRunReviewRetry); got != 0 {
+			t.Fatalf("retry event count = %d, want 0", got)
 		}
 	})
 }

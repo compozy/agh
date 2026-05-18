@@ -135,7 +135,7 @@ func (m *MultiRegistry) Info(ctx context.Context, slug string) (*Detail, error) 
 		return nil, err
 	}
 	if detail == nil {
-		return nil, fmt.Errorf("registry: package %q not found", strings.TrimSpace(slug))
+		return nil, NewPackageNotFoundError(slug)
 	}
 
 	detail.Source = firstNonEmpty(strings.TrimSpace(detail.Source), sourceName(source, sourceIndex(m.sources, source)))
@@ -243,7 +243,7 @@ func (m *MultiRegistry) resolveSource(ctx context.Context, slug string) (Source,
 		return nil, nil, errors.New("registry: slug is required")
 	}
 	if len(m.sources) == 0 {
-		return nil, nil, fmt.Errorf("registry: package %q not found", trimmedSlug)
+		return nil, nil, NewPackageNotFoundError(trimmedSlug)
 	}
 
 	results := make([]detailResult, len(m.sources))
@@ -256,6 +256,9 @@ func (m *MultiRegistry) resolveSource(ctx context.Context, slug string) (Source,
 
 			detail, err := source.Info(ctx, trimmedSlug)
 			if err != nil {
+				if errors.Is(err, ErrPackageNotFound) {
+					return
+				}
 				results[index].err = wrapSourceError(source, index, "info", err)
 				return
 			}
@@ -288,7 +291,7 @@ func (m *MultiRegistry) resolveSource(ctx context.Context, slug string) (Source,
 		return nil, nil, errors.Join(errs...)
 	}
 
-	return nil, nil, fmt.Errorf("registry: package %q not found", trimmedSlug)
+	return nil, nil, NewPackageNotFoundError(trimmedSlug)
 }
 
 func mergeListings(results []searchResult) []Listing {

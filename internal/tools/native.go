@@ -135,6 +135,11 @@ func (h *nativeHandle) Call(ctx context.Context, req CallRequest) (ToolResult, e
 			ReasonBackendNotExecutable,
 		)
 	}
+	var err error
+	req, err = normalizeCallRequest(h.scope, req)
+	if err != nil {
+		return ToolResult{}, err
+	}
 	scope := h.scope
 	scope.WorkspaceID = req.WorkspaceID
 	scope.SessionID = req.SessionID

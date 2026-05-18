@@ -734,6 +734,16 @@ func (m *Manager) DeleteJob(ctx context.Context, id string) error {
 // TriggerJob forces one immediate manual execution through the shared
 // dispatcher path.
 func (m *Manager) TriggerJob(ctx context.Context, id string) (Run, error) {
+	return m.triggerJob(ctx, id, nil)
+}
+
+// TriggerJobWithPayload forces one immediate manual execution and exposes the
+// caller-supplied payload to job lifecycle hooks.
+func (m *Manager) TriggerJobWithPayload(ctx context.Context, id string, payload map[string]any) (Run, error) {
+	return m.triggerJob(ctx, id, payload)
+}
+
+func (m *Manager) triggerJob(ctx context.Context, id string, payload map[string]any) (Run, error) {
 	if ctx == nil {
 		return Run{}, errors.New("automation: trigger job context is required")
 	}
@@ -751,8 +761,9 @@ func (m *Manager) TriggerJob(ctx context.Context, id string) (Run, error) {
 	}
 
 	run, err := m.dispatcher.Dispatch(dispatchCtx, DispatchRequest{
-		Kind: DispatchKindManual,
-		Job:  &job,
+		Kind:    DispatchKindManual,
+		Job:     &job,
+		Payload: cloneJSONMap(payload),
 	})
 	if err != nil {
 		if run != nil {
@@ -1408,6 +1419,9 @@ func (m *Manager) buildTriggerRuntime(_ context.Context) (*TriggerEngine, error)
 		WithTriggerEngineLogger(m.logger),
 		WithTriggerEngineHookSessionResolver(m.sessions),
 		WithTriggerEngineWebhookSecretResolver(m.webhookSecrets),
+	}
+	if webhookDeliveries, ok := m.store.(WebhookDeliveryStore); ok {
+		triggerOpts = append(triggerOpts, WithTriggerEngineWebhookDeliveryStore(webhookDeliveries))
 	}
 	triggerOpts = append(triggerOpts, m.triggerOptions...)
 	triggerEngine, err := NewTriggerEngine(m.dispatcher, triggerOpts...)

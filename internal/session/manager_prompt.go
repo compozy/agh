@@ -164,15 +164,9 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 		return nil, err
 	}
 
-	dispatchMessage := message
-	if m.inputAugmenter != nil {
-		augmented, augmentErr := m.inputAugmenter(ctx, session, message)
-		if augmentErr != nil {
-			return nil, fmt.Errorf("session: augment prompt input: %w", augmentErr)
-		}
-		if strings.TrimSpace(augmented) != "" {
-			dispatchMessage = augmented
-		}
+	dispatchMessage, err := m.promptDispatchMessage(ctx, session, message)
+	if err != nil {
+		return nil, err
 	}
 	if _, err := m.persistSessionPromptActivity(ctx, session, m.now()); err != nil {
 		return nil, err
@@ -193,14 +187,52 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 		return nil, fmt.Errorf("session: prompt session %q: %w", req.target, err)
 	}
 
-	out := make(chan acp.AgentEvent, m.promptBufSize)
 	clearTurnSource = false
+	pumpCtx := m.fallbackLifecycleContext()
+	out := m.startPromptPump(pumpCtx, ctx, session, turnState, source, activity, cancelPromptExecution)
+	return out, nil
+}
+
+func (m *Manager) startPromptPump(
+	promptExecutionCtx context.Context,
+	callerCtx context.Context,
+	session *Session,
+	turnState *promptTurnDispatchState,
+	source <-chan acp.AgentEvent,
+	activity *promptActivitySupervisor,
+	cancelPromptExecution context.CancelFunc,
+) <-chan acp.AgentEvent {
+	out := make(chan acp.AgentEvent, m.promptBufSize)
 	finishDrain := m.trackPromptDrain()
 	go func() {
 		defer finishDrain()
-		m.pumpPrompt(ctx, session, turnState, source, activity.eventsChannel(), out, activity, cancelPromptExecution)
+		m.pumpPrompt(
+			promptExecutionCtx,
+			callerCtx,
+			session,
+			turnState,
+			source,
+			activity.eventsChannel(),
+			out,
+			activity,
+			cancelPromptExecution,
+		)
 	}()
-	return out, nil
+	return out
+}
+
+func (m *Manager) promptDispatchMessage(ctx context.Context, session *Session, message string) (string, error) {
+	if m.inputAugmenter == nil {
+		return message, nil
+	}
+	augmented, err := m.inputAugmenter(ctx, session, message)
+	if err != nil {
+		return "", fmt.Errorf("session: augment prompt input: %w", err)
+	}
+	if strings.TrimSpace(augmented) == "" {
+		return message, nil
+	}
+	return augmented, nil
 }
 
 func (m *Manager) parsePromptRequest(ctx context.Context, id string, opts PromptOpts) (promptRequest, error) {
@@ -470,6 +502,7 @@ func (m *Manager) RequestPermission(
 
 func (m *Manager) pumpPrompt(
 	ctx context.Context,
+	deliveryCtx context.Context,
 	session *Session,
 	turnState *promptTurnDispatchState,
 	source <-chan acp.AgentEvent,
@@ -519,6 +552,7 @@ func (m *Manager) pumpPrompt(
 		}
 		failure, errorText, stop := m.handlePromptPumpEvent(
 			ctx,
+			deliveryCtx,
 			session,
 			turnState,
 			out,
@@ -537,24 +571,19 @@ func (m *Manager) pumpPrompt(
 }
 
 func (m *Manager) promptExecutionContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	base := ctx
+	var base context.Context
+	if ctx != nil {
+		base = context.WithoutCancel(ctx)
+	}
 	if base == nil {
 		base = m.fallbackLifecycleContext()
 	}
-	deadline := time.Time{}
-	hasDeadline := false
-	if m != nil && m.supervision.PromptDeadline > 0 {
-		now := time.Now().UTC()
-		if m.now != nil {
-			now = m.now().UTC()
-		}
-		deadline = now.Add(m.supervision.PromptDeadline)
-		hasDeadline = true
+	executionCtx, cancel := context.WithCancel(base)
+	lifecycleStop := context.AfterFunc(m.fallbackLifecycleContext(), cancel)
+	return executionCtx, func() {
+		lifecycleStop()
+		cancel()
 	}
-	if hasDeadline {
-		return context.WithDeadline(base, deadline)
-	}
-	return context.WithCancel(base)
 }
 
 func (m *Manager) stopSessionAfterFatalPromptFailure(
@@ -649,6 +678,7 @@ func nextPromptPumpEvent(
 
 func (m *Manager) handlePromptPumpEvent(
 	ctx context.Context,
+	deliveryCtx context.Context,
 	session *Session,
 	turnState *promptTurnDispatchState,
 	out chan<- acp.AgentEvent,
@@ -658,6 +688,7 @@ func (m *Manager) handlePromptPumpEvent(
 ) (*store.SessionFailure, string, bool) {
 	if failure, errorText, stop, handled := m.emitPromptDeadlineWarningBeforeError(
 		ctx,
+		deliveryCtx,
 		session,
 		turnState,
 		out,
@@ -675,7 +706,7 @@ func (m *Manager) handlePromptPumpEvent(
 
 	fatalPromptFailure := promptFatalFailure(normalized)
 	m.observeRecordAndNotifyPromptEvent(ctx, session, turnState, loop, normalized, runtimeEvent)
-	if stop := m.sendPromptPumpEvent(ctx, out, loop, normalized, runtimeEvent); stop {
+	if stop := m.sendPromptPumpEvent(ctx, deliveryCtx, out, loop, normalized, runtimeEvent); stop {
 		return fatalPromptFailure, normalized.Error, true
 	}
 	if stop := m.finishPromptTurnIfNeeded(ctx, turnState, loop, normalized); stop {
@@ -687,6 +718,7 @@ func (m *Manager) handlePromptPumpEvent(
 
 func (m *Manager) emitPromptDeadlineWarningBeforeError(
 	ctx context.Context,
+	deliveryCtx context.Context,
 	session *Session,
 	turnState *promptTurnDispatchState,
 	out chan<- acp.AgentEvent,
@@ -708,6 +740,7 @@ func (m *Manager) emitPromptDeadlineWarningBeforeError(
 
 	failure, errorText, stop := m.handlePromptPumpEvent(
 		ctx,
+		deliveryCtx,
 		session,
 		turnState,
 		out,
@@ -765,20 +798,40 @@ func (m *Manager) observeRecordAndNotifyPromptEvent(
 
 func (m *Manager) sendPromptPumpEvent(
 	ctx context.Context,
+	deliveryCtx context.Context,
 	out chan<- acp.AgentEvent,
 	loop *promptPumpLoopState,
 	normalized acp.AgentEvent,
 	runtimeEvent bool,
 ) bool {
+	if ctx == nil {
+		ctx = m.fallbackLifecycleContext()
+	}
+	if deliveryCtx == nil {
+		deliveryCtx = ctx
+	}
+	select {
+	case <-deliveryCtx.Done():
+		ackPromptPumpRuntimeEvent(loop, normalized, runtimeEvent)
+		return false
+	default:
+	}
 	select {
 	case out <- normalized:
+	case <-deliveryCtx.Done():
+		ackPromptPumpRuntimeEvent(loop, normalized, runtimeEvent)
+		return false
 	case <-ctx.Done():
 		return true
 	}
+	ackPromptPumpRuntimeEvent(loop, normalized, runtimeEvent)
+	return false
+}
+
+func ackPromptPumpRuntimeEvent(loop *promptPumpLoopState, normalized acp.AgentEvent, runtimeEvent bool) {
 	if runtimeEvent && loop.activity != nil {
 		loop.activity.ackPromptDeadlineWarning(normalized)
 	}
-	return false
 }
 
 func (m *Manager) finishPromptTurnIfNeeded(

@@ -219,6 +219,10 @@ type slackAPI interface {
 	DeleteMessage(context.Context, slackDeleteMessageRequest) error
 }
 
+type slackDeliveryReconciler interface {
+	FindDeliveryMessage(context.Context, slackFindDeliveryMessageRequest) (*slackPostedMessage, error)
+}
+
 type slackAuthIdentity struct {
 	BotID  string `json:"bot_id,omitempty"`
 	UserID string `json:"user_id,omitempty"`
@@ -229,9 +233,10 @@ type slackPostedMessage struct {
 }
 
 type slackPostMessageRequest struct {
-	Channel  string `json:"channel"`
-	ThreadTS string `json:"thread_ts,omitempty"`
-	Text     string `json:"text"`
+	Channel  string                `json:"channel"`
+	ThreadTS string                `json:"thread_ts,omitempty"`
+	Text     string                `json:"text"`
+	Metadata *slackMessageMetadata `json:"metadata,omitempty"`
 }
 
 type slackUpdateMessageRequest struct {
@@ -243,6 +248,52 @@ type slackUpdateMessageRequest struct {
 type slackDeleteMessageRequest struct {
 	Channel string `json:"channel"`
 	TS      string `json:"ts"`
+}
+
+type slackFindDeliveryMessageRequest struct {
+	Channel          string
+	ThreadTS         string
+	DeliveryID       string
+	BridgeInstanceID string
+}
+
+func (r slackFindDeliveryMessageRequest) Validate() error {
+	if strings.TrimSpace(r.Channel) == "" {
+		return errors.New("slack: delivery reconciliation requires channel")
+	}
+	if strings.TrimSpace(r.DeliveryID) == "" {
+		return errors.New("slack: delivery reconciliation requires delivery id")
+	}
+	if strings.TrimSpace(r.BridgeInstanceID) == "" {
+		return errors.New("slack: delivery reconciliation requires bridge instance id")
+	}
+	return nil
+}
+
+type slackMessageMetadata struct {
+	EventType    string                      `json:"event_type"`
+	EventPayload slackMessageMetadataPayload `json:"event_payload"`
+}
+
+type slackMessageMetadataPayload struct {
+	BridgeInstanceID string `json:"bridge_instance_id"`
+	DeliveryID       string `json:"delivery_id"`
+}
+
+type slackConversationMessagesRequest struct {
+	Channel   string `json:"channel"`
+	Inclusive bool   `json:"inclusive,omitempty"`
+	Limit     int    `json:"limit,omitempty"`
+	TS        string `json:"ts,omitempty"`
+}
+
+type slackConversationMessagesResponse struct {
+	Messages []slackConversationMessage `json:"messages,omitempty"`
+}
+
+type slackConversationMessage struct {
+	TS       string                `json:"ts,omitempty"`
+	Metadata *slackMessageMetadata `json:"metadata,omitempty"`
 }
 
 type slackAPIEnvelope struct {
@@ -1041,7 +1092,7 @@ func (p *slackProvider) handleFormWebhook(
 		if err != nil {
 			return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: err.Error()}
 		}
-		if cfg.dedup.Mark(mapped.Envelope.IdempotencyKey) {
+		if cfg.dedup.Seen(mapped.Envelope.IdempotencyKey) {
 			return writeWebhookOK(w)
 		}
 		if !allowSlackDirectMessage(cfg, mapped.User, mapped.Direct) {
@@ -1050,6 +1101,7 @@ func (p *slackProvider) handleFormWebhook(
 		if err := p.dispatchInboundEnvelope(ctx, cfg.instanceID, mapped.Envelope); err != nil {
 			return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 		}
+		cfg.dedup.Mark(mapped.Envelope.IdempotencyKey)
 		return writeWebhookOK(w)
 	}
 
@@ -1070,7 +1122,7 @@ func (p *slackProvider) handleFormWebhook(
 		return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: err.Error()}
 	}
 	for _, item := range mapped {
-		if cfg.dedup.Mark(item.Envelope.IdempotencyKey) {
+		if cfg.dedup.Seen(item.Envelope.IdempotencyKey) {
 			continue
 		}
 		if !allowSlackDirectMessage(cfg, item.User, item.Direct) {
@@ -1079,6 +1131,7 @@ func (p *slackProvider) handleFormWebhook(
 		if err := p.dispatchInboundEnvelope(ctx, cfg.instanceID, item.Envelope); err != nil {
 			return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 		}
+		cfg.dedup.Mark(item.Envelope.IdempotencyKey)
 	}
 	return writeWebhookOK(w)
 }
@@ -1184,7 +1237,7 @@ func (p *slackProvider) dispatchSlackWebhookEnvelope(
 	mapped slackMappedInbound,
 	allowBatch bool,
 ) error {
-	if cfg.dedup.Mark(mapped.Envelope.IdempotencyKey) {
+	if cfg.dedup.Seen(mapped.Envelope.IdempotencyKey) {
 		return writeWebhookOK(w)
 	}
 	if !allowSlackDirectMessage(cfg, mapped.User, mapped.Direct) {
@@ -1194,11 +1247,13 @@ func (p *slackProvider) dispatchSlackWebhookEnvelope(
 		if err := cfg.batcher.Enqueue(mapped.Envelope); err != nil {
 			return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 		}
+		cfg.dedup.Mark(mapped.Envelope.IdempotencyKey)
 		return writeWebhookOK(w)
 	}
 	if err := p.dispatchInboundEnvelope(ctx, cfg.instanceID, mapped.Envelope); err != nil {
 		return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 	}
+	cfg.dedup.Mark(mapped.Envelope.IdempotencyKey)
 	return writeWebhookOK(w)
 }
 
@@ -1384,7 +1439,7 @@ func executeDelivery(
 	case isSlackDeleteEvent(event):
 		return executeSlackDelete(ctx, api, request, state)
 	case shouldPostNewMessage(event, state, request):
-		return executeSlackCreate(ctx, api, event, state, channelID, threadTS)
+		return executeSlackCreate(ctx, api, request, state, channelID, threadTS)
 	default:
 		return executeSlackUpdate(ctx, api, request, state)
 	}
@@ -1428,20 +1483,60 @@ func executeSlackDelete(
 func executeSlackCreate(
 	ctx context.Context,
 	api slackAPI,
-	event bridgepkg.DeliveryEvent,
+	request bridgepkg.DeliveryRequest,
 	state deliveryState,
 	channelID string,
 	threadTS string,
 ) (bridgepkg.DeliveryAck, deliveryState, error) {
+	event := request.Event
+	if normalizeDeliveryEventType(event.EventType) == bridgepkg.DeliveryEventTypeResume {
+		matched, err := reconcileSlackDelivery(ctx, api, event, channelID, threadTS)
+		if err != nil {
+			return bridgepkg.DeliveryAck{}, state, err
+		}
+		if matched != nil {
+			return slackCreateAck(event, state, channelID, matched.TS)
+		}
+	}
+
 	sent, err := api.PostMessage(ctx, slackPostMessageRequest{
 		Channel:  channelID,
 		ThreadTS: threadTS,
 		Text:     event.Content.Text,
+		Metadata: slackDeliveryMetadata(event),
 	})
 	if err != nil {
 		return bridgepkg.DeliveryAck{}, state, err
 	}
-	remoteID := encodeRemoteMessageID(channelID, sent.TS)
+	return slackCreateAck(event, state, channelID, sent.TS)
+}
+
+func reconcileSlackDelivery(
+	ctx context.Context,
+	api slackAPI,
+	event bridgepkg.DeliveryEvent,
+	channelID string,
+	threadTS string,
+) (*slackPostedMessage, error) {
+	reconciler, ok := api.(slackDeliveryReconciler)
+	if !ok {
+		return nil, nil
+	}
+	return reconciler.FindDeliveryMessage(ctx, slackFindDeliveryMessageRequest{
+		Channel:          channelID,
+		ThreadTS:         threadTS,
+		DeliveryID:       event.DeliveryID,
+		BridgeInstanceID: event.BridgeInstanceID,
+	})
+}
+
+func slackCreateAck(
+	event bridgepkg.DeliveryEvent,
+	state deliveryState,
+	channelID string,
+	ts string,
+) (bridgepkg.DeliveryAck, deliveryState, error) {
+	remoteID := encodeRemoteMessageID(channelID, ts)
 	ack := bridgepkg.DeliveryAck{
 		DeliveryID:      event.DeliveryID,
 		Seq:             event.Seq,
@@ -1454,6 +1549,16 @@ func executeSlackCreate(
 		ack.ReplaceRemoteMessageID = state.ReplaceRemoteMessageID
 	}
 	return ack, state, ack.ValidateFor(event)
+}
+
+func slackDeliveryMetadata(event bridgepkg.DeliveryEvent) *slackMessageMetadata {
+	return &slackMessageMetadata{
+		EventType: "agh_bridge_delivery",
+		EventPayload: slackMessageMetadataPayload{
+			BridgeInstanceID: strings.TrimSpace(event.BridgeInstanceID),
+			DeliveryID:       strings.TrimSpace(event.DeliveryID),
+		},
+	}
 }
 
 func executeSlackUpdate(
@@ -1635,8 +1740,10 @@ func mapSlackSlashCommand(
 	}
 	if direct {
 		envelope.PeerID = channelID
+		envelope.ThreadID = slackDirectRootThreadID(channelID)
 	} else {
 		envelope.GroupID = channelID
+		envelope.ThreadID = slackDirectRootThreadID(channelID)
 	}
 	metadata, err := json.Marshal(map[string]any{
 		"channel_id":   channelID,
@@ -1826,14 +1933,7 @@ func mapSlackReactionEvent(
 			"slack: reaction event requires item channel, item ts, reaction, and user",
 		)
 	}
-	if receivedAt.IsZero() {
-		receivedAt = time.Now().UTC()
-	}
-	if strings.TrimSpace(event.EventTS) != "" {
-		if parsed, err := parseSlackTimestamp(strings.TrimSpace(event.EventTS)); err == nil {
-			receivedAt = parsed
-		}
-	}
+	receivedAt = slackReactionReceivedAt(event, receivedAt)
 	direct := isSlackDirectConversation("", event.Item.Channel)
 	user := slackUserIdentity{
 		ID:          normalizeSlackUserID(event.User),
@@ -1870,6 +1970,7 @@ func mapSlackReactionEvent(
 	}
 	if direct {
 		envelope.PeerID = strings.TrimSpace(event.Item.Channel)
+		envelope.ThreadID = strings.TrimSpace(event.Item.TS)
 	} else {
 		envelope.GroupID = strings.TrimSpace(event.Item.Channel)
 		envelope.ThreadID = strings.TrimSpace(event.Item.TS)
@@ -1890,6 +1991,20 @@ func mapSlackReactionEvent(
 		return slackMappedInbound{}, err
 	}
 	return slackMappedInbound{Envelope: envelope, Direct: direct, User: user}, nil
+}
+
+func slackReactionReceivedAt(event slackReactionEvent, fallback time.Time) time.Time {
+	if fallback.IsZero() {
+		fallback = time.Now().UTC()
+	}
+	if strings.TrimSpace(event.EventTS) == "" {
+		return fallback
+	}
+	parsed, err := parseSlackTimestamp(strings.TrimSpace(event.EventTS))
+	if err != nil {
+		return fallback
+	}
+	return parsed
 }
 
 func allowSlackDirectMessage(cfg resolvedInstanceConfig, user slackUserIdentity, direct bool) bool {
@@ -1993,6 +2108,37 @@ func (c *slackBotClient) PostMessage(ctx context.Context, req slackPostMessageRe
 	return &result, nil
 }
 
+func (c *slackBotClient) FindDeliveryMessage(
+	ctx context.Context,
+	req slackFindDeliveryMessageRequest,
+) (*slackPostedMessage, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
+	method := "conversations.history"
+	payload := slackConversationMessagesRequest{
+		Channel: strings.TrimSpace(req.Channel),
+		Limit:   100,
+	}
+	if strings.TrimSpace(req.ThreadTS) != "" {
+		method = "conversations.replies"
+		payload.TS = strings.TrimSpace(req.ThreadTS)
+		payload.Inclusive = true
+	}
+
+	var result slackConversationMessagesResponse
+	if err := c.call(ctx, method, payload, &result); err != nil {
+		return nil, err
+	}
+	for idx := range result.Messages {
+		message := result.Messages[idx]
+		if slackMetadataMatchesDelivery(message.Metadata, req) {
+			return &slackPostedMessage{TS: strings.TrimSpace(message.TS)}, nil
+		}
+	}
+	return nil, nil
+}
+
 func (c *slackBotClient) UpdateMessage(ctx context.Context, req slackUpdateMessageRequest) error {
 	var result slackPostedMessage
 	return c.call(ctx, "chat.update", req, &result)
@@ -2001,6 +2147,20 @@ func (c *slackBotClient) UpdateMessage(ctx context.Context, req slackUpdateMessa
 func (c *slackBotClient) DeleteMessage(ctx context.Context, req slackDeleteMessageRequest) error {
 	var result json.RawMessage
 	return c.call(ctx, "chat.delete", req, &result)
+}
+
+func slackMetadataMatchesDelivery(
+	metadata *slackMessageMetadata,
+	req slackFindDeliveryMessageRequest,
+) bool {
+	if metadata == nil {
+		return false
+	}
+	if strings.TrimSpace(metadata.EventType) != "agh_bridge_delivery" {
+		return false
+	}
+	return strings.TrimSpace(metadata.EventPayload.DeliveryID) == strings.TrimSpace(req.DeliveryID) &&
+		strings.TrimSpace(metadata.EventPayload.BridgeInstanceID) == strings.TrimSpace(req.BridgeInstanceID)
 }
 
 func (c *slackBotClient) call(ctx context.Context, method string, payload any, result any) error {
@@ -2160,11 +2320,12 @@ func isSlackSlashCommandDirect(channelName string, channelID string) bool {
 	return isSlackDirectConversation("", channelID)
 }
 
-func inboundSlackThreadID(direct bool, ts string, threadTS string) string {
-	if direct {
-		return strings.TrimSpace(threadTS)
-	}
+func inboundSlackThreadID(_ bool, ts string, threadTS string) string {
 	return firstNonEmpty(strings.TrimSpace(threadTS), strings.TrimSpace(ts))
+}
+
+func slackDirectRootThreadID(channelID string) string {
+	return strings.TrimSpace(channelID)
 }
 
 func parseSlackTimestamp(value string) (time.Time, error) {

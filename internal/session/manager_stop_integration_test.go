@@ -599,7 +599,10 @@ func sessionStopProcessAlive(pid int) bool {
 
 type sessionStopACPAgent struct{}
 
-func (sessionStopACPAgent) Authenticate(context.Context, acpsdk.AuthenticateRequest) (acpsdk.AuthenticateResponse, error) {
+func (sessionStopACPAgent) Authenticate(
+	context.Context,
+	acpsdk.AuthenticateRequest,
+) (acpsdk.AuthenticateResponse, error) {
 	return acpsdk.AuthenticateResponse{}, nil
 }
 
@@ -633,6 +636,9 @@ func (sessionStopACPAgent) Prompt(context.Context, acpsdk.PromptRequest) (acpsdk
 	}, nil
 }
 
-func (sessionStopACPAgent) SetSessionMode(context.Context, acpsdk.SetSessionModeRequest) (acpsdk.SetSessionModeResponse, error) {
+func (sessionStopACPAgent) SetSessionMode(
+	context.Context,
+	acpsdk.SetSessionModeRequest,
+) (acpsdk.SetSessionModeResponse, error) {
 	return acpsdk.SetSessionModeResponse{}, nil
 }

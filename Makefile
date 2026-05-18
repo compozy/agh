@@ -93,7 +93,7 @@ web-fmt:
 	@cd web && bun run format
 
 web-typecheck:
-	@cd web && bun run typecheck
+	@bunx turbo run typecheck --filter=./web
 
 web-test:
-	@cd web && bun run test
+	@bunx turbo run test --filter=./web

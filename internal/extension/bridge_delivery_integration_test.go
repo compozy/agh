@@ -80,35 +80,50 @@ func TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios(t *testing.T) {
 		assert        func(t *testing.T, markers []managerDeliveryMarker)
 	}{
 		{
-			name:          "ShouldProduceOrderedDeliveryStream",
-			now:           time.Date(2026, 4, 11, 3, 0, 0, 0, time.UTC),
-			script:        []scriptedPromptEvent{{Type: acp.EventTypeAgentMessage, Text: "hello"}, {Type: acp.EventTypeAgentMessage, Text: " world"}, {Type: acp.EventTypeDone}},
+			name: "ShouldProduceOrderedDeliveryStream",
+			now:  time.Date(2026, 4, 11, 3, 0, 0, 0, time.UTC),
+			script: []scriptedPromptEvent{
+				{Type: acp.EventTypeAgentMessage, Text: "hello"},
+				{Type: acp.EventTypeAgentMessage, Text: " world"},
+				{Type: acp.EventTypeDone},
+			},
 			extensionName: "ext-bridge-order",
 			scenario:      "record_deliveries",
 			instanceID:    "brg-order",
 			markerFile:    "deliveries.jsonl",
 			waitFor: func(markers []managerDeliveryMarker) bool {
-				return len(markers) >= 2 && markers[len(markers)-1].Request.Event.EventType == bridgepkg.DeliveryEventTypeFinal
+				return len(markers) >= 2 &&
+					markers[len(markers)-1].Request.Event.EventType == bridgepkg.DeliveryEventTypeFinal
 			},
 			assert: assertMarkerDeliveryProgress,
 		},
 		{
-			name:          "ShouldCoalesceIntermediateDeltasForSlowAdapters",
-			now:           time.Date(2026, 4, 11, 3, 5, 0, 0, time.UTC),
-			script:        []scriptedPromptEvent{{Type: acp.EventTypeAgentMessage, Text: "h"}, {Type: acp.EventTypeAgentMessage, Text: "el"}, {Type: acp.EventTypeAgentMessage, Text: "lo"}, {Type: acp.EventTypeAgentMessage, Text: "!"}, {Type: acp.EventTypeDone}},
+			name: "ShouldCoalesceIntermediateDeltasForSlowAdapters",
+			now:  time.Date(2026, 4, 11, 3, 5, 0, 0, time.UTC),
+			script: []scriptedPromptEvent{
+				{Type: acp.EventTypeAgentMessage, Text: "h"},
+				{Type: acp.EventTypeAgentMessage, Text: "el"},
+				{Type: acp.EventTypeAgentMessage, Text: "lo"},
+				{Type: acp.EventTypeAgentMessage, Text: "!"},
+				{Type: acp.EventTypeDone},
+			},
 			extensionName: "ext-bridge-slow",
 			scenario:      "slow_record_deliveries",
 			instanceID:    "brg-slow",
 			markerFile:    "slow-deliveries.jsonl",
 			brokerOpts:    []bridgepkg.DeliveryBrokerOption{bridgepkg.WithDeliveryBrokerQueueCapacity(2)},
 			waitFor: func(markers []managerDeliveryMarker) bool {
-				return len(markers) >= 2 && markers[len(markers)-1].Request.Event.EventType == bridgepkg.DeliveryEventTypeFinal
+				return len(markers) >= 2 &&
+					markers[len(markers)-1].Request.Event.EventType == bridgepkg.DeliveryEventTypeFinal
 			},
 			assert: func(t *testing.T, markers []managerDeliveryMarker) {
 				t.Helper()
 
 				if len(markers) >= 5 {
-					t.Fatalf("len(delivery markers) = %d, want coalesced stream smaller than 5 projected events", len(markers))
+					t.Fatalf(
+						"len(delivery markers) = %d, want coalesced stream smaller than 5 projected events",
+						len(markers),
+					)
 				}
 				if got := markers[0].Request.Event.EventType; got != bridgepkg.DeliveryEventTypeStart {
 					t.Fatalf("first delivery event = %q, want start", got)
@@ -123,14 +138,19 @@ func TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios(t *testing.T) {
 			},
 		},
 		{
-			name:          "ShouldResumeActiveDeliveryAfterRestart",
-			now:           time.Date(2026, 4, 11, 3, 10, 0, 0, time.UTC),
-			script:        []scriptedPromptEvent{{Type: acp.EventTypeAgentMessage, Text: "hello"}, {Type: acp.EventTypeDone}},
+			name: "ShouldResumeActiveDeliveryAfterRestart",
+			now:  time.Date(2026, 4, 11, 3, 10, 0, 0, time.UTC),
+			script: []scriptedPromptEvent{
+				{Type: acp.EventTypeAgentMessage, Text: "hello"},
+				{Type: acp.EventTypeDone},
+			},
 			extensionName: "ext-bridge-resume",
 			scenario:      "exit_once_record_deliveries",
 			instanceID:    "brg-resume",
 			markerFile:    "resume-deliveries.jsonl",
-			brokerOpts:    []bridgepkg.DeliveryBrokerOption{bridgepkg.WithDeliveryBrokerRetryDelay(20 * time.Millisecond)},
+			brokerOpts: []bridgepkg.DeliveryBrokerOption{
+				bridgepkg.WithDeliveryBrokerRetryDelay(20 * time.Millisecond),
+			},
 			waitFor: func(markers []managerDeliveryMarker) bool {
 				for _, marker := range markers {
 					if marker.Request.Event.EventType == bridgepkg.DeliveryEventTypeResume {
@@ -160,7 +180,11 @@ func TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios(t *testing.T) {
 					t.Fatalf("delivery markers = %#v, want resume event", markers)
 				}
 				if markers[resumeIndex].PID == markers[0].PID {
-					t.Fatalf("resume marker pid = %d, want restart to use a different process than %d", markers[resumeIndex].PID, markers[0].PID)
+					t.Fatalf(
+						"resume marker pid = %d, want restart to use a different process than %d",
+						markers[resumeIndex].PID,
+						markers[0].PID,
+					)
 				}
 				if markers[resumeIndex].Request.Snapshot == nil {
 					t.Fatal("resume request snapshot = nil, want resumable state")
@@ -208,7 +232,13 @@ func TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios(t *testing.T) {
 				"content":             map[string]any{"text": "hello"},
 			}
 
-			if _, err := env.callWithContext(t, env.bridgeContext(instance), env.extensionName, "bridges/messages/ingest", params); err != nil {
+			if _, err := env.callWithContext(
+				t,
+				env.bridgeContext(instance),
+				env.extensionName,
+				"bridges/messages/ingest",
+				params,
+			); err != nil {
 				t.Fatalf("Handle(bridges/messages/ingest) error = %v", err)
 			}
 
@@ -312,7 +342,10 @@ func newDeliveryIntegrationEnv(
 	}
 
 	broker := bridgepkg.NewBroker(manager, brokerOpts...)
-	skillsRegistry := skillspkg.NewRegistry(skillspkg.RegistryConfig{}, skillspkg.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))))
+	skillsRegistry := skillspkg.NewRegistry(
+		skillspkg.RegistryConfig{},
+		skillspkg.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
+	)
 	checker := &CapabilityChecker{}
 	notifier := NewBridgeDeliveryNotifier(broker, nil)
 	sessions, err := session.NewManager(
@@ -472,7 +505,11 @@ func (d *scriptedPromptDriver) Start(_ context.Context, opts acp.StartOpts) (*se
 	return proc, nil
 }
 
-func (d *scriptedPromptDriver) Prompt(_ context.Context, _ *session.AgentProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+func (d *scriptedPromptDriver) Prompt(
+	_ context.Context,
+	_ *session.AgentProcess,
+	req acp.PromptRequest,
+) (<-chan acp.AgentEvent, error) {
 	d.mu.Lock()
 	d.prompts = append(d.prompts, req)
 	script := append([]scriptedPromptEvent(nil), d.script...)

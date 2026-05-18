@@ -86,6 +86,39 @@ func mergedSkillList(globalSkills, workspaceSkills map[string]*Skill) []*Skill {
 	return skills
 }
 
+func mergedSkillListWithDisabled(globalSkills, workspaceSkills map[string]*Skill, disabledSkills []string) []*Skill {
+	skills := mergedSkillList(globalSkills, workspaceSkills)
+	applyDisabledSkillList(skills, disabledSkills)
+	return skills
+}
+
+func applyDisabledSkillList(skills []*Skill, disabledSkills []string) {
+	if len(skills) == 0 || len(disabledSkills) == 0 {
+		return
+	}
+
+	disabled := make(map[string]struct{}, len(disabledSkills))
+	for _, name := range disabledSkills {
+		trimmed := strings.TrimSpace(name)
+		if trimmed == "" {
+			continue
+		}
+		disabled[trimmed] = struct{}{}
+	}
+	if len(disabled) == 0 {
+		return
+	}
+
+	for _, skill := range skills {
+		if skill == nil {
+			continue
+		}
+		if _, ok := disabled[strings.TrimSpace(skill.Meta.Name)]; ok {
+			skill.Enabled = false
+		}
+	}
+}
+
 func cloneSortedSkillList(skillsByName map[string]*Skill) []*Skill {
 	if len(skillsByName) == 0 {
 		return nil
@@ -118,6 +151,7 @@ func cloneSkill(skill *Skill) *Skill {
 			cloned := decl
 			cloned.Args = append([]string(nil), decl.Args...)
 			cloned.Env = cloneStringMap(decl.Env)
+			cloned.SecretEnv = cloneStringMap(decl.SecretEnv)
 			cloned.Metadata = cloneStringMap(decl.Metadata)
 			if decl.Matcher.ToolReadOnly != nil {
 				value := *decl.Matcher.ToolReadOnly

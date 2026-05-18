@@ -504,6 +504,44 @@ func TestUpdateSectionSkillsAppliesDisabledSkillsNow(t *testing.T) {
 	}
 }
 
+func TestUpdateSectionSkillsWithoutRuntimeDoesNotPersistChanges(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should leave config unchanged when disabled skills need a runtime apply", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		before := readFile(t, homePaths.ConfigFile)
+		service := testService(t, homePaths, Dependencies{})
+
+		_, err := service.UpdateSection(ctx, SectionUpdateRequest{
+			SectionRequest: SectionRequest{Section: SectionSkills},
+			Skills: &aghconfig.SkillsConfig{
+				Enabled:                 true,
+				DisabledSkills:          []string{"beta"},
+				PollInterval:            30 * time.Minute,
+				AllowedMarketplaceMCP:   []string{"ctx"},
+				AllowedMarketplaceHooks: []string{"market"},
+				Marketplace: aghconfig.MarketplaceConfig{
+					Registry: "clawhub",
+					BaseURL:  "https://skills.example",
+				},
+			},
+		})
+		if err == nil {
+			t.Fatal("UpdateSection(skills disabled without runtime) error = nil, want runtime failure")
+		}
+		if got, want := err.Error(), "settings: skills runtime is required to apply skills.disabled_skills"; got != want {
+			t.Fatalf("UpdateSection(skills disabled without runtime) error = %q, want %q", got, want)
+		}
+		if after := readFile(t, homePaths.ConfigFile); after != before {
+			t.Fatalf("config changed on runtime failure\nbefore:\n%s\nafter:\n%s", before, after)
+		}
+	})
+}
+
 func TestUpdateSectionRejectsMixedRuntimeBehaviors(t *testing.T) {
 	t.Parallel()
 
@@ -1100,6 +1138,55 @@ func TestProviderSecretMutationRejectsCrossProviderRefs(t *testing.T) {
 	}
 }
 
+func TestProviderSecretMutationRejectsInvalidProviderConfigWithoutStoringSecrets(t *testing.T) {
+	t.Run(
+		"Should leave the secret store untouched when provider validation fails after ref checks",
+		func(t *testing.T) {
+			t.Parallel()
+
+			ctx := context.Background()
+			homePaths := testHomePaths(t)
+			writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+			secretStore := newFakeProviderSecretStore()
+			service := testService(t, homePaths, Dependencies{ProviderSecrets: secretStore})
+			before := readFile(t, homePaths.ConfigFile)
+
+			_, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+				CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+				Name:              "openrouter",
+				Provider: &ProviderSettings{
+					AuthMode: aghconfig.ProviderAuthModeNone,
+					CredentialSlots: []aghconfig.ProviderCredentialSlot{{
+						Name:      "api_key",
+						TargetEnv: "OPENROUTER_API_KEY",
+						SecretRef: "vault:providers/openrouter/api-key",
+						Kind:      "api_key",
+						Required:  true,
+					}},
+				},
+				ProviderSecrets: []ProviderSecretWrite{{
+					Name:      "api_key",
+					SecretRef: "vault:providers/openrouter/api-key",
+					Kind:      "api_key",
+					Value:     "openrouter-token",
+				}},
+			})
+			if err == nil || !strings.Contains(err.Error(), "credential_slots cannot be set when auth_mode is none") {
+				t.Fatalf("PutCollectionItem(invalid provider config) error = %v", err)
+			}
+			if len(secretStore.plaintext) != 0 {
+				t.Fatalf(
+					"secret store writes = %#v, want none after provider validation failure",
+					secretStore.plaintext,
+				)
+			}
+			if after := readFile(t, homePaths.ConfigFile); after != before {
+				t.Fatalf("config changed after provider validation failure:\n%s", after)
+			}
+		},
+	)
+}
+
 func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 	t.Run("Should store stdio secret env values without writing plaintext config", func(t *testing.T) {
 		t.Parallel()
@@ -1211,6 +1298,48 @@ func TestMCPSecretValuesStoreVaultSecrets(t *testing.T) {
 		}
 		if len(secretStore.plaintext) != 0 {
 			t.Fatalf("secret store writes = %#v, want none after validation failure", secretStore.plaintext)
+		}
+	})
+
+	t.Run("Should reject invalid stdio auth config without storing secrets", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		secretStore := newFakeProviderSecretStore()
+		service := testService(t, homePaths, Dependencies{ProviderSecrets: secretStore})
+
+		_, err := service.PutCollectionItem(ctx, CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionMCPServers},
+			Name:              "github",
+			Target:            TargetAuto,
+			MCPServer: &aghconfig.MCPServer{
+				Command: "npx",
+				SecretEnv: map[string]string{
+					"GITHUB_TOKEN": "vault:mcp/github/env/GITHUB_TOKEN",
+				},
+				Auth: aghconfig.MCPAuthConfig{
+					Type:             aghconfig.MCPAuthTypeOAuth2PKCE,
+					AuthorizationURL: "https://example.com/oauth/authorize",
+					TokenURL:         "https://example.com/oauth/token",
+					ClientID:         "agh-client",
+					ClientSecretRef:  "vault:mcp/github/oauth/client-secret",
+				},
+			},
+			MCPSecrets: MCPSecretValues{
+				SecretEnv: map[string]string{"GITHUB_TOKEN": "ghp-secret"},
+			},
+		})
+		if err == nil || !strings.Contains(err.Error(), "mcp_servers[0].auth is only valid for remote MCP servers") {
+			t.Fatalf("PutCollectionItem(invalid MCP stdio auth) error = %v", err)
+		}
+		if len(secretStore.plaintext) != 0 {
+			t.Fatalf("secret store writes = %#v, want none after MCP validation failure", secretStore.plaintext)
+		}
+		sidecarPath := filepath.Join(homePaths.HomeDir, aghconfig.MCPJSONName)
+		if _, statErr := os.Stat(sidecarPath); !os.IsNotExist(statErr) {
+			t.Fatalf("sidecar created after MCP validation failure: stat error = %v", statErr)
 		}
 	})
 }

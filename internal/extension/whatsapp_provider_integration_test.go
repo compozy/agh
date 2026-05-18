@@ -150,13 +150,21 @@ func TestWhatsAppProviderIngressAndDeliveryConformance(t *testing.T) {
 	}
 
 	webhookURL := fmt.Sprintf("http://%s/whatsapp/%s", listenAddr, harness.Instances[0].ID)
-	postWhatsAppProviderWebhook(t, webhookURL, "app-secret", whatsappProviderInboundWebhook("123456789", "Need a summary"))
+	postWhatsAppProviderWebhook(
+		t,
+		webhookURL,
+		"app-secret",
+		whatsappProviderInboundWebhook("123456789", "Need a summary"),
+	)
 
 	ingests := harness.WaitForIngests(t, 10*time.Second, func(records []extensiontest.IngestRecord) bool {
 		return len(records) > 0 && strings.TrimSpace(records[len(records)-1].Result.SessionID) != ""
 	})
 	deliveries := harness.WaitForDeliveries(t, 10*time.Second, func(records []extensiontest.DeliveryRecord) bool {
-		return len(records) > 0 && normalizeDeliveryEventType(records[len(records)-1].Request.Event.EventType) == bridgepkg.DeliveryEventTypeFinal
+		return len(records) > 0 &&
+			normalizeDeliveryEventType(
+				records[len(records)-1].Request.Event.EventType,
+			) == bridgepkg.DeliveryEventTypeFinal
 	})
 	report := harness.Report(t)
 
@@ -251,7 +259,12 @@ func TestWhatsAppProviderRateLimitReportsDegradedState(t *testing.T) {
 
 	harness.WaitForHandshake(t, 10*time.Second)
 	webhookURL := fmt.Sprintf("http://%s/whatsapp/%s", listenAddr, harness.Instances[0].ID)
-	postWhatsAppProviderWebhook(t, webhookURL, "app-secret", whatsappProviderInboundWebhook("123456789", "Trigger rate limit"))
+	postWhatsAppProviderWebhook(
+		t,
+		webhookURL,
+		"app-secret",
+		whatsappProviderInboundWebhook("123456789", "Trigger rate limit"),
+	)
 
 	var instance *bridgepkg.BridgeInstance
 	waitForCondition(t, 10*time.Second, "bridge instance degraded after rate limit", func() bool {
@@ -363,7 +376,12 @@ func postWhatsAppProviderWebhook(t *testing.T, url string, appSecret string, pay
 			time.Sleep(20 * time.Millisecond)
 			continue
 		}
-		t.Fatalf("webhook status = %d, want %d; body=%q", resp.StatusCode, http.StatusOK, strings.TrimSpace(string(payload)))
+		t.Fatalf(
+			"webhook status = %d, want %d; body=%q",
+			resp.StatusCode,
+			http.StatusOK,
+			strings.TrimSpace(string(payload)),
+		)
 	}
 
 	t.Fatalf("webhook %s did not become ready before timeout", url)

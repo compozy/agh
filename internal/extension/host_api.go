@@ -160,6 +160,7 @@ type HostAPIAutomationManager interface {
 	UpdateJob(ctx context.Context, job automationpkg.Job) (automationpkg.Job, error)
 	DeleteJob(ctx context.Context, id string) error
 	TriggerJob(ctx context.Context, id string) (automationpkg.Run, error)
+	TriggerJobWithPayload(ctx context.Context, id string, payload map[string]any) (automationpkg.Run, error)
 	ListTriggers(ctx context.Context, query automationpkg.TriggerListQuery) ([]automationpkg.Trigger, error)
 	GetTrigger(ctx context.Context, id string) (automationpkg.Trigger, error)
 	CreateTrigger(
@@ -1185,11 +1186,10 @@ func (h *HostAPIHandler) handleMemoryStore(ctx context.Context, raw json.RawMess
 
 	filename := normalizeMemoryFilename(params.Key)
 	doc, err := renderMemoryDocument(hostAPIMemoryDocument{
-		Key:       filename,
-		Scope:     scope,
-		Content:   params.Content,
-		Tags:      params.Tags,
-		AgentName: hostAPIExtensionNameFromContext(ctx),
+		Key:     filename,
+		Scope:   scope,
+		Content: params.Content,
+		Tags:    params.Tags,
 	})
 	if err != nil {
 		return nil, err
@@ -1512,7 +1512,7 @@ func (h *HostAPIHandler) handleAutomationJobsTrigger(ctx context.Context, raw js
 		return nil, invalidParamsRPCError(errors.New("id is required"))
 	}
 
-	return automation.TriggerJob(ctx, params.ID)
+	return automation.TriggerJobWithPayload(ctx, params.ID, params.Payload)
 }
 
 func (h *HostAPIHandler) handleAutomationJobsRuns(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -2347,11 +2347,10 @@ func validateHostAPIConfigTriggerUpdate(req apicontract.UpdateTriggerRequest) er
 }
 
 type hostAPIMemoryDocument struct {
-	Key       string
-	Scope     memcontract.Scope
-	Content   string
-	Tags      []string
-	AgentName string
+	Key     string
+	Scope   memcontract.Scope
+	Content string
+	Tags    []string
 }
 
 func renderMemoryDocument(doc hostAPIMemoryDocument) (string, error) {
@@ -2359,7 +2358,6 @@ func renderMemoryDocument(doc hostAPIMemoryDocument) (string, error) {
 		Name:        memoryNameFromFilename(doc.Key),
 		Description: memoryDescriptionFromContent(doc.Content),
 		Type:        memoryTypeForScope(doc.Scope, doc.Tags),
-		AgentName:   strings.TrimSpace(doc.AgentName),
 	}
 	if err := header.Validate(); err != nil {
 		return "", invalidParamsRPCError(err)

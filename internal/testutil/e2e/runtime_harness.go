@@ -39,7 +39,10 @@ const (
 	runtimeManifestName = "runtime-manifest.json"
 )
 
-var errDaemonExitedBeforeReadiness = errors.New("daemon exited before readiness")
+var (
+	errDaemonExitedBeforeReadiness = errors.New("daemon exited before readiness")
+	errSSEPredicateRequired        = errors.New("SSE predicate is required")
+)
 
 var (
 	buildBinaryMu   sync.Mutex
@@ -811,8 +814,8 @@ func (h *RuntimeHarness) PromptSessionUntil(
 	message string,
 	predicate func(SSEEvent) bool,
 ) ([]SSEEvent, error) {
-	if predicate == nil {
-		return nil, errors.New("SSE predicate is required")
+	if err := validateSSEPredicate(predicate); err != nil {
+		return nil, err
 	}
 	body := map[string]string{"message": message}
 	path, err := h.sessionScopedAPIPath(sessionID, "/prompt")
@@ -1759,10 +1762,17 @@ func readSSERecordsUntil(
 	reader io.Reader,
 	predicate func(SSEEvent) bool,
 ) ([]SSEEvent, error) {
-	if predicate == nil {
-		return nil, errors.New("SSE predicate is required")
+	if err := validateSSEPredicate(predicate); err != nil {
+		return nil, err
 	}
 	return readSSERecordsMatching(reader, 0, nil, predicate)
+}
+
+func validateSSEPredicate(predicate func(SSEEvent) bool) error {
+	if predicate == nil {
+		return errSSEPredicateRequired
+	}
+	return nil
 }
 
 func readSSERecordsMatching(
@@ -1899,9 +1909,23 @@ func runtimeEnv(homePaths aghconfig.HomePaths, extra map[string]string) []string
 	}
 	sortStrings(keys)
 	for _, key := range keys {
-		base = append(base, key+"="+extra[key])
+		if reservedRuntimeEnvKey(key) {
+			continue
+		}
+		base = setEnvValue(base, key, extra[key])
 	}
+	base = setEnvValue(base, "AGH_HOME", homePaths.HomeDir)
+	base = setEnvValue(base, "HOME", homePaths.HomeDir)
 	return base
+}
+
+func reservedRuntimeEnvKey(key string) bool {
+	switch strings.TrimSpace(key) {
+	case "AGH_HOME", "HOME":
+		return true
+	default:
+		return false
+	}
 }
 
 func withRuntimeCLIEnv(
@@ -1963,15 +1987,23 @@ func setEnvValue(env []string, key string, value string) []string {
 		return env
 	}
 	entry := targetKey + "=" + value
-	for idx, current := range env {
+	updated := make([]string, 0, len(env)+1)
+	replaced := false
+	for _, current := range env {
 		existingKey, _, ok := strings.Cut(current, "=")
 		if ok && existingKey == targetKey {
-			updated := append([]string(nil), env...)
-			updated[idx] = entry
-			return updated
+			if !replaced {
+				updated = append(updated, entry)
+				replaced = true
+			}
+			continue
 		}
+		updated = append(updated, current)
 	}
-	return append(append([]string(nil), env...), entry)
+	if !replaced {
+		updated = append(updated, entry)
+	}
+	return updated
 }
 
 func lookupEnvValue(env []string, key string) string {

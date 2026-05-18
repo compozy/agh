@@ -2232,6 +2232,9 @@ func newTestDeps(t *testing.T, client DaemonClient) commandDeps {
 		newClient: func(string) (DaemonClient, error) {
 			return client, nil
 		},
+		processMatchesStartTime: func(int, time.Time) bool {
+			return true
+		},
 		getwd: func() (string, error) {
 			return "/workspace/project", nil
 		},

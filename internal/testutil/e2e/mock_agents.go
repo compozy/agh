@@ -122,6 +122,9 @@ func (h *RuntimeHarness) PromptSessionHTTPUntil(
 	message string,
 	predicate func(SSEEvent) bool,
 ) ([]SSEEvent, error) {
+	if err := validateSSEPredicate(predicate); err != nil {
+		return nil, err
+	}
 	body := map[string]string{"message": message}
 	path, err := h.sessionScopedAPIPath(sessionID, "/prompt")
 	if err != nil {
@@ -157,6 +160,9 @@ func (h *RuntimeHarness) StreamSessionHTTPUntil(
 	sessionID string,
 	predicate func(SSEEvent) bool,
 ) ([]SSEEvent, error) {
+	if err := validateSSEPredicate(predicate); err != nil {
+		return nil, err
+	}
 	path, err := h.sessionScopedAPIPath(sessionID, "/stream")
 	if err != nil {
 		return nil, err

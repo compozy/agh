@@ -246,7 +246,10 @@ func (r integrationWorkspaceResolver) Resolve(_ context.Context, _ string) (work
 	return r.resolved, nil
 }
 
-func (r integrationWorkspaceResolver) ResolveOrRegister(_ context.Context, _ string) (workspacepkg.ResolvedWorkspace, error) {
+func (r integrationWorkspaceResolver) ResolveOrRegister(
+	_ context.Context,
+	_ string,
+) (workspacepkg.ResolvedWorkspace, error) {
 	return r.resolved, nil
 }
 
@@ -292,7 +295,11 @@ func (d *integrationPromptDriver) Start(_ context.Context, opts acp.StartOpts) (
 	return proc, nil
 }
 
-func (d *integrationPromptDriver) Prompt(_ context.Context, proc *session.AgentProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+func (d *integrationPromptDriver) Prompt(
+	_ context.Context,
+	proc *session.AgentProcess,
+	req acp.PromptRequest,
+) (<-chan acp.AgentEvent, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 

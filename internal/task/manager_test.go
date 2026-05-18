@@ -3952,6 +3952,98 @@ func TestManagerTerminalRunStopsBackingSession(t *testing.T) {
 
 		assertSessionStopCalls(t, executor, runningRun.SessionID, StopReasonFailed)
 	})
+
+	t.Run("Should keep run non-terminal when completed stop request fails", func(t *testing.T) {
+		t.Parallel()
+
+		assertTerminalStopFailureLeavesRunActive(t, errors.New("stop failed"), nil, func(
+			ctx context.Context,
+			manager *Service,
+			runID string,
+			actor ActorContext,
+		) error {
+			_, err := manager.CompleteRun(ctx, runID, RunResult{
+				Value: json.RawMessage(`{"ok":true}`),
+			}, actor)
+			return err
+		})
+	})
+
+	t.Run("Should keep run non-terminal when completed force stop fails", func(t *testing.T) {
+		t.Parallel()
+
+		assertTerminalStopFailureLeavesRunActive(t, nil, errors.New("force failed"), func(
+			ctx context.Context,
+			manager *Service,
+			runID string,
+			actor ActorContext,
+		) error {
+			_, err := manager.CompleteRun(ctx, runID, RunResult{
+				Value: json.RawMessage(`{"ok":true}`),
+			}, actor)
+			return err
+		})
+	})
+
+	t.Run("Should keep run non-terminal when failed stop request fails", func(t *testing.T) {
+		t.Parallel()
+
+		assertTerminalStopFailureLeavesRunActive(t, errors.New("stop failed"), nil, func(
+			ctx context.Context,
+			manager *Service,
+			runID string,
+			actor ActorContext,
+		) error {
+			_, err := manager.FailRun(ctx, runID, RunFailure{
+				Error: "release validation failed",
+			}, actor)
+			return err
+		})
+	})
+
+	t.Run("Should keep run non-terminal when failed force stop fails", func(t *testing.T) {
+		t.Parallel()
+
+		assertTerminalStopFailureLeavesRunActive(t, nil, errors.New("force failed"), func(
+			ctx context.Context,
+			manager *Service,
+			runID string,
+			actor ActorContext,
+		) error {
+			_, err := manager.FailRun(ctx, runID, RunFailure{
+				Error: "release validation failed",
+			}, actor)
+			return err
+		})
+	})
+
+	t.Run("Should keep run active when cancel stop request fails", func(t *testing.T) {
+		t.Parallel()
+
+		assertTerminalStopFailureLeavesRunActive(t, errors.New("stop failed"), nil, func(
+			ctx context.Context,
+			manager *Service,
+			runID string,
+			actor ActorContext,
+		) error {
+			_, err := manager.CancelRun(ctx, runID, CancelRun{Reason: "stop"}, actor)
+			return err
+		})
+	})
+
+	t.Run("Should keep run active when cancel force stop fails", func(t *testing.T) {
+		t.Parallel()
+
+		assertTerminalStopFailureLeavesRunActive(t, nil, errors.New("force failed"), func(
+			ctx context.Context,
+			manager *Service,
+			runID string,
+			actor ActorContext,
+		) error {
+			_, err := manager.CancelRun(ctx, runID, CancelRun{Reason: "stop"}, actor)
+			return err
+		})
+	})
 }
 
 func createRunningRunForTest(t *testing.T, manager *Service, actor ActorContext) *Run {
@@ -4007,6 +4099,60 @@ func assertSessionStopCalls(
 	}
 	if got, want := executor.forceStopCalls[0].Reason, reason; got != want {
 		t.Fatalf("forceStopCalls[0].Reason = %q, want %q", got, want)
+	}
+}
+
+func assertTerminalStopFailureLeavesRunActive(
+	t *testing.T,
+	requestStopErr error,
+	forceStopErr error,
+	transition func(context.Context, *Service, string, ActorContext) error,
+) {
+	t.Helper()
+
+	store := newInMemoryManagerStore()
+	executor := &recordingSessionExecutor{
+		requestStopErr: requestStopErr,
+		forceStopErr:   forceStopErr,
+	}
+	manager := newTaskManagerForTestWithOptions(
+		t,
+		store,
+		WithSessionExecutor(executor),
+		WithCancelGracePeriod(0),
+	)
+	actor := validActorContext()
+	runningRun := createRunningRunForTest(t, manager, actor)
+
+	err := transition(context.Background(), manager, runningRun.ID, actor)
+	if err == nil {
+		t.Fatal("transition() error = nil, want stop failure")
+	}
+
+	storedRun, getRunErr := store.GetTaskRun(context.Background(), runningRun.ID)
+	if getRunErr != nil {
+		t.Fatalf("GetTaskRun() error = %v", getRunErr)
+	}
+	if got, want := storedRun.Status, TaskRunStatusRunning; got != want {
+		t.Fatalf("storedRun.Status = %q, want %q", got, want)
+	}
+	if !storedRun.EndedAt.IsZero() {
+		t.Fatalf("storedRun.EndedAt = %v, want zero", storedRun.EndedAt)
+	}
+	if got, want := store.tasks[storedRun.TaskID].Status, TaskStatusInProgress; got != want {
+		t.Fatalf("task.Status = %q, want %q", got, want)
+	}
+	if len(executor.requestStopCalls) != 1 {
+		t.Fatalf("len(requestStopCalls) = %d, want 1", len(executor.requestStopCalls))
+	}
+	if requestStopErr != nil {
+		if len(executor.forceStopCalls) != 0 {
+			t.Fatalf("len(forceStopCalls) = %d, want 0", len(executor.forceStopCalls))
+		}
+		return
+	}
+	if len(executor.forceStopCalls) != 1 {
+		t.Fatalf("len(forceStopCalls) = %d, want 1", len(executor.forceStopCalls))
 	}
 }
 

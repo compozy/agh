@@ -9,7 +9,7 @@ import (
 func TestApprovalTokenStore(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ShouldMintConsumeAndRejectReplay", func(t *testing.T) {
+	t.Run("Should mint consume and reject replay", func(t *testing.T) {
 		t.Parallel()
 
 		now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
@@ -51,7 +51,7 @@ func TestApprovalTokenStore(t *testing.T) {
 func TestApprovalTokenStoreRejectsMismatchedAndExpiredTokens(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ShouldRejectMismatchedAndExpiredTokens", func(t *testing.T) {
+	t.Run("Should reject mismatched and expired tokens", func(t *testing.T) {
 		t.Parallel()
 
 		now := time.Date(2026, 4, 29, 12, 0, 0, 0, time.UTC)
@@ -76,7 +76,7 @@ func TestApprovalTokenStoreRejectsMismatchedAndExpiredTokens(t *testing.T) {
 			Input:         []byte(`{"message":"hello"}`),
 			ApprovalToken: grant.ApprovalToken,
 		}
-		requireToolReason(t, store.ConsumeToolApproval(t.Context(), scope, mismatched), ReasonApprovalTokenMismatch)
+		requireToolReason(t, store.ConsumeToolApproval(t.Context(), scope, mismatched), ReasonScopeMismatch)
 
 		mismatchedAgent := CallRequest{
 			ToolID:        ToolIDSkillView,
@@ -91,6 +91,24 @@ func TestApprovalTokenStoreRejectsMismatchedAndExpiredTokens(t *testing.T) {
 			store.ConsumeToolApproval(t.Context(), scope, mismatchedAgent),
 			ReasonApprovalTokenMismatch,
 		)
+
+		spoofedScope := Scope{Operator: true, SessionID: "sess-b", WorkspaceID: "ws-b", AgentName: "agent-b"}
+		spoofedGrant, err := store.CreateToolApproval(t.Context(), spoofedScope, ApprovalRequest{
+			ToolID: ToolIDSkillView,
+			Input:  []byte(`{"message":"scoped"}`),
+		})
+		if err != nil {
+			t.Fatalf("CreateToolApproval(spoofed scope) error = %v", err)
+		}
+		spoofedCall := CallRequest{
+			ToolID:        ToolIDSkillView,
+			SessionID:     "sess-b",
+			WorkspaceID:   "ws-b",
+			AgentName:     "agent-b",
+			Input:         []byte(`{"message":"scoped"}`),
+			ApprovalToken: spoofedGrant.ApprovalToken,
+		}
+		requireToolReason(t, store.ConsumeToolApproval(t.Context(), scope, spoofedCall), ReasonScopeMismatch)
 
 		_, err = store.CreateToolApproval(t.Context(), Scope{SessionID: "sess-1"}, ApprovalRequest{
 			ToolID:    ToolIDSkillView,

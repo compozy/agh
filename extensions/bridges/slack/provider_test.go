@@ -924,6 +924,192 @@ func TestWebhookIngressHandlesSlashCommandAndBlockActions(t *testing.T) {
 	}
 }
 
+func TestWebhookRetriesAfterTransientIngestFailure(t *testing.T) {
+	testCases := []struct {
+		name    string
+		wantKey string
+		invoke  func(context.Context, *slackProvider, resolvedInstanceConfig, time.Time) (*httptest.ResponseRecorder, error)
+	}{
+		{
+			name:    "ShouldRetrySlashCommandAfterTransientIngestFailure",
+			wantKey: "1337.42",
+			invoke: func(
+				ctx context.Context,
+				runtime *slackProvider,
+				cfg resolvedInstanceConfig,
+				now time.Time,
+			) (*httptest.ResponseRecorder, error) {
+				recorder := httptest.NewRecorder()
+				commandBody := []byte(
+					"token=t&team_id=T1&channel_id=C123&channel_name=general&user_id=U123&user_name=alice&command=%2Fagh&text=hello&trigger_id=1337.42",
+				)
+				return recorder, runtime.handleFormWebhook(ctx, recorder, cfg, bridgesdk.WebhookRequest{
+					Body:       commandBody,
+					ReceivedAt: now,
+				})
+			},
+		},
+		{
+			name:    "ShouldRetryBlockActionsAfterTransientIngestFailure",
+			wantKey: "1775866802.200000",
+			invoke: func(
+				ctx context.Context,
+				runtime *slackProvider,
+				cfg resolvedInstanceConfig,
+				now time.Time,
+			) (*httptest.ResponseRecorder, error) {
+				recorder := httptest.NewRecorder()
+				body := []byte("payload=" + url.QueryEscape(slackBlockActionsPayloadJSON()))
+				return recorder, runtime.handleFormWebhook(ctx, recorder, cfg, bridgesdk.WebhookRequest{
+					Body:       body,
+					ReceivedAt: now,
+				})
+			},
+		},
+		{
+			name:    "ShouldRetryJSONMessageAfterTransientIngestFailure",
+			wantKey: "EvMessage",
+			invoke: func(
+				ctx context.Context,
+				runtime *slackProvider,
+				cfg resolvedInstanceConfig,
+				now time.Time,
+			) (*httptest.ResponseRecorder, error) {
+				recorder := httptest.NewRecorder()
+				return recorder, runtime.handleJSONWebhook(ctx, recorder, cfg, bridgesdk.WebhookRequest{
+					Body:       []byte(slackMessageWebhookPayload()),
+					ReceivedAt: now,
+				})
+			},
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			env := setProviderTestEnv(t)
+
+			runtime, hostPeer, cleanup := newRuntimePeerPair(t)
+			defer cleanup()
+
+			now := time.Date(2026, 4, 15, 13, 12, 0, 0, time.UTC)
+			runtime.now = func() time.Time { return now }
+			managed := testBridgeRuntime(now, "brg-1")
+
+			var mu sync.Mutex
+			attempts := make(map[string]int)
+
+			mustHandle(
+				t,
+				hostPeer,
+				string(extensionprotocol.HostAPIMethodBridgesInstancesList),
+				func(context.Context, json.RawMessage) (any, error) {
+					return []bridgepkg.BridgeInstance{managed.Instance}, nil
+				},
+			)
+			mustHandle(
+				t,
+				hostPeer,
+				string(extensionprotocol.HostAPIMethodBridgesInstancesGet),
+				func(context.Context, json.RawMessage) (any, error) {
+					return managed.Instance, nil
+				},
+			)
+			mustHandle(
+				t,
+				hostPeer,
+				string(extensionprotocol.HostAPIMethodBridgesInstancesReportState),
+				func(_ context.Context, params json.RawMessage) (any, error) {
+					var payload extensioncontract.BridgesInstancesReportStateParams
+					if err := json.Unmarshal(params, &payload); err != nil {
+						return nil, err
+					}
+					instance := managed.Instance
+					instance.Status = payload.Status
+					return instance, nil
+				},
+			)
+			mustHandle(
+				t,
+				hostPeer,
+				string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
+				func(_ context.Context, params json.RawMessage) (any, error) {
+					var envelope bridgepkg.InboundMessageEnvelope
+					if err := json.Unmarshal(params, &envelope); err != nil {
+						return nil, err
+					}
+					mu.Lock()
+					attempts[envelope.IdempotencyKey]++
+					attempt := attempts[envelope.IdempotencyKey]
+					mu.Unlock()
+					if attempt == 1 {
+						return nil, errors.New("transient ingest failure")
+					}
+					return extensioncontract.BridgesMessagesIngestResult{SessionID: "sess-1"}, nil
+				},
+			)
+
+			if err := hostPeer.Call(
+				context.Background(),
+				"initialize",
+				testInitializeRequest(now, managed),
+				nil,
+			); err != nil {
+				t.Fatalf("hostPeer.Call(initialize) error = %v", err)
+			}
+			cfg, err := runtime.waitForInstanceConfig("brg-1", time.Second)
+			if err != nil {
+				t.Fatalf("waitForInstanceConfig() error = %v", err)
+			}
+
+			_, firstErr := tt.invoke(context.Background(), runtime, cfg, now)
+			var httpErr *bridgesdk.HTTPError
+			if !errors.As(firstErr, &httpErr) {
+				t.Fatalf("first invoke error type = %T, want *bridgesdk.HTTPError", firstErr)
+			}
+			if got, want := httpErr.StatusCode, http.StatusInternalServerError; got != want {
+				t.Fatalf("first invoke status = %d, want %d", got, want)
+			}
+
+			recorder, err := tt.invoke(context.Background(), runtime, cfg, now)
+			if err != nil {
+				t.Fatalf("second invoke error = %v", err)
+			}
+			if got, want := recorder.Code, http.StatusOK; got != want {
+				t.Fatalf("second invoke status = %d, want %d", got, want)
+			}
+
+			mu.Lock()
+			attemptCount := attempts[tt.wantKey]
+			mu.Unlock()
+			if got, want := attemptCount, 2; got != want {
+				t.Fatalf("attempts[%q] = %d, want %d", tt.wantKey, got, want)
+			}
+			if !cfg.dedup.Seen(tt.wantKey) {
+				t.Fatalf("cfg.dedup.Seen(%q) = false, want true", tt.wantKey)
+			}
+
+			ingests := waitForJSONLinesFile[ingestMarker](t, env.ingestPath, func(items []ingestMarker) bool {
+				return len(items) >= 2
+			})
+			if got, want := ingests[0].Envelope.IdempotencyKey, tt.wantKey; got != want {
+				t.Fatalf("ingests[0].Envelope.IdempotencyKey = %q, want %q", got, want)
+			}
+			if got := strings.TrimSpace(ingests[0].Error); got == "" {
+				t.Fatal("ingests[0].Error = empty, want transient failure")
+			}
+			if got, want := ingests[1].Envelope.IdempotencyKey, tt.wantKey; got != want {
+				t.Fatalf("ingests[1].Envelope.IdempotencyKey = %q, want %q", got, want)
+			}
+			if got := strings.TrimSpace(ingests[1].Error); got != "" {
+				t.Fatalf("ingests[1].Error = %q, want empty", got)
+			}
+			if got, want := ingests[1].Result.SessionID, "sess-1"; got != want {
+				t.Fatalf("ingests[1].Result.SessionID = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
 func TestRuntimeDeliveriesCallSlackAPI(t *testing.T) {
 	env := setProviderTestEnv(t)
 	listenAddr := reserveListenAddr(t)

@@ -76,15 +76,24 @@ func TestRegistryIntegrationMultipleSourcesCoexist(t *testing.T) {
 		capabilities: []string{"memory.backend"},
 		actions:      []string{"sessions/list"},
 	})
-	workspaceDir, workspaceManifest, workspaceChecksum := createRegistryTestExtension(t, "workspace-ext", registryManifestOptions{
-		capabilities: []string{"prompt.provider"},
-		actions:      []string{"observe/health"},
-	})
+	workspaceDir, workspaceManifest, workspaceChecksum := createRegistryTestExtension(
+		t,
+		"workspace-ext",
+		registryManifestOptions{
+			capabilities: []string{"prompt.provider"},
+			actions:      []string{"observe/health"},
+		},
+	)
 
 	if err := env.registry.Install(userManifest, userDir, userChecksum); err != nil {
 		t.Fatalf("Install(user) error = %v", err)
 	}
-	if err := env.registry.Install(workspaceManifest, workspaceDir, workspaceChecksum, WithInstallSource(SourceWorkspace)); err != nil {
+	if err := env.registry.Install(
+		workspaceManifest,
+		workspaceDir,
+		workspaceChecksum,
+		WithInstallSource(SourceWorkspace),
+	); err != nil {
 		t.Fatalf("Install(workspace) error = %v", err)
 	}
 

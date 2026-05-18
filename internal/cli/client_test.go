@@ -2946,7 +2946,7 @@ func TestDecodeSSEStopsEarly(t *testing.T) {
 	}, "\n")
 
 	count := 0
-	err := decodeSSE(context.Background(), strings.NewReader(body), func(event SSEEvent) error {
+	err := decodeSSE(context.Background(), io.NopCloser(strings.NewReader(body)), func(event SSEEvent) error {
 		count++
 		if event.Event == "done" {
 			return errStopSSE
@@ -2967,14 +2967,14 @@ func TestDecodeSSERejectsNilArguments(t *testing.T) {
 	testCases := []struct {
 		name    string
 		ctx     context.Context
-		body    io.Reader
+		body    io.ReadCloser
 		handler SSEHandler
 		wantErr string
 	}{
 		{
 			name:    "nil context",
 			ctx:     nil,
-			body:    strings.NewReader("event: ping\n\n"),
+			body:    io.NopCloser(strings.NewReader("event: ping\n\n")),
 			handler: func(SSEEvent) error { return nil },
 			wantErr: "sse: context is required",
 		},
@@ -2988,7 +2988,7 @@ func TestDecodeSSERejectsNilArguments(t *testing.T) {
 		{
 			name:    "nil handler",
 			ctx:     context.Background(),
-			body:    strings.NewReader("event: ping\n\n"),
+			body:    io.NopCloser(strings.NewReader("event: ping\n\n")),
 			handler: nil,
 			wantErr: "sse: handler is required",
 		},
@@ -3017,7 +3017,7 @@ func TestDecodeSSEPropagatesHandlerError(t *testing.T) {
 		"",
 	}, "\n")
 
-	err := decodeSSE(context.Background(), strings.NewReader(body), func(SSEEvent) error {
+	err := decodeSSE(context.Background(), io.NopCloser(strings.NewReader(body)), func(SSEEvent) error {
 		return wantErr
 	})
 	if !errors.Is(err, wantErr) {
@@ -3037,7 +3037,7 @@ func TestDecodeSSEPreservesMultiLineData(t *testing.T) {
 	}, "\n")
 
 	var seen SSEEvent
-	err := decodeSSE(context.Background(), strings.NewReader(body), func(event SSEEvent) error {
+	err := decodeSSE(context.Background(), io.NopCloser(strings.NewReader(body)), func(event SSEEvent) error {
 		seen = event
 		return nil
 	})

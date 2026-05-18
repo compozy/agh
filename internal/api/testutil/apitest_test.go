@@ -178,6 +178,28 @@ func TestParseSSE(t *testing.T) {
 			t.Fatalf("second record = %#v, want spaced-field frame", records[1])
 		}
 	})
+
+	t.Run("Should parse a single data line larger than the scanner default token limit", func(t *testing.T) {
+		t.Parallel()
+
+		largeData := strings.Repeat("x", 70*1024)
+		records := ParseSSE(t, strings.Join([]string{
+			"id: large",
+			"event: chunk",
+			"data: " + largeData,
+			"",
+		}, "\n"))
+
+		if got, want := len(records), 1; got != want {
+			t.Fatalf("len(records) = %d, want %d", got, want)
+		}
+		if records[0].ID != "large" || records[0].Event != "chunk" {
+			t.Fatalf("record metadata = %#v, want large chunk", records[0])
+		}
+		if got := string(records[0].Data); got != largeData {
+			t.Fatalf("record data length = %d, want %d", len(got), len(largeData))
+		}
+	})
 }
 
 func TestStubNetworkServiceWaitInboxFallback(t *testing.T) {

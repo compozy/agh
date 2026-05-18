@@ -38,7 +38,7 @@ type Runtime struct {
 
 	mu             sync.Mutex
 	sessions       map[string]*sessionState
-	toolWrites     map[string]toolWriteMarker
+	toolWrites     map[string]toolWriteMarkers
 	droppedTurns   int64
 	coalescedTurns int64
 	closed         bool
@@ -55,9 +55,13 @@ type request struct {
 	coalesceCount int
 }
 
-type toolWriteMarker struct {
-	turnSeq int64
-	pending bool
+type toolWriteMarkers struct {
+	consumeNext bool
+	sequences   map[int64]struct{}
+}
+
+func (m toolWriteMarkers) empty() bool {
+	return !m.consumeNext && len(m.sequences) == 0
 }
 
 // RuntimeStats exposes bounded operational state for daemon status APIs.
@@ -145,7 +149,7 @@ func NewRuntime(
 		workerCtx:    workerCtx,
 		cancelWorker: cancel,
 		sessions:     make(map[string]*sessionState),
-		toolWrites:   make(map[string]toolWriteMarker),
+		toolWrites:   make(map[string]toolWriteMarkers),
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -226,26 +230,49 @@ func (r *Runtime) RecordToolWrite(sessionID string, turnSeq int64) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.toolWrites == nil {
-		r.toolWrites = make(map[string]toolWriteMarker)
+		r.toolWrites = make(map[string]toolWriteMarkers)
 	}
-	r.toolWrites[trimmed] = toolWriteMarker{turnSeq: turnSeq, pending: true}
+	markers := r.toolWrites[trimmed]
+	if turnSeq <= 0 {
+		markers.consumeNext = true
+	} else {
+		if markers.sequences == nil {
+			markers.sequences = make(map[int64]struct{})
+		}
+		markers.sequences[turnSeq] = struct{}{}
+	}
+	r.toolWrites[trimmed] = markers
 }
 
 func (r *Runtime) consumeToolWrite(sessionID string, turnSeq int64) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	marker, exists := r.toolWrites[sessionID]
-	if !exists || !marker.pending {
+	markers, exists := r.toolWrites[sessionID]
+	if !exists {
 		return false
 	}
-	if marker.turnSeq > 0 && marker.turnSeq != turnSeq {
-		if marker.turnSeq < turnSeq {
-			delete(r.toolWrites, sessionID)
+	matched := false
+	if turnSeq > 0 {
+		if _, ok := markers.sequences[turnSeq]; ok {
+			delete(markers.sequences, turnSeq)
+			matched = true
 		}
-		return false
+		for seq := range markers.sequences {
+			if seq < turnSeq {
+				delete(markers.sequences, seq)
+			}
+		}
 	}
-	delete(r.toolWrites, sessionID)
-	return true
+	if markers.consumeNext {
+		markers.consumeNext = false
+		matched = true
+	}
+	if markers.empty() {
+		delete(r.toolWrites, sessionID)
+	} else {
+		r.toolWrites[sessionID] = markers
+	}
+	return matched
 }
 
 // Enqueue requests extraction for one transcript turn using one in-flight plus one queued item per session.

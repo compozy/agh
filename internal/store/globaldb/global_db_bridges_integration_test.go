@@ -24,7 +24,12 @@ func TestGlobalDBBridgeInstanceRoundTripAcrossReopen(t *testing.T) {
 		t.Fatalf("OpenGlobalDB(first) error = %v", err)
 	}
 
-	workspaceID := registerWorkspaceForGlobalTests(t, first, "integration-bridge-instance", filepath.Join(t.TempDir(), "integration-bridge-instance"))
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		first,
+		"integration-bridge-instance",
+		filepath.Join(t.TempDir(), "integration-bridge-instance"),
+	)
 	instance := bridges.BridgeInstance{
 		ID:               "brg-integration",
 		Scope:            bridges.ScopeWorkspace,
@@ -62,7 +67,14 @@ func TestGlobalDBBridgeInstanceRoundTripAcrossReopen(t *testing.T) {
 		}
 	})
 
-	assertTablesPresent(t, second.db, "bridge_instances", "bridge_secret_bindings", "bridge_routes", "bridge_ingest_dedup")
+	assertTablesPresent(
+		t,
+		second.db,
+		"bridge_instances",
+		"bridge_secret_bindings",
+		"bridge_routes",
+		"bridge_ingest_dedup",
+	)
 
 	loaded, err := second.GetBridgeInstance(testutil.Context(t), instance.ID)
 	if err != nil {
@@ -74,7 +86,9 @@ func TestGlobalDBBridgeInstanceRoundTripAcrossReopen(t *testing.T) {
 	if got, want := loaded.DMPolicy, bridges.BridgeDMPolicyPairing; got != want {
 		t.Fatalf("loaded.DMPolicy = %q, want %q", got, want)
 	}
-	if got, want := string(loaded.ProviderConfig), `{"mode":"bot","webhook_url":"https://example.invalid/hook"}`; got != want {
+	if got, want := string(
+		loaded.ProviderConfig,
+	), `{"mode":"bot","webhook_url":"https://example.invalid/hook"}`; got != want {
 		t.Fatalf("loaded.ProviderConfig = %s, want %s", got, want)
 	}
 	if got, want := string(loaded.DeliveryDefaults), `{"peer_id":"peer-1","mode":"reply"}`; got != want {
@@ -97,7 +111,12 @@ func TestGlobalDBBridgeRouteSurvivesReopen(t *testing.T) {
 		t.Fatalf("OpenGlobalDB(first) error = %v", err)
 	}
 
-	workspaceID := registerWorkspaceForGlobalTests(t, first, "integration-bridge-route", filepath.Join(t.TempDir(), "integration-bridge-route"))
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		first,
+		"integration-bridge-route",
+		filepath.Join(t.TempDir(), "integration-bridge-route"),
+	)
 	registerSessionForGlobalTests(t, first, "sess-bridge-route")
 	instance := bridges.BridgeInstance{
 		ID:            "brg-route",
@@ -158,7 +177,12 @@ func TestGlobalDBGlobalAndWorkspaceInstancesCoexist(t *testing.T) {
 	t.Parallel()
 
 	globalDB := openTestGlobalDB(t)
-	workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "integration-coexist", filepath.Join(t.TempDir(), "integration-coexist"))
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		globalDB,
+		"integration-coexist",
+		filepath.Join(t.TempDir(), "integration-coexist"),
+	)
 
 	globalInstance := bridges.BridgeInstance{
 		ID:            "brg-global",
@@ -236,10 +260,21 @@ func TestGlobalDBExpiredDedupRecordsExcluded(t *testing.T) {
 		t.Fatalf("PutBridgeIngestDedup(expired) error = %v", err)
 	}
 
-	if _, err := globalDB.GetBridgeIngestDedup(testutil.Context(t), live.IdempotencyKey, base.Add(time.Minute)); err != nil {
+	if _, err := globalDB.GetBridgeIngestDedup(
+		testutil.Context(t),
+		live.IdempotencyKey,
+		base.Add(time.Minute),
+	); err != nil {
 		t.Fatalf("GetBridgeIngestDedup(live) error = %v", err)
 	}
-	if _, err := globalDB.GetBridgeIngestDedup(testutil.Context(t), expired.IdempotencyKey, base.Add(time.Minute)); !errors.Is(err, bridges.ErrIngestDedupRecordNotFound) {
+	if _, err := globalDB.GetBridgeIngestDedup(
+		testutil.Context(t),
+		expired.IdempotencyKey,
+		base.Add(time.Minute),
+	); !errors.Is(
+		err,
+		bridges.ErrIngestDedupRecordNotFound,
+	) {
 		t.Fatalf("GetBridgeIngestDedup(expired) error = %v, want ErrIngestDedupRecordNotFound", err)
 	}
 }

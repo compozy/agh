@@ -29,8 +29,19 @@ import (
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
+// ErrRequestBodyTooLarge is the shared transport sentinel for request bodies
+// rejected by HTTP MaxBytesReader enforcement.
+var ErrRequestBodyTooLarge = errors.New("request body too large")
+
 // RespondError writes a transport error response, optionally masking internal error details.
 func RespondError(c *gin.Context, status int, err error, maskInternalErrors bool) {
+	var maxBytesErr *http.MaxBytesError
+	if errors.As(err, &maxBytesErr) {
+		status = http.StatusRequestEntityTooLarge
+		err = ErrRequestBodyTooLarge
+		maskInternalErrors = false
+	}
+
 	message := http.StatusText(status)
 	switch {
 	case maskInternalErrors && status >= http.StatusInternalServerError:

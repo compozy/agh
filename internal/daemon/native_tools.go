@@ -1142,7 +1142,16 @@ func (n *daemonNativeTools) networkChannels(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	workspaceID, err := n.nativeNetworkWorkspaceID(ctx, req.ToolID, input.WorkspaceID, scope)
+	bound, err := n.nativeBoundSession(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	workspaceID, err := n.nativeNetworkWorkspaceID(
+		ctx,
+		req.ToolID,
+		nativeBoundWorkspaceRef(bound, input.WorkspaceID),
+		scope,
+	)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -1159,6 +1168,7 @@ func (n *daemonNativeTools) networkChannels(
 		if err != nil {
 			return toolspkg.ToolResult{}, err
 		}
+		payload = nativeFilterNetworkChannelPayloads(bound, payload)
 		channels = payload
 		count = len(payload)
 	} else {
@@ -1167,6 +1177,7 @@ func (n *daemonNativeTools) networkChannels(
 			return toolspkg.ToolResult{}, err
 		}
 		payload := core.NetworkChannelPayloadsFromInfos(infos)
+		payload = nativeFilterNetworkChannelPayloads(bound, payload)
 		channels = payload
 		count = len(payload)
 	}
@@ -1182,11 +1193,20 @@ func (n *daemonNativeTools) networkInbox(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	sessionID := firstNonEmpty(input.SessionID, req.SessionID, scope.SessionID)
+	bound, err := n.nativeBoundSession(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	sessionID := nativeBoundSessionID(bound, input.SessionID, req.SessionID, scope.SessionID)
 	if sessionID == "" {
 		return toolspkg.ToolResult{}, nativeRequiredInputError(req.ToolID, "session_id")
 	}
-	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.WorkspaceID, scope)
+	resolved, err := n.nativeResolvedWorkspace(
+		ctx,
+		req.ToolID,
+		nativeBoundWorkspaceRef(bound, input.WorkspaceID),
+		scope,
+	)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -1201,6 +1221,7 @@ func (n *daemonNativeTools) networkInbox(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	messages = nativeFilterNetworkEnvelopes(bound, messages)
 	payload := core.NetworkEnvelopePayloadsFromEnvelopes(messages)
 	return structuredNetworkResult(map[string]any{"messages": payload}, fmt.Sprintf("%d messages", len(payload)))
 }
@@ -1214,8 +1235,21 @@ func (n *daemonNativeTools) networkSend(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	sessionID := firstNonEmpty(input.SessionID, req.SessionID, scope.SessionID)
-	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.WorkspaceID, scope)
+	bound, err := n.nativeBoundSession(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	channel := strings.TrimSpace(input.Channel)
+	if !nativeBoundSessionAllowsChannel(bound, channel) {
+		return toolspkg.ToolResult{}, nativeBoundChannelDenied(req.ToolID, channel)
+	}
+	sessionID := nativeBoundSessionID(bound, input.SessionID, req.SessionID, scope.SessionID)
+	resolved, err := n.nativeResolvedWorkspace(
+		ctx,
+		req.ToolID,
+		nativeBoundWorkspaceRef(bound, input.WorkspaceID),
+		scope,
+	)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -1233,7 +1267,7 @@ func (n *daemonNativeTools) networkSend(
 	sendReq, err := core.NetworkSendRequestFromPayload(contract.NetworkSendRequest{
 		WorkspaceID: workspaceID,
 		SessionID:   sessionID,
-		Channel:     strings.TrimSpace(input.Channel),
+		Channel:     channel,
 		Surface:     strings.TrimSpace(input.Surface),
 		ThreadID:    strings.TrimSpace(input.ThreadID),
 		DirectID:    strings.TrimSpace(input.DirectID),
@@ -1825,7 +1859,17 @@ func (n *daemonNativeTools) sessionDescribe(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	resolved, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.WorkspaceID, scope)
+	bound, err := n.nativeBoundSession(ctx, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	input.SessionID = nativeBoundSessionID(bound, input.SessionID)
+	resolved, err := n.nativeResolvedWorkspace(
+		ctx,
+		req.ToolID,
+		nativeBoundWorkspaceRef(bound, input.WorkspaceID),
+		scope,
+	)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -3590,6 +3634,105 @@ func nativeNetworkInputError(id toolspkg.ToolID, err error) error {
 		taskpkg.RedactClaimTokens(err.Error()),
 		fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
 		toolspkg.ReasonSchemaInvalid,
+	)
+}
+
+type nativeBoundSessionScope struct {
+	sessionID       string
+	workspaceID     string
+	networkChannels map[string]struct{}
+}
+
+func (n *daemonNativeTools) nativeBoundSession(
+	ctx context.Context,
+	scope toolspkg.Scope,
+) (*nativeBoundSessionScope, error) {
+	sessionID := strings.TrimSpace(scope.SessionID)
+	if sessionID == "" {
+		return nil, nil
+	}
+	if n == nil || n.deps == nil || n.deps.Sessions == nil {
+		return nil, errors.New("daemon: sessions are required")
+	}
+	info, err := n.deps.Sessions.Status(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	bound := &nativeBoundSessionScope{
+		sessionID:       strings.TrimSpace(info.ID),
+		workspaceID:     strings.TrimSpace(info.WorkspaceID),
+		networkChannels: make(map[string]struct{}),
+	}
+	lineage := store.NormalizeSessionLineage(info.ID, info.Lineage)
+	if lineage != nil {
+		for _, channel := range lineage.PermissionPolicy.NetworkChannels {
+			bound.networkChannels[channel] = struct{}{}
+		}
+	}
+	return bound, nil
+}
+
+func nativeBoundWorkspaceRef(bound *nativeBoundSessionScope, workspaceRef string) string {
+	if bound == nil {
+		return workspaceRef
+	}
+	return bound.workspaceID
+}
+
+func nativeBoundSessionID(bound *nativeBoundSessionScope, values ...string) string {
+	if bound == nil {
+		return firstNonEmpty(values...)
+	}
+	return bound.sessionID
+}
+
+func nativeBoundSessionAllowsChannel(bound *nativeBoundSessionScope, channel string) bool {
+	if bound == nil || len(bound.networkChannels) == 0 {
+		return true
+	}
+	_, ok := bound.networkChannels[strings.TrimSpace(channel)]
+	return ok
+}
+
+func nativeFilterNetworkChannelPayloads(
+	bound *nativeBoundSessionScope,
+	payload []contract.NetworkChannelPayload,
+) []contract.NetworkChannelPayload {
+	if bound == nil || len(bound.networkChannels) == 0 {
+		return payload
+	}
+	filtered := make([]contract.NetworkChannelPayload, 0, len(payload))
+	for _, channel := range payload {
+		if nativeBoundSessionAllowsChannel(bound, channel.Channel) {
+			filtered = append(filtered, channel)
+		}
+	}
+	return filtered
+}
+
+func nativeFilterNetworkEnvelopes(
+	bound *nativeBoundSessionScope,
+	messages []network.Envelope,
+) []network.Envelope {
+	if bound == nil || len(bound.networkChannels) == 0 {
+		return messages
+	}
+	filtered := make([]network.Envelope, 0, len(messages))
+	for _, message := range messages {
+		if nativeBoundSessionAllowsChannel(bound, message.Channel) {
+			filtered = append(filtered, message)
+		}
+	}
+	return filtered
+}
+
+func nativeBoundChannelDenied(id toolspkg.ToolID, channel string) error {
+	return toolspkg.NewToolError(
+		toolspkg.ErrorCodeDenied,
+		id,
+		fmt.Sprintf("tool %q denied for channel %q", id, strings.TrimSpace(channel)),
+		toolspkg.ErrToolDenied,
+		toolspkg.ReasonSessionDenied,
 	)
 }
 

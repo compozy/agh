@@ -17,7 +17,9 @@ import (
 )
 
 type packageJSON struct {
-	Scripts map[string]string `json:"scripts"`
+	Scripts        map[string]string `json:"scripts"`
+	LintStaged     map[string]any    `json:"lint-staged"`
+	PackageManager string            `json:"packageManager"`
 }
 
 type turboJSON struct {
@@ -114,12 +116,6 @@ func TestE2ELaneCommandsAreExecutableSmoke(t *testing.T) {
 			args: []string{"make", "-n", "test-e2e-nightly"},
 			want: "testE2ENightly",
 		},
-		{name: "Should list make help through mage", args: []string{"make", "help"}, want: "testE2ERuntime"},
-		{
-			name: "Should list mage targets directly",
-			args: []string{"go", "run", "github.com/magefile/mage@v1.15.0", "-l"},
-			want: "testE2ERuntime",
-		},
 	}
 
 	for _, tt := range tests {
@@ -212,6 +208,57 @@ func TestRootPackageScriptsExposeSharedCodegenEntryPoints(t *testing.T) {
 	}
 }
 
+func TestRootPackageBuildScriptStaysNPMCompatible(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep the public build script free of explicit Bun invocations", func(t *testing.T) {
+		t.Parallel()
+
+		repoRoot := repoRoot(t)
+		pkg := readPackageJSON(t, filepath.Join(repoRoot, "package.json"))
+		if pkg.PackageManager == "" {
+			t.Fatal("package.json packageManager is empty")
+		}
+
+		buildScript := pkg.Scripts["build"]
+		if buildScript != "make build && turbo run build" {
+			t.Fatalf("package.json build script = %q, want npm-compatible Turbo invocation", buildScript)
+		}
+		if strings.Contains(buildScript, "bun ") || strings.Contains(buildScript, "bun:") {
+			t.Fatalf(
+				"package.json build script = %q, want no explicit Bun dependency in the public build entry point",
+				buildScript,
+			)
+		}
+	})
+}
+
+func TestRootPackageFormatScriptRunsRepoFormatters(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should run Go formatting before frontend formatting", func(t *testing.T) {
+		t.Parallel()
+
+		repoRoot := repoRoot(t)
+		pkg := readPackageJSON(t, filepath.Join(repoRoot, "package.json"))
+		goFormatCommand, ok := pkg.LintStaged["*.go"].(string)
+		if !ok || goFormatCommand == "" {
+			t.Fatalf("package.json lint-staged *.go = %#v, want Go formatter command", pkg.LintStaged["*.go"])
+		}
+
+		formatScript := pkg.Scripts["format"]
+		if formatScript != "make fmt && oxfmt" {
+			t.Fatalf("package.json format script = %q, want repo-wide formatter command", formatScript)
+		}
+		if !strings.Contains(formatScript, goFormatCommand) {
+			t.Fatalf("package.json format script = %q, want Go formatter command %q", formatScript, goFormatCommand)
+		}
+		if !strings.Contains(formatScript, "oxfmt") {
+			t.Fatalf("package.json format script = %q, want frontend formatter", formatScript)
+		}
+	})
+}
+
 func TestTurboPipelineRunsSharedCodegenCheckBeforeWorkspaceGates(t *testing.T) {
 	t.Parallel()
 
@@ -269,31 +316,39 @@ func TestTurboPipelineKeepsVercelSiteBuildDeployableWithoutGoToolchain(t *testin
 	const codegenCheckTask = "//#codegen-check"
 
 	for _, taskName := range []string{"@agh/site#build", "@agh/ui#build"} {
-		task, ok := cfg.Tasks[taskName]
-		if !ok {
-			t.Fatalf("turbo task %q missing from %#v", taskName, cfg.Tasks)
-		}
-		if containsString(task.DependsOn, codegenCheckTask) {
-			t.Fatalf(
-				"turbo task %q dependsOn = %#v, want no %q because Vercel site deploys do not install Go",
-				taskName,
-				task.DependsOn,
-				codegenCheckTask,
-			)
-		}
+		t.Run("Should not require Go codegen-check before "+taskName, func(t *testing.T) {
+			t.Parallel()
+
+			task, ok := cfg.Tasks[taskName]
+			if !ok {
+				t.Fatalf("turbo task %q missing from %#v", taskName, cfg.Tasks)
+			}
+			if containsString(task.DependsOn, codegenCheckTask) {
+				t.Fatalf(
+					"turbo task %q dependsOn = %#v, want no %q because Vercel site deploys do not install Go",
+					taskName,
+					task.DependsOn,
+					codegenCheckTask,
+				)
+			}
+		})
 	}
 
-	siteBuild, ok := cfg.Tasks["@agh/site#build"]
-	if !ok {
-		t.Fatalf("turbo task %q missing from %#v", "@agh/site#build", cfg.Tasks)
-	}
-	if !containsString(siteBuild.DependsOn, "^build") {
-		t.Fatalf(
-			"turbo task %q dependsOn = %#v, want dependency build propagation",
-			"@agh/site#build",
-			siteBuild.DependsOn,
-		)
-	}
+	t.Run("Should propagate dependency builds for the site build task", func(t *testing.T) {
+		t.Parallel()
+
+		siteBuild, ok := cfg.Tasks["@agh/site#build"]
+		if !ok {
+			t.Fatalf("turbo task %q missing from %#v", "@agh/site#build", cfg.Tasks)
+		}
+		if !containsString(siteBuild.DependsOn, "^build") {
+			t.Fatalf(
+				"turbo task %q dependsOn = %#v, want dependency build propagation",
+				"@agh/site#build",
+				siteBuild.DependsOn,
+			)
+		}
+	})
 }
 
 func TestWebPackageScriptsPreserveDaemonServedModeAndNightlySplit(t *testing.T) {

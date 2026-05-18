@@ -15,26 +15,26 @@ import (
 
 // AgentDef is the parsed representation of an AGENT.md file.
 type AgentDef struct {
-	Name         string              `yaml:"name"                    toml:"name"`
-	Provider     string              `yaml:"provider"                toml:"provider"`
-	Command      string              `yaml:"command,omitempty"       toml:"command,omitempty"`
-	Model        string              `yaml:"model,omitempty"         toml:"model,omitempty"`
-	Tools        []string            `yaml:"tools,omitempty"         toml:"tools,omitempty"`
-	Toolsets     []string            `yaml:"toolsets,omitempty"      toml:"toolsets,omitempty"`
-	DenyTools    []string            `yaml:"deny_tools,omitempty"    toml:"deny_tools,omitempty"`
-	Permissions  string              `yaml:"permissions,omitempty"   toml:"permissions,omitempty"`
-	Skills       AgentSkillsConfig   `yaml:"skills,omitempty"        toml:"skills,omitempty"`
-	CategoryPath []string            `yaml:"category_path,omitempty" toml:"category_path,omitempty" json:"category_path,omitempty"`
-	MCPServers   []MCPServer         `yaml:"mcp_servers,omitempty"   toml:"mcp_servers,omitempty"`
-	Hooks        []hookspkg.HookDecl `yaml:"hooks,omitempty"         toml:"hooks,omitempty"`
-	Capabilities *CapabilityCatalog  `yaml:"-"                       toml:"-"                       json:"capabilities,omitempty"`
-	Prompt       string              `yaml:"-"`
-	SourcePath   string              `yaml:"-"                       toml:"-"                       json:"-"`
+	Name         string              `json:"name"                    yaml:"name"                    toml:"name"`
+	Provider     string              `json:"provider,omitempty"      yaml:"provider"                toml:"provider"`
+	Command      string              `json:"command,omitempty"       yaml:"command,omitempty"       toml:"command,omitempty"`
+	Model        string              `json:"model,omitempty"         yaml:"model,omitempty"         toml:"model,omitempty"`
+	Tools        []string            `json:"tools,omitempty"         yaml:"tools,omitempty"         toml:"tools,omitempty"`
+	Toolsets     []string            `json:"toolsets,omitempty"      yaml:"toolsets,omitempty"      toml:"toolsets,omitempty"`
+	DenyTools    []string            `json:"deny_tools,omitempty"    yaml:"deny_tools,omitempty"    toml:"deny_tools,omitempty"`
+	Permissions  string              `json:"permissions,omitempty"   yaml:"permissions,omitempty"   toml:"permissions,omitempty"`
+	Skills       AgentSkillsConfig   `json:"skills,omitzero"         yaml:"skills,omitempty"        toml:"skills,omitempty"`
+	CategoryPath []string            `json:"category_path,omitempty" yaml:"category_path,omitempty" toml:"category_path,omitempty"`
+	MCPServers   []MCPServer         `json:"mcp_servers,omitempty"   yaml:"mcp_servers,omitempty"   toml:"mcp_servers,omitempty"`
+	Hooks        []hookspkg.HookDecl `json:"hooks,omitempty"         yaml:"hooks,omitempty"         toml:"hooks,omitempty"`
+	Capabilities *CapabilityCatalog  `json:"capabilities,omitempty"  yaml:"-"                       toml:"-"`
+	Prompt       string              `json:"prompt,omitempty"        yaml:"-"`
+	SourcePath   string              `json:"-"                       yaml:"-"                       toml:"-"`
 }
 
 // AgentSkillsConfig captures agent-local skill policy stored in AGENT.md.
 type AgentSkillsConfig struct {
-	Disabled []string `yaml:"disabled,omitempty" toml:"disabled,omitempty"`
+	Disabled []string `json:"disabled,omitempty" yaml:"disabled,omitempty" toml:"disabled,omitempty"`
 }
 
 type parsedAgentDef struct {
@@ -210,6 +210,10 @@ func LoadWorkspaceAgentDefs(rootDir string, additionalDirs []string, homePaths H
 					continue
 				}
 				return nil, err
+			}
+			target := NormalizeAgentName(entry.Name())
+			if agent.Name != target {
+				return nil, fmt.Errorf("agent file %q defines name %q, expected %q", agentPath, agent.Name, target)
 			}
 
 			if _, ok := seen[agent.Name]; ok {

@@ -11,13 +11,29 @@ import (
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
+// ErrUnsafeBridgeProviderConfigPayload reports raw credentials in bridge provider config JSON.
+var ErrUnsafeBridgeProviderConfigPayload = bridgeContractError(
+	"bridge provider config contains unsafe token or secret data",
+)
+
 // BridgeProviderConfigPayload carries provider-owned runtime configuration
-// without constraining provider-specific keys in the transport contract.
+// without accepting raw secret material in the transport contract.
 type BridgeProviderConfigPayload json.RawMessage
 
 // MarshalJSON preserves the compact raw JSON representation of provider config.
 func (p BridgeProviderConfigPayload) MarshalJSON() ([]byte, error) {
-	return marshalBridgeJSONPayload(json.RawMessage(p), "bridge provider config")
+	normalized, err := normalizeBridgeJSONPayload(
+		json.RawMessage(p),
+		"bridge provider config",
+		validateBridgeProviderConfigPayload,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if len(normalized) == 0 {
+		return []byte("null"), nil
+	}
+	return normalized, nil
 }
 
 // UnmarshalJSON validates that provider config is an object-shaped JSON payload
@@ -484,6 +500,9 @@ func validateBridgeProviderConfigPayload(value json.RawMessage) error {
 	}
 	if _, ok := decoded.(map[string]any); !ok {
 		return fmt.Errorf("bridge provider config must be a JSON object or null")
+	}
+	if containsUnsafePublicContractJSON(value) {
+		return ErrUnsafeBridgeProviderConfigPayload
 	}
 	return nil
 }

@@ -287,7 +287,9 @@ func TestUDSMemoryRoundTripAndConsolidate(t *testing.T) {
 		runtime.client,
 		http.MethodPost,
 		"http://unix/api/memory",
-		[]byte(`{"scope":"global","type":"user","name":"Integration","description":"desc","content":"hello integration"}`),
+		[]byte(
+			`{"scope":"global","type":"user","name":"Integration","description":"desc","content":"hello integration"}`,
+		),
 		nil,
 	)
 	if writeResp.StatusCode != http.StatusOK {
@@ -3206,7 +3208,14 @@ Loop:
 func stopIntegrationSession(t *testing.T, runtime integrationRuntime, workspaceID string, sessionID string) {
 	t.Helper()
 
-	resp := mustUnixRequest(t, runtime.client, http.MethodPost, sessionAPIPath(workspaceID, sessionID, "/stop"), nil, nil)
+	resp := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		sessionAPIPath(workspaceID, sessionID, "/stop"),
+		nil,
+		nil,
+	)
 	if resp.StatusCode != http.StatusNoContent {
 		body, _ := io.ReadAll(resp.Body)
 		_ = resp.Body.Close()

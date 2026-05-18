@@ -148,9 +148,14 @@ func TestDaemonE2EBridgeIngressCreatesAndReusesRouteThroughTelegramExtension(t *
 		t.Fatalf("managed.BoundSecrets[0].BindingName = %q, want %q", got, want)
 	}
 
-	states := extensiontest.WaitForStateMarkers(t, markers, 15*time.Second, func(records []extensiontest.StateRecord) bool {
-		return len(records) > 0 && records[len(records)-1].Status.Normalize() == bridgepkg.BridgeStatusReady
-	})
+	states := extensiontest.WaitForStateMarkers(
+		t,
+		markers,
+		15*time.Second,
+		func(records []extensiontest.StateRecord) bool {
+			return len(records) > 0 && records[len(records)-1].Status.Normalize() == bridgepkg.BridgeStatusReady
+		},
+	)
 	if got, want := states[len(states)-1].BridgeInstanceID, bridgeID; got != want {
 		t.Fatalf("last state bridge_instance_id = %q, want %q", got, want)
 	}
@@ -173,9 +178,14 @@ func TestDaemonE2EBridgeIngressCreatesAndReusesRouteThroughTelegramExtension(t *
 		telegramRuntimeInboundUpdate(time.Now().UTC(), 9001, 321, "Need a runtime bridge summary"),
 	)
 
-	firstIngests := extensiontest.WaitForIngestMarkers(t, markers, 15*time.Second, func(records []extensiontest.IngestRecord) bool {
-		return len(records) >= 1 && strings.TrimSpace(records[0].Result.SessionID) != ""
-	})
+	firstIngests := extensiontest.WaitForIngestMarkers(
+		t,
+		markers,
+		15*time.Second,
+		func(records []extensiontest.IngestRecord) bool {
+			return len(records) >= 1 && strings.TrimSpace(records[0].Result.SessionID) != ""
+		},
+	)
 	firstIngest := firstIngests[0]
 	sessionID = firstIngest.Result.SessionID
 
@@ -187,9 +197,14 @@ func TestDaemonE2EBridgeIngressCreatesAndReusesRouteThroughTelegramExtension(t *
 		t.Fatalf("first bridge session handling = %q, want %q", got, want)
 	}
 
-	firstDeliveries := extensiontest.WaitForDeliveryMarkers(t, markers, 15*time.Second, func(records []extensiontest.DeliveryRecord) bool {
-		return countDeliveryEvents(records, bridgepkg.DeliveryEventTypeFinal) >= 1
-	})
+	firstDeliveries := extensiontest.WaitForDeliveryMarkers(
+		t,
+		markers,
+		15*time.Second,
+		func(records []extensiontest.DeliveryRecord) bool {
+			return countDeliveryEvents(records, bridgepkg.DeliveryEventTypeFinal) >= 1
+		},
+	)
 	if !hasDeliveryEventType(firstDeliveries, bridgepkg.DeliveryEventTypeStart) {
 		t.Fatalf("first deliveries = %#v, want start event", firstDeliveries)
 	}
@@ -212,9 +227,14 @@ func TestDaemonE2EBridgeIngressCreatesAndReusesRouteThroughTelegramExtension(t *
 		telegramRuntimeInboundUpdate(time.Now().UTC(), 9002, 322, "Provide a follow-up runtime bridge summary"),
 	)
 
-	ingests := extensiontest.WaitForIngestMarkers(t, markers, 15*time.Second, func(records []extensiontest.IngestRecord) bool {
-		return len(records) >= 2 && strings.TrimSpace(records[len(records)-1].Result.SessionID) != ""
-	})
+	ingests := extensiontest.WaitForIngestMarkers(
+		t,
+		markers,
+		15*time.Second,
+		func(records []extensiontest.IngestRecord) bool {
+			return len(records) >= 2 && strings.TrimSpace(records[len(records)-1].Result.SessionID) != ""
+		},
+	)
 	secondIngest := ingests[len(ingests)-1]
 
 	secondHandling, err := classifyBridgeSessionHandling(secondIngest.Result, firstIngest.Result.SessionID)
@@ -231,9 +251,14 @@ func TestDaemonE2EBridgeIngressCreatesAndReusesRouteThroughTelegramExtension(t *
 		t.Fatalf("second ingest routing_key = %#v, want %#v", got, want)
 	}
 
-	deliveries := extensiontest.WaitForDeliveryMarkers(t, markers, 15*time.Second, func(records []extensiontest.DeliveryRecord) bool {
-		return countDeliveryEvents(records, bridgepkg.DeliveryEventTypeFinal) >= 2
-	})
+	deliveries := extensiontest.WaitForDeliveryMarkers(
+		t,
+		markers,
+		15*time.Second,
+		func(records []extensiontest.DeliveryRecord) bool {
+			return countDeliveryEvents(records, bridgepkg.DeliveryEventTypeFinal) >= 2
+		},
+	)
 	if got, want := uniqueDeliveryCount(deliveries), 2; got < want {
 		t.Fatalf("unique delivery IDs = %d, want at least %d", got, want)
 	}
@@ -333,7 +358,8 @@ func TestDaemonE2EBridgeIngressCreatesAndReusesRouteThroughTelegramExtension(t *
 	if got, want := len(report.Ingests), 2; got < want {
 		t.Fatalf("len(report.Ingests) = %d, want at least %d", got, want)
 	}
-	if report.Ingests[0].Result.SessionID != route.SessionID || report.Ingests[len(report.Ingests)-1].Result.SessionID != route.SessionID {
+	if report.Ingests[0].Result.SessionID != route.SessionID ||
+		report.Ingests[len(report.Ingests)-1].Result.SessionID != route.SessionID {
 		t.Fatalf("ingest session IDs = %#v, want route session %q", report.Ingests, route.SessionID)
 	}
 	if got, want := uniqueDeliveryCount(report.Deliveries), 2; got < want {

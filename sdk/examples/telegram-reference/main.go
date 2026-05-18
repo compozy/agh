@@ -122,9 +122,11 @@ type telegramReferenceRuntime struct {
 	lastError  string
 	deliveries map[string]deliveryState
 
-	stopCh   chan struct{}
-	stopOnce sync.Once
-	wg       sync.WaitGroup
+	lifecycleCtx    context.Context
+	lifecycleCancel context.CancelFunc
+	stopCh          chan struct{}
+	stopOnce        sync.Once
+	wg              sync.WaitGroup
 }
 
 type deliveryState struct {
@@ -197,12 +199,15 @@ func newTelegramReferenceRuntime(stderr io.Writer) (*telegramReferenceRuntime, e
 		stderr = io.Discard
 	}
 
+	lifecycleCtx, lifecycleCancel := context.WithCancel(context.Background())
 	runtime := &telegramReferenceRuntime{
-		stderr:     stderr,
-		now:        func() time.Time { return time.Now().UTC() },
-		env:        adapterEnvFromProcess(),
-		deliveries: make(map[string]deliveryState),
-		stopCh:     make(chan struct{}),
+		stderr:          stderr,
+		now:             func() time.Time { return time.Now().UTC() },
+		env:             adapterEnvFromProcess(),
+		deliveries:      make(map[string]deliveryState),
+		lifecycleCtx:    lifecycleCtx,
+		lifecycleCancel: lifecycleCancel,
+		stopCh:          make(chan struct{}),
 	}
 
 	sdkRuntime, err := bridgesdk.NewRuntime(bridgesdk.RuntimeConfig{
@@ -244,18 +249,24 @@ func (r *telegramReferenceRuntime) handleInitialize(_ context.Context, session *
 	r.wg.Add(2)
 	go func() {
 		defer r.wg.Done()
-		r.afterInitialize(session)
+		r.afterInitialize(r.lifecycleCtx, session)
 	}()
 	go func() {
 		defer r.wg.Done()
-		r.pollInboundUpdates(session)
+		r.pollInboundUpdates(r.lifecycleCtx, session)
 	}()
 
 	return nil
 }
 
-func (r *telegramReferenceRuntime) afterInitialize(session *bridgesdk.Session) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+func (r *telegramReferenceRuntime) afterInitialize(
+	lifecycleCtx context.Context,
+	session *bridgesdk.Session,
+) {
+	if lifecycleCtx == nil {
+		lifecycleCtx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(lifecycleCtx, 5*time.Second)
 	defer cancel()
 
 	listed, err := r.syncOwnedInstances(ctx, session)
@@ -385,11 +396,20 @@ func (r *telegramReferenceRuntime) handleShutdown(
 
 func (r *telegramReferenceRuntime) stop() {
 	r.stopOnce.Do(func() {
+		if r.lifecycleCancel != nil {
+			r.lifecycleCancel()
+		}
 		close(r.stopCh)
 	})
 }
 
-func (r *telegramReferenceRuntime) pollInboundUpdates(session *bridgesdk.Session) {
+func (r *telegramReferenceRuntime) pollInboundUpdates(
+	lifecycleCtx context.Context,
+	session *bridgesdk.Session,
+) {
+	if lifecycleCtx == nil {
+		lifecycleCtx = context.Background()
+	}
 	updatesPath := strings.TrimSpace(r.env.updatesPath)
 	if updatesPath == "" {
 		return
@@ -401,6 +421,8 @@ func (r *telegramReferenceRuntime) pollInboundUpdates(session *bridgesdk.Session
 	processed := 0
 	for {
 		select {
+		case <-lifecycleCtx.Done():
+			return
 		case <-r.stopCh:
 			return
 		case <-ticker.C:
@@ -417,9 +439,20 @@ func (r *telegramReferenceRuntime) pollInboundUpdates(session *bridgesdk.Session
 			for processed < len(lines) {
 				var update telegramUpdate
 				if err := json.Unmarshal([]byte(lines[processed]), &update); err != nil {
-					break
+					parseErr := fmt.Errorf(
+						"telegram-reference: decode update line %d: %w",
+						processed+1,
+						err,
+					)
+					r.setLastError(parseErr)
+					r.reportSideEffectError(
+						"write failed ingest marker",
+						appendJSONLine(r.env.ingestPath, ingestMarker{Error: parseErr.Error()}),
+					)
+					processed++
+					continue
 				}
-				if err := r.ingestTelegramUpdate(session, update); err != nil {
+				if err := r.ingestTelegramUpdate(lifecycleCtx, session, update); err != nil {
 					r.setLastError(err)
 				} else {
 					r.clearLastError()
@@ -430,7 +463,14 @@ func (r *telegramReferenceRuntime) pollInboundUpdates(session *bridgesdk.Session
 	}
 }
 
-func (r *telegramReferenceRuntime) ingestTelegramUpdate(session *bridgesdk.Session, update telegramUpdate) error {
+func (r *telegramReferenceRuntime) ingestTelegramUpdate(
+	ctx context.Context,
+	session *bridgesdk.Session,
+	update telegramUpdate,
+) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	managed, err := resolveManagedInstance(session, update.BridgeInstanceID)
 	if err != nil {
 		r.reportSideEffectError("write failed ingest marker", appendJSONLine(r.env.ingestPath, ingestMarker{
@@ -449,7 +489,7 @@ func (r *telegramReferenceRuntime) ingestTelegramUpdate(session *bridgesdk.Sessi
 		return err
 	}
 
-	result, err := r.ingestBridgeMessage(context.Background(), session, envelope)
+	result, err := r.ingestBridgeMessage(ctx, session, envelope)
 	if err != nil {
 		r.reportSideEffectError("write failed ingest marker", appendJSONLine(r.env.ingestPath, ingestMarker{
 			Envelope: envelope,
@@ -708,7 +748,8 @@ func bridgeStatusForManaged(session *bridgesdk.Session, bridgeInstanceID string)
 	if session == nil || session.Cache() == nil {
 		return bridgepkg.BridgeStatusError
 	}
-	if _, ok := session.Cache().BoundSecretValue(bridgeInstanceID, "bot_token"); !ok {
+	value, ok := session.Cache().BoundSecretValue(bridgeInstanceID, "bot_token")
+	if !ok || strings.TrimSpace(value) == "" {
 		return bridgepkg.BridgeStatusAuthRequired
 	}
 	return bridgepkg.BridgeStatusReady
@@ -876,7 +917,15 @@ func writeSideEffectSnapshot(path sideEffectPath, update func([]byte) []byte) er
 	sideEffectSnapshots.mu.Lock()
 	defer sideEffectSnapshots.mu.Unlock()
 
-	current := append([]byte(nil), sideEffectSnapshots.payload[path]...)
+	current, ok := sideEffectSnapshots.payload[path]
+	if !ok {
+		diskPayload, readErr := readSideEffectFile(path)
+		if readErr != nil && !errors.Is(readErr, os.ErrNotExist) {
+			return readErr
+		}
+		current = diskPayload
+	}
+	current = append([]byte(nil), current...)
 	next := update(current)
 	if err := writeSideEffectFile(path, next); err != nil {
 		return err
@@ -885,7 +934,34 @@ func writeSideEffectSnapshot(path sideEffectPath, update func([]byte) []byte) er
 	return nil
 }
 
-func ensureSideEffectDir(path sideEffectPath) error {
+func readSideEffectFile(path sideEffectPath) (payload []byte, err error) {
+	root, err := os.OpenRoot(path.root)
+	if err != nil {
+		return nil, fmt.Errorf("open side-effect root %q: %w", path.root, err)
+	}
+	defer func() {
+		if closeErr := root.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close side-effect root %q: %w", path.root, closeErr))
+		}
+	}()
+
+	file, err := root.Open(path.name)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close side-effect file %q: %w", path.fullPath(), closeErr))
+		}
+	}()
+	payload, err = io.ReadAll(file)
+	if err != nil {
+		return nil, fmt.Errorf("read side-effect file %q: %w", path.fullPath(), err)
+	}
+	return payload, nil
+}
+
+func ensureSideEffectDir(path sideEffectPath) (err error) {
 	dir := filepath.Dir(path.name)
 	if dir == "." {
 		return nil
@@ -895,7 +971,11 @@ func ensureSideEffectDir(path sideEffectPath) error {
 	if err != nil {
 		return fmt.Errorf("open side-effect root %q: %w", path.root, err)
 	}
-	defer func() { _ = root.Close() }()
+	defer func() {
+		if closeErr := root.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close side-effect root %q: %w", path.root, closeErr))
+		}
+	}()
 
 	if err := root.MkdirAll(dir, 0o700); err != nil {
 		return fmt.Errorf("create side-effect directory for %q: %w", path.fullPath(), err)

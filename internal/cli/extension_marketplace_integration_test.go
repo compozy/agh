@@ -65,7 +65,12 @@ func TestExtensionInstallCommandIntegrationCreatesManagedInstallAndRegistryRecor
 			}}, nil
 		},
 		downloadFunc: func(_ context.Context, slug string, _ registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
-			return newExtensionDownloadResult(t, slug, "1.0.0", remoteExtensionArchiveFiles("integration-ext", "1.0.0")), nil
+			return newExtensionDownloadResult(
+				t,
+				slug,
+				"1.0.0",
+				remoteExtensionArchiveFiles("integration-ext", "1.0.0"),
+			), nil
 		},
 	})
 
@@ -107,16 +112,38 @@ func TestExtensionUpdateAndRemoveIntegration(t *testing.T) {
 		},
 		downloadFunc: func(_ context.Context, slug string, opts registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error) {
 			version := firstNonEmpty(opts.Version, latestVersion)
-			return newExtensionDownloadResult(t, slug, version, remoteExtensionArchiveFiles("integration-update-ext", version)), nil
+			return newExtensionDownloadResult(
+				t,
+				slug,
+				version,
+				remoteExtensionArchiveFiles("integration-update-ext", version),
+			), nil
 		},
 	})
 
-	if _, _, err := executeRootCommand(t, env.deps, "extension", "install", "acme/integration-update-ext", "-o", "json"); err != nil {
+	if _, _, err := executeRootCommand(
+		t,
+		env.deps,
+		"extension",
+		"install",
+		"acme/integration-update-ext",
+		"-o",
+		"json",
+	); err != nil {
 		t.Fatalf("extension install before update integration error = %v", err)
 	}
 
 	latestVersion = "1.3.0"
-	checkOut, _, err := executeRootCommand(t, env.deps, "extension", "update", "integration-update-ext", "--check", "-o", "json")
+	checkOut, _, err := executeRootCommand(
+		t,
+		env.deps,
+		"extension",
+		"update",
+		"integration-update-ext",
+		"--check",
+		"-o",
+		"json",
+	)
 	if err != nil {
 		t.Fatalf("extension update --check integration error = %v", err)
 	}
@@ -146,7 +173,15 @@ func TestExtensionUpdateAndRemoveIntegration(t *testing.T) {
 		t.Fatalf("installed version after update = %q, want %q", info.Version, "1.3.0")
 	}
 
-	if _, _, err := executeRootCommand(t, env.deps, "extension", "remove", "integration-update-ext", "-o", "json"); err != nil {
+	if _, _, err := executeRootCommand(
+		t,
+		env.deps,
+		"extension",
+		"remove",
+		"integration-update-ext",
+		"-o",
+		"json",
+	); err != nil {
 		t.Fatalf("extension remove integration error = %v", err)
 	}
 

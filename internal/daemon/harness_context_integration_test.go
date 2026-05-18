@@ -183,7 +183,11 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		networkSkill,
 	)
 
-	userResolved, err := daemonInstance.harnessResolver.ResolvePrompt(created.Info(), session.TurnSourceUser, acp.PromptMeta{})
+	userResolved, err := daemonInstance.harnessResolver.ResolvePrompt(
+		created.Info(),
+		session.TurnSourceUser,
+		acp.PromptMeta{},
+	)
 	if err != nil {
 		t.Fatalf("ResolvePrompt(user) error = %v", err)
 	}
@@ -227,7 +231,11 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 		t.Fatalf("user prompt situation context occurrences = %d, want 1", got)
 	}
 
-	networkResolved, err := daemonInstance.harnessResolver.ResolvePrompt(created.Info(), session.TurnSourceNetwork, acp.PromptMeta{})
+	networkResolved, err := daemonInstance.harnessResolver.ResolvePrompt(
+		created.Info(),
+		session.TurnSourceNetwork,
+		acp.PromptMeta{},
+	)
 	if err != nil {
 		t.Fatalf("ResolvePrompt(network) error = %v", err)
 	}
@@ -313,7 +321,11 @@ func TestHarnessContextIntegrationResolverStableAcrossResume(t *testing.T) {
 	}
 
 	if !reflect.DeepEqual(beforeResume.Policy, afterResume.Policy) {
-		t.Fatalf("resolved policy changed across resume\nbefore=%#v\nafter=%#v", beforeResume.Policy, afterResume.Policy)
+		t.Fatalf(
+			"resolved policy changed across resume\nbefore=%#v\nafter=%#v",
+			beforeResume.Policy,
+			afterResume.Policy,
+		)
 	}
 
 	networkSkill, err := skillbundled.LoadResource(bundledAghSkillName, bundledNetworkReference)

@@ -137,7 +137,13 @@ func TestDiscordProviderIngressAndDeliveryConformance(t *testing.T) {
 	}
 
 	webhookURL := fmt.Sprintf("http://%s/discord/%s", listenAddr, harness.Instances[0].ID)
-	status, _, elapsed := postDiscordSignedJSON(t, webhookURL, privateKey, startTime, discordProviderMessageEventWebhook(startTime))
+	status, _, elapsed := postDiscordSignedJSON(
+		t,
+		webhookURL,
+		privateKey,
+		startTime,
+		discordProviderMessageEventWebhook(startTime),
+	)
 	if got, want := status, http.StatusNoContent; got != want {
 		t.Fatalf("message webhook status = %d, want %d", got, want)
 	}
@@ -145,7 +151,13 @@ func TestDiscordProviderIngressAndDeliveryConformance(t *testing.T) {
 		t.Fatalf("message webhook ack took %s, want <= 1s", elapsed)
 	}
 
-	status, body, elapsed := postDiscordSignedJSON(t, webhookURL, privateKey, startTime, discordProviderCommandInteraction())
+	status, body, elapsed := postDiscordSignedJSON(
+		t,
+		webhookURL,
+		privateKey,
+		startTime,
+		discordProviderCommandInteraction(),
+	)
 	if got, want := status, http.StatusOK; got != want {
 		t.Fatalf("command interaction status = %d, want %d", got, want)
 	}
@@ -156,7 +168,13 @@ func TestDiscordProviderIngressAndDeliveryConformance(t *testing.T) {
 		t.Fatalf("command interaction body = %s, want %s", got, want)
 	}
 
-	status, body, elapsed = postDiscordSignedJSON(t, webhookURL, privateKey, startTime, discordProviderActionInteraction())
+	status, body, elapsed = postDiscordSignedJSON(
+		t,
+		webhookURL,
+		privateKey,
+		startTime,
+		discordProviderActionInteraction(),
+	)
 	if got, want := status, http.StatusOK; got != want {
 		t.Fatalf("action interaction status = %d, want %d", got, want)
 	}
@@ -167,7 +185,13 @@ func TestDiscordProviderIngressAndDeliveryConformance(t *testing.T) {
 		t.Fatalf("action interaction body = %s, want %s", got, want)
 	}
 
-	status, _, elapsed = postDiscordSignedJSON(t, webhookURL, privateKey, startTime, discordProviderReactionEventWebhook())
+	status, _, elapsed = postDiscordSignedJSON(
+		t,
+		webhookURL,
+		privateKey,
+		startTime,
+		discordProviderReactionEventWebhook(),
+	)
 	if got, want := status, http.StatusNoContent; got != want {
 		t.Fatalf("reaction webhook status = %d, want %d", got, want)
 	}
@@ -187,7 +211,10 @@ func TestDiscordProviderIngressAndDeliveryConformance(t *testing.T) {
 		return true
 	})
 	deliveries := harness.WaitForDeliveries(t, 10*time.Second, func(records []extensiontest.DeliveryRecord) bool {
-		return len(records) > 0 && normalizeDeliveryEventType(records[len(records)-1].Request.Event.EventType) == bridgepkg.DeliveryEventTypeFinal
+		return len(records) > 0 &&
+			normalizeDeliveryEventType(
+				records[len(records)-1].Request.Event.EventType,
+			) == bridgepkg.DeliveryEventTypeFinal
 	})
 	report := harness.Report(t)
 
@@ -246,10 +273,14 @@ func TestDiscordProviderIngressAndDeliveryConformance(t *testing.T) {
 	if len(deliveries) < 2 {
 		t.Fatalf("len(deliveries) = %d, want at least 2", len(deliveries))
 	}
-	if got, want := normalizeDeliveryEventType(deliveries[0].Request.Event.EventType), bridgepkg.DeliveryEventTypeStart; got != want {
+	if got, want := normalizeDeliveryEventType(
+		deliveries[0].Request.Event.EventType,
+	), bridgepkg.DeliveryEventTypeStart; got != want {
 		t.Fatalf("first delivery event type = %q, want %q", got, want)
 	}
-	if got, want := normalizeDeliveryEventType(deliveries[len(deliveries)-1].Request.Event.EventType), bridgepkg.DeliveryEventTypeFinal; got != want {
+	if got, want := normalizeDeliveryEventType(
+		deliveries[len(deliveries)-1].Request.Event.EventType,
+	), bridgepkg.DeliveryEventTypeFinal; got != want {
 		t.Fatalf("last delivery event type = %q, want %q", got, want)
 	}
 
@@ -283,7 +314,13 @@ func buildDiscordProvider(t *testing.T, repoRoot string) {
 	t.Helper()
 
 	buildDiscordProviderOnce.Do(func() {
-		cmd := exec.Command("go", "build", "-o", filepath.Join(repoRoot, "extensions", "bridges", "discord", "bin", "discord"), ".")
+		cmd := exec.Command(
+			"go",
+			"build",
+			"-o",
+			filepath.Join(repoRoot, "extensions", "bridges", "discord", "bin", "discord"),
+			".",
+		)
 		cmd.Dir = filepath.Join(repoRoot, "extensions", "bridges", "discord")
 		output, err := cmd.CombinedOutput()
 		if err != nil {

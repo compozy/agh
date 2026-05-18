@@ -87,6 +87,27 @@ func TestNativeProviderDispatch(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject unsupported schema type declarations before native handler registration", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := validDispatchDescriptor()
+		descriptor.InputSchema = json.RawMessage(`{
+			"type":"object",
+			"properties":{"query":{"type":["string","strng"]}}
+		}`)
+		provider, err := NewNativeProvider(descriptor.Source, NativeTool{
+			Descriptor: descriptor,
+			Call: func(context.Context, Scope, CallRequest) (ToolResult, error) {
+				t.Fatal("native handler was registered for schema-invalid descriptor")
+				return ToolResult{}, nil
+			},
+		})
+		if err == nil {
+			t.Fatalf("NewNativeProvider() = %#v, nil error; want schema invalid error", provider)
+		}
+		requireReason(t, err, ReasonSchemaInvalid)
+	})
+
 	t.Run("Should enforce enum oneOf and not schema rules before native handler invocation", func(t *testing.T) {
 		t.Parallel()
 

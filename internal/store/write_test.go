@@ -192,6 +192,10 @@ func TestExecuteWrite(t *testing.T) {
 			}
 			t.Fatal("capturedTx.QueryContext() error = nil, want closed transaction error")
 		}
+		var closedCount int
+		if err := capturedTx.QueryRowContext(ctx, `SELECT COUNT(*) FROM items`).Scan(&closedCount); err == nil {
+			t.Fatal("capturedTx.QueryRowContext().Scan() error = nil, want closed transaction error")
+		}
 	})
 
 	t.Run("Should reject invalid execute write inputs", func(t *testing.T) {

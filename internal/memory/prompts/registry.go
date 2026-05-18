@@ -9,7 +9,7 @@ import (
 	"text/template"
 )
 
-//go:embed *.v1.tmpl *.v1.md
+//go:embed *.*.tmpl *.*.md
 var embeddedFS embed.FS
 
 // VersionV1 is the first stable prompt asset version for Memory v2 Slice 1.

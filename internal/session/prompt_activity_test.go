@@ -136,6 +136,10 @@ func TestPromptActivitySupervisorProgressIsPersistedThroughPromptPump(t *testing
 	}
 
 	cancel()
+	if err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
+		t.Fatalf("CancelPrompt() error = %v", err)
+	}
+	close(source)
 	drainPromptEvents(t, events)
 	stored := readStoredEvents(t, session)
 	if !storedEventsContainType(stored, acp.EventTypeRuntimeProgress) {

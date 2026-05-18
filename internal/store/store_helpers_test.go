@@ -536,8 +536,8 @@ func TestStoreHelpersAndErrorPaths(t *testing.T) {
 		t.Fatal("NewID(\"\") = empty, want non-empty")
 	}
 
-	if !shouldRecoverSQLite(errors.New("file is not a database")) {
-		t.Fatal("shouldRecoverSQLite(not a database) = false, want true")
+	if shouldRecoverSQLite(errors.New("file is not a database")) {
+		t.Fatal("shouldRecoverSQLite(untyped not a database) = true, want false")
 	}
 	if shouldRecoverSQLite(errors.New("permission denied")) {
 		t.Fatal("shouldRecoverSQLite(permission denied) = true, want false")

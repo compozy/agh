@@ -27,7 +27,7 @@ func TestRuntimeTriggerReturnsAlreadyRunningWhenLockUnavailable(t *testing.T) {
 		shouldRun: true,
 		runErr:    memory.ErrLockUnavailable,
 	}
-	runtime := NewRuntime(true, service, func(context.Context, string, string, string) error {
+	runtime := NewRuntime(true, service, func(context.Context, string, string, string, time.Time) error {
 		return nil
 	}, time.Minute, discardLogger(), nil)
 
@@ -50,7 +50,7 @@ func TestRuntimeTriggerReturnsGateMissWhenRunSignalGateMisses(t *testing.T) {
 		shouldRun: true,
 		runErr:    memory.ErrDreamGateNotSatisfied,
 	}
-	runtime := NewRuntime(true, service, func(context.Context, string, string, string) error {
+	runtime := NewRuntime(true, service, func(context.Context, string, string, string, time.Time) error {
 		return nil
 	}, time.Minute, discardLogger(), nil)
 
@@ -73,7 +73,7 @@ func TestRuntimeTriggerStates(t *testing.T) {
 		runtime := NewRuntime(
 			false,
 			&fakeDreamService{shouldRun: true},
-			func(context.Context, string, string, string) error {
+			func(context.Context, string, string, string, time.Time) error {
 				return nil
 			},
 			time.Minute,
@@ -97,7 +97,7 @@ func TestRuntimeTriggerStates(t *testing.T) {
 		runtime := NewRuntime(
 			true,
 			&fakeDreamService{shouldRun: false},
-			func(context.Context, string, string, string) error {
+			func(context.Context, string, string, string, time.Time) error {
 				return nil
 			},
 			time.Minute,
@@ -122,7 +122,7 @@ func TestRuntimeTriggerStates(t *testing.T) {
 		runtime := NewRuntime(
 			true,
 			&fakeDreamService{shouldRunErr: expectedErr},
-			func(context.Context, string, string, string) error {
+			func(context.Context, string, string, string, time.Time) error {
 				return nil
 			},
 			time.Minute,
@@ -138,7 +138,7 @@ func TestRuntimeTriggerStates(t *testing.T) {
 
 	t.Run("Should successful run trims workspace", func(t *testing.T) {
 		service := &fakeDreamService{shouldRun: true}
-		runtime := NewRuntime(true, service, func(context.Context, string, string, string) error {
+		runtime := NewRuntime(true, service, func(context.Context, string, string, string, time.Time) error {
 			return nil
 		}, time.Minute, discardLogger(), nil)
 
@@ -192,7 +192,7 @@ func TestRuntimeTickerRunsAndStopsOnCancellation(t *testing.T) {
 	t.Parallel()
 
 	service := &fakeDreamService{shouldRun: true}
-	runtime := NewRuntime(true, service, func(context.Context, string, string, string) error {
+	runtime := NewRuntime(true, service, func(context.Context, string, string, string, time.Time) error {
 		return nil
 	}, 10*time.Millisecond, discardLogger(), nil)
 
@@ -218,7 +218,7 @@ func TestRuntimeEnqueueCheckRunsQueuedRequest(t *testing.T) {
 	t.Parallel()
 
 	service := &fakeDreamService{shouldRun: true}
-	runtime := NewRuntime(true, service, func(context.Context, string, string, string) error {
+	runtime := NewRuntime(true, service, func(context.Context, string, string, string, time.Time) error {
 		return nil
 	}, time.Hour, discardLogger(), nil)
 
@@ -240,7 +240,7 @@ func TestRuntimeStartDoesNothingWhenDisabled(t *testing.T) {
 	t.Parallel()
 
 	service := &fakeDreamService{shouldRun: true}
-	runtime := NewRuntime(false, service, func(context.Context, string, string, string) error {
+	runtime := NewRuntime(false, service, func(context.Context, string, string, string, time.Time) error {
 		return nil
 	}, 10*time.Millisecond, discardLogger(), nil)
 
@@ -258,7 +258,7 @@ func TestRuntimeRunCheckStopsOnErrors(t *testing.T) {
 
 	t.Run("Should lock unavailable is swallowed", func(t *testing.T) {
 		service := &fakeDreamService{shouldRun: true, runErr: memory.ErrLockUnavailable}
-		runtime := NewRuntime(true, service, func(context.Context, string, string, string) error {
+		runtime := NewRuntime(true, service, func(context.Context, string, string, string, time.Time) error {
 			return nil
 		}, time.Minute, discardLogger(), nil)
 
@@ -266,7 +266,7 @@ func TestRuntimeRunCheckStopsOnErrors(t *testing.T) {
 			context.Background(),
 			discardLogger(),
 			service,
-			func(context.Context, string, string, string) error {
+			func(context.Context, string, string, string, time.Time) error {
 				return nil
 			},
 			"manual",
@@ -279,7 +279,7 @@ func TestRuntimeRunCheckStopsOnErrors(t *testing.T) {
 
 	t.Run("Should signal gate miss is swallowed", func(t *testing.T) {
 		service := &fakeDreamService{shouldRun: true, runErr: memory.ErrDreamGateNotSatisfied}
-		runtime := NewRuntime(true, service, func(context.Context, string, string, string) error {
+		runtime := NewRuntime(true, service, func(context.Context, string, string, string, time.Time) error {
 			return nil
 		}, time.Minute, discardLogger(), nil)
 
@@ -287,7 +287,7 @@ func TestRuntimeRunCheckStopsOnErrors(t *testing.T) {
 			context.Background(),
 			discardLogger(),
 			service,
-			func(context.Context, string, string, string) error {
+			func(context.Context, string, string, string, time.Time) error {
 				return nil
 			},
 			"manual",
@@ -301,7 +301,7 @@ func TestRuntimeRunCheckStopsOnErrors(t *testing.T) {
 	t.Run("Should skip spawn on should-run error", func(t *testing.T) {
 		service := &fakeDreamService{shouldRunErr: errors.New("gate failed")}
 		spawnCalls := 0
-		runtime := NewRuntime(true, service, func(context.Context, string, string, string) error {
+		runtime := NewRuntime(true, service, func(context.Context, string, string, string, time.Time) error {
 			spawnCalls++
 			return nil
 		}, time.Minute, discardLogger(), nil)
@@ -310,7 +310,7 @@ func TestRuntimeRunCheckStopsOnErrors(t *testing.T) {
 			context.Background(),
 			discardLogger(),
 			service,
-			func(context.Context, string, string, string) error {
+			func(context.Context, string, string, string, time.Time) error {
 				spawnCalls++
 				return nil
 			},
@@ -335,7 +335,7 @@ func TestNewSessionSpawnerCreatesDreamSession(t *testing.T) {
 		},
 	}
 
-	spawner := NewSessionSpawner(sessions, resolver, &cfg, filepath.Join(t.TempDir(), "memory"))
+	spawner := NewSessionSpawner(sessions, resolver, &cfg)
 	if spawner == nil {
 		t.Fatal("NewSessionSpawner() = nil, want non-nil")
 	}
@@ -345,6 +345,7 @@ func TestNewSessionSpawnerCreatesDreamSession(t *testing.T) {
 		"memory-consolidation",
 		"summarize recent sessions",
 		workspace,
+		time.Time{},
 	); err != nil {
 		t.Fatalf("spawner() error = %v", err)
 	}
@@ -390,8 +391,8 @@ func TestNewSessionSpawnerUsesDedicatedDreamingCuratorForDefaultAgent(t *testing
 		},
 	}
 
-	spawner := NewSessionSpawner(sessions, resolver, &cfg, filepath.Join(t.TempDir(), "memory"))
-	if err := spawner(context.Background(), "memory-consolidation", "prompt", "ws-default"); err != nil {
+	spawner := NewSessionSpawner(sessions, resolver, &cfg)
+	if err := spawner(context.Background(), "memory-consolidation", "prompt", "ws-default", time.Time{}); err != nil {
 		t.Fatalf("spawner() error = %v", err)
 	}
 
@@ -411,8 +412,14 @@ func TestNewSessionSpawnerResolvesExplicitAliasWorkspace(t *testing.T) {
 		},
 	}
 
-	spawner := NewSessionSpawner(sessions, resolver, &cfg, filepath.Join(t.TempDir(), "memory"))
-	if err := spawner(context.Background(), "memory-consolidation", "prompt", "workspace-alias"); err != nil {
+	spawner := NewSessionSpawner(sessions, resolver, &cfg)
+	if err := spawner(
+		context.Background(),
+		"memory-consolidation",
+		"prompt",
+		"workspace-alias",
+		time.Time{},
+	); err != nil {
 		t.Fatalf("spawner() error = %v", err)
 	}
 
@@ -439,10 +446,9 @@ func TestNewSessionSpawnerPropagatesWorkspaceResolveErrors(t *testing.T) {
 		&fakeSessionManager{},
 		&fakeWorkspaceResolver{resolveErr: expectedErr},
 		&cfg,
-		filepath.Join(t.TempDir(), "memory"),
 	)
 
-	err := spawner(context.Background(), "memory-consolidation", "prompt", "workspace-alias")
+	err := spawner(context.Background(), "memory-consolidation", "prompt", "workspace-alias", time.Time{})
 	if !errors.Is(err, expectedErr) {
 		t.Fatalf("spawner() error = %v, want %v", err, expectedErr)
 	}
@@ -491,21 +497,10 @@ func TestNewSessionSpawnerDerivesRecentWorkspacesFromSessions(t *testing.T) {
 			},
 		},
 	}
-	globalMemoryDir := filepath.Join(t.TempDir(), "memory")
-	lockPath := memory.ConsolidationLockPath(globalMemoryDir)
 	prior := time.Date(2026, 4, 4, 8, 0, 0, 0, time.UTC)
-	if err := os.MkdirAll(filepath.Dir(lockPath), 0o755); err != nil {
-		t.Fatalf("os.MkdirAll(lock dir) error = %v", err)
-	}
-	if err := os.WriteFile(lockPath, nil, 0o644); err != nil {
-		t.Fatalf("os.WriteFile(lock) error = %v", err)
-	}
-	if err := os.Chtimes(lockPath, prior, prior); err != nil {
-		t.Fatalf("os.Chtimes(lock) error = %v", err)
-	}
 
-	spawner := NewSessionSpawner(sessions, &fakeWorkspaceResolver{}, &cfg, globalMemoryDir)
-	if err := spawner(context.Background(), "memory-consolidation", "prompt", ""); err != nil {
+	spawner := NewSessionSpawner(sessions, &fakeWorkspaceResolver{}, &cfg)
+	if err := spawner(context.Background(), "memory-consolidation", "prompt", "", prior); err != nil {
 		t.Fatalf("spawner() error = %v", err)
 	}
 
@@ -579,8 +574,8 @@ func TestNewSessionSpawnerReturnsNoRecentWorkspacesWhenSessionsAreOld(t *testing
 		t.Fatalf("os.Chtimes(lock) error = %v", err)
 	}
 
-	spawner := NewSessionSpawner(sessions, &fakeWorkspaceResolver{}, &cfg, globalMemoryDir)
-	err := spawner(context.Background(), "memory-consolidation", "prompt", "")
+	spawner := NewSessionSpawner(sessions, &fakeWorkspaceResolver{}, &cfg)
+	err := spawner(context.Background(), "memory-consolidation", "prompt", "", prior)
 	if err == nil {
 		t.Fatal("spawner() error = nil, want non-nil")
 	}

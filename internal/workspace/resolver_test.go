@@ -1135,6 +1135,82 @@ func TestChangeHookRunsAfterWorkspaceMutations(t *testing.T) {
 			t.Fatalf("GetWorkspace(rolled back) error = %v, want %v", err, ErrWorkspaceNotFound)
 		}
 	})
+
+	t.Run("Should roll back update when change hook fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := newTestHomePaths(t)
+		root := t.TempDir()
+		createdAt := time.Unix(1700, 0).UTC()
+		updatedAt := time.Unix(1800, 0).UTC()
+		existing := Workspace{
+			ID:        "ws_update_hook_fail",
+			RootDir:   mustCanonicalRoot(t, root),
+			Name:      "repo",
+			CreatedAt: createdAt,
+			UpdatedAt: updatedAt,
+		}
+		store := newMockWorkspaceStore(existing)
+		hookErr := errors.New("sync failed")
+		resolver := newTestResolver(t, store,
+			WithHomePaths(homePaths),
+			WithConfigLoader((&countingConfigLoader{cfg: validConfig(homePaths)}).Load),
+			WithChangeHook(func(context.Context) error {
+				return hookErr
+			}),
+		)
+
+		renamed := "repo-renamed"
+		err := resolver.Update(ctx, existing.ID, UpdateOptions{Name: &renamed})
+		if !errors.Is(err, hookErr) {
+			t.Fatalf("Update() error = %v, want hook error %v", err, hookErr)
+		}
+		if got := len(store.updateCalls); got != 2 {
+			t.Fatalf("UpdateWorkspace() calls = %d, want 2", got)
+		}
+		if got := store.mustWorkspace(existing.ID); got.Name != existing.Name {
+			t.Fatalf("persisted name after rollback = %q, want %q", got.Name, existing.Name)
+		} else if !got.UpdatedAt.Equal(existing.UpdatedAt) {
+			t.Fatalf("persisted UpdatedAt after rollback = %v, want %v", got.UpdatedAt, existing.UpdatedAt)
+		}
+	})
+
+	t.Run("Should roll back unregister when change hook fails", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := newTestHomePaths(t)
+		root := t.TempDir()
+		existing := Workspace{
+			ID:      "ws_unregister_hook_fail",
+			RootDir: mustCanonicalRoot(t, root),
+			Name:    "repo",
+		}
+		store := newMockWorkspaceStore(existing)
+		hookErr := errors.New("sync failed")
+		resolver := newTestResolver(t, store,
+			WithHomePaths(homePaths),
+			WithConfigLoader((&countingConfigLoader{cfg: validConfig(homePaths)}).Load),
+			WithChangeHook(func(context.Context) error {
+				return hookErr
+			}),
+		)
+
+		err := resolver.Unregister(ctx, existing.ID)
+		if !errors.Is(err, hookErr) {
+			t.Fatalf("Unregister() error = %v, want hook error %v", err, hookErr)
+		}
+		if got := len(store.deleteCalls); got != 1 {
+			t.Fatalf("DeleteWorkspace() calls = %d, want 1", got)
+		}
+		if got := len(store.insertCalls); got != 1 {
+			t.Fatalf("InsertWorkspace() calls = %d, want 1", got)
+		}
+		if got := store.mustWorkspace(existing.ID); got.Name != existing.Name {
+			t.Fatalf("persisted name after rollback = %q, want %q", got.Name, existing.Name)
+		}
+	})
 }
 
 func TestResolveOrRegisterReturnsConcurrentWinnerWhenPathTaken(t *testing.T) {

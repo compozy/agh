@@ -300,43 +300,41 @@ mutation LinearProviderCreateAgentActivity($agentSessionId: String!, $body: Stri
 	return &activity, nil
 }
 
-func doLinearGraphQL[T any](ctx context.Context, c *linearClient, request linearGraphQLRequest) (T, error) {
-	var zero T
-
+func doLinearGraphQL[T any](ctx context.Context, c *linearClient, request linearGraphQLRequest) (result T, err error) {
 	payload, err := json.Marshal(request)
 	if err != nil {
-		return zero, fmt.Errorf("linear: marshal graphql request: %w", err)
+		return result, fmt.Errorf("linear: marshal graphql request: %w", err)
 	}
 
 	if !validLinearCredentialedURL(c.cfg.apiBaseURL) {
-		return zero, &bridgesdk.PermanentError{Err: errors.New("linear: api base url is invalid")}
+		return result, &bridgesdk.PermanentError{Err: errors.New("linear: api base url is invalid")}
 	}
 	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, c.cfg.graphqlURL(), bytes.NewReader(payload))
 	if err != nil {
-		return zero, fmt.Errorf("linear: build graphql request: %w", err)
+		return result, fmt.Errorf("linear: build graphql request: %w", err)
+	}
+	token, err := c.authTokenForRequest(ctx)
+	if err != nil {
+		return result, err
 	}
 	httpRequest.Header.Set("Content-Type", "application/json")
-	httpRequest.Header.Set("Authorization", "Bearer "+c.authToken(ctx))
+	httpRequest.Header.Set("Authorization", "Bearer "+token)
 
 	httpResponse, err := linearCredentialedHTTPClient(c.httpClient).Do(httpRequest)
 	if err != nil {
-		return zero, classifyLinearTransportError(err)
+		return result, classifyLinearTransportError(err)
 	}
-	defer func() {
-		_ = httpResponse.Body.Close()
-	}()
-
-	body, err := io.ReadAll(httpResponse.Body)
+	body, err := readLinearHTTPResponseBody(httpResponse, "graphql")
 	if err != nil {
-		return zero, fmt.Errorf("linear: read graphql response: %w", err)
+		return result, err
 	}
 	if httpResponse.StatusCode >= 400 {
-		return zero, classifyLinearHTTPError(httpResponse.StatusCode, body)
+		return result, classifyLinearHTTPError(httpResponse.StatusCode, body)
 	}
 
 	envelope := linearGraphQLResponse[T]{}
 	if err := json.Unmarshal(body, &envelope); err != nil {
-		return zero, fmt.Errorf("linear: decode graphql response: %w", err)
+		return result, fmt.Errorf("linear: decode graphql response: %w", err)
 	}
 	if len(envelope.Errors) > 0 {
 		messages := make([]string, 0, len(envelope.Errors))
@@ -345,7 +343,7 @@ func doLinearGraphQL[T any](ctx context.Context, c *linearClient, request linear
 				messages = append(messages, text)
 			}
 		}
-		return zero, &bridgesdk.PermanentError{
+		return result, &bridgesdk.PermanentError{
 			Err: fmt.Errorf("linear: graphql error: %s", strings.Join(messages, "; ")),
 		}
 	}
@@ -354,16 +352,24 @@ func doLinearGraphQL[T any](ctx context.Context, c *linearClient, request linear
 }
 
 func (c *linearClient) authToken(ctx context.Context) string {
+	token, err := c.authTokenForRequest(ctx)
+	if err != nil {
+		return ""
+	}
+	return token
+}
+
+func (c *linearClient) authTokenForRequest(ctx context.Context) (string, error) {
 	if c.cfg.authMode != linearAuthModeOAuth {
-		return c.cfg.apiKey
+		return c.cfg.apiKey, nil
 	}
 	return c.ensureOAuthToken(ctx)
 }
 
-func (c *linearClient) ensureOAuthToken(ctx context.Context) string {
+func (c *linearClient) ensureOAuthToken(ctx context.Context) (string, error) {
 	cache := c.cfg.oauthTokenCache
 	if cache == nil {
-		return ""
+		return "", &bridgesdk.PermanentError{Err: errors.New("linear: oauth token cache is required")}
 	}
 
 	cache.mu.Lock()
@@ -372,7 +378,7 @@ func (c *linearClient) ensureOAuthToken(ctx context.Context) string {
 	now := c.now()
 	if strings.TrimSpace(cache.token) != "" &&
 		(cache.expiresAt.IsZero() || cache.expiresAt.After(now.Add(time.Minute))) {
-		return cache.token
+		return cache.token, nil
 	}
 
 	values := url.Values{}
@@ -382,9 +388,8 @@ func (c *linearClient) ensureOAuthToken(ctx context.Context) string {
 	values.Set("scope", strings.Join(defaultLinearOAuthScopes(c.cfg.mode), ","))
 
 	if !validLinearCredentialedURL(c.cfg.oauthTokenURL) {
-		cache.token = ""
-		cache.expiresAt = time.Time{}
-		return ""
+		clearLinearOAuthTokenCache(cache)
+		return "", &bridgesdk.PermanentError{Err: errors.New("linear: oauth token url is invalid")}
 	}
 	httpRequest, err := http.NewRequestWithContext(
 		ctx,
@@ -393,47 +398,71 @@ func (c *linearClient) ensureOAuthToken(ctx context.Context) string {
 		strings.NewReader(values.Encode()),
 	)
 	if err != nil {
-		cache.token = ""
-		cache.expiresAt = time.Time{}
-		return ""
+		clearLinearOAuthTokenCache(cache)
+		return "", fmt.Errorf("linear: build oauth token request: %w", err)
 	}
 	httpRequest.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	httpResponse, err := linearCredentialedHTTPClient(c.httpClient).Do(httpRequest)
 	if err != nil {
-		cache.token = ""
-		cache.expiresAt = time.Time{}
-		return ""
+		clearLinearOAuthTokenCache(cache)
+		return "", classifyLinearTransportError(err)
 	}
-	defer func() {
-		_ = httpResponse.Body.Close()
-	}()
-
-	body, err := io.ReadAll(httpResponse.Body)
+	body, err := readLinearHTTPResponseBody(httpResponse, "oauth token")
 	if err != nil {
-		cache.token = ""
-		cache.expiresAt = time.Time{}
-		return ""
+		clearLinearOAuthTokenCache(cache)
+		return "", err
 	}
 	if httpResponse.StatusCode >= 400 {
-		cache.token = ""
-		cache.expiresAt = time.Time{}
-		return ""
+		clearLinearOAuthTokenCache(cache)
+		return "", classifyLinearHTTPError(httpResponse.StatusCode, body)
 	}
 
 	response := linearOAuthTokenResponse{}
 	if err := json.Unmarshal(body, &response); err != nil {
-		cache.token = ""
-		cache.expiresAt = time.Time{}
-		return ""
+		clearLinearOAuthTokenCache(cache)
+		return "", &bridgesdk.TransientError{Err: fmt.Errorf("linear: decode oauth token response: %w", err)}
 	}
 	cache.token = strings.TrimSpace(response.AccessToken)
+	if cache.token == "" {
+		clearLinearOAuthTokenCache(cache)
+		return "", &bridgesdk.AuthError{Err: errors.New("linear: oauth token response did not include access_token")}
+	}
 	if response.ExpiresIn > 0 {
 		cache.expiresAt = now.Add(time.Duration(response.ExpiresIn) * time.Second)
 	} else {
 		cache.expiresAt = time.Time{}
 	}
-	return cache.token
+	return cache.token, nil
+}
+
+func clearLinearOAuthTokenCache(cache *linearOAuthTokenCache) {
+	if cache == nil {
+		return
+	}
+	cache.token = ""
+	cache.expiresAt = time.Time{}
+}
+
+func readLinearHTTPResponseBody(response *http.Response, operation string) ([]byte, error) {
+	if response == nil || response.Body == nil {
+		return nil, fmt.Errorf("linear: %s response body is required", operation)
+	}
+	body, readErr := io.ReadAll(response.Body)
+	closeErr := response.Body.Close()
+	switch {
+	case readErr != nil && closeErr != nil:
+		return nil, errors.Join(
+			fmt.Errorf("linear: read %s response: %w", operation, readErr),
+			fmt.Errorf("linear: close %s response body: %w", operation, closeErr),
+		)
+	case readErr != nil:
+		return nil, fmt.Errorf("linear: read %s response: %w", operation, readErr)
+	case closeErr != nil:
+		return nil, fmt.Errorf("linear: close %s response body: %w", operation, closeErr)
+	default:
+		return body, nil
+	}
 }
 
 func defaultLinearOAuthScopes(mode string) []string {

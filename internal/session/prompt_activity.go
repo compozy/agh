@@ -10,6 +10,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/diagnostics"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/subprocess"
 )
@@ -56,7 +57,6 @@ func newPromptActivitySupervisor(
 	turnState *promptTurnDispatchState,
 	config aghconfig.SessionSupervisionConfig,
 ) *promptActivitySupervisor {
-	deadlineAt, hasDeadline := deadlineFromContext(ctx)
 	supervisorBase := context.Background()
 	if ctx != nil {
 		supervisorBase = context.WithoutCancel(ctx)
@@ -65,6 +65,11 @@ func newPromptActivitySupervisor(
 	startedAt := time.Now().UTC()
 	if manager != nil && manager.now != nil {
 		startedAt = manager.now().UTC()
+	}
+	deadlineAt, hasDeadline := deadlineFromContext(ctx)
+	if config.PromptDeadline > 0 {
+		deadlineAt = startedAt.Add(config.PromptDeadline)
+		hasDeadline = true
 	}
 	turnID := ""
 	turnSource := TurnSourceUser
@@ -679,6 +684,7 @@ func (s *promptActivitySupervisor) handleUnhealthyProcess(now time.Time, emitWar
 	s.mu.Unlock()
 
 	if shouldPersist {
+		healthError := unhealthyProcessDiagnostic(health)
 		s.session.markRuntimeStalled(store.SessionStallReasonProcessUnhealthy, now)
 		if err := s.manager.writeMeta(s.session); err != nil {
 			s.manager.sessionLogger(s.session).
@@ -687,6 +693,7 @@ func (s *promptActivitySupervisor) handleUnhealthyProcess(now time.Time, emitWar
 		if _, err := s.manager.persistSessionHealthForSession(s.ctx, s.session, now, sessionHealthInput{
 			activePrompt: true,
 			attachable:   sessionAttachable(s.session),
+			lastError:    healthError,
 		}); err != nil {
 			s.manager.sessionLogger(s.session).
 				Warn("session: persist unhealthy runtime health failed", "turn_id", s.turnID, "error", err)
@@ -777,6 +784,10 @@ func unhealthyProcessText(health subprocess.HealthState) string {
 		parts = append(parts, lastErr)
 	}
 	return strings.Join(parts, " ")
+}
+
+func unhealthyProcessDiagnostic(health subprocess.HealthState) string {
+	return diagnostics.RedactAndBound(unhealthyProcessText(health), maxSessionFailureSummaryBytes)
 }
 
 func processHealthFailureDetected(health subprocess.HealthState) bool {

@@ -366,6 +366,37 @@ func TestVerifyLinearWebhookSignatureAndTimestamp(t *testing.T) {
 		t.Fatal("verifyLinearWebhookSignature(invalid) error = nil, want non-nil")
 	}
 
+	sharedPathBody := []byte(`{"type":"Comment","organizationId":"org-b"}`)
+	sharedPathReq := httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"http://example.test/linear",
+		strings.NewReader(string(sharedPathBody)),
+	)
+	sharedPathCandidates := []resolvedInstanceConfig{
+		{instanceID: "brg-a", organizationID: "org-a", mode: linearModeComments, webhookSecret: "secret-a"},
+		{instanceID: "brg-b", organizationID: "org-b", mode: linearModeComments, webhookSecret: "secret-b"},
+	}
+	scopedCandidates, err := selectLinearWebhookSignatureCandidates(sharedPathBody, sharedPathCandidates)
+	if err != nil {
+		t.Fatalf("selectLinearWebhookSignatureCandidates(shared path) error = %v", err)
+	}
+	if got, want := len(scopedCandidates), 1; got != want {
+		t.Fatalf("len(scopedCandidates) = %d, want %d", got, want)
+	}
+	if got, want := scopedCandidates[0].instanceID, "brg-b"; got != want {
+		t.Fatalf("scopedCandidates[0].instanceID = %q, want %q", got, want)
+	}
+
+	sharedPathReq.Header.Set("linear-signature", linearSignature("secret-b", sharedPathBody))
+	if err := verifyLinearWebhookSignature(sharedPathReq, sharedPathBody, scopedCandidates); err != nil {
+		t.Fatalf("verifyLinearWebhookSignature(shared path valid) error = %v", err)
+	}
+	sharedPathReq.Header.Set("linear-signature", linearSignature("secret-a", sharedPathBody))
+	if err := verifyLinearWebhookSignature(sharedPathReq, sharedPathBody, scopedCandidates); err == nil {
+		t.Fatal("verifyLinearWebhookSignature(shared path cross-instance) error = nil, want non-nil")
+	}
+
 	now := time.Date(2026, 4, 15, 21, 5, 0, 0, time.UTC)
 	if err := validateLinearWebhookTimestamp(now.Add(-30*time.Second).UnixMilli(), now); err != nil {
 		t.Fatalf("validateLinearWebhookTimestamp(within skew) error = %v", err)

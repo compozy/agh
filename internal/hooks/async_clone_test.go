@@ -258,6 +258,71 @@ func TestCloneAsyncPayloadCopiesReferenceFields(t *testing.T) {
 			t.Fatalf("cloned session id = %q, want %q", cloned.SessionID, original.SessionID)
 		}
 	})
+
+	t.Run("Should clone session soul context for async payloads", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name  string
+			clone func(*SessionSoulContext) *SessionSoulContext
+		}{
+			{
+				name: "Should clone input pre-submit session soul context",
+				clone: func(soul *SessionSoulContext) *SessionSoulContext {
+					cloned := cloneAsyncPayload(InputPreSubmitPayload{
+						SessionContext: SessionContext{SessionSoulContext: soul},
+					})
+					return cloned.SessionSoulContext
+				},
+			},
+			{
+				name: "Should clone session pre-create soul context",
+				clone: func(soul *SessionSoulContext) *SessionSoulContext {
+					cloned := cloneAsyncPayload(SessionPreCreatePayload{
+						SessionContext: SessionContext{SessionSoulContext: soul},
+					})
+					return cloned.SessionSoulContext
+				},
+			},
+			{
+				name: "Should clone session lifecycle soul context",
+				clone: func(soul *SessionSoulContext) *SessionSoulContext {
+					cloned := cloneAsyncPayload(SessionLifecyclePayload{
+						SessionContext: SessionContext{SessionSoulContext: soul},
+					})
+					return cloned.SessionSoulContext
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				original := &SessionSoulContext{
+					SoulSnapshotID: "snap-before",
+					SoulDigest:     "digest-before",
+				}
+				cloned := tt.clone(original)
+
+				original.SoulSnapshotID = "snap-after"
+				original.SoulDigest = "digest-after"
+
+				if cloned == nil {
+					t.Fatal("cloned SessionSoulContext = nil, want snapshot")
+				}
+				if cloned == original {
+					t.Fatal("cloned SessionSoulContext shares original pointer")
+				}
+				if cloned.SoulSnapshotID != "snap-before" {
+					t.Fatalf("cloned soul snapshot id = %q, want snap-before", cloned.SoulSnapshotID)
+				}
+				if cloned.SoulDigest != "digest-before" {
+					t.Fatalf("cloned soul digest = %q, want digest-before", cloned.SoulDigest)
+				}
+			})
+		}
+	})
 }
 
 func TestCloneAsyncPayloadCopiesTaskAndSpawnReferences(t *testing.T) {

@@ -22,7 +22,13 @@ import (
 	toolspkg "github.com/pedronauck/agh/internal/tools"
 )
 
-const stdioHelperEnv = "AGH_MCP_STDIO_HELPER"
+const (
+	stdioHelperEnv            = "AGH_MCP_STDIO_HELPER"
+	stdioEnvHelperEnv         = "AGH_MCP_STDIO_ENV_HELPER"
+	stdioParentSecretEnv      = "AGH_PARENT_SECRET_TOKEN"
+	stdioExplicitSecretEnv    = "AGH_EXPLICIT_SECRET_TOKEN"
+	stdioExplicitSecretSource = "AGH_EXPLICIT_SECRET_SOURCE"
+)
 
 func TestMCPCallExecutor(t *testing.T) {
 	t.Run("Should List And Call Streamable HTTP Server", func(t *testing.T) {
@@ -294,8 +300,106 @@ func TestMCPCallExecutor(t *testing.T) {
 	})
 }
 
+func TestMCPCallExecutorStdioEnvironmentBoundary(t *testing.T) {
+	t.Run("Should exclude ambient daemon secrets from stdio MCP processes", func(t *testing.T) {
+		setMCPTestEnv(t, stdioParentSecretEnv, "ambient-secret")
+
+		executor := newTestMCPExecutor(t, aghconfig.MCPServer{
+			Name:      "Local",
+			Transport: aghconfig.MCPServerTransportStdio,
+			Command:   os.Args[0],
+			Args:      []string{"-test.run=TestMCPStdioHelperProcess"},
+			Env: map[string]string{
+				stdioEnvHelperEnv: "1",
+			},
+		})
+
+		descriptor := requireMCPDescriptor(t, executor, "Local", "mcp__local__echo")
+		result := callMCPTool(
+			t,
+			executor,
+			descriptor,
+			json.RawMessage("{\"message\":\""+stdioParentSecretEnv+"\"}"),
+		)
+		if got, want := result.Preview, "env:"; got != want {
+			t.Fatalf("result.Preview = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should expose explicitly bound secret env to stdio MCP processes", func(t *testing.T) {
+		setMCPTestEnv(t, stdioExplicitSecretSource, "bound-secret")
+
+		executor := newTestMCPExecutor(
+			t,
+			aghconfig.MCPServer{
+				Name:      "Local",
+				Transport: aghconfig.MCPServerTransportStdio,
+				Command:   os.Args[0],
+				Args:      []string{"-test.run=TestMCPStdioHelperProcess"},
+				Env: map[string]string{
+					stdioEnvHelperEnv: "1",
+				},
+				SecretEnv: map[string]string{
+					stdioExplicitSecretEnv: "env:" + stdioExplicitSecretSource,
+				},
+			},
+			WithSecretLookup(os.Getenv),
+		)
+
+		descriptor := requireMCPDescriptor(t, executor, "Local", "mcp__local__echo")
+		result := callMCPTool(
+			t,
+			executor,
+			descriptor,
+			json.RawMessage("{\"message\":\""+stdioExplicitSecretEnv+"\"}"),
+		)
+		if got, want := result.Preview, "env: bound-secret"; got != want {
+			t.Fatalf("result.Preview = %q, want %q", got, want)
+		}
+	})
+}
+
+func setMCPTestEnv(t *testing.T, key string, value string) {
+	t.Helper()
+
+	original, hadOriginal := os.LookupEnv(key)
+	if err := os.Setenv(key, value); err != nil {
+		t.Fatalf("Setenv(%q) error = %v", key, err)
+	}
+	t.Cleanup(func() {
+		if hadOriginal {
+			if err := os.Setenv(key, original); err != nil {
+				t.Fatalf("restore Setenv(%q) error = %v", key, err)
+			}
+			return
+		}
+		if err := os.Unsetenv(key); err != nil {
+			t.Fatalf("Unsetenv(%q) error = %v", key, err)
+		}
+	})
+}
+
 func TestMCPStdioHelperProcess(t *testing.T) {
 	t.Run("Should Serve Stdio When Requested", func(_ *testing.T) {
+		if os.Getenv(stdioEnvHelperEnv) == "1" {
+			server := newFakeSDKServer(
+				func(_ context.Context, req mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+					key := mcpsdk.ParseString(req, "message", "")
+					value := os.Getenv(key)
+					return mcpsdk.NewToolResultStructured(
+						map[string]string{"message": value},
+						"env: "+value,
+					), nil
+				},
+			)
+			if err := mcpsrv.ServeStdio(server); err != nil {
+				if _, writeErr := fmt.Fprintln(os.Stderr, err); writeErr != nil {
+					os.Exit(3)
+				}
+				os.Exit(2)
+			}
+			os.Exit(0)
+		}
 		if os.Getenv(stdioHelperEnv) != "1" {
 			return
 		}
