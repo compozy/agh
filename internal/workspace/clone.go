@@ -6,6 +6,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/filesnap"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/sandbox"
 )
 
@@ -69,7 +70,7 @@ func cloneConfig(src *aghconfig.Config) aghconfig.Config {
 		Sandboxes:     cloneSandboxProfiles(src.Sandboxes),
 		Observability: src.Observability,
 		Log:           src.Log,
-		Memory:        src.Memory,
+		Memory:        cloneMemoryConfig(&src.Memory),
 		Skills: aghconfig.SkillsConfig{
 			Enabled:                 src.Skills.Enabled,
 			DisabledSkills:          append([]string(nil), src.Skills.DisabledSkills...),
@@ -78,7 +79,7 @@ func cloneConfig(src *aghconfig.Config) aghconfig.Config {
 			AllowedMarketplaceHooks: append([]string(nil), src.Skills.AllowedMarketplaceHooks...),
 			Marketplace:             src.Skills.Marketplace,
 		},
-		Extensions: src.Extensions,
+		Extensions: cloneExtensionsConfig(src.Extensions),
 		Tools: aghconfig.ToolsConfig{
 			Enabled:               src.Tools.Enabled,
 			HostedMCPEnabled:      src.Tools.HostedMCPEnabled,
@@ -90,13 +91,65 @@ func cloneConfig(src *aghconfig.Config) aghconfig.Config {
 				TrustedSources:         append([]string(nil), src.Tools.Policy.TrustedSources...),
 			},
 		},
-		Automation: src.Automation,
+		Automation: cloneAutomationConfig(src.Automation),
 		Autonomy:   src.Autonomy,
 		Hooks: aghconfig.HooksConfig{
 			Declarations: cloneHookDecls(src.Hooks.Declarations),
 		},
 		Network: src.Network,
 	}
+}
+
+func cloneMemoryConfig(src *aghconfig.MemoryConfig) aghconfig.MemoryConfig {
+	cloned := *src
+	cloned.Controller.Policy.AllowOrigins = append([]string(nil), src.Controller.Policy.AllowOrigins...)
+	return cloned
+}
+
+func cloneExtensionsConfig(src aghconfig.ExtensionsConfig) aghconfig.ExtensionsConfig {
+	cloned := src
+	cloned.Resources.AllowedKinds = append([]resources.ResourceKind(nil), src.Resources.AllowedKinds...)
+	return cloned
+}
+
+func cloneAutomationConfig(src aghconfig.AutomationConfig) aghconfig.AutomationConfig {
+	cloned := src
+	cloned.Jobs = cloneAutomationJobs(src.Jobs)
+	cloned.Triggers = cloneAutomationTriggers(src.Triggers)
+	return cloned
+}
+
+func cloneAutomationJobs(src []aghconfig.AutomationJob) []aghconfig.AutomationJob {
+	if len(src) == 0 {
+		return nil
+	}
+
+	cloned := make([]aghconfig.AutomationJob, len(src))
+	for idx, job := range src {
+		cloned[idx] = job
+		if job.Task != nil {
+			task := *job.Task
+			if job.Task.Owner != nil {
+				owner := *job.Task.Owner
+				task.Owner = &owner
+			}
+			cloned[idx].Task = &task
+		}
+	}
+	return cloned
+}
+
+func cloneAutomationTriggers(src []aghconfig.AutomationTrigger) []aghconfig.AutomationTrigger {
+	if len(src) == 0 {
+		return nil
+	}
+
+	cloned := make([]aghconfig.AutomationTrigger, len(src))
+	for idx, trigger := range src {
+		cloned[idx] = trigger
+		cloned[idx].Filter = cloneStringMap(trigger.Filter)
+	}
+	return cloned
 }
 
 func cloneSandboxProfiles(src map[string]aghconfig.SandboxProfile) map[string]aghconfig.SandboxProfile {

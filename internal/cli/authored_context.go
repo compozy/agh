@@ -724,7 +724,7 @@ func addAuthoredBodyFlags(cmd *cobra.Command, input *authoredBodyInput) {
 }
 
 func readAuthoredBody(cmd *cobra.Command, input authoredBodyInput, required bool) (string, error) {
-	if cmd.Flags().Changed("file") && cmd.Flags().Changed("stdin") {
+	if cmd.Flags().Changed("file") && input.stdin {
 		return "", errors.New("cli: --file and --stdin cannot be combined")
 	}
 	if input.stdin {

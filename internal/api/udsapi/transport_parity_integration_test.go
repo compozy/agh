@@ -247,7 +247,12 @@ func TestUDSTransportResumeMissingProviderReturnsExplicitBadRequest(t *testing.T
 	if stopResp.StatusCode != http.StatusNoContent {
 		body, _ := io.ReadAll(stopResp.Body)
 		_ = stopResp.Body.Close()
-		t.Fatalf("UDS stop session status = %d, want %d; body=%s", stopResp.StatusCode, http.StatusNoContent, string(body))
+		t.Fatalf(
+			"UDS stop session status = %d, want %d; body=%s",
+			stopResp.StatusCode,
+			http.StatusNoContent,
+			string(body),
+		)
 	}
 	_ = stopResp.Body.Close()
 
@@ -570,7 +575,12 @@ func TestUDSTransportSettingsDependencyExtensionParityMatchesHTTP(t *testing.T) 
 	if httpListResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(httpListResp.Body)
 		_ = httpListResp.Body.Close()
-		t.Fatalf("HTTP extension list status = %d, want %d; body=%s", httpListResp.StatusCode, http.StatusOK, string(body))
+		t.Fatalf(
+			"HTTP extension list status = %d, want %d; body=%s",
+			httpListResp.StatusCode,
+			http.StatusOK,
+			string(body),
+		)
 	}
 	var httpList aghcontract.ExtensionsResponse
 	decodeHTTPJSON(t, httpListResp, &httpList)
@@ -604,7 +614,13 @@ func TestUDSTransportSettingsDependencyExtensionParityMatchesHTTP(t *testing.T) 
 	decodeHTTPJSON(t, httpStatusResp, &httpStatus)
 
 	var udsStatus aghcontract.ExtensionResponse
-	if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, "/api/extensions/"+url.PathEscape(name), nil, &udsStatus); err != nil {
+	if err := runtimeHarness.UDSJSON(
+		ctx,
+		http.MethodGet,
+		"/api/extensions/"+url.PathEscape(name),
+		nil,
+		&udsStatus,
+	); err != nil {
 		t.Fatalf("UDSJSON(/api/extensions/%s) error = %v", name, err)
 	}
 	if !reflect.DeepEqual(httpStatus.Extension, udsStatus.Extension) {
@@ -655,7 +671,12 @@ func TestUDSTransportSettingsMutationsRemainPrivilegedWhenHTTPIsNonLoopback(t *t
 	if httpPutResp.StatusCode != http.StatusForbidden {
 		body, _ := io.ReadAll(httpPutResp.Body)
 		_ = httpPutResp.Body.Close()
-		t.Fatalf("HTTP PUT settings status = %d, want %d; body=%s", httpPutResp.StatusCode, http.StatusForbidden, string(body))
+		t.Fatalf(
+			"HTTP PUT settings status = %d, want %d; body=%s",
+			httpPutResp.StatusCode,
+			http.StatusForbidden,
+			string(body),
+		)
 	}
 	var forbidden aghcontract.ErrorPayload
 	decodeHTTPJSON(t, httpPutResp, &forbidden)
@@ -775,9 +796,15 @@ func waitForUDSAutomationRun(
 ) aghcontract.RunPayload {
 	t.Helper()
 
-	return waitForTransportAutomationRun(t, ctx, runID, "waitForUDSAutomationRun", func(fetchCtx context.Context) (aghcontract.RunPayload, error) {
-		return harness.GetAutomationRun(fetchCtx, runID)
-	})
+	return waitForTransportAutomationRun(
+		t,
+		ctx,
+		runID,
+		"waitForUDSAutomationRun",
+		func(fetchCtx context.Context) (aghcontract.RunPayload, error) {
+			return harness.GetAutomationRun(fetchCtx, runID)
+		},
+	)
 }
 
 func transportSettingsHTTPURL(harness *e2etest.RuntimeHarness, path string) string {
@@ -801,11 +828,17 @@ func waitForCLIAutomationRun(
 ) aghcontract.RunPayload {
 	t.Helper()
 
-	return waitForTransportAutomationRun(t, ctx, runID, "waitForCLIAutomationRun", func(fetchCtx context.Context) (aghcontract.RunPayload, error) {
-		var run aghcontract.RunPayload
-		err := client.RunJSON(fetchCtx, &run, "automation", "runs", "get", runID, "-o", "json")
-		return run, err
-	})
+	return waitForTransportAutomationRun(
+		t,
+		ctx,
+		runID,
+		"waitForCLIAutomationRun",
+		func(fetchCtx context.Context) (aghcontract.RunPayload, error) {
+			var run aghcontract.RunPayload
+			err := client.RunJSON(fetchCtx, &run, "automation", "runs", "get", runID, "-o", "json")
+			return run, err
+		},
+	)
 }
 
 func seedTransportWebhookTrigger(
@@ -893,11 +926,23 @@ func waitForHTTPAutomationRun(
 ) aghcontract.RunPayload {
 	t.Helper()
 
-	return waitForTransportAutomationRun(t, ctx, runID, "waitForHTTPAutomationRun", func(fetchCtx context.Context) (aghcontract.RunPayload, error) {
-		var response aghcontract.RunResponse
-		err := harness.HTTPJSON(fetchCtx, http.MethodGet, "/api/automation/runs/"+url.PathEscape(runID), nil, &response)
-		return response.Run, err
-	})
+	return waitForTransportAutomationRun(
+		t,
+		ctx,
+		runID,
+		"waitForHTTPAutomationRun",
+		func(fetchCtx context.Context) (aghcontract.RunPayload, error) {
+			var response aghcontract.RunResponse
+			err := harness.HTTPJSON(
+				fetchCtx,
+				http.MethodGet,
+				"/api/automation/runs/"+url.PathEscape(runID),
+				nil,
+				&response,
+			)
+			return response.Run, err
+		},
+	)
 }
 
 func waitForTransportAutomationRun(

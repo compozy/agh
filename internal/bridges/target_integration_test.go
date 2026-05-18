@@ -14,15 +14,17 @@ func TestRegistryResolveDeliveryTargetUsesInstanceDefaults(t *testing.T) {
 
 	registry, _ := newRegistryTestHarness(t)
 	instance := createTestBridgeInstance(t, registry, bridgepkg.CreateInstanceRequest{
-		ID:               "brg-target-defaults",
-		Scope:            bridgepkg.ScopeGlobal,
-		Platform:         "telegram",
-		ExtensionName:    "telegram-adapter",
-		DisplayName:      "Target Defaults",
-		Enabled:          true,
-		Status:           bridgepkg.BridgeStatusReady,
-		RoutingPolicy:    bridgepkg.RoutingPolicy{IncludePeer: true, IncludeThread: true},
-		DeliveryDefaults: []byte(`{"peer_id":"peer-default","thread_id":"thread-default","mode":"reply","parse_mode":"markdown"}`),
+		ID:            "brg-target-defaults",
+		Scope:         bridgepkg.ScopeGlobal,
+		Platform:      "telegram",
+		ExtensionName: "telegram-adapter",
+		DisplayName:   "Target Defaults",
+		Enabled:       true,
+		Status:        bridgepkg.BridgeStatusReady,
+		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true, IncludeThread: true},
+		DeliveryDefaults: []byte(
+			`{"peer_id":"peer-default","thread_id":"thread-default","mode":"reply","parse_mode":"markdown"}`,
+		),
 	})
 
 	target, err := registry.ResolveDeliveryTarget(testutil.Context(t), bridgepkg.ResolveDeliveryTargetRequest{
@@ -96,7 +98,11 @@ func TestRegistryResolveDeliveryTargetKeepsWorkspaceScopeIsolated(t *testing.T) 
 		t.Fatalf("globalTarget.GroupID = %q, want global-group", globalTarget.GroupID)
 	}
 	if workspaceTarget.BridgeInstanceID != workspaceInstance.ID {
-		t.Fatalf("workspaceTarget.BridgeInstanceID = %q, want %q", workspaceTarget.BridgeInstanceID, workspaceInstance.ID)
+		t.Fatalf(
+			"workspaceTarget.BridgeInstanceID = %q, want %q",
+			workspaceTarget.BridgeInstanceID,
+			workspaceInstance.ID,
+		)
 	}
 	if workspaceTarget.PeerID != "workspace-peer" {
 		t.Fatalf("workspaceTarget.PeerID = %q, want workspace-peer", workspaceTarget.PeerID)

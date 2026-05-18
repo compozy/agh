@@ -91,11 +91,15 @@ func cleanResourcePath(relativePath string) (string, error) {
 	if trimmed == "" {
 		return "", ErrResourcePathRequired
 	}
-	if strings.Contains(trimmed, `\`) {
+	if trimmed != relativePath || strings.Contains(trimmed, `\`) {
 		return "", fmt.Errorf("%w: %q", ErrInvalidResourcePath, relativePath)
 	}
 	cleaned := path.Clean(trimmed)
-	if cleaned == "." || strings.HasPrefix(trimmed, "/") || strings.HasPrefix(cleaned, "../") || cleaned == ".." {
+	if cleaned != trimmed ||
+		cleaned == "." ||
+		strings.HasPrefix(trimmed, "/") ||
+		strings.HasPrefix(cleaned, "../") ||
+		cleaned == ".." {
 		return "", fmt.Errorf("%w: %q", ErrInvalidResourcePath, relativePath)
 	}
 	return cleaned, nil

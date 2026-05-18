@@ -239,10 +239,24 @@ type AgentSoulValidateRequest struct {
 	Body        string `json:"body,omitempty"`
 }
 
+// AgentSoulValidateByPathRequest validates SOUL.md for the route agent.
+type AgentSoulValidateByPathRequest struct {
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	Body        string `json:"body,omitempty"`
+}
+
 // AgentSoulPutRequest creates or replaces SOUL.md through the managed authoring service.
 type AgentSoulPutRequest struct {
 	WorkspaceID    string `json:"workspace_id,omitempty"`
 	AgentName      string `json:"agent_name"`
+	Body           string `json:"body"`
+	ExpectedDigest string `json:"expected_digest"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+// AgentSoulPutByPathRequest creates or replaces SOUL.md for the route agent.
+type AgentSoulPutByPathRequest struct {
+	WorkspaceID    string `json:"workspace_id,omitempty"`
 	Body           string `json:"body"`
 	ExpectedDigest string `json:"expected_digest"`
 	IdempotencyKey string `json:"idempotency_key,omitempty"`
@@ -255,10 +269,24 @@ type AgentSoulDeleteRequest struct {
 	ExpectedDigest string `json:"expected_digest"`
 }
 
+// AgentSoulDeleteByPathRequest removes SOUL.md for the route agent.
+type AgentSoulDeleteByPathRequest struct {
+	WorkspaceID    string `json:"workspace_id,omitempty"`
+	ExpectedDigest string `json:"expected_digest"`
+}
+
 // AgentSoulRollbackRequest restores a prior SOUL.md revision through the managed authoring service.
 type AgentSoulRollbackRequest struct {
 	WorkspaceID    string `json:"workspace_id,omitempty"`
 	AgentName      string `json:"agent_name"`
+	RevisionID     string `json:"revision_id"`
+	ExpectedDigest string `json:"expected_digest"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+// AgentSoulRollbackByPathRequest restores a prior SOUL.md revision for the route agent.
+type AgentSoulRollbackByPathRequest struct {
+	WorkspaceID    string `json:"workspace_id,omitempty"`
 	RevisionID     string `json:"revision_id"`
 	ExpectedDigest string `json:"expected_digest"`
 	IdempotencyKey string `json:"idempotency_key,omitempty"`
@@ -409,10 +437,24 @@ type HeartbeatValidateRequest struct {
 	Body        string `json:"body"`
 }
 
+// HeartbeatValidateByPathRequest validates HEARTBEAT.md for the route agent.
+type HeartbeatValidateByPathRequest struct {
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	Body        string `json:"body"`
+}
+
 // HeartbeatPutRequest creates or replaces HEARTBEAT.md through the managed authoring service.
 type HeartbeatPutRequest struct {
 	WorkspaceID    string `json:"workspace_id,omitempty"`
 	AgentName      string `json:"agent_name"`
+	Body           string `json:"body"`
+	ExpectedDigest string `json:"expected_digest"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+// HeartbeatPutByPathRequest creates or replaces HEARTBEAT.md for the route agent.
+type HeartbeatPutByPathRequest struct {
+	WorkspaceID    string `json:"workspace_id,omitempty"`
 	Body           string `json:"body"`
 	ExpectedDigest string `json:"expected_digest"`
 	IdempotencyKey string `json:"idempotency_key,omitempty"`
@@ -425,10 +467,25 @@ type HeartbeatDeleteRequest struct {
 	ExpectedDigest string `json:"expected_digest"`
 }
 
+// HeartbeatDeleteByPathRequest removes HEARTBEAT.md for the route agent.
+type HeartbeatDeleteByPathRequest struct {
+	WorkspaceID    string `json:"workspace_id,omitempty"`
+	ExpectedDigest string `json:"expected_digest"`
+}
+
 // HeartbeatRollbackRequest restores a prior HEARTBEAT.md revision or snapshot body.
 type HeartbeatRollbackRequest struct {
 	WorkspaceID    string `json:"workspace_id,omitempty"`
 	AgentName      string `json:"agent_name"`
+	RevisionID     string `json:"revision_id,omitempty"`
+	TargetDigest   string `json:"target_digest,omitempty"`
+	ExpectedDigest string `json:"expected_digest"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+// HeartbeatRollbackByPathRequest restores a HEARTBEAT.md revision for the route agent.
+type HeartbeatRollbackByPathRequest struct {
+	WorkspaceID    string `json:"workspace_id,omitempty"`
 	RevisionID     string `json:"revision_id,omitempty"`
 	TargetDigest   string `json:"target_digest,omitempty"`
 	ExpectedDigest string `json:"expected_digest"`
@@ -576,6 +633,15 @@ type HeartbeatWakeDecisionPayload struct {
 type HeartbeatWakeRequest struct {
 	WorkspaceID    string              `json:"workspace_id,omitempty"`
 	AgentName      string              `json:"agent_name"`
+	SessionID      string              `json:"session_id"`
+	Source         HeartbeatWakeSource `json:"source"`
+	DryRun         bool                `json:"dry_run,omitempty"`
+	IdempotencyKey string              `json:"idempotency_key,omitempty"`
+}
+
+// HeartbeatWakeByPathRequest asks for one wake decision for the route agent.
+type HeartbeatWakeByPathRequest struct {
+	WorkspaceID    string              `json:"workspace_id,omitempty"`
 	SessionID      string              `json:"session_id"`
 	Source         HeartbeatWakeSource `json:"source"`
 	DryRun         bool                `json:"dry_run,omitempty"`
@@ -1216,51 +1282,11 @@ func HeartbeatRevisionPayloadFromDomain(revision heartbeatpkg.Revision) (Heartbe
 }
 
 func containsUnsafeAuthoredContextJSON(data []byte) bool {
-	return containsUnsafeJSON(data, isUnsafeAuthoredContextKey, isUnsafeAuthoredContextString)
-}
-
-func isUnsafeAuthoredContextKey(key string) bool {
-	normalized := strings.ToLower(strings.TrimSpace(key))
-	normalized = strings.ReplaceAll(normalized, "-", "_")
-	switch normalized {
-	case "claim_token",
-		"provider_token",
-		"access_token",
-		"refresh_token",
-		"id_token",
-		"authorization_code",
-		"oauth_code",
-		"code_verifier",
-		"pkce_verifier",
-		"mcp_auth_token",
-		"api_key",
-		"secret",
-		"secret_ref",
-		"client_secret_ref",
-		"webhook_secret_ref",
-		"secret_binding",
-		"token",
-		"client_secret",
-		"provider_credentials",
-		"raw_prompt",
-		"prompt_body",
-		"transcript":
-		return true
-	default:
-		return false
-	}
+	return containsUnsafePublicContractJSON(data)
 }
 
 func isUnsafeAuthoredContextString(value string) bool {
-	trimmed := strings.TrimSpace(value)
-	lower := strings.ToLower(trimmed)
-	return strings.Contains(lower, "agh_claim_") ||
-		strings.Contains(lower, "env:") ||
-		strings.Contains(lower, "vault:") ||
-		strings.HasPrefix(trimmed, "sk-") ||
-		strings.HasPrefix(trimmed, "github_pat_") ||
-		strings.HasPrefix(trimmed, "xoxb-") ||
-		strings.HasPrefix(trimmed, "xoxp-")
+	return isUnsafePublicContractString(value)
 }
 
 func sanitizeAuthoredContextLastError(value string) string {

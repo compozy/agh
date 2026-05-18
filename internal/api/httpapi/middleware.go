@@ -22,7 +22,7 @@ var errLoopbackAPIRequired = errors.New(
 	"remote HTTP API access is disabled unless the daemon is bound to a loopback host",
 )
 
-var errRequestBodyTooLarge = errors.New("request body too large")
+var errRequestBodyTooLarge = core.ErrRequestBodyTooLarge
 
 const maxAPIRequestBodyBytes int64 = 4 << 20
 

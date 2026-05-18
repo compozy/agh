@@ -106,12 +106,11 @@ func (b *InboundBatcher) Enqueue(envelope bridgepkg.InboundMessageEnvelope) erro
 	}
 
 	if b.delay == 0 {
-		return b.dispatch(b.ctx, InboundBatch{
-			Key:       key,
-			Items:     []bridgepkg.InboundMessageEnvelope{envelope},
-			CreatedAt: b.now(),
-			UpdatedAt: b.now(),
-		})
+		batch, err := b.immediateBatch(key, envelope)
+		if err != nil {
+			return err
+		}
+		return b.dispatch(b.ctx, batch)
 	}
 
 	b.mu.Lock()
@@ -150,6 +149,29 @@ func (b *InboundBatcher) Enqueue(envelope bridgepkg.InboundMessageEnvelope) erro
 	}
 	b.scheduleTimerLocked(key, pending, delay)
 	return nil
+}
+
+func (b *InboundBatcher) immediateBatch(
+	key string,
+	envelope bridgepkg.InboundMessageEnvelope,
+) (InboundBatch, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if b.closed {
+		return InboundBatch{}, errors.New("bridgesdk: inbound batcher is closed")
+	}
+	if b.err != nil {
+		return InboundBatch{}, b.err
+	}
+
+	now := b.now()
+	return InboundBatch{
+		Key:       key,
+		Items:     []bridgepkg.InboundMessageEnvelope{cloneInboundEnvelope(envelope)},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}, nil
 }
 
 // FlushAll flushes every pending batch immediately.

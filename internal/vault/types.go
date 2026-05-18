@@ -50,6 +50,8 @@ var secretLikeEnvNeedles = []string{
 	"PASSWD",
 	"API_KEY",
 	"APIKEY",
+	"PRIVATE_KEY",
+	"PRIVATEKEY",
 	"AUTHORIZATION",
 	"BEARER",
 	"CREDENTIAL",

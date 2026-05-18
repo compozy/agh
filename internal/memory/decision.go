@@ -20,7 +20,6 @@ import (
 const (
 	decisionMetadataOperationKey      = "operation"
 	decisionMetadataTargetFilenameKey = "target_filename"
-	decisionMetadataRawContentKey     = "raw_content"
 	decisionMetadataReasonKey         = "reason"
 	decisionMetadataRuleIDsKey        = "rule_ids"
 	decisionDefaultDBFilename         = "agh.db"
@@ -106,18 +105,18 @@ func (s *Store) ProposeWrite(
 		return DecisionApplyResult{}, err
 	}
 	candidate := memcontract.Candidate{
-		WorkspaceID: workspaceID,
-		Scope:       normalizedScope,
-		AgentName:   header.AgentName,
-		AgentTier:   header.AgentTier,
-		Origin:      origin.Normalize(),
-		Content:     body,
-		Frontmatter: header,
-		Entity:      entityFromFilename(base, header),
-		Attribute:   attributeFromHeader(header),
+		WorkspaceID:       workspaceID,
+		Scope:             normalizedScope,
+		AgentName:         header.AgentName,
+		AgentTier:         header.AgentTier,
+		Origin:            origin.Normalize(),
+		Content:           body,
+		Frontmatter:       header,
+		TrustedRawContent: string(content),
+		Entity:            entityFromFilename(base, header),
+		Attribute:         attributeFromHeader(header),
 		Metadata: map[string]string{
 			decisionMetadataTargetFilenameKey: base,
-			decisionMetadataRawContentKey:     string(content),
 		},
 		SubmittedAt: time.Now().UTC(),
 	}
@@ -329,7 +328,7 @@ func (s *Store) RevertDecision(ctx context.Context, id string) (DecisionRevertRe
 	reverted := false
 	switch decision.Op {
 	case memcontract.OpAdd:
-		if err := target.ensureCurrentHash(decision); err != nil {
+		if err := target.ensureCurrentHashRequired(decision); err != nil {
 			return DecisionRevertResult{}, err
 		}
 		if err := target.deleteRaw(ctx, decisionScope(decision.Decision), decision.TargetFilename, false); err != nil &&
@@ -337,9 +336,29 @@ func (s *Store) RevertDecision(ctx context.Context, id string) (DecisionRevertRe
 			return DecisionRevertResult{}, err
 		}
 		reverted = true
-	case memcontract.OpUpdate, memcontract.OpDelete:
+	case memcontract.OpUpdate:
 		if strings.TrimSpace(decision.PriorContent) == "" {
 			return DecisionRevertResult{}, fmt.Errorf("memory: decision %q has no prior_content", decision.ID)
+		}
+		if err := target.ensureCurrentHashRequired(decision); err != nil {
+			return DecisionRevertResult{}, err
+		}
+		if err := target.writeRaw(
+			ctx,
+			decisionScope(decision.Decision),
+			decision.TargetFilename,
+			[]byte(decision.PriorContent),
+			false,
+		); err != nil {
+			return DecisionRevertResult{}, err
+		}
+		reverted = true
+	case memcontract.OpDelete:
+		if strings.TrimSpace(decision.PriorContent) == "" {
+			return DecisionRevertResult{}, fmt.Errorf("memory: decision %q has no prior_content", decision.ID)
+		}
+		if err := target.ensureTargetAbsentForRevert(decision); err != nil {
+			return DecisionRevertResult{}, err
 		}
 		if err := target.writeRaw(
 			ctx,
@@ -717,6 +736,24 @@ func (s *Store) ensureCurrentHash(decision storedDecision) error {
 		return fmt.Errorf("memory: decision %q target content changed; refusing revert", decision.ID)
 	}
 	return nil
+}
+
+func (s *Store) ensureCurrentHashRequired(decision storedDecision) error {
+	if strings.TrimSpace(decision.PostContentHash) == "" {
+		return fmt.Errorf("memory: decision %q missing post_content_hash; refusing revert", decision.ID)
+	}
+	return s.ensureCurrentHash(decision)
+}
+
+func (s *Store) ensureTargetAbsentForRevert(decision storedDecision) error {
+	_, err := s.Read(decisionScope(decision.Decision), decision.TargetFilename)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return fmt.Errorf("memory: decision %q target content changed; refusing revert", decision.ID)
 }
 
 func decisionScope(decision memcontract.Decision) memcontract.Scope {

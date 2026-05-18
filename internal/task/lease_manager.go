@@ -47,9 +47,7 @@ func (m *Service) ClaimNextRun(
 	}); err != nil {
 		return nil, err
 	}
-	if err := m.dispatchTaskRunPostClaim(ctx, result.Run, reconciledTask, actor); err != nil {
-		return nil, err
-	}
+	m.dispatchTaskRunPostClaim(ctx, result.Run, reconciledTask, actor)
 	result.Task = reconciledTask
 	return &result, nil
 }
@@ -84,9 +82,7 @@ func (m *Service) HeartbeatRunLease(
 	}); err != nil {
 		return nil, err
 	}
-	if err := m.dispatchTaskRunLeaseExtended(ctx, run, taskRecord, actor); err != nil {
-		return nil, err
-	}
+	m.dispatchTaskRunLeaseExtended(ctx, run, taskRecord, actor)
 	return &run, nil
 }
 
@@ -124,9 +120,7 @@ func (m *Service) ReleaseRunLease(
 	}); err != nil {
 		return nil, err
 	}
-	if err := m.dispatchTaskRunReleased(ctx, run, reconciledTask, actor, previous, normalized.Reason); err != nil {
-		return nil, err
-	}
+	m.dispatchTaskRunReleased(ctx, run, reconciledTask, actor, previous, normalized.Reason)
 	return &run, nil
 }
 
@@ -169,9 +163,7 @@ func (m *Service) ReleaseSessionRunLeases(
 		}); err != nil {
 			return nil, err
 		}
-		if err := m.dispatchTaskRunReleased(ctx, run, reconciledTask, actor, previous, normalized.Reason); err != nil {
-			return nil, err
-		}
+		m.dispatchTaskRunReleased(ctx, run, reconciledTask, actor, previous, normalized.Reason)
 		results = append(results, SessionLeaseReleaseResult{
 			Run:                    run,
 			PreviousRunStatus:      previous.Status,
@@ -213,9 +205,7 @@ func (m *Service) CompleteRunLease(
 	}); err != nil {
 		return nil, err
 	}
-	if err := m.dispatchTaskRunCompleted(ctx, run, reconciledTask, actor); err != nil {
-		return nil, err
-	}
+	m.dispatchTaskRunCompleted(ctx, run, reconciledTask, actor)
 	return &run, nil
 }
 
@@ -249,9 +239,7 @@ func (m *Service) FailRunLease(
 	}); err != nil {
 		return nil, err
 	}
-	if err := m.dispatchTaskRunFailed(ctx, run, reconciledTask, actor); err != nil {
-		return nil, err
-	}
+	m.dispatchTaskRunFailed(ctx, run, reconciledTask, actor)
 	return &run, nil
 }
 
@@ -297,24 +285,20 @@ func (m *Service) RecoverExpiredRunLeases(
 		); err != nil {
 			return nil, err
 		}
-		if err := m.dispatchTaskRunLeaseExpired(
+		m.dispatchTaskRunLeaseExpired(
 			ctx,
 			result.Run,
 			reconciledTask,
 			actor,
 			result,
-		); err != nil {
-			return nil, err
-		}
-		if err := m.dispatchTaskRunLeaseRecoveredFromExpiration(
+		)
+		m.dispatchTaskRunLeaseRecoveredFromExpiration(
 			ctx,
 			result.Run,
 			reconciledTask,
 			actor,
 			result,
-		); err != nil {
-			return nil, err
-		}
+		)
 	}
 	return results, nil
 }

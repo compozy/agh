@@ -309,6 +309,17 @@ func TestRegisterNetworkRoutesMatchDocumentedHTTPSurface(t *testing.T) {
 
 		got := registeredNetworkRoutesFromEngine(engine.Routes())
 		want := documentedNetworkRoutesForTransport(apispec.TransportHTTP)
+		for _, route := range []string{
+			"GET /api/workspaces/:workspace_id/network/peers",
+			"POST /api/workspaces/:workspace_id/network/send",
+		} {
+			if !slices.Contains(got, route) {
+				t.Fatalf("registered network routes missing %q in %v", route, got)
+			}
+			if !slices.Contains(want, route) {
+				t.Fatalf("documented network routes missing %q in %v", route, want)
+			}
+		}
 		if !slices.Equal(got, want) {
 			t.Fatalf("network routes = %v, want documented %s routes %v", got, apispec.TransportHTTP, want)
 		}
@@ -318,7 +329,8 @@ func TestRegisterNetworkRoutesMatchDocumentedHTTPSurface(t *testing.T) {
 func registeredNetworkRoutesFromEngine(routes gin.RoutesInfo) []string {
 	filtered := make([]string, 0)
 	for _, route := range routes {
-		if strings.HasPrefix(route.Path, "/api/network") {
+		if strings.HasPrefix(route.Path, "/api/network") ||
+			strings.HasPrefix(route.Path, "/api/workspaces/:workspace_id/network") {
 			filtered = append(filtered, route.Method+" "+route.Path)
 		}
 	}
@@ -332,7 +344,8 @@ func documentedNetworkRoutesForTransport(transport apispec.Transport) []string {
 		if !slices.Contains(operation.Transports, transport) {
 			continue
 		}
-		if !strings.HasPrefix(operation.Path, "/api/network") {
+		if !strings.HasPrefix(operation.Path, "/api/network") &&
+			!strings.HasPrefix(operation.Path, "/api/workspaces/{workspace_id}/network") {
 			continue
 		}
 		routes = append(routes, operation.Method+" "+normalizeNetworkSpecRoutePath(operation.Path))
@@ -342,12 +355,11 @@ func documentedNetworkRoutesForTransport(transport apispec.Transport) []string {
 }
 
 func normalizeNetworkSpecRoutePath(path string) string {
-	replacer := strings.NewReplacer(
-		"{peer_id}", ":peer_id",
-		"{channel}", ":channel",
-		"{thread_id}", ":thread_id",
-		"{direct_id}", ":direct_id",
-		"{work_id}", ":work_id",
-	)
-	return replacer.Replace(path)
+	parts := strings.Split(path, "/")
+	for i, part := range parts {
+		if strings.HasPrefix(part, "{") && strings.HasSuffix(part, "}") && len(part) > 2 {
+			parts[i] = ":" + part[1:len(part)-1]
+		}
+	}
+	return strings.Join(parts, "/")
 }

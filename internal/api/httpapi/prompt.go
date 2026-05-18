@@ -13,12 +13,12 @@ import (
 	core "github.com/pedronauck/agh/internal/api/core"
 )
 
+const detachedPromptDrainTimeout = 30 * time.Second
+
 type promptRequest struct {
 	Message  string              `json:"message"`
 	Messages []uiMessageEnvelope `json:"messages"`
 }
-
-const detachedPromptDrainTimeout = 30 * time.Second
 
 type uiMessageEnvelope struct {
 	Role    string              `json:"role"`
@@ -35,7 +35,7 @@ func (h *Handlers) promptSession(c *gin.Context) {
 	var req promptRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.Logger.Debug("httpapi: decode prompt request failed", "error", err)
-		core.RespondError(c, http.StatusBadRequest, errors.New("invalid request payload"), true)
+		core.RespondError(c, http.StatusBadRequest, invalidRequestPayloadError{cause: err}, true)
 		return
 	}
 
@@ -74,7 +74,7 @@ func (h *Handlers) promptSession(c *gin.Context) {
 	for {
 		select {
 		case <-c.Request.Context().Done():
-			h.drainPromptEventsAsync(context.WithoutCancel(c.Request.Context()), events, cancelOnReturn)
+			h.drainPromptEventsAsync(c.Request.Context(), events, cancelOnReturn)
 			cancelOnReturn = nil
 			return
 		case <-h.StreamDoneChannel():
@@ -87,7 +87,7 @@ func (h *Handlers) promptSession(c *gin.Context) {
 				return
 			}
 			if err := streamEncoder.Emit(writer, event); err != nil {
-				h.drainPromptEventsAsync(context.WithoutCancel(c.Request.Context()), events, cancelOnReturn)
+				h.drainPromptEventsAsync(c.Request.Context(), events, cancelOnReturn)
 				cancelOnReturn = nil
 				return
 			}
@@ -104,15 +104,25 @@ func (h *Handlers) drainPromptEventsAsync(
 		return
 	}
 	if ctx == nil {
-		cancelPrompt()
-		return
+		ctx = context.Background()
 	}
-	drainCtx, cancelDrain := context.WithTimeout(ctx, detachedPromptDrainTimeout)
+	drainCtx, cancelDrain := detachPromptDrainContext(ctx)
 	h.promptDrainWG.Go(func() {
 		defer cancelDrain()
 		defer cancelPrompt()
 		h.drainPromptEvents(drainCtx, events)
 	})
+}
+
+func detachPromptDrainContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		return context.WithTimeout(context.Background(), detachedPromptDrainTimeout)
+	}
+	drainCtx := context.WithoutCancel(ctx)
+	if deadline, ok := ctx.Deadline(); ok {
+		return context.WithDeadline(drainCtx, deadline)
+	}
+	return context.WithTimeout(drainCtx, detachedPromptDrainTimeout)
 }
 
 func (h *Handlers) drainPromptEvents(ctx context.Context, events <-chan acp.AgentEvent) {
@@ -181,4 +191,16 @@ func extractPromptMessage(req promptRequest) (string, error) {
 	}
 
 	return "", errors.New("message is required")
+}
+
+type invalidRequestPayloadError struct {
+	cause error
+}
+
+func (e invalidRequestPayloadError) Error() string {
+	return "invalid request payload"
+}
+
+func (e invalidRequestPayloadError) Unwrap() error {
+	return e.cause
 }

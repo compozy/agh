@@ -53,12 +53,11 @@ func providerModelsDescriptors() []toolspkg.Descriptor {
 
 const providerModelsListInputSchema = `{
 	"type":"object",
-	"properties":{
-		"provider_id":{"type":"string"},
-		"source_id":{"type":"string"},
-		"refresh":{"type":"boolean"},
-		"include_stale":{"type":"boolean"}
-	},
+		"properties":{
+			"provider_id":{"type":"string"},
+			"source_id":{"type":"string"},
+			"include_stale":{"type":"boolean"}
+		},
 	"additionalProperties":false
 }`
 

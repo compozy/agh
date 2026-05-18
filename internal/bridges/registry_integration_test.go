@@ -82,7 +82,11 @@ func TestRegistryGlobalAndWorkspaceRoutesStayIsolated(t *testing.T) {
 		t.Fatalf("BuildRoutingKey(workspace) error = %v", err)
 	}
 	if globalKey.Scope == workspaceKey.Scope {
-		t.Fatalf("globalKey.Scope = %q and workspaceKey.Scope = %q, want different scopes", globalKey.Scope, workspaceKey.Scope)
+		t.Fatalf(
+			"globalKey.Scope = %q and workspaceKey.Scope = %q, want different scopes",
+			globalKey.Scope,
+			workspaceKey.Scope,
+		)
 	}
 	if workspaceKey.WorkspaceID != workspaceID {
 		t.Fatalf("workspaceKey.WorkspaceID = %q, want %q", workspaceKey.WorkspaceID, workspaceID)
@@ -126,7 +130,11 @@ func TestRegistryUpsertRouteRebindsWithoutDuplicateRows(t *testing.T) {
 		t.Fatalf("UpsertRoute(second) error = %v", err)
 	}
 	if first.RoutingKeyHash != second.RoutingKeyHash {
-		t.Fatalf("UpsertRoute() hashes = %q and %q, want same canonical route", first.RoutingKeyHash, second.RoutingKeyHash)
+		t.Fatalf(
+			"UpsertRoute() hashes = %q and %q, want same canonical route",
+			first.RoutingKeyHash,
+			second.RoutingKeyHash,
+		)
 	}
 	if second.SessionID != "sess-2" {
 		t.Fatalf("UpsertRoute(second).SessionID = %q, want sess-2", second.SessionID)

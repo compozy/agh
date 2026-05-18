@@ -23,7 +23,8 @@ func (s Scope) Normalize() Scope {
 }
 
 func (s Scope) Validate(workspaceID string) error {
-	switch s.Normalize() {
+	normalized := s.Normalize()
+	switch normalized {
 	case ScopeGlobal:
 		if strings.TrimSpace(workspaceID) != "" {
 			return errors.New("bundles: global activation cannot include workspace id")
@@ -37,7 +38,7 @@ func (s Scope) Validate(workspaceID string) error {
 	case "":
 		return errors.New("bundles: scope is required")
 	default:
-		return fmt.Errorf("bundles: unsupported scope %q", s)
+		return fmt.Errorf("bundles: unsupported scope %q", normalized)
 	}
 }
 

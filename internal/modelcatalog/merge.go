@@ -98,7 +98,7 @@ func applyAvailability(model *Model, rows []ModelRow) {
 			continue
 		}
 		model.Available = row.Available
-		model.Stale = row.Stale
+		model.Stale = model.Stale || row.Stale
 		switch {
 		case *row.Available && row.Stale:
 			model.AvailabilityState = AvailabilityStateAvailableStale

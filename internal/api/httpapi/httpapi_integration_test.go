@@ -1175,7 +1175,9 @@ func TestHTTPMemoryRoundTripAndDelete(t *testing.T) {
 		runtime.client,
 		http.MethodPost,
 		mustURL(runtime.host, runtime.port, "/api/memory"),
-		[]byte(`{"scope":"global","type":"user","name":"Integration","description":"desc","content":"hello integration"}`),
+		[]byte(
+			`{"scope":"global","type":"user","name":"Integration","description":"desc","content":"hello integration"}`,
+		),
 		nil,
 	)
 	if writeResp.StatusCode != http.StatusOK {

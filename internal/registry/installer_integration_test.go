@@ -32,7 +32,9 @@ func TestInstallerInstallPipelineWithInMemoryDownloader(t *testing.T) {
 	}
 
 	targetDir := filepath.Join(t.TempDir(), "extensions", "pipeline-ext")
-	result, err := NewInstaller(downloader).Install(context.Background(), "acme/pipeline-ext", DownloadOpts{}, targetDir)
+	result, err := NewInstaller(
+		downloader,
+	).Install(context.Background(), "acme/pipeline-ext", DownloadOpts{}, targetDir)
 	if err != nil {
 		t.Fatalf("Install() error = %v", err)
 	}

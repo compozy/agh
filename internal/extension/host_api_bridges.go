@@ -204,7 +204,7 @@ func (h *HostAPIHandler) handleBridgesMessagesIngest(ctx context.Context, raw js
 	if err != nil {
 		return nil, err
 	}
-	if err := h.recordBridgeIngressDedup(ctx, ingress.params, *ingress.instance); err != nil {
+	if err := h.recordBridgeIngressDedup(context.WithoutCancel(ctx), ingress.params, *ingress.instance); err != nil {
 		return nil, err
 	}
 
@@ -517,7 +517,7 @@ func (h *HostAPIHandler) promptBridgeRoute(
 	submission, err := h.submitBridgePrompt(ctx, route.SessionID, envelope, message)
 	if err == nil {
 		if registerErr := h.registerPromptDelivery(
-			ctx,
+			context.WithoutCancel(ctx),
 			instance,
 			routingKey,
 			route.SessionID,
@@ -553,7 +553,13 @@ func (h *HostAPIHandler) promptBridgeRoute(
 	if err != nil {
 		return nil, err
 	}
-	if err := h.registerPromptDelivery(ctx, instance, routingKey, rebound.SessionID, submission); err != nil {
+	if err := h.registerPromptDelivery(
+		context.WithoutCancel(ctx),
+		instance,
+		routingKey,
+		rebound.SessionID,
+		submission,
+	); err != nil {
 		return nil, err
 	}
 	return rebound, nil
@@ -574,25 +580,16 @@ func (h *HostAPIHandler) submitBridgePrompt(
 		return hostAPIPromptSubmission{}, err
 	}
 
-	eventsCh, err := h.promptBridgeSession(
-		context.WithoutCancel(ctx),
-		sessionID,
-		message,
-		bridgePromptNetworkMeta(envelope),
-	)
+	promptCtx := context.WithoutCancel(ctx)
+	eventsCh, err := h.promptBridgeSession(promptCtx, sessionID, message, bridgePromptNetworkMeta(envelope))
 	if err != nil {
 		return hostAPIPromptSubmission{}, err
 	}
-	drainDone := make(chan struct{})
 	go func() {
-		defer close(drainDone)
 		drainAgentEvents(eventsCh)
 	}()
-	if err := h.waitForSubmittedBridgePrompt(ctx, sessionID, drainDone); err != nil {
-		return hostAPIPromptSubmission{}, err
-	}
 
-	events, err := h.sessions.Events(ctx, sessionID, store.EventQuery{
+	events, err := h.sessions.Events(promptCtx, sessionID, store.EventQuery{
 		AfterSequence: lastSequence,
 	})
 	if err != nil {
@@ -600,41 +597,6 @@ func (h *HostAPIHandler) submitBridgePrompt(
 	}
 
 	return promptSubmissionFromStoredEvents(events)
-}
-
-func (h *HostAPIHandler) waitForSubmittedBridgePrompt(
-	ctx context.Context,
-	sessionID string,
-	drainDone <-chan struct{},
-) error {
-	if ctx == nil {
-		return errors.New("extension: bridge prompt wait context is required")
-	}
-	if drainDone == nil {
-		return nil
-	}
-
-	if _, ok := h.sessions.(hostAPIPromptingSessionManager); ok {
-		select {
-		case <-drainDone:
-			return nil
-		default:
-		}
-		waited, err := h.waitForBridgePromptAvailability(ctx, sessionID)
-		if err != nil {
-			return err
-		}
-		if waited {
-			return nil
-		}
-	}
-
-	select {
-	case <-drainDone:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
 }
 
 func (h *HostAPIHandler) promptBridgeSession(

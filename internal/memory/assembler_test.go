@@ -540,11 +540,12 @@ func writeIndexBackedDocumentsForStore(
 			"description: " + description,
 			"type: feedback",
 			"scope: " + string(scope.Normalize()),
-			"---",
-			"",
-			"stub body",
-			"",
 		}, "\n")
+		if scope.Normalize() == memcontract.ScopeAgent {
+			doc += "\nagent: " + target.agentName
+			doc += "\nagent_tier: " + string(target.agentTier.Normalize())
+		}
+		doc += "\n---\n\nstub body\n"
 		if err := os.WriteFile(
 			filepath.Join(target.dirForScopeMust(t, scope), filename),
 			[]byte(doc),

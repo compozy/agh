@@ -13,6 +13,27 @@ import (
 	"github.com/pedronauck/agh/internal/resources"
 )
 
+// CloneInitializeRequest returns a deep copy safe to expose to callers.
+func CloneInitializeRequest(src InitializeRequest) InitializeRequest {
+	cloned := src
+	cloned.SupportedProtocolVersion = append([]string(nil), src.SupportedProtocolVersion...)
+	cloned.Capabilities = cloneInitializeCapabilities(src.Capabilities)
+	cloned.Methods.DaemonRequests = append([]string(nil), src.Methods.DaemonRequests...)
+	cloned.Methods.ExtensionServices = append([]string(nil), src.Methods.ExtensionServices...)
+	cloned.Runtime.Bridge = CloneInitializeBridgeRuntime(src.Runtime.Bridge)
+	return cloned
+}
+
+func cloneInitializeCapabilities(src InitializeCapabilities) InitializeCapabilities {
+	cloned := src
+	cloned.Provides = append([]string(nil), src.Provides...)
+	cloned.GrantedActions = append([]extensionprotocol.HostAPIMethod(nil), src.GrantedActions...)
+	cloned.GrantedSecurity = append([]string(nil), src.GrantedSecurity...)
+	cloned.GrantedResourceKinds = append([]resources.ResourceKind(nil), src.GrantedResourceKinds...)
+	cloned.GrantedResourceScopes = append([]resources.ResourceScopeKind(nil), src.GrantedResourceScopes...)
+	return cloned
+}
+
 // InitializeRequest is the AGH -> extension session contract request.
 type InitializeRequest struct {
 	ProtocolVersion          string                 `json:"protocol_version"`
@@ -257,10 +278,11 @@ func (r InitializeBridgeRuntime) Validate() error {
 				normalized.Platform,
 			)
 		}
-		if _, ok := seen[managed.Instance.ID]; ok {
-			return fmt.Errorf("subprocess: initialize bridge managed instance %q is duplicated", managed.Instance.ID)
+		instanceID := strings.TrimSpace(managed.Instance.ID)
+		if _, ok := seen[instanceID]; ok {
+			return fmt.Errorf("subprocess: initialize bridge managed instance %q is duplicated", instanceID)
 		}
-		seen[managed.Instance.ID] = struct{}{}
+		seen[instanceID] = struct{}{}
 	}
 
 	return nil
@@ -320,7 +342,7 @@ func (r InitializeBridgeRuntime) normalize() InitializeBridgeRuntime {
 	slices.SortFunc(
 		managedInstances,
 		func(left InitializeBridgeManagedInstance, right InitializeBridgeManagedInstance) int {
-			return strings.Compare(left.Instance.ID, right.Instance.ID)
+			return strings.Compare(strings.TrimSpace(left.Instance.ID), strings.TrimSpace(right.Instance.ID))
 		},
 	)
 	normalized.ManagedInstances = managedInstances
@@ -349,7 +371,6 @@ func (s InitializeBridgeBoundSecret) normalize() InitializeBridgeBoundSecret {
 	normalized := s
 	normalized.BindingName = strings.TrimSpace(normalized.BindingName)
 	normalized.Kind = strings.TrimSpace(normalized.Kind)
-	normalized.Value = strings.TrimSpace(normalized.Value)
 	return normalized
 }
 

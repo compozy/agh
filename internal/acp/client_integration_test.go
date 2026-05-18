@@ -3,11 +3,12 @@
 package acp
 
 import (
-	"github.com/pedronauck/agh/internal/testutil"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/pedronauck/agh/internal/testutil"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 )

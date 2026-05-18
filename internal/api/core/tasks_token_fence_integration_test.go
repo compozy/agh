@@ -156,103 +156,117 @@ func TestTaskRunTokenFenceHandlersHonorHistoricalOwnershipIntegration(t *testing
 		}
 	})
 
-	t.Run("Should preserve mixed-ownership bindings when human cancel overrides a token-fenced historical run", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should preserve mixed-ownership bindings when human cancel overrides a token-fenced historical run",
+		func(t *testing.T) {
+			t.Parallel()
 
-		now := time.Date(2026, 4, 28, 11, 0, 0, 0, time.UTC)
-		capture := &taskRunTokenFenceCapture{}
-		fixture := newHandlerFixtureWithTasks(
-			t,
-			testutil.StubSessionManager{},
-			testutil.StubObserver{},
-			testutil.StubTaskManager{
-				CancelRunFn: func(
-					_ context.Context,
-					runID string,
-					req taskpkg.CancelRun,
-					actor taskpkg.ActorContext,
-				) (*taskpkg.Run, error) {
-					capture.runID = runID
-					capture.cancel = req
-					capture.actorContext = actor
-					return &taskpkg.Run{
-						ID:                    runID,
-						TaskID:                "task-1",
-						Status:                taskpkg.TaskRunStatusCanceled,
-						Attempt:               1,
-						ClaimedBy:             &taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: "sess-history-mixed"},
-						SessionID:             "sess-history-mixed",
-						Origin:                actor.Origin,
-						QueuedAt:              now.Add(-2 * time.Minute),
-						StartedAt:             now.Add(-time.Minute),
-						EndedAt:               now,
-						Metadata:              req.Metadata,
-						NetworkChannel:        "scope-direct-history",
-						CoordinationChannelID: "scope-direct-history",
-					}, nil
+			now := time.Date(2026, 4, 28, 11, 0, 0, 0, time.UTC)
+			capture := &taskRunTokenFenceCapture{}
+			fixture := newHandlerFixtureWithTasks(
+				t,
+				testutil.StubSessionManager{},
+				testutil.StubObserver{},
+				testutil.StubTaskManager{
+					CancelRunFn: func(
+						_ context.Context,
+						runID string,
+						req taskpkg.CancelRun,
+						actor taskpkg.ActorContext,
+					) (*taskpkg.Run, error) {
+						capture.runID = runID
+						capture.cancel = req
+						capture.actorContext = actor
+						return &taskpkg.Run{
+							ID:      runID,
+							TaskID:  "task-1",
+							Status:  taskpkg.TaskRunStatusCanceled,
+							Attempt: 1,
+							ClaimedBy: &taskpkg.ActorIdentity{
+								Kind: taskpkg.ActorKindAgentSession,
+								Ref:  "sess-history-mixed",
+							},
+							SessionID:             "sess-history-mixed",
+							Origin:                actor.Origin,
+							QueuedAt:              now.Add(-2 * time.Minute),
+							StartedAt:             now.Add(-time.Minute),
+							EndedAt:               now,
+							Metadata:              req.Metadata,
+							NetworkChannel:        "scope-direct-history",
+							CoordinationChannelID: "scope-direct-history",
+						}, nil
+					},
 				},
-			},
-			testutil.StubWorkspaceService{},
-			nil,
-			nil,
-		)
-		fixture.Handlers.TaskActorContextResolver = func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
-			return taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindHTTP, "tasks."+action)
-		}
-
-		resp := performRequest(
-			t,
-			fixture.Engine,
-			http.MethodPost,
-			"/task-runs/run-2/cancel",
-			[]byte(`{"reason":"operator override","metadata":{"mode":"mixed-token-fence"}}`),
-		)
-		if resp.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
-		}
-
-		var payload contract.TaskRunResponse
-		testutil.DecodeJSONResponse(t, resp, &payload)
-
-		if payload.Run.Status != taskpkg.TaskRunStatusCanceled {
-			t.Fatalf("payload.Run.Status = %q, want %q", payload.Run.Status, taskpkg.TaskRunStatusCanceled)
-		}
-		if payload.Run.ClaimedBy == nil || payload.Run.ClaimedBy.Ref != "sess-history-mixed" {
-			t.Fatalf("payload.Run.ClaimedBy = %#v, want sess-history-mixed", payload.Run.ClaimedBy)
-		}
-		if payload.Run.SessionID != "sess-history-mixed" {
-			t.Fatalf("payload.Run.SessionID = %q, want %q", payload.Run.SessionID, "sess-history-mixed")
-		}
-		if payload.Run.NetworkChannel != "scope-direct-history" {
-			t.Fatalf("payload.Run.NetworkChannel = %q, want %q", payload.Run.NetworkChannel, "scope-direct-history")
-		}
-		if payload.Run.CoordinationChannelID != "scope-direct-history" {
-			t.Fatalf(
-				"payload.Run.CoordinationChannelID = %q, want %q",
-				payload.Run.CoordinationChannelID,
-				"scope-direct-history",
+				testutil.StubWorkspaceService{},
+				nil,
+				nil,
 			)
-		}
-		if payload.Run.Origin.Ref != "tasks.cancel_run" {
-			t.Fatalf("payload.Run.Origin.Ref = %q, want %q", payload.Run.Origin.Ref, "tasks.cancel_run")
-		}
-		if string(payload.Run.Metadata) != `{"mode":"mixed-token-fence"}` {
-			t.Fatalf("payload.Run.Metadata = %s, want %s", string(payload.Run.Metadata), `{"mode":"mixed-token-fence"}`)
-		}
-		if capture.runID != "run-2" {
-			t.Fatalf("runID = %q, want %q", capture.runID, "run-2")
-		}
-		if capture.cancel.Reason != "operator override" {
-			t.Fatalf("capture.cancel.Reason = %q, want %q", capture.cancel.Reason, "operator override")
-		}
-		if string(capture.cancel.Metadata) != `{"mode":"mixed-token-fence"}` {
-			t.Fatalf("capture.cancel.Metadata = %s, want %s", string(capture.cancel.Metadata), `{"mode":"mixed-token-fence"}`)
-		}
-		if capture.actorContext.Actor.Ref != "user-1" {
-			t.Fatalf("actorContext.Actor.Ref = %q, want %q", capture.actorContext.Actor.Ref, "user-1")
-		}
-		if capture.actorContext.Origin.Ref != "tasks.cancel_run" {
-			t.Fatalf("actorContext.Origin.Ref = %q, want %q", capture.actorContext.Origin.Ref, "tasks.cancel_run")
-		}
-	})
+			fixture.Handlers.TaskActorContextResolver = func(_ *gin.Context, action string) (taskpkg.ActorContext, error) {
+				return taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindHTTP, "tasks."+action)
+			}
+
+			resp := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodPost,
+				"/task-runs/run-2/cancel",
+				[]byte(`{"reason":"operator override","metadata":{"mode":"mixed-token-fence"}}`),
+			)
+			if resp.Code != http.StatusOK {
+				t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+			}
+
+			var payload contract.TaskRunResponse
+			testutil.DecodeJSONResponse(t, resp, &payload)
+
+			if payload.Run.Status != taskpkg.TaskRunStatusCanceled {
+				t.Fatalf("payload.Run.Status = %q, want %q", payload.Run.Status, taskpkg.TaskRunStatusCanceled)
+			}
+			if payload.Run.ClaimedBy == nil || payload.Run.ClaimedBy.Ref != "sess-history-mixed" {
+				t.Fatalf("payload.Run.ClaimedBy = %#v, want sess-history-mixed", payload.Run.ClaimedBy)
+			}
+			if payload.Run.SessionID != "sess-history-mixed" {
+				t.Fatalf("payload.Run.SessionID = %q, want %q", payload.Run.SessionID, "sess-history-mixed")
+			}
+			if payload.Run.NetworkChannel != "scope-direct-history" {
+				t.Fatalf("payload.Run.NetworkChannel = %q, want %q", payload.Run.NetworkChannel, "scope-direct-history")
+			}
+			if payload.Run.CoordinationChannelID != "scope-direct-history" {
+				t.Fatalf(
+					"payload.Run.CoordinationChannelID = %q, want %q",
+					payload.Run.CoordinationChannelID,
+					"scope-direct-history",
+				)
+			}
+			if payload.Run.Origin.Ref != "tasks.cancel_run" {
+				t.Fatalf("payload.Run.Origin.Ref = %q, want %q", payload.Run.Origin.Ref, "tasks.cancel_run")
+			}
+			if string(payload.Run.Metadata) != `{"mode":"mixed-token-fence"}` {
+				t.Fatalf(
+					"payload.Run.Metadata = %s, want %s",
+					string(payload.Run.Metadata),
+					`{"mode":"mixed-token-fence"}`,
+				)
+			}
+			if capture.runID != "run-2" {
+				t.Fatalf("runID = %q, want %q", capture.runID, "run-2")
+			}
+			if capture.cancel.Reason != "operator override" {
+				t.Fatalf("capture.cancel.Reason = %q, want %q", capture.cancel.Reason, "operator override")
+			}
+			if string(capture.cancel.Metadata) != `{"mode":"mixed-token-fence"}` {
+				t.Fatalf(
+					"capture.cancel.Metadata = %s, want %s",
+					string(capture.cancel.Metadata),
+					`{"mode":"mixed-token-fence"}`,
+				)
+			}
+			if capture.actorContext.Actor.Ref != "user-1" {
+				t.Fatalf("actorContext.Actor.Ref = %q, want %q", capture.actorContext.Actor.Ref, "user-1")
+			}
+			if capture.actorContext.Origin.Ref != "tasks.cancel_run" {
+				t.Fatalf("actorContext.Origin.Ref = %q, want %q", capture.actorContext.Origin.Ref, "tasks.cancel_run")
+			}
+		},
+	)
 }

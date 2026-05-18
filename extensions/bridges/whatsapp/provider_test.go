@@ -989,6 +989,96 @@ func TestHandleWebhookRequestValidationAndBatching(t *testing.T) {
 	}
 }
 
+func TestRejectMisconfiguredRoutes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldRejectInvalidInstanceDeliveryBeforeAPICall", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newWhatsAppProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newWhatsAppProvider() error = %v", err)
+		}
+
+		badConfig := errors.New("whatsapp: provider_config.phone_number_id is required")
+		apiCalled := false
+		provider.apiFactory = func(resolvedInstanceConfig) whatsappAPI {
+			apiCalled = true
+			return &fakeWhatsAppAPI{}
+		}
+
+		provider.mu.Lock()
+		provider.routes["brg-1"] = resolvedInstanceConfig{
+			instanceID:  "brg-1",
+			configError: badConfig,
+		}
+		provider.mu.Unlock()
+
+		ack, err := provider.handleBridgesDeliver(
+			context.Background(),
+			nil,
+			testDeliveryRequest(
+				"brg-1",
+				"delivery-1",
+				1,
+				bridgepkg.DeliveryEventTypeStart,
+				false,
+				"hello",
+			),
+		)
+		if err == nil {
+			t.Fatal("handleBridgesDeliver() error = nil, want non-nil")
+		}
+		if !errors.Is(err, errWhatsAppInstanceConfigInvalid) {
+			t.Fatalf("handleBridgesDeliver() error = %v, want invalid-config sentinel", err)
+		}
+		if !errors.Is(err, badConfig) {
+			t.Fatalf("handleBridgesDeliver() error = %v, want wrapped config error", err)
+		}
+		if ack != (bridgepkg.DeliveryAck{}) {
+			t.Fatalf("handleBridgesDeliver() ack = %#v, want zero value", ack)
+		}
+		if apiCalled {
+			t.Fatal("handleBridgesDeliver() called Graph API for invalid config")
+		}
+	})
+
+	t.Run("ShouldFailClosedForDuplicateWebhookPaths", func(t *testing.T) {
+		t.Parallel()
+
+		provider, err := newWhatsAppProvider(io.Discard)
+		if err != nil {
+			t.Fatalf("newWhatsAppProvider() error = %v", err)
+		}
+
+		provider.mu.Lock()
+		provider.routes["brg-1"] = resolvedInstanceConfig{
+			instanceID:  "brg-1",
+			webhookPath: "/whatsapp/shared",
+			verifyToken: "verify-1",
+		}
+		provider.routes["brg-2"] = resolvedInstanceConfig{
+			instanceID:  "brg-2",
+			webhookPath: "/whatsapp/shared",
+			verifyToken: "verify-2",
+			configError: errors.New("whatsapp: webhook path \"/whatsapp/shared\" is shared"),
+		}
+		provider.mu.Unlock()
+
+		req := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			"http://example.test/whatsapp/shared?hub.mode=subscribe&hub.verify_token=verify-1&hub.challenge=42",
+			http.NoBody,
+		)
+		resp := httptest.NewRecorder()
+		provider.serveWebhookHTTP(resp, req)
+		if got, want := resp.Code, http.StatusNotFound; got != want {
+			t.Fatalf("serveWebhookHTTP() status = %d, want %d", got, want)
+		}
+	})
+}
+
 func TestRetryWaitAndHealthHelpers(t *testing.T) {
 	t.Parallel()
 

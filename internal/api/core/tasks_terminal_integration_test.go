@@ -68,7 +68,8 @@ func TestTaskRunTerminalHandlersPreserveHistoricalChannelBindingsIntegration(t *
 				if capture.runID != "run-2" {
 					t.Fatalf("runID = %q, want %q", capture.runID, "run-2")
 				}
-				if capture.actorContext.Actor.Ref != "user-1" || capture.actorContext.Origin.Ref != "tasks.complete_run" {
+				if capture.actorContext.Actor.Ref != "user-1" ||
+					capture.actorContext.Origin.Ref != "tasks.complete_run" {
 					t.Fatalf("actorContext = %#v", capture.actorContext)
 				}
 			},
@@ -112,7 +113,12 @@ func TestTaskRunTerminalHandlersPreserveHistoricalChannelBindingsIntegration(t *
 				if capture.failure.Error != "boom" {
 					t.Fatalf("failure = %#v, want error %q", capture.failure, "boom")
 				}
-				assertRawJSONEqual(t, "failure metadata", capture.failure.Metadata, `{"step":"claim","mode":"historical-http"}`)
+				assertRawJSONEqual(
+					t,
+					"failure metadata",
+					capture.failure.Metadata,
+					`{"step":"claim","mode":"historical-http"}`,
+				)
 				if capture.actorContext.Actor.Ref != "user-1" || capture.actorContext.Origin.Ref != "tasks.fail_run" {
 					t.Fatalf("actorContext = %#v", capture.actorContext)
 				}
@@ -156,7 +162,12 @@ func TestTaskRunTerminalHandlersPreserveHistoricalChannelBindingsIntegration(t *
 				if capture.cancel.Reason != "operator canceled" {
 					t.Fatalf("cancel = %#v, want reason %q", capture.cancel, "operator canceled")
 				}
-				assertRawJSONEqual(t, "cancel metadata", capture.cancel.Metadata, `{"step":"cancel","mode":"historical-http"}`)
+				assertRawJSONEqual(
+					t,
+					"cancel metadata",
+					capture.cancel.Metadata,
+					`{"step":"cancel","mode":"historical-http"}`,
+				)
 				if capture.actorContext.Actor.Ref != "user-1" || capture.actorContext.Origin.Ref != "tasks.cancel_run" {
 					t.Fatalf("actorContext = %#v", capture.actorContext)
 				}

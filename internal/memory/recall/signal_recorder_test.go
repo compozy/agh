@@ -63,15 +63,15 @@ func TestSignalRecorder(t *testing.T) {
 		source.release = release
 		recorder := newTestSignalRecorder(t, source, SignalRecorderConfig{QueueCapacity: 1})
 
-		recorder.Submit(t.Context(), memcontract.Query{QueryText: "alpha beta"}, []Signal{
+		recorder.Submit(t.Context(), memcontract.Query{QueryText: "first query"}, []Signal{
 			{ChunkID: "chunk-1", Score: 0.9},
 		})
 		source.waitForFirstRecord(t)
 
-		recorder.Submit(t.Context(), memcontract.Query{QueryText: "alpha beta"}, []Signal{
+		recorder.Submit(t.Context(), memcontract.Query{QueryText: "old query"}, []Signal{
 			{ChunkID: "chunk-2", Score: 0.8},
 		})
-		result := recorder.Submit(t.Context(), memcontract.Query{QueryText: "alpha beta"}, []Signal{
+		result := recorder.Submit(t.Context(), memcontract.Query{QueryText: "new query"}, []Signal{
 			{ChunkID: "chunk-3", Score: 0.7},
 		})
 		if !result.Submitted || !result.Dropped {
@@ -89,6 +89,38 @@ func TestSignalRecorder(t *testing.T) {
 		}
 		if got := source.droppedChunkIDs(); len(got) != 1 || got[0] != "chunk-2" {
 			t.Fatalf("dropped chunks = %#v, want chunk-2", got)
+		}
+		if got := source.droppedQueryTexts(); len(got) != 1 || got[0] != "old query" {
+			t.Fatalf("dropped queries = %#v, want old query", got)
+		}
+	})
+
+	t.Run("Should reject submissions after the worker has stopped", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		source := newSignalRecorderFakeSource(nil)
+		recorder, err := NewSignalRecorder(
+			ctx,
+			source,
+			SignalRecorderConfig{QueueCapacity: 2},
+			slog.New(slog.DiscardHandler),
+		)
+		if err != nil {
+			t.Fatalf("NewSignalRecorder() error = %v", err)
+		}
+		cancel()
+		waitSignalRecorderStopped(t, recorder)
+
+		result := recorder.Submit(t.Context(), memcontract.Query{QueryText: "late query"}, []Signal{
+			{ChunkID: "chunk-late", Score: 0.8},
+		})
+		if result.Submitted || result.Dropped {
+			t.Fatalf("Submit(after worker stopped) = %#v, want not submitted", result)
+		}
+		stats := recorder.Stats()
+		if stats.Submitted != 0 || stats.Recorded != 0 || stats.Failed != 0 || stats.Dropped != 0 {
+			t.Fatalf("SignalRecorder stats after stopped submit = %#v, want zero counters", stats)
 		}
 	})
 }
@@ -113,15 +145,33 @@ func closeSignalRecorder(t *testing.T, recorder *SignalRecorder) {
 	}
 }
 
+func waitSignalRecorderStopped(t *testing.T, recorder *SignalRecorder) {
+	t.Helper()
+
+	done := make(chan struct{})
+	go func() {
+		recorder.wg.Wait()
+		close(done)
+	}()
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	select {
+	case <-done:
+	case <-ctx.Done():
+		t.Fatalf("wait for SignalRecorder worker: %v", ctx.Err())
+	}
+}
+
 type signalRecorderFakeSource struct {
-	mu          sync.Mutex
-	err         error
-	release     <-chan struct{}
-	started     chan struct{}
-	startedOnce sync.Once
-	recorded    []Signal
-	dropped     []Signal
-	failures    []error
+	mu             sync.Mutex
+	err            error
+	release        <-chan struct{}
+	started        chan struct{}
+	startedOnce    sync.Once
+	recorded       []Signal
+	dropped        []Signal
+	droppedQueries []memcontract.Query
+	failures       []error
 }
 
 func newSignalRecorderFakeSource(err error) *signalRecorderFakeSource {
@@ -160,13 +210,14 @@ func (f *signalRecorderFakeSource) RecordRecallSignalFailed(
 
 func (f *signalRecorderFakeSource) RecordRecallSignalDropped(
 	_ context.Context,
-	_ memcontract.Query,
+	query memcontract.Query,
 	signals []Signal,
 	_ int,
 ) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.dropped = append(f.dropped, signals...)
+	f.droppedQueries = append(f.droppedQueries, query)
 	return nil
 }
 
@@ -192,6 +243,16 @@ func (f *signalRecorderFakeSource) droppedChunkIDs() []string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return signalChunkIDs(f.dropped)
+}
+
+func (f *signalRecorderFakeSource) droppedQueryTexts() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	texts := make([]string, 0, len(f.droppedQueries))
+	for _, query := range f.droppedQueries {
+		texts = append(texts, query.QueryText)
+	}
+	return texts
 }
 
 func (f *signalRecorderFakeSource) failureCount() int {

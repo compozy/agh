@@ -497,6 +497,70 @@ func TestRuntimeRegistryDispatchHooksAndErrors(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject request scope spoofing before provider invocation", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := validDispatchDescriptor()
+		called := false
+		provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
+			descriptor:   descriptor,
+			availability: availableDispatchHandle(),
+			call: func(context.Context, CallRequest) (ToolResult, error) {
+				called = true
+				return ToolResult{}, nil
+			},
+		})
+		registry := mustDispatchRegistry(t, provider)
+
+		_, err := registry.Call(
+			t.Context(),
+			Scope{SessionID: "sess-a", WorkspaceID: "ws-a", AgentName: "codex"},
+			CallRequest{
+				ToolID:      descriptor.ID,
+				SessionID:   "sess-b",
+				WorkspaceID: "ws-b",
+				Input:       json.RawMessage(`{"query":"x"}`),
+			},
+		)
+		requireToolReason(t, err, ReasonScopeMismatch)
+		if called {
+			t.Fatal("provider handle was called for spoofed request scope")
+		}
+	})
+
+	t.Run("Should reject pre-call hook scope spoofing before provider invocation", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := validDispatchDescriptor()
+		called := false
+		provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
+			descriptor:   descriptor,
+			availability: availableDispatchHandle(),
+			call: func(context.Context, CallRequest) (ToolResult, error) {
+				called = true
+				return ToolResult{}, nil
+			},
+		})
+		hooks := &recordingHookRunner{
+			pre: func(_ context.Context, call CallRequest) (CallRequest, EffectiveToolDecision, error) {
+				call.SessionID = "sess-b"
+				call.WorkspaceID = "ws-b"
+				return call, hookAllowedDecision(), nil
+			},
+		}
+		registry := mustDispatchRegistry(t, provider, WithHookRunner(hooks))
+
+		_, err := registry.Call(
+			t.Context(),
+			Scope{SessionID: "sess-a", WorkspaceID: "ws-a", AgentName: "codex"},
+			CallRequest{ToolID: descriptor.ID, Input: json.RawMessage(`{"query":"x"}`)},
+		)
+		requireToolReason(t, err, ReasonScopeMismatch)
+		if called {
+			t.Fatal("provider handle was called for hook-spoofed scope")
+		}
+	})
+
 	t.Run("Should let pre-call hook denial prevent provider invocation", func(t *testing.T) {
 		t.Parallel()
 
@@ -759,6 +823,83 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 			ToolResultTruncated,
 		}; !slices.Equal(got, want) {
 			t.Fatalf("event kinds = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should reject invalid JSON metadata before returning results", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name   string
+			result ToolResult
+		}{
+			{
+				name: "Should reject invalid result metadata",
+				result: ToolResult{
+					Preview:  "ok",
+					Metadata: map[string]json.RawMessage{"safe": json.RawMessage(`{bad`)},
+				},
+			},
+			{
+				name: "Should reject invalid content metadata",
+				result: ToolResult{
+					Preview: "ok",
+					Content: []ToolContent{{
+						Type:     "json",
+						Data:     json.RawMessage(`{"ok":true}`),
+						Metadata: map[string]json.RawMessage{"safe": json.RawMessage(`{bad`)},
+					}},
+				},
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				descriptor := validDispatchDescriptor()
+				events := &recordingToolEventSink{}
+				provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
+					descriptor:   descriptor,
+					availability: availableDispatchHandle(),
+					result:       tt.result,
+				})
+				registry := mustDispatchRegistry(t, provider, WithToolEventSink(events))
+
+				result, err := registry.Call(
+					t.Context(),
+					Scope{},
+					CallRequest{ToolID: descriptor.ID, Input: json.RawMessage(`{"query":"x"}`)},
+				)
+				if err == nil {
+					data, marshalErr := json.Marshal(result)
+					t.Fatalf(
+						"RuntimeRegistry.Call() error = nil, want invalid result rejection; marshalErr=%v data=%s",
+						marshalErr,
+						data,
+					)
+				}
+				var toolErr *ToolError
+				if !errors.As(err, &toolErr) {
+					t.Fatalf("RuntimeRegistry.Call() error = %T %[1]v, want ToolError", err)
+				}
+				if !slices.Contains(toolErr.ReasonCodes, ReasonSchemaInvalid) {
+					t.Fatalf("ToolError reasons = %#v, want schema_invalid", toolErr.ReasonCodes)
+				}
+				if got, want := events.kinds(), []ToolCallEventKind{
+					ToolCallStarted,
+					ToolCallFailed,
+				}; !slices.Equal(
+					got,
+					want,
+				) {
+					t.Fatalf("event kinds = %#v, want %#v", got, want)
+				}
+				eventSnapshot := events.snapshot()
+				if !slices.Contains(eventSnapshot[1].ReasonCodes, ReasonSchemaInvalid) {
+					t.Fatalf("failed event reasons = %#v, want schema_invalid", eventSnapshot[1].ReasonCodes)
+				}
+			})
 		}
 	})
 }

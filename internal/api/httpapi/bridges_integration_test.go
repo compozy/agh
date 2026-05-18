@@ -18,7 +18,11 @@ type blockingHTTPDeliveryTransport struct {
 	releaseCh chan struct{}
 }
 
-func (t *blockingHTTPDeliveryTransport) DeliverBridge(ctx context.Context, _ string, req bridgepkg.DeliveryRequest) (bridgepkg.DeliveryAck, error) {
+func (t *blockingHTTPDeliveryTransport) DeliverBridge(
+	ctx context.Context,
+	_ string,
+	req bridgepkg.DeliveryRequest,
+) (bridgepkg.DeliveryAck, error) {
 	if t != nil && req.Event.EventType == bridgepkg.DeliveryEventTypeStart {
 		select {
 		case <-t.releaseCh:
@@ -37,7 +41,16 @@ func TestHTTPBridgeCreateReturnsPersistedPayload(t *testing.T) {
 
 	runtime := newIntegrationRuntime(t)
 
-	resp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/bridges"), []byte(`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"dm_policy":"pairing","routing_policy":{"include_peer":true},"provider_config":{"mode":"bot","tenant":"acme"},"delivery_defaults":{"peer_id":"peer-default","mode":"reply"}}`), nil)
+	resp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/bridges"),
+		[]byte(
+			`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"dm_policy":"pairing","routing_policy":{"include_peer":true},"provider_config":{"mode":"bot","tenant":"acme"},"delivery_defaults":{"peer_id":"peer-default","mode":"reply"}}`,
+		),
+		nil,
+	)
 	if resp.StatusCode != http.StatusCreated {
 		body := mustReadAll(t, resp.Body)
 		t.Fatalf("create bridge status = %d, want %d; body=%s", resp.StatusCode, http.StatusCreated, body)
@@ -45,7 +58,8 @@ func TestHTTPBridgeCreateReturnsPersistedPayload(t *testing.T) {
 
 	var payload contract.BridgeResponse
 	decodeHTTPJSON(t, resp, &payload)
-	if payload.Bridge.ID == "" || payload.Bridge.Platform != "telegram" || payload.Bridge.ExtensionName != "ext-telegram" {
+	if payload.Bridge.ID == "" || payload.Bridge.Platform != "telegram" ||
+		payload.Bridge.ExtensionName != "ext-telegram" {
 		t.Fatalf("payload.Bridge = %#v", payload.Bridge)
 	}
 	if payload.Bridge.DMPolicy != bridgepkg.BridgeDMPolicyPairing {
@@ -105,7 +119,14 @@ func TestHTTPBridgeProvidersExposeOperatorMetadata(t *testing.T) {
 		HealthMessage: "connected",
 	}}
 
-	resp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/bridges/providers"), nil, nil)
+	resp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/bridges/providers"),
+		nil,
+		nil,
+	)
 	if resp.StatusCode != http.StatusOK {
 		body := mustReadAll(t, resp.Body)
 		t.Fatalf("provider list status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, body)
@@ -170,7 +191,14 @@ func TestHTTPBridgeRoutesEndpointReturnsOnlyRequestedInstanceRoutes(t *testing.T
 		LastActivityAt:   time.Date(2026, 4, 11, 12, 1, 0, 0, time.UTC),
 	})
 
-	resp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/bridges/"+first.ID+"/routes"), nil, nil)
+	resp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/bridges/"+first.ID+"/routes"),
+		nil,
+		nil,
+	)
 	if resp.StatusCode != http.StatusOK {
 		body := mustReadAll(t, resp.Body)
 		t.Fatalf("routes status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, body)
@@ -203,7 +231,14 @@ func TestHTTPBridgeTestDeliveryResolvesTargetWithoutLiveAdapter(t *testing.T) {
 		DeliveryDefaults: []byte(`{"peer_id":"peer-default","mode":"reply"}`),
 	})
 
-	resp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/bridges/"+instance.ID+"/test-delivery"), []byte(`{"message":"hello","target":{"thread_id":"thread-1"}}`), nil)
+	resp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/bridges/"+instance.ID+"/test-delivery"),
+		[]byte(`{"message":"hello","target":{"thread_id":"thread-1"}}`),
+		nil,
+	)
 	if resp.StatusCode != http.StatusOK {
 		body := mustReadAll(t, resp.Body)
 		t.Fatalf("test delivery status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, body)
@@ -214,7 +249,8 @@ func TestHTTPBridgeTestDeliveryResolvesTargetWithoutLiveAdapter(t *testing.T) {
 	if payload.Status != "resolved" || payload.DeliveryTarget.BridgeInstanceID != instance.ID {
 		t.Fatalf("payload = %#v", payload)
 	}
-	if payload.DeliveryTarget.PeerID != "peer-default" || payload.DeliveryTarget.ThreadID != "thread-1" || payload.DeliveryTarget.Mode != bridgepkg.DeliveryModeReply {
+	if payload.DeliveryTarget.PeerID != "peer-default" || payload.DeliveryTarget.ThreadID != "thread-1" ||
+		payload.DeliveryTarget.Mode != bridgepkg.DeliveryModeReply {
 		t.Fatalf("delivery target = %#v", payload.DeliveryTarget)
 	}
 }
@@ -224,7 +260,14 @@ func TestHTTPObserveHealthIncludesBridgeMetricsAndPreservesSessionFields(t *test
 
 	runtime := newIntegrationRuntime(t)
 
-	createSessionResp := mustHTTPRequest(t, runtime.client, http.MethodPost, mustURL(runtime.host, runtime.port, "/api/sessions"), []byte(`{"agent_name":"coder","workspace_path":"`+runtime.workspace+`"}`), nil)
+	createSessionResp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		mustURL(runtime.host, runtime.port, "/api/sessions"),
+		[]byte(`{"agent_name":"coder","workspace_path":"`+runtime.workspace+`"}`),
+		nil,
+	)
 	if createSessionResp.StatusCode != http.StatusCreated {
 		body := mustReadAll(t, createSessionResp.Body)
 		t.Fatalf("create session status = %d, want %d; body=%s", createSessionResp.StatusCode, http.StatusCreated, body)
@@ -250,7 +293,14 @@ func TestHTTPObserveHealthIncludesBridgeMetricsAndPreservesSessionFields(t *test
 	})
 	runtime.observer.RecordBridgeAuthFailure(instance.ID)
 
-	resp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/observe/health"), nil, nil)
+	resp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/observe/health"),
+		nil,
+		nil,
+	)
 	if resp.StatusCode != http.StatusOK {
 		body := mustReadAll(t, resp.Body)
 		t.Fatalf("health status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, body)
@@ -302,7 +352,14 @@ func TestHTTPBridgeDetailShowsAuthRequiredStatusAndHealth(t *testing.T) {
 	}
 	runtime.observer.RecordBridgeAuthFailure(instance.ID)
 
-	resp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/bridges/"+instance.ID), nil, nil)
+	resp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/bridges/"+instance.ID),
+		nil,
+		nil,
+	)
 	if resp.StatusCode != http.StatusOK {
 		body := mustReadAll(t, resp.Body)
 		t.Fatalf("get bridge status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, body)
@@ -339,11 +396,20 @@ func TestHTTPBridgeDetailReportsBacklogAndClearsAfterDeliveryCompletes(t *testin
 
 	transport := &blockingHTTPDeliveryTransport{releaseCh: make(chan struct{})}
 	runtime.bridges.Broker().SetTransport(transport)
-	registration := registerIntegrationDelivery(t, runtime, instance, "sess-http-backlog", "turn-http-backlog", "peer-http-backlog")
-	if err := runtime.bridges.Broker().Deliver(testutil.Context(t), integrationDeliveryEvent(registration, 1, bridgepkg.DeliveryEventTypeStart, "hello", false)); err != nil {
+	registration := registerIntegrationDelivery(
+		t,
+		runtime,
+		instance,
+		"sess-http-backlog",
+		"turn-http-backlog",
+		"peer-http-backlog",
+	)
+	if err := runtime.bridges.Broker().
+		Deliver(testutil.Context(t), integrationDeliveryEvent(registration, 1, bridgepkg.DeliveryEventTypeStart, "hello", false)); err != nil {
 		t.Fatalf("Broker().Deliver(start) error = %v", err)
 	}
-	if err := runtime.bridges.Broker().Deliver(testutil.Context(t), integrationDeliveryEvent(registration, 2, bridgepkg.DeliveryEventTypeDelta, "hello again", false)); err != nil {
+	if err := runtime.bridges.Broker().
+		Deliver(testutil.Context(t), integrationDeliveryEvent(registration, 2, bridgepkg.DeliveryEventTypeDelta, "hello again", false)); err != nil {
 		t.Fatalf("Broker().Deliver(delta) error = %v", err)
 	}
 
@@ -375,7 +441,11 @@ func TestHTTPBridgeDetailReportsBacklogAndClearsAfterDeliveryCompletes(t *testin
 	}
 }
 
-func createIntegrationBridge(t *testing.T, runtime integrationRuntime, req bridgepkg.CreateInstanceRequest) *bridgepkg.BridgeInstance {
+func createIntegrationBridge(
+	t *testing.T,
+	runtime integrationRuntime,
+	req bridgepkg.CreateInstanceRequest,
+) *bridgepkg.BridgeInstance {
 	t.Helper()
 
 	instance, err := runtime.bridges.CreateInstance(testutil.Context(t), req)
@@ -393,32 +463,46 @@ func upsertIntegrationBridgeRoute(t *testing.T, runtime integrationRuntime, rout
 	}
 }
 
-func registerIntegrationDelivery(t *testing.T, runtime integrationRuntime, instance *bridgepkg.BridgeInstance, sessionID string, turnID string, peerID string) bridgepkg.DeliverySnapshot {
+func registerIntegrationDelivery(
+	t *testing.T,
+	runtime integrationRuntime,
+	instance *bridgepkg.BridgeInstance,
+	sessionID string,
+	turnID string,
+	peerID string,
+) bridgepkg.DeliverySnapshot {
 	t.Helper()
 
-	snapshot, err := runtime.bridges.Broker().RegisterPromptDelivery(testutil.Context(t), bridgepkg.PromptDeliveryRegistration{
-		SessionID:     sessionID,
-		TurnID:        turnID,
-		ExtensionName: instance.ExtensionName,
-		RoutingKey: bridgepkg.RoutingKey{
-			Scope:            instance.Scope,
-			WorkspaceID:      instance.WorkspaceID,
-			BridgeInstanceID: instance.ID,
-			PeerID:           peerID,
-		},
-		DeliveryTarget: bridgepkg.DeliveryTarget{
-			BridgeInstanceID: instance.ID,
-			PeerID:           peerID,
-			Mode:             bridgepkg.DeliveryModeReply,
-		},
-	})
+	snapshot, err := runtime.bridges.Broker().
+		RegisterPromptDelivery(testutil.Context(t), bridgepkg.PromptDeliveryRegistration{
+			SessionID:     sessionID,
+			TurnID:        turnID,
+			ExtensionName: instance.ExtensionName,
+			RoutingKey: bridgepkg.RoutingKey{
+				Scope:            instance.Scope,
+				WorkspaceID:      instance.WorkspaceID,
+				BridgeInstanceID: instance.ID,
+				PeerID:           peerID,
+			},
+			DeliveryTarget: bridgepkg.DeliveryTarget{
+				BridgeInstanceID: instance.ID,
+				PeerID:           peerID,
+				Mode:             bridgepkg.DeliveryModeReply,
+			},
+		})
 	if err != nil {
 		t.Fatalf("RegisterPromptDelivery(%s) error = %v", instance.ID, err)
 	}
 	return *snapshot
 }
 
-func integrationDeliveryEvent(snapshot bridgepkg.DeliverySnapshot, seq int64, eventType string, text string, final bool) bridgepkg.DeliveryEvent {
+func integrationDeliveryEvent(
+	snapshot bridgepkg.DeliverySnapshot,
+	seq int64,
+	eventType string,
+	text string,
+	final bool,
+) bridgepkg.DeliveryEvent {
 	return bridgepkg.DeliveryEvent{
 		DeliveryID:       snapshot.DeliveryID,
 		BridgeInstanceID: snapshot.BridgeInstanceID,
@@ -434,7 +518,14 @@ func integrationDeliveryEvent(snapshot bridgepkg.DeliverySnapshot, seq int64, ev
 func getHTTPBridge(t *testing.T, runtime integrationRuntime, bridgeID string) contract.BridgeResponse {
 	t.Helper()
 
-	resp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/bridges/"+bridgeID), nil, nil)
+	resp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/bridges/"+bridgeID),
+		nil,
+		nil,
+	)
 	if resp.StatusCode != http.StatusOK {
 		body := mustReadAll(t, resp.Body)
 		t.Fatalf("get bridge status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, body)
@@ -447,7 +538,14 @@ func getHTTPBridge(t *testing.T, runtime integrationRuntime, bridgeID string) co
 func getHTTPHealth(t *testing.T, runtime integrationRuntime) contract.HealthResponse {
 	t.Helper()
 
-	resp := mustHTTPRequest(t, runtime.client, http.MethodGet, mustURL(runtime.host, runtime.port, "/api/observe/health"), nil, nil)
+	resp := mustHTTPRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		mustURL(runtime.host, runtime.port, "/api/observe/health"),
+		nil,
+		nil,
+	)
 	if resp.StatusCode != http.StatusOK {
 		body := mustReadAll(t, resp.Body)
 		t.Fatalf("get health status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, body)

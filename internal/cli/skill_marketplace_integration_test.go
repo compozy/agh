@@ -257,7 +257,14 @@ func TestSkillInstallCommandIntegrationReplacesExistingSkillDirectory(t *testing
 			BaseURL:  server.URL(),
 		}
 	})
-	writeInstalledMarketplaceSkill(t, env.homePaths, "review", "@agh/review", "1.0.0", skillDocument("review", "Review helper", "old body"))
+	writeInstalledMarketplaceSkill(
+		t,
+		env.homePaths,
+		"review",
+		"@agh/review",
+		"1.0.0",
+		skillDocument("review", "Review helper", "old body"),
+	)
 
 	if _, _, err := executeRootCommand(t, env.deps, "skill", "install", "@agh/review", "-o", "json"); err != nil {
 		t.Fatalf("skill install replace error = %v", err)

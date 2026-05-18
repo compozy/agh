@@ -71,6 +71,7 @@ type StdioTransport struct {
 	closed   bool
 	err      error
 	done     chan struct{}
+	cancel   context.CancelFunc
 	once     sync.Once
 	writeMu  sync.Mutex
 }
@@ -151,7 +152,7 @@ func (t *StdioTransport) Call(ctx context.Context, method string, params any, re
 	if cleanMethod == "" {
 		return NewInvalidParamsError("method is required", nil)
 	}
-	if err := t.start(ctx); err != nil {
+	if err := t.start(context.Background()); err != nil {
 		return err
 	}
 
@@ -228,8 +229,17 @@ func (t *StdioTransport) start(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("transport: context is required")
 	}
+	loopCtx, cancel := context.WithCancel(ctx)
+	started := false
+	defer func() {
+		if !started {
+			cancel()
+		}
+	}()
 	t.started = true
-	go t.readLoop(ctx)
+	t.cancel = cancel
+	go t.readLoop(loopCtx)
+	started = true
 	return nil
 }
 
@@ -280,6 +290,11 @@ func (t *StdioTransport) processLine(ctx context.Context, line []byte) {
 		t.fail(NewRPCError(-32700, "Parse error", map[string]any{"error": err.Error()}))
 		return
 	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(trimmed, &fields); err != nil {
+		t.fail(NewRPCError(-32700, "Parse error", map[string]any{"error": err.Error()}))
+		return
+	}
 	if envelope.JSONRPC != JSONRPCVersion {
 		t.fail(NewInvalidRequestError("jsonrpc must be 2.0"))
 		return
@@ -298,7 +313,9 @@ func (t *StdioTransport) processLine(ctx context.Context, line []byte) {
 		return
 	}
 	if len(envelope.ID) > 0 {
-		t.dispatchResponse(envelope.ID, envelope.Result, envelope.Error)
+		_, hasResult := fields["result"]
+		_, hasError := fields["error"]
+		t.dispatchResponse(envelope.ID, envelope.Result, envelope.Error, hasResult, hasError)
 		return
 	}
 	t.fail(NewInvalidRequestError("invalid json-rpc envelope"))
@@ -320,7 +337,13 @@ func (t *StdioTransport) dispatchRequest(ctx context.Context, request JSONRPCReq
 	t.sendResult(request.ID, result)
 }
 
-func (t *StdioTransport) dispatchResponse(id json.RawMessage, result json.RawMessage, rpcErr *JSONRPCErrorObject) {
+func (t *StdioTransport) dispatchResponse(
+	id json.RawMessage,
+	result json.RawMessage,
+	rpcErr *JSONRPCErrorObject,
+	hasResult bool,
+	hasError bool,
+) {
 	key := pendingKey(id)
 	t.mu.Lock()
 	pending, ok := t.pending[key]
@@ -331,11 +354,22 @@ func (t *StdioTransport) dispatchResponse(id json.RawMessage, result json.RawMes
 	if !ok {
 		return
 	}
-	if rpcErr != nil {
+	switch {
+	case rpcErr != nil && hasResult:
+		pending.err <- NewInvalidRequestError("response must not include both result and error")
+		return
+	case rpcErr != nil:
 		pending.err <- rpcErrorFromObject(*rpcErr)
 		return
+	case hasError:
+		pending.err <- NewInvalidRequestError("response error must be an object")
+		return
+	case !hasResult:
+		pending.err <- NewInvalidRequestError("response must include result or error")
+		return
+	default:
+		pending.result <- cloneRawMessage(result)
 	}
-	pending.result <- cloneRawMessage(result)
 }
 
 func (t *StdioTransport) sendResult(id json.RawMessage, result any) {
@@ -388,10 +422,15 @@ func (t *StdioTransport) fail(err error) {
 		t.mu.Lock()
 		t.closed = true
 		t.err = err
+		cancel := t.cancel
+		t.cancel = nil
 		pending := t.pending
 		t.pending = make(map[string]pendingCall)
 		close(t.done)
 		t.mu.Unlock()
+		if cancel != nil {
+			cancel()
+		}
 		for _, call := range pending {
 			call.err <- err
 		}

@@ -11,11 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
-	"os/exec"
 	"path"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -36,7 +32,6 @@ const (
 	sidecarHealthPollInterval         = 200 * time.Millisecond
 	sidecarRequestTimeout             = 30 * time.Second
 	sidecarCloseTimeout               = 5 * time.Second
-	sidecarBuildTimeout               = 2 * time.Minute
 	sidecarFrameClientStdin      byte = 0x01
 	sidecarFrameClientCloseStdin      = 0x02
 	sidecarFrameClientStop            = 0x03
@@ -131,7 +126,7 @@ func (t *sidecarTransport) Dial(
 	ctx context.Context,
 	sandbox sandboxInfo,
 	command string,
-) (transportSession, error) {
+) (_ transportSession, err error) {
 	if t == nil {
 		return nil, errors.New("sandbox/daytona: launcher sidecar transport is required")
 	}
@@ -139,17 +134,36 @@ func (t *sidecarTransport) Dial(
 	if err != nil {
 		return nil, err
 	}
+	return t.dialEndpoint(ctx, endpoint, command)
+}
+
+func (t *sidecarTransport) dialEndpoint(
+	ctx context.Context,
+	endpoint sidecarEndpoint,
+	command string,
+) (_ transportSession, err error) {
+	endpointOwned := false
+	defer func() {
+		if !endpointOwned {
+			err = errors.Join(err, endpoint.Close())
+		}
+	}()
 	sessionID, err := t.launch(ctx, endpoint, command)
 	if err != nil {
 		return nil, err
 	}
-	return t.connect(ctx, endpoint, sessionID)
+	session, err := t.connect(ctx, endpoint, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	endpointOwned = true
+	return session, nil
 }
 
 func (t *sidecarTransport) ensureSidecar(
 	ctx context.Context,
 	info sandboxInfo,
-) (sidecarEndpoint, error) {
+) (_ sidecarEndpoint, err error) {
 	sandbox, err := t.loadSandbox(ctx, info)
 	if err != nil {
 		return sidecarEndpoint{}, err
@@ -165,8 +179,15 @@ func (t *sidecarTransport) ensureSidecar(
 	if err != nil {
 		return sidecarEndpoint{}, err
 	}
+	endpointOwned := false
+	defer func() {
+		if !endpointOwned {
+			err = errors.Join(err, endpoint.Close())
+		}
+	}()
 	healthy, err := t.health(ctx, endpoint)
 	if err == nil && healthy {
+		endpointOwned = true
 		return endpoint, nil
 	}
 	if err := t.startSidecar(ctx, info); err != nil {
@@ -175,6 +196,7 @@ func (t *sidecarTransport) ensureSidecar(
 	if err := t.waitForHealth(ctx, endpoint); err != nil {
 		return sidecarEndpoint{}, err
 	}
+	endpointOwned = true
 	return endpoint, nil
 }
 
@@ -238,7 +260,7 @@ func (t *sidecarTransport) sidecarBinary(ctx context.Context, sandbox sandboxInf
 		return cached, nil
 	}
 
-	built, err := t.buildSidecarBinary(ctx, arch)
+	built, err := embeddedLauncherSidecarBinary(arch)
 	if err != nil {
 		return nil, err
 	}
@@ -279,59 +301,6 @@ func (t *sidecarTransport) remoteArch(ctx context.Context, sandbox sandboxInfo) 
 	}
 }
 
-func (t *sidecarTransport) buildSidecarBinary(ctx context.Context, arch string) ([]byte, error) {
-	goBinary, err := exec.LookPath("go")
-	if err != nil {
-		return nil, fmt.Errorf("sandbox/daytona: go toolchain is required to build launcher sidecar: %w", err)
-	}
-	buildCtx, cancel := context.WithTimeout(ctx, sidecarBuildTimeout)
-	defer cancel()
-
-	tmpFile, err := os.CreateTemp("", "agh-daytona-sidecar-*")
-	if err != nil {
-		return nil, fmt.Errorf("sandbox/daytona: create launcher sidecar temp file: %w", err)
-	}
-	tmpPath := tmpFile.Name()
-	if err := tmpFile.Close(); err != nil {
-		return nil, fmt.Errorf("sandbox/daytona: close launcher sidecar temp file: %w", err)
-	}
-	defer os.Remove(tmpPath)
-
-	cmd := exec.CommandContext(buildCtx, goBinary, "build", "-o", tmpPath, t.sidecarSourceDir())
-	cacheRoot := filepath.Join(os.TempDir(), "agh-daytona-sidecar-go")
-	modCache := filepath.Join(cacheRoot, "mod")
-	buildCache := filepath.Join(cacheRoot, "build")
-	if err := os.MkdirAll(modCache, 0o755); err != nil {
-		return nil, fmt.Errorf("sandbox/daytona: create launcher sidecar module cache: %w", err)
-	}
-	if err := os.MkdirAll(buildCache, 0o755); err != nil {
-		return nil, fmt.Errorf("sandbox/daytona: create launcher sidecar build cache: %w", err)
-	}
-	cmd.Env = append(
-		os.Environ(),
-		"CGO_ENABLED=0",
-		"GOOS=linux",
-		"GOARCH="+arch,
-		"GOMODCACHE="+modCache,
-		"GOCACHE="+buildCache,
-	)
-	cmd.Dir = t.repoRootDir()
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return nil, fmt.Errorf(
-			"sandbox/daytona: build launcher sidecar for %s: %w: %s",
-			arch,
-			err,
-			strings.TrimSpace(string(output)),
-		)
-	}
-	binary, err := os.ReadFile(tmpPath)
-	if err != nil {
-		return nil, fmt.Errorf("sandbox/daytona: read launcher sidecar binary: %w", err)
-	}
-	return binary, nil
-}
-
 func (t *sidecarTransport) loadSandbox(ctx context.Context, info sandboxInfo) (daytonaSandbox, error) {
 	if t.newClient == nil {
 		return nil, errors.New("sandbox/daytona: launcher sidecar sandbox client is required")
@@ -345,18 +314,6 @@ func (t *sidecarTransport) loadSandbox(ctx context.Context, info sandboxInfo) (d
 		return nil, fmt.Errorf("sandbox/daytona: launcher sidecar load sandbox %q: %w", info.ID, err)
 	}
 	return sandbox, nil
-}
-
-func (t *sidecarTransport) repoRootDir() string {
-	_, filename, _, ok := runtime.Caller(0)
-	if !ok {
-		return "."
-	}
-	return filepath.Clean(filepath.Join(filepath.Dir(filename), "..", "..", ".."))
-}
-
-func (t *sidecarTransport) sidecarSourceDir() string {
-	return "./internal/sandbox/daytona/cmd/agh-daytona-sidecar"
 }
 
 func (t *sidecarTransport) health(ctx context.Context, endpoint sidecarEndpoint) (bool, error) {
@@ -537,6 +494,13 @@ func (e sidecarEndpoint) wsURL(parts ...string) string {
 	return parsed.String()
 }
 
+func (e sidecarEndpoint) Close() error {
+	if e.closeFn == nil {
+		return nil
+	}
+	return e.closeFn()
+}
+
 func launcherSidecarStartCommand() string {
 	script := strings.Join([]string{
 		"chmod 755 " + shellquote.Join(launcherSidecarPath),
@@ -621,17 +585,9 @@ func (s *sidecarSession) CloseWrite() error {
 }
 
 func (s *sidecarSession) Close() error {
-	var err error
-	s.closeSession.Do(func() {
-		stopCtx, cancel := context.WithTimeout(context.Background(), s.closeTimeout)
-		defer cancel()
-		err = s.requestStop(stopCtx)
-		if s.endpoint.closeFn != nil {
-			err = errors.Join(err, s.endpoint.closeFn())
-		}
-		err = errors.Join(err, s.conn.Close(), s.stdoutWriter.Close())
-	})
-	return err
+	stopCtx, cancel := context.WithTimeout(context.Background(), s.closeTimeout)
+	defer cancel()
+	return errors.Join(s.requestStop(stopCtx), s.closeLocalResources())
 }
 
 func (s *sidecarSession) Done() <-chan struct{} {
@@ -640,17 +596,35 @@ func (s *sidecarSession) Done() <-chan struct{} {
 
 func (s *sidecarSession) Wait() error {
 	<-s.done
-	return s.waitErr
+	return errors.Join(s.waitErr, s.closeLocalResources())
 }
 
 func (s *sidecarSession) Stop(ctx context.Context) error {
 	stopErr := s.requestStop(ctx)
 	select {
 	case <-s.done:
-		return errors.Join(stopErr, s.waitErr)
+		return errors.Join(stopErr, s.waitErr, s.closeLocalResources())
 	case <-ctx.Done():
-		return errors.Join(stopErr, fmt.Errorf("sandbox/daytona: stop launcher sidecar session: %w", ctx.Err()))
+		return errors.Join(
+			stopErr,
+			fmt.Errorf("sandbox/daytona: stop launcher sidecar session: %w", ctx.Err()),
+			s.closeLocalResources(),
+		)
 	}
+}
+
+func (s *sidecarSession) closeLocalResources() error {
+	var err error
+	s.closeSession.Do(func() {
+		err = errors.Join(err, s.endpoint.Close())
+		if s.conn != nil {
+			err = errors.Join(err, s.conn.Close())
+		}
+		if closeErr := s.stdoutWriter.Close(); closeErr != nil && !errors.Is(closeErr, io.ErrClosedPipe) {
+			err = errors.Join(err, closeErr)
+		}
+	})
+	return err
 }
 
 func (s *sidecarSession) Stderr() string {

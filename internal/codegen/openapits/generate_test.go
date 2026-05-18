@@ -343,6 +343,44 @@ func TestRunCommand(t *testing.T) {
 	})
 }
 
+func TestTemporaryOutputCleanup(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should remove the temporary path when initial close fails", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		tempPath := filepath.Join(dir, ".openapi-types-close-failed.d.ts")
+		if err := os.WriteFile(tempPath, []byte("leaked temp"), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(%q) error = %v", tempPath, err)
+		}
+		closeErr := errors.New("close failed")
+		used := false
+
+		err := withClosedTemporaryOutput(
+			dir,
+			".openapi-types-*.d.ts",
+			filepath.Join(dir, "types.d.ts"),
+			func(string, string) (temporaryOutputFile, error) {
+				return closeFailingTemporaryOutputFile{name: tempPath, err: closeErr}, nil
+			},
+			func(string) error {
+				used = true
+				return nil
+			},
+		)
+		if !errors.Is(err, closeErr) {
+			t.Fatalf("withClosedTemporaryOutput() error = %v, want closeErr", err)
+		}
+		if used {
+			t.Fatal("temporary output callback ran after close failure")
+		}
+		if _, statErr := os.Stat(tempPath); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("os.Stat(%q) error = %v, want os.ErrNotExist", tempPath, statErr)
+		}
+	})
+}
+
 func writeTestSpec(t *testing.T, path string) {
 	t.Helper()
 
@@ -399,6 +437,19 @@ type commandRunnerFunc func(context.Context, string, ...string) error
 
 func (fn commandRunnerFunc) Run(ctx context.Context, name string, args ...string) error {
 	return fn(ctx, name, args...)
+}
+
+type closeFailingTemporaryOutputFile struct {
+	name string
+	err  error
+}
+
+func (f closeFailingTemporaryOutputFile) Name() string {
+	return f.name
+}
+
+func (f closeFailingTemporaryOutputFile) Close() error {
+	return f.err
 }
 
 func assertNoTemporaryOutputs(t *testing.T, dir string) {

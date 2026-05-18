@@ -164,6 +164,49 @@ func TestMergeRows(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep stale metadata flag when fresh availability wins", func(t *testing.T) {
+		t.Parallel()
+
+		available := true
+		contextWindow := int64(256000)
+		models := MergeRows([]ModelRow{
+			testRow(
+				"provider_live:codex",
+				SourceKindProviderLive,
+				PriorityProviderLive,
+				"codex",
+				"gpt-5.4",
+				testTime(2),
+				func(row *ModelRow) {
+					row.Available = &available
+				},
+			),
+			testRow(
+				"models_dev",
+				SourceKindModelsDev,
+				PriorityModelsDev,
+				"codex",
+				"gpt-5.4",
+				testTime(1),
+				func(row *ModelRow) {
+					row.ContextWindow = &contextWindow
+					row.Stale = true
+				},
+			),
+		})
+
+		model := requireSingleModel(t, models)
+		if model.ContextWindow == nil || *model.ContextWindow != contextWindow {
+			t.Fatalf("ContextWindow = %v, want %d", model.ContextWindow, contextWindow)
+		}
+		if model.AvailabilityState != AvailabilityStateAvailableLive {
+			t.Fatalf("AvailabilityState = %q, want available_live", model.AvailabilityState)
+		}
+		if !model.Stale {
+			t.Fatal("Model.Stale = false, want true because stale metadata contributed to projection")
+		}
+	})
+
 	t.Run("Should project merged availability states", func(t *testing.T) {
 		t.Parallel()
 
@@ -514,6 +557,125 @@ func TestCatalogServiceRefresh(t *testing.T) {
 			t.Fatalf("len(statuses) = %d, want %d: %#v", got, want, statuses)
 		}
 	})
+
+	t.Run("Should retain discovered providers for global source failures without ProviderIDs", func(t *testing.T) {
+		t.Parallel()
+
+		source := &sourceWithoutProviderIDs{
+			id:       "models_dev",
+			kind:     SourceKindModelsDev,
+			priority: PriorityModelsDev,
+			rows: []ModelRow{
+				testRow("models_dev", SourceKindModelsDev, PriorityModelsDev, "codex", "gpt-5.4", testTime(50), nil),
+			},
+		}
+		store := newMemoryStore()
+		service := newTestService(t, store, []Source{source})
+		if _, err := service.Refresh(testutil.Context(t), RefreshOptions{Force: true, Now: testTime(50)}); err != nil {
+			t.Fatalf("Refresh(initial global) error = %v", err)
+		}
+
+		source.rows = nil
+		source.err = errors.New("models.dev unavailable")
+		statuses, err := service.Refresh(testutil.Context(t), RefreshOptions{Force: true, Now: testTime(51)})
+		if err == nil {
+			t.Fatal("Refresh(failed global) error = nil, want stale failure")
+		}
+		status := requireStatus(t, statuses, "models_dev")
+		if status.ProviderID != "codex" {
+			t.Fatalf("ProviderID = %q, want codex", status.ProviderID)
+		}
+		if status.RefreshState != RefreshStateFailed || !status.Stale {
+			t.Fatalf("status = %#v, want failed stale status", status)
+		}
+		rows, err := store.ListRows(
+			testutil.Context(t),
+			ListOptions{ProviderID: "codex", SourceID: "models_dev", IncludeStale: true, Now: testTime(51)},
+		)
+		if err != nil {
+			t.Fatalf("ListRows(stale source) error = %v", err)
+		}
+		if got, want := len(rows), 1; got != want {
+			t.Fatalf("len(rows) = %d, want %d: %#v", got, want, rows)
+		}
+		if !rows[0].Stale {
+			t.Fatalf("rows[0].Stale = %t, want true", rows[0].Stale)
+		}
+	})
+
+	t.Run("Should clear discovered providers for global source disable without ProviderIDs", func(t *testing.T) {
+		t.Parallel()
+
+		source := &sourceWithoutProviderIDs{
+			id:       "models_dev",
+			kind:     SourceKindModelsDev,
+			priority: PriorityModelsDev,
+			rows: []ModelRow{
+				testRow("models_dev", SourceKindModelsDev, PriorityModelsDev, "codex", "gpt-5.4", testTime(52), nil),
+			},
+		}
+		store := newMemoryStore()
+		service := newTestService(t, store, []Source{source})
+		if _, err := service.Refresh(testutil.Context(t), RefreshOptions{Force: true, Now: testTime(52)}); err != nil {
+			t.Fatalf("Refresh(initial global) error = %v", err)
+		}
+
+		source.rows = nil
+		source.err = ErrSourceDisabled
+		statuses, err := service.Refresh(testutil.Context(t), RefreshOptions{Force: true, Now: testTime(53)})
+		if err != nil {
+			t.Fatalf("Refresh(disabled global) error = %v", err)
+		}
+		status := requireStatus(t, statuses, "models_dev")
+		if status.ProviderID != "codex" {
+			t.Fatalf("ProviderID = %q, want codex", status.ProviderID)
+		}
+		if status.RefreshState != RefreshStateDisabled {
+			t.Fatalf("RefreshState = %q, want disabled", status.RefreshState)
+		}
+		rows, err := store.ListRows(
+			testutil.Context(t),
+			ListOptions{ProviderID: "codex", SourceID: "models_dev", IncludeAll: true, Now: testTime(53)},
+		)
+		if err != nil {
+			t.Fatalf("ListRows(disabled source) error = %v", err)
+		}
+		if len(rows) != 0 {
+			t.Fatalf("ListRows(disabled source) = %#v, want cleared rows", rows)
+		}
+	})
+
+	t.Run("Should return stale fallback error from direct refresh", func(t *testing.T) {
+		t.Parallel()
+
+		sourceErr := &StaleFallbackError{SourceID: "models_dev", Err: errors.New("upstream unavailable")}
+		source := &fakeSource{
+			id:        "models_dev",
+			kind:      SourceKindModelsDev,
+			priority:  PriorityModelsDev,
+			providers: []string{"codex"},
+			rows: []ModelRow{
+				testRow("models_dev", SourceKindModelsDev, PriorityModelsDev, "codex", "gpt-5.4", testTime(54), nil),
+			},
+			err: sourceErr,
+		}
+		service := newTestService(t, newMemoryStore(), []Source{source})
+		statuses, err := service.Refresh(
+			testutil.Context(t),
+			RefreshOptions{ProviderID: "codex", SourceID: source.ID(), Force: true, Now: testTime(54)},
+		)
+		var fallback *StaleFallbackError
+		if !errors.As(err, &fallback) {
+			t.Fatalf("Refresh(stale fallback) error = %v, want StaleFallbackError", err)
+		}
+		if fallback.SourceID != source.ID() {
+			t.Fatalf("StaleFallbackError.SourceID = %q, want %q", fallback.SourceID, source.ID())
+		}
+		status := requireStatus(t, statuses, source.ID())
+		if status.RefreshState != RefreshStateFailed || !status.Stale {
+			t.Fatalf("status = %#v, want failed stale status", status)
+		}
+	})
 }
 
 func TestCatalogServiceRefreshConcurrency(t *testing.T) {
@@ -776,6 +938,38 @@ type fakeSource struct {
 	err       error
 	ttl       time.Duration
 	calls     int
+}
+
+type sourceWithoutProviderIDs struct {
+	id       string
+	kind     SourceKind
+	priority int
+	rows     []ModelRow
+	err      error
+	calls    int
+}
+
+func (s *sourceWithoutProviderIDs) ID() string {
+	return s.id
+}
+
+func (s *sourceWithoutProviderIDs) Kind() SourceKind {
+	return s.kind
+}
+
+func (s *sourceWithoutProviderIDs) Priority() int {
+	return s.priority
+}
+
+func (s *sourceWithoutProviderIDs) ListModels(_ context.Context, opts ListOptions) ([]ModelRow, error) {
+	s.calls++
+	rows := make([]ModelRow, 0, len(s.rows))
+	for _, row := range s.rows {
+		if opts.ProviderID == "" || row.ProviderID == opts.ProviderID {
+			rows = append(rows, row)
+		}
+	}
+	return rows, s.err
 }
 
 func (s *fakeSource) ID() string {

@@ -577,3 +577,27 @@ export type {
 export { Textarea, type TextareaProps, type TextareaVariant } from "./components/textarea";
 export { Toaster, toast, type ToasterProps } from "./components/sonner";
 export { DirectionProvider, useDirection } from "./components/direction";
+
+// Animation
+export {
+  GithubStars,
+  GithubStarsIcon,
+  GithubStarsLogo,
+  GithubStarsNumber,
+  GithubStarsParticles,
+  useGithubStars,
+  type GithubStarsContextType,
+  type GithubStarsIconProps,
+  type GithubStarsLogoProps,
+  type GithubStarsNumberProps,
+  type GithubStarsParticlesProps,
+  type GithubStarsProps,
+} from "./components/animation/github-stars";
+export {
+  Particles,
+  ParticlesEffect,
+  useParticles,
+  type ParticlesEffectProps,
+  type ParticlesProps,
+} from "./components/animation/particles";
+export { SlidingNumber, type SlidingNumberProps } from "./components/animation/sliding-number";

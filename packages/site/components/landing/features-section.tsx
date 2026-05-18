@@ -63,7 +63,7 @@ export function FeaturesSection() {
                   height={600}
                   decoding="async"
                   sizes="(min-width: 768px) 50vw, 100vw"
-                  unoptimized
+                  quality={90}
                   className="block aspect-16/10 w-full object-contain opacity-95 transition-transform duration-slow ease-out group-hover:scale-[1.02]"
                 />
               </div>

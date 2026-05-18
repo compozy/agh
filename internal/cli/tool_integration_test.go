@@ -139,7 +139,12 @@ func TestCLIToolCommandsMatchUDSContractsIntegration(t *testing.T) {
 	})
 
 	t.Run("Should match toolset info payload", func(t *testing.T) {
-		expectedPayload := expectedCLIToolsetPayload(t, registry, toolspkg.Scope{Operator: true}, toolspkg.ToolsetIDCatalog)
+		expectedPayload := expectedCLIToolsetPayload(
+			t,
+			registry,
+			toolspkg.Scope{Operator: true},
+			toolspkg.ToolsetIDCatalog,
+		)
 		stdout, _, err := executeRootCommand(
 			t,
 			deps,

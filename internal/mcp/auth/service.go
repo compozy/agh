@@ -286,13 +286,34 @@ func authorizationCodeFromCallback(callbackURL string, wantState string) (string
 }
 
 type tokenEndpointResponse struct {
-	AccessToken      string `json:"access_token"`
-	RefreshToken     string `json:"refresh_token"`
-	TokenType        string `json:"token_type"`
-	ExpiresIn        int64  `json:"expires_in"`
-	Scope            string `json:"scope"`
-	Error            string `json:"error"`
-	ErrorDescription string `json:"error_description"`
+	AccessToken      string         `json:"access_token"`
+	RefreshToken     string         `json:"refresh_token"`
+	TokenType        string         `json:"token_type"`
+	ExpiresIn        tokenExpiresIn `json:"expires_in"`
+	Scope            string         `json:"scope"`
+	Error            string         `json:"error"`
+	ErrorDescription string         `json:"error_description"`
+}
+
+type tokenExpiresIn struct {
+	present bool
+	value   int64
+}
+
+func (e *tokenExpiresIn) UnmarshalJSON(data []byte) error {
+	if e == nil {
+		return errors.New("mcp auth: token response expires_in decoder is nil")
+	}
+	e.present = true
+	if strings.TrimSpace(string(data)) == "null" {
+		return errors.New("mcp auth: token response expires_in must be integer seconds")
+	}
+	var value int64
+	if err := json.Unmarshal(data, &value); err != nil {
+		return fmt.Errorf("mcp auth: token response expires_in must be integer seconds: %w", err)
+	}
+	e.value = value
+	return nil
 }
 
 func (s *Service) exchangeCode(ctx context.Context, state LoginState, code string) (TokenRecord, error) {
@@ -404,8 +425,12 @@ func (s *Service) tokenRecordFromResponse(
 		scopes = trimStrings(cfg.Scopes)
 	}
 	expiresAt := time.Time{}
-	if resp.ExpiresIn > 0 {
-		expiresAt = now.Add(time.Duration(resp.ExpiresIn) * time.Second)
+	if resp.ExpiresIn.present {
+		parsedExpiresAt, err := tokenResponseExpiresAt(now, resp.ExpiresIn.value)
+		if err != nil {
+			return TokenRecord{}, err
+		}
+		expiresAt = parsedExpiresAt
 	}
 	obtainedAt := current.ObtainedAt
 	if obtainedAt.IsZero() {
@@ -424,6 +449,17 @@ func (s *Service) tokenRecordFromResponse(
 		ObtainedAt:   obtainedAt,
 		UpdatedAt:    now,
 	}, nil
+}
+
+func tokenResponseExpiresAt(now time.Time, expiresIn int64) (time.Time, error) {
+	if expiresIn < 0 {
+		return time.Time{}, errors.New("mcp auth: token response expires_in must not be negative")
+	}
+	const maxExpiresInSeconds = int64(1<<63-1) / int64(time.Second)
+	if expiresIn > maxExpiresInSeconds {
+		return time.Time{}, errors.New("mcp auth: token response expires_in overflows duration")
+	}
+	return now.UTC().Add(time.Duration(expiresIn) * time.Second), nil
 }
 
 func (s *Service) revoke(ctx context.Context, cfg ServerConfig, metadata Metadata, token TokenRecord) error {

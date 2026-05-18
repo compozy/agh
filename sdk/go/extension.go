@@ -137,14 +137,17 @@ func (e *Extension) Handle(method string, handler ExtensionHandler) error {
 	if cleanMethod == initializeMethod {
 		return NewInvalidParamsError("initialize is reserved by the SDK", nil)
 	}
-	if e.hasToolHandlers() && isToolProviderMethod(cleanMethod) {
-		return NewInvalidParamsError(cleanMethod+" is reserved by Tool", nil)
-	}
 	if handler == nil {
 		return NewInvalidParamsError("handler is required", nil)
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.initialized {
+		return NewInvalidParamsError("extension registration is closed after initialize", nil)
+	}
+	if len(e.toolHandlers) > 0 && isToolProviderMethod(cleanMethod) {
+		return NewInvalidParamsError(cleanMethod+" is reserved by Tool", nil)
+	}
 	e.handlers[cleanMethod] = handler
 	e.transport.Handle(cleanMethod, e.dispatch)
 	return nil
@@ -328,6 +331,9 @@ func (e *Extension) registerTool(
 
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.initialized {
+		return NewInvalidParamsError("extension registration is closed after initialize", nil)
+	}
 	if err := e.ensureToolRegistrationAvailableLocked(cleanHandler, toolID); err != nil {
 		return err
 	}
@@ -636,12 +642,6 @@ func (e *Extension) ready() bool {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	return e.initialized && e.session != nil && !e.shutdownStarted
-}
-
-func (e *Extension) hasToolHandlers() bool {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	return len(e.toolHandlers) > 0
 }
 
 func (e *Extension) implementedMethodsLocked() []string {

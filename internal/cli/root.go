@@ -54,6 +54,7 @@ type commandDeps struct {
 	readDaemonInfo               func(path string) (aghdaemon.Info, error)
 	signalProcess                func(pid int, sig syscall.Signal) error
 	processAlive                 func(pid int) bool
+	processMatchesStartTime      func(pid int, startedAt time.Time) bool
 	executable                   func() (string, error)
 	getwd                        func() (string, error)
 	getenv                       func(string) string
@@ -283,6 +284,9 @@ func (d commandDeps) withRuntimeDefaults() commandDeps {
 	}
 	if d.processAlive == nil {
 		d.processAlive = procutil.Alive
+	}
+	if d.processMatchesStartTime == nil {
+		d.processMatchesStartTime = procutil.MatchesStartTime
 	}
 	if d.executable == nil {
 		d.executable = os.Executable

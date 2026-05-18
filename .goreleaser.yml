@@ -20,6 +20,10 @@ env:
 git:
   tag_sort: -version:refname
 
+before:
+  hooks:
+    - go run github.com/magefile/mage@v1.17.0 daytonaSidecarsCheck
+
 builds:
   - id: agh
     main: ./cmd/agh

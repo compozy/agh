@@ -56,6 +56,7 @@ type SignalRecorder struct {
 	stopOnce sync.Once
 	wg       sync.WaitGroup
 	closed   atomic.Bool
+	acceptMu sync.Mutex
 
 	submitted atomic.Uint64
 	recorded  atomic.Uint64
@@ -66,7 +67,12 @@ type SignalRecorder struct {
 type signalRecordJob struct {
 	query   memcontract.Query
 	signals []Signal
-	dropped []Signal
+	dropped []signalDroppedJob
+}
+
+type signalDroppedJob struct {
+	query   memcontract.Query
+	signals []Signal
 }
 
 var _ SignalRecorderSource = Source(nil)
@@ -110,7 +116,12 @@ func (r *SignalRecorder) Submit(
 	query memcontract.Query,
 	signals []Signal,
 ) SignalRecorderSubmitResult {
-	if r == nil || len(signals) == 0 || r.closed.Load() {
+	if r == nil || len(signals) == 0 {
+		return SignalRecorderSubmitResult{}
+	}
+	r.acceptMu.Lock()
+	defer r.acceptMu.Unlock()
+	if r.closed.Load() || r.ctx.Err() != nil {
 		return SignalRecorderSubmitResult{}
 	}
 	job := signalRecordJob{
@@ -126,7 +137,10 @@ func (r *SignalRecorder) Submit(
 
 	select {
 	case dropped := <-r.queue:
-		job.dropped = append(cloneSignals(dropped.dropped), dropped.signals...)
+		job.dropped = append(cloneDroppedJobs(dropped.dropped), signalDroppedJob{
+			query:   dropped.query,
+			signals: cloneSignals(dropped.signals),
+		})
 		r.dropped.Add(uint64(len(dropped.signals)))
 	default:
 	}
@@ -137,6 +151,9 @@ func (r *SignalRecorder) Submit(
 		return SignalRecorderSubmitResult{Submitted: true, Dropped: len(job.dropped) > 0}
 	default:
 		r.dropped.Add(uint64(len(job.signals)))
+		r.recordDroppedSignals(
+			append(job.dropped, signalDroppedJob{query: job.query, signals: cloneSignals(job.signals)}),
+		)
 		return SignalRecorderSubmitResult{Dropped: true}
 	}
 }
@@ -163,11 +180,13 @@ func (r *SignalRecorder) Close(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("memory recall: signal recorder close context is required")
 	}
+	r.acceptMu.Lock()
 	if r.closed.CompareAndSwap(false, true) {
 		r.stopOnce.Do(func() {
 			close(r.stop)
 		})
 	}
+	r.acceptMu.Unlock()
 	done := make(chan struct{})
 	go func() {
 		r.wg.Wait()
@@ -210,9 +229,7 @@ func (r *SignalRecorder) drain() {
 
 func (r *SignalRecorder) process(job signalRecordJob) {
 	if len(job.dropped) > 0 {
-		if err := r.source.RecordRecallSignalDropped(r.ctx, job.query, job.dropped, len(r.queue)); err != nil {
-			r.warn("memory recall: record dropped signal event failed", "error", err)
-		}
+		r.recordDroppedSignals(job.dropped)
 	}
 	if len(job.signals) == 0 {
 		return
@@ -235,6 +252,17 @@ func (r *SignalRecorder) process(job signalRecordJob) {
 	}
 }
 
+func (r *SignalRecorder) recordDroppedSignals(dropped []signalDroppedJob) {
+	for _, drop := range dropped {
+		if len(drop.signals) == 0 {
+			continue
+		}
+		if err := r.source.RecordRecallSignalDropped(r.ctx, drop.query, drop.signals, len(r.queue)); err != nil {
+			r.warn("memory recall: record dropped signal event failed", "error", err)
+		}
+	}
+}
+
 func (r *SignalRecorder) warn(msg string, args ...any) {
 	if r != nil && r.logger != nil {
 		r.logger.Warn(msg, args...)
@@ -248,6 +276,17 @@ func cloneSignals(signals []Signal) []Signal {
 		if cloned[idx].SurfacedAt.IsZero() {
 			cloned[idx].SurfacedAt = time.Now().UTC()
 		}
+	}
+	return cloned
+}
+
+func cloneDroppedJobs(dropped []signalDroppedJob) []signalDroppedJob {
+	cloned := make([]signalDroppedJob, 0, len(dropped))
+	for _, drop := range dropped {
+		cloned = append(cloned, signalDroppedJob{
+			query:   drop.query,
+			signals: cloneSignals(drop.signals),
+		})
 	}
 	return cloned
 }

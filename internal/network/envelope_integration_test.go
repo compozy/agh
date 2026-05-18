@@ -207,7 +207,11 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 			}
 
 			if !reflect.DeepEqual(envelopeSnapshot(env), envelopeSnapshot(roundTrip)) {
-				t.Fatalf("round-trip envelope mismatch = %#v, want %#v", envelopeSnapshot(roundTrip), envelopeSnapshot(env))
+				t.Fatalf(
+					"round-trip envelope mismatch = %#v, want %#v",
+					envelopeSnapshot(roundTrip),
+					envelopeSnapshot(env),
+				)
 			}
 			if !reflect.DeepEqual(firstBody, secondBody) {
 				t.Fatalf("round-trip body mismatch = %#v, want %#v", secondBody, firstBody)

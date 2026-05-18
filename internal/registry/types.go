@@ -36,8 +36,9 @@ type Detail struct {
 
 // DownloadOpts controls version and asset selection for a download.
 type DownloadOpts struct {
-	Version string
-	Asset   string
+	Version        string
+	Asset          string
+	MaxArchiveSize int64
 }
 
 // DownloadResult is the structured download response returned by a source.

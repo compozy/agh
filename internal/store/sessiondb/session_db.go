@@ -84,6 +84,14 @@ var sessionSchemaMigrations = []store.Migration{
 		Up:       stripCanonicalEventRawPayloads,
 		Checksum: "2026-04-25-strip-canonical-event-raw-payloads",
 	},
+	{
+		Version: 3,
+		Name:    "enforce_unique_event_sequences",
+		Statements: []string{
+			`DROP INDEX IF EXISTS idx_events_sequence;`,
+			`CREATE UNIQUE INDEX IF NOT EXISTS idx_events_sequence ON events(sequence);`,
+		},
+	},
 }
 
 const (
@@ -135,7 +143,6 @@ type SessionDB struct {
 
 	drainTimeout time.Duration
 	now          func() time.Time
-	nextSequence int64
 }
 
 var _ store.EventRecorder = (*SessionDB)(nil)
@@ -154,12 +161,6 @@ func OpenSessionDB(ctx context.Context, sessionID string, path string) (*Session
 		return nil, err
 	}
 
-	nextSequence, err := currentMaxSequence(ctx, db)
-	if err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("store: load current sequence for %q: %w", path, err)
-	}
-
 	sessionDB := &SessionDB{
 		db:           db,
 		path:         strings.TrimSpace(path),
@@ -171,7 +172,6 @@ func OpenSessionDB(ctx context.Context, sessionID string, path string) (*Session
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
-		nextSequence: nextSequence,
 	}
 	sessionDB.writerCtx, sessionDB.cancel = context.WithCancel(context.Background())
 	sessionDB.state.Store(sessionStateOpen)
@@ -602,23 +602,30 @@ func (s *SessionDB) writeEvent(ctx context.Context, event store.SessionEvent) (s
 		event.Timestamp = s.now()
 	}
 
-	s.nextSequence++
-	event.Sequence = s.nextSequence
+	if err := store.ExecuteWrite(ctx, s.db, func(ctx context.Context, tx *store.WriteTx) error {
+		nextSequence, err := nextEventSequence(ctx, tx)
+		if err != nil {
+			return err
+		}
+		event.Sequence = nextSequence
 
-	if _, err := s.db.ExecContext(
-		ctx,
-		`INSERT INTO events (id, sequence, turn_id, type, agent_name, content, timestamp)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		event.ID,
-		event.Sequence,
-		event.TurnID,
-		event.Type,
-		event.AgentName,
-		event.Content,
-		store.FormatTimestamp(event.Timestamp),
-	); err != nil {
-		s.nextSequence--
-		return store.SessionEvent{}, fmt.Errorf("store: insert session event: %w", err)
+		if _, err := tx.ExecContext(
+			ctx,
+			`INSERT INTO events (id, sequence, turn_id, type, agent_name, content, timestamp)
+			 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			event.ID,
+			event.Sequence,
+			event.TurnID,
+			event.Type,
+			event.AgentName,
+			event.Content,
+			store.FormatTimestamp(event.Timestamp),
+		); err != nil {
+			return fmt.Errorf("store: insert session event: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return store.SessionEvent{}, err
 	}
 
 	return event, nil
@@ -678,6 +685,9 @@ func (s *SessionDB) writeHookRun(ctx context.Context, record hookspkg.HookRunRec
 		return err
 	}
 	if err := record.Mode.Validate(); err != nil {
+		return err
+	}
+	if err := record.Outcome.Validate(); err != nil {
 		return err
 	}
 	if record.RecordedAt.IsZero() {
@@ -776,8 +786,14 @@ func (s *SessionDB) scanHookRunRecord(scanner rowScanner) (hookspkg.HookRunRecor
 		return hookspkg.HookRunRecord{}, err
 	}
 	record.Mode = hookspkg.HookMode(strings.TrimSpace(mode))
+	if err := record.Mode.Validate(); err != nil {
+		return hookspkg.HookRunRecord{}, err
+	}
 	record.Duration = time.Duration(durationNS)
 	record.Outcome = hookspkg.HookRunOutcome(strings.TrimSpace(outcome))
+	if err := record.Outcome.Validate(); err != nil {
+		return hookspkg.HookRunRecord{}, err
+	}
 	record.Required = required != 0
 	record.Error = strings.TrimSpace(recordError.String)
 	if patchApplied.Valid && strings.TrimSpace(patchApplied.String) != "" {
@@ -799,6 +815,14 @@ func currentMaxSequence(ctx context.Context, db *sql.DB) (int64, error) {
 		return 0, err
 	}
 	return sequence, nil
+}
+
+func nextEventSequence(ctx context.Context, tx *store.WriteTx) (int64, error) {
+	var current int64
+	if err := tx.QueryRowContext(ctx, "SELECT COALESCE(MAX(sequence), 0) FROM events").Scan(&current); err != nil {
+		return 0, fmt.Errorf("store: query next session event sequence: %w", err)
+	}
+	return current + 1, nil
 }
 
 func waitForShutdownResult(ctx context.Context, resultCh <-chan error) error {

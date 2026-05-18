@@ -36,6 +36,9 @@ var (
 		"password",
 		"authorization",
 	}, "|")
+	authorizationHeaderPattern = regexp.MustCompile(
+		`(?i)\b((?:proxy[-_])?authorization)\b(\s*[=:]\s*)([^\r\n,;]+)`,
+	)
 	bearerTokenPattern  = regexp.MustCompile(`(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+`)
 	quotedSecretPattern = regexp.MustCompile(
 		`(?i)(["'])(` + sensitiveKeyPattern + `)(["'])(\s*:\s*)(["'])(?:\\.|[^\\])*?(["'])`,
@@ -112,10 +115,24 @@ func Redact(text string) string {
 	if strings.TrimSpace(text) == "" {
 		return strings.TrimSpace(text)
 	}
-	redacted := bearerTokenPattern.ReplaceAllString(text, "Bearer "+redactedValue)
+	redacted := redactAuthorizationHeaders(text)
+	redacted = bearerTokenPattern.ReplaceAllString(redacted, "Bearer "+redactedValue)
 	redacted = quotedSecretPattern.ReplaceAllString(redacted, "${1}${2}${3}${4}${5}"+redactedValue+"${6}")
 	redacted = redactSecretAssignments(redacted)
 	return redactDynamicSecrets(redacted)
+}
+
+func redactAuthorizationHeaders(text string) string {
+	return authorizationHeaderPattern.ReplaceAllStringFunc(text, func(match string) string {
+		parts := authorizationHeaderPattern.FindStringSubmatch(match)
+		if len(parts) != 4 {
+			return match
+		}
+		if strings.Contains(parts[3], redactedValue) || strings.Contains(parts[3], protectedRedactionMarker) {
+			return parts[1] + parts[2] + parts[3]
+		}
+		return parts[1] + parts[2] + redactedValue
+	})
 }
 
 func redactSecretAssignments(text string) string {

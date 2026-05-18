@@ -245,7 +245,11 @@ func buildLinearProvider(t *testing.T, repoRoot string) {
 		cmd.Dir = repoRoot
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			buildLinearProviderErr = fmt.Errorf("go build linear provider: %w\n%s", err, strings.TrimSpace(string(output)))
+			buildLinearProviderErr = fmt.Errorf(
+				"go build linear provider: %w\n%s",
+				err,
+				strings.TrimSpace(string(output)),
+			)
 		}
 	})
 
@@ -320,7 +324,11 @@ func waitForLinearReadyStates(t *testing.T, harness *extensiontest.Harness, inst
 	})
 }
 
-func linearFindIngestByInstance(t *testing.T, records []extensiontest.IngestRecord, instanceID string) extensiontest.IngestRecord {
+func linearFindIngestByInstance(
+	t *testing.T,
+	records []extensiontest.IngestRecord,
+	instanceID string,
+) extensiontest.IngestRecord {
 	t.Helper()
 
 	for _, record := range records {

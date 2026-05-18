@@ -47,7 +47,7 @@ func (s StubBridgeService) CreateInstance(
 	if s.CreateInstanceFn != nil {
 		return s.CreateInstanceFn(ctx, req)
 	}
-	return nil, nil
+	return nil, bridgepkg.ErrBridgeInstanceNotFound
 }
 
 func (s StubBridgeService) GetInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {

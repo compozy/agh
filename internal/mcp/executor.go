@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
+	"os"
+	"os/exec"
 	"sort"
 	"strings"
 	"time"
@@ -343,10 +345,11 @@ func (e *CallExecutor) openClient(ctx context.Context, server aghconfig.MCPServe
 		if err != nil {
 			return nil, err
 		}
-		client, err := mcpclient.NewStdioMCPClient(
+		client, err := mcpclient.NewStdioMCPClientWithOptions(
 			strings.TrimSpace(server.Command),
 			env,
-			trimStrings(server.Args)...,
+			trimStrings(server.Args),
+			mcptransport.WithCommandFunc(mcpStdioCommandWithExactEnv),
 		)
 		if err != nil {
 			return nil, normalizeMCPError("", err)
@@ -825,11 +828,16 @@ func mcpOwner(id toolspkg.ToolID) (string, error) {
 }
 
 func mcpServerEnv(env map[string]string) []string {
-	if len(env) == 0 {
-		return nil
+	merged := mcpStdioBaseEnv()
+	for key, value := range env {
+		trimmedKey := strings.TrimSpace(key)
+		if trimmedKey == "" {
+			continue
+		}
+		merged[trimmedKey] = value
 	}
-	keys := make([]string, 0, len(env))
-	for key := range env {
+	keys := make([]string, 0, len(merged))
+	for key := range merged {
 		if strings.TrimSpace(key) != "" {
 			keys = append(keys, key)
 		}
@@ -837,9 +845,38 @@ func mcpServerEnv(env map[string]string) []string {
 	sort.Strings(keys)
 	values := make([]string, 0, len(keys))
 	for _, key := range keys {
-		values = append(values, strings.TrimSpace(key)+"="+env[key])
+		values = append(values, strings.TrimSpace(key)+"="+merged[key])
 	}
 	return values
+}
+
+func mcpStdioCommandWithExactEnv(ctx context.Context, command string, env []string, args []string) (*exec.Cmd, error) {
+	cmd := exec.CommandContext(ctx, command, args...)
+	cmd.Env = append([]string(nil), env...)
+	return cmd, nil
+}
+
+func mcpStdioBaseEnv() map[string]string {
+	keys := []string{
+		"PATH",
+		"HOME",
+		"TMPDIR",
+		"TMP",
+		"TEMP",
+		"SystemRoot",
+		"WINDIR",
+		"COMSPEC",
+		"PATHEXT",
+		"SSL_CERT_FILE",
+		"SSL_CERT_DIR",
+	}
+	base := make(map[string]string, len(keys))
+	for _, key := range keys {
+		if value, ok := os.LookupEnv(key); ok {
+			base[key] = value
+		}
+	}
+	return base
 }
 
 func (e *CallExecutor) mcpServerEnv(ctx context.Context, server aghconfig.MCPServer) ([]string, error) {

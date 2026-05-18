@@ -16,11 +16,15 @@ import (
 )
 
 type stubDaemonProcess struct {
+	pid     int
 	done    chan struct{}
 	waitErr error
 }
 
 func (p *stubDaemonProcess) PID() int {
+	if p.pid > 0 {
+		return p.pid
+	}
 	return 42
 }
 
@@ -94,42 +98,46 @@ func TestWaitForDaemonStartReturnsDeadlineExceededWhenReadyTimeoutExpires(t *tes
 func TestWaitForDaemonStopReturnsStoppedStatusWhenProcessExits(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{
-		daemonStatusFn: func(context.Context) (DaemonStatus, error) {
-			return DaemonStatus{}, errors.New("daemon unavailable")
-		},
-	})
-	deps.pollInterval = time.Millisecond
-	deps.stopTimeout = 100 * time.Millisecond
-	deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
-		return aghdaemon.Info{
+	t.Run("Should return stopped status when process exits", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			daemonStatusFn: func(context.Context) (DaemonStatus, error) {
+				return DaemonStatus{}, errors.New("daemon unavailable")
+			},
+		})
+		deps.pollInterval = time.Millisecond
+		deps.stopTimeout = 100 * time.Millisecond
+		deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
+			return aghdaemon.Info{
+				PID:       42,
+				StartedAt: fixedTestNow,
+			}, nil
+		}
+
+		aliveChecks := 0
+		deps.processAlive = func(int) bool {
+			aliveChecks++
+			return aliveChecks < 2
+		}
+
+		runtime, err := loadRuntimeContext(deps)
+		if err != nil {
+			t.Fatalf("loadRuntimeContext() error = %v", err)
+		}
+		info := aghdaemon.Info{
 			PID:       42,
 			StartedAt: fixedTestNow,
-		}, nil
-	}
+		}
 
-	aliveChecks := 0
-	deps.processAlive = func(int) bool {
-		aliveChecks++
-		return aliveChecks < 2
-	}
-
-	runtime, err := loadRuntimeContext(deps)
-	if err != nil {
-		t.Fatalf("loadRuntimeContext() error = %v", err)
-	}
-	info := aghdaemon.Info{
-		PID:       42,
-		StartedAt: fixedTestNow,
-	}
-
-	status, err := waitForDaemonStop(testutil.Context(t), deps, runtime, info)
-	if err != nil {
-		t.Fatalf("waitForDaemonStop() error = %v", err)
-	}
-	if status.Status != "stopped" || status.PID != 42 {
-		t.Fatalf("waitForDaemonStop() status = %#v, want stopped pid 42", status)
-	}
+		status, err := waitForDaemonStop(testutil.Context(t), deps, runtime, info)
+		if err != nil {
+			t.Fatalf("waitForDaemonStop() error = %v", err)
+		}
+		if status.Status != "stopped" || status.PID != 42 {
+			t.Fatalf("waitForDaemonStop() status = %#v, want stopped pid 42", status)
+		}
+	})
 }
 
 func TestWaitForDaemonStopClearsStaleNetworkSnapshot(t *testing.T) {
@@ -195,97 +203,141 @@ func TestWaitForDaemonStopClearsStaleNetworkSnapshot(t *testing.T) {
 func TestDaemonStopCommandSignalsAndWaitsForShutdown(t *testing.T) {
 	t.Parallel()
 
-	var (
-		signalPID  int
-		signalSent bool
-	)
+	t.Run("Should signal daemon and wait for stopped status", func(t *testing.T) {
+		t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{
-		daemonStatusFn: func(context.Context) (DaemonStatus, error) {
-			return DaemonStatus{}, errors.New("daemon unavailable")
-		},
+		var (
+			signalPID  int
+			signalSent bool
+		)
+
+		deps := newTestDeps(t, &stubClient{
+			daemonStatusFn: func(context.Context) (DaemonStatus, error) {
+				return DaemonStatus{}, errors.New("daemon unavailable")
+			},
+		})
+		deps.pollInterval = time.Millisecond
+		deps.stopTimeout = 100 * time.Millisecond
+		deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
+			return aghdaemon.Info{
+				PID:       42,
+				StartedAt: fixedTestNow,
+			}, nil
+		}
+		aliveChecks := 0
+		deps.processAlive = func(int) bool {
+			aliveChecks++
+			return aliveChecks < 2
+		}
+		deps.signalProcess = func(pid int, _ syscall.Signal) error {
+			signalPID = pid
+			signalSent = true
+			return nil
+		}
+
+		stdout, _, err := executeRootCommand(t, deps, "daemon", "stop", "-o", "json")
+		if err != nil {
+			t.Fatalf("executeRootCommand() error = %v", err)
+		}
+		if !signalSent || signalPID != 42 {
+			t.Fatalf("signalProcess() = (%v, %d), want true pid 42", signalSent, signalPID)
+		}
+
+		var decoded DaemonStatus
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if decoded.Status != "stopped" || decoded.PID != 42 {
+			t.Fatalf("decoded = %#v, want stopped pid 42", decoded)
+		}
 	})
-	deps.pollInterval = time.Millisecond
-	deps.stopTimeout = 100 * time.Millisecond
-	deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
-		return aghdaemon.Info{
-			PID:       42,
-			StartedAt: fixedTestNow,
-		}, nil
-	}
-	aliveChecks := 0
-	deps.processAlive = func(int) bool {
-		aliveChecks++
-		return aliveChecks < 2
-	}
-	deps.signalProcess = func(pid int, _ syscall.Signal) error {
-		signalPID = pid
-		signalSent = true
-		return nil
-	}
+}
 
-	stdout, _, err := executeRootCommand(t, deps, "daemon", "stop", "-o", "json")
-	if err != nil {
-		t.Fatalf("executeRootCommand() error = %v", err)
-	}
-	if !signalSent || signalPID != 42 {
-		t.Fatalf("signalProcess() = (%v, %d), want true pid 42", signalSent, signalPID)
-	}
+func TestDaemonStopCommandRejectsReusedPIDFromDaemonInfo(t *testing.T) {
+	t.Parallel()
 
-	var decoded DaemonStatus
-	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
-		t.Fatalf("json.Unmarshal() error = %v", err)
-	}
-	if decoded.Status != "stopped" || decoded.PID != 42 {
-		t.Fatalf("decoded = %#v, want stopped pid 42", decoded)
-	}
+	t.Run("Should refuse to signal a reused PID when daemon info start time no longer matches", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{})
+		deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
+			return aghdaemon.Info{
+				PID:       42,
+				StartedAt: fixedTestNow,
+			}, nil
+		}
+		deps.processAlive = func(int) bool { return true }
+		deps.processMatchesStartTime = func(int, time.Time) bool { return false }
+
+		signalCalled := false
+		deps.signalProcess = func(int, syscall.Signal) error {
+			signalCalled = true
+			return nil
+		}
+
+		_, _, err := executeRootCommand(t, deps, "daemon", "stop")
+		if err == nil || !strings.Contains(err.Error(), "daemon is not running") {
+			t.Fatalf("daemon stop error = %v, want daemon is not running", err)
+		}
+		if signalCalled {
+			t.Fatal("signalProcess() called for reused PID, want no signal")
+		}
+	})
 }
 
 func TestDaemonStatusCommandReturnsDaemonStatus(t *testing.T) {
 	t.Parallel()
 
-	deps := newTestDeps(t, &stubClient{
-		daemonStatusFn: func(context.Context) (DaemonStatus, error) {
-			return DaemonStatus{
-				Status:    "ready",
-				PID:       42,
-				StartedAt: fixedTestNow,
-			}, nil
-		},
+	t.Run("Should return daemon status payload", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			daemonStatusFn: func(context.Context) (DaemonStatus, error) {
+				return DaemonStatus{
+					Status:    "ready",
+					PID:       42,
+					StartedAt: fixedTestNow,
+				}, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(t, deps, "daemon", "status", "-o", "json")
+		if err != nil {
+			t.Fatalf("executeRootCommand() error = %v", err)
+		}
+
+		var decoded DaemonStatus
+		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if decoded.Status != "ready" || decoded.PID != 42 {
+			t.Fatalf("decoded = %#v, want ready pid 42", decoded)
+		}
 	})
-
-	stdout, _, err := executeRootCommand(t, deps, "daemon", "status", "-o", "json")
-	if err != nil {
-		t.Fatalf("executeRootCommand() error = %v", err)
-	}
-
-	var decoded DaemonStatus
-	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
-		t.Fatalf("json.Unmarshal() error = %v", err)
-	}
-	if decoded.Status != "ready" || decoded.PID != 42 {
-		t.Fatalf("decoded = %#v, want ready pid 42", decoded)
-	}
 }
 
 func TestRunDaemonForegroundRunsDaemonWhenNotAlreadyRunning(t *testing.T) {
 	t.Parallel()
 
-	runner := &stubRunner{}
-	deps := newTestDeps(t, &stubClient{})
-	deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
-		return aghdaemon.Info{}, os.ErrNotExist
-	}
-	deps.newDaemon = func() (daemonRunner, error) {
-		return runner, nil
-	}
+	t.Run("Should run daemon when no daemon is already running", func(t *testing.T) {
+		t.Parallel()
 
-	if err := runDaemonForeground(testutil.Context(t), deps); err != nil {
-		t.Fatalf("runDaemonForeground() error = %v", err)
-	}
-	if !runner.ran {
-		t.Fatal("daemon runner did not execute")
-	}
+		runner := &stubRunner{}
+		deps := newTestDeps(t, &stubClient{})
+		deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
+			return aghdaemon.Info{}, os.ErrNotExist
+		}
+		deps.newDaemon = func() (daemonRunner, error) {
+			return runner, nil
+		}
+
+		if err := runDaemonForeground(testutil.Context(t), deps); err != nil {
+			t.Fatalf("runDaemonForeground() error = %v", err)
+		}
+		if !runner.ran {
+			t.Fatal("daemon runner did not execute")
+		}
+	})
 }
 
 func TestRunDaemonDetachedReturnsReadyStatus(t *testing.T) {
@@ -320,32 +372,45 @@ func TestRunDaemonDetachedReturnsReadyStatus(t *testing.T) {
 	})
 }
 
-func TestDaemonRelaunchCommandInvokesHelper(t *testing.T) {
-	deps := newTestDeps(t, &stubClient{})
-	deps.executable = func() (string, error) { return "/usr/bin/agh", nil }
+func TestRunDaemonDetachedIgnoresReusedPIDFromDaemonInfo(t *testing.T) {
+	t.Parallel()
 
-	var captured aghdaemon.RelaunchHelperConfig
-	deps.runRelaunchHelper = func(_ context.Context, cfg aghdaemon.RelaunchHelperConfig) error {
-		captured = cfg
-		return nil
-	}
+	t.Run("Should start a detached daemon when daemon info points to a reused PID", func(t *testing.T) {
+		t.Parallel()
 
-	t.Setenv(aghdaemon.RestartOperationEnvKey, "restart-op-123")
+		child := &stubDaemonProcess{pid: 84, done: make(chan struct{})}
+		deps := newTestDeps(t, &stubClient{
+			daemonStatusFn: func(context.Context) (DaemonStatus, error) {
+				return DaemonStatus{Status: "ready", PID: 84}, nil
+			},
+		})
+		deps.pollInterval = time.Millisecond
+		deps.startTimeout = 100 * time.Millisecond
+		deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
+			return aghdaemon.Info{
+				PID:       42,
+				StartedAt: fixedTestNow,
+			}, nil
+		}
+		deps.processAlive = func(int) bool { return true }
+		deps.processMatchesStartTime = func(int, time.Time) bool { return false }
 
-	if _, _, err := executeRootCommand(t, deps, "daemon", "relaunch"); err != nil {
-		t.Fatalf("executeRootCommand() error = %v", err)
-	}
-	if got, want := strings.TrimSpace(captured.OperationID), "restart-op-123"; got != want {
-		t.Fatalf("captured.OperationID = %q, want %q", got, want)
-	}
-	homePaths, err := deps.resolveHome()
-	if err != nil {
-		t.Fatalf("deps.resolveHome() error = %v", err)
-	}
-	if got, want := captured.HomePaths.HomeDir, homePaths.HomeDir; got != want {
-		t.Fatalf("captured.HomePaths.HomeDir = %q, want %q", got, want)
-	}
-	if captured.Executable == nil {
-		t.Fatal("captured.Executable = nil, want forwarded executable resolver")
-	}
+		spawned := false
+		deps.spawnDetached = func(context.Context, aghconfig.HomePaths) (daemonProcess, error) {
+			spawned = true
+			return child, nil
+		}
+
+		status, err := runDaemonDetached(testutil.Context(t), deps)
+		child.complete(nil)
+		if err != nil {
+			t.Fatalf("runDaemonDetached() error = %v", err)
+		}
+		if !spawned {
+			t.Fatal("spawnDetached() not called, want detached launch for stale daemon info")
+		}
+		if status.Status != "ready" || status.PID != 84 {
+			t.Fatalf("runDaemonDetached() status = %#v, want ready pid 84", status)
+		}
+	})
 }

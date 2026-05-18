@@ -120,10 +120,7 @@ func BuildConformanceMatrix(entries ...ProviderConformanceSummary) []ProviderCon
 			Platform: strings.TrimSpace(entry.Platform),
 			Targets:  normalizeCoverageTargets(entry.Targets),
 		}
-		normalized.ManagedInstances = cloneManagedInstanceOutcomes(entry.ManagedInstances)
-		slices.SortFunc(normalized.ManagedInstances, func(left, right ManagedInstanceOutcome) int {
-			return strings.Compare(left.InstanceID, right.InstanceID)
-		})
+		normalized.ManagedInstances = normalizeManagedInstanceOutcomes(entry.ManagedInstances)
 
 		key := providerPlatformKey{
 			provider: normalized.Provider,
@@ -315,13 +312,14 @@ func validateConformanceMatrixEntry(entry ProviderConformanceSummary) []Conforma
 			Message: fmt.Sprintf("provider %q did not declare any conformance targets", entry.Provider),
 		})
 	}
-	if slices.Contains(entry.Targets, CoverageTargetMultiInstance) && len(entry.ManagedInstances) < 2 {
+	logicalManagedInstances := logicalManagedInstanceCount(entry.ManagedInstances)
+	if slices.Contains(entry.Targets, CoverageTargetMultiInstance) && logicalManagedInstances < 2 {
 		issues = append(issues, ConformanceMatrixIssue{
 			Code: "insufficient_multi_instance_coverage",
 			Message: fmt.Sprintf(
 				"provider %q marked multi-instance coverage with only %d managed instance(s)",
 				entry.Provider,
-				len(entry.ManagedInstances),
+				logicalManagedInstances,
 			),
 		})
 	}
@@ -334,6 +332,30 @@ func validateConformanceMatrixEntry(entry ProviderConformanceSummary) []Conforma
 					entry.Provider,
 				),
 			})
+		}
+		if err := outcome.FinalStatus.Validate(); err != nil {
+			issues = append(issues, ConformanceMatrixIssue{
+				Code: "invalid_final_status",
+				Message: fmt.Sprintf(
+					"provider %q instance %q reported invalid final status: %v",
+					entry.Provider,
+					strings.TrimSpace(outcome.InstanceID),
+					err,
+				),
+			})
+		}
+		if outcome.DegradationReason != "" {
+			if err := outcome.DegradationReason.Validate(); err != nil {
+				issues = append(issues, ConformanceMatrixIssue{
+					Code: "invalid_degradation_reason",
+					Message: fmt.Sprintf(
+						"provider %q instance %q reported invalid degradation reason: %v",
+						entry.Provider,
+						strings.TrimSpace(outcome.InstanceID),
+						err,
+					),
+				})
+			}
 		}
 	}
 	return issues
@@ -417,35 +439,33 @@ func normalizeCoverageTargets(targets []CoverageTarget) []CoverageTarget {
 	return normalized
 }
 
-func cloneManagedInstanceOutcomes(entries []ManagedInstanceOutcome) []ManagedInstanceOutcome {
-	cloned := make([]ManagedInstanceOutcome, len(entries))
-	copy(cloned, entries)
-	return cloned
-}
-
 func mergeManagedInstanceOutcomes(
 	existing []ManagedInstanceOutcome,
 	incoming []ManagedInstanceOutcome,
 ) []ManagedInstanceOutcome {
-	merged := make(map[string]ManagedInstanceOutcome, len(existing)+len(incoming))
-	for _, outcome := range existing {
+	merged := make([]ManagedInstanceOutcome, 0, len(existing)+len(incoming))
+	merged = append(merged, existing...)
+	merged = append(merged, incoming...)
+	return normalizeManagedInstanceOutcomes(merged)
+}
+
+func normalizeManagedInstanceOutcomes(entries []ManagedInstanceOutcome) []ManagedInstanceOutcome {
+	merged := make(map[string]ManagedInstanceOutcome, len(entries))
+	invalid := make([]ManagedInstanceOutcome, 0)
+	for _, outcome := range entries {
 		instanceID := strings.TrimSpace(outcome.InstanceID)
+		outcome.InstanceID = instanceID
+		outcome.FinalStatus = outcome.FinalStatus.Normalize()
+		outcome.DegradationReason = outcome.DegradationReason.Normalize()
 		if instanceID == "" {
+			invalid = append(invalid, outcome)
 			continue
 		}
-		outcome.InstanceID = instanceID
-		merged[instanceID] = outcome
-	}
-	for _, outcome := range incoming {
-		instanceID := strings.TrimSpace(outcome.InstanceID)
-		if instanceID == "" {
-			continue
-		}
-		outcome.InstanceID = instanceID
 		merged[instanceID] = outcome
 	}
 
-	result := make([]ManagedInstanceOutcome, 0, len(merged))
+	result := make([]ManagedInstanceOutcome, 0, len(invalid)+len(merged))
+	result = append(result, invalid...)
 	for _, outcome := range merged {
 		result = append(result, outcome)
 	}
@@ -453,4 +473,16 @@ func mergeManagedInstanceOutcomes(
 		return strings.Compare(left.InstanceID, right.InstanceID)
 	})
 	return result
+}
+
+func logicalManagedInstanceCount(entries []ManagedInstanceOutcome) int {
+	seen := make(map[string]struct{}, len(entries))
+	for _, outcome := range entries {
+		instanceID := strings.TrimSpace(outcome.InstanceID)
+		if instanceID == "" {
+			continue
+		}
+		seen[instanceID] = struct{}{}
+	}
+	return len(seen)
 }

@@ -23,12 +23,15 @@ func discoverMetadata(ctx context.Context, client *http.Client, cfg ServerConfig
 		client = &http.Client{Timeout: defaultMetadataClientTimeout}
 	}
 
-	if strings.TrimSpace(cfg.AuthorizationURL) != "" && strings.TrimSpace(cfg.TokenURL) != "" {
+	if strings.TrimSpace(cfg.MetadataURL) == "" &&
+		strings.TrimSpace(cfg.IssuerURL) == "" &&
+		strings.TrimSpace(cfg.AuthorizationURL) != "" &&
+		strings.TrimSpace(cfg.TokenURL) != "" {
 		metadata := Metadata{
-			Issuer:                strings.TrimSpace(cfg.IssuerURL),
-			AuthorizationEndpoint: strings.TrimSpace(cfg.AuthorizationURL),
-			TokenEndpoint:         strings.TrimSpace(cfg.TokenURL),
-			RevocationEndpoint:    strings.TrimSpace(cfg.RevocationURL),
+			AuthorizationEndpoint:         strings.TrimSpace(cfg.AuthorizationURL),
+			TokenEndpoint:                 strings.TrimSpace(cfg.TokenURL),
+			RevocationEndpoint:            strings.TrimSpace(cfg.RevocationURL),
+			CodeChallengeMethodsSupported: []string{"S256"},
 		}
 		if err := metadata.Validate(); err != nil {
 			return Metadata{}, err

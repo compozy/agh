@@ -440,6 +440,9 @@ func (s *service) updateSkillsSection(
 	if err != nil {
 		return MutationResult{}, err
 	}
+	if classification.Behavior == MutationBehaviorAppliedNow && s.skillsRuntime == nil {
+		return MutationResult{}, errors.New("settings: skills runtime is required to apply skills.disabled_skills")
+	}
 
 	if _, err := aghconfig.EditConfigOverlay(s.homePaths, "", target, func(editor *aghconfig.OverlayEditor) error {
 		return applySkillsSettings(editor, next)

@@ -37,7 +37,7 @@ type sessionState struct {
 }
 
 type mockAgent struct {
-	conn            *acpsdk.AgentSideConnection
+	conn            agentConnection
 	agent           acpmock.AgentFixture
 	configTemplate  []acpsdk.SessionConfigOption
 	diagnosticsPath string
@@ -48,6 +48,15 @@ type mockAgent struct {
 	sessions    map[string]*sessionState
 	nextSession int
 	asyncWG     sync.WaitGroup
+}
+
+type agentConnection interface {
+	SessionUpdate(context.Context, acpsdk.SessionNotification) error
+	RequestPermission(context.Context, acpsdk.RequestPermissionRequest) (acpsdk.RequestPermissionResponse, error)
+	CreateTerminal(context.Context, acpsdk.CreateTerminalRequest) (acpsdk.CreateTerminalResponse, error)
+	WaitForTerminalExit(context.Context, acpsdk.WaitForTerminalExitRequest) (acpsdk.WaitForTerminalExitResponse, error)
+	TerminalOutput(context.Context, acpsdk.TerminalOutputRequest) (acpsdk.TerminalOutputResponse, error)
+	ReleaseTerminal(context.Context, acpsdk.ReleaseTerminalRequest) (acpsdk.ReleaseTerminalResponse, error)
 }
 
 type sandboxRunResult struct {
@@ -141,7 +150,7 @@ func (a *mockAgent) Cancel(_ context.Context, params acpsdk.CancelNotification) 
 	var cancel context.CancelFunc
 	if session != nil {
 		cancel = session.activePromptCancel
-		if cancel == nil {
+		if cancel == nil && session.promptStarting {
 			session.pendingPromptCancel = true
 		}
 	}
@@ -202,7 +211,11 @@ func (a *mockAgent) LoadSession(
 ) (acpsdk.LoadSessionResponse, error) {
 	a.mu.Lock()
 	sessionID := strings.TrimSpace(string(params.SessionId))
-	if sessionID != "" && a.sessions[sessionID] == nil {
+	if sessionID == "" {
+		a.mu.Unlock()
+		return acpsdk.LoadSessionResponse{}, errors.New("acpmock-driver: session id is required")
+	}
+	if a.sessions[sessionID] == nil {
 		a.sessions[sessionID] = &sessionState{
 			ConfigOptions: cloneSessionConfigOptions(a.configTemplate),
 		}
@@ -889,7 +902,7 @@ func (a *mockAgent) runSandboxCommand(
 		TerminalId: createResp.TerminalId,
 	})
 	if waitErr != nil {
-		result.ObservedError = waitErr.Error()
+		result.observeError(waitErr)
 	} else {
 		result.ExitCode = waitResp.ExitCode
 		outputResp, outputErr := a.conn.TerminalOutput(ctx, acpsdk.TerminalOutputRequest{
@@ -897,20 +910,33 @@ func (a *mockAgent) runSandboxCommand(
 			TerminalId: createResp.TerminalId,
 		})
 		if outputErr != nil {
-			result.ObservedError = outputErr.Error()
+			result.observeError(outputErr)
 		} else {
 			result.Output = outputResp.Output
 		}
 	}
 
-	_, releaseErr := a.conn.ReleaseTerminal(ctx, acpsdk.ReleaseTerminalRequest{
+	cleanupCtx, cancelCleanup := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancelCleanup()
+	_, releaseErr := a.conn.ReleaseTerminal(cleanupCtx, acpsdk.ReleaseTerminalRequest{
 		SessionId:  sessionID,
 		TerminalId: createResp.TerminalId,
 	})
-	if result.ObservedError == "" && releaseErr != nil {
-		result.ObservedError = releaseErr.Error()
+	if releaseErr != nil {
+		result.observeError(fmt.Errorf("release terminal: %w", releaseErr))
 	}
 	return result
+}
+
+func (r *sandboxRunResult) observeError(err error) {
+	if err == nil {
+		return
+	}
+	if r.ObservedError == "" {
+		r.ObservedError = err.Error()
+		return
+	}
+	r.ObservedError += "; " + err.Error()
 }
 
 func (a *mockAgent) finishSandboxFailure(

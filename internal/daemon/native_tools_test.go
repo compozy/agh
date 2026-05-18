@@ -485,9 +485,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDProviderModelsList,
-				Input: json.RawMessage(
-					`{"provider_id":"codex","source_id":"config","refresh":true,"include_stale":true}`,
-				),
+				Input:  json.RawMessage(`{"provider_id":"codex","source_id":"config","include_stale":true}`),
 			},
 		)
 		if err != nil {
@@ -498,9 +496,24 @@ func TestDaemonNativeTools(t *testing.T) {
 		if catalog.listCalls != 1 ||
 			catalog.lastList.ProviderID != "codex" ||
 			catalog.lastList.SourceID != modelcatalog.SourceIDConfig ||
-			!catalog.lastList.Refresh ||
+			catalog.lastList.Refresh ||
 			!catalog.lastList.IncludeStale {
 			t.Fatalf("ListModels options = %#v after %d calls", catalog.lastList, catalog.listCalls)
+		}
+
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDProviderModelsList,
+				Input:  json.RawMessage(`{"refresh":true}`),
+			},
+		)
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
+			t.Fatalf("Registry.Call(provider_models_list refresh) error = %v, want ErrToolInvalidInput", err)
+		}
+		if catalog.listCalls != 1 {
+			t.Fatalf("ListModels calls = %d, want unchanged after refresh input", catalog.listCalls)
 		}
 
 		refreshResult, err := registry.Call(
@@ -642,8 +655,10 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		tasks := &nativeTaskManager{}
+		catalog := &nativeModelCatalogService{}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Tasks: tasks,
+			Tasks:        tasks,
+			ModelCatalog: catalog,
 		}, toolspkg.PolicyInputs{
 			SystemPermissionMode: toolspkg.PermissionModeApproveReads,
 			ApprovalAvailable:    false,
@@ -662,6 +677,24 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		if tasks.createCalls != 0 {
 			t.Fatalf("CreateTask calls = %d, want 0", tasks.createCalls)
+		}
+
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDProviderModelsRefresh,
+				Input:  json.RawMessage(`{"provider_id":"codex"}`),
+			},
+		)
+		if !errors.Is(err, toolspkg.ErrToolApprovalRequired) {
+			t.Fatalf(
+				"Registry.Call(provider_models_refresh approve-reads) error = %v, want ErrToolApprovalRequired",
+				err,
+			)
+		}
+		if catalog.refreshCalls != 0 {
+			t.Fatalf("Refresh calls = %d, want 0", catalog.refreshCalls)
 		}
 	})
 
@@ -2094,8 +2127,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		if networkService.sendCalls != 1 {
 			t.Fatalf("Network.Send calls = %d, want 1", networkService.sendCalls)
 		}
-		if networkService.lastSend.SessionID != "sess-missing" {
-			t.Fatalf("SendRequest.SessionID = %q, want input session", networkService.lastSend.SessionID)
+		if networkService.lastSend.SessionID != "sess-scope" {
+			t.Fatalf("SendRequest.SessionID = %q, want scoped session", networkService.lastSend.SessionID)
 		}
 		if networkService.lastSend.Surface == nil || *networkService.lastSend.Surface != network.SurfaceThread {
 			t.Fatalf("SendRequest.Surface = %v, want thread", networkService.lastSend.Surface)
@@ -4542,6 +4575,205 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		_, err = registry.Call(ctx, scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDToolList})
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSessionDenied)
 	})
+
+	t.Run(
+		"Should bind coordinator-safe native tools to the caller session workspace and channel policy",
+		func(t *testing.T) {
+			t.Parallel()
+
+			ctx := t.Context()
+			homePaths := testHomePaths(t)
+			cfg := testConfig(t, homePaths)
+			root := t.TempDir()
+
+			statusCalls := make([]string, 0, 8)
+			eventCalls := make([]string, 0, 1)
+			historyCalls := make([]string, 0, 1)
+			sessions := apitest.StubSessionManager{
+				StatusFn: func(ctx context.Context, id string) (*session.Info, error) {
+					if err := ctx.Err(); err != nil {
+						return nil, err
+					}
+					statusCalls = append(statusCalls, id)
+					switch strings.TrimSpace(id) {
+					case "sess-coord":
+						return &session.Info{
+							ID:          "sess-coord",
+							AgentName:   "coordinator",
+							Type:        session.SessionTypeCoordinator,
+							State:       session.StateActive,
+							WorkspaceID: "ws-coord",
+							Lineage: &store.SessionLineage{
+								ParentSessionID: "sess-root",
+								RootSessionID:   "sess-root",
+								SpawnDepth:      1,
+								PermissionPolicy: store.SessionPermissionPolicy{
+									Tools: []string{
+										toolspkg.ToolIDNetworkChannels.String(),
+										toolspkg.ToolIDNetworkInbox.String(),
+										toolspkg.ToolIDNetworkSend.String(),
+										toolspkg.ToolIDSessionDescribe.String(),
+									},
+									NetworkChannels: []string{"ch-run-1"},
+								},
+							},
+						}, nil
+					case "sess-foreign":
+						return &session.Info{
+							ID:          "sess-foreign",
+							AgentName:   "worker",
+							State:       session.StateActive,
+							WorkspaceID: "ws-foreign",
+						}, nil
+					default:
+						return nil, session.ErrSessionNotFound
+					}
+				},
+				EventsFn: func(ctx context.Context, id string, _ store.EventQuery) ([]store.SessionEvent, error) {
+					if err := ctx.Err(); err != nil {
+						return nil, err
+					}
+					eventCalls = append(eventCalls, id)
+					return nil, nil
+				},
+				HistoryFn: func(ctx context.Context, id string, _ store.EventQuery) ([]store.TurnHistory, error) {
+					if err := ctx.Err(); err != nil {
+						return nil, err
+					}
+					historyCalls = append(historyCalls, id)
+					return nil, nil
+				},
+			}
+			workspaces := apitest.StubWorkspaceService{
+				ResolveFn: func(ctx context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+					if err := ctx.Err(); err != nil {
+						return workspacepkg.ResolvedWorkspace{}, err
+					}
+					workspaceID := strings.TrimSpace(ref)
+					if workspaceID == "" {
+						return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+					}
+					return workspacepkg.ResolvedWorkspace{
+						Workspace: workspacepkg.Workspace{
+							ID:      workspaceID,
+							RootDir: root,
+							Name:    workspaceID,
+						},
+						WorkspaceID: workspaceID,
+						Config:      cfg,
+					}, nil
+				},
+			}
+			resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+				Config:            &cfg,
+				Sessions:          sessions,
+				WorkspaceResolver: workspaces,
+				ApprovalAvailable: true,
+			})
+			if err != nil {
+				t.Fatalf("newNativeToolPolicyResolver() error = %v", err)
+			}
+			networkService := &nativeNetworkStub{
+				channels: []network.ChannelInfo{
+					{WorkspaceID: "ws-coord", Channel: "ch-run-1", PeerCount: 1},
+					{WorkspaceID: "ws-coord", Channel: "ch-run-2", PeerCount: 1},
+				},
+				inbox: []network.Envelope{
+					{
+						ID:      "msg-allowed",
+						Kind:    network.KindSay,
+						Channel: "ch-run-1",
+						From:    "peer-1",
+						Body:    json.RawMessage(`{"text":"allowed"}`),
+					},
+					{
+						ID:      "msg-blocked",
+						Kind:    network.KindSay,
+						Channel: "ch-run-2",
+						From:    "peer-2",
+						Body:    json.RawMessage(`{"text":"blocked"}`),
+					},
+				},
+			}
+			registry := newDaemonNativeRegistryWithPolicyResolver(t, &daemonNativeToolsDeps{
+				Network:    networkService,
+				Sessions:   sessions,
+				Workspaces: workspaces,
+			}, resolver)
+			scope := toolspkg.Scope{SessionID: "sess-coord"}
+
+			channelsResult, err := registry.Call(ctx, scope, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDNetworkChannels,
+				Input:  json.RawMessage(`{"workspace_id":"ws-foreign"}`),
+			})
+			if err != nil {
+				t.Fatalf("Registry.Call(network_channels) error = %v", err)
+			}
+			requireNativeStructuredContains(t, channelsResult, []byte(`"channel":"ch-run-1"`))
+			requireNativeStructuredExcludes(t, channelsResult, []byte(`"channel":"ch-run-2"`))
+			if got := networkService.channelsWorkspaceID; got != "ws-coord" {
+				t.Fatalf("Network.ListChannels workspace_id = %q, want ws-coord", got)
+			}
+
+			inboxResult, err := registry.Call(ctx, scope, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDNetworkInbox,
+				Input:  json.RawMessage(`{"workspace_id":"ws-foreign","session_id":"sess-foreign"}`),
+			})
+			if err != nil {
+				t.Fatalf("Registry.Call(network_inbox) error = %v", err)
+			}
+			requireNativeStructuredContains(t, inboxResult, []byte(`"msg-allowed"`))
+			requireNativeStructuredExcludes(t, inboxResult, []byte(`"msg-blocked"`))
+			if got := networkService.inboxSessionID; got != "sess-coord" {
+				t.Fatalf("Network.Inbox session_id = %q, want sess-coord", got)
+			}
+
+			describeResult, err := registry.Call(ctx, scope, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionDescribe,
+				Input:  json.RawMessage(`{"workspace_id":"ws-foreign","session_id":"sess-foreign"}`),
+			})
+			if err != nil {
+				t.Fatalf("Registry.Call(session_describe) error = %v", err)
+			}
+			requireNativeStructuredContains(t, describeResult, []byte(`"id":"sess-coord"`))
+			if len(eventCalls) != 1 || eventCalls[0] != "sess-coord" {
+				t.Fatalf("Sessions.Events calls = %#v, want only sess-coord", eventCalls)
+			}
+			if len(historyCalls) != 1 || historyCalls[0] != "sess-coord" {
+				t.Fatalf("Sessions.History calls = %#v, want only sess-coord", historyCalls)
+			}
+
+			_, err = registry.Call(ctx, scope, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDNetworkSend,
+				Input: json.RawMessage(
+					`{"workspace_id":"ws-foreign","session_id":"sess-foreign","channel":"ch-run-1","surface":"thread","thread_id":"thread_coord","kind":"say","body":{"text":"hello"}}`,
+				),
+			})
+			if err != nil {
+				t.Fatalf("Registry.Call(network_send allowed) error = %v", err)
+			}
+			if got := networkService.lastSend.SessionID; got != "sess-coord" {
+				t.Fatalf("Network.Send session_id = %q, want sess-coord", got)
+			}
+			if got := networkService.lastSend.WorkspaceID; got != "ws-coord" {
+				t.Fatalf("Network.Send workspace_id = %q, want ws-coord", got)
+			}
+
+			_, err = registry.Call(ctx, scope, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDNetworkSend,
+				Input: json.RawMessage(
+					`{"workspace_id":"ws-foreign","session_id":"sess-foreign","channel":"ch-run-2","surface":"thread","thread_id":"thread_coord","kind":"say","body":{"text":"blocked"}}`,
+				),
+			})
+			requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSessionDenied)
+			if got := networkService.sendCalls; got != 1 {
+				t.Fatalf("Network.Send calls = %d, want 1", got)
+			}
+			if slices.Contains(statusCalls, "sess-foreign") {
+				t.Fatalf("Sessions.Status calls = %#v, want caller session only", statusCalls)
+			}
+		},
+	)
 
 	t.Run("Should keep Memory v2 write tools root-only unless lineage grants them", func(t *testing.T) {
 		t.Parallel()

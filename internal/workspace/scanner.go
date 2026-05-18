@@ -60,6 +60,9 @@ func (r *Resolver) scanWorkspace(ctx context.Context, ws Workspace) (workspaceSc
 	); err != nil {
 		return workspaceScan{}, fmt.Errorf("workspace: snapshot workspace config %q: %w", ws.RootDir, err)
 	}
+	if err := addDependencySnapshot(aghconfig.WorkspaceDotEnvFile(ws.RootDir), scan.snapshots); err != nil {
+		return workspaceScan{}, fmt.Errorf("workspace: snapshot workspace dotenv %q: %w", ws.RootDir, err)
+	}
 	if err := addSnapshotIfExists(
 		filepath.Join(ws.RootDir, aghconfig.DirName, aghconfig.MCPJSONName),
 		scan.snapshots,
@@ -117,12 +120,28 @@ func scanAgentSource(
 		if _, ok := snapshots[agentPath]; !ok {
 			continue
 		}
+		if err := scanAgentCapabilityCatalog(agentDir, snapshots); err != nil {
+			return err
+		}
 
 		*dst = append(*dst, agentCandidate{
 			path: agentPath,
 		})
 	}
 
+	return nil
+}
+
+func scanAgentCapabilityCatalog(agentDir string, snapshots map[string]filesnap.Snapshot) error {
+	paths, err := aghconfig.AgentCapabilityCatalogDependencyPaths(agentDir)
+	if err != nil {
+		return fmt.Errorf("workspace: enumerate agent capability catalog %q: %w", agentDir, err)
+	}
+	for _, path := range paths {
+		if err := addDependencySnapshot(path, snapshots); err != nil {
+			return fmt.Errorf("workspace: snapshot agent capability catalog %q: %w", path, err)
+		}
+	}
 	return nil
 }
 
@@ -266,5 +285,24 @@ func addSnapshotIfExists(path string, snapshots map[string]filesnap.Snapshot) er
 	}
 
 	snapshots[path] = snapshot
+	return nil
+}
+
+func addDependencySnapshot(path string, snapshots map[string]filesnap.Snapshot) error {
+	normalized := strings.TrimSpace(path)
+	if normalized == "" {
+		return nil
+	}
+
+	snapshot, err := filesnap.FromPath(normalized)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			snapshots[normalized] = filesnap.Snapshot{Size: -1}
+			return nil
+		}
+		return err
+	}
+
+	snapshots[normalized] = snapshot
 	return nil
 }

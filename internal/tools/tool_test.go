@@ -157,6 +157,26 @@ func TestDescriptorValidation(t *testing.T) {
 			reason: ReasonSchemaInvalid,
 		},
 		{
+			name: "Should reject unsupported string schema type names",
+			mutate: func(d *Descriptor) {
+				d.InputSchema = json.RawMessage(`{
+					"type":"object",
+					"properties":{"query":{"type":"strng"}}
+				}`)
+			},
+			reason: ReasonSchemaInvalid,
+		},
+		{
+			name: "Should reject unsupported array schema type names",
+			mutate: func(d *Descriptor) {
+				d.InputSchema = json.RawMessage(`{
+					"type":"object",
+					"properties":{"query":{"type":["string","strng"]}}
+				}`)
+			},
+			reason: ReasonSchemaInvalid,
+		},
+		{
 			name: "Should reject missing extension handlers",
 			mutate: func(d *Descriptor) {
 				d.Backend = BackendRef{Kind: BackendExtensionHost, ExtensionID: "linear"}
@@ -540,6 +560,33 @@ func TestToolResultValidation(t *testing.T) {
 		{
 			name:   "Should reject content without types",
 			result: ToolResult{Content: []ToolContent{{Text: "missing type"}}},
+			reason: ReasonSchemaInvalid,
+		},
+		{
+			name:   "Should reject invalid structured JSON",
+			result: ToolResult{Structured: json.RawMessage(`{bad`)},
+			reason: ReasonSchemaInvalid,
+		},
+		{
+			name: "Should reject invalid content data JSON",
+			result: ToolResult{
+				Content: []ToolContent{{Type: "json", Data: json.RawMessage(`{bad`)}},
+			},
+			reason: ReasonSchemaInvalid,
+		},
+		{
+			name:   "Should reject invalid result metadata JSON",
+			result: ToolResult{Metadata: map[string]json.RawMessage{"safe": json.RawMessage(`{bad`)}},
+			reason: ReasonSchemaInvalid,
+		},
+		{
+			name: "Should reject invalid content metadata JSON",
+			result: ToolResult{
+				Content: []ToolContent{{
+					Type:     "text",
+					Metadata: map[string]json.RawMessage{"safe": json.RawMessage(`{bad`)},
+				}},
+			},
 			reason: ReasonSchemaInvalid,
 		},
 		{

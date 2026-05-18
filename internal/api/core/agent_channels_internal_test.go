@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -247,6 +248,138 @@ func TestAgentChannelCoreHandlersUseIdentityAndCoordinationMetadata(t *testing.T
 	})
 }
 
+func TestAgentChannelCoreHandlersUsePersistedReplySourceMetadata(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should inherit reply metadata from persisted source messages", func(t *testing.T) {
+		t.Parallel()
+
+		var sent []network.SendRequest
+		networkService := &agentCoreNetworkService{
+			InboxFn: func(_ context.Context, sessionID string) ([]network.Envelope, error) {
+				if sessionID != "sess-agent" {
+					t.Fatalf("Inbox() sessionID = %q, want sess-agent", sessionID)
+				}
+				return nil, nil
+			},
+			SendFn: func(_ context.Context, request network.SendRequest) (string, error) {
+				sent = append(sent, request)
+				return "msg-reply", nil
+			},
+		}
+		networkStore := agentCoreNetworkStore{
+			ListNetworkMessagesFn: func(_ context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
+				if query.WorkspaceID != "ws-1" || query.SessionID != "sess-agent" || query.MessageID != "msg-source" ||
+					query.Limit != 1 {
+					t.Fatalf("ListNetworkMessages() query = %#v, want persisted source lookup", query)
+				}
+				return []store.NetworkMessageEntry{{
+					MessageID:   "msg-source",
+					SessionID:   "sess-agent",
+					WorkspaceID: "ws-1",
+					Channel:     "builders",
+					Surface:     store.NetworkSurfaceThread,
+					ThreadID:    "thread_agent_core",
+					Direction:   "received",
+					PeerFrom:    "reviewer.sess-peer",
+					PeerTo:      "coder.sess-agent",
+					Kind:        store.NetworkKindSay,
+					Body:        json.RawMessage(`{"text":"coordination"}`),
+					ExtJSON:     agentCoreCoordinationExtJSON(t, contract.CoordinationMessageRequest),
+					Timestamp:   time.Date(2026, 4, 26, 10, 2, 0, 0, time.UTC),
+				}}, nil
+			},
+		}
+		engine := newAgentCoreTestRouterWithNetworkStore(t, networkService, networkStore)
+
+		replyResp := performAgentCoreRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/agent/channels/reply",
+			[]byte(
+				`{"reply_to_message_id":"msg-source","body":{"text":"ack"},"metadata":{"task_id":"","run_id":"","coordination_channel_id":"","message_kind":"","correlation_id":""}}`,
+			),
+			agentCoreHeaders(),
+		)
+
+		if replyResp.Code != http.StatusAccepted {
+			t.Fatalf(
+				"reply status = %d, want %d; body=%s",
+				replyResp.Code,
+				http.StatusAccepted,
+				replyResp.Body.String(),
+			)
+		}
+		if len(sent) != 1 || sent[0].ReplyTo == nil || *sent[0].ReplyTo != "msg-source" {
+			t.Fatalf("sent requests = %#v, want one reply to persisted source", sent)
+		}
+		if metadata := decodeAgentCoreCoordinationExt(
+			t,
+			sent[0].Ext,
+		); metadata.MessageKind != contract.CoordinationMessageReply ||
+			metadata.TaskID != "task-1" ||
+			metadata.RunID != "run-1" ||
+			metadata.CoordinationChannelID != "builders" {
+			t.Fatalf("reply metadata = %#v, want inherited persisted metadata", metadata)
+		}
+	})
+
+	t.Run("Should surface persisted source ext decode failures", func(t *testing.T) {
+		t.Parallel()
+
+		networkService := &agentCoreNetworkService{
+			InboxFn: func(_ context.Context, sessionID string) ([]network.Envelope, error) {
+				if sessionID != "sess-agent" {
+					t.Fatalf("Inbox() sessionID = %q, want sess-agent", sessionID)
+				}
+				return nil, nil
+			},
+		}
+		networkStore := agentCoreNetworkStore{
+			ListNetworkMessagesFn: func(_ context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
+				if query.MessageID != "msg-source" {
+					t.Fatalf("ListNetworkMessages() query = %#v, want persisted source lookup", query)
+				}
+				return []store.NetworkMessageEntry{{
+					MessageID:   "msg-source",
+					SessionID:   "sess-agent",
+					WorkspaceID: "ws-1",
+					Channel:     "builders",
+					PeerFrom:    "reviewer.sess-peer",
+					Body:        json.RawMessage(`{"text":"coordination"}`),
+					ExtJSON:     json.RawMessage(`{"agh.coordination":`),
+					Timestamp:   time.Date(2026, 4, 26, 10, 2, 0, 0, time.UTC),
+				}}, nil
+			},
+		}
+		engine := newAgentCoreTestRouterWithNetworkStore(t, networkService, networkStore)
+
+		replyResp := performAgentCoreRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/agent/channels/reply",
+			[]byte(
+				`{"reply_to_message_id":"msg-source","body":{"text":"ack"},"metadata":{"task_id":"","run_id":"","coordination_channel_id":"","message_kind":"","correlation_id":""}}`,
+			),
+			agentCoreHeaders(),
+		)
+
+		if replyResp.Code != http.StatusInternalServerError {
+			t.Fatalf(
+				"reply status = %d, want %d; body=%s",
+				replyResp.Code,
+				http.StatusInternalServerError,
+				replyResp.Body.String(),
+			)
+		}
+		if !strings.Contains(replyResp.Body.String(), "decode network message ext_json") {
+			t.Fatalf("reply body = %s, want persisted ext decode error", replyResp.Body.String())
+		}
+	})
+}
+
 func TestAgentMeCoreHandlerEnrichesContextAndChannels(t *testing.T) {
 	t.Parallel()
 
@@ -456,6 +589,107 @@ func (s *agentCoreNetworkService) WaitInbox(
 	return s.Inbox(ctx, sessionID)
 }
 
+type agentCoreNetworkStore struct {
+	ListNetworkMessagesFn func(context.Context, store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error)
+}
+
+func (s agentCoreNetworkStore) ResolveDirectRoom(
+	context.Context,
+	store.NetworkDirectRoomEntry,
+) (store.NetworkDirectRoomSummary, error) {
+	return store.NetworkDirectRoomSummary{}, nil
+}
+
+func (s agentCoreNetworkStore) WriteConversationMessage(
+	context.Context,
+	store.NetworkConversationMessage,
+) (store.NetworkConversationWriteResult, error) {
+	return store.NetworkConversationWriteResult{}, nil
+}
+
+func (s agentCoreNetworkStore) ListThreads(
+	context.Context,
+	store.NetworkChannelRef,
+	store.NetworkThreadQuery,
+) ([]store.NetworkThreadSummary, error) {
+	return nil, nil
+}
+
+func (s agentCoreNetworkStore) GetThread(
+	context.Context,
+	store.NetworkChannelRef,
+	string,
+) (store.NetworkThreadSummary, error) {
+	return store.NetworkThreadSummary{}, nil
+}
+
+func (s agentCoreNetworkStore) ListDirectRooms(
+	context.Context,
+	store.NetworkChannelRef,
+	store.NetworkDirectRoomQuery,
+) ([]store.NetworkDirectRoomSummary, error) {
+	return nil, nil
+}
+
+func (s agentCoreNetworkStore) GetDirectRoom(
+	context.Context,
+	store.NetworkChannelRef,
+	string,
+) (store.NetworkDirectRoomSummary, error) {
+	return store.NetworkDirectRoomSummary{}, nil
+}
+
+func (s agentCoreNetworkStore) ListConversationMessages(
+	context.Context,
+	store.NetworkConversationRef,
+	store.NetworkConversationMessageQuery,
+) ([]store.NetworkConversationMessage, error) {
+	return nil, nil
+}
+
+func (s agentCoreNetworkStore) GetWork(context.Context, string, string) (store.NetworkWorkEntry, error) {
+	return store.NetworkWorkEntry{}, nil
+}
+
+func (s agentCoreNetworkStore) ListNetworkAudit(
+	context.Context,
+	store.NetworkAuditQuery,
+) ([]store.NetworkAuditEntry, error) {
+	return nil, nil
+}
+
+func (s agentCoreNetworkStore) GetNetworkChannel(
+	context.Context,
+	store.NetworkChannelRef,
+) (store.NetworkChannelEntry, error) {
+	return store.NetworkChannelEntry{}, nil
+}
+
+func (s agentCoreNetworkStore) ListNetworkChannels(
+	context.Context,
+	store.NetworkChannelQuery,
+) ([]store.NetworkChannelEntry, error) {
+	return nil, nil
+}
+
+func (s agentCoreNetworkStore) WriteNetworkChannel(context.Context, store.NetworkChannelEntry) error {
+	return nil
+}
+
+func (s agentCoreNetworkStore) DeleteNetworkChannel(context.Context, store.NetworkChannelRef) error {
+	return nil
+}
+
+func (s agentCoreNetworkStore) ListNetworkMessages(
+	ctx context.Context,
+	query store.NetworkMessageQuery,
+) ([]store.NetworkMessageEntry, error) {
+	if s.ListNetworkMessagesFn != nil {
+		return s.ListNetworkMessagesFn(ctx, query)
+	}
+	return nil, nil
+}
+
 type agentCoreContextService func(context.Context, *session.Info) (contract.AgentContextPayload, error)
 
 func (f agentCoreContextService) ContextForSession(
@@ -485,6 +719,16 @@ func (agentCoreCoordinatorConfigResolver) ResolveCoordinatorConfig(
 func newAgentCoreTestRouter(t *testing.T, networkService *agentCoreNetworkService) *gin.Engine {
 	t.Helper()
 
+	return newAgentCoreTestRouterWithNetworkStore(t, networkService, nil)
+}
+
+func newAgentCoreTestRouterWithNetworkStore(
+	t *testing.T,
+	networkService *agentCoreNetworkService,
+	networkStore NetworkStore,
+) *gin.Engine {
+	t.Helper()
+
 	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
 	if err != nil {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
@@ -495,6 +739,7 @@ func newAgentCoreTestRouter(t *testing.T, networkService *agentCoreNetworkServic
 		TransportName:       "udsapi",
 		Sessions:            agentCoreSessionManager(t),
 		Network:             networkService,
+		NetworkStore:        networkStore,
 		AgentContextService: agentCoreContextService(agentCoreContextPayload),
 		CoordinatorConfig:   agentCoreCoordinatorConfigResolver{},
 		Config:              cfg,
@@ -672,6 +917,18 @@ func agentCoreCoordinationMetadata(t *testing.T, kind contract.CoordinationMessa
 	})
 	if err != nil {
 		t.Fatalf("json.Marshal(coordination metadata) error = %v", err)
+	}
+	return content
+}
+
+func agentCoreCoordinationExtJSON(t *testing.T, kind contract.CoordinationMessageKind) json.RawMessage {
+	t.Helper()
+
+	content, err := json.Marshal(map[string]json.RawMessage{
+		agentCoordinationExtKey: agentCoreCoordinationMetadata(t, kind),
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(coordination ext) error = %v", err)
 	}
 	return content
 }

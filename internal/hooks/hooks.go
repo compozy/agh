@@ -441,9 +441,6 @@ func cloneHookDecl(decl HookDecl) HookDecl {
 	cloned.SecretEnv = cloneStringMap(decl.SecretEnv)
 	cloned.Metadata = cloneStringMap(decl.Metadata)
 	cloned.Enabled = cloneBoolPtr(decl.Enabled)
-	if decl.Matcher.ToolReadOnly != nil {
-		value := *decl.Matcher.ToolReadOnly
-		cloned.Matcher.ToolReadOnly = &value
-	}
+	cloned.Matcher = cloneHookMatcher(decl.Matcher)
 	return cloned
 }

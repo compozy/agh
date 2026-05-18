@@ -1,40 +1,59 @@
 package workref
 
-import "testing"
+import (
+	"runtime"
+	"testing"
+)
 
-func benchmarkConstructor(
+var (
+	benchmarkPathRefSink PathRef
+	benchmarkRootRefSink RootRef
+)
+
+func benchmarkPathConstructor(
 	b *testing.B,
-	constructor func(string, string),
+	constructor func(string, string) PathRef,
 ) {
 	b.Helper()
 
 	for _, tc := range constructorCases {
 		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+			var result PathRef
 			for i := 0; i < b.N; i++ {
-				constructor(tc.id, tc.value)
+				result = constructor(tc.id, tc.value)
 			}
+			benchmarkPathRefSink = result
+			runtime.KeepAlive(benchmarkPathRefSink)
 		})
 	}
 }
 
-func runBenchmarkSuite(
+func benchmarkRootConstructor(
 	b *testing.B,
-	name string,
-	constructor func(string, string),
+	constructor func(string, string) RootRef,
 ) {
 	b.Helper()
 
-	b.Run(name, func(b *testing.B) {
-		benchmarkConstructor(b, constructor)
-	})
+	for _, tc := range constructorCases {
+		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+			var result RootRef
+			for i := 0; i < b.N; i++ {
+				result = constructor(tc.id, tc.value)
+			}
+			benchmarkRootRefSink = result
+			runtime.KeepAlive(benchmarkRootRefSink)
+		})
+	}
 }
 
 func BenchmarkConstructors(b *testing.B) {
-	runBenchmarkSuite(b, "NewPath", func(id string, value string) {
-		_ = NewPath(id, value)
+	b.Run("NewPath", func(b *testing.B) {
+		benchmarkPathConstructor(b, NewPath)
 	})
 
-	runBenchmarkSuite(b, "NewRoot", func(id string, value string) {
-		_ = NewRoot(id, value)
+	b.Run("NewRoot", func(b *testing.B) {
+		benchmarkRootConstructor(b, NewRoot)
 	})
 }

@@ -804,32 +804,27 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	s.mu.Unlock()
 
 	var errs []error
-	drained := true
 	if streamCancel != nil {
 		streamCancel()
 	}
 	if httpServer != nil {
 		if err := httpServer.Shutdown(ctx); err != nil {
 			errs = append(errs, fmt.Errorf("udsapi: shutdown http server: %w", err))
-			drained = false
 		}
 	}
 	if listener != nil {
 		if err := listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
 			errs = append(errs, fmt.Errorf("udsapi: close listener: %w", err))
-			drained = false
 		}
 	}
 	if serveDone != nil {
 		if err := waitForServeDone(ctx, serveDone); err != nil {
 			errs = append(errs, err)
-			drained = false
 		}
 	}
 	if handlers != nil {
 		if err := handlers.waitForPromptDrains(ctx); err != nil {
 			errs = append(errs, err)
-			drained = false
 		}
 	}
 	if err := removeSocketPath(socketPath); err != nil {
@@ -837,18 +832,20 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	}
 	s.mu.Lock()
 	serveErr := s.serveErr
-	if drained {
+	if serveErr != nil {
+		errs = append(errs, serveErr)
+	}
+	if len(errs) == 0 {
 		s.httpServer = nil
 		s.listener = nil
 		s.serveDone = nil
 		s.streamCancel = nil
 		s.serveErr = nil
 		s.state = serverStateStopped
+	} else {
+		s.state = serverStateStopping
 	}
 	s.mu.Unlock()
-	if serveErr != nil {
-		errs = append(errs, serveErr)
-	}
 
 	return errors.Join(errs...)
 }

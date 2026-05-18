@@ -28,6 +28,7 @@ type parsedHookDeclaration struct {
 	Args      []string           `yaml:"args,omitempty"       toml:"args,omitempty"`
 	Env       map[string]string  `yaml:"env,omitempty"        toml:"env,omitempty"`
 	SecretEnv map[string]string  `yaml:"secret_env,omitempty" toml:"secret_env,omitempty"`
+	Metadata  map[string]string  `yaml:"metadata,omitempty"   toml:"metadata,omitempty"`
 	Executor  parsedHookExecutor `yaml:"executor,omitempty"   toml:"executor,omitempty"`
 }
 
@@ -40,27 +41,41 @@ type parsedHookExecutor struct {
 }
 
 type parsedHookMatcher struct {
-	AgentName          string `yaml:"agent_name,omitempty"          toml:"agent_name,omitempty"`
-	AgentType          string `yaml:"agent_type,omitempty"          toml:"agent_type,omitempty"`
-	WorkspaceID        string `yaml:"workspace_id,omitempty"        toml:"workspace_id,omitempty"`
-	WorkspaceRoot      string `yaml:"workspace_root,omitempty"      toml:"workspace_root,omitempty"`
-	SessionType        string `yaml:"session_type,omitempty"        toml:"session_type,omitempty"`
-	InputClass         string `yaml:"input_class,omitempty"         toml:"input_class,omitempty"`
-	ACPEventType       string `yaml:"acp_event_type,omitempty"      toml:"acp_event_type,omitempty"`
-	TurnID             string `yaml:"turn_id,omitempty"             toml:"turn_id,omitempty"`
-	ToolID             string `yaml:"tool_id,omitempty"             toml:"tool_id,omitempty"`
-	ToolName           string `yaml:"tool_name,omitempty"           toml:"tool_name,omitempty"`
-	ToolReadOnly       *bool  `yaml:"tool_read_only,omitempty"      toml:"tool_read_only,omitempty"`
-	DecisionClass      string `yaml:"decision_class,omitempty"      toml:"decision_class,omitempty"`
-	MessageRole        string `yaml:"message_role,omitempty"        toml:"message_role,omitempty"`
-	MessageDeltaType   string `yaml:"message_delta_type,omitempty"  toml:"message_delta_type,omitempty"`
-	Channel            string `yaml:"channel,omitempty"             toml:"channel,omitempty"`
-	Surface            string `yaml:"surface,omitempty"             toml:"surface,omitempty"`
-	Kind               string `yaml:"kind,omitempty"                toml:"kind,omitempty"`
-	Direction          string `yaml:"direction,omitempty"           toml:"direction,omitempty"`
-	WorkState          string `yaml:"work_state,omitempty"          toml:"work_state,omitempty"`
-	CompactionReason   string `yaml:"compaction_reason,omitempty"   toml:"compaction_reason,omitempty"`
-	CompactionStrategy string `yaml:"compaction_strategy,omitempty" toml:"compaction_strategy,omitempty"`
+	AgentName          string `yaml:"agent_name,omitempty"              toml:"agent_name,omitempty"`
+	AgentType          string `yaml:"agent_type,omitempty"              toml:"agent_type,omitempty"`
+	WorkspaceID        string `yaml:"workspace_id,omitempty"            toml:"workspace_id,omitempty"`
+	WorkspaceRoot      string `yaml:"workspace_root,omitempty"          toml:"workspace_root,omitempty"`
+	SessionType        string `yaml:"session_type,omitempty"            toml:"session_type,omitempty"`
+	SandboxID          string `yaml:"sandbox_id,omitempty"              toml:"sandbox_id,omitempty"`
+	SandboxBackend     string `yaml:"sandbox_backend,omitempty"         toml:"sandbox_backend,omitempty"`
+	SandboxProfile     string `yaml:"sandbox_profile,omitempty"         toml:"sandbox_profile,omitempty"`
+	SyncDirection      string `yaml:"sync_direction,omitempty"          toml:"sync_direction,omitempty"`
+	InputClass         string `yaml:"input_class,omitempty"             toml:"input_class,omitempty"`
+	ACPEventType       string `yaml:"acp_event_type,omitempty"          toml:"acp_event_type,omitempty"`
+	TurnID             string `yaml:"turn_id,omitempty"                 toml:"turn_id,omitempty"`
+	ToolID             string `yaml:"tool_id,omitempty"                 toml:"tool_id,omitempty"`
+	ToolName           string `yaml:"tool_name,omitempty"               toml:"tool_name,omitempty"`
+	ToolReadOnly       *bool  `yaml:"tool_read_only,omitempty"          toml:"tool_read_only,omitempty"`
+	DecisionClass      string `yaml:"decision_class,omitempty"          toml:"decision_class,omitempty"`
+	MessageRole        string `yaml:"message_role,omitempty"            toml:"message_role,omitempty"`
+	MessageDeltaType   string `yaml:"message_delta_type,omitempty"      toml:"message_delta_type,omitempty"`
+	Channel            string `yaml:"channel,omitempty"                 toml:"channel,omitempty"`
+	Surface            string `yaml:"surface,omitempty"                 toml:"surface,omitempty"`
+	Kind               string `yaml:"kind,omitempty"                    toml:"kind,omitempty"`
+	Direction          string `yaml:"direction,omitempty"               toml:"direction,omitempty"`
+	WorkState          string `yaml:"work_state,omitempty"              toml:"work_state,omitempty"`
+	CompactionReason   string `yaml:"compaction_reason,omitempty"       toml:"compaction_reason,omitempty"`
+	CompactionStrategy string `yaml:"compaction_strategy,omitempty"     toml:"compaction_strategy,omitempty"`
+	TaskID             string `yaml:"task_id,omitempty"                 toml:"task_id,omitempty"`
+	RunID              string `yaml:"run_id,omitempty"                  toml:"run_id,omitempty"`
+	WorkflowID         string `yaml:"workflow_id,omitempty"             toml:"workflow_id,omitempty"`
+	CoordinationID     string `yaml:"coordination_channel_id,omitempty" toml:"coordination_channel_id,omitempty"`
+	CoordinatorID      string `yaml:"coordinator_session_id,omitempty"  toml:"coordinator_session_id,omitempty"`
+	ParentSessionID    string `yaml:"parent_session_id,omitempty"       toml:"parent_session_id,omitempty"`
+	RootSessionID      string `yaml:"root_session_id,omitempty"         toml:"root_session_id,omitempty"`
+	ChildSessionID     string `yaml:"child_session_id,omitempty"        toml:"child_session_id,omitempty"`
+	SpawnRole          string `yaml:"spawn_role,omitempty"              toml:"spawn_role,omitempty"`
+	ReleaseReason      string `yaml:"release_reason,omitempty"          toml:"release_reason,omitempty"`
 }
 
 type hookValidationExecutor struct {
@@ -166,6 +181,7 @@ func (d *parsedHookDeclaration) toHookDecl(
 		Args:         args,
 		Env:          env,
 		SecretEnv:    secretEnv,
+		Metadata:     mergeStringMaps(nil, d.Metadata),
 	}
 	if d.Priority != nil {
 		priority, err := hookspkg.PriorityFromInt(*d.Priority)
@@ -211,13 +227,17 @@ func (d *parsedHookDeclaration) resolveExecutor() (
 	return command, args, env, secretEnv, hookspkg.HookExecutorKind(strings.TrimSpace(d.Executor.Kind)), nil
 }
 
-func (m parsedHookMatcher) toHookMatcher(scopeAgentName string) (hookspkg.HookMatcher, error) {
+func (m *parsedHookMatcher) toHookMatcher(scopeAgentName string) (hookspkg.HookMatcher, error) {
 	matcher := hookspkg.HookMatcher{
 		AgentName:        strings.TrimSpace(m.AgentName),
 		AgentType:        strings.TrimSpace(m.AgentType),
 		WorkspaceID:      strings.TrimSpace(m.WorkspaceID),
 		WorkspaceRoot:    strings.TrimSpace(m.WorkspaceRoot),
 		SessionType:      strings.TrimSpace(m.SessionType),
+		SandboxID:        strings.TrimSpace(m.SandboxID),
+		SandboxBackend:   strings.TrimSpace(m.SandboxBackend),
+		SandboxProfile:   strings.TrimSpace(m.SandboxProfile),
+		SyncDirection:    strings.TrimSpace(m.SyncDirection),
 		InputClass:       strings.TrimSpace(m.InputClass),
 		ACPEventType:     strings.TrimSpace(m.ACPEventType),
 		TurnID:           strings.TrimSpace(m.TurnID),
@@ -238,6 +258,21 @@ func (m parsedHookMatcher) toHookMatcher(scopeAgentName string) (hookspkg.HookMa
 		Reason:   strings.TrimSpace(m.CompactionReason),
 		Strategy: strings.TrimSpace(m.CompactionStrategy),
 	}
+	autonomy := hookspkg.AutonomyMatcher{
+		TaskID:                strings.TrimSpace(m.TaskID),
+		RunID:                 strings.TrimSpace(m.RunID),
+		WorkflowID:            strings.TrimSpace(m.WorkflowID),
+		CoordinationChannelID: strings.TrimSpace(m.CoordinationID),
+		CoordinatorSessionID:  strings.TrimSpace(m.CoordinatorID),
+		ParentSessionID:       strings.TrimSpace(m.ParentSessionID),
+		RootSessionID:         strings.TrimSpace(m.RootSessionID),
+		ChildSessionID:        strings.TrimSpace(m.ChildSessionID),
+		SpawnRole:             strings.TrimSpace(m.SpawnRole),
+		ReleaseReason:         strings.TrimSpace(m.ReleaseReason),
+	}
+	if !emptyParsedAutonomyMatcher(autonomy) {
+		matcher.Autonomy = &autonomy
+	}
 	if m.ToolReadOnly != nil {
 		value := *m.ToolReadOnly
 		matcher.ToolReadOnly = &value
@@ -251,6 +286,141 @@ func (m parsedHookMatcher) toHookMatcher(scopeAgentName string) (hookspkg.HookMa
 	}
 	matcher.AgentName = scopeAgentName
 	return matcher, nil
+}
+
+func parsedHookDeclarationsFromHookDecls(
+	decls []hookspkg.HookDecl,
+	scopeAgentName string,
+) ([]parsedHookDeclaration, error) {
+	if len(decls) == 0 {
+		return nil, nil
+	}
+
+	parsed := make([]parsedHookDeclaration, 0, len(decls))
+	for idx, decl := range decls {
+		rendered, err := parsedHookDeclarationFromHookDecl(decl, scopeAgentName)
+		if err != nil {
+			return nil, fmt.Errorf("agent.hooks[%d]: %w", idx, err)
+		}
+		parsed = append(parsed, rendered)
+	}
+	return parsed, nil
+}
+
+func parsedHookDeclarationFromHookDecl(
+	decl hookspkg.HookDecl,
+	scopeAgentName string,
+) (parsedHookDeclaration, error) {
+	if strings.TrimSpace(decl.WorkingDir) != "" {
+		return parsedHookDeclaration{}, errors.New("working_dir cannot be stored in AGENT.md hooks")
+	}
+	if decl.SkillSource != "" {
+		return parsedHookDeclaration{}, errors.New("skill_source cannot be stored in AGENT.md hooks")
+	}
+
+	matcher, err := parsedHookMatcherFromHookMatcher(decl.Matcher, scopeAgentName)
+	if err != nil {
+		return parsedHookDeclaration{}, err
+	}
+
+	var priority *int
+	if decl.PrioritySet || decl.Priority != 0 {
+		value := int(decl.Priority)
+		priority = &value
+	}
+
+	executor := parsedHookExecutor{}
+	if decl.ExecutorKind != "" {
+		executor.Kind = string(decl.ExecutorKind)
+	}
+
+	return parsedHookDeclaration{
+		Name:      strings.TrimSpace(decl.Name),
+		Event:     strings.TrimSpace(string(decl.Event)),
+		Mode:      strings.TrimSpace(string(decl.Mode)),
+		Enabled:   cloneBoolPtr(decl.Enabled),
+		Required:  decl.Required,
+		Priority:  priority,
+		Timeout:   decl.Timeout,
+		Matcher:   matcher,
+		Command:   strings.TrimSpace(decl.Command),
+		Args:      cloneStrings(decl.Args),
+		Env:       mergeStringMaps(nil, decl.Env),
+		SecretEnv: mergeStringMaps(nil, decl.SecretEnv),
+		Metadata:  mergeStringMaps(nil, decl.Metadata),
+		Executor:  executor,
+	}, nil
+}
+
+func parsedHookMatcherFromHookMatcher(
+	matcher hookspkg.HookMatcher,
+	scopeAgentName string,
+) (parsedHookMatcher, error) {
+	parsed := parsedHookMatcher{
+		AgentName:        strings.TrimSpace(matcher.AgentName),
+		AgentType:        strings.TrimSpace(matcher.AgentType),
+		WorkspaceID:      strings.TrimSpace(matcher.WorkspaceID),
+		WorkspaceRoot:    strings.TrimSpace(matcher.WorkspaceRoot),
+		SessionType:      strings.TrimSpace(matcher.SessionType),
+		SandboxID:        strings.TrimSpace(matcher.SandboxID),
+		SandboxBackend:   strings.TrimSpace(matcher.SandboxBackend),
+		SandboxProfile:   strings.TrimSpace(matcher.SandboxProfile),
+		SyncDirection:    strings.TrimSpace(matcher.SyncDirection),
+		InputClass:       strings.TrimSpace(matcher.InputClass),
+		ACPEventType:     strings.TrimSpace(matcher.ACPEventType),
+		TurnID:           strings.TrimSpace(matcher.TurnID),
+		ToolID:           strings.TrimSpace(matcher.ToolID),
+		ToolName:         strings.TrimSpace(matcher.ToolName),
+		ToolReadOnly:     cloneBoolPtr(matcher.ToolReadOnly),
+		DecisionClass:    strings.TrimSpace(matcher.DecisionClass),
+		MessageRole:      strings.TrimSpace(matcher.MessageRole),
+		MessageDeltaType: strings.TrimSpace(matcher.MessageDeltaType),
+	}
+	if matcher.NetworkMatcher != nil {
+		parsed.Channel = strings.TrimSpace(matcher.Channel)
+		parsed.Surface = strings.TrimSpace(matcher.Surface)
+		parsed.Kind = strings.TrimSpace(matcher.Kind)
+		parsed.Direction = strings.TrimSpace(matcher.Direction)
+		parsed.WorkState = strings.TrimSpace(matcher.WorkState)
+	}
+	if matcher.CompactionMatcher != nil {
+		parsed.CompactionReason = strings.TrimSpace(matcher.Reason)
+		parsed.CompactionStrategy = strings.TrimSpace(matcher.Strategy)
+	}
+	if matcher.Autonomy != nil {
+		parsed.TaskID = strings.TrimSpace(matcher.Autonomy.TaskID)
+		parsed.RunID = strings.TrimSpace(matcher.Autonomy.RunID)
+		parsed.WorkflowID = strings.TrimSpace(matcher.Autonomy.WorkflowID)
+		parsed.CoordinationID = strings.TrimSpace(matcher.Autonomy.CoordinationChannelID)
+		parsed.CoordinatorID = strings.TrimSpace(matcher.Autonomy.CoordinatorSessionID)
+		parsed.ParentSessionID = strings.TrimSpace(matcher.Autonomy.ParentSessionID)
+		parsed.RootSessionID = strings.TrimSpace(matcher.Autonomy.RootSessionID)
+		parsed.ChildSessionID = strings.TrimSpace(matcher.Autonomy.ChildSessionID)
+		parsed.SpawnRole = strings.TrimSpace(matcher.Autonomy.SpawnRole)
+		parsed.ReleaseReason = strings.TrimSpace(matcher.Autonomy.ReleaseReason)
+	}
+
+	if scopeAgentName == "" {
+		return parsed, nil
+	}
+	if parsed.AgentName != "" && parsed.AgentName != scopeAgentName {
+		return parsedHookMatcher{}, fmt.Errorf("matcher.agent_name must match agent name %q", scopeAgentName)
+	}
+	parsed.AgentName = ""
+	return parsed, nil
+}
+
+func emptyParsedAutonomyMatcher(matcher hookspkg.AutonomyMatcher) bool {
+	return matcher.TaskID == "" &&
+		matcher.RunID == "" &&
+		matcher.WorkflowID == "" &&
+		matcher.CoordinationChannelID == "" &&
+		matcher.CoordinatorSessionID == "" &&
+		matcher.ParentSessionID == "" &&
+		matcher.RootSessionID == "" &&
+		matcher.ChildSessionID == "" &&
+		matcher.SpawnRole == "" &&
+		matcher.ReleaseReason == ""
 }
 
 func hookDeclarationResolver(decl hookspkg.HookDecl) (hookspkg.Executor, error) {

@@ -69,7 +69,7 @@ func runHook(name string, stdin io.Reader, stdout io.Writer) error {
 		if err := json.NewDecoder(stdin).Decode(&payload); err != nil {
 			return fmt.Errorf("secret-guard: decode input_pre_submit payload: %w", err)
 		}
-		patch := evaluateSecretGuard(payload.Message)
+		patch := evaluateSecretGuard(payload)
 		return json.NewEncoder(stdout).Encode(patch)
 	default:
 		return fmt.Errorf("secret-guard: unsupported hook %q", name)
@@ -450,7 +450,7 @@ func (r *secretGuardRuntime) handleExecuteHook(params json.RawMessage) (any, err
 		if err := json.Unmarshal(request.Payload, &payload); err != nil {
 			return nil, fmt.Errorf("secret-guard: decode input.pre_submit payload: %w", err)
 		}
-		return evaluateSecretGuard(payload.Message), nil
+		return evaluateSecretGuard(payload), nil
 	default:
 		return map[string]any{}, nil
 	}
@@ -472,27 +472,36 @@ func (r *secretGuardRuntime) handleShutdown(params json.RawMessage) (any, error)
 	}
 
 	appendMarkerLine(os.Getenv(goShutdownEnv), fmt.Sprintf("reason=%s", request.Reason))
-	go func() {
-		time.Sleep(5 * time.Millisecond)
-		os.Exit(0)
-	}()
-
 	return subprocess.ShutdownResponse{Acknowledged: true}, nil
 }
 
-func evaluateSecretGuard(message string) hookspkg.InputPreSubmitPatch {
+func evaluateSecretGuard(payload hookspkg.InputPreSubmitPayload) hookspkg.InputPreSubmitPatch {
+	if patch, ok := evaluateSecretGuardText("Message", payload.Message); ok {
+		return patch
+	}
+
+	for _, block := range payload.ContextBlocks {
+		if patch, ok := evaluateSecretGuardText("Context block", block.Text); ok {
+			return patch
+		}
+	}
+
+	return hookspkg.InputPreSubmitPatch{}
+}
+
+func evaluateSecretGuardText(source string, text string) (hookspkg.InputPreSubmitPatch, bool) {
 	for _, pattern := range secretPatterns {
-		if strings.Contains(message, pattern) {
-			reason := fmt.Sprintf("Message contains a potential secret (%s)", pattern)
+		if strings.Contains(text, pattern) {
+			reason := fmt.Sprintf("%s contains a potential secret (%s)", source, pattern)
 			return hookspkg.InputPreSubmitPatch{
 				ControlPatch: hookspkg.ControlPatch{
 					Deny:       true,
 					DenyReason: reason,
 				},
-			}
+			}, true
 		}
 	}
-	return hookspkg.InputPreSubmitPatch{}
+	return hookspkg.InputPreSubmitPatch{}, false
 }
 
 type runtimeRPCError struct {

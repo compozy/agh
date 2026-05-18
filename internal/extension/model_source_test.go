@@ -453,8 +453,8 @@ func TestModelSourceShouldPreserveStaleRowsWhenRuntimeIsUnavailable(t *testing.T
 			Force:      true,
 			Now:        now.Add(time.Minute),
 		})
-		if err != nil {
-			t.Fatalf("stale Refresh() error = %v, want stale fallback success", err)
+		if err == nil {
+			t.Fatal("stale Refresh() error = nil, want degraded stale fallback error")
 		}
 		if len(statuses) != 1 || !statuses[0].Stale || statuses[0].RowCount != 1 {
 			t.Fatalf("stale Refresh() statuses = %#v, want one stale preserved row", statuses)
@@ -499,8 +499,8 @@ func TestModelSourceShouldPreserveStaleRowsWhenSubprocessExtensionStops(t *testi
 			Force:      true,
 			Now:        now.Add(time.Minute),
 		})
-		if err != nil {
-			t.Fatalf("stale Refresh() error = %v, want stale fallback success", err)
+		if err == nil {
+			t.Fatal("stale Refresh() error = nil, want degraded stale fallback error")
 		}
 		if len(statuses) != 1 || !statuses[0].Stale || statuses[0].RowCount != 1 {
 			t.Fatalf("stale Refresh() statuses = %#v, want stale preserved subprocess row", statuses)

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gofrs/flock"
 	"github.com/pedronauck/agh/internal/procutil"
 )
 
@@ -60,13 +61,27 @@ func (l *ConsolidationLock) LastConsolidatedAt() (time.Time, error) {
 
 // TryAcquire attempts to acquire the consolidation lock and returns the prior
 // mtime for rollback when acquisition succeeds.
-func (l *ConsolidationLock) TryAcquire() (time.Time, bool, error) {
+func (l *ConsolidationLock) TryAcquire() (priorMtime time.Time, acquired bool, err error) {
 	if err := l.validate(); err != nil {
 		return time.Time{}, false, err
 	}
 	if err := os.MkdirAll(filepath.Dir(l.path), dirPerm); err != nil {
 		return time.Time{}, false, fmt.Errorf("memory: create lock parent directory for %q: %w", l.path, err)
 	}
+
+	claim, claimed, err := l.tryAcquireMutationClaim()
+	if err != nil {
+		return time.Time{}, false, err
+	}
+	if !claimed {
+		return time.Time{}, false, nil
+	}
+	claimHeld := true
+	defer func() {
+		if claimHeld {
+			err = errors.Join(err, claim.release())
+		}
+	}()
 
 	state, err := l.readState()
 	if err != nil {
@@ -76,30 +91,17 @@ func (l *ConsolidationLock) TryAcquire() (time.Time, bool, error) {
 		return state.modTime, false, nil
 	}
 
-	priorMtime := state.modTime
-	if state.exists {
-		if err := os.Remove(l.path); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return priorMtime, false, fmt.Errorf("memory: remove stale consolidation lock %q: %w", l.path, err)
-		}
-	}
-
+	priorMtime = state.modTime
 	pid := l.pidFn()
 	if pid <= 0 {
-		restoreErr := l.restoreUnlocked(priorMtime)
 		return priorMtime, false, errors.Join(
 			fmt.Errorf("memory: invalid process pid %d", pid),
-			restoreErr,
 		)
 	}
 
-	if err := l.createLockFile(pid); err != nil {
-		if errors.Is(err, os.ErrExist) {
-			return priorMtime, false, nil
-		}
-		restoreErr := l.restoreUnlocked(priorMtime)
+	if err := l.writeLockedPID(pid); err != nil {
 		return priorMtime, false, errors.Join(
-			fmt.Errorf("memory: create consolidation lock %q: %w", l.path, err),
-			restoreErr,
+			fmt.Errorf("memory: write consolidation lock %q: %w", l.path, err),
 		)
 	}
 
@@ -116,6 +118,14 @@ func (l *ConsolidationLock) TryAcquire() (time.Time, bool, error) {
 		)
 	}
 
+	if releaseErr := claim.release(); releaseErr != nil {
+		restoreErr := l.restoreUnlocked(priorMtime)
+		return priorMtime, false, errors.Join(
+			fmt.Errorf("memory: release consolidation lock claim %q: %w", l.claimPath(), releaseErr),
+			restoreErr,
+		)
+	}
+	claimHeld = false
 	return priorMtime, true, nil
 }
 
@@ -125,7 +135,12 @@ func (l *ConsolidationLock) Release() error {
 		return err
 	}
 
-	return l.writeUnlockedAt(l.now())
+	return l.withMutationClaim(func() error {
+		if err := l.ensureOwnedByCurrentPID(); err != nil {
+			return err
+		}
+		return l.writeUnlockedAt(l.now())
+	})
 }
 
 // Rollback clears the lock PID and restores the mtime from before acquisition.
@@ -133,14 +148,20 @@ func (l *ConsolidationLock) Rollback(priorMtime time.Time) error {
 	if err := l.validate(); err != nil {
 		return err
 	}
-	if priorMtime.IsZero() {
-		if err := os.Remove(l.path); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("memory: remove consolidation lock %q during rollback: %w", l.path, err)
-		}
-		return nil
-	}
 
-	return l.writeUnlockedAt(priorMtime)
+	return l.withMutationClaim(func() error {
+		if err := l.ensureOwnedByCurrentPID(); err != nil {
+			return err
+		}
+		if priorMtime.IsZero() {
+			if err := os.Remove(l.path); err != nil && !errors.Is(err, os.ErrNotExist) {
+				return fmt.Errorf("memory: remove consolidation lock %q during rollback: %w", l.path, err)
+			}
+			return nil
+		}
+
+		return l.writeUnlockedAt(priorMtime)
+	})
 }
 
 type lockState struct {
@@ -214,6 +235,90 @@ func (l *ConsolidationLock) canReclaim(state lockState) bool {
 	return !l.processAlive(state.pid)
 }
 
+func (l *ConsolidationLock) claimPath() string {
+	return l.path + ".claim"
+}
+
+type lockMutationClaim struct {
+	path string
+	lock *flock.Flock
+}
+
+func (l *ConsolidationLock) tryAcquireMutationClaim() (*lockMutationClaim, bool, error) {
+	claimPath := l.claimPath()
+	fileLock := flock.New(claimPath)
+	locked, err := fileLock.TryLock()
+	if err != nil {
+		closeErr := fileLock.Close()
+		return nil, false, errors.Join(
+			fmt.Errorf("memory: acquire consolidation lock claim %q: %w", claimPath, err),
+			closeErr,
+		)
+	}
+	if !locked {
+		closeErr := fileLock.Close()
+		if closeErr != nil {
+			return nil, false, fmt.Errorf(
+				"memory: close unacquired consolidation lock claim %q: %w",
+				claimPath,
+				closeErr,
+			)
+		}
+		return nil, false, nil
+	}
+	return &lockMutationClaim{path: claimPath, lock: fileLock}, true, nil
+}
+
+func (c *lockMutationClaim) release() error {
+	if c == nil || c.lock == nil {
+		return nil
+	}
+	return errors.Join(
+		wrapLockClaimError("unlock", c.path, c.lock.Unlock()),
+		wrapLockClaimError("close", c.path, c.lock.Close()),
+	)
+}
+
+func wrapLockClaimError(operation string, path string, err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("memory: %s consolidation lock claim %q: %w", operation, path, err)
+}
+
+func (l *ConsolidationLock) withMutationClaim(fn func() error) (result error) {
+	if err := os.MkdirAll(filepath.Dir(l.path), dirPerm); err != nil {
+		return fmt.Errorf("memory: create lock parent directory for %q: %w", l.path, err)
+	}
+	claim, claimed, err := l.tryAcquireMutationClaim()
+	if err != nil {
+		return err
+	}
+	if !claimed {
+		return ErrLockUnavailable
+	}
+	defer func() {
+		result = errors.Join(result, claim.release())
+	}()
+	result = fn()
+	return result
+}
+
+func (l *ConsolidationLock) ensureOwnedByCurrentPID() error {
+	state, err := l.readState()
+	if err != nil {
+		return err
+	}
+	pid := l.pidFn()
+	if pid <= 0 {
+		return fmt.Errorf("memory: invalid process pid %d", pid)
+	}
+	if !state.exists || !state.validPID || state.pid != pid {
+		return fmt.Errorf("memory: consolidation lock %q is not owned by pid %d", l.path, pid)
+	}
+	return nil
+}
+
 func (l *ConsolidationLock) restoreUnlocked(priorMtime time.Time) error {
 	if priorMtime.IsZero() {
 		if err := os.Remove(l.path); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -239,35 +344,24 @@ func (l *ConsolidationLock) writeUnlockedAt(timestamp time.Time) error {
 	return nil
 }
 
-func (l *ConsolidationLock) createLockFile(pid int) error {
-	tempFile, err := os.CreateTemp(filepath.Dir(l.path), ".consolidate-lock-*")
+func (l *ConsolidationLock) writeLockedPID(pid int) (returnErr error) {
+	file, err := os.OpenFile(l.path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, lockFilePerm)
 	if err != nil {
 		return err
 	}
-
-	tempPath := tempFile.Name()
-	cleanup := true
 	defer func() {
-		if cleanup {
-			_ = os.Remove(tempPath)
+		if err := file.Close(); err != nil {
+			returnErr = errors.Join(returnErr, fmt.Errorf("memory: close consolidation lock %q: %w", l.path, err))
 		}
 	}()
-
-	if _, err := tempFile.WriteString(strconv.Itoa(pid)); err != nil {
-		_ = tempFile.Close()
-		return err
+	if _, err := fmt.Fprint(file, strconv.Itoa(pid)); err != nil {
+		return fmt.Errorf("memory: write consolidation lock pid: %w", err)
 	}
-	if err := tempFile.Chmod(lockFilePerm); err != nil {
-		_ = tempFile.Close()
-		return err
+	if err := file.Chmod(lockFilePerm); err != nil {
+		return fmt.Errorf("memory: chmod consolidation lock: %w", err)
 	}
-	if err := tempFile.Close(); err != nil {
-		return err
+	if err := file.Sync(); err != nil {
+		return fmt.Errorf("memory: sync consolidation lock: %w", err)
 	}
-	if err := os.Link(tempPath, l.path); err != nil {
-		return err
-	}
-
-	cleanup = false
-	return os.Remove(tempPath)
+	return nil
 }

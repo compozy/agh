@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -131,6 +132,33 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewAgentResourceCodec() error = %v", err)
 		}
+		stdioServer := MCPServer{
+			Name:      " github ",
+			Transport: " stdio ",
+			Command:   " npx ",
+			Args:      []string{" -y ", " @modelcontextprotocol/server-github "},
+			Env: map[string]string{
+				" NODE_ENV ": " production ",
+			},
+			SecretEnv: map[string]string{
+				" GITHUB_TOKEN ": " env:GITHUB_TOKEN ",
+			},
+		}
+		remoteServer := MCPServer{
+			Name:      " linear ",
+			Transport: " sse ",
+			URL:       " https://mcp.example/sse ",
+			Env: map[string]string{
+				" X_WORKSPACE ": " agh ",
+			},
+			Auth: MCPAuthConfig{
+				Type:             " oauth2_pkce ",
+				AuthorizationURL: " https://auth.example/authorize ",
+				TokenURL:         " https://auth.example/token ",
+				ClientID:         " client-id ",
+				Scopes:           []string{" read ", " write "},
+			},
+		}
 		raw, err := codec.Encode(AgentDef{
 			Name:   " coder ",
 			Prompt: " Build things. ",
@@ -154,11 +182,7 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 					ArtifactsExpected: []string{" final page "},
 				}},
 			},
-			MCPServers: []MCPServer{{
-				Name:    " github ",
-				Command: " npx ",
-				Args:    []string{" -y "},
-			}},
+			MCPServers: []MCPServer{stdioServer, remoteServer},
 		})
 		if err != nil {
 			t.Fatalf("Encode() error = %v", err)
@@ -196,11 +220,14 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 		if want := []string{"Marketing", "Sales"}; strings.Join(got.CategoryPath, ",") != strings.Join(want, ",") {
 			t.Fatalf("CategoryPath = %#v, want %#v", got.CategoryPath, want)
 		}
-		if gotCount, wantCount := len(got.MCPServers), 1; gotCount != wantCount {
+		if gotCount, wantCount := len(got.MCPServers), 2; gotCount != wantCount {
 			t.Fatalf("len(MCPServers) = %d, want %d", gotCount, wantCount)
 		}
-		if got.MCPServers[0].Name != "github" || got.MCPServers[0].Command != "npx" {
-			t.Fatalf("MCPServers = %#v, want trimmed name/command", got.MCPServers)
+		for idx, server := range []MCPServer{stdioServer, remoteServer} {
+			want := canonicalMCPServerResourceSpecForAgentTest(t, server)
+			if !reflect.DeepEqual(got.MCPServers[idx], want) {
+				t.Fatalf("MCPServers[%d] = %#v, want standalone canonical spec %#v", idx, got.MCPServers[idx], want)
+			}
 		}
 		if got.Capabilities == nil || len(got.Capabilities.Capabilities) != 1 {
 			t.Fatalf("Capabilities = %#v, want one normalized capability", got.Capabilities)
@@ -221,4 +248,84 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 			t.Fatalf("ContextNeeded = %#v, want %#v", got.Capabilities.Capabilities[0].ContextNeeded, want)
 		}
 	})
+
+	t.Run("Should decode raw JSON snake case resource fields", func(t *testing.T) {
+		t.Parallel()
+
+		codec, err := NewAgentResourceCodec()
+		if err != nil {
+			t.Fatalf("NewAgentResourceCodec() error = %v", err)
+		}
+
+		raw := []byte(`{
+			"name": " coder ",
+			"provider": " openai ",
+			"prompt": " Build things. ",
+			"tools": [" mcp__github__search "],
+			"toolsets": [" agh__catalog "],
+			"deny_tools": [" agh__task_* ", "agh__task_*"],
+			"permissions": " approve-reads ",
+			"skills": {
+				"disabled": [" legacy-skill ", "legacy-skill"]
+			},
+			"category_path": [" Engineering ", " Backend "],
+			"mcp_servers": [
+				{
+					"name": " github ",
+					"transport": "stdio",
+					"command": " npx ",
+					"args": ["-y", "@modelcontextprotocol/server-github"]
+				}
+			]
+		}`)
+
+		got, err := codec.DecodeAndValidate(
+			context.Background(),
+			resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws_1"},
+			raw,
+		)
+		if err != nil {
+			t.Fatalf("DecodeAndValidate() error = %v", err)
+		}
+		if got.Name != "coder" || got.Provider != "openai" || got.Prompt != "Build things." {
+			t.Fatalf("decoded agent = %#v, want trimmed scalar fields", got)
+		}
+		if want := []string{"agh__task_*"}; strings.Join(got.DenyTools, ",") != strings.Join(want, ",") {
+			t.Fatalf("DenyTools = %#v, want %#v", got.DenyTools, want)
+		}
+		if want := []string{"legacy-skill"}; strings.Join(got.Skills.Disabled, ",") != strings.Join(want, ",") {
+			t.Fatalf("Skills.Disabled = %#v, want %#v", got.Skills.Disabled, want)
+		}
+		if want := []string{"Engineering", "Backend"}; strings.Join(got.CategoryPath, ",") != strings.Join(want, ",") {
+			t.Fatalf("CategoryPath = %#v, want %#v", got.CategoryPath, want)
+		}
+		if gotCount, wantCount := len(got.MCPServers), 1; gotCount != wantCount {
+			t.Fatalf("len(MCPServers) = %d, want %d", gotCount, wantCount)
+		}
+		if got.MCPServers[0].Name != "github" || got.MCPServers[0].Command != "npx" {
+			t.Fatalf("MCPServers = %#v, want trimmed name/command", got.MCPServers)
+		}
+	})
+}
+
+func canonicalMCPServerResourceSpecForAgentTest(t *testing.T, spec MCPServer) MCPServer {
+	t.Helper()
+
+	codec, err := NewMCPServerResourceCodec()
+	if err != nil {
+		t.Fatalf("NewMCPServerResourceCodec() error = %v", err)
+	}
+	raw, err := codec.Encode(spec)
+	if err != nil {
+		t.Fatalf("MCP codec Encode() error = %v", err)
+	}
+	got, err := codec.DecodeAndValidate(
+		context.Background(),
+		resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws_1"},
+		raw,
+	)
+	if err != nil {
+		t.Fatalf("MCP codec DecodeAndValidate() error = %v", err)
+	}
+	return got
 }

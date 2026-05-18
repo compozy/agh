@@ -43,7 +43,7 @@ function RuntimeCard() {
           priority
           decoding="async"
           sizes="(min-width: 1024px) 50vw, 100vw"
-          unoptimized
+          quality={90}
           className={`${imageBase} object-cover`}
         />
       </div>
@@ -82,7 +82,7 @@ function NetworkCard() {
           priority
           decoding="async"
           sizes="(min-width: 1024px) 50vw, 100vw"
-          unoptimized
+          quality={90}
           className={`${imageBase} object-contain object-[40%_100%]`}
         />
       </div>
@@ -119,7 +119,7 @@ function BridgesCard() {
           fill
           decoding="async"
           sizes="(min-width: 1024px) 33vw, 100vw"
-          unoptimized
+          quality={90}
           className={`${imageBase} object-cover object-[10%_20%]`}
         />
       </div>
@@ -156,7 +156,7 @@ function MemoryCard() {
           fill
           decoding="async"
           sizes="(min-width: 1024px) 33vw, 100vw"
-          unoptimized
+          quality={90}
           className={`${imageBase} object-cover object-[50%_80%]`}
         />
       </div>
@@ -193,7 +193,7 @@ function ExtensibilityCard() {
           fill
           decoding="async"
           sizes="(min-width: 1024px) 33vw, 100vw"
-          unoptimized
+          quality={90}
           className={`${imageBase} object-cover object-[10%_10%]`}
         />
       </div>

@@ -18,6 +18,14 @@ func cloneAsyncPayload[P any](payload P) P {
 	return cloner.cloneForAsync()
 }
 
+func (payload SessionPreCreatePayload) cloneForAsync() SessionPreCreatePayload {
+	return cloneSessionPreCreatePayload(payload)
+}
+
+func (payload SessionLifecyclePayload) cloneForAsync() SessionLifecyclePayload {
+	return cloneSessionLifecyclePayload(payload)
+}
+
 func (payload InputPreSubmitPayload) cloneForAsync() InputPreSubmitPayload {
 	return cloneInputPreSubmitPayload(payload)
 }
@@ -44,6 +52,10 @@ func (payload SandboxSyncBeforePayload) cloneForAsync() SandboxSyncBeforePayload
 
 func (payload SandboxSyncAfterPayload) cloneForAsync() SandboxSyncAfterPayload {
 	return cloneSandboxSyncAfterPayload(payload)
+}
+
+func (payload SandboxStopPayload) cloneForAsync() SandboxStopPayload {
+	return cloneSandboxStopPayload(payload)
 }
 
 func (payload AgentPreStartPayload) cloneForAsync() AgentPreStartPayload {
@@ -86,6 +98,22 @@ func (payload ContextCompactPayload) cloneForAsync() ContextCompactPayload {
 	return cloneContextCompactPayload(payload)
 }
 
+func (payload AgentHeartbeatWakeBeforePayload) cloneForAsync() AgentHeartbeatWakeBeforePayload {
+	return cloneAgentHeartbeatWakeBeforePayload(payload)
+}
+
+func (payload AgentHeartbeatWakeAfterPayload) cloneForAsync() AgentHeartbeatWakeAfterPayload {
+	return cloneAgentHeartbeatWakeAfterPayload(payload)
+}
+
+func (payload SessionHealthUpdateAfterPayload) cloneForAsync() SessionHealthUpdateAfterPayload {
+	return cloneSessionHealthUpdateAfterPayload(payload)
+}
+
+func (payload TurnPayload) cloneForAsync() TurnPayload {
+	return cloneTurnPayload(payload)
+}
+
 func (payload AutomationJobPreFirePayload) cloneForAsync() AutomationJobPreFirePayload {
 	return cloneAutomationJobPreFirePayload(payload)
 }
@@ -126,7 +154,18 @@ func (payload SpawnLifecyclePayload) cloneForAsync() SpawnLifecyclePayload {
 	return cloneSpawnLifecyclePayload(payload)
 }
 
+func cloneSessionPreCreatePayload(payload SessionPreCreatePayload) SessionPreCreatePayload {
+	payload.SessionContext = cloneSessionContext(payload.SessionContext)
+	return payload
+}
+
+func cloneSessionLifecyclePayload(payload SessionLifecyclePayload) SessionLifecyclePayload {
+	payload.SessionContext = cloneSessionContext(payload.SessionContext)
+	return payload
+}
+
 func cloneSandboxPreparePayload(payload SandboxPreparePayload) SandboxPreparePayload {
+	payload.SessionContext = cloneSessionContext(payload.SessionContext)
 	payload.Profile = cloneSandboxProfilePayload(payload.Profile)
 	payload.LocalAdditionalDirs = cloneStringSlice(payload.LocalAdditionalDirs)
 	payload.AgentEnv = cloneStringSlice(payload.AgentEnv)
@@ -135,37 +174,49 @@ func cloneSandboxPreparePayload(payload SandboxPreparePayload) SandboxPreparePay
 }
 
 func cloneSandboxReadyPayload(payload SandboxReadyPayload) SandboxReadyPayload {
+	payload.SessionContext = cloneSessionContext(payload.SessionContext)
 	payload.RuntimeAdditionalDirs = cloneStringSlice(payload.RuntimeAdditionalDirs)
 	return payload
 }
 
 func cloneSandboxSyncBeforePayload(payload SandboxSyncBeforePayload) SandboxSyncBeforePayload {
+	payload.SessionContext = cloneSessionContext(payload.SessionContext)
 	payload.ExcludePatterns = cloneStringSlice(payload.ExcludePatterns)
 	return payload
 }
 
 func cloneSandboxSyncAfterPayload(payload SandboxSyncAfterPayload) SandboxSyncAfterPayload {
+	payload.SessionContext = cloneSessionContext(payload.SessionContext)
 	payload.Errors = cloneStringSlice(payload.Errors)
 	return payload
 }
 
+func cloneSandboxStopPayload(payload SandboxStopPayload) SandboxStopPayload {
+	payload.SessionContext = cloneSessionContext(payload.SessionContext)
+	return payload
+}
+
 func cloneInputPreSubmitPayload(payload InputPreSubmitPayload) InputPreSubmitPayload {
+	payload.SessionContext = cloneSessionContext(payload.SessionContext)
 	payload.ContextBlocks = cloneContextBlocks(payload.ContextBlocks)
 	return payload
 }
 
 func clonePromptPayload(payload PromptPayload) PromptPayload {
+	payload.SessionContext = cloneSessionContext(payload.SessionContext)
 	payload.ContextBlocks = cloneContextBlocks(payload.ContextBlocks)
 	return payload
 }
 
 func cloneEventRecordPayload(payload EventRecordPayload) EventRecordPayload {
+	payload.SessionContext = cloneSessionContext(payload.SessionContext)
 	payload.Content = cloneRawJSON(payload.Content)
 	return payload
 }
 
 func cloneAutomationJobPreFirePayload(payload AutomationJobPreFirePayload) AutomationJobPreFirePayload {
 	payload.Schedule = cloneAutomationSchedulePayload(payload.Schedule)
+	payload.Payload = cloneAnyMap(payload.Payload)
 	return payload
 }
 
@@ -210,43 +261,51 @@ func clonePermissionSet(src *PermissionSet) *PermissionSet {
 }
 
 func cloneAgentPreStartPayload(payload AgentPreStartPayload) AgentPreStartPayload {
+	payload.SessionContext = cloneSessionContext(payload.SessionContext)
 	payload.Args = cloneStringSlice(payload.Args)
 	return payload
 }
 
 func cloneAgentLifecyclePayload(payload AgentLifecyclePayload) AgentLifecyclePayload {
+	payload.SessionContext = cloneSessionContext(payload.SessionContext)
 	payload.Args = cloneStringSlice(payload.Args)
 	return payload
 }
 
 func cloneSessionMessagePersistedPayload(payload SessionMessagePersistedPayload) SessionMessagePersistedPayload {
+	payload.SessionContext = cloneSessionContext(payload.SessionContext)
 	payload.Raw = cloneRawJSON(payload.Raw)
 	payload.Persisted = cloneRawJSON(payload.Persisted)
 	return payload
 }
 
 func cloneMessagePayload(payload MessagePayload) MessagePayload {
+	payload.SessionContext = cloneSessionContext(payload.SessionContext)
 	payload.Raw = cloneRawJSON(payload.Raw)
 	return payload
 }
 
 func cloneToolPreCallPayload(payload ToolPreCallPayload) ToolPreCallPayload {
+	payload.SessionContext = cloneSessionContext(payload.SessionContext)
 	payload.ToolInput = cloneRawJSON(payload.ToolInput)
 	return payload
 }
 
 func cloneToolPostCallPayload(payload ToolPostCallPayload) ToolPostCallPayload {
+	payload.SessionContext = cloneSessionContext(payload.SessionContext)
 	payload.ToolInput = cloneRawJSON(payload.ToolInput)
 	payload.ToolResult = cloneRawJSON(payload.ToolResult)
 	return payload
 }
 
 func cloneToolPostErrorPayload(payload ToolPostErrorPayload) ToolPostErrorPayload {
+	payload.SessionContext = cloneSessionContext(payload.SessionContext)
 	payload.ToolInput = cloneRawJSON(payload.ToolInput)
 	return payload
 }
 
 func clonePermissionRequestPayload(payload PermissionRequestPayload) PermissionRequestPayload {
+	payload.SessionContext = cloneSessionContext(payload.SessionContext)
 	payload.ToolInput = cloneRawJSON(payload.ToolInput)
 	payload.ToolCall = clonePermissionToolCall(payload.ToolCall)
 	payload.Options = clonePermissionOptions(payload.Options)
@@ -254,13 +313,44 @@ func clonePermissionRequestPayload(payload PermissionRequestPayload) PermissionR
 }
 
 func clonePermissionResolutionPayload(payload PermissionResolutionPayload) PermissionResolutionPayload {
+	payload.SessionContext = cloneSessionContext(payload.SessionContext)
 	payload.ToolInput = cloneRawJSON(payload.ToolInput)
 	payload.ToolCall = clonePermissionToolCall(payload.ToolCall)
 	return payload
 }
 
 func cloneContextCompactPayload(payload ContextCompactPayload) ContextCompactPayload {
+	payload.SessionContext = cloneSessionContext(payload.SessionContext)
 	payload.ContextBlocks = cloneContextBlocks(payload.ContextBlocks)
+	return payload
+}
+
+func cloneAgentHeartbeatWakeBeforePayload(payload AgentHeartbeatWakeBeforePayload) AgentHeartbeatWakeBeforePayload {
+	payload.SessionContext = cloneSessionContext(payload.SessionContext)
+	return payload
+}
+
+func cloneAgentHeartbeatWakeAfterPayload(payload AgentHeartbeatWakeAfterPayload) AgentHeartbeatWakeAfterPayload {
+	payload.SessionContext = cloneSessionContext(payload.SessionContext)
+	return payload
+}
+
+func cloneSessionHealthUpdateAfterPayload(payload SessionHealthUpdateAfterPayload) SessionHealthUpdateAfterPayload {
+	payload.SessionContext = cloneSessionContext(payload.SessionContext)
+	return payload
+}
+
+func cloneTurnPayload(payload TurnPayload) TurnPayload {
+	payload.SessionContext = cloneSessionContext(payload.SessionContext)
+	return payload
+}
+
+func cloneSessionContext(payload SessionContext) SessionContext {
+	if payload.SessionSoulContext == nil {
+		return payload
+	}
+	soul := *payload.SessionSoulContext
+	payload.SessionSoulContext = &soul
 	return payload
 }
 

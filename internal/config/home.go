@@ -9,6 +9,11 @@ import (
 )
 
 const (
+	privateDirMode  = 0o700
+	privateFileMode = 0o600
+)
+
+const (
 	// AgentsDirName is the directory used for persisted agent definitions.
 	AgentsDirName = "agents"
 	// SkillsDirName is the directory used for persisted user skills.
@@ -147,8 +152,11 @@ func EnsureHomeLayout(paths HomePaths) error {
 		if strings.TrimSpace(dir) == "" {
 			return errors.New("config: home path is required")
 		}
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		if err := os.MkdirAll(dir, privateDirMode); err != nil {
 			return fmt.Errorf("create agh directory %q: %w", dir, err)
+		}
+		if err := os.Chmod(dir, privateDirMode); err != nil {
+			return fmt.Errorf("secure agh directory %q: %w", dir, err)
 		}
 	}
 

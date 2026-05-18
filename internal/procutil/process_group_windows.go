@@ -204,7 +204,11 @@ func waitForWindowsJobExit(pid int, job windows.Handle, timeout uint32) error {
 	case windows.WAIT_OBJECT_0:
 		return closeWindowsJob(pid)
 	case uint32(syscall.WAIT_TIMEOUT):
-		return fmt.Errorf("wait for process group exit (pid %d): deadline exceeded after %s", pid, windowsTimeoutText(timeout))
+		return fmt.Errorf(
+			"wait for process group exit (pid %d): deadline exceeded after %s",
+			pid,
+			windowsTimeoutText(timeout),
+		)
 	default:
 		return fmt.Errorf("wait for windows job exit (pid %d): unexpected wait status %d", pid, event)
 	}

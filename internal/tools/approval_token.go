@@ -193,7 +193,10 @@ func (s *ApprovalTokenStore) ConsumeToolApproval(ctx context.Context, scope Scop
 	if token == "" {
 		return approvalTokenError(call.ToolID, "tool approval token is required", ReasonApprovalTokenMissing)
 	}
-	call = normalizeCallRequest(scope, call)
+	call, err := normalizeCallRequest(scope, call)
+	if err != nil {
+		return err
+	}
 	inputDigest, err := ApprovalInputDigest(call.Input, "")
 	if err != nil {
 		return invalidInputError(call.ToolID, "approval input digest is invalid", err)

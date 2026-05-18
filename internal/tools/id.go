@@ -191,5 +191,8 @@ func ValidateJSONObject(field string, raw json.RawMessage, required bool) error 
 		}
 		return nil
 	}
+	if err := validateJSONSchemaDocument("$", decoded); err != nil {
+		return NewValidationError(field, ReasonSchemaInvalid, err.Error())
+	}
 	return nil
 }

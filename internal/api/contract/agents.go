@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -11,6 +12,8 @@ import (
 	"github.com/pedronauck/agh/internal/session"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
+
+var rawClaimTokenValuePattern = regexp.MustCompile(`(?i)agh_claim_[A-Za-z0-9_-]+`)
 
 // CoordinationMessageKind identifies the MVP task-run coordination message kind.
 type CoordinationMessageKind string
@@ -574,9 +577,18 @@ func containsRawClaimTokenMap(values map[string]json.RawMessage) bool {
 }
 
 func containsRawClaimTokenJSON(data []byte) bool {
-	return containsUnsafeJSON(data, isRawClaimTokenKey, nil)
+	return containsUnsafeJSON(data, isRawClaimTokenKey, isRawClaimTokenString)
 }
 
 func isRawClaimTokenKey(key string) bool {
 	return strings.EqualFold(strings.TrimSpace(key), "claim_token")
+}
+
+func isRawClaimTokenString(value string) bool {
+	for _, token := range rawClaimTokenValuePattern.FindAllString(strings.TrimSpace(value), -1) {
+		if !strings.EqualFold(token, "agh_claim_token") {
+			return true
+		}
+	}
+	return false
 }

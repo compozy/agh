@@ -551,6 +551,72 @@ func TestTriggerEngineAllowsWebhookRetryAfterDispatchFailsWithoutPersistingARun(
 	}
 }
 
+func TestTriggerEngineAllowsWebhookRetryWhenFilteringProducesNoRuns(t *testing.T) {
+	t.Parallel()
+
+	store := newMemoryRunStore()
+	creator := newRecordingSessionCreator()
+	current := time.Date(2026, 4, 11, 5, 0, 0, 0, time.UTC)
+	dispatcher := newTestDispatcher(t, creator, store, WithDispatcherNow(func() time.Time { return current }))
+	engine := newTestTriggerEngine(
+		t,
+		dispatcher,
+		WithTriggerEngineNow(func() time.Time { return current }),
+		WithTriggerEngineWebhookFreshnessWindow(5*time.Minute),
+	)
+
+	trigger := testWebhookTrigger(AutomationScopeGlobal, "webhook-filter-no-runs", "")
+	trigger.Filter = map[string]string{"data.payload": "approved"}
+	if err := engine.Register(TriggerRegistration{Trigger: trigger}); err != nil {
+		t.Fatalf("Register() error = %v", err)
+	}
+
+	payload := []byte(`{"payload":"deploy"}`)
+	signature, err := SignWebhookPayload(testWebhookSecretValue(trigger.WebhookSecretRef), current, payload)
+	if err != nil {
+		t.Fatalf("SignWebhookPayload() error = %v", err)
+	}
+
+	firstResult, err := engine.HandleWebhook(testutil.Context(t), WebhookRequest{
+		Scope:      AutomationScopeGlobal,
+		Endpoint:   "deploy-review--" + trigger.WebhookID,
+		DeliveryID: "delivery-filtered",
+		Timestamp:  current,
+		Signature:  signature,
+		Payload:    payload,
+		Data: map[string]any{
+			"payload": "deploy",
+		},
+	})
+	if err != nil {
+		t.Fatalf("HandleWebhook(first) error = %v", err)
+	}
+	if got := len(firstResult.Runs); got != 0 {
+		t.Fatalf("len(firstResult.Runs) = %d, want 0", got)
+	}
+
+	secondResult, err := engine.HandleWebhook(testutil.Context(t), WebhookRequest{
+		Scope:      AutomationScopeGlobal,
+		Endpoint:   "deploy-review--" + trigger.WebhookID,
+		DeliveryID: "delivery-filtered",
+		Timestamp:  current,
+		Signature:  signature,
+		Payload:    payload,
+		Data: map[string]any{
+			"payload": "deploy",
+		},
+	})
+	if err != nil {
+		t.Fatalf("HandleWebhook(second) error = %v, want nil retry after filter", err)
+	}
+	if got := len(secondResult.Runs); got != 0 {
+		t.Fatalf("len(secondResult.Runs) = %d, want 0", got)
+	}
+	if got := len(creator.promptCalls()); got != 0 {
+		t.Fatalf("len(Prompt calls) = %d, want 0", got)
+	}
+}
+
 func TestTriggerEngineRegisterUpdateUnregisterAndLifecycle(t *testing.T) {
 	t.Parallel()
 

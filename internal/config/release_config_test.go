@@ -148,6 +148,38 @@ func TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets(t *testing.T) 
 	})
 }
 
+func TestPRReleaseConfigGeneratesSiteChangelogArtifact(t *testing.T) {
+	t.Parallel()
+
+	root := findRepoRootForReleaseConfigTest(t)
+	data, err := os.ReadFile(filepath.Join(root, ".pr-release"))
+	if err != nil {
+		t.Fatalf("os.ReadFile(.pr-release) error = %v", err)
+	}
+	var cfg map[string]any
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		t.Fatalf("yaml.Unmarshal(.pr-release) error = %v", err)
+	}
+
+	artifacts := sliceAt(t, cfg, "release_artifacts")
+	if len(artifacts) != 1 {
+		t.Fatalf("release_artifacts len = %d, want 1", len(artifacts))
+	}
+	artifact := asMap(t, artifacts[0], "release_artifacts[0]")
+	if got, want := stringAt(t, artifact, "name"), "site-changelog"; got != want {
+		t.Fatalf("release_artifacts[0].name = %q, want %q", got, want)
+	}
+	if got, want := stringAt(t, artifact, "command"), "bun"; got != want {
+		t.Fatalf("release_artifacts[0].command = %q, want %q", got, want)
+	}
+	if !stringSliceContains(sliceAt(t, artifact, "args"), "release:site-changelog") {
+		t.Fatalf("release_artifacts[0].args = %#v, want release:site-changelog", artifact["args"])
+	}
+	if !stringSliceContains(sliceAt(t, artifact, "add"), "packages/site/content/blog/changelog/*.mdx") {
+		t.Fatalf("release_artifacts[0].add = %#v, want site changelog glob", artifact["add"])
+	}
+}
+
 func findRepoRootForReleaseConfigTest(t *testing.T) string {
 	t.Helper()
 

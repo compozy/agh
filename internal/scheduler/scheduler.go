@@ -45,6 +45,7 @@ type Scheduler struct {
 	runtimeCancel context.CancelFunc
 	runtimeDone   chan struct{}
 	started       bool
+	stopping      bool
 	stopped       bool
 	wakeState     map[wakeKey]time.Time
 	stats         Stats
@@ -124,20 +125,23 @@ func (s *Scheduler) Start(ctx context.Context) error {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.stopped {
+	if s.stopped || s.stopping {
 		return ErrStopped
 	}
 	if s.started {
 		return nil
 	}
 
-	runtimeCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
+	runtimeCtx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
 	s.runtimeCancel = cancel
 	s.runtimeDone = done
 	s.started = true
 	s.wg.Go(func() {
-		defer close(done)
+		defer func() {
+			close(done)
+			s.finishRuntime(done)
+		}()
 		s.loop(runtimeCtx)
 	})
 	s.logger.Info("scheduler.started", "interval_ms", s.interval.Milliseconds())
@@ -151,11 +155,20 @@ func (s *Scheduler) Shutdown(ctx context.Context) error {
 	}
 
 	s.mu.Lock()
-	if s.stopped {
+	if s.stopped && !s.stopping {
 		s.mu.Unlock()
 		return nil
 	}
-	s.stopped = true
+	if s.runtimeDone == nil {
+		s.stopped = true
+		s.stopping = false
+		s.started = false
+		s.runtimeCancel = nil
+		s.mu.Unlock()
+		s.logger.Info("scheduler.shutdown")
+		return nil
+	}
+	s.stopping = true
 	s.started = false
 	cancel := s.runtimeCancel
 	done := s.runtimeDone
@@ -174,11 +187,29 @@ func (s *Scheduler) Shutdown(ctx context.Context) error {
 	s.wg.Wait()
 
 	s.mu.Lock()
-	s.runtimeCancel = nil
-	s.runtimeDone = nil
+	if s.runtimeDone == done {
+		s.runtimeCancel = nil
+		s.runtimeDone = nil
+	}
+	s.stopped = true
+	s.stopping = false
+	s.started = false
 	s.mu.Unlock()
 	s.logger.Info("scheduler.shutdown")
 	return nil
+}
+
+func (s *Scheduler) finishRuntime(done chan struct{}) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.runtimeDone != done {
+		return
+	}
+	s.runtimeCancel = nil
+	s.runtimeDone = nil
+	s.started = false
+	s.stopping = false
+	s.stopped = true
 }
 
 // Stats returns a consistent snapshot of scheduler counters.
@@ -485,6 +516,9 @@ func (s *Scheduler) markWoken(now time.Time, target *WakeTarget) {
 	if target == nil {
 		return
 	}
+	if s.wakeCooldown <= 0 {
+		return
+	}
 	key := wakeKey{
 		runID:     strings.TrimSpace(target.Work.Run.ID),
 		sessionID: strings.TrimSpace(target.Session.ID),
@@ -513,7 +547,6 @@ func (s *Scheduler) recordRecoveryError(err error) {
 
 func (s *Scheduler) recordWakeError(err error) {
 	s.mu.Lock()
-	s.stats.WakeFailed++
 	s.stats.LastWakeError = err.Error()
 	s.mu.Unlock()
 }
@@ -523,6 +556,7 @@ func (s *Scheduler) recordCycle(now time.Time, result CycleResult) {
 	s.stats.Cycles++
 	s.stats.WakeAttempts += result.WakeAttempts
 	s.stats.WakeSucceeded += result.WakeSucceeded
+	s.stats.WakeFailed += result.WakeFailed
 	s.stats.NoMatchRuns += result.NoMatchRuns
 	s.stats.RecentlyNotified += result.RecentlyNotified
 	s.stats.UnclaimableRuns += result.UnclaimableRuns

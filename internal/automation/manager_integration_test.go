@@ -98,7 +98,8 @@ func TestManagerIntegrationDirectTaskBackedJobDelegatesIntoTaskDomain(t *testing
 	if got, want := taskRecord.NetworkChannel, "ops-automation"; got != want {
 		t.Fatalf("task.NetworkChannel = %q, want %q", got, want)
 	}
-	if taskRecord.Owner == nil || taskRecord.Owner.Kind != taskpkg.OwnerKindAutomation || taskRecord.Owner.Ref != "job:direct-task-backed" {
+	if taskRecord.Owner == nil || taskRecord.Owner.Kind != taskpkg.OwnerKindAutomation ||
+		taskRecord.Owner.Ref != "job:direct-task-backed" {
 		t.Fatalf("task.Owner = %#v, want automation owner", taskRecord.Owner)
 	}
 	if got, want := taskRecord.CreatedBy.Kind, taskpkg.ActorKindAutomation; got != want {
@@ -266,7 +267,12 @@ func TestManagerIntegrationAutomationSessionCanCreateTaskWithAutomationOrigin(t 
 		t.Fatalf("completedRun.Status = %q, want %q", got, want)
 	}
 
-	if _, err := manager.TaskActorContextForSession("sess-automation-agent"); !errors.Is(err, ErrSessionTaskActorNotFound) {
+	if _, err := manager.TaskActorContextForSession(
+		"sess-automation-agent",
+	); !errors.Is(
+		err,
+		ErrSessionTaskActorNotFound,
+	) {
 		t.Fatalf("TaskActorContextForSession(after completion) error = %v, want ErrSessionTaskActorNotFound", err)
 	}
 }

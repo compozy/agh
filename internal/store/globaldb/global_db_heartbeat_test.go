@@ -7,6 +7,7 @@ import (
 	"errors"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -345,6 +346,65 @@ func TestGlobalDBHeartbeatSnapshotAndRevisionStore(t *testing.T) {
 		}
 		if gotWakeEvent.PolicySnapshotID != saved.ID || gotWakeEvent.SessionID != sessionID {
 			t.Fatalf("GetHeartbeatWakeEvent() = %#v, want saved event", gotWakeEvent)
+		}
+	})
+
+	t.Run("Should reuse one snapshot for concurrent duplicate digest upserts", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "heartbeat-concurrent-digest", t.TempDir())
+		snapshot := heartbeatSnapshotForTest("hb-concurrent-base", workspaceID, "coder", "sha256:concurrent-heartbeat")
+		type outcome struct {
+			snapshot heartbeat.Snapshot
+			err      error
+		}
+		const upsertCount = 32
+		start := make(chan struct{})
+		outcomes := make(chan outcome, upsertCount)
+		for index := range upsertCount {
+			go func() {
+				<-start
+				candidate := snapshot
+				candidate.ID = "hb-concurrent-" + strconv.Itoa(index)
+				saved, err := globalDB.UpsertHeartbeatSnapshot(ctx, candidate)
+				outcomes <- outcome{snapshot: saved, err: err}
+			}()
+		}
+
+		close(start)
+		winnerID := ""
+		for index := range upsertCount {
+			got := <-outcomes
+			if got.err != nil {
+				t.Fatalf("UpsertHeartbeatSnapshot(concurrent duplicate %d) error = %v", index, got.err)
+			}
+			if got.snapshot.Digest != snapshot.Digest {
+				t.Fatalf("snapshot.Digest = %q, want %q", got.snapshot.Digest, snapshot.Digest)
+			}
+			if winnerID == "" {
+				winnerID = got.snapshot.ID
+			}
+			if got.snapshot.ID != winnerID {
+				t.Fatalf("snapshot.ID = %q, want single winner %q", got.snapshot.ID, winnerID)
+			}
+		}
+
+		var rowCount int
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT COUNT(*)
+			FROM agent_heartbeat_snapshots
+			WHERE workspace_id = ? AND agent_name = ? AND digest = ?`,
+			workspaceID,
+			"coder",
+			snapshot.Digest,
+		).Scan(&rowCount); err != nil {
+			t.Fatalf("QueryRowContext(agent_heartbeat_snapshots count) error = %v", err)
+		}
+		if rowCount != 1 {
+			t.Fatalf("agent_heartbeat_snapshots count = %d, want 1", rowCount)
 		}
 	})
 

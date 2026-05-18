@@ -932,12 +932,15 @@ func TestToolRenderingAndValidationHelpers(t *testing.T) {
 			ToolID: toolspkg.ToolIDSkillView,
 			Status: "completed",
 			Result: toolspkg.ToolResult{
-				Preview:    "authorization=Bearer abc",
-				Structured: json.RawMessage(`{"password":"super-secret","visible":"ok","completion_tokens":9}`),
+				Preview: "authorization=Bearer abc",
+				Structured: json.RawMessage(
+					`{"password":"super-secret","visible":"ok","completion_tokens":9,"totalTokens":7,"accessToken":"super-secret","apiKey":"super-secret"}`,
+				),
 				Metadata: map[string]json.RawMessage{
 					"access_token": json.RawMessage(`"super-secret"`),
+					"refreshToken": json.RawMessage(`"super-secret"`),
 					"token_count":  json.RawMessage(`42`),
-					"safe":         json.RawMessage(`{"nested_token":"super-secret","visible":"ok"}`),
+					"safe":         json.RawMessage(`{"nestedToken":"super-secret","visible":"ok"}`),
 				},
 				Content: []toolspkg.ToolContent{
 					{
@@ -945,7 +948,7 @@ func TestToolRenderingAndValidationHelpers(t *testing.T) {
 						Text: "token=super-secret",
 						Data: json.RawMessage(`{"secret":"super-secret","visible":"ok"}`),
 						Metadata: map[string]json.RawMessage{
-							"refresh-token": json.RawMessage(`"super-secret"`),
+							"apiKey": json.RawMessage(`"super-secret"`),
 						},
 					},
 				},
@@ -956,7 +959,8 @@ func TestToolRenderingAndValidationHelpers(t *testing.T) {
 		if strings.Contains(encoded, "super-secret") || strings.Contains(encoded, "Bearer abc") {
 			t.Fatalf("sanitizeToolInvokeResponse leaked secret material: %s", encoded)
 		}
-		if !strings.Contains(encoded, "completion_tokens") || !strings.Contains(encoded, "token_count") {
+		if !strings.Contains(encoded, "completion_tokens") || !strings.Contains(encoded, "token_count") ||
+			!strings.Contains(encoded, "totalTokens") {
 			t.Fatalf("sanitizeToolInvokeResponse removed benign token metrics: %s", encoded)
 		}
 	})

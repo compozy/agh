@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -359,6 +360,97 @@ func TestFileKeyProviderLoadsEnvAndCreatesKeyFile(t *testing.T) {
 		}
 		if !bytes.Equal(second, first) {
 			t.Fatalf("Key(second) = %x, want reused key %x", second, first)
+		}
+	})
+
+	t.Run("Should reject preexisting key files with group or other permissions", func(t *testing.T) {
+		t.Parallel()
+
+		homeDir := filepath.Join(t.TempDir(), "agh-home")
+		keyPath := filepath.Join(homeDir, "vault.key")
+		if err := os.MkdirAll(homeDir, 0o700); err != nil {
+			t.Fatalf("MkdirAll(%q) error = %v", homeDir, err)
+		}
+		rawKey := []byte("01234567890123456789012345678901")
+		if err := os.WriteFile(keyPath, []byte(base64.StdEncoding.EncodeToString(rawKey)+"\n"), 0o644); err != nil {
+			t.Fatalf("WriteFile(%q) error = %v", keyPath, err)
+		}
+
+		provider := NewFileKeyProvider(homeDir, func(string) (string, bool) { return "", false })
+		key, err := provider.Key()
+		if err == nil {
+			t.Fatalf("Key() error = nil with key %x, want permission rejection", key)
+		}
+		if !strings.Contains(err.Error(), "must not grant group or other permissions") {
+			t.Fatalf("Key() error = %q, want permission guidance", err)
+		}
+	})
+
+	t.Run("Should reject preexisting key symlinks", func(t *testing.T) {
+		t.Parallel()
+
+		homeDir := filepath.Join(t.TempDir(), "agh-home")
+		if err := os.MkdirAll(homeDir, 0o700); err != nil {
+			t.Fatalf("MkdirAll(%q) error = %v", homeDir, err)
+		}
+		targetPath := filepath.Join(homeDir, "target.key")
+		rawKey := []byte("01234567890123456789012345678901")
+		if err := os.WriteFile(targetPath, []byte(base64.StdEncoding.EncodeToString(rawKey)+"\n"), 0o600); err != nil {
+			t.Fatalf("WriteFile(%q) error = %v", targetPath, err)
+		}
+		keyPath := filepath.Join(homeDir, "vault.key")
+		if err := os.Symlink(targetPath, keyPath); err != nil {
+			t.Fatalf("Symlink(%q, %q) error = %v", targetPath, keyPath, err)
+		}
+
+		provider := NewFileKeyProvider(homeDir, func(string) (string, bool) { return "", false })
+		key, err := provider.Key()
+		if err == nil {
+			t.Fatalf("Key() error = nil with key %x, want symlink rejection", key)
+		}
+		if !strings.Contains(err.Error(), "must not be a symlink") {
+			t.Fatalf("Key() error = %q, want symlink guidance", err)
+		}
+	})
+
+	t.Run("Should return the persisted key for concurrent first-use callers", func(t *testing.T) {
+		t.Parallel()
+
+		homeDir := filepath.Join(t.TempDir(), "agh-home")
+		const workers = 128
+		start := make(chan struct{})
+		results := make([][]byte, workers)
+		errs := make([]error, workers)
+		var wait sync.WaitGroup
+		wait.Add(workers)
+		for idx := range workers {
+			go func() {
+				defer wait.Done()
+				<-start
+				provider := NewFileKeyProvider(homeDir, func(string) (string, bool) { return "", false })
+				results[idx], errs[idx] = provider.Key()
+			}()
+		}
+		close(start)
+		wait.Wait()
+
+		for idx, err := range errs {
+			if err != nil {
+				t.Fatalf("Key(worker %d) error = %v", idx, err)
+			}
+		}
+		payload, err := os.ReadFile(filepath.Join(homeDir, "vault.key"))
+		if err != nil {
+			t.Fatalf("ReadFile(vault.key) error = %v", err)
+		}
+		persisted, err := decodeKey(strings.TrimSpace(string(payload)))
+		if err != nil {
+			t.Fatalf("decodeKey(vault.key) error = %v", err)
+		}
+		for idx, result := range results {
+			if !bytes.Equal(result, persisted) {
+				t.Fatalf("Key(worker %d) = %x, want persisted key %x", idx, result, persisted)
+			}
 		}
 	})
 }

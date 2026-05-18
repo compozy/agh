@@ -2,7 +2,10 @@ package toolruntime
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"slices"
+	"strings"
 	"sync"
 )
 
@@ -32,19 +35,27 @@ func (s *MemoryStore) UpsertProcessRecord(_ context.Context, record ProcessRecor
 
 // UpdateProcessRecordState updates lifecycle fields for an existing record.
 func (s *MemoryStore) UpdateProcessRecordState(_ context.Context, update ProcessStateUpdate) error {
+	id := strings.TrimSpace(update.ID)
+	if id == "" {
+		return errors.New("toolruntime: process id is required")
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.records == nil {
-		s.records = make(map[string]ProcessRecord)
+		return fmt.Errorf("%w: process record %q", ErrProcessNotFound, id)
 	}
-	record := s.records[update.ID]
-	record.ID = update.ID
+	record, ok := s.records[id]
+	if !ok {
+		return fmt.Errorf("%w: process record %q", ErrProcessNotFound, id)
+	}
+	record.ID = id
 	record.State = update.State
 	record.ExitCode = update.ExitCode
 	record.Error = update.Error
 	record.UpdatedAt = update.UpdatedAt
 	record.CompletedAt = update.CompletedAt
-	s.records[update.ID] = cloneRecord(record)
+	s.records[id] = cloneRecord(record)
 	return nil
 }
 

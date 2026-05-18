@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -286,6 +287,38 @@ func TestLocalToolHostAuthorize(t *testing.T) {
 	}
 }
 
+func TestWithLocalAdditionalRootsAccumulatesAcrossOptions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accumulate additional roots across repeated options", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		first := t.TempDir()
+		second := t.TempDir()
+		host, err := newLocalToolHost(
+			testutil.Context(t),
+			root,
+			aghconfig.PermissionModeApproveAll,
+			testDiscardLogger(),
+			WithLocalAdditionalRoots(first),
+			WithLocalAdditionalRoots(second),
+		)
+		if err != nil {
+			t.Fatalf("newLocalToolHost() error = %v", err)
+		}
+		t.Cleanup(host.Close)
+
+		if got, want := host.permissions.roots, []string{
+			mustCanonicalDir(t, root),
+			mustCanonicalDir(t, first),
+			mustCanonicalDir(t, second),
+		}; !slices.Equal(got, want) {
+			t.Fatalf("permission roots = %#v, want %#v", got, want)
+		}
+	})
+}
+
 func TestLocalToolHostCreateTerminalUsesResolvedCwd(t *testing.T) {
 	t.Parallel()
 
@@ -366,6 +399,37 @@ func TestLocalToolHostCreateTerminalRegistersProcess(t *testing.T) {
 	}
 }
 
+func TestLocalToolHostWaitForTerminalExitSignalOnlyFailure(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX signal behavior")
+	}
+
+	t.Run("ShouldReturnErrorForSignalOnlyExit", func(t *testing.T) {
+		host, _ := newTestLocalToolHost(t, aghconfig.PermissionModeApproveAll)
+		response, err := host.CreateTerminal(testutil.Context(t), acpsdk.CreateTerminalRequest{
+			SessionId: "sess-terminal",
+			Command:   "/bin/sh",
+			Args:      []string{"-c", "kill -TERM $$"},
+		})
+		if err != nil {
+			t.Fatalf("CreateTerminal() error = %v", err)
+		}
+
+		exitCode, err := host.WaitForTerminalExit(testutil.Context(t), response.TerminalId)
+		if err == nil {
+			t.Fatal("WaitForTerminalExit() error = nil, want signal failure")
+		}
+		if exitCode == 0 {
+			t.Fatalf("WaitForTerminalExit() exitCode = %d, want non-zero fallback", exitCode)
+		}
+		if !strings.Contains(err.Error(), "signal") {
+			t.Fatalf("WaitForTerminalExit() error = %v, want signal detail", err)
+		}
+	})
+}
+
 func TestLocalToolHostScopedInterruptStopsOnlyRequestedTerminal(t *testing.T) {
 	t.Parallel()
 
@@ -416,8 +480,15 @@ func TestLocalToolHostScopedInterruptStopsOnlyRequestedTerminal(t *testing.T) {
 	}
 	waitCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	if _, err := host.WaitForTerminalExit(waitCtx, second.TerminalId); err != nil {
-		t.Fatalf("WaitForTerminalExit(second) error = %v", err)
+	exitCode, err := host.WaitForTerminalExit(waitCtx, second.TerminalId)
+	if err == nil {
+		t.Fatal("WaitForTerminalExit(second) error = nil, want interrupted terminal failure")
+	}
+	if exitCode == 0 {
+		t.Fatalf("WaitForTerminalExit(second) exitCode = %d, want non-zero fallback", exitCode)
+	}
+	if !strings.Contains(err.Error(), "signal") {
+		t.Fatalf("WaitForTerminalExit(second) error = %v, want signal detail", err)
 	}
 
 	stillRunningCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)

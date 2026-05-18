@@ -9,7 +9,6 @@ describe("agent authored context contract types", () => {
     type AgentContext = OperationResponse<"getAgentContext", 200>["context"];
 
     expectTypeOf<SoulPut>().toMatchTypeOf<{
-      agent_name: string;
       body: string;
       expected_digest: string;
       workspace_id?: string;
@@ -52,15 +51,22 @@ describe("agent authored context contract types", () => {
 
   it("keeps Heartbeat health and wake contracts aligned with generated OpenAPI types", () => {
     type HeartbeatPut = OperationRequestBody<"putAgentHeartbeat">;
+    type HeartbeatWake = OperationRequestBody<"wakeAgentHeartbeat">;
     type HeartbeatStatus = OperationResponse<"getAgentHeartbeatStatus", 200>;
     type SessionHealth = OperationResponse<"getSessionHealth", 200>["health"];
     type WakeDecision = OperationResponse<"wakeAgentHeartbeat", 200>["decision"];
 
     expectTypeOf<HeartbeatPut>().toMatchTypeOf<{
-      agent_name: string;
       body: string;
       expected_digest: string;
       workspace_id?: string;
+      idempotency_key?: string;
+    }>();
+    expectTypeOf<HeartbeatWake>().toMatchTypeOf<{
+      session_id: string;
+      source: "scheduler" | "manual" | "harness_reentry";
+      workspace_id?: string;
+      dry_run?: boolean;
       idempotency_key?: string;
     }>();
     expectTypeOf<SessionHealth["state"]>().toEqualTypeOf<

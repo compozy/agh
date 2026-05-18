@@ -362,14 +362,14 @@ func TestParseRejectsOversizedInputs(t *testing.T) {
 	}{
 		{
 			name:    "Should reject oversized body",
-			content: strings.Repeat("a", 17),
+			content: strings.Repeat("a", 257),
 			code:    "oversized_body",
 		},
 		{
 			name: "Should reject oversized frontmatter",
 			content: strings.Join([]string{
 				"---",
-				"role: " + strings.Repeat("a", 17),
+				"role: " + strings.Repeat("a", 257),
 				"---",
 				"Body",
 			}, "\n"),
@@ -383,8 +383,8 @@ func TestParseRejectsOversizedInputs(t *testing.T) {
 
 			cfg := aghconfig.SoulConfig{
 				Enabled:                true,
-				MaxBodyBytes:           16,
-				ContextProjectionBytes: 8,
+				MaxBodyBytes:           256,
+				ContextProjectionBytes: 256,
 			}
 			resolved, err := Parse(context.Background(), ParseRequest{
 				SourcePath: "SOUL.md",
@@ -531,6 +531,26 @@ func TestContextCancellation(t *testing.T) {
 }
 
 func TestCompactProjection(t *testing.T) {
+	t.Run("Should reject impossible compact projection budgets", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := Parse(context.Background(), ParseRequest{
+			SourcePath: "agents/coder/SOUL.md",
+			Content:    []byte("Keep the projection bounded."),
+			Config: aghconfig.SoulConfig{
+				Enabled:                true,
+				MaxBodyBytes:           4096,
+				ContextProjectionBytes: 8,
+			},
+		})
+		if err == nil {
+			t.Fatal("Parse(tiny projection budget) error = nil, want validation error")
+		}
+		if !strings.Contains(err.Error(), "agents.soul.context_projection_bytes") {
+			t.Fatalf("Parse(tiny projection budget) error = %v, want context projection validation", err)
+		}
+	})
+
 	t.Run("Should truncate compact projection without exposing full body", func(t *testing.T) {
 		t.Parallel()
 
@@ -550,7 +570,7 @@ func TestCompactProjection(t *testing.T) {
 			Config: aghconfig.SoulConfig{
 				Enabled:                true,
 				MaxBodyBytes:           4096,
-				ContextProjectionBytes: 180,
+				ContextProjectionBytes: 256,
 			},
 		})
 		if err != nil {
@@ -567,6 +587,9 @@ func TestCompactProjection(t *testing.T) {
 		compactJSON, err := json.Marshal(resolved.Compact)
 		if err != nil {
 			t.Fatalf("json.Marshal(compact) error = %v", err)
+		}
+		if got, wantMax := int64(len(compactJSON)), resolved.Compact.MaxBytes; got > wantMax {
+			t.Fatalf("Compact JSON size = %d, want <= %d: %s", got, wantMax, compactJSON)
 		}
 		if strings.Contains(string(compactJSON), "FULL BODY MUST STAY OUT") {
 			t.Fatalf("Compact projection leaked body: %s", compactJSON)

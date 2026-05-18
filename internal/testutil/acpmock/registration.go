@@ -40,30 +40,14 @@ func Register(homePaths aghconfig.HomePaths, opts RegisterOptions) (Registration
 		return Registration{}, errors.New("acpmock: home paths agents directory is required")
 	}
 
-	fixturePath, err := aghconfig.ResolvePath(opts.FixturePath)
+	fixture, err := resolveRegistrationFixture(opts)
 	if err != nil {
-		return Registration{}, fmt.Errorf("acpmock: resolve fixture path: %w", err)
-	}
-	fixture, err := LoadFixture(fixturePath)
-	if err != nil {
-		return Registration{}, fmt.Errorf("acpmock: load fixture %q: %w", fixturePath, err)
-	}
-
-	fixtureAgentName := strings.TrimSpace(opts.FixtureAgent)
-	if fixtureAgentName == "" {
-		fixtureAgentName = strings.TrimSpace(opts.AgentName)
-	}
-	if fixtureAgentName == "" {
-		return Registration{}, errors.New("acpmock: fixture agent name is required")
-	}
-	agent, err := fixture.Agent(fixtureAgentName)
-	if err != nil {
-		return Registration{}, fmt.Errorf("acpmock: lookup fixture agent %q: %w", fixtureAgentName, err)
+		return Registration{}, err
 	}
 
 	runtimeAgentNameInput := strings.TrimSpace(opts.AgentName)
 	if runtimeAgentNameInput == "" {
-		runtimeAgentNameInput = fixtureAgentName
+		runtimeAgentNameInput = fixture.agentName
 	}
 	runtimeAgentName, err := sanitizeAgentPathSegment(runtimeAgentNameInput)
 	if err != nil {
@@ -83,39 +67,76 @@ func Register(homePaths aghconfig.HomePaths, opts RegisterOptions) (Registration
 	if err != nil {
 		return Registration{}, fmt.Errorf("acpmock: resolve diagnostics path for %q: %w", runtimeAgentName, err)
 	}
-	command := BuildCommand(driverPath, fixturePath, fixtureAgentName, diagnosticsPath)
+	command := BuildCommand(driverPath, fixture.path, fixture.agentName, diagnosticsPath)
 
 	agentDefPath := filepath.Join(homePaths.AgentsDir, runtimeAgentName, "AGENT.md")
 	if err := os.MkdirAll(filepath.Dir(agentDefPath), 0o755); err != nil {
 		return Registration{}, fmt.Errorf("acpmock: create agent directory %q: %w", filepath.Dir(agentDefPath), err)
 	}
 
-	content := renderAgentDef(runtimeAgentName, agent, command)
+	content := renderAgentDef(runtimeAgentName, fixture.agent, command)
 	if err := os.WriteFile(agentDefPath, []byte(content), 0o600); err != nil {
 		return Registration{}, fmt.Errorf("acpmock: write agent definition %q: %w", agentDefPath, err)
 	}
 
 	loaded, err := aghconfig.LoadAgentDefFile(agentDefPath)
 	if err != nil {
-		return Registration{}, fmt.Errorf("acpmock: validate written agent definition %q: %w", agentDefPath, err)
+		return Registration{}, postWriteRegistrationError(
+			agentDefPath,
+			"validate written agent definition",
+			err,
+		)
 	}
 	cfg := aghconfig.DefaultWithHome(homePaths)
 	if _, err := cfg.ResolveAgent(loaded); err != nil {
-		return Registration{}, fmt.Errorf("acpmock: resolve written agent definition %q: %w", agentDefPath, err)
+		return Registration{}, postWriteRegistrationError(
+			agentDefPath,
+			"resolve written agent definition",
+			err,
+		)
 	}
 
 	return Registration{
 		AgentName:       runtimeAgentName,
-		FixtureAgent:    fixtureAgentName,
-		FixturePath:     fixturePath,
+		FixtureAgent:    fixture.agentName,
+		FixturePath:     fixture.path,
 		DriverPath:      driverPath,
 		DiagnosticsPath: diagnosticsPath,
 		AgentDefPath:    agentDefPath,
 		Command:         command,
-		Provider:        agent.Provider,
-		Model:           agent.Model,
-		Permissions:     agent.Permissions,
+		Provider:        fixture.agent.Provider,
+		Model:           fixture.agent.Model,
+		Permissions:     fixture.agent.Permissions,
 	}, nil
+}
+
+type registrationFixture struct {
+	path      string
+	agentName string
+	agent     AgentFixture
+}
+
+func resolveRegistrationFixture(opts RegisterOptions) (registrationFixture, error) {
+	fixturePath, err := aghconfig.ResolvePath(opts.FixturePath)
+	if err != nil {
+		return registrationFixture{}, fmt.Errorf("acpmock: resolve fixture path: %w", err)
+	}
+	fixture, err := LoadFixture(fixturePath)
+	if err != nil {
+		return registrationFixture{}, fmt.Errorf("acpmock: load fixture %q: %w", fixturePath, err)
+	}
+	agentName := strings.TrimSpace(opts.FixtureAgent)
+	if agentName == "" {
+		agentName = strings.TrimSpace(opts.AgentName)
+	}
+	if agentName == "" {
+		return registrationFixture{}, errors.New("acpmock: fixture agent name is required")
+	}
+	agent, err := fixture.Agent(agentName)
+	if err != nil {
+		return registrationFixture{}, fmt.Errorf("acpmock: lookup fixture agent %q: %w", agentName, err)
+	}
+	return registrationFixture{path: fixturePath, agentName: agentName, agent: agent}, nil
 }
 
 // BuildCommand renders the test-only ACP driver command string stored in AGENT.md.
@@ -173,10 +194,17 @@ func sanitizeAgentPathSegment(value string) (string, error) {
 
 func resolveDiagnosticsPath(homePaths aghconfig.HomePaths, name string, override string) (string, error) {
 	if trimmed := strings.TrimSpace(override); trimmed != "" {
-		if err := os.MkdirAll(filepath.Dir(trimmed), 0o755); err != nil {
-			return "", fmt.Errorf("acpmock: create diagnostics directory %q: %w", filepath.Dir(trimmed), err)
+		resolved, err := aghconfig.ResolvePath(trimmed)
+		if err != nil {
+			return "", err
 		}
-		return trimmed, nil
+		if strings.TrimSpace(resolved) == "" {
+			return "", errors.New("acpmock: diagnostics path is required")
+		}
+		if err := os.MkdirAll(filepath.Dir(resolved), 0o755); err != nil {
+			return "", fmt.Errorf("acpmock: create diagnostics directory %q: %w", filepath.Dir(resolved), err)
+		}
+		return resolved, nil
 	}
 
 	safeName, err := sanitizeAgentPathSegment(name)
@@ -194,4 +222,18 @@ func resolveDiagnosticsPath(homePaths aghconfig.HomePaths, name string, override
 		return "", fmt.Errorf("acpmock: create diagnostics directory %q: %w", dir, err)
 	}
 	return filepath.Join(dir, safeName+".jsonl"), nil
+}
+
+func postWriteRegistrationError(agentDefPath string, action string, cause error) error {
+	if cleanupErr := removeGeneratedAgentDef(agentDefPath); cleanupErr != nil {
+		cause = errors.Join(cause, cleanupErr)
+	}
+	return fmt.Errorf("acpmock: %s %q: %w", action, agentDefPath, cause)
+}
+
+func removeGeneratedAgentDef(agentDefPath string) error {
+	if err := os.Remove(agentDefPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("acpmock: remove generated agent definition %q: %w", agentDefPath, err)
+	}
+	return nil
 }

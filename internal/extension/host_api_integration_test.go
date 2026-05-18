@@ -928,7 +928,11 @@ func TestHostAPIIntegrationBridgesMessagesIngestRejectsNonOwnedInstance(t *testi
 
 func TestHostAPIIntegrationBridgesInstancesReportStatePublishesAuthRequired(t *testing.T) {
 	env := newHostAPITestEnv(t)
-	env.grant("telegram-adapter", []string{"bridges/instances/report_state", "bridges/instances/get"}, []string{"bridge.write", "bridge.read"})
+	env.grant(
+		"telegram-adapter",
+		[]string{"bridges/instances/report_state", "bridges/instances/get"},
+		[]string{"bridge.write", "bridge.read"},
+	)
 
 	instance := env.createBridgeInstance(t, bridgepkg.CreateInstanceRequest{
 		ID:            "brg-integration-state",
@@ -951,7 +955,11 @@ func TestHostAPIIntegrationBridgesInstancesReportStatePublishesAuthRequired(t *t
 	var updated hostAPIBridgeInstance
 	decodeResult(t, result, &updated)
 	if updated.Status != bridgepkg.BridgeStatusAuthRequired {
-		t.Fatalf("bridges/instances/report_state status = %q, want %q", updated.Status, bridgepkg.BridgeStatusAuthRequired)
+		t.Fatalf(
+			"bridges/instances/report_state status = %q, want %q",
+			updated.Status,
+			bridgepkg.BridgeStatusAuthRequired,
+		)
 	}
 	if updated.Degradation == nil || updated.Degradation.Reason != bridgepkg.BridgeDegradationReasonAuthFailed {
 		t.Fatalf("bridges/instances/report_state degradation = %#v, want auth_failed", updated.Degradation)
@@ -1003,7 +1011,14 @@ func TestHostAPIIntegrationBridgesInstancesListAndGetReturnOwnedInstances(t *tes
 	if got := len(listed); got != 2 {
 		t.Fatalf("len(bridges/instances/list) = %d, want 2", got)
 	}
-	if got, want := []string{listed[0].ID, listed[1].ID}, []string{first.ID, second.ID}; got[0] != want[0] || got[1] != want[1] {
+	if got, want := []string{
+		listed[0].ID,
+		listed[1].ID,
+	}, []string{
+		first.ID,
+		second.ID,
+	}; got[0] != want[0] ||
+		got[1] != want[1] {
 		t.Fatalf("bridges/instances/list ids = %#v, want %#v", got, want)
 	}
 
@@ -1114,10 +1129,16 @@ func TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod(t *testin
 	}{
 		{method: "sessions/list", params: map[string]any{"workspace": env.workspaceID}},
 		{method: "sessions/create", params: map[string]any{"agent": "coder", "workspace": env.workspaceID}},
-		{method: "sessions/prompt", params: map[string]any{"workspace_id": env.workspaceID, "session_id": session.ID, "message": "hello"}},
+		{
+			method: "sessions/prompt",
+			params: map[string]any{"workspace_id": env.workspaceID, "session_id": session.ID, "message": "hello"},
+		},
 		{method: "sessions/stop", params: map[string]any{"workspace_id": env.workspaceID, "session_id": session.ID}},
 		{method: "sessions/status", params: map[string]any{"workspace_id": env.workspaceID, "session_id": session.ID}},
-		{method: "sessions/events", params: map[string]any{"workspace_id": env.workspaceID, "session_id": session.ID, "limit": 1}},
+		{
+			method: "sessions/events",
+			params: map[string]any{"workspace_id": env.workspaceID, "session_id": session.ID, "limit": 1},
+		},
 		{method: "memory/recall", params: map[string]any{"query": "needle"}},
 		{method: "memory/store", params: map[string]any{"key": "note", "content": "body"}},
 		{method: "memory/forget", params: map[string]any{"key": "note"}},
@@ -1152,7 +1173,10 @@ func TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod(t *testin
 		}},
 		{method: "bridges/instances/list", params: nil},
 		{method: "bridges/instances/get", params: map[string]any{"bridge_instance_id": "brg-1"}},
-		{method: "bridges/instances/report_state", params: map[string]any{"bridge_instance_id": "brg-1", "status": "ready"}},
+		{
+			method: "bridges/instances/report_state",
+			params: map[string]any{"bridge_instance_id": "brg-1", "status": "ready"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1262,10 +1286,12 @@ func TestHostAPIIntegrationAutomationPreFireHookMutatesPrompt(t *testing.T) {
 			ExecutorKind: hookspkg.HookExecutorNative,
 		}}),
 		hookspkg.WithExecutorResolver(func(decl hookspkg.HookDecl) (hookspkg.Executor, error) {
-			return hookspkg.NewTypedNativeExecutor(func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.AutomationJobPreFirePayload) (hookspkg.AutomationFirePatch, error) {
-				prompt := payload.Prompt + " with hook mutation"
-				return hookspkg.AutomationFirePatch{Prompt: &prompt}, nil
-			}), nil
+			return hookspkg.NewTypedNativeExecutor(
+				func(_ context.Context, _ hookspkg.RegisteredHook, payload hookspkg.AutomationJobPreFirePayload) (hookspkg.AutomationFirePatch, error) {
+					prompt := payload.Prompt + " with hook mutation"
+					return hookspkg.AutomationFirePatch{Prompt: &prompt}, nil
+				},
+			), nil
 		}),
 	)
 	if err := hooks.Rebuild(t.Context()); err != nil {
@@ -1298,7 +1324,12 @@ func TestHostAPIIntegrationAutomationPreFireHookMutatesPrompt(t *testing.T) {
 	var created automationpkg.Job
 	decodeResult(t, createResult, &created)
 
-	if _, err := env.call(t, "ext-automation", "automation/jobs/trigger", map[string]any{"id": created.ID}); err != nil {
+	if _, err := env.call(
+		t,
+		"ext-automation",
+		"automation/jobs/trigger",
+		map[string]any{"id": created.ID},
+	); err != nil {
 		t.Fatalf("Handle(automation/jobs/trigger) error = %v", err)
 	}
 

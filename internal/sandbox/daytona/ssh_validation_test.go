@@ -89,7 +89,10 @@ func TestDaytonaSSHNonPTYValidation(t *testing.T) {
 	t.Cleanup(func() {
 		trailing, timedOut, cleanupErr := session.Close()
 		if timedOut {
-			t.Logf("Daytona SSH validation session did not exit after stdin close within %s; terminated local client", sshCloseTimeout)
+			t.Logf(
+				"Daytona SSH validation session did not exit after stdin close within %s; terminated local client",
+				sshCloseTimeout,
+			)
 		}
 		if cleanupErr != nil {
 			t.Errorf("close Daytona SSH validation session: %v", cleanupErr)

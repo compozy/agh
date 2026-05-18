@@ -37,6 +37,83 @@ type bundleResourceUnitHarness struct {
 	triggeredKinds []resources.ResourceKind
 }
 
+type failingJobStore struct {
+	base   resources.Store[automationpkg.Job]
+	putErr error
+}
+
+type deadlineObservingAgentStore struct {
+	base            resources.Store[aghconfig.AgentDef]
+	listSawDeadline bool
+}
+
+func (s failingJobStore) Put(
+	_ context.Context,
+	_ resources.MutationActor,
+	_ resources.Draft[automationpkg.Job],
+) (resources.Record[automationpkg.Job], error) {
+	return resources.Record[automationpkg.Job]{}, s.putErr
+}
+
+func (s failingJobStore) Delete(
+	ctx context.Context,
+	actor resources.MutationActor,
+	id string,
+	expectedVersion int64,
+) error {
+	return s.base.Delete(ctx, actor, id, expectedVersion)
+}
+
+func (s failingJobStore) Get(
+	ctx context.Context,
+	actor resources.MutationActor,
+	id string,
+) (resources.Record[automationpkg.Job], error) {
+	return s.base.Get(ctx, actor, id)
+}
+
+func (s failingJobStore) List(
+	ctx context.Context,
+	actor resources.MutationActor,
+	filter resources.ResourceFilter,
+) ([]resources.Record[automationpkg.Job], error) {
+	return s.base.List(ctx, actor, filter)
+}
+
+func (s *deadlineObservingAgentStore) Put(
+	ctx context.Context,
+	actor resources.MutationActor,
+	draft resources.Draft[aghconfig.AgentDef],
+) (resources.Record[aghconfig.AgentDef], error) {
+	return s.base.Put(ctx, actor, draft)
+}
+
+func (s *deadlineObservingAgentStore) Delete(
+	ctx context.Context,
+	actor resources.MutationActor,
+	id string,
+	expectedVersion int64,
+) error {
+	return s.base.Delete(ctx, actor, id, expectedVersion)
+}
+
+func (s *deadlineObservingAgentStore) Get(
+	ctx context.Context,
+	actor resources.MutationActor,
+	id string,
+) (resources.Record[aghconfig.AgentDef], error) {
+	return s.base.Get(ctx, actor, id)
+}
+
+func (s *deadlineObservingAgentStore) List(
+	ctx context.Context,
+	actor resources.MutationActor,
+	filter resources.ResourceFilter,
+) ([]resources.Record[aghconfig.AgentDef], error) {
+	_, s.listSawDeadline = ctx.Deadline()
+	return s.base.List(ctx, actor, filter)
+}
+
 func TestBundleResourceCodecsValidateAndNormalize(t *testing.T) {
 	t.Parallel()
 
@@ -221,6 +298,94 @@ func TestResourceStoreWorkspaceActivationAndNotFoundErrors(t *testing.T) {
 	if err := h.resourceStore.UpdateBundleActivation(h.ctx, missing); !errors.Is(err, ErrActivationNotFound) {
 		t.Fatalf("UpdateBundleActivation(missing) error = %v, want ErrActivationNotFound", err)
 	}
+}
+
+func TestResourceStoreApplyRollsBackEarlierKindsOnLaterFailure(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should roll back earlier kinds on later failure", func(t *testing.T) {
+		t.Parallel()
+
+		h := newBundleResourceUnitHarness(t)
+		putErr := errors.New("put job failed")
+		h.resourceStore.jobs = failingJobStore{
+			base:   h.jobs,
+			putErr: putErr,
+		}
+
+		scope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+		agent := ownedAgentResource{
+			ID:    "agent_owned_atomic",
+			Scope: scope,
+			Spec:  bundleAgentRecord("agent_owned_atomic", "atomic-agent", scope).Spec,
+		}
+		job := unitJob("job-owned-atomic", "atomic-job")
+		activationID := "act-atomic"
+
+		err := h.resourceStore.ApplyBundleActivationResources(h.ctx, BundleActivationResourcePlan{
+			activeActivationIDs: map[string]struct{}{activationID: {}},
+			desiredAgents:       []ownedAgentResource{agent},
+			desiredJobs:         []automationpkg.Job{job},
+			agentOwners:         map[string]string{agent.ID: activationID},
+			jobOwners:           map[string]string{job.ID: activationID},
+		})
+		if !errors.Is(err, putErr) {
+			t.Fatalf("ApplyBundleActivationResources() error = %v, want %v", err, putErr)
+		}
+		if _, err := h.agents.Get(h.ctx, h.actor, agent.ID); !errors.Is(err, resources.ErrNotFound) {
+			t.Fatalf("Get(agent) error = %v, want ErrNotFound after rollback", err)
+		}
+		if _, err := h.jobs.Get(h.ctx, h.actor, job.ID); !errors.Is(err, resources.ErrNotFound) {
+			t.Fatalf("Get(job) error = %v, want ErrNotFound after rollback", err)
+		}
+		if len(h.triggeredKinds) != 0 {
+			t.Fatalf("triggered kinds after rollback = %#v, want none", h.triggeredKinds)
+		}
+		inventory, err := h.resourceStore.ListBundleActivationInventory(h.ctx, activationID)
+		if err != nil {
+			t.Fatalf("ListBundleActivationInventory() error = %v", err)
+		}
+		if len(inventory) != 0 {
+			t.Fatalf("inventory after rollback = %#v, want empty", inventory)
+		}
+	})
+
+	t.Run("Should preserve the caller deadline during rollback", func(t *testing.T) {
+		t.Parallel()
+
+		h := newBundleResourceUnitHarness(t)
+		observingAgents := &deadlineObservingAgentStore{base: h.agents}
+		h.resourceStore.agents = observingAgents
+		putErr := errors.New("put job failed")
+		h.resourceStore.jobs = failingJobStore{
+			base:   h.jobs,
+			putErr: putErr,
+		}
+
+		scope := resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal}
+		agent := ownedAgentResource{
+			ID:    "agent_owned_deadline",
+			Scope: scope,
+			Spec:  bundleAgentRecord("agent_owned_deadline", "deadline-agent", scope).Spec,
+		}
+		job := unitJob("job-owned-deadline", "deadline-job")
+		ctx, cancel := context.WithTimeout(h.ctx, time.Second)
+		defer cancel()
+
+		err := h.resourceStore.ApplyBundleActivationResources(ctx, BundleActivationResourcePlan{
+			activeActivationIDs: map[string]struct{}{"act-deadline": {}},
+			desiredAgents:       []ownedAgentResource{agent},
+			desiredJobs:         []automationpkg.Job{job},
+			agentOwners:         map[string]string{agent.ID: "act-deadline"},
+			jobOwners:           map[string]string{job.ID: "act-deadline"},
+		})
+		if !errors.Is(err, putErr) {
+			t.Fatalf("ApplyBundleActivationResources() error = %v, want %v", err, putErr)
+		}
+		if !observingAgents.listSawDeadline {
+			t.Fatal("rollback agent store list did not observe caller deadline")
+		}
+	})
 }
 
 func TestResourceStoreCleanupDeletesOnlyOwnedInactiveActivationRecords(t *testing.T) {

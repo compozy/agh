@@ -116,7 +116,7 @@ export function ExtensibilitySection() {
           height={760}
           decoding="async"
           sizes="(min-width: 1024px) 60vw, 100vw"
-          unoptimized
+          quality={90}
           className="block w-full object-cover object-center opacity-95"
         />
       </div>

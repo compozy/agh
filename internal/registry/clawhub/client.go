@@ -26,7 +26,10 @@ const (
 	defaultMaxBackoff     = 30 * time.Second
 	defaultMaxRetries     = 3
 	maxErrorBodyBytes     = 64 << 10
+	maxJSONResponseBytes  = 1 << 20
 )
+
+var errResponseTooLarge = errors.New("clawhub: response exceeds max size")
 
 // Option customizes a ClawHub client.
 type Option func(*Client)
@@ -145,10 +148,13 @@ func (c *Client) Search(ctx context.Context, query string, opts registry.SearchO
 		return nil, err
 	}
 
-	payload, err := io.ReadAll(response.Body)
+	payload, err := readLimitedBody(response.Body, maxJSONResponseBytes)
 	closeErr := response.Body.Close()
 	if err != nil {
-		return nil, fmt.Errorf("clawhub: read search response: %w", err)
+		return nil, joinErrors(
+			fmt.Errorf("clawhub: read search response: %w", err),
+			wrapSearchCloseError(closeErr),
+		)
 	}
 	if closeErr != nil {
 		return nil, fmt.Errorf("clawhub: close search response: %w", closeErr)
@@ -178,10 +184,13 @@ func (c *Client) Info(ctx context.Context, slug string) (*registry.Detail, error
 		return nil, err
 	}
 
-	payload, err := io.ReadAll(response.Body)
+	payload, err := readLimitedBody(response.Body, maxJSONResponseBytes)
 	closeErr := response.Body.Close()
 	if err != nil {
-		return nil, fmt.Errorf("clawhub: read info response for %q: %w", trimmedSlug, err)
+		return nil, joinErrors(
+			fmt.Errorf("clawhub: read info response for %q: %w", trimmedSlug, err),
+			wrapCloseError(trimmedSlug, closeErr),
+		)
 	}
 	if closeErr != nil {
 		return nil, fmt.Errorf("clawhub: close info response for %q: %w", trimmedSlug, closeErr)
@@ -218,7 +227,21 @@ func (c *Client) Download(
 	if err != nil {
 		return nil, err
 	}
-	downloadReader, downloadSize, spoolErr := spoolDownloadResponse(response.Body, trimmedSlug)
+	maxArchiveSize := normalizeArchiveSizeLimit(opts.MaxArchiveSize)
+	if response.ContentLength > maxArchiveSize {
+		closeErr := response.Body.Close()
+		return nil, joinErrors(
+			fmt.Errorf(
+				"clawhub: download for %q: %w: size=%d limit=%d",
+				trimmedSlug,
+				registry.ErrArchiveTooLargeCompressed,
+				response.ContentLength,
+				maxArchiveSize,
+			),
+			wrapCloseError(trimmedSlug, closeErr),
+		)
+	}
+	downloadReader, downloadSize, spoolErr := spoolDownloadResponse(response.Body, trimmedSlug, maxArchiveSize)
 	closeErr := response.Body.Close()
 	if spoolErr != nil {
 		return nil, joinErrors(
@@ -352,10 +375,11 @@ func responseError(response *http.Response, operation string, slug string) error
 	message := readErrorMessage(response.Body)
 
 	if response.StatusCode == http.StatusNotFound && slug != "" {
+		notFound := registry.NewPackageNotFoundError(slug)
 		if message == "" {
-			return fmt.Errorf("clawhub: skill not found: %q", slug)
+			return fmt.Errorf("clawhub: skill not found: %w", notFound)
 		}
-		return fmt.Errorf("clawhub: skill not found: %q: %s", slug, message)
+		return fmt.Errorf("clawhub: skill not found: %w: %s", notFound, message)
 	}
 
 	if message == "" {
@@ -394,6 +418,21 @@ func readErrorMessage(body io.ReadCloser) string {
 	}
 
 	return trimmed
+}
+
+func readLimitedBody(body io.Reader, maxBytes int64) ([]byte, error) {
+	if maxBytes <= 0 {
+		return io.ReadAll(body)
+	}
+
+	payload, err := io.ReadAll(io.LimitReader(body, maxBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(payload)) > maxBytes {
+		return nil, fmt.Errorf("%w: limit=%d", errResponseTooLarge, maxBytes)
+	}
+	return payload, nil
 }
 
 func decodeListings(body io.Reader) ([]registry.Listing, error) {
@@ -462,7 +501,7 @@ func nextBackoff(current time.Duration, maxDelay time.Duration) time.Duration {
 	return next
 }
 
-func spoolDownloadResponse(body io.Reader, slug string) (_ io.ReadCloser, size int64, err error) {
+func spoolDownloadResponse(body io.Reader, slug string, maxBytes int64) (_ io.ReadCloser, size int64, err error) {
 	file, err := os.CreateTemp("", "agh-clawhub-download-*")
 	if err != nil {
 		return nil, 0, fmt.Errorf("create temp download file for %q: %w", slug, err)
@@ -473,11 +512,24 @@ func spoolDownloadResponse(body io.Reader, slug string) (_ io.ReadCloser, size i
 		}
 	}()
 
-	written, err := io.Copy(file, body)
+	limit := normalizeArchiveSizeLimit(maxBytes)
+	written, err := io.Copy(file, io.LimitReader(body, limit+1))
 	if err != nil {
 		closeErr := file.Close()
 		return nil, 0, joinErrors(
 			fmt.Errorf("write temp download file for %q: %w", slug, err),
+			closeErr,
+		)
+	}
+	if written > limit {
+		closeErr := file.Close()
+		return nil, written, joinErrors(
+			fmt.Errorf(
+				"%w: clawhub download for %q exceeds compressed archive limit %d",
+				registry.ErrArchiveTooLargeCompressed,
+				slug,
+				limit,
+			),
 			closeErr,
 		)
 	}
@@ -490,6 +542,20 @@ func spoolDownloadResponse(body io.Reader, slug string) (_ io.ReadCloser, size i
 	}
 
 	return &tempFileReadCloser{File: file, path: file.Name()}, written, nil
+}
+
+func normalizeArchiveSizeLimit(limit int64) int64 {
+	if limit > 0 {
+		return limit
+	}
+	return registry.DefaultMaxArchiveSize
+}
+
+func wrapSearchCloseError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("clawhub: close search response: %w", err)
 }
 
 func wrapCloseError(slug string, err error) error {

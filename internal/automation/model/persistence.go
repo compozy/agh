@@ -12,6 +12,8 @@ var (
 	ErrTriggerNotFound = errors.New("automation: trigger not found")
 	// ErrRunNotFound reports that the requested automation run does not exist.
 	ErrRunNotFound = errors.New("automation: run not found")
+	// ErrRunAlreadyExists reports that an automation run identity has already been claimed.
+	ErrRunAlreadyExists = errors.New("automation: run already exists")
 	// ErrSchedulerStateNotFound reports that no durable scheduler cursor exists for a job.
 	ErrSchedulerStateNotFound = errors.New("automation: scheduler state not found")
 	// ErrScheduledFireAlreadyClaimed reports that a scheduled fire identity was already claimed.

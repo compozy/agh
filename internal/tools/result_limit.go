@@ -40,28 +40,37 @@ func (l *DefaultResultLimiter) Apply(ctx context.Context, d Descriptor, result T
 	limited := cloneToolResult(result)
 	redactions, err := redactToolResult(&limited, l.sensitiveFields)
 	if err != nil {
-		return ToolResult{}, err
+		return ToolResult{}, resultLimiterRejection(d.ID, err)
 	}
 	limited.Redactions = appendRedactions(limited.Redactions, redactions...)
-	limited.Bytes = resultEnvelopeBytes(limited)
+	if err := refreshResultEnvelopeBytes(&limited); err != nil {
+		return ToolResult{}, resultLimiterRejection(d.ID, err)
+	}
 	maxBytes := l.maxBytes(d)
 	if maxBytes >= 0 && limited.Bytes > maxBytes {
-		limited = truncateToolResult(limited, maxBytes)
+		limited, err = truncateToolResult(limited, maxBytes)
+		if err != nil {
+			return ToolResult{}, resultLimiterRejection(d.ID, err)
+		}
 	}
 	if err := limited.Validate(maxBytes); err != nil {
-		reason, ok := ReasonOf(err)
-		if !ok {
-			reason = ReasonResultBudgetExceeded
-		}
-		return ToolResult{}, NewToolError(
-			ErrorCodeResultTooLarge,
-			d.ID,
-			fmt.Sprintf("tool %q result rejected", d.ID),
-			fmt.Errorf("%w: %w", ErrToolResultTooLarge, err),
-			reason,
-		)
+		return ToolResult{}, resultLimiterRejection(d.ID, err)
 	}
 	return limited, nil
+}
+
+func resultLimiterRejection(id ToolID, err error) error {
+	reason, ok := ReasonOf(err)
+	if !ok {
+		reason = ReasonResultBudgetExceeded
+	}
+	return NewToolError(
+		ErrorCodeResultTooLarge,
+		id,
+		fmt.Sprintf("tool %q result rejected", id),
+		fmt.Errorf("%w: %w", ErrToolResultTooLarge, err),
+		reason,
+	)
 }
 
 func (l *DefaultResultLimiter) maxBytes(d Descriptor) int64 {
@@ -116,14 +125,20 @@ func redactToolResult(result *ToolResult, fields []string) ([]Redaction, error) 
 		if err != nil {
 			return nil, err
 		}
-		redactions = redactRawMap(
+		redactions, err = redactRawMap(
 			result.Content[i].Metadata,
 			fmt.Sprintf("$.content[%d].metadata", i),
 			fields,
 			redactions,
 		)
+		if err != nil {
+			return nil, err
+		}
 	}
-	redactions = redactRawMap(result.Metadata, "$.metadata", fields, redactions)
+	redactions, err = redactRawMap(result.Metadata, "$.metadata", fields, redactions)
+	if err != nil {
+		return nil, err
+	}
 	return redactions, nil
 }
 
@@ -132,7 +147,7 @@ func redactRawMap(
 	basePath string,
 	fields []string,
 	redactions []Redaction,
-) []Redaction {
+) ([]Redaction, error) {
 	for key, value := range values {
 		path := basePath + "." + key
 		if sensitiveFieldName(key, fields) {
@@ -145,12 +160,13 @@ func redactRawMap(
 			continue
 		}
 		redacted, next, err := redactRawJSON(value, path, fields, redactions)
-		if err == nil {
-			values[key] = redacted
-			redactions = next
+		if err != nil {
+			return nil, err
 		}
+		values[key] = redacted
+		redactions = next
 	}
-	return redactions
+	return redactions, nil
 }
 
 func redactRawJSON(
@@ -231,20 +247,29 @@ func sortedAnyKeys(values map[string]any) []string {
 	return keys
 }
 
-func resultEnvelopeBytes(result ToolResult) int64 {
+func resultEnvelopeBytes(result ToolResult) (int64, error) {
 	copyForSize := result
 	copyForSize.Bytes = 0
 	data, err := json.Marshal(copyForSize)
 	if err != nil {
-		return int64(len(result.Preview))
+		return 0, NewValidationError("$", ReasonSchemaInvalid, err.Error())
 	}
-	return int64(len(data))
+	return int64(len(data)), nil
 }
 
-func truncateToolResult(result ToolResult, maxBytes int64) ToolResult {
+func refreshResultEnvelopeBytes(result *ToolResult) error {
+	bytes, err := resultEnvelopeBytes(*result)
+	if err != nil {
+		return err
+	}
+	result.Bytes = bytes
+	return nil
+}
+
+func truncateToolResult(result ToolResult, maxBytes int64) (ToolResult, error) {
 	originalBytes := result.Bytes
 	if maxBytes < 0 {
-		return result
+		return result, nil
 	}
 	preview := result.Preview
 	if strings.TrimSpace(preview) == "" {
@@ -263,7 +288,9 @@ func truncateToolResult(result ToolResult, maxBytes int64) ToolResult {
 	result.Preview = preview
 	result.Artifacts = nil
 	result.Truncated = true
-	result.Bytes = resultEnvelopeBytes(result)
+	if err := refreshResultEnvelopeBytes(&result); err != nil {
+		return ToolResult{}, err
+	}
 	result.Redactions = appendRedactions(result.Redactions, Redaction{
 		Path:   "$",
 		Reason: ReasonResultBudgetExceeded,
@@ -273,13 +300,17 @@ func truncateToolResult(result ToolResult, maxBytes int64) ToolResult {
 		result.Metadata = make(map[string]json.RawMessage, 1)
 	}
 	result.Metadata["truncated_from_bytes"] = json.RawMessage(strconv.FormatInt(originalBytes, 10))
-	result.Bytes = resultEnvelopeBytes(result)
+	if err := refreshResultEnvelopeBytes(&result); err != nil {
+		return ToolResult{}, err
+	}
 	for result.Bytes > maxBytes && result.Preview != "" {
 		result.Preview = truncateUTF8ByBytes(result.Preview, len(result.Preview)-1)
 		if len(result.Content) == 1 {
 			result.Content[0].Text = result.Preview
 		}
-		result.Bytes = resultEnvelopeBytes(result)
+		if err := refreshResultEnvelopeBytes(&result); err != nil {
+			return ToolResult{}, err
+		}
 	}
 	if result.Bytes > maxBytes && maxBytes >= 0 {
 		result.Content = nil
@@ -287,9 +318,11 @@ func truncateToolResult(result ToolResult, maxBytes int64) ToolResult {
 		result.Metadata = map[string]json.RawMessage{
 			"truncated_from_bytes": json.RawMessage(strconv.FormatInt(originalBytes, 10)),
 		}
-		result.Bytes = resultEnvelopeBytes(result)
+		if err := refreshResultEnvelopeBytes(&result); err != nil {
+			return ToolResult{}, err
+		}
 	}
-	return result
+	return result, nil
 }
 
 func fallbackPreview(result ToolResult) string {

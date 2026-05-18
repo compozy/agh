@@ -310,7 +310,13 @@ func newNetworkTaskIntegrationManager(t *testing.T, store taskpkg.Store, extraOp
 	return manager
 }
 
-func newNetworkTaskIngressManager(t *testing.T, ctx context.Context, now time.Time, auditStore AuditStore, tasks TaskService) *Manager {
+func newNetworkTaskIngressManager(
+	t *testing.T,
+	ctx context.Context,
+	now time.Time,
+	auditStore AuditStore,
+	tasks TaskService,
+) *Manager {
 	t.Helper()
 
 	manager, err := NewManager(
@@ -334,7 +340,14 @@ func newNetworkTaskIngressManager(t *testing.T, ctx context.Context, now time.Ti
 	return manager
 }
 
-func registerRemoteTaskPeer(t *testing.T, manager *Manager, now time.Time, channel string, peerID string, capabilities []string) {
+func registerRemoteTaskPeer(
+	t *testing.T,
+	manager *Manager,
+	now time.Time,
+	channel string,
+	peerID string,
+	capabilities []string,
+) {
 	t.Helper()
 
 	card, err := DefaultPeerCard(peerID)

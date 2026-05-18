@@ -102,7 +102,7 @@ func TestSoulPersistenceValidation(t *testing.T) {
 			AgentName:   "coder",
 			SourcePath:  "agents/coder/SOUL.md",
 			Digest:      "sha256:one",
-			ProfileJSON: json.RawMessage(`{"valid":true}`),
+			ProfileJSON: validSnapshotProfileJSON(t),
 			CreatedAt:   time.Date(2026, 5, 2, 10, 0, 0, 0, time.UTC),
 		}
 		if err := valid.Validate(); err != nil {
@@ -119,6 +119,12 @@ func TestSoulPersistenceValidation(t *testing.T) {
 			{name: "Should reject missing digest", mutate: func(snapshot *Snapshot) { snapshot.Digest = "" }},
 			{name: "Should reject malformed profile JSON", mutate: func(snapshot *Snapshot) {
 				snapshot.ProfileJSON = json.RawMessage(`{`)
+			}},
+			{name: "Should reject profile JSON without the snapshot schema", mutate: func(snapshot *Snapshot) {
+				snapshot.ProfileJSON = json.RawMessage(`{"valid":true}`)
+			}},
+			{name: "Should reject unsupported profile schema versions", mutate: func(snapshot *Snapshot) {
+				snapshot.ProfileJSON = validSnapshotProfileJSON(t, 2)
 			}},
 			{name: "Should reject missing created timestamp", mutate: func(snapshot *Snapshot) {
 				snapshot.CreatedAt = time.Time{}
@@ -180,6 +186,9 @@ func TestSoulPersistenceValidation(t *testing.T) {
 			{name: "Should reject malformed diagnostics JSON", mutate: func(revision *Revision) {
 				revision.DiagnosticsJSON = json.RawMessage(`{`)
 			}},
+			{name: "Should reject diagnostics JSON that is not an array", mutate: func(revision *Revision) {
+				revision.DiagnosticsJSON = json.RawMessage(`{}`)
+			}},
 			{name: "Should reject missing created timestamp", mutate: func(revision *Revision) {
 				revision.CreatedAt = time.Time{}
 			}},
@@ -217,4 +226,29 @@ func TestSoulPersistenceValidation(t *testing.T) {
 			})
 		}
 	})
+}
+
+func validSnapshotProfileJSON(t *testing.T, versions ...int) json.RawMessage {
+	t.Helper()
+
+	schemaVersion := snapshotProfileSchemaVersion
+	if len(versions) > 0 {
+		schemaVersion = versions[0]
+	}
+	encoded, err := json.Marshal(SnapshotProfile{
+		SchemaVersion: schemaVersion,
+		Present:       true,
+		Active:        true,
+		Valid:         true,
+		ConfigProvenance: ConfigProvenance{
+			Digest:                 "sha256:config",
+			Enabled:                true,
+			MaxBodyBytes:           32768,
+			ContextProjectionBytes: 2048,
+		},
+	})
+	if err != nil {
+		t.Fatalf("Marshal(SnapshotProfile version %d) error = %v", schemaVersion, err)
+	}
+	return json.RawMessage(encoded)
 }

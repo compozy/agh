@@ -13,11 +13,13 @@ func TestReadWriteCacheRoundTrip(t *testing.T) {
 
 		path := filepath.Join(t.TempDir(), "cache", "update-state.json")
 		now := time.Date(2026, 5, 3, 12, 0, 0, 0, time.UTC)
-		entry := cacheEntry{
-			LatestVersion: "v1.2.3",
-			ReleaseURL:    "https://github.com/compozy/agh/releases/tag/v1.2.3",
-			CheckedAt:     now,
-		}
+		entry := testCacheEntry(
+			t,
+			nil,
+			"v1.2.3",
+			"https://github.com/compozy/agh/releases/tag/v1.2.3",
+			now,
+		)
 
 		if err := writeCache(path, entry); err != nil {
 			t.Fatalf("writeCache() error = %v", err)
@@ -35,6 +37,9 @@ func TestReadWriteCacheRoundTrip(t *testing.T) {
 		}
 		if !got.CheckedAt.Equal(entry.CheckedAt) {
 			t.Fatalf("CheckedAt = %s, want %s", got.CheckedAt, entry.CheckedAt)
+		}
+		if len(got.Assets) != len(entry.Assets) {
+			t.Fatalf("len(Assets) = %d, want %d", len(got.Assets), len(entry.Assets))
 		}
 	})
 }

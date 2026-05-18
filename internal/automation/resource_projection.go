@@ -8,6 +8,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/vault"
 )
 
 type jobResourceProjectionPlan struct {
@@ -308,15 +309,24 @@ func (m *Manager) createJobResource(ctx context.Context, job Job) (Job, error) {
 	if err := next.Validate("job"); err != nil {
 		return Job{}, err
 	}
-	if _, err := m.jobResources.Put(ctx, m.resourceActorForSource(JobSourceDynamic), resources.Draft[Job]{
+	created, err := m.jobResources.Put(ctx, m.resourceActorForSource(JobSourceDynamic), resources.Draft[Job]{
 		ID:              next.ID,
 		Scope:           ResourceScopeForAutomation(next.Scope, next.WorkspaceID),
 		ExpectedVersion: 0,
 		Spec:            next,
-	}); err != nil {
+	})
+	if err != nil {
 		return Job{}, err
 	}
 	if err := m.applyJobResourcesFromStore(ctx); err != nil {
+		if rollbackErr := deleteResourceRecord(
+			persistenceContext(ctx),
+			m.jobResources,
+			m.resourceActor,
+			created,
+		); rollbackErr != nil {
+			return Job{}, errors.Join(err, rollbackErr)
+		}
 		return Job{}, err
 	}
 	return m.effectiveJob(ctx, next.ID)
@@ -339,15 +349,25 @@ func (m *Manager) updateJobResource(ctx context.Context, job Job) (Job, error) {
 	if err := next.Validate("job"); err != nil {
 		return Job{}, err
 	}
-	if _, err := m.jobResources.Put(ctx, currentResourceActor(current.Source, m.resourceActor), resources.Draft[Job]{
+	updated, err := m.jobResources.Put(ctx, currentResourceActor(current.Source, m.resourceActor), resources.Draft[Job]{
 		ID:              current.ID,
 		Scope:           ResourceScopeForAutomation(next.Scope, next.WorkspaceID),
 		ExpectedVersion: current.Version,
 		Spec:            next,
-	}); err != nil {
+	})
+	if err != nil {
 		return Job{}, err
 	}
 	if err := m.applyJobResourcesFromStore(ctx); err != nil {
+		if rollbackErr := restoreUpdatedResourceRecord(
+			persistenceContext(ctx),
+			m.jobResources,
+			m.resourceActor,
+			current,
+			updated,
+		); rollbackErr != nil {
+			return Job{}, errors.Join(err, rollbackErr)
+		}
 		return Job{}, err
 	}
 	return m.effectiveJob(ctx, current.ID)
@@ -369,7 +389,18 @@ func (m *Manager) deleteJobResource(ctx context.Context, id string) error {
 	); err != nil {
 		return err
 	}
-	return m.applyJobResourcesFromStore(ctx)
+	if err := m.applyJobResourcesFromStore(ctx); err != nil {
+		if rollbackErr := recreateDeletedResourceRecord(
+			persistenceContext(ctx),
+			m.jobResources,
+			m.resourceActor,
+			current,
+		); rollbackErr != nil {
+			return errors.Join(err, rollbackErr)
+		}
+		return err
+	}
+	return nil
 }
 
 func (m *Manager) createTriggerResource(
@@ -400,6 +431,10 @@ func (m *Manager) createTriggerResource(
 	if err := next.Validate("trigger"); err != nil {
 		return Trigger{}, err
 	}
+	secretState, err := captureWebhookSecretState(ctx, m, next, webhookSecret.Value != nil)
+	if err != nil {
+		return Trigger{}, err
+	}
 	if err := m.applyWebhookSecretWrite(ctx, next, webhookSecret); err != nil {
 		return Trigger{}, err
 	}
@@ -409,10 +444,18 @@ func (m *Manager) createTriggerResource(
 		ExpectedVersion: 0,
 		Spec:            next,
 	}
-	if _, err := m.triggerResources.Put(ctx, m.resourceActorForSource(JobSourceDynamic), draft); err != nil {
-		return Trigger{}, errors.Join(err, m.deleteOwnedWebhookSecretIfPresent(ctx, next))
+	created, err := m.triggerResources.Put(ctx, m.resourceActorForSource(JobSourceDynamic), draft)
+	if err != nil {
+		return Trigger{}, errors.Join(err, restoreWebhookSecretStates(persistenceContext(ctx), m, secretState))
 	}
 	if err := m.applyTriggerResourcesFromStore(ctx); err != nil {
+		rollbackErr := errors.Join(
+			deleteResourceRecord(persistenceContext(ctx), m.triggerResources, m.resourceActor, created),
+			restoreWebhookSecretStates(persistenceContext(ctx), m, secretState),
+		)
+		if rollbackErr != nil {
+			return Trigger{}, errors.Join(err, rollbackErr)
+		}
 		return Trigger{}, err
 	}
 	return m.effectiveTrigger(ctx, next.ID)
@@ -430,12 +473,87 @@ func (m *Manager) updateTriggerResource(
 	if current.Spec.Source != JobSourceDynamic {
 		return Trigger{}, ErrDefinitionReadOnly
 	}
+	next, err := m.nextUpdatedTriggerSpec(current.Spec, trigger, webhookSecret)
+	if err != nil {
+		return Trigger{}, err
+	}
+	previousSecretState, err := captureWebhookSecretState(
+		ctx,
+		m,
+		current.Spec,
+		strings.TrimSpace(current.Spec.WebhookSecretRef) != "",
+	)
+	if err != nil {
+		return Trigger{}, err
+	}
+	nextSecretState, err := captureWebhookSecretState(ctx, m, next, webhookSecret != nil && webhookSecret.Value != nil)
+	if err != nil {
+		return Trigger{}, err
+	}
+	if err := m.applyWebhookSecretWritePointer(ctx, next, webhookSecret); err != nil {
+		return Trigger{}, err
+	}
+	updated, err := m.triggerResources.Put(
+		ctx,
+		currentResourceActor(current.Source, m.resourceActor),
+		resources.Draft[Trigger]{
+			ID:              current.ID,
+			Scope:           ResourceScopeForAutomation(next.Scope, next.WorkspaceID),
+			ExpectedVersion: current.Version,
+			Spec:            next,
+		},
+	)
+	if err != nil {
+		return Trigger{}, triggerMutationError(
+			err,
+			restoreWebhookSecretStates(persistenceContext(ctx), m, nextSecretState),
+		)
+	}
+	if err := m.deleteSupersededOwnedWebhookSecret(ctx, current.Spec, next); err != nil {
+		return Trigger{}, triggerMutationError(
+			err,
+			m.restoreUpdatedTriggerResource(ctx, current, updated, nextSecretState, previousSecretState),
+		)
+	}
+	if err := m.applyTriggerResourcesFromStore(ctx); err != nil {
+		return Trigger{}, triggerMutationError(
+			err,
+			m.restoreUpdatedTriggerResource(ctx, current, updated, nextSecretState, previousSecretState),
+		)
+	}
+	return m.effectiveTrigger(ctx, current.ID)
+}
+
+func triggerMutationError(err error, rollbackErr error) error {
+	if rollbackErr != nil {
+		return errors.Join(err, rollbackErr)
+	}
+	return err
+}
+
+func (m *Manager) restoreUpdatedTriggerResource(
+	ctx context.Context,
+	current resources.Record[Trigger],
+	updated resources.Record[Trigger],
+	secretStates ...webhookSecretState,
+) error {
+	return errors.Join(
+		restoreUpdatedResourceRecord(persistenceContext(ctx), m.triggerResources, m.resourceActor, current, updated),
+		restoreWebhookSecretStates(persistenceContext(ctx), m, secretStates...),
+	)
+}
+
+func (m *Manager) nextUpdatedTriggerSpec(
+	current Trigger,
+	trigger Trigger,
+	webhookSecret *WebhookSecretWrite,
+) (Trigger, error) {
 	next := cloneTrigger(trigger)
 	next.ID = current.ID
-	next.Source = current.Spec.Source
+	next.Source = current.Source
 	next.CreatedAt = current.CreatedAt.UTC()
 	next.UpdatedAt = m.now().UTC()
-	next = applyWebhookSecretRef(next, &current.Spec, webhookSecret)
+	next = applyWebhookSecretRef(next, &current, webhookSecret)
 	if strings.EqualFold(strings.TrimSpace(next.Event), "webhook") &&
 		strings.TrimSpace(next.WebhookID) == "" {
 		next.WebhookID = stableConfigID("wbh", next.ID)
@@ -446,28 +564,7 @@ func (m *Manager) updateTriggerResource(
 	if err := next.Validate("trigger"); err != nil {
 		return Trigger{}, err
 	}
-	if err := m.applyWebhookSecretWritePointer(ctx, next, webhookSecret); err != nil {
-		return Trigger{}, err
-	}
-	if _, err := m.triggerResources.Put(
-		ctx,
-		currentResourceActor(current.Source, m.resourceActor),
-		resources.Draft[Trigger]{
-			ID:              current.ID,
-			Scope:           ResourceScopeForAutomation(next.Scope, next.WorkspaceID),
-			ExpectedVersion: current.Version,
-			Spec:            next,
-		},
-	); err != nil {
-		return Trigger{}, err
-	}
-	if err := m.deleteSupersededOwnedWebhookSecret(ctx, current.Spec, next); err != nil {
-		return Trigger{}, err
-	}
-	if err := m.applyTriggerResourcesFromStore(ctx); err != nil {
-		return Trigger{}, err
-	}
-	return m.effectiveTrigger(ctx, current.ID)
+	return next, nil
 }
 
 func (m *Manager) deleteTriggerResource(ctx context.Context, id string) error {
@@ -486,10 +583,54 @@ func (m *Manager) deleteTriggerResource(ctx context.Context, id string) error {
 	); err != nil {
 		return err
 	}
-	if err := m.deleteOwnedWebhookSecretIfPresent(ctx, current.Spec); err != nil {
+	secretState, err := captureWebhookSecretState(
+		ctx,
+		m,
+		current.Spec,
+		strings.TrimSpace(current.Spec.WebhookSecretRef) != "",
+	)
+	if err != nil {
+		if rollbackErr := recreateDeletedResourceRecord(
+			persistenceContext(ctx),
+			m.triggerResources,
+			m.resourceActor,
+			current,
+		); rollbackErr != nil {
+			return errors.Join(err, rollbackErr)
+		}
 		return err
 	}
-	return m.applyTriggerResourcesFromStore(ctx)
+	if err := m.deleteOwnedWebhookSecretIfPresent(ctx, current.Spec); err != nil {
+		rollbackErr := errors.Join(
+			recreateDeletedResourceRecord(
+				persistenceContext(ctx),
+				m.triggerResources,
+				m.resourceActor,
+				current,
+			),
+			restoreWebhookSecretStates(persistenceContext(ctx), m, secretState),
+		)
+		if rollbackErr != nil {
+			return errors.Join(err, rollbackErr)
+		}
+		return err
+	}
+	if err := m.applyTriggerResourcesFromStore(ctx); err != nil {
+		rollbackErr := errors.Join(
+			recreateDeletedResourceRecord(
+				persistenceContext(ctx),
+				m.triggerResources,
+				m.resourceActor,
+				current,
+			),
+			restoreWebhookSecretStates(persistenceContext(ctx), m, secretState),
+		)
+		if rollbackErr != nil {
+			return errors.Join(err, rollbackErr)
+		}
+		return err
+	}
+	return nil
 }
 
 func (m *Manager) setJobResourceEnabled(ctx context.Context, id string, enabled bool) (Job, error) {
@@ -977,4 +1118,103 @@ func cloneTriggers(triggers []Trigger) []Trigger {
 		cloned = append(cloned, cloneTrigger(trigger))
 	}
 	return cloned
+}
+
+type webhookSecretState struct {
+	ref     string
+	value   string
+	present bool
+}
+
+func deleteResourceRecord[T any](
+	ctx context.Context,
+	resourceStore resources.Store[T],
+	actor resources.MutationActor,
+	record resources.Record[T],
+) error {
+	return resourceStore.Delete(ctx, currentResourceActor(record.Source, actor), record.ID, record.Version)
+}
+
+func restoreUpdatedResourceRecord[T any](
+	ctx context.Context,
+	resourceStore resources.Store[T],
+	actor resources.MutationActor,
+	previous resources.Record[T],
+	current resources.Record[T],
+) error {
+	_, err := resourceStore.Put(ctx, currentResourceActor(current.Source, actor), resources.Draft[T]{
+		ID:              previous.ID,
+		Scope:           previous.Scope,
+		ExpectedVersion: current.Version,
+		Spec:            previous.Spec,
+	})
+	return err
+}
+
+func recreateDeletedResourceRecord[T any](
+	ctx context.Context,
+	resourceStore resources.Store[T],
+	actor resources.MutationActor,
+	previous resources.Record[T],
+) error {
+	_, err := resourceStore.Put(ctx, currentResourceActor(previous.Source, actor), resources.Draft[T]{
+		ID:              previous.ID,
+		Scope:           previous.Scope,
+		ExpectedVersion: 0,
+		Spec:            previous.Spec,
+	})
+	return err
+}
+
+func captureWebhookSecretState(
+	ctx context.Context,
+	manager *Manager,
+	trigger Trigger,
+	capture bool,
+) (webhookSecretState, error) {
+	if !capture {
+		return webhookSecretState{}, nil
+	}
+	secret, err := manager.currentWebhookSecret(ctx, trigger)
+	if err != nil {
+		return webhookSecretState{}, err
+	}
+	secret = strings.TrimSpace(secret)
+	return webhookSecretState{
+		ref:     strings.TrimSpace(trigger.WebhookSecretRef),
+		value:   secret,
+		present: secret != "",
+	}, nil
+}
+
+func restoreWebhookSecretStates(ctx context.Context, manager *Manager, states ...webhookSecretState) error {
+	if manager == nil || manager.webhookSecrets == nil {
+		return nil
+	}
+	restored := make(map[string]struct{}, len(states))
+	var errs []error
+	for _, state := range states {
+		ref := strings.TrimSpace(state.ref)
+		if ref == "" {
+			continue
+		}
+		if _, exists := restored[ref]; exists {
+			continue
+		}
+		restored[ref] = struct{}{}
+		if state.present {
+			if _, err := manager.webhookSecrets.PutSecret(ctx, ref, "webhook_secret", state.value); err != nil {
+				errs = append(errs, fmt.Errorf("automation: restore webhook secret %q: %w", ref, err))
+			}
+			continue
+		}
+		if err := manager.webhookSecrets.DeleteSecret(
+			ctx,
+			ref,
+		); err != nil &&
+			!errors.Is(err, vault.ErrSecretNotFound) {
+			errs = append(errs, fmt.Errorf("automation: delete webhook secret %q: %w", ref, err))
+		}
+	}
+	return errors.Join(errs...)
 }

@@ -40,6 +40,7 @@ type WakeStore interface {
 	) (WakeState, error)
 	UpsertHeartbeatWakeState(ctx context.Context, state WakeState) (WakeState, error)
 	AppendHeartbeatWakeEvent(ctx context.Context, event WakeEvent) (WakeEvent, error)
+	RecordHeartbeatWakeDecision(ctx context.Context, event WakeEvent, state WakeState) (WakeEvent, WakeState, error)
 }
 
 // SyntheticWakePrompter injects one daemon-owned synthetic wake prompt through the session path.
@@ -229,11 +230,11 @@ func (s *ManagedWakeService) WakeMany(ctx context.Context, requests []WakeReques
 func (s *ManagedWakeService) failedWakeManyDecision(err error) WakeDecision {
 	decision := s.newDecision(WakeResultFailed, WakeReasonSyntheticPromptFailed, "", "", "")
 	if err != nil {
-		decision.Diagnostics = []Diagnostic{{
+		decision.Diagnostics = []Diagnostic{sanitizeWakeDiagnostic(Diagnostic{
 			Code:     "heartbeat_wake_error",
 			Severity: diagnosticError,
 			Message:  err.Error(),
-		}}
+		})}
 	}
 	return decision
 }
@@ -293,12 +294,12 @@ func (s *ManagedWakeService) policySkipDecision(
 			snapshot.Digest,
 			snapshot.ConfigDigest,
 		)
-		decision.Diagnostics = []Diagnostic{{
+		decision.Diagnostics = []Diagnostic{sanitizeWakeDiagnostic(Diagnostic{
 			Code:     "heartbeat_config_digest_stale",
 			Severity: diagnosticWarning,
 			Message:  err.Error(),
 			Field:    "config_digest",
-		}}
+		})}
 		return decision, true
 	}
 	if envelope == nil || !envelope.Active || !envelope.Prompt.Active {
@@ -383,6 +384,11 @@ func (s *ManagedWakeService) dispatchWakePrompt(
 	if req.DryRun {
 		return dryRunDecision(decision), nil
 	}
+	decision, err := s.recordDecision(ctx, req, decision, state, now)
+	if err != nil {
+		return WakeDecision{}, err
+	}
+	reservedPromptID := decision.SyntheticPromptID
 	promptResult, promptErr := s.prompter.PromptHeartbeatWake(ctx, SyntheticWakePromptRequest{
 		SessionID:            req.SessionID,
 		Message:              heartbeatWakePrompt(envelope),
@@ -402,17 +408,18 @@ func (s *ManagedWakeService) dispatchWakePrompt(
 			reason = WakeReasonSessionPromptRace
 		}
 		decision = s.newDecision(result, reason, snapshot.ID, snapshot.Digest, snapshot.ConfigDigest)
-		decision.Diagnostics = []Diagnostic{{
+		decision.Diagnostics = []Diagnostic{sanitizeWakeDiagnostic(Diagnostic{
 			Code:     string(reason),
 			Severity: diagnosticWarning,
 			Message:  promptErr.Error(),
-		}}
-		return s.recordDecision(ctx, req, decision, state, now)
+		})}
+		decision.SyntheticPromptID = reservedPromptID
+		return s.appendDecisionEvent(ctx, req, decision, now)
 	}
 	if promptID := strings.TrimSpace(promptResult.SyntheticPromptID); promptID != "" {
 		decision.SyntheticPromptID = promptID
 	}
-	return s.recordDecision(ctx, req, decision, state, now)
+	return decision, nil
 }
 
 func (s *ManagedWakeService) loadWakePolicy(
@@ -441,11 +448,11 @@ func (s *ManagedWakeService) loadWakePolicy(
 			snapshot.Digest,
 			snapshot.ConfigDigest,
 		)
-		decision.Diagnostics = []Diagnostic{{
+		decision.Diagnostics = []Diagnostic{sanitizeWakeDiagnostic(Diagnostic{
 			Code:     "heartbeat_snapshot_invalid",
 			Severity: diagnosticError,
 			Message:  err.Error(),
-		}}
+		})}
 		return snapshot, SnapshotEnvelope{}, decision, false, nil
 	}
 	if !envelope.Valid {
@@ -457,6 +464,10 @@ func (s *ManagedWakeService) loadWakePolicy(
 			snapshot.ConfigDigest,
 		)
 		decision.Diagnostics = cloneDiagnostics(envelope.Diagnostics)
+		return snapshot, envelope, decision, false, nil
+	}
+	if !envelope.Present {
+		decision := s.newDecision(WakeResultSkipped, WakeReasonHeartbeatNoPolicy, "", "", "")
 		return snapshot, envelope, decision, false, nil
 	}
 	return snapshot, envelope, WakeDecision{}, true, nil
@@ -526,7 +537,35 @@ func (s *ManagedWakeService) recordDecision(
 	if decision.Result == WakeResultSent && strings.TrimSpace(decision.SyntheticPromptID) == "" {
 		decision.SyntheticPromptID = s.newID("turn")
 	}
-	event := WakeEvent{
+	event := wakeEventFromDecision(req, decision, now, s.config.WakeEventRetention)
+	state := nextWakeState(req, decision, previous, now, s.config.WakeCooldown)
+	if _, _, err := s.store.RecordHeartbeatWakeDecision(ctx, event, state); err != nil {
+		return WakeDecision{}, fmt.Errorf("heartbeat: record wake decision %q: %w", event.ID, err)
+	}
+	return decision, nil
+}
+
+func (s *ManagedWakeService) appendDecisionEvent(
+	ctx context.Context,
+	req WakeRequest,
+	decision WakeDecision,
+	now time.Time,
+) (WakeDecision, error) {
+	if strings.TrimSpace(decision.WakeEventID) == "" {
+		decision.WakeEventID = s.newID("hwe")
+	}
+	if decision.Result == WakeResultSent && strings.TrimSpace(decision.SyntheticPromptID) == "" {
+		decision.SyntheticPromptID = s.newID("turn")
+	}
+	event := wakeEventFromDecision(req, decision, now, s.config.WakeEventRetention)
+	if _, err := s.store.AppendHeartbeatWakeEvent(ctx, event); err != nil {
+		return WakeDecision{}, fmt.Errorf("heartbeat: append wake event %q: %w", event.ID, err)
+	}
+	return decision, nil
+}
+
+func wakeEventFromDecision(req WakeRequest, decision WakeDecision, now time.Time, retention time.Duration) WakeEvent {
+	return WakeEvent{
 		ID:                decision.WakeEventID,
 		WorkspaceID:       req.WorkspaceID,
 		AgentName:         req.AgentName,
@@ -537,16 +576,8 @@ func (s *ManagedWakeService) recordDecision(
 		Reason:            decision.Reason,
 		SyntheticPromptID: decision.SyntheticPromptID,
 		CreatedAt:         now,
-		ExpiresAt:         now.Add(s.config.WakeEventRetention),
+		ExpiresAt:         now.Add(retention),
 	}
-	if _, err := s.store.AppendHeartbeatWakeEvent(ctx, event); err != nil {
-		return WakeDecision{}, fmt.Errorf("heartbeat: append wake event %q: %w", event.ID, err)
-	}
-	state := nextWakeState(req, decision, previous, now, s.config.WakeCooldown)
-	if _, err := s.store.UpsertHeartbeatWakeState(ctx, state); err != nil {
-		return WakeDecision{}, fmt.Errorf("heartbeat: upsert wake state for %q: %w", req.SessionID, err)
-	}
-	return decision, nil
 }
 
 func dryRunDecision(decision WakeDecision) WakeDecision {
@@ -601,6 +632,14 @@ func (s *ManagedWakeService) newDecision(
 		decision.SyntheticPromptID = s.newID("turn")
 	}
 	return decision
+}
+
+func sanitizeWakeDiagnostic(diag Diagnostic) Diagnostic {
+	sanitized := sanitizeDiagnostics([]Diagnostic{diag})
+	if len(sanitized) == 0 {
+		return Diagnostic{}
+	}
+	return sanitized[0]
 }
 
 func (s *ManagedWakeService) currentTime() time.Time {

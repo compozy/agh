@@ -23,18 +23,37 @@ func TestGlobalDBAutomationPersistenceSurvivesReopen(t *testing.T) {
 	}
 
 	workspaceID := registerWorkspaceForGlobalTests(t, first, "automation-reopen-workspace", t.TempDir())
-	job, err := first.CreateJob(ctx, automationJobForTest(automation.AutomationScopeWorkspace, "persisted-job", workspaceID, automation.JobSourceConfig))
+	job, err := first.CreateJob(
+		ctx,
+		automationJobForTest(
+			automation.AutomationScopeWorkspace,
+			"persisted-job",
+			workspaceID,
+			automation.JobSourceConfig,
+		),
+	)
 	if err != nil {
 		t.Fatalf("CreateJob() error = %v", err)
 	}
-	trigger, err := first.CreateTrigger(ctx, automationWebhookTriggerForTest(automation.AutomationScopeWorkspace, "persisted-trigger", workspaceID, automation.JobSourceConfig))
+	trigger, err := first.CreateTrigger(
+		ctx,
+		automationWebhookTriggerForTest(
+			automation.AutomationScopeWorkspace,
+			"persisted-trigger",
+			workspaceID,
+			automation.JobSourceConfig,
+		),
+	)
 	if err != nil {
 		t.Fatalf("CreateTrigger() error = %v", err)
 	}
 	if _, err := first.SetJobEnabledOverlay(ctx, JobEnabledOverlay{JobID: job.ID, EnabledOverride: false}); err != nil {
 		t.Fatalf("SetJobEnabledOverlay() error = %v", err)
 	}
-	if _, err := first.SetTriggerEnabledOverlay(ctx, TriggerEnabledOverlay{TriggerID: trigger.ID, EnabledOverride: false}); err != nil {
+	if _, err := first.SetTriggerEnabledOverlay(
+		ctx,
+		TriggerEnabledOverlay{TriggerID: trigger.ID, EnabledOverride: false},
+	); err != nil {
 		t.Fatalf("SetTriggerEnabledOverlay() error = %v", err)
 	}
 
@@ -110,7 +129,15 @@ func TestGlobalDBRunWindowQueriesSurviveReopen(t *testing.T) {
 	}
 
 	workspaceID := registerWorkspaceForGlobalTests(t, first, "automation-window-workspace", t.TempDir())
-	job, err := first.CreateJob(ctx, automationJobForTest(automation.AutomationScopeWorkspace, "window-job", workspaceID, automation.JobSourceDynamic))
+	job, err := first.CreateJob(
+		ctx,
+		automationJobForTest(
+			automation.AutomationScopeWorkspace,
+			"window-job",
+			workspaceID,
+			automation.JobSourceDynamic,
+		),
+	)
 	if err != nil {
 		t.Fatalf("CreateJob() error = %v", err)
 	}
@@ -121,7 +148,10 @@ func TestGlobalDBRunWindowQueriesSurviveReopen(t *testing.T) {
 		base.Add(-10 * time.Minute),
 		base.Add(-5 * time.Minute),
 	} {
-		if _, err := first.CreateRun(ctx, automationRunForJob(job.ID, automation.RunCompleted, 1, startedAt)); err != nil {
+		if _, err := first.CreateRun(
+			ctx,
+			automationRunForJob(job.ID, automation.RunCompleted, 1, startedAt),
+		); err != nil {
 			t.Fatalf("CreateRun(%v) error = %v", startedAt, err)
 		}
 	}

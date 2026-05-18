@@ -110,10 +110,7 @@ func (m *Manager) Check(ctx context.Context, opts CheckOptions) (State, *Release
 		checkedAt *time.Time
 	)
 	if cached, err := readCache(m.cachePath()); err == nil {
-		latest = &Release{
-			Version:    strings.TrimSpace(cached.LatestVersion),
-			ReleaseURL: strings.TrimSpace(cached.ReleaseURL),
-		}
+		latest = cached.release()
 		checked := cached.CheckedAt.UTC()
 		checkedAt = &checked
 	} else if err != nil && !errors.Is(err, ErrNoCachedRelease) {
@@ -141,11 +138,11 @@ func (m *Manager) Check(ctx context.Context, opts CheckOptions) (State, *Release
 		latest = freshRelease
 		checked := m.now().UTC()
 		checkedAt = &checked
-		if err := writeCache(m.cachePath(), cacheEntry{
-			LatestVersion: latest.Version,
-			ReleaseURL:    latest.ReleaseURL,
-			CheckedAt:     checked,
-		}); err != nil {
+		entry, err := cacheEntryFromRelease(latest, checked)
+		if err != nil {
+			return State{}, nil, err
+		}
+		if err := writeCache(m.cachePath(), entry); err != nil {
 			return State{}, nil, err
 		}
 	}
@@ -192,9 +189,7 @@ func (m *Manager) ApplyRelease(ctx context.Context, release *Release) (AppliedBi
 	if err != nil {
 		return AppliedBinary{}, err
 	}
-	if binaryMode == 0 {
-		binaryMode = currentInfo.Mode().Perm()
-	}
+	binaryMode = executableBinaryMode(binaryMode, currentInfo.Mode().Perm())
 
 	backupPath := siblingBackupPath(m.executablePath, m.now().UTC())
 	if err := m.binaryApplier.ApplyBinary(binaryPath, m.executablePath, backupPath, binaryMode); err != nil {
@@ -269,13 +264,28 @@ func (m *Manager) downloadReleaseArtifacts(
 		bundlePath:    filepath.Join(tmpDir, assets.bundle.Name),
 	}
 
-	if err := m.downloadFile(ctx, assets.archive.DownloadURL, downloaded.archivePath); err != nil {
+	if err := m.downloadFile(
+		ctx,
+		assets.archive.DownloadURL,
+		downloaded.archivePath,
+		maxArchiveDownloadBytes,
+	); err != nil {
 		return downloadedReleaseArtifacts{}, err
 	}
-	if err := m.downloadFile(ctx, assets.checksums.DownloadURL, downloaded.checksumsPath); err != nil {
+	if err := m.downloadFile(
+		ctx,
+		assets.checksums.DownloadURL,
+		downloaded.checksumsPath,
+		maxChecksumsBytes,
+	); err != nil {
 		return downloadedReleaseArtifacts{}, err
 	}
-	if err := m.downloadFile(ctx, assets.bundle.DownloadURL, downloaded.bundlePath); err != nil {
+	if err := m.downloadFile(
+		ctx,
+		assets.bundle.DownloadURL,
+		downloaded.bundlePath,
+		maxSigstoreBundleBytes,
+	); err != nil {
 		return downloadedReleaseArtifacts{}, err
 	}
 
@@ -303,11 +313,15 @@ func (m *Manager) Restore(applied AppliedBinary) error {
 	if strings.TrimSpace(applied.BackupPath) == "" || strings.TrimSpace(applied.TargetPath) == "" {
 		return errors.New("update: applied binary rollback paths are required")
 	}
-	currentInfo, err := os.Stat(applied.TargetPath)
+	backupInfo, err := os.Stat(applied.BackupPath)
 	if err != nil {
-		return fmt.Errorf("update: stat updated executable %q: %w", applied.TargetPath, err)
+		return fmt.Errorf("update: stat backup executable %q: %w", applied.BackupPath, err)
 	}
-	return m.binaryApplier.RestoreBinary(applied.BackupPath, applied.TargetPath, currentInfo.Mode().Perm())
+	return m.binaryApplier.RestoreBinary(
+		applied.BackupPath,
+		applied.TargetPath,
+		executableBinaryMode(backupInfo.Mode().Perm(), 0),
+	)
 }
 
 // Finalize removes the preserved sibling backup after the full update flow succeeds.
@@ -552,6 +566,24 @@ func extractBinaryFromTarGz(archivePath string, tempDir string, binaryName strin
 
 func isRegularArchiveFile(header *tar.Header) bool {
 	return header != nil && (header.Typeflag == 0 || header.Typeflag == tar.TypeReg)
+}
+
+func executableBinaryMode(candidate os.FileMode, fallback os.FileMode) os.FileMode {
+	mode := candidate.Perm()
+	if mode != 0 && mode&0o111 != 0 {
+		return mode
+	}
+	fallbackMode := fallback.Perm()
+	if fallbackMode != 0 {
+		if fallbackMode&0o111 != 0 {
+			return fallbackMode
+		}
+		return fallbackMode | 0o111
+	}
+	if mode != 0 {
+		return mode | 0o111
+	}
+	return 0o755
 }
 
 func copyArchiveEntry(target *os.File, reader io.Reader, size int64) error {

@@ -15,6 +15,7 @@ import (
 	"unicode"
 
 	"github.com/goccy/go-yaml"
+	"github.com/pedronauck/agh/internal/frontmatter"
 	memcontract "github.com/pedronauck/agh/internal/memory/contract"
 	"github.com/pedronauck/agh/internal/memory/prompts"
 	"github.com/pedronauck/agh/internal/memory/scan"
@@ -35,7 +36,10 @@ const (
 	maxDecisionReasonBytes     = 240
 )
 
-var filenameUnsafePattern = regexp.MustCompile(`[^a-z0-9]+`)
+var (
+	filenameUnsafePattern = regexp.MustCompile(`[^a-z0-9]+`)
+	errRawContentMetadata = errors.New("memory controller: raw_content metadata is not allowed")
+)
 
 // Target is one existing curated memory entry visible to the controller.
 type Target struct {
@@ -418,9 +422,14 @@ func normalizeCandidate(candidate memcontract.Candidate, now time.Time) (memcont
 	candidate.Content = strings.TrimSpace(candidate.Content)
 	candidate.Entity = normalizeSlot(candidate.Entity)
 	candidate.Attribute = normalizeSlot(candidate.Attribute)
-	if candidate.Metadata == nil {
-		candidate.Metadata = map[string]string{}
+	metadata := make(map[string]string, len(candidate.Metadata))
+	for key, value := range candidate.Metadata {
+		if key == metadataRawContentKey {
+			return memcontract.Candidate{}, errRawContentMetadata
+		}
+		metadata[key] = value
 	}
+	candidate.Metadata = metadata
 	if candidate.SubmittedAt.IsZero() {
 		candidate.SubmittedAt = now.UTC()
 	}
@@ -477,6 +486,9 @@ func CandidateHash(candidate memcontract.Candidate) string {
 		"attribute":    normalizeSlot(candidate.Attribute),
 		"metadata":     sortedMetadata(candidate.Metadata),
 	}
+	if strings.TrimSpace(candidate.TrustedRawContent) != "" {
+		payload["trusted_raw_hash"] = hashString(candidate.TrustedRawContent)
+	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {
 		return hashString(fmt.Sprintf("%#v", payload))
@@ -508,13 +520,11 @@ func IdempotencyKey(decision memcontract.Decision) string {
 }
 
 func postContentForCandidate(candidate memcontract.Candidate) (string, error) {
-	if candidate.Metadata != nil {
-		if raw, ok := candidate.Metadata[metadataRawContentKey]; ok && raw != "" {
-			return raw, nil
+	if strings.TrimSpace(candidate.TrustedRawContent) != "" {
+		if err := validateTrustedRawContent(candidate); err != nil {
+			return "", err
 		}
-	}
-	if raw := metadataValue(candidate.Metadata, metadataRawContentKey); raw != "" {
-		return raw, nil
+		return candidate.TrustedRawContent, nil
 	}
 	metadata, err := yaml.Marshal(candidate.Frontmatter)
 	if err != nil {
@@ -523,14 +533,66 @@ func postContentForCandidate(candidate memcontract.Candidate) (string, error) {
 	return "---\n" + string(metadata) + "---\n\n" + strings.TrimSpace(candidate.Content) + "\n", nil
 }
 
+func validateTrustedRawContent(candidate memcontract.Candidate) error {
+	var rawHeader memcontract.Header
+	body, err := frontmatter.Decode([]byte(candidate.TrustedRawContent), func(data []byte) error {
+		if err := yaml.UnmarshalWithOptions(data, &rawHeader, yaml.Strict()); err != nil {
+			return fmt.Errorf("decode YAML: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("memory controller: parse trusted raw content: %w", err)
+	}
+	if canonicalBody(body) != canonicalBody(candidate.Content) {
+		return errors.New("memory controller: trusted raw content body differs from candidate content")
+	}
+	if !equivalentTrustedRawHeader(rawHeader, candidate.Frontmatter) {
+		return errors.New("memory controller: trusted raw content frontmatter differs from candidate frontmatter")
+	}
+	return nil
+}
+
+func equivalentTrustedRawHeader(rawHeader memcontract.Header, expected memcontract.Header) bool {
+	rawHeader.Normalize()
+	expected.Normalize()
+	rawHeader.Filename = expected.Filename
+	rawHeader.FilePath = expected.FilePath
+	rawHeader.ModTime = expected.ModTime
+	if rawHeader.Scope == "" {
+		rawHeader.Scope = expected.Scope
+	}
+	if rawHeader.AgentName == "" {
+		rawHeader.AgentName = expected.AgentName
+	}
+	if rawHeader.AgentTier == "" {
+		rawHeader.AgentTier = expected.AgentTier
+	}
+	return rawHeader.Name == expected.Name &&
+		rawHeader.Description == expected.Description &&
+		rawHeader.Type.Normalize() == expected.Type.Normalize() &&
+		rawHeader.Scope.Normalize() == expected.Scope.Normalize() &&
+		strings.TrimSpace(rawHeader.AgentName) == strings.TrimSpace(expected.AgentName) &&
+		rawHeader.AgentTier.Normalize() == expected.AgentTier.Normalize() &&
+		equivalentProvenance(rawHeader.Provenance, expected.Provenance)
+}
+
+func equivalentProvenance(left *memcontract.Provenance, right *memcontract.Provenance) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return slices.Equal(left.SourceSessionIDs, right.SourceSessionIDs) &&
+		left.SourceActor.Normalize() == right.SourceActor.Normalize() &&
+		strings.TrimSpace(left.Confidence) == strings.TrimSpace(right.Confidence) &&
+		strings.TrimSpace(left.SupersededBy) == strings.TrimSpace(right.SupersededBy) &&
+		left.CreatedAt.Equal(right.CreatedAt) &&
+		left.UpdatedAt.Equal(right.UpdatedAt)
+}
+
 func exactContentTarget(candidate memcontract.Candidate, targets []Target) *Target {
 	candidateBody := canonicalBody(candidate.Content)
 	for idx := range targets {
 		if canonicalBody(targets[idx].Content) == candidateBody {
-			return &targets[idx]
-		}
-		if raw := metadataValue(candidate.Metadata, metadataRawContentKey); raw != "" &&
-			targets[idx].ContentHash == hashString(raw) {
 			return &targets[idx]
 		}
 	}
@@ -761,10 +823,14 @@ func normalizeSlot(value string) string {
 }
 
 func slugify(value string) string {
-	normalized := filenameUnsafePattern.ReplaceAllString(strings.ToLower(strings.TrimSpace(value)), "_")
+	trimmed := strings.TrimSpace(value)
+	normalized := filenameUnsafePattern.ReplaceAllString(strings.ToLower(trimmed), "_")
 	normalized = strings.Trim(normalized, "_")
 	if normalized == "" {
-		return "memory"
+		if strings.EqualFold(trimmed, "memory") {
+			return "memory"
+		}
+		return "memory_" + hashString(trimmed)[:12]
 	}
 	return normalized
 }

@@ -156,12 +156,12 @@ func (h *BaseHandlers) GetAgentSoul(c *gin.Context) {
 
 // ValidateAgentSoulDefinition validates a proposed SOUL.md body for one workspace-visible agent.
 func (h *BaseHandlers) ValidateAgentSoulDefinition(c *gin.Context) {
-	var req contract.AgentSoulValidateRequest
+	var req contract.AgentSoulValidateByPathRequest
 	if err := decodeAuthoredJSONBody(c, &req, false); err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	agentName, err := authoredRouteAgentName(pathAgentName(c), req.AgentName)
+	agentName, err := authoredRouteAgentName(pathAgentName(c))
 	if err != nil {
 		h.respondError(c, StatusForSoulError(err), err)
 		return
@@ -210,12 +210,12 @@ func (h *BaseHandlers) PutAgentSoul(c *gin.Context) {
 	if h.rejectSoulIfMatch(c) {
 		return
 	}
-	var req contract.AgentSoulPutRequest
+	var req contract.AgentSoulPutByPathRequest
 	if err := decodeAuthoredJSONBody(c, &req, false); err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	agentName, err := authoredRouteAgentName(pathAgentName(c), req.AgentName)
+	agentName, err := authoredRouteAgentName(pathAgentName(c))
 	if err != nil {
 		h.respondError(c, StatusForSoulError(err), err)
 		return
@@ -252,12 +252,12 @@ func (h *BaseHandlers) DeleteAgentSoul(c *gin.Context) {
 	if h.rejectSoulIfMatch(c) {
 		return
 	}
-	var req contract.AgentSoulDeleteRequest
+	var req contract.AgentSoulDeleteByPathRequest
 	if err := decodeAuthoredJSONBody(c, &req, false); err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	agentName, err := authoredRouteAgentName(pathAgentName(c), req.AgentName)
+	agentName, err := authoredRouteAgentName(pathAgentName(c))
 	if err != nil {
 		h.respondError(c, StatusForSoulError(err), err)
 		return
@@ -340,12 +340,12 @@ func (h *BaseHandlers) RollbackAgentSoul(c *gin.Context) {
 	if h.rejectSoulIfMatch(c) {
 		return
 	}
-	var req contract.AgentSoulRollbackRequest
+	var req contract.AgentSoulRollbackByPathRequest
 	if err := decodeAuthoredJSONBody(c, &req, false); err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	agentName, err := authoredRouteAgentName(pathAgentName(c), req.AgentName)
+	agentName, err := authoredRouteAgentName(pathAgentName(c))
 	if err != nil {
 		h.respondError(c, StatusForSoulError(err), err)
 		return
@@ -428,12 +428,12 @@ func (h *BaseHandlers) ValidateAgentHeartbeat(c *gin.Context) {
 		h.respondError(c, StatusForHeartbeatError(errHeartbeatAuthoringMissing), errHeartbeatAuthoringMissing)
 		return
 	}
-	var req contract.HeartbeatValidateRequest
+	var req contract.HeartbeatValidateByPathRequest
 	if err := decodeAuthoredJSONBody(c, &req, false); err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	agentName, err := authoredRouteAgentName(pathAgentName(c), req.AgentName)
+	agentName, err := authoredRouteAgentName(pathAgentName(c))
 	if err != nil {
 		h.respondError(c, StatusForHeartbeatError(err), err)
 		return
@@ -470,12 +470,12 @@ func (h *BaseHandlers) PutAgentHeartbeat(c *gin.Context) {
 		h.respondError(c, StatusForHeartbeatError(errHeartbeatAuthoringMissing), errHeartbeatAuthoringMissing)
 		return
 	}
-	var req contract.HeartbeatPutRequest
+	var req contract.HeartbeatPutByPathRequest
 	if err := decodeAuthoredJSONBody(c, &req, false); err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	agentName, err := authoredRouteAgentName(pathAgentName(c), req.AgentName)
+	agentName, err := authoredRouteAgentName(pathAgentName(c))
 	if err != nil {
 		h.respondError(c, StatusForHeartbeatError(err), err)
 		return
@@ -511,12 +511,12 @@ func (h *BaseHandlers) DeleteAgentHeartbeat(c *gin.Context) {
 		h.respondError(c, StatusForHeartbeatError(errHeartbeatAuthoringMissing), errHeartbeatAuthoringMissing)
 		return
 	}
-	var req contract.HeartbeatDeleteRequest
+	var req contract.HeartbeatDeleteByPathRequest
 	if err := decodeAuthoredJSONBody(c, &req, false); err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	agentName, err := authoredRouteAgentName(pathAgentName(c), req.AgentName)
+	agentName, err := authoredRouteAgentName(pathAgentName(c))
 	if err != nil {
 		h.respondError(c, StatusForHeartbeatError(err), err)
 		return
@@ -598,12 +598,12 @@ func (h *BaseHandlers) RollbackAgentHeartbeat(c *gin.Context) {
 		h.respondError(c, StatusForHeartbeatError(errHeartbeatAuthoringMissing), errHeartbeatAuthoringMissing)
 		return
 	}
-	var req contract.HeartbeatRollbackRequest
+	var req contract.HeartbeatRollbackByPathRequest
 	if err := decodeAuthoredJSONBody(c, &req, false); err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	agentName, err := authoredRouteAgentName(pathAgentName(c), req.AgentName)
+	agentName, err := authoredRouteAgentName(pathAgentName(c))
 	if err != nil {
 		h.respondError(c, StatusForHeartbeatError(err), err)
 		return
@@ -698,12 +698,12 @@ func (h *BaseHandlers) WakeAgentHeartbeat(c *gin.Context) {
 		h.respondError(c, StatusForHeartbeatError(errHeartbeatWakeMissing), errHeartbeatWakeMissing)
 		return
 	}
-	var req contract.HeartbeatWakeRequest
+	var req contract.HeartbeatWakeByPathRequest
 	if err := decodeAuthoredJSONBody(c, &req, false); err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	agentName, err := authoredRouteAgentName(pathAgentName(c), req.AgentName)
+	agentName, err := authoredRouteAgentName(pathAgentName(c))
 	if err != nil {
 		h.respondError(c, StatusForHeartbeatError(err), err)
 		return
@@ -1559,19 +1559,12 @@ func pathAgentName(c *gin.Context) string {
 	return firstNonEmpty(c.Param("name"), c.Param("agent_name"))
 }
 
-func authoredRouteAgentName(pathName string, bodyName string) (string, error) {
+func authoredRouteAgentName(pathName string) (string, error) {
 	path := strings.TrimSpace(pathName)
-	body := strings.TrimSpace(bodyName)
-	switch {
-	case path != "" && body != "" && path != body:
-		return "", newAuthoredValidationError("agent_name must match the route agent")
-	case path != "":
+	if path != "" {
 		return path, nil
-	case body != "":
-		return body, nil
-	default:
-		return "", newAuthoredValidationError("agent_name is required")
 	}
+	return "", newAuthoredValidationError("agent_name is required")
 }
 
 func authoredAgentPath(workspace *workspacepkg.ResolvedWorkspace, agentName string) string {

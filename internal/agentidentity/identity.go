@@ -116,6 +116,14 @@ func lookupSessionSnapshot(ctx context.Context, lookup SessionLookup, creds Cred
 				"retry after the daemon is reachable",
 			)
 		}
+		if !errors.Is(err, session.ErrSessionNotFound) {
+			return SessionSnapshot{}, identityError(
+				ErrIdentityLookupUnavailable,
+				"identity_lookup_unavailable",
+				"agent identity cannot be validated",
+				"retry after the daemon is reachable",
+			)
+		}
 		return SessionSnapshot{}, identityError(
 			ErrIdentityStale,
 			"identity_stale",
@@ -153,6 +161,15 @@ func lookupSessionSnapshot(ctx context.Context, lookup SessionLookup, creds Cred
 
 func validateWorkspace(snapshot SessionSnapshot, expectedWorkspaceID string, credentialsWorkspaceID string) error {
 	expectedWorkspaceID = strings.TrimSpace(expectedWorkspaceID)
+	credentialsWorkspaceID = strings.TrimSpace(credentialsWorkspaceID)
+	if expectedWorkspaceID != "" && credentialsWorkspaceID != "" && expectedWorkspaceID != credentialsWorkspaceID {
+		return identityError(
+			ErrIdentityUnauthorized,
+			"identity_unauthorized",
+			"agent session does not belong to the requested workspace",
+			"use the session workspace or start a session in the requested workspace",
+		)
+	}
 	if expectedWorkspaceID == "" {
 		expectedWorkspaceID = credentialsWorkspaceID
 	}

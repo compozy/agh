@@ -455,6 +455,7 @@ func (g *GlobalDB) normalizeConversationMessage(
 		Intent:      strings.TrimSpace(entry.Intent),
 		Text:        strings.TrimSpace(entry.Text),
 		PreviewText: strings.TrimSpace(entry.PreviewText),
+		ExtJSON:     append(json.RawMessage(nil), entry.ExtJSON...),
 		Body:        append(json.RawMessage(nil), entry.Body...),
 		Timestamp:   entry.Timestamp,
 	}
@@ -583,9 +584,10 @@ func insertNetworkTimelineMessageWithExecutor(
 			intent,
 			text,
 			preview_text,
+			ext_json,
 			body_json,
 			timestamp
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(workspace_id, message_id) DO NOTHING`,
 		entry.MessageID,
 		store.NullableString(entry.SessionID),
@@ -605,6 +607,7 @@ func insertNetworkTimelineMessageWithExecutor(
 		store.NullableString(entry.Intent),
 		store.NullableString(entry.Text),
 		entry.PreviewText,
+		networkMessageExtJSONString(entry.ExtJSON),
 		string(entry.Body),
 		store.FormatTimestamp(entry.Timestamp),
 	)
@@ -1293,6 +1296,7 @@ func networkConversationMessageSelect() string {
 		intent,
 		text,
 		preview_text,
+		ext_json,
 		body_json,
 		timestamp
 	FROM network_timeline_log`

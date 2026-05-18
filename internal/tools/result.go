@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"bytes"
 	"encoding/json"
 	"strings"
 )
@@ -44,6 +45,9 @@ type ToolResult struct {
 
 // Validate checks the public result envelope and metadata safety.
 func (r ToolResult) Validate(maxBytes int64) error {
+	if err := validateRawJSON("structured", r.Structured); err != nil {
+		return err
+	}
 	if r.Bytes < 0 {
 		return NewValidationError("bytes", ReasonResultBudgetExceeded, "bytes must be greater than or equal to zero")
 	}
@@ -67,6 +71,9 @@ func (r ToolResult) Validate(maxBytes int64) error {
 				ReasonSchemaInvalid,
 				"content type is required",
 			)
+		}
+		if err := validateRawJSON(indexedField("content", i)+".data", content.Data); err != nil {
+			return err
 		}
 		if err := validateMetadataKeys(indexedField("content", i)+".metadata", content.Metadata); err != nil {
 			return err
@@ -97,10 +104,24 @@ func (r ToolResult) Validate(maxBytes int64) error {
 }
 
 func validateMetadataKeys(field string, metadata map[string]json.RawMessage) error {
-	for key := range metadata {
+	for key, value := range metadata {
+		path := field + "." + key
 		if sensitiveMetadataKey(key) {
-			return NewValidationError(field+"."+key, ReasonSecretMetadata, "metadata key may expose backend secrets")
+			return NewValidationError(path, ReasonSecretMetadata, "metadata key may expose backend secrets")
 		}
+		if err := validateRawJSON(path, value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateRawJSON(field string, raw json.RawMessage) error {
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return nil
+	}
+	if !json.Valid(raw) {
+		return NewValidationError(field, ReasonSchemaInvalid, "value must be valid JSON")
 	}
 	return nil
 }

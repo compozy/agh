@@ -46,7 +46,7 @@ func (mr *MCPResolver) Resolve(skills []*Skill) []aghconfig.MCPServer {
 	origins := make([]mcpOrigin, 0)
 
 	for _, skill := range ordered {
-		if skill == nil || len(skill.MCPServers) == 0 {
+		if skill == nil || !skill.Enabled || len(skill.MCPServers) == 0 {
 			continue
 		}
 		for _, server := range skill.MCPServers {

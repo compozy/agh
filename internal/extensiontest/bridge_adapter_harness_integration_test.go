@@ -65,7 +65,8 @@ func TestHarnessIntegrationTelegramReferenceConformance(t *testing.T) {
 			return len(records) > 0 && records[len(records)-1].Result.SessionID != ""
 		})
 		harness.WaitForDeliveries(t, 10*time.Second, func(records []DeliveryRecord) bool {
-			return len(records) > 0 && normalizeEventType(records[len(records)-1].Request.Event.EventType) == bridgepkg.DeliveryEventTypeFinal
+			return len(records) > 0 &&
+				normalizeEventType(records[len(records)-1].Request.Event.EventType) == bridgepkg.DeliveryEventTypeFinal
 		})
 
 		report := harness.Report(t)
@@ -204,14 +205,18 @@ func TestHarnessIntegrationTelegramReferenceConformance(t *testing.T) {
 			ExtensionDir: filepath.Join(repoRoot, "sdk", "examples", "telegram-reference"),
 			ManagedInstances: []ManagedInstanceConfig{
 				{
-					ID:           "brg-telegram-reference-a",
-					DisplayName:  "Telegram Reference A",
-					BoundSecrets: []subprocess.InitializeBridgeBoundSecret{{BindingName: "bot_token", Kind: "token", Value: "token-a"}},
+					ID:          "brg-telegram-reference-a",
+					DisplayName: "Telegram Reference A",
+					BoundSecrets: []subprocess.InitializeBridgeBoundSecret{
+						{BindingName: "bot_token", Kind: "token", Value: "token-a"},
+					},
 				},
 				{
-					ID:           "brg-telegram-reference-b",
-					DisplayName:  "Telegram Reference B",
-					BoundSecrets: []subprocess.InitializeBridgeBoundSecret{{BindingName: "bot_token", Kind: "token", Value: "token-b"}},
+					ID:          "brg-telegram-reference-b",
+					DisplayName: "Telegram Reference B",
+					BoundSecrets: []subprocess.InitializeBridgeBoundSecret{
+						{BindingName: "bot_token", Kind: "token", Value: "token-b"},
+					},
 				},
 			},
 			Driver: NewScriptedPromptDriver(startTime, []ScriptedPromptEvent{

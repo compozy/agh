@@ -61,7 +61,14 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 
 		initialToolCatalog := newResourceCatalog(cloneToolSpec)
 		initialMCPServerCatalog := newResourceCatalog(cloneDaemonMCPServer)
-		driver := newToolMCPIntegrationDriver(t, kernel, toolCodec, mcpCodec, initialToolCatalog, initialMCPServerCatalog)
+		driver := newToolMCPIntegrationDriver(
+			t,
+			kernel,
+			toolCodec,
+			mcpCodec,
+			initialToolCatalog,
+			initialMCPServerCatalog,
+		)
 
 		runtime := &toolMCPIntegrationRuntime{
 			extension: &extensionpkg.Extension{
@@ -121,7 +128,11 @@ func TestToolMCPStaticPublicationAndBootRebuild(t *testing.T) {
 			t.Fatalf("tools[0].Spec.Source.Kind = %q, want %q", got, want)
 		}
 
-		servers, err := mcpStore.List(testutil.Context(t), toolMCPSyncActor(), resources.ResourceFilter{Source: &source})
+		servers, err := mcpStore.List(
+			testutil.Context(t),
+			toolMCPSyncActor(),
+			resources.ResourceFilter{Source: &source},
+		)
 		if err != nil {
 			t.Fatalf("mcpStore.List() error = %v", err)
 		}

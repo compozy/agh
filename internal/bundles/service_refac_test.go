@@ -161,6 +161,84 @@ func TestServiceRefacs(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preview path-like workspace refs without registration", func(t *testing.T) {
+		t.Parallel()
+
+		workspacePath := t.TempDir()
+		service := newMarketingService(
+			newMemoryStore(),
+			WithLogger(discardBundleTestLogger()),
+			WithWorkspaceResolver(memoryWorkspaceResolver{
+				resolveFn: func(_ context.Context, idOrPath string) (workspacepkg.ResolvedWorkspace, error) {
+					if idOrPath != workspacePath && idOrPath != "ws-preview" {
+						t.Fatalf("Resolve() idOrPath = %q, want %q or ws-preview", idOrPath, workspacePath)
+					}
+					return workspacepkg.ResolvedWorkspace{
+						Workspace: workspacepkg.Workspace{
+							ID:      "ws-preview",
+							Name:    "Preview Workspace",
+							RootDir: workspacePath,
+						},
+					}, nil
+				},
+				resolveOrRegisterFn: func(_ context.Context, path string) (workspacepkg.ResolvedWorkspace, error) {
+					t.Fatalf("ResolveOrRegister() path = %q, want preview to stay read-only", path)
+					return workspacepkg.ResolvedWorkspace{}, nil
+				},
+			}),
+		)
+
+		preview, err := service.PreviewActivation(testutil.Context(t), ActivateRequest{
+			ExtensionName: "marketing-team",
+			BundleName:    "marketing",
+			ProfileName:   "default",
+			Scope:         ScopeWorkspace,
+			Workspace:     workspacePath,
+		})
+		if err != nil {
+			t.Fatalf("PreviewActivation() error = %v", err)
+		}
+		if got, want := preview.Activation.WorkspaceID, "ws-preview"; got != want {
+			t.Fatalf("preview workspace id = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should keep network settings unchanged when reconcile sync fails", func(t *testing.T) {
+		t.Parallel()
+
+		store := newMemoryStore()
+		service := newMarketingService(store, WithLogger(discardBundleTestLogger()))
+		activationID := ActivationResourceID("marketing-team", "marketing", "default", ScopeGlobal, "")
+		store.activations[activationID] = Activation{
+			ID:                          activationID,
+			ExtensionName:               "marketing-team",
+			BundleName:                  "marketing",
+			ProfileName:                 "default",
+			Scope:                       ScopeGlobal,
+			BindPrimaryChannelAsDefault: true,
+		}
+		syncErr := errors.New("sync failed")
+		store.applyErr = syncErr
+
+		err := service.Reconcile(testutil.Context(t))
+		if !errors.Is(err, syncErr) {
+			t.Fatalf("Reconcile() error = %v, want sync failure", err)
+		}
+		settings, err := service.NetworkSettings(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("NetworkSettings() error = %v", err)
+		}
+		if got, want := settings.EffectiveDefaultChannel, "default"; got != want {
+			t.Fatalf("EffectiveDefaultChannel after failed reconcile = %q, want %q", got, want)
+		}
+		if got, want := settings.EffectiveDefaultSource, "config"; got != want {
+			t.Fatalf("EffectiveDefaultSource after failed reconcile = %q, want %q", got, want)
+		}
+		if got := len(settings.DeclaredChannels); got != 0 {
+			t.Fatalf("len(DeclaredChannels) after failed reconcile = %d, want 0", got)
+		}
+	})
+
 	t.Run("Should materialize canonical scopes from validated activations", func(t *testing.T) {
 		t.Parallel()
 

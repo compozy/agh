@@ -120,6 +120,21 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 	},
 }
 
+var allowedMatcherFieldsByEvent = map[HookEvent]map[string]struct{}{
+	HookAgentSoulSnapshotResolved: {
+		"agent_name":   {},
+		"workspace_id": {},
+	},
+	HookAgentSoulMutationAfter: {
+		"agent_name":   {},
+		"workspace_id": {},
+	},
+	HookAgentHeartbeatPolicyResolved: {
+		"agent_name":   {},
+		"workspace_id": {},
+	},
+}
+
 // ValidateMatcherForEvent ensures only the matcher fields defined for the event
 // family are present.
 func ValidateMatcherForEvent(event HookEvent, matcher HookMatcher) error {
@@ -132,7 +147,7 @@ func ValidateMatcherForEvent(event HookEvent, matcher HookMatcher) error {
 		return nil
 	}
 
-	allowed := allowedMatcherFieldsByFamily[event.Family()]
+	allowed := allowedMatcherFieldsForEvent(event)
 	invalid := make([]string, 0, len(fields))
 	for _, field := range fields {
 		if _, ok := allowed[field]; ok {
@@ -153,9 +168,16 @@ func MatcherFieldAllowedForEvent(event HookEvent, field string) bool {
 	if err := event.Validate(); err != nil {
 		return false
 	}
-	allowed := allowedMatcherFieldsByFamily[event.Family()]
+	allowed := allowedMatcherFieldsForEvent(event)
 	_, ok := allowed[strings.TrimSpace(field)]
 	return ok
+}
+
+func allowedMatcherFieldsForEvent(event HookEvent) map[string]struct{} {
+	if allowed, ok := allowedMatcherFieldsByEvent[event]; ok {
+		return allowed
+	}
+	return allowedMatcherFieldsByFamily[event.Family()]
 }
 
 // MatchesSession matches session-family hooks.

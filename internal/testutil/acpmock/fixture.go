@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -178,7 +179,8 @@ func ParseFixture(data []byte) (Fixture, error) {
 	if err := decoder.Decode(&fixture); err != nil {
 		return Fixture{}, err
 	}
-	if decoder.More() {
+	var extra json.RawMessage
+	if err := decoder.Decode(&extra); err == nil || !errors.Is(err, io.EOF) {
 		return Fixture{}, errors.New("acpmock: fixture JSON must contain exactly one document")
 	}
 	if err := fixture.Validate(); err != nil {

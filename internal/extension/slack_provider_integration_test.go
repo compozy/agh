@@ -146,8 +146,20 @@ func TestSlackProviderIngressInteractionsAndDeliveryConformance(t *testing.T) {
 
 	webhookURL := fmt.Sprintf("http://%s/slack/%s", listenAddr, harness.Instances[0].ID)
 	postSlackProviderJSONWebhook(t, webhookURL, "top-secret", startTime, slackProviderMessageWebhook(startTime))
-	postSlackProviderFormWebhook(t, webhookURL, "top-secret", startTime, "token=t&team_id=T1&channel_id=C123&channel_name=general&user_id=U123&user_name=alice&command=%2Fagh&text=summarize&trigger_id=1337.42")
-	postSlackProviderFormWebhook(t, webhookURL, "top-secret", startTime, "payload="+urlQueryEscape(slackProviderBlockActionsPayload()))
+	postSlackProviderFormWebhook(
+		t,
+		webhookURL,
+		"top-secret",
+		startTime,
+		"token=t&team_id=T1&channel_id=C123&channel_name=general&user_id=U123&user_name=alice&command=%2Fagh&text=summarize&trigger_id=1337.42",
+	)
+	postSlackProviderFormWebhook(
+		t,
+		webhookURL,
+		"top-secret",
+		startTime,
+		"payload="+urlQueryEscape(slackProviderBlockActionsPayload()),
+	)
 	postSlackProviderJSONWebhook(t, webhookURL, "top-secret", startTime, slackProviderReactionWebhook())
 
 	ingests := harness.WaitForIngests(t, 10*time.Second, func(records []extensiontest.IngestRecord) bool {
@@ -162,7 +174,10 @@ func TestSlackProviderIngressInteractionsAndDeliveryConformance(t *testing.T) {
 		return true
 	})
 	deliveries := harness.WaitForDeliveries(t, 10*time.Second, func(records []extensiontest.DeliveryRecord) bool {
-		return len(records) > 0 && normalizeDeliveryEventType(records[len(records)-1].Request.Event.EventType) == bridgepkg.DeliveryEventTypeFinal
+		return len(records) > 0 &&
+			normalizeDeliveryEventType(
+				records[len(records)-1].Request.Event.EventType,
+			) == bridgepkg.DeliveryEventTypeFinal
 	})
 	report := harness.Report(t)
 
@@ -186,10 +201,14 @@ func TestSlackProviderIngressInteractionsAndDeliveryConformance(t *testing.T) {
 	if len(deliveries) < 2 {
 		t.Fatalf("len(deliveries) = %d, want at least 2", len(deliveries))
 	}
-	if got, want := normalizeDeliveryEventType(deliveries[0].Request.Event.EventType), bridgepkg.DeliveryEventTypeStart; got != want {
+	if got, want := normalizeDeliveryEventType(
+		deliveries[0].Request.Event.EventType,
+	), bridgepkg.DeliveryEventTypeStart; got != want {
 		t.Fatalf("first delivery event type = %q, want %q", got, want)
 	}
-	if got, want := normalizeDeliveryEventType(deliveries[len(deliveries)-1].Request.Event.EventType), bridgepkg.DeliveryEventTypeFinal; got != want {
+	if got, want := normalizeDeliveryEventType(
+		deliveries[len(deliveries)-1].Request.Event.EventType,
+	), bridgepkg.DeliveryEventTypeFinal; got != want {
 		t.Fatalf("last delivery event type = %q, want %q", got, want)
 	}
 
@@ -338,7 +357,14 @@ func postSlackProviderFormWebhook(t *testing.T, endpoint string, secret string, 
 	postSignedSlackProviderRequest(t, endpoint, secret, now, "application/x-www-form-urlencoded", []byte(body))
 }
 
-func postSignedSlackProviderRequest(t *testing.T, endpoint string, secret string, now time.Time, contentType string, body []byte) {
+func postSignedSlackProviderRequest(
+	t *testing.T,
+	endpoint string,
+	secret string,
+	now time.Time,
+	contentType string,
+	body []byte,
+) {
 	t.Helper()
 
 	signingTime := time.Now().UTC()
@@ -375,13 +401,22 @@ func postSignedSlackProviderRequest(t *testing.T, endpoint string, secret string
 			time.Sleep(20 * time.Millisecond)
 			continue
 		}
-		t.Fatalf("webhook status = %d, want %d; body=%q", resp.StatusCode, http.StatusOK, strings.TrimSpace(string(payload)))
+		t.Fatalf(
+			"webhook status = %d, want %d; body=%q",
+			resp.StatusCode,
+			http.StatusOK,
+			strings.TrimSpace(string(payload)),
+		)
 	}
 
 	t.Fatalf("webhook %s did not become ready before timeout", endpoint)
 }
 
-func findIngestByFamily(t *testing.T, records []extensiontest.IngestRecord, family bridgepkg.InboundEventFamily) extensiontest.IngestRecord {
+func findIngestByFamily(
+	t *testing.T,
+	records []extensiontest.IngestRecord,
+	family bridgepkg.InboundEventFamily,
+) extensiontest.IngestRecord {
 	t.Helper()
 
 	want := strings.TrimSpace(string(family))

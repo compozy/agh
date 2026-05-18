@@ -326,7 +326,7 @@ func (s *ManagedHeartbeatStatusService) sessionHealthForStatus(
 	req StatusRequest,
 ) (*SessionHealth, error) {
 	sessionID := strings.TrimSpace(req.SessionID)
-	if !req.IncludeSessionHealth && sessionID == "" {
+	if !req.IncludeSessionHealth {
 		return nil, nil
 	}
 	if sessionID == "" {

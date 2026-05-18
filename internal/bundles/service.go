@@ -201,7 +201,7 @@ func (s *Service) PreviewActivation(ctx context.Context, req ActivateRequest) (A
 		return ActivationPreview{}, err
 	}
 
-	resolved, err := s.resolveRequest(ctx, req)
+	resolved, err := s.resolveRequest(ctx, req, workspaceResolutionReadOnly)
 	if err != nil {
 		return ActivationPreview{}, err
 	}
@@ -221,7 +221,7 @@ func (s *Service) Activate(ctx context.Context, req ActivateRequest) (Activation
 	s.opMu.Lock()
 	defer s.opMu.Unlock()
 
-	resolved, err := s.resolveRequest(ctx, req)
+	resolved, err := s.resolveRequest(ctx, req, workspaceResolutionRegisterPaths)
 	if err != nil {
 		return ActivationPreview{}, err
 	}
@@ -482,7 +482,6 @@ func (s *Service) reconcileLocked(ctx context.Context) error {
 		return err
 	}
 
-	errs := make([]error, 0)
 	owners := ownedResourceMaps(state.inventoryByActivation)
 	if syncErr := s.store.ApplyBundleActivationResources(ctx, BundleActivationResourcePlan{
 		activeActivationIDs: cloneStringSet(state.activeActivationIDs),
@@ -499,10 +498,10 @@ func (s *Service) reconcileLocked(ctx context.Context) error {
 		triggerOwners:       owners.triggers,
 		bridgeOwners:        owners.bridges,
 	}); syncErr != nil {
-		errs = append(errs, syncErr)
+		return syncErr
 	}
 	s.applyNetworkSettings(state.effectiveDefault, state.effectiveSource, state.declaredChannels)
-	return errors.Join(errs...)
+	return nil
 }
 
 type resolvedActivation struct {
@@ -570,13 +569,24 @@ type ownedHeartbeatResource struct {
 	Spec  heartbeat.ResourceSpec
 }
 
-func (s *Service) resolveRequest(ctx context.Context, req ActivateRequest) (resolvedActivation, error) {
+type workspaceResolutionMode uint8
+
+const (
+	workspaceResolutionReadOnly workspaceResolutionMode = iota
+	workspaceResolutionRegisterPaths
+)
+
+func (s *Service) resolveRequest(
+	ctx context.Context,
+	req ActivateRequest,
+	mode workspaceResolutionMode,
+) (resolvedActivation, error) {
 	scope := req.Scope.Normalize()
 	if scope == "" {
 		scope = ScopeGlobal
 	}
 
-	workspaceID, err := s.resolveWorkspace(ctx, scope, req.Workspace)
+	workspaceID, err := s.resolveWorkspace(ctx, scope, req.Workspace, mode)
 	if err != nil {
 		return resolvedActivation{}, err
 	}
@@ -1256,7 +1266,12 @@ func (s *Service) materializeBridge(
 	return instance, nil
 }
 
-func (s *Service) resolveWorkspace(ctx context.Context, scope Scope, ref string) (string, error) {
+func (s *Service) resolveWorkspace(
+	ctx context.Context,
+	scope Scope,
+	ref string,
+	mode workspaceResolutionMode,
+) (string, error) {
 	if scope == ScopeGlobal {
 		return "", nil
 	}
@@ -1278,7 +1293,11 @@ func (s *Service) resolveWorkspace(ctx context.Context, scope Scope, ref string)
 		if normalizeErr != nil {
 			return "", normalizeErr
 		}
-		resolved, err = s.workspaceResolver.ResolveOrRegister(ctx, normalized)
+		if mode == workspaceResolutionRegisterPaths {
+			resolved, err = s.workspaceResolver.ResolveOrRegister(ctx, normalized)
+		} else {
+			resolved, err = s.workspaceResolver.Resolve(ctx, normalized)
+		}
 	} else {
 		resolved, err = s.workspaceResolver.Resolve(ctx, trimmed)
 	}

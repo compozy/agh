@@ -128,6 +128,9 @@ func runWorkspaceMigrations(
 	migrations []store.Migration,
 	migrationTable string,
 ) error {
+	if err := rejectAheadSchema(ctx, db, migrations, migrationTable); err != nil {
+		return err
+	}
 	if err := store.RunMigrations(
 		ctx,
 		db,

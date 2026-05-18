@@ -416,6 +416,9 @@ func (p *Process) Shutdown(ctx context.Context) error {
 		return p.Wait()
 	default:
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 
 	p.markStopRequested()
 	p.checkpointShutdownRequested(ctx)
@@ -424,7 +427,7 @@ func (p *Process) Shutdown(ctx context.Context) error {
 	var errs []error
 	var stopCtxErr error
 	if p.transport != nil && p.currentState() != processStateStopped {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), p.shutdownTimeout)
+		shutdownCtx, cancel := context.WithTimeout(ctx, p.shutdownTimeout)
 		defer cancel()
 
 		var response ShutdownResponse
@@ -442,35 +445,44 @@ func (p *Process) Shutdown(ctx context.Context) error {
 	}
 
 	if waitErr := p.waitWithContext(ctx, p.shutdownTimeout); waitErr == nil {
+		stopCtxErr = shutdownContextError(ctx, stopCtxErr)
 		return joinShutdownResult(errs, p.Wait(), stopCtxErr)
+	} else if shutdownWaitInterruptedByCaller(ctx, waitErr) {
+		stopCtxErr = shutdownContextError(ctx, stopCtxErr)
 	} else if !errors.Is(waitErr, context.DeadlineExceeded) {
-		return errors.Join(append(errs, waitErr)...)
-	} else if ctxErr := ctx.Err(); ctxErr != nil {
-		stopCtxErr = ctxErr
+		stopCtxErr = shutdownContextError(ctx, stopCtxErr)
+		return joinShutdownResult(errs, waitErr, stopCtxErr)
 	}
+	stopCtxErr = shutdownContextError(ctx, stopCtxErr)
 
 	if err := terminateManagedProcess(p.cmd); err != nil {
 		errs = append(errs, fmt.Errorf("subprocess: terminate process tree: %w", err))
 	}
 
-	if waitErr := p.waitWithContext(ctx, p.postSignalGrace); waitErr == nil {
+	waitCtx := shutdownWaitContext(ctx, stopCtxErr)
+	if waitErr := p.waitWithContext(waitCtx, p.postSignalGrace); waitErr == nil {
+		stopCtxErr = shutdownContextError(ctx, stopCtxErr)
 		return joinShutdownResult(errs, p.Wait(), stopCtxErr)
+	} else if shutdownWaitInterruptedByCaller(ctx, waitErr) {
+		stopCtxErr = shutdownContextError(ctx, stopCtxErr)
+		waitCtx = shutdownWaitContext(ctx, stopCtxErr)
 	} else if !errors.Is(waitErr, context.DeadlineExceeded) {
-		return errors.Join(append(errs, waitErr)...)
-	} else if ctxErr := ctx.Err(); ctxErr != nil {
-		stopCtxErr = ctxErr
+		stopCtxErr = shutdownContextError(ctx, stopCtxErr)
+		return joinShutdownResult(errs, waitErr, stopCtxErr)
 	}
+	stopCtxErr = shutdownContextError(ctx, stopCtxErr)
 
 	if err := killManagedProcess(p.cmd); err != nil {
 		errs = append(errs, fmt.Errorf("subprocess: kill process tree: %w", err))
 	}
 
-	select {
-	case <-p.Done():
+	waitErr := p.waitWithContext(waitCtx, p.postSignalGrace)
+	if waitErr == nil {
+		stopCtxErr = shutdownContextError(ctx, stopCtxErr)
 		return joinShutdownResult(errs, p.Wait(), stopCtxErr)
-	case <-ctx.Done():
-		return errors.Join(append(errs, ctx.Err())...)
 	}
+	stopCtxErr = shutdownContextError(ctx, stopCtxErr)
+	return joinShutdownResult(errs, waitErr, stopCtxErr)
 }
 
 func joinShutdownResult(errs []error, waitErr error, stopCtxErr error) error {
@@ -479,6 +491,31 @@ func joinShutdownResult(errs []error, waitErr error, stopCtxErr error) error {
 		return joined
 	}
 	return errors.Join(joined, stopCtxErr)
+}
+
+func shutdownContextError(ctx context.Context, existing error) error {
+	if existing != nil || ctx == nil {
+		return existing
+	}
+	return ctx.Err()
+}
+
+func shutdownWaitInterruptedByCaller(ctx context.Context, waitErr error) bool {
+	if ctx == nil || waitErr == nil {
+		return false
+	}
+	ctxErr := ctx.Err()
+	return ctxErr != nil && errors.Is(waitErr, ctxErr)
+}
+
+func shutdownWaitContext(ctx context.Context, stopCtxErr error) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	if stopCtxErr != nil {
+		return context.WithoutCancel(ctx)
+	}
+	return ctx
 }
 
 func (p *Process) checkpointShutdownRequested(ctx context.Context) {

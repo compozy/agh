@@ -1,0 +1,9 @@
+release_artifacts:
+  - name: site-changelog
+    command: bun
+    args:
+      - run
+      - release:site-changelog
+    add:
+      - packages/site/content/blog/changelog/*.mdx
+    timeout_seconds: 120

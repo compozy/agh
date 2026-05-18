@@ -325,6 +325,62 @@ func TestGlobalDBTaskRunReviewStore(t *testing.T) {
 			}
 		},
 	)
+
+	t.Run("Should reject rejected review when continuation would exceed max attempts", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		globalDB.now = fixedTaskReviewStoreTime
+		taskRecord, runRecord := createReviewStoreTaskRun(t, globalDB, taskpkg.TaskRunStatusCompleted)
+		taskRecord.MaxAttempts = 1
+		if err := globalDB.UpdateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("UpdateTask() error = %v", err)
+		}
+		review := taskReviewForGlobalDBTest("review-exhausted", taskRecord.ID, runRecord.ID)
+		stored, _, err := globalDB.RequestRunReview(ctx, &review)
+		if err != nil {
+			t.Fatalf("RequestRunReview() error = %v", err)
+		}
+
+		confidence := 0.55
+		_, err = globalDB.RecordRunReview(
+			ctx,
+			taskpkg.RecordRunReviewRequest{
+				ReviewID: stored.ReviewID,
+				RunID:    stored.RunID,
+				Verdict: taskpkg.RunReviewVerdict{
+					Outcome:           taskpkg.RunReviewOutcomeRejected,
+					Confidence:        &confidence,
+					Reason:            "needs another pass",
+					DeliveryID:        "delivery-exhausted",
+					MissingWork:       []byte(`["retry"]`),
+					NextRoundGuidance: "Try again.",
+				},
+			},
+			reviewStoreActorContext(),
+			fixedTaskReviewStoreTime().Add(time.Minute),
+			"run-exhausted",
+		)
+		if !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
+			t.Fatalf("RecordRunReview(exhausted) error = %v, want %v", err, taskpkg.ErrInvalidStatusTransition)
+		}
+
+		recordedReview, err := globalDB.GetRunReview(ctx, stored.ReviewID)
+		if err != nil {
+			t.Fatalf("GetRunReview() error = %v", err)
+		}
+		if got, want := recordedReview.Status, taskpkg.RunReviewStatusRequested; got != want {
+			t.Fatalf("review status = %q, want %q", got, want)
+		}
+		runs, err := globalDB.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: taskRecord.ID})
+		if err != nil {
+			t.Fatalf("ListTaskRuns() error = %v", err)
+		}
+		if got, want := len(runs), 1; got != want {
+			t.Fatalf("len(runs) = %d, want %d", got, want)
+		}
+	})
 }
 
 func createReviewStoreTaskRun(

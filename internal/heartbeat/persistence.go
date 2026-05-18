@@ -312,14 +312,19 @@ func SnapshotFromResolved(
 	if err != nil {
 		return Snapshot{}, fmt.Errorf("heartbeat: marshal snapshot envelope: %w", err)
 	}
+	configDigest := firstNonEmpty(resolved.ConfigDigest, resolved.ConfigProvenance.Digest)
+	digest := strings.TrimSpace(resolved.Digest)
+	if digest == "" && !resolved.Present && resolved.Valid {
+		digest = digestAbsentPolicy(id, resolved.SourcePath, configDigest)
+	}
 	snapshot := Snapshot{
 		ID:              id,
 		WorkspaceID:     workspaceID,
 		AgentName:       agentName,
 		SourcePath:      resolved.SourcePath,
 		SchemaVersion:   envelope.SchemaVersion,
-		Digest:          resolved.Digest,
-		ConfigDigest:    firstNonEmpty(resolved.ConfigDigest, resolved.ConfigProvenance.Digest),
+		Digest:          digest,
+		ConfigDigest:    configDigest,
 		Body:            resolved.GuidanceMarkdown,
 		FrontmatterJSON: frontmatter,
 		ResolvedJSON:    encoded,
@@ -450,8 +455,12 @@ func (r Revision) Validate() error {
 		return fmt.Errorf("%w: invalid operation %q", ErrInvalidRevision, normalized.Operation)
 	case normalized.Operation == RevisionOperationDelete && normalized.NewDigest != "":
 		return fmt.Errorf("%w: delete revision must not set new digest", ErrInvalidRevision)
-	case normalized.Operation != RevisionOperationDelete && normalized.NewDigest == "":
+	case normalized.Operation == RevisionOperationWrite && normalized.NewDigest == "":
 		return fmt.Errorf("%w: new digest is required", ErrInvalidRevision)
+	case normalized.Operation == RevisionOperationRollback &&
+		normalized.NewDigest == "" &&
+		normalized.NewSnapshotID == "":
+		return fmt.Errorf("%w: rollback revision requires new digest or snapshot", ErrInvalidRevision)
 	case !ValidActorKind(normalized.ActorKind):
 		return fmt.Errorf("%w: invalid actor kind %q", ErrInvalidRevision, normalized.ActorKind)
 	case normalized.ActorID == "":

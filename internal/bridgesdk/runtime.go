@@ -142,17 +142,7 @@ func (s *Session) InitializeRequest() subprocess.InitializeRequest {
 		return subprocess.InitializeRequest{}
 	}
 
-	request := s.request
-	request.Capabilities.Provides = append([]string(nil), request.Capabilities.Provides...)
-	request.Capabilities.GrantedActions = append(
-		[]extensionprotocol.HostAPIMethod(nil),
-		request.Capabilities.GrantedActions...,
-	)
-	request.Capabilities.GrantedSecurity = append([]string(nil), request.Capabilities.GrantedSecurity...)
-	request.Methods.DaemonRequests = append([]string(nil), request.Methods.DaemonRequests...)
-	request.Methods.ExtensionServices = append([]string(nil), request.Methods.ExtensionServices...)
-	request.Runtime.Bridge = subprocess.CloneInitializeBridgeRuntime(request.Runtime.Bridge)
-	return request
+	return subprocess.CloneInitializeRequest(s.request)
 }
 
 // InitializeResponse returns a copy of the initialize response sent by the runtime.

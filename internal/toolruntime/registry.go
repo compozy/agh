@@ -85,7 +85,8 @@ type InterruptReport struct {
 type Handle struct {
 	registry *Registry
 	id       string
-	once     sync.Once
+	mu       sync.Mutex
+	complete bool
 }
 
 // WithVerifier overrides PID/start-time validation.
@@ -180,9 +181,17 @@ func (r *Registry) Register(ctx context.Context, cfg RegisterConfig) (*Handle, e
 	startedAt := cfg.StartedAt
 	if startedAt.IsZero() && cfg.PID > 0 {
 		observed, err := procutil.StartedAt(cfg.PID)
-		if err == nil {
-			startedAt = observed
+		if err != nil {
+			return nil, fmt.Errorf("toolruntime: observe process %d start time: %w", cfg.PID, err)
 		}
+		if observed.IsZero() {
+			return nil, fmt.Errorf(
+				"%w: observed empty start time for process %d",
+				ErrOwnershipValidationFailed,
+				cfg.PID,
+			)
+		}
+		startedAt = observed
 	}
 	now := r.now().UTC()
 	record := normalizeRecord(ProcessRecord{
@@ -234,11 +243,16 @@ func (h *Handle) Complete(ctx context.Context, completion ProcessCompletion) err
 	if h == nil || h.registry == nil {
 		return nil
 	}
-	var completeErr error
-	h.once.Do(func() {
-		completeErr = h.registry.complete(ctx, h.id, completion)
-	})
-	return completeErr
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.complete {
+		return nil
+	}
+	if err := h.registry.complete(ctx, h.id, completion); err != nil {
+		return err
+	}
+	h.complete = true
+	return nil
 }
 
 // ReconcileBoot validates durable active records after daemon restart.
@@ -361,13 +375,15 @@ func (r *Registry) checkpoint(ctx context.Context, id string, checkpoint Process
 	if ctx == nil {
 		return errors.New("toolruntime: checkpoint context is required")
 	}
-	r.mu.Lock()
+	r.mu.RLock()
 	active, ok := r.active[id]
 	if !ok {
-		r.mu.Unlock()
+		r.mu.RUnlock()
 		return nil
 	}
 	record := active.record
+	r.mu.RUnlock()
+
 	if checkpoint.Owner != nil {
 		record.Owner = normalizeOwner(*checkpoint.Owner)
 	}
@@ -391,26 +407,30 @@ func (r *Registry) checkpoint(ctx context.Context, id string, checkpoint Process
 	} else {
 		record.UpdatedAt = checkpoint.UpdatedAt.UTC()
 	}
-	active.record = record
-	r.active[id] = active
-	r.mu.Unlock()
 
 	if err := validateRecord(record); err != nil {
 		return err
 	}
-	return r.upsert(ctx, record)
+	if err := r.upsert(ctx, record); err != nil {
+		return err
+	}
+
+	r.mu.Lock()
+	if current, ok := r.active[id]; ok {
+		current.record = record
+		r.active[id] = current
+	}
+	r.mu.Unlock()
+	return nil
 }
 
 func (r *Registry) complete(ctx context.Context, id string, completion ProcessCompletion) error {
 	if ctx == nil {
 		return errors.New("toolruntime: complete context is required")
 	}
-	r.mu.Lock()
+	r.mu.RLock()
 	_, ok := r.active[id]
-	if ok {
-		delete(r.active, id)
-	}
-	r.mu.Unlock()
+	r.mu.RUnlock()
 	if !ok {
 		return nil
 	}
@@ -422,7 +442,13 @@ func (r *Registry) complete(ctx context.Context, id string, completion ProcessCo
 		state = ProcessStateFailed
 	}
 	completedAt := r.now().UTC()
-	return r.updateState(ctx, id, state, completion.ExitCode, errText, &completedAt)
+	if err := r.updateState(ctx, id, state, completion.ExitCode, errText, &completedAt); err != nil {
+		return err
+	}
+	r.mu.Lock()
+	delete(r.active, id)
+	r.mu.Unlock()
+	return nil
 }
 
 func (r *Registry) interruptCandidates(
@@ -525,6 +551,12 @@ func (r *Registry) updateState(
 		return errors.New("toolruntime: update process id is required")
 	}
 
+	if r.store != nil {
+		if err := r.store.UpdateProcessRecordState(ctx, update); err != nil {
+			return fmt.Errorf("toolruntime: update process %q state: %w", update.ID, err)
+		}
+	}
+
 	r.mu.Lock()
 	if active, ok := r.active[update.ID]; ok {
 		active.record.State = update.State
@@ -535,13 +567,6 @@ func (r *Registry) updateState(
 		r.active[update.ID] = active
 	}
 	r.mu.Unlock()
-
-	if r.store == nil {
-		return nil
-	}
-	if err := r.store.UpdateProcessRecordState(ctx, update); err != nil {
-		return fmt.Errorf("toolruntime: update process %q state: %w", update.ID, err)
-	}
 	return nil
 }
 

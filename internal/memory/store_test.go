@@ -62,7 +62,6 @@ func TestStoreWriteReadRoundTrip(t *testing.T) {
 				Name:        "Auth Rewrite",
 				Description: "JWT rollout plan",
 				Type:        memcontract.TypeProject,
-				AgentName:   "claude",
 			},
 			body: "Workspace uses JWT-based auth.\n",
 			wantLocation: func(env *testStoreEnv) string {
@@ -373,8 +372,8 @@ func TestStoreScanReturnsNewestFirst(t *testing.T) {
 		modTime  time.Time
 		agent    string
 	}{
-		{filename: "older.md", name: "Older", modTime: base, agent: "claude"},
-		{filename: "newest.md", name: "Newest", modTime: base.Add(2 * time.Hour), agent: "codex"},
+		{filename: "older.md", name: "Older", modTime: base},
+		{filename: "newest.md", name: "Newest", modTime: base.Add(2 * time.Hour)},
 		{filename: "middle.md", name: "Middle", modTime: base.Add(1 * time.Hour)},
 	}
 
@@ -417,8 +416,8 @@ func TestStoreScanReturnsNewestFirst(t *testing.T) {
 		}
 	}
 
-	if headers[0].AgentName != "codex" {
-		t.Fatalf("headers[0].AgentName = %q, want %q", headers[0].AgentName, "codex")
+	if headers[0].AgentName != "" {
+		t.Fatalf("headers[0].AgentName = %q, want empty string", headers[0].AgentName)
 	}
 	if headers[1].AgentName != "" {
 		t.Fatalf("headers[1].AgentName = %q, want empty string", headers[1].AgentName)

@@ -62,12 +62,24 @@ func (r *Resolver) Unregister(ctx context.Context, id string) error {
 		return errors.New("workspace: workspace id is required")
 	}
 
+	previous, err := r.store.GetWorkspace(ctx, trimmedID)
+	if err != nil {
+		return fmt.Errorf("workspace: unregister %q: %w", trimmedID, err)
+	}
+
 	if err := r.store.DeleteWorkspace(ctx, trimmedID); err != nil {
 		return fmt.Errorf("workspace: unregister %q: %w", trimmedID, err)
 	}
 
 	r.Invalidate(trimmedID)
 	if err := r.notifyChangeHook(ctx, "unregister", trimmedID); err != nil {
+		restoreErr := r.rollbackInsertWorkspace(ctx, previous)
+		if restoreErr != nil {
+			return errors.Join(
+				err,
+				fmt.Errorf("workspace: rollback workspace unregister %q: %w", trimmedID, restoreErr),
+			)
+		}
 		return err
 	}
 	return nil
@@ -88,6 +100,7 @@ func (r *Resolver) Update(ctx context.Context, id string, opts UpdateOptions) er
 	if err != nil {
 		return fmt.Errorf("workspace: load workspace %q: %w", trimmedID, err)
 	}
+	previous := cloneWorkspace(ws)
 
 	if opts.Name != nil {
 		name := strings.TrimSpace(*opts.Name)
@@ -119,9 +132,30 @@ func (r *Resolver) Update(ctx context.Context, id string, opts UpdateOptions) er
 
 	r.Invalidate(trimmedID)
 	if err := r.notifyChangeHook(ctx, "update", trimmedID); err != nil {
+		restoreErr := r.rollbackUpdateWorkspace(ctx, previous)
+		if restoreErr != nil {
+			return errors.Join(
+				err,
+				fmt.Errorf("workspace: rollback workspace update %q: %w", trimmedID, restoreErr),
+			)
+		}
 		return err
 	}
 	return nil
+}
+
+func (r *Resolver) rollbackInsertWorkspace(ctx context.Context, ws Workspace) error {
+	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackDeleteTimeout)
+	defer cancel()
+
+	return r.store.InsertWorkspace(rollbackCtx, ws)
+}
+
+func (r *Resolver) rollbackUpdateWorkspace(ctx context.Context, ws Workspace) error {
+	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), rollbackDeleteTimeout)
+	defer cancel()
+
+	return r.store.UpdateWorkspace(rollbackCtx, ws)
 }
 
 // List returns every registered workspace in stable store order.

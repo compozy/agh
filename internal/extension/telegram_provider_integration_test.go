@@ -151,7 +151,10 @@ func TestTelegramProviderIngressAndDeliveryConformance(t *testing.T) {
 		return len(records) > 0 && strings.TrimSpace(records[len(records)-1].Result.SessionID) != ""
 	})
 	deliveries := harness.WaitForDeliveries(t, 10*time.Second, func(records []extensiontest.DeliveryRecord) bool {
-		return len(records) > 0 && normalizeDeliveryEventType(records[len(records)-1].Request.Event.EventType) == bridgepkg.DeliveryEventTypeFinal
+		return len(records) > 0 &&
+			normalizeDeliveryEventType(
+				records[len(records)-1].Request.Event.EventType,
+			) == bridgepkg.DeliveryEventTypeFinal
 	})
 	report := harness.Report(t)
 
@@ -393,7 +396,12 @@ func postTelegramProviderWebhook(t *testing.T, url string, secret string, payloa
 			time.Sleep(20 * time.Millisecond)
 			continue
 		}
-		t.Fatalf("webhook status = %d, want %d; body=%q", resp.StatusCode, http.StatusOK, strings.TrimSpace(string(payload)))
+		t.Fatalf(
+			"webhook status = %d, want %d; body=%q",
+			resp.StatusCode,
+			http.StatusOK,
+			strings.TrimSpace(string(payload)),
+		)
 	}
 
 	t.Fatalf("webhook %s did not become ready before timeout", url)

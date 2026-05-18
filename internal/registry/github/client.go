@@ -248,7 +248,12 @@ func (c *Client) Download(
 		return nil, err
 	}
 
-	reader, contentType, contentSize, err := finalizeDownloadResponse(response, repo.full, contentSize)
+	reader, contentType, contentSize, err := finalizeDownloadResponse(
+		response,
+		repo.full,
+		contentSize,
+		normalizeArchiveSizeLimit(opts.MaxArchiveSize),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -449,7 +454,7 @@ func (c *Client) fetchReleasePage(ctx context.Context, repo repoSlug) ([]release
 		); err != nil {
 			return nil, err
 		}
-		return nil, fmt.Errorf("github: repository %q not found", repo.full)
+		return nil, repositoryNotFoundError(repo.full)
 	default:
 		err := responseError(response, "releases page", repo.full)
 		return nil, joinErrors(
@@ -554,6 +559,7 @@ func finalizeDownloadResponse(
 	response *http.Response,
 	slug string,
 	contentSize int64,
+	maxArchiveSize int64,
 ) (_ io.ReadCloser, contentType string, finalSize int64, err error) {
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		err := responseError(response, "download", slug)
@@ -572,10 +578,22 @@ func finalizeDownloadResponse(
 	}
 
 	if response.ContentLength > 0 {
+		if response.ContentLength > maxArchiveSize {
+			return nil, "", 0, joinErrors(
+				fmt.Errorf(
+					"github: download for %q: %w: size=%d limit=%d",
+					slug,
+					registry.ErrArchiveTooLargeCompressed,
+					response.ContentLength,
+					maxArchiveSize,
+				),
+				closeResponseBody(response.Body, fmt.Sprintf("download response for %q", slug)),
+			)
+		}
 		contentSize = response.ContentLength
 	}
 
-	reader, written, err := spoolDownloadResponse(response.Body, slug)
+	reader, written, err := spoolDownloadResponse(response.Body, slug, maxArchiveSize)
 	closeErr := closeResponseBody(response.Body, fmt.Sprintf("download response for %q", slug))
 	if err != nil {
 		return nil, "", 0, joinErrors(fmt.Errorf("github: spool download for %q: %w", slug, err), closeErr)
@@ -837,6 +855,10 @@ func privateRepositoryError(slug string) error {
 	)
 }
 
+func repositoryNotFoundError(slug string) error {
+	return fmt.Errorf("github: repository %q not found: %w", slug, registry.NewPackageNotFoundError(slug))
+}
+
 func responseError(response *http.Response, operation string, slug string) error {
 	message := readErrorMessage(response.Body)
 	if message == "" {
@@ -922,7 +944,7 @@ func nextBackoff(current time.Duration, maxDelay time.Duration) time.Duration {
 	return next
 }
 
-func spoolDownloadResponse(body io.Reader, slug string) (_ io.ReadCloser, size int64, err error) {
+func spoolDownloadResponse(body io.Reader, slug string, maxBytes int64) (_ io.ReadCloser, size int64, err error) {
 	file, err := os.CreateTemp("", "agh-github-download-*")
 	if err != nil {
 		return nil, 0, fmt.Errorf("create temp download file for %q: %w", slug, err)
@@ -933,11 +955,24 @@ func spoolDownloadResponse(body io.Reader, slug string) (_ io.ReadCloser, size i
 		}
 	}()
 
-	written, err := io.Copy(file, body)
+	limit := normalizeArchiveSizeLimit(maxBytes)
+	written, err := io.Copy(file, io.LimitReader(body, limit+1))
 	if err != nil {
 		closeErr := file.Close()
 		return nil, 0, joinErrors(
 			fmt.Errorf("write temp download file for %q: %w", slug, err),
+			closeErr,
+		)
+	}
+	if written > limit {
+		closeErr := file.Close()
+		return nil, written, joinErrors(
+			fmt.Errorf(
+				"%w: github download for %q exceeds compressed archive limit %d",
+				registry.ErrArchiveTooLargeCompressed,
+				slug,
+				limit,
+			),
 			closeErr,
 		)
 	}
@@ -950,6 +985,13 @@ func spoolDownloadResponse(body io.Reader, slug string) (_ io.ReadCloser, size i
 	}
 
 	return &tempFileReadCloser{File: file, path: file.Name()}, written, nil
+}
+
+func normalizeArchiveSizeLimit(limit int64) int64 {
+	if limit > 0 {
+		return limit
+	}
+	return registry.DefaultMaxArchiveSize
 }
 
 type tempFileReadCloser struct {

@@ -87,9 +87,10 @@ func (s *CatalogService) ListModels(ctx context.Context, opts ListOptions) ([]Mo
 		return nil, fmt.Errorf("model catalog: list stored rows: %w", err)
 	}
 
+	var refreshStatuses []SourceStatus
 	var refreshErr error
 	if opts.Refresh || (len(rows) == 0 && len(s.sources) > 0) {
-		_, refreshErr = s.Refresh(ctx, RefreshOptions{
+		refreshStatuses, refreshErr = s.Refresh(ctx, RefreshOptions{
 			ProviderID: opts.ProviderID,
 			SourceID:   opts.SourceID,
 			Force:      opts.Refresh,
@@ -100,7 +101,7 @@ func (s *CatalogService) ListModels(ctx context.Context, opts ListOptions) ([]Mo
 			return nil, fmt.Errorf("model catalog: list stored rows after refresh: %w", err)
 		}
 	}
-	if len(rows) == 0 && refreshErr != nil {
+	if len(rows) == 0 && refreshErr != nil && !hasStaleFailureStatus(refreshStatuses) {
 		return nil, refreshErr
 	}
 	return MergeRows(rows), nil
@@ -149,14 +150,19 @@ func (s *CatalogService) refreshSources(
 	now time.Time,
 ) ([]SourceStatus, error) {
 	statuses := make([]SourceStatus, 0, len(sources))
+	var degradedErrs []error
 	successes := 0
 	failures := 0
 	staleFallbacks := 0
 	for _, source := range sources {
 		sourceStatuses, outcome, err := s.refreshSource(ctx, source, opts, now)
 		statuses = append(statuses, sourceStatuses...)
-		if err != nil && !errors.Is(err, ErrSourceDisabled) {
-			failures++
+		if err != nil {
+			if outcome == refreshOutcomeStale {
+				degradedErrs = append(degradedErrs, err)
+			} else if !errors.Is(err, ErrSourceDisabled) {
+				failures++
+			}
 		}
 		switch outcome {
 		case refreshOutcomeSuccess:
@@ -164,6 +170,9 @@ func (s *CatalogService) refreshSources(
 		case refreshOutcomeStale:
 			staleFallbacks++
 		}
+	}
+	if len(degradedErrs) > 0 {
+		return statuses, errors.Join(degradedErrs...)
 	}
 	if successes == 0 && staleFallbacks == 0 && failures > 0 {
 		return statuses, fmt.Errorf("%w (%d failed)", ErrAllSourcesFailed, failures)
@@ -179,6 +188,7 @@ func (s *CatalogService) refreshAllProviders(
 ) ([]SourceStatus, error) {
 	statuses := make([]SourceStatus, 0)
 	var firstErr error
+	var degradedErrs []error
 	successes := 0
 
 	for _, source := range sources {
@@ -187,7 +197,9 @@ func (s *CatalogService) refreshAllProviders(
 			sourceStatuses, err := s.refreshSources(ctx, []Source{source}, opts, now)
 			statuses = append(statuses, sourceStatuses...)
 			if err != nil {
-				if firstErr == nil {
+				if hasStaleFailureStatus(sourceStatuses) {
+					degradedErrs = append(degradedErrs, err)
+				} else if firstErr == nil {
 					firstErr = err
 				}
 			} else {
@@ -206,7 +218,9 @@ func (s *CatalogService) refreshAllProviders(
 			})
 			statuses = append(statuses, sourceStatuses...)
 			if err != nil {
-				if firstErr == nil {
+				if hasStaleFailureStatus(sourceStatuses) {
+					degradedErrs = append(degradedErrs, err)
+				} else if firstErr == nil {
 					firstErr = err
 				}
 				continue
@@ -215,6 +229,9 @@ func (s *CatalogService) refreshAllProviders(
 		}
 	}
 
+	if len(degradedErrs) > 0 {
+		return statuses, errors.Join(degradedErrs...)
+	}
 	if successes == 0 && firstErr != nil {
 		return statuses, firstErr
 	}
@@ -282,10 +299,16 @@ func (s *CatalogService) recordSourceFailure(
 	if len(rows) > 0 {
 		staleRows := markRowsStale(rows, redacted)
 		statuses, err := s.persistSourceRows(ctx, source, providerID, staleRows, now, true, redacted)
-		return statuses, refreshOutcomeStale, err
+		if err != nil {
+			return nil, refreshOutcomeEmpty, err
+		}
+		return statuses, refreshOutcomeStale, sourceErr
 	}
 
-	providers := s.providersForSource(source, providerID)
+	providers, err := s.providersForSource(ctx, source, providerID, now)
+	if err != nil {
+		return nil, refreshOutcomeEmpty, err
+	}
 	statuses := make([]SourceStatus, 0, len(providers))
 	staleCount := 0
 	for _, provider := range providers {
@@ -331,7 +354,11 @@ func (s *CatalogService) persistSourceRows(
 		providers = []string{strings.TrimSpace(providerID)}
 	}
 	if len(providers) == 0 {
-		providers = s.providersForSource(source, providerID)
+		var err error
+		providers, err = s.providersForSource(ctx, source, providerID, now)
+		if err != nil {
+			return nil, err
+		}
 	}
 	statuses := make([]SourceStatus, 0, len(providers))
 	state := RefreshStateSucceeded
@@ -361,7 +388,10 @@ func (s *CatalogService) persistDisabledSource(
 	providerID string,
 	now time.Time,
 ) ([]SourceStatus, error) {
-	providers := s.providersForSource(source, providerID)
+	providers, err := s.providersForSource(ctx, source, providerID, now)
+	if err != nil {
+		return nil, err
+	}
 	statuses := make([]SourceStatus, 0, len(providers))
 	for _, provider := range providers {
 		status := sourceStatus(source, provider, now, 0, false, "", RefreshStateDisabled)
@@ -373,16 +403,62 @@ func (s *CatalogService) persistDisabledSource(
 	return statuses, nil
 }
 
-func (s *CatalogService) providersForSource(source Source, providerID string) []string {
+func (s *CatalogService) providersForSource(
+	ctx context.Context,
+	source Source,
+	providerID string,
+	now time.Time,
+) ([]string, error) {
 	if trimmed := strings.TrimSpace(providerID); trimmed != "" {
-		return []string{trimmed}
+		return []string{trimmed}, nil
 	}
 	if lister, ok := source.(sourceProviderLister); ok {
-		providers := lister.ProviderIDs()
-		sort.Strings(providers)
-		return providers
+		providers := normalizedProviderIDs(lister.ProviderIDs())
+		if len(providers) > 0 {
+			return providers, nil
+		}
 	}
-	return nil
+	providers, err := s.storedProvidersForSource(ctx, source, now)
+	if err != nil {
+		return nil, err
+	}
+	return providers, nil
+}
+
+func (s *CatalogService) storedProvidersForSource(ctx context.Context, source Source, now time.Time) ([]string, error) {
+	providerSet := make(map[string]struct{})
+	statuses, err := s.store.ListSourceStatus(ctx, "")
+	if err != nil {
+		return nil, fmt.Errorf("model catalog: list stored source providers for %q: %w", source.ID(), err)
+	}
+	for _, status := range statuses {
+		if status.SourceID != source.ID() {
+			continue
+		}
+		if providerID := strings.TrimSpace(status.ProviderID); providerID != "" {
+			providerSet[providerID] = struct{}{}
+		}
+	}
+	rows, err := s.store.ListRows(ctx, ListOptions{
+		SourceID:     source.ID(),
+		IncludeAll:   true,
+		IncludeStale: true,
+		Now:          now,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("model catalog: list stored source rows for %q: %w", source.ID(), err)
+	}
+	for _, row := range rows {
+		if providerID := strings.TrimSpace(row.ProviderID); providerID != "" {
+			providerSet[providerID] = struct{}{}
+		}
+	}
+	providers := make([]string, 0, len(providerSet))
+	for providerID := range providerSet {
+		providers = append(providers, providerID)
+	}
+	sort.Strings(providers)
+	return providers, nil
 }
 
 func (s *CatalogService) selectSources(sourceID string) ([]Source, error) {
@@ -574,12 +650,35 @@ func cloneSourceStatuses(statuses []SourceStatus) []SourceStatus {
 	return append([]SourceStatus(nil), statuses...)
 }
 
+func hasStaleFailureStatus(statuses []SourceStatus) bool {
+	for _, status := range statuses {
+		if status.Stale && status.RefreshState == RefreshStateFailed && status.RowCount > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func sourceProviders(source Source) []string {
 	lister, ok := source.(sourceProviderLister)
 	if !ok {
 		return nil
 	}
-	providers := lister.ProviderIDs()
+	return normalizedProviderIDs(lister.ProviderIDs())
+}
+
+func normalizedProviderIDs(providerIDs []string) []string {
+	providerSet := make(map[string]struct{}, len(providerIDs))
+	for _, providerID := range providerIDs {
+		trimmed := strings.TrimSpace(providerID)
+		if trimmed != "" {
+			providerSet[trimmed] = struct{}{}
+		}
+	}
+	providers := make([]string, 0, len(providerSet))
+	for providerID := range providerSet {
+		providers = append(providers, providerID)
+	}
 	sort.Strings(providers)
 	return providers
 }

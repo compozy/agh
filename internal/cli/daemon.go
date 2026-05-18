@@ -205,6 +205,10 @@ func waitForDaemonStart(ctx context.Context, deps commandDeps, child daemonProce
 	if child == nil {
 		return DaemonStatus{}, errors.New("cli: detached daemon process is required")
 	}
+	childPID := child.PID()
+	if childPID <= 0 {
+		return DaemonStatus{}, errors.New("cli: detached daemon process pid is required")
+	}
 	waitCtx := ctx
 	if waitCtx == nil {
 		waitCtx = context.Background()
@@ -239,10 +243,10 @@ func waitForDaemonStart(ctx context.Context, deps commandDeps, child daemonProce
 			return DaemonStatus{}, fmt.Errorf("cli: daemon did not become ready before timeout: %w", waitCtx.Err())
 		case <-ticker.C:
 			status, statusErr := client.DaemonStatus(waitCtx)
-			if statusErr == nil {
+			if statusErr == nil && status.PID == childPID {
 				return status, nil
 			}
-			if pid := child.PID(); pid > 0 && !processAlive(pid) {
+			if !processAlive(childPID) {
 				return DaemonStatus{}, errors.New("cli: detached daemon exited before readiness")
 			}
 		}
@@ -290,11 +294,15 @@ func waitForDaemonStop(
 
 func daemonStatusFromDeps(ctx context.Context, deps commandDeps, runtime *runtimeContext) (DaemonStatus, error) {
 	client, err := clientFromDeps(deps)
-	if err == nil {
-		status, statusErr := client.DaemonStatus(ctx)
-		if statusErr == nil {
-			return status, nil
-		}
+	if err != nil {
+		return DaemonStatus{}, err
+	}
+	status, statusErr := client.DaemonStatus(ctx)
+	if statusErr == nil {
+		return status, nil
+	}
+	if !daemonStatusCanFallback(statusErr) {
+		return DaemonStatus{}, statusErr
 	}
 
 	info, running, err := daemonInfo(runtime.HomePaths, deps)
@@ -305,6 +313,10 @@ func daemonStatusFromDeps(ctx context.Context, deps commandDeps, runtime *runtim
 		return daemonStatusWithState(runtime, info, "stopped"), nil
 	}
 	return daemonStatusWithState(runtime, info, "starting"), nil
+}
+
+func daemonStatusCanFallback(err error) bool {
+	return errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ECONNREFUSED)
 }
 
 func daemonInfo(homePaths aghconfig.HomePaths, deps commandDeps) (aghdaemon.Info, bool, error) {
@@ -318,6 +330,9 @@ func daemonInfo(homePaths aghconfig.HomePaths, deps commandDeps) (aghdaemon.Info
 	}
 
 	if !deps.processAlive(info.PID) {
+		return info, false, nil
+	}
+	if !deps.processMatchesStartTime(info.PID, info.StartedAt) {
 		return info, false, nil
 	}
 	return info, true, nil

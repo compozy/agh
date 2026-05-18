@@ -8,7 +8,15 @@ import (
 	"slices"
 )
 
-const schemaTypeObject = "object"
+const (
+	schemaTypeObject  = "object"
+	schemaTypeArray   = "array"
+	schemaTypeString  = "string"
+	schemaTypeNumber  = "number"
+	schemaTypeInteger = "integer"
+	schemaTypeBoolean = "boolean"
+	schemaTypeNull    = "null"
+)
 
 func normalizeCallInput(input json.RawMessage) json.RawMessage {
 	if len(bytes.TrimSpace(input)) == 0 {
@@ -214,19 +222,92 @@ func validateSchemaNot(path string, raw json.RawMessage, value any) error {
 	return nil
 }
 
+func validateJSONSchemaDocument(path string, schema map[string]json.RawMessage) error {
+	if _, err := schemaTypes(schema["type"]); err != nil {
+		return fmt.Errorf("%s.type: %w", path, err)
+	}
+
+	properties, err := schemaProperties(schema["properties"])
+	if err != nil {
+		return fmt.Errorf("%s.properties: %w", path, err)
+	}
+	for key, childSchema := range properties {
+		if err := validateJSONSchemaDocument(path+".properties."+key, childSchema); err != nil {
+			return err
+		}
+	}
+
+	if err := validateJSONSchemaDocumentArray(path+".allOf", schema["allOf"]); err != nil {
+		return err
+	}
+	if err := validateJSONSchemaDocumentArray(path+".anyOf", schema["anyOf"]); err != nil {
+		return err
+	}
+	if err := validateJSONSchemaDocumentArray(path+".oneOf", schema["oneOf"]); err != nil {
+		return err
+	}
+
+	node, ok, err := schemaNode(schema["not"])
+	if err != nil {
+		return fmt.Errorf("%s.not: %w", path, err)
+	}
+	if ok {
+		if err := validateJSONSchemaDocument(path+".not", node); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateJSONSchemaDocumentArray(path string, raw json.RawMessage) error {
+	nodes, err := schemaNodeArray(raw)
+	if err != nil {
+		return fmt.Errorf("%s: %w", path, err)
+	}
+	for idx, node := range nodes {
+		if err := validateJSONSchemaDocument(fmt.Sprintf("%s[%d]", path, idx), node); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func schemaTypes(raw json.RawMessage) ([]string, error) {
 	if len(bytes.TrimSpace(raw)) == 0 {
 		return nil, nil
 	}
 	var single string
 	if err := json.Unmarshal(raw, &single); err == nil {
+		if err := validateSchemaTypeName(single); err != nil {
+			return nil, err
+		}
 		return []string{single}, nil
 	}
 	var many []string
 	if err := json.Unmarshal(raw, &many); err != nil {
 		return nil, fmt.Errorf("type must be a string or string array: %w", err)
 	}
+	for _, item := range many {
+		if err := validateSchemaTypeName(item); err != nil {
+			return nil, err
+		}
+	}
 	return many, nil
+}
+
+func validateSchemaTypeName(schemaType string) error {
+	switch schemaType {
+	case schemaTypeObject,
+		schemaTypeArray,
+		schemaTypeString,
+		schemaTypeNumber,
+		schemaTypeInteger,
+		schemaTypeBoolean,
+		schemaTypeNull:
+		return nil
+	default:
+		return fmt.Errorf("unsupported JSON Schema type %q", schemaType)
+	}
 }
 
 func schemaStringArray(raw json.RawMessage) ([]string, error) {
@@ -298,25 +379,25 @@ func jsonValueMatchesType(value any, schemaType string) bool {
 	case schemaTypeObject:
 		_, ok := value.(map[string]any)
 		return ok
-	case "array":
+	case schemaTypeArray:
 		_, ok := value.([]any)
 		return ok
-	case "string":
+	case schemaTypeString:
 		_, ok := value.(string)
 		return ok
-	case "number":
+	case schemaTypeNumber:
 		_, ok := value.(float64)
 		return ok
-	case "integer":
+	case schemaTypeInteger:
 		number, ok := value.(float64)
 		return ok && number == float64(int64(number))
-	case "boolean":
+	case schemaTypeBoolean:
 		_, ok := value.(bool)
 		return ok
-	case "null":
+	case schemaTypeNull:
 		return value == nil
 	default:
-		return true
+		return false
 	}
 }
 

@@ -50,16 +50,28 @@ func (e *integrationSessionExecutor) StartTaskSession(
 	return &taskpkg.SessionRef{SessionID: "sess-int-" + strconv.Itoa(len(e.startCalls))}, nil
 }
 
-func (e *integrationSessionExecutor) AttachTaskSession(_ context.Context, runID string, sessionID string) (*taskpkg.SessionRef, error) {
+func (e *integrationSessionExecutor) AttachTaskSession(
+	_ context.Context,
+	runID string,
+	sessionID string,
+) (*taskpkg.SessionRef, error) {
 	return &taskpkg.SessionRef{SessionID: sessionID}, nil
 }
 
-func (e *integrationSessionExecutor) RequestTaskStop(_ context.Context, sessionID string, reason taskpkg.StopReason) error {
+func (e *integrationSessionExecutor) RequestTaskStop(
+	_ context.Context,
+	sessionID string,
+	reason taskpkg.StopReason,
+) error {
 	e.requestStopCalls = append(e.requestStopCalls, integrationStopCall{SessionID: sessionID, Reason: reason})
 	return nil
 }
 
-func (e *integrationSessionExecutor) ForceTaskStop(_ context.Context, sessionID string, reason taskpkg.StopReason) error {
+func (e *integrationSessionExecutor) ForceTaskStop(
+	_ context.Context,
+	sessionID string,
+	reason taskpkg.StopReason,
+) error {
 	e.forceStopCalls = append(e.forceStopCalls, integrationStopCall{SessionID: sessionID, Reason: reason})
 	return nil
 }
@@ -187,7 +199,11 @@ func TestTaskManagerRejectsInvalidTaskSemanticsBeforePersistence(t *testing.T) {
 	}{
 		{
 			name: "invalid priority",
-			spec: taskpkg.CreateTask{Scope: taskpkg.ScopeGlobal, Title: "Bad priority", Priority: taskpkg.Priority("rush")},
+			spec: taskpkg.CreateTask{
+				Scope:    taskpkg.ScopeGlobal,
+				Title:    "Bad priority",
+				Priority: taskpkg.Priority("rush"),
+			},
 		},
 		{
 			name: "invalid max attempts",
@@ -195,7 +211,11 @@ func TestTaskManagerRejectsInvalidTaskSemanticsBeforePersistence(t *testing.T) {
 		},
 		{
 			name: "invalid approval policy",
-			spec: taskpkg.CreateTask{Scope: taskpkg.ScopeGlobal, Title: "Bad approval", ApprovalPolicy: taskpkg.ApprovalPolicy("auto")},
+			spec: taskpkg.CreateTask{
+				Scope:          taskpkg.ScopeGlobal,
+				Title:          "Bad approval",
+				ApprovalPolicy: taskpkg.ApprovalPolicy("auto"),
+			},
 		},
 	}
 
@@ -705,7 +725,11 @@ func TestTaskManagerStartBoundaryCreatesChannelAndClaimableRunIntegration(t *tes
 		t.Fatalf("ListNetworkChannels(after start) error = %v", err)
 	}
 	if len(channelsAfter) != 1 || channelsAfter[0].Channel != execution.Run.CoordinationChannelID {
-		t.Fatalf("channels after start = %#v, want one derived channel %q", channelsAfter, execution.Run.CoordinationChannelID)
+		t.Fatalf(
+			"channels after start = %#v, want one derived channel %q",
+			channelsAfter,
+			execution.Run.CoordinationChannelID,
+		)
 	}
 
 	claimActor, err := taskpkg.DeriveAgentSessionActorContext("sess-worker")
@@ -725,7 +749,11 @@ func TestTaskManagerStartBoundaryCreatesChannelAndClaimableRunIntegration(t *tes
 		t.Fatalf("ClaimNextRun().Run.ID = %q, want %q", got, want)
 	}
 	if claim.CoordinationChannel == nil || claim.CoordinationChannel.ID != execution.Run.CoordinationChannelID {
-		t.Fatalf("ClaimNextRun().CoordinationChannel = %#v, want %q", claim.CoordinationChannel, execution.Run.CoordinationChannelID)
+		t.Fatalf(
+			"ClaimNextRun().CoordinationChannel = %#v, want %q",
+			claim.CoordinationChannel,
+			execution.Run.CoordinationChannelID,
+		)
 	}
 }
 
@@ -800,7 +828,12 @@ func TestTaskManagerChildAndDependencyFlowsPersistAudit(t *testing.T) {
 	ctx := testutil.Context(t)
 	db := openTaskManagerGlobalDB(t)
 	manager := newTaskManagerIntegration(t, db)
-	workspaceID := registerTaskManagerWorkspace(t, db, "task-manager-integration", filepath.Join(t.TempDir(), "workspace"))
+	workspaceID := registerTaskManagerWorkspace(
+		t,
+		db,
+		"task-manager-integration",
+		filepath.Join(t.TempDir(), "workspace"),
+	)
 
 	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task create")
 	if err != nil {
@@ -984,7 +1017,16 @@ func TestTaskManagerListTasksReturnsEnrichedSummariesIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListTasks(all) error = %v", err)
 	}
-	if got, want := []string{all[0].ID, all[1].ID}, []string{second.ID, first.ID}; !testutil.EqualStringSlices(got, want) {
+	if got, want := []string{
+		all[0].ID,
+		all[1].ID,
+	}, []string{
+		second.ID,
+		first.ID,
+	}; !testutil.EqualStringSlices(
+		got,
+		want,
+	) {
 		t.Fatalf("ListTasks(all) order = %#v, want %#v", got, want)
 	}
 }
@@ -1722,7 +1764,16 @@ func TestTaskManagerStreamSupportsReplayAndReconnectIntegration(t *testing.T) {
 
 	backlogChildCreated := awaitIntegrationTaskStreamEvent(t, stream)
 	backlogParentJoin := awaitIntegrationTaskStreamEvent(t, stream)
-	if got, want := []int64{backlogChildCreated.Sequence, backlogParentJoin.Sequence}, []int64{2, 3}; !equalInt64s(got, want) {
+	if got, want := []int64{
+		backlogChildCreated.Sequence,
+		backlogParentJoin.Sequence,
+	}, []int64{
+		2,
+		3,
+	}; !equalInt64s(
+		got,
+		want,
+	) {
 		t.Fatalf("backlog sequences = %#v, want [2 3]", got)
 	}
 	if got, want := backlogChildCreated.Timeline.Task.ID, child.ID; got != want {

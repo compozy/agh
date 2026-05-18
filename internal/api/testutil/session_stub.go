@@ -33,7 +33,7 @@ func (s StubSessionManager) Create(ctx context.Context, opts session.CreateOpts)
 	if s.CreateFn != nil {
 		return s.CreateFn(ctx, opts)
 	}
-	return nil, nil
+	return nil, session.ErrSessionNotFound
 }
 
 func (s StubSessionManager) List() []*session.Info {
@@ -136,7 +136,7 @@ func (s StubSessionManager) Resume(ctx context.Context, id string) (*session.Ses
 	if s.ResumeFn != nil {
 		return s.ResumeFn(ctx, id)
 	}
-	return nil, nil
+	return nil, session.ErrSessionNotFound
 }
 
 func (s StubSessionManager) ClearConversation(
@@ -146,7 +146,7 @@ func (s StubSessionManager) ClearConversation(
 	if s.ClearFn != nil {
 		return s.ClearFn(ctx, id)
 	}
-	return nil, nil
+	return nil, session.ErrSessionNotFound
 }
 
 func (s StubSessionManager) Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {

@@ -191,8 +191,12 @@ func (s Snapshot) ProfileEnvelope() (SnapshotProfile, error) {
 	if len(normalized.ProfileJSON) == 0 {
 		return SnapshotProfile{}, fmt.Errorf("%w: profile_json is required", ErrInvalidSnapshot)
 	}
+	return decodeSnapshotProfileJSON(normalized.ProfileJSON)
+}
+
+func decodeSnapshotProfileJSON(raw json.RawMessage) (SnapshotProfile, error) {
 	var profile SnapshotProfile
-	if err := json.Unmarshal(normalized.ProfileJSON, &profile); err != nil {
+	if err := json.Unmarshal(raw, &profile); err != nil {
 		return SnapshotProfile{}, fmt.Errorf("%w: decode profile_json: %w", ErrInvalidSnapshot, err)
 	}
 	if profile.SchemaVersion != snapshotProfileSchemaVersion {
@@ -203,6 +207,14 @@ func (s Snapshot) ProfileEnvelope() (SnapshotProfile, error) {
 		)
 	}
 	return profile, nil
+}
+
+func validateRevisionDiagnosticsJSON(raw json.RawMessage) error {
+	var diagnostics []Diagnostic
+	if err := json.Unmarshal(raw, &diagnostics); err != nil {
+		return fmt.Errorf("%w: decode diagnostics_json: %w", ErrInvalidRevision, err)
+	}
+	return nil
 }
 
 // DiagnosticsJSON encodes redacted validation diagnostics for revision storage.
@@ -245,9 +257,11 @@ func (s Snapshot) Validate() error {
 		return fmt.Errorf("%w: profile_json must be valid JSON", ErrInvalidSnapshot)
 	case normalized.CreatedAt.IsZero():
 		return fmt.Errorf("%w: created_at is required", ErrInvalidSnapshot)
-	default:
-		return nil
 	}
+	if _, err := decodeSnapshotProfileJSON(normalized.ProfileJSON); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Validate ensures the snapshot query uses supported bounds.
@@ -299,9 +313,11 @@ func (r Revision) Validate() error {
 		return fmt.Errorf("%w: diagnostics_json must be valid JSON", ErrInvalidRevision)
 	case normalized.CreatedAt.IsZero():
 		return fmt.Errorf("%w: created_at is required", ErrInvalidRevision)
-	default:
-		return nil
 	}
+	if err := validateRevisionDiagnosticsJSON(normalized.DiagnosticsJSON); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Validate ensures the revision query uses supported bounds.

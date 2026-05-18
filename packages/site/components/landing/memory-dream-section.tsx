@@ -73,7 +73,7 @@ export function MemoryDreamSection() {
               height={640}
               decoding="async"
               sizes="400px"
-              unoptimized
+              quality={90}
               className="block w-full max-w-100 select-none object-contain opacity-95"
             />
           </div>

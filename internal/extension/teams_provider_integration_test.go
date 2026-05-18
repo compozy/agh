@@ -51,8 +51,18 @@ func TestTeamsProviderLaunchNegotiatesBridgeRuntime(t *testing.T) {
 		ExtensionDir: teamsProviderExtensionDir(repoRoot),
 		Platform:     "teams",
 		ManagedInstances: []extensiontest.ManagedInstanceConfig{
-			teamsManagedInstanceConfig("brg-teams-a", "11111111-2222-3333-4444-555555555555", mockAPI, bridgepkg.RoutingPolicy{IncludeGroup: true, IncludeThread: true}),
-			teamsManagedInstanceConfig("brg-teams-b", "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", mockAPI, bridgepkg.RoutingPolicy{IncludePeer: true, IncludeThread: true}),
+			teamsManagedInstanceConfig(
+				"brg-teams-a",
+				"11111111-2222-3333-4444-555555555555",
+				mockAPI,
+				bridgepkg.RoutingPolicy{IncludeGroup: true, IncludeThread: true},
+			),
+			teamsManagedInstanceConfig(
+				"brg-teams-b",
+				"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+				mockAPI,
+				bridgepkg.RoutingPolicy{IncludePeer: true, IncludeThread: true},
+			),
 		},
 		ExtraEnv: map[string]string{
 			teamsProviderListenAddrEnv:   listenAddr,
@@ -169,7 +179,13 @@ func TestTeamsProviderIngressAndDeliveryConformance(t *testing.T) {
 	}
 
 	webhookURL := fmt.Sprintf("http://%s/teams/%s", listenAddr, harness.Instances[0].ID)
-	postTeamsProviderWebhook(t, mockAPI, webhookURL, "app-id", teamsProviderMessageWebhook(mockAPI.ServiceURL(), "Need a summary"))
+	postTeamsProviderWebhook(
+		t,
+		mockAPI,
+		webhookURL,
+		"app-id",
+		teamsProviderMessageWebhook(mockAPI.ServiceURL(), "Need a summary"),
+	)
 	postTeamsProviderWebhook(t, mockAPI, webhookURL, "app-id", teamsProviderInvokeWebhook(mockAPI.ServiceURL()))
 	postTeamsProviderWebhook(t, mockAPI, webhookURL, "app-id", teamsProviderReactionWebhook(mockAPI.ServiceURL()))
 
@@ -177,7 +193,10 @@ func TestTeamsProviderIngressAndDeliveryConformance(t *testing.T) {
 		return len(records) >= 4 && strings.TrimSpace(records[len(records)-1].Result.SessionID) != ""
 	})
 	deliveries := harness.WaitForDeliveries(t, 10*time.Second, func(records []extensiontest.DeliveryRecord) bool {
-		return len(records) > 0 && normalizeDeliveryEventType(records[len(records)-1].Request.Event.EventType) == bridgepkg.DeliveryEventTypeFinal
+		return len(records) > 0 &&
+			normalizeDeliveryEventType(
+				records[len(records)-1].Request.Event.EventType,
+			) == bridgepkg.DeliveryEventTypeFinal
 	})
 	report := harness.Report(t)
 
@@ -202,7 +221,10 @@ func TestTeamsProviderIngressAndDeliveryConformance(t *testing.T) {
 	if got, want := message.Envelope.GroupID, "19:channel@thread.tacv2"; got != want {
 		t.Fatalf("message group id = %q, want %q", got, want)
 	}
-	if got, want := message.Envelope.ThreadID, teamsProviderExpectedThreadID("19:channel@thread.tacv2;messageid=activity-1", mockAPI.ServiceURL()); got != want {
+	if got, want := message.Envelope.ThreadID, teamsProviderExpectedThreadID(
+		"19:channel@thread.tacv2;messageid=activity-1",
+		mockAPI.ServiceURL(),
+	); got != want {
 		t.Fatalf("message thread id = %q, want %q", got, want)
 	}
 	if got, want := message.Envelope.Content.Text, "Need a summary"; got != want {
@@ -231,10 +253,14 @@ func TestTeamsProviderIngressAndDeliveryConformance(t *testing.T) {
 	if len(deliveries) < 2 {
 		t.Fatalf("len(deliveries) = %d, want at least 2", len(deliveries))
 	}
-	if got, want := normalizeDeliveryEventType(deliveries[0].Request.Event.EventType), bridgepkg.DeliveryEventTypeStart; got != want {
+	if got, want := normalizeDeliveryEventType(
+		deliveries[0].Request.Event.EventType,
+	), bridgepkg.DeliveryEventTypeStart; got != want {
 		t.Fatalf("first delivery event type = %q, want %q", got, want)
 	}
-	if got, want := normalizeDeliveryEventType(deliveries[len(deliveries)-1].Request.Event.EventType), bridgepkg.DeliveryEventTypeFinal; got != want {
+	if got, want := normalizeDeliveryEventType(
+		deliveries[len(deliveries)-1].Request.Event.EventType,
+	), bridgepkg.DeliveryEventTypeFinal; got != want {
 		t.Fatalf("last delivery event type = %q, want %q", got, want)
 	}
 
@@ -264,7 +290,12 @@ func TestTeamsProviderInvalidTenantConfigReportsDegradedState(t *testing.T) {
 	listenAddr := reserveIntegrationListenAddr(t)
 	mockAPI := newTeamsProviderAPIServer(t)
 
-	instanceConfig := teamsManagedInstanceConfig("brg-teams-bad", "not-a-tenant", mockAPI, bridgepkg.RoutingPolicy{IncludePeer: true})
+	instanceConfig := teamsManagedInstanceConfig(
+		"brg-teams-bad",
+		"not-a-tenant",
+		mockAPI,
+		bridgepkg.RoutingPolicy{IncludePeer: true},
+	)
 	harness := extensiontest.NewHarness(t, extensiontest.HarnessConfig{
 		ExtensionDir:     teamsProviderExtensionDir(repoRoot),
 		Platform:         "teams",
@@ -347,7 +378,12 @@ func buildTeamsProvider(t *testing.T, repoRoot string) {
 	}
 }
 
-func teamsManagedInstanceConfig(instanceID string, tenantID string, mockAPI *teamsProviderAPIServer, routing bridgepkg.RoutingPolicy) extensiontest.ManagedInstanceConfig {
+func teamsManagedInstanceConfig(
+	instanceID string,
+	tenantID string,
+	mockAPI *teamsProviderAPIServer,
+	routing bridgepkg.RoutingPolicy,
+) extensiontest.ManagedInstanceConfig {
 	return extensiontest.ManagedInstanceConfig{
 		ID:            instanceID,
 		DisplayName:   "Teams",
@@ -455,7 +491,13 @@ func teamsProviderReactionWebhook(serviceURL string) map[string]any {
 	}
 }
 
-func postTeamsProviderWebhook(t *testing.T, server *teamsProviderAPIServer, webhookURL string, appID string, payload any) {
+func postTeamsProviderWebhook(
+	t *testing.T,
+	server *teamsProviderAPIServer,
+	webhookURL string,
+	appID string,
+	payload any,
+) {
 	t.Helper()
 
 	body, err := json.Marshal(payload)
@@ -489,7 +531,12 @@ func postTeamsProviderWebhook(t *testing.T, server *teamsProviderAPIServer, webh
 			time.Sleep(20 * time.Millisecond)
 			continue
 		}
-		t.Fatalf("webhook status = %d, want %d; body=%q", resp.StatusCode, http.StatusOK, strings.TrimSpace(string(responseBody)))
+		t.Fatalf(
+			"webhook status = %d, want %d; body=%q",
+			resp.StatusCode,
+			http.StatusOK,
+			strings.TrimSpace(string(responseBody)),
+		)
 	}
 
 	t.Fatalf("webhook %s did not become ready before timeout", webhookURL)
@@ -497,7 +544,9 @@ func postTeamsProviderWebhook(t *testing.T, server *teamsProviderAPIServer, webh
 
 func teamsProviderExpectedThreadID(conversationID string, serviceURL string) string {
 	encodedConversationID := base64.RawURLEncoding.EncodeToString([]byte(strings.TrimSpace(conversationID)))
-	encodedServiceURL := base64.RawURLEncoding.EncodeToString([]byte(strings.TrimRight(strings.TrimSpace(serviceURL), "/")))
+	encodedServiceURL := base64.RawURLEncoding.EncodeToString(
+		[]byte(strings.TrimRight(strings.TrimSpace(serviceURL), "/")),
+	)
 	return "teams:" + encodedConversationID + ":" + encodedServiceURL
 }
 

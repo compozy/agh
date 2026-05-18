@@ -2,11 +2,16 @@ package cli
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -21,6 +26,7 @@ import (
 )
 
 const defaultMCPAuthLoginTimeout = 2 * time.Minute
+const mcpAuthPendingLoginDir = "mcp-auth"
 
 type mcpAuthClient interface {
 	BeginLogin(ctx context.Context, cfg mcpauth.ServerConfig, redirectURL string) (mcpauth.LoginState, error)
@@ -89,6 +95,7 @@ func newMCPAuthLoginCommand(deps commandDeps) *cobra.Command {
 	var (
 		redirectURL string
 		manualCode  string
+		manual      bool
 		timeout     time.Duration
 	)
 	cmd := &cobra.Command{
@@ -108,7 +115,16 @@ func newMCPAuthLoginCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			status, err := runMCPAuthLogin(cmd, client, cfg, redirectURL, manualCode, timeout)
+			status, err := runMCPAuthLogin(
+				cmd,
+				client,
+				runtime.HomePaths,
+				cfg,
+				redirectURL,
+				manualCode,
+				manual,
+				timeout,
+			)
 			if err != nil {
 				return err
 			}
@@ -122,6 +138,7 @@ func newMCPAuthLoginCommand(deps commandDeps) *cobra.Command {
 		"",
 		"Exchange an authorization code without starting the loopback listener",
 	)
+	cmd.Flags().BoolVar(&manual, "manual", false, "Print an authorization URL for manual code exchange")
 	cmd.Flags().DurationVar(&timeout, "timeout", defaultMCPAuthLoginTimeout, "Loopback login timeout")
 	return cmd
 }
@@ -248,24 +265,24 @@ func cleanupMCPAuthRuntime(
 func runMCPAuthLogin(
 	cmd *cobra.Command,
 	client mcpAuthClient,
+	homePaths aghconfig.HomePaths,
 	cfg mcpauth.ServerConfig,
 	redirectURL string,
 	manualCode string,
+	manual bool,
 	timeout time.Duration,
 ) (status mcpauth.Status, runErr error) {
 	if client == nil {
 		return mcpauth.Status{}, errors.New("cli: MCP auth client is required")
 	}
+	if manual && strings.TrimSpace(manualCode) != "" {
+		return mcpauth.Status{}, errors.New("cli: --manual and --manual-code are mutually exclusive")
+	}
+	if manual {
+		return runMCPAuthManualLogin(cmd, client, homePaths, cfg, redirectURL)
+	}
 	if strings.TrimSpace(manualCode) != "" {
-		if strings.TrimSpace(redirectURL) == "" {
-			redirectURL = "http://127.0.0.1/callback"
-		}
-		state, err := client.BeginLogin(cmd.Context(), cfg, redirectURL)
-		if err != nil {
-			return mcpauth.Status{}, err
-		}
-		callback := callbackURLWithCode(redirectURL, manualCode, state.State)
-		return client.Exchange(cmd.Context(), state, callback)
+		return runMCPAuthManualCodeLogin(cmd, client, homePaths, cfg, manualCode)
 	}
 
 	if timeout <= 0 {
@@ -295,12 +312,14 @@ func runMCPAuthLogin(
 		}
 	}()
 
-	_, _ = fmt.Fprintf(
+	if _, err := fmt.Fprintf(
 		cmd.ErrOrStderr(),
 		"Open this URL to authenticate %s:\n%s\n",
 		cfg.ServerName,
 		state.AuthorizationURL,
-	)
+	); err != nil {
+		return mcpauth.Status{}, fmt.Errorf("cli: write MCP auth login instructions: %w", err)
+	}
 	ctx, cancel := context.WithTimeout(cmd.Context(), timeout)
 	defer cancel()
 	select {
@@ -311,6 +330,65 @@ func runMCPAuthLogin(
 	case <-ctx.Done():
 		return mcpauth.Status{}, fmt.Errorf("cli: MCP auth login timed out: %w", ctx.Err())
 	}
+}
+
+func runMCPAuthManualLogin(
+	cmd *cobra.Command,
+	client mcpAuthClient,
+	homePaths aghconfig.HomePaths,
+	cfg mcpauth.ServerConfig,
+	redirectURL string,
+) (mcpauth.Status, error) {
+	if strings.TrimSpace(redirectURL) == "" {
+		redirectURL = "http://127.0.0.1/callback"
+	}
+	state, err := client.BeginLogin(cmd.Context(), cfg, redirectURL)
+	if err != nil {
+		return mcpauth.Status{}, err
+	}
+	if err := saveMCPAuthPendingLogin(homePaths, state); err != nil {
+		return mcpauth.Status{}, err
+	}
+	if _, err := fmt.Fprintf(
+		cmd.ErrOrStderr(),
+		"Open this URL to authenticate %s, then rerun with --manual-code <code>:\n%s\n",
+		cfg.ServerName,
+		state.AuthorizationURL,
+	); err != nil {
+		return mcpauth.Status{}, fmt.Errorf("cli: write MCP auth manual login instructions: %w", err)
+	}
+	return mcpauth.Status{
+		ServerName:       cfg.ServerName,
+		Status:           mcpauth.StatusNeedsLogin,
+		RemoteURL:        cfg.RemoteURL,
+		AuthType:         cfg.Type,
+		ClientID:         cfg.ClientID,
+		Scopes:           append([]string(nil), cfg.Scopes...),
+		AuthorizationURL: state.AuthorizationURL,
+		Diagnostic:       "manual_code_pending",
+	}, nil
+}
+
+func runMCPAuthManualCodeLogin(
+	cmd *cobra.Command,
+	client mcpAuthClient,
+	homePaths aghconfig.HomePaths,
+	cfg mcpauth.ServerConfig,
+	manualCode string,
+) (mcpauth.Status, error) {
+	state, err := loadMCPAuthPendingLogin(homePaths, cfg)
+	if err != nil {
+		return mcpauth.Status{}, err
+	}
+	callback := callbackURLWithCode(state.RedirectURL, manualCode, state.State)
+	status, err := client.Exchange(cmd.Context(), state, callback)
+	if err != nil {
+		return status, err
+	}
+	if err := removeMCPAuthPendingLogin(homePaths, cfg.ServerName); err != nil {
+		return status, err
+	}
+	return status, nil
 }
 
 func resolveMCPAuthTarget(
@@ -512,6 +590,116 @@ func callbackURLWithCode(redirectURL string, code string, state string) string {
 	values.Set("state", strings.TrimSpace(state))
 	parsed.RawQuery = values.Encode()
 	return parsed.String()
+}
+
+type mcpAuthPendingLoginRecord struct {
+	ServerName       string           `json:"server_name"`
+	RedirectURL      string           `json:"redirect_url"`
+	State            string           `json:"state"`
+	Verifier         string           `json:"verifier"`
+	AuthorizationURL string           `json:"authorization_url"`
+	Metadata         mcpauth.Metadata `json:"metadata"`
+	CreatedAt        time.Time        `json:"created_at"`
+}
+
+func saveMCPAuthPendingLogin(homePaths aghconfig.HomePaths, state mcpauth.LoginState) error {
+	path, err := mcpAuthPendingLoginPath(homePaths, state.ServerName)
+	if err != nil {
+		return err
+	}
+	record := mcpAuthPendingLoginRecord{
+		ServerName:       state.ServerName,
+		RedirectURL:      state.RedirectURL,
+		State:            state.State,
+		Verifier:         state.Verifier,
+		AuthorizationURL: state.AuthorizationURL,
+		Metadata:         state.Metadata,
+		CreatedAt:        time.Now().UTC(),
+	}
+	payload, err := json.MarshalIndent(record, "", "  ")
+	if err != nil {
+		return fmt.Errorf("cli: encode pending MCP auth login: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return fmt.Errorf("cli: create pending MCP auth login directory: %w", err)
+	}
+	if err := os.WriteFile(path, payload, 0o600); err != nil {
+		return fmt.Errorf("cli: write pending MCP auth login: %w", err)
+	}
+	if err := os.Chmod(path, 0o600); err != nil {
+		return fmt.Errorf("cli: protect pending MCP auth login: %w", err)
+	}
+	diagnostics.RegisterDynamicSecret(state.Verifier)
+	return nil
+}
+
+func loadMCPAuthPendingLogin(
+	homePaths aghconfig.HomePaths,
+	cfg mcpauth.ServerConfig,
+) (mcpauth.LoginState, error) {
+	path, err := mcpAuthPendingLoginPath(homePaths, cfg.ServerName)
+	if err != nil {
+		return mcpauth.LoginState{}, err
+	}
+	payload, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return mcpauth.LoginState{}, fmt.Errorf(
+				"cli: pending MCP auth login for %q not found; run login with --manual first",
+				cfg.ServerName,
+			)
+		}
+		return mcpauth.LoginState{}, fmt.Errorf("cli: read pending MCP auth login: %w", err)
+	}
+	var record mcpAuthPendingLoginRecord
+	if err := json.Unmarshal(payload, &record); err != nil {
+		return mcpauth.LoginState{}, fmt.Errorf("cli: decode pending MCP auth login: %w", err)
+	}
+	if record.ServerName != cfg.ServerName {
+		return mcpauth.LoginState{}, fmt.Errorf(
+			"cli: pending MCP auth login server %q does not match %q",
+			record.ServerName,
+			cfg.ServerName,
+		)
+	}
+	state := mcpauth.LoginState{
+		ServerName:       record.ServerName,
+		RedirectURL:      record.RedirectURL,
+		State:            record.State,
+		Verifier:         record.Verifier,
+		AuthorizationURL: record.AuthorizationURL,
+		Metadata:         record.Metadata,
+		Config:           cfg,
+	}
+	diagnostics.RegisterDynamicSecret(state.Verifier)
+	return state, nil
+}
+
+func removeMCPAuthPendingLogin(homePaths aghconfig.HomePaths, serverName string) error {
+	path, err := mcpAuthPendingLoginPath(homePaths, serverName)
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("cli: remove pending MCP auth login: %w", err)
+	}
+	return nil
+}
+
+func mcpAuthPendingLoginPath(homePaths aghconfig.HomePaths, serverName string) (string, error) {
+	if strings.TrimSpace(homePaths.RestartsDir) == "" {
+		return "", errors.New("cli: AGH home restarts directory is required for MCP auth manual login")
+	}
+	normalized := strings.TrimSpace(serverName)
+	if normalized == "" {
+		return "", errors.New("cli: MCP server name is required for pending auth login")
+	}
+	sum := sha256.Sum256([]byte(normalized))
+	return filepath.Join(
+		homePaths.RestartsDir,
+		mcpAuthPendingLoginDir,
+		hex.EncodeToString(sum[:])+".json",
+	), nil
 }
 
 func mcpAuthStatusBundle(status mcpauth.Status) outputBundle {

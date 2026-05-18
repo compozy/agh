@@ -11,6 +11,7 @@ import (
 	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/diagnostics"
 )
 
 func TestManagedWakeServiceDecision(t *testing.T) {
@@ -343,6 +344,99 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		assertLastWakeEvent(t, store, WakeResultFailed, WakeReasonSyntheticPromptFailed, "hb-policy")
 	})
 
+	t.Run("Should redact synthetic prompt errors in wake diagnostics", func(t *testing.T) {
+		t.Parallel()
+
+		secret := "wake-diagnostic-secret-123456"
+		cleanup := diagnostics.RegisterDynamicSecret(secret)
+		t.Cleanup(cleanup)
+
+		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
+		cfg := aghconfig.DefaultHeartbeatConfig()
+		store := newFakeWakeStore(t)
+		store.snapshots = []Snapshot{wakeSnapshot(t, cfg, "hb-policy", "ws-1", "coder", base, "Policy")}
+		health := newFakeWakeHealth()
+		health.rows["sess-1"] = eligibleWakeHealth("sess-1", "ws-1", "coder", base)
+		service := newTestWakeService(
+			t,
+			store,
+			health,
+			&fakeWakePrompter{err: fmt.Errorf("driver refused prompt with token %s", secret)},
+			cfg,
+			base,
+		)
+
+		decision, err := service.Wake(context.Background(), WakeRequest{
+			WorkspaceID: "ws-1",
+			AgentName:   "coder",
+			SessionID:   "sess-1",
+			Source:      WakeSourceScheduler,
+		})
+		if err != nil {
+			t.Fatalf("Wake() error = %v", err)
+		}
+		if decision.Result != WakeResultFailed || decision.Reason != WakeReasonSyntheticPromptFailed {
+			t.Fatalf("Wake() = %#v, want failed synthetic prompt decision", decision)
+		}
+		if diagnosticsContain(decision.Diagnostics, secret) {
+			t.Fatalf("Wake() diagnostics leaked registered secret: %#v", decision.Diagnostics)
+		}
+		if len(decision.Diagnostics) == 0 ||
+			!strings.Contains(decision.Diagnostics[0].Message, "[REDACTED]") {
+			t.Fatalf("Wake() diagnostics = %#v, want redacted marker", decision.Diagnostics)
+		}
+		assertLastWakeEvent(t, store, WakeResultFailed, WakeReasonSyntheticPromptFailed, "hb-policy")
+	})
+
+	t.Run("Should persist wake audit and cooldown before prompting", func(t *testing.T) {
+		t.Parallel()
+
+		testCases := []struct {
+			name      string
+			appendErr error
+			upsertErr error
+		}{
+			{
+				name:      "Should not prompt when wake audit append fails",
+				appendErr: errors.New("append failed"),
+			},
+			{
+				name:      "Should not prompt when wake cooldown state upsert fails",
+				upsertErr: errors.New("upsert failed"),
+			},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
+				cfg := aghconfig.DefaultHeartbeatConfig()
+				store := newFakeWakeStore(t)
+				store.appendErr = tc.appendErr
+				store.upsertErr = tc.upsertErr
+				store.snapshots = []Snapshot{wakeSnapshot(t, cfg, "hb-policy", "ws-1", "coder", base, "Policy")}
+				health := newFakeWakeHealth()
+				health.rows["sess-1"] = eligibleWakeHealth("sess-1", "ws-1", "coder", base)
+				prompter := &fakeWakePrompter{}
+				service := newTestWakeService(t, store, health, prompter, cfg, base)
+
+				_, err := service.Wake(context.Background(), WakeRequest{
+					WorkspaceID: "ws-1",
+					AgentName:   "coder",
+					SessionID:   "sess-1",
+					Source:      WakeSourceScheduler,
+				})
+				if err == nil {
+					t.Fatal("Wake() error = nil, want persistence failure")
+				}
+				if got := len(prompter.requestsSnapshot()); got != 0 {
+					t.Fatalf("prompt requests = %d, want 0 before persistence succeeds", got)
+				}
+			})
+		}
+	})
+
 	t.Run("Should enforce configured max wakes per cycle", func(t *testing.T) {
 		t.Parallel()
 
@@ -409,6 +503,42 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		}
 		if got, want := len(store.eventsSnapshot()), 1; got != want {
 			t.Fatalf("wake events = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should redact WakeMany failure diagnostics", func(t *testing.T) {
+		t.Parallel()
+
+		secret := "wake-many-diagnostic-secret-123456"
+		cleanup := diagnostics.RegisterDynamicSecret(secret)
+		t.Cleanup(cleanup)
+
+		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
+		cfg := aghconfig.DefaultHeartbeatConfig()
+		store := newFakeWakeStore(t)
+		store.appendErr = fmt.Errorf("append failed with token %s", secret)
+		store.snapshots = []Snapshot{wakeSnapshot(t, cfg, "hb-policy", "ws-1", "coder", base, "Policy")}
+		health := newFakeWakeHealth()
+		health.rows["sess-1"] = eligibleWakeHealth("sess-1", "ws-1", "coder", base)
+		service := newTestWakeService(t, store, health, &fakeWakePrompter{}, cfg, base)
+
+		decisions, err := service.WakeMany(context.Background(), []WakeRequest{
+			{WorkspaceID: "ws-1", AgentName: "coder", SessionID: "sess-1", Source: WakeSourceScheduler},
+		})
+		if err == nil {
+			t.Fatal("WakeMany(store failure) error = nil, want aggregate error")
+		}
+		if got, want := len(decisions), 1; got != want {
+			t.Fatalf("len(decisions) = %d, want %d", got, want)
+		}
+		if decisions[0].Result != WakeResultFailed || len(decisions[0].Diagnostics) == 0 {
+			t.Fatalf("WakeMany() = %#v, want failed diagnostic placeholder", decisions)
+		}
+		if diagnosticsContain(decisions[0].Diagnostics, secret) {
+			t.Fatalf("WakeMany() diagnostics leaked registered secret: %#v", decisions[0].Diagnostics)
+		}
+		if !strings.Contains(decisions[0].Diagnostics[0].Message, "[REDACTED]") {
+			t.Fatalf("WakeMany() diagnostics = %#v, want redacted marker", decisions[0].Diagnostics)
 		}
 	})
 }
@@ -791,6 +921,8 @@ type fakeWakeStore struct {
 	snapshots []Snapshot
 	states    map[string]WakeState
 	events    []WakeEvent
+	appendErr error
+	upsertErr error
 }
 
 func newFakeWakeStore(t *testing.T) *fakeWakeStore {
@@ -852,6 +984,9 @@ func (s *fakeWakeStore) UpsertHeartbeatWakeState(_ context.Context, state WakeSt
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.upsertErr != nil {
+		return WakeState{}, s.upsertErr
+	}
 	normalized := state.Normalize()
 	if err := normalized.Validate(); err != nil {
 		return WakeState{}, err
@@ -864,12 +999,46 @@ func (s *fakeWakeStore) AppendHeartbeatWakeEvent(_ context.Context, event WakeEv
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.appendErr != nil {
+		return WakeEvent{}, s.appendErr
+	}
 	normalized := event.Normalize()
 	if err := normalized.Validate(); err != nil {
 		return WakeEvent{}, err
 	}
 	s.events = append(s.events, normalized)
 	return normalized, nil
+}
+
+func (s *fakeWakeStore) RecordHeartbeatWakeDecision(
+	_ context.Context,
+	event WakeEvent,
+	state WakeState,
+) (WakeEvent, WakeState, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.appendErr != nil {
+		return WakeEvent{}, WakeState{}, s.appendErr
+	}
+	normalizedEvent := event.Normalize()
+	if err := normalizedEvent.Validate(); err != nil {
+		return WakeEvent{}, WakeState{}, err
+	}
+	if s.upsertErr != nil {
+		return WakeEvent{}, WakeState{}, s.upsertErr
+	}
+	normalizedState := state.Normalize()
+	if err := normalizedState.Validate(); err != nil {
+		return WakeEvent{}, WakeState{}, err
+	}
+	s.events = append(s.events, normalizedEvent)
+	s.states[wakeStateTestKey(
+		normalizedState.WorkspaceID,
+		normalizedState.AgentName,
+		normalizedState.SessionID,
+	)] = normalizedState
+	return normalizedEvent, normalizedState, nil
 }
 
 func (s *fakeWakeStore) eventsSnapshot() []WakeEvent {

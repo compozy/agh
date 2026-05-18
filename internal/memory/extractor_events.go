@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pedronauck/agh/internal/diagnostics"
 	memoryextractor "github.com/pedronauck/agh/internal/memory/extractor"
 	storepkg "github.com/pedronauck/agh/internal/store"
 )
@@ -78,7 +79,7 @@ func extractorEventMetadata(event memoryextractor.Event) (string, error) {
 		if key == "" {
 			continue
 		}
-		metadata[key] = strings.TrimSpace(value)
+		metadata[key] = diagnostics.RedactAndBound(value, maxOperationSummaryBytes)
 	}
 	if event.Turn.SinceMessageSeq > 0 {
 		metadata["since_message_seq"] = fmt.Sprintf("%d", event.Turn.SinceMessageSeq)
@@ -90,7 +91,7 @@ func extractorEventMetadata(event memoryextractor.Event) (string, error) {
 		metadata["trigger"] = string(trigger)
 	}
 	if strings.TrimSpace(event.Error) != "" {
-		metadata["error"] = strings.TrimSpace(event.Error)
+		metadata["error"] = diagnostics.RedactAndBound(event.Error, maxOperationSummaryBytes)
 	}
 	payload, err := json.Marshal(metadata)
 	if err != nil {

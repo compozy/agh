@@ -11,6 +11,73 @@ import (
 func TestInboundBatcherRefacs(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should reject zero-delay enqueue after close without dispatch", func(t *testing.T) {
+		t.Parallel()
+
+		batches := make(chan InboundBatch, 1)
+		batcher, err := NewInboundBatcher(InboundBatcherConfig{
+			Delay: 0,
+			Dispatch: func(_ context.Context, batch InboundBatch) error {
+				batches <- batch
+				return nil
+			},
+		})
+		if err != nil {
+			t.Fatalf("NewInboundBatcher() error = %v", err)
+		}
+		batcher.Close()
+
+		err = batcher.Enqueue(testInboundEnvelope("idem-closed", "msg-closed", "closed"))
+		if err == nil {
+			t.Fatal("Enqueue() error = nil, want closed batcher error")
+		}
+		if got, want := err.Error(), "bridgesdk: inbound batcher is closed"; got != want {
+			t.Fatalf("Enqueue() error = %q, want %q", got, want)
+		}
+		select {
+		case batch := <-batches:
+			t.Fatalf("dispatched batch after Close(): %#v", batch)
+		default:
+		}
+	})
+
+	t.Run("Should isolate explicit network conversation refs before zero-delay dispatch", func(t *testing.T) {
+		t.Parallel()
+
+		batches := make(chan InboundBatch, 1)
+		batcher, err := NewInboundBatcher(InboundBatcherConfig{
+			Delay: 0,
+			Dispatch: func(_ context.Context, batch InboundBatch) error {
+				batches <- batch
+				return nil
+			},
+		})
+		if err != nil {
+			t.Fatalf("NewInboundBatcher() error = %v", err)
+		}
+		defer batcher.Close()
+
+		envelope := testInboundEnvelope("idem-zero", "msg-zero", "hello")
+		envelope.Conversation = &bridgepkg.NetworkConversationRef{
+			Channel:  "network:primary",
+			Surface:  bridgepkg.NetworkConversationSurfaceThread,
+			ThreadID: "thread_original",
+		}
+		if err := batcher.Enqueue(envelope); err != nil {
+			t.Fatalf("Enqueue() error = %v", err)
+		}
+		envelope.Conversation.ThreadID = "thread_mutated"
+
+		select {
+		case batch := <-batches:
+			if got, want := batch.Items[0].Conversation.ThreadID, "thread_original"; got != want {
+				t.Fatalf("batch.Items[0].Conversation.ThreadID = %q, want %q", got, want)
+			}
+		case <-time.After(250 * time.Millisecond):
+			t.Fatal("timed out waiting for zero-delay batch")
+		}
+	})
+
 	t.Run("Should isolate explicit network conversation refs before delayed dispatch", func(t *testing.T) {
 		t.Parallel()
 

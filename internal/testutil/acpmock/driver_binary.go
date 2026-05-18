@@ -11,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	aghconfig "github.com/pedronauck/agh/internal/config"
 )
 
 const driverBinaryEnvVar = "AGH_TEST_ACPMOCK_DRIVER_BIN"
@@ -24,6 +26,10 @@ var (
 
 // DefaultDriverPath resolves or builds the test-only ACP mock driver binary.
 func DefaultDriverPath() (string, error) {
+	if trimmed := strings.TrimSpace(os.Getenv(driverBinaryEnvVar)); trimmed != "" {
+		return resolveExplicitDriverPath(trimmed)
+	}
+
 	driverBinaryMu.Lock()
 	defer driverBinaryMu.Unlock()
 
@@ -76,12 +82,23 @@ func buildDriverBinary(ctx context.Context, repoRoot string, outputPath string) 
 
 func resolveDriverPath(override string) (string, error) {
 	if trimmed := strings.TrimSpace(override); trimmed != "" {
-		return trimmed, nil
+		return resolveExplicitDriverPath(trimmed)
 	}
 	if trimmed := strings.TrimSpace(os.Getenv(driverBinaryEnvVar)); trimmed != "" {
-		return trimmed, nil
+		return resolveExplicitDriverPath(trimmed)
 	}
 	return DefaultDriverPath()
+}
+
+func resolveExplicitDriverPath(path string) (string, error) {
+	resolved, err := aghconfig.ResolvePath(path)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(resolved) == "" {
+		return "", errors.New("acpmock: driver path is required")
+	}
+	return resolved, nil
 }
 
 func driverBinaryName() string {

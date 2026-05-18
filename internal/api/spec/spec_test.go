@@ -1,6 +1,7 @@
 package spec
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -1226,6 +1227,33 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 
 func TestWriteFileAndEnumHelpers(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should render the document in memory with the same bytes as WriteFile", func(t *testing.T) {
+		t.Parallel()
+
+		rendered, err := Render()
+		if err != nil {
+			t.Fatalf("Render() error = %v", err)
+		}
+		if !json.Valid(rendered) {
+			t.Fatalf("Render() output is not valid JSON: %s", string(rendered))
+		}
+		if !strings.HasSuffix(string(rendered), "\n") {
+			t.Fatalf("Render() output must end with newline: %q", string(rendered))
+		}
+
+		path := filepath.Join(t.TempDir(), "openapi", "agh.json")
+		if err := WriteFile(path); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
+		written, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("os.ReadFile() error = %v", err)
+		}
+		if !bytes.Equal(written, rendered) {
+			t.Fatalf("WriteFile() output must match Render()")
+		}
+	})
 
 	t.Run("Should write the document and keep enum helpers populated", func(t *testing.T) {
 		t.Parallel()

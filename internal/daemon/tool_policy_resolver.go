@@ -104,6 +104,9 @@ func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.S
 	}
 	if resolvedScope.AgentName != "" {
 		if err := r.applyAgentToolPolicy(&inputs, resolvedScope.AgentName, resolvedWorkspace, cfg); err != nil {
+			if inputs.Session.Enforced && errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
+				return inputs, nil
+			}
 			return toolspkg.PolicyInputs{}, err
 		}
 	}

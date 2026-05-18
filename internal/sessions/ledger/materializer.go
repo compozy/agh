@@ -5,10 +5,12 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -17,7 +19,6 @@ import (
 
 	"github.com/pedronauck/agh/internal/fileutil"
 	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/store/sessiondb"
 )
 
 const (
@@ -103,9 +104,7 @@ func NewMaterializer(config Config) (*Materializer, error) {
 	}
 	opener := config.OpenEventStore
 	if opener == nil {
-		opener = func(ctx context.Context, sessionID string, path string) (store.EventRecorder, error) {
-			return sessiondb.OpenSessionDB(ctx, sessionID, path)
-		}
+		opener = openReadOnlyEventStore
 	}
 	return &Materializer{
 		rootDir:          root,
@@ -133,7 +132,11 @@ func (m *Materializer) Materialize(ctx context.Context, record store.SessionLedg
 	if err != nil {
 		return Result{}, err
 	}
-	recorder, err := m.openEventStore(ctx, strings.TrimSpace(record.SessionID), strings.TrimSpace(record.EventsDBPath))
+	eventsDBPath := strings.TrimSpace(record.EventsDBPath)
+	if eventsDBPath == "" {
+		return Result{}, fmt.Errorf("%w: events db path is required", ErrInvalidRecord)
+	}
+	recorder, err := m.openEventStore(ctx, strings.TrimSpace(record.SessionID), eventsDBPath)
 	if err != nil {
 		return Result{}, fmt.Errorf("sessions/ledger: open event store for %q: %w", record.SessionID, err)
 	}
@@ -203,13 +206,201 @@ func (m *Materializer) target(record store.SessionLedgerRecord) (ledgerTarget, e
 	if err != nil {
 		return ledgerTarget{}, err
 	}
-	if strings.TrimSpace(record.EventsDBPath) == "" {
-		return ledgerTarget{}, fmt.Errorf("%w: events db path is required", ErrInvalidRecord)
-	}
 	return ledgerTarget{
 		path:        filepath.Join(m.rootDir, partition, sessionID, ledgerFileName),
 		workspaceID: partition,
 	}, nil
+}
+
+type readOnlyEventStore struct {
+	db        *sql.DB
+	sessionID string
+}
+
+var _ store.EventRecorder = (*readOnlyEventStore)(nil)
+
+type ledgerRowScanner interface {
+	Scan(dest ...any) error
+}
+
+func openReadOnlyEventStore(ctx context.Context, sessionID string, path string) (store.EventRecorder, error) {
+	if ctx == nil {
+		return nil, errors.New("sessions/ledger: open read-only event store context is required")
+	}
+	cleanSessionID := strings.TrimSpace(sessionID)
+	if cleanSessionID == "" {
+		return nil, errors.New("sessions/ledger: read-only event store session id is required")
+	}
+	cleanPath := strings.TrimSpace(path)
+	if cleanPath == "" {
+		return nil, fmt.Errorf("%w: events db path is required", ErrInvalidRecord)
+	}
+	db, err := sql.Open("sqlite", readOnlySQLiteDSN(cleanPath))
+	if err != nil {
+		return nil, fmt.Errorf("sessions/ledger: open read-only event store %q: %w", cleanPath, err)
+	}
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	if err := db.PingContext(ctx); err != nil {
+		return nil, closeReadOnlyAfterOpenError(
+			db,
+			fmt.Errorf("sessions/ledger: ping read-only event store %q: %w", cleanPath, err),
+		)
+	}
+	if _, err := db.ExecContext(ctx, "PRAGMA query_only = ON"); err != nil {
+		return nil, closeReadOnlyAfterOpenError(
+			db,
+			fmt.Errorf("sessions/ledger: enable read-only event store guard %q: %w", cleanPath, err),
+		)
+	}
+	return &readOnlyEventStore{db: db, sessionID: cleanSessionID}, nil
+}
+
+func closeReadOnlyAfterOpenError(db *sql.DB, openErr error) error {
+	if db == nil {
+		return openErr
+	}
+	if closeErr := db.Close(); closeErr != nil {
+		return errors.Join(
+			openErr,
+			fmt.Errorf("sessions/ledger: close read-only event store after open failure: %w", closeErr),
+		)
+	}
+	return openErr
+}
+
+func readOnlySQLiteDSN(path string) string {
+	u := url.URL{
+		Scheme: "file",
+		Path:   filepath.ToSlash(path),
+	}
+	query := u.Query()
+	query.Set("mode", "ro")
+	u.RawQuery = query.Encode()
+	return u.String()
+}
+
+func (s *readOnlyEventStore) Record(context.Context, store.SessionEvent) error {
+	return errors.New("sessions/ledger: read-only event store cannot record events")
+}
+
+func (s *readOnlyEventStore) RecordTokenUsage(context.Context, store.TokenUsage) error {
+	return errors.New("sessions/ledger: read-only event store cannot record token usage")
+}
+
+func (s *readOnlyEventStore) Query(
+	ctx context.Context,
+	query store.EventQuery,
+) (events []store.SessionEvent, err error) {
+	if s == nil || s.db == nil {
+		return nil, errors.New("sessions/ledger: read-only event store is required")
+	}
+	if ctx == nil {
+		return nil, errors.New("sessions/ledger: query read-only event store context is required")
+	}
+	if err := query.Validate(); err != nil {
+		return nil, err
+	}
+	baseQuery := `SELECT id, sequence, turn_id, type, agent_name, content, timestamp FROM events`
+	where, args := store.BuildClauses(
+		store.StringClause("type", query.Type),
+		store.StringClause("agent_name", query.AgentName),
+		store.StringClause("turn_id", query.TurnID),
+		store.TimeClause("timestamp", ">=", query.Since),
+		store.Int64Clause("sequence", ">", query.AfterSequence),
+	)
+	baseQuery = store.AppendWhere(baseQuery, where)
+
+	sqlQuery := baseQuery
+	if query.Limit > 0 {
+		sqlQuery = `SELECT id, sequence, turn_id, type, agent_name, content, timestamp
+			FROM (` + baseQuery + ` ORDER BY sequence DESC LIMIT ?) AS recent_events
+			ORDER BY sequence ASC`
+		args = append(args, query.Limit)
+	} else {
+		sqlQuery += " ORDER BY sequence ASC"
+	}
+
+	rows, err := s.db.QueryContext(ctx, sqlQuery, args...)
+	if err != nil {
+		return nil, fmt.Errorf("sessions/ledger: query read-only events: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("sessions/ledger: close read-only event rows: %w", closeErr)
+		}
+	}()
+
+	events = make([]store.SessionEvent, 0)
+	for rows.Next() {
+		event, scanErr := s.scanEvent(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		events = append(events, event)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("sessions/ledger: iterate read-only events: %w", err)
+	}
+	return events, nil
+}
+
+func (s *readOnlyEventStore) History(ctx context.Context, query store.EventQuery) ([]store.TurnHistory, error) {
+	events, err := s.Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	turns := make([]store.TurnHistory, 0)
+	indexByTurnID := make(map[string]int, len(events))
+	for _, event := range events {
+		if idx, ok := indexByTurnID[event.TurnID]; ok {
+			turns[idx].Events = append(turns[idx].Events, event)
+			continue
+		}
+		indexByTurnID[event.TurnID] = len(turns)
+		turns = append(turns, store.TurnHistory{
+			TurnID: event.TurnID,
+			Events: []store.SessionEvent{event},
+		})
+	}
+	return turns, nil
+}
+
+func (s *readOnlyEventStore) Close(ctx context.Context) error {
+	if s == nil || s.db == nil {
+		return nil
+	}
+	if ctx == nil {
+		return errors.New("sessions/ledger: close read-only event store context is required")
+	}
+	if err := s.db.Close(); err != nil {
+		return fmt.Errorf("sessions/ledger: close read-only event store: %w", err)
+	}
+	s.db = nil
+	return nil
+}
+
+func (s *readOnlyEventStore) scanEvent(row ledgerRowScanner) (store.SessionEvent, error) {
+	var event store.SessionEvent
+	var timestamp string
+	if err := row.Scan(
+		&event.ID,
+		&event.Sequence,
+		&event.TurnID,
+		&event.Type,
+		&event.AgentName,
+		&event.Content,
+		&timestamp,
+	); err != nil {
+		return store.SessionEvent{}, fmt.Errorf("sessions/ledger: scan read-only event: %w", err)
+	}
+	parsed, err := store.ParseTimestamp(timestamp)
+	if err != nil {
+		return store.SessionEvent{}, err
+	}
+	event.SessionID = s.sessionID
+	event.Timestamp = parsed
+	return event, nil
 }
 
 func renderLedger(record store.SessionLedgerRecord, workspaceID string, events []store.SessionEvent) ([]byte, error) {

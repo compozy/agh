@@ -187,7 +187,7 @@ func (s StubAutomationManager) SetJobEnabled(ctx context.Context, id string, ena
 	if s.SetJobEnabledFn != nil {
 		return s.SetJobEnabledFn(ctx, id, enabled)
 	}
-	return automationpkg.Job{}, nil
+	return automationpkg.Job{}, automationpkg.ErrJobNotFound
 }
 
 func (s StubAutomationManager) SetTriggerEnabled(
@@ -198,7 +198,7 @@ func (s StubAutomationManager) SetTriggerEnabled(
 	if s.SetTriggerEnabledFn != nil {
 		return s.SetTriggerEnabledFn(ctx, id, enabled)
 	}
-	return automationpkg.Trigger{}, nil
+	return automationpkg.Trigger{}, automationpkg.ErrTriggerNotFound
 }
 
 func (s StubAutomationManager) HandleWebhook(

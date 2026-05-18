@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/observe"
@@ -475,6 +476,81 @@ func TestServerStartRejectsRestartDuringShutdown(t *testing.T) {
 			}
 		case <-time.After(2 * time.Second):
 			t.Fatal("timed out waiting for response")
+		}
+	})
+}
+
+func TestServerShutdownResetsStateAfterPromptDrainTimeout(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep the server stopping until prompt drain cleanup succeeds", func(t *testing.T) {
+		t.Parallel()
+
+		handlers := newHandlers(&handlerConfig{logger: discardLogger()})
+		streamCtx, streamCancel := context.WithCancel(context.Background())
+		handlers.setStreamDone(streamCtx.Done())
+		serveDone := make(chan struct{})
+		close(serveDone)
+		server := &Server{
+			handlers:     handlers,
+			serveDone:    serveDone,
+			streamCancel: streamCancel,
+			state:        serverStateRunning,
+		}
+
+		events := make(chan acp.AgentEvent)
+		promptCtx, cancelPrompt := context.WithCancel(context.Background())
+		eventsClosed := false
+		t.Cleanup(func() {
+			cancelPrompt()
+			if !eventsClosed {
+				close(events)
+			}
+		})
+
+		server.handlers.setStreamDone(make(chan struct{}))
+		server.handlers.drainPromptEventsAsync(promptCtx, events, cancelPrompt)
+
+		shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 20*time.Millisecond)
+		defer cancelShutdown()
+		err := server.Shutdown(shutdownCtx)
+		if err == nil {
+			t.Fatal("Shutdown() error = nil, want prompt drain timeout")
+		}
+		if !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "prompt drains") {
+			t.Fatalf("Shutdown() error = %v, want prompt drain timeout", err)
+		}
+
+		server.mu.Lock()
+		if server.state != serverStateStopping {
+			t.Fatalf("server state after timed-out shutdown = %v, want %v", server.state, serverStateStopping)
+		}
+		if server.streamCancel == nil {
+			t.Fatal("streamCancel after timed-out shutdown = nil, want retained for retry")
+		}
+		if server.serveDone == nil {
+			t.Fatal("serveDone after timed-out shutdown = nil, want retained for retry")
+		}
+		server.mu.Unlock()
+
+		close(events)
+		eventsClosed = true
+		retryCtx, cancelRetry := context.WithTimeout(context.Background(), time.Second)
+		defer cancelRetry()
+		if err := server.Shutdown(retryCtx); err != nil {
+			t.Fatalf("Shutdown(retry) error = %v", err)
+		}
+
+		server.mu.Lock()
+		defer server.mu.Unlock()
+		if server.state != serverStateStopped {
+			t.Fatalf("server state after retry shutdown = %v, want %v", server.state, serverStateStopped)
+		}
+		if server.streamCancel != nil {
+			t.Fatal("streamCancel after retry shutdown = non-nil, want nil")
+		}
+		if server.serveDone != nil {
+			t.Fatal("serveDone after retry shutdown = non-nil, want nil")
 		}
 	})
 }

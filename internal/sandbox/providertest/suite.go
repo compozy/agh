@@ -23,12 +23,16 @@ type LifecycleCase struct {
 func RunLifecycle(t *testing.T, tc LifecycleCase) sandbox.Prepared {
 	t.Helper()
 
-	prepared, err := runLifecycle(context.Background(), tc)
+	assertPrepared := func(prepared sandbox.Prepared) {
+		if tc.AssertPrepared != nil {
+			tc.AssertPrepared(t, prepared)
+		}
+	}
+	prepared, err := runLifecycleWithPreparedAssertion(context.Background(), tc, assertPrepared, func(err error) {
+		t.Errorf("%v", err)
+	})
 	if err != nil {
 		t.Fatal(err)
-	}
-	if tc.AssertPrepared != nil {
-		tc.AssertPrepared(t, prepared)
 	}
 	if tc.AssertFinalState != nil {
 		tc.AssertFinalState(t, prepared.State)
@@ -38,6 +42,15 @@ func RunLifecycle(t *testing.T, tc LifecycleCase) sandbox.Prepared {
 }
 
 func runLifecycle(ctx context.Context, tc LifecycleCase) (sandbox.Prepared, error) {
+	return runLifecycleWithPreparedAssertion(ctx, tc, nil, nil)
+}
+
+func runLifecycleWithPreparedAssertion(
+	ctx context.Context,
+	tc LifecycleCase,
+	assertPrepared func(sandbox.Prepared),
+	reportCleanupError func(error),
+) (prepared sandbox.Prepared, err error) {
 	if tc.Provider == nil {
 		return sandbox.Prepared{}, errors.New("provider = nil, want provider")
 	}
@@ -47,15 +60,38 @@ func runLifecycle(ctx context.Context, tc LifecycleCase) (sandbox.Prepared, erro
 		}
 	}
 
-	prepared, err := tc.Provider.Prepare(ctx, tc.PrepareRequest)
+	prepared, err = tc.Provider.Prepare(ctx, tc.PrepareRequest)
 	if err != nil {
 		return sandbox.Prepared{}, fmt.Errorf("Provider.Prepare() error = %w", err)
 	}
+	cleanupState := prepared.State
+	needsDestroy := true
+	defer func() {
+		if !needsDestroy {
+			return
+		}
+		destroyErr := tc.Provider.Destroy(ctx, cleanupState)
+		if destroyErr != nil {
+			wrapped := fmt.Errorf("Provider.Destroy() error = %w", destroyErr)
+			if err != nil {
+				err = errors.Join(err, wrapped)
+				return
+			}
+			if reportCleanupError != nil {
+				reportCleanupError(wrapped)
+				return
+			}
+			err = wrapped
+		}
+	}()
 	if prepared.Launcher == nil {
 		return sandbox.Prepared{}, errors.New("Prepared.Launcher = nil, want launcher")
 	}
 	if prepared.ToolHost == nil {
 		return sandbox.Prepared{}, errors.New("Prepared.ToolHost = nil, want tool host")
+	}
+	if assertPrepared != nil {
+		assertPrepared(prepared)
 	}
 
 	if _, err := tc.Provider.SyncToRuntime(ctx, prepared.State, sandbox.SyncOptions{
@@ -68,6 +104,7 @@ func runLifecycle(ctx context.Context, tc LifecycleCase) (sandbox.Prepared, erro
 	}); err != nil {
 		return sandbox.Prepared{}, fmt.Errorf("Provider.SyncFromRuntime() error = %w", err)
 	}
+	needsDestroy = false
 	if err := tc.Provider.Destroy(ctx, prepared.State); err != nil {
 		return sandbox.Prepared{}, fmt.Errorf("Provider.Destroy() error = %w", err)
 	}

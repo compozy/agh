@@ -3,6 +3,8 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
@@ -35,7 +37,14 @@ const (
 	daemonBinaryEnvVar        = "AGH_TEST_DAEMON_BIN"
 	driverBinaryEnvVar        = "AGH_TEST_ACPMOCK_DRIVER_BIN"
 	designSyncScriptPath      = "scripts/sync-design-md.mjs"
+	daytonaSidecarPackage     = "./internal/sandbox/daytona/cmd/agh-daytona-sidecar"
+	daytonaSidecarToolchain   = "1.25.5"
 )
+
+type daytonaSidecarAsset struct {
+	arch string
+	path string
+}
 
 var (
 	Default             = Verify
@@ -50,6 +59,29 @@ var (
 		},
 	}
 )
+
+var daytonaSidecarAssets = []daytonaSidecarAsset{
+	{
+		arch: "amd64",
+		path: filepath.Join(
+			"internal",
+			"sandbox",
+			"daytona",
+			"sidecar_assets",
+			"agh-daytona-sidecar-linux-amd64.gz",
+		),
+	},
+	{
+		arch: "arm64",
+		path: filepath.Join(
+			"internal",
+			"sandbox",
+			"daytona",
+			"sidecar_assets",
+			"agh-daytona-sidecar-linux-arm64.gz",
+		),
+	},
+}
 
 var (
 	errLaneBinaryOverrideDirectory     = errors.New("lane binary override points to directory")
@@ -81,7 +113,6 @@ func Lint() error {
 		"run",
 		"github.com/golangci/golangci-lint/v2/cmd/golangci-lint@"+golangciLintVersion,
 		"run",
-		"--fix",
 		"--allow-parallel-runners",
 		"./...",
 	); err != nil {
@@ -90,13 +121,13 @@ func Lint() error {
 	return Modernize()
 }
 
-// Modernize runs gopls' modernize analyzer to apply min/max/slices idiom suggestions.
+// Modernize runs gopls' modernize analyzer for min/max/slices idiom suggestions.
 func Modernize() error {
-	return sh.RunV(
+	return sh.RunWithV(
+		map[string]string{"CGO_ENABLED": "0"},
 		"go",
 		"run",
 		"golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@"+goplsModernizeVersion,
-		"-fix",
 		"./...",
 	)
 }
@@ -152,6 +183,9 @@ func Build() error {
 }
 
 func Codegen() error {
+	if err := DaytonaSidecars(); err != nil {
+		return err
+	}
 	if err := runCommandInDir(context.Background(), ".", "go", "run", "./cmd/agh-codegen", "all"); err != nil {
 		return err
 	}
@@ -168,6 +202,9 @@ func Codegen() error {
 }
 
 func CodegenCheck() error {
+	if err := DaytonaSidecarsCheck(); err != nil {
+		return err
+	}
 	if err := runCommandInDir(context.Background(), ".", "go", "run", "./cmd/agh-codegen", "check"); err != nil {
 		return err
 	}
@@ -195,17 +232,17 @@ func SyncDesignMDCheck() error {
 
 // BunLint runs the monorepo-wide lint script (oxfmt + oxlint over every workspace).
 func BunLint() error {
-	return runCommandInDir(context.Background(), ".", "bun", "run", "lint")
+	return runCommandInDir(context.Background(), ".", "bun", "run", "bun:lint")
 }
 
 // BunTypecheck runs the monorepo-wide typecheck pipeline (turbo run typecheck across every workspace).
 func BunTypecheck() error {
-	return runCommandInDir(context.Background(), ".", "bun", "run", "typecheck")
+	return runCommandInDir(context.Background(), ".", "bun", "run", "bun:typecheck")
 }
 
 // BunTest runs the monorepo-wide vitest projects suite from the repo root.
 func BunTest() error {
-	return runCommandInDir(context.Background(), ".", "bun", "run", "tests")
+	return runCommandInDir(context.Background(), ".", "bun", "run", "bun:test")
 }
 
 func InstallerCheck() error {
@@ -230,6 +267,104 @@ func WebTest() error {
 
 func WebBuild() error {
 	return runCommandInDir(context.Background(), "web", "bun", "run", "build:raw")
+}
+
+// DaytonaSidecars regenerates embedded Linux launcher sidecar assets.
+func DaytonaSidecars() error {
+	for _, asset := range daytonaSidecarAssets {
+		if err := buildDaytonaSidecarAsset(context.Background(), asset, asset.path); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// DaytonaSidecarsCheck verifies embedded launcher sidecar assets are current.
+func DaytonaSidecarsCheck() error {
+	tmpDir, err := os.MkdirTemp("", "agh-daytona-sidecar-check-")
+	if err != nil {
+		return fmt.Errorf("create Daytona sidecar check dir: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	for _, asset := range daytonaSidecarAssets {
+		tmpAssetPath := filepath.Join(tmpDir, filepath.Base(asset.path))
+		if err := buildDaytonaSidecarAsset(context.Background(), asset, tmpAssetPath); err != nil {
+			return err
+		}
+		generated, err := os.ReadFile(tmpAssetPath)
+		if err != nil {
+			return fmt.Errorf("read generated Daytona sidecar asset %q: %w", tmpAssetPath, err)
+		}
+		current, err := os.ReadFile(asset.path)
+		if err != nil {
+			return fmt.Errorf("read Daytona sidecar asset %q: %w; run mage daytonaSidecars", asset.path, err)
+		}
+		if !bytes.Equal(generated, current) {
+			return fmt.Errorf("Daytona sidecar asset %q is stale; run mage daytonaSidecars", asset.path)
+		}
+	}
+	return nil
+}
+
+func buildDaytonaSidecarAsset(ctx context.Context, asset daytonaSidecarAsset, outputPath string) error {
+	tmpDir, err := os.MkdirTemp("", "agh-daytona-sidecar-build-")
+	if err != nil {
+		return fmt.Errorf("create Daytona sidecar build dir: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	binaryPath := filepath.Join(tmpDir, "agh-daytona-sidecar")
+	if err := runCommandInDirWithEnv(
+		ctx,
+		".",
+		map[string]string{
+			"CGO_ENABLED": "0",
+			"GOOS":        "linux",
+			"GOARCH":      asset.arch,
+			"GOTOOLCHAIN": "go" + daytonaSidecarToolchain,
+		},
+		"go",
+		"build",
+		"-trimpath",
+		"-ldflags",
+		"-s -w",
+		"-o",
+		binaryPath,
+		daytonaSidecarPackage,
+	); err != nil {
+		return fmt.Errorf("build Daytona launcher sidecar for linux/%s: %w", asset.arch, err)
+	}
+	binary, err := os.ReadFile(binaryPath)
+	if err != nil {
+		return fmt.Errorf("read Daytona launcher sidecar for linux/%s: %w", asset.arch, err)
+	}
+	if len(binary) == 0 {
+		return fmt.Errorf("Daytona launcher sidecar for linux/%s is empty", asset.arch)
+	}
+	if err := writeGzipAsset(outputPath, binary); err != nil {
+		return fmt.Errorf("write Daytona sidecar asset %q: %w", outputPath, err)
+	}
+	return nil
+}
+
+func writeGzipAsset(path string, data []byte) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("create gzip asset dir %q: %w", filepath.Dir(path), err)
+	}
+	var compressed bytes.Buffer
+	writer, err := gzip.NewWriterLevel(&compressed, gzip.BestCompression)
+	if err != nil {
+		return fmt.Errorf("create gzip writer: %w", err)
+	}
+	if _, err := writer.Write(data); err != nil {
+		closeErr := writer.Close()
+		return errors.Join(fmt.Errorf("write gzip payload: %w", err), closeErr)
+	}
+	if err := writer.Close(); err != nil {
+		return fmt.Errorf("close gzip writer: %w", err)
+	}
+	return os.WriteFile(path, compressed.Bytes(), 0o644)
 }
 
 func buildGo() error {

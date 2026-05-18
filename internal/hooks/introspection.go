@@ -628,7 +628,7 @@ func catalogStringMatches(filter string, value string) bool {
 	if filter == "" || value == "" {
 		return true
 	}
-	return filter == value
+	return matchStringField(value, filter)
 }
 
 func cloneHookMatcher(src HookMatcher) HookMatcher {
@@ -636,6 +636,14 @@ func cloneHookMatcher(src HookMatcher) HookMatcher {
 	if src.ToolReadOnly != nil {
 		value := *src.ToolReadOnly
 		cloned.ToolReadOnly = &value
+	}
+	if src.NetworkMatcher != nil {
+		value := *src.NetworkMatcher
+		cloned.NetworkMatcher = &value
+	}
+	if src.CompactionMatcher != nil {
+		value := *src.CompactionMatcher
+		cloned.CompactionMatcher = &value
 	}
 	if src.Autonomy != nil {
 		value := *src.Autonomy

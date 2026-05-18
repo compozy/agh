@@ -103,9 +103,14 @@ func TestDaemonE2EACPmockBlockedCancelStopsPromptWithoutOrphaning(t *testing.T) 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
-	stream, err := harness.PromptSessionHTTPUntil(ctx, session.ID, "block until canceled", func(event e2etest.SSEEvent) bool {
-		return event.Event == "runtime_progress"
-	})
+	stream, err := harness.PromptSessionHTTPUntil(
+		ctx,
+		session.ID,
+		"block until canceled",
+		func(event e2etest.SSEEvent) bool {
+			return event.Event == "runtime_progress"
+		},
+	)
 	if err != nil {
 		t.Fatalf("PromptSessionHTTPUntil(blocked progress) error = %v", err)
 	}

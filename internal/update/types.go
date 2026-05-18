@@ -41,6 +41,9 @@ const (
 const (
 	cacheTTL                = 24 * time.Hour
 	defaultHTTPTimeout      = 30 * time.Second
+	maxArchiveDownloadBytes = int64(128 << 20)
+	maxChecksumsBytes       = int64(1 << 20)
+	maxSigstoreBundleBytes  = int64(8 << 20)
 	maxExtractedBinaryBytes = int64(128 << 20)
 )
 
@@ -147,9 +150,11 @@ type Config struct {
 }
 
 type cacheEntry struct {
-	LatestVersion string    `json:"latest_version"`
-	ReleaseURL    string    `json:"release_url"`
-	CheckedAt     time.Time `json:"checked_at"`
+	LatestVersion string         `json:"latest_version"`
+	ReleaseURL    string         `json:"release_url"`
+	PublishedAt   time.Time      `json:"published_at"`
+	Assets        []ReleaseAsset `json:"assets"`
+	CheckedAt     time.Time      `json:"checked_at"`
 }
 
 type installInfo struct {

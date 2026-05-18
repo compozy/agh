@@ -169,14 +169,27 @@ func TestGChatProviderIngressAndDeliveryConformance(t *testing.T) {
 	}
 
 	webhookURL := fmt.Sprintf("http://%s/gchat/%s", listenAddr, harness.Instances[0].ID)
-	postGChatProviderWebhook(t, webhookURL, mockAPI.signDirectToken(t, "123456789"), gchatProviderDirectMessagePayload(startTime))
-	postGChatProviderWebhook(t, webhookURL, mockAPI.signPubSubToken(t, "https://example.test/pubsub", "push@example.iam.gserviceaccount.com"), gchatProviderPubSubReactionPayload())
+	postGChatProviderWebhook(
+		t,
+		webhookURL,
+		mockAPI.signDirectToken(t, "123456789"),
+		gchatProviderDirectMessagePayload(startTime),
+	)
+	postGChatProviderWebhook(
+		t,
+		webhookURL,
+		mockAPI.signPubSubToken(t, "https://example.test/pubsub", "push@example.iam.gserviceaccount.com"),
+		gchatProviderPubSubReactionPayload(),
+	)
 
 	ingests := harness.WaitForIngests(t, 10*time.Second, func(records []extensiontest.IngestRecord) bool {
 		return len(records) >= 2
 	})
 	deliveries := harness.WaitForDeliveries(t, 10*time.Second, func(records []extensiontest.DeliveryRecord) bool {
-		return len(records) > 0 && normalizeDeliveryEventType(records[len(records)-1].Request.Event.EventType) == bridgepkg.DeliveryEventTypeFinal
+		return len(records) > 0 &&
+			normalizeDeliveryEventType(
+				records[len(records)-1].Request.Event.EventType,
+			) == bridgepkg.DeliveryEventTypeFinal
 	})
 	report := harness.Report(t)
 
@@ -201,7 +214,11 @@ func TestGChatProviderIngressAndDeliveryConformance(t *testing.T) {
 	if got, want := message.Envelope.GroupID, "spaces/AAA"; got != want {
 		t.Fatalf("message group id = %q, want %q", got, want)
 	}
-	if got, want := message.Envelope.ThreadID, gchatExpectedThreadID("spaces/AAA", "spaces/AAA/threads/thread-1", false); got != want {
+	if got, want := message.Envelope.ThreadID, gchatExpectedThreadID(
+		"spaces/AAA",
+		"spaces/AAA/threads/thread-1",
+		false,
+	); got != want {
 		t.Fatalf("message thread id = %q, want %q", got, want)
 	}
 	if got, want := message.Envelope.Content.Text, "Need a summary"; got != want {
@@ -215,7 +232,11 @@ func TestGChatProviderIngressAndDeliveryConformance(t *testing.T) {
 	if got, want := reaction.Envelope.Reaction.Emoji, "👍"; got != want {
 		t.Fatalf("reaction emoji = %q, want %q", got, want)
 	}
-	if got, want := reaction.Envelope.ThreadID, gchatExpectedThreadID("spaces/AAA", "spaces/AAA/threads/thread-react", false); got != want {
+	if got, want := reaction.Envelope.ThreadID, gchatExpectedThreadID(
+		"spaces/AAA",
+		"spaces/AAA/threads/thread-react",
+		false,
+	); got != want {
 		t.Fatalf("reaction thread id = %q, want %q", got, want)
 	}
 
@@ -301,7 +322,12 @@ func postGChatProviderWebhook(t *testing.T, endpoint string, bearerToken string,
 			time.Sleep(20 * time.Millisecond)
 			continue
 		}
-		t.Fatalf("webhook status = %d, want %d; body=%q", resp.StatusCode, http.StatusOK, strings.TrimSpace(string(body)))
+		t.Fatalf(
+			"webhook status = %d, want %d; body=%q",
+			resp.StatusCode,
+			http.StatusOK,
+			strings.TrimSpace(string(body)),
+		)
 	}
 
 	t.Fatalf("webhook %s did not become ready before timeout", endpoint)

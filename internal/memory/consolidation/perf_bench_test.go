@@ -3,36 +3,21 @@ package consolidation
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/session"
 )
 
 func BenchmarkResolveWorkspacesRecentSessions(b *testing.B) {
-	globalMemoryDir := filepath.Join(b.TempDir(), "memory")
-	lockPath := memory.ConsolidationLockPath(globalMemoryDir)
 	lockTime := time.Date(2026, 4, 15, 10, 0, 0, 0, time.UTC)
-
-	if err := os.MkdirAll(filepath.Dir(lockPath), 0o755); err != nil {
-		b.Fatalf("os.MkdirAll(lock dir) error = %v", err)
-	}
-	if err := os.WriteFile(lockPath, nil, 0o644); err != nil {
-		b.Fatalf("os.WriteFile(lock) error = %v", err)
-	}
-	if err := os.Chtimes(lockPath, lockTime, lockTime); err != nil {
-		b.Fatalf("os.Chtimes(lock) error = %v", err)
-	}
 
 	sessions := &fakeSessionManager{infos: benchmarkSessionInfos(lockTime)}
 	resolver := &fakeWorkspaceResolver{}
 	ctx := context.Background()
 
 	for b.Loop() {
-		workspaces, err := resolveWorkspaces(ctx, sessions, resolver, globalMemoryDir, "")
+		workspaces, err := resolveWorkspaces(ctx, sessions, resolver, lockTime, "")
 		if err != nil {
 			b.Fatalf("resolveWorkspaces() error = %v", err)
 		}

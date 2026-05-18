@@ -10,6 +10,8 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 )
 
+var errProviderDirSymlink = errors.New("isolated provider directory contains symlink")
+
 // ApplyHomePolicy updates provider launch environment according to the provider
 // home policy. Operator home intentionally leaves the incoming env untouched.
 func ApplyHomePolicy(
@@ -25,13 +27,14 @@ func ApplyHomePolicy(
 	if err != nil {
 		return nil, err
 	}
+	managedRoot := filepath.Clean(homePaths.HomeDir)
 	for _, dir := range []string{
 		providerHome,
 		filepath.Join(providerHome, ".config"),
 		filepath.Join(providerHome, ".local", "share"),
 		filepath.Join(providerHome, ".cache"),
 	} {
-		if err := EnsurePrivateDir(dir); err != nil {
+		if err := ensurePrivateDirUnder(managedRoot, dir); err != nil {
 			return nil, err
 		}
 	}
@@ -41,7 +44,7 @@ func ApplyHomePolicy(
 	env = SetEnvValue(env, "XDG_CONFIG_HOME", filepath.Join(providerHome, ".config"))
 	env = SetEnvValue(env, "XDG_DATA_HOME", filepath.Join(providerHome, ".local", "share"))
 	env = SetEnvValue(env, "XDG_CACHE_HOME", filepath.Join(providerHome, ".cache"))
-	return setKnownProviderHomeEnv(trimmedProvider, providerHome, env)
+	return setKnownProviderHomeEnv(trimmedProvider, managedRoot, providerHome, env)
 }
 
 // ApplyPiAgentDirPolicy points native Pi auth at the same isolated home used by
@@ -60,7 +63,7 @@ func ApplyPiAgentDirPolicy(
 		return nil, err
 	}
 	agentDir := filepath.Join(providerHome, ".pi", "agent")
-	if err := EnsurePrivateDir(agentDir); err != nil {
+	if err := ensurePrivateDirUnder(filepath.Clean(homePaths.HomeDir), agentDir); err != nil {
 		return nil, err
 	}
 	return SetEnvValue(env, "PI_CODING_AGENT_DIR", agentDir), nil
@@ -68,13 +71,99 @@ func ApplyPiAgentDirPolicy(
 
 // EnsurePrivateDir creates or tightens an AGH-owned provider state directory.
 func EnsurePrivateDir(path string) error {
-	if err := os.MkdirAll(path, 0o700); err != nil {
-		return fmt.Errorf("create isolated provider directory %q: %w", path, err)
+	cleanPath := filepath.Clean(path)
+	return ensurePrivateDirUnder(filepath.Dir(cleanPath), cleanPath)
+}
+
+func ensurePrivateDirUnder(root string, path string) error {
+	cleanRoot := filepath.Clean(root)
+	cleanPath := filepath.Clean(path)
+	if err := ensurePathUnder(cleanRoot, cleanPath); err != nil {
+		return err
 	}
-	if err := os.Chmod(path, 0o700); err != nil {
-		return fmt.Errorf("secure isolated provider directory %q: %w", path, err)
+	if err := rejectSymlinkComponents(cleanRoot, cleanPath); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(cleanPath, 0o700); err != nil {
+		return fmt.Errorf("create isolated provider directory %q: %w", cleanPath, err)
+	}
+	if err := rejectSymlinkComponents(cleanRoot, cleanPath); err != nil {
+		return err
+	}
+	if err := verifyResolvedUnder(cleanRoot, cleanPath); err != nil {
+		return err
+	}
+	if err := os.Chmod(cleanPath, 0o700); err != nil {
+		return fmt.Errorf("secure isolated provider directory %q: %w", cleanPath, err)
+	}
+	if err := rejectSymlinkComponents(cleanRoot, cleanPath); err != nil {
+		return err
+	}
+	return verifyResolvedUnder(cleanRoot, cleanPath)
+}
+
+func ensurePathUnder(root string, path string) error {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return fmt.Errorf("resolve isolated provider directory %q under %q: %w", path, root, err)
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) || filepath.IsAbs(rel) {
+		return fmt.Errorf("isolated provider directory %q escapes managed root %q", path, root)
 	}
 	return nil
+}
+
+func rejectSymlinkComponents(root string, path string) error {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return fmt.Errorf("resolve isolated provider directory %q under %q: %w", path, root, err)
+	}
+	current := root
+	if rel == "." {
+		return rejectSymlinkComponent(current)
+	}
+	for part := range strings.SplitSeq(rel, string(os.PathSeparator)) {
+		if part == "" || part == "." {
+			continue
+		}
+		current = filepath.Join(current, part)
+		if err := rejectSymlinkComponent(current); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			return err
+		}
+	}
+	return nil
+}
+
+func rejectSymlinkComponent(path string) error {
+	info, err := os.Lstat(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		return fmt.Errorf("inspect isolated provider directory %q: %w", path, err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("%w: %q", errProviderDirSymlink, path)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("isolated provider path %q is not a directory", path)
+	}
+	return nil
+}
+
+func verifyResolvedUnder(root string, path string) error {
+	resolvedRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return fmt.Errorf("resolve isolated provider root %q: %w", root, err)
+	}
+	resolvedPath, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return fmt.Errorf("resolve isolated provider directory %q: %w", path, err)
+	}
+	return ensurePathUnder(resolvedRoot, resolvedPath)
 }
 
 // SetEnvValue returns env with exactly one KEY=value entry.
@@ -126,7 +215,12 @@ func isolatedProviderHome(homePaths aghconfig.HomePaths, providerName string) (s
 	return trimmedProvider, filepath.Join(homePaths.HomeDir, "providers", trimmedProvider), nil
 }
 
-func setKnownProviderHomeEnv(providerName string, providerHome string, env []string) ([]string, error) {
+func setKnownProviderHomeEnv(
+	providerName string,
+	managedRoot string,
+	providerHome string,
+	env []string,
+) ([]string, error) {
 	knownDirs := map[string]map[string]string{
 		"claude": {
 			"CLAUDE_CONFIG_DIR": filepath.Join(providerHome, "claude"),
@@ -144,7 +238,7 @@ func setKnownProviderHomeEnv(providerName string, providerHome string, env []str
 		return env, nil
 	}
 	for _, dir := range dirs {
-		if err := EnsurePrivateDir(dir); err != nil {
+		if err := ensurePrivateDirUnder(managedRoot, dir); err != nil {
 			return nil, err
 		}
 	}

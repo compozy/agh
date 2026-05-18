@@ -513,7 +513,16 @@ func compactProjection(cfg aghconfig.SoulConfig, profile Profile) CompactProject
 		projection.Tone = projection.Tone[:len(projection.Tone)-1]
 	}
 	if !projectionWithinBudget(projection, cfg.ContextProjectionBytes) {
-		projection.Role = truncateUTF8(projection.Role, int(cfg.ContextProjectionBytes/4))
+		for projection.Role != "" && !projectionWithinBudget(projection, cfg.ContextProjectionBytes) {
+			runes := []rune(projection.Role)
+			projection.Role = string(runes[:len(runes)-1])
+		}
+	}
+	if !projectionWithinBudget(projection, cfg.ContextProjectionBytes) {
+		projection.SourcePath = ""
+	}
+	if !projectionWithinBudget(projection, cfg.ContextProjectionBytes) {
+		projection.Digest = ""
 	}
 	return projection
 }
@@ -889,20 +898,6 @@ func cloneStrings(values []string) []string {
 
 func cloneDiagnostics(values []Diagnostic) []Diagnostic {
 	return append([]Diagnostic(nil), values...)
-}
-
-func truncateUTF8(value string, maxRunes int) string {
-	if maxRunes <= 0 {
-		return ""
-	}
-	runes := []rune(value)
-	if len(runes) <= maxRunes {
-		return value
-	}
-	if maxRunes <= len("...") {
-		return string(runes[:maxRunes])
-	}
-	return string(runes[:maxRunes-len("...")]) + "..."
 }
 
 func checkContext(ctx context.Context) error {

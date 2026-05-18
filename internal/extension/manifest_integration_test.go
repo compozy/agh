@@ -46,7 +46,10 @@ version = "v1"
 	if err != nil {
 		t.Fatalf("LoadManifest() error = %v", err)
 	}
-	if got, want := manifest.Capabilities.Provides, []string{extensionprotocol.CapabilityProvideBridgeAdapter}; len(got) != len(want) || got[0] != want[0] {
+	if got, want := manifest.Capabilities.Provides, []string{
+		extensionprotocol.CapabilityProvideBridgeAdapter,
+	}; len(got) != len(want) ||
+		got[0] != want[0] {
 		t.Fatalf("manifest.Capabilities.Provides = %#v, want %#v", got, want)
 	}
 	if got, want := manifest.Bridge.Platform, "slack"; got != want {

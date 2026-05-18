@@ -13,6 +13,8 @@ type SSERecord struct {
 	Data  []byte
 }
 
+const maxSSEScannerTokenBytes = 8 * 1024 * 1024
+
 func DecodeSSEData(t *testing.T, record SSERecord, dest any) {
 	t.Helper()
 
@@ -25,6 +27,7 @@ func ParseSSE(t *testing.T, body string) []SSERecord {
 	t.Helper()
 
 	scanner := bufio.NewScanner(strings.NewReader(body))
+	scanner.Buffer(make([]byte, 0, 64*1024), maxSSEScannerTokenBytes)
 	records := make([]SSERecord, 0)
 	current := SSERecord{}
 

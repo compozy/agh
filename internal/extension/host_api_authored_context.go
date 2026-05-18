@@ -106,8 +106,12 @@ func (h *HostAPIHandler) handleAgentsSoulValidate(ctx context.Context, raw json.
 	if err != nil {
 		return nil, mapHostAPISoulRPCError(err)
 	}
+	bodyPresent, err := hostAPIParamsFieldPresent(raw, "body")
+	if err != nil {
+		return nil, err
+	}
 	var body *string
-	if strings.TrimSpace(params.Body) != "" {
+	if bodyPresent {
 		body = &params.Body
 	}
 	result, err := h.soulAuthoring.Validate(ctx, soul.ValidateRequest{
@@ -280,6 +284,15 @@ func (h *HostAPIHandler) handleAgentsHeartbeatValidate(ctx context.Context, raw 
 		Body:   &body,
 	})
 	return hostAPIHeartbeatPayload(target, &result.Policy, "", err)
+}
+
+func hostAPIParamsFieldPresent(raw json.RawMessage, field string) (bool, error) {
+	var fields map[string]json.RawMessage
+	if err := decodeHostAPIParams(raw, &fields); err != nil {
+		return false, err
+	}
+	_, ok := fields[field]
+	return ok, nil
 }
 
 func (h *HostAPIHandler) handleAgentsHeartbeatPut(ctx context.Context, raw json.RawMessage) (any, error) {

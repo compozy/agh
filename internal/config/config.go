@@ -86,6 +86,8 @@ type SoulConfig struct {
 	ContextProjectionBytes int64 `toml:"context_projection_bytes"`
 }
 
+const minSoulContextProjectionBytes int64 = 256
+
 // HeartbeatConfig controls optional HEARTBEAT.md wake-policy parsing and runtime bounds.
 type HeartbeatConfig struct {
 	Enabled                      bool          `toml:"enabled"`
@@ -1175,6 +1177,15 @@ func (c SoulConfig) Validate() error {
 			"agents.soul.context_projection_bytes must be <= agents.soul.max_body_bytes: %d > %d",
 			c.ContextProjectionBytes,
 			c.MaxBodyBytes,
+		)
+	case c.ContextProjectionBytes < minSoulContextProjectionBytes:
+		if !c.Enabled {
+			return nil
+		}
+		return fmt.Errorf(
+			"agents.soul.context_projection_bytes must be >= %d bytes: %d",
+			minSoulContextProjectionBytes,
+			c.ContextProjectionBytes,
 		)
 	default:
 		return nil

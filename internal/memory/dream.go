@@ -30,8 +30,9 @@ var (
 
 // SessionSpawner starts a one-shot consolidation session with the provided
 // goal, prompt, and normalized workspace ID. A blank workspace ID lets the
-// spawner derive the eligible workspaces itself.
-type SessionSpawner func(ctx context.Context, goal, prompt, workspaceID string) error
+// spawner derive the eligible workspaces itself using the supplied timestamp
+// from the most recent successful consolidation.
+type SessionSpawner func(ctx context.Context, goal, prompt, workspaceID string, lastConsolidatedAt time.Time) error
 
 // Option configures a consolidation Service.
 type Option func(*Service)
@@ -258,7 +259,7 @@ func (s *Service) Run(ctx context.Context, spawn SessionSpawner, workspaceRef st
 
 	s.logger.Debug("memory: starting consolidation run", "goal", s.goal, "workspace_id", workspace.id)
 
-	if err := spawn(ctx, s.goal, s.prompt, workspace.id); err != nil {
+	if err := spawn(ctx, s.goal, s.prompt, workspace.id, priorMtime); err != nil {
 		return s.failDreamRun(ctx, workspace, gate, priorMtime, err, "spawn consolidation session")
 	}
 	if !gate.active {

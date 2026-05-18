@@ -14,14 +14,14 @@ func TestDecodeRejectsNilArguments(t *testing.T) {
 	testCases := []struct {
 		name    string
 		ctx     context.Context
-		body    io.Reader
+		body    io.ReadCloser
 		handler Handler
 		wantErr string
 	}{
 		{
 			name:    "Should reject nil context",
 			ctx:     nil,
-			body:    strings.NewReader("event: ping\n\n"),
+			body:    io.NopCloser(strings.NewReader("event: ping\n\n")),
 			handler: func(Event) error { return nil },
 			wantErr: "sse: context is required",
 		},
@@ -35,7 +35,7 @@ func TestDecodeRejectsNilArguments(t *testing.T) {
 		{
 			name:    "Should reject nil handler",
 			ctx:     context.Background(),
-			body:    strings.NewReader("event: ping\n\n"),
+			body:    io.NopCloser(strings.NewReader("event: ping\n\n")),
 			handler: nil,
 			wantErr: "sse: handler is required",
 		},
@@ -68,7 +68,7 @@ func TestDecodeStopsOnErrStop(t *testing.T) {
 	}, "\n")
 
 	count := 0
-	err := Decode(context.Background(), strings.NewReader(body), func(event Event) error {
+	err := Decode(context.Background(), io.NopCloser(strings.NewReader(body)), func(event Event) error {
 		count++
 		if event.Event == "done" {
 			return ErrStop
@@ -94,7 +94,7 @@ func TestDecodePropagatesHandlerError(t *testing.T) {
 		"",
 	}, "\n")
 
-	err := Decode(context.Background(), strings.NewReader(body), func(Event) error {
+	err := Decode(context.Background(), io.NopCloser(strings.NewReader(body)), func(Event) error {
 		return wantErr
 	})
 	if !errors.Is(err, wantErr) {
@@ -114,7 +114,7 @@ func TestDecodePreservesMultiLineData(t *testing.T) {
 	}, "\n")
 
 	var seen Event
-	err := Decode(context.Background(), strings.NewReader(body), func(event Event) error {
+	err := Decode(context.Background(), io.NopCloser(strings.NewReader(body)), func(event Event) error {
 		seen = event
 		return nil
 	})
@@ -136,7 +136,7 @@ func TestDecodeRejectsOversizedPendingEvent(t *testing.T) {
 		"",
 	}, "\n")
 
-	err := Decode(context.Background(), strings.NewReader(body), func(Event) error {
+	err := Decode(context.Background(), io.NopCloser(strings.NewReader(body)), func(Event) error {
 		t.Fatal("Decode() handler called, want error")
 		return nil
 	})

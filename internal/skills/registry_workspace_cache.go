@@ -48,6 +48,13 @@ func (r *Registry) workspaceDisabledSkillsSnapshot(cacheKey string, configured [
 	return mergeDisabledSkills(disabledSkills, r.workspaceDisabled[cacheKey])
 }
 
+func workspaceConfiguredDisabledSkills(resolved *workspacepkg.ResolvedWorkspace) []string {
+	if resolved == nil {
+		return nil
+	}
+	return resolved.Config.Skills.DisabledSkills
+}
+
 func (r *Registry) workspaceSkillTargetLocked(name string, resolved *workspacepkg.ResolvedWorkspace) (string, *Skill) {
 	if resolved == nil {
 		return "", nil
@@ -69,6 +76,90 @@ func (r *Registry) workspaceSkillTargetLocked(name string, resolved *workspacepk
 	}
 
 	return cacheKey, cached.skills[name]
+}
+
+func (r *Registry) cachedWorkspaceSkillsFromResolved(
+	ctx context.Context,
+	resolved *workspacepkg.ResolvedWorkspace,
+) ([]*Skill, bool, error) {
+	paths, ok := workspaceCacheKeyPaths(resolved)
+	if !ok || len(paths) == 0 {
+		return nil, false, nil
+	}
+	cacheKey := workspaceCacheKey(resolved, paths)
+	if cacheKey == "" {
+		return nil, false, nil
+	}
+	now := r.now()
+	currentGlobalVersion := r.GlobalVersion()
+
+	r.mu.Lock()
+	cached := r.wsCache[cacheKey]
+	if cached == nil || cached.globalVersion != currentGlobalVersion {
+		r.mu.Unlock()
+		return nil, false, nil
+	}
+	r.evictExpiredWorkspaceLocked(now)
+	cached = r.wsCache[cacheKey]
+	if cached == nil || cached.globalVersion != currentGlobalVersion {
+		r.mu.Unlock()
+		return nil, false, nil
+	}
+	r.mu.Unlock()
+
+	snapshots, complete, err := workspaceSnapshotsForExplicitPaths(ctx, paths)
+	if err != nil || !complete {
+		return nil, false, err
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	cached = r.wsCache[cacheKey]
+	if cached == nil ||
+		cached.globalVersion != currentGlobalVersion ||
+		!filesnap.Equal(cached.snapshots, snapshots) {
+		return nil, false, nil
+	}
+	cached.lastAccess = now
+	disabledSkills := mergeDisabledSkills(r.cfg.DisabledSkills, workspaceConfiguredDisabledSkills(resolved))
+	disabledSkills = mergeDisabledSkills(disabledSkills, r.workspaceDisabled[cacheKey])
+	return mergedSkillListWithDisabled(r.globalSkills, cached.skills, disabledSkills), true, nil
+}
+
+func workspaceSnapshotsForExplicitPaths(
+	ctx context.Context,
+	paths []workspaceSkillPath,
+) (map[string]filesnap.Snapshot, bool, error) {
+	snapshots := make(map[string]filesnap.Snapshot, len(paths))
+	for _, path := range paths {
+		if err := checkRegistryContext(ctx); err != nil {
+			return nil, false, err
+		}
+
+		snapshot, err := filesnap.FromPath(path.filePath)
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				return snapshots, false, nil
+			}
+			return nil, false, fmt.Errorf("skills: snapshot workspace skill %q: %w", path.filePath, err)
+		}
+		snapshots[path.filePath] = snapshot
+
+		for _, sidecarPath := range []string{
+			filepath.Join(filepath.Dir(path.filePath), sidecarFileName),
+			filepath.Join(filepath.Dir(path.filePath), aghconfig.MCPJSONName),
+		} {
+			sidecarSnapshot, err := filesnap.FromPath(sidecarPath)
+			if err != nil {
+				if errors.Is(err, fs.ErrNotExist) {
+					continue
+				}
+				return nil, false, fmt.Errorf("skills: snapshot workspace skill sidecar %q: %w", sidecarPath, err)
+			}
+			snapshots[sidecarPath] = sidecarSnapshot
+		}
+	}
+	return snapshots, true, nil
 }
 
 func (r *Registry) workspaceLoadFromResolved(

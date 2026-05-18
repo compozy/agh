@@ -184,6 +184,9 @@ func (m *Manager) openQueryRecorder(ctx context.Context, id string) (EventRecord
 	}
 
 	dbPath := store.SessionDBFile(filepath.Join(m.homePaths.SessionsDir, target))
+	if err := recoverSessionDBClear(dbPath); err != nil {
+		return nil, nil, fmt.Errorf("session: recover clear state for %q: %w", target, err)
+	}
 	if _, err := os.Stat(dbPath); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil, fmt.Errorf("%w: %s", ErrSessionNotFound, target)

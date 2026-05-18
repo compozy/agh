@@ -2,6 +2,7 @@ package sse
 
 import (
 	"context"
+	"io"
 	"strings"
 	"testing"
 )
@@ -45,7 +46,7 @@ func benchmarkDecode(b *testing.B, benchCase benchmarkDecodeCase) {
 
 	for b.Loop() {
 		events := 0
-		if err := Decode(ctx, strings.NewReader(benchCase.body), func(Event) error {
+		if err := Decode(ctx, io.NopCloser(strings.NewReader(benchCase.body)), func(Event) error {
 			events++
 			return nil
 		}); err != nil {

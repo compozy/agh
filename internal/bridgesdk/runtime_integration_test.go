@@ -180,20 +180,23 @@ func TestRuntimeIntegrationReportsAuthAndRateLimitRecovery(t *testing.T) {
 	hostPeer := NewPeer(hostConn, hostConn)
 	var mu sync.Mutex
 	var reports []extensioncontract.BridgesInstancesReportStateParams
-	if err := hostPeer.Handle("bridges/instances/report_state", func(_ context.Context, raw json.RawMessage) (any, error) {
-		var params extensioncontract.BridgesInstancesReportStateParams
-		if err := json.Unmarshal(raw, &params); err != nil {
-			return nil, err
-		}
-		mu.Lock()
-		reports = append(reports, params)
-		mu.Unlock()
+	if err := hostPeer.Handle(
+		"bridges/instances/report_state",
+		func(_ context.Context, raw json.RawMessage) (any, error) {
+			var params extensioncontract.BridgesInstancesReportStateParams
+			if err := json.Unmarshal(raw, &params); err != nil {
+				return nil, err
+			}
+			mu.Lock()
+			reports = append(reports, params)
+			mu.Unlock()
 
-		instance := testBridgeInstance(params.BridgeInstanceID)
-		instance.Status = params.Status
-		instance.Degradation = params.Degradation
-		return instance, nil
-	}); err != nil {
+			instance := testBridgeInstance(params.BridgeInstanceID)
+			instance.Status = params.Status
+			instance.Degradation = params.Degradation
+			return instance, nil
+		},
+	); err != nil {
 		t.Fatalf("hostPeer.Handle(report_state) error = %v", err)
 	}
 

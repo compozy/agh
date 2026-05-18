@@ -79,7 +79,10 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 	runtime := &agentSkillIntegrationRuntime{extension: extensionSnapshot}
 
 	initialAgentCatalog := newResourceCatalog(cloneAgentDef)
-	initialSkillRegistry := skillspkg.NewRegistry(agentSkillIntegrationSkillConfig(homePaths), skillspkg.WithLogger(discardLogger()))
+	initialSkillRegistry := skillspkg.NewRegistry(
+		agentSkillIntegrationSkillConfig(homePaths),
+		skillspkg.WithLogger(discardLogger()),
+	)
 	initialMCPCatalog := newResourceCatalog(cloneDaemonMCPServer)
 	driver := newAgentSkillIntegrationDriver(
 		t,
@@ -123,14 +126,22 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 	}
 
 	source := agentSkillSyncActor().Source
-	agents, err := agentStore.List(testutil.Context(t), agentSkillSyncActor(), resources.ResourceFilter{Source: &source})
+	agents, err := agentStore.List(
+		testutil.Context(t),
+		agentSkillSyncActor(),
+		resources.ResourceFilter{Source: &source},
+	)
 	if err != nil {
 		t.Fatalf("agentStore.List() error = %v", err)
 	}
 	if got, want := len(agents), 2; got != want {
 		t.Fatalf("len(agentStore.List()) = %d, want %d (%#v)", got, want, agents)
 	}
-	skills, err := skillStore.List(testutil.Context(t), agentSkillSyncActor(), resources.ResourceFilter{Source: &source})
+	skills, err := skillStore.List(
+		testutil.Context(t),
+		agentSkillSyncActor(),
+		resources.ResourceFilter{Source: &source},
+	)
 	if err != nil {
 		t.Fatalf("skillStore.List() error = %v", err)
 	}
@@ -149,7 +160,10 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 	}
 
 	rebuiltAgentCatalog := newResourceCatalog(cloneAgentDef)
-	rebuiltSkillRegistry := skillspkg.NewRegistry(agentSkillIntegrationSkillConfig(homePaths), skillspkg.WithLogger(discardLogger()))
+	rebuiltSkillRegistry := skillspkg.NewRegistry(
+		agentSkillIntegrationSkillConfig(homePaths),
+		skillspkg.WithLogger(discardLogger()),
+	)
 	rebuiltMCPCatalog := newResourceCatalog(cloneDaemonMCPServer)
 	bootDriver := newAgentSkillIntegrationDriver(
 		t,

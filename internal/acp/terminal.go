@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"os"
 	exec "os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -386,17 +388,18 @@ func (m *terminalManager) create(
 		return acpsdk.CreateTerminalResponse{}, err
 	}
 
-	cmd, err := newManagedTerminalCommand(argv)
+	requestEnv := request.Env
+	if ownership.networkOwned {
+		requestEnv = nil
+	}
+	cmdEnv := mergeCommandEnv(procutil.FilteredDaemonEnv(os.Environ()), requestEnv)
+	cmd, err := newManagedTerminalCommand(argv, cmdEnv)
 	if err != nil {
 		return acpsdk.CreateTerminalResponse{}, err
 	}
 	configureManagedCommand(cmd)
 	cmd.Dir = cwd
-	requestEnv := request.Env
-	if ownership.networkOwned {
-		requestEnv = nil
-	}
-	cmd.Env = mergeCommandEnv(procutil.FilteredDaemonEnv(os.Environ()), requestEnv)
+	cmd.Env = cmdEnv
 	outputLimit := defaultTerminalOutputLimit
 	if request.OutputByteLimit != nil {
 		outputLimit = max(*request.OutputByteLimit, 0)
@@ -498,12 +501,12 @@ func (m *terminalManager) registerTerminalProcess(
 	return nil
 }
 
-func newManagedTerminalCommand(argv []string) (*exec.Cmd, error) {
+func newManagedTerminalCommand(argv []string, env []string) (*exec.Cmd, error) {
 	if len(argv) == 0 {
 		return nil, errors.New("acp: terminal command is required")
 	}
 
-	resolvedPath, err := execabs.LookPath(argv[0])
+	resolvedPath, err := lookTerminalExecutable(argv[0], env)
 	if err != nil {
 		return nil, fmt.Errorf("acp: resolve terminal executable %q: %w", argv[0], err)
 	}
@@ -515,6 +518,88 @@ func newManagedTerminalCommand(argv []string) (*exec.Cmd, error) {
 		Path: resolvedPath,
 		Args: commandArgs,
 	}, nil
+}
+
+func lookTerminalExecutable(command string, env []string) (string, error) {
+	if hasPathSeparator(command) {
+		return execabs.LookPath(command)
+	}
+	pathValue, ok := envValueFromList(env, "PATH")
+	if !ok {
+		return execabs.LookPath(command)
+	}
+	for _, dir := range filepath.SplitList(pathValue) {
+		if strings.TrimSpace(dir) == "" || !filepath.IsAbs(dir) {
+			continue
+		}
+		for _, candidate := range terminalExecutableCandidates(filepath.Join(dir, command), env) {
+			if isExecutableFile(candidate) {
+				return candidate, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("%w: %s", exec.ErrNotFound, command)
+}
+
+func hasPathSeparator(command string) bool {
+	if strings.ContainsRune(command, os.PathSeparator) {
+		return true
+	}
+	return os.PathSeparator != '/' && strings.Contains(command, "/")
+}
+
+func terminalExecutableCandidates(path string, env []string) []string {
+	if runtime.GOOS != "windows" || filepath.Ext(path) != "" {
+		return []string{path}
+	}
+	pathExt, ok := envValueFromList(env, "PATHEXT")
+	if !ok || strings.TrimSpace(pathExt) == "" {
+		pathExt = ".COM;.EXE;.BAT;.CMD"
+	}
+	extensions := filepath.SplitList(pathExt)
+	candidates := make([]string, 0, len(extensions)+1)
+	for _, extension := range extensions {
+		trimmed := strings.TrimSpace(extension)
+		if trimmed == "" {
+			continue
+		}
+		if !strings.HasPrefix(trimmed, ".") {
+			trimmed = "." + trimmed
+		}
+		candidates = append(candidates, path+trimmed)
+	}
+	candidates = append(candidates, path)
+	return candidates
+}
+
+func isExecutableFile(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
+		return false
+	}
+	if runtime.GOOS == "windows" {
+		return true
+	}
+	return info.Mode().Perm()&0o111 != 0
+}
+
+func envValueFromList(env []string, key string) (string, bool) {
+	for index := len(env) - 1; index >= 0; index-- {
+		name, value, ok := strings.Cut(env[index], "=")
+		if !ok {
+			continue
+		}
+		if runtime.GOOS == "windows" {
+			if strings.EqualFold(name, key) {
+				return value, true
+			}
+			continue
+		}
+		if name == key {
+			return value, true
+		}
+	}
+	return "", false
 }
 
 func (m *terminalManager) kill(id string) error {

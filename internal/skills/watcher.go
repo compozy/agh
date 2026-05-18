@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -207,28 +208,53 @@ func (w *Watcher) snapshotRoots(ctx context.Context) (map[string]filesnap.Snapsh
 			return nil, err
 		}
 
-		paths, err := watcherScanRoot(root)
+		rootSnapshots, err := watcherSnapshotRoot(root)
 		if err != nil {
 			return nil, fmt.Errorf("skills: scan watcher root %q: %w", root, err)
 		}
+		maps.Copy(snapshots, rootSnapshots)
+	}
 
-		for _, skillPath := range paths {
-			if err := checkRegistryContext(ctx); err != nil {
-				return nil, err
+	return snapshots, nil
+}
+
+func watcherSnapshotRoot(root string) (map[string]filesnap.Snapshot, error) {
+	if filepath.Base(strings.TrimSpace(root)) != aghconfig.AgentsDirName {
+		paths, snapshots, err := scanDirectoryWithSnapshots(root)
+		if err != nil {
+			return nil, err
+		}
+		if err := recordSidecarSnapshots(paths, snapshots); err != nil {
+			return nil, err
+		}
+		return snapshots, nil
+	}
+
+	paths, err := watcherScanRoot(root)
+	if err != nil {
+		return nil, err
+	}
+
+	snapshots := make(map[string]filesnap.Snapshot, len(paths))
+	skillPaths := make([]string, 0, len(paths))
+	for _, watchedPath := range paths {
+		snapshot, err := filesnap.FromPath(watchedPath)
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
 			}
+			return nil, fmt.Errorf("skills: snapshot watcher file %q: %w", watchedPath, err)
+		}
 
-			snapshot, err := filesnap.FromPath(skillPath)
-			if err != nil {
-				if errors.Is(err, fs.ErrNotExist) {
-					continue
-				}
-				return nil, fmt.Errorf("skills: snapshot watcher file %q: %w", skillPath, err)
-			}
-
-			snapshots[skillPath] = snapshot
+		snapshots[watchedPath] = snapshot
+		if filepath.Base(watchedPath) == skillFileName {
+			skillPaths = append(skillPaths, watchedPath)
 		}
 	}
 
+	if err := recordSidecarSnapshots(skillPaths, snapshots); err != nil {
+		return nil, err
+	}
 	return snapshots, nil
 }
 

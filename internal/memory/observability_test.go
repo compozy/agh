@@ -27,6 +27,8 @@ func TestStoreListMemoryEventSummaries(t *testing.T) {
 
 		globalAt := time.Date(2026, 5, 5, 10, 0, 0, 0, time.UTC)
 		workspaceAt := globalAt.Add(time.Minute)
+		excludedWorkspaceAt := workspaceAt.Add(time.Minute)
+		excludedGlobalWorkspaceAt := excludedWorkspaceAt.Add(time.Minute)
 		insertMemoryObservabilityEvent(
 			ctx,
 			t,
@@ -49,6 +51,28 @@ func TestStoreListMemoryEventSummaries(t *testing.T) {
 			"workspace recall executed",
 			workspaceAt,
 		)
+		insertMemoryObservabilityEvent(
+			ctx,
+			t,
+			workspaceCatalog,
+			memoryEventRecallExecuted,
+			"workspace",
+			"ws-excluded",
+			"intruder",
+			"excluded workspace recall",
+			excludedWorkspaceAt,
+		)
+		insertMemoryObservabilityEvent(
+			ctx,
+			t,
+			globalStore.catalog,
+			memoryEventRecallExecuted,
+			"",
+			"ws-excluded",
+			"intruder",
+			"excluded global workspace recall",
+			excludedGlobalWorkspaceAt,
+		)
 
 		events, err := globalStore.ListMemoryEventSummaries(
 			ctx,
@@ -66,6 +90,9 @@ func TestStoreListMemoryEventSummaries(t *testing.T) {
 		}
 		if got, want := events[1].Summary, "workspace recall executed"; got != want {
 			t.Fatalf("events[1].Summary = %q, want %q", got, want)
+		}
+		if got, want := events[1].WorkspaceID, workspaceID; got != want {
+			t.Fatalf("events[1].WorkspaceID = %q, want %q", got, want)
 		}
 		if events[0].ID == events[1].ID {
 			t.Fatalf("event IDs are not source-stable: %#v", events)
@@ -93,6 +120,18 @@ func TestStoreListMemoryEventSummaries(t *testing.T) {
 		}
 		if len(filtered) != 1 || filtered[0].AgentName != "reviewer" {
 			t.Fatalf("filtered events = %#v, want reviewer recall event", filtered)
+		}
+
+		workspaceOnly, err := globalStore.ListMemoryEventSummaries(
+			ctx,
+			[]string{workspaceRoot},
+			storepkg.EventSummaryQuery{WorkspaceID: workspaceID},
+		)
+		if err != nil {
+			t.Fatalf("ListMemoryEventSummaries(workspace filter) error = %v", err)
+		}
+		if len(workspaceOnly) != 1 || workspaceOnly[0].Summary != "workspace recall executed" {
+			t.Fatalf("workspace-filtered events = %#v, want only visible workspace event", workspaceOnly)
 		}
 	})
 }
@@ -183,7 +222,7 @@ func insertMemoryObservabilityEvent(
 			op, scope, agent_name, workspace_id, actor_kind, metadata, ts_ms
 		) VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		op,
-		scope,
+		nullStringForEmpty(scope),
 		agentName,
 		nullStringForEmpty(workspaceID),
 		"system",

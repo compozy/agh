@@ -45,7 +45,15 @@ func TestSchedulerWakeLeavesClaimToTaskServiceIntegration(t *testing.T) {
 			t,
 			integrationTaskSource{manager: manager, store: db},
 			&fakeSessionSource{sessions: []SessionSnapshot{
-				integrationSessionSnapshot("sess-worker", workspaceID, runChannel, "active", false, []string{"go", "sqlite"}, base),
+				integrationSessionSnapshot(
+					"sess-worker",
+					workspaceID,
+					runChannel,
+					"active",
+					false,
+					[]string{"go", "sqlite"},
+					base,
+				),
 			}},
 			waker,
 			WithClock(clockwork.NewFakeClockAt(base)),
@@ -149,7 +157,15 @@ func TestSchedulerRecoversExpiredLeaseAfterDatabaseRestartIntegration(t *testing
 			t,
 			integrationTaskSource{manager: secondManager, store: second},
 			&fakeSessionSource{sessions: []SessionSnapshot{
-				integrationSessionSnapshot("sess-new", workspaceID, runChannel, "active", false, nil, base.Add(2*time.Second)),
+				integrationSessionSnapshot(
+					"sess-new",
+					workspaceID,
+					runChannel,
+					"active",
+					false,
+					nil,
+					base.Add(2*time.Second),
+				),
 			}},
 			waker,
 			WithClock(clockwork.NewFakeClockAt(base.Add(2*time.Second))),
@@ -206,190 +222,217 @@ func TestSchedulerRecoversExpiredLeaseAfterDatabaseRestartIntegration(t *testing
 func TestSchedulerRecoversExpiredHistoricalNetworkLeaseIntegration(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should recover an expired historical network-channel lease and preserve reclaim semantics", func(t *testing.T) {
-		ctx := testutil.Context(t)
-		base := time.Date(2027, 4, 28, 9, 46, 36, 0, time.UTC)
-		db := openSchedulerGlobalDB(t, filepath.Join(t.TempDir(), "agh.db"))
-		workspaceID := registerSchedulerWorkspace(t, db, "historical-expiry", filepath.Join(t.TempDir(), "workspace"))
-		manager := newSchedulerTaskManagerWithOptions(
-			t,
-			db,
-			taskpkg.WithNetworkChannelValidator(network.ValidateChannel),
-		)
+	t.Run(
+		"Should recover an expired historical network-channel lease and preserve reclaim semantics",
+		func(t *testing.T) {
+			ctx := testutil.Context(t)
+			base := time.Date(2027, 4, 28, 9, 46, 36, 0, time.UTC)
+			db := openSchedulerGlobalDB(t, filepath.Join(t.TempDir(), "agh.db"))
+			workspaceID := registerSchedulerWorkspace(
+				t,
+				db,
+				"historical-expiry",
+				filepath.Join(t.TempDir(), "workspace"),
+			)
+			manager := newSchedulerTaskManagerWithOptions(
+				t,
+				db,
+				taskpkg.WithNetworkChannelValidator(network.ValidateChannel),
+			)
 
-		channelTimestamp := base.Add(-3 * time.Second)
-		if err := db.WriteNetworkChannel(ctx, store.NetworkChannelEntry{
-			Channel:     "scope-direct-history",
-			WorkspaceID: workspaceID,
-			Purpose:     "Historical channel lease expiry recovery validation",
-			CreatedBy:   "founder",
-			CreatedAt:   channelTimestamp,
-			UpdatedAt:   channelTimestamp,
-		}); err != nil {
-			t.Fatalf("WriteNetworkChannel() error = %v", err)
-		}
+			channelTimestamp := base.Add(-3 * time.Second)
+			if err := db.WriteNetworkChannel(ctx, store.NetworkChannelEntry{
+				Channel:     "scope-direct-history",
+				WorkspaceID: workspaceID,
+				Purpose:     "Historical channel lease expiry recovery validation",
+				CreatedBy:   "founder",
+				CreatedAt:   channelTimestamp,
+				UpdatedAt:   channelTimestamp,
+			}); err != nil {
+				t.Fatalf("WriteNetworkChannel() error = %v", err)
+			}
 
-		operator, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "agh task start")
-		if err != nil {
-			t.Fatalf("DeriveHumanActorContext() error = %v", err)
-		}
-		taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
-			Scope:          taskpkg.ScopeWorkspace,
-			WorkspaceID:    workspaceID,
-			NetworkChannel: "scope-direct-history",
-			Title:          "Historical lease expiry recovery",
-		}, operator)
-		if err != nil {
-			t.Fatalf("CreateTask() error = %v", err)
-		}
-		execution, err := manager.StartTask(ctx, taskRecord.ID, taskpkg.ExecutionRequest{}, operator)
-		if err != nil {
-			t.Fatalf("StartTask() error = %v", err)
-		}
-		if got, want := execution.Run.NetworkChannel, "scope-direct-history"; got != want {
-			t.Fatalf("execution.Run.NetworkChannel = %q, want %q", got, want)
-		}
-		if got, want := execution.Run.CoordinationChannelID, "scope-direct-history"; got != want {
-			t.Fatalf("execution.Run.CoordinationChannelID = %q, want %q", got, want)
-		}
+			operator, err := taskpkg.DeriveHumanActorContext("operator", taskpkg.OriginKindCLI, "agh task start")
+			if err != nil {
+				t.Fatalf("DeriveHumanActorContext() error = %v", err)
+			}
+			taskRecord, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+				Scope:          taskpkg.ScopeWorkspace,
+				WorkspaceID:    workspaceID,
+				NetworkChannel: "scope-direct-history",
+				Title:          "Historical lease expiry recovery",
+			}, operator)
+			if err != nil {
+				t.Fatalf("CreateTask() error = %v", err)
+			}
+			execution, err := manager.StartTask(ctx, taskRecord.ID, taskpkg.ExecutionRequest{}, operator)
+			if err != nil {
+				t.Fatalf("StartTask() error = %v", err)
+			}
+			if got, want := execution.Run.NetworkChannel, "scope-direct-history"; got != want {
+				t.Fatalf("execution.Run.NetworkChannel = %q, want %q", got, want)
+			}
+			if got, want := execution.Run.CoordinationChannelID, "scope-direct-history"; got != want {
+				t.Fatalf("execution.Run.CoordinationChannelID = %q, want %q", got, want)
+			}
 
-		oldActor, err := taskpkg.DeriveAgentSessionActorContext("sess-old")
-		if err != nil {
-			t.Fatalf("DeriveAgentSessionActorContext(old) error = %v", err)
-		}
-		firstClaim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			Scope:                 taskpkg.ScopeWorkspace,
-			WorkspaceID:           workspaceID,
-			ClaimerSessionID:      "sess-old",
-			CoordinationChannelID: "scope-direct-history",
-			LeaseDuration:         time.Second,
-			Now:                   base,
-		}, oldActor)
-		if err != nil {
-			t.Fatalf("ClaimNextRun(old) error = %v", err)
-		}
-		if got, want := firstClaim.Run.ID, execution.Run.ID; got != want {
-			t.Fatalf("firstClaim.Run.ID = %q, want %q", got, want)
-		}
-		if got, want := firstClaim.Run.NetworkChannel, "scope-direct-history"; got != want {
-			t.Fatalf("firstClaim.Run.NetworkChannel = %q, want %q", got, want)
-		}
-		if got, want := firstClaim.Run.CoordinationChannelID, "scope-direct-history"; got != want {
-			t.Fatalf("firstClaim.Run.CoordinationChannelID = %q, want %q", got, want)
-		}
-		if firstClaim.ClaimToken == "" {
-			t.Fatal("firstClaim.ClaimToken = empty, want raw claim token")
-		}
+			oldActor, err := taskpkg.DeriveAgentSessionActorContext("sess-old")
+			if err != nil {
+				t.Fatalf("DeriveAgentSessionActorContext(old) error = %v", err)
+			}
+			firstClaim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+				Scope:                 taskpkg.ScopeWorkspace,
+				WorkspaceID:           workspaceID,
+				ClaimerSessionID:      "sess-old",
+				CoordinationChannelID: "scope-direct-history",
+				LeaseDuration:         time.Second,
+				Now:                   base,
+			}, oldActor)
+			if err != nil {
+				t.Fatalf("ClaimNextRun(old) error = %v", err)
+			}
+			if got, want := firstClaim.Run.ID, execution.Run.ID; got != want {
+				t.Fatalf("firstClaim.Run.ID = %q, want %q", got, want)
+			}
+			if got, want := firstClaim.Run.NetworkChannel, "scope-direct-history"; got != want {
+				t.Fatalf("firstClaim.Run.NetworkChannel = %q, want %q", got, want)
+			}
+			if got, want := firstClaim.Run.CoordinationChannelID, "scope-direct-history"; got != want {
+				t.Fatalf("firstClaim.Run.CoordinationChannelID = %q, want %q", got, want)
+			}
+			if firstClaim.ClaimToken == "" {
+				t.Fatal("firstClaim.ClaimToken = empty, want raw claim token")
+			}
 
-		waker := &fakeWaker{}
-		scheduler := newTestScheduler(
-			t,
-			integrationTaskSource{manager: manager, store: db},
-			&fakeSessionSource{},
-			waker,
-			WithClock(clockwork.NewFakeClockAt(base.Add(12*time.Second))),
-		)
+			waker := &fakeWaker{}
+			scheduler := newTestScheduler(
+				t,
+				integrationTaskSource{manager: manager, store: db},
+				&fakeSessionSource{},
+				waker,
+				WithClock(clockwork.NewFakeClockAt(base.Add(12*time.Second))),
+			)
 
-		result, err := scheduler.RunOnce(ctx)
-		if err != nil {
-			t.Fatalf("RunOnce() error = %v", err)
-		}
-		if got, want := result.RecoveredLeases, 1; got != want {
-			t.Fatalf("RecoveredLeases = %d, want %d (result %#v)", got, want, result)
-		}
-		if !slices.Contains(result.RecoveredRunIDs, execution.Run.ID) {
-			t.Fatalf("RecoveredRunIDs = %v, want %q", result.RecoveredRunIDs, execution.Run.ID)
-		}
-		if got := len(waker.targetsSnapshot()); got != 0 {
-			t.Fatalf("wake targets after historical recovery = %d, want 0", got)
-		}
+			result, err := scheduler.RunOnce(ctx)
+			if err != nil {
+				t.Fatalf("RunOnce() error = %v", err)
+			}
+			if got, want := result.RecoveredLeases, 1; got != want {
+				t.Fatalf("RecoveredLeases = %d, want %d (result %#v)", got, want, result)
+			}
+			if !slices.Contains(result.RecoveredRunIDs, execution.Run.ID) {
+				t.Fatalf("RecoveredRunIDs = %v, want %q", result.RecoveredRunIDs, execution.Run.ID)
+			}
+			if got := len(waker.targetsSnapshot()); got != 0 {
+				t.Fatalf("wake targets after historical recovery = %d, want 0", got)
+			}
 
-		if _, err := manager.HeartbeatRunLease(ctx, taskpkg.LeaseHeartbeat{
-			RunID:         execution.Run.ID,
-			ClaimToken:    firstClaim.ClaimToken,
-			LeaseDuration: time.Minute,
-			Now:           base.Add(13 * time.Second),
-		}, oldActor); !errors.Is(err, taskpkg.ErrInvalidClaimToken) {
-			t.Fatalf("HeartbeatRunLease(stale recovered lease) error = %v, want %v", err, taskpkg.ErrInvalidClaimToken)
-		}
+			if _, err := manager.HeartbeatRunLease(ctx, taskpkg.LeaseHeartbeat{
+				RunID:         execution.Run.ID,
+				ClaimToken:    firstClaim.ClaimToken,
+				LeaseDuration: time.Minute,
+				Now:           base.Add(13 * time.Second),
+			}, oldActor); !errors.Is(err, taskpkg.ErrInvalidClaimToken) {
+				t.Fatalf(
+					"HeartbeatRunLease(stale recovered lease) error = %v, want %v",
+					err,
+					taskpkg.ErrInvalidClaimToken,
+				)
+			}
 
-		newActor, err := taskpkg.DeriveAgentSessionActorContext("sess-new")
-		if err != nil {
-			t.Fatalf("DeriveAgentSessionActorContext(new) error = %v", err)
-		}
-		secondClaim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-			Scope:                 taskpkg.ScopeWorkspace,
-			WorkspaceID:           workspaceID,
-			ClaimerSessionID:      "sess-new",
-			CoordinationChannelID: "scope-direct-history",
-			LeaseDuration:         time.Minute,
-			Now:                   base.Add(14 * time.Second),
-		}, newActor)
-		if err != nil {
-			t.Fatalf("ClaimNextRun(new) error = %v", err)
-		}
-		if got, want := secondClaim.Run.ID, execution.Run.ID; got != want {
-			t.Fatalf("secondClaim.Run.ID = %q, want %q", got, want)
-		}
-		if got, want := secondClaim.Run.SessionID, "sess-new"; got != want {
-			t.Fatalf("secondClaim.Run.SessionID = %q, want %q", got, want)
-		}
-		if got, want := secondClaim.Run.NetworkChannel, "scope-direct-history"; got != want {
-			t.Fatalf("secondClaim.Run.NetworkChannel = %q, want %q", got, want)
-		}
-		if got, want := secondClaim.Run.CoordinationChannelID, "scope-direct-history"; got != want {
-			t.Fatalf("secondClaim.Run.CoordinationChannelID = %q, want %q", got, want)
-		}
-		if secondClaim.ClaimToken == "" {
-			t.Fatal("secondClaim.ClaimToken = empty, want raw claim token")
-		}
+			newActor, err := taskpkg.DeriveAgentSessionActorContext("sess-new")
+			if err != nil {
+				t.Fatalf("DeriveAgentSessionActorContext(new) error = %v", err)
+			}
+			secondClaim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+				Scope:                 taskpkg.ScopeWorkspace,
+				WorkspaceID:           workspaceID,
+				ClaimerSessionID:      "sess-new",
+				CoordinationChannelID: "scope-direct-history",
+				LeaseDuration:         time.Minute,
+				Now:                   base.Add(14 * time.Second),
+			}, newActor)
+			if err != nil {
+				t.Fatalf("ClaimNextRun(new) error = %v", err)
+			}
+			if got, want := secondClaim.Run.ID, execution.Run.ID; got != want {
+				t.Fatalf("secondClaim.Run.ID = %q, want %q", got, want)
+			}
+			if got, want := secondClaim.Run.SessionID, "sess-new"; got != want {
+				t.Fatalf("secondClaim.Run.SessionID = %q, want %q", got, want)
+			}
+			if got, want := secondClaim.Run.NetworkChannel, "scope-direct-history"; got != want {
+				t.Fatalf("secondClaim.Run.NetworkChannel = %q, want %q", got, want)
+			}
+			if got, want := secondClaim.Run.CoordinationChannelID, "scope-direct-history"; got != want {
+				t.Fatalf("secondClaim.Run.CoordinationChannelID = %q, want %q", got, want)
+			}
+			if secondClaim.ClaimToken == "" {
+				t.Fatal("secondClaim.ClaimToken = empty, want raw claim token")
+			}
 
-		completed, err := manager.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
-			RunID:      secondClaim.Run.ID,
-			ClaimToken: secondClaim.ClaimToken,
-			Result: taskpkg.RunResult{
-				Value: []byte(`{"ok":true,"path":"scheduler-historical-expiry"}`),
-			},
-		}, newActor)
-		if err != nil {
-			t.Fatalf("CompleteRunLease() error = %v", err)
-		}
-		if got, want := completed.Status, taskpkg.TaskRunStatusCompleted; got != want {
-			t.Fatalf("completed.Status = %q, want %q", got, want)
-		}
-		if got, want := completed.NetworkChannel, "scope-direct-history"; got != want {
-			t.Fatalf("completed.NetworkChannel = %q, want %q", got, want)
-		}
-		if got, want := completed.CoordinationChannelID, "scope-direct-history"; got != want {
-			t.Fatalf("completed.CoordinationChannelID = %q, want %q", got, want)
-		}
+			completed, err := manager.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+				RunID:      secondClaim.Run.ID,
+				ClaimToken: secondClaim.ClaimToken,
+				Result: taskpkg.RunResult{
+					Value: []byte(`{"ok":true,"path":"scheduler-historical-expiry"}`),
+				},
+			}, newActor)
+			if err != nil {
+				t.Fatalf("CompleteRunLease() error = %v", err)
+			}
+			if got, want := completed.Status, taskpkg.TaskRunStatusCompleted; got != want {
+				t.Fatalf("completed.Status = %q, want %q", got, want)
+			}
+			if got, want := completed.NetworkChannel, "scope-direct-history"; got != want {
+				t.Fatalf("completed.NetworkChannel = %q, want %q", got, want)
+			}
+			if got, want := completed.CoordinationChannelID, "scope-direct-history"; got != want {
+				t.Fatalf("completed.CoordinationChannelID = %q, want %q", got, want)
+			}
 
-		storedTask, err := db.GetTask(ctx, taskRecord.ID)
-		if err != nil {
-			t.Fatalf("GetTask() error = %v", err)
-		}
-		if got, want := storedTask.Status, taskpkg.TaskStatusCompleted; got != want {
-			t.Fatalf("storedTask.Status = %q, want %q", got, want)
-		}
+			storedTask, err := db.GetTask(ctx, taskRecord.ID)
+			if err != nil {
+				t.Fatalf("GetTask() error = %v", err)
+			}
+			if got, want := storedTask.Status, taskpkg.TaskStatusCompleted; got != want {
+				t.Fatalf("storedTask.Status = %q, want %q", got, want)
+			}
 
-		events, err := db.ListTaskEvents(ctx, taskpkg.EventQuery{TaskID: taskRecord.ID})
-		if err != nil {
-			t.Fatalf("ListTaskEvents() error = %v", err)
-		}
-		eventCounts := map[string]int{}
-		for _, event := range events {
-			eventCounts[event.EventType]++
-		}
-		if got, want := eventCounts["task.run_claimed"], 2; got != want {
-			t.Fatalf("eventCounts[task.run_claimed] = %d, want %d (events=%#v)", got, want, schedulerIntegrationEventTypes(events))
-		}
-		if got, want := eventCounts["task.run_lease_expired"], 1; got != want {
-			t.Fatalf("eventCounts[task.run_lease_expired] = %d, want %d (events=%#v)", got, want, schedulerIntegrationEventTypes(events))
-		}
-		if got, want := eventCounts["task.run_completed"], 1; got != want {
-			t.Fatalf("eventCounts[task.run_completed] = %d, want %d (events=%#v)", got, want, schedulerIntegrationEventTypes(events))
-		}
-	})
+			events, err := db.ListTaskEvents(ctx, taskpkg.EventQuery{TaskID: taskRecord.ID})
+			if err != nil {
+				t.Fatalf("ListTaskEvents() error = %v", err)
+			}
+			eventCounts := map[string]int{}
+			for _, event := range events {
+				eventCounts[event.EventType]++
+			}
+			if got, want := eventCounts["task.run_claimed"], 2; got != want {
+				t.Fatalf(
+					"eventCounts[task.run_claimed] = %d, want %d (events=%#v)",
+					got,
+					want,
+					schedulerIntegrationEventTypes(events),
+				)
+			}
+			if got, want := eventCounts["task.run_lease_expired"], 1; got != want {
+				t.Fatalf(
+					"eventCounts[task.run_lease_expired] = %d, want %d (events=%#v)",
+					got,
+					want,
+					schedulerIntegrationEventTypes(events),
+				)
+			}
+			if got, want := eventCounts["task.run_completed"], 1; got != want {
+				t.Fatalf(
+					"eventCounts[task.run_completed] = %d, want %d (events=%#v)",
+					got,
+					want,
+					schedulerIntegrationEventTypes(events),
+				)
+			}
+		},
+	)
 }
 
 func TestSchedulerNoEligibleSessionDoesNotClaimIntegration(t *testing.T) {

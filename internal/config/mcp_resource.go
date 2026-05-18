@@ -30,11 +30,19 @@ func validateMCPServerSpec(
 		return MCPServer{}, fmt.Errorf("config: validate mcp resource scope: %w", err)
 	}
 
+	normalized := normalizeMCPServerResourceSpec(spec)
+	if err := normalized.Validate("mcp_server"); err != nil {
+		return MCPServer{}, fmt.Errorf("config: validate mcp resource spec: %w", err)
+	}
+	return normalized, nil
+}
+
+func normalizeMCPServerResourceSpec(spec MCPServer) MCPServer {
 	normalized := cloneMCPServer(spec)
-	normalized.Name = strings.TrimSpace(spec.Name)
-	normalized.Transport = MCPServerTransport(strings.TrimSpace(string(spec.Transport)))
-	normalized.Command = strings.TrimSpace(spec.Command)
-	normalized.URL = strings.TrimSpace(spec.URL)
+	normalized.Name = strings.TrimSpace(normalized.Name)
+	normalized.Transport = MCPServerTransport(strings.TrimSpace(string(normalized.Transport)))
+	normalized.Command = strings.TrimSpace(normalized.Command)
+	normalized.URL = strings.TrimSpace(normalized.URL)
 	for idx, arg := range normalized.Args {
 		normalized.Args[idx] = strings.TrimSpace(arg)
 	}
@@ -80,10 +88,7 @@ func validateMCPServerSpec(
 		}
 	}
 
-	if err := normalized.Validate("mcp_server"); err != nil {
-		return MCPServer{}, fmt.Errorf("config: validate mcp resource spec: %w", err)
-	}
-	return normalized, nil
+	return normalized
 }
 
 func normalizeMCPAuthConfig(auth MCPAuthConfig) MCPAuthConfig {

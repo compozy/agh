@@ -37,12 +37,13 @@ type Provider struct {
 	backend Backend
 	now     func() time.Time
 
-	mu          sync.RWMutex
-	workspaceID string
-	config      map[string]any
-	logger      *slog.Logger
-	initialized bool
-	shutdown    bool
+	mu            sync.RWMutex
+	workspaceID   string
+	workspaceRoot string
+	config        map[string]any
+	logger        *slog.Logger
+	initialized   bool
+	shutdown      bool
 }
 
 var _ memcontract.MemoryProvider = (*Provider)(nil)
@@ -100,6 +101,7 @@ func (p *Provider) Initialize(ctx context.Context, init memcontract.ProviderInit
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.workspaceID = strings.TrimSpace(init.WorkspaceID)
+	p.workspaceRoot = strings.TrimSpace(init.WorkspaceRoot)
 	p.config = maps.Clone(init.Config)
 	if init.Logger != nil {
 		p.logger = init.Logger
@@ -189,7 +191,10 @@ func (p *Provider) OnMemoryWrite(ctx context.Context, rec memcontract.WriteRecor
 	if err := p.checkReady(ctx); err != nil {
 		return err
 	}
-	target := p.backendForWriteRecord(&rec)
+	target, err := p.backendForWriteRecord(&rec)
+	if err != nil {
+		return err
+	}
 	if err := target.ApplyDecision(ctx, rec.Decision); err != nil {
 		return fmt.Errorf("memory provider local: apply write decision: %w", err)
 	}
@@ -220,12 +225,20 @@ func (p *Provider) backendForSnapshot(
 	if err := scope.Validate(); err != nil {
 		return nil, "", fmt.Errorf("memory provider local: snapshot scope: %w", err)
 	}
-	backend := p.backendForWorkspace(req.WorkspaceRoot)
+	backend := p.backend
 	if scope != memcontract.ScopeAgent {
 		if scope == memcontract.ScopeWorkspace {
+			workspaceBackend, err := p.backendForWorkspace(req.WorkspaceRoot)
+			if err != nil {
+				return nil, "", err
+			}
+			backend = workspaceBackend
 			return backend, scope, nil
 		}
 		return p.backend, scope, nil
+	}
+	if workspaceRoot := p.workspaceRootFor(req.WorkspaceRoot); workspaceRoot != "" {
+		backend = p.backend.ForWorkspace(workspaceRoot)
 	}
 	agentName := strings.TrimSpace(req.AgentName)
 	if agentName == "" {
@@ -245,38 +258,79 @@ func (p *Provider) backendForSnapshot(
 	return backend.ForAgent(workspaceID, agentName, tier), scope, nil
 }
 
-func (p *Provider) backendForWriteRecord(rec *memcontract.WriteRecord) Backend {
+func (p *Provider) backendForWriteRecord(rec *memcontract.WriteRecord) (Backend, error) {
 	if rec == nil {
-		return p.backend
+		return p.backend, nil
 	}
 	frontmatter := rec.Decision.Frontmatter
-	if frontmatter.Scope.Normalize() != memcontract.ScopeAgent {
-		return p.backend
+	scope := frontmatter.Scope.Normalize()
+	switch scope {
+	case memcontract.ScopeWorkspace:
+		backend, err := p.backendForWorkspace("")
+		if err != nil {
+			return nil, err
+		}
+		return backend, nil
+	case memcontract.ScopeAgent:
+		return p.backendForAgentWrite(rec)
+	default:
+		return p.backend, nil
 	}
+}
+
+func (p *Provider) backendForAgentWrite(rec *memcontract.WriteRecord) (Backend, error) {
+	frontmatter := rec.Decision.Frontmatter
 	agentName := strings.TrimSpace(frontmatter.AgentName)
 	if agentName == "" {
 		agentName = strings.TrimSpace(rec.Candidate.AgentName)
+	}
+	if agentName == "" {
+		return nil, errors.New("memory provider local: write agent name is required")
 	}
 	tier := frontmatter.AgentTier.Normalize()
 	if tier == "" {
 		tier = rec.Candidate.AgentTier.Normalize()
 	}
+	if tier == "" {
+		tier = memcontract.AgentTierWorkspace
+	}
+	if err := tier.Validate(); err != nil {
+		return nil, fmt.Errorf("memory provider local: write agent tier: %w", err)
+	}
 	workspaceID := strings.TrimSpace(rec.Candidate.WorkspaceID)
 	if workspaceID == "" {
 		workspaceID = p.currentWorkspaceID()
 	}
-	return p.backend.ForAgent(workspaceID, agentName, tier)
+	backend := p.backend
+	if tier == memcontract.AgentTierWorkspace {
+		workspaceRoot := p.currentWorkspaceRoot()
+		if workspaceRoot != "" {
+			backend = p.backend.ForWorkspace(workspaceRoot)
+		}
+	}
+	return backend.ForAgent(workspaceID, agentName, tier), nil
 }
 
-func (p *Provider) backendForWorkspace(workspaceRoot string) Backend {
+func (p *Provider) backendForWorkspace(workspaceRoot string) (Backend, error) {
 	if p == nil || p.backend == nil {
-		return nil
+		return nil, errors.New("memory provider local: backend is required")
 	}
-	root := strings.TrimSpace(workspaceRoot)
+	root := p.workspaceRootFor(workspaceRoot)
 	if root == "" {
-		return p.backend
+		if p.currentWorkspaceID() != "" {
+			return nil, errors.New("memory provider local: workspace root is required")
+		}
+		return p.backend, nil
 	}
-	return p.backend.ForWorkspace(root)
+	return p.backend.ForWorkspace(root), nil
+}
+
+func (p *Provider) workspaceRootFor(workspaceRoot string) string {
+	root := strings.TrimSpace(workspaceRoot)
+	if root != "" {
+		return root
+	}
+	return p.currentWorkspaceRoot()
 }
 
 func (p *Provider) scopeAgeMs(backend Backend, scope memcontract.Scope) (int64, error) {
@@ -307,6 +361,15 @@ func (p *Provider) currentWorkspaceID() string {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 	return p.workspaceID
+}
+
+func (p *Provider) currentWorkspaceRoot() string {
+	if p == nil {
+		return ""
+	}
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.workspaceRoot
 }
 
 func (p *Provider) checkReady(ctx context.Context) error {

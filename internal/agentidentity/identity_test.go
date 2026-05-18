@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -61,7 +63,7 @@ func TestResolveValidatesAgentCallerIdentity(t *testing.T) {
 				SessionID: "missing",
 				AgentName: "coder",
 			},
-			lookupErr: errors.New("not found"),
+			lookupErr: session.ErrSessionNotFound,
 			wantErr:   ErrIdentityStale,
 			wantExit:  ExitIdentityInvalid,
 		},
@@ -97,6 +99,18 @@ func TestResolveValidatesAgentCallerIdentity(t *testing.T) {
 			},
 			session:           active,
 			expectedWorkspace: "ws-2",
+			wantErr:           ErrIdentityUnauthorized,
+			wantExit:          ExitUnauthorized,
+		},
+		{
+			name: "Should reject conflicting credential and expected workspaces",
+			credentials: Credentials{
+				SessionID:   "sess-1",
+				AgentName:   "coder",
+				WorkspaceID: "ws-2",
+			},
+			session:           active,
+			expectedWorkspace: "ws-1",
 			wantErr:           ErrIdentityUnauthorized,
 			wantExit:          ExitUnauthorized,
 		},
@@ -233,10 +247,11 @@ func TestResolveRejectsUnavailableAndMalformedLookupResults(t *testing.T) {
 	}
 
 	tests := []struct {
-		name    string
-		ctx     context.Context
-		lookup  SessionLookup
-		wantErr error
+		name     string
+		ctx      context.Context
+		lookup   SessionLookup
+		wantErr  error
+		wantExit int
 	}{
 		{
 			name: "Should reject nil context",
@@ -277,6 +292,15 @@ func TestResolveRejectsUnavailableAndMalformedLookupResults(t *testing.T) {
 			},
 			wantErr: ErrIdentityMismatch,
 		},
+		{
+			name: "Should classify backend lookup failures as unavailable",
+			ctx:  context.Background(),
+			lookup: func(_ context.Context, _ string) (SessionSnapshot, error) {
+				return SessionSnapshot{}, fmt.Errorf("read session metadata: %w", os.ErrPermission)
+			},
+			wantErr:  ErrIdentityLookupUnavailable,
+			wantExit: ExitUnavailable,
+		},
 	}
 
 	for _, tt := range tests {
@@ -289,6 +313,11 @@ func TestResolveRejectsUnavailableAndMalformedLookupResults(t *testing.T) {
 			})
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("Resolve() error = %v, want %v", err, tt.wantErr)
+			}
+			if tt.wantExit != 0 {
+				if got := ExitCodeForError(err); got != tt.wantExit {
+					t.Fatalf("ExitCodeForError() = %d, want %d", got, tt.wantExit)
+				}
 			}
 		})
 	}

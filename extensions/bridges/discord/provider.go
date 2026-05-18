@@ -689,9 +689,10 @@ func (p *discordProvider) reconcileInstanceConfigs(
 	managed []subprocess.InitializeBridgeManagedInstance,
 ) []resolvedInstanceConfig {
 	if len(managed) == 0 {
-		p.mu.Lock()
-		p.routes = make(map[string]resolvedInstanceConfig)
-		p.mu.Unlock()
+		closeDiscordInboundBatchers(p.swapDiscordRoutes(
+			make(map[string]resolvedInstanceConfig),
+			p.currentDiscordListenAddr(),
+		))
 		return nil
 	}
 
@@ -710,6 +711,12 @@ func (p *discordProvider) reconcileInstanceConfigs(
 	}
 
 	return configs
+}
+
+func (p *discordProvider) currentDiscordListenAddr() string {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.listenAddr
 }
 
 func (p *discordProvider) collectDiscordConfigs(

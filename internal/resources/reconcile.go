@@ -361,10 +361,9 @@ func buildReconcileTopology(
 			if dependency == "" {
 				continue
 			}
-			if _, ok := projectors[dependency]; !ok {
-				continue
+			if _, ok := projectors[dependency]; ok {
+				indegree[kind]++
 			}
-			indegree[kind]++
 			dependents[dependency] = append(dependents[dependency], kind)
 		}
 	}
@@ -444,7 +443,9 @@ func (d *reconcileDriver) Trigger(ctx context.Context, kind ResourceKind, reason
 		d.mu.Unlock()
 		return errors.New("resources: reconcile driver is closed")
 	}
-	if _, ok := d.projectors[normalizedKind]; !ok {
+	_, hasProjector := d.projectors[normalizedKind]
+	_, hasDependents := d.dependents[normalizedKind]
+	if !hasProjector && !hasDependents {
 		d.mu.Unlock()
 		return fmt.Errorf("%w: reconcile kind %q is not registered", ErrValidation, normalizedKind)
 	}
@@ -580,6 +581,11 @@ func (d *reconcileDriver) enqueueLocked(kind ResourceKind, reason ReconcileReaso
 		return nil
 	}
 
+	if reason == ReconcileReasonWrite && state.degradedUntil.After(d.now()) {
+		state.degradedUntil = time.Time{}
+		state.readyAt = time.Time{}
+	}
+
 	if state.running {
 		state.dirty = true
 		state.dirtyReason = reason
@@ -591,10 +597,6 @@ func (d *reconcileDriver) enqueueLocked(kind ResourceKind, reason ReconcileReaso
 	}
 
 	if state.pending {
-		if reason == ReconcileReasonWrite && state.degradedUntil.After(d.now()) {
-			state.degradedUntil = time.Time{}
-			state.readyAt = time.Time{}
-		}
 		state.pendingReason = reason
 		return &ReconcileEvent{
 			Type:   ReconcileEventCoalesced,
@@ -712,15 +714,6 @@ func (d *reconcileDriver) runPass(
 ) reconcilePassResult {
 	startedAt := d.now()
 
-	input, err := d.buildProjectionInput(ctx, kind)
-	if err != nil {
-		return reconcilePassResult{
-			reason:   reason,
-			duration: d.now().Sub(startedAt),
-			err:      err,
-		}
-	}
-
 	timeout := d.defaultTimeout
 	if override, ok := d.kindTimeouts[kind]; ok && override > 0 {
 		timeout = override
@@ -728,6 +721,15 @@ func (d *reconcileDriver) runPass(
 
 	passCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
+
+	input, err := d.buildProjectionInput(passCtx, kind)
+	if err != nil {
+		return reconcilePassResult{
+			reason:   reason,
+			duration: d.now().Sub(startedAt),
+			err:      err,
+		}
+	}
 
 	projector := d.projectors[kind]
 	plan, err := projector.Build(passCtx, input)

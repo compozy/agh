@@ -16,7 +16,16 @@ import (
 func TestUDSBridgeCreateGetAndRoutesMirrorHTTP(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 
-	createResp := mustUnixRequest(t, runtime.client, http.MethodPost, "http://unix/api/bridges", []byte(`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"dm_policy":"pairing","routing_policy":{"include_peer":true},"provider_config":{"mode":"bot","tenant":"acme"},"delivery_defaults":{"peer_id":"peer-default","mode":"reply"}}`), nil)
+	createResp := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodPost,
+		"http://unix/api/bridges",
+		[]byte(
+			`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"dm_policy":"pairing","routing_policy":{"include_peer":true},"provider_config":{"mode":"bot","tenant":"acme"},"delivery_defaults":{"peer_id":"peer-default","mode":"reply"}}`,
+		),
+		nil,
+	)
 	if createResp.StatusCode != http.StatusCreated {
 		body := mustReadAll(t, createResp.Body)
 		t.Fatalf("create bridge status = %d, want %d; body=%s", createResp.StatusCode, http.StatusCreated, body)
@@ -37,7 +46,14 @@ func TestUDSBridgeCreateGetAndRoutesMirrorHTTP(t *testing.T) {
 		t.Fatalf("created.Bridge.DeliveryDefaults = %s, want %s", got, want)
 	}
 
-	getResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/bridges/"+created.Bridge.ID, nil, nil)
+	getResp := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		"http://unix/api/bridges/"+created.Bridge.ID,
+		nil,
+		nil,
+	)
 	if getResp.StatusCode != http.StatusOK {
 		body := mustReadAll(t, getResp.Body)
 		t.Fatalf("get bridge status = %d, want %d; body=%s", getResp.StatusCode, http.StatusOK, body)
@@ -73,7 +89,14 @@ func TestUDSBridgeCreateGetAndRoutesMirrorHTTP(t *testing.T) {
 		t.Fatalf("runtime.bridges.UpsertRoute() error = %v", err)
 	}
 
-	routesResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/bridges/"+created.Bridge.ID+"/routes", nil, nil)
+	routesResp := mustUnixRequest(
+		t,
+		runtime.client,
+		http.MethodGet,
+		"http://unix/api/bridges/"+created.Bridge.ID+"/routes",
+		nil,
+		nil,
+	)
 	if routesResp.StatusCode != http.StatusOK {
 		body := mustReadAll(t, routesResp.Body)
 		t.Fatalf("bridge routes status = %d, want %d; body=%s", routesResp.StatusCode, http.StatusOK, body)

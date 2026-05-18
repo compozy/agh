@@ -175,16 +175,21 @@ func TestDaemonE2EToolPermissionFixtureEventsSurface(t *testing.T) {
 	defer cancel()
 
 	session := createFixtureBackedSession(t, ctx, harness, "mock-golden", "golden-session")
-	httpStream, err := harness.PromptSessionHTTPWithEvents(ctx, session.ID, "exercise golden", func(event e2etest.SSEEvent) error {
-		requestID, ok := permissionRequestIDFromSSE(event)
-		if !ok {
-			return nil
-		}
-		return harness.ApproveSessionPermission(ctx, session.ID, aghcontract.ApproveSessionRequest{
-			RequestID: requestID,
-			Decision:  "allow-always",
-		})
-	})
+	httpStream, err := harness.PromptSessionHTTPWithEvents(
+		ctx,
+		session.ID,
+		"exercise golden",
+		func(event e2etest.SSEEvent) error {
+			requestID, ok := permissionRequestIDFromSSE(event)
+			if !ok {
+				return nil
+			}
+			return harness.ApproveSessionPermission(ctx, session.ID, aghcontract.ApproveSessionRequest{
+				RequestID: requestID,
+				Decision:  "allow-always",
+			})
+		},
+	)
 	if err != nil {
 		t.Fatalf("PromptSessionHTTPWithEvents() error = %v", err)
 	}

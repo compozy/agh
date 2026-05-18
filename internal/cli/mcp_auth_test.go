@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 
@@ -145,7 +146,7 @@ func TestMCPAuthStatusBundlesRenderHumanAndToon(t *testing.T) {
 func TestMCPAuthLoginManualCodeExchangesWithoutPrintingVerifier(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should exchange manual code without printing verifier", func(t *testing.T) {
+	t.Run("Should start manual login and persist state without printing verifier", func(t *testing.T) {
 		t.Parallel()
 
 		deps := newMCPAuthTestDeps(t, &stubMCPAuthClient{
@@ -159,7 +160,65 @@ func TestMCPAuthLoginManualCodeExchangesWithoutPrintingVerifier(t *testing.T) {
 					Config:           cfg,
 				}, nil
 			},
+		})
+		homePaths, err := deps.resolveHome()
+		if err != nil {
+			t.Fatalf("deps.resolveHome() error = %v", err)
+		}
+
+		stdout, stderr, err := executeRootCommand(
+			t,
+			deps,
+			"mcp",
+			"auth",
+			"login",
+			"linear",
+			"--manual",
+			"--redirect-url",
+			"http://127.0.0.1/callback",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("executeRootCommand(mcp auth login --manual) error = %v", err)
+		}
+		if strings.Contains(stdout+stderr, "sensitive-verifier") {
+			t.Fatalf("manual login output leaked PKCE verifier: stdout=%q stderr=%q", stdout, stderr)
+		}
+		if !strings.Contains(stderr, "https://auth.example/authorize?state=state-1") {
+			t.Fatalf("manual login stderr = %q, want authorization URL", stderr)
+		}
+		var status mcpauth.Status
+		if err := json.Unmarshal([]byte(stdout), &status); err != nil {
+			t.Fatalf("json.Unmarshal(login status) error = %v", err)
+		}
+		if status.Status != mcpauth.StatusNeedsLogin || status.AuthorizationURL == "" {
+			t.Fatalf("status = %#v, want pending manual login", status)
+		}
+		path, err := mcpAuthPendingLoginPath(homePaths, "linear")
+		if err != nil {
+			t.Fatalf("mcpAuthPendingLoginPath() error = %v", err)
+		}
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("os.Stat(pending login) error = %v", err)
+		}
+	})
+
+	t.Run("Should exchange manual code without printing verifier", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newMCPAuthTestDeps(t, &stubMCPAuthClient{
+			beginFn: func(_ context.Context, cfg mcpauth.ServerConfig, redirectURL string) (mcpauth.LoginState, error) {
+				t.Fatalf("BeginLogin(%q, %q) was called for --manual-code", cfg.ServerName, redirectURL)
+				return mcpauth.LoginState{}, nil
+			},
 			exchangeFn: func(_ context.Context, state mcpauth.LoginState, callbackURL string) (mcpauth.Status, error) {
+				if state.State != "state-original" || state.Verifier != "sensitive-verifier" {
+					t.Fatalf("state = %#v, want persisted manual login state", state)
+				}
+				if state.Config.ClientSecret != "client-secret" {
+					t.Fatalf("state.Config.ClientSecret = %q, want resolved current secret", state.Config.ClientSecret)
+				}
 				if !strings.Contains(callbackURL, "code=manual-code") ||
 					!strings.Contains(callbackURL, "state="+state.State) {
 					t.Fatalf("callbackURL = %q", callbackURL)
@@ -167,6 +226,19 @@ func TestMCPAuthLoginManualCodeExchangesWithoutPrintingVerifier(t *testing.T) {
 				return mcpauth.Status{ServerName: state.ServerName, Status: mcpauth.StatusAuthenticated}, nil
 			},
 		})
+		homePaths, err := deps.resolveHome()
+		if err != nil {
+			t.Fatalf("deps.resolveHome() error = %v", err)
+		}
+		if err := saveMCPAuthPendingLogin(homePaths, mcpauth.LoginState{
+			ServerName:       "linear",
+			RedirectURL:      "http://127.0.0.1/callback",
+			State:            "state-original",
+			Verifier:         "sensitive-verifier",
+			AuthorizationURL: "https://auth.example/authorize?state=state-original",
+		}); err != nil {
+			t.Fatalf("saveMCPAuthPendingLogin() error = %v", err)
+		}
 
 		stdout, stderr, err := executeRootCommand(
 			t,
@@ -177,8 +249,6 @@ func TestMCPAuthLoginManualCodeExchangesWithoutPrintingVerifier(t *testing.T) {
 			"linear",
 			"--manual-code",
 			"manual-code",
-			"--redirect-url",
-			"http://127.0.0.1/callback",
 			"-o",
 			"json",
 		)
@@ -194,6 +264,13 @@ func TestMCPAuthLoginManualCodeExchangesWithoutPrintingVerifier(t *testing.T) {
 		}
 		if status.Status != mcpauth.StatusAuthenticated {
 			t.Fatalf("status = %#v", status)
+		}
+		path, err := mcpAuthPendingLoginPath(homePaths, "linear")
+		if err != nil {
+			t.Fatalf("mcpAuthPendingLoginPath() error = %v", err)
+		}
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("pending login file error = %v, want not exists", err)
 		}
 	})
 }

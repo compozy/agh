@@ -212,7 +212,12 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 			t.Fatalf("close HTTP stop response body error = %v", closeErr)
 		}
 		if stopResp.StatusCode != http.StatusNoContent {
-			t.Fatalf("HTTP stop session status = %d, want %d; body=%s", stopResp.StatusCode, http.StatusNoContent, string(body))
+			t.Fatalf(
+				"HTTP stop session status = %d, want %d; body=%s",
+				stopResp.StatusCode,
+				http.StatusNoContent,
+				string(body),
+			)
 		}
 
 		writeTransportProviderOverrideConfig(
@@ -227,7 +232,9 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 			t,
 			runtimeHarness.HTTPClient,
 			http.MethodPost,
-			runtimeHarness.HTTPURL("/api/workspaces/ws-workspace/sessions/"+url.PathEscape(created.Session.ID)+"/resume"),
+			runtimeHarness.HTTPURL(
+				"/api/workspaces/ws-workspace/sessions/"+url.PathEscape(created.Session.ID)+"/resume",
+			),
 			nil,
 			nil,
 		)
@@ -240,7 +247,12 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 			t.Fatalf("close HTTP resume body error = %v", resumeCloseErr)
 		}
 		if resumeResp.StatusCode != http.StatusBadRequest {
-			t.Fatalf("HTTP resume status = %d, want %d; body=%s", resumeResp.StatusCode, http.StatusBadRequest, string(resumeBody))
+			t.Fatalf(
+				"HTTP resume status = %d, want %d; body=%s",
+				resumeResp.StatusCode,
+				http.StatusBadRequest,
+				string(resumeBody),
+			)
 		}
 
 		var payload struct {
@@ -383,7 +395,12 @@ func TestHTTPTransportExtensionParityMatchesUDS(t *testing.T) {
 	if httpListResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(httpListResp.Body)
 		_ = httpListResp.Body.Close()
-		t.Fatalf("HTTP list extensions status = %d, want %d; body=%s", httpListResp.StatusCode, http.StatusOK, string(body))
+		t.Fatalf(
+			"HTTP list extensions status = %d, want %d; body=%s",
+			httpListResp.StatusCode,
+			http.StatusOK,
+			string(body),
+		)
 	}
 	var httpList aghcontract.ExtensionsResponse
 	decodeHTTPJSON(t, httpListResp, &httpList)
@@ -588,7 +605,9 @@ func normalizeExtensionPayload(value aghcontract.ExtensionPayload) aghcontract.E
 	return value
 }
 
-func normalizeExtensionBundles(values []aghcontract.ExtensionBundleSummaryPayload) []aghcontract.ExtensionBundleSummaryPayload {
+func normalizeExtensionBundles(
+	values []aghcontract.ExtensionBundleSummaryPayload,
+) []aghcontract.ExtensionBundleSummaryPayload {
 	if len(values) == 0 {
 		return nil
 	}

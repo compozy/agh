@@ -479,6 +479,60 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 		assertDecisionEvent(ctx, t, db, result.Decision.ID, memoryEventWriteReverted)
 	})
 
+	t.Run("Should refuse update reverts after newer content is written", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		baseDir := t.TempDir()
+		globalDir := filepath.Join(baseDir, "agh-home", memoryDirName)
+		store := NewStore(globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("Store.EnsureDirs() error = %v", err)
+		}
+		original := mustMemoryContent(t, testMemoryMeta{
+			Name:        "User Preferences",
+			Description: "Original",
+			Type:        memcontract.TypeUser,
+		}, "Prefer concise explanations.\n")
+		if err := store.Write(memcontract.ScopeGlobal, "user_preferences.md", original); err != nil {
+			t.Fatalf("Store.Write(seed) error = %v", err)
+		}
+		updated := mustMemoryContent(t, testMemoryMeta{
+			Name:        "User Preferences",
+			Description: "Updated",
+			Type:        memcontract.TypeUser,
+		}, "Prefer detailed explanations with examples.\n")
+		result, err := store.ProposeWrite(
+			ctx,
+			memcontract.ScopeGlobal,
+			"user_preferences.md",
+			updated,
+			memcontract.OriginHTTP,
+		)
+		if err != nil {
+			t.Fatalf("Store.ProposeWrite(update) error = %v", err)
+		}
+		newer := mustMemoryContent(t, testMemoryMeta{
+			Name:        "User Preferences",
+			Description: "Newer",
+			Type:        memcontract.TypeUser,
+		}, "Prefer newer guidance that must survive stale reverts.\n")
+		if err := store.Write(memcontract.ScopeGlobal, "user_preferences.md", newer); err != nil {
+			t.Fatalf("Store.Write(newer) error = %v", err)
+		}
+
+		if _, err := store.RevertDecision(ctx, result.Decision.ID); err == nil {
+			t.Fatal("Store.RevertDecision(stale update) error = nil, want hash guard failure")
+		}
+		got, err := store.Read(memcontract.ScopeGlobal, "user_preferences.md")
+		if err != nil {
+			t.Fatalf("Store.Read(after stale update revert) error = %v", err)
+		}
+		if !bytes.Equal(got, newer) {
+			t.Fatalf("content after stale update revert = %q, want newer content", string(got))
+		}
+	})
+
 	t.Run("Should delete through controller decisions", func(t *testing.T) {
 		t.Parallel()
 
@@ -510,6 +564,49 @@ func TestStoreDecisionControllerWAL(t *testing.T) {
 		}
 		db := ensureReplayTestDB(ctx, t, store)
 		assertDecisionApplied(ctx, t, db, result.Decision.ID)
+	})
+
+	t.Run("Should refuse delete reverts after target recreation", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		baseDir := t.TempDir()
+		globalDir := filepath.Join(baseDir, "agh-home", memoryDirName)
+		store := NewStore(globalDir, WithCatalogDatabasePath(filepath.Join(baseDir, "agh.db")))
+		if err := store.EnsureDirs(); err != nil {
+			t.Fatalf("Store.EnsureDirs() error = %v", err)
+		}
+		original := mustMemoryContent(t, testMemoryMeta{
+			Name:        "User Preferences",
+			Description: "Delete",
+			Type:        memcontract.TypeUser,
+		}, "Delete this via controller.\n")
+		if err := store.Write(memcontract.ScopeGlobal, "user_preferences.md", original); err != nil {
+			t.Fatalf("Store.Write(seed) error = %v", err)
+		}
+		result, err := store.ProposeDelete(ctx, memcontract.ScopeGlobal, "user_preferences.md", memcontract.OriginHTTP)
+		if err != nil {
+			t.Fatalf("Store.ProposeDelete() error = %v", err)
+		}
+		recreated := mustMemoryContent(t, testMemoryMeta{
+			Name:        "User Preferences",
+			Description: "Recreated",
+			Type:        memcontract.TypeUser,
+		}, "This recreated content must not be overwritten by stale delete revert.\n")
+		if err := store.Write(memcontract.ScopeGlobal, "user_preferences.md", recreated); err != nil {
+			t.Fatalf("Store.Write(recreated) error = %v", err)
+		}
+
+		if _, err := store.RevertDecision(ctx, result.Decision.ID); err == nil {
+			t.Fatal("Store.RevertDecision(stale delete) error = nil, want existence guard failure")
+		}
+		got, err := store.Read(memcontract.ScopeGlobal, "user_preferences.md")
+		if err != nil {
+			t.Fatalf("Store.Read(after stale delete revert) error = %v", err)
+		}
+		if !bytes.Equal(got, recreated) {
+			t.Fatalf("content after stale delete revert = %q, want recreated content", string(got))
+		}
 	})
 
 	t.Run("Should auto-create default decision catalog when missing", func(t *testing.T) {

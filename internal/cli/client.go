@@ -4316,7 +4316,7 @@ func setAgentIdentityHeaders(req *http.Request, credentials agentidentity.Creden
 	}
 }
 
-func decodeSSE(ctx context.Context, body io.Reader, handler SSEHandler) error {
+func decodeSSE(ctx context.Context, body io.ReadCloser, handler SSEHandler) error {
 	return sse.Decode(ctx, body, handler)
 }
 
