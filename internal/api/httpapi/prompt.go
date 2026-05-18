@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/acp"
 	core "github.com/pedronauck/agh/internal/api/core"
 )
+
+const detachedPromptDrainTimeout = 30 * time.Second
 
 type promptRequest struct {
 	Message  string              `json:"message"`
@@ -71,7 +74,7 @@ func (h *Handlers) promptSession(c *gin.Context) {
 	for {
 		select {
 		case <-c.Request.Context().Done():
-			h.drainPromptEventsAsync(context.WithoutCancel(c.Request.Context()), events, cancelOnReturn)
+			h.drainPromptEventsAsync(c.Request.Context(), events, cancelOnReturn)
 			cancelOnReturn = nil
 			return
 		case <-h.StreamDoneChannel():
@@ -84,7 +87,7 @@ func (h *Handlers) promptSession(c *gin.Context) {
 				return
 			}
 			if err := streamEncoder.Emit(writer, event); err != nil {
-				h.drainPromptEventsAsync(context.WithoutCancel(c.Request.Context()), events, cancelOnReturn)
+				h.drainPromptEventsAsync(c.Request.Context(), events, cancelOnReturn)
 				cancelOnReturn = nil
 				return
 			}
@@ -103,11 +106,23 @@ func (h *Handlers) drainPromptEventsAsync(
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	drainCtx := context.WithoutCancel(ctx)
+	drainCtx, cancelDrain := detachPromptDrainContext(ctx)
 	h.promptDrainWG.Go(func() {
+		defer cancelDrain()
 		defer cancelPrompt()
 		h.drainPromptEvents(drainCtx, events)
 	})
+}
+
+func detachPromptDrainContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		return context.WithTimeout(context.Background(), detachedPromptDrainTimeout)
+	}
+	drainCtx := context.WithoutCancel(ctx)
+	if deadline, ok := ctx.Deadline(); ok {
+		return context.WithDeadline(drainCtx, deadline)
+	}
+	return context.WithTimeout(drainCtx, detachedPromptDrainTimeout)
 }
 
 func (h *Handlers) drainPromptEvents(ctx context.Context, events <-chan acp.AgentEvent) {

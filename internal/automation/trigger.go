@@ -474,7 +474,7 @@ func (e *TriggerEngine) HandleWebhook(ctx context.Context, request WebhookReques
 		return TriggerResult{}, err
 	}
 	result, err := e.dispatchAfterFilter(ctx, envelope, []TriggerRegistration{registration}, claim.reservedRun)
-	if err != nil && len(result.Runs) == 0 {
+	if len(result.Runs) == 0 {
 		e.releaseWebhookDelivery(ctx, claim)
 	}
 	return result, err

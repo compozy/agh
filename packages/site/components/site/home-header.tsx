@@ -8,6 +8,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ComponentProps } from "react";
 
+import { GitHubStarButton } from "./github-star-button";
+
 const primaryLinks = [
   { href: "/", label: "Home" },
   { href: "/runtime", label: "Runtime" },
@@ -85,17 +87,21 @@ export function HomeHeader(props: ComponentProps<"header">) {
             </>
           )}
 
+          <div className="hidden md:flex">
+            <GitHubStarButton />
+          </div>
+
           {baseOptions.githubUrl && (
             <a
               href={baseOptions.githubUrl}
               target="_blank"
               rel="noreferrer noopener"
-              aria-label="Compozy on GitHub"
+              aria-label="AGH on GitHub"
               className={cn(
                 buttonVariants({
                   variant: "ghost",
                   size: "icon-sm",
-                  className: "rounded-full text-muted hover:bg-hover hover:text-fg",
+                  className: "rounded-full text-muted hover:bg-hover hover:text-fg md:hidden",
                 })
               )}
             >

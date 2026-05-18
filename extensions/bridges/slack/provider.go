@@ -282,18 +282,25 @@ type slackMessageMetadataPayload struct {
 
 type slackConversationMessagesRequest struct {
 	Channel   string `json:"channel"`
+	Cursor    string `json:"cursor,omitempty"`
 	Inclusive bool   `json:"inclusive,omitempty"`
 	Limit     int    `json:"limit,omitempty"`
 	TS        string `json:"ts,omitempty"`
 }
 
 type slackConversationMessagesResponse struct {
-	Messages []slackConversationMessage `json:"messages,omitempty"`
+	HasMore          bool                       `json:"has_more,omitempty"`
+	Messages         []slackConversationMessage `json:"messages,omitempty"`
+	ResponseMetadata slackResponseMetadata      `json:"response_metadata,omitempty"`
 }
 
 type slackConversationMessage struct {
 	TS       string                `json:"ts,omitempty"`
 	Metadata *slackMessageMetadata `json:"metadata,omitempty"`
+}
+
+type slackResponseMetadata struct {
+	NextCursor string `json:"next_cursor,omitempty"`
 }
 
 type slackAPIEnvelope struct {
@@ -2126,15 +2133,22 @@ func (c *slackBotClient) FindDeliveryMessage(
 		payload.Inclusive = true
 	}
 
-	var result slackConversationMessagesResponse
-	if err := c.call(ctx, method, payload, &result); err != nil {
-		return nil, err
-	}
-	for idx := range result.Messages {
-		message := result.Messages[idx]
-		if slackMetadataMatchesDelivery(message.Metadata, req) {
-			return &slackPostedMessage{TS: strings.TrimSpace(message.TS)}, nil
+	for {
+		var result slackConversationMessagesResponse
+		if err := c.call(ctx, method, payload, &result); err != nil {
+			return nil, err
 		}
+		for idx := range result.Messages {
+			message := result.Messages[idx]
+			if slackMetadataMatchesDelivery(message.Metadata, req) {
+				return &slackPostedMessage{TS: strings.TrimSpace(message.TS)}, nil
+			}
+		}
+		nextCursor := strings.TrimSpace(result.ResponseMetadata.NextCursor)
+		if !result.HasMore && nextCursor == "" {
+			break
+		}
+		payload.Cursor = nextCursor
 	}
 	return nil, nil
 }

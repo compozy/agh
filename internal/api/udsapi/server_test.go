@@ -483,7 +483,7 @@ func TestServerStartRejectsRestartDuringShutdown(t *testing.T) {
 func TestServerShutdownResetsStateAfterPromptDrainTimeout(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should reset the server state after prompt drain wait times out", func(t *testing.T) {
+	t.Run("Should keep the server stopping until prompt drain cleanup succeeds", func(t *testing.T) {
 		t.Parallel()
 
 		handlers := newHandlers(&handlerConfig{logger: discardLogger()})
@@ -500,9 +500,12 @@ func TestServerShutdownResetsStateAfterPromptDrainTimeout(t *testing.T) {
 
 		events := make(chan acp.AgentEvent)
 		promptCtx, cancelPrompt := context.WithCancel(context.Background())
+		eventsClosed := false
 		t.Cleanup(func() {
 			cancelPrompt()
-			close(events)
+			if !eventsClosed {
+				close(events)
+			}
 		})
 
 		server.handlers.setStreamDone(make(chan struct{}))
@@ -510,20 +513,44 @@ func TestServerShutdownResetsStateAfterPromptDrainTimeout(t *testing.T) {
 
 		shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 20*time.Millisecond)
 		defer cancelShutdown()
-		if err := server.Shutdown(shutdownCtx); err == nil {
+		err := server.Shutdown(shutdownCtx)
+		if err == nil {
 			t.Fatal("Shutdown() error = nil, want prompt drain timeout")
+		}
+		if !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "prompt drains") {
+			t.Fatalf("Shutdown() error = %v, want prompt drain timeout", err)
+		}
+
+		server.mu.Lock()
+		if server.state != serverStateStopping {
+			t.Fatalf("server state after timed-out shutdown = %v, want %v", server.state, serverStateStopping)
+		}
+		if server.streamCancel == nil {
+			t.Fatal("streamCancel after timed-out shutdown = nil, want retained for retry")
+		}
+		if server.serveDone == nil {
+			t.Fatal("serveDone after timed-out shutdown = nil, want retained for retry")
+		}
+		server.mu.Unlock()
+
+		close(events)
+		eventsClosed = true
+		retryCtx, cancelRetry := context.WithTimeout(context.Background(), time.Second)
+		defer cancelRetry()
+		if err := server.Shutdown(retryCtx); err != nil {
+			t.Fatalf("Shutdown(retry) error = %v", err)
 		}
 
 		server.mu.Lock()
 		defer server.mu.Unlock()
 		if server.state != serverStateStopped {
-			t.Fatalf("server state after timed-out shutdown = %v, want %v", server.state, serverStateStopped)
+			t.Fatalf("server state after retry shutdown = %v, want %v", server.state, serverStateStopped)
 		}
 		if server.streamCancel != nil {
-			t.Fatal("streamCancel after timed-out shutdown = non-nil, want nil")
+			t.Fatal("streamCancel after retry shutdown = non-nil, want nil")
 		}
 		if server.serveDone != nil {
-			t.Fatal("serveDone after timed-out shutdown = non-nil, want nil")
+			t.Fatal("serveDone after retry shutdown = non-nil, want nil")
 		}
 	})
 }

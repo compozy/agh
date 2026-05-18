@@ -37,7 +37,7 @@ export function AutonomyKernelSection() {
           height={760}
           decoding="async"
           sizes="100vw"
-          unoptimized
+          quality={90}
           className="block select-none opacity-95"
         />
       </figure>

@@ -476,6 +476,18 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject trailing JSON after the first payload value", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := redactTerminalTaskNotificationPayload(json.RawMessage(`{"message":"ok"}{"extra":true}`))
+		if err == nil {
+			t.Fatal("redactTerminalTaskNotificationPayload() error = nil, want trailing data failure")
+		}
+		if !strings.Contains(err.Error(), "trailing data") {
+			t.Fatalf("redactTerminalTaskNotificationPayload() error = %v, want trailing data", err)
+		}
+	})
+
 	t.Run("Should skip superseded terminal events and deliver the accepted final event", func(t *testing.T) {
 		t.Parallel()
 

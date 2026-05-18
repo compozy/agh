@@ -1123,6 +1123,8 @@ type cancelAfterMutationStore[T any] struct {
 	cancelOnDelete bool
 }
 
+var _ resources.Store[Job] = (*cancelAfterMutationStore[Job])(nil)
+
 func (s *cancelAfterMutationStore[T]) Put(
 	ctx context.Context,
 	actor resources.MutationActor,
@@ -1170,6 +1172,8 @@ type cancelAfterWebhookSecretStore struct {
 	cancelOnPut    bool
 	cancelOnDelete bool
 }
+
+var _ WebhookSecretStore = (*cancelAfterWebhookSecretStore)(nil)
 
 func (s *cancelAfterWebhookSecretStore) ResolveRef(ctx context.Context, ref string) (string, error) {
 	return s.store.ResolveRef(ctx, ref)

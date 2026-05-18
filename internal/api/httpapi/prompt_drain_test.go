@@ -41,6 +41,40 @@ func TestDrainPromptEventsAsyncContract(t *testing.T) {
 		}
 		assertPromptCanceled(t, promptCanceled, time.Second)
 	})
+
+	t.Run("Should preserve an existing request deadline when detaching prompt drains", func(t *testing.T) {
+		t.Parallel()
+
+		wantDeadline := time.Now().Add(2 * time.Second).Round(0)
+		ctx, cancel := context.WithDeadline(context.Background(), wantDeadline)
+		defer cancel()
+
+		drainCtx, cancelDrain := detachPromptDrainContext(ctx)
+		defer cancelDrain()
+
+		gotDeadline, ok := drainCtx.Deadline()
+		if !ok {
+			t.Fatal("detachPromptDrainContext() removed the request deadline")
+		}
+		if !gotDeadline.Equal(wantDeadline) {
+			t.Fatalf("drain deadline = %v, want %v", gotDeadline, wantDeadline)
+		}
+	})
+
+	t.Run("Should attach a fallback timeout when no request deadline exists", func(t *testing.T) {
+		t.Parallel()
+
+		drainCtx, cancelDrain := detachPromptDrainContext(context.Background())
+		defer cancelDrain()
+
+		deadline, ok := drainCtx.Deadline()
+		if !ok {
+			t.Fatal("detachPromptDrainContext() did not attach a fallback timeout")
+		}
+		if remaining := time.Until(deadline); remaining <= 0 || remaining > detachedPromptDrainTimeout+time.Second {
+			t.Fatalf("fallback timeout remaining = %v, want bounded positive duration", remaining)
+		}
+	})
 }
 
 func assertPromptNotCanceled(t *testing.T, promptCanceled <-chan struct{}, timeout time.Duration) {

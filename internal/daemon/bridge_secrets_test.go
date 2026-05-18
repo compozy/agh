@@ -85,6 +85,9 @@ func TestBridgeRuntimeResolveBoundSecretsContract(t *testing.T) {
 		if !ok {
 			t.Fatalf("ResolveBridgeRuntime() missing managed instance %q", instance.ID)
 		}
+		if got, want := len(managed.BoundSecrets), 1; got != want {
+			t.Fatalf("ManagedInstance(%q).BoundSecrets count = %d, want %d", instance.ID, got, want)
+		}
 		if got, want := managed.BoundSecrets[0].Value, resolvedValue; got != want {
 			t.Fatalf("ManagedInstance(%q).BoundSecrets[0].Value = %q, want %q", instance.ID, got, want)
 		}

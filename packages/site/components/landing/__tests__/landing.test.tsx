@@ -43,6 +43,20 @@ import { Pill } from "@agh/ui";
 
 import { KIND_MEANING, type NetworkKind } from "../primitives/network-kinds";
 
+// next/image optimization is enabled, so an <img> src is a `/_next/image?url=…`
+// URL. The invariant under test is which source asset each section references,
+// so resolve the underlying asset from the optimizer URL before asserting.
+function resolveImageAsset(src: string | null): string | null {
+  if (!src) return src;
+  if (!src.startsWith("/_next/image")) return src;
+  const url = new URL(src, "http://localhost").searchParams.get("url");
+  return url ?? src;
+}
+
+function assetSources(): (string | null)[] {
+  return screen.getAllByRole("img").map(image => resolveImageAsset(image.getAttribute("src")));
+}
+
 describe("Hero", () => {
   it("leads with the locked headline, subhead, and agent network protocol CTA", () => {
     render(<Hero />);
@@ -97,7 +111,7 @@ describe("FeaturesSection", () => {
       "/images/everything/illustration_06.png",
     ];
 
-    const sources = screen.getAllByRole("img").map(image => image.getAttribute("src"));
+    const sources = assetSources();
 
     for (const source of expectedSources) {
       expect(sources).toContain(source);
@@ -143,7 +157,7 @@ describe("BentoSection", () => {
       "/images/bento-illustrations/extensibility-v2.png",
     ];
 
-    const sources = screen.getAllByRole("img").map(image => image.getAttribute("src"));
+    const sources = assetSources();
 
     for (const source of expectedSources) {
       expect(sources).toContain(source);
@@ -200,11 +214,13 @@ describe("RuntimeSection", () => {
     render(<RuntimeSection />);
 
     expect(
-      screen
-        .getByAltText(
-          "AGH daemon connecting CLI, API, and web UI surfaces to sessions, memory, skills, workspaces, and observability."
-        )
-        .getAttribute("src")
+      resolveImageAsset(
+        screen
+          .getByAltText(
+            "AGH daemon connecting CLI, API, and web UI surfaces to sessions, memory, skills, workspaces, and observability."
+          )
+          .getAttribute("src")
+      )
     ).toBe("/images/runtime/illustration_1.png");
   });
 
@@ -314,11 +330,13 @@ describe("ExtensibilitySection", () => {
     render(<ExtensibilitySection />);
 
     expect(
-      screen
-        .getByAltText(
-          "deploy-staging.skill.md shown as a Markdown skill contract with frontmatter, deployment capabilities, and a staged execution trace."
-        )
-        .getAttribute("src")
+      resolveImageAsset(
+        screen
+          .getByAltText(
+            "deploy-staging.skill.md shown as a Markdown skill contract with frontmatter, deployment capabilities, and a staged execution trace."
+          )
+          .getAttribute("src")
+      )
     ).toBe("/images/extensibility-skill-contract-v1.png");
   });
 });
@@ -412,11 +430,13 @@ describe("MemoryDreamSection", () => {
   it("renders the memory storyboard illustration in the sticky rail", () => {
     render(<MemoryDreamSection />);
     expect(
-      screen
-        .getByAltText(
-          "AGH memory interface diagram showing scoped Markdown files, memory indexing, and dream consolidation into durable memory."
-        )
-        .getAttribute("src")
+      resolveImageAsset(
+        screen
+          .getByAltText(
+            "AGH memory interface diagram showing scoped Markdown files, memory indexing, and dream consolidation into durable memory."
+          )
+          .getAttribute("src")
+      )
     ).toBe("/images/runtime/memory-dream-landing-v1.png");
   });
 });
@@ -426,11 +446,13 @@ describe("AutonomyKernelSection", () => {
     render(<AutonomyKernelSection />);
     expect(screen.getByText("A real autonomy kernel, not a fork-and-pray loop.")).toBeDefined();
     expect(
-      screen
-        .getByAltText(
-          "AGH autonomy storyboard, task_runs queue, an agent claiming a run with a claim_token and heartbeat, and lease recovery on daemon restart."
-        )
-        .getAttribute("src")
+      resolveImageAsset(
+        screen
+          .getByAltText(
+            "AGH autonomy storyboard, task_runs queue, an agent claiming a run with a claim_token and heartbeat, and lease recovery on daemon restart."
+          )
+          .getAttribute("src")
+      )
     ).toBe("/images/runtime/autonomy-overview-storyboard-v1.png");
   });
 

@@ -1961,6 +1961,81 @@ func TestSlackBotClientCallBranches(t *testing.T) {
 			t.Fatalf("posted.TS = %q, want %q", got, want)
 		}
 	})
+
+	t.Run("Should paginate delivery history until a matching message is found", func(t *testing.T) {
+		t.Parallel()
+
+		requestCount := 0
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if got, want := strings.TrimPrefix(r.URL.Path, "/"), "conversations.replies"; got != want {
+				t.Fatalf("method path = %q, want %q", got, want)
+			}
+			var req slackConversationMessagesRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Fatalf("Decode(request) error = %v", err)
+			}
+			requestCount++
+			switch requestCount {
+			case 1:
+				if req.Cursor != "" || req.TS != "1775866808.100000" || !req.Inclusive {
+					t.Fatalf("first request = %#v, want initial replies page", req)
+				}
+				writeSlackAPIResponse(t, w, map[string]any{
+					"ok":       true,
+					"has_more": true,
+					"messages": []map[string]any{{
+						"ts": "1775866808.100000",
+						"metadata": map[string]any{
+							"event_type": "agh_bridge_delivery",
+							"event_payload": map[string]any{
+								"bridge_instance_id": "brg-other",
+								"delivery_id":        "delivery-1",
+							},
+						},
+					}},
+					"response_metadata": map[string]any{"next_cursor": "cursor-2"},
+				})
+			case 2:
+				if req.Cursor != "cursor-2" || req.TS != "1775866808.100000" || !req.Inclusive {
+					t.Fatalf("second request = %#v, want paginated replies page", req)
+				}
+				writeSlackAPIResponse(t, w, map[string]any{
+					"ok":       true,
+					"has_more": false,
+					"messages": []map[string]any{{
+						"ts": "1775866808.200000",
+						"metadata": map[string]any{
+							"event_type": "agh_bridge_delivery",
+							"event_payload": map[string]any{
+								"bridge_instance_id": "brg-slack",
+								"delivery_id":        "delivery-1",
+							},
+						},
+					}},
+				})
+			default:
+				t.Fatalf("unexpected request count %d", requestCount)
+			}
+		}))
+		defer server.Close()
+
+		client := &slackBotClient{baseURL: server.URL, botToken: "xoxb", httpClient: &http.Client{Timeout: time.Second}}
+		message, err := client.FindDeliveryMessage(context.Background(), slackFindDeliveryMessageRequest{
+			Channel:          "C123",
+			ThreadTS:         "1775866808.100000",
+			DeliveryID:       "delivery-1",
+			BridgeInstanceID: "brg-slack",
+		})
+		if err != nil {
+			t.Fatalf("FindDeliveryMessage() error = %v", err)
+		}
+		if message == nil || message.TS != "1775866808.200000" {
+			t.Fatalf("FindDeliveryMessage() = %#v, want paginated match", message)
+		}
+		if got, want := requestCount, 2; got != want {
+			t.Fatalf("requestCount = %d, want %d", got, want)
+		}
+	})
 }
 
 func TestProviderHelperEdges(t *testing.T) {

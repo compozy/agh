@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -579,6 +580,12 @@ func redactTerminalTaskNotificationPayload(raw json.RawMessage) (json.RawMessage
 	decoder.UseNumber()
 	if err := decoder.Decode(&payload); err != nil {
 		return nil, fmt.Errorf("bridges: decode terminal task notification payload: %w", err)
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return nil, errors.New("bridges: decode terminal task notification payload: trailing data")
+		}
+		return nil, fmt.Errorf("bridges: decode terminal task notification payload trailing data: %w", err)
 	}
 	encoded, err := json.Marshal(redactTerminalTaskNotificationValue(payload))
 	if err != nil {

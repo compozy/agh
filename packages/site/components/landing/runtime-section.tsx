@@ -64,7 +64,7 @@ export function RuntimeSection() {
               height={636}
               decoding="async"
               sizes="424px"
-              unoptimized
+              quality={90}
               className="max-w-106 select-none object-contain opacity-95"
             />
           </div>

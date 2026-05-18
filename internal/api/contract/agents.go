@@ -13,7 +13,7 @@ import (
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
-var rawClaimTokenValuePattern = regexp.MustCompile(`agh_claim_[A-Za-z0-9_-]+`)
+var rawClaimTokenValuePattern = regexp.MustCompile(`(?i)agh_claim_[A-Za-z0-9_-]+`)
 
 // CoordinationMessageKind identifies the MVP task-run coordination message kind.
 type CoordinationMessageKind string

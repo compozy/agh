@@ -266,123 +266,125 @@ func TestWebhookIngressRejectsInvalidSignatureAndIngestsSupportedModes(t *testin
 }
 
 func TestWebhookIngressRejectsCrossInstanceSignatureOnSharedPath(t *testing.T) {
-	env := setLinearProviderTestEnv(t)
-	listenAddr := reserveLinearListenAddr(t)
-	now := time.Date(2026, 4, 15, 13, 10, 0, 0, time.UTC)
+	t.Run("Should reject cross-instance signature on shared webhook path", func(t *testing.T) {
+		env := setLinearProviderTestEnv(t)
+		listenAddr := reserveLinearListenAddr(t)
+		now := time.Date(2026, 4, 15, 13, 10, 0, 0, time.UTC)
 
-	runtime, hostPeer, cleanup := newLinearRuntimePeerPair(t)
-	defer cleanup()
-	runtime.now = func() time.Time { return now }
-	runtime.apiFactory = func(cfg resolvedInstanceConfig) linearAPI {
-		return &recordingLinearAPI{
-			viewer: &linearViewer{
-				ID:             "bot-" + cfg.instanceID,
-				DisplayName:    "Linear Bot",
-				OrganizationID: cfg.organizationID,
-			},
-		}
-	}
-
-	managed := []subprocess.InitializeBridgeManagedInstance{
-		linearRuntimeManagedInstanceWithWebhookSecret(
-			now,
-			"brg-linear-a",
-			"org-a",
-			linearModeComments,
-			linearAuthModeAPIKey,
-			listenAddr,
-			"secret-a",
-		),
-		linearRuntimeManagedInstanceWithWebhookSecret(
-			now,
-			"brg-linear-b",
-			"org-b",
-			linearModeComments,
-			linearAuthModeAPIKey,
-			listenAddr,
-			"secret-b",
-		),
-	}
-	mustHandleLinearLifecycle(t, hostPeer, managed...)
-
-	var (
-		mu       sync.Mutex
-		ingested []bridgepkg.InboundMessageEnvelope
-	)
-	mustHandleLinear(
-		t,
-		hostPeer,
-		string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
-		func(_ context.Context, params json.RawMessage) (any, error) {
-			var envelope bridgepkg.InboundMessageEnvelope
-			if err := json.Unmarshal(params, &envelope); err != nil {
-				return nil, err
-			}
-			mu.Lock()
-			ingested = append(ingested, envelope)
-			mu.Unlock()
-			return extensioncontract.BridgesMessagesIngestResult{
-				SessionID:    "sess-" + envelope.BridgeInstanceID,
-				RouteCreated: true,
-				RoutingKey: bridgepkg.RoutingKey{
-					Scope:            envelope.Scope,
-					WorkspaceID:      envelope.WorkspaceID,
-					BridgeInstanceID: envelope.BridgeInstanceID,
-					PeerID:           envelope.PeerID,
-					ThreadID:         envelope.ThreadID,
-					GroupID:          envelope.GroupID,
+		runtime, hostPeer, cleanup := newLinearRuntimePeerPair(t)
+		defer cleanup()
+		runtime.now = func() time.Time { return now }
+		runtime.apiFactory = func(cfg resolvedInstanceConfig) linearAPI {
+			return &recordingLinearAPI{
+				viewer: &linearViewer{
+					ID:             "bot-" + cfg.instanceID,
+					DisplayName:    "Linear Bot",
+					OrganizationID: cfg.organizationID,
 				},
-			}, nil
-		},
-	)
+			}
+		}
 
-	if err := hostPeer.Call(
-		context.Background(),
-		"initialize",
-		linearInitializeRequest(now, managed...),
-		nil,
-	); err != nil {
-		t.Fatalf("hostPeer.Call(initialize) error = %v", err)
-	}
+		managed := []subprocess.InitializeBridgeManagedInstance{
+			linearRuntimeManagedInstanceWithWebhookSecret(
+				now,
+				"brg-linear-a",
+				"org-a",
+				linearModeComments,
+				linearAuthModeAPIKey,
+				listenAddr,
+				"secret-a",
+			),
+			linearRuntimeManagedInstanceWithWebhookSecret(
+				now,
+				"brg-linear-b",
+				"org-b",
+				linearModeComments,
+				linearAuthModeAPIKey,
+				listenAddr,
+				"secret-b",
+			),
+		}
+		mustHandleLinearLifecycle(t, hostPeer, managed...)
 
-	waitForLinearCondition(t, func() bool {
-		runtime.mu.RLock()
-		defer runtime.mu.RUnlock()
-		return strings.TrimSpace(runtime.serverAddr) != ""
+		var (
+			mu       sync.Mutex
+			ingested []bridgepkg.InboundMessageEnvelope
+		)
+		mustHandleLinear(
+			t,
+			hostPeer,
+			string(extensionprotocol.HostAPIMethodBridgesMessagesIngest),
+			func(_ context.Context, params json.RawMessage) (any, error) {
+				var envelope bridgepkg.InboundMessageEnvelope
+				if err := json.Unmarshal(params, &envelope); err != nil {
+					return nil, err
+				}
+				mu.Lock()
+				ingested = append(ingested, envelope)
+				mu.Unlock()
+				return extensioncontract.BridgesMessagesIngestResult{
+					SessionID:    "sess-" + envelope.BridgeInstanceID,
+					RouteCreated: true,
+					RoutingKey: bridgepkg.RoutingKey{
+						Scope:            envelope.Scope,
+						WorkspaceID:      envelope.WorkspaceID,
+						BridgeInstanceID: envelope.BridgeInstanceID,
+						PeerID:           envelope.PeerID,
+						ThreadID:         envelope.ThreadID,
+						GroupID:          envelope.GroupID,
+					},
+				}, nil
+			},
+		)
+
+		if err := hostPeer.Call(
+			context.Background(),
+			"initialize",
+			linearInitializeRequest(now, managed...),
+			nil,
+		); err != nil {
+			t.Fatalf("hostPeer.Call(initialize) error = %v", err)
+		}
+
+		waitForLinearCondition(t, func() bool {
+			runtime.mu.RLock()
+			defer runtime.mu.RUnlock()
+			return strings.TrimSpace(runtime.serverAddr) != ""
+		})
+
+		webhookURL := "http://" + linearRuntimeServerAddr(runtime) + "/linear"
+		payload := linearCommentWebhookBodyForTest(
+			now,
+			"org-b",
+			"user-1",
+			"reply-1",
+			"root-comment",
+			"Need a summary",
+		)
+		resp := postLinearTestWebhook(t, webhookURL, payload, "secret-a")
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Fatalf("io.ReadAll(resp.Body) error = %v", err)
+		}
+		if err := resp.Body.Close(); err != nil {
+			t.Fatalf("resp.Body.Close() error = %v", err)
+		}
+		if got, want := resp.StatusCode, http.StatusUnauthorized; got != want {
+			t.Fatalf("cross-instance webhook status = %d, want %d", got, want)
+		}
+		if got, want := strings.TrimSpace(string(body)), http.StatusText(http.StatusUnauthorized); got != want {
+			t.Fatalf("cross-instance webhook body = %q, want %q", got, want)
+		}
+
+		mu.Lock()
+		defer mu.Unlock()
+		if got, want := len(ingested), 0; got != want {
+			t.Fatalf("len(ingested) = %d, want %d", got, want)
+		}
+		if _, err := os.Stat(env.ingestPath); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.Stat(ingestPath) error = %v, want not-exist", err)
+		}
 	})
-
-	webhookURL := "http://" + linearRuntimeServerAddr(runtime) + "/linear"
-	payload := linearCommentWebhookBodyForTest(
-		now,
-		"org-b",
-		"user-1",
-		"reply-1",
-		"root-comment",
-		"Need a summary",
-	)
-	resp := postLinearTestWebhook(t, webhookURL, payload, "secret-a")
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		t.Fatalf("io.ReadAll(resp.Body) error = %v", err)
-	}
-	if err := resp.Body.Close(); err != nil {
-		t.Fatalf("resp.Body.Close() error = %v", err)
-	}
-	if got, want := resp.StatusCode, http.StatusUnauthorized; got != want {
-		t.Fatalf("cross-instance webhook status = %d, want %d", got, want)
-	}
-	if got, want := strings.TrimSpace(string(body)), http.StatusText(http.StatusUnauthorized); got != want {
-		t.Fatalf("cross-instance webhook body = %q, want %q", got, want)
-	}
-
-	mu.Lock()
-	defer mu.Unlock()
-	if got, want := len(ingested), 0; got != want {
-		t.Fatalf("len(ingested) = %d, want %d", got, want)
-	}
-	if _, err := os.Stat(env.ingestPath); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("os.Stat(ingestPath) error = %v, want not-exist", err)
-	}
 }
 
 func TestRuntimeDeliveriesRecordMarkersForSupportedModes(t *testing.T) {

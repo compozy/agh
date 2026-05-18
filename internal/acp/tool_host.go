@@ -61,8 +61,9 @@ func WithLocalProcessRegistry(registry *toolruntime.Registry) LocalRuntimeOption
 
 // WithLocalAdditionalRoots authorizes local tool-host paths outside the primary root.
 func WithLocalAdditionalRoots(roots ...string) LocalRuntimeOption {
+	snapshot := append([]string(nil), roots...)
 	return func(cfg *localRuntimeConfig) {
-		cfg.additionalRoots = append([]string(nil), roots...)
+		cfg.additionalRoots = append(cfg.additionalRoots, snapshot...)
 	}
 }
 

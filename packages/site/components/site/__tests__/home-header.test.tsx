@@ -131,11 +131,12 @@ describe("HomeHeader", () => {
 
     expect(screen.getAllByRole("button", { name: "Search docs" })).toHaveLength(2);
 
-    const githubLink = screen.getByRole("link", { name: "Compozy on GitHub" });
+    const githubLink = screen.getByRole("link", { name: "AGH on GitHub" });
     expect(githubLink.getAttribute("href")).toBe("https://github.com/compozy");
     expect(githubLink.getAttribute("target")).toBe("_blank");
     expect(githubLink.getAttribute("rel")).toContain("noopener");
     expect(githubLink.getAttribute("rel")).toContain("noreferrer");
+    expect(githubLink.getAttribute("class")).toContain("md:hidden");
   });
 
   it("omits search controls when the home layout does not provide search slots", () => {

@@ -572,7 +572,10 @@ func (h *BaseHandlers) resolveAgentReplySource(
 			return network.Envelope{}, sourceCoordinationMetadata{}, lookupErr
 		}
 		if len(entries) > 0 {
-			envelope := envelopeFromNetworkMessage(entries[0])
+			envelope, convErr := envelopeFromNetworkMessage(entries[0])
+			if convErr != nil {
+				return network.Envelope{}, sourceCoordinationMetadata{}, convErr
+			}
 			metadata, ok := coordinationMetadataFromEnvelope(envelope)
 			return envelope, sourceCoordinationMetadata{metadata: metadata, ok: ok}, validateReplySource(envelope)
 		}
@@ -801,7 +804,7 @@ func coordinationMetadataFromEnvelope(
 	return contract.CoordinationMessageMetadataPayload{}, false
 }
 
-func envelopeFromNetworkMessage(entry store.NetworkMessageEntry) network.Envelope {
+func envelopeFromNetworkMessage(entry store.NetworkMessageEntry) (network.Envelope, error) {
 	envelope := network.Envelope{
 		Protocol:    network.ProtocolV0,
 		ID:          strings.TrimSpace(entry.MessageID),
@@ -816,25 +819,29 @@ func envelopeFromNetworkMessage(entry store.NetworkMessageEntry) network.Envelop
 		TS:          entry.Timestamp.Unix(),
 		Body:        cloneRawMessage(entry.Body),
 	}
-	if ext := extensionMapFromNetworkMessage(entry); len(ext) > 0 {
+	ext, err := extensionMapFromNetworkMessage(entry)
+	if err != nil {
+		return network.Envelope{}, err
+	}
+	if len(ext) > 0 {
 		envelope.Ext = ext
 	}
 	if to := strings.TrimSpace(entry.PeerTo); to != "" {
 		envelope.To = &to
 	}
-	return envelope
+	return envelope, nil
 }
 
-func extensionMapFromNetworkMessage(entry store.NetworkMessageEntry) network.ExtensionMap {
+func extensionMapFromNetworkMessage(entry store.NetworkMessageEntry) (network.ExtensionMap, error) {
 	trimmed := strings.TrimSpace(string(entry.ExtJSON))
 	if trimmed == "" || trimmed == "{}" {
-		return nil
+		return nil, nil
 	}
 	var ext network.ExtensionMap
 	if err := json.Unmarshal([]byte(trimmed), &ext); err != nil {
-		return nil
+		return nil, fmt.Errorf("decode network message ext_json: %w", err)
 	}
-	return ext
+	return ext, nil
 }
 
 func sessionInfoFromAgentCaller(caller agentidentity.Caller) *session.Info {

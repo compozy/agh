@@ -2031,12 +2031,15 @@ func resolveTeamsReferencedRemoteMessageID(
 	if remoteID := referenceRemoteMessageID(reference); remoteID != "" {
 		return remoteID
 	}
-	if deliveryID := referenceDeliveryID(reference); deliveryID != "" && referenceStateLookup != nil {
-		if referencedState, ok := referenceStateLookup(deliveryID); ok {
-			if remoteID := strings.TrimSpace(referencedState.RemoteMessageID); remoteID != "" {
-				return remoteID
-			}
+	if deliveryID := referenceDeliveryID(reference); deliveryID != "" {
+		if referenceStateLookup == nil {
+			return ""
 		}
+		referencedState, ok := referenceStateLookup(deliveryID)
+		if !ok {
+			return ""
+		}
+		return strings.TrimSpace(referencedState.RemoteMessageID)
 	}
 	if remoteID := strings.TrimSpace(state.RemoteMessageID); remoteID != "" {
 		return remoteID

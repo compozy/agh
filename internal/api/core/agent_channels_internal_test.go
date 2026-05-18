@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -321,6 +322,60 @@ func TestAgentChannelCoreHandlersUsePersistedReplySourceMetadata(t *testing.T) {
 			metadata.RunID != "run-1" ||
 			metadata.CoordinationChannelID != "builders" {
 			t.Fatalf("reply metadata = %#v, want inherited persisted metadata", metadata)
+		}
+	})
+
+	t.Run("Should surface persisted source ext decode failures", func(t *testing.T) {
+		t.Parallel()
+
+		networkService := &agentCoreNetworkService{
+			InboxFn: func(_ context.Context, sessionID string) ([]network.Envelope, error) {
+				if sessionID != "sess-agent" {
+					t.Fatalf("Inbox() sessionID = %q, want sess-agent", sessionID)
+				}
+				return nil, nil
+			},
+		}
+		networkStore := agentCoreNetworkStore{
+			ListNetworkMessagesFn: func(_ context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
+				if query.MessageID != "msg-source" {
+					t.Fatalf("ListNetworkMessages() query = %#v, want persisted source lookup", query)
+				}
+				return []store.NetworkMessageEntry{{
+					MessageID:   "msg-source",
+					SessionID:   "sess-agent",
+					WorkspaceID: "ws-1",
+					Channel:     "builders",
+					PeerFrom:    "reviewer.sess-peer",
+					Body:        json.RawMessage(`{"text":"coordination"}`),
+					ExtJSON:     json.RawMessage(`{"agh.coordination":`),
+					Timestamp:   time.Date(2026, 4, 26, 10, 2, 0, 0, time.UTC),
+				}}, nil
+			},
+		}
+		engine := newAgentCoreTestRouterWithNetworkStore(t, networkService, networkStore)
+
+		replyResp := performAgentCoreRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/agent/channels/reply",
+			[]byte(
+				`{"reply_to_message_id":"msg-source","body":{"text":"ack"},"metadata":{"task_id":"","run_id":"","coordination_channel_id":"","message_kind":"","correlation_id":""}}`,
+			),
+			agentCoreHeaders(),
+		)
+
+		if replyResp.Code != http.StatusInternalServerError {
+			t.Fatalf(
+				"reply status = %d, want %d; body=%s",
+				replyResp.Code,
+				http.StatusInternalServerError,
+				replyResp.Body.String(),
+			)
+		}
+		if !strings.Contains(replyResp.Body.String(), "decode network message ext_json") {
+			t.Fatalf("reply body = %s, want persisted ext decode error", replyResp.Body.String())
 		}
 	})
 }

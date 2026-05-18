@@ -7,7 +7,8 @@ const config = {
   reactStrictMode: true,
   trailingSlash: true,
   images: {
-    unoptimized: true,
+    formats: ["image/avif", "image/webp"],
+    qualities: [75, 90],
   },
 };
 

@@ -265,6 +265,10 @@ func TestCoordinationMessageMetadataValidationRejectsRawClaimTokens(t *testing.T
 			name: "Should reject token-shaped ext value",
 			body: `{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"coord-run-1","message_kind":"status","correlation_id":"corr-1","ext":{"debug":"contains agh_claim_raw"}}`,
 		},
+		{
+			name: "Should reject uppercase token-shaped ext value",
+			body: `{"task_id":"task-1","run_id":"run-1","coordination_channel_id":"coord-run-1","message_kind":"status","correlation_id":"corr-1","ext":{"debug":"contains AGH_CLAIM_RAW"}}`,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -288,6 +292,21 @@ func TestCoordinationMessageMetadataValidationRejectsRawClaimTokens(t *testing.T
 	if !errors.Is(err, ErrInvalidCoordinationMessageMetadata) {
 		t.Fatalf("json.Unmarshal(invalid kind) error = %v, want ErrInvalidCoordinationMessageMetadata", err)
 	}
+}
+
+func TestContainsUnsafePublicContractJSONRejectsDelimiterNormalizedKeys(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject delimiter-normalized secret keys", func(t *testing.T) {
+		t.Parallel()
+
+		if !containsUnsafePublicContractJSON([]byte(`{"claim.token":"raw"}`)) {
+			t.Fatal("containsUnsafePublicContractJSON(claim.token) = false, want true")
+		}
+		if !containsUnsafePublicContractJSON([]byte(`{"api key":"raw"}`)) {
+			t.Fatal("containsUnsafePublicContractJSON(api key) = false, want true")
+		}
+	})
 }
 
 func marshalContractString(t *testing.T, value any) string {

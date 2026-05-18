@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -284,6 +285,38 @@ func TestLocalToolHostAuthorize(t *testing.T) {
 			t.Fatalf("Authorize(%s) with deny-all error = %v, want ErrPermissionDenied", op, err)
 		}
 	}
+}
+
+func TestWithLocalAdditionalRootsAccumulatesAcrossOptions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accumulate additional roots across repeated options", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		first := t.TempDir()
+		second := t.TempDir()
+		host, err := newLocalToolHost(
+			testutil.Context(t),
+			root,
+			aghconfig.PermissionModeApproveAll,
+			testDiscardLogger(),
+			WithLocalAdditionalRoots(first),
+			WithLocalAdditionalRoots(second),
+		)
+		if err != nil {
+			t.Fatalf("newLocalToolHost() error = %v", err)
+		}
+		t.Cleanup(host.Close)
+
+		if got, want := host.permissions.roots, []string{
+			mustCanonicalDir(t, root),
+			mustCanonicalDir(t, first),
+			mustCanonicalDir(t, second),
+		}; !slices.Equal(got, want) {
+			t.Fatalf("permission roots = %#v, want %#v", got, want)
+		}
+	})
 }
 
 func TestLocalToolHostCreateTerminalUsesResolvedCwd(t *testing.T) {

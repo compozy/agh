@@ -419,6 +419,11 @@ func (s *ResourceStore) ApplyBundleActivationResources(
 	changed := make(map[resources.ResourceKind]struct{}, 6)
 	if err := s.applyBundleActivationResourcePlan(ctx, plan, changed); err != nil {
 		rollbackCtx := context.WithoutCancel(ctx)
+		if deadline, ok := ctx.Deadline(); ok {
+			var cancel context.CancelFunc
+			rollbackCtx, cancel = context.WithDeadline(rollbackCtx, deadline)
+			defer cancel()
+		}
 		if rollbackErr := s.restoreOwnedBundleActivationResources(rollbackCtx, snapshot); rollbackErr != nil {
 			return errors.Join(err, fmt.Errorf("bundles: rollback owned activation resources: %w", rollbackErr))
 		}

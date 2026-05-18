@@ -3,6 +3,7 @@ package contract
 import (
 	"encoding/json"
 	"strings"
+	"unicode"
 )
 
 type jsonSafetyKeyPredicate func(string) bool
@@ -52,8 +53,7 @@ func containsUnsafePublicContractJSON(data []byte) bool {
 }
 
 func isUnsafePublicContractKey(key string) bool {
-	normalized := strings.ToLower(strings.TrimSpace(key))
-	normalized = strings.ReplaceAll(normalized, "-", "_")
+	normalized := canonicalizeUnsafePublicContractKey(key)
 	switch normalized {
 	case "claim_token",
 		"provider_token",
@@ -81,6 +81,27 @@ func isUnsafePublicContractKey(key string) bool {
 	default:
 		return false
 	}
+}
+
+func canonicalizeUnsafePublicContractKey(key string) string {
+	trimmed := strings.TrimSpace(key)
+	if trimmed == "" {
+		return ""
+	}
+	var builder strings.Builder
+	builder.Grow(len(trimmed))
+	lastUnderscore := false
+	for _, r := range trimmed {
+		switch {
+		case unicode.IsLetter(r) || unicode.IsDigit(r):
+			builder.WriteRune(unicode.ToLower(r))
+			lastUnderscore = false
+		case !lastUnderscore:
+			builder.WriteByte('_')
+			lastUnderscore = true
+		}
+	}
+	return strings.Trim(builder.String(), "_")
 }
 
 func isUnsafePublicContractString(value string) bool {

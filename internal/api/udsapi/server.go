@@ -832,16 +832,20 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	}
 	s.mu.Lock()
 	serveErr := s.serveErr
-	s.httpServer = nil
-	s.listener = nil
-	s.serveDone = nil
-	s.streamCancel = nil
-	s.serveErr = nil
-	s.state = serverStateStopped
-	s.mu.Unlock()
 	if serveErr != nil {
 		errs = append(errs, serveErr)
 	}
+	if len(errs) == 0 {
+		s.httpServer = nil
+		s.listener = nil
+		s.serveDone = nil
+		s.streamCancel = nil
+		s.serveErr = nil
+		s.state = serverStateStopped
+	} else {
+		s.state = serverStateStopping
+	}
+	s.mu.Unlock()
 
 	return errors.Join(errs...)
 }
