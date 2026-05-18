@@ -28,3 +28,5 @@ namespaces:
       - .compozy/tasks/**/.empty
       - .codex/loop/**
       - .codex/qa/**
+      - .compozy/tasks/_archived/**
+      - .compozy/_archived/**

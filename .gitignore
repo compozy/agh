@@ -101,4 +101,6 @@ docs/proposals/**
 .compozy/tasks/**/.empty
 .codex/loop/**
 .codex/qa/**
+.compozy/tasks/_archived/**
+.compozy/_archived/**
 # <<< skeeper ignored specs <<<

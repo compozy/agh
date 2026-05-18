@@ -1,15 +1,15 @@
 {
   "version": 1,
   "sidecar": "git@github.com:compozy/specs.git",
-  "source_branch": "workspace-fix",
+  "source_branch": "main",
   "namespaces": [
     {
       "name": "agh",
-      "sidecar_branch": "agh/__branches__/workspace-fix",
-      "commit": "ca58d78691ab6bf29c4a802f31e882cfa9c1cef6",
-      "digest": "sha256:0278cb81249d7346419192818dc86001ddbdf17af01f047e3034c6a682f47b6d",
-      "files": 5776,
-      "bytes": 57927615
+      "sidecar_branch": "agh/__branches__/main",
+      "commit": "849d4a4d7088db234773923fb8dbf4c018b87d97",
+      "digest": "sha256:ae3ad259f70e8c31d4ab56e7e00bb9cd560be176d2e01d7301bd604122dc402d",
+      "files": 6000,
+      "bytes": 69632664
     }
   ]
 }
