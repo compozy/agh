@@ -32,7 +32,8 @@
         "test:e2e:web": "make test-e2e-web",
         "test:e2e": "make test-e2e",
         "test:e2e:nightly": "make test-e2e-nightly",
-        "prs:scrape": "bun run scripts/scrape-prs.ts"
+        "prs:scrape": "bun run scripts/scrape-prs.ts",
+        "release:site-changelog": "bun run packages/site/scripts/generate-changelog-release.ts"
     },
     "devDependencies": {
         "@commitlint/cli": "^21.0.0",

@@ -291,7 +291,7 @@ type slackConversationMessagesRequest struct {
 type slackConversationMessagesResponse struct {
 	HasMore          bool                       `json:"has_more,omitempty"`
 	Messages         []slackConversationMessage `json:"messages,omitempty"`
-	ResponseMetadata slackResponseMetadata      `json:"response_metadata,omitempty"`
+	ResponseMetadata *slackResponseMetadata     `json:"response_metadata,omitempty"`
 }
 
 type slackConversationMessage struct {
@@ -2144,7 +2144,10 @@ func (c *slackBotClient) FindDeliveryMessage(
 				return &slackPostedMessage{TS: strings.TrimSpace(message.TS)}, nil
 			}
 		}
-		nextCursor := strings.TrimSpace(result.ResponseMetadata.NextCursor)
+		nextCursor := ""
+		if result.ResponseMetadata != nil {
+			nextCursor = strings.TrimSpace(result.ResponseMetadata.NextCursor)
+		}
 		if !result.HasMore && nextCursor == "" {
 			break
 		}
