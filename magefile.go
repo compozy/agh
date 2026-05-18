@@ -39,6 +39,8 @@ const (
 	designSyncScriptPath      = "scripts/sync-design-md.mjs"
 	daytonaSidecarPackage     = "./internal/sandbox/daytona/cmd/agh-daytona-sidecar"
 	daytonaSidecarToolchain   = "1.25.5"
+	daytonaSidecarRegenHint   = "go run github.com/magefile/mage@v1.15.0 " +
+		"daytonaSidecars"
 )
 
 type daytonaSidecarAsset struct {
@@ -298,10 +300,19 @@ func DaytonaSidecarsCheck() error {
 		}
 		current, err := os.ReadFile(asset.path)
 		if err != nil {
-			return fmt.Errorf("read Daytona sidecar asset %q: %w; run mage daytonaSidecars", asset.path, err)
+			return fmt.Errorf(
+				"read Daytona sidecar asset %q: %w; run %s",
+				asset.path,
+				err,
+				daytonaSidecarRegenHint,
+			)
 		}
 		if !bytes.Equal(generated, current) {
-			return fmt.Errorf("Daytona sidecar asset %q is stale; run mage daytonaSidecars", asset.path)
+			return fmt.Errorf(
+				"Daytona sidecar asset %q is stale; run %s",
+				asset.path,
+				daytonaSidecarRegenHint,
+			)
 		}
 	}
 	return nil
@@ -319,16 +330,23 @@ func buildDaytonaSidecarAsset(ctx context.Context, asset daytonaSidecarAsset, ou
 		ctx,
 		".",
 		map[string]string{
-			"CGO_ENABLED": "0",
-			"GOOS":        "linux",
-			"GOARCH":      asset.arch,
-			"GOTOOLCHAIN": "go" + daytonaSidecarToolchain,
+			"CGO_ENABLED":  "0",
+			"GODEBUG":      "",
+			"GOENV":        "off",
+			"GOEXPERIMENT": "",
+			"GOFLAGS":      "",
+			"GOAMD64":      "v1",
+			"GOARM64":      "v8.0",
+			"GOOS":         "linux",
+			"GOARCH":       asset.arch,
+			"GOTOOLCHAIN":  "go" + daytonaSidecarToolchain,
 		},
 		"go",
 		"build",
 		"-trimpath",
+		"-buildvcs=false",
 		"-ldflags",
-		"-s -w",
+		"-s -w -buildid=",
 		"-o",
 		binaryPath,
 		daytonaSidecarPackage,
