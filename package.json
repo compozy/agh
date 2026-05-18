@@ -1,74 +1,75 @@
 {
-    "private": true,
-    "workspaces": [
-        "packages/ui",
-        "packages/site",
-        "web",
-        "sdk/typescript",
-        "sdk/create-extension",
-        "sdk/examples/prompt-enhancer"
+  "devDependencies": {
+    "@commitlint/cli": "^21.0.0",
+    "@commitlint/config-conventional": "^21.0.0",
+    "@octokit/rest": "^22.0.1",
+    "@types/node": "^25.6.2",
+    "@typescript/native-preview": "^7.0.0-dev.20260511.1",
+    "@vitest/coverage-v8": "^4.1.6",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.4",
+    "openapi-typescript": "^7.13.0",
+    "oxfmt": "^0.48.0",
+    "oxlint": "^1.63.0",
+    "shadcn": "^4.7.0",
+    "tailwindcss": "^4.3.0",
+    "turbo": "^2.9.12",
+    "tw-animate-css": "^1.4.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.12",
+    "vitest": "^4.1.6"
+  },
+  "lint-staged": {
+    "*.go": "make fmt",
+    "*.{css,html,json,jsonc,yaml,yml,md}": [
+      "oxfmt --no-error-on-unmatched-pattern"
     ],
-    "scripts": {
-        "postinstall": "bash scripts/postinstall.sh",
-        "prepare": "husky",
-        "codegen": "make codegen",
-        "codegen-check": "make codegen-check",
-        "dev": "turbo run dev --filter=./web",
-        "build": "make build && turbo run build",
-        "lint": "bun run go:lint && bun run bun:lint",
-        "format": "make fmt && oxfmt",
-        "format:check": "bunx oxfmt --check",
-        "typecheck": "bun run bun:typecheck",
-        "test": "make test && bun run bun:test",
-        "test:cold": "bun run bun:test:cold",
-        "tests": "bun run test",
-        "bun:build": "turbo run build",
-        "bun:lint": "bun run format:check && bunx oxlint --deny-warnings",
-        "bun:typecheck": "turbo run typecheck",
-        "bun:test": "turbo run test",
-        "bun:test:cold": "turbo run test --force",
-        "go:lint": "go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4 run --allow-parallel-runners ./... && go run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@v0.21.1 ./...",
-        "test:e2e:runtime": "make test-e2e-runtime",
-        "test:e2e:web": "make test-e2e-web",
-        "test:e2e": "make test-e2e",
-        "test:e2e:nightly": "make test-e2e-nightly",
-        "prs:scrape": "bun run scripts/scrape-prs.ts",
-        "release:site-changelog": "bun run packages/site/scripts/generate-changelog-release.ts"
-    },
-    "devDependencies": {
-        "@commitlint/cli": "^21.0.0",
-        "@commitlint/config-conventional": "^21.0.0",
-        "@octokit/rest": "^22.0.1",
-        "@types/node": "^25.6.2",
-        "@typescript/native-preview": "^7.0.0-dev.20260511.1",
-        "@vitest/coverage-v8": "^4.1.6",
-        "husky": "^9.1.7",
-        "lint-staged": "^17.0.4",
-        "openapi-typescript": "^7.13.0",
-        "oxfmt": "^0.48.0",
-        "oxlint": "^1.63.0",
-        "shadcn": "^4.7.0",
-        "tailwindcss": "^4.3.0",
-        "turbo": "^2.9.12",
-        "tw-animate-css": "^1.4.0",
-        "typescript": "^6.0.3",
-        "vite": "^8.0.12",
-        "vitest": "^4.1.6"
-    },
-    "lint-staged": {
-        "*.go": "make fmt",
-        "*.{js,jsx,ts,tsx}": [
-            "oxfmt --no-error-on-unmatched-pattern",
-            "oxlint --deny-warnings"
-        ],
-        "*.{css,html,json,jsonc,yaml,yml,md}": [
-            "oxfmt --no-error-on-unmatched-pattern"
-        ]
-    },
-    "packageManager": "bun@1.3.4",
-    "msw": {
-        "workerDirectory": [
-            "web/public"
-        ]
-    }
+    "*.{js,jsx,ts,tsx}": [
+      "oxfmt --no-error-on-unmatched-pattern",
+      "oxlint --deny-warnings"
+    ]
+  },
+  "msw": {
+    "workerDirectory": [
+      "web/public"
+    ]
+  },
+  "packageManager": "bun@1.3.4",
+  "private": true,
+  "scripts": {
+    "build": "make build \u0026\u0026 turbo run build",
+    "bun:build": "turbo run build",
+    "bun:lint": "bun run format:check \u0026\u0026 bunx oxlint --deny-warnings",
+    "bun:test": "turbo run test",
+    "bun:test:cold": "turbo run test --force",
+    "bun:typecheck": "turbo run typecheck",
+    "codegen": "make codegen",
+    "codegen-check": "make codegen-check",
+    "dev": "turbo run dev --filter=./web",
+    "format": "make fmt \u0026\u0026 oxfmt",
+    "format:check": "bunx oxfmt --check",
+    "go:lint": "go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4 run --allow-parallel-runners ./... \u0026\u0026 go run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@v0.21.1 ./...",
+    "lint": "bun run go:lint \u0026\u0026 bun run bun:lint",
+    "postinstall": "bash scripts/postinstall.sh",
+    "prepare": "husky",
+    "prs:scrape": "bun run scripts/scrape-prs.ts",
+    "release:site-changelog": "bun run packages/site/scripts/generate-changelog-release.ts",
+    "test": "make test \u0026\u0026 bun run bun:test",
+    "test:cold": "bun run bun:test:cold",
+    "test:e2e": "make test-e2e",
+    "test:e2e:nightly": "make test-e2e-nightly",
+    "test:e2e:runtime": "make test-e2e-runtime",
+    "test:e2e:web": "make test-e2e-web",
+    "tests": "bun run test",
+    "typecheck": "bun run bun:typecheck"
+  },
+  "version": "0.0.1",
+  "workspaces": [
+    "packages/ui",
+    "packages/site",
+    "web",
+    "sdk/typescript",
+    "sdk/create-extension",
+    "sdk/examples/prompt-enhancer"
+  ]
 }
