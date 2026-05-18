@@ -94,7 +94,7 @@ func TestSessionMetaValidateStopReason(t *testing.T) {
 	}
 }
 
-func TestSessionStopReasonValidationClawpatch(t *testing.T) {
+func TestSessionStopReasonValidationContract(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 5, 17, 23, 0, 0, 0, time.UTC)
