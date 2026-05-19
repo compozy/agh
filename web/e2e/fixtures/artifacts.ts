@@ -135,10 +135,10 @@ export interface BrowserRouteState {
   settings_restart_banner_visible?: boolean;
   settings_save_bar_visible?: boolean;
   settings_section_count?: number;
-  settings_vault_delete_dialog_open?: boolean;
-  settings_vault_editor_open?: boolean;
-  settings_vault_secret_count?: number;
   settings_view_visible?: boolean;
+  vault_delete_dialog_open?: boolean;
+  vault_editor_open?: boolean;
+  vault_secret_count?: number;
   session_name?: string;
   tasks_active_mode?: "dashboard" | "inbox" | "kanban" | "list";
   tasks_children_count?: number;

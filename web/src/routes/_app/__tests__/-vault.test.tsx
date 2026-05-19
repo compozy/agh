@@ -9,7 +9,7 @@ import type {
   VaultEditorState,
   VaultLastAction,
   VaultNamespaceFilter,
-} from "@/hooks/routes/use-settings-vault-page";
+} from "@/hooks/routes/use-vault-page";
 import type { VaultListFilter, VaultSecret } from "@/systems/vault";
 
 type PageState = {
@@ -42,8 +42,8 @@ type PageState = {
   updateDraft: ReturnType<typeof vi.fn>;
 };
 
-const { mockUseSettingsVaultPage } = vi.hoisted(() => ({
-  mockUseSettingsVaultPage: vi.fn(),
+const { mockUseVaultPage } = vi.hoisted(() => ({
+  mockUseVaultPage: vi.fn(),
 }));
 
 vi.mock("@tanstack/react-router", () => ({
@@ -52,8 +52,8 @@ vi.mock("@tanstack/react-router", () => ({
   }),
 }));
 
-vi.mock("@/hooks/routes/use-settings-vault-page", () => ({
-  useSettingsVaultPage: () => mockUseSettingsVaultPage(),
+vi.mock("@/hooks/routes/use-vault-page", () => ({
+  useVaultPage: () => mockUseVaultPage(),
 }));
 
 const sessionSecret: VaultSecret = {
@@ -99,40 +99,36 @@ function makeState(overrides: Partial<PageState> = {}): PageState {
 }
 
 beforeEach(() => {
-  mockUseSettingsVaultPage.mockReturnValue(makeState());
+  mockUseVaultPage.mockReturnValue(makeState());
 });
 
 import { routeComponent } from "@/test/route-options";
 import { Route } from "../vault";
 
-const VaultSettingsPage = routeComponent(Route);
+const VaultPage = routeComponent(Route);
 
-describe("VaultSettingsPage", () => {
+describe("VaultPage", () => {
   it("renders vault counts, filters, and redacted metadata rows", () => {
-    render(<VaultSettingsPage />);
+    render(<VaultPage />);
 
-    expect(screen.getByTestId("settings-page-vault-total")).toHaveTextContent("1 secrets");
-    expect(screen.getByTestId("settings-page-vault-sessions")).toHaveTextContent(
-      "1 session-scoped"
-    );
-    expect(screen.getByTestId("settings-page-vault-filters")).toBeInTheDocument();
-    expect(screen.getByTestId("settings-page-vault-table")).toHaveTextContent(sessionSecret.ref);
-    expect(screen.getByTestId("settings-page-vault-table")).not.toHaveTextContent(
-      "super-secret-token"
-    );
+    expect(screen.getByTestId("vault-page-total")).toHaveTextContent("1 secrets");
+    expect(screen.getByTestId("vault-page-sessions")).toHaveTextContent("1 session-scoped");
+    expect(screen.getByTestId("vault-page-filters")).toBeInTheDocument();
+    expect(screen.getByTestId("vault-page-table")).toHaveTextContent(sessionSecret.ref);
+    expect(screen.getByTestId("vault-page-table")).not.toHaveTextContent("super-secret-token");
   });
 
   it("forwards filter changes to the page state hook", () => {
     const setNamespace = vi.fn();
     const setPrefix = vi.fn();
-    mockUseSettingsVaultPage.mockReturnValue(makeState({ setNamespace, setPrefix }));
+    mockUseVaultPage.mockReturnValue(makeState({ setNamespace, setPrefix }));
 
-    render(<VaultSettingsPage />);
+    render(<VaultPage />);
 
-    fireEvent.change(screen.getByTestId("settings-page-vault-namespace"), {
+    fireEvent.change(screen.getByTestId("vault-page-namespace"), {
       target: { value: "sessions" },
     });
-    fireEvent.change(screen.getByTestId("settings-page-vault-prefix"), {
+    fireEvent.change(screen.getByTestId("vault-page-prefix"), {
       target: { value: "vault:sessions/sess_123/" },
     });
 
@@ -147,7 +143,7 @@ describe("VaultSettingsPage", () => {
       secretValue: "super-secret-token",
     };
     const openCreate = vi.fn();
-    mockUseSettingsVaultPage.mockReturnValue(
+    mockUseVaultPage.mockReturnValue(
       makeState({
         editor: { mode: "create", draft },
         editorIsValid: true,
@@ -155,9 +151,9 @@ describe("VaultSettingsPage", () => {
       })
     );
 
-    const { container } = render(<VaultSettingsPage />);
+    const { container } = render(<VaultPage />);
 
-    fireEvent.click(screen.getByTestId("settings-page-vault-create"));
+    fireEvent.click(screen.getByTestId("vault-page-create"));
     expect(openCreate).toHaveBeenCalled();
     expect(screen.getByTestId("settings-vault-editor-secret-value-input")).toHaveAttribute(
       "type",
@@ -168,14 +164,14 @@ describe("VaultSettingsPage", () => {
 
   it("confirms delete against the selected vault ref", () => {
     const confirmDelete = vi.fn();
-    mockUseSettingsVaultPage.mockReturnValue(
+    mockUseVaultPage.mockReturnValue(
       makeState({
         deleteTarget: { mode: "open", secret: sessionSecret },
         confirmDelete,
       })
     );
 
-    render(<VaultSettingsPage />);
+    render(<VaultPage />);
 
     expect(screen.getByTestId("settings-vault-delete-description")).toHaveTextContent(
       sessionSecret.ref
@@ -185,13 +181,13 @@ describe("VaultSettingsPage", () => {
   });
 
   it("session-scoped delete uses a single Confirm button without confirmTyping", () => {
-    mockUseSettingsVaultPage.mockReturnValue(
+    mockUseVaultPage.mockReturnValue(
       makeState({
         deleteTarget: { mode: "open", secret: sessionSecret },
       })
     );
 
-    render(<VaultSettingsPage />);
+    render(<VaultPage />);
 
     const dialog = screen.getByTestId("settings-vault-delete");
     expect(dialog).toHaveAttribute("data-scope", "session");
@@ -208,14 +204,14 @@ describe("VaultSettingsPage", () => {
       created_at: "2026-05-02T10:00:00Z",
       updated_at: "2026-05-02T10:00:00Z",
     };
-    mockUseSettingsVaultPage.mockReturnValue(
+    mockUseVaultPage.mockReturnValue(
       makeState({
         deleteTarget: { mode: "open", secret: providerSecret },
         secrets: [providerSecret],
       })
     );
 
-    render(<VaultSettingsPage />);
+    render(<VaultPage />);
 
     const dialog = screen.getByTestId("settings-vault-delete");
     expect(dialog).toHaveAttribute("data-scope", "cross");
@@ -228,7 +224,7 @@ describe("VaultSettingsPage", () => {
 
   it("renders an Empty action retry button when the vault table fails to load", () => {
     const refetch = vi.fn();
-    mockUseSettingsVaultPage.mockReturnValue(
+    mockUseVaultPage.mockReturnValue(
       makeState({
         queryError: "vault offline",
         secrets: [],
@@ -236,10 +232,10 @@ describe("VaultSettingsPage", () => {
       })
     );
 
-    render(<VaultSettingsPage />);
+    render(<VaultPage />);
 
-    expect(screen.getByTestId("settings-page-vault-error")).toHaveTextContent("vault offline");
-    const retry = screen.getByTestId("settings-page-vault-error-retry");
+    expect(screen.getByTestId("vault-page-error")).toHaveTextContent("vault offline");
+    const retry = screen.getByTestId("vault-page-error-retry");
     expect(retry).toBeInTheDocument();
     fireEvent.click(retry);
     expect(refetch).toHaveBeenCalled();

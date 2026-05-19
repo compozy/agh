@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AlertCircle, Check, KeyRound, Lock, Plus, RefreshCw, Trash2, X } from "lucide-react";
+import { AlertCircle, Check, KeyRound, Plus, RefreshCw, Trash2, X } from "lucide-react";
 
 import {
   Alert,
@@ -18,51 +18,50 @@ import {
 } from "@agh/ui";
 
 import {
-  useSettingsVaultPage,
+  useVaultPage,
   type VaultDraft,
   type VaultEditorState,
   type VaultLastAction,
   type VaultNamespaceFilter,
-} from "@/hooks/routes/use-settings-vault-page";
+} from "@/hooks/routes/use-vault-page";
 import { SettingsEditorDialog, SettingsFieldRow } from "@/systems/settings/components";
 import { VAULT_NAMESPACES, VaultSecretsTable, type VaultSecret } from "@/systems/vault";
 import type { TopbarRouteContext } from "@/types/topbar";
 
-export const Route = createFileRoute("/_app/settings/vault")({
+export const Route = createFileRoute("/_app/vault")({
   beforeLoad: (): { topbar: TopbarRouteContext } => ({
-    topbar: { title: "Vault", icon: Lock },
+    topbar: { title: "Vault", icon: KeyRound },
   }),
-  component: VaultSettingsPage,
+  component: VaultPage,
 });
 
-function VaultSettingsPage() {
-  const page = useSettingsVaultPage();
+function VaultPage() {
+  const page = useVaultPage();
 
   useTopbarSlot({
+    count: page.isLoading ? undefined : page.counts.total,
     tabs: !page.isLoading ? (
       <StatusLineTopbarSlot
         daemonLabel={page.queryError ? "vault unavailable" : "vault available"}
         status={page.queryError ? "error" : "connected"}
-        data-testid="settings-page-vault-status-line"
+        data-testid="vault-page-status-line"
         items={[
           {
             key: "total",
-            value: <span data-testid="settings-page-vault-total">{page.counts.total} secrets</span>,
+            value: <span data-testid="vault-page-total">{page.counts.total} secrets</span>,
             tone: "neutral",
           },
           {
             key: "sessions",
             value: (
-              <span data-testid="settings-page-vault-sessions">
-                {page.counts.sessions} session-scoped
-              </span>
+              <span data-testid="vault-page-sessions">{page.counts.sessions} session-scoped</span>
             ),
             tone: "neutral",
           },
           {
             key: "providers",
             value: (
-              <span data-testid="settings-page-vault-providers">
+              <span data-testid="vault-page-providers">
                 {page.counts.providers} provider-scoped
               </span>
             ),
@@ -78,7 +77,7 @@ function VaultSettingsPage() {
         size="sm"
         onClick={() => void page.refetch()}
         disabled={page.isRefetching}
-        data-testid="settings-page-vault-refresh"
+        data-testid="vault-page-refresh"
       >
         <RefreshCw className={page.isRefetching ? "size-3 animate-spin" : "size-3"} />
         Refresh
@@ -87,18 +86,18 @@ function VaultSettingsPage() {
   });
 
   if (page.isLoading) {
-    return <BlockLoading className="flex-1" data-testid="settings-page-vault-loading" />;
+    return <BlockLoading className="flex-1" data-testid="vault-page-loading" />;
   }
 
   return (
-    <PageShell slug="vault">
+    <PageShell density="route" data-testid="vault-shell">
       {page.lastAction ? (
         <ActionResultBanner action={page.lastAction} onDismiss={page.dismissLastAction} />
       ) : null}
 
       <Section
         label="Secrets"
-        data-testid="settings-page-vault-header-row"
+        data-testid="vault-page-header-row"
         note={<>{page.counts.total} redacted metadata records exposed by the daemon vault</>}
         right={
           <Button
@@ -106,7 +105,7 @@ function VaultSettingsPage() {
             variant="default"
             size="sm"
             onClick={page.openCreate}
-            data-testid="settings-page-vault-create"
+            data-testid="vault-page-create"
           >
             <Plus className="size-3" />
             New secret
@@ -126,7 +125,7 @@ function VaultSettingsPage() {
           icon={AlertCircle}
           title="Unable to load vault metadata"
           description={page.queryError}
-          data-testid="settings-page-vault-error"
+          data-testid="vault-page-error"
           action={
             <Button
               type="button"
@@ -134,7 +133,7 @@ function VaultSettingsPage() {
               size="sm"
               onClick={() => void page.refetch()}
               disabled={page.isRefetching}
-              data-testid="settings-page-vault-error-retry"
+              data-testid="vault-page-error-retry"
             >
               <RefreshCw className={page.isRefetching ? "size-3 animate-spin" : "size-3"} />
               Retry
@@ -149,7 +148,7 @@ function VaultSettingsPage() {
           onDelete={page.openDelete}
           emptyTitle="No vault secrets"
           emptyDescription="Vault metadata appears here after a write-only secret is stored."
-          data-testid="settings-page-vault-table"
+          data-testid="vault-page-table"
         />
       )}
 
@@ -190,16 +189,16 @@ function VaultFilterBar({
   return (
     <div
       className="grid gap-4 rounded-lg border border-line bg-canvas-soft p-4 md:grid-cols-[12rem_minmax(0,1fr)]"
-      data-testid="settings-page-vault-filters"
+      data-testid="vault-page-filters"
     >
-      <label className="flex min-w-0 flex-col gap-2" htmlFor="settings-page-vault-namespace">
+      <label className="flex min-w-0 flex-col gap-2" htmlFor="vault-page-namespace">
         <Eyebrow className="text-muted">Namespace</Eyebrow>
         <select
-          id="settings-page-vault-namespace"
+          id="vault-page-namespace"
           value={namespace}
           onChange={event => onNamespaceChange(event.target.value as VaultNamespaceFilter)}
           className="h-9 rounded-md border border-line bg-elevated px-3 text-sm text-fg outline-none"
-          data-testid="settings-page-vault-namespace"
+          data-testid="vault-page-namespace"
         >
           <option value="all">All namespaces</option>
           {VAULT_NAMESPACES.map(item => (
@@ -209,15 +208,15 @@ function VaultFilterBar({
           ))}
         </select>
       </label>
-      <label className="flex min-w-0 flex-col gap-2" htmlFor="settings-page-vault-prefix">
+      <label className="flex min-w-0 flex-col gap-2" htmlFor="vault-page-prefix">
         <Eyebrow className="text-muted">Prefix</Eyebrow>
         <Input
-          id="settings-page-vault-prefix"
+          id="vault-page-prefix"
           value={prefix}
           onChange={event => onPrefixChange(event.target.value)}
           placeholder="vault:sessions/sess_123/"
           className="font-mono"
-          data-testid="settings-page-vault-prefix"
+          data-testid="vault-page-prefix"
         />
       </label>
     </div>
@@ -395,7 +394,7 @@ function ActionResultBanner({
 }) {
   const saved = action.kind === "saved";
   return (
-    <Alert variant={saved ? "success" : "warning"} data-testid="settings-page-vault-action-result">
+    <Alert variant={saved ? "success" : "warning"} data-testid="vault-page-action-result">
       {saved ? <Check className="size-4" /> : <KeyRound className="size-4" />}
       <AlertDescription>
         {saved ? "Stored vault metadata for " : "Deleted vault secret "}
@@ -408,7 +407,7 @@ function ActionResultBanner({
           size="icon-sm"
           aria-label="Dismiss vault action result"
           onClick={onDismiss}
-          data-testid="settings-page-vault-action-result-dismiss"
+          data-testid="vault-page-action-result-dismiss"
         >
           <X className="size-3" />
         </Button>

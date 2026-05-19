@@ -12,7 +12,7 @@ import { Sidebar as SidebarIcon } from "lucide-react";
 import { useMemo, type ComponentProps } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { HeaderSearchInput } from "./header-search-input";
+import { HeaderSearchInput } from "@/components/site/header-search-input";
 
 type WithUrl = Extract<LinkItemType, { url: string }>;
 

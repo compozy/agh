@@ -2,7 +2,6 @@ import {
   Activity,
   Brain,
   Cpu,
-  KeyRound,
   Network,
   Puzzle,
   Server,
@@ -18,7 +17,6 @@ export const SETTINGS_ROOT_PATH = "/settings" as const;
 export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
   { slug: "general", label: "General", icon: SlidersHorizontal },
   { slug: "providers", label: "Providers", icon: Cpu },
-  { slug: "vault", label: "Vault", icon: KeyRound },
   { slug: "mcp-servers", label: "MCP Servers", icon: Server },
   { slug: "memory", label: "Memory", icon: Brain },
   { slug: "skills", label: "Skills", icon: Wrench },

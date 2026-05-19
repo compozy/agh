@@ -2,8 +2,8 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { HeaderSearchInput } from "../header-search-input";
-import { SiteSearchDialog, SiteSearchProvider } from "../site-search";
+import { HeaderSearchInput } from "@/components/site/header-search-input";
+import { SiteSearchDialog, SiteSearchProvider } from "@/components/site/site-search";
 
 type SearchDialogProps = {
   children?: ReactNode;

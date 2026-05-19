@@ -132,7 +132,6 @@ export interface SettingsSectionDescriptor {
 export type SettingsSectionSlug =
   | "general"
   | "providers"
-  | "vault"
   | "mcp-servers"
   | "sandboxes"
   | "memory"

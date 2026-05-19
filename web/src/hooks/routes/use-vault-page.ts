@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
 
-import { useSettingsPage } from "@/hooks/routes/use-settings-page";
 import {
   useDeleteVaultSecret,
   usePutVaultSecret,
@@ -56,7 +55,7 @@ function filterFor(namespace: VaultNamespaceFilter, prefix: string): VaultListFi
   return filter;
 }
 
-export function useSettingsVaultPage() {
+export function useVaultPage() {
   const [namespace, setNamespace] = useState<VaultNamespaceFilter>("all");
   const [prefix, setPrefix] = useState("");
   const [editor, setEditor] = useState<VaultEditorState>({ mode: "closed" });
@@ -67,7 +66,6 @@ export function useSettingsVaultPage() {
   const query = useVaultSecrets(filter);
   const putMutation = usePutVaultSecret();
   const deleteMutation = useDeleteVaultSecret();
-  const page = useSettingsPage({ currentSlug: "vault" });
 
   const secrets = query.data ?? [];
   const counts = useMemo(() => {
@@ -158,7 +156,6 @@ export function useSettingsVaultPage() {
   }, []);
 
   return {
-    ...page,
     counts,
     deleteError: errorMessage(deleteMutation.error),
     deleteIsPending: deleteMutation.isPending,

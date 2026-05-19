@@ -4,7 +4,7 @@ import { cn } from "@agh/ui";
 import { Search } from "lucide-react";
 import { useSearchContext } from "fumadocs-ui/contexts/search";
 import type { ComponentProps } from "react";
-import { useSiteSearch } from "./hooks/use-site-search";
+import { useSiteSearch } from "@/components/site/hooks/use-site-search";
 
 type HeaderSearchInputProps = Omit<ComponentProps<"form">, "onSubmit"> & {
   hideIfDisabled?: boolean;
@@ -23,7 +23,7 @@ const keyboardHintClasses = [
 
 export function HeaderSearchInput({ className, hideIfDisabled, ...props }: HeaderSearchInputProps) {
   const { enabled, hotKey, setOpenSearch } = useSearchContext();
-  const { openWithQuery, query, setQuery } = useSiteSearch();
+  const { openWithQuery, query } = useSiteSearch();
 
   if (hideIfDisabled && !enabled) return null;
 
@@ -58,7 +58,6 @@ export function HeaderSearchInput({ className, hideIfDisabled, ...props }: Heade
         }}
         onChange={event => {
           const nextQuery = event.currentTarget.value;
-          setQuery(nextQuery);
           openSearch(nextQuery);
         }}
       />

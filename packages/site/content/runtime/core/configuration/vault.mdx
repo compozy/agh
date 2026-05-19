@@ -45,7 +45,7 @@ Vault is agent-manageable through the same daemon surfaces as the rest of AGH:
 | CLI over UDS      | `agh vault list`, `get`, `put`, `delete`               | `put` accepts secret material only through `--value-stdin`.                                                       |
 | HTTP API          | `/api/vault/secrets` and `/api/vault/secrets/metadata` | Web UI and external local clients use these routes. HTTP Vault routes use the daemon's privileged loopback guard. |
 | UDS API           | Same route shapes as HTTP                              | CLI and local agents use the Unix domain socket surface.                                                          |
-| Web UI            | Settings > Vault                                       | Lists metadata, filters by namespace or prefix, writes new values, and deletes refs.                              |
+| Web UI            | Vault page                                             | Lists metadata, filters by namespace or prefix, writes new values, and deletes refs.                              |
 | Session inspector | Session Vault panel                                    | Lists metadata for `vault:sessions/<session_id>/` refs.                                                           |
 
 The response shape is always redacted:
@@ -141,7 +141,7 @@ surface for the same route shapes without exposing the HTTP listener.
 
 ## Web UI
 
-Use Settings > Vault for global metadata inspection and write-only updates. The page supports:
+Use the Vault page for global metadata inspection and write-only updates. The page supports:
 
 - namespace filtering
 - prefix filtering

@@ -97,7 +97,6 @@ describe("SettingsShell", () => {
     expect(SETTINGS_SECTIONS.map(section => section.slug)).toEqual([
       "general",
       "providers",
-      "vault",
       "mcp-servers",
       "memory",
       "skills",

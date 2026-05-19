@@ -14,9 +14,9 @@ import {
   TagsListItem,
 } from "fumadocs-ui/components/dialog/search";
 import type { DefaultSearchDialogProps } from "fumadocs-ui/components/dialog/search-default";
-import { useSiteSearchDialogState } from "./hooks/use-site-search-dialog-state";
+import { useSiteSearchDialogState } from "@/components/site/hooks/use-site-search-dialog-state";
 
-export { SiteSearchProvider } from "./site-search-provider";
+export { SiteSearchProvider } from "@/components/site/site-search-provider";
 
 export function SiteSearchDialog({
   defaultTag,

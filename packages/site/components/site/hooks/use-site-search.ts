@@ -1,7 +1,7 @@
 "use client";
 
 import { use } from "react";
-import { SiteSearchContext } from "../site-search-context";
+import { SiteSearchContext } from "@/components/site/site-search-context";
 
 export function useSiteSearch() {
   const context = use(SiteSearchContext);

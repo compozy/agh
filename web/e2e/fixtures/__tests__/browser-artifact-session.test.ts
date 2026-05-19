@@ -436,22 +436,21 @@ describe("captureRouteState", () => {
     });
   });
 
-  it("captures Settings route section, vault, provider, and restart state", async () => {
-    window.history.replaceState({}, "", "/settings/vault");
+  it("captures Settings route section, provider, restart, and route-independent vault state", async () => {
+    window.history.replaceState({}, "", "/settings/network");
     document.title = "AGH";
     document.body.innerHTML = `
       <main data-testid="settings-shell">
         <nav data-testid="settings-section-nav">
           <a data-testid="settings-section-general"></a>
-          <a data-testid="settings-section-vault"></a>
           <a data-testid="settings-section-network"></a>
         </nav>
-        <section data-testid="settings-page-vault-action-result"></section>
+        <section data-testid="settings-page-network-action-result"></section>
         <form data-testid="settings-vault-editor"></form>
         <section data-testid="settings-vault-delete"></section>
         <section data-testid="settings-page-network-restart-banner"></section>
         <footer data-testid="settings-page-network-save-bar"></footer>
-        <table data-testid="settings-page-vault-table">
+        <table data-testid="vault-page-table">
           <tr data-testid="vault-secrets-row"></tr>
           <tr data-testid="vault-secrets-row"></tr>
         </table>
@@ -476,18 +475,18 @@ describe("captureRouteState", () => {
     });
 
     expect(routeState).toMatchObject({
-      pathname: "/settings/vault",
+      pathname: "/settings/network",
       settings_action_result_visible: true,
-      settings_active_section: "vault",
+      settings_active_section: "network",
       settings_mcp_server_count: 1,
       settings_provider_card_count: 2,
       settings_restart_banner_visible: true,
       settings_save_bar_visible: true,
-      settings_section_count: 3,
-      settings_vault_delete_dialog_open: true,
-      settings_vault_editor_open: true,
-      settings_vault_secret_count: 2,
+      settings_section_count: 2,
       settings_view_visible: true,
+      vault_delete_dialog_open: true,
+      vault_editor_open: true,
+      vault_secret_count: 2,
     });
   });
 
@@ -498,7 +497,7 @@ describe("captureRouteState", () => {
       <main data-testid="settings-shell">
         <nav data-testid="settings-section-nav">
           <a data-testid="settings-section-general"></a>
-          <a data-testid="settings-section-vault"></a>
+          <a data-testid="settings-section-network"></a>
         </nav>
       </main>
     `;
@@ -515,10 +514,10 @@ describe("captureRouteState", () => {
       settings_restart_banner_visible: false,
       settings_save_bar_visible: false,
       settings_section_count: 2,
-      settings_vault_delete_dialog_open: false,
-      settings_vault_editor_open: false,
-      settings_vault_secret_count: 0,
       settings_view_visible: true,
+      vault_delete_dialog_open: false,
+      vault_editor_open: false,
+      vault_secret_count: 0,
     });
     expect(routeState.settings_action_result_visible).toBe(false);
   });

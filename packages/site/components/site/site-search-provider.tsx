@@ -2,8 +2,8 @@
 
 import { useCallback, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { SiteSearchContext } from "./site-search-context";
-import type { SearchSeed } from "./site-search-context";
+import { SiteSearchContext } from "@/components/site/site-search-context";
+import type { SearchSeed } from "@/components/site/site-search-context";
 
 export function SiteSearchProvider({ children }: { children: ReactNode }) {
   const [query, setQuery] = useState("");

@@ -4,7 +4,7 @@ import { useDocsSearch } from "fumadocs-core/search/client";
 import type { DefaultSearchDialogProps } from "fumadocs-ui/components/dialog/search-default";
 import { useI18n } from "fumadocs-ui/contexts/i18n";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSiteSearch } from "./use-site-search";
+import { useSiteSearch } from "@/components/site/hooks/use-site-search";
 
 type SiteSearchDialogStateOptions = Pick<
   DefaultSearchDialogProps,

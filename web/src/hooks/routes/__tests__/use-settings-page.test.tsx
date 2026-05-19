@@ -54,7 +54,6 @@ describe("useSettingsPage", () => {
     expect(result.current.sections.map(section => section.slug)).toEqual([
       "general",
       "providers",
-      "vault",
       "mcp-servers",
       "memory",
       "skills",

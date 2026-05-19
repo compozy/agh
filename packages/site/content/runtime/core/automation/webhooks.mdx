@@ -52,7 +52,7 @@ delivery.
 Config-backed webhook triggers need an endpoint slug and a `webhook_secret_ref`. Use `env:NAME` for
 operator-managed environment variables or a `vault:automation/...` ref for AGH-managed encrypted
 secret storage. AGH resolves the secret only when validating signed webhook requests. Store
-AGH-managed values with `agh vault put`, Settings > Vault, or the write-only API before enabling the
+AGH-managed values with `agh vault put`, the Vault page, or the write-only API before enabling the
 trigger.
 
 ```toml

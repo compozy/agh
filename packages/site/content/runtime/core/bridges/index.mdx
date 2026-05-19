@@ -181,7 +181,7 @@ curl -X PUT http://localhost:2123/api/bridges/brg_123/secret-bindings/bot_token 
 The reference must be scoped to the edited bridge: `vault:bridges/<bridge>/<slot>`. Restart or
 enable the bridge after changing a binding so the provider receives fresh launch material.
 
-Bridge Vault refs are visible as redacted metadata through Settings > Vault, `agh vault list
+Bridge Vault refs are visible as redacted metadata through the Vault page, `agh vault list
 --namespace bridges`, and `/api/vault/secrets?namespace=bridges`. The plaintext `secret_value` is
 accepted only on write.
 

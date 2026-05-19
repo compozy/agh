@@ -4,6 +4,7 @@ import {
   Boxes,
   ChevronsUpDown,
   Clock3,
+  KeyRound,
   LayoutDashboard,
   ListChecks,
   Network,
@@ -140,6 +141,7 @@ const CATALOG_NAV_ITEMS: NavItemProps[] = [
 
 const SYSTEM_NAV_ITEMS: NavItemProps[] = [
   { to: "/sandbox", icon: Boxes, label: "Sandbox" },
+  { to: "/vault", icon: KeyRound, label: "Vault" },
   { to: "/settings", icon: Settings, label: "Settings", fuzzy: true },
 ];
 

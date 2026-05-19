@@ -8,8 +8,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ComponentProps } from "react";
 
-import { GitHubStarButton } from "./github-star-button";
-import { HeaderSearchInput } from "./header-search-input";
+import { GitHubStarButton } from "@/components/site/github-star-button";
+import { HeaderSearchInput } from "@/components/site/header-search-input";
 
 const primaryLinks = [
   { href: "/", label: "Home" },

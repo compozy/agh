@@ -460,12 +460,11 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
       settings_section_count: document.querySelectorAll(
         '[data-testid="settings-section-nav"] a[data-testid^="settings-section-"]'
       ).length,
-      settings_vault_delete_dialog_open:
-        document.querySelector('[data-testid="settings-vault-delete"]') !== null,
-      settings_vault_editor_open:
-        document.querySelector('[data-testid="settings-vault-editor"]') !== null,
-      settings_vault_secret_count: countByPrefix("vault-secrets-row"),
       settings_view_visible: document.querySelector('[data-testid="settings-shell"]') !== null,
+      vault_delete_dialog_open:
+        document.querySelector('[data-testid="settings-vault-delete"]') !== null,
+      vault_editor_open: document.querySelector('[data-testid="settings-vault-editor"]') !== null,
+      vault_secret_count: countByPrefix("vault-secrets-row"),
       message_count: document.querySelectorAll(
         '[data-testid="message-bubble-user"], [data-testid="message-bubble-assistant"]'
       ).length,

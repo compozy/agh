@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as DesignSystemRouteImport } from './routes/design-system'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app/index'
+import { Route as AppVaultRouteImport } from './routes/_app/vault'
 import { Route as AppTriggersRouteImport } from './routes/_app/triggers'
 import { Route as AppTasksRouteImport } from './routes/_app/tasks'
 import { Route as AppSkillsRouteImport } from './routes/_app/skills'
@@ -24,7 +25,6 @@ import { Route as AppBridgesRouteImport } from './routes/_app/bridges'
 import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/index'
 import { Route as AppTasksNewRouteImport } from './routes/_app/tasks.new'
 import { Route as AppTasksIdRouteImport } from './routes/_app/tasks.$id'
-import { Route as AppSettingsVaultRouteImport } from './routes/_app/settings/vault'
 import { Route as AppSettingsSkillsRouteImport } from './routes/_app/settings/skills'
 import { Route as AppSettingsProvidersRouteImport } from './routes/_app/settings/providers'
 import { Route as AppSettingsObservabilityRouteImport } from './routes/_app/settings/observability'
@@ -57,6 +57,11 @@ const AppRoute = AppRouteImport.update({
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppVaultRoute = AppVaultRouteImport.update({
+  id: '/vault',
+  path: '/vault',
   getParentRoute: () => AppRoute,
 } as any)
 const AppTriggersRoute = AppTriggersRouteImport.update({
@@ -118,11 +123,6 @@ const AppTasksIdRoute = AppTasksIdRouteImport.update({
   id: '/$id',
   path: '/$id',
   getParentRoute: () => AppTasksRoute,
-} as any)
-const AppSettingsVaultRoute = AppSettingsVaultRouteImport.update({
-  id: '/vault',
-  path: '/vault',
-  getParentRoute: () => AppSettingsRoute,
 } as any)
 const AppSettingsSkillsRoute = AppSettingsSkillsRouteImport.update({
   id: '/skills',
@@ -239,6 +239,7 @@ export interface FileRoutesByFullPath {
   '/skills': typeof AppSkillsRoute
   '/tasks': typeof AppTasksRouteWithChildren
   '/triggers': typeof AppTriggersRoute
+  '/vault': typeof AppVaultRoute
   '/agents/$name': typeof AppAgentsNameRouteWithChildren
   '/session/$id': typeof AppSessionIdRoute
   '/settings/automation': typeof AppSettingsAutomationRoute
@@ -250,7 +251,6 @@ export interface FileRoutesByFullPath {
   '/settings/observability': typeof AppSettingsObservabilityRoute
   '/settings/providers': typeof AppSettingsProvidersRoute
   '/settings/skills': typeof AppSettingsSkillsRoute
-  '/settings/vault': typeof AppSettingsVaultRoute
   '/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/tasks/new': typeof AppTasksNewRoute
   '/settings/': typeof AppSettingsIndexRoute
@@ -273,6 +273,7 @@ export interface FileRoutesByTo {
   '/skills': typeof AppSkillsRoute
   '/tasks': typeof AppTasksRouteWithChildren
   '/triggers': typeof AppTriggersRoute
+  '/vault': typeof AppVaultRoute
   '/': typeof AppIndexRoute
   '/agents/$name': typeof AppAgentsNameRouteWithChildren
   '/session/$id': typeof AppSessionIdRoute
@@ -285,7 +286,6 @@ export interface FileRoutesByTo {
   '/settings/observability': typeof AppSettingsObservabilityRoute
   '/settings/providers': typeof AppSettingsProvidersRoute
   '/settings/skills': typeof AppSettingsSkillsRoute
-  '/settings/vault': typeof AppSettingsVaultRoute
   '/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/tasks/new': typeof AppTasksNewRoute
   '/settings': typeof AppSettingsIndexRoute
@@ -311,6 +311,7 @@ export interface FileRoutesById {
   '/_app/skills': typeof AppSkillsRoute
   '/_app/tasks': typeof AppTasksRouteWithChildren
   '/_app/triggers': typeof AppTriggersRoute
+  '/_app/vault': typeof AppVaultRoute
   '/_app/': typeof AppIndexRoute
   '/_app/agents/$name': typeof AppAgentsNameRouteWithChildren
   '/_app/session/$id': typeof AppSessionIdRoute
@@ -323,7 +324,6 @@ export interface FileRoutesById {
   '/_app/settings/observability': typeof AppSettingsObservabilityRoute
   '/_app/settings/providers': typeof AppSettingsProvidersRoute
   '/_app/settings/skills': typeof AppSettingsSkillsRoute
-  '/_app/settings/vault': typeof AppSettingsVaultRoute
   '/_app/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/_app/tasks/new': typeof AppTasksNewRoute
   '/_app/settings/': typeof AppSettingsIndexRoute
@@ -350,6 +350,7 @@ export interface FileRouteTypes {
     | '/skills'
     | '/tasks'
     | '/triggers'
+    | '/vault'
     | '/agents/$name'
     | '/session/$id'
     | '/settings/automation'
@@ -361,7 +362,6 @@ export interface FileRouteTypes {
     | '/settings/observability'
     | '/settings/providers'
     | '/settings/skills'
-    | '/settings/vault'
     | '/tasks/$id'
     | '/tasks/new'
     | '/settings/'
@@ -384,6 +384,7 @@ export interface FileRouteTypes {
     | '/skills'
     | '/tasks'
     | '/triggers'
+    | '/vault'
     | '/'
     | '/agents/$name'
     | '/session/$id'
@@ -396,7 +397,6 @@ export interface FileRouteTypes {
     | '/settings/observability'
     | '/settings/providers'
     | '/settings/skills'
-    | '/settings/vault'
     | '/tasks/$id'
     | '/tasks/new'
     | '/settings'
@@ -421,6 +421,7 @@ export interface FileRouteTypes {
     | '/_app/skills'
     | '/_app/tasks'
     | '/_app/triggers'
+    | '/_app/vault'
     | '/_app/'
     | '/_app/agents/$name'
     | '/_app/session/$id'
@@ -433,7 +434,6 @@ export interface FileRouteTypes {
     | '/_app/settings/observability'
     | '/_app/settings/providers'
     | '/_app/settings/skills'
-    | '/_app/settings/vault'
     | '/_app/tasks/$id'
     | '/_app/tasks/new'
     | '/_app/settings/'
@@ -473,6 +473,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/vault': {
+      id: '/_app/vault'
+      path: '/vault'
+      fullPath: '/vault'
+      preLoaderRoute: typeof AppVaultRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/triggers': {
@@ -558,13 +565,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/tasks/$id'
       preLoaderRoute: typeof AppTasksIdRouteImport
       parentRoute: typeof AppTasksRoute
-    }
-    '/_app/settings/vault': {
-      id: '/_app/settings/vault'
-      path: '/vault'
-      fullPath: '/settings/vault'
-      preLoaderRoute: typeof AppSettingsVaultRouteImport
-      parentRoute: typeof AppSettingsRoute
     }
     '/_app/settings/skills': {
       id: '/_app/settings/skills'
@@ -761,7 +761,6 @@ interface AppSettingsRouteChildren {
   AppSettingsObservabilityRoute: typeof AppSettingsObservabilityRoute
   AppSettingsProvidersRoute: typeof AppSettingsProvidersRoute
   AppSettingsSkillsRoute: typeof AppSettingsSkillsRoute
-  AppSettingsVaultRoute: typeof AppSettingsVaultRoute
   AppSettingsIndexRoute: typeof AppSettingsIndexRoute
 }
 
@@ -775,7 +774,6 @@ const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsObservabilityRoute: AppSettingsObservabilityRoute,
   AppSettingsProvidersRoute: AppSettingsProvidersRoute,
   AppSettingsSkillsRoute: AppSettingsSkillsRoute,
-  AppSettingsVaultRoute: AppSettingsVaultRoute,
   AppSettingsIndexRoute: AppSettingsIndexRoute,
 }
 
@@ -833,6 +831,7 @@ interface AppRouteChildren {
   AppSkillsRoute: typeof AppSkillsRoute
   AppTasksRoute: typeof AppTasksRouteWithChildren
   AppTriggersRoute: typeof AppTriggersRoute
+  AppVaultRoute: typeof AppVaultRoute
   AppIndexRoute: typeof AppIndexRoute
   AppAgentsNameRoute: typeof AppAgentsNameRouteWithChildren
   AppSessionIdRoute: typeof AppSessionIdRoute
@@ -848,6 +847,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSkillsRoute: AppSkillsRoute,
   AppTasksRoute: AppTasksRouteWithChildren,
   AppTriggersRoute: AppTriggersRoute,
+  AppVaultRoute: AppVaultRoute,
   AppIndexRoute: AppIndexRoute,
   AppAgentsNameRoute: AppAgentsNameRouteWithChildren,
   AppSessionIdRoute: AppSessionIdRoute,
