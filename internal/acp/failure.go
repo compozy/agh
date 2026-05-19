@@ -48,8 +48,11 @@ func WrapFailure(kind store.FailureKind, summary string, err error) error {
 	if err == nil {
 		return nil
 	}
-	var existing *FailureError
-	if errors.As(err, &existing) {
+	if existing, ok := errors.AsType[*FailureError](err); ok {
+		// Preserve the original wrapper chain even for typed-nil FailureError matches.
+		if existing == nil {
+			return err
+		}
 		return err
 	}
 	if !store.ValidFailureKind(kind) {
@@ -105,8 +108,7 @@ func failureKindForError(err error, fallback store.FailureKind) store.FailureKin
 		return store.FailureTransport
 	}
 
-	var reqErr *acpsdk.RequestError
-	if errors.As(err, &reqErr) {
+	if reqErr, ok := errors.AsType[*acpsdk.RequestError](err); ok {
 		if requestErrorIndicatesCancellation(reqErr) {
 			return store.FailureCanceled
 		}

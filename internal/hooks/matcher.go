@@ -7,69 +7,82 @@ import (
 	"strings"
 )
 
+const (
+	matcherAgentNameKey             = "agent_name"
+	matcherChannelKey               = "channel"
+	matcherCoordinationChannelIDKey = "coordination_channel_id"
+	matcherInputClassKey            = "input_class"
+	matcherRunIDKey                 = "run_id"
+	matcherTaskIDKey                = "task_id"
+	matcherWorkStateKey             = "work_state"
+	matcherWorkflowIDKey            = "workflow_id"
+	matcherWorkspaceIDKey           = "workspace_id"
+	matcherWorkspaceRootKey         = "workspace_root"
+)
+
 type matcherFunc[P any] func(HookMatcher, P) bool
 
 var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 	HookEventFamilySession: {
-		"agent_name":     {},
-		"workspace_id":   {},
-		"workspace_root": {},
-		"session_type":   {},
+		matcherAgentNameKey:     {},
+		matcherWorkspaceIDKey:   {},
+		matcherWorkspaceRootKey: {},
+		"session_type":          {},
 	},
 	HookEventFamilySandbox: {
-		"agent_name":      {},
-		"workspace_id":    {},
-		"workspace_root":  {},
-		"sandbox_id":      {},
-		"sandbox_backend": {},
-		"sandbox_profile": {},
-		"sync_direction":  {},
+		matcherAgentNameKey:     {},
+		matcherWorkspaceIDKey:   {},
+		matcherWorkspaceRootKey: {},
+		"sandbox_id":            {},
+		"sandbox_backend":       {},
+		"sandbox_profile":       {},
+		"sync_direction":        {},
 	},
 	HookEventFamilyInput: {
-		"agent_name":     {},
-		"workspace_id":   {},
-		"workspace_root": {},
-		"input_class":    {},
+		matcherAgentNameKey:     {},
+		matcherWorkspaceIDKey:   {},
+		matcherWorkspaceRootKey: {},
+		matcherInputClassKey:    {},
 	},
 	HookEventFamilyPrompt: {
-		"agent_name":     {},
-		"workspace_id":   {},
-		"workspace_root": {},
-		"input_class":    {},
+		matcherAgentNameKey:     {},
+		matcherWorkspaceIDKey:   {},
+		matcherWorkspaceRootKey: {},
+		matcherInputClassKey:    {},
 	},
 	HookEventFamilyEvent: {
-		"agent_name":     {},
-		"acp_event_type": {},
-		"turn_id":        {},
+		matcherAgentNameKey: {},
+		"acp_event_type":    {},
+		"turn_id":           {},
 	},
 	HookEventFamilyAutomation: {
-		"agent_name":   {},
-		"workspace_id": {},
+		matcherAgentNameKey:   {},
+		matcherWorkspaceIDKey: {},
 	},
 	HookEventFamilyAgent: {
-		"agent_name":     {},
-		"workspace_id":   {},
-		"workspace_root": {},
+		matcherAgentNameKey:     {},
+		matcherWorkspaceIDKey:   {},
+		matcherWorkspaceRootKey: {},
 	},
 	HookEventFamilyTurn: {
-		"agent_name":     {},
-		"workspace_id":   {},
-		"workspace_root": {},
-		"input_class":    {},
+		matcherAgentNameKey:     {},
+		matcherWorkspaceIDKey:   {},
+		matcherWorkspaceRootKey: {},
+		matcherInputClassKey:    {},
 	},
 	HookEventFamilyTool: {
-		"agent_name":     {},
-		"workspace_id":   {},
-		"workspace_root": {},
-		"tool_id":        {},
-		"tool_read_only": {},
+		matcherAgentNameKey:     {},
+		matcherWorkspaceIDKey:   {},
+		matcherWorkspaceRootKey: {},
+		"tool_id":               {},
+		"tool_read_only":        {},
 	},
 	HookEventFamilyPermission: {
-		"agent_name":     {},
-		"workspace_id":   {},
-		"workspace_root": {},
-		"tool_name":      {},
-		"decision_class": {},
+		matcherAgentNameKey:     {},
+		matcherWorkspaceIDKey:   {},
+		matcherWorkspaceRootKey: {},
+		"tool_name":             {},
+		"decision_class":        {},
 	},
 	HookEventFamilyMessage: {
 		"message_role":       {},
@@ -80,58 +93,58 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 		"compaction_strategy": {},
 	},
 	HookEventFamilyCoordinator: {
-		"agent_name":              {},
-		"workspace_id":            {},
-		"workspace_root":          {},
-		"task_id":                 {},
-		"run_id":                  {},
-		"workflow_id":             {},
-		"coordination_channel_id": {},
-		"coordinator_session_id":  {},
+		matcherAgentNameKey:             {},
+		matcherWorkspaceIDKey:           {},
+		matcherWorkspaceRootKey:         {},
+		matcherTaskIDKey:                {},
+		matcherRunIDKey:                 {},
+		matcherWorkflowIDKey:            {},
+		matcherCoordinationChannelIDKey: {},
+		"coordinator_session_id":        {},
 	},
 	HookEventFamilyTaskRun: {
-		"agent_name":              {},
-		"workspace_id":            {},
-		"task_id":                 {},
-		"run_id":                  {},
-		"workflow_id":             {},
-		"coordination_channel_id": {},
-		"release_reason":          {},
+		matcherAgentNameKey:             {},
+		matcherWorkspaceIDKey:           {},
+		matcherTaskIDKey:                {},
+		matcherRunIDKey:                 {},
+		matcherWorkflowIDKey:            {},
+		matcherCoordinationChannelIDKey: {},
+		"release_reason":                {},
 	},
 	HookEventFamilySpawn: {
-		"agent_name":              {},
-		"workspace_id":            {},
-		"workspace_root":          {},
-		"task_id":                 {},
-		"run_id":                  {},
-		"workflow_id":             {},
-		"coordination_channel_id": {},
-		"parent_session_id":       {},
-		"root_session_id":         {},
-		"child_session_id":        {},
-		"spawn_role":              {},
+		matcherAgentNameKey:             {},
+		matcherWorkspaceIDKey:           {},
+		matcherWorkspaceRootKey:         {},
+		matcherTaskIDKey:                {},
+		matcherRunIDKey:                 {},
+		matcherWorkflowIDKey:            {},
+		matcherCoordinationChannelIDKey: {},
+		"parent_session_id":             {},
+		"root_session_id":               {},
+		"child_session_id":              {},
+		"spawn_role":                    {},
 	},
 	HookEventFamilyNetwork: {
-		"channel":    {},
-		"surface":    {},
-		"kind":       {},
-		"direction":  {},
-		"work_state": {},
+		matcherChannelKey:   {},
+		"surface":           {},
+		"kind":              {},
+		"direction":         {},
+		matcherWorkStateKey: {},
 	},
 }
 
 var allowedMatcherFieldsByEvent = map[HookEvent]map[string]struct{}{
 	HookAgentSoulSnapshotResolved: {
-		"agent_name":   {},
-		"workspace_id": {},
+		matcherAgentNameKey:   {},
+		matcherWorkspaceIDKey: {},
 	},
 	HookAgentSoulMutationAfter: {
-		"agent_name":   {},
-		"workspace_id": {},
+		matcherAgentNameKey:   {},
+		matcherWorkspaceIDKey: {},
 	},
 	HookAgentHeartbeatPolicyResolved: {
-		"agent_name":   {},
-		"workspace_id": {},
+		matcherAgentNameKey:   {},
+		matcherWorkspaceIDKey: {},
 	},
 }
 
@@ -745,16 +758,16 @@ func matcherFieldNames(matcher HookMatcher) []string {
 		}
 	}
 
-	appendIf("agent_name", matcher.AgentName != "")
+	appendIf(matcherAgentNameKey, matcher.AgentName != "")
 	appendIf("agent_type", matcher.AgentType != "")
-	appendIf("workspace_id", matcher.WorkspaceID != "")
-	appendIf("workspace_root", matcher.WorkspaceRoot != "")
+	appendIf(matcherWorkspaceIDKey, matcher.WorkspaceID != "")
+	appendIf(matcherWorkspaceRootKey, matcher.WorkspaceRoot != "")
 	appendIf("session_type", matcher.SessionType != "")
 	appendIf("sandbox_id", matcher.SandboxID != "")
 	appendIf("sandbox_backend", matcher.SandboxBackend != "")
 	appendIf("sandbox_profile", matcher.SandboxProfile != "")
 	appendIf("sync_direction", matcher.SyncDirection != "")
-	appendIf("input_class", matcher.InputClass != "")
+	appendIf(matcherInputClassKey, matcher.InputClass != "")
 	appendIf("acp_event_type", matcher.ACPEventType != "")
 	appendIf("turn_id", matcher.TurnID != "")
 	appendIf("tool_id", matcher.ToolID != "")
@@ -783,11 +796,11 @@ func appendNetworkMatcherFieldNames(fields *[]string, matcher *NetworkMatcher) {
 		}
 	}
 
-	appendIf("channel", matcher.Channel != "")
+	appendIf(matcherChannelKey, matcher.Channel != "")
 	appendIf("surface", matcher.Surface != "")
 	appendIf("kind", matcher.Kind != "")
 	appendIf("direction", matcher.Direction != "")
-	appendIf("work_state", matcher.WorkState != "")
+	appendIf(matcherWorkStateKey, matcher.WorkState != "")
 }
 
 func appendCompactionMatcherFieldNames(fields *[]string, matcher *CompactionMatcher) {
@@ -808,10 +821,10 @@ func appendAutonomyMatcherFieldNames(fields *[]string, matcher *AutonomyMatcher)
 		}
 	}
 
-	appendIf("task_id", matcher.TaskID != "")
-	appendIf("run_id", matcher.RunID != "")
-	appendIf("workflow_id", matcher.WorkflowID != "")
-	appendIf("coordination_channel_id", matcher.CoordinationChannelID != "")
+	appendIf(matcherTaskIDKey, matcher.TaskID != "")
+	appendIf(matcherRunIDKey, matcher.RunID != "")
+	appendIf(matcherWorkflowIDKey, matcher.WorkflowID != "")
+	appendIf(matcherCoordinationChannelIDKey, matcher.CoordinationChannelID != "")
 	appendIf("coordinator_session_id", matcher.CoordinatorSessionID != "")
 	appendIf("parent_session_id", matcher.ParentSessionID != "")
 	appendIf("root_session_id", matcher.RootSessionID != "")
@@ -825,16 +838,16 @@ func validateMatcherPatterns(matcher HookMatcher) error {
 		field   string
 		pattern string
 	}{
-		{field: "agent_name", pattern: matcher.AgentName},
+		{field: matcherAgentNameKey, pattern: matcher.AgentName},
 		{field: "agent_type", pattern: matcher.AgentType},
-		{field: "workspace_id", pattern: matcher.WorkspaceID},
-		{field: "workspace_root", pattern: matcher.WorkspaceRoot},
+		{field: matcherWorkspaceIDKey, pattern: matcher.WorkspaceID},
+		{field: matcherWorkspaceRootKey, pattern: matcher.WorkspaceRoot},
 		{field: "session_type", pattern: matcher.SessionType},
 		{field: "sandbox_id", pattern: matcher.SandboxID},
 		{field: "sandbox_backend", pattern: matcher.SandboxBackend},
 		{field: "sandbox_profile", pattern: matcher.SandboxProfile},
 		{field: "sync_direction", pattern: matcher.SyncDirection},
-		{field: "input_class", pattern: matcher.InputClass},
+		{field: matcherInputClassKey, pattern: matcher.InputClass},
 		{field: "acp_event_type", pattern: matcher.ACPEventType},
 		{field: "turn_id", pattern: matcher.TurnID},
 		{field: "tool_id", pattern: matcher.ToolID},
@@ -865,11 +878,11 @@ func validateNetworkMatcherPatterns(matcher *NetworkMatcher) error {
 		field   string
 		pattern string
 	}{
-		{field: "channel", pattern: matcher.Channel},
+		{field: matcherChannelKey, pattern: matcher.Channel},
 		{field: "surface", pattern: matcher.Surface},
 		{field: "kind", pattern: matcher.Kind},
 		{field: "direction", pattern: matcher.Direction},
-		{field: "work_state", pattern: matcher.WorkState},
+		{field: matcherWorkStateKey, pattern: matcher.WorkState},
 	}
 	for _, item := range patterns {
 		if err := validateMatcherPattern(item.field, item.pattern); err != nil {
@@ -906,10 +919,10 @@ func validateAutonomyMatcherPatterns(matcher *AutonomyMatcher) error {
 		field   string
 		pattern string
 	}{
-		{field: "task_id", pattern: matcher.TaskID},
-		{field: "run_id", pattern: matcher.RunID},
-		{field: "workflow_id", pattern: matcher.WorkflowID},
-		{field: "coordination_channel_id", pattern: matcher.CoordinationChannelID},
+		{field: matcherTaskIDKey, pattern: matcher.TaskID},
+		{field: matcherRunIDKey, pattern: matcher.RunID},
+		{field: matcherWorkflowIDKey, pattern: matcher.WorkflowID},
+		{field: matcherCoordinationChannelIDKey, pattern: matcher.CoordinationChannelID},
 		{field: "coordinator_session_id", pattern: matcher.CoordinatorSessionID},
 		{field: "parent_session_id", pattern: matcher.ParentSessionID},
 		{field: "root_session_id", pattern: matcher.RootSessionID},

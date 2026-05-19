@@ -14,6 +14,10 @@ import (
 	"github.com/pedronauck/agh/internal/vault"
 )
 
+const (
+	globalDBMCPAuthBearerValue = "Bearer"
+)
+
 var _ mcpauth.TokenStore = (*GlobalDB)(nil)
 
 // SaveMCPAuthToken persists one remote MCP OAuth token record.
@@ -204,7 +208,7 @@ func normalizeMCPAuthToken(token mcpauth.TokenRecord, now time.Time) (mcpauth.To
 	token.RefreshToken = strings.TrimSpace(token.RefreshToken)
 	token.TokenType = strings.TrimSpace(token.TokenType)
 	if token.TokenType == "" {
-		token.TokenType = "Bearer"
+		token.TokenType = globalDBMCPAuthBearerValue
 	}
 	token.Scopes = trimTokenScopes(token.Scopes)
 	if token.ObtainedAt.IsZero() {

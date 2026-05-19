@@ -511,8 +511,7 @@ func normalizeSSHWaitErr(err error, stderr *bytes.Buffer) error {
 	if err == nil {
 		return nil
 	}
-	var missing *ssh.ExitMissingError
-	if errors.As(err, &missing) {
+	if missing, ok := errors.AsType[*ssh.ExitMissingError](err); ok && missing != nil {
 		if stderr == nil || strings.TrimSpace(stderr.String()) == "" {
 			return nil
 		}

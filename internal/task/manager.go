@@ -17,6 +17,11 @@ import (
 )
 
 const (
+	managerActiveKey         = "active"
+	managerOrphanedOnBootKey = "orphaned_on_boot"
+)
+
+const (
 	taskEventCreated            = "task.created"
 	taskEventUpdated            = "task.updated"
 	taskEventPublished          = "task.published"
@@ -3272,7 +3277,7 @@ func (m *Service) waitAndForceStopRun(ctx context.Context, sessionID string, rea
 
 func recoverySessionStateRequiresCooperativeStop(state string) bool {
 	switch strings.TrimSpace(state) {
-	case "starting", "active", "stopping":
+	case "starting", managerActiveKey, "stopping":
 		return true
 	default:
 		return false
@@ -3428,7 +3433,7 @@ func runBootRecoveryMetadata(run Run, recovery RunBootRecovery) json.RawMessage 
 func normalizedBootRecoveryReason(reason string) string {
 	trimmed := strings.TrimSpace(reason)
 	if trimmed == "" {
-		return "orphaned_on_boot"
+		return managerOrphanedOnBootKey
 	}
 	return trimmed
 }

@@ -31,6 +31,20 @@ import (
 )
 
 const (
+	providerAudKey        = "aud"
+	providerExpKey        = "exp"
+	providerGchatKey      = "gchat"
+	providerIatKey        = "iat"
+	providerIssKey        = "iss"
+	providerNameKey       = "name"
+	providerSourceKey     = "source"
+	providerSpaceNameKey  = "space_name"
+	providerSuccessKey    = "success"
+	providerTextKey       = "text"
+	providerThreadNameKey = "thread_name"
+)
+
+const (
 	gchatListenAddrEnv  = "AGH_BRIDGE_GCHAT_LISTEN_ADDR"
 	gchatAPIBaseEnv     = "AGH_BRIDGE_GCHAT_API_BASE_URL"
 	gchatDirectCertsEnv = "AGH_BRIDGE_GCHAT_DIRECT_CERTS_URL"
@@ -399,7 +413,7 @@ func newGChatProvider(stderr io.Writer) (*gchatProvider, error) {
 
 	sdkRuntime, err := bridgesdk.NewRuntime(bridgesdk.RuntimeConfig{
 		ExtensionInfo: subprocess.InitializeExtensionInfo{
-			Name:    "gchat",
+			Name:    providerGchatKey,
 			Version: "0.1.0",
 			SDKName: "bridgesdk",
 		},
@@ -1414,10 +1428,10 @@ func (p *gchatProvider) handlePubSubWebhook(
 			return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: mapErr.Error()}
 		}
 		if cfg.dedup.Mark(item.Envelope.IdempotencyKey) {
-			return writeWebhookJSON(w, map[string]any{"success": true})
+			return writeWebhookJSON(w, map[string]any{providerSuccessKey: true})
 		}
 		if !allowGChatDirectMessage(cfg, item.User, item.Direct) {
-			return writeWebhookJSON(w, map[string]any{"success": true})
+			return writeWebhookJSON(w, map[string]any{providerSuccessKey: true})
 		}
 		if cfg.batcher != nil {
 			if err := cfg.batcher.Enqueue(item.Envelope); err != nil {
@@ -1434,16 +1448,16 @@ func (p *gchatProvider) handlePubSubWebhook(
 			return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: mapErr.Error()}
 		}
 		if cfg.dedup.Mark(item.Envelope.IdempotencyKey) {
-			return writeWebhookJSON(w, map[string]any{"success": true})
+			return writeWebhookJSON(w, map[string]any{providerSuccessKey: true})
 		}
 		if !allowGChatDirectMessage(cfg, item.User, item.Direct) {
-			return writeWebhookJSON(w, map[string]any{"success": true})
+			return writeWebhookJSON(w, map[string]any{providerSuccessKey: true})
 		}
 		if err := p.dispatchInboundEnvelope(ctx, cfg.instanceID, item.Envelope); err != nil {
 			return &bridgesdk.HTTPError{StatusCode: http.StatusInternalServerError, Message: err.Error()}
 		}
 	}
-	return writeWebhookJSON(w, map[string]any{"success": true})
+	return writeWebhookJSON(w, map[string]any{providerSuccessKey: true})
 }
 
 func (p *gchatProvider) dispatchInboundBatch(
@@ -1945,10 +1959,10 @@ func buildDirectActionItem(
 	}
 	assignGChatRoute(&envelope, strings.TrimSpace(actionCtx.space.Name), threadName, direct)
 	if metadata, err := json.Marshal(map[string]any{
-		"source":       "direct_webhook",
-		"space_name":   strings.TrimSpace(actionCtx.space.Name),
-		"thread_name":  threadName,
-		"message_name": strings.TrimSpace(actionCtx.message.Name),
+		providerSourceKey:     "direct_webhook",
+		providerSpaceNameKey:  strings.TrimSpace(actionCtx.space.Name),
+		providerThreadNameKey: threadName,
+		"message_name":        strings.TrimSpace(actionCtx.message.Name),
 	}); err == nil {
 		envelope.ProviderMetadata = metadata
 	}
@@ -2112,11 +2126,11 @@ func buildPubSubReactionItem(
 	}
 	assignGChatRoute(&envelope, route.spaceName, route.threadName, route.direct)
 	if metadata, err := json.Marshal(map[string]any{
-		"source":        "pubsub_workspace_events",
-		"event_type":    strings.TrimSpace(notification.EventType),
-		"space_name":    route.spaceName,
-		"thread_name":   route.threadName,
-		"reaction_name": strings.TrimSpace(route.reaction.Name),
+		providerSourceKey:     "pubsub_workspace_events",
+		"event_type":          strings.TrimSpace(notification.EventType),
+		providerSpaceNameKey:  route.spaceName,
+		providerThreadNameKey: route.threadName,
+		"reaction_name":       strings.TrimSpace(route.reaction.Name),
 	}); err == nil {
 		envelope.ProviderMetadata = metadata
 	}
@@ -2167,11 +2181,11 @@ func mapGChatMessage(
 	}
 	envelope.ThreadID = threadID
 	if metadata, err := json.Marshal(map[string]any{
-		"source":       strings.TrimSpace(source),
-		"space_name":   strings.TrimSpace(space.Name),
-		"space_type":   firstNonEmpty(strings.TrimSpace(space.SpaceType), strings.TrimSpace(space.Type)),
-		"thread_name":  threadName,
-		"message_name": strings.TrimSpace(message.Name),
+		providerSourceKey:     strings.TrimSpace(source),
+		providerSpaceNameKey:  strings.TrimSpace(space.Name),
+		"space_type":          firstNonEmpty(strings.TrimSpace(space.SpaceType), strings.TrimSpace(space.Type)),
+		providerThreadNameKey: threadName,
+		"message_name":        strings.TrimSpace(message.Name),
 	}); err == nil {
 		envelope.ProviderMetadata = metadata
 	}
@@ -2659,7 +2673,7 @@ func decodeGChatThreadID(value string) (gchatThreadRef, error) {
 		trimmed = strings.TrimSuffix(trimmed, ":dm")
 	}
 	parts := strings.Split(trimmed, ":")
-	if len(parts) < 2 || parts[0] != "gchat" {
+	if len(parts) < 2 || parts[0] != providerGchatKey {
 		return gchatThreadRef{}, errors.New("gchat: invalid thread id")
 	}
 	ref := gchatThreadRef{
@@ -2684,10 +2698,10 @@ func (c *gchatBotClient) ValidateAuth(ctx context.Context) error {
 func (c *gchatBotClient) CreateMessage(ctx context.Context, req gchatCreateMessageRequest) (*gchatSentMessage, error) {
 	query := url.Values{}
 	body := map[string]any{
-		"text": req.Text,
+		providerTextKey: req.Text,
 	}
 	if strings.TrimSpace(req.ThreadName) != "" {
-		body["thread"] = map[string]string{"name": strings.TrimSpace(req.ThreadName)}
+		body["thread"] = map[string]string{providerNameKey: strings.TrimSpace(req.ThreadName)}
 		query.Set("messageReplyOption", gchatReplyMode)
 	}
 	var out gchatSentMessage
@@ -2706,7 +2720,7 @@ func (c *gchatBotClient) CreateMessage(ctx context.Context, req gchatCreateMessa
 
 func (c *gchatBotClient) UpdateMessage(ctx context.Context, req gchatUpdateMessageRequest) (*gchatSentMessage, error) {
 	query := url.Values{}
-	query.Set("updateMask", "text")
+	query.Set("updateMask", providerTextKey)
 	var out gchatSentMessage
 	if err := c.callJSON(
 		ctx,
@@ -2714,7 +2728,7 @@ func (c *gchatBotClient) UpdateMessage(ctx context.Context, req gchatUpdateMessa
 		"/v1/"+strings.TrimPrefix(strings.TrimSpace(req.MessageName), "/"),
 		query,
 		map[string]any{
-			"text": req.Text,
+			providerTextKey: req.Text,
 		},
 		&out,
 	); err != nil {
@@ -2764,12 +2778,12 @@ func (c *gchatBotClient) accessToken(ctx context.Context) (string, error) {
 	}
 	now := time.Now().UTC()
 	claims := jwt.MapClaims{
-		"iss":   strings.TrimSpace(c.cfg.credentials.ClientEmail),
-		"sub":   strings.TrimSpace(c.cfg.credentials.ClientEmail),
-		"scope": gchatBotScope,
-		"aud":   strings.TrimSpace(c.cfg.tokenURL),
-		"iat":   now.Unix(),
-		"exp":   now.Add(time.Hour).Unix(),
+		providerIssKey: strings.TrimSpace(c.cfg.credentials.ClientEmail),
+		"sub":          strings.TrimSpace(c.cfg.credentials.ClientEmail),
+		"scope":        gchatBotScope,
+		providerAudKey: strings.TrimSpace(c.cfg.tokenURL),
+		providerIatKey: now.Unix(),
+		providerExpKey: now.Add(time.Hour).Unix(),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 	signed, err := token.SignedString(privateKey)

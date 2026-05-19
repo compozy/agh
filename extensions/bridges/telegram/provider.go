@@ -23,6 +23,10 @@ import (
 )
 
 const (
+	providerTelegramKey = "telegram"
+)
+
+const (
 	telegramListenAddrEnv = "AGH_BRIDGE_TELEGRAM_LISTEN_ADDR"
 	telegramAPIBaseEnv    = "AGH_BRIDGE_TELEGRAM_API_BASE_URL"
 
@@ -214,7 +218,7 @@ func newTelegramProvider(stderr io.Writer) (*telegramProvider, error) {
 
 	sdkRuntime, err := bridgesdk.NewRuntime(bridgesdk.RuntimeConfig{
 		ExtensionInfo: subprocess.InitializeExtensionInfo{
-			Name:    "telegram",
+			Name:    providerTelegramKey,
 			Version: "0.1.0",
 			SDKName: "bridgesdk",
 		},

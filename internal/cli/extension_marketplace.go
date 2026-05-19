@@ -17,6 +17,25 @@ import (
 )
 
 const (
+	extensionMarketplaceSlugValue = "Slug"
+	extensionMarketplaceSlugKey   = "slug"
+)
+
+const (
+	skillOutputRegistryKey = "registry"
+)
+
+const (
+	extensionMarketplaceDescriptionValue  = "Description"
+	extensionMarketplacePathValue         = "Path"
+	extensionMarketplaceStatusValue       = "Status"
+	extensionMarketplaceCurrentVersionKey = "current_version"
+	extensionMarketplaceDescriptionKey    = "description"
+	extensionMarketplacePathKey           = "path"
+	extensionMarketplaceRemovedKey        = "removed"
+)
+
+const (
 	defaultExtensionRegistrySearchLimit = 20
 	extensionRegistryGitHub             = "github"
 	extensionInstallRestartMessage      = "Extension installed. Restart the daemon to activate, " +
@@ -280,7 +299,7 @@ func removeInstalledExtensionWithRegistry(
 	return extensionRemoveItem{
 		Name:   info.Name,
 		Path:   installDir,
-		Status: "removed",
+		Status: extensionMarketplaceRemovedKey,
 	}, nil
 }
 
@@ -872,9 +891,25 @@ func extensionSearchBundle(items []registrypkg.Listing) outputBundle {
 		items,
 		items,
 		"Extension Registry Results",
-		[]string{"Slug", "Name", "Description", "Author", "Version", "Downloads", "Source"},
+		[]string{
+			extensionMarketplaceSlugValue,
+			automationNameValue,
+			extensionMarketplaceDescriptionValue,
+			"Author",
+			daemonVersionValue,
+			"Downloads",
+			"Source",
+		},
 		"extensions",
-		[]string{"slug", "name", "description", "author", "version", "downloads", "source"},
+		[]string{
+			extensionMarketplaceSlugKey,
+			automationNameKey,
+			extensionMarketplaceDescriptionKey,
+			"author",
+			daemonVersionKey,
+			"downloads",
+			automationSourceKey,
+		},
 		func(item registrypkg.Listing) []string {
 			return []string{
 				stringOrDash(item.Slug),
@@ -905,15 +940,15 @@ func extensionRemoveBundle(item extensionRemoveItem) outputBundle {
 		jsonValue: item,
 		human: func() (string, error) {
 			return renderHumanSection("Extension Remove", []keyValue{
-				{Label: "Name", Value: stringOrDash(item.Name)},
-				{Label: "Path", Value: stringOrDash(item.Path)},
-				{Label: "Status", Value: stringOrDash(item.Status)},
+				{Label: automationNameValue, Value: stringOrDash(item.Name)},
+				{Label: extensionMarketplacePathValue, Value: stringOrDash(item.Path)},
+				{Label: extensionMarketplaceStatusValue, Value: stringOrDash(item.Status)},
 			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject(
 				"extension_remove",
-				[]string{"name", "path", "status"},
+				[]string{automationNameKey, extensionMarketplacePathKey, automationStatusKey},
 				[]string{
 					item.Name,
 					item.Path,
@@ -929,9 +964,25 @@ func extensionUpdateBundle(items []extensionUpdateItem) outputBundle {
 		items,
 		items,
 		"Extension Updates",
-		[]string{"Name", "Slug", "Registry", "Current", "Latest", "Path", "Status"},
+		[]string{
+			automationNameValue,
+			extensionMarketplaceSlugValue,
+			"Registry",
+			"Current",
+			"Latest",
+			extensionMarketplacePathValue,
+			extensionMarketplaceStatusValue,
+		},
 		"extension_updates",
-		[]string{"name", "slug", "registry", "current_version", "latest_version", "path", "status"},
+		[]string{
+			automationNameKey,
+			extensionMarketplaceSlugKey,
+			skillOutputRegistryKey,
+			extensionMarketplaceCurrentVersionKey,
+			"latest_version",
+			extensionMarketplacePathKey,
+			automationStatusKey,
+		},
 		func(item extensionUpdateItem) []string {
 			return []string{
 				stringOrDash(item.Name),

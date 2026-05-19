@@ -26,6 +26,13 @@ import (
 )
 
 const (
+	providerCreatedKey        = "created"
+	providerGithubKey         = "github"
+	providerInstallationIDKey = "installation_id"
+	providerRepositoryKey     = "repository"
+)
+
+const (
 	githubListenAddrEnv = "AGH_BRIDGE_GITHUB_LISTEN_ADDR"
 	githubAPIBaseEnv    = "AGH_BRIDGE_GITHUB_API_BASE_URL"
 
@@ -241,7 +248,7 @@ func newGitHubProvider(stderr io.Writer) (*githubProvider, error) {
 
 	sdkRuntime, err := bridgesdk.NewRuntime(bridgesdk.RuntimeConfig{
 		ExtensionInfo: subprocess.InitializeExtensionInfo{
-			Name:    "github",
+			Name:    providerGithubKey,
 			Version: "0.1.0",
 			SDKName: "bridgesdk",
 		},
@@ -1021,7 +1028,7 @@ func (p *githubProvider) handleIssueCommentWebhook(
 	if err := verifyGitHubWebhookSignature(r.Context(), r, request.Body, []resolvedInstanceConfig{cfg}); err != nil {
 		return &bridgesdk.HTTPError{StatusCode: http.StatusUnauthorized, Message: "invalid github webhook signature"}
 	}
-	if strings.TrimSpace(payload.Action) != "created" {
+	if strings.TrimSpace(payload.Action) != providerCreatedKey {
 		return writeWebhookText(w, "ok")
 	}
 	item, err := mapGitHubIssueComment(payload, cfg.managed, request.ReceivedAt)
@@ -1060,7 +1067,7 @@ func (p *githubProvider) handleReviewCommentWebhook(
 	if err := verifyGitHubWebhookSignature(r.Context(), r, request.Body, []resolvedInstanceConfig{cfg}); err != nil {
 		return &bridgesdk.HTTPError{StatusCode: http.StatusUnauthorized, Message: "invalid github webhook signature"}
 	}
-	if strings.TrimSpace(payload.Action) != "created" {
+	if strings.TrimSpace(payload.Action) != providerCreatedKey {
 		return writeWebhookText(w, "ok")
 	}
 	item, err := mapGitHubReviewComment(payload, cfg.managed, request.ReceivedAt)
@@ -1570,12 +1577,12 @@ func mapGitHubIssueComment(
 		IdempotencyKey:    fmt.Sprintf("github:%s:issue_comment:%d", managed.Instance.ID, payload.Comment.ID),
 	}
 	if metadata, err := json.Marshal(map[string]any{
-		"source":          "issue_comment",
-		"repository":      strings.TrimSpace(payload.Repository.FullName),
-		"thread_type":     threadType,
-		"issue_number":    payload.Issue.Number,
-		"comment_id":      payload.Comment.ID,
-		"installation_id": installationIDFromWebhook(payload.Installation),
+		"source":                  "issue_comment",
+		providerRepositoryKey:     strings.TrimSpace(payload.Repository.FullName),
+		"thread_type":             threadType,
+		"issue_number":            payload.Issue.Number,
+		"comment_id":              payload.Comment.ID,
+		providerInstallationIDKey: installationIDFromWebhook(payload.Installation),
 	}); err == nil {
 		envelope.ProviderMetadata = metadata
 	}
@@ -1616,13 +1623,13 @@ func mapGitHubReviewComment(
 		IdempotencyKey:    fmt.Sprintf("github:%s:review_comment:%d", managed.Instance.ID, payload.Comment.ID),
 	}
 	if metadata, err := json.Marshal(map[string]any{
-		"source":                 "pull_request_review_comment",
-		"repository":             strings.TrimSpace(payload.Repository.FullName),
-		"pull_number":            payload.PullRequest.Number,
-		"comment_id":             payload.Comment.ID,
-		"root_review_comment_id": rootCommentID,
-		"review_comment_path":    strings.TrimSpace(payload.Comment.Path),
-		"installation_id":        installationIDFromWebhook(payload.Installation),
+		"source":                  "pull_request_review_comment",
+		providerRepositoryKey:     strings.TrimSpace(payload.Repository.FullName),
+		"pull_number":             payload.PullRequest.Number,
+		"comment_id":              payload.Comment.ID,
+		"root_review_comment_id":  rootCommentID,
+		"review_comment_path":     strings.TrimSpace(payload.Comment.Path),
+		providerInstallationIDKey: installationIDFromWebhook(payload.Installation),
 	}); err == nil {
 		envelope.ProviderMetadata = metadata
 	}

@@ -13,6 +13,10 @@ import (
 	"sync"
 )
 
+const (
+	transportErrorKey = "error"
+)
+
 // DefaultMaxMessageBytes is the default JSON-RPC line size limit.
 const DefaultMaxMessageBytes = 10 * 1024 * 1024
 
@@ -287,12 +291,12 @@ func (t *StdioTransport) processLine(ctx context.Context, line []byte) {
 		Error   *JSONRPCErrorObject `json:"error,omitempty"`
 	}
 	if err := json.Unmarshal(trimmed, &envelope); err != nil {
-		t.fail(NewRPCError(-32700, "Parse error", map[string]any{"error": err.Error()}))
+		t.fail(NewRPCError(-32700, "Parse error", map[string]any{transportErrorKey: err.Error()}))
 		return
 	}
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(trimmed, &fields); err != nil {
-		t.fail(NewRPCError(-32700, "Parse error", map[string]any{"error": err.Error()}))
+		t.fail(NewRPCError(-32700, "Parse error", map[string]any{transportErrorKey: err.Error()}))
 		return
 	}
 	if envelope.JSONRPC != JSONRPCVersion {
@@ -314,7 +318,7 @@ func (t *StdioTransport) processLine(ctx context.Context, line []byte) {
 	}
 	if len(envelope.ID) > 0 {
 		_, hasResult := fields["result"]
-		_, hasError := fields["error"]
+		_, hasError := fields[transportErrorKey]
 		t.dispatchResponse(envelope.ID, envelope.Result, envelope.Error, hasResult, hasError)
 		return
 	}

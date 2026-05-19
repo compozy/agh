@@ -6,9 +6,13 @@ import (
 	"strings"
 )
 
+const (
+	envDaytonaAPIKeyValue = "DAYTONA_API_KEY"
+)
+
 var blockedRemoteEnv = map[string]struct{}{
-	"DAYTONA_API_KEY":   {},
-	"DAYTONA_JWT_TOKEN": {},
+	envDaytonaAPIKeyValue: {},
+	"DAYTONA_JWT_TOKEN":   {},
 }
 
 func remoteEnvMap(agentEnv []string, profileEnv map[string]string) map[string]string {

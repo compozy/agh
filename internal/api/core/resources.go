@@ -13,6 +13,11 @@ import (
 	"github.com/pedronauck/agh/internal/resources"
 )
 
+const (
+	resourcesDaemonControlValue = "daemon-control"
+	resourcesSystemKey          = "system"
+)
+
 var errResourceServiceUnavailable = errors.New("resource service is not configured")
 
 // ResourceServiceConfig configures the shared operator-facing resource service.
@@ -58,10 +63,10 @@ func NewOperatorResourceService(cfg *ResourceServiceConfig) (ResourceService, er
 func defaultResourceControlActor() resources.MutationActor {
 	return resources.MutationActor{
 		Kind: resources.MutationActorKindDaemon,
-		ID:   "daemon-control",
+		ID:   resourcesDaemonControlValue,
 		Source: resources.ResourceSource{
 			Kind: resources.ResourceSourceKind("daemon"),
-			ID:   "system",
+			ID:   resourcesSystemKey,
 		},
 		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
 	}

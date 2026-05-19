@@ -15,6 +15,11 @@ import (
 )
 
 const (
+	nativeExtensionToolsExtensionKey  = "extension"
+	nativeExtensionToolsExtensionsKey = "extensions"
+)
+
+const (
 	defaultExtensionToolSearchLimit = 20
 	extensionToolSourceLocal        = "local"
 	extensionToolSourceMarketplace  = "marketplace"
@@ -118,7 +123,10 @@ func (n *daemonNativeTools) extensionSearch(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{"extensions": listings}, fmt.Sprintf("%d extension listings", len(listings)))
+	return structuredResult(
+		map[string]any{nativeExtensionToolsExtensionsKey: listings},
+		fmt.Sprintf("%d extension listings", len(listings)),
+	)
 }
 
 func (n *daemonNativeTools) extensionList(
@@ -135,7 +143,10 @@ func (n *daemonNativeTools) extensionList(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{"extensions": items}, fmt.Sprintf("%d installed extensions", len(items)))
+	return structuredResult(
+		map[string]any{nativeExtensionToolsExtensionsKey: items},
+		fmt.Sprintf("%d installed extensions", len(items)),
+	)
 }
 
 func (n *daemonNativeTools) extensionInfo(
@@ -155,7 +166,7 @@ func (n *daemonNativeTools) extensionInfo(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{"extension": item}, item.Name)
+	return structuredResult(map[string]any{nativeExtensionToolsExtensionKey: item}, item.Name)
 }
 
 func (n *daemonNativeTools) extensionInstall(
@@ -179,13 +190,13 @@ func (n *daemonNativeTools) extensionInstall(
 		if err != nil {
 			return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 		}
-		return structuredResult(map[string]any{"extension": item}, item.Name)
+		return structuredResult(map[string]any{nativeExtensionToolsExtensionKey: item}, item.Name)
 	case extensionToolSourceMarketplace:
 		item, err := n.extensionInstallMarketplace(ctx, req.ToolID, input)
 		if err != nil {
 			return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 		}
-		return structuredResult(map[string]any{"extension": item}, item.Name)
+		return structuredResult(map[string]any{nativeExtensionToolsExtensionKey: item}, item.Name)
 	default:
 		return toolspkg.ToolResult{}, nativeExtensionSourceError(
 			req.ToolID,
@@ -250,7 +261,7 @@ func (n *daemonNativeTools) extensionRemove(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{"extension": item}, item.Name)
+	return structuredResult(map[string]any{nativeExtensionToolsExtensionKey: item}, item.Name)
 }
 
 func (n *daemonNativeTools) extensionEnable(
@@ -270,7 +281,7 @@ func (n *daemonNativeTools) extensionEnable(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{"extension": item}, item.Name)
+	return structuredResult(map[string]any{nativeExtensionToolsExtensionKey: item}, item.Name)
 }
 
 func (n *daemonNativeTools) extensionDisable(
@@ -290,7 +301,7 @@ func (n *daemonNativeTools) extensionDisable(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{"extension": item}, item.Name)
+	return structuredResult(map[string]any{nativeExtensionToolsExtensionKey: item}, item.Name)
 }
 
 func (n *daemonNativeTools) extensionInstallLocal(

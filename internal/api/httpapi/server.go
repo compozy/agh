@@ -21,6 +21,10 @@ import (
 )
 
 const (
+	serverLocalhostKey = "localhost"
+)
+
+const (
 	defaultPollInterval      = 100 * time.Millisecond
 	defaultReadHeaderTimeout = 5 * time.Second
 	defaultIdleTimeout       = 60 * time.Second
@@ -492,7 +496,7 @@ func (s *Server) applyDefaults() {
 		s.agentLoader = aghconfig.LoadAgentDef
 	}
 	if strings.TrimSpace(s.config.HTTP.Host) == "" {
-		s.config.HTTP.Host = "localhost"
+		s.config.HTTP.Host = serverLocalhostKey
 	}
 	if s.config.HTTP.Port <= 0 {
 		s.config.HTTP.Port = 2123

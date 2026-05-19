@@ -9,6 +9,10 @@ import (
 	toolspkg "github.com/pedronauck/agh/internal/tools"
 )
 
+const (
+	nativeProfileToolsDeletedKey = "deleted"
+)
+
 type taskExecutionProfileRefInput struct {
 	TaskID string `json:"task_id"`
 }
@@ -87,7 +91,7 @@ func (n *daemonNativeTools) taskExecutionProfileDelete(
 		return toolspkg.ToolResult{}, err
 	}
 	return structuredResult(
-		map[string]any{"task_id": taskID, "deleted": true},
+		map[string]any{"task_id": taskID, nativeProfileToolsDeletedKey: true},
 		fmt.Sprintf("deleted profile %s", taskID),
 	)
 }

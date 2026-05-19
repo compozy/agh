@@ -8,6 +8,10 @@ import (
 	"strings"
 )
 
+const (
+	typesToolIDKey = "tool_id"
+)
+
 // SDKName is advertised during extension initialization.
 const SDKName = "github.com/pedronauck/agh/sdk/go"
 
@@ -44,26 +48,26 @@ func (id ToolID) Validate() error {
 	case value == "":
 		return NewInvalidParamsError("tool_id is required", nil)
 	case len(value) > 64:
-		return NewInvalidParamsError("tool_id exceeds 64 characters", map[string]any{"tool_id": value})
+		return NewInvalidParamsError("tool_id exceeds 64 characters", map[string]any{typesToolIDKey: value})
 	case strings.Contains(value, "___"):
-		return NewInvalidParamsError("tool_id uses ambiguous reserved separator", map[string]any{"tool_id": value})
+		return NewInvalidParamsError("tool_id uses ambiguous reserved separator", map[string]any{typesToolIDKey: value})
 	case !segmentedIDPattern.MatchString(value):
 		return NewInvalidParamsError(
 			"tool_id must use lowercase __-separated segments",
-			map[string]any{"tool_id": value},
+			map[string]any{typesToolIDKey: value},
 		)
 	default:
 		for segment := range strings.SplitSeq(value, "__") {
 			if segment == "" {
 				return NewInvalidParamsError(
 					"tool_id contains an empty segment",
-					map[string]any{"tool_id": value},
+					map[string]any{typesToolIDKey: value},
 				)
 			}
 			if strings.HasPrefix(segment, "_") || strings.HasSuffix(segment, "_") {
 				return NewInvalidParamsError(
 					"tool_id segment uses reserved underscore boundary",
-					map[string]any{"tool_id": value},
+					map[string]any{typesToolIDKey: value},
 				)
 			}
 		}

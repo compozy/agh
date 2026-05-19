@@ -22,6 +22,14 @@ import (
 )
 
 const (
+	clientApplicationXGzipPath = "application/x-gzip"
+)
+
+const (
+	clientApplicationGzipPath = "application/gzip"
+)
+
+const (
 	defaultBaseURL          = "https://api.github.com"
 	defaultRequestTimeout   = 30 * time.Second
 	defaultInitialBackoff   = time.Second
@@ -841,7 +849,7 @@ func validateDownloadContentType(contentType string) error {
 	}
 
 	switch mediaType {
-	case "application/gzip", "application/x-gzip", "application/octet-stream":
+	case clientApplicationGzipPath, clientApplicationXGzipPath, "application/octet-stream":
 		return nil
 	default:
 		return fmt.Errorf("github: unexpected download content type %q", trimmed)

@@ -20,6 +20,10 @@ import (
 	"github.com/pedronauck/agh/internal/tools"
 )
 
+const (
+	generateStringKey = "string"
+)
+
 var (
 	rawMessageType = reflect.TypeFor[json.RawMessage]()
 	timeType       = reflect.TypeFor[time.Time]()
@@ -364,7 +368,7 @@ func (g *generator) primitiveAliasForType(t reflect.Type) string {
 	if primitive, ok := primitiveKindTSType(t.Kind()); ok {
 		return primitive
 	}
-	return "string"
+	return generateStringKey
 }
 
 func parenthesizeIfNeeded(value string) string {
@@ -391,7 +395,7 @@ func primitiveKindTSType(kind reflect.Kind) (string, bool) {
 		reflect.Float32, reflect.Float64:
 		return numberTypeName, true
 	case reflect.String:
-		return "string", true
+		return generateStringKey, true
 	default:
 		return "", false
 	}

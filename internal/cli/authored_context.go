@@ -12,6 +12,68 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	configValidKey = "valid"
+)
+
+const (
+	providerAuthStatePresent = "present"
+)
+
+const (
+	automationEnabledKey             = "enabled"
+	authoredContextPreviousDigestKey = "previous_digest"
+	workspaceSkillSource             = "workspace"
+)
+
+const (
+	authoredContextDigestKey    = "digest"
+	authoredContextNewDigestKey = "new_digest"
+	networkStateKey             = "state"
+)
+
+const (
+	automationCreatedAtKey = "created_at"
+	memoryReasonKey        = "reason"
+	sessionSessionKey      = "session"
+)
+
+const (
+	authoredContextActionValue         = "Action"
+	authoredContextActiveValue         = "Active"
+	authoredContextAgentValue          = "Agent"
+	authoredContextConfigDigestValue   = "Config Digest"
+	authoredContextCreatedValue        = "Created"
+	authoredContextDigestValue         = "Digest"
+	authoredContextEnabledValue        = "Enabled"
+	authoredContextEventValue          = "Event"
+	authoredContextHealthValue         = "Health"
+	authoredContextLastActivityValue   = "Last Activity"
+	authoredContextMessageValue        = "Message"
+	authoredContextNewDigestValue      = "New Digest"
+	authoredContextOperationValue      = "Operation"
+	authoredContextPresentValue        = "Present"
+	authoredContextPreviousDigestValue = "Previous Digest"
+	authoredContextReasonValue         = "Reason"
+	authoredContextResultValue         = "Result"
+	authoredContextSessionValue        = "Session"
+	authoredContextSnapshotValue       = "Snapshot"
+	authoredContextSourceValue         = "Source"
+	authoredContextStateValue          = "State"
+	authoredContextSummaryValue        = "Summary"
+	authoredContextUpdatedValue        = "Updated"
+	authoredContextValidValue          = "Valid"
+	authoredContextWorkspaceValue      = "Workspace"
+	authoredContextActionKey           = "action"
+	authoredContextActiveKey           = "active"
+	authoredContextConfigDigestKey     = "config_digest"
+	authoredContextEventKey            = "event"
+	authoredContextHealthKey           = "health"
+	authoredContextHeartbeatKey        = "heartbeat"
+	authoredContextOperationKey        = "operation"
+	authoredContextSoulKey             = "soul"
+)
+
 type authoredBodyInput struct {
 	file  string
 	stdin bool
@@ -19,7 +81,7 @@ type authoredBodyInput struct {
 
 func newAgentSoulCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "soul",
+		Use:   authoredContextSoulKey,
 		Short: "Inspect and manage agent SOUL.md files",
 	}
 	cmd.AddCommand(newAgentSoulInspectCommand(deps))
@@ -261,7 +323,7 @@ func newAgentSoulRollbackCommand(deps commandDeps) *cobra.Command {
 
 func newAgentHeartbeatCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "heartbeat",
+		Use:   authoredContextHeartbeatKey,
 		Short: "Inspect and manage agent HEARTBEAT.md files",
 	}
 	cmd.AddCommand(newAgentHeartbeatInspectCommand(deps))
@@ -563,7 +625,7 @@ func newAgentHeartbeatStatusCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	addWorkspaceFlag(cmd)
-	cmd.Flags().StringVar(&sessionID, "session", "", "Session id for wake state and health")
+	cmd.Flags().StringVar(&sessionID, sessionSessionKey, "", "Session id for wake state and health")
 	cmd.Flags().BoolVar(
 		&includeHealth,
 		"include-session-health",
@@ -595,7 +657,7 @@ func newAgentHeartbeatWakeCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			session, err := changedNonEmptyStringFlag(cmd, "session", sessionID)
+			session, err := changedNonEmptyStringFlag(cmd, sessionSessionKey, sessionID)
 			if err != nil {
 				return err
 			}
@@ -618,7 +680,7 @@ func newAgentHeartbeatWakeCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	addWorkspaceFlag(cmd)
-	cmd.Flags().StringVar(&sessionID, "session", "", "Session id to wake")
+	cmd.Flags().StringVar(&sessionID, sessionSessionKey, "", "Session id to wake")
 	cmd.Flags().StringVar(&source, "source", string(contract.HeartbeatWakeSourceManual), "Wake source")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Evaluate wake gates without sending a prompt")
 	cmd.Flags().StringVar(&idempotencyKey, "idempotency-key", "", "Optional idempotency key")
@@ -627,7 +689,7 @@ func newAgentHeartbeatWakeCommand(deps commandDeps) *cobra.Command {
 
 func newSessionSoulCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "soul",
+		Use:   authoredContextSoulKey,
 		Short: "Manage session Soul snapshots",
 	}
 	cmd.AddCommand(newSessionSoulRefreshCommand(deps))
@@ -715,7 +777,7 @@ func newSessionInspectCommand(deps commandDeps) *cobra.Command {
 }
 
 func addWorkspaceFlag(cmd *cobra.Command) {
-	cmd.Flags().String("workspace", "", "Resolve the agent from a workspace id, name, or path")
+	cmd.Flags().String(workspaceSkillSource, "", "Resolve the agent from a workspace id, name, or path")
 }
 
 func addAuthoredBodyFlags(cmd *cobra.Command, input *authoredBodyInput) {
@@ -807,22 +869,29 @@ func agentSoulBundle(record AgentSoulRecord) outputBundle {
 		jsonValue: record,
 		human: func() (string, error) {
 			summary := renderHumanSection("Agent Soul", []keyValue{
-				{Label: "Agent", Value: stringOrDash(record.AgentName)},
-				{Label: "Enabled", Value: boolString(record.Enabled)},
-				{Label: "Present", Value: boolString(record.Present)},
-				{Label: "Active", Value: boolString(record.Active)},
-				{Label: "Valid", Value: boolString(record.Valid)},
+				{Label: authoredContextAgentValue, Value: stringOrDash(record.AgentName)},
+				{Label: authoredContextEnabledValue, Value: boolString(record.Enabled)},
+				{Label: authoredContextPresentValue, Value: boolString(record.Present)},
+				{Label: authoredContextActiveValue, Value: boolString(record.Active)},
+				{Label: authoredContextValidValue, Value: boolString(record.Valid)},
 				{Label: "Validation", Value: stringOrDash(string(record.ValidationStatus))},
-				{Label: "Digest", Value: stringOrDash(record.Digest)},
-				{Label: "Snapshot", Value: stringOrDash(record.SnapshotID)},
+				{Label: authoredContextDigestValue, Value: stringOrDash(record.Digest)},
+				{Label: authoredContextSnapshotValue, Value: stringOrDash(record.SnapshotID)},
 				{Label: "Revision", Value: stringOrDash(record.RevisionID)},
-				{Label: "Source", Value: stringOrDash(record.SourcePath)},
+				{Label: authoredContextSourceValue, Value: stringOrDash(record.SourcePath)},
 			})
 			return renderHumanBlocks(summary, diagnosticsTable(record.Diagnostics)), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject("agent_soul", []string{
-				"agent", "enabled", "present", "active", "valid", "validation_status", "digest", "source_path",
+				agentAgentKey,
+				automationEnabledKey,
+				providerAuthStatePresent,
+				authoredContextActiveKey,
+				configValidKey,
+				"validation_status",
+				authoredContextDigestKey,
+				"source_path",
 			}, []string{
 				record.AgentName,
 				boolString(record.Enabled),
@@ -847,10 +916,10 @@ func agentSoulMutationBundle(record *AgentSoulMutationRecord) outputBundle {
 		human: func() (string, error) {
 			revision := renderHumanSection("Soul Revision", []keyValue{
 				{Label: "ID", Value: stringOrDash(record.Revision.ID)},
-				{Label: "Action", Value: stringOrDash(string(record.Revision.Action))},
-				{Label: "Previous Digest", Value: stringOrDash(record.Revision.PreviousDigest)},
-				{Label: "New Digest", Value: stringOrDash(record.Revision.NewDigest)},
-				{Label: "Created", Value: stringOrDash(formatTime(record.Revision.CreatedAt))},
+				{Label: authoredContextActionValue, Value: stringOrDash(string(record.Revision.Action))},
+				{Label: authoredContextPreviousDigestValue, Value: stringOrDash(record.Revision.PreviousDigest)},
+				{Label: authoredContextNewDigestValue, Value: stringOrDash(record.Revision.NewDigest)},
+				{Label: authoredContextCreatedValue, Value: stringOrDash(formatTime(record.Revision.CreatedAt))},
 			})
 			soul, err := agentSoulBundle(record.Soul).human()
 			if err != nil {
@@ -860,7 +929,11 @@ func agentSoulMutationBundle(record *AgentSoulMutationRecord) outputBundle {
 		},
 		toon: func() (string, error) {
 			return renderToonObject("agent_soul_revision", []string{
-				"id", "action", "previous_digest", "new_digest", "created_at",
+				"id",
+				authoredContextActionKey,
+				authoredContextPreviousDigestKey,
+				authoredContextNewDigestKey,
+				automationCreatedAtKey,
 			}, []string{
 				record.Revision.ID,
 				string(record.Revision.Action),
@@ -877,9 +950,23 @@ func agentSoulHistoryBundle(record AgentSoulHistoryRecord) outputBundle {
 		record,
 		record.Revisions,
 		"Soul Revisions",
-		[]string{"ID", "Agent", "Action", "Previous Digest", "New Digest", "Created"},
+		[]string{
+			"ID",
+			authoredContextAgentValue,
+			authoredContextActionValue,
+			authoredContextPreviousDigestValue,
+			authoredContextNewDigestValue,
+			authoredContextCreatedValue,
+		},
 		"agent_soul_revisions",
-		[]string{"id", "agent", "action", "previous_digest", "new_digest", "created_at"},
+		[]string{
+			"id",
+			agentAgentKey,
+			authoredContextActionKey,
+			authoredContextPreviousDigestKey,
+			authoredContextNewDigestKey,
+			automationCreatedAtKey,
+		},
 		func(item AgentSoulRevisionRecord) []string {
 			return []string{
 				stringOrDash(item.ID),
@@ -912,23 +999,30 @@ func agentHeartbeatBundle(record *AgentHeartbeatRecord) outputBundle {
 		jsonValue: record,
 		human: func() (string, error) {
 			summary := renderHumanSection("Agent Heartbeat", []keyValue{
-				{Label: "Agent", Value: stringOrDash(record.AgentName)},
-				{Label: "Enabled", Value: boolString(record.Enabled)},
-				{Label: "Present", Value: boolString(record.Present)},
-				{Label: "Active", Value: boolString(record.Active)},
-				{Label: "Valid", Value: boolString(record.Valid)},
+				{Label: authoredContextAgentValue, Value: stringOrDash(record.AgentName)},
+				{Label: authoredContextEnabledValue, Value: boolString(record.Enabled)},
+				{Label: authoredContextPresentValue, Value: boolString(record.Present)},
+				{Label: authoredContextActiveValue, Value: boolString(record.Active)},
+				{Label: authoredContextValidValue, Value: boolString(record.Valid)},
 				{Label: "Validation", Value: stringOrDash(string(record.ValidationStatus))},
-				{Label: "Digest", Value: stringOrDash(record.Digest)},
-				{Label: "Config Digest", Value: stringOrDash(record.ConfigDigest)},
-				{Label: "Snapshot", Value: stringOrDash(record.SnapshotID)},
-				{Label: "Source", Value: stringOrDash(record.SourcePath)},
-				{Label: "Summary", Value: stringOrDash(record.Summary)},
+				{Label: authoredContextDigestValue, Value: stringOrDash(record.Digest)},
+				{Label: authoredContextConfigDigestValue, Value: stringOrDash(record.ConfigDigest)},
+				{Label: authoredContextSnapshotValue, Value: stringOrDash(record.SnapshotID)},
+				{Label: authoredContextSourceValue, Value: stringOrDash(record.SourcePath)},
+				{Label: authoredContextSummaryValue, Value: stringOrDash(record.Summary)},
 			})
 			return renderHumanBlocks(summary, diagnosticsTable(record.Diagnostics)), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject("agent_heartbeat", []string{
-				"agent", "enabled", "present", "active", "valid", "validation_status", "digest", "config_digest",
+				agentAgentKey,
+				automationEnabledKey,
+				providerAuthStatePresent,
+				authoredContextActiveKey,
+				configValidKey,
+				"validation_status",
+				authoredContextDigestKey,
+				authoredContextConfigDigestKey,
 			}, []string{
 				record.AgentName,
 				boolString(record.Enabled),
@@ -953,11 +1047,11 @@ func agentHeartbeatMutationBundle(record *AgentHeartbeatMutationRecord) outputBu
 		human: func() (string, error) {
 			revision := renderHumanSection("Heartbeat Revision", []keyValue{
 				{Label: "ID", Value: stringOrDash(record.Revision.ID)},
-				{Label: "Operation", Value: stringOrDash(string(record.Revision.Operation))},
-				{Label: "Previous Digest", Value: stringOrDash(record.Revision.PreviousDigest)},
-				{Label: "New Digest", Value: stringOrDash(record.Revision.NewDigest)},
-				{Label: "Snapshot", Value: stringOrDash(record.Revision.NewSnapshotID)},
-				{Label: "Created", Value: stringOrDash(formatTime(record.Revision.CreatedAt))},
+				{Label: authoredContextOperationValue, Value: stringOrDash(string(record.Revision.Operation))},
+				{Label: authoredContextPreviousDigestValue, Value: stringOrDash(record.Revision.PreviousDigest)},
+				{Label: authoredContextNewDigestValue, Value: stringOrDash(record.Revision.NewDigest)},
+				{Label: authoredContextSnapshotValue, Value: stringOrDash(record.Revision.NewSnapshotID)},
+				{Label: authoredContextCreatedValue, Value: stringOrDash(formatTime(record.Revision.CreatedAt))},
 			})
 			heartbeat, err := agentHeartbeatBundle(&record.Heartbeat).human()
 			if err != nil {
@@ -967,7 +1061,12 @@ func agentHeartbeatMutationBundle(record *AgentHeartbeatMutationRecord) outputBu
 		},
 		toon: func() (string, error) {
 			return renderToonObject("agent_heartbeat_revision", []string{
-				"id", "operation", "previous_digest", "new_digest", "snapshot", "created_at",
+				"id",
+				authoredContextOperationKey,
+				authoredContextPreviousDigestKey,
+				authoredContextNewDigestKey,
+				"snapshot",
+				automationCreatedAtKey,
 			}, []string{
 				record.Revision.ID,
 				string(record.Revision.Operation),
@@ -985,9 +1084,23 @@ func agentHeartbeatHistoryBundle(record AgentHeartbeatHistoryRecord) outputBundl
 		record,
 		record.Revisions,
 		"Heartbeat Revisions",
-		[]string{"ID", "Agent", "Operation", "Previous Digest", "New Digest", "Created"},
+		[]string{
+			"ID",
+			authoredContextAgentValue,
+			authoredContextOperationValue,
+			authoredContextPreviousDigestValue,
+			authoredContextNewDigestValue,
+			authoredContextCreatedValue,
+		},
 		"agent_heartbeat_revisions",
-		[]string{"id", "agent", "operation", "previous_digest", "new_digest", "created_at"},
+		[]string{
+			"id",
+			agentAgentKey,
+			authoredContextOperationKey,
+			authoredContextPreviousDigestKey,
+			authoredContextNewDigestKey,
+			automationCreatedAtKey,
+		},
 		func(item AgentHeartbeatRevisionRecord) []string {
 			return []string{
 				stringOrDash(item.ID),
@@ -1016,14 +1129,14 @@ func agentHeartbeatStatusBundle(record AgentHeartbeatStatusRecord) outputBundle 
 		jsonValue: record,
 		human: func() (string, error) {
 			summary := renderHumanSection("Heartbeat Status", []keyValue{
-				{Label: "Agent", Value: stringOrDash(record.AgentName)},
-				{Label: "Enabled", Value: boolString(record.Enabled)},
-				{Label: "Present", Value: boolString(record.Present)},
-				{Label: "Active", Value: boolString(record.Active)},
-				{Label: "Valid", Value: boolString(record.Valid)},
-				{Label: "Digest", Value: stringOrDash(record.Digest)},
-				{Label: "Config Digest", Value: stringOrDash(record.ConfigDigest)},
-				{Label: "Summary", Value: stringOrDash(record.Summary)},
+				{Label: authoredContextAgentValue, Value: stringOrDash(record.AgentName)},
+				{Label: authoredContextEnabledValue, Value: boolString(record.Enabled)},
+				{Label: authoredContextPresentValue, Value: boolString(record.Present)},
+				{Label: authoredContextActiveValue, Value: boolString(record.Active)},
+				{Label: authoredContextValidValue, Value: boolString(record.Valid)},
+				{Label: authoredContextDigestValue, Value: stringOrDash(record.Digest)},
+				{Label: authoredContextConfigDigestValue, Value: stringOrDash(record.ConfigDigest)},
+				{Label: authoredContextSummaryValue, Value: stringOrDash(record.Summary)},
 			})
 			blocks := []string{summary, diagnosticsTable(record.Diagnostics)}
 			if record.WakeState != nil {
@@ -1039,7 +1152,13 @@ func agentHeartbeatStatusBundle(record AgentHeartbeatStatusRecord) outputBundle 
 		},
 		toon: func() (string, error) {
 			return renderToonObject("agent_heartbeat_status", []string{
-				"agent", "enabled", "present", "active", "valid", "digest", "config_digest",
+				agentAgentKey,
+				automationEnabledKey,
+				providerAuthStatePresent,
+				authoredContextActiveKey,
+				configValidKey,
+				authoredContextDigestKey,
+				authoredContextConfigDigestKey,
 			}, []string{
 				record.AgentName,
 				boolString(record.Enabled),
@@ -1058,18 +1177,18 @@ func agentHeartbeatWakeBundle(record AgentHeartbeatWakeDecisionRecord) outputBun
 		jsonValue: record,
 		human: func() (string, error) {
 			return renderHumanSection("Heartbeat Wake", []keyValue{
-				{Label: "Event", Value: stringOrDash(record.WakeEventID)},
-				{Label: "Result", Value: stringOrDash(string(record.Result))},
-				{Label: "Reason", Value: stringOrDash(string(record.Reason))},
+				{Label: authoredContextEventValue, Value: stringOrDash(record.WakeEventID)},
+				{Label: authoredContextResultValue, Value: stringOrDash(string(record.Result))},
+				{Label: authoredContextReasonValue, Value: stringOrDash(string(record.Reason))},
 				{Label: "Policy Snapshot", Value: stringOrDash(record.PolicySnapshotID)},
 				{Label: "Policy Digest", Value: stringOrDash(record.PolicyDigest)},
-				{Label: "Config Digest", Value: stringOrDash(record.ConfigDigest)},
+				{Label: authoredContextConfigDigestValue, Value: stringOrDash(record.ConfigDigest)},
 				{Label: "Synthetic Prompt", Value: stringOrDash(record.SyntheticPromptID)},
 			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject("agent_heartbeat_wake", []string{
-				"event", "result", "reason", "policy_digest", "config_digest",
+				authoredContextEventKey, "result", memoryReasonKey, "policy_digest", authoredContextConfigDigestKey,
 			}, []string{
 				record.WakeEventID,
 				string(record.Result),
@@ -1089,7 +1208,13 @@ func sessionHealthBundle(record SessionHealthRecord) outputBundle {
 		},
 		toon: func() (string, error) {
 			return renderToonObject("session_health", []string{
-				"session", "workspace", "agent", "state", "health", "eligible_for_wake", "reason",
+				sessionSessionKey,
+				workspaceSkillSource,
+				agentAgentKey,
+				networkStateKey,
+				authoredContextHealthKey,
+				"eligible_for_wake",
+				memoryReasonKey,
 			}, []string{
 				record.SessionID,
 				record.WorkspaceID,
@@ -1108,16 +1233,16 @@ func sessionStatusBundle(record SessionStatusRecord) outputBundle {
 		jsonValue: record,
 		human: func() (string, error) {
 			status := renderHumanSection("Session Status", []keyValue{
-				{Label: "Session", Value: stringOrDash(record.SessionID)},
-				{Label: "Workspace", Value: stringOrDash(record.WorkspaceID)},
-				{Label: "Agent", Value: stringOrDash(record.AgentName)},
-				{Label: "State", Value: stringOrDash(string(record.State))},
-				{Label: "Health", Value: stringOrDash(string(record.Health))},
+				{Label: authoredContextSessionValue, Value: stringOrDash(record.SessionID)},
+				{Label: authoredContextWorkspaceValue, Value: stringOrDash(record.WorkspaceID)},
+				{Label: authoredContextAgentValue, Value: stringOrDash(record.AgentName)},
+				{Label: authoredContextStateValue, Value: stringOrDash(string(record.State))},
+				{Label: authoredContextHealthValue, Value: stringOrDash(string(record.Health))},
 				{Label: "Active Prompt", Value: boolString(record.ActivePrompt)},
 				{Label: "Attachable", Value: boolString(record.Attachable)},
 				{Label: "Eligible For Wake", Value: boolString(record.EligibleForWake)},
 				{Label: "Ineligibility Reason", Value: stringOrDash(string(record.IneligibilityReason))},
-				{Label: "Updated", Value: stringOrDash(formatTime(record.UpdatedAt))},
+				{Label: authoredContextUpdatedValue, Value: stringOrDash(formatTime(record.UpdatedAt))},
 			})
 			if record.WakeState == nil {
 				return status, nil
@@ -1126,7 +1251,13 @@ func sessionStatusBundle(record SessionStatusRecord) outputBundle {
 		},
 		toon: func() (string, error) {
 			return renderToonObject("session_status", []string{
-				"session", "workspace", "agent", "state", "health", "eligible_for_wake", "reason",
+				sessionSessionKey,
+				workspaceSkillSource,
+				agentAgentKey,
+				networkStateKey,
+				authoredContextHealthKey,
+				"eligible_for_wake",
+				memoryReasonKey,
 			}, []string{
 				record.SessionID,
 				record.WorkspaceID,
@@ -1148,7 +1279,7 @@ func sessionInspectBundle(record SessionInspectRecord) outputBundle {
 				sessionHealthSection("Session Health", record.Health),
 				renderHumanSection("Policy Correlation", []keyValue{
 					{Label: "Policy Digest", Value: stringOrDash(record.PolicyDigest)},
-					{Label: "Config Digest", Value: stringOrDash(record.ConfigDigest)},
+					{Label: authoredContextConfigDigestValue, Value: stringOrDash(record.ConfigDigest)},
 				}),
 				diagnosticsTable(record.Diagnostics),
 			}
@@ -1162,7 +1293,7 @@ func sessionInspectBundle(record SessionInspectRecord) outputBundle {
 		},
 		toon: func() (string, error) {
 			return renderToonObject("session_inspect", []string{
-				"session", "policy_digest", "config_digest", "wake_events",
+				sessionSessionKey, "policy_digest", authoredContextConfigDigestKey, "wake_events",
 			}, []string{
 				record.SessionID,
 				record.PolicyDigest,
@@ -1175,32 +1306,32 @@ func sessionInspectBundle(record SessionInspectRecord) outputBundle {
 
 func sessionHealthSection(title string, record SessionHealthRecord) string {
 	return renderHumanSection(title, []keyValue{
-		{Label: "Session", Value: stringOrDash(record.SessionID)},
-		{Label: "Workspace", Value: stringOrDash(record.WorkspaceID)},
-		{Label: "Agent", Value: stringOrDash(record.AgentName)},
-		{Label: "State", Value: stringOrDash(string(record.State))},
-		{Label: "Health", Value: stringOrDash(string(record.Health))},
+		{Label: authoredContextSessionValue, Value: stringOrDash(record.SessionID)},
+		{Label: authoredContextWorkspaceValue, Value: stringOrDash(record.WorkspaceID)},
+		{Label: authoredContextAgentValue, Value: stringOrDash(record.AgentName)},
+		{Label: authoredContextStateValue, Value: stringOrDash(string(record.State))},
+		{Label: authoredContextHealthValue, Value: stringOrDash(string(record.Health))},
 		{Label: "Active Prompt", Value: boolString(record.ActivePrompt)},
 		{Label: "Attachable", Value: boolString(record.Attachable)},
 		{Label: "Eligible For Wake", Value: boolString(record.EligibleForWake)},
 		{Label: "Ineligibility Reason", Value: stringOrDash(string(record.IneligibilityReason))},
-		{Label: "Last Activity", Value: stringOrDash(formatTimePtr(record.LastActivityAt))},
+		{Label: authoredContextLastActivityValue, Value: stringOrDash(formatTimePtr(record.LastActivityAt))},
 		{Label: "Last Presence", Value: stringOrDash(formatTimePtr(record.LastPresenceAt))},
-		{Label: "Updated", Value: stringOrDash(formatTime(record.UpdatedAt))},
+		{Label: authoredContextUpdatedValue, Value: stringOrDash(formatTime(record.UpdatedAt))},
 	})
 }
 
 func wakeStateSection(title string, state contract.HeartbeatWakeStatePayload) string {
 	return renderHumanSection(title, []keyValue{
-		{Label: "Session", Value: stringOrDash(state.SessionID)},
-		{Label: "Agent", Value: stringOrDash(state.AgentName)},
+		{Label: authoredContextSessionValue, Value: stringOrDash(state.SessionID)},
+		{Label: authoredContextAgentValue, Value: stringOrDash(state.AgentName)},
 		{Label: "Policy Snapshot", Value: stringOrDash(state.PolicySnapshotID)},
 		{Label: "Last Wake", Value: stringOrDash(formatTimePtr(state.LastWakeAt))},
 		{Label: "Next Allowed", Value: stringOrDash(formatTimePtr(state.NextAllowedAt))},
 		{Label: "Coalesced", Value: strconv.Itoa(state.CoalescedCount)},
 		{Label: "Last Result", Value: stringOrDash(string(state.LastResult))},
 		{Label: "Last Reason", Value: stringOrDash(string(state.LastReason))},
-		{Label: "Updated", Value: stringOrDash(formatTime(state.UpdatedAt))},
+		{Label: authoredContextUpdatedValue, Value: stringOrDash(formatTime(state.UpdatedAt))},
 	})
 }
 
@@ -1218,7 +1349,7 @@ func diagnosticsTable(items []contract.AuthoredContextDiagnosticPayload) string 
 			stringOrDash(item.Message),
 		})
 	}
-	return renderHumanTable("Diagnostics", []string{"Severity", "Code", "Location", "Message"}, rows)
+	return renderHumanTable("Diagnostics", []string{"Severity", "Code", "Location", authoredContextMessageValue}, rows)
 }
 
 func wakeEventsTable(items []contract.HeartbeatWakeEventPayload) string {
@@ -1233,5 +1364,16 @@ func wakeEventsTable(items []contract.HeartbeatWakeEventPayload) string {
 			stringOrDash(formatTime(item.CreatedAt)),
 		})
 	}
-	return renderHumanTable("Wake Events", []string{"ID", "Session", "Source", "Result", "Reason", "Created"}, rows)
+	return renderHumanTable(
+		"Wake Events",
+		[]string{
+			"ID",
+			authoredContextSessionValue,
+			authoredContextSourceValue,
+			authoredContextResultValue,
+			authoredContextReasonValue,
+			authoredContextCreatedValue,
+		},
+		rows,
+	)
 }

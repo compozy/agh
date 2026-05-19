@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+const (
+	triggerFilterKindKey        = "kind"
+	triggerFilterScopeKey       = "scope"
+	triggerFilterSourceKey      = "source"
+	triggerFilterWorkspaceIDKey = "workspace_id"
+)
+
 func exactFilterMatch(filter map[string]string, envelope ActivationEnvelope) bool {
 	for rawPath, rawWant := range filter {
 		entry, ok := triggerFilterEntryFromPath(rawPath, rawWant)
@@ -66,16 +73,16 @@ func triggerFilterEntryFromPath(path string, want string) (triggerFilterEntry, b
 		want: strings.TrimSpace(want),
 	}
 	switch trimmedPath {
-	case "kind":
+	case triggerFilterKindKey:
 		entry.field = triggerFilterFieldKind
 		return entry, true
-	case "scope":
+	case triggerFilterScopeKey:
 		entry.field = triggerFilterFieldScope
 		return entry, true
-	case "workspace_id":
+	case triggerFilterWorkspaceIDKey:
 		entry.field = triggerFilterFieldWorkspaceID
 		return entry, true
-	case "source":
+	case triggerFilterSourceKey:
 		entry.field = triggerFilterFieldSource
 		return entry, true
 	}

@@ -13,6 +13,10 @@ import (
 	tomlast "github.com/pelletier/go-toml/v2/unstable"
 )
 
+const (
+	persistenceValueKey = "value"
+)
+
 var (
 	// ErrUnsupportedTOMLMutation reports a mutation that would require rewriting
 	// unrelated TOML structure instead of editing the targeted document fragment.
@@ -1147,7 +1151,7 @@ func renderBareValue(value any) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	tree.SetPath([]string{"value"}, normalized)
+	tree.SetPath([]string{persistenceValueKey}, normalized)
 	rendered, err := tree.ToTomlString()
 	if err != nil {
 		return "", fmt.Errorf("config: encode TOML value: %w", err)
@@ -1286,7 +1290,7 @@ func decodeStringValue(value []byte) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	text, ok := tree.Get("value").(string)
+	text, ok := tree.Get(persistenceValueKey).(string)
 	return text, ok
 }
 

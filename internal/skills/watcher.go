@@ -18,6 +18,11 @@ import (
 	"github.com/pedronauck/agh/internal/filesnap"
 )
 
+const (
+	watcherAddedKey    = "added"
+	watcherModifiedKey = "modified"
+)
+
 const defaultWatcherInterval = 3 * time.Second
 
 type globalRefresher interface {
@@ -318,12 +323,12 @@ func diffSnapshots(previous, current map[string]filesnap.Snapshot) []fileChange 
 	for path, snapshot := range current {
 		previousSnapshot, ok := previous[path]
 		if !ok {
-			changes = append(changes, fileChange{path: path, action: "added"})
+			changes = append(changes, fileChange{path: path, action: watcherAddedKey})
 			continue
 		}
 
 		if snapshot.Size != previousSnapshot.Size || !snapshot.ModTime.Equal(previousSnapshot.ModTime) {
-			changes = append(changes, fileChange{path: path, action: "modified"})
+			changes = append(changes, fileChange{path: path, action: watcherModifiedKey})
 		}
 	}
 

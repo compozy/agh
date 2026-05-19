@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -949,8 +950,8 @@ func realpathDeepestExisting(target string) (string, error) {
 	for {
 		resolved, err := filepath.EvalSymlinks(current)
 		if err == nil {
-			for index := len(suffix) - 1; index >= 0; index-- {
-				resolved = filepath.Join(resolved, suffix[index])
+			for _, s := range slices.Backward(suffix) {
+				resolved = filepath.Join(resolved, s)
 			}
 			return filepath.Clean(resolved), nil
 		}

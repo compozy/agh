@@ -22,6 +22,10 @@ import (
 )
 
 const (
+	settingsErrorKey = "error"
+)
+
+const (
 	settingsRestartStatusPathPrefix  = "/api/settings/actions/restart/"
 	settingsObservabilityLogTailPath = "/api/settings/observability/log-tail"
 )
@@ -347,7 +351,7 @@ func (h *BaseHandlers) StreamSettingsObservabilityLogTail(c *gin.Context) {
 			rotated, rotationErr := settingsLogTailRotated(logPath, info, file)
 			if rotationErr != nil {
 				h.writeSSEBestEffort(writer, SSEMessage{
-					Name: "error",
+					Name: settingsErrorKey,
 					Data: contract.ErrorPayload{Error: rotationErr.Error()},
 				})
 				return
@@ -357,7 +361,7 @@ func (h *BaseHandlers) StreamSettingsObservabilityLogTail(c *gin.Context) {
 			}
 			if drainErr := h.drainSettingsLogTail(writer, reader, &partial); drainErr != nil {
 				h.writeSSEBestEffort(writer, SSEMessage{
-					Name: "error",
+					Name: settingsErrorKey,
 					Data: contract.ErrorPayload{Error: drainErr.Error()},
 				})
 				return

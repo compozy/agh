@@ -14,9 +14,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	skillCommandsCreatedKey       = "created"
+	skillCommandsInfoNameValue    = "info <name>"
+	skillCommandsListKey          = "list"
+	skillCommandsSearchQueryValue = "search <query>"
+	skillCommandsSkillKey         = "skill"
+)
+
 func newSkillCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "skill",
+		Use:   skillCommandsSkillKey,
 		Short: "Manage local AgentSkills",
 	}
 
@@ -39,7 +47,7 @@ func newSkillListCommand(deps commandDeps) *cobra.Command {
 	var agentName string
 
 	cmd := &cobra.Command{
-		Use:   "list",
+		Use:   skillCommandsListKey,
 		Short: "List locally available skills",
 		Example: `  # List every skill visible in the current workspace
   agh skill list
@@ -92,7 +100,7 @@ func newSkillListCommand(deps commandDeps) *cobra.Command {
 	)
 	cmd.Flags().StringVar(
 		&workspace,
-		"workspace",
+		workspaceSkillSource,
 		"",
 		"Resolve daemon-managed skills from a workspace id, name, or path",
 	)
@@ -121,7 +129,7 @@ func newSkillViewCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&filePath, "file", "", "Relative file path inside the skill directory")
 	cmd.Flags().StringVar(
 		&workspace,
-		"workspace",
+		workspaceSkillSource,
 		"",
 		"Resolve the daemon-managed skill from a workspace id, name, or path",
 	)
@@ -248,7 +256,7 @@ func newSkillInfoCommand(deps commandDeps) *cobra.Command {
 	var agentName string
 
 	cmd := &cobra.Command{
-		Use:   "info <name>",
+		Use:   skillCommandsInfoNameValue,
 		Short: "Show detailed metadata for one skill",
 		Example: `  # Inspect a skill's metadata and resource list
   agh skill info code-review`,
@@ -305,7 +313,7 @@ func newSkillInfoCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(
 		&workspace,
-		"workspace",
+		workspaceSkillSource,
 		"",
 		"Resolve the daemon-managed skill from a workspace id, name, or path",
 	)
@@ -361,8 +369,8 @@ func newSkillCreateCommand(deps commandDeps) *cobra.Command {
 				Name:   skillName,
 				Path:   skillDir,
 				File:   skillFilePath,
-				Source: "workspace",
-				Status: "created",
+				Source: workspaceSkillSource,
+				Status: skillCommandsCreatedKey,
 			}))
 		},
 	}
@@ -429,7 +437,7 @@ func newSkillActionCommand(
 			return writeCommandOutput(cmd, skillActionBundle(args[0], actionName, result))
 		},
 	}
-	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Workspace id, name, or path")
+	cmd.Flags().StringVar(&workspaceRef, workspaceSkillSource, "", "Workspace id, name, or path")
 	cmd.Flags().StringVar(&agentName, "for-agent", "", "Resolve the effective skill set for one logical agent")
 	return cmd
 }
@@ -438,7 +446,7 @@ func newSkillSearchCommand(deps commandDeps) *cobra.Command {
 	limit := defaultMarketplaceSearchLim
 
 	cmd := &cobra.Command{
-		Use:   "search <query>",
+		Use:   skillCommandsSearchQueryValue,
 		Short: "Search marketplace skills",
 		Example: `  # Search the configured marketplace
   agh skill search "code review"

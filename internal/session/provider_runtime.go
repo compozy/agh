@@ -16,6 +16,10 @@ import (
 	"github.com/pedronauck/agh/internal/vault"
 )
 
+const (
+	providerRuntimeAPIKeyKey = "api_key"
+)
+
 type envProviderSecretResolver struct {
 	lookupEnv func(string) (string, bool)
 }
@@ -283,7 +287,8 @@ func (m *Manager) materializePiRuntime(
 func piCredentialEnv(slots []aghconfig.ProviderCredentialSlot, injectedTargetEnvs map[string]struct{}) string {
 	for _, slot := range slots {
 		targetEnv := strings.TrimSpace(slot.TargetEnv)
-		if strings.TrimSpace(slot.Kind) == "api_key" && injectedProviderTargetEnv(targetEnv, injectedTargetEnvs) {
+		if strings.TrimSpace(slot.Kind) == providerRuntimeAPIKeyKey &&
+			injectedProviderTargetEnv(targetEnv, injectedTargetEnvs) {
 			return targetEnv
 		}
 	}

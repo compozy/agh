@@ -13,6 +13,10 @@ import (
 	"strings"
 )
 
+const (
+	boundaryTrueKey = "true"
+)
+
 const moduleImportPath = "github.com/pedronauck/agh"
 
 // Boundaries performs a best-effort import boundary verification for local source checkouts.
@@ -54,7 +58,7 @@ func (d *Daemon) shouldVerifyBoundaries() bool {
 		envGetter = os.Getenv
 	}
 	value := strings.ToLower(strings.TrimSpace(envGetter("AGH_DEV_VERIFY_BOUNDARIES")))
-	return value == "1" || value == "true" || value == "yes"
+	return value == "1" || value == boundaryTrueKey || value == "yes"
 }
 
 func verifyImportBoundaries(root string) ([]error, error) {

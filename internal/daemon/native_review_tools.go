@@ -11,6 +11,15 @@ import (
 	toolspkg "github.com/pedronauck/agh/internal/tools"
 )
 
+const (
+	nativeReviewToolsReviewKey = "review"
+)
+
+const (
+	nativeReviewToolsCreatedKey = "created"
+	nativeReviewToolsReviewsKey = "reviews"
+)
+
 type submitRunReviewInput struct {
 	ReviewID          string   `json:"review_id"`
 	RunID             string   `json:"run_id"`
@@ -67,7 +76,7 @@ func (n *daemonNativeTools) taskRunReviewRequest(
 		return toolspkg.ToolResult{}, nativeReviewToolError(req.ToolID, err)
 	}
 	return structuredResult(
-		map[string]any{"review": review, "created": created},
+		map[string]any{nativeReviewToolsReviewKey: review, nativeReviewToolsCreatedKey: created},
 		fmt.Sprintf("review %s", review.ReviewID),
 	)
 }
@@ -93,7 +102,10 @@ func (n *daemonNativeTools) taskRunReviewList(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeReviewToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{"reviews": reviews}, fmt.Sprintf("%d reviews", len(reviews)))
+	return structuredResult(
+		map[string]any{nativeReviewToolsReviewsKey: reviews},
+		fmt.Sprintf("%d reviews", len(reviews)),
+	)
 }
 
 func (n *daemonNativeTools) taskRunReviewShow(
@@ -117,7 +129,10 @@ func (n *daemonNativeTools) taskRunReviewShow(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeReviewToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{"review": review}, fmt.Sprintf("review %s", review.ReviewID))
+	return structuredResult(
+		map[string]any{nativeReviewToolsReviewKey: review},
+		fmt.Sprintf("review %s", review.ReviewID),
+	)
 }
 
 func (n *daemonNativeTools) submitRunReviewAvailability(
@@ -167,9 +182,9 @@ func (n *daemonNativeTools) submitRunReview(
 	}
 	return structuredResult(
 		map[string]any{
-			"review":           result.Review,
-			"continuation_run": result.ContinuationRun,
-			"circuit_opened":   result.CircuitOpened,
+			nativeReviewToolsReviewKey: result.Review,
+			"continuation_run":         result.ContinuationRun,
+			"circuit_opened":           result.CircuitOpened,
 		},
 		submitRunReviewPreview(result),
 	)
@@ -314,7 +329,7 @@ func reviewToolActorContext(id toolspkg.ToolID, scope toolspkg.Scope) (taskpkg.A
 
 func submitRunReviewPreview(result taskpkg.RunReviewResult) string {
 	parts := []string{
-		"review",
+		nativeReviewToolsReviewKey,
 		strings.TrimSpace(result.Review.ReviewID),
 		string(result.Review.Outcome.Normalize()),
 	}

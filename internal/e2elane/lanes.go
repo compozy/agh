@@ -2,6 +2,12 @@ package e2elane
 
 import "fmt"
 
+const (
+	lanesInternalDaemonPath         = "./internal/daemon"
+	lanesInternalSandboxDaytonaPath = "./internal/sandbox/daytona"
+	lanesInternalTestutilE2ePath    = "./internal/testutil/e2e"
+)
+
 type Lane string
 
 const (
@@ -94,7 +100,7 @@ func PlanForLane(lane Lane) (Plan, error) {
 
 var runtimeGoSuites = []GoSuite{
 	{
-		Packages: []string{"./internal/daemon"},
+		Packages: []string{lanesInternalDaemonPath},
 		Run:      RuntimeE2EPattern,
 	},
 	{
@@ -106,18 +112,18 @@ var runtimeGoSuites = []GoSuite{
 		Run:      UDSTransportE2EPattern,
 	},
 	{
-		Packages: []string{"./internal/testutil/e2e"},
+		Packages: []string{lanesInternalTestutilE2ePath},
 		Run:      HarnessRuntimeE2EPattern,
 	},
 }
 
 var nightlyGoSuites = []GoSuite{
 	{
-		Packages: []string{"./internal/daemon"},
+		Packages: []string{lanesInternalDaemonPath},
 		Run:      NightlyRuntimeE2EPattern,
 	},
 	{
-		Packages: []string{"./internal/sandbox/daytona"},
+		Packages: []string{lanesInternalSandboxDaytonaPath},
 		Run:      DaytonaNightlyE2EPattern,
 	},
 }

@@ -13,6 +13,14 @@ import (
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
+const (
+	globalDBTaskClaimStatusKey = "status"
+)
+
+const (
+	globalDBTaskClaimHandoffKey = "handoff"
+)
+
 type taskRunLeaseSnapshot struct {
 	status         taskpkg.RunStatus
 	sessionID      string
@@ -877,14 +885,22 @@ func (g *GlobalDB) coordinationChannelMetadata(
 		return nil, nil
 	}
 	metadata := &taskpkg.CoordinationChannelMetadata{
-		ID:                  channelID,
-		Channel:             channelID,
-		DisplayName:         channelID,
-		WorkspaceID:         taskRecord.WorkspaceID,
-		TaskID:              run.TaskID,
-		RunID:               run.ID,
-		WorkflowID:          taskRunMetadataString(run.Metadata, "workflow_id"),
-		AllowedMessageKinds: []string{"status", "request", "reply", "blocker", "handoff", "result", "review_request"},
+		ID:          channelID,
+		Channel:     channelID,
+		DisplayName: channelID,
+		WorkspaceID: taskRecord.WorkspaceID,
+		TaskID:      run.TaskID,
+		RunID:       run.ID,
+		WorkflowID:  taskRunMetadataString(run.Metadata, "workflow_id"),
+		AllowedMessageKinds: []string{
+			globalDBTaskClaimStatusKey,
+			"request",
+			"reply",
+			"blocker",
+			globalDBTaskClaimHandoffKey,
+			"result",
+			"review_request",
+		},
 	}
 
 	entry, err := networkChannelEntry(ctx, exec, channelID)

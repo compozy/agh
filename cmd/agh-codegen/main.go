@@ -18,6 +18,10 @@ import (
 	"github.com/pedronauck/agh/internal/fileutil"
 )
 
+const (
+	subcommandCheck = "check"
+)
+
 const defaultSDKContractsPath = "sdk/typescript/src/generated/contracts.ts"
 
 var ErrStaleGeneratedFile = errors.New("generated file is stale")
@@ -48,7 +52,7 @@ func runWithPaths(ctx context.Context, args []string, openapiPath string, sdkCon
 		return writeSDKContracts(ctx, sdkContractsPath)
 	case "all":
 		return writeAll(ctx, openapiPath, sdkContractsPath)
-	case "check":
+	case subcommandCheck:
 		if err := checkOpenAPI(openapiPath); err != nil {
 			return err
 		}

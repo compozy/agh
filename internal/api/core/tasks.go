@@ -19,7 +19,6 @@ import (
 const (
 	defaultTaskActorRef        = "local-user"
 	taskDraftOverfetchMaxLimit = 500
-	taskActionList             = "list"
 	taskActionCreate           = "create"
 	taskActionGet              = "get"
 	taskActionDelete           = "delete"

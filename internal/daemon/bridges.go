@@ -1590,8 +1590,8 @@ func (r *bridgeRuntime) lockManagedInstanceLifecycleSet(
 
 	updatedCtx := withBridgeLifecycleContextInstances(ctx, lockedIDs...)
 	return updatedCtx, func() {
-		for idx := len(unlocks) - 1; idx >= 0; idx-- {
-			unlocks[idx]()
+		for _, unlock := range slices.Backward(unlocks) {
+			unlock()
 		}
 	}
 }

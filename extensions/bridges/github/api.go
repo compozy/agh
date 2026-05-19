@@ -22,6 +22,10 @@ import (
 	"github.com/pedronauck/agh/internal/bridgesdk"
 )
 
+const (
+	apiBodyKey = "body"
+)
+
 type githubAPI interface {
 	ValidateAuth(context.Context, int64) (*githubViewer, error)
 	CreateIssueComment(context.Context, int64, string, int64) (*githubIssueComment, error)
@@ -96,7 +100,7 @@ func (c *githubClient) CreateIssueComment(
 		http.MethodPost,
 		fmt.Sprintf("/repos/%s/%s/issues/%d/comments", c.cfg.repoOwner, c.cfg.repoName, issueNumber),
 		map[string]any{
-			"body": body,
+			apiBodyKey: body,
 		},
 		installationID,
 	)
@@ -131,7 +135,7 @@ func (c *githubClient) CreateReviewCommentReply(
 			commentID,
 		),
 		map[string]any{
-			"body": body,
+			apiBodyKey: body,
 		},
 		installationID,
 	)
@@ -161,7 +165,7 @@ func (c *githubClient) UpdateIssueComment(
 		http.MethodPatch,
 		fmt.Sprintf("/repos/%s/%s/issues/comments/%d", c.cfg.repoOwner, c.cfg.repoName, commentID),
 		map[string]any{
-			"body": body,
+			apiBodyKey: body,
 		},
 		installationID,
 	)
@@ -189,7 +193,7 @@ func (c *githubClient) UpdateReviewComment(
 		http.MethodPatch,
 		fmt.Sprintf("/repos/%s/%s/pulls/comments/%d", c.cfg.repoOwner, c.cfg.repoName, commentID),
 		map[string]any{
-			"body": body,
+			apiBodyKey: body,
 		},
 		installationID,
 	)

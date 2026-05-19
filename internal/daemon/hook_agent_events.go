@@ -11,6 +11,17 @@ import (
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 )
 
+const (
+	hookAgentEventsRejectedKey = "rejected"
+)
+
+const (
+	hookAgentEventsCompletedKey = "completed"
+	hookAgentEventsDenyKey      = "deny"
+	hookAgentEventsResolvedKey  = "resolved"
+	hookAgentEventsToolCallKey  = "tool_call"
+)
+
 type hookAgentToolPayload struct {
 	SessionUpdate string          `json:"sessionUpdate"`
 	Status        string          `json:"status,omitempty"`
@@ -91,7 +102,7 @@ func dispatchToolHookEvent(
 	updateType := strings.ToLower(strings.TrimSpace(raw.SessionUpdate))
 	status := strings.ToLower(strings.TrimSpace(raw.Status))
 	switch {
-	case updateType == "tool_call" && !event.ToolPrechecked && status != "pending":
+	case updateType == hookAgentEventsToolCallKey && !event.ToolPrechecked && status != "pending":
 		_, err := hooks.DispatchToolPreCall(ctx, hookspkg.ToolPreCallPayload{
 			PayloadBase:    withHookEvent(base, hookspkg.HookToolPreCall),
 			SessionContext: sessionCtx,
@@ -100,7 +111,7 @@ func dispatchToolHookEvent(
 			ToolInput:      acp.CloneRawMessage(raw.ToolInput),
 		})
 		warnHookAgentDispatch(ctx, logger, hookspkg.HookToolPreCall, err)
-	case updateType == "tool_call_update" && status == "completed":
+	case updateType == "tool_call_update" && status == hookAgentEventsCompletedKey:
 		_, err := hooks.DispatchToolPostCall(ctx, hookspkg.ToolPostCallPayload{
 			PayloadBase:    withHookEvent(base, hookspkg.HookToolPostCall),
 			SessionContext: sessionCtx,
@@ -256,12 +267,12 @@ func hookAgentToolName(payload hookAgentToolPayload, fallback string) string {
 
 func hookPermissionDecisionClass(decision string) string {
 	if decision == "" {
-		return "interactive"
+		return string(SessionClassInteractive)
 	}
 	if hookPermissionDenied(decision) {
 		return hookPermissionDecisionDenied
 	}
-	return "resolved"
+	return hookAgentEventsResolvedKey
 }
 
 func hookPermissionDenied(decision string) bool {
@@ -271,7 +282,10 @@ func hookPermissionDenied(decision string) bool {
 		return false
 	case clean == "block", clean == "blocked":
 		return true
-	case clean == "deny", clean == hookPermissionDecisionDenied, clean == "reject", clean == "rejected":
+	case clean == hookAgentEventsDenyKey,
+		clean == hookPermissionDecisionDenied,
+		clean == "reject",
+		clean == hookAgentEventsRejectedKey:
 		return true
 	case strings.HasPrefix(clean, "block-"):
 		return true

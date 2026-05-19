@@ -16,6 +16,26 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	sessionTypeValue = "Type"
+)
+
+const (
+	extensionTypeKey = "type"
+)
+
+const (
+	extensionCapabilitiesValue = "Capabilities"
+	extensionEnabledValue      = "Enabled"
+	extensionHealthValue       = "Health"
+	extensionCapabilitiesKey   = "capabilities"
+	extensionEnabledKey        = "enabled"
+	extensionExtensionKey      = "extension"
+	extensionHealthKey         = "health"
+	extensionListKey           = "list"
+	extensionSearchQueryValue  = "search <query>"
+)
+
 type preparedExtensionInstall struct {
 	Path     string
 	Manifest *extensionpkg.Manifest
@@ -33,7 +53,7 @@ type localExtensionRegistry interface {
 
 func newExtensionCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "extension",
+		Use:   extensionExtensionKey,
 		Short: "Manage AGH extensions",
 	}
 
@@ -53,7 +73,7 @@ func newExtensionSearchCommand(deps commandDeps) *cobra.Command {
 	var sourceFilter string
 
 	cmd := &cobra.Command{
-		Use:   "search <query>",
+		Use:   extensionSearchQueryValue,
 		Short: "Search remote extension registries",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -72,7 +92,7 @@ func newExtensionSearchCommand(deps commandDeps) *cobra.Command {
 
 func newExtensionListCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "list",
+		Use:   extensionListKey,
 		Short: "List installed extensions",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			items, err := loadExtensionRecords(cmd.Context(), deps)
@@ -132,7 +152,7 @@ func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&sourceFilter, "from", "", "Only use one configured extension registry source")
-	cmd.Flags().StringVar(&version, "version", "", "Install a specific registry version")
+	cmd.Flags().StringVar(&version, daemonVersionKey, "", "Install a specific registry version")
 	cmd.Flags().StringVar(&asset, "asset", "", "Select a specific registry asset when multiple archives exist")
 	return cmd
 }
@@ -519,9 +539,25 @@ func extensionListBundle(items []ExtensionRecord) outputBundle {
 		items,
 		items,
 		"Extensions",
-		[]string{"Name", "Version", "Type", "State", "Source", "Missing Env", "Capabilities"},
+		[]string{
+			automationNameValue,
+			daemonVersionValue,
+			sessionTypeValue,
+			authoredContextStateValue,
+			authoredContextSourceValue,
+			"Missing Env",
+			extensionCapabilitiesValue,
+		},
 		"extensions",
-		[]string{"name", "version", "type", "state", "source", "missing_env", "capabilities"},
+		[]string{
+			automationNameKey,
+			daemonVersionKey,
+			extensionTypeKey,
+			"state",
+			automationSourceKey,
+			"missing_env",
+			extensionCapabilitiesKey,
+		},
 		func(item ExtensionRecord) []string {
 			return []string{
 				stringOrDash(item.Name),
@@ -552,17 +588,20 @@ func extensionBundle(item ExtensionRecord) outputBundle {
 		jsonValue: item,
 		human: func() (string, error) {
 			return renderHumanSection("Extension", []keyValue{
-				{Label: "Name", Value: stringOrDash(item.Name)},
-				{Label: "Version", Value: stringOrDash(item.Version)},
-				{Label: "Type", Value: stringOrDash(item.Type)},
-				{Label: "Source", Value: stringOrDash(item.Source)},
-				{Label: "Enabled", Value: fmt.Sprintf("%t", item.Enabled)},
-				{Label: "State", Value: stringOrDash(item.State)},
+				{Label: automationNameValue, Value: stringOrDash(item.Name)},
+				{Label: daemonVersionValue, Value: stringOrDash(item.Version)},
+				{Label: sessionTypeValue, Value: stringOrDash(item.Type)},
+				{Label: authoredContextSourceValue, Value: stringOrDash(item.Source)},
+				{Label: extensionEnabledValue, Value: fmt.Sprintf("%t", item.Enabled)},
+				{Label: authoredContextStateValue, Value: stringOrDash(item.State)},
 				{Label: "Daemon", Value: boolLabel(item.DaemonRunning, "running", "offline")},
 				{Label: "PID", Value: intOrDash(item.PID)},
 				{Label: "Uptime", Value: stringOrDash(formatExtensionUptime(item.UptimeSeconds))},
-				{Label: "Health", Value: stringOrDash(joinExtensionHealth(item.Health, item.HealthMessage))},
-				{Label: "Capabilities", Value: stringOrDash(strings.Join(item.Capabilities, ", "))},
+				{
+					Label: extensionHealthValue,
+					Value: stringOrDash(joinExtensionHealth(item.Health, item.HealthMessage)),
+				},
+				{Label: extensionCapabilitiesValue, Value: stringOrDash(strings.Join(item.Capabilities, ", "))},
 				{Label: "Actions", Value: stringOrDash(strings.Join(item.Actions, ", "))},
 				{Label: "Requires Env", Value: stringOrDash(strings.Join(item.RequiresEnv, ", "))},
 				{Label: "Missing Env", Value: stringOrDash(strings.Join(item.MissingEnv, ", "))},
@@ -570,19 +609,19 @@ func extensionBundle(item ExtensionRecord) outputBundle {
 			}), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("extension", []string{
-				"name",
-				"version",
-				"type",
-				"source",
-				"enabled",
+			return renderToonObject(extensionExtensionKey, []string{
+				automationNameKey,
+				daemonVersionKey,
+				extensionTypeKey,
+				automationSourceKey,
+				extensionEnabledKey,
 				"state",
 				"daemon_running",
 				"pid",
 				"uptime_seconds",
-				"health",
+				extensionHealthKey,
 				"last_error",
-				"capabilities",
+				extensionCapabilitiesKey,
 				"actions",
 				"requires_env",
 				"missing_env",

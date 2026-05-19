@@ -12,6 +12,10 @@ import (
 )
 
 const (
+	promptSectionsSoulKey = "soul"
+)
+
+const (
 	bundledAghSkillName         = "agh"
 	bundledNetworkReference     = "references/network.md"
 	bundledToolsReference       = "references/tools-and-skills.md"
@@ -116,7 +120,7 @@ func defaultStartupPromptSectionDescriptors(
 	}
 
 	descriptors = append(descriptors, PromptSectionDescriptor{
-		Name:             "soul",
+		Name:             promptSectionsSoulKey,
 		Position:         PromptSectionPositionAppend,
 		Order:            startupSoulSectionOrder,
 		Budget:           startupSoulSectionBudget,

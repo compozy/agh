@@ -12,9 +12,30 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	workspaceModelKey = "model"
+)
+
+const (
+	workspaceAgentValue    = "Agent"
+	workspaceCategoryValue = "Category"
+	workspaceCreatedValue  = "Created"
+	workspaceNameValue     = "Name"
+	workspaceRootValue     = "Root"
+	workspaceSandboxValue  = "Sandbox"
+	workspaceSourceValue   = "Source"
+	workspaceUpdatedValue  = "Updated"
+	workspaceAgentNameKey  = "agent_name"
+	workspaceCategoryKey   = "category"
+	workspaceCreatedAtKey  = "created_at"
+	workspaceFlagKey       = "flag"
+	workspaceListKey       = "list"
+	workspaceSourceKey     = "source"
+)
+
 func newWorkspaceCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "workspace",
+		Use:   workspaceSkillSource,
 		Short: "Manage registered workspaces",
 	}
 
@@ -63,7 +84,7 @@ func newWorkspaceAddCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, workspaceRecordBundle(workspace))
 		},
 	}
-	cmd.Flags().StringVar(&name, "name", "", "Optional workspace name")
+	cmd.Flags().StringVar(&name, automationNameKey, "", "Optional workspace name")
 	cmd.Flags().
 		StringArrayVar(&addDirs, "add-dir", nil, "Additional directory to include (repeatable)")
 	cmd.Flags().
@@ -75,7 +96,7 @@ func newWorkspaceAddCommand(deps commandDeps) *cobra.Command {
 
 func newWorkspaceListCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "list",
+		Use:   workspaceListKey,
 		Short: "List registered workspaces",
 		Example: `  # Show every registered workspace
   agh workspace list
@@ -131,7 +152,7 @@ func newWorkspaceInfoCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		StringVar(
 			&workspaceRef,
-			"workspace",
+			workspaceSkillSource,
 			"",
 			"Workspace root/name/id to inspect when no positional ref is supplied",
 		)
@@ -157,12 +178,12 @@ func resolveWorkspaceInfoRef(deps commandDeps, args []string, workspaceFlag stri
 			if err != nil {
 				return workspaceInfoRef{}, err
 			}
-			return workspaceInfoRef{Ref: resolved, Source: "flag"}, nil
+			return workspaceInfoRef{Ref: resolved, Source: workspaceFlagKey}, nil
 		}
-		return workspaceInfoRef{Ref: trimmed, Source: "flag"}, nil
+		return workspaceInfoRef{Ref: trimmed, Source: workspaceFlagKey}, nil
 	}
 	if trimmed := strings.TrimSpace(deps.getenv("AGH_WORKSPACE")); trimmed != "" {
-		return workspaceInfoRef{Ref: trimmed, Source: "env"}, nil
+		return workspaceInfoRef{Ref: trimmed, Source: configEnvKey}, nil
 	}
 	cwd, err := currentWorkingDirectory(deps)
 	if err != nil {
@@ -209,7 +230,7 @@ func isPathLikeWorkspaceRef(ref string) bool {
 }
 
 func workspaceEditFlagsChanged(cmd *cobra.Command) bool {
-	return cmd.Flags().Changed("name") ||
+	return cmd.Flags().Changed(automationNameKey) ||
 		cmd.Flags().Changed("add-dir") ||
 		cmd.Flags().Changed("remove-dir") ||
 		cmd.Flags().Changed("default-agent") ||
@@ -250,7 +271,7 @@ func newWorkspaceEditCommand(deps commandDeps) *cobra.Command {
 			}
 
 			request := WorkspaceUpdateRequest{}
-			if cmd.Flags().Changed("name") {
+			if cmd.Flags().Changed(automationNameKey) {
 				trimmedName := strings.TrimSpace(name)
 				if trimmedName == "" {
 					return errors.New("cli: --name cannot be empty")
@@ -285,7 +306,7 @@ func newWorkspaceEditCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, workspaceRecordBundle(updated))
 		},
 	}
-	cmd.Flags().StringVar(&name, "name", "", "Rename the workspace")
+	cmd.Flags().StringVar(&name, automationNameKey, "", "Rename the workspace")
 	cmd.Flags().
 		StringArrayVar(&addDirs, "add-dir", nil, "Additional directory to include (repeatable)")
 	cmd.Flags().
@@ -327,20 +348,27 @@ func workspaceRecordBundle(item WorkspaceRecord) outputBundle {
 	return outputBundle{
 		jsonValue: item,
 		human: func() (string, error) {
-			return renderHumanSection("Workspace", []keyValue{
+			return renderHumanSection(authoredContextWorkspaceValue, []keyValue{
 				{Label: "ID", Value: stringOrDash(item.ID)},
-				{Label: "Name", Value: stringOrDash(item.Name)},
-				{Label: "Root", Value: stringOrDash(item.RootDir)},
+				{Label: workspaceNameValue, Value: stringOrDash(item.Name)},
+				{Label: workspaceRootValue, Value: stringOrDash(item.RootDir)},
 				{Label: "Additional Dirs", Value: stringOrDash(strings.Join(item.AddDirs, ", "))},
 				{Label: "Default Agent", Value: stringOrDash(item.DefaultAgent)},
-				{Label: "Sandbox", Value: stringOrDash(item.SandboxRef)},
-				{Label: "Created", Value: stringOrDash(formatTime(item.CreatedAt))},
-				{Label: "Updated", Value: stringOrDash(formatTime(item.UpdatedAt))},
+				{Label: workspaceSandboxValue, Value: stringOrDash(item.SandboxRef)},
+				{Label: workspaceCreatedValue, Value: stringOrDash(formatTime(item.CreatedAt))},
+				{Label: workspaceUpdatedValue, Value: stringOrDash(formatTime(item.UpdatedAt))},
 			}), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("workspace", []string{
-				"id", "name", "root_dir", "add_dirs", "default_agent", "sandbox_ref", "created_at", "updated_at",
+			return renderToonObject(workspaceSkillSource, []string{
+				"id",
+				automationNameKey,
+				"root_dir",
+				"add_dirs",
+				"default_agent",
+				"sandbox_ref",
+				workspaceCreatedAtKey,
+				automationUpdatedAtKey,
 			}, []string{
 				item.ID,
 				item.Name,
@@ -360,9 +388,25 @@ func workspaceListBundle(items []WorkspaceRecord) outputBundle {
 		items,
 		items,
 		"Workspaces",
-		[]string{"ID", "Name", "Root", "Add Dirs", "Default Agent", "Sandbox", "Updated"},
+		[]string{
+			"ID",
+			workspaceNameValue,
+			workspaceRootValue,
+			"Add Dirs",
+			"Default Agent",
+			workspaceSandboxValue,
+			workspaceUpdatedValue,
+		},
 		"workspaces",
-		[]string{"id", "name", "root_dir", "add_dir_count", "default_agent", "sandbox_ref", "updated_at"},
+		[]string{
+			"id",
+			automationNameKey,
+			"root_dir",
+			"add_dir_count",
+			"default_agent",
+			"sandbox_ref",
+			automationUpdatedAtKey,
+		},
 		func(item WorkspaceRecord) []string {
 			return []string{
 				stringOrDash(item.ID),
@@ -418,17 +462,30 @@ func renderWorkspaceDetailHuman(detail WorkspaceDetailRecord) (string, error) {
 		workspaceBlock,
 		renderHumanTable(
 			"Sessions",
-			[]string{"ID", "Name", "Agent", "State", "Workspace", "Updated"},
+			[]string{
+				"ID",
+				workspaceNameValue,
+				workspaceAgentValue,
+				authoredContextStateValue,
+				authoredContextWorkspaceValue,
+				workspaceUpdatedValue,
+			},
 			workspaceSessionRows(detail.Sessions, true),
 		),
 		renderHumanTable(
 			"Agents",
-			[]string{"Name", "Provider", "Model", "Category", "Permissions"},
+			[]string{
+				workspaceNameValue,
+				agentKernelProviderValue,
+				agentKernelModelValue,
+				workspaceCategoryValue,
+				installPermissionsValue,
+			},
 			workspaceAgentRows(detail.Agents, true),
 		),
 		renderHumanTable(
 			"Skills",
-			[]string{"Name", "Source", "Directory"},
+			[]string{workspaceNameValue, workspaceSourceValue, "Directory"},
 			workspaceSkillRows(detail.Skills, true),
 		),
 	), nil
@@ -444,17 +501,30 @@ func renderWorkspaceDetailToon(detail WorkspaceDetailRecord) (string, error) {
 		workspaceBlock,
 		renderToonArray(
 			"sessions",
-			[]string{"id", "name", "agent_name", "state", "workspace", "updated_at"},
+			[]string{
+				"id",
+				automationNameKey,
+				workspaceAgentNameKey,
+				networkStateKey,
+				workspaceSkillSource,
+				automationUpdatedAtKey,
+			},
 			workspaceSessionRows(detail.Sessions, false),
 		),
 		renderToonArray(
 			"agents",
-			[]string{"name", "provider", "model", "category", "permissions"},
+			[]string{
+				automationNameKey,
+				memoryProviderKey,
+				workspaceModelKey,
+				workspaceCategoryKey,
+				configPermissionsKey,
+			},
 			workspaceAgentRows(detail.Agents, false),
 		),
 		renderToonArray(
 			"skills",
-			[]string{"name", "source", "dir"},
+			[]string{automationNameKey, workspaceSourceKey, "dir"},
 			workspaceSkillRows(detail.Skills, false),
 		),
 	), nil

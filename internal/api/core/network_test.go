@@ -338,7 +338,7 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 			ID:          "msg-1",
 			Kind:        network.KindSay,
 			Channel:     "builders",
-			Surface:     networkSurfacePtr(network.SurfaceDirect),
+			Surface:     new(network.SurfaceDirect),
 			DirectID:    new("direct_0123456789abcdef0123456789abcdef"),
 			From:        "reviewer.sess-b",
 			ReplyTo:     &replyTo,
@@ -1015,7 +1015,7 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 				ID:       "msg-inbox",
 				Kind:     network.KindSay,
 				Channel:  "builders",
-				Surface:  networkSurfacePtr(network.SurfaceDirect),
+				Surface:  new(network.SurfaceDirect),
 				DirectID: new("direct_0123456789abcdef0123456789abcdef"),
 				From:     "reviewer.sess-a",
 				ReplyTo:  &replyTo,
@@ -4848,11 +4848,6 @@ func TestBaseHandlersNetworkPeerDetailUsesAuditMetrics(t *testing.T) {
 			t.Fatalf("payload.Peer.Metrics.Rejected = %d, want %d", got, want)
 		}
 	})
-}
-
-//go:fix inline
-func networkSurfacePtr(value network.Surface) *network.Surface {
-	return new(value)
 }
 
 func greetBodyJSON(peerID string, displayName string, capabilitySummary string, summary string) json.RawMessage {

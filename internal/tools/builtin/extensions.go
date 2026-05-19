@@ -2,6 +2,20 @@ package builtin
 
 import toolspkg "github.com/pedronauck/agh/internal/tools"
 
+const (
+	extensionsMarketplaceKey = "marketplace"
+)
+
+const (
+	extensionsExtensionsKey = "extensions"
+)
+
+const (
+	extensionsCatalogKey  = "catalog"
+	extensionsMutationKey = "mutation"
+	extensionsStatusKey   = "status"
+)
+
 var extensionTools = []toolspkg.Descriptor{
 	nativeExtensionDescriptor(
 		toolspkg.ToolIDExtensionsSearch,
@@ -12,7 +26,7 @@ var extensionTools = []toolspkg.Descriptor{
 		toolspkg.RiskRead,
 		true,
 		false,
-		[]string{"extensions", "marketplace", "catalog"},
+		[]string{extensionsExtensionsKey, extensionsMarketplaceKey, extensionsCatalogKey},
 		[]string{"extension marketplace search", "find extensions"},
 	),
 	nativeExtensionDescriptor(
@@ -24,7 +38,7 @@ var extensionTools = []toolspkg.Descriptor{
 		toolspkg.RiskRead,
 		true,
 		false,
-		[]string{"extensions", "installed", "catalog"},
+		[]string{extensionsExtensionsKey, "installed", extensionsCatalogKey},
 		[]string{"installed extensions", "extension status"},
 	),
 	nativeExtensionDescriptor(
@@ -36,7 +50,7 @@ var extensionTools = []toolspkg.Descriptor{
 		toolspkg.RiskRead,
 		true,
 		false,
-		[]string{"extensions", "status"},
+		[]string{extensionsExtensionsKey, extensionsStatusKey},
 		[]string{"extension info", "extension status"},
 	),
 	nativeExtensionDescriptor(
@@ -48,7 +62,7 @@ var extensionTools = []toolspkg.Descriptor{
 		toolspkg.RiskMutating,
 		false,
 		false,
-		[]string{"extensions", "install", "marketplace", "mutation"},
+		[]string{extensionsExtensionsKey, "install", extensionsMarketplaceKey, extensionsMutationKey},
 		[]string{"install extension", "add extension"},
 	),
 	nativeExtensionDescriptor(
@@ -60,7 +74,7 @@ var extensionTools = []toolspkg.Descriptor{
 		toolspkg.RiskMutating,
 		false,
 		false,
-		[]string{"extensions", "update", "marketplace", "mutation"},
+		[]string{extensionsExtensionsKey, "update", extensionsMarketplaceKey, extensionsMutationKey},
 		[]string{"update extension", "upgrade extension"},
 	),
 	nativeExtensionDescriptor(
@@ -72,7 +86,7 @@ var extensionTools = []toolspkg.Descriptor{
 		toolspkg.RiskDestructive,
 		false,
 		true,
-		[]string{"extensions", "remove", "mutation"},
+		[]string{extensionsExtensionsKey, "remove", extensionsMutationKey},
 		[]string{"remove extension", "uninstall extension"},
 	),
 	nativeExtensionDescriptor(
@@ -84,7 +98,7 @@ var extensionTools = []toolspkg.Descriptor{
 		toolspkg.RiskMutating,
 		false,
 		false,
-		[]string{"extensions", "enable", "mutation"},
+		[]string{extensionsExtensionsKey, "enable", extensionsMutationKey},
 		[]string{"enable extension", "activate extension"},
 	),
 	nativeExtensionDescriptor(
@@ -96,7 +110,7 @@ var extensionTools = []toolspkg.Descriptor{
 		toolspkg.RiskMutating,
 		false,
 		false,
-		[]string{"extensions", "disable", "mutation"},
+		[]string{extensionsExtensionsKey, "disable", extensionsMutationKey},
 		[]string{"disable extension", "deactivate extension"},
 	),
 }

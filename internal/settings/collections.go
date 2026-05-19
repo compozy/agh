@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -1265,17 +1266,17 @@ func preferredMCPDeleteTarget(
 
 	switch scope {
 	case ScopeWorkspace:
-		for idx := len(entries) - 1; idx >= 0; idx-- {
-			switch entries[idx].Target {
+		for _, entrie := range slices.Backward(entries) {
+			switch entrie.Target {
 			case WriteTargetWorkspaceMCPSidecar, WriteTargetWorkspaceConfig:
-				return entries[idx].Target, true
+				return entrie.Target, true
 			}
 		}
 	default:
-		for idx := len(entries) - 1; idx >= 0; idx-- {
-			switch entries[idx].Target {
+		for _, entrie := range slices.Backward(entries) {
+			switch entrie.Target {
 			case WriteTargetGlobalMCPSidecar, WriteTargetGlobalConfig:
-				return entries[idx].Target, true
+				return entrie.Target, true
 			}
 		}
 	}

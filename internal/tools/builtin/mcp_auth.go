@@ -2,6 +2,10 @@ package builtin
 
 import toolspkg "github.com/pedronauck/agh/internal/tools"
 
+const (
+	mcpAuthStatusKey = "status"
+)
+
 var mcpAuthTools = []toolspkg.Descriptor{
 	nativeDescriptor(
 		toolspkg.ToolIDMCPAuthStatus,
@@ -14,7 +18,7 @@ var mcpAuthTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDMCPAuth},
-		[]string{"mcp", "auth", "status"},
+		[]string{"mcp", "auth", mcpAuthStatusKey},
 		[]string{"mcp auth status", "oauth status", "mcp login diagnostics"},
 	),
 }

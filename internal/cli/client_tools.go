@@ -15,6 +15,11 @@ import (
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
+const (
+	clientToolsAPIKeyKey = "api_key"
+	clientToolsPromptKey = "prompt"
+)
+
 // ToolRecord is the shared tool registry projection payload.
 type ToolRecord = contract.ToolPayload
 
@@ -288,7 +293,7 @@ func sensitiveToolFieldName(key string) bool {
 	normalized := strings.Join(parts, "_")
 	const tokenField = "token"
 	for _, marker := range []string{
-		"api_key",
+		clientToolsAPIKeyKey,
 		"authorization",
 		"password",
 		"secret",
@@ -342,7 +347,7 @@ func benignTokenMetric(parts []string) bool {
 		return false
 	}
 	switch parts[0] {
-	case "completion", "prompt", "total":
+	case "completion", clientToolsPromptKey, "total":
 		return parts[1] == "tokens"
 	default:
 		return false

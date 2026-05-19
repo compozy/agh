@@ -15,6 +15,81 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	taskTypeValue = "Type"
+)
+
+const (
+	taskAttemptValue             = "Attempt"
+	taskBridgeValue              = "Bridge"
+	taskChannelValue             = "Channel"
+	taskClaimedByValue           = "Claimed By"
+	taskCoordinationChannelValue = "Coordination Channel"
+	taskCreatedValue             = "Created"
+	taskCreatedByValue           = "Created By"
+	taskDescriptionValue         = "Description"
+	taskEndedValue               = "Ended"
+	taskErrorValue               = "Error"
+	taskIdentifierValue          = "Identifier"
+	taskKindValue                = "Kind"
+	taskModeValue                = "Mode"
+	taskOriginValue              = "Origin"
+	taskOutcomeValue             = "Outcome"
+	taskOwnerValue               = "Owner"
+	taskParentValue              = "Parent"
+	taskQueuedValue              = "Queued"
+	taskReasonValue              = "Reason"
+	taskResultValue              = "Result"
+	taskReviewValue              = "Review"
+	taskRunValue                 = "Run"
+	taskSandboxValue             = "Sandbox"
+	taskScopeValue               = "Scope"
+	taskSessionValue             = "Session"
+	taskStartedValue             = "Started"
+	taskStatusValue              = "Status"
+	taskSubscriptionValue        = "Subscription"
+	taskTaskValue                = "Task"
+	taskTaskIDValue              = "Task ID"
+	taskTimeValue                = "Time"
+	taskTitleValue               = "Title"
+	taskUpdatedValue             = "Updated"
+	taskWorkspaceValue           = "Workspace"
+	taskAttemptKey               = "attempt"
+	taskClaimedByKey             = "claimed_by"
+	taskCoordinationChannelIDKey = "coordination_channel_id"
+	taskCreateKey                = "create"
+	taskCreatedAtKey             = "created_at"
+	taskDeleteIDValue            = "delete <id>"
+	taskDeletedKey               = "deleted"
+	taskDescriptionKey           = "description"
+	taskEndedAtKey               = "ended_at"
+	taskErrorKey                 = "error"
+	taskGetIDValue               = "get <id>"
+	taskGroupIDKey               = "group_id"
+	taskIdentifierKey            = "identifier"
+	taskKindKey                  = "kind"
+	taskListKey                  = "list"
+	taskNetworkChannelKey        = "network_channel"
+	taskNextKey                  = "next"
+	taskOriginKey                = "origin"
+	taskPeerIDKey                = "peer_id"
+	taskProfileKey               = "profile"
+	taskQueuedAtKey              = "queued_at"
+	taskReviewKey                = "review"
+	taskRunIDKey                 = "run_id"
+	taskScopeKey                 = "scope"
+	taskSessionIDKey             = "session_id"
+	taskStartedAtKey             = "started_at"
+	taskStatusKey                = "status"
+	taskTaskKey                  = "task"
+	taskTaskIDKey                = "task_id"
+	taskTimestampKey             = "timestamp"
+	taskTitleKey                 = "title"
+	taskUpdateIDValue            = "update <id>"
+	taskUpdatedAtKey             = "updated_at"
+	taskWorkspaceIDKey           = "workspace_id"
+)
+
 type taskCreateInput struct {
 	ID           string
 	Identifier   string
@@ -71,7 +146,7 @@ type taskNotificationSubscribeInput struct {
 
 func newTaskCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "task",
+		Use:   taskTaskKey,
 		Short: "Manage tasks and task runs",
 		Example: `  # Create durable task intent without starting execution
   agh task create --scope workspace --workspace checkout-api --title "Audit auth flow"
@@ -123,7 +198,7 @@ func newTaskListCommand(deps commandDeps) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "list",
+		Use:   taskListKey,
 		Short: "List tasks",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -153,9 +228,9 @@ func newTaskListCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, taskSummaryListBundle(tasks))
 		},
 	}
-	cmd.Flags().StringVar(&scopeRaw, "scope", "", "Filter by scope: global or workspace")
+	cmd.Flags().StringVar(&scopeRaw, taskScopeKey, "", "Filter by scope: global or workspace")
 	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Filter by workspace path, name, or ID")
-	cmd.Flags().StringVar(&statusRaw, "status", "", "Filter by task status")
+	cmd.Flags().StringVar(&statusRaw, taskStatusKey, "", "Filter by task status")
 	cmd.Flags().StringVar(&ownerKindRaw, "owner-kind", "", "Filter by owner kind")
 	cmd.Flags().StringVar(&ownerRef, "owner-ref", "", "Filter by owner reference")
 	cmd.Flags().StringVar(&parentTaskID, "parent", "", "Filter by parent task ID")
@@ -181,7 +256,7 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "create",
+		Use:   taskCreateKey,
 		Short: "Create a task",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -229,26 +304,26 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&id, "id", "", "Explicit task ID")
-	cmd.Flags().StringVar(&identifier, "identifier", "", "Human-friendly task identifier")
-	cmd.Flags().StringVar(&scopeRaw, "scope", "", "Task scope: global or workspace")
+	cmd.Flags().StringVar(&identifier, taskIdentifierKey, "", "Human-friendly task identifier")
+	cmd.Flags().StringVar(&scopeRaw, taskScopeKey, "", "Task scope: global or workspace")
 	cmd.Flags().
 		StringVar(&workspaceRef, "workspace", "", "Workspace path, name, or ID (required when --scope=workspace)")
 	cmd.Flags().StringVar(&networkRaw, "channel", "", "Optional network channel binding")
-	cmd.Flags().StringVar(&title, "title", "", "Task title")
-	cmd.Flags().StringVar(&description, "description", "", "Task description")
+	cmd.Flags().StringVar(&title, taskTitleKey, "", "Task title")
+	cmd.Flags().StringVar(&description, taskDescriptionKey, "", "Task description")
 	cmd.Flags().StringVar(&priorityRaw, "priority", "", "Task priority: low, medium, high, or urgent")
 	cmd.Flags().StringVar(&ownerKindRaw, "owner-kind", "", "Optional owner kind")
 	cmd.Flags().StringVar(&ownerRef, "owner-ref", "", "Optional owner reference")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional metadata JSON")
 	cmd.Flags().BoolVar(&asAgent, "as-agent", false, "Create using the current AGH-managed agent session identity")
-	mustMarkFlagRequired(cmd, "scope")
-	mustMarkFlagRequired(cmd, "title")
+	mustMarkFlagRequired(cmd, taskScopeKey)
+	mustMarkFlagRequired(cmd, taskTitleKey)
 	return cmd
 }
 
 func newTaskGetCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "get <id>",
+		Use:   taskGetIDValue,
 		Short: "Show one task with related detail",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -279,7 +354,7 @@ func newTaskUpdateCommand(deps commandDeps) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "update <id>",
+		Use:   taskUpdateIDValue,
 		Short: "Update mutable task fields",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -312,8 +387,8 @@ func newTaskUpdateCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, taskBundle(updated))
 		},
 	}
-	cmd.Flags().StringVar(&title, "title", "", "Update the task title")
-	cmd.Flags().StringVar(&description, "description", "", "Update the task description")
+	cmd.Flags().StringVar(&title, taskTitleKey, "", "Update the task title")
+	cmd.Flags().StringVar(&description, taskDescriptionKey, "", "Update the task description")
 	cmd.Flags().StringVar(&priorityRaw, "priority", "", "Update the task priority: low, medium, high, or urgent")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Update metadata JSON")
 	cmd.Flags().
@@ -326,14 +401,14 @@ func newTaskUpdateCommand(deps commandDeps) *cobra.Command {
 
 func buildTaskUpdateRequest(cmd *cobra.Command, input taskUpdateInput) (UpdateTaskRequest, error) {
 	request := UpdateTaskRequest{}
-	if cmd.Flags().Changed("title") {
+	if cmd.Flags().Changed(taskTitleKey) {
 		trimmed := strings.TrimSpace(input.Title)
 		if trimmed == "" {
 			return UpdateTaskRequest{}, errors.New("cli: --title cannot be blank")
 		}
 		request.Title = new(trimmed)
 	}
-	if cmd.Flags().Changed("description") {
+	if cmd.Flags().Changed(taskDescriptionKey) {
 		request.Description = new(strings.TrimSpace(input.Description))
 	}
 	if cmd.Flags().Changed("priority") {
@@ -411,7 +486,7 @@ func newTaskApproveCommand(deps commandDeps) *cobra.Command {
 
 func newTaskDeleteCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "delete <id>",
+		Use:   taskDeleteIDValue,
 		Short: "Delete a task",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -430,7 +505,7 @@ func newTaskDeleteCommand(deps commandDeps) *cobra.Command {
 
 func newTaskProfileCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "profile",
+		Use:   taskProfileKey,
 		Short: "Manage task execution profiles",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return cmd.Help()
@@ -464,7 +539,7 @@ func newTaskProfileInspectCommand(deps commandDeps) *cobra.Command {
 func newTaskProfileUpdateCommand(deps commandDeps) *cobra.Command {
 	var profileRaw string
 	cmd := &cobra.Command{
-		Use:   "update <id>",
+		Use:   taskUpdateIDValue,
 		Short: "Replace one task execution profile",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -483,14 +558,14 @@ func newTaskProfileUpdateCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, taskExecutionProfileBundle(&profile))
 		},
 	}
-	cmd.Flags().StringVar(&profileRaw, "profile", "", "Task execution profile JSON")
-	mustMarkFlagRequired(cmd, "profile")
+	cmd.Flags().StringVar(&profileRaw, taskProfileKey, "", "Task execution profile JSON")
+	mustMarkFlagRequired(cmd, taskProfileKey)
 	return cmd
 }
 
 func newTaskProfileDeleteCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "delete <id>",
+		Use:   taskDeleteIDValue,
 		Short: "Delete one task execution profile",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -507,7 +582,7 @@ func newTaskProfileDeleteCommand(deps commandDeps) *cobra.Command {
 }
 
 func buildTaskExecutionProfileRequest(taskID string, raw string) (*TaskExecutionProfileRequest, error) {
-	payload, err := parseJSONFlag("profile", raw)
+	payload, err := parseJSONFlag(taskProfileKey, raw)
 	if err != nil {
 		return nil, err
 	}
@@ -565,7 +640,8 @@ func newTaskNotificationSubscribeCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&input.SubscriptionID, "subscription-id", "", "Idempotent subscription ID")
 	cmd.Flags().StringVar(&input.BridgeInstanceID, "bridge", "", "Bridge instance ID")
-	cmd.Flags().StringVar(&input.ScopeRaw, "scope", string(bridgepkg.ScopeGlobal), "Bridge scope: global or workspace")
+	cmd.Flags().
+		StringVar(&input.ScopeRaw, taskScopeKey, string(bridgepkg.ScopeGlobal), "Bridge scope: global or workspace")
 	cmd.Flags().StringVar(&input.WorkspaceID, "workspace", "", "Workspace ID for workspace bridge scope")
 	cmd.Flags().StringVar(&input.PeerID, "peer", "", "Bridge peer ID")
 	cmd.Flags().StringVar(&input.ThreadID, "thread", "", "Bridge thread ID")
@@ -613,7 +689,7 @@ func newTaskNotificationListCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&bridgeInstanceID, "bridge", "", "Filter by bridge instance ID")
-	cmd.Flags().StringVar(&scopeRaw, "scope", "", "Filter by bridge scope: global or workspace")
+	cmd.Flags().StringVar(&scopeRaw, taskScopeKey, "", "Filter by bridge scope: global or workspace")
 	cmd.Flags().StringVar(&workspaceID, "workspace", "", "Filter by workspace ID")
 	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N subscriptions")
 	return cmd
@@ -712,7 +788,7 @@ func buildTaskBridgeNotificationSubscriptionListQuery(
 
 func newTaskReviewCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "review",
+		Use:   taskReviewKey,
 		Short: "Manage task-run reviews",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return cmd.Help()
@@ -771,7 +847,7 @@ func newTaskReviewRequestCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&reasonRaw, "reason", "", "Reason for requesting review")
 	cmd.Flags().StringVar(&policyRaw, "policy", "", "Review policy: always, on_success, or on_failure")
 	cmd.Flags().IntVar(&round, "round", 0, "Review round number")
-	cmd.Flags().IntVar(&attempt, "attempt", 0, "Review attempt number")
+	cmd.Flags().IntVar(&attempt, taskAttemptKey, 0, "Review attempt number")
 	cmd.Flags().StringVar(&parentID, "parent-review", "", "Parent review ID for continuation rounds")
 	cmd.Flags().
 		BoolVar(&asAgent, "as-agent", false, "Request review using the current AGH-managed agent session identity")
@@ -787,7 +863,7 @@ func newTaskReviewListCommand(deps commandDeps) *cobra.Command {
 		last              int
 	)
 	cmd := &cobra.Command{
-		Use:   "list",
+		Use:   taskListKey,
 		Short: "List task-run reviews",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -806,9 +882,9 @@ func newTaskReviewListCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, taskRunReviewListBundle(reviews))
 		},
 	}
-	cmd.Flags().StringVar(&taskID, "task", "", "Filter by task ID")
+	cmd.Flags().StringVar(&taskID, taskTaskKey, "", "Filter by task ID")
 	cmd.Flags().StringVar(&runID, "run", "", "Filter by task run ID")
-	cmd.Flags().StringVar(&statusRaw, "status", "", "Filter by review status")
+	cmd.Flags().StringVar(&statusRaw, taskStatusKey, "", "Filter by review status")
 	cmd.Flags().StringVar(&reviewerSessionID, "reviewer-session", "", "Filter by reviewer session ID")
 	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N reviews")
 	return cmd
@@ -1105,7 +1181,7 @@ func newTaskNextCommand(deps commandDeps) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "next",
+		Use:   taskNextKey,
 		Short: "Claim the next task run for the current agent session",
 		Args:  cobra.NoArgs,
 		Example: `  # Claim the next available run for this session
@@ -1301,9 +1377,9 @@ func newTaskFailCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, agentTaskLeaseBundle(record))
 		},
 	}
-	cmd.Flags().StringVar(&errorMessage, "error", "", "Failure message")
+	cmd.Flags().StringVar(&errorMessage, taskErrorKey, "", "Failure message")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional failure metadata JSON")
-	mustMarkFlagRequired(cmd, "error")
+	mustMarkFlagRequired(cmd, taskErrorKey)
 	return cmd
 }
 
@@ -1415,19 +1491,19 @@ func newTaskChildCreateCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&id, "id", "", "Explicit child task ID")
-	cmd.Flags().StringVar(&identifier, "identifier", "", "Human-friendly child task identifier")
-	cmd.Flags().StringVar(&scopeRaw, "scope", "", "Child task scope: global or workspace")
+	cmd.Flags().StringVar(&identifier, taskIdentifierKey, "", "Human-friendly child task identifier")
+	cmd.Flags().StringVar(&scopeRaw, taskScopeKey, "", "Child task scope: global or workspace")
 	cmd.Flags().
 		StringVar(&workspaceRef, "workspace", "", "Workspace path, name, or ID (required when --scope=workspace)")
 	cmd.Flags().StringVar(&networkRaw, "channel", "", "Optional network channel binding")
-	cmd.Flags().StringVar(&title, "title", "", "Child task title")
-	cmd.Flags().StringVar(&description, "description", "", "Child task description")
+	cmd.Flags().StringVar(&title, taskTitleKey, "", "Child task title")
+	cmd.Flags().StringVar(&description, taskDescriptionKey, "", "Child task description")
 	cmd.Flags().StringVar(&priorityRaw, "priority", "", "Child task priority: low, medium, high, or urgent")
 	cmd.Flags().StringVar(&ownerKindRaw, "owner-kind", "", "Optional child owner kind")
 	cmd.Flags().StringVar(&ownerRef, "owner-ref", "", "Optional child owner reference")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional child metadata JSON")
-	mustMarkFlagRequired(cmd, "scope")
-	mustMarkFlagRequired(cmd, "title")
+	mustMarkFlagRequired(cmd, taskScopeKey)
+	mustMarkFlagRequired(cmd, taskTitleKey)
 	return cmd
 }
 
@@ -1480,7 +1556,7 @@ func newTaskDependencyAddCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&dependsOnID, "depends-on", "", "Dependency task ID")
-	cmd.Flags().StringVar(&kindRaw, "kind", "", "Dependency kind")
+	cmd.Flags().StringVar(&kindRaw, taskKindKey, "", "Dependency kind")
 	mustMarkFlagRequired(cmd, "depends-on")
 	return cmd
 }
@@ -1553,7 +1629,7 @@ func newTaskRunListCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, taskRunListBundle(runs))
 		},
 	}
-	cmd.Flags().StringVar(&statusRaw, "status", "", "Filter by run status")
+	cmd.Flags().StringVar(&statusRaw, taskStatusKey, "", "Filter by run status")
 	cmd.Flags().StringVar(&sessionID, "session", "", "Filter by attached session ID")
 	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N runs")
 	return cmd
@@ -1755,9 +1831,9 @@ func newTaskRunFailCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, taskRunBundle(run))
 		},
 	}
-	cmd.Flags().StringVar(&errorMessage, "error", "", "Failure message")
+	cmd.Flags().StringVar(&errorMessage, taskErrorKey, "", "Failure message")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional failure metadata JSON")
-	mustMarkFlagRequired(cmd, "error")
+	mustMarkFlagRequired(cmd, taskErrorKey)
 	return cmd
 }
 
@@ -1965,7 +2041,7 @@ func parseOptionalTaskScope(raw string) (taskpkg.Scope, error) {
 		return "", nil
 	}
 	scope := taskpkg.Scope(trimmed)
-	if err := scope.Validate("scope"); err != nil {
+	if err := scope.Validate(taskScopeKey); err != nil {
 		return "", fmt.Errorf("cli: %w", err)
 	}
 	return scope, nil
@@ -1977,7 +2053,7 @@ func parseOptionalTaskStatus(raw string) (taskpkg.Status, error) {
 		return "", nil
 	}
 	status := taskpkg.Status(trimmed)
-	if err := status.Validate("status"); err != nil {
+	if err := status.Validate(taskStatusKey); err != nil {
 		return "", fmt.Errorf("cli: %w", err)
 	}
 	return status, nil
@@ -1989,7 +2065,7 @@ func parseOptionalTaskRunStatus(raw string) (taskpkg.RunStatus, error) {
 		return "", nil
 	}
 	status := taskpkg.RunStatus(trimmed)
-	if err := status.Validate("status"); err != nil {
+	if err := status.Validate(taskStatusKey); err != nil {
 		return "", fmt.Errorf("cli: %w", err)
 	}
 	return status, nil
@@ -2013,7 +2089,7 @@ func parseOptionalTaskDependencyKind(raw string) (taskpkg.DependencyKind, error)
 		return "", nil
 	}
 	kind := taskpkg.DependencyKind(trimmed)
-	if err := kind.Validate("kind"); err != nil {
+	if err := kind.Validate(taskKindKey); err != nil {
 		return "", fmt.Errorf("cli: %w", err)
 	}
 	return kind, nil
@@ -2030,7 +2106,7 @@ func parseRequiredTaskOwnership(kindRaw string, refRaw string) (*taskpkg.Ownersh
 		return nil, err
 	}
 	owner := &taskpkg.Ownership{Kind: kind, Ref: ref}
-	if err := owner.Validate("owner"); err != nil {
+	if err := owner.Validate(taskOwnerKey); err != nil {
 		return nil, fmt.Errorf("cli: %w", err)
 	}
 	return owner, nil
@@ -2218,41 +2294,41 @@ func taskBundle(item TaskRecord) outputBundle {
 	return outputBundle{
 		jsonValue: item,
 		human: func() (string, error) {
-			return renderHumanSection("Task", []keyValue{
+			return renderHumanSection(taskTaskValue, []keyValue{
 				{Label: "ID", Value: stringOrDash(item.ID)},
-				{Label: "Identifier", Value: stringOrDash(item.Identifier)},
-				{Label: "Scope", Value: stringOrDash(string(item.Scope))},
-				{Label: "Workspace", Value: stringOrDash(item.WorkspaceID)},
-				{Label: "Parent", Value: stringOrDash(item.ParentTaskID)},
-				{Label: "Title", Value: stringOrDash(item.Title)},
-				{Label: "Description", Value: stringOrDash(item.Description)},
-				{Label: "Status", Value: stringOrDash(string(item.Status))},
-				{Label: "Owner", Value: stringOrDash(formatTaskOwnership(item.Owner))},
-				{Label: "Created By", Value: stringOrDash(formatTaskActor(item.CreatedBy))},
-				{Label: "Origin", Value: stringOrDash(formatTaskOrigin(item.Origin))},
-				{Label: "Channel", Value: stringOrDash(item.NetworkChannel)},
-				{Label: "Created", Value: stringOrDash(formatTime(item.CreatedAt))},
-				{Label: "Updated", Value: stringOrDash(formatTime(item.UpdatedAt))},
+				{Label: taskIdentifierValue, Value: stringOrDash(item.Identifier)},
+				{Label: taskScopeValue, Value: stringOrDash(string(item.Scope))},
+				{Label: taskWorkspaceValue, Value: stringOrDash(item.WorkspaceID)},
+				{Label: taskParentValue, Value: stringOrDash(item.ParentTaskID)},
+				{Label: taskTitleValue, Value: stringOrDash(item.Title)},
+				{Label: taskDescriptionValue, Value: stringOrDash(item.Description)},
+				{Label: taskStatusValue, Value: stringOrDash(string(item.Status))},
+				{Label: taskOwnerValue, Value: stringOrDash(formatTaskOwnership(item.Owner))},
+				{Label: taskCreatedByValue, Value: stringOrDash(formatTaskActor(item.CreatedBy))},
+				{Label: taskOriginValue, Value: stringOrDash(formatTaskOrigin(item.Origin))},
+				{Label: taskChannelValue, Value: stringOrDash(item.NetworkChannel)},
+				{Label: taskCreatedValue, Value: stringOrDash(formatTime(item.CreatedAt))},
+				{Label: taskUpdatedValue, Value: stringOrDash(formatTime(item.UpdatedAt))},
 				{Label: "Closed", Value: stringOrDash(formatTimePtr(item.ClosedAt))},
 				{Label: "Metadata", Value: stringOrDash(compactJSON(item.Metadata))},
 			}), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("task", []string{
+			return renderToonObject(taskTaskKey, []string{
 				"id",
-				"identifier",
-				"scope",
-				"workspace_id",
+				taskIdentifierKey,
+				taskScopeKey,
+				taskWorkspaceIDKey,
 				"parent_task_id",
-				"title",
-				"description",
-				"status",
-				"owner",
+				taskTitleKey,
+				taskDescriptionKey,
+				taskStatusKey,
+				taskOwnerKey,
 				"created_by",
-				"origin",
-				"network_channel",
-				"created_at",
-				"updated_at",
+				taskOriginKey,
+				taskNetworkChannelKey,
+				taskCreatedAtKey,
+				taskUpdatedAtKey,
 				"closed_at",
 				"metadata",
 			}, []string{
@@ -2282,16 +2358,16 @@ func taskExecutionProfileBundle(profile *TaskExecutionProfileRecord) outputBundl
 		jsonValue: *profile,
 		human: func() (string, error) {
 			return renderHumanSection("Task Execution Profile", []keyValue{
-				{Label: "Task ID", Value: stringOrDash(profile.TaskID)},
+				{Label: taskTaskIDValue, Value: stringOrDash(profile.TaskID)},
 				{Label: "Coordinator", Value: stringOrDash(string(profile.Coordinator.Mode))},
 				{Label: "Worker", Value: stringOrDash(string(profile.Worker.Mode))},
 				{Label: "Worker Agent", Value: stringOrDash(profile.Worker.AgentName)},
 				{Label: "Worker Provider", Value: stringOrDash(profile.Worker.Provider)},
 				{Label: "Worker Model", Value: stringOrDash(profile.Worker.Model)},
 				{Label: "Review Agent", Value: stringOrDash(profile.Review.AgentName)},
-				{Label: "Sandbox", Value: stringOrDash(string(profile.Sandbox.Mode))},
+				{Label: taskSandboxValue, Value: stringOrDash(string(profile.Sandbox.Mode))},
 				{Label: "Sandbox Ref", Value: stringOrDash(profile.Sandbox.SandboxRef)},
-				{Label: "Updated", Value: stringOrDash(formatTime(profile.UpdatedAt))},
+				{Label: taskUpdatedValue, Value: stringOrDash(formatTime(profile.UpdatedAt))},
 			}), nil
 		},
 		toon: func() (string, error) {
@@ -2325,31 +2401,31 @@ func taskBridgeNotificationSubscriptionListBundle(
 		items,
 		"Task Bridge Notification Subscriptions",
 		[]string{
-			"Subscription",
-			"Task",
-			"Bridge",
-			"Scope",
-			"Peer",
-			"Group",
-			"Mode",
+			taskSubscriptionValue,
+			taskTaskValue,
+			taskBridgeValue,
+			taskScopeValue,
+			taskPeerValue,
+			taskGroupValue,
+			taskModeValue,
 			"Cursor Seq",
 			"Cursor Error",
 			"Cursor Updated",
-			"Updated",
+			taskUpdatedValue,
 		},
 		"task_bridge_notification_subscriptions",
 		[]string{
 			"subscription_id",
-			"task_id",
-			"bridge_instance_id",
-			"scope",
-			"peer_id",
-			"group_id",
+			taskTaskIDKey,
+			taskBridgeInstanceIDKey,
+			taskScopeKey,
+			taskPeerIDKey,
+			taskGroupIDKey,
 			"delivery_mode",
 			"cursor_last_sequence",
 			"cursor_last_error",
 			"cursor_updated_at",
-			"updated_at",
+			taskUpdatedAtKey,
 		},
 		func(item TaskBridgeNotificationSubscriptionRecord) []string {
 			return []string{
@@ -2386,15 +2462,15 @@ func taskBridgeNotificationSubscriptionListBundle(
 
 func taskBridgeNotificationRows(subscription *TaskBridgeNotificationSubscriptionRecord) []keyValue {
 	return []keyValue{
-		{Label: "Subscription", Value: stringOrDash(subscription.SubscriptionID)},
-		{Label: "Task", Value: stringOrDash(subscription.TaskID)},
-		{Label: "Bridge", Value: stringOrDash(subscription.BridgeInstanceID)},
-		{Label: "Scope", Value: stringOrDash(string(subscription.Scope))},
-		{Label: "Workspace", Value: stringOrDash(subscription.WorkspaceID)},
-		{Label: "Peer", Value: stringOrDash(subscription.PeerID)},
-		{Label: "Thread", Value: stringOrDash(subscription.ThreadID)},
-		{Label: "Group", Value: stringOrDash(subscription.GroupID)},
-		{Label: "Mode", Value: stringOrDash(string(subscription.DeliveryMode))},
+		{Label: taskSubscriptionValue, Value: stringOrDash(subscription.SubscriptionID)},
+		{Label: taskTaskValue, Value: stringOrDash(subscription.TaskID)},
+		{Label: taskBridgeValue, Value: stringOrDash(subscription.BridgeInstanceID)},
+		{Label: taskScopeValue, Value: stringOrDash(string(subscription.Scope))},
+		{Label: taskWorkspaceValue, Value: stringOrDash(subscription.WorkspaceID)},
+		{Label: taskPeerValue, Value: stringOrDash(subscription.PeerID)},
+		{Label: taskThreadValue, Value: stringOrDash(subscription.ThreadID)},
+		{Label: taskGroupValue, Value: stringOrDash(subscription.GroupID)},
+		{Label: taskModeValue, Value: stringOrDash(string(subscription.DeliveryMode))},
 		{Label: "Cursor Consumer", Value: stringOrDash(subscription.Cursor.ConsumerID)},
 		{Label: "Cursor Stream", Value: stringOrDash(subscription.Cursor.StreamName)},
 		{Label: "Cursor Subject", Value: stringOrDash(subscription.Cursor.SubjectID)},
@@ -2403,8 +2479,8 @@ func taskBridgeNotificationRows(subscription *TaskBridgeNotificationSubscription
 		{Label: "Cursor Last Delivered", Value: stringOrDash(formatTimePtr(subscription.Cursor.LastDeliveredAt))},
 		{Label: "Cursor Last Error", Value: stringOrDash(subscription.Cursor.LastError)},
 		{Label: "Cursor Updated", Value: stringOrDash(formatTimePtr(subscription.Cursor.UpdatedAt))},
-		{Label: "Created By", Value: stringOrDash(formatTaskActor(subscription.CreatedBy))},
-		{Label: "Updated", Value: stringOrDash(formatTime(subscription.UpdatedAt))},
+		{Label: taskCreatedByValue, Value: stringOrDash(formatTaskActor(subscription.CreatedBy))},
+		{Label: taskUpdatedValue, Value: stringOrDash(formatTime(subscription.UpdatedAt))},
 	}
 }
 
@@ -2416,21 +2492,21 @@ func taskBridgeNotificationSubscriptionDeleteBundle(taskID string, subscriptionI
 	}{
 		TaskID:         strings.TrimSpace(taskID),
 		SubscriptionID: strings.TrimSpace(subscriptionID),
-		Status:         "deleted",
+		Status:         taskDeletedKey,
 	}
 	return outputBundle{
 		jsonValue: item,
 		human: func() (string, error) {
 			return renderHumanSection("Task Bridge Notification Subscription", []keyValue{
-				{Label: "Task ID", Value: stringOrDash(item.TaskID)},
-				{Label: "Subscription", Value: stringOrDash(item.SubscriptionID)},
-				{Label: "Status", Value: item.Status},
+				{Label: taskTaskIDValue, Value: stringOrDash(item.TaskID)},
+				{Label: taskSubscriptionValue, Value: stringOrDash(item.SubscriptionID)},
+				{Label: taskStatusValue, Value: item.Status},
 			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject(
 				"task_bridge_notification_subscription",
-				[]string{"task_id", "subscription_id", "status"},
+				[]string{taskTaskIDKey, "subscription_id", taskStatusKey},
 				[]string{item.TaskID, item.SubscriptionID, item.Status},
 			), nil
 		},
@@ -2442,12 +2518,12 @@ func taskRunReviewRequestBundle(record *TaskRunReviewRequestRecord) outputBundle
 		jsonValue: *record,
 		human: func() (string, error) {
 			return renderHumanSection("Task Run Review Request", []keyValue{
-				{Label: "Review", Value: stringOrDash(record.Review.ReviewID)},
-				{Label: "Run", Value: stringOrDash(record.Review.RunID)},
-				{Label: "Task", Value: stringOrDash(record.Review.TaskID)},
-				{Label: "Status", Value: stringOrDash(string(record.Review.Status))},
+				{Label: taskReviewValue, Value: stringOrDash(record.Review.ReviewID)},
+				{Label: taskRunValue, Value: stringOrDash(record.Review.RunID)},
+				{Label: taskTaskValue, Value: stringOrDash(record.Review.TaskID)},
+				{Label: taskStatusValue, Value: stringOrDash(string(record.Review.Status))},
 				{Label: "Policy", Value: stringOrDash(string(record.Review.Policy))},
-				{Label: "Created", Value: strconv.FormatBool(record.Created)},
+				{Label: taskCreatedValue, Value: strconv.FormatBool(record.Created)},
 			}), nil
 		},
 		toon: func() (string, error) {
@@ -2487,12 +2563,12 @@ func taskRunReviewVerdictBundle(record *TaskRunReviewVerdictRecord) outputBundle
 
 func taskRunReviewRows(review *TaskRunReviewRecord) []keyValue {
 	return []keyValue{
-		{Label: "Review", Value: stringOrDash(review.ReviewID)},
-		{Label: "Task", Value: stringOrDash(review.TaskID)},
-		{Label: "Run", Value: stringOrDash(review.RunID)},
-		{Label: "Status", Value: stringOrDash(string(review.Status))},
-		{Label: "Outcome", Value: stringOrDash(string(review.Outcome))},
-		{Label: "Reason", Value: stringOrDash(review.Reason)},
+		{Label: taskReviewValue, Value: stringOrDash(review.ReviewID)},
+		{Label: taskTaskValue, Value: stringOrDash(review.TaskID)},
+		{Label: taskRunValue, Value: stringOrDash(review.RunID)},
+		{Label: taskStatusValue, Value: stringOrDash(string(review.Status))},
+		{Label: taskOutcomeValue, Value: stringOrDash(string(review.Outcome))},
+		{Label: taskReasonValue, Value: stringOrDash(review.Reason)},
 		{Label: "Delivery", Value: stringOrDash(review.DeliveryID)},
 		{Label: "Missing Work", Value: stringOrDash(compactJSON(review.MissingWork))},
 		{Label: "Next Guidance", Value: stringOrDash(review.NextRoundGuidance)},
@@ -2500,7 +2576,7 @@ func taskRunReviewRows(review *TaskRunReviewRecord) []keyValue {
 		{Label: "Reviewed By", Value: stringOrDash(formatTaskActorPtr(review.ReviewedBy))},
 		{Label: "Requested", Value: stringOrDash(formatTime(review.RequestedAt))},
 		{Label: "Reviewed", Value: stringOrDash(formatTime(review.ReviewedAt))},
-		{Label: "Updated", Value: stringOrDash(formatTime(review.UpdatedAt))},
+		{Label: taskUpdatedValue, Value: stringOrDash(formatTime(review.UpdatedAt))},
 	}
 }
 
@@ -2509,9 +2585,25 @@ func taskRunReviewListBundle(items []TaskRunReviewRecord) outputBundle {
 		items,
 		items,
 		"Task Run Reviews",
-		[]string{"Review", "Task", "Run", "Status", "Outcome", "Reviewer Session", "Updated"},
+		[]string{
+			taskReviewValue,
+			taskTaskValue,
+			taskRunValue,
+			taskStatusValue,
+			taskOutcomeValue,
+			"Reviewer Session",
+			taskUpdatedValue,
+		},
 		"task_run_reviews",
-		[]string{"review_id", "task_id", "run_id", "status", "outcome", "reviewer_session_id", "updated_at"},
+		[]string{
+			"review_id",
+			taskTaskIDKey,
+			taskRunIDKey,
+			taskStatusKey,
+			"outcome",
+			"reviewer_session_id",
+			taskUpdatedAtKey,
+		},
 		func(item TaskRunReviewRecord) []string {
 			return []string{
 				stringOrDash(item.ReviewID),
@@ -2571,18 +2663,18 @@ func taskDeleteBundle(id string) outputBundle {
 		Status string `json:"status"`
 	}{
 		ID:     strings.TrimSpace(id),
-		Status: "deleted",
+		Status: taskDeletedKey,
 	}
 	return outputBundle{
 		jsonValue: item,
 		human: func() (string, error) {
-			return renderHumanSection("Task", []keyValue{
+			return renderHumanSection(taskTaskValue, []keyValue{
 				{Label: "ID", Value: stringOrDash(item.ID)},
-				{Label: "Status", Value: item.Status},
+				{Label: taskStatusValue, Value: item.Status},
 			}), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("task", []string{"id", "status"}, []string{item.ID, item.Status}), nil
+			return renderToonObject(taskTaskKey, []string{"id", taskStatusKey}, []string{item.ID, item.Status}), nil
 		},
 	}
 }
@@ -2593,20 +2685,20 @@ func taskExecutionProfileDeleteBundle(id string) outputBundle {
 		Status string `json:"status"`
 	}{
 		TaskID: strings.TrimSpace(id),
-		Status: "deleted",
+		Status: taskDeletedKey,
 	}
 	return outputBundle{
 		jsonValue: item,
 		human: func() (string, error) {
 			return renderHumanSection("Task Execution Profile", []keyValue{
-				{Label: "Task ID", Value: stringOrDash(item.TaskID)},
-				{Label: "Status", Value: item.Status},
+				{Label: taskTaskIDValue, Value: stringOrDash(item.TaskID)},
+				{Label: taskStatusValue, Value: item.Status},
 			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject(
 				"task_execution_profile",
-				[]string{"task_id", "status"},
+				[]string{taskTaskIDKey, taskStatusKey},
 				[]string{item.TaskID, item.Status},
 			), nil
 		},
@@ -2620,26 +2712,26 @@ func taskSummaryListBundle(items []TaskSummaryRecord) outputBundle {
 		"Tasks",
 		[]string{
 			"ID",
-			"Identifier",
-			"Scope",
-			"Workspace",
-			"Parent",
-			"Status",
-			"Owner",
-			"Channel",
-			"Title",
+			taskIdentifierValue,
+			taskScopeValue,
+			taskWorkspaceValue,
+			taskParentValue,
+			taskStatusValue,
+			taskOwnerValue,
+			taskChannelValue,
+			taskTitleValue,
 		},
 		"tasks",
 		[]string{
 			"id",
-			"identifier",
-			"scope",
-			"workspace_id",
+			taskIdentifierKey,
+			taskScopeKey,
+			taskWorkspaceIDKey,
 			"parent_task_id",
-			"status",
-			"owner",
-			"network_channel",
-			"title",
+			taskStatusKey,
+			taskOwnerKey,
+			taskNetworkChannelKey,
+			taskTitleKey,
 		},
 		func(item TaskSummaryRecord) []string {
 			return []string{
@@ -2687,34 +2779,42 @@ func renderTaskDetailHuman(detail *TaskDetailRecord) (string, error) {
 		taskBlock,
 		renderHumanTable(
 			"Child Tasks",
-			[]string{"ID", "Identifier", "Scope", "Workspace", "Status", "Owner", "Title"},
+			[]string{
+				"ID",
+				taskIdentifierValue,
+				taskScopeValue,
+				taskWorkspaceValue,
+				taskStatusValue,
+				taskOwnerValue,
+				taskTitleValue,
+			},
 			taskChildRows(detail.Children),
 		),
 		renderHumanTable(
 			"Dependencies",
-			[]string{"Task", "Depends On", "Kind", "Created"},
+			[]string{taskTaskValue, "Depends On", taskKindValue, taskCreatedValue},
 			taskDependencyRows(detail.Dependencies),
 		),
 		renderHumanTable(
 			"Task Runs",
 			[]string{
 				"ID",
-				"Status",
-				"Attempt",
-				"Session",
-				"Claimed By",
-				"Channel",
-				"Coordination Channel",
-				"Queued",
-				"Started",
-				"Ended",
-				"Error",
+				taskStatusValue,
+				taskAttemptValue,
+				taskSessionValue,
+				taskClaimedByValue,
+				taskChannelValue,
+				taskCoordinationChannelValue,
+				taskQueuedValue,
+				taskStartedValue,
+				taskEndedValue,
+				taskErrorValue,
 			},
 			taskRunRows(detail.Runs),
 		),
 		renderHumanTable(
 			"Task Events",
-			[]string{"ID", "Type", "Run", "Actor", "Origin", "Time"},
+			[]string{"ID", taskTypeValue, taskRunValue, "Actor", taskOriginValue, taskTimeValue},
 			taskEventRows(detail.Events),
 		),
 	), nil
@@ -2729,34 +2829,42 @@ func renderTaskDetailToon(detail *TaskDetailRecord) (string, error) {
 		taskBlock,
 		renderToonArray(
 			"task_children",
-			[]string{"id", "identifier", "scope", "workspace_id", "status", "owner", "title"},
+			[]string{
+				"id",
+				taskIdentifierKey,
+				taskScopeKey,
+				taskWorkspaceIDKey,
+				taskStatusKey,
+				taskOwnerKey,
+				taskTitleKey,
+			},
 			taskChildToonRows(detail.Children),
 		),
 		renderToonArray(
 			"task_dependencies",
-			[]string{"task_id", "depends_on_task_id", "kind", "created_at"},
+			[]string{taskTaskIDKey, "depends_on_task_id", taskKindKey, taskCreatedAtKey},
 			taskDependencyToonRows(detail.Dependencies),
 		),
 		renderToonArray(
 			"task_runs",
 			[]string{
 				"id",
-				"status",
-				"attempt",
-				"session_id",
-				"claimed_by",
-				"network_channel",
-				"coordination_channel_id",
-				"queued_at",
-				"started_at",
-				"ended_at",
-				"error",
+				taskStatusKey,
+				taskAttemptKey,
+				taskSessionIDKey,
+				taskClaimedByKey,
+				taskNetworkChannelKey,
+				taskCoordinationChannelIDKey,
+				taskQueuedAtKey,
+				taskStartedAtKey,
+				taskEndedAtKey,
+				taskErrorKey,
 			},
 			taskRunToonRows(detail.Runs),
 		),
 		renderToonArray(
 			"task_events",
-			[]string{"id", "event_type", "run_id", "actor", "origin", "timestamp"},
+			[]string{"id", "event_type", taskRunIDKey, "actor", taskOriginKey, taskTimestampKey},
 			taskEventToonRows(detail.Events),
 		),
 	), nil
@@ -2768,40 +2876,40 @@ func taskRunBundle(item TaskRunRecord) outputBundle {
 		human: func() (string, error) {
 			return renderHumanSection("Task Run", []keyValue{
 				{Label: "ID", Value: stringOrDash(item.ID)},
-				{Label: "Task", Value: stringOrDash(item.TaskID)},
-				{Label: "Status", Value: stringOrDash(string(item.Status))},
-				{Label: "Attempt", Value: intOrDash(item.Attempt)},
-				{Label: "Claimed By", Value: stringOrDash(formatTaskActorPtr(item.ClaimedBy))},
-				{Label: "Session", Value: stringOrDash(item.SessionID)},
-				{Label: "Origin", Value: stringOrDash(formatTaskOrigin(item.Origin))},
+				{Label: taskTaskValue, Value: stringOrDash(item.TaskID)},
+				{Label: taskStatusValue, Value: stringOrDash(string(item.Status))},
+				{Label: taskAttemptValue, Value: intOrDash(item.Attempt)},
+				{Label: taskClaimedByValue, Value: stringOrDash(formatTaskActorPtr(item.ClaimedBy))},
+				{Label: taskSessionValue, Value: stringOrDash(item.SessionID)},
+				{Label: taskOriginValue, Value: stringOrDash(formatTaskOrigin(item.Origin))},
 				{Label: "Idempotency Key", Value: stringOrDash(item.IdempotencyKey)},
-				{Label: "Channel", Value: stringOrDash(item.NetworkChannel)},
-				{Label: "Coordination Channel", Value: stringOrDash(item.CoordinationChannelID)},
-				{Label: "Queued", Value: stringOrDash(formatTime(item.QueuedAt))},
+				{Label: taskChannelValue, Value: stringOrDash(item.NetworkChannel)},
+				{Label: taskCoordinationChannelValue, Value: stringOrDash(item.CoordinationChannelID)},
+				{Label: taskQueuedValue, Value: stringOrDash(formatTime(item.QueuedAt))},
 				{Label: "Claimed", Value: stringOrDash(formatTimePtr(item.ClaimedAt))},
-				{Label: "Started", Value: stringOrDash(formatTimePtr(item.StartedAt))},
-				{Label: "Ended", Value: stringOrDash(formatTimePtr(item.EndedAt))},
-				{Label: "Error", Value: stringOrDash(item.Error)},
-				{Label: "Result", Value: stringOrDash(compactJSON(item.Result))},
+				{Label: taskStartedValue, Value: stringOrDash(formatTimePtr(item.StartedAt))},
+				{Label: taskEndedValue, Value: stringOrDash(formatTimePtr(item.EndedAt))},
+				{Label: taskErrorValue, Value: stringOrDash(item.Error)},
+				{Label: taskResultValue, Value: stringOrDash(compactJSON(item.Result))},
 			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject("task_run", []string{
 				"id",
-				"task_id",
-				"status",
-				"attempt",
-				"claimed_by",
-				"session_id",
-				"origin",
+				taskTaskIDKey,
+				taskStatusKey,
+				taskAttemptKey,
+				taskClaimedByKey,
+				taskSessionIDKey,
+				taskOriginKey,
 				"idempotency_key",
-				"network_channel",
-				"coordination_channel_id",
-				"queued_at",
+				taskNetworkChannelKey,
+				taskCoordinationChannelIDKey,
+				taskQueuedAtKey,
 				"claimed_at",
-				"started_at",
-				"ended_at",
-				"error",
+				taskStartedAtKey,
+				taskEndedAtKey,
+				taskErrorKey,
 				"result",
 			}, []string{
 				item.ID,
@@ -2832,30 +2940,30 @@ func taskRunListBundle(items []TaskRunRecord) outputBundle {
 		"Task Runs",
 		[]string{
 			"ID",
-			"Status",
-			"Attempt",
-			"Session",
-			"Claimed By",
-			"Channel",
-			"Coordination Channel",
-			"Queued",
-			"Started",
-			"Ended",
-			"Error",
+			taskStatusValue,
+			taskAttemptValue,
+			taskSessionValue,
+			taskClaimedByValue,
+			taskChannelValue,
+			taskCoordinationChannelValue,
+			taskQueuedValue,
+			taskStartedValue,
+			taskEndedValue,
+			taskErrorValue,
 		},
 		"task_runs",
 		[]string{
 			"id",
-			"status",
-			"attempt",
-			"session_id",
-			"claimed_by",
-			"network_channel",
-			"coordination_channel_id",
-			"queued_at",
-			"started_at",
-			"ended_at",
-			"error",
+			taskStatusKey,
+			taskAttemptKey,
+			taskSessionIDKey,
+			taskClaimedByKey,
+			taskNetworkChannelKey,
+			taskCoordinationChannelIDKey,
+			taskQueuedAtKey,
+			taskStartedAtKey,
+			taskEndedAtKey,
+			taskErrorKey,
 		},
 		func(item TaskRunRecord) []string {
 			return []string{

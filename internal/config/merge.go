@@ -13,6 +13,10 @@ import (
 	"github.com/pedronauck/agh/internal/resources"
 )
 
+const (
+	mergeReadKey = "read"
+)
+
 const providersConfigKey = "providers"
 
 type configOverlay struct {
@@ -549,7 +553,7 @@ func loadConfigOverlayFile(path string) (configOverlay, error) {
 		if errors.Is(err, os.ErrNotExist) {
 			return configOverlay{}, nil
 		}
-		return configOverlay{}, FileError{Op: "read", Path: path, Err: err}
+		return configOverlay{}, FileError{Op: mergeReadKey, Path: path, Err: err}
 	}
 
 	return loadConfigOverlayBytes(contents, path)

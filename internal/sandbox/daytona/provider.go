@@ -15,6 +15,10 @@ import (
 )
 
 const (
+	providerAghSandboxIDKey = "agh_sandbox_id"
+)
+
+const (
 	defaultSDKTimeout    = 60 * time.Second
 	defaultCreateTimeout = 5 * time.Minute
 )
@@ -271,7 +275,7 @@ func newFindSandboxConfig(req sandbox.FindSandboxRequest) (findSandboxConfig, er
 }
 
 func findSandboxLabels(req sandbox.FindSandboxRequest, sandboxID string) map[string]string {
-	labels := map[string]string{"agh_sandbox_id": sandboxID}
+	labels := map[string]string{providerAghSandboxIDKey: sandboxID}
 	if len(req.Labels) > 0 {
 		labels = cloneStringMap(req.Labels)
 	}
@@ -600,8 +604,8 @@ func (p *daytonaProvider) withSDKTimeout(ctx context.Context, fn func(context.Co
 
 func aghLabels(req sandbox.PrepareRequest) map[string]string {
 	return map[string]string{
-		"agh_session_id": req.SessionID,
-		"agh_sandbox_id": req.SandboxID,
+		"agh_session_id":        req.SessionID,
+		providerAghSandboxIDKey: req.SandboxID,
 	}
 }
 

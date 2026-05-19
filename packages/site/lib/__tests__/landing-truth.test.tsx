@@ -39,15 +39,62 @@ function listFiles(dir: string, suffix: string): string[] {
   return files.sort();
 }
 
-function builtinProviderNames(): Map<string, string> {
-  const source = readFileSync(providerSourcePath, "utf8");
+function simpleGoStringConstants(source: string): Map<string, string> {
+  const constants = new Map<string, string>();
+  const parseLine = (line: string) => {
+    const match = line.match(/^\s*([A-Za-z_]\w*)(?:\s+[A-Za-z_]\w*)?\s*=\s*"([^"]*)"\s*$/);
+    if (match?.[1] && match[2] !== undefined) {
+      constants.set(match[1], match[2]);
+    }
+  };
+
+  for (const group of source.matchAll(/const\s*\(([\s\S]*?)\n\)/g)) {
+    group[1]?.split("\n").forEach(parseLine);
+  }
+  for (const match of source.matchAll(
+    /const\s+([A-Za-z_]\w*)(?:\s+[A-Za-z_]\w*)?\s*=\s*"([^"]*)"/g
+  )) {
+    constants.set(match[1] ?? "", match[2] ?? "");
+  }
+
+  return constants;
+}
+
+function resolveGoString(token: string, constants: Map<string, string>): string | undefined {
+  if (token.startsWith('"')) {
+    return token.slice(1, -1);
+  }
+  return constants.get(token);
+}
+
+function mustResolveGoString(token: string, constants: Map<string, string>, field: string): string {
+  const resolved = resolveGoString(token, constants);
+  if (resolved === undefined) {
+    throw new Error(`unresolved builtin provider ${field}: ${token}`);
+  }
+  return resolved;
+}
+
+function builtinProviderNamesFromSource(source: string): Map<string, string> {
   const mapSource =
     source.match(/var builtinProviders = map\[string\]ProviderConfig\{([\s\S]*?)\n\}/)?.[1] ?? "";
+  const constants = simpleGoStringConstants(source);
   const providers = new Map<string, string>();
-  for (const match of mapSource.matchAll(/"([^"]+)":\s*\{[\s\S]*?DisplayName:\s*"([^"]+)"/g)) {
-    providers.set(match[1] ?? "", match[2] ?? "");
+  for (const match of mapSource.matchAll(
+    /("[^"]+"|[A-Za-z_]\w*):\s*\{[\s\S]*?DisplayName:\s*("[^"]+"|[A-Za-z_]\w*)/g
+  )) {
+    const id = mustResolveGoString(match[1] ?? "", constants, "id");
+    const name = mustResolveGoString(match[2] ?? "", constants, "display name");
+    providers.set(id, name);
+  }
+  if (providers.size === 0) {
+    throw new Error("no builtin providers parsed from runtime registry");
   }
   return providers;
+}
+
+function builtinProviderNames(): Map<string, string> {
+  return builtinProviderNamesFromSource(readFileSync(providerSourcePath, "utf8"));
 }
 
 function runtimeRouteExists(route: string): boolean {
@@ -70,6 +117,22 @@ describe("landing truth", () => {
     const landingProviders = new Map(PROVIDERS.map(provider => [provider.id, provider.name]));
 
     expect(Object.fromEntries(landingProviders)).toEqual(Object.fromEntries(runtimeProviders));
+  });
+
+  it("fails loudly when runtime provider constants cannot be resolved", () => {
+    const source = `
+const providerClaudeKey = "claude"
+
+var builtinProviders = map[string]ProviderConfig{
+	providerClaudeKey: {
+		DisplayName: unresolvedDisplayName,
+	},
+}
+`;
+
+    expect(() => builtinProviderNamesFromSource(source)).toThrow(
+      "unresolved builtin provider display name: unresolvedDisplayName"
+    );
   });
 
   it("does not imply v0 signature verification before the runtime verifies trust proofs", () => {

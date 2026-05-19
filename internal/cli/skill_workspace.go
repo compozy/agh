@@ -20,12 +20,14 @@ import (
 )
 
 const (
+	agentLocalSkillSource = "agent-local"
+)
+
+const (
 	additionalSkillSource  = "additional"
-	agentLocalSkillSource  = "agent-local"
 	bundledSkillSource     = "bundled"
 	marketplaceSkillSource = "marketplace"
 	userSkillSource        = "user"
-	workspaceSkillSource   = "workspace"
 )
 
 type skillCommandScope struct {
@@ -528,7 +530,7 @@ func skillSourceLabel(source skills.SkillSource) string {
 	case skills.SourceWorkspace:
 		return workspaceSkillSource
 	case skills.SourceAgentLocal:
-		return "agent-local"
+		return agentLocalSkillSource
 	default:
 		return "unknown"
 	}

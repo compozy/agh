@@ -9,6 +9,7 @@ import (
 	exec "os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -21,6 +22,11 @@ import (
 
 	"github.com/pedronauck/agh/internal/procutil"
 	"github.com/pedronauck/agh/internal/toolruntime"
+)
+
+const (
+	terminalStatusKey  = "status"
+	terminalWindowsKey = "windows"
 )
 
 const (
@@ -549,7 +555,7 @@ func hasPathSeparator(command string) bool {
 }
 
 func terminalExecutableCandidates(path string, env []string) []string {
-	if runtime.GOOS != "windows" || filepath.Ext(path) != "" {
+	if runtime.GOOS != terminalWindowsKey || filepath.Ext(path) != "" {
 		return []string{path}
 	}
 	pathExt, ok := envValueFromList(env, "PATHEXT")
@@ -577,19 +583,19 @@ func isExecutableFile(path string) bool {
 	if err != nil || info.IsDir() {
 		return false
 	}
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == terminalWindowsKey {
 		return true
 	}
 	return info.Mode().Perm()&0o111 != 0
 }
 
 func envValueFromList(env []string, key string) (string, bool) {
-	for index := len(env) - 1; index >= 0; index-- {
-		name, value, ok := strings.Cut(env[index], "=")
+	for _, e := range slices.Backward(env) {
+		name, value, ok := strings.Cut(e, "=")
 		if !ok {
 			continue
 		}
-		if runtime.GOOS == "windows" {
+		if runtime.GOOS == terminalWindowsKey {
 			if strings.EqualFold(name, key) {
 				return value, true
 			}
@@ -809,12 +815,12 @@ func terminalArgv(request acpsdk.CreateTerminalRequest) ([]string, error) {
 }
 
 func isAllowedNetworkTerminalArgv(argv []string) bool {
-	if len(argv) < 3 || argv[0] != "agh" || argv[1] != networkCommandName {
+	if len(argv) < 3 || argv[0] != defaultClientName || argv[1] != networkCommandName {
 		return false
 	}
 
 	switch argv[2] {
-	case "send", "peers", "channels", "status", "inbox", "threads", "directs", "work":
+	case "send", "peers", "channels", terminalStatusKey, "inbox", "threads", "directs", "work":
 		return true
 	default:
 		return false

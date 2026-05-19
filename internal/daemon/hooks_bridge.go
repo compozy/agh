@@ -21,6 +21,10 @@ import (
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
+const (
+	hooksBridgeWorkspaceIDKey = "workspace_id"
+)
+
 type hookRuntime interface {
 	Close()
 	Version() int64
@@ -1742,7 +1746,7 @@ func logBlockedSkillHook(
 	}
 	attrs := []any{
 		"skill_name", skill.Meta.Name,
-		"workspace_id", resolvedHookWorkspaceID(resolved),
+		hooksBridgeWorkspaceIDKey, resolvedHookWorkspaceID(resolved),
 		"source", skills.SkillSourceName(skill.Source),
 	}
 	if agentName != "" {
@@ -1766,7 +1770,7 @@ func activeSkillsForHookDeclarations(
 		if logger != nil {
 			logger.Warn(
 				"daemon: skipped invalid agent-local skills while rebuilding hooks",
-				"workspace_id", resolvedHookWorkspaceID(resolved),
+				hooksBridgeWorkspaceIDKey, resolvedHookWorkspaceID(resolved),
 				"agent_name", agentName,
 				"error", err,
 			)
@@ -1838,7 +1842,7 @@ func registeredWorkspaces(
 			if logger != nil {
 				logger.Warn(
 					"daemon: skipped workspace while rebuilding hooks",
-					"workspace_id", workspace.ID,
+					hooksBridgeWorkspaceIDKey, workspace.ID,
 					"workspace_root", workspace.RootDir,
 					"error", err,
 				)
@@ -1873,7 +1877,7 @@ func scopeWorkspaceHookDecls(
 			if strings.TrimSpace(cloned.WorkingDir) == "" {
 				cloned.WorkingDir = strings.TrimSpace(resolved.RootDir)
 			}
-			if hookspkg.MatcherFieldAllowedForEvent(cloned.Event, "workspace_id") {
+			if hookspkg.MatcherFieldAllowedForEvent(cloned.Event, hooksBridgeWorkspaceIDKey) {
 				cloned.Matcher.WorkspaceID = strings.TrimSpace(resolved.WorkspaceID)
 			}
 			if hookspkg.MatcherFieldAllowedForEvent(cloned.Event, "workspace_root") {

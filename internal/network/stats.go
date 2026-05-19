@@ -8,6 +8,12 @@ import (
 	"github.com/pedronauck/agh/internal/store"
 )
 
+const (
+	statsChannelKey = "channel"
+	statsStateKey   = "state"
+	statsSurfaceKey = "surface"
+)
+
 // KindMetric is the runtime per-kind network activity snapshot surfaced by
 // status APIs.
 type KindMetric struct {
@@ -270,11 +276,11 @@ func (s *runtimeStats) metricSamplesLocked() []MetricSample {
 		samples = append(samples, MetricSample{
 			Name: "network_messages_total",
 			Labels: map[string]string{
-				"channel":   key.channel,
-				"surface":   key.surface,
-				"kind":      key.kind,
-				"direction": key.direction,
-				"result":    key.result,
+				statsChannelKey: key.channel,
+				statsSurfaceKey: key.surface,
+				"kind":          key.kind,
+				"direction":     key.direction,
+				"result":        key.result,
 			},
 			Value: value,
 		})
@@ -285,14 +291,14 @@ func (s *runtimeStats) metricSamplesLocked() []MetricSample {
 	for key, value := range s.threadOpenMetrics {
 		samples = append(samples, MetricSample{
 			Name:   "network_threads_open_total",
-			Labels: map[string]string{"channel": key.channel},
+			Labels: map[string]string{statsChannelKey: key.channel},
 			Value:  value,
 		})
 	}
 	for key, value := range s.directOpenMetrics {
 		samples = append(samples, MetricSample{
 			Name:   "network_direct_rooms_open_total",
-			Labels: map[string]string{"channel": key.channel},
+			Labels: map[string]string{statsChannelKey: key.channel},
 			Value:  value,
 		})
 	}
@@ -303,9 +309,9 @@ func (s *runtimeStats) metricSamplesLocked() []MetricSample {
 		samples = append(samples, MetricSample{
 			Name: "network_work_transitions_total",
 			Labels: map[string]string{
-				"channel": key.channel,
-				"surface": key.surface,
-				"state":   key.state,
+				statsChannelKey: key.channel,
+				statsSurfaceKey: key.surface,
+				statsStateKey:   key.state,
 			},
 			Value: value,
 		})
@@ -317,8 +323,8 @@ func (s *runtimeStats) metricSamplesLocked() []MetricSample {
 		samples = append(samples, MetricSample{
 			Name: "network_direct_resolve_total",
 			Labels: map[string]string{
-				"channel": key.channel,
-				"result":  key.result,
+				statsChannelKey: key.channel,
+				"result":        key.result,
 			},
 			Value: value,
 		})
@@ -331,8 +337,8 @@ func surfaceMetricSample(name string, key surfaceMetricKey, value int64) MetricS
 	return MetricSample{
 		Name: name,
 		Labels: map[string]string{
-			"channel": key.channel,
-			"surface": key.surface,
+			statsChannelKey: key.channel,
+			statsSurfaceKey: key.surface,
 		},
 		Value: value,
 	}

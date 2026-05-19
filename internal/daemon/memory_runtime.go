@@ -34,6 +34,11 @@ import (
 )
 
 const (
+	memoryRuntimeBuiltinKey = "builtin"
+	memoryRuntimeValueKey   = "value"
+)
+
+const (
 	memoryExtractorConsumeInterval = time.Second
 	memoryExtractorStopTimeout     = 10 * time.Second
 	memoryExtractorSyntheticTaskID = "memory-extractor"
@@ -1009,7 +1014,7 @@ func newDaemonMemoryProviderRegistry(
 	if state.localMemoryProvider != nil {
 		if err := registry.Register(ctx, extensionpkg.MemoryProviderRegistration{
 			Name:     localprovider.Name,
-			Version:  "builtin",
+			Version:  memoryRuntimeBuiltinKey,
 			Provider: state.localMemoryProvider,
 			Bundled:  true,
 		}); err != nil {
@@ -1266,7 +1271,7 @@ func ledgerPayload(raw json.RawMessage) map[string]any {
 	if err := json.Unmarshal(raw, &value); err != nil {
 		return map[string]any{"raw": string(raw)}
 	}
-	return map[string]any{"value": value}
+	return map[string]any{memoryRuntimeValueKey: value}
 }
 
 func isToolLedgerEvent(eventType string) bool {

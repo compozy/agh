@@ -28,6 +28,15 @@ import (
 )
 
 const (
+	providerAudioKey    = "audio"
+	providerImageKey    = "image"
+	providerMessagesKey = "messages"
+	providerStickerKey  = "sticker"
+	providerTextKey     = "text"
+	providerWhatsappKey = "whatsapp"
+)
+
+const (
 	whatsappListenAddrEnv = "AGH_BRIDGE_WHATSAPP_LISTEN_ADDR"
 	whatsappAPIBaseEnv    = "AGH_BRIDGE_WHATSAPP_API_BASE_URL"
 
@@ -299,7 +308,7 @@ func newWhatsAppProvider(stderr io.Writer) (*whatsappProvider, error) {
 
 	sdkRuntime, err := bridgesdk.NewRuntime(bridgesdk.RuntimeConfig{
 		ExtensionInfo: subprocess.InitializeExtensionInfo{
-			Name:    "whatsapp",
+			Name:    providerWhatsappKey,
 			Version: "0.1.0",
 			SDKName: "bridgesdk",
 		},
@@ -942,7 +951,7 @@ func (p *whatsappProvider) handleWebhookRequest(
 	var dispatchErr error
 	for _, entry := range payload.Entry {
 		for _, change := range entry.Changes {
-			if strings.TrimSpace(change.Field) != "messages" {
+			if strings.TrimSpace(change.Field) != providerMessagesKey {
 				continue
 			}
 			if !matchesPhoneNumberID(cfg, change.Value.Metadata.PhoneNumberID) {
@@ -1486,7 +1495,7 @@ func normalizeWhatsAppAttachments(message whatsappInboundMessage) []bridgepkg.Me
 	}
 
 	if message.Image != nil {
-		appendAttachment(message.Image.ID, "image", message.Image.MIMEType, "")
+		appendAttachment(message.Image.ID, providerImageKey, message.Image.MIMEType, "")
 	}
 	if message.Document != nil {
 		appendAttachment(
@@ -1497,13 +1506,13 @@ func normalizeWhatsAppAttachments(message whatsappInboundMessage) []bridgepkg.Me
 		)
 	}
 	if message.Audio != nil {
-		appendAttachment(message.Audio.ID, "audio", message.Audio.MIMEType, "")
+		appendAttachment(message.Audio.ID, providerAudioKey, message.Audio.MIMEType, "")
 	}
 	if message.Video != nil {
 		appendAttachment(message.Video.ID, "video", message.Video.MIMEType, "")
 	}
 	if message.Sticker != nil {
-		appendAttachment(message.Sticker.ID, "sticker", message.Sticker.MIMEType, "")
+		appendAttachment(message.Sticker.ID, providerStickerKey, message.Sticker.MIMEType, "")
 	}
 	if message.Location != nil {
 		name := firstNonEmpty(message.Location.Name, "location")
@@ -1526,12 +1535,12 @@ func normalizeWhatsAppAttachments(message whatsappInboundMessage) []bridgepkg.Me
 
 func extractWhatsAppTextContent(message whatsappInboundMessage) string {
 	switch strings.TrimSpace(message.Type) {
-	case "text":
+	case providerTextKey:
 		if message.Text == nil {
 			return ""
 		}
 		return strings.TrimSpace(message.Text.Body)
-	case "image":
+	case providerImageKey:
 		if message.Image == nil {
 			return ""
 		}
@@ -1544,14 +1553,14 @@ func extractWhatsAppTextContent(message whatsappInboundMessage) string {
 			return caption
 		}
 		return fmt.Sprintf("[Document: %s]", firstNonEmpty(message.Document.Filename, "file"))
-	case "audio":
+	case providerAudioKey:
 		return "[Audio message]"
 	case "video":
 		if message.Video == nil {
 			return "[Video]"
 		}
 		return firstNonEmpty(strings.TrimSpace(message.Video.Caption), "[Video]")
-	case "sticker":
+	case providerStickerKey:
 		return "[Sticker]"
 	case "location":
 		if message.Location == nil {
@@ -1917,10 +1926,10 @@ func sendWhatsAppDeliveryChunks(
 	var remoteID string
 	for _, chunk := range splitMessage(text) {
 		req := whatsappSendMessageRequest{
-			MessagingProduct: "whatsapp",
+			MessagingProduct: providerWhatsappKey,
 			RecipientType:    "individual",
 			To:               targetUserID,
-			Type:             "text",
+			Type:             providerTextKey,
 		}
 		req.Text.Body = chunk
 		req.Text.PreviewURL = false

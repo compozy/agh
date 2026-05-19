@@ -46,6 +46,31 @@ func TestConsolidationLockTryAcquireFailsWhenLiveProcessHoldsLock(t *testing.T) 
 	}
 }
 
+func TestConsolidationLockTryAcquireRejectsFreshCurrentPIDWhenLivenessProbeFails(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject fresh current PID ownership even when liveness probe fails", func(t *testing.T) {
+		t.Parallel()
+
+		lock, path := newTestLock(t)
+		now := time.Now().UTC().Round(0)
+		lock.now = func() time.Time { return now }
+		lock.processAlive = func(int) bool { return false }
+		writeLockState(t, path, strconv.Itoa(os.Getpid()), now.Add(-time.Minute))
+
+		_, ok, err := lock.TryAcquire()
+		if err != nil {
+			t.Fatalf("TryAcquire() error = %v", err)
+		}
+		if ok {
+			t.Fatal("TryAcquire() ok = true, want false")
+		}
+		if got := readLockBody(t, path); got != strconv.Itoa(os.Getpid()) {
+			t.Fatalf("lock body = %q, want current pid", got)
+		}
+	})
+}
+
 func TestConsolidationLockTryAcquireReclaimsDeadPID(t *testing.T) {
 	t.Parallel()
 

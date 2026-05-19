@@ -21,10 +21,20 @@ import (
 )
 
 const (
+	providerMessageValue  = "Message"
+	providerNameValue     = "Name"
+	providerProviderValue = "Provider"
+	providerStateValue    = "State"
+	providerAuthKey       = "auth"
+	providerProviderKey   = "provider"
+	providerStateKey      = "state"
+	providerVaultKey      = "vault"
+)
+
+const (
 	defaultProviderAuthCommandTimeout = 30 * time.Second
 	providerAuthStateMissingRequired  = "missing_required"
 	providerAuthStateNativeCLI        = "native_cli"
-	providerAuthStatePresent          = "present"
 	statusStateNone                   = "none"
 )
 
@@ -78,7 +88,7 @@ func (d commandDeps) withProviderAuthDefaults() commandDeps {
 
 func newProviderCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "provider",
+		Use:   providerProviderKey,
 		Short: "Inspect and manage provider authentication",
 	}
 	cmd.AddCommand(newProviderAuthCommand(deps))
@@ -88,7 +98,7 @@ func newProviderCommand(deps commandDeps) *cobra.Command {
 
 func newProviderAuthCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "auth",
+		Use:   providerAuthKey,
 		Short: "Inspect native CLI and bound-secret provider authentication",
 	}
 	cmd.AddCommand(newProviderAuthStatusCommand(deps))
@@ -317,7 +327,7 @@ func providerCredentialStatus(
 	}
 	switch {
 	case vault.IsEnvRef(secretRef):
-		status.Source = "env"
+		status.Source = configEnvKey
 		envName, err := vault.EnvNameFromRef(secretRef)
 		if err != nil {
 			return providerCredentialStatusItem{}, err
@@ -325,7 +335,7 @@ func providerCredentialStatus(
 		status.Present = strings.TrimSpace(getenv(envName)) != ""
 		return status, nil
 	case vault.IsSecretRef(secretRef):
-		status.Source = "vault"
+		status.Source = providerVaultKey
 		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
 		if err != nil {
 			return providerCredentialStatusItem{}, fmt.Errorf("cli: open global DB for provider auth status: %w", err)
@@ -449,8 +459,7 @@ func defaultProviderAuthCommandRunner(
 	if err == nil {
 		return result, nil
 	}
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
+	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok && exitErr != nil {
 		return result, nil
 	}
 	return result, fmt.Errorf("cli: run provider auth command: %w", err)
@@ -460,8 +469,7 @@ func exitCodeFromError(err error) int {
 	if err == nil {
 		return 0
 	}
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
+	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 		return exitErr.ExitCode()
 	}
 	return -1
@@ -475,7 +483,13 @@ func providerAuthStatusBundle(record providerAuthStatusRecord) outputBundle {
 			if len(record.Credentials) > 0 {
 				sections = append(sections, renderHumanTable(
 					"Credentials",
-					[]string{"Name", "Target", "Source", "Required", "Present"},
+					[]string{
+						providerNameValue,
+						"Target",
+						authoredContextSourceValue,
+						"Required",
+						authoredContextPresentValue,
+					},
 					providerCredentialStatusRows(record.Credentials),
 				))
 			}
@@ -484,7 +498,7 @@ func providerAuthStatusBundle(record providerAuthStatusRecord) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(
 				"provider_auth",
-				[]string{"provider", "auth_mode", "env_policy", "home_policy", "state"},
+				[]string{providerProviderKey, "auth_mode", "env_policy", "home_policy", providerStateKey},
 				[]string{record.Provider, record.AuthMode, record.EnvPolicy, record.HomePolicy, record.State},
 			), nil
 		},
@@ -493,13 +507,13 @@ func providerAuthStatusBundle(record providerAuthStatusRecord) outputBundle {
 
 func providerAuthStatusRows(record providerAuthStatusRecord) []keyValue {
 	rows := []keyValue{
-		{Label: "Provider", Value: stringOrDash(record.Provider)},
+		{Label: providerProviderValue, Value: stringOrDash(record.Provider)},
 		{Label: "Display Name", Value: stringOrDash(record.DisplayName)},
 		{Label: "Auth Mode", Value: stringOrDash(record.AuthMode)},
 		{Label: "Env Policy", Value: stringOrDash(record.EnvPolicy)},
 		{Label: "Home Policy", Value: stringOrDash(record.HomePolicy)},
-		{Label: "State", Value: stringOrDash(record.State)},
-		{Label: "Message", Value: stringOrDash(record.Message)},
+		{Label: providerStateValue, Value: stringOrDash(record.State)},
+		{Label: providerMessageValue, Value: stringOrDash(record.Message)},
 		{Label: "Status Command", Value: stringOrDash(record.StatusCommand)},
 		{Label: "Login Command", Value: stringOrDash(record.LoginCommand)},
 	}

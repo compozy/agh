@@ -21,6 +21,35 @@ import (
 	"github.com/pedronauck/agh/internal/vault"
 )
 
+const (
+	triggerEventWebhook = "webhook"
+)
+
+const (
+	triggerACPSessionIDKey  = "acp_session_id"
+	triggerAgentNameKey     = "agent_name"
+	triggerCompletedAtKey   = "completed_at"
+	triggerCreatedAtKey     = "created_at"
+	triggerDispatchDepthKey = "dispatch_depth"
+	triggerErrorKey         = "error"
+	triggerHookEventKey     = "hook_event"
+	triggerHookModeKey      = "hook_mode"
+	triggerHookNameKey      = "hook_name"
+	triggerHookOutcomeKey   = "hook_outcome"
+	triggerHookSourceKey    = "hook_source"
+	triggerRecordedAtKey    = "recorded_at"
+	triggerRequiredKey      = "required"
+	triggerSessionIDKey     = "session_id"
+	triggerSessionNameKey   = "session_name"
+	triggerSessionTypeKey   = "session_type"
+	triggerStateKey         = "state"
+	triggerStopDetailKey    = "stop_detail"
+	triggerStopReasonKey    = "stop_reason"
+	triggerUpdatedAtKey     = "updated_at"
+	triggerWorkspaceKey     = "workspace"
+	triggerWorkspaceIDKey   = "workspace_id"
+)
+
 var (
 	// ErrTriggerAlreadyRegistered reports that the trigger id already exists in the runtime.
 	ErrTriggerAlreadyRegistered = errors.New("automation: trigger already registered")
@@ -43,7 +72,6 @@ var (
 
 const (
 	webhookSignaturePrefix = "sha256="
-	triggerEventWebhook    = "webhook"
 	sessionEventCreated    = "session.created"
 	sessionEventStopped    = "session.stopped"
 )
@@ -122,7 +150,7 @@ type WebhookRequest struct {
 
 // Validate ensures the request can be normalized before any dispatch occurs.
 func (r WebhookRequest) Validate(path string) error {
-	if err := ValidateScopeBinding(r.Scope, r.WorkspaceID, path, "workspace_id"); err != nil {
+	if err := ValidateScopeBinding(r.Scope, r.WorkspaceID, path, triggerWorkspaceIDKey); err != nil {
 		return err
 	}
 	if strings.TrimSpace(r.Endpoint) == "" {
@@ -435,7 +463,7 @@ func (e *TriggerEngine) HandleWebhook(ctx context.Context, request WebhookReques
 	if ctx == nil {
 		return TriggerResult{}, errors.New("automation: webhook context is required")
 	}
-	if err := request.Validate("webhook"); err != nil {
+	if err := request.Validate(triggerEventWebhook); err != nil {
 		return TriggerResult{}, err
 	}
 
@@ -944,23 +972,23 @@ func (e *TriggerEngine) hookCompletionEnvelope(
 	}
 
 	data := map[string]any{
-		"session_id":     strings.TrimSpace(info.ID),
-		"session_name":   strings.TrimSpace(info.Name),
-		"session_type":   string(info.Type),
-		"agent_name":     strings.TrimSpace(info.AgentName),
-		"hook_name":      strings.TrimSpace(record.HookName),
-		"hook_event":     record.Event.String(),
-		"hook_source":    record.Source.String(),
-		"hook_mode":      string(record.Mode),
-		"hook_outcome":   string(record.Outcome),
-		"dispatch_depth": strconv.Itoa(record.DispatchDepth),
-		"required":       strconv.FormatBool(record.Required),
+		triggerSessionIDKey:     strings.TrimSpace(info.ID),
+		triggerSessionNameKey:   strings.TrimSpace(info.Name),
+		triggerSessionTypeKey:   string(info.Type),
+		triggerAgentNameKey:     strings.TrimSpace(info.AgentName),
+		triggerHookNameKey:      strings.TrimSpace(record.HookName),
+		triggerHookEventKey:     record.Event.String(),
+		triggerHookSourceKey:    record.Source.String(),
+		triggerHookModeKey:      string(record.Mode),
+		triggerHookOutcomeKey:   string(record.Outcome),
+		triggerDispatchDepthKey: strconv.Itoa(record.DispatchDepth),
+		triggerRequiredKey:      strconv.FormatBool(record.Required),
 	}
 	if !record.RecordedAt.IsZero() {
-		data["recorded_at"] = record.RecordedAt.UTC().Format(time.RFC3339Nano)
+		data[triggerRecordedAtKey] = record.RecordedAt.UTC().Format(time.RFC3339Nano)
 	}
 	if trimmedError := strings.TrimSpace(record.Error); trimmedError != "" {
-		data["error"] = trimmedError
+		data[triggerErrorKey] = trimmedError
 	}
 
 	workspaceID := strings.TrimSpace(info.WorkspaceID)
@@ -1036,27 +1064,27 @@ func sessionEnvelope(kind string, sess *session.Session) (ActivationEnvelope, er
 
 	workspaceID := strings.TrimSpace(info.WorkspaceID)
 	data := map[string]any{
-		"session_id":     strings.TrimSpace(info.ID),
-		"session_name":   strings.TrimSpace(info.Name),
-		"session_type":   string(info.Type),
-		"agent_name":     strings.TrimSpace(info.AgentName),
-		"state":          string(info.State),
-		"workspace":      strings.TrimSpace(info.Workspace),
-		"workspace_id":   workspaceID,
-		"acp_session_id": strings.TrimSpace(info.ACPSessionID),
+		triggerSessionIDKey:    strings.TrimSpace(info.ID),
+		triggerSessionNameKey:  strings.TrimSpace(info.Name),
+		triggerSessionTypeKey:  string(info.Type),
+		triggerAgentNameKey:    strings.TrimSpace(info.AgentName),
+		triggerStateKey:        string(info.State),
+		triggerWorkspaceKey:    strings.TrimSpace(info.Workspace),
+		triggerWorkspaceIDKey:  workspaceID,
+		triggerACPSessionIDKey: strings.TrimSpace(info.ACPSessionID),
 	}
 	if !info.CreatedAt.IsZero() {
-		data["created_at"] = info.CreatedAt.UTC().Format(time.RFC3339Nano)
+		data[triggerCreatedAtKey] = info.CreatedAt.UTC().Format(time.RFC3339Nano)
 	}
 	if !info.UpdatedAt.IsZero() {
-		data["updated_at"] = info.UpdatedAt.UTC().Format(time.RFC3339Nano)
+		data[triggerUpdatedAtKey] = info.UpdatedAt.UTC().Format(time.RFC3339Nano)
 	}
 	if kind == sessionEventStopped {
 		if stopReason := strings.TrimSpace(string(info.StopReason)); stopReason != "" {
-			data["stop_reason"] = stopReason
+			data[triggerStopReasonKey] = stopReason
 		}
 		if stopDetail := strings.TrimSpace(info.StopDetail); stopDetail != "" {
-			data["stop_detail"] = stopDetail
+			data[triggerStopDetailKey] = stopDetail
 		}
 	}
 
@@ -1076,10 +1104,10 @@ func memoryConsolidatedEnvelope(event MemoryConsolidatedEvent) (ActivationEnvelo
 		data = make(map[string]any)
 	}
 	if !event.Timestamp.IsZero() {
-		data["completed_at"] = event.Timestamp.UTC().Format(time.RFC3339Nano)
+		data[triggerCompletedAtKey] = event.Timestamp.UTC().Format(time.RFC3339Nano)
 	}
 	if workspaceID != "" {
-		data["workspace_id"] = workspaceID
+		data[triggerWorkspaceIDKey] = workspaceID
 	}
 
 	envelope := ActivationEnvelope{
@@ -1110,7 +1138,7 @@ func webhookEnvelope(request WebhookRequest, trigger Trigger) (ActivationEnvelop
 	data["timestamp"] = request.Timestamp.UTC().Format(time.RFC3339Nano)
 
 	return ActivationEnvelope{
-		Kind:        "webhook",
+		Kind:        triggerEventWebhook,
 		Scope:       request.Scope,
 		WorkspaceID: strings.TrimSpace(request.WorkspaceID),
 		Source:      ActivationSourceWebhook,

@@ -15,22 +15,29 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 )
 
+const (
+	modelsdevClaudeKey     = "claude"
+	modelsdevCodexKey      = "codex"
+	modelsdevMoonshotKey   = "moonshot"
+	modelsdevOpenrouterKey = "openrouter"
+)
+
 const maxModelsDevPayloadBytes = 16 << 20
 
 var defaultModelsDevProviderMapping = map[string]string{
-	"anthropic":  "claude",
-	"claude":     "claude",
-	"google":     "gemini",
-	"gemini":     "gemini",
-	"openai":     "codex",
-	"codex":      "codex",
-	"openrouter": "openrouter",
-	"moonshot":   "moonshot",
-	"kimi":       "moonshot",
-	"xai":        "xai",
-	"mistral":    "mistral",
-	"groq":       "groq",
-	"minimax":    "minimax",
+	"anthropic":            modelsdevClaudeKey,
+	modelsdevClaudeKey:     modelsdevClaudeKey,
+	"google":               string(liveAuthGemini),
+	string(liveAuthGemini): string(liveAuthGemini),
+	liveSourcesOpenaiKey:   modelsdevCodexKey,
+	modelsdevCodexKey:      modelsdevCodexKey,
+	modelsdevOpenrouterKey: modelsdevOpenrouterKey,
+	modelsdevMoonshotKey:   modelsdevMoonshotKey,
+	"kimi":                 modelsdevMoonshotKey,
+	"xai":                  "xai",
+	"mistral":              "mistral",
+	"groq":                 "groq",
+	"minimax":              "minimax",
 }
 
 type modelsDevCache struct {

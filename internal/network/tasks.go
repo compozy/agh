@@ -11,6 +11,12 @@ import (
 )
 
 const (
+	tasksCapabilityDeniedKey = "capability_denied"
+	tasksNetworkChannelKey   = "network_channel"
+	tasksTaskIDKey           = "task_id"
+)
+
+const (
 	networkTaskWriteCapability       = "task.write"
 	taskIngressReasonChannelMismatch = "channel_mismatch"
 	taskIngressReasonStaleChannel    = "stale_channel"
@@ -175,19 +181,19 @@ func (m *Manager) CreateTaskFromPeer(
 	}
 	if err := validateRequestedTaskChannel(peerCtx.ingress.Channel, spec.NetworkChannel); err != nil {
 		return nil, m.rejectTaskIngress(ctx, peerCtx.ingress, networkTaskActionCreate, err, map[string]any{
-			"network_channel": strings.TrimSpace(spec.NetworkChannel),
+			tasksNetworkChannelKey: strings.TrimSpace(spec.NetworkChannel),
 		})
 	}
 
 	record, err := m.tasks.CreateTask(ctx, spec, peerCtx.actor)
 	if err != nil {
 		return nil, m.rejectTaskIngress(ctx, peerCtx.ingress, networkTaskActionCreate, err, map[string]any{
-			"network_channel": strings.TrimSpace(spec.NetworkChannel),
+			tasksNetworkChannelKey: strings.TrimSpace(spec.NetworkChannel),
 		})
 	}
 	m.recordTaskIngress(ctx, peerCtx.ingress, networkTaskActionCreate, AuditDirectionReceived, "", map[string]any{
-		"task_id":         record.ID,
-		"network_channel": strings.TrimSpace(record.NetworkChannel),
+		tasksTaskIDKey:         record.ID,
+		tasksNetworkChannelKey: strings.TrimSpace(record.NetworkChannel),
 	})
 	return record, nil
 }
@@ -215,15 +221,15 @@ func (m *Manager) UpdateTaskFromPeer(
 		&patch,
 	); err != nil {
 		return nil, m.rejectTaskIngress(ctx, peerCtx.ingress, networkTaskActionUpdate, err, map[string]any{
-			"task_id":         view.Task.ID,
-			"network_channel": strings.TrimSpace(view.Task.NetworkChannel),
+			tasksTaskIDKey:         view.Task.ID,
+			tasksNetworkChannelKey: strings.TrimSpace(view.Task.NetworkChannel),
 		})
 	}
 	if patch.NetworkChannel != nil {
 		if err := validateRequestedTaskChannel(peerCtx.ingress.Channel, *patch.NetworkChannel); err != nil {
 			return nil, m.rejectTaskIngress(ctx, peerCtx.ingress, networkTaskActionUpdate, err, map[string]any{
-				"task_id":         view.Task.ID,
-				"network_channel": strings.TrimSpace(*patch.NetworkChannel),
+				tasksTaskIDKey:         view.Task.ID,
+				tasksNetworkChannelKey: strings.TrimSpace(*patch.NetworkChannel),
 			})
 		}
 	}
@@ -231,12 +237,12 @@ func (m *Manager) UpdateTaskFromPeer(
 	record, err := m.tasks.UpdateTask(ctx, strings.TrimSpace(taskID), patch, peerCtx.actor)
 	if err != nil {
 		return nil, m.rejectTaskIngress(ctx, peerCtx.ingress, networkTaskActionUpdate, err, map[string]any{
-			"task_id": view.Task.ID,
+			tasksTaskIDKey: view.Task.ID,
 		})
 	}
 	m.recordTaskIngress(ctx, peerCtx.ingress, networkTaskActionUpdate, AuditDirectionReceived, "", map[string]any{
-		"task_id":         record.ID,
-		"network_channel": strings.TrimSpace(record.NetworkChannel),
+		tasksTaskIDKey:         record.ID,
+		tasksNetworkChannelKey: strings.TrimSpace(record.NetworkChannel),
 	})
 	return record, nil
 }
@@ -264,19 +270,19 @@ func (m *Manager) CancelTaskFromPeer(
 		nil,
 	); err != nil {
 		return nil, m.rejectTaskIngress(ctx, peerCtx.ingress, networkTaskActionCancel, err, map[string]any{
-			"task_id":         view.Task.ID,
-			"network_channel": strings.TrimSpace(view.Task.NetworkChannel),
+			tasksTaskIDKey:         view.Task.ID,
+			tasksNetworkChannelKey: strings.TrimSpace(view.Task.NetworkChannel),
 		})
 	}
 
 	record, err := m.tasks.CancelTask(ctx, strings.TrimSpace(taskID), req, peerCtx.actor)
 	if err != nil {
 		return nil, m.rejectTaskIngress(ctx, peerCtx.ingress, networkTaskActionCancel, err, map[string]any{
-			"task_id": view.Task.ID,
+			tasksTaskIDKey: view.Task.ID,
 		})
 	}
 	m.recordTaskIngress(ctx, peerCtx.ingress, networkTaskActionCancel, AuditDirectionReceived, "", map[string]any{
-		"task_id": record.ID,
+		tasksTaskIDKey: record.ID,
 	})
 	return record, nil
 }
@@ -303,35 +309,35 @@ func (m *Manager) EnqueueRunFromPeer(
 		nil,
 	); err != nil {
 		return nil, m.rejectTaskIngress(ctx, peerCtx.ingress, networkTaskActionEnqueue, err, map[string]any{
-			"task_id":         view.Task.ID,
-			"network_channel": strings.TrimSpace(view.Task.NetworkChannel),
+			tasksTaskIDKey:         view.Task.ID,
+			tasksNetworkChannelKey: strings.TrimSpace(view.Task.NetworkChannel),
 		})
 	}
 	if err := validateRequestedTaskChannel(peerCtx.ingress.Channel, spec.NetworkChannel); err != nil {
 		return nil, m.rejectTaskIngress(ctx, peerCtx.ingress, networkTaskActionEnqueue, err, map[string]any{
-			"task_id":         view.Task.ID,
-			"network_channel": strings.TrimSpace(spec.NetworkChannel),
+			tasksTaskIDKey:         view.Task.ID,
+			tasksNetworkChannelKey: strings.TrimSpace(spec.NetworkChannel),
 		})
 	}
 	spec, err = withNetworkRunMetadata(spec, peerCtx.ingress)
 	if err != nil {
 		return nil, m.rejectTaskIngress(ctx, peerCtx.ingress, networkTaskActionEnqueue, err, map[string]any{
-			"task_id": view.Task.ID,
+			tasksTaskIDKey: view.Task.ID,
 		})
 	}
 
 	run, err := m.tasks.EnqueueRun(ctx, spec, peerCtx.actor)
 	if err != nil {
 		return nil, m.rejectTaskIngress(ctx, peerCtx.ingress, networkTaskActionEnqueue, err, map[string]any{
-			"task_id":         view.Task.ID,
+			tasksTaskIDKey:    view.Task.ID,
 			"idempotency_key": strings.TrimSpace(spec.IdempotencyKey),
 		})
 	}
 	m.recordTaskIngress(ctx, peerCtx.ingress, networkTaskActionEnqueue, AuditDirectionReceived, "", map[string]any{
-		"task_id":         run.TaskID,
-		"run_id":          run.ID,
-		"idempotency_key": strings.TrimSpace(run.IdempotencyKey),
-		"network_channel": strings.TrimSpace(run.NetworkChannel),
+		tasksTaskIDKey:         run.TaskID,
+		"run_id":               run.ID,
+		"idempotency_key":      strings.TrimSpace(run.IdempotencyKey),
+		tasksNetworkChannelKey: strings.TrimSpace(run.NetworkChannel),
 	})
 	return run, nil
 }
@@ -529,7 +535,7 @@ func networkRunMetadataValues(ingress TaskIngressContext) (map[string]string, er
 		"network_workspace_id": strings.TrimSpace(ingress.WorkspaceID),
 		"network_work_id":      workID,
 		"network_message_id":   strings.TrimSpace(ingress.RequestID),
-		"network_channel":      strings.TrimSpace(ingress.Channel),
+		tasksNetworkChannelKey: strings.TrimSpace(ingress.Channel),
 		"network_surface":      strings.TrimSpace(string(ingress.Surface)),
 		"network_reply_to":     strings.TrimSpace(ingress.ReplyTo),
 		"network_trace_id":     strings.TrimSpace(ingress.TraceID),
@@ -586,7 +592,7 @@ func taskIngressReason(err error) string {
 	case errors.Is(err, ErrTaskChannelStale):
 		return taskIngressReasonStaleChannel
 	case errors.Is(err, ErrTaskIngressCapabilityDenied):
-		return "capability_denied"
+		return tasksCapabilityDeniedKey
 	case errors.Is(err, ErrTaskIngressPeerNotFound):
 		return "peer_not_found"
 	case errors.Is(err, ErrTaskIngressUnavailable):

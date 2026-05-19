@@ -181,7 +181,6 @@ func (s *Scheduler) Start(ctx context.Context) error {
 		return nil
 	}
 
-	//nolint:gosec // runtimeCancel is owned by Scheduler and invoked from Stop.
 	runtimeCtx, runtimeCancel := context.WithCancel(context.WithoutCancel(ctx))
 	s.runtimeCtx = runtimeCtx
 	s.runtimeCancel = runtimeCancel
@@ -548,7 +547,6 @@ func (s *Scheduler) startJobLoopLocked(jobID string) {
 		registration.cancel()
 	}
 
-	//nolint:gosec // cancel is retained per registration and called on update, unregister, or Stop.
 	jobCtx, cancel := context.WithCancel(s.runtimeCtx)
 	registration.cancel = cancel
 	s.registrations[jobID] = registration
@@ -648,8 +646,7 @@ func (s *Scheduler) executeScheduledJob(ctx context.Context, jobID string) error
 		Job:         &job,
 		ReservedRun: reservedRun,
 	})
-	var fireLimitErr *FireLimitError
-	if errors.As(err, &fireLimitErr) {
+	if fireLimitErr, ok := errors.AsType[*FireLimitError](err); ok {
 		if adjustErr := s.deferAfterFireLimit(ctx, job.ID, postClaimState, fireLimitErr); adjustErr != nil {
 			return errors.Join(err, adjustErr)
 		}

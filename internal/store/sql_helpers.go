@@ -9,6 +9,10 @@ import (
 	"time"
 )
 
+const (
+	sqlFalsePredicate = "1 = 0"
+)
+
 const timestampLayout = "2006-01-02T15:04:05.000000000Z"
 const defaultSessionType = "user"
 
@@ -256,7 +260,7 @@ func NewID(prefix string) string {
 
 func alwaysFalseClause() Clause {
 	return Clause{
-		sql: "1 = 0",
+		sql: sqlFalsePredicate,
 		ok:  true,
 	}
 }

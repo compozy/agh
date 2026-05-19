@@ -2,6 +2,14 @@ package builtin
 
 import toolspkg "github.com/pedronauck/agh/internal/tools"
 
+const (
+	workspaceWorkspaceKey = "workspace"
+)
+
+const (
+	workspaceListKey = "list"
+)
+
 var workspaceTools = []toolspkg.Descriptor{
 	nativeDescriptor(
 		toolspkg.ToolIDWorkspaceList,
@@ -14,7 +22,7 @@ var workspaceTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDWorkspace},
-		[]string{"workspace", "list"},
+		[]string{workspaceWorkspaceKey, workspaceListKey},
 		[]string{"workspace list", "registered workspaces"},
 	),
 	nativeDescriptor(
@@ -28,7 +36,7 @@ var workspaceTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDWorkspace},
-		[]string{"workspace", "info"},
+		[]string{workspaceWorkspaceKey, "info"},
 		[]string{"workspace info", "workspace record"},
 	),
 	nativeDescriptor(
@@ -42,7 +50,7 @@ var workspaceTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDWorkspace},
-		[]string{"workspace", "describe"},
+		[]string{workspaceWorkspaceKey, "describe"},
 		[]string{"workspace describe", "workspace detail"},
 	),
 }

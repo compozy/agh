@@ -6,6 +6,10 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 )
 
+const (
+	booleanTrueText = "true"
+)
+
 func sessionConfigOptionsFromSDK(options []acpsdk.SessionConfigOption) []SessionConfigOption {
 	if len(options) == 0 {
 		return nil
@@ -43,7 +47,7 @@ func sessionConfigOptionFromSDK(option acpsdk.SessionConfigOption) (SessionConfi
 		}
 		current := "false"
 		if booleanOption.CurrentValue {
-			current = "true"
+			current = booleanTrueText
 		}
 		return SessionConfigOption{
 			ID:          id,

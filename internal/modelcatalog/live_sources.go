@@ -25,6 +25,18 @@ import (
 )
 
 const (
+	liveSourcesOpenAIEnvName        = "OPENAI_API_KEY"
+	liveSourcesClaudeKey            = "claude"
+	liveSourcesCodexKey             = "codex"
+	liveSourcesHermesKey            = "hermes"
+	liveSourcesOllamaKey            = "ollama"
+	liveSourcesOpenaiKey            = "openai"
+	liveSourcesOpencodeKey          = "opencode"
+	liveSourcesOpenrouterKey        = "openrouter"
+	liveSourcesVercelAIGatewayValue = "vercel-ai-gateway"
+)
+
+const (
 	defaultLiveDiscoveryTimeout = 10 * time.Second
 	maxLiveDiscoveryPayloadSize = 8 << 20
 )
@@ -324,21 +336,21 @@ type liveDiscoveryTarget struct {
 }
 
 var liveProviderAdapters = map[string]liveProviderAdapter{
-	"codex": {
+	liveSourcesCodexKey: {
 		defaultKind:       liveDiscoveryHTTP,
 		defaultEndpoint:   "https://api.openai.com/v1/models",
 		authScheme:        liveAuthBearer,
 		authRequired:      true,
-		credentialEnvKeys: []string{"OPENAI_API_KEY"},
+		credentialEnvKeys: []string{liveSourcesOpenAIEnvName},
 	},
-	"openai": {
+	liveSourcesOpenaiKey: {
 		defaultKind:       liveDiscoveryHTTP,
 		defaultEndpoint:   "https://api.openai.com/v1/models",
 		authScheme:        liveAuthBearer,
 		authRequired:      true,
-		credentialEnvKeys: []string{"OPENAI_API_KEY"},
+		credentialEnvKeys: []string{liveSourcesOpenAIEnvName},
 	},
-	"claude": {
+	liveSourcesClaudeKey: {
 		defaultKind:       liveDiscoveryHTTP,
 		defaultEndpoint:   "https://api.anthropic.com/v1/models",
 		authScheme:        liveAuthAnthropic,
@@ -354,39 +366,39 @@ var liveProviderAdapters = map[string]liveProviderAdapter{
 		credentialEnvKeys: []string{"ANTHROPIC_API_KEY"},
 		headers:           map[string]string{"anthropic-version": "2023-06-01"},
 	},
-	"gemini": {
+	string(liveAuthGemini): {
 		defaultKind:       liveDiscoveryHTTP,
 		defaultEndpoint:   "https://generativelanguage.googleapis.com/v1beta/models",
 		authScheme:        liveAuthGemini,
 		authRequired:      true,
 		credentialEnvKeys: []string{"GEMINI_API_KEY", "GOOGLE_API_KEY"},
 	},
-	"openrouter": {
+	liveSourcesOpenrouterKey: {
 		defaultKind:       liveDiscoveryHTTP,
 		defaultEndpoint:   "https://openrouter.ai/api/v1/models",
 		authScheme:        liveAuthBearer,
 		authRequired:      true,
 		credentialEnvKeys: []string{"OPENROUTER_API_KEY"},
 	},
-	"vercel-ai-gateway": {
+	liveSourcesVercelAIGatewayValue: {
 		defaultKind:       liveDiscoveryHTTP,
 		defaultEndpoint:   "https://ai-gateway.vercel.sh/v1/models",
 		authScheme:        liveAuthBearer,
 		authRequired:      false,
 		credentialEnvKeys: []string{"AI_GATEWAY_API_KEY", "VERCEL_AI_GATEWAY_API_KEY"},
 	},
-	"ollama": {
+	liveSourcesOllamaKey: {
 		defaultKind:     liveDiscoveryHTTP,
 		defaultEndpoint: "http://localhost:11434/api/tags",
 	},
-	"opencode": {
+	liveSourcesOpencodeKey: {
 		defaultKind:    liveDiscoveryCommand,
 		defaultCommand: "opencode models",
 	},
 	"openclaw": {
 		defaultKind: liveDiscoveryNone,
 	},
-	"hermes": {
+	liveSourcesHermesKey: {
 		defaultKind: liveDiscoveryNone,
 	},
 	"pi": {
@@ -864,7 +876,7 @@ func parseLineModelRows(providerID string, stdout string, now time.Time) []Model
 		if strings.EqualFold(firstToken, "id") || strings.EqualFold(firstToken, "model") {
 			continue
 		}
-		if !strings.Contains(firstToken, "/") && providerID == "opencode" {
+		if !strings.Contains(firstToken, "/") && providerID == liveSourcesOpencodeKey {
 			continue
 		}
 		modelID := strings.TrimSpace(firstToken)

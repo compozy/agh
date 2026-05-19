@@ -13,6 +13,11 @@ import (
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
+const (
+	promptStreamErrorKey = "error"
+	promptStreamStopKey  = "stop"
+)
+
 type promptAgentEventPayload struct {
 	Type       string                           `json:"type"`
 	SessionID  string                           `json:"session_id,omitempty"`
@@ -264,7 +269,7 @@ func (e *PromptStreamEncoder) emitError(writer FlushWriter, event acp.AgentEvent
 		return err
 	}
 	if err := WriteSSE(writer, SSEMessage{
-		Data: promptErrorPayload{Type: "error", ErrorText: e.errorText(event)},
+		Data: promptErrorPayload{Type: promptStreamErrorKey, ErrorText: e.errorText(event)},
 	}); err != nil {
 		return err
 	}
@@ -496,7 +501,7 @@ func (e *PromptStreamEncoder) finish(writer FlushWriter, event acp.AgentEvent) e
 func promptAISDKFinishReason(stopReason string) string {
 	switch strings.TrimSpace(stopReason) {
 	case "", "end_turn":
-		return "stop"
+		return promptStreamStopKey
 	case "max_tokens":
 		return "length"
 	case "canceled", "max_turn_requests", "refusal":

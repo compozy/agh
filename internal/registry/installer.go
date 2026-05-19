@@ -19,6 +19,10 @@ import (
 )
 
 const (
+	installerApplicationGzipPath = "application/gzip"
+)
+
+const (
 	// DefaultMaxArchiveSize caps the compressed archive stream before extraction.
 	DefaultMaxArchiveSize int64 = 50 * 1024 * 1024
 
@@ -435,7 +439,7 @@ func validateDownloadContentType(contentType string) error {
 	}
 
 	switch mediaType {
-	case "application/gzip", "application/x-gzip", "application/octet-stream":
+	case installerApplicationGzipPath, "application/x-gzip", "application/octet-stream":
 		return nil
 	default:
 		return fmt.Errorf(

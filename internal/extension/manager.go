@@ -30,6 +30,16 @@ import (
 )
 
 const (
+	managerShutdownKey = "shutdown"
+)
+
+const (
+	managerPathValue      = "PATH"
+	managerExtensionKey   = "extension"
+	managerHealthCheckKey = "health_check"
+)
+
+const (
 	defaultProtocolVersion         = "1"
 	defaultHealthCheckInterval     = 30 * time.Second
 	defaultHealthCheckTimeout      = 5 * time.Second
@@ -66,7 +76,7 @@ var (
 )
 
 var safeSubprocessEnvKeys = []string{
-	"PATH",
+	managerPathValue,
 	"HOME",
 	"USER",
 	"LOGNAME",
@@ -629,7 +639,7 @@ func (m *Manager) stopManagedExtension(ctx context.Context, item *managedExtensi
 	item.phase = ExtensionPhaseStop
 	m.mu.Unlock()
 
-	m.logger.Info("extension.lifecycle.shutdown", "extension", item.info.Name)
+	m.logger.Info("extension.lifecycle.shutdown", managerExtensionKey, item.info.Name)
 	return itemErr
 }
 
@@ -1032,7 +1042,7 @@ func (m *Manager) activateExtension(ext *managedExtension) {
 
 	m.logger.Info(
 		"extension.lifecycle.loaded",
-		"extension", name,
+		managerExtensionKey, name,
 		"source", source,
 		"active", active,
 		"skill_count", skillCount,
@@ -1148,7 +1158,7 @@ func (m *Manager) recoverExtension(name string, reason error) (int64, bool) {
 			); shutdownErr != nil {
 				m.logger.Warn(
 					"extension.lifecycle.shutdown_failed",
-					"extension", name,
+					managerExtensionKey, name,
 					"recovered", false,
 					"error", shutdownErr,
 				)
@@ -1171,7 +1181,7 @@ func (m *Manager) recoverExtension(name string, reason error) (int64, bool) {
 		source := ext.info.Source.String()
 		m.mu.Unlock()
 
-		m.logger.Info("extension.lifecycle.loaded", "extension", name, "source", source, "recovered", true)
+		m.logger.Info("extension.lifecycle.loaded", managerExtensionKey, name, "source", source, "recovered", true)
 
 		return nextGeneration, true
 	}
@@ -1476,7 +1486,7 @@ func extensionManagerResourceActor() resources.MutationActor {
 
 func extensionResourceSource(extensionName string) resources.ResourceSource {
 	return resources.ResourceSource{
-		Kind: resources.ResourceSourceKind("extension"),
+		Kind: resources.ResourceSourceKind(managerExtensionKey),
 		ID:   extensionName,
 	}
 }
@@ -1612,7 +1622,7 @@ func (m *Manager) hookConfigToDecl(ext *managedExtension, cfg *HookConfig) (hook
 		Env:          resolvedEnv,
 		SecretEnv:    executor.secretEnv,
 		Metadata: map[string]string{
-			"extension": ext.info.Name,
+			managerExtensionKey: ext.info.Name,
 		},
 	}
 	if cfg.Priority != nil {
@@ -1815,9 +1825,9 @@ func (m *Manager) resolveSecretRef(ctx context.Context, ref string) (string, err
 }
 
 func runExtensionRedactionCleanups(cleanups []func()) {
-	for index := len(cleanups) - 1; index >= 0; index-- {
-		if cleanups[index] != nil {
-			cleanups[index]()
+	for _, cleanup := range slices.Backward(cleanups) {
+		if cleanup != nil {
+			cleanup()
 		}
 	}
 }
@@ -1838,7 +1848,7 @@ func (m *Manager) setFailure(ext *managedExtension, phase ExtensionPhase, err er
 	name := ext.info.Name
 	m.mu.Unlock()
 
-	m.logger.Error("extension.lifecycle.failed", "extension", name, "phase", phase, "error", err)
+	m.logger.Error("extension.lifecycle.failed", managerExtensionKey, name, "phase", phase, "error", err)
 }
 
 func (m *Manager) lookupManaged(name string) (*managedExtension, bool) {
@@ -1895,7 +1905,7 @@ func (m *Manager) recordFailure(name string, reason error) (time.Duration, bool,
 		m.reportBridgeRuntimeIssues(instanceIDs, bridgepkg.BridgeStatusError, reason)
 		m.logger.Error(
 			"extension.lifecycle.failed",
-			"extension",
+			managerExtensionKey,
 			name,
 			"phase",
 			ExtensionPhaseRecover,
@@ -1915,7 +1925,7 @@ func (m *Manager) recordFailure(name string, reason error) (time.Duration, bool,
 
 	m.logger.Warn(
 		"extension.lifecycle.failed",
-		"extension", name,
+		managerExtensionKey, name,
 		"phase", ExtensionPhaseRecover,
 		"error", reason,
 		"consecutive_failures", failures,
@@ -2325,7 +2335,7 @@ func (m *Manager) resolveBridgeRuntime(
 }
 
 func daemonRequestMethods() []string {
-	return []string{"execute_hook", "health_check", "shutdown"}
+	return []string{"execute_hook", managerHealthCheckKey, managerShutdownKey}
 }
 
 func capabilityMethods(provides []string) []string {

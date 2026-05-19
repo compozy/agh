@@ -81,8 +81,7 @@ func WorkspaceDotEnvFile(workspaceRoot string) string {
 func InspectDotEnvFile(path string) (DotEnvRepairReport, error) {
 	normalizedPath, data, exists, err := readDotEnvFile(path)
 	if err != nil {
-		var repairErr *DotEnvRepairError
-		if errors.As(err, &repairErr) {
+		if repairErr, ok := errors.AsType[*DotEnvRepairError](err); ok {
 			return DotEnvRepairReport{
 				Path:        normalizedPath,
 				Status:      DotEnvStatusUnsupported,
@@ -574,7 +573,7 @@ func (e *DotEnvRepairError) Error() string {
 			location += "key " + diagnostic.Key
 		}
 		if location == "" {
-			location = "file"
+			location = string(capabilityCatalogLayoutModeFile)
 		}
 		parts = append(parts, fmt.Sprintf("%s: %s", location, diagnostic.Message))
 	}

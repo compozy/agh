@@ -23,6 +23,11 @@ import (
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
+const (
+	serviceConfigKey  = "config"
+	serviceDefaultKey = "default"
+)
+
 var (
 	ErrActivationNotFound     = modelpkg.ErrActivationNotFound
 	ErrBundleNotFound         = errors.New("bundles: bundle not found")
@@ -142,7 +147,7 @@ func NewService(store Store, extensions ExtensionInfoLister, loadExtension Exten
 		store:             store,
 		extensions:        extensions,
 		loadExtension:     loadExtension,
-		configuredDefault: "default",
+		configuredDefault: serviceDefaultKey,
 		logger:            slog.New(slog.NewTextHandler(io.Discard, nil)),
 		now: func() time.Time {
 			return time.Now().UTC()
@@ -437,7 +442,7 @@ func (s *Service) NetworkSettings(ctx context.Context) (NetworkSettings, error) 
 	if strings.TrimSpace(settings.EffectiveDefaultChannel) == "" {
 		settings.ConfiguredDefaultChannel = strings.TrimSpace(s.configuredDefault)
 		settings.EffectiveDefaultChannel = strings.TrimSpace(s.configuredDefault)
-		settings.EffectiveDefaultSource = "config"
+		settings.EffectiveDefaultSource = serviceConfigKey
 	}
 	return settings, nil
 }

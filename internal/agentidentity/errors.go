@@ -6,6 +6,11 @@ import (
 	"strings"
 )
 
+const (
+	errorsAgentErrorKey                      = "agent_error"
+	errorsInspectTheDaemonErrorAndRetryValue = "inspect the daemon error and retry"
+)
+
 const agentCommandFailedMessage = "agent command failed"
 
 const (
@@ -72,9 +77,9 @@ type ErrorPayload struct {
 // ErrorPayloadFor returns the stable machine-readable error payload for agent CLI output.
 func ErrorPayloadFor(err error) ErrorPayload {
 	payload := ErrorPayload{
-		Code:     "agent_error",
+		Code:     errorsAgentErrorKey,
 		Message:  agentCommandFailedMessage,
-		Action:   "inspect the daemon error and retry",
+		Action:   errorsInspectTheDaemonErrorAndRetryValue,
 		ExitCode: ExitCodeForError(err),
 	}
 	var identityErr *Error
@@ -84,13 +89,13 @@ func ErrorPayloadFor(err error) ErrorPayload {
 		payload.Action = strings.TrimSpace(identityErr.Action)
 	}
 	if payload.Code == "" {
-		payload.Code = "agent_error"
+		payload.Code = errorsAgentErrorKey
 	}
 	if payload.Message == "" {
 		payload.Message = agentCommandFailedMessage
 	}
 	if payload.Action == "" {
-		payload.Action = "inspect the daemon error and retry"
+		payload.Action = errorsInspectTheDaemonErrorAndRetryValue
 	}
 	return payload
 }

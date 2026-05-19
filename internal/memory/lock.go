@@ -98,6 +98,9 @@ func (l *ConsolidationLock) TryAcquire() (priorMtime time.Time, acquired bool, e
 			fmt.Errorf("memory: invalid process pid %d", pid),
 		)
 	}
+	if state.exists && state.validPID && state.pid == pid && !l.isStale(state) {
+		return state.modTime, false, nil
+	}
 
 	if err := l.writeLockedPID(pid); err != nil {
 		return priorMtime, false, errors.Join(
@@ -105,17 +108,8 @@ func (l *ConsolidationLock) TryAcquire() (priorMtime time.Time, acquired bool, e
 		)
 	}
 
-	verified, err := l.readState()
-	if err != nil {
-		restoreErr := l.restoreUnlocked(priorMtime)
-		return priorMtime, false, errors.Join(err, restoreErr)
-	}
-	if !verified.exists || !verified.validPID || verified.pid != pid {
-		restoreErr := l.restoreUnlocked(priorMtime)
-		return priorMtime, false, errors.Join(
-			fmt.Errorf("memory: verify consolidation lock %q: ownership lost to pid %d", l.path, verified.pid),
-			restoreErr,
-		)
+	if err := l.verifyLockedPID(pid, priorMtime); err != nil {
+		return priorMtime, false, err
 	}
 
 	if releaseErr := claim.release(); releaseErr != nil {
@@ -229,10 +223,14 @@ func (l *ConsolidationLock) canReclaim(state lockState) bool {
 	if !state.validPID {
 		return true
 	}
-	if l.staleAge > 0 && l.now().Sub(state.modTime) > l.staleAge {
+	if l.isStale(state) {
 		return true
 	}
 	return !l.processAlive(state.pid)
+}
+
+func (l *ConsolidationLock) isStale(state lockState) bool {
+	return l.staleAge > 0 && l.now().Sub(state.modTime) > l.staleAge
 }
 
 func (l *ConsolidationLock) claimPath() string {
@@ -315,6 +313,22 @@ func (l *ConsolidationLock) ensureOwnedByCurrentPID() error {
 	}
 	if !state.exists || !state.validPID || state.pid != pid {
 		return fmt.Errorf("memory: consolidation lock %q is not owned by pid %d", l.path, pid)
+	}
+	return nil
+}
+
+func (l *ConsolidationLock) verifyLockedPID(pid int, priorMtime time.Time) error {
+	verified, err := l.readState()
+	if err != nil {
+		restoreErr := l.restoreUnlocked(priorMtime)
+		return errors.Join(err, restoreErr)
+	}
+	if !verified.exists || !verified.validPID || verified.pid != pid {
+		restoreErr := l.restoreUnlocked(priorMtime)
+		return errors.Join(
+			fmt.Errorf("memory: verify consolidation lock %q: ownership lost to pid %d", l.path, verified.pid),
+			restoreErr,
+		)
 	}
 	return nil
 }

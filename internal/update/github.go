@@ -12,6 +12,10 @@ import (
 	"time"
 )
 
+const (
+	githubDevKey = "dev"
+)
+
 type githubReleaseResponse struct {
 	TagName     string                `json:"tag_name"`
 	HTMLURL     string                `json:"html_url"`
@@ -145,7 +149,7 @@ func (m *Manager) downloadFile(ctx context.Context, url string, path string, max
 func (m *Manager) userAgent() string {
 	version := strings.TrimSpace(m.currentVersion)
 	if version == "" {
-		version = "dev"
+		version = githubDevKey
 	}
 	return "agh/" + version
 }

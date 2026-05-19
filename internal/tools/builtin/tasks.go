@@ -2,6 +2,19 @@ package builtin
 
 import toolspkg "github.com/pedronauck/agh/internal/tools"
 
+const (
+	tasksNotificationsKey = "notifications"
+)
+
+const (
+	tasksBridgesKey                = "bridges"
+	tasksExecutionProfileKey       = "execution_profile"
+	tasksReviewsKey                = "reviews"
+	tasksRunsKey                   = "runs"
+	tasksTaskExecutionProfileValue = "task execution profile"
+	tasksTasksKey                  = "tasks"
+)
+
 var taskTools = []toolspkg.Descriptor{
 	nativeDescriptor(
 		toolspkg.ToolIDTaskList,
@@ -14,7 +27,7 @@ var taskTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
-		[]string{"tasks", "coordination"},
+		[]string{tasksTasksKey, "coordination"},
 		[]string{"task summaries", "task inbox"},
 	),
 	nativeDescriptor(
@@ -28,7 +41,7 @@ var taskTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
-		[]string{"tasks", "coordination"},
+		[]string{tasksTasksKey, "coordination"},
 		[]string{"task details", "task view"},
 	),
 	nativeDescriptor(
@@ -42,7 +55,7 @@ var taskTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
-		[]string{"tasks", "create"},
+		[]string{tasksTasksKey, "create"},
 		[]string{"create task", "new task"},
 	),
 	nativeDescriptor(
@@ -56,7 +69,7 @@ var taskTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
-		[]string{"tasks", "create", "children"},
+		[]string{tasksTasksKey, "create", "children"},
 		[]string{"create child task", "task lineage"},
 	),
 	nativeDescriptor(
@@ -70,7 +83,7 @@ var taskTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
-		[]string{"tasks", "update"},
+		[]string{tasksTasksKey, "update"},
 		[]string{"edit task", "patch task"},
 	),
 	nativeDescriptor(
@@ -84,7 +97,7 @@ var taskTools = []toolspkg.Descriptor{
 		true,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
-		[]string{"tasks", "cancel"},
+		[]string{tasksTasksKey, "cancel"},
 		[]string{"cancel task", "stop task tree"},
 	),
 	nativeDescriptor(
@@ -98,7 +111,7 @@ var taskTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
-		[]string{"tasks", "runs"},
+		[]string{tasksTasksKey, tasksRunsKey},
 		[]string{"task runs", "run history"},
 	),
 	nativeDescriptor(
@@ -112,7 +125,7 @@ var taskTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
-		[]string{"tasks", "reviews"},
+		[]string{tasksTasksKey, tasksReviewsKey},
 		[]string{"request task review", "run review"},
 	),
 	nativeDescriptor(
@@ -126,7 +139,7 @@ var taskTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
-		[]string{"tasks", "reviews"},
+		[]string{tasksTasksKey, tasksReviewsKey},
 		[]string{"review history", "task reviews"},
 	),
 	nativeDescriptor(
@@ -140,7 +153,7 @@ var taskTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
-		[]string{"tasks", "reviews"},
+		[]string{tasksTasksKey, tasksReviewsKey},
 		[]string{"review detail", "show task review"},
 	),
 	nativeDescriptor(
@@ -154,8 +167,8 @@ var taskTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
-		[]string{"tasks", "execution_profile"},
-		[]string{"task execution profile", "profile get"},
+		[]string{tasksTasksKey, tasksExecutionProfileKey},
+		[]string{tasksTaskExecutionProfileValue, "profile get"},
 	),
 	nativeDescriptor(
 		toolspkg.ToolIDTaskExecutionProfileSet,
@@ -168,8 +181,8 @@ var taskTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
-		[]string{"tasks", "execution_profile"},
-		[]string{"task execution profile", "profile set"},
+		[]string{tasksTasksKey, tasksExecutionProfileKey},
+		[]string{tasksTaskExecutionProfileValue, "profile set"},
 	),
 	nativeDescriptor(
 		toolspkg.ToolIDTaskExecutionProfileDelete,
@@ -182,8 +195,8 @@ var taskTools = []toolspkg.Descriptor{
 		true,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
-		[]string{"tasks", "execution_profile"},
-		[]string{"task execution profile", "profile delete"},
+		[]string{tasksTasksKey, tasksExecutionProfileKey},
+		[]string{tasksTaskExecutionProfileValue, "profile delete"},
 	),
 	nativeDescriptor(
 		toolspkg.ToolIDTaskNotificationSubscribe,
@@ -196,7 +209,7 @@ var taskTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
-		[]string{"tasks", "notifications", "bridges"},
+		[]string{tasksTasksKey, tasksNotificationsKey, tasksBridgesKey},
 		[]string{"task notification subscribe", "bridge task subscription"},
 	),
 	nativeDescriptor(
@@ -210,7 +223,7 @@ var taskTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
-		[]string{"tasks", "notifications", "bridges"},
+		[]string{tasksTasksKey, tasksNotificationsKey, tasksBridgesKey},
 		[]string{"task notification list", "bridge task subscriptions"},
 	),
 	nativeDescriptor(
@@ -224,7 +237,7 @@ var taskTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
-		[]string{"tasks", "notifications", "bridges"},
+		[]string{tasksTasksKey, tasksNotificationsKey, tasksBridgesKey},
 		[]string{"task notification show", "bridge task subscription detail"},
 	),
 	nativeDescriptor(
@@ -238,7 +251,7 @@ var taskTools = []toolspkg.Descriptor{
 		true,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
-		[]string{"tasks", "notifications", "bridges"},
+		[]string{tasksTasksKey, tasksNotificationsKey, tasksBridgesKey},
 		[]string{"task notification delete", "unsubscribe bridge task notification"},
 	),
 }

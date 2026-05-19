@@ -87,7 +87,7 @@ func (o *Observer) StartRetention(ctx context.Context) error {
 		o.retentionMu.Unlock()
 		return nil
 	}
-	runCtx, cancel := context.WithCancel(ctx) //nolint:gosec // ShutdownRetention owns and calls cancel.
+	runCtx, cancel := context.WithCancel(ctx)
 	o.retentionCancel = cancel
 	o.retentionWG.Add(1)
 	o.retentionMu.Unlock()

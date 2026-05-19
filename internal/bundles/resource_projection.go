@@ -14,6 +14,10 @@ import (
 	"github.com/pedronauck/agh/internal/soul"
 )
 
+const (
+	resourceProjectionConfigKey = "config"
+)
+
 // BundleActivationResourcePlan is the owned-resource composition plan produced from bundle.activation records.
 type BundleActivationResourcePlan struct {
 	revision            int64
@@ -224,7 +228,7 @@ func (s *Service) collectDesiredStateFromBundleRecords(
 		inventoryByActivation: make(map[string][]InventoryItem, len(activations)),
 		declaredChannels:      make([]DeclaredChannel, 0, capacity.channels),
 		effectiveDefault:      strings.TrimSpace(s.configuredDefault),
-		effectiveSource:       "config",
+		effectiveSource:       resourceProjectionConfigKey,
 	}
 
 	claimedActivation := ""

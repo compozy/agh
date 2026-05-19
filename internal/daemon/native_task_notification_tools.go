@@ -18,6 +18,10 @@ import (
 	toolspkg "github.com/pedronauck/agh/internal/tools"
 )
 
+const (
+	nativeTaskNotificationToolsDeletedKey = "deleted"
+)
+
 type taskNotificationSubscribeInput struct {
 	TaskID           string `json:"task_id"`
 	SubscriptionID   string `json:"subscription_id,omitempty"`
@@ -164,7 +168,7 @@ func (n *daemonNativeTools) taskNotificationDelete(
 		return toolspkg.ToolResult{}, nativeTaskNotificationToolError(req.ToolID, err)
 	}
 	return structuredResult(
-		map[string]any{"deleted": true, "subscription_id": subscription.SubscriptionID},
+		map[string]any{nativeTaskNotificationToolsDeletedKey: true, "subscription_id": subscription.SubscriptionID},
 		fmt.Sprintf("deleted %s", subscription.SubscriptionID),
 	)
 }

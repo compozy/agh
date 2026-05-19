@@ -12,6 +12,25 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	hooksOrderKey = "order"
+)
+
+const (
+	hooksModeKey = "mode"
+)
+
+const (
+	hooksErrorValue    = "Error"
+	hooksEventValue    = "Event"
+	hooksValueValue    = "Value"
+	hooksErrorKey      = "error"
+	hooksEventKey      = "event"
+	hooksEventsKey     = "events"
+	hooksInfoNameValue = "info <name>"
+	hooksListKey       = "list"
+)
+
 func newHooksCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "hooks",
@@ -30,7 +49,7 @@ func newHooksListCommand(deps commandDeps) *cobra.Command {
 	var query HookCatalogQuery
 
 	cmd := &cobra.Command{
-		Use:   "list",
+		Use:   hooksListKey,
 		Short: "List resolved hooks in pipeline order",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
@@ -48,9 +67,9 @@ func newHooksListCommand(deps commandDeps) *cobra.Command {
 
 	cmd.Flags().StringVar(&query.Workspace, "workspace", "", "Filter by workspace name or ID")
 	cmd.Flags().StringVar(&query.Agent, "agent", "", "Filter by agent name")
-	cmd.Flags().StringVar(&query.Event, "event", "", "Filter by hook event")
-	cmd.Flags().StringVar(&query.Source, "source", "", "Filter by hook source")
-	cmd.Flags().StringVar(&query.Mode, "mode", "", "Filter by hook mode")
+	cmd.Flags().StringVar(&query.Event, hooksEventKey, "", "Filter by hook event")
+	cmd.Flags().StringVar(&query.Source, automationSourceKey, "", "Filter by hook source")
+	cmd.Flags().StringVar(&query.Mode, hooksModeKey, "", "Filter by hook mode")
 	return cmd
 }
 
@@ -58,7 +77,7 @@ func newHooksInfoCommand(deps commandDeps) *cobra.Command {
 	var workspace string
 
 	cmd := &cobra.Command{
-		Use:   "info <name>",
+		Use:   hooksInfoNameValue,
 		Short: "Show detailed information for one or more hooks by name",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -95,7 +114,7 @@ func newHooksEventsCommand(deps commandDeps) *cobra.Command {
 	var query HookEventsQuery
 
 	cmd := &cobra.Command{
-		Use:   "events",
+		Use:   hooksEventsKey,
 		Short: "List supported hook events",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
@@ -156,7 +175,7 @@ func newHooksRunsCommand(deps commandDeps) *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&query.Session, "session", "", "Session ID")
-	cmd.Flags().StringVar(&query.Event, "event", "", "Filter by hook event")
+	cmd.Flags().StringVar(&query.Event, hooksEventKey, "", "Filter by hook event")
 	cmd.Flags().StringVar(&query.Outcome, "outcome", "", "Filter by hook outcome")
 	cmd.Flags().StringVar(&sinceRaw, "since", "", "Show runs since an RFC3339 timestamp or relative duration")
 	cmd.Flags().IntVar(&query.Last, "last", 0, "Show only the most recent N runs")
@@ -169,9 +188,18 @@ func hookListBundle(hooks []HookCatalogRecord) outputBundle {
 		hooks,
 		hooks,
 		"Hooks",
-		[]string{"Order", "Name", "Event", "Source", "Mode", "Priority"},
+		[]string{"Order", automationNameValue, hooksEventValue, authoredContextSourceValue, "Mode", "Priority"},
 		"hooks",
-		[]string{"order", "name", "event", "source", "skill_source", "mode", "required", "priority"},
+		[]string{
+			hooksOrderKey,
+			automationNameKey,
+			hooksEventKey,
+			automationSourceKey,
+			"skill_source",
+			hooksModeKey,
+			"required",
+			"priority",
+		},
 		func(item HookCatalogRecord) []string {
 			return []string{
 				strconv.Itoa(item.Order),
@@ -205,10 +233,10 @@ func hookInfoBundle(hooks []HookCatalogRecord) outputBundle {
 			for _, item := range hooks {
 				blocks = append(blocks, renderHumanBlocks(
 					renderHumanSection("Hook", []keyValue{
-						{Label: "Name", Value: stringOrDash(item.Name)},
+						{Label: automationNameValue, Value: stringOrDash(item.Name)},
 						{Label: "Order", Value: strconv.Itoa(item.Order)},
-						{Label: "Event", Value: stringOrDash(item.Event)},
-						{Label: "Source", Value: stringOrDash(item.Source)},
+						{Label: hooksEventValue, Value: stringOrDash(item.Event)},
+						{Label: authoredContextSourceValue, Value: stringOrDash(item.Source)},
 						{Label: "Skill Source", Value: stringOrDash(item.SkillSource)},
 						{Label: "Mode", Value: stringOrDash(item.Mode)},
 						{Label: "Required", Value: strconv.FormatBool(item.Required)},
@@ -216,8 +244,8 @@ func hookInfoBundle(hooks []HookCatalogRecord) outputBundle {
 						{Label: "Timeout (ms)", Value: int64OrDash(item.TimeoutMS)},
 						{Label: "Executor Kind", Value: stringOrDash(item.ExecutorKind)},
 					}),
-					renderHumanTable("Matcher", []string{"Field", "Value"}, hookMatcherRows(item.Matcher)),
-					renderHumanTable("Metadata", []string{"Key", "Value"}, hookMetadataRows(item.Metadata)),
+					renderHumanTable("Matcher", []string{"Field", hooksValueValue}, hookMatcherRows(item.Matcher)),
+					renderHumanTable("Metadata", []string{"Key", hooksValueValue}, hookMetadataRows(item.Metadata)),
 				))
 			}
 			return renderHumanBlocks(blocks...), nil
@@ -243,12 +271,12 @@ func hookInfoBundle(hooks []HookCatalogRecord) outputBundle {
 				renderToonArray(
 					"hooks",
 					[]string{
-						"name",
-						"order",
-						"event",
-						"source",
+						automationNameKey,
+						hooksOrderKey,
+						hooksEventKey,
+						automationSourceKey,
 						"skill_source",
-						"mode",
+						hooksModeKey,
 						"required",
 						"priority",
 						"timeout_ms",
@@ -259,13 +287,13 @@ func hookInfoBundle(hooks []HookCatalogRecord) outputBundle {
 			}
 			for _, item := range hooks {
 				blocks = append(blocks, renderHumanBlocks(
-					renderToonObject("hook", []string{"name", "order", "event"}, []string{
+					renderToonObject("hook", []string{automationNameKey, hooksOrderKey, hooksEventKey}, []string{
 						item.Name,
 						strconv.Itoa(item.Order),
 						item.Event,
 					}),
-					renderToonArray("matcher", []string{"field", "value"}, hookMatcherRows(item.Matcher)),
-					renderToonArray("metadata", []string{"key", "value"}, hookMetadataRows(item.Metadata)),
+					renderToonArray("matcher", []string{"field", hooksValueKey}, hookMatcherRows(item.Matcher)),
+					renderToonArray("metadata", []string{"key", hooksValueKey}, hookMetadataRows(item.Metadata)),
 				))
 			}
 			return renderHumanBlocks(blocks...), nil
@@ -278,9 +306,9 @@ func hookEventsBundle(events []HookEventRecord) outputBundle {
 		events,
 		events,
 		"Hook Events",
-		[]string{"Event", "Family", "Sync", "Payload", "Patch"},
-		"events",
-		[]string{"event", "family", "sync_eligible", "payload_schema", "patch_schema"},
+		[]string{hooksEventValue, "Family", "Sync", "Payload", "Patch"},
+		hooksEventsKey,
+		[]string{hooksEventKey, "family", "sync_eligible", "payload_schema", "patch_schema"},
 		func(item HookEventRecord) []string {
 			return []string{
 				stringOrDash(item.Event),
@@ -307,9 +335,9 @@ func hookRunsBundle(runs []HookRunRecord) outputBundle {
 		runs,
 		runs,
 		"Hook Runs",
-		[]string{"Hook", "Event", "Outcome", "Duration", "Error"},
+		[]string{"Hook", hooksEventValue, "Outcome", "Duration", hooksErrorValue},
 		"runs",
-		[]string{"hook_name", "event", "outcome", "duration_ms", "error", "recorded_at"},
+		[]string{"hook_name", hooksEventKey, "outcome", "duration_ms", hooksErrorKey, "recorded_at"},
 		func(item HookRunRecord) []string {
 			return []string{
 				stringOrDash(item.HookName),

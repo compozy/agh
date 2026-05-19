@@ -10,6 +10,10 @@ import (
 	"strings"
 )
 
+const (
+	loggerInfoKey = "info"
+)
+
 const mirrorToStderrEnvKey = "AGH_INTERNAL_LOG_MIRROR_STDERR"
 
 type options struct {
@@ -45,7 +49,7 @@ func WithMirrorToStderr(enabled bool) Option {
 // New constructs a structured logger and returns a close function for any opened file handle.
 func New(opts ...Option) (*slog.Logger, func() error, error) {
 	options := options{
-		level:        "info",
+		level:        loggerInfoKey,
 		mirrorStderr: true,
 	}
 	for _, opt := range opts {
@@ -135,7 +139,7 @@ func ParseLevel(raw string) (slog.Level, error) {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
 	case "debug":
 		return slog.LevelDebug, nil
-	case "info", "":
+	case loggerInfoKey, "":
 		return slog.LevelInfo, nil
 	case "warn":
 		return slog.LevelWarn, nil

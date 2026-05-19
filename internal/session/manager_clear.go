@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -198,8 +199,7 @@ func restoreClearedConversationFailure(
 func restoreSessionDBArtifacts(backups []sessionDBBackup) error {
 	var errs []error
 
-	for i := len(backups) - 1; i >= 0; i-- {
-		item := backups[i]
+	for _, item := range slices.Backward(backups) {
 		if err := removeSessionDBArtifact(item.original); err != nil && !errors.Is(err, os.ErrNotExist) {
 			errs = append(errs, fmt.Errorf("session: remove failed clear artifact %q: %w", item.original, err))
 		}

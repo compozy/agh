@@ -2,6 +2,12 @@ package builtin
 
 import toolspkg "github.com/pedronauck/agh/internal/tools"
 
+const (
+	autonomyAutonomyKey = "autonomy"
+	autonomyLeasesKey   = "leases"
+	autonomyReviewsKey  = "reviews"
+)
+
 var autonomyTools = []toolspkg.Descriptor{
 	nativeDescriptor(
 		toolspkg.ToolIDTaskRunClaimNext,
@@ -14,7 +20,7 @@ var autonomyTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDAutonomy},
-		[]string{"autonomy", "tasks", "runs"},
+		[]string{autonomyAutonomyKey, tasksTasksKey, "runs"},
 		[]string{"claim task run", "next work"},
 	),
 	nativeDescriptor(
@@ -28,7 +34,7 @@ var autonomyTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDAutonomy},
-		[]string{"autonomy", "tasks", "leases"},
+		[]string{autonomyAutonomyKey, tasksTasksKey, autonomyLeasesKey},
 		[]string{"heartbeat task run", "extend lease"},
 	),
 	nativeDescriptor(
@@ -42,7 +48,7 @@ var autonomyTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDAutonomy},
-		[]string{"autonomy", "tasks", "leases"},
+		[]string{autonomyAutonomyKey, tasksTasksKey, autonomyLeasesKey},
 		[]string{"complete task run", "finish work"},
 	),
 	nativeDescriptor(
@@ -56,7 +62,7 @@ var autonomyTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDAutonomy},
-		[]string{"autonomy", "tasks", "leases"},
+		[]string{autonomyAutonomyKey, tasksTasksKey, autonomyLeasesKey},
 		[]string{"fail task run", "report failure"},
 	),
 	nativeDescriptor(
@@ -70,7 +76,7 @@ var autonomyTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDAutonomy},
-		[]string{"autonomy", "tasks", "leases"},
+		[]string{autonomyAutonomyKey, tasksTasksKey, autonomyLeasesKey},
 		[]string{"release task run", "handoff work"},
 	),
 	nativeDescriptor(
@@ -84,7 +90,7 @@ var autonomyTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDAutonomy},
-		[]string{"autonomy", "tasks", "reviews"},
+		[]string{autonomyAutonomyKey, tasksTasksKey, autonomyReviewsKey},
 		[]string{"submit_run_review", "review verdict", "task run review"},
 	),
 }

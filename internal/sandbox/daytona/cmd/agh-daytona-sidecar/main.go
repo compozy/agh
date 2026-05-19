@@ -243,8 +243,7 @@ func (p *managedProcess) captureStderr(stderr io.ReadCloser) {
 func (p *managedProcess) wait() {
 	defer close(p.done)
 	if err := p.cmd.Wait(); err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
 			p.exitCode = exitErr.ExitCode()
 			return
 		}

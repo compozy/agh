@@ -20,6 +20,10 @@ import (
 )
 
 const (
+	managerChannelKey = "channel"
+)
+
+const (
 	// StatusDisabled reports that the network runtime is intentionally disabled.
 	StatusDisabled = "disabled"
 	// StatusRunning reports a connected network runtime.
@@ -392,7 +396,7 @@ func (m *Manager) JoinChannel(ctx context.Context, join sessionpkg.NetworkPeerJo
 		"session_id", local.SessionID,
 		"peer_id", local.PeerID,
 		"workspace_id", local.WorkspaceID,
-		"channel", local.Channel,
+		managerChannelKey, local.Channel,
 	)
 	return nil
 }
@@ -596,7 +600,7 @@ func (m *Manager) LeaveChannel(ctx context.Context, sessionID string) error {
 		"session_id", runtime.sessionID,
 		"peer_id", runtime.peerID,
 		"workspace_id", runtime.workspaceID,
-		"channel", runtime.channel,
+		managerChannelKey, runtime.channel,
 	)
 	return errors.Join(errs...)
 }
@@ -1526,7 +1530,7 @@ func networkLogFields(envelope Envelope, extra ...any) []any {
 	fields := []any{
 		"message_id", strings.TrimSpace(envelope.ID),
 		"kind", string(envelope.Kind),
-		"channel", strings.TrimSpace(envelope.Channel),
+		managerChannelKey, strings.TrimSpace(envelope.Channel),
 		"from", strings.TrimSpace(envelope.From),
 	}
 	if envelope.To != nil {

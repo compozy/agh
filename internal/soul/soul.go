@@ -21,6 +21,20 @@ import (
 )
 
 const (
+	soulCapabilitiesKey     = "capabilities"
+	soulConfigKey           = "config"
+	soulForbiddenFieldKey   = "forbidden_field"
+	soulInvalidFieldTypeKey = "invalid_field_type"
+	soulOversizedBodyKey    = "oversized_body"
+	soulPathEscapeKey       = "path_escape"
+	soulReservedSectionKey  = "reserved_section"
+	soulRoleKey             = "role"
+	soulTaskRunsKey         = "task_runs"
+	soulToneKey             = "tone"
+	soulVersionKey          = "version"
+)
+
+const (
 	// FileName is the canonical authored persona filename.
 	FileName = "SOUL.md"
 
@@ -301,7 +315,7 @@ func parseDocument(
 			body := normalizeBody(string(normalized))
 			if int64(len([]byte(body))) > cfg.MaxBodyBytes {
 				return Frontmatter{}, "", 1, []Diagnostic{{
-					Code:       "oversized_body",
+					Code:       soulOversizedBodyKey,
 					Message:    fmt.Sprintf("SOUL.md body exceeds agents.soul.max_body_bytes (%d)", cfg.MaxBodyBytes),
 					SourcePath: sourcePath,
 					Line:       1,
@@ -329,7 +343,7 @@ func parseDocument(
 	body := normalizeBody(parts.Body)
 	if int64(len([]byte(body))) > cfg.MaxBodyBytes {
 		return Frontmatter{}, "", 1, []Diagnostic{{
-			Code:       "oversized_body",
+			Code:       soulOversizedBodyKey,
 			Message:    fmt.Sprintf("SOUL.md body exceeds agents.soul.max_body_bytes (%d)", cfg.MaxBodyBytes),
 			SourcePath: sourcePath,
 			Line:       bodyStartLine(parts.Metadata),
@@ -373,7 +387,7 @@ func parseFrontmatter(metadata []byte, sourcePath string) (Frontmatter, []Diagno
 			code := "unsupported_field"
 			message := fmt.Sprintf("SOUL.md frontmatter field %q is not supported", key)
 			if owner := forbiddenOwner(key); owner != "" {
-				code = "forbidden_field"
+				code = soulForbiddenFieldKey
 				message = fmt.Sprintf("SOUL.md frontmatter field %q belongs to %s", key, owner)
 			}
 			diagnosticsList = append(diagnosticsList, Diagnostic{
@@ -388,7 +402,7 @@ func parseFrontmatter(metadata []byte, sourcePath string) (Frontmatter, []Diagno
 		}
 		if err := assignAllowedField(&front, key, value); err != nil {
 			diagnosticsList = append(diagnosticsList, Diagnostic{
-				Code:       "invalid_field_type",
+				Code:       soulInvalidFieldTypeKey,
 				Field:      key,
 				Message:    diagnostics.Redact(err.Error()),
 				SourcePath: sourcePath,
@@ -406,19 +420,19 @@ func parseFrontmatter(metadata []byte, sourcePath string) (Frontmatter, []Diagno
 
 func assignAllowedField(front *Frontmatter, key string, value any) error {
 	switch key {
-	case "version":
+	case soulVersionKey:
 		version, err := scalarString(value)
 		if err != nil {
 			return fmt.Errorf("SOUL.md frontmatter field %q must be a string or number", key)
 		}
 		front.Version = version
-	case "role":
+	case soulRoleKey:
 		role, err := stringOnly(value)
 		if err != nil {
 			return fmt.Errorf("SOUL.md frontmatter field %q must be a string", key)
 		}
 		front.Role = role
-	case "tone":
+	case soulToneKey:
 		values, err := stringList(value, key)
 		if err != nil {
 			return err
@@ -468,7 +482,7 @@ func validateReservedSections(body string, sourcePath string, bodyLineOffset int
 		}
 		if owner := forbiddenOwner(section); owner != "" {
 			diagnosticsList = append(diagnosticsList, Diagnostic{
-				Code:       "reserved_section",
+				Code:       soulReservedSectionKey,
 				Section:    section,
 				Message:    diagnostics.Redact(fmt.Sprintf("SOUL.md section %q belongs to %s", section, owner)),
 				SourcePath: sourcePath,
@@ -603,7 +617,7 @@ func safeSourcePath(sourcePath string, workspaceRoot string) (string, *Diagnosti
 	}
 	if strings.ContainsRune(trimmed, 0) {
 		return FileName, &Diagnostic{
-			Code:       "path_escape",
+			Code:       soulPathEscapeKey,
 			Message:    "SOUL.md path contains an invalid NUL byte",
 			SourcePath: FileName,
 		}
@@ -617,7 +631,7 @@ func safeSourcePath(sourcePath string, workspaceRoot string) (string, *Diagnosti
 	absRoot, err := filepath.Abs(filepath.Clean(workspaceRoot))
 	if err != nil {
 		return safePathWithoutRoot(cleanSource), &Diagnostic{
-			Code:       "path_escape",
+			Code:       soulPathEscapeKey,
 			Message:    diagnostics.RedactAndBound(fmt.Sprintf("resolve workspace root: %v", err), 300),
 			SourcePath: safePathWithoutRoot(cleanSource),
 		}
@@ -629,7 +643,7 @@ func safeSourcePath(sourcePath string, workspaceRoot string) (string, *Diagnosti
 	absSource, err := filepath.Abs(sourceForRoot)
 	if err != nil {
 		return safePathWithoutRoot(cleanSource), &Diagnostic{
-			Code:       "path_escape",
+			Code:       soulPathEscapeKey,
 			Message:    diagnostics.RedactAndBound(fmt.Sprintf("resolve SOUL.md path: %v", err), 300),
 			SourcePath: safePathWithoutRoot(cleanSource),
 		}
@@ -638,7 +652,7 @@ func safeSourcePath(sourcePath string, workspaceRoot string) (string, *Diagnosti
 	safePath, within := relativePathWithinRoot(absRoot, absSource)
 	if !within {
 		return safePath, &Diagnostic{
-			Code:       "path_escape",
+			Code:       soulPathEscapeKey,
 			Message:    "SOUL.md path must stay inside the workspace root",
 			SourcePath: safePath,
 		}
@@ -648,7 +662,7 @@ func safeSourcePath(sourcePath string, workspaceRoot string) (string, *Diagnosti
 			safeResolved, resolvedWithin := relativePathWithinRoot(resolvedRoot, resolvedSource)
 			if !resolvedWithin {
 				return safePath, &Diagnostic{
-					Code:       "path_escape",
+					Code:       soulPathEscapeKey,
 					Message:    "SOUL.md symlink target must stay inside the workspace root",
 					SourcePath: safeResolved,
 				}
@@ -703,7 +717,14 @@ func soulPathForAgent(agentPath string) (string, error) {
 
 func isAllowedField(key string) bool {
 	switch key {
-	case "version", "role", "tone", "principles", "constraints", "collaboration", "memory_policy", "tags":
+	case soulVersionKey,
+		soulRoleKey,
+		soulToneKey,
+		"principles",
+		"constraints",
+		"collaboration",
+		"memory_policy",
+		"tags":
 		return true
 	default:
 		return false
@@ -715,9 +736,9 @@ func forbiddenOwner(key string) string {
 	case "name", "provider", "command", "model", "tools", "toolsets", "deny_tools", "permissions",
 		"mcp_servers", "hooks", "prompt":
 		return "AGENT.md"
-	case "capabilities", "capability":
-		return "capabilities"
-	case "tasks", "task", "task_runs", "run", "ownership", "claim_token", "claim_token_hash":
+	case soulCapabilitiesKey, "capability":
+		return soulCapabilitiesKey
+	case "tasks", "task", soulTaskRunsKey, "run", "ownership", "claim_token", "claim_token_hash":
 		return "task runtime"
 	case "scheduler", "heartbeat", "lease", "session", "session_liveness", "activity", "wake":
 		return "runtime state"
@@ -725,8 +746,8 @@ func forbiddenOwner(key string) string {
 		return "AGH Network presence"
 	case "spawn":
 		return "session spawn overlays"
-	case "env", "config", "defaults", "providers", "sandboxes", "settings":
-		return "config"
+	case "env", soulConfigKey, "defaults", "providers", "sandboxes", "settings":
+		return soulConfigKey
 	case "memory", "memory_store", "memory_scope", "memory_type", "memories":
 		return "memory runtime"
 	default:

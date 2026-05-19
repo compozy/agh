@@ -22,6 +22,20 @@ import (
 )
 
 const (
+	configCLIKey                             = "cli"
+	configDefaultKey                         = "default"
+	configDefaultsAgentPath                  = "defaults.agent"
+	configDreamingKey                        = "dreaming"
+	configExtractorKey                       = "extractor"
+	configHybridKey                          = "hybrid"
+	configJsonlKey                           = "jsonl"
+	configMemoryRecallWeightsBm25UnicodePath = "memory.recall.weights.bm25_unicode"
+	configProviderKey                        = "provider"
+	configToolKey                            = "tool"
+	configUDSKey                             = "uds"
+)
+
+const (
 	// DirName is the AGH directory name used for both the global home and workspace overlays.
 	DirName = ".agh"
 	// ConfigName is the standard TOML configuration filename.
@@ -665,7 +679,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		Task: DefaultTaskConfig(),
 		Network: NetworkConfig{
 			Enabled:        true,
-			DefaultChannel: "default",
+			DefaultChannel: configDefaultKey,
 			Port:           -1,
 			MaxPayload:     1 << 20,
 			GreetInterval:  30,
@@ -709,7 +723,7 @@ func DefaultMemoryConfig(homePaths HomePaths) MemoryConfig {
 
 func defaultMemoryControllerConfig() MemoryControllerConfig {
 	return MemoryControllerConfig{
-		Mode:            "hybrid",
+		Mode:            configHybridKey,
 		MaxLatency:      300 * time.Millisecond,
 		DefaultOpOnFail: "noop",
 		LLM: MemoryControllerLLMConfig{
@@ -724,14 +738,14 @@ func defaultMemoryControllerConfig() MemoryControllerConfig {
 			MaxContentChars: 4096,
 			MaxWritesPerMin: 60,
 			AllowOrigins: []string{
-				"cli",
-				"http",
-				"uds",
-				"tool",
-				"extractor",
-				"dreaming",
-				"file",
-				"provider",
+				configCLIKey,
+				marketplaceSchemeHTTP,
+				configUDSKey,
+				configToolKey,
+				configExtractorKey,
+				configDreamingKey,
+				string(capabilityCatalogLayoutModeFile),
+				configProviderKey,
 			},
 		},
 	}
@@ -765,7 +779,7 @@ func defaultMemoryExtractorConfig(homePaths HomePaths) MemoryExtractorConfig {
 		Deadline:         60 * time.Second,
 		SandboxInboxOnly: true,
 		InboxPath:        filepath.Join(homePaths.MemoryDir, "_inbox"),
-		DLQPath:          filepath.Join(homePaths.MemoryDir, "_system", "extractor", "failures"),
+		DLQPath:          filepath.Join(homePaths.MemoryDir, "_system", configExtractorKey, "failures"),
 		Queue:            MemoryExtractorQueueConfig{Capacity: 1, CoalesceMax: 16},
 	}
 }
@@ -794,7 +808,7 @@ func defaultMemoryDreamConfig() DreamConfig {
 
 func defaultMemorySessionConfig(homePaths HomePaths) MemorySessionConfig {
 	return MemorySessionConfig{
-		LedgerFormat:     "jsonl",
+		LedgerFormat:     configJsonlKey,
 		LedgerRoot:       homePaths.SessionsDir,
 		EventsPurgeGrace: 24 * time.Hour,
 		ColdArchiveDays:  30,
@@ -1121,7 +1135,7 @@ func (c HTTPConfig) Validate() error {
 // Validate ensures the default agent setting is present.
 func (c DefaultsConfig) Validate() error {
 	if strings.TrimSpace(c.Agent) == "" {
-		return ValidationError{Path: "defaults.agent", Message: "is required"}
+		return ValidationError{Path: configDefaultsAgentPath, Message: "is required"}
 	}
 
 	return nil
@@ -1601,13 +1615,13 @@ func (c ExtensionsMarketplaceConfig) Validate() error {
 		if err != nil {
 			return fmt.Errorf("extensions.marketplace.base_url is invalid: %w", err)
 		}
-		if parsed.Scheme != "http" && parsed.Scheme != urlSchemeHTTPS {
+		if parsed.Scheme != marketplaceSchemeHTTP && parsed.Scheme != urlSchemeHTTPS {
 			return fmt.Errorf("extensions.marketplace.base_url must use http or https: %q", c.BaseURL)
 		}
 		if strings.TrimSpace(parsed.Host) == "" {
 			return fmt.Errorf("extensions.marketplace.base_url must include a host: %q", c.BaseURL)
 		}
-		if parsed.Scheme == "http" {
+		if parsed.Scheme == marketplaceSchemeHTTP {
 			slog.Warn("config: extensions marketplace base_url uses insecure http scheme", "url", c.BaseURL)
 		}
 	}
@@ -1651,7 +1665,7 @@ func (c DreamConfig) Validate() error {
 
 // Validate ensures the controller configuration is internally consistent.
 func (c *MemoryControllerConfig) Validate() error {
-	mode, err := validateEnum("memory.controller.mode", c.Mode, "hybrid", "rules", "llm")
+	mode, err := validateEnum("memory.controller.mode", c.Mode, configHybridKey, "rules", "llm")
 	if err != nil {
 		return err
 	}
@@ -1705,14 +1719,14 @@ func (c *MemoryControllerPolicyConfig) Validate() error {
 		return fmt.Errorf("memory.controller.policy.max_writes_per_min must be positive: %d", c.MaxWritesPerMin)
 	}
 	allowedOrigins := map[string]struct{}{
-		"cli":       {},
-		"http":      {},
-		"uds":       {},
-		"tool":      {},
-		"extractor": {},
-		"dreaming":  {},
-		"file":      {},
-		"provider":  {},
+		configCLIKey:                            {},
+		marketplaceSchemeHTTP:                   {},
+		configUDSKey:                            {},
+		configToolKey:                           {},
+		configExtractorKey:                      {},
+		configDreamingKey:                       {},
+		string(capabilityCatalogLayoutModeFile): {},
+		configProviderKey:                       {},
 	}
 	if len(c.AllowOrigins) == 0 {
 		return errors.New("memory.controller.policy.allow_origins must not be empty")
@@ -1766,10 +1780,10 @@ func (c *MemoryRecallConfig) Validate() error {
 // Validate ensures recall weights are usable.
 func (c MemoryRecallWeightsConfig) Validate() error {
 	weights := map[string]float64{
-		"memory.recall.weights.bm25_unicode":  c.BM25Unicode,
-		"memory.recall.weights.bm25_trigram":  c.BM25Trigram,
-		"memory.recall.weights.recency":       c.Recency,
-		"memory.recall.weights.recall_signal": c.RecallSignal,
+		configMemoryRecallWeightsBm25UnicodePath: c.BM25Unicode,
+		"memory.recall.weights.bm25_trigram":     c.BM25Trigram,
+		"memory.recall.weights.recency":          c.Recency,
+		"memory.recall.weights.recall_signal":    c.RecallSignal,
 	}
 	var sum float64
 	for path, weight := range weights {
@@ -1811,7 +1825,7 @@ func (c *MemoryExtractorConfig) Validate() error {
 	if !c.Enabled {
 		return nil
 	}
-	mode, err := validateEnum("memory.extractor.mode", c.Mode, "post_message", "compaction_flush", "hybrid")
+	mode, err := validateEnum("memory.extractor.mode", c.Mode, "post_message", "compaction_flush", configHybridKey)
 	if err != nil {
 		return err
 	}
@@ -1884,7 +1898,7 @@ func (c MemoryDreamScoringWeightsConfig) Validate() error {
 
 // Validate ensures session ledger settings are usable.
 func (c *MemorySessionConfig) Validate() error {
-	ledgerFormat, err := validateEnum("memory.session.ledger_format", c.LedgerFormat, "jsonl")
+	ledgerFormat, err := validateEnum("memory.session.ledger_format", c.LedgerFormat, configJsonlKey)
 	if err != nil {
 		return err
 	}

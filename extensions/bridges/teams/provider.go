@@ -30,6 +30,16 @@ import (
 )
 
 const (
+	providerActivityIDKey         = "activity_id"
+	providerBaseConversationIDKey = "base_conversation_id"
+	providerConversationIDKey     = "conversation_id"
+	providerMessageKey            = "message"
+	providerServiceURLKey         = "service_url"
+	providerTeamsKey              = "teams"
+	providerTenantIDKey           = "tenant_id"
+)
+
+const (
 	teamsListenAddrEnv            = "AGH_BRIDGE_TEAMS_LISTEN_ADDR"
 	teamsOpenIDMetadataURLEnv     = "AGH_BRIDGE_TEAMS_OPENID_METADATA_URL"
 	teamsTestLoopbackAuthEnv      = "AGH_BRIDGE_TEAMS_ALLOW_LOOPBACK_AUTH_FOR_TESTING"
@@ -352,7 +362,7 @@ func newTeamsProvider(stderr io.Writer) (*teamsProvider, error) {
 
 	sdkRuntime, err := bridgesdk.NewRuntime(bridgesdk.RuntimeConfig{
 		ExtensionInfo: subprocess.InitializeExtensionInfo{
-			Name:    "teams",
+			Name:    providerTeamsKey,
 			Version: "0.1.0",
 			SDKName: "bridgesdk",
 		},
@@ -1213,9 +1223,9 @@ func mapTeamsActivity(
 	receivedAt time.Time,
 ) ([]mappedTeamsInbound, error) {
 	switch strings.TrimSpace(activity.Type) {
-	case "message":
+	case providerMessageKey:
 		if payload, ok := decodeTeamsMessageAction(activity.Value); ok {
-			item, err := mapTeamsActionActivity(activity, cfg, payload, receivedAt, "message")
+			item, err := mapTeamsActionActivity(activity, cfg, payload, receivedAt, providerMessageKey)
 			if err != nil {
 				return nil, err
 			}
@@ -1749,14 +1759,14 @@ func buildTeamsActionEnvelope(
 		envelope.GroupID = inboundContext.baseConversationID
 	}
 	metadata, err := json.Marshal(map[string]any{
-		"activity_id":          strings.TrimSpace(activity.ID),
-		"action_id":            strings.TrimSpace(payload.ActionID),
-		"base_conversation_id": inboundContext.baseConversationID,
-		"conversation_id":      inboundContext.conversationID,
-		"message_id":           messageID,
-		"service_url":          inboundContext.serviceURL,
-		"source":               source,
-		"tenant_id":            extractTeamsTenantID(activity),
+		providerActivityIDKey:         strings.TrimSpace(activity.ID),
+		"action_id":                   strings.TrimSpace(payload.ActionID),
+		providerBaseConversationIDKey: inboundContext.baseConversationID,
+		providerConversationIDKey:     inboundContext.conversationID,
+		"message_id":                  messageID,
+		providerServiceURLKey:         inboundContext.serviceURL,
+		"source":                      source,
+		providerTenantIDKey:           extractTeamsTenantID(activity),
 	})
 	if err == nil {
 		envelope.ProviderMetadata = metadata
@@ -1798,15 +1808,15 @@ func buildTeamsMessageEnvelope(
 		envelope.GroupID = inboundContext.baseConversationID
 	}
 	metadata, err := json.Marshal(map[string]any{
-		"activity_id":          strings.TrimSpace(activity.ID),
-		"base_conversation_id": inboundContext.baseConversationID,
-		"channel_id":           strings.TrimSpace(activity.ChannelID),
-		"conversation_id":      inboundContext.conversationID,
-		"conversation_type":    strings.TrimSpace(activity.Conversation.ConversationType),
-		"reply_to_id":          strings.TrimSpace(activity.ReplyToID),
-		"service_url":          inboundContext.serviceURL,
-		"tenant_id":            extractTeamsTenantID(activity),
-		"type":                 strings.TrimSpace(activity.Type),
+		providerActivityIDKey:         strings.TrimSpace(activity.ID),
+		providerBaseConversationIDKey: inboundContext.baseConversationID,
+		"channel_id":                  strings.TrimSpace(activity.ChannelID),
+		providerConversationIDKey:     inboundContext.conversationID,
+		"conversation_type":           strings.TrimSpace(activity.Conversation.ConversationType),
+		"reply_to_id":                 strings.TrimSpace(activity.ReplyToID),
+		providerServiceURLKey:         inboundContext.serviceURL,
+		providerTenantIDKey:           extractTeamsTenantID(activity),
+		"type":                        strings.TrimSpace(activity.Type),
 	})
 	if err == nil {
 		envelope.ProviderMetadata = metadata
@@ -1859,13 +1869,13 @@ func mapTeamsReactionItem(
 		envelope.GroupID = inboundContext.baseConversationID
 	}
 	metadata, err := json.Marshal(map[string]any{
-		"activity_id":          strings.TrimSpace(activity.ID),
-		"base_conversation_id": inboundContext.baseConversationID,
-		"conversation_id":      inboundContext.conversationID,
-		"message_id":           messageID,
-		"service_url":          inboundContext.serviceURL,
-		"tenant_id":            extractTeamsTenantID(activity),
-		"type":                 strings.TrimSpace(activity.Type),
+		providerActivityIDKey:         strings.TrimSpace(activity.ID),
+		providerBaseConversationIDKey: inboundContext.baseConversationID,
+		providerConversationIDKey:     inboundContext.conversationID,
+		"message_id":                  messageID,
+		providerServiceURLKey:         inboundContext.serviceURL,
+		providerTenantIDKey:           extractTeamsTenantID(activity),
+		"type":                        strings.TrimSpace(activity.Type),
 	})
 	if err == nil {
 		envelope.ProviderMetadata = metadata
@@ -1963,7 +1973,7 @@ func executeTeamsPostDelivery(
 		baseConversationID,
 		replyToID,
 		teamsOutboundActivity{
-			Type:       "message",
+			Type:       providerMessageKey,
 			Text:       strings.TrimSpace(event.Content.Text),
 			TextFormat: "markdown",
 		},
@@ -2008,7 +2018,7 @@ func executeTeamsEditDelivery(
 		return bridgepkg.DeliveryAck{}, state, err
 	}
 	if err := api.UpdateActivity(ctx, ref.ServiceURL, ref.ConversationID, ref.ActivityID, teamsOutboundActivity{
-		Type:       "message",
+		Type:       providerMessageKey,
 		Text:       strings.TrimSpace(event.Content.Text),
 		TextFormat: "markdown",
 	}); err != nil {
@@ -2883,7 +2893,7 @@ func encodeTeamsThreadID(ref teamsThreadRef) string {
 
 func decodeTeamsThreadID(value string) (teamsThreadRef, error) {
 	parts := strings.Split(value, ":")
-	if len(parts) != 3 || parts[0] != "teams" {
+	if len(parts) != 3 || parts[0] != providerTeamsKey {
 		return teamsThreadRef{}, errors.New("teams: invalid thread id")
 	}
 	conversationID, err := base64.RawURLEncoding.DecodeString(parts[1])

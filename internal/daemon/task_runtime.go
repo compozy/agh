@@ -18,7 +18,6 @@ import (
 const (
 	defaultTaskCancelGrace     = 5 * time.Second
 	taskRecoveryReasonBoot     = "orphaned_on_boot"
-	taskRecoverySessionMissing = "missing"
 	taskStopDetailShutdown     = "task shutdown"
 	taskStopDetailOrphaned     = "task run orphaned"
 	taskStopDetailCancellation = "task cancellation"

@@ -21,6 +21,18 @@ import (
 )
 
 const (
+	catalogEFilenamePath    = "  e.filename,"
+	catalogENamePath        = "  e.name,"
+	catalogEScopePath       = "  e.scope,"
+	catalogETypePath        = "  e.type,"
+	catalogEWorkspaceIDPath = "  e.workspace_id,"
+	catalogSelectValue      = "SELECT"
+	catalogScopeKey         = "scope"
+	catalogUpdatedAtKey     = "updated_at"
+	catalogWorkspaceIDKey   = "workspace_id"
+)
+
+const (
 	defaultSearchLimit         = 10
 	maxSearchLimit             = 50
 	defaultHistoryLimit        = 25
@@ -504,7 +516,7 @@ func migrateCatalogOperationScope(ctx context.Context, tx *sql.Tx) error {
 		name string
 		sql  string
 	}{
-		{name: "scope", sql: `ALTER TABLE memory_operation_log ADD COLUMN scope TEXT NOT NULL DEFAULT ''`},
+		{name: catalogScopeKey, sql: `ALTER TABLE memory_operation_log ADD COLUMN scope TEXT NOT NULL DEFAULT ''`},
 		{
 			name: "workspace_root",
 			sql:  `ALTER TABLE memory_operation_log ADD COLUMN workspace_root TEXT NOT NULL DEFAULT ''`,
@@ -606,7 +618,7 @@ func ensureRecallSignalsLiveSchema(ctx context.Context, tx *sql.Tx) error {
 		name string
 		sql  string
 	}{
-		{name: "workspace_id", sql: `ALTER TABLE memory_recall_signals ADD COLUMN workspace_id TEXT`},
+		{name: catalogWorkspaceIDKey, sql: `ALTER TABLE memory_recall_signals ADD COLUMN workspace_id TEXT`},
 		{
 			name: "recall_count",
 			sql:  `ALTER TABLE memory_recall_signals ADD COLUMN recall_count INTEGER NOT NULL DEFAULT 0`,
@@ -635,7 +647,10 @@ func ensureRecallSignalsLiveSchema(ctx context.Context, tx *sql.Tx) error {
 			name: "already_surfaced_json",
 			sql:  `ALTER TABLE memory_recall_signals ADD COLUMN already_surfaced_json TEXT NOT NULL DEFAULT '[]'`,
 		},
-		{name: "updated_at", sql: `ALTER TABLE memory_recall_signals ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0`},
+		{
+			name: catalogUpdatedAtKey,
+			sql:  `ALTER TABLE memory_recall_signals ADD COLUMN updated_at INTEGER NOT NULL DEFAULT 0`,
+		},
 	}
 	for _, addition := range additions {
 		if _, ok := columns[addition.name]; ok {
@@ -889,7 +904,7 @@ func legacyOperationLogSelectSQL(columns map[string]struct{}) string {
 	}
 	return fmt.Sprintf(
 		`SELECT id, type, %s, %s, %s, agent_name, summary, timestamp FROM memory_operation_log ORDER BY timestamp ASC, id ASC`,
-		selectColumn("scope", "''"),
+		selectColumn(catalogScopeKey, "''"),
 		selectColumn("workspace_root", "''"),
 		selectColumn("filename", "''"),
 	)
@@ -1455,12 +1470,12 @@ func (c *catalog) search(
 	limit = clampSearchLimit(limit)
 
 	base := strings.Join([]string{
-		`SELECT`,
-		`  e.scope,`,
-		`  e.workspace_id,`,
-		`  e.filename,`,
-		`  e.type,`,
-		`  e.name,`,
+		catalogSelectValue,
+		catalogEScopePath,
+		catalogEWorkspaceIDPath,
+		catalogEFilenamePath,
+		catalogETypePath,
+		catalogENamePath,
 		`  e.description,`,
 		`  e.updated_at,`,
 		`  -bm25(memory_catalog_fts) AS score,`,

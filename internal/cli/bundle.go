@@ -8,6 +8,30 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	bundleModelKey = "model"
+)
+
+const (
+	bundleAgentValue       = "Agent"
+	bundleBundleValue      = "Bundle"
+	bundleCreatedValue     = "Created"
+	bundleDescriptionValue = "Description"
+	bundleEventValue       = "Event"
+	bundleKindValue        = "Kind"
+	bundleModelValue       = "Model"
+	bundleNameValue        = "Name"
+	bundleProfileValue     = "Profile"
+	bundleUpdatedValue     = "Updated"
+	bundleBundleKey        = "bundle"
+	bundleExtensionKey     = "extension"
+	bundleGlobalKey        = "global"
+	bundleHeartbeatKey     = "heartbeat"
+	bundleKindKey          = "kind"
+	bundleListKey          = "list"
+	bundleProfileKey       = "profile"
+)
+
 type bundleActivationFlags struct {
 	extensionName               string
 	bundleName                  string
@@ -19,7 +43,7 @@ type bundleActivationFlags struct {
 
 func newBundleCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "bundle",
+		Use:   bundleBundleKey,
 		Short: "Manage extension bundle presets",
 	}
 	cmd.AddCommand(newBundleCatalogCommand(deps))
@@ -52,7 +76,7 @@ func newBundleCatalogCommand(deps commandDeps) *cobra.Command {
 }
 
 func newBundlePreviewCommand(deps commandDeps) *cobra.Command {
-	flags := bundleActivationFlags{scope: "global"}
+	flags := bundleActivationFlags{scope: bundleGlobalKey}
 	cmd := &cobra.Command{
 		Use:   "preview",
 		Short: "Preview a bundle activation without writing resources",
@@ -74,7 +98,7 @@ func newBundlePreviewCommand(deps commandDeps) *cobra.Command {
 }
 
 func newBundleActivateCommand(deps commandDeps) *cobra.Command {
-	flags := bundleActivationFlags{scope: "global"}
+	flags := bundleActivationFlags{scope: bundleGlobalKey}
 	cmd := &cobra.Command{
 		Use:   "activate",
 		Short: "Activate a bundle preset",
@@ -97,7 +121,7 @@ func newBundleActivateCommand(deps commandDeps) *cobra.Command {
 
 func newBundleListCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "list",
+		Use:   bundleListKey,
 		Short: "List active bundle presets",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
@@ -219,11 +243,11 @@ func newBundleNetworkSettingsCommand(deps commandDeps) *cobra.Command {
 }
 
 func addBundleActivationFlags(cmd *cobra.Command, flags *bundleActivationFlags) {
-	cmd.Flags().StringVar(&flags.extensionName, "extension", "", "Extension name")
-	cmd.Flags().StringVar(&flags.bundleName, "bundle", "", "Bundle name")
-	cmd.Flags().StringVar(&flags.profileName, "profile", "", "Bundle profile name")
-	cmd.Flags().StringVar(&flags.scope, "scope", "global", "Activation scope: global or workspace")
-	cmd.Flags().StringVar(&flags.workspace, "workspace", "", "Workspace id, name, or path for workspace scope")
+	cmd.Flags().StringVar(&flags.extensionName, bundleExtensionKey, "", "Extension name")
+	cmd.Flags().StringVar(&flags.bundleName, bundleBundleKey, "", "Bundle name")
+	cmd.Flags().StringVar(&flags.profileName, bundleProfileKey, "", "Bundle profile name")
+	cmd.Flags().StringVar(&flags.scope, automationScopeKey, bundleGlobalKey, "Activation scope: global or workspace")
+	cmd.Flags().StringVar(&flags.workspace, workspaceSkillSource, "", "Workspace id, name, or path for workspace scope")
 	cmd.Flags().
 		BoolVar(
 			&flags.bindPrimaryChannelAsDefault,
@@ -231,9 +255,9 @@ func addBundleActivationFlags(cmd *cobra.Command, flags *bundleActivationFlags) 
 			false,
 			"Bind the bundle primary channel as the effective default",
 		)
-	mustMarkFlagRequired(cmd, "extension")
-	mustMarkFlagRequired(cmd, "bundle")
-	mustMarkFlagRequired(cmd, "profile")
+	mustMarkFlagRequired(cmd, bundleExtensionKey)
+	mustMarkFlagRequired(cmd, bundleBundleKey)
+	mustMarkFlagRequired(cmd, bundleProfileKey)
 }
 
 func bundleActivationRequestFromFlags(flags bundleActivationFlags) ActivateBundleRequest {
@@ -254,9 +278,9 @@ func bundleCatalogBundle(items []BundleCatalogRecord) outputBundle {
 		}{Bundles: items},
 		items,
 		"Bundle Catalog",
-		[]string{"Extension", "Bundle", "Profiles", "Agents", "Jobs", "Triggers", "Bridges"},
+		[]string{bridgeExtensionValue, bundleBundleValue, "Profiles", "Agents", "Jobs", "Triggers", "Bridges"},
 		"bundles",
-		[]string{"extension", "bundle", "profiles", "agents", "jobs", "triggers", "bridges"},
+		[]string{bundleExtensionKey, bundleBundleKey, "profiles", "agents", "jobs", "triggers", "bridges"},
 		func(item BundleCatalogRecord) []string {
 			agents, jobs, triggers, bridges := bundleCatalogCounts(item)
 			return []string{
@@ -291,9 +315,27 @@ func bundleActivationListBundle(items []BundleActivationRecord) outputBundle {
 		}{Activations: items},
 		items,
 		"Bundle Activations",
-		[]string{"ID", "Extension", "Bundle", "Profile", "Scope", "Workspace", "Agents", "Inventory"},
+		[]string{
+			"ID",
+			bridgeExtensionValue,
+			bundleBundleValue,
+			bundleProfileValue,
+			automationScopeValue,
+			authoredContextWorkspaceValue,
+			"Agents",
+			"Inventory",
+		},
 		"bundle_activations",
-		[]string{"id", "extension", "bundle", "profile", "scope", "workspace", "agents", "inventory"},
+		[]string{
+			"id",
+			bundleExtensionKey,
+			bundleBundleKey,
+			bundleProfileKey,
+			automationScopeKey,
+			workspaceSkillSource,
+			"agents",
+			"inventory",
+		},
 		func(item BundleActivationRecord) []string {
 			return []string{
 				stringOrDash(item.ID),
@@ -328,14 +370,14 @@ func bundleActivationBundle(item BundleActivationRecord) outputBundle {
 			return renderHumanBlocks(
 				renderHumanSection("Bundle Activation", []keyValue{
 					{Label: "ID", Value: item.ID},
-					{Label: "Extension", Value: item.ExtensionName},
-					{Label: "Bundle", Value: item.BundleName},
-					{Label: "Profile", Value: item.ProfileName},
-					{Label: "Scope", Value: item.Scope},
-					{Label: "Workspace", Value: stringOrDash(item.WorkspaceID)},
+					{Label: bridgeExtensionValue, Value: item.ExtensionName},
+					{Label: bundleBundleValue, Value: item.BundleName},
+					{Label: bundleProfileValue, Value: item.ProfileName},
+					{Label: automationScopeValue, Value: item.Scope},
+					{Label: authoredContextWorkspaceValue, Value: stringOrDash(item.WorkspaceID)},
 					{Label: "Default Channel Bind", Value: formatBool(item.BindPrimaryChannelAsDefault)},
-					{Label: "Created", Value: formatTime(item.CreatedAt)},
-					{Label: "Updated", Value: formatTime(item.UpdatedAt)},
+					{Label: bundleCreatedValue, Value: formatTime(item.CreatedAt)},
+					{Label: bundleUpdatedValue, Value: formatTime(item.UpdatedAt)},
 				}),
 				bundleChannelsTable(item.Channels),
 				bundleAgentsTable(item.Agents),
@@ -349,7 +391,14 @@ func bundleActivationBundle(item BundleActivationRecord) outputBundle {
 			return renderHumanBlocks(
 				renderToonObject(
 					"bundle_activation",
-					[]string{"id", "extension", "bundle", "profile", "scope", "workspace"},
+					[]string{
+						"id",
+						bundleExtensionKey,
+						bundleBundleKey,
+						bundleProfileKey,
+						automationScopeKey,
+						workspaceSkillSource,
+					},
 					[]string{
 						item.ID,
 						item.ExtensionName,
@@ -361,12 +410,18 @@ func bundleActivationBundle(item BundleActivationRecord) outputBundle {
 				),
 				renderToonArray(
 					"agents",
-					[]string{"name", "provider", "model", "soul", "heartbeat"},
+					[]string{
+						automationNameKey,
+						memoryProviderKey,
+						bundleModelKey,
+						authoredContextSoulKey,
+						bundleHeartbeatKey,
+					},
 					bundleAgentRows(item.Agents),
 				),
 				renderToonArray(
 					"inventory",
-					[]string{"kind", "id", "name"},
+					[]string{bundleKindKey, "id", automationNameKey},
 					bundleInventoryRows(item.Inventory),
 				),
 			), nil
@@ -386,7 +441,15 @@ func bundleNetworkSettingsBundle(item BundleNetworkSettingsRecord) outputBundle 
 				}),
 				renderHumanTable(
 					"Declared Channels",
-					[]string{"Activation", "Extension", "Bundle", "Profile", "Workspace", "Name", "Primary"},
+					[]string{
+						"Activation",
+						bridgeExtensionValue,
+						bundleBundleValue,
+						bundleProfileValue,
+						authoredContextWorkspaceValue,
+						bundleNameValue,
+						"Primary",
+					},
 					bundleDeclaredChannelRows(item.DeclaredChannels),
 				),
 			), nil
@@ -400,7 +463,15 @@ func bundleNetworkSettingsBundle(item BundleNetworkSettingsRecord) outputBundle 
 				),
 				renderToonArray(
 					"declared_channels",
-					[]string{"activation", "extension", "bundle", "profile", "workspace", "name", "primary"},
+					[]string{
+						"activation",
+						bundleExtensionKey,
+						bundleBundleKey,
+						bundleProfileKey,
+						workspaceSkillSource,
+						automationNameKey,
+						"primary",
+					},
 					bundleDeclaredChannelRows(item.DeclaredChannels),
 				),
 			), nil
@@ -439,13 +510,13 @@ func bundleChannelsTable(items []BundleChannelRecord) string {
 			stringOrDash(item.Description),
 		})
 	}
-	return renderHumanTable("Channels", []string{"Name", "Primary", "Description"}, rows)
+	return renderHumanTable("Channels", []string{bundleNameValue, "Primary", bundleDescriptionValue}, rows)
 }
 
 func bundleAgentsTable(items []BundleAgentRecord) string {
 	return renderHumanTable(
 		"Agents",
-		[]string{"Name", "Provider", "Model", "Soul", "Heartbeat"},
+		[]string{bundleNameValue, agentKernelProviderValue, bundleModelValue, "Soul", "Heartbeat"},
 		bundleAgentRows(items),
 	)
 }
@@ -459,7 +530,7 @@ func bundleJobsTable(items []BundleJobRecord) string {
 			formatBool(item.Enabled),
 		})
 	}
-	return renderHumanTable("Jobs", []string{"Name", "Agent", "Enabled"}, rows)
+	return renderHumanTable("Jobs", []string{bundleNameValue, bundleAgentValue, "Enabled"}, rows)
 }
 
 func bundleTriggersTable(items []BundleTriggerRecord) string {
@@ -472,7 +543,7 @@ func bundleTriggersTable(items []BundleTriggerRecord) string {
 			formatBool(item.Enabled),
 		})
 	}
-	return renderHumanTable("Triggers", []string{"Name", "Agent", "Event", "Enabled"}, rows)
+	return renderHumanTable("Triggers", []string{bundleNameValue, bundleAgentValue, bundleEventValue, "Enabled"}, rows)
 }
 
 func bundleBridgesTable(items []BundleBridgeRecord) string {
@@ -488,13 +559,13 @@ func bundleBridgesTable(items []BundleBridgeRecord) string {
 	}
 	return renderHumanTable(
 		"Bridges",
-		[]string{"Name", "Extension", "Platform", "Display", "Secret Slots"},
+		[]string{bundleNameValue, bridgeExtensionValue, bundlePlatformValue, "Display", "Secret Slots"},
 		rows,
 	)
 }
 
 func bundleInventoryTable(items []BundleInventoryRecord) string {
-	return renderHumanTable("Inventory", []string{"Kind", "ID", "Name"}, bundleInventoryRows(items))
+	return renderHumanTable("Inventory", []string{bundleKindValue, "ID", bundleNameValue}, bundleInventoryRows(items))
 }
 
 func bundleAgentRows(items []BundleAgentRecord) [][]string {

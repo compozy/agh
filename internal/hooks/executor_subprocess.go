@@ -9,6 +9,7 @@ import (
 	"maps"
 	"os"
 	exec "os/exec"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -203,9 +204,9 @@ func (e *SubprocessExecutor) resolveSecretRef(ctx context.Context, ref string) (
 }
 
 func runSubprocessSecretCleanups(cleanups []func()) {
-	for index := len(cleanups) - 1; index >= 0; index-- {
-		if cleanups[index] != nil {
-			cleanups[index]()
+	for _, cleanup := range slices.Backward(cleanups) {
+		if cleanup != nil {
+			cleanup()
 		}
 	}
 }

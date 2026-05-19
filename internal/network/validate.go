@@ -18,6 +18,11 @@ import (
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
+const (
+	validateDirectIDKey = "direct_id"
+	validateThreadIDKey = "thread_id"
+)
+
 var (
 	// ErrInvalidEnvelope reports a structurally invalid envelope.
 	ErrInvalidEnvelope = errors.New("network: invalid envelope")
@@ -141,11 +146,11 @@ func ValidateConversationID(id string, field string) error {
 		return fmt.Errorf("%w: %s is required", ErrMissingField, field)
 	}
 	switch field {
-	case "thread_id":
+	case validateThreadIDKey:
 		if !threadIDPattern.MatchString(trimmed) {
 			return fmt.Errorf("%w: thread_id=%q", ErrInvalidField, id)
 		}
-	case "direct_id":
+	case validateDirectIDKey:
 		if !directIDPattern.MatchString(trimmed) {
 			return fmt.Errorf("%w: direct_id=%q", ErrInvalidField, id)
 		}
@@ -239,7 +244,7 @@ func DirectRoomIdentity(
 // the deterministic identity for its workspace/channel-scoped peer pair.
 func ValidateDirectRoomBinding(workspaceID string, channel string, directID string, peerA string, peerB string) error {
 	trimmedDirectID := strings.TrimSpace(directID)
-	if err := ValidateConversationID(trimmedDirectID, "direct_id"); err != nil {
+	if err := ValidateConversationID(trimmedDirectID, validateDirectIDKey); err != nil {
 		return err
 	}
 	expectedID, _, _, err := DirectRoomIdentity(workspaceID, channel, peerA, peerB)

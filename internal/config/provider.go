@@ -12,6 +12,51 @@ import (
 	"github.com/pedronauck/agh/internal/vault"
 )
 
+const (
+	providerClaudeKey = "claude"
+)
+
+const (
+	providerMiniMaxM21Path             = "MiniMax-M2.1"
+	providerNodeOptionsValue           = "NODE_OPTIONS"
+	providerAnthropicClaudeOpus47Path  = "anthropic/claude-opus-4-7"
+	providerBlackboxKey                = "blackbox"
+	modelClaudeOpus47ID                = "claude-opus-4-7"
+	providerClaudeSonnet46Value        = "claude-sonnet-4-6"
+	providerClineKey                   = "cline"
+	providerCodexKey                   = "codex"
+	providerDevstralMediumLatestValue  = "devstral-medium-latest"
+	providerGemini31ProPreviewPath     = "gemini-3.1-pro-preview"
+	providerGlm46Path                  = "glm-4.6"
+	providerGooseKey                   = "goose"
+	modelGPT54ID                       = "gpt-5.4"
+	providerGrok4FastNonReasoningValue = "grok-4-fast-non-reasoning"
+	providerGroqKey                    = "groq"
+	providerHermesKey                  = "hermes"
+	providerHighKey                    = "high"
+	providerJunieKey                   = "junie"
+	providerKimiCLIValue               = "kimi-cli"
+	providerKimiCodingValue            = "kimi-coding"
+	providerKimiK2ThinkingValue        = "kimi-k2-thinking"
+	providerMediumKey                  = "medium"
+	providerMinimaxKey                 = "minimax"
+	providerMistralKey                 = "mistral"
+	providerMoonshotKey                = "moonshot"
+	claudeProviderCommand              = "npx -y @agentclientprotocol/claude-agent-acp@latest"
+	providerOpenaiGpt54Path            = "openai/gpt-5.4"
+	providerOpenaiGptOss120bPath       = "openai/gpt-oss-120b"
+	providerOpenclawKey                = "openclaw"
+	providerOpencodeKey                = "opencode"
+	providerOpenhandsKey               = "openhands"
+	providerOpenrouterKey              = "openrouter"
+	providerQoderKey                   = "qoder"
+	providerQwenCodeValue              = "qwen-code"
+	providerQwen36PlusPath             = "qwen3.6-plus"
+	providerVercelAIGatewayValue       = "vercel-ai-gateway"
+	providerXaiKey                     = "xai"
+	providerZaiKey                     = "zai"
+)
+
 var providerSecretRefSegmentPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]*$`)
 
 // ProviderHarness identifies the runtime strategy used to launch a provider.
@@ -220,81 +265,81 @@ const (
 )
 
 var builtinProviderAliases = map[string]string{
-	"blackbox-ai":        "blackbox",
-	"blackboxai":         "blackbox",
-	"cline-cli":          "cline",
-	"goose-cli":          "goose",
-	"hermes-agent":       "hermes",
-	"junie-cli":          "junie",
-	"ai-gateway":         "vercel-ai-gateway",
-	"kimi":               "moonshot",
-	"kimi cli":           "kimi-cli",
-	"kimi-cli":           "kimi-cli",
-	"kimi-code":          "kimi-cli",
-	"kimi-coding":        "moonshot",
-	"moonshotai":         "moonshot",
-	"open-hands":         "openhands",
-	"openhands-cli":      "openhands",
-	"openclaw-cli":       "openclaw",
-	"qoder-cli":          "qoder",
-	"qwen":               "qwen-code",
-	"qwen cli":           "qwen-code",
-	"qwen code":          "qwen-code",
-	"qwen-code":          "qwen-code",
-	"vercel":             "vercel-ai-gateway",
-	"vercel-gateway":     "vercel-ai-gateway",
-	"vercel-ai":          "vercel-ai-gateway",
-	"vercel-ai-gateway":  "vercel-ai-gateway",
-	"z.ai":               "zai",
-	"z-ai":               "zai",
-	"z_ai":               "zai",
-	"glm":                "zai",
-	"openrouter-ai":      "openrouter",
-	"openrouter-gateway": "openrouter",
-	"minimax-ai":         "minimax",
-	"minimax-cn":         "minimax",
-	"grok":               "xai",
-	"x-ai":               "xai",
-	"mistralai":          "mistral",
-	"mistral-ai":         "mistral",
+	"blackbox-ai":                providerBlackboxKey,
+	"blackboxai":                 providerBlackboxKey,
+	"cline-cli":                  providerClineKey,
+	"goose-cli":                  providerGooseKey,
+	"hermes-agent":               providerHermesKey,
+	"junie-cli":                  providerJunieKey,
+	"ai-gateway":                 providerVercelAIGatewayValue,
+	"kimi":                       providerMoonshotKey,
+	"kimi cli":                   providerKimiCLIValue,
+	providerKimiCLIValue:         providerKimiCLIValue,
+	"kimi-code":                  providerKimiCLIValue,
+	providerKimiCodingValue:      providerMoonshotKey,
+	"moonshotai":                 providerMoonshotKey,
+	"open-hands":                 providerOpenhandsKey,
+	"openhands-cli":              providerOpenhandsKey,
+	"openclaw-cli":               providerOpenclawKey,
+	"qoder-cli":                  providerQoderKey,
+	"qwen":                       providerQwenCodeValue,
+	"qwen cli":                   providerQwenCodeValue,
+	"qwen code":                  providerQwenCodeValue,
+	providerQwenCodeValue:        providerQwenCodeValue,
+	"vercel":                     providerVercelAIGatewayValue,
+	"vercel-gateway":             providerVercelAIGatewayValue,
+	"vercel-ai":                  providerVercelAIGatewayValue,
+	providerVercelAIGatewayValue: providerVercelAIGatewayValue,
+	"z.ai":                       providerZaiKey,
+	"z-ai":                       providerZaiKey,
+	"z_ai":                       providerZaiKey,
+	"glm":                        providerZaiKey,
+	"openrouter-ai":              providerOpenrouterKey,
+	"openrouter-gateway":         providerOpenrouterKey,
+	"minimax-ai":                 providerMinimaxKey,
+	"minimax-cn":                 providerMinimaxKey,
+	"grok":                       providerXaiKey,
+	"x-ai":                       providerXaiKey,
+	"mistralai":                  providerMistralKey,
+	"mistral-ai":                 providerMistralKey,
 }
 
 var builtinProviders = map[string]ProviderConfig{
-	"claude": {
-		Command:     "npx -y @agentclientprotocol/claude-agent-acp@latest",
+	providerClaudeKey: {
+		Command:     claudeProviderCommand,
 		DisplayName: "Claude Code",
 		Harness:     ProviderHarnessACP,
 		Models: ProviderModelsConfig{
-			Default: "claude-sonnet-4-6",
+			Default: providerClaudeSonnet46Value,
 			Curated: []ProviderModelConfig{
-				{ID: "claude-opus-4-7", DisplayName: "Claude Opus 4.7"},
-				{ID: "claude-sonnet-4-6", DisplayName: "Claude Sonnet 4.6"},
+				{ID: modelClaudeOpus47ID, DisplayName: "Claude Opus 4.7"},
+				{ID: providerClaudeSonnet46Value, DisplayName: "Claude Sonnet 4.6"},
 				{ID: "claude-haiku-4-5", DisplayName: "Claude Haiku 4.5"},
 			},
 		},
 	},
-	"codex": {
+	providerCodexKey: {
 		Command:     "npx -y @zed-industries/codex-acp@latest",
 		DisplayName: "Codex",
 		Harness:     ProviderHarnessACP,
 		Models: ProviderModelsConfig{
-			Default: "gpt-5.4",
+			Default: modelGPT54ID,
 			Curated: []ProviderModelConfig{
 				{
-					ID:                     "gpt-5.4",
+					ID:                     modelGPT54ID,
 					DisplayName:            "GPT-5.4",
 					SupportsTools:          new(true),
 					SupportsReasoning:      new(true),
-					ReasoningEfforts:       []string{"minimal", "low", "medium", "high", "xhigh"},
-					DefaultReasoningEffort: "medium",
+					ReasoningEfforts:       []string{"minimal", "low", providerMediumKey, providerHighKey, "xhigh"},
+					DefaultReasoningEffort: providerMediumKey,
 				},
 				{
 					ID:                     "gpt-5.4-mini",
 					DisplayName:            "GPT-5.4 Mini",
 					SupportsTools:          new(true),
 					SupportsReasoning:      new(true),
-					ReasoningEfforts:       []string{"minimal", "low", "medium", "high", "xhigh"},
-					DefaultReasoningEffort: "medium",
+					ReasoningEfforts:       []string{"minimal", "low", providerMediumKey, providerHighKey, "xhigh"},
+					DefaultReasoningEffort: providerMediumKey,
 				},
 				{ID: "gpt-5.3", DisplayName: "GPT-5.3"},
 				{ID: "gpt-5.3-mini", DisplayName: "GPT-5.3 Mini"},
@@ -306,71 +351,71 @@ var builtinProviders = map[string]ProviderConfig{
 		DisplayName: "Gemini CLI",
 		Harness:     ProviderHarnessACP,
 		Models: ProviderModelsConfig{
-			Default: "gemini-3.1-pro-preview",
+			Default: providerGemini31ProPreviewPath,
 			Curated: []ProviderModelConfig{
-				{ID: "gemini-3.1-pro-preview", DisplayName: "Gemini 3.1 Pro Preview"},
+				{ID: providerGemini31ProPreviewPath, DisplayName: "Gemini 3.1 Pro Preview"},
 			},
 		},
 	},
-	"opencode": {
+	providerOpencodeKey: {
 		Command:     "npx -y opencode-ai@latest acp",
 		DisplayName: "OpenCode",
 		Harness:     ProviderHarnessACP,
 	},
-	"blackbox": {
+	providerBlackboxKey: {
 		Command:     "blackbox --experimental-acp",
 		DisplayName: "BLACKBOX AI",
 		Harness:     ProviderHarnessACP,
 	},
-	"cline": {
+	providerClineKey: {
 		Command:     "npx -y cline@latest --acp",
 		DisplayName: "Cline",
 		Harness:     ProviderHarnessACP,
 	},
-	"goose": {
+	providerGooseKey: {
 		Command:     "goose acp",
 		DisplayName: "Goose",
 		Harness:     ProviderHarnessACP,
 	},
-	"hermes": {
+	providerHermesKey: {
 		Command:     "hermes acp",
 		DisplayName: "Hermes",
 		Harness:     ProviderHarnessACP,
 	},
-	"junie": {
+	providerJunieKey: {
 		Command:     "junie --acp true",
 		DisplayName: "Junie",
 		Harness:     ProviderHarnessACP,
 	},
-	"kimi-cli": {
+	providerKimiCLIValue: {
 		Command:     "kimi acp",
 		DisplayName: "Kimi CLI",
 		Harness:     ProviderHarnessACP,
 	},
-	"openclaw": {
+	providerOpenclawKey: {
 		Command:     "openclaw acp",
 		DisplayName: "OpenClaw",
 		Harness:     ProviderHarnessACP,
 		SessionMCP:  new(false),
 	},
-	"openhands": {
+	providerOpenhandsKey: {
 		Command:     "openhands acp",
 		DisplayName: "OpenHands",
 		Harness:     ProviderHarnessACP,
 	},
-	"qoder": {
+	providerQoderKey: {
 		Command:     "npx -y @qoder-ai/qodercli@latest --acp",
 		DisplayName: "Qoder CLI",
 		Harness:     ProviderHarnessACP,
 	},
-	"qwen-code": {
+	providerQwenCodeValue: {
 		Command:     "npx -y @qwen-code/qwen-code@latest --acp --experimental-skills",
 		DisplayName: "Qwen Code",
 		Harness:     ProviderHarnessACP,
 		Models: ProviderModelsConfig{
-			Default: "qwen3.6-plus",
+			Default: providerQwen36PlusPath,
 			Curated: []ProviderModelConfig{
-				{ID: "qwen3.6-plus", DisplayName: "Qwen3.6 Plus"},
+				{ID: providerQwen36PlusPath, DisplayName: "Qwen3.6 Plus"},
 			},
 		},
 	},
@@ -396,113 +441,113 @@ var builtinProviders = map[string]ProviderConfig{
 		RuntimeProvider: "anthropic",
 		AuthLoginCmd:    piACPAuthLoginCommand,
 		Models: ProviderModelsConfig{
-			Default: "claude-opus-4-7",
+			Default: modelClaudeOpus47ID,
 			Curated: []ProviderModelConfig{
-				{ID: "claude-opus-4-7", DisplayName: "Claude Opus 4.7"},
+				{ID: modelClaudeOpus47ID, DisplayName: "Claude Opus 4.7"},
 			},
 		},
 	},
-	"openrouter": {
+	providerOpenrouterKey: {
 		Command:         piACPCommand,
 		DisplayName:     "OpenRouter",
 		Harness:         ProviderHarnessPiACP,
-		RuntimeProvider: "openrouter",
+		RuntimeProvider: providerOpenrouterKey,
 		CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("OPENROUTER_API_KEY")},
 		Models: ProviderModelsConfig{
-			Default: "openai/gpt-5.4",
+			Default: providerOpenaiGpt54Path,
 			Curated: []ProviderModelConfig{
-				{ID: "openai/gpt-5.4", DisplayName: "OpenAI GPT-5.4"},
+				{ID: providerOpenaiGpt54Path, DisplayName: "OpenAI GPT-5.4"},
 			},
 		},
 	},
-	"zai": {
+	providerZaiKey: {
 		Command:         piACPCommand,
 		DisplayName:     "z.ai",
 		Harness:         ProviderHarnessPiACP,
-		RuntimeProvider: "zai",
+		RuntimeProvider: providerZaiKey,
 		CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("ZAI_API_KEY")},
 		Models: ProviderModelsConfig{
-			Default: "glm-4.6",
+			Default: providerGlm46Path,
 			Curated: []ProviderModelConfig{
-				{ID: "glm-4.6", DisplayName: "GLM-4.6"},
+				{ID: providerGlm46Path, DisplayName: "GLM-4.6"},
 			},
 		},
 	},
-	"moonshot": {
+	providerMoonshotKey: {
 		Command:         piACPCommand,
 		DisplayName:     "Moonshot / Kimi",
 		Harness:         ProviderHarnessPiACP,
-		RuntimeProvider: "kimi-coding",
+		RuntimeProvider: providerKimiCodingValue,
 		CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("KIMI_API_KEY")},
 		Models: ProviderModelsConfig{
-			Default: "kimi-k2-thinking",
+			Default: providerKimiK2ThinkingValue,
 			Curated: []ProviderModelConfig{
-				{ID: "kimi-k2-thinking", DisplayName: "Kimi K2 Thinking"},
+				{ID: providerKimiK2ThinkingValue, DisplayName: "Kimi K2 Thinking"},
 			},
 		},
 	},
-	"vercel-ai-gateway": {
+	providerVercelAIGatewayValue: {
 		Command:         piACPCommand,
 		DisplayName:     "Vercel AI Gateway",
 		Harness:         ProviderHarnessPiACP,
-		RuntimeProvider: "vercel-ai-gateway",
+		RuntimeProvider: providerVercelAIGatewayValue,
 		CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("AI_GATEWAY_API_KEY")},
 		Models: ProviderModelsConfig{
-			Default: "anthropic/claude-opus-4-7",
+			Default: providerAnthropicClaudeOpus47Path,
 			Curated: []ProviderModelConfig{
-				{ID: "anthropic/claude-opus-4-7", DisplayName: "Anthropic Claude Opus 4.7"},
+				{ID: providerAnthropicClaudeOpus47Path, DisplayName: "Anthropic Claude Opus 4.7"},
 			},
 		},
 	},
-	"xai": {
+	providerXaiKey: {
 		Command:         piACPCommand,
 		DisplayName:     "xAI",
 		Harness:         ProviderHarnessPiACP,
-		RuntimeProvider: "xai",
+		RuntimeProvider: providerXaiKey,
 		CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("XAI_API_KEY")},
 		Models: ProviderModelsConfig{
-			Default: "grok-4-fast-non-reasoning",
+			Default: providerGrok4FastNonReasoningValue,
 			Curated: []ProviderModelConfig{
-				{ID: "grok-4-fast-non-reasoning", DisplayName: "Grok 4 Fast Non-Reasoning"},
+				{ID: providerGrok4FastNonReasoningValue, DisplayName: "Grok 4 Fast Non-Reasoning"},
 			},
 		},
 	},
-	"minimax": {
+	providerMinimaxKey: {
 		Command:         piACPCommand,
 		DisplayName:     "MiniMax",
 		Harness:         ProviderHarnessPiACP,
-		RuntimeProvider: "minimax",
+		RuntimeProvider: providerMinimaxKey,
 		CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("MINIMAX_API_KEY")},
 		Models: ProviderModelsConfig{
-			Default: "MiniMax-M2.1",
+			Default: providerMiniMaxM21Path,
 			Curated: []ProviderModelConfig{
-				{ID: "MiniMax-M2.1", DisplayName: "MiniMax M2.1"},
+				{ID: providerMiniMaxM21Path, DisplayName: "MiniMax M2.1"},
 			},
 		},
 	},
-	"mistral": {
+	providerMistralKey: {
 		Command:         piACPCommand,
 		DisplayName:     "Mistral",
 		Harness:         ProviderHarnessPiACP,
-		RuntimeProvider: "mistral",
+		RuntimeProvider: providerMistralKey,
 		CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("MISTRAL_API_KEY")},
 		Models: ProviderModelsConfig{
-			Default: "devstral-medium-latest",
+			Default: providerDevstralMediumLatestValue,
 			Curated: []ProviderModelConfig{
-				{ID: "devstral-medium-latest", DisplayName: "Devstral Medium Latest"},
+				{ID: providerDevstralMediumLatestValue, DisplayName: "Devstral Medium Latest"},
 			},
 		},
 	},
-	"groq": {
+	providerGroqKey: {
 		Command:         piACPCommand,
 		DisplayName:     "Groq",
 		Harness:         ProviderHarnessPiACP,
-		RuntimeProvider: "groq",
+		RuntimeProvider: providerGroqKey,
 		CredentialSlots: []ProviderCredentialSlot{apiKeyCredentialSlot("GROQ_API_KEY")},
 		Models: ProviderModelsConfig{
-			Default: "openai/gpt-oss-120b",
+			Default: providerOpenaiGptOss120bPath,
 			Curated: []ProviderModelConfig{
-				{ID: "openai/gpt-oss-120b", DisplayName: "OpenAI GPT-OSS 120B"},
+				{ID: providerOpenaiGptOss120bPath, DisplayName: "OpenAI GPT-OSS 120B"},
 			},
 		},
 	},
@@ -953,7 +998,7 @@ func validateStdioMCPEnv(
 func forbiddenStdioMCPEnvKey(key string) bool {
 	normalized := strings.ToUpper(strings.TrimSpace(key))
 	switch normalized {
-	case "NODE_OPTIONS", "PYTHONPATH", "PYTHONHOME", "LD_PRELOAD":
+	case providerNodeOptionsValue, "PYTHONPATH", "PYTHONHOME", "LD_PRELOAD":
 		return true
 	default:
 		return strings.HasPrefix(normalized, "DYLD_")

@@ -14,6 +14,50 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	hooksValueKey = "value"
+)
+
+const (
+	automationAgentValue     = "Agent"
+	automationAttemptValue   = "Attempt"
+	automationBodyValue      = "Body"
+	automationCreatedValue   = "Created"
+	automationEnabledValue   = "Enabled"
+	automationEndedValue     = "Ended"
+	automationErrorValue     = "Error"
+	automationEventValue     = "Event"
+	automationPathValue      = "Path"
+	automationScopeValue     = "Scope"
+	automationSessionValue   = "Session"
+	automationSourceValue    = "Source"
+	automationStartedValue   = "Started"
+	automationStatusValue    = "Status"
+	automationTargetValue    = "Target"
+	automationUpdatedValue   = "Updated"
+	automationWorkspaceValue = "Workspace"
+	automationAgentNameKey   = "agent_name"
+	automationAttemptKey     = "attempt"
+	automationCreateKey      = "create"
+	automationDeleteIDValue  = "delete <id>"
+	automationEndedAtKey     = "ended_at"
+	automationErrorKey       = "error"
+	automationEventKey       = "event"
+	automationGetIDValue     = "get <id>"
+	automationHistoryIDValue = "history <id>"
+	automationPathKey        = "path"
+	automationPromptKey      = "prompt"
+	automationRetryKey       = "retry"
+	automationScopeKey       = "scope"
+	automationSourceKey      = "source"
+	automationStartedAtKey   = "started_at"
+	automationStatusKey      = "status"
+	automationTargetKey      = "target"
+	automationUpdateIDValue  = "update <id>"
+	automationUpdatedAtKey   = "updated_at"
+	automationWorkspaceIDKey = "workspace_id"
+)
+
 type automationTriggerCommandInput struct {
 	Name               string
 	ScopeRaw           string
@@ -91,10 +135,10 @@ func newAutomationJobsCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, automationJobListBundle(jobs))
 		},
 	}
-	cmd.Flags().StringVar(&scopeRaw, "scope", "", "Filter by scope: global or workspace")
+	cmd.Flags().StringVar(&scopeRaw, automationScopeKey, "", "Filter by scope: global or workspace")
 	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Filter by workspace path, name, or ID")
 	cmd.Flags().
-		StringVar(&sourceRaw, "source", "", "Filter by definition source: config or dynamic")
+		StringVar(&sourceRaw, automationSourceKey, "", "Filter by definition source: config or dynamic")
 	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N jobs")
 
 	cmd.AddCommand(newAutomationJobsCreateCommand(deps))
@@ -119,7 +163,7 @@ func newAutomationJobsCreateCommand(deps commandDeps) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "create",
+		Use:   automationCreateKey,
 		Short: "Create an automation job",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -154,7 +198,7 @@ func newAutomationJobsCreateCommand(deps commandDeps) *cobra.Command {
 				Prompt:      strings.TrimSpace(prompt),
 				Schedule:    schedule,
 			}
-			if cmd.Flags().Changed("enabled") {
+			if cmd.Flags().Changed(automationEnabledKey) {
 				request.Enabled = new(enabled)
 			}
 			if retry != nil {
@@ -168,28 +212,28 @@ func newAutomationJobsCreateCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, automationJobBundle(created))
 		},
 	}
-	cmd.Flags().StringVar(&name, "name", "", "Job name")
-	cmd.Flags().StringVar(&scopeRaw, "scope", "", "Job scope: global or workspace")
+	cmd.Flags().StringVar(&name, automationNameKey, "", "Job name")
+	cmd.Flags().StringVar(&scopeRaw, automationScopeKey, "", "Job scope: global or workspace")
 	cmd.Flags().
 		StringVar(&scheduleRaw, "schedule", "", "Schedule spec: <cron-expr>, every:<duration>, or at:<timestamp>")
 	cmd.Flags().StringVar(&agentName, "agent", "", "Agent definition name")
 	cmd.Flags().
 		StringVar(&workspaceRef, "workspace", "", "Workspace path, name, or ID (required when --scope=workspace)")
-	cmd.Flags().StringVar(&prompt, "prompt", "", "Prompt body to dispatch")
+	cmd.Flags().StringVar(&prompt, automationPromptKey, "", "Prompt body to dispatch")
 	cmd.Flags().
-		StringVar(&retryRaw, "retry", "", `Retry policy: "none", "backoff", or "backoff:<max_retries>:<base_delay>"`)
-	cmd.Flags().BoolVar(&enabled, "enabled", false, "Create the job enabled or disabled")
-	mustMarkFlagRequired(cmd, "name")
-	mustMarkFlagRequired(cmd, "scope")
+		StringVar(&retryRaw, automationRetryKey, "", `Retry policy: "none", "backoff", or "backoff:<max_retries>:<base_delay>"`)
+	cmd.Flags().BoolVar(&enabled, automationEnabledKey, false, "Create the job enabled or disabled")
+	mustMarkFlagRequired(cmd, automationNameKey)
+	mustMarkFlagRequired(cmd, automationScopeKey)
 	mustMarkFlagRequired(cmd, "schedule")
 	mustMarkFlagRequired(cmd, "agent")
-	mustMarkFlagRequired(cmd, "prompt")
+	mustMarkFlagRequired(cmd, automationPromptKey)
 	return cmd
 }
 
 func newAutomationJobsGetCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "get <id>",
+		Use:   automationGetIDValue,
 		Short: "Show one automation job",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -219,7 +263,7 @@ func newAutomationJobsUpdateCommand(deps commandDeps) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "update <id>",
+		Use:   automationUpdateIDValue,
 		Short: "Update an automation job",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -251,14 +295,14 @@ func newAutomationJobsUpdateCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, automationJobBundle(updated))
 		},
 	}
-	cmd.Flags().StringVar(&name, "name", "", "Update the job name")
+	cmd.Flags().StringVar(&name, automationNameKey, "", "Update the job name")
 	cmd.Flags().StringVar(&agentName, "agent", "", "Update the agent definition")
 	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Update the workspace path, name, or ID")
-	cmd.Flags().StringVar(&prompt, "prompt", "", "Update the prompt body")
+	cmd.Flags().StringVar(&prompt, automationPromptKey, "", "Update the prompt body")
 	cmd.Flags().StringVar(&scheduleRaw, "schedule", "", "Update the schedule spec")
 	cmd.Flags().
-		StringVar(&retryRaw, "retry", "", `Update retry policy: "none", "backoff", or "backoff:<max_retries>:<base_delay>"`)
-	cmd.Flags().BoolVar(&enabled, "enabled", false, "Update the enabled state")
+		StringVar(&retryRaw, automationRetryKey, "", `Update retry policy: "none", "backoff", or "backoff:<max_retries>:<base_delay>"`)
+	cmd.Flags().BoolVar(&enabled, automationEnabledKey, false, "Update the enabled state")
 	return cmd
 }
 
@@ -268,7 +312,7 @@ func buildAutomationJobUpdateRequest(
 	input automationJobUpdateInput,
 ) (AutomationJobUpdateRequest, error) {
 	request := AutomationJobUpdateRequest{}
-	if cmd.Flags().Changed("name") {
+	if cmd.Flags().Changed(automationNameKey) {
 		request.Name = new(strings.TrimSpace(input.Name))
 	}
 	if cmd.Flags().Changed("agent") {
@@ -281,7 +325,7 @@ func buildAutomationJobUpdateRequest(
 		}
 		request.WorkspaceID = new(workspaceID)
 	}
-	if cmd.Flags().Changed("prompt") {
+	if cmd.Flags().Changed(automationPromptKey) {
 		request.Prompt = new(strings.TrimSpace(input.Prompt))
 	}
 	if cmd.Flags().Changed("schedule") {
@@ -291,7 +335,7 @@ func buildAutomationJobUpdateRequest(
 		}
 		request.Schedule = &schedule
 	}
-	if cmd.Flags().Changed("retry") {
+	if cmd.Flags().Changed(automationRetryKey) {
 		retry, err := parseAutomationRetryFlag(input.RetryRaw)
 		if err != nil {
 			return AutomationJobUpdateRequest{}, err
@@ -303,7 +347,7 @@ func buildAutomationJobUpdateRequest(
 		}
 		request.Retry = retry
 	}
-	if cmd.Flags().Changed("enabled") {
+	if cmd.Flags().Changed(automationEnabledKey) {
 		request.Enabled = new(input.Enabled)
 	}
 	return request, nil
@@ -311,7 +355,7 @@ func buildAutomationJobUpdateRequest(
 
 func newAutomationJobsDeleteCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "delete <id>",
+		Use:   automationDeleteIDValue,
 		Short: "Delete an automation job",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -361,7 +405,7 @@ func newAutomationJobsHistoryCommand(deps commandDeps) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "history <id>",
+		Use:   automationHistoryIDValue,
 		Short: "Show run history for one automation job",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -382,7 +426,7 @@ func newAutomationJobsHistoryCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, automationRunListBundle(runs))
 		},
 	}
-	cmd.Flags().StringVar(&statusRaw, "status", "", "Filter by run status")
+	cmd.Flags().StringVar(&statusRaw, automationStatusKey, "", "Filter by run status")
 	cmd.Flags().
 		StringVar(&sinceRaw, "since", "", "Show runs since an RFC3339 timestamp or relative duration")
 	cmd.Flags().
@@ -430,11 +474,11 @@ func newAutomationTriggersCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, automationTriggerListBundle(triggers))
 		},
 	}
-	cmd.Flags().StringVar(&scopeRaw, "scope", "", "Filter by scope: global or workspace")
+	cmd.Flags().StringVar(&scopeRaw, automationScopeKey, "", "Filter by scope: global or workspace")
 	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Filter by workspace path, name, or ID")
-	cmd.Flags().StringVar(&eventRaw, "event", "", "Filter by activation event")
+	cmd.Flags().StringVar(&eventRaw, automationEventKey, "", "Filter by activation event")
 	cmd.Flags().
-		StringVar(&sourceRaw, "source", "", "Filter by definition source: config or dynamic")
+		StringVar(&sourceRaw, automationSourceKey, "", "Filter by definition source: config or dynamic")
 	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N triggers")
 
 	cmd.AddCommand(newAutomationTriggersCreateCommand(deps))
@@ -462,7 +506,7 @@ func newAutomationTriggersCreateCommand(deps commandDeps) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "create",
+		Use:   automationCreateKey,
 		Short: "Create an automation trigger",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -533,31 +577,31 @@ func bindAutomationTriggerCreateFlags(
 	endpointSlug *string,
 	webhookSecretValue *string,
 ) {
-	cmd.Flags().StringVar(name, "name", "", "Trigger name")
-	cmd.Flags().StringVar(scopeRaw, "scope", "", "Trigger scope: global or workspace")
-	cmd.Flags().StringVar(eventRaw, "event", "", "Trigger event name")
+	cmd.Flags().StringVar(name, automationNameKey, "", "Trigger name")
+	cmd.Flags().StringVar(scopeRaw, automationScopeKey, "", "Trigger scope: global or workspace")
+	cmd.Flags().StringVar(eventRaw, automationEventKey, "", "Trigger event name")
 	cmd.Flags().
 		StringVar(workspaceRef, "workspace", "", "Workspace path, name, or ID (required when --scope=workspace)")
 	cmd.Flags().StringVar(agentName, "agent", "", "Agent definition name")
-	cmd.Flags().StringVar(prompt, "prompt", "", "Prompt template body")
+	cmd.Flags().StringVar(prompt, automationPromptKey, "", "Prompt template body")
 	cmd.Flags().
 		StringArrayVar(filterFlags, "filter", nil, "Exact-match filter(s): key=value or comma-separated key=value pairs")
 	cmd.Flags().
-		StringVar(retryRaw, "retry", "", `Retry policy: "none", "backoff", or "backoff:<max_retries>:<base_delay>"`)
-	cmd.Flags().BoolVar(enabled, "enabled", false, "Create the trigger enabled or disabled")
+		StringVar(retryRaw, automationRetryKey, "", `Retry policy: "none", "backoff", or "backoff:<max_retries>:<base_delay>"`)
+	cmd.Flags().BoolVar(enabled, automationEnabledKey, false, "Create the trigger enabled or disabled")
 	cmd.Flags().StringVar(webhookID, "webhook-id", "", "Stable webhook identifier override for webhook events")
 	cmd.Flags().StringVar(endpointSlug, "endpoint-slug", "", "Public endpoint slug for webhook events")
 	cmd.Flags().StringVar(webhookSecretValue, "webhook-secret-value", "", "Write-only webhook secret value")
-	mustMarkFlagRequired(cmd, "name")
-	mustMarkFlagRequired(cmd, "scope")
-	mustMarkFlagRequired(cmd, "event")
+	mustMarkFlagRequired(cmd, automationNameKey)
+	mustMarkFlagRequired(cmd, automationScopeKey)
+	mustMarkFlagRequired(cmd, automationEventKey)
 	mustMarkFlagRequired(cmd, "agent")
-	mustMarkFlagRequired(cmd, "prompt")
+	mustMarkFlagRequired(cmd, automationPromptKey)
 }
 
 func newAutomationTriggersGetCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "get <id>",
+		Use:   automationGetIDValue,
 		Short: "Show one automation trigger",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -591,7 +635,7 @@ func newAutomationTriggersUpdateCommand(deps commandDeps) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "update <id>",
+		Use:   automationUpdateIDValue,
 		Short: "Update an automation trigger",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -628,16 +672,16 @@ func newAutomationTriggersUpdateCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, automationTriggerBundle(updated))
 		},
 	}
-	cmd.Flags().StringVar(&name, "name", "", "Update the trigger name")
+	cmd.Flags().StringVar(&name, automationNameKey, "", "Update the trigger name")
 	cmd.Flags().StringVar(&agentName, "agent", "", "Update the agent definition")
 	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Update the workspace path, name, or ID")
-	cmd.Flags().StringVar(&prompt, "prompt", "", "Update the prompt template body")
-	cmd.Flags().StringVar(&eventRaw, "event", "", "Update the trigger event")
+	cmd.Flags().StringVar(&prompt, automationPromptKey, "", "Update the prompt template body")
+	cmd.Flags().StringVar(&eventRaw, automationEventKey, "", "Update the trigger event")
 	cmd.Flags().
 		StringArrayVar(&filterFlags, "filter", nil, "Replace filters with key=value entries")
 	cmd.Flags().
-		StringVar(&retryRaw, "retry", "", `Update retry policy: "none", "backoff", or "backoff:<max_retries>:<base_delay>"`)
-	cmd.Flags().BoolVar(&enabled, "enabled", false, "Update the enabled state")
+		StringVar(&retryRaw, automationRetryKey, "", `Update retry policy: "none", "backoff", or "backoff:<max_retries>:<base_delay>"`)
+	cmd.Flags().BoolVar(&enabled, automationEnabledKey, false, "Update the enabled state")
 	cmd.Flags().StringVar(&webhookID, "webhook-id", "", "Update the stable webhook identifier")
 	cmd.Flags().StringVar(&endpointSlug, "endpoint-slug", "", "Update the webhook endpoint slug")
 	cmd.Flags().
@@ -647,7 +691,7 @@ func newAutomationTriggersUpdateCommand(deps commandDeps) *cobra.Command {
 
 func newAutomationTriggersDeleteCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "delete <id>",
+		Use:   automationDeleteIDValue,
 		Short: "Delete an automation trigger",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -677,7 +721,7 @@ func newAutomationTriggersHistoryCommand(deps commandDeps) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "history <id>",
+		Use:   automationHistoryIDValue,
 		Short: "Show run history for one automation trigger",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -698,7 +742,7 @@ func newAutomationTriggersHistoryCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, automationRunListBundle(runs))
 		},
 	}
-	cmd.Flags().StringVar(&statusRaw, "status", "", "Filter by run status")
+	cmd.Flags().StringVar(&statusRaw, automationStatusKey, "", "Filter by run status")
 	cmd.Flags().
 		StringVar(&sinceRaw, "since", "", "Show runs since an RFC3339 timestamp or relative duration")
 	cmd.Flags().
@@ -743,7 +787,7 @@ func newAutomationRunsCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&jobID, "job-id", "", "Filter by automation job ID")
 	cmd.Flags().StringVar(&triggerID, "trigger-id", "", "Filter by automation trigger ID")
-	cmd.Flags().StringVar(&statusRaw, "status", "", "Filter by run status")
+	cmd.Flags().StringVar(&statusRaw, automationStatusKey, "", "Filter by run status")
 	cmd.Flags().
 		StringVar(&sinceRaw, "since", "", "Show runs since an RFC3339 timestamp or relative duration")
 	cmd.Flags().
@@ -755,7 +799,7 @@ func newAutomationRunsCommand(deps commandDeps) *cobra.Command {
 
 func newAutomationRunsGetCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "get <id>",
+		Use:   automationGetIDValue,
 		Short: "Show one automation run",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -946,7 +990,7 @@ func parseOptionalAutomationScope(raw string) (automationpkg.Scope, error) {
 		return "", nil
 	}
 	scope := automationpkg.Scope(trimmed)
-	if err := scope.Validate("scope"); err != nil {
+	if err := scope.Validate(automationScopeKey); err != nil {
 		return "", fmt.Errorf("cli: %w", err)
 	}
 	return scope, nil
@@ -958,7 +1002,7 @@ func parseOptionalAutomationSource(raw string) (automationpkg.JobSource, error) 
 		return "", nil
 	}
 	source := automationpkg.JobSource(trimmed)
-	if err := source.Validate("source"); err != nil {
+	if err := source.Validate(automationSourceKey); err != nil {
 		return "", fmt.Errorf("cli: %w", err)
 	}
 	return source, nil
@@ -970,7 +1014,7 @@ func parseOptionalAutomationRunStatus(raw string) (automationpkg.RunStatus, erro
 		return "", nil
 	}
 	status := automationpkg.RunStatus(trimmed)
-	if err := status.Validate("status"); err != nil {
+	if err := status.Validate(automationStatusKey); err != nil {
 		return "", fmt.Errorf("cli: %w", err)
 	}
 	return status, nil
@@ -1068,7 +1112,7 @@ func parseAutomationRetryFlag(raw string) (*automationpkg.RetryConfig, error) {
 		)
 	}
 
-	if err := cfg.Validate("retry"); err != nil {
+	if err := cfg.Validate(automationRetryKey); err != nil {
 		return nil, fmt.Errorf("cli: %w", err)
 	}
 	return &cfg, nil
@@ -1154,12 +1198,12 @@ func automationJobBundle(item JobRecord) outputBundle {
 			return renderHumanBlocks(
 				renderHumanSection("Automation Job", []keyValue{
 					{Label: "ID", Value: stringOrDash(item.ID)},
-					{Label: "Name", Value: stringOrDash(item.Name)},
-					{Label: "Scope", Value: stringOrDash(string(item.Scope))},
-					{Label: "Workspace", Value: stringOrDash(item.WorkspaceID)},
-					{Label: "Agent", Value: stringOrDash(item.AgentName)},
-					{Label: "Enabled", Value: strconv.FormatBool(item.Enabled)},
-					{Label: "Source", Value: stringOrDash(string(item.Source))},
+					{Label: automationNameValue, Value: stringOrDash(item.Name)},
+					{Label: automationScopeValue, Value: stringOrDash(string(item.Scope))},
+					{Label: automationWorkspaceValue, Value: stringOrDash(item.WorkspaceID)},
+					{Label: automationAgentValue, Value: stringOrDash(item.AgentName)},
+					{Label: automationEnabledValue, Value: strconv.FormatBool(item.Enabled)},
+					{Label: automationSourceValue, Value: stringOrDash(string(item.Source))},
 					{
 						Label: "Schedule",
 						Value: stringOrDash(formatAutomationSchedule(item.Schedule)),
@@ -1177,35 +1221,35 @@ func automationJobBundle(item JobRecord) outputBundle {
 					{Label: "Last Fire ID", Value: stringOrDash(automationJobLastFireID(item))},
 					{Label: "Catch-up Policy", Value: stringOrDash(automationJobCatchUpPolicy(item))},
 					{Label: "Misfires", Value: strconv.Itoa(automationJobMisfireCount(item))},
-					{Label: "Created", Value: stringOrDash(formatTime(item.CreatedAt))},
-					{Label: "Updated", Value: stringOrDash(formatTime(item.UpdatedAt))},
+					{Label: automationCreatedValue, Value: stringOrDash(formatTime(item.CreatedAt))},
+					{Label: automationUpdatedValue, Value: stringOrDash(formatTime(item.UpdatedAt))},
 				}),
 				renderHumanSection(
 					"Prompt",
-					[]keyValue{{Label: "Body", Value: stringOrDash(item.Prompt)}},
+					[]keyValue{{Label: automationBodyValue, Value: stringOrDash(item.Prompt)}},
 				),
 			), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject("automation_job", []string{
 				"id",
-				"name",
-				"scope",
-				"workspace_id",
-				"agent_name",
-				"enabled",
-				"source",
+				automationNameKey,
+				automationScopeKey,
+				automationWorkspaceIDKey,
+				automationAgentNameKey,
+				automationEnabledKey,
+				automationSourceKey,
 				"schedule",
-				"retry",
+				automationRetryKey,
 				"fire_limit",
 				"next_run",
 				"last_scheduled_at",
 				"last_fire_id",
 				"catch_up_policy",
 				"misfire_count",
-				"created_at",
-				"updated_at",
-				"prompt",
+				automationCreatedAtKey,
+				automationUpdatedAtKey,
+				automationPromptKey,
 			}, []string{
 				item.ID,
 				item.Name,
@@ -1237,25 +1281,25 @@ func automationJobListBundle(items []JobRecord) outputBundle {
 		"Automation Jobs",
 		[]string{
 			"ID",
-			"Name",
-			"Scope",
-			"Workspace",
+			automationNameValue,
+			automationScopeValue,
+			automationWorkspaceValue,
 			"Schedule",
-			"Agent",
-			"Enabled",
-			"Source",
+			automationAgentValue,
+			automationEnabledValue,
+			automationSourceValue,
 			"Next Run",
 		},
 		"automation_jobs",
 		[]string{
 			"id",
-			"name",
-			"scope",
-			"workspace_id",
+			automationNameKey,
+			automationScopeKey,
+			automationWorkspaceIDKey,
 			"schedule",
-			"agent_name",
-			"enabled",
-			"source",
+			automationAgentNameKey,
+			automationEnabledKey,
+			automationSourceKey,
 			"next_run",
 		},
 		func(item JobRecord) []string {
@@ -1294,13 +1338,13 @@ func automationTriggerBundle(item TriggerRecord) outputBundle {
 			return renderHumanBlocks(
 				renderHumanSection("Automation Trigger", []keyValue{
 					{Label: "ID", Value: stringOrDash(item.ID)},
-					{Label: "Name", Value: stringOrDash(item.Name)},
-					{Label: "Scope", Value: stringOrDash(string(item.Scope))},
-					{Label: "Workspace", Value: stringOrDash(item.WorkspaceID)},
-					{Label: "Agent", Value: stringOrDash(item.AgentName)},
-					{Label: "Event", Value: stringOrDash(item.Event)},
-					{Label: "Enabled", Value: strconv.FormatBool(item.Enabled)},
-					{Label: "Source", Value: stringOrDash(string(item.Source))},
+					{Label: automationNameValue, Value: stringOrDash(item.Name)},
+					{Label: automationScopeValue, Value: stringOrDash(string(item.Scope))},
+					{Label: automationWorkspaceValue, Value: stringOrDash(item.WorkspaceID)},
+					{Label: automationAgentValue, Value: stringOrDash(item.AgentName)},
+					{Label: automationEventValue, Value: stringOrDash(item.Event)},
+					{Label: automationEnabledValue, Value: strconv.FormatBool(item.Enabled)},
+					{Label: automationSourceValue, Value: stringOrDash(string(item.Source))},
 					{Label: "Retry", Value: stringOrDash(formatAutomationRetry(item.Retry))},
 					{
 						Label: "Fire Limit",
@@ -1309,16 +1353,16 @@ func automationTriggerBundle(item TriggerRecord) outputBundle {
 					{Label: "Webhook ID", Value: stringOrDash(item.WebhookID)},
 					{Label: "Endpoint Slug", Value: stringOrDash(item.EndpointSlug)},
 					{Label: "Webhook Path", Value: stringOrDash(displayTriggerEndpoint(item))},
-					{Label: "Created", Value: stringOrDash(formatTime(item.CreatedAt))},
-					{Label: "Updated", Value: stringOrDash(formatTime(item.UpdatedAt))},
+					{Label: automationCreatedValue, Value: stringOrDash(formatTime(item.CreatedAt))},
+					{Label: automationUpdatedValue, Value: stringOrDash(formatTime(item.UpdatedAt))},
 				}),
 				renderHumanSection(
 					"Prompt",
-					[]keyValue{{Label: "Body", Value: stringOrDash(item.Prompt)}},
+					[]keyValue{{Label: automationBodyValue, Value: stringOrDash(item.Prompt)}},
 				),
 				renderHumanTable(
 					"Filters",
-					[]string{"Path", "Value"},
+					[]string{automationPathValue, "Value"},
 					automationFilterRows(item.Filter),
 				),
 			), nil
@@ -1327,21 +1371,21 @@ func automationTriggerBundle(item TriggerRecord) outputBundle {
 			return renderHumanBlocks(
 				renderToonObject("automation_trigger", []string{
 					"id",
-					"name",
-					"scope",
-					"workspace_id",
-					"agent_name",
-					"event",
-					"enabled",
-					"source",
-					"retry",
+					automationNameKey,
+					automationScopeKey,
+					automationWorkspaceIDKey,
+					automationAgentNameKey,
+					automationEventKey,
+					automationEnabledKey,
+					automationSourceKey,
+					automationRetryKey,
 					"fire_limit",
 					"webhook_id",
 					"endpoint_slug",
 					"webhook_path",
-					"created_at",
-					"updated_at",
-					"prompt",
+					automationCreatedAtKey,
+					automationUpdatedAtKey,
+					automationPromptKey,
 				}, []string{
 					item.ID,
 					item.Name,
@@ -1362,7 +1406,7 @@ func automationTriggerBundle(item TriggerRecord) outputBundle {
 				}),
 				renderToonArray(
 					"filters",
-					[]string{"path", "value"},
+					[]string{automationPathKey, hooksValueKey},
 					automationFilterRows(item.Filter),
 				),
 			), nil
@@ -1375,9 +1419,27 @@ func automationTriggerListBundle(items []TriggerRecord) outputBundle {
 		contract.TriggersResponse{Triggers: items},
 		items,
 		"Automation Triggers",
-		[]string{"ID", "Name", "Event", "Scope", "Workspace", "Agent", "Enabled", "Source"},
+		[]string{
+			"ID",
+			automationNameValue,
+			automationEventValue,
+			automationScopeValue,
+			automationWorkspaceValue,
+			automationAgentValue,
+			automationEnabledValue,
+			automationSourceValue,
+		},
 		"automation_triggers",
-		[]string{"id", "name", "event", "scope", "workspace_id", "agent_name", "enabled", "source"},
+		[]string{
+			"id",
+			automationNameKey,
+			automationEventKey,
+			automationScopeKey,
+			automationWorkspaceIDKey,
+			automationAgentNameKey,
+			automationEnabledKey,
+			automationSourceKey,
+		},
 		func(item TriggerRecord) []string {
 			return []string{
 				stringOrDash(item.ID),
@@ -1411,34 +1473,34 @@ func automationRunBundle(item RunRecord) outputBundle {
 		human: func() (string, error) {
 			return renderHumanSection("Automation Run", []keyValue{
 				{Label: "ID", Value: stringOrDash(item.ID)},
-				{Label: "Target", Value: stringOrDash(displayRunTarget(item))},
+				{Label: automationTargetValue, Value: stringOrDash(displayRunTarget(item))},
 				{Label: "Job ID", Value: stringOrDash(item.JobID)},
 				{Label: "Trigger ID", Value: stringOrDash(item.TriggerID)},
 				{Label: "Session ID", Value: stringOrDash(item.SessionID)},
 				{Label: "Fire ID", Value: stringOrDash(item.FireID)},
-				{Label: "Status", Value: stringOrDash(string(item.Status))},
-				{Label: "Attempt", Value: strconv.Itoa(item.Attempt)},
+				{Label: automationStatusValue, Value: stringOrDash(string(item.Status))},
+				{Label: automationAttemptValue, Value: strconv.Itoa(item.Attempt)},
 				{Label: "Scheduled", Value: stringOrDash(formatOptionalTime(item.ScheduledAt))},
-				{Label: "Started", Value: stringOrDash(formatOptionalTime(item.StartedAt))},
-				{Label: "Ended", Value: stringOrDash(formatOptionalTime(item.EndedAt))},
-				{Label: "Error", Value: stringOrDash(item.Error)},
+				{Label: automationStartedValue, Value: stringOrDash(formatOptionalTime(item.StartedAt))},
+				{Label: automationEndedValue, Value: stringOrDash(formatOptionalTime(item.EndedAt))},
+				{Label: automationErrorValue, Value: stringOrDash(item.Error)},
 				{Label: "Delivery Error", Value: stringOrDash(item.DeliveryError)},
 			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject("automation_run", []string{
 				"id",
-				"target",
+				automationTargetKey,
 				"job_id",
 				"trigger_id",
-				"session_id",
+				automationSessionIDKey,
 				"fire_id",
-				"status",
-				"attempt",
+				automationStatusKey,
+				automationAttemptKey,
 				"scheduled_at",
-				"started_at",
-				"ended_at",
-				"error",
+				automationStartedAtKey,
+				automationEndedAtKey,
+				automationErrorKey,
 				"delivery_error",
 			}, []string{
 				item.ID,
@@ -1466,27 +1528,27 @@ func automationRunListBundle(items []RunRecord) outputBundle {
 		"Automation Runs",
 		[]string{
 			"ID",
-			"Target",
-			"Status",
-			"Attempt",
-			"Session",
+			automationTargetValue,
+			automationStatusValue,
+			automationAttemptValue,
+			automationSessionValue,
 			"Scheduled",
-			"Started",
-			"Ended",
-			"Error",
+			automationStartedValue,
+			automationEndedValue,
+			automationErrorValue,
 			"Delivery Error",
 		},
 		"automation_runs",
 		[]string{
 			"id",
-			"target",
-			"status",
-			"attempt",
-			"session_id",
+			automationTargetKey,
+			automationStatusKey,
+			automationAttemptKey,
+			automationSessionIDKey,
 			"scheduled_at",
-			"started_at",
-			"ended_at",
-			"error",
+			automationStartedAtKey,
+			automationEndedAtKey,
+			automationErrorKey,
 			"delivery_error",
 		},
 		func(item RunRecord) []string {
@@ -1600,7 +1662,7 @@ func buildAutomationTriggerCreateRequest(
 		EndpointSlug:       strings.TrimSpace(input.EndpointSlug),
 		WebhookSecretValue: input.WebhookSecretValue,
 	}
-	if cmd.Flags().Changed("enabled") {
+	if cmd.Flags().Changed(automationEnabledKey) {
 		request.Enabled = new(input.Enabled)
 	}
 	if retry != nil {
@@ -1615,7 +1677,7 @@ func buildAutomationTriggerUpdateRequest(
 	input automationTriggerCommandInput,
 ) (AutomationTriggerUpdateRequest, error) {
 	request := AutomationTriggerUpdateRequest{}
-	if cmd.Flags().Changed("name") {
+	if cmd.Flags().Changed(automationNameKey) {
 		request.Name = new(strings.TrimSpace(input.Name))
 	}
 	if cmd.Flags().Changed("agent") {
@@ -1628,10 +1690,10 @@ func buildAutomationTriggerUpdateRequest(
 		}
 		request.WorkspaceID = new(workspaceID)
 	}
-	if cmd.Flags().Changed("prompt") {
+	if cmd.Flags().Changed(automationPromptKey) {
 		request.Prompt = new(strings.TrimSpace(input.Prompt))
 	}
-	if cmd.Flags().Changed("event") {
+	if cmd.Flags().Changed(automationEventKey) {
 		request.Event = new(strings.TrimSpace(input.EventRaw))
 	}
 	if cmd.Flags().Changed("filter") {
@@ -1641,7 +1703,7 @@ func buildAutomationTriggerUpdateRequest(
 		}
 		request.Filter = filter
 	}
-	if cmd.Flags().Changed("retry") {
+	if cmd.Flags().Changed(automationRetryKey) {
 		retry, err := parseAutomationRetryFlag(input.RetryRaw)
 		if err != nil {
 			return AutomationTriggerUpdateRequest{}, err
@@ -1653,7 +1715,7 @@ func buildAutomationTriggerUpdateRequest(
 		}
 		request.Retry = retry
 	}
-	if cmd.Flags().Changed("enabled") {
+	if cmd.Flags().Changed(automationEnabledKey) {
 		request.Enabled = new(input.Enabled)
 	}
 	if cmd.Flags().Changed("webhook-id") {

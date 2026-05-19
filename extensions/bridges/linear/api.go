@@ -17,6 +17,11 @@ import (
 	"github.com/pedronauck/agh/internal/bridgesdk"
 )
 
+const (
+	apiBodyKey      = "body"
+	apiIssueIDValue = "issueId"
+)
+
 type linearAPI interface {
 	ValidateAuth(ctx context.Context) (*linearViewer, error)
 	CreateComment(ctx context.Context, issueID string, body string, parentID string) (*linearComment, error)
@@ -150,8 +155,8 @@ func (c *linearClient) CreateComment(
 	}
 
 	variables := map[string]any{
-		"issueId": strings.TrimSpace(issueID),
-		"body":    body,
+		apiIssueIDValue: strings.TrimSpace(issueID),
+		apiBodyKey:      body,
 	}
 	if strings.TrimSpace(parentID) != "" {
 		variables["parentId"] = strings.TrimSpace(parentID)
@@ -213,8 +218,8 @@ mutation LinearProviderUpdateComment($id: String!, $body: String!) {
   }
 }`,
 		Variables: map[string]any{
-			"id":   strings.TrimSpace(commentID),
-			"body": body,
+			"id":       strings.TrimSpace(commentID),
+			apiBodyKey: body,
 		},
 	})
 	if err != nil {
@@ -287,7 +292,7 @@ mutation LinearProviderCreateAgentActivity($agentSessionId: String!, $body: Stri
 }`,
 		Variables: map[string]any{
 			"agentSessionId": strings.TrimSpace(agentSessionID),
-			"body":           body,
+			apiBodyKey:       body,
 		},
 	})
 	if err != nil {
@@ -503,8 +508,7 @@ func classifyLinearTransportError(err error) error {
 	if errors.Is(err, context.Canceled) {
 		return &bridgesdk.TransientError{Err: err}
 	}
-	var netErr net.Error
-	if errors.As(err, &netErr) {
+	if netErr, ok := errors.AsType[net.Error](err); ok {
 		if netErr.Timeout() {
 			return &bridgesdk.HTTPError{StatusCode: http.StatusRequestTimeout, Message: err.Error()}
 		}

@@ -14,6 +14,11 @@ import (
 )
 
 const (
+	leaseHandoffKey = "handoff"
+	leaseStatusKey  = "status"
+)
+
+const (
 	// DefaultRunLeaseDuration is the conservative lease duration used when a caller omits one.
 	DefaultRunLeaseDuration = 5 * time.Minute
 	// MaxRunLeaseDuration is the MVP guardrail for a single task-run lease extension.
@@ -24,11 +29,11 @@ const (
 )
 
 var defaultCoordinationMessageKinds = []string{
-	"status",
+	leaseStatusKey,
 	"request",
 	"reply",
 	"blocker",
-	"handoff",
+	leaseHandoffKey,
 	"result",
 	"review_request",
 }

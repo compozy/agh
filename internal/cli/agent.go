@@ -12,9 +12,46 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	toolOperatorToolsValue = "Tools"
+)
+
+const (
+	agentKernelProviderValue = "Provider"
+)
+
+const (
+	installPermissionsValue = "Permissions"
+	memoryProviderKey       = "provider"
+)
+
+const (
+	automationNameValue  = "Name"
+	configPermissionsKey = "permissions"
+)
+
+const (
+	agentKernelModelValue = "Model"
+	automationNameKey     = "name"
+)
+
+const (
+	agentModelKey = "model"
+)
+
+const (
+	agentBodyValue     = "Body"
+	agentCategoryValue = "Category"
+	agentAgentKey      = "agent"
+	agentCategoryKey   = "category"
+	agentCommandKey    = "command"
+	agentInfoNameValue = "info <name>"
+	agentListKey       = "list"
+)
+
 func newAgentCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "agent",
+		Use:   agentAgentKey,
 		Short: "Inspect AGH agent definitions",
 	}
 
@@ -68,16 +105,16 @@ func newAgentCreateCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().String("workspace", "", "Workspace id, name, or path to create the agent under")
-	cmd.Flags().StringVar(&flags.provider, "provider", "", "Provider name for sessions using this agent")
-	cmd.Flags().StringVar(&flags.command, "command", "", "Optional provider command override")
-	cmd.Flags().StringVar(&flags.model, "model", "", "Optional provider model")
+	cmd.Flags().StringVar(&flags.provider, memoryProviderKey, "", "Provider name for sessions using this agent")
+	cmd.Flags().StringVar(&flags.command, agentCommandKey, "", "Optional provider command override")
+	cmd.Flags().StringVar(&flags.model, agentModelKey, "", "Optional provider model")
 	cmd.Flags().StringVar(&flags.prompt, "prompt", "", "Agent system prompt body")
 	cmd.Flags().StringVar(&flags.promptFile, "prompt-file", "", "Read the agent system prompt body from a file")
 	cmd.Flags().StringArrayVar(&flags.tools, "tool", nil, "Allowed tool pattern (repeatable)")
 	cmd.Flags().StringArrayVar(&flags.toolsets, "toolset", nil, "Allowed toolset reference (repeatable)")
 	cmd.Flags().StringArrayVar(&flags.denyTools, "deny-tool", nil, "Denied tool pattern (repeatable)")
-	cmd.Flags().StringVar(&flags.permissions, "permissions", "", "Optional permission mode")
-	cmd.Flags().StringArrayVar(&flags.categoryPath, "category", nil, "Agent category path segment (repeatable)")
+	cmd.Flags().StringVar(&flags.permissions, configPermissionsKey, "", "Optional permission mode")
+	cmd.Flags().StringArrayVar(&flags.categoryPath, agentCategoryKey, nil, "Agent category path segment (repeatable)")
 	cmd.Flags().BoolVar(&flags.force, "force", false, "Overwrite an existing AGENT.md definition")
 	return cmd
 }
@@ -191,7 +228,7 @@ func agentRecordFromDefinition(agent aghconfig.AgentDef) AgentRecord {
 
 func newAgentListCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "list",
+		Use:   agentListKey,
 		Short: "List installed agent definitions",
 		Example: `  # Show every agent definition available to the daemon
   agh agent list
@@ -224,7 +261,7 @@ func newAgentListCommand(deps commandDeps) *cobra.Command {
 
 func newAgentInfoCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "info <name>",
+		Use:   agentInfoNameValue,
 		Short: "Show one agent definition",
 		Example: `  # Inspect the default bootstrap agent
   agh agent info general
@@ -269,9 +306,23 @@ func agentListBundle(items []AgentRecord) outputBundle {
 		items,
 		items,
 		"Agents",
-		[]string{"Name", "Provider", "Model", "Category", "Tools", "Permissions"},
+		[]string{
+			automationNameValue,
+			agentKernelProviderValue,
+			agentKernelModelValue,
+			agentCategoryValue,
+			toolOperatorToolsValue,
+			installPermissionsValue,
+		},
 		"agents",
-		[]string{"name", "provider", "model", "category", "tool_count", "permissions"},
+		[]string{
+			automationNameKey,
+			memoryProviderKey,
+			agentModelKey,
+			agentCategoryKey,
+			"tool_count",
+			configPermissionsKey,
+		},
 		func(item AgentRecord) []string {
 			return []string{
 				stringOrDash(item.Name),
@@ -300,13 +351,13 @@ func agentBundle(item AgentRecord) outputBundle {
 		jsonValue: item,
 		human: func() (string, error) {
 			base := renderHumanSection("Agent", []keyValue{
-				{Label: "Name", Value: stringOrDash(item.Name)},
-				{Label: "Provider", Value: stringOrDash(item.Provider)},
+				{Label: automationNameValue, Value: stringOrDash(item.Name)},
+				{Label: agentKernelProviderValue, Value: stringOrDash(item.Provider)},
 				{Label: "Command", Value: stringOrDash(item.Command)},
-				{Label: "Model", Value: stringOrDash(item.Model)},
-				{Label: "Category", Value: stringOrDash(agentCategoryLabel(item.CategoryPath))},
-				{Label: "Tools", Value: stringOrDash(strings.Join(item.Tools, ", "))},
-				{Label: "Permissions", Value: stringOrDash(item.Permissions)},
+				{Label: agentKernelModelValue, Value: stringOrDash(item.Model)},
+				{Label: agentCategoryValue, Value: stringOrDash(agentCategoryLabel(item.CategoryPath))},
+				{Label: toolOperatorToolsValue, Value: stringOrDash(strings.Join(item.Tools, ", "))},
+				{Label: installPermissionsValue, Value: stringOrDash(item.Permissions)},
 			})
 
 			servers := make([][]string, 0, len(item.MCPServers))
@@ -317,14 +368,24 @@ func agentBundle(item AgentRecord) outputBundle {
 					stringOrDash(strings.Join(server.Args, " ")),
 				})
 			}
-			mcp := renderHumanTable("MCP Servers", []string{"Name", "Command", "Args"}, servers)
-			prompt := renderHumanSection("Prompt", []keyValue{{Label: "Body", Value: stringOrDash(item.Prompt)}})
+			mcp := renderHumanTable("MCP Servers", []string{automationNameValue, "Command", "Args"}, servers)
+			prompt := renderHumanSection(
+				"Prompt",
+				[]keyValue{{Label: agentBodyValue, Value: stringOrDash(item.Prompt)}},
+			)
 			return renderHumanBlocks(base, mcp, prompt), nil
 		},
 		toon: func() (string, error) {
 			// Detail output emits tool names; list output keeps the table dense with tool_count.
-			return renderToonObject("agent", []string{
-				"name", "provider", "command", "model", "category", "tools", "permissions", "prompt",
+			return renderToonObject(agentAgentKey, []string{
+				automationNameKey,
+				memoryProviderKey,
+				agentCommandKey,
+				agentModelKey,
+				agentCategoryKey,
+				"tools",
+				configPermissionsKey,
+				"prompt",
 			}, []string{
 				item.Name,
 				item.Provider,

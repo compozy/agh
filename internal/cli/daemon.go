@@ -19,6 +19,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	daemonStartedValue = "Started"
+	daemonStatusValue  = "Status"
+	daemonVersionValue = "Version"
+	daemonDaemonKey    = "daemon"
+	daemonDisabledKey  = "disabled"
+	daemonStartKey     = "start"
+	daemonStartedAtKey = "started_at"
+	daemonStatusKey    = "status"
+	daemonVersionKey   = "version"
+)
+
 const internalChildFlagName = "internal-child"
 
 type daemonProcess interface {
@@ -29,7 +41,7 @@ type daemonProcess interface {
 
 func newDaemonCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "daemon",
+		Use:   daemonDaemonKey,
 		Short: "Manage the AGH daemon",
 	}
 
@@ -47,7 +59,7 @@ func newDaemonStartCommand(deps commandDeps) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "start",
+		Use:   daemonStartKey,
 		Short: "Start the AGH daemon",
 		Example: `  # Start AGH in the background and wait for readiness
   agh daemon start
@@ -94,7 +106,7 @@ func newDaemonRelaunchCommand(deps commandDeps) *cobra.Command {
 
 func newDaemonStatusCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "status",
+		Use:   daemonStatusKey,
 		Short: "Show daemon status",
 		Example: `  # Show daemon health and socket details
   agh daemon status
@@ -360,27 +372,27 @@ func daemonStatusWithState(runtime *runtimeContext, info aghdaemon.Info, status 
 
 func daemonStatusBundle(status DaemonStatus, now func() time.Time) outputBundle {
 	rows := []keyValue{
-		{Label: "Status", Value: stringOrDash(status.Status)},
+		{Label: daemonStatusValue, Value: stringOrDash(status.Status)},
 		{Label: "PID", Value: intOrDash(status.PID)},
-		{Label: "Started", Value: stringOrDash(formatTime(status.StartedAt))},
+		{Label: daemonStartedValue, Value: stringOrDash(formatTime(status.StartedAt))},
 		{Label: "Uptime", Value: stringOrDash(formatAge(now, status.StartedAt))},
 		{Label: "Socket", Value: stringOrDash(status.Socket)},
 		{Label: "HTTP", Value: stringOrDash(strings.TrimSpace(status.HTTPHost) + ":" + intOrDash(status.HTTPPort))},
 		{Label: "Active Sessions", Value: strconv.Itoa(status.ActiveSessions)},
 		{Label: "Total Sessions", Value: strconv.Itoa(status.TotalSessions)},
-		{Label: "Version", Value: stringOrDash(status.Version)},
+		{Label: daemonVersionValue, Value: stringOrDash(status.Version)},
 	}
 	labels := []string{
-		"status",
+		daemonStatusKey,
 		"pid",
-		"started_at",
+		daemonStartedAtKey,
 		"uptime",
 		"socket",
 		"http_host",
 		"http_port",
 		"active_sessions",
 		"total_sessions",
-		"version",
+		daemonVersionKey,
 	}
 	values := []string{
 		status.Status,
@@ -407,7 +419,7 @@ func daemonStatusBundle(status DaemonStatus, now func() time.Time) outputBundle 
 			return renderHumanSection("Daemon", rows), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("daemon", labels, values), nil
+			return renderToonObject(daemonDaemonKey, labels, values), nil
 		},
 	}
 }
@@ -475,7 +487,7 @@ func daemonNetworkStatusFromInfo(cfg *aghconfig.Config, info *aghdaemon.NetworkI
 	if !cfg.Network.Enabled {
 		return &contract.NetworkStatusPayload{
 			Enabled: false,
-			Status:  "disabled",
+			Status:  daemonDisabledKey,
 		}
 	}
 	return nil
@@ -517,7 +529,7 @@ func spawnDetachedDaemonProcess(
 
 	child, err := procutil.SpawnDetachedLoggedProcess(ctx, procutil.DetachedLaunchRequest{
 		Binary:  binary,
-		Args:    []string{"daemon", "start", "--foreground", "--" + internalChildFlagName},
+		Args:    []string{daemonDaemonKey, daemonStartKey, "--foreground", "--" + internalChildFlagName},
 		Sandbox: aghlogger.WithMirrorToStderrEnv(os.Environ(), false),
 		LogPath: homePaths.LogFile,
 	})

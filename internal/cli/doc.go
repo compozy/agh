@@ -10,13 +10,17 @@ import (
 	"github.com/spf13/cobra/doc"
 )
 
+const (
+	docDocKey = "doc"
+)
+
 const defaultCLIDocsDir = "packages/site/content/runtime/cli-reference"
 
 func newDocCommand() *cobra.Command {
 	var outputDir string
 
 	cmd := &cobra.Command{
-		Use:    "doc",
+		Use:    docDocKey,
 		Short:  "Generate CLI reference documentation",
 		Hidden: true,
 		Args:   cobra.NoArgs,

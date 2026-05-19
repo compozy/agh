@@ -14,6 +14,60 @@ import (
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 )
 
+const (
+	toolSurfaceAgentsHeartbeatContextProjectionBytesPath          = "agents.heartbeat.context_projection_bytes"
+	toolSurfaceAgentsHeartbeatMaxBodyBytesPath                    = "agents.heartbeat.max_body_bytes"
+	toolSurfaceAgentsHeartbeatMaxWakesPerCyclePath                = "agents.heartbeat.max_wakes_per_cycle"
+	toolSurfaceAgentsHeartbeatMinIntervalPath                     = "agents.heartbeat.min_interval"
+	toolSurfaceAgentsHeartbeatSessionHealthHookMinIntervalPath    = "agents.heartbeat.session_health_hook_min_interval"
+	toolSurfaceAgentsHeartbeatSessionHealthStaleAfterPath         = "agents.heartbeat.session_health_stale_after"
+	toolSurfaceAgentsHeartbeatWakeCooldownPath                    = "agents.heartbeat.wake_cooldown"
+	toolSurfaceAgentsHeartbeatWakeEventRetentionPath              = "agents.heartbeat.wake_event_retention"
+	toolSurfaceAgentsSoulContextProjectionBytesPath               = "agents.soul.context_projection_bytes"
+	toolSurfaceAgentsSoulMaxBodyBytesPath                         = "agents.soul.max_body_bytes"
+	toolSurfaceCommandKey                                         = "command"
+	toolSurfaceDefaultKey                                         = "default"
+	toolSurfaceDefaultsAgentPath                                  = "defaults.agent"
+	toolSurfaceEventKey                                           = "event"
+	toolSurfaceExtractorKey                                       = "extractor"
+	toolSurfaceHooksKey                                           = "hooks"
+	toolSurfaceMarketplaceKey                                     = "marketplace"
+	toolSurfaceMCPServersKey                                      = "mcp_servers"
+	toolSurfaceMemoryDreamGatesMinScorePath                       = "memory.dream.gates.min_score"
+	toolSurfaceMemoryProviderTimeoutPath                          = "memory.provider.timeout"
+	toolSurfaceMemoryRecallWeightsBm25UnicodePath                 = "memory.recall.weights.bm25_unicode"
+	toolSurfaceNetworkGreetIntervalPath                           = "network.greet_interval"
+	toolSurfaceNetworkMaxPayloadPath                              = "network.max_payload"
+	toolSurfaceNetworkMaxReplayAgePath                            = "network.max_replay_age"
+	toolSurfacePermissionsKey                                     = "permissions"
+	toolSurfaceTaskOrchestrationContextBodyMaxBytesPath           = "task.orchestration.context_body_max_bytes"
+	toolSurfaceTaskOrchestrationContextPriorAttemptsPath          = "task.orchestration.context_prior_attempts"
+	toolSurfaceTaskOrchestrationContextRecentEventsPath           = "task.orchestration.context_recent_events"
+	toolSurfaceTaskOrchestrationDefaultMaxRuntimePath             = "task.orchestration.default_max_runtime"
+	toolSurfaceTaskOrchestrationProfileDefaultCoordinatorModePath = "task.orchestration.profile.default_coordinator_mode"
+	toolSurfaceTaskOrchestrationProfileDefaultSandboxModePath     = "task.orchestration.profile.default_sandbox_mode"
+	toolSurfaceTaskOrchestrationProfileDefaultWorkerModePath      = "task.orchestration.profile.default_worker_mode"
+	toolSurfaceTaskOrchestrationReviewDefaultPolicyPath           = "task.orchestration.review.default_policy"
+	toolSurfaceTaskOrchestrationReviewFailurePolicyPath           = "task.orchestration.review.failure_policy"
+	toolSurfaceTaskOrchestrationReviewMaxReviewAttemptsPath       = "task.orchestration.review.max_review_attempts"
+	toolSurfaceTaskOrchestrationReviewMaxRoundsPath               = "task.orchestration.review.max_rounds"
+	reviewMissingWorkItemBytesPath                                = "task.orchestration.review.missing_work_item_max_bytes"
+	toolSurfaceTaskOrchestrationReviewMissingWorkMaxItemsPath     = "task.orchestration.review.missing_work_max_items"
+	reviewNextGuidanceBytesPath                                   = "task.orchestration.review." +
+		"next_round_guidance_max_bytes"
+	toolSurfaceTaskOrchestrationReviewRapidTerminalLimitPath  = "task.orchestration.review.rapid_terminal_limit"
+	toolSurfaceTaskOrchestrationReviewRapidTerminalWindowPath = "task.orchestration.review.rapid_terminal_window"
+	toolSurfaceTaskOrchestrationReviewReasonMaxBytesPath      = "task.orchestration.review.reason_max_bytes"
+	toolSurfaceTaskOrchestrationReviewReviewTextMaxBytesPath  = "task.orchestration.review.review_text_max_bytes"
+	toolSurfaceTaskOrchestrationReviewTimeoutPath             = "task.orchestration.review.timeout"
+	toolSurfaceTaskOrchestrationSchedulerBadTickCooldownPath  = "task.orchestration.scheduler_bad_tick_cooldown"
+	toolSurfaceTaskOrchestrationSchedulerBadTickThresholdPath = "task.orchestration.scheduler_bad_tick_threshold"
+	toolSurfaceTaskOrchestrationSpawnFailureLimitPath         = "task.orchestration.spawn_failure_limit"
+	toolSurfaceTaskOrchestrationSummaryMaxBytesPath           = "task.orchestration.summary_max_bytes"
+	toolSurfaceToolsDefaultMaxResultBytesPath                 = "tools.default_max_result_bytes"
+	toolSurfaceWebhookSecretRefKey                            = "webhook_secret_ref"
+)
+
 // Entry is one flattened, redacted effective config value.
 type Entry struct {
 	Path     string `json:"path"`
@@ -65,143 +119,143 @@ var (
 	configToolDurationType = reflect.TypeFor[time.Duration]()
 
 	agentMutableConfigKinds = map[string]ValueKind{
-		"defaults.agent":                                          ConfigValueString,
-		"defaults.provider":                                       ConfigValueString,
-		"defaults.sandbox":                                        ConfigValueString,
-		"agents.soul.enabled":                                     ConfigValueBool,
-		"agents.soul.max_body_bytes":                              ConfigValueInt64,
-		"agents.soul.context_projection_bytes":                    ConfigValueInt64,
-		"agents.heartbeat.enabled":                                ConfigValueBool,
-		"agents.heartbeat.max_body_bytes":                         ConfigValueInt64,
-		"agents.heartbeat.context_projection_bytes":               ConfigValueInt64,
-		"agents.heartbeat.min_interval":                           ConfigValueDuration,
-		"agents.heartbeat.default_interval":                       ConfigValueDuration,
-		"agents.heartbeat.wake_cooldown":                          ConfigValueDuration,
-		"agents.heartbeat.max_wakes_per_cycle":                    ConfigValueInt,
-		"agents.heartbeat.active_session_only":                    ConfigValueBool,
-		"agents.heartbeat.allow_active_hours_preferences":         ConfigValueBool,
-		"agents.heartbeat.wake_event_retention":                   ConfigValueDuration,
-		"agents.heartbeat.session_health_stale_after":             ConfigValueDuration,
-		"agents.heartbeat.session_health_hook_min_interval":       ConfigValueDuration,
-		"limits.max_concurrent_agents":                            ConfigValueInt,
-		"session.limits.timeout":                                  ConfigValueDuration,
-		"session.supervision.activity_heartbeat_interval":         ConfigValueDuration,
-		"session.supervision.progress_notify_interval":            ConfigValueDuration,
-		"session.supervision.prompt_deadline":                     ConfigValueDuration,
-		"session.supervision.inactivity_warning_after":            ConfigValueDuration,
-		"session.supervision.inactivity_timeout":                  ConfigValueDuration,
-		"session.supervision.timeout_cancel_grace":                ConfigValueDuration,
-		"memory.enabled":                                          ConfigValueBool,
-		"memory.controller.mode":                                  ConfigValueString,
-		"memory.controller.max_latency":                           ConfigValueDuration,
-		"memory.controller.default_op_on_fail":                    ConfigValueString,
-		"memory.controller.llm.enabled":                           ConfigValueBool,
-		"memory.controller.llm.model":                             ConfigValueString,
-		"memory.controller.llm.top_k":                             ConfigValueInt,
-		"memory.controller.llm.prompt_version":                    ConfigValueString,
-		"memory.controller.llm.timeout":                           ConfigValueDuration,
-		"memory.controller.llm.max_tokens_out":                    ConfigValueInt,
-		"memory.controller.policy.max_content_chars":              ConfigValueInt,
-		"memory.controller.policy.max_writes_per_min":             ConfigValueInt,
-		"memory.controller.policy.allow_origins":                  ConfigValueStringSlice,
-		"memory.recall.top_k":                                     ConfigValueInt,
-		"memory.recall.raw_candidates":                            ConfigValueInt,
-		"memory.recall.fusion":                                    ConfigValueString,
-		"memory.recall.include_already_surfaced":                  ConfigValueBool,
-		"memory.recall.include_system":                            ConfigValueBool,
-		"memory.recall.weights.bm25_unicode":                      ConfigValueFloat,
-		"memory.recall.weights.bm25_trigram":                      ConfigValueFloat,
-		"memory.recall.weights.recency":                           ConfigValueFloat,
-		"memory.recall.weights.recall_signal":                     ConfigValueFloat,
-		"memory.recall.freshness.banner_after_days":               ConfigValueInt,
-		"memory.recall.signals.queue_capacity":                    ConfigValueInt,
-		"memory.recall.signals.worker_retry_max":                  ConfigValueInt,
-		"memory.recall.signals.metrics_enabled":                   ConfigValueBool,
-		"memory.decisions.prune_after_applied_days":               ConfigValueInt,
-		"memory.decisions.keep_audit_summary":                     ConfigValueBool,
-		"memory.decisions.max_post_content_bytes":                 ConfigValueInt64,
-		"memory.extractor.enabled":                                ConfigValueBool,
-		"memory.extractor.mode":                                   ConfigValueString,
-		"memory.extractor.throttle_turns":                         ConfigValueInt,
-		"memory.extractor.deadline":                               ConfigValueDuration,
-		"memory.extractor.sandbox_inbox_only":                     ConfigValueBool,
-		"memory.extractor.model":                                  ConfigValueString,
-		"memory.extractor.queue.capacity":                         ConfigValueInt,
-		"memory.extractor.queue.coalesce_max":                     ConfigValueInt,
-		"memory.dream.enabled":                                    ConfigValueBool,
-		"memory.dream.agent":                                      ConfigValueString,
-		"memory.dream.min_hours":                                  ConfigValueFloat,
-		"memory.dream.min_sessions":                               ConfigValueInt,
-		"memory.dream.debounce":                                   ConfigValueDuration,
-		"memory.dream.prompt_version":                             ConfigValueString,
-		"memory.dream.check_interval":                             ConfigValueDuration,
-		"memory.dream.gates.min_unpromoted":                       ConfigValueInt,
-		"memory.dream.gates.min_recall_count":                     ConfigValueInt,
-		"memory.dream.gates.min_score":                            ConfigValueFloat,
-		"memory.dream.scoring.recency_half_life_days":             ConfigValueInt,
-		"memory.dream.scoring.weights.frequency":                  ConfigValueFloat,
-		"memory.dream.scoring.weights.relevance":                  ConfigValueFloat,
-		"memory.dream.scoring.weights.recency":                    ConfigValueFloat,
-		"memory.dream.scoring.weights.freshness":                  ConfigValueFloat,
-		"memory.session.ledger_format":                            ConfigValueString,
-		"memory.session.events_purge_grace":                       ConfigValueDuration,
-		"memory.session.cold_archive_days":                        ConfigValueInt,
-		"memory.session.hard_delete_days":                         ConfigValueInt,
-		"memory.session.max_archive_bytes":                        ConfigValueInt64,
-		"memory.session.unbound_partition":                        ConfigValueString,
-		"memory.daily.max_bytes":                                  ConfigValueInt64,
-		"memory.daily.max_lines":                                  ConfigValueInt,
-		"memory.daily.rotate_format":                              ConfigValueString,
-		"memory.daily.dreaming_window":                            ConfigValueInt,
-		"memory.daily.cold_archive_days":                          ConfigValueInt,
-		"memory.daily.hard_delete_days":                           ConfigValueInt,
-		"memory.daily.max_archive_bytes":                          ConfigValueInt64,
-		"memory.daily.sweep_hour":                                 ConfigValueInt,
-		"memory.file.max_lines":                                   ConfigValueInt,
-		"memory.file.max_bytes":                                   ConfigValueInt64,
-		"memory.provider.name":                                    ConfigValueString,
-		"memory.provider.timeout":                                 ConfigValueDuration,
-		"memory.provider.failure_threshold":                       ConfigValueInt,
-		"memory.provider.cooldown":                                ConfigValueDuration,
-		"memory.workspace.auto_create":                            ConfigValueBool,
-		"skills.enabled":                                          ConfigValueBool,
-		"skills.disabled_skills":                                  ConfigValueStringSlice,
-		"skills.poll_interval":                                    ConfigValueDuration,
-		"automation.enabled":                                      ConfigValueBool,
-		"automation.timezone":                                     ConfigValueString,
-		"automation.max_concurrent_jobs":                          ConfigValueInt,
-		"network.enabled":                                         ConfigValueBool,
-		"network.default_channel":                                 ConfigValueString,
-		"network.max_payload":                                     ConfigValueInt,
-		"network.greet_interval":                                  ConfigValueInt,
-		"network.max_replay_age":                                  ConfigValueInt,
-		"network.max_queue_depth":                                 ConfigValueInt,
-		"task.orchestration.summary_max_bytes":                    ConfigValueInt,
-		"task.orchestration.context_body_max_bytes":               ConfigValueInt,
-		"task.orchestration.context_prior_attempts":               ConfigValueInt,
-		"task.orchestration.context_recent_events":                ConfigValueInt,
-		"task.orchestration.spawn_failure_limit":                  ConfigValueInt,
-		"task.orchestration.scheduler_bad_tick_threshold":         ConfigValueInt,
-		"task.orchestration.scheduler_bad_tick_cooldown":          ConfigValueDuration,
-		"task.orchestration.default_max_runtime":                  ConfigValueDuration,
-		"task.orchestration.profile.default_coordinator_mode":     ConfigValueString,
-		"task.orchestration.profile.default_worker_mode":          ConfigValueString,
-		"task.orchestration.profile.default_sandbox_mode":         ConfigValueString,
-		"task.orchestration.profile.allow_task_provider_override": ConfigValueBool,
-		"task.orchestration.profile.allow_task_sandbox_none":      ConfigValueBool,
-		"task.orchestration.review.default_policy":                ConfigValueString,
-		"task.orchestration.review.max_rounds":                    ConfigValueInt,
-		"task.orchestration.review.max_review_attempts":           ConfigValueInt,
-		"task.orchestration.review.timeout":                       ConfigValueDuration,
-		"task.orchestration.review.rapid_terminal_window":         ConfigValueDuration,
-		"task.orchestration.review.rapid_terminal_limit":          ConfigValueInt,
-		"task.orchestration.review.missing_work_max_items":        ConfigValueInt,
-		"task.orchestration.review.missing_work_item_max_bytes":   ConfigValueInt,
-		"task.orchestration.review.reason_max_bytes":              ConfigValueInt,
-		"task.orchestration.review.review_text_max_bytes":         ConfigValueInt,
-		"task.orchestration.review.next_round_guidance_max_bytes": ConfigValueInt,
-		"task.orchestration.review.failure_policy":                ConfigValueString,
-		"tools.default_max_result_bytes":                          ConfigValueInt64,
+		toolSurfaceDefaultsAgentPath:                                  ConfigValueString,
+		"defaults.provider":                                           ConfigValueString,
+		"defaults.sandbox":                                            ConfigValueString,
+		"agents.soul.enabled":                                         ConfigValueBool,
+		toolSurfaceAgentsSoulMaxBodyBytesPath:                         ConfigValueInt64,
+		toolSurfaceAgentsSoulContextProjectionBytesPath:               ConfigValueInt64,
+		"agents.heartbeat.enabled":                                    ConfigValueBool,
+		toolSurfaceAgentsHeartbeatMaxBodyBytesPath:                    ConfigValueInt64,
+		toolSurfaceAgentsHeartbeatContextProjectionBytesPath:          ConfigValueInt64,
+		toolSurfaceAgentsHeartbeatMinIntervalPath:                     ConfigValueDuration,
+		"agents.heartbeat.default_interval":                           ConfigValueDuration,
+		toolSurfaceAgentsHeartbeatWakeCooldownPath:                    ConfigValueDuration,
+		toolSurfaceAgentsHeartbeatMaxWakesPerCyclePath:                ConfigValueInt,
+		"agents.heartbeat.active_session_only":                        ConfigValueBool,
+		"agents.heartbeat.allow_active_hours_preferences":             ConfigValueBool,
+		toolSurfaceAgentsHeartbeatWakeEventRetentionPath:              ConfigValueDuration,
+		toolSurfaceAgentsHeartbeatSessionHealthStaleAfterPath:         ConfigValueDuration,
+		toolSurfaceAgentsHeartbeatSessionHealthHookMinIntervalPath:    ConfigValueDuration,
+		"limits.max_concurrent_agents":                                ConfigValueInt,
+		"session.limits.timeout":                                      ConfigValueDuration,
+		"session.supervision.activity_heartbeat_interval":             ConfigValueDuration,
+		"session.supervision.progress_notify_interval":                ConfigValueDuration,
+		"session.supervision.prompt_deadline":                         ConfigValueDuration,
+		"session.supervision.inactivity_warning_after":                ConfigValueDuration,
+		"session.supervision.inactivity_timeout":                      ConfigValueDuration,
+		"session.supervision.timeout_cancel_grace":                    ConfigValueDuration,
+		"memory.enabled":                                              ConfigValueBool,
+		"memory.controller.mode":                                      ConfigValueString,
+		"memory.controller.max_latency":                               ConfigValueDuration,
+		"memory.controller.default_op_on_fail":                        ConfigValueString,
+		"memory.controller.llm.enabled":                               ConfigValueBool,
+		"memory.controller.llm.model":                                 ConfigValueString,
+		"memory.controller.llm.top_k":                                 ConfigValueInt,
+		"memory.controller.llm.prompt_version":                        ConfigValueString,
+		"memory.controller.llm.timeout":                               ConfigValueDuration,
+		"memory.controller.llm.max_tokens_out":                        ConfigValueInt,
+		"memory.controller.policy.max_content_chars":                  ConfigValueInt,
+		"memory.controller.policy.max_writes_per_min":                 ConfigValueInt,
+		"memory.controller.policy.allow_origins":                      ConfigValueStringSlice,
+		"memory.recall.top_k":                                         ConfigValueInt,
+		"memory.recall.raw_candidates":                                ConfigValueInt,
+		"memory.recall.fusion":                                        ConfigValueString,
+		"memory.recall.include_already_surfaced":                      ConfigValueBool,
+		"memory.recall.include_system":                                ConfigValueBool,
+		toolSurfaceMemoryRecallWeightsBm25UnicodePath:                 ConfigValueFloat,
+		"memory.recall.weights.bm25_trigram":                          ConfigValueFloat,
+		"memory.recall.weights.recency":                               ConfigValueFloat,
+		"memory.recall.weights.recall_signal":                         ConfigValueFloat,
+		"memory.recall.freshness.banner_after_days":                   ConfigValueInt,
+		"memory.recall.signals.queue_capacity":                        ConfigValueInt,
+		"memory.recall.signals.worker_retry_max":                      ConfigValueInt,
+		"memory.recall.signals.metrics_enabled":                       ConfigValueBool,
+		"memory.decisions.prune_after_applied_days":                   ConfigValueInt,
+		"memory.decisions.keep_audit_summary":                         ConfigValueBool,
+		"memory.decisions.max_post_content_bytes":                     ConfigValueInt64,
+		"memory.extractor.enabled":                                    ConfigValueBool,
+		"memory.extractor.mode":                                       ConfigValueString,
+		"memory.extractor.throttle_turns":                             ConfigValueInt,
+		"memory.extractor.deadline":                                   ConfigValueDuration,
+		"memory.extractor.sandbox_inbox_only":                         ConfigValueBool,
+		"memory.extractor.model":                                      ConfigValueString,
+		"memory.extractor.queue.capacity":                             ConfigValueInt,
+		"memory.extractor.queue.coalesce_max":                         ConfigValueInt,
+		"memory.dream.enabled":                                        ConfigValueBool,
+		"memory.dream.agent":                                          ConfigValueString,
+		"memory.dream.min_hours":                                      ConfigValueFloat,
+		"memory.dream.min_sessions":                                   ConfigValueInt,
+		"memory.dream.debounce":                                       ConfigValueDuration,
+		"memory.dream.prompt_version":                                 ConfigValueString,
+		"memory.dream.check_interval":                                 ConfigValueDuration,
+		"memory.dream.gates.min_unpromoted":                           ConfigValueInt,
+		"memory.dream.gates.min_recall_count":                         ConfigValueInt,
+		toolSurfaceMemoryDreamGatesMinScorePath:                       ConfigValueFloat,
+		"memory.dream.scoring.recency_half_life_days":                 ConfigValueInt,
+		"memory.dream.scoring.weights.frequency":                      ConfigValueFloat,
+		"memory.dream.scoring.weights.relevance":                      ConfigValueFloat,
+		"memory.dream.scoring.weights.recency":                        ConfigValueFloat,
+		"memory.dream.scoring.weights.freshness":                      ConfigValueFloat,
+		"memory.session.ledger_format":                                ConfigValueString,
+		"memory.session.events_purge_grace":                           ConfigValueDuration,
+		"memory.session.cold_archive_days":                            ConfigValueInt,
+		"memory.session.hard_delete_days":                             ConfigValueInt,
+		"memory.session.max_archive_bytes":                            ConfigValueInt64,
+		"memory.session.unbound_partition":                            ConfigValueString,
+		"memory.daily.max_bytes":                                      ConfigValueInt64,
+		"memory.daily.max_lines":                                      ConfigValueInt,
+		"memory.daily.rotate_format":                                  ConfigValueString,
+		"memory.daily.dreaming_window":                                ConfigValueInt,
+		"memory.daily.cold_archive_days":                              ConfigValueInt,
+		"memory.daily.hard_delete_days":                               ConfigValueInt,
+		"memory.daily.max_archive_bytes":                              ConfigValueInt64,
+		"memory.daily.sweep_hour":                                     ConfigValueInt,
+		"memory.file.max_lines":                                       ConfigValueInt,
+		"memory.file.max_bytes":                                       ConfigValueInt64,
+		"memory.provider.name":                                        ConfigValueString,
+		toolSurfaceMemoryProviderTimeoutPath:                          ConfigValueDuration,
+		"memory.provider.failure_threshold":                           ConfigValueInt,
+		"memory.provider.cooldown":                                    ConfigValueDuration,
+		"memory.workspace.auto_create":                                ConfigValueBool,
+		"skills.enabled":                                              ConfigValueBool,
+		"skills.disabled_skills":                                      ConfigValueStringSlice,
+		"skills.poll_interval":                                        ConfigValueDuration,
+		"automation.enabled":                                          ConfigValueBool,
+		"automation.timezone":                                         ConfigValueString,
+		"automation.max_concurrent_jobs":                              ConfigValueInt,
+		"network.enabled":                                             ConfigValueBool,
+		"network.default_channel":                                     ConfigValueString,
+		toolSurfaceNetworkMaxPayloadPath:                              ConfigValueInt,
+		toolSurfaceNetworkGreetIntervalPath:                           ConfigValueInt,
+		toolSurfaceNetworkMaxReplayAgePath:                            ConfigValueInt,
+		"network.max_queue_depth":                                     ConfigValueInt,
+		toolSurfaceTaskOrchestrationSummaryMaxBytesPath:               ConfigValueInt,
+		toolSurfaceTaskOrchestrationContextBodyMaxBytesPath:           ConfigValueInt,
+		toolSurfaceTaskOrchestrationContextPriorAttemptsPath:          ConfigValueInt,
+		toolSurfaceTaskOrchestrationContextRecentEventsPath:           ConfigValueInt,
+		toolSurfaceTaskOrchestrationSpawnFailureLimitPath:             ConfigValueInt,
+		toolSurfaceTaskOrchestrationSchedulerBadTickThresholdPath:     ConfigValueInt,
+		toolSurfaceTaskOrchestrationSchedulerBadTickCooldownPath:      ConfigValueDuration,
+		toolSurfaceTaskOrchestrationDefaultMaxRuntimePath:             ConfigValueDuration,
+		toolSurfaceTaskOrchestrationProfileDefaultCoordinatorModePath: ConfigValueString,
+		toolSurfaceTaskOrchestrationProfileDefaultWorkerModePath:      ConfigValueString,
+		toolSurfaceTaskOrchestrationProfileDefaultSandboxModePath:     ConfigValueString,
+		"task.orchestration.profile.allow_task_provider_override":     ConfigValueBool,
+		"task.orchestration.profile.allow_task_sandbox_none":          ConfigValueBool,
+		toolSurfaceTaskOrchestrationReviewDefaultPolicyPath:           ConfigValueString,
+		toolSurfaceTaskOrchestrationReviewMaxRoundsPath:               ConfigValueInt,
+		toolSurfaceTaskOrchestrationReviewMaxReviewAttemptsPath:       ConfigValueInt,
+		toolSurfaceTaskOrchestrationReviewTimeoutPath:                 ConfigValueDuration,
+		toolSurfaceTaskOrchestrationReviewRapidTerminalWindowPath:     ConfigValueDuration,
+		toolSurfaceTaskOrchestrationReviewRapidTerminalLimitPath:      ConfigValueInt,
+		toolSurfaceTaskOrchestrationReviewMissingWorkMaxItemsPath:     ConfigValueInt,
+		reviewMissingWorkItemBytesPath:                                ConfigValueInt,
+		toolSurfaceTaskOrchestrationReviewReasonMaxBytesPath:          ConfigValueInt,
+		toolSurfaceTaskOrchestrationReviewReviewTextMaxBytesPath:      ConfigValueInt,
+		reviewNextGuidanceBytesPath:                                   ConfigValueInt,
+		toolSurfaceTaskOrchestrationReviewFailurePolicyPath:           ConfigValueString,
+		toolSurfaceToolsDefaultMaxResultBytesPath:                     ConfigValueInt64,
 	}
 )
 
@@ -322,7 +376,7 @@ func ClassifyToolConfigPath(path []string) (PathPolicy, error) {
 	}
 	if len(clean) == 3 && clean[0] == providersConfigKey {
 		switch clean[2] {
-		case "command",
+		case toolSurfaceCommandKey,
 			"auth_mode",
 			"env_policy",
 			"home_policy",
@@ -335,8 +389,8 @@ func ClassifyToolConfigPath(path []string) (PathPolicy, error) {
 			return policy, nil
 		}
 	}
-	if len(clean) == 4 && clean[0] == providersConfigKey && clean[2] == "models" {
-		if clean[3] == "default" {
+	if len(clean) == 4 && clean[0] == providersConfigKey && clean[2] == toolSurfaceModelsKey {
+		if clean[3] == toolSurfaceDefaultKey {
 			policy.Kind = ConfigValueString
 			return policy, nil
 		}
@@ -403,10 +457,10 @@ func OverlayHookDeclarations(target WriteTarget) ([]hookspkg.HookDecl, error) {
 // HookDeclarationOverlayValues converts a hook declaration to TOML overlay values.
 func HookDeclarationOverlayValues(decl hookspkg.HookDecl) map[string]any {
 	values := map[string]any{
-		"event": string(decl.Event),
+		toolSurfaceEventKey: string(decl.Event),
 	}
 	if decl.Enabled != nil {
-		values["enabled"] = *decl.Enabled
+		values[string(ToolsExternalDefaultEnabled)] = *decl.Enabled
 	}
 	if decl.Mode != "" {
 		values["mode"] = string(decl.Mode)
@@ -424,7 +478,7 @@ func HookDeclarationOverlayValues(decl hookspkg.HookDecl) map[string]any {
 		values["matcher"] = matcher
 	}
 	if decl.Command != "" {
-		values["command"] = decl.Command
+		values[toolSurfaceCommandKey] = decl.Command
 	}
 	if len(decl.Args) > 0 {
 		values["args"] = append([]string(nil), decl.Args...)
@@ -627,7 +681,7 @@ func configPathIsSecret(path []string) bool {
 	for _, segment := range path {
 		lower := strings.ToLower(strings.TrimSpace(segment))
 		switch lower {
-		case "env", "secret_env", "secret_ref", "client_secret_ref", "webhook_secret_ref":
+		case "env", "secret_env", "secret_ref", "client_secret_ref", toolSurfaceWebhookSecretRefKey:
 			return true
 		}
 		if strings.Contains(lower, "secret") ||
@@ -645,20 +699,20 @@ func configPathIsTrustRoot(path []string) bool {
 		return true
 	}
 	switch path[0] {
-	case "daemon", string(MCPServerTransportHTTP), "permissions", "observability", "log",
-		"mcp_servers", "sandboxes", "autonomy":
+	case "daemon", string(MCPServerTransportHTTP), toolSurfacePermissionsKey, "observability", "log",
+		toolSurfaceMCPServersKey, "sandboxes", "autonomy":
 		return true
-	case "hooks":
+	case toolSurfaceHooksKey:
 		return true
 	case providersConfigKey:
 		return providerConfigPathIsTrustRoot(path)
-	case "memory":
+	case MemoryDirName:
 		return memoryConfigPathIsTrustRoot(path)
 	case "network":
 		return len(path) >= 2 && path[1] == "port"
 	case "tools":
 		return toolsConfigPathIsTrustRoot(path)
-	case "skills":
+	case SkillsDirName:
 		return skillsConfigPathIsTrustRoot(path)
 	case "extensions":
 		return true
@@ -670,7 +724,7 @@ func providerConfigPathIsTrustRoot(path []string) bool {
 	if len(path) < 3 {
 		return false
 	}
-	return path[2] == "command" || path[2] == "mcp_servers"
+	return path[2] == toolSurfaceCommandKey || path[2] == toolSurfaceMCPServersKey
 }
 
 func memoryConfigPathIsTrustRoot(path []string) bool {
@@ -680,7 +734,7 @@ func memoryConfigPathIsTrustRoot(path []string) bool {
 	switch path[1] {
 	case "global_dir":
 		return true
-	case "extractor":
+	case toolSurfaceExtractorKey:
 		return len(path) >= 3 && (path[2] == "inbox_path" || path[2] == "dlq_path")
 	case "session":
 		return len(path) >= 3 && path[2] == "ledger_root"
@@ -698,7 +752,7 @@ func toolsConfigPathIsTrustRoot(path []string) bool {
 		return false
 	}
 	switch path[1] {
-	case "enabled", "hosted_mcp_enabled", "hosted_mcp", "policy":
+	case string(ToolsExternalDefaultEnabled), "hosted_mcp_enabled", "hosted_mcp", "policy":
 		return true
 	default:
 		return false
@@ -710,7 +764,7 @@ func skillsConfigPathIsTrustRoot(path []string) bool {
 		return false
 	}
 	switch path[1] {
-	case "allowed_marketplace_mcp", "allowed_marketplace_hooks", "marketplace":
+	case "allowed_marketplace_mcp", "allowed_marketplace_hooks", toolSurfaceMarketplaceKey:
 		return true
 	default:
 		return false

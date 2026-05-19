@@ -7,6 +7,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	spawnAgentValue     = "Agent"
+	spawnParentValue    = "Parent"
+	spawnProviderValue  = "Provider"
+	spawnRootValue      = "Root"
+	spawnSessionValue   = "Session"
+	spawnWorkspaceValue = "Workspace"
+)
+
 type spawnCommandFlags struct {
 	agentName        string
 	provider         string
@@ -149,12 +158,12 @@ func agentSpawnBundle(record *AgentSpawnRecord) outputBundle {
 		human: func() (string, error) {
 			return renderHumanBlocks(
 				renderHumanSection("Spawn", []keyValue{
-					{Label: "Session", Value: stringOrDash(record.Session.ID)},
-					{Label: "Agent", Value: stringOrDash(record.Session.AgentName)},
-					{Label: "Provider", Value: stringOrDash(record.Session.Provider)},
-					{Label: "Workspace", Value: stringOrDash(record.Session.WorkspaceID)},
-					{Label: "Parent", Value: stringOrDash(record.Lineage.ParentSessionID)},
-					{Label: "Root", Value: stringOrDash(record.Lineage.RootSessionID)},
+					{Label: spawnSessionValue, Value: stringOrDash(record.Session.ID)},
+					{Label: spawnAgentValue, Value: stringOrDash(record.Session.AgentName)},
+					{Label: spawnProviderValue, Value: stringOrDash(record.Session.Provider)},
+					{Label: spawnWorkspaceValue, Value: stringOrDash(record.Session.WorkspaceID)},
+					{Label: spawnParentValue, Value: stringOrDash(record.Lineage.ParentSessionID)},
+					{Label: spawnRootValue, Value: stringOrDash(record.Lineage.RootSessionID)},
 					{Label: "Depth", Value: fmt.Sprintf("%d", record.Lineage.SpawnDepth)},
 					{Label: "Role", Value: stringOrDash(record.Lineage.SpawnRole)},
 					{Label: "TTL Expires", Value: stringOrDash(formatTimePtr(record.Lineage.TTLExpiresAt))},

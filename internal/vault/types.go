@@ -10,6 +10,10 @@ import (
 	"time"
 )
 
+const (
+	typesSessionsKey = "sessions"
+)
+
 var (
 	// ErrSecretNotFound reports that a secret reference has no stored value.
 	ErrSecretNotFound = errors.New("vault: secret not found")
@@ -33,14 +37,14 @@ var vaultRefPrefixPattern = regexp.MustCompile(
 )
 
 var supportedNamespaces = map[string]struct{}{
-	"automation": {},
-	"bridges":    {},
-	"extensions": {},
-	"hooks":      {},
-	"mcp":        {},
-	"providers":  {},
-	"sandbox":    {},
-	"sessions":   {},
+	"automation":     {},
+	"bridges":        {},
+	"extensions":     {},
+	"hooks":          {},
+	"mcp":            {},
+	"providers":      {},
+	"sandbox":        {},
+	typesSessionsKey: {},
 }
 
 var secretLikeEnvNeedles = []string{

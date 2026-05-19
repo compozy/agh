@@ -12,6 +12,10 @@ import (
 	"time"
 )
 
+const (
+	metadataS256Value = "S256"
+)
+
 const metadataWellKnownPath = "/.well-known/oauth-authorization-server"
 const defaultMetadataClientTimeout = 10 * time.Second
 
@@ -31,7 +35,7 @@ func discoverMetadata(ctx context.Context, client *http.Client, cfg ServerConfig
 			AuthorizationEndpoint:         strings.TrimSpace(cfg.AuthorizationURL),
 			TokenEndpoint:                 strings.TrimSpace(cfg.TokenURL),
 			RevocationEndpoint:            strings.TrimSpace(cfg.RevocationURL),
-			CodeChallengeMethodsSupported: []string{"S256"},
+			CodeChallengeMethodsSupported: []string{metadataS256Value},
 		}
 		if err := metadata.Validate(); err != nil {
 			return Metadata{}, err

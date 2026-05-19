@@ -2,6 +2,17 @@ package builtin
 
 import toolspkg "github.com/pedronauck/agh/internal/tools"
 
+const (
+	sessionsSessionsKey = "sessions"
+)
+
+const (
+	sessionsEventsKey  = "events"
+	sessionsHistoryKey = "history"
+	sessionsListKey    = "list"
+	sessionsStatusKey  = "status"
+)
+
 var sessionTools = []toolspkg.Descriptor{
 	nativeDescriptor(
 		toolspkg.ToolIDSessionList,
@@ -14,7 +25,7 @@ var sessionTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
-		[]string{"sessions", "list"},
+		[]string{sessionsSessionsKey, sessionsListKey},
 		[]string{"session list", "runtime sessions"},
 	),
 	nativeDescriptor(
@@ -28,7 +39,7 @@ var sessionTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
-		[]string{"sessions", "status"},
+		[]string{sessionsSessionsKey, sessionsStatusKey},
 		[]string{"session status", "session snapshot"},
 	),
 	nativeDescriptor(
@@ -42,7 +53,7 @@ var sessionTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
-		[]string{"sessions", "history"},
+		[]string{sessionsSessionsKey, sessionsHistoryKey},
 		[]string{"session history", "turn history"},
 	),
 	nativeDescriptor(
@@ -56,7 +67,7 @@ var sessionTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
-		[]string{"sessions", "events"},
+		[]string{sessionsSessionsKey, sessionsEventsKey},
 		[]string{"session events", "event log"},
 	),
 	nativeDescriptor(
@@ -70,7 +81,7 @@ var sessionTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
-		[]string{"sessions", "describe"},
+		[]string{sessionsSessionsKey, "describe"},
 		[]string{"session describe", "session detail"},
 	),
 }

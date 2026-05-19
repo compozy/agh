@@ -15,6 +15,22 @@ import (
 	"github.com/pedronauck/agh/internal/store"
 )
 
+const (
+	hostAPIAgentSoulMutationResponseValue = "AgentSoulMutationResponse"
+	hostAPIAgentSoulPayloadValue          = "AgentSoulPayload"
+	hostAPIAutomationTargetParamsValue    = "AutomationTargetParams"
+	hostAPIBridgeInstanceValue            = "BridgeInstance"
+	hostAPIEmptyResultValue               = "EmptyResult"
+	hostAPIHeartbeatMutationResponseValue = "HeartbeatMutationResponse"
+	hostAPIHeartbeatPolicyPayloadValue    = "HeartbeatPolicyPayload"
+	hostAPIJobValue                       = "Job"
+	hostAPIResourceRecordValue            = "ResourceRecord"
+	hostAPIRunValue                       = "Run"
+	hostAPITaskValue                      = "Task"
+	hostAPITaskRunValue                   = "TaskRun"
+	hostAPITriggerValue                   = "Trigger"
+)
+
 // HostAPIMethod identifies one extension -> AGH Host API request.
 type HostAPIMethod = extensionprotocol.HostAPIMethod
 
@@ -759,7 +775,7 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 	{
 		Method: HostAPIMethodSessionsStop,
 		Params: NamedType{Name: "SessionTargetParams", Value: SessionTargetParams{}},
-		Result: NamedType{Name: "EmptyResult", Value: EmptyResult{}},
+		Result: NamedType{Name: hostAPIEmptyResultValue, Value: EmptyResult{}},
 	},
 	{
 		Method: HostAPIMethodSessionsStatus,
@@ -774,7 +790,7 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 	{
 		Method: HostAPIMethodSessionsSoulRefresh,
 		Params: NamedType{Name: "SessionSoulRefreshParams", Value: SessionSoulRefreshParams{}},
-		Result: NamedType{Name: "AgentSoulPayload", Value: apicontract.AgentSoulPayload{}},
+		Result: NamedType{Name: hostAPIAgentSoulPayloadValue, Value: apicontract.AgentSoulPayload{}},
 	},
 	{
 		Method: HostAPIMethodSessionsHealthGet,
@@ -810,16 +826,16 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 	{
 		Method: HostAPIMethodMemoryStore,
 		Params: NamedType{Name: "MemoryStoreParams", Value: MemoryStoreParams{}},
-		Result: NamedType{Name: "EmptyResult", Value: EmptyResult{}},
+		Result: NamedType{Name: hostAPIEmptyResultValue, Value: EmptyResult{}},
 	},
 	{
 		Method: HostAPIMethodMemoryForget,
 		Params: NamedType{Name: "MemoryForgetParams", Value: MemoryForgetParams{}},
-		Result: NamedType{Name: "EmptyResult", Value: EmptyResult{}},
+		Result: NamedType{Name: hostAPIEmptyResultValue, Value: EmptyResult{}},
 	},
 	{
 		Method:         HostAPIMethodObserveHealth,
-		Params:         NamedType{Name: "EmptyResult", Value: EmptyResult{}},
+		Params:         NamedType{Name: hostAPIEmptyResultValue, Value: EmptyResult{}},
 		Result:         NamedType{Name: "ObserveHealth", Value: ObserveHealth{}},
 		OptionalParams: true,
 	},
@@ -862,22 +878,22 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 	{
 		Method: HostAPIMethodAgentsSoulGet,
 		Params: NamedType{Name: "AgentSoulGetParams", Value: AgentSoulGetParams{}},
-		Result: NamedType{Name: "AgentSoulPayload", Value: apicontract.AgentSoulPayload{}},
+		Result: NamedType{Name: hostAPIAgentSoulPayloadValue, Value: apicontract.AgentSoulPayload{}},
 	},
 	{
 		Method: HostAPIMethodAgentsSoulValidate,
 		Params: NamedType{Name: "AgentSoulValidateParams", Value: AgentSoulValidateParams{}},
-		Result: NamedType{Name: "AgentSoulPayload", Value: apicontract.AgentSoulPayload{}},
+		Result: NamedType{Name: hostAPIAgentSoulPayloadValue, Value: apicontract.AgentSoulPayload{}},
 	},
 	{
 		Method: HostAPIMethodAgentsSoulPut,
 		Params: NamedType{Name: "AgentSoulPutParams", Value: AgentSoulPutParams{}},
-		Result: NamedType{Name: "AgentSoulMutationResponse", Value: apicontract.AgentSoulMutationResponse{}},
+		Result: NamedType{Name: hostAPIAgentSoulMutationResponseValue, Value: apicontract.AgentSoulMutationResponse{}},
 	},
 	{
 		Method: HostAPIMethodAgentsSoulDelete,
 		Params: NamedType{Name: "AgentSoulDeleteParams", Value: AgentSoulDeleteParams{}},
-		Result: NamedType{Name: "AgentSoulMutationResponse", Value: apicontract.AgentSoulMutationResponse{}},
+		Result: NamedType{Name: hostAPIAgentSoulMutationResponseValue, Value: apicontract.AgentSoulMutationResponse{}},
 	},
 	{
 		Method: HostAPIMethodAgentsSoulHistory,
@@ -887,27 +903,27 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 	{
 		Method: HostAPIMethodAgentsSoulRollback,
 		Params: NamedType{Name: "AgentSoulRollbackParams", Value: AgentSoulRollbackParams{}},
-		Result: NamedType{Name: "AgentSoulMutationResponse", Value: apicontract.AgentSoulMutationResponse{}},
+		Result: NamedType{Name: hostAPIAgentSoulMutationResponseValue, Value: apicontract.AgentSoulMutationResponse{}},
 	},
 	{
 		Method: HostAPIMethodAgentsHeartbeatGet,
 		Params: NamedType{Name: "AgentHeartbeatGetParams", Value: AgentHeartbeatGetParams{}},
-		Result: NamedType{Name: "HeartbeatPolicyPayload", Value: apicontract.HeartbeatPolicyPayload{}},
+		Result: NamedType{Name: hostAPIHeartbeatPolicyPayloadValue, Value: apicontract.HeartbeatPolicyPayload{}},
 	},
 	{
 		Method: HostAPIMethodAgentsHeartbeatValidate,
 		Params: NamedType{Name: "AgentHeartbeatValidateParams", Value: AgentHeartbeatValidateParams{}},
-		Result: NamedType{Name: "HeartbeatPolicyPayload", Value: apicontract.HeartbeatPolicyPayload{}},
+		Result: NamedType{Name: hostAPIHeartbeatPolicyPayloadValue, Value: apicontract.HeartbeatPolicyPayload{}},
 	},
 	{
 		Method: HostAPIMethodAgentsHeartbeatPut,
 		Params: NamedType{Name: "AgentHeartbeatPutParams", Value: AgentHeartbeatPutParams{}},
-		Result: NamedType{Name: "HeartbeatMutationResponse", Value: apicontract.HeartbeatMutationResponse{}},
+		Result: NamedType{Name: hostAPIHeartbeatMutationResponseValue, Value: apicontract.HeartbeatMutationResponse{}},
 	},
 	{
 		Method: HostAPIMethodAgentsHeartbeatDelete,
 		Params: NamedType{Name: "AgentHeartbeatDeleteParams", Value: AgentHeartbeatDeleteParams{}},
-		Result: NamedType{Name: "HeartbeatMutationResponse", Value: apicontract.HeartbeatMutationResponse{}},
+		Result: NamedType{Name: hostAPIHeartbeatMutationResponseValue, Value: apicontract.HeartbeatMutationResponse{}},
 	},
 	{
 		Method: HostAPIMethodAgentsHeartbeatHistory,
@@ -917,7 +933,7 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 	{
 		Method: HostAPIMethodAgentsHeartbeatRollback,
 		Params: NamedType{Name: "AgentHeartbeatRollbackParams", Value: AgentHeartbeatRollbackParams{}},
-		Result: NamedType{Name: "HeartbeatMutationResponse", Value: apicontract.HeartbeatMutationResponse{}},
+		Result: NamedType{Name: hostAPIHeartbeatMutationResponseValue, Value: apicontract.HeartbeatMutationResponse{}},
 	},
 	{
 		Method: HostAPIMethodAgentsHeartbeatStatus,
@@ -932,69 +948,69 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 	{
 		Method:         HostAPIMethodAutomationJobs,
 		Params:         NamedType{Name: "AutomationJobsParams", Value: AutomationJobsParams{}},
-		Result:         NamedType{Name: "Job", Value: []automationpkg.Job{}},
+		Result:         NamedType{Name: hostAPIJobValue, Value: []automationpkg.Job{}},
 		OptionalParams: true,
 	},
 	{
 		Method: HostAPIMethodAutomationJobsGet,
-		Params: NamedType{Name: "AutomationTargetParams", Value: AutomationTargetParams{}},
-		Result: NamedType{Name: "Job", Value: automationpkg.Job{}},
+		Params: NamedType{Name: hostAPIAutomationTargetParamsValue, Value: AutomationTargetParams{}},
+		Result: NamedType{Name: hostAPIJobValue, Value: automationpkg.Job{}},
 	},
 	{
 		Method: HostAPIMethodAutomationJobsCreate,
 		Params: NamedType{Name: "AutomationJobCreateParams", Value: AutomationJobCreateParams{}},
-		Result: NamedType{Name: "Job", Value: automationpkg.Job{}},
+		Result: NamedType{Name: hostAPIJobValue, Value: automationpkg.Job{}},
 	},
 	{
 		Method: HostAPIMethodAutomationJobsUpdate,
 		Params: NamedType{Name: "AutomationJobUpdateParams", Value: AutomationJobUpdateParams{}},
-		Result: NamedType{Name: "Job", Value: automationpkg.Job{}},
+		Result: NamedType{Name: hostAPIJobValue, Value: automationpkg.Job{}},
 	},
 	{
 		Method: HostAPIMethodAutomationJobsDelete,
-		Params: NamedType{Name: "AutomationTargetParams", Value: AutomationTargetParams{}},
-		Result: NamedType{Name: "EmptyResult", Value: EmptyResult{}},
+		Params: NamedType{Name: hostAPIAutomationTargetParamsValue, Value: AutomationTargetParams{}},
+		Result: NamedType{Name: hostAPIEmptyResultValue, Value: EmptyResult{}},
 	},
 	{
 		Method: HostAPIMethodAutomationJobsTrigger,
 		Params: NamedType{Name: "AutomationJobTriggerParams", Value: AutomationJobTriggerParams{}},
-		Result: NamedType{Name: "Run", Value: automationpkg.Run{}},
+		Result: NamedType{Name: hostAPIRunValue, Value: automationpkg.Run{}},
 	},
 	{
 		Method: HostAPIMethodAutomationJobsRuns,
 		Params: NamedType{Name: "AutomationJobRunsParams", Value: AutomationJobRunsParams{}},
-		Result: NamedType{Name: "Run", Value: []automationpkg.Run{}},
+		Result: NamedType{Name: hostAPIRunValue, Value: []automationpkg.Run{}},
 	},
 	{
 		Method:         HostAPIMethodAutomationTriggers,
 		Params:         NamedType{Name: "AutomationTriggersParams", Value: AutomationTriggersParams{}},
-		Result:         NamedType{Name: "Trigger", Value: []apicontract.TriggerPayload{}},
+		Result:         NamedType{Name: hostAPITriggerValue, Value: []apicontract.TriggerPayload{}},
 		OptionalParams: true,
 	},
 	{
 		Method: HostAPIMethodAutomationTriggersGet,
-		Params: NamedType{Name: "AutomationTargetParams", Value: AutomationTargetParams{}},
-		Result: NamedType{Name: "Trigger", Value: apicontract.TriggerPayload{}},
+		Params: NamedType{Name: hostAPIAutomationTargetParamsValue, Value: AutomationTargetParams{}},
+		Result: NamedType{Name: hostAPITriggerValue, Value: apicontract.TriggerPayload{}},
 	},
 	{
 		Method: HostAPIMethodAutomationTriggersCreate,
 		Params: NamedType{Name: "AutomationTriggerCreateParams", Value: AutomationTriggerCreateParams{}},
-		Result: NamedType{Name: "Trigger", Value: apicontract.TriggerPayload{}},
+		Result: NamedType{Name: hostAPITriggerValue, Value: apicontract.TriggerPayload{}},
 	},
 	{
 		Method: HostAPIMethodAutomationTriggersUpdate,
 		Params: NamedType{Name: "AutomationTriggerUpdateParams", Value: AutomationTriggerUpdateParams{}},
-		Result: NamedType{Name: "Trigger", Value: apicontract.TriggerPayload{}},
+		Result: NamedType{Name: hostAPITriggerValue, Value: apicontract.TriggerPayload{}},
 	},
 	{
 		Method: HostAPIMethodAutomationTriggersDelete,
-		Params: NamedType{Name: "AutomationTargetParams", Value: AutomationTargetParams{}},
-		Result: NamedType{Name: "EmptyResult", Value: EmptyResult{}},
+		Params: NamedType{Name: hostAPIAutomationTargetParamsValue, Value: AutomationTargetParams{}},
+		Result: NamedType{Name: hostAPIEmptyResultValue, Value: EmptyResult{}},
 	},
 	{
 		Method: HostAPIMethodAutomationTriggersRuns,
 		Params: NamedType{Name: "AutomationTriggerRunsParams", Value: AutomationTriggerRunsParams{}},
-		Result: NamedType{Name: "Run", Value: []automationpkg.Run{}},
+		Result: NamedType{Name: hostAPIRunValue, Value: []automationpkg.Run{}},
 	},
 	{
 		Method: HostAPIMethodAutomationTriggersFire,
@@ -1004,7 +1020,7 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 	{
 		Method:         HostAPIMethodAutomationRuns,
 		Params:         NamedType{Name: "AutomationRunsParams", Value: AutomationRunsParams{}},
-		Result:         NamedType{Name: "Run", Value: []automationpkg.Run{}},
+		Result:         NamedType{Name: hostAPIRunValue, Value: []automationpkg.Run{}},
 		OptionalParams: true,
 	},
 	{
@@ -1043,22 +1059,22 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 	{
 		Method: HostAPIMethodTasksCreate,
 		Params: NamedType{Name: "TaskCreateParams", Value: TaskCreateParams{}},
-		Result: NamedType{Name: "Task", Value: apicontract.TaskPayload{}},
+		Result: NamedType{Name: hostAPITaskValue, Value: apicontract.TaskPayload{}},
 	},
 	{
 		Method: HostAPIMethodTasksUpdate,
 		Params: NamedType{Name: "TaskUpdateParams", Value: TaskUpdateParams{}},
-		Result: NamedType{Name: "Task", Value: apicontract.TaskPayload{}},
+		Result: NamedType{Name: hostAPITaskValue, Value: apicontract.TaskPayload{}},
 	},
 	{
 		Method: HostAPIMethodTasksCancel,
 		Params: NamedType{Name: "TaskCancelParams", Value: TaskCancelParams{}},
-		Result: NamedType{Name: "Task", Value: apicontract.TaskPayload{}},
+		Result: NamedType{Name: hostAPITaskValue, Value: apicontract.TaskPayload{}},
 	},
 	{
 		Method: HostAPIMethodTasksRuns,
 		Params: NamedType{Name: "TaskRunsParams", Value: TaskRunsParams{}},
-		Result: NamedType{Name: "TaskRun", Value: []apicontract.TaskRunPayload{}},
+		Result: NamedType{Name: hostAPITaskRunValue, Value: []apicontract.TaskRunPayload{}},
 	},
 	{
 		Method: HostAPIMethodTasksRunsGet,
@@ -1068,41 +1084,41 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 	{
 		Method: HostAPIMethodTasksRunsEnqueue,
 		Params: NamedType{Name: "TaskRunEnqueueParams", Value: TaskRunEnqueueParams{}},
-		Result: NamedType{Name: "TaskRun", Value: apicontract.TaskRunPayload{}},
+		Result: NamedType{Name: hostAPITaskRunValue, Value: apicontract.TaskRunPayload{}},
 	},
 	{
 		Method: HostAPIMethodTasksRunsClaim,
 		Params: NamedType{Name: "TaskRunClaimParams", Value: TaskRunClaimParams{}},
-		Result: NamedType{Name: "TaskRun", Value: apicontract.TaskRunPayload{}},
+		Result: NamedType{Name: hostAPITaskRunValue, Value: apicontract.TaskRunPayload{}},
 	},
 	{
 		Method: HostAPIMethodTasksRunsStart,
 		Params: NamedType{Name: "TaskRunStartParams", Value: TaskRunStartParams{}},
-		Result: NamedType{Name: "TaskRun", Value: apicontract.TaskRunPayload{}},
+		Result: NamedType{Name: hostAPITaskRunValue, Value: apicontract.TaskRunPayload{}},
 	},
 	{
 		Method: HostAPIMethodTasksRunsAttachSession,
 		Params: NamedType{Name: "TaskRunAttachSessionParams", Value: TaskRunAttachSessionParams{}},
-		Result: NamedType{Name: "TaskRun", Value: apicontract.TaskRunPayload{}},
+		Result: NamedType{Name: hostAPITaskRunValue, Value: apicontract.TaskRunPayload{}},
 	},
 	{
 		Method: HostAPIMethodTasksRunsComplete,
 		Params: NamedType{Name: "TaskRunCompleteParams", Value: TaskRunCompleteParams{}},
-		Result: NamedType{Name: "TaskRun", Value: apicontract.TaskRunPayload{}},
+		Result: NamedType{Name: hostAPITaskRunValue, Value: apicontract.TaskRunPayload{}},
 	},
 	{
 		Method: HostAPIMethodTasksRunsFail,
 		Params: NamedType{Name: "TaskRunFailParams", Value: TaskRunFailParams{}},
-		Result: NamedType{Name: "TaskRun", Value: apicontract.TaskRunPayload{}},
+		Result: NamedType{Name: hostAPITaskRunValue, Value: apicontract.TaskRunPayload{}},
 	},
 	{
 		Method: HostAPIMethodTasksRunsCancel,
 		Params: NamedType{Name: "TaskRunCancelParams", Value: TaskRunCancelParams{}},
-		Result: NamedType{Name: "TaskRun", Value: apicontract.TaskRunPayload{}},
+		Result: NamedType{Name: hostAPITaskRunValue, Value: apicontract.TaskRunPayload{}},
 	},
 	{
 		Method:         HostAPIMethodNetworkStatus,
-		Params:         NamedType{Name: "EmptyResult", Value: EmptyResult{}},
+		Params:         NamedType{Name: hostAPIEmptyResultValue, Value: EmptyResult{}},
 		Result:         NamedType{Name: "NetworkStatusPayload", Value: apicontract.NetworkStatusPayload{}},
 		OptionalParams: true,
 	},
@@ -1165,23 +1181,23 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 	{
 		Method:         HostAPIMethodResourcesList,
 		Params:         NamedType{Name: "ResourcesListParams", Value: ResourcesListParams{}},
-		Result:         NamedType{Name: "ResourceRecord", Value: []ResourceRecord{}},
+		Result:         NamedType{Name: hostAPIResourceRecordValue, Value: []ResourceRecord{}},
 		OptionalParams: true,
 	},
 	{
 		Method: HostAPIMethodResourcesGet,
 		Params: NamedType{Name: "ResourceGetParams", Value: ResourceGetParams{}},
-		Result: NamedType{Name: "ResourceRecord", Value: ResourceRecord{}},
+		Result: NamedType{Name: hostAPIResourceRecordValue, Value: ResourceRecord{}},
 	},
 	{
 		Method: HostAPIMethodResourcesSnapshot,
 		Params: NamedType{Name: "ResourcesSnapshotParams", Value: ResourcesSnapshotParams{}},
-		Result: NamedType{Name: "EmptyResult", Value: EmptyResult{}},
+		Result: NamedType{Name: hostAPIEmptyResultValue, Value: EmptyResult{}},
 	},
 	{
 		Method:         HostAPIMethodBridgesInstancesList,
-		Params:         NamedType{Name: "EmptyResult", Value: EmptyResult{}},
-		Result:         NamedType{Name: "BridgeInstance", Value: []bridgepkg.BridgeInstance{}},
+		Params:         NamedType{Name: hostAPIEmptyResultValue, Value: EmptyResult{}},
+		Result:         NamedType{Name: hostAPIBridgeInstanceValue, Value: []bridgepkg.BridgeInstance{}},
 		OptionalParams: true,
 	},
 	{
@@ -1192,12 +1208,12 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 	{
 		Method: HostAPIMethodBridgesInstancesGet,
 		Params: NamedType{Name: "BridgeInstanceTargetParams", Value: BridgeInstanceTargetParams{}},
-		Result: NamedType{Name: "BridgeInstance", Value: bridgepkg.BridgeInstance{}},
+		Result: NamedType{Name: hostAPIBridgeInstanceValue, Value: bridgepkg.BridgeInstance{}},
 	},
 	{
 		Method: HostAPIMethodBridgesInstancesReportState,
 		Params: NamedType{Name: "BridgesInstancesReportStateParams", Value: BridgesInstancesReportStateParams{}},
-		Result: NamedType{Name: "BridgeInstance", Value: bridgepkg.BridgeInstance{}},
+		Result: NamedType{Name: hostAPIBridgeInstanceValue, Value: bridgepkg.BridgeInstance{}},
 	},
 }
 

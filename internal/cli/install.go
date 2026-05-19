@@ -13,6 +13,20 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	installModelKey = "model"
+)
+
+const (
+	installAgentValue    = "Agent"
+	installManagedValue  = "Managed"
+	installManagerValue  = "Manager"
+	installModelValue    = "Model"
+	installProviderValue = "Provider"
+	installAgentNameKey  = "agent_name"
+	installManagedKey    = "managed"
+)
+
 var errInstallCanceled = errors.New("cli: install canceled")
 
 type installWizardInput struct {
@@ -115,8 +129,8 @@ func newInstallCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, installBundle(record))
 		},
 	}
-	cmd.Flags().StringVar(&provider, "provider", "", "Default provider to configure without opening the wizard")
-	cmd.Flags().StringVar(&model, "model", "", "Default model to configure without opening the wizard")
+	cmd.Flags().StringVar(&provider, memoryProviderKey, "", "Default provider to configure without opening the wizard")
+	cmd.Flags().StringVar(&model, installModelKey, "", "Default model to configure without opening the wizard")
 	return cmd
 }
 
@@ -139,8 +153,8 @@ func resolveInstallSelection(
 	if err != nil {
 		return installWizardSelection{}, err
 	}
-	providerChanged := cmd.Flags().Changed("provider")
-	modelChanged := cmd.Flags().Changed("model")
+	providerChanged := cmd.Flags().Changed(memoryProviderKey)
+	modelChanged := cmd.Flags().Changed(installModelKey)
 	if providerChanged || modelChanged || mode != OutputHuman {
 		return resolveNonInteractiveInstallSelection(input, provider, model)
 	}
@@ -246,21 +260,28 @@ func installBundle(record installRecord) outputBundle {
 				status = "created bootstrap agent file"
 			}
 			return renderHumanSection("Install", []keyValue{
-				{Label: "Agent", Value: stringOrDash(record.AgentName)},
-				{Label: "Provider", Value: stringOrDash(record.Provider)},
-				{Label: "Model", Value: stringOrDash(record.Model)},
-				{Label: "Permissions", Value: stringOrDash(record.Permissions)},
+				{Label: installAgentValue, Value: stringOrDash(record.AgentName)},
+				{Label: installProviderValue, Value: stringOrDash(record.Provider)},
+				{Label: installModelValue, Value: stringOrDash(record.Model)},
+				{Label: installPermissionsValue, Value: stringOrDash(record.Permissions)},
 				{Label: "Config File", Value: stringOrDash(record.ConfigFile)},
 				{Label: "Agent File", Value: stringOrDash(record.AgentFile)},
 				{Label: "Agent Status", Value: status},
-				{Label: "Managed", Value: fmt.Sprintf("%t", record.Managed)},
-				{Label: "Manager", Value: stringOrDash(record.Manager)},
+				{Label: installManagedValue, Value: fmt.Sprintf("%t", record.Managed)},
+				{Label: installManagerValue, Value: stringOrDash(record.Manager)},
 			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject("install", []string{
-				"agent_name", "provider", "model", "permissions", "config_file", "agent_file",
-				"created_agent", "managed", "manager",
+				installAgentNameKey,
+				memoryProviderKey,
+				installModelKey,
+				configPermissionsKey,
+				"config_file",
+				"agent_file",
+				"created_agent",
+				installManagedKey,
+				"manager",
 			}, []string{
 				record.AgentName,
 				record.Provider,

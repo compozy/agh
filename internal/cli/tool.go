@@ -11,9 +11,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	toolMCPKey  = "mcp"
+	toolToolKey = "tool"
+)
+
 func newToolCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "tool",
+		Use:   toolToolKey,
 		Short: "Inspect and invoke registry tools",
 	}
 	cmd.AddCommand(newToolListCommand(deps))
@@ -29,7 +34,7 @@ func newToolMCPCommand(deps commandDeps) *cobra.Command {
 	var sessionID string
 	var bindNonce string
 	cmd := &cobra.Command{
-		Use:    "mcp",
+		Use:    toolMCPKey,
 		Short:  "Serve session-bound AGH tools over MCP stdio",
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {

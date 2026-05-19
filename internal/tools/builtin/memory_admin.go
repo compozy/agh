@@ -7,6 +7,11 @@ import (
 	toolspkg "github.com/pedronauck/agh/internal/tools"
 )
 
+const (
+	memoryAdminMemoryKey    = "memory"
+	memoryAdminSessionIDKey = "session_id"
+)
+
 type memoryAdminDescriptorSpec struct {
 	id          toolspkg.ToolID
 	nativeName  string
@@ -375,7 +380,7 @@ func memoryAdminDescriptor(spec memoryAdminDescriptorSpec) toolspkg.Descriptor {
 		spec.destructive,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDMemoryAdmin},
-		[]string{"memory", "admin"},
+		[]string{memoryAdminMemoryKey, "admin"},
 		spec.hints,
 	)
 }
@@ -449,7 +454,7 @@ var (
 		`"decision_id":{"type":"string"},"reason":{"type":"string"},"dry_run":{"type":"boolean"}`,
 	)
 	memoryAdminRecallTraceInputSchema = memoryAdminSchema(
-		[]string{"session_id", "turn_seq"},
+		[]string{memoryAdminSessionIDKey, "turn_seq"},
 		`"session_id":{"type":"string"},"turn_seq":{"type":"integer"}`,
 	)
 	memoryAdminDreamListInputSchema = memoryAdminSchema(
@@ -483,11 +488,11 @@ var (
 		`"name":{"type":"string"},"workspace_id":{"type":"string"},"reason":{"type":"string"}`,
 	)
 	memoryAdminSessionIDInputSchema = memoryAdminSchema(
-		[]string{"workspace_id", "session_id"},
+		[]string{"workspace_id", memoryAdminSessionIDKey},
 		`"workspace_id":{"type":"string"},"session_id":{"type":"string"}`,
 	)
 	memoryAdminSessionReplayInputSchema = memoryAdminSchema(
-		[]string{"workspace_id", "session_id"},
+		[]string{"workspace_id", memoryAdminSessionIDKey},
 		`"workspace_id":{"type":"string"},"session_id":{"type":"string"},"include_tool_events":{"type":"boolean"},"include_memory":{"type":"boolean"}`,
 	)
 	memoryAdminSessionsPruneInputSchema = memoryAdminSchema(

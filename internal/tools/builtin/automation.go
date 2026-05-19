@@ -2,6 +2,18 @@ package builtin
 
 import toolspkg "github.com/pedronauck/agh/internal/tools"
 
+const (
+	automationJobsKey = "jobs"
+)
+
+const (
+	automationAutomationKey = "automation"
+	automationHistoryKey    = "history"
+	automationMutationKey   = "mutation"
+	automationRunsKey       = "runs"
+	automationTriggersKey   = "triggers"
+)
+
 var automationTools = []toolspkg.Descriptor{
 	nativeAutomationDescriptor(
 		toolspkg.ToolIDAutomationJobsList,
@@ -12,7 +24,7 @@ var automationTools = []toolspkg.Descriptor{
 		toolspkg.RiskRead,
 		true,
 		false,
-		[]string{"automation", "jobs", "catalog"},
+		[]string{automationAutomationKey, automationJobsKey, "catalog"},
 		[]string{"automation jobs", "scheduled jobs"},
 	),
 	nativeAutomationDescriptor(
@@ -24,7 +36,7 @@ var automationTools = []toolspkg.Descriptor{
 		toolspkg.RiskRead,
 		true,
 		false,
-		[]string{"automation", "jobs"},
+		[]string{automationAutomationKey, automationJobsKey},
 		[]string{"automation job details", "scheduled job"},
 	),
 	nativeAutomationDescriptor(
@@ -36,7 +48,7 @@ var automationTools = []toolspkg.Descriptor{
 		toolspkg.RiskMutating,
 		false,
 		false,
-		[]string{"automation", "jobs", "mutation"},
+		[]string{automationAutomationKey, automationJobsKey, automationMutationKey},
 		[]string{"create automation job", "add scheduled job"},
 	),
 	nativeAutomationDescriptor(
@@ -48,7 +60,7 @@ var automationTools = []toolspkg.Descriptor{
 		toolspkg.RiskMutating,
 		false,
 		false,
-		[]string{"automation", "jobs", "mutation"},
+		[]string{automationAutomationKey, automationJobsKey, automationMutationKey},
 		[]string{"update automation job", "edit scheduled job"},
 	),
 	nativeAutomationDescriptor(
@@ -60,7 +72,7 @@ var automationTools = []toolspkg.Descriptor{
 		toolspkg.RiskDestructive,
 		false,
 		true,
-		[]string{"automation", "jobs", "mutation"},
+		[]string{automationAutomationKey, automationJobsKey, automationMutationKey},
 		[]string{"delete automation job", "remove scheduled job"},
 	),
 	nativeAutomationDescriptor(
@@ -72,7 +84,7 @@ var automationTools = []toolspkg.Descriptor{
 		toolspkg.RiskMutating,
 		false,
 		false,
-		[]string{"automation", "jobs", "mutation"},
+		[]string{automationAutomationKey, automationJobsKey, automationMutationKey},
 		[]string{"enable automation job", "activate scheduled job"},
 	),
 	nativeAutomationDescriptor(
@@ -84,7 +96,7 @@ var automationTools = []toolspkg.Descriptor{
 		toolspkg.RiskMutating,
 		false,
 		false,
-		[]string{"automation", "jobs", "mutation"},
+		[]string{automationAutomationKey, automationJobsKey, automationMutationKey},
 		[]string{"disable automation job", "pause scheduled job"},
 	),
 	nativeAutomationDescriptor(
@@ -96,7 +108,7 @@ var automationTools = []toolspkg.Descriptor{
 		toolspkg.RiskMutating,
 		false,
 		false,
-		[]string{"automation", "jobs", "runs", "mutation"},
+		[]string{automationAutomationKey, automationJobsKey, automationRunsKey, automationMutationKey},
 		[]string{"trigger automation job", "manual automation run"},
 	),
 	nativeAutomationDescriptor(
@@ -108,7 +120,7 @@ var automationTools = []toolspkg.Descriptor{
 		toolspkg.RiskRead,
 		true,
 		false,
-		[]string{"automation", "jobs", "runs", "history"},
+		[]string{automationAutomationKey, automationJobsKey, automationRunsKey, automationHistoryKey},
 		[]string{"automation job history", "job runs"},
 	),
 	nativeAutomationDescriptor(
@@ -120,7 +132,7 @@ var automationTools = []toolspkg.Descriptor{
 		toolspkg.RiskRead,
 		true,
 		false,
-		[]string{"automation", "triggers", "catalog"},
+		[]string{automationAutomationKey, automationTriggersKey, "catalog"},
 		[]string{"automation triggers", "event triggers"},
 	),
 	nativeAutomationDescriptor(
@@ -132,7 +144,7 @@ var automationTools = []toolspkg.Descriptor{
 		toolspkg.RiskRead,
 		true,
 		false,
-		[]string{"automation", "triggers"},
+		[]string{automationAutomationKey, automationTriggersKey},
 		[]string{"automation trigger details", "event trigger"},
 	),
 	nativeAutomationDescriptor(
@@ -144,7 +156,7 @@ var automationTools = []toolspkg.Descriptor{
 		toolspkg.RiskMutating,
 		false,
 		false,
-		[]string{"automation", "triggers", "mutation"},
+		[]string{automationAutomationKey, automationTriggersKey, automationMutationKey},
 		[]string{"create automation trigger", "add event trigger"},
 	),
 	nativeAutomationDescriptor(
@@ -156,7 +168,7 @@ var automationTools = []toolspkg.Descriptor{
 		toolspkg.RiskMutating,
 		false,
 		false,
-		[]string{"automation", "triggers", "mutation"},
+		[]string{automationAutomationKey, automationTriggersKey, automationMutationKey},
 		[]string{"update automation trigger", "edit event trigger"},
 	),
 	nativeAutomationDescriptor(
@@ -168,7 +180,7 @@ var automationTools = []toolspkg.Descriptor{
 		toolspkg.RiskDestructive,
 		false,
 		true,
-		[]string{"automation", "triggers", "mutation"},
+		[]string{automationAutomationKey, automationTriggersKey, automationMutationKey},
 		[]string{"delete automation trigger", "remove event trigger"},
 	),
 	nativeAutomationDescriptor(
@@ -180,7 +192,7 @@ var automationTools = []toolspkg.Descriptor{
 		toolspkg.RiskMutating,
 		false,
 		false,
-		[]string{"automation", "triggers", "mutation"},
+		[]string{automationAutomationKey, automationTriggersKey, automationMutationKey},
 		[]string{"enable automation trigger", "activate event trigger"},
 	),
 	nativeAutomationDescriptor(
@@ -192,7 +204,7 @@ var automationTools = []toolspkg.Descriptor{
 		toolspkg.RiskMutating,
 		false,
 		false,
-		[]string{"automation", "triggers", "mutation"},
+		[]string{automationAutomationKey, automationTriggersKey, automationMutationKey},
 		[]string{"disable automation trigger", "pause event trigger"},
 	),
 	nativeAutomationDescriptor(
@@ -204,7 +216,7 @@ var automationTools = []toolspkg.Descriptor{
 		toolspkg.RiskRead,
 		true,
 		false,
-		[]string{"automation", "triggers", "runs", "history"},
+		[]string{automationAutomationKey, automationTriggersKey, automationRunsKey, automationHistoryKey},
 		[]string{"automation trigger history", "trigger runs"},
 	),
 	nativeAutomationDescriptor(
@@ -216,7 +228,7 @@ var automationTools = []toolspkg.Descriptor{
 		toolspkg.RiskRead,
 		true,
 		false,
-		[]string{"automation", "runs", "history"},
+		[]string{automationAutomationKey, automationRunsKey, automationHistoryKey},
 		[]string{"automation runs", "run history"},
 	),
 	nativeAutomationDescriptor(
@@ -228,7 +240,7 @@ var automationTools = []toolspkg.Descriptor{
 		toolspkg.RiskRead,
 		true,
 		false,
-		[]string{"automation", "runs"},
+		[]string{automationAutomationKey, automationRunsKey},
 		[]string{"automation run details", "run record"},
 	),
 }

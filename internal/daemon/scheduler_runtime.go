@@ -19,6 +19,10 @@ import (
 )
 
 const (
+	schedulerRuntimeTaskKey = "task"
+)
+
+const (
 	defaultMechanicalSchedulerInterval   = 15 * time.Second
 	defaultMechanicalSchedulerSweepLimit = 100
 	mechanicalSchedulerSweepReason       = "scheduler_sweep"
@@ -283,7 +287,6 @@ func newSchedulerSessionWaker(
 	if logger == nil {
 		logger = slog.Default()
 	}
-	//nolint:gosec // cancel is owned by the wake dispatcher and used during daemon shutdown.
 	wakeCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	return &schedulerSessionWaker{
 		ctx:      wakeCtx,
@@ -623,5 +626,5 @@ func firstSchedulerWakeValue(values ...string) string {
 			return trimmed
 		}
 	}
-	return "task"
+	return schedulerRuntimeTaskKey
 }

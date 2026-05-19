@@ -464,14 +464,14 @@ func TestCoreConversionHelpers(t *testing.T) {
 
 		usage := TokenUsagePayloadFromUsage(&acp.TokenUsage{
 			TurnID:           "turn-1",
-			InputTokens:      int64Ptr(10),
-			OutputTokens:     int64Ptr(20),
-			TotalTokens:      int64Ptr(30),
-			ThoughtTokens:    int64Ptr(3),
-			CacheReadTokens:  int64Ptr(4),
-			CacheWriteTokens: int64Ptr(5),
-			ContextUsed:      int64Ptr(6),
-			ContextSize:      int64Ptr(7),
+			InputTokens:      new(int64(10)),
+			OutputTokens:     new(int64(20)),
+			TotalTokens:      new(int64(30)),
+			ThoughtTokens:    new(int64(3)),
+			CacheReadTokens:  new(int64(4)),
+			CacheWriteTokens: new(int64(5)),
+			ContextUsed:      new(int64(6)),
+			ContextSize:      new(int64(7)),
 			CostAmount:       new(1.23),
 			CostCurrency:     new("USD"),
 			Timestamp:        now,
@@ -817,9 +817,4 @@ func TestObserveHealthPayloadIncludesRuntimeActivity(t *testing.T) {
 			t.Fatalf("AgentProbes[0] = %#v, want trimmed and redacted probe payload", probe)
 		}
 	})
-}
-
-//go:fix inline
-func int64Ptr(value int64) *int64 {
-	return new(value)
 }

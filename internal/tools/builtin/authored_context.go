@@ -2,6 +2,15 @@ package builtin
 
 import toolspkg "github.com/pedronauck/agh/internal/tools"
 
+const (
+	authoredContextHeartbeatKey = "heartbeat"
+)
+
+const (
+	authoredContextHealthKey = "health"
+	authoredContextStatusKey = "status"
+)
+
 var authoredContextTools = []toolspkg.Descriptor{
 	nativeDescriptor(
 		toolspkg.ToolIDSessionHealth,
@@ -14,7 +23,7 @@ var authoredContextTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDAuthoredContext, toolspkg.ToolsetIDSessions},
-		[]string{"sessions", "health", "heartbeat"},
+		[]string{"sessions", authoredContextHealthKey, authoredContextHeartbeatKey},
 		[]string{"session health", "wake eligibility", "session liveness"},
 	),
 	nativeDescriptor(
@@ -29,7 +38,7 @@ var authoredContextTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDAuthoredContext},
-		[]string{"agents", "heartbeat", "status", "wake"},
+		[]string{"agents", authoredContextHeartbeatKey, authoredContextStatusKey, "wake"},
 		[]string{"heartbeat status", "wake audit", "agent heartbeat policy"},
 	),
 	nativeDescriptor(
@@ -43,7 +52,7 @@ var authoredContextTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDAuthoredContext},
-		[]string{"agents", "heartbeat", "wake"},
+		[]string{"agents", authoredContextHeartbeatKey, "wake"},
 		[]string{"heartbeat wake", "manual wake", "advisory wake"},
 	),
 }

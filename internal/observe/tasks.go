@@ -17,6 +17,11 @@ import (
 )
 
 const (
+	tasksReceivedKey = "received"
+	tasksRejectedKey = "rejected"
+)
+
+const (
 	taskIngressAuditEnqueueAction = "task.run.enqueue"
 	taskIngressChannelMismatch    = "channel_mismatch"
 	taskEventCanceled             = "task.canceled"
@@ -2154,7 +2159,7 @@ func (o *Observer) liveSessionIDs(ctx context.Context) (map[string]struct{}, err
 
 func isLiveSessionState(state string) bool {
 	normalized := strings.TrimSpace(state)
-	return normalized != "" && normalized != string(session.StateStopped) && normalized != "orphaned"
+	return normalized != "" && normalized != string(session.StateStopped) && normalized != sessionStateOrphaned
 }
 
 func filterTasksByOrigin(tasks []taskpkg.Summary, origin taskpkg.OriginKind) []taskpkg.Summary {
@@ -2318,7 +2323,7 @@ func countAcceptedEnqueueAudits(audits []store.NetworkAuditEntry) int {
 		if strings.TrimSpace(item.Kind) != taskIngressAuditEnqueueAction {
 			continue
 		}
-		if strings.TrimSpace(item.Direction) != "received" {
+		if strings.TrimSpace(item.Direction) != tasksReceivedKey {
 			continue
 		}
 		count++
@@ -2329,7 +2334,7 @@ func countAcceptedEnqueueAudits(audits []store.NetworkAuditEntry) int {
 func countChannelMismatchAudits(audits []store.NetworkAuditEntry) int {
 	count := 0
 	for _, item := range audits {
-		if strings.TrimSpace(item.Direction) != "rejected" {
+		if strings.TrimSpace(item.Direction) != tasksRejectedKey {
 			continue
 		}
 		if strings.TrimSpace(item.Reason) == taskIngressChannelMismatch {

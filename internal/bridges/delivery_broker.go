@@ -12,6 +12,11 @@ import (
 	"time"
 )
 
+const (
+	deliveryBrokerAgentMessageKey = "agent_message"
+	deliveryBrokerDoneKey         = "done"
+)
+
 type deliveryQueueKind string
 
 const (
@@ -914,7 +919,7 @@ func (b *Broker) projectEventLocked(
 	}
 
 	switch strings.TrimSpace(event.Type) {
-	case "agent_message":
+	case deliveryBrokerAgentMessageKey:
 		if event.Text == "" {
 			return DeliveryEvent{}, false, nil
 		}
@@ -933,7 +938,7 @@ func (b *Broker) projectEventLocked(
 			Content:          nextContent,
 			Final:            false,
 		}, true, nil
-	case "done":
+	case deliveryBrokerDoneKey:
 		if delivery.latestSeq == 0 && strings.TrimSpace(delivery.currentContent.Text) == "" {
 			return DeliveryEvent{}, false, nil
 		}
@@ -947,7 +952,7 @@ func (b *Broker) projectEventLocked(
 			Content:          delivery.currentContent,
 			Final:            true,
 		}, true, nil
-	case "error":
+	case DeliveryEventTypeError:
 		errorText := strings.TrimSpace(event.Error)
 		return DeliveryEvent{
 			DeliveryID:       delivery.deliveryID,

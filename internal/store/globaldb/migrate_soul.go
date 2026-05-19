@@ -6,6 +6,12 @@ import (
 	"fmt"
 )
 
+const (
+	migrateSoulParentSoulDigestKey = "parent_soul_digest"
+	migrateSoulSoulDigestKey       = "soul_digest"
+	migrateSoulSoulSnapshotIDKey   = "soul_snapshot_id"
+)
+
 func migrateAgentSoulSnapshots(ctx context.Context, tx *sql.Tx) error {
 	statements := []string{
 		`CREATE TABLE IF NOT EXISTS agent_soul_snapshots (
@@ -56,13 +62,13 @@ func migrateAgentSoulSnapshots(ctx context.Context, tx *sql.Tx) error {
 		sql  string
 	}{
 		{
-			name: "soul_snapshot_id",
+			name: migrateSoulSoulSnapshotIDKey,
 			sql: `ALTER TABLE sessions ADD COLUMN soul_snapshot_id TEXT
 				REFERENCES agent_soul_snapshots(id) ON DELETE SET NULL`,
 		},
-		{name: "soul_digest", sql: `ALTER TABLE sessions ADD COLUMN soul_digest TEXT NOT NULL DEFAULT ''`},
+		{name: migrateSoulSoulDigestKey, sql: `ALTER TABLE sessions ADD COLUMN soul_digest TEXT NOT NULL DEFAULT ''`},
 		{
-			name: "parent_soul_digest",
+			name: migrateSoulParentSoulDigestKey,
 			sql:  `ALTER TABLE sessions ADD COLUMN parent_soul_digest TEXT NOT NULL DEFAULT ''`,
 		},
 	}

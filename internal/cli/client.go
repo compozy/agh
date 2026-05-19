@@ -28,6 +28,11 @@ import (
 )
 
 const (
+	clientErrorKey   = "error"
+	clientMessageKey = "message"
+)
+
+const (
 	baseURL                        = "http://unix"
 	defaultUnixSocketClientTimeout = 30 * time.Second
 	defaultUserAgentName           = "agh-cli"
@@ -2127,7 +2132,7 @@ func (c *unixSocketClient) PromptSession(ctx context.Context, id string, message
 		http.MethodPost,
 		path,
 		query,
-		map[string]string{"message": message},
+		map[string]string{clientMessageKey: message},
 		"",
 		func(event SSEEvent) error {
 			var payload AgentEventRecord
@@ -2164,7 +2169,7 @@ func (c *unixSocketClient) StreamPromptSession(
 		http.MethodPost,
 		path,
 		nil,
-		map[string]string{"message": message},
+		map[string]string{clientMessageKey: message},
 		"",
 		handler,
 	)
@@ -2285,7 +2290,7 @@ func (c *unixSocketClient) StreamHostedMCPProjection(
 		nil,
 		"",
 		func(event SSEEvent) error {
-			if event.Event == "error" {
+			if event.Event == clientErrorKey {
 				return readAPIErrorBody(0, "", event.Data)
 			}
 			if event.Event != "projection" {

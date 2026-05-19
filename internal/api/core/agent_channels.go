@@ -157,7 +157,7 @@ func (h *BaseHandlers) AgentChannelSend(c *gin.Context) {
 	sendReq := network.SendRequest{
 		SessionID: strings.TrimSpace(caller.Session.ID),
 		Channel:   channel,
-		Surface:   networkSurfacePtr(network.SurfaceThread),
+		Surface:   new(network.SurfaceThread),
 		ThreadID:  ptrString(agentChannelThreadID),
 		Kind:      network.KindSay,
 		Body:      cloneRawMessage(req.Body),
@@ -298,7 +298,7 @@ func agentChannelReplySendRequest(
 		SessionID:   strings.TrimSpace(caller.Session.ID),
 		WorkspaceID: workspaceID,
 		Channel:     sourceChannel,
-		Surface:     networkSurfacePtr(network.SurfaceDirect),
+		Surface:     new(network.SurfaceDirect),
 		DirectID:    ptrString(directID),
 		Kind:        network.KindSay,
 		To:          ptrString(targetPeerID),
@@ -313,11 +313,6 @@ func agentChannelReplySendRequest(
 		sendReq.TraceID = ptrString(*source.TraceID)
 	}
 	return sendReq, nil
-}
-
-//go:fix inline
-func networkSurfacePtr(value network.Surface) *network.Surface {
-	return new(value)
 }
 
 func agentCallerPeerID(caller agentidentity.Caller) string {

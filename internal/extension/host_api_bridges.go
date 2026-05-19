@@ -19,6 +19,10 @@ import (
 	sqlite3 "modernc.org/sqlite/lib"
 )
 
+const (
+	hostAPIBridgesDefaultKey = "default"
+)
+
 type hostAPIBridgeRegistry interface {
 	GetInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error)
 	UpdateInstanceState(
@@ -1187,7 +1191,7 @@ func newHostAPIKeyLocker() *hostAPIKeyLocker {
 func (l *hostAPIKeyLocker) lock(key string) func() {
 	normalized := strings.TrimSpace(key)
 	if normalized == "" {
-		normalized = "default"
+		normalized = hostAPIBridgesDefaultKey
 	}
 
 	l.mu.Lock()

@@ -514,7 +514,7 @@ func (r restartRequestRuntime) launchRelaunchHelper(
 
 	_, err = r.startDetached(ctx, detachedStartRequest{
 		binary:  binary,
-		args:    []string{"daemon", "relaunch"},
+		args:    []string{harnessSummaryDefaultAgentName, "relaunch"},
 		sandbox: withRestartOperationEnv(os.Environ(), operationID),
 		logPath: homePaths.LogFile,
 	})
@@ -661,7 +661,7 @@ func (h *relaunchHelper) run(ctx context.Context) error {
 
 	replacement, err := h.startDetached(ctx, detachedStartRequest{
 		binary:  binary,
-		args:    []string{"daemon", "start", "--foreground"},
+		args:    []string{harnessSummaryDefaultAgentName, "start", "--foreground"},
 		sandbox: withRestartOperationEnv(h.cfg.Sandbox, operation.OperationID),
 		logPath: h.cfg.HomePaths.LogFile,
 	})

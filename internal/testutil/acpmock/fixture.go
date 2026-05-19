@@ -13,6 +13,11 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 )
 
+const (
+	fixtureUserMessageValue = "User message:"
+	fixtureAllowAlwaysValue = "allow-always"
+)
+
 const FixtureVersion = 2
 
 const (
@@ -425,7 +430,7 @@ func promptAfterLastUserMarker(prompt string) string {
 	trimmed := strings.TrimSpace(prompt)
 	markerIndex := -1
 	markerLength := 0
-	for _, marker := range []string{"User request:", "User message:"} {
+	for _, marker := range []string{"User request:", fixtureUserMessageValue} {
 		index := lastLineMarkerIndex(trimmed, marker)
 		if index > markerIndex {
 			markerIndex = index
@@ -710,7 +715,7 @@ func validateToolStatus(path string, raw string) error {
 
 func validatePermissionDecision(path string, raw string) error {
 	switch strings.TrimSpace(raw) {
-	case "", "allow-once", "allow-always", "reject-once", "reject-always":
+	case "", "allow-once", fixtureAllowAlwaysValue, "reject-once", "reject-always":
 		return nil
 	default:
 		return fmt.Errorf("acpmock: %s %q is invalid", path, raw)

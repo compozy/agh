@@ -8,6 +8,11 @@ import (
 	"time"
 )
 
+const (
+	typesConfigKey = "config"
+	typesSkillKey  = "skill"
+)
+
 // HookSource identifies where a hook was declared.
 type HookSource uint8
 
@@ -19,10 +24,10 @@ const (
 )
 
 var hookSourceNames = map[HookSource]string{
-	HookSourceNative:          "native",
-	HookSourceConfig:          "config",
+	HookSourceNative:          string(HookExecutorNative),
+	HookSourceConfig:          typesConfigKey,
 	HookSourceAgentDefinition: "agent_definition",
-	HookSourceSkill:           "skill",
+	HookSourceSkill:           typesSkillKey,
 }
 
 // HookSkillSource captures the existing skill-registry precedence without

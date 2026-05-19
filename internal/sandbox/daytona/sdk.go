@@ -209,8 +209,7 @@ func (s sdkSandbox) WriteFile(ctx context.Context, path string, content []byte) 
 }
 
 func mapSDKNotFound(operation string, err error) error {
-	var notFound *daytonaerrors.DaytonaNotFoundError
-	if stderrors.As(err, &notFound) {
+	if notFound, ok := stderrors.AsType[*daytonaerrors.DaytonaNotFoundError](err); ok && notFound != nil {
 		return fmt.Errorf("%w: %s", errSandboxNotFound, operation)
 	}
 	return fmt.Errorf("sandbox/daytona: %s: %w", operation, err)

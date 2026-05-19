@@ -12,6 +12,10 @@ import (
 	"strings"
 )
 
+const (
+	digestErrorKey = "error"
+)
+
 // CanonicalJSON returns RFC 8785/JCS-compatible canonical JSON bytes.
 func CanonicalJSON(raw json.RawMessage) ([]byte, error) {
 	trimmed := bytes.TrimSpace(raw)
@@ -142,7 +146,10 @@ func normalizeSchema(value any, field string, required bool) (json.RawMessage, e
 	}
 	raw, err := marshalRawJSON(value)
 	if err != nil {
-		return nil, NewInvalidParamsError(field+" must be JSON serializable", map[string]any{"error": err.Error()})
+		return nil, NewInvalidParamsError(
+			field+" must be JSON serializable",
+			map[string]any{digestErrorKey: err.Error()},
+		)
 	}
 	if err := validateJSONObject(field, raw, required); err != nil {
 		return nil, err
@@ -159,7 +166,7 @@ func validateJSONObject(field string, raw json.RawMessage, required bool) error 
 	}
 	var decoded map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &decoded); err != nil {
-		return NewInvalidParamsError(field+" must be a JSON object", map[string]any{"error": err.Error()})
+		return NewInvalidParamsError(field+" must be a JSON object", map[string]any{digestErrorKey: err.Error()})
 	}
 	if decoded == nil && required {
 		return NewInvalidParamsError(field+" must be a JSON object", nil)

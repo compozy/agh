@@ -7,6 +7,10 @@ import (
 	"github.com/pedronauck/agh/internal/modelcatalog"
 )
 
+const (
+	taskActionList = "list"
+)
+
 func ProviderModelListPayloadFromModels(models []modelcatalog.Model) contract.ProviderModelListResponse {
 	payload := contract.ProviderModelListResponse{
 		Models: make([]contract.ProviderModelPayload, 0, len(models)),
@@ -84,7 +88,7 @@ func SourceStatusPayloadsFromStatuses(
 
 func OpenAIModelListPayloadFromModels(models []modelcatalog.Model) contract.OpenAIModelListResponse {
 	payload := contract.OpenAIModelListResponse{
-		Object: "list",
+		Object: taskActionList,
 		Data:   make([]contract.OpenAIModelPayload, 0, len(models)),
 	}
 	for _, model := range models {

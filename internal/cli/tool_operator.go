@@ -14,6 +14,30 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	toolOperatorToolIDKey = "tool_id"
+)
+
+const (
+	toolOperatorReasonsKey = "reasons"
+)
+
+const (
+	toolOperatorBackendValue     = "Backend"
+	toolOperatorExpiresValue     = "Expires"
+	toolOperatorSourceValue      = "Source"
+	toolOperatorStatusValue      = "Status"
+	toolOperatorTitleValue       = "Title"
+	toolOperatorToolIDValue      = "Tool ID"
+	toolOperatorAvailableKey     = "available"
+	toolOperatorBackendKey       = "backend"
+	toolOperatorCLIKey           = "cli"
+	toolOperatorDisabledKey      = "disabled"
+	toolOperatorExpiresAtKey     = "expires_at"
+	toolOperatorListKey          = "list"
+	toolOperatorSearchQueryValue = "search <query>"
+)
+
 type toolScopeFlags struct {
 	workspaceID string
 	sessionID   string
@@ -57,7 +81,7 @@ func (e *toolCommandError) Error() string {
 func newToolListCommand(deps commandDeps) *cobra.Command {
 	var scope toolScopeFlags
 	cmd := &cobra.Command{
-		Use:   "list",
+		Use:   toolOperatorListKey,
 		Short: "List operator-visible registry tools",
 		Example: `  # List all operator-visible tools as JSON
   agh tool list -o json
@@ -83,7 +107,7 @@ func newToolSearchCommand(deps commandDeps) *cobra.Command {
 	var scope toolScopeFlags
 	var limit int
 	cmd := &cobra.Command{
-		Use:   "search <query>",
+		Use:   toolOperatorSearchQueryValue,
 		Short: "Search operator-visible registry tools",
 		Example: `  # Search tools by descriptor text
   agh tool search skill -o json
@@ -266,7 +290,7 @@ func newToolsetsCommand(deps commandDeps) *cobra.Command {
 func newToolsetsListCommand(deps commandDeps) *cobra.Command {
 	var scope toolScopeFlags
 	cmd := &cobra.Command{
-		Use:   "list",
+		Use:   toolOperatorListKey,
 		Short: "List registry toolsets",
 		Example: `  # List known toolsets and expansion diagnostics
   agh toolsets list -o json`,
@@ -448,34 +472,30 @@ func writeToolCommandError(cmd *cobra.Command, err error) error {
 }
 
 func toolErrorResponseForError(err error) (ToolErrorResponseRecord, bool) {
-	var apiErr *toolAPIError
-	if errors.As(err, &apiErr) {
+	if apiErr, ok := errors.AsType[*toolAPIError](err); ok {
 		return apiErr.Response(), true
 	}
-	var commandErr *toolCommandError
-	if errors.As(err, &commandErr) {
+	if commandErr, ok := errors.AsType[*toolCommandError](err); ok {
 		return sanitizeToolErrorResponse(commandErr.response), true
 	}
-	var toolErr *toolspkg.ToolError
-	if errors.As(err, &toolErr) {
+	if toolErr, ok := errors.AsType[*toolspkg.ToolError](err); ok {
 		return sanitizeToolErrorResponse(ToolErrorResponseRecord{
 			Error: contract.ToolErrorPayload{
 				Code:        toolErr.Code,
 				Message:     toolErr.Error(),
 				ToolID:      toolErr.ToolID,
 				ReasonCodes: append([]toolspkg.ReasonCode(nil), toolErr.ReasonCodes...),
-				Layer:       "cli",
+				Layer:       toolOperatorCLIKey,
 			},
 		}), true
 	}
-	var validationErr *toolspkg.ValidationError
-	if errors.As(err, &validationErr) {
+	if validationErr, ok := errors.AsType[*toolspkg.ValidationError](err); ok {
 		return sanitizeToolErrorResponse(ToolErrorResponseRecord{
 			Error: contract.ToolErrorPayload{
 				Code:        toolspkg.ErrorCodeInvalidInput,
 				Message:     validationErr.Error(),
 				ReasonCodes: []toolspkg.ReasonCode{validationErr.Reason},
-				Layer:       "cli",
+				Layer:       toolOperatorCLIKey,
 			},
 		}), true
 	}
@@ -495,7 +515,7 @@ func toolValidationCommandError(
 		Code:        toolspkg.ErrorCodeInvalidInput,
 		Message:     message,
 		ReasonCodes: []toolspkg.ReasonCode{reason},
-		Layer:       "cli",
+		Layer:       toolOperatorCLIKey,
 	}
 	if id != "" {
 		payload.ToolID = id
@@ -510,10 +530,17 @@ func toolListBundle(response ToolsResponseRecord) outputBundle {
 	return listBundle(
 		response,
 		response.Tools,
-		"Tools",
+		toolOperatorToolsValue,
 		[]string{"TOOL ID", "BACKEND", "SOURCE", "STATUS", "CALLABLE", "REASONS"},
 		"tools",
-		[]string{"tool_id", "backend", "source", "status", "callable", "reasons"},
+		[]string{
+			toolOperatorToolIDKey,
+			toolOperatorBackendKey,
+			automationSourceKey,
+			automationStatusKey,
+			"callable",
+			toolOperatorReasonsKey,
+		},
 		func(item ToolRecord) []string {
 			return []string{
 				item.Descriptor.ToolID.String(),
@@ -543,13 +570,13 @@ func toolInfoBundle(response *ToolResponseRecord) outputBundle {
 		jsonValue: response,
 		human: func() (string, error) {
 			rows := []keyValue{
-				{Label: "Tool ID", Value: tool.Descriptor.ToolID.String()},
-				{Label: "Title", Value: stringOrDash(tool.Descriptor.DisplayTitle)},
-				{Label: "Backend", Value: string(tool.Descriptor.Backend.Kind)},
-				{Label: "Source", Value: toolSourceSummary(tool.Descriptor.Source)},
+				{Label: toolOperatorToolIDValue, Value: tool.Descriptor.ToolID.String()},
+				{Label: toolOperatorTitleValue, Value: stringOrDash(tool.Descriptor.DisplayTitle)},
+				{Label: toolOperatorBackendValue, Value: string(tool.Descriptor.Backend.Kind)},
+				{Label: toolOperatorSourceValue, Value: toolSourceSummary(tool.Descriptor.Source)},
 				{Label: "Risk", Value: string(tool.Descriptor.Risk)},
 				{Label: "Visibility", Value: string(tool.Descriptor.Visibility)},
-				{Label: "Status", Value: toolAvailabilitySummary(tool.Availability)},
+				{Label: toolOperatorStatusValue, Value: toolAvailabilitySummary(tool.Availability)},
 				{Label: "Callable", Value: formatBool(tool.Decision.Callable)},
 				{Label: "Approval Required", Value: formatBool(tool.Decision.ApprovalRequired)},
 				{
@@ -566,7 +593,14 @@ func toolInfoBundle(response *ToolResponseRecord) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(
 				"tool",
-				[]string{"tool_id", "backend", "source", "status", "callable", "reasons"},
+				[]string{
+					toolOperatorToolIDKey,
+					toolOperatorBackendKey,
+					automationSourceKey,
+					automationStatusKey,
+					"callable",
+					toolOperatorReasonsKey,
+				},
 				[]string{
 					tool.Descriptor.ToolID.String(),
 					string(tool.Descriptor.Backend.Kind),
@@ -587,16 +621,16 @@ func toolApprovalBundle(response ToolApprovalRecord) outputBundle {
 		}{Approval: response},
 		human: func() (string, error) {
 			return renderHumanSection("Tool Approval", []keyValue{
-				{Label: "Tool ID", Value: response.ToolID.String()},
+				{Label: toolOperatorToolIDValue, Value: response.ToolID.String()},
 				{Label: "Approval Token", Value: stringOrDash(response.ApprovalToken)},
 				{Label: "Input Digest", Value: stringOrDash(response.InputDigest)},
-				{Label: "Expires", Value: stringOrDash(formatTime(response.ExpiresAt))},
+				{Label: toolOperatorExpiresValue, Value: stringOrDash(formatTime(response.ExpiresAt))},
 			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject(
 				"tool_approval",
-				[]string{"tool_id", "approval_token", "input_digest", "expires_at"},
+				[]string{toolOperatorToolIDKey, "approval_token", "input_digest", toolOperatorExpiresAtKey},
 				[]string{
 					response.ToolID.String(),
 					response.ApprovalToken,
@@ -613,14 +647,14 @@ func toolInvokeBundle(response ToolInvokeResponseRecord) outputBundle {
 		jsonValue: response,
 		human: func() (string, error) {
 			rows := []keyValue{
-				{Label: "Tool ID", Value: response.ToolID.String()},
-				{Label: "Status", Value: stringOrDash(response.Status)},
+				{Label: toolOperatorToolIDValue, Value: response.ToolID.String()},
+				{Label: toolOperatorStatusValue, Value: stringOrDash(response.Status)},
 				{Label: "Truncated", Value: formatBool(response.Truncated)},
 				{Label: "Duration", Value: fmt.Sprintf("%dms", response.DurationMS)},
 				{Label: "Bytes", Value: fmt.Sprintf("%d", response.Result.Bytes)},
 			}
 			if preview := strings.TrimSpace(response.Result.Preview); preview != "" {
-				rows = append(rows, keyValue{Label: "Preview", Value: preview})
+				rows = append(rows, keyValue{Label: toolOperatorPreviewValue, Value: preview})
 			}
 			if len(response.Result.Redactions) > 0 {
 				rows = append(
@@ -633,7 +667,7 @@ func toolInvokeBundle(response ToolInvokeResponseRecord) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(
 				"tool_invocation",
-				[]string{"tool_id", "status", "truncated", "duration_ms", "bytes"},
+				[]string{toolOperatorToolIDKey, automationStatusKey, "truncated", "duration_ms", "bytes"},
 				[]string{
 					response.ToolID.String(),
 					response.Status,
@@ -653,7 +687,7 @@ func toolsetListBundle(response ToolsetsResponseRecord) outputBundle {
 		"Toolsets",
 		[]string{"TOOLSET ID", "STATUS", "EXPANDED TOOLS", "REASONS"},
 		"toolsets",
-		[]string{"id", "status", "expanded_tools", "reasons"},
+		[]string{"id", automationStatusKey, "expanded_tools", toolOperatorReasonsKey},
 		func(item ToolsetRecord) []string {
 			return []string{
 				item.ID.String(),
@@ -680,8 +714,8 @@ func toolsetInfoBundle(response ToolsetResponseRecord) outputBundle {
 		human: func() (string, error) {
 			rows := []keyValue{
 				{Label: "Toolset ID", Value: toolset.ID.String()},
-				{Label: "Status", Value: stringOrDash(toolset.Status)},
-				{Label: "Tools", Value: stringOrDash(strings.Join(toolset.Tools, ","))},
+				{Label: toolOperatorStatusValue, Value: stringOrDash(toolset.Status)},
+				{Label: toolOperatorToolsValue, Value: stringOrDash(strings.Join(toolset.Tools, ","))},
 				{
 					Label: "Nested Toolsets",
 					Value: stringOrDash(strings.Join(toolsetIDsToStrings(toolset.Toolsets), ",")),
@@ -697,7 +731,7 @@ func toolsetInfoBundle(response ToolsetResponseRecord) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(
 				"toolset",
-				[]string{"id", "status", "expanded_tools", "reasons"},
+				[]string{"id", automationStatusKey, "expanded_tools", toolOperatorReasonsKey},
 				[]string{
 					toolset.ID.String(),
 					toolset.Status,
@@ -724,7 +758,7 @@ func toolAvailabilitySummary(availability contract.ToolAvailabilityPayload) stri
 	case !availability.Registered:
 		return "unregistered"
 	case !availability.Enabled:
-		return "disabled"
+		return toolOperatorDisabledKey
 	case !availability.Available:
 		return "unavailable"
 	case !availability.Authorized:
@@ -732,7 +766,7 @@ func toolAvailabilitySummary(availability contract.ToolAvailabilityPayload) stri
 	case !availability.Executable:
 		return "not-executable"
 	default:
-		return "available"
+		return toolOperatorAvailableKey
 	}
 }
 
@@ -778,6 +812,5 @@ func formatBool(value bool) string {
 }
 
 const (
-	toolBoolTrue  = "true"
 	toolBoolFalse = "false"
 )

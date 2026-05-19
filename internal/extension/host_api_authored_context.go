@@ -19,6 +19,12 @@ import (
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
+const (
+	hostAPIAuthoredContextExtensionKey = "extension"
+	hostAPIAuthoredContextHostAPIKey   = "host_api"
+	hostAPIAuthoredContextWorkspaceKey = "workspace"
+)
+
 const defaultHostAPIWakeEventLimit = 10
 
 var errHostAPIAuthoredValidation = errors.New("extension: authored context validation")
@@ -568,7 +574,7 @@ func (t hostAPIAuthoredAgentTarget) soulAuthoringTarget() soul.AuthoringTarget {
 		AgentName:     t.agentName,
 		AgentPath:     t.agentPath,
 		Config:        t.soulConfig,
-		ConfigSource:  "workspace",
+		ConfigSource:  hostAPIAuthoredContextWorkspaceKey,
 	}
 }
 
@@ -583,7 +589,7 @@ func (t hostAPIAuthoredAgentTarget) heartbeatAuthoringTarget() heartbeat.Authori
 }
 
 func (t hostAPIAuthoredAgentTarget) soulConfigProvenance() soul.ConfigProvenance {
-	provenance, err := soul.NewConfigProvenance(t.soulConfig, "workspace")
+	provenance, err := soul.NewConfigProvenance(t.soulConfig, hostAPIAuthoredContextWorkspaceKey)
 	if err != nil {
 		return soul.ConfigProvenance{}
 	}
@@ -857,13 +863,13 @@ func hostAPIAgentSoulPayloadFromSnapshot(snapshot soul.Snapshot) (apicontract.Ag
 
 func hostAPISoulActor(ctx context.Context) soul.AuthoringIdentity {
 	return soul.AuthoringIdentity{
-		Kind: "extension",
+		Kind: hostAPIAuthoredContextExtensionKey,
 		Ref:  hostAPIExtensionNameFromContext(ctx),
 	}
 }
 
 func hostAPISoulOrigin(method extensioncontract.HostAPIMethod) soul.AuthoringIdentity {
-	return soul.AuthoringIdentity{Kind: "host_api", Ref: strings.TrimSpace(string(method))}
+	return soul.AuthoringIdentity{Kind: hostAPIAuthoredContextHostAPIKey, Ref: strings.TrimSpace(string(method))}
 }
 
 func hostAPIHeartbeatActor(ctx context.Context) heartbeat.AuthoringIdentity {
@@ -878,7 +884,7 @@ func mapHostAPISoulRPCError(err error) error {
 		return nil
 	}
 	status := hostAPISoulHTTPStatus(err)
-	return hostAPIStatusRPCError(status, http.StatusText(status), map[string]string{"error": err.Error()})
+	return hostAPIStatusRPCError(status, http.StatusText(status), map[string]string{extensionStateError: err.Error()})
 }
 
 func mapHostAPIHeartbeatRPCError(err error) error {
@@ -886,7 +892,7 @@ func mapHostAPIHeartbeatRPCError(err error) error {
 		return nil
 	}
 	status := hostAPIHeartbeatHTTPStatus(err)
-	return hostAPIStatusRPCError(status, http.StatusText(status), map[string]string{"error": err.Error()})
+	return hostAPIStatusRPCError(status, http.StatusText(status), map[string]string{extensionStateError: err.Error()})
 }
 
 func hostAPISoulHTTPStatus(err error) int {

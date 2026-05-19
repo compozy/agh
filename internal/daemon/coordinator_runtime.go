@@ -16,6 +16,11 @@ import (
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
+const (
+	coordinatorRuntimeTaskIDKey      = "task_id"
+	coordinatorRuntimeWorkspaceIDKey = "workspace_id"
+)
+
 type coordinatorTaskStore interface {
 	GetTask(ctx context.Context, id string) (taskpkg.Task, error)
 	GetTaskRun(ctx context.Context, id string) (taskpkg.Run, error)
@@ -565,9 +570,9 @@ func (r *coordinatorRuntime) logCoordinatorError(
 		return
 	}
 	args := []any{
-		"task_id", strings.TrimSpace(payload.TaskID),
+		coordinatorRuntimeTaskIDKey, strings.TrimSpace(payload.TaskID),
 		"run_id", strings.TrimSpace(payload.RunID),
-		"workspace_id", strings.TrimSpace(payload.WorkspaceID),
+		coordinatorRuntimeWorkspaceIDKey, strings.TrimSpace(payload.WorkspaceID),
 		"coordination_channel_id", strings.TrimSpace(payload.CoordinationChannelID),
 	}
 	if err != nil {

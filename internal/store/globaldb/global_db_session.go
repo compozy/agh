@@ -11,6 +11,10 @@ import (
 	"github.com/pedronauck/agh/internal/store"
 )
 
+const (
+	globalDBSessionLocalKey = "local"
+)
+
 // RegisterSession inserts or refreshes a session index row.
 func (g *GlobalDB) RegisterSession(ctx context.Context, session store.SessionInfo) error {
 	if err := g.checkReady(ctx, "register session"); err != nil {
@@ -896,11 +900,11 @@ func sessionLivenessActivityJSON(meta *store.SessionLivenessMeta) (string, error
 
 func sessionSandboxBackend(meta *store.SessionSandboxMeta) string {
 	if meta == nil {
-		return "local"
+		return globalDBSessionLocalKey
 	}
 	backend := strings.TrimSpace(meta.Backend)
 	if backend == "" {
-		return "local"
+		return globalDBSessionLocalKey
 	}
 	return backend
 }

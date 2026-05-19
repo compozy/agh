@@ -14,6 +14,10 @@ import (
 )
 
 const (
+	repairContentKey = "content"
+)
+
+const (
 	RepairSeverityInfo    = "info"
 	RepairSeverityWarning = "warning"
 	RepairSeverityError   = "error"
@@ -504,10 +508,10 @@ func interruptedToolResultRaw(toolCallID string, toolName string) (json.RawMessa
 			"stderr": repairInterruptedToolMessage,
 			"error":  repairInterruptedToolMessage,
 		},
-		"content": []map[string]any{
+		repairContentKey: []map[string]any{
 			{
-				"type": "content",
-				"content": map[string]string{
+				"type": repairContentKey,
+				repairContentKey: map[string]string{
 					"type": "text",
 					"text": repairInterruptedToolMessage,
 				},

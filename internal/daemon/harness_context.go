@@ -9,6 +9,17 @@ import (
 	"github.com/pedronauck/agh/internal/session"
 )
 
+const (
+	harnessContextFalseKey                   = "false"
+	harnessContextHarnessChannelBoundPath    = "harness.channel_bound"
+	harnessContextHarnessDiagnosticLabelPath = "harness.diagnostic_label"
+	harnessContextHarnessSessionClassPath    = "harness.session_class"
+	harnessContextHarnessSessionTypePath     = "harness.session_type"
+	harnessContextHarnessSurfacePath         = "harness.surface"
+	harnessContextHarnessTurnOriginPath      = "harness.turn_origin"
+	harnessContextTrueKey                    = "true"
+)
+
 // TurnOrigin identifies the resolved harness origin for one turn.
 type TurnOrigin string
 
@@ -592,12 +603,12 @@ func buildHarnessObservabilityTags(
 	policy ResolvedHarnessPolicy,
 ) map[string]string {
 	tags := map[string]string{
-		"harness.surface":          string(surface),
-		"harness.session_type":     string(sessionCtx.Type),
-		"harness.session_class":    string(policy.SessionClass),
-		"harness.turn_origin":      string(policy.TurnOrigin),
-		"harness.channel_bound":    boolTag(sessionCtx.ChannelBound),
-		"harness.diagnostic_label": policy.DiagnosticLabel,
+		harnessContextHarnessSurfacePath:         string(surface),
+		harnessContextHarnessSessionTypePath:     string(sessionCtx.Type),
+		harnessContextHarnessSessionClassPath:    string(policy.SessionClass),
+		harnessContextHarnessTurnOriginPath:      string(policy.TurnOrigin),
+		harnessContextHarnessChannelBoundPath:    boolTag(sessionCtx.ChannelBound),
+		harnessContextHarnessDiagnosticLabelPath: policy.DiagnosticLabel,
 	}
 	if turnCtx.Synthetic != nil {
 		tags["harness.synthetic_reason"] = turnCtx.Synthetic.Reason
@@ -616,7 +627,7 @@ func buildHarnessObservabilityTags(
 
 func boolTag(value bool) string {
 	if value {
-		return "true"
+		return harnessContextTrueKey
 	}
-	return "false"
+	return harnessContextFalseKey
 }

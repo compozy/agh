@@ -25,6 +25,23 @@ import (
 )
 
 const (
+	providerPromptedKey = "prompted"
+)
+
+const (
+	providerAgentSessionEventValue = "AgentSessionEvent"
+	providerCommentValue           = "Comment"
+	providerActionKey              = "action"
+	providerCommentKey             = "comment"
+	providerCreateKey              = "create"
+	providerCreatedKey             = "created"
+	providerLinearKey              = "linear"
+	providerModeKey                = "mode"
+	providerOrganizationIDKey      = "organization_id"
+	providerURLKey                 = "url"
+)
+
+const (
 	linearListenAddrEnv = "AGH_BRIDGE_LINEAR_LISTEN_ADDR"
 	linearAPIBaseEnv    = "AGH_BRIDGE_LINEAR_API_BASE_URL"
 
@@ -237,7 +254,7 @@ func newLinearProvider(stderr io.Writer) (*linearProvider, error) {
 
 	sdkRuntime, err := bridgesdk.NewRuntime(bridgesdk.RuntimeConfig{
 		ExtensionInfo: subprocess.InitializeExtensionInfo{
-			Name:    "linear",
+			Name:    providerLinearKey,
 			Version: "0.1.0",
 			SDKName: "bridgesdk",
 		},
@@ -952,9 +969,9 @@ func (p *linearProvider) handleWebhookRequest(
 	defer cancel()
 
 	switch strings.TrimSpace(eventType) {
-	case "Comment":
+	case providerCommentValue:
 		return p.handleLinearCommentWebhook(ctx, w, candidates, request)
-	case "AgentSessionEvent":
+	case providerAgentSessionEventValue:
 		return p.handleLinearAgentSessionWebhook(ctx, w, candidates, request)
 	default:
 		return writeWebhookText(w, http.StatusOK, "ok")
@@ -1285,12 +1302,12 @@ func mapLinearCommentCreated(
 		RootCommentID: strings.TrimSpace(rootCommentID),
 	})
 	providerMetadata, err := json.Marshal(map[string]any{
-		"organization_id": payload.OrganizationID,
-		"issue_id":        strings.TrimSpace(comment.IssueID),
-		"comment_id":      commentID,
-		"root_comment_id": strings.TrimSpace(rootCommentID),
-		"mode":            linearModeComments,
-		"url":             strings.TrimSpace(payload.URL),
+		providerOrganizationIDKey: payload.OrganizationID,
+		"issue_id":                strings.TrimSpace(comment.IssueID),
+		"comment_id":              commentID,
+		"root_comment_id":         strings.TrimSpace(rootCommentID),
+		providerModeKey:           linearModeComments,
+		providerURLKey:            strings.TrimSpace(payload.URL),
 	})
 	if err != nil {
 		return linearMappedInbound{}, false, err
@@ -1361,13 +1378,13 @@ func mapLinearAgentSessionEvent(
 		AgentSessionID: sessionID,
 	})
 	providerMetadata, err := json.Marshal(map[string]any{
-		"organization_id":  payload.OrganizationID,
-		"issue_id":         issueID,
-		"root_comment_id":  rootCommentID,
-		"agent_session_id": sessionID,
-		"prompt_context":   strings.TrimSpace(payload.PromptContext),
-		"mode":             linearModeAgentSessions,
-		"action":           action,
+		providerOrganizationIDKey: payload.OrganizationID,
+		"issue_id":                issueID,
+		"root_comment_id":         rootCommentID,
+		"agent_session_id":        sessionID,
+		"prompt_context":          strings.TrimSpace(payload.PromptContext),
+		providerModeKey:           linearModeAgentSessions,
+		providerActionKey:         action,
 	})
 	if err != nil {
 		return linearMappedInbound{}, false, err
@@ -1437,9 +1454,9 @@ func selectLinearWebhookSignatureCandidates(
 
 func linearWebhookModeForType(eventType string) (string, bool) {
 	switch strings.TrimSpace(eventType) {
-	case "Comment":
+	case providerCommentValue:
 		return linearModeComments, true
-	case "AgentSessionEvent":
+	case providerAgentSessionEventValue:
 		return linearModeAgentSessions, true
 	default:
 		return "", false
@@ -1565,7 +1582,7 @@ func deliveryStateKey(instanceID string, deliveryID string) string {
 func normalizeLinearMode(value string) string {
 	normalized := strings.ToLower(strings.TrimSpace(value))
 	switch normalized {
-	case "comments", "comment":
+	case "comments", providerCommentKey:
 		return linearModeComments
 	case "agent_sessions", "agent-sessions", "agent_session", "agent-session":
 		return linearModeAgentSessions
@@ -1649,7 +1666,7 @@ func (p *linearProvider) handleLinearCommentWebhook(
 	if !ok {
 		return writeWebhookText(w, http.StatusOK, "ignored")
 	}
-	if strings.TrimSpace(payload.Action) != "create" {
+	if strings.TrimSpace(payload.Action) != providerCreateKey {
 		return writeWebhookText(w, http.StatusOK, "ok")
 	}
 
@@ -1809,7 +1826,7 @@ func resumeLinearAgentSessionDelivery(
 
 func shouldProcessLinearAgentSessionAction(action string) bool {
 	switch action {
-	case "created", "prompted":
+	case providerCreatedKey, providerPromptedKey:
 		return true
 	default:
 		return false
@@ -1829,7 +1846,7 @@ func mapLinearAgentSessionMessage(
 	payload linearAgentSessionWebhookPayload,
 ) (string, string, bridgepkg.MessageSender, error) {
 	switch action {
-	case "created":
+	case providerCreatedKey:
 		if payload.AgentSession.Comment == nil {
 			return "", "", bridgepkg.MessageSender{}, errors.New(
 				"linear: created agent session event is missing comment payload",
@@ -1843,7 +1860,7 @@ func mapLinearAgentSessionMessage(
 				DisplayName: firstNonEmpty(actorName(payload.AgentSession.Creator), payload.Actor.Name),
 			},
 			nil
-	case "prompted":
+	case providerPromptedKey:
 		if payload.AgentActivity == nil {
 			return "", "", bridgepkg.MessageSender{}, errors.New(
 				"linear: prompted agent session event is missing agentActivity",

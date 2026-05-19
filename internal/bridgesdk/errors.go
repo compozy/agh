@@ -174,23 +174,19 @@ func ClassifyError(err error) ClassifiedError {
 }
 
 func classifyTypedProviderError(err error) (ClassifiedError, bool) {
-	var authErr *AuthError
-	if errors.As(err, &authErr) {
+	if authErr, ok := errors.AsType[*AuthError](err); ok && authErr != nil {
 		return classifiedProviderError(err, ErrorClassAuth, 0), true
 	}
 
-	var rateLimitErr *RateLimitError
-	if errors.As(err, &rateLimitErr) {
+	if rateLimitErr, ok := errors.AsType[*RateLimitError](err); ok {
 		return classifiedProviderError(err, ErrorClassRateLimit, rateLimitErr.RetryAfter), true
 	}
 
-	var permanentErr *PermanentError
-	if errors.As(err, &permanentErr) {
+	if permanentErr, ok := errors.AsType[*PermanentError](err); ok && permanentErr != nil {
 		return classifiedProviderError(err, ErrorClassPermanent, 0), true
 	}
 
-	var transientErr *TransientError
-	if errors.As(err, &transientErr) {
+	if transientErr, ok := errors.AsType[*TransientError](err); ok && transientErr != nil {
 		return classifiedProviderError(err, ErrorClassTransient, 0), true
 	}
 

@@ -26,6 +26,21 @@ import (
 )
 
 const (
+	providerAghBridgeDeliveryKey = "agh_bridge_delivery"
+	providerBridgeInstanceIDKey  = "bridge_instance_id"
+	providerChannelIDKey         = "channel_id"
+	providerChannelNameKey       = "channel_name"
+	providerDeliveryIDKey        = "delivery_id"
+	providerMessageKey           = "message"
+	providerReactionAddedKey     = "reaction_added"
+	providerResponseURLKey       = "response_url"
+	providerSlackKey             = "slack"
+	providerTeamIDKey            = "team_id"
+	providerTriggerIDKey         = "trigger_id"
+	providerTypeKey              = "type"
+)
+
+const (
 	slackListenAddrEnv = "AGH_BRIDGE_SLACK_LISTEN_ADDR"
 	slackAPIBaseEnv    = "AGH_BRIDGE_SLACK_API_BASE_URL"
 
@@ -343,7 +358,7 @@ func newSlackProvider(stderr io.Writer) (*slackProvider, error) {
 
 	sdkRuntime, err := bridgesdk.NewRuntime(bridgesdk.RuntimeConfig{
 		ExtensionInfo: subprocess.InitializeExtensionInfo{
-			Name:    "slack",
+			Name:    providerSlackKey,
 			Version: "0.1.0",
 			SDKName: "bridgesdk",
 		},
@@ -465,10 +480,10 @@ func (p *slackProvider) handleBridgesDeliver(
 	if shouldCrashOnce(p.env.crashOncePath) {
 		p.reportSideEffectError("write pre-crash delivery marker", appendJSONLine(p.env.deliveryPath, marker))
 		p.reportSideEffectError("write crash marker", writeJSONFile(p.env.crashOncePath, map[string]any{
-			"crashed":            true,
-			"pid":                os.Getpid(),
-			"delivery_id":        strings.TrimSpace(request.Event.DeliveryID),
-			"bridge_instance_id": cfg.instanceID,
+			"crashed":                   true,
+			"pid":                       os.Getpid(),
+			providerDeliveryIDKey:       strings.TrimSpace(request.Event.DeliveryID),
+			providerBridgeInstanceIDKey: cfg.instanceID,
 		}))
 		os.Exit(23)
 	}
@@ -1166,9 +1181,9 @@ func (p *slackProvider) handleJSONWebhook(
 	}
 
 	switch strings.TrimSpace(eventType.Type) {
-	case "message", "app_mention":
+	case providerMessageKey, "app_mention":
 		return p.handleSlackMessageJSONEvent(ctx, w, cfg, request, payload)
-	case "reaction_added", "reaction_removed":
+	case providerReactionAddedKey, "reaction_removed":
 		return p.handleSlackReactionJSONEvent(ctx, w, cfg, request, payload)
 	default:
 		return writeWebhookOK(w)
@@ -1560,7 +1575,7 @@ func slackCreateAck(
 
 func slackDeliveryMetadata(event bridgepkg.DeliveryEvent) *slackMessageMetadata {
 	return &slackMessageMetadata{
-		EventType: "agh_bridge_delivery",
+		EventType: providerAghBridgeDeliveryKey,
 		EventPayload: slackMessageMetadataPayload{
 			BridgeInstanceID: strings.TrimSpace(event.BridgeInstanceID),
 			DeliveryID:       strings.TrimSpace(event.DeliveryID),
@@ -1685,14 +1700,14 @@ func mapSlackMessageEvent(
 		envelope.ThreadID = threadID
 	}
 	metadata, err := json.Marshal(map[string]any{
-		"channel_id":   strings.TrimSpace(event.Channel),
-		"channel_type": strings.TrimSpace(event.ChannelType),
-		"event_id":     strings.TrimSpace(eventID),
-		"subtype":      strings.TrimSpace(event.Subtype),
-		"team_id":      firstNonEmpty(strings.TrimSpace(event.TeamID), strings.TrimSpace(teamID)),
-		"thread_ts":    strings.TrimSpace(event.ThreadTS),
-		"ts":           strings.TrimSpace(event.TS),
-		"type":         strings.TrimSpace(event.Type),
+		providerChannelIDKey: strings.TrimSpace(event.Channel),
+		"channel_type":       strings.TrimSpace(event.ChannelType),
+		"event_id":           strings.TrimSpace(eventID),
+		"subtype":            strings.TrimSpace(event.Subtype),
+		providerTeamIDKey:    firstNonEmpty(strings.TrimSpace(event.TeamID), strings.TrimSpace(teamID)),
+		"thread_ts":          strings.TrimSpace(event.ThreadTS),
+		"ts":                 strings.TrimSpace(event.TS),
+		providerTypeKey:      strings.TrimSpace(event.Type),
 	})
 	if err == nil {
 		envelope.ProviderMetadata = metadata
@@ -1712,12 +1727,12 @@ func mapSlackSlashCommand(
 		receivedAt = time.Now().UTC()
 	}
 	command := strings.TrimSpace(values.Get("command"))
-	channelID := strings.TrimSpace(values.Get("channel_id"))
+	channelID := strings.TrimSpace(values.Get(providerChannelIDKey))
 	userID := normalizeSlackUserID(values.Get("user_id"))
 	if command == "" || channelID == "" || userID == "" {
 		return slackMappedInbound{}, errors.New("slack: slash command requires command, channel_id, and user_id")
 	}
-	direct := isSlackSlashCommandDirect(values.Get("channel_name"), channelID)
+	direct := isSlackSlashCommandDirect(values.Get(providerChannelNameKey), channelID)
 	user := slackUserIdentity{
 		ID:          userID,
 		Username:    normalizeUsername(values.Get("user_name")),
@@ -1738,10 +1753,10 @@ func mapSlackSlashCommand(
 		Command: &bridgepkg.InboundCommand{
 			Command:   command,
 			Text:      strings.TrimSpace(values.Get("text")),
-			TriggerID: strings.TrimSpace(values.Get("trigger_id")),
+			TriggerID: strings.TrimSpace(values.Get(providerTriggerIDKey)),
 		},
 		IdempotencyKey: firstNonEmpty(
-			strings.TrimSpace(values.Get("trigger_id")),
+			strings.TrimSpace(values.Get(providerTriggerIDKey)),
 			fmt.Sprintf("slack:%s:command:%s:%s:%s", managed.Instance.ID, channelID, userID, command),
 		),
 	}
@@ -1753,12 +1768,12 @@ func mapSlackSlashCommand(
 		envelope.ThreadID = slackDirectRootThreadID(channelID)
 	}
 	metadata, err := json.Marshal(map[string]any{
-		"channel_id":   channelID,
-		"channel_name": strings.TrimSpace(values.Get("channel_name")),
-		"response_url": strings.TrimSpace(values.Get("response_url")),
-		"team_id":      strings.TrimSpace(values.Get("team_id")),
-		"trigger_id":   strings.TrimSpace(values.Get("trigger_id")),
-		"type":         "slash_command",
+		providerChannelIDKey:   channelID,
+		providerChannelNameKey: strings.TrimSpace(values.Get(providerChannelNameKey)),
+		providerResponseURLKey: strings.TrimSpace(values.Get(providerResponseURLKey)),
+		providerTeamIDKey:      strings.TrimSpace(values.Get(providerTeamIDKey)),
+		providerTriggerIDKey:   strings.TrimSpace(values.Get(providerTriggerIDKey)),
+		providerTypeKey:        "slash_command",
 	})
 	if err == nil {
 		envelope.ProviderMetadata = metadata
@@ -1910,16 +1925,16 @@ func slackBlockActionMetadata(
 	ctx slackBlockActionContext,
 ) ([]byte, error) {
 	return json.Marshal(map[string]any{
-		"action_ts":    strings.TrimSpace(action.ActionTS),
-		"block_id":     strings.TrimSpace(action.BlockID),
-		"channel_id":   ctx.channelID,
-		"container":    strings.TrimSpace(payload.Container.Type),
-		"is_ephemeral": payload.Container.IsEphemeral,
-		"message_ts":   ctx.messageTS,
-		"response_url": strings.TrimSpace(payload.ResponseURL),
-		"thread_ts":    strings.TrimSpace(ctx.threadTS),
-		"trigger_id":   strings.TrimSpace(payload.TriggerID),
-		"type":         strings.TrimSpace(action.Type),
+		"action_ts":            strings.TrimSpace(action.ActionTS),
+		"block_id":             strings.TrimSpace(action.BlockID),
+		providerChannelIDKey:   ctx.channelID,
+		"container":            strings.TrimSpace(payload.Container.Type),
+		"is_ephemeral":         payload.Container.IsEphemeral,
+		"message_ts":           ctx.messageTS,
+		providerResponseURLKey: strings.TrimSpace(payload.ResponseURL),
+		"thread_ts":            strings.TrimSpace(ctx.threadTS),
+		providerTriggerIDKey:   strings.TrimSpace(payload.TriggerID),
+		providerTypeKey:        strings.TrimSpace(action.Type),
 	})
 }
 
@@ -1930,7 +1945,7 @@ func mapSlackReactionEvent(
 	eventID string,
 	teamID string,
 ) (slackMappedInbound, error) {
-	if strings.TrimSpace(event.Item.Type) != "message" {
+	if strings.TrimSpace(event.Item.Type) != providerMessageKey {
 		return slackMappedInbound{}, errors.New("slack: reaction event item.type must be message")
 	}
 	if strings.TrimSpace(event.Item.Channel) == "" || strings.TrimSpace(event.Item.TS) == "" ||
@@ -1960,7 +1975,7 @@ func mapSlackReactionEvent(
 			MessageID: strings.TrimSpace(event.Item.TS),
 			Emoji:     normalizeSlackEmoji(event.Reaction),
 			RawEmoji:  strings.TrimSpace(event.Reaction),
-			Added:     strings.TrimSpace(event.Type) == "reaction_added",
+			Added:     strings.TrimSpace(event.Type) == providerReactionAddedKey,
 		},
 		IdempotencyKey: firstNonEmpty(
 			strings.TrimSpace(event.EventTS),
@@ -1983,13 +1998,13 @@ func mapSlackReactionEvent(
 		envelope.ThreadID = strings.TrimSpace(event.Item.TS)
 	}
 	metadata, err := json.Marshal(map[string]any{
-		"channel_id": strings.TrimSpace(event.Item.Channel),
-		"event_id":   strings.TrimSpace(eventID),
-		"event_ts":   strings.TrimSpace(event.EventTS),
-		"item_user":  strings.TrimSpace(event.ItemUser),
-		"message_ts": strings.TrimSpace(event.Item.TS),
-		"team_id":    strings.TrimSpace(teamID),
-		"type":       strings.TrimSpace(event.Type),
+		providerChannelIDKey: strings.TrimSpace(event.Item.Channel),
+		"event_id":           strings.TrimSpace(eventID),
+		"event_ts":           strings.TrimSpace(event.EventTS),
+		"item_user":          strings.TrimSpace(event.ItemUser),
+		"message_ts":         strings.TrimSpace(event.Item.TS),
+		providerTeamIDKey:    strings.TrimSpace(teamID),
+		providerTypeKey:      strings.TrimSpace(event.Type),
 	})
 	if err == nil {
 		envelope.ProviderMetadata = metadata
@@ -2173,7 +2188,7 @@ func slackMetadataMatchesDelivery(
 	if metadata == nil {
 		return false
 	}
-	if strings.TrimSpace(metadata.EventType) != "agh_bridge_delivery" {
+	if strings.TrimSpace(metadata.EventType) != providerAghBridgeDeliveryKey {
 		return false
 	}
 	return strings.TrimSpace(metadata.EventPayload.DeliveryID) == strings.TrimSpace(req.DeliveryID) &&
@@ -2291,17 +2306,17 @@ func isIgnoredSlackMessageEvent(event slackMessageEvent) bool {
 		return true
 	}
 	ignoredSubtypes := map[string]struct{}{
-		"bot_message":     {},
-		"message_changed": {},
-		"message_deleted": {},
-		"message_replied": {},
-		"channel_join":    {},
-		"channel_leave":   {},
-		"channel_topic":   {},
-		"channel_purpose": {},
-		"channel_name":    {},
-		"group_join":      {},
-		"group_leave":     {},
+		"bot_message":          {},
+		"message_changed":      {},
+		"message_deleted":      {},
+		"message_replied":      {},
+		"channel_join":         {},
+		"channel_leave":        {},
+		"channel_topic":        {},
+		"channel_purpose":      {},
+		providerChannelNameKey: {},
+		"group_join":           {},
+		"group_leave":          {},
 	}
 	_, ignored := ignoredSubtypes[strings.TrimSpace(event.Subtype)]
 	return ignored

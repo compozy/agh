@@ -11,6 +11,10 @@ import (
 	"github.com/pedronauck/agh/internal/store"
 )
 
+const (
+	observeEventsAgentLocalValue = "agent-local"
+)
+
 type skillShadowContent struct {
 	SkillName       string `json:"skill_name"`
 	OldSource       string `json:"old_source"`
@@ -166,7 +170,7 @@ func (r *Registry) emitSkillsLoadFailed(ctx context.Context, workspaceID string,
 	path, code, detail := agentLocalLoadErrorDetails(err)
 	content, marshalErr := json.Marshal(skillLoadFailedContent{
 		AgentName:   strings.TrimSpace(agentName),
-		Source:      "agent-local",
+		Source:      observeEventsAgentLocalValue,
 		Path:        path,
 		ErrorCode:   code,
 		ErrorDetail: detail,

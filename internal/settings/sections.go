@@ -17,6 +17,42 @@ import (
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
+const (
+	sectionsTimeoutKey = "timeout"
+)
+
+const (
+	sectionsConsolidateKey            = "consolidate"
+	sectionsControllerKey             = "controller"
+	sectionsDailyKey                  = "daily"
+	sectionsDecisionsKey              = "decisions"
+	sectionsDefaultsKey               = "defaults"
+	sectionsDreamKey                  = "dream"
+	sectionsEnabledKey                = "enabled"
+	sectionsExtensionsKey             = "extensions"
+	sectionsExtractorKey              = "extractor"
+	sectionsGatesKey                  = "gates"
+	sectionsHTTPKey                   = "http"
+	sectionsLlmKey                    = "llm"
+	sectionsMarketplaceKey            = "marketplace"
+	sectionsModeKey                   = "mode"
+	sectionsNoChangesValue            = "no changes"
+	sectionsOperatorWriteRateLimitKey = "operator_write_rate_limit"
+	sectionsPolicyKey                 = "policy"
+	sectionsProviderKey               = "provider"
+	sectionsQueueKey                  = "queue"
+	sectionsRecallKey                 = "recall"
+	sectionsResourcesKey              = "resources"
+	sectionsRestartKey                = "restart"
+	sectionsScoringKey                = "scoring"
+	sectionsSessionKey                = "session"
+	sectionsSignalsKey                = "signals"
+	sectionsSnapshotRateLimitKey      = "snapshot_rate_limit"
+	sectionsTranscriptsKey            = "transcripts"
+	sectionsWeightsKey                = "weights"
+	sectionsWindowKey                 = "window"
+)
+
 func (s *service) GetSection(ctx context.Context, req SectionRequest) (SectionEnvelope, error) {
 	scope, workspaceID, agentName, err := s.resolveSectionScope(req.Section, req.Scope, req.WorkspaceID, req.AgentName)
 	if err != nil {
@@ -364,7 +400,7 @@ func (s *service) updateConfigSection(
 			Scope:    ScopeGlobal,
 			Behavior: MutationBehaviorAppliedNow,
 			Applied:  true,
-			Warnings: []string{"no changes"},
+			Warnings: []string{sectionsNoChangesValue},
 		}, nil
 	}
 
@@ -432,7 +468,7 @@ func (s *service) updateSkillsSection(
 			Scope:    ScopeGlobal,
 			Behavior: MutationBehaviorAppliedNow,
 			Applied:  true,
-			Warnings: []string{"no changes"},
+			Warnings: []string{sectionsNoChangesValue},
 		}, nil
 	}
 
@@ -499,7 +535,7 @@ func (s *service) updateAgentSkillsSection(
 			AgentName:   agentName,
 			Behavior:    MutationBehaviorAppliedNow,
 			Applied:     true,
-			Warnings:    []string{"no changes"},
+			Warnings:    []string{sectionsNoChangesValue},
 		}, nil
 	}
 
@@ -560,7 +596,7 @@ func (s *service) buildGeneralSection(ctx context.Context, cfg *aghconfig.Config
 		},
 		Actions: GeneralActions{
 			Restart: ActionMetadata{
-				Name:      "restart",
+				Name:      sectionsRestartKey,
 				Available: s.restartActionAvailable,
 				Behavior:  MutationBehaviorActionTrigger,
 			},
@@ -583,7 +619,7 @@ func (s *service) buildMemorySection(ctx context.Context, cfg *aghconfig.Config)
 		Health: health,
 		Actions: MemoryActions{
 			Consolidate: ActionMetadata{
-				Name:      "consolidate",
+				Name:      sectionsConsolidateKey,
 				Available: s.consolidateActionAvailable,
 				Behavior:  MutationBehaviorActionTrigger,
 			},
@@ -662,7 +698,7 @@ func (s *service) buildAutomationSection(
 		},
 		Runtime: runtime,
 		Links: []OperationalLink{
-			{Label: "automation", Path: "/automation"},
+			{Label: string(SectionAutomation), Path: "/automation"},
 		},
 	}, nil
 }
@@ -681,7 +717,7 @@ func (s *service) buildNetworkSection(ctx context.Context, cfg *aghconfig.Config
 		Config:  cfg.Network,
 		Runtime: runtime,
 		Links: []OperationalLink{
-			{Label: "network", Path: "/network"},
+			{Label: string(SectionNetwork), Path: "/network"},
 		},
 	}, nil
 }
@@ -918,14 +954,14 @@ func applyGeneralSettings(editor *aghconfig.OverlayEditor, settings GeneralSetti
 		path  []string
 		value any
 	}{
-		{path: []string{"defaults", "agent"}, value: settings.Defaults.Agent},
-		{path: []string{"defaults", "provider"}, value: settings.Defaults.Provider},
-		{path: []string{"defaults", "sandbox"}, value: settings.Defaults.Sandbox},
+		{path: []string{sectionsDefaultsKey, "agent"}, value: settings.Defaults.Agent},
+		{path: []string{sectionsDefaultsKey, sectionsProviderKey}, value: settings.Defaults.Provider},
+		{path: []string{sectionsDefaultsKey, "sandbox"}, value: settings.Defaults.Sandbox},
 		{path: []string{"limits", "max_concurrent_agents"}, value: settings.Limits.MaxConcurrentAgents},
-		{path: []string{"session", "limits", "timeout"}, value: settings.SessionTimeout.String()},
-		{path: []string{"permissions", "mode"}, value: string(settings.Permissions.Mode)},
-		{path: []string{"http", "host"}, value: settings.HTTP.Host},
-		{path: []string{"http", "port"}, value: settings.HTTP.Port},
+		{path: []string{sectionsSessionKey, "limits", sectionsTimeoutKey}, value: settings.SessionTimeout.String()},
+		{path: []string{"permissions", sectionsModeKey}, value: string(settings.Permissions.Mode)},
+		{path: []string{sectionsHTTPKey, "host"}, value: settings.HTTP.Host},
+		{path: []string{sectionsHTTPKey, "port"}, value: settings.HTTP.Port},
 		{path: []string{"daemon", "socket"}, value: settings.Daemon.Socket},
 	}
 	return applyValueUpdates(editor, updates)
@@ -946,8 +982,8 @@ func memorySettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
 		path  []string
 		value any
 	}{
-		{path: []string{"memory", "enabled"}, value: settings.Enabled},
-		{path: []string{"memory", "global_dir"}, value: settings.GlobalDir},
+		{path: []string{string(SectionMemory), sectionsEnabledKey}, value: settings.Enabled},
+		{path: []string{string(SectionMemory), "global_dir"}, value: settings.GlobalDir},
 	}
 	updates = append(updates, memoryControllerSettingsUpdates(settings)...)
 	updates = append(updates, memoryRecallSettingsUpdates(settings)...)
@@ -965,25 +1001,52 @@ func memoryControllerSettingsUpdates(settings *aghconfig.MemoryConfig) []struct 
 		path  []string
 		value any
 	}{
-		{path: []string{"memory", "controller", "mode"}, value: settings.Controller.Mode},
-		{path: []string{"memory", "controller", "max_latency"}, value: settings.Controller.MaxLatency.String()},
-		{path: []string{"memory", "controller", "default_op_on_fail"}, value: settings.Controller.DefaultOpOnFail},
-		{path: []string{"memory", "controller", "llm", "enabled"}, value: settings.Controller.LLM.Enabled},
-		{path: []string{"memory", "controller", "llm", "model"}, value: settings.Controller.LLM.Model},
-		{path: []string{"memory", "controller", "llm", "top_k"}, value: settings.Controller.LLM.TopK},
-		{path: []string{"memory", "controller", "llm", "prompt_version"}, value: settings.Controller.LLM.PromptVersion},
-		{path: []string{"memory", "controller", "llm", "timeout"}, value: settings.Controller.LLM.Timeout.String()},
-		{path: []string{"memory", "controller", "llm", "max_tokens_out"}, value: settings.Controller.LLM.MaxTokensOut},
 		{
-			path:  []string{"memory", "controller", "policy", "max_content_chars"},
+			path:  []string{string(SectionMemory), sectionsControllerKey, sectionsModeKey},
+			value: settings.Controller.Mode,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsControllerKey, "max_latency"},
+			value: settings.Controller.MaxLatency.String(),
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsControllerKey, "default_op_on_fail"},
+			value: settings.Controller.DefaultOpOnFail,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsControllerKey, sectionsLlmKey, sectionsEnabledKey},
+			value: settings.Controller.LLM.Enabled,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsControllerKey, sectionsLlmKey, "model"},
+			value: settings.Controller.LLM.Model,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsControllerKey, sectionsLlmKey, "top_k"},
+			value: settings.Controller.LLM.TopK,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsControllerKey, sectionsLlmKey, "prompt_version"},
+			value: settings.Controller.LLM.PromptVersion,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsControllerKey, sectionsLlmKey, sectionsTimeoutKey},
+			value: settings.Controller.LLM.Timeout.String(),
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsControllerKey, sectionsLlmKey, "max_tokens_out"},
+			value: settings.Controller.LLM.MaxTokensOut,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsControllerKey, sectionsPolicyKey, "max_content_chars"},
 			value: settings.Controller.Policy.MaxContentChars,
 		},
 		{
-			path:  []string{"memory", "controller", "policy", "max_writes_per_min"},
+			path:  []string{string(SectionMemory), sectionsControllerKey, sectionsPolicyKey, "max_writes_per_min"},
 			value: settings.Controller.Policy.MaxWritesPerMin,
 		},
 		{
-			path:  []string{"memory", "controller", "policy", "allow_origins"},
+			path:  []string{string(SectionMemory), sectionsControllerKey, sectionsPolicyKey, "allow_origins"},
 			value: append([]string(nil), settings.Controller.Policy.AllowOrigins...),
 		},
 	}
@@ -997,35 +1060,62 @@ func memoryRecallSettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
 		path  []string
 		value any
 	}{
-		{path: []string{"memory", "recall", "top_k"}, value: settings.Recall.TopK},
-		{path: []string{"memory", "recall", "raw_candidates"}, value: settings.Recall.RawCandidates},
-		{path: []string{"memory", "recall", "fusion"}, value: settings.Recall.Fusion},
-		{path: []string{"memory", "recall", "include_already_surfaced"}, value: settings.Recall.IncludeAlreadySurfaced},
-		{path: []string{"memory", "recall", "include_system"}, value: settings.Recall.IncludeSystem},
-		{path: []string{"memory", "recall", "weights", "bm25_unicode"}, value: settings.Recall.Weights.BM25Unicode},
-		{path: []string{"memory", "recall", "weights", "bm25_trigram"}, value: settings.Recall.Weights.BM25Trigram},
-		{path: []string{"memory", "recall", "weights", "recency"}, value: settings.Recall.Weights.Recency},
-		{path: []string{"memory", "recall", "weights", "recall_signal"}, value: settings.Recall.Weights.RecallSignal},
+		{path: []string{string(SectionMemory), sectionsRecallKey, "top_k"}, value: settings.Recall.TopK},
 		{
-			path:  []string{"memory", "recall", "freshness", "banner_after_days"},
+			path:  []string{string(SectionMemory), sectionsRecallKey, "raw_candidates"},
+			value: settings.Recall.RawCandidates,
+		},
+		{path: []string{string(SectionMemory), sectionsRecallKey, "fusion"}, value: settings.Recall.Fusion},
+		{
+			path:  []string{string(SectionMemory), sectionsRecallKey, "include_already_surfaced"},
+			value: settings.Recall.IncludeAlreadySurfaced,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsRecallKey, "include_system"},
+			value: settings.Recall.IncludeSystem,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsRecallKey, sectionsWeightsKey, "bm25_unicode"},
+			value: settings.Recall.Weights.BM25Unicode,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsRecallKey, sectionsWeightsKey, "bm25_trigram"},
+			value: settings.Recall.Weights.BM25Trigram,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsRecallKey, sectionsWeightsKey, "recency"},
+			value: settings.Recall.Weights.Recency,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsRecallKey, sectionsWeightsKey, "recall_signal"},
+			value: settings.Recall.Weights.RecallSignal,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsRecallKey, "freshness", "banner_after_days"},
 			value: settings.Recall.Freshness.BannerAfterDays,
 		},
-		{path: []string{"memory", "recall", "signals", "queue_capacity"}, value: settings.Recall.Signals.QueueCapacity},
 		{
-			path:  []string{"memory", "recall", "signals", "worker_retry_max"},
+			path:  []string{string(SectionMemory), sectionsRecallKey, sectionsSignalsKey, "queue_capacity"},
+			value: settings.Recall.Signals.QueueCapacity,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsRecallKey, sectionsSignalsKey, "worker_retry_max"},
 			value: settings.Recall.Signals.WorkerRetryMax,
 		},
 		{
-			path:  []string{"memory", "recall", "signals", "metrics_enabled"},
+			path:  []string{string(SectionMemory), sectionsRecallKey, sectionsSignalsKey, "metrics_enabled"},
 			value: settings.Recall.Signals.MetricsEnabled,
 		},
 		{
-			path:  []string{"memory", "decisions", "prune_after_applied_days"},
+			path:  []string{string(SectionMemory), sectionsDecisionsKey, "prune_after_applied_days"},
 			value: settings.Decisions.PruneAfterAppliedDays,
 		},
-		{path: []string{"memory", "decisions", "keep_audit_summary"}, value: settings.Decisions.KeepAuditSummary},
 		{
-			path:  []string{"memory", "decisions", "max_post_content_bytes"},
+			path:  []string{string(SectionMemory), sectionsDecisionsKey, "keep_audit_summary"},
+			value: settings.Decisions.KeepAuditSummary,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsDecisionsKey, "max_post_content_bytes"},
 			value: settings.Decisions.MaxPostContentBytes,
 		},
 	}
@@ -1039,16 +1129,37 @@ func memoryExtractorSettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
 		path  []string
 		value any
 	}{
-		{path: []string{"memory", "extractor", "enabled"}, value: settings.Extractor.Enabled},
-		{path: []string{"memory", "extractor", "mode"}, value: settings.Extractor.Mode},
-		{path: []string{"memory", "extractor", "throttle_turns"}, value: settings.Extractor.ThrottleTurns},
-		{path: []string{"memory", "extractor", "deadline"}, value: settings.Extractor.Deadline.String()},
-		{path: []string{"memory", "extractor", "sandbox_inbox_only"}, value: settings.Extractor.SandboxInboxOnly},
-		{path: []string{"memory", "extractor", "inbox_path"}, value: settings.Extractor.InboxPath},
-		{path: []string{"memory", "extractor", "dlq_path"}, value: settings.Extractor.DLQPath},
-		{path: []string{"memory", "extractor", "model"}, value: settings.Extractor.Model},
-		{path: []string{"memory", "extractor", "queue", "capacity"}, value: settings.Extractor.Queue.Capacity},
-		{path: []string{"memory", "extractor", "queue", "coalesce_max"}, value: settings.Extractor.Queue.CoalesceMax},
+		{
+			path:  []string{string(SectionMemory), sectionsExtractorKey, sectionsEnabledKey},
+			value: settings.Extractor.Enabled,
+		},
+		{path: []string{string(SectionMemory), sectionsExtractorKey, sectionsModeKey}, value: settings.Extractor.Mode},
+		{
+			path:  []string{string(SectionMemory), sectionsExtractorKey, "throttle_turns"},
+			value: settings.Extractor.ThrottleTurns,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsExtractorKey, "deadline"},
+			value: settings.Extractor.Deadline.String(),
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsExtractorKey, "sandbox_inbox_only"},
+			value: settings.Extractor.SandboxInboxOnly,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsExtractorKey, "inbox_path"},
+			value: settings.Extractor.InboxPath,
+		},
+		{path: []string{string(SectionMemory), sectionsExtractorKey, "dlq_path"}, value: settings.Extractor.DLQPath},
+		{path: []string{string(SectionMemory), sectionsExtractorKey, "model"}, value: settings.Extractor.Model},
+		{
+			path:  []string{string(SectionMemory), sectionsExtractorKey, sectionsQueueKey, "capacity"},
+			value: settings.Extractor.Queue.Capacity,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsExtractorKey, sectionsQueueKey, "coalesce_max"},
+			value: settings.Extractor.Queue.CoalesceMax,
+		},
 	}
 }
 
@@ -1060,34 +1171,67 @@ func memoryDreamSettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
 		path  []string
 		value any
 	}{
-		{path: []string{"memory", "dream", "enabled"}, value: settings.Dream.Enabled},
-		{path: []string{"memory", "dream", "agent"}, value: settings.Dream.Agent},
-		{path: []string{"memory", "dream", "min_hours"}, value: settings.Dream.MinHours},
-		{path: []string{"memory", "dream", "min_sessions"}, value: settings.Dream.MinSessions},
-		{path: []string{"memory", "dream", "debounce"}, value: settings.Dream.Debounce.String()},
-		{path: []string{"memory", "dream", "prompt_version"}, value: settings.Dream.PromptVersion},
-		{path: []string{"memory", "dream", "check_interval"}, value: settings.Dream.CheckInterval.String()},
-		{path: []string{"memory", "dream", "gates", "min_unpromoted"}, value: settings.Dream.Gates.MinUnpromoted},
-		{path: []string{"memory", "dream", "gates", "min_recall_count"}, value: settings.Dream.Gates.MinRecallCount},
-		{path: []string{"memory", "dream", "gates", "min_score"}, value: settings.Dream.Gates.MinScore},
+		{path: []string{string(SectionMemory), sectionsDreamKey, sectionsEnabledKey}, value: settings.Dream.Enabled},
+		{path: []string{string(SectionMemory), sectionsDreamKey, "agent"}, value: settings.Dream.Agent},
+		{path: []string{string(SectionMemory), sectionsDreamKey, "min_hours"}, value: settings.Dream.MinHours},
+		{path: []string{string(SectionMemory), sectionsDreamKey, "min_sessions"}, value: settings.Dream.MinSessions},
+		{path: []string{string(SectionMemory), sectionsDreamKey, "debounce"}, value: settings.Dream.Debounce.String()},
 		{
-			path:  []string{"memory", "dream", "scoring", "recency_half_life_days"},
+			path:  []string{string(SectionMemory), sectionsDreamKey, "prompt_version"},
+			value: settings.Dream.PromptVersion,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsDreamKey, "check_interval"},
+			value: settings.Dream.CheckInterval.String(),
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsDreamKey, sectionsGatesKey, "min_unpromoted"},
+			value: settings.Dream.Gates.MinUnpromoted,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsDreamKey, sectionsGatesKey, "min_recall_count"},
+			value: settings.Dream.Gates.MinRecallCount,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsDreamKey, sectionsGatesKey, "min_score"},
+			value: settings.Dream.Gates.MinScore,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsDreamKey, sectionsScoringKey, "recency_half_life_days"},
 			value: settings.Dream.Scoring.RecencyHalfLifeDays,
 		},
 		{
-			path:  []string{"memory", "dream", "scoring", "weights", "frequency"},
+			path: []string{
+				string(SectionMemory),
+				sectionsDreamKey,
+				sectionsScoringKey,
+				sectionsWeightsKey,
+				"frequency",
+			},
 			value: settings.Dream.Scoring.Weights.Frequency,
 		},
 		{
-			path:  []string{"memory", "dream", "scoring", "weights", "relevance"},
+			path: []string{
+				string(SectionMemory),
+				sectionsDreamKey,
+				sectionsScoringKey,
+				sectionsWeightsKey,
+				"relevance",
+			},
 			value: settings.Dream.Scoring.Weights.Relevance,
 		},
 		{
-			path:  []string{"memory", "dream", "scoring", "weights", "recency"},
+			path:  []string{string(SectionMemory), sectionsDreamKey, sectionsScoringKey, sectionsWeightsKey, "recency"},
 			value: settings.Dream.Scoring.Weights.Recency,
 		},
 		{
-			path:  []string{"memory", "dream", "scoring", "weights", "freshness"},
+			path: []string{
+				string(SectionMemory),
+				sectionsDreamKey,
+				sectionsScoringKey,
+				sectionsWeightsKey,
+				"freshness",
+			},
 			value: settings.Dream.Scoring.Weights.Freshness,
 		},
 	}
@@ -1101,24 +1245,54 @@ func memoryRetentionSettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
 		path  []string
 		value any
 	}{
-		{path: []string{"memory", "session", "ledger_format"}, value: settings.Session.LedgerFormat},
-		{path: []string{"memory", "session", "ledger_root"}, value: settings.Session.LedgerRoot},
-		{path: []string{"memory", "session", "events_purge_grace"}, value: settings.Session.EventsPurgeGrace.String()},
-		{path: []string{"memory", "session", "cold_archive_days"}, value: settings.Session.ColdArchiveDays},
-		{path: []string{"memory", "session", "hard_delete_days"}, value: settings.Session.HardDeleteDays},
-		{path: []string{"memory", "session", "max_archive_bytes"}, value: settings.Session.MaxArchiveBytes},
-		{path: []string{"memory", "session", "unbound_partition"}, value: settings.Session.UnboundPartition},
-		{path: []string{"memory", "daily", "max_bytes"}, value: settings.Daily.MaxBytes},
-		{path: []string{"memory", "daily", "max_lines"}, value: settings.Daily.MaxLines},
-		{path: []string{"memory", "daily", "rotate_format"}, value: settings.Daily.RotateFormat},
-		{path: []string{"memory", "daily", "dreaming_window"}, value: settings.Daily.DreamingWindow},
-		{path: []string{"memory", "daily", "cold_archive_days"}, value: settings.Daily.ColdArchiveDays},
-		{path: []string{"memory", "daily", "hard_delete_days"}, value: settings.Daily.HardDeleteDays},
-		{path: []string{"memory", "daily", "max_archive_bytes"}, value: settings.Daily.MaxArchiveBytes},
-		{path: []string{"memory", "daily", "sweep_hour"}, value: settings.Daily.SweepHour},
-		{path: []string{"memory", "daily", "archive_path"}, value: settings.Daily.ArchivePath},
-		{path: []string{"memory", "file", "max_lines"}, value: settings.File.MaxLines},
-		{path: []string{"memory", "file", "max_bytes"}, value: settings.File.MaxBytes},
+		{
+			path:  []string{string(SectionMemory), sectionsSessionKey, "ledger_format"},
+			value: settings.Session.LedgerFormat,
+		},
+		{path: []string{string(SectionMemory), sectionsSessionKey, "ledger_root"}, value: settings.Session.LedgerRoot},
+		{
+			path:  []string{string(SectionMemory), sectionsSessionKey, "events_purge_grace"},
+			value: settings.Session.EventsPurgeGrace.String(),
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsSessionKey, "cold_archive_days"},
+			value: settings.Session.ColdArchiveDays,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsSessionKey, "hard_delete_days"},
+			value: settings.Session.HardDeleteDays,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsSessionKey, "max_archive_bytes"},
+			value: settings.Session.MaxArchiveBytes,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsSessionKey, "unbound_partition"},
+			value: settings.Session.UnboundPartition,
+		},
+		{path: []string{string(SectionMemory), sectionsDailyKey, "max_bytes"}, value: settings.Daily.MaxBytes},
+		{path: []string{string(SectionMemory), sectionsDailyKey, "max_lines"}, value: settings.Daily.MaxLines},
+		{path: []string{string(SectionMemory), sectionsDailyKey, "rotate_format"}, value: settings.Daily.RotateFormat},
+		{
+			path:  []string{string(SectionMemory), sectionsDailyKey, "dreaming_window"},
+			value: settings.Daily.DreamingWindow,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsDailyKey, "cold_archive_days"},
+			value: settings.Daily.ColdArchiveDays,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsDailyKey, "hard_delete_days"},
+			value: settings.Daily.HardDeleteDays,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsDailyKey, "max_archive_bytes"},
+			value: settings.Daily.MaxArchiveBytes,
+		},
+		{path: []string{string(SectionMemory), sectionsDailyKey, "sweep_hour"}, value: settings.Daily.SweepHour},
+		{path: []string{string(SectionMemory), sectionsDailyKey, "archive_path"}, value: settings.Daily.ArchivePath},
+		{path: []string{string(SectionMemory), "file", "max_lines"}, value: settings.File.MaxLines},
+		{path: []string{string(SectionMemory), "file", "max_bytes"}, value: settings.File.MaxBytes},
 	}
 }
 
@@ -1130,11 +1304,20 @@ func memoryProviderSettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
 		path  []string
 		value any
 	}{
-		{path: []string{"memory", "provider", "name"}, value: settings.Provider.Name},
-		{path: []string{"memory", "provider", "timeout"}, value: settings.Provider.Timeout.String()},
-		{path: []string{"memory", "provider", "failure_threshold"}, value: settings.Provider.FailureThreshold},
-		{path: []string{"memory", "provider", "cooldown"}, value: settings.Provider.Cooldown.String()},
-		{path: []string{"memory", "workspace", "auto_create"}, value: settings.Workspace.AutoCreate},
+		{path: []string{string(SectionMemory), sectionsProviderKey, "name"}, value: settings.Provider.Name},
+		{
+			path:  []string{string(SectionMemory), sectionsProviderKey, sectionsTimeoutKey},
+			value: settings.Provider.Timeout.String(),
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsProviderKey, "failure_threshold"},
+			value: settings.Provider.FailureThreshold,
+		},
+		{
+			path:  []string{string(SectionMemory), sectionsProviderKey, "cooldown"},
+			value: settings.Provider.Cooldown.String(),
+		},
+		{path: []string{string(SectionMemory), "workspace", "auto_create"}, value: settings.Workspace.AutoCreate},
 	}
 }
 
@@ -1143,19 +1326,28 @@ func applySkillsSettings(editor *aghconfig.OverlayEditor, settings aghconfig.Ski
 		path  []string
 		value any
 	}{
-		{path: []string{"skills", "enabled"}, value: settings.Enabled},
-		{path: []string{"skills", "disabled_skills"}, value: append([]string(nil), settings.DisabledSkills...)},
-		{path: []string{"skills", "poll_interval"}, value: settings.PollInterval.String()},
+		{path: []string{string(SectionSkills), sectionsEnabledKey}, value: settings.Enabled},
 		{
-			path:  []string{"skills", "allowed_marketplace_mcp"},
+			path:  []string{string(SectionSkills), "disabled_skills"},
+			value: append([]string(nil), settings.DisabledSkills...),
+		},
+		{path: []string{string(SectionSkills), "poll_interval"}, value: settings.PollInterval.String()},
+		{
+			path:  []string{string(SectionSkills), "allowed_marketplace_mcp"},
 			value: append([]string(nil), settings.AllowedMarketplaceMCP...),
 		},
 		{
-			path:  []string{"skills", "allowed_marketplace_hooks"},
+			path:  []string{string(SectionSkills), "allowed_marketplace_hooks"},
 			value: append([]string(nil), settings.AllowedMarketplaceHooks...),
 		},
-		{path: []string{"skills", "marketplace", "registry"}, value: settings.Marketplace.Registry},
-		{path: []string{"skills", "marketplace", "base_url"}, value: settings.Marketplace.BaseURL},
+		{
+			path:  []string{string(SectionSkills), sectionsMarketplaceKey, "registry"},
+			value: settings.Marketplace.Registry,
+		},
+		{
+			path:  []string{string(SectionSkills), sectionsMarketplaceKey, "base_url"},
+			value: settings.Marketplace.BaseURL,
+		},
 	}
 	return applyValueUpdates(editor, updates)
 }
@@ -1165,11 +1357,14 @@ func applyAutomationSettings(editor *aghconfig.OverlayEditor, settings Automatio
 		path  []string
 		value any
 	}{
-		{path: []string{"automation", "enabled"}, value: settings.Enabled},
-		{path: []string{"automation", "timezone"}, value: settings.Timezone},
-		{path: []string{"automation", "max_concurrent_jobs"}, value: settings.MaxConcurrentJobs},
-		{path: []string{"automation", "default_fire_limit", "max"}, value: settings.DefaultFireLimit.Max},
-		{path: []string{"automation", "default_fire_limit", "window"}, value: settings.DefaultFireLimit.Window},
+		{path: []string{string(SectionAutomation), sectionsEnabledKey}, value: settings.Enabled},
+		{path: []string{string(SectionAutomation), "timezone"}, value: settings.Timezone},
+		{path: []string{string(SectionAutomation), "max_concurrent_jobs"}, value: settings.MaxConcurrentJobs},
+		{path: []string{string(SectionAutomation), "default_fire_limit", "max"}, value: settings.DefaultFireLimit.Max},
+		{
+			path:  []string{string(SectionAutomation), "default_fire_limit", sectionsWindowKey},
+			value: settings.DefaultFireLimit.Window,
+		},
 	}
 	return applyValueUpdates(editor, updates)
 }
@@ -1179,13 +1374,13 @@ func applyNetworkSettings(editor *aghconfig.OverlayEditor, settings aghconfig.Ne
 		path  []string
 		value any
 	}{
-		{path: []string{"network", "enabled"}, value: settings.Enabled},
-		{path: []string{"network", "default_channel"}, value: settings.DefaultChannel},
-		{path: []string{"network", "port"}, value: settings.Port},
-		{path: []string{"network", "max_payload"}, value: settings.MaxPayload},
-		{path: []string{"network", "greet_interval"}, value: settings.GreetInterval},
-		{path: []string{"network", "max_replay_age"}, value: settings.MaxReplayAge},
-		{path: []string{"network", "max_queue_depth"}, value: settings.MaxQueueDepth},
+		{path: []string{string(SectionNetwork), sectionsEnabledKey}, value: settings.Enabled},
+		{path: []string{string(SectionNetwork), "default_channel"}, value: settings.DefaultChannel},
+		{path: []string{string(SectionNetwork), "port"}, value: settings.Port},
+		{path: []string{string(SectionNetwork), "max_payload"}, value: settings.MaxPayload},
+		{path: []string{string(SectionNetwork), "greet_interval"}, value: settings.GreetInterval},
+		{path: []string{string(SectionNetwork), "max_replay_age"}, value: settings.MaxReplayAge},
+		{path: []string{string(SectionNetwork), "max_queue_depth"}, value: settings.MaxQueueDepth},
 	}
 	return applyValueUpdates(editor, updates)
 }
@@ -1195,13 +1390,19 @@ func applyObservabilitySettings(editor *aghconfig.OverlayEditor, settings aghcon
 		path  []string
 		value any
 	}{
-		{path: []string{"observability", "enabled"}, value: settings.Enabled},
-		{path: []string{"observability", "retention_days"}, value: settings.RetentionDays},
-		{path: []string{"observability", "max_global_bytes"}, value: settings.MaxGlobalBytes},
-		{path: []string{"observability", "transcripts", "enabled"}, value: settings.Transcripts.Enabled},
-		{path: []string{"observability", "transcripts", "segment_bytes"}, value: settings.Transcripts.SegmentBytes},
+		{path: []string{string(SectionObservability), sectionsEnabledKey}, value: settings.Enabled},
+		{path: []string{string(SectionObservability), "retention_days"}, value: settings.RetentionDays},
+		{path: []string{string(SectionObservability), "max_global_bytes"}, value: settings.MaxGlobalBytes},
 		{
-			path:  []string{"observability", "transcripts", "max_bytes_per_session"},
+			path:  []string{string(SectionObservability), sectionsTranscriptsKey, sectionsEnabledKey},
+			value: settings.Transcripts.Enabled,
+		},
+		{
+			path:  []string{string(SectionObservability), sectionsTranscriptsKey, "segment_bytes"},
+			value: settings.Transcripts.SegmentBytes,
+		},
+		{
+			path:  []string{string(SectionObservability), sectionsTranscriptsKey, "max_bytes_per_session"},
 			value: settings.Transcripts.MaxBytesPerSession,
 		},
 	}
@@ -1213,35 +1414,64 @@ func applyExtensionsSettings(editor *aghconfig.OverlayEditor, settings aghconfig
 		path  []string
 		value any
 	}{
-		{path: []string{"extensions", "marketplace", "registry"}, value: settings.Marketplace.Registry},
-		{path: []string{"extensions", "marketplace", "base_url"}, value: settings.Marketplace.BaseURL},
 		{
-			path:  []string{"extensions", "resources", "allowed_kinds"},
+			path:  []string{sectionsExtensionsKey, sectionsMarketplaceKey, "registry"},
+			value: settings.Marketplace.Registry,
+		},
+		{
+			path:  []string{sectionsExtensionsKey, sectionsMarketplaceKey, "base_url"},
+			value: settings.Marketplace.BaseURL,
+		},
+		{
+			path:  []string{sectionsExtensionsKey, sectionsResourcesKey, "allowed_kinds"},
 			value: resourceKindsToStrings(settings.Resources.AllowedKinds),
 		},
-		{path: []string{"extensions", "resources", "max_scope"}, value: string(settings.Resources.MaxScope)},
 		{
-			path:  []string{"extensions", "resources", "snapshot_rate_limit", "requests"},
+			path:  []string{sectionsExtensionsKey, sectionsResourcesKey, "max_scope"},
+			value: string(settings.Resources.MaxScope),
+		},
+		{
+			path:  []string{sectionsExtensionsKey, sectionsResourcesKey, sectionsSnapshotRateLimitKey, "requests"},
 			value: settings.Resources.SnapshotRateLimit.Requests,
 		},
 		{
-			path:  []string{"extensions", "resources", "snapshot_rate_limit", "window"},
+			path: []string{
+				sectionsExtensionsKey,
+				sectionsResourcesKey,
+				sectionsSnapshotRateLimitKey,
+				sectionsWindowKey,
+			},
 			value: settings.Resources.SnapshotRateLimit.Window.String(),
 		},
 		{
-			path:  []string{"extensions", "resources", "snapshot_rate_limit", "queue"},
+			path: []string{
+				sectionsExtensionsKey,
+				sectionsResourcesKey,
+				sectionsSnapshotRateLimitKey,
+				sectionsQueueKey,
+			},
 			value: settings.Resources.SnapshotRateLimit.Queue,
 		},
 		{
-			path:  []string{"extensions", "resources", "operator_write_rate_limit", "requests"},
+			path:  []string{sectionsExtensionsKey, sectionsResourcesKey, sectionsOperatorWriteRateLimitKey, "requests"},
 			value: settings.Resources.OperatorWriteRateLimit.Requests,
 		},
 		{
-			path:  []string{"extensions", "resources", "operator_write_rate_limit", "window"},
+			path: []string{
+				sectionsExtensionsKey,
+				sectionsResourcesKey,
+				sectionsOperatorWriteRateLimitKey,
+				sectionsWindowKey,
+			},
 			value: settings.Resources.OperatorWriteRateLimit.Window.String(),
 		},
 		{
-			path:  []string{"extensions", "resources", "operator_write_rate_limit", "queue"},
+			path: []string{
+				sectionsExtensionsKey,
+				sectionsResourcesKey,
+				sectionsOperatorWriteRateLimitKey,
+				sectionsQueueKey,
+			},
 			value: settings.Resources.OperatorWriteRateLimit.Queue,
 		},
 	}
@@ -1342,7 +1572,7 @@ func buildSkillsOperationalLinks(scope ScopeKind, workspaceID string, agentName 
 	if encoded := values.Encode(); encoded != "" {
 		path += "?" + encoded
 	}
-	return []OperationalLink{{Label: "skills", Path: path}}
+	return []OperationalLink{{Label: string(SectionSkills), Path: path}}
 }
 
 func (s *service) resolveEffectiveAgent(

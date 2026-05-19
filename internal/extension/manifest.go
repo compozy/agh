@@ -25,6 +25,13 @@ import (
 )
 
 const (
+	manifestMustBeASemanticVersionValue = "must be a semantic version"
+	manifestNameKey                     = "name"
+	manifestNullKey                     = "null"
+	manifestResourcesPublishPath        = "resources.publish"
+)
+
+const (
 	manifestTOMLFileName = "extension.toml"
 	manifestJSONFileName = "extension.json"
 )
@@ -273,7 +280,7 @@ func LoadManifest(dir string) (*Manifest, error) {
 
 // Validate checks the manifest schema and daemon compatibility.
 func (m *Manifest) Validate() error {
-	if err := requireField("name", m.Name); err != nil {
+	if err := requireField(manifestNameKey, m.Name); err != nil {
 		return err
 	}
 	if err := requireField("version", m.Version); err != nil {
@@ -331,7 +338,7 @@ func (m *Manifest) Validate() error {
 		m.Resources.Publish.MaxScope,
 	); err != nil {
 		return &ManifestValidationError{
-			Field:   "resources.publish",
+			Field:   manifestResourcesPublishPath,
 			Message: err.Error(),
 		}
 	}
@@ -344,7 +351,7 @@ func (m *Manifest) validateModelSourceCapability() error {
 	}
 	if _, err := modelcatalog.SourceKindExtensionID(m.Name); err != nil {
 		return &ManifestValidationError{
-			Field:   "name",
+			Field:   manifestNameKey,
 			Value:   m.Name,
 			Message: err.Error(),
 		}
@@ -444,7 +451,7 @@ func (d Duration) MarshalText() ([]byte, error) {
 
 // UnmarshalJSON accepts duration strings and integer nanoseconds.
 func (d *Duration) UnmarshalJSON(data []byte) error {
-	if string(data) == "null" {
+	if string(data) == manifestNullKey {
 		*d = 0
 		return nil
 	}
@@ -536,7 +543,7 @@ func loadManifestJSON(path string) (*Manifest, error) {
 }
 
 func (d *manifestDocument) toManifest() (Manifest, error) {
-	name, err := mergeManifestValue("name", d.Name, d.Extension.Name)
+	name, err := mergeManifestValue(manifestNameKey, d.Name, d.Extension.Name)
 	if err != nil {
 		return Manifest{}, err
 	}
@@ -1092,7 +1099,7 @@ func validateSemanticVersionField(field, value string) error {
 	return &ManifestValidationError{
 		Field:   field,
 		Value:   value,
-		Message: "must be a semantic version",
+		Message: manifestMustBeASemanticVersionValue,
 	}
 }
 
@@ -1108,7 +1115,7 @@ func validateDaemonCompatibility(minVersion string) error {
 		return &ManifestValidationError{
 			Field:   "min_agh_version",
 			Value:   minVersion,
-			Message: "must be a semantic version",
+			Message: manifestMustBeASemanticVersionValue,
 		}
 	}
 

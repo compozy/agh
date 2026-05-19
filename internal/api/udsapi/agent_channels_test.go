@@ -357,7 +357,7 @@ func TestAgentChannelReplyResolvesSourceMessageMetadata(t *testing.T) {
 		source := agentChannelEnvelope(t, "msg-source", "builders", contract.CoordinationMessageRequest)
 		source.From = "reviewer.sess-peer"
 		directID := "direct_reply_01"
-		source.Surface = ptrNetworkSurface(network.SurfaceDirect)
+		source.Surface = new(network.SurfaceDirect)
 		source.DirectID = &directID
 		wantDirectID, _, _, err := network.DirectRoomIdentity("ws-1", "builders", "coder.sess-agent", source.From)
 		if err != nil {
@@ -520,11 +520,6 @@ func agentChannelEnvelopeWithExt(
 		Body:        json.RawMessage(`{"text":"coordination"}`),
 		Ext:         ext,
 	}
-}
-
-//go:fix inline
-func ptrNetworkSurface(value network.Surface) *network.Surface {
-	return new(value)
 }
 
 func misleadingCoordinationExt() network.ExtensionMap {

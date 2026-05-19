@@ -15,6 +15,24 @@ import (
 )
 
 const (
+	toolBoolTrue = "true"
+)
+
+const (
+	lifecycleManagedValue = "Managed"
+	lifecycleManagerValue = "Manager"
+	lifecycleMessageValue = "Message"
+	lifecycleStatusValue  = "Status"
+	lifecycleCommandKey   = "command"
+	lifecycleManagedKey   = "managed"
+	lifecycleManagerKey   = "manager"
+	lifecycleMessageKey   = "message"
+	lifecycleRemovedKey   = "removed"
+	lifecycleStatusKey    = "status"
+	lifecycleUninstallKey = "uninstall"
+)
+
+const (
 	lifecycleStatusDeferred    = "deferred"
 	lifecycleStatusUninstalled = "uninstalled"
 )
@@ -70,24 +88,24 @@ func managedRecommendation(manager string, action string) string {
 
 	switch {
 	case strings.Contains(normalizedManager, "brew") || strings.Contains(normalizedManager, "homebrew"):
-		if strings.Contains(normalizedAction, "uninstall") {
+		if strings.Contains(normalizedAction, lifecycleUninstallKey) {
 			return "Use `brew uninstall compozy/compozy/agh`."
 		}
 		return "Use `brew upgrade compozy/compozy/agh`."
 	case strings.Contains(normalizedManager, "scoop"):
-		if strings.Contains(normalizedAction, "uninstall") {
+		if strings.Contains(normalizedAction, lifecycleUninstallKey) {
 			return "Use `scoop uninstall agh`."
 		}
 		return "Use `scoop update agh`."
 	case strings.Contains(normalizedManager, "nix"):
 		return "Update or remove AGH through your Nix configuration and run `nixos-rebuild switch`."
 	case strings.Contains(normalizedManager, "apt"), strings.Contains(normalizedManager, "deb"):
-		if strings.Contains(normalizedAction, "uninstall") {
+		if strings.Contains(normalizedAction, lifecycleUninstallKey) {
 			return "Use `sudo apt remove agh` or the package name used to install AGH."
 		}
 		return "Use `sudo apt update && sudo apt upgrade agh` or the package name used to install AGH."
 	case strings.Contains(normalizedManager, "dnf"), strings.Contains(normalizedManager, "rpm"):
-		if strings.Contains(normalizedAction, "uninstall") {
+		if strings.Contains(normalizedAction, lifecycleUninstallKey) {
 			return "Use `sudo dnf remove agh` or the package name used to install AGH."
 		}
 		return "Use `sudo dnf upgrade agh` or the package name used to install AGH."
@@ -103,14 +121,14 @@ func newUninstallCommand(deps commandDeps) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "uninstall",
+		Use:   lifecycleUninstallKey,
 		Short: "Stop AGH and remove runtime launch artifacts",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			state := detectManagedState(deps)
 			if state.Managed {
 				record := lifecycleRecord{
-					Command:        "uninstall",
+					Command:        lifecycleUninstallKey,
 					Managed:        state.Managed,
 					Manager:        state.Manager,
 					Status:         lifecycleStatusDeferred,
@@ -130,7 +148,7 @@ func newUninstallCommand(deps commandDeps) *cobra.Command {
 			}
 
 			record := lifecycleRecord{
-				Command: "uninstall",
+				Command: lifecycleUninstallKey,
 				HomeDir: runtime.HomePaths.HomeDir,
 				Managed: state.Managed,
 				Manager: state.Manager,
@@ -225,17 +243,17 @@ func removeFileIfExists(path string) (bool, error) {
 
 func lifecycleBundle(title string, record lifecycleRecord) outputBundle {
 	rows := []keyValue{
-		{Label: "Status", Value: stringOrDash(record.Status)},
-		{Label: "Managed", Value: fmt.Sprintf("%t", record.Managed)},
-		{Label: "Manager", Value: stringOrDash(record.Manager)},
+		{Label: lifecycleStatusValue, Value: stringOrDash(record.Status)},
+		{Label: lifecycleManagedValue, Value: fmt.Sprintf("%t", record.Managed)},
+		{Label: lifecycleManagerValue, Value: stringOrDash(record.Manager)},
 		{Label: "Home", Value: stringOrDash(record.HomeDir)},
-		{Label: "Message", Value: stringOrDash(record.Message)},
+		{Label: lifecycleMessageValue, Value: stringOrDash(record.Message)},
 	}
 	if record.Recommendation != "" {
 		rows = append(rows, keyValue{Label: "Recommendation", Value: record.Recommendation})
 	}
 	if record.DaemonStopped {
-		rows = append(rows, keyValue{Label: "Daemon Stopped", Value: "true"})
+		rows = append(rows, keyValue{Label: "Daemon Stopped", Value: toolBoolTrue})
 	}
 	if len(record.Removed) > 0 {
 		rows = append(rows, keyValue{Label: "Removed", Value: strings.Join(record.Removed, ", ")})
@@ -251,15 +269,15 @@ func lifecycleBundle(title string, record lifecycleRecord) outputBundle {
 			return renderToonObject(
 				strings.ToLower(title),
 				[]string{
-					"command",
-					"status",
-					"managed",
-					"manager",
+					lifecycleCommandKey,
+					lifecycleStatusKey,
+					lifecycleManagedKey,
+					lifecycleManagerKey,
 					"home_dir",
-					"message",
+					lifecycleMessageKey,
 					"recommendation",
 					"daemon_stopped",
-					"removed",
+					lifecycleRemovedKey,
 					"purged",
 				},
 				[]string{

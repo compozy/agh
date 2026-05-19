@@ -15,6 +15,14 @@ import (
 	sqlite3 "modernc.org/sqlite/lib"
 )
 
+const (
+	sqliteWalValue = "-wal"
+)
+
+const (
+	sqliteShmValue = "-shm"
+)
+
 // OpenSQLiteDatabase opens a SQLite database, applies shared configuration,
 // and retries once after moving aside a corrupt file.
 func OpenSQLiteDatabase(
@@ -192,7 +200,7 @@ func recoverSQLiteDatabase(path string) (string, error) {
 	if err := os.Rename(path, corruptPath); err != nil {
 		return "", err
 	}
-	for _, suffix := range []string{"-wal", "-shm"} {
+	for _, suffix := range []string{sqliteWalValue, sqliteShmValue} {
 		if err := renameSQLiteCompanion(path+suffix, corruptPath+suffix); err != nil {
 			return "", err
 		}

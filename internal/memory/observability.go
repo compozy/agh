@@ -16,6 +16,10 @@ import (
 	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
 
+const (
+	observabilityGlobalKey = "global"
+)
+
 type observabilitySource struct {
 	id      string
 	path    string
@@ -33,7 +37,7 @@ func (s *Store) observabilitySources(ctx context.Context, workspaces []string) (
 		path := filepath.Clean(s.catalog.path)
 		globalSource = len(sources)
 		sources = append(sources, observabilitySource{
-			id:      "global",
+			id:      observabilityGlobalKey,
 			path:    path,
 			store:   s,
 			catalog: s.catalog,
@@ -123,7 +127,7 @@ func (s *Store) healthSources(ctx context.Context, workspaces []string) ([]obser
 	}
 
 	for idx := range sources {
-		if sources[idx].id == "global" {
+		if sources[idx].id == observabilityGlobalKey {
 			sources[idx].filters = append(sources[idx].filters, workspaceFilters...)
 			continue
 		}

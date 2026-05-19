@@ -18,6 +18,11 @@ import (
 )
 
 const (
+	sandboxReconcileFoundKey       = "found"
+	sandboxReconcileWorkspaceIDKey = "workspace_id"
+)
+
+const (
 	sandboxReconcileStatePrepared  = "prepared"
 	sandboxReconcileStateDestroyed = "destroyed"
 )
@@ -437,7 +442,7 @@ func sandboxMetaFromSessionState(
 	fallbackState string,
 ) *store.SessionSandboxMeta {
 	envState := strings.TrimSpace(state.State)
-	if envState == "" || envState == "found" || envState == "ready" {
+	if envState == "" || envState == sandboxReconcileFoundKey || envState == string(RestartStatusReady) {
 		envState = fallbackState
 	}
 	return &store.SessionSandboxMeta{
@@ -523,7 +528,7 @@ func sandboxReconcileLogAttrs(
 ) []any {
 	attrs := []any{
 		"session_id", strings.TrimSpace(meta.ID),
-		"workspace_id", strings.TrimSpace(meta.WorkspaceID),
+		sandboxReconcileWorkspaceIDKey, strings.TrimSpace(meta.WorkspaceID),
 		"session_state", strings.TrimSpace(meta.State),
 		"duration_ms", duration.Milliseconds(),
 	}

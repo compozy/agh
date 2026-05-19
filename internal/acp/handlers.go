@@ -110,7 +110,7 @@ func handleInboundRequest[Req any, Resp any](
 ) (any, *acpsdk.RequestError) {
 	var request Req
 	if err := json.Unmarshal(params, &request); err != nil {
-		return nil, acpsdk.NewInvalidParams(map[string]any{"error": err.Error()})
+		return nil, acpsdk.NewInvalidParams(map[string]any{EventTypeError: err.Error()})
 	}
 
 	response, err := fn(ctx, request)
@@ -126,7 +126,7 @@ func handleInboundRequestNoContext[Req any, Resp any](
 ) (any, *acpsdk.RequestError) {
 	var request Req
 	if err := json.Unmarshal(params, &request); err != nil {
-		return nil, acpsdk.NewInvalidParams(map[string]any{"error": err.Error()})
+		return nil, acpsdk.NewInvalidParams(map[string]any{EventTypeError: err.Error()})
 	}
 
 	response, err := fn(request)
@@ -555,16 +555,15 @@ func requestError(err error) *acpsdk.RequestError {
 	if err == nil {
 		return nil
 	}
-	var requestErr *acpsdk.RequestError
-	if errors.As(err, &requestErr) {
+	if requestErr, ok := errors.AsType[*acpsdk.RequestError](err); ok {
 		return requestErr
 	}
 	if errors.Is(err, ErrPermissionDenied) || errors.Is(err, ErrInvalidPath) ||
 		errors.Is(err, ErrPathOutsideWorkspace) ||
 		errors.Is(err, ErrToolBlockedForNetworkTurn) {
-		return acpsdk.NewInvalidParams(map[string]any{"error": err.Error()})
+		return acpsdk.NewInvalidParams(map[string]any{EventTypeError: err.Error()})
 	}
-	return acpsdk.NewInternalError(map[string]any{"error": err.Error()})
+	return acpsdk.NewInternalError(map[string]any{EventTypeError: err.Error()})
 }
 
 func sliceLines(content string, line, limit *int) string {

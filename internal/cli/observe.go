@@ -9,9 +9,26 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	observeTypeKey = "type"
+)
+
+const (
+	observeAgentValue   = "Agent"
+	observeStatusValue  = "Status"
+	observeVersionValue = "Version"
+	observeAgentNameKey = "agent_name"
+	observeDisabledKey  = "disabled"
+	observeEventsKey    = "events"
+	observeHealthKey    = "health"
+	observeObserveKey   = "observe"
+	observeStatusKey    = "status"
+	observeVersionKey   = "version"
+)
+
 func newObserveCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "observe",
+		Use:   observeObserveKey,
 		Short: "Query observability state",
 	}
 
@@ -32,7 +49,7 @@ func newObserveEventsCommand(deps commandDeps) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "events",
+		Use:   observeEventsKey,
 		Short: "Read cross-session observability events",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
@@ -70,7 +87,7 @@ func newObserveEventsCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&session, "session", "", "Filter by session id")
 	cmd.Flags().StringVar(&agent, "agent", "", "Filter by agent name")
-	cmd.Flags().StringVar(&typ, "type", "", "Filter by event type")
+	cmd.Flags().StringVar(&typ, observeTypeKey, "", "Filter by event type")
 	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Workspace root, name, or ID for scoped events")
 	cmd.Flags().StringVar(&since, "since", "", "Show events since an RFC3339 timestamp or relative duration")
 	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N events")
@@ -91,7 +108,7 @@ func writeObserveEventsOutput(cmd *cobra.Command, events []ObserveEventRecord) e
 
 func newObserveHealthCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "health",
+		Use:   observeHealthKey,
 		Short: "Show observability health",
 		Long: `Show observability health.
 
@@ -165,7 +182,7 @@ func streamObserveEvents(cmd *cobra.Command, client DaemonClient, query ObserveE
 			}
 		case OutputToon:
 			if err := writeRawCommandOutput(cmd, renderToonObject("observe_event", []string{
-				"id", "session_id", "type", "agent_name", "summary", "timestamp",
+				"id", automationSessionIDKey, observeTypeKey, observeAgentNameKey, "summary", networkTimestampKey,
 			}, []string{
 				payload.ID,
 				payload.SessionID,
@@ -196,9 +213,9 @@ func observeEventsBundle(events []ObserveEventRecord) outputBundle {
 		events,
 		events,
 		"Observability Events",
-		[]string{"ID", "Session", "Type", "Agent", "Summary", "Timestamp"},
+		[]string{"ID", agentKernelSessionValue, sessionTypeValue, observeAgentValue, "Summary", "Timestamp"},
 		"observe_events",
-		[]string{"id", "session_id", "type", "agent_name", "summary", "timestamp"},
+		[]string{"id", automationSessionIDKey, observeTypeKey, observeAgentNameKey, "summary", networkTimestampKey},
 		func(event ObserveEventRecord) []string {
 			return []string{
 				stringOrDash(event.ID),
@@ -227,7 +244,7 @@ func observeHealthBundle(health HealthStatus) outputBundle {
 		jsonValue: health,
 		human: func() (string, error) {
 			return renderHumanSection("Observe Health", []keyValue{
-				{Label: "Status", Value: stringOrDash(health.Status)},
+				{Label: observeStatusValue, Value: stringOrDash(health.Status)},
 				{Label: "Uptime Seconds", Value: int64OrDash(health.UptimeSeconds)},
 				{Label: "Active Sessions", Value: strconv.Itoa(health.ActiveSessions)},
 				{Label: "Active Agents", Value: strconv.Itoa(health.ActiveAgents)},
@@ -238,12 +255,12 @@ func observeHealthBundle(health HealthStatus) outputBundle {
 				{Label: "Retention Last Sweep", Value: stringOrDash(formatTimePtr(health.Retention.LastSweepAt))},
 				{Label: "Lifecycle Failures", Value: stringOrDash(observeFailureSummary(health))},
 				{Label: "Agent Probes", Value: stringOrDash(observeProbeSummary(health))},
-				{Label: "Version", Value: stringOrDash(health.Version)},
+				{Label: observeVersionValue, Value: stringOrDash(health.Version)},
 			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject("observe_health", []string{
-				"status",
+				observeStatusKey,
 				"uptime_seconds",
 				"active_sessions",
 				"active_agents",
@@ -253,7 +270,7 @@ func observeHealthBundle(health HealthStatus) outputBundle {
 				"retention",
 				"failures",
 				"agent_probes",
-				"version",
+				observeVersionKey,
 			}, []string{
 				health.Status,
 				strconv.FormatInt(health.UptimeSeconds, 10),
@@ -298,7 +315,7 @@ func observeProbeSummary(health HealthStatus) string {
 func observeRetentionSummary(health HealthStatus) string {
 	retention := health.Retention
 	if !retention.Enabled {
-		return "disabled"
+		return observeDisabledKey
 	}
 	return fmt.Sprintf(
 		"%s (%d days, deleted %d rows)",

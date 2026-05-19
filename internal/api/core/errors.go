@@ -29,14 +29,18 @@ import (
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
+const (
+	errorsInternalServerErrorValue = "internal server error"
+	errorsUnknownErrorValue        = "unknown error"
+)
+
 // ErrRequestBodyTooLarge is the shared transport sentinel for request bodies
 // rejected by HTTP MaxBytesReader enforcement.
 var ErrRequestBodyTooLarge = errors.New("request body too large")
 
 // RespondError writes a transport error response, optionally masking internal error details.
 func RespondError(c *gin.Context, status int, err error, maskInternalErrors bool) {
-	var maxBytesErr *http.MaxBytesError
-	if errors.As(err, &maxBytesErr) {
+	if maxBytesErr, ok := errors.AsType[*http.MaxBytesError](err); ok && maxBytesErr != nil {
 		status = http.StatusRequestEntityTooLarge
 		err = ErrRequestBodyTooLarge
 		maskInternalErrors = false
@@ -46,12 +50,12 @@ func RespondError(c *gin.Context, status int, err error, maskInternalErrors bool
 	switch {
 	case maskInternalErrors && status >= http.StatusInternalServerError:
 		if strings.TrimSpace(message) == "" {
-			message = "internal server error"
+			message = errorsInternalServerErrorValue
 		}
 	case err != nil && strings.TrimSpace(err.Error()) != "":
 		message = err.Error()
 	case strings.TrimSpace(message) == "":
-		message = "unknown error"
+		message = errorsUnknownErrorValue
 	}
 
 	message = taskpkg.RedactClaimTokens(message)
@@ -546,12 +550,12 @@ func RespondOpenAIError(c *gin.Context, status int, err error, maskInternalError
 	switch {
 	case maskInternalErrors && status >= http.StatusInternalServerError:
 		if strings.TrimSpace(message) == "" {
-			message = "internal server error"
+			message = errorsInternalServerErrorValue
 		}
 	case err != nil && strings.TrimSpace(err.Error()) != "":
 		message = err.Error()
 	case strings.TrimSpace(message) == "":
-		message = "unknown error"
+		message = errorsUnknownErrorValue
 	}
 	message = taskpkg.RedactClaimTokens(message)
 	c.JSON(status, contract.OpenAIErrorResponse{

@@ -13,6 +13,11 @@ import (
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
+const (
+	taskRoleRuntimeTaskIDKey      = "task_id"
+	taskRoleRuntimeWorkspaceIDKey = "workspace_id"
+)
+
 const taskRoleActivationReasonRunEnqueued = "task_run_enqueued"
 const taskRoleActivationReasonRecovery = "recovery"
 
@@ -161,7 +166,7 @@ func (r *taskRoleRuntime) activateRun(
 	if existing != nil {
 		r.logger.Info(
 			"daemon: task role session already active",
-			"task_id", activation.TaskID,
+			taskRoleRuntimeTaskIDKey, activation.TaskID,
 			"run_id", activation.RunID,
 			"agent_name", activation.AgentName,
 			"channel", activation.Channel,
@@ -177,7 +182,7 @@ func (r *taskRoleRuntime) activateRun(
 	r.logger.Info(
 		"daemon: task role session started",
 		"session_id", info.ID,
-		"task_id", activation.TaskID,
+		taskRoleRuntimeTaskIDKey, activation.TaskID,
 		"run_id", activation.RunID,
 		"agent_name", activation.AgentName,
 		"channel", activation.Channel,
@@ -360,9 +365,9 @@ func (r *taskRoleRuntime) logTaskRoleError(
 		return
 	}
 	args := []any{
-		"task_id", strings.TrimSpace(payload.TaskID),
+		taskRoleRuntimeTaskIDKey, strings.TrimSpace(payload.TaskID),
 		"run_id", strings.TrimSpace(payload.RunID),
-		"workspace_id", strings.TrimSpace(payload.WorkspaceID),
+		taskRoleRuntimeWorkspaceIDKey, strings.TrimSpace(payload.WorkspaceID),
 		"coordination_channel_id", strings.TrimSpace(payload.CoordinationChannelID),
 	}
 	if err != nil {
