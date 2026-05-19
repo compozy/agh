@@ -38,7 +38,7 @@ const (
 	driverBinaryEnvVar        = "AGH_TEST_ACPMOCK_DRIVER_BIN"
 	designSyncScriptPath      = "scripts/sync-design-md.mjs"
 	daytonaSidecarPackage     = "./internal/sandbox/daytona/cmd/agh-daytona-sidecar"
-	daytonaSidecarToolchain   = "1.25.5"
+	daytonaSidecarToolchain   = "1.26.3"
 	daytonaSidecarRegenHint   = "go run github.com/magefile/mage@v1.15.0 " +
 		"daytonaSidecars"
 )
