@@ -87,6 +87,12 @@ vi.mock("fumadocs-ui/layouts/shared", () => ({
   ),
 }));
 
+vi.mock("../header-search-input", () => ({
+  HeaderSearchInput: ({ className }: SlotComponentProps) => (
+    <input aria-label="Search docs" className={className} type="search" />
+  ),
+}));
+
 describe("DocsHeader", () => {
   beforeEach(() => {
     const CollapseTrigger = ({ children, className }: SlotComponentProps) => (
@@ -165,7 +171,8 @@ describe("DocsHeader", () => {
     expect(screen.getByRole("link", { name: "GitHub" }).getAttribute("href")).toBe(
       "https://github.com/compozy"
     );
-    expect(screen.getAllByRole("button", { name: "Search docs" })).toHaveLength(2);
+    expect(screen.getByRole("searchbox", { name: "Search docs" })).toBeDefined();
+    expect(screen.getAllByRole("button", { name: "Search docs" })).toHaveLength(1);
     expect(screen.getByRole("link", { name: "AGH docs home" }).getAttribute("href")).toBe("/");
   });
 

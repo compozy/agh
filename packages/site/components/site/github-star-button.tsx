@@ -17,6 +17,7 @@ export function GitHubStarButton() {
   return (
     <GithubStars username="compozy" repo="agh" inViewOnce={false}>
       <Button
+        nativeButton={false}
         render={
           <Link
             href={GITHUB_REPO_URL}

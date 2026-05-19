@@ -9,6 +9,7 @@ import { usePathname } from "next/navigation";
 import type { ComponentProps } from "react";
 
 import { GitHubStarButton } from "./github-star-button";
+import { HeaderSearchInput } from "./header-search-input";
 
 const primaryLinks = [
   { href: "/", label: "Home" },
@@ -70,7 +71,7 @@ export function HomeHeader(props: ComponentProps<"header">) {
         <div className="ml-auto flex items-center gap-1.5">
           {slots.searchTrigger && (
             <>
-              <slots.searchTrigger.full
+              <HeaderSearchInput
                 hideIfDisabled
                 className="hidden min-w-search-input-min rounded-full border border-line bg-canvas-soft ps-2.5 lg:flex"
               />

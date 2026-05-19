@@ -31,6 +31,12 @@ vi.mock("fumadocs-ui/layouts/home", () => ({
   }),
 }));
 
+vi.mock("../header-search-input", () => ({
+  HeaderSearchInput: ({ className }: SlotComponentProps) => (
+    <input aria-label="Search docs" className={className} type="search" />
+  ),
+}));
+
 vi.mock("next/link", () => ({
   default: ({
     href,
@@ -129,7 +135,8 @@ describe("HomeHeader", () => {
   it("keeps search controls and the GitHub icon link accessible", () => {
     render(<HomeHeader />);
 
-    expect(screen.getAllByRole("button", { name: "Search docs" })).toHaveLength(2);
+    expect(screen.getByRole("searchbox", { name: "Search docs" })).toBeDefined();
+    expect(screen.getAllByRole("button", { name: "Search docs" })).toHaveLength(1);
 
     const githubLink = screen.getByRole("link", { name: "AGH on GitHub" });
     expect(githubLink.getAttribute("href")).toBe("https://github.com/compozy");
@@ -145,5 +152,6 @@ describe("HomeHeader", () => {
     render(<HomeHeader />);
 
     expect(screen.queryByRole("button", { name: "Search docs" })).toBeNull();
+    expect(screen.queryByRole("searchbox", { name: "Search docs" })).toBeNull();
   });
 });

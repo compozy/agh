@@ -6,6 +6,7 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { RootProvider } from "fumadocs-ui/provider/next";
 import { SiteFooter } from "@/components/site/site-footer";
+import { SiteSearchDialog, SiteSearchProvider } from "@/components/site/site-search";
 import { siteConfig } from "@/lib/site-config";
 
 const inter = Inter({
@@ -91,18 +92,21 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         >
           Skip to content
         </a>
-        <RootProvider
-          search={{
-            options: {
-              type: "fetch",
-              api: "/api/search",
-            },
-          }}
-          theme={{ enabled: false }}
-        >
-          {children}
-          <SiteFooter />
-        </RootProvider>
+        <SiteSearchProvider>
+          <RootProvider
+            search={{
+              SearchDialog: SiteSearchDialog,
+              options: {
+                type: "fetch",
+                api: "/api/search",
+              },
+            }}
+            theme={{ enabled: false }}
+          >
+            {children}
+            <SiteFooter />
+          </RootProvider>
+        </SiteSearchProvider>
         <Analytics />
         <SpeedInsights />
       </body>

@@ -12,6 +12,7 @@ import { Sidebar as SidebarIcon } from "lucide-react";
 import { useMemo, type ComponentProps } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { HeaderSearchInput } from "./header-search-input";
 
 type WithUrl = Extract<LinkItemType, { url: string }>;
 
@@ -79,7 +80,7 @@ export function DocsHeader(props: ComponentProps<"header">) {
         </nav>
 
         {slots.searchTrigger && (
-          <slots.searchTrigger.full
+          <HeaderSearchInput
             hideIfDisabled
             className={cn(
               "my-auto ms-auto max-md:hidden",

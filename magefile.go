@@ -23,8 +23,8 @@ import (
 )
 
 const (
-	golangciLintVersion       = "v2.11.4"
-	goplsModernizeVersion     = "v0.21.1"
+	golangciLintVersion       = "v2.12.2"
+	goplsModernizeVersion     = "v0.22.0"
 	gotestsumVersion          = "v1.13.0"
 	binDir                    = "bin"
 	cliBinary                 = "agh"
