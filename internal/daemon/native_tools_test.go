@@ -4156,7 +4156,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		rootResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{SessionID: "sess-root", ActorKind: "agent_root"},
+			toolspkg.Scope{SessionID: "sess-root", ActorKind: " AGENT_ROOT "},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMemoryPropose,
 				Input: json.RawMessage(
@@ -4174,7 +4174,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{SessionID: "sess-child", ActorKind: "agent_subagent"},
+			toolspkg.Scope{SessionID: "sess-child", ActorKind: " Agent_SubAgent "},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMemoryPropose,
 				Input: json.RawMessage(
@@ -4188,7 +4188,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		_, err = registry.Call(
 			t.Context(),
-			toolspkg.Scope{SessionID: "sess-child", ActorKind: "agent_subagent"},
+			toolspkg.Scope{SessionID: "sess-child", ActorKind: "AGENT_SUBAGENT"},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDMemoryNote,
 				Input:  json.RawMessage(`{"content":"Subagent notes are denied."}`),

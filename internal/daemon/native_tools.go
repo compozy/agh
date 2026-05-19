@@ -36,25 +36,38 @@ import (
 )
 
 const (
-	nativeToolsAgentRootKey     = "agent_root"
-	nativeToolsAgentSubagentKey = "agent_subagent"
-	nativeToolsClaimedKey       = "claimed"
-	nativeToolsDirectKey        = "direct"
-	nativeToolsEventsKey        = "events"
-	nativeToolsHealthKey        = "health"
-	nativeToolsHistoryKey       = "history"
-	nativeToolsLeaseKey         = "lease"
-	nativeToolsMessagesKey      = "messages"
-	nativeToolsNoteKey          = "note"
-	nativeToolsRedactedKey      = "redacted"
-	nativeToolsRunsKey          = "runs"
-	nativeToolsScopeKey         = "scope"
-	nativeToolsSessionKey       = "session"
-	nativeToolsSessionsKey      = "sessions"
-	nativeToolsTaskKey          = "task"
-	nativeToolsTextKey          = "text"
-	nativeToolsWorkspaceKey     = "workspace"
+	nativeToolsClaimedKey   = "claimed"
+	nativeToolsDirectKey    = "direct"
+	nativeToolsEventsKey    = "events"
+	nativeToolsHealthKey    = "health"
+	nativeToolsHistoryKey   = "history"
+	nativeToolsLeaseKey     = "lease"
+	nativeToolsMessagesKey  = "messages"
+	nativeToolsNetworkKey   = "network"
+	nativeToolsNoteKey      = "note"
+	nativeToolsProvidersKey = "providers"
+	nativeToolsRedactedKey  = "redacted"
+	nativeToolsRunsKey      = "runs"
+	nativeToolsScopeKey     = "scope"
+	nativeToolsSessionKey   = "session"
+	nativeToolsSessionsKey  = "sessions"
+	nativeToolsSkillsKey    = "skills"
+	nativeToolsTaskKey      = "task"
+	nativeToolsTextKey      = "text"
+	nativeToolsWorkspaceKey = "workspace"
+	nativeToolsAgentsKey    = "agents"
 )
+
+type nativeMemoryActorKind string
+
+const (
+	nativeMemoryActorKindRoot     nativeMemoryActorKind = "agent_root"
+	nativeMemoryActorKindSubagent nativeMemoryActorKind = "agent_subagent"
+)
+
+func normalizeNativeMemoryActorKind(actorKind string) nativeMemoryActorKind {
+	return nativeMemoryActorKind(taskpkg.ActorKind(actorKind).Normalize())
+}
 
 type daemonNativeToolsDeps struct {
 	Registry            func() toolspkg.Registry
@@ -1056,7 +1069,7 @@ func (n *daemonNativeTools) skillList(
 	}
 	payload := core.SkillPayloadsFromSkills(limitSkills(skillList, input.Limit))
 	return structuredResult(
-		map[string]any{string(HarnessPromptSectionSkills): payload},
+		map[string]any{nativeToolsSkillsKey: payload},
 		fmt.Sprintf("%d skills", len(payload)),
 	)
 }
@@ -1077,7 +1090,7 @@ func (n *daemonNativeTools) skillSearch(
 	filtered := searchSkills(skillList, input.Query)
 	payload := core.SkillPayloadsFromSkills(limitSkills(filtered, input.Limit))
 	return structuredResult(
-		map[string]any{string(HarnessPromptSectionSkills): payload},
+		map[string]any{nativeToolsSkillsKey: payload},
 		fmt.Sprintf("%d skills", len(payload)),
 	)
 }
@@ -1157,7 +1170,7 @@ func (n *daemonNativeTools) networkStatus(
 	if payload == nil {
 		return toolspkg.ToolResult{}, errors.New("daemon: network status is required")
 	}
-	return structuredNetworkResult(map[string]any{string(TurnOriginNetwork): payload}, payload.Status)
+	return structuredNetworkResult(map[string]any{nativeToolsNetworkKey: payload}, payload.Status)
 }
 
 func (n *daemonNativeTools) networkChannels(
@@ -2007,11 +2020,11 @@ func (n *daemonNativeTools) workspaceDescribe(
 		return toolspkg.ToolResult{}, err
 	}
 	return structuredResult(map[string]any{
-		nativeToolsWorkspaceKey:            core.WorkspacePayloadFromWorkspace(resolved.Workspace),
-		nativeToolsSessionsKey:             core.SessionPayloadsForWorkspace(sessions, workspaceID),
-		"agents":                           core.AgentPayloadsFromDefs(agents),
-		string(HarnessPromptSectionSkills): core.WorkspaceSkillPayloads(resolved.Skills),
-		"providers":                        core.SessionProviderOptionPayloadsFromConfig(&resolved.Config),
+		nativeToolsWorkspaceKey: core.WorkspacePayloadFromWorkspace(resolved.Workspace),
+		nativeToolsSessionsKey:  core.SessionPayloadsForWorkspace(sessions, workspaceID),
+		nativeToolsAgentsKey:    core.AgentPayloadsFromDefs(agents),
+		nativeToolsSkillsKey:    core.WorkspaceSkillPayloads(resolved.Skills),
+		nativeToolsProvidersKey: core.SessionProviderOptionPayloadsFromConfig(&resolved.Config),
 	}, workspaceID)
 }
 
@@ -4173,32 +4186,36 @@ func (n *daemonNativeTools) memoryCallerActorKind(
 	ctx context.Context,
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
-) (string, error) {
-	if actorKind := strings.TrimSpace(firstNonEmpty(req.ActorKind, scope.ActorKind)); actorKind != "" {
+) (nativeMemoryActorKind, error) {
+	if actorKind := normalizeNativeMemoryActorKind(firstNonEmpty(req.ActorKind, scope.ActorKind)); actorKind != "" {
 		return actorKind, nil
 	}
 	sessionID := strings.TrimSpace(firstNonEmpty(req.SessionID, scope.SessionID))
 	if sessionID == "" || n == nil || n.deps == nil || n.deps.Sessions == nil {
-		return "", nil
+		return nativeMemoryActorKind(""), nil
 	}
 	info, err := n.deps.Sessions.Status(ctx, sessionID)
 	if err != nil {
-		return "", fmt.Errorf("daemon: resolve memory tool caller session %q: %w", sessionID, err)
+		return nativeMemoryActorKind(""), fmt.Errorf(
+			"daemon: resolve memory tool caller session %q: %w",
+			sessionID,
+			err,
+		)
 	}
 	if info != nil && info.Lineage != nil && strings.TrimSpace(info.Lineage.ParentSessionID) != "" {
-		return nativeToolsAgentSubagentKey, nil
+		return nativeMemoryActorKindSubagent, nil
 	}
-	return nativeToolsAgentRootKey, nil
+	return nativeMemoryActorKindRoot, nil
 }
 
 func (n *daemonNativeTools) denySubagentMemoryWrite(
 	ctx context.Context,
 	req toolspkg.CallRequest,
 	location memoryToolLocation,
-	actorKind string,
+	actorKind nativeMemoryActorKind,
 	targetID string,
 ) error {
-	if strings.TrimSpace(actorKind) != nativeToolsAgentSubagentKey {
+	if actorKind != nativeMemoryActorKindSubagent {
 		return nil
 	}
 	cause := fmt.Errorf("%w: sub-agent memory writes are denied", toolspkg.ErrToolDenied)
@@ -4209,7 +4226,7 @@ func (n *daemonNativeTools) denySubagentMemoryWrite(
 			AgentName:   location.AgentName,
 			AgentTier:   location.AgentTier,
 			SessionID:   strings.TrimSpace(req.SessionID),
-			ActorKind:   actorKind,
+			ActorKind:   string(actorKind),
 			TargetID:    targetID,
 			Reason:      string(toolspkg.ReasonMemorySubagentWriteDenied),
 			ToolID:      string(req.ToolID),
@@ -4229,12 +4246,12 @@ func (n *daemonNativeTools) denySubagentMemoryWrite(
 func (n *daemonNativeTools) recordMemoryToolWrite(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
-	actorKind string,
+	actorKind nativeMemoryActorKind,
 ) {
 	if n == nil || n.deps == nil || n.deps.MemoryToolWrites == nil {
 		return
 	}
-	if strings.TrimSpace(actorKind) != nativeToolsAgentRootKey {
+	if actorKind != nativeMemoryActorKindRoot {
 		return
 	}
 	sessionID := strings.TrimSpace(firstNonEmpty(req.SessionID, scope.SessionID))

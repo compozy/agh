@@ -44,7 +44,7 @@ const (
 	defaultDeliveryRetryMaxDelay   = 5 * time.Second
 	deliveryDropReasonQueueFull    = "queue_overflow"
 	networkMessageTrustUntrusted   = "untrusted"
-	protocolGuidanceDirectRoomText = "Direct-room chat uses \x60--kind say --surface direct\x60."
+	protocolGuidanceDirectRoomText = "Direct-room chat uses `--kind say --surface direct`."
 )
 
 type deliveryPrompter interface {
