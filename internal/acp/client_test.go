@@ -2304,7 +2304,7 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 			SessionId: params.SessionId,
 			Command:   "sh",
 			Args:      []string{"-c", "printf terminal-ok"},
-			Cwd:       acpsdk.Ptr(cwd),
+			Cwd:       new(cwd),
 		})
 		if err != nil {
 			return acpsdk.PromptResponse{}, err
@@ -2411,7 +2411,7 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 			SessionId: params.SessionId,
 			Command:   "agh",
 			Args:      []string{"network", "status"},
-			Cwd:       acpsdk.Ptr(cwd),
+			Cwd:       new(cwd),
 		})
 		if err != nil {
 			return acpsdk.PromptResponse{}, err

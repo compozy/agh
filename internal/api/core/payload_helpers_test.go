@@ -472,8 +472,8 @@ func TestCoreConversionHelpers(t *testing.T) {
 			CacheWriteTokens: int64Ptr(5),
 			ContextUsed:      int64Ptr(6),
 			ContextSize:      int64Ptr(7),
-			CostAmount:       float64Ptr(1.23),
-			CostCurrency:     stringPtr("USD"),
+			CostAmount:       new(1.23),
+			CostCurrency:     new("USD"),
 			Timestamp:        now,
 		})
 		if usage == nil || usage.TotalTokens == nil || *usage.TotalTokens != 30 || usage.CostCurrency == nil ||
@@ -819,14 +819,7 @@ func TestObserveHealthPayloadIncludesRuntimeActivity(t *testing.T) {
 	})
 }
 
+//go:fix inline
 func int64Ptr(value int64) *int64 {
-	return &value
-}
-
-func float64Ptr(value float64) *float64 {
-	return &value
-}
-
-func stringPtr(value string) *string {
-	return &value
+	return new(value)
 }

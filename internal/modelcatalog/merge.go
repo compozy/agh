@@ -71,6 +71,10 @@ func mergeModelGroup(rows []ModelRow) Model {
 		}
 		if len(model.ReasoningEfforts) == 0 && len(row.ReasoningEfforts) > 0 {
 			model.ReasoningEfforts = append([]ReasoningEffort(nil), row.ReasoningEfforts...)
+			if model.SupportsReasoning == nil {
+				value := true
+				model.SupportsReasoning = &value
+			}
 		}
 		if model.DefaultReasoningEffort == nil {
 			model.DefaultReasoningEffort = row.DefaultReasoningEffort
@@ -89,7 +93,59 @@ func mergeModelGroup(rows []ModelRow) Model {
 		}
 	}
 	applyAvailability(&model, rows)
+	applyEffectiveReasoningProfile(&model)
 	return model
+}
+
+func applyEffectiveReasoningProfile(model *Model) {
+	if model.SupportsReasoning != nil && !*model.SupportsReasoning {
+		model.ReasoningEfforts = nil
+		model.DefaultReasoningEffort = nil
+		return
+	}
+	if len(model.ReasoningEfforts) > 0 {
+		if model.SupportsReasoning == nil {
+			value := true
+			model.SupportsReasoning = &value
+		}
+		return
+	}
+	if model.SupportsReasoning != nil && *model.SupportsReasoning {
+		applyCanonicalReasoningProfile(model)
+		return
+	}
+	if knownReasoningFamily(model.ModelID) {
+		value := true
+		model.SupportsReasoning = &value
+		applyCanonicalReasoningProfile(model)
+	}
+}
+
+func applyCanonicalReasoningProfile(model *Model) {
+	model.ReasoningEfforts = []ReasoningEffort{
+		ReasoningEffortMinimal,
+		ReasoningEffortLow,
+		ReasoningEffortMedium,
+		ReasoningEffortHigh,
+		ReasoningEffortXHigh,
+	}
+	if model.DefaultReasoningEffort == nil {
+		effort := ReasoningEffortMedium
+		model.DefaultReasoningEffort = &effort
+	}
+}
+
+func knownReasoningFamily(modelID string) bool {
+	trimmed := strings.ToLower(strings.TrimSpace(modelID))
+	if trimmed == "" {
+		return false
+	}
+	segments := strings.Split(trimmed, "/")
+	leaf := strings.TrimSpace(segments[len(segments)-1])
+	return strings.HasPrefix(leaf, "gpt-") ||
+		strings.HasPrefix(leaf, "claude-") ||
+		strings.HasPrefix(leaf, "anthropic.claude-") ||
+		strings.Contains(leaf, ".anthropic.claude-")
 }
 
 func applyAvailability(model *Model, rows []ModelRow) {

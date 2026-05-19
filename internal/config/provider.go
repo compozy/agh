@@ -283,16 +283,16 @@ var builtinProviders = map[string]ProviderConfig{
 				{
 					ID:                     "gpt-5.4",
 					DisplayName:            "GPT-5.4",
-					SupportsTools:          boolRef(true),
-					SupportsReasoning:      boolRef(true),
+					SupportsTools:          new(true),
+					SupportsReasoning:      new(true),
 					ReasoningEfforts:       []string{"minimal", "low", "medium", "high", "xhigh"},
 					DefaultReasoningEffort: "medium",
 				},
 				{
 					ID:                     "gpt-5.4-mini",
 					DisplayName:            "GPT-5.4 Mini",
-					SupportsTools:          boolRef(true),
-					SupportsReasoning:      boolRef(true),
+					SupportsTools:          new(true),
+					SupportsReasoning:      new(true),
 					ReasoningEfforts:       []string{"minimal", "low", "medium", "high", "xhigh"},
 					DefaultReasoningEffort: "medium",
 				},
@@ -351,7 +351,7 @@ var builtinProviders = map[string]ProviderConfig{
 		Command:     "openclaw acp",
 		DisplayName: "OpenClaw",
 		Harness:     ProviderHarnessACP,
-		SessionMCP:  boolRef(false),
+		SessionMCP:  new(false),
 	},
 	"openhands": {
 		Command:     "openhands acp",
@@ -767,7 +767,7 @@ func mergeProvider(base ProviderConfig, override ProviderConfig) ProviderConfig 
 		merged.AuthLoginCmd = override.AuthLoginCmd
 	}
 	if override.SessionMCP != nil {
-		merged.SessionMCP = boolRef(*override.SessionMCP)
+		merged.SessionMCP = new(*override.SessionMCP)
 	}
 	if len(override.Aliases) > 0 {
 		merged.Aliases = cloneStrings(override.Aliases)
@@ -800,7 +800,7 @@ func mergeProviderModelsDiscovery(
 ) ProviderModelsDiscoveryConfig {
 	merged := cloneProviderModelsDiscoveryConfig(base)
 	if override.Enabled != nil {
-		merged.Enabled = boolRef(*override.Enabled)
+		merged.Enabled = new(*override.Enabled)
 	}
 	if strings.TrimSpace(override.Command) != "" {
 		merged.Command = override.Command
@@ -1092,7 +1092,7 @@ func DefaultModelCatalogConfig() ModelCatalogConfig {
 	return ModelCatalogConfig{
 		Sources: ModelCatalogSourcesConfig{
 			ModelsDev: ModelsDevSourceConfig{
-				Enabled:  boolRef(true),
+				Enabled:  new(true),
 				Endpoint: defaultModelsDevEndpoint,
 				TTL:      defaultModelsDevTTL,
 				Timeout:  defaultModelsDevTimeout,
@@ -1501,15 +1501,11 @@ func cloneProvider(src ProviderConfig) ProviderConfig {
 	}
 }
 
-func boolRef(value bool) *bool {
-	return &value
-}
-
 func cloneBoolRef(src *bool) *bool {
 	if src == nil {
 		return nil
 	}
-	return boolRef(*src)
+	return new(*src)
 }
 
 func cloneInt64Ref(src *int64) *int64 {

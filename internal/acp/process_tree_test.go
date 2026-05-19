@@ -65,7 +65,7 @@ func TestTerminalKillTerminatesWrappedProcessTree(t *testing.T) {
 				SessionId: "sess-direct",
 				Command:   "sh",
 				Args:      wrappedCommandArgs("sleep", "30"),
-				Cwd:       acpsdk.Ptr(proc.Cwd),
+				Cwd:       new(proc.Cwd),
 				Env: []acpsdk.EnvVariable{
 					{Name: testWrapperPIDFileEnvKey, Value: pidFile},
 				},

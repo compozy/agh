@@ -331,10 +331,10 @@ func buildTaskUpdateRequest(cmd *cobra.Command, input taskUpdateInput) (UpdateTa
 		if trimmed == "" {
 			return UpdateTaskRequest{}, errors.New("cli: --title cannot be blank")
 		}
-		request.Title = stringPointer(trimmed)
+		request.Title = new(trimmed)
 	}
 	if cmd.Flags().Changed("description") {
-		request.Description = stringPointer(strings.TrimSpace(input.Description))
+		request.Description = new(strings.TrimSpace(input.Description))
 	}
 	if cmd.Flags().Changed("priority") {
 		priority, err := parseOptionalTaskPriority(input.PriorityRaw)
@@ -354,7 +354,7 @@ func buildTaskUpdateRequest(cmd *cobra.Command, input taskUpdateInput) (UpdateTa
 		if err := validateTaskChannelFlag(input.NetworkRaw); err != nil {
 			return UpdateTaskRequest{}, err
 		}
-		request.NetworkChannel = stringPointer(strings.TrimSpace(input.NetworkRaw))
+		request.NetworkChannel = new(strings.TrimSpace(input.NetworkRaw))
 	}
 
 	ownerChanged := cmd.Flags().Changed("owner-kind") || cmd.Flags().Changed("owner-ref")

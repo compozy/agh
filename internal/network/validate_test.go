@@ -88,10 +88,10 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 				ID:          "msg_say_01",
 				Kind:        KindSay,
 				Channel:     "builders",
-				Surface:     surfacePtr(SurfaceThread),
-				ThreadID:    stringPtr("thread_patch_42"),
+				Surface:     new(SurfaceThread),
+				ThreadID:    new("thread_patch_42"),
 				From:        "coder.sess-abc",
-				WorkID:      stringPtr(workID),
+				WorkID:      new(workID),
 				TS:          now.Unix(),
 				Body: mustRawJSON(t, map[string]any{
 					"text":   "working through it",
@@ -109,8 +109,8 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 				ID:          "msg_direct_01",
 				Kind:        KindSay,
 				Channel:     "builders",
-				Surface:     surfacePtr(SurfaceDirect),
-				DirectID:    stringPtr("direct_0123456789abcdef0123456789abcdef"),
+				Surface:     new(SurfaceDirect),
+				DirectID:    new("direct_0123456789abcdef0123456789abcdef"),
 				From:        "coder.sess-abc",
 				To:          &target,
 				WorkID:      &workID,
@@ -132,10 +132,10 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 				ID:          "msg_capability_01",
 				Kind:        KindCapability,
 				Channel:     "builders",
-				Surface:     surfacePtr(SurfaceThread),
-				ThreadID:    stringPtr("thread_patch_42"),
+				Surface:     new(SurfaceThread),
+				ThreadID:    new("thread_patch_42"),
 				From:        "coder.sess-abc",
-				WorkID:      stringPtr(workID),
+				WorkID:      new(workID),
 				TS:          now.Unix(),
 				Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
 					ID:               "review-fix",
@@ -157,11 +157,11 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 				ID:          "msg_receipt_01",
 				Kind:        KindReceipt,
 				Channel:     "builders",
-				Surface:     surfacePtr(SurfaceDirect),
-				DirectID:    stringPtr("direct_0123456789abcdef0123456789abcdef"),
+				Surface:     new(SurfaceDirect),
+				DirectID:    new("direct_0123456789abcdef0123456789abcdef"),
 				From:        "reviewer.sess-xyz",
-				To:          stringPtr(target),
-				WorkID:      stringPtr(workID),
+				To:          new(target),
+				WorkID:      new(workID),
 				TS:          now.Unix(),
 				Body: mustRawJSON(t, map[string]any{
 					"for_id": "msg_direct_01",
@@ -180,11 +180,11 @@ func TestNormalizeEnvelopeValidKinds(t *testing.T) {
 				ID:          "msg_trace_01",
 				Kind:        KindTrace,
 				Channel:     "builders",
-				Surface:     surfacePtr(SurfaceDirect),
-				DirectID:    stringPtr("direct_0123456789abcdef0123456789abcdef"),
+				Surface:     new(SurfaceDirect),
+				DirectID:    new("direct_0123456789abcdef0123456789abcdef"),
 				From:        "reviewer.sess-xyz",
-				To:          stringPtr("coder.sess-abc"),
-				WorkID:      stringPtr(workID),
+				To:          new("coder.sess-abc"),
+				WorkID:      new(workID),
 				TS:          now.Unix(),
 				Body: mustRawJSON(t, map[string]any{
 					"state":   "working",
@@ -238,11 +238,11 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 		ID:          "msg_direct_01",
 		Kind:        KindSay,
 		Channel:     "builders",
-		Surface:     surfacePtr(SurfaceDirect),
-		DirectID:    stringPtr("direct_0123456789abcdef0123456789abcdef"),
+		Surface:     new(SurfaceDirect),
+		DirectID:    new("direct_0123456789abcdef0123456789abcdef"),
 		From:        "coder.sess-abc",
-		To:          stringPtr("reviewer.sess-xyz"),
-		WorkID:      stringPtr("work_patch_42"),
+		To:          new("reviewer.sess-xyz"),
+		WorkID:      new("work_patch_42"),
 		TS:          now.Unix(),
 		Body: mustRawJSON(t, map[string]any{
 			"text": "please review auth.go",
@@ -310,7 +310,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 		{
 			name: "Should reject invalid destination peer IDs",
 			mutate: func(env Envelope) Envelope {
-				env.To = stringPtr("missing channel")
+				env.To = new("missing channel")
 				return env
 			},
 			wantErr:   ErrInvalidField,
@@ -357,7 +357,7 @@ func TestParseEnvelopeRejectsInvalidFields(t *testing.T) {
 		{
 			name: "Should reject expired messages",
 			mutate: func(env Envelope) Envelope {
-				env.ExpiresAt = int64Ptr(now.Add(-time.Second).Unix())
+				env.ExpiresAt = new(now.Add(-time.Second).Unix())
 				return env
 			},
 			wantErr:   ErrExpired,
@@ -566,8 +566,8 @@ func TestValidateEnvelopeConversationContainerInvariants(t *testing.T) {
 		ID:          "msg_surface_01",
 		Kind:        KindSay,
 		Channel:     "builders",
-		Surface:     surfacePtr(SurfaceThread),
-		ThreadID:    stringPtr("thread_patch_42"),
+		Surface:     new(SurfaceThread),
+		ThreadID:    new("thread_patch_42"),
 		From:        "coder.sess-abc",
 		TS:          now.Unix(),
 		Body:        mustRawJSON(t, SayBody{Text: "thread update"}),
@@ -588,11 +588,11 @@ func TestValidateEnvelopeConversationContainerInvariants(t *testing.T) {
 		{
 			name: "Should accept direct surface with direct_id",
 			mutate: func(env Envelope) Envelope {
-				env.Surface = surfacePtr(SurfaceDirect)
+				env.Surface = new(SurfaceDirect)
 				env.ThreadID = nil
-				env.DirectID = stringPtr("direct_0123456789abcdef0123456789abcdef")
-				env.To = stringPtr("reviewer.sess-xyz")
-				env.WorkID = stringPtr("work_patch_42")
+				env.DirectID = new("direct_0123456789abcdef0123456789abcdef")
+				env.To = new("reviewer.sess-xyz")
+				env.WorkID = new("work_patch_42")
 				return env
 			},
 		},
@@ -608,7 +608,7 @@ func TestValidateEnvelopeConversationContainerInvariants(t *testing.T) {
 		{
 			name: "Should reject thread surface with direct_id",
 			mutate: func(env Envelope) Envelope {
-				env.DirectID = stringPtr("direct_0123456789abcdef0123456789abcdef")
+				env.DirectID = new("direct_0123456789abcdef0123456789abcdef")
 				return env
 			},
 			wantErr:   ErrInvalidField,
@@ -617,7 +617,7 @@ func TestValidateEnvelopeConversationContainerInvariants(t *testing.T) {
 		{
 			name: "Should reject direct surface without direct_id",
 			mutate: func(env Envelope) Envelope {
-				env.Surface = surfacePtr(SurfaceDirect)
+				env.Surface = new(SurfaceDirect)
 				env.ThreadID = nil
 				return env
 			},
@@ -627,8 +627,8 @@ func TestValidateEnvelopeConversationContainerInvariants(t *testing.T) {
 		{
 			name: "Should reject direct surface with thread_id",
 			mutate: func(env Envelope) Envelope {
-				env.Surface = surfacePtr(SurfaceDirect)
-				env.DirectID = stringPtr("direct_0123456789abcdef0123456789abcdef")
+				env.Surface = new(SurfaceDirect)
+				env.DirectID = new("direct_0123456789abcdef0123456789abcdef")
 				return env
 			},
 			wantErr:   ErrInvalidField,
@@ -648,7 +648,7 @@ func TestValidateEnvelopeConversationContainerInvariants(t *testing.T) {
 			mutate: func(env Envelope) Envelope {
 				env.Surface = nil
 				env.ThreadID = nil
-				env.DirectID = stringPtr("direct_0123456789abcdef0123456789abcdef")
+				env.DirectID = new("direct_0123456789abcdef0123456789abcdef")
 				return env
 			},
 			wantErr:   ErrInvalidField,
@@ -716,7 +716,7 @@ func TestValidateEnvelopeDiscoveryKindsRejectConversationFields(t *testing.T) {
 			name: "Should reject greet with surface",
 			kind: KindGreet,
 			mutate: func(env Envelope) Envelope {
-				env.Surface = surfacePtr(SurfaceThread)
+				env.Surface = new(SurfaceThread)
 				return env
 			},
 			wantMatch: "surface",
@@ -725,7 +725,7 @@ func TestValidateEnvelopeDiscoveryKindsRejectConversationFields(t *testing.T) {
 			name: "Should reject greet with thread_id",
 			kind: KindGreet,
 			mutate: func(env Envelope) Envelope {
-				env.ThreadID = stringPtr("thread_patch_42")
+				env.ThreadID = new("thread_patch_42")
 				return env
 			},
 			wantMatch: "thread_id",
@@ -734,7 +734,7 @@ func TestValidateEnvelopeDiscoveryKindsRejectConversationFields(t *testing.T) {
 			name: "Should reject greet with direct_id",
 			kind: KindGreet,
 			mutate: func(env Envelope) Envelope {
-				env.DirectID = stringPtr("direct_0123456789abcdef0123456789abcdef")
+				env.DirectID = new("direct_0123456789abcdef0123456789abcdef")
 				return env
 			},
 			wantMatch: "direct_id",
@@ -743,7 +743,7 @@ func TestValidateEnvelopeDiscoveryKindsRejectConversationFields(t *testing.T) {
 			name: "Should reject greet with work_id",
 			kind: KindGreet,
 			mutate: func(env Envelope) Envelope {
-				env.WorkID = stringPtr("work_patch_42")
+				env.WorkID = new("work_patch_42")
 				return env
 			},
 			wantMatch: "work_id",
@@ -755,7 +755,7 @@ func TestValidateEnvelopeDiscoveryKindsRejectConversationFields(t *testing.T) {
 				Type: WhoisTypeRequest,
 			}),
 			mutate: func(env Envelope) Envelope {
-				env.Surface = surfacePtr(SurfaceThread)
+				env.Surface = new(SurfaceThread)
 				return env
 			},
 			wantMatch: "surface",
@@ -767,7 +767,7 @@ func TestValidateEnvelopeDiscoveryKindsRejectConversationFields(t *testing.T) {
 				Type: WhoisTypeRequest,
 			}),
 			mutate: func(env Envelope) Envelope {
-				env.ThreadID = stringPtr("thread_patch_42")
+				env.ThreadID = new("thread_patch_42")
 				return env
 			},
 			wantMatch: "thread_id",
@@ -779,7 +779,7 @@ func TestValidateEnvelopeDiscoveryKindsRejectConversationFields(t *testing.T) {
 				Type: WhoisTypeRequest,
 			}),
 			mutate: func(env Envelope) Envelope {
-				env.DirectID = stringPtr("direct_0123456789abcdef0123456789abcdef")
+				env.DirectID = new("direct_0123456789abcdef0123456789abcdef")
 				return env
 			},
 			wantMatch: "direct_id",
@@ -791,7 +791,7 @@ func TestValidateEnvelopeDiscoveryKindsRejectConversationFields(t *testing.T) {
 				Type: WhoisTypeRequest,
 			}),
 			mutate: func(env Envelope) Envelope {
-				env.WorkID = stringPtr("work_patch_42")
+				env.WorkID = new("work_patch_42")
 				return env
 			},
 			wantMatch: "work_id",
@@ -897,10 +897,10 @@ func TestValidateEnvelopeRequiresWorkIDForLifecycleKinds(t *testing.T) {
 				ID:          "msg_capability_missing_work",
 				Kind:        KindCapability,
 				Channel:     "builders",
-				Surface:     surfacePtr(SurfaceDirect),
-				DirectID:    stringPtr("direct_0123456789abcdef0123456789abcdef"),
+				Surface:     new(SurfaceDirect),
+				DirectID:    new("direct_0123456789abcdef0123456789abcdef"),
 				From:        "reviewer.sess-xyz",
-				To:          stringPtr("coder.sess-abc"),
+				To:          new("coder.sess-abc"),
 				TS:          now.Unix(),
 				Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
 					ID:      "capability-review",
@@ -917,10 +917,10 @@ func TestValidateEnvelopeRequiresWorkIDForLifecycleKinds(t *testing.T) {
 				ID:          "msg_receipt_missing_work",
 				Kind:        KindReceipt,
 				Channel:     "builders",
-				Surface:     surfacePtr(SurfaceDirect),
-				DirectID:    stringPtr("direct_0123456789abcdef0123456789abcdef"),
+				Surface:     new(SurfaceDirect),
+				DirectID:    new("direct_0123456789abcdef0123456789abcdef"),
 				From:        "reviewer.sess-xyz",
-				To:          stringPtr("coder.sess-abc"),
+				To:          new("coder.sess-abc"),
 				TS:          now.Unix(),
 				Body: mustRawJSON(t, ReceiptBody{
 					ForID:  "msg_direct_01",
@@ -936,10 +936,10 @@ func TestValidateEnvelopeRequiresWorkIDForLifecycleKinds(t *testing.T) {
 				ID:          "msg_trace_missing_work",
 				Kind:        KindTrace,
 				Channel:     "builders",
-				Surface:     surfacePtr(SurfaceDirect),
-				DirectID:    stringPtr("direct_0123456789abcdef0123456789abcdef"),
+				Surface:     new(SurfaceDirect),
+				DirectID:    new("direct_0123456789abcdef0123456789abcdef"),
 				From:        "reviewer.sess-xyz",
-				To:          stringPtr("coder.sess-abc"),
+				To:          new("coder.sess-abc"),
 				TS:          now.Unix(),
 				Body: mustRawJSON(t, TraceBody{
 					State: WorkStateWorking,
@@ -981,9 +981,9 @@ func TestRFC004SignedContentConversationFieldsAffectCanonicalBytes(t *testing.T)
 	presentZero := base
 	zeroSurface := Surface("")
 	presentZero.Surface = &zeroSurface
-	presentZero.ThreadID = stringPtr("")
-	presentZero.DirectID = stringPtr("")
-	presentZero.WorkID = stringPtr("")
+	presentZero.ThreadID = new("")
+	presentZero.DirectID = new("")
+	presentZero.WorkID = new("")
 	if bytes.Equal(baseBytes, mustMarshalEnvelopeBytes(t, presentZero)) {
 		t.Fatal("canonical bytes did not distinguish absent nullable conversation fields from present zero values")
 	}
@@ -995,30 +995,30 @@ func TestRFC004SignedContentConversationFieldsAffectCanonicalBytes(t *testing.T)
 		{
 			name: "surface",
 			mutate: func(env Envelope) Envelope {
-				env.Surface = surfacePtr(SurfaceThread)
+				env.Surface = new(SurfaceThread)
 				return env
 			},
 		},
 		{
 			name: "thread_id",
 			mutate: func(env Envelope) Envelope {
-				env.Surface = surfacePtr(SurfaceThread)
-				env.ThreadID = stringPtr("thread_signed_a")
+				env.Surface = new(SurfaceThread)
+				env.ThreadID = new("thread_signed_a")
 				return env
 			},
 		},
 		{
 			name: "direct_id",
 			mutate: func(env Envelope) Envelope {
-				env.Surface = surfacePtr(SurfaceDirect)
-				env.DirectID = stringPtr("direct_0123456789abcdef0123456789abcdef")
+				env.Surface = new(SurfaceDirect)
+				env.DirectID = new("direct_0123456789abcdef0123456789abcdef")
 				return env
 			},
 		},
 		{
 			name: "work_id",
 			mutate: func(env Envelope) Envelope {
-				env.WorkID = stringPtr("work_signed_a")
+				env.WorkID = new("work_signed_a")
 				return env
 			},
 		},
@@ -1049,8 +1049,8 @@ func TestNormalizeEnvelopeAllowsWhitespaceOnlyStrings(t *testing.T) {
 			ID:          "msg_say_whitespace_01",
 			Kind:        KindSay,
 			Channel:     "builders",
-			Surface:     surfacePtr(SurfaceThread),
-			ThreadID:    stringPtr("thread_patch_42"),
+			Surface:     new(SurfaceThread),
+			ThreadID:    new("thread_patch_42"),
 			From:        "coder.sess-abc",
 			TS:          now.Unix(),
 			Body: mustRawJSON(t, map[string]any{
@@ -1290,14 +1290,6 @@ func mustCapabilityBodyJSON(t *testing.T, capability CapabilityEnvelopePayload) 
 	return mustRawJSON(t, CapabilityBody{Capability: canonicalCapabilityPayload(t, capability)})
 }
 
-func stringPtr(value string) *string {
-	return &value
-}
-
-func surfacePtr(value Surface) *Surface {
-	return &value
-}
-
 func testThreadRef() ConversationRef {
 	return ConversationRef{
 		WorkspaceID: testWorkspaceID,
@@ -1318,16 +1310,16 @@ func testDirectRef() ConversationRef {
 
 func withDirectSurface(env Envelope) Envelope {
 	if isConversationKind(env.Kind) && env.Surface == nil {
-		env.Surface = surfacePtr(SurfaceDirect)
-		env.DirectID = stringPtr(testDirectRef().DirectID)
+		env.Surface = new(SurfaceDirect)
+		env.DirectID = new(testDirectRef().DirectID)
 	}
 	return env
 }
 
 func withThreadSurface(env Envelope) Envelope {
 	if isConversationKind(env.Kind) && env.Surface == nil {
-		env.Surface = surfacePtr(SurfaceThread)
-		env.ThreadID = stringPtr(testThreadRef().ThreadID)
+		env.Surface = new(SurfaceThread)
+		env.ThreadID = new(testThreadRef().ThreadID)
 	}
 	return env
 }
@@ -1337,17 +1329,13 @@ func withTestConversation(req SendRequest) SendRequest {
 		return req
 	}
 	if req.To != nil {
-		req.Surface = surfacePtr(SurfaceDirect)
-		req.DirectID = stringPtr(testDirectRef().DirectID)
+		req.Surface = new(SurfaceDirect)
+		req.DirectID = new(testDirectRef().DirectID)
 		return req
 	}
-	req.Surface = surfacePtr(SurfaceThread)
-	req.ThreadID = stringPtr(testThreadRef().ThreadID)
+	req.Surface = new(SurfaceThread)
+	req.ThreadID = new(testThreadRef().ThreadID)
 	return req
-}
-
-func int64Ptr(value int64) *int64 {
-	return &value
 }
 
 func extSnapshot(ext ExtensionMap) map[string]any {

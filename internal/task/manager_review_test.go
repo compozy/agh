@@ -527,7 +527,7 @@ func TestTaskManagerRunReviews(t *testing.T) {
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
 			Scope:       ScopeGlobal,
 			Title:       "Review exhaustion",
-			MaxAttempts: ptr(1),
+			MaxAttempts: new(1),
 		}, actor)
 		if err != nil {
 			t.Fatalf("CreateTask() error = %v", err)

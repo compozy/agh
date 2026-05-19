@@ -24,7 +24,7 @@ func TestHookTelemetrySecurityPatchPersistsAllFields(t *testing.T) {
 				deny := "deny"
 				return PermissionRequestPatch{
 					Decision: &deny,
-					Reason:   stringPointer("policy"),
+					Reason:   new("policy"),
 				}, nil
 			},
 		),
@@ -84,7 +84,7 @@ func TestHookTelemetryOmitsNonSecurityPatchOutsideDebug(t *testing.T) {
 	}, map[string]Executor{
 		"session-hook": NewTypedNativeExecutor(
 			func(_ context.Context, _ RegisteredHook, _ SessionPostCreatePayload) (SessionPostCreatePatch, error) {
-				return SessionPostCreatePatch{SessionName: stringPointer("patched")}, nil
+				return SessionPostCreatePatch{SessionName: new("patched")}, nil
 			},
 		),
 	})
@@ -117,7 +117,7 @@ func TestHookTelemetryCapturesNonSecurityPatchInDebugMode(t *testing.T) {
 	}, map[string]Executor{
 		"session-hook": NewTypedNativeExecutor(
 			func(_ context.Context, _ RegisteredHook, _ SessionPostCreatePayload) (SessionPostCreatePatch, error) {
-				return SessionPostCreatePatch{SessionName: stringPointer("patched")}, nil
+				return SessionPostCreatePatch{SessionName: new("patched")}, nil
 			},
 		),
 	})
@@ -301,8 +301,4 @@ func cloneTelemetryRecord(src HookRunRecord) HookRunRecord {
 	cloned := src
 	cloned.PatchApplied = append(json.RawMessage(nil), src.PatchApplied...)
 	return cloned
-}
-
-func stringPointer(value string) *string {
-	return &value
 }

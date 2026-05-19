@@ -1147,10 +1147,6 @@ func duration(value time.Duration) Duration {
 	return Duration(value)
 }
 
-func intPointer(value int) *int {
-	return &value
-}
-
 func expectedManifest() Manifest {
 	return Manifest{
 		Name:          "pgvector-memory",
@@ -1165,7 +1161,7 @@ func expectedManifest() Manifest {
 					Name:     "workspace-context",
 					Event:    "prompt.post_assemble",
 					Mode:     "sync",
-					Priority: intPointer(20),
+					Priority: new(20),
 					Timeout:  duration(5 * time.Second),
 					Matcher: HookMatcherConfig{
 						WorkspaceRoot: "{{workspace_root}}",

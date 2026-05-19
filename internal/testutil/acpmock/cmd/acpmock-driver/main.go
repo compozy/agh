@@ -656,9 +656,9 @@ func (a *mockAgent) requestPermission(
 		Options:   defaultPermissionOptions(),
 		ToolCall: acpsdk.ToolCallUpdate{
 			ToolCallId: acpsdk.ToolCallId(strings.TrimSpace(step.ToolCallID)),
-			Title:      acpsdk.Ptr(title),
-			Kind:       acpsdk.Ptr(toolKindValue),
-			Status:     acpsdk.Ptr(statusValue),
+			Title:      new(title),
+			Kind:       new(toolKindValue),
+			Status:     new(statusValue),
 			Locations:  toolLocations(step.Path),
 			RawInput:   mustRawJSON(step.RawInput),
 			RawOutput:  mustRawJSON(step.RawOutput),
@@ -888,7 +888,7 @@ func (a *mockAgent) runSandboxCommand(
 		Args:      append([]string(nil), step.Args...),
 	}
 	if cwd := strings.TrimSpace(step.Cwd); cwd != "" {
-		req.Cwd = acpsdk.Ptr(cwd)
+		req.Cwd = new(cwd)
 	}
 
 	createResp, err := a.conn.CreateTerminal(ctx, req)

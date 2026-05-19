@@ -807,7 +807,7 @@ func (n *daemonNativeTools) setHookEnabled(
 		}
 		return toolspkg.ToolResult{}, nativeHookNotFoundError(req.ToolID, input.Name)
 	}
-	decl.Enabled = boolPtr(enabled)
+	decl.Enabled = new(enabled)
 	if hookEnvMapContainsSecret(decl.Env) {
 		return toolspkg.ToolResult{}, nativeHookSecretError(req.ToolID)
 	}
@@ -996,10 +996,6 @@ func cloneHookMatcher(src hookspkg.HookMatcher) hookspkg.HookMatcher {
 	return cloned
 }
 
-func boolPtr(value bool) *bool {
-	return &value
-}
-
 type configReadInput struct {
 	WorkspaceRoot string `json:"workspace_root,omitempty"`
 }
@@ -1158,7 +1154,7 @@ func (i hookMutationInput) apply(decl hookspkg.HookDecl) (hookspkg.HookDecl, err
 		decl.SecretEnv = cloneStringMap(*i.SecretEnv)
 	}
 	if i.Enabled != nil {
-		decl.Enabled = boolPtr(*i.Enabled)
+		decl.Enabled = new(*i.Enabled)
 	}
 	return decl, nil
 }

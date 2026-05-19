@@ -522,8 +522,9 @@ func agentChannelEnvelopeWithExt(
 	}
 }
 
+//go:fix inline
 func ptrNetworkSurface(value network.Surface) *network.Surface {
-	return &value
+	return new(value)
 }
 
 func misleadingCoordinationExt() network.ExtensionMap {

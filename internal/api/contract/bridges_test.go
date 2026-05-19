@@ -448,7 +448,7 @@ func TestBridgeRequestsRejectUnsupportedProviderConfigAndDeliveryDefaultsShapes(
 		t.Parallel()
 
 		badDefaults := contract.UpdateBridgeRequest{
-			DeliveryDefaults: ptr(contract.BridgeDeliveryDefaultsPayload(`{"mode":"reply","parse_mode":"markdown"}`)),
+			DeliveryDefaults: new(contract.BridgeDeliveryDefaultsPayload(`{"mode":"reply","parse_mode":"markdown"}`)),
 		}
 		if _, err := badDefaults.ToUpdateInstanceRequest("brg-1"); err == nil {
 			t.Fatal("ToUpdateInstanceRequest(delivery defaults extra field) error = nil, want non-nil")
@@ -746,8 +746,4 @@ func stringValue(payload *json.RawMessage) string {
 		return "<nil>"
 	}
 	return string(*payload)
-}
-
-func ptr[T any](value T) *T {
-	return &value
 }

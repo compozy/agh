@@ -315,8 +315,9 @@ func agentChannelReplySendRequest(
 	return sendReq, nil
 }
 
+//go:fix inline
 func networkSurfacePtr(value network.Surface) *network.Surface {
-	return &value
+	return new(value)
 }
 
 func agentCallerPeerID(caller agentidentity.Caller) string {

@@ -27,6 +27,27 @@ const codexCatalog: ProviderModelPayload[] = [
   },
   {
     provider_id: "codex",
+    model_id: "gpt-5.5",
+    display_name: "GPT-5.5",
+    availability_state: "available_live",
+    available: true,
+    stale: false,
+    refreshed_at: "2026-05-07T10:00:00Z",
+    sources: [
+      {
+        source_id: "models_dev",
+        source_kind: "models_dev",
+        priority: 50,
+        refreshed_at: "2026-05-07T10:00:00Z",
+        stale: false,
+      },
+    ],
+    supports_reasoning: true,
+    reasoning_efforts: ["minimal", "low", "medium", "high", "xhigh"],
+    default_reasoning_effort: "medium",
+  },
+  {
+    provider_id: "codex",
     model_id: "gpt-5.4-mini",
     display_name: "GPT-5.4 Mini",
     availability_state: "available_stale",
@@ -53,7 +74,7 @@ describe("deriveActiveSessionOptions", () => {
       selectedModel: "gpt-5.4",
     });
 
-    expect(result.modelOptions).toHaveLength(2);
+    expect(result.modelOptions).toHaveLength(3);
     expect(result.modelOptions[0]).toMatchObject({
       id: "gpt-5.4",
       availabilityState: "available_live",
@@ -105,6 +126,23 @@ describe("deriveActiveSessionOptions", () => {
     expect(result.defaultReasoning).toBe("medium");
   });
 
+  it("Should derive reasoning options from an enriched catalog row", () => {
+    const result = deriveActiveSessionOptions({
+      catalog: codexCatalog,
+      selectedModel: "gpt-5.5",
+    });
+
+    expect(result.reasoningSupported).toBe(true);
+    expect(result.reasoningOptions.map(option => option.value)).toEqual([
+      "minimal",
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+    ]);
+    expect(result.defaultReasoning).toBe("medium");
+  });
+
   it("Should disable reasoning when the selected catalog row does not support it", () => {
     const result = deriveActiveSessionOptions({
       catalog: codexCatalog,
@@ -113,6 +151,26 @@ describe("deriveActiveSessionOptions", () => {
 
     expect(result.reasoningSupported).toBe(false);
     expect(result.reasoningOptions).toEqual([]);
+  });
+
+  it("Should disable reasoning when the selected catalog row has no support signal or efforts", () => {
+    const result = deriveActiveSessionOptions({
+      catalog: [
+        {
+          provider_id: "custom",
+          model_id: "custom-chat-model",
+          availability_state: "unknown",
+          available: null,
+          stale: false,
+          sources: [],
+        },
+      ],
+      selectedModel: "custom-chat-model",
+    });
+
+    expect(result.reasoningSupported).toBe(false);
+    expect(result.reasoningOptions).toEqual([]);
+    expect(result.defaultReasoning).toBeNull();
   });
 
   it("Should override reasoning options with ACP config values when present", () => {

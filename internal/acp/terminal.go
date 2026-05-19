@@ -305,10 +305,10 @@ func (p *AgentProcess) handleWaitForTerminalExit(
 	p.completeExternalTerminalProcess(
 		context.Background(),
 		request.TerminalId,
-		toolruntime.ProcessCompletion{ExitCode: acpsdk.Ptr(exitCode)},
+		toolruntime.ProcessCompletion{ExitCode: new(exitCode)},
 	)
 	return acpsdk.WaitForTerminalExitResponse{
-		ExitCode: acpsdk.Ptr(exitCode),
+		ExitCode: new(exitCode),
 	}, nil
 }
 
@@ -720,7 +720,7 @@ func (t *managedTerminal) wait(ctx context.Context) {
 	if t.cmd.ProcessState != nil {
 		exitCode := t.cmd.ProcessState.ExitCode()
 		if exitCode >= 0 {
-			exitStatus.ExitCode = acpsdk.Ptr(exitCode)
+			exitStatus.ExitCode = new(exitCode)
 		}
 	}
 	if err != nil && exitStatus.ExitCode == nil {

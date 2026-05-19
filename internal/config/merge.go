@@ -793,7 +793,7 @@ func (o providerOverlay) Apply(dst *ProviderConfig) {
 		dst.AuthLoginCmd = *o.AuthLoginCmd
 	}
 	if o.SessionMCP != nil {
-		dst.SessionMCP = boolRef(*o.SessionMCP)
+		dst.SessionMCP = new(*o.SessionMCP)
 	}
 	if o.Aliases != nil {
 		dst.Aliases = append([]string(nil), (*o.Aliases)...)
@@ -818,7 +818,7 @@ func (o providerModelsOverlay) Apply(dst *ProviderModelsConfig) {
 
 func (o providerModelsDiscoveryOverlay) Apply(dst *ProviderModelsDiscoveryConfig) {
 	if o.Enabled != nil {
-		dst.Enabled = boolRef(*o.Enabled)
+		dst.Enabled = new(*o.Enabled)
 	}
 	if o.Command != nil {
 		dst.Command = *o.Command
@@ -841,7 +841,7 @@ func (o modelCatalogSourcesOverlay) Apply(dst *ModelCatalogSourcesConfig) {
 
 func (o modelsDevSourceOverlay) Apply(dst *ModelsDevSourceConfig) {
 	if o.Enabled != nil {
-		dst.Enabled = boolRef(*o.Enabled)
+		dst.Enabled = new(*o.Enabled)
 	}
 	if o.Endpoint != nil {
 		dst.Endpoint = *o.Endpoint

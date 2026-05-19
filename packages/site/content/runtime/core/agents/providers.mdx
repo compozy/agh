@@ -150,10 +150,13 @@ back to stale or lower-priority rows; session creation never depends on a succes
 Session creation can override `provider`, `model`, and `reasoning_effort` for one launch. `model` is
 free-form: `models.curated` is operator metadata, not an allowlist, so a manual model ID outside the
 curated list is accepted. Reasoning effort is validated against `minimal`, `low`, `medium`, `high`,
-and `xhigh`, and AGH only forwards it when the resolved curated entry advertises it through
-`supports_reasoning` and `reasoning_efforts`. After the session starts, AGH switches to active ACP
-`configOptions` (or legacy `session/set_model` when the agent does not advertise config options) and
-the catalog metadata stops governing the live session.
+and `xhigh`. The effective model catalog uses explicit source/config `reasoning_efforts` when they
+exist, supplies the canonical effort list when a model advertises `supports_reasoning` without levels,
+and applies the same fallback to known GPT and Claude model families when upstream metadata is
+incomplete; explicit `supports_reasoning=false` disables that fallback. After the session starts, AGH
+switches to active ACP `configOptions` (or legacy `session/set_model` when the agent does not
+advertise config options); the catalog informs pre-session selection, while live ACP options govern
+controls inside the running session.
 
 Native provider auth state belongs to the provider. Run the provider's own login command, such as
 `claude auth login`, `codex login`, `opencode auth login`, or Pi's `/login`, outside AGH or through

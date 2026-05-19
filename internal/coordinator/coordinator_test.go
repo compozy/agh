@@ -130,7 +130,7 @@ func TestPermissionPolicyRestrictsCoordinatorSurface(t *testing.T) {
 		}
 		if err := store.ValidateSessionLineage("coord-1", &store.SessionLineage{
 			SpawnRole:        "coordinator",
-			TTLExpiresAt:     ptrTime(time.Date(2026, 4, 26, 14, 0, 0, 0, time.UTC)),
+			TTLExpiresAt:     new(time.Date(2026, 4, 26, 14, 0, 0, 0, time.UTC)),
 			SpawnBudget:      store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: session.DefaultSpawnMaxDepth},
 			PermissionPolicy: policy,
 		}); err != nil {
@@ -196,10 +196,6 @@ func TestCoordinatorListAccessorsReturnCopies(t *testing.T) {
 			t.Fatalf("PromptOverlay() used caller-mutated message kind:\n%s", overlay)
 		}
 	})
-}
-
-func ptrTime(value time.Time) *time.Time {
-	return &value
 }
 
 func TestLineageAndHealthySession(t *testing.T) {

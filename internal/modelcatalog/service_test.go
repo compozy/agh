@@ -295,6 +295,231 @@ func TestMergeRows(t *testing.T) {
 			t.Fatalf("source ids = %#v, want %#v", got, want)
 		}
 	})
+
+	t.Run("Should fill canonical reasoning efforts when support is explicit without levels", func(t *testing.T) {
+		t.Parallel()
+
+		supportsReasoning := true
+		models := MergeRows([]ModelRow{
+			testRow(
+				"models_dev",
+				SourceKindModelsDev,
+				PriorityModelsDev,
+				"research",
+				"reasoner-1",
+				testTime(0),
+				func(row *ModelRow) {
+					row.SupportsReasoning = &supportsReasoning
+				},
+			),
+		})
+
+		model := requireSingleModel(t, models)
+		requireReasoningProfile(
+			t,
+			model,
+			true,
+			[]ReasoningEffort{
+				ReasoningEffortMinimal,
+				ReasoningEffortLow,
+				ReasoningEffortMedium,
+				ReasoningEffortHigh,
+				ReasoningEffortXHigh,
+			},
+			ReasoningEffortMedium,
+		)
+	})
+
+	t.Run("Should infer canonical reasoning efforts for known families without support metadata", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name     string
+			provider string
+			model    string
+		}{
+			{name: "Should infer GPT leaf model", provider: "codex", model: "gpt-5.5"},
+			{name: "Should infer namespaced GPT model", provider: "openrouter", model: "openai/gpt-5.5"},
+			{name: "Should infer Claude model", provider: "claude", model: "claude-sonnet-4-6"},
+			{name: "Should infer Anthropic namespaced Claude model", provider: "openrouter", model: "anthropic/claude-opus-4-7"},
+			{name: "Should infer deeply namespaced Claude model", provider: "router", model: "vendor/anthropic/claude-opus-4-7"},
+			{name: "Should infer Bedrock Anthropic Claude model", provider: "bedrock", model: "anthropic.claude-sonnet-4-6"},
+			{name: "Should infer region-prefixed Bedrock Anthropic Claude model", provider: "bedrock", model: "us.anthropic.claude-sonnet-4-6"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				models := MergeRows([]ModelRow{
+					testRow(
+						"models_dev",
+						SourceKindModelsDev,
+						PriorityModelsDev,
+						tc.provider,
+						tc.model,
+						testTime(0),
+						nil,
+					),
+				})
+
+				model := requireSingleModel(t, models)
+				requireReasoningProfile(
+					t,
+					model,
+					true,
+					[]ReasoningEffort{
+						ReasoningEffortMinimal,
+						ReasoningEffortLow,
+						ReasoningEffortMedium,
+						ReasoningEffortHigh,
+						ReasoningEffortXHigh,
+					},
+					ReasoningEffortMedium,
+				)
+			})
+		}
+	})
+
+	t.Run("Should keep explicit reasoning support false disabled", func(t *testing.T) {
+		t.Parallel()
+
+		supportsReasoning := false
+		defaultEffort := ReasoningEffortHigh
+		models := MergeRows([]ModelRow{
+			testRow(
+				"config",
+				SourceKindConfig,
+				PriorityConfig,
+				"codex",
+				"gpt-5.5",
+				testTime(0),
+				func(row *ModelRow) {
+					row.SupportsReasoning = &supportsReasoning
+				},
+			),
+			testRow(
+				"models_dev",
+				SourceKindModelsDev,
+				PriorityModelsDev,
+				"codex",
+				"gpt-5.5",
+				testTime(0),
+				func(row *ModelRow) {
+					row.ReasoningEfforts = []ReasoningEffort{ReasoningEffortLow, ReasoningEffortHigh}
+					row.DefaultReasoningEffort = &defaultEffort
+				},
+			),
+		})
+
+		model := requireSingleModel(t, models)
+		if model.SupportsReasoning == nil || *model.SupportsReasoning {
+			t.Fatalf("SupportsReasoning = %v, want false", model.SupportsReasoning)
+		}
+		if len(model.ReasoningEfforts) != 0 {
+			t.Fatalf("ReasoningEfforts = %#v, want empty when support is false", model.ReasoningEfforts)
+		}
+		if model.DefaultReasoningEffort != nil {
+			t.Fatalf("DefaultReasoningEffort = %v, want nil when support is false", *model.DefaultReasoningEffort)
+		}
+	})
+
+	t.Run("Should let higher priority reasoning efforts imply support over lower priority false", func(t *testing.T) {
+		t.Parallel()
+
+		supportsReasoning := false
+		defaultEffort := ReasoningEffortHigh
+		models := MergeRows([]ModelRow{
+			testRow(
+				"config",
+				SourceKindConfig,
+				PriorityConfig,
+				"vendor",
+				"reasoner-priority",
+				testTime(0),
+				func(row *ModelRow) {
+					row.ReasoningEfforts = []ReasoningEffort{ReasoningEffortLow, ReasoningEffortHigh}
+					row.DefaultReasoningEffort = &defaultEffort
+				},
+			),
+			testRow(
+				"models_dev",
+				SourceKindModelsDev,
+				PriorityModelsDev,
+				"vendor",
+				"reasoner-priority",
+				testTime(0),
+				func(row *ModelRow) {
+					row.SupportsReasoning = &supportsReasoning
+				},
+			),
+		})
+
+		model := requireSingleModel(t, models)
+		requireReasoningProfile(
+			t,
+			model,
+			true,
+			[]ReasoningEffort{ReasoningEffortLow, ReasoningEffortHigh},
+			ReasoningEffortHigh,
+		)
+	})
+
+	t.Run("Should preserve explicit reasoning efforts and default", func(t *testing.T) {
+		t.Parallel()
+
+		supportsReasoning := true
+		defaultEffort := ReasoningEffortHigh
+		models := MergeRows([]ModelRow{
+			testRow(
+				"config",
+				SourceKindConfig,
+				PriorityConfig,
+				"vendor",
+				"reasoner-explicit",
+				testTime(0),
+				func(row *ModelRow) {
+					row.SupportsReasoning = &supportsReasoning
+					row.ReasoningEfforts = []ReasoningEffort{ReasoningEffortLow, ReasoningEffortHigh}
+					row.DefaultReasoningEffort = &defaultEffort
+				},
+			),
+		})
+
+		model := requireSingleModel(t, models)
+		requireReasoningProfile(
+			t,
+			model,
+			true,
+			[]ReasoningEffort{ReasoningEffortLow, ReasoningEffortHigh},
+			ReasoningEffortHigh,
+		)
+	})
+
+	t.Run("Should leave unknown models without support signal disabled", func(t *testing.T) {
+		t.Parallel()
+
+		models := MergeRows([]ModelRow{
+			testRow(
+				"models_dev",
+				SourceKindModelsDev,
+				PriorityModelsDev,
+				"vendor",
+				"custom-chat-model",
+				testTime(0),
+				nil,
+			),
+		})
+
+		model := requireSingleModel(t, models)
+		if model.SupportsReasoning != nil {
+			t.Fatalf("SupportsReasoning = %v, want nil", model.SupportsReasoning)
+		}
+		if len(model.ReasoningEfforts) != 0 {
+			t.Fatalf("ReasoningEfforts = %#v, want empty", model.ReasoningEfforts)
+		}
+		if model.DefaultReasoningEffort != nil {
+			t.Fatalf("DefaultReasoningEffort = %v, want nil", *model.DefaultReasoningEffort)
+		}
+	})
 }
 
 func TestCatalogServiceRefresh(t *testing.T) {
@@ -1230,6 +1455,26 @@ func requireSingleModel(t *testing.T, models []Model) Model {
 		t.Fatalf("len(models) = %d, want 1: %#v", len(models), models)
 	}
 	return models[0]
+}
+
+func requireReasoningProfile(
+	t *testing.T,
+	model Model,
+	expectedSupport bool,
+	expectedEfforts []ReasoningEffort,
+	expectedDefault ReasoningEffort,
+) {
+	t.Helper()
+
+	if model.SupportsReasoning == nil || *model.SupportsReasoning != expectedSupport {
+		t.Fatalf("SupportsReasoning = %v, want %t", model.SupportsReasoning, expectedSupport)
+	}
+	if !slices.Equal(model.ReasoningEfforts, expectedEfforts) {
+		t.Fatalf("ReasoningEfforts = %#v, want %#v", model.ReasoningEfforts, expectedEfforts)
+	}
+	if model.DefaultReasoningEffort == nil || *model.DefaultReasoningEffort != expectedDefault {
+		t.Fatalf("DefaultReasoningEffort = %v, want %q", model.DefaultReasoningEffort, expectedDefault)
+	}
 }
 
 func requireStatus(t *testing.T, statuses []SourceStatus, sourceID string) SourceStatus {

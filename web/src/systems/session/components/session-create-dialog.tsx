@@ -101,6 +101,8 @@ function SessionCreateDialog({
     ? agents.find(agent => agent.name === trimmedSelectedAgentName)
     : undefined;
   const activeAgentProvider = activeAgent?.provider.trim() ?? "";
+  const activeAgentModel =
+    activeAgentProvider === trimmedSelectedProvider ? (activeAgent?.model?.trim() ?? "") : "";
   const hasAgents = agents.length > 0;
   const hasProviderOptions = providerOptions.length > 0;
   const hasSelectedAgent = agents.some(agent => agent.name === trimmedSelectedAgentName);
@@ -267,7 +269,7 @@ function SessionCreateDialog({
                 </FieldDescription>
                 <ModelCommandSelect
                   options={modelSelectOptions}
-                  defaultModel={null}
+                  defaultModel={activeAgentModel || null}
                   value={selectedModel}
                   onChange={onModelChange}
                   disabled={!workspaceSelected || !hasSelectedProvider || isSubmitting}

@@ -354,7 +354,7 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 		"bot_token",
 		aghcontract.PutBridgeSecretBindingRequest{
 			SecretRef:   "vault:bridges/brg-1/bot_token",
-			SecretValue: stringPtr("telegram-bot-token"),
+			SecretValue: new("telegram-bot-token"),
 			Kind:        "token",
 		},
 	)
@@ -757,7 +757,7 @@ func TestRuntimeHarnessBridgeAndExtensionHelpersSurfaceTransportErrors(t *testin
 			"bot_token",
 			aghcontract.PutBridgeSecretBindingRequest{
 				SecretRef:   "vault:bridges/brg-1/bot_token",
-				SecretValue: stringPtr("telegram-bot-token"),
+				SecretValue: new("telegram-bot-token"),
 				Kind:        "token",
 			},
 		); err != nil {
@@ -1213,7 +1213,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 		}
 		writeJSON(w, aghcontract.NetworkPeersResponse{
 			Peers: []aghcontract.NetworkPeerPayload{{
-				SessionID:   stringPtr("sess-1"),
+				SessionID:   new("sess-1"),
 				PeerID:      "coder.sess-1",
 				DisplayName: "coder",
 				Channel:     "builders",
@@ -1271,7 +1271,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 					State:     "active",
 				}},
 				Peers: []aghcontract.NetworkPeerPayload{{
-					SessionID:   stringPtr("sess-1"),
+					SessionID:   new("sess-1"),
 					PeerID:      "coder.sess-1",
 					DisplayName: "coder",
 					Channel:     "builders",
@@ -1307,13 +1307,13 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				ID:       "msg-inbox-1",
 				Kind:     "say",
 				Channel:  "builders",
-				Surface:  stringPtr("direct"),
-				DirectID: stringPtr(harnessNetworkDirectID),
+				Surface:  new("direct"),
+				DirectID: new(harnessNetworkDirectID),
 				From:     "peer-1",
-				To:       stringPtr("coder.sess-1"),
-				WorkID:   stringPtr(harnessNetworkWorkID),
-				ReplyTo:  stringPtr("msg-1"),
-				TraceID:  stringPtr("trace_ops_patch_42"),
+				To:       new("coder.sess-1"),
+				WorkID:   new(harnessNetworkWorkID),
+				ReplyTo:  new("msg-1"),
+				TraceID:  new("trace_ops_patch_42"),
 				TS:       now.Unix(),
 				Body:     json.RawMessage(`{"text":"review this"}`),
 			}},
@@ -1816,10 +1816,6 @@ func testContext(t testing.TB) context.Context {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	t.Cleanup(cancel)
 	return ctx
-}
-
-func stringPtr(value string) *string {
-	return &value
 }
 
 func (s *harnessTestServer) assertNoHandlerErrors(t testing.TB) {

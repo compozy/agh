@@ -29,7 +29,7 @@ func withCanonicalDirectedEnvelope(t *testing.T, env Envelope) Envelope {
 	if err != nil {
 		t.Fatalf("DirectRoomIdentity() error = %v", err)
 	}
-	env.DirectID = stringPtr(directID)
+	env.DirectID = new(directID)
 	return env
 }
 
@@ -56,8 +56,8 @@ func TestRouterSendEnforcesPresencePreflight(t *testing.T) {
 		SessionID: "sess-a",
 		Channel:   "builders",
 		Kind:      KindSay,
-		To:        stringPtr("reviewer.sess-missing"),
-		WorkID:    stringPtr("work_missing"),
+		To:        new("reviewer.sess-missing"),
+		WorkID:    new("work_missing"),
 		Body:      mustRawJSON(t, SayBody{Text: "please review"}),
 	})
 	if _, err := router.Send(context.Background(), req); !errors.Is(err, ErrTargetPeerNotFound) {
@@ -84,8 +84,8 @@ func TestRouterSendEnforcesPresencePreflight(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRouter(expired) error = %v", err)
 	}
-	req.To = stringPtr(expiringPeer.PeerID)
-	req.WorkID = stringPtr("work_expired")
+	req.To = new(expiringPeer.PeerID)
+	req.WorkID = new("work_expired")
 	if _, err := expiredRouter.Send(context.Background(), req); !errors.Is(err, ErrTargetPeerNotFound) {
 		t.Fatalf("Send(expired target) error = %v, want ErrTargetPeerNotFound", err)
 	}
@@ -138,10 +138,10 @@ func TestRouterRoutesBroadcastAndDirectToCorrectSubjectsAndTargets(t *testing.T)
 		SessionID: "sess-a",
 		Channel:   "builders",
 		Kind:      KindSay,
-		Surface:   surfacePtr(SurfaceDirect),
-		DirectID:  stringPtr(directID),
-		To:        stringPtr(target.PeerID),
-		WorkID:    stringPtr("work_route"),
+		Surface:   new(SurfaceDirect),
+		DirectID:  new(directID),
+		To:        new(target.PeerID),
+		WorkID:    new("work_route"),
 		Body:      mustRawJSON(t, SayBody{Text: "please review"}),
 	})
 	if err != nil {
@@ -230,8 +230,8 @@ func TestRouterRoutesDirectSurfaceBroadcastByRoomMembership(t *testing.T) {
 			ID:          "msg_direct_room_broadcast",
 			Kind:        KindSay,
 			Channel:     "builders",
-			Surface:     surfacePtr(SurfaceDirect),
-			DirectID:    stringPtr(directID),
+			Surface:     new(SurfaceDirect),
+			DirectID:    new(directID),
 			From:        "coder.sess-remote",
 			TS:          now.Unix(),
 			Body:        mustRawJSON(t, SayBody{Text: "room-only update"}),
@@ -298,10 +298,10 @@ func TestRouterRoutesDirectSurfaceBroadcastByRoomMembership(t *testing.T) {
 			ID:          "msg_direct_room_mismatch",
 			Kind:        KindSay,
 			Channel:     "builders",
-			Surface:     surfacePtr(SurfaceDirect),
-			DirectID:    stringPtr(mismatchedDirectID),
+			Surface:     new(SurfaceDirect),
+			DirectID:    new(mismatchedDirectID),
 			From:        "coder.sess-remote",
-			To:          stringPtr(reviewer.PeerID),
+			To:          new(reviewer.PeerID),
 			TS:          now.Unix(),
 			Body:        mustRawJSON(t, SayBody{Text: "wrong room"}),
 		})
@@ -377,8 +377,8 @@ func TestRouterDoesNotDeliverLocalEchoesToSender(t *testing.T) {
 			SessionID: "sess-a",
 			Channel:   "marketing",
 			Kind:      KindSay,
-			To:        stringPtr(sender.PeerID),
-			WorkID:    stringPtr("work_self"),
+			To:        new(sender.PeerID),
+			WorkID:    new("work_self"),
 			Body:      mustRawJSON(t, SayBody{Text: "self-directed loop"}),
 		})); !errors.Is(err, ErrInvalidField) {
 			t.Fatalf("Send(direct self echo) error = %v, want ErrInvalidField", err)
@@ -422,7 +422,7 @@ func TestRouterIgnoresDirectedWhoisRequestToSender(t *testing.T) {
 			Kind:        KindWhois,
 			Channel:     "marketing",
 			From:        sender.PeerID,
-			To:          stringPtr(sender.PeerID),
+			To:          new(sender.PeerID),
 			TS:          now.Unix(),
 			Body: mustRawJSON(t, WhoisBody{
 				Type:  WhoisTypeRequest,
@@ -475,8 +475,8 @@ func TestRouterRejectsDuplicateBeforeReprocessingLifecycleState(t *testing.T) {
 		Kind:        KindSay,
 		Channel:     "builders",
 		From:        "coder.sess-a",
-		To:          stringPtr(target.PeerID),
-		WorkID:      stringPtr("work_dup"),
+		To:          new(target.PeerID),
+		WorkID:      new("work_dup"),
 		TS:          now.Unix(),
 		Body:        mustRawJSON(t, SayBody{Text: "please review"}),
 	}))
@@ -498,9 +498,9 @@ func TestRouterRejectsDuplicateBeforeReprocessingLifecycleState(t *testing.T) {
 		Kind:        KindReceipt,
 		Channel:     "builders",
 		From:        "coder.sess-a",
-		To:          stringPtr(target.PeerID),
-		WorkID:      stringPtr("work_dup"),
-		ReplyTo:     stringPtr("msg_direct_dup"),
+		To:          new(target.PeerID),
+		WorkID:      new("work_dup"),
+		ReplyTo:     new("msg_direct_dup"),
 		TS:          now.Unix(),
 		Body: mustRawJSON(t, ReceiptBody{
 			ForID:  "msg_direct_dup",
@@ -670,7 +670,7 @@ func TestRouterWhoisRichCapabilityDiscoveryReturnsCapabilityCatalog(t *testing.T
 		Kind:        KindWhois,
 		Channel:     "builders",
 		From:        "coder.sess-a",
-		To:          stringPtr(responder.PeerID),
+		To:          new(responder.PeerID),
 		TS:          now.Unix(),
 		Body: mustRawJSON(t, WhoisBody{
 			Type: WhoisTypeRequest,
@@ -795,7 +795,7 @@ func TestRouterWhoisRichCapabilityDiscoveryFiltersRequestedIDsInCatalogOrder(t *
 		Kind:        KindWhois,
 		Channel:     "builders",
 		From:        "coder.sess-a",
-		To:          stringPtr(responder.PeerID),
+		To:          new(responder.PeerID),
 		TS:          now.Unix(),
 		Body:        mustRawJSON(t, WhoisBody{Type: WhoisTypeRequest}),
 		Ext: ExtensionMap{
@@ -924,7 +924,7 @@ func TestRouterWhoisRichCapabilityDiscoveryReturnsEmptyCatalogForUnknownIDsOrMis
 				Kind:        KindWhois,
 				Channel:     "builders",
 				From:        "coder.sess-a",
-				To:          stringPtr(peerID),
+				To:          new(peerID),
 				TS:          now.Unix(),
 				Body:        mustRawJSON(t, WhoisBody{Type: WhoisTypeRequest}),
 				Ext: ExtensionMap{
@@ -991,7 +991,7 @@ func TestRouterWhoisRequestIgnoresUnknownAGHExtKeys(t *testing.T) {
 		Kind:        KindWhois,
 		Channel:     "builders",
 		From:        "coder.sess-a",
-		To:          stringPtr(responder.PeerID),
+		To:          new(responder.PeerID),
 		TS:          now.Unix(),
 		Body:        mustRawJSON(t, WhoisBody{Type: WhoisTypeRequest}),
 		Ext: ExtensionMap{
@@ -1052,7 +1052,7 @@ func TestRouterWhoisRichCapabilityDiscoveryRejectsOversizedResponse(t *testing.T
 		Kind:        KindWhois,
 		Channel:     "builders",
 		From:        "coder.sess-a",
-		To:          stringPtr(responder.PeerID),
+		To:          new(responder.PeerID),
 		TS:          now.Unix(),
 		Body:        mustRawJSON(t, WhoisBody{Type: WhoisTypeRequest}),
 		Ext: ExtensionMap{
@@ -1102,8 +1102,8 @@ func TestRouterWhoisResponseRefreshesRemotePresenceAndDeliversToRequester(t *tes
 		Kind:        KindWhois,
 		Channel:     "builders",
 		From:        remote.PeerID,
-		To:          stringPtr(local.PeerID),
-		ReplyTo:     stringPtr("msg_whois_request"),
+		To:          new(local.PeerID),
+		ReplyTo:     new("msg_whois_request"),
 		TS:          now.Unix(),
 		Body: mustRawJSON(t, WhoisBody{
 			Type:     WhoisTypeResponse,
@@ -1245,8 +1245,8 @@ func TestRouterReceiveRejectsNotTargetAndMapsMalformedErrors(t *testing.T) {
 		Kind:        KindSay,
 		Channel:     "builders",
 		From:        "coder.sess-a",
-		To:          stringPtr("reviewer.sess-other"),
-		WorkID:      stringPtr("work_not_target"),
+		To:          new("reviewer.sess-other"),
+		WorkID:      new("work_not_target"),
 		TS:          now.Unix(),
 		Body:        mustRawJSON(t, SayBody{Text: "please review"}),
 	}))
@@ -1318,8 +1318,8 @@ func TestRouterReceiveRejectsCapabilityDigestMismatchBeforeDelivery(t *testing.T
 		Kind:        KindCapability,
 		Channel:     "builders",
 		From:        "coder.sess-a",
-		To:          stringPtr(local.PeerID),
-		WorkID:      stringPtr("work_capability_bad_digest"),
+		To:          new(local.PeerID),
+		WorkID:      new("work_capability_bad_digest"),
 		TS:          now.Unix(),
 		Body: mustRawJSON(t, CapabilityBody{
 			Capability: CapabilityEnvelopePayload{
@@ -1382,8 +1382,8 @@ func TestRouterReceiveExpiredDirectGeneratesExpiredReceipt(t *testing.T) {
 		Kind:        KindSay,
 		Channel:     "builders",
 		From:        "coder.sess-a",
-		To:          stringPtr(local.PeerID),
-		WorkID:      stringPtr("work_expired"),
+		To:          new(local.PeerID),
+		WorkID:      new("work_expired"),
 		TS:          now.Add(-2 * time.Second).Unix(),
 		ExpiresAt:   &expiredAt,
 		Body:        mustRawJSON(t, SayBody{Text: "too late"}),
@@ -1472,7 +1472,7 @@ func TestRouterReceivesGreetAndDirectedWhoisRequest(t *testing.T) {
 		Kind:        KindWhois,
 		Channel:     "builders",
 		From:        remote.PeerID,
-		To:          stringPtr(local.PeerID),
+		To:          new(local.PeerID),
 		TS:          now.Unix(),
 		Body: mustRawJSON(t, WhoisBody{
 			Type:  WhoisTypeRequest,
@@ -1579,8 +1579,8 @@ func TestWorkValidationErrors(t *testing.T) {
 		Kind:        KindTrace,
 		Channel:     "builders",
 		From:        "reviewer.sess-xyz",
-		To:          stringPtr("coder.sess-abc"),
-		WorkID:      stringPtr("work_patch_42"),
+		To:          new("coder.sess-abc"),
+		WorkID:      new("work_patch_42"),
 		TS:          nowWithUnix(1775822400).Unix(),
 		Body:        mustRawJSON(t, TraceBody{State: WorkStateWorking}),
 	})
@@ -1623,8 +1623,8 @@ func TestRouterDirectedCapabilityOpensWorkForReceiptAndTrace(t *testing.T) {
 		Kind:        KindCapability,
 		Channel:     "builders",
 		From:        alpha.PeerID,
-		To:          stringPtr(delta.PeerID),
-		WorkID:      stringPtr("work_capability_open"),
+		To:          new(delta.PeerID),
+		WorkID:      new("work_capability_open"),
 		TS:          now.Unix(),
 		Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
 			ID:               "review-fix",
@@ -1657,9 +1657,9 @@ func TestRouterDirectedCapabilityOpensWorkForReceiptAndTrace(t *testing.T) {
 		Kind:        KindReceipt,
 		Channel:     "builders",
 		From:        delta.PeerID,
-		To:          stringPtr(alpha.PeerID),
-		WorkID:      stringPtr("work_capability_open"),
-		ReplyTo:     stringPtr("msg_capability_open"),
+		To:          new(alpha.PeerID),
+		WorkID:      new("work_capability_open"),
+		ReplyTo:     new("msg_capability_open"),
 		TS:          now.Unix(),
 		Body: mustRawJSON(t, ReceiptBody{
 			ForID:  "msg_capability_open",
@@ -1691,9 +1691,9 @@ func TestRouterDirectedCapabilityOpensWorkForReceiptAndTrace(t *testing.T) {
 		Kind:        KindTrace,
 		Channel:     "builders",
 		From:        delta.PeerID,
-		To:          stringPtr(alpha.PeerID),
-		WorkID:      stringPtr("work_capability_open"),
-		ReplyTo:     stringPtr("msg_capability_open"),
+		To:          new(alpha.PeerID),
+		WorkID:      new("work_capability_open"),
+		ReplyTo:     new("msg_capability_open"),
 		TS:          now.Unix(),
 		Body: mustRawJSON(t, TraceBody{
 			State: WorkStateWorking,
@@ -1752,8 +1752,8 @@ func TestRouterSendTracksDirectedCapabilityLifecycleLocally(t *testing.T) {
 		SessionID: "sess-alpha",
 		Channel:   "builders",
 		Kind:      KindCapability,
-		To:        stringPtr(remote.PeerID),
-		WorkID:    stringPtr("work_capability_send"),
+		To:        new(remote.PeerID),
+		WorkID:    new("work_capability_send"),
 		Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
 			ID:               "review-fix",
 			Summary:          "Review fix flow",
@@ -1774,9 +1774,9 @@ func TestRouterSendTracksDirectedCapabilityLifecycleLocally(t *testing.T) {
 		Kind:        KindTrace,
 		Channel:     "builders",
 		From:        remote.PeerID,
-		To:          stringPtr(sender.PeerID),
-		WorkID:      stringPtr("work_capability_send"),
-		ReplyTo:     stringPtr(sent.ID),
+		To:          new(sender.PeerID),
+		WorkID:      new("work_capability_send"),
+		ReplyTo:     new(sent.ID),
 		TS:          now.Unix(),
 		Body: mustRawJSON(t, TraceBody{
 			State:   WorkStateNeedsInput,
@@ -1808,9 +1808,9 @@ func TestRouterSendTracksDirectedCapabilityLifecycleLocally(t *testing.T) {
 		Kind:        KindTrace,
 		Channel:     "builders",
 		From:        remote.PeerID,
-		To:          stringPtr(sender.PeerID),
-		WorkID:      stringPtr("work_capability_send"),
-		ReplyTo:     stringPtr(sent.ID),
+		To:          new(sender.PeerID),
+		WorkID:      new("work_capability_send"),
+		ReplyTo:     new(sent.ID),
 		TS:          now.Unix(),
 		Body: mustRawJSON(t, TraceBody{
 			State:   WorkStateCompleted,
@@ -1833,9 +1833,9 @@ func TestRouterSendTracksDirectedCapabilityLifecycleLocally(t *testing.T) {
 		SessionID: "sess-alpha",
 		Channel:   "builders",
 		Kind:      KindCapability,
-		To:        stringPtr(remote.PeerID),
-		WorkID:    stringPtr("work_capability_send"),
-		ReplyTo:   stringPtr(sent.ID),
+		To:        new(remote.PeerID),
+		WorkID:    new("work_capability_send"),
+		ReplyTo:   new(sent.ID),
 		Body: mustCapabilityBodyJSON(t, CapabilityEnvelopePayload{
 			ID:               "review-fix-follow-up",
 			Summary:          "Review follow-up flow",
@@ -1878,8 +1878,8 @@ func TestRouterReceiveRejectsInvalidLifecycleTransition(t *testing.T) {
 		Kind:        KindSay,
 		Channel:     "builders",
 		From:        "coder.sess-a",
-		To:          stringPtr(local.PeerID),
-		WorkID:      stringPtr("work_invalid_trace"),
+		To:          new(local.PeerID),
+		WorkID:      new("work_invalid_trace"),
 		TS:          now.Unix(),
 		Body:        mustRawJSON(t, SayBody{Text: "please review"}),
 	}))
@@ -1897,8 +1897,8 @@ func TestRouterReceiveRejectsInvalidLifecycleTransition(t *testing.T) {
 		Kind:        KindTrace,
 		Channel:     "builders",
 		From:        "coder.sess-a",
-		To:          stringPtr(local.PeerID),
-		WorkID:      stringPtr("work_invalid_trace"),
+		To:          new(local.PeerID),
+		WorkID:      new("work_invalid_trace"),
 		TS:          now.Unix(),
 		Body: mustRawJSON(t, TraceBody{
 			State: WorkStateSubmitted,
@@ -1949,8 +1949,8 @@ func TestRouterReceiveRejectsCrossContainerWorkContinuation(t *testing.T) {
 		Kind:        KindSay,
 		Channel:     "builders",
 		From:        "coder.sess-a",
-		To:          stringPtr(local.PeerID),
-		WorkID:      stringPtr("work_cross_container"),
+		To:          new(local.PeerID),
+		WorkID:      new("work_cross_container"),
 		TS:          now.Unix(),
 		Body:        mustRawJSON(t, SayBody{Text: "please review"}),
 	}))
@@ -1967,11 +1967,11 @@ func TestRouterReceiveRejectsCrossContainerWorkContinuation(t *testing.T) {
 		ID:          "msg_trace_cross_container",
 		Kind:        KindTrace,
 		Channel:     "builders",
-		Surface:     surfacePtr(SurfaceThread),
-		ThreadID:    stringPtr("thread_patch_42"),
+		Surface:     new(SurfaceThread),
+		ThreadID:    new("thread_patch_42"),
 		From:        "coder.sess-a",
-		To:          stringPtr(local.PeerID),
-		WorkID:      stringPtr("work_cross_container"),
+		To:          new(local.PeerID),
+		WorkID:      new("work_cross_container"),
 		TS:          now.Unix(),
 		Body:        mustRawJSON(t, TraceBody{State: WorkStateWorking}),
 	}

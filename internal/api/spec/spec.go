@@ -5002,8 +5002,7 @@ func collectStructRequirements(schema *openapi3.Schema, t reflect.Type, required
 		return
 	}
 
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
+	for field := range t.Fields() {
 		if !field.IsExported() && !field.Anonymous {
 			continue
 		}

@@ -200,8 +200,7 @@ func (g *generator) structFields(t reflect.Type) ([]fieldSpec, error) {
 		return cached, nil
 	}
 	fields := make([]fieldSpec, 0, t.NumField())
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
+	for field := range t.Fields() {
 		if !field.IsExported() {
 			continue
 		}

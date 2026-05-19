@@ -1723,8 +1723,8 @@ func TestManagerDurableConversationDeliveryStillWritesAuditRows(t *testing.T) {
 		Kind:    KindSay,
 		Channel: "builders",
 		From:    "coder.sess-abc",
-		To:      stringPtr("reviewer.sess-xyz"),
-		WorkID:  stringPtr("work_durable_audit"),
+		To:      new("reviewer.sess-xyz"),
+		WorkID:  new("work_durable_audit"),
 	})
 
 	manager.recordSentDelivery(context.Background(), "sess-a", envelope, true)

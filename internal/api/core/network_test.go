@@ -339,7 +339,7 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 			Kind:        network.KindSay,
 			Channel:     "builders",
 			Surface:     networkSurfacePtr(network.SurfaceDirect),
-			DirectID:    stringPtr("direct_0123456789abcdef0123456789abcdef"),
+			DirectID:    new("direct_0123456789abcdef0123456789abcdef"),
 			From:        "reviewer.sess-b",
 			ReplyTo:     &replyTo,
 			TraceID:     &traceID,
@@ -971,9 +971,9 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 						"agh.capabilities_brief": json.RawMessage(`[{"id":"send","summary":"Send channel updates"}]`),
 					},
 				},
-				JoinedAt:  timePtr(fixedNow),
-				LastSeen:  timePtr(fixedNow),
-				ExpiresAt: timePtr(fixedNow.Add(time.Minute)),
+				JoinedAt:  new(fixedNow),
+				LastSeen:  new(fixedNow),
+				ExpiresAt: new(fixedNow.Add(time.Minute)),
 			}}
 			if channel == "" {
 				remoteDisplayName := "Coder"
@@ -985,8 +985,8 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 						PeerID:      "coder.sess-remote",
 						DisplayName: &remoteDisplayName,
 					},
-					LastSeen:  timePtr(fixedNow),
-					ExpiresAt: timePtr(fixedNow.Add(time.Minute)),
+					LastSeen:  new(fixedNow),
+					ExpiresAt: new(fixedNow.Add(time.Minute)),
 				})
 			}
 			return peers, nil
@@ -1016,7 +1016,7 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 				Kind:     network.KindSay,
 				Channel:  "builders",
 				Surface:  networkSurfacePtr(network.SurfaceDirect),
-				DirectID: stringPtr("direct_0123456789abcdef0123456789abcdef"),
+				DirectID: new("direct_0123456789abcdef0123456789abcdef"),
 				From:     "reviewer.sess-a",
 				ReplyTo:  &replyTo,
 				TraceID:  &traceID,
@@ -2446,7 +2446,7 @@ func TestBaseHandlersNetworkChannelsHideDirectedTrafficFromPublicTimeline(t *tes
 					recordedAt.Add(time.Minute),
 				)
 			}
-			if got, want := channelPayload.Channel.LastPresenceAt, timePtr(
+			if got, want := channelPayload.Channel.LastPresenceAt, new(
 				recordedAt,
 			); got == nil ||
 				!got.Equal(*want) {
@@ -3521,8 +3521,8 @@ func TestBaseHandlersNetworkChannelEndpointsIgnoreStoppedSessions(t *testing.T) 
 							Channel:   "builders",
 							Local:     true,
 							PeerCard:  network.PeerCard{PeerID: "coder.sess-coder"},
-							JoinedAt:  timePtr(createdAt),
-							LastSeen:  timePtr(createdAt),
+							JoinedAt:  new(createdAt),
+							LastSeen:  new(createdAt),
 						},
 					}, nil
 				case "builders":
@@ -3533,8 +3533,8 @@ func TestBaseHandlersNetworkChannelEndpointsIgnoreStoppedSessions(t *testing.T) 
 							Channel:   "builders",
 							Local:     true,
 							PeerCard:  network.PeerCard{PeerID: "coder.sess-coder"},
-							JoinedAt:  timePtr(createdAt),
-							LastSeen:  timePtr(createdAt),
+							JoinedAt:  new(createdAt),
+							LastSeen:  new(createdAt),
 						},
 					}, nil
 				case "retro":
@@ -4850,16 +4850,9 @@ func TestBaseHandlersNetworkPeerDetailUsesAuditMetrics(t *testing.T) {
 	})
 }
 
-func timePtr(value time.Time) *time.Time {
-	return &value
-}
-
+//go:fix inline
 func networkSurfacePtr(value network.Surface) *network.Surface {
-	return &value
-}
-
-func stringPtr(value string) *string {
-	return &value
+	return new(value)
 }
 
 func greetBodyJSON(peerID string, displayName string, capabilitySummary string, summary string) json.RawMessage {

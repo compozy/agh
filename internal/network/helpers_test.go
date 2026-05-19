@@ -87,7 +87,7 @@ func TestEnumValidationAndBodyKindHelpers(t *testing.T) {
 		t.Fatalf("TraceBody.Kind() = %q, want %q", got, KindTrace)
 	}
 
-	directed := Envelope{To: stringPtr("reviewer.sess-xyz")}
+	directed := Envelope{To: new("reviewer.sess-xyz")}
 	if !directed.IsDirected() || directed.IsBroadcast() {
 		t.Fatalf("directed envelope helper mismatch")
 	}
@@ -107,11 +107,11 @@ func TestValidateEnvelopeAndDecodeBodyErrors(t *testing.T) {
 		ID:          "msg_direct_01",
 		Kind:        KindSay,
 		Channel:     "builders",
-		Surface:     surfacePtr(SurfaceDirect),
-		DirectID:    stringPtr(testDirectRef().DirectID),
+		Surface:     new(SurfaceDirect),
+		DirectID:    new(testDirectRef().DirectID),
 		From:        "coder.sess-abc",
-		To:          stringPtr("reviewer.sess-xyz"),
-		WorkID:      stringPtr("work_patch_42"),
+		To:          new("reviewer.sess-xyz"),
+		WorkID:      new("work_patch_42"),
 		TS:          now.Unix(),
 		Body:        mustRawJSON(t, map[string]any{"text": "please review auth.go"}),
 	}
@@ -207,8 +207,8 @@ func TestWorkValidationAndTraceMatrix(t *testing.T) {
 		Kind:        KindTrace,
 		Channel:     "builders",
 		From:        "reviewer.sess-xyz",
-		To:          stringPtr("coder.sess-abc"),
-		WorkID:      stringPtr("work_patch_42"),
+		To:          new("coder.sess-abc"),
+		WorkID:      new("work_patch_42"),
 		TS:          time.Now().Unix(),
 		Body:        mustRawJSON(t, map[string]any{"state": "working"}),
 	}
@@ -327,8 +327,8 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 		ID:          "msg_receipt_01",
 		Kind:        KindReceipt,
 		Channel:     "builders",
-		Surface:     surfacePtr(SurfaceDirect),
-		DirectID:    stringPtr(testDirectRef().DirectID),
+		Surface:     new(SurfaceDirect),
+		DirectID:    new(testDirectRef().DirectID),
 		From:        "reviewer.sess-xyz",
 		TS:          now.Unix(),
 		Body: mustRawJSON(t, map[string]any{
@@ -374,8 +374,8 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 		Kind:        KindTrace,
 		Channel:     "builders",
 		From:        "reviewer.sess-xyz",
-		To:          stringPtr("coder.sess-abc"),
-		WorkID:      stringPtr("work_patch_42"),
+		To:          new("coder.sess-abc"),
+		WorkID:      new("work_patch_42"),
 		TS:          now.Unix(),
 		Body:        mustRawJSON(t, map[string]any{"state": "working"}),
 	}
@@ -399,8 +399,8 @@ func TestAdditionalEnvelopeAndLifecycleBranches(t *testing.T) {
 		Kind:        KindReceipt,
 		Channel:     "builders",
 		From:        "coder.sess-abc",
-		To:          stringPtr("reviewer.sess-xyz"),
-		WorkID:      stringPtr("work_patch_42"),
+		To:          new("reviewer.sess-xyz"),
+		WorkID:      new("work_patch_42"),
 		TS:          now.Unix(),
 		Body: mustRawJSON(t, map[string]any{
 			"for_id": "msg_direct_01",

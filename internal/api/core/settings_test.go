@@ -1374,7 +1374,7 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 							{
 								ID:                     "gpt-5.4",
 								DisplayName:            "GPT-5.4",
-								SupportsReasoning:      boolPointer(true),
+								SupportsReasoning:      new(true),
 								ReasoningEfforts:       []string{"low", "high"},
 								DefaultReasoningEffort: "high",
 							},
@@ -2315,10 +2315,6 @@ func decodeJSON(t *testing.T, body []byte, dest any) {
 	if err := json.Unmarshal(body, dest); err != nil {
 		t.Fatalf("json.Unmarshal(%s) error = %v", string(body), err)
 	}
-}
-
-func boolPointer(value bool) *bool {
-	return &value
 }
 
 func appendLine(t *testing.T, path string, line string) {

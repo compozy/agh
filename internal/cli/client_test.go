@@ -1638,7 +1638,7 @@ func TestUnixSocketClientMethods(t *testing.T) {
 		t.Fatalf("GetWorkspace(path) = %#v, %v", workspaceDetailByPath, err)
 	}
 
-	updatedWorkspace, err := client.UpdateWorkspace(ctx, "ws-1", WorkspaceUpdateRequest{Name: ptr("beta")})
+	updatedWorkspace, err := client.UpdateWorkspace(ctx, "ws-1", WorkspaceUpdateRequest{Name: new("beta")})
 	if err != nil || updatedWorkspace.Name != "beta" {
 		t.Fatalf("UpdateWorkspace() = %#v, %v", updatedWorkspace, err)
 	}
@@ -2091,8 +2091,8 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 
 	t.Run("Should update automation jobs", func(t *testing.T) {
 		updatedJob, err := client.UpdateAutomationJob(ctx, "job-created", AutomationJobUpdateRequest{
-			Prompt:  ptr("review now"),
-			Enabled: ptr(false),
+			Prompt:  new("review now"),
+			Enabled: new(false),
 		})
 		if err != nil || updatedJob.Enabled {
 			t.Fatalf("UpdateAutomationJob() = %#v, %v", updatedJob, err)
@@ -2163,8 +2163,8 @@ func TestUnixSocketClientAutomationMethods(t *testing.T) {
 
 	t.Run("Should update automation triggers", func(t *testing.T) {
 		updatedTrigger, err := client.UpdateAutomationTrigger(ctx, "trg-created", AutomationTriggerUpdateRequest{
-			Prompt:  ptr(`inspect {{ index .Data "payload" }}`),
-			Enabled: ptr(false),
+			Prompt:  new(`inspect {{ index .Data "payload" }}`),
+			Enabled: new(false),
 		})
 		if err != nil || updatedTrigger.Enabled {
 			t.Fatalf("UpdateAutomationTrigger() = %#v, %v", updatedTrigger, err)
@@ -2468,8 +2468,8 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 		}
 
 		updated, err := client.UpdateTask(ctx, "task-1", UpdateTaskRequest{
-			Title:          ptr("Investigate resolved"),
-			NetworkChannel: ptr("ops"),
+			Title:          new("Investigate resolved"),
+			NetworkChannel: new("ops"),
 		})
 		if err != nil || updated.Title != "Investigate resolved" || updated.NetworkChannel != "ops" {
 			t.Fatalf("UpdateTask() = %#v, %v", updated, err)
@@ -2692,7 +2692,7 @@ func TestUnixSocketClientBridgeMethods(t *testing.T) {
 	}
 
 	updated, err := client.UpdateBridge(ctx, "brg-a", UpdateBridgeRequest{
-		DisplayName: ptr("Support Ops"),
+		DisplayName: new("Support Ops"),
 		RoutingPolicy: &bridgepkg.RoutingPolicy{
 			IncludePeer:   true,
 			IncludeThread: true,
@@ -3057,10 +3057,6 @@ func newHTTPResponse(status int, body string) *http.Response {
 		Body:       io.NopCloser(strings.NewReader(body)),
 		Request:    &http.Request{Method: http.MethodGet},
 	}
-}
-
-func ptr[T any](value T) *T {
-	return &value
 }
 
 func nilContext() context.Context {

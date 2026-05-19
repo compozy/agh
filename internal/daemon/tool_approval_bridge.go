@@ -115,8 +115,8 @@ func (b *toolApprovalBridge) requestSessionToolApproval(
 			SessionId: acpsdk.SessionId(sessionID),
 			ToolCall: acpsdk.ToolCallUpdate{
 				ToolCallId: acpsdk.ToolCallId(toolApprovalCallID(call, view)),
-				Title:      acpsdk.Ptr(toolApprovalTitle(descriptor)),
-				Kind:       acpsdk.Ptr(toolApprovalKind(descriptor)),
+				Title:      new(toolApprovalTitle(descriptor)),
+				Kind:       new(toolApprovalKind(descriptor)),
 				RawInput:   toolApprovalRawInput(call.Input),
 				Status:     acpsdk.Ptr(acpsdk.ToolCallStatusPending),
 			},

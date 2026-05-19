@@ -172,14 +172,22 @@ export function useSessionCreateDialog({
   );
 
   const trimmedSelectedModel = useMemo(() => draft.modelOverride.trim(), [draft.modelOverride]);
+  const trimmedAgentProvider = selectedAgent?.provider.trim() ?? "";
+  const trimmedAgentModel = useMemo(() => {
+    if (trimmedAgentProvider !== selectedProvider) {
+      return "";
+    }
+    return selectedAgent?.model?.trim() ?? "";
+  }, [selectedAgent?.model, selectedProvider, trimmedAgentProvider]);
+  const effectiveSelectedModel = trimmedSelectedModel || trimmedAgentModel;
 
   const derived = useMemo(
     () =>
       deriveActiveSessionOptions({
         catalog: catalogModels,
-        selectedModel: trimmedSelectedModel.length > 0 ? trimmedSelectedModel : null,
+        selectedModel: effectiveSelectedModel.length > 0 ? effectiveSelectedModel : null,
       }),
-    [catalogModels, trimmedSelectedModel]
+    [catalogModels, effectiveSelectedModel]
   );
 
   const catalogStale = useMemo(() => catalogModels.some(model => model.stale), [catalogModels]);

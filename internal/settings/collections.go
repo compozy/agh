@@ -1428,10 +1428,6 @@ func providerModelsDiscoveryMap(discovery aghconfig.ProviderModelsDiscoveryConfi
 	return values
 }
 
-func boolPtr(value bool) *bool {
-	return &value
-}
-
 func providerCredentialSlotMaps(slots []aghconfig.ProviderCredentialSlot) []map[string]any {
 	values := make([]map[string]any, 0, len(slots))
 	for _, slot := range slots {

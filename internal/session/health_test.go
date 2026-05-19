@@ -563,7 +563,7 @@ func TestManagerSessionHealthQueries(t *testing.T) {
 			{SessionID: "sess-other"},
 			{State: heartbeat.SessionHealthStatePrompting},
 			{Health: heartbeat.SessionHealthDead},
-			{EligibleForWake: boolPointer(false)},
+			{EligibleForWake: new(false)},
 		} {
 			if sessionHealthMatchesQuery(row, query) {
 				t.Fatalf("sessionHealthMatchesQuery(%#v, %#v) = true, want false", row, query)
@@ -1166,10 +1166,6 @@ func sessionHealthIDs(rows []heartbeat.SessionHealth) []string {
 		ids = append(ids, row.SessionID)
 	}
 	return ids
-}
-
-func boolPointer(value bool) *bool {
-	return &value
 }
 
 func nilContextForGuardTest() context.Context {

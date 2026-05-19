@@ -83,6 +83,11 @@ const agents: AgentPayload[] = [
   { name: "codex-agent", provider: "codex", prompt: "code" },
 ];
 
+const agentsWithDefaultModel: AgentPayload[] = [
+  { name: "claude-agent", provider: "claude", prompt: "help" },
+  { name: "codex-agent", provider: "codex", model: "gpt-5.5", prompt: "code" },
+];
+
 const createdSession: SessionPayload = {
   id: "sess-new",
   agent_name: "codex-agent",
@@ -471,6 +476,65 @@ describe("useSessionCreateDialog", () => {
       workspace: "ws_alpha",
       provider: "codex",
       model: "gpt-5.4",
+      reasoning_effort: "high",
+    });
+  });
+
+  it("Should submit reasoning for an agent default model without sending a model override", async () => {
+    mockListProviderModels.mockResolvedValueOnce({
+      models: [
+        ...codexCatalog.models,
+        {
+          provider_id: "codex",
+          model_id: "gpt-5.5",
+          display_name: "GPT-5.5",
+          availability_state: "available_live",
+          available: true,
+          stale: false,
+          refreshed_at: "2026-05-07T10:00:00Z",
+          sources: [
+            {
+              source_id: "models_dev",
+              source_kind: "models_dev",
+              priority: 50,
+              refreshed_at: "2026-05-07T10:00:00Z",
+              stale: false,
+            },
+          ],
+          supports_reasoning: true,
+          reasoning_efforts: ["minimal", "low", "medium", "high", "xhigh"],
+          default_reasoning_effort: "medium",
+        },
+      ],
+    });
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(
+      () => useSessionCreateDialog({ agents: agentsWithDefaultModel, activeWorkspace }),
+      { wrapper }
+    );
+
+    act(() => {
+      result.current.openForAgent("codex-agent");
+    });
+
+    await waitFor(() => {
+      expect(result.current.reasoningSupported).toBe(true);
+    });
+    expect(result.current.selectedModel).toBe("");
+    expect(result.current.defaultReasoning).toBe("medium");
+
+    act(() => {
+      result.current.onReasoningChange("high");
+    });
+
+    await act(async () => {
+      await result.current.submit();
+    });
+
+    expect(mockMutateAsync).toHaveBeenCalledWith({
+      agent_name: "codex-agent",
+      workspace: "ws_alpha",
+      provider: "codex",
       reasoning_effort: "high",
     });
   });

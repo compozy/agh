@@ -227,8 +227,8 @@ func TestHandleInboundReadWriteFile(t *testing.T) {
 		mustMarshalJSON(acpsdk.ReadTextFileRequest{
 			SessionId: "sess-direct",
 			Path:      target,
-			Line:      acpsdk.Ptr(2),
-			Limit:     acpsdk.Ptr(1),
+			Line:      new(2),
+			Limit:     new(1),
 		}),
 	)
 	if reqErr != nil {
@@ -306,7 +306,7 @@ func TestHandleCreateTerminalBlocksNonAllowlistedCommandsForNetworkTurn(t *testi
 				SessionId: "sess-direct",
 				Command:   "sh",
 				Args:      []string{"-c", "printf nope"},
-				Cwd:       acpsdk.Ptr(proc.Cwd),
+				Cwd:       new(proc.Cwd),
 			},
 		},
 		{
@@ -315,7 +315,7 @@ func TestHandleCreateTerminalBlocksNonAllowlistedCommandsForNetworkTurn(t *testi
 				SessionId: "sess-direct",
 				Command:   "agh",
 				Args:      []string{"version"},
-				Cwd:       acpsdk.Ptr(proc.Cwd),
+				Cwd:       new(proc.Cwd),
 			},
 		},
 	}
@@ -905,7 +905,7 @@ func TestTerminalLifecycleHandlers(t *testing.T) {
 			SessionId: "sess-direct",
 			Command:   "sh",
 			Args:      []string{"-c", "printf hi"},
-			Cwd:       acpsdk.Ptr(proc.Cwd),
+			Cwd:       new(proc.Cwd),
 		}),
 	)
 	if reqErr != nil {
@@ -1002,7 +1002,7 @@ func TestNetworkTurnTerminalOwnershipGuards(t *testing.T) {
 		SessionId: "sess-direct",
 		Command:   "agh",
 		Args:      []string{"network", "status"},
-		Cwd:       acpsdk.Ptr(proc.Cwd),
+		Cwd:       new(proc.Cwd),
 		Env: []acpsdk.EnvVariable{
 			{Name: "AGH_HOME", Value: "/tmp/redirected"},
 			{Name: "SAFE_NETWORK_OVERRIDE", Value: "blocked"},
@@ -1062,7 +1062,7 @@ func TestNetworkTurnTerminalOwnershipGuards(t *testing.T) {
 		SessionId: "sess-direct",
 		Command:   "sh",
 		Args:      []string{"-c", "sleep 5"},
-		Cwd:       acpsdk.Ptr(proc.Cwd),
+		Cwd:       new(proc.Cwd),
 	})
 	if err != nil {
 		t.Fatalf("handleCreateTerminal(user shell) error = %v", err)
@@ -1205,7 +1205,7 @@ func TestHelperUtilities(t *testing.T) {
 		t.Fatalf("trimUTF8LeadingBytes() = %q, want %q", string(trimmed), "hi")
 	}
 
-	if sliceLines("a\nb\nc", acpsdk.Ptr(2), acpsdk.Ptr(2)) != "b\nc" {
+	if sliceLines("a\nb\nc", new(2), new(2)) != "b\nc" {
 		t.Fatalf("sliceLines() returned unexpected content")
 	}
 
@@ -1229,10 +1229,10 @@ func TestHelperUtilities(t *testing.T) {
 		t.Fatalf("lockedBuffer.String() = %q, want %q", buffer.String(), "stderr")
 	}
 
-	if chooseFloat64(nil, acpsdk.Ptr(1.2)) == nil {
+	if chooseFloat64(nil, new(1.2)) == nil {
 		t.Fatal("chooseFloat64(nil, fallback) = nil, want fallback")
 	}
-	if chooseString(nil, acpsdk.Ptr("usd")) == nil {
+	if chooseString(nil, new("usd")) == nil {
 		t.Fatal("chooseString(nil, fallback) = nil, want fallback")
 	}
 }
@@ -1688,7 +1688,7 @@ func TestHandleInboundCreateTerminalUsesRequestContext(t *testing.T) {
 			SessionId: "sess-direct",
 			Command:   "sh",
 			Args:      []string{"-c", "printf ready"},
-			Cwd:       acpsdk.Ptr(proc.Cwd),
+			Cwd:       new(proc.Cwd),
 		}),
 	)
 	if reqErr != nil {

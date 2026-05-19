@@ -697,8 +697,8 @@ func TestDaytonaDurationParsingAndShellHelpers(t *testing.T) {
 		want *int
 	}{
 		{name: "empty", raw: ""},
-		{name: "minutes", raw: "15", want: intPtr(15)},
-		{name: "duration", raw: "90m", want: intPtr(90)},
+		{name: "minutes", raw: "15", want: new(15)},
+		{name: "duration", raw: "90m", want: new(90)},
 		{name: "invalid", raw: "not-a-duration"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1243,8 +1243,4 @@ func containsKey(values []string, key string) bool {
 		}
 	}
 	return false
-}
-
-func intPtr(value int) *int {
-	return &value
 }

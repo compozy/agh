@@ -88,7 +88,7 @@ func BenchmarkScanCompletedSessionsSince(b *testing.B) {
 	for idx := range 400 {
 		stoppedAt := since.Add(time.Duration(idx) * time.Minute)
 		writeBenchmarkSessionMeta(b, sessionsDir, fmt.Sprintf("session-%03d", idx), persistedSessionMetadata{
-			StoppedAt: ptrTime(stoppedAt),
+			StoppedAt: new(stoppedAt),
 		})
 	}
 

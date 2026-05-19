@@ -48,7 +48,7 @@ func TestProviderModelPayloadConversion(t *testing.T) {
 			AvailabilityState:      modelcatalog.AvailabilityStateUnknown,
 			Stale:                  true,
 			RefreshedAt:            time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC),
-			SupportsReasoning:      boolPtr(true),
+			SupportsReasoning:      new(true),
 			ReasoningEfforts:       []modelcatalog.ReasoningEffort{modelcatalog.ReasoningEffortHigh},
 			DefaultReasoningEffort: &effort,
 			Sources: []modelcatalog.SourceRef{
@@ -381,8 +381,4 @@ func assertRedactedModelCatalogPayload(t *testing.T, value string, secret string
 	if !strings.Contains(value, "[REDACTED]") {
 		t.Fatalf("payload value = %q, want redaction marker", value)
 	}
-}
-
-func boolPtr(value bool) *bool {
-	return &value
 }

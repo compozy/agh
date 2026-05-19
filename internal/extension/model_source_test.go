@@ -39,8 +39,8 @@ func TestModelSourceShouldPersistValidatedRowsThroughCatalogService(t *testing.T
 				Available:         &available,
 				ReasoningEfforts:  []string{"high"},
 				ContextWindow:     int64Pointer(200000),
-				SupportsTools:     boolPointer(true),
-				SupportsReasoning: boolPointer(true),
+				SupportsTools:     new(true),
+				SupportsReasoning: new(true),
 				Cost: &apicontract.ModelCatalogCostPayload{
 					InputPerMillion:  &cost,
 					OutputPerMillion: &cost,
@@ -675,10 +675,7 @@ func startSubprocessModelSource(
 	return store, manager, source
 }
 
-func boolPointer(value bool) *bool {
-	return &value
-}
-
+//go:fix inline
 func int64Pointer(value int64) *int64 {
-	return &value
+	return new(value)
 }

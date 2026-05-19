@@ -33,8 +33,8 @@ func TestWriteSessionMetaAndReadBack(t *testing.T) {
 			RuntimeRootDir:        "/home/daytona/workspace",
 			RuntimeAdditionalDirs: []string{"/home/daytona/shared"},
 			ProviderState:         json.RawMessage(`{"sandbox_id":"sandbox-123"}`),
-			SSHAccessExpiresAt:    timePtr(time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC)),
-			LastSyncAt:            timePtr(time.Date(2026, 4, 3, 17, 59, 0, 0, time.UTC)),
+			SSHAccessExpiresAt:    new(time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC)),
+			LastSyncAt:            new(time.Date(2026, 4, 3, 17, 59, 0, 0, time.UTC)),
 			LastSyncError:         "sync warning",
 		},
 		CreatedAt: time.Date(2026, 4, 3, 17, 0, 0, 0, time.UTC),
@@ -183,8 +183,4 @@ func TestReadSessionMetaLegacyStopFieldsOmitted(t *testing.T) {
 			t.Fatalf("ReadSessionMeta().StopDetail = %q, want empty", meta.StopDetail)
 		}
 	})
-}
-
-func timePtr(value time.Time) *time.Time {
-	return &value
 }

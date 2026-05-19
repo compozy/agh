@@ -1570,11 +1570,11 @@ func TestManagerRunDetailAggregatesRuntimeContextAndOmitsOptionalFields(t *testi
 						ID:           "stats-1",
 						SessionID:    "sess-runtime",
 						AgentName:    "codex",
-						InputTokens:  ptr(int64(10)),
-						OutputTokens: ptr(int64(5)),
-						TotalTokens:  ptr(int64(15)),
-						TotalCost:    ptr(0.25),
-						CostCurrency: ptr("USD"),
+						InputTokens:  new(int64(10)),
+						OutputTokens: new(int64(5)),
+						TotalTokens:  new(int64(15)),
+						TotalCost:    new(0.25),
+						CostCurrency: new("USD"),
 						TurnCount:    1,
 						UpdatedAt:    base.Add(5 * time.Minute),
 					},
@@ -1582,9 +1582,9 @@ func TestManagerRunDetailAggregatesRuntimeContextAndOmitsOptionalFields(t *testi
 						ID:          "stats-2",
 						SessionID:   "sess-runtime",
 						AgentName:   "reviewer",
-						InputTokens: ptr(int64(3)),
-						TotalTokens: ptr(int64(3)),
-						TotalCost:   ptr(0.10),
+						InputTokens: new(int64(3)),
+						TotalTokens: new(int64(3)),
+						TotalCost:   new(0.10),
 						TurnCount:   2,
 						UpdatedAt:   base.Add(6 * time.Minute),
 					},
@@ -2808,7 +2808,7 @@ func TestManagerCreateTaskRejectsInvalidSemanticInputsBeforePersistence(t *testi
 		},
 		{
 			name: "invalid max attempts",
-			spec: CreateTask{Scope: ScopeGlobal, Title: "Bad attempts", MaxAttempts: ptr(0)},
+			spec: CreateTask{Scope: ScopeGlobal, Title: "Bad attempts", MaxAttempts: new(0)},
 		},
 		{
 			name: "invalid approval policy",
@@ -3166,7 +3166,7 @@ func TestManagerAttemptExhaustionBlocksFurtherRetries(t *testing.T) {
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
 		Scope:       ScopeGlobal,
 		Title:       "Retry budget task",
-		MaxAttempts: ptr(2),
+		MaxAttempts: new(2),
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask() error = %v", err)
@@ -4241,7 +4241,7 @@ func TestManagerTaskReconciliationAcrossDependenciesAndRuns(t *testing.T) {
 	failedTask, err := manager.CreateTask(context.Background(), CreateTask{
 		Scope:       ScopeGlobal,
 		Title:       "Failure task",
-		MaxAttempts: ptr(1),
+		MaxAttempts: new(1),
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask(failedTask) error = %v", err)
@@ -4413,7 +4413,7 @@ func TestManagerAttachRunSessionAndRetryLatestRunOutcome(t *testing.T) {
 	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
 		Scope:          ScopeGlobal,
 		Title:          "Attach and retry",
-		MaxAttempts:    ptr(2),
+		MaxAttempts:    new(2),
 		NetworkChannel: "ops",
 	}, actor)
 	if err != nil {
@@ -5011,7 +5011,7 @@ func TestManagerBlockedExecutionAndFailureGuardrails(t *testing.T) {
 	failingTask, err := manager.CreateTask(context.Background(), CreateTask{
 		Scope:       ScopeGlobal,
 		Title:       "Failing start task",
-		MaxAttempts: ptr(1),
+		MaxAttempts: new(1),
 	}, actor)
 	if err != nil {
 		t.Fatalf("CreateTask(failingTask) error = %v", err)

@@ -646,7 +646,7 @@ func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
 				gotRequest = request
 				return AgentTaskNextRecord{
 					Claimed: true,
-					Claim:   ptr(agentTaskClaimRecord()),
+					Claim:   new(agentTaskClaimRecord()),
 				}, nil
 			},
 		})

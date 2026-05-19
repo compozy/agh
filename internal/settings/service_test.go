@@ -45,7 +45,7 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 				Available:          true,
 				FileCount:          5,
 				DreamEnabled:       true,
-				LastConsolidatedAt: pointerTime(time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)),
+				LastConsolidatedAt: new(time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)),
 			},
 		},
 		SkillsRuntime: newFakeSkillsRuntime(
@@ -62,7 +62,7 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 				JobEnabled:       3,
 				TriggerTotal:     2,
 				TriggerEnabled:   1,
-				NextFire:         pointerTime(time.Date(2026, 4, 17, 13, 0, 0, 0, time.UTC)),
+				NextFire:         new(time.Date(2026, 4, 17, 13, 0, 0, 0, time.UTC)),
 			},
 		},
 		NetworkRuntime: fakeNetworkRuntimeProvider{
@@ -843,10 +843,10 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 					{
 						ID:                     "custom-model",
 						DisplayName:            "Custom Model",
-						SupportsReasoning:      boolPtr(true),
+						SupportsReasoning:      new(true),
 						ReasoningEfforts:       []string{"low", "high"},
 						DefaultReasoningEffort: "high",
-						SupportsTools:          boolPtr(true),
+						SupportsTools:          new(true),
 					},
 					{ID: "custom-fast", DisplayName: "Custom Fast"},
 				},
@@ -2337,8 +2337,4 @@ func testSkill(name string, enabled bool) *skillspkg.Skill {
 		Meta:    skillspkg.SkillMeta{Name: name},
 		Enabled: enabled,
 	}
-}
-
-func pointerTime(value time.Time) *time.Time {
-	return &value
 }

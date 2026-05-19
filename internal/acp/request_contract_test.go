@@ -99,7 +99,7 @@ func TestACPBehaviorContracts(t *testing.T) {
 			SessionId: "sess-additional-terminal",
 			Command:   "sh",
 			Args:      []string{"-c", "printf %s \"$PWD\""},
-			Cwd:       acpsdk.Ptr(additional),
+			Cwd:       new(additional),
 		})
 		if err != nil {
 			t.Fatalf("CreateTerminal(additional cwd) error = %v", err)
@@ -131,7 +131,7 @@ func TestACPBehaviorContracts(t *testing.T) {
 		response, err := host.CreateTerminal(ctx, acpsdk.CreateTerminalRequest{
 			SessionId: "sess-path",
 			Command:   "agh-path-tool",
-			Cwd:       acpsdk.Ptr(root),
+			Cwd:       new(root),
 			Env: []acpsdk.EnvVariable{
 				{Name: "PATH", Value: binDir},
 			},

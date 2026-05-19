@@ -331,7 +331,7 @@ func TestLocalToolHostCreateTerminalUsesResolvedCwd(t *testing.T) {
 	response, err := host.CreateTerminal(testutil.Context(t), acpsdk.CreateTerminalRequest{
 		SessionId: "sess-terminal",
 		Command:   "pwd",
-		Cwd:       acpsdk.Ptr(cwd),
+		Cwd:       new(cwd),
 	})
 	if err != nil {
 		t.Fatalf("CreateTerminal() error = %v", err)

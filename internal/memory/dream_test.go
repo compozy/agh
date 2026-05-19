@@ -903,9 +903,9 @@ func TestServiceScanCompletedSessionsSinceFiltersByStoppedAt(t *testing.T) {
 	now := time.Now().UTC().Round(0)
 	root := t.TempDir()
 	since := now.Add(-48 * time.Hour)
-	writeSessionMeta(t, root, "equal", persistedSessionMetadata{StoppedAt: ptrTime(since)})
-	writeSessionMeta(t, root, "after", persistedSessionMetadata{StoppedAt: ptrTime(since.Add(time.Minute))})
-	writeSessionMeta(t, root, "before", persistedSessionMetadata{StoppedAt: ptrTime(since.Add(-time.Minute))})
+	writeSessionMeta(t, root, "equal", persistedSessionMetadata{StoppedAt: new(since)})
+	writeSessionMeta(t, root, "after", persistedSessionMetadata{StoppedAt: new(since.Add(time.Minute))})
+	writeSessionMeta(t, root, "before", persistedSessionMetadata{StoppedAt: new(since.Add(-time.Minute))})
 	writeMalformedSessionMeta(t, root, "malformed")
 
 	service := NewService(
@@ -927,7 +927,7 @@ func TestServiceScanCompletedSessionsSinceIgnoresIncompleteSessions(t *testing.T
 
 	now := time.Now().UTC().Round(0)
 	root := t.TempDir()
-	writeSessionMeta(t, root, "complete", persistedSessionMetadata{StoppedAt: ptrTime(now)})
+	writeSessionMeta(t, root, "complete", persistedSessionMetadata{StoppedAt: new(now)})
 	writeSessionMeta(t, root, "incomplete", persistedSessionMetadata{})
 
 	service := NewService(
@@ -1175,10 +1175,6 @@ func writeMalformedSessionMeta(t *testing.T, sessionsDir string, sessionID strin
 	if err := os.WriteFile(filepath.Join(sessionDir, "meta.json"), []byte("{bad json"), filePerm); err != nil {
 		t.Fatalf("os.WriteFile() error = %v", err)
 	}
-}
-
-func ptrTime(value time.Time) *time.Time {
-	return &value
 }
 
 type dreamSeedEnv struct {

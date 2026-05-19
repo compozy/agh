@@ -653,10 +653,6 @@ func validActorContext() ActorContext {
 	}
 }
 
-func ptr[T any](value T) *T {
-	return &value
-}
-
 func jsonBlob(targetSize int) json.RawMessage {
 	if targetSize <= 2 {
 		return json.RawMessage(`""`)
@@ -821,7 +817,7 @@ func TestRequestAndQueryValidation(t *testing.T) {
 					Scope:          ScopeWorkspace,
 					Title:          "Create task",
 					Priority:       PriorityHigh,
-					MaxAttempts:    ptr(4),
+					MaxAttempts:    new(4),
 					ApprovalPolicy: ApprovalPolicyManual,
 					Owner:          &Ownership{Kind: OwnerKindPool, Ref: "triage"},
 					Metadata:       json.RawMessage(`{"kind":"bootstrap"}`),
@@ -835,7 +831,7 @@ func TestRequestAndQueryValidation(t *testing.T) {
 				return CreateTask{
 					Scope:       ScopeGlobal,
 					Title:       "Create task",
-					MaxAttempts: ptr(0),
+					MaxAttempts: new(0),
 				}.Validate("create")
 			},
 			wantErr: ErrValidation,

@@ -155,7 +155,7 @@ func newAutomationJobsCreateCommand(deps commandDeps) *cobra.Command {
 				Schedule:    schedule,
 			}
 			if cmd.Flags().Changed("enabled") {
-				request.Enabled = boolPointer(enabled)
+				request.Enabled = new(enabled)
 			}
 			if retry != nil {
 				request.Retry = retry
@@ -269,20 +269,20 @@ func buildAutomationJobUpdateRequest(
 ) (AutomationJobUpdateRequest, error) {
 	request := AutomationJobUpdateRequest{}
 	if cmd.Flags().Changed("name") {
-		request.Name = stringPointer(strings.TrimSpace(input.Name))
+		request.Name = new(strings.TrimSpace(input.Name))
 	}
 	if cmd.Flags().Changed("agent") {
-		request.AgentName = stringPointer(strings.TrimSpace(input.AgentName))
+		request.AgentName = new(strings.TrimSpace(input.AgentName))
 	}
 	if cmd.Flags().Changed("workspace") {
 		workspaceID, err := resolveAutomationWorkspaceID(cmd.Context(), client, input.WorkspaceRef)
 		if err != nil {
 			return AutomationJobUpdateRequest{}, err
 		}
-		request.WorkspaceID = stringPointer(workspaceID)
+		request.WorkspaceID = new(workspaceID)
 	}
 	if cmd.Flags().Changed("prompt") {
-		request.Prompt = stringPointer(strings.TrimSpace(input.Prompt))
+		request.Prompt = new(strings.TrimSpace(input.Prompt))
 	}
 	if cmd.Flags().Changed("schedule") {
 		schedule, err := parseAutomationScheduleFlag(input.ScheduleRaw)
@@ -304,7 +304,7 @@ func buildAutomationJobUpdateRequest(
 		request.Retry = retry
 	}
 	if cmd.Flags().Changed("enabled") {
-		request.Enabled = boolPointer(input.Enabled)
+		request.Enabled = new(input.Enabled)
 	}
 	return request, nil
 }
@@ -1601,7 +1601,7 @@ func buildAutomationTriggerCreateRequest(
 		WebhookSecretValue: input.WebhookSecretValue,
 	}
 	if cmd.Flags().Changed("enabled") {
-		request.Enabled = boolPointer(input.Enabled)
+		request.Enabled = new(input.Enabled)
 	}
 	if retry != nil {
 		request.Retry = retry
@@ -1616,23 +1616,23 @@ func buildAutomationTriggerUpdateRequest(
 ) (AutomationTriggerUpdateRequest, error) {
 	request := AutomationTriggerUpdateRequest{}
 	if cmd.Flags().Changed("name") {
-		request.Name = stringPointer(strings.TrimSpace(input.Name))
+		request.Name = new(strings.TrimSpace(input.Name))
 	}
 	if cmd.Flags().Changed("agent") {
-		request.AgentName = stringPointer(strings.TrimSpace(input.AgentName))
+		request.AgentName = new(strings.TrimSpace(input.AgentName))
 	}
 	if cmd.Flags().Changed("workspace") {
 		workspaceID, err := resolveAutomationWorkspaceID(cmd.Context(), client, input.WorkspaceRef)
 		if err != nil {
 			return AutomationTriggerUpdateRequest{}, err
 		}
-		request.WorkspaceID = stringPointer(workspaceID)
+		request.WorkspaceID = new(workspaceID)
 	}
 	if cmd.Flags().Changed("prompt") {
-		request.Prompt = stringPointer(strings.TrimSpace(input.Prompt))
+		request.Prompt = new(strings.TrimSpace(input.Prompt))
 	}
 	if cmd.Flags().Changed("event") {
-		request.Event = stringPointer(strings.TrimSpace(input.EventRaw))
+		request.Event = new(strings.TrimSpace(input.EventRaw))
 	}
 	if cmd.Flags().Changed("filter") {
 		filter, err := parseAutomationFilterFlags(input.FilterFlags)
@@ -1654,16 +1654,16 @@ func buildAutomationTriggerUpdateRequest(
 		request.Retry = retry
 	}
 	if cmd.Flags().Changed("enabled") {
-		request.Enabled = boolPointer(input.Enabled)
+		request.Enabled = new(input.Enabled)
 	}
 	if cmd.Flags().Changed("webhook-id") {
-		request.WebhookID = stringPointer(strings.TrimSpace(input.WebhookID))
+		request.WebhookID = new(strings.TrimSpace(input.WebhookID))
 	}
 	if cmd.Flags().Changed("endpoint-slug") {
-		request.EndpointSlug = stringPointer(strings.TrimSpace(input.EndpointSlug))
+		request.EndpointSlug = new(strings.TrimSpace(input.EndpointSlug))
 	}
 	if cmd.Flags().Changed("webhook-secret-value") {
-		request.WebhookSecretValue = stringPointer(input.WebhookSecretValue)
+		request.WebhookSecretValue = new(input.WebhookSecretValue)
 	}
 	if !request.HasChanges() {
 		return AutomationTriggerUpdateRequest{}, errors.New(
@@ -1731,12 +1731,4 @@ func formatOptionalTime(value *time.Time) string {
 		return ""
 	}
 	return formatTime(*value)
-}
-
-func boolPointer(value bool) *bool {
-	return &value
-}
-
-func stringPointer(value string) *string {
-	return &value
 }
