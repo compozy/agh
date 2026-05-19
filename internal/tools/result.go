@@ -6,6 +6,10 @@ import (
 	"strings"
 )
 
+const (
+	resultTokenKey = "token"
+)
+
 // ToolContent is one typed content block returned by a tool.
 type ToolContent struct {
 	Type     string                     `json:"type"`
@@ -136,7 +140,7 @@ func sensitiveMetadataKey(key string) bool {
 		"pkce",
 		"refresh_token",
 		"secret",
-		"token",
+		resultTokenKey,
 	}
 	for _, item := range sensitive {
 		if strings.Contains(normalized, item) {

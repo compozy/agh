@@ -19,6 +19,14 @@ import (
 )
 
 const (
+	registryAdditionalKey   = "additional"
+	registryAgentLocalValue = "agent-local"
+	registryBundledKey      = "bundled"
+	registryGlobalKey       = "global"
+	registryUserKey         = "user"
+)
+
+const (
 	workspaceCacheTTL          = 10 * time.Minute
 	skillSourceMarketplaceName = "marketplace"
 	skillSourceWorkspaceName   = "workspace"
@@ -655,8 +663,7 @@ func (r *Registry) verifyMarketplaceSkill(skill *Skill) error {
 		return nil
 	}
 
-	var mismatch *HashMismatchError
-	if errors.As(err, &mismatch) {
+	if mismatch, ok := errors.AsType[*HashMismatchError](err); ok {
 		r.logger.Warn(
 			"skills: marketplace skill hash mismatch",
 			"skill_name", skill.Meta.Name,
@@ -895,17 +902,17 @@ func SkillSourceName(source SkillSource) string {
 func skillSourceName(source SkillSource) string {
 	switch source {
 	case SourceBundled:
-		return "bundled"
+		return registryBundledKey
 	case SourceMarketplace:
 		return skillSourceMarketplaceName
 	case SourceUser:
-		return "user"
+		return registryUserKey
 	case SourceAdditional:
-		return "additional"
+		return registryAdditionalKey
 	case SourceWorkspace:
 		return skillSourceWorkspaceName
 	case SourceAgentLocal:
-		return "agent-local"
+		return registryAgentLocalValue
 	default:
 		return "unknown"
 	}
@@ -915,11 +922,11 @@ func skillSourceFromWorkspacePath(source string) (SkillSource, bool, error) {
 	switch strings.TrimSpace(source) {
 	case "", skillSourceWorkspaceName:
 		return SourceWorkspace, true, nil
-	case "additional":
+	case registryAdditionalKey:
 		return SourceAdditional, true, nil
 	case skillSourceMarketplaceName:
 		return SourceMarketplace, false, nil
-	case "global":
+	case registryGlobalKey:
 		return SourceUser, false, nil
 	default:
 		return 0, false, fmt.Errorf("skills: unsupported workspace skill source %q", source)

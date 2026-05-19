@@ -31,6 +31,14 @@ import (
 )
 
 const (
+	runtimeHarnessDoneKey       = "done"
+	runtimeHarnessEventKey      = "event"
+	runtimeHarnessHTTPUnixPath  = "http://unix"
+	runtimeHarnessMessageKey    = "message"
+	runtimeHarnessPermissionKey = "permission"
+)
+
+const (
 	defaultStartTimeout = 20 * time.Second
 	defaultPollInterval = 100 * time.Millisecond
 	maxStartAttempts    = 3
@@ -221,7 +229,7 @@ func newRuntimeHarness(t testing.TB, layout *runtimeLayout, binaryPath string) *
 		MockAgents:    cloneMockAgentRegistrations(layout.MockAgents),
 		HTTPBaseURL:   fmt.Sprintf("http://%s:%d", layout.Config.HTTP.Host, layout.Config.HTTP.Port),
 		HTTPClient:    newHTTPClient(),
-		UDSBaseURL:    "http://unix",
+		UDSBaseURL:    runtimeHarnessHTTPUnixPath,
 		UDSClient:     newUDSClient(layout.Config.Daemon.Socket),
 		CLI: &CLIClient{
 			binaryPath: binaryPath,
@@ -784,7 +792,7 @@ func (h *RuntimeHarness) PromptSessionWithEvents(
 	message string,
 	onEvent func(SSEEvent) error,
 ) ([]SSEEvent, error) {
-	body := map[string]string{"message": message}
+	body := map[string]string{runtimeHarnessMessageKey: message}
 	path, err := h.sessionScopedAPIPath(sessionID, "/prompt")
 	if err != nil {
 		return nil, err
@@ -817,7 +825,7 @@ func (h *RuntimeHarness) PromptSessionUntil(
 	if err := validateSSEPredicate(predicate); err != nil {
 		return nil, err
 	}
-	body := map[string]string{"message": message}
+	body := map[string]string{runtimeHarnessMessageKey: message}
 	path, err := h.sessionScopedAPIPath(sessionID, "/prompt")
 	if err != nil {
 		return nil, err
@@ -1860,7 +1868,7 @@ func inferSSEEventName(data []byte) string {
 	case len(trimmed) == 0:
 		return ""
 	case bytes.Equal(trimmed, []byte("[DONE]")):
-		return "done"
+		return runtimeHarnessDoneKey
 	}
 
 	var envelope struct {
@@ -1873,18 +1881,18 @@ func inferSSEEventName(data []byte) string {
 
 	switch strings.TrimSpace(envelope.Type) {
 	case "data-agh-permission":
-		return "permission"
+		return runtimeHarnessPermissionKey
 	case "data-agh-event":
 		var payload struct {
 			Type string `json:"type"`
 		}
 		if err := json.Unmarshal(envelope.Data, &payload); err != nil {
-			return "event"
+			return runtimeHarnessEventKey
 		}
 		if eventType := strings.TrimSpace(payload.Type); eventType != "" {
 			return eventType
 		}
-		return "event"
+		return runtimeHarnessEventKey
 	case "text-start", "text-delta", "text-end":
 		return transportParityEventAgentMessage
 	case "reasoning-start", "reasoning-delta", "reasoning-end":

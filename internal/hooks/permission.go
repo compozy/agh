@@ -8,6 +8,11 @@ import (
 	"strings"
 )
 
+const (
+	permissionBlockedKey = "blocked"
+	permissionRejectKey  = "reject"
+)
+
 var (
 	ErrHookPatchRejected           = errors.New("hooks: hook patch rejected")
 	ErrPermissionEscalationBlocked = errors.New("hooks: permission escalation blocked")
@@ -77,7 +82,7 @@ func permissionDecisionDenied(decision string) bool {
 	switch {
 	case clean == "":
 		return false
-	case clean == "block", clean == "blocked":
+	case clean == "block", clean == permissionBlockedKey:
 		return true
 	case clean == permissionDecisionDeny, clean == "denied", clean == "rejected":
 		return true
@@ -85,7 +90,7 @@ func permissionDecisionDenied(decision string) bool {
 		return true
 	case strings.HasPrefix(clean, permissionDecisionDeny+"-"):
 		return true
-	case clean == "reject":
+	case clean == permissionRejectKey:
 		return true
 	case strings.HasPrefix(clean, "reject-"):
 		return true

@@ -25,6 +25,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	mcpAuthExpiresValue = "Expires"
+	mcpAuthAuthKey      = "auth"
+	mcpAuthExpiresAtKey = "expires_at"
+	mcpAuthMCPKey       = "mcp"
+)
+
 const defaultMCPAuthLoginTimeout = 2 * time.Minute
 const mcpAuthPendingLoginDir = "mcp-auth"
 
@@ -73,7 +80,7 @@ func defaultMCPAuthClient(
 
 func newMCPCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "mcp",
+		Use:   mcpAuthMCPKey,
 		Short: "Manage MCP integrations",
 	}
 	cmd.AddCommand(newMCPAuthCommand(deps))
@@ -82,7 +89,7 @@ func newMCPCommand(deps commandDeps) *cobra.Command {
 
 func newMCPAuthCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "auth",
+		Use:   mcpAuthAuthKey,
 		Short: "Authenticate remote MCP servers",
 	}
 	cmd.AddCommand(newMCPAuthLoginCommand(deps))
@@ -720,9 +727,9 @@ func mcpAuthStatusListBundle(statuses []mcpauth.Status) outputBundle {
 		statuses,
 		statuses,
 		"MCP Auth",
-		[]string{"Server", "Status", "Client", "Expires", "Diagnostic"},
+		[]string{"Server", automationStatusValue, "Client", mcpAuthExpiresValue, "Diagnostic"},
 		"mcp_auth",
-		[]string{"server", "status", "client", "expires_at", "diagnostic"},
+		[]string{"server", automationStatusKey, "client", mcpAuthExpiresAtKey, "diagnostic"},
 		func(item mcpauth.Status) []string {
 			return []string{
 				stringOrDash(item.ServerName),
@@ -747,12 +754,12 @@ func mcpAuthStatusListBundle(statuses []mcpauth.Status) outputBundle {
 func mcpAuthStatusRows(status mcpauth.Status) []keyValue {
 	return []keyValue{
 		{Label: "Server", Value: stringOrDash(status.ServerName)},
-		{Label: "Status", Value: stringOrDash(string(status.Status))},
+		{Label: automationStatusValue, Value: stringOrDash(string(status.Status))},
 		{Label: "Remote URL", Value: stringOrDash(status.RemoteURL)},
 		{Label: "Auth Type", Value: stringOrDash(status.AuthType)},
 		{Label: "Client ID", Value: stringOrDash(status.ClientID)},
 		{Label: "Scopes", Value: stringOrDash(strings.Join(status.Scopes, ", "))},
-		{Label: "Expires", Value: stringOrDash(timePtrString(status.ExpiresAt))},
+		{Label: mcpAuthExpiresValue, Value: stringOrDash(timePtrString(status.ExpiresAt))},
 		{Label: "Refreshable", Value: boolString(status.Refreshable)},
 		{Label: "Diagnostic", Value: stringOrDash(status.Diagnostic)},
 	}
@@ -761,12 +768,12 @@ func mcpAuthStatusRows(status mcpauth.Status) []keyValue {
 func mcpAuthStatusFields(status mcpauth.Status) ([]string, []string) {
 	fields := []string{
 		"server",
-		"status",
+		automationStatusKey,
 		"remote_url",
 		"auth_type",
 		"client_id",
 		"scopes",
-		"expires_at",
+		mcpAuthExpiresAtKey,
 		"refreshable",
 		"diagnostic",
 	}

@@ -2,6 +2,10 @@ package aghsdk
 
 import "encoding/json"
 
+const (
+	resultErrorKey = "error"
+)
+
 // EmptyResult returns an empty successful tool result.
 func EmptyResult() ToolResult {
 	return ToolResult{Truncated: false, Bytes: 0, DurationMS: 0}
@@ -23,7 +27,7 @@ func StructuredResult(value any) (ToolResult, error) {
 	encoded, err := json.Marshal(value)
 	if err != nil {
 		return ToolResult{}, NewInvalidParamsError("structured result must be JSON serializable", map[string]any{
-			"error": err.Error(),
+			resultErrorKey: err.Error(),
 		})
 	}
 	return ToolResult{

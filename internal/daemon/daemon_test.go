@@ -993,8 +993,8 @@ func TestBootHooksBuildsResourceBackedRuntimeAndAttachesObserver(t *testing.T) {
 		t.Fatalf("bootHooks() error = %v", err)
 	}
 	t.Cleanup(func() {
-		for i := len(cleanup.fns) - 1; i >= 0; i-- {
-			if err := cleanup.fns[i](testutil.Context(t)); err != nil {
+		for i, v := range slices.Backward(cleanup.fns) {
+			if err := v(testutil.Context(t)); err != nil {
 				t.Fatalf("cleanup[%d]() error = %v", i, err)
 			}
 		}

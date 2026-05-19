@@ -34,6 +34,40 @@ import (
 )
 
 const (
+	hostAPIAgentNameKey                 = "agent_name"
+	hostAPIAutomationJobsDeletePath     = "automation/jobs/delete"
+	hostAPIAutomationJobsGetPath        = "automation/jobs/get"
+	hostAPIAutomationJobsRunsPath       = "automation/jobs/runs"
+	hostAPIAutomationJobsTriggerPath    = "automation/jobs/trigger"
+	hostAPIAutomationJobsUpdatePath     = "automation/jobs/update"
+	hostAPIAutomationRunsPath           = "automation/runs"
+	hostAPIAutomationTriggersPath       = "automation/triggers"
+	hostAPIAutomationTriggersCreatePath = "automation/triggers/create"
+	hostAPIAutomationTriggersDeletePath = "automation/triggers/delete"
+	hostAPIAutomationTriggersFirePath   = "automation/triggers/fire"
+	hostAPIAutomationTriggersGetPath    = "automation/triggers/get"
+	hostAPIAutomationTriggersRunsPath   = "automation/triggers/runs"
+	hostAPIAutomationTriggersUpdatePath = "automation/triggers/update"
+	hostAPIBridgesInstancesGetPath      = "bridges/instances/get"
+	hostAPIBridgesMessagesIngestPath    = "bridges/messages/ingest"
+	hostAPILimitKey                     = "limit"
+	hostAPIMemoryStorePath              = "memory/store"
+	hostAPIMethodKey                    = "method"
+	hostAPIObserveHealthPath            = "observe/health"
+	hostAPIResourceKey                  = "resource"
+	hostAPIResourcesGetPath             = "resources/get"
+	hostAPISandboxInfoPath              = "sandbox/info"
+	hostAPISandboxListPath              = "sandbox/list"
+	hostAPIScopeKey                     = "scope"
+	hostAPISessionIDKey                 = "session_id"
+	hostAPISessionsListPath             = "sessions/list"
+	hostAPISessionsPromptPath           = "sessions/prompt"
+	hostAPISessionsStatusPath           = "sessions/status"
+	hostAPISessionsStopPath             = "sessions/stop"
+	hostAPIWorkspaceIDKey               = "workspace_id"
+)
+
+const (
 	// HostAPIRateLimitedCode is the protocol code for per-extension backpressure.
 	HostAPIRateLimitedCode = -32002
 	// HostAPIUnavailableCode reports a temporarily unavailable Host API resource.
@@ -516,21 +550,21 @@ func normalizeHostAPIHandlerDefaults(handler *HostAPIHandler) {
 
 func hostAPIMethodHandlers(handler *HostAPIHandler) map[string]hostAPIMethodFunc {
 	handlers := map[string]hostAPIMethodFunc{
-		"automation/jobs":                                              handler.handleAutomationJobs,
-		"automation/jobs/get":                                          handler.handleAutomationJobsGet,
-		"automation/jobs/create":                                       handler.handleAutomationJobsCreate,
-		"automation/jobs/update":                                       handler.handleAutomationJobsUpdate,
-		"automation/jobs/delete":                                       handler.handleAutomationJobsDelete,
-		"automation/jobs/trigger":                                      handler.handleAutomationJobsTrigger,
-		"automation/jobs/runs":                                         handler.handleAutomationJobsRuns,
-		"automation/triggers":                                          handler.handleAutomationTriggers,
-		"automation/triggers/get":                                      handler.handleAutomationTriggersGet,
-		"automation/triggers/create":                                   handler.handleAutomationTriggersCreate,
-		"automation/triggers/update":                                   handler.handleAutomationTriggersUpdate,
-		"automation/triggers/delete":                                   handler.handleAutomationTriggersDelete,
-		"automation/triggers/runs":                                     handler.handleAutomationTriggersRuns,
-		"automation/triggers/fire":                                     handler.handleAutomationTriggersFire,
-		"automation/runs":                                              handler.handleAutomationRuns,
+		hostAPIAutomationJobsPath:                                      handler.handleAutomationJobs,
+		hostAPIAutomationJobsGetPath:                                   handler.handleAutomationJobsGet,
+		hostAPIAutomationJobsCreatePath:                                handler.handleAutomationJobsCreate,
+		hostAPIAutomationJobsUpdatePath:                                handler.handleAutomationJobsUpdate,
+		hostAPIAutomationJobsDeletePath:                                handler.handleAutomationJobsDelete,
+		hostAPIAutomationJobsTriggerPath:                               handler.handleAutomationJobsTrigger,
+		hostAPIAutomationJobsRunsPath:                                  handler.handleAutomationJobsRuns,
+		hostAPIAutomationTriggersPath:                                  handler.handleAutomationTriggers,
+		hostAPIAutomationTriggersGetPath:                               handler.handleAutomationTriggersGet,
+		hostAPIAutomationTriggersCreatePath:                            handler.handleAutomationTriggersCreate,
+		hostAPIAutomationTriggersUpdatePath:                            handler.handleAutomationTriggersUpdate,
+		hostAPIAutomationTriggersDeletePath:                            handler.handleAutomationTriggersDelete,
+		hostAPIAutomationTriggersRunsPath:                              handler.handleAutomationTriggersRuns,
+		hostAPIAutomationTriggersFirePath:                              handler.handleAutomationTriggersFire,
+		hostAPIAutomationRunsPath:                                      handler.handleAutomationRuns,
 		string(extensioncontract.HostAPIMethodTasks):                   handler.handleTasks,
 		string(extensioncontract.HostAPIMethodTasksGet):                handler.handleTasksGet,
 		string(extensioncontract.HostAPIMethodTasksTimeline):           handler.handleTasksTimeline,
@@ -549,21 +583,21 @@ func hostAPIMethodHandlers(handler *HostAPIHandler) map[string]hostAPIMethodFunc
 		string(extensioncontract.HostAPIMethodTasksRunsComplete):       handler.handleTasksRunsComplete,
 		string(extensioncontract.HostAPIMethodTasksRunsFail):           handler.handleTasksRunsFail,
 		string(extensioncontract.HostAPIMethodTasksRunsCancel):         handler.handleTasksRunsCancel,
-		"resources/list":                                               handler.handleResourcesList,
-		"resources/get":                                                handler.handleResourcesGet,
-		"resources/snapshot":                                           handler.handleResourcesSnapshot,
-		"bridges/instances/list":                                       handler.handleBridgesInstancesList,
-		"bridges/instances/get":                                        handler.handleBridgesInstancesGet,
-		"bridges/instances/report_state":                               handler.handleBridgesInstancesReportState,
-		"bridges/messages/ingest":                                      handler.handleBridgesMessagesIngest,
-		"sandbox/exec":                                                 handler.handleSandboxExec,
-		"sandbox/info":                                                 handler.handleSandboxInfo,
-		"sandbox/list":                                                 handler.handleSandboxList,
-		"memory/forget":                                                handler.handleMemoryForget,
-		"memory/recall":                                                handler.handleMemoryRecall,
-		"memory/store":                                                 handler.handleMemoryStore,
-		"observe/events":                                               handler.handleObserveEvents,
-		"observe/health":                                               handler.handleObserveHealth,
+		hostAPIResourcesListPath:                                       handler.handleResourcesList,
+		hostAPIResourcesGetPath:                                        handler.handleResourcesGet,
+		hostAPIResourcesSnapshotPath:                                   handler.handleResourcesSnapshot,
+		hostAPIBridgesInstancesListPath:                                handler.handleBridgesInstancesList,
+		hostAPIBridgesInstancesGetPath:                                 handler.handleBridgesInstancesGet,
+		hostAPIBridgesInstancesReportStatePath:                         handler.handleBridgesInstancesReportState,
+		hostAPIBridgesMessagesIngestPath:                               handler.handleBridgesMessagesIngest,
+		hostAPISandboxExecPath:                                         handler.handleSandboxExec,
+		hostAPISandboxInfoPath:                                         handler.handleSandboxInfo,
+		hostAPISandboxListPath:                                         handler.handleSandboxList,
+		hostAPIMemoryForgetPath:                                        handler.handleMemoryForget,
+		hostAPIMemoryRecallPath:                                        handler.handleMemoryRecall,
+		hostAPIMemoryStorePath:                                         handler.handleMemoryStore,
+		hostAPIObserveEventsPath:                                       handler.handleObserveEvents,
+		hostAPIObserveHealthPath:                                       handler.handleObserveHealth,
 		string(extensioncontract.HostAPIMethodModelsList):              handler.handleModelsList,
 		string(extensioncontract.HostAPIMethodModelsRefresh):           handler.handleModelsRefresh,
 		string(extensioncontract.HostAPIMethodModelsStatus):            handler.handleModelsStatus,
@@ -581,16 +615,16 @@ func hostAPIMethodHandlers(handler *HostAPIHandler) map[string]hostAPIMethodFunc
 		string(extensioncontract.HostAPIMethodAgentsHeartbeatRollback): handler.handleAgentsHeartbeatRollback,
 		string(extensioncontract.HostAPIMethodAgentsHeartbeatStatus):   handler.handleAgentsHeartbeatStatus,
 		string(extensioncontract.HostAPIMethodAgentsHeartbeatWake):     handler.handleAgentsHeartbeatWake,
-		"sessions/create":                                              handler.handleSessionsCreate,
-		"sessions/events":                                              handler.handleSessionsEvents,
+		hostAPISessionsCreatePath:                                      handler.handleSessionsCreate,
+		hostAPISessionsEventsPath:                                      handler.handleSessionsEvents,
 		string(extensioncontract.HostAPIMethodSessionsSoulRefresh):     handler.handleSessionsSoulRefresh,
 		string(extensioncontract.HostAPIMethodSessionsHealthGet):       handler.handleSessionsHealthGet,
-		"sessions/list":                                                handler.handleSessionsList,
-		"sessions/prompt":                                              handler.handleSessionsPrompt,
-		"sessions/status":                                              handler.handleSessionsStatus,
+		hostAPISessionsListPath:                                        handler.handleSessionsList,
+		hostAPISessionsPromptPath:                                      handler.handleSessionsPrompt,
+		hostAPISessionsStatusPath:                                      handler.handleSessionsStatus,
 		string(extensioncontract.HostAPIMethodSessionsStatusGet):       handler.handleSessionsStatusGet,
-		"sessions/stop":                                                handler.handleSessionsStop,
-		"skills/list":                                                  handler.handleSkillsList,
+		hostAPISessionsStopPath:                                        handler.handleSessionsStop,
+		hostAPISkillsListPath:                                          handler.handleSkillsList,
 	}
 	registerHostAPINetworkMethodHandlers(handler, handlers)
 	return handlers
@@ -1294,10 +1328,10 @@ func (h *HostAPIHandler) handleObserveEvents(ctx context.Context, raw json.RawMe
 			Type:      event.Type,
 			Timestamp: event.Timestamp,
 			Data: map[string]any{
-				"workspace_id": event.WorkspaceID,
-				"session_id":   event.SessionID,
-				"agent_name":   event.AgentName,
-				"summary":      event.Summary,
+				hostAPIWorkspaceIDKey: event.WorkspaceID,
+				hostAPISessionIDKey:   event.SessionID,
+				hostAPIAgentNameKey:   event.AgentName,
+				"summary":             event.Summary,
 			},
 		})
 	}
@@ -2509,23 +2543,31 @@ func invalidParamsRPCError(err error) error {
 	if err == nil {
 		return subprocess.NewRPCError(HostAPIInvalidParamsCode, "Invalid params", nil)
 	}
-	return subprocess.NewRPCError(HostAPIInvalidParamsCode, "Invalid params", map[string]string{"error": err.Error()})
+	return subprocess.NewRPCError(
+		HostAPIInvalidParamsCode,
+		"Invalid params",
+		map[string]string{extensionStateError: err.Error()},
+	)
 }
 
 func unavailableRPCError(err error) error {
 	if err == nil {
 		return subprocess.NewRPCError(HostAPIUnavailableCode, "Unavailable", nil)
 	}
-	return subprocess.NewRPCError(HostAPIUnavailableCode, "Unavailable", map[string]string{"error": err.Error()})
+	return subprocess.NewRPCError(
+		HostAPIUnavailableCode,
+		"Unavailable",
+		map[string]string{extensionStateError: err.Error()},
+	)
 }
 
 func notFoundRPCError(resource string, id string, err error) error {
 	data := map[string]string{
-		"resource": strings.TrimSpace(resource),
-		"id":       strings.TrimSpace(id),
+		hostAPIResourceKey: strings.TrimSpace(resource),
+		"id":               strings.TrimSpace(id),
 	}
 	if err != nil {
-		data["error"] = err.Error()
+		data[extensionStateError] = err.Error()
 	}
 	return subprocess.NewRPCError(HostAPINotFoundCode, "Not found", data)
 }
@@ -2534,7 +2576,7 @@ func methodNotFoundRPCError(method string) error {
 	return subprocess.NewRPCError(
 		HostAPIMethodNotFoundCode,
 		"Method not found",
-		map[string]string{"method": strings.TrimSpace(method)},
+		map[string]string{hostAPIMethodKey: strings.TrimSpace(method)},
 	)
 }
 
@@ -2545,10 +2587,10 @@ func rpcCapabilityDenied(err error) error {
 	}
 	if isResourceHostAPIMethod(denied.Data.Method) {
 		return hostAPIStatusRPCError(403, "Forbidden", map[string]any{
-			"error":    denied.Error(),
-			"method":   strings.TrimSpace(denied.Data.Method),
-			"required": append([]string(nil), denied.Data.Required...),
-			"granted":  append([]string(nil), denied.Data.Granted...),
+			extensionStateError: denied.Error(),
+			hostAPIMethodKey:    strings.TrimSpace(denied.Data.Method),
+			"required":          append([]string(nil), denied.Data.Required...),
+			"granted":           append([]string(nil), denied.Data.Granted...),
 		})
 	}
 	return subprocess.NewRPCError(denied.Code(), "Capability denied", denied.Data)
@@ -2562,8 +2604,7 @@ func normalizeHostAPIRPCError(method string, err error) error {
 		return err
 	}
 
-	var rpcErr *subprocess.RPCError
-	if errors.As(err, &rpcErr) {
+	if rpcErr, ok := errors.AsType[*subprocess.RPCError](err); ok {
 		if rpcErr.Code == HostAPIRateLimitedCode {
 			return hostAPIStatusRPCError(429, "Rate limited", rpcErr.Data)
 		}
@@ -2572,14 +2613,14 @@ func normalizeHostAPIRPCError(method string, err error) error {
 
 	switch {
 	case errors.Is(err, resources.ErrPermissionDenied), errors.Is(err, resources.ErrDirectMutationNotAllowed):
-		return hostAPIStatusRPCError(403, "Forbidden", map[string]any{"error": err.Error()})
+		return hostAPIStatusRPCError(403, "Forbidden", map[string]any{extensionStateError: err.Error()})
 	case errors.Is(err, resources.ErrConflict), errors.Is(err, resources.ErrSessionNotActive),
 		errors.Is(err, resources.ErrStaleSourceVersion):
-		return hostAPIStatusRPCError(409, "Conflict", map[string]any{"error": err.Error()})
+		return hostAPIStatusRPCError(409, "Conflict", map[string]any{extensionStateError: err.Error()})
 	case errors.Is(err, resources.ErrPayloadTooLarge):
-		return hostAPIStatusRPCError(413, "Payload too large", map[string]any{"error": err.Error()})
+		return hostAPIStatusRPCError(413, "Payload too large", map[string]any{extensionStateError: err.Error()})
 	case errors.Is(err, resources.ErrNotFound):
-		return notFoundRPCError("resource", "", err)
+		return notFoundRPCError(hostAPIResourceKey, "", err)
 	case errors.Is(err, resources.ErrValidation), errors.Is(err, resources.ErrInvalidScopeBinding):
 		return invalidParamsRPCError(err)
 	default:
@@ -2688,9 +2729,9 @@ func (l *hostAPIRateLimiter) Allow(extName string, method string) error {
 	l.entries[key] = state
 
 	return subprocess.NewRPCError(HostAPIRateLimitedCode, "Rate limited", map[string]any{
-		"scope":          "host_api." + strings.TrimSpace(method),
+		hostAPIScopeKey:  "host_api." + strings.TrimSpace(method),
 		"retry_after_ms": retryAfter.Milliseconds(),
-		"limit":          l.limit,
+		hostAPILimitKey:  l.limit,
 		"burst":          l.burst,
 	})
 }

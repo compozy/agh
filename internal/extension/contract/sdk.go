@@ -12,6 +12,101 @@ import (
 	"github.com/pedronauck/agh/internal/tools"
 )
 
+const (
+	sdkAgentHeartbeatPolicyResolvedPayloadValue = "AgentHeartbeatPolicyResolvedPayload"
+	sdkAgentHeartbeatWakeAfterPayloadValue      = "AgentHeartbeatWakeAfterPayload"
+	sdkAgentHeartbeatWakeBeforePayloadValue     = "AgentHeartbeatWakeBeforePayload"
+	sdkAgentLifecyclePatchValue                 = "AgentLifecyclePatch"
+	sdkAgentLifecyclePayloadValue               = "AgentLifecyclePayload"
+	sdkAgentPreStartPayloadValue                = "AgentPreStartPayload"
+	sdkAgentSoulMutationAfterPayloadValue       = "AgentSoulMutationAfterPayload"
+	sdkAgentSoulMutationResponseValue           = "AgentSoulMutationResponse"
+	sdkAgentSoulPayloadValue                    = "AgentSoulPayload"
+	sdkAgentSoulSnapshotResolvedPayloadValue    = "AgentSoulSnapshotResolvedPayload"
+	sdkAgentStartPatchValue                     = "AgentStartPatch"
+	sdkAuthoredContextObservationPatchValue     = "AuthoredContextObservationPatch"
+	sdkAuthoredContextProvenanceValue           = "AuthoredContextProvenance"
+	sdkAuthoredMutationProvenanceValue          = "AuthoredMutationProvenance"
+	sdkAutomationFirePatchValue                 = "AutomationFirePatch"
+	sdkAutomationJobPostFirePayloadValue        = "AutomationJobPostFirePayload"
+	sdkAutomationJobPreFirePayloadValue         = "AutomationJobPreFirePayload"
+	sdkAutomationObservationPatchValue          = "AutomationObservationPatch"
+	sdkAutomationRunCompletedPayloadValue       = "AutomationRunCompletedPayload"
+	sdkAutomationRunFailedPayloadValue          = "AutomationRunFailedPayload"
+	sdkAutomationSchedulePayloadValue           = "AutomationSchedulePayload"
+	sdkAutomationTriggerPostFirePayloadValue    = "AutomationTriggerPostFirePayload"
+	sdkAutomationTriggerPreFirePayloadValue     = "AutomationTriggerPreFirePayload"
+	sdkAutonomyMatcherValue                     = "AutonomyMatcher"
+	sdkAutonomyObservationPatchValue            = "AutonomyObservationPatch"
+	sdkBridgeInstanceValue                      = "BridgeInstance"
+	sdkContextBlockValue                        = "ContextBlock"
+	sdkContextCompactPayloadValue               = "ContextCompactPayload"
+	sdkContextCompactionPatchValue              = "ContextCompactionPatch"
+	sdkControlPatchValue                        = "ControlPatch"
+	sdkCoordinatorContextValue                  = "CoordinatorContext"
+	sdkCoordinatorLifecyclePayloadValue         = "CoordinatorLifecyclePayload"
+	sdkCoordinatorPreSpawnPayloadValue          = "CoordinatorPreSpawnPayload"
+	sdkCoordinatorSpawnPatchValue               = "CoordinatorSpawnPatch"
+	sdkEventRecordPatchValue                    = "EventRecordPatch"
+	sdkEventRecordPayloadValue                  = "EventRecordPayload"
+	sdkHeartbeatMutationResponseValue           = "HeartbeatMutationResponse"
+	sdkHeartbeatPolicyPayloadValue              = "HeartbeatPolicyPayload"
+	sdkInputPreSubmitPatchValue                 = "InputPreSubmitPatch"
+	sdkInputPreSubmitPayloadValue               = "InputPreSubmitPayload"
+	sdkMessagePatchValue                        = "MessagePatch"
+	sdkMessagePayloadValue                      = "MessagePayload"
+	sdkNetworkMessagePersistedPayloadValue      = "NetworkMessagePersistedPayload"
+	sdkNetworkObservationPatchValue             = "NetworkObservationPatch"
+	sdkNetworkPayloadValue                      = "NetworkPayload"
+	sdkNetworkWorkClosedPayloadValue            = "NetworkWorkClosedPayload"
+	sdkPayloadBaseValue                         = "PayloadBase"
+	sdkPermissionOptionValue                    = "PermissionOption"
+	sdkPermissionRequestPatchValue              = "PermissionRequestPatch"
+	sdkPermissionRequestPayloadValue            = "PermissionRequestPayload"
+	sdkPermissionResolutionPayloadValue         = "PermissionResolutionPayload"
+	sdkPermissionSetValue                       = "PermissionSet"
+	sdkPermissionToolCallValue                  = "PermissionToolCall"
+	sdkPromptPatchValue                         = "PromptPatch"
+	sdkPromptPayloadValue                       = "PromptPayload"
+	sdkResourceRecordValue                      = "ResourceRecord"
+	sdkSandboxObservationPatchValue             = "SandboxObservationPatch"
+	sdkSandboxPreparePatchValue                 = "SandboxPreparePatch"
+	sdkSandboxPreparePayloadValue               = "SandboxPreparePayload"
+	sdkSandboxProfilePayloadValue               = "SandboxProfilePayload"
+	sdkSandboxReadyPayloadValue                 = "SandboxReadyPayload"
+	sdkSandboxStopPatchValue                    = "SandboxStopPatch"
+	sdkSandboxStopPayloadValue                  = "SandboxStopPayload"
+	sdkSandboxSyncAfterPayloadValue             = "SandboxSyncAfterPayload"
+	sdkSandboxSyncBeforePatchValue              = "SandboxSyncBeforePatch"
+	sdkSandboxSyncBeforePayloadValue            = "SandboxSyncBeforePayload"
+	sdkSessionContextValue                      = "SessionContext"
+	sdkSessionCreatePatchValue                  = "SessionCreatePatch"
+	sdkSessionHealthUpdateAfterPayloadValue     = "SessionHealthUpdateAfterPayload"
+	sdkSessionLifecyclePayloadValue             = "SessionLifecyclePayload"
+	sdkSessionMessagePersistedPayloadValue      = "SessionMessagePersistedPayload"
+	sdkSpawnContextValue                        = "SpawnContext"
+	sdkSpawnCreatePatchValue                    = "SpawnCreatePatch"
+	sdkSpawnLifecyclePayloadValue               = "SpawnLifecyclePayload"
+	sdkSpawnPreCreatePayloadValue               = "SpawnPreCreatePayload"
+	sdkTaskRunClaimCriteriaValue                = "TaskRunClaimCriteria"
+	sdkTaskRunContextValue                      = "TaskRunContext"
+	sdkTaskRunEnqueuedPayloadValue              = "TaskRunEnqueuedPayload"
+	sdkTaskRunLeasePayloadValue                 = "TaskRunLeasePayload"
+	sdkTaskRunPostClaimPayloadValue             = "TaskRunPostClaimPayload"
+	sdkTaskRunPreClaimPatchValue                = "TaskRunPreClaimPatch"
+	sdkTaskRunPreClaimPayloadValue              = "TaskRunPreClaimPayload"
+	sdkToolCallPatchValue                       = "ToolCallPatch"
+	sdkToolCallRefValue                         = "ToolCallRef"
+	sdkToolLocationValue                        = "ToolLocation"
+	sdkToolPostCallPayloadValue                 = "ToolPostCallPayload"
+	sdkToolPostErrorPayloadValue                = "ToolPostErrorPayload"
+	sdkToolPreCallPayloadValue                  = "ToolPreCallPayload"
+	sdkToolResultPatchValue                     = "ToolResultPatch"
+	sdkTurnContextValue                         = "TurnContext"
+	sdkTurnPatchValue                           = "TurnPatch"
+	sdkTurnPayloadValue                         = "TurnPayload"
+)
+
 // HookContractSpec binds one hook event to its payload and patch contracts.
 type HookContractSpec struct {
 	Event   hooks.HookEvent
@@ -38,7 +133,7 @@ var sdkRootTypes = []NamedType{
 	{Name: "ResourceSource", Value: resources.ResourceSource{}},
 	{Name: "ResourceOwnerKind", Value: resources.ResourceOwnerKind("")},
 	{Name: "ResourceOwner", Value: resources.ResourceOwner{}},
-	{Name: "ResourceRecord", Value: ResourceRecord{}},
+	{Name: sdkResourceRecordValue, Value: ResourceRecord{}},
 	{Name: "ResourceGetParams", Value: ResourceGetParams{}},
 	{Name: "ResourcesListParams", Value: ResourcesListParams{}},
 	{Name: "ResourceSnapshotRecord", Value: ResourceSnapshotRecord{}},
@@ -47,23 +142,23 @@ var sdkRootTypes = []NamedType{
 	{Name: "AuthoredDiagnosticSeverity", Value: apicontract.AuthoredDiagnosticSeverity("")},
 	{Name: "AuthoredContextDiagnosticPayload", Value: apicontract.AuthoredContextDiagnosticPayload{}},
 	{Name: "AgentSoulSectionPayload", Value: apicontract.AgentSoulSectionPayload{}},
-	{Name: "AgentSoulPayload", Value: apicontract.AgentSoulPayload{}},
+	{Name: sdkAgentSoulPayloadValue, Value: apicontract.AgentSoulPayload{}},
 	{Name: "AgentSoulValidateRequest", Value: apicontract.AgentSoulValidateRequest{}},
 	{Name: "AgentSoulPutRequest", Value: apicontract.AgentSoulPutRequest{}},
 	{Name: "AgentSoulDeleteRequest", Value: apicontract.AgentSoulDeleteRequest{}},
 	{Name: "AgentSoulRollbackRequest", Value: apicontract.AgentSoulRollbackRequest{}},
 	{Name: "AgentSoulHistoryRequest", Value: apicontract.AgentSoulHistoryRequest{}},
 	{Name: "AgentSoulHistoryResponse", Value: apicontract.AgentSoulHistoryResponse{}},
-	{Name: "AgentSoulMutationResponse", Value: apicontract.AgentSoulMutationResponse{}},
+	{Name: sdkAgentSoulMutationResponseValue, Value: apicontract.AgentSoulMutationResponse{}},
 	{Name: "SessionSoulRefreshRequest", Value: apicontract.SessionSoulRefreshRequest{}},
-	{Name: "HeartbeatPolicyPayload", Value: apicontract.HeartbeatPolicyPayload{}},
+	{Name: sdkHeartbeatPolicyPayloadValue, Value: apicontract.HeartbeatPolicyPayload{}},
 	{Name: "HeartbeatValidateRequest", Value: apicontract.HeartbeatValidateRequest{}},
 	{Name: "HeartbeatPutRequest", Value: apicontract.HeartbeatPutRequest{}},
 	{Name: "HeartbeatDeleteRequest", Value: apicontract.HeartbeatDeleteRequest{}},
 	{Name: "HeartbeatRollbackRequest", Value: apicontract.HeartbeatRollbackRequest{}},
 	{Name: "HeartbeatHistoryRequest", Value: apicontract.HeartbeatHistoryRequest{}},
 	{Name: "HeartbeatHistoryResponse", Value: apicontract.HeartbeatHistoryResponse{}},
-	{Name: "HeartbeatMutationResponse", Value: apicontract.HeartbeatMutationResponse{}},
+	{Name: sdkHeartbeatMutationResponseValue, Value: apicontract.HeartbeatMutationResponse{}},
 	{Name: "HeartbeatStatusRequest", Value: apicontract.HeartbeatStatusRequest{}},
 	{Name: "HeartbeatStatusResponse", Value: apicontract.HeartbeatStatusResponse{}},
 	{Name: "HeartbeatWakeRequest", Value: apicontract.HeartbeatWakeRequest{}},
@@ -77,7 +172,7 @@ var sdkRootTypes = []NamedType{
 	{Name: "HeartbeatWakeDecisionPayload", Value: apicontract.HeartbeatWakeDecisionPayload{}},
 	{Name: "ShutdownRequest", Value: subprocess.ShutdownRequest{}},
 	{Name: "ShutdownResponse", Value: subprocess.ShutdownResponse{}},
-	{Name: "BridgeInstance", Value: bridgepkg.BridgeInstance{}},
+	{Name: sdkBridgeInstanceValue, Value: bridgepkg.BridgeInstance{}},
 	{Name: "BridgeStatus", Value: bridgepkg.BridgeStatus("")},
 	{Name: "BridgeScope", Value: bridgepkg.Scope("")},
 	{Name: "RoutingPolicy", Value: bridgepkg.RoutingPolicy{}},
@@ -118,90 +213,90 @@ var sdkRootTypes = []NamedType{
 	{Name: "HookEventFamily", Value: hooks.HookEventFamily("")},
 	{Name: "HookRunOutcome", Value: hooks.HookRunOutcome("")},
 	{Name: "HookSkillSource", Value: hooks.HookSkillSource("")},
-	{Name: "PayloadBase", Value: hooks.PayloadBase{}},
-	{Name: "SessionContext", Value: hooks.SessionContext{}},
-	{Name: "TurnContext", Value: hooks.TurnContext{}},
-	{Name: "ContextBlock", Value: hooks.ContextBlock{}},
-	{Name: "ToolCallRef", Value: hooks.ToolCallRef{}},
-	{Name: "ToolLocation", Value: hooks.ToolLocation{}},
-	{Name: "PermissionOption", Value: hooks.PermissionOption{}},
-	{Name: "PermissionToolCall", Value: hooks.PermissionToolCall{}},
-	{Name: "ControlPatch", Value: hooks.ControlPatch{}},
-	{Name: "SessionLifecyclePayload", Value: hooks.SessionLifecyclePayload{}},
-	{Name: "SessionCreatePatch", Value: hooks.SessionCreatePatch{}},
-	{Name: "SandboxProfilePayload", Value: hooks.SandboxProfilePayload{}},
-	{Name: "SandboxPreparePayload", Value: hooks.SandboxPreparePayload{}},
-	{Name: "SandboxReadyPayload", Value: hooks.SandboxReadyPayload{}},
-	{Name: "SandboxSyncBeforePayload", Value: hooks.SandboxSyncBeforePayload{}},
-	{Name: "SandboxSyncAfterPayload", Value: hooks.SandboxSyncAfterPayload{}},
-	{Name: "SandboxStopPayload", Value: hooks.SandboxStopPayload{}},
-	{Name: "SandboxPreparePatch", Value: hooks.SandboxPreparePatch{}},
-	{Name: "SandboxSyncBeforePatch", Value: hooks.SandboxSyncBeforePatch{}},
-	{Name: "SandboxObservationPatch", Value: hooks.SandboxObservationPatch{}},
-	{Name: "SandboxStopPatch", Value: hooks.SandboxStopPatch{}},
-	{Name: "InputPreSubmitPayload", Value: hooks.InputPreSubmitPayload{}},
-	{Name: "InputPreSubmitPatch", Value: hooks.InputPreSubmitPatch{}},
-	{Name: "PromptPayload", Value: hooks.PromptPayload{}},
-	{Name: "PromptPatch", Value: hooks.PromptPatch{}},
-	{Name: "EventRecordPayload", Value: hooks.EventRecordPayload{}},
-	{Name: "EventRecordPatch", Value: hooks.EventRecordPatch{}},
-	{Name: "AutomationSchedulePayload", Value: hooks.AutomationSchedulePayload{}},
-	{Name: "AutomationJobPreFirePayload", Value: hooks.AutomationJobPreFirePayload{}},
-	{Name: "AutomationJobPostFirePayload", Value: hooks.AutomationJobPostFirePayload{}},
-	{Name: "AutomationTriggerPreFirePayload", Value: hooks.AutomationTriggerPreFirePayload{}},
-	{Name: "AutomationTriggerPostFirePayload", Value: hooks.AutomationTriggerPostFirePayload{}},
-	{Name: "AutomationRunCompletedPayload", Value: hooks.AutomationRunCompletedPayload{}},
-	{Name: "AutomationRunFailedPayload", Value: hooks.AutomationRunFailedPayload{}},
-	{Name: "AutomationFirePatch", Value: hooks.AutomationFirePatch{}},
-	{Name: "AutomationObservationPatch", Value: hooks.AutomationObservationPatch{}},
-	{Name: "AgentPreStartPayload", Value: hooks.AgentPreStartPayload{}},
-	{Name: "AgentLifecyclePayload", Value: hooks.AgentLifecyclePayload{}},
-	{Name: "AgentStartPatch", Value: hooks.AgentStartPatch{}},
-	{Name: "AgentLifecyclePatch", Value: hooks.AgentLifecyclePatch{}},
-	{Name: "AuthoredContextProvenance", Value: hooks.AuthoredContextProvenance{}},
-	{Name: "AuthoredMutationProvenance", Value: hooks.AuthoredMutationProvenance{}},
-	{Name: "AgentSoulSnapshotResolvedPayload", Value: hooks.AgentSoulSnapshotResolvedPayload{}},
-	{Name: "AgentSoulMutationAfterPayload", Value: hooks.AgentSoulMutationAfterPayload{}},
-	{Name: "AgentHeartbeatPolicyResolvedPayload", Value: hooks.AgentHeartbeatPolicyResolvedPayload{}},
-	{Name: "AgentHeartbeatWakeBeforePayload", Value: hooks.AgentHeartbeatWakeBeforePayload{}},
-	{Name: "AgentHeartbeatWakeAfterPayload", Value: hooks.AgentHeartbeatWakeAfterPayload{}},
-	{Name: "SessionHealthUpdateAfterPayload", Value: hooks.SessionHealthUpdateAfterPayload{}},
-	{Name: "AuthoredContextObservationPatch", Value: hooks.AuthoredContextObservationPatch{}},
-	{Name: "NetworkPayload", Value: hooks.NetworkPayload{}},
-	{Name: "NetworkObservationPatch", Value: hooks.NetworkObservationPatch{}},
-	{Name: "TurnPayload", Value: hooks.TurnPayload{}},
-	{Name: "TurnPatch", Value: hooks.TurnPatch{}},
-	{Name: "MessagePayload", Value: hooks.MessagePayload{}},
-	{Name: "SessionMessagePersistedPayload", Value: hooks.SessionMessagePersistedPayload{}},
-	{Name: "MessagePatch", Value: hooks.MessagePatch{}},
-	{Name: "ToolPreCallPayload", Value: hooks.ToolPreCallPayload{}},
-	{Name: "ToolPostCallPayload", Value: hooks.ToolPostCallPayload{}},
-	{Name: "ToolPostErrorPayload", Value: hooks.ToolPostErrorPayload{}},
-	{Name: "ToolCallPatch", Value: hooks.ToolCallPatch{}},
-	{Name: "ToolResultPatch", Value: hooks.ToolResultPatch{}},
-	{Name: "PermissionRequestPayload", Value: hooks.PermissionRequestPayload{}},
-	{Name: "PermissionResolutionPayload", Value: hooks.PermissionResolutionPayload{}},
-	{Name: "PermissionRequestPatch", Value: hooks.PermissionRequestPatch{}},
-	{Name: "ContextCompactPayload", Value: hooks.ContextCompactPayload{}},
-	{Name: "ContextCompactionPatch", Value: hooks.ContextCompactionPatch{}},
-	{Name: "AutonomyObservationPatch", Value: hooks.AutonomyObservationPatch{}},
-	{Name: "CoordinatorContext", Value: hooks.CoordinatorContext{}},
-	{Name: "CoordinatorPreSpawnPayload", Value: hooks.CoordinatorPreSpawnPayload{}},
-	{Name: "CoordinatorLifecyclePayload", Value: hooks.CoordinatorLifecyclePayload{}},
-	{Name: "CoordinatorSpawnPatch", Value: hooks.CoordinatorSpawnPatch{}},
-	{Name: "TaskRunClaimCriteria", Value: hooks.TaskRunClaimCriteria{}},
-	{Name: "TaskRunContext", Value: hooks.TaskRunContext{}},
-	{Name: "TaskRunEnqueuedPayload", Value: hooks.TaskRunEnqueuedPayload{}},
-	{Name: "TaskRunPreClaimPayload", Value: hooks.TaskRunPreClaimPayload{}},
-	{Name: "TaskRunPostClaimPayload", Value: hooks.TaskRunPostClaimPayload{}},
-	{Name: "TaskRunLeasePayload", Value: hooks.TaskRunLeasePayload{}},
-	{Name: "TaskRunPreClaimPatch", Value: hooks.TaskRunPreClaimPatch{}},
-	{Name: "PermissionSet", Value: hooks.PermissionSet{}},
-	{Name: "SpawnContext", Value: hooks.SpawnContext{}},
-	{Name: "SpawnPreCreatePayload", Value: hooks.SpawnPreCreatePayload{}},
-	{Name: "SpawnLifecyclePayload", Value: hooks.SpawnLifecyclePayload{}},
-	{Name: "SpawnCreatePatch", Value: hooks.SpawnCreatePatch{}},
-	{Name: "AutonomyMatcher", Value: hooks.AutonomyMatcher{}},
+	{Name: sdkPayloadBaseValue, Value: hooks.PayloadBase{}},
+	{Name: sdkSessionContextValue, Value: hooks.SessionContext{}},
+	{Name: sdkTurnContextValue, Value: hooks.TurnContext{}},
+	{Name: sdkContextBlockValue, Value: hooks.ContextBlock{}},
+	{Name: sdkToolCallRefValue, Value: hooks.ToolCallRef{}},
+	{Name: sdkToolLocationValue, Value: hooks.ToolLocation{}},
+	{Name: sdkPermissionOptionValue, Value: hooks.PermissionOption{}},
+	{Name: sdkPermissionToolCallValue, Value: hooks.PermissionToolCall{}},
+	{Name: sdkControlPatchValue, Value: hooks.ControlPatch{}},
+	{Name: sdkSessionLifecyclePayloadValue, Value: hooks.SessionLifecyclePayload{}},
+	{Name: sdkSessionCreatePatchValue, Value: hooks.SessionCreatePatch{}},
+	{Name: sdkSandboxProfilePayloadValue, Value: hooks.SandboxProfilePayload{}},
+	{Name: sdkSandboxPreparePayloadValue, Value: hooks.SandboxPreparePayload{}},
+	{Name: sdkSandboxReadyPayloadValue, Value: hooks.SandboxReadyPayload{}},
+	{Name: sdkSandboxSyncBeforePayloadValue, Value: hooks.SandboxSyncBeforePayload{}},
+	{Name: sdkSandboxSyncAfterPayloadValue, Value: hooks.SandboxSyncAfterPayload{}},
+	{Name: sdkSandboxStopPayloadValue, Value: hooks.SandboxStopPayload{}},
+	{Name: sdkSandboxPreparePatchValue, Value: hooks.SandboxPreparePatch{}},
+	{Name: sdkSandboxSyncBeforePatchValue, Value: hooks.SandboxSyncBeforePatch{}},
+	{Name: sdkSandboxObservationPatchValue, Value: hooks.SandboxObservationPatch{}},
+	{Name: sdkSandboxStopPatchValue, Value: hooks.SandboxStopPatch{}},
+	{Name: sdkInputPreSubmitPayloadValue, Value: hooks.InputPreSubmitPayload{}},
+	{Name: sdkInputPreSubmitPatchValue, Value: hooks.InputPreSubmitPatch{}},
+	{Name: sdkPromptPayloadValue, Value: hooks.PromptPayload{}},
+	{Name: sdkPromptPatchValue, Value: hooks.PromptPatch{}},
+	{Name: sdkEventRecordPayloadValue, Value: hooks.EventRecordPayload{}},
+	{Name: sdkEventRecordPatchValue, Value: hooks.EventRecordPatch{}},
+	{Name: sdkAutomationSchedulePayloadValue, Value: hooks.AutomationSchedulePayload{}},
+	{Name: sdkAutomationJobPreFirePayloadValue, Value: hooks.AutomationJobPreFirePayload{}},
+	{Name: sdkAutomationJobPostFirePayloadValue, Value: hooks.AutomationJobPostFirePayload{}},
+	{Name: sdkAutomationTriggerPreFirePayloadValue, Value: hooks.AutomationTriggerPreFirePayload{}},
+	{Name: sdkAutomationTriggerPostFirePayloadValue, Value: hooks.AutomationTriggerPostFirePayload{}},
+	{Name: sdkAutomationRunCompletedPayloadValue, Value: hooks.AutomationRunCompletedPayload{}},
+	{Name: sdkAutomationRunFailedPayloadValue, Value: hooks.AutomationRunFailedPayload{}},
+	{Name: sdkAutomationFirePatchValue, Value: hooks.AutomationFirePatch{}},
+	{Name: sdkAutomationObservationPatchValue, Value: hooks.AutomationObservationPatch{}},
+	{Name: sdkAgentPreStartPayloadValue, Value: hooks.AgentPreStartPayload{}},
+	{Name: sdkAgentLifecyclePayloadValue, Value: hooks.AgentLifecyclePayload{}},
+	{Name: sdkAgentStartPatchValue, Value: hooks.AgentStartPatch{}},
+	{Name: sdkAgentLifecyclePatchValue, Value: hooks.AgentLifecyclePatch{}},
+	{Name: sdkAuthoredContextProvenanceValue, Value: hooks.AuthoredContextProvenance{}},
+	{Name: sdkAuthoredMutationProvenanceValue, Value: hooks.AuthoredMutationProvenance{}},
+	{Name: sdkAgentSoulSnapshotResolvedPayloadValue, Value: hooks.AgentSoulSnapshotResolvedPayload{}},
+	{Name: sdkAgentSoulMutationAfterPayloadValue, Value: hooks.AgentSoulMutationAfterPayload{}},
+	{Name: sdkAgentHeartbeatPolicyResolvedPayloadValue, Value: hooks.AgentHeartbeatPolicyResolvedPayload{}},
+	{Name: sdkAgentHeartbeatWakeBeforePayloadValue, Value: hooks.AgentHeartbeatWakeBeforePayload{}},
+	{Name: sdkAgentHeartbeatWakeAfterPayloadValue, Value: hooks.AgentHeartbeatWakeAfterPayload{}},
+	{Name: sdkSessionHealthUpdateAfterPayloadValue, Value: hooks.SessionHealthUpdateAfterPayload{}},
+	{Name: sdkAuthoredContextObservationPatchValue, Value: hooks.AuthoredContextObservationPatch{}},
+	{Name: sdkNetworkPayloadValue, Value: hooks.NetworkPayload{}},
+	{Name: sdkNetworkObservationPatchValue, Value: hooks.NetworkObservationPatch{}},
+	{Name: sdkTurnPayloadValue, Value: hooks.TurnPayload{}},
+	{Name: sdkTurnPatchValue, Value: hooks.TurnPatch{}},
+	{Name: sdkMessagePayloadValue, Value: hooks.MessagePayload{}},
+	{Name: sdkSessionMessagePersistedPayloadValue, Value: hooks.SessionMessagePersistedPayload{}},
+	{Name: sdkMessagePatchValue, Value: hooks.MessagePatch{}},
+	{Name: sdkToolPreCallPayloadValue, Value: hooks.ToolPreCallPayload{}},
+	{Name: sdkToolPostCallPayloadValue, Value: hooks.ToolPostCallPayload{}},
+	{Name: sdkToolPostErrorPayloadValue, Value: hooks.ToolPostErrorPayload{}},
+	{Name: sdkToolCallPatchValue, Value: hooks.ToolCallPatch{}},
+	{Name: sdkToolResultPatchValue, Value: hooks.ToolResultPatch{}},
+	{Name: sdkPermissionRequestPayloadValue, Value: hooks.PermissionRequestPayload{}},
+	{Name: sdkPermissionResolutionPayloadValue, Value: hooks.PermissionResolutionPayload{}},
+	{Name: sdkPermissionRequestPatchValue, Value: hooks.PermissionRequestPatch{}},
+	{Name: sdkContextCompactPayloadValue, Value: hooks.ContextCompactPayload{}},
+	{Name: sdkContextCompactionPatchValue, Value: hooks.ContextCompactionPatch{}},
+	{Name: sdkAutonomyObservationPatchValue, Value: hooks.AutonomyObservationPatch{}},
+	{Name: sdkCoordinatorContextValue, Value: hooks.CoordinatorContext{}},
+	{Name: sdkCoordinatorPreSpawnPayloadValue, Value: hooks.CoordinatorPreSpawnPayload{}},
+	{Name: sdkCoordinatorLifecyclePayloadValue, Value: hooks.CoordinatorLifecyclePayload{}},
+	{Name: sdkCoordinatorSpawnPatchValue, Value: hooks.CoordinatorSpawnPatch{}},
+	{Name: sdkTaskRunClaimCriteriaValue, Value: hooks.TaskRunClaimCriteria{}},
+	{Name: sdkTaskRunContextValue, Value: hooks.TaskRunContext{}},
+	{Name: sdkTaskRunEnqueuedPayloadValue, Value: hooks.TaskRunEnqueuedPayload{}},
+	{Name: sdkTaskRunPreClaimPayloadValue, Value: hooks.TaskRunPreClaimPayload{}},
+	{Name: sdkTaskRunPostClaimPayloadValue, Value: hooks.TaskRunPostClaimPayload{}},
+	{Name: sdkTaskRunLeasePayloadValue, Value: hooks.TaskRunLeasePayload{}},
+	{Name: sdkTaskRunPreClaimPatchValue, Value: hooks.TaskRunPreClaimPatch{}},
+	{Name: sdkPermissionSetValue, Value: hooks.PermissionSet{}},
+	{Name: sdkSpawnContextValue, Value: hooks.SpawnContext{}},
+	{Name: sdkSpawnPreCreatePayloadValue, Value: hooks.SpawnPreCreatePayload{}},
+	{Name: sdkSpawnLifecyclePayloadValue, Value: hooks.SpawnLifecyclePayload{}},
+	{Name: sdkSpawnCreatePatchValue, Value: hooks.SpawnCreatePatch{}},
+	{Name: sdkAutonomyMatcherValue, Value: hooks.AutonomyMatcher{}},
 	{Name: "NetworkMatcher", Value: hooks.NetworkMatcher{}},
 	{Name: "CompactionMatcher", Value: hooks.CompactionMatcher{}},
 	{Name: "HookMatcher", Value: hooks.HookMatcher{}},
@@ -245,101 +340,104 @@ func HookContracts() []HookContractSpec {
 }
 
 var namedHookTypes = map[string]NamedType{
-	"PayloadBase":              {Name: "PayloadBase", Value: hooks.PayloadBase{}},
-	"SessionContext":           {Name: "SessionContext", Value: hooks.SessionContext{}},
-	"TurnContext":              {Name: "TurnContext", Value: hooks.TurnContext{}},
-	"ContextBlock":             {Name: "ContextBlock", Value: hooks.ContextBlock{}},
-	"ToolCallRef":              {Name: "ToolCallRef", Value: hooks.ToolCallRef{}},
-	"ToolLocation":             {Name: "ToolLocation", Value: hooks.ToolLocation{}},
-	"PermissionOption":         {Name: "PermissionOption", Value: hooks.PermissionOption{}},
-	"PermissionToolCall":       {Name: "PermissionToolCall", Value: hooks.PermissionToolCall{}},
-	"ControlPatch":             {Name: "ControlPatch", Value: hooks.ControlPatch{}},
-	"SessionLifecyclePayload":  {Name: "SessionLifecyclePayload", Value: hooks.SessionLifecyclePayload{}},
-	"SessionPreCreatePayload":  {Name: "SessionPreCreatePayload", Value: hooks.SessionPreCreatePayload{}},
-	"SessionPostCreatePayload": {Name: "SessionPostCreatePayload", Value: hooks.SessionPostCreatePayload{}},
-	"SessionPreResumePayload":  {Name: "SessionPreResumePayload", Value: hooks.SessionPreResumePayload{}},
-	"SessionPostResumePayload": {Name: "SessionPostResumePayload", Value: hooks.SessionPostResumePayload{}},
-	"SessionPreStopPayload":    {Name: "SessionPreStopPayload", Value: hooks.SessionPreStopPayload{}},
-	"SessionPostStopPayload":   {Name: "SessionPostStopPayload", Value: hooks.SessionPostStopPayload{}},
-	"SessionCreatePatch":       {Name: "SessionCreatePatch", Value: hooks.SessionCreatePatch{}},
-	"SessionPostCreatePatch":   {Name: "SessionPostCreatePatch", Value: hooks.SessionPostCreatePatch{}},
-	"SessionPreResumePatch":    {Name: "SessionPreResumePatch", Value: hooks.SessionPreResumePatch{}},
-	"SessionPostResumePatch":   {Name: "SessionPostResumePatch", Value: hooks.SessionPostResumePatch{}},
-	"SessionPreStopPatch":      {Name: "SessionPreStopPatch", Value: hooks.SessionPreStopPatch{}},
-	"SessionPostStopPatch":     {Name: "SessionPostStopPatch", Value: hooks.SessionPostStopPatch{}},
-	"SandboxProfilePayload":    {Name: "SandboxProfilePayload", Value: hooks.SandboxProfilePayload{}},
-	"SandboxPreparePayload":    {Name: "SandboxPreparePayload", Value: hooks.SandboxPreparePayload{}},
-	"SandboxReadyPayload":      {Name: "SandboxReadyPayload", Value: hooks.SandboxReadyPayload{}},
-	"SandboxSyncBeforePayload": {
-		Name:  "SandboxSyncBeforePayload",
+	sdkPayloadBaseValue:             {Name: sdkPayloadBaseValue, Value: hooks.PayloadBase{}},
+	sdkSessionContextValue:          {Name: sdkSessionContextValue, Value: hooks.SessionContext{}},
+	sdkTurnContextValue:             {Name: sdkTurnContextValue, Value: hooks.TurnContext{}},
+	sdkContextBlockValue:            {Name: sdkContextBlockValue, Value: hooks.ContextBlock{}},
+	sdkToolCallRefValue:             {Name: sdkToolCallRefValue, Value: hooks.ToolCallRef{}},
+	sdkToolLocationValue:            {Name: sdkToolLocationValue, Value: hooks.ToolLocation{}},
+	sdkPermissionOptionValue:        {Name: sdkPermissionOptionValue, Value: hooks.PermissionOption{}},
+	sdkPermissionToolCallValue:      {Name: sdkPermissionToolCallValue, Value: hooks.PermissionToolCall{}},
+	sdkControlPatchValue:            {Name: sdkControlPatchValue, Value: hooks.ControlPatch{}},
+	sdkSessionLifecyclePayloadValue: {Name: sdkSessionLifecyclePayloadValue, Value: hooks.SessionLifecyclePayload{}},
+	"SessionPreCreatePayload":       {Name: "SessionPreCreatePayload", Value: hooks.SessionPreCreatePayload{}},
+	"SessionPostCreatePayload":      {Name: "SessionPostCreatePayload", Value: hooks.SessionPostCreatePayload{}},
+	"SessionPreResumePayload":       {Name: "SessionPreResumePayload", Value: hooks.SessionPreResumePayload{}},
+	"SessionPostResumePayload":      {Name: "SessionPostResumePayload", Value: hooks.SessionPostResumePayload{}},
+	"SessionPreStopPayload":         {Name: "SessionPreStopPayload", Value: hooks.SessionPreStopPayload{}},
+	"SessionPostStopPayload":        {Name: "SessionPostStopPayload", Value: hooks.SessionPostStopPayload{}},
+	sdkSessionCreatePatchValue:      {Name: sdkSessionCreatePatchValue, Value: hooks.SessionCreatePatch{}},
+	"SessionPostCreatePatch":        {Name: "SessionPostCreatePatch", Value: hooks.SessionPostCreatePatch{}},
+	"SessionPreResumePatch":         {Name: "SessionPreResumePatch", Value: hooks.SessionPreResumePatch{}},
+	"SessionPostResumePatch":        {Name: "SessionPostResumePatch", Value: hooks.SessionPostResumePatch{}},
+	"SessionPreStopPatch":           {Name: "SessionPreStopPatch", Value: hooks.SessionPreStopPatch{}},
+	"SessionPostStopPatch":          {Name: "SessionPostStopPatch", Value: hooks.SessionPostStopPatch{}},
+	sdkSandboxProfilePayloadValue:   {Name: sdkSandboxProfilePayloadValue, Value: hooks.SandboxProfilePayload{}},
+	sdkSandboxPreparePayloadValue:   {Name: sdkSandboxPreparePayloadValue, Value: hooks.SandboxPreparePayload{}},
+	sdkSandboxReadyPayloadValue:     {Name: sdkSandboxReadyPayloadValue, Value: hooks.SandboxReadyPayload{}},
+	sdkSandboxSyncBeforePayloadValue: {
+		Name:  sdkSandboxSyncBeforePayloadValue,
 		Value: hooks.SandboxSyncBeforePayload{},
 	},
-	"SandboxSyncAfterPayload": {
-		Name:  "SandboxSyncAfterPayload",
+	sdkSandboxSyncAfterPayloadValue: {
+		Name:  sdkSandboxSyncAfterPayloadValue,
 		Value: hooks.SandboxSyncAfterPayload{},
 	},
-	"SandboxStopPayload":  {Name: "SandboxStopPayload", Value: hooks.SandboxStopPayload{}},
-	"SandboxPreparePatch": {Name: "SandboxPreparePatch", Value: hooks.SandboxPreparePatch{}},
-	"SandboxSyncBeforePatch": {
-		Name:  "SandboxSyncBeforePatch",
+	sdkSandboxStopPayloadValue:  {Name: sdkSandboxStopPayloadValue, Value: hooks.SandboxStopPayload{}},
+	sdkSandboxPreparePatchValue: {Name: sdkSandboxPreparePatchValue, Value: hooks.SandboxPreparePatch{}},
+	sdkSandboxSyncBeforePatchValue: {
+		Name:  sdkSandboxSyncBeforePatchValue,
 		Value: hooks.SandboxSyncBeforePatch{},
 	},
-	"SandboxObservationPatch": {
-		Name:  "SandboxObservationPatch",
+	sdkSandboxObservationPatchValue: {
+		Name:  sdkSandboxObservationPatchValue,
 		Value: hooks.SandboxObservationPatch{},
 	},
-	"SandboxReadyPatch":         {Name: "SandboxReadyPatch", Value: hooks.SandboxReadyPatch{}},
-	"SandboxSyncAfterPatch":     {Name: "SandboxSyncAfterPatch", Value: hooks.SandboxSyncAfterPatch{}},
-	"SandboxStopPatch":          {Name: "SandboxStopPatch", Value: hooks.SandboxStopPatch{}},
-	"InputPreSubmitPayload":     {Name: "InputPreSubmitPayload", Value: hooks.InputPreSubmitPayload{}},
-	"InputPreSubmitPatch":       {Name: "InputPreSubmitPatch", Value: hooks.InputPreSubmitPatch{}},
-	"PromptPayload":             {Name: "PromptPayload", Value: hooks.PromptPayload{}},
-	"PromptPatch":               {Name: "PromptPatch", Value: hooks.PromptPatch{}},
-	"EventRecordPayload":        {Name: "EventRecordPayload", Value: hooks.EventRecordPayload{}},
-	"EventPreRecordPayload":     {Name: "EventPreRecordPayload", Value: hooks.EventPreRecordPayload{}},
-	"EventPostRecordPayload":    {Name: "EventPostRecordPayload", Value: hooks.EventPostRecordPayload{}},
-	"EventRecordPatch":          {Name: "EventRecordPatch", Value: hooks.EventRecordPatch{}},
-	"EventPreRecordPatch":       {Name: "EventPreRecordPatch", Value: hooks.EventPreRecordPatch{}},
-	"EventPostRecordPatch":      {Name: "EventPostRecordPatch", Value: hooks.EventPostRecordPatch{}},
-	"AutomationSchedulePayload": {Name: "AutomationSchedulePayload", Value: hooks.AutomationSchedulePayload{}},
-	"AutomationJobPreFirePayload": {
-		Name:  "AutomationJobPreFirePayload",
+	"SandboxReadyPatch":           {Name: "SandboxReadyPatch", Value: hooks.SandboxReadyPatch{}},
+	"SandboxSyncAfterPatch":       {Name: "SandboxSyncAfterPatch", Value: hooks.SandboxSyncAfterPatch{}},
+	sdkSandboxStopPatchValue:      {Name: sdkSandboxStopPatchValue, Value: hooks.SandboxStopPatch{}},
+	sdkInputPreSubmitPayloadValue: {Name: sdkInputPreSubmitPayloadValue, Value: hooks.InputPreSubmitPayload{}},
+	sdkInputPreSubmitPatchValue:   {Name: sdkInputPreSubmitPatchValue, Value: hooks.InputPreSubmitPatch{}},
+	sdkPromptPayloadValue:         {Name: sdkPromptPayloadValue, Value: hooks.PromptPayload{}},
+	sdkPromptPatchValue:           {Name: sdkPromptPatchValue, Value: hooks.PromptPatch{}},
+	sdkEventRecordPayloadValue:    {Name: sdkEventRecordPayloadValue, Value: hooks.EventRecordPayload{}},
+	"EventPreRecordPayload":       {Name: "EventPreRecordPayload", Value: hooks.EventPreRecordPayload{}},
+	"EventPostRecordPayload":      {Name: "EventPostRecordPayload", Value: hooks.EventPostRecordPayload{}},
+	sdkEventRecordPatchValue:      {Name: sdkEventRecordPatchValue, Value: hooks.EventRecordPatch{}},
+	"EventPreRecordPatch":         {Name: "EventPreRecordPatch", Value: hooks.EventPreRecordPatch{}},
+	"EventPostRecordPatch":        {Name: "EventPostRecordPatch", Value: hooks.EventPostRecordPatch{}},
+	sdkAutomationSchedulePayloadValue: {
+		Name:  sdkAutomationSchedulePayloadValue,
+		Value: hooks.AutomationSchedulePayload{},
+	},
+	sdkAutomationJobPreFirePayloadValue: {
+		Name:  sdkAutomationJobPreFirePayloadValue,
 		Value: hooks.AutomationJobPreFirePayload{},
 	},
-	"AutomationJobPostFirePayload": {
-		Name:  "AutomationJobPostFirePayload",
+	sdkAutomationJobPostFirePayloadValue: {
+		Name:  sdkAutomationJobPostFirePayloadValue,
 		Value: hooks.AutomationJobPostFirePayload{},
 	},
-	"AutomationTriggerPreFirePayload": {
-		Name:  "AutomationTriggerPreFirePayload",
+	sdkAutomationTriggerPreFirePayloadValue: {
+		Name:  sdkAutomationTriggerPreFirePayloadValue,
 		Value: hooks.AutomationTriggerPreFirePayload{},
 	},
-	"AutomationTriggerPostFirePayload": {
-		Name:  "AutomationTriggerPostFirePayload",
+	sdkAutomationTriggerPostFirePayloadValue: {
+		Name:  sdkAutomationTriggerPostFirePayloadValue,
 		Value: hooks.AutomationTriggerPostFirePayload{},
 	},
-	"AutomationRunCompletedPayload": {
-		Name:  "AutomationRunCompletedPayload",
+	sdkAutomationRunCompletedPayloadValue: {
+		Name:  sdkAutomationRunCompletedPayloadValue,
 		Value: hooks.AutomationRunCompletedPayload{},
 	},
-	"AutomationRunFailedPayload": {
-		Name:  "AutomationRunFailedPayload",
+	sdkAutomationRunFailedPayloadValue: {
+		Name:  sdkAutomationRunFailedPayloadValue,
 		Value: hooks.AutomationRunFailedPayload{},
 	},
-	"AutomationFirePatch": {
-		Name:  "AutomationFirePatch",
+	sdkAutomationFirePatchValue: {
+		Name:  sdkAutomationFirePatchValue,
 		Value: hooks.AutomationFirePatch{},
 	},
-	"AutomationObservationPatch": {
-		Name:  "AutomationObservationPatch",
+	sdkAutomationObservationPatchValue: {
+		Name:  sdkAutomationObservationPatchValue,
 		Value: hooks.AutomationObservationPatch{},
 	},
-	"AgentPreStartPayload": {
-		Name:  "AgentPreStartPayload",
+	sdkAgentPreStartPayloadValue: {
+		Name:  sdkAgentPreStartPayloadValue,
 		Value: hooks.AgentPreStartPayload{},
 	},
-	"AgentLifecyclePayload": {
-		Name:  "AgentLifecyclePayload",
+	sdkAgentLifecyclePayloadValue: {
+		Name:  sdkAgentLifecyclePayloadValue,
 		Value: hooks.AgentLifecyclePayload{},
 	},
 	"AgentSpawnedPayload": {
@@ -354,55 +452,55 @@ var namedHookTypes = map[string]NamedType{
 		Name:  "AgentStoppedPayload",
 		Value: hooks.AgentStoppedPayload{},
 	},
-	"AgentStartPatch":     {Name: "AgentStartPatch", Value: hooks.AgentStartPatch{}},
-	"AgentLifecyclePatch": {Name: "AgentLifecyclePatch", Value: hooks.AgentLifecyclePatch{}},
-	"AgentSpawnedPatch":   {Name: "AgentSpawnedPatch", Value: hooks.AgentSpawnedPatch{}},
-	"AgentCrashedPatch":   {Name: "AgentCrashedPatch", Value: hooks.AgentCrashedPatch{}},
-	"AgentStoppedPatch":   {Name: "AgentStoppedPatch", Value: hooks.AgentStoppedPatch{}},
-	"AuthoredContextProvenance": {
-		Name:  "AuthoredContextProvenance",
+	sdkAgentStartPatchValue:     {Name: sdkAgentStartPatchValue, Value: hooks.AgentStartPatch{}},
+	sdkAgentLifecyclePatchValue: {Name: sdkAgentLifecyclePatchValue, Value: hooks.AgentLifecyclePatch{}},
+	"AgentSpawnedPatch":         {Name: "AgentSpawnedPatch", Value: hooks.AgentSpawnedPatch{}},
+	"AgentCrashedPatch":         {Name: "AgentCrashedPatch", Value: hooks.AgentCrashedPatch{}},
+	"AgentStoppedPatch":         {Name: "AgentStoppedPatch", Value: hooks.AgentStoppedPatch{}},
+	sdkAuthoredContextProvenanceValue: {
+		Name:  sdkAuthoredContextProvenanceValue,
 		Value: hooks.AuthoredContextProvenance{},
 	},
-	"AuthoredMutationProvenance": {
-		Name:  "AuthoredMutationProvenance",
+	sdkAuthoredMutationProvenanceValue: {
+		Name:  sdkAuthoredMutationProvenanceValue,
 		Value: hooks.AuthoredMutationProvenance{},
 	},
-	"AgentSoulSnapshotResolvedPayload": {
-		Name:  "AgentSoulSnapshotResolvedPayload",
+	sdkAgentSoulSnapshotResolvedPayloadValue: {
+		Name:  sdkAgentSoulSnapshotResolvedPayloadValue,
 		Value: hooks.AgentSoulSnapshotResolvedPayload{},
 	},
-	"AgentSoulMutationAfterPayload": {
-		Name:  "AgentSoulMutationAfterPayload",
+	sdkAgentSoulMutationAfterPayloadValue: {
+		Name:  sdkAgentSoulMutationAfterPayloadValue,
 		Value: hooks.AgentSoulMutationAfterPayload{},
 	},
-	"AgentHeartbeatPolicyResolvedPayload": {
-		Name:  "AgentHeartbeatPolicyResolvedPayload",
+	sdkAgentHeartbeatPolicyResolvedPayloadValue: {
+		Name:  sdkAgentHeartbeatPolicyResolvedPayloadValue,
 		Value: hooks.AgentHeartbeatPolicyResolvedPayload{},
 	},
-	"AgentHeartbeatWakeBeforePayload": {
-		Name:  "AgentHeartbeatWakeBeforePayload",
+	sdkAgentHeartbeatWakeBeforePayloadValue: {
+		Name:  sdkAgentHeartbeatWakeBeforePayloadValue,
 		Value: hooks.AgentHeartbeatWakeBeforePayload{},
 	},
-	"AgentHeartbeatWakeAfterPayload": {
-		Name:  "AgentHeartbeatWakeAfterPayload",
+	sdkAgentHeartbeatWakeAfterPayloadValue: {
+		Name:  sdkAgentHeartbeatWakeAfterPayloadValue,
 		Value: hooks.AgentHeartbeatWakeAfterPayload{},
 	},
-	"SessionHealthUpdateAfterPayload": {
-		Name:  "SessionHealthUpdateAfterPayload",
+	sdkSessionHealthUpdateAfterPayloadValue: {
+		Name:  sdkSessionHealthUpdateAfterPayloadValue,
 		Value: hooks.SessionHealthUpdateAfterPayload{},
 	},
-	"AuthoredContextObservationPatch": {
-		Name:  "AuthoredContextObservationPatch",
+	sdkAuthoredContextObservationPatchValue: {
+		Name:  sdkAuthoredContextObservationPatchValue,
 		Value: hooks.AuthoredContextObservationPatch{},
 	},
-	"NetworkPayload":             {Name: "NetworkPayload", Value: hooks.NetworkPayload{}},
+	sdkNetworkPayloadValue:       {Name: sdkNetworkPayloadValue, Value: hooks.NetworkPayload{}},
 	"NetworkThreadOpenedPayload": {Name: "NetworkThreadOpenedPayload", Value: hooks.NetworkThreadOpenedPayload{}},
 	"NetworkDirectRoomOpenedPayload": {
 		Name:  "NetworkDirectRoomOpenedPayload",
 		Value: hooks.NetworkDirectRoomOpenedPayload{},
 	},
-	"NetworkMessagePersistedPayload": {
-		Name:  "NetworkMessagePersistedPayload",
+	sdkNetworkMessagePersistedPayloadValue: {
+		Name:  sdkNetworkMessagePersistedPayloadValue,
 		Value: hooks.NetworkMessagePersistedPayload{},
 	},
 	"NetworkWorkOpenedPayload": {Name: "NetworkWorkOpenedPayload", Value: hooks.NetworkWorkOpenedPayload{}},
@@ -410,53 +508,62 @@ var namedHookTypes = map[string]NamedType{
 		Name:  "NetworkWorkTransitionedPayload",
 		Value: hooks.NetworkWorkTransitionedPayload{},
 	},
-	"NetworkWorkClosedPayload": {Name: "NetworkWorkClosedPayload", Value: hooks.NetworkWorkClosedPayload{}},
-	"NetworkObservationPatch":  {Name: "NetworkObservationPatch", Value: hooks.NetworkObservationPatch{}},
-	"TurnPayload":              {Name: "TurnPayload", Value: hooks.TurnPayload{}},
-	"TurnStartPayload":         {Name: "TurnStartPayload", Value: hooks.TurnStartPayload{}},
-	"TurnEndPayload":           {Name: "TurnEndPayload", Value: hooks.TurnEndPayload{}},
-	"TurnPatch":                {Name: "TurnPatch", Value: hooks.TurnPatch{}},
-	"TurnStartPatch":           {Name: "TurnStartPatch", Value: hooks.TurnStartPatch{}},
-	"TurnEndPatch":             {Name: "TurnEndPatch", Value: hooks.TurnEndPatch{}},
-	"MessagePayload":           {Name: "MessagePayload", Value: hooks.MessagePayload{}},
-	"MessageStartPayload":      {Name: "MessageStartPayload", Value: hooks.MessageStartPayload{}},
-	"MessageDeltaPayload":      {Name: "MessageDeltaPayload", Value: hooks.MessageDeltaPayload{}},
-	"MessageEndPayload":        {Name: "MessageEndPayload", Value: hooks.MessageEndPayload{}},
-	"SessionMessagePersistedPayload": {
-		Name:  "SessionMessagePersistedPayload",
+	sdkNetworkWorkClosedPayloadValue: {Name: sdkNetworkWorkClosedPayloadValue, Value: hooks.NetworkWorkClosedPayload{}},
+	sdkNetworkObservationPatchValue:  {Name: sdkNetworkObservationPatchValue, Value: hooks.NetworkObservationPatch{}},
+	sdkTurnPayloadValue:              {Name: sdkTurnPayloadValue, Value: hooks.TurnPayload{}},
+	"TurnStartPayload":               {Name: "TurnStartPayload", Value: hooks.TurnStartPayload{}},
+	"TurnEndPayload":                 {Name: "TurnEndPayload", Value: hooks.TurnEndPayload{}},
+	sdkTurnPatchValue:                {Name: sdkTurnPatchValue, Value: hooks.TurnPatch{}},
+	"TurnStartPatch":                 {Name: "TurnStartPatch", Value: hooks.TurnStartPatch{}},
+	"TurnEndPatch":                   {Name: "TurnEndPatch", Value: hooks.TurnEndPatch{}},
+	sdkMessagePayloadValue:           {Name: sdkMessagePayloadValue, Value: hooks.MessagePayload{}},
+	"MessageStartPayload":            {Name: "MessageStartPayload", Value: hooks.MessageStartPayload{}},
+	"MessageDeltaPayload":            {Name: "MessageDeltaPayload", Value: hooks.MessageDeltaPayload{}},
+	"MessageEndPayload":              {Name: "MessageEndPayload", Value: hooks.MessageEndPayload{}},
+	sdkSessionMessagePersistedPayloadValue: {
+		Name:  sdkSessionMessagePersistedPayloadValue,
 		Value: hooks.SessionMessagePersistedPayload{},
 	},
-	"MessagePatch":                {Name: "MessagePatch", Value: hooks.MessagePatch{}},
-	"MessageStartPatch":           {Name: "MessageStartPatch", Value: hooks.MessageStartPatch{}},
-	"MessageDeltaPatch":           {Name: "MessageDeltaPatch", Value: hooks.MessageDeltaPatch{}},
-	"MessageEndPatch":             {Name: "MessageEndPatch", Value: hooks.MessageEndPatch{}},
-	"ToolPreCallPayload":          {Name: "ToolPreCallPayload", Value: hooks.ToolPreCallPayload{}},
-	"ToolPostCallPayload":         {Name: "ToolPostCallPayload", Value: hooks.ToolPostCallPayload{}},
-	"ToolPostErrorPayload":        {Name: "ToolPostErrorPayload", Value: hooks.ToolPostErrorPayload{}},
-	"ToolCallPatch":               {Name: "ToolCallPatch", Value: hooks.ToolCallPatch{}},
-	"ToolResultPatch":             {Name: "ToolResultPatch", Value: hooks.ToolResultPatch{}},
-	"ToolPostErrorPatch":          {Name: "ToolPostErrorPatch", Value: hooks.ToolPostErrorPatch{}},
-	"PermissionRequestPayload":    {Name: "PermissionRequestPayload", Value: hooks.PermissionRequestPayload{}},
-	"PermissionResolutionPayload": {Name: "PermissionResolutionPayload", Value: hooks.PermissionResolutionPayload{}},
-	"PermissionResolvedPayload":   {Name: "PermissionResolvedPayload", Value: hooks.PermissionResolvedPayload{}},
-	"PermissionDeniedPayload":     {Name: "PermissionDeniedPayload", Value: hooks.PermissionDeniedPayload{}},
-	"PermissionRequestPatch":      {Name: "PermissionRequestPatch", Value: hooks.PermissionRequestPatch{}},
-	"PermissionResolvedPatch":     {Name: "PermissionResolvedPatch", Value: hooks.PermissionResolvedPatch{}},
-	"PermissionDeniedPatch":       {Name: "PermissionDeniedPatch", Value: hooks.PermissionDeniedPatch{}},
-	"ContextCompactPayload":       {Name: "ContextCompactPayload", Value: hooks.ContextCompactPayload{}},
-	"ContextPreCompactPayload":    {Name: "ContextPreCompactPayload", Value: hooks.ContextPreCompactPayload{}},
-	"ContextPostCompactPayload":   {Name: "ContextPostCompactPayload", Value: hooks.ContextPostCompactPayload{}},
-	"ContextCompactionPatch":      {Name: "ContextCompactionPatch", Value: hooks.ContextCompactionPatch{}},
-	"ContextPreCompactPatch":      {Name: "ContextPreCompactPatch", Value: hooks.ContextPreCompactPatch{}},
-	"ContextPostCompactPatch":     {Name: "ContextPostCompactPatch", Value: hooks.ContextPostCompactPatch{}},
-	"AutonomyObservationPatch":    {Name: "AutonomyObservationPatch", Value: hooks.AutonomyObservationPatch{}},
-	"CoordinatorContext":          {Name: "CoordinatorContext", Value: hooks.CoordinatorContext{}},
-	"CoordinatorPreSpawnPayload": {
-		Name:  "CoordinatorPreSpawnPayload",
+	sdkMessagePatchValue:         {Name: sdkMessagePatchValue, Value: hooks.MessagePatch{}},
+	"MessageStartPatch":          {Name: "MessageStartPatch", Value: hooks.MessageStartPatch{}},
+	"MessageDeltaPatch":          {Name: "MessageDeltaPatch", Value: hooks.MessageDeltaPatch{}},
+	"MessageEndPatch":            {Name: "MessageEndPatch", Value: hooks.MessageEndPatch{}},
+	sdkToolPreCallPayloadValue:   {Name: sdkToolPreCallPayloadValue, Value: hooks.ToolPreCallPayload{}},
+	sdkToolPostCallPayloadValue:  {Name: sdkToolPostCallPayloadValue, Value: hooks.ToolPostCallPayload{}},
+	sdkToolPostErrorPayloadValue: {Name: sdkToolPostErrorPayloadValue, Value: hooks.ToolPostErrorPayload{}},
+	sdkToolCallPatchValue:        {Name: sdkToolCallPatchValue, Value: hooks.ToolCallPatch{}},
+	sdkToolResultPatchValue:      {Name: sdkToolResultPatchValue, Value: hooks.ToolResultPatch{}},
+	"ToolPostErrorPatch":         {Name: "ToolPostErrorPatch", Value: hooks.ToolPostErrorPatch{}},
+	sdkPermissionRequestPayloadValue: {
+		Name:  sdkPermissionRequestPayloadValue,
+		Value: hooks.PermissionRequestPayload{},
+	},
+	sdkPermissionResolutionPayloadValue: {
+		Name:  sdkPermissionResolutionPayloadValue,
+		Value: hooks.PermissionResolutionPayload{},
+	},
+	"PermissionResolvedPayload":    {Name: "PermissionResolvedPayload", Value: hooks.PermissionResolvedPayload{}},
+	"PermissionDeniedPayload":      {Name: "PermissionDeniedPayload", Value: hooks.PermissionDeniedPayload{}},
+	sdkPermissionRequestPatchValue: {Name: sdkPermissionRequestPatchValue, Value: hooks.PermissionRequestPatch{}},
+	"PermissionResolvedPatch":      {Name: "PermissionResolvedPatch", Value: hooks.PermissionResolvedPatch{}},
+	"PermissionDeniedPatch":        {Name: "PermissionDeniedPatch", Value: hooks.PermissionDeniedPatch{}},
+	sdkContextCompactPayloadValue:  {Name: sdkContextCompactPayloadValue, Value: hooks.ContextCompactPayload{}},
+	"ContextPreCompactPayload":     {Name: "ContextPreCompactPayload", Value: hooks.ContextPreCompactPayload{}},
+	"ContextPostCompactPayload":    {Name: "ContextPostCompactPayload", Value: hooks.ContextPostCompactPayload{}},
+	sdkContextCompactionPatchValue: {Name: sdkContextCompactionPatchValue, Value: hooks.ContextCompactionPatch{}},
+	"ContextPreCompactPatch":       {Name: "ContextPreCompactPatch", Value: hooks.ContextPreCompactPatch{}},
+	"ContextPostCompactPatch":      {Name: "ContextPostCompactPatch", Value: hooks.ContextPostCompactPatch{}},
+	sdkAutonomyObservationPatchValue: {
+		Name:  sdkAutonomyObservationPatchValue,
+		Value: hooks.AutonomyObservationPatch{},
+	},
+	sdkCoordinatorContextValue: {Name: sdkCoordinatorContextValue, Value: hooks.CoordinatorContext{}},
+	sdkCoordinatorPreSpawnPayloadValue: {
+		Name:  sdkCoordinatorPreSpawnPayloadValue,
 		Value: hooks.CoordinatorPreSpawnPayload{},
 	},
-	"CoordinatorLifecyclePayload": {
-		Name:  "CoordinatorLifecyclePayload",
+	sdkCoordinatorLifecyclePayloadValue: {
+		Name:  sdkCoordinatorLifecyclePayloadValue,
 		Value: hooks.CoordinatorLifecyclePayload{},
 	},
 	"CoordinatorSpawnedPayload": {
@@ -475,24 +582,24 @@ var namedHookTypes = map[string]NamedType{
 		Name:  "CoordinatorFailedPayload",
 		Value: hooks.CoordinatorFailedPayload{},
 	},
-	"CoordinatorSpawnPatch":       {Name: "CoordinatorSpawnPatch", Value: hooks.CoordinatorSpawnPatch{}},
+	sdkCoordinatorSpawnPatchValue: {Name: sdkCoordinatorSpawnPatchValue, Value: hooks.CoordinatorSpawnPatch{}},
 	"CoordinatorObservationPatch": {Name: "CoordinatorObservationPatch", Value: hooks.CoordinatorObservationPatch{}},
-	"TaskRunClaimCriteria":        {Name: "TaskRunClaimCriteria", Value: hooks.TaskRunClaimCriteria{}},
-	"TaskRunContext":              {Name: "TaskRunContext", Value: hooks.TaskRunContext{}},
-	"TaskRunEnqueuedPayload": {
-		Name:  "TaskRunEnqueuedPayload",
+	sdkTaskRunClaimCriteriaValue:  {Name: sdkTaskRunClaimCriteriaValue, Value: hooks.TaskRunClaimCriteria{}},
+	sdkTaskRunContextValue:        {Name: sdkTaskRunContextValue, Value: hooks.TaskRunContext{}},
+	sdkTaskRunEnqueuedPayloadValue: {
+		Name:  sdkTaskRunEnqueuedPayloadValue,
 		Value: hooks.TaskRunEnqueuedPayload{},
 	},
-	"TaskRunPreClaimPayload": {
-		Name:  "TaskRunPreClaimPayload",
+	sdkTaskRunPreClaimPayloadValue: {
+		Name:  sdkTaskRunPreClaimPayloadValue,
 		Value: hooks.TaskRunPreClaimPayload{},
 	},
-	"TaskRunPostClaimPayload": {
-		Name:  "TaskRunPostClaimPayload",
+	sdkTaskRunPostClaimPayloadValue: {
+		Name:  sdkTaskRunPostClaimPayloadValue,
 		Value: hooks.TaskRunPostClaimPayload{},
 	},
-	"TaskRunLeasePayload": {
-		Name:  "TaskRunLeasePayload",
+	sdkTaskRunLeasePayloadValue: {
+		Name:  sdkTaskRunLeasePayloadValue,
 		Value: hooks.TaskRunLeasePayload{},
 	},
 	"TaskRunLeaseExtendedPayload": {
@@ -519,16 +626,16 @@ var namedHookTypes = map[string]NamedType{
 		Name:  "TaskRunFailedPayload",
 		Value: hooks.TaskRunFailedPayload{},
 	},
-	"TaskRunPreClaimPatch":    {Name: "TaskRunPreClaimPatch", Value: hooks.TaskRunPreClaimPatch{}},
-	"TaskRunObservationPatch": {Name: "TaskRunObservationPatch", Value: hooks.TaskRunObservationPatch{}},
-	"PermissionSet":           {Name: "PermissionSet", Value: hooks.PermissionSet{}},
-	"SpawnContext":            {Name: "SpawnContext", Value: hooks.SpawnContext{}},
-	"SpawnPreCreatePayload": {
-		Name:  "SpawnPreCreatePayload",
+	sdkTaskRunPreClaimPatchValue: {Name: sdkTaskRunPreClaimPatchValue, Value: hooks.TaskRunPreClaimPatch{}},
+	"TaskRunObservationPatch":    {Name: "TaskRunObservationPatch", Value: hooks.TaskRunObservationPatch{}},
+	sdkPermissionSetValue:        {Name: sdkPermissionSetValue, Value: hooks.PermissionSet{}},
+	sdkSpawnContextValue:         {Name: sdkSpawnContextValue, Value: hooks.SpawnContext{}},
+	sdkSpawnPreCreatePayloadValue: {
+		Name:  sdkSpawnPreCreatePayloadValue,
 		Value: hooks.SpawnPreCreatePayload{},
 	},
-	"SpawnLifecyclePayload": {
-		Name:  "SpawnLifecyclePayload",
+	sdkSpawnLifecyclePayloadValue: {
+		Name:  sdkSpawnLifecyclePayloadValue,
 		Value: hooks.SpawnLifecyclePayload{},
 	},
 	"SpawnCreatedPayload": {
@@ -547,9 +654,9 @@ var namedHookTypes = map[string]NamedType{
 		Name:  "SpawnReapedPayload",
 		Value: hooks.SpawnReapedPayload{},
 	},
-	"SpawnCreatePatch":      {Name: "SpawnCreatePatch", Value: hooks.SpawnCreatePatch{}},
-	"SpawnObservationPatch": {Name: "SpawnObservationPatch", Value: hooks.SpawnObservationPatch{}},
-	"AutonomyMatcher":       {Name: "AutonomyMatcher", Value: hooks.AutonomyMatcher{}},
+	sdkSpawnCreatePatchValue: {Name: sdkSpawnCreatePatchValue, Value: hooks.SpawnCreatePatch{}},
+	"SpawnObservationPatch":  {Name: "SpawnObservationPatch", Value: hooks.SpawnObservationPatch{}},
+	sdkAutonomyMatcherValue:  {Name: sdkAutonomyMatcherValue, Value: hooks.AutonomyMatcher{}},
 }
 
 func namedHookType(name string) (NamedType, error) {

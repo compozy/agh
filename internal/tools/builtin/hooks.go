@@ -2,6 +2,17 @@ package builtin
 
 import toolspkg "github.com/pedronauck/agh/internal/tools"
 
+const (
+	hooksHooksKey = "hooks"
+)
+
+const (
+	hooksCatalogKey  = "catalog"
+	hooksEventsKey   = "events"
+	hooksMutationKey = "mutation"
+	hooksRunsKey     = "runs"
+)
+
 var hookTools = []toolspkg.Descriptor{
 	nativeDescriptor(
 		toolspkg.ToolIDHooksList,
@@ -14,7 +25,7 @@ var hookTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDHooks},
-		[]string{"hooks", "catalog"},
+		[]string{hooksHooksKey, hooksCatalogKey},
 		[]string{"hook catalog", "resolved hooks"},
 	),
 	nativeDescriptor(
@@ -28,7 +39,7 @@ var hookTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDHooks},
-		[]string{"hooks", "catalog"},
+		[]string{hooksHooksKey, hooksCatalogKey},
 		[]string{"hook details", "hook info"},
 	),
 	nativeDescriptor(
@@ -42,7 +53,7 @@ var hookTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDHooks},
-		[]string{"hooks", "events"},
+		[]string{hooksHooksKey, hooksEventsKey},
 		[]string{"hook events", "event catalog"},
 	),
 	nativeDescriptor(
@@ -56,7 +67,7 @@ var hookTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDHooks},
-		[]string{"hooks", "runs", "audit"},
+		[]string{hooksHooksKey, hooksRunsKey, "audit"},
 		[]string{"hook run history", "hook audit"},
 	),
 	nativeDescriptor(
@@ -70,7 +81,7 @@ var hookTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDHooks},
-		[]string{"hooks", "mutation"},
+		[]string{hooksHooksKey, hooksMutationKey},
 		[]string{"create hook", "add hook declaration"},
 	),
 	nativeDescriptor(
@@ -84,7 +95,7 @@ var hookTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDHooks},
-		[]string{"hooks", "mutation"},
+		[]string{hooksHooksKey, hooksMutationKey},
 		[]string{"update hook", "edit hook declaration"},
 	),
 	nativeDescriptor(
@@ -98,7 +109,7 @@ var hookTools = []toolspkg.Descriptor{
 		true,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDHooks},
-		[]string{"hooks", "mutation"},
+		[]string{hooksHooksKey, hooksMutationKey},
 		[]string{"delete hook", "remove hook declaration"},
 	),
 	nativeDescriptor(
@@ -112,7 +123,7 @@ var hookTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDHooks},
-		[]string{"hooks", "mutation"},
+		[]string{hooksHooksKey, hooksMutationKey},
 		[]string{"enable hook", "activate hook declaration"},
 	),
 	nativeDescriptor(
@@ -126,7 +137,7 @@ var hookTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDHooks},
-		[]string{"hooks", "mutation"},
+		[]string{hooksHooksKey, hooksMutationKey},
 		[]string{"disable hook", "deactivate hook declaration"},
 	),
 }

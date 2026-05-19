@@ -6,6 +6,11 @@ import (
 	"time"
 )
 
+const (
+	dispatchEventsAgentSessionKey = "agent_session"
+	dispatchEventsNetworkPeerKey  = "network_peer"
+)
+
 // DispatchPhase identifies whether a hook-dispatch event marks pipeline entry
 // or one completed hook execution.
 type DispatchPhase string
@@ -113,14 +118,14 @@ func CorrelationFromPayload(payload any) DispatchCorrelation {
 		return DispatchCorrelation{
 			CoordinatorSessionID: strings.TrimSpace(typed.CoordinatorSessionID),
 			WorkflowID:           strings.TrimSpace(typed.WorkflowID),
-			ActorKind:            "agent_session",
+			ActorKind:            dispatchEventsAgentSessionKey,
 			ActorID:              strings.TrimSpace(typed.CoordinatorSessionID),
 		}
 	case CoordinatorLifecyclePayload:
 		return DispatchCorrelation{
 			CoordinatorSessionID: strings.TrimSpace(typed.CoordinatorSessionID),
 			WorkflowID:           strings.TrimSpace(typed.WorkflowID),
-			ActorKind:            "agent_session",
+			ActorKind:            dispatchEventsAgentSessionKey,
 			ActorID:              strings.TrimSpace(typed.CoordinatorSessionID),
 		}
 	case TaskRunEnqueuedPayload:
@@ -144,7 +149,7 @@ func CorrelationFromPayload(payload any) DispatchCorrelation {
 			return DispatchCorrelation{}
 		}
 		return DispatchCorrelation{
-			ActorKind: "network_peer",
+			ActorKind: dispatchEventsNetworkPeerKey,
 			ActorID:   actorID,
 		}
 	default:
@@ -154,7 +159,7 @@ func CorrelationFromPayload(payload any) DispatchCorrelation {
 			return DispatchCorrelation{}
 		}
 		return DispatchCorrelation{
-			ActorKind: "agent_session",
+			ActorKind: dispatchEventsAgentSessionKey,
 			ActorID:   sessionID,
 		}
 	}
@@ -181,7 +186,7 @@ func correlationFromSpawnContext(ctx SpawnContext) DispatchCorrelation {
 		TaskID:     strings.TrimSpace(ctx.TaskID),
 		RunID:      strings.TrimSpace(ctx.RunID),
 		WorkflowID: strings.TrimSpace(ctx.WorkflowID),
-		ActorKind:  "agent_session",
+		ActorKind:  dispatchEventsAgentSessionKey,
 		ActorID:    actorID,
 	}
 }

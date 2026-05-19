@@ -33,17 +33,18 @@ var (
 			"`working`, `needs_input`, `completed`, `failed`, or `canceled`.",
 		"If you send a protocol `capability`, the body must be nested as `{\"capability\":{...}}` and " +
 			"include `capability.id`, `capability.summary`, `capability.outcome`, and a canonical `capability.digest`.",
-		"Direct-room chat uses `--kind say --surface direct`.",
+		protocolGuidanceDirectRoomText,
 	}
 )
 
 const capabilityBodyExample = `  --body '{"capability":{"id":"reply-workflow","summary":"Compact inline checklist.","outcome":"A reusable reply workflow.","version":"1.0.0","digest":"sha256:replace-me","execution_outline":["Inspect request","Draft response"],"requirements":["workspace-write"]}}' \`
 
 const (
-	defaultDeliveryRetryBaseDelay = 250 * time.Millisecond
-	defaultDeliveryRetryMaxDelay  = 5 * time.Second
-	deliveryDropReasonQueueFull   = "queue_overflow"
-	networkMessageTrustUntrusted  = "untrusted"
+	defaultDeliveryRetryBaseDelay  = 250 * time.Millisecond
+	defaultDeliveryRetryMaxDelay   = 5 * time.Second
+	deliveryDropReasonQueueFull    = "queue_overflow"
+	networkMessageTrustUntrusted   = "untrusted"
+	protocolGuidanceDirectRoomText = "Direct-room chat uses `--kind say --surface direct`."
 )
 
 type deliveryPrompter interface {

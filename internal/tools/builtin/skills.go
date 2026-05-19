@@ -2,6 +2,14 @@ package builtin
 
 import toolspkg "github.com/pedronauck/agh/internal/tools"
 
+const (
+	skillsSkillsKey = "skills"
+)
+
+const (
+	skillsCatalogKey = "catalog"
+)
+
 var skillTools = []toolspkg.Descriptor{
 	nativeDescriptor(
 		toolspkg.ToolIDSkillList,
@@ -14,7 +22,7 @@ var skillTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCatalog},
-		[]string{"skills", "catalog"},
+		[]string{skillsSkillsKey, skillsCatalogKey},
 		[]string{"available skills", "skill registry"},
 	),
 	nativeDescriptor(
@@ -28,7 +36,7 @@ var skillTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCatalog},
-		[]string{"skills", "catalog"},
+		[]string{skillsSkillsKey, skillsCatalogKey},
 		[]string{"find skills", "skill registry search"},
 	),
 	nativeDescriptor(
@@ -42,7 +50,7 @@ var skillTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCatalog},
-		[]string{"skills", "catalog", "content"},
+		[]string{skillsSkillsKey, skillsCatalogKey, "content"},
 		[]string{"skill body", "skill instructions"},
 	),
 }

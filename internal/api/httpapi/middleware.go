@@ -14,6 +14,10 @@ import (
 	"github.com/pedronauck/agh/internal/api/core"
 )
 
+const (
+	ipv4WildcardBind = "0.0.0.0"
+)
+
 var errLoopbackMutationRequired = errors.New(
 	"remote HTTP settings and extension mutations are disabled in v1 unless the daemon is bound to a loopback host",
 )
@@ -230,7 +234,7 @@ func isLoopbackHost(host string) bool {
 
 func isWildcardHost(host string) bool {
 	switch host {
-	case "", "0.0.0.0", "::":
+	case "", ipv4WildcardBind, "::":
 		return true
 	default:
 		return false

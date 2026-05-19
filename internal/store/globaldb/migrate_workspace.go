@@ -16,6 +16,40 @@ import (
 	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
 
+const (
+	migrateWorkspaceActivityJSONKey             = "activity_json"
+	migrateWorkspaceAutoStopOnParentKey         = "auto_stop_on_parent"
+	migrateWorkspaceChannelKey                  = "channel"
+	migrateWorkspaceCrashBundlePathKey          = "crash_bundle_path"
+	migrateWorkspaceFailureKindKey              = "failure_kind"
+	migrateWorkspaceFailureSummaryKey           = "failure_summary"
+	migrateWorkspaceLastUpdateAtKey             = "last_update_at"
+	migrateWorkspaceParentSessionIDKey          = "parent_session_id"
+	migrateWorkspacePermissionPolicyJSONKey     = "permission_policy_json"
+	migrateWorkspacePriorityKey                 = "priority"
+	migrateWorkspaceProviderKey                 = "provider"
+	migrateWorkspaceRootSessionIDKey            = "root_session_id"
+	migrateWorkspaceSandboxBackendKey           = "sandbox_backend"
+	migrateWorkspaceSandboxIDKey                = "sandbox_id"
+	migrateWorkspaceSandboxInstanceIDKey        = "sandbox_instance_id"
+	migrateWorkspaceSandboxLastSyncAtKey        = "sandbox_last_sync_at"
+	migrateWorkspaceSandboxLastSyncErrorKey     = "sandbox_last_sync_error"
+	migrateWorkspaceSandboxProfileKey           = "sandbox_profile"
+	migrateWorkspaceSandboxProviderStateJSONKey = "sandbox_provider_state_json"
+	migrateWorkspaceSandboxRefKey               = "sandbox_ref"
+	migrateWorkspaceSandboxStateKey             = "sandbox_state"
+	migrateWorkspaceSpawnBudgetJSONKey          = "spawn_budget_json"
+	migrateWorkspaceSpawnDepthKey               = "spawn_depth"
+	migrateWorkspaceSpawnRoleKey                = "spawn_role"
+	migrateWorkspaceStallReasonKey              = "stall_reason"
+	migrateWorkspaceStallStateKey               = "stall_state"
+	migrateWorkspaceStopDetailKey               = "stop_detail"
+	migrateWorkspaceStopReasonKey               = "stop_reason"
+	migrateWorkspaceSubprocessPidKey            = "subprocess_pid"
+	migrateWorkspaceSubprocessStartedAtKey      = "subprocess_started_at"
+	migrateWorkspaceTTLExpiresAtKey             = "ttl_expires_at"
+)
+
 type sqlQueryExecutor interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
@@ -207,7 +241,7 @@ func migrateWorkspaceColumns(ctx context.Context, db *sql.DB) error {
 	if err != nil {
 		return err
 	}
-	if _, ok := columns["sandbox_ref"]; ok {
+	if _, ok := columns[migrateWorkspaceSandboxRefKey]; ok {
 		return nil
 	}
 
@@ -296,7 +330,7 @@ func taskTableMigrationSpecForExistingSchema(
 	}
 
 	return taskTableMigrationSpec{
-		priorityExpr:              existingTaskColumnExpr(columns, "priority", `'medium'`),
+		priorityExpr:              existingTaskColumnExpr(columns, migrateWorkspacePriorityKey, `'medium'`),
 		maxAttemptsExpr:           existingTaskColumnExpr(columns, "max_attempts", "3"),
 		approvalPolicyExpr:        existingTaskColumnExpr(columns, "approval_policy", `'none'`),
 		approvalStateExpr:         existingTaskColumnExpr(columns, "approval_state", `'not_required'`),
@@ -318,7 +352,7 @@ func taskTableNeedsRebuild(columns map[string]struct{}, tableSQL string) bool {
 	if !strings.Contains(tableSQL, "'draft'") {
 		return true
 	}
-	for _, column := range []string{"priority", "max_attempts", "approval_policy", "approval_state"} {
+	for _, column := range []string{migrateWorkspacePriorityKey, "max_attempts", "approval_policy", "approval_state"} {
 		if _, ok := columns[column]; !ok {
 			return true
 		}
@@ -743,58 +777,98 @@ type migrationColumnSpec struct {
 }
 
 func sessionColumnSpecs() []migrationColumnSpec {
+	specs := sessionCoreColumnSpecs()
+	return append(specs, sessionSandboxColumnSpecs()...)
+}
+
+func sessionCoreColumnSpecs() []migrationColumnSpec {
 	return []migrationColumnSpec{
-		{name: "provider", sql: `ALTER TABLE sessions ADD COLUMN provider TEXT NOT NULL DEFAULT ''`},
-		{name: "stop_reason", sql: `ALTER TABLE sessions ADD COLUMN stop_reason TEXT`},
-		{name: "stop_detail", sql: `ALTER TABLE sessions ADD COLUMN stop_detail TEXT`},
-		{name: "failure_kind", sql: `ALTER TABLE sessions ADD COLUMN failure_kind TEXT`},
-		{name: "failure_summary", sql: `ALTER TABLE sessions ADD COLUMN failure_summary TEXT NOT NULL DEFAULT ''`},
-		{name: "crash_bundle_path", sql: `ALTER TABLE sessions ADD COLUMN crash_bundle_path TEXT NOT NULL DEFAULT ''`},
-		{name: "channel", sql: `ALTER TABLE sessions ADD COLUMN channel TEXT NOT NULL DEFAULT ''`},
-		{name: "subprocess_pid", sql: `ALTER TABLE sessions ADD COLUMN subprocess_pid INTEGER NOT NULL DEFAULT 0`},
-		{name: "subprocess_started_at", sql: `ALTER TABLE sessions ADD COLUMN subprocess_started_at TEXT`},
-		{name: "last_update_at", sql: `ALTER TABLE sessions ADD COLUMN last_update_at TEXT`},
-		{name: "stall_state", sql: `ALTER TABLE sessions ADD COLUMN stall_state TEXT NOT NULL DEFAULT ''`},
-		{name: "stall_reason", sql: `ALTER TABLE sessions ADD COLUMN stall_reason TEXT NOT NULL DEFAULT ''`},
-		{name: "activity_json", sql: `ALTER TABLE sessions ADD COLUMN activity_json TEXT NOT NULL DEFAULT ''`},
-		{name: "sandbox_id", sql: `ALTER TABLE sessions ADD COLUMN sandbox_id TEXT NOT NULL DEFAULT ''`},
+		{name: migrateWorkspaceProviderKey, sql: `ALTER TABLE sessions ADD COLUMN provider TEXT NOT NULL DEFAULT ''`},
+		{name: migrateWorkspaceStopReasonKey, sql: `ALTER TABLE sessions ADD COLUMN stop_reason TEXT`},
+		{name: migrateWorkspaceStopDetailKey, sql: `ALTER TABLE sessions ADD COLUMN stop_detail TEXT`},
+		{name: migrateWorkspaceFailureKindKey, sql: `ALTER TABLE sessions ADD COLUMN failure_kind TEXT`},
 		{
-			name: "sandbox_backend",
+			name: migrateWorkspaceFailureSummaryKey,
+			sql:  `ALTER TABLE sessions ADD COLUMN failure_summary TEXT NOT NULL DEFAULT ''`,
+		},
+		{
+			name: migrateWorkspaceCrashBundlePathKey,
+			sql:  `ALTER TABLE sessions ADD COLUMN crash_bundle_path TEXT NOT NULL DEFAULT ''`,
+		},
+		{name: migrateWorkspaceChannelKey, sql: `ALTER TABLE sessions ADD COLUMN channel TEXT NOT NULL DEFAULT ''`},
+		{
+			name: migrateWorkspaceSubprocessPidKey,
+			sql:  `ALTER TABLE sessions ADD COLUMN subprocess_pid INTEGER NOT NULL DEFAULT 0`,
+		},
+		{
+			name: migrateWorkspaceSubprocessStartedAtKey,
+			sql:  `ALTER TABLE sessions ADD COLUMN subprocess_started_at TEXT`,
+		},
+		{name: migrateWorkspaceLastUpdateAtKey, sql: `ALTER TABLE sessions ADD COLUMN last_update_at TEXT`},
+		{
+			name: migrateWorkspaceStallStateKey,
+			sql:  `ALTER TABLE sessions ADD COLUMN stall_state TEXT NOT NULL DEFAULT ''`,
+		},
+		{
+			name: migrateWorkspaceStallReasonKey,
+			sql:  `ALTER TABLE sessions ADD COLUMN stall_reason TEXT NOT NULL DEFAULT ''`,
+		},
+		{
+			name: migrateWorkspaceActivityJSONKey,
+			sql:  `ALTER TABLE sessions ADD COLUMN activity_json TEXT NOT NULL DEFAULT ''`,
+		},
+	}
+}
+
+func sessionSandboxColumnSpecs() []migrationColumnSpec {
+	return []migrationColumnSpec{
+		{
+			name: migrateWorkspaceSandboxIDKey,
+			sql:  `ALTER TABLE sessions ADD COLUMN sandbox_id TEXT NOT NULL DEFAULT ''`,
+		},
+		{
+			name: migrateWorkspaceSandboxBackendKey,
 			sql:  `ALTER TABLE sessions ADD COLUMN sandbox_backend TEXT NOT NULL DEFAULT 'local'`,
 		},
 		{
-			name: "sandbox_profile",
+			name: migrateWorkspaceSandboxProfileKey,
 			sql:  `ALTER TABLE sessions ADD COLUMN sandbox_profile TEXT NOT NULL DEFAULT ''`,
 		},
 		{
-			name: "sandbox_instance_id",
+			name: migrateWorkspaceSandboxInstanceIDKey,
 			sql:  `ALTER TABLE sessions ADD COLUMN sandbox_instance_id TEXT NOT NULL DEFAULT ''`,
 		},
-		{name: "sandbox_state", sql: `ALTER TABLE sessions ADD COLUMN sandbox_state TEXT NOT NULL DEFAULT ''`},
 		{
-			name: "sandbox_provider_state_json",
+			name: migrateWorkspaceSandboxStateKey,
+			sql:  `ALTER TABLE sessions ADD COLUMN sandbox_state TEXT NOT NULL DEFAULT ''`,
+		},
+		{
+			name: migrateWorkspaceSandboxProviderStateJSONKey,
 			sql:  `ALTER TABLE sessions ADD COLUMN sandbox_provider_state_json TEXT NOT NULL DEFAULT ''`,
 		},
-		{name: "sandbox_last_sync_at", sql: `ALTER TABLE sessions ADD COLUMN sandbox_last_sync_at TEXT`},
+		{name: migrateWorkspaceSandboxLastSyncAtKey, sql: `ALTER TABLE sessions ADD COLUMN sandbox_last_sync_at TEXT`},
 		{
-			name: "sandbox_last_sync_error",
+			name: migrateWorkspaceSandboxLastSyncErrorKey,
 			sql:  `ALTER TABLE sessions ADD COLUMN sandbox_last_sync_error TEXT NOT NULL DEFAULT ''`,
 		},
-		{name: "parent_session_id", sql: `ALTER TABLE sessions ADD COLUMN parent_session_id TEXT`},
-		{name: "root_session_id", sql: `ALTER TABLE sessions ADD COLUMN root_session_id TEXT`},
-		{name: "spawn_depth", sql: `ALTER TABLE sessions ADD COLUMN spawn_depth INTEGER NOT NULL DEFAULT 0`},
-		{name: "spawn_role", sql: `ALTER TABLE sessions ADD COLUMN spawn_role TEXT`},
-		{name: "ttl_expires_at", sql: `ALTER TABLE sessions ADD COLUMN ttl_expires_at TEXT`},
+		{name: migrateWorkspaceParentSessionIDKey, sql: `ALTER TABLE sessions ADD COLUMN parent_session_id TEXT`},
+		{name: migrateWorkspaceRootSessionIDKey, sql: `ALTER TABLE sessions ADD COLUMN root_session_id TEXT`},
 		{
-			name: "auto_stop_on_parent",
+			name: migrateWorkspaceSpawnDepthKey,
+			sql:  `ALTER TABLE sessions ADD COLUMN spawn_depth INTEGER NOT NULL DEFAULT 0`,
+		},
+		{name: migrateWorkspaceSpawnRoleKey, sql: `ALTER TABLE sessions ADD COLUMN spawn_role TEXT`},
+		{name: migrateWorkspaceTTLExpiresAtKey, sql: `ALTER TABLE sessions ADD COLUMN ttl_expires_at TEXT`},
+		{
+			name: migrateWorkspaceAutoStopOnParentKey,
 			sql:  `ALTER TABLE sessions ADD COLUMN auto_stop_on_parent BOOLEAN NOT NULL DEFAULT 0`,
 		},
 		{
-			name: "spawn_budget_json",
+			name: migrateWorkspaceSpawnBudgetJSONKey,
 			sql:  `ALTER TABLE sessions ADD COLUMN spawn_budget_json TEXT NOT NULL DEFAULT '{}'`,
 		},
 		{
-			name: "permission_policy_json",
+			name: migrateWorkspacePermissionPolicyJSONKey,
 			sql:  `ALTER TABLE sessions ADD COLUMN permission_policy_json TEXT NOT NULL DEFAULT '{}'`,
 		},
 	}
@@ -829,20 +903,20 @@ func migrateSandboxColumnNames(ctx context.Context, tx *sql.Tx) error {
 		newName string
 	}{
 		"workspaces": {
-			{oldName: "environment_ref", newName: "sandbox_ref"},
+			{oldName: "environment_ref", newName: migrateWorkspaceSandboxRefKey},
 		},
 		"sessions": {
-			{oldName: "environment_id", newName: "sandbox_id"},
-			{oldName: "environment_backend", newName: "sandbox_backend"},
-			{oldName: "environment_profile", newName: "sandbox_profile"},
-			{oldName: "environment_instance_id", newName: "sandbox_instance_id"},
-			{oldName: "environment_state", newName: "sandbox_state"},
-			{oldName: "environment_provider_state_json", newName: "sandbox_provider_state_json"},
-			{oldName: "environment_last_sync_at", newName: "sandbox_last_sync_at"},
-			{oldName: "environment_last_sync_error", newName: "sandbox_last_sync_error"},
+			{oldName: "environment_id", newName: migrateWorkspaceSandboxIDKey},
+			{oldName: "environment_backend", newName: migrateWorkspaceSandboxBackendKey},
+			{oldName: "environment_profile", newName: migrateWorkspaceSandboxProfileKey},
+			{oldName: "environment_instance_id", newName: migrateWorkspaceSandboxInstanceIDKey},
+			{oldName: "environment_state", newName: migrateWorkspaceSandboxStateKey},
+			{oldName: "environment_provider_state_json", newName: migrateWorkspaceSandboxProviderStateJSONKey},
+			{oldName: "environment_last_sync_at", newName: migrateWorkspaceSandboxLastSyncAtKey},
+			{oldName: "environment_last_sync_error", newName: migrateWorkspaceSandboxLastSyncErrorKey},
 		},
 		"tool_processes": {
-			{oldName: "environment_id", newName: "sandbox_id"},
+			{oldName: "environment_id", newName: migrateWorkspaceSandboxIDKey},
 		},
 	}
 	for table, specs := range renames {
@@ -880,9 +954,15 @@ func migrateSandboxColumnNames(ctx context.Context, tx *sql.Tx) error {
 
 func sessionFailureColumnSpecs() []migrationColumnSpec {
 	return []migrationColumnSpec{
-		{name: "failure_kind", sql: `ALTER TABLE sessions ADD COLUMN failure_kind TEXT`},
-		{name: "failure_summary", sql: `ALTER TABLE sessions ADD COLUMN failure_summary TEXT NOT NULL DEFAULT ''`},
-		{name: "crash_bundle_path", sql: `ALTER TABLE sessions ADD COLUMN crash_bundle_path TEXT NOT NULL DEFAULT ''`},
+		{name: migrateWorkspaceFailureKindKey, sql: `ALTER TABLE sessions ADD COLUMN failure_kind TEXT`},
+		{
+			name: migrateWorkspaceFailureSummaryKey,
+			sql:  `ALTER TABLE sessions ADD COLUMN failure_summary TEXT NOT NULL DEFAULT ''`,
+		},
+		{
+			name: migrateWorkspaceCrashBundlePathKey,
+			sql:  `ALTER TABLE sessions ADD COLUMN crash_bundle_path TEXT NOT NULL DEFAULT ''`,
+		},
 	}
 }
 
@@ -1073,7 +1153,7 @@ func loadLegacySessions(
 		return nil, nil, err
 	}
 	providerExpr := `''`
-	if _, ok := columns["provider"]; ok {
+	if _, ok := columns[migrateWorkspaceProviderKey]; ok {
 		providerExpr = `COALESCE(provider, '')`
 	}
 

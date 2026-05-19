@@ -19,6 +19,12 @@ import (
 )
 
 const (
+	authoringEnabledKey             = "enabled"
+	authoringHeartbeatPathEscapeKey = "heartbeat_path_escape"
+	authoringVersionKey             = "version"
+)
+
+const (
 	diagnosticHeartbeatConflict        = "heartbeat_conflict"
 	diagnosticHeartbeatNoPolicy        = "heartbeat_no_policy"
 	diagnosticHeartbeatAgentNotFound   = "agent_not_found"
@@ -758,8 +764,8 @@ func heartbeatSourceFromSnapshot(snapshot Snapshot) (string, error) {
 
 func heartbeatFrontmatterForRollback(front Frontmatter) map[string]any {
 	payload := map[string]any{
-		"version": firstPositive(front.Version, schemaVersion),
-		"enabled": front.Enabled,
+		authoringVersionKey: firstPositive(front.Version, schemaVersion),
+		authoringEnabledKey: front.Enabled,
 	}
 	if strings.TrimSpace(front.Summary) != "" {
 		payload["summary"] = strings.TrimSpace(front.Summary)
@@ -925,7 +931,7 @@ type managedPathResolution struct {
 func validateManagedHeartbeatPath(workspaceRoot string, targetPath string, fileName string) *Diagnostic {
 	if strings.ContainsRune(targetPath, 0) {
 		return &Diagnostic{
-			Code:       "heartbeat_path_escape",
+			Code:       authoringHeartbeatPathEscapeKey,
 			Severity:   diagnosticError,
 			Message:    fileName + " path contains an invalid NUL byte",
 			SourcePath: fileName,
@@ -946,7 +952,7 @@ func resolveManagedHeartbeatPath(
 	absRoot, err := filepath.Abs(filepath.Clean(workspaceRoot))
 	if err != nil {
 		return managedPathResolution{}, &Diagnostic{
-			Code:       "heartbeat_path_escape",
+			Code:       authoringHeartbeatPathEscapeKey,
 			Severity:   diagnosticError,
 			Message:    diagnostics.RedactAndBound(fmt.Sprintf("resolve workspace root: %v", err), 300),
 			SourcePath: fileName,
@@ -955,7 +961,7 @@ func resolveManagedHeartbeatPath(
 	resolvedRoot, err := filepath.EvalSymlinks(absRoot)
 	if err != nil {
 		return managedPathResolution{}, &Diagnostic{
-			Code:       "heartbeat_path_escape",
+			Code:       authoringHeartbeatPathEscapeKey,
 			Severity:   diagnosticError,
 			Message:    diagnostics.RedactAndBound(fmt.Sprintf("resolve workspace root symlinks: %v", err), 300),
 			SourcePath: fileName,
@@ -968,7 +974,7 @@ func resolveManagedHeartbeatPath(
 	absTarget, err := filepath.Abs(cleanTarget)
 	if err != nil {
 		return managedPathResolution{}, &Diagnostic{
-			Code:       "heartbeat_path_escape",
+			Code:       authoringHeartbeatPathEscapeKey,
 			Severity:   diagnosticError,
 			Message:    diagnostics.RedactAndBound(fmt.Sprintf("resolve %s path: %v", fileName, err), 300),
 			SourcePath: safePathWithoutRoot(cleanTarget),
@@ -977,7 +983,7 @@ func resolveManagedHeartbeatPath(
 	sourcePath, within := relativePathWithinRoot(absRoot, absTarget)
 	if !within {
 		return managedPathResolution{}, &Diagnostic{
-			Code:       "heartbeat_path_escape",
+			Code:       authoringHeartbeatPathEscapeKey,
 			Severity:   diagnosticError,
 			Message:    fileName + " path must stay inside the workspace root",
 			SourcePath: sourcePath,
@@ -1003,7 +1009,7 @@ func validateManagedHeartbeatPathComponents(resolution managedPathResolution, fi
 				break
 			}
 			return &Diagnostic{
-				Code:       "heartbeat_path_escape",
+				Code:       authoringHeartbeatPathEscapeKey,
 				Severity:   diagnosticError,
 				Message:    diagnostics.RedactAndBound(fmt.Sprintf("inspect %s path: %v", fileName, statErr), 300),
 				SourcePath: resolution.sourcePath,
@@ -1011,7 +1017,7 @@ func validateManagedHeartbeatPathComponents(resolution managedPathResolution, fi
 		}
 		if info.Mode()&os.ModeSymlink != 0 {
 			return &Diagnostic{
-				Code:       "heartbeat_path_escape",
+				Code:       authoringHeartbeatPathEscapeKey,
 				Severity:   diagnosticError,
 				Message:    fileName + " managed path must not contain symlinks",
 				SourcePath: resolution.sourcePath,
@@ -1020,7 +1026,7 @@ func validateManagedHeartbeatPathComponents(resolution managedPathResolution, fi
 		resolvedCurrent, resolveErr := filepath.EvalSymlinks(current)
 		if resolveErr != nil {
 			return &Diagnostic{
-				Code: "heartbeat_path_escape",
+				Code: authoringHeartbeatPathEscapeKey,
 				Message: diagnostics.RedactAndBound(
 					fmt.Sprintf("resolve %s path symlinks: %v", fileName, resolveErr),
 					300,
@@ -1031,7 +1037,7 @@ func validateManagedHeartbeatPathComponents(resolution managedPathResolution, fi
 		}
 		if _, resolvedWithin := relativePathWithinRoot(resolution.resolvedRoot, resolvedCurrent); !resolvedWithin {
 			return &Diagnostic{
-				Code:       "heartbeat_path_escape",
+				Code:       authoringHeartbeatPathEscapeKey,
 				Severity:   diagnosticError,
 				Message:    fileName + " symlink target must stay inside the workspace root",
 				SourcePath: resolution.sourcePath,

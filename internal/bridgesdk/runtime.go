@@ -17,6 +17,10 @@ import (
 	"github.com/pedronauck/agh/internal/subprocess"
 )
 
+const (
+	runtimeErrorKey = "error"
+)
+
 // InitializeHandler runs after the provider runtime receives the negotiated
 // initialize request and seeds its Host API client and managed-instance cache.
 type InitializeHandler func(context.Context, *Session) error
@@ -246,12 +250,12 @@ func (r *Runtime) handleInitialize(ctx context.Context, raw json.RawMessage) (an
 	}
 	if err := request.Validate(); err != nil {
 		return nil, subprocess.NewRPCError(bridgeSDKRPCCodeInvalidParams, "Invalid params", map[string]string{
-			"error": err.Error(),
+			runtimeErrorKey: err.Error(),
 		})
 	}
 	if request.Runtime.Bridge == nil {
 		return nil, subprocess.NewRPCError(bridgeSDKRPCCodeInvalidParams, "Invalid params", map[string]string{
-			"error": "initialize bridge runtime is required",
+			runtimeErrorKey: "initialize bridge runtime is required",
 		})
 	}
 
@@ -259,7 +263,7 @@ func (r *Runtime) handleInitialize(ctx context.Context, raw json.RawMessage) (an
 	if r.session != nil || r.initializing {
 		r.mu.Unlock()
 		return nil, subprocess.NewRPCError(bridgeSDKRPCCodeInternal, "Internal error", map[string]string{
-			"error": "provider runtime already initialized",
+			runtimeErrorKey: "provider runtime already initialized",
 		})
 	}
 	peer := r.peer
@@ -309,7 +313,7 @@ func (r *Runtime) handleDeliver(ctx context.Context, raw json.RawMessage) (any, 
 	}
 	if err := request.Validate(); err != nil {
 		return nil, subprocess.NewRPCError(bridgeSDKRPCCodeInvalidParams, "Invalid params", map[string]string{
-			"error": err.Error(),
+			runtimeErrorKey: err.Error(),
 		})
 	}
 
@@ -436,7 +440,7 @@ func decodeParams(raw json.RawMessage, dest any) error {
 	}
 	if err := json.Unmarshal(raw, dest); err != nil {
 		return subprocess.NewRPCError(bridgeSDKRPCCodeInvalidParams, "Invalid params", map[string]string{
-			"error": err.Error(),
+			runtimeErrorKey: err.Error(),
 		})
 	}
 	return nil

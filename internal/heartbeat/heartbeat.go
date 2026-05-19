@@ -23,6 +23,15 @@ import (
 )
 
 const (
+	heartbeatEnabledKey                    = "enabled"
+	heartbeatHeartbeatForbiddenFieldKey    = "heartbeat_forbidden_field"
+	heartbeatHeartbeatInvalidFieldTypeKey  = "heartbeat_invalid_field_type"
+	heartbeatHeartbeatPathEscapeKey        = "heartbeat_path_escape"
+	heartbeatHeartbeatReservedBodyFieldKey = "heartbeat_reserved_body_field"
+	heartbeatVersionKey                    = "version"
+)
+
+const (
 	// FileName is the canonical authored wake-policy filename.
 	FileName = "HEARTBEAT.md"
 
@@ -522,7 +531,7 @@ func parseFrontmatter(metadata []byte, sourcePath string) (Frontmatter, []Diagno
 		}
 		if err := assignAllowedField(&front, key, value); err != nil {
 			diagnosticsList = append(diagnosticsList, Diagnostic{
-				Code:       "heartbeat_invalid_field_type",
+				Code:       heartbeatHeartbeatInvalidFieldTypeKey,
 				Severity:   diagnosticError,
 				Field:      key,
 				Message:    diagnostics.Redact(err.Error()),
@@ -540,7 +549,7 @@ func parseFrontmatter(metadata []byte, sourcePath string) (Frontmatter, []Diagno
 
 func assignAllowedField(front *Frontmatter, key string, value any) error {
 	switch key {
-	case "version":
+	case heartbeatVersionKey:
 		version, err := scalarInt(value)
 		if err != nil {
 			return fmt.Errorf("HEARTBEAT.md frontmatter field %q must be version number 1", key)
@@ -549,7 +558,7 @@ func assignAllowedField(front *Frontmatter, key string, value any) error {
 			return fmt.Errorf("HEARTBEAT.md frontmatter field %q must be version 1", key)
 		}
 		front.Version = version
-	case "enabled":
+	case heartbeatEnabledKey:
 		enabled, err := boolOnly(value)
 		if err != nil {
 			return fmt.Errorf("HEARTBEAT.md frontmatter field %q must be a boolean", key)
@@ -837,7 +846,7 @@ func validateBodyAuthorityClaims(body string, sourcePath string, bodyLineOffset 
 		}
 		if owner := forbiddenOwner(field); owner != "" {
 			diagnosticsList = append(diagnosticsList, Diagnostic{
-				Code:       "heartbeat_reserved_body_field",
+				Code:       heartbeatHeartbeatReservedBodyFieldKey,
 				Severity:   diagnosticError,
 				Field:      field,
 				Message:    diagnostics.Redact(fmt.Sprintf("HEARTBEAT.md body field %q belongs to %s", field, owner)),
@@ -1049,7 +1058,7 @@ func unsupportedFieldDiagnostic(
 	code := "heartbeat_unsupported_field"
 	message := fmt.Sprintf("HEARTBEAT.md frontmatter field %q is not supported", field)
 	if owner := forbiddenOwner(key); owner != "" {
-		code = "heartbeat_forbidden_field"
+		code = heartbeatHeartbeatForbiddenFieldKey
 		message = fmt.Sprintf("HEARTBEAT.md frontmatter field %q belongs to %s", field, owner)
 	}
 	return Diagnostic{
@@ -1118,7 +1127,7 @@ func safeSourcePath(sourcePath string, workspaceRoot string) (string, *Diagnosti
 	}
 	if strings.ContainsRune(trimmed, 0) {
 		return FileName, &Diagnostic{
-			Code:       "heartbeat_path_escape",
+			Code:       heartbeatHeartbeatPathEscapeKey,
 			Severity:   diagnosticError,
 			Message:    "HEARTBEAT.md path contains an invalid NUL byte",
 			SourcePath: FileName,
@@ -1133,7 +1142,7 @@ func safeSourcePath(sourcePath string, workspaceRoot string) (string, *Diagnosti
 	absRoot, err := filepath.Abs(filepath.Clean(workspaceRoot))
 	if err != nil {
 		return safePathWithoutRoot(cleanSource), &Diagnostic{
-			Code:       "heartbeat_path_escape",
+			Code:       heartbeatHeartbeatPathEscapeKey,
 			Severity:   diagnosticError,
 			Message:    diagnostics.RedactAndBound(fmt.Sprintf("resolve workspace root: %v", err), 300),
 			SourcePath: safePathWithoutRoot(cleanSource),
@@ -1146,7 +1155,7 @@ func safeSourcePath(sourcePath string, workspaceRoot string) (string, *Diagnosti
 	absSource, err := filepath.Abs(sourceForRoot)
 	if err != nil {
 		return safePathWithoutRoot(cleanSource), &Diagnostic{
-			Code:       "heartbeat_path_escape",
+			Code:       heartbeatHeartbeatPathEscapeKey,
 			Severity:   diagnosticError,
 			Message:    diagnostics.RedactAndBound(fmt.Sprintf("resolve HEARTBEAT.md path: %v", err), 300),
 			SourcePath: safePathWithoutRoot(cleanSource),
@@ -1156,7 +1165,7 @@ func safeSourcePath(sourcePath string, workspaceRoot string) (string, *Diagnosti
 	safePath, within := relativePathWithinRoot(absRoot, absSource)
 	if !within {
 		return safePath, &Diagnostic{
-			Code:       "heartbeat_path_escape",
+			Code:       heartbeatHeartbeatPathEscapeKey,
 			Severity:   diagnosticError,
 			Message:    "HEARTBEAT.md path must stay inside the workspace root",
 			SourcePath: safePath,
@@ -1167,7 +1176,7 @@ func safeSourcePath(sourcePath string, workspaceRoot string) (string, *Diagnosti
 			safeResolved, resolvedWithin := relativePathWithinRoot(resolvedRoot, resolvedSource)
 			if !resolvedWithin {
 				return safePath, &Diagnostic{
-					Code:       "heartbeat_path_escape",
+					Code:       heartbeatHeartbeatPathEscapeKey,
 					Severity:   diagnosticError,
 					Message:    "HEARTBEAT.md symlink target must stay inside the workspace root",
 					SourcePath: safeResolved,
@@ -1223,7 +1232,7 @@ func heartbeatPathForAgent(agentPath string) (string, error) {
 
 func isAllowedField(key string) bool {
 	switch key {
-	case "version", "enabled", "summary", "preferences", "context":
+	case heartbeatVersionKey, heartbeatEnabledKey, "summary", "preferences", "context":
 		return true
 	default:
 		return false

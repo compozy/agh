@@ -19,6 +19,10 @@ import (
 	toolspkg "github.com/pedronauck/agh/internal/tools"
 )
 
+const (
+	nativeMemoryAdminToolsCompletedKey = "completed"
+)
+
 type memoryAdminAvailabilitySet struct {
 	store         toolspkg.NativeAvailabilityFunc
 	extractor     toolspkg.NativeAvailabilityFunc
@@ -1407,7 +1411,7 @@ func memoryAdminDreamState(record memorypkg.DreamRunRecord) contract.MemoryDream
 		return contract.MemoryDreamStateRunning
 	case "failed":
 		return contract.MemoryDreamStateFailed
-	case "completed":
+	case nativeMemoryAdminToolsCompletedKey:
 		if record.PromotedCount > 0 {
 			return contract.MemoryDreamStatePromoted
 		}

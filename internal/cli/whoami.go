@@ -6,6 +6,11 @@ import (
 )
 
 const (
+	whoamiAgentValue = "Agent"
+	whoamiAgentKey   = "agent"
+)
+
+const (
 	envSessionID = agentidentity.EnvSessionID
 	envAgentID   = agentidentity.EnvAgent
 	envAgentName = "AGH_AGENT_NAME"
@@ -32,16 +37,20 @@ func whoamiBundle(identity IdentityRecord) outputBundle {
 		human: func() (string, error) {
 			return renderHumanSection("Identity", []keyValue{
 				{Label: "Session ID", Value: stringOrDash(identity.SessionID)},
-				{Label: "Agent", Value: stringOrDash(identity.Agent)},
+				{Label: whoamiAgentValue, Value: stringOrDash(identity.Agent)},
 				{Label: "Agent Name", Value: stringOrDash(identity.AgentName)},
 			}), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("identity", []string{"session_id", "agent", "agent_name"}, []string{
-				identity.SessionID,
-				identity.Agent,
-				identity.AgentName,
-			}), nil
+			return renderToonObject(
+				"identity",
+				[]string{automationSessionIDKey, whoamiAgentKey, "agent_name"},
+				[]string{
+					identity.SessionID,
+					identity.Agent,
+					identity.AgentName,
+				},
+			), nil
 		},
 	}
 }

@@ -14,6 +14,10 @@ import (
 	"unicode/utf8"
 )
 
+const (
+	resultLimitTextKey = "text"
+)
+
 const redactedJSONValue = "[REDACTED]"
 
 // DefaultResultLimiter applies descriptor/default byte caps and secret redaction.
@@ -282,7 +286,7 @@ func truncateToolResult(result ToolResult, maxBytes int64) (ToolResult, error) {
 	}
 	result.Content = nil
 	if preview != "" {
-		result.Content = []ToolContent{{Type: "text", Text: preview}}
+		result.Content = []ToolContent{{Type: resultLimitTextKey, Text: preview}}
 	}
 	result.Structured = nil
 	result.Preview = preview

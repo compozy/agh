@@ -2,6 +2,15 @@ package builtin
 
 import toolspkg "github.com/pedronauck/agh/internal/tools"
 
+const (
+	observeObserveKey = "observe"
+)
+
+const (
+	observeEventsKey = "events"
+	observeHealthKey = "health"
+)
+
 var observeTools = []toolspkg.Descriptor{
 	nativeDescriptor(
 		toolspkg.ToolIDObserveEvents,
@@ -14,7 +23,7 @@ var observeTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDObserve},
-		[]string{"observe", "events"},
+		[]string{observeObserveKey, observeEventsKey},
 		[]string{"observe events", "runtime events"},
 	),
 	nativeDescriptor(
@@ -28,7 +37,7 @@ var observeTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDObserve},
-		[]string{"observe", "metrics", "health"},
+		[]string{observeObserveKey, "metrics", observeHealthKey},
 		[]string{"observe health", "runtime metrics"},
 	),
 	nativeDescriptor(
@@ -42,7 +51,7 @@ var observeTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDObserve},
-		[]string{"observe", "search"},
+		[]string{observeObserveKey, "search"},
 		[]string{"observe search", "search runtime events"},
 	),
 }

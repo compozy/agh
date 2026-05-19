@@ -22,6 +22,10 @@ import (
 )
 
 const (
+	mainTelegramReferenceValue = "telegram-reference"
+)
+
+const (
 	adapterHandshakeEnv = "AGH_BRIDGE_ADAPTER_HANDSHAKE_PATH"
 	adapterOwnershipEnv = "AGH_BRIDGE_ADAPTER_OWNERSHIP_PATH"
 	adapterStateEnv     = "AGH_BRIDGE_ADAPTER_STATE_PATH"
@@ -212,7 +216,7 @@ func newTelegramReferenceRuntime(stderr io.Writer) (*telegramReferenceRuntime, e
 
 	sdkRuntime, err := bridgesdk.NewRuntime(bridgesdk.RuntimeConfig{
 		ExtensionInfo: subprocess.InitializeExtensionInfo{
-			Name:    "telegram-reference",
+			Name:    mainTelegramReferenceValue,
 			Version: "0.1.0",
 			SDKName: "bridgesdk",
 		},

@@ -12,6 +12,12 @@ import (
 	"time"
 )
 
+const (
+	serviceBearerValue     = "Bearer"
+	serviceAccessTokenKey  = "access_token"
+	serviceRefreshTokenKey = "refresh_token"
+)
+
 // ServiceOption configures the OAuth service.
 type ServiceOption func(*Service)
 
@@ -341,8 +347,8 @@ func (s *Service) refreshToken(
 	current TokenRecord,
 ) (TokenRecord, error) {
 	values := url.Values{}
-	values.Set("grant_type", "refresh_token")
-	values.Set("refresh_token", current.RefreshToken)
+	values.Set("grant_type", serviceRefreshTokenKey)
+	values.Set(serviceRefreshTokenKey, current.RefreshToken)
 	values.Set("client_id", strings.TrimSpace(cfg.ClientID))
 	if strings.TrimSpace(cfg.ClientSecret) != "" {
 		values.Set("client_secret", cfg.ClientSecret)
@@ -409,9 +415,9 @@ func (s *Service) tokenRecordFromResponse(
 	}
 	tokenType := strings.TrimSpace(resp.TokenType)
 	if tokenType == "" {
-		tokenType = "Bearer"
+		tokenType = serviceBearerValue
 	}
-	if !strings.EqualFold(tokenType, "Bearer") {
+	if !strings.EqualFold(tokenType, serviceBearerValue) {
 		return TokenRecord{}, errors.New("mcp auth: token response token_type must be Bearer")
 	}
 
@@ -464,10 +470,10 @@ func tokenResponseExpiresAt(now time.Time, expiresIn int64) (time.Time, error) {
 
 func (s *Service) revoke(ctx context.Context, cfg ServerConfig, metadata Metadata, token TokenRecord) error {
 	revokeToken := strings.TrimSpace(token.RefreshToken)
-	hint := "refresh_token"
+	hint := serviceRefreshTokenKey
 	if revokeToken == "" {
 		revokeToken = strings.TrimSpace(token.AccessToken)
-		hint = "access_token"
+		hint = serviceAccessTokenKey
 	}
 	if revokeToken == "" {
 		return nil

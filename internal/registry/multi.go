@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -220,8 +221,7 @@ func (m *MultiRegistry) SourceNamed(name string) Source {
 		return nil
 	}
 
-	for index := len(m.sources) - 1; index >= 0; index-- {
-		source := m.sources[index]
+	for _, source := range slices.Backward(m.sources) {
 		if source == nil {
 			continue
 		}
@@ -275,9 +275,9 @@ func (m *MultiRegistry) resolveSource(ctx context.Context, slug string) (Source,
 		return nil, nil, fmt.Errorf("registry: info canceled for %q: %w", trimmedSlug, err)
 	}
 
-	for index := len(m.sources) - 1; index >= 0; index-- {
+	for index, v := range slices.Backward(m.sources) {
 		if results[index].detail != nil {
-			return m.sources[index], results[index].detail, nil
+			return v, results[index].detail, nil
 		}
 	}
 

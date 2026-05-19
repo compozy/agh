@@ -15,6 +15,16 @@ import (
 )
 
 const (
+	typesSentKey = "sent"
+)
+
+const (
+	typesDirectIDKey = "direct_id"
+	typesRejectedKey = "rejected"
+	typesThreadIDKey = "thread_id"
+)
+
+const (
 	// NetworkSurfaceThread stores a public thread conversation container.
 	NetworkSurfaceThread = "thread"
 	// NetworkSurfaceDirect stores a two-party direct-room conversation container.
@@ -609,13 +619,13 @@ func (e NetworkAuditEntry) Validate() error {
 	}
 	direction := strings.TrimSpace(e.Direction)
 	switch direction {
-	case "sent", "received", "rejected", "delivered":
+	case typesSentKey, "received", typesRejectedKey, "delivered":
 	default:
 		return fmt.Errorf(
 			"store: network audit direction must be one of %q, %q, %q, %q: %q",
-			"sent",
+			typesSentKey,
 			"received",
-			"rejected",
+			typesRejectedKey,
 			"delivered",
 			e.Direction,
 		)
@@ -653,7 +663,7 @@ func (e NetworkAuditEntry) Validate() error {
 	if e.Size < 0 {
 		return fmt.Errorf("store: network audit size must be zero or positive: %d", e.Size)
 	}
-	if direction == "rejected" && strings.TrimSpace(e.Reason) == "" {
+	if direction == typesRejectedKey && strings.TrimSpace(e.Reason) == "" {
 		return fmt.Errorf("store: network audit reason is required when direction is %q", e.Direction)
 	}
 	if networkAuditEntryContainsRawClaimToken(e) {
@@ -766,14 +776,14 @@ func (r NetworkConversationRef) Validate() error {
 	surface := strings.TrimSpace(r.Surface)
 	switch surface {
 	case NetworkSurfaceThread:
-		if err := validateNetworkConversationID(r.ThreadID, "thread_id"); err != nil {
+		if err := validateNetworkConversationID(r.ThreadID, typesThreadIDKey); err != nil {
 			return err
 		}
 		if strings.TrimSpace(r.DirectID) != "" {
 			return fmt.Errorf("store: network conversation direct_id must be empty for surface %q", surface)
 		}
 	case NetworkSurfaceDirect:
-		if err := validateNetworkConversationID(r.DirectID, "direct_id"); err != nil {
+		if err := validateNetworkConversationID(r.DirectID, typesDirectIDKey); err != nil {
 			return err
 		}
 		if strings.TrimSpace(r.ThreadID) != "" {
@@ -1007,7 +1017,7 @@ func (e NetworkConversationMessage) Validate() error {
 		return fmt.Errorf("store: unsupported network message direction %q", e.Direction)
 	}
 	switch direction {
-	case "sent", "received":
+	case typesSentKey, "received":
 	default:
 		return fmt.Errorf("store: unsupported network message direction %q", e.Direction)
 	}
@@ -1310,11 +1320,11 @@ func validateNetworkConversationID(id string, field string) error {
 		return fmt.Errorf("store: network %s is required", field)
 	}
 	switch field {
-	case "thread_id":
+	case typesThreadIDKey:
 		if !networkThreadIDPattern.MatchString(trimmed) {
 			return fmt.Errorf("store: invalid network thread_id %q", id)
 		}
-	case "direct_id":
+	case typesDirectIDKey:
 		if !networkDirectIDPattern.MatchString(trimmed) {
 			return fmt.Errorf("store: invalid network direct_id %q", id)
 		}

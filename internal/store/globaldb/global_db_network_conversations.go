@@ -12,6 +12,17 @@ import (
 	"github.com/pedronauck/agh/internal/store"
 )
 
+const (
+	globalDBNetworkConversationsWorkspaceIDValue = "workspace_id = ?"
+)
+
+const (
+	globalDBNetworkConversationsChannelValue = "channel = ?"
+	globalDBNetworkConversationsDirectIDKey  = "direct_id"
+	globalDBNetworkConversationsRejectedKey  = "rejected"
+	globalDBNetworkConversationsThreadIDKey  = "thread_id"
+)
+
 type networkThreadCursor struct {
 	ThreadID       string
 	LastActivityAt time.Time
@@ -148,7 +159,7 @@ func (g *GlobalDB) ListThreads(
 		workspace_id, channel, thread_id, root_message_id, title, opened_by_peer_id, opened_session_id,
 		opened_at, last_activity_at, message_count, participant_count, open_work_count, last_message_preview
 	FROM network_threads`
-	where := []string{"workspace_id = ?", "channel = ?"}
+	where := []string{globalDBNetworkConversationsWorkspaceIDValue, globalDBNetworkConversationsChannelValue}
 	args := []any{normalizedRef.WorkspaceID, normalizedRef.Channel}
 	if after := strings.TrimSpace(query.After); after != "" {
 		cursor, cursorErr := g.lookupNetworkThreadCursor(ctx, normalizedRef, after)
@@ -235,7 +246,7 @@ func (g *GlobalDB) ListDirectRooms(
 		workspace_id, channel, direct_id, peer_a, peer_b, opened_at, last_activity_at,
 		message_count, open_work_count, last_message_preview
 	FROM network_direct_rooms`
-	where := []string{"workspace_id = ?", "channel = ?"}
+	where := []string{globalDBNetworkConversationsWorkspaceIDValue, globalDBNetworkConversationsChannelValue}
 	args := []any{normalizedRef.WorkspaceID, normalizedRef.Channel}
 	if peerID := strings.TrimSpace(query.PeerID); peerID != "" {
 		where = append(where, "(peer_a = ? OR peer_b = ?)")
@@ -869,7 +880,7 @@ func nextNetworkWorkStateFromReceipt(current string, body json.RawMessage) (stri
 	switch strings.TrimSpace(receipt.Status) {
 	case "accepted", "duplicate", "expired", "unsupported":
 		return current, false, nil
-	case "rejected":
+	case globalDBNetworkConversationsRejectedKey:
 		return store.NetworkWorkStateFailed, true, nil
 	case "canceled":
 		return store.NetworkWorkStateCanceled, true, nil
@@ -1106,9 +1117,9 @@ func latestNetworkConversationMessage(
 	surface string,
 	containerID string,
 ) (latestNetworkMessage, error) {
-	column := "thread_id"
+	column := globalDBNetworkConversationsThreadIDKey
 	if surface == store.NetworkSurfaceDirect {
-		column = "direct_id"
+		column = globalDBNetworkConversationsDirectIDKey
 	}
 	var latest latestNetworkMessage
 	query := fmt.Sprintf(
@@ -1136,8 +1147,8 @@ func countOpenNetworkWork(
 	directID string,
 ) (int, error) {
 	where := []string{
-		"workspace_id = ?",
-		"channel = ?",
+		globalDBNetworkConversationsWorkspaceIDValue,
+		globalDBNetworkConversationsChannelValue,
 		"surface = ?",
 		"state NOT IN (?, ?, ?)",
 	}
@@ -1223,7 +1234,11 @@ func (g *GlobalDB) lookupNetworkDirectRoomCursor(
 	directID string,
 	peerID string,
 ) (networkDirectRoomCursor, error) {
-	where := []string{"workspace_id = ?", "channel = ?", "direct_id = ?"}
+	where := []string{
+		globalDBNetworkConversationsWorkspaceIDValue,
+		globalDBNetworkConversationsChannelValue,
+		"direct_id = ?",
+	}
 	args := []any{ref.WorkspaceID, ref.Channel, strings.TrimSpace(directID)}
 	if trimmedPeer := strings.TrimSpace(peerID); trimmedPeer != "" {
 		where = append(where, "(peer_a = ? OR peer_b = ?)")
@@ -1306,7 +1321,11 @@ func networkConversationMessageFilterClauses(
 	ref store.NetworkConversationRef,
 	query store.NetworkConversationMessageQuery,
 ) ([]string, []any) {
-	where := []string{"workspace_id = ?", "channel = ?", "surface = ?"}
+	where := []string{
+		globalDBNetworkConversationsWorkspaceIDValue,
+		globalDBNetworkConversationsChannelValue,
+		"surface = ?",
+	}
 	args := []any{ref.WorkspaceID, ref.Channel, ref.Surface}
 	if ref.Surface == store.NetworkSurfaceThread {
 		where = append(where, "thread_id = ?")

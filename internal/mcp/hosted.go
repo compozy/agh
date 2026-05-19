@@ -21,6 +21,10 @@ import (
 )
 
 const (
+	hostedMCPKey = "mcp"
+)
+
+const (
 	// HostedServerName is the single stdio MCP server name injected into ACP sessions.
 	HostedServerName = "agh-hosted-tools"
 	hostedNonceBytes = 32
@@ -222,7 +226,7 @@ func (s *HostedService) Launch(ctx context.Context, req HostedLaunchRequest) (ag
 		Name:      HostedServerName,
 		Transport: aghconfig.MCPServerTransportStdio,
 		Command:   s.expectedBinary,
-		Args:      []string{"tool", "mcp", "--session", sessionID, "--bind-nonce", nonce},
+		Args:      []string{"tool", hostedMCPKey, "--session", sessionID, "--bind-nonce", nonce},
 		Env:       env,
 	}, nil
 }

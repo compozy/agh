@@ -16,6 +16,50 @@ import (
 	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
 
+const (
+	modelCatalogSourceConstraintChecksum = "2026-05-07-rebuild-model-catalog-source-constraints"
+	idxSummaryActorSQL                   = "CREATE INDEX IF NOT EXISTS idx_summaries_actor " +
+		"ON event_summaries(actor_kind, actor_id);"
+	idxSummaryHookEventSQL = "CREATE INDEX IF NOT EXISTS idx_summaries_hook_event " +
+		"ON event_summaries(hook_event);"
+	idxSummaryParentSQL = "CREATE INDEX IF NOT EXISTS idx_summaries_parent " +
+		"ON event_summaries(parent_session_id);"
+	idxSummaryRootSQL = "CREATE INDEX IF NOT EXISTS idx_summaries_root " +
+		"ON event_summaries(root_session_id);"
+	idxSummaryRunSQL = "CREATE INDEX IF NOT EXISTS idx_summaries_run " +
+		"ON event_summaries(run_id);"
+	idxSummarySessionSQL = "CREATE INDEX IF NOT EXISTS idx_summaries_session " +
+		"ON event_summaries(session_id);"
+	idxSummaryTaskSQL = "CREATE INDEX IF NOT EXISTS idx_summaries_task " +
+		"ON event_summaries(task_id);"
+	idxSummaryTimeSQL = "CREATE INDEX IF NOT EXISTS idx_summaries_timestamp " +
+		"ON event_summaries(timestamp);"
+	idxSummaryTypeSQL = "CREATE INDEX IF NOT EXISTS idx_summaries_type " +
+		"ON event_summaries(type);"
+	idxSummaryWorkflowSQL = "CREATE INDEX IF NOT EXISTS idx_summaries_workflow " +
+		"ON event_summaries(workflow_id);"
+	globalDBActorIDKey                              = "actor_id"
+	globalDBActorRefKey                             = "actor_ref"
+	globalDBAddAgentHeartbeatStorageKey             = "add_agent_heartbeat_storage"
+	globalDBAddAgentSoulSnapshotsKey                = "add_agent_soul_snapshots"
+	globalDBAutoStopOnParentKey                     = "auto_stop_on_parent"
+	globalDBClaimTokenKey                           = "claim_token"
+	globalDBClaimTokenHashKey                       = "claim_token_hash"
+	globalDBLeaseUntilKey                           = "lease_until"
+	globalDBParentSessionIDKey                      = "parent_session_id"
+	globalDBPermissionPolicyJSONKey                 = "permission_policy_json"
+	globalDBRebuildModelCatalogSourceConstraintsKey = "rebuild_model_catalog_source_constraints"
+	globalDBRootSessionIDKey                        = "root_session_id"
+	globalDBScopeKey                                = "scope"
+	globalDBSpawnBudgetJSONKey                      = "spawn_budget_json"
+	globalDBSpawnDepthKey                           = "spawn_depth"
+	globalDBSpawnRoleKey                            = "spawn_role"
+	globalDBSummaryKey                              = "summary"
+	globalDBTaskEventsKey                           = "task_events"
+	globalDBTTLExpiresAtKey                         = "ttl_expires_at"
+	globalDBWorkspaceKey                            = "workspace"
+)
+
 const globalMemoryEventWriteCommitted = "memory.write.committed"
 
 var taskTableIndexStatements = []string{
@@ -266,14 +310,14 @@ var globalSchemaStatements = appendSchemaStatements(
 		summary                TEXT,
 		timestamp              TEXT NOT NULL
 	);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_session ON event_summaries(session_id);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_type ON event_summaries(type);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_timestamp ON event_summaries(timestamp);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_task ON event_summaries(task_id);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_run ON event_summaries(run_id);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_workflow ON event_summaries(workflow_id);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_hook_event ON event_summaries(hook_event);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_actor ON event_summaries(actor_kind, actor_id);`,
+		idxSummarySessionSQL,
+		idxSummaryTypeSQL,
+		idxSummaryTimeSQL,
+		idxSummaryTaskSQL,
+		idxSummaryRunSQL,
+		idxSummaryWorkflowSQL,
+		idxSummaryHookEventSQL,
+		idxSummaryActorSQL,
 		`CREATE TABLE IF NOT EXISTS memory_operation_log (
 		id         TEXT PRIMARY KEY,
 		type       TEXT NOT NULL,
@@ -706,9 +750,9 @@ func appendSchemaStatements(groups ...[]string) []string {
 
 func migrateTaskRunClaimLeaseSchema(ctx context.Context, tx *sql.Tx) error {
 	if err := addMissingMigrationColumns(ctx, tx, "task_runs", []migrationColumnSpec{
-		{name: "claim_token", sql: `ALTER TABLE task_runs ADD COLUMN claim_token TEXT`},
-		{name: "claim_token_hash", sql: `ALTER TABLE task_runs ADD COLUMN claim_token_hash TEXT`},
-		{name: "lease_until", sql: `ALTER TABLE task_runs ADD COLUMN lease_until TEXT`},
+		{name: globalDBClaimTokenKey, sql: `ALTER TABLE task_runs ADD COLUMN claim_token TEXT`},
+		{name: globalDBClaimTokenHashKey, sql: `ALTER TABLE task_runs ADD COLUMN claim_token_hash TEXT`},
+		{name: globalDBLeaseUntilKey, sql: `ALTER TABLE task_runs ADD COLUMN lease_until TEXT`},
 		{name: "heartbeat_at", sql: `ALTER TABLE task_runs ADD COLUMN heartbeat_at TEXT`},
 		{
 			name: "coordination_channel_id",
@@ -821,13 +865,13 @@ var globalSchemaMigrations = []store.Migration{
 	},
 	{
 		Version:  12,
-		Name:     "add_agent_soul_snapshots",
+		Name:     globalDBAddAgentSoulSnapshotsKey,
 		Up:       migrateAgentSoulSnapshots,
 		Checksum: "2026-05-02-add-agent-soul-snapshots",
 	},
 	{
 		Version:  13,
-		Name:     "add_agent_heartbeat_storage",
+		Name:     globalDBAddAgentHeartbeatStorageKey,
 		Up:       migrateAgentHeartbeatStorage,
 		Checksum: "2026-05-02-add-agent-heartbeat-storage",
 	},
@@ -893,9 +937,9 @@ var globalSchemaMigrations = []store.Migration{
 	},
 	{
 		Version:  24,
-		Name:     "rebuild_model_catalog_source_constraints",
+		Name:     globalDBRebuildModelCatalogSourceConstraintsKey,
 		Up:       migrateModelCatalogSourceConstraints,
-		Checksum: "2026-05-07-rebuild-model-catalog-source-constraints",
+		Checksum: modelCatalogSourceConstraintChecksum,
 	},
 	{
 		Version:  25,
@@ -1000,16 +1044,16 @@ func workspaceQualifiedNetworkIdentityStatements() []string {
 			timestamp              TEXT NOT NULL
 		);`,
 		`CREATE INDEX IF NOT EXISTS idx_summaries_workspace ON event_summaries(workspace_id);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_session ON event_summaries(session_id);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_type ON event_summaries(type);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_timestamp ON event_summaries(timestamp);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_task ON event_summaries(task_id);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_run ON event_summaries(run_id);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_workflow ON event_summaries(workflow_id);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_hook_event ON event_summaries(hook_event);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_actor ON event_summaries(actor_kind, actor_id);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_parent ON event_summaries(parent_session_id);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_root ON event_summaries(root_session_id);`,
+		idxSummarySessionSQL,
+		idxSummaryTypeSQL,
+		idxSummaryTimeSQL,
+		idxSummaryTaskSQL,
+		idxSummaryRunSQL,
+		idxSummaryWorkflowSQL,
+		idxSummaryHookEventSQL,
+		idxSummaryActorSQL,
+		idxSummaryParentSQL,
+		idxSummaryRootSQL,
 		`DROP TABLE IF EXISTS network_thread_participants;`,
 		`DROP TABLE IF EXISTS network_work;`,
 		`DROP TABLE IF EXISTS network_direct_rooms;`,
@@ -1252,27 +1296,27 @@ func migrateActorIDColumns(ctx context.Context, tx *sql.Tx) error {
 		sql   string
 	}{
 		{
-			table: "task_events",
-			from:  "actor_ref",
-			to:    "actor_id",
+			table: globalDBTaskEventsKey,
+			from:  globalDBActorRefKey,
+			to:    globalDBActorIDKey,
 			sql:   `ALTER TABLE task_events RENAME COLUMN actor_ref TO actor_id`,
 		},
 		{
 			table: "task_triage_state",
-			from:  "actor_ref",
-			to:    "actor_id",
+			from:  globalDBActorRefKey,
+			to:    globalDBActorIDKey,
 			sql:   `ALTER TABLE task_triage_state RENAME COLUMN actor_ref TO actor_id`,
 		},
 		{
 			table: "agent_soul_revisions",
-			from:  "actor_ref",
-			to:    "actor_id",
+			from:  globalDBActorRefKey,
+			to:    globalDBActorIDKey,
 			sql:   `ALTER TABLE agent_soul_revisions RENAME COLUMN actor_ref TO actor_id`,
 		},
 		{
 			table: "agent_heartbeat_revisions",
-			from:  "actor_ref",
-			to:    "actor_id",
+			from:  globalDBActorRefKey,
+			to:    globalDBActorIDKey,
 			sql:   `ALTER TABLE agent_heartbeat_revisions RENAME COLUMN actor_ref TO actor_id`,
 		},
 	}
@@ -1386,21 +1430,21 @@ func migrateSessionLineageColumns(ctx context.Context, tx *sql.Tx) error {
 		name string
 		sql  string
 	}{
-		{name: "parent_session_id", sql: `ALTER TABLE sessions ADD COLUMN parent_session_id TEXT`},
-		{name: "root_session_id", sql: `ALTER TABLE sessions ADD COLUMN root_session_id TEXT`},
-		{name: "spawn_depth", sql: `ALTER TABLE sessions ADD COLUMN spawn_depth INTEGER NOT NULL DEFAULT 0`},
-		{name: "spawn_role", sql: `ALTER TABLE sessions ADD COLUMN spawn_role TEXT`},
-		{name: "ttl_expires_at", sql: `ALTER TABLE sessions ADD COLUMN ttl_expires_at TEXT`},
+		{name: globalDBParentSessionIDKey, sql: `ALTER TABLE sessions ADD COLUMN parent_session_id TEXT`},
+		{name: globalDBRootSessionIDKey, sql: `ALTER TABLE sessions ADD COLUMN root_session_id TEXT`},
+		{name: globalDBSpawnDepthKey, sql: `ALTER TABLE sessions ADD COLUMN spawn_depth INTEGER NOT NULL DEFAULT 0`},
+		{name: globalDBSpawnRoleKey, sql: `ALTER TABLE sessions ADD COLUMN spawn_role TEXT`},
+		{name: globalDBTTLExpiresAtKey, sql: `ALTER TABLE sessions ADD COLUMN ttl_expires_at TEXT`},
 		{
-			name: "auto_stop_on_parent",
+			name: globalDBAutoStopOnParentKey,
 			sql:  `ALTER TABLE sessions ADD COLUMN auto_stop_on_parent BOOLEAN NOT NULL DEFAULT 0`,
 		},
 		{
-			name: "spawn_budget_json",
+			name: globalDBSpawnBudgetJSONKey,
 			sql:  `ALTER TABLE sessions ADD COLUMN spawn_budget_json TEXT NOT NULL DEFAULT '{}'`,
 		},
 		{
-			name: "permission_policy_json",
+			name: globalDBPermissionPolicyJSONKey,
 			sql:  `ALTER TABLE sessions ADD COLUMN permission_policy_json TEXT NOT NULL DEFAULT '{}'`,
 		},
 	}
@@ -1450,15 +1494,15 @@ func migrateEventSummaryLineageColumns(ctx context.Context, tx *sql.Tx) error {
 		sql  string
 	}{
 		{
-			name: "parent_session_id",
+			name: globalDBParentSessionIDKey,
 			sql:  `ALTER TABLE event_summaries ADD COLUMN parent_session_id TEXT NOT NULL DEFAULT ''`,
 		},
 		{
-			name: "root_session_id",
+			name: globalDBRootSessionIDKey,
 			sql:  `ALTER TABLE event_summaries ADD COLUMN root_session_id TEXT NOT NULL DEFAULT ''`,
 		},
 		{
-			name: "spawn_depth",
+			name: globalDBSpawnDepthKey,
 			sql:  `ALTER TABLE event_summaries ADD COLUMN spawn_depth INTEGER NOT NULL DEFAULT 0`,
 		},
 	}
@@ -1472,8 +1516,8 @@ func migrateEventSummaryLineageColumns(ctx context.Context, tx *sql.Tx) error {
 	}
 
 	indexes := []string{
-		`CREATE INDEX IF NOT EXISTS idx_summaries_parent ON event_summaries(parent_session_id);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_root ON event_summaries(root_session_id);`,
+		idxSummaryParentSQL,
+		idxSummaryRootSQL,
 	}
 	for _, stmt := range indexes {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {
@@ -1584,19 +1628,19 @@ func copyRebuiltEventSummaries(
 		eventSummaryColumnExpr(columns, "task_id", `''`),
 		eventSummaryColumnExpr(columns, "run_id", `''`),
 		eventSummaryColumnExpr(columns, "workflow_id", `''`),
-		eventSummaryColumnExpr(columns, "claim_token_hash", `''`),
-		eventSummaryColumnExpr(columns, "lease_until", `''`),
+		eventSummaryColumnExpr(columns, globalDBClaimTokenHashKey, `''`),
+		eventSummaryColumnExpr(columns, globalDBLeaseUntilKey, `''`),
 		eventSummaryColumnExpr(columns, "coordinator_session_id", `''`),
 		eventSummaryColumnExpr(columns, "scheduler_reason", `''`),
 		eventSummaryColumnExpr(columns, "hook_event", `''`),
 		eventSummaryColumnExpr(columns, "hook_name", `''`),
 		eventSummaryColumnExpr(columns, "actor_kind", `''`),
-		eventSummaryColumnExpr(columns, "actor_id", `''`),
+		eventSummaryColumnExpr(columns, globalDBActorIDKey, `''`),
 		eventSummaryColumnExpr(columns, "release_reason", `''`),
-		eventSummaryColumnExpr(columns, "parent_session_id", `''`),
-		eventSummaryColumnExpr(columns, "root_session_id", `''`),
-		eventSummaryColumnExpr(columns, "spawn_depth", `0`),
-		eventSummaryColumnExpr(columns, "summary", `NULL`),
+		eventSummaryColumnExpr(columns, globalDBParentSessionIDKey, `''`),
+		eventSummaryColumnExpr(columns, globalDBRootSessionIDKey, `''`),
+		eventSummaryColumnExpr(columns, globalDBSpawnDepthKey, `0`),
+		eventSummaryColumnExpr(columns, globalDBSummaryKey, `NULL`),
 		eventSummaryColumnExpr(columns, "timestamp", `''`),
 	}
 	if _, err := tx.ExecContext(ctx, buildEventSummaryCopyQuery(selectList)); err != nil {
@@ -1620,16 +1664,16 @@ func buildEventSummaryCopyQuery(selectList []string) string {
 
 func rebuildEventSummaryIndexes(ctx context.Context, tx *sql.Tx) error {
 	indexes := []string{
-		`CREATE INDEX IF NOT EXISTS idx_summaries_session ON event_summaries(session_id);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_type ON event_summaries(type);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_timestamp ON event_summaries(timestamp);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_task ON event_summaries(task_id);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_run ON event_summaries(run_id);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_workflow ON event_summaries(workflow_id);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_hook_event ON event_summaries(hook_event);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_actor ON event_summaries(actor_kind, actor_id);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_parent ON event_summaries(parent_session_id);`,
-		`CREATE INDEX IF NOT EXISTS idx_summaries_root ON event_summaries(root_session_id);`,
+		idxSummarySessionSQL,
+		idxSummaryTypeSQL,
+		idxSummaryTimeSQL,
+		idxSummaryTaskSQL,
+		idxSummaryRunSQL,
+		idxSummaryWorkflowSQL,
+		idxSummaryHookEventSQL,
+		idxSummaryActorSQL,
+		idxSummaryParentSQL,
+		idxSummaryRootSQL,
 	}
 	for _, stmt := range indexes {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {
@@ -1662,7 +1706,7 @@ func migrateMemoryOperationScopeColumns(ctx context.Context, tx *sql.Tx) error {
 		name string
 		sql  string
 	}{
-		{name: "scope", sql: `ALTER TABLE memory_operation_log ADD COLUMN scope TEXT NOT NULL DEFAULT ''`},
+		{name: globalDBScopeKey, sql: `ALTER TABLE memory_operation_log ADD COLUMN scope TEXT NOT NULL DEFAULT ''`},
 		{
 			name: "workspace_root",
 			sql:  `ALTER TABLE memory_operation_log ADD COLUMN workspace_root TEXT NOT NULL DEFAULT ''`,
@@ -1774,7 +1818,7 @@ func migrateLegacyMemoryOperationLog(ctx context.Context, tx *sql.Tx) error {
 		fmt.Sprintf(
 			`SELECT id, type, %s, %s, %s, agent_name, summary, timestamp
 			 FROM memory_operation_log ORDER BY timestamp ASC, id ASC`,
-			eventSummaryColumnExpr(columns, "scope", "''"),
+			eventSummaryColumnExpr(columns, globalDBScopeKey, "''"),
 			eventSummaryColumnExpr(columns, "workspace_root", "''"),
 			eventSummaryColumnExpr(columns, "filename", "''"),
 		),
@@ -1818,7 +1862,7 @@ func migrateMemoryOperationRow(ctx context.Context, tx *sql.Tx, rows *sql.Rows) 
 		return err
 	}
 	workspaceID := strings.TrimSpace(workspace)
-	if strings.TrimSpace(scope) == "workspace" &&
+	if strings.TrimSpace(scope) == globalDBWorkspaceKey &&
 		workspaceID != "" &&
 		!aghworkspace.IsWorkspaceID(workspaceID) {
 		identity, err := aghworkspace.EnsureIdentity(ctx, workspaceID)
@@ -1828,10 +1872,10 @@ func migrateMemoryOperationRow(ctx context.Context, tx *sql.Tx, rows *sql.Rows) 
 		workspaceID = identity.WorkspaceID
 	}
 	metadata, err := json.Marshal(map[string]string{
-		"legacy_id": id,
-		"action":    strings.TrimSpace(op),
-		"filename":  strings.TrimSpace(filename),
-		"summary":   strings.TrimSpace(summary),
+		"legacy_id":        id,
+		"action":           strings.TrimSpace(op),
+		"filename":         strings.TrimSpace(filename),
+		globalDBSummaryKey: strings.TrimSpace(summary),
 	})
 	if err != nil {
 		return fmt.Errorf("store: encode legacy memory event metadata: %w", err)

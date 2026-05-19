@@ -16,6 +16,10 @@ import (
 	"github.com/pedronauck/agh/internal/subprocess"
 )
 
+const (
+	peerErrorKey = "error"
+)
+
 const bridgeSDKJSONRPCVersion = "2.0"
 
 const (
@@ -240,8 +244,7 @@ func (p *Peer) dispatchRequest(ctx context.Context, envelope rpcEnvelope) {
 
 	result, err := handler(ctx, envelope.Params)
 	if err != nil {
-		var rpcErr *subprocess.RPCError
-		if errors.As(err, &rpcErr) {
+		if rpcErr, ok := errors.AsType[*subprocess.RPCError](err); ok {
 			if sendErr := p.sendError(envelope.ID, rpcErr); sendErr != nil {
 				p.failTransport(fmt.Errorf("bridgesdk: send rpc error: %w", sendErr))
 			}
@@ -250,7 +253,7 @@ func (p *Peer) dispatchRequest(ctx context.Context, envelope rpcEnvelope) {
 		if sendErr := p.sendError(envelope.ID, subprocess.NewRPCError(
 			bridgeSDKRPCCodeInternal,
 			"Internal error",
-			map[string]string{"error": err.Error()},
+			map[string]string{peerErrorKey: err.Error()},
 		)); sendErr != nil {
 			p.failTransport(fmt.Errorf("bridgesdk: send internal error: %w", sendErr))
 		}

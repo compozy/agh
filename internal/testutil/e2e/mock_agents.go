@@ -16,6 +16,10 @@ import (
 	"github.com/pedronauck/agh/internal/testutil/acpmock"
 )
 
+const (
+	mockAgentsMessageKey = "message"
+)
+
 // MockAgentSpec is the narrow-waist contract for fixture-backed mock agents.
 // Runtime and browser E2E helpers should register mock agents through this type
 // instead of calling acpmock.Register directly.
@@ -86,7 +90,7 @@ func (h *RuntimeHarness) PromptSessionHTTPWithEvents(
 	message string,
 	onEvent func(SSEEvent) error,
 ) ([]SSEEvent, error) {
-	body := map[string]string{"message": message}
+	body := map[string]string{mockAgentsMessageKey: message}
 	path, err := h.sessionScopedAPIPath(sessionID, "/prompt")
 	if err != nil {
 		return nil, err
@@ -125,7 +129,7 @@ func (h *RuntimeHarness) PromptSessionHTTPUntil(
 	if err := validateSSEPredicate(predicate); err != nil {
 		return nil, err
 	}
-	body := map[string]string{"message": message}
+	body := map[string]string{mockAgentsMessageKey: message}
 	path, err := h.sessionScopedAPIPath(sessionID, "/prompt")
 	if err != nil {
 		return nil, err

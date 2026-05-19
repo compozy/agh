@@ -11,6 +11,10 @@ import (
 )
 
 const (
+	pkceS256Value = "S256"
+)
+
+const (
 	pkceVerifierBytes = 48
 	stateBytes        = 32
 )
@@ -35,7 +39,7 @@ func newPKCEPair(random io.Reader) (PKCEPair, error) {
 	return PKCEPair{
 		Verifier:  verifier,
 		Challenge: base64.RawURLEncoding.EncodeToString(sum[:]),
-		Method:    "S256",
+		Method:    pkceS256Value,
 	}, nil
 }
 

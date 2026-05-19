@@ -12,6 +12,12 @@ import (
 	"sync"
 )
 
+const (
+	extensionErrorKey   = "error"
+	extensionHandlerKey = "handler"
+	extensionToolIDKey  = "tool_id"
+)
+
 // ExtensionContext is passed to custom service handlers.
 type ExtensionContext struct {
 	Request   JSONRPCRequestEnvelope
@@ -183,8 +189,8 @@ func Tool[TInput any](
 		}
 		if err := json.Unmarshal(rawInput, &input); err != nil {
 			return ToolResult{}, NewInvalidParamsError("tool input does not match handler type", map[string]any{
-				"handler": req.handler,
-				"error":   err.Error(),
+				extensionHandlerKey: req.handler,
+				extensionErrorKey:   err.Error(),
 			})
 		}
 		return fn(ctx, ToolRequest[TInput]{
@@ -352,14 +358,14 @@ func (e *Extension) registerTool(
 
 func (e *Extension) ensureToolRegistrationAvailableLocked(handler string, toolID ToolID) error {
 	if _, ok := e.toolHandlers[handler]; ok {
-		return NewInvalidParamsError("tool handler already registered", map[string]any{"handler": handler})
+		return NewInvalidParamsError("tool handler already registered", map[string]any{extensionHandlerKey: handler})
 	}
 	for existingHandler, existingTool := range e.toolHandlers {
 		if existingTool.descriptor.ID == toolID {
 			return NewInvalidParamsError("tool id already registered", map[string]any{
-				"tool_id":          toolID,
-				"existing_handler": existingHandler,
-				"handler":          handler,
+				extensionToolIDKey:  toolID,
+				"existing_handler":  existingHandler,
+				extensionHandlerKey: handler,
 			})
 		}
 	}
@@ -427,7 +433,7 @@ func (e *Extension) handleInitialize(params json.RawMessage) (InitializeResponse
 	if err := json.Unmarshal(params, &request); err != nil {
 		return InitializeResponse{}, NewInvalidParamsError(
 			"initialize params must be an object",
-			map[string]any{"error": err.Error()},
+			map[string]any{extensionErrorKey: err.Error()},
 		)
 	}
 	if err := validateInitializeRequest(request); err != nil {
@@ -516,7 +522,7 @@ func (e *Extension) handleShutdown(
 	if err := json.Unmarshal(params, &shutdown); err != nil {
 		return ShutdownResponse{}, NewInvalidParamsError(
 			"shutdown params must be an object",
-			map[string]any{"error": err.Error()},
+			map[string]any{extensionErrorKey: err.Error()},
 		)
 	}
 	if shutdown.DeadlineMS <= 0 {
@@ -553,7 +559,7 @@ func (e *Extension) handleToolCall(
 	if err := json.Unmarshal(params, &call); err != nil {
 		return ExtensionToolCallResponse{}, NewInvalidParamsError(
 			"tools/call params must be an object",
-			map[string]any{"error": err.Error()},
+			map[string]any{extensionErrorKey: err.Error()},
 		)
 	}
 	call.Handler = strings.TrimSpace(call.Handler)
@@ -571,9 +577,9 @@ func (e *Extension) handleToolCall(
 	}
 	if registered.descriptor.ID != call.ToolID {
 		return ExtensionToolCallResponse{}, NewInvalidParamsError("tool_id does not match handler", map[string]any{
-			"expected_tool_id": registered.descriptor.ID,
-			"actual_tool_id":   call.ToolID,
-			"handler":          call.Handler,
+			"expected_tool_id":  registered.descriptor.ID,
+			"actual_tool_id":    call.ToolID,
+			extensionHandlerKey: call.Handler,
 		})
 	}
 	contextValue := e.makeContext(request)
@@ -784,8 +790,7 @@ func isToolProviderMethod(method string) bool {
 }
 
 func ensureRPCErrorIfTyped(err error) *RPCError {
-	var rpcErr *RPCError
-	if errors.As(err, &rpcErr) {
+	if rpcErr, ok := errors.AsType[*RPCError](err); ok {
 		return rpcErr
 	}
 	return nil
@@ -794,9 +799,9 @@ func ensureRPCErrorIfTyped(err error) *RPCError {
 func toolExecutionError(err error, call ExtensionToolCallRequest, sensitiveFields []string) *RPCError {
 	message := redactSensitiveText(err.Error(), call.Input, sensitiveFields)
 	data := map[string]any{
-		"tool_id": string(call.ToolID),
-		"handler": call.Handler,
-		"error":   message,
+		extensionToolIDKey:  string(call.ToolID),
+		extensionHandlerKey: call.Handler,
+		extensionErrorKey:   message,
 	}
 	if len(sensitiveFields) > 0 {
 		data["input"] = redactSensitiveInput(call.Input, sensitiveFields)

@@ -85,7 +85,6 @@ func newSpawnReaper(
 	if interval <= 0 {
 		interval = defaultSpawnReaperInterval
 	}
-	//nolint:gosec // cancel is retained on spawnReaper and called by shutdown.
 	reaperCtx, cancel := context.WithCancel(ctx)
 	return &spawnReaper{
 		ctx:      reaperCtx,

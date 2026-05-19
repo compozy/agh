@@ -1103,7 +1103,7 @@ func (b *harnessReentryBridge) writeEventSummaryWithContext(
 	}
 	targetAgentName := strings.TrimSpace(agentName)
 	if targetAgentName == "" {
-		targetAgentName = "daemon"
+		targetAgentName = harnessSummaryDefaultAgentName
 	}
 	if timestamp.IsZero() {
 		timestamp = time.Now().UTC()

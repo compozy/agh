@@ -18,6 +18,48 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	memoryTypeKey = "type"
+)
+
+const (
+	memoryFilenameValue = "Filename"
+	memoryFilenameKey   = "filename"
+	memorySummaryKey    = "summary"
+)
+
+const (
+	memoryActiveValue      = "Active"
+	memoryAgentValue       = "Agent"
+	memoryDescriptionValue = "Description"
+	memoryEnabledValue     = "Enabled"
+	memoryOperationValue   = "Operation"
+	memoryReasonValue      = "Reason"
+	memorySourceValue      = "Source"
+	memoryStatusValue      = "Status"
+	memoryActiveKey        = "active"
+	memoryAdhocKey         = "adhoc"
+	memoryAgentNameKey     = "agent_name"
+	memoryContentKey       = "content"
+	memoryDailyKey         = "daily"
+	memoryDecisionsKey     = "decisions"
+	memoryDescriptionKey   = "description"
+	memoryDrainKey         = "drain"
+	memoryDreamKey         = "dream"
+	memoryEnabledKey       = "enabled"
+	memoryExtractorKey     = "extractor"
+	memoryHealthKey        = "health"
+	memoryHistoryKey       = "history"
+	memoryListKey          = "list"
+	memoryMemoryKey        = "memory"
+	memoryOperationKey     = "operation"
+	memoryPayloadKey       = "payload"
+	memoryScopeShowValue   = "scope-show"
+	memorySearchQueryValue = "search <query>"
+	memoryStatusKey        = "status"
+	memoryTriggerKey       = "trigger"
+)
+
 type memorySelectorFlags struct {
 	Scope     string
 	Workspace string
@@ -73,7 +115,7 @@ type memoryHistoryItem struct {
 
 func newMemoryCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "memory",
+		Use:   memoryMemoryKey,
 		Short: "Show, write, search, and operate Memory v2 durable context",
 	}
 
@@ -107,7 +149,7 @@ func newMemoryListCommand(deps commandDeps) *cobra.Command {
 	var includeSystem bool
 
 	cmd := &cobra.Command{
-		Use:   "list",
+		Use:   memoryListKey,
 		Short: "List Memory v2 entries",
 		Example: `  # List global and current-workspace memories
   agh memory list
@@ -141,7 +183,7 @@ func newMemoryListCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	addMemorySelectorFlags(cmd, &flags)
-	cmd.Flags().StringVar(&typeRaw, "type", "", "Memory type: user, feedback, project, or reference")
+	cmd.Flags().StringVar(&typeRaw, memoryTypeKey, "", "Memory type: user, feedback, project, or reference")
 	cmd.Flags().BoolVar(&includeShadowed, "include-shadowed", false, "Include shadowed entries")
 	cmd.Flags().BoolVar(&includeSystem, "include-system", false, "Include _system memory entries")
 	return cmd
@@ -243,14 +285,15 @@ func newMemoryWriteCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	addMemorySelectorFlags(cmd, &flags)
-	cmd.Flags().StringVar(&typeRaw, "type", "", "Memory type: user, feedback, project, or reference")
-	cmd.Flags().StringVar(&name, "name", "", "Memory display name")
-	cmd.Flags().StringVar(&description, "description", "", "One-line durable memory description")
-	cmd.Flags().StringVar(&contentFlag, "content", "", "Memory content; use @file to read from disk or - for stdin")
+	cmd.Flags().StringVar(&typeRaw, memoryTypeKey, "", "Memory type: user, feedback, project, or reference")
+	cmd.Flags().StringVar(&name, automationNameKey, "", "Memory display name")
+	cmd.Flags().StringVar(&description, memoryDescriptionKey, "", "One-line durable memory description")
+	cmd.Flags().
+		StringVar(&contentFlag, memoryContentKey, "", "Memory content; use @file to read from disk or - for stdin")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Ask the controller for a decision without applying it")
-	mustMarkFlagRequired(cmd, "type")
-	mustMarkFlagRequired(cmd, "name")
-	mustMarkFlagRequired(cmd, "content")
+	mustMarkFlagRequired(cmd, memoryTypeKey)
+	mustMarkFlagRequired(cmd, automationNameKey)
+	mustMarkFlagRequired(cmd, memoryContentKey)
 	return cmd
 }
 
@@ -301,12 +344,13 @@ func newMemoryEditCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	addMemorySelectorFlags(cmd, &flags)
-	cmd.Flags().StringVar(&typeRaw, "type", "", "Memory type override")
-	cmd.Flags().StringVar(&name, "name", "", "Memory display name override")
-	cmd.Flags().StringVar(&description, "description", "", "Memory description override")
-	cmd.Flags().StringVar(&contentFlag, "content", "", "Memory content; use @file to read from disk or - for stdin")
+	cmd.Flags().StringVar(&typeRaw, memoryTypeKey, "", "Memory type override")
+	cmd.Flags().StringVar(&name, automationNameKey, "", "Memory display name override")
+	cmd.Flags().StringVar(&description, memoryDescriptionKey, "", "Memory description override")
+	cmd.Flags().
+		StringVar(&contentFlag, memoryContentKey, "", "Memory content; use @file to read from disk or - for stdin")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Ask the controller for a decision without applying it")
-	mustMarkFlagRequired(cmd, "content")
+	mustMarkFlagRequired(cmd, memoryContentKey)
 	return cmd
 }
 
@@ -343,7 +387,7 @@ func newMemorySearchCommand(deps commandDeps) *cobra.Command {
 	var includeSystem bool
 
 	cmd := &cobra.Command{
-		Use:   "search <query>",
+		Use:   memorySearchQueryValue,
 		Short: "Search deterministic Memory v2 recall",
 		Example: `  # Search global and current-workspace memories
   agh memory search "auth sessions"
@@ -427,7 +471,7 @@ func newMemoryHistoryCommand(deps commandDeps) *cobra.Command {
 	var limit int
 
 	cmd := &cobra.Command{
-		Use:   "history",
+		Use:   memoryHistoryKey,
 		Short: "Show redaction-safe Memory v2 operation history",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -459,7 +503,7 @@ func newMemoryHistoryCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	addMemorySelectorFlags(cmd, &flags)
-	cmd.Flags().StringVar(&operation, "operation", "", "Memory operation type, for example memory.write")
+	cmd.Flags().StringVar(&operation, memoryOperationKey, "", "Memory operation type, for example memory.write")
 	cmd.Flags().StringVar(&sinceRaw, "since", "", "Show operations since an RFC3339 timestamp or relative duration")
 	cmd.Flags().IntVar(&limit, "limit", 25, "Maximum number of operations to return")
 	return cmd
@@ -467,7 +511,7 @@ func newMemoryHistoryCommand(deps commandDeps) *cobra.Command {
 
 func newMemoryHealthCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "health",
+		Use:   memoryHealthKey,
 		Short: "Show Memory v2 health",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -601,7 +645,7 @@ func newMemoryScopeShowCommand(deps commandDeps) *cobra.Command {
 	var flags memorySelectorFlags
 
 	cmd := &cobra.Command{
-		Use:   "scope-show",
+		Use:   memoryScopeShowValue,
 		Short: "Show resolved Memory v2 precedence for a selector",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -626,7 +670,7 @@ func newMemoryScopeShowCommand(deps commandDeps) *cobra.Command {
 
 func newMemoryDecisionsCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "decisions",
+		Use:   memoryDecisionsKey,
 		Short: "Inspect and revert Memory v2 controller decisions",
 	}
 	cmd.AddCommand(newMemoryDecisionsListCommand(deps))
@@ -642,7 +686,7 @@ func newMemoryDecisionsListCommand(deps commandDeps) *cobra.Command {
 	var reason string
 
 	cmd := &cobra.Command{
-		Use:   "list",
+		Use:   memoryListKey,
 		Short: "List Memory v2 controller decisions",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -676,7 +720,7 @@ func newMemoryDecisionsListCommand(deps commandDeps) *cobra.Command {
 	addMemorySelectorFlags(cmd, &flags)
 	cmd.Flags().StringVar(&op, "op", "", "Decision operation filter")
 	cmd.Flags().StringVar(&sinceRaw, "since", "", "Show decisions since an RFC3339 timestamp or relative duration")
-	cmd.Flags().StringVar(&reason, "reason", "", "Reason substring filter")
+	cmd.Flags().StringVar(&reason, memoryReasonKey, "", "Reason substring filter")
 	return cmd
 }
 
@@ -726,7 +770,7 @@ func newMemoryDecisionsRevertCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, memoryDecisionRevertBundle(response))
 		},
 	}
-	cmd.Flags().StringVar(&reason, "reason", "", "Operator-visible revert reason")
+	cmd.Flags().StringVar(&reason, memoryReasonKey, "", "Operator-visible revert reason")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Return the revert decision without applying it")
 	return cmd
 }
@@ -761,7 +805,7 @@ func newMemoryRecallCommand(deps commandDeps) *cobra.Command {
 
 func newMemoryDreamCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "dream",
+		Use:   memoryDreamKey,
 		Short: "Operate Memory v2 dreaming runs",
 	}
 	cmd.AddCommand(newMemoryDreamShowCommand(deps))
@@ -820,7 +864,7 @@ func newMemoryDreamTriggerCommand(deps commandDeps) *cobra.Command {
 	var force bool
 
 	cmd := &cobra.Command{
-		Use:   "trigger",
+		Use:   memoryTriggerKey,
 		Short: "Trigger Memory v2 dreaming",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -852,7 +896,7 @@ func newMemoryDreamTriggerCommand(deps commandDeps) *cobra.Command {
 
 func newMemoryDreamStatusCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "status",
+		Use:   memoryStatusKey,
 		Short: "Show Memory v2 dreaming runtime status",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -871,7 +915,7 @@ func newMemoryDreamStatusCommand(deps commandDeps) *cobra.Command {
 
 func newMemoryDailyCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "daily",
+		Use:   memoryDailyKey,
 		Short: "Inspect Memory v2 daily operation logs",
 	}
 	cmd.AddCommand(newMemoryDailyListCommand(deps))
@@ -927,7 +971,7 @@ func newMemoryDailyListCommand(deps commandDeps) *cobra.Command {
 
 func newMemoryExtractorCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "extractor",
+		Use:   memoryExtractorKey,
 		Short: "Operate Memory v2 extractor runtime",
 	}
 	cmd.AddCommand(newMemoryExtractorStatusCommand(deps))
@@ -942,7 +986,7 @@ func newMemoryExtractorStatusCommand(deps commandDeps) *cobra.Command {
 	var sessionID string
 
 	cmd := &cobra.Command{
-		Use:   "status",
+		Use:   memoryStatusKey,
 		Short: "Show Memory v2 extractor runtime status",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -1013,7 +1057,7 @@ func newMemoryExtractorDrainCommand(deps commandDeps) *cobra.Command {
 	var timeoutRaw string
 
 	cmd := &cobra.Command{
-		Use:   "drain",
+		Use:   memoryDrainKey,
 		Short: "Drain Memory v2 extractor work",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -1056,7 +1100,7 @@ func newMemoryExtractorDisableCommand() *cobra.Command {
 
 func newMemoryProviderCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "provider",
+		Use:   memoryProviderKey,
 		Short: "Operate Memory v2 providers",
 	}
 	cmd.AddCommand(newMemoryProviderListCommand(deps))
@@ -1067,7 +1111,7 @@ func newMemoryProviderCommand(deps commandDeps) *cobra.Command {
 
 func newMemoryProviderListCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "list",
+		Use:   memoryListKey,
 		Short: "List registered Memory v2 providers",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -1134,7 +1178,7 @@ func newMemoryProviderDisableCommand(deps commandDeps) *cobra.Command {
 
 func newMemoryAdhocCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "adhoc",
+		Use:   memoryAdhocKey,
 		Short: "Inspect ad-hoc Memory v2 notes",
 	}
 	cmd.AddCommand(newMemoryAdhocListCommand())
@@ -1151,7 +1195,7 @@ func newMemoryAdhocCommand() *cobra.Command {
 func newMemoryAdhocListCommand() *cobra.Command {
 	var flags memorySelectorFlags
 	cmd := newUnsupportedMemoryCommand(
-		"list",
+		memoryListKey,
 		"memory.unsupported: adhoc list is not registered in Slice 1 API",
 		cobra.NoArgs,
 	)
@@ -1191,7 +1235,7 @@ func newUnsupportedMemoryCommand(use string, message string, args cobra.Position
 }
 
 func addMemorySelectorFlags(cmd *cobra.Command, flags *memorySelectorFlags) {
-	cmd.Flags().StringVar(&flags.Scope, "scope", "", "Memory scope: global, workspace, or agent")
+	cmd.Flags().StringVar(&flags.Scope, automationScopeKey, "", "Memory scope: global, workspace, or agent")
 	cmd.Flags().StringVar(&flags.Workspace, "workspace", "", "Workspace ID or path for workspace-bound memory")
 	cmd.Flags().StringVar(&flags.Agent, "agent", "", "Agent name for agent-scoped memory")
 	cmd.Flags().StringVar(&flags.AgentTier, "agent-tier", "", "Agent memory tier: workspace or global")
@@ -1300,7 +1344,7 @@ func parseOptionalMemoryType(raw string) (memcontract.Type, error) {
 }
 
 func resolveMemoryContent(cmd *cobra.Command, deps commandDeps, raw string) (string, error) {
-	flag := cmd.Flags().Lookup("content")
+	flag := cmd.Flags().Lookup(memoryContentKey)
 	flagChanged := flag != nil && flag.Changed
 	stdinContent, err := readOptionalCommandInput(cmd.InOrStdin())
 	if err != nil {
@@ -1454,9 +1498,16 @@ func memoryListBundle(response MemoryListRecord, now func() time.Time) outputBun
 		response,
 		items,
 		"Memories",
-		[]string{"Filename", "Name", "Type", "Scope", "Age", "Description"},
+		[]string{
+			memoryFilenameValue,
+			automationNameValue,
+			sessionTypeValue,
+			automationScopeValue,
+			"Age",
+			memoryDescriptionValue,
+		},
 		"memories",
-		[]string{"filename", "name", "type", "scope", "age", "description"},
+		[]string{memoryFilenameKey, automationNameKey, memoryTypeKey, automationScopeKey, "age", memoryDescriptionKey},
 		func(item memoryListItem) []string {
 			return []string{
 				stringOrDash(item.Filename),
@@ -1495,11 +1546,15 @@ func memoryEntryBundle(response MemoryEntryRecord) outputBundle {
 		},
 		toon: func() (string, error) {
 			summary := response.Memory.Summary
-			return renderToonObject("memory", []string{"filename", "scope", "content"}, []string{
-				summary.Filename,
-				memoryScopeLabel(summary.Scope, summary.AgentTier),
-				response.Memory.Content,
-			}), nil
+			return renderToonObject(
+				memoryMemoryKey,
+				[]string{memoryFilenameKey, automationScopeKey, memoryContentKey},
+				[]string{
+					summary.Filename,
+					memoryScopeLabel(summary.Scope, summary.AgentTier),
+					response.Memory.Content,
+				},
+			), nil
 		},
 	}
 }
@@ -1525,9 +1580,9 @@ func memorySearchBundle(response MemorySearchRecord) outputBundle {
 		response,
 		items,
 		"Memory Search",
-		[]string{"Filename", "Name", "Scope", "Score", "Snippet"},
+		[]string{memoryFilenameValue, automationNameValue, automationScopeValue, "Score", "Snippet"},
 		"results",
-		[]string{"filename", "name", "scope", "score", "snippet"},
+		[]string{memoryFilenameKey, automationNameKey, automationScopeKey, "score", "snippet"},
 		func(item memorySearchItem) []string {
 			return []string{
 				stringOrDash(item.Filename),
@@ -1561,9 +1616,9 @@ func memoryHealthBundle(view MemoryHealthRecord) outputBundle {
 		},
 		human: func() (string, error) {
 			return renderHumanSection("Memory Health", []keyValue{
-				{Label: "Status", Value: stringOrDash(view.Status)},
-				{Label: "Reason", Value: stringOrDash(view.Reason)},
-				{Label: "Enabled", Value: fmt.Sprintf("%t", view.Enabled)},
+				{Label: memoryStatusValue, Value: stringOrDash(view.Status)},
+				{Label: memoryReasonValue, Value: stringOrDash(view.Reason)},
+				{Label: memoryEnabledValue, Value: fmt.Sprintf("%t", view.Enabled)},
 				{Label: "Configured", Value: fmt.Sprintf("%t", view.Configured)},
 				{Label: "Global Dir", Value: stringOrDash(view.GlobalDir)},
 				{Label: "Global Files", Value: fmt.Sprintf("%d", view.GlobalFiles)},
@@ -1580,7 +1635,14 @@ func memoryHealthBundle(view MemoryHealthRecord) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(
 				"memory_health",
-				[]string{"status", "enabled", "configured", "global_files", "workspace_files", "operation_count"},
+				[]string{
+					memoryStatusKey,
+					memoryEnabledKey,
+					"configured",
+					"global_files",
+					"workspace_files",
+					"operation_count",
+				},
 				[]string{
 					view.Status,
 					fmt.Sprintf("%t", view.Enabled),
@@ -1614,9 +1676,9 @@ func memoryHistoryBundle(records []MemoryHistoryRecord, now func() time.Time) ou
 		contract.MemoryOperationHistoryResponse{Operations: records},
 		items,
 		"Memory History",
-		[]string{"Time", "Operation", "Scope", "Filename", "Summary"},
+		[]string{"Time", memoryOperationValue, automationScopeValue, memoryFilenameValue, "Summary"},
 		"operations",
-		[]string{"timestamp", "operation", "scope", "filename", "summary"},
+		[]string{networkTimestampKey, memoryOperationKey, automationScopeKey, memoryFilenameKey, memorySummaryKey},
 		func(item memoryHistoryItem) []string {
 			return []string{
 				stringOrDash(formatTime(item.Timestamp)),
@@ -1663,22 +1725,29 @@ func memoryDecisionBundle(title string, decision contract.MemoryDecisionPayload,
 		human: func() (string, error) {
 			return renderHumanSection(title, []keyValue{
 				{Label: "Decision ID", Value: stringOrDash(decision.ID)},
-				{Label: "Operation", Value: stringOrDash(string(decision.Op))},
-				{Label: "Scope", Value: stringOrDash(memoryScopeLabel(decision.Scope, decision.AgentTier))},
-				{Label: "Filename", Value: stringOrDash(decision.TargetFilename)},
+				{Label: memoryOperationValue, Value: stringOrDash(string(decision.Op))},
+				{
+					Label: automationScopeValue,
+					Value: stringOrDash(memoryScopeLabel(decision.Scope, decision.AgentTier)),
+				},
+				{Label: memoryFilenameValue, Value: stringOrDash(decision.TargetFilename)},
 				{Label: "Confidence", Value: fmt.Sprintf("%.2f", decision.Confidence)},
-				{Label: "Source", Value: stringOrDash(string(decision.Source))},
-				{Label: "Reason", Value: stringOrDash(decision.Reason)},
+				{Label: memorySourceValue, Value: stringOrDash(string(decision.Source))},
+				{Label: memoryReasonValue, Value: stringOrDash(decision.Reason)},
 			}), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("memory_decision", []string{"id", "op", "scope", "filename", "reason"}, []string{
-				decision.ID,
-				string(decision.Op),
-				memoryScopeLabel(decision.Scope, decision.AgentTier),
-				decision.TargetFilename,
-				decision.Reason,
-			}), nil
+			return renderToonObject(
+				"memory_decision",
+				[]string{"id", "op", automationScopeKey, memoryFilenameKey, memoryReasonKey},
+				[]string{
+					decision.ID,
+					string(decision.Op),
+					memoryScopeLabel(decision.Scope, decision.AgentTier),
+					decision.TargetFilename,
+					decision.Reason,
+				},
+			), nil
 		},
 	}
 }
@@ -1691,9 +1760,9 @@ func memoryReindexBundle(view MemoryReindexRecord) outputBundle {
 		},
 		human: func() (string, error) {
 			return renderHumanSection("Memory Reindex", []keyValue{
-				{Label: "Scope", Value: stringOrDash(memoryScopeLabel(view.Scope, view.AgentTier))},
+				{Label: automationScopeValue, Value: stringOrDash(memoryScopeLabel(view.Scope, view.AgentTier))},
 				{Label: "Workspace ID", Value: stringOrDash(view.WorkspaceID)},
-				{Label: "Agent", Value: stringOrDash(view.AgentName)},
+				{Label: memoryAgentValue, Value: stringOrDash(view.AgentName)},
 				{Label: "Indexed Files", Value: fmt.Sprintf("%d", view.IndexedFiles)},
 				{Label: "Completed At", Value: view.CompletedAt.Format(time.RFC3339)},
 			}), nil
@@ -1701,7 +1770,13 @@ func memoryReindexBundle(view MemoryReindexRecord) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(
 				"memory_reindex",
-				[]string{"scope", "workspace_id", "agent_name", "indexed_files", "completed_at"},
+				[]string{
+					automationScopeKey,
+					automationWorkspaceIDKey,
+					memoryAgentNameKey,
+					"indexed_files",
+					"completed_at",
+				},
 				[]string{
 					memoryScopeLabel(view.Scope, view.AgentTier),
 					view.WorkspaceID,
@@ -1735,15 +1810,18 @@ func memoryDreamTriggerBundle(response MemoryDreamTriggerRecord) outputBundle {
 		human: func() (string, error) {
 			return renderHumanSection("Memory Dream Trigger", []keyValue{
 				{Label: "Triggered", Value: boolStatus(response.Triggered)},
-				{Label: "Status", Value: stringOrDash(string(response.Dream.Status))},
-				{Label: "Scope", Value: stringOrDash(memoryScopeLabel(response.Dream.Scope, response.Dream.AgentTier))},
-				{Label: "Reason", Value: stringOrDash(response.Reason)},
+				{Label: memoryStatusValue, Value: stringOrDash(string(response.Dream.Status))},
+				{
+					Label: automationScopeValue,
+					Value: stringOrDash(memoryScopeLabel(response.Dream.Scope, response.Dream.AgentTier)),
+				},
+				{Label: memoryReasonValue, Value: stringOrDash(response.Reason)},
 			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject(
 				"memory_dream_trigger",
-				[]string{"triggered", "status", "scope", "reason"},
+				[]string{"triggered", memoryStatusKey, automationScopeKey, memoryReasonKey},
 				[]string{
 					boolStatus(response.Triggered),
 					string(response.Dream.Status),
@@ -1768,9 +1846,9 @@ func memoryProviderListBundle(response MemoryProviderListRecord) outputBundle {
 		response,
 		response.Providers,
 		"Memory Providers",
-		[]string{"Name", "Status", "Active", "Builtin", "Failure Count"},
+		[]string{automationNameValue, memoryStatusValue, memoryActiveValue, "Builtin", "Failure Count"},
 		"providers",
-		[]string{"name", "status", "active", "builtin", "failure_count"},
+		[]string{automationNameKey, memoryStatusKey, memoryActiveKey, "builtin", "failure_count"},
 		func(item contract.MemoryProviderPayload) []string {
 			return []string{
 				stringOrDash(item.Name),
@@ -1814,7 +1892,7 @@ func memoryObjectBundle(title string, value any) outputBundle {
 			if err != nil {
 				return "", fmt.Errorf("cli: render %s toon: %w", title, err)
 			}
-			return renderToonObject("memory", []string{"payload"}, []string{string(data)}), nil
+			return renderToonObject(memoryMemoryKey, []string{memoryPayloadKey}, []string{string(data)}), nil
 		},
 	}
 }

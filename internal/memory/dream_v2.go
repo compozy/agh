@@ -20,6 +20,18 @@ import (
 )
 
 const (
+	dreamV2EFilenamePath    = "  e.filename,"
+	dreamV2ENamePath        = "  e.name,"
+	dreamV2EScopePath       = "  e.scope,"
+	dreamV2ETypePath        = "  e.type,"
+	dreamV2EWorkspaceIDPath = "  e.workspace_id,"
+	dreamV2SelectValue      = "SELECT"
+	dreamErrorFieldKey      = "error"
+	dreamV2PromptVersionKey = "prompt_version"
+	dreamV2WorkspaceIDKey   = "workspace_id"
+)
+
+const (
 	defaultDreamMinSignals      = 5
 	defaultDreamMinRecallCount  = 2
 	defaultDreamPromotionScore  = 0.75
@@ -156,7 +168,7 @@ func (s *Store) dreamCandidates(
 	}
 	defer func() {
 		if closeErr := rows.Close(); closeErr != nil {
-			s.warn("memory: close dream candidate rows failed", "error", closeErr)
+			s.warn("memory: close dream candidate rows failed", dreamErrorFieldKey, closeErr)
 		}
 	}()
 
@@ -189,17 +201,17 @@ func queryDreamCandidateRows(
 	config DreamGateConfig,
 ) (*sql.Rows, error) {
 	base := strings.Join([]string{
-		`SELECT`,
+		dreamV2SelectValue,
 		`  sig.chunk_id,`,
 		`  c.file_id,`,
-		`  e.workspace_id,`,
-		`  e.scope,`,
+		dreamV2EWorkspaceIDPath,
+		dreamV2EScopePath,
 		`  e.agent_name,`,
 		`  e.agent_tier,`,
-		`  e.type,`,
+		dreamV2ETypePath,
 		`  e.slug,`,
-		`  e.filename,`,
-		`  e.name,`,
+		dreamV2EFilenamePath,
+		dreamV2ENamePath,
 		`  c.content,`,
 		`  sig.recall_count,`,
 		`  sig.session_count,`,
@@ -469,7 +481,7 @@ func (s *Store) upsertDreamRun(
 
 func dreamRunMetadata(run dreamSignalGateResult, status string) (string, error) {
 	metadata := map[string]string{
-		"prompt_version": dreamPromptVersion,
+		dreamV2PromptVersionKey: dreamPromptVersion,
 		"candidate_count": fmt.Sprintf(
 			"%d",
 			len(run.candidates),
@@ -591,7 +603,7 @@ func mergeDreamEventMetadata(metadata string, promoted int, errorText string) (s
 		values["promoted_count"] = fmt.Sprintf("%d", promoted)
 	}
 	if strings.TrimSpace(errorText) != "" {
-		values["error"] = errorText
+		values[dreamErrorFieldKey] = errorText
 	}
 	payload, err := json.Marshal(values)
 	if err != nil {
@@ -728,13 +740,13 @@ func dreamFailurePayload(
 		errText = diagnostics.RedactAndBound(cause.Error(), maxOperationSummaryBytes)
 	}
 	return map[string]any{
-		"run_id":          strings.TrimSpace(run.runID),
-		"workspace_id":    strings.TrimSpace(workspace.id),
-		"prompt_version":  dreamPromptVersion,
-		"failed_at":       at.UTC().Format(time.RFC3339),
-		"error":           errText,
-		"candidate_count": len(run.candidates),
-		"candidate_ids":   dreamCandidateChunkIDs(run.candidates),
+		"run_id":                strings.TrimSpace(run.runID),
+		dreamV2WorkspaceIDKey:   strings.TrimSpace(workspace.id),
+		dreamV2PromptVersionKey: dreamPromptVersion,
+		"failed_at":             at.UTC().Format(time.RFC3339),
+		dreamErrorFieldKey:      errText,
+		"candidate_count":       len(run.candidates),
+		"candidate_ids":         dreamCandidateChunkIDs(run.candidates),
 	}
 }
 
@@ -773,7 +785,7 @@ func dreamPromotionCandidate(
 			decisionMetadataTargetFilenameKey: "project_dreaming_" + at.UTC().Format("20060102") + ".md",
 			"run_id":                          strings.TrimSpace(run.runID),
 			"artifact_path":                   artifactPath,
-			"prompt_version":                  dreamPromptVersion,
+			dreamV2PromptVersionKey:           dreamPromptVersion,
 		},
 		SubmittedAt: at.UTC(),
 	}

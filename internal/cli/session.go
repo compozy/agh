@@ -13,9 +13,45 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	sessionTurnIDKey = "turn_id"
+)
+
+const (
+	sessionSequenceKey = "sequence"
+)
+
+const (
+	sessionAgentValue     = "Agent"
+	sessionBackendValue   = "Backend"
+	sessionChannelValue   = "Channel"
+	sessionCreatedValue   = "Created"
+	sessionNameValue      = "Name"
+	sessionProfileValue   = "Profile"
+	sessionProviderValue  = "Provider"
+	sessionSessionValue   = "Session"
+	sessionStateValue     = "State"
+	sessionStatusValue    = "Status"
+	sessionTimestampValue = "Timestamp"
+	sessionUpdatedValue   = "Updated"
+	sessionWorkspaceValue = "Workspace"
+	sessionAgentNameKey   = "agent_name"
+	sessionChannelKey     = "channel"
+	sessionCreatedAtKey   = "created_at"
+	sessionHistoryIDValue = "history <id>"
+	sessionListKey        = "list"
+	sessionNameKey        = "name"
+	sessionNewKey         = "new"
+	sessionProviderKey    = "provider"
+	sessionSessionIDKey   = "session_id"
+	sessionStateKey       = "state"
+	sessionStatusKey      = "status"
+	sessionUpdatedAtKey   = "updated_at"
+)
+
 func newSessionCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "session",
+		Use:   sessionSessionKey,
 		Short: "Manage AGH sessions",
 	}
 
@@ -50,7 +86,7 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "new",
+		Use:   sessionNewKey,
 		Short: "Create a new session",
 		Example: `  # Start a session in the current workspace using the configured default agent
   agh session new
@@ -92,11 +128,11 @@ func newSessionCreateCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&agentName, "agent", "", "Agent definition name (defaults to config default)")
-	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Registered workspace name or ID")
+	cmd.Flags().StringVar(&workspaceRef, workspaceSkillSource, "", "Registered workspace name or ID")
 	cmd.Flags().StringVar(&cwd, "cwd", "", "Absolute workspace directory to auto-register")
-	cmd.Flags().StringVar(&name, "name", "", "Optional session label")
-	cmd.Flags().StringVar(&channel, "channel", "", "Optional network channel opt-in for the session")
-	cmd.Flags().StringVar(&provider, "provider", "", "Optional provider override for this session")
+	cmd.Flags().StringVar(&name, sessionNameKey, "", "Optional session label")
+	cmd.Flags().StringVar(&channel, sessionChannelKey, "", "Optional network channel opt-in for the session")
+	cmd.Flags().StringVar(&provider, sessionProviderKey, "", "Optional provider override for this session")
 	cmd.Flags().StringVar(&model, "model", "", "Optional model override for this session")
 	cmd.Flags().StringVar(
 		&reasoningEffort,
@@ -114,7 +150,7 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "list",
+		Use:   sessionListKey,
 		Short: "List sessions",
 		Example: `  # List active sessions
   agh session list
@@ -141,7 +177,7 @@ func newSessionListCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&includeAll, "all", false, "Include stopped sessions")
-	cmd.Flags().StringVar(&workspaceFilter, "workspace", "", "Filter by workspace name or ID")
+	cmd.Flags().StringVar(&workspaceFilter, workspaceSkillSource, "", "Filter by workspace name or ID")
 	return cmd
 }
 
@@ -405,7 +441,7 @@ func newSessionEventsCommand(deps commandDeps) *cobra.Command {
 			return writeSessionEventsOutput(cmd, events)
 		},
 	}
-	cmd.Flags().StringVar(&eventType, "type", "", "Filter by event type")
+	cmd.Flags().StringVar(&eventType, extensionTypeKey, "", "Filter by event type")
 	cmd.Flags().IntVar(&last, "last", 0, "Show only the most recent N events")
 	cmd.Flags().StringVar(&sinceRaw, "since", "", "Show events since an RFC3339 timestamp or relative duration")
 	cmd.Flags().BoolVar(&follow, "follow", false, "Stream new events over SSE")
@@ -439,7 +475,7 @@ func writeSessionEventsOutput(cmd *cobra.Command, events []SessionEventRecord) e
 
 func newSessionHistoryCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "history <id>",
+		Use:   sessionHistoryIDValue,
 		Short: "Show session history grouped by turn",
 		Example: `  # Show replayable turn history for one session
   agh session history sess_1234`,
@@ -486,7 +522,12 @@ func streamSessionEvents(cmd *cobra.Command, client DaemonClient, id string, que
 			}
 		case OutputToon:
 			if err := writeRawCommandOutput(cmd, renderToonObject("event", []string{
-				"sequence", "type", "agent_name", "turn_id", "timestamp", "content",
+				sessionSequenceKey,
+				extensionTypeKey,
+				sessionAgentNameKey,
+				sessionTurnIDKey,
+				networkTimestampKey,
+				memoryContentKey,
 			}, []string{
 				strconv.FormatInt(payload.Sequence, 10),
 				payload.Type,
@@ -523,33 +564,33 @@ func sessionBundle(info SessionRecord, now func() time.Time) outputBundle {
 	return outputBundle{
 		jsonValue: info,
 		human: func() (string, error) {
-			base := renderHumanSection("Session", []keyValue{
+			base := renderHumanSection(sessionSessionValue, []keyValue{
 				{Label: "ID", Value: stringOrDash(info.ID)},
-				{Label: "Name", Value: stringOrDash(info.Name)},
-				{Label: "Agent", Value: stringOrDash(info.AgentName)},
-				{Label: "Provider", Value: stringOrDash(info.Provider)},
-				{Label: "Workspace", Value: stringOrDash(displaySessionWorkspace(info))},
-				{Label: "Channel", Value: stringOrDash(info.Channel)},
-				{Label: "State", Value: stringOrDash(string(info.State))},
+				{Label: sessionNameValue, Value: stringOrDash(info.Name)},
+				{Label: sessionAgentValue, Value: stringOrDash(info.AgentName)},
+				{Label: sessionProviderValue, Value: stringOrDash(info.Provider)},
+				{Label: sessionWorkspaceValue, Value: stringOrDash(displaySessionWorkspace(info))},
+				{Label: sessionChannelValue, Value: stringOrDash(info.Channel)},
+				{Label: sessionStateValue, Value: stringOrDash(string(info.State))},
 				{Label: "Stop Reason", Value: stringOrDash(string(info.StopReason))},
 				{Label: "Stop Detail", Value: stringOrDash(info.StopDetail)},
 				{Label: "Failure Kind", Value: stringOrDash(sessionFailureKind(info))},
 				{Label: "Failure Summary", Value: stringOrDash(sessionFailureSummary(info))},
 				{Label: "Crash Bundle", Value: stringOrDash(sessionCrashBundlePath(info))},
 				{Label: "ACP Session", Value: stringOrDash(info.ACPSessionID)},
-				{Label: "Created", Value: stringOrDash(formatTime(info.CreatedAt))},
-				{Label: "Updated", Value: stringOrDash(formatTime(info.UpdatedAt))},
+				{Label: sessionCreatedValue, Value: stringOrDash(formatTime(info.CreatedAt))},
+				{Label: sessionUpdatedValue, Value: stringOrDash(formatTime(info.UpdatedAt))},
 				{Label: "Age", Value: stringOrDash(formatAge(now, info.CreatedAt))},
 			})
 
 			blocks := []string{base}
 			if info.Sandbox != nil {
 				blocks = append(blocks, renderHumanSection("Sandbox", []keyValue{
-					{Label: "Backend", Value: stringOrDash(info.Sandbox.Backend)},
-					{Label: "Profile", Value: stringOrDash(info.Sandbox.Profile)},
+					{Label: sessionBackendValue, Value: stringOrDash(info.Sandbox.Backend)},
+					{Label: sessionProfileValue, Value: stringOrDash(info.Sandbox.Profile)},
 					{Label: "Sandbox ID", Value: stringOrDash(info.Sandbox.SandboxID)},
 					{Label: "Instance ID", Value: stringOrDash(info.Sandbox.InstanceID)},
-					{Label: "State", Value: stringOrDash(info.Sandbox.State)},
+					{Label: sessionStateValue, Value: stringOrDash(info.Sandbox.State)},
 					{Label: "Last Sync Error", Value: stringOrDash(info.Sandbox.LastSyncError)},
 				}))
 			}
@@ -565,22 +606,22 @@ func sessionBundle(info SessionRecord, now func() time.Time) outputBundle {
 			return renderHumanBlocks(blocks...), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("session", []string{
+			return renderToonObject(sessionSessionKey, []string{
 				"id",
-				"name",
-				"agent_name",
-				"provider",
+				sessionNameKey,
+				sessionAgentNameKey,
+				sessionProviderKey,
 				"sandbox_backend",
-				"workspace",
-				"channel",
-				"state",
+				workspaceSkillSource,
+				sessionChannelKey,
+				sessionStateKey,
 				"stop_reason",
 				"failure_kind",
 				"failure_summary",
 				"crash_bundle_path",
 				"acp_session_id",
-				"created_at",
-				"updated_at",
+				sessionCreatedAtKey,
+				sessionUpdatedAtKey,
 			}, []string{
 				info.ID,
 				info.Name,
@@ -609,28 +650,28 @@ func sessionListBundle(items []SessionRecord, now func() time.Time) outputBundle
 		"Sessions",
 		[]string{
 			"ID",
-			"Name",
-			"Agent",
-			"Provider",
-			"Backend",
-			"State",
+			sessionNameValue,
+			sessionAgentValue,
+			sessionProviderValue,
+			sessionBackendValue,
+			sessionStateValue,
 			"Failure",
-			"Workspace",
-			"Channel",
-			"Updated",
+			sessionWorkspaceValue,
+			sessionChannelValue,
+			sessionUpdatedValue,
 		},
 		"sessions",
 		[]string{
 			"id",
-			"name",
-			"agent_name",
-			"provider",
+			sessionNameKey,
+			sessionAgentNameKey,
+			sessionProviderKey,
 			"sandbox_backend",
-			"state",
+			sessionStateKey,
 			"failure_kind",
-			"workspace",
-			"channel",
-			"updated_at",
+			workspaceSkillSource,
+			sessionChannelKey,
+			sessionUpdatedAtKey,
 		},
 		func(item SessionRecord) []string {
 			return []string{
@@ -675,7 +716,7 @@ func sessionRepairBundle(record SessionRepairRecord) outputBundle {
 		jsonValue: record,
 		human: func() (string, error) {
 			return renderHumanSection("Session Repair", []keyValue{
-				{Label: "Session", Value: stringOrDash(record.SessionID)},
+				{Label: sessionSessionValue, Value: stringOrDash(record.SessionID)},
 				{Label: "Persisted", Value: strconv.FormatBool(record.Persisted)},
 				{Label: "Issues", Value: stringOrDash(sessionRepairIssueSummary(record.Issues))},
 				{Label: "Actions", Value: stringOrDash(sessionRepairActionSummary(record.Actions))},
@@ -683,7 +724,7 @@ func sessionRepairBundle(record SessionRepairRecord) outputBundle {
 		},
 		toon: func() (string, error) {
 			return renderToonObject("repair", []string{
-				"session_id",
+				sessionSessionIDKey,
 				"persisted",
 				"issues",
 				"actions",
@@ -709,14 +750,14 @@ func sessionApprovalBundle(sessionID string, record SessionApprovalRecord) outpu
 		jsonValue: payload,
 		human: func() (string, error) {
 			return renderHumanSection("Session Approval", []keyValue{
-				{Label: "Session", Value: stringOrDash(payload.SessionID)},
-				{Label: "Status", Value: stringOrDash(payload.Status)},
+				{Label: sessionSessionValue, Value: stringOrDash(payload.SessionID)},
+				{Label: sessionStatusValue, Value: stringOrDash(payload.Status)},
 			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject(
 				"session_approval",
-				[]string{"session_id", "status"},
+				[]string{sessionSessionIDKey, sessionStatusKey},
 				[]string{payload.SessionID, payload.Status},
 			), nil
 		},
@@ -786,9 +827,16 @@ func sessionEventsBundle(events []SessionEventRecord) outputBundle {
 		events,
 		events,
 		"Session Events",
-		[]string{"Seq", "Type", "Agent", "Turn", "Timestamp", "Content"},
+		[]string{"Seq", sessionTypeValue, sessionAgentValue, "Turn", sessionTimestampValue, "Content"},
 		"events",
-		[]string{"sequence", "type", "agent_name", "turn_id", "timestamp", "content"},
+		[]string{
+			sessionSequenceKey,
+			extensionTypeKey,
+			sessionAgentNameKey,
+			sessionTurnIDKey,
+			networkTimestampKey,
+			memoryContentKey,
+		},
 		func(event SessionEventRecord) []string {
 			return []string{
 				strconv.FormatInt(event.Sequence, 10),
@@ -818,9 +866,16 @@ func sessionHistoryBundle(history []TurnHistoryRecord) outputBundle {
 		history,
 		flattened,
 		"Session History",
-		[]string{"Turn", "Seq", "Type", "Agent", "Timestamp", "Content"},
+		[]string{"Turn", "Seq", sessionTypeValue, sessionAgentValue, sessionTimestampValue, "Content"},
 		"history",
-		[]string{"turn_id", "sequence", "type", "agent_name", "timestamp", "content"},
+		[]string{
+			sessionTurnIDKey,
+			sessionSequenceKey,
+			extensionTypeKey,
+			sessionAgentNameKey,
+			networkTimestampKey,
+			memoryContentKey,
+		},
 		func(event SessionEventRecord) []string {
 			return []string{
 				stringOrDash(event.TurnID),
@@ -849,9 +904,9 @@ func agentEventsBundle(events []AgentEventRecord) outputBundle {
 		events,
 		events,
 		"Prompt Events",
-		[]string{"Timestamp", "Type", "Detail", "Stop"},
+		[]string{sessionTimestampValue, sessionTypeValue, "Detail", "Stop"},
 		"prompt_events",
-		[]string{"timestamp", "type", "detail", "stop_reason"},
+		[]string{networkTimestampKey, extensionTypeKey, "detail", "stop_reason"},
 		func(event AgentEventRecord) []string {
 			return []string{
 				stringOrDash(formatTime(event.Timestamp)),

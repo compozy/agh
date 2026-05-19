@@ -8,7 +8,19 @@ import (
 	"strings"
 )
 
-const legacyDreamAgentName = "claude"
+const (
+	bootstrapDefaultsKey = "defaults"
+)
+
+const (
+	toolSurfaceModelsKey = "models"
+)
+
+const (
+	bootstrapDefaultKey     = "default"
+	bootstrapPermissionsKey = "permissions"
+	bootstrapProviderKey    = "provider"
+)
 
 // LoadGlobalConfig loads only the user-global AGH config from the resolved home.
 func LoadGlobalConfig(homePaths HomePaths) (Config, error) {
@@ -57,30 +69,42 @@ func SaveBootstrapConfig(homePaths HomePaths, provider string, model string) (Co
 	dreamAgent := ""
 	currentDreamAgent := strings.TrimSpace(current.Memory.Dream.Agent)
 	if currentDreamAgent == "" ||
-		currentDreamAgent == legacyDreamAgentName ||
+		currentDreamAgent == providerClaudeKey ||
 		currentDreamAgent == DefaultAgentName {
 		dreamAgent = DefaultMemoryDreamAgentName
 	}
 
 	return EditConfigOverlay(homePaths, "", target, func(editor *OverlayEditor) error {
-		if err := editor.SetValue([]string{"defaults", "agent"}, DefaultAgentName); err != nil {
+		if err := editor.SetValue(
+			[]string{bootstrapDefaultsKey, string(AgentResourceKind)},
+			DefaultAgentName,
+		); err != nil {
 			return err
 		}
-		if err := editor.SetValue([]string{"defaults", "provider"}, selectedProvider); err != nil {
+		if err := editor.SetValue([]string{bootstrapDefaultsKey, bootstrapProviderKey}, selectedProvider); err != nil {
 			return err
 		}
-		if err := editor.SetValue([]string{"permissions", "mode"}, string(PermissionModeApproveAll)); err != nil {
+		if err := editor.SetValue(
+			[]string{bootstrapPermissionsKey, "mode"},
+			string(PermissionModeApproveAll),
+		); err != nil {
 			return err
 		}
 		if dreamAgent != "" {
-			if err := editor.SetValue([]string{"memory", "dream", "agent"}, dreamAgent); err != nil {
+			if err := editor.SetValue(
+				[]string{MemoryDirName, "dream", string(AgentResourceKind)},
+				dreamAgent,
+			); err != nil {
 				return err
 			}
 		}
 		if selectedModel == "" {
 			return nil
 		}
-		return editor.SetValue([]string{"providers", selectedProvider, "models", "default"}, selectedModel)
+		return editor.SetValue(
+			[]string{providersConfigKey, selectedProvider, toolSurfaceModelsKey, bootstrapDefaultKey},
+			selectedModel,
+		)
 	})
 }
 

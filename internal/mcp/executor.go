@@ -24,6 +24,11 @@ import (
 )
 
 const (
+	executorBearerValue = "Bearer"
+	executorMCPKey      = "mcp"
+)
+
+const (
 	defaultCallTimeout      = 30 * time.Second
 	toolResultIsErrorKey    = "is_error"
 	authStatusRefreshFailed = "refresh_failed"
@@ -537,9 +542,9 @@ func (e *CallExecutor) authorizationHeader(ctx context.Context, server aghconfig
 	diagnostics.RegisterDynamicSecret(token.AccessToken)
 	tokenType := strings.TrimSpace(token.TokenType)
 	if tokenType == "" {
-		tokenType = "Bearer"
+		tokenType = executorBearerValue
 	}
-	if !strings.EqualFold(tokenType, "Bearer") {
+	if !strings.EqualFold(tokenType, executorBearerValue) {
 		return ""
 	}
 	return "Bearer " + strings.TrimSpace(token.AccessToken)
@@ -677,7 +682,7 @@ func toolContentFromMCP(content mcpsdk.Content) (toolspkg.ToolContent, error) {
 		if err != nil {
 			return toolspkg.ToolContent{}, fmt.Errorf("mcp: encode content block: %w", err)
 		}
-		return toolspkg.ToolContent{Type: "mcp", Data: data}, nil
+		return toolspkg.ToolContent{Type: executorMCPKey, Data: data}, nil
 	}
 }
 

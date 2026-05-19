@@ -2,6 +2,11 @@ package builtin
 
 import toolspkg "github.com/pedronauck/agh/internal/tools"
 
+const (
+	bridgesBridgesKey = "bridges"
+	bridgesHealthKey  = "health"
+)
+
 var bridgeTools = []toolspkg.Descriptor{
 	nativeDescriptor(
 		toolspkg.ToolIDBridgesList,
@@ -14,7 +19,7 @@ var bridgeTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDBridges},
-		[]string{"bridges", "list"},
+		[]string{bridgesBridgesKey, "list"},
 		[]string{"bridge list", "bridge instances"},
 	),
 	nativeDescriptor(
@@ -28,7 +33,7 @@ var bridgeTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDBridges},
-		[]string{"bridges", "status", "health"},
+		[]string{bridgesBridgesKey, "status", bridgesHealthKey},
 		[]string{"bridge status", "bridge health"},
 	),
 }

@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"maps"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -239,7 +240,7 @@ func workspaceLoadFromRoots(
 
 	// Load lower-precedence roots first so later overlays preserve the
 	// documented workspace > additional ordering and emit shadow audits.
-	for idx := len(roots) - 1; idx >= 0; idx-- {
+	for _, root := range slices.Backward(roots) {
 		if err := checkRegistryContext(ctx); err != nil {
 			return workspaceLoad{}, true, fmt.Errorf(
 				"skills: check registry context while loading workspace skill roots: %w",
@@ -247,7 +248,6 @@ func workspaceLoadFromRoots(
 			)
 		}
 
-		root := roots[idx]
 		paths, dirSnapshots, err := scanDirectoryWithSnapshots(root.dir)
 		if err != nil {
 			return workspaceLoad{}, true, err

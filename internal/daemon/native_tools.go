@@ -35,6 +35,40 @@ import (
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
+const (
+	nativeToolsClaimedKey   = "claimed"
+	nativeToolsDirectKey    = "direct"
+	nativeToolsEventsKey    = "events"
+	nativeToolsHealthKey    = "health"
+	nativeToolsHistoryKey   = "history"
+	nativeToolsLeaseKey     = "lease"
+	nativeToolsMessagesKey  = "messages"
+	nativeToolsNetworkKey   = "network"
+	nativeToolsNoteKey      = "note"
+	nativeToolsProvidersKey = "providers"
+	nativeToolsRedactedKey  = "redacted"
+	nativeToolsRunsKey      = "runs"
+	nativeToolsScopeKey     = "scope"
+	nativeToolsSessionKey   = "session"
+	nativeToolsSessionsKey  = "sessions"
+	nativeToolsSkillsKey    = "skills"
+	nativeToolsTaskKey      = "task"
+	nativeToolsTextKey      = "text"
+	nativeToolsWorkspaceKey = "workspace"
+	nativeToolsAgentsKey    = "agents"
+)
+
+type nativeMemoryActorKind string
+
+const (
+	nativeMemoryActorKindRoot     nativeMemoryActorKind = "agent_root"
+	nativeMemoryActorKindSubagent nativeMemoryActorKind = "agent_subagent"
+)
+
+func normalizeNativeMemoryActorKind(actorKind string) nativeMemoryActorKind {
+	return nativeMemoryActorKind(taskpkg.ActorKind(actorKind).Normalize())
+}
+
 type daemonNativeToolsDeps struct {
 	Registry            func() toolspkg.Registry
 	Config              aghconfig.Config
@@ -1034,7 +1068,10 @@ func (n *daemonNativeTools) skillList(
 		return toolspkg.ToolResult{}, err
 	}
 	payload := core.SkillPayloadsFromSkills(limitSkills(skillList, input.Limit))
-	return structuredResult(map[string]any{"skills": payload}, fmt.Sprintf("%d skills", len(payload)))
+	return structuredResult(
+		map[string]any{nativeToolsSkillsKey: payload},
+		fmt.Sprintf("%d skills", len(payload)),
+	)
 }
 
 func (n *daemonNativeTools) skillSearch(
@@ -1052,7 +1089,10 @@ func (n *daemonNativeTools) skillSearch(
 	}
 	filtered := searchSkills(skillList, input.Query)
 	payload := core.SkillPayloadsFromSkills(limitSkills(filtered, input.Limit))
-	return structuredResult(map[string]any{"skills": payload}, fmt.Sprintf("%d skills", len(payload)))
+	return structuredResult(
+		map[string]any{nativeToolsSkillsKey: payload},
+		fmt.Sprintf("%d skills", len(payload)),
+	)
 }
 
 func (n *daemonNativeTools) skillView(
@@ -1089,7 +1129,7 @@ func (n *daemonNativeTools) skillView(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	result.Content = []toolspkg.ToolContent{{Type: "text", Text: content}}
+	result.Content = []toolspkg.ToolContent{{Type: nativeToolsTextKey, Text: content}}
 	return result, nil
 }
 
@@ -1130,7 +1170,7 @@ func (n *daemonNativeTools) networkStatus(
 	if payload == nil {
 		return toolspkg.ToolResult{}, errors.New("daemon: network status is required")
 	}
-	return structuredNetworkResult(map[string]any{"network": payload}, payload.Status)
+	return structuredNetworkResult(map[string]any{nativeToolsNetworkKey: payload}, payload.Status)
 }
 
 func (n *daemonNativeTools) networkChannels(
@@ -1223,7 +1263,10 @@ func (n *daemonNativeTools) networkInbox(
 	}
 	messages = nativeFilterNetworkEnvelopes(bound, messages)
 	payload := core.NetworkEnvelopePayloadsFromEnvelopes(messages)
-	return structuredNetworkResult(map[string]any{"messages": payload}, fmt.Sprintf("%d messages", len(payload)))
+	return structuredNetworkResult(
+		map[string]any{nativeToolsMessagesKey: payload},
+		fmt.Sprintf("%d messages", len(payload)),
+	)
 }
 
 func (n *daemonNativeTools) networkSend(
@@ -1364,7 +1407,10 @@ func (n *daemonNativeTools) networkThreadMessages(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredNetworkResult(map[string]any{"messages": payload}, fmt.Sprintf("%d messages", len(payload)))
+	return structuredNetworkResult(
+		map[string]any{nativeToolsMessagesKey: payload},
+		fmt.Sprintf("%d messages", len(payload)),
+	)
 }
 
 func (n *daemonNativeTools) networkDirects(
@@ -1451,7 +1497,7 @@ func (n *daemonNativeTools) networkDirectResolve(
 		return toolspkg.ToolResult{}, err
 	}
 	payload := core.NetworkDirectRoomPayloadFromStore(direct)
-	return structuredNetworkResult(map[string]any{"direct": payload}, payload.DirectID)
+	return structuredNetworkResult(map[string]any{nativeToolsDirectKey: payload}, payload.DirectID)
 }
 
 func (n *daemonNativeTools) networkDirectMessages(
@@ -1487,7 +1533,10 @@ func (n *daemonNativeTools) networkDirectMessages(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredNetworkResult(map[string]any{"messages": payload}, fmt.Sprintf("%d messages", len(payload)))
+	return structuredNetworkResult(
+		map[string]any{nativeToolsMessagesKey: payload},
+		fmt.Sprintf("%d messages", len(payload)),
+	)
 }
 
 func (n *daemonNativeTools) networkWork(
@@ -1607,13 +1656,13 @@ func (n *daemonNativeTools) sessionList(
 		}
 		payload := core.SessionPayloadsForWorkspace(infos, workspaceID)
 		return structuredResult(
-			map[string]any{"sessions": limitSessionPayloads(payload, input.Limit)},
+			map[string]any{nativeToolsSessionsKey: limitSessionPayloads(payload, input.Limit)},
 			fmt.Sprintf("%d sessions", len(payload)),
 		)
 	}
 	payload := core.SessionPayloadsFromInfos(infos)
 	return structuredResult(
-		map[string]any{"sessions": limitSessionPayloads(payload, input.Limit)},
+		map[string]any{nativeToolsSessionsKey: limitSessionPayloads(payload, input.Limit)},
 		fmt.Sprintf("%d sessions", len(payload)),
 	)
 }
@@ -1644,7 +1693,7 @@ func (n *daemonNativeTools) sessionStatus(
 		return toolspkg.ToolResult{}, err
 	}
 	payload := core.SessionPayloadFromInfo(info)
-	return structuredResult(map[string]any{"session": payload}, payload.ID)
+	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
 }
 
 func (n *daemonNativeTools) sessionHealth(
@@ -1685,7 +1734,7 @@ func (n *daemonNativeTools) sessionHealth(
 	if err := contract.ValidateAuthoredContextRedacted(payload); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{"health": payload}, string(payload.Health))
+	return structuredResult(map[string]any{nativeToolsHealthKey: payload}, string(payload.Health))
 }
 
 func (n *daemonNativeTools) agentHeartbeatStatus(
@@ -1818,7 +1867,7 @@ func (n *daemonNativeTools) sessionEvents(
 	for _, event := range events {
 		payload = append(payload, core.SessionEventPayloadFromEvent(event, info))
 	}
-	return structuredResult(map[string]any{"events": payload}, fmt.Sprintf("%d events", len(payload)))
+	return structuredResult(map[string]any{nativeToolsEventsKey: payload}, fmt.Sprintf("%d events", len(payload)))
 }
 
 func (n *daemonNativeTools) sessionHistory(
@@ -1847,7 +1896,7 @@ func (n *daemonNativeTools) sessionHistory(
 		return toolspkg.ToolResult{}, err
 	}
 	payload := sessionHistoryPayload(history, info)
-	return structuredResult(map[string]any{"history": payload}, fmt.Sprintf("%d turns", len(payload)))
+	return structuredResult(map[string]any{nativeToolsHistoryKey: payload}, fmt.Sprintf("%d turns", len(payload)))
 }
 
 func (n *daemonNativeTools) sessionDescribe(
@@ -1894,9 +1943,9 @@ func (n *daemonNativeTools) sessionDescribe(
 		eventPayload = append(eventPayload, core.SessionEventPayloadFromEvent(event, info))
 	}
 	return structuredResult(map[string]any{
-		"session": core.SessionPayloadFromInfo(info),
-		"events":  eventPayload,
-		"history": sessionHistoryPayload(history, info),
+		nativeToolsSessionKey: core.SessionPayloadFromInfo(info),
+		nativeToolsEventsKey:  eventPayload,
+		nativeToolsHistoryKey: sessionHistoryPayload(history, info),
 	}, info.ID)
 }
 
@@ -1929,7 +1978,7 @@ func (n *daemonNativeTools) workspaceInfo(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	ref, err := requiredNativeString(req.ToolID, "workspace", input.Workspace)
+	ref, err := requiredNativeString(req.ToolID, nativeToolsWorkspaceKey, input.Workspace)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -1938,7 +1987,7 @@ func (n *daemonNativeTools) workspaceInfo(
 		return toolspkg.ToolResult{}, err
 	}
 	payload := core.WorkspacePayloadFromWorkspace(workspace)
-	return structuredResult(map[string]any{"workspace": payload}, payload.ID)
+	return structuredResult(map[string]any{nativeToolsWorkspaceKey: payload}, payload.ID)
 }
 
 func (n *daemonNativeTools) workspaceDescribe(
@@ -1950,7 +1999,7 @@ func (n *daemonNativeTools) workspaceDescribe(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	ref, err := requiredNativeString(req.ToolID, "workspace", input.Workspace)
+	ref, err := requiredNativeString(req.ToolID, nativeToolsWorkspaceKey, input.Workspace)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -1971,11 +2020,11 @@ func (n *daemonNativeTools) workspaceDescribe(
 		return toolspkg.ToolResult{}, err
 	}
 	return structuredResult(map[string]any{
-		"workspace": core.WorkspacePayloadFromWorkspace(resolved.Workspace),
-		"sessions":  core.SessionPayloadsForWorkspace(sessions, workspaceID),
-		"agents":    core.AgentPayloadsFromDefs(agents),
-		"skills":    core.WorkspaceSkillPayloads(resolved.Skills),
-		"providers": core.SessionProviderOptionPayloadsFromConfig(&resolved.Config),
+		nativeToolsWorkspaceKey: core.WorkspacePayloadFromWorkspace(resolved.Workspace),
+		nativeToolsSessionsKey:  core.SessionPayloadsForWorkspace(sessions, workspaceID),
+		nativeToolsAgentsKey:    core.AgentPayloadsFromDefs(agents),
+		nativeToolsSkillsKey:    core.WorkspaceSkillPayloads(resolved.Skills),
+		nativeToolsProvidersKey: core.SessionProviderOptionPayloadsFromConfig(&resolved.Config),
 	}, workspaceID)
 }
 
@@ -2025,11 +2074,11 @@ func (n *daemonNativeTools) memoryShow(
 	}
 	redactedContent := taskpkg.RedactClaimTokens(string(content))
 	return structuredResult(map[string]any{
-		"filename":  location.Filename,
-		"scope":     location.Scope,
-		"workspace": location.Workspace,
-		"content":   redactedContent,
-		"redacted":  redactedContent != string(content),
+		"filename":              location.Filename,
+		nativeToolsScopeKey:     location.Scope,
+		nativeToolsWorkspaceKey: location.Workspace,
+		"content":               redactedContent,
+		nativeToolsRedactedKey:  redactedContent != string(content),
 	}, location.Filename)
 }
 
@@ -2226,7 +2275,7 @@ func (n *daemonNativeTools) observeEvents(
 	}
 	payload := observeEventPayloads(events)
 	payload = limitObservePayloads(payload, input.Limit)
-	return structuredResult(map[string]any{"events": payload}, fmt.Sprintf("%d events", len(payload)))
+	return structuredResult(map[string]any{nativeToolsEventsKey: payload}, fmt.Sprintf("%d events", len(payload)))
 }
 
 func (n *daemonNativeTools) observeMetrics(
@@ -2243,7 +2292,7 @@ func (n *daemonNativeTools) observeMetrics(
 		return toolspkg.ToolResult{}, err
 	}
 	payload := redactObserveHealthPayload(core.ObserveHealthPayloadFromHealth(&health))
-	return structuredResult(map[string]any{"health": payload}, payload.Status)
+	return structuredResult(map[string]any{nativeToolsHealthKey: payload}, payload.Status)
 }
 
 func (n *daemonNativeTools) observeSearch(
@@ -2267,7 +2316,7 @@ func (n *daemonNativeTools) observeSearch(
 	}
 	payload := filterObserveEvents(observeEventPayloads(events), input.Query)
 	payload = limitObservePayloads(payload, input.Limit)
-	return structuredResult(map[string]any{"events": payload}, fmt.Sprintf("%d events", len(payload)))
+	return structuredResult(map[string]any{nativeToolsEventsKey: payload}, fmt.Sprintf("%d events", len(payload)))
 }
 
 func (n *daemonNativeTools) bridgesList(
@@ -2293,9 +2342,9 @@ func (n *daemonNativeTools) bridgesList(
 		mergeBridgeDegradation(health, instance)
 	}
 	return structuredResult(map[string]any{
-		"bridges":       payload,
-		"bridge_health": health,
-		"redacted":      true,
+		"bridges":              payload,
+		"bridge_health":        health,
+		nativeToolsRedactedKey: true,
 	}, fmt.Sprintf("%d bridges", len(payload)))
 }
 
@@ -2319,9 +2368,9 @@ func (n *daemonNativeTools) bridgesStatus(
 		}
 		mergeBridgeDegradation(health, *instance)
 		return structuredResult(map[string]any{
-			"bridge":   redactedBridgePayload(*instance),
-			"health":   health[strings.TrimSpace(instance.ID)],
-			"redacted": true,
+			"bridge":               redactedBridgePayload(*instance),
+			nativeToolsHealthKey:   health[strings.TrimSpace(instance.ID)],
+			nativeToolsRedactedKey: true,
 		}, string(instance.Status))
 	}
 	instances, err := n.deps.Bridges.ListInstances(ctx)
@@ -2336,10 +2385,10 @@ func (n *daemonNativeTools) bridgesStatus(
 		mergeBridgeDegradation(health, instance)
 	}
 	return structuredResult(map[string]any{
-		"bridges":       payload,
-		"bridge_health": health,
-		"status_counts": statusCounts,
-		"redacted":      true,
+		"bridges":              payload,
+		"bridge_health":        health,
+		"status_counts":        statusCounts,
+		nativeToolsRedactedKey: true,
 	}, fmt.Sprintf("%d bridges", len(payload)))
 }
 
@@ -2381,7 +2430,7 @@ func (n *daemonNativeTools) taskRead(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{"task": view}, view.Summary.Title)
+	return structuredResult(map[string]any{nativeToolsTaskKey: view}, view.Summary.Title)
 }
 
 func (n *daemonNativeTools) taskCreate(
@@ -2401,7 +2450,7 @@ func (n *daemonNativeTools) taskCreate(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{"task": created}, created.Title)
+	return structuredResult(map[string]any{nativeToolsTaskKey: created}, created.Title)
 }
 
 func (n *daemonNativeTools) taskChildCreate(
@@ -2421,7 +2470,7 @@ func (n *daemonNativeTools) taskChildCreate(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{"task": created}, created.Title)
+	return structuredResult(map[string]any{nativeToolsTaskKey: created}, created.Title)
 }
 
 func (n *daemonNativeTools) taskUpdate(
@@ -2441,7 +2490,7 @@ func (n *daemonNativeTools) taskUpdate(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{"task": updated}, updated.Title)
+	return structuredResult(map[string]any{nativeToolsTaskKey: updated}, updated.Title)
 }
 
 func (n *daemonNativeTools) taskCancel(
@@ -2461,7 +2510,7 @@ func (n *daemonNativeTools) taskCancel(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{"task": canceled}, canceled.Title)
+	return structuredResult(map[string]any{nativeToolsTaskKey: canceled}, canceled.Title)
 }
 
 func (n *daemonNativeTools) taskRunList(
@@ -2481,7 +2530,7 @@ func (n *daemonNativeTools) taskRunList(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{"runs": runs}, fmt.Sprintf("%d runs", len(runs)))
+	return structuredResult(map[string]any{nativeToolsRunsKey: runs}, fmt.Sprintf("%d runs", len(runs)))
 }
 
 func (n *daemonNativeTools) autonomyClaimNext(
@@ -2504,7 +2553,7 @@ func (n *daemonNativeTools) autonomyClaimNext(
 	result, err := n.deps.Tasks.ClaimNextRun(ctx, criteria, actor)
 	if err != nil {
 		if errors.Is(err, taskpkg.ErrNoClaimableRun) {
-			return structuredResult(map[string]any{"claimed": false}, "no claimable task runs")
+			return structuredResult(map[string]any{nativeToolsClaimedKey: false}, "no claimable task runs")
 		}
 		return toolspkg.ToolResult{}, nativeAutonomyToolError(req.ToolID, err)
 	}
@@ -2513,7 +2562,7 @@ func (n *daemonNativeTools) autonomyClaimNext(
 	}
 	payload := core.AgentTaskClaimPayloadFromResult(result)
 	return structuredResult(
-		map[string]any{"claimed": true, "claim": payload},
+		map[string]any{nativeToolsClaimedKey: true, "claim": payload},
 		fmt.Sprintf("claimed %s", payload.Lease.RunID),
 	)
 }
@@ -2552,7 +2601,7 @@ func (n *daemonNativeTools) autonomyHeartbeat(
 		return toolspkg.ToolResult{}, nativeAutonomyToolError(req.ToolID, err)
 	}
 	lease := core.AgentTaskLeasePayloadFromRun(run, nil)
-	return structuredResult(map[string]any{"lease": lease}, fmt.Sprintf("heartbeat %s", lease.RunID))
+	return structuredResult(map[string]any{nativeToolsLeaseKey: lease}, fmt.Sprintf("heartbeat %s", lease.RunID))
 }
 
 func (n *daemonNativeTools) autonomyComplete(
@@ -2589,7 +2638,7 @@ func (n *daemonNativeTools) autonomyComplete(
 		return toolspkg.ToolResult{}, nativeAutonomyToolError(req.ToolID, err)
 	}
 	lease := core.AgentTaskLeasePayloadFromRun(run, nil)
-	return structuredResult(map[string]any{"lease": lease}, fmt.Sprintf("completed %s", lease.RunID))
+	return structuredResult(map[string]any{nativeToolsLeaseKey: lease}, fmt.Sprintf("completed %s", lease.RunID))
 }
 
 func (n *daemonNativeTools) autonomyFail(
@@ -2629,7 +2678,7 @@ func (n *daemonNativeTools) autonomyFail(
 		return toolspkg.ToolResult{}, nativeAutonomyToolError(req.ToolID, err)
 	}
 	lease := core.AgentTaskLeasePayloadFromRun(run, nil)
-	return structuredResult(map[string]any{"lease": lease}, fmt.Sprintf("failed %s", lease.RunID))
+	return structuredResult(map[string]any{nativeToolsLeaseKey: lease}, fmt.Sprintf("failed %s", lease.RunID))
 }
 
 func (n *daemonNativeTools) autonomyRelease(
@@ -2662,7 +2711,7 @@ func (n *daemonNativeTools) autonomyRelease(
 		return toolspkg.ToolResult{}, nativeAutonomyToolError(req.ToolID, err)
 	}
 	lease := core.AgentTaskLeasePayloadFromRun(run, nil)
-	return structuredResult(map[string]any{"lease": lease}, fmt.Sprintf("released %s", lease.RunID))
+	return structuredResult(map[string]any{nativeToolsLeaseKey: lease}, fmt.Sprintf("released %s", lease.RunID))
 }
 
 func (n *daemonNativeTools) skillsFor(
@@ -4137,32 +4186,36 @@ func (n *daemonNativeTools) memoryCallerActorKind(
 	ctx context.Context,
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
-) (string, error) {
-	if actorKind := strings.TrimSpace(firstNonEmpty(req.ActorKind, scope.ActorKind)); actorKind != "" {
+) (nativeMemoryActorKind, error) {
+	if actorKind := normalizeNativeMemoryActorKind(firstNonEmpty(req.ActorKind, scope.ActorKind)); actorKind != "" {
 		return actorKind, nil
 	}
 	sessionID := strings.TrimSpace(firstNonEmpty(req.SessionID, scope.SessionID))
 	if sessionID == "" || n == nil || n.deps == nil || n.deps.Sessions == nil {
-		return "", nil
+		return nativeMemoryActorKind(""), nil
 	}
 	info, err := n.deps.Sessions.Status(ctx, sessionID)
 	if err != nil {
-		return "", fmt.Errorf("daemon: resolve memory tool caller session %q: %w", sessionID, err)
+		return nativeMemoryActorKind(""), fmt.Errorf(
+			"daemon: resolve memory tool caller session %q: %w",
+			sessionID,
+			err,
+		)
 	}
 	if info != nil && info.Lineage != nil && strings.TrimSpace(info.Lineage.ParentSessionID) != "" {
-		return "agent_subagent", nil
+		return nativeMemoryActorKindSubagent, nil
 	}
-	return "agent_root", nil
+	return nativeMemoryActorKindRoot, nil
 }
 
 func (n *daemonNativeTools) denySubagentMemoryWrite(
 	ctx context.Context,
 	req toolspkg.CallRequest,
 	location memoryToolLocation,
-	actorKind string,
+	actorKind nativeMemoryActorKind,
 	targetID string,
 ) error {
-	if strings.TrimSpace(actorKind) != "agent_subagent" {
+	if actorKind != nativeMemoryActorKindSubagent {
 		return nil
 	}
 	cause := fmt.Errorf("%w: sub-agent memory writes are denied", toolspkg.ErrToolDenied)
@@ -4173,7 +4226,7 @@ func (n *daemonNativeTools) denySubagentMemoryWrite(
 			AgentName:   location.AgentName,
 			AgentTier:   location.AgentTier,
 			SessionID:   strings.TrimSpace(req.SessionID),
-			ActorKind:   actorKind,
+			ActorKind:   string(actorKind),
 			TargetID:    targetID,
 			Reason:      string(toolspkg.ReasonMemorySubagentWriteDenied),
 			ToolID:      string(req.ToolID),
@@ -4193,12 +4246,12 @@ func (n *daemonNativeTools) denySubagentMemoryWrite(
 func (n *daemonNativeTools) recordMemoryToolWrite(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
-	actorKind string,
+	actorKind nativeMemoryActorKind,
 ) {
 	if n == nil || n.deps == nil || n.deps.MemoryToolWrites == nil {
 		return
 	}
-	if strings.TrimSpace(actorKind) != "agent_root" {
+	if actorKind != nativeMemoryActorKindRoot {
 		return
 	}
 	sessionID := strings.TrimSpace(firstNonEmpty(req.SessionID, scope.SessionID))
@@ -4451,7 +4504,7 @@ func nativeMemoryFilename(rawType string, seed string) string {
 }
 
 func nativeMemoryAdHocFilename(rawSlug string, content string, now time.Time) string {
-	slug := nativeMemorySlug(firstNonEmpty(rawSlug, content, "note"))
+	slug := nativeMemorySlug(firstNonEmpty(rawSlug, content, nativeToolsNoteKey))
 	return fmt.Sprintf("ad_hoc_%s_%s.md", now.UTC().Format("20060102T150405Z"), slug)
 }
 
@@ -4520,14 +4573,14 @@ func nativeMemorySlug(seed string) string {
 	}
 	slug := strings.Trim(builder.String(), "-")
 	if slug == "" {
-		return "note"
+		return nativeToolsNoteKey
 	}
 	const maxNativeMemorySlugLength = 48
 	if len(slug) > maxNativeMemorySlugLength {
 		slug = strings.Trim(slug[:maxNativeMemorySlugLength], "-")
 	}
 	if slug == "" {
-		return "note"
+		return nativeToolsNoteKey
 	}
 	return slug
 }
@@ -4734,8 +4787,8 @@ func sessionHistoryPayload(history []store.TurnHistory, info *session.Info) []an
 			events = append(events, core.SessionEventPayloadFromEvent(event, info))
 		}
 		payload = append(payload, map[string]any{
-			"turn_id": turn.TurnID,
-			"events":  events,
+			"turn_id":            turn.TurnID,
+			nativeToolsEventsKey: events,
 		})
 	}
 	return payload
@@ -4758,7 +4811,7 @@ func structuredResult(value any, preview string) (toolspkg.ToolResult, error) {
 		Preview:    strings.TrimSpace(preview),
 	}
 	if result.Preview != "" {
-		result.Content = []toolspkg.ToolContent{{Type: "text", Text: result.Preview}}
+		result.Content = []toolspkg.ToolContent{{Type: nativeToolsTextKey, Text: result.Preview}}
 	}
 	return result, nil
 }

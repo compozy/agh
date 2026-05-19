@@ -6,6 +6,10 @@ import (
 	"fmt"
 )
 
+const (
+	migrateTaskOrchestrationProfileSummaryKey = "summary"
+)
+
 func migrateTaskOrchestrationProfileSchema(ctx context.Context, tx *sql.Tx) error {
 	if err := addMissingMigrationColumns(ctx, tx, "tasks", []migrationColumnSpec{
 		{
@@ -27,7 +31,10 @@ func migrateTaskOrchestrationProfileSchema(ctx context.Context, tx *sql.Tx) erro
 		return err
 	}
 	if err := addMissingMigrationColumns(ctx, tx, "task_runs", []migrationColumnSpec{
-		{name: "summary", sql: `ALTER TABLE task_runs ADD COLUMN summary TEXT NOT NULL DEFAULT ''`},
+		{
+			name: migrateTaskOrchestrationProfileSummaryKey,
+			sql:  `ALTER TABLE task_runs ADD COLUMN summary TEXT NOT NULL DEFAULT ''`,
+		},
 		{
 			name: "claimed_agent_name",
 			sql:  `ALTER TABLE task_runs ADD COLUMN claimed_agent_name TEXT NOT NULL DEFAULT ''`,

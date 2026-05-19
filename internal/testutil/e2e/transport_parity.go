@@ -12,6 +12,10 @@ import (
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 )
 
+const (
+	transportParityPermissionKey = "permission"
+)
+
 const transportParityEventAgentMessage = "agent_message"
 
 // TransportClients exposes the public transport clients derived from one shared
@@ -106,7 +110,7 @@ func ValidateWebhookRunProjection(
 // PermissionPayloadFromSSE extracts one approval payload from a streamed SSE
 // record when present.
 func PermissionPayloadFromSSE(record SSEEvent) (PermissionStreamPayload, bool) {
-	if semanticSSEEvent(record) != "permission" || len(record.Data) == 0 {
+	if semanticSSEEvent(record) != transportParityPermissionKey || len(record.Data) == 0 {
 		return PermissionStreamPayload{}, false
 	}
 

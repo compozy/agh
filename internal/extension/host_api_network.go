@@ -651,7 +651,7 @@ func mapHostAPINetworkRPCError(err error) error {
 	case errors.Is(err, store.ErrNetworkDirectRoomCollision),
 		errors.Is(err, store.ErrNetworkWorkContainerMismatch),
 		errors.Is(err, store.ErrNetworkWorkClosed):
-		return hostAPIStatusRPCError(409, "Conflict", map[string]string{"error": err.Error()})
+		return hostAPIStatusRPCError(409, "Conflict", map[string]string{extensionStateError: err.Error()})
 	case errors.Is(err, network.ErrMissingField),
 		errors.Is(err, network.ErrInvalidField),
 		errors.Is(err, network.ErrInvalidKind),

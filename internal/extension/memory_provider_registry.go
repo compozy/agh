@@ -15,6 +15,10 @@ import (
 )
 
 const (
+	memoryProviderRegistryBuiltinKey = "builtin"
+)
+
+const (
 	defaultMemoryProviderName      = "local"
 	memoryProviderCollisionEvent   = "memory.provider.collision"
 	memoryProviderNameCollision    = "provider_name"
@@ -96,7 +100,7 @@ func WithMemoryProviderReservedTools(names ...string) MemoryProviderRegistryOpti
 			if normalized == "" {
 				continue
 			}
-			registry.reservedTools[normalized] = "builtin"
+			registry.reservedTools[normalized] = memoryProviderRegistryBuiltinKey
 		}
 	}
 }

@@ -11,6 +11,11 @@ import (
 	"time"
 )
 
+const (
+	hooksConfigKey = "config"
+	hooksSkillKey  = "skill"
+)
+
 // Option customizes a Hooks dispatcher during construction.
 type Option func(*Hooks)
 
@@ -282,10 +287,10 @@ func (h *Hooks) collectDeclarations(ctx context.Context) ([]HookDecl, error) {
 		source   HookSource
 		provider DeclarationProvider
 	}{
-		{name: "native", source: HookSourceNative, provider: h.nativeProvider},
-		{name: "config", source: HookSourceConfig, provider: h.configProvider},
+		{name: string(HookExecutorNative), source: HookSourceNative, provider: h.nativeProvider},
+		{name: hooksConfigKey, source: HookSourceConfig, provider: h.configProvider},
 		{name: "agent_definition", source: HookSourceAgentDefinition, provider: h.agentProvider},
-		{name: "skill", source: HookSourceSkill, provider: h.skillProvider},
+		{name: hooksSkillKey, source: HookSourceSkill, provider: h.skillProvider},
 	}
 
 	for _, source := range sources {

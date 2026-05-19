@@ -368,8 +368,7 @@ func normalizeApprovalBridgeError(id ToolID, err error) error {
 	if err == nil {
 		return nil
 	}
-	var toolErr *ToolError
-	if errors.As(err, &toolErr) {
+	if toolErr, ok := errors.AsType[*ToolError](err); ok {
 		return normalizeToolError(id, toolErr)
 	}
 	switch {
@@ -516,8 +515,7 @@ func normalizeBackendError(id ToolID, err error) error {
 	if contextError := contextErrFromError(id, err); contextError != nil {
 		return contextError
 	}
-	var toolErr *ToolError
-	if errors.As(err, &toolErr) {
+	if toolErr, ok := errors.AsType[*ToolError](err); ok {
 		return normalizeToolError(id, toolErr)
 	}
 	return normalizeToolError(id, NewToolError(
@@ -556,8 +554,7 @@ func normalizeToolError(id ToolID, err error) error {
 	if err == nil {
 		return nil
 	}
-	var toolErr *ToolError
-	if errors.As(err, &toolErr) {
+	if toolErr, ok := errors.AsType[*ToolError](err); ok {
 		if toolErr.ToolID == "" && id != "" {
 			cloned := *toolErr
 			cloned.ToolID = id
@@ -656,8 +653,7 @@ func buildToolCallEvent(
 		event.ResultRedactionPaths = resultRedactionPaths(data.Result.Redactions)
 	}
 	if data.Err != nil {
-		var toolErr *ToolError
-		if errors.As(data.Err, &toolErr) {
+		if toolErr, ok := errors.AsType[*ToolError](data.Err); ok {
 			event.ErrorCode = toolErr.Code
 			event.ReasonCodes = appendUniqueReasons(event.ReasonCodes, toolErr.ReasonCodes...)
 		}

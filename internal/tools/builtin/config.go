@@ -2,6 +2,15 @@ package builtin
 
 import toolspkg "github.com/pedronauck/agh/internal/tools"
 
+const (
+	configSettingsKey = "settings"
+)
+
+const (
+	configConfigKey   = "config"
+	configMutationKey = "mutation"
+)
+
 var configTools = []toolspkg.Descriptor{
 	nativeDescriptor(
 		toolspkg.ToolIDConfigShow,
@@ -14,7 +23,7 @@ var configTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDConfig},
-		[]string{"config", "settings"},
+		[]string{configConfigKey, configSettingsKey},
 		[]string{"effective config", "configuration"},
 	),
 	nativeDescriptor(
@@ -28,7 +37,7 @@ var configTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDConfig},
-		[]string{"config", "settings"},
+		[]string{configConfigKey, configSettingsKey},
 		[]string{"config entries", "configuration values"},
 	),
 	nativeDescriptor(
@@ -42,7 +51,7 @@ var configTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDConfig},
-		[]string{"config", "settings"},
+		[]string{configConfigKey, configSettingsKey},
 		[]string{"config path", "configuration value"},
 	),
 	nativeDescriptor(
@@ -56,7 +65,7 @@ var configTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDConfig},
-		[]string{"config", "settings", "mutation"},
+		[]string{configConfigKey, configSettingsKey, configMutationKey},
 		[]string{"set config", "write configuration"},
 	),
 	nativeDescriptor(
@@ -70,7 +79,7 @@ var configTools = []toolspkg.Descriptor{
 		true,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDConfig},
-		[]string{"config", "settings", "mutation"},
+		[]string{configConfigKey, configSettingsKey, configMutationKey},
 		[]string{"unset config", "delete configuration value"},
 	),
 	nativeDescriptor(
@@ -84,7 +93,7 @@ var configTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDConfig},
-		[]string{"config", "settings", "diff"},
+		[]string{configConfigKey, configSettingsKey, "diff"},
 		[]string{"config diff", "configuration changes"},
 	),
 	nativeDescriptor(
@@ -98,7 +107,7 @@ var configTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDConfig},
-		[]string{"config", "settings", "paths"},
+		[]string{configConfigKey, configSettingsKey, "paths"},
 		[]string{"config file path", "workspace config path"},
 	),
 }

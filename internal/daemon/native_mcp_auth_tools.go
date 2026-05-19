@@ -9,6 +9,10 @@ import (
 	toolspkg "github.com/pedronauck/agh/internal/tools"
 )
 
+const (
+	nativeMCPAuthToolsAPISettingsMCPServersPath = "/api/settings/mcp-servers"
+)
+
 type mcpAuthStatusInput struct {
 	ServerName string `json:"server_name"`
 }
@@ -85,8 +89,8 @@ func mcpAuthRepairPathsFor(serverName string) mcpAuthRepairPaths {
 		StatusCLI:    "agh mcp auth status " + arg,
 		LoginCLI:     "agh mcp auth login " + arg,
 		LogoutCLI:    "agh mcp auth logout " + arg,
-		SettingsHTTP: "/api/settings/mcp-servers",
-		SettingsUDS:  "/api/settings/mcp-servers",
+		SettingsHTTP: nativeMCPAuthToolsAPISettingsMCPServersPath,
+		SettingsUDS:  nativeMCPAuthToolsAPISettingsMCPServersPath,
 		Note:         "Login and logout remain management-only and are not exposed as tool calls.",
 	}
 }

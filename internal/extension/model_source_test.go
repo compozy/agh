@@ -38,7 +38,7 @@ func TestModelSourceShouldPersistValidatedRowsThroughCatalogService(t *testing.T
 				DisplayName:       "GPT 5.4 Extension",
 				Available:         &available,
 				ReasoningEfforts:  []string{"high"},
-				ContextWindow:     int64Pointer(200000),
+				ContextWindow:     new(int64(200000)),
 				SupportsTools:     new(true),
 				SupportsReasoning: new(true),
 				Cost: &apicontract.ModelCatalogCostPayload{
@@ -673,9 +673,4 @@ func startSubprocessModelSource(
 		t.Fatalf("NewExtensionModelSource() error = %v", err)
 	}
 	return store, manager, source
-}
-
-//go:fix inline
-func int64Pointer(value int64) *int64 {
-	return new(value)
 }

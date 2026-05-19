@@ -1008,9 +1008,12 @@ func appendAutomationProjectorRegistrations(
 
 func resourceReconcileActor() resources.MutationActor {
 	return resources.MutationActor{
-		Kind:     resources.MutationActorKindDaemon,
-		ID:       "daemon-control",
-		Source:   resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "system"},
+		Kind: resources.MutationActorKindDaemon,
+		ID:   "daemon-control",
+		Source: resources.ResourceSource{
+			Kind: resources.ResourceSourceKind("daemon"),
+			ID:   string(SessionClassSystem),
+		},
 		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
 	}
 }

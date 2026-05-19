@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"sync"
 
@@ -238,8 +239,8 @@ func recentCommandError(logText string) string {
 	}
 
 	lines := strings.Split(text, "\n")
-	for i := len(lines) - 1; i >= 0; i-- {
-		line := strings.TrimSpace(lines[i])
+	for _, line := range slices.Backward(lines) {
+		line := strings.TrimSpace(line)
 		if strings.HasPrefix(line, "error:") {
 			return line
 		}

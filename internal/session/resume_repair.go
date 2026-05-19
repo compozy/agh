@@ -359,8 +359,7 @@ func (m *Manager) logResumeValidationFailures(meta store.SessionMeta, errs []err
 		}
 
 		check := ""
-		var validationErr resumeValidationError
-		if errors.As(err, &validationErr) {
+		if validationErr, ok := errors.AsType[resumeValidationError](err); ok {
 			check = validationErr.Check()
 		}
 

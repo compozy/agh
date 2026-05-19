@@ -727,8 +727,7 @@ func webhookRequestFromHTTP(c *gin.Context, scope automationpkg.Scope) (automati
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxWebhookPayloadSize)
 	payload, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		var maxBytesErr *http.MaxBytesError
-		if errors.As(err, &maxBytesErr) {
+		if maxBytesErr, ok := errors.AsType[*http.MaxBytesError](err); ok && maxBytesErr != nil {
 			return automationpkg.WebhookRequest{}, NewAutomationValidationError(
 				fmt.Errorf("webhook request body exceeds %d bytes: %w", maxWebhookPayloadSize, err),
 			)

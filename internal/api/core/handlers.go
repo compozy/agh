@@ -25,6 +25,10 @@ import (
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
+const (
+	handlersErrorKey = "error"
+)
+
 const defaultPollInterval = 100 * time.Millisecond
 
 var errCreateAgentRequestInvalid = errors.New("api: invalid create agent request")
@@ -678,7 +682,13 @@ func (h *BaseHandlers) ListAgents(c *gin.Context) {
 
 		agent, loadErr := h.AgentLoader(name, h.HomePaths)
 		if loadErr != nil {
-			h.Logger.Warn(h.transportName()+": skip unreadable agent definition", "agent_name", name, "error", loadErr)
+			h.Logger.Warn(
+				h.transportName()+": skip unreadable agent definition",
+				"agent_name",
+				name,
+				handlersErrorKey,
+				loadErr,
+			)
 			continue
 		}
 		agentDefs = append(agentDefs, agent)
@@ -1137,7 +1147,7 @@ func (h *BaseHandlers) StreamObserveEvents(c *gin.Context) {
 			events, pollErr := h.Observer.QueryEvents(c.Request.Context(), pollQuery)
 			if pollErr != nil {
 				h.writeSSEBestEffort(writer, SSEMessage{
-					Name: "error",
+					Name: handlersErrorKey,
 					Data: contract.ErrorPayload{Error: pollErr.Error()},
 				})
 				return

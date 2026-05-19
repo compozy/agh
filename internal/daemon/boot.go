@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -44,6 +45,10 @@ import (
 	"github.com/pedronauck/agh/internal/vault"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 	skillbundled "github.com/pedronauck/agh/skills"
+)
+
+const (
+	bootNameKey = "name"
 )
 
 type bootState struct {
@@ -156,8 +161,8 @@ func (c *bootCleanup) run(ctx context.Context, err *error) {
 	defer cancel()
 
 	var cleanupErrs []error
-	for i := len(c.fns) - 1; i >= 0; i-- {
-		if cleanupErr := c.fns[i](cleanupCtx); cleanupErr != nil {
+	for _, v := range slices.Backward(c.fns) {
+		if cleanupErr := v(cleanupCtx); cleanupErr != nil {
 			cleanupErrs = append(cleanupErrs, cleanupErr)
 		}
 	}
@@ -380,7 +385,7 @@ func (d *Daemon) bootMemoryPromptProvider(
 	if err := state.localMemoryProvider.Initialize(providerCtx, memcontract.ProviderInit{
 		Logger: state.logger,
 		Config: map[string]any{
-			"name": localprovider.Name,
+			bootNameKey: localprovider.Name,
 		},
 	}); err != nil {
 		return nil, fmt.Errorf("daemon: initialize local memory provider: %w", err)

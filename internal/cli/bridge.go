@@ -12,11 +12,60 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	taskThreadValue = "Thread"
+)
+
+const (
+	taskPeerValue       = "Peer"
+	bundlePlatformValue = "Platform"
+)
+
+const (
+	taskGroupValue          = "Group"
+	taskBridgeInstanceIDKey = "bridge_instance_id"
+)
+
+const (
+	bridgeModeKey = "mode"
+)
+
+const (
+	bridgeAgentValue        = "Agent"
+	bridgeBridgeValue       = "Bridge"
+	bridgeCreatedValue      = "Created"
+	bridgeEnabledValue      = "Enabled"
+	bridgeExtensionValue    = "Extension"
+	bridgeMessageValue      = "Message"
+	bridgeModeValue         = "Mode"
+	bridgeAgentNameKey      = "agent_name"
+	bridgeBindingNameKey    = "binding_name"
+	bridgeBridgeKey         = "bridge"
+	bridgeCreateKey         = "create"
+	bridgeCreatedAtKey      = "created_at"
+	bridgeDeletedKey        = "deleted"
+	bridgeDisplayNameKey    = "display_name"
+	bridgeEnabledKey        = "enabled"
+	bridgeGetIDValue        = "get <id>"
+	bridgeGroupIDKey        = "group_id"
+	bridgeLastActivityAtKey = "last_activity_at"
+	bridgeListKey           = "list"
+	bridgeMessageKey        = "message"
+	bridgePeerIDKey         = "peer_id"
+	bridgeScopeKey          = "scope"
+	bridgeSessionIDKey      = "session_id"
+	bridgeStatusKey         = "status"
+	bridgeThreadIDKey       = "thread_id"
+	bridgeUpdateIDValue     = "update <id>"
+	bridgeUpdatedAtKey      = "updated_at"
+	bridgeWorkspaceIDKey    = "workspace_id"
+)
+
 const bridgeDeliveryDefaultsFlag = "delivery-defaults"
 
 func newBridgeCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "bridge",
+		Use:   bridgeBridgeKey,
 		Short: "Manage bridge instances",
 	}
 
@@ -35,7 +84,7 @@ func newBridgeCommand(deps commandDeps) *cobra.Command {
 
 func newBridgeListCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "list",
+		Use:   bridgeListKey,
 		Short: "List bridge instances",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
@@ -54,7 +103,7 @@ func newBridgeListCommand(deps commandDeps) *cobra.Command {
 
 func newBridgeGetCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "get <id>",
+		Use:   bridgeGetIDValue,
 		Short: "Show one bridge instance",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -87,7 +136,7 @@ func newBridgeCreateCommand(deps commandDeps) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "create",
+		Use:   bridgeCreateKey,
 		Short: "Create a bridge instance",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
@@ -118,12 +167,12 @@ func newBridgeCreateCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, bridgeBundle(item))
 		},
 	}
-	cmd.Flags().StringVar(&scopeRaw, "scope", string(bridgepkg.ScopeGlobal), "Bridge scope: global or workspace")
+	cmd.Flags().StringVar(&scopeRaw, bridgeScopeKey, string(bridgepkg.ScopeGlobal), "Bridge scope: global or workspace")
 	cmd.Flags().StringVar(&workspaceID, "workspace-id", "", "Owning workspace ID for workspace-scoped bridges")
 	cmd.Flags().StringVar(&platform, "platform", "", "Messaging platform name")
 	cmd.Flags().StringVar(&extensionName, "extension", "", "Owning extension name")
 	cmd.Flags().StringVar(&displayName, "display-name", "", "Operator-facing bridge display name")
-	cmd.Flags().BoolVar(&enabled, "enabled", true, "Whether the instance starts enabled")
+	cmd.Flags().BoolVar(&enabled, bridgeEnabledKey, true, "Whether the instance starts enabled")
 	cmd.Flags().BoolVar(&includePeer, "include-peer", false, "Include peer identity in routing")
 	cmd.Flags().BoolVar(&includeThread, "include-thread", false, "Include thread identity in routing")
 	cmd.Flags().BoolVar(&includeGroup, "include-group", false, "Include group identity in routing")
@@ -192,7 +241,7 @@ func newBridgeUpdateCommand(deps commandDeps) *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "update <id>",
+		Use:   bridgeUpdateIDValue,
 		Short: "Update mutable bridge fields",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -471,11 +520,11 @@ func newBridgeTestDeliveryCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, bridgeTestDeliveryBundle(item))
 		},
 	}
-	cmd.Flags().StringVar(&message, "message", "", "Optional dry-run message label")
+	cmd.Flags().StringVar(&message, bridgeMessageKey, "", "Optional dry-run message label")
 	cmd.Flags().StringVar(&peerID, "peer-id", "", "Override target peer ID")
 	cmd.Flags().StringVar(&threadID, "thread-id", "", "Override target thread ID")
 	cmd.Flags().StringVar(&groupID, "group-id", "", "Override target group ID")
-	cmd.Flags().StringVar(&modeRaw, "mode", "", "Delivery mode: direct-send or reply")
+	cmd.Flags().StringVar(&modeRaw, bridgeModeKey, "", "Delivery mode: direct-send or reply")
 	return cmd
 }
 
@@ -484,18 +533,28 @@ func bridgeListBundle(items []BridgeRecord, now func() time.Time) outputBundle {
 		items,
 		items,
 		"Bridges",
-		[]string{"ID", "Name", "Platform", "Extension", "Scope", "Workspace", "Status", "Routing", "Updated"},
+		[]string{
+			"ID",
+			automationNameValue,
+			bundlePlatformValue,
+			bridgeExtensionValue,
+			automationScopeValue,
+			configWorkspaceValue,
+			automationStatusValue,
+			"Routing",
+			authoredContextUpdatedValue,
+		},
 		"bridges",
 		[]string{
 			"id",
-			"display_name",
+			bridgeDisplayNameKey,
 			"platform",
 			"extension_name",
-			"scope",
-			"workspace_id",
-			"status",
+			bridgeScopeKey,
+			bridgeWorkspaceIDKey,
+			bridgeStatusKey,
 			"routing",
-			"updated_at",
+			bridgeUpdatedAtKey,
 		},
 		func(item BridgeRecord) []string {
 			return []string{
@@ -530,38 +589,38 @@ func bridgeBundle(item BridgeRecord) outputBundle {
 	return outputBundle{
 		jsonValue: item,
 		human: func() (string, error) {
-			return renderHumanSection("Bridge", []keyValue{
+			return renderHumanSection(bridgeBridgeValue, []keyValue{
 				{Label: "ID", Value: stringOrDash(item.ID)},
-				{Label: "Name", Value: stringOrDash(item.DisplayName)},
-				{Label: "Platform", Value: stringOrDash(item.Platform)},
-				{Label: "Extension", Value: stringOrDash(item.ExtensionName)},
-				{Label: "Scope", Value: stringOrDash(string(item.Scope))},
+				{Label: automationNameValue, Value: stringOrDash(item.DisplayName)},
+				{Label: bundlePlatformValue, Value: stringOrDash(item.Platform)},
+				{Label: bridgeExtensionValue, Value: stringOrDash(item.ExtensionName)},
+				{Label: automationScopeValue, Value: stringOrDash(string(item.Scope))},
 				{Label: "Workspace", Value: stringOrDash(item.WorkspaceID)},
-				{Label: "Enabled", Value: fmt.Sprintf("%t", item.Enabled)},
-				{Label: "Status", Value: stringOrDash(string(item.Status))},
+				{Label: bridgeEnabledValue, Value: fmt.Sprintf("%t", item.Enabled)},
+				{Label: automationStatusValue, Value: stringOrDash(string(item.Status))},
 				{Label: "Routing", Value: stringOrDash(bridgeRoutingPolicyLabel(item.RoutingPolicy))},
 				{Label: "Delivery Defaults", Value: stringOrDash(compactJSON(item.DeliveryDefaults))},
-				{Label: "Created", Value: stringOrDash(formatTime(item.CreatedAt))},
-				{Label: "Updated", Value: stringOrDash(formatTime(item.UpdatedAt))},
+				{Label: bridgeCreatedValue, Value: stringOrDash(formatTime(item.CreatedAt))},
+				{Label: authoredContextUpdatedValue, Value: stringOrDash(formatTime(item.UpdatedAt))},
 			}), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("bridge", []string{
+			return renderToonObject(bridgeBridgeKey, []string{
 				"id",
-				"display_name",
+				bridgeDisplayNameKey,
 				"platform",
 				"extension_name",
-				"scope",
-				"workspace_id",
-				"enabled",
-				"status",
+				bridgeScopeKey,
+				bridgeWorkspaceIDKey,
+				bridgeEnabledKey,
+				bridgeStatusKey,
 				"routing",
 				"include_peer",
 				"include_thread",
 				"include_group",
 				"delivery_defaults",
-				"created_at",
-				"updated_at",
+				bridgeCreatedAtKey,
+				bridgeUpdatedAtKey,
 			}, []string{
 				item.ID,
 				item.DisplayName,
@@ -588,18 +647,28 @@ func bridgeRoutesBundle(routes []BridgeRouteRecord, now func() time.Time) output
 		routes,
 		routes,
 		"Bridge Routes",
-		[]string{"Hash", "Scope", "Workspace", "Peer", "Thread", "Group", "Session", "Agent", "Last Active"},
+		[]string{
+			"Hash",
+			automationScopeValue,
+			configWorkspaceValue,
+			taskPeerValue,
+			taskThreadValue,
+			taskGroupValue,
+			"Session",
+			bridgeAgentValue,
+			"Last Active",
+		},
 		"bridge_routes",
 		[]string{
 			"routing_key_hash",
-			"scope",
-			"workspace_id",
-			"peer_id",
-			"thread_id",
-			"group_id",
-			"session_id",
-			"agent_name",
-			"last_activity_at",
+			bridgeScopeKey,
+			bridgeWorkspaceIDKey,
+			bridgePeerIDKey,
+			bridgeThreadIDKey,
+			bridgeGroupIDKey,
+			bridgeSessionIDKey,
+			bridgeAgentNameKey,
+			bridgeLastActivityAtKey,
 		},
 		func(route BridgeRouteRecord) []string {
 			return []string{
@@ -639,7 +708,7 @@ func bridgeSecretBindingListBundle(items []BridgeSecretBindingRecord) outputBund
 		"Bridge Secret Bindings",
 		[]string{"BRIDGE", "NAME", "SECRET REF", "KIND", "UPDATED"},
 		"bridge_secret_bindings",
-		[]string{"bridge_instance_id", "binding_name", "secret_ref", "kind", "updated_at"},
+		[]string{taskBridgeInstanceIDKey, bridgeBindingNameKey, "secret_ref", "kind", bridgeUpdatedAtKey},
 		func(item BridgeSecretBindingRecord) []string {
 			return []string{
 				stringOrDash(item.BridgeInstanceID),
@@ -668,18 +737,25 @@ func bridgeSecretBindingBundle(item BridgeSecretBindingRecord) outputBundle {
 		}{Binding: item},
 		human: func() (string, error) {
 			return renderHumanSection("Bridge Secret Binding", []keyValue{
-				{Label: "Bridge", Value: stringOrDash(item.BridgeInstanceID)},
-				{Label: "Name", Value: stringOrDash(item.BindingName)},
+				{Label: bridgeBridgeValue, Value: stringOrDash(item.BridgeInstanceID)},
+				{Label: automationNameValue, Value: stringOrDash(item.BindingName)},
 				{Label: "Secret Ref", Value: stringOrDash(item.SecretRef)},
-				{Label: "Kind", Value: stringOrDash(item.Kind)},
-				{Label: "Created", Value: stringOrDash(formatTime(item.CreatedAt))},
-				{Label: "Updated", Value: stringOrDash(formatTime(item.UpdatedAt))},
+				{Label: bridgeKindValue, Value: stringOrDash(item.Kind)},
+				{Label: bridgeCreatedValue, Value: stringOrDash(formatTime(item.CreatedAt))},
+				{Label: authoredContextUpdatedValue, Value: stringOrDash(formatTime(item.UpdatedAt))},
 			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject(
 				"bridge_secret_binding",
-				[]string{"bridge_instance_id", "binding_name", "secret_ref", "kind", "created_at", "updated_at"},
+				[]string{
+					taskBridgeInstanceIDKey,
+					bridgeBindingNameKey,
+					"secret_ref",
+					"kind",
+					bridgeCreatedAtKey,
+					bridgeUpdatedAtKey,
+				},
 				[]string{
 					item.BridgeInstanceID,
 					item.BindingName,
@@ -701,21 +777,21 @@ func bridgeSecretBindingDeleteBundle(id string, bindingName string) outputBundle
 	}{
 		BridgeInstanceID: strings.TrimSpace(id),
 		BindingName:      strings.TrimSpace(bindingName),
-		Status:           "deleted",
+		Status:           bridgeDeletedKey,
 	}
 	return outputBundle{
 		jsonValue: item,
 		human: func() (string, error) {
 			return renderHumanSection("Bridge Secret Binding", []keyValue{
-				{Label: "Bridge", Value: stringOrDash(item.BridgeInstanceID)},
-				{Label: "Name", Value: stringOrDash(item.BindingName)},
-				{Label: "Status", Value: item.Status},
+				{Label: bridgeBridgeValue, Value: stringOrDash(item.BridgeInstanceID)},
+				{Label: automationNameValue, Value: stringOrDash(item.BindingName)},
+				{Label: automationStatusValue, Value: item.Status},
 			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject(
 				"bridge_secret_binding",
-				[]string{"bridge_instance_id", "binding_name", "status"},
+				[]string{taskBridgeInstanceIDKey, bridgeBindingNameKey, bridgeStatusKey},
 				[]string{item.BridgeInstanceID, item.BindingName, item.Status},
 			), nil
 		},
@@ -728,21 +804,27 @@ func bridgeTestDeliveryBundle(item BridgeTestDeliveryRecord) outputBundle {
 		human: func() (string, error) {
 			return renderHumanBlocks(
 				renderHumanSection("Test Delivery", []keyValue{
-					{Label: "Status", Value: stringOrDash(item.Status)},
-					{Label: "Message", Value: stringOrDash(item.Message)},
+					{Label: automationStatusValue, Value: stringOrDash(item.Status)},
+					{Label: bridgeMessageValue, Value: stringOrDash(item.Message)},
 				}),
 				renderHumanSection("Delivery Target", []keyValue{
-					{Label: "Bridge", Value: stringOrDash(item.DeliveryTarget.BridgeInstanceID)},
-					{Label: "Peer", Value: stringOrDash(item.DeliveryTarget.PeerID)},
-					{Label: "Thread", Value: stringOrDash(item.DeliveryTarget.ThreadID)},
-					{Label: "Group", Value: stringOrDash(item.DeliveryTarget.GroupID)},
-					{Label: "Mode", Value: stringOrDash(string(item.DeliveryTarget.Mode))},
+					{Label: bridgeBridgeValue, Value: stringOrDash(item.DeliveryTarget.BridgeInstanceID)},
+					{Label: taskPeerValue, Value: stringOrDash(item.DeliveryTarget.PeerID)},
+					{Label: taskThreadValue, Value: stringOrDash(item.DeliveryTarget.ThreadID)},
+					{Label: taskGroupValue, Value: stringOrDash(item.DeliveryTarget.GroupID)},
+					{Label: bridgeModeValue, Value: stringOrDash(string(item.DeliveryTarget.Mode))},
 				}),
 			), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject("test_delivery", []string{
-				"status", "message", "bridge_instance_id", "peer_id", "thread_id", "group_id", "mode",
+				bridgeStatusKey,
+				bridgeMessageKey,
+				taskBridgeInstanceIDKey,
+				bridgePeerIDKey,
+				bridgeThreadIDKey,
+				bridgeGroupIDKey,
+				bridgeModeKey,
 			}, []string{
 				item.Status,
 				item.Message,

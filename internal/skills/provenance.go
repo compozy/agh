@@ -15,6 +15,10 @@ import (
 	"strings"
 )
 
+const (
+	provenanceVersionKey = "version"
+)
+
 const sidecarFileName = ".agh-meta.json"
 
 // ErrSymlinkEscape reports a skill payload symlink that resolves outside the skill directory.
@@ -273,7 +277,7 @@ func validateSidecarProvenance(sidecarPath string, provenance Provenance) error 
 		{name: "hash", missing: strings.TrimSpace(provenance.Hash) == ""},
 		{name: "registry", missing: strings.TrimSpace(provenance.Registry) == ""},
 		{name: "slug", missing: strings.TrimSpace(provenance.Slug) == ""},
-		{name: "version", missing: strings.TrimSpace(provenance.Version) == ""},
+		{name: provenanceVersionKey, missing: strings.TrimSpace(provenance.Version) == ""},
 		{name: "installed_at", missing: provenance.InstalledAt.IsZero()},
 	}
 

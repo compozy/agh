@@ -14,6 +14,34 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	automationSessionIDKey = "session_id"
+)
+
+const (
+	bridgeKindValue     = "Kind"
+	networkTimestampKey = "timestamp"
+)
+
+const (
+	agentKernelModelKey = "model"
+)
+
+const (
+	agentKernelAgentValue   = "Agent"
+	agentKernelChannelValue = "Channel"
+	agentKernelFromValue    = "From"
+	agentKernelRootValue    = "Root"
+	agentKernelSessionValue = "Session"
+	agentKernelAgentNameKey = "agent_name"
+	agentKernelChannelKey   = "channel"
+	agentKernelContextKey   = "context"
+	agentKernelKindKey      = "kind"
+	agentKernelListKey      = "list"
+	agentKernelReplyKey     = "reply"
+	agentKernelRunIDKey     = "run_id"
+)
+
 func newMeCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "me",
@@ -45,7 +73,7 @@ func newMeCommand(deps commandDeps) *cobra.Command {
 
 func newMeContextCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "context",
+		Use:   agentKernelContextKey,
 		Short: "Inspect the bounded situation context for the current agent session",
 		Example: `  # Show the bounded situation context injected for this session
   agh me context
@@ -73,7 +101,7 @@ func newMeContextCommand(deps commandDeps) *cobra.Command {
 func newChannelCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "ch",
-		Aliases: []string{"channel"},
+		Aliases: []string{agentKernelChannelKey},
 		Short:   "Use agent-facing coordination channels",
 		Example: `  # List channels visible to this session
   agh ch list
@@ -90,7 +118,7 @@ func newChannelCommand(deps commandDeps) *cobra.Command {
 
 func newChannelListCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "list",
+		Use:   agentKernelListKey,
 		Short: "List coordination channels visible to the current agent session",
 		Example: `  # List coordination channels visible to this session
   agh ch list
@@ -178,7 +206,7 @@ func newChannelSendCommand(deps commandDeps) *cobra.Command {
 		--body '{"blocked_by":"missing credentials"}'`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			channel := strings.TrimSpace(args[0])
-			flags.kindExplicit = cmd.Flags().Changed("kind")
+			flags.kindExplicit = cmd.Flags().Changed(agentKernelKindKey)
 			body, err := parseNetworkJSONValue("--body", bodyRaw)
 			if err != nil {
 				return err
@@ -228,7 +256,7 @@ func newChannelReplyCommand(deps commandDeps) *cobra.Command {
 	flags := coordinationMetadataFlags{kind: string(contract.CoordinationMessageReply)}
 
 	cmd := &cobra.Command{
-		Use:   "reply",
+		Use:   agentKernelReplyKey,
 		Short: "Reply to a received coordination message",
 		Example: `  # Reply to one received coordination message
   agh ch reply --to-message msg-123 --body '{"answer":"ready for review"}'
@@ -242,7 +270,7 @@ func newChannelReplyCommand(deps commandDeps) *cobra.Command {
     --correlation-id run-123 \
     --body '{"answer":"ready for review"}'`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			flags.kindExplicit = cmd.Flags().Changed("kind")
+			flags.kindExplicit = cmd.Flags().Changed(agentKernelKindKey)
 			if flags.kindExplicit &&
 				contract.CoordinationMessageKind(strings.TrimSpace(flags.kind)) != contract.CoordinationMessageReply {
 				return errors.New("cli: --kind must be reply for `agh ch reply`")
@@ -310,7 +338,7 @@ func (f *coordinationMetadataFlags) bind(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.workflowID, "workflow-id", "", "Workflow id for coordination metadata")
 	cmd.Flags().
 		StringVar(&f.coordinationChannelID, "coordination-channel-id", "", "Coordination channel id; defaults to channel")
-	cmd.Flags().StringVar(&f.kind, "kind", f.kind, "Coordination message kind")
+	cmd.Flags().StringVar(&f.kind, agentKernelKindKey, f.kind, "Coordination message kind")
 	cmd.Flags().StringVar(&f.correlationID, "correlation-id", "", "Correlation id; defaults to run id")
 	cmd.Flags().StringVar(&f.extRaw, "metadata-ext", "", "Optional JSON object for coordination metadata ext")
 }
@@ -391,21 +419,26 @@ func agentMeBundle(record AgentMeRecord) outputBundle {
 		jsonValue: record,
 		human: func() (string, error) {
 			return renderHumanBlocks(
-				renderHumanSection("Agent", []keyValue{
-					{Label: "Session", Value: record.Self.SessionID},
-					{Label: "Agent", Value: record.Self.AgentName},
-					{Label: "Provider", Value: record.Self.Provider},
-					{Label: "Model", Value: stringOrDash(record.Self.Model)},
+				renderHumanSection(agentKernelAgentValue, []keyValue{
+					{Label: agentKernelSessionValue, Value: record.Self.SessionID},
+					{Label: agentKernelAgentValue, Value: record.Self.AgentName},
+					{Label: agentKernelProviderValue, Value: record.Self.Provider},
+					{Label: agentKernelModelValue, Value: stringOrDash(record.Self.Model)},
 				}),
 				renderHumanSection("Workspace", []keyValue{
 					{Label: "ID", Value: stringOrDash(record.Workspace.ID)},
-					{Label: "Root", Value: stringOrDash(record.Workspace.RootDir)},
+					{Label: agentKernelRootValue, Value: stringOrDash(record.Workspace.RootDir)},
 				}),
 			), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject("agent_me", []string{
-				"session_id", "agent_name", "provider", "model", "workspace_id", "workspace_root",
+				automationSessionIDKey,
+				agentKernelAgentNameKey,
+				memoryProviderKey,
+				agentKernelModelKey,
+				"workspace_id",
+				"workspace_root",
 			}, []string{
 				record.Self.SessionID,
 				record.Self.AgentName,
@@ -435,9 +468,9 @@ func agentChannelsBundle(channels []AgentChannelRecord) outputBundle {
 		channels,
 		channels,
 		"Agent Channels",
-		[]string{"ID", "Channel", "Purpose", "Task", "Run"},
+		[]string{"ID", agentKernelChannelValue, "Purpose", "Task", "Run"},
 		"agent_channels",
-		[]string{"id", "channel", "purpose", "task_id", "run_id"},
+		[]string{"id", agentKernelChannelKey, "purpose", "task_id", agentKernelRunIDKey},
 		func(channel AgentChannelRecord) []string {
 			return []string{
 				channel.ID,
@@ -458,9 +491,9 @@ func agentChannelMessagesBundle(messages []AgentChannelMessageRecord) outputBund
 		messages,
 		messages,
 		"Agent Channel Messages",
-		[]string{"ID", "Channel", "Kind", "From", "Time"},
+		[]string{"ID", agentKernelChannelValue, bridgeKindValue, agentKernelFromValue, "Time"},
 		"agent_channel_messages",
-		[]string{"message_id", "channel_id", "kind", "from_session_id", "timestamp"},
+		[]string{"message_id", "channel_id", agentKernelKindKey, "from_session_id", networkTimestampKey},
 		func(message AgentChannelMessageRecord) []string {
 			return []string{
 				message.MessageID,
@@ -488,15 +521,15 @@ func agentChannelMessageBundle(message AgentChannelMessageRecord) outputBundle {
 		human: func() (string, error) {
 			return renderHumanSection("Agent Channel Message", []keyValue{
 				{Label: "ID", Value: message.MessageID},
-				{Label: "Channel", Value: message.ChannelID},
-				{Label: "Kind", Value: string(message.Metadata.MessageKind)},
+				{Label: agentKernelChannelValue, Value: message.ChannelID},
+				{Label: bridgeKindValue, Value: string(message.Metadata.MessageKind)},
 				{Label: "Task", Value: stringOrDash(message.Metadata.TaskID)},
 				{Label: "Run", Value: stringOrDash(message.Metadata.RunID)},
 			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject("agent_channel_message", []string{
-				"message_id", "channel_id", "kind", "task_id", "run_id",
+				"message_id", "channel_id", agentKernelKindKey, "task_id", agentKernelRunIDKey,
 			}, []string{
 				message.MessageID,
 				message.ChannelID,

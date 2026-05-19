@@ -9,6 +9,23 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	vaultRefValue = "Ref"
+	vaultRefKey   = "ref"
+)
+
+const (
+	vaultCreatedValue = "Created"
+	vaultKindValue    = "Kind"
+	vaultStatusValue  = "Status"
+	vaultCreatedAtKey = "created_at"
+	vaultDeletedKey   = "deleted"
+	vaultKindKey      = "kind"
+	vaultListKey      = "list"
+	vaultStatusKey    = "status"
+	vaultVaultKey     = "vault"
+)
+
 type vaultDeleteRecord struct {
 	Ref    string `json:"ref"`
 	Status string `json:"status"`
@@ -16,7 +33,7 @@ type vaultDeleteRecord struct {
 
 func newVaultCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "vault",
+		Use:   vaultVaultKey,
 		Short: "Manage encrypted daemon vault metadata and write-only secrets",
 	}
 	cmd.AddCommand(newVaultListCommand(deps))
@@ -31,7 +48,7 @@ func newVaultListCommand(deps commandDeps) *cobra.Command {
 	var namespace string
 
 	cmd := &cobra.Command{
-		Use:   "list",
+		Use:   vaultListKey,
 		Short: "List redacted vault secret metadata",
 		Example: `  # List session-scoped vault entries
   agh vault list --prefix vault:sessions/sess_123/
@@ -117,7 +134,7 @@ func newVaultPutCommand(deps commandDeps) *cobra.Command {
 			return writeVaultRecordOutput(cmd, item)
 		},
 	}
-	cmd.Flags().StringVar(&kind, "kind", "", "Optional secret kind metadata")
+	cmd.Flags().StringVar(&kind, vaultKindKey, "", "Optional secret kind metadata")
 	cmd.Flags().BoolVar(&valueStdin, "value-stdin", false, "Read the secret value from stdin")
 	return cmd
 }
@@ -136,7 +153,7 @@ func newVaultDeleteCommand(deps commandDeps) *cobra.Command {
 			if err := client.DeleteVaultSecret(cmd.Context(), ref); err != nil {
 				return err
 			}
-			return writeVaultDeleteOutput(cmd, vaultDeleteRecord{Ref: ref, Status: "deleted"})
+			return writeVaultDeleteOutput(cmd, vaultDeleteRecord{Ref: ref, Status: vaultDeletedKey})
 		},
 	}
 }
@@ -196,9 +213,9 @@ func vaultRecordsBundle(items []VaultRecord, now func() time.Time) outputBundle 
 		items,
 		items,
 		"Vault Secrets",
-		[]string{"Ref", "Namespace", "Kind", "Present", "Updated"},
+		[]string{vaultRefValue, "Namespace", vaultKindValue, authoredContextPresentValue, authoredContextUpdatedValue},
 		"vault_secrets",
-		[]string{"ref", "namespace", "kind", "present", "updated_at"},
+		[]string{vaultRefKey, "namespace", vaultKindKey, providerAuthStatePresent, "updated_at"},
 		func(item VaultRecord) []string {
 			return []string{
 				item.Ref,
@@ -225,18 +242,25 @@ func vaultRecordBundle(item VaultRecord) outputBundle {
 		jsonValue: item,
 		human: func() (string, error) {
 			return renderHumanSection("Vault Secret", []keyValue{
-				{Label: "Ref", Value: item.Ref},
+				{Label: vaultRefValue, Value: item.Ref},
 				{Label: "Namespace", Value: stringOrDash(item.Namespace)},
-				{Label: "Kind", Value: stringOrDash(item.Kind)},
-				{Label: "Present", Value: fmt.Sprintf("%t", item.Present)},
-				{Label: "Created", Value: stringOrDash(formatTime(item.CreatedAt))},
-				{Label: "Updated", Value: stringOrDash(formatTime(item.UpdatedAt))},
+				{Label: vaultKindValue, Value: stringOrDash(item.Kind)},
+				{Label: authoredContextPresentValue, Value: fmt.Sprintf("%t", item.Present)},
+				{Label: vaultCreatedValue, Value: stringOrDash(formatTime(item.CreatedAt))},
+				{Label: authoredContextUpdatedValue, Value: stringOrDash(formatTime(item.UpdatedAt))},
 			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject(
 				"vault_secret",
-				[]string{"ref", "namespace", "kind", "present", "created_at", "updated_at"},
+				[]string{
+					vaultRefKey,
+					"namespace",
+					vaultKindKey,
+					providerAuthStatePresent,
+					vaultCreatedAtKey,
+					"updated_at",
+				},
 				[]string{
 					item.Ref,
 					item.Namespace,
@@ -255,12 +279,16 @@ func vaultDeleteBundle(item vaultDeleteRecord) outputBundle {
 		jsonValue: item,
 		human: func() (string, error) {
 			return renderHumanSection("Vault Secret", []keyValue{
-				{Label: "Ref", Value: item.Ref},
-				{Label: "Status", Value: item.Status},
+				{Label: vaultRefValue, Value: item.Ref},
+				{Label: vaultStatusValue, Value: item.Status},
 			}), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("vault_secret", []string{"ref", "status"}, []string{item.Ref, item.Status}), nil
+			return renderToonObject(
+				"vault_secret",
+				[]string{vaultRefKey, vaultStatusKey},
+				[]string{item.Ref, item.Status},
+			), nil
 		},
 	}
 }

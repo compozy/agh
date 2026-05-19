@@ -8,6 +8,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	providerModelsErrorValue   = "Error"
+	providerModelsModelValue   = "Model"
+	providerModelsAvailableKey = "available"
+)
+
 const providerModelAvailabilityUnknown = "unknown"
 
 func newProviderModelsCommand(deps commandDeps) *cobra.Command {
@@ -112,9 +118,25 @@ func providerModelListBundle(record ProviderModelListRecord) outputBundle {
 		record,
 		record.Models,
 		"Provider Models",
-		[]string{"Provider", "Model", "Available", "State", "Stale", "Sources", "Refreshed"},
+		[]string{
+			agentKernelProviderValue,
+			providerModelsModelValue,
+			"Available",
+			authoredContextStateValue,
+			"Stale",
+			"Sources",
+			"Refreshed",
+		},
 		"provider_models",
-		[]string{"provider_id", "model_id", "available", "availability_state", "stale", "sources", "refreshed_at"},
+		[]string{
+			"provider_id",
+			"model_id",
+			providerModelsAvailableKey,
+			"availability_state",
+			"stale",
+			"sources",
+			"refreshed_at",
+		},
 		func(model ProviderModelRecord) []string {
 			return []string{
 				model.ProviderID,
@@ -158,7 +180,15 @@ func providerModelSourceStatusBundle(
 		jsonValue,
 		sources,
 		humanTitle,
-		[]string{"Provider", "Source", "Kind", "State", "Rows", "Stale", "Error"},
+		[]string{
+			agentKernelProviderValue,
+			authoredContextSourceValue,
+			bridgeKindValue,
+			authoredContextStateValue,
+			"Rows",
+			"Stale",
+			providerModelsErrorValue,
+		},
 		toonName,
 		[]string{"provider_id", "source_id", "source_kind", "refresh_state", "row_count", "stale", "last_error"},
 		providerModelSourceStatusRow,

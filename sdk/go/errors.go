@@ -7,6 +7,10 @@ import (
 	"maps"
 )
 
+const (
+	errorsErrorKey = "error"
+)
+
 // JSONRPCErrorObject is the wire error object used by JSON-RPC 2.0.
 type JSONRPCErrorObject struct {
 	Code    int             `json:"code"`
@@ -64,14 +68,14 @@ func NewMethodNotFoundError(method string) *RPCError {
 
 // NewInvalidParamsError creates an Invalid params error.
 func NewInvalidParamsError(reason string, data map[string]any) *RPCError {
-	payload := map[string]any{"error": reason}
+	payload := map[string]any{errorsErrorKey: reason}
 	maps.Copy(payload, data)
 	return NewRPCError(-32602, "Invalid params", payload)
 }
 
 // NewInternalError creates an Internal error.
 func NewInternalError(reason string) *RPCError {
-	return NewRPCError(-32603, "Internal error", map[string]any{"error": reason})
+	return NewRPCError(-32603, "Internal error", map[string]any{errorsErrorKey: reason})
 }
 
 // NewCapabilityDeniedError creates a capability denied error.
@@ -107,8 +111,7 @@ func rpcErrorFromObject(obj JSONRPCErrorObject) *RPCError {
 }
 
 func ensureRPCError(err error) *RPCError {
-	var rpcErr *RPCError
-	if errors.As(err, &rpcErr) {
+	if rpcErr, ok := errors.AsType[*RPCError](err); ok {
 		return rpcErr
 	}
 	if err == nil {

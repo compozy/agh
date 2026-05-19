@@ -13,6 +13,10 @@ import (
 	"github.com/pedronauck/agh/internal/workref"
 )
 
+const (
+	sessionStreamErrorKey = "error"
+)
+
 func parseLastEventID(lastEventID string, transportName string) (int64, error) {
 	trimmed := strings.TrimSpace(lastEventID)
 	if trimmed == "" {
@@ -115,7 +119,7 @@ func (h *BaseHandlers) pollSessionStreamTick(
 	if pollErr != nil {
 		// Best-effort notification; the SSE client may already be disconnected.
 		h.writeSSEBestEffort(writer, SSEMessage{
-			Name: "error",
+			Name: sessionStreamErrorKey,
 			Data: contract.ErrorPayload{Error: pollErr.Error()},
 		})
 		return afterSequence, info, true
@@ -133,7 +137,7 @@ func (h *BaseHandlers) pollSessionStreamTick(
 	if statusErr != nil {
 		// Best-effort notification; the SSE client may already be disconnected.
 		h.writeSSEBestEffort(writer, SSEMessage{
-			Name: "error",
+			Name: sessionStreamErrorKey,
 			Data: contract.ErrorPayload{Error: statusErr.Error()},
 		})
 		return afterSequence, info, true

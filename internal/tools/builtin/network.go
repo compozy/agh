@@ -2,6 +2,11 @@ package builtin
 
 import toolspkg "github.com/pedronauck/agh/internal/tools"
 
+const (
+	networkDirectsKey = "directs"
+	networkNetworkKey = "network"
+)
+
 var networkTools = []toolspkg.Descriptor{
 	nativeDescriptor(
 		toolspkg.ToolIDNetworkStatus,
@@ -14,7 +19,7 @@ var networkTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
-		[]string{"network", "status"},
+		[]string{networkNetworkKey, "status"},
 		[]string{"network status", "network diagnostics"},
 	),
 	nativeDescriptor(
@@ -28,7 +33,7 @@ var networkTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
-		[]string{"network", "channels"},
+		[]string{networkNetworkKey, "channels"},
 		[]string{"network channels", "coordination channels"},
 	),
 	nativeDescriptor(
@@ -42,7 +47,7 @@ var networkTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
-		[]string{"network", "inbox"},
+		[]string{networkNetworkKey, "inbox"},
 		[]string{"network inbox", "queued network messages"},
 	),
 	nativeDescriptor(
@@ -56,7 +61,7 @@ var networkTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
-		[]string{"network", "peers"},
+		[]string{networkNetworkKey, "peers"},
 		[]string{"network peers", "channel presence"},
 	),
 	nativeDescriptor(
@@ -72,7 +77,7 @@ var networkTools = []toolspkg.Descriptor{
 		false,
 		true,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
-		[]string{"network", "send"},
+		[]string{networkNetworkKey, "send"},
 		[]string{"network message", "send to peer"},
 	),
 	nativeDescriptor(
@@ -86,7 +91,7 @@ var networkTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
-		[]string{"network", "threads"},
+		[]string{networkNetworkKey, "threads"},
 		[]string{"network threads", "public thread summaries"},
 	),
 	nativeDescriptor(
@@ -100,7 +105,7 @@ var networkTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
-		[]string{"network", "threads", "messages"},
+		[]string{networkNetworkKey, "threads", "messages"},
 		[]string{"thread messages", "public thread timeline"},
 	),
 	nativeDescriptor(
@@ -116,7 +121,7 @@ var networkTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
-		[]string{"network", "directs"},
+		[]string{networkNetworkKey, networkDirectsKey},
 		[]string{"direct rooms", "restricted network rooms"},
 	),
 	nativeDescriptor(
@@ -132,7 +137,7 @@ var networkTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
-		[]string{"network", "directs", "resolve"},
+		[]string{networkNetworkKey, networkDirectsKey, "resolve"},
 		[]string{"resolve direct room", "open restricted room"},
 	),
 	nativeDescriptor(
@@ -148,7 +153,7 @@ var networkTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
-		[]string{"network", "directs", "messages"},
+		[]string{networkNetworkKey, networkDirectsKey, "messages"},
 		[]string{"direct messages", "restricted room timeline"},
 	),
 	nativeDescriptor(
@@ -162,7 +167,7 @@ var networkTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
-		[]string{"network", "work"},
+		[]string{networkNetworkKey, "work"},
 		[]string{"network work", "work lifecycle"},
 	),
 }

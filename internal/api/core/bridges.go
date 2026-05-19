@@ -20,6 +20,10 @@ import (
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
+const (
+	bridgesErrorKey = "error"
+)
+
 var errBridgeServiceUnavailable = errors.New("bridge service is not configured")
 
 type taskNotificationCursorReader interface {
@@ -300,7 +304,7 @@ func (h *BaseHandlers) StreamBridgeHealth(c *gin.Context) {
 
 	if err := h.writeBridgeHealthSnapshot(writer, snapshot); err != nil {
 		if h.Logger != nil {
-			h.Logger.Warn("api: failed to emit initial bridge health snapshot", "error", err)
+			h.Logger.Warn("api: failed to emit initial bridge health snapshot", bridgesErrorKey, err)
 		}
 		return
 	}
@@ -319,7 +323,7 @@ func (h *BaseHandlers) StreamBridgeHealth(c *gin.Context) {
 			nextSnapshot, pollErr := h.bridgeHealthStreamSnapshot(c.Request.Context(), query)
 			if pollErr != nil {
 				h.writeSSEBestEffort(writer, SSEMessage{
-					Name: "error",
+					Name: bridgesErrorKey,
 					Data: contract.ErrorPayload{Error: pollErr.Error()},
 				})
 				return
@@ -329,7 +333,7 @@ func (h *BaseHandlers) StreamBridgeHealth(c *gin.Context) {
 			}
 			if err := h.writeBridgeHealthSnapshot(writer, nextSnapshot); err != nil {
 				if h.Logger != nil {
-					h.Logger.Warn("api: failed to emit bridge health snapshot", "error", err)
+					h.Logger.Warn("api: failed to emit bridge health snapshot", bridgesErrorKey, err)
 				}
 				return
 			}
@@ -885,7 +889,7 @@ func (h *BaseHandlers) respondBridge(c *gin.Context, status int, instance bridge
 				strings.TrimSpace(instance.ID),
 				"status",
 				status,
-				"error",
+				bridgesErrorKey,
 				err,
 			)
 		}

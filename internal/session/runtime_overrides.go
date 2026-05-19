@@ -6,8 +6,12 @@ import (
 	"strings"
 )
 
+const (
+	runtimeOverridesHighKey = "high"
+)
+
 // SupportedReasoningEfforts is the canonical ordered enum accepted by session creation.
-var SupportedReasoningEfforts = []string{"minimal", "low", "medium", "high", "xhigh"}
+var SupportedReasoningEfforts = []string{"minimal", "low", "medium", runtimeOverridesHighKey, "xhigh"}
 
 // IsSupportedReasoningEffort reports whether value is an accepted reasoning effort.
 func IsSupportedReasoningEffort(value string) bool {

@@ -24,6 +24,18 @@ import (
 )
 
 const (
+	providerMessageCreateValue      = "MESSAGE_CREATE"
+	providerMessageReactionAddValue = "MESSAGE_REACTION_ADD"
+	providerChannelIDKey            = "channel_id"
+	providerChannelTypeKey          = "channel_type"
+	providerDiscordKey              = "discord"
+	providerGuildIDKey              = "guild_id"
+	providerMessageIDKey            = "message_id"
+	providerParentIDKey             = "parent_id"
+	providerTypeKey                 = "type"
+)
+
+const (
 	discordListenAddrEnv = "AGH_BRIDGE_DISCORD_LISTEN_ADDR"
 	discordAPIBaseEnv    = "AGH_BRIDGE_DISCORD_API_BASE_URL"
 
@@ -303,7 +315,7 @@ func newDiscordProvider(stderr io.Writer) (*discordProvider, error) {
 
 	sdkRuntime, err := bridgesdk.NewRuntime(bridgesdk.RuntimeConfig{
 		ExtensionInfo: subprocess.InitializeExtensionInfo{
-			Name:    "discord",
+			Name:    providerDiscordKey,
 			Version: "0.1.0",
 			SDKName: "bridgesdk",
 		},
@@ -1117,9 +1129,9 @@ func (p *discordProvider) handleEventWebhook(
 	}
 
 	switch strings.TrimSpace(envelope.Event.Type) {
-	case "MESSAGE_CREATE":
+	case providerMessageCreateValue:
 		return p.handleDiscordMessageWebhookEvent(ctx, w, cfg, request, envelope)
-	case "MESSAGE_REACTION_ADD", "MESSAGE_REACTION_REMOVE":
+	case providerMessageReactionAddValue, "MESSAGE_REACTION_REMOVE":
 		return p.handleDiscordReactionWebhookEvent(ctx, w, cfg, request, envelope)
 	default:
 		return writeWebhookNoContent(w)
@@ -1585,12 +1597,12 @@ func mapDiscordMessageEvent(
 		ThreadID: threadID,
 	}
 	metadata, err := json.Marshal(map[string]any{
-		"channel_id":   strings.TrimSpace(event.ChannelID),
-		"channel_type": event.ChannelType,
-		"event_id":     strings.TrimSpace(eventID),
-		"guild_id":     strings.TrimSpace(event.GuildID),
-		"message_id":   strings.TrimSpace(event.ID),
-		"parent_id":    strings.TrimSpace(event.ParentID),
+		providerChannelIDKey:   strings.TrimSpace(event.ChannelID),
+		providerChannelTypeKey: event.ChannelType,
+		"event_id":             strings.TrimSpace(eventID),
+		providerGuildIDKey:     strings.TrimSpace(event.GuildID),
+		providerMessageIDKey:   strings.TrimSpace(event.ID),
+		providerParentIDKey:    strings.TrimSpace(event.ParentID),
 	})
 	if err == nil {
 		envelope.ProviderMetadata = metadata
@@ -1646,12 +1658,12 @@ func mapDiscordInteractionCommand(
 		IdempotencyKey: strings.TrimSpace(interaction.ID),
 	}
 	metadata, err := json.Marshal(map[string]any{
-		"application_id": strings.TrimSpace(interaction.ApplicationID),
-		"channel_id":     firstNonEmpty(interaction.ChannelID, channelIDFromInteraction(interaction.Channel)),
-		"channel_type":   channelTypeFromInteraction(interaction.Channel),
-		"guild_id":       strings.TrimSpace(interaction.GuildID),
-		"interaction_id": strings.TrimSpace(interaction.ID),
-		"kind":           "application_command",
+		"application_id":       strings.TrimSpace(interaction.ApplicationID),
+		providerChannelIDKey:   firstNonEmpty(interaction.ChannelID, channelIDFromInteraction(interaction.Channel)),
+		providerChannelTypeKey: channelTypeFromInteraction(interaction.Channel),
+		providerGuildIDKey:     strings.TrimSpace(interaction.GuildID),
+		"interaction_id":       strings.TrimSpace(interaction.ID),
+		"kind":                 "application_command",
 	})
 	if err == nil {
 		envelope.ProviderMetadata = metadata
@@ -1714,13 +1726,13 @@ func mapDiscordInteractionAction(
 		IdempotencyKey: strings.TrimSpace(interaction.ID),
 	}
 	metadata, err := json.Marshal(map[string]any{
-		"application_id": strings.TrimSpace(interaction.ApplicationID),
-		"channel_id":     firstNonEmpty(interaction.ChannelID, channelIDFromInteraction(interaction.Channel)),
-		"channel_type":   channelTypeFromInteraction(interaction.Channel),
-		"component_type": interaction.Data.ComponentType,
-		"guild_id":       strings.TrimSpace(interaction.GuildID),
-		"interaction_id": strings.TrimSpace(interaction.ID),
-		"kind":           "message_component",
+		"application_id":       strings.TrimSpace(interaction.ApplicationID),
+		providerChannelIDKey:   firstNonEmpty(interaction.ChannelID, channelIDFromInteraction(interaction.Channel)),
+		providerChannelTypeKey: channelTypeFromInteraction(interaction.Channel),
+		"component_type":       interaction.Data.ComponentType,
+		providerGuildIDKey:     strings.TrimSpace(interaction.GuildID),
+		"interaction_id":       strings.TrimSpace(interaction.ID),
+		"kind":                 "message_component",
 	})
 	if err == nil {
 		envelope.ProviderMetadata = metadata
@@ -1782,7 +1794,7 @@ func mapDiscordReactionEvent(
 			MessageID: strings.TrimSpace(event.MessageID),
 			Emoji:     normalizeDiscordEmoji(event.Emoji),
 			RawEmoji:  rawDiscordEmoji(event.Emoji),
-			Added:     strings.TrimSpace(eventType) == "MESSAGE_REACTION_ADD",
+			Added:     strings.TrimSpace(eventType) == providerMessageReactionAddValue,
 		},
 		IdempotencyKey: firstNonEmpty(
 			strings.TrimSpace(eventID),
@@ -1797,12 +1809,12 @@ func mapDiscordReactionEvent(
 		),
 	}
 	metadata, err := json.Marshal(map[string]any{
-		"channel_id":   strings.TrimSpace(event.ChannelID),
-		"channel_type": event.ChannelType,
-		"event_id":     strings.TrimSpace(eventID),
-		"event_type":   strings.TrimSpace(eventType),
-		"guild_id":     strings.TrimSpace(event.GuildID),
-		"parent_id":    strings.TrimSpace(event.ParentID),
+		providerChannelIDKey:   strings.TrimSpace(event.ChannelID),
+		providerChannelTypeKey: event.ChannelType,
+		"event_id":             strings.TrimSpace(eventID),
+		"event_type":           strings.TrimSpace(eventType),
+		providerGuildIDKey:     strings.TrimSpace(event.GuildID),
+		providerParentIDKey:    strings.TrimSpace(event.ParentID),
 	})
 	if err == nil {
 		envelope.ProviderMetadata = metadata
@@ -2248,7 +2260,7 @@ func parseDiscordReceivedAt(value string, fallback time.Time) time.Time {
 func writeDiscordInteractionResponse(w http.ResponseWriter, responseType int) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	return json.NewEncoder(w).Encode(map[string]int{"type": responseType})
+	return json.NewEncoder(w).Encode(map[string]int{providerTypeKey: responseType})
 }
 
 func writeWebhookNoContent(w http.ResponseWriter) error {

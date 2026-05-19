@@ -13,6 +13,10 @@ import (
 	"github.com/pedronauck/agh/internal/memory"
 )
 
+const (
+	handlersLocalhostKey = "localhost"
+)
+
 type handlerConfig struct {
 	sessions          core.SessionManager
 	tasks             core.TaskService
@@ -88,7 +92,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 		boundHost = strings.TrimSpace(cfg.config.HTTP.Host)
 	}
 	if boundHost == "" {
-		boundHost = "localhost"
+		boundHost = handlersLocalhostKey
 	}
 
 	return &Handlers{

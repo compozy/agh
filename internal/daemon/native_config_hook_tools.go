@@ -14,6 +14,24 @@ import (
 	toolspkg "github.com/pedronauck/agh/internal/tools"
 )
 
+const (
+	nativeConfigHookToolsDeclarationsKey  = "declarations"
+	nativeConfigHookToolsDeletedKey       = "deleted"
+	nativeConfigHookToolsDiffKey          = "diff"
+	nativeConfigHookToolsEventsKey        = "events"
+	nativeConfigHookToolsHookKey          = "hook"
+	nativeConfigHookToolsHooksKey         = "hooks"
+	nativeConfigHookToolsNameKey          = "name"
+	nativeConfigHookToolsPathKey          = "path"
+	nativeConfigHookToolsRedactedKey      = "redacted"
+	nativeConfigHookToolsRunsKey          = "runs"
+	nativeConfigHookToolsScopeKey         = "scope"
+	nativeConfigHookToolsTargetKey        = "target"
+	nativeConfigHookToolsTokenKey         = "token"
+	nativeConfigHookToolsValueKey         = "value"
+	nativeConfigHookToolsWorkspaceRootKey = "workspace_root"
+)
+
 const hookActionDisabled = "disabled"
 
 func (n *daemonNativeTools) configShow(
@@ -31,10 +49,10 @@ func (n *daemonNativeTools) configShow(
 	}
 	configMap := aghconfig.RedactedConfigMap(&cfg)
 	return structuredResult(map[string]any{
-		"scope":          nativeScopeForWorkspace(workspaceRoot),
-		"workspace_root": workspaceRoot,
-		"redacted":       true,
-		"config":         configMap,
+		nativeConfigHookToolsScopeKey:         nativeScopeForWorkspace(workspaceRoot),
+		nativeConfigHookToolsWorkspaceRootKey: workspaceRoot,
+		nativeConfigHookToolsRedactedKey:      true,
+		"config":                              configMap,
 	}, "config")
 }
 
@@ -53,10 +71,10 @@ func (n *daemonNativeTools) configList(
 	}
 	entries := aghconfig.FlattenConfigEntries(aghconfig.RedactedConfigMap(&cfg))
 	return structuredResult(map[string]any{
-		"scope":          nativeScopeForWorkspace(workspaceRoot),
-		"workspace_root": workspaceRoot,
-		"redacted":       true,
-		"entries":        entries,
+		nativeConfigHookToolsScopeKey:         nativeScopeForWorkspace(workspaceRoot),
+		nativeConfigHookToolsWorkspaceRootKey: workspaceRoot,
+		nativeConfigHookToolsRedactedKey:      true,
+		"entries":                             entries,
 	}, fmt.Sprintf("%d config entries", len(entries)))
 }
 
@@ -85,9 +103,9 @@ func (n *daemonNativeTools) configGet(
 		)
 	}
 	return structuredResult(map[string]any{
-		"scope":          nativeScopeForWorkspace(workspaceRoot),
-		"workspace_root": workspaceRoot,
-		"entry":          entry,
+		nativeConfigHookToolsScopeKey:         nativeScopeForWorkspace(workspaceRoot),
+		nativeConfigHookToolsWorkspaceRootKey: workspaceRoot,
+		"entry":                               entry,
 	}, entry.Path)
 }
 
@@ -134,11 +152,11 @@ func (n *daemonNativeTools) configSet(
 	}
 	path := strings.Join(policy.Segments, ".")
 	return structuredResult(map[string]any{
-		"path":     path,
-		"value":    outputValue,
-		"scope":    string(target.Scope()),
-		"target":   target.Path(),
-		"redacted": policy.Redacted,
+		nativeConfigHookToolsPathKey:     path,
+		nativeConfigHookToolsValueKey:    outputValue,
+		nativeConfigHookToolsScopeKey:    string(target.Scope()),
+		nativeConfigHookToolsTargetKey:   target.Path(),
+		nativeConfigHookToolsRedactedKey: policy.Redacted,
 	}, path)
 }
 
@@ -173,10 +191,10 @@ func (n *daemonNativeTools) configUnset(
 	}
 	path := strings.Join(policy.Segments, ".")
 	return structuredResult(map[string]any{
-		"path":    path,
-		"deleted": deleted,
-		"scope":   string(target.Scope()),
-		"target":  target.Path(),
+		nativeConfigHookToolsPathKey:    path,
+		nativeConfigHookToolsDeletedKey: deleted,
+		nativeConfigHookToolsScopeKey:   string(target.Scope()),
+		nativeConfigHookToolsTargetKey:  target.Path(),
 	}, path)
 }
 
@@ -214,10 +232,10 @@ func (n *daemonNativeTools) configDiff(
 	after := aghconfig.FlattenConfigEntries(aghconfig.RedactedConfigMap(&afterCfg))
 	diff := aghconfig.DiffConfigEntries(before, after)
 	return structuredResult(map[string]any{
-		"scope":          nativeScopeForWorkspace(workspaceRoot),
-		"workspace_root": workspaceRoot,
-		"redacted":       true,
-		"diff":           diff,
+		nativeConfigHookToolsScopeKey:         nativeScopeForWorkspace(workspaceRoot),
+		nativeConfigHookToolsWorkspaceRootKey: workspaceRoot,
+		nativeConfigHookToolsRedactedKey:      true,
+		nativeConfigHookToolsDiffKey:          diff,
 	}, fmt.Sprintf("%d config differences", len(diff)))
 }
 
@@ -244,11 +262,11 @@ func (n *daemonNativeTools) configPath(
 	}
 	selected := globalConfig
 	record := map[string]any{
-		"home_dir":               n.deps.HomePaths.HomeDir,
-		"global_config":          globalConfig.Path(),
-		"global_mcp_json":        globalMCP.Path(),
-		"scope":                  string(scope),
-		"selected_config_target": selected.Path(),
+		"home_dir":                    n.deps.HomePaths.HomeDir,
+		"global_config":               globalConfig.Path(),
+		"global_mcp_json":             globalMCP.Path(),
+		nativeConfigHookToolsScopeKey: string(scope),
+		"selected_config_target":      selected.Path(),
 	}
 	if scope == aghconfig.WriteScopeWorkspace || strings.TrimSpace(input.WorkspaceRoot) != "" {
 		workspaceRoot, err := nativeRequiredWorkspaceRoot(input.WorkspaceRoot)
@@ -271,7 +289,7 @@ func (n *daemonNativeTools) configPath(
 		if err != nil {
 			return toolspkg.ToolResult{}, nativeConfigScopeError(req.ToolID, err)
 		}
-		record["workspace_root"] = workspaceRoot
+		record[nativeConfigHookToolsWorkspaceRootKey] = workspaceRoot
 		record["workspace_config"] = workspaceConfig.Path()
 		record["workspace_mcp_json"] = workspaceMCP.Path()
 		if scope == aghconfig.WriteScopeWorkspace {
@@ -300,7 +318,10 @@ func (n *daemonNativeTools) hooksList(
 		return toolspkg.ToolResult{}, err
 	}
 	payload := core.HookCatalogPayloadsFromEntries(entries)
-	return structuredResult(map[string]any{"hooks": payload}, fmt.Sprintf("%d hooks", len(payload)))
+	return structuredResult(
+		map[string]any{nativeConfigHookToolsHooksKey: payload},
+		fmt.Sprintf("%d hooks", len(payload)),
+	)
 }
 
 func (n *daemonNativeTools) hooksInfo(
@@ -323,7 +344,7 @@ func (n *daemonNativeTools) hooksInfo(
 	name := strings.TrimSpace(input.Name)
 	for _, entry := range core.HookCatalogPayloadsFromEntries(entries) {
 		if entry.Name == name {
-			return structuredResult(map[string]any{"hook": entry}, entry.Name)
+			return structuredResult(map[string]any{nativeConfigHookToolsHookKey: entry}, entry.Name)
 		}
 	}
 	return toolspkg.ToolResult{}, toolspkg.NewToolError(
@@ -356,7 +377,10 @@ func (n *daemonNativeTools) hooksEvents(
 		return toolspkg.ToolResult{}, err
 	}
 	payload := core.HookEventPayloadsFromDescriptors(events)
-	return structuredResult(map[string]any{"events": payload}, fmt.Sprintf("%d hook events", len(payload)))
+	return structuredResult(
+		map[string]any{nativeConfigHookToolsEventsKey: payload},
+		fmt.Sprintf("%d hook events", len(payload)),
+	)
 }
 
 func (n *daemonNativeTools) hooksRuns(
@@ -388,7 +412,10 @@ func (n *daemonNativeTools) hooksRuns(
 		return toolspkg.ToolResult{}, err
 	}
 	payload := core.HookRunPayloadsFromRecords(runs)
-	return structuredResult(map[string]any{"runs": payload}, fmt.Sprintf("%d hook runs", len(payload)))
+	return structuredResult(
+		map[string]any{nativeConfigHookToolsRunsKey: payload},
+		fmt.Sprintf("%d hook runs", len(payload)),
+	)
 }
 
 func (n *daemonNativeTools) hooksCreate(
@@ -437,8 +464,8 @@ func (n *daemonNativeTools) hooksCreate(
 		target,
 		func(editor *aghconfig.OverlayEditor) error {
 			return editor.UpsertArrayTableItem(
-				[]string{"hooks", "declarations"},
-				"name",
+				[]string{nativeConfigHookToolsHooksKey, nativeConfigHookToolsDeclarationsKey},
+				nativeConfigHookToolsNameKey,
 				decl.Name,
 				aghconfig.HookDeclarationOverlayValues(decl),
 			)
@@ -498,8 +525,8 @@ func (n *daemonNativeTools) hooksUpdate(
 		target,
 		func(editor *aghconfig.OverlayEditor) error {
 			return editor.UpsertArrayTableItem(
-				[]string{"hooks", "declarations"},
-				"name",
+				[]string{nativeConfigHookToolsHooksKey, nativeConfigHookToolsDeclarationsKey},
+				nativeConfigHookToolsNameKey,
 				decl.Name,
 				aghconfig.HookDeclarationOverlayValues(decl),
 			)
@@ -532,10 +559,10 @@ func (n *daemonNativeTools) hooksDelete(
 		return toolspkg.ToolResult{}, nativeHookNotFoundError(req.ToolID, input.Name)
 	}
 	return structuredResult(map[string]any{
-		"name":   strings.TrimSpace(input.Name),
-		"action": "deleted",
-		"scope":  string(target.Scope()),
-		"target": target.Path(),
+		nativeConfigHookToolsNameKey:   strings.TrimSpace(input.Name),
+		"action":                       nativeConfigHookToolsDeletedKey,
+		nativeConfigHookToolsScopeKey:  string(target.Scope()),
+		nativeConfigHookToolsTargetKey: target.Path(),
 	}, strings.TrimSpace(input.Name))
 }
 
@@ -765,7 +792,11 @@ func (n *daemonNativeTools) deleteHookDeclaration(
 		target,
 		func(editor *aghconfig.OverlayEditor) error {
 			var err error
-			deleted, err = editor.DeleteArrayTableItem([]string{"hooks", "declarations"}, "name", name)
+			deleted, err = editor.DeleteArrayTableItem(
+				[]string{nativeConfigHookToolsHooksKey, nativeConfigHookToolsDeclarationsKey},
+				nativeConfigHookToolsNameKey,
+				name,
+			)
 			return err
 		},
 	); err != nil {
@@ -820,8 +851,8 @@ func (n *daemonNativeTools) setHookEnabled(
 		target,
 		func(editor *aghconfig.OverlayEditor) error {
 			return editor.UpsertArrayTableItem(
-				[]string{"hooks", "declarations"},
-				"name",
+				[]string{nativeConfigHookToolsHooksKey, nativeConfigHookToolsDeclarationsKey},
+				nativeConfigHookToolsNameKey,
 				decl.Name,
 				aghconfig.HookDeclarationOverlayValues(decl),
 			)
@@ -909,28 +940,28 @@ func nativeHookMutationResult(
 	target aghconfig.WriteTarget,
 ) (toolspkg.ToolResult, error) {
 	return structuredResult(map[string]any{
-		"name":   decl.Name,
-		"action": action,
-		"scope":  string(target.Scope()),
-		"target": target.Path(),
-		"hook":   nativeHookDeclPayload(decl),
+		nativeConfigHookToolsNameKey:   decl.Name,
+		"action":                       action,
+		nativeConfigHookToolsScopeKey:  string(target.Scope()),
+		nativeConfigHookToolsTargetKey: target.Path(),
+		nativeConfigHookToolsHookKey:   nativeHookDeclPayload(decl),
 	}, decl.Name)
 }
 
 func nativeHookDeclPayload(decl hookspkg.HookDecl) map[string]any {
 	payload := map[string]any{
-		"name":          decl.Name,
-		"event":         decl.Event.String(),
-		"source":        decl.Source.String(),
-		"mode":          string(decl.Mode),
-		"required":      decl.Required,
-		"priority":      decl.Priority,
-		"executor_kind": string(decl.ExecutorKind),
-		"command":       decl.Command,
-		"args":          append([]string(nil), decl.Args...),
-		"env":           cloneStringMap(decl.Env),
-		"secret_env":    cloneStringMap(decl.SecretEnv),
-		"matcher":       decl.Matcher,
+		nativeConfigHookToolsNameKey: decl.Name,
+		"event":                      decl.Event.String(),
+		"source":                     decl.Source.String(),
+		"mode":                       string(decl.Mode),
+		"required":                   decl.Required,
+		"priority":                   decl.Priority,
+		"executor_kind":              string(decl.ExecutorKind),
+		"command":                    decl.Command,
+		"args":                       append([]string(nil), decl.Args...),
+		"env":                        cloneStringMap(decl.Env),
+		"secret_env":                 cloneStringMap(decl.SecretEnv),
+		"matcher":                    decl.Matcher,
 	}
 	if decl.Enabled != nil {
 		payload["enabled"] = *decl.Enabled
@@ -974,7 +1005,15 @@ func secretLikeText(value string) bool {
 	if lower == "" {
 		return false
 	}
-	needles := []string{"secret", "token", "password", "api_key", "apikey", "authorization", "bearer"}
+	needles := []string{
+		"secret",
+		nativeConfigHookToolsTokenKey,
+		"password",
+		"api_key",
+		"apikey",
+		"authorization",
+		"bearer",
+	}
 	for _, needle := range needles {
 		if strings.Contains(lower, needle) {
 			return true

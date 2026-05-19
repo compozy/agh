@@ -61,7 +61,7 @@ const defaultArtifactSlug = "run"
 var artifactSpecs = map[ArtifactKind]artifactSpec{
 	ArtifactKindTranscript:           {relativePath: "transcript.json"},
 	ArtifactKindEvents:               {relativePath: "events.json"},
-	ArtifactKindTransportOutputs:     {relativePath: "transport_outputs", isDir: true},
+	ArtifactKindTransportOutputs:     {relativePath: string(ArtifactKindTransportOutputs), isDir: true},
 	ArtifactKindNetworkMessages:      {relativePath: "network_messages.json"},
 	ArtifactKindNetworkThreads:       {relativePath: "network_threads.json"},
 	ArtifactKindNetworkDirectRooms:   {relativePath: "network_direct_rooms.json"},

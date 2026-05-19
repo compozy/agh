@@ -15,6 +15,12 @@ import (
 	"github.com/pedronauck/agh/internal/tools"
 )
 
+const (
+	hostedProxyAudioKey = "audio"
+	hostedProxyImageKey = "image"
+	hostedProxyTextKey  = "text"
+)
+
 // HostedProjectionHandler receives projection snapshots from the daemon stream.
 type HostedProjectionHandler func(HostedProjectionResponse) error
 
@@ -268,16 +274,16 @@ func hostedToolResultIsError(result tools.ToolResult) (bool, error) {
 
 func hostedToolContent(block tools.ToolContent) (sdkmcp.Content, error) {
 	switch strings.TrimSpace(block.Type) {
-	case "text":
+	case hostedProxyTextKey:
 		return sdkmcp.NewTextContent(block.Text), nil
-	case "image":
-		data, err := hostedToolContentData(block, "image")
+	case hostedProxyImageKey:
+		data, err := hostedToolContentData(block, hostedProxyImageKey)
 		if err != nil {
 			return nil, err
 		}
 		return sdkmcp.NewImageContent(data, block.MIMEType), nil
-	case "audio":
-		data, err := hostedToolContentData(block, "audio")
+	case hostedProxyAudioKey:
+		data, err := hostedToolContentData(block, hostedProxyAudioKey)
 		if err != nil {
 			return nil, err
 		}
@@ -326,8 +332,7 @@ func hostedToolErrorMessage(err error) string {
 	if err == nil {
 		return ""
 	}
-	var toolErr *tools.ToolError
-	if errors.As(err, &toolErr) {
+	if toolErr, ok := errors.AsType[*tools.ToolError](err); ok {
 		if len(toolErr.ReasonCodes) > 0 {
 			return string(toolErr.ReasonCodes[0]) + ": " + toolErr.Error()
 		}

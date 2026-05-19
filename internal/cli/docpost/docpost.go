@@ -19,6 +19,14 @@ import (
 	"strings"
 )
 
+const (
+	docpostAghKey       = "agh"
+	docpostAghMDXPath   = "agh.mdx"
+	docpostIndexKey     = "index"
+	docpostIndexMDXPath = "index.mdx"
+	docpostMetaJSONPath = "meta.json"
+)
+
 // linkBasePath is the URL prefix the site router mounts the CLI reference at.
 // We rewrite inter-command links to use absolute paths under this prefix so
 // they resolve the same regardless of which nested page they live on.
@@ -134,11 +142,11 @@ func isManagedOutputDir(dstDir string) (bool, error) {
 		}
 
 		switch entry.Name() {
-		case "index.mdx":
+		case docpostIndexMDXPath:
 			hasEditorialIndex = true
-		case "meta.json":
+		case docpostMetaJSONPath:
 			hasEditorialMeta = true
-		case "agh.mdx":
+		case docpostAghMDXPath:
 			hasGeneratedRoot = true
 		default:
 			if strings.HasSuffix(entry.Name(), ".mdx") {
@@ -226,7 +234,7 @@ func readInput(ctx context.Context, srcDir string, entry fs.DirEntry) (input, bo
 }
 
 func commandSegments(fileName string, base string) ([]string, error) {
-	if base == "agh" {
+	if base == docpostAghKey {
 		return nil, nil
 	}
 	if !strings.HasPrefix(base, "agh_") {
@@ -262,7 +270,7 @@ func computeHasChildren(inputs []input) map[string]bool {
 // forward slashes.
 func outPath(in input, hasChildren map[string]bool) string {
 	if len(in.segments) == 0 {
-		return "agh.mdx"
+		return docpostAghMDXPath
 	}
 	if hasChildren[in.baseName] {
 		return path.Join(in.segments...) + "/index.mdx"
@@ -330,7 +338,7 @@ func cleanOutput(ctx context.Context, dstDir string) error {
 		return fmt.Errorf("docpost: read output dir %s: %w", dstDir, err)
 	}
 	for _, e := range entries {
-		if e.Name() == "index.mdx" || e.Name() == "meta.json" {
+		if e.Name() == docpostIndexMDXPath || e.Name() == docpostMetaJSONPath {
 			continue
 		}
 		target := filepath.Join(dstDir, e.Name())
@@ -389,7 +397,7 @@ func writeDirMeta(ctx context.Context, dir string) error {
 			continue
 		}
 		base := strings.TrimSuffix(name, ".mdx")
-		if base == "index" {
+		if base == docpostIndexKey {
 			hasIndex = true
 			continue
 		}
@@ -400,7 +408,7 @@ func writeDirMeta(ctx context.Context, dir string) error {
 
 	pages := make([]string, 0, 1+len(files)+len(subdirs))
 	if hasIndex {
-		pages = append(pages, "index")
+		pages = append(pages, docpostIndexKey)
 	}
 	pages = append(pages, files...)
 	pages = append(pages, subdirs...)
@@ -416,7 +424,7 @@ func writeDirMeta(ctx context.Context, dir string) error {
 	if err != nil {
 		return fmt.Errorf("docpost: marshal meta for %s: %w", dir, err)
 	}
-	metaPath := filepath.Join(dir, "meta.json")
+	metaPath := filepath.Join(dir, docpostMetaJSONPath)
 	if err := os.WriteFile(metaPath, append(data, '\n'), 0o600); err != nil {
 		return fmt.Errorf("docpost: write %s: %w", metaPath, err)
 	}

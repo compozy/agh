@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -18,6 +19,11 @@ import (
 	"github.com/pedronauck/agh/internal/sandbox"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/toolruntime"
+)
+
+const (
+	clientAgentWaitingKey = "agent_waiting"
+	clientDefaultKey      = "default"
 )
 
 const (
@@ -651,7 +657,7 @@ func preferredSessionMode(
 
 func permissionGatewayModeCandidates() []string {
 	return []string{
-		"default",
+		clientDefaultKey,
 		"ask",
 	}
 }
@@ -1039,8 +1045,7 @@ func shouldSuppressPromptErrorOnStop(err error) bool {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return true
 	}
-	var reqErr *acpsdk.RequestError
-	if errors.As(err, &reqErr) {
+	if reqErr, ok := errors.AsType[*acpsdk.RequestError](err); ok {
 		text := strings.ToLower(strings.TrimSpace(requestErrorDiagnosticText(reqErr)))
 		if strings.Contains(text, "context canceled") ||
 			strings.Contains(text, "context deadline exceeded") ||
@@ -1065,7 +1070,7 @@ func startPromptActivityReporter(ctx context.Context, req PromptRequest) func() 
 	report := func(ts time.Time) {
 		req.ActivityReporter(PromptActivityReport{
 			Timestamp: ts,
-			Kind:      "agent_waiting",
+			Kind:      clientAgentWaitingKey,
 			Detail:    "waiting for session/prompt response",
 		})
 	}
@@ -1242,8 +1247,7 @@ func prependPathEntry(pathValue string, entry string) string {
 
 func envValue(env []string, key string) (string, bool) {
 	prefix := key + "="
-	for i := len(env) - 1; i >= 0; i-- {
-		variable := env[i]
+	for _, variable := range slices.Backward(env) {
 		if strings.HasPrefix(variable, prefix) {
 			return variable[len(prefix):], true
 		}

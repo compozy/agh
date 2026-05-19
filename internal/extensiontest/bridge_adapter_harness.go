@@ -33,6 +33,12 @@ import (
 )
 
 const (
+	bridgeAdapterHarnessBrgTelegramReferenceValue = "brg-telegram-reference"
+	bridgeAdapterHarnessCoderKey                  = "coder"
+	bridgeAdapterHarnessHelloKey                  = "hello"
+)
+
+const (
 	EnvHandshakePath = "AGH_BRIDGE_ADAPTER_HANDSHAKE_PATH"
 	EnvOwnershipPath = "AGH_BRIDGE_ADAPTER_OWNERSHIP_PATH"
 	EnvStatePath     = "AGH_BRIDGE_ADAPTER_STATE_PATH"
@@ -1065,7 +1071,7 @@ func createHarnessManagedInstances(
 			routingPolicy = bridgepkg.RoutingPolicy{IncludePeer: true}
 		}
 		managedConfigs = []ManagedInstanceConfig{{
-			ID:            "brg-telegram-reference",
+			ID:            bridgeAdapterHarnessBrgTelegramReferenceValue,
 			DisplayName:   firstNonEmpty(cfg.DisplayName, "Telegram Reference"),
 			RoutingPolicy: routingPolicy,
 			BoundSecrets:  cloneBoundSecrets(cfg.BoundSecrets),
@@ -1267,7 +1273,7 @@ func harnessDriver(cfg HarnessConfig, now time.Time) session.AgentDriver {
 		return cfg.Driver
 	}
 	return NewScriptedPromptDriver(now, []ScriptedPromptEvent{
-		{Type: acp.EventTypeAgentMessage, Text: "hello"},
+		{Type: acp.EventTypeAgentMessage, Text: bridgeAdapterHarnessHelloKey},
 		{Type: acp.EventTypeDone},
 	})
 }
@@ -1565,19 +1571,19 @@ func defaultResolvedWorkspace(root string, now time.Time) workspacepkg.ResolvedW
 			ID:           "ws-bridge-adapter",
 			RootDir:      root,
 			Name:         "bridge-adapter-workspace",
-			DefaultAgent: "coder",
+			DefaultAgent: bridgeAdapterHarnessCoderKey,
 			CreatedAt:    now,
 			UpdatedAt:    now,
 		},
 		Config: aghconfig.Config{
-			Defaults: aghconfig.DefaultsConfig{Agent: "coder"},
+			Defaults: aghconfig.DefaultsConfig{Agent: bridgeAdapterHarnessCoderKey},
 			Providers: map[string]aghconfig.ProviderConfig{
 				"fake": {Command: "fake-agent"},
 			},
 			Permissions: aghconfig.PermissionsConfig{Mode: aghconfig.PermissionModeApproveAll},
 		},
 		Agents: []aghconfig.AgentDef{{
-			Name:        "coder",
+			Name:        bridgeAdapterHarnessCoderKey,
 			Provider:    "fake",
 			Permissions: string(aghconfig.PermissionModeApproveAll),
 			Prompt:      "You are a reliable coder.",

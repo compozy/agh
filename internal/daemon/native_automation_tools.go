@@ -13,6 +13,13 @@ import (
 	toolspkg "github.com/pedronauck/agh/internal/tools"
 )
 
+const (
+	nativeAutomationToolsDeletedKey = "deleted"
+	nativeAutomationToolsJobKey     = "job"
+	nativeAutomationToolsRunsKey    = "runs"
+	nativeAutomationToolsTriggerKey = "trigger"
+)
+
 func (n *daemonNativeTools) automationToolBindings(
 	availability toolspkg.NativeAvailabilityFunc,
 ) map[toolspkg.ToolID]nativeToolBinding {
@@ -141,7 +148,7 @@ func (n *daemonNativeTools) automationJobsGet(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{"job": payload}, payload.ID)
+	return structuredResult(map[string]any{nativeAutomationToolsJobKey: payload}, payload.ID)
 }
 
 func (n *daemonNativeTools) automationJobsCreate(
@@ -154,7 +161,7 @@ func (n *daemonNativeTools) automationJobsCreate(
 		return toolspkg.ToolResult{}, err
 	}
 	job := core.AutomationJobFromCreateRequest(input.request())
-	if err := job.Validate("job"); err != nil {
+	if err := job.Validate(nativeAutomationToolsJobKey); err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationValidationError(req.ToolID, err)
 	}
 	created, err := n.automationManager().CreateJob(ctx, job)
@@ -162,7 +169,7 @@ func (n *daemonNativeTools) automationJobsCreate(
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	payload := n.automationJobPayloadBestEffort(ctx, created)
-	return structuredResult(map[string]any{"job": payload}, payload.ID)
+	return structuredResult(map[string]any{nativeAutomationToolsJobKey: payload}, payload.ID)
 }
 
 func (n *daemonNativeTools) automationJobsUpdate(
@@ -198,7 +205,7 @@ func (n *daemonNativeTools) automationJobsUpdate(
 		updated, err = n.automationManager().SetJobEnabled(ctx, current.ID, *patch.Enabled)
 	default:
 		next := core.ApplyAutomationJobPatch(current, patch)
-		if err := next.Validate("job"); err != nil {
+		if err := next.Validate(nativeAutomationToolsJobKey); err != nil {
 			return toolspkg.ToolResult{}, nativeAutomationValidationError(req.ToolID, err)
 		}
 		updated, err = n.automationManager().UpdateJob(ctx, next)
@@ -207,7 +214,7 @@ func (n *daemonNativeTools) automationJobsUpdate(
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	payload := n.automationJobPayloadBestEffort(ctx, updated)
-	return structuredResult(map[string]any{"job": payload}, payload.ID)
+	return structuredResult(map[string]any{nativeAutomationToolsJobKey: payload}, payload.ID)
 }
 
 func (n *daemonNativeTools) automationJobsDelete(
@@ -228,12 +235,17 @@ func (n *daemonNativeTools) automationJobsDelete(
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	if current.Source != automationpkg.JobSourceDynamic {
-		return toolspkg.ToolResult{}, nativeAutomationScopeError(req.ToolID, "job", current.ID, current.Source)
+		return toolspkg.ToolResult{}, nativeAutomationScopeError(
+			req.ToolID,
+			nativeAutomationToolsJobKey,
+			current.ID,
+			current.Source,
+		)
 	}
 	if err := n.automationManager().DeleteJob(ctx, current.ID); err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{"job_id": current.ID, "deleted": true}, current.ID)
+	return structuredResult(map[string]any{"job_id": current.ID, nativeAutomationToolsDeletedKey: true}, current.ID)
 }
 
 func (n *daemonNativeTools) automationJobsEnable(
@@ -338,7 +350,7 @@ func (n *daemonNativeTools) automationTriggersGet(
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	payload := core.TriggerPayloadFromTrigger(trigger)
-	return structuredResult(map[string]any{"trigger": payload}, payload.ID)
+	return structuredResult(map[string]any{nativeAutomationToolsTriggerKey: payload}, payload.ID)
 }
 
 func (n *daemonNativeTools) automationTriggersCreate(
@@ -356,7 +368,7 @@ func (n *daemonNativeTools) automationTriggersCreate(
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	payload := core.TriggerPayloadFromTrigger(created)
-	return structuredResult(map[string]any{"trigger": payload}, payload.ID)
+	return structuredResult(map[string]any{nativeAutomationToolsTriggerKey: payload}, payload.ID)
 }
 
 func (n *daemonNativeTools) automationTriggersUpdate(
@@ -398,7 +410,7 @@ func (n *daemonNativeTools) automationTriggersUpdate(
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	payload := core.TriggerPayloadFromTrigger(updated)
-	return structuredResult(map[string]any{"trigger": payload}, payload.ID)
+	return structuredResult(map[string]any{nativeAutomationToolsTriggerKey: payload}, payload.ID)
 }
 
 func (n *daemonNativeTools) automationTriggersDelete(
@@ -419,12 +431,17 @@ func (n *daemonNativeTools) automationTriggersDelete(
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	if current.Source != automationpkg.JobSourceDynamic {
-		return toolspkg.ToolResult{}, nativeAutomationScopeError(req.ToolID, "trigger", current.ID, current.Source)
+		return toolspkg.ToolResult{}, nativeAutomationScopeError(
+			req.ToolID,
+			nativeAutomationToolsTriggerKey,
+			current.ID,
+			current.Source,
+		)
 	}
 	if err := n.automationManager().DeleteTrigger(ctx, current.ID); err != nil {
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{"trigger_id": current.ID, "deleted": true}, current.ID)
+	return structuredResult(map[string]any{"trigger_id": current.ID, nativeAutomationToolsDeletedKey: true}, current.ID)
 }
 
 func (n *daemonNativeTools) automationTriggersEnable(
@@ -524,7 +541,7 @@ func (n *daemonNativeTools) automationSetJobEnabled(
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	payload := n.automationJobPayloadBestEffort(ctx, updated)
-	return structuredResult(map[string]any{"job": payload}, payload.ID)
+	return structuredResult(map[string]any{nativeAutomationToolsJobKey: payload}, payload.ID)
 }
 
 func (n *daemonNativeTools) automationSetTriggerEnabled(
@@ -545,7 +562,7 @@ func (n *daemonNativeTools) automationSetTriggerEnabled(
 		return toolspkg.ToolResult{}, nativeAutomationToolError(req.ToolID, err)
 	}
 	payload := core.TriggerPayloadFromTrigger(updated)
-	return structuredResult(map[string]any{"trigger": payload}, payload.ID)
+	return structuredResult(map[string]any{nativeAutomationToolsTriggerKey: payload}, payload.ID)
 }
 
 func (n *daemonNativeTools) automationRunsForQuery(
@@ -558,7 +575,10 @@ func (n *daemonNativeTools) automationRunsForQuery(
 		return toolspkg.ToolResult{}, nativeAutomationToolError(toolID, err)
 	}
 	payload := core.RunPayloadsFromRuns(runs)
-	return structuredResult(map[string]any{"runs": payload}, fmt.Sprintf("%d automation runs", len(payload)))
+	return structuredResult(
+		map[string]any{nativeAutomationToolsRunsKey: payload},
+		fmt.Sprintf("%d automation runs", len(payload)),
+	)
 }
 
 func (n *daemonNativeTools) automationJobPayloads(

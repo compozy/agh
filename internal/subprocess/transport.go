@@ -15,6 +15,11 @@ import (
 )
 
 const (
+	transportErrorKey  = "error"
+	transportMethodKey = "method"
+)
+
+const (
 	jsonRPCVersion = "2.0"
 
 	codeParseError       = -32700
@@ -324,7 +329,7 @@ func (t *transport) handleRequest(envelope rpcEnvelope) {
 	if !ok {
 		t.sendErrorOrFail(
 			id.raw,
-			NewRPCError(codeMethodNotFound, "Method not found", map[string]string{"method": envelope.Method}),
+			NewRPCError(codeMethodNotFound, "Method not found", map[string]string{transportMethodKey: envelope.Method}),
 			"subprocess: send method-not-found error",
 		)
 		return
@@ -333,14 +338,13 @@ func (t *transport) handleRequest(envelope rpcEnvelope) {
 	go func() {
 		result, callErr := handler(t.process.lifecycleCtx, envelope.Params)
 		if callErr != nil {
-			var rpcErr *RPCError
-			if errors.As(callErr, &rpcErr) {
+			if rpcErr, ok := errors.AsType[*RPCError](callErr); ok {
 				t.sendErrorOrFail(id.raw, rpcErr, "subprocess: send handler rpc error")
 				return
 			}
 			t.sendErrorOrFail(
 				id.raw,
-				NewRPCError(codeInternalError, "Internal error", map[string]string{"error": callErr.Error()}),
+				NewRPCError(codeInternalError, "Internal error", map[string]string{transportErrorKey: callErr.Error()}),
 				"subprocess: send internal error",
 			)
 			return

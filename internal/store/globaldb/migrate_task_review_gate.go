@@ -6,6 +6,25 @@ import (
 	"fmt"
 )
 
+const (
+	migrateTaskReviewGateContinuationReasonKey    = "continuation_reason"
+	migrateTaskReviewGateLastReviewIDKey          = "last_review_id"
+	migrateTaskReviewGateLastReviewOutcomeKey     = "last_review_outcome"
+	migrateTaskReviewGateMissingWorkJSONKey       = "missing_work_json"
+	migrateTaskReviewGateNextRoundGuidanceKey     = "next_round_guidance"
+	migrateTaskReviewGateParentRunIDKey           = "parent_run_id"
+	migrateTaskReviewGateReviewCircuitOpenedAtKey = "review_circuit_opened_at"
+	migrateTaskReviewGateReviewCircuitReasonKey   = "review_circuit_reason"
+	migrateTaskReviewGateReviewIDKey              = "review_id"
+	migrateTaskReviewGateReviewMaxRoundsKey       = "review_max_rounds"
+	migrateTaskReviewGateReviewPolicyKey          = "review_policy"
+	migrateTaskReviewGateReviewPolicySnapshotKey  = "review_policy_snapshot"
+	migrateTaskReviewGateReviewRequestIDKey       = "review_request_id"
+	migrateTaskReviewGateReviewRequestRoundKey    = "review_request_round"
+	migrateTaskReviewGateReviewRequiredKey        = "review_required"
+	migrateTaskReviewGateReviewRoundKey           = "review_round"
+)
+
 func migrateTaskReviewGateSchema(ctx context.Context, tx *sql.Tx) error {
 	if err := addMissingMigrationColumns(ctx, tx, "tasks", taskReviewGateTaskColumnSpecs()); err != nil {
 		return err
@@ -29,80 +48,86 @@ func migrateTaskReviewGateSchema(ctx context.Context, tx *sql.Tx) error {
 func taskReviewGateTaskColumnSpecs() []migrationColumnSpec {
 	return []migrationColumnSpec{
 		{
-			name: "review_policy",
+			name: migrateTaskReviewGateReviewPolicyKey,
 			sql: `ALTER TABLE tasks ADD COLUMN review_policy TEXT NOT NULL DEFAULT 'none' ` +
 				`CHECK (review_policy IN ('none', 'on_success', 'on_failure', 'always'))`,
 		},
 		{
-			name: "review_max_rounds",
+			name: migrateTaskReviewGateReviewMaxRoundsKey,
 			sql: `ALTER TABLE tasks ADD COLUMN review_max_rounds INTEGER NOT NULL DEFAULT 3 ` +
 				`CHECK (review_max_rounds >= 0)`,
 		},
 		{
-			name: "review_round",
+			name: migrateTaskReviewGateReviewRoundKey,
 			sql: `ALTER TABLE tasks ADD COLUMN review_round INTEGER NOT NULL DEFAULT 0 ` +
 				`CHECK (review_round >= 0)`,
 		},
-		{name: "last_review_id", sql: `ALTER TABLE tasks ADD COLUMN last_review_id TEXT`},
+		{name: migrateTaskReviewGateLastReviewIDKey, sql: `ALTER TABLE tasks ADD COLUMN last_review_id TEXT`},
 		{
-			name: "last_review_outcome",
+			name: migrateTaskReviewGateLastReviewOutcomeKey,
 			sql: `ALTER TABLE tasks ADD COLUMN last_review_outcome TEXT CHECK (
 				last_review_outcome IS NULL OR last_review_outcome IN (
 					'approved', 'rejected', 'blocked', 'error', 'timeout', 'invalid_output'
 				)
 			)`,
 		},
-		{name: "review_circuit_opened_at", sql: `ALTER TABLE tasks ADD COLUMN review_circuit_opened_at TEXT`},
-		{name: "review_circuit_reason", sql: `ALTER TABLE tasks ADD COLUMN review_circuit_reason TEXT`},
+		{
+			name: migrateTaskReviewGateReviewCircuitOpenedAtKey,
+			sql:  `ALTER TABLE tasks ADD COLUMN review_circuit_opened_at TEXT`,
+		},
+		{
+			name: migrateTaskReviewGateReviewCircuitReasonKey,
+			sql:  `ALTER TABLE tasks ADD COLUMN review_circuit_reason TEXT`,
+		},
 	}
 }
 
 func taskReviewGateRunColumnSpecs() []migrationColumnSpec {
 	return []migrationColumnSpec{
 		{
-			name: "review_required",
+			name: migrateTaskReviewGateReviewRequiredKey,
 			sql: `ALTER TABLE task_runs ADD COLUMN review_required BOOLEAN NOT NULL DEFAULT 0 ` +
 				`CHECK (review_required IN (0, 1))`,
 		},
 		{
-			name: "review_request_round",
+			name: migrateTaskReviewGateReviewRequestRoundKey,
 			sql: `ALTER TABLE task_runs ADD COLUMN review_request_round INTEGER NOT NULL DEFAULT 0 ` +
 				`CHECK (review_request_round >= 0)`,
 		},
 		{
-			name: "review_policy_snapshot",
+			name: migrateTaskReviewGateReviewPolicySnapshotKey,
 			sql: `ALTER TABLE task_runs ADD COLUMN review_policy_snapshot TEXT NOT NULL DEFAULT '' CHECK (
 				review_policy_snapshot = '' OR
 				review_policy_snapshot IN ('none', 'on_success', 'on_failure', 'always')
 			)`,
 		},
 		{
-			name: "review_request_id",
+			name: migrateTaskReviewGateReviewRequestIDKey,
 			sql:  `ALTER TABLE task_runs ADD COLUMN review_request_id TEXT REFERENCES task_run_reviews(review_id)`,
 		},
 		{
-			name: "parent_run_id",
+			name: migrateTaskReviewGateParentRunIDKey,
 			sql:  `ALTER TABLE task_runs ADD COLUMN parent_run_id TEXT REFERENCES task_runs(id)`,
 		},
 		{
-			name: "review_id",
+			name: migrateTaskReviewGateReviewIDKey,
 			sql:  `ALTER TABLE task_runs ADD COLUMN review_id TEXT REFERENCES task_run_reviews(review_id)`,
 		},
 		{
-			name: "review_round",
+			name: migrateTaskReviewGateReviewRoundKey,
 			sql: `ALTER TABLE task_runs ADD COLUMN review_round INTEGER NOT NULL DEFAULT 0 ` +
 				`CHECK (review_round >= 0)`,
 		},
 		{
-			name: "continuation_reason",
+			name: migrateTaskReviewGateContinuationReasonKey,
 			sql:  `ALTER TABLE task_runs ADD COLUMN continuation_reason TEXT NOT NULL DEFAULT ''`,
 		},
 		{
-			name: "missing_work_json",
+			name: migrateTaskReviewGateMissingWorkJSONKey,
 			sql:  `ALTER TABLE task_runs ADD COLUMN missing_work_json TEXT NOT NULL DEFAULT '[]'`,
 		},
 		{
-			name: "next_round_guidance",
+			name: migrateTaskReviewGateNextRoundGuidanceKey,
 			sql:  `ALTER TABLE task_runs ADD COLUMN next_round_guidance TEXT NOT NULL DEFAULT ''`,
 		},
 	}

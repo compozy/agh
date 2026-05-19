@@ -16,6 +16,14 @@ import (
 	"github.com/pedronauck/agh/internal/soul"
 )
 
+const (
+	taskRecoverySessionMissing = "missing"
+)
+
+const (
+	authoredContextRuntimeValidKey = "valid"
+)
+
 type authoredContextDeps struct {
 	SoulAuthoring      core.SoulAuthoringService
 	SoulRefresher      core.SoulRefresher
@@ -693,13 +701,13 @@ func dispatchHeartbeatPolicyResolved(
 func authoredValidationStatus(present bool, active bool, valid bool) string {
 	switch {
 	case !present:
-		return "missing"
+		return taskRecoverySessionMissing
 	case !valid:
 		return "invalid"
 	case !active:
 		return "inactive"
 	default:
-		return "valid"
+		return authoredContextRuntimeValidKey
 	}
 }
 

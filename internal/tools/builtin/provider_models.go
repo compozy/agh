@@ -2,6 +2,19 @@ package builtin
 
 import toolspkg "github.com/pedronauck/agh/internal/tools"
 
+const (
+	providerModelsProvidersKey = "providers"
+)
+
+const (
+	providerModelsModelsKey = "models"
+)
+
+const (
+	providerModelsCatalogKey = "catalog"
+	providerModelsStatusKey  = "status"
+)
+
 var providerModelTools = []toolspkg.Descriptor{
 	nativeDescriptor(
 		toolspkg.ToolIDProviderModelsList,
@@ -14,7 +27,7 @@ var providerModelTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDProviderModels},
-		[]string{"providers", "models", "catalog"},
+		[]string{providerModelsProvidersKey, providerModelsModelsKey, providerModelsCatalogKey},
 		[]string{"provider models", "model catalog", "list models"},
 	),
 	nativeDescriptor(
@@ -28,7 +41,7 @@ var providerModelTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDProviderModels},
-		[]string{"providers", "models", "catalog", "refresh"},
+		[]string{providerModelsProvidersKey, providerModelsModelsKey, providerModelsCatalogKey, "refresh"},
 		[]string{"refresh provider models", "refresh model catalog"},
 	),
 	nativeDescriptor(
@@ -42,7 +55,12 @@ var providerModelTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDProviderModels},
-		[]string{"providers", "models", "catalog", "status"},
+		[]string{
+			providerModelsProvidersKey,
+			providerModelsModelsKey,
+			providerModelsCatalogKey,
+			providerModelsStatusKey,
+		},
 		[]string{"provider model status", "model catalog status"},
 	),
 }

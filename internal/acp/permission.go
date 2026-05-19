@@ -14,6 +14,10 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 )
 
+const (
+	permissionRequestIDKey = "request_id"
+)
+
 var (
 	// ErrPermissionDenied reports that the configured static policy rejected an operation.
 	ErrPermissionDenied = errors.New("acp: permission denied")
@@ -597,7 +601,7 @@ func permissionRequestIDFromMeta(meta any) string {
 		return ""
 	}
 
-	for _, key := range []string{"request_id", "requestId", "id"} {
+	for _, key := range []string{permissionRequestIDKey, "requestId", "id"} {
 		if value, ok := record[key].(string); ok && strings.TrimSpace(value) != "" {
 			return strings.TrimSpace(value)
 		}

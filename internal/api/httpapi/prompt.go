@@ -5,12 +5,17 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/acp"
 	core "github.com/pedronauck/agh/internal/api/core"
+)
+
+const (
+	promptUserKey = "user"
 )
 
 const detachedPromptDrainTimeout = 30 * time.Second
@@ -165,9 +170,8 @@ func extractPromptMessage(req promptRequest) (string, error) {
 		return message, nil
 	}
 
-	for i := len(req.Messages) - 1; i >= 0; i-- {
-		msg := req.Messages[i]
-		if strings.TrimSpace(msg.Role) != "user" {
+	for _, msg := range slices.Backward(req.Messages) {
+		if strings.TrimSpace(msg.Role) != promptUserKey {
 			continue
 		}
 

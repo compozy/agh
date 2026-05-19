@@ -12,6 +12,18 @@ import (
 )
 
 const (
+	updateManagedValue      = "Managed"
+	updateMessageValue      = "Message"
+	updateStatusValue       = "Status"
+	updateCurrentVersionKey = "current_version"
+	updateLatestVersionKey  = "latest_version"
+	updateManagedKey        = "managed"
+	updateMessageKey        = "message"
+	updateStatusKey         = "status"
+	updateUpdateKey         = "update"
+)
+
+const (
 	defaultSettingsRestartTimeout = 45 * time.Second
 	restartStatusReady            = "ready"
 	restartStatusFailed           = "failed"
@@ -40,7 +52,7 @@ func newUpdateCommand(deps commandDeps) *cobra.Command {
 	var checkOnly bool
 
 	cmd := &cobra.Command{
-		Use:   "update",
+		Use:   updateUpdateKey,
 		Short: "Check for and apply the latest stable AGH release",
 		Long: strings.TrimSpace(`
 Check GitHub Releases for the latest stable AGH build and apply it when this install supports
@@ -267,13 +279,13 @@ func updateRecordFromState(state aghupdate.State) updateRecord {
 
 func updateBundle(record updateRecord) outputBundle {
 	rows := []keyValue{
-		{Label: "Status", Value: stringOrDash(record.Status)},
+		{Label: updateStatusValue, Value: stringOrDash(record.Status)},
 		{Label: "Install Method", Value: stringOrDash(record.InstallMethod)},
-		{Label: "Managed", Value: fmt.Sprintf("%t", record.Managed)},
+		{Label: updateManagedValue, Value: fmt.Sprintf("%t", record.Managed)},
 		{Label: "Current Version", Value: stringOrDash(record.CurrentVersion)},
 		{Label: "Latest Version", Value: stringOrDash(record.LatestVersion)},
 		{Label: "Release", Value: stringOrDash(record.ReleaseURL)},
-		{Label: "Message", Value: stringOrDash(record.Message)},
+		{Label: updateMessageValue, Value: stringOrDash(record.Message)},
 		{Label: "Daemon Restarted", Value: fmt.Sprintf("%t", record.DaemonRestarted)},
 	}
 	if record.Recommendation != "" {
@@ -287,14 +299,14 @@ func updateBundle(record updateRecord) outputBundle {
 		},
 		toon: func() (string, error) {
 			order := []string{
-				"status",
+				updateStatusKey,
 				"install_method",
-				"managed",
-				"current_version",
-				"latest_version",
+				updateManagedKey,
+				updateCurrentVersionKey,
+				updateLatestVersionKey,
 				"release_url",
 				"daemon_restarted",
-				"message",
+				updateMessageKey,
 			}
 			values := []string{
 				record.Status,
@@ -311,7 +323,7 @@ func updateBundle(record updateRecord) outputBundle {
 				values = append(values, record.Recommendation)
 			}
 			return renderToonObject(
-				"update",
+				updateUpdateKey,
 				order,
 				values,
 			), nil

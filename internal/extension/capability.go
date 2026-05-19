@@ -13,6 +13,100 @@ import (
 )
 
 const (
+	hostAPIAutomationJobsPath              = "automation/jobs"
+	hostAPIAutomationJobsCreatePath        = "automation/jobs/create"
+	hostAPIBridgesInstancesListPath        = "bridges/instances/list"
+	hostAPIBridgesInstancesReportStatePath = "bridges/instances/report_state"
+	hostAPIMemoryForgetPath                = "memory/forget"
+	hostAPIMemoryRecallPath                = "memory/recall"
+	hostAPIObserveEventsPath               = "observe/events"
+	hostAPIResourcesListPath               = "resources/list"
+	hostAPIResourcesSnapshotPath           = "resources/snapshot"
+	hostAPISandboxExecPath                 = "sandbox/exec"
+	hostAPISessionsCreatePath              = "sessions/create"
+	hostAPISessionsEventsPath              = "sessions/events"
+	hostAPISkillsListPath                  = "skills/list"
+)
+
+const (
+	capabilityModelsListPath    = "models/list"
+	capabilityModelsRefreshPath = "models/refresh"
+	capabilityTasksKey          = "tasks"
+	capabilityTasksCreatePath   = "tasks/create"
+)
+
+const (
+	capabilityAutomationReadPath           = "automation.read"
+	capabilityAutomationWritePath          = "automation.write"
+	capabilityAutomationJobsDeletePath     = "automation/jobs/delete"
+	capabilityAutomationJobsGetPath        = "automation/jobs/get"
+	capabilityAutomationJobsRunsPath       = "automation/jobs/runs"
+	capabilityAutomationJobsTriggerPath    = "automation/jobs/trigger"
+	capabilityAutomationJobsUpdatePath     = "automation/jobs/update"
+	capabilityAutomationRunsPath           = "automation/runs"
+	capabilityAutomationTriggersPath       = "automation/triggers"
+	capabilityAutomationTriggersCreatePath = "automation/triggers/create"
+	capabilityAutomationTriggersDeletePath = "automation/triggers/delete"
+	capabilityAutomationTriggersFirePath   = "automation/triggers/fire"
+	capabilityAutomationTriggersGetPath    = "automation/triggers/get"
+	capabilityAutomationTriggersRunsPath   = "automation/triggers/runs"
+	capabilityAutomationTriggersUpdatePath = "automation/triggers/update"
+	capabilityBridgeReadPath               = "bridge.read"
+	capabilityBridgeWritePath              = "bridge.write"
+	capabilityBridgesInstancesGetPath      = "bridges/instances/get"
+	capabilityBridgesMessagesIngestPath    = "bridges/messages/ingest"
+	capabilityBundledKey                   = "bundled"
+	capabilityHeartbeatReadPath            = "heartbeat.read"
+	capabilityHeartbeatWritePath           = "heartbeat.write"
+	capabilityMemoryReadPath               = "memory.read"
+	capabilityMemoryWritePath              = "memory.write"
+	capabilityMemoryStorePath              = "memory/store"
+	capabilityModelReadPath                = "model.read"
+	capabilityModelWritePath               = "model.write"
+	capabilityModelsStatusPath             = "models/status"
+	capabilityNetworkReadPath              = "network.read"
+	capabilityNetworkWritePath             = "network.write"
+	capabilityObserveReadPath              = "observe.read"
+	capabilityObserveHealthPath            = "observe/health"
+	capabilityResourceReadPath             = "resource.read"
+	capabilityResourceWritePath            = "resource.write"
+	capabilityResourcesGetPath             = "resources/get"
+	capabilitySandboxExecPath              = "sandbox.exec"
+	capabilitySandboxInfoPath              = "sandbox/info"
+	capabilitySandboxListPath              = "sandbox/list"
+	capabilitySessionReadPath              = "session.read"
+	capabilitySessionWritePath             = "session.write"
+	capabilitySessionsListPath             = "sessions/list"
+	capabilitySessionsPromptPath           = "sessions/prompt"
+	capabilitySessionsStatusPath           = "sessions/status"
+	capabilitySessionsStopPath             = "sessions/stop"
+	capabilitySkillsReadPath               = "skills.read"
+	capabilitySoulReadPath                 = "soul.read"
+	capabilitySoulWritePath                = "soul.write"
+	capabilityTaskReadPath                 = "task.read"
+	capabilityTaskWritePath                = "task.write"
+	capabilityTasksCancelPath              = "tasks/cancel"
+	capabilityTasksDashboardPath           = "tasks/dashboard"
+	capabilityTasksGetPath                 = "tasks/get"
+	capabilityTasksInboxPath               = "tasks/inbox"
+	capabilityTasksRunsPath                = "tasks/runs"
+	capabilityTasksRunsAttachSessionPath   = "tasks/runs/attach_session"
+	capabilityTasksRunsCancelPath          = "tasks/runs/cancel"
+	capabilityTasksRunsClaimPath           = "tasks/runs/claim"
+	capabilityTasksRunsCompletePath        = "tasks/runs/complete"
+	capabilityTasksRunsEnqueuePath         = "tasks/runs/enqueue"
+	capabilityTasksRunsFailPath            = "tasks/runs/fail"
+	capabilityTasksRunsGetPath             = "tasks/runs/get"
+	capabilityTasksRunsStartPath           = "tasks/runs/start"
+	capabilityTasksTimelinePath            = "tasks/timeline"
+	capabilityTasksTreePath                = "tasks/tree"
+	capabilityTasksUpdatePath              = "tasks/update"
+	capabilityToolReadPath                 = "tool.read"
+	capabilityUserKey                      = "user"
+	capabilityWorkspaceKey                 = "workspace"
+)
+
+const (
 	// CapabilityDeniedCode is the protocol-equivalent code for denied extension
 	// capabilities and Host API actions.
 	CapabilityDeniedCode = -32001
@@ -20,100 +114,100 @@ const (
 
 var (
 	hostAPIMethodSecurityCapability = map[string]string{
-		"automation/jobs":                "automation.read",
-		"automation/jobs/get":            "automation.read",
-		"automation/jobs/create":         "automation.write",
-		"automation/jobs/update":         "automation.write",
-		"automation/jobs/delete":         "automation.write",
-		"automation/jobs/trigger":        "automation.write",
-		"automation/jobs/runs":           "automation.read",
-		"automation/triggers":            "automation.read",
-		"automation/triggers/get":        "automation.read",
-		"automation/triggers/create":     "automation.write",
-		"automation/triggers/update":     "automation.write",
-		"automation/triggers/delete":     "automation.write",
-		"automation/triggers/runs":       "automation.read",
-		"automation/triggers/fire":       "automation.write",
-		"automation/runs":                "automation.read",
-		"agents/heartbeat/delete":        "heartbeat.write",
-		"agents/heartbeat/get":           "heartbeat.read",
-		"agents/heartbeat/history":       "heartbeat.read",
-		"agents/heartbeat/put":           "heartbeat.write",
-		"agents/heartbeat/rollback":      "heartbeat.write",
-		"agents/heartbeat/status":        "heartbeat.read",
-		"agents/heartbeat/validate":      "heartbeat.read",
-		"agents/heartbeat/wake":          "heartbeat.write",
-		"agents/soul/delete":             "soul.write",
-		"agents/soul/get":                "soul.read",
-		"agents/soul/history":            "soul.read",
-		"agents/soul/put":                "soul.write",
-		"agents/soul/rollback":           "soul.write",
-		"agents/soul/validate":           "soul.read",
-		"tasks":                          "task.read",
-		"tasks/get":                      "task.read",
-		"tasks/timeline":                 "task.read",
-		"tasks/tree":                     "task.read",
-		"tasks/dashboard":                "task.read",
-		"tasks/inbox":                    "task.read",
-		"tasks/create":                   "task.write",
-		"tasks/update":                   "task.write",
-		"tasks/cancel":                   "task.write",
-		"tasks/runs":                     "task.read",
-		"tasks/runs/get":                 "task.read",
-		"tasks/runs/enqueue":             "task.write",
-		"tasks/runs/claim":               "task.write",
-		"tasks/runs/start":               "task.write",
-		"tasks/runs/attach_session":      "task.write",
-		"tasks/runs/complete":            "task.write",
-		"tasks/runs/fail":                "task.write",
-		"tasks/runs/cancel":              "task.write",
-		"resources/list":                 "resource.read",
-		"resources/get":                  "resource.read",
-		"resources/snapshot":             "resource.write",
-		"bridges/instances/list":         "bridge.read",
-		"bridges/instances/get":          "bridge.read",
-		"bridges/instances/report_state": "bridge.write",
-		"bridges/messages/ingest":        "bridge.write",
-		"memory/forget":                  "memory.write",
-		"memory/recall":                  "memory.read",
-		"memory/store":                   "memory.write",
-		"models/list":                    "model.read",
-		"models/refresh":                 "model.write",
-		"models/status":                  "model.read",
-		"network/status":                 "network.read",
-		"network/channels":               "network.read",
-		"network/peers":                  "network.read",
-		"network/threads":                "network.read",
-		"network/thread/get":             "network.read",
-		"network/thread/messages":        "network.read",
-		"network/directs":                "network.read",
-		"network/direct/resolve":         "network.write",
-		"network/direct/messages":        "network.read",
-		"network/work/get":               "network.read",
-		"network/send":                   "network.write",
-		"observe/events":                 "observe.read",
-		"observe/health":                 "observe.read",
-		"sandbox/list":                   "",
-		"sandbox/info":                   "",
-		"sandbox/exec":                   "sandbox.exec",
-		"sessions/create":                "session.write",
-		"sessions/events":                "session.read",
-		"sessions/health/get":            "session.read",
-		"sessions/list":                  "session.read",
-		"sessions/prompt":                "session.write",
-		"sessions/soul/refresh":          "soul.write",
-		"sessions/status":                "session.read",
-		"sessions/status/get":            "session.read",
-		"sessions/stop":                  "session.write",
-		"skills/list":                    "skills.read",
+		hostAPIAutomationJobsPath:              capabilityAutomationReadPath,
+		capabilityAutomationJobsGetPath:        capabilityAutomationReadPath,
+		hostAPIAutomationJobsCreatePath:        capabilityAutomationWritePath,
+		capabilityAutomationJobsUpdatePath:     capabilityAutomationWritePath,
+		capabilityAutomationJobsDeletePath:     capabilityAutomationWritePath,
+		capabilityAutomationJobsTriggerPath:    capabilityAutomationWritePath,
+		capabilityAutomationJobsRunsPath:       capabilityAutomationReadPath,
+		capabilityAutomationTriggersPath:       capabilityAutomationReadPath,
+		capabilityAutomationTriggersGetPath:    capabilityAutomationReadPath,
+		capabilityAutomationTriggersCreatePath: capabilityAutomationWritePath,
+		capabilityAutomationTriggersUpdatePath: capabilityAutomationWritePath,
+		capabilityAutomationTriggersDeletePath: capabilityAutomationWritePath,
+		capabilityAutomationTriggersRunsPath:   capabilityAutomationReadPath,
+		capabilityAutomationTriggersFirePath:   capabilityAutomationWritePath,
+		capabilityAutomationRunsPath:           capabilityAutomationReadPath,
+		"agents/heartbeat/delete":              capabilityHeartbeatWritePath,
+		"agents/heartbeat/get":                 capabilityHeartbeatReadPath,
+		"agents/heartbeat/history":             capabilityHeartbeatReadPath,
+		"agents/heartbeat/put":                 capabilityHeartbeatWritePath,
+		"agents/heartbeat/rollback":            capabilityHeartbeatWritePath,
+		"agents/heartbeat/status":              capabilityHeartbeatReadPath,
+		"agents/heartbeat/validate":            capabilityHeartbeatReadPath,
+		"agents/heartbeat/wake":                capabilityHeartbeatWritePath,
+		"agents/soul/delete":                   capabilitySoulWritePath,
+		"agents/soul/get":                      capabilitySoulReadPath,
+		"agents/soul/history":                  capabilitySoulReadPath,
+		"agents/soul/put":                      capabilitySoulWritePath,
+		"agents/soul/rollback":                 capabilitySoulWritePath,
+		"agents/soul/validate":                 capabilitySoulReadPath,
+		capabilityTasksKey:                     capabilityTaskReadPath,
+		capabilityTasksGetPath:                 capabilityTaskReadPath,
+		capabilityTasksTimelinePath:            capabilityTaskReadPath,
+		capabilityTasksTreePath:                capabilityTaskReadPath,
+		capabilityTasksDashboardPath:           capabilityTaskReadPath,
+		capabilityTasksInboxPath:               capabilityTaskReadPath,
+		capabilityTasksCreatePath:              capabilityTaskWritePath,
+		capabilityTasksUpdatePath:              capabilityTaskWritePath,
+		capabilityTasksCancelPath:              capabilityTaskWritePath,
+		capabilityTasksRunsPath:                capabilityTaskReadPath,
+		capabilityTasksRunsGetPath:             capabilityTaskReadPath,
+		capabilityTasksRunsEnqueuePath:         capabilityTaskWritePath,
+		capabilityTasksRunsClaimPath:           capabilityTaskWritePath,
+		capabilityTasksRunsStartPath:           capabilityTaskWritePath,
+		capabilityTasksRunsAttachSessionPath:   capabilityTaskWritePath,
+		capabilityTasksRunsCompletePath:        capabilityTaskWritePath,
+		capabilityTasksRunsFailPath:            capabilityTaskWritePath,
+		capabilityTasksRunsCancelPath:          capabilityTaskWritePath,
+		hostAPIResourcesListPath:               capabilityResourceReadPath,
+		capabilityResourcesGetPath:             capabilityResourceReadPath,
+		hostAPIResourcesSnapshotPath:           capabilityResourceWritePath,
+		hostAPIBridgesInstancesListPath:        capabilityBridgeReadPath,
+		capabilityBridgesInstancesGetPath:      capabilityBridgeReadPath,
+		hostAPIBridgesInstancesReportStatePath: capabilityBridgeWritePath,
+		capabilityBridgesMessagesIngestPath:    capabilityBridgeWritePath,
+		hostAPIMemoryForgetPath:                capabilityMemoryWritePath,
+		hostAPIMemoryRecallPath:                capabilityMemoryReadPath,
+		capabilityMemoryStorePath:              capabilityMemoryWritePath,
+		capabilityModelsListPath:               capabilityModelReadPath,
+		capabilityModelsRefreshPath:            capabilityModelWritePath,
+		capabilityModelsStatusPath:             capabilityModelReadPath,
+		"network/status":                       capabilityNetworkReadPath,
+		"network/channels":                     capabilityNetworkReadPath,
+		"network/peers":                        capabilityNetworkReadPath,
+		"network/threads":                      capabilityNetworkReadPath,
+		"network/thread/get":                   capabilityNetworkReadPath,
+		"network/thread/messages":              capabilityNetworkReadPath,
+		"network/directs":                      capabilityNetworkReadPath,
+		"network/direct/resolve":               capabilityNetworkWritePath,
+		"network/direct/messages":              capabilityNetworkReadPath,
+		"network/work/get":                     capabilityNetworkReadPath,
+		"network/send":                         capabilityNetworkWritePath,
+		hostAPIObserveEventsPath:               capabilityObserveReadPath,
+		capabilityObserveHealthPath:            capabilityObserveReadPath,
+		capabilitySandboxListPath:              "",
+		capabilitySandboxInfoPath:              "",
+		hostAPISandboxExecPath:                 capabilitySandboxExecPath,
+		hostAPISessionsCreatePath:              capabilitySessionWritePath,
+		hostAPISessionsEventsPath:              capabilitySessionReadPath,
+		"sessions/health/get":                  capabilitySessionReadPath,
+		capabilitySessionsListPath:             capabilitySessionReadPath,
+		capabilitySessionsPromptPath:           capabilitySessionWritePath,
+		"sessions/soul/refresh":                capabilitySoulWritePath,
+		capabilitySessionsStatusPath:           capabilitySessionReadPath,
+		"sessions/status/get":                  capabilitySessionReadPath,
+		capabilitySessionsStopPath:             capabilitySessionWritePath,
+		hostAPISkillsListPath:                  capabilitySkillsReadPath,
 	}
 
 	marketplaceSecurityCeiling = []string{
-		"memory.read",
-		"observe.read",
-		"session.read",
-		"skills.read",
-		"tool.read",
+		capabilityMemoryReadPath,
+		capabilityObserveReadPath,
+		capabilitySessionReadPath,
+		capabilitySkillsReadPath,
+		capabilityToolReadPath,
 	}
 )
 
@@ -136,11 +230,11 @@ const (
 func (s ExtensionSource) String() string {
 	switch s {
 	case SourceBundled:
-		return "bundled"
+		return capabilityBundledKey
 	case SourceUser:
-		return "user"
+		return capabilityUserKey
 	case SourceWorkspace:
-		return "workspace"
+		return capabilityWorkspaceKey
 	case SourceMarketplace:
 		return "marketplace"
 	default:

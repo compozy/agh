@@ -17,6 +17,10 @@ import (
 )
 
 const (
+	healthTimeoutKey = "timeout"
+)
+
+const (
 	sessionStateOrphaned               = "orphaned"
 	sessionActivityHealthStatusActive  = "active"
 	sessionActivityHealthStatusWarning = "warning"
@@ -347,7 +351,7 @@ func sessionActivityHealthStatus(liveness *store.SessionLivenessMeta, activity *
 	}
 	if activity != nil {
 		switch strings.TrimSpace(activity.LastActivityKind) {
-		case "timeout":
+		case healthTimeoutKey:
 			return sessionActivityHealthStatusStalled
 		case "warning":
 			return sessionActivityHealthStatusWarning

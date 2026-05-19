@@ -19,6 +19,10 @@ import (
 )
 
 const (
+	loaderVersionKey = "version"
+)
+
+const (
 	skillFileName     = "SKILL.md"
 	maxScanDepth      = 4
 	maxScanCandidates = 300
@@ -30,10 +34,10 @@ var (
 )
 
 var allowedFrontmatterFields = map[string]struct{}{
-	"name":        {},
-	"description": {},
-	"version":     {},
-	"metadata":    {},
+	"name":           {},
+	"description":    {},
+	loaderVersionKey: {},
+	"metadata":       {},
 }
 
 // ParseSkillFile reads and parses a SKILL.md file from disk.

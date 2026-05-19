@@ -15,6 +15,11 @@ import (
 	sqlite3 "modernc.org/sqlite/lib"
 )
 
+const (
+	globalDBTaskReviewReviewIDKey = "review_id"
+	globalDBTaskReviewSourceKey   = "source"
+)
+
 var _ taskpkg.RunReviewStore = (*GlobalDB)(nil)
 
 const runReviewSelectColumnsSQL = `review_id, task_id, run_id, parent_review_id,
@@ -683,9 +688,9 @@ func (g *GlobalDB) createReviewContinuationRun(
 
 func reviewContinuationMetadata(review taskpkg.RunReview, parentRun *taskpkg.Run) (json.RawMessage, error) {
 	payload := map[string]string{
-		"source":    "task_run_review",
-		"review_id": review.ReviewID,
-		"outcome":   string(review.Outcome),
+		globalDBTaskReviewSourceKey:   "task_run_review",
+		globalDBTaskReviewReviewIDKey: review.ReviewID,
+		"outcome":                     string(review.Outcome),
 	}
 	if parentRun != nil {
 		payload["parent_run_id"] = parentRun.ID

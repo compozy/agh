@@ -18,6 +18,10 @@ import (
 )
 
 const (
+	authoringPathEscapeKey = "path_escape"
+)
+
+const (
 	diagnosticSoulConflict    = "soul_conflict"
 	diagnosticSoulMissing     = "soul_missing"
 	diagnosticAgentNotFound   = "agent_not_found"
@@ -852,7 +856,7 @@ func authoringDiagnosticFromDiagnostic(diagnostic *Diagnostic, cause error) erro
 func hasBlockingCurrentDiagnostic(items []Diagnostic) bool {
 	for _, item := range items {
 		switch item.Code {
-		case "path_escape", "invalid_source_path", "parser_io":
+		case authoringPathEscapeKey, "invalid_source_path", "parser_io":
 			return true
 		}
 	}
@@ -868,7 +872,7 @@ type managedPathResolution struct {
 func validateManagedPath(workspaceRoot string, targetPath string, fileName string) *Diagnostic {
 	if strings.ContainsRune(targetPath, 0) {
 		return &Diagnostic{
-			Code:       "path_escape",
+			Code:       authoringPathEscapeKey,
 			Message:    fileName + " path contains an invalid NUL byte",
 			SourcePath: fileName,
 		}
@@ -884,7 +888,7 @@ func resolveManagedPath(workspaceRoot string, targetPath string, fileName string
 	absRoot, err := filepath.Abs(filepath.Clean(workspaceRoot))
 	if err != nil {
 		return managedPathResolution{}, &Diagnostic{
-			Code:       "path_escape",
+			Code:       authoringPathEscapeKey,
 			Message:    diagnostics.RedactAndBound(fmt.Sprintf("resolve workspace root: %v", err), 300),
 			SourcePath: fileName,
 		}
@@ -892,7 +896,7 @@ func resolveManagedPath(workspaceRoot string, targetPath string, fileName string
 	resolvedRoot, err := filepath.EvalSymlinks(absRoot)
 	if err != nil {
 		return managedPathResolution{}, &Diagnostic{
-			Code:       "path_escape",
+			Code:       authoringPathEscapeKey,
 			Message:    diagnostics.RedactAndBound(fmt.Sprintf("resolve workspace root symlinks: %v", err), 300),
 			SourcePath: fileName,
 		}
@@ -904,7 +908,7 @@ func resolveManagedPath(workspaceRoot string, targetPath string, fileName string
 	absTarget, err := filepath.Abs(cleanTarget)
 	if err != nil {
 		return managedPathResolution{}, &Diagnostic{
-			Code:       "path_escape",
+			Code:       authoringPathEscapeKey,
 			Message:    diagnostics.RedactAndBound(fmt.Sprintf("resolve %s path: %v", fileName, err), 300),
 			SourcePath: safePathWithoutRoot(cleanTarget),
 		}
@@ -912,7 +916,7 @@ func resolveManagedPath(workspaceRoot string, targetPath string, fileName string
 	sourcePath, within := relativePathWithinRoot(absRoot, absTarget)
 	if !within {
 		return managedPathResolution{}, &Diagnostic{
-			Code:       "path_escape",
+			Code:       authoringPathEscapeKey,
 			Message:    fileName + " path must stay inside the workspace root",
 			SourcePath: sourcePath,
 		}
@@ -937,14 +941,14 @@ func validateManagedPathComponents(resolution managedPathResolution, fileName st
 				break
 			}
 			return &Diagnostic{
-				Code:       "path_escape",
+				Code:       authoringPathEscapeKey,
 				Message:    diagnostics.RedactAndBound(fmt.Sprintf("inspect %s path: %v", fileName, statErr), 300),
 				SourcePath: resolution.sourcePath,
 			}
 		}
 		if info.Mode()&os.ModeSymlink != 0 {
 			return &Diagnostic{
-				Code:       "path_escape",
+				Code:       authoringPathEscapeKey,
 				Message:    fileName + " managed path must not contain symlinks",
 				SourcePath: resolution.sourcePath,
 			}
@@ -952,7 +956,7 @@ func validateManagedPathComponents(resolution managedPathResolution, fileName st
 		resolvedCurrent, resolveErr := filepath.EvalSymlinks(current)
 		if resolveErr != nil {
 			return &Diagnostic{
-				Code: "path_escape",
+				Code: authoringPathEscapeKey,
 				Message: diagnostics.RedactAndBound(
 					fmt.Sprintf("resolve %s path symlinks: %v", fileName, resolveErr),
 					300,
@@ -962,7 +966,7 @@ func validateManagedPathComponents(resolution managedPathResolution, fileName st
 		}
 		if _, resolvedWithin := relativePathWithinRoot(resolution.resolvedRoot, resolvedCurrent); !resolvedWithin {
 			return &Diagnostic{
-				Code:       "path_escape",
+				Code:       authoringPathEscapeKey,
 				Message:    fileName + " symlink target must stay inside the workspace root",
 				SourcePath: resolution.sourcePath,
 			}

@@ -12,6 +12,10 @@ import (
 	"github.com/pedronauck/agh/internal/store"
 )
 
+const (
+	contractDirectKey = "direct"
+)
+
 // CreateSessionRequest is the shared session creation request payload.
 type CreateSessionRequest struct {
 	AgentName       string `json:"agent_name,omitempty"`
@@ -677,7 +681,7 @@ func (r *NetworkSendRequest) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &decoded); err != nil {
 		return err
 	}
-	if strings.TrimSpace(decoded.Kind) == "direct" {
+	if strings.TrimSpace(decoded.Kind) == contractDirectKey {
 		return errors.New("network send request rejects kind direct; use surface direct with kind say")
 	}
 	*r = NetworkSendRequest(decoded)

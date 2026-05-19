@@ -291,7 +291,7 @@ func (o *bridgeTerminalTaskNotificationObserver) log() *slog.Logger {
 
 func isBridgeTerminalNotificationWake(eventType string) bool {
 	switch strings.TrimSpace(eventType) {
-	case "task.run_completed",
+	case harnessTaskEventRunCompleted,
 		"task.run_failed",
 		"task.run_canceled",
 		"task.run_review_approved",

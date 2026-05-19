@@ -6,14 +6,49 @@ import (
 	registrypkg "github.com/pedronauck/agh/internal/registry"
 )
 
+const (
+	skillOutputSlugValue = "Slug"
+	skillOutputSlugKey   = "slug"
+)
+
+const (
+	skillOutputActionValue       = "Action"
+	skillOutputDescriptionValue  = "Description"
+	skillOutputEnabledValue      = "Enabled"
+	skillOutputPathValue         = "Path"
+	skillOutputStatusValue       = "Status"
+	skillOutputValueValue        = "Value"
+	skillOutputActionKey         = "action"
+	skillOutputCurrentVersionKey = "current_version"
+	skillOutputDescriptionKey    = "description"
+	skillOutputEnabledKey        = "enabled"
+	skillOutputPathKey           = "path"
+	skillOutputStatusKey         = "status"
+	skillOutputValueKey          = "value"
+)
+
 func skillSearchBundle(items []registrypkg.Listing) outputBundle {
 	return listBundle(
 		items,
 		items,
 		"Marketplace Skills",
-		[]string{"Slug", "Name", "Description", "Author", "Version", "Downloads"},
+		[]string{
+			skillOutputSlugValue,
+			automationNameValue,
+			skillOutputDescriptionValue,
+			"Author",
+			daemonVersionValue,
+			"Downloads",
+		},
 		"skills",
-		[]string{"slug", "name", "description", "author", "version", "downloads"},
+		[]string{
+			skillOutputSlugKey,
+			automationNameKey,
+			skillOutputDescriptionKey,
+			"author",
+			daemonVersionKey,
+			"downloads",
+		},
 		func(item registrypkg.Listing) []string {
 			return []string{
 				stringOrDash(item.Slug),
@@ -42,9 +77,9 @@ func skillListBundle(items []skillListItem) outputBundle {
 		items,
 		items,
 		"Skills",
-		[]string{"Name", "Description", "Source", "Enabled"},
+		[]string{automationNameValue, skillOutputDescriptionValue, authoredContextSourceValue, skillOutputEnabledValue},
 		"skills",
-		[]string{"name", "description", "source", "enabled"},
+		[]string{automationNameKey, skillOutputDescriptionKey, automationSourceKey, skillOutputEnabledKey},
 		func(item skillListItem) []string {
 			return []string{
 				stringOrDash(item.Name),
@@ -81,25 +116,25 @@ func skillInfoBundle(item skillInfoItem) outputBundle {
 		jsonValue: item,
 		human: func() (string, error) {
 			base := renderHumanSection("Skill", []keyValue{
-				{Label: "Name", Value: stringOrDash(item.Name)},
-				{Label: "Description", Value: stringOrDash(item.Description)},
-				{Label: "Version", Value: stringOrDash(item.Version)},
-				{Label: "Source", Value: stringOrDash(item.Source)},
-				{Label: "Path", Value: stringOrDash(item.Path)},
-				{Label: "Enabled", Value: strconv.FormatBool(item.Enabled)},
+				{Label: automationNameValue, Value: stringOrDash(item.Name)},
+				{Label: skillOutputDescriptionValue, Value: stringOrDash(item.Description)},
+				{Label: daemonVersionValue, Value: stringOrDash(item.Version)},
+				{Label: authoredContextSourceValue, Value: stringOrDash(item.Source)},
+				{Label: skillOutputPathValue, Value: stringOrDash(item.Path)},
+				{Label: skillOutputEnabledValue, Value: strconv.FormatBool(item.Enabled)},
 			})
 
 			metadataRows := make([][]string, 0, len(item.Metadata))
 			for _, entry := range sortedSkillMetadataEntries(item.Metadata) {
 				metadataRows = append(metadataRows, []string{entry.Label, entry.Value})
 			}
-			metadata := renderHumanTable("Metadata", []string{"Key", "Value"}, metadataRows)
+			metadata := renderHumanTable("Metadata", []string{"Key", skillOutputValueValue}, metadataRows)
 
 			resourceRows := make([][]string, 0, len(item.Resources))
 			for _, resource := range item.Resources {
 				resourceRows = append(resourceRows, []string{resource})
 			}
-			resources := renderHumanTable("Resources", []string{"Path"}, resourceRows)
+			resources := renderHumanTable("Resources", []string{skillOutputPathValue}, resourceRows)
 
 			return renderHumanBlocks(base, metadata, resources), nil
 		},
@@ -117,7 +152,14 @@ func skillInfoBundle(item skillInfoItem) outputBundle {
 			return renderHumanBlocks(
 				renderToonObject(
 					"skill",
-					[]string{"name", "description", "version", "source", "path", "enabled"},
+					[]string{
+						automationNameKey,
+						skillOutputDescriptionKey,
+						daemonVersionKey,
+						automationSourceKey,
+						skillOutputPathKey,
+						skillOutputEnabledKey,
+					},
 					[]string{
 						item.Name,
 						item.Description,
@@ -127,8 +169,8 @@ func skillInfoBundle(item skillInfoItem) outputBundle {
 						strconv.FormatBool(item.Enabled),
 					},
 				),
-				renderToonArray("metadata", []string{"key", "value"}, metadataRows),
-				renderToonArray("resources", []string{"path"}, resourceRows),
+				renderToonArray("metadata", []string{"key", skillOutputValueKey}, metadataRows),
+				renderToonArray("resources", []string{skillOutputPathKey}, resourceRows),
 			), nil
 		},
 	}
@@ -139,21 +181,25 @@ func skillCreateBundle(item skillCreateItem) outputBundle {
 		jsonValue: item,
 		human: func() (string, error) {
 			return renderHumanSection("Skill", []keyValue{
-				{Label: "Name", Value: stringOrDash(item.Name)},
-				{Label: "Source", Value: stringOrDash(item.Source)},
-				{Label: "Path", Value: stringOrDash(item.Path)},
+				{Label: automationNameValue, Value: stringOrDash(item.Name)},
+				{Label: authoredContextSourceValue, Value: stringOrDash(item.Source)},
+				{Label: skillOutputPathValue, Value: stringOrDash(item.Path)},
 				{Label: "File", Value: stringOrDash(item.File)},
-				{Label: "Status", Value: stringOrDash(item.Status)},
+				{Label: skillOutputStatusValue, Value: stringOrDash(item.Status)},
 			}), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("skill", []string{"name", "source", "path", "file", "status"}, []string{
-				item.Name,
-				item.Source,
-				item.Path,
-				item.File,
-				item.Status,
-			}), nil
+			return renderToonObject(
+				"skill",
+				[]string{automationNameKey, automationSourceKey, skillOutputPathKey, "file", skillOutputStatusKey},
+				[]string{
+					item.Name,
+					item.Source,
+					item.Path,
+					item.File,
+					item.Status,
+				},
+			), nil
 		},
 	}
 }
@@ -172,13 +218,13 @@ func skillActionBundle(name string, action string, record SkillActionRecord) out
 		jsonValue: item,
 		human: func() (string, error) {
 			return renderHumanSection("Skill Action", []keyValue{
-				{Label: "Name", Value: stringOrDash(item.Name)},
-				{Label: "Action", Value: stringOrDash(item.Action)},
+				{Label: automationNameValue, Value: stringOrDash(item.Name)},
+				{Label: skillOutputActionValue, Value: stringOrDash(item.Action)},
 				{Label: "OK", Value: strconv.FormatBool(item.OK)},
 			}), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("skill_action", []string{"name", "action", "ok"}, []string{
+			return renderToonObject("skill_action", []string{automationNameKey, skillOutputActionKey, "ok"}, []string{
 				item.Name,
 				item.Action,
 				strconv.FormatBool(item.OK),
@@ -192,19 +238,27 @@ func skillInstallBundle(item skillInstallItem) outputBundle {
 		jsonValue: item,
 		human: func() (string, error) {
 			return renderHumanSection("Skill Install", []keyValue{
-				{Label: "Name", Value: stringOrDash(item.Name)},
-				{Label: "Slug", Value: stringOrDash(item.Slug)},
-				{Label: "Version", Value: stringOrDash(item.Version)},
+				{Label: automationNameValue, Value: stringOrDash(item.Name)},
+				{Label: skillOutputSlugValue, Value: stringOrDash(item.Slug)},
+				{Label: daemonVersionValue, Value: stringOrDash(item.Version)},
 				{Label: "Registry", Value: stringOrDash(item.Registry)},
-				{Label: "Path", Value: stringOrDash(item.Path)},
+				{Label: skillOutputPathValue, Value: stringOrDash(item.Path)},
 				{Label: "Hash", Value: stringOrDash(item.Hash)},
-				{Label: "Status", Value: stringOrDash(item.Status)},
+				{Label: skillOutputStatusValue, Value: stringOrDash(item.Status)},
 			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject(
 				"skill_install",
-				[]string{"name", "slug", "version", "registry", "path", "hash", "status"},
+				[]string{
+					automationNameKey,
+					skillOutputSlugKey,
+					daemonVersionKey,
+					skillOutputRegistryKey,
+					skillOutputPathKey,
+					"hash",
+					skillOutputStatusKey,
+				},
 				[]string{
 					item.Name,
 					item.Slug,
@@ -224,19 +278,23 @@ func skillRemoveBundle(item skillRemoveItem) outputBundle {
 		jsonValue: item,
 		human: func() (string, error) {
 			return renderHumanSection("Skill Remove", []keyValue{
-				{Label: "Name", Value: stringOrDash(item.Name)},
-				{Label: "Slug", Value: stringOrDash(item.Slug)},
-				{Label: "Path", Value: stringOrDash(item.Path)},
-				{Label: "Status", Value: stringOrDash(item.Status)},
+				{Label: automationNameValue, Value: stringOrDash(item.Name)},
+				{Label: skillOutputSlugValue, Value: stringOrDash(item.Slug)},
+				{Label: skillOutputPathValue, Value: stringOrDash(item.Path)},
+				{Label: skillOutputStatusValue, Value: stringOrDash(item.Status)},
 			}), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("skill_remove", []string{"name", "slug", "path", "status"}, []string{
-				item.Name,
-				item.Slug,
-				item.Path,
-				item.Status,
-			}), nil
+			return renderToonObject(
+				"skill_remove",
+				[]string{automationNameKey, skillOutputSlugKey, skillOutputPathKey, skillOutputStatusKey},
+				[]string{
+					item.Name,
+					item.Slug,
+					item.Path,
+					item.Status,
+				},
+			), nil
 		},
 	}
 }
@@ -246,9 +304,23 @@ func skillUpdateBundle(items []skillUpdateItem) outputBundle {
 		items,
 		items,
 		"Skill Updates",
-		[]string{"Name", "Slug", "Current", "Latest", "Path", "Status"},
+		[]string{
+			automationNameValue,
+			skillOutputSlugValue,
+			"Current",
+			"Latest",
+			skillOutputPathValue,
+			skillOutputStatusValue,
+		},
 		"skill_updates",
-		[]string{"name", "slug", "current_version", "latest_version", "path", "status"},
+		[]string{
+			automationNameKey,
+			skillOutputSlugKey,
+			skillOutputCurrentVersionKey,
+			"latest_version",
+			skillOutputPathKey,
+			skillOutputStatusKey,
+		},
 		func(item skillUpdateItem) []string {
 			return []string{
 				stringOrDash(item.Name),

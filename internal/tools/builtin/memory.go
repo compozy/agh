@@ -2,6 +2,10 @@ package builtin
 
 import toolspkg "github.com/pedronauck/agh/internal/tools"
 
+const (
+	memoryListKey = "list"
+)
+
 var memoryTools = []toolspkg.Descriptor{
 	nativeDescriptor(
 		toolspkg.ToolIDMemoryList,
@@ -14,7 +18,7 @@ var memoryTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDMemory},
-		[]string{"memory", "list"},
+		[]string{memoryAdminMemoryKey, memoryListKey},
 		[]string{"memory list", "memory headers"},
 	),
 	nativeDescriptor(
@@ -28,7 +32,7 @@ var memoryTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDMemory},
-		[]string{"memory", "show"},
+		[]string{memoryAdminMemoryKey, "show"},
 		[]string{"memory show", "memory document"},
 	),
 	nativeDescriptor(
@@ -42,7 +46,7 @@ var memoryTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDMemory},
-		[]string{"memory", "search"},
+		[]string{memoryAdminMemoryKey, "search"},
 		[]string{"memory search", "recall memory"},
 	),
 	nativeDescriptor(
@@ -56,7 +60,7 @@ var memoryTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDMemory},
-		[]string{"memory", "propose"},
+		[]string{memoryAdminMemoryKey, "propose"},
 		[]string{"memory propose", "memory write", "memory update", "memory delete"},
 	),
 	nativeDescriptor(
@@ -70,7 +74,7 @@ var memoryTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDMemory},
-		[]string{"memory", "note"},
+		[]string{memoryAdminMemoryKey, "note"},
 		[]string{"memory note", "ad hoc memory"},
 	),
 }

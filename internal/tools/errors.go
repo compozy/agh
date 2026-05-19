@@ -136,8 +136,7 @@ func NewValidationError(field string, reason ReasonCode, detail string) *Validat
 
 // ReasonOf extracts the primary deterministic reason from an error.
 func ReasonOf(err error) (ReasonCode, bool) {
-	var validation *ValidationError
-	if errors.As(err, &validation) {
+	if validation, ok := errors.AsType[*ValidationError](err); ok {
 		return validation.Reason, true
 	}
 	var toolErr *ToolError
@@ -148,8 +147,7 @@ func ReasonOf(err error) (ReasonCode, bool) {
 }
 
 func wrapField(err error, field string) error {
-	var validation *ValidationError
-	if errors.As(err, &validation) {
+	if validation, ok := errors.AsType[*ValidationError](err); ok {
 		return NewValidationError(field, validation.Reason, validation.Detail)
 	}
 	return fmt.Errorf("%s: %w", field, err)

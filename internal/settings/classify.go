@@ -6,6 +6,11 @@ import (
 	"strings"
 )
 
+const (
+	classifyConsolidateKey = "consolidate"
+	classifyRestartKey     = "restart"
+)
+
 // ClassifyMutation maps one section or collection mutation onto the v1 runtime-apply matrix.
 func ClassifyMutation(descriptor MutationDescriptor) (MutationClassification, error) {
 	section := descriptor.Section
@@ -51,14 +56,14 @@ func ClassifyMutation(descriptor MutationDescriptor) (MutationClassification, er
 func classifyAction(section SectionName, action string) (MutationClassification, error) {
 	switch section {
 	case SectionGeneral:
-		if action == "restart" {
+		if action == classifyRestartKey {
 			return MutationClassification{
 				Behavior: MutationBehaviorActionTrigger,
 				Applied:  true,
 			}, nil
 		}
 	case SectionMemory:
-		if action == "consolidate" {
+		if action == classifyConsolidateKey {
 			return MutationClassification{
 				Behavior: MutationBehaviorActionTrigger,
 				Applied:  true,

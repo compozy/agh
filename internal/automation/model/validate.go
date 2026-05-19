@@ -12,6 +12,10 @@ import (
 )
 
 const (
+	validateKindKey = "kind"
+)
+
+const (
 	defaultRetryMaxRetries = 3
 	defaultRetryBaseDelay  = "2s"
 	defaultFireLimitMax    = 12
@@ -520,7 +524,7 @@ func (c JobTaskConfig) Validate(path string) error {
 // Validate ensures the normalized activation envelope satisfies the shared scope and source invariants.
 func (e ActivationEnvelope) Validate(path string) error {
 	if strings.TrimSpace(e.Kind) == "" {
-		return errors.New(nestedPath(path, "kind") + " is required")
+		return errors.New(nestedPath(path, validateKindKey) + " is required")
 	}
 	if err := ValidateScopeBinding(e.Scope, e.WorkspaceID, path, "workspace_id"); err != nil {
 		return err
@@ -551,7 +555,7 @@ func ValidateTriggerFilter(filter map[string]string, path string) error {
 
 func validateTriggerFilterPath(path string) error {
 	switch path {
-	case "kind", "scope", "workspace_id", "source":
+	case validateKindKey, "scope", "workspace_id", "source":
 		return nil
 	}
 	if dataPath, ok := strings.CutPrefix(path, "data."); ok && validTriggerFilterDataPath(dataPath) {

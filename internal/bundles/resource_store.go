@@ -17,6 +17,10 @@ import (
 	"github.com/pedronauck/agh/internal/soul"
 )
 
+const (
+	resourceStoreBundleResourceValue = "bundle-resource"
+)
+
 // ResourceStore persists bundles, activations, and owned activation fan-out through canonical resources.
 type ResourceStore struct {
 	bundles         resources.Store[BundleResourceSpec]
@@ -142,9 +146,12 @@ func NewResourceStore(cfg ResourceStoreConfig) (*ResourceStore, error) {
 
 func defaultBundleResourceActor() resources.MutationActor {
 	return resources.MutationActor{
-		Kind:     resources.MutationActorKindDaemon,
-		ID:       "bundle-resource",
-		Source:   resources.ResourceSource{Kind: resources.ResourceSourceKind("daemon"), ID: "bundle-resource"},
+		Kind: resources.MutationActorKindDaemon,
+		ID:   resourceStoreBundleResourceValue,
+		Source: resources.ResourceSource{
+			Kind: resources.ResourceSourceKind("daemon"),
+			ID:   resourceStoreBundleResourceValue,
+		},
 		MaxScope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
 	}
 }

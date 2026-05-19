@@ -21,6 +21,10 @@ import (
 )
 
 const (
+	sandboxSandboxPreparePath = "sandbox.prepare"
+)
+
+const (
 	sandboxStateCreating  = "creating"
 	sandboxStatePrepared  = "prepared"
 	sandboxStateStopped   = "stopped"
@@ -1137,7 +1141,7 @@ func sandboxErrorKind(err error) string {
 func sandboxSpanForEvent(name string, reason string) string {
 	switch name {
 	case sandboxEventPrepareStart, sandboxEventPrepareComplete, sandboxEventPrepareError:
-		return "sandbox.prepare"
+		return sandboxSandboxPreparePath
 	case sandboxEventDestroyStart, sandboxEventDestroyComplete, sandboxEventDestroyError:
 		return "sandbox.destroy"
 	case sandboxEventSyncStart, sandboxEventSyncComplete, sandboxEventSyncError:

@@ -14,6 +14,10 @@ import (
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
+const (
+	schedulerActiveKey = "active"
+)
+
 type wakeKey struct {
 	runID     string
 	sessionID string
@@ -590,7 +594,7 @@ func isEligibleSession(work *RunSnapshot, candidate SessionSnapshot, busy map[st
 	if sessionID == "" {
 		return false
 	}
-	if strings.TrimSpace(candidate.State) != "active" {
+	if strings.TrimSpace(candidate.State) != schedulerActiveKey {
 		return false
 	}
 	if candidate.Prompting {

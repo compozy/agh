@@ -8,6 +8,10 @@ import (
 	"github.com/pedronauck/agh/internal/resources"
 )
 
+const (
+	resourceStubDaemonKey = "daemon"
+)
+
 type StubResourceService struct {
 	ListFn   func(context.Context, resources.ResourceFilter) ([]resources.RawRecord, error)
 	GetFn    func(context.Context, resources.ResourceKind, string) (resources.RawRecord, error)
@@ -48,8 +52,8 @@ func (s StubResourceService) Put(
 		ID:        draft.ID,
 		Version:   1,
 		Scope:     draft.Scope,
-		Owner:     resources.ResourceOwner{Kind: "daemon", ID: "daemon-control"},
-		Source:    resources.ResourceSource{Kind: "daemon", ID: "system"},
+		Owner:     resources.ResourceOwner{Kind: resourceStubDaemonKey, ID: "daemon-control"},
+		Source:    resources.ResourceSource{Kind: resourceStubDaemonKey, ID: "system"},
 		SpecJSON:  append([]byte(nil), draft.SpecJSON...),
 		CreatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
 		UpdatedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),

@@ -328,6 +328,6 @@ func BuiltinSource() SourceRef {
 	return SourceRef{
 		Kind:  SourceBuiltin,
 		Owner: BuiltinSourceOwner,
-		Scope: "daemon",
+		Scope: BuiltinSourceOwner,
 	}
 }

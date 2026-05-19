@@ -20,6 +20,10 @@ import (
 )
 
 const (
+	jsonRPCVersion = "2.0"
+)
+
+const (
 	goHandshakeEnv = "AGH_SECRET_GUARD_HANDSHAKE_PATH"
 	goHostCallEnv  = "AGH_SECRET_GUARD_HOST_CALL_PATH"
 	goStartsEnv    = "AGH_SECRET_GUARD_STARTS_PATH"
@@ -146,7 +150,7 @@ type rpcPeer struct {
 	writeMu sync.Mutex
 	pending sync.Map
 	wg      sync.WaitGroup
-	nextID  int64
+	nextID  atomic.Int64
 	errMu   sync.Mutex
 	err     error
 
@@ -230,8 +234,7 @@ func (p *rpcPeer) dispatchRequest(envelope rpcEnvelope) {
 
 	result, err := handler(envelope.Params)
 	if err != nil {
-		var rpcErr *runtimeRPCError
-		if errors.As(err, &rpcErr) {
+		if rpcErr, ok := errors.AsType[*runtimeRPCError](err); ok {
 			if sendErr := p.sendError(
 				envelope.ID,
 				rpcErrorPayload{Code: rpcErr.Code, Message: rpcErr.Message},
@@ -271,7 +274,7 @@ func (p *rpcPeer) currentError() error {
 }
 
 func (p *rpcPeer) call(ctx context.Context, method string, params any, result any) error {
-	idValue := fmt.Sprintf("secret-guard-%d", atomic.AddInt64(&p.nextID, 1))
+	idValue := fmt.Sprintf("secret-guard-%d", p.nextID.Add(1))
 	idBytes, err := json.Marshal(idValue)
 	if err != nil {
 		return err
@@ -280,7 +283,7 @@ func (p *rpcPeer) call(ctx context.Context, method string, params any, result an
 	responseCh := make(chan rpcEnvelope, 1)
 	p.pending.Store(string(idBytes), responseCh)
 	if err := p.writeFrame(rpcEnvelope{
-		JSONRPC: "2.0",
+		JSONRPC: jsonRPCVersion,
 		ID:      idBytes,
 		Method:  method,
 		Params:  mustRawJSON(params),
@@ -316,7 +319,7 @@ func (p *rpcPeer) call(ctx context.Context, method string, params any, result an
 
 func (p *rpcPeer) sendResult(id json.RawMessage, result any) error {
 	return p.writeFrame(rpcEnvelope{
-		JSONRPC: "2.0",
+		JSONRPC: jsonRPCVersion,
 		ID:      append(json.RawMessage(nil), id...),
 		Result:  result,
 	})
@@ -324,7 +327,7 @@ func (p *rpcPeer) sendResult(id json.RawMessage, result any) error {
 
 func (p *rpcPeer) sendError(id json.RawMessage, rpcErr rpcErrorPayload) error {
 	return p.writeFrame(rpcEnvelope{
-		JSONRPC: "2.0",
+		JSONRPC: jsonRPCVersion,
 		ID:      append(json.RawMessage(nil), id...),
 		Error:   &rpcErr,
 	})

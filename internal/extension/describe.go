@@ -7,6 +7,14 @@ import (
 )
 
 const (
+	describeActiveKey     = "active"
+	describeDisabledKey   = "disabled"
+	describeRegisteredKey = "registered"
+	describeResourceKey   = "resource"
+	describeSubprocessKey = "subprocess"
+)
+
+const (
 	extensionStateEnabled    = "enabled"
 	extensionStateError      = "error"
 	extensionHealthUnknown   = hostAPIUnknownExtensionName
@@ -60,26 +68,26 @@ func DescribeExtension(ext *Extension, daemonRunning bool, now time.Time) contra
 
 func extensionType(manifest *Manifest, info ExtensionInfo) string {
 	if requiresSubprocess(manifest) || len(info.Capabilities.Provides) > 0 || len(info.Actions.Requires) > 0 {
-		return "subprocess"
+		return describeSubprocessKey
 	}
-	return "resource"
+	return describeResourceKey
 }
 
 func extensionState(info ExtensionInfo, status ExtensionStatus, daemonRunning bool) string {
 	if !info.Enabled {
-		return "disabled"
+		return describeDisabledKey
 	}
 	if !daemonRunning {
 		return extensionStateEnabled
 	}
 	if status.Active {
-		return "active"
+		return describeActiveKey
 	}
 	if status.LastError != "" {
 		return extensionStateError
 	}
 	if status.Registered {
-		return "registered"
+		return describeRegisteredKey
 	}
 	return extensionStateEnabled
 }

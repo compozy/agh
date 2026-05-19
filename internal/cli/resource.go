@@ -12,6 +12,27 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	taskOwnerKey = "owner"
+)
+
+const (
+	resourceCreatedValue = "Created"
+	resourceKindValue    = "Kind"
+	resourceOwnerValue   = "Owner"
+	resourceScopeValue   = "Scope"
+	resourceSourceValue  = "Source"
+	resourceStatusValue  = "Status"
+	resourceUpdatedValue = "Updated"
+	resourceVersionValue = "Version"
+	resourceCreatedAtKey = "created_at"
+	resourceDeletedKey   = "deleted"
+	resourceKindKey      = "kind"
+	resourceListKey      = "list"
+	resourceResourceKey  = "resource"
+	resourceStatusKey    = "status"
+)
+
 type resourcePutInput struct {
 	scopeKind       string
 	scopeID         string
@@ -22,7 +43,7 @@ type resourcePutInput struct {
 
 func newResourceCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "resource",
+		Use:   resourceResourceKey,
 		Short: "Manage desired-state resources",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return cmd.Help()
@@ -44,7 +65,7 @@ func newResourceListCommand(deps commandDeps) *cobra.Command {
 		sourceKindRaw string
 	)
 	cmd := &cobra.Command{
-		Use:   "list",
+		Use:   resourceListKey,
 		Short: "List desired-state resources",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -63,7 +84,7 @@ func newResourceListCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, resourceListBundle(records))
 		},
 	}
-	cmd.Flags().StringVar(&kindRaw, "kind", "", "Filter by resource kind")
+	cmd.Flags().StringVar(&kindRaw, resourceKindKey, "", "Filter by resource kind")
 	cmd.Flags().StringVar(&scopeKindRaw, "scope-kind", "", "Filter by scope kind")
 	cmd.Flags().StringVar(&query.ScopeID, "scope-id", "", "Filter by scope id")
 	cmd.Flags().StringVar(&ownerKindRaw, "owner-kind", "", "Filter by owner kind")
@@ -119,7 +140,7 @@ func newResourcePutCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		StringVar(
 			&input.scopeKind,
-			"scope",
+			automationScopeKey,
 			string(resources.ResourceScopeKindGlobal),
 			"Scope kind: global or workspace",
 		)
@@ -166,7 +187,7 @@ func buildResourcePutRequest(cmd *cobra.Command, input resourcePutInput) (Resour
 		Kind: resources.ResourceScopeKind(strings.TrimSpace(input.scopeKind)),
 		ID:   strings.TrimSpace(input.scopeID),
 	}
-	if err := scope.Validate("scope"); err != nil {
+	if err := scope.Validate(automationScopeKey); err != nil {
 		return ResourcePutRequest{}, fmt.Errorf("cli: %w", err)
 	}
 	return ResourcePutRequest{
@@ -225,7 +246,7 @@ func resourceListBundle(items []ResourceRecord) outputBundle {
 		"Resources",
 		[]string{"KIND", "ID", "VERSION", "SCOPE", "OWNER", "SOURCE"},
 		"resources",
-		[]string{"kind", "id", "version", "scope", "owner", "source"},
+		[]string{resourceKindKey, "id", daemonVersionKey, automationScopeKey, taskOwnerKey, automationSourceKey},
 		resourceRow,
 		resourceRow,
 	)
@@ -238,20 +259,28 @@ func resourceBundle(item ResourceRecord) outputBundle {
 		}{Record: item},
 		human: func() (string, error) {
 			return renderHumanSection("Resource", []keyValue{
-				{Label: "Kind", Value: stringOrDash(string(item.Kind))},
+				{Label: resourceKindValue, Value: stringOrDash(string(item.Kind))},
 				{Label: "ID", Value: stringOrDash(item.ID)},
-				{Label: "Version", Value: fmt.Sprintf("%d", item.Version)},
-				{Label: "Scope", Value: stringOrDash(formatResourceScope(item.Scope))},
-				{Label: "Owner", Value: stringOrDash(formatResourceOwner(item.Owner))},
-				{Label: "Source", Value: stringOrDash(formatResourceSource(item.Source))},
-				{Label: "Created", Value: stringOrDash(formatTime(item.CreatedAt))},
-				{Label: "Updated", Value: stringOrDash(formatTime(item.UpdatedAt))},
+				{Label: resourceVersionValue, Value: fmt.Sprintf("%d", item.Version)},
+				{Label: resourceScopeValue, Value: stringOrDash(formatResourceScope(item.Scope))},
+				{Label: resourceOwnerValue, Value: stringOrDash(formatResourceOwner(item.Owner))},
+				{Label: resourceSourceValue, Value: stringOrDash(formatResourceSource(item.Source))},
+				{Label: resourceCreatedValue, Value: stringOrDash(formatTime(item.CreatedAt))},
+				{Label: resourceUpdatedValue, Value: stringOrDash(formatTime(item.UpdatedAt))},
 				{Label: "Spec", Value: stringOrDash(compactJSON(item.Spec))},
 			}), nil
 		},
 		toon: func() (string, error) {
-			return renderToonObject("resource", []string{
-				"kind", "id", "version", "scope", "owner", "source", "created_at", "updated_at", "spec",
+			return renderToonObject(resourceResourceKey, []string{
+				resourceKindKey,
+				"id",
+				daemonVersionKey,
+				automationScopeKey,
+				taskOwnerKey,
+				automationSourceKey,
+				resourceCreatedAtKey,
+				automationUpdatedAtKey,
+				"spec",
 			}, []string{
 				string(item.Kind),
 				item.ID,
@@ -277,22 +306,22 @@ func resourceDeleteBundle(kind string, id string, version int64) outputBundle {
 		Kind:            strings.TrimSpace(kind),
 		ID:              strings.TrimSpace(id),
 		ExpectedVersion: version,
-		Status:          "deleted",
+		Status:          resourceDeletedKey,
 	}
 	return outputBundle{
 		jsonValue: item,
 		human: func() (string, error) {
 			return renderHumanSection("Resource", []keyValue{
-				{Label: "Kind", Value: stringOrDash(item.Kind)},
+				{Label: resourceKindValue, Value: stringOrDash(item.Kind)},
 				{Label: "ID", Value: stringOrDash(item.ID)},
 				{Label: "Expected Version", Value: fmt.Sprintf("%d", item.ExpectedVersion)},
-				{Label: "Status", Value: item.Status},
+				{Label: resourceStatusValue, Value: item.Status},
 			}), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject(
-				"resource",
-				[]string{"kind", "id", "expected_version", "status"},
+				resourceResourceKey,
+				[]string{resourceKindKey, "id", "expected_version", resourceStatusKey},
 				[]string{item.Kind, item.ID, fmt.Sprintf("%d", item.ExpectedVersion), item.Status},
 			), nil
 		},

@@ -2,6 +2,18 @@ package builtin
 
 import toolspkg "github.com/pedronauck/agh/internal/tools"
 
+const (
+	catalogToolsKey = "tools"
+)
+
+const (
+	catalogRegistryKey = "registry"
+)
+
+const (
+	catalogCatalogKey = "catalog"
+)
+
 var catalogTools = []toolspkg.Descriptor{
 	nativeDescriptor(
 		toolspkg.ToolIDToolList,
@@ -14,7 +26,7 @@ var catalogTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDBootstrap, toolspkg.ToolsetIDCatalog},
-		[]string{"tools", "registry", "catalog"},
+		[]string{catalogToolsKey, catalogRegistryKey, catalogCatalogKey},
 		[]string{"available tools", "tool registry"},
 	),
 	nativeDescriptor(
@@ -28,7 +40,7 @@ var catalogTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDBootstrap, toolspkg.ToolsetIDCatalog},
-		[]string{"tools", "registry", "catalog"},
+		[]string{catalogToolsKey, catalogRegistryKey, catalogCatalogKey},
 		[]string{"find tools", "tool registry search"},
 	),
 	nativeDescriptor(
@@ -42,7 +54,7 @@ var catalogTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDBootstrap, toolspkg.ToolsetIDCatalog},
-		[]string{"tools", "registry", "diagnostics"},
+		[]string{catalogToolsKey, catalogRegistryKey, "diagnostics"},
 		[]string{"tool descriptor", "tool policy diagnostics"},
 	),
 }

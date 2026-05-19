@@ -21,6 +21,11 @@ import (
 )
 
 const (
+	rootAghKey     = "agh"
+	rootVersionKey = "version"
+)
+
+const (
 	outputFlagName = "output"
 	jsonFlagName   = "json"
 
@@ -77,7 +82,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	deps = deps.withDefaults()
 
 	cmd := &cobra.Command{
-		Use:   "agh",
+		Use:   rootAghKey,
 		Short: "AGH — Artificial General Hivemind",
 		Example: `  # Start the daemon and create a session in the current workspace
   agh daemon start
@@ -132,7 +137,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 
 func newVersionCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:   "version",
+		Use:   rootVersionKey,
 		Short: "Print the AGH version",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return writeCommandOutput(cmd, outputBundle{
@@ -142,7 +147,7 @@ func newVersionCommand() *cobra.Command {
 				},
 				toon: func() (string, error) {
 					info := version.Current()
-					return renderToonObject("version", []string{"version", "commit", "build_date"}, []string{
+					return renderToonObject(rootVersionKey, []string{rootVersionKey, "commit", "build_date"}, []string{
 						info.Version,
 						info.Commit,
 						info.BuildDate,

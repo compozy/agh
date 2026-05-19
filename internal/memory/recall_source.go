@@ -18,6 +18,11 @@ import (
 	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
 
+const (
+	recallSourceAgentTierKey = "agent_tier"
+	recallSourceGlobalKey    = "global"
+)
+
 // Recall returns prompt-ready deterministic memory recall output.
 func (s *Store) Recall(
 	ctx context.Context,
@@ -86,7 +91,7 @@ func recallSignalRecorderKey(workspaceID string) string {
 	if trimmed := strings.TrimSpace(workspaceID); trimmed != "" {
 		return trimmed
 	}
-	return "global"
+	return recallSourceGlobalKey
 }
 
 func (s *Store) recallWorkspaceID(ctx context.Context, explicitWorkspaceID string) (string, error) {
@@ -198,7 +203,7 @@ func queryRecallFTS(
 		limit = defaultSearchLimit
 	}
 	base := strings.Join([]string{
-		`SELECT`,
+		"SELECT",
 		`  c.id,`,
 		`  c.file_id,`,
 		`  e.workspace_id,`,
@@ -450,10 +455,10 @@ func (s *Store) RecordShadow(ctx context.Context, shadow memoryrecall.Shadow) er
 		AgentName:   shadow.AgentName,
 	}
 	return s.insertRecallEvent(ctx, memoryEventWriteShadowed, query, shadow.LoserChunkID, map[string]string{
-		"winner_chunk_id": shadow.WinnerChunkID,
-		"type":            string(shadow.Type.Normalize()),
-		"slug":            strings.TrimSpace(shadow.Slug),
-		"agent_tier":      string(shadow.AgentTier.Normalize()),
+		"winner_chunk_id":        shadow.WinnerChunkID,
+		"type":                   string(shadow.Type.Normalize()),
+		"slug":                   strings.TrimSpace(shadow.Slug),
+		recallSourceAgentTierKey: string(shadow.AgentTier.Normalize()),
 	})
 }
 
