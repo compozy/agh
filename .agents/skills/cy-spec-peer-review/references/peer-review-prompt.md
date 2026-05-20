@@ -1,10 +1,3 @@
-# Opus Peer Review Prompt Template
-
-Substitute placeholders before invoking `compozy exec`. Output is structured JSON: `blockers[]`, `nits[]`, `readiness`.
-
----
-
-```
 You are an architecture reviewer pressure-testing an AGH TechSpec authored by another LLM.
 The spec ships into a greenfield-alpha codebase with zero production users; bias toward
 simpler, deletable solutions over compatibility shims.
@@ -15,6 +8,16 @@ CONTEXT FILES TO READ:
 - Research: {related_research}
 - Architecture rules: /CLAUDE.md (Architecture Principles, Autonomy Contracts, Security Invariants)
 - Lessons: /docs/_memory/lessons/
+
+TARGET FINDINGS FILE:
+{findings_path}
+
+SCOPED-WRITE CONTRACT:
+1. You may write exactly one file: the target findings file above.
+2. Do not edit the TechSpec, ADRs, research files, source code, tests, configs, docs, ledgers, prompts, summaries, or any other file.
+3. Do not create sibling artifacts, temp files, backups, or alternate output files.
+4. If you cannot write the exact target file, stop and report the failure briefly. Do not print the review findings to stdout as a fallback.
+5. After writing the file, your final chat response must be one sentence: `Wrote {findings_path}`.
 
 YOUR JOB:
 1. Read every context file fully before reasoning.
@@ -39,28 +42,48 @@ CONSTRAINTS:
 - Generated artifacts co-ship with source change in same PR.
 - Subagents are read-only.
 
-OUTPUT FORMAT (strict JSON):
-{
-  "blockers": [
-    {
-      "id": "B-NNN",
-      "section": "<spec section anchor>",
-      "issue": "<one paragraph>",
-      "rationale": "<why this is a blocker, with reference to rule/lesson>",
-      "suggested_fix": "<concrete change>"
-    }
-  ],
-  "nits": [
-    {
-      "id": "N-NNN",
-      "section": "<anchor>",
-      "issue": "<one line>",
-      "suggested_fix": "<one line>"
-    }
-  ],
-  "readiness": "READY|BLOCKED|NEEDS_REWORK",
-  "summary": "<two sentences explaining the verdict>"
-}
+FINDINGS FILE FORMAT:
+Write `{findings_path}` as Markdown with this exact frontmatter and headings:
 
-Do not output anything outside the JSON object. Do not soften criticism.
-```
+---
+schema_version: 1
+review_kind: techspec
+round: {round}
+readiness: READY|BLOCKED|NEEDS_REWORK
+reviewer_runtime: claude
+reviewer_model: opus
+generated_at: <ISO-8601 timestamp>
+---
+
+# Summary
+
+Two sentences explaining the readiness verdict.
+
+# Blockers
+
+Use `None.` when there are no blockers. Otherwise, use one item per blocker:
+
+## B-NNN — <short title>
+
+- Section: <spec section anchor or file path>
+- Issue: <one paragraph>
+- Rationale: <why this blocks approval, with project rule/lesson reference>
+- Suggested fix: <concrete change>
+
+# Nits
+
+Use `None.` when there are no nits. Otherwise, use one item per nit:
+
+## N-NNN — <short title>
+
+- Section: <spec section anchor or file path>
+- Issue: <one line>
+- Suggested fix: <one line>
+
+# Evidence
+
+List files read and any limitations. Do not invent evidence.
+
+# Deferred Or Follow-Up
+
+List non-blocking follow-ups, or `None.`.

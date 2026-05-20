@@ -1,10 +1,3 @@
-# Opus Implementation Peer Review Prompt Template
-
-Substitute placeholders before invoking `compozy exec`. Output is structured JSON: `blockers[]`, `risks[]`, `nits[]`, `verdict`, `summary`.
-
----
-
-```
 You are a senior code reviewer pressure-testing an implementation in the AGH greenfield-alpha
 codebase. Zero production users exist; bias toward simpler, deletable solutions over compatibility
 shims. Your job is to find what's wrong, not to be polite.
@@ -28,6 +21,16 @@ DIFF (raw patch):
 
 COMMIT LIST (or `none` for staged-only review):
 {commit_list}
+
+TARGET FINDINGS FILE:
+{findings_path}
+
+SCOPED-WRITE CONTRACT:
+1. You may write exactly one file: the target findings file above.
+2. Do not edit source code, tests, configs, docs, specs, ledgers, prompts, summaries, or any other file.
+3. Do not create sibling artifacts, temp files, backups, or alternate output files.
+4. If you cannot write the exact target file, stop and report the failure briefly. Do not print the review findings to stdout as a fallback.
+5. After writing the file, your final chat response must be one sentence: `Wrote {findings_path}`.
 
 YOUR JOB:
 1. Read every context file fully. Then read every changed file in full (not just the hunks) — diffs
@@ -82,40 +85,61 @@ CONSTRAINTS:
 - Every error wrapped with `%w`; `errors.Is` / `errors.As` only.
 - No `_`-discarded errors in production code or tests without a written justification.
 
-OUTPUT FORMAT (strict JSON):
-{
-  "blockers": [
-    {
-      "id": "B-NNN",
-      "file": "<repo-root path>",
-      "line": <int or null>,
-      "issue": "<one paragraph>",
-      "rationale": "<why this is a blocker, with reference to rule/lesson/CLAUDE.md section>",
-      "suggested_fix": "<concrete change>"
-    }
-  ],
-  "risks": [
-    {
-      "id": "R-NNN",
-      "file": "<repo-root path>",
-      "line": <int or null>,
-      "issue": "<one paragraph>",
-      "suggested_fix": "<concrete change>"
-    }
-  ],
-  "nits": [
-    {
-      "id": "N-NNN",
-      "file": "<repo-root path>",
-      "line": <int or null>,
-      "issue": "<one line>",
-      "suggested_fix": "<one line>"
-    }
-  ],
-  "verdict": "SHIP|FIX_BEFORE_SHIP|REWORK",
-  "summary": "<two sentences explaining the verdict>"
-}
+FINDINGS FILE FORMAT:
+Write `{findings_path}` as Markdown with this exact frontmatter and headings:
 
-Do not output anything outside the JSON object. Do not soften criticism. Do not invent file paths
-or line numbers — every reference must point to a real location in the diff or surrounding code.
-```
+---
+schema_version: 1
+review_kind: implementation
+round: {round}
+verdict: SHIP|FIX_BEFORE_SHIP|REWORK
+reviewer_runtime: claude
+reviewer_model: opus
+generated_at: <ISO-8601 timestamp>
+---
+
+# Summary
+
+Two sentences explaining the verdict.
+
+# Blockers
+
+Use `None.` when there are no blockers. Otherwise, use one item per blocker:
+
+## B-NNN — <short title>
+
+- File: <repo-root path>
+- Line: <line number or null>
+- Issue: <one paragraph>
+- Rationale: <why this blocks shipment, with project rule/lesson reference>
+- Suggested fix: <concrete change>
+
+# Risks
+
+Use `None.` when there are no risks. Otherwise, use one item per risk:
+
+## R-NNN — <short title>
+
+- File: <repo-root path>
+- Line: <line number or null>
+- Issue: <one paragraph>
+- Suggested fix: <concrete change>
+
+# Nits
+
+Use `None.` when there are no nits. Otherwise, use one item per nit:
+
+## N-NNN — <short title>
+
+- File: <repo-root path>
+- Line: <line number or null>
+- Issue: <one line>
+- Suggested fix: <one line>
+
+# Evidence
+
+List files read, tests/build evidence observed, and any limitations. Do not invent evidence.
+
+# Deferred Or Follow-Up
+
+List non-blocking follow-ups, or `None.`.
