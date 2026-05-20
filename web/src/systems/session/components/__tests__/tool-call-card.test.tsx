@@ -20,7 +20,7 @@ function queryRoot(): HTMLElement | null {
   return document.querySelector<HTMLElement>('[data-slot="tool-call-card"]');
 }
 
-function queryStatusPill(): HTMLElement | null {
+function queryStatusIndicator(): HTMLElement | null {
   return document.querySelector<HTMLElement>('[data-slot="tool-call-card-status"]');
 }
 
@@ -28,8 +28,12 @@ function queryToolName(): HTMLElement | null {
   return document.querySelector<HTMLElement>('[data-slot="tool-call-card-tool"]');
 }
 
-function queryInputRegion(): HTMLElement | null {
-  return document.querySelector<HTMLElement>('[data-slot="tool-call-card-input"]');
+function queryInputToggle(): HTMLButtonElement | null {
+  return document.querySelector<HTMLButtonElement>('[data-slot="tool-call-card-input-toggle"]');
+}
+
+function queryOutputToggle(): HTMLButtonElement | null {
+  return document.querySelector<HTMLButtonElement>('[data-slot="tool-call-card-output-toggle"]');
 }
 
 function queryOutputRegion(): HTMLElement | null {
@@ -42,60 +46,64 @@ describe("Session ToolCallCard — wraps <ToolCallCard> from @agh/ui", () => {
     expect(queryToolName()).toHaveTextContent("Read");
   });
 
-  it("Should map in-flight (no result, no error) to status=in_progress (info tone)", () => {
+  it("Should map in-flight (no result, no error) to status=in_progress with a Spinner", () => {
     render(<ToolCallCard message={makeToolMessage()} />);
     expect(queryRoot()?.getAttribute("data-status")).toBe("in_progress");
-    expect(queryStatusPill()?.getAttribute("data-tone")).toBe("info");
+    const indicator = queryStatusIndicator();
+    expect(indicator?.getAttribute("data-status")).toBe("in_progress");
+    expect(indicator?.getAttribute("aria-label")).toBe("Running");
+    expect(screen.getByRole("status", { name: "Running" })).toBe(indicator);
     expect(screen.getByTestId("tool-card-executing")).toHaveTextContent("Reading...");
   });
 
-  it("Should map result present + no error to status=completed (success tone)", () => {
+  it("Should map result present + no error to status=completed (success icon)", () => {
     render(<ToolCallCard message={makeToolMessage({ toolResult: { content: "file" } })} />);
     expect(queryRoot()?.getAttribute("data-status")).toBe("completed");
-    expect(queryStatusPill()?.getAttribute("data-tone")).toBe("success");
+    const indicator = queryStatusIndicator();
+    expect(indicator?.getAttribute("data-status")).toBe("completed");
+    expect(indicator?.getAttribute("aria-label")).toBe("Done");
+    expect(screen.getByRole("img", { name: "Done" })).toBe(indicator);
     expect(screen.getByTestId("tool-card-success")).toHaveTextContent("Read file");
   });
 
-  it("Should map toolError to status=failed (danger tone) with the failure ring + errorMessage slot", () => {
+  it("Should map toolError to status=failed (danger icon) with the failure ring + errorMessage slot", () => {
     render(
       <ToolCallCard
         message={makeToolMessage({ toolResult: { error: "not found" }, toolError: true })}
       />
     );
     expect(queryRoot()?.getAttribute("data-status")).toBe("failed");
-    expect(queryStatusPill()?.getAttribute("data-tone")).toBe("danger");
+    const indicator = queryStatusIndicator();
+    expect(indicator?.getAttribute("data-status")).toBe("failed");
+    expect(indicator?.getAttribute("aria-label")).toBe("Error");
+    expect(screen.getByRole("img", { name: "Error" })).toBe(indicator);
     const errorNode = document.querySelector('[data-slot="tool-call-card-error"]');
     expect(errorNode?.textContent).toContain("Failed to read file");
     expect(screen.getByTestId("tool-card-error")).toHaveTextContent("Failed to read file");
   });
 
-  it("Should render the Input section closed by default and toggle open on click", () => {
+  it("Should render the Input chip closed by default and toggle open on click", () => {
     render(<ToolCallCard message={makeToolMessage()} />);
-    const region = queryInputRegion();
-    expect(region).not.toBeNull();
-    expect(region?.getAttribute("data-open")).toBe("false");
-    const toggle = region?.querySelector<HTMLButtonElement>(
-      '[data-slot="tool-call-card-input-toggle"]'
-    );
+    const toggle = queryInputToggle();
+    expect(toggle).not.toBeNull();
     expect(toggle?.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle?.getAttribute("data-open")).toBe("false");
     fireEvent.click(toggle!);
-    expect(region?.getAttribute("data-open")).toBe("true");
-  });
-
-  it("Should render the Output section closed by default once a result is available", () => {
-    render(<ToolCallCard message={makeToolMessage({ toolResult: { content: "abc" } })} />);
-    const region = queryOutputRegion();
-    expect(region).not.toBeNull();
-    expect(region?.getAttribute("data-open")).toBe("false");
     expect(
-      region
-        ?.querySelector('[data-slot="tool-call-card-output-toggle"]')
-        ?.getAttribute("aria-expanded")
-    ).toBe("false");
+      document.querySelector('[data-slot="tool-call-card-input"]')?.getAttribute("data-open")
+    ).toBe("true");
   });
 
-  it("Should not render an Output region while the tool is still running", () => {
+  it("Should render the Output chip closed by default once a result is available", () => {
+    render(<ToolCallCard message={makeToolMessage({ toolResult: { content: "abc" } })} />);
+    const toggle = queryOutputToggle();
+    expect(toggle).not.toBeNull();
+    expect(toggle?.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("Should not render an Output chip while the tool is still running", () => {
     render(<ToolCallCard message={makeToolMessage()} />);
+    expect(queryOutputToggle()).toBeNull();
     expect(queryOutputRegion()).toBeNull();
   });
 });

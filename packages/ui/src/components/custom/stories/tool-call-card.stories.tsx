@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { Button } from "../../button";
+import { CodeBlock } from "../code-block";
 import { ToolCallCard, type ToolCallStatus } from "../tool-call-card";
 
 const meta: Meta<typeof ToolCallCard> = {
@@ -11,7 +12,7 @@ const meta: Meta<typeof ToolCallCard> = {
     docs: {
       description: {
         component:
-          "Inline tool-execution card per DESIGN.md §4. Surface bg + 1 px divider between header and body. Header: terminal icon + tool name + optional file path, status pill + optional timestamp + actions slot pinned right. Compose `<ToolCallCard.Input>` and `<ToolCallCard.Output>` for collapsible argument/result regions (closed by default).",
+          "Inline tool-execution card. Collapsed cards are a single header row: terminal icon + tool name + optional file path, Input/Output disclosure chips, signal-toned status icon + optional actions. Body appears only when a chip is open, on error, or when raw children are passed. Compose `<ToolCallCard.Input>` and `<ToolCallCard.Output>` for collapsible argument/result regions (closed by default).",
       },
     },
   },
@@ -70,16 +71,29 @@ export const FailureWithError: Story = {
   },
 };
 
+export const ClosedSingleRow: Story = {
+  args: {
+    toolName: "fs.read_file",
+    filePath: "internal/api/handlers/sessions.go",
+    status: "completed",
+  },
+  render: args => (
+    <ToolCallCard {...args}>
+      <ToolCallCard.Input source={INPUT_JSON} format="code" language="json" />
+      <ToolCallCard.Output source={SHORT_OUTPUT} format="code" language="go" />
+    </ToolCallCard>
+  ),
+};
+
 export const WithInput: Story = {
   args: {
     toolName: "fs.read_file",
     filePath: "internal/api/handlers/sessions.go",
     status: "in_progress",
-    timestamp: "2026-05-11T12:00:00Z",
   },
   render: args => (
     <ToolCallCard {...args}>
-      <ToolCallCard.Input source={INPUT_JSON} format="code" />
+      <ToolCallCard.Input source={INPUT_JSON} format="code" language="json" defaultOpen />
     </ToolCallCard>
   ),
 };
@@ -89,12 +103,11 @@ export const WithInputAndOutput: Story = {
     toolName: "fs.read_file",
     filePath: "internal/api/handlers/sessions.go",
     status: "completed",
-    timestamp: "2026-05-11T12:00:00Z",
   },
   render: args => (
     <ToolCallCard {...args}>
-      <ToolCallCard.Input source={INPUT_JSON} format="code" />
-      <ToolCallCard.Output source={SHORT_OUTPUT} format="code" />
+      <ToolCallCard.Input source={INPUT_JSON} format="code" language="json" defaultOpen />
+      <ToolCallCard.Output source={SHORT_OUTPUT} format="code" language="go" defaultOpen />
     </ToolCallCard>
   ),
 };
@@ -104,12 +117,11 @@ export const LargeOutputCollapsed: Story = {
     toolName: "fs.read_file",
     filePath: "internal/api/handlers/sessions.go",
     status: "completed",
-    timestamp: "2026-05-11T12:00:00Z",
   },
   render: args => (
     <ToolCallCard {...args}>
-      <ToolCallCard.Input source={INPUT_JSON} format="code" />
-      <ToolCallCard.Output source={LONG_OUTPUT} format="code" />
+      <ToolCallCard.Input source={INPUT_JSON} format="code" language="json" />
+      <ToolCallCard.Output source={LONG_OUTPUT} format="code" language="plaintext" />
     </ToolCallCard>
   ),
 };
@@ -135,6 +147,77 @@ export const MarkdownInput: Story = {
         format="markdown"
         source="_No regressions vs `main` — all 12 checks green._"
       />
+    </ToolCallCard>
+  ),
+};
+
+export const LiveStack: Story = {
+  render: () => (
+    <div className="flex flex-col gap-1.5" data-testid="live-stack">
+      <ToolCallCard toolName="Bash" filePath="agh agent validate ./agent.toml" status="completed">
+        <ToolCallCard.Input
+          source="agh agent validate ./agent.toml"
+          format="code"
+          language="bash"
+        />
+        <ToolCallCard.Output
+          source="✓ schema valid\n✓ tools resolved (4)"
+          format="code"
+          language="plaintext"
+        />
+      </ToolCallCard>
+      <ToolCallCard
+        toolName="Bash"
+        filePath="rm -f .claude/agents/wrong-name.md"
+        status="completed"
+      >
+        <ToolCallCard.Input
+          source="rm -f .claude/agents/wrong-name.md"
+          format="code"
+          language="bash"
+        />
+        <ToolCallCard.Output source="" format="code" language="plaintext" />
+      </ToolCallCard>
+      <ToolCallCard toolName="Read" filePath="agh.config.toml" status="completed">
+        <ToolCallCard.Input
+          source='{"file_path":"agh.config.toml"}'
+          format="code"
+          language="json"
+        />
+        <ToolCallCard.Output source="[runtime]\nmode = local" format="code" language="toml" />
+      </ToolCallCard>
+      <ToolCallCard toolName="Grep" filePath='pattern: "INPUT|OUTPUT"' status="in_progress">
+        <ToolCallCard.Input source='{"pattern":"INPUT|OUTPUT"}' format="code" language="json" />
+        <ToolCallCard.Output source="" format="code" language="plaintext" />
+      </ToolCallCard>
+      <ToolCallCard toolName="Write" filePath="redesign-toolcall-card.html" status="completed">
+        <ToolCallCard.Input
+          source='{"file_path":"redesign-toolcall-card.html"}'
+          format="code"
+          language="json"
+        />
+        <ToolCallCard.Output source="✓ file written" format="code" language="plaintext" />
+      </ToolCallCard>
+    </div>
+  ),
+};
+
+/**
+ * Mounts a shiki-highlighted `<CodeBlock>` directly as children — mirrors the
+ * web session wrapper's explicit-CodeBlock composition. Regression guard for
+ * the children-pass-through render path.
+ */
+export const CodeBlockInsideInput: Story = {
+  args: {
+    toolName: "fs.read_file",
+    filePath: "internal/api/handlers/sessions.go",
+    status: "completed",
+  },
+  render: args => (
+    <ToolCallCard {...args}>
+      <ToolCallCard.Input defaultOpen>
+        <CodeBlock language="json" code={INPUT_JSON} />
+      </ToolCallCard.Input>
     </ToolCallCard>
   ),
 };
