@@ -297,6 +297,7 @@ func TestSchedulerDefersNextRunAfterFireLimit(t *testing.T) {
 		fakeClock.Advance(time.Minute)
 		dispatcher.waitForDispatchCount(t, 1, 2*time.Second)
 		dispatcher.waitForCompletionCount(t, 1, 2*time.Second)
+		store.waitForNextRunAt(t, job.ID, retryAt, 2*time.Second)
 
 		state, err := store.GetSchedulerState(context.Background(), job.ID)
 		if err != nil {
@@ -817,6 +818,7 @@ type memorySchedulerStore struct {
 	states          map[string]SchedulerState
 	runs            map[string]Run
 	deliveryErrors  map[string]string
+	stateCh         chan struct{}
 	deliveryErrorCh chan struct{}
 }
 
@@ -825,6 +827,7 @@ func newMemorySchedulerStore() *memorySchedulerStore {
 		states:          make(map[string]SchedulerState),
 		runs:            make(map[string]Run),
 		deliveryErrors:  make(map[string]string),
+		stateCh:         make(chan struct{}, 32),
 		deliveryErrorCh: make(chan struct{}, 32),
 	}
 }
@@ -850,6 +853,7 @@ func (s *memorySchedulerStore) SaveSchedulerState(
 		state.CatchUpPolicy = SchedulerCatchUpPolicySkipMissed
 	}
 	s.states[state.JobID] = cloneSchedulerStateForTest(state)
+	notify(s.stateCh)
 	return cloneSchedulerStateForTest(state), nil
 }
 
@@ -867,6 +871,7 @@ func (s *memorySchedulerStore) DeleteSchedulerState(_ context.Context, jobID str
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.states, strings.TrimSpace(jobID))
+	notify(s.stateCh)
 	return nil
 }
 
@@ -900,7 +905,31 @@ func (s *memorySchedulerStore) ClaimScheduledRun(
 	}
 	s.states[claim.JobID] = cloneSchedulerStateForTest(next)
 	s.runs[claim.RunID] = *cloneRun(&run)
+	notify(s.stateCh)
 	return SchedulerClaimResult{State: next, Run: run}, nil
+}
+
+func (s *memorySchedulerStore) waitForNextRunAt(
+	t *testing.T,
+	jobID string,
+	want time.Time,
+	timeout time.Duration,
+) {
+	t.Helper()
+
+	deadline := time.After(timeout)
+	for {
+		state, err := s.GetSchedulerState(context.Background(), jobID)
+		if err == nil && state.NextRunAt != nil && state.NextRunAt.Equal(want) {
+			return
+		}
+
+		select {
+		case <-deadline:
+			t.Fatalf("NextRunAt did not reach %s within %s; got %#v", want.Format(time.RFC3339), timeout, state)
+		case <-s.stateCh:
+		}
+	}
 }
 
 func (s *memorySchedulerStore) RecordRunDeliveryError(

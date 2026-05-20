@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pedronauck/agh/internal/api/contract"
+	"github.com/pedronauck/agh/internal/diagnostics"
 	"github.com/pedronauck/agh/internal/session"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
@@ -184,6 +186,35 @@ func TestResolveValidatesAgentCallerIdentity(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestIdentityErrorDiagnosticItem(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose redacted DiagnosticItem", func(t *testing.T) {
+		t.Parallel()
+
+		err := identityError(
+			ErrIdentityRequired,
+			contract.CodeIdentityRequired,
+			"agent token=identity-secret is required",
+			"export AGH_SESSION_ID",
+		)
+		var identityErr *Error
+		if !errors.As(err, &identityErr) {
+			t.Fatal("errors.As() = false, want *Error")
+		}
+		item := identityErr.ToDiagnosticItem()
+		if item.Code != contract.CodeIdentityRequired {
+			t.Fatalf("DiagnosticItem.Code = %q, want %q", item.Code, contract.CodeIdentityRequired)
+		}
+		if item.SuggestedCommand != "export AGH_SESSION_ID" {
+			t.Fatalf("DiagnosticItem.SuggestedCommand = %q, want action", item.SuggestedCommand)
+		}
+		if strings.Contains(item.Message, "identity-secret") {
+			t.Fatalf("DiagnosticItem.Message = %q leaked secret", item.Message)
+		}
+	})
 }
 
 func TestErrorOutputConventionsRenderStableJSONAndJSONL(t *testing.T) {
@@ -440,6 +471,14 @@ func TestErrorPayloadFallbacksAndExitCodes(t *testing.T) {
 			wantExit:   ExitIdentityRequired,
 		},
 		{
+			name:       "Should map diagnostic identity code without sentinel to identity exit",
+			err:        &Error{Code: contract.CodeIdentityRequired},
+			wantCode:   contract.CodeIdentityRequired,
+			wantMsg:    agentCommandFailedMessage,
+			wantAction: "inspect the daemon error and retry",
+			wantExit:   ExitIdentityRequired,
+		},
+		{
 			name: "Should map lookup unavailable identity errors to unavailable exit",
 			err: identityError(
 				ErrIdentityLookupUnavailable,
@@ -451,6 +490,22 @@ func TestErrorPayloadFallbacksAndExitCodes(t *testing.T) {
 			wantMsg:    "agent identity cannot be validated",
 			wantAction: "retry after the daemon is reachable",
 			wantExit:   ExitUnavailable,
+		},
+		{
+			name: "Should map config invalid diagnostic to config invalid exit",
+			err: diagnostics.NewStructuredError(diagnostics.NewItem(
+				"config.parse",
+				contract.CodeConfigInvalid,
+				contract.CategoryConfig,
+				"Config invalid",
+				"config token=secret failed",
+				contract.SeverityCritical,
+				contract.FreshnessLive,
+			), errors.New("parse failed")),
+			wantCode:   "agent_error",
+			wantMsg:    agentCommandFailedMessage,
+			wantAction: "inspect the daemon error and retry",
+			wantExit:   ExitConfigInvalid,
 		},
 	}
 

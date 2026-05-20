@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+
+	"github.com/pedronauck/agh/internal/api/contract"
+	"github.com/pedronauck/agh/internal/diagnostics"
 )
 
 const (
@@ -24,6 +27,12 @@ const (
 	ExitUnauthorized = 77
 	// ExitUnavailable reports daemon lookup or validation infrastructure failure.
 	ExitUnavailable = 69
+	// ExitDoctorWarn reports doctor diagnostics with warnings.
+	ExitDoctorWarn = 70
+	// ExitDoctorError reports doctor diagnostics with errors.
+	ExitDoctorError = 71
+	// ExitConfigInvalid reports invalid runtime configuration.
+	ExitConfigInvalid = 78
 )
 
 var (
@@ -64,6 +73,37 @@ func (e *Error) Unwrap() error {
 		return nil
 	}
 	return e.Err
+}
+
+// ToDiagnosticItem converts the identity error into the shared diagnostic shape.
+func (e *Error) ToDiagnosticItem() contract.DiagnosticItem {
+	if e == nil {
+		var item contract.DiagnosticItem
+		return item
+	}
+	code := strings.TrimSpace(e.Code)
+	if !contract.IsDiagnosticCode(code) {
+		code = contract.CodeIdentityLookupUnavailable
+	}
+	message := strings.TrimSpace(e.Message)
+	if message == "" {
+		message = agentCommandFailedMessage
+	}
+	return diagnostics.NewItem(
+		"agentidentity."+code,
+		code,
+		contract.CategorySession,
+		"Agent identity error",
+		message,
+		contract.SeverityError,
+		contract.FreshnessLive,
+		diagnostics.WithSuggestedCommand(e.Action),
+	)
+}
+
+// DiagnosticItem exposes the shared diagnostic shape for errors.As callers.
+func (e *Error) DiagnosticItem() contract.DiagnosticItem {
+	return e.ToDiagnosticItem()
 }
 
 // ErrorPayload is the stable machine-readable CLI error shape for agent namespaces.
@@ -136,6 +176,33 @@ func ExitCodeForError(err error) int {
 	case errors.Is(err, ErrIdentityUnauthorized):
 		return ExitUnauthorized
 	default:
+		diagnosticErr, ok := errors.AsType[interface {
+			error
+			DiagnosticItem() contract.DiagnosticItem
+		}](err)
+		if ok {
+			item := diagnosticErr.DiagnosticItem()
+			switch item.Code {
+			case contract.CodeConfigInvalid:
+				return ExitConfigInvalid
+			case contract.CodeDaemonUnavailable:
+				return ExitUnavailable
+			case contract.CodeIdentityRequired:
+				return ExitIdentityRequired
+			case contract.CodeIdentityStale, contract.CodeIdentityMismatch:
+				return ExitIdentityInvalid
+			case contract.CodeIdentityUnauthorized:
+				return ExitUnauthorized
+			case contract.CodeIdentityLookupUnavailable:
+				return ExitUnavailable
+			}
+			switch item.Severity {
+			case contract.SeverityWarn:
+				return ExitDoctorWarn
+			case contract.SeverityError, contract.SeverityCritical:
+				return ExitDoctorError
+			}
+		}
 		return ExitUnavailable
 	}
 }

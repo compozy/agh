@@ -7,9 +7,11 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"strings"
 	"syscall"
 	"testing"
+
+	"github.com/pedronauck/agh/internal/agentidentity"
+	"github.com/pedronauck/agh/internal/api/contract"
 )
 
 func TestUnixSocketClientActionableDaemonErrors(t *testing.T) {
@@ -18,7 +20,7 @@ func TestUnixSocketClientActionableDaemonErrors(t *testing.T) {
 	t.Run("Should include daemon start guidance when socket is missing", func(t *testing.T) {
 		t.Parallel()
 
-		root, err := os.MkdirTemp("", "agh-missing-socket-")
+		root, err := os.MkdirTemp("/tmp", "agh-sock-")
 		if err != nil {
 			t.Fatalf("os.MkdirTemp() error = %v", err)
 		}
@@ -27,7 +29,6 @@ func TestUnixSocketClientActionableDaemonErrors(t *testing.T) {
 				t.Errorf("os.RemoveAll(%q) error = %v", root, removeErr)
 			}
 		})
-
 		socketPath := filepath.Join(root, "agh.sock")
 		client, err := NewClient(socketPath)
 		if err != nil {
@@ -41,7 +42,7 @@ func TestUnixSocketClientActionableDaemonErrors(t *testing.T) {
 		if !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("DaemonStatus() error = %v, want os.ErrNotExist in chain", err)
 		}
-		assertDaemonUnavailableGuidance(t, err, socketPath)
+		assertDaemonUnavailableDiagnostic(t, err, socketPath)
 	})
 
 	t.Run("Should include daemon start guidance when socket refuses connection", func(t *testing.T) {
@@ -68,21 +69,31 @@ func TestUnixSocketClientActionableDaemonErrors(t *testing.T) {
 		if !errors.Is(err, syscall.ECONNREFUSED) {
 			t.Fatalf("DaemonStatus() error = %v, want syscall.ECONNREFUSED in chain", err)
 		}
-		assertDaemonUnavailableGuidance(t, err, socketPath)
+		assertDaemonUnavailableDiagnostic(t, err, socketPath)
 	})
 }
 
-func assertDaemonUnavailableGuidance(t *testing.T, err error, socketPath string) {
+func assertDaemonUnavailableDiagnostic(t *testing.T, err error, socketPath string) {
 	t.Helper()
 
-	for _, want := range []string{
-		"daemon unavailable",
-		socketPath,
-		"agh daemon start",
-		"agh daemon status",
-	} {
-		if !strings.Contains(err.Error(), want) {
-			t.Fatalf("DaemonStatus() error = %q, want %q", err.Error(), want)
-		}
+	var structured *StructuredError
+	if !errors.As(err, &structured) {
+		t.Fatalf("DaemonStatus() error = %T, want *StructuredError", err)
+	}
+	if structured.Item.Code != contract.CodeDaemonUnavailable {
+		t.Fatalf("StructuredError.Code = %q, want %q", structured.Item.Code, contract.CodeDaemonUnavailable)
+	}
+	if structured.Item.SuggestedCommand != "agh daemon start" {
+		t.Fatalf("StructuredError.SuggestedCommand = %q, want agh daemon start", structured.Item.SuggestedCommand)
+	}
+	if structured.Item.Evidence["socket_path"] != socketPath {
+		t.Fatalf(
+			"StructuredError.Evidence[socket_path] = %#v, want %q",
+			structured.Item.Evidence["socket_path"],
+			socketPath,
+		)
+	}
+	if got := agentidentity.ExitCodeForError(err); got != agentidentity.ExitUnavailable {
+		t.Fatalf("ExitCodeForError() = %d, want %d", got, agentidentity.ExitUnavailable)
 	}
 }

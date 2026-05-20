@@ -986,7 +986,8 @@ type ExtensionBundleSummaryPayload struct {
 
 // ErrorPayload is the shared error response payload.
 type ErrorPayload struct {
-	Error string `json:"error"`
+	Error      string          `json:"error"`
+	Diagnostic *DiagnosticItem `json:"diagnostic,omitempty"`
 }
 
 // MemoryWriteRequest is the shared memory write request payload.

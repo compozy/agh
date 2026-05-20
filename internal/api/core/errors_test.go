@@ -6,12 +6,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	"github.com/pedronauck/agh/internal/diagnostics"
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/session"
 	taskpkg "github.com/pedronauck/agh/internal/task"
@@ -224,5 +226,109 @@ func TestRespondErrorFallbackBranches(t *testing.T) {
 				t.Fatalf("status = %d, want %d", recorder.Code, tt.wantStatus)
 			}
 		})
+	}
+}
+
+func TestRespondErrorDiagnosticPayload(t *testing.T) {
+	t.Run("Should include redacted diagnostic when error carries one", func(t *testing.T) {
+		// not parallel: gin.SetMode mutates process-global state.
+		gin.SetMode(gin.TestMode)
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+		item := diagnostics.NewItem(
+			"api.config_invalid",
+			contract.CodeConfigInvalid,
+			contract.CategoryConfig,
+			"Config invalid",
+			"config token=api-secret failed",
+			contract.SeverityCritical,
+			contract.FreshnessLive,
+			diagnostics.WithEvidence(map[string]any{"api_key": "sk-secret"}),
+		)
+		RespondError(
+			ctx,
+			http.StatusUnprocessableEntity,
+			diagnostics.NewStructuredError(item, errors.New("token=cause-secret")),
+			false,
+		)
+
+		var payload contract.ErrorPayload
+		if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if payload.Diagnostic == nil {
+			t.Fatal("payload.Diagnostic = nil, want diagnostic")
+		}
+		if payload.Diagnostic.Code != contract.CodeConfigInvalid {
+			t.Fatalf("payload.Diagnostic.Code = %q, want %q", payload.Diagnostic.Code, contract.CodeConfigInvalid)
+		}
+		if payload.Diagnostic.Evidence["api_key"] != "[REDACTED]" {
+			t.Fatalf(
+				"payload.Diagnostic.Evidence[api_key] = %#v, want redacted",
+				payload.Diagnostic.Evidence["api_key"],
+			)
+		}
+		for _, leaked := range []string{"api-secret", "sk-secret", "cause-secret"} {
+			if body := recorder.Body.String(); strings.Contains(body, leaked) {
+				t.Fatalf("response body = %s leaked %q", body, leaked)
+			}
+		}
+	})
+}
+
+func TestRespondOpenAIErrorRedaction(t *testing.T) {
+	t.Run("Should redact secret-shaped OpenAI error messages", func(t *testing.T) {
+		// not parallel: gin.SetMode mutates process-global state.
+		gin.SetMode(gin.TestMode)
+		recorder := httptest.NewRecorder()
+		ctx, _ := gin.CreateTestContext(recorder)
+
+		RespondOpenAIError(
+			ctx,
+			http.StatusBadRequest,
+			errors.New("provider returned Authorization: Bearer sk-openai-secret"),
+			false,
+		)
+
+		var payload contract.OpenAIErrorResponse
+		if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if strings.Contains(payload.Error.Message, "sk-openai-secret") {
+			t.Fatalf("payload.Error.Message = %q leaked secret", payload.Error.Message)
+		}
+		if !strings.Contains(payload.Error.Message, "[REDACTED]") {
+			t.Fatalf("payload.Error.Message = %q, want redacted marker", payload.Error.Message)
+		}
+	})
+}
+
+func TestErrorPayloadForError(t *testing.T) {
+	t.Parallel()
+
+	item := diagnostics.NewItem(
+		"stream.daemon_unavailable",
+		contract.CodeDaemonUnavailable,
+		contract.CategoryDaemon,
+		"Daemon unavailable",
+		"socket token=stream-secret failed",
+		contract.SeverityError,
+		contract.FreshnessOffline,
+	)
+	payload := ErrorPayloadForError(diagnostics.NewStructuredError(item, errors.New("token=cause-secret")))
+	if payload.Diagnostic == nil {
+		t.Fatal("payload.Diagnostic = nil, want diagnostic")
+	}
+	if payload.Diagnostic.Code != contract.CodeDaemonUnavailable {
+		t.Fatalf("payload.Diagnostic.Code = %q, want %q", payload.Diagnostic.Code, contract.CodeDaemonUnavailable)
+	}
+	for _, leaked := range []string{"stream-secret", "cause-secret"} {
+		raw, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		if strings.Contains(string(raw), leaked) {
+			t.Fatalf("payload = %s leaked %q", raw, leaked)
+		}
 	}
 }

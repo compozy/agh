@@ -1148,7 +1148,7 @@ func (h *BaseHandlers) StreamObserveEvents(c *gin.Context) {
 			if pollErr != nil {
 				h.writeSSEBestEffort(writer, SSEMessage{
 					Name: handlersErrorKey,
-					Data: contract.ErrorPayload{Error: pollErr.Error()},
+					Data: ErrorPayloadForError(pollErr),
 				})
 				return
 			}

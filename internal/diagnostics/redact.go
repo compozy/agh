@@ -47,7 +47,8 @@ var (
 	secretPattern = regexp.MustCompile(
 		`(?i)\b(` + sensitiveKeyPattern + `)\b(\s*[=:]\s*)("[^"]*"|'[^']*'|[^\s,;]+)`,
 	)
-	dynamicSecrets = newDynamicSecretRegistry()
+	sensitiveEvidenceKeyPattern = regexp.MustCompile(`(?i)^(?:` + sensitiveKeyPattern + `)$`)
+	dynamicSecrets              = newDynamicSecretRegistry()
 )
 
 type dynamicSecretRegistry struct {

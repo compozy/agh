@@ -3,6 +3,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -13,8 +14,10 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/agentidentity"
+	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	aghdaemon "github.com/pedronauck/agh/internal/daemon"
+	diagnosticspkg "github.com/pedronauck/agh/internal/diagnostics"
 	"github.com/pedronauck/agh/internal/procutil"
 	aghupdate "github.com/pedronauck/agh/internal/update"
 	"github.com/pedronauck/agh/internal/version"
@@ -189,7 +192,7 @@ func writeExecutionError(stderr io.Writer, args []string, err error) int {
 
 func marshalStructuredExecutionError(args []string, err error) ([]byte, bool) {
 	if !isStructuredAgentCommandError(err) {
-		return nil, false
+		return marshalDiagnosticExecutionError(args, err)
 	}
 
 	switch requestedOutputFormat(args) {
@@ -205,6 +208,36 @@ func marshalStructuredExecutionError(args []string, err error) ([]byte, bool) {
 			return nil, false
 		}
 		return payload, true
+	default:
+		return nil, false
+	}
+}
+
+func marshalDiagnosticExecutionError(args []string, err error) ([]byte, bool) {
+	item, ok := diagnosticspkg.ItemFromError(err)
+	if !ok {
+		return nil, false
+	}
+	payload := contract.ErrorPayload{Error: diagnosticspkg.Redact(err.Error()), Diagnostic: &item}
+	switch requestedOutputFormat(args) {
+	case OutputJSON:
+		encoded, marshalErr := json.Marshal(payload)
+		if marshalErr != nil {
+			return nil, false
+		}
+		return encoded, true
+	case OutputJSONL:
+		encoded, marshalErr := json.Marshal(struct {
+			Type  string                `json:"type"`
+			Error contract.ErrorPayload `json:"error"`
+		}{
+			Type:  "error",
+			Error: payload,
+		})
+		if marshalErr != nil {
+			return nil, false
+		}
+		return append(encoded, '\n'), true
 	default:
 		return nil, false
 	}

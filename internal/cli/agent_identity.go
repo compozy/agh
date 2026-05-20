@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/pedronauck/agh/internal/agentidentity"
+	diagnosticspkg "github.com/pedronauck/agh/internal/diagnostics"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
@@ -65,8 +66,12 @@ func cliExitCodeForError(err error) int {
 	if err == nil {
 		return 0
 	}
-	if code := agentidentity.ExitCodeForError(err); code != agentidentity.ExitUnavailable {
-		return code
+	code := agentidentity.ExitCodeForError(err)
+	if code == agentidentity.ExitUnavailable {
+		if _, ok := diagnosticspkg.ItemFromError(err); ok {
+			return code
+		}
+		return 1
 	}
-	return 1
+	return code
 }

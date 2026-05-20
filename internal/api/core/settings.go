@@ -352,7 +352,7 @@ func (h *BaseHandlers) StreamSettingsObservabilityLogTail(c *gin.Context) {
 			if rotationErr != nil {
 				h.writeSSEBestEffort(writer, SSEMessage{
 					Name: settingsErrorKey,
-					Data: contract.ErrorPayload{Error: rotationErr.Error()},
+					Data: ErrorPayloadForError(rotationErr),
 				})
 				return
 			}
@@ -362,7 +362,7 @@ func (h *BaseHandlers) StreamSettingsObservabilityLogTail(c *gin.Context) {
 			if drainErr := h.drainSettingsLogTail(writer, reader, &partial); drainErr != nil {
 				h.writeSSEBestEffort(writer, SSEMessage{
 					Name: settingsErrorKey,
-					Data: contract.ErrorPayload{Error: drainErr.Error()},
+					Data: ErrorPayloadForError(drainErr),
 				})
 				return
 			}

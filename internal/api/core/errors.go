@@ -15,6 +15,7 @@ import (
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	diagnosticspkg "github.com/pedronauck/agh/internal/diagnostics"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/modelcatalog"
 	"github.com/pedronauck/agh/internal/network"
@@ -34,18 +35,66 @@ const (
 	errorsUnknownErrorValue        = "unknown error"
 )
 
+type normalizedErrorStatus struct {
+	status             int
+	err                error
+	maskInternalErrors bool
+}
+
 // ErrRequestBodyTooLarge is the shared transport sentinel for request bodies
 // rejected by HTTP MaxBytesReader enforcement.
 var ErrRequestBodyTooLarge = errors.New("request body too large")
 
 // RespondError writes a transport error response, optionally masking internal error details.
 func RespondError(c *gin.Context, status int, err error, maskInternalErrors bool) {
+	normalized := normalizeErrorStatus(status, err, maskInternalErrors)
+	c.JSON(
+		normalized.status,
+		errorPayloadForNormalizedStatus(
+			normalized.status,
+			normalized.err,
+			normalized.maskInternalErrors,
+		),
+	)
+}
+
+// ErrorPayloadForError builds a redacted error payload for stream frames and other non-status envelopes.
+func ErrorPayloadForError(err error) contract.ErrorPayload {
+	message := errorsUnknownErrorValue
+	if err != nil && strings.TrimSpace(err.Error()) != "" {
+		message = err.Error()
+	}
+	return errorPayloadForMessage(message, err)
+}
+
+// ErrorPayloadForStatus builds a redacted HTTP/UDS error payload for status.
+func ErrorPayloadForStatus(status int, err error, maskInternalErrors bool) contract.ErrorPayload {
+	normalized := normalizeErrorStatus(status, err, maskInternalErrors)
+	return errorPayloadForNormalizedStatus(
+		normalized.status,
+		normalized.err,
+		normalized.maskInternalErrors,
+	)
+}
+
+func normalizeErrorStatus(status int, err error, maskInternalErrors bool) normalizedErrorStatus {
 	if maxBytesErr, ok := errors.AsType[*http.MaxBytesError](err); ok && maxBytesErr != nil {
 		status = http.StatusRequestEntityTooLarge
 		err = ErrRequestBodyTooLarge
 		maskInternalErrors = false
 	}
+	return normalizedErrorStatus{
+		status:             status,
+		err:                err,
+		maskInternalErrors: maskInternalErrors,
+	}
+}
 
+func errorPayloadForNormalizedStatus(
+	status int,
+	err error,
+	maskInternalErrors bool,
+) contract.ErrorPayload {
 	message := http.StatusText(status)
 	switch {
 	case maskInternalErrors && status >= http.StatusInternalServerError:
@@ -58,8 +107,16 @@ func RespondError(c *gin.Context, status int, err error, maskInternalErrors bool
 		message = errorsUnknownErrorValue
 	}
 
-	message = taskpkg.RedactClaimTokens(message)
-	c.JSON(status, contract.ErrorPayload{Error: message})
+	return errorPayloadForMessage(message, err)
+}
+
+func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
+	message = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(message))
+	payload := contract.ErrorPayload{Error: message}
+	if item, ok := diagnosticspkg.ItemFromError(err); ok {
+		payload.Diagnostic = &item
+	}
+	return payload
 }
 
 // StatusForSessionError maps session and workspace-domain errors to transport statuses.
@@ -557,7 +614,7 @@ func RespondOpenAIError(c *gin.Context, status int, err error, maskInternalError
 	case strings.TrimSpace(message) == "":
 		message = errorsUnknownErrorValue
 	}
-	message = taskpkg.RedactClaimTokens(message)
+	message = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(message))
 	c.JSON(status, contract.OpenAIErrorResponse{
 		Error: contract.OpenAIErrorPayload{
 			Message: message,

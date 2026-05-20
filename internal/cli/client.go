@@ -23,6 +23,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	diagnosticspkg "github.com/pedronauck/agh/internal/diagnostics"
 	mcppkg "github.com/pedronauck/agh/internal/mcp"
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/sse"
@@ -4299,40 +4300,24 @@ func (c *unixSocketClient) doRequestWithCredentialsAndClient(
 	return response, nil
 }
 
-type daemonUnavailableError struct {
-	socketPath string
-	method     string
-	path       string
-	err        error
-}
-
 func newDaemonUnavailableError(socketPath string, method string, path string, err error) error {
-	return &daemonUnavailableError{
-		socketPath: socketPath,
-		method:     method,
-		path:       path,
-		err:        err,
-	}
-}
-
-func (e *daemonUnavailableError) Error() string {
-	if e == nil {
-		return "cli: daemon unavailable"
-	}
-	return fmt.Sprintf(
-		"cli: daemon unavailable at %s while requesting %s %s: %v\nnext: run `agh daemon start`; then retry or inspect with `agh daemon status`",
-		e.socketPath,
-		e.method,
-		e.path,
-		e.err,
+	item := diagnosticspkg.NewItem(
+		"cli.daemon_unavailable",
+		contract.CodeDaemonUnavailable,
+		contract.CategoryDaemon,
+		"Daemon unavailable",
+		fmt.Sprintf("AGH daemon is not reachable at %s while requesting %s %s.", socketPath, method, path),
+		contract.SeverityError,
+		contract.FreshnessOffline,
+		diagnosticspkg.WithSuggestedCommand("agh daemon start"),
+		diagnosticspkg.WithEvidence(map[string]any{
+			"socket_path": socketPath,
+			"method":      method,
+			"path":        path,
+			"cause":       err,
+		}),
 	)
-}
-
-func (e *daemonUnavailableError) Unwrap() error {
-	if e == nil {
-		return nil
-	}
-	return e.err
+	return diagnosticspkg.NewStructuredError(item, err)
 }
 
 func isDaemonUnavailableTransportError(err error) bool {

@@ -391,7 +391,7 @@ func (h *BaseHandlers) StreamBridgeHealth(c *gin.Context) {
 			if pollErr != nil {
 				h.writeSSEBestEffort(writer, SSEMessage{
 					Name: bridgesErrorKey,
-					Data: contract.ErrorPayload{Error: pollErr.Error()},
+					Data: ErrorPayloadForError(pollErr),
 				})
 				return
 			}

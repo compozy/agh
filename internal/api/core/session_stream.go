@@ -120,7 +120,7 @@ func (h *BaseHandlers) pollSessionStreamTick(
 		// Best-effort notification; the SSE client may already be disconnected.
 		h.writeSSEBestEffort(writer, SSEMessage{
 			Name: sessionStreamErrorKey,
-			Data: contract.ErrorPayload{Error: pollErr.Error()},
+			Data: ErrorPayloadForError(pollErr),
 		})
 		return afterSequence, info, true
 	}
@@ -138,7 +138,7 @@ func (h *BaseHandlers) pollSessionStreamTick(
 		// Best-effort notification; the SSE client may already be disconnected.
 		h.writeSSEBestEffort(writer, SSEMessage{
 			Name: sessionStreamErrorKey,
-			Data: contract.ErrorPayload{Error: statusErr.Error()},
+			Data: ErrorPayloadForError(statusErr),
 		})
 		return afterSequence, info, true
 	}
