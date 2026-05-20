@@ -11,7 +11,7 @@ For a feature with slug `<slug>` whose techspec lives at
 `.compozy/tasks/<slug>/_techspec.md`:
 
 ```text
-[[CODEX_LOOP name="<slug>" goal="ship <slug> end-to-end via cy-codex-loop: every iteration runs .agents/skills/cy-codex-loop/scripts/detect-phase.py and executes the printed action; finish only when 3 consecutive coderabbit rounds are clean and make verify is PASS"]]
+[[CODEX_LOOP name="<slug>" goal="ship <slug> end-to-end via cy-codex-loop: every iteration runs .agents/skills/cy-codex-loop/scripts/detect-phase.py and executes the printed action; finish only when qa-report and qa-execution are complete and make verify is PASS"]]
 
 Use the cy-codex-loop skill at .agents/skills/cy-codex-loop/SKILL.md.
 The skill is a state machine — one iteration per Stop. Slug: <slug>.
@@ -19,8 +19,25 @@ The skill is a state machine — one iteration per Stop. Slug: <slug>.
 
 The `goal=` text becomes `state.yaml.goal_signature` and is shown to the
 goal-check confirmation prompt as the success criterion. Keep it
-specific (mentions slug, mentions the 3-clean-rounds + verify gate) so
-the verdict is grounded.
+specific (mentions slug, mentions the QA + verify gate) so the verdict
+is grounded.
+
+## Enabling the frontend/docs delegation lane (opt-in)
+
+The frontend/docs delegation lane is OFF by default. To enable it for a
+loop, include the literal token `delegation=frontend-docs` (case-
+insensitive) anywhere in the `goal=` text. The skill detects it via a
+substring scan on `state.goal_signature`; no other configuration is
+needed.
+
+```text
+[[CODEX_LOOP name="<slug>" goal="ship <slug> end-to-end via cy-codex-loop ... delegation=frontend-docs ..."]]
+```
+
+When the token is present, qualifying Phase B tasks (per
+`frontend-docs-delegation.md` classification) dispatch through
+`compozy exec --ide claude --model opus`. When absent, all Phase B work
+runs locally regardless of task `type:`.
 
 ## Tunable confirm/interpret models
 

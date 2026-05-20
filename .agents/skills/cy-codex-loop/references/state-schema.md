@@ -27,12 +27,6 @@ No other writer is permitted. Hand-editing voids resume guarantees.
 | `progress.checklist[]` | list[obj] | Free-form checklist the LLM maintains in `mode=free`. Each entry: `text` (string), `status` (`pending`\|`in_progress`\|`completed`), `iteration` (int — the iteration that last touched it). Items only get added or status-flipped, never deleted. |
 | `qa.report_done` | bool | True once `qa-report` artifacts are produced. |
 | `qa.execution_done` | bool | True once `qa-execution` produced its `verification-report.md` with PASS. |
-| `coderabbit.rounds_completed` | int | Total CodeRabbit rounds executed (clean or not). |
-| `coderabbit.rounds_clean_streak` | int | Consecutive clean rounds at the tail. Resets to 0 the moment any round has critical/high unresolved. |
-| `coderabbit.rounds_required` | int | Default 3. Configurable at bootstrap. |
-| `coderabbit.current_round_dir` | string \| null | e.g. `reviews-002` while a round is mid-fix. Null between rounds. |
-| `coderabbit.unresolved_critical` | int | Count snapshot at end of last round. |
-| `coderabbit.unresolved_high` | int | Count snapshot at end of last round. |
 | `verify.last_run` | RFC3339 \| null | Last `make verify` execution. |
 | `verify.last_status` | `PASS` \| `FAIL` \| null | Result of last `make verify`. |
 | `iterations[]` | list[obj] | Append-only log capped at the last 50 entries by `update-state.py`. Each entry: `n` (int), `timestamp` (RFC3339), `phase` (string), `action` (string), `outcome` (`completed`\|`partial`\|`blocked`), `memory_written` (list[string]), `blockers` (list[string]). |
@@ -41,6 +35,5 @@ No other writer is permitted. Hand-editing voids resume guarantees.
 
 1. There is no top-level `current_phase`: `detect-phase.py` derives the next phase from `state.yaml` plus the filesystem every time. Phase labels live only in `iterations[].phase` as history.
 2. `mode` is stable after bootstrap unless `update-state.py --reconcile-tasks` is used to rebuild `tasks.*` from task-file frontmatter after `_tasks.md` is authored later in the workflow. Do not hand-edit `mode`.
-3. `coderabbit.rounds_clean_streak` resets to 0 the instant any new unresolved critical/high issue appears, even mid-round.
-4. `progress.checklist[]` items move only forward (`pending → in_progress → completed`). Reverting requires a new entry.
-5. `iterations[]` is append-only; older entries get pruned by `update-state.py` once it exceeds 50, never edited.
+3. `progress.checklist[]` items move only forward (`pending → in_progress → completed`). Reverting requires a new entry.
+4. `iterations[]` is append-only; older entries get pruned by `update-state.py` once it exceeds 50, never edited.

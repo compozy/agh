@@ -8,6 +8,7 @@
 - **Memory written:** {{ memory_paths_csv }}
 - **State updated:** `.compozy/tasks/{{ slug }}/state.yaml`
 - **Verify:** {{ verify_status }} ({{ verify_evidence }})
+- **Checkpoint commit:** {{ commit_sha_or_skip_or_none }}     <!-- short SHA, "SKIP: no changes", or "n/a (phase != B)" -->
 - **Blockers (if any):** {{ blockers_or_none }}
 - **Next phase per detect-phase.py:** {{ next_phase }}
 

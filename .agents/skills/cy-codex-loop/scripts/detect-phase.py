@@ -17,8 +17,6 @@ Output (single line, key=value space-separated):
     phase=B action=execute_free_slice                   # mode=free
     phase=C action=qa_report
     phase=C action=qa_execution
-    phase=D action=coderabbit_round round=<NNN>
-    phase=D action=coderabbit_fix round=<NNN>
     phase=E action=done
 
 Exits:
@@ -38,7 +36,6 @@ from _state_io import load  # noqa: E402
 
 
 _FRONTMATTER = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
-_CLOSED_STATUSES = {"resolved", "invalid"}
 
 
 def _read_frontmatter(md_path: Path) -> dict[str, str]:
@@ -77,33 +74,6 @@ def _qa_kind(slug_dir: Path, stem: str) -> str:
     return "qa_report"
 
 
-def _next_round_number(slug_dir: Path) -> int:
-    rounds = []
-    for p in slug_dir.glob("reviews-*"):
-        if p.is_dir():
-            try:
-                rounds.append(int(p.name.split("-", 1)[1]))
-            except (IndexError, ValueError):
-                continue
-    return (max(rounds) + 1) if rounds else 1
-
-
-def _round_has_unresolved(round_dir: Path) -> tuple[int, int]:
-    crit = 0
-    high = 0
-    for issue_file in round_dir.glob("issue_*.md"):
-        fm = _read_frontmatter(issue_file)
-        status = fm.get("status", "").lower()
-        sev = fm.get("severity", "").lower()
-        if status in _CLOSED_STATUSES:
-            continue
-        if sev == "critical":
-            crit += 1
-        elif sev == "high":
-            high += 1
-    return crit, high
-
-
 def emit(line: str) -> None:
     print(line)
 
@@ -129,15 +99,8 @@ def main() -> int:
         return 1
 
     mode = state.get("mode")
-    rounds_required = state.get("coderabbit", {}).get("rounds_required", 3)
-    streak = state.get("coderabbit", {}).get("rounds_clean_streak", 0)
     verify_status = state.get("verify", {}).get("last_status")
     qa = state.get("qa", {})
-
-    # Phase E: done.
-    if streak >= rounds_required and verify_status == "PASS":
-        emit("phase=E action=done")
-        return 0
 
     # Phase B and C ordering depends on mode.
     if mode == "tasks":
@@ -171,18 +134,13 @@ def main() -> int:
         emit("phase=C action=qa_execution")
         return 0
 
-    # Phase D: CodeRabbit loop until streak is satisfied.
-    cr = state.get("coderabbit", {}) or {}
-    current = cr.get("current_round_dir")
-    if current:
-        round_dir = slug_dir / current
-        if round_dir.is_dir():
-            num = current.split("-", 1)[1]
-            emit(f"phase=D action=coderabbit_fix round={num}")
-            return 0
-        # Stale pointer; act as if no round in progress.
-    next_num = _next_round_number(slug_dir)
-    emit(f"phase=D action=coderabbit_round round={next_num:03d}")
+    # Phase E: QA complete AND verify PASS.
+    if verify_status == "PASS":
+        emit("phase=E action=done")
+        return 0
+    # qa.execution_done is true but verify is FAIL/null; re-enter qa_execution
+    # so the loop refreshes verify status rather than hanging at "done".
+    emit("phase=C action=qa_execution")
     return 0
 
 

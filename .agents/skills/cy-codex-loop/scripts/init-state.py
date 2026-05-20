@@ -8,7 +8,7 @@ an existing state.yaml. Read schema in ``references/state-schema.md``.
 
 Usage:
     init-state.py <slug> --goal "<text>" [--mode tasks|free]
-                  [--rounds-required N] [--tasks-root <path>]
+                  [--tasks-root <path>]
 
 Exits:
     0 success
@@ -39,7 +39,6 @@ def main() -> int:
     ap.add_argument("slug")
     ap.add_argument("--goal", required=True, help="verbatim goal_signature")
     ap.add_argument("--mode", choices=["tasks", "free"], default=None)
-    ap.add_argument("--rounds-required", type=int, default=3)
     ap.add_argument(
         "--tasks-root",
         default=".compozy/tasks",
@@ -106,14 +105,6 @@ def main() -> int:
             "checklist": [],
         },
         "qa": {"report_done": False, "execution_done": False},
-        "coderabbit": {
-            "rounds_completed": 0,
-            "rounds_clean_streak": 0,
-            "rounds_required": args.rounds_required,
-            "current_round_dir": None,
-            "unresolved_critical": 0,
-            "unresolved_high": 0,
-        },
         "verify": {"last_run": None, "last_status": None},
         "iterations": [],
     }

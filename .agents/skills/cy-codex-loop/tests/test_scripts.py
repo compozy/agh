@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
-import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -25,19 +25,41 @@ def load_module(name: str, path: Path) -> ModuleType:
     return module
 
 
-coderabbit_to_rounds = load_module(
-    "coderabbit_to_rounds",
-    SCRIPTS / "coderabbit-to-rounds.py",
-)
 detect_phase = load_module("detect_phase", SCRIPTS / "detect-phase.py")
 state_io = load_module("state_io", SCRIPTS / "_state_io.py")
 
 
+def _git(cwd: Path, *args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        check=False,
+        text=True,
+        capture_output=True,
+        env=env,
+    )
+
+
+def _git_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env.update(
+        {
+            "GIT_AUTHOR_NAME": "test-runner",
+            "GIT_AUTHOR_EMAIL": "test@example.com",
+            "GIT_COMMITTER_NAME": "test-runner",
+            "GIT_COMMITTER_EMAIL": "test@example.com",
+            "GIT_CONFIG_GLOBAL": "/dev/null",
+            "GIT_CONFIG_SYSTEM": "/dev/null",
+        }
+    )
+    return env
+
+
 class CyCodexLoopScriptTests(unittest.TestCase):
-    def run_script(self, script: str, *args: str) -> subprocess.CompletedProcess[str]:
+    def run_script(self, script: str, *args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             [sys.executable, str(SCRIPTS / script), *args],
-            cwd=REPO_ROOT,
+            cwd=str(cwd) if cwd else REPO_ROOT,
             check=False,
             text=True,
             capture_output=True,
@@ -56,14 +78,6 @@ class CyCodexLoopScriptTests(unittest.TestCase):
             "tasks": {"total": 0, "completed": [], "current": None, "pending": []},
             "progress": {"deliverables_complete": True, "checklist": []},
             "qa": {"report_done": True, "execution_done": True},
-            "coderabbit": {
-                "rounds_completed": 0,
-                "rounds_clean_streak": 0,
-                "rounds_required": 3,
-                "current_round_dir": None,
-                "unresolved_critical": 0,
-                "unresolved_high": 0,
-            },
             "verify": {"last_run": "2026-05-05T00:00:00Z", "last_status": "PASS"},
             "iterations": [],
         }
@@ -71,197 +85,6 @@ class CyCodexLoopScriptTests(unittest.TestCase):
         state_path = slug_dir / "state.yaml"
         state_io.dump(state, state_path)
         return state_path
-
-    def test_norm_path_handles_symlinked_repo_root_alias(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            base = Path(tmp)
-            real_repo = base / "real" / "repo"
-            real_repo.mkdir(parents=True)
-            alias = base / "alias"
-            alias.symlink_to(base / "real", target_is_directory=True)
-
-            raw_path = alias / "repo" / "internal" / "worker.go"
-            normalized = coderabbit_to_rounds._norm_path(str(raw_path), real_repo)
-
-            self.assertEqual(normalized, "internal/worker.go")
-
-    def test_find_findings_has_depth_guard(self) -> None:
-        payload: object = {"findings": [{"title": "too deep"}]}
-        for _ in range(32):
-            payload = {"review": payload}
-
-        findings = coderabbit_to_rounds._find_findings(payload)
-
-        self.assertEqual(findings, [])
-
-    def test_empty_round_creates_marker_and_reserves_round_number(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            base = Path(tmp)
-            review_json = base / "review.json"
-            review_json.write_text(json.dumps({"findings": []}), encoding="utf-8")
-            tasks_root = base / "tasks"
-            slug = "empty-round"
-            state_path = self.write_state(tasks_root, slug)
-            out_dir = tasks_root / slug / "reviews-001"
-
-            result = self.run_script(
-                "coderabbit-to-rounds.py",
-                str(review_json),
-                str(out_dir),
-                "--repo-root",
-                str(REPO_ROOT),
-            )
-
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(result.stdout.strip(), "EMPTY")
-            self.assertTrue((out_dir / ".empty").is_file())
-
-            phase = self.run_script(
-                "detect-phase.py",
-                slug,
-                "--tasks-root",
-                str(tasks_root),
-            )
-
-            self.assertEqual(phase.returncode, 0, phase.stderr)
-            self.assertEqual(phase.stdout.strip(), "phase=D action=coderabbit_round round=002")
-            self.assertTrue(state_path.is_file())
-
-    def test_jsonl_status_stream_with_complete_zero_findings_is_empty(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            base = Path(tmp)
-            review_jsonl = base / "review.jsonl"
-            review_jsonl.write_text(
-                "\n".join(
-                    [
-                        json.dumps({"type": "review_context", "workingDirectory": str(REPO_ROOT)}),
-                        json.dumps({"type": "status", "phase": "analyzing"}),
-                        json.dumps({"type": "complete", "status": "review_completed", "findings": 0}),
-                    ]
-                )
-                + "\n",
-                encoding="utf-8",
-            )
-            out_dir = base / "reviews-001"
-
-            result = self.run_script(
-                "coderabbit-to-rounds.py",
-                str(review_jsonl),
-                str(out_dir),
-                "--repo-root",
-                str(REPO_ROOT),
-            )
-
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(result.stdout.strip(), "EMPTY")
-            self.assertTrue((out_dir / ".empty").is_file())
-
-    def test_jsonl_finding_events_are_converted_to_issues(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            base = Path(tmp)
-            review_jsonl = base / "review.jsonl"
-            review_jsonl.write_text(
-                "\n".join(
-                    [
-                        json.dumps({"type": "status", "phase": "reviewing"}),
-                        json.dumps(
-                            {
-                                "type": "finding",
-                                "severity": "high",
-                                "file": "internal/memory/store.go",
-                                "line": 42,
-                                "title": "Store skips rollback on write failure",
-                                "comment": "A failed write can leave a partial transaction open.",
-                            }
-                        ),
-                        json.dumps({"type": "complete", "status": "review_completed", "findings": 1}),
-                    ]
-                )
-                + "\n",
-                encoding="utf-8",
-            )
-            out_dir = base / "reviews-001"
-
-            result = self.run_script(
-                "coderabbit-to-rounds.py",
-                str(review_jsonl),
-                str(out_dir),
-                "--repo-root",
-                str(REPO_ROOT),
-            )
-
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn("wrote 1 issues", result.stdout)
-            issue = (out_dir / "issue_001.md").read_text(encoding="utf-8")
-            self.assertIn("severity: high", issue)
-            self.assertIn("file: internal/memory/store.go", issue)
-            self.assertIn("Store skips rollback on write failure", issue)
-
-    def test_coderabbit_current_schema_maps_file_name_and_codegen_body(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            base = Path(tmp)
-            review_jsonl = base / "review.jsonl"
-            review_jsonl.write_text(
-                "\n".join(
-                    [
-                        json.dumps(
-                            {
-                                "type": "finding",
-                                "severity": "major",
-                                "fileName": "internal/memory/store.go",
-                                "codegenInstructions": (
-                                    "Verify each finding against current code. "
-                                    "Fix only still-valid issues, skip the rest with a brief reason, "
-                                    "keep changes minimal, and validate.\n\n"
-                                    "In @internal/memory/store.go around lines 580 - 593, "
-                                    "globalHomeFromMemoryDir returns the parent in both branches."
-                                ),
-                                "suggestions": [],
-                            }
-                        ),
-                        json.dumps({"type": "complete", "status": "review_completed", "findings": 1}),
-                    ]
-                )
-                + "\n",
-                encoding="utf-8",
-            )
-            out_dir = base / "reviews-001"
-
-            result = self.run_script(
-                "coderabbit-to-rounds.py",
-                str(review_jsonl),
-                str(out_dir),
-                "--repo-root",
-                str(REPO_ROOT),
-            )
-
-            self.assertEqual(result.returncode, 0, result.stderr)
-            issue = (out_dir / "issue_001.md").read_text(encoding="utf-8")
-            self.assertIn("severity: high", issue)
-            self.assertIn("file: internal/memory/store.go", issue)
-            self.assertIn("line: 580", issue)
-            self.assertIn("# Issue 001: globalHomeFromMemoryDir returns the parent in both branches.", issue)
-            self.assertIn("Verify each finding against current code", issue)
-
-    def test_invalid_status_is_closed_for_round_cleanliness(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            round_dir = Path(tmp) / "reviews-001"
-            round_dir.mkdir()
-            (round_dir / "issue_001.md").write_text(
-                "---\nstatus: invalid\nseverity: critical\n---\n\n# invalid\n",
-                encoding="utf-8",
-            )
-            (round_dir / "issue_002.md").write_text(
-                "---\nstatus: pending\nseverity: high\n---\n\n# pending\n",
-                encoding="utf-8",
-            )
-
-            critical, high = detect_phase._round_has_unresolved(round_dir)
-            result = self.run_script("check-rounds-clean.py", str(round_dir))
-
-            self.assertEqual((critical, high), (0, 1))
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn("critical=0 high=1", result.stdout)
 
     def test_complete_progress_requires_exact_existing_text(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -326,7 +149,7 @@ class CyCodexLoopScriptTests(unittest.TestCase):
                 "--tasks-root",
                 str(tasks_root),
                 "--phase",
-                "D",
+                "B",
                 "--action",
                 "round closed",
             )
@@ -335,7 +158,27 @@ class CyCodexLoopScriptTests(unittest.TestCase):
             text = state_path.read_text(encoding="utf-8")
             self.assertNotIn("current_phase:", text)
             updated = state_io.load(state_path)
-            self.assertEqual(updated["iterations"][0]["phase"], "D")
+            self.assertEqual(updated["iterations"][0]["phase"], "B")
+
+    def test_update_state_rejects_phase_d_choice(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tasks_root = Path(tmp) / "tasks"
+            slug = "phase-d-rejected"
+            self.write_state(tasks_root, slug)
+
+            result = self.run_script(
+                "update-state.py",
+                slug,
+                "--tasks-root",
+                str(tasks_root),
+                "--phase",
+                "D",
+                "--action",
+                "should fail",
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("--phase", result.stderr)
 
     def test_update_state_reconciles_task_files_into_tasks_mode(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -397,6 +240,266 @@ class CyCodexLoopScriptTests(unittest.TestCase):
                 phase.stdout.strip(),
                 "phase=B action=execute_task task=task_02",
             )
+
+    def test_detect_phase_emits_done_when_qa_complete_and_verify_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tasks_root = Path(tmp) / "tasks"
+            slug = "done-ready"
+            self.write_state(tasks_root, slug)  # default has qa flags + verify PASS
+
+            result = self.run_script(
+                "detect-phase.py",
+                slug,
+                "--tasks-root",
+                str(tasks_root),
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), "phase=E action=done")
+
+    def test_detect_phase_reenters_qa_execution_when_verify_not_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tasks_root = Path(tmp) / "tasks"
+            slug = "verify-failed"
+            self.write_state(
+                tasks_root,
+                slug,
+                verify={"last_run": "2026-05-05T00:00:00Z", "last_status": "FAIL"},
+            )
+
+            result = self.run_script(
+                "detect-phase.py",
+                slug,
+                "--tasks-root",
+                str(tasks_root),
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), "phase=C action=qa_execution")
+
+    # ---- commit-checkpoint.py ------------------------------------------------
+
+    def _init_git_repo(self, root: Path) -> None:
+        env = _git_env()
+        init = _git(root, "init", "-q", "-b", "main", env=env)
+        self.assertEqual(init.returncode, 0, init.stderr)
+        # one anchoring commit so HEAD exists and rev-parse works
+        (root / ".gitkeep").write_text("", encoding="utf-8")
+        add = _git(root, "add", ".gitkeep", env=env)
+        self.assertEqual(add.returncode, 0, add.stderr)
+        first = _git(root, "commit", "-q", "-m", "anchor", env=env)
+        self.assertEqual(first.returncode, 0, first.stderr)
+
+    def _setup_checkpoint_repo(self, root: Path, slug: str) -> Path:
+        self._init_git_repo(root)
+        tasks_root = root / ".compozy" / "tasks"
+        self.write_state(tasks_root, slug, mode="tasks", iteration=4)
+        # Track the state.yaml so subsequent checkpoint runs see a clean tree
+        env = _git_env()
+        _git(root, "add", "-A", env=env)
+        _git(root, "commit", "-q", "-m", "state", env=env)
+        return tasks_root
+
+    def test_commit_checkpoint_skips_when_no_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            slug = "noop"
+            tasks_root = self._setup_checkpoint_repo(root, slug)
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPTS / "commit-checkpoint.py"),
+                    slug,
+                    "--task",
+                    "task_07",
+                    "--tasks-root",
+                    str(tasks_root.relative_to(root)),
+                ],
+                cwd=root,
+                env=_git_env(),
+                check=False,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.strip(), "SKIP: no changes")
+
+    def test_commit_checkpoint_tasks_mode_builds_message_from_frontmatter(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            slug = "with-task"
+            tasks_root = self._setup_checkpoint_repo(root, slug)
+            slug_dir = tasks_root / slug
+            (slug_dir / "task_07.md").write_text(
+                "---\nstatus: pending\ntitle: implement backend tests\n---\n\nbody\n",
+                encoding="utf-8",
+            )
+            (root / "feature.txt").write_text("change", encoding="utf-8")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPTS / "commit-checkpoint.py"),
+                    slug,
+                    "--task",
+                    "task_07",
+                    "--tasks-root",
+                    str(tasks_root.relative_to(root)),
+                ],
+                cwd=root,
+                env=_git_env(),
+                check=False,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            sha = result.stdout.strip()
+            self.assertEqual(len(sha), 40)
+
+            log = _git(root, "log", "-1", "--pretty=%B", env=_git_env())
+            self.assertEqual(log.returncode, 0, log.stderr)
+            self.assertIn("feat: implement backend tests #07", log.stdout)
+            self.assertIn("Checkpoint via cy-codex-loop (iteration 4, phase B mode=tasks).", log.stdout)
+            self.assertIn(
+                "Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+                log.stdout,
+            )
+
+    def test_commit_checkpoint_free_mode_truncates_long_slice(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            slug = "long-slice"
+            tasks_root = self._setup_checkpoint_repo(root, slug)
+            (root / "change.txt").write_text("x", encoding="utf-8")
+
+            long_slice = "implement " + ("very " * 60) + "long slice"
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPTS / "commit-checkpoint.py"),
+                    slug,
+                    "--slice",
+                    long_slice,
+                    "--tasks-root",
+                    str(tasks_root.relative_to(root)),
+                ],
+                cwd=root,
+                env=_git_env(),
+                check=False,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+            header = _git(root, "log", "-1", "--pretty=%s", env=_git_env())
+            self.assertEqual(header.returncode, 0, header.stderr)
+            subject = header.stdout.strip()
+            self.assertLessEqual(len(subject), 72)
+            self.assertTrue(subject.startswith("feat: implement "))
+
+    def test_commit_checkpoint_rejects_missing_flags(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            slug = "no-flags"
+            tasks_root = self._setup_checkpoint_repo(root, slug)
+            (root / "change.txt").write_text("x", encoding="utf-8")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPTS / "commit-checkpoint.py"),
+                    slug,
+                    "--tasks-root",
+                    str(tasks_root.relative_to(root)),
+                ],
+                cwd=root,
+                env=_git_env(),
+                check=False,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("--task", result.stderr)
+
+    def test_commit_checkpoint_includes_state_iteration_in_body(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            slug = "iteration"
+            tasks_root = self._setup_checkpoint_repo(root, slug)
+            slug_dir = tasks_root / slug
+            (slug_dir / "task_03.md").write_text(
+                "---\nstatus: pending\ntitle: bump iteration\n---\n",
+                encoding="utf-8",
+            )
+
+            # Bump iteration via update-state so state.yaml stays canonical
+            bump = self.run_script(
+                "update-state.py",
+                slug,
+                "--tasks-root",
+                str(tasks_root),
+                "--phase",
+                "B",
+                "--action",
+                "advance",
+            )
+            self.assertEqual(bump.returncode, 0, bump.stderr)
+            # Commit the state mutation as anchor so the checkpoint diff is the new file
+            env = _git_env()
+            _git(root, "add", "-A", env=env)
+            _git(root, "commit", "-q", "-m", "anchor-state", env=env)
+
+            (root / "delta.txt").write_text("y", encoding="utf-8")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPTS / "commit-checkpoint.py"),
+                    slug,
+                    "--task",
+                    "task_03",
+                    "--tasks-root",
+                    str(tasks_root.relative_to(root)),
+                ],
+                cwd=root,
+                env=env,
+                check=False,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+            state = state_io.load(tasks_root / slug / "state.yaml")
+            current_iter = int(state["iteration"])
+
+            log = _git(root, "log", "-1", "--pretty=%B", env=env)
+            self.assertIn(f"iteration {current_iter}", log.stdout)
+            self.assertIn("phase B mode=tasks", log.stdout)
+
+    def test_commit_checkpoint_rejects_state_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._init_git_repo(root)
+            (root / "change.txt").write_text("x", encoding="utf-8")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPTS / "commit-checkpoint.py"),
+                    "missing-slug",
+                    "--task",
+                    "task_01",
+                ],
+                cwd=root,
+                env=_git_env(),
+                check=False,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("state.yaml", result.stderr)
 
 
 if __name__ == "__main__":

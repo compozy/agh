@@ -94,19 +94,6 @@ def dump(state: dict, path: Path) -> None:
     out.append(f"  report_done: {_scalar(qa.get('report_done', False))}")
     out.append(f"  execution_done: {_scalar(qa.get('execution_done', False))}")
 
-    cr = state.get("coderabbit", {})
-    out.append("")
-    out.append("coderabbit:")
-    for key, default in (
-        ("rounds_completed", 0),
-        ("rounds_clean_streak", 0),
-        ("rounds_required", 3),
-        ("current_round_dir", None),
-        ("unresolved_critical", 0),
-        ("unresolved_high", 0),
-    ):
-        out.append(f"  {key}: {_scalar(cr.get(key, default))}")
-
     verify = state.get("verify", {})
     out.append("")
     out.append("verify:")

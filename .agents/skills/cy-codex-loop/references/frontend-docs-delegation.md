@@ -1,10 +1,27 @@
-# Frontend/docs delegation lane
+# Frontend/docs delegation lane (opt-in)
 
-Use this lane when Phase B work is primarily frontend or documentation.
-The local Codex loop session remains the orchestrator; Claude Opus does
-the implementation and verification work through the Compozy CLI.
+This lane is **OFF by default**. Without an explicit opt-in, every
+Phase B iteration runs locally in the orchestrator session regardless of
+task `type:` or owned paths — do not read further into this file unless
+the activation gate below is satisfied.
 
-## Classification
+## Activation gate
+
+The lane is active for the current loop only when
+`state.goal_signature` contains the literal token
+`delegation=frontend-docs` (case-insensitive). The user sets this once
+at bootstrap by including the token in their `[[CODEX_LOOP goal="..."]]`
+header (see `goal-header-template.md`). The opt-in spans the whole loop:
+either every qualifying Phase B iteration delegates, or none do.
+
+When the token is absent: skip this entire reference. The Phase B
+branches in `SKILL.md` fall through to the local lane.
+
+## Classification (only when the gate is active)
+
+When the lane is active, apply these rules to decide whether THIS
+specific task or slice qualifies. Tasks that do not qualify still run
+locally even with the lane active.
 
 1. Trust task frontmatter `type:` first.
 2. Delegate when `type:` is exactly `frontend` or `docs`.
@@ -54,6 +71,7 @@ Require the delegated Claude Opus run to:
 - run `cy-final-verify`
 - update memory before changing task status or completion markers
 - print changed files plus explicit PASS/FAIL verify evidence
+- **DO NOT commit.** The orchestrating cy-codex-loop session owns the checkpoint commit and runs `commit-checkpoint.py` after receiving PASS evidence. The delegated run must leave the worktree dirty (staged or unstaged) so the orchestrator's `git add -A` captures everything.
 
 ## Completion gate
 
@@ -64,6 +82,7 @@ only when all of the following are true:
 - the delegated run updated the required memory files
 - the task/status artifacts now reflect completion
 - the delegated output contains explicit `cy-final-verify` PASS evidence
+- the delegated run did NOT create a commit (verified by comparing `git rev-parse HEAD` before and after the dispatch)
 
 If any item is missing, keep the phase open and record a blocker or
 verify failure instead of advancing `state.yaml`.

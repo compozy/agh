@@ -22,8 +22,6 @@ update memory **before** flipping any status field, mirroring step 5 of
 | Phase B, mode=free | `.compozy/tasks/<slug>/memory/free-iter-<NNN>.md` (zero-padded 3 digits, equal to the `iteration` value on the checklist item just created by `.agents/skills/cy-codex-loop/scripts/update-state.py --add-progress`) |
 | Phase C, qa-report | `.compozy/tasks/<slug>/memory/qa-report.md` |
 | Phase C, qa-execution | `.compozy/tasks/<slug>/memory/qa-execution.md` |
-| Phase D, sub-action D.1 | `.compozy/tasks/<slug>/memory/<current_round_dir>.md` (e.g. `reviews-001.md`) |
-| Phase D, sub-action D.2 | same `<current_round_dir>.md` (append, do not replace) |
 | Phase E | none — Phase E only emits the done-signature |
 
 ## Section schema (per current-memory file)
@@ -45,7 +43,6 @@ Phase-specific addenda (append after the canonical sections):
 
 - **Phase B mode=free**: add `## Slice Picked` (the exact text added to `progress.checklist[]`) and `## Acceptance Mapping` (which techspec acceptance criterion this slice advances).
 - **Phase C**: add `## QA Artifacts Produced` (paths under `qa/`).
-- **Phase D**: add `## Round Summary` (issues triaged, resolved, deferred), `## Patterns Observed` (recurring root causes — promote them to `MEMORY.md` `## Shared Learnings`).
 
 ## Promotion rules (current → MEMORY.md)
 

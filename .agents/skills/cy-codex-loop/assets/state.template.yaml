@@ -21,14 +21,6 @@ qa:
   report_done: false
   execution_done: false
 
-coderabbit:
-  rounds_completed: 0
-  rounds_clean_streak: 0
-  rounds_required: 3
-  current_round_dir: null
-  unresolved_critical: 0
-  unresolved_high: 0
-
 verify:
   last_run: null      # RFC3339 UTC
   last_status: null   # PASS | FAIL | null

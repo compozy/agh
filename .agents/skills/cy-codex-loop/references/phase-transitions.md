@@ -9,8 +9,6 @@ phase=0 action=bootstrap
 phase=B action=execute_task task=task_07            # mode=tasks
 phase=B action=execute_free_slice                    # mode=free
 phase=C action=qa_report                             # or qa_execution
-phase=D action=coderabbit_round round=001
-phase=D action=coderabbit_fix round=001
 phase=E action=done
 ```
 
@@ -40,9 +38,9 @@ and resumes from wherever the filesystem now indicates.
 **Action**:
 1. Pick the head of `tasks.pending`. Confirm `task_NN.md` frontmatter `status: pending` or `status: in_progress` (frontmatter wins; if it disagrees with state.yaml, trust frontmatter and reconcile state).
 2. Activate `cy-spec-preflight` in phase=task-body for the picked file.
-3. Read `references/frontend-docs-delegation.md`. If the task frontmatter `type:` is `frontend` or `docs`, the delegation lane is mandatory. If `type:` is missing, delegate only when the owned paths / acceptance scope are exclusively frontend/docs surfaces per that reference.
+3. The frontend/docs delegation lane is opt-in. It is active only when `state.goal_signature` contains the literal token `delegation=frontend-docs` (case-insensitive). When inactive, skip the delegation decision entirely. When active, read `references/frontend-docs-delegation.md` and apply its classification to decide whether this task qualifies (`type:` is `frontend`/`docs`, or owned paths are exclusively frontend/docs surfaces).
 4. Pass the shared/current memory paths from `memory-protocol.md` into the lane that will execute the work.
-5. If the delegation lane applies: write the temp prompt and run `compozy exec --ide claude --model opus --prompt-file /tmp/cy-codex-loop-<slug>-<task_NN>.md`. The delegated Claude run owns `cy-execute-task`, memory updates, validation, and `cy-final-verify`.
+5. If the delegation lane applies (active AND task qualifies): write the temp prompt and run `compozy exec --ide claude --model opus --prompt-file /tmp/cy-codex-loop-<slug>-<task_NN>.md`. The delegated Claude run owns `cy-execute-task`, memory updates, validation, and `cy-final-verify`.
 6. Else: activate `cy-execute-task` passing the picked `task_NN.md`, then run `cy-final-verify`.
 7. `.agents/skills/cy-codex-loop/scripts/update-state.py --task-completed task_NN` advances state only after the execution lane reports PASS and the expected memory/status artifacts exist.
 
@@ -57,8 +55,8 @@ and resumes from wherever the filesystem now indicates.
 2. Compare against `progress.checklist[]`. Identify the smallest coherent slice (≤ ~4 hours of focused work) that moves a deliverable forward.
 3. Append the slice to `progress.checklist[]` with `status: in_progress` (via `.agents/skills/cy-codex-loop/scripts/update-state.py --add-progress "<text>"`).
 4. Re-read `state.yaml`, then resolve the shared + current-task memory paths from `memory-protocol.md`. The current memory file is `memory/free-iter-<NNN>.md`, where `<NNN>` equals the `iteration` value on the checklist item created in step 3.
-5. Read `references/frontend-docs-delegation.md`. If the slice is explicitly limited to frontend/docs surfaces per that reference, the delegation lane is mandatory.
-6. If the delegation lane applies: write the temp prompt and run `compozy exec --ide claude --model opus --prompt-file /tmp/cy-codex-loop-<slug>-free-iter-<NNN>.md`. The delegated Claude run owns implementation, memory updates, validation, and `cy-final-verify`.
+5. The frontend/docs delegation lane is opt-in (active only when `state.goal_signature` contains `delegation=frontend-docs`, case-insensitive). When inactive, skip ahead to local implementation. When active, read `references/frontend-docs-delegation.md` and apply its classification: the slice qualifies only when its owned paths are exclusively frontend/docs surfaces.
+6. If the delegation lane applies (active AND slice qualifies): write the temp prompt and run `compozy exec --ide claude --model opus --prompt-file /tmp/cy-codex-loop-<slug>-free-iter-<NNN>.md`. The delegated Claude run owns implementation, memory updates, validation, and `cy-final-verify`.
 7. Else: implement the slice locally and run `cy-final-verify`.
 8. `.agents/skills/cy-codex-loop/scripts/update-state.py --complete-progress "<text>"` flips the slice to `completed` only after the execution lane reports PASS and the expected memory/status artifacts exist.
 9. **Self-check before claiming deliverables_complete**: re-read `_techspec.md` acceptance section verbatim. If every criterion has at least one matching `progress.checklist[]` entry with `status=completed`, set `--deliverables-complete`. Otherwise leave false and let the next iteration continue.
@@ -76,38 +74,11 @@ and resumes from wherever the filesystem now indicates.
 2. Else (`qa.execution_done=false`): activate `qa-execution`.
 3. `.agents/skills/cy-codex-loop/scripts/update-state.py --qa-report-done` or `--qa-execution-done` accordingly.
 
-**Exit**: Both QA flags true → Phase D next.
-
-## Phase D — CodeRabbit loop
-
-**Entry**: `qa.report_done=true` AND `qa.execution_done=true` AND `coderabbit.rounds_clean_streak < coderabbit.rounds_required` (default 3).
-
-**Two sub-actions**, depending on `coderabbit.current_round_dir`:
-
-### D.1 Run a new round
-
-`current_round_dir=null`:
-
-1. Activate the `code-review` skill to run `cr review --agent` (see `coderabbit-conversion.md`). Capture stdout to `/tmp/cy-codex-loop-cr-<slug>-<iter>.json`.
-2. Compute the next round number = highest existing `reviews-NNN/` + 1, zero-padded to 3 digits.
-3. Run `.agents/skills/cy-codex-loop/scripts/coderabbit-to-rounds.py /tmp/cy-codex-loop-cr-<slug>-<iter>.json .compozy/tasks/<slug>/reviews-NNN/`. The script writes `issue_001.md ... issue_MMM.md` with the frontmatter `cy-fix-reviews` expects.
-4. If the script reports zero issues: this round is clean by construction and `reviews-NNN/.empty` reserves the round number. `.agents/skills/cy-codex-loop/scripts/update-state.py --round-complete reviews-NNN --critical 0 --high 0`. The streak increments.
-5. Else: `.agents/skills/cy-codex-loop/scripts/update-state.py --round-started reviews-NNN`. The next iteration enters D.2.
-
-### D.2 Fix open issues in the active round
-
-`current_round_dir != null`:
-
-1. Activate `cy-fix-reviews` against `.compozy/tasks/<slug>/<current_round_dir>/`. The skill triages and resolves issues.
-2. Run `cy-final-verify`.
-3. Run `.agents/skills/cy-codex-loop/scripts/check-rounds-clean.py <current_round_dir>` to count remaining unresolved critical/high. `status: resolved` and `status: invalid` are both closed for streak accounting.
-4. `.agents/skills/cy-codex-loop/scripts/update-state.py --round-complete <current_round_dir> --critical N --high N`. The script resets the streak if N>0, increments if N==0.
-
-**Exit**: `coderabbit.rounds_clean_streak >= rounds_required` → Phase E next.
+**Exit**: Both QA flags true AND `verify.last_status=PASS` → Phase E next. If QA flags are true but `verify.last_status != PASS`, `detect-phase.py` re-emits `phase=C action=qa_execution` so the loop refreshes verify status instead of hanging.
 
 ## Phase E — Done
 
-**Entry**: streak satisfied AND `verify.last_status=PASS`.
+**Entry**: `qa.report_done=true` AND `qa.execution_done=true` AND `verify.last_status=PASS`.
 
 **Action**:
 1. Print the iteration summary block (as for every iteration).

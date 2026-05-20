@@ -11,7 +11,7 @@ Usage:
     update-state.py <slug> [flags...]
 
 Flags (multiple may combine in one call):
-    --phase {0,B,C,D,E}              phase label for iterations[]
+    --phase {0,B,C,E}                phase label for iterations[]
     --action "<text>"                action label for the iteration log entry
     --outcome {completed,partial,blocked}
     --memory-written path[,path...]  comma-separated repo-relative paths
@@ -24,9 +24,6 @@ Flags (multiple may combine in one call):
     --deliverables-complete          mode=free: set progress.deliverables_complete=true
     --qa-report-done                 set qa.report_done=true
     --qa-execution-done              set qa.execution_done=true
-    --round-started <reviews-NNN>    coderabbit.current_round_dir=<dir>
-    --round-complete <reviews-NNN> --critical N --high N
-                                     finishes the round; resets or grows streak
     --verify-pass                    verify.last_status=PASS, last_run=now
     --verify-fail                    verify.last_status=FAIL, last_run=now
     --tasks-root <path>              default .compozy/tasks
@@ -77,7 +74,7 @@ def _parse_args() -> argparse.Namespace:
     ap.add_argument("--tasks-root", default=".compozy/tasks")
     ap.add_argument("--max-iterations", type=int, default=50)
 
-    ap.add_argument("--phase", choices=["0", "B", "C", "D", "E"])
+    ap.add_argument("--phase", choices=["0", "B", "C", "E"])
     ap.add_argument("--action")
     ap.add_argument("--outcome", choices=["completed", "partial", "blocked"])
     ap.add_argument("--memory-written", default="")
@@ -92,11 +89,6 @@ def _parse_args() -> argparse.Namespace:
 
     ap.add_argument("--qa-report-done", action="store_true")
     ap.add_argument("--qa-execution-done", action="store_true")
-
-    ap.add_argument("--round-started")
-    ap.add_argument("--round-complete")
-    ap.add_argument("--critical", type=int)
-    ap.add_argument("--high", type=int)
 
     ap.add_argument("--verify-pass", action="store_true")
     ap.add_argument("--verify-fail", action="store_true")
@@ -204,21 +196,6 @@ def _apply(state: dict, args: argparse.Namespace, slug_dir: Path) -> None:
     if args.qa_execution_done:
         state.setdefault("qa", {})["execution_done"] = True
 
-    cr = state.setdefault("coderabbit", {})
-    if args.round_started:
-        cr["current_round_dir"] = args.round_started
-    if args.round_complete:
-        cr["current_round_dir"] = None
-        cr["rounds_completed"] = int(cr.get("rounds_completed", 0)) + 1
-        crit = args.critical if args.critical is not None else 0
-        high = args.high if args.high is not None else 0
-        cr["unresolved_critical"] = crit
-        cr["unresolved_high"] = high
-        if crit == 0 and high == 0:
-            cr["rounds_clean_streak"] = int(cr.get("rounds_clean_streak", 0)) + 1
-        else:
-            cr["rounds_clean_streak"] = 0
-
     if args.verify_pass:
         state.setdefault("verify", {})
         state["verify"]["last_run"] = now_iso()
@@ -242,8 +219,6 @@ def _has_observation(args: argparse.Namespace) -> bool:
             args.deliverables_complete,
             args.qa_report_done,
             args.qa_execution_done,
-            args.round_started,
-            args.round_complete,
             args.verify_pass,
             args.verify_fail,
             args.reconcile_tasks,
