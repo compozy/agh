@@ -1269,6 +1269,16 @@ func (h *BaseHandlers) RepairMemorySessions(c *gin.Context) {
 }
 
 func (h *BaseHandlers) memoryHealth(c *gin.Context) (contract.MemoryHealthPayload, error) {
+	return h.memoryHealthSnapshot(
+		c.Request.Context(),
+		firstNonEmptyString(c.Query("workspace_id"), c.Query("workspace")),
+	)
+}
+
+func (h *BaseHandlers) memoryHealthSnapshot(
+	ctx context.Context,
+	rawWorkspace string,
+) (contract.MemoryHealthPayload, error) {
 	payload := contract.MemoryHealthPayload{
 		Status:             memoryHealthStatusOK,
 		Enabled:            h.Config.Memory.Enabled,
@@ -1311,8 +1321,8 @@ func (h *BaseHandlers) memoryHealth(c *gin.Context) (contract.MemoryHealthPayloa
 	payload.GlobalFiles = len(globalHeaders)
 
 	workspaces, err := h.memoryHealthWorkspaces(
-		c.Request.Context(),
-		firstNonEmptyString(c.Query("workspace_id"), c.Query("workspace")),
+		ctx,
+		rawWorkspace,
 	)
 	if err != nil {
 		return contract.MemoryHealthPayload{}, err
@@ -1329,7 +1339,7 @@ func (h *BaseHandlers) memoryHealth(c *gin.Context) (contract.MemoryHealthPayloa
 		payload.WorkspaceFiles += len(headers)
 	}
 
-	stats, err := h.MemoryStore.HealthStats(c.Request.Context(), workspaces)
+	stats, err := h.MemoryStore.HealthStats(ctx, workspaces)
 	if err != nil {
 		payload.Status = memoryHealthStatusDegraded
 		payload.Reason = err.Error()
@@ -1961,7 +1971,7 @@ func memoryDreamPayload(record memory.DreamRunRecord) contract.MemoryDreamPayloa
 
 func memoryDreamState(record memory.DreamRunRecord) contract.MemoryDreamState {
 	switch strings.TrimSpace(record.Status) {
-	case "running":
+	case statusStateRunning:
 		return contract.MemoryDreamStateRunning
 	case "failed":
 		return contract.MemoryDreamStateFailed

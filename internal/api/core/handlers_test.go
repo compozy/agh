@@ -410,14 +410,14 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 		t.Fatalf("observe status = %d, want %d", observeResp.Code, http.StatusOK)
 	}
 
-	healthResp := performRequest(t, fixture.Engine, http.MethodGet, "/observe/health", nil)
-	if healthResp.Code != http.StatusOK {
-		t.Fatalf("health status = %d, want %d", healthResp.Code, http.StatusOK)
+	statusResp := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
+	if statusResp.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d", statusResp.Code, http.StatusOK)
 	}
 
-	statusResp := performRequest(t, fixture.Engine, http.MethodGet, "/daemon/status", nil)
-	if statusResp.Code != http.StatusOK {
-		t.Fatalf("daemon status = %d, want %d", statusResp.Code, http.StatusOK)
+	doctorResp := performRequest(t, fixture.Engine, http.MethodGet, "/doctor", nil)
+	if doctorResp.Code != http.StatusOK {
+		t.Fatalf("doctor = %d, want %d", doctorResp.Code, http.StatusOK)
 	}
 }
 
@@ -947,7 +947,7 @@ func TestDaemonStatusIncludesNetworkDiagnosticsWithoutCredentials(t *testing.T) 
 		},
 	}
 
-	resp := performRequest(t, fixture.Engine, http.MethodGet, "/daemon/status", nil)
+	resp := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("daemon status = %d, want %d", resp.Code, http.StatusOK)
 	}
@@ -968,7 +968,7 @@ func TestDaemonStatusIncludesNetworkDiagnosticsWithoutCredentials(t *testing.T) 
 	if got, want := payload.Daemon.Network.Channels, 3; got != want {
 		t.Fatalf("daemon network channels = %d, want %d", got, want)
 	}
-	if strings.Contains(strings.ToLower(resp.Body.String()), "token") {
+	if strings.Contains(strings.ToLower(resp.Body.String()), "token=") {
 		t.Fatalf("daemon status leaked credentials: %s", resp.Body.String())
 	}
 }

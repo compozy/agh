@@ -1594,19 +1594,19 @@ func daemonExitedBeforeReadinessError(err error) error {
 
 func (h *RuntimeHarness) probeReady(ctx context.Context) error {
 	if runtimeHarnessRequiresHTTPReadinessProbe(h.Config.HTTP.Host) {
-		var httpStatus aghcontract.DaemonStatusResponse
-		if err := h.HTTPJSON(ctx, http.MethodGet, "/api/daemon/status", nil, &httpStatus); err != nil {
+		var httpStatus aghcontract.StatusPayload
+		if err := h.HTTPJSON(ctx, http.MethodGet, "/api/status", nil, &httpStatus); err != nil {
 			return err
 		}
 	}
 
-	var udsStatus aghcontract.DaemonStatusResponse
-	if err := h.UDSJSON(ctx, http.MethodGet, "/api/daemon/status", nil, &udsStatus); err != nil {
+	var udsStatus aghcontract.StatusPayload
+	if err := h.UDSJSON(ctx, http.MethodGet, "/api/status", nil, &udsStatus); err != nil {
 		return err
 	}
 
-	var cliStatus aghcontract.DaemonStatusPayload
-	if err := h.CLI.RunJSON(ctx, &cliStatus, "daemon", "status", "-o", "json"); err != nil {
+	var cliStatus aghcontract.StatusPayload
+	if err := h.CLI.RunJSON(ctx, &cliStatus, "status", "-o", "json"); err != nil {
 		return err
 	}
 

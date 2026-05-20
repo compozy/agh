@@ -22,7 +22,7 @@
         "observe",
         "hooks",
         "---Operations---",
-        "daemon",
+        "diagnostics",
         "settings",
         "providers",
         "extensions",

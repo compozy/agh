@@ -59,14 +59,14 @@ metadata, never an allowlist.
 
 ## Native HTTP and UDS endpoints
 
-| Method | Path                                          | Transports | Description                                              |
-| ------ | --------------------------------------------- | ---------- | -------------------------------------------------------- |
-| GET    | `/api/providers/models`                       | HTTP, UDS  | List merged provider model catalog entries.              |
-| GET    | `/api/providers/{provider_id}/models`         | HTTP, UDS  | List merged catalog entries for one provider.            |
-| POST   | `/api/providers/models/refresh`               | HTTP, UDS  | Refresh sources across providers; returns source status. |
-| POST   | `/api/providers/{provider_id}/models/refresh` | HTTP, UDS  | Refresh sources for one provider.                        |
-| GET    | `/api/providers/models/status`                | HTTP, UDS  | Source status across providers.                          |
-| GET    | `/api/providers/{provider_id}/models/status`  | HTTP, UDS  | Source status for one provider.                          |
+| Method | Path                                                        | Transports | Description                                              |
+| ------ | ----------------------------------------------------------- | ---------- | -------------------------------------------------------- |
+| GET    | `/api/model-catalog/models`                                 | HTTP, UDS  | List merged provider model catalog entries.              |
+| GET    | `/api/model-catalog/providers/{provider_id}/models`         | HTTP, UDS  | List merged catalog entries for one provider.            |
+| POST   | `/api/model-catalog/models/refresh`                         | HTTP, UDS  | Refresh sources across providers; returns source status. |
+| POST   | `/api/model-catalog/providers/{provider_id}/models/refresh` | HTTP, UDS  | Refresh sources for one provider.                        |
+| GET    | `/api/model-catalog/sources/status`                         | HTTP, UDS  | Source status across providers.                          |
+| GET    | `/api/model-catalog/providers/{provider_id}/models/status`  | HTTP, UDS  | Source status for one provider.                          |
 
 List and status endpoints accept these query parameters:
 

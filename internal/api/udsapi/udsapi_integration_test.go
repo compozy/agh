@@ -37,7 +37,7 @@ import (
 func TestUDSFullRoundTripWithRealSessionManager(t *testing.T) {
 	runtime := newIntegrationRuntime(t)
 
-	statusResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/daemon/status", nil, nil)
+	statusResp := mustUnixRequest(t, runtime.client, http.MethodGet, "http://unix/api/status", nil, nil)
 	if statusResp.StatusCode != http.StatusOK {
 		t.Fatalf("daemon status = %d, want %d", statusResp.StatusCode, http.StatusOK)
 	}

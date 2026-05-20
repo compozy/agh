@@ -532,7 +532,7 @@ func skillSourceLabel(source skills.SkillSource) string {
 	case skills.SourceAgentLocal:
 		return agentLocalSkillSource
 	default:
-		return "unknown"
+		return providerModelAvailabilityUnknown
 	}
 }
 

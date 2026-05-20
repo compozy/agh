@@ -33,8 +33,8 @@ func TestModelCatalogTransportParity(t *testing.T) {
 		httpEngine := newParityHTTPRouter(t, service)
 		udsEngine := newParityUDSRouter(t, service)
 
-		httpResp := performParityRequest(t, httpEngine, http.MethodGet, "/api/providers/codex/models")
-		udsResp := performParityRequest(t, udsEngine, http.MethodGet, "/api/providers/codex/models")
+		httpResp := performParityRequest(t, httpEngine, http.MethodGet, "/api/model-catalog/providers/codex/models")
+		udsResp := performParityRequest(t, udsEngine, http.MethodGet, "/api/model-catalog/providers/codex/models")
 		if httpResp.Code != http.StatusOK || udsResp.Code != http.StatusOK {
 			t.Fatalf(
 				"statuses = http:%d uds:%d, want 200; http=%s uds=%s",

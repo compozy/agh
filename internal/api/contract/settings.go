@@ -609,6 +609,7 @@ type SettingsProviderAuthStatusPayload struct {
 	EnvPolicy  string                                  `json:"env_policy"`
 	HomePolicy string                                  `json:"home_policy"`
 	State      string                                  `json:"state"`
+	Code       string                                  `json:"code,omitempty"`
 	Message    string                                  `json:"message,omitempty"`
 	StatusCmd  string                                  `json:"status_command,omitempty"`
 	LoginCmd   string                                  `json:"login_command,omitempty"`

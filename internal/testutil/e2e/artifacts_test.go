@@ -110,10 +110,10 @@ func TestArtifactCollectorCaptureNamedJSONUsesStableDirectoryArtifact(t *testing
 	collector := NewArtifactCollector(t)
 	firstPath, err := collector.CaptureNamedJSON(
 		ArtifactKindTransportOutputs,
-		"daemon status",
+		"runtime status",
 		TransportOutputArtifact{
 			Transport: "cli",
-			Command:   []string{"daemon", "status", "-o", "json"},
+			Command:   []string{"status", "-o", "json"},
 			Stdout:    `{"status":"running"}`,
 		},
 	)
@@ -126,7 +126,7 @@ func TestArtifactCollectorCaptureNamedJSONUsesStableDirectoryArtifact(t *testing
 		TransportOutputArtifact{
 			Transport:  "http",
 			Method:     "GET",
-			URL:        "/api/daemon/status",
+			URL:        "/api/status",
 			StatusCode: 200,
 		},
 	)
@@ -141,7 +141,7 @@ func TestArtifactCollectorCaptureNamedJSONUsesStableDirectoryArtifact(t *testing
 	if got, want := manifest.Artifacts[0].Path, "transport_outputs"; got != want {
 		t.Fatalf("manifest.Artifacts[0].Path = %q, want %q", got, want)
 	}
-	if got, want := filepath.Base(firstPath), "daemon-status.json"; got != want {
+	if got, want := filepath.Base(firstPath), "runtime-status.json"; got != want {
 		t.Fatalf("filepath.Base(firstPath) = %q, want %q", got, want)
 	}
 	if got, want := filepath.Base(secondPath), "http-status.json"; got != want {

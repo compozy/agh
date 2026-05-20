@@ -353,7 +353,7 @@ func agentBundle(item AgentRecord) outputBundle {
 			base := renderHumanSection("Agent", []keyValue{
 				{Label: automationNameValue, Value: stringOrDash(item.Name)},
 				{Label: agentKernelProviderValue, Value: stringOrDash(item.Provider)},
-				{Label: "Command", Value: stringOrDash(item.Command)},
+				{Label: cliCommandValue, Value: stringOrDash(item.Command)},
 				{Label: agentKernelModelValue, Value: stringOrDash(item.Model)},
 				{Label: agentCategoryValue, Value: stringOrDash(agentCategoryLabel(item.CategoryPath))},
 				{Label: toolOperatorToolsValue, Value: stringOrDash(strings.Join(item.Tools, ", "))},
@@ -368,7 +368,7 @@ func agentBundle(item AgentRecord) outputBundle {
 					stringOrDash(strings.Join(server.Args, " ")),
 				})
 			}
-			mcp := renderHumanTable("MCP Servers", []string{automationNameValue, "Command", "Args"}, servers)
+			mcp := renderHumanTable("MCP Servers", []string{automationNameValue, cliCommandValue, "Args"}, servers)
 			prompt := renderHumanSection(
 				"Prompt",
 				[]keyValue{{Label: agentBodyValue, Value: stringOrDash(item.Prompt)}},

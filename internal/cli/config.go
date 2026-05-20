@@ -1498,7 +1498,7 @@ func isProviderMutationPath(path []string) bool {
 	if len(path) == 3 && path[0] == configProvidersKey {
 		switch path[2] {
 		case configCommandKey,
-			"auth_mode",
+			providerAuthModeKey,
 			"env_policy",
 			"home_policy",
 			"runtime_provider",

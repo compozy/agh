@@ -12,7 +12,7 @@ import {
   DialogTitle,
 } from "@agh/ui";
 
-import { useDaemonConnectionStatus } from "@/systems/daemon/hooks/use-daemon-connection-status";
+import { useDaemonConnectionStatus } from "@/systems/status/hooks/use-daemon-connection-status";
 import { useSettingsRestart } from "@/systems/settings";
 
 export interface RestartDaemonButtonProps {

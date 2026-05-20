@@ -197,7 +197,7 @@ Steps:
 1. Create a temporary `AGH_HOME`.
 2. Run `./bin/agh install`.
 3. Start the daemon.
-4. Check `./bin/agh daemon status`.
+4. Check `./bin/agh status`.
 
 Assertions:
 

@@ -588,8 +588,8 @@ func TestMarshalOpenAPI(t *testing.T) {
 		if !bytes.Contains(content, []byte(`"openapi": "3.0.3"`)) {
 			t.Fatalf("marshalOpenAPI() missing version header: %s", string(content))
 		}
-		if !bytes.Contains(content, []byte(`"/api/daemon/status"`)) {
-			t.Fatalf("marshalOpenAPI() missing daemon status route: %s", string(content))
+		if !bytes.Contains(content, []byte(`"/api/status"`)) {
+			t.Fatalf("marshalOpenAPI() missing status route: %s", string(content))
 		}
 	})
 }

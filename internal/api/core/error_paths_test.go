@@ -105,8 +105,8 @@ func TestBaseHandlersRejectInvalidRequestsAndMapErrors(t *testing.T) {
 			want:   http.StatusBadRequest,
 		},
 		{method: http.MethodGet, path: "/workspaces/ws-workspace/observe/events", want: http.StatusInternalServerError},
-		{method: http.MethodGet, path: "/observe/health", want: http.StatusInternalServerError},
-		{method: http.MethodGet, path: "/daemon/status", want: http.StatusInternalServerError},
+		{method: http.MethodGet, path: "/status", want: http.StatusInternalServerError},
+		{method: http.MethodGet, path: "/doctor", want: http.StatusOK},
 		{
 			method: http.MethodPost,
 			path:   "/workspaces",

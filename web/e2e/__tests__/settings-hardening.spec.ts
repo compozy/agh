@@ -102,7 +102,9 @@ test("operator applies Memory, Network, Automation, and Observability settings w
       network: await runtime.requestJSON<unknown>("/api/settings/network"),
       automation: await runtime.requestJSON<unknown>("/api/settings/automation"),
       observability: await runtime.requestJSON<unknown>("/api/settings/observability"),
-      provider_catalog: await runtime.requestJSON<unknown>("/api/providers/codex/models/status"),
+      provider_catalog: await runtime.requestJSON<unknown>(
+        "/api/model-catalog/providers/codex/models/status"
+      ),
     },
     uds: {
       memory: await requestOperatorJSON<unknown>(runtime, "/api/settings/memory"),
@@ -111,7 +113,7 @@ test("operator applies Memory, Network, Automation, and Observability settings w
       observability: await requestOperatorJSON<unknown>(runtime, "/api/settings/observability"),
       provider_catalog: await requestOperatorJSON<unknown>(
         runtime,
-        "/api/providers/codex/models/status"
+        "/api/model-catalog/providers/codex/models/status"
       ),
     },
     cli: {

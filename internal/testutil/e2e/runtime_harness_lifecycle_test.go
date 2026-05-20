@@ -26,7 +26,7 @@ func TestRuntimeHarnessWaitForReadyUsesPublicSurfaces(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		if err := writeJSONResponse(w, aghcontract.DaemonStatusResponse{
+		if err := writeJSONResponse(w, aghcontract.StatusPayload{
 			Daemon: aghcontract.DaemonStatusPayload{
 				Status:   "running",
 				Socket:   "/tmp/agh.sock",
@@ -468,8 +468,8 @@ func TestRuntimeHarnessCaptureCLIOutputWritesTransportArtifactsAndManifest(t *te
 	}
 
 	cliPath, err := harness.CaptureCLIOutput(
-		"daemon status",
-		[]string{"daemon", "status", "-o", "json"},
+		"runtime status",
+		[]string{"status", "-o", "json"},
 		`{"status":"running"}`,
 		"",
 		nil,
@@ -477,14 +477,14 @@ func TestRuntimeHarnessCaptureCLIOutputWritesTransportArtifactsAndManifest(t *te
 	if err != nil {
 		t.Fatalf("CaptureCLIOutput() error = %v", err)
 	}
-	if got, want := filepath.Base(cliPath), "daemon-status.json"; got != want {
+	if got, want := filepath.Base(cliPath), "runtime-status.json"; got != want {
 		t.Fatalf("filepath.Base(cliPath) = %q, want %q", got, want)
 	}
 
 	httpPath, err := harness.CaptureTransportOutput("http status", TransportOutputArtifact{
 		Transport:  "http",
 		Method:     http.MethodGet,
-		URL:        "/api/daemon/status",
+		URL:        "/api/status",
 		StatusCode: http.StatusOK,
 	})
 	if err != nil {
@@ -524,7 +524,7 @@ func TestRuntimeHarnessNilGuardsSurfaceStableErrors(t *testing.T) {
 	if err := nilHarness.Stop(testContext(t)); err != nil {
 		t.Fatalf("nil Stop() error = %v, want nil", err)
 	}
-	if _, err := nilHarness.CaptureTransportOutput("daemon status", TransportOutputArtifact{}); err == nil {
+	if _, err := nilHarness.CaptureTransportOutput("runtime status", TransportOutputArtifact{}); err == nil {
 		t.Fatal("nil CaptureTransportOutput() error = nil, want failure")
 	}
 

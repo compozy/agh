@@ -188,7 +188,7 @@ func hookListBundle(hooks []HookCatalogRecord) outputBundle {
 		hooks,
 		hooks,
 		"Hooks",
-		[]string{"Order", automationNameValue, hooksEventValue, authoredContextSourceValue, "Mode", "Priority"},
+		[]string{"Order", automationNameValue, hooksEventValue, authoredContextSourceValue, taskModeValue, "Priority"},
 		"hooks",
 		[]string{
 			hooksOrderKey,
@@ -238,7 +238,7 @@ func hookInfoBundle(hooks []HookCatalogRecord) outputBundle {
 						{Label: hooksEventValue, Value: stringOrDash(item.Event)},
 						{Label: authoredContextSourceValue, Value: stringOrDash(item.Source)},
 						{Label: "Skill Source", Value: stringOrDash(item.SkillSource)},
-						{Label: "Mode", Value: stringOrDash(item.Mode)},
+						{Label: taskModeValue, Value: stringOrDash(item.Mode)},
 						{Label: "Required", Value: strconv.FormatBool(item.Required)},
 						{Label: "Priority", Value: strconv.Itoa(item.Priority)},
 						{Label: "Timeout (ms)", Value: int64OrDash(item.TimeoutMS)},
@@ -335,9 +335,9 @@ func hookRunsBundle(runs []HookRunRecord) outputBundle {
 		runs,
 		runs,
 		"Hook Runs",
-		[]string{"Hook", hooksEventValue, "Outcome", "Duration", hooksErrorValue},
+		[]string{"Hook", hooksEventValue, "Outcome", cliDurationValue, hooksErrorValue},
 		"runs",
-		[]string{"hook_name", hooksEventKey, "outcome", "duration_ms", hooksErrorKey, "recorded_at"},
+		[]string{"hook_name", hooksEventKey, "outcome", cliDurationMSKey, hooksErrorKey, "recorded_at"},
 		func(item HookRunRecord) []string {
 			return []string{
 				stringOrDash(item.HookName),

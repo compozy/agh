@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/agentidentity"
+	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/testutil"
 )
@@ -17,11 +18,15 @@ import (
 var fixedTestNow = time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 
 type stubClient struct {
+	statusFn                    func(context.Context) (StatusRecord, error)
+	doctorFn                    func(context.Context, DoctorQuery) (DoctorRecord, error)
 	daemonStatusFn              func(context.Context) (DaemonStatus, error)
 	triggerSettingsRestartFn    func(context.Context) (SettingsRestartActionRecord, error)
 	getSettingsRestartStatusFn  func(context.Context, string) (SettingsRestartStatusRecord, error)
 	getSettingsUpdateFn         func(context.Context) (SettingsUpdateRecord, error)
 	updateSettingsSkillsFn      func(context.Context, UpdateSettingsSkillsRequest) (SettingsMutationRecord, error)
+	listProvidersFn             func(context.Context) (contract.ProviderListResponse, error)
+	probeProviderAuthFn         func(context.Context, string) (contract.ProviderAuthProbeResponse, error)
 	listProviderModelsFn        func(context.Context, ProviderModelListQuery) (ProviderModelListRecord, error)
 	refreshProviderModelsFn     func(context.Context, string, ProviderModelRefreshRequest) (ProviderModelRefreshRecord, error)
 	providerModelStatusFn       func(context.Context, string) (ProviderModelStatusRecord, error)
@@ -130,7 +135,6 @@ type stubClient struct {
 	hookEventsFn                  func(context.Context, HookEventsQuery) ([]HookEventRecord, error)
 	observeEventsFn               func(context.Context, ObserveEventQuery) ([]ObserveEventRecord, error)
 	streamObserveEventsFn         func(context.Context, ObserveEventQuery, string, SSEHandler) error
-	observeHealthFn               func(context.Context) (HealthStatus, error)
 	memoryHealthFn                func(context.Context, string) (MemoryHealthRecord, error)
 	memoryHistoryFn               func(context.Context, MemoryHistoryQuery) ([]MemoryHistoryRecord, error)
 	listMemoryFn                  func(context.Context, MemoryListQuery) (MemoryListRecord, error)
@@ -256,6 +260,20 @@ type stubClient struct {
 
 var _ DaemonClient = (*stubClient)(nil)
 
+func (s *stubClient) Status(ctx context.Context) (StatusRecord, error) {
+	if s.statusFn != nil {
+		return s.statusFn(ctx)
+	}
+	return StatusRecord{}, errors.New("unexpected Status call")
+}
+
+func (s *stubClient) Doctor(ctx context.Context, query DoctorQuery) (DoctorRecord, error) {
+	if s.doctorFn != nil {
+		return s.doctorFn(ctx, query)
+	}
+	return DoctorRecord{}, errors.New("unexpected Doctor call")
+}
+
 func (s *stubClient) DaemonStatus(ctx context.Context) (DaemonStatus, error) {
 	if s.daemonStatusFn != nil {
 		return s.daemonStatusFn(ctx)
@@ -295,6 +313,23 @@ func (s *stubClient) UpdateSettingsSkills(
 		return s.updateSettingsSkillsFn(ctx, request)
 	}
 	return SettingsMutationRecord{}, errors.New("unexpected UpdateSettingsSkills call")
+}
+
+func (s *stubClient) ListProviders(ctx context.Context) (contract.ProviderListResponse, error) {
+	if s.listProvidersFn != nil {
+		return s.listProvidersFn(ctx)
+	}
+	return contract.ProviderListResponse{}, errors.New("unexpected ListProviders call")
+}
+
+func (s *stubClient) ProbeProviderAuth(
+	ctx context.Context,
+	providerID string,
+) (contract.ProviderAuthProbeResponse, error) {
+	if s.probeProviderAuthFn != nil {
+		return s.probeProviderAuthFn(ctx, providerID)
+	}
+	return contract.ProviderAuthProbeResponse{}, errors.New("unexpected ProbeProviderAuth call")
 }
 
 func (s *stubClient) ListProviderModels(
@@ -1270,13 +1305,6 @@ func (s *stubClient) StreamObserveEvents(
 		return s.streamObserveEventsFn(ctx, query, lastEventID, handler)
 	}
 	return errors.New("unexpected StreamObserveEvents call")
-}
-
-func (s *stubClient) ObserveHealth(ctx context.Context) (HealthStatus, error) {
-	if s.observeHealthFn != nil {
-		return s.observeHealthFn(ctx)
-	}
-	return HealthStatus{}, errors.New("unexpected ObserveHealth call")
 }
 
 func (s *stubClient) MemoryHealth(ctx context.Context, workspace string) (MemoryHealthRecord, error) {

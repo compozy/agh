@@ -297,7 +297,7 @@ func TestHTTPObserveHealthIncludesBridgeMetricsAndPreservesSessionFields(t *test
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/observe/health"),
+		mustURL(runtime.host, runtime.port, "/api/status"),
 		nil,
 		nil,
 	)
@@ -306,7 +306,7 @@ func TestHTTPObserveHealthIncludesBridgeMetricsAndPreservesSessionFields(t *test
 		t.Fatalf("health status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, body)
 	}
 
-	var payload contract.HealthResponse
+	var payload contract.StatusPayload
 	decodeHTTPJSON(t, resp, &payload)
 	if got, want := payload.Health.Status, "ok"; got != want {
 		t.Fatalf("health.status = %q, want %q", got, want)
@@ -535,14 +535,14 @@ func getHTTPBridge(t *testing.T, runtime integrationRuntime, bridgeID string) co
 	return payload
 }
 
-func getHTTPHealth(t *testing.T, runtime integrationRuntime) contract.HealthResponse {
+func getHTTPHealth(t *testing.T, runtime integrationRuntime) contract.StatusPayload {
 	t.Helper()
 
 	resp := mustHTTPRequest(
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/observe/health"),
+		mustURL(runtime.host, runtime.port, "/api/status"),
 		nil,
 		nil,
 	)
@@ -550,7 +550,7 @@ func getHTTPHealth(t *testing.T, runtime integrationRuntime) contract.HealthResp
 		body := mustReadAll(t, resp.Body)
 		t.Fatalf("get health status = %d, want %d; body=%s", resp.StatusCode, http.StatusOK, body)
 	}
-	var payload contract.HealthResponse
+	var payload contract.StatusPayload
 	decodeHTTPJSON(t, resp, &payload)
 	return payload
 }

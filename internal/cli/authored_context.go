@@ -1349,7 +1349,11 @@ func diagnosticsTable(items []contract.AuthoredContextDiagnosticPayload) string 
 			stringOrDash(item.Message),
 		})
 	}
-	return renderHumanTable("Diagnostics", []string{"Severity", "Code", "Location", authoredContextMessageValue}, rows)
+	return renderHumanTable(
+		"Diagnostics",
+		[]string{"Severity", cliCodeValue, "Location", authoredContextMessageValue},
+		rows,
+	)
 }
 
 func wakeEventsTable(items []contract.HeartbeatWakeEventPayload) string {

@@ -519,13 +519,12 @@ func TestHealthIncludesMemoryStats(t *testing.T) {
 	handlers := newTestMemoryHandlers(t, manager, observer, store, trigger)
 	engine := newTestRouter(t, handlers)
 
-	resp := performRequest(t, engine, http.MethodGet, "/api/observe/health", nil)
+	resp := performRequest(t, engine, http.MethodGet, "/api/status", nil)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
 	}
 
 	var payload struct {
-		Health observe.Health      `json:"health"`
 		Memory memoryHealthPayload `json:"memory"`
 	}
 	decodeJSONResponse(t, resp, &payload)

@@ -114,6 +114,18 @@ const (
 	ProviderHomePolicyIsolated ProviderHomePolicy = "isolated"
 )
 
+// ProviderNoneSecurity identifies why auth_mode=none is safe for a provider.
+type ProviderNoneSecurity string
+
+const (
+	// ProviderNoneSecurityLocalTransport limits unauthenticated providers to local transport.
+	ProviderNoneSecurityLocalTransport ProviderNoneSecurity = "local_transport"
+	// ProviderNoneSecurityExternalIdentity delegates authentication to the provider transport.
+	ProviderNoneSecurityExternalIdentity ProviderNoneSecurity = "external_identity"
+	// ProviderNoneSecurityPublicReadonly permits unauthenticated public read-only providers.
+	ProviderNoneSecurityPublicReadonly ProviderNoneSecurity = "public_readonly"
+)
+
 // ProviderCredentialSlot describes one launch-time secret binding needed by a provider.
 type ProviderCredentialSlot struct {
 	Name      string `toml:"name"`
@@ -183,10 +195,10 @@ type ProviderConfig struct {
 	AuthMode        ProviderAuthMode         `toml:"auth_mode,omitempty"`
 	EnvPolicy       ProviderEnvPolicy        `toml:"env_policy,omitempty"`
 	HomePolicy      ProviderHomePolicy       `toml:"home_policy,omitempty"`
+	NoneSecurity    ProviderNoneSecurity     `toml:"none_security,omitempty"`
 	AuthStatusCmd   string                   `toml:"auth_status_command,omitempty"`
 	AuthLoginCmd    string                   `toml:"auth_login_command,omitempty"`
 	SessionMCP      *bool                    `toml:"session_mcp,omitempty"`
-	Aliases         []string                 `toml:"aliases,omitempty"`
 	CredentialSlots []ProviderCredentialSlot `toml:"credential_slots,omitempty"`
 	MCPServers      []MCPServer              `toml:"mcp_servers,omitempty"`
 }
@@ -256,6 +268,7 @@ type ResolvedAgent struct {
 	AuthMode        ProviderAuthMode
 	EnvPolicy       ProviderEnvPolicy
 	HomePolicy      ProviderHomePolicy
+	NoneSecurity    ProviderNoneSecurity
 	AuthStatusCmd   string
 	AuthLoginCmd    string
 	SessionMCP      bool
@@ -811,6 +824,7 @@ func resolvedAgentFromProvider(
 		AuthMode:        provider.EffectiveAuthMode(),
 		EnvPolicy:       provider.EffectiveEnvPolicy(),
 		HomePolicy:      provider.EffectiveHomePolicy(),
+		NoneSecurity:    provider.EffectiveNoneSecurity(),
 		AuthStatusCmd:   strings.TrimSpace(provider.AuthStatusCmd),
 		AuthLoginCmd:    strings.TrimSpace(provider.AuthLoginCmd),
 		SessionMCP:      provider.SessionMCPEnabled(),
@@ -900,6 +914,9 @@ func mergeProvider(base ProviderConfig, override ProviderConfig) ProviderConfig 
 	if override.HomePolicy != "" {
 		merged.HomePolicy = override.HomePolicy
 	}
+	if override.NoneSecurity != "" {
+		merged.NoneSecurity = override.NoneSecurity
+	}
 	if strings.TrimSpace(override.AuthStatusCmd) != "" {
 		merged.AuthStatusCmd = override.AuthStatusCmd
 	}
@@ -908,9 +925,6 @@ func mergeProvider(base ProviderConfig, override ProviderConfig) ProviderConfig 
 	}
 	if override.SessionMCP != nil {
 		merged.SessionMCP = new(*override.SessionMCP)
-	}
-	if len(override.Aliases) > 0 {
-		merged.Aliases = cloneStrings(override.Aliases)
 	}
 	if len(override.CredentialSlots) > 0 {
 		merged.CredentialSlots = cloneProviderCredentialSlots(override.CredentialSlots)
@@ -1140,6 +1154,14 @@ func (p ProviderConfig) EffectiveHomePolicy() ProviderHomePolicy {
 	return ProviderHomePolicyOperator
 }
 
+// EffectiveNoneSecurity returns the auth_mode=none safety rationale.
+func (p ProviderConfig) EffectiveNoneSecurity() ProviderNoneSecurity {
+	if p.NoneSecurity != "" {
+		return p.NoneSecurity
+	}
+	return ProviderNoneSecurityLocalTransport
+}
+
 // RuntimeProviderName returns the downstream runtime provider id for harnesses that need one.
 func (p ProviderConfig) RuntimeProviderName(providerName string) string {
 	if runtimeProvider := strings.TrimSpace(p.RuntimeProvider); runtimeProvider != "" {
@@ -1357,6 +1379,19 @@ func (p ProviderHomePolicy) Validate(path string) error {
 	}
 }
 
+// Validate reports whether the auth_mode=none safety rationale is supported.
+func (s ProviderNoneSecurity) Validate(path string) error {
+	switch s {
+	case "",
+		ProviderNoneSecurityLocalTransport,
+		ProviderNoneSecurityExternalIdentity,
+		ProviderNoneSecurityPublicReadonly:
+		return nil
+	default:
+		return fmt.Errorf("%s must be one of local_transport, external_identity, or public_readonly", path)
+	}
+}
+
 // Validate reports whether the provider credential slot can be resolved at launch.
 func (s ProviderCredentialSlot) Validate(path string) error {
 	switch {
@@ -1489,6 +1524,9 @@ func validateResolvedProvider(name string, provider ProviderConfig) error {
 	if err := provider.EffectiveHomePolicy().Validate(fmt.Sprintf("providers.%s.home_policy", name)); err != nil {
 		return err
 	}
+	if err := provider.EffectiveNoneSecurity().Validate(fmt.Sprintf("providers.%s.none_security", name)); err != nil {
+		return err
+	}
 	if provider.EffectiveHarness() == ProviderHarnessPiACP &&
 		strings.TrimSpace(provider.RuntimeProviderName(name)) == "" {
 		return fmt.Errorf("providers.%s.runtime_provider is required for pi_acp providers", name)
@@ -1538,6 +1576,12 @@ func validateProviderAuthSlots(name string, provider ProviderConfig) ([]Provider
 	case ProviderAuthModeNone:
 		if len(slots) > 0 {
 			return nil, fmt.Errorf("providers.%s.credential_slots cannot be set when auth_mode is none", name)
+		}
+		if strings.TrimSpace(provider.AuthStatusCmd) != "" {
+			return nil, fmt.Errorf("providers.%s.auth_status_command cannot be set when auth_mode is none", name)
+		}
+		if strings.TrimSpace(provider.AuthLoginCmd) != "" {
+			return nil, fmt.Errorf("providers.%s.auth_login_command cannot be set when auth_mode is none", name)
 		}
 	}
 	return slots, nil
@@ -1632,10 +1676,10 @@ func cloneProvider(src ProviderConfig) ProviderConfig {
 		AuthMode:        src.AuthMode,
 		EnvPolicy:       src.EnvPolicy,
 		HomePolicy:      src.HomePolicy,
+		NoneSecurity:    src.NoneSecurity,
 		AuthStatusCmd:   src.AuthStatusCmd,
 		AuthLoginCmd:    src.AuthLoginCmd,
 		SessionMCP:      cloneBoolRef(src.SessionMCP),
-		Aliases:         cloneStrings(src.Aliases),
 		CredentialSlots: cloneProviderCredentialSlots(src.CredentialSlots),
 		MCPServers:      cloneMCPServers(src.MCPServers),
 	}

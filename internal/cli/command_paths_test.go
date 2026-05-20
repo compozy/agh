@@ -9,7 +9,9 @@ import (
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
+	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	aghdaemon "github.com/pedronauck/agh/internal/daemon"
 	"github.com/pedronauck/agh/internal/procutil"
@@ -69,6 +71,37 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 	rollbackAgentHeartbeatCalled := false
 	getAgentHeartbeatStatusCalled := false
 	client := &stubClient{
+		statusFn: func(context.Context) (StatusRecord, error) {
+			return StatusRecord{
+				SchemaVersion: "2026-05-20",
+				GeneratedAt:   fixedTestNow,
+				Daemon: DaemonStatus{
+					Status:    "running",
+					PID:       10,
+					StartedAt: fixedTestNow.Add(-time.Minute),
+					Socket:    "/tmp/agh.sock",
+					HTTPHost:  "localhost",
+					HTTPPort:  2123,
+				},
+				Health: contract.ObserveHealthPayload{Status: "ok"},
+				Sessions: contract.SessionAggregatePayload{
+					Active:   1,
+					Total:    1,
+					ByStatus: map[string]int{"active": 1},
+				},
+				Config:  contract.ConfigRuntimeStatusPayload{Status: "current"},
+				LogTail: contract.LogTailStatusPayload{Status: "available"},
+			}, nil
+		},
+		doctorFn: func(context.Context, DoctorQuery) (DoctorRecord, error) {
+			return DoctorRecord{
+				SchemaVersion: "2026-05-20",
+				GeneratedAt:   fixedTestNow,
+				Status:        "ok",
+				Summary:       contract.DoctorSummaryPayload{Total: 0, CountsBySeverity: map[string]int{}},
+				Items:         []contract.DiagnosticItem{},
+			}, nil
+		},
 		getAgentFn: func(context.Context, string, AgentQuery) (AgentRecord, error) {
 			return AgentRecord{Name: "coder", Provider: "fake", Prompt: "hi"}, nil
 		},
@@ -241,9 +274,6 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 				},
 			)
 		},
-		observeHealthFn: func(context.Context) (HealthStatus, error) {
-			return HealthStatus{Status: "ok", UptimeSeconds: 10}, nil
-		},
 		getSessionFn: func(context.Context, string) (SessionRecord, error) {
 			getCalls++
 			if getCalls == 1 {
@@ -399,7 +429,8 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 		{"network", "--workspace", "ws-1", "inbox", "--session", "sess-1", "-o", "json"},
 		{"observe", "events", "--workspace", "ws-1", "-o", "json"},
 		{"observe", "events", "--workspace", "ws-1", "--follow", "-o", "json"},
-		{"observe", "health", "-o", "json"},
+		{"status", "-o", "json"},
+		{"doctor", "-o", "json"},
 		{"bridge", "get", "brg-1", "-o", "json"},
 		{"bridge", "routes", "brg-1", "-o", "json"},
 		{"bridge", "test-delivery", "brg-1", "--peer-id", "peer-1", "--mode", "reply", "-o", "json"},
@@ -410,7 +441,6 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 		{"session", "resume", "sess-1", "-o", "json"},
 		{"session", "wait", "sess-1", "-o", "json"},
 		{"session", "history", "sess-1", "-o", "json"},
-		{"daemon", "status", "-o", "json"},
 	}
 
 	for _, args := range tests {

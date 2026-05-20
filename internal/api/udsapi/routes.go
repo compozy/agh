@@ -6,6 +6,7 @@ import "github.com/gin-gonic/gin"
 func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	api := router.Group("/api")
 
+	registerStatusRoutes(api, handlers)
 	registerBridgeRoutes(api, handlers)
 	registerWorkspaceRoutes(api, handlers)
 	registerSessionRoutes(api, handlers)
@@ -20,14 +21,19 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerTaskRunRoutes(api, handlers)
 	registerSkillRoutes(api, handlers)
 	registerMemoryRoutes(api, handlers)
-	registerDaemonRoutes(api, handlers)
 	registerNetworkRoutes(api, handlers)
 	registerBundleRoutes(api, handlers)
 	registerExtensionRoutes(api, handlers)
 	registerSettingsRoutes(api, handlers)
 	registerVaultRoutes(api, handlers)
-	registerProviderModelRoutes(api, handlers)
+	registerProviderRoutes(api, handlers)
+	registerModelCatalogRoutes(api, handlers)
 	registerHostedMCPRoutes(api, handlers)
+}
+
+func registerStatusRoutes(api gin.IRouter, handlers *Handlers) {
+	api.GET("/status", handlers.GetStatus)
+	api.GET("/doctor", handlers.GetDoctor)
 }
 
 func registerBridgeRoutes(api gin.IRouter, handlers *Handlers) {
@@ -139,9 +145,6 @@ func registerAgentKernelRoutes(api gin.IRouter, handlers *Handlers) {
 
 func registerObserveRoutes(api gin.IRouter, handlers *Handlers) {
 	observe := api.Group("/observe")
-	{
-		observe.GET("/health", handlers.Health)
-	}
 	workspaceObserve := api.Group("/workspaces/:workspace_id/observe")
 	{
 		workspaceObserve.GET("/events", handlers.ObserveEvents)
@@ -347,13 +350,6 @@ func registerMemoryRoutes(api gin.IRouter, handlers *Handlers) {
 	}
 }
 
-func registerDaemonRoutes(api gin.IRouter, handlers *Handlers) {
-	daemon := api.Group("/daemon")
-	{
-		daemon.GET("/status", handlers.DaemonStatus)
-	}
-}
-
 func registerNetworkRoutes(api gin.IRouter, handlers *Handlers) {
 	network := api.Group("/network")
 	{
@@ -460,7 +456,17 @@ func registerVaultRoutes(api gin.IRouter, handlers *Handlers) {
 	}
 }
 
-func registerProviderModelRoutes(api gin.IRouter, handlers *Handlers) {
-	api.GET("/providers/*catalog_path", handlers.ProviderModelCatalog)
-	api.POST("/providers/*catalog_path", handlers.ProviderModelCatalog)
+func registerProviderRoutes(api gin.IRouter, handlers *Handlers) {
+	providers := api.Group("/providers")
+	{
+		providers.GET("", handlers.ListProviders)
+		providers.GET("/:provider_id", handlers.GetProvider)
+		providers.POST("/:provider_id/auth/probe", handlers.ProbeProviderAuth)
+	}
+}
+
+func registerModelCatalogRoutes(api gin.IRouter, handlers *Handlers) {
+	modelCatalog := api.Group("/model-catalog")
+	modelCatalog.GET("/*catalog_path", handlers.ModelCatalogRoute)
+	modelCatalog.POST("/*catalog_path", handlers.ModelCatalogRoute)
 }

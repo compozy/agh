@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
-import { useDaemonStatus } from "@/systems/daemon";
+import { useDaemonStatus } from "@/systems/status";
 
 import { useResolveWorkspace } from "./use-workspaces";
 

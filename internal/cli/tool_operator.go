@@ -650,7 +650,7 @@ func toolInvokeBundle(response ToolInvokeResponseRecord) outputBundle {
 				{Label: toolOperatorToolIDValue, Value: response.ToolID.String()},
 				{Label: toolOperatorStatusValue, Value: stringOrDash(response.Status)},
 				{Label: "Truncated", Value: formatBool(response.Truncated)},
-				{Label: "Duration", Value: fmt.Sprintf("%dms", response.DurationMS)},
+				{Label: cliDurationValue, Value: fmt.Sprintf("%dms", response.DurationMS)},
 				{Label: "Bytes", Value: fmt.Sprintf("%d", response.Result.Bytes)},
 			}
 			if preview := strings.TrimSpace(response.Result.Preview); preview != "" {
@@ -667,7 +667,7 @@ func toolInvokeBundle(response ToolInvokeResponseRecord) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(
 				"tool_invocation",
-				[]string{toolOperatorToolIDKey, automationStatusKey, "truncated", "duration_ms", "bytes"},
+				[]string{toolOperatorToolIDKey, automationStatusKey, "truncated", cliDurationMSKey, "bytes"},
 				[]string{
 					response.ToolID.String(),
 					response.Status,

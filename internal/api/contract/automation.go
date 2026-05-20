@@ -35,7 +35,7 @@ type AutomationSchedulerStatePayload struct {
 }
 
 // AutomationHealthPayload describes additive automation health state inside
-// the observe health response.
+// the runtime status response.
 type AutomationHealthPayload struct {
 	Enabled          bool                              `json:"enabled"`
 	Jobs             AutomationResourceStatusPayload   `json:"jobs"`

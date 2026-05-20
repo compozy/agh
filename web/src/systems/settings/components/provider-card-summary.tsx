@@ -126,7 +126,7 @@ function deriveCatalogSummary({
 
 function authStateTone(state: string): PillTone {
   switch (state) {
-    case "missing_required":
+    case "missing_credential":
     case "needs_login":
       return "warning";
     default:

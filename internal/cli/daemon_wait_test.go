@@ -285,32 +285,34 @@ func TestDaemonStopCommandRejectsReusedPIDFromDaemonInfo(t *testing.T) {
 	})
 }
 
-func TestDaemonStatusCommandReturnsDaemonStatus(t *testing.T) {
+func TestStatusCommandReturnsDaemonStatus(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should return daemon status payload", func(t *testing.T) {
 		t.Parallel()
 
 		deps := newTestDeps(t, &stubClient{
-			daemonStatusFn: func(context.Context) (DaemonStatus, error) {
-				return DaemonStatus{
-					Status:    "ready",
-					PID:       42,
-					StartedAt: fixedTestNow,
+			statusFn: func(context.Context) (StatusRecord, error) {
+				return StatusRecord{
+					Daemon: DaemonStatus{
+						Status:    "ready",
+						PID:       42,
+						StartedAt: fixedTestNow,
+					},
 				}, nil
 			},
 		})
 
-		stdout, _, err := executeRootCommand(t, deps, "daemon", "status", "-o", "json")
+		stdout, _, err := executeRootCommand(t, deps, "status", "-o", "json")
 		if err != nil {
 			t.Fatalf("executeRootCommand() error = %v", err)
 		}
 
-		var decoded DaemonStatus
+		var decoded StatusRecord
 		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
 			t.Fatalf("json.Unmarshal() error = %v", err)
 		}
-		if decoded.Status != "ready" || decoded.PID != 42 {
+		if decoded.Daemon.Status != "ready" || decoded.Daemon.PID != 42 {
 			t.Fatalf("decoded = %#v, want ready pid 42", decoded)
 		}
 	})

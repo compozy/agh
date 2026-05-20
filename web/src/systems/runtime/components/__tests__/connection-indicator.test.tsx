@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/systems/daemon/hooks/use-daemon-connection-status", () => ({
+vi.mock("@/systems/status/hooks/use-daemon-connection-status", () => ({
   useDaemonConnectionStatus: () => "connected" as const,
 }));
 

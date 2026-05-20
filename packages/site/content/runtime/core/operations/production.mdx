@@ -14,12 +14,12 @@ or self-managed production-like environments where one service user owns one `AG
 
 ## 1. Pin the daemon identity and home
 
-| Check            | Pass condition                                                                                                |
-| ---------------- | ------------------------------------------------------------------------------------------------------------- |
-| Service user     | A dedicated OS user owns the daemon process.                                                                  |
-| Home directory   | `AGH_HOME` is explicit, stable, and owned by the service user.                                                |
-| CLI operations   | Operators use the same `AGH_HOME` when running `agh daemon status`, `agh session list`, and related commands. |
-| File permissions | The home directory is not world-writable; socket access is limited to the daemon user.                        |
+| Check            | Pass condition                                                                                         |
+| ---------------- | ------------------------------------------------------------------------------------------------------ |
+| Service user     | A dedicated OS user owns the daemon process.                                                           |
+| Home directory   | `AGH_HOME` is explicit, stable, and owned by the service user.                                         |
+| CLI operations   | Operators use the same `AGH_HOME` when running `agh status`, `agh session list`, and related commands. |
+| File permissions | The home directory is not world-writable; socket access is limited to the daemon user.                 |
 
 Example:
 
@@ -107,29 +107,29 @@ If your host uses logrotate, use a rule like this and adjust user, group, and pa
 
 ## 5. Monitor daemon and runtime health
 
-Use both daemon status and observe health:
+Use both runtime status and doctor diagnostics:
 
 ```bash
-agh daemon status --output json
-agh observe health --output json
+agh status --output json
+agh doctor --output json
 ```
 
 If HTTP is available locally:
 
 ```bash
-curl -fsS http://localhost:2123/api/daemon/status >/dev/null
-curl -fsS http://localhost:2123/api/observe/health >/dev/null
+curl -fsS http://localhost:2123/api/status >/dev/null
+curl -fsS http://localhost:2123/api/doctor >/dev/null
 ```
 
 Alert on:
 
-| Signal          | Failing condition                                                              |
-| --------------- | ------------------------------------------------------------------------------ |
-| Daemon status   | Status is not `running`, or PID is absent.                                     |
-| HTTP status     | `/api/daemon/status` or `/api/observe/health` cannot be reached from the host. |
-| Active sessions | Count exceeds the expected operating range.                                    |
-| Database size   | `global_db_size_bytes` or `session_db_size_bytes` grows faster than planned.   |
-| Logs            | Repeated startup, socket, database, or ACP spawn errors.                       |
+| Signal          | Failing condition                                                            |
+| --------------- | ---------------------------------------------------------------------------- |
+| Daemon status   | Status is not `running`, or PID is absent.                                   |
+| HTTP status     | `/api/status` or `/api/doctor` cannot be reached from the host.              |
+| Active sessions | Count exceeds the expected operating range.                                  |
+| Database size   | `global_db_size_bytes` or `session_db_size_bytes` grows faster than planned. |
+| Logs            | Repeated startup, socket, database, or ACP spawn errors.                     |
 
 ## 6. Back up state
 
@@ -182,15 +182,15 @@ Use this flow for binary upgrades:
 ```bash
 export AGH_HOME=/var/lib/agh
 
-agh daemon status
+agh status
 agh daemon stop
 
 # Back up AGH_HOME here.
 # Install the new agh binary here.
 
 agh daemon start
-agh daemon status
-agh observe health
+agh status
+agh doctor
 ```
 
 Do not rely on old daemon state after replacing the binary. Stop, back up, replace, start, and then
@@ -200,7 +200,7 @@ confirm status and health.
 
 | Area             | Ready when                                                                                          |
 | ---------------- | --------------------------------------------------------------------------------------------------- |
-| Daemon lifecycle | `agh daemon start`, `agh daemon status`, and `agh daemon stop` work under the service manager.      |
+| Daemon lifecycle | `agh daemon start`, `agh status`, and `agh daemon stop` work under the service manager.             |
 | Socket           | The CLI can reach the configured UDS socket as the intended operator user.                          |
 | HTTP             | HTTP is bound only where intended and health endpoints are reachable.                               |
 | Logs             | Logs rotate and recent errors are actionable.                                                       |

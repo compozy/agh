@@ -14,7 +14,7 @@ const claude = settingsProviderFixtures[0]!;
 const openrouter = settingsProviderFixtures.find(entry => entry.name === "openrouter")!;
 
 const freshHandlers = [
-  http.get("/api/providers/:provider_id/models/status", () =>
+  http.get("/api/model-catalog/providers/:provider_id/models/status", () =>
     HttpResponse.json({
       sources: [
         {
@@ -30,7 +30,7 @@ const freshHandlers = [
       ],
     })
   ),
-  http.post("/api/providers/:provider_id/models/refresh", () =>
+  http.post("/api/model-catalog/providers/:provider_id/models/refresh", () =>
     HttpResponse.json({ operation_id: "model_refresh_story", status: "queued" })
   ),
 ];

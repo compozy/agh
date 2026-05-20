@@ -10,17 +10,18 @@ import (
 type FailureKind string
 
 const (
-	FailureStartup    FailureKind = "startup_failure"
-	FailureHandshake  FailureKind = "handshake_failure"
-	FailureLoad       FailureKind = "load_session_failure"
-	FailureProtocol   FailureKind = "protocol_failure"
-	FailurePrompt     FailureKind = "prompt_failure"
-	FailureCanceled   FailureKind = "cancellation"
-	FailurePermission FailureKind = "permission_failure"
-	FailureProcess    FailureKind = "process_exit"
-	FailureTransport  FailureKind = "transport_failure"
-	FailureTimeout    FailureKind = "timeout"
-	FailureUnknown    FailureKind = "unknown_failure"
+	FailureStartup      FailureKind = "startup_failure"
+	FailureHandshake    FailureKind = "handshake_failure"
+	FailureLoad         FailureKind = "load_session_failure"
+	FailureProtocol     FailureKind = "protocol_failure"
+	FailurePrompt       FailureKind = "prompt_failure"
+	FailureCanceled     FailureKind = "cancellation"
+	FailurePermission   FailureKind = "permission_failure"
+	FailureProviderAuth FailureKind = "provider_auth_failure"
+	FailureProcess      FailureKind = "process_exit"
+	FailureTransport    FailureKind = "transport_failure"
+	FailureTimeout      FailureKind = "timeout"
+	FailureUnknown      FailureKind = "unknown_failure"
 )
 
 // ValidFailureKind reports whether kind is a supported failure enum member.
@@ -33,6 +34,7 @@ func ValidFailureKind(kind FailureKind) bool {
 		FailurePrompt,
 		FailureCanceled,
 		FailurePermission,
+		FailureProviderAuth,
 		FailureProcess,
 		FailureTransport,
 		FailureTimeout,

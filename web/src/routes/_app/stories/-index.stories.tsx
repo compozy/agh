@@ -8,7 +8,7 @@ import {
   appRouteParameters,
   createRouteStoryMeta,
 } from "@/storybook/route-story";
-import { daemonHealthFixture } from "@/systems/daemon/mocks/fixtures";
+import { statusFixture } from "@/systems/status/mocks/fixtures";
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
   ...createRouteStoryMeta(
@@ -39,14 +39,15 @@ export const Degraded: Story = {
     ...appRouteParameters("/"),
     ...storybookMswParameters({
       daemon: [
-        http.get("/api/observe/health", () =>
+        http.get("/api/status", () =>
           HttpResponse.json({
-            health: { ...daemonHealthFixture, status: "degraded" },
+            ...statusFixture,
+            health: { ...statusFixture.health, status: "degraded" },
             memory: {
+              ...statusFixture.memory,
               dream_enabled: false,
               global_files: 0,
               workspace_files: 0,
-              last_consolidation: null,
             },
           })
         ),
@@ -66,7 +67,7 @@ export const Disconnected: Story = {
     ...appRouteParameters("/"),
     ...storybookMswParameters({
       daemon: [
-        http.get("/api/observe/health", () =>
+        http.get("/api/status", () =>
           HttpResponse.json({ error: "daemon offline" }, { status: 503 })
         ),
       ],
@@ -84,7 +85,7 @@ export const Loading: Story = {
     ...appRouteParameters("/"),
     ...storybookMswParameters({
       daemon: [
-        http.get("/api/observe/health", async () => {
+        http.get("/api/status", async () => {
           await delay("infinite");
           return HttpResponse.json({});
         }),

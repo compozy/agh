@@ -4,7 +4,7 @@ import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentPayload } from "@/systems/agent";
-import type { HealthPayload } from "@/systems/daemon";
+import type { HealthPayload } from "@/systems/status";
 import type { SessionPayload } from "@/systems/session";
 import type { WorkspacePayload } from "@/systems/workspace";
 
@@ -13,7 +13,7 @@ vi.mock("@/systems/agent/adapters/agent-api", () => ({
   fetchAgent: vi.fn(),
 }));
 
-vi.mock("@/systems/daemon/adapters/daemon-api", () => ({
+vi.mock("@/systems/status/adapters/daemon-api", () => ({
   fetchHealth: vi.fn(),
   fetchDaemonStatus: vi.fn(),
 }));
@@ -50,7 +50,7 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace-store", () => ({
 }));
 
 import { fetchAgents } from "@/systems/agent/adapters/agent-api";
-import { fetchHealth } from "@/systems/daemon/adapters/daemon-api";
+import { fetchHealth } from "@/systems/status/adapters/daemon-api";
 import { fetchSessions } from "@/systems/session/adapters/session-api";
 import { fetchWorkspace, fetchWorkspaces } from "@/systems/workspace/adapters/workspace-api";
 

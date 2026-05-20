@@ -82,10 +82,10 @@ describe("provider model catalog docs", () => {
 
   it("documents native model catalog endpoints", () => {
     const source = read(modelCatalogDoc);
-    expect(source).toContain("/api/providers/models");
-    expect(source).toContain("/api/providers/{provider_id}/models");
-    expect(source).toContain("/api/providers/models/refresh");
-    expect(source).toContain("/api/providers/models/status");
+    expect(source).toContain("/api/model-catalog/models");
+    expect(source).toContain("/api/model-catalog/providers/{provider_id}/models");
+    expect(source).toContain("/api/model-catalog/models/refresh");
+    expect(source).toContain("/api/model-catalog/sources/status");
     expect(source).toContain("agh__provider_models");
     expect(source).toContain("agh__provider_models_list");
     expect(source).toContain("agh__provider_models_refresh");

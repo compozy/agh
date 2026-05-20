@@ -14,6 +14,7 @@ import (
 	"github.com/pedronauck/agh/internal/diagnostics"
 	"github.com/pedronauck/agh/internal/fileutil"
 	"github.com/pedronauck/agh/internal/providerenv"
+	authproviders "github.com/pedronauck/agh/internal/providers"
 	"github.com/pedronauck/agh/internal/vault"
 )
 
@@ -99,18 +100,93 @@ func (m *Manager) prepareProviderForStart(
 	if session != nil {
 		session.addProviderSecretRedactions(secretBindings.redactionCleanups)
 	}
-	if resolved.Harness != aghconfig.ProviderHarnessPiACP {
-		return opts, nil
+	if resolved.Harness == aghconfig.ProviderHarnessPiACP &&
+		resolved.AuthMode == aghconfig.ProviderAuthModeBoundSecret {
+		runtimeDir, err := m.materializePiRuntime(session, resolved, secretBindings.injectedTargetEnvs)
+		if err != nil {
+			return acp.StartOpts{}, err
+		}
+		opts.Env = setSessionStartEnvValue(opts.Env, "PI_CODING_AGENT_DIR", runtimeDir)
 	}
-	if resolved.AuthMode != aghconfig.ProviderAuthModeBoundSecret {
-		return opts, nil
-	}
-	runtimeDir, err := m.materializePiRuntime(session, resolved, secretBindings.injectedTargetEnvs)
-	if err != nil {
-		return acp.StartOpts{}, err
-	}
-	opts.Env = setSessionStartEnvValue(opts.Env, "PI_CODING_AGENT_DIR", runtimeDir)
+	opts.ProviderName = strings.TrimSpace(resolved.Provider)
+	providerConfig := providerConfigFromResolvedAgent(resolved)
+	opts.ProviderConfig = &providerConfig
+	probeEnv := providerProbeEnvForStart(m, resolved, opts.Env)
+	opts.ProviderAuthEnv = &probeEnv
 	return opts, nil
+}
+
+func providerProbeEnvForStart(
+	m *Manager,
+	resolved aghconfig.ResolvedAgent,
+	env []string,
+) authproviders.ProbeEnv {
+	return authproviders.ProbeEnv{
+		ProviderName: strings.TrimSpace(resolved.Provider),
+		HomePaths:    m.homePaths,
+		LookupEnv:    providerLookupEnv(env),
+		Vault:        providerSecretMetadataResolver{resolver: m.providerSecrets},
+		CommandEnv:   append([]string(nil), env...),
+	}
+}
+
+func providerConfigFromResolvedAgent(resolved aghconfig.ResolvedAgent) aghconfig.ProviderConfig {
+	return aghconfig.ProviderConfig{
+		Command:         resolved.Command,
+		DisplayName:     resolved.DisplayName,
+		Harness:         resolved.Harness,
+		RuntimeProvider: resolved.RuntimeProvider,
+		Transport:       resolved.Transport,
+		BaseURL:         resolved.BaseURL,
+		AuthMode:        resolved.AuthMode,
+		EnvPolicy:       resolved.EnvPolicy,
+		HomePolicy:      resolved.HomePolicy,
+		NoneSecurity:    resolved.NoneSecurity,
+		AuthStatusCmd:   resolved.AuthStatusCmd,
+		AuthLoginCmd:    resolved.AuthLoginCmd,
+		CredentialSlots: append([]aghconfig.ProviderCredentialSlot(nil), resolved.CredentialSlots...),
+	}
+}
+
+func providerLookupEnv(env []string) func(string) (string, bool) {
+	values := make(map[string]string, len(env))
+	for _, entry := range env {
+		key, value, ok := strings.Cut(entry, "=")
+		if ok {
+			values[key] = value
+		}
+	}
+	return func(key string) (string, bool) {
+		if value, ok := values[key]; ok {
+			return value, true
+		}
+		return os.LookupEnv(key)
+	}
+}
+
+type providerSecretMetadataGetter interface {
+	GetMetadata(context.Context, string) (vault.Metadata, error)
+}
+
+type providerSecretMetadataResolver struct {
+	resolver ProviderSecretResolver
+}
+
+func (r providerSecretMetadataResolver) GetMetadata(ctx context.Context, ref string) (vault.Metadata, error) {
+	if r.resolver == nil {
+		return vault.Metadata{}, vault.ErrSecretNotFound
+	}
+	if getter, ok := r.resolver.(providerSecretMetadataGetter); ok {
+		return getter.GetMetadata(ctx, ref)
+	}
+	value, err := r.resolver.ResolveRef(ctx, ref)
+	if err != nil {
+		return vault.Metadata{}, err
+	}
+	return vault.Metadata{
+		Ref:     vault.NormalizeRef(ref),
+		Present: strings.TrimSpace(value) != "",
+	}, nil
 }
 
 func setProviderModelEnv(env []string, resolved aghconfig.ResolvedAgent) []string {

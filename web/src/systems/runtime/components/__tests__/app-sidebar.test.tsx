@@ -55,7 +55,7 @@ vi.mock("@tanstack/react-router", () => ({
   },
 }));
 
-vi.mock("@/systems/daemon/hooks/use-daemon-connection-status", () => ({
+vi.mock("@/systems/status/hooks/use-daemon-connection-status", () => ({
   useDaemonConnectionStatus: () => mockConnectionStatus,
 }));
 

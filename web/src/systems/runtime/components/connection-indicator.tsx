@@ -1,6 +1,6 @@
 import { type ConnectionStatus, Pill, cn } from "@agh/ui";
 
-import { useDaemonConnectionStatus } from "@/systems/daemon/hooks/use-daemon-connection-status";
+import { useDaemonConnectionStatus } from "@/systems/status/hooks/use-daemon-connection-status";
 
 import { useNavCounts } from "../hooks/use-nav-counts";
 

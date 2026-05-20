@@ -1009,7 +1009,7 @@
                     }
                 }
             },
-            "DaemonStatusResponse": {
+            "StatusResponse": {
                 "type": "object",
                 "additionalProperties": false,
                 "required": ["daemon"],
@@ -1220,9 +1220,9 @@
         }
     },
     "paths": {
-        "/api/daemon/status": {
+        "/api/status": {
             "get": {
-                "operationId": "getDaemonStatus",
+                "operationId": "getStatus",
                 "summary": "Read daemon identity, runtime status, and listener information.",
                 "tags": ["daemon"],
                 "responses": {
@@ -1231,7 +1231,7 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/DaemonStatusResponse"
+                                    "$ref": "#/components/schemas/StatusResponse"
                                 }
                             }
                         }

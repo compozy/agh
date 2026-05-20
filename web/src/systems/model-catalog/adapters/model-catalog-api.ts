@@ -32,10 +32,13 @@ export async function listProviderModels(
     throw new ModelCatalogApiError("provider_id is required", 400);
   }
   const query = buildListQuery(input);
-  const { data, error, response } = await apiClient.GET("/api/providers/{provider_id}/models", {
-    params: { path: { provider_id: providerId }, query },
-    signal,
-  });
+  const { data, error, response } = await apiClient.GET(
+    "/api/model-catalog/providers/{provider_id}/models",
+    {
+      params: { path: { provider_id: providerId }, query },
+      signal,
+    }
+  );
   if (apiRequestFailed(response, error)) {
     throw new ModelCatalogApiError(
       defaultApiErrorMessage(`Failed to load models for "${providerId}"`, response, error),
@@ -54,7 +57,7 @@ export async function getProviderModelStatus(
     throw new ModelCatalogApiError("provider_id is required", 400);
   }
   const { data, error, response } = await apiClient.GET(
-    "/api/providers/{provider_id}/models/status",
+    "/api/model-catalog/providers/{provider_id}/models/status",
     {
       params: { path: { provider_id: trimmed } },
       signal,
@@ -83,7 +86,7 @@ export async function refreshProviderModels(
   }
   const body = buildRefreshBody(input);
   const { data, error, response } = await apiClient.POST(
-    "/api/providers/{provider_id}/models/refresh",
+    "/api/model-catalog/providers/{provider_id}/models/refresh",
     {
       params: { path: { provider_id: providerId } },
       body,

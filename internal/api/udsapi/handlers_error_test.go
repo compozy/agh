@@ -308,7 +308,7 @@ func TestObserveStreamAndHealthAndDaemonStatusErrorPaths(t *testing.T) {
 		t.Fatalf("observe stream bad header status = %d, want %d", recorder.Code, http.StatusBadRequest)
 	}
 
-	healthResp := performRequest(t, engine, http.MethodGet, "/api/observe/health", nil)
+	healthResp := performRequest(t, engine, http.MethodGet, "/api/status", nil)
 	if healthResp.Code != http.StatusInternalServerError {
 		t.Fatalf("health status = %d, want %d", healthResp.Code, http.StatusInternalServerError)
 	}
@@ -323,7 +323,7 @@ func TestObserveStreamAndHealthAndDaemonStatusErrorPaths(t *testing.T) {
 		},
 	}, homePaths)
 	statusEngine := newTestRouter(t, statusHandlers)
-	statusResp := performRequest(t, statusEngine, http.MethodGet, "/api/daemon/status", nil)
+	statusResp := performRequest(t, statusEngine, http.MethodGet, "/api/status", nil)
 	if statusResp.Code != http.StatusInternalServerError {
 		t.Fatalf("daemon status = %d, want %d", statusResp.Code, http.StatusInternalServerError)
 	}

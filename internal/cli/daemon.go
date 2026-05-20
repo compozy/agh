@@ -48,7 +48,6 @@ func newDaemonCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newDaemonStartCommand(deps))
 	cmd.AddCommand(newDaemonRelaunchCommand(deps))
 	cmd.AddCommand(newDaemonStopCommand(deps))
-	cmd.AddCommand(newDaemonStatusCommand(deps))
 	return cmd
 }
 
@@ -100,30 +99,6 @@ func newDaemonRelaunchCommand(deps commandDeps) *cobra.Command {
 				Executable:  deps.executable,
 				Sandbox:     os.Environ(),
 			})
-		},
-	}
-}
-
-func newDaemonStatusCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
-		Use:   daemonStatusKey,
-		Short: "Show daemon status",
-		Example: `  # Show daemon health and socket details
-  agh daemon status
-
-  # Return machine-readable daemon status
-  agh daemon status --output json`,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			runtime, err := loadRuntimeContext(deps)
-			if err != nil {
-				return err
-			}
-
-			status, err := daemonStatusFromDeps(cmd.Context(), deps, runtime)
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, daemonStatusBundle(status, deps.now))
 		},
 	}
 }
@@ -373,9 +348,9 @@ func daemonStatusWithState(runtime *runtimeContext, info aghdaemon.Info, status 
 func daemonStatusBundle(status DaemonStatus, now func() time.Time) outputBundle {
 	rows := []keyValue{
 		{Label: daemonStatusValue, Value: stringOrDash(status.Status)},
-		{Label: "PID", Value: intOrDash(status.PID)},
+		{Label: cliPIDValue, Value: intOrDash(status.PID)},
 		{Label: daemonStartedValue, Value: stringOrDash(formatTime(status.StartedAt))},
-		{Label: "Uptime", Value: stringOrDash(formatAge(now, status.StartedAt))},
+		{Label: cliUptimeValue, Value: stringOrDash(formatAge(now, status.StartedAt))},
 		{Label: "Socket", Value: stringOrDash(status.Socket)},
 		{Label: "HTTP", Value: stringOrDash(strings.TrimSpace(status.HTTPHost) + ":" + intOrDash(status.HTTPPort))},
 		{Label: "Active Sessions", Value: strconv.Itoa(status.ActiveSessions)},
@@ -384,7 +359,7 @@ func daemonStatusBundle(status DaemonStatus, now func() time.Time) outputBundle 
 	}
 	labels := []string{
 		daemonStatusKey,
-		"pid",
+		cliPIDKey,
 		daemonStartedAtKey,
 		"uptime",
 		"socket",

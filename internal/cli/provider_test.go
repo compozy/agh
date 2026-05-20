@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/testutil"
 )
@@ -110,7 +111,7 @@ func TestProviderAuthStatusCommand(t *testing.T) {
 		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
 			t.Fatalf("json.Unmarshal(provider auth status) error = %v", err)
 		}
-		if got, want := record.State, "missing_required"; got != want {
+		if got, want := record.State, "missing_credential"; got != want {
 			t.Fatalf("State = %q, want %q", got, want)
 		}
 		if len(record.Credentials) != 1 || record.Credentials[0].Present {
@@ -270,6 +271,82 @@ func TestProviderAuthStatusCommand(t *testing.T) {
 	})
 }
 
+func TestProviderDaemonCommands(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should list providers through daemon client", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{
+			listProvidersFn: func(_ context.Context) (contract.ProviderListResponse, error) {
+				return contract.ProviderListResponse{
+					Providers: []contract.ProviderSummaryPayload{
+						{
+							Name:        "public",
+							DisplayName: "Public",
+							Default:     true,
+							AuthStatus: contract.ProviderAuthStatusPayload{
+								Mode:    "none",
+								State:   contract.ProviderAuthStateNone,
+								Message: "No auth required.",
+							},
+						},
+					},
+				}, nil
+			},
+		}
+		deps := newTestDeps(t, client)
+
+		stdout, _, err := executeRootCommand(t, deps, "provider", "list", "-o", "json")
+		if err != nil {
+			t.Fatalf("provider list error = %v", err)
+		}
+
+		var record contract.ProviderListResponse
+		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
+			t.Fatalf("json.Unmarshal(provider list) error = %v", err)
+		}
+		if got, want := record.Providers[0].AuthStatus.State, contract.ProviderAuthStateNone; got != want {
+			t.Fatalf("AuthStatus.State = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should run remote auth status through daemon client", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{
+			probeProviderAuthFn: func(_ context.Context, providerID string) (contract.ProviderAuthProbeResponse, error) {
+				if providerID != "codex" {
+					t.Fatalf("providerID = %q, want codex", providerID)
+				}
+				return contract.ProviderAuthProbeResponse{
+					Provider: "codex",
+					AuthStatus: contract.ProviderAuthStatusPayload{
+						Mode:  "native_cli",
+						State: contract.ProviderAuthStateNeedsLogin,
+						Code:  contract.CodeProviderNotAuthenticated,
+					},
+					Probe: &contract.ProviderAuthProbeResult{ExitCode: 1, Stderr: "not logged in"},
+				}, nil
+			},
+		}
+		deps := newTestDeps(t, client)
+
+		stdout, _, err := executeRootCommand(t, deps, "provider", "auth", "status", "codex", "--remote", "-o", "json")
+		if err != nil {
+			t.Fatalf("provider auth status --remote error = %v", err)
+		}
+
+		var record contract.ProviderAuthProbeResponse
+		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
+			t.Fatalf("json.Unmarshal(provider auth probe) error = %v", err)
+		}
+		if got, want := record.AuthStatus.Code, contract.CodeProviderNotAuthenticated; got != want {
+			t.Fatalf("AuthStatus.Code = %q, want %q", got, want)
+		}
+	})
+}
+
 // This test mutates process environment and must stay outside the parallel
 // provider auth status suite.
 func TestProviderAuthStatusCommandHermeticEnv(t *testing.T) {
@@ -306,7 +383,7 @@ func TestProviderAuthStatusCommandHermeticEnv(t *testing.T) {
 		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
 			t.Fatalf("json.Unmarshal(provider auth status) error = %v", err)
 		}
-		if got, want := record.State, "missing_required"; got != want {
+		if got, want := record.State, "missing_credential"; got != want {
 			t.Fatalf("State = %q, want %q", got, want)
 		}
 		if len(record.Credentials) != 1 || record.Credentials[0].Present {
@@ -321,7 +398,7 @@ func TestProviderAuthStatusCommandHermeticEnv(t *testing.T) {
 func TestProviderAuthLoginCommand(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should expose configured native login command without executing it", func(t *testing.T) {
+	t.Run("Should run configured native login command locally", func(t *testing.T) {
 		t.Parallel()
 
 		deps := newTestDeps(t, nil)
@@ -338,12 +415,14 @@ func TestProviderAuthLoginCommand(t *testing.T) {
 			}
 			return "/usr/local/bin/codex", nil
 		}
-		deps.runProviderAuthCommand = func(
+		deps.runProviderAuthLoginCommand = func(
 			_ context.Context,
 			spec providerAuthCommandSpec,
 		) (providerAuthCommandResult, error) {
-			t.Fatalf("runProviderAuthCommand(%q) called, want login command to be operator-run", spec.Command)
-			return providerAuthCommandResult{}, nil
+			if spec.Command != "codex login" {
+				t.Fatalf("Login command = %q, want codex login", spec.Command)
+			}
+			return providerAuthCommandResult{ExitCode: 0}, nil
 		}
 
 		stdout, _, err := executeRootCommand(t, deps, "provider", "auth", "login", "codex", "-o", "json")
@@ -355,14 +434,14 @@ func TestProviderAuthLoginCommand(t *testing.T) {
 		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
 			t.Fatalf("json.Unmarshal(provider auth login) error = %v", err)
 		}
-		if got, want := record.State, "native_cli"; got != want {
+		if got, want := record.State, "unknown"; got != want {
 			t.Fatalf("State = %q, want %q", got, want)
 		}
 		if got, want := record.LoginCommand, "codex login"; got != want {
 			t.Fatalf("LoginCommand = %q, want %q", got, want)
 		}
-		if !strings.Contains(record.Message, "Run \"codex login\" in an interactive terminal") {
-			t.Fatalf("Message = %q, want interactive terminal guidance", record.Message)
+		if record.Code != "provider_classification_unknown" {
+			t.Fatalf("Code = %q, want provider_classification_unknown", record.Code)
 		}
 		if record.NativeCLI == nil || !record.NativeCLI.Present || record.NativeCLI.Command != "codex" {
 			t.Fatalf("NativeCLI = %#v, want present codex", record.NativeCLI)
@@ -425,11 +504,23 @@ func TestProviderAuthLoginCommand(t *testing.T) {
 			}
 			return "/usr/local/bin/npx", nil
 		}
+		deps.runProviderAuthLoginCommand = func(
+			_ context.Context,
+			spec providerAuthCommandSpec,
+		) (providerAuthCommandResult, error) {
+			if spec.Command != "npx -y pi-acp@latest --terminal-login" {
+				t.Fatalf("Login command = %q, want Pi terminal login", spec.Command)
+			}
+			if providerTestEnvValue(spec.Env, "PI_CODING_AGENT_DIR") == "" {
+				t.Fatalf("Login env = %#v, want PI_CODING_AGENT_DIR", spec.Env)
+			}
+			return providerAuthCommandResult{ExitCode: 0}, nil
+		}
 		deps.runProviderAuthCommand = func(
 			_ context.Context,
 			spec providerAuthCommandSpec,
 		) (providerAuthCommandResult, error) {
-			t.Fatalf("runProviderAuthCommand(%q) called, want Pi login command to be operator-run", spec.Command)
+			t.Fatalf("runProviderAuthCommand(%q) called, want no status command after Pi login", spec.Command)
 			return providerAuthCommandResult{}, nil
 		}
 
@@ -454,11 +545,8 @@ func TestProviderAuthLoginCommand(t *testing.T) {
 		if providerTestEnvValue(record.LoginEnv, "PI_CODING_AGENT_DIR") == "" {
 			t.Fatalf("LoginEnv = %#v, want Pi auth directory", record.LoginEnv)
 		}
-		if !strings.Contains(record.Message, "interactive terminal") {
-			t.Fatalf("Message = %q, want interactive terminal guidance", record.Message)
-		}
-		if !strings.Contains(record.Message, "PI_CODING_AGENT_DIR") {
-			t.Fatalf("Message = %q, want env-prefixed login command", record.Message)
+		if got, want := record.State, "unknown"; got != want {
+			t.Fatalf("State = %q, want %q", got, want)
 		}
 		if record.NativeCLI == nil || !record.NativeCLI.Present || record.NativeCLI.Command != "npx" {
 			t.Fatalf("NativeCLI = %#v, want present npx", record.NativeCLI)

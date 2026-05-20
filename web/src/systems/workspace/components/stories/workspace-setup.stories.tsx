@@ -5,6 +5,7 @@ import { delay, http, HttpResponse } from "msw";
 
 import { storybookMswParameters } from "@/storybook/msw";
 import { StorySurface } from "@/storybook/story-layout";
+import { statusFixture } from "@/systems/status/mocks/fixtures";
 
 import { WorkspaceOnboarding, WorkspaceSetupDialog } from "../workspace-setup";
 
@@ -61,8 +62,11 @@ export const OnboardingGlobalUnavailable: Story = {
   parameters: {
     ...storybookMswParameters({
       daemon: [
-        http.get("/api/daemon/status", () =>
-          HttpResponse.json({ status: "running", user_home_dir: "" })
+        http.get("/api/status", () =>
+          HttpResponse.json({
+            ...statusFixture,
+            daemon: { ...statusFixture.daemon, user_home_dir: "" },
+          })
         ),
       ],
     }),

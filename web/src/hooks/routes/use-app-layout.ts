@@ -2,7 +2,7 @@ import { useCallback, useState } from "react";
 
 import { useSidebarStore } from "@/hooks/use-sidebar-store";
 import { useAgentCreateDialog, useAgents } from "@/systems/agent";
-import { useDaemonHealth } from "@/systems/daemon";
+import { useDaemonHealth } from "@/systems/status";
 import { useSessionCreateDialog, useSessions } from "@/systems/session";
 import { useActiveWorkspace, useWorkspace } from "@/systems/workspace";
 

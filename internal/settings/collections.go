@@ -13,9 +13,12 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/providerauth"
+	authproviders "github.com/pedronauck/agh/internal/providers"
 	"github.com/pedronauck/agh/internal/vault"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
+
+const settingsCredentialSourceEnv = "env"
 
 func (s *service) ListCollection(ctx context.Context, req CollectionRequest) (CollectionEnvelope, error) {
 	scope, workspaceID, err := s.normalizeReadScope(req.Scope, req.WorkspaceID)
@@ -285,23 +288,23 @@ func providerAuthStatus(
 		StatusCmd:  strings.TrimSpace(provider.AuthStatusCmd),
 		LoginCmd:   strings.TrimSpace(provider.AuthLoginCmd),
 	}
+	classification, err := authproviders.ClassifyDeclared(context.Background(), provider, providerAuthStatusProbeEnv(
+		providerName,
+		credentials,
+		lookPath,
+	))
+	if err != nil {
+		return ProviderAuthStatus{}, err
+	}
+	status.State = string(classification.State)
+	status.Code = classification.Code
+	status.Message = classification.Message
 	switch status.Mode {
 	case aghconfig.ProviderAuthModeBoundSecret:
-		for _, credential := range credentials {
-			if credential.Required && !credential.Present {
-				status.State = "missing_required"
-				status.Message = "Missing required AGH-managed provider credential."
-				return status, nil
-			}
-		}
-		status.State = "present"
-		status.Message = "Required AGH-managed provider credentials are present."
+		return status, nil
 	case aghconfig.ProviderAuthModeNone:
-		status.State = "none"
-		status.Message = "Provider starts without AGH-managed authentication."
+		return status, nil
 	default:
-		status.State = "native_cli"
-		status.Message = "Provider owns authentication through its native CLI login state."
 		nativeCLI, err := providerauth.NativeCLIStatusForProvider(provider, lookPath)
 		if err != nil {
 			return ProviderAuthStatus{}, err
@@ -312,16 +315,48 @@ func providerAuthStatus(
 			return ProviderAuthStatus{}, err
 		}
 		status.LoginEnv = loginEnv
-		if nativeCLI != nil && nativeCLI.Command != "" {
-			if !nativeCLI.Present {
-				status.State = "missing_cli"
-				status.Message = providerauth.NativeCLIMissingMessage(providerName, provider, nativeCLI)
-				return status, nil
-			}
-			status.Message = providerauth.NativeCLIReadyMessage(providerName, provider, nativeCLI)
-		}
 	}
 	return status, nil
+}
+
+func providerAuthStatusProbeEnv(
+	providerName string,
+	credentials []ProviderCredentialStatus,
+	lookPath func(string) (string, error),
+) *authproviders.ProbeEnv {
+	return &authproviders.ProbeEnv{
+		ProviderName: strings.TrimSpace(providerName),
+		LookPath:     lookPath,
+		LookupEnv: func(key string) (string, bool) {
+			for _, credential := range credentials {
+				if credential.Source != settingsCredentialSourceEnv || !credential.Present {
+					continue
+				}
+				envName, err := vault.EnvNameFromRef(credential.SecretRef)
+				if err == nil && envName == key {
+					return "present", true
+				}
+			}
+			return "", false
+		},
+		Vault: providerAuthStatusCredentialVault(credentials),
+	}
+}
+
+type providerAuthStatusCredentialVault []ProviderCredentialStatus
+
+func (v providerAuthStatusCredentialVault) GetMetadata(_ context.Context, ref string) (vault.Metadata, error) {
+	normalized := vault.NormalizeRef(ref)
+	for _, credential := range v {
+		if vault.NormalizeRef(credential.SecretRef) != normalized {
+			continue
+		}
+		if !credential.Present {
+			return vault.Metadata{}, vault.ErrSecretNotFound
+		}
+		return vault.Metadata{Ref: normalized, Present: true, Kind: strings.TrimSpace(credential.Kind)}, nil
+	}
+	return vault.Metadata{}, vault.ErrSecretNotFound
 }
 
 func providerFallbackFromBuiltin(name string, builtin aghconfig.ProviderConfig) *ProviderFallback {
@@ -364,7 +399,7 @@ func (s *service) providerCredentialStatus(
 	}
 	switch {
 	case vault.IsEnvRef(secretRef):
-		status.Source = "env"
+		status.Source = settingsCredentialSourceEnv
 		status.Present = s.envPresent(strings.TrimSpace(strings.TrimPrefix(secretRef, "env:")))
 		return status, nil
 	case vault.IsSecretRef(secretRef):
@@ -1501,7 +1536,7 @@ func sandboxProfileMap(profile aghconfig.SandboxProfile) map[string]any {
 		values["runtime_root"] = profile.RuntimeRoot
 	}
 	if len(profile.Env) > 0 {
-		values["env"] = cloneStringMap(profile.Env)
+		values[settingsCredentialSourceEnv] = cloneStringMap(profile.Env)
 	}
 	if len(profile.SecretEnv) > 0 {
 		values["secret_env"] = cloneStringMap(profile.SecretEnv)
@@ -1612,7 +1647,7 @@ func hookDeclarationMap(declaration hookspkg.HookDecl) map[string]any {
 			values["args"] = append([]string(nil), declaration.Args...)
 		}
 		if len(declaration.Env) > 0 {
-			values["env"] = cloneStringMap(declaration.Env)
+			values[settingsCredentialSourceEnv] = cloneStringMap(declaration.Env)
 		}
 		if len(declaration.SecretEnv) > 0 {
 			values["secret_env"] = cloneStringMap(declaration.SecretEnv)
@@ -1681,7 +1716,7 @@ func hookExecutorMap(declaration hookspkg.HookDecl) map[string]any {
 		values["args"] = append([]string(nil), declaration.Args...)
 	}
 	if len(declaration.Env) > 0 {
-		values["env"] = cloneStringMap(declaration.Env)
+		values[settingsCredentialSourceEnv] = cloneStringMap(declaration.Env)
 	}
 	if len(declaration.SecretEnv) > 0 {
 		values["secret_env"] = cloneStringMap(declaration.SecretEnv)
@@ -1701,7 +1736,7 @@ func mcpServerMap(server aghconfig.MCPServer) map[string]any {
 		values["args"] = append([]string(nil), server.Args...)
 	}
 	if len(server.Env) > 0 {
-		values["env"] = cloneStringMap(server.Env)
+		values[settingsCredentialSourceEnv] = cloneStringMap(server.Env)
 	}
 	if len(server.SecretEnv) > 0 {
 		values["secret_env"] = cloneStringMap(server.SecretEnv)

@@ -233,18 +233,6 @@ type ObserveEventsResponse struct {
 	Events []ObserveEventPayload `json:"events"`
 }
 
-// HealthResponse wraps daemon health plus memory health.
-type HealthResponse struct {
-	Health     ObserveHealthPayload    `json:"health"`
-	Memory     MemoryHealthPayload     `json:"memory"`
-	Automation AutomationHealthPayload `json:"automation"`
-}
-
-// DaemonStatusResponse wraps the daemon status payload.
-type DaemonStatusResponse struct {
-	Daemon DaemonStatusPayload `json:"daemon"`
-}
-
 // NetworkStatusResponse wraps the network runtime status payload.
 type NetworkStatusResponse struct {
 	Network NetworkStatusPayload `json:"network"`

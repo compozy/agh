@@ -89,7 +89,7 @@ Inspect scheduler state through:
 
 - `agh automation jobs get <job-id>` for the job-local `next_run`, `last_scheduled_at`,
   `last_fire_id`, `catch_up_policy`, and `misfire_count`
-- `agh observe health -o json` at `health.automation.scheduled_jobs`
+- `agh status -o json` at `.automation.scheduled_jobs`
 - the HTTP job payload, where `job.scheduler` mirrors the durable scheduler cursor
 
 ### Cron

@@ -34,42 +34,43 @@ Foreground mode keeps the daemon attached to the terminal. It exits when the pro
 
 ## Check status and health
 
-Use `agh daemon status` for the process-level status:
+Use `agh status` for the process-level status:
 
 ```bash
-agh daemon status
-agh daemon status --output json
+agh status
+agh status --output json
 ```
 
-The command first calls `/api/daemon/status` over the Unix domain socket. If the socket is not
+The command first calls `/api/status` over the Unix domain socket. If the socket is not
 available, it falls back to `$AGH_HOME/daemon.json` and verifies whether the recorded PID is alive.
 
-Use `agh observe health` for the runtime health snapshot:
+Use `agh doctor` for DiagnosticItem-backed runtime checks:
 
 ```bash
-agh observe health
-agh observe health --output json
+agh doctor
+agh doctor --output json
 ```
 
-The health command reports active session counts, active agent counts, global database size,
-session database size, uptime, and version.
+The doctor command reports probe results with stable codes, severity, remediation text, and
+optional suggested commands. Use `agh status --output json` when an agent needs the raw runtime
+health fields.
 
 If HTTP is enabled on the default host and port, the same data is available over HTTP:
 
 ```bash
-curl -s http://localhost:2123/api/daemon/status | jq '.daemon'
-curl -s http://localhost:2123/api/observe/health | jq '.health'
+curl -s http://localhost:2123/api/status | jq '.daemon'
+curl -s http://localhost:2123/api/doctor | jq '.items'
 ```
 
 <Mermaid
   chart={`flowchart LR
-  CLI["agh daemon status"] --> UDS["$AGH_HOME/daemon.sock"]
-  UDS --> Status["/api/daemon/status"]
+  CLI["agh status"] --> UDS["$AGH_HOME/daemon.sock"]
+  UDS --> Status["/api/status"]
   CLI --> Fallback["daemon.json + PID check"]
-  Health["agh observe health"] --> Observe["/api/observe/health"]
+  Health["agh doctor"] --> Observe["/api/doctor"]
   HTTP["curl localhost:2123"] --> Status
   HTTP --> Observe`}
-  caption="Status is process discovery; health is the deeper runtime snapshot."
+  caption="Status is live runtime truth; doctor is the diagnostic probe surface."
 />
 
 ## Stop and restart the daemon

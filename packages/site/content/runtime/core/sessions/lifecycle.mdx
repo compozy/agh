@@ -200,7 +200,7 @@ AGH persists a `failure` object with:
 - `crash_bundle_path`: path to a redacted crash bundle when AGH captured one
 
 The same failure object is exposed through session status, session list JSON, session SSE terminal
-events, and observe health.
+events, and `agh status`.
 
 ```bash
 agh session status sess-1234 -o json | jq '.session.failure'

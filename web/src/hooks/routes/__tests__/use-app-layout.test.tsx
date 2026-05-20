@@ -43,7 +43,7 @@ vi.mock("@/hooks/use-sidebar-store", () => ({
   ) => selector({ collapsed: false, setCollapsed: vi.fn() }),
 }));
 
-vi.mock("@/systems/daemon", () => ({
+vi.mock("@/systems/status", () => ({
   useDaemonHealth: () => ({
     health: { version: "0.1.0" },
     connectionStatus: "connected",

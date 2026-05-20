@@ -188,15 +188,15 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 	})
 
 	t.Run("Should surface memory health and observe events", func(t *testing.T) {
-		var health aghcontract.HealthResponse
+		var health aghcontract.StatusPayload
 		if err := harness.HTTPJSON(
 			ctx,
 			http.MethodGet,
-			"/api/observe/health?workspace="+url.QueryEscape(harness.WorkspaceRoot),
+			"/api/status?workspace="+url.QueryEscape(harness.WorkspaceRoot),
 			nil,
 			&health,
 		); err != nil {
-			t.Fatalf("HTTP observe health error = %v", err)
+			t.Fatalf("HTTP status error = %v", err)
 		}
 		if got, want := health.Memory.GlobalFiles, 1; got != want {
 			t.Fatalf("health.Memory.GlobalFiles = %d, want %d", got, want)

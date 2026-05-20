@@ -83,14 +83,14 @@ func TestHTTPFullRoundTripWithRealSessionManager(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/daemon/status"),
+		mustURL(runtime.host, runtime.port, "/api/status"),
 		nil,
 		nil,
 	)
 	if statusResp.StatusCode != http.StatusOK {
 		t.Fatalf("daemon status = %d, want %d", statusResp.StatusCode, http.StatusOK)
 	}
-	var statusPayload contract.DaemonStatusResponse
+	var statusPayload contract.StatusPayload
 	decodeHTTPJSON(t, statusResp, &statusPayload)
 	if statusPayload.Daemon.PID <= 0 ||
 		statusPayload.Daemon.HTTPHost != runtime.host ||
@@ -1695,7 +1695,7 @@ func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodGet,
-		mustURL(runtime.host, runtime.port, "/api/observe/health"),
+		mustURL(runtime.host, runtime.port, "/api/status"),
 		nil,
 		nil,
 	)
@@ -1704,7 +1704,7 @@ func TestHTTPAutomationTriggersWebhookAndHealth(t *testing.T) {
 		_ = healthResp.Body.Close()
 		t.Fatalf("health status = %d, want %d; body=%s", healthResp.StatusCode, http.StatusOK, string(body))
 	}
-	var health contract.HealthResponse
+	var health contract.StatusPayload
 	decodeHTTPJSON(t, healthResp, &health)
 	if !health.Automation.Enabled || !health.Automation.SchedulerRunning {
 		t.Fatalf("automation health = %#v", health.Automation)

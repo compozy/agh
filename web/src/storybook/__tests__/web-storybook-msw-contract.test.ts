@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { handlers as agentHandlers } from "@/systems/agent/mocks";
 import { handlers as automationHandlers } from "@/systems/automation/mocks";
 import { handlers as bridgeHandlers } from "@/systems/bridges/mocks";
-import { handlers as daemonHandlers } from "@/systems/daemon/mocks";
+import { handlers as daemonHandlers } from "@/systems/status/mocks";
 import { handlers as knowledgeHandlers } from "@/systems/knowledge/mocks";
 import { handlers as networkHandlers } from "@/systems/network/mocks";
 import { handlers as sessionHandlers } from "@/systems/session/mocks";

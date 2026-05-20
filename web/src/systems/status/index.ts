@@ -1,14 +1,14 @@
 // Types
 export type {
   DaemonStatusPayload,
-  DaemonStatusResponse,
+  DoctorPayload,
   HealthPayload,
   MemoryHealthPayload,
-  ObserveHealthResponse,
+  StatusPayload,
 } from "./types";
 
 // Adapters
-export { fetchDaemonStatus, fetchHealth } from "./adapters/daemon-api";
+export { fetchDaemonStatus, fetchHealth, fetchStatus } from "./adapters/daemon-api";
 
 // Query infrastructure
 export { daemonKeys } from "./lib/query-keys";

@@ -17,7 +17,6 @@ type sessionEventPayload = contract.SessionEventPayload
 type turnHistoryPayload = contract.TurnHistoryPayload
 type agentPayload = contract.AgentPayload
 type observeEventPayload = contract.ObserveEventPayload
-type daemonStatusPayload = contract.DaemonStatusPayload
 type observeCursor = core.ObserveCursor
 type memoryWriteRequest = contract.MemoryWriteRequest
 type memoryListResponse = contract.MemoryListResponse

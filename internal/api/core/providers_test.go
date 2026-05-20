@@ -1,0 +1,124 @@
+package core
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/gin-gonic/gin"
+	"github.com/pedronauck/agh/internal/api/contract"
+	aghconfig "github.com/pedronauck/agh/internal/config"
+	authproviders "github.com/pedronauck/agh/internal/providers"
+	"github.com/pedronauck/agh/internal/testutil"
+)
+
+func TestProviderAuthHandlers(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should report explicit no auth provider state", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := providerAuthTestConfig(t)
+		router := providerAuthTestRouter(t, &cfg, nil)
+		response := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(testutil.Context(t), http.MethodGet, "/providers/public", http.NoBody)
+		router.ServeHTTP(response, req)
+
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d body = %s, want 200", response.Code, response.Body.String())
+		}
+		var payload contract.ProviderSummaryPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(provider summary) error = %v", err)
+		}
+		if got, want := payload.AuthStatus.State, contract.ProviderAuthStateNone; got != want {
+			t.Fatalf("AuthStatus.State = %q, want %q", got, want)
+		}
+		if got, want := payload.AuthStatus.Message, "No auth required."; got != want {
+			t.Fatalf("AuthStatus.Message = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should classify remote probe auth failure", func(t *testing.T) {
+		t.Parallel()
+
+		runner := func(
+			_ context.Context,
+			spec authproviders.ProviderAuthCommandSpec,
+		) (authproviders.ProviderAuthCommandResult, error) {
+			if spec.Command != "provider-cli auth status" {
+				t.Fatalf("Command = %q, want provider status command", spec.Command)
+			}
+			return authproviders.ProviderAuthCommandResult{ExitCode: 1, Stderr: "HTTP 401 unauthorized"}, nil
+		}
+		cfg := providerAuthTestConfig(t)
+		router := providerAuthTestRouter(t, &cfg, runner)
+		response := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(
+			testutil.Context(t),
+			http.MethodPost,
+			"/providers/native/auth/probe",
+			http.NoBody,
+		)
+		router.ServeHTTP(response, req)
+
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d body = %s, want 200", response.Code, response.Body.String())
+		}
+		var payload contract.ProviderAuthProbeResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(provider probe) error = %v", err)
+		}
+		if got, want := payload.AuthStatus.State, contract.ProviderAuthStateNeedsLogin; got != want {
+			t.Fatalf("AuthStatus.State = %q, want %q", got, want)
+		}
+		if got, want := payload.AuthStatus.Code, contract.CodeProviderNotAuthenticated; got != want {
+			t.Fatalf("AuthStatus.Code = %q, want %q", got, want)
+		}
+	})
+}
+
+func providerAuthTestRouter(
+	t *testing.T,
+	cfg *aghconfig.Config,
+	runner authproviders.ProviderAuthCommandRunner,
+) *gin.Engine {
+	t.Helper()
+
+	gin.SetMode(gin.TestMode)
+	if cfg == nil {
+		cfg = &aghconfig.Config{}
+	}
+	handlers := NewBaseHandlers(&BaseHandlerConfig{
+		Config:             *cfg,
+		ProviderAuthRunner: runner,
+	})
+	router := gin.New()
+	router.GET("/providers/:provider_id", handlers.GetProvider)
+	router.POST("/providers/:provider_id/auth/probe", handlers.ProbeProviderAuth)
+	return router
+}
+
+func providerAuthTestConfig(t *testing.T) aghconfig.Config {
+	t.Helper()
+
+	homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg.Providers["public"] = aghconfig.ProviderConfig{
+		Command:      "public-provider acp",
+		AuthMode:     aghconfig.ProviderAuthModeNone,
+		NoneSecurity: aghconfig.ProviderNoneSecurityPublicReadonly,
+	}
+	cfg.Providers["native"] = aghconfig.ProviderConfig{
+		Command:       "provider-cli acp",
+		AuthMode:      aghconfig.ProviderAuthModeNativeCLI,
+		AuthStatusCmd: "provider-cli auth status",
+		AuthLoginCmd:  "provider-cli login",
+	}
+	return cfg
+}

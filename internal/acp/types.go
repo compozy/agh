@@ -14,6 +14,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	authproviders "github.com/pedronauck/agh/internal/providers"
 	"github.com/pedronauck/agh/internal/sandbox"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/subprocess"
@@ -68,6 +69,9 @@ type StartOpts struct {
 	Launcher             sandbox.Launcher
 	ToolHost             sandbox.ToolHost
 	ToolGateway          ToolExecutionGateway
+	ProviderName         string
+	ProviderConfig       *aghconfig.ProviderConfig
+	ProviderAuthEnv      *authproviders.ProbeEnv
 }
 
 // SystemPromptDeliveryMode records how AGH delivered startup system guidance to

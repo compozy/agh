@@ -392,8 +392,10 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
       mode: "native_cli",
       env_policy: "filtered",
       home_policy: "operator",
-      state: "native_cli",
-      message: "Provider owns authentication through its native CLI login state.",
+      state: "unknown",
+      code: "provider_classification_unknown",
+      message:
+        "Provider owns authentication through its native CLI; run a provider auth probe for live status.",
       status_command: "claude auth status",
       login_command: "claude login",
     },
@@ -445,8 +447,10 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
       mode: "native_cli",
       env_policy: "filtered",
       home_policy: "operator",
-      state: "native_cli",
-      message: "Provider owns authentication through its native CLI login state.",
+      state: "unknown",
+      code: "provider_classification_unknown",
+      message:
+        "Provider owns authentication through its native CLI; run a provider auth probe for live status.",
       status_command: "codex auth status",
       login_command: "codex login",
     },
@@ -488,8 +492,9 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
       mode: "bound_secret",
       env_policy: "filtered",
       home_policy: "operator",
-      state: "missing_required",
-      message: "Missing required AGH-managed provider credential.",
+      state: "missing_credential",
+      code: "provider_credential_unresolved",
+      message: 'Required AGH-managed provider credential "OPENROUTER_API_KEY" is unresolved.',
     },
     credentials: [
       {
@@ -523,8 +528,10 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
       mode: "native_cli",
       env_policy: "filtered",
       home_policy: "operator",
-      state: "native_cli",
-      message: "Provider owns authentication through its native CLI login state.",
+      state: "unknown",
+      code: "provider_classification_unknown",
+      message:
+        "Provider owns authentication through its native CLI; run a provider auth probe for live status.",
     },
     source_metadata: {
       available_targets: ["global-config"],
@@ -591,8 +598,10 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
       mode: "native_cli",
       env_policy: "filtered",
       home_policy: "operator",
-      state: "native_cli",
-      message: "Provider owns authentication through its native CLI login state.",
+      state: "unknown",
+      code: "provider_classification_unknown",
+      message:
+        "Provider owns authentication through its native CLI; run a provider auth probe for live status.",
     },
     source_metadata: {
       available_targets: ["global-config"],
@@ -635,8 +644,10 @@ export const settingsProviderFixtures: SettingsProviderEntry[] = [
       mode: "native_cli",
       env_policy: "filtered",
       home_policy: "operator",
-      state: "native_cli",
-      message: "Provider owns authentication through its native CLI login state.",
+      state: "unknown",
+      code: "provider_classification_unknown",
+      message:
+        "Provider owns authentication through its native CLI; run a provider auth probe for live status.",
     },
     source_metadata: {
       available_targets: ["global-config"],

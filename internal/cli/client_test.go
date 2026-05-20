@@ -1392,10 +1392,24 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						`data: {"id":"sum-1","session_id":"sess-1","type":"agent_message","agent_name":"coder","timestamp":"2026-04-03T12:00:00Z"}`,
 						"",
 					}, "\n")), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/observe/health":
+				case req.Method == http.MethodGet && req.URL.Path == "/api/status":
 					return newHTTPResponse(
 						http.StatusOK,
-						`{"health":{"status":"ok","uptime_seconds":10,"active_sessions":1,"active_agents":1,"global_db_size_bytes":100,"session_db_size_bytes":200,"version":"dev"}}`,
+						`{"schema_version":"2026-05-20","generated_at":"2026-04-03T12:00:00Z","daemon":{"status":"running","pid":10,"started_at":"2026-04-03T12:00:00Z","socket":"/tmp/agh.sock","http_host":"localhost","http_port":2123,"active_sessions":1,"total_sessions":1,"version":"dev"},"health":{"status":"ok","uptime_seconds":10,"active_sessions":1,"active_agents":1,"global_db_size_bytes":100,"session_db_size_bytes":200,"version":"dev"}}`,
+					), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/doctor":
+					if got := req.URL.Query()["only"]; len(got) != 1 || got[0] != "provider" {
+						t.Fatalf("doctor only query = %#v, want provider", got)
+					}
+					if got := req.URL.Query()["exclude"]; len(got) != 1 || got[0] != "network" {
+						t.Fatalf("doctor exclude query = %#v, want network", got)
+					}
+					if got := req.URL.Query().Get("quiet"); got != "true" {
+						t.Fatalf("doctor quiet query = %q, want true", got)
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"schema_version":"2026-05-20","generated_at":"2026-04-03T12:00:00Z","duration_ms":1,"status":"ok","summary":{"total":0,"counts_by_severity":{}},"items":[]}`,
 					), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/memory/health":
 					if got := req.URL.Query().Get("workspace"); got != "/workspace/project" {
@@ -1501,11 +1515,6 @@ func TestUnixSocketClientMethods(t *testing.T) {
 					return newHTTPResponse(
 						http.StatusOK,
 						`{"indexed_files":2,"scope":"workspace","workspace_id":"/workspace/project","completed_at":"2026-04-03T12:00:00Z"}`,
-					), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/daemon/status":
-					return newHTTPResponse(
-						http.StatusOK,
-						`{"daemon":{"status":"running","pid":10,"started_at":"2026-04-03T12:00:00Z","socket":"/tmp/agh.sock","http_host":"localhost","http_port":2123,"active_sessions":1,"total_sessions":1,"version":"dev"}}`,
 					), nil
 				default:
 					return newHTTPResponse(http.StatusNotFound, `{"error":"missing"}`), nil
@@ -1668,9 +1677,18 @@ func TestUnixSocketClientMethods(t *testing.T) {
 		t.Fatalf("streamed = %#v, want one event", streamed)
 	}
 
-	health, err := client.ObserveHealth(ctx)
-	if err != nil || health.Status != "ok" {
-		t.Fatalf("ObserveHealth() = %#v, %v", health, err)
+	runtimeStatus, err := client.Status(ctx)
+	if err != nil || runtimeStatus.Health.Status != "ok" {
+		t.Fatalf("Status() = %#v, %v", runtimeStatus, err)
+	}
+
+	doctor, err := client.Doctor(ctx, DoctorQuery{
+		Only:    []string{"provider"},
+		Exclude: []string{"network"},
+		Quiet:   true,
+	})
+	if err != nil || doctor.Status != "ok" {
+		t.Fatalf("Doctor() = %#v, %v", doctor, err)
 	}
 
 	memoryHealth, err := client.MemoryHealth(ctx, "/workspace/project")
@@ -3141,7 +3159,7 @@ func TestDoRequestRejectsNilContext(t *testing.T) {
 		httpClient: &http.Client{},
 	}
 
-	response, err := client.doRequest(nilContext(), http.MethodGet, "/api/daemon/status", nil, nil, "")
+	response, err := client.doRequest(nilContext(), http.MethodGet, "/api/status", nil, nil, "")
 	if response != nil {
 		defer func() {
 			_ = response.Body.Close()

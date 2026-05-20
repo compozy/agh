@@ -7,9 +7,8 @@ Use this guide when an operational command fails or the daemon is not behaving a
 entry has symptoms, diagnosis, and a resolution path.
 
 <OperatorNote>
-  Start with `agh daemon status`, `agh observe health`, and `$AGH_HOME/logs/agh.log`. Those three
-  surfaces usually tell you whether the failure is process discovery, runtime health, or a deeper
-  startup problem.
+  Start with `agh status`, `agh doctor`, and `$AGH_HOME/logs/agh.log`. Those three surfaces usually
+  tell you whether the failure is process discovery, runtime health, or a deeper startup problem.
 </OperatorNote>
 
 ## Daemon reports "already running"
@@ -24,7 +23,7 @@ Inspect the current discovery files:
 
 ```bash
 export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
-agh daemon status
+agh status
 cat "$AGH_HOME/daemon.json"
 cat "$AGH_HOME/daemon.lock"
 ```
@@ -34,11 +33,11 @@ path, and clean up orphan child processes from the old daemon.
 
 ## Detached start times out or exits before readiness
 
-| Field      | What to check                                                                                                                                                                         |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Symptoms   | `cli: daemon did not become ready before timeout` or `cli: detached daemon exited before readiness`.                                                                                  |
-| Diagnosis  | The detached child failed before `/api/daemon/status` became available over UDS. Common causes are invalid config, a port conflict, a socket path conflict, or database open failure. |
-| Resolution | Read the recent log lines, then run foreground mode to see the startup error directly.                                                                                                |
+| Field      | What to check                                                                                                                                                                  |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Symptoms   | `cli: daemon did not become ready before timeout` or `cli: detached daemon exited before readiness`.                                                                           |
+| Diagnosis  | The detached child failed before `/api/status` became available over UDS. Common causes are invalid config, a port conflict, a socket path conflict, or database open failure. |
+| Resolution | Read the recent log lines, then run foreground mode to see the startup error directly.                                                                                         |
 
 Commands:
 
@@ -68,7 +67,7 @@ Inspect the socket path:
 export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
 socket="$AGH_HOME/daemon.sock"
 
-agh daemon status
+agh status
 ls -ld "$AGH_HOME" "$(dirname "$socket")"
 ls -l "$socket"
 file "$socket"
@@ -86,17 +85,17 @@ directory ownership in [config.toml](/runtime/core/configuration/config-toml).
 
 ## HTTP UI or API is unavailable
 
-| Field      | What to check                                                                                                                                          |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Symptoms   | The browser cannot load `http://localhost:2123`, or `curl` cannot connect to the API.                                                                  |
-| Diagnosis  | The daemon is not running, the HTTP port is different, or another process prevented the daemon from binding the configured port.                       |
-| Resolution | Check daemon status for the active HTTP host and port. If startup fails from an HTTP bind error, change `[http].port` or stop the conflicting process. |
+| Field      | What to check                                                                                                                                           |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Symptoms   | The browser cannot load `http://localhost:2123`, or `curl` cannot connect to the API.                                                                   |
+| Diagnosis  | The daemon is not running, the HTTP port is different, or another process prevented the daemon from binding the configured port.                        |
+| Resolution | Check runtime status for the active HTTP host and port. If startup fails from an HTTP bind error, change `[http].port` or stop the conflicting process. |
 
 Commands:
 
 ```bash
-agh daemon status
-curl -s http://localhost:2123/api/daemon/status | jq '.daemon'
+agh status
+curl -s http://localhost:2123/api/status | jq '.daemon'
 ```
 
 The default HTTP bind is `localhost:2123`. For local production use, keep the host on `localhost`
@@ -212,7 +211,7 @@ Commands:
 ```bash
 export AGH_HOME="${AGH_HOME:-$HOME/.agh}"
 ls -ld "$AGH_HOME" "$AGH_HOME/logs" "$AGH_HOME/sessions"
-agh daemon status
+agh status
 ```
 
 For systemd or launchd installs, define `AGH_HOME` in the service environment and keep provider API

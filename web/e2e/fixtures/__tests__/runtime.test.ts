@@ -82,8 +82,8 @@ describe("runtime helpers", () => {
   });
 
   it("joins runtime URLs against the daemon origin", () => {
-    expect(runtimeURL("http://127.0.0.1:4317", "/api/daemon/status")).toBe(
-      "http://127.0.0.1:4317/api/daemon/status"
+    expect(runtimeURL("http://127.0.0.1:4317", "/api/status")).toBe(
+      "http://127.0.0.1:4317/api/status"
     );
     expect(runtimeURL("http://127.0.0.1:4317/", "api/workspaces")).toBe(
       "http://127.0.0.1:4317/api/workspaces"

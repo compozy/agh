@@ -4,7 +4,7 @@
  */
 
 export interface paths {
-  "/api/daemon/status": {
+  "/api/status": {
     parameters: {
       query?: never;
       header?: never;
@@ -12,7 +12,7 @@ export interface paths {
       cookie?: never;
     };
     /** Read daemon identity, runtime status, and listener information. */
-    get: operations["getDaemonStatus"];
+    get: operations["getStatus"];
     put?: never;
     post?: never;
     delete?: never;
@@ -701,7 +701,7 @@ export interface components {
     CancelRunRequest: {
       reason?: string;
     };
-    DaemonStatusResponse: {
+    StatusResponse: {
       daemon: components["schemas"]["DaemonStatus"];
     };
     DaemonHealthResponse: {
@@ -821,7 +821,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-  getDaemonStatus: {
+  getStatus: {
     parameters: {
       query?: never;
       header?: never;
@@ -836,7 +836,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["DaemonStatusResponse"];
+          "application/json": components["schemas"]["StatusResponse"];
         };
       };
       500: components["responses"]["InternalError"];

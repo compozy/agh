@@ -138,7 +138,7 @@ func TestProviderModelCatalogHandlers(t *testing.T) {
 			t,
 			engine,
 			http.MethodGet,
-			"/providers/codex/models?source_id=config&refresh=true&include_stale=true",
+			"/model-catalog/providers/codex/models?source_id=config&refresh=true&include_stale=true",
 			nil,
 		)
 		if recorder.Code != http.StatusOK {
@@ -156,7 +156,13 @@ func TestProviderModelCatalogHandlers(t *testing.T) {
 
 		engine := newModelCatalogCoreEngine(t, &modelCatalogServiceSpy{})
 
-		recorder := performModelCatalogRequest(t, engine, http.MethodGet, "/providers/bad%20id/models", nil)
+		recorder := performModelCatalogRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/model-catalog/providers/bad%20id/models",
+			nil,
+		)
 		if recorder.Code != http.StatusBadRequest {
 			t.Fatalf("status = %d, want 400; body=%s", recorder.Code, recorder.Body.String())
 		}
@@ -187,7 +193,13 @@ func TestProviderModelCatalogHandlers(t *testing.T) {
 		}
 		engine := newModelCatalogCoreEngine(t, service)
 
-		recorder := performModelCatalogRequest(t, engine, http.MethodPost, "/providers/codex/models/refresh", nil)
+		recorder := performModelCatalogRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/model-catalog/providers/codex/models/refresh",
+			nil,
+		)
 		if recorder.Code != http.StatusServiceUnavailable {
 			t.Fatalf("status = %d, want 503; body=%s", recorder.Code, recorder.Body.String())
 		}
@@ -325,8 +337,8 @@ func newModelCatalogCoreEngine(t *testing.T, service ModelCatalogService) *gin.E
 		},
 	})
 	engine := gin.New()
-	engine.GET("/providers/*catalog_path", handlers.ProviderModelCatalog)
-	engine.POST("/providers/*catalog_path", handlers.ProviderModelCatalog)
+	engine.GET("/model-catalog/*catalog_path", handlers.ModelCatalogRoute)
+	engine.POST("/model-catalog/*catalog_path", handlers.ModelCatalogRoute)
 	engine.GET("/openai/v1/models", handlers.OpenAIModels)
 	return engine
 }

@@ -503,7 +503,7 @@ function sessionAPIPath(workspaceID: string, sessionID: string): string {
 }
 
 async function getAutomationHealth(runtime: BrowserRuntime): Promise<AutomationHealth> {
-  return await runtime.requestJSON<AutomationHealth>("/api/observe/health");
+  return await runtime.requestJSON<AutomationHealth>("/api/status");
 }
 
 async function schedulerState(

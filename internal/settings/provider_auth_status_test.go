@@ -41,6 +41,9 @@ func TestProviderAuthStatusDiagnostics(t *testing.T) {
 		if got, want := local.AuthStatus.State, "missing_cli"; got != want {
 			t.Fatalf("AuthStatus.State = %q, want %q", got, want)
 		}
+		if got, want := local.AuthStatus.Code, "provider_cli_missing"; got != want {
+			t.Fatalf("AuthStatus.Code = %q, want %q", got, want)
+		}
 		nativeCLI := local.AuthStatus.NativeCLI
 		if nativeCLI == nil {
 			t.Fatal("AuthStatus.NativeCLI = nil, want missing CLI diagnostic")
@@ -85,7 +88,7 @@ func TestProviderAuthStatusDiagnostics(t *testing.T) {
 		}
 		pi := mustFindProviderItem(t, envelope.Providers, "pi")
 
-		if got, want := pi.AuthStatus.State, "native_cli"; got != want {
+		if got, want := pi.AuthStatus.State, "unknown"; got != want {
 			t.Fatalf("AuthStatus.State = %q, want %q", got, want)
 		}
 		nativeCLI := pi.AuthStatus.NativeCLI

@@ -84,7 +84,7 @@ test.use({
   },
 });
 
-test("operator can edit bridge config, enable runtime, observe health updates, and resolve delivery targets", async ({
+test("operator can edit bridge config, enable runtime, observe status updates, and resolve delivery targets", async ({
   appPage,
   browserArtifacts,
   runtime,

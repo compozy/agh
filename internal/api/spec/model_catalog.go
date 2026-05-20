@@ -54,7 +54,7 @@ func nativeModelCatalogOperations() []OperationSpec {
 	return []OperationSpec{
 		{
 			Method:      httpMethodGet,
-			Path:        "/api/providers/models",
+			Path:        "/api/model-catalog/models",
 			OperationID: "listProviderModels",
 			Summary:     "List provider model catalog entries across providers",
 			Tags:        []string{modelCatalogProvidersKey},
@@ -64,7 +64,7 @@ func nativeModelCatalogOperations() []OperationSpec {
 		},
 		{
 			Method:      httpMethodGet,
-			Path:        "/api/providers/{provider_id}/models",
+			Path:        "/api/model-catalog/providers/{provider_id}/models",
 			OperationID: "listProviderModelsByProvider",
 			Summary:     "List provider model catalog entries for one provider",
 			Tags:        []string{modelCatalogProvidersKey},
@@ -74,7 +74,7 @@ func nativeModelCatalogOperations() []OperationSpec {
 		},
 		{
 			Method:              httpMethodPost,
-			Path:                "/api/providers/models/refresh",
+			Path:                "/api/model-catalog/models/refresh",
 			OperationID:         "refreshProviderModels",
 			Summary:             "Refresh provider model catalog sources across providers",
 			Tags:                []string{modelCatalogProvidersKey},
@@ -85,7 +85,7 @@ func nativeModelCatalogOperations() []OperationSpec {
 		},
 		{
 			Method:              httpMethodPost,
-			Path:                "/api/providers/{provider_id}/models/refresh",
+			Path:                "/api/model-catalog/providers/{provider_id}/models/refresh",
 			OperationID:         "refreshProviderModelsByProvider",
 			Summary:             "Refresh provider model catalog sources for one provider",
 			Tags:                []string{modelCatalogProvidersKey},
@@ -97,7 +97,7 @@ func nativeModelCatalogOperations() []OperationSpec {
 		},
 		{
 			Method:      httpMethodGet,
-			Path:        "/api/providers/models/status",
+			Path:        "/api/model-catalog/sources/status",
 			OperationID: "getProviderModelStatus",
 			Summary:     "List provider model catalog source status across providers",
 			Tags:        []string{modelCatalogProvidersKey},
@@ -106,7 +106,7 @@ func nativeModelCatalogOperations() []OperationSpec {
 		},
 		{
 			Method:      httpMethodGet,
-			Path:        "/api/providers/{provider_id}/models/status",
+			Path:        "/api/model-catalog/providers/{provider_id}/models/status",
 			OperationID: "getProviderModelStatusByProvider",
 			Summary:     "List provider model catalog source status for one provider",
 			Tags:        []string{modelCatalogProvidersKey},

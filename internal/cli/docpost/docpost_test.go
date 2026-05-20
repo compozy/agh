@@ -215,16 +215,16 @@ func TestRenderOutputFormatsSection(t *testing.T) {
 	t.Parallel()
 
 	body := `---
-title: "agh daemon status"
-description: "Show daemon status"
+	title: "agh status"
+	description: "Show runtime status"
 ---
 
-## agh daemon status
+## agh status
 
-Show daemon status
+Show runtime status
 
 ` + "```" + `
-agh daemon status [flags]
+agh status [flags]
 ` + "```" + `
 
 ### Options inherited from parent commands
@@ -239,7 +239,7 @@ agh daemon status [flags]
 	if !strings.Contains(result, "## Output Formats") {
 		t.Fatal("expected output formats section heading")
 	}
-	if !strings.Contains(result, "agh daemon status -o json") {
+	if !strings.Contains(result, "agh status -o json") {
 		t.Fatal("expected JSON usage example")
 	}
 }

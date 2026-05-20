@@ -56,6 +56,7 @@ const (
 	CodeBridgeHealthUnavailable       = "bridge_health_unavailable"
 	CodeBridgeNotFound                = "bridge_not_found"
 	CodeBridgeNotificationSuppressed  = "bridge_notification_suppressed"
+	CodeBridgeReady                   = "bridge_ready"
 	CodeBridgeTargetUnavailable       = "bridge_target_unavailable"
 	CodeBulkTooLarge                  = "bulk_too_large"
 	CodeBundleConsentRequired         = "bundle_consent_required"
@@ -70,9 +71,11 @@ const (
 	CodeConfigReloadTimeout           = "config_reload_timeout"
 	CodeConfigRestartRequired         = "config_restart_required"
 	CodeConfigValidateFailed          = "config_validate_failed"
+	CodeConfigValidated               = "config_validated"
 	CodeCursorConflict                = "cursor_conflict"
 	CodeDaemonHealthUnavailable       = "daemon_health_unavailable"
 	CodeDaemonStateSuspect            = "daemon_state_suspect"
+	CodeDaemonStatusOK                = "daemon_status_ok"
 	CodeDaemonUnavailable             = "daemon_unavailable"
 	CodeDiskWriteFailed               = "disk_write_failed"
 	CodeExtensionBlockedByBundle      = "extension_blocked_by_bundle"
@@ -96,8 +99,11 @@ const (
 	CodeIdentityUnauthorized          = "identity_unauthorized"
 	CodeMarketplaceUnavailable        = "marketplace_unavailable"
 	CodeMCPAuthRequired               = "mcp_auth_required"
+	CodeMCPServerReady                = "mcp_server_ready"
 	CodeMCPServerUnavailable          = "mcp_server_unavailable"
 	CodeMigrationsPending             = "migrations_pending"
+	CodeNetworkDisabled               = "network_disabled"
+	CodeNetworkReady                  = "network_ready"
 	CodePresetBuiltinProtected        = "preset_builtin_protected"
 	CodePresetDuplicateName           = "preset_duplicate_name"
 	CodePresetFilterInvalid           = "preset_filter_invalid"
@@ -108,12 +114,14 @@ const (
 	CodeProviderCLIMissing            = "provider_cli_missing"
 	CodeProviderCredentialUnresolved  = "provider_credential_unresolved"
 	CodeProviderLoginRequiresLocalTTY = "provider_login_requires_local_tty"
+	CodeProviderAuthenticated         = "provider_authenticated"
 	CodeProviderNotAuthenticated      = "provider_not_authenticated"
 	CodeProviderNotInstalled          = "provider_not_installed"
 	CodeProviderPermissionDenied      = "provider_permission_denied"
 	CodeProviderRateLimited           = "provider_rate_limited"
 	CodeProviderTransientFailure      = "provider_transient_failure"
 	CodeRetryChainTooDeep             = "retry_chain_too_deep"
+	CodeSchedulerReady                = "scheduler_ready"
 	CodeSchedulerPaused               = "scheduler_paused"
 	// #nosec G101 -- diagnostic code label, not credential material.
 	CodeSecretsPermsWrong      = "secrets_perms_wrong"
@@ -121,6 +129,7 @@ const (
 	CodeSessionLocked          = "session_locked"
 	CodeSessionQueueFull       = "session_queue_full"
 	CodeSessionResumeAmbiguous = "session_resume_ambiguous"
+	CodeSkillRegistryReady     = "skill_registry_ready"
 	CodeSkillNotFound          = "skill_not_found"
 	CodeSocketPathUnwritable   = "socket_path_unwritable"
 	CodeTargetAmbiguous        = "target_ambiguous"
@@ -149,6 +158,7 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeBridgeHealthUnavailable, Category: CategoryBridge},
 	{Code: CodeBridgeNotFound, Category: CategoryBridge},
 	{Code: CodeBridgeNotificationSuppressed, Category: CategoryBridge},
+	{Code: CodeBridgeReady, Category: CategoryBridge},
 	{Code: CodeBridgeTargetUnavailable, Category: CategoryBridge},
 	{Code: CodeBulkTooLarge, Category: CategoryTask},
 	{Code: CodeBundleConsentRequired, Category: CategoryDaemon},
@@ -163,9 +173,11 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeConfigReloadTimeout, Category: CategoryConfig},
 	{Code: CodeConfigRestartRequired, Category: CategoryConfig},
 	{Code: CodeConfigValidateFailed, Category: CategoryConfig},
+	{Code: CodeConfigValidated, Category: CategoryConfig},
 	{Code: CodeCursorConflict, Category: CategoryDaemon},
 	{Code: CodeDaemonHealthUnavailable, Category: CategoryDaemon},
 	{Code: CodeDaemonStateSuspect, Category: CategoryDaemon},
+	{Code: CodeDaemonStatusOK, Category: CategoryDaemon},
 	{Code: CodeDaemonUnavailable, Category: CategoryDaemon},
 	{Code: CodeDiskWriteFailed, Category: CategoryDaemon},
 	{Code: CodeExtensionBlockedByBundle, Category: CategoryExtension},
@@ -189,8 +201,11 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeIdentityUnauthorized, Category: CategorySession},
 	{Code: CodeMarketplaceUnavailable, Category: CategoryExtension},
 	{Code: CodeMCPAuthRequired, Category: CategoryMCP},
+	{Code: CodeMCPServerReady, Category: CategoryMCP},
 	{Code: CodeMCPServerUnavailable, Category: CategoryMCP},
 	{Code: CodeMigrationsPending, Category: CategoryMigrations},
+	{Code: CodeNetworkDisabled, Category: CategoryNetwork},
+	{Code: CodeNetworkReady, Category: CategoryNetwork},
 	{Code: CodePresetBuiltinProtected, Category: CategoryBridge},
 	{Code: CodePresetDuplicateName, Category: CategoryBridge},
 	{Code: CodePresetFilterInvalid, Category: CategoryBridge},
@@ -201,18 +216,21 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeProviderCLIMissing, Category: CategoryProvider},
 	{Code: CodeProviderCredentialUnresolved, Category: CategoryProvider},
 	{Code: CodeProviderLoginRequiresLocalTTY, Category: CategoryProvider},
+	{Code: CodeProviderAuthenticated, Category: CategoryProvider},
 	{Code: CodeProviderNotAuthenticated, Category: CategoryProvider},
 	{Code: CodeProviderNotInstalled, Category: CategoryProvider},
 	{Code: CodeProviderPermissionDenied, Category: CategoryProvider},
 	{Code: CodeProviderRateLimited, Category: CategoryProvider},
 	{Code: CodeProviderTransientFailure, Category: CategoryProvider},
 	{Code: CodeRetryChainTooDeep, Category: CategoryTask},
+	{Code: CodeSchedulerReady, Category: CategoryTask},
 	{Code: CodeSchedulerPaused, Category: CategoryTask},
 	{Code: CodeSecretsPermsWrong, Category: CategorySecrets},
 	{Code: CodeSessionBusy, Category: CategorySession},
 	{Code: CodeSessionLocked, Category: CategorySession},
 	{Code: CodeSessionQueueFull, Category: CategorySession},
 	{Code: CodeSessionResumeAmbiguous, Category: CategorySession},
+	{Code: CodeSkillRegistryReady, Category: CategoryExtension},
 	{Code: CodeSkillNotFound, Category: CategoryExtension},
 	{Code: CodeSocketPathUnwritable, Category: CategoryDaemon},
 	{Code: CodeTargetAmbiguous, Category: CategoryBridge},

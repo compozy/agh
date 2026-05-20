@@ -55,7 +55,13 @@ func TestHTTPModelCatalogRoutes(t *testing.T) {
 		}
 		engine := newHTTPModelCatalogRouter(t, service, "127.0.0.1")
 
-		recorder := performRequest(t, engine, http.MethodGet, "/api/providers/codex/models", nil)
+		recorder := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/api/model-catalog/providers/codex/models",
+			nil,
+		)
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", recorder.Code, recorder.Body.String())
 		}

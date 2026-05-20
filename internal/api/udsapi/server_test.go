@@ -261,7 +261,7 @@ func TestServerStartAndShutdownCreatesAndRemovesSocket(t *testing.T) {
 		req, err := http.NewRequestWithContext(
 			context.Background(),
 			http.MethodGet,
-			"http://unix/api/daemon/status",
+			"http://unix/api/status",
 			http.NoBody,
 		)
 		if err != nil {
@@ -629,7 +629,7 @@ func TestServerStartDuplicateKeepsActiveSocket(t *testing.T) {
 		req, err := http.NewRequestWithContext(
 			context.Background(),
 			http.MethodGet,
-			"http://unix/api/daemon/status",
+			"http://unix/api/status",
 			http.NoBody,
 		)
 		if err != nil {

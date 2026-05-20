@@ -185,7 +185,6 @@ func cloneProviderConfig(src aghconfig.ProviderConfig) aghconfig.ProviderConfig 
 	cloned := src
 	cloned.Models = cloneProviderModelsConfig(src.Models)
 	cloned.SessionMCP = clonePtr(src.SessionMCP)
-	cloned.Aliases = cloneStrings(src.Aliases)
 	cloned.CredentialSlots = cloneProviderCredentialSlots(src.CredentialSlots)
 	cloned.MCPServers = cloneMCPServers(src.MCPServers)
 	return cloned

@@ -219,10 +219,10 @@ func cloneProvider(src aghconfig.ProviderConfig) aghconfig.ProviderConfig {
 		AuthMode:        src.AuthMode,
 		EnvPolicy:       src.EnvPolicy,
 		HomePolicy:      src.HomePolicy,
+		NoneSecurity:    src.NoneSecurity,
 		AuthStatusCmd:   src.AuthStatusCmd,
 		AuthLoginCmd:    src.AuthLoginCmd,
 		SessionMCP:      cloneBoolPtr(src.SessionMCP),
-		Aliases:         append([]string(nil), src.Aliases...),
 		CredentialSlots: append([]aghconfig.ProviderCredentialSlot(nil), src.CredentialSlots...),
 		MCPServers:      cloneMCPServers(src.MCPServers),
 	}

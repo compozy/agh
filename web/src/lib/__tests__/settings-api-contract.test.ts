@@ -187,6 +187,7 @@ describe("settings openapi contract", () => {
     >().toEqualTypeOf<string | undefined>();
     expectTypeOf<ListSettingsProvidersResponse["providers"][number]["auth_status"]>().toEqualTypeOf<
       | {
+          code?: string;
           env_policy: string;
           home_policy: string;
           login_command?: string;

@@ -46,7 +46,13 @@ func TestUDSModelCatalogRoutes(t *testing.T) {
 		}
 		engine := newTestRouter(t, newHandlers(&handlerConfig{modelCatalog: service}))
 
-		recorder := performRequest(t, engine, http.MethodGet, "/api/providers/codex/models", nil)
+		recorder := performRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/api/model-catalog/providers/codex/models",
+			nil,
+		)
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200; body=%s", recorder.Code, recorder.Body.String())
 		}

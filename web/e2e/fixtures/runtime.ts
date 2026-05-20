@@ -267,10 +267,10 @@ async function validateDaemonServedRuntime(
   requireHTTPAPIStatus = true
 ): Promise<void> {
   if (requireHTTPAPIStatus) {
-    const statusResponse = await fetch(runtimeURL(baseURL, "/api/daemon/status"));
+    const statusResponse = await fetch(runtimeURL(baseURL, "/api/status"));
     if (!statusResponse.ok) {
       throw new Error(
-        `daemon status probe failed for ${baseURL}: received ${statusResponse.status}`
+        `runtime status probe failed for ${baseURL}: received ${statusResponse.status}`
       );
     }
   }
@@ -301,9 +301,7 @@ async function waitForRuntimeReady(
     }
 
     try {
-      const response = await fetch(
-        runtimeURL(baseURL, requireHTTPAPIStatus ? "/api/daemon/status" : "/")
-      );
+      const response = await fetch(runtimeURL(baseURL, requireHTTPAPIStatus ? "/api/status" : "/"));
       if (response.ok) {
         if (!requireHTTPAPIStatus) {
           assertDaemonServedHTML(await response.text(), baseURL);

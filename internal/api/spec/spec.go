@@ -92,6 +92,7 @@ const (
 	specNetworkRuntimeIsNotConfiguredDescription             = "Network runtime is not configured"
 	specNoContentDescription                                 = "No Content"
 	specPayloadTooLargeDescription                           = "Payload too large"
+	specProviderNotFoundDescription                          = "Provider not found"
 	specServiceUnavailableDependentServiceMissingDescription = "Service unavailable - dependent service missing"
 	specSessionNotFoundDescription                           = "Session not found"
 	specSkillMarketplaceIsNotConfiguredDescription           = "Skill marketplace is not configured"
@@ -110,7 +111,7 @@ const (
 	specAutomationKey                                        = "automation"
 	specBridgesKey                                           = "bridges"
 	specBundlesKey                                           = "bundles"
-	specDaemonKey                                            = "daemon"
+	specDiagnosticsKey                                       = "diagnostics"
 	specExtensionKey                                         = "extension"
 	specExtensionsKey                                        = "extensions"
 	specHooksKey                                             = "hooks"
@@ -303,7 +304,7 @@ func Document() (*openapi3.T, error) {
 			{Name: specAutomationKey},
 			{Name: specBridgesKey},
 			{Name: specBundlesKey},
-			{Name: specDaemonKey},
+			{Name: specDiagnosticsKey},
 			{Name: specNetworkKey},
 			{Name: specExtensionsKey},
 			{Name: specHooksKey},
@@ -1318,13 +1319,30 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      httpMethodGet,
-		Path:        "/api/daemon/status",
-		OperationID: "getDaemonStatus",
-		Summary:     "Get the daemon status snapshot",
-		Tags:        []string{specDaemonKey},
+		Path:        "/api/doctor",
+		OperationID: "getDoctor",
+		Summary:     "Run runtime diagnostics",
+		Tags:        []string{specDiagnosticsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			queryParam("only", "Comma-separated probe ids or categories to include", false),
+			queryParam("exclude", "Comma-separated probe ids or categories to exclude", false),
+			boolQueryParam("quiet", "Omit OK diagnostics"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.DoctorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodGet,
+		Path:        "/api/status",
+		OperationID: "getStatus",
+		Summary:     "Get the runtime status snapshot",
+		Tags:        []string{specDiagnosticsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.DaemonStatusResponse{}},
+			{Status: 200, Description: "OK", Body: contract.StatusPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	},
@@ -2898,18 +2916,6 @@ var operationRegistry = []OperationSpec{
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ObserveEventsResponse{}},
 			{Status: 400, Description: specInvalidFilterDescription, Body: contract.ErrorPayload{}},
-			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
-		},
-	},
-	{
-		Method:      httpMethodGet,
-		Path:        "/api/observe/health",
-		OperationID: "getObserveHealth",
-		Summary:     "Get daemon health and memory health",
-		Tags:        []string{specObserveKey},
-		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.HealthResponse{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	},
@@ -4599,7 +4605,7 @@ var operationRegistry = []OperationSpec{
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SettingsProviderResponse{}},
-			{Status: 404, Description: "Provider not found", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specProviderNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	},
@@ -4635,7 +4641,7 @@ var operationRegistry = []OperationSpec{
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SettingsGlobalCollectionMutationResult{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "Provider not found", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specProviderNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	},
@@ -4781,6 +4787,7 @@ func Operations() []OperationSpec {
 	ops := cloneOperationSpecs(operationRegistry)
 	ops = append(ops, authoredContextOperations()...)
 	ops = append(ops, modelCatalogOperations()...)
+	ops = append(ops, providerOperations()...)
 	sort.SliceStable(ops, func(i, j int) bool {
 		if ops[i].Path == ops[j].Path {
 			return ops[i].Method < ops[j].Method

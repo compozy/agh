@@ -124,7 +124,7 @@ test("operator can create a provider/model override session and gets an inline r
   const catalogRefreshResponse = appPage.waitForResponse(
     response =>
       response.request().method() === "POST" &&
-      response.url().endsWith(`/api/providers/${overrideProvider}/models/refresh`)
+      response.url().endsWith(`/api/model-catalog/providers/${overrideProvider}/models/refresh`)
   );
   const refreshCatalog = appPage.getByTestId("session-create-catalog-refresh");
   await expect(refreshCatalog).toBeEnabled();

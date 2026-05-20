@@ -20,6 +20,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/memory"
+	authproviders "github.com/pedronauck/agh/internal/providers"
 	"github.com/pedronauck/agh/internal/session"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -60,6 +61,7 @@ type BaseHandlerConfig struct {
 	Workspaces                   WorkspaceService
 	AgentCatalog                 AgentCatalog
 	ModelCatalog                 ModelCatalogService
+	ProviderAuthRunner           authproviders.ProviderAuthCommandRunner
 	AgentContextService          AgentContextService
 	SoulAuthoring                SoulAuthoringService
 	SoulRefresher                SoulRefresher
@@ -113,6 +115,7 @@ type BaseHandlers struct {
 	Workspaces                   WorkspaceService
 	AgentCatalog                 AgentCatalog
 	ModelCatalog                 ModelCatalogService
+	ProviderAuthRunner           authproviders.ProviderAuthCommandRunner
 	AgentContextService          AgentContextService
 	SoulAuthoring                SoulAuthoringService
 	SoulRefresher                SoulRefresher
@@ -174,6 +177,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		Workspaces:                   cfg.Workspaces,
 		AgentCatalog:                 cfg.AgentCatalog,
 		ModelCatalog:                 cfg.ModelCatalog,
+		ProviderAuthRunner:           defaults.providerAuthRunner,
 		AgentContextService:          cfg.AgentContextService,
 		CoordinatorConfig:            cfg.CoordinatorConfig,
 		SkillsRegistry:               cfg.SkillsRegistry,
@@ -200,10 +204,11 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 }
 
 type baseHandlerDefaults struct {
-	logger      *slog.Logger
-	now         func() time.Time
-	agentLoader AgentLoader
-	pid         func() int
+	logger             *slog.Logger
+	now                func() time.Time
+	agentLoader        AgentLoader
+	pid                func() int
+	providerAuthRunner authproviders.ProviderAuthCommandRunner
 }
 
 func normalizeBaseHandlerConfig(cfg *BaseHandlerConfig) baseHandlerDefaults {
@@ -231,6 +236,10 @@ func normalizeBaseHandlerConfig(cfg *BaseHandlerConfig) baseHandlerDefaults {
 	if pid == nil {
 		pid = os.Getpid
 	}
+	providerAuthRunner := cfg.ProviderAuthRunner
+	if providerAuthRunner == nil {
+		providerAuthRunner = authproviders.DefaultProviderAuthCommandRunner
+	}
 	if cfg.StreamDone == nil {
 		logger.Warn(
 			"api: stream shutdown bridge not provided; streaming handlers will rely on caller context " +
@@ -239,10 +248,11 @@ func normalizeBaseHandlerConfig(cfg *BaseHandlerConfig) baseHandlerDefaults {
 		cfg.StreamDone = make(chan struct{})
 	}
 	return baseHandlerDefaults{
-		logger:      logger,
-		now:         now,
-		agentLoader: agentLoader,
-		pid:         pid,
+		logger:             logger,
+		now:                now,
+		agentLoader:        agentLoader,
+		pid:                pid,
+		providerAuthRunner: providerAuthRunner,
 	}
 }
 
@@ -1157,79 +1167,11 @@ func (h *BaseHandlers) StreamObserveEvents(c *gin.Context) {
 	}
 }
 
-// Health returns the daemon health snapshot plus memory health.
-func (h *BaseHandlers) Health(c *gin.Context) {
-	health, err := h.Observer.Health(c.Request.Context())
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
-
-	memoryHealth, err := h.memoryHealth(c)
-	if err != nil {
-		h.respondError(c, StatusForMemoryError(err), err)
-		return
-	}
-
-	automationHealth, err := h.automationHealth(c.Request.Context())
-	if err != nil {
-		h.respondError(c, StatusForAutomationError(err), err)
-		return
-	}
-
-	c.JSON(http.StatusOK, contract.HealthResponse{
-		Health:     ObserveHealthPayloadFromHealth(&health),
-		Memory:     memoryHealth,
-		Automation: automationHealth,
-	})
-}
-
-// DaemonStatus returns the daemon status snapshot.
-func (h *BaseHandlers) DaemonStatus(c *gin.Context) {
-	health, err := h.Observer.Health(c.Request.Context())
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
-
-	sessions, err := h.Sessions.ListAll(c.Request.Context())
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
-
-	httpPort := h.HTTPPortValue()
-	if httpPort <= 0 {
-		httpPort = h.Config.HTTP.Port
-	}
-	networkStatus, err := h.networkStatusPayload(c.Request.Context())
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, contract.DaemonStatusResponse{
-		Daemon: contract.DaemonStatusPayload{
-			Status:         "running",
-			PID:            h.PID(),
-			StartedAt:      h.StartedAt,
-			Socket:         h.Config.Daemon.Socket,
-			HTTPHost:       h.Config.HTTP.Host,
-			HTTPPort:       httpPort,
-			UserHomeDir:    h.daemonUserHomeDir(),
-			ActiveSessions: health.ActiveSessions,
-			TotalSessions:  len(sessions),
-			Version:        health.Version,
-			Network:        networkStatus,
-		},
-	})
-}
-
 func (h *BaseHandlers) networkStatusPayload(ctx context.Context) (*contract.NetworkStatusPayload, error) {
 	if !h.Config.Network.Enabled {
 		return &contract.NetworkStatusPayload{
 			Enabled: false,
-			Status:  "disabled",
+			Status:  memoryHealthStatusDisabled,
 		}, nil
 	}
 	if h.Network == nil {

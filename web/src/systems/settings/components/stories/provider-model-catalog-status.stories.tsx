@@ -33,7 +33,7 @@ export const Default: Story = {
   parameters: {
     msw: {
       handlers: [
-        http.get("/api/v1/providers/:provider/models/status", () =>
+        http.get("/api/model-catalog/providers/:provider/models/status", () =>
           HttpResponse.json({
             sources: [
               {
@@ -76,7 +76,7 @@ export const StaleSources: Story = {
   parameters: {
     msw: {
       handlers: [
-        http.get("/api/v1/providers/:provider/models/status", () =>
+        http.get("/api/model-catalog/providers/:provider/models/status", () =>
           HttpResponse.json({
             sources: [
               {
@@ -119,7 +119,7 @@ export const EmptySources: Story = {
   parameters: {
     msw: {
       handlers: [
-        http.get("/api/v1/providers/:provider/models/status", () =>
+        http.get("/api/model-catalog/providers/:provider/models/status", () =>
           HttpResponse.json({ sources: [] })
         ),
       ],

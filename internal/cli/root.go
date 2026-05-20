@@ -76,6 +76,7 @@ type commandDeps struct {
 	newUpdateManager             func(aghconfig.HomePaths) (updateManager, error)
 	newMCPAuthClient             newMCPAuthClientFunc
 	runProviderAuthCommand       providerAuthCommandRunner
+	runProviderAuthLoginCommand  providerAuthCommandRunner
 }
 
 // NewRootCommand constructs the AGH v1 CLI command tree.
@@ -111,6 +112,8 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newConfigCommand(deps))
 	cmd.AddCommand(newUpdateCommand(deps))
 	cmd.AddCommand(newUninstallCommand(deps))
+	cmd.AddCommand(newStatusCommand(deps))
+	cmd.AddCommand(newDoctorCommand(deps))
 	cmd.AddCommand(newDaemonCommand(deps))
 	cmd.AddCommand(newNetworkCommand(deps))
 	cmd.AddCommand(newMeCommand(deps))

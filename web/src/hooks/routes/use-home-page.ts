@@ -3,8 +3,8 @@ import { useMemo } from "react";
 import type { ConnectionStatus, PillTone } from "@agh/ui";
 
 import { useAgents } from "@/systems/agent";
-import { useDaemonHealth } from "@/systems/daemon";
-import type { HealthPayload } from "@/systems/daemon";
+import { useDaemonHealth } from "@/systems/status";
+import type { HealthPayload } from "@/systems/status";
 import { useSessions, type SessionPayload } from "@/systems/session";
 import { useActiveWorkspace, useWorkspace } from "@/systems/workspace";
 

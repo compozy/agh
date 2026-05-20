@@ -44,28 +44,28 @@ func TestStartRuntimeHarnessBootsRealDaemonAndExposesClients(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	var httpStatus aghcontract.DaemonStatusResponse
-	if err := harness.HTTPJSON(ctx, "GET", "/api/daemon/status", nil, &httpStatus); err != nil {
-		t.Fatalf("HTTP daemon status error = %v", err)
+	var httpStatus aghcontract.StatusPayload
+	if err := harness.HTTPJSON(ctx, "GET", "/api/status", nil, &httpStatus); err != nil {
+		t.Fatalf("HTTP runtime status error = %v", err)
 	}
 	if got, want := httpStatus.Daemon.Status, "running"; got != want {
 		t.Fatalf("httpStatus.Daemon.Status = %q, want %q", got, want)
 	}
 
-	var udsStatus aghcontract.DaemonStatusResponse
-	if err := harness.UDSJSON(ctx, "GET", "/api/daemon/status", nil, &udsStatus); err != nil {
-		t.Fatalf("UDS daemon status error = %v", err)
+	var udsStatus aghcontract.StatusPayload
+	if err := harness.UDSJSON(ctx, "GET", "/api/status", nil, &udsStatus); err != nil {
+		t.Fatalf("UDS runtime status error = %v", err)
 	}
 	if got, want := udsStatus.Daemon.HTTPPort, harness.Config.HTTP.Port; got != want {
 		t.Fatalf("udsStatus.Daemon.HTTPPort = %d, want %d", got, want)
 	}
 
-	var cliStatus aghcontract.DaemonStatusPayload
-	if err := harness.CLI.RunJSON(ctx, &cliStatus, "daemon", "status", "-o", "json"); err != nil {
-		t.Fatalf("CLI daemon status error = %v", err)
+	var cliStatus aghcontract.StatusPayload
+	if err := harness.CLI.RunJSON(ctx, &cliStatus, "status", "-o", "json"); err != nil {
+		t.Fatalf("CLI runtime status error = %v", err)
 	}
-	if got, want := cliStatus.Socket, harness.Config.Daemon.Socket; got != want {
-		t.Fatalf("cliStatus.Socket = %q, want %q", got, want)
+	if got, want := cliStatus.Daemon.Socket, harness.Config.Daemon.Socket; got != want {
+		t.Fatalf("cliStatus.Daemon.Socket = %q, want %q", got, want)
 	}
 }
 
@@ -93,9 +93,9 @@ func TestStartRuntimeHarnessRetriesHTTPPortConflicts(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	var status aghcontract.DaemonStatusResponse
-	if err := harness.HTTPJSON(ctx, "GET", "/api/daemon/status", nil, &status); err != nil {
-		t.Fatalf("HTTP daemon status after retry error = %v", err)
+	var status aghcontract.StatusPayload
+	if err := harness.HTTPJSON(ctx, "GET", "/api/status", nil, &status); err != nil {
+		t.Fatalf("HTTP runtime status after retry error = %v", err)
 	}
 	if got, want := status.Daemon.HTTPPort, harness.Config.HTTP.Port; got != want {
 		t.Fatalf("status.Daemon.HTTPPort = %d, want %d", got, want)
@@ -214,10 +214,10 @@ func TestStartRuntimeHarnessRepeatedCyclesLeaveNoStaleDaemonArtifacts(t *testing
 		harness := StartRuntimeHarness(t, RuntimeHarnessOptions{})
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 
-		var httpStatus aghcontract.DaemonStatusResponse
-		if err := harness.HTTPJSON(ctx, "GET", "/api/daemon/status", nil, &httpStatus); err != nil {
+		var httpStatus aghcontract.StatusPayload
+		if err := harness.HTTPJSON(ctx, "GET", "/api/status", nil, &httpStatus); err != nil {
 			cancel()
-			t.Fatalf("cycle %d HTTP daemon status error = %v", cycle, err)
+			t.Fatalf("cycle %d HTTP runtime status error = %v", cycle, err)
 		}
 
 		if err := harness.Stop(ctx); err != nil {
@@ -240,25 +240,25 @@ func TestStartRuntimeHarnessCLIStatusCanBeCapturedInRuntimeManifest(t *testing.T
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	stdout, stderr, err := harness.CLI.Run(ctx, "daemon", "status", "-o", "json")
+	stdout, stderr, err := harness.CLI.Run(ctx, "status", "-o", "json")
 	if err != nil {
-		t.Fatalf("CLI.Run(daemon status) error = %v; stderr=%s", err, strings.TrimSpace(stderr))
+		t.Fatalf("CLI.Run(runtime status) error = %v; stderr=%s", err, strings.TrimSpace(stderr))
 	}
 
-	var cliStatus aghcontract.DaemonStatusPayload
+	var cliStatus aghcontract.StatusPayload
 	if err := json.Unmarshal([]byte(stdout), &cliStatus); err != nil {
 		t.Fatalf("json.Unmarshal(cli status) error = %v; stdout=%s", err, strings.TrimSpace(stdout))
 	}
-	if got, want := cliStatus.Socket, harness.Config.Daemon.Socket; got != want {
-		t.Fatalf("cliStatus.Socket = %q, want %q", got, want)
+	if got, want := cliStatus.Daemon.Socket, harness.Config.Daemon.Socket; got != want {
+		t.Fatalf("cliStatus.Daemon.Socket = %q, want %q", got, want)
 	}
-	if got, want := cliStatus.HTTPPort, harness.Config.HTTP.Port; got != want {
-		t.Fatalf("cliStatus.HTTPPort = %d, want %d", got, want)
+	if got, want := cliStatus.Daemon.HTTPPort, harness.Config.HTTP.Port; got != want {
+		t.Fatalf("cliStatus.Daemon.HTTPPort = %d, want %d", got, want)
 	}
 
 	outputPath, err := harness.CaptureCLIOutput(
-		"daemon status",
-		[]string{"daemon", "status", "-o", "json"},
+		"runtime status",
+		[]string{"status", "-o", "json"},
 		stdout,
 		stderr,
 		nil,

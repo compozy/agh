@@ -144,7 +144,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()
 
-				listModels := operationFor(t, doc, "/api/providers/{provider_id}/models", "GET")
+				listModels := operationFor(t, doc, "/api/model-catalog/providers/{provider_id}/models", "GET")
 				assertTagsContain(t, listModels, "providers")
 				assertParameter(t, listModels, "provider_id", openapi3.ParameterInPath, true)
 				assertParameter(t, listModels, "source_id", openapi3.ParameterInQuery, false)
@@ -153,14 +153,14 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				listSchema := jsonResponseSchema(t, listModels, 200)
 				assertRequired(t, listSchema, "models")
 
-				refresh := operationFor(t, doc, "/api/providers/{provider_id}/models/refresh", "POST")
+				refresh := operationFor(t, doc, "/api/model-catalog/providers/{provider_id}/models/refresh", "POST")
 				if refresh.RequestBody == nil || refresh.RequestBody.Value == nil ||
 					refresh.RequestBody.Value.Required {
 					t.Fatalf("refresh request body required = %#v, want optional body", refresh.RequestBody)
 				}
 				assertResponseStatus(t, refresh, 503)
 
-				status := operationFor(t, doc, "/api/providers/models/status", "GET")
+				status := operationFor(t, doc, "/api/model-catalog/sources/status", "GET")
 				statusSchema := jsonResponseSchema(t, status, 200)
 				assertRequired(t, statusSchema, "sources")
 
@@ -330,9 +330,9 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				)
 				assertEnumValues(t, propertySchema(t, createTriggerSchema, "scope"), "global", "workspace")
 
-				healthOperation := operationFor(t, doc, "/api/observe/health", "GET")
+				healthOperation := operationFor(t, doc, "/api/status", "GET")
 				healthSchema := jsonResponseSchema(t, healthOperation, 200)
-				assertRequired(t, healthSchema, "health", "memory", "automation")
+				assertRequired(t, healthSchema, "daemon", "health", "memory", "automation", "config", "log_tail")
 
 				automationSchema := propertySchema(t, healthSchema, "automation")
 				assertRequired(t, automationSchema, "enabled", "jobs", "triggers", "scheduler_running")

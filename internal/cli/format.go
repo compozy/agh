@@ -28,6 +28,17 @@ const (
 	OutputToon OutputFormat = "toon"
 )
 
+const (
+	cliAuthModeKey   = "auth_mode"
+	cliCodeValue     = "Code"
+	cliCommandValue  = "Command"
+	cliDurationMSKey = "duration_ms"
+	cliDurationValue = "Duration"
+	cliPIDKey        = "pid"
+	cliPIDValue      = "PID"
+	cliUptimeValue   = "Uptime"
+)
+
 type outputBundle struct {
 	jsonValue any
 	jsonl     func(*cobra.Command) error

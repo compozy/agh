@@ -536,6 +536,117 @@ func ObserveHealthPayloadFromHealth(health *observepkg.Health) contract.ObserveH
 	}
 }
 
+// TaskHealthPayloadFromObserve converts observer task health into the shared status payload.
+func TaskHealthPayloadFromObserve(health observepkg.TaskHealth) contract.TaskHealthPayload {
+	return contract.TaskHealthPayload{
+		Status:                     strings.TrimSpace(health.Status),
+		QueueDepthTotal:            health.QueueDepthTotal,
+		OldestQueuedAt:             optionalTime(health.OldestQueuedAt),
+		OldestQueueAgeMilli:        health.OldestQueueAgeMilli,
+		QueueDepth:                 TaskQueueDepthPayloadsFromObserve(health.QueueDepth),
+		StuckRuns:                  StuckTaskRunPayloadsFromObserve(health.StuckRuns),
+		ActiveOrphanRuns:           health.ActiveOrphanRuns,
+		TaskTotals:                 TaskStatusTotalPayloadsFromObserve(health.TaskTotals),
+		RunTotals:                  TaskRunTotalPayloadsFromObserve(health.RunTotals),
+		OwnerTotals:                TaskOwnerTotalPayloadsFromObserve(health.OwnerTotals),
+		ForcedStopsSinceStart:      health.ForcedStopsSinceStart,
+		DuplicateIngressSinceStart: health.DuplicateIngressSinceStart,
+		ChannelMismatchSinceStart:  health.ChannelMismatchSinceStart,
+		RecoverySinceStart: contract.TaskRecoveryTotalsPayload{
+			Requeued:      health.RecoverySinceStart.Requeued,
+			MarkedRunning: health.RecoverySinceStart.MarkedRunning,
+			Failed:        health.RecoverySinceStart.Failed,
+		},
+	}
+}
+
+// TaskQueueDepthPayloadsFromObserve converts task queue-depth rows.
+func TaskQueueDepthPayloadsFromObserve(rows []observepkg.TaskQueueDepth) []contract.TaskQueueDepthPayload {
+	if len(rows) == 0 {
+		return nil
+	}
+	payloads := make([]contract.TaskQueueDepthPayload, 0, len(rows))
+	for _, row := range rows {
+		payloads = append(payloads, contract.TaskQueueDepthPayload{
+			NetworkChannel:      strings.TrimSpace(row.NetworkChannel),
+			Count:               row.Count,
+			OldestQueuedAt:      optionalTime(row.OldestQueuedAt),
+			OldestQueueAgeMilli: row.OldestQueueAgeMilli,
+		})
+	}
+	return payloads
+}
+
+// StuckTaskRunPayloadsFromObserve converts stuck task-run diagnostics.
+func StuckTaskRunPayloadsFromObserve(rows []observepkg.StuckTaskRun) []contract.StuckTaskRunPayload {
+	if len(rows) == 0 {
+		return nil
+	}
+	payloads := make([]contract.StuckTaskRunPayload, 0, len(rows))
+	for _, row := range rows {
+		payloads = append(payloads, contract.StuckTaskRunPayload{
+			TaskID:         strings.TrimSpace(row.TaskID),
+			RunID:          strings.TrimSpace(row.RunID),
+			Status:         strings.TrimSpace(string(row.Status)),
+			OriginKind:     strings.TrimSpace(string(row.OriginKind)),
+			NetworkChannel: strings.TrimSpace(row.NetworkChannel),
+			SessionID:      strings.TrimSpace(row.SessionID),
+			AgeMillis:      row.AgeMillis,
+		})
+	}
+	return payloads
+}
+
+// TaskStatusTotalPayloadsFromObserve converts task status buckets.
+func TaskStatusTotalPayloadsFromObserve(rows []observepkg.TaskStatusTotal) []contract.TaskStatusTotalPayload {
+	if len(rows) == 0 {
+		return nil
+	}
+	payloads := make([]contract.TaskStatusTotalPayload, 0, len(rows))
+	for _, row := range rows {
+		payloads = append(payloads, contract.TaskStatusTotalPayload{
+			Scope:          strings.TrimSpace(string(row.Scope)),
+			Status:         strings.TrimSpace(string(row.Status)),
+			NetworkChannel: strings.TrimSpace(row.NetworkChannel),
+			Count:          row.Count,
+		})
+	}
+	return payloads
+}
+
+// TaskRunTotalPayloadsFromObserve converts task-run status buckets.
+func TaskRunTotalPayloadsFromObserve(rows []observepkg.TaskRunTotal) []contract.TaskRunTotalPayload {
+	if len(rows) == 0 {
+		return nil
+	}
+	payloads := make([]contract.TaskRunTotalPayload, 0, len(rows))
+	for _, row := range rows {
+		payloads = append(payloads, contract.TaskRunTotalPayload{
+			Status:         strings.TrimSpace(string(row.Status)),
+			OriginKind:     strings.TrimSpace(string(row.OriginKind)),
+			NetworkChannel: strings.TrimSpace(row.NetworkChannel),
+			Count:          row.Count,
+		})
+	}
+	return payloads
+}
+
+// TaskOwnerTotalPayloadsFromObserve converts task ownership buckets.
+func TaskOwnerTotalPayloadsFromObserve(rows []observepkg.TaskOwnerTotal) []contract.TaskOwnerTotalPayload {
+	if len(rows) == 0 {
+		return nil
+	}
+	payloads := make([]contract.TaskOwnerTotalPayload, 0, len(rows))
+	for _, row := range rows {
+		payloads = append(payloads, contract.TaskOwnerTotalPayload{
+			OwnerKind: strings.TrimSpace(string(row.OwnerKind)),
+			OwnerRef:  strings.TrimSpace(row.OwnerRef),
+			Count:     row.Count,
+		})
+	}
+	return payloads
+}
+
 // ObservePersistenceHealthPayloadFromHealth converts persistence health into the shared payload.
 func ObservePersistenceHealthPayloadFromHealth(
 	health observepkg.PersistenceHealth,
@@ -2308,6 +2419,7 @@ func settingsProviderAuthStatusPayload(
 		EnvPolicy:  string(value.EnvPolicy),
 		HomePolicy: string(value.HomePolicy),
 		State:      strings.TrimSpace(value.State),
+		Code:       strings.TrimSpace(value.Code),
 		Message:    strings.TrimSpace(value.Message),
 		StatusCmd:  strings.TrimSpace(value.StatusCmd),
 		LoginCmd:   strings.TrimSpace(value.LoginCmd),

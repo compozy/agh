@@ -137,10 +137,10 @@ type providerOverlay struct {
 	AuthMode        *ProviderAuthMode           `toml:"auth_mode"`
 	EnvPolicy       *ProviderEnvPolicy          `toml:"env_policy"`
 	HomePolicy      *ProviderHomePolicy         `toml:"home_policy"`
+	NoneSecurity    *ProviderNoneSecurity       `toml:"none_security"`
 	AuthStatusCmd   *string                     `toml:"auth_status_command"`
 	AuthLoginCmd    *string                     `toml:"auth_login_command"`
 	SessionMCP      *bool                       `toml:"session_mcp"`
-	Aliases         *[]string                   `toml:"aliases"`
 	CredentialSlots []providerCredentialOverlay `toml:"credential_slots"`
 	MCPServers      []mcpServerOverlay          `toml:"mcp_servers"`
 }
@@ -582,6 +582,13 @@ func rejectRemovedProviderModelKeys(source string, keys []burnttoml.Key) error {
 		if len(key) != 3 || key[0] != providersConfigKey {
 			continue
 		}
+		if key[2] == "aliases" {
+			return fmt.Errorf(
+				"removed config key %q in %q: aliases was removed; reference providers by canonical name",
+				key.String(),
+				source,
+			)
+		}
 		replacement := ""
 		switch key[2] {
 		case "default_model":
@@ -790,6 +797,9 @@ func (o providerOverlay) Apply(dst *ProviderConfig) {
 	if o.HomePolicy != nil {
 		dst.HomePolicy = *o.HomePolicy
 	}
+	if o.NoneSecurity != nil {
+		dst.NoneSecurity = *o.NoneSecurity
+	}
 	if o.AuthStatusCmd != nil {
 		dst.AuthStatusCmd = *o.AuthStatusCmd
 	}
@@ -798,9 +808,6 @@ func (o providerOverlay) Apply(dst *ProviderConfig) {
 	}
 	if o.SessionMCP != nil {
 		dst.SessionMCP = new(*o.SessionMCP)
-	}
-	if o.Aliases != nil {
-		dst.Aliases = append([]string(nil), (*o.Aliases)...)
 	}
 	if len(o.CredentialSlots) > 0 {
 		dst.CredentialSlots = applyProviderCredentialOverlays(o.CredentialSlots)

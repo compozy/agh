@@ -50,15 +50,15 @@ test("records harness scenario contract, viewport evidence, and HTTP UDS CLI par
   });
 
   const [httpStatus, udsStatus, cliStatus] = await Promise.all([
-    runtime.requestJSON<Record<string, unknown>>("/api/daemon/status"),
-    requestBrowserRuntimeOperatorJSON<Record<string, unknown>>(runtime, "/api/daemon/status"),
-    runBrowserRuntimeCLIJSON<Record<string, unknown>>(runtime, ["daemon", "status"]),
+    runtime.requestJSON<Record<string, unknown>>("/api/status"),
+    requestBrowserRuntimeOperatorJSON<Record<string, unknown>>(runtime, "/api/status"),
+    runBrowserRuntimeCLIJSON<Record<string, unknown>>(runtime, ["status"]),
   ]);
   const httpProjection = daemonStatusProjection(httpStatus);
   const udsProjection = daemonStatusProjection(udsStatus);
   const cliProjection = daemonStatusProjection(cliStatus);
-  assertSameRuntimeFields("daemon status HTTP/UDS", httpProjection, udsProjection, ["status"]);
-  assertSameRuntimeFields("daemon status HTTP/CLI", httpProjection, cliProjection, ["status"]);
+  assertSameRuntimeFields("runtime status HTTP/UDS", httpProjection, udsProjection, ["status"]);
+  assertSameRuntimeFields("runtime status HTTP/CLI", httpProjection, cliProjection, ["status"]);
 
   const transportSnapshot = await captureBrowserTransportSnapshot(runtime, "TC-HARNESS-001", {
     cli: cliStatus,
@@ -104,7 +104,7 @@ function daemonStatusProjection(payload: Record<string, unknown>): Record<string
     return { status: payload.status };
   }
   throw new Error(
-    `daemon status payload did not expose a status field: ${JSON.stringify(payload)}`
+    `runtime status payload did not expose a status field: ${JSON.stringify(payload)}`
   );
 }
 

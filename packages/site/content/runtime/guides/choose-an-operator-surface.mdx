@@ -28,7 +28,7 @@ reference. Use the generated references when you need exact syntax.
     Start with the CLI. It is explicit, scriptable, and mirrors daemon state directly.
 
     ```bash
-    agh daemon status
+    agh status
     agh session list
     agh session events sess_1234 --follow
     ```
@@ -58,7 +58,7 @@ reference. Use the generated references when you need exact syntax.
     append-only runtime records.
 
     ```bash
-    curl http://localhost:2123/api/daemon/status
+    curl http://localhost:2123/api/status
     curl -N http://localhost:2123/api/workspaces/ws_alpha/sessions/sess_1234/stream
     ```
 
@@ -72,8 +72,8 @@ reference. Use the generated references when you need exact syntax.
     shared API handler contracts used by HTTP.
 
     ```bash
-    agh daemon status
-    agh observe health -o json
+    agh status
+    agh doctor -o json
     ```
 
     What happened: the CLI talked to the daemon over the local socket and returned structured health
@@ -90,7 +90,7 @@ Use the CLI:
 
 ```bash
 agh daemon start
-agh daemon status
+agh status
 agh daemon stop
 ```
 
@@ -119,7 +119,8 @@ Start with:
 
 - [API Reference](/runtime/api-reference)
 - [Event Streaming](/runtime/core/sessions/events)
-- [Observability health](/runtime/cli-reference/observe/health)
+- [Runtime status](/runtime/cli-reference/status)
+- [Doctor diagnostics](/runtime/cli-reference/doctor)
 
 ### Let agents manage work
 

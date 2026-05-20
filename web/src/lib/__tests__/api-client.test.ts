@@ -57,11 +57,11 @@ describe("api client", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await daemonApiClient.GET("/api/daemon/status");
+    const result = await daemonApiClient.GET("/api/status");
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(requestUrl(fetchMock.mock.calls[0]?.[0] as RequestInfo | URL)).toBe(
-      `${apiBaseUrl}/api/daemon/status`
+      `${apiBaseUrl}/api/status`
     );
     expect(result.response.ok).toBe(true);
     expect(result.data?.daemon.name).toBe("Compozy Daemon");
@@ -95,11 +95,11 @@ describe("api client", () => {
 
     vi.stubGlobal("fetch", fetchMock);
 
-    const result = await apiClient.GET("/api/daemon/status");
+    const result = await apiClient.GET("/api/status");
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(requestUrl(fetchMock.mock.calls[0]?.[0] as RequestInfo | URL)).toBe(
-      `${apiBaseUrl}/api/daemon/status`
+      `${apiBaseUrl}/api/status`
     );
     expect(result.response.ok).toBe(true);
     expect(result.data?.daemon.pid).toBe(42);

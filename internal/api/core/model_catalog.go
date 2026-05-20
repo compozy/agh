@@ -13,15 +13,17 @@ import (
 )
 
 const (
-	modelCatalogModelsSegment  = "models"
-	modelCatalogRefreshSegment = "refresh"
-	modelCatalogStatusSegment  = "status"
+	modelCatalogModelsSegment    = "models"
+	modelCatalogProvidersSegment = "providers"
+	modelCatalogRefreshSegment   = "refresh"
+	modelCatalogSourcesSegment   = "sources"
+	modelCatalogStatusSegment    = "status"
 )
 
 var errModelCatalogRouteNotFound = errors.New("model catalog route not found")
 
-// ProviderModelCatalog dispatches the native provider model catalog route family.
-func (h *BaseHandlers) ProviderModelCatalog(c *gin.Context) {
+// ModelCatalogRoute dispatches the native provider model catalog route family.
+func (h *BaseHandlers) ModelCatalogRoute(c *gin.Context) {
 	if h == nil {
 		RespondError(c, http.StatusServiceUnavailable, ErrModelCatalogUnavailable, false)
 		return
@@ -29,9 +31,9 @@ func (h *BaseHandlers) ProviderModelCatalog(c *gin.Context) {
 	parts := modelCatalogPathParts(c.Param("catalog_path"))
 	switch c.Request.Method {
 	case http.MethodGet:
-		h.dispatchProviderModelCatalogGET(c, parts)
+		h.dispatchModelCatalogGET(c, parts)
 	case http.MethodPost:
-		h.dispatchProviderModelCatalogPOST(c, parts)
+		h.dispatchModelCatalogPOST(c, parts)
 	default:
 		RespondError(c, http.StatusNotFound, errModelCatalogRouteNotFound, h.MaskInternalErrors)
 	}
@@ -66,27 +68,35 @@ func (h *BaseHandlers) OpenAIModels(c *gin.Context) {
 	c.JSON(http.StatusOK, OpenAIModelListPayloadFromModels(models))
 }
 
-func (h *BaseHandlers) dispatchProviderModelCatalogGET(c *gin.Context, parts []string) {
+func (h *BaseHandlers) dispatchModelCatalogGET(c *gin.Context, parts []string) {
 	switch {
 	case len(parts) == 1 && parts[0] == modelCatalogModelsSegment:
 		h.listProviderModels(c, "")
-	case len(parts) == 2 && parts[0] == modelCatalogModelsSegment && parts[1] == modelCatalogStatusSegment:
+	case len(parts) == 2 && parts[0] == modelCatalogSourcesSegment && parts[1] == modelCatalogStatusSegment:
 		h.providerModelStatus(c, "")
-	case len(parts) == 2 && parts[1] == modelCatalogModelsSegment:
-		h.listProviderModels(c, parts[0])
-	case len(parts) == 3 && parts[1] == modelCatalogModelsSegment && parts[2] == modelCatalogStatusSegment:
-		h.providerModelStatus(c, parts[0])
+	case len(parts) == 3 &&
+		parts[0] == modelCatalogProvidersSegment &&
+		parts[2] == modelCatalogModelsSegment:
+		h.listProviderModels(c, parts[1])
+	case len(parts) == 4 &&
+		parts[0] == modelCatalogProvidersSegment &&
+		parts[2] == modelCatalogModelsSegment &&
+		parts[3] == modelCatalogStatusSegment:
+		h.providerModelStatus(c, parts[1])
 	default:
 		RespondError(c, http.StatusNotFound, errModelCatalogRouteNotFound, h.MaskInternalErrors)
 	}
 }
 
-func (h *BaseHandlers) dispatchProviderModelCatalogPOST(c *gin.Context, parts []string) {
+func (h *BaseHandlers) dispatchModelCatalogPOST(c *gin.Context, parts []string) {
 	switch {
 	case len(parts) == 2 && parts[0] == modelCatalogModelsSegment && parts[1] == modelCatalogRefreshSegment:
 		h.refreshProviderModels(c, "")
-	case len(parts) == 3 && parts[1] == modelCatalogModelsSegment && parts[2] == modelCatalogRefreshSegment:
-		h.refreshProviderModels(c, parts[0])
+	case len(parts) == 4 &&
+		parts[0] == modelCatalogProvidersSegment &&
+		parts[2] == modelCatalogModelsSegment &&
+		parts[3] == modelCatalogRefreshSegment:
+		h.refreshProviderModels(c, parts[1])
 	default:
 		RespondError(c, http.StatusNotFound, errModelCatalogRouteNotFound, h.MaskInternalErrors)
 	}

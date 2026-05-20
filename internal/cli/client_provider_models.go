@@ -108,11 +108,14 @@ func providerModelsPath(providerID string, action string) string {
 	trimmedAction := strings.Trim(strings.TrimSpace(action), "/")
 	if trimmedProvider == "" {
 		if trimmedAction == "" {
-			return "/api/providers/models"
+			return "/api/model-catalog/models"
 		}
-		return "/api/providers/models/" + url.PathEscape(trimmedAction)
+		if trimmedAction == lifecycleStatusKey {
+			return "/api/model-catalog/sources/status"
+		}
+		return "/api/model-catalog/models/" + url.PathEscape(trimmedAction)
 	}
-	path := "/api/providers/" + url.PathEscape(trimmedProvider) + "/models"
+	path := "/api/model-catalog/providers/" + url.PathEscape(trimmedProvider) + "/models"
 	if trimmedAction != "" {
 		path += "/" + url.PathEscape(trimmedAction)
 	}

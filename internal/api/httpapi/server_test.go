@@ -195,7 +195,7 @@ func TestServerStartAndShutdownServeRequests(t *testing.T) {
 	req, err := http.NewRequestWithContext(
 		context.Background(),
 		http.MethodGet,
-		mustURL(cfg.HTTP.Host, server.Port(), "/api/daemon/status"),
+		mustURL(cfg.HTTP.Host, server.Port(), "/api/status"),
 		http.NoBody,
 	)
 	if err != nil {
@@ -227,7 +227,7 @@ func TestServerStartAndShutdownServeRequests(t *testing.T) {
 	req, err = http.NewRequestWithContext(
 		context.Background(),
 		http.MethodGet,
-		mustURL(cfg.HTTP.Host, server.Port(), "/api/daemon/status"),
+		mustURL(cfg.HTTP.Host, server.Port(), "/api/status"),
 		http.NoBody,
 	)
 	if err != nil {

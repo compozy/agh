@@ -33,73 +33,80 @@ const binaryMissingFixture: SettingsProviderEntry = {
   credentials: undefined,
 };
 
-const freshCatalogHandler = http.get("/api/providers/:provider_id/models/status", () =>
-  HttpResponse.json({
-    sources: [
-      {
-        source_id: "models.dev",
-        source_kind: "models_dev",
-        priority: 0,
-        provider_id: "claude",
-        refresh_state: "succeeded",
-        row_count: 42,
-        stale: false,
-        last_success: "2026-04-17T18:10:00Z",
-      },
-    ],
-  })
+const freshCatalogHandler = http.get(
+  "/api/model-catalog/providers/:provider_id/models/status",
+  () =>
+    HttpResponse.json({
+      sources: [
+        {
+          source_id: "models.dev",
+          source_kind: "models_dev",
+          priority: 0,
+          provider_id: "claude",
+          refresh_state: "succeeded",
+          row_count: 42,
+          stale: false,
+          last_success: "2026-04-17T18:10:00Z",
+        },
+      ],
+    })
 );
 
-const refreshHandler = http.post("/api/providers/:provider_id/models/refresh", () =>
+const refreshHandler = http.post("/api/model-catalog/providers/:provider_id/models/refresh", () =>
   HttpResponse.json({ operation_id: "model_refresh_story", status: "queued" })
 );
 
-const staleCatalogHandler = http.get("/api/providers/:provider_id/models/status", () =>
-  HttpResponse.json({
-    sources: [
-      {
-        source_id: "models.dev",
-        source_kind: "models_dev",
-        priority: 0,
-        provider_id: "claude",
-        refresh_state: "succeeded",
-        row_count: 42,
-        stale: true,
-        last_success: "2026-04-10T08:00:00Z",
-      },
-      {
-        source_id: "provider_live:claude",
-        source_kind: "provider_live",
-        priority: 1,
-        provider_id: "claude",
-        refresh_state: "succeeded",
-        row_count: 3,
-        stale: false,
-        last_success: "2026-04-17T18:10:00Z",
-      },
-    ],
-  })
+const staleCatalogHandler = http.get(
+  "/api/model-catalog/providers/:provider_id/models/status",
+  () =>
+    HttpResponse.json({
+      sources: [
+        {
+          source_id: "models.dev",
+          source_kind: "models_dev",
+          priority: 0,
+          provider_id: "claude",
+          refresh_state: "succeeded",
+          row_count: 42,
+          stale: true,
+          last_success: "2026-04-10T08:00:00Z",
+        },
+        {
+          source_id: "provider_live:claude",
+          source_kind: "provider_live",
+          priority: 1,
+          provider_id: "claude",
+          refresh_state: "succeeded",
+          row_count: 3,
+          stale: false,
+          last_success: "2026-04-17T18:10:00Z",
+        },
+      ],
+    })
 );
 
-const failedCatalogHandler = http.get("/api/providers/:provider_id/models/status", () =>
-  HttpResponse.json({
-    sources: [
-      {
-        source_id: "models.dev",
-        source_kind: "models_dev",
-        priority: 0,
-        provider_id: "claude",
-        refresh_state: "failed",
-        row_count: 0,
-        stale: false,
-        last_error: "registry timeout",
-      },
-    ],
-  })
+const failedCatalogHandler = http.get(
+  "/api/model-catalog/providers/:provider_id/models/status",
+  () =>
+    HttpResponse.json({
+      sources: [
+        {
+          source_id: "models.dev",
+          source_kind: "models_dev",
+          priority: 0,
+          provider_id: "claude",
+          refresh_state: "failed",
+          row_count: 0,
+          stale: false,
+          last_error: "registry timeout",
+        },
+      ],
+    })
 );
 
-const emptyCatalogHandler = http.get("/api/providers/:provider_id/models/status", () =>
-  HttpResponse.json({ sources: [] })
+const emptyCatalogHandler = http.get(
+  "/api/model-catalog/providers/:provider_id/models/status",
+  () => HttpResponse.json({ sources: [] })
 );
 
 const meta: Meta<typeof ProviderCard> = {

@@ -187,7 +187,7 @@ test("dashboard shows reconnecting state and recovers when health requests resum
 }) => {
   await prepareDashboardRuntime(runtime);
   await useGlobalWorkspaceIfPrompted(workspaceShell(appPage));
-  await appPage.route("**/api/observe/health", async route => {
+  await appPage.route("**/api/status", async route => {
     await route.abort("failed");
   });
 
@@ -202,7 +202,7 @@ test("dashboard shows reconnecting state and recovers when health requests resum
     timeout: 15_000,
   });
 
-  await appPage.unroute("**/api/observe/health");
+  await appPage.unroute("**/api/status");
   await expect(appPage.getByTestId("home-connection-indicator")).toHaveAttribute(
     "data-status",
     "connected",
@@ -361,9 +361,9 @@ async function captureDashboardSnapshot(
 ): Promise<DashboardSnapshot> {
   const [health, daemonHTTP, daemonUDS, workspaces, workspaceDetail, sessions, agents, cli] =
     await Promise.all([
-      runtime.requestJSON<DashboardSnapshot["health"]>("/api/observe/health"),
-      runtime.requestJSON<unknown>("/api/daemon/status"),
-      runtime.requestOperatorJSON?.<unknown>("/api/daemon/status"),
+      runtime.requestJSON<DashboardSnapshot["health"]>("/api/status"),
+      runtime.requestJSON<unknown>("/api/status"),
+      runtime.requestOperatorJSON?.<unknown>("/api/status"),
       runtime.requestJSON<DashboardSnapshot["workspaces"]>("/api/workspaces"),
       runtime.requestJSON<DashboardSnapshot["workspaceDetail"]>(
         `/api/workspaces/${encodeURIComponent(workspace.id)}`
@@ -395,7 +395,7 @@ async function captureCLISnapshot(runtime: BrowserRuntime, workspace: WorkspaceP
     return undefined;
   }
   return {
-    daemon: await runCLIJSON(runtime, ["daemon", "status", "-o", "json"]),
+    daemon: await runCLIJSON(runtime, ["status", "-o", "json"]),
     workspaces: await runCLIJSON(runtime, ["workspace", "list", "-o", "json"]),
     sessions: await runCLIJSON(runtime, [
       "session",

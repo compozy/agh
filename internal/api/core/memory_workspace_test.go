@@ -299,7 +299,7 @@ func TestMemoryHandlersAndHelpers(t *testing.T) {
 		fixture, workspace, _ := setup(t)
 		query := url.Values{}
 		query.Set("workspace_id", workspace)
-		healthResp := performRequest(t, fixture.Engine, http.MethodGet, "/observe/health?"+query.Encode(), nil)
+		healthResp := performRequest(t, fixture.Engine, http.MethodGet, "/status?"+query.Encode(), nil)
 		if healthResp.Code != http.StatusOK {
 			t.Fatalf("health status = %d, want %d", healthResp.Code, http.StatusOK)
 		}

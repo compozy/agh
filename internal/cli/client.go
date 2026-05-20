@@ -42,11 +42,15 @@ const (
 
 // DaemonClient is the CLI transport surface for talking to the AGH daemon over UDS.
 type DaemonClient interface {
+	Status(ctx context.Context) (StatusRecord, error)
+	Doctor(ctx context.Context, query DoctorQuery) (DoctorRecord, error)
 	DaemonStatus(ctx context.Context) (DaemonStatus, error)
 	TriggerSettingsRestart(ctx context.Context) (SettingsRestartActionRecord, error)
 	GetSettingsRestartStatus(ctx context.Context, operationID string) (SettingsRestartStatusRecord, error)
 	GetSettingsUpdate(ctx context.Context) (SettingsUpdateRecord, error)
 	UpdateSettingsSkills(ctx context.Context, request UpdateSettingsSkillsRequest) (SettingsMutationRecord, error)
+	ListProviders(ctx context.Context) (contract.ProviderListResponse, error)
+	ProbeProviderAuth(ctx context.Context, providerID string) (contract.ProviderAuthProbeResponse, error)
 	ListProviderModels(ctx context.Context, query ProviderModelListQuery) (ProviderModelListRecord, error)
 	RefreshProviderModels(ctx context.Context, providerID string, request ProviderModelRefreshRequest) (
 		ProviderModelRefreshRecord,
@@ -238,7 +242,6 @@ type DaemonClient interface {
 	HookEvents(ctx context.Context, query HookEventsQuery) ([]HookEventRecord, error)
 	ObserveEvents(ctx context.Context, query ObserveEventQuery) ([]ObserveEventRecord, error)
 	StreamObserveEvents(ctx context.Context, query ObserveEventQuery, lastEventID string, handler SSEHandler) error
-	ObserveHealth(ctx context.Context) (HealthStatus, error)
 	MemoryHealth(ctx context.Context, workspace string) (MemoryHealthRecord, error)
 	MemoryHistory(ctx context.Context, query MemoryHistoryQuery) ([]MemoryHistoryRecord, error)
 	ListMemory(ctx context.Context, query MemoryListQuery) (MemoryListRecord, error)
@@ -1005,8 +1008,18 @@ type FailTaskRunRequest = contract.FailTaskRunRequest
 // CancelTaskRunRequest captures the shared run-cancel payload.
 type CancelTaskRunRequest = contract.CancelTaskRunRequest
 
-// HealthStatus is the daemon API observability health payload.
-type HealthStatus = contract.ObserveHealthPayload
+// StatusRecord is the hard-cut daemon API status payload.
+type StatusRecord = contract.StatusPayload
+
+// DoctorRecord is the hard-cut daemon API doctor payload.
+type DoctorRecord = contract.DoctorPayload
+
+// DoctorQuery controls daemon-side doctor probe selection.
+type DoctorQuery struct {
+	Only    []string
+	Exclude []string
+	Quiet   bool
+}
 
 // DaemonStatus is the shared daemon status payload.
 type DaemonStatus = contract.DaemonStatusPayload
@@ -1264,14 +1277,46 @@ func NewClient(socketPath string) (DaemonClient, error) {
 	}, nil
 }
 
-func (c *unixSocketClient) DaemonStatus(ctx context.Context) (DaemonStatus, error) {
-	var response struct {
-		Daemon DaemonStatus `json:"daemon"`
+func (c *unixSocketClient) Status(ctx context.Context) (StatusRecord, error) {
+	var response StatusRecord
+	if err := c.doJSON(ctx, http.MethodGet, "/api/status", nil, nil, &response); err != nil {
+		return StatusRecord{}, err
 	}
-	if err := c.doJSON(ctx, http.MethodGet, "/api/daemon/status", nil, nil, &response); err != nil {
+	return response, nil
+}
+
+func (c *unixSocketClient) Doctor(ctx context.Context, query DoctorQuery) (DoctorRecord, error) {
+	var response DoctorRecord
+	if err := c.doJSON(ctx, http.MethodGet, "/api/doctor", doctorQueryValues(query), nil, &response); err != nil {
+		return DoctorRecord{}, err
+	}
+	return response, nil
+}
+
+func doctorQueryValues(query DoctorQuery) url.Values {
+	values := url.Values{}
+	for _, value := range query.Only {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			values.Add("only", trimmed)
+		}
+	}
+	for _, value := range query.Exclude {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			values.Add("exclude", trimmed)
+		}
+	}
+	if query.Quiet {
+		values.Set("quiet", "true")
+	}
+	return values
+}
+
+func (c *unixSocketClient) DaemonStatus(ctx context.Context) (DaemonStatus, error) {
+	status, err := c.Status(ctx)
+	if err != nil {
 		return DaemonStatus{}, err
 	}
-	return response.Daemon, nil
+	return status.Daemon, nil
 }
 
 func (c *unixSocketClient) TriggerSettingsRestart(ctx context.Context) (SettingsRestartActionRecord, error) {
@@ -2838,16 +2883,6 @@ func (c *unixSocketClient) StreamObserveEvents(
 		lastEventID,
 		handler,
 	)
-}
-
-func (c *unixSocketClient) ObserveHealth(ctx context.Context) (HealthStatus, error) {
-	var response struct {
-		Health HealthStatus `json:"health"`
-	}
-	if err := c.doJSON(ctx, http.MethodGet, "/api/observe/health", nil, nil, &response); err != nil {
-		return HealthStatus{}, err
-	}
-	return response.Health, nil
 }
 
 func (c *unixSocketClient) MemoryHealth(ctx context.Context, workspace string) (MemoryHealthRecord, error) {

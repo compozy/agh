@@ -1,9 +1,9 @@
 import { describe, expectTypeOf, it } from "vitest";
 
-import type { HealthPayload, MemoryHealthPayload, ObserveHealthResponse } from "../types";
+import type { HealthPayload, MemoryHealthPayload, StatusPayload } from "../types";
 
 describe("daemon contract types", () => {
-  it("derives health payloads from the generated observe contract", () => {
+  it("derives health payloads from the generated status contract", () => {
     expectTypeOf<HealthPayload>().toMatchTypeOf<{
       status: string;
       uptime_seconds: number;
@@ -80,7 +80,7 @@ describe("daemon contract types", () => {
       last_consolidation: string | null;
     }>();
 
-    expectTypeOf<ObserveHealthResponse>().toMatchTypeOf<{
+    expectTypeOf<StatusPayload>().toMatchTypeOf<{
       health: HealthPayload;
       memory: MemoryHealthPayload;
     }>();

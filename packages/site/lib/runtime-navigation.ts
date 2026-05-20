@@ -61,7 +61,17 @@ export const API_SECTIONS: CoreSection[] = [
   { label: "Network", ids: ["network", "observe", "hooks"] },
   {
     label: "Operations",
-    ids: ["daemon", "settings", "providers", "extensions", "vault", "agent", "tasks", "openai"],
+    ids: [
+      "daemon",
+      "diagnostics",
+      "settings",
+      "providers",
+      "extensions",
+      "vault",
+      "agent",
+      "tasks",
+      "openai",
+    ],
   },
 ];
 

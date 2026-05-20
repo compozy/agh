@@ -522,6 +522,7 @@ type ProviderAuthStatus struct {
 	EnvPolicy  aghconfig.ProviderEnvPolicy
 	HomePolicy aghconfig.ProviderHomePolicy
 	State      string
+	Code       string
 	Message    string
 	StatusCmd  string
 	LoginCmd   string

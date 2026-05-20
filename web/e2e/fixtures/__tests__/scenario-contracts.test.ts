@@ -120,10 +120,10 @@ describe("browser runtime parity helpers", () => {
       requestOperatorJSON: undefined,
     } as Parameters<typeof requestBrowserRuntimeOperatorJSON>[0];
 
-    await expect(requestBrowserRuntimeOperatorJSON(runtime, "/api/daemon/status")).rejects.toThrow(
+    await expect(requestBrowserRuntimeOperatorJSON(runtime, "/api/status")).rejects.toThrow(
       /requires launch-mode runtime access/
     );
-    await expect(runBrowserRuntimeCLIJSON(runtime, ["daemon", "status"])).rejects.toThrow(
+    await expect(runBrowserRuntimeCLIJSON(runtime, ["status"])).rejects.toThrow(
       /requires launch-mode runtime paths/
     );
   });

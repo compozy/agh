@@ -240,7 +240,7 @@ func TestBaseHandlersWorkspaceFilteringAndDefaults(t *testing.T) {
 	}
 
 	fixture.Handlers.SetHTTPPort(4321)
-	recorder := performRequest(t, fixture.Engine, http.MethodGet, "/daemon/status", nil)
+	recorder := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("daemon status = %d, want %d", recorder.Code, http.StatusOK)
 	}
@@ -387,12 +387,12 @@ func TestHealthHandlerReturnsRetentionAndPersistencePayload(t *testing.T) {
 		nil,
 	)
 
-	resp := performRequest(t, fixture.Engine, http.MethodGet, "/observe/health", nil)
+	resp := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("health status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
 	}
 
-	var payload contract.HealthResponse
+	var payload contract.StatusPayload
 	decodeJSON(t, resp.Body.Bytes(), &payload)
 	if payload.Health.Persistence.Status != "degraded" ||
 		payload.Health.Persistence.GlobalDBSizeBytes != 4096 ||
@@ -444,7 +444,7 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 			nil,
 		)
 
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/observe/health", nil)
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
 		if resp.Code != http.StatusInternalServerError {
 			t.Fatalf(
 				"health status = %d, want %d; body=%s",
@@ -469,7 +469,7 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 			&stubDreamTrigger{EnabledFn: true, LastErr: errors.New("dream status failed")},
 		)
 
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/observe/health", nil)
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
 		if resp.Code != http.StatusOK {
 			t.Fatalf(
 				"health status = %d, want %d; body=%s",
@@ -478,7 +478,7 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 				resp.Body.String(),
 			)
 		}
-		var payload contract.HealthResponse
+		var payload contract.StatusPayload
 		testutil.DecodeJSONResponse(t, resp, &payload)
 		if payload.Memory.Status != "unavailable" || payload.Memory.Reason == "" {
 			t.Fatalf("health memory = %#v, want structured unavailable memory payload", payload.Memory)
@@ -504,7 +504,7 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 			nil,
 		)
 
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/observe/health", nil)
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
 		if resp.Code != http.StatusInternalServerError {
 			t.Fatalf(
 				"health status = %d, want %d; body=%s",
@@ -533,7 +533,7 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 			nil,
 		)
 
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/daemon/status", nil)
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
 		if resp.Code != http.StatusInternalServerError {
 			t.Fatalf(
 				"daemon status = %d, want %d; body=%s",
@@ -558,7 +558,7 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 			nil,
 		)
 
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/daemon/status", nil)
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
 		if resp.Code != http.StatusInternalServerError {
 			t.Fatalf(
 				"daemon status = %d, want %d; body=%s",
@@ -589,14 +589,19 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 		fixture.Handlers.Config.Network.Enabled = true
 		fixture.Handlers.Network = nil
 
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/daemon/status", nil)
-		if resp.Code != http.StatusInternalServerError {
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
+		if resp.Code != http.StatusOK {
 			t.Fatalf(
 				"daemon status = %d, want %d; body=%s",
 				resp.Code,
-				http.StatusInternalServerError,
+				http.StatusOK,
 				resp.Body.String(),
 			)
+		}
+		var payload contract.StatusPayload
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if payload.Daemon.Network == nil || payload.Daemon.Network.Status != "unavailable" {
+			t.Fatalf("daemon network = %#v, want unavailable status", payload.Daemon.Network)
 		}
 	})
 
@@ -624,14 +629,19 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 			},
 		}
 
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/daemon/status", nil)
-		if resp.Code != http.StatusInternalServerError {
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
+		if resp.Code != http.StatusOK {
 			t.Fatalf(
 				"daemon status = %d, want %d; body=%s",
 				resp.Code,
-				http.StatusInternalServerError,
+				http.StatusOK,
 				resp.Body.String(),
 			)
+		}
+		var payload contract.StatusPayload
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if payload.Daemon.Network == nil || payload.Daemon.Network.Status != "unavailable" {
+			t.Fatalf("daemon network = %#v, want unavailable status", payload.Daemon.Network)
 		}
 	})
 
@@ -659,14 +669,19 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 			},
 		}
 
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/daemon/status", nil)
-		if resp.Code != http.StatusInternalServerError {
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
+		if resp.Code != http.StatusOK {
 			t.Fatalf(
 				"daemon status = %d, want %d; body=%s",
 				resp.Code,
-				http.StatusInternalServerError,
+				http.StatusOK,
 				resp.Body.String(),
 			)
+		}
+		var payload contract.StatusPayload
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if payload.Daemon.Network == nil || payload.Daemon.Network.Status != "unavailable" {
+			t.Fatalf("daemon network = %#v, want unavailable status", payload.Daemon.Network)
 		}
 	})
 }

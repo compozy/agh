@@ -96,7 +96,7 @@ vi.mock("@/stores/sidebar-store", () => ({
   ) => selector({ collapsed: false, toggle: vi.fn(), setCollapsed: vi.fn() }),
 }));
 
-vi.mock("@/systems/daemon", () => ({
+vi.mock("@/systems/status", () => ({
   useDaemonHealth: () => ({
     health: { version: "0.1.0" },
     connectionStatus: "connected",

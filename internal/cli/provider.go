@@ -1,19 +1,17 @@
 package cli
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 	"time"
 
-	"github.com/kballard/go-shellquote"
+	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/diagnostics"
 	"github.com/pedronauck/agh/internal/providerauth"
+	authproviders "github.com/pedronauck/agh/internal/providers"
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	"github.com/pedronauck/agh/internal/vault"
 	"github.com/spf13/cobra"
@@ -25,37 +23,24 @@ const (
 	providerProviderValue = "Provider"
 	providerStateValue    = "State"
 	providerAuthKey       = "auth"
+	providerAuthModeKey   = cliAuthModeKey
+	providerAuthModeValue = "Auth Mode"
+	providerEnvPolicyKey  = "env_policy"
+	providerHomePolicyKey = "home_policy"
 	providerProviderKey   = "provider"
 	providerStateKey      = "state"
 	providerVaultKey      = "vault"
 )
 
 const (
-	defaultProviderAuthCommandTimeout = 30 * time.Second
-	providerAuthStateAuthenticated    = "authenticated"
-	providerAuthStateMissingRequired  = "missing_required"
-	providerAuthStateMissingCLI       = "missing_cli"
-	providerAuthStateNeedsLogin       = "needs_login"
-	providerAuthStateNativeCLI        = "native_cli"
-	statusStateNone                   = "none"
+	defaultProviderAuthCommandTimeout = authproviders.DefaultProviderAuthCommandTimeout
 )
 
-type providerAuthCommandRunner func(
-	context.Context,
-	providerAuthCommandSpec,
-) (providerAuthCommandResult, error)
+type providerAuthCommandRunner = authproviders.ProviderAuthCommandRunner
 
-type providerAuthCommandSpec struct {
-	Command string
-	Env     []string
-	Timeout time.Duration
-}
+type providerAuthCommandSpec = authproviders.ProviderAuthCommandSpec
 
-type providerAuthCommandResult struct {
-	ExitCode int    `json:"exit_code"`
-	Stdout   string `json:"stdout,omitempty"`
-	Stderr   string `json:"stderr,omitempty"`
-}
+type providerAuthCommandResult = authproviders.ProviderAuthCommandResult
 
 type providerAuthStatusRecord struct {
 	Provider      string                         `json:"provider"`
@@ -64,6 +49,7 @@ type providerAuthStatusRecord struct {
 	EnvPolicy     string                         `json:"env_policy"`
 	HomePolicy    string                         `json:"home_policy"`
 	State         string                         `json:"state"`
+	Code          string                         `json:"code,omitempty"`
 	Message       string                         `json:"message,omitempty"`
 	StatusCommand string                         `json:"status_command,omitempty"`
 	LoginCommand  string                         `json:"login_command,omitempty"`
@@ -87,7 +73,10 @@ type providerCredentialStatusItem struct {
 
 func (d commandDeps) withProviderAuthDefaults() commandDeps {
 	if d.runProviderAuthCommand == nil {
-		d.runProviderAuthCommand = defaultProviderAuthCommandRunner
+		d.runProviderAuthCommand = authproviders.DefaultProviderAuthCommandRunner
+	}
+	if d.runProviderAuthLoginCommand == nil {
+		d.runProviderAuthLoginCommand = authproviders.DefaultProviderAuthLoginRunner
 	}
 	return d
 }
@@ -98,6 +87,7 @@ func newProviderCommand(deps commandDeps) *cobra.Command {
 		Short: "Inspect and manage provider authentication",
 	}
 	cmd.AddCommand(newProviderAuthCommand(deps))
+	cmd.AddCommand(newProviderListCommand(deps))
 	cmd.AddCommand(newProviderModelsCommand(deps))
 	return cmd
 }
@@ -114,11 +104,23 @@ func newProviderAuthCommand(deps commandDeps) *cobra.Command {
 
 func newProviderAuthStatusCommand(deps commandDeps) *cobra.Command {
 	var noProbe bool
+	var remote bool
 	cmd := &cobra.Command{
 		Use:   "status <provider>",
 		Short: "Show provider authentication status",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if remote {
+				client, err := clientFromDeps(deps)
+				if err != nil {
+					return err
+				}
+				record, err := client.ProbeProviderAuth(cmd.Context(), args[0])
+				if err != nil {
+					return err
+				}
+				return writeCommandOutput(cmd, providerAuthProbeBundle(record))
+			}
 			runtime, err := providerAuthRuntime(deps)
 			if err != nil {
 				return err
@@ -131,85 +133,63 @@ func newProviderAuthStatusCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&noProbe, "no-probe", false, "Do not run the provider status command")
+	cmd.Flags().BoolVar(&remote, "remote", false, "Run the provider status probe through the daemon")
 	return cmd
 }
 
 func newProviderAuthLoginCommand(deps commandDeps) *cobra.Command {
 	var printCommand bool
+	var noTTY bool
+	var timeout time.Duration
+	options := func() providerAuthLoginOptions {
+		return providerAuthLoginOptions{printCommand: printCommand, noTTY: noTTY, timeout: timeout}
+	}
 	cmd := &cobra.Command{
 		Use:   "login <provider>",
-		Short: "Print the provider native login command for operator execution",
+		Short: "Run the provider native login command locally",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			runtime, err := providerAuthRuntime(deps)
-			if err != nil {
-				return err
-			}
-			providerName, provider, err := resolveProviderAuthTarget(&runtime.Config, args[0])
-			if err != nil {
-				return err
-			}
-			loginCommand := strings.TrimSpace(provider.AuthLoginCmd)
-			if loginCommand == "" {
-				return providerMissingAuthLoginCommandError(providerName, provider)
-			}
-			if provider.EffectiveAuthMode() != aghconfig.ProviderAuthModeNativeCLI {
-				return fmt.Errorf(
-					"cli: provider %q uses auth_mode %q; provider auth login only exposes native_cli login commands",
-					providerName,
-					provider.EffectiveAuthMode(),
-				)
-			}
-			var nativeCLI *providerNativeCLIStatusRecord
-			nativeCLI, err = providerNativeCLIStatusForCommand(
-				loginCommand,
-				providerauth.NativeCLISourceAuthLogin,
-				deps.lookPath,
-			)
-			if err != nil {
-				return err
-			}
-			if nativeCLI != nil && !nativeCLI.Present {
-				return fmt.Errorf(
-					"cli: provider %q native CLI %q was not found on PATH; install it before running %q",
-					providerName,
-					nativeCLI.Command,
-					loginCommand,
-				)
-			}
-			loginEnv, err := providerNativeCLILoginEnv(runtime.HomePaths, providerName, provider)
-			if err != nil {
-				return err
-			}
-			operatorCommand, err := providerOperatorLoginCommand(loginCommand, loginEnv)
-			if err != nil {
-				return err
-			}
-			if printCommand {
-				if err := rejectPrintCommandOutputFormat(cmd); err != nil {
-					return err
-				}
-				return writeRawCommandOutput(cmd, operatorCommand+"\n")
-			}
-			record := providerAuthStatusRecord{
-				Provider:      providerName,
-				DisplayName:   strings.TrimSpace(provider.DisplayName),
-				AuthMode:      string(provider.EffectiveAuthMode()),
-				EnvPolicy:     string(provider.EffectiveEnvPolicy()),
-				HomePolicy:    string(provider.EffectiveHomePolicy()),
-				State:         providerAuthStateNativeCLI,
-				Message:       providerNativeCLILoginCommandMessage(providerName, operatorCommand),
-				StatusCommand: strings.TrimSpace(provider.AuthStatusCmd),
-				LoginCommand:  loginCommand,
-				LoginEnv:      loginEnv,
-				NativeCLI:     nativeCLI,
-			}
-			return writeCommandOutput(cmd, providerAuthStatusBundle(record))
+			return runProviderAuthLoginCommand(cmd, deps, args[0], options())
 		},
 	}
 	cmd.Flags().
 		BoolVar(&printCommand, "print-command", false, "Print only the resolved provider login command")
+	cmd.Flags().BoolVar(&noTTY, "no-tty", false, "Disable TTY attachment for the login command")
+	cmd.Flags().DurationVar(&timeout, "timeout", 0, "Optional login command timeout")
 	return cmd
+}
+
+type providerAuthLoginOptions struct {
+	printCommand bool
+	noTTY        bool
+	timeout      time.Duration
+}
+
+func newProviderListCommand(deps commandDeps) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   extensionListKey,
+		Short: "List providers and declared auth state",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			record, err := client.ListProviders(cmd.Context())
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, providerListBundle(record))
+		},
+	}
+	return cmd
+}
+
+func providerLoginCommandEnv(loginEnv []string) []string {
+	if len(loginEnv) == 0 {
+		return os.Environ()
+	}
+	return append(os.Environ(), loginEnv...)
 }
 
 func providerAuthRuntime(deps commandDeps) (*runtimeContext, error) {
@@ -221,6 +201,128 @@ func providerAuthRuntime(deps commandDeps) (*runtimeContext, error) {
 		return nil, err
 	}
 	return runtime, nil
+}
+
+func runProviderAuthLoginCommand(
+	cmd *cobra.Command,
+	deps commandDeps,
+	providerRef string,
+	options providerAuthLoginOptions,
+) error {
+	runtime, err := providerAuthRuntime(deps)
+	if err != nil {
+		return err
+	}
+	target, err := providerAuthLoginTarget(runtime, deps, providerRef)
+	if err != nil {
+		return err
+	}
+	if options.printCommand {
+		if err := rejectPrintCommandOutputFormat(cmd); err != nil {
+			return err
+		}
+		return writeRawCommandOutput(cmd, target.OperatorCommand+"\n")
+	}
+	loginResult, err := deps.runProviderAuthLoginCommand(cmd.Context(), providerAuthCommandSpec{
+		Command: target.LoginCommand,
+		Env:     providerLoginCommandEnv(target.LoginEnv),
+		Timeout: options.timeout,
+		NoTTY:   options.noTTY,
+	})
+	if err != nil {
+		return err
+	}
+	record, err := buildProviderAuthStatus(cmd.Context(), deps, runtime, target.ProviderName, true)
+	if err != nil {
+		return err
+	}
+	applyProviderAuthLoginResult(&record, target.Provider, loginResult)
+	record.LoginCommand = firstNonEmptyString(record.LoginCommand, target.LoginCommand)
+	record.LoginEnv = target.LoginEnv
+	record.NativeCLI = target.NativeCLI
+	return writeCommandOutput(cmd, providerAuthStatusBundle(record))
+}
+
+type providerAuthLoginTargetRecord struct {
+	ProviderName    string
+	Provider        aghconfig.ProviderConfig
+	LoginCommand    string
+	LoginEnv        []string
+	NativeCLI       *providerNativeCLIStatusRecord
+	OperatorCommand string
+}
+
+func providerAuthLoginTarget(
+	runtime *runtimeContext,
+	deps commandDeps,
+	providerRef string,
+) (providerAuthLoginTargetRecord, error) {
+	providerName, provider, err := resolveProviderAuthTarget(&runtime.Config, providerRef)
+	if err != nil {
+		return providerAuthLoginTargetRecord{}, err
+	}
+	loginCommand := strings.TrimSpace(provider.AuthLoginCmd)
+	if loginCommand == "" {
+		return providerAuthLoginTargetRecord{}, providerMissingAuthLoginCommandError(providerName, provider)
+	}
+	if provider.EffectiveAuthMode() != aghconfig.ProviderAuthModeNativeCLI {
+		return providerAuthLoginTargetRecord{}, fmt.Errorf(
+			"cli: provider %q uses auth_mode %q; provider auth login only exposes native_cli login commands",
+			providerName,
+			provider.EffectiveAuthMode(),
+		)
+	}
+	nativeCLI, err := providerNativeCLIStatusForCommand(
+		loginCommand,
+		providerauth.NativeCLISourceAuthLogin,
+		deps.lookPath,
+	)
+	if err != nil {
+		return providerAuthLoginTargetRecord{}, err
+	}
+	if nativeCLI != nil && !nativeCLI.Present {
+		return providerAuthLoginTargetRecord{}, fmt.Errorf(
+			"cli: provider %q native CLI %q was not found on PATH; install it before running %q",
+			providerName,
+			nativeCLI.Command,
+			loginCommand,
+		)
+	}
+	loginEnv, err := providerNativeCLILoginEnv(runtime.HomePaths, providerName, provider)
+	if err != nil {
+		return providerAuthLoginTargetRecord{}, err
+	}
+	operatorCommand, err := providerOperatorLoginCommand(loginCommand, loginEnv)
+	if err != nil {
+		return providerAuthLoginTargetRecord{}, err
+	}
+	return providerAuthLoginTargetRecord{
+		ProviderName:    providerName,
+		Provider:        provider,
+		LoginCommand:    loginCommand,
+		LoginEnv:        loginEnv,
+		NativeCLI:       nativeCLI,
+		OperatorCommand: operatorCommand,
+	}, nil
+}
+
+func applyProviderAuthLoginResult(
+	record *providerAuthStatusRecord,
+	provider aghconfig.ProviderConfig,
+	loginResult providerAuthCommandResult,
+) {
+	if record == nil || loginResult.ExitCode == 0 {
+		return
+	}
+	classification := authproviders.ClassifyProbeResult(provider, authproviders.ProbeOutcome{
+		ExitCode: loginResult.ExitCode,
+		Stdout:   loginResult.Stdout,
+		Stderr:   loginResult.Stderr,
+	}, nil)
+	record.State = string(classification.State)
+	record.Code = classification.Code
+	record.Message = classification.Message
+	record.Probe = &loginResult
 }
 
 func buildProviderAuthStatus(
@@ -237,7 +339,15 @@ func buildProviderAuthStatus(
 	if err != nil {
 		return providerAuthStatusRecord{}, err
 	}
-	credentials, err := providerCredentialStatuses(ctx, runtime.HomePaths, provider, deps.getenv)
+	probeEnv, err := providerAuthProbeEnv(runtime.HomePaths, providerName, provider, deps)
+	if err != nil {
+		return providerAuthStatusRecord{}, err
+	}
+	credentials, err := providerCredentialStatuses(ctx, provider, &probeEnv)
+	if err != nil {
+		return providerAuthStatusRecord{}, err
+	}
+	classification, err := authproviders.ClassifyDeclared(ctx, provider, &probeEnv)
 	if err != nil {
 		return providerAuthStatusRecord{}, err
 	}
@@ -247,53 +357,82 @@ func buildProviderAuthStatus(
 		AuthMode:      string(provider.EffectiveAuthMode()),
 		EnvPolicy:     string(provider.EffectiveEnvPolicy()),
 		HomePolicy:    string(provider.EffectiveHomePolicy()),
+		State:         string(classification.State),
+		Code:          classification.Code,
+		Message:       classification.Message,
 		StatusCommand: strings.TrimSpace(provider.AuthStatusCmd),
 		LoginCommand:  strings.TrimSpace(provider.AuthLoginCmd),
 		Credentials:   credentials,
 	}
-	record.State, record.Message = providerAuthState(provider, credentials)
-	if provider.EffectiveAuthMode() == aghconfig.ProviderAuthModeNativeCLI {
-		nativeCLI, err := providerNativeCLIStatus(provider, deps.lookPath)
-		if err != nil {
-			return providerAuthStatusRecord{}, err
-		}
-		record.NativeCLI = nativeCLI
-		if nativeCLI != nil && nativeCLI.Command != "" {
-			if !nativeCLI.Present {
-				record.State = providerAuthStateMissingCLI
-				record.Message = providerNativeCLIMissingMessage(providerName, provider, nativeCLI)
-				return record, nil
-			}
-			record.State = providerAuthStateNativeCLI
-			record.Message = providerNativeCLIReadyMessage(providerName, provider, nativeCLI)
-		}
+	nativeReady, err := populateProviderNativeCLIStatus(&record, providerName, provider, deps, &probeEnv)
+	if err != nil || !nativeReady {
+		return record, err
 	}
 	if !probe || strings.TrimSpace(provider.AuthStatusCmd) == "" {
 		return record, nil
 	}
-	env, err := providerAuthCommandEnv(runtime.HomePaths, providerName, provider)
-	if err != nil {
+	if err := populateProviderAuthProbe(ctx, &record, provider, deps, &probeEnv); err != nil {
 		return providerAuthStatusRecord{}, err
 	}
+	return record, nil
+}
+
+func populateProviderNativeCLIStatus(
+	record *providerAuthStatusRecord,
+	providerName string,
+	provider aghconfig.ProviderConfig,
+	deps commandDeps,
+	probeEnv *authproviders.ProbeEnv,
+) (bool, error) {
+	if provider.EffectiveAuthMode() != aghconfig.ProviderAuthModeNativeCLI {
+		return true, nil
+	}
+	nativeCLI, err := providerNativeCLIStatus(provider, deps.lookPath)
+	if err != nil {
+		return false, err
+	}
+	record.NativeCLI = nativeCLI
+	if nativeCLI == nil || nativeCLI.Command == "" || nativeCLI.Present {
+		return true, nil
+	}
+	missing := authproviders.ClassifyProbeResult(provider, authproviders.ProbeOutcome{
+		ExitCode: -1,
+		Stderr:   providerNativeCLIMissingMessage(providerName, provider, nativeCLI),
+	}, probeEnv)
+	record.State = string(missing.State)
+	record.Code = missing.Code
+	record.Message = missing.Message
+	return false, nil
+}
+
+func populateProviderAuthProbe(
+	ctx context.Context,
+	record *providerAuthStatusRecord,
+	provider aghconfig.ProviderConfig,
+	deps commandDeps,
+	probeEnv *authproviders.ProbeEnv,
+) error {
 	result, err := deps.runProviderAuthCommand(ctx, providerAuthCommandSpec{
 		Command: strings.TrimSpace(provider.AuthStatusCmd),
-		Env:     env,
+		Env:     probeEnv.CommandEnv,
 		Timeout: defaultProviderAuthCommandTimeout,
+		NoTTY:   true,
 	})
 	if err != nil {
-		return providerAuthStatusRecord{}, err
+		return err
 	}
 	record.Probe = &result
 	if provider.EffectiveAuthMode() == aghconfig.ProviderAuthModeNativeCLI {
-		if result.ExitCode == 0 {
-			record.State = providerAuthStateAuthenticated
-			record.Message = "Provider status command completed successfully."
-		} else {
-			record.State = providerAuthStateNeedsLogin
-			record.Message = providerNativeCLIAuthProblemMessage(provider)
-		}
+		classification := authproviders.ClassifyProbeResult(provider, authproviders.ProbeOutcome{
+			ExitCode: result.ExitCode,
+			Stdout:   result.Stdout,
+			Stderr:   result.Stderr,
+		}, probeEnv)
+		record.State = string(classification.State)
+		record.Code = classification.Code
+		record.Message = classification.Message
 	}
-	return record, nil
+	return nil
 }
 
 func resolveProviderAuthTarget(
@@ -350,25 +489,6 @@ func providerNativeCLIMissingMessage(
 	return providerauth.NativeCLIMissingMessage(providerName, provider, nativeCLI)
 }
 
-func providerNativeCLIReadyMessage(
-	providerName string,
-	provider aghconfig.ProviderConfig,
-	nativeCLI *providerNativeCLIStatusRecord,
-) string {
-	return providerauth.NativeCLIReadyMessage(providerName, provider, nativeCLI)
-}
-
-func providerNativeCLIAuthProblemMessage(provider aghconfig.ProviderConfig) string {
-	return providerauth.NativeCLIAuthProblemMessage(provider)
-}
-
-func providerNativeCLILoginCommandMessage(
-	providerName string,
-	operatorCommand string,
-) string {
-	return providerauth.NativeCLILoginCommandMessage(providerName, operatorCommand)
-}
-
 func rejectPrintCommandOutputFormat(cmd *cobra.Command) error {
 	outputFlag := cmd.Flag(outputFlagName)
 	if outputFlag != nil && outputFlag.Changed {
@@ -393,191 +513,109 @@ func providerOperatorLoginCommand(command string, loginEnv []string) (string, er
 	return providerauth.OperatorLoginCommand(command, loginEnv)
 }
 
-func providerAuthState(
-	provider aghconfig.ProviderConfig,
-	credentials []providerCredentialStatusItem,
-) (string, string) {
-	switch provider.EffectiveAuthMode() {
-	case aghconfig.ProviderAuthModeBoundSecret:
-		for _, credential := range credentials {
-			if credential.Required && !credential.Present {
-				return providerAuthStateMissingRequired, "Missing required AGH-managed provider credential."
-			}
-		}
-		return providerAuthStatePresent, "Required AGH-managed provider credentials are present."
-	case aghconfig.ProviderAuthModeNone:
-		return statusStateNone, "Provider starts without AGH-managed authentication."
-	default:
-		return providerAuthStateNativeCLI, "Provider owns authentication through its native CLI login state."
-	}
-}
-
 func providerCredentialStatuses(
 	ctx context.Context,
-	homePaths aghconfig.HomePaths,
 	provider aghconfig.ProviderConfig,
-	getenv func(string) string,
+	env *authproviders.ProbeEnv,
 ) ([]providerCredentialStatusItem, error) {
-	slots := provider.EffectiveCredentialSlots()
-	if len(slots) == 0 {
+	statuses, err := authproviders.CredentialStatuses(ctx, provider, env)
+	if err != nil {
+		return nil, err
+	}
+	if len(statuses) == 0 {
 		return nil, nil
 	}
-	statuses := make([]providerCredentialStatusItem, 0, len(slots))
-	for _, slot := range slots {
-		status, err := providerCredentialStatus(ctx, homePaths, slot, getenv)
-		if err != nil {
-			return nil, err
-		}
-		statuses = append(statuses, status)
+	items := make([]providerCredentialStatusItem, 0, len(statuses))
+	for _, status := range statuses {
+		items = append(items, providerCredentialStatusItem{
+			Name:      status.Name,
+			TargetEnv: status.TargetEnv,
+			SecretRef: status.SecretRef,
+			Kind:      status.Kind,
+			Required:  status.Required,
+			Present:   status.Present,
+			Source:    status.Source,
+		})
 	}
-	return statuses, nil
+	return items, nil
 }
 
-func providerCredentialStatus(
-	ctx context.Context,
-	homePaths aghconfig.HomePaths,
-	slot aghconfig.ProviderCredentialSlot,
-	getenv func(string) string,
-) (providerCredentialStatusItem, error) {
-	secretRef := vault.NormalizeRef(slot.SecretRef)
-	status := providerCredentialStatusItem{
-		Name:      strings.TrimSpace(slot.Name),
-		TargetEnv: strings.TrimSpace(slot.TargetEnv),
-		SecretRef: secretRef,
-		Kind:      strings.TrimSpace(slot.Kind),
-		Required:  slot.Required,
-	}
-	switch {
-	case vault.IsEnvRef(secretRef):
-		status.Source = configEnvKey
-		envName, err := vault.EnvNameFromRef(secretRef)
-		if err != nil {
-			return providerCredentialStatusItem{}, err
-		}
-		status.Present = strings.TrimSpace(getenv(envName)) != ""
-		return status, nil
-	case vault.IsSecretRef(secretRef):
-		status.Source = providerVaultKey
-		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
-		if err != nil {
-			return providerCredentialStatusItem{}, fmt.Errorf("cli: open global DB for provider auth status: %w", err)
-		}
-		lookupEnv := func(key string) (string, bool) {
-			value := getenv(key)
-			return value, strings.TrimSpace(value) != ""
-		}
-		service, err := vault.NewService(
-			db,
-			vault.NewFileKeyProvider(homePaths.HomeDir, lookupEnv),
-			vault.WithLookupEnv(lookupEnv),
-		)
-		if err != nil {
-			closeErr := db.Close(ctx)
-			if closeErr != nil {
-				return providerCredentialStatusItem{}, fmt.Errorf(
-					"cli: initialize provider auth vault status: %w; close global DB: %v",
-					err,
-					closeErr,
-				)
-			}
-			return providerCredentialStatusItem{}, fmt.Errorf("cli: initialize provider auth vault status: %w", err)
-		}
-		metadata, err := service.GetMetadata(ctx, secretRef)
-		closeErr := db.Close(ctx)
-		if err != nil {
-			if errors.Is(err, vault.ErrSecretNotFound) {
-				if closeErr != nil {
-					return providerCredentialStatusItem{}, fmt.Errorf(
-						"cli: close provider auth vault status DB: %w",
-						closeErr,
-					)
-				}
-				return status, nil
-			}
-			if closeErr != nil {
-				return providerCredentialStatusItem{}, fmt.Errorf(
-					"cli: read provider credential metadata: %w; close global DB: %v",
-					err,
-					closeErr,
-				)
-			}
-			return providerCredentialStatusItem{}, fmt.Errorf("cli: read provider credential metadata: %w", err)
-		}
-		if closeErr != nil {
-			return providerCredentialStatusItem{}, fmt.Errorf("cli: close provider auth vault status DB: %w", closeErr)
-		}
-		status.Present = metadata.Present
-		return status, nil
-	default:
-		status.Source = "unsupported"
-		return status, nil
-	}
-}
-
-func providerAuthCommandEnv(
+func providerAuthProbeEnv(
 	homePaths aghconfig.HomePaths,
 	providerName string,
 	provider aghconfig.ProviderConfig,
-) ([]string, error) {
-	return providerauth.CommandEnv(homePaths, providerName, provider, os.Environ())
-}
-
-func defaultProviderAuthCommandRunner(
-	ctx context.Context,
-	spec providerAuthCommandSpec,
-) (providerAuthCommandResult, error) {
-	command := strings.TrimSpace(spec.Command)
-	if command == "" {
-		return providerAuthCommandResult{}, errors.New("cli: provider auth command is required")
-	}
-	argv, err := shellquote.Split(command)
+	deps commandDeps,
+) (authproviders.ProbeEnv, error) {
+	commandEnv, err := providerauth.CommandEnv(homePaths, providerName, provider, os.Environ())
 	if err != nil {
-		return providerAuthCommandResult{}, fmt.Errorf("cli: parse provider auth command: %w", err)
+		return authproviders.ProbeEnv{}, err
 	}
-	if len(argv) == 0 {
-		return providerAuthCommandResult{}, errors.New("cli: provider auth command is empty")
-	}
-	timeout := spec.Timeout
-	if timeout <= 0 {
-		timeout = defaultProviderAuthCommandTimeout
-	}
-	commandCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	// #nosec G204 -- Provider auth commands are operator-configured commands intentionally
-	// executed by this CLI verb after shell-style parsing.
-	execCmd := exec.CommandContext(commandCtx, argv[0], argv[1:]...)
-	execCmd.Env = append([]string(nil), spec.Env...)
-	var stdout bytes.Buffer
-	var stderr bytes.Buffer
-	execCmd.Stdout = &stdout
-	execCmd.Stderr = &stderr
-	err = execCmd.Run()
-	result := providerAuthCommandResult{
-		ExitCode: exitCodeFromError(err),
-		Stdout:   diagnostics.RedactAndBound(stdout.String(), 4096),
-		Stderr:   diagnostics.RedactAndBound(stderr.String(), 4096),
-	}
-	if commandCtx.Err() != nil {
-		return result, commandCtx.Err()
-	}
-	if err == nil {
-		return result, nil
-	}
-	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok && exitErr != nil {
-		return result, nil
-	}
-	return result, fmt.Errorf("cli: run provider auth command: %w", err)
+	return authproviders.ProbeEnv{
+		ProviderName: providerName,
+		HomePaths:    homePaths,
+		LookPath:     deps.lookPath,
+		LookupEnv: func(key string) (string, bool) {
+			value := deps.getenv(key)
+			return value, strings.TrimSpace(value) != ""
+		},
+		Vault:      cliProviderVaultMetadataResolver{homePaths: homePaths, getenv: deps.getenv},
+		CommandEnv: commandEnv,
+		RunCommand: deps.runProviderAuthCommand,
+	}, nil
 }
 
-func exitCodeFromError(err error) int {
-	if err == nil {
-		return 0
+type cliProviderVaultMetadataResolver struct {
+	homePaths aghconfig.HomePaths
+	getenv    func(string) string
+}
+
+func (r cliProviderVaultMetadataResolver) GetMetadata(ctx context.Context, ref string) (vault.Metadata, error) {
+	db, err := globaldb.OpenGlobalDB(ctx, r.homePaths.DatabaseFile)
+	if err != nil {
+		return vault.Metadata{}, fmt.Errorf("cli: open global DB for provider auth status: %w", err)
 	}
-	if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
-		return exitErr.ExitCode()
+	lookupEnv := func(key string) (string, bool) {
+		value := r.getenv(key)
+		return value, strings.TrimSpace(value) != ""
 	}
-	return -1
+	service, err := vault.NewService(
+		db,
+		vault.NewFileKeyProvider(r.homePaths.HomeDir, lookupEnv),
+		vault.WithLookupEnv(lookupEnv),
+	)
+	if err != nil {
+		closeErr := db.Close(ctx)
+		if closeErr != nil {
+			return vault.Metadata{}, fmt.Errorf(
+				"cli: initialize provider auth vault status: %w; close global DB: %v",
+				err,
+				closeErr,
+			)
+		}
+		return vault.Metadata{}, fmt.Errorf("cli: initialize provider auth vault status: %w", err)
+	}
+	metadata, err := service.GetMetadata(ctx, ref)
+	closeErr := db.Close(ctx)
+	if err != nil {
+		if errors.Is(err, vault.ErrSecretNotFound) {
+			if closeErr != nil {
+				return vault.Metadata{}, fmt.Errorf("cli: close provider auth vault status DB: %w", closeErr)
+			}
+			return vault.Metadata{}, err
+		}
+		if closeErr != nil {
+			return vault.Metadata{}, fmt.Errorf(
+				"cli: read provider credential metadata: %w; close global DB: %v",
+				err,
+				closeErr,
+			)
+		}
+		return vault.Metadata{}, fmt.Errorf("cli: read provider credential metadata: %w", err)
+	}
+	if closeErr != nil {
+		return vault.Metadata{}, fmt.Errorf("cli: close provider auth vault status DB: %w", closeErr)
+	}
+	return metadata, nil
 }
 
 func providerAuthStatusBundle(record providerAuthStatusRecord) outputBundle {
@@ -603,8 +641,75 @@ func providerAuthStatusBundle(record providerAuthStatusRecord) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject(
 				"provider_auth",
-				[]string{providerProviderKey, "auth_mode", "env_policy", "home_policy", providerStateKey},
+				[]string{
+					providerProviderKey,
+					providerAuthModeKey,
+					providerEnvPolicyKey,
+					providerHomePolicyKey,
+					providerStateKey,
+				},
 				[]string{record.Provider, record.AuthMode, record.EnvPolicy, record.HomePolicy, record.State},
+			), nil
+		},
+	}
+}
+
+func providerAuthProbeBundle(record contract.ProviderAuthProbeResponse) outputBundle {
+	return outputBundle{
+		jsonValue: record,
+		human: func() (string, error) {
+			rows := []keyValue{
+				{Label: providerProviderValue, Value: stringOrDash(record.Provider)},
+				{Label: providerAuthModeValue, Value: stringOrDash(record.AuthStatus.Mode)},
+				{Label: "Env Policy", Value: stringOrDash(record.AuthStatus.EnvPolicy)},
+				{Label: "Home Policy", Value: stringOrDash(record.AuthStatus.HomePolicy)},
+				{Label: providerStateValue, Value: stringOrDash(record.AuthStatus.State)},
+				{Label: cliCodeValue, Value: stringOrDash(record.AuthStatus.Code)},
+				{Label: providerMessageValue, Value: stringOrDash(record.AuthStatus.Message)},
+			}
+			if record.Probe != nil {
+				rows = append(rows,
+					keyValue{Label: "Probe Exit Code", Value: fmt.Sprintf("%d", record.Probe.ExitCode)},
+					keyValue{Label: "Probe Stdout", Value: stringOrDash(strings.TrimSpace(record.Probe.Stdout))},
+					keyValue{Label: "Probe Stderr", Value: stringOrDash(strings.TrimSpace(record.Probe.Stderr))},
+				)
+			}
+			return renderHumanSection("Provider Auth", rows), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject(
+				"provider_auth",
+				[]string{providerProviderKey, providerAuthModeKey, providerStateKey},
+				[]string{record.Provider, record.AuthStatus.Mode, record.AuthStatus.State},
+			), nil
+		},
+	}
+}
+
+func providerListBundle(record contract.ProviderListResponse) outputBundle {
+	return outputBundle{
+		jsonValue: record,
+		human: func() (string, error) {
+			rows := make([][]string, 0, len(record.Providers))
+			for _, provider := range record.Providers {
+				rows = append(rows, []string{
+					stringOrDash(provider.Name),
+					stringOrDash(provider.DisplayName),
+					stringOrDash(provider.AuthStatus.State),
+					stringOrDash(provider.AuthStatus.Mode),
+				})
+			}
+			return renderHumanTable(
+				"Providers",
+				[]string{providerNameValue, "Display Name", providerStateValue, providerAuthModeValue},
+				rows,
+			), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject(
+				"providers",
+				[]string{"count"},
+				[]string{fmt.Sprintf("%d", len(record.Providers))},
 			), nil
 		},
 	}
@@ -614,10 +719,11 @@ func providerAuthStatusRows(record providerAuthStatusRecord) []keyValue {
 	rows := []keyValue{
 		{Label: providerProviderValue, Value: stringOrDash(record.Provider)},
 		{Label: "Display Name", Value: stringOrDash(record.DisplayName)},
-		{Label: "Auth Mode", Value: stringOrDash(record.AuthMode)},
+		{Label: providerAuthModeValue, Value: stringOrDash(record.AuthMode)},
 		{Label: "Env Policy", Value: stringOrDash(record.EnvPolicy)},
 		{Label: "Home Policy", Value: stringOrDash(record.HomePolicy)},
 		{Label: providerStateValue, Value: stringOrDash(record.State)},
+		{Label: cliCodeValue, Value: stringOrDash(record.Code)},
 		{Label: providerMessageValue, Value: stringOrDash(record.Message)},
 		{Label: "Status Command", Value: stringOrDash(record.StatusCommand)},
 		{Label: "Login Command", Value: stringOrDash(record.LoginCommand)},

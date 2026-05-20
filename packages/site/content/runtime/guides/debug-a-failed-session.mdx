@@ -15,13 +15,13 @@ runtime health, then narrows to one session and its durable event trail.
 ## 1. Confirm the daemon is reachable
 
 ```bash
-agh daemon status
+agh status
 ```
 
 For machine-readable output:
 
 ```bash
-agh daemon status -o json
+agh status -o json
 ```
 
 What happened: AGH checked the background daemon through the local runtime control path. If this
@@ -36,7 +36,7 @@ Useful follow-up pages:
 ## 2. Check global runtime health
 
 ```bash
-agh observe health -o json
+agh doctor -o json
 ```
 
 Look for unhealthy subsystems before focusing on the agent process. Memory indexing, event storage,
@@ -110,7 +110,7 @@ classify the resume failure and fall back according to the implemented session r
 | -------------------------------- | ---------------------------------------------- | ------------------------------------------------------- |
 | `agh session prompt` hangs       | `agh session events --follow`                  | [Event Streaming](/runtime/core/sessions/events)        |
 | Session is stopped unexpectedly  | `agh session status -o json`                   | [Session Lifecycle](/runtime/core/sessions/lifecycle)   |
-| Web UI is stale                  | `agh daemon status` and `agh observe health`   | [Web UI](/runtime/core/getting-started/web-ui)          |
+| Web UI is stale                  | `agh status` and `agh doctor`                  | [Web UI](/runtime/core/getting-started/web-ui)          |
 | Resume fails                     | `agh session history` and `agh session repair` | [Resume and Replay](/runtime/core/sessions/resume)      |
 | Agent cannot see project context | `agh workspace info <name>`                    | [Workspace Resolver](/runtime/core/workspaces/resolver) |
 | Memory is missing                | `agh memory health -o json`                    | [Memory System](/runtime/core/memory/system)            |
@@ -120,8 +120,8 @@ classify the resume failure and fall back according to the implemented session r
 Collect output from:
 
 ```bash
-agh daemon status -o json
-agh observe health -o json
+agh status -o json
+agh doctor -o json
 agh session status sess_1234 -o json
 agh session events sess_1234
 agh session history sess_1234

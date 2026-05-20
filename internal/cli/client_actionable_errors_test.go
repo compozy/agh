@@ -55,7 +55,7 @@ func TestUnixSocketClientActionableDaemonErrors(t *testing.T) {
 				Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
 					return nil, &url.Error{
 						Op:  "Get",
-						URL: baseURL + "/api/daemon/status",
+						URL: baseURL + "/api/status",
 						Err: syscall.ECONNREFUSED,
 					}
 				}),

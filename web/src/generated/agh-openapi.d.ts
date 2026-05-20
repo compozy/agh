@@ -888,15 +888,15 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/daemon/status": {
+  "/api/doctor": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** Get the daemon status snapshot */
-    get: operations["getDaemonStatus"];
+    /** Run runtime diagnostics */
+    get: operations["getDoctor"];
     put?: never;
     post?: never;
     delete?: never;
@@ -1572,6 +1572,108 @@ export interface paths {
     patch: operations["editMemory"];
     trace?: never;
   };
+  "/api/model-catalog/models": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List provider model catalog entries across providers */
+    get: operations["listProviderModels"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/model-catalog/models/refresh": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Refresh provider model catalog sources across providers */
+    post: operations["refreshProviderModels"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/model-catalog/providers/{provider_id}/models": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List provider model catalog entries for one provider */
+    get: operations["listProviderModelsByProvider"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/model-catalog/providers/{provider_id}/models/refresh": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Refresh provider model catalog sources for one provider */
+    post: operations["refreshProviderModelsByProvider"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/model-catalog/providers/{provider_id}/models/status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List provider model catalog source status for one provider */
+    get: operations["getProviderModelStatusByProvider"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/model-catalog/sources/status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List provider model catalog source status across providers */
+    get: operations["getProviderModelStatus"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/network/status": {
     parameters: {
       query?: never;
@@ -1581,23 +1683,6 @@ export interface paths {
     };
     /** Get the network runtime status snapshot */
     get: operations["getNetworkStatus"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/observe/health": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Get daemon health and memory health */
-    get: operations["getObserveHealth"];
     put?: never;
     post?: never;
     delete?: never;
@@ -1657,15 +1742,15 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/providers/models": {
+  "/api/providers": {
     parameters: {
       query?: never;
       header?: never;
       path?: never;
       cookie?: never;
     };
-    /** List provider model catalog entries across providers */
-    get: operations["listProviderModels"];
+    /** List providers and declared auth status */
+    get: operations["listProviders"];
     put?: never;
     post?: never;
     delete?: never;
@@ -1674,7 +1759,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/providers/models/refresh": {
+  "/api/providers/{provider_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one provider and declared auth status */
+    get: operations["getProvider"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/providers/{provider_id}/auth/probe": {
     parameters: {
       query?: never;
       header?: never;
@@ -1683,76 +1785,8 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Refresh provider model catalog sources across providers */
-    post: operations["refreshProviderModels"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/providers/models/status": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List provider model catalog source status across providers */
-    get: operations["getProviderModelStatus"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/providers/{provider_id}/models": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List provider model catalog entries for one provider */
-    get: operations["listProviderModelsByProvider"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/providers/{provider_id}/models/refresh": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Refresh provider model catalog sources for one provider */
-    post: operations["refreshProviderModelsByProvider"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/providers/{provider_id}/models/status": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List provider model catalog source status for one provider */
-    get: operations["getProviderModelStatusByProvider"];
-    put?: never;
-    post?: never;
+    /** Run a non-interactive provider auth status probe */
+    post: operations["probeProviderAuth"];
     delete?: never;
     options?: never;
     head?: never;
@@ -2330,6 +2364,23 @@ export interface paths {
     put?: never;
     /** Enable one skill */
     post: operations["enableSkill"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get the runtime status snapshot */
+    get: operations["getStatus"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -18798,9 +18849,16 @@ export interface operations {
       };
     };
   };
-  getDaemonStatus: {
+  getDoctor: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Comma-separated probe ids or categories to include */
+        only?: string;
+        /** @description Comma-separated probe ids or categories to exclude */
+        exclude?: string;
+        /** @description Omit OK diagnostics */
+        quiet?: boolean;
+      };
       header?: never;
       path?: never;
       cookie?: never;
@@ -18814,79 +18872,31 @@ export interface operations {
         };
         content: {
           "application/json": {
-            daemon: {
-              active_sessions: number;
-              http_host: string;
-              http_port: number;
-              network?: {
-                channels?: number;
-                configured_default_channel?: string;
-                /** Format: int64 */
-                conversation_messages?: number;
-                declared_channels?: {
-                  activation_id?: string;
-                  bundle_name?: string;
-                  description?: string;
-                  extension_name?: string;
-                  name: string;
-                  primary?: boolean;
-                  profile_name?: string;
-                  workspace_id?: string;
-                }[];
-                delivery_workers?: number;
-                /** Format: int64 */
-                direct_resolves?: number;
-                effective_default_channel?: string;
-                effective_default_source?: string;
-                enabled: boolean;
-                /** Format: int64 */
-                handoff_tagged_events?: number;
-                kind_metrics?: {
-                  /** Format: int64 */
-                  delivered?: number;
-                  kind: string;
-                  /** Format: int64 */
-                  received?: number;
-                  /** Format: int64 */
-                  rejected?: number;
-                  /** Format: int64 */
-                  sent?: number;
-                }[];
-                last_disconnect?: string;
-                listener_host?: string;
-                listener_port?: number;
-                local_peers?: number;
-                /** Format: int64 */
-                messages_delivered?: number;
-                /** Format: int64 */
-                messages_received?: number;
-                /** Format: int64 */
-                messages_rejected?: number;
-                /** Format: int64 */
-                messages_sent?: number;
-                /** Format: int64 */
-                open_direct_rooms?: number;
-                /** Format: int64 */
-                open_threads?: number;
-                /** Format: int64 */
-                open_work_items?: number;
-                queued_messages?: number;
-                queued_sessions?: number;
-                remote_peers?: number;
-                status: string;
-                /** Format: int64 */
-                work_transitions?: number;
-                /** Format: int64 */
-                workflow_tagged_events?: number;
-              } | null;
-              pid: number;
-              socket: string;
-              /** Format: date-time */
-              started_at: string;
-              status: string;
-              total_sessions: number;
-              user_home_dir: string;
-              version?: string;
+            /** Format: int64 */
+            duration_ms: number;
+            /** Format: date-time */
+            generated_at: string;
+            items: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            }[];
+            schema_version: string;
+            status: string;
+            summary: {
+              counts_by_severity: {
+                [key: string]: number;
+              };
+              total: number;
             };
           };
         };
@@ -23723,6 +23733,931 @@ export interface operations {
       };
     };
   };
+  listProviderModels: {
+    parameters: {
+      query?: {
+        /** @description Filter by AGH provider id */
+        provider_id?: string;
+        /** @description Filter by catalog source id */
+        source_id?: string;
+        /** @description Refresh sources before listing models */
+        refresh?: boolean;
+        /** @description Include stale source rows in the merged projection */
+        include_stale?: boolean;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            models: {
+              availability_state: string;
+              available: boolean | null;
+              /** Format: int64 */
+              context_window?: number | null;
+              cost?: {
+                /** Format: double */
+                input_per_million?: number | null;
+                /** Format: double */
+                output_per_million?: number | null;
+              } | null;
+              default_reasoning_effort?: string | null;
+              display_name?: string;
+              last_error?: string;
+              /** Format: int64 */
+              max_input_tokens?: number | null;
+              /** Format: int64 */
+              max_output_tokens?: number | null;
+              model_id: string;
+              provider_id: string;
+              reasoning_efforts?: string[];
+              refreshed_at?: string;
+              sources: {
+                last_error?: string;
+                priority: number;
+                refreshed_at?: string;
+                source_id: string;
+                source_kind: string;
+                stale: boolean;
+              }[];
+              stale: boolean;
+              supports_reasoning?: boolean | null;
+              supports_tools?: boolean | null;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid model catalog filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Model catalog unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  refreshProviderModels: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody?: {
+      content: {
+        "application/json": {
+          force?: boolean;
+          request_id?: string;
+          source_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error?: string;
+            sources: {
+              last_error?: string;
+              last_refresh?: string;
+              last_success?: string;
+              next_refresh?: string;
+              priority: number;
+              provider_id: string;
+              refresh_state: string;
+              row_count: number;
+              source_id: string;
+              source_kind: string;
+              stale: boolean;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid model catalog refresh request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Model catalog refresh unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error?: string;
+            sources: {
+              last_error?: string;
+              last_refresh?: string;
+              last_success?: string;
+              next_refresh?: string;
+              priority: number;
+              provider_id: string;
+              refresh_state: string;
+              row_count: number;
+              source_id: string;
+              source_kind: string;
+              stale: boolean;
+            }[];
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listProviderModelsByProvider: {
+    parameters: {
+      query?: {
+        /** @description Filter by catalog source id */
+        source_id?: string;
+        /** @description Refresh sources before listing models */
+        refresh?: boolean;
+        /** @description Include stale source rows in the merged projection */
+        include_stale?: boolean;
+      };
+      header?: never;
+      path: {
+        /** @description AGH provider id */
+        provider_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            models: {
+              availability_state: string;
+              available: boolean | null;
+              /** Format: int64 */
+              context_window?: number | null;
+              cost?: {
+                /** Format: double */
+                input_per_million?: number | null;
+                /** Format: double */
+                output_per_million?: number | null;
+              } | null;
+              default_reasoning_effort?: string | null;
+              display_name?: string;
+              last_error?: string;
+              /** Format: int64 */
+              max_input_tokens?: number | null;
+              /** Format: int64 */
+              max_output_tokens?: number | null;
+              model_id: string;
+              provider_id: string;
+              reasoning_efforts?: string[];
+              refreshed_at?: string;
+              sources: {
+                last_error?: string;
+                priority: number;
+                refreshed_at?: string;
+                source_id: string;
+                source_kind: string;
+                stale: boolean;
+              }[];
+              stale: boolean;
+              supports_reasoning?: boolean | null;
+              supports_tools?: boolean | null;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid model catalog filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Model catalog unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  refreshProviderModelsByProvider: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description AGH provider id */
+        provider_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody?: {
+      content: {
+        "application/json": {
+          force?: boolean;
+          request_id?: string;
+          source_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error?: string;
+            sources: {
+              last_error?: string;
+              last_refresh?: string;
+              last_success?: string;
+              next_refresh?: string;
+              priority: number;
+              provider_id: string;
+              refresh_state: string;
+              row_count: number;
+              source_id: string;
+              source_kind: string;
+              stale: boolean;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid model catalog refresh request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Model catalog refresh unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error?: string;
+            sources: {
+              last_error?: string;
+              last_refresh?: string;
+              last_success?: string;
+              next_refresh?: string;
+              priority: number;
+              provider_id: string;
+              refresh_state: string;
+              row_count: number;
+              source_id: string;
+              source_kind: string;
+              stale: boolean;
+            }[];
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getProviderModelStatusByProvider: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description AGH provider id */
+        provider_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            sources: {
+              last_error?: string;
+              last_refresh?: string;
+              last_success?: string;
+              next_refresh?: string;
+              priority: number;
+              provider_id: string;
+              refresh_state: string;
+              row_count: number;
+              source_id: string;
+              source_kind: string;
+              stale: boolean;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid model catalog filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Model catalog unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getProviderModelStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            sources: {
+              last_error?: string;
+              last_refresh?: string;
+              last_success?: string;
+              next_refresh?: string;
+              priority: number;
+              provider_id: string;
+              refresh_state: string;
+              row_count: number;
+              source_id: string;
+              source_kind: string;
+              stale: boolean;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid model catalog filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Model catalog unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   getNetworkStatus: {
     parameters: {
       query?: never;
@@ -23799,228 +24734,6 @@ export interface operations {
               work_transitions?: number;
               /** Format: int64 */
               workflow_tagged_events?: number;
-            };
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  getObserveHealth: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            automation: {
-              enabled: boolean;
-              jobs: {
-                enabled: number;
-                total: number;
-              };
-              /** Format: date-time */
-              next_fire?: string | null;
-              scheduled_jobs?: {
-                catch_up_policy?: string;
-                consecutive_resume_failures?: number;
-                job_id: string;
-                last_fire_id?: string;
-                /** Format: date-time */
-                last_misfire_at?: string | null;
-                /** Format: date-time */
-                last_run_at?: string | null;
-                /** Format: date-time */
-                last_scheduled_at?: string | null;
-                misfire_count?: number;
-                misfire_grace_seconds?: number;
-                /** Format: date-time */
-                next_run_at?: string | null;
-                registered: boolean;
-                /** Format: date-time */
-                updated_at?: string | null;
-              }[];
-              scheduler_running: boolean;
-              triggers: {
-                enabled: number;
-                total: number;
-              };
-            };
-            health: {
-              active_agents: number;
-              active_sessions: number;
-              activities?: {
-                current_tool?: string;
-                /** Format: date-time */
-                deadline_at?: string | null;
-                /** Format: int64 */
-                elapsed_ms: number;
-                /** Format: int64 */
-                elapsed_seconds: number;
-                /** Format: int64 */
-                idle_seconds: number;
-                iteration_current: number;
-                iteration_max: number;
-                /** Format: date-time */
-                last_activity_at?: string | null;
-                last_activity_detail?: string;
-                last_activity_kind?: string;
-                /** Format: date-time */
-                last_progress_at?: string | null;
-                session_id: string;
-                stall_reason?: string;
-                stall_state?: string;
-                status: string;
-                tool_call_id?: string;
-                turn_id?: string;
-                turn_source?: string;
-                /** Format: date-time */
-                turn_started_at?: string | null;
-              }[];
-              agent_probes?: {
-                agent_name?: string;
-                /** Format: date-time */
-                checked_at: string;
-                command?: string;
-                /** Format: int64 */
-                duration_ms: number;
-                error?: string;
-                executable?: string;
-                provider?: string;
-                status: string;
-              }[];
-              bridges: {
-                auth_failures_total: number;
-                delivery_backlog: number;
-                delivery_dropped_total: number;
-                delivery_failures_total: number;
-                route_count: number;
-                status_counts: {
-                  auth_required: number;
-                  degraded: number;
-                  disabled: number;
-                  error: number;
-                  ready: number;
-                  starting: number;
-                };
-                total_instances: number;
-              };
-              failures: {
-                by_kind?: {
-                  [key: string]: number;
-                };
-                recent?: {
-                  agent_name?: string;
-                  crash_bundle_path?: string;
-                  failure_kind: string;
-                  provider?: string;
-                  session_id: string;
-                  state?: string;
-                  summary?: string;
-                  /** Format: date-time */
-                  updated_at: string;
-                  workspace_id?: string;
-                }[];
-                status: string;
-                total: number;
-              };
-              /** Format: int64 */
-              global_db_size_bytes: number;
-              persistence: {
-                /** Format: int64 */
-                global_db_size_bytes: number;
-                /** Format: int64 */
-                session_db_size_bytes: number;
-                status: string;
-              };
-              retention: {
-                /** Format: int64 */
-                deleted_event_summaries: number;
-                /** Format: int64 */
-                deleted_permission_log_rows: number;
-                /** Format: int64 */
-                deleted_token_stats: number;
-                enabled: boolean;
-                /** Format: date-time */
-                last_cutoff_at?: string | null;
-                /** Format: date-time */
-                last_sweep_at?: string | null;
-                last_sweep_error?: string;
-                last_sweep_status: string;
-                retention_days: number;
-                /** Format: int64 */
-                sweep_interval_seconds: number;
-              };
-              /** Format: int64 */
-              session_db_size_bytes: number;
-              status: string;
-              /** Format: int64 */
-              uptime_seconds: number;
-              version: string;
-            };
-            memory: {
-              configured: boolean;
-              dream_agent?: string;
-              dream_check_interval?: string;
-              dream_enabled: boolean;
-              /** Format: double */
-              dream_min_hours?: number;
-              dream_min_sessions?: number;
-              enabled: boolean;
-              global_dir?: string;
-              global_files: number;
-              indexed_files: number;
-              /** Format: date-time */
-              last_consolidation: string | null;
-              /** Format: date-time */
-              last_operation_at: string | null;
-              /** Format: date-time */
-              last_reindex: string | null;
-              operation_count: number;
-              orphaned_files: number;
-              reason?: string;
-              status: string;
-              workspace_count: number;
-              workspace_files: number;
             };
           };
         };
@@ -24823,18 +25536,9 @@ export interface operations {
       };
     };
   };
-  listProviderModels: {
+  listProviders: {
     parameters: {
-      query?: {
-        /** @description Filter by AGH provider id */
-        provider_id?: string;
-        /** @description Filter by catalog source id */
-        source_id?: string;
-        /** @description Refresh sources before listing models */
-        refresh?: boolean;
-        /** @description Include stale source rows in the merged projection */
-        include_stale?: boolean;
-      };
+      query?: never;
       header?: never;
       path?: never;
       cookie?: never;
@@ -24848,120 +25552,28 @@ export interface operations {
         };
         content: {
           "application/json": {
-            models: {
-              availability_state: string;
-              available: boolean | null;
-              /** Format: int64 */
-              context_window?: number | null;
-              cost?: {
-                /** Format: double */
-                input_per_million?: number | null;
-                /** Format: double */
-                output_per_million?: number | null;
-              } | null;
-              default_reasoning_effort?: string | null;
+            providers: {
+              auth_status: {
+                code?: string;
+                env_policy: string;
+                home_policy: string;
+                /** Format: date-time */
+                last_probe_at?: string | null;
+                login_command?: string;
+                message?: string;
+                mode: string;
+                state: string;
+                status_command?: string;
+              };
+              default: boolean;
               display_name?: string;
-              last_error?: string;
-              /** Format: int64 */
-              max_input_tokens?: number | null;
-              /** Format: int64 */
-              max_output_tokens?: number | null;
-              model_id: string;
-              provider_id: string;
-              reasoning_efforts?: string[];
-              refreshed_at?: string;
-              sources: {
-                last_error?: string;
-                priority: number;
-                refreshed_at?: string;
-                source_id: string;
-                source_kind: string;
-                stale: boolean;
-              }[];
-              stale: boolean;
-              supports_reasoning?: boolean | null;
-              supports_tools?: boolean | null;
+              name: string;
             }[];
-          };
-        };
-      };
-      /** @description Invalid model catalog filter */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Forbidden */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
           };
         };
       };
       /** @description Internal server error */
       500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Model catalog unavailable */
-      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -24993,619 +25605,7 @@ export interface operations {
       };
     };
   };
-  refreshProviderModels: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody?: {
-      content: {
-        "application/json": {
-          force?: boolean;
-          request_id?: string;
-          source_id?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error?: string;
-            sources: {
-              last_error?: string;
-              last_refresh?: string;
-              last_success?: string;
-              next_refresh?: string;
-              priority: number;
-              provider_id: string;
-              refresh_state: string;
-              row_count: number;
-              source_id: string;
-              source_kind: string;
-              stale: boolean;
-            }[];
-          };
-        };
-      };
-      /** @description Invalid model catalog refresh request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Forbidden */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Model catalog refresh unavailable */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error?: string;
-            sources: {
-              last_error?: string;
-              last_refresh?: string;
-              last_success?: string;
-              next_refresh?: string;
-              priority: number;
-              provider_id: string;
-              refresh_state: string;
-              row_count: number;
-              source_id: string;
-              source_kind: string;
-              stale: boolean;
-            }[];
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  getProviderModelStatus: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            sources: {
-              last_error?: string;
-              last_refresh?: string;
-              last_success?: string;
-              next_refresh?: string;
-              priority: number;
-              provider_id: string;
-              refresh_state: string;
-              row_count: number;
-              source_id: string;
-              source_kind: string;
-              stale: boolean;
-            }[];
-          };
-        };
-      };
-      /** @description Invalid model catalog filter */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Forbidden */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Model catalog unavailable */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  listProviderModelsByProvider: {
-    parameters: {
-      query?: {
-        /** @description Filter by catalog source id */
-        source_id?: string;
-        /** @description Refresh sources before listing models */
-        refresh?: boolean;
-        /** @description Include stale source rows in the merged projection */
-        include_stale?: boolean;
-      };
-      header?: never;
-      path: {
-        /** @description AGH provider id */
-        provider_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            models: {
-              availability_state: string;
-              available: boolean | null;
-              /** Format: int64 */
-              context_window?: number | null;
-              cost?: {
-                /** Format: double */
-                input_per_million?: number | null;
-                /** Format: double */
-                output_per_million?: number | null;
-              } | null;
-              default_reasoning_effort?: string | null;
-              display_name?: string;
-              last_error?: string;
-              /** Format: int64 */
-              max_input_tokens?: number | null;
-              /** Format: int64 */
-              max_output_tokens?: number | null;
-              model_id: string;
-              provider_id: string;
-              reasoning_efforts?: string[];
-              refreshed_at?: string;
-              sources: {
-                last_error?: string;
-                priority: number;
-                refreshed_at?: string;
-                source_id: string;
-                source_kind: string;
-                stale: boolean;
-              }[];
-              stale: boolean;
-              supports_reasoning?: boolean | null;
-              supports_tools?: boolean | null;
-            }[];
-          };
-        };
-      };
-      /** @description Invalid model catalog filter */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Forbidden */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Model catalog unavailable */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  refreshProviderModelsByProvider: {
-    parameters: {
-      query?: never;
-      header?: never;
-      path: {
-        /** @description AGH provider id */
-        provider_id: string;
-      };
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody?: {
-      content: {
-        "application/json": {
-          force?: boolean;
-          request_id?: string;
-          source_id?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error?: string;
-            sources: {
-              last_error?: string;
-              last_refresh?: string;
-              last_success?: string;
-              next_refresh?: string;
-              priority: number;
-              provider_id: string;
-              refresh_state: string;
-              row_count: number;
-              source_id: string;
-              source_kind: string;
-              stale: boolean;
-            }[];
-          };
-        };
-      };
-      /** @description Invalid model catalog refresh request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Forbidden */
-      403: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Model catalog refresh unavailable */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            error?: string;
-            sources: {
-              last_error?: string;
-              last_refresh?: string;
-              last_success?: string;
-              next_refresh?: string;
-              priority: number;
-              provider_id: string;
-              refresh_state: string;
-              row_count: number;
-              source_id: string;
-              source_kind: string;
-              stale: boolean;
-            }[];
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  getProviderModelStatusByProvider: {
+  getProvider: {
     parameters: {
       query?: never;
       header?: never;
@@ -25624,49 +25624,26 @@ export interface operations {
         };
         content: {
           "application/json": {
-            sources: {
-              last_error?: string;
-              last_refresh?: string;
-              last_success?: string;
-              next_refresh?: string;
-              priority: number;
-              provider_id: string;
-              refresh_state: string;
-              row_count: number;
-              source_id: string;
-              source_kind: string;
-              stale: boolean;
-            }[];
+            auth_status: {
+              code?: string;
+              env_policy: string;
+              home_policy: string;
+              /** Format: date-time */
+              last_probe_at?: string | null;
+              login_command?: string;
+              message?: string;
+              mode: string;
+              state: string;
+              status_command?: string;
+            };
+            default: boolean;
+            display_name?: string;
+            name: string;
           };
         };
       };
-      /** @description Invalid model catalog filter */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Forbidden */
-      403: {
+      /** @description Provider not found */
+      404: {
         headers: {
           [name: string]: unknown;
         };
@@ -25715,8 +25692,108 @@ export interface operations {
           };
         };
       };
-      /** @description Model catalog unavailable */
-      503: {
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  probeProviderAuth: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description AGH provider id */
+        provider_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            auth_status: {
+              code?: string;
+              env_policy: string;
+              home_policy: string;
+              /** Format: date-time */
+              last_probe_at?: string | null;
+              login_command?: string;
+              message?: string;
+              mode: string;
+              state: string;
+              status_command?: string;
+            };
+            probe?: {
+              /** Format: int64 */
+              duration_ms: number;
+              exit_code: number;
+              stderr?: string;
+              stdout?: string;
+            } | null;
+            provider: string;
+          };
+        };
+      };
+      /** @description Provider not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Provider auth probe unavailable */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
         headers: {
           [name: string]: unknown;
         };
@@ -30666,6 +30743,7 @@ export interface operations {
             collection: "providers" | "mcp-servers" | "sandboxes" | "hooks";
             providers: {
               auth_status?: {
+                code?: string;
                 env_policy: string;
                 home_policy: string;
                 login_command?: string;
@@ -30905,6 +30983,7 @@ export interface operations {
           "application/json": {
             provider: {
               auth_status?: {
+                code?: string;
                 env_policy: string;
                 home_policy: string;
                 login_command?: string;
@@ -34152,6 +34231,451 @@ export interface operations {
       };
       /** @description Skills registry is not configured */
       503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getStatus: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            automation: {
+              enabled: boolean;
+              jobs: {
+                enabled: number;
+                total: number;
+              };
+              /** Format: date-time */
+              next_fire?: string | null;
+              scheduled_jobs?: {
+                catch_up_policy?: string;
+                consecutive_resume_failures?: number;
+                job_id: string;
+                last_fire_id?: string;
+                /** Format: date-time */
+                last_misfire_at?: string | null;
+                /** Format: date-time */
+                last_run_at?: string | null;
+                /** Format: date-time */
+                last_scheduled_at?: string | null;
+                misfire_count?: number;
+                misfire_grace_seconds?: number;
+                /** Format: date-time */
+                next_run_at?: string | null;
+                registered: boolean;
+                /** Format: date-time */
+                updated_at?: string | null;
+              }[];
+              scheduler_running: boolean;
+              triggers: {
+                enabled: number;
+                total: number;
+              };
+            };
+            bridges: {
+              auth_failures_total: number;
+              delivery_backlog: number;
+              delivery_dropped_total: number;
+              delivery_failures_total: number;
+              route_count: number;
+              status_counts: {
+                auth_required: number;
+                degraded: number;
+                disabled: number;
+                error: number;
+                ready: number;
+                starting: number;
+              };
+              total_instances: number;
+            };
+            config: {
+              apply_state: string;
+              config_file?: string;
+              home_dir?: string;
+              restart_required: boolean;
+              status: string;
+              validated: boolean;
+              validation_error?: string;
+            };
+            daemon: {
+              active_sessions: number;
+              http_host: string;
+              http_port: number;
+              network?: {
+                channels?: number;
+                configured_default_channel?: string;
+                /** Format: int64 */
+                conversation_messages?: number;
+                declared_channels?: {
+                  activation_id?: string;
+                  bundle_name?: string;
+                  description?: string;
+                  extension_name?: string;
+                  name: string;
+                  primary?: boolean;
+                  profile_name?: string;
+                  workspace_id?: string;
+                }[];
+                delivery_workers?: number;
+                /** Format: int64 */
+                direct_resolves?: number;
+                effective_default_channel?: string;
+                effective_default_source?: string;
+                enabled: boolean;
+                /** Format: int64 */
+                handoff_tagged_events?: number;
+                kind_metrics?: {
+                  /** Format: int64 */
+                  delivered?: number;
+                  kind: string;
+                  /** Format: int64 */
+                  received?: number;
+                  /** Format: int64 */
+                  rejected?: number;
+                  /** Format: int64 */
+                  sent?: number;
+                }[];
+                last_disconnect?: string;
+                listener_host?: string;
+                listener_port?: number;
+                local_peers?: number;
+                /** Format: int64 */
+                messages_delivered?: number;
+                /** Format: int64 */
+                messages_received?: number;
+                /** Format: int64 */
+                messages_rejected?: number;
+                /** Format: int64 */
+                messages_sent?: number;
+                /** Format: int64 */
+                open_direct_rooms?: number;
+                /** Format: int64 */
+                open_threads?: number;
+                /** Format: int64 */
+                open_work_items?: number;
+                queued_messages?: number;
+                queued_sessions?: number;
+                remote_peers?: number;
+                status: string;
+                /** Format: int64 */
+                work_transitions?: number;
+                /** Format: int64 */
+                workflow_tagged_events?: number;
+              } | null;
+              pid: number;
+              socket: string;
+              /** Format: date-time */
+              started_at: string;
+              status: string;
+              total_sessions: number;
+              user_home_dir: string;
+              version?: string;
+            };
+            /** Format: date-time */
+            generated_at: string;
+            health: {
+              active_agents: number;
+              active_sessions: number;
+              activities?: {
+                current_tool?: string;
+                /** Format: date-time */
+                deadline_at?: string | null;
+                /** Format: int64 */
+                elapsed_ms: number;
+                /** Format: int64 */
+                elapsed_seconds: number;
+                /** Format: int64 */
+                idle_seconds: number;
+                iteration_current: number;
+                iteration_max: number;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                last_activity_detail?: string;
+                last_activity_kind?: string;
+                /** Format: date-time */
+                last_progress_at?: string | null;
+                session_id: string;
+                stall_reason?: string;
+                stall_state?: string;
+                status: string;
+                tool_call_id?: string;
+                turn_id?: string;
+                turn_source?: string;
+                /** Format: date-time */
+                turn_started_at?: string | null;
+              }[];
+              agent_probes?: {
+                agent_name?: string;
+                /** Format: date-time */
+                checked_at: string;
+                command?: string;
+                /** Format: int64 */
+                duration_ms: number;
+                error?: string;
+                executable?: string;
+                provider?: string;
+                status: string;
+              }[];
+              bridges: {
+                auth_failures_total: number;
+                delivery_backlog: number;
+                delivery_dropped_total: number;
+                delivery_failures_total: number;
+                route_count: number;
+                status_counts: {
+                  auth_required: number;
+                  degraded: number;
+                  disabled: number;
+                  error: number;
+                  ready: number;
+                  starting: number;
+                };
+                total_instances: number;
+              };
+              failures: {
+                by_kind?: {
+                  [key: string]: number;
+                };
+                recent?: {
+                  agent_name?: string;
+                  crash_bundle_path?: string;
+                  failure_kind: string;
+                  provider?: string;
+                  session_id: string;
+                  state?: string;
+                  summary?: string;
+                  /** Format: date-time */
+                  updated_at: string;
+                  workspace_id?: string;
+                }[];
+                status: string;
+                total: number;
+              };
+              /** Format: int64 */
+              global_db_size_bytes: number;
+              persistence: {
+                /** Format: int64 */
+                global_db_size_bytes: number;
+                /** Format: int64 */
+                session_db_size_bytes: number;
+                status: string;
+              };
+              retention: {
+                /** Format: int64 */
+                deleted_event_summaries: number;
+                /** Format: int64 */
+                deleted_permission_log_rows: number;
+                /** Format: int64 */
+                deleted_token_stats: number;
+                enabled: boolean;
+                /** Format: date-time */
+                last_cutoff_at?: string | null;
+                /** Format: date-time */
+                last_sweep_at?: string | null;
+                last_sweep_error?: string;
+                last_sweep_status: string;
+                retention_days: number;
+                /** Format: int64 */
+                sweep_interval_seconds: number;
+              };
+              /** Format: int64 */
+              session_db_size_bytes: number;
+              status: string;
+              /** Format: int64 */
+              uptime_seconds: number;
+              version: string;
+            };
+            log_tail: {
+              available: boolean;
+              status: string;
+            };
+            mcp_servers?: {
+              auth_status?: string;
+              configured: boolean;
+              diagnostic?: string;
+              initialized: boolean;
+              name: string;
+              probe?: string;
+              reason?: string;
+              runtime_status: string;
+              scope: string;
+              state: string;
+              tool_count?: number;
+              transport?: string;
+              workspace_id?: string;
+            }[];
+            memory: {
+              configured: boolean;
+              dream_agent?: string;
+              dream_check_interval?: string;
+              dream_enabled: boolean;
+              /** Format: double */
+              dream_min_hours?: number;
+              dream_min_sessions?: number;
+              enabled: boolean;
+              global_dir?: string;
+              global_files: number;
+              indexed_files: number;
+              /** Format: date-time */
+              last_consolidation: string | null;
+              /** Format: date-time */
+              last_operation_at: string | null;
+              /** Format: date-time */
+              last_reindex: string | null;
+              operation_count: number;
+              orphaned_files: number;
+              reason?: string;
+              status: string;
+              workspace_count: number;
+              workspace_files: number;
+            };
+            providers?: {
+              code?: string;
+              default: boolean;
+              display_name?: string;
+              env_policy?: string;
+              home_policy?: string;
+              /** Format: date-time */
+              last_probe_at?: string | null;
+              login_command?: string;
+              message?: string;
+              mode?: string;
+              name: string;
+              state: string;
+              status_command?: string;
+              suggested_command?: string;
+            }[];
+            schema_version: string;
+            sessions: {
+              active: number;
+              by_status?: {
+                [key: string]: number;
+              };
+              total: number;
+            };
+            skills: {
+              diagnostics?: {
+                failure?: {
+                  actual_hash?: string;
+                  code: string;
+                  expected_hash?: string;
+                  message: string;
+                } | null;
+                name: string;
+                path?: string;
+                source?: string;
+                /** @enum {string} */
+                state: "valid" | "shadowed" | "verification_failed";
+                /** @enum {string} */
+                verification_status: "passed" | "warning" | "failed";
+                warnings?: {
+                  message: string;
+                  pattern?: string;
+                  severity: string;
+                }[];
+                winning_path?: string;
+                winning_source?: string;
+              }[];
+              disabled_count: number;
+              discovered_count: number;
+              runtime_available: boolean;
+            };
+            tasks: {
+              active_orphan_runs: number;
+              channel_mismatch_since_start: number;
+              duplicate_ingress_since_start: number;
+              forced_stops_since_start: number;
+              /** Format: int64 */
+              oldest_queue_age_ms: number;
+              /** Format: date-time */
+              oldest_queued_at?: string | null;
+              owner_totals?: {
+                count: number;
+                owner_kind: string;
+                owner_ref: string;
+              }[];
+              queue_depth?: {
+                count: number;
+                network_channel?: string;
+                /** Format: int64 */
+                oldest_queue_age_ms: number;
+                /** Format: date-time */
+                oldest_queued_at?: string | null;
+              }[];
+              queue_depth_total: number;
+              recovery_since_start: {
+                failed: number;
+                marked_running: number;
+                requeued: number;
+              };
+              run_totals?: {
+                count: number;
+                network_channel?: string;
+                origin_kind: string;
+                status: string;
+              }[];
+              status: string;
+              stuck_runs?: {
+                /** Format: int64 */
+                age_ms: number;
+                network_channel?: string;
+                origin_kind: string;
+                run_id: string;
+                session_id?: string;
+                status: string;
+                task_id: string;
+              }[];
+              task_totals?: {
+                count: number;
+                network_channel?: string;
+                scope: string;
+                status: string;
+              }[];
+            };
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
         headers: {
           [name: string]: unknown;
         };

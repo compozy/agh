@@ -297,7 +297,8 @@ describe("collection endpoints", () => {
             mode: "native_cli",
             env_policy: "filtered",
             home_policy: "operator",
-            state: "native_cli",
+            state: "unknown",
+            code: "provider_classification_unknown",
           },
         },
       ],
@@ -309,7 +310,7 @@ describe("collection endpoints", () => {
     expect(result.providers).toHaveLength(1);
     expect(result.providers[0]?.source_metadata.effective_source.kind).toBe("global-config");
     expect(result.providers[0]?.settings.auth_mode).toBe("native_cli");
-    expect(result.providers[0]?.auth_status?.state).toBe("native_cli");
+    expect(result.providers[0]?.auth_status?.state).toBe("unknown");
     await expectFetchRequest({ path: "/api/settings/providers" });
   });
 

@@ -142,7 +142,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/bundles/activations/:id",
 		"GET /api/bundles/catalog",
 		"GET /api/bundles/network/settings",
-		"GET /api/daemon/status",
+		"GET /api/doctor",
 		"GET /api/extensions",
 		"GET /api/extensions/:name",
 		"GET /api/hooks/catalog",
@@ -183,10 +183,12 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/workspaces/:workspace_id/network/work/:work_id",
 		"GET /api/workspaces/:workspace_id/observe/events",
 		"GET /api/workspaces/:workspace_id/observe/events/stream",
-		"GET /api/observe/health",
+		"GET /api/status",
 		"GET /api/observe/tasks/dashboard",
 		"GET /api/observe/tasks/inbox",
-		"GET /api/providers/*catalog_path",
+		"GET /api/model-catalog/*catalog_path",
+		"GET /api/providers",
+		"GET /api/providers/:provider_id",
 		"GET /api/resources",
 		"GET /api/resources/:kind",
 		"GET /api/resources/:kind/:id",
@@ -305,7 +307,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/memory/sessions/prune",
 		"POST /api/memory/sessions/repair",
 		"POST /api/workspaces/:workspace_id/memory/sessions/:session_id/replay",
-		"POST /api/providers/*catalog_path",
+		"POST /api/model-catalog/*catalog_path",
+		"POST /api/providers/:provider_id/auth/probe",
 		"POST /api/workspaces/:workspace_id/network/channels",
 		"POST /api/workspaces/:workspace_id/network/channels/:channel/directs/resolve",
 		"POST /api/workspaces/:workspace_id/network/send",
@@ -369,6 +372,21 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 	for i := range want {
 		if got[i] != want[i] {
 			t.Fatalf("route[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestRegisterRoutesRejectsLegacyStatusSurfaces(t *testing.T) {
+	t.Parallel()
+
+	homePaths := newTestHomePaths(t)
+	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths)
+	engine := newTestRouter(t, handlers)
+
+	for _, path := range []string{"/api/daemon/status", "/api/observe/health"} {
+		resp := performRequest(t, engine, http.MethodGet, path, nil)
+		if resp.Code != http.StatusNotFound {
+			t.Fatalf("GET %s status = %d, want %d", path, resp.Code, http.StatusNotFound)
 		}
 	}
 }
@@ -1967,14 +1985,12 @@ func TestHealthHandlerReturnsMetrics(t *testing.T) {
 	handlers := newTestHandlers(t, stubSessionManager{}, observer, homePaths)
 	engine := newTestRouter(t, handlers)
 
-	recorder := performRequest(t, engine, http.MethodGet, "/api/observe/health", nil)
+	recorder := performRequest(t, engine, http.MethodGet, "/api/status", nil)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
 	}
 
-	var response struct {
-		Health observe.Health `json:"health"`
-	}
+	var response contract.StatusPayload
 	decodeJSONResponse(t, recorder, &response)
 	if response.Health.ActiveSessions != 3 {
 		t.Fatalf("health.active_sessions = %d, want 3", response.Health.ActiveSessions)
@@ -1996,14 +2012,12 @@ func TestDaemonStatusHandlerReturnsRunningState(t *testing.T) {
 	handlers := newTestHandlers(t, manager, observer, homePaths)
 	engine := newTestRouter(t, handlers)
 
-	recorder := performRequest(t, engine, http.MethodGet, "/api/daemon/status", nil)
+	recorder := performRequest(t, engine, http.MethodGet, "/api/status", nil)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
 	}
 
-	var response struct {
-		Daemon daemonStatusPayload `json:"daemon"`
-	}
+	var response contract.StatusPayload
 	decodeJSONResponse(t, recorder, &response)
 	if response.Daemon.Status != "running" {
 		t.Fatalf("daemon.status = %q, want running", response.Daemon.Status)

@@ -359,7 +359,7 @@ func TestAgentObserveHealthAndDaemonStatusErrorPaths(t *testing.T) {
 		t.Fatalf("observe status = %d, want %d", observeResp.Code, http.StatusInternalServerError)
 	}
 
-	healthResp := performRequest(t, engine, http.MethodGet, "/api/observe/health", nil)
+	healthResp := performRequest(t, engine, http.MethodGet, "/api/status", nil)
 	if healthResp.Code != http.StatusInternalServerError {
 		t.Fatalf("health status = %d, want %d", healthResp.Code, http.StatusInternalServerError)
 	}
@@ -374,7 +374,7 @@ func TestAgentObserveHealthAndDaemonStatusErrorPaths(t *testing.T) {
 		},
 	}, homePaths)
 	statusEngine := newTestRouter(t, statusHandlers)
-	statusResp := performRequest(t, statusEngine, http.MethodGet, "/api/daemon/status", nil)
+	statusResp := performRequest(t, statusEngine, http.MethodGet, "/api/status", nil)
 	if statusResp.Code != http.StatusInternalServerError {
 		t.Fatalf("daemon status = %d, want %d", statusResp.Code, http.StatusInternalServerError)
 	}
