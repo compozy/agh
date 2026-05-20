@@ -1907,7 +1907,7 @@ func inferSSEEventName(data []byte) string {
 }
 
 func runtimeEnv(homePaths aghconfig.HomePaths, extra map[string]string) []string {
-	base := append([]string(nil), os.Environ()...)
+	base := testutil.HermeticProcessEnv(os.Environ())
 	base = setEnvValue(base, "AGH_HOME", homePaths.HomeDir)
 	base = setEnvValue(base, "HOME", homePaths.HomeDir)
 

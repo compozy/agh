@@ -171,6 +171,19 @@ func TestSkillPayloadFromSkill(t *testing.T) {
 		t.Parallel()
 
 		skill := testSkillWithProvenance()
+		skill.FilePath = "/user/skills/test-skill/SKILL.md"
+		skill.Diagnostics = skills.SkillDiagnostics{
+			VerificationStatus: skills.SkillVerificationStatusWarning,
+			Warnings: []skills.Warning{{
+				Severity: skills.SeverityWarning,
+				Pattern:  "external-link",
+				Message:  "Skill references an external link.",
+			}},
+			ShadowedDefinitions: []skills.SkillDefinitionRef{{
+				Source: "bundled",
+				Path:   "test-skill/SKILL.md",
+			}},
+		}
 		payload := core.SkillPayloadFromSkill(skill)
 
 		if payload.Name != "test-skill" {
@@ -205,6 +218,33 @@ func TestSkillPayloadFromSkill(t *testing.T) {
 		}
 		if payload.Provenance.Version != "1.0.0" {
 			t.Errorf("Provenance.Version = %q", payload.Provenance.Version)
+		}
+		if got, want := len(payload.Diagnostics), 2; got != want {
+			t.Fatalf("Diagnostics len = %d, want %d", got, want)
+		}
+		winner := payload.Diagnostics[0]
+		if winner.State != contract.SkillDiagnosticStateValid {
+			t.Fatalf("Diagnostics[0].State = %q, want %q", winner.State, contract.SkillDiagnosticStateValid)
+		}
+		if winner.VerificationStatus != contract.SkillVerificationStatusWarning {
+			t.Fatalf(
+				"Diagnostics[0].VerificationStatus = %q, want %q",
+				winner.VerificationStatus,
+				contract.SkillVerificationStatusWarning,
+			)
+		}
+		if got, want := winner.Warnings[0].Severity, "warning"; got != want {
+			t.Fatalf("Diagnostics[0].Warnings[0].Severity = %q, want %q", got, want)
+		}
+		shadowed := payload.Diagnostics[1]
+		if shadowed.State != contract.SkillDiagnosticStateShadowed {
+			t.Fatalf("Diagnostics[1].State = %q, want %q", shadowed.State, contract.SkillDiagnosticStateShadowed)
+		}
+		if shadowed.WinningPath != "/user/skills/test-skill/SKILL.md" {
+			t.Fatalf(
+				"Diagnostics[1].WinningPath = %q, want active skill path",
+				shadowed.WinningPath,
+			)
 		}
 	})
 

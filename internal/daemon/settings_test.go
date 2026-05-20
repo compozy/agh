@@ -2,11 +2,14 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"testing"
 	"time"
 
+	mcpsdk "github.com/mark3labs/mcp-go/mcp"
+	mcpsrv "github.com/mark3labs/mcp-go/server"
 	core "github.com/pedronauck/agh/internal/api/core"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
@@ -180,6 +183,105 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusResolvesClientSecretRef(t *testing.T
 			t.Fatalf("MCPAuthStatus().Status = %q, want %q", got, want)
 		}
 	})
+}
+
+func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
+	t.Run("Should probe a reachable MCP server through the real executor", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		server := mcpsrv.NewTestStreamableHTTPServer(newSettingsMCPTestServer())
+		t.Cleanup(server.Close)
+
+		surface := &settingsRuntimeSurface{}
+		status, err := surface.MCPServerRuntimeStatus(ctx, aghconfig.MCPServer{
+			Name:      "docs",
+			Transport: aghconfig.MCPServerTransportHTTP,
+			URL:       server.URL,
+		})
+		if err != nil {
+			t.Fatalf("MCPServerRuntimeStatus() error = %v", err)
+		}
+		if got, want := status.State, settingspkg.MCPServerRuntimeStateReady; got != want {
+			t.Fatalf("MCPServerRuntimeStatus().State = %q, want %q", got, want)
+		}
+		if got, want := status.Probe, settingspkg.MCPServerProbeSucceeded; got != want {
+			t.Fatalf("MCPServerRuntimeStatus().Probe = %q, want %q", got, want)
+		}
+		if !status.Initialized || status.ToolCount != 1 {
+			t.Fatalf("MCPServerRuntimeStatus() = %#v, want initialized with one tool", status)
+		}
+	})
+
+	t.Run("Should skip probing when remote MCP auth needs login", func(t *testing.T) {
+		t.Parallel()
+
+		surface := &settingsRuntimeSurface{}
+		status, err := surface.MCPServerRuntimeStatus(context.Background(), aghconfig.MCPServer{
+			Name:      "linear",
+			Transport: aghconfig.MCPServerTransportHTTP,
+			URL:       "https://mcp.linear.example/mcp",
+			Auth: aghconfig.MCPAuthConfig{
+				Type:             aghconfig.MCPAuthTypeOAuth2PKCE,
+				AuthorizationURL: "https://auth.linear.example/authorize",
+				TokenURL:         "https://auth.linear.example/token",
+				ClientID:         "agh-desktop",
+			},
+		})
+		if err != nil {
+			t.Fatalf("MCPServerRuntimeStatus(auth) error = %v", err)
+		}
+		if got, want := status.State, settingspkg.MCPServerRuntimeStateAuthRequired; got != want {
+			t.Fatalf("MCPServerRuntimeStatus(auth).State = %q, want %q", got, want)
+		}
+		if got, want := status.Probe, settingspkg.MCPServerProbeSkipped; got != want {
+			t.Fatalf("MCPServerRuntimeStatus(auth).Probe = %q, want %q", got, want)
+		}
+		if status.Initialized || status.ToolCount != 0 {
+			t.Fatalf("MCPServerRuntimeStatus(auth) = %#v, want no initialization or tools", status)
+		}
+	})
+
+	t.Run("Should report config errors without fabricating a probe", func(t *testing.T) {
+		t.Parallel()
+
+		surface := &settingsRuntimeSurface{}
+		status, err := surface.MCPServerRuntimeStatus(context.Background(), aghconfig.MCPServer{
+			Name:      "broken",
+			Transport: aghconfig.MCPServerTransportHTTP,
+		})
+		if err != nil {
+			t.Fatalf("MCPServerRuntimeStatus(config error) error = %v", err)
+		}
+		if got, want := status.State, settingspkg.MCPServerRuntimeStateConfigError; got != want {
+			t.Fatalf("MCPServerRuntimeStatus(config error).State = %q, want %q", got, want)
+		}
+		if got, want := status.Probe, settingspkg.MCPServerProbeSkipped; got != want {
+			t.Fatalf("MCPServerRuntimeStatus(config error).Probe = %q, want %q", got, want)
+		}
+		if status.Diagnostic == "" {
+			t.Fatal("MCPServerRuntimeStatus(config error).Diagnostic is empty")
+		}
+	})
+}
+
+func newSettingsMCPTestServer() *mcpsrv.MCPServer {
+	server := mcpsrv.NewMCPServer("settings-test", "1.0.0", mcpsrv.WithToolCapabilities(true))
+	server.AddTool(
+		mcpsdk.NewTool(
+			"lookup",
+			mcpsdk.WithDescription("Lookup documentation"),
+			mcpsdk.WithString("query"),
+			mcpsdk.WithRawOutputSchema(json.RawMessage(
+				"{\"type\":\"object\",\"properties\":{\"answer\":{\"type\":\"string\"}}}",
+			)),
+			mcpsdk.WithReadOnlyHintAnnotation(true),
+		),
+		func(context.Context, mcpsdk.CallToolRequest) (*mcpsdk.CallToolResult, error) {
+			return mcpsdk.NewToolResultText("ok"), nil
+		},
+	)
+	return server
 }
 
 type stubSettingsUpdateManager struct {

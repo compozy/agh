@@ -353,6 +353,13 @@ func TestFileKeyProviderLoadsEnvAndCreatesKeyFile(t *testing.T) {
 		if got := info.Mode().Perm(); got != 0o600 {
 			t.Fatalf("vault.key permissions = %o, want 0600", got)
 		}
+		dirInfo, err := os.Stat(homeDir)
+		if err != nil {
+			t.Fatalf("Stat(homeDir) error = %v", err)
+		}
+		if got := dirInfo.Mode().Perm(); got != 0o700 {
+			t.Fatalf("homeDir permissions = %o, want 0700", got)
+		}
 
 		second, err := provider.Key()
 		if err != nil {
@@ -360,6 +367,31 @@ func TestFileKeyProviderLoadsEnvAndCreatesKeyFile(t *testing.T) {
 		}
 		if !bytes.Equal(second, first) {
 			t.Fatalf("Key(second) = %x, want reused key %x", second, first)
+		}
+	})
+
+	t.Run("Should tighten preexisting key directory before creating daemon key file", func(t *testing.T) {
+		t.Parallel()
+
+		homeDir := filepath.Join(t.TempDir(), "agh-home")
+		if err := os.MkdirAll(homeDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(homeDir) error = %v", err)
+		}
+		if err := os.Chmod(homeDir, 0o755); err != nil {
+			t.Fatalf("Chmod(homeDir) error = %v", err)
+		}
+
+		provider := NewFileKeyProvider(homeDir, func(string) (string, bool) { return "", false })
+		if _, err := provider.Key(); err != nil {
+			t.Fatalf("Key() error = %v", err)
+		}
+
+		info, err := os.Stat(homeDir)
+		if err != nil {
+			t.Fatalf("Stat(homeDir) error = %v", err)
+		}
+		if got := info.Mode().Perm(); got != 0o700 {
+			t.Fatalf("homeDir permissions = %#o, want %#o", got, os.FileMode(0o700))
 		}
 	})
 

@@ -523,9 +523,7 @@ func replaceDotEnvFile(path string, contents []byte, mode os.FileMode) (err erro
 		}
 	}()
 
-	if mode == 0 {
-		mode = 0o600
-	}
+	mode = secureDotEnvWriteMode(mode)
 	if err := temp.Chmod(mode); err != nil {
 		return closeFileAfterError(temp, tempPath, fmt.Errorf("set temporary .env repair mode %q: %w", tempPath, err))
 	}
@@ -546,6 +544,13 @@ func replaceDotEnvFile(path string, contents []byte, mode os.FileMode) (err erro
 		return err
 	}
 	return nil
+}
+
+func secureDotEnvWriteMode(mode os.FileMode) os.FileMode {
+	if mode == 0 || mode.Perm()&0o077 != 0 {
+		return 0o600
+	}
+	return mode.Perm()
 }
 
 func dotEnvUnsupportedError(path string, diagnostics []DotEnvDiagnostic) error {

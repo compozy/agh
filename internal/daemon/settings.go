@@ -15,13 +15,17 @@ import (
 	core "github.com/pedronauck/agh/internal/api/core"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/diagnostics"
+	mcppkg "github.com/pedronauck/agh/internal/mcp"
 	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/network"
 	settingspkg "github.com/pedronauck/agh/internal/settings"
+	toolspkg "github.com/pedronauck/agh/internal/tools"
 	aghupdate "github.com/pedronauck/agh/internal/update"
 	"github.com/pedronauck/agh/internal/version"
 )
+
+const settingsMCPProbeTimeout = 5 * time.Second
 
 type settingsRuntimeSurface struct {
 	config         aghconfig.Config
@@ -34,7 +38,11 @@ type settingsRuntimeSurface struct {
 	network        networkRuntime
 	mcpAuthStore   mcpauth.TokenStore
 	secretResolver mcpauth.SecretRefResolver
-	extensions     interface {
+	secretRefs     interface {
+		ResolveRef(context.Context, string) (string, error)
+	}
+	lookupSecret func(string) string
+	extensions   interface {
 		List(context.Context) ([]contract.ExtensionPayload, error)
 	}
 	now  func() time.Time
@@ -50,6 +58,7 @@ var _ settingspkg.ObservabilityRuntimeProvider = (*settingsRuntimeSurface)(nil)
 var _ settingspkg.ExtensionStatusProvider = (*settingsRuntimeSurface)(nil)
 var _ settingspkg.TransportParityProvider = (*settingsRuntimeSurface)(nil)
 var _ settingspkg.MCPAuthRuntimeProvider = (*settingsRuntimeSurface)(nil)
+var _ settingspkg.MCPRuntimeProvider = (*settingsRuntimeSurface)(nil)
 
 func newSettingsRuntimeSurface(d *Daemon, state *bootState) *settingsRuntimeSurface {
 	if state == nil {
@@ -74,7 +83,11 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) *settingsRuntimeSurf
 		mcpAuthStore = store
 	}
 	var secretResolver mcpauth.SecretRefResolver
+	var secretRefs interface {
+		ResolveRef(context.Context, string) (string, error)
+	}
 	if state.providerVault != nil {
+		secretRefs = state.providerVault
 		secretResolver = func(ctx context.Context, ref string) (string, error) {
 			value, err := state.providerVault.ResolveRef(ctx, ref)
 			if err != nil {
@@ -83,6 +96,10 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) *settingsRuntimeSurf
 			diagnostics.RegisterDynamicSecret(value)
 			return value, nil
 		}
+	}
+	lookupSecret := os.Getenv
+	if d != nil && d.getenv != nil {
+		lookupSecret = d.getenv
 	}
 
 	return &settingsRuntimeSurface{
@@ -96,6 +113,8 @@ func newSettingsRuntimeSurface(d *Daemon, state *bootState) *settingsRuntimeSurf
 		network:        state.network,
 		mcpAuthStore:   mcpAuthStore,
 		secretResolver: secretResolver,
+		secretRefs:     secretRefs,
+		lookupSecret:   lookupSecret,
 		extensions:     state.deps.Extensions,
 		now:            now,
 		pid:            pid,
@@ -346,6 +365,144 @@ func (s *settingsRuntimeSurface) MCPAuthStatus(
 		return mcpauth.Status{}, fmt.Errorf("daemon: load MCP auth status: %w", err)
 	}
 	return status, nil
+}
+
+func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
+	ctx context.Context,
+	server aghconfig.MCPServer,
+) (settingspkg.MCPServerRuntimeStatus, error) {
+	status := settingspkg.MCPServerRuntimeStatus{
+		Configured: true,
+	}
+	if err := server.Validate("mcp_server"); err != nil {
+		status.State = settingspkg.MCPServerRuntimeStateConfigError
+		status.Probe = settingspkg.MCPServerProbeSkipped
+		status.Reason = "config_error"
+		status.Diagnostic = diagnostics.Redact(err.Error())
+		return status, nil
+	}
+	if server.Auth.Enabled() {
+		authStatus, err := s.MCPAuthStatus(ctx, server)
+		if err != nil {
+			status.State = settingspkg.MCPServerRuntimeStateAuthRequired
+			status.Probe = settingspkg.MCPServerProbeSkipped
+			status.Reason = string(toolspkg.ReasonMCPAuthRequired)
+			status.Diagnostic = diagnostics.Redact(err.Error())
+			return status, nil
+		}
+		if mapped, ok := runtimeStateFromMCPAuthStatus(authStatus); ok {
+			status.State = mapped
+			status.Probe = settingspkg.MCPServerProbeSkipped
+			status.Reason = runtimeReasonFromMCPAuthState(mapped)
+			status.Diagnostic = diagnostics.Redact(authStatus.Diagnostic)
+			return status, nil
+		}
+	}
+
+	executor, err := mcppkg.NewMCPCallExecutor(
+		mcppkg.ServerResolverFunc(func(context.Context) ([]aghconfig.MCPServer, error) {
+			return []aghconfig.MCPServer{server}, nil
+		}),
+		mcppkg.WithTokenStore(s.mcpAuthStore),
+		mcppkg.WithSecretLookup(s.lookupSecret),
+		mcppkg.WithSecretResolver(s.secretRefs),
+		mcppkg.WithTimeout(settingsMCPProbeTimeout),
+	)
+	if err != nil {
+		return settingspkg.MCPServerRuntimeStatus{}, fmt.Errorf("daemon: create MCP runtime probe: %w", err)
+	}
+
+	tools, err := executor.ListTools(ctx, toolspkg.SourceRef{
+		Kind:          toolspkg.SourceMCP,
+		Owner:         strings.TrimSpace(server.Name),
+		RawServerName: strings.TrimSpace(server.Name),
+		RawToolName:   "*",
+	})
+	if err != nil {
+		return runtimeStatusFromMCPProbeError(err), nil
+	}
+	return settingspkg.MCPServerRuntimeStatus{
+		Configured:  true,
+		Initialized: true,
+		State:       settingspkg.MCPServerRuntimeStateReady,
+		Probe:       settingspkg.MCPServerProbeSucceeded,
+		ToolCount:   len(tools),
+	}, nil
+}
+
+func runtimeStateFromMCPAuthStatus(
+	status mcpauth.Status,
+) (settingspkg.MCPServerRuntimeState, bool) {
+	switch status.Status {
+	case mcpauth.StatusNeedsLogin:
+		return settingspkg.MCPServerRuntimeStateAuthRequired, true
+	case mcpauth.StatusExpired:
+		return settingspkg.MCPServerRuntimeStateAuthExpired, true
+	case mcpauth.StatusInvalid:
+		return settingspkg.MCPServerRuntimeStateAuthInvalid, true
+	case mcpauth.StatusAuthenticated:
+		return "", false
+	default:
+		if strings.TrimSpace(string(status.Status)) == "refresh_failed" {
+			return settingspkg.MCPServerRuntimeStateAuthRefreshFailed, true
+		}
+		return settingspkg.MCPServerRuntimeStateAuthRequired, true
+	}
+}
+
+func runtimeReasonFromMCPAuthState(state settingspkg.MCPServerRuntimeState) string {
+	switch state {
+	case settingspkg.MCPServerRuntimeStateAuthExpired:
+		return string(toolspkg.ReasonMCPAuthExpired)
+	case settingspkg.MCPServerRuntimeStateAuthInvalid:
+		return string(toolspkg.ReasonMCPAuthInvalid)
+	case settingspkg.MCPServerRuntimeStateAuthRefreshFailed:
+		return string(toolspkg.ReasonMCPAuthRefreshFailed)
+	default:
+		return string(toolspkg.ReasonMCPAuthRequired)
+	}
+}
+
+func runtimeStatusFromMCPProbeError(err error) settingspkg.MCPServerRuntimeStatus {
+	status := settingspkg.MCPServerRuntimeStatus{
+		Configured: true,
+		State:      settingspkg.MCPServerRuntimeStateRuntimeUnavailable,
+		Probe:      settingspkg.MCPServerProbeFailed,
+		Reason:     string(toolspkg.ReasonMCPUnreachable),
+		Diagnostic: diagnostics.Redact(err.Error()),
+	}
+	if errors.Is(err, os.ErrPermission) || strings.Contains(strings.ToLower(err.Error()), "permission denied") {
+		status.State = settingspkg.MCPServerRuntimeStatePermissionDenied
+		status.Reason = "permission_denied"
+		return status
+	}
+	reason, ok := toolspkg.ReasonOf(err)
+	if !ok {
+		return status
+	}
+	status.Reason = string(reason)
+	switch reason {
+	case toolspkg.ReasonMCPAuthRequired, toolspkg.ReasonMCPAuthUnconfigured:
+		status.State = settingspkg.MCPServerRuntimeStateAuthRequired
+		status.Probe = settingspkg.MCPServerProbeSkipped
+	case toolspkg.ReasonMCPAuthExpired:
+		status.State = settingspkg.MCPServerRuntimeStateAuthExpired
+		status.Probe = settingspkg.MCPServerProbeSkipped
+	case toolspkg.ReasonMCPAuthInvalid:
+		status.State = settingspkg.MCPServerRuntimeStateAuthInvalid
+		status.Probe = settingspkg.MCPServerProbeSkipped
+	case toolspkg.ReasonMCPAuthRefreshFailed:
+		status.State = settingspkg.MCPServerRuntimeStateAuthRefreshFailed
+		status.Probe = settingspkg.MCPServerProbeSkipped
+	case toolspkg.ReasonPolicyDenied:
+		status.State = settingspkg.MCPServerRuntimeStatePermissionDenied
+	case toolspkg.ReasonSchemaInvalid:
+		status.State = settingspkg.MCPServerRuntimeStateConfigError
+		status.Probe = settingspkg.MCPServerProbeSkipped
+	default:
+		status.State = settingspkg.MCPServerRuntimeStateRuntimeUnavailable
+	}
+	return status
 }
 
 func settingsHTTPMutationsAllowed(host string) bool {

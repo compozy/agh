@@ -189,6 +189,19 @@ func TestRedactHandlesQuotedJSONSecretsAndBounds(t *testing.T) {
 		}
 	})
 
+	t.Run("Should redact bare AGH claim tokens in display text", func(t *testing.T) {
+		t.Parallel()
+
+		const leaked = "agh_claim_display_secret_123"
+		redacted := Redact("stdout returned " + leaked)
+		if strings.Contains(redacted, leaked) {
+			t.Fatalf("Redact(bare claim token) = %q leaked %q", redacted, leaked)
+		}
+		if !strings.Contains(redacted, "agh_claim_[REDACTED]") {
+			t.Fatalf("Redact(bare claim token) = %q, want claim-token placeholder", redacted)
+		}
+	})
+
 	t.Run("Should keep non positive byte budgets bounded", func(t *testing.T) {
 		t.Parallel()
 

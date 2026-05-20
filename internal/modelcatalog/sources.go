@@ -115,7 +115,11 @@ func providerModelRows(
 		return row
 	}
 	if defaultModel := strings.TrimSpace(models.Default); defaultModel != "" {
-		addModel(defaultModel)
+		if providerConfigHasCuratedModel(models, defaultModel) {
+			addModel(defaultModel)
+		} else {
+			addModel(aghconfig.CanonicalProviderModelName(providerID, defaultModel))
+		}
 	}
 	for _, curated := range models.Curated {
 		modelID := strings.TrimSpace(curated.ID)
@@ -131,6 +135,15 @@ func providerModelRows(
 		rows = append(rows, byID[modelID])
 	}
 	return rows
+}
+
+func providerConfigHasCuratedModel(models aghconfig.ProviderModelsConfig, modelID string) bool {
+	for _, curated := range models.Curated {
+		if strings.TrimSpace(curated.ID) == modelID {
+			return true
+		}
+	}
+	return false
 }
 
 func enrichRowFromProviderModel(row *ModelRow, model aghconfig.ProviderModelConfig) {

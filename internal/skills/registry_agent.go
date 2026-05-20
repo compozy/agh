@@ -293,6 +293,8 @@ func (r *Registry) processSkillStrict(
 		return fmt.Errorf("%w: %s", errAgentLocalVerification, strings.TrimSpace(warning.Message))
 	}
 
+	skill.Diagnostics.VerificationStatus = verificationStatusForWarnings(warnings)
+	skill.Diagnostics.Warnings = cloneWarnings(warnings)
 	r.overlaySkill(dst, skill)
 	return nil
 }

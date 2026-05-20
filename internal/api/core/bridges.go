@@ -67,11 +67,21 @@ func (h *BaseHandlers) ListBridges(c *gin.Context) {
 	}
 	for _, instance := range instances {
 		payloads = append(payloads, BridgePayloadFromBridgeInstance(instance))
-		if filteredHealth != nil {
-			key := strings.TrimSpace(instance.ID)
-			health := bridgeHealth[key]
-			health.Degradation = cloneBridgeDegradation(instance.Degradation)
-			filteredHealth[key] = health
+		key := strings.TrimSpace(instance.ID)
+		var health contract.BridgeHealthPayload
+		if bridgeHealth != nil {
+			health = bridgeHealth[key]
+		}
+		enrichedHealth, err := h.bridgeHealthPayloadForInstance(c.Request.Context(), bridges, instance, health)
+		if err != nil {
+			h.respondError(c, http.StatusInternalServerError, err)
+			return
+		}
+		if filteredHealth != nil || len(enrichedHealth.Diagnostics) > 0 || enrichedHealth.Degradation != nil {
+			if filteredHealth == nil {
+				filteredHealth = make(map[string]contract.BridgeHealthPayload, len(instances))
+			}
+			filteredHealth[key] = enrichedHealth
 		}
 	}
 
@@ -914,7 +924,14 @@ func (h *BaseHandlers) bridgeResponse(
 	if err != nil {
 		return nil, err
 	}
-	health.Degradation = cloneBridgeDegradation(instance.Degradation)
+	bridges, ok := h.bridgeService()
+	if !ok {
+		return nil, errBridgeServiceUnavailable
+	}
+	health, err = h.bridgeHealthPayloadForInstance(ctx, bridges, instance, health)
+	if err != nil {
+		return nil, err
+	}
 	return &contract.BridgeResponse{
 		Bridge: BridgePayloadFromBridgeInstance(instance),
 		Health: health,

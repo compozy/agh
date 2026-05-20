@@ -15,7 +15,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		t.Fatalf("Document() error = %v", err)
 	}
 
-	t.Run("ShouldRegisterSettingsRoutesAndHTTPExtensionParity", func(t *testing.T) {
+	t.Run("Should register settings routes and HTTP extension parity", func(t *testing.T) {
 		t.Parallel()
 
 		operations := []struct {
@@ -140,7 +140,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldDescribeSettingsMutationAndRestartSchemas", func(t *testing.T) {
+	t.Run("Should describe settings mutation and restart schemas", func(t *testing.T) {
 		t.Parallel()
 
 		updateGeneral := operationFor(t, doc, "/api/settings/general", "PATCH")
@@ -204,6 +204,25 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			"warnings",
 		)
 		assertEnumValues(t, propertySchema(t, skillsMutationSchema, "scope"), "agent", "global")
+
+		readSkills := operationFor(t, doc, "/api/settings/skills", "GET")
+		skillsResponseSchema := jsonResponseSchema(t, readSkills, 200)
+		diagnosticsSchema := propertySchema(t, skillsResponseSchema, "diagnostics").Items.Value
+		assertRequired(t, diagnosticsSchema, "name", "state", "verification_status")
+		assertEnumValues(
+			t,
+			propertySchema(t, diagnosticsSchema, "state"),
+			"shadowed",
+			"valid",
+			"verification_failed",
+		)
+		assertEnumValues(
+			t,
+			propertySchema(t, diagnosticsSchema, "verification_status"),
+			"failed",
+			"passed",
+			"warning",
+		)
 
 		restartAction := operationFor(t, doc, "/api/settings/actions/restart", "POST")
 		restartActionSchema := jsonResponseSchema(t, restartAction, 202)
@@ -272,7 +291,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		)
 	})
 
-	t.Run("ShouldDescribeSettingsCollectionsAndLogTail", func(t *testing.T) {
+	t.Run("Should describe settings collections and log tail", func(t *testing.T) {
 		t.Parallel()
 
 		mcpList := operationFor(t, doc, "/api/settings/mcp-servers", "GET")
@@ -300,7 +319,20 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		assertEnumValues(t, propertySchema(t, mcpListSchema, "scope"), "global", "workspace")
 		mcpItemRootSchema := propertySchema(t, mcpListSchema, "mcp_servers").Items.Value
 		assertRequired(t, mcpItemRootSchema, "name", "transport", "scope", "source_metadata")
-		assertNotRequired(t, mcpItemRootSchema, "command", "args", "env", "url", "auth", "auth_status")
+		assertNotRequired(
+			t,
+			mcpItemRootSchema,
+			"command",
+			"args",
+			"env",
+			"url",
+			"auth",
+			"auth_status",
+			"runtime_status",
+		)
+		mcpRuntimeSchema := propertySchema(t, mcpItemRootSchema, "runtime_status")
+		assertRequired(t, mcpRuntimeSchema, "configured", "initialized", "state", "probe", "tool_count")
+		assertNotRequired(t, mcpRuntimeSchema, "reason", "diagnostic")
 		mcpItemSchema := propertySchema(t, mcpItemRootSchema, "source_metadata")
 		assertRequired(t, mcpItemSchema, "effective_source", "available_targets")
 		assertNotRequired(t, mcpItemSchema, "shadowed_sources")
@@ -320,6 +352,21 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		assertRequired(t, providersSchema, "collection", "scope", "available_scopes", "providers")
 		assertNotRequired(t, providersSchema, "workspace_id", "agent_name")
 		assertEnumValues(t, propertySchema(t, providersSchema, "scope"), "global")
+		providerItemSchema := propertySchema(t, providersSchema, "providers").Items.Value
+		authStatusSchema := propertySchema(t, providerItemSchema, "auth_status")
+		assertRequired(t, authStatusSchema, "mode", "env_policy", "home_policy", "state")
+		assertNotRequired(
+			t,
+			authStatusSchema,
+			"message",
+			"status_command",
+			"login_command",
+			"login_env",
+			"native_cli",
+		)
+		nativeCLISchema := propertySchema(t, authStatusSchema, "native_cli")
+		assertRequired(t, nativeCLISchema, "present")
+		assertNotRequired(t, nativeCLISchema, "command", "path", "source", "error")
 
 		logTail := operationFor(t, doc, "/api/settings/observability/log-tail", "GET")
 		response := logTail.Responses.Status(200)

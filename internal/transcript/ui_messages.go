@@ -118,6 +118,7 @@ type uiToolLifecycle struct {
 
 // UIAgentEventPayloadFromEvent converts an ACP event into the prompt-stream data payload.
 func UIAgentEventPayloadFromEvent(event acp.AgentEvent) UIAgentEventPayload {
+	event = RedactAgentEvent(event)
 	payload := UIAgentEventPayload{
 		Type:       event.Type,
 		SessionID:  event.SessionID,
@@ -206,6 +207,11 @@ func ToUIMessages(events []store.SessionEvent) ([]UIMessage, error) {
 
 	for _, storedEvent := range sorted {
 		decoded := decodeStoredEvent(storedEvent)
+		if markerText := transcriptMarkerText(decoded.parsed); markerText != "" {
+			flushAssistant(true)
+			appendMessage(runtimeMarkerUIMessage(decoded, markerText))
+			continue
+		}
 		switch decoded.parsed.Type {
 		case acp.EventTypeUserMessage:
 			flushAssistant(true)
@@ -563,6 +569,29 @@ func inputUIMessage(decoded *decodedStoredEvent, role string) *UIMessage {
 	}
 }
 
+func runtimeMarkerUIMessage(decoded *decodedStoredEvent, markerText string) UIMessage {
+	parts := []UIMessagePart{{
+		Type:  uiPartText,
+		Text:  markerText,
+		State: uiPartStateDone,
+	}}
+	if payload := decoded.dataPayload(); len(payload) > 0 {
+		parts = append(parts, UIMessagePart{
+			Type: uiPartDataEvent,
+			Data: acp.CloneRawMessage(payload),
+		})
+	}
+	return UIMessage{
+		ID: fallbackMessageID(
+			strings.TrimSpace(decoded.stored.ID),
+			strings.TrimSpace(decoded.parsed.ID),
+			"runtime-marker",
+		),
+		Role:  UIRoleSystem,
+		Parts: parts,
+	}
+}
+
 // UIMessageText returns the concatenated visible text parts for one UI message.
 func UIMessageText(message UIMessage) string {
 	parts := make([]string, 0, len(message.Parts))
@@ -627,6 +656,8 @@ func decodeStoredEvent(storedEvent store.SessionEvent) *decodedStoredEvent {
 	if strings.TrimSpace(decoded.agent.Error) == "" && decoded.parsed.ToolResult != nil {
 		decoded.agent.Error = firstNonEmpty(decoded.parsed.ToolResult.Error, decoded.parsed.Text)
 	}
+	decoded.parsed = redactTranscriptEvent(decoded.parsed)
+	decoded.agent = RedactAgentEvent(decoded.agent)
 	return decoded
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -11,6 +12,7 @@ import (
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/pedronauck/agh/internal/providerauth"
 	"github.com/pedronauck/agh/internal/vault"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -214,13 +216,17 @@ func (s *service) buildProviderItems(ctx context.Context, cfg *aghconfig.Config)
 		if err != nil {
 			return nil, fmt.Errorf("settings: provider %q credential status: %w", name, err)
 		}
+		authStatus, err := providerAuthStatus(s.homePaths, name, resolved, credentials, s.commandLookPath)
+		if err != nil {
+			return nil, fmt.Errorf("settings: provider %q auth status: %w", name, err)
+		}
 		item := ProviderItem{
 			Name:             name,
 			Settings:         settings,
 			Default:          strings.TrimSpace(cfg.Defaults.Provider) == name,
 			CommandAvailable: s.commandAvailable(resolved.Command),
 			Credentials:      credentials,
-			AuthStatus:       providerAuthStatus(resolved, credentials),
+			AuthStatus:       authStatus,
 		}
 
 		if overlay, ok := cfg.Providers[name]; ok {
@@ -266,9 +272,12 @@ func providerSettingsFromConfig(name string, provider aghconfig.ProviderConfig) 
 }
 
 func providerAuthStatus(
+	homePaths aghconfig.HomePaths,
+	providerName string,
 	provider aghconfig.ProviderConfig,
 	credentials []ProviderCredentialStatus,
-) ProviderAuthStatus {
+	lookPath func(string) (string, error),
+) (ProviderAuthStatus, error) {
 	status := ProviderAuthStatus{
 		Mode:       provider.EffectiveAuthMode(),
 		EnvPolicy:  provider.EffectiveEnvPolicy(),
@@ -282,7 +291,7 @@ func providerAuthStatus(
 			if credential.Required && !credential.Present {
 				status.State = "missing_required"
 				status.Message = "Missing required AGH-managed provider credential."
-				return status
+				return status, nil
 			}
 		}
 		status.State = "present"
@@ -293,8 +302,26 @@ func providerAuthStatus(
 	default:
 		status.State = "native_cli"
 		status.Message = "Provider owns authentication through its native CLI login state."
+		nativeCLI, err := providerauth.NativeCLIStatusForProvider(provider, lookPath)
+		if err != nil {
+			return ProviderAuthStatus{}, err
+		}
+		status.NativeCLI = nativeCLI
+		loginEnv, err := providerauth.NativeCLILoginEnv(homePaths, providerName, provider, os.Environ())
+		if err != nil {
+			return ProviderAuthStatus{}, err
+		}
+		status.LoginEnv = loginEnv
+		if nativeCLI != nil && nativeCLI.Command != "" {
+			if !nativeCLI.Present {
+				status.State = "missing_cli"
+				status.Message = providerauth.NativeCLIMissingMessage(providerName, provider, nativeCLI)
+				return status, nil
+			}
+			status.Message = providerauth.NativeCLIReadyMessage(providerName, provider, nativeCLI)
+		}
 	}
-	return status
+	return status, nil
 }
 
 func providerFallbackFromBuiltin(name string, builtin aghconfig.ProviderConfig) *ProviderFallback {
@@ -470,6 +497,13 @@ func (s *service) buildMCPServerItems(
 				return nil, fmt.Errorf("settings: load MCP auth status for %q: %w", name, statusErr)
 			}
 			item.AuthStatus = &status
+		}
+		if s.mcpRuntime != nil {
+			status, statusErr := s.mcpRuntime.MCPServerRuntimeStatus(ctx, effective.Server)
+			if statusErr != nil {
+				return nil, fmt.Errorf("settings: load MCP runtime status for %q: %w", name, statusErr)
+			}
+			item.RuntimeStatus = &status
 		}
 		items = append(items, cloneMCPServerItem(item))
 	}

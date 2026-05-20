@@ -18,6 +18,7 @@ import (
 
 type wsCache struct {
 	skills        map[string]*Skill
+	diagnostics   []SkillDiagnostic
 	snapshots     map[string]filesnap.Snapshot
 	lastAccess    time.Time
 	globalVersion int64

@@ -251,6 +251,7 @@ func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testin
 		if runtimeDir == "" {
 			t.Fatal("PI_CODING_AGENT_DIR = empty, want materialized pi runtime directory")
 		}
+		assertProviderRuntimeFileMode(t, runtimeDir, 0o700)
 		settings := readProviderJSON[piSettingsFile](t, filepath.Join(runtimeDir, "settings.json"))
 		if settings.DefaultProvider != "openrouter" || settings.DefaultModel != "openai/gpt-5.4" {
 			t.Fatalf("settings.json = %#v, want openrouter defaults", settings)
@@ -276,6 +277,63 @@ func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testin
 		redacted := diagnostics.RedactAndBound("stderr leaked "+secret, 256)
 		if strings.Contains(redacted, secret) {
 			t.Fatalf("RedactAndBound(dynamic provider secret) = %q leaked secret", redacted)
+		}
+	})
+
+	t.Run("Should replace stale pi runtime files with private file and directory modes", func(t *testing.T) {
+		t.Parallel()
+
+		secret := "sk-provider-runtime-replacement-secret"
+		manager := &Manager{
+			providerSecrets: fakeProviderSecretResolver{
+				values: map[string]string{
+					"vault:providers/openrouter/api-key": secret,
+				},
+			},
+		}
+		sessionDir := t.TempDir()
+		runtimeDir := filepath.Join(sessionDir, "provider-runtime", "pi")
+		if err := os.MkdirAll(runtimeDir, 0o755); err != nil {
+			t.Fatalf("MkdirAll(runtimeDir) error = %v", err)
+		}
+		if err := os.Chmod(runtimeDir, 0o755); err != nil {
+			t.Fatalf("Chmod(runtimeDir) error = %v", err)
+		}
+		settingsPath := filepath.Join(runtimeDir, "settings.json")
+		if err := os.WriteFile(settingsPath, []byte("{\"defaultProvider\":\"stale\"}"), 0o644); err != nil {
+			t.Fatalf("WriteFile(stale settings) error = %v", err)
+		}
+		session := &Session{sessionDir: sessionDir}
+		t.Cleanup(session.clearProviderSecretRedactions)
+		resolved := aghconfig.ResolvedAgent{
+			Provider:        "openrouter",
+			Model:           "openai/gpt-5.4",
+			Harness:         aghconfig.ProviderHarnessPiACP,
+			RuntimeProvider: "openrouter",
+			Transport:       "openai",
+			AuthMode:        aghconfig.ProviderAuthModeBoundSecret,
+			CredentialSlots: []aghconfig.ProviderCredentialSlot{{
+				Name:      "api_key",
+				TargetEnv: "OPENROUTER_API_KEY",
+				SecretRef: "vault:providers/openrouter/api-key",
+				Kind:      "api_key",
+				Required:  true,
+			}},
+		}
+
+		opts, err := manager.prepareProviderForStart(testutil.Context(t), session, resolved, acp.StartOpts{})
+		if err != nil {
+			t.Fatalf("prepareProviderForStart() error = %v", err)
+		}
+
+		if got := envValue(opts.Env, "PI_CODING_AGENT_DIR"); got != runtimeDir {
+			t.Fatalf("PI_CODING_AGENT_DIR = %q, want %q", got, runtimeDir)
+		}
+		assertProviderRuntimeFileMode(t, runtimeDir, 0o700)
+		assertProviderRuntimeFileMode(t, settingsPath, 0o600)
+		settings := readProviderJSON[piSettingsFile](t, settingsPath)
+		if settings.DefaultProvider != "openrouter" || settings.DefaultModel != "openai/gpt-5.4" {
+			t.Fatalf("settings.json = %#v, want replacement runtime config", settings)
 		}
 	})
 

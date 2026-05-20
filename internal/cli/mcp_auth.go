@@ -19,6 +19,7 @@ import (
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/diagnostics"
+	"github.com/pedronauck/agh/internal/fileutil"
 	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	"github.com/pedronauck/agh/internal/vault"
@@ -33,6 +34,7 @@ const (
 )
 
 const defaultMCPAuthLoginTimeout = 2 * time.Minute
+const defaultMCPAuthRedirectURL = "http://127.0.0.1/callback"
 const mcpAuthPendingLoginDir = "mcp-auth"
 
 type mcpAuthClient interface {
@@ -347,7 +349,7 @@ func runMCPAuthManualLogin(
 	redirectURL string,
 ) (mcpauth.Status, error) {
 	if strings.TrimSpace(redirectURL) == "" {
-		redirectURL = "http://127.0.0.1/callback"
+		redirectURL = defaultMCPAuthRedirectURL
 	}
 	state, err := client.BeginLogin(cmd.Context(), cfg, redirectURL)
 	if err != nil {
@@ -630,11 +632,11 @@ func saveMCPAuthPendingLogin(homePaths aghconfig.HomePaths, state mcpauth.LoginS
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return fmt.Errorf("cli: create pending MCP auth login directory: %w", err)
 	}
-	if err := os.WriteFile(path, payload, 0o600); err != nil {
-		return fmt.Errorf("cli: write pending MCP auth login: %w", err)
+	if err := os.Chmod(filepath.Dir(path), 0o700); err != nil {
+		return fmt.Errorf("cli: protect pending MCP auth login directory: %w", err)
 	}
-	if err := os.Chmod(path, 0o600); err != nil {
-		return fmt.Errorf("cli: protect pending MCP auth login: %w", err)
+	if err := fileutil.AtomicWriteFile(path, payload, 0o600); err != nil {
+		return fmt.Errorf("cli: write pending MCP auth login: %w", err)
 	}
 	diagnostics.RegisterDynamicSecret(state.Verifier)
 	return nil

@@ -411,11 +411,27 @@ function compareUrl(
 }
 
 function releaseNotesBody(version: string, releaseNotes: ReleaseNoteInput[]): string {
+  const posture = releaseVerificationPostureBody();
   if (releaseNotes.length === 0) {
-    return `Generated from release artifacts for ${version}.`;
+    return `Generated from release artifacts for ${version}.\n\n${posture}`;
   }
   const sections = releaseNotes.map(note => `## ${note.title}\n\n${note.body.trim()}`);
-  return sections.join("\n\n");
+  return `${sections.join("\n\n")}\n\n${posture}`;
+}
+
+function releaseVerificationPostureBody(): string {
+  return [
+    "## Verification posture",
+    "",
+    "This generated release entry names the release gates and artifact guarantees that the AGH release workflow owns:",
+    "",
+    "- Repository gate: `make verify` covers codegen drift, Bun lint/typecheck/test/build, Go fmt/lint/test/build, and import boundaries.",
+    "- Release PR dry-run: `pr-release dry-run`, `make test-e2e-nightly`, and `make test-integration` run before the release commit is merged.",
+    "- Production release: generated release assets are validated before `goreleaser release --clean` publishes the release.",
+    "- Artifact provenance: GoReleaser signs `checksums.txt` with cosign, publishes the Sigstore bundle `checksums.txt.sigstore.json`, and generates Syft SBOMs for archives, packages, and source.",
+    "",
+    "Known limitation: this generated changelog does not claim a manual post-release install smoke or live-provider QA run unless a release note in this entry names that evidence.",
+  ].join("\n");
 }
 
 function parseSimpleFrontmatter(frontmatter: string): Map<string, string> {

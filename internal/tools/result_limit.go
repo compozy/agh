@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/pedronauck/agh/internal/diagnostics"
 )
 
 const (
@@ -117,6 +119,7 @@ func cloneRawMap(src map[string]json.RawMessage) map[string]json.RawMessage {
 func redactToolResult(result *ToolResult, fields []string) ([]Redaction, error) {
 	var redactions []Redaction
 	var err error
+	result.Preview, redactions = redactDisplayText(result.Preview, "$.preview", redactions)
 	var structured json.RawMessage
 	structured, redactions, err = redactRawJSON(result.Structured, "$.structured", fields, redactions)
 	if err != nil {
@@ -124,6 +127,11 @@ func redactToolResult(result *ToolResult, fields []string) ([]Redaction, error) 
 	}
 	result.Structured = structured
 	for i := range result.Content {
+		result.Content[i].Text, redactions = redactDisplayText(
+			result.Content[i].Text,
+			fmt.Sprintf("$.content[%d].text", i),
+			redactions,
+		)
 		path := fmt.Sprintf("$.content[%d].data", i)
 		result.Content[i].Data, redactions, err = redactRawJSON(result.Content[i].Data, path, fields, redactions)
 		if err != nil {
@@ -144,6 +152,19 @@ func redactToolResult(result *ToolResult, fields []string) ([]Redaction, error) 
 		return nil, err
 	}
 	return redactions, nil
+}
+
+func redactDisplayText(text string, path string, redactions []Redaction) (string, []Redaction) {
+	redacted := diagnostics.Redact(text)
+	if redacted == text {
+		return text, redactions
+	}
+	redactions = append(redactions, Redaction{
+		Path:   path,
+		Reason: ReasonSecretMetadata,
+		Bytes:  int64(len(text)),
+	})
+	return redacted, redactions
 }
 
 func redactRawMap(

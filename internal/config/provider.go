@@ -21,7 +21,12 @@ const (
 	providerNodeOptionsValue           = "NODE_OPTIONS"
 	providerAnthropicClaudeOpus47Path  = "anthropic/claude-opus-4-7"
 	providerBlackboxKey                = "blackbox"
+	providerClaudeCodeAlias            = "claude-code"
+	providerGeminiKey                  = "gemini"
 	modelClaudeOpus47ID                = "claude-opus-4-7"
+	modelClaudeHaiku45ID               = "claude-haiku-4-5"
+	modelClaudeOpusAlias               = "opus"
+	modelClaudeSonnetAlias             = "sonnet"
 	providerClaudeSonnet46Value        = "claude-sonnet-4-6"
 	providerClineKey                   = "cline"
 	providerCodexKey                   = "codex"
@@ -29,12 +34,18 @@ const (
 	providerGemini31ProPreviewPath     = "gemini-3.1-pro-preview"
 	providerGlm46Path                  = "glm-4.6"
 	providerGooseKey                   = "goose"
+	providerGrokAlias                  = "grok"
 	modelGPT54ID                       = "gpt-5.4"
+	modelGPT54MiniID                   = "gpt-5.4-mini"
+	modelGPT5Alias                     = "gpt-5"
+	modelGPT5CompactAlias              = "gpt5"
+	modelMiniAlias                     = "mini"
 	providerGrok4FastNonReasoningValue = "grok-4-fast-non-reasoning"
 	providerGroqKey                    = "groq"
 	providerHermesKey                  = "hermes"
 	providerHighKey                    = "high"
 	providerJunieKey                   = "junie"
+	providerKimiAlias                  = "kimi"
 	providerKimiCLIValue               = "kimi-cli"
 	providerKimiCodingValue            = "kimi-coding"
 	providerKimiK2ThinkingValue        = "kimi-k2-thinking"
@@ -50,10 +61,12 @@ const (
 	providerOpenhandsKey               = "openhands"
 	providerOpenrouterKey              = "openrouter"
 	providerQoderKey                   = "qoder"
+	providerQwenAlias                  = "qwen"
 	providerQwenCodeValue              = "qwen-code"
 	providerQwen36PlusPath             = "qwen3.6-plus"
 	providerVercelAIGatewayValue       = "vercel-ai-gateway"
 	providerXaiKey                     = "xai"
+	providerXaiDotAlias                = "x.ai"
 	providerZaiKey                     = "zai"
 )
 
@@ -267,12 +280,14 @@ const (
 var builtinProviderAliases = map[string]string{
 	"blackbox-ai":                providerBlackboxKey,
 	"blackboxai":                 providerBlackboxKey,
+	providerClaudeCodeAlias:      providerClaudeKey,
 	"cline-cli":                  providerClineKey,
 	"goose-cli":                  providerGooseKey,
 	"hermes-agent":               providerHermesKey,
 	"junie-cli":                  providerJunieKey,
 	"ai-gateway":                 providerVercelAIGatewayValue,
-	"kimi":                       providerMoonshotKey,
+	"aigateway":                  providerVercelAIGatewayValue,
+	providerKimiAlias:            providerMoonshotKey,
 	"kimi cli":                   providerKimiCLIValue,
 	providerKimiCLIValue:         providerKimiCLIValue,
 	"kimi-code":                  providerKimiCLIValue,
@@ -281,8 +296,10 @@ var builtinProviderAliases = map[string]string{
 	"open-hands":                 providerOpenhandsKey,
 	"openhands-cli":              providerOpenhandsKey,
 	"openclaw-cli":               providerOpenclawKey,
+	"open-code":                  providerOpencodeKey,
+	"opencode-ai":                providerOpencodeKey,
 	"qoder-cli":                  providerQoderKey,
-	"qwen":                       providerQwenCodeValue,
+	providerQwenAlias:            providerQwenCodeValue,
 	"qwen cli":                   providerQwenCodeValue,
 	"qwen code":                  providerQwenCodeValue,
 	providerQwenCodeValue:        providerQwenCodeValue,
@@ -298,30 +315,65 @@ var builtinProviderAliases = map[string]string{
 	"openrouter-gateway":         providerOpenrouterKey,
 	"minimax-ai":                 providerMinimaxKey,
 	"minimax-cn":                 providerMinimaxKey,
-	"grok":                       providerXaiKey,
+	providerGrokAlias:            providerXaiKey,
 	"x-ai":                       providerXaiKey,
+	providerXaiDotAlias:          providerXaiKey,
 	"mistralai":                  providerMistralKey,
 	"mistral-ai":                 providerMistralKey,
 }
 
+var builtinProviderModelAliases = map[string]map[string]string{
+	providerClaudeKey: {
+		"haiku":                modelClaudeHaiku45ID,
+		modelClaudeOpusAlias:   modelClaudeOpus47ID,
+		modelClaudeSonnetAlias: providerClaudeSonnet46Value,
+	},
+	providerCodexKey: {
+		modelGPT5Alias:        modelGPT54ID,
+		modelGPT5CompactAlias: modelGPT54ID,
+		modelMiniAlias:        modelGPT54MiniID,
+	},
+	providerGeminiKey: {
+		providerGeminiKey: providerGemini31ProPreviewPath,
+		"pro":             providerGemini31ProPreviewPath,
+	},
+	providerMoonshotKey: {
+		providerKimiAlias: providerKimiK2ThinkingValue,
+	},
+	providerQwenCodeValue: {
+		providerQwenAlias: providerQwen36PlusPath,
+	},
+	providerVercelAIGatewayValue: {
+		modelClaudeOpusAlias: providerAnthropicClaudeOpus47Path,
+	},
+	providerXaiKey: {
+		providerGrokAlias: providerGrok4FastNonReasoningValue,
+	},
+	providerZaiKey: {
+		"glm": providerGlm46Path,
+	},
+}
+
 var builtinProviders = map[string]ProviderConfig{
 	providerClaudeKey: {
-		Command:     claudeProviderCommand,
-		DisplayName: "Claude Code",
-		Harness:     ProviderHarnessACP,
+		Command:      claudeProviderCommand,
+		DisplayName:  "Claude Code",
+		Harness:      ProviderHarnessACP,
+		AuthLoginCmd: "claude auth login",
 		Models: ProviderModelsConfig{
 			Default: providerClaudeSonnet46Value,
 			Curated: []ProviderModelConfig{
 				{ID: modelClaudeOpus47ID, DisplayName: "Claude Opus 4.7"},
 				{ID: providerClaudeSonnet46Value, DisplayName: "Claude Sonnet 4.6"},
-				{ID: "claude-haiku-4-5", DisplayName: "Claude Haiku 4.5"},
+				{ID: modelClaudeHaiku45ID, DisplayName: "Claude Haiku 4.5"},
 			},
 		},
 	},
 	providerCodexKey: {
-		Command:     "npx -y @zed-industries/codex-acp@latest",
-		DisplayName: "Codex",
-		Harness:     ProviderHarnessACP,
+		Command:      "npx -y @zed-industries/codex-acp@latest",
+		DisplayName:  "Codex",
+		Harness:      ProviderHarnessACP,
+		AuthLoginCmd: "codex login",
 		Models: ProviderModelsConfig{
 			Default: modelGPT54ID,
 			Curated: []ProviderModelConfig{
@@ -334,7 +386,7 @@ var builtinProviders = map[string]ProviderConfig{
 					DefaultReasoningEffort: providerMediumKey,
 				},
 				{
-					ID:                     "gpt-5.4-mini",
+					ID:                     modelGPT54MiniID,
 					DisplayName:            "GPT-5.4 Mini",
 					SupportsTools:          new(true),
 					SupportsReasoning:      new(true),
@@ -346,7 +398,7 @@ var builtinProviders = map[string]ProviderConfig{
 			},
 		},
 	},
-	"gemini": {
+	providerGeminiKey: {
 		Command:     "gemini --acp",
 		DisplayName: "Gemini CLI",
 		Harness:     ProviderHarnessACP,
@@ -358,9 +410,10 @@ var builtinProviders = map[string]ProviderConfig{
 		},
 	},
 	providerOpencodeKey: {
-		Command:     "npx -y opencode-ai@latest acp",
-		DisplayName: "OpenCode",
-		Harness:     ProviderHarnessACP,
+		Command:      "npx -y opencode-ai@latest acp",
+		DisplayName:  "OpenCode",
+		Harness:      ProviderHarnessACP,
+		AuthLoginCmd: "opencode auth login",
 	},
 	providerBlackboxKey: {
 		Command:     "blackbox --experimental-acp",
@@ -567,10 +620,46 @@ func CanonicalProviderName(name string) string {
 	if _, ok := builtinProviders[trimmed]; ok {
 		return trimmed
 	}
-	if canonical, ok := builtinProviderAliases[strings.ToLower(trimmed)]; ok {
+	lower := strings.ToLower(trimmed)
+	if _, ok := builtinProviders[lower]; ok {
+		return lower
+	}
+	if canonical, ok := builtinProviderAliases[lower]; ok {
 		return canonical
 	}
 	return trimmed
+}
+
+// CanonicalProviderModelName resolves small built-in provider-scoped model aliases.
+func CanonicalProviderModelName(providerName string, modelName string) string {
+	trimmedModel := strings.TrimSpace(modelName)
+	if trimmedModel == "" {
+		return ""
+	}
+	canonicalProvider := CanonicalProviderName(providerName)
+	if aliases, ok := builtinProviderModelAliases[canonicalProvider]; ok {
+		if canonicalModel, found := aliases[strings.ToLower(trimmedModel)]; found {
+			return canonicalModel
+		}
+	}
+	return trimmedModel
+}
+
+func canonicalConfiguredProviderModelName(
+	providerName string,
+	models ProviderModelsConfig,
+	modelName string,
+) string {
+	trimmedModel := strings.TrimSpace(modelName)
+	if trimmedModel == "" {
+		return ""
+	}
+	for _, curated := range models.Curated {
+		if strings.TrimSpace(curated.ID) == trimmedModel {
+			return trimmedModel
+		}
+	}
+	return CanonicalProviderModelName(providerName, trimmedModel)
 }
 
 func apiKeyCredentialSlot(targetEnv string) ProviderCredentialSlot {
@@ -609,6 +698,11 @@ func (c *Config) ResolveProvider(name string) (ProviderConfig, error) {
 			return ProviderConfig{}, newUnknownProviderError(providerName)
 		}
 	}
+	resolved.Models.Default = canonicalConfiguredProviderModelName(
+		providerName,
+		resolved.Models,
+		resolved.Models.Default,
+	)
 
 	if err := validateResolvedProvider(providerName, resolved); err != nil {
 		return ProviderConfig{}, fmt.Errorf("%w: %w", ErrProviderUnavailable, err)
@@ -661,6 +755,7 @@ func (c *Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 	if model == "" {
 		model = strings.TrimSpace(provider.Models.Default)
 	}
+	model = canonicalConfiguredProviderModelName(providerName, provider.Models, model)
 	if model == "" && provider.RequiresRuntimeModel() {
 		return ResolvedAgent{}, fmt.Errorf(
 			"agent model is required when provider %q has no default model",

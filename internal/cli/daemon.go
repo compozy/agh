@@ -328,7 +328,7 @@ func daemonStatusFromDeps(ctx context.Context, deps commandDeps, runtime *runtim
 }
 
 func daemonStatusCanFallback(err error) bool {
-	return errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ECONNREFUSED)
+	return isDaemonUnavailableTransportError(err)
 }
 
 func daemonInfo(homePaths aghconfig.HomePaths, deps commandDeps) (aghdaemon.Info, bool, error) {

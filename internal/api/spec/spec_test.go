@@ -372,6 +372,27 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				listSkills := operationFor(t, doc, "/api/skills", "GET")
 				assertParameter(t, listSkills, "workspace", openapi3.ParameterInQuery, false)
 				assertParameter(t, listSkills, "for_agent", openapi3.ParameterInQuery, false)
+				listSkillsSchema := jsonResponseSchema(t, listSkills, 200)
+				skillSchema := propertySchema(t, listSkillsSchema, "skills").Items.Value
+				skillDiagnosticsSchema := propertySchema(t, skillSchema, "diagnostics").Items.Value
+				assertRequired(t, skillDiagnosticsSchema, "name", "state", "verification_status")
+				assertEnumValues(
+					t,
+					propertySchema(t, skillDiagnosticsSchema, "state"),
+					"shadowed",
+					"valid",
+					"verification_failed",
+				)
+				assertEnumValues(
+					t,
+					propertySchema(t, skillDiagnosticsSchema, "verification_status"),
+					"failed",
+					"passed",
+					"warning",
+				)
+				failureSchema := propertySchema(t, skillDiagnosticsSchema, "failure")
+				assertRequired(t, failureSchema, "code", "message")
+				assertNotRequired(t, failureSchema, "expected_hash", "actual_hash")
 
 				getSkill := operationFor(t, doc, "/api/skills/{name}", "GET")
 				assertParameter(t, getSkill, "workspace", openapi3.ParameterInQuery, false)
@@ -496,6 +517,20 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"provider_timeout",
 					"tenant_config_invalid",
 				)
+				diagnosticsSchema := propertySchema(t, healthSchema, "diagnostics")
+				if diagnosticsSchema.Items == nil || diagnosticsSchema.Items.Value == nil {
+					t.Fatal("expected bridge diagnostics to define an items schema")
+				}
+				diagnosticSchema := diagnosticsSchema.Items.Value
+				assertRequired(t, diagnosticSchema, "kind", "severity", "source", "message")
+				assertEnumValues(t, propertySchema(t, diagnosticSchema, "kind"),
+					"unknown_destination",
+					"missing_token",
+					"permission_denied",
+					"unsupported_capability",
+					"transient_delivery_failure",
+				)
+				assertEnumValues(t, propertySchema(t, diagnosticSchema, "severity"), "info", "warning", "error")
 			},
 		},
 		{

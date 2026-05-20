@@ -62,6 +62,10 @@ type event struct {
 	TurnID     string
 	Type       string
 	Text       string
+	StopReason string
+	Error      string
+	Failure    *store.SessionFailure
+	Runtime    *acp.RuntimeActivity
 	ToolCallID string
 	ToolName   string
 	ToolInput  json.RawMessage
@@ -167,6 +171,8 @@ func processTranscriptEvent(
 	case acp.EventTypeToolResult:
 		flushAssistantBuffer(messages, assistant)
 		applyToolResult(messages, toolStates, parsed)
+	case acp.EventTypeRuntimeWarning, sessionStoppedEventType:
+		appendMarkerTranscriptMessage(messages, assistant, parsed)
 	default:
 		flushAssistantBuffer(messages, assistant)
 	}
@@ -190,6 +196,21 @@ func appendInputTranscriptMessage(messages *[]Message, assistant *assistantBuffe
 		ID:        parsed.ID,
 		Role:      role,
 		Content:   parsed.Text,
+		Timestamp: parsed.Timestamp,
+	})
+}
+
+func appendMarkerTranscriptMessage(messages *[]Message, assistant *assistantBuffer, parsed event) {
+	markerText := transcriptMarkerText(parsed)
+	if markerText == "" {
+		flushAssistantBuffer(messages, assistant)
+		return
+	}
+	flushAssistantBuffer(messages, assistant)
+	*messages = append(*messages, Message{
+		ID:        parsed.ID,
+		Role:      RoleSystem,
+		Content:   markerText,
 		Timestamp: parsed.Timestamp,
 	})
 }
@@ -361,7 +382,7 @@ func parseEvent(sessionEvent store.SessionEvent) event {
 
 	content := strings.TrimSpace(sessionEvent.Content)
 	if content == "" {
-		return parsed
+		return redactTranscriptEvent(parsed)
 	}
 
 	var payload map[string]any
@@ -369,23 +390,27 @@ func parseEvent(sessionEvent store.SessionEvent) event {
 		if parsed.Type == acp.EventTypeUserMessage || parsed.Type == acp.EventTypeAgentMessage ||
 			parsed.Type == acp.EventTypeThought {
 			parsed.Text = content
-			return parsed
+			return redactTranscriptEvent(parsed)
 		}
-		return parsed
+		return redactTranscriptEvent(parsed)
 	}
 
 	if schema := nestedString(payload, "schema"); schema == CanonicalSchema {
-		return parseCanonicalEvent(parsed, payload)
+		return redactTranscriptEvent(parseCanonicalEvent(parsed, payload))
 	}
 	if _, ok := payload["sessionUpdate"]; ok {
-		return parseLegacyEvent(parsed, payload)
+		return redactTranscriptEvent(parseLegacyEvent(parsed, payload))
 	}
-	return parseLooseEvent(parsed, payload)
+	return redactTranscriptEvent(parseLooseEvent(parsed, payload))
 }
 
 func parseCanonicalEvent(parsed event, payload map[string]any) event {
 	parsed.Type = firstNonEmpty(nestedString(payload, "type"), parsed.Type)
 	parsed.Text = nestedString(payload, "text")
+	parsed.StopReason = nestedString(payload, "stop_reason")
+	parsed.Error = nestedString(payload, "error")
+	parsed.Failure = sessionFailureFromValue(payload["failure"])
+	parsed.Runtime = runtimeActivityFromValue(payload["runtime"])
 	parsed.ToolCallID = firstNonEmpty(nestedString(payload, "tool_call_id"), nestedString(payload, "toolCallId"))
 	parsed.ToolName = firstNonEmpty(nestedString(payload, "tool_name"), nestedString(payload, "title"))
 	parsed.ToolInput = acp.CloneRawMessage(rawMessageFromValue(payload["tool_input"]))
@@ -442,6 +467,10 @@ func parseLegacyEvent(parsed event, payload map[string]any) event {
 func parseLooseEvent(parsed event, payload map[string]any) event {
 	parsed.Type = firstNonEmpty(nestedString(payload, "type"), parsed.Type)
 	parsed.Text = nestedString(payload, "text")
+	parsed.StopReason = nestedString(payload, "stop_reason")
+	parsed.Error = nestedString(payload, "error")
+	parsed.Failure = sessionFailureFromValue(payload["failure"])
+	parsed.Runtime = runtimeActivityFromValue(payload["runtime"])
 	parsed.ToolCallID = firstNonEmpty(nestedString(payload, "tool_call_id"), nestedString(payload, "toolCallId"))
 	parsed.ToolName = firstNonEmpty(
 		nestedString(payload, "tool_name"),
@@ -542,6 +571,34 @@ func decodeToolResult(raw json.RawMessage) *ToolResult {
 		return nil
 	}
 	return &result
+}
+
+func sessionFailureFromValue(value any) *store.SessionFailure {
+	raw := rawMessageFromValue(value)
+	if len(raw) == 0 {
+		return nil
+	}
+	var failure store.SessionFailure
+	if err := json.Unmarshal(raw, &failure); err != nil {
+		return nil
+	}
+	normalized := failure.Normalize()
+	if normalized.IsZero() {
+		return nil
+	}
+	return &normalized
+}
+
+func runtimeActivityFromValue(value any) *acp.RuntimeActivity {
+	raw := rawMessageFromValue(value)
+	if len(raw) == 0 {
+		return nil
+	}
+	var activity acp.RuntimeActivity
+	if err := json.Unmarshal(raw, &activity); err != nil {
+		return nil
+	}
+	return cloneRuntimeActivity(&activity)
 }
 
 func extractLegacyContentText(value any) string {
@@ -727,6 +784,7 @@ func canonicalPayload(
 		ToolResult: cloneToolResult(toolResult),
 		ToolError:  toolError,
 	}
+	redactCanonicalPayload(&payload)
 
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -783,6 +841,7 @@ func MarshalAgentEvent(event acp.AgentEvent) (string, error) {
 	if payload.ToolName == "" {
 		payload.ToolName = event.Title
 	}
+	redactCanonicalPayload(&payload)
 
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -824,7 +883,7 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		Runtime:          cloneRuntimeActivity(decoded.Runtime),
 		Raw:              acp.CloneRawMessage(decoded.Raw),
 	}
-	return event, nil
+	return RedactAgentEvent(event), nil
 }
 
 func cloneRuntimeActivity(activity *acp.RuntimeActivity) *acp.RuntimeActivity {

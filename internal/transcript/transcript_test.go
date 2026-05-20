@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/diagnostics"
 	"github.com/pedronauck/agh/internal/store"
 )
 
@@ -730,6 +731,207 @@ func TestMarshalAgentEventExtractsToolResultShapeWithoutPersistingRaw(t *testing
 	})
 }
 
+func TestTranscriptRedactsSecretsAcrossDisplaySurfaces(t *testing.T) {
+	t.Parallel()
+
+	runtimeSecret := "sk-transcript-display-secret-123456"
+	cleanup := diagnostics.RegisterDynamicSecret(runtimeSecret)
+	t.Cleanup(cleanup)
+
+	t.Run("Should redact live event payloads before UI projection", func(t *testing.T) {
+		t.Parallel()
+
+		leaks := []string{
+			runtimeSecret,
+			"text-secret",
+			"agh_claim_live_123",
+			"bearer-secret",
+			"failure-secret",
+			"runtime-secret",
+			"raw-secret",
+		}
+		event := acp.AgentEvent{
+			Type:      acp.EventTypeAgentMessage,
+			SessionID: "sess-redact",
+			TurnID:    "turn-redact",
+			Timestamp: time.Date(2026, 5, 19, 10, 0, 0, 0, time.UTC),
+			Text:      "assistant stdout " + runtimeSecret + " token=text-secret agh_claim_live_123",
+			Error:     "Bearer bearer-secret",
+			Failure: &store.SessionFailure{
+				Kind:    store.FailurePrompt,
+				Summary: "secret_binding=failure-secret",
+			},
+			Runtime: &acp.RuntimeActivity{
+				LastActivityDetail: "token=runtime-secret",
+			},
+			Raw: json.RawMessage(`{"access_token":"raw-secret","note":"` + runtimeSecret + `"}`),
+		}
+
+		assertNoDisplayLeaks(t, RedactAgentEvent(event), leaks)
+		assertNoDisplayLeaks(t, UIAgentEventPayloadFromEvent(event), leaks)
+	})
+
+	t.Run("Should redact stored tool output before transcript and chat replay", func(t *testing.T) {
+		t.Parallel()
+
+		leaks := []string{
+			runtimeSecret,
+			"stdout-secret",
+			"stderr-secret",
+			"content-secret",
+			"raw-binding",
+			"raw-secret",
+			"input-secret",
+			"agh_claim_tool_123",
+		}
+		payload, err := MarshalAgentEvent(acp.AgentEvent{
+			Type:      acp.EventTypeToolResult,
+			SessionID: "sess-redact",
+			TurnID:    "turn-redact",
+			Timestamp: time.Date(2026, 5, 19, 10, 0, 1, 0, time.UTC),
+			Title:     "Bash",
+			Raw: json.RawMessage(`{
+				"sessionUpdate":"tool_call_update",
+				"status":"completed",
+				"rawOutput":{
+					"stdout":"runtime ` + runtimeSecret + ` token=stdout-secret agh_claim_tool_123",
+					"stderr":"Bearer stderr-secret",
+					"content":"secret_binding=raw-binding",
+					"api_key":"raw-secret"
+				},
+				"content":[{"type":"content","content":{"type":"text","text":"token=content-secret ` + runtimeSecret + `"}}],
+				"_meta":{"claudeCode":{"toolName":"Bash"}},
+				"rawInput":{"api_key":"input-secret","command":"echo ok"}
+			}`),
+		})
+		if err != nil {
+			t.Fatalf("MarshalAgentEvent() error = %v", err)
+		}
+		assertNoDisplayLeaks(t, payload, leaks)
+
+		events := []store.SessionEvent{{
+			ID:        "ev-redact-tool",
+			SessionID: "sess-redact",
+			TurnID:    "turn-redact",
+			Sequence:  1,
+			Type:      acp.EventTypeToolResult,
+			Content:   payload,
+			Timestamp: time.Date(2026, 5, 19, 10, 0, 1, 0, time.UTC),
+		}}
+		transcriptMessages, err := Assemble(events)
+		if err != nil {
+			t.Fatalf("Assemble() error = %v", err)
+		}
+		assertNoDisplayLeaks(t, transcriptMessages, leaks)
+
+		uiMessages, err := ToUIMessages(events)
+		if err != nil {
+			t.Fatalf("ToUIMessages() error = %v", err)
+		}
+		assertNoDisplayLeaks(t, uiMessages, leaks)
+	})
+}
+
+func TestTranscriptRuntimeMarkers(t *testing.T) {
+	t.Parallel()
+
+	timestamp := time.Date(2026, 5, 19, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name  string
+		event acp.AgentEvent
+		want  string
+	}{
+		{
+			name: "Should render timeout marker from runtime warning",
+			event: acp.AgentEvent{
+				Type:      acp.EventTypeRuntimeWarning,
+				SessionID: "sess-marker",
+				TurnID:    "turn-timeout",
+				Timestamp: timestamp,
+				Text:      "Runtime activity timed out (30 seconds idle).",
+				Runtime: &acp.RuntimeActivity{
+					LastActivityKind:   "timeout",
+					LastActivityDetail: "Runtime activity timed out (30 seconds idle).",
+				},
+			},
+			want: "*[timeout]* Runtime activity timed out (30 seconds idle).",
+		},
+		{
+			name: "Should render unhealthy marker from runtime warning",
+			event: acp.AgentEvent{
+				Type:      acp.EventTypeRuntimeWarning,
+				SessionID: "sess-marker",
+				TurnID:    "turn-unhealthy",
+				Timestamp: timestamp.Add(time.Second),
+				Text:      "Runtime health check failed; prompt may be stalled.",
+				Runtime: &acp.RuntimeActivity{
+					LastActivityKind:   "warning",
+					LastActivityDetail: string(store.SessionStallReasonProcessUnhealthy),
+				},
+			},
+			want: "*[unhealthy]* Runtime health check failed; prompt may be stalled.",
+		},
+		{
+			name: "Should render interrupted marker from session stopped",
+			event: acp.AgentEvent{
+				Type:       sessionStoppedEventType,
+				SessionID:  "sess-marker",
+				TurnID:     "turn-interrupt",
+				Timestamp:  timestamp.Add(2 * time.Second),
+				StopReason: string(store.StopUserCanceled),
+				Failure: &store.SessionFailure{
+					Kind:    store.FailureCanceled,
+					Summary: "operator interrupted the turn",
+				},
+			},
+			want: "*[interrupted]* operator interrupted the turn",
+		},
+	}
+
+	for index, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			events := []store.SessionEvent{
+				mustUIAgentSessionEvent(
+					t,
+					"ev-marker-"+test.event.TurnID,
+					int64(index+1),
+					test.event.Timestamp,
+					test.event,
+				),
+			}
+			transcriptMessages, err := Assemble(events)
+			if err != nil {
+				t.Fatalf("Assemble() error = %v", err)
+			}
+			if got, want := len(transcriptMessages), 1; got != want {
+				t.Fatalf("len(transcriptMessages) = %d, want %d; messages=%#v", got, want, transcriptMessages)
+			}
+			if got, want := transcriptMessages[0].Role, RoleSystem; got != want {
+				t.Fatalf("transcript role = %q, want %q", got, want)
+			}
+			if got := transcriptMessages[0].Content; got != test.want {
+				t.Fatalf("transcript content = %q, want %q", got, test.want)
+			}
+
+			uiMessages, err := ToUIMessages(events)
+			if err != nil {
+				t.Fatalf("ToUIMessages() error = %v", err)
+			}
+			if got, want := len(uiMessages), 1; got != want {
+				t.Fatalf("len(uiMessages) = %d, want %d; messages=%#v", got, want, uiMessages)
+			}
+			if got, want := uiMessages[0].Role, UIRoleSystem; got != want {
+				t.Fatalf("UI role = %q, want %q", got, want)
+			}
+			if got := UIMessageText(uiMessages[0]); got != test.want {
+				t.Fatalf("UI text = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
 func TestToUIMessagesPermissionDataParts(t *testing.T) {
 	t.Run("ShouldReplacePendingPermissionWithFinalDecision", func(t *testing.T) {
 		t.Parallel()
@@ -1222,6 +1424,27 @@ func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *test
 			t.Fatalf("Raw = %s, want empty canonical raw payload", string(event.Raw))
 		}
 	})
+}
+
+func assertNoDisplayLeaks(t *testing.T, value any, leaks []string) {
+	t.Helper()
+
+	var data []byte
+	switch typed := value.(type) {
+	case string:
+		data = []byte(typed)
+	default:
+		encoded, err := json.Marshal(typed)
+		if err != nil {
+			t.Fatalf("json.Marshal(%T) error = %v", value, err)
+		}
+		data = encoded
+	}
+	for _, leak := range leaks {
+		if strings.Contains(string(data), leak) {
+			t.Fatalf("display payload leaked %q: %s", leak, data)
+		}
+	}
 }
 
 func mustMarshalCanonical(

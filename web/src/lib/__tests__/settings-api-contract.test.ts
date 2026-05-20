@@ -190,8 +190,16 @@ describe("settings openapi contract", () => {
           env_policy: string;
           home_policy: string;
           login_command?: string;
+          login_env?: string[];
           message?: string;
           mode: string;
+          native_cli?: {
+            command?: string;
+            error?: string;
+            path?: string;
+            present: boolean;
+            source?: string;
+          } | null;
           state: string;
           status_command?: string;
         }

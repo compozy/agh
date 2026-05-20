@@ -3,11 +3,14 @@ package cli
 import (
 	"context"
 	"encoding/json"
-	"path/filepath"
+	"errors"
+	"os"
+	"os/exec"
 	"strings"
 	"testing"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/testutil"
 )
 
 func TestProviderAuthStatusCommand(t *testing.T) {
@@ -34,6 +37,45 @@ func TestProviderAuthStatusCommand(t *testing.T) {
 		}
 		if len(record.Credentials) != 0 {
 			t.Fatalf("Credentials = %#v, want none for native CLI provider", record.Credentials)
+		}
+		if record.NativeCLI == nil || record.NativeCLI.Command != "claude" {
+			t.Fatalf("NativeCLI = %#v, want claude login command presence", record.NativeCLI)
+		}
+	})
+
+	t.Run("Should report native CLI lookup errors without failing status", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, nil)
+		deps.loadConfig = func() (aghconfig.Config, error) {
+			cfg := aghconfig.DefaultWithHome(mustTestHomePaths(t))
+			cfg.Providers["local"] = aghconfig.ProviderConfig{
+				Command:  "local-agent acp",
+				AuthMode: aghconfig.ProviderAuthModeNativeCLI,
+			}
+			return cfg, nil
+		}
+		deps.lookPath = func(name string) (string, error) {
+			if name != "local-agent" {
+				t.Fatalf("lookPath(%q), want local-agent", name)
+			}
+			return "", errors.New("permission denied scanning PATH")
+		}
+
+		stdout, _, err := executeRootCommand(t, deps, "provider", "auth", "status", "local", "-o", "json")
+		if err != nil {
+			t.Fatalf("provider auth status error = %v", err)
+		}
+
+		var record providerAuthStatusRecord
+		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
+			t.Fatalf("json.Unmarshal(provider auth status) error = %v", err)
+		}
+		if got, want := record.State, "missing_cli"; got != want {
+			t.Fatalf("State = %q, want %q", got, want)
+		}
+		if record.NativeCLI == nil || record.NativeCLI.Error == "" {
+			t.Fatalf("NativeCLI = %#v, want lookup error", record.NativeCLI)
 		}
 	})
 
@@ -87,6 +129,12 @@ func TestProviderAuthStatusCommand(t *testing.T) {
 			}
 			return cfg, nil
 		}
+		deps.lookPath = func(name string) (string, error) {
+			if name != "claude" {
+				t.Fatalf("lookPath(%q), want claude", name)
+			}
+			return "/usr/local/bin/claude", nil
+		}
 		deps.runProviderAuthCommand = func(
 			_ context.Context,
 			spec providerAuthCommandSpec,
@@ -115,13 +163,165 @@ func TestProviderAuthStatusCommand(t *testing.T) {
 		if record.Probe == nil || record.Probe.Stdout != "logged in" {
 			t.Fatalf("Probe = %#v, want status command result", record.Probe)
 		}
+		if record.NativeCLI == nil || !record.NativeCLI.Present || record.NativeCLI.Source != "auth_status_command" {
+			t.Fatalf("NativeCLI = %#v, want present auth_status_command", record.NativeCLI)
+		}
+	})
+
+	t.Run("Should report missing native CLI before probing status command", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, nil)
+		deps.loadConfig = func() (aghconfig.Config, error) {
+			cfg := aghconfig.DefaultWithHome(mustTestHomePaths(t))
+			cfg.Providers["local"] = aghconfig.ProviderConfig{
+				Command:       "missing-agent acp",
+				AuthMode:      aghconfig.ProviderAuthModeNativeCLI,
+				AuthStatusCmd: "missing-agent auth status",
+				AuthLoginCmd:  "missing-agent auth login",
+			}
+			return cfg, nil
+		}
+		deps.lookPath = func(name string) (string, error) {
+			if name != "missing-agent" {
+				t.Fatalf("lookPath(%q), want missing-agent", name)
+			}
+			return "", exec.ErrNotFound
+		}
+		deps.runProviderAuthCommand = func(
+			_ context.Context,
+			spec providerAuthCommandSpec,
+		) (providerAuthCommandResult, error) {
+			t.Fatalf("runProviderAuthCommand(%q) called, want missing CLI to stop before probe", spec.Command)
+			return providerAuthCommandResult{}, nil
+		}
+
+		stdout, _, err := executeRootCommand(t, deps, "provider", "auth", "status", "local", "-o", "json")
+		if err != nil {
+			t.Fatalf("provider auth status error = %v", err)
+		}
+
+		var record providerAuthStatusRecord
+		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
+			t.Fatalf("json.Unmarshal(provider auth status) error = %v", err)
+		}
+		if got, want := record.State, "missing_cli"; got != want {
+			t.Fatalf("State = %q, want %q", got, want)
+		}
+		if record.NativeCLI == nil || record.NativeCLI.Present || record.NativeCLI.Command != "missing-agent" {
+			t.Fatalf("NativeCLI = %#v, want missing missing-agent", record.NativeCLI)
+		}
+		if record.Probe != nil {
+			t.Fatalf("Probe = %#v, want no probe when native CLI is missing", record.Probe)
+		}
+		if !strings.Contains(record.Message, "missing-agent auth login") {
+			t.Fatalf("Message = %q, want login command guidance", record.Message)
+		}
+	})
+
+	t.Run("Should include login command when native status probe needs login", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, nil)
+		deps.loadConfig = func() (aghconfig.Config, error) {
+			cfg := aghconfig.DefaultWithHome(mustTestHomePaths(t))
+			cfg.Providers["local"] = aghconfig.ProviderConfig{
+				Command:       "claude acp",
+				AuthMode:      aghconfig.ProviderAuthModeNativeCLI,
+				AuthStatusCmd: "claude auth status",
+				AuthLoginCmd:  "claude auth login",
+			}
+			return cfg, nil
+		}
+		deps.lookPath = func(name string) (string, error) {
+			if name != "claude" {
+				t.Fatalf("lookPath(%q), want claude", name)
+			}
+			return "/usr/local/bin/claude", nil
+		}
+		deps.runProviderAuthCommand = func(
+			_ context.Context,
+			spec providerAuthCommandSpec,
+		) (providerAuthCommandResult, error) {
+			if spec.Command != "claude auth status" {
+				t.Fatalf("Command = %q, want claude auth status", spec.Command)
+			}
+			return providerAuthCommandResult{ExitCode: 1, Stderr: "not logged in"}, nil
+		}
+
+		stdout, _, err := executeRootCommand(t, deps, "provider", "auth", "status", "local", "-o", "json")
+		if err != nil {
+			t.Fatalf("provider auth status error = %v", err)
+		}
+
+		var record providerAuthStatusRecord
+		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
+			t.Fatalf("json.Unmarshal(provider auth status) error = %v", err)
+		}
+		if got, want := record.State, "needs_login"; got != want {
+			t.Fatalf("State = %q, want %q", got, want)
+		}
+		if !strings.Contains(record.Message, "claude auth login") {
+			t.Fatalf("Message = %q, want login command guidance", record.Message)
+		}
+		if record.NativeCLI == nil || !record.NativeCLI.Present || record.NativeCLI.Path != "/usr/local/bin/claude" {
+			t.Fatalf("NativeCLI = %#v, want present claude path", record.NativeCLI)
+		}
+	})
+}
+
+// This test mutates process environment and must stay outside the parallel
+// provider auth status suite.
+func TestProviderAuthStatusCommandHermeticEnv(t *testing.T) {
+	t.Run("Should hide operator credentials from provider auth checks", func(t *testing.T) {
+		setProviderTestEnv(t, "CUSTOM_API_KEY", "sk-operator")
+		hermetic := testutil.ApplyHermeticEnv(t)
+
+		deps := newTestDeps(t, nil)
+		deps.getenv = os.Getenv
+		deps.loadConfig = func() (aghconfig.Config, error) {
+			cfg := aghconfig.DefaultWithHome(mustTestHomePaths(t))
+			cfg.Providers["custom"] = aghconfig.ProviderConfig{
+				Command:  "custom-agent --acp",
+				AuthMode: aghconfig.ProviderAuthModeBoundSecret,
+				CredentialSlots: []aghconfig.ProviderCredentialSlot{
+					{
+						Name:      "api_key",
+						TargetEnv: "CUSTOM_API_KEY",
+						SecretRef: "env:CUSTOM_API_KEY",
+						Kind:      "api_key",
+						Required:  true,
+					},
+				},
+			}
+			return cfg, nil
+		}
+
+		stdout, _, err := executeRootCommand(t, deps, "provider", "auth", "status", "custom", "-o", "json")
+		if err != nil {
+			t.Fatalf("provider auth status error = %v", err)
+		}
+
+		var record providerAuthStatusRecord
+		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
+			t.Fatalf("json.Unmarshal(provider auth status) error = %v", err)
+		}
+		if got, want := record.State, "missing_required"; got != want {
+			t.Fatalf("State = %q, want %q", got, want)
+		}
+		if len(record.Credentials) != 1 || record.Credentials[0].Present {
+			t.Fatalf("Credentials = %#v, want hermetic env to hide operator credential", record.Credentials)
+		}
+		if got, want := os.Getenv("AGH_HOME"), hermetic.HomeDir; got != want {
+			t.Fatalf("AGH_HOME = %q, want %q", got, want)
+		}
 	})
 }
 
 func TestProviderAuthLoginCommand(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should run configured login command", func(t *testing.T) {
+	t.Run("Should expose configured native login command without executing it", func(t *testing.T) {
 		t.Parallel()
 
 		deps := newTestDeps(t, nil)
@@ -132,14 +332,18 @@ func TestProviderAuthLoginCommand(t *testing.T) {
 			}
 			return cfg, nil
 		}
+		deps.lookPath = func(name string) (string, error) {
+			if name != "codex" {
+				t.Fatalf("lookPath(%q), want codex", name)
+			}
+			return "/usr/local/bin/codex", nil
+		}
 		deps.runProviderAuthCommand = func(
 			_ context.Context,
 			spec providerAuthCommandSpec,
 		) (providerAuthCommandResult, error) {
-			if spec.Command != "codex login" {
-				t.Fatalf("Command = %q, want codex login", spec.Command)
-			}
-			return providerAuthCommandResult{ExitCode: 0, Stdout: "ok"}, nil
+			t.Fatalf("runProviderAuthCommand(%q) called, want login command to be operator-run", spec.Command)
+			return providerAuthCommandResult{}, nil
 		}
 
 		stdout, _, err := executeRootCommand(t, deps, "provider", "auth", "login", "codex", "-o", "json")
@@ -151,12 +355,55 @@ func TestProviderAuthLoginCommand(t *testing.T) {
 		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
 			t.Fatalf("json.Unmarshal(provider auth login) error = %v", err)
 		}
-		if got, want := record.State, "login_completed"; got != want {
+		if got, want := record.State, "native_cli"; got != want {
 			t.Fatalf("State = %q, want %q", got, want)
+		}
+		if got, want := record.LoginCommand, "codex login"; got != want {
+			t.Fatalf("LoginCommand = %q, want %q", got, want)
+		}
+		if !strings.Contains(record.Message, "Run \"codex login\" in an interactive terminal") {
+			t.Fatalf("Message = %q, want interactive terminal guidance", record.Message)
+		}
+		if record.NativeCLI == nil || !record.NativeCLI.Present || record.NativeCLI.Command != "codex" {
+			t.Fatalf("NativeCLI = %#v, want present codex", record.NativeCLI)
 		}
 	})
 
-	t.Run("Should run builtin Pi login against the isolated Pi auth directory", func(t *testing.T) {
+	t.Run("Should print only the resolved native login command", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, nil)
+		deps.loadConfig = func() (aghconfig.Config, error) {
+			cfg := aghconfig.DefaultWithHome(mustTestHomePaths(t))
+			cfg.Providers["codex"] = aghconfig.ProviderConfig{
+				AuthLoginCmd: "codex login",
+			}
+			return cfg, nil
+		}
+		deps.lookPath = func(name string) (string, error) {
+			if name != "codex" {
+				t.Fatalf("lookPath(%q), want codex", name)
+			}
+			return "/usr/local/bin/codex", nil
+		}
+		deps.runProviderAuthCommand = func(
+			_ context.Context,
+			spec providerAuthCommandSpec,
+		) (providerAuthCommandResult, error) {
+			t.Fatalf("runProviderAuthCommand(%q) called, want print-only login command", spec.Command)
+			return providerAuthCommandResult{}, nil
+		}
+
+		stdout, _, err := executeRootCommand(t, deps, "provider", "auth", "login", "codex", "--print-command")
+		if err != nil {
+			t.Fatalf("provider auth login --print-command error = %v", err)
+		}
+		if got, want := stdout, "codex login\n"; got != want {
+			t.Fatalf("stdout = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should expose builtin Pi login against the isolated Pi auth directory", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := mustTestHomePaths(t)
@@ -172,22 +419,18 @@ func TestProviderAuthLoginCommand(t *testing.T) {
 			}
 			return cfg, nil
 		}
+		deps.lookPath = func(name string) (string, error) {
+			if name != "npx" {
+				t.Fatalf("lookPath(%q), want npx", name)
+			}
+			return "/usr/local/bin/npx", nil
+		}
 		deps.runProviderAuthCommand = func(
 			_ context.Context,
 			spec providerAuthCommandSpec,
 		) (providerAuthCommandResult, error) {
-			if spec.Command != "npx -y pi-acp@latest --terminal-login" {
-				t.Fatalf("Command = %q, want Pi terminal login command", spec.Command)
-			}
-			wantHome := filepath.Join(homePaths.HomeDir, "providers", "pi")
-			if got := providerTestEnvValue(spec.Env, "HOME"); got != wantHome {
-				t.Fatalf("HOME = %q, want %q", got, wantHome)
-			}
-			wantAgentDir := filepath.Join(wantHome, ".pi", "agent")
-			if got := providerTestEnvValue(spec.Env, "PI_CODING_AGENT_DIR"); got != wantAgentDir {
-				t.Fatalf("PI_CODING_AGENT_DIR = %q, want %q", got, wantAgentDir)
-			}
-			return providerAuthCommandResult{ExitCode: 0, Stdout: "ok"}, nil
+			t.Fatalf("runProviderAuthCommand(%q) called, want Pi login command to be operator-run", spec.Command)
+			return providerAuthCommandResult{}, nil
 		}
 
 		stdout, _, err := executeRootCommand(t, deps, "provider", "auth", "login", "pi", "-o", "json")
@@ -204,6 +447,86 @@ func TestProviderAuthLoginCommand(t *testing.T) {
 		}
 		if got, want := record.LoginCommand, "npx -y pi-acp@latest --terminal-login"; got != want {
 			t.Fatalf("LoginCommand = %q, want %q", got, want)
+		}
+		if providerTestEnvValue(record.LoginEnv, "HOME") == "" {
+			t.Fatalf("LoginEnv = %#v, want isolated HOME", record.LoginEnv)
+		}
+		if providerTestEnvValue(record.LoginEnv, "PI_CODING_AGENT_DIR") == "" {
+			t.Fatalf("LoginEnv = %#v, want Pi auth directory", record.LoginEnv)
+		}
+		if !strings.Contains(record.Message, "interactive terminal") {
+			t.Fatalf("Message = %q, want interactive terminal guidance", record.Message)
+		}
+		if !strings.Contains(record.Message, "PI_CODING_AGENT_DIR") {
+			t.Fatalf("Message = %q, want env-prefixed login command", record.Message)
+		}
+		if record.NativeCLI == nil || !record.NativeCLI.Present || record.NativeCLI.Command != "npx" {
+			t.Fatalf("NativeCLI = %#v, want present npx", record.NativeCLI)
+		}
+	})
+
+	t.Run("Should fail before printing when native login CLI is missing", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, nil)
+		deps.loadConfig = func() (aghconfig.Config, error) {
+			cfg := aghconfig.DefaultWithHome(mustTestHomePaths(t))
+			cfg.Providers["local"] = aghconfig.ProviderConfig{
+				Command:      "local-agent acp",
+				AuthMode:     aghconfig.ProviderAuthModeNativeCLI,
+				AuthLoginCmd: "missing-agent auth login",
+			}
+			return cfg, nil
+		}
+		deps.lookPath = func(name string) (string, error) {
+			if name != "missing-agent" {
+				t.Fatalf("lookPath(%q), want missing-agent", name)
+			}
+			return "", exec.ErrNotFound
+		}
+		deps.runProviderAuthCommand = func(
+			_ context.Context,
+			spec providerAuthCommandSpec,
+		) (providerAuthCommandResult, error) {
+			t.Fatalf("runProviderAuthCommand(%q) called, want missing CLI to stop first", spec.Command)
+			return providerAuthCommandResult{}, nil
+		}
+
+		_, _, err := executeRootCommand(t, deps, "provider", "auth", "login", "local", "--print-command")
+		if err == nil {
+			t.Fatal("provider auth login missing CLI error = nil, want missing CLI error")
+		}
+		if !strings.Contains(err.Error(), `native CLI "missing-agent" was not found on PATH`) {
+			t.Fatalf("provider auth login missing CLI error = %v, want missing CLI guidance", err)
+		}
+	})
+
+	t.Run("Should explain native login boundary when login command is missing", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, nil)
+		deps.loadConfig = func() (aghconfig.Config, error) {
+			cfg := aghconfig.DefaultWithHome(mustTestHomePaths(t))
+			cfg.Providers["local"] = aghconfig.ProviderConfig{
+				Command:  "local-agent acp",
+				AuthMode: aghconfig.ProviderAuthModeNativeCLI,
+			}
+			return cfg, nil
+		}
+		deps.runProviderAuthCommand = func(
+			_ context.Context,
+			spec providerAuthCommandSpec,
+		) (providerAuthCommandResult, error) {
+			t.Fatalf("runProviderAuthCommand(%q) called, want missing login command to stop first", spec.Command)
+			return providerAuthCommandResult{}, nil
+		}
+
+		_, _, err := executeRootCommand(t, deps, "provider", "auth", "login", "local", "-o", "json")
+		if err == nil {
+			t.Fatal("provider auth login local error = nil, want missing auth_login_command error")
+		}
+		if !strings.Contains(err.Error(), "set providers.local.auth_login_command") {
+			t.Fatalf("provider auth login local error = %v, want config guidance", err)
 		}
 	})
 
@@ -227,6 +550,85 @@ func TestProviderAuthLoginCommand(t *testing.T) {
 			t.Fatalf("provider auth login openrouter error = %v, want missing auth_login_command", err)
 		}
 	})
+
+	t.Run("Should print isolated Pi login command with provider home environment", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := mustTestHomePaths(t)
+		deps := newTestDeps(t, nil)
+		deps.resolveHome = func() (aghconfig.HomePaths, error) {
+			return homePaths, nil
+		}
+		deps.loadConfig = func() (aghconfig.Config, error) {
+			cfg := aghconfig.DefaultWithHome(homePaths)
+			cfg.Providers["pi"] = aghconfig.ProviderConfig{
+				EnvPolicy:  aghconfig.ProviderEnvPolicyIsolated,
+				HomePolicy: aghconfig.ProviderHomePolicyIsolated,
+			}
+			return cfg, nil
+		}
+		deps.lookPath = func(name string) (string, error) {
+			if name != "npx" {
+				t.Fatalf("lookPath(%q), want npx", name)
+			}
+			return "/usr/local/bin/npx", nil
+		}
+		deps.runProviderAuthCommand = func(
+			_ context.Context,
+			spec providerAuthCommandSpec,
+		) (providerAuthCommandResult, error) {
+			t.Fatalf("runProviderAuthCommand(%q) called, want print-only login command", spec.Command)
+			return providerAuthCommandResult{}, nil
+		}
+
+		stdout, _, err := executeRootCommand(t, deps, "provider", "auth", "login", "pi", "--print-command")
+		if err != nil {
+			t.Fatalf("provider auth login pi --print-command error = %v", err)
+		}
+		if !strings.Contains(stdout, " HOME=") {
+			t.Fatalf("stdout = %q, want env HOME prefix", stdout)
+		}
+		if !strings.Contains(stdout, "PI_CODING_AGENT_DIR=") {
+			t.Fatalf("stdout = %q, want Pi auth directory", stdout)
+		}
+		if !strings.Contains(stdout, "npx -y pi-acp@latest --terminal-login") {
+			t.Fatalf("stdout = %q, want Pi terminal login command", stdout)
+		}
+	})
+
+	t.Run("Should reject print command with explicit output format", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, nil)
+		deps.loadConfig = func() (aghconfig.Config, error) {
+			cfg := aghconfig.DefaultWithHome(mustTestHomePaths(t))
+			cfg.Providers["codex"] = aghconfig.ProviderConfig{
+				AuthLoginCmd: "codex login",
+			}
+			return cfg, nil
+		}
+		deps.lookPath = func(name string) (string, error) {
+			if name != "codex" {
+				t.Fatalf("lookPath(%q), want codex", name)
+			}
+			return "/usr/local/bin/codex", nil
+		}
+		deps.runProviderAuthCommand = func(
+			_ context.Context,
+			spec providerAuthCommandSpec,
+		) (providerAuthCommandResult, error) {
+			t.Fatalf("runProviderAuthCommand(%q) called, want print-only login command", spec.Command)
+			return providerAuthCommandResult{}, nil
+		}
+
+		_, _, err := executeRootCommand(t, deps, "provider", "auth", "login", "codex", "--print-command", "-o", "json")
+		if err == nil {
+			t.Fatal("provider auth login --print-command -o json error = nil, want conflict")
+		}
+		if !strings.Contains(err.Error(), "--print-command emits raw shell text") {
+			t.Fatalf("provider auth login output conflict error = %v, want raw shell text guidance", err)
+		}
+	})
 }
 
 func mustTestHomePaths(t *testing.T) aghconfig.HomePaths {
@@ -237,6 +639,26 @@ func mustTestHomePaths(t *testing.T) aghconfig.HomePaths {
 		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
 	}
 	return homePaths
+}
+
+func setProviderTestEnv(t *testing.T, key string, value string) {
+	t.Helper()
+
+	original, hadOriginal := os.LookupEnv(key)
+	if err := os.Setenv(key, value); err != nil {
+		t.Fatalf("Setenv(%q) error = %v", key, err)
+	}
+	t.Cleanup(func() {
+		var err error
+		if hadOriginal {
+			err = os.Setenv(key, original)
+		} else {
+			err = os.Unsetenv(key)
+		}
+		if err != nil {
+			t.Fatalf("restore env %q error = %v", key, err)
+		}
+	})
 }
 
 func providerTestEnvValue(env []string, key string) string {

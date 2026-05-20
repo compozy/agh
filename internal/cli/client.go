@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	memcontract "github.com/pedronauck/agh/internal/memory/contract"
@@ -4290,9 +4291,52 @@ func (c *unixSocketClient) doRequestWithCredentialsAndClient(
 
 	response, err := client.Do(req)
 	if err != nil {
+		if isDaemonUnavailableTransportError(err) {
+			return nil, newDaemonUnavailableError(c.socketPath, method, path, err)
+		}
 		return nil, fmt.Errorf("cli: %s %s via %s: %w", method, path, c.socketPath, err)
 	}
 	return response, nil
+}
+
+type daemonUnavailableError struct {
+	socketPath string
+	method     string
+	path       string
+	err        error
+}
+
+func newDaemonUnavailableError(socketPath string, method string, path string, err error) error {
+	return &daemonUnavailableError{
+		socketPath: socketPath,
+		method:     method,
+		path:       path,
+		err:        err,
+	}
+}
+
+func (e *daemonUnavailableError) Error() string {
+	if e == nil {
+		return "cli: daemon unavailable"
+	}
+	return fmt.Sprintf(
+		"cli: daemon unavailable at %s while requesting %s %s: %v\nnext: run `agh daemon start`; then retry or inspect with `agh daemon status`",
+		e.socketPath,
+		e.method,
+		e.path,
+		e.err,
+	)
+}
+
+func (e *daemonUnavailableError) Unwrap() error {
+	if e == nil {
+		return nil
+	}
+	return e.err
+}
+
+func isDaemonUnavailableTransportError(err error) bool {
+	return errors.Is(err, os.ErrNotExist) || errors.Is(err, syscall.ECONNREFUSED)
 }
 
 // streamHTTPClient preserves long-lived streams when no dedicated client has been configured.

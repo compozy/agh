@@ -359,6 +359,7 @@ type BridgeHealthPayload struct {
 	LastError               string                       `json:"last_error,omitempty"`
 	LastErrorAt             *time.Time                   `json:"last_error_at,omitempty"`
 	Degradation             *bridgepkg.BridgeDegradation `json:"degradation,omitempty"`
+	Diagnostics             []bridgepkg.BridgeDiagnostic `json:"diagnostics,omitempty"`
 }
 
 // BridgeStatusCountsPayload captures aggregate per-status counts for bridge health.

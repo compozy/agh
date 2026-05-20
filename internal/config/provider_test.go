@@ -37,6 +37,7 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 			harness:      ProviderHarnessACP,
 			authMode:     ProviderAuthModeNativeCLI,
 			defaultModel: "claude-sonnet-4-6",
+			loginCommand: "claude auth login",
 		},
 		{
 			name:     "cline",
@@ -50,6 +51,7 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 			harness:      ProviderHarnessACP,
 			authMode:     ProviderAuthModeNativeCLI,
 			defaultModel: "gpt-5.4",
+			loginCommand: "codex login",
 		},
 		{
 			name:     "copilot",
@@ -76,10 +78,11 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 		},
 		{name: "kiro", command: "kiro-cli-chat acp", harness: ProviderHarnessACP, authMode: ProviderAuthModeNativeCLI},
 		{
-			name:     "opencode",
-			command:  "npx -y opencode-ai@latest acp",
-			harness:  ProviderHarnessACP,
-			authMode: ProviderAuthModeNativeCLI,
+			name:         "opencode",
+			command:      "npx -y opencode-ai@latest acp",
+			harness:      ProviderHarnessACP,
+			authMode:     ProviderAuthModeNativeCLI,
+			loginCommand: "opencode auth login",
 		},
 		{
 			name:         "openclaw",

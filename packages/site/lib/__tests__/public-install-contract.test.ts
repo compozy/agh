@@ -25,6 +25,44 @@ const retiredPackageInstallCommands = [
 ];
 const installOptions = ["--version", "--dir", "--skip-bootstrap", "--dry-run", "--help"];
 const installEnvVars = ["AGH_VERSION", "AGH_INSTALL_DIR", "AGH_SKIP_BOOTSTRAP"];
+const installerReleaseGuaranteeSnippets = [
+  "curl -fsSL https://agh.network/install.sh | sh",
+  "Requires:",
+  "curl, tar, cosign, and sha256sum or shasum.",
+  'command -v cosign >/dev/null 2>&1 || fail "cosign is required to verify release provenance"',
+  'BUNDLE_URL="${BASE_URL}/checksums.txt.sigstore.json"',
+  'log "verifying checksum provenance"',
+  'cosign verify-blob "$CHECKSUM_PATH"',
+  '--bundle "$BUNDLE_PATH"',
+  '--certificate-identity-regexp "$COSIGN_CERT_IDENTITY_REGEXP"',
+  '--certificate-oidc-issuer "$COSIGN_CERT_OIDC_ISSUER"',
+  'CHECKSUM_CMD="sha256sum"',
+  'CHECKSUM_CMD="shasum"',
+  "shasum -a 256 -c - >/dev/null",
+];
+const installerCriticalErrorSnippets = [
+  "failed to resolve latest release",
+  "latest release resolved to unexpected ref:",
+  "unsupported operating system:",
+  "unsupported architecture:",
+  "curl is required",
+  "tar is required",
+  "cosign is required to verify release provenance",
+  "sha256sum or shasum is required to verify the download",
+  "checksums.txt does not include",
+  "archive did not contain an agh binary",
+  "warning: ${INSTALL_DIR} is not on PATH",
+  "add it to PATH or run ${TARGET} directly",
+  "no interactive terminal detected; run this next:",
+  "agh install",
+];
+const ttyPermissionProbePattern =
+  /\[\s*-[rwe]\s+["']?\/dev\/tty["']?\s*\]|\btest\s+-[rwe]\s+["']?\/dev\/tty["']?/;
+const ttyOpenProbePattern =
+  /^\s*(?:if|elif)\s+!?\s*[^\n]*<\s*\/dev\/tty[^\n]*>\s*\/dev\/tty[^\n]*;\s*then/m;
+const credentialEnvPattern =
+  /(?:API_?KEY|ACCESS_KEY|PRIVATE_KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH|COOKIE|SESSION)|_KEY$/i;
+type InstallEnv = Record<string, string | undefined>;
 
 function readSiteFile(path: string): string {
   return readFileSync(path, "utf8");
@@ -35,11 +73,41 @@ function runInstallScript(args: string[]) {
   return spawnSync("sh", [installScriptPath, ...args, "--dir", installDir], {
     cwd: siteRoot,
     encoding: "utf8",
-    env: {
-      ...process.env,
-      AGH_SKIP_BOOTSTRAP: "",
-    },
+    env: hermeticInstallEnv(),
   });
+}
+
+function hermeticInstallEnv(source: InstallEnv = process.env): NodeJS.ProcessEnv {
+  const env: InstallEnv = {};
+  for (const [key, value] of Object.entries(source)) {
+    if (value === undefined || blocksHermeticInstallEnv(key)) {
+      continue;
+    }
+    env[key] = value;
+  }
+  env.TZ = "UTC";
+  env.LANG = "C.UTF-8";
+  env.LC_ALL = "C.UTF-8";
+  env.LC_CTYPE = "C.UTF-8";
+  env.NODE_ENV ??= "test";
+  env.AGH_SKIP_BOOTSTRAP = "";
+  return env as NodeJS.ProcessEnv;
+}
+
+function blocksHermeticInstallEnv(key: string): boolean {
+  const normalized = key.trim().toUpperCase();
+  return (
+    normalized.startsWith("AGH_") ||
+    credentialEnvPattern.test(normalized) ||
+    [
+      "CLAUDE_CONFIG_DIR",
+      "CODEX_HOME",
+      "OPENCODE_CONFIG_DIR",
+      "PI_CODING_AGENT_DIR",
+      "PROVIDER_CODEX_HOME",
+      "PROVIDER_HOME",
+    ].includes(normalized)
+  );
 }
 
 describe("public install contract", () => {
@@ -119,6 +187,58 @@ describe("public install contract", () => {
 
     expect(badOption.status).not.toBe(0);
     expect(badOption.stderr).toContain("unknown option: --not-a-real-option");
+  });
+
+  it("keeps public installer release guarantees and recovery text in source", () => {
+    const script = readSiteFile(installScriptPath);
+
+    for (const snippet of installerReleaseGuaranteeSnippets) {
+      expect(script, snippet).toContain(snippet);
+    }
+    for (const snippet of installerCriticalErrorSnippets) {
+      expect(script, snippet).toContain(snippet);
+    }
+    expect(script).toContain("printf 'agh installer: %s\\n' \"$*\" >&2");
+    expect(script).toContain('curl -fsSL "$ARCHIVE_URL" -o "$ARCHIVE_PATH"');
+    expect(script).toContain('curl -fsSL "$CHECKSUM_URL" -o "$CHECKSUM_PATH"');
+    expect(script).toContain('curl -fsSL "$BUNDLE_URL" -o "$BUNDLE_PATH"');
+    expect(script).toContain(
+      'printf \'%s\\n\' "$CHECKSUM_LINE" | (cd "$TMP_DIR" && sha256sum -c - >/dev/null)'
+    );
+    expect(script).toContain(
+      'printf \'%s\\n\' "$CHECKSUM_LINE" | (cd "$TMP_DIR" && shasum -a 256 -c - >/dev/null)'
+    );
+    expect(script).toContain('log "next: agh install"');
+  });
+
+  it("runs install contract checks with a hermetic release environment", () => {
+    const env = hermeticInstallEnv({
+      AGH_VERSION: "v9.9.9",
+      AGH_INSTALL_DIR: "/operator/bin",
+      HOME: "/Users/operator",
+      OPENAI_API_KEY: "sk-operator",
+      PATH: "/usr/bin",
+      PROVIDER_HOME: "/Users/operator/.provider",
+      TZ: "America/Sao_Paulo",
+    });
+
+    expect(env.HOME).toBe("/Users/operator");
+    expect(env.PATH).toBe("/usr/bin");
+    expect(env.AGH_VERSION).toBeUndefined();
+    expect(env.AGH_INSTALL_DIR).toBeUndefined();
+    expect(env.OPENAI_API_KEY).toBeUndefined();
+    expect(env.PROVIDER_HOME).toBeUndefined();
+    expect(env.AGH_SKIP_BOOTSTRAP).toBe("");
+    expect(env.TZ).toBe("UTC");
+    expect(env.LANG).toBe("C.UTF-8");
+    expect(env.LC_ALL).toBe("C.UTF-8");
+  });
+
+  it("opens the tty before starting interactive bootstrap", () => {
+    const script = readSiteFile(installScriptPath);
+
+    expect(script).not.toMatch(ttyPermissionProbePattern);
+    expect(script).toMatch(ttyOpenProbePattern);
   });
 
   it("serves install.sh with script-safe headers", () => {

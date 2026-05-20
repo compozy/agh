@@ -39,12 +39,28 @@ func ApplyHomePolicy(
 		}
 	}
 
-	env = SetEnvValue(env, "PROVIDER_HOME", providerHome)
-	env = SetEnvValue(env, "HOME", providerHome)
-	env = SetEnvValue(env, "XDG_CONFIG_HOME", filepath.Join(providerHome, ".config"))
-	env = SetEnvValue(env, "XDG_DATA_HOME", filepath.Join(providerHome, ".local", "share"))
-	env = SetEnvValue(env, "XDG_CACHE_HOME", filepath.Join(providerHome, ".cache"))
-	return setKnownProviderHomeEnv(trimmedProvider, managedRoot, providerHome, env)
+	if err := ensureKnownProviderHomeDirs(trimmedProvider, managedRoot, providerHome); err != nil {
+		return nil, err
+	}
+	return setProviderHomeEnvValues(trimmedProvider, providerHome, env), nil
+}
+
+// ResolveHomeEnv returns the provider home environment for display or
+// diagnostics without creating provider-owned directories.
+func ResolveHomeEnv(
+	homePaths aghconfig.HomePaths,
+	providerName string,
+	homePolicy aghconfig.ProviderHomePolicy,
+	env []string,
+) ([]string, error) {
+	if homePolicy != aghconfig.ProviderHomePolicyIsolated {
+		return env, nil
+	}
+	trimmedProvider, providerHome, err := isolatedProviderHome(homePaths, providerName)
+	if err != nil {
+		return nil, err
+	}
+	return setProviderHomeEnvValues(trimmedProvider, providerHome, env), nil
 }
 
 // ApplyPiAgentDirPolicy points native Pi auth at the same isolated home used by
@@ -67,6 +83,24 @@ func ApplyPiAgentDirPolicy(
 		return nil, err
 	}
 	return SetEnvValue(env, "PI_CODING_AGENT_DIR", agentDir), nil
+}
+
+// ResolvePiAgentDirEnv returns the Pi native-auth environment for display or
+// diagnostics without creating provider-owned directories.
+func ResolvePiAgentDirEnv(
+	homePaths aghconfig.HomePaths,
+	providerName string,
+	homePolicy aghconfig.ProviderHomePolicy,
+	env []string,
+) ([]string, error) {
+	if homePolicy != aghconfig.ProviderHomePolicyIsolated {
+		return env, nil
+	}
+	_, providerHome, err := isolatedProviderHome(homePaths, providerName)
+	if err != nil {
+		return nil, err
+	}
+	return SetEnvValue(env, "PI_CODING_AGENT_DIR", filepath.Join(providerHome, ".pi", "agent")), nil
 }
 
 // EnsurePrivateDir creates or tightens an AGH-owned provider state directory.
@@ -215,12 +249,32 @@ func isolatedProviderHome(homePaths aghconfig.HomePaths, providerName string) (s
 	return trimmedProvider, filepath.Join(homePaths.HomeDir, "providers", trimmedProvider), nil
 }
 
-func setKnownProviderHomeEnv(
+func setProviderHomeEnvValues(providerName string, providerHome string, env []string) []string {
+	env = SetEnvValue(env, "PROVIDER_HOME", providerHome)
+	env = SetEnvValue(env, "HOME", providerHome)
+	env = SetEnvValue(env, "XDG_CONFIG_HOME", filepath.Join(providerHome, ".config"))
+	env = SetEnvValue(env, "XDG_DATA_HOME", filepath.Join(providerHome, ".local", "share"))
+	env = SetEnvValue(env, "XDG_CACHE_HOME", filepath.Join(providerHome, ".cache"))
+	for key, dir := range knownProviderHomeDirs(providerName, providerHome) {
+		env = SetEnvValue(env, key, dir)
+	}
+	return env
+}
+
+func ensureKnownProviderHomeDirs(
 	providerName string,
 	managedRoot string,
 	providerHome string,
-	env []string,
-) ([]string, error) {
+) error {
+	for _, dir := range knownProviderHomeDirs(providerName, providerHome) {
+		if err := ensurePrivateDirUnder(managedRoot, dir); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func knownProviderHomeDirs(providerName string, providerHome string) map[string]string {
 	knownDirs := map[string]map[string]string{
 		"claude": {
 			"CLAUDE_CONFIG_DIR": filepath.Join(providerHome, "claude"),
@@ -233,17 +287,5 @@ func setKnownProviderHomeEnv(
 			"OPENCODE_CONFIG_DIR": filepath.Join(providerHome, "opencode"),
 		},
 	}
-	dirs := knownDirs[providerName]
-	if len(dirs) == 0 {
-		return env, nil
-	}
-	for _, dir := range dirs {
-		if err := ensurePrivateDirUnder(managedRoot, dir); err != nil {
-			return nil, err
-		}
-	}
-	for key, dir := range dirs {
-		env = SetEnvValue(env, key, dir)
-	}
-	return env, nil
+	return knownDirs[providerName]
 }

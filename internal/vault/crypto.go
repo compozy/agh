@@ -18,8 +18,12 @@ import (
 )
 
 const (
-	encryptedPrefix = "aes-gcm:"
-	keySizeBytes    = 32
+	encryptedPrefix     = "aes-gcm:"
+	keySizeBytes        = 32
+	keyDirectoryMode    = 0o700
+	keyFileMode         = 0o600
+	keyTempNameAttempts = 16
+	keyTempSuffixBytes  = 12
 )
 
 // KeyProvider loads the daemon-local vault encryption key.
@@ -128,8 +132,11 @@ func validateKeyFile(path string, info os.FileInfo) error {
 
 func createKeyFile(path string) ([]byte, error) {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	if err := os.MkdirAll(dir, keyDirectoryMode); err != nil {
 		return nil, fmt.Errorf("vault: create key directory %q: %w", dir, err)
+	}
+	if err := os.Chmod(dir, keyDirectoryMode); err != nil {
+		return nil, fmt.Errorf("vault: secure key directory %q: %w", dir, err)
 	}
 	key, err := generateKey()
 	if err != nil {
@@ -169,11 +176,10 @@ func generateKey() ([]byte, error) {
 }
 
 func writeTempKeyFile(dir string, key []byte) (string, error) {
-	file, err := os.CreateTemp(dir, ".vault-key-*")
+	file, tempPath, err := createExclusiveTempKeyFile(dir)
 	if err != nil {
-		return "", fmt.Errorf("vault: create temp key file in %q: %w", dir, err)
+		return "", err
 	}
-	tempPath := file.Name()
 	encoded := base64.StdEncoding.EncodeToString(key)
 	writeErr := writeOpenKeyFile(file, tempPath, encoded)
 	if writeErr != nil {
@@ -186,9 +192,36 @@ func writeTempKeyFile(dir string, key []byte) (string, error) {
 	return tempPath, nil
 }
 
+func createExclusiveTempKeyFile(dir string) (*os.File, string, error) {
+	for range keyTempNameAttempts {
+		suffix, err := randomKeyTempSuffix()
+		if err != nil {
+			return nil, "", err
+		}
+		tempPath := filepath.Join(dir, ".vault-key-"+suffix)
+		file, err := os.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, keyFileMode)
+		if err == nil {
+			return file, tempPath, nil
+		}
+		if errors.Is(err, os.ErrExist) {
+			continue
+		}
+		return nil, "", fmt.Errorf("vault: create temp key file %q: %w", tempPath, err)
+	}
+	return nil, "", fmt.Errorf("vault: create temp key file in %q: exhausted unique names", dir)
+}
+
+func randomKeyTempSuffix() (string, error) {
+	buf := make([]byte, keyTempSuffixBytes)
+	if _, err := io.ReadFull(rand.Reader, buf); err != nil {
+		return "", fmt.Errorf("vault: generate temp key filename: %w", err)
+	}
+	return hex.EncodeToString(buf), nil
+}
+
 func writeOpenKeyFile(file *os.File, path string, encoded string) error {
 	var err error
-	if err = file.Chmod(0o600); err == nil {
+	if err = file.Chmod(keyFileMode); err == nil {
 		_, err = file.WriteString(encoded + "\n")
 	}
 	if err == nil {

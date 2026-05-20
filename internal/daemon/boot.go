@@ -1794,6 +1794,7 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 		Extensions:                 surface,
 		TransportParity:            surface,
 		MCPAuth:                    surface,
+		MCPRuntime:                 surface,
 		ProviderSecrets:            settingsProviderVaultDependency(state.providerVault),
 		EventSummaries:             state.registry,
 		RestartActionAvailable:     true,

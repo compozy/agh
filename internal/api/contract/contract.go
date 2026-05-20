@@ -1112,16 +1112,58 @@ type SessionProviderOptionPayload struct {
 	HomePolicy      string `json:"home_policy,omitempty"`
 }
 
+type SkillDiagnosticState string
+
+const (
+	SkillDiagnosticStateValid              SkillDiagnosticState = "valid"
+	SkillDiagnosticStateShadowed           SkillDiagnosticState = "shadowed"
+	SkillDiagnosticStateVerificationFailed SkillDiagnosticState = "verification_failed"
+)
+
+type SkillVerificationStatus string
+
+const (
+	SkillVerificationStatusPassed  SkillVerificationStatus = "passed"
+	SkillVerificationStatusWarning SkillVerificationStatus = "warning"
+	SkillVerificationStatusFailed  SkillVerificationStatus = "failed"
+)
+
+type SkillVerificationWarningPayload struct {
+	Severity string `json:"severity"`
+	Pattern  string `json:"pattern,omitempty"`
+	Message  string `json:"message"`
+}
+
+type SkillVerificationFailurePayload struct {
+	Code         string `json:"code"`
+	Message      string `json:"message"`
+	ExpectedHash string `json:"expected_hash,omitempty"`
+	ActualHash   string `json:"actual_hash,omitempty"`
+}
+
+type SkillDiagnosticPayload struct {
+	Name               string                            `json:"name"`
+	State              SkillDiagnosticState              `json:"state"`
+	Source             string                            `json:"source,omitempty"`
+	Path               string                            `json:"path,omitempty"`
+	WinningSource      string                            `json:"winning_source,omitempty"`
+	WinningPath        string                            `json:"winning_path,omitempty"`
+	VerificationStatus SkillVerificationStatus           `json:"verification_status"`
+	Warnings           []SkillVerificationWarningPayload `json:"warnings,omitempty"`
+	Failure            *SkillVerificationFailurePayload  `json:"failure,omitempty"`
+}
+
 // SkillPayload is the HTTP response type for a skill.
 type SkillPayload struct {
-	Name        string             `json:"name"`
-	Description string             `json:"description"`
-	Version     string             `json:"version,omitempty"`
-	Source      string             `json:"source"`
-	Enabled     bool               `json:"enabled"`
-	Dir         string             `json:"dir"`
-	Metadata    map[string]any     `json:"metadata,omitempty"`
-	Provenance  *ProvenancePayload `json:"provenance,omitempty"`
+	Name        string                   `json:"name"`
+	Description string                   `json:"description"`
+	Version     string                   `json:"version,omitempty"`
+	Source      string                   `json:"source"`
+	Enabled     bool                     `json:"enabled"`
+	Dir         string                   `json:"dir"`
+	Metadata    map[string]any           `json:"metadata,omitempty"`
+	Provenance  *ProvenancePayload       `json:"provenance,omitempty"`
+	Diagnostics []SkillDiagnosticPayload `json:"diagnostics,omitempty"`
 }
 
 // SkillMarketplaceListingPayload is one remote marketplace skill search result.

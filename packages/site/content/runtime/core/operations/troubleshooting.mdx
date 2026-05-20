@@ -134,8 +134,13 @@ agh provider auth status <provider>
 agh provider auth login <provider>
 ```
 
-`agh provider auth login` requires the provider to define `auth_login_command`; otherwise run the
-provider's own login command, such as `claude auth login`, `codex login`, or `opencode auth login`.
+`agh provider auth login` requires the provider to define `auth_login_command`. Built-in `claude`,
+`codex`, `opencode`, and `pi` providers define one; for custom native providers, configure the
+command or run the provider's own login command outside AGH. AGH prints the resolved command for
+an interactive terminal and does not execute native login flows itself. For isolated provider homes,
+the printed command includes the required environment prefix so native credentials land in AGH's
+provider home. Use `agh provider auth login <provider> --print-command` for one raw copyable shell
+command.
 
 See [Spawning](/runtime/core/agents/spawning) for the exact launch and ACP negotiation flow.
 

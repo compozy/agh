@@ -768,6 +768,7 @@ func (m *Manager) preparePromptPumpEventForDelivery(
 	}
 	normalized = m.attachPromptFailureDiagnostics(ctx, session, normalized)
 	normalized = m.preparePromptEvent(ctx, turnState, normalized)
+	normalized = transcript.RedactAgentEvent(normalized)
 	return normalized, false
 }
 

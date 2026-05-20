@@ -28,6 +28,7 @@ type Skill struct {
 	Hooks         []hookspkg.HookDecl
 	Provenance    *Provenance
 	InstalledFrom string
+	Diagnostics   SkillDiagnostics
 }
 
 // SkillSource identifies where a skill was loaded from.
@@ -80,6 +81,64 @@ type Warning struct {
 	Severity WarningSeverity
 	Message  string
 	Pattern  string
+}
+
+// SkillDiagnosticState describes how one discovered skill definition resolved.
+type SkillDiagnosticState string
+
+const (
+	// SkillDiagnosticStateValid reports a loaded definition that participates in the effective skill set.
+	SkillDiagnosticStateValid SkillDiagnosticState = "valid"
+	// SkillDiagnosticStateShadowed reports a definition superseded by a higher-precedence definition.
+	SkillDiagnosticStateShadowed SkillDiagnosticState = "shadowed"
+	// SkillDiagnosticStateVerificationFailed reports a definition rejected by provenance or content verification.
+	SkillDiagnosticStateVerificationFailed SkillDiagnosticState = "verification_failed"
+)
+
+// SkillVerificationStatus describes the verifier outcome for one skill definition.
+type SkillVerificationStatus string
+
+const (
+	// SkillVerificationStatusPassed means no verifier warning or error is attached.
+	SkillVerificationStatusPassed SkillVerificationStatus = "passed"
+	// SkillVerificationStatusWarning means non-blocking verifier warnings were found.
+	SkillVerificationStatusWarning SkillVerificationStatus = "warning"
+	// SkillVerificationStatusFailed means the definition was rejected by verification.
+	SkillVerificationStatusFailed SkillVerificationStatus = "failed"
+)
+
+// SkillDefinitionRef identifies a skill definition involved in resolution diagnostics.
+type SkillDefinitionRef struct {
+	Source string
+	Path   string
+}
+
+// SkillVerificationFailure captures an actionable verification rejection.
+type SkillVerificationFailure struct {
+	Code         string
+	Message      string
+	ExpectedHash string
+	ActualHash   string
+}
+
+// SkillDiagnostics stores verifier and resolution diagnostics on an effective skill.
+type SkillDiagnostics struct {
+	VerificationStatus  SkillVerificationStatus
+	Warnings            []Warning
+	ShadowedDefinitions []SkillDefinitionRef
+}
+
+// SkillDiagnostic is the public read model for one effective, shadowed, or rejected definition.
+type SkillDiagnostic struct {
+	Name               string
+	State              SkillDiagnosticState
+	Source             string
+	Path               string
+	WinningSource      string
+	WinningPath        string
+	VerificationStatus SkillVerificationStatus
+	Warnings           []Warning
+	Failure            *SkillVerificationFailure
 }
 
 // RegistryConfig controls how the registry discovers global skills.

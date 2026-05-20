@@ -695,9 +695,11 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 			descriptor:   descriptor,
 			availability: availableDispatchHandle(),
 			result: ToolResult{
+				Preview: "preview token=preview-secret agh_claim_preview_123",
 				Content: []ToolContent{
 					{
 						Type: "json",
+						Text: "stdout token=stdout-secret agh_claim_content_456",
 						Data: json.RawMessage(`{"access_token":"secret","visible":"ok"}`),
 						Metadata: map[string]json.RawMessage{
 							"refresh_token": json.RawMessage(`"secret"`),
@@ -763,6 +765,23 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 		}
 		if strings.Contains(string(data), `"secret"`) {
 			t.Fatalf("result leaked secret: %s", data)
+		}
+		for _, leaked := range []string{
+			"preview-secret",
+			"stdout-secret",
+			"agh_claim_preview_123",
+			"agh_claim_content_456",
+		} {
+			if strings.Contains(string(data), leaked) {
+				t.Fatalf("result leaked display secret %q: %s", leaked, data)
+			}
+		}
+		for _, path := range []string{"$.preview", "$.content[0].text"} {
+			if !slices.ContainsFunc(result.Redactions, func(redaction Redaction) bool {
+				return redaction.Path == path && redaction.Reason == ReasonSecretMetadata
+			}) {
+				t.Fatalf("result.Redactions = %#v, want display redaction path %s", result.Redactions, path)
+			}
 		}
 		if !strings.Contains(string(data), `"token_present":true`) {
 			t.Fatalf("result = %s, want public token_present diagnostic preserved", data)

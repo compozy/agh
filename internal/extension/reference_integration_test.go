@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -540,6 +541,20 @@ func (referenceACPAgent) Cancel(context.Context, acpsdk.CancelNotification) erro
 	return nil
 }
 
+func (referenceACPAgent) CloseSession(
+	context.Context,
+	acpsdk.CloseSessionRequest,
+) (acpsdk.CloseSessionResponse, error) {
+	return acpsdk.CloseSessionResponse{}, nil
+}
+
+func (referenceACPAgent) ListSessions(
+	context.Context,
+	acpsdk.ListSessionsRequest,
+) (acpsdk.ListSessionsResponse, error) {
+	return acpsdk.ListSessionsResponse{}, nil
+}
+
 func (referenceACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (acpsdk.NewSessionResponse, error) {
 	return acpsdk.NewSessionResponse{
 		SessionId: "reference-extension-helper",
@@ -548,6 +563,13 @@ func (referenceACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (
 
 func (referenceACPAgent) LoadSession(context.Context, acpsdk.LoadSessionRequest) (acpsdk.LoadSessionResponse, error) {
 	return acpsdk.LoadSessionResponse{}, nil
+}
+
+func (referenceACPAgent) ResumeSession(
+	context.Context,
+	acpsdk.ResumeSessionRequest,
+) (acpsdk.ResumeSessionResponse, error) {
+	return acpsdk.ResumeSessionResponse{}, nil
 }
 
 func (referenceACPAgent) Prompt(_ context.Context, params acpsdk.PromptRequest) (acpsdk.PromptResponse, error) {
@@ -570,6 +592,13 @@ func (referenceACPAgent) SetSessionMode(
 	return acpsdk.SetSessionModeResponse{}, nil
 }
 
+func (referenceACPAgent) SetSessionConfigOption(
+	context.Context,
+	acpsdk.SetSessionConfigOptionRequest,
+) (acpsdk.SetSessionConfigOptionResponse, error) {
+	return acpsdk.SetSessionConfigOptionResponse{ConfigOptions: []acpsdk.SessionConfigOption{}}, nil
+}
+
 func promptText(blocks []acpsdk.ContentBlock) string {
 	parts := make([]string, 0, len(blocks))
 	for _, block := range blocks {
@@ -583,7 +612,7 @@ func promptText(blocks []acpsdk.ContentBlock) string {
 	return strings.Join(parts, "\n\n")
 }
 
-func appendJSONLine(path string, value any) error {
+func appendJSONLine(path string, value any) (err error) {
 	target := strings.TrimSpace(path)
 	if target == "" {
 		return nil
@@ -596,7 +625,9 @@ func appendJSONLine(path string, value any) error {
 		return err
 	}
 	defer func() {
-		_ = file.Close()
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
 	}()
 
 	payload, err := json.Marshal(value)
@@ -839,7 +870,9 @@ func referenceShortSocketPath(t *testing.T) string {
 
 	path := filepath.Join(os.TempDir(), fmt.Sprintf("agh-reference-%d.sock", time.Now().UTC().UnixNano()))
 	t.Cleanup(func() {
-		_ = os.Remove(path)
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("os.Remove(%q) cleanup error = %v", path, err)
+		}
 	})
 	return path
 }
@@ -852,7 +885,9 @@ func referenceFreeTCPPort(t *testing.T) int {
 		t.Fatalf("net.Listen(:0) error = %v", err)
 	}
 	defer func() {
-		_ = ln.Close()
+		if err := ln.Close(); err != nil {
+			t.Fatalf("listener Close() cleanup error = %v", err)
+		}
 	}()
 
 	addr, ok := ln.Addr().(*net.TCPAddr)

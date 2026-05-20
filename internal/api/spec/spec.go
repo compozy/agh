@@ -175,6 +175,8 @@ var schemaEnumValues = map[reflect.Type][]string{
 	reflect.TypeFor[contract.HeartbeatWakeSource]():              contract.HeartbeatWakeSourceValues(),
 	reflect.TypeFor[contract.HeartbeatWakeResult]():              contract.HeartbeatWakeResultValues(),
 	reflect.TypeFor[contract.HeartbeatWakeReason]():              contract.HeartbeatWakeReasonValues(),
+	reflect.TypeFor[contract.SkillDiagnosticState]():             skillDiagnosticStateValues(),
+	reflect.TypeFor[contract.SkillVerificationStatus]():          skillVerificationStatusValues(),
 	reflect.TypeFor[hooks.HookEvent]():                           hookEventValues(),
 	reflect.TypeFor[hooks.HookEventFamily]():                     hookEventFamilyValues(),
 	reflect.TypeFor[hooks.HookMode]():                            hookModeValues(),
@@ -213,6 +215,8 @@ var schemaEnumValues = map[reflect.Type][]string{
 	reflect.TypeFor[bridgepkg.BridgeStatus]():                    bridgeStatusValues(),
 	reflect.TypeFor[bridgepkg.BridgeDMPolicy]():                  bridgeDMPolicyValues(),
 	reflect.TypeFor[bridgepkg.BridgeDegradationReason]():         bridgeDegradationReasonValues(),
+	reflect.TypeFor[bridgepkg.BridgeDiagnosticKind]():            bridgeDiagnosticKindValues(),
+	reflect.TypeFor[bridgepkg.BridgeDiagnosticSeverity]():        bridgeDiagnosticSeverityValues(),
 	reflect.TypeFor[bridgepkg.DeliveryMode]():                    deliveryModeValues(),
 	reflect.TypeFor[session.Type]():                              sessionTypeValues(),
 	reflect.TypeFor[session.State]():                             sessionStateValues(),
@@ -5049,6 +5053,22 @@ func settingsUpdateStatusValues() []string {
 	}
 }
 
+func skillDiagnosticStateValues() []string {
+	return []string{
+		string(contract.SkillDiagnosticStateValid),
+		string(contract.SkillDiagnosticStateShadowed),
+		string(contract.SkillDiagnosticStateVerificationFailed),
+	}
+}
+
+func skillVerificationStatusValues() []string {
+	return []string{
+		string(contract.SkillVerificationStatusPassed),
+		string(contract.SkillVerificationStatusWarning),
+		string(contract.SkillVerificationStatusFailed),
+	}
+}
+
 func schemaRefForValue(value any, schemas openapi3.Schemas) (*openapi3.SchemaRef, error) {
 	var rootType reflect.Type
 	if value != nil {
@@ -5725,6 +5745,24 @@ func bridgeDegradationReasonValues() []string {
 		string(bridgepkg.BridgeDegradationReasonWebhookInvalid),
 		string(bridgepkg.BridgeDegradationReasonProviderTimeout),
 		string(bridgepkg.BridgeDegradationReasonTenantConfigInvalid),
+	}
+}
+
+func bridgeDiagnosticKindValues() []string {
+	return []string{
+		string(bridgepkg.BridgeDiagnosticKindUnknownDestination),
+		string(bridgepkg.BridgeDiagnosticKindMissingToken),
+		string(bridgepkg.BridgeDiagnosticKindPermissionDenied),
+		string(bridgepkg.BridgeDiagnosticKindUnsupportedCapability),
+		string(bridgepkg.BridgeDiagnosticKindTransientDeliveryFailure),
+	}
+}
+
+func bridgeDiagnosticSeverityValues() []string {
+	return []string{
+		string(bridgepkg.BridgeDiagnosticSeverityInfo),
+		string(bridgepkg.BridgeDiagnosticSeverityWarning),
+		string(bridgepkg.BridgeDiagnosticSeverityError),
 	}
 }
 

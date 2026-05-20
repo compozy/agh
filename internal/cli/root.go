@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"strings"
 	"syscall"
 	"time"
@@ -63,6 +64,7 @@ type commandDeps struct {
 	executable                   func() (string, error)
 	getwd                        func() (string, error)
 	getenv                       func(string) string
+	lookPath                     func(string) (string, error)
 	now                          func() time.Time
 	pollInterval                 time.Duration
 	startTimeout                 time.Duration
@@ -301,6 +303,9 @@ func (d commandDeps) withRuntimeDefaults() commandDeps {
 	}
 	if d.getenv == nil {
 		d.getenv = os.Getenv
+	}
+	if d.lookPath == nil {
+		d.lookPath = exec.LookPath
 	}
 	if d.spawnDetached == nil {
 		d.spawnDetached = func(ctx context.Context, homePaths aghconfig.HomePaths) (daemonProcess, error) {

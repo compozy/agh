@@ -58,9 +58,10 @@ func WrapFailure(kind store.FailureKind, summary string, err error) error {
 	if !store.ValidFailureKind(kind) {
 		kind = failureKindForError(err, store.FailureUnknown)
 	}
+	summary = providerFailureDiagnosticSummary(err, failureDiagnosticSummary(summary, err.Error()))
 	return &FailureError{
 		Kind:    kind,
-		Summary: diagnostics.RedactAndBound(failureDiagnosticSummary(summary, err.Error()), maxFailureSummaryBytes),
+		Summary: diagnostics.RedactAndBound(summary, maxFailureSummaryBytes),
 		Err:     err,
 	}
 }
@@ -80,7 +81,10 @@ func FailureFromError(err error, fallback store.FailureKind) (*store.SessionFail
 		failure := store.SessionFailure{
 			Kind: kind,
 			Summary: diagnostics.RedactAndBound(
-				firstNonEmptyFailureText(failureErr.Summary, err.Error()),
+				providerFailureDiagnosticSummary(
+					err,
+					firstNonEmptyFailureText(failureErr.Summary, err.Error()),
+				),
 				maxFailureSummaryBytes,
 			),
 		}
@@ -93,7 +97,7 @@ func FailureFromError(err error, fallback store.FailureKind) (*store.SessionFail
 	}
 	failure := store.SessionFailure{
 		Kind:    kind,
-		Summary: diagnostics.RedactAndBound(err.Error(), maxFailureSummaryBytes),
+		Summary: diagnostics.RedactAndBound(providerFailureDiagnosticSummary(err, err.Error()), maxFailureSummaryBytes),
 	}
 	return &failure, true
 }

@@ -39,8 +39,9 @@ var (
 	authorizationHeaderPattern = regexp.MustCompile(
 		`(?i)\b((?:proxy[-_])?authorization)\b(\s*[=:]\s*)([^\r\n,;]+)`,
 	)
-	bearerTokenPattern  = regexp.MustCompile(`(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+`)
-	quotedSecretPattern = regexp.MustCompile(
+	bearerTokenPattern    = regexp.MustCompile(`(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+`)
+	bareClaimTokenPattern = regexp.MustCompile(`\bagh_claim_[A-Za-z0-9_-]+\b`)
+	quotedSecretPattern   = regexp.MustCompile(
 		`(?i)(["'])(` + sensitiveKeyPattern + `)(["'])(\s*:\s*)(["'])(?:\\.|[^\\])*?(["'])`,
 	)
 	secretPattern = regexp.MustCompile(
@@ -117,6 +118,7 @@ func Redact(text string) string {
 	}
 	redacted := redactAuthorizationHeaders(text)
 	redacted = bearerTokenPattern.ReplaceAllString(redacted, "Bearer "+redactedValue)
+	redacted = bareClaimTokenPattern.ReplaceAllString(redacted, "agh_claim_"+redactedValue)
 	redacted = quotedSecretPattern.ReplaceAllString(redacted, "${1}${2}${3}${4}${5}"+redactedValue+"${6}")
 	redacted = redactSecretAssignments(redacted)
 	return redactDynamicSecrets(redacted)

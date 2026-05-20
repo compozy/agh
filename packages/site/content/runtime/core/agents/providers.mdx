@@ -110,6 +110,14 @@ Provider overrides and custom providers are configured in `config.toml`.
 AGH overlays provider config on top of a built-in provider when the name matches. Unknown provider
 names are accepted only when they have a `[providers.<name>]` entry.
 
+Built-in provider aliases are intentionally small and resolve before launch. Common aliases such as
+`claude-code`, `ai-gateway`, `vercel`, `kimi`, `glm`, `x.ai`, `grok`, `open-code`, and `qwen`
+resolve to their canonical provider IDs. Provider-scoped model aliases resolve the same way: `sonnet`,
+`opus`, and `haiku` under `claude`; `gpt5`, `gpt-5`, and `mini` under `codex`;
+`kimi` under `moonshot`; `glm` under `zai`; `grok` under `xai`; `qwen` under `qwen-code`; and
+`opus` under `vercel-ai-gateway`. AGH stores and displays the resolved provider/model IDs in session
+diagnostics and catalog rows.
+
 The flat keys `default_model`, `supported_models`, and `supports_reasoning_effort` are no longer
 accepted. Config that still sets them is rejected at load time with a deterministic hard-cut error
 that names the exact path. Move every value into the nested `[providers.<id>.models]` block below.
@@ -160,10 +168,15 @@ controls inside the running session.
 
 Native provider auth state belongs to the provider. Run the provider's own login command, such as
 `claude auth login`, `codex login`, `opencode auth login`, or Pi's `/login`, outside AGH or through
-a configured `auth_login_command`. The built-in `pi` provider exposes
-`npx -y pi-acp@latest --terminal-login` through `agh provider auth login pi`. Wrapped API-key
-providers use their configured `credential_slots` instead of Pi login. Custom providers should set
-`auth_mode` to match the runtime's real authentication contract.
+a configured `auth_login_command`. The built-in `claude`, `codex`, `opencode`, and `pi` providers
+expose those login commands through `agh provider auth login <provider>`; the command prints the
+resolved provider command and does not execute interactive native login flows. When a provider uses
+`home_policy = "isolated"`, the output includes the required `HOME`/provider-home environment
+prefix so the native login writes credentials where AGH will read them. Use
+`agh provider auth login <provider> --print-command` when automation needs one copyable shell
+command. `pi` prints an env-prefixed `npx -y pi-acp@latest --terminal-login` command. Wrapped
+API-key providers use their configured `credential_slots` instead of Pi login. Custom providers
+should set `auth_mode` to match the runtime's real authentication contract.
 
 ## Override a built-in provider
 

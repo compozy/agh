@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -175,7 +176,7 @@ func TestMCPAuthLoginManualCodeExchangesWithoutPrintingVerifier(t *testing.T) {
 			"linear",
 			"--manual",
 			"--redirect-url",
-			"http://127.0.0.1/callback",
+			defaultMCPAuthRedirectURL,
 			"-o",
 			"json",
 		)
@@ -201,6 +202,51 @@ func TestMCPAuthLoginManualCodeExchangesWithoutPrintingVerifier(t *testing.T) {
 		}
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("os.Stat(pending login) error = %v", err)
+		}
+		assertMCPAuthPendingLoginFileMode(t, path, 0o600)
+	})
+
+	t.Run("Should atomically replace stale pending login files with private mode", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newMCPAuthTestDeps(t, &stubMCPAuthClient{})
+		homePaths, err := deps.resolveHome()
+		if err != nil {
+			t.Fatalf("deps.resolveHome() error = %v", err)
+		}
+		path, err := mcpAuthPendingLoginPath(homePaths, "linear")
+		if err != nil {
+			t.Fatalf("mcpAuthPendingLoginPath() error = %v", err)
+		}
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("MkdirAll(pending dir) error = %v", err)
+		}
+		if err := os.Chmod(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("Chmod(pending dir) error = %v", err)
+		}
+		if err := os.WriteFile(path, []byte("stale verifier"), 0o644); err != nil {
+			t.Fatalf("WriteFile(stale pending login) error = %v", err)
+		}
+
+		if err := saveMCPAuthPendingLogin(homePaths, mcpauth.LoginState{
+			ServerName:       "linear",
+			RedirectURL:      defaultMCPAuthRedirectURL,
+			State:            "state-replacement",
+			Verifier:         "replacement-sensitive-verifier",
+			AuthorizationURL: "https://auth.example/authorize?state=state-replacement",
+		}); err != nil {
+			t.Fatalf("saveMCPAuthPendingLogin() error = %v", err)
+		}
+
+		assertMCPAuthPendingLoginFileMode(t, filepath.Dir(path), 0o700)
+		assertMCPAuthPendingLoginFileMode(t, path, 0o600)
+		payload, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("ReadFile(pending login) error = %v", err)
+		}
+		text := string(payload)
+		if strings.Contains(text, "stale verifier") || !strings.Contains(text, "replacement-sensitive-verifier") {
+			t.Fatalf("pending login payload = %q, want replacement without stale verifier", text)
 		}
 	})
 
@@ -232,7 +278,7 @@ func TestMCPAuthLoginManualCodeExchangesWithoutPrintingVerifier(t *testing.T) {
 		}
 		if err := saveMCPAuthPendingLogin(homePaths, mcpauth.LoginState{
 			ServerName:       "linear",
-			RedirectURL:      "http://127.0.0.1/callback",
+			RedirectURL:      defaultMCPAuthRedirectURL,
 			State:            "state-original",
 			Verifier:         "sensitive-verifier",
 			AuthorizationURL: "https://auth.example/authorize?state=state-original",
@@ -273,6 +319,18 @@ func TestMCPAuthLoginManualCodeExchangesWithoutPrintingVerifier(t *testing.T) {
 			t.Fatalf("pending login file error = %v, want not exists", err)
 		}
 	})
+}
+
+func assertMCPAuthPendingLoginFileMode(t *testing.T, path string, want os.FileMode) {
+	t.Helper()
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("Stat(%q) error = %v", path, err)
+	}
+	if got := info.Mode().Perm(); got != want {
+		t.Fatalf("Stat(%q).Mode().Perm() = %#o, want %#o", path, got, want)
+	}
 }
 
 func TestMCPAuthLogoutCallsAuthClient(t *testing.T) {

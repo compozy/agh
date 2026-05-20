@@ -12,6 +12,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/diagnostics"
+	"github.com/pedronauck/agh/internal/fileutil"
 	"github.com/pedronauck/agh/internal/providerenv"
 	"github.com/pedronauck/agh/internal/vault"
 )
@@ -259,6 +260,9 @@ func (m *Manager) materializePiRuntime(
 	if err := os.MkdirAll(runtimeDir, 0o700); err != nil {
 		return "", fmt.Errorf("session: create pi runtime directory %q: %w", runtimeDir, err)
 	}
+	if err := os.Chmod(runtimeDir, 0o700); err != nil {
+		return "", fmt.Errorf("session: protect pi runtime directory %q: %w", runtimeDir, err)
+	}
 	settings := piSettingsFile{
 		DefaultProvider: runtimeProvider,
 		DefaultModel:    model,
@@ -324,7 +328,7 @@ func writeProviderJSON(path string, value any) error {
 		return fmt.Errorf("session: marshal provider runtime file %q: %w", path, err)
 	}
 	payload = append(payload, '\n')
-	if err := os.WriteFile(path, payload, 0o600); err != nil {
+	if err := fileutil.AtomicWriteFile(path, payload, 0o600); err != nil {
 		return fmt.Errorf("session: write provider runtime file %q: %w", path, err)
 	}
 	return nil

@@ -1,8 +1,10 @@
 package config
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -148,36 +150,238 @@ func TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets(t *testing.T) 
 	})
 }
 
-func TestPRReleaseConfigGeneratesSiteChangelogArtifact(t *testing.T) {
+func TestPackagingMetadataStaysAlignedWithRuntimeAndInstaller(t *testing.T) {
 	t.Parallel()
 
 	root := findRepoRootForReleaseConfigTest(t)
-	data, err := os.ReadFile(filepath.Join(root, ".pr-release"))
-	if err != nil {
-		t.Fatalf("os.ReadFile(.pr-release) error = %v", err)
-	}
-	var cfg map[string]any
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		t.Fatalf("yaml.Unmarshal(.pr-release) error = %v", err)
-	}
+	goreleaser := readYAMLMap(t, root, ".goreleaser.yml")
+	ciWorkflow := readYAMLMap(t, root, filepath.Join(".github", "workflows", "ci.yml"))
+	releaseWorkflow := readYAMLMap(t, root, filepath.Join(".github", "workflows", "release.yml"))
+	setupBun := readYAMLMap(t, root, filepath.Join(".github", "actions", "setup-bun", "action.yml"))
+	setupGo := readYAMLMap(t, root, filepath.Join(".github", "actions", "setup-go", "action.yml"))
+	rootPackage := readJSONMap(t, root, "package.json")
+	prRelease := readYAMLMap(t, root, ".pr-release")
+	installScript := readTextFile(t, root, filepath.Join("packages", "site", "public", "install.sh"))
 
-	artifacts := sliceAt(t, cfg, "release_artifacts")
-	if len(artifacts) != 1 {
-		t.Fatalf("release_artifacts len = %d, want 1", len(artifacts))
-	}
-	artifact := asMap(t, artifacts[0], "release_artifacts[0]")
-	if got, want := stringAt(t, artifact, "name"), "site-changelog"; got != want {
-		t.Fatalf("release_artifacts[0].name = %q, want %q", got, want)
-	}
-	if got, want := stringAt(t, artifact, "command"), "bun"; got != want {
-		t.Fatalf("release_artifacts[0].command = %q, want %q", got, want)
-	}
-	if !stringSliceContains(sliceAt(t, artifact, "args"), "release:site-changelog") {
-		t.Fatalf("release_artifacts[0].args = %#v, want release:site-changelog", artifact["args"])
-	}
-	if !stringSliceContains(sliceAt(t, artifact, "add"), "packages/site/content/blog/changelog/*.mdx") {
-		t.Fatalf("release_artifacts[0].add = %#v, want site changelog glob", artifact["add"])
-	}
+	t.Run("Should keep toolchain versions synchronized across package metadata and workflows", func(t *testing.T) {
+		t.Parallel()
+
+		bunVersionFile := strings.TrimSpace(readTextFile(t, root, ".bun-version"))
+		packageManager := stringAt(t, rootPackage, "packageManager")
+		bunVersion, ok := strings.CutPrefix(packageManager, "bun@")
+		if !ok {
+			t.Fatalf("packageManager = %q, want bun@<version>", packageManager)
+		}
+		assertEqualString(t, "packageManager bun version", bunVersion, bunVersionFile)
+		assertEqualString(
+			t,
+			"ci env BUN_VERSION",
+			workflowEnvValue(t, ciWorkflow, "BUN_VERSION"),
+			bunVersionFile,
+		)
+		assertEqualString(
+			t,
+			"release env BUN_VERSION",
+			workflowEnvValue(t, releaseWorkflow, "BUN_VERSION"),
+			bunVersionFile,
+		)
+		setupBunInputs := mapAt(t, setupBun, "inputs")
+		setupBunVersion := mapAt(t, setupBunInputs, "bun-version")
+		assertEqualString(t, "setup-bun default", stringAt(t, setupBunVersion, "default"), bunVersionFile)
+
+		goVersion := goDirectiveVersion(t, readTextFile(t, root, "go.mod"))
+		assertEqualString(t, "ci env GO_VERSION", workflowEnvValue(t, ciWorkflow, "GO_VERSION"), goVersion)
+		assertEqualString(
+			t,
+			"release env GO_VERSION",
+			workflowEnvValue(t, releaseWorkflow, "GO_VERSION"),
+			goVersion,
+		)
+		setupGoInputs := mapAt(t, setupGo, "inputs")
+		setupGoVersion := mapAt(t, setupGoInputs, "go-version")
+		assertEqualString(t, "setup-go default", stringAt(t, setupGoVersion, "default"), goVersion)
+	})
+
+	t.Run("Should keep Bun workspace release artifacts backed by workspace metadata", func(t *testing.T) {
+		t.Parallel()
+
+		workspaces := stringsFromSlice(t, sliceAt(t, rootPackage, "workspaces"), "workspaces")
+		for _, workspace := range []string{
+			"packages/ui",
+			"packages/site",
+			"web",
+			"sdk/typescript",
+			"sdk/create-extension",
+			"sdk/examples/prompt-enhancer",
+		} {
+			if !stringListContains(workspaces, workspace) {
+				t.Fatalf("package.json workspaces = %#v, want %q", workspaces, workspace)
+			}
+		}
+
+		cachePaths := setupBunCachePaths(t, setupBun)
+		for _, workspace := range workspaces {
+			packagePath := filepath.Join(root, workspace, "package.json")
+			if _, err := os.Stat(packagePath); err != nil {
+				t.Fatalf("workspace %q package.json stat error = %v", workspace, err)
+			}
+			cachePath := filepath.ToSlash(filepath.Join(workspace, "node_modules"))
+			if !strings.Contains(cachePaths, cachePath) {
+				t.Fatalf("setup-bun cache paths = %q, want workspace cache path %q", cachePaths, cachePath)
+			}
+		}
+
+		scripts := mapAt(t, rootPackage, "scripts")
+		artifact := siteChangelogArtifact(t, prRelease)
+		args := stringsFromSlice(t, sliceAt(t, artifact, "args"), "release_artifacts[site-changelog].args")
+		if !stringListContains(args, "release:site-changelog") {
+			t.Fatalf("site-changelog args = %#v, want release:site-changelog", args)
+		}
+		changelogScript := stringAt(t, scripts, "release:site-changelog")
+		if !strings.Contains(changelogScript, "packages/site/scripts/generate-changelog-release.ts") {
+			t.Fatalf("scripts.release:site-changelog = %q, want packages/site changelog generator", changelogScript)
+		}
+	})
+
+	t.Run("Should keep GoReleaser archives aligned with the public installer", func(t *testing.T) {
+		t.Parallel()
+
+		projectName := stringAt(t, goreleaser, "project_name")
+		assertEqualString(t, "goreleaser project_name", projectName, "agh")
+		build := firstMapAt(t, goreleaser, "builds")
+		buildID := stringAt(t, build, "id")
+		assertEqualString(t, "build id", buildID, "agh")
+		assertEqualString(t, "build binary", stringAt(t, build, "binary"), "agh")
+		assertEqualString(t, "build main", stringAt(t, build, "main"), "./cmd/agh")
+
+		archive := firstMapAt(t, goreleaser, "archives")
+		if !stringSliceContains(sliceAt(t, archive, "ids"), buildID) {
+			t.Fatalf("archives[0].ids = %#v, want build id %q", archive["ids"], buildID)
+		}
+		nameTemplate := stringAt(t, archive, "name_template")
+		for _, fragment := range []string{
+			"{{ .ProjectName }}_{{ .Os }}_",
+			`{{- if eq .Arch "amd64" }}x86_64`,
+			`{{- else if eq .Arch "386" }}i386`,
+			`{{- else }}{{ .Arch }}{{ end }}`,
+		} {
+			if !strings.Contains(nameTemplate, fragment) {
+				t.Fatalf("archives[0].name_template = %q, want fragment %q", nameTemplate, fragment)
+			}
+		}
+		if !strings.Contains(installScript, `ARCHIVE_NAME="agh_${OS}_${ARCH}.tar.gz"`) {
+			t.Fatalf("install.sh archive naming must stay aligned with GoReleaser template")
+		}
+
+		goos := stringsFromSlice(t, sliceAt(t, build, "goos"), "builds[0].goos")
+		goarch := stringsFromSlice(t, sliceAt(t, build, "goarch"), "builds[0].goarch")
+		for _, platform := range []string{"linux", "darwin"} {
+			if !stringListContains(goos, platform) {
+				t.Fatalf("builds[0].goos = %#v, want installer platform %q", goos, platform)
+			}
+		}
+		for _, arch := range []string{"amd64", "arm64"} {
+			if !stringListContains(goarch, arch) {
+				t.Fatalf("builds[0].goarch = %#v, want installer architecture %q", goarch, arch)
+			}
+		}
+
+		release := mapAt(t, goreleaser, "release")
+		github := mapAt(t, release, "github")
+		releaseRepo := shellAssignment(t, installScript, "RELEASE_REPO")
+		goreleaserRepo := stringAt(t, github, "owner") + "/" + stringAt(t, github, "name")
+		assertEqualString(t, "installer RELEASE_REPO", releaseRepo, goreleaserRepo)
+		if !strings.Contains(installScript, `TARGET="${INSTALL_DIR}/agh"`) {
+			t.Fatalf("install.sh must install the same binary name GoReleaser builds")
+		}
+	})
+}
+
+func TestPRReleaseConfigGeneratesSiteChangelogArtifact(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should generate site changelog release artifact", func(t *testing.T) {
+		t.Parallel()
+
+		root := findRepoRootForReleaseConfigTest(t)
+		cfg := readYAMLMap(t, root, ".pr-release")
+		artifacts := sliceAt(t, cfg, "release_artifacts")
+		if len(artifacts) != 1 {
+			t.Fatalf("release_artifacts len = %d, want 1", len(artifacts))
+		}
+		artifact := asMap(t, artifacts[0], "release_artifacts[0]")
+		if got, want := stringAt(t, artifact, "name"), "site-changelog"; got != want {
+			t.Fatalf("release_artifacts[0].name = %q, want %q", got, want)
+		}
+		if got, want := stringAt(t, artifact, "command"), "bun"; got != want {
+			t.Fatalf("release_artifacts[0].command = %q, want %q", got, want)
+		}
+		if !stringSliceContains(sliceAt(t, artifact, "args"), "release:site-changelog") {
+			t.Fatalf("release_artifacts[0].args = %#v, want release:site-changelog", artifact["args"])
+		}
+		if !stringSliceContains(sliceAt(t, artifact, "add"), "packages/site/content/blog/changelog/*.mdx") {
+			t.Fatalf("release_artifacts[0].add = %#v, want site changelog glob", artifact["add"])
+		}
+	})
+}
+
+func TestReleaseWorkflowPreservesInstallerSourceTextGuards(t *testing.T) {
+	t.Parallel()
+
+	root := findRepoRootForReleaseConfigTest(t)
+	workflow := readTextFile(t, root, filepath.Join(".github", "workflows", "release.yml"))
+	footer := readTextFile(t, root, ".goreleaser.release-footer.md.tmpl")
+
+	t.Run("Should keep release workflow guards for public installer provenance", func(t *testing.T) {
+		t.Parallel()
+
+		for _, snippet := range []string{
+			"sh -n packages/site/public/install.sh",
+			"grep -q 'checksums.txt.sigstore.json' packages/site/public/install.sh",
+			"install.sh must verify checksums.txt with checksums.txt.sigstore.json",
+			"grep -q 'packages/site/public/install.sh' .goreleaser.yml",
+			".goreleaser.yml must upload packages/site/public/install.sh as a release extra file",
+			`grep -q -- '--bundle=\${signature}' .goreleaser.yml`,
+			".goreleaser.yml must sign checksums with a Sigstore bundle artifact",
+		} {
+			assertContainsText(t, "release workflow", workflow, snippet)
+		}
+	})
+
+	t.Run("Should keep GoReleaser invocation tied to generated release text", func(t *testing.T) {
+		t.Parallel()
+
+		for _, snippet := range []string{
+			"goreleaser/goreleaser-action@v6",
+			"distribution: goreleaser-pro",
+			"release --clean",
+			"--release-notes=RELEASE_BODY.md",
+			"--release-header-tmpl=.goreleaser.release-header.md.tmpl",
+			"--release-footer-tmpl=.goreleaser.release-footer.md.tmpl",
+		} {
+			assertContainsText(t, "release workflow", workflow, snippet)
+		}
+	})
+
+	t.Run("Should keep release artifacts honest about verification posture", func(t *testing.T) {
+		t.Parallel()
+
+		for _, snippet := range []string{
+			"### Verification posture",
+			"`make verify` covers codegen drift",
+			"`pr-release dry-run`, `make test-e2e-nightly`, and `make test-integration`",
+			"`goreleaser release --clean` publishes the release",
+			"`checksums.txt.sigstore.json`",
+			"Syft SBOMs for archives, packages, and source",
+			"does not claim a manual post-release install smoke",
+			"--bundle checksums.txt.sigstore.json",
+			"--certificate-identity-regexp",
+			"--certificate-oidc-issuer https://token.actions.githubusercontent.com",
+		} {
+			assertContainsText(t, "GoReleaser release footer", footer, snippet)
+		}
+		assertNotContainsText(t, "GoReleaser release footer", footer, "All release artifacts are signed")
+	})
 }
 
 func findRepoRootForReleaseConfigTest(t *testing.T) string {
@@ -197,6 +401,44 @@ func findRepoRootForReleaseConfigTest(t *testing.T) string {
 		}
 		dir = parent
 	}
+}
+
+func readTextFile(t *testing.T, root string, rel string) string {
+	t.Helper()
+
+	data, err := os.ReadFile(filepath.Join(root, rel))
+	if err != nil {
+		t.Fatalf("os.ReadFile(%s) error = %v", rel, err)
+	}
+	return string(data)
+}
+
+func readYAMLMap(t *testing.T, root string, rel string) map[string]any {
+	t.Helper()
+
+	data, err := os.ReadFile(filepath.Join(root, rel))
+	if err != nil {
+		t.Fatalf("os.ReadFile(%s) error = %v", rel, err)
+	}
+	var cfg map[string]any
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		t.Fatalf("yaml.Unmarshal(%s) error = %v", rel, err)
+	}
+	return cfg
+}
+
+func readJSONMap(t *testing.T, root string, rel string) map[string]any {
+	t.Helper()
+
+	data, err := os.ReadFile(filepath.Join(root, rel))
+	if err != nil {
+		t.Fatalf("os.ReadFile(%s) error = %v", rel, err)
+	}
+	var cfg map[string]any
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		t.Fatalf("json.Unmarshal(%s) error = %v", rel, err)
+	}
+	return cfg
 }
 
 func mapAt(t *testing.T, src map[string]any, key string) map[string]any {
@@ -254,6 +496,124 @@ func stringSliceContains(values []any, want string) bool {
 		}
 	}
 	return false
+}
+
+func stringsFromSlice(t *testing.T, values []any, label string) []string {
+	t.Helper()
+
+	items := make([]string, 0, len(values))
+	for index, value := range values {
+		text, ok := value.(string)
+		if !ok {
+			t.Fatalf("%s[%d] type = %T, want string", label, index, value)
+		}
+		items = append(items, text)
+	}
+	return items
+}
+
+func stringListContains(values []string, want string) bool {
+	return slices.Contains(values, want)
+}
+
+func firstMapAt(t *testing.T, src map[string]any, key string) map[string]any {
+	t.Helper()
+
+	items := sliceAt(t, src, key)
+	if len(items) == 0 {
+		t.Fatalf("%s is empty", key)
+	}
+	return asMap(t, items[0], key+"[0]")
+}
+
+func workflowEnvValue(t *testing.T, workflow map[string]any, key string) string {
+	t.Helper()
+
+	env := mapAt(t, workflow, "env")
+	return stringAt(t, env, key)
+}
+
+func setupBunCachePaths(t *testing.T, action map[string]any) string {
+	t.Helper()
+
+	runs := mapAt(t, action, "runs")
+	steps := sliceAt(t, runs, "steps")
+	for _, step := range steps {
+		item := asMap(t, step, "runs.steps[]")
+		if id, ok := item["id"].(string); ok && id == "bun-cache" {
+			with := mapAt(t, item, "with")
+			return stringAt(t, with, "path")
+		}
+	}
+	t.Fatal("setup-bun action missing bun-cache step")
+	return ""
+}
+
+func siteChangelogArtifact(t *testing.T, cfg map[string]any) map[string]any {
+	t.Helper()
+
+	for _, entry := range sliceAt(t, cfg, "release_artifacts") {
+		artifact := asMap(t, entry, "release_artifacts[]")
+		if stringAt(t, artifact, "name") == "site-changelog" {
+			return artifact
+		}
+	}
+	t.Fatal("release_artifacts missing site-changelog")
+	return nil
+}
+
+func goDirectiveVersion(t *testing.T, goMod string) string {
+	t.Helper()
+
+	for line := range strings.SplitSeq(goMod, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 2 && fields[0] == "go" {
+			return fields[1]
+		}
+	}
+	t.Fatal("go.mod missing go directive")
+	return ""
+}
+
+func shellAssignment(t *testing.T, script string, key string) string {
+	t.Helper()
+
+	prefix := key + "=\""
+	for line := range strings.SplitSeq(script, "\n") {
+		if value, ok := strings.CutPrefix(line, prefix); ok {
+			trimmed, ok := strings.CutSuffix(value, "\"")
+			if !ok {
+				t.Fatalf("%s assignment = %q, want quoted shell string", key, line)
+			}
+			return trimmed
+		}
+	}
+	t.Fatalf("install.sh missing %s assignment", key)
+	return ""
+}
+
+func assertEqualString(t *testing.T, label string, got string, want string) {
+	t.Helper()
+
+	if got != want {
+		t.Fatalf("%s = %q, want %q", label, got, want)
+	}
+}
+
+func assertContainsText(t *testing.T, label string, text string, want string) {
+	t.Helper()
+
+	if !strings.Contains(text, want) {
+		t.Fatalf("%s missing %q", label, want)
+	}
+}
+
+func assertNotContainsText(t *testing.T, label string, text string, unwanted string) {
+	t.Helper()
+
+	if strings.Contains(text, unwanted) {
+		t.Fatalf("%s contains %q", label, unwanted)
+	}
 }
 
 func assertSBOMArtifact(t *testing.T, sboms []any, artifact string) {

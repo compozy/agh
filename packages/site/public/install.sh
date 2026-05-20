@@ -257,7 +257,7 @@ if [ "$SKIP_BOOTSTRAP" = "true" ]; then
   exit 0
 fi
 
-if [ -r /dev/tty ] && [ -w /dev/tty ]; then
+if (: </dev/tty >/dev/tty) 2>/dev/null; then
   log "starting agh install"
   "$TARGET" install </dev/tty >/dev/tty
 else

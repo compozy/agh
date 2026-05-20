@@ -34,7 +34,12 @@ import (
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
-const maxDiagnosticPayloadBytes = 2048
+const (
+	maxDiagnosticPayloadBytes = 2048
+	skillWarningSeverityInfo  = "info"
+	skillWarningSeverityWarn  = "warning"
+	skillWarningSeverityCrit  = "critical"
+)
 
 // SessionPayloadFromInfo converts a session info snapshot into the shared session payload.
 func SessionPayloadFromInfo(info *session.Info) contract.SessionPayload {
@@ -1180,6 +1185,7 @@ func SkillPayloadFromSkill(skill *skills.Skill) contract.SkillPayload {
 		Enabled:     skill.Enabled,
 		Dir:         skill.Dir,
 		Metadata:    skill.Meta.Metadata,
+		Diagnostics: SkillDiagnosticPayloadsFromDiagnostics(skills.DiagnosticsForSkill(skill)),
 	}
 	if skill.Provenance != nil {
 		payload.Provenance = &contract.ProvenancePayload{
@@ -1191,6 +1197,82 @@ func SkillPayloadFromSkill(skill *skills.Skill) contract.SkillPayload {
 	}
 
 	return payload
+}
+
+// SkillDiagnosticPayloadsFromDiagnostics converts skill registry diagnostics for API payloads.
+func SkillDiagnosticPayloadsFromDiagnostics(
+	diagnostics []skills.SkillDiagnostic,
+) []contract.SkillDiagnosticPayload {
+	if len(diagnostics) == 0 {
+		return nil
+	}
+	payloads := make([]contract.SkillDiagnosticPayload, 0, len(diagnostics))
+	for _, diagnostic := range diagnostics {
+		payloads = append(payloads, skillDiagnosticPayloadFromDiagnostic(diagnostic))
+	}
+	return payloads
+}
+
+func skillDiagnosticPayloadFromDiagnostic(
+	diagnostic skills.SkillDiagnostic,
+) contract.SkillDiagnosticPayload {
+	verificationStatus := diagnostic.VerificationStatus
+	if verificationStatus == "" {
+		verificationStatus = skills.SkillVerificationStatusPassed
+	}
+	return contract.SkillDiagnosticPayload{
+		Name:               diagnostic.Name,
+		State:              contract.SkillDiagnosticState(diagnostic.State),
+		Source:             diagnostic.Source,
+		Path:               diagnostic.Path,
+		WinningSource:      diagnostic.WinningSource,
+		WinningPath:        diagnostic.WinningPath,
+		VerificationStatus: contract.SkillVerificationStatus(verificationStatus),
+		Warnings:           skillVerificationWarningPayloads(diagnostic.Warnings),
+		Failure:            skillVerificationFailurePayload(diagnostic.Failure),
+	}
+}
+
+func skillVerificationWarningPayloads(
+	warnings []skills.Warning,
+) []contract.SkillVerificationWarningPayload {
+	if len(warnings) == 0 {
+		return nil
+	}
+	payloads := make([]contract.SkillVerificationWarningPayload, 0, len(warnings))
+	for _, warning := range warnings {
+		payloads = append(payloads, contract.SkillVerificationWarningPayload{
+			Severity: skillWarningSeverityName(warning.Severity),
+			Pattern:  warning.Pattern,
+			Message:  warning.Message,
+		})
+	}
+	return payloads
+}
+
+func skillWarningSeverityName(severity skills.WarningSeverity) string {
+	switch severity {
+	case skills.SeverityCritical:
+		return skillWarningSeverityCrit
+	case skills.SeverityWarning:
+		return skillWarningSeverityWarn
+	default:
+		return skillWarningSeverityInfo
+	}
+}
+
+func skillVerificationFailurePayload(
+	failure *skills.SkillVerificationFailure,
+) *contract.SkillVerificationFailurePayload {
+	if failure == nil {
+		return nil
+	}
+	return &contract.SkillVerificationFailurePayload{
+		Code:         failure.Code,
+		Message:      failure.Message,
+		ExpectedHash: failure.ExpectedHash,
+		ActualHash:   failure.ActualHash,
+	}
 }
 
 // SkillPayloadsFromSkills converts a slice of skills into response payloads.
@@ -1380,6 +1462,7 @@ func settingsSkillsSectionResponse(envelope settingspkg.SectionEnvelope) (any, e
 		DiscoveredCount:                          envelope.Skills.DiscoveredCount,
 		DisabledCount:                            envelope.Skills.DisabledCount,
 		RuntimeAvailable:                         envelope.Skills.RuntimeAvailable,
+		Diagnostics:                              SkillDiagnosticPayloadsFromDiagnostics(envelope.Skills.Diagnostics),
 		Links:                                    settingsOperationalLinkPayloads(envelope.Skills.Links),
 	}, nil
 }
@@ -2216,6 +2299,16 @@ func settingsProviderAuthStatusPayload(
 		Message:    strings.TrimSpace(value.Message),
 		StatusCmd:  strings.TrimSpace(value.StatusCmd),
 		LoginCmd:   strings.TrimSpace(value.LoginCmd),
+		LoginEnv:   cloneStrings(value.LoginEnv),
+	}
+	if value.NativeCLI != nil {
+		payload.NativeCLI = &contract.SettingsProviderNativeCLIStatusPayload{
+			Command: strings.TrimSpace(value.NativeCLI.Command),
+			Present: value.NativeCLI.Present,
+			Path:    strings.TrimSpace(value.NativeCLI.Path),
+			Source:  strings.TrimSpace(value.NativeCLI.Source),
+			Error:   strings.TrimSpace(value.NativeCLI.Error),
+		}
 	}
 	return &payload
 }
@@ -2257,12 +2350,30 @@ func settingsMCPServerItemPayloads(values []settingspkg.MCPServerItem) []contrac
 			URL:            strings.TrimSpace(value.URL),
 			Auth:           settingsMCPAuthConfigPayload(value.Auth),
 			AuthStatus:     settingsMCPAuthStatusPayload(value.AuthStatus),
+			RuntimeStatus:  settingsMCPServerRuntimeStatusPayload(value.RuntimeStatus),
 			Scope:          contract.SettingsScopeKind(value.Scope),
 			WorkspaceID:    strings.TrimSpace(value.WorkspaceID),
 			SourceMetadata: settingsSourceMetadataPayload(value.SourceMetadata),
 		})
 	}
 	return payloads
+}
+
+func settingsMCPServerRuntimeStatusPayload(
+	value *settingspkg.MCPServerRuntimeStatus,
+) *contract.SettingsMCPServerRuntimeStatusPayload {
+	if value == nil {
+		return nil
+	}
+	return &contract.SettingsMCPServerRuntimeStatusPayload{
+		Configured:  value.Configured,
+		Initialized: value.Initialized,
+		State:       strings.TrimSpace(string(value.State)),
+		Probe:       strings.TrimSpace(string(value.Probe)),
+		ToolCount:   value.ToolCount,
+		Reason:      strings.TrimSpace(value.Reason),
+		Diagnostic:  strings.TrimSpace(value.Diagnostic),
+	}
 }
 
 func settingsMCPAuthConfigPayload(value aghconfig.MCPAuthConfig) *contract.SettingsMCPAuthConfigPayload {

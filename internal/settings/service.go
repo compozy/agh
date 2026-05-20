@@ -44,6 +44,15 @@ type SkillsRuntime interface {
 	SetEnabledForAgent(name string, resolved *workspacepkg.ResolvedWorkspace, agentName string, enabled bool) error
 }
 
+// SkillsDiagnosticsRuntime optionally exposes resolver diagnostics for settings.
+type SkillsDiagnosticsRuntime interface {
+	SkillDiagnostics(
+		ctx context.Context,
+		resolved *workspacepkg.ResolvedWorkspace,
+		agentName string,
+	) ([]skillspkg.SkillDiagnostic, error)
+}
+
 // AutomationRuntimeProvider returns automation runtime metadata.
 type AutomationRuntimeProvider interface {
 	AutomationRuntimeStatus(ctx context.Context) (AutomationRuntimeStatus, error)
@@ -74,6 +83,11 @@ type MCPAuthRuntimeProvider interface {
 	MCPAuthStatus(ctx context.Context, server aghconfig.MCPServer) (mcpauth.Status, error)
 }
 
+// MCPRuntimeProvider returns daemon-observed runtime probe status for settings rows.
+type MCPRuntimeProvider interface {
+	MCPServerRuntimeStatus(ctx context.Context, server aghconfig.MCPServer) (MCPServerRuntimeStatus, error)
+}
+
 // ProviderSecretStore stores provider-bound secrets and returns redacted metadata.
 type ProviderSecretStore interface {
 	GetMetadata(ctx context.Context, ref string) (vault.Metadata, error)
@@ -92,6 +106,7 @@ type Dependencies struct {
 	Extensions                 ExtensionStatusProvider
 	TransportParity            TransportParityProvider
 	MCPAuth                    MCPAuthRuntimeProvider
+	MCPRuntime                 MCPRuntimeProvider
 	ProviderSecrets            ProviderSecretStore
 	EventSummaries             store.EventSummaryStore
 	RestartActionAvailable     bool
@@ -113,6 +128,7 @@ type service struct {
 	extensions                 ExtensionStatusProvider
 	transportParity            TransportParityProvider
 	mcpAuth                    MCPAuthRuntimeProvider
+	mcpRuntime                 MCPRuntimeProvider
 	providerSecrets            ProviderSecretStore
 	eventSummaries             store.EventSummaryStore
 	restartActionAvailable     bool
@@ -151,6 +167,7 @@ func NewService(homePaths aghconfig.HomePaths, deps Dependencies) (Service, erro
 		extensions:                 deps.Extensions,
 		transportParity:            deps.TransportParity,
 		mcpAuth:                    deps.MCPAuth,
+		mcpRuntime:                 deps.MCPRuntime,
 		providerSecrets:            deps.ProviderSecrets,
 		eventSummaries:             deps.EventSummaries,
 		restartActionAvailable:     deps.RestartActionAvailable,

@@ -12,7 +12,9 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
+	"github.com/pedronauck/agh/internal/providerauth"
 	"github.com/pedronauck/agh/internal/resources"
+	skillspkg "github.com/pedronauck/agh/internal/skills"
 )
 
 // ScopeKind identifies the supported settings scope.
@@ -312,6 +314,7 @@ type SkillsSection struct {
 	DiscoveredCount  int
 	DisabledCount    int
 	RuntimeAvailable bool
+	Diagnostics      []skillspkg.SkillDiagnostic
 	Links            []OperationalLink
 }
 
@@ -510,6 +513,9 @@ type ProviderCredentialStatus struct {
 	Source    string
 }
 
+// ProviderNativeCLIStatus is a redacted provider-owned CLI availability diagnostic.
+type ProviderNativeCLIStatus = providerauth.NativeCLIStatus
+
 // ProviderAuthStatus is a redacted provider authentication readiness summary.
 type ProviderAuthStatus struct {
 	Mode       aghconfig.ProviderAuthMode
@@ -519,6 +525,8 @@ type ProviderAuthStatus struct {
 	Message    string
 	StatusCmd  string
 	LoginCmd   string
+	LoginEnv   []string
+	NativeCLI  *ProviderNativeCLIStatus
 }
 
 // ProviderSecretWrite is one write-only provider secret mutation.
@@ -541,6 +549,51 @@ func (v MCPSecretValues) Empty() bool {
 
 // MCPAuthStatus is a redacted remote MCP authentication status.
 type MCPAuthStatus = mcpauth.Status
+
+// MCPServerRuntimeState reports the daemon-observed MCP server runtime state.
+type MCPServerRuntimeState string
+
+const (
+	// MCPServerRuntimeStateReady reports a server that initialized and listed tools.
+	MCPServerRuntimeStateReady MCPServerRuntimeState = "ready"
+	// MCPServerRuntimeStateConfigError reports a malformed server definition.
+	MCPServerRuntimeStateConfigError MCPServerRuntimeState = "config_error"
+	// MCPServerRuntimeStateAuthRequired reports a remote server requiring login.
+	MCPServerRuntimeStateAuthRequired MCPServerRuntimeState = "auth_required"
+	// MCPServerRuntimeStateAuthExpired reports an expired remote auth token.
+	MCPServerRuntimeStateAuthExpired MCPServerRuntimeState = "auth_expired"
+	// MCPServerRuntimeStateAuthInvalid reports an invalid remote auth token.
+	MCPServerRuntimeStateAuthInvalid MCPServerRuntimeState = "auth_invalid"
+	// MCPServerRuntimeStateAuthRefreshFailed reports a failed auth refresh.
+	MCPServerRuntimeStateAuthRefreshFailed MCPServerRuntimeState = "auth_refresh_failed"
+	// MCPServerRuntimeStatePermissionDenied reports a permission failure while probing.
+	MCPServerRuntimeStatePermissionDenied MCPServerRuntimeState = "permission_denied"
+	// MCPServerRuntimeStateRuntimeUnavailable reports a configured server that could not be reached.
+	MCPServerRuntimeStateRuntimeUnavailable MCPServerRuntimeState = "runtime_unavailable"
+)
+
+// MCPServerProbeState reports whether the runtime probe actually touched the server.
+type MCPServerProbeState string
+
+const (
+	// MCPServerProbeSkipped reports a real preflight state that prevented probing.
+	MCPServerProbeSkipped MCPServerProbeState = "skipped"
+	// MCPServerProbeSucceeded reports a successful MCP initialize/list-tools probe.
+	MCPServerProbeSucceeded MCPServerProbeState = "succeeded"
+	// MCPServerProbeFailed reports a failed MCP initialize/list-tools probe.
+	MCPServerProbeFailed MCPServerProbeState = "failed"
+)
+
+// MCPServerRuntimeStatus is one daemon-backed MCP server probe result.
+type MCPServerRuntimeStatus struct {
+	Configured  bool
+	Initialized bool
+	State       MCPServerRuntimeState
+	Probe       MCPServerProbeState
+	ToolCount   int
+	Reason      string
+	Diagnostic  string
+}
 
 // ProviderFallback reports the builtin provider revealed when an overlay is removed.
 type ProviderFallback struct {
@@ -571,6 +624,7 @@ type MCPServerItem struct {
 	URL            string
 	Auth           aghconfig.MCPAuthConfig
 	AuthStatus     *mcpauth.Status
+	RuntimeStatus  *MCPServerRuntimeStatus
 	Scope          ScopeKind
 	WorkspaceID    string
 	SourceMetadata SourceMetadata
@@ -776,6 +830,10 @@ func cloneMCPServerItem(value MCPServerItem) MCPServerItem {
 			status.UpdatedAt = &updatedAt
 		}
 		value.AuthStatus = &status
+	}
+	if value.RuntimeStatus != nil {
+		status := *value.RuntimeStatus
+		value.RuntimeStatus = &status
 	}
 	value.SourceMetadata = cloneSourceMetadata(value.SourceMetadata)
 	return value

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -25,6 +26,7 @@ import (
 	"github.com/pedronauck/agh/internal/store/globaldb"
 	"github.com/pedronauck/agh/internal/subprocess"
 	"github.com/pedronauck/agh/internal/testutil"
+	transcriptpkg "github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -75,9 +77,17 @@ func TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios(t *testing.T) {
 		scenario      string
 		instanceID    string
 		markerFile    string
+		messageText   string
 		brokerOpts    []bridgepkg.DeliveryBrokerOption
 		waitFor       func([]managerDeliveryMarker) bool
 		assert        func(t *testing.T, markers []managerDeliveryMarker)
+		assertContext func(
+			t *testing.T,
+			env *deliveryIntegrationEnv,
+			driver *scriptedPromptDriver,
+			ingest hostAPIBridgesMessagesIngestResult,
+			markers []managerDeliveryMarker,
+		)
 	}{
 		{
 			name: "ShouldProduceOrderedDeliveryStream",
@@ -197,6 +207,56 @@ func TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "ShouldRecoverTransientDeliveryFailurePreservingUserContext",
+			now:  time.Date(2026, 4, 11, 3, 15, 0, 0, time.UTC),
+			script: []scriptedPromptEvent{
+				{
+					Type: acp.EventTypeAgentMessage,
+					Text: "context preserved after transient bridge failure",
+				},
+				{Type: acp.EventTypeDone},
+			},
+			extensionName: "ext-bridge-transient",
+			scenario:      "transient_fail_once_record_deliveries",
+			instanceID:    "brg-transient",
+			markerFile:    "transient-deliveries.jsonl",
+			messageText:   "please preserve this bridge context while retrying",
+			brokerOpts: []bridgepkg.DeliveryBrokerOption{
+				bridgepkg.WithDeliveryBrokerRetryDelay(20 * time.Millisecond),
+			},
+			waitFor: func(markers []managerDeliveryMarker) bool {
+				return hasRecoveredTransientDelivery(markers)
+			},
+			assert: func(t *testing.T, markers []managerDeliveryMarker) {
+				t.Helper()
+
+				assertTransientDeliveryRecovery(
+					t,
+					markers,
+					"context preserved after transient bridge failure",
+				)
+			},
+			assertContext: func(
+				t *testing.T,
+				env *deliveryIntegrationEnv,
+				driver *scriptedPromptDriver,
+				ingest hostAPIBridgesMessagesIngestResult,
+				markers []managerDeliveryMarker,
+			) {
+				t.Helper()
+
+				assertBridgeTurnContextPreserved(
+					t,
+					env,
+					driver,
+					ingest,
+					markers,
+					"please preserve this bridge context while retrying",
+					"context preserved after transient bridge failure",
+				)
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -221,6 +281,10 @@ func TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios(t *testing.T) {
 				ExtensionName: env.extensionName,
 				RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
 			})
+			messageText := tc.messageText
+			if strings.TrimSpace(messageText) == "" {
+				messageText = "hello"
+			}
 			params := map[string]any{
 				"bridge_instance_id":  instance.ID,
 				"scope":               instance.Scope,
@@ -229,23 +293,29 @@ func TestBridgeDeliveryIntegrationShouldHandleDeliveryScenarios(t *testing.T) {
 				"platform_message_id": "msg-" + tc.instanceID,
 				"received_at":         env.now.Format(time.RFC3339Nano),
 				"idempotency_key":     "idem-" + tc.instanceID,
-				"content":             map[string]any{"text": "hello"},
+				"content":             map[string]any{"text": messageText},
 			}
 
-			if _, err := env.callWithContext(
+			result, err := env.callWithContext(
 				t,
 				env.bridgeContext(instance),
 				env.extensionName,
 				"bridges/messages/ingest",
 				params,
-			); err != nil {
+			)
+			if err != nil {
 				t.Fatalf("Handle(bridges/messages/ingest) error = %v", err)
 			}
+			var ingest hostAPIBridgesMessagesIngestResult
+			decodeResult(t, result, &ingest)
 
 			waitForDeliveryMarkers(t, markerPath, tc.waitFor)
 
 			markers := readDeliveryMarkers(t, markerPath)
 			tc.assert(t, markers)
+			if tc.assertContext != nil {
+				tc.assertContext(t, env, driver, ingest, markers)
+			}
 		})
 	}
 }
@@ -470,7 +540,9 @@ func (e *deliveryIntegrationEnv) stopSessions(t testing.TB) {
 		if info == nil {
 			continue
 		}
-		_ = e.sessions.Stop(testutil.Context(t), info.ID)
+		if err := e.sessions.Stop(testutil.Context(t), info.ID); err != nil {
+			t.Fatalf("sessions.Stop(%q) cleanup error = %v", info.ID, err)
+		}
 	}
 }
 
@@ -533,6 +605,12 @@ func (d *scriptedPromptDriver) Prompt(
 		}
 	}()
 	return events, nil
+}
+
+func (d *scriptedPromptDriver) snapshotPrompts() []acp.PromptRequest {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return append([]acp.PromptRequest(nil), d.prompts...)
 }
 
 func (d *scriptedPromptDriver) Cancel(context.Context, *session.AgentProcess) error {
@@ -644,4 +722,216 @@ func assertMarkerDeliveryProgress(t *testing.T, markers []managerDeliveryMarker)
 		}
 		lastSeq = event.Seq
 	}
+}
+
+func hasRecoveredTransientDelivery(markers []managerDeliveryMarker) bool {
+	resumeIndex := -1
+	for idx, marker := range markers {
+		event := marker.Request.Event
+		if event.EventType == bridgepkg.DeliveryEventTypeResume &&
+			marker.Request.Snapshot != nil &&
+			strings.TrimSpace(event.Content.Text) != "" {
+			resumeIndex = idx
+			if event.Final || marker.Request.Snapshot.Final {
+				return true
+			}
+		}
+	}
+	if resumeIndex < 0 {
+		return false
+	}
+	for _, marker := range markers[resumeIndex+1:] {
+		if marker.Request.Event.EventType == bridgepkg.DeliveryEventTypeFinal {
+			return true
+		}
+	}
+	return false
+}
+
+func assertTransientDeliveryRecovery(
+	t *testing.T,
+	markers []managerDeliveryMarker,
+	wantRecoveredText string,
+) {
+	t.Helper()
+
+	if len(markers) < 2 {
+		t.Fatalf("len(delivery markers) = %d, want failed start plus recovery", len(markers))
+	}
+	start := markers[0].Request.Event
+	if got := start.EventType; got != bridgepkg.DeliveryEventTypeStart {
+		t.Fatalf("first delivery event = %q, want start", got)
+	}
+	if strings.TrimSpace(start.DeliveryID) == "" {
+		t.Fatal("first delivery id = empty, want traceable delivery id")
+	}
+
+	resumeIndex := -1
+	for idx, marker := range markers {
+		event := marker.Request.Event
+		if event.DeliveryID != start.DeliveryID {
+			t.Fatalf("marker delivery_id[%d] = %q, want %q", idx, event.DeliveryID, start.DeliveryID)
+		}
+		if event.EventType == bridgepkg.DeliveryEventTypeResume {
+			resumeIndex = idx
+			break
+		}
+	}
+	if resumeIndex < 0 {
+		t.Fatalf("delivery markers = %#v, want resume after transient failure", markers)
+	}
+
+	resume := markers[resumeIndex].Request
+	if resume.Snapshot == nil {
+		t.Fatal("resume request snapshot = nil, want preserved delivery state")
+	}
+	if got, want := resume.Snapshot.DeliveryID, start.DeliveryID; got != want {
+		t.Fatalf("resume snapshot delivery id = %q, want %q", got, want)
+	}
+	if strings.TrimSpace(resume.Snapshot.SessionID) == "" {
+		t.Fatal("resume snapshot session id = empty, want traceable session")
+	}
+	if strings.TrimSpace(resume.Snapshot.TurnID) == "" {
+		t.Fatal("resume snapshot turn id = empty, want traceable turn")
+	}
+	if got := resume.Event.Resume; got == nil || strings.TrimSpace(got.LatestEventType) == "" {
+		t.Fatalf("resume state = %#v, want latest event type", got)
+	}
+	if !strings.Contains(resume.Event.Content.Text, wantRecoveredText) {
+		t.Fatalf("resume content = %q, want %q", resume.Event.Content.Text, wantRecoveredText)
+	}
+	if !strings.Contains(resume.Snapshot.CurrentContent.Text, wantRecoveredText) {
+		t.Fatalf("resume snapshot content = %q, want %q", resume.Snapshot.CurrentContent.Text, wantRecoveredText)
+	}
+
+	if resume.Event.Final || resume.Snapshot.Final {
+		return
+	}
+	for _, marker := range markers[resumeIndex+1:] {
+		event := marker.Request.Event
+		if event.EventType != bridgepkg.DeliveryEventTypeFinal {
+			continue
+		}
+		if !event.Final {
+			t.Fatal("final recovery event Final = false, want true")
+		}
+		if !strings.Contains(event.Content.Text, wantRecoveredText) {
+			t.Fatalf("final recovery content = %q, want %q", event.Content.Text, wantRecoveredText)
+		}
+		return
+	}
+	t.Fatalf("delivery markers = %#v, want terminal recovery evidence", markers)
+}
+
+func assertBridgeTurnContextPreserved(
+	t *testing.T,
+	env *deliveryIntegrationEnv,
+	driver *scriptedPromptDriver,
+	ingest hostAPIBridgesMessagesIngestResult,
+	markers []managerDeliveryMarker,
+	wantInboundText string,
+	wantOutboundText string,
+) {
+	t.Helper()
+
+	if strings.TrimSpace(ingest.SessionID) == "" {
+		t.Fatal("ingest session_id = empty, want routable bridge session")
+	}
+	assertBridgePromptCarriesInboundContext(t, driver.snapshotPrompts(), wantInboundText)
+	assertResumeMatchesIngestedSession(t, markers, ingest.SessionID)
+
+	messages := waitForSessionTranscriptText(
+		t,
+		env.sessions,
+		ingest.SessionID,
+		wantInboundText,
+		wantOutboundText,
+	)
+	visible := transcriptpkg.JoinUIMessageText(messages)
+	if !strings.Contains(visible, "Inbound bridge message") {
+		t.Fatalf("transcript visible text = %q, want bridge prompt context", visible)
+	}
+}
+
+func assertBridgePromptCarriesInboundContext(
+	t *testing.T,
+	prompts []acp.PromptRequest,
+	wantInboundText string,
+) {
+	t.Helper()
+
+	if len(prompts) == 0 {
+		t.Fatal("len(prompts) = 0, want bridge prompt recorded")
+	}
+	first := prompts[0]
+	if !strings.Contains(first.Message, wantInboundText) {
+		t.Fatalf("prompt message = %q, want inbound text %q", first.Message, wantInboundText)
+	}
+	if !strings.Contains(first.Message, "Inbound bridge message") {
+		t.Fatalf("prompt message = %q, want rendered bridge context", first.Message)
+	}
+	if first.Meta.Network == nil {
+		t.Fatal("prompt network meta = nil, want bridge trace metadata")
+	}
+	if got, want := first.Meta.Network.MessageID, "msg-brg-transient"; got != want {
+		t.Fatalf("prompt network message id = %q, want %q", got, want)
+	}
+}
+
+func assertResumeMatchesIngestedSession(
+	t *testing.T,
+	markers []managerDeliveryMarker,
+	wantSessionID string,
+) {
+	t.Helper()
+
+	for _, marker := range markers {
+		if marker.Request.Event.EventType != bridgepkg.DeliveryEventTypeResume || marker.Request.Snapshot == nil {
+			continue
+		}
+		if got := marker.Request.Snapshot.SessionID; got != wantSessionID {
+			t.Fatalf("resume snapshot session id = %q, want ingest session %q", got, wantSessionID)
+		}
+		return
+	}
+	t.Fatalf("delivery markers = %#v, want resume snapshot", markers)
+}
+
+func waitForSessionTranscriptText(
+	t *testing.T,
+	sessions *session.Manager,
+	sessionID string,
+	wantTexts ...string,
+) []transcriptpkg.UIMessage {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	var lastVisible string
+	var lastErr error
+	for time.Now().Before(deadline) {
+		messages, err := sessions.Transcript(testutil.Context(t), sessionID)
+		if err != nil {
+			lastErr = err
+		} else {
+			lastVisible = transcriptpkg.JoinUIMessageText(messages)
+			if containsAllText(lastVisible, wantTexts) {
+				return messages
+			}
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if lastErr != nil {
+		t.Fatalf("Transcript(%q) error = %v", sessionID, lastErr)
+	}
+	t.Fatalf("Transcript(%q) visible text = %q, want all %#v", sessionID, lastVisible, wantTexts)
+	return nil
+}
+
+func containsAllText(haystack string, needles []string) bool {
+	for _, needle := range needles {
+		if !strings.Contains(haystack, needle) {
+			return false
+		}
+	}
+	return true
 }

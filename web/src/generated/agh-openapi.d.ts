@@ -12222,6 +12222,37 @@ export interface operations {
                 };
                 delivery_dropped_total: number;
                 delivery_failures_total: number;
+                diagnostics?: {
+                  bridge_instance_id?: string;
+                  /** @enum {string} */
+                  degradation_reason?:
+                    | "auth_failed"
+                    | "rate_limited"
+                    | "webhook_invalid"
+                    | "provider_timeout"
+                    | "tenant_config_invalid";
+                  /** @enum {string} */
+                  kind:
+                    | "unknown_destination"
+                    | "missing_token"
+                    | "permission_denied"
+                    | "unsupported_capability"
+                    | "transient_delivery_failure";
+                  message: string;
+                  next_action?: string;
+                  secret_slot?: string;
+                  /** @enum {string} */
+                  severity: "info" | "warning" | "error";
+                  source: string;
+                  /** @enum {string} */
+                  status?:
+                    | "auth_required"
+                    | "degraded"
+                    | "disabled"
+                    | "error"
+                    | "ready"
+                    | "starting";
+                }[];
                 last_error?: string;
                 /** Format: date-time */
                 last_error_at?: string | null;
@@ -12431,6 +12462,31 @@ export interface operations {
               };
               delivery_dropped_total: number;
               delivery_failures_total: number;
+              diagnostics?: {
+                bridge_instance_id?: string;
+                /** @enum {string} */
+                degradation_reason?:
+                  | "auth_failed"
+                  | "rate_limited"
+                  | "webhook_invalid"
+                  | "provider_timeout"
+                  | "tenant_config_invalid";
+                /** @enum {string} */
+                kind:
+                  | "unknown_destination"
+                  | "missing_token"
+                  | "permission_denied"
+                  | "unsupported_capability"
+                  | "transient_delivery_failure";
+                message: string;
+                next_action?: string;
+                secret_slot?: string;
+                /** @enum {string} */
+                severity: "info" | "warning" | "error";
+                source: string;
+                /** @enum {string} */
+                status?: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
+              }[];
               last_error?: string;
               /** Format: date-time */
               last_error_at?: string | null;
@@ -12646,6 +12702,31 @@ export interface operations {
               };
               delivery_dropped_total: number;
               delivery_failures_total: number;
+              diagnostics?: {
+                bridge_instance_id?: string;
+                /** @enum {string} */
+                degradation_reason?:
+                  | "auth_failed"
+                  | "rate_limited"
+                  | "webhook_invalid"
+                  | "provider_timeout"
+                  | "tenant_config_invalid";
+                /** @enum {string} */
+                kind:
+                  | "unknown_destination"
+                  | "missing_token"
+                  | "permission_denied"
+                  | "unsupported_capability"
+                  | "transient_delivery_failure";
+                message: string;
+                next_action?: string;
+                secret_slot?: string;
+                /** @enum {string} */
+                severity: "info" | "warning" | "error";
+                source: string;
+                /** @enum {string} */
+                status?: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
+              }[];
               last_error?: string;
               /** Format: date-time */
               last_error_at?: string | null;
@@ -12817,6 +12898,31 @@ export interface operations {
               };
               delivery_dropped_total: number;
               delivery_failures_total: number;
+              diagnostics?: {
+                bridge_instance_id?: string;
+                /** @enum {string} */
+                degradation_reason?:
+                  | "auth_failed"
+                  | "rate_limited"
+                  | "webhook_invalid"
+                  | "provider_timeout"
+                  | "tenant_config_invalid";
+                /** @enum {string} */
+                kind:
+                  | "unknown_destination"
+                  | "missing_token"
+                  | "permission_denied"
+                  | "unsupported_capability"
+                  | "transient_delivery_failure";
+                message: string;
+                next_action?: string;
+                secret_slot?: string;
+                /** @enum {string} */
+                severity: "info" | "warning" | "error";
+                source: string;
+                /** @enum {string} */
+                status?: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
+              }[];
               last_error?: string;
               /** Format: date-time */
               last_error_at?: string | null;
@@ -12964,6 +13070,31 @@ export interface operations {
               };
               delivery_dropped_total: number;
               delivery_failures_total: number;
+              diagnostics?: {
+                bridge_instance_id?: string;
+                /** @enum {string} */
+                degradation_reason?:
+                  | "auth_failed"
+                  | "rate_limited"
+                  | "webhook_invalid"
+                  | "provider_timeout"
+                  | "tenant_config_invalid";
+                /** @enum {string} */
+                kind:
+                  | "unknown_destination"
+                  | "missing_token"
+                  | "permission_denied"
+                  | "unsupported_capability"
+                  | "transient_delivery_failure";
+                message: string;
+                next_action?: string;
+                secret_slot?: string;
+                /** @enum {string} */
+                severity: "info" | "warning" | "error";
+                source: string;
+                /** @enum {string} */
+                status?: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
+              }[];
               last_error?: string;
               /** Format: date-time */
               last_error_at?: string | null;
@@ -13111,6 +13242,31 @@ export interface operations {
               };
               delivery_dropped_total: number;
               delivery_failures_total: number;
+              diagnostics?: {
+                bridge_instance_id?: string;
+                /** @enum {string} */
+                degradation_reason?:
+                  | "auth_failed"
+                  | "rate_limited"
+                  | "webhook_invalid"
+                  | "provider_timeout"
+                  | "tenant_config_invalid";
+                /** @enum {string} */
+                kind:
+                  | "unknown_destination"
+                  | "missing_token"
+                  | "permission_denied"
+                  | "unsupported_capability"
+                  | "transient_delivery_failure";
+                message: string;
+                next_action?: string;
+                secret_slot?: string;
+                /** @enum {string} */
+                severity: "info" | "warning" | "error";
+                source: string;
+                /** @enum {string} */
+                status?: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
+              }[];
               last_error?: string;
               /** Format: date-time */
               last_error_at?: string | null;
@@ -13258,6 +13414,31 @@ export interface operations {
               };
               delivery_dropped_total: number;
               delivery_failures_total: number;
+              diagnostics?: {
+                bridge_instance_id?: string;
+                /** @enum {string} */
+                degradation_reason?:
+                  | "auth_failed"
+                  | "rate_limited"
+                  | "webhook_invalid"
+                  | "provider_timeout"
+                  | "tenant_config_invalid";
+                /** @enum {string} */
+                kind:
+                  | "unknown_destination"
+                  | "missing_token"
+                  | "permission_denied"
+                  | "unsupported_capability"
+                  | "transient_delivery_failure";
+                message: string;
+                next_action?: string;
+                secret_slot?: string;
+                /** @enum {string} */
+                severity: "info" | "warning" | "error";
+                source: string;
+                /** @enum {string} */
+                status?: "auth_required" | "degraded" | "disabled" | "error" | "ready" | "starting";
+              }[];
               last_error?: string;
               /** Format: date-time */
               last_error_at?: string | null;
@@ -23342,6 +23523,15 @@ export interface operations {
                 [key: string]: string;
               };
               name: string;
+              runtime_status?: {
+                configured: boolean;
+                diagnostic?: string;
+                initialized: boolean;
+                probe: string;
+                reason?: string;
+                state: string;
+                tool_count: number;
+              } | null;
               /** @enum {string} */
               scope: "global" | "workspace" | "agent";
               secret_env?: {
@@ -24571,8 +24761,16 @@ export interface operations {
                 env_policy: string;
                 home_policy: string;
                 login_command?: string;
+                login_env?: string[];
                 message?: string;
                 mode: string;
+                native_cli?: {
+                  command?: string;
+                  error?: string;
+                  path?: string;
+                  present: boolean;
+                  source?: string;
+                } | null;
                 state: string;
                 status_command?: string;
               } | null;
@@ -24788,8 +24986,16 @@ export interface operations {
                 env_policy: string;
                 home_policy: string;
                 login_command?: string;
+                login_env?: string[];
                 message?: string;
                 mode: string;
+                native_cli?: {
+                  command?: string;
+                  error?: string;
+                  path?: string;
+                  present: boolean;
+                  source?: string;
+                } | null;
                 state: string;
                 status_command?: string;
               } | null;
@@ -25704,6 +25910,28 @@ export interface operations {
               };
               poll_interval: string;
             };
+            diagnostics?: {
+              failure?: {
+                actual_hash?: string;
+                code: string;
+                expected_hash?: string;
+                message: string;
+              } | null;
+              name: string;
+              path?: string;
+              source?: string;
+              /** @enum {string} */
+              state: "valid" | "shadowed" | "verification_failed";
+              /** @enum {string} */
+              verification_status: "passed" | "warning" | "failed";
+              warnings?: {
+                message: string;
+                pattern?: string;
+                severity: string;
+              }[];
+              winning_path?: string;
+              winning_source?: string;
+            }[];
             disabled_count: number;
             discovered_count: number;
             links?: {
@@ -26007,6 +26235,28 @@ export interface operations {
           "application/json": {
             skills: {
               description: string;
+              diagnostics?: {
+                failure?: {
+                  actual_hash?: string;
+                  code: string;
+                  expected_hash?: string;
+                  message: string;
+                } | null;
+                name: string;
+                path?: string;
+                source?: string;
+                /** @enum {string} */
+                state: "valid" | "shadowed" | "verification_failed";
+                /** @enum {string} */
+                verification_status: "passed" | "warning" | "failed";
+                warnings?: {
+                  message: string;
+                  pattern?: string;
+                  severity: string;
+                }[];
+                winning_path?: string;
+                winning_source?: string;
+              }[];
               dir: string;
               enabled: boolean;
               metadata?: {
@@ -26556,6 +26806,28 @@ export interface operations {
           "application/json": {
             skill: {
               description: string;
+              diagnostics?: {
+                failure?: {
+                  actual_hash?: string;
+                  code: string;
+                  expected_hash?: string;
+                  message: string;
+                } | null;
+                name: string;
+                path?: string;
+                source?: string;
+                /** @enum {string} */
+                state: "valid" | "shadowed" | "verification_failed";
+                /** @enum {string} */
+                verification_status: "passed" | "warning" | "failed";
+                warnings?: {
+                  message: string;
+                  pattern?: string;
+                  severity: string;
+                }[];
+                winning_path?: string;
+                winning_source?: string;
+              }[];
               dir: string;
               enabled: boolean;
               metadata?: {

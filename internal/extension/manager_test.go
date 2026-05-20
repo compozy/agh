@@ -1844,15 +1844,15 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 			h.mu.Unlock()
 			go func() {
 				time.Sleep(15 * time.Millisecond)
-				_ = h.sendRequest("host-1", "sessions/list", map[string]string{"workspace": "ext"})
+				if err := h.sendRequest("host-1", "sessions/list", map[string]string{"workspace": "ext"}); err != nil {
+					os.Exit(1)
+				}
 			}()
 			return nil
 		case "auto_exit":
 			if h.marker != "" {
-				f, err := os.OpenFile(h.marker, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-				if err == nil {
-					_, _ = fmt.Fprintf(f, "%d\n", os.Getpid())
-					_ = f.Close()
+				if err := appendMarkerLine(h.marker, fmt.Sprintf("%d", os.Getpid())); err != nil {
+					return err
 				}
 			}
 			go func() {
@@ -1882,6 +1882,12 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 		case "exit_once_record_deliveries":
 			if markerLineCount(h.marker) == 1 {
 				os.Exit(1)
+			}
+		case "transient_fail_once_record_deliveries":
+			if markerLineCount(h.marker) == 1 {
+				return h.sendError(req.ID, -32031, "Transient bridge delivery failure", map[string]string{
+					"kind": "transient_delivery_failure",
+				})
 			}
 		}
 
@@ -1955,7 +1961,9 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 			select {}
 		}
 		if h.marker != "" {
-			_ = os.WriteFile(h.marker, []byte("shutdown"), 0o600)
+			if err := os.WriteFile(h.marker, []byte("shutdown"), 0o600); err != nil {
+				return err
+			}
 		}
 		if err := h.sendResult(req.ID, subprocess.ShutdownResponse{Acknowledged: true}); err != nil {
 			return err
@@ -2007,7 +2015,10 @@ func (h *extensionHelperServer) handleResponse(resp helperResponse) {
 		return
 	}
 	if len(resp.Result) > 0 {
-		_ = os.WriteFile(h.marker, resp.Result, 0o600)
+		if err := os.WriteFile(h.marker, resp.Result, 0o600); err != nil {
+			h.pendingReq = ""
+			return
+		}
 	}
 	h.pendingReq = ""
 }
@@ -2358,7 +2369,7 @@ func helperEnv(scenario string, markerPath string) map[string]string {
 	return env
 }
 
-func appendMarkerLine(path string, line string) error {
+func appendMarkerLine(path string, line string) (err error) {
 	target := strings.TrimSpace(path)
 	if target == "" {
 		return nil
@@ -2371,7 +2382,9 @@ func appendMarkerLine(path string, line string) error {
 		return err
 	}
 	defer func() {
-		_ = file.Close()
+		if closeErr := file.Close(); closeErr != nil && err == nil {
+			err = closeErr
+		}
 	}()
 	_, err = fmt.Fprintf(file, "%s\n", strings.TrimSpace(line))
 	return err

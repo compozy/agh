@@ -127,6 +127,26 @@ describe("generate changelog release", () => {
     expect(mdx).toContain('compareUrl: "https://github.com/compozy/agh/releases/tag/v1.0.0"');
   });
 
+  it("Should append objective verification posture to generated release bodies", () => {
+    const entry = buildChangelogRelease({
+      version: "v0.9.0",
+      generatedAt: "2026-05-18T12:00:00.000Z",
+      context: [{ version: "v0.9.0", commits: [] }],
+    });
+
+    expect(entry.body).toContain("## Verification posture");
+    expect(entry.body).toContain("`make verify` covers codegen drift");
+    expect(entry.body).toContain("`pr-release dry-run`, `make test-e2e-nightly`");
+    expect(entry.body).toContain("`make test-integration` run before the release commit");
+    expect(entry.body).toContain("`goreleaser release --clean` publishes the release");
+    expect(entry.body).toContain("`checksums.txt.sigstore.json`");
+    expect(entry.body).toContain("Syft SBOMs for archives, packages, and source");
+    expect(entry.body).toContain(
+      "Known limitation: this generated changelog does not claim a manual post-release install smoke"
+    );
+    expect(entry.body.toLowerCase()).not.toContain("production-ready");
+  });
+
   it("Should parse the git-cliff context shape used by the release hook", () => {
     const releases = parseGitCliffContext(
       JSON.stringify([

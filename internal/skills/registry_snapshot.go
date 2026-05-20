@@ -77,7 +77,17 @@ func mergedSkillList(globalSkills, workspaceSkills map[string]*Skill) []*Skill {
 		previous = name
 
 		if skill, ok := workspaceSkills[name]; ok {
-			skills = append(skills, cloneSkill(skill))
+			cloned := cloneSkill(skill)
+			if global := globalSkills[name]; global != nil {
+				cloned.Diagnostics.ShadowedDefinitions = append(
+					cloneSkillDefinitionRefs(cloned.Diagnostics.ShadowedDefinitions),
+					SkillDefinitionRef{
+						Source: skillSourceName(global.Source),
+						Path:   strings.TrimSpace(global.FilePath),
+					},
+				)
+			}
+			skills = append(skills, cloned)
 			continue
 		}
 		skills = append(skills, cloneSkill(globalSkills[name]))
@@ -161,6 +171,7 @@ func cloneSkill(skill *Skill) *Skill {
 		}
 	}
 	clone.Provenance = cloneProvenance(skill.Provenance)
+	clone.Diagnostics = cloneSkillDiagnostics(skill.Diagnostics)
 
 	return &clone
 }

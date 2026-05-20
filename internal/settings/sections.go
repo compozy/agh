@@ -672,6 +672,13 @@ func (s *service) buildSkillsSection(
 			section.DisabledCount++
 		}
 	}
+	if diagnosticsRuntime, ok := s.skillsRuntime.(SkillsDiagnosticsRuntime); ok {
+		diagnostics, diagnosticsErr := diagnosticsRuntime.SkillDiagnostics(ctx, resolved, agentName)
+		if diagnosticsErr != nil {
+			return SkillsSection{}, mapSkillsSettingsError(diagnosticsErr)
+		}
+		section.Diagnostics = diagnostics
+	}
 
 	return section, nil
 }
@@ -1317,7 +1324,10 @@ func memoryProviderSettingsUpdates(settings *aghconfig.MemoryConfig) []struct {
 			path:  []string{string(SectionMemory), sectionsProviderKey, "cooldown"},
 			value: settings.Provider.Cooldown.String(),
 		},
-		{path: []string{string(SectionMemory), "workspace", "auto_create"}, value: settings.Workspace.AutoCreate},
+		{
+			path:  []string{string(SectionMemory), string(ScopeWorkspace), "auto_create"},
+			value: settings.Workspace.AutoCreate,
+		},
 	}
 }
 

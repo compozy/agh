@@ -596,14 +596,24 @@ type SettingsProviderCredentialStatusPayload struct {
 	Source    string `json:"source,omitempty"`
 }
 
+type SettingsProviderNativeCLIStatusPayload struct {
+	Command string `json:"command,omitempty"`
+	Present bool   `json:"present"`
+	Path    string `json:"path,omitempty"`
+	Source  string `json:"source,omitempty"`
+	Error   string `json:"error,omitempty"`
+}
+
 type SettingsProviderAuthStatusPayload struct {
-	Mode       string `json:"mode"`
-	EnvPolicy  string `json:"env_policy"`
-	HomePolicy string `json:"home_policy"`
-	State      string `json:"state"`
-	Message    string `json:"message,omitempty"`
-	StatusCmd  string `json:"status_command,omitempty"`
-	LoginCmd   string `json:"login_command,omitempty"`
+	Mode       string                                  `json:"mode"`
+	EnvPolicy  string                                  `json:"env_policy"`
+	HomePolicy string                                  `json:"home_policy"`
+	State      string                                  `json:"state"`
+	Message    string                                  `json:"message,omitempty"`
+	StatusCmd  string                                  `json:"status_command,omitempty"`
+	LoginCmd   string                                  `json:"login_command,omitempty"`
+	LoginEnv   []string                                `json:"login_env,omitempty"`
+	NativeCLI  *SettingsProviderNativeCLIStatusPayload `json:"native_cli,omitempty"`
 }
 
 type SettingsProviderSecretWritePayload struct {
@@ -674,19 +684,30 @@ type SettingsMCPAuthStatusPayload struct {
 	AuthorizationURL string     `json:"authorization_url,omitempty"`
 }
 
+type SettingsMCPServerRuntimeStatusPayload struct {
+	Configured  bool   `json:"configured"`
+	Initialized bool   `json:"initialized"`
+	State       string `json:"state"`
+	Probe       string `json:"probe"`
+	ToolCount   int    `json:"tool_count"`
+	Reason      string `json:"reason,omitempty"`
+	Diagnostic  string `json:"diagnostic,omitempty"`
+}
+
 type SettingsMCPServerItemPayload struct {
-	Name           string                        `json:"name"`
-	Transport      string                        `json:"transport"`
-	Command        string                        `json:"command,omitempty"`
-	Args           []string                      `json:"args,omitempty"`
-	Env            map[string]string             `json:"env,omitempty"`
-	SecretEnv      map[string]string             `json:"secret_env,omitempty"`
-	URL            string                        `json:"url,omitempty"`
-	Auth           *SettingsMCPAuthConfigPayload `json:"auth,omitempty"`
-	AuthStatus     *SettingsMCPAuthStatusPayload `json:"auth_status,omitempty"`
-	Scope          SettingsScopeKind             `json:"scope"`
-	WorkspaceID    string                        `json:"workspace_id,omitempty"`
-	SourceMetadata SettingsSourceMetadataPayload `json:"source_metadata"`
+	Name           string                                 `json:"name"`
+	Transport      string                                 `json:"transport"`
+	Command        string                                 `json:"command,omitempty"`
+	Args           []string                               `json:"args,omitempty"`
+	Env            map[string]string                      `json:"env,omitempty"`
+	SecretEnv      map[string]string                      `json:"secret_env,omitempty"`
+	URL            string                                 `json:"url,omitempty"`
+	Auth           *SettingsMCPAuthConfigPayload          `json:"auth,omitempty"`
+	AuthStatus     *SettingsMCPAuthStatusPayload          `json:"auth_status,omitempty"`
+	RuntimeStatus  *SettingsMCPServerRuntimeStatusPayload `json:"runtime_status,omitempty"`
+	Scope          SettingsScopeKind                      `json:"scope"`
+	WorkspaceID    string                                 `json:"workspace_id,omitempty"`
+	SourceMetadata SettingsSourceMetadataPayload          `json:"source_metadata"`
 }
 
 type SettingsSandboxProfilePayload struct {
@@ -814,6 +835,7 @@ type SettingsSkillsResponse struct {
 	DiscoveredCount  int                              `json:"discovered_count"`
 	DisabledCount    int                              `json:"disabled_count"`
 	RuntimeAvailable bool                             `json:"runtime_available"`
+	Diagnostics      []SkillDiagnosticPayload         `json:"diagnostics,omitempty"`
 	Links            []SettingsOperationalLinkPayload `json:"links,omitempty"`
 }
 

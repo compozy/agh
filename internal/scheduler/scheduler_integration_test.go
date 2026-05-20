@@ -435,6 +435,133 @@ func TestSchedulerRecoversExpiredHistoricalNetworkLeaseIntegration(t *testing.T)
 	)
 }
 
+func TestSchedulerRequeuesDeadWorkerLeaseAndWakesReplacementIntegration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should release a dead worker lease before waking a replacement session", func(t *testing.T) {
+		ctx := testutil.Context(t)
+		base := time.Date(2026, 5, 19, 11, 0, 0, 0, time.UTC)
+		db := openSchedulerGlobalDB(t, filepath.Join(t.TempDir(), "agh.db"))
+		workspaceID := registerSchedulerWorkspace(t, db, "dead-worker", filepath.Join(t.TempDir(), "workspace"))
+		manager := newSchedulerTaskManager(t, db)
+		execution := createSchedulerTaskRun(t, ctx, manager, workspaceID, "Dead worker recovery")
+		runChannel := execution.Run.CoordinationChannelID
+		if runChannel == "" {
+			t.Fatal("execution.Run.CoordinationChannelID = empty, want derived channel")
+		}
+
+		deadActor, err := taskpkg.DeriveAgentSessionActorContext("sess-dead-worker")
+		if err != nil {
+			t.Fatalf("DeriveAgentSessionActorContext(dead) error = %v", err)
+		}
+		firstClaim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:                 taskpkg.ScopeWorkspace,
+			WorkspaceID:           workspaceID,
+			ClaimerSessionID:      "sess-dead-worker",
+			CoordinationChannelID: runChannel,
+			LeaseDuration:         time.Minute,
+			Now:                   base,
+		}, deadActor)
+		if err != nil {
+			t.Fatalf("ClaimNextRun(dead) error = %v", err)
+		}
+		if got, want := firstClaim.Run.ID, execution.Run.ID; got != want {
+			t.Fatalf("firstClaim.Run.ID = %q, want %q", got, want)
+		}
+
+		daemonActor, err := taskpkg.DeriveDaemonActorContext("spawn-reaper", "daemon.spawn_reaper")
+		if err != nil {
+			t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+		}
+		released, err := manager.ReleaseSessionRunLeases(ctx, taskpkg.SessionLeaseRelease{
+			SessionID: "sess-dead-worker",
+			Reason:    "worker_died",
+			Now:       base.Add(10 * time.Second),
+		}, daemonActor)
+		if err != nil {
+			t.Fatalf("ReleaseSessionRunLeases() error = %v", err)
+		}
+		if got, want := len(released), 1; got != want {
+			t.Fatalf("len(ReleaseSessionRunLeases()) = %d, want %d", got, want)
+		}
+		if got, want := released[0].Run.Status, taskpkg.TaskRunStatusQueued; got != want {
+			t.Fatalf("released[0].Run.Status = %q, want %q", got, want)
+		}
+		if released[0].Run.SessionID != "" || released[0].Run.ClaimTokenHash != "" {
+			t.Fatalf("released[0].Run = %#v, want queued and unowned", released[0].Run)
+		}
+		if released[0].PreviousClaimTokenHash == "" || released[0].PreviousSessionID != "sess-dead-worker" {
+			t.Fatalf("released[0] = %#v, want previous dead-worker ownership snapshot", released[0])
+		}
+		if _, err := manager.HeartbeatRunLease(ctx, taskpkg.LeaseHeartbeat{
+			RunID:         firstClaim.Run.ID,
+			ClaimToken:    firstClaim.ClaimToken,
+			LeaseDuration: time.Minute,
+			Now:           base.Add(11 * time.Second),
+		}, deadActor); !errors.Is(err, taskpkg.ErrInvalidClaimToken) {
+			t.Fatalf("HeartbeatRunLease(dead token after release) error = %v, want %v", err, taskpkg.ErrInvalidClaimToken)
+		}
+
+		waker := &fakeWaker{}
+		scheduler := newTestScheduler(
+			t,
+			integrationTaskSource{manager: manager, store: db},
+			&fakeSessionSource{sessions: []SessionSnapshot{
+				integrationSessionSnapshot(
+					"sess-replacement",
+					workspaceID,
+					runChannel,
+					"active",
+					false,
+					nil,
+					base.Add(12*time.Second),
+				),
+			}},
+			waker,
+			WithClock(clockwork.NewFakeClockAt(base.Add(12*time.Second))),
+		)
+		result, err := scheduler.RunOnce(ctx)
+		if err != nil {
+			t.Fatalf("RunOnce() error = %v", err)
+		}
+		if result.RecoveredLeases != 0 || result.WakeSucceeded != 1 {
+			t.Fatalf("RunOnce() result = %#v, want no expired recovery and one wake", result)
+		}
+		targets := waker.targetsSnapshot()
+		if got, want := len(targets), 1; got != want {
+			t.Fatalf("wake targets = %d, want %d", got, want)
+		}
+		if got, want := targets[0].Session.ID, "sess-replacement"; got != want {
+			t.Fatalf("wake target session = %q, want %q", got, want)
+		}
+		if got, want := targets[0].Work.Run.ID, execution.Run.ID; got != want {
+			t.Fatalf("wake target run = %q, want %q", got, want)
+		}
+
+		replacementActor, err := taskpkg.DeriveAgentSessionActorContext("sess-replacement")
+		if err != nil {
+			t.Fatalf("DeriveAgentSessionActorContext(replacement) error = %v", err)
+		}
+		secondClaim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:                 taskpkg.ScopeWorkspace,
+			WorkspaceID:           workspaceID,
+			ClaimerSessionID:      "sess-replacement",
+			CoordinationChannelID: runChannel,
+			LeaseDuration:         time.Minute,
+			Now:                   base.Add(13 * time.Second),
+		}, replacementActor)
+		if err != nil {
+			t.Fatalf("ClaimNextRun(replacement) error = %v", err)
+		}
+		if got, want := secondClaim.Run.ID, execution.Run.ID; got != want {
+			t.Fatalf("secondClaim.Run.ID = %q, want %q", got, want)
+		}
+		if got, want := secondClaim.Run.SessionID, "sess-replacement"; got != want {
+			t.Fatalf("secondClaim.Run.SessionID = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestSchedulerNoEligibleSessionDoesNotClaimIntegration(t *testing.T) {
 	t.Parallel()
 

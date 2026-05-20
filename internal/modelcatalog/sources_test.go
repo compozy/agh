@@ -36,6 +36,45 @@ func TestProviderConfigSources(t *testing.T) {
 		}
 	})
 
+	t.Run("Should expose canonical model ids for configured aliases", func(t *testing.T) {
+		t.Parallel()
+
+		source := NewConfigSource(map[string]aghconfig.ProviderConfig{
+			"claude": {
+				Models: aghconfig.ProviderModelsConfig{Default: "sonnet"},
+			},
+		})
+		rows, err := source.ListModels(testutil.Context(t), ListOptions{ProviderID: "claude", Now: testTime(0)})
+		if err != nil {
+			t.Fatalf("ListModels() error = %v", err)
+		}
+		if got, want := rowModelIDs(rows), []string{"claude-sonnet-4-6"}; !slices.Equal(got, want) {
+			t.Fatalf("row ids = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should preserve explicit curated ids before applying aliases", func(t *testing.T) {
+		t.Parallel()
+
+		source := NewConfigSource(map[string]aghconfig.ProviderConfig{
+			"codex": {
+				Models: aghconfig.ProviderModelsConfig{
+					Default: "gpt-5",
+					Curated: []aghconfig.ProviderModelConfig{
+						{ID: "gpt-5", DisplayName: "GPT-5"},
+					},
+				},
+			},
+		})
+		rows, err := source.ListModels(testutil.Context(t), ListOptions{ProviderID: "codex", Now: testTime(0)})
+		if err != nil {
+			t.Fatalf("ListModels() error = %v", err)
+		}
+		if got, want := rowModelIDs(rows), []string{"gpt-5"}; !slices.Equal(got, want) {
+			t.Fatalf("row ids = %#v, want %#v", got, want)
+		}
+	})
+
 	t.Run("Should convert curated config metadata into rows", func(t *testing.T) {
 		t.Parallel()
 
