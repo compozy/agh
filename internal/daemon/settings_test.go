@@ -186,6 +186,30 @@ func TestSettingsRuntimeSurfaceMCPAuthStatusResolvesClientSecretRef(t *testing.T
 }
 
 func TestSettingsRuntimeSurfaceMCPServerRuntimeStatus(t *testing.T) {
+	t.Run("Should default MCP runtime probe timeout to five seconds", func(t *testing.T) {
+		t.Parallel()
+
+		surface := &settingsRuntimeSurface{}
+		if got, want := surface.mcpProbeTimeout(), 5*time.Second; got != want {
+			t.Fatalf("mcpProbeTimeout() = %s, want %s", got, want)
+		}
+	})
+
+	t.Run("Should use the configured observability probe timeout for MCP runtime probes", func(t *testing.T) {
+		t.Parallel()
+
+		surface := &settingsRuntimeSurface{
+			config: aghconfig.Config{
+				Observability: aghconfig.ObservabilityConfig{
+					AgentProbeTimeout: 9 * time.Second,
+				},
+			},
+		}
+		if got, want := surface.mcpProbeTimeout(), 9*time.Second; got != want {
+			t.Fatalf("mcpProbeTimeout() = %s, want %s", got, want)
+		}
+	})
+
 	t.Run("Should probe a reachable MCP server through the real executor", func(t *testing.T) {
 		t.Parallel()
 

@@ -93,6 +93,12 @@ func TestSettingsProviderAuthStatusPayload(t *testing.T) {
 		if authStatus.NativeCLI == nil || authStatus.NativeCLI.Command != "codex" {
 			t.Fatalf("AuthStatus.NativeCLI = %#v, want codex diagnostic", authStatus.NativeCLI)
 		}
+		if got, want := authStatus.NativeCLI.Present, false; got != want {
+			t.Fatalf("AuthStatus.NativeCLI.Present = %t, want %t", got, want)
+		}
+		if got, want := authStatus.NativeCLI.Source, "auth_login_command"; got != want {
+			t.Fatalf("AuthStatus.NativeCLI.Source = %q, want %q", got, want)
+		}
 		if got, want := strings.Join(authStatus.LoginEnv, " "), "HOME=/tmp/agh/providers/codex"; got != want {
 			t.Fatalf("AuthStatus.LoginEnv = %q, want %q", got, want)
 		}

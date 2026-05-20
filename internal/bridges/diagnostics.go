@@ -3,6 +3,8 @@ package bridges
 import (
 	"fmt"
 	"strings"
+
+	"github.com/pedronauck/agh/internal/diagnostics"
 )
 
 // BridgeDiagnosticKind identifies one operator-actionable bridge diagnostic.
@@ -120,7 +122,7 @@ func providerDiagnostics(instance BridgeInstance, input BridgeDiagnosticsInput) 
 		Severity:         BridgeDiagnosticSeverityError,
 		Source:           "provider",
 		BridgeInstanceID: strings.TrimSpace(instance.ID),
-		Message:          message,
+		Message:          sanitizeBridgeDiagnosticMessage(message),
 		NextAction:       "Enable or replace the bridge provider before routing through this instance.",
 		Status:           instance.Status.Normalize(),
 	}}
@@ -168,7 +170,7 @@ func destinationDiagnostics(instance BridgeInstance, input BridgeDiagnosticsInpu
 			Severity:         BridgeDiagnosticSeverityError,
 			Source:           "routing_policy",
 			BridgeInstanceID: strings.TrimSpace(instance.ID),
-			Message:          err.Error(),
+			Message:          sanitizeBridgeDiagnosticMessage(err.Error()),
 			NextAction:       "Update the bridge routing policy to a supported peer/group/thread shape.",
 			Status:           instance.Status.Normalize(),
 		}}
@@ -180,7 +182,7 @@ func destinationDiagnostics(instance BridgeInstance, input BridgeDiagnosticsInpu
 			Severity:         BridgeDiagnosticSeverityError,
 			Source:           "delivery_defaults",
 			BridgeInstanceID: strings.TrimSpace(instance.ID),
-			Message:          err.Error(),
+			Message:          sanitizeBridgeDiagnosticMessage(err.Error()),
 			NextAction:       "Update bridge delivery_defaults to a supported delivery target mode and identity.",
 			Status:           instance.Status.Normalize(),
 		}}
@@ -215,7 +217,7 @@ func permissionDiagnostic(instance BridgeInstance, input BridgeDiagnosticsInput)
 		Severity:          BridgeDiagnosticSeverityError,
 		Source:            "auth",
 		BridgeInstanceID:  strings.TrimSpace(instance.ID),
-		Message:           message,
+		Message:           sanitizeBridgeDiagnosticMessage(message),
 		NextAction:        "Refresh bridge credentials and confirm provider-side permissions.",
 		Status:            instance.Status.Normalize(),
 		DegradationReason: reason,
@@ -242,7 +244,7 @@ func transientDeliveryDiagnostic(instance BridgeInstance, input BridgeDiagnostic
 		Severity:          BridgeDiagnosticSeverityWarning,
 		Source:            "delivery",
 		BridgeInstanceID:  strings.TrimSpace(instance.ID),
-		Message:           message,
+		Message:           sanitizeBridgeDiagnosticMessage(message),
 		NextAction:        "Inspect delivery backlog and retry after provider rate limits or timeouts recover.",
 		Status:            instance.Status.Normalize(),
 		DegradationReason: reason,
@@ -262,4 +264,8 @@ func degradationReason(instance BridgeInstance) BridgeDegradationReason {
 		return ""
 	}
 	return instance.Degradation.Reason.Normalize()
+}
+
+func sanitizeBridgeDiagnosticMessage(text string) string {
+	return strings.TrimSpace(diagnostics.Redact(text))
 }

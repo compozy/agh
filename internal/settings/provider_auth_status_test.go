@@ -112,6 +112,33 @@ func TestProviderAuthStatusDiagnostics(t *testing.T) {
 			t.Fatalf("AuthStatus.HomePolicy = %q, want %q", got, want)
 		}
 	})
+
+	t.Run("Should deep copy mutable auth status fields when cloning provider items", func(t *testing.T) {
+		t.Parallel()
+
+		source := &ProviderItem{
+			Name: "codex",
+			AuthStatus: ProviderAuthStatus{
+				LoginEnv: []string{"HOME=/tmp/original"},
+				NativeCLI: &ProviderNativeCLIStatus{
+					Command: "codex",
+					Present: true,
+					Source:  providerauth.NativeCLISourceAuthLogin,
+				},
+			},
+		}
+
+		cloned := cloneProviderItem(source)
+		cloned.AuthStatus.LoginEnv[0] = "HOME=/tmp/cloned"
+		cloned.AuthStatus.NativeCLI.Command = "changed"
+
+		if got, want := source.AuthStatus.LoginEnv[0], "HOME=/tmp/original"; got != want {
+			t.Fatalf("source AuthStatus.LoginEnv[0] = %q, want %q", got, want)
+		}
+		if got, want := source.AuthStatus.NativeCLI.Command, "codex"; got != want {
+			t.Fatalf("source AuthStatus.NativeCLI.Command = %q, want %q", got, want)
+		}
+	})
 }
 
 func assertPathMissing(t *testing.T, path string) {

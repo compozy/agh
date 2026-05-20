@@ -25,7 +25,7 @@ import (
 	"github.com/pedronauck/agh/internal/version"
 )
 
-const settingsMCPProbeTimeout = 5 * time.Second
+const defaultSettingsMCPProbeTimeout = 5 * time.Second
 
 type settingsRuntimeSurface struct {
 	config         aghconfig.Config
@@ -406,7 +406,7 @@ func (s *settingsRuntimeSurface) MCPServerRuntimeStatus(
 		mcppkg.WithTokenStore(s.mcpAuthStore),
 		mcppkg.WithSecretLookup(s.lookupSecret),
 		mcppkg.WithSecretResolver(s.secretRefs),
-		mcppkg.WithTimeout(settingsMCPProbeTimeout),
+		mcppkg.WithTimeout(s.mcpProbeTimeout()),
 	)
 	if err != nil {
 		return settingspkg.MCPServerRuntimeStatus{}, fmt.Errorf("daemon: create MCP runtime probe: %w", err)
@@ -519,6 +519,13 @@ func (s *settingsRuntimeSurface) currentInfo() Info {
 		return Info{}
 	}
 	return s.info()
+}
+
+func (s *settingsRuntimeSurface) mcpProbeTimeout() time.Duration {
+	if s != nil && s.config.Observability.AgentProbeTimeout > 0 {
+		return s.config.Observability.AgentProbeTimeout
+	}
+	return defaultSettingsMCPProbeTimeout
 }
 
 type settingsRestartController struct {
