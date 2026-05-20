@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	eventspkg "github.com/pedronauck/agh/internal/events"
 	"github.com/pedronauck/agh/internal/store"
 )
 
@@ -71,7 +72,7 @@ func (s *service) emitSettingsChanged(
 	}
 
 	return s.eventSummaries.WriteEventSummary(ctx, store.EventSummary{
-		Type:    "settings.changed",
+		Type:    eventspkg.SettingsChanged,
 		Content: content,
 		Summary: summary,
 	})

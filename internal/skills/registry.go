@@ -78,7 +78,7 @@ func WithNow(now func() time.Time) Option {
 }
 
 // WithEventSummaryStore injects the optional global observe-event writer used
-// for public skills.shadow and skills.load_failed events.
+// for public skill.shadowed and skills.load_failed events.
 func WithEventSummaryStore(events store.EventSummaryStore) Option {
 	return func(registry *Registry) {
 		registry.events = events

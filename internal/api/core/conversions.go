@@ -18,6 +18,7 @@ import (
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/diagnostics"
+	eventspkg "github.com/pedronauck/agh/internal/events"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/notifications"
 	observepkg "github.com/pedronauck/agh/internal/observe"
@@ -411,6 +412,9 @@ func ObserveEventPayloadFromEvent(event store.EventSummary) contract.ObserveEven
 		WorkspaceID:      event.WorkspaceID,
 		Type:             event.Type,
 		AgentName:        event.AgentName,
+		Provider:         event.Provider,
+		Component:        eventspkg.ComponentFor(event.Type),
+		Outcome:          observeEventOutcome(event),
 		Content:          ssepkg.ScrubMemoryContextBytes(append([]byte(nil), event.Content...)),
 		EventCorrelation: event.Normalize(),
 		ParentSessionID:  event.ParentSessionID,
@@ -419,6 +423,14 @@ func ObserveEventPayloadFromEvent(event store.EventSummary) contract.ObserveEven
 		Summary:          ssepkg.ScrubMemoryContextString(event.Summary),
 		Timestamp:        event.Timestamp,
 	}
+}
+
+func observeEventOutcome(event store.EventSummary) string {
+	outcome := strings.TrimSpace(event.Outcome)
+	if outcome != "" {
+		return outcome
+	}
+	return string(eventspkg.OutcomeFor(event.Type))
 }
 
 func sessionEventCorrelation(event store.SessionEvent) store.EventCorrelation {

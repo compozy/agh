@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	eventspkg "github.com/pedronauck/agh/internal/events"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 )
 
@@ -414,6 +415,8 @@ type EventSummary struct {
 	Sequence    int64
 	Type        string
 	AgentName   string
+	Provider    string
+	Outcome     string
 	Content     json.RawMessage
 	EventCorrelation
 	ParentSessionID string
@@ -428,6 +431,12 @@ func (s EventSummary) Validate() error {
 	eventType := strings.TrimSpace(s.Type)
 	if err := requireField(eventType, "event summary type"); err != nil {
 		return err
+	}
+	if err := eventspkg.ValidatePublicName(eventType); err != nil {
+		return fmt.Errorf("store: invalid event summary type: %w", err)
+	}
+	if !eventspkg.ValidOutcome(s.Outcome) {
+		return fmt.Errorf("store: invalid event summary outcome %q", s.Outcome)
 	}
 	if eventSummaryAllowsGlobalScope(eventType) {
 		return nil
@@ -453,32 +462,42 @@ func cloneNormalizedTimestamp(value *time.Time) *time.Time {
 }
 
 func eventSummaryAllowsGlobalScope(eventType string) bool {
-	switch strings.TrimSpace(eventType) {
-	case "settings.changed",
-		"skills.shadow",
-		"skills.load_failed",
-		"hook.dispatch.start",
-		"hook.dispatch.complete",
-		"memory.provider.collision":
-		return true
-	default:
-		return false
-	}
+	return eventspkg.AllowsGlobalScope(eventType)
 }
 
 // EventSummaryQuery filters global event summary queries.
 type EventSummaryQuery struct {
-	SessionID   string
-	WorkspaceID string
-	AgentName   string
-	Type        string
-	Since       time.Time
-	Limit       int
+	SessionID     string
+	WorkspaceID   string
+	AgentName     string
+	Type          string
+	RunID         string
+	ActorKind     string
+	ActorID       string
+	Provider      string
+	Outcome       string
+	Component     string
+	ErrorOnly     bool
+	AfterSequence int64
+	Since         time.Time
+	Limit         int
 }
 
 // Validate ensures the query uses sane bounds.
 func (q EventSummaryQuery) Validate() error {
-	return requirePositiveLimit(q.Limit, "event summary limit")
+	if err := requirePositiveLimit(q.Limit, "event summary limit"); err != nil {
+		return err
+	}
+	if q.AfterSequence < 0 {
+		return fmt.Errorf("store: invalid event summary after sequence %d", q.AfterSequence)
+	}
+	if !eventspkg.ValidOutcome(q.Outcome) {
+		return fmt.Errorf("store: invalid event summary outcome %q", q.Outcome)
+	}
+	if !eventspkg.ValidComponent(q.Component) {
+		return fmt.Errorf("store: invalid event summary component %q", q.Component)
+	}
+	return nil
 }
 
 // ObservabilityRetentionSweepResult reports how many global observability rows

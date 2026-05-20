@@ -420,6 +420,9 @@ type ObserveEventPayload struct {
 	WorkspaceID string          `json:"workspace_id,omitempty"`
 	Type        string          `json:"type"`
 	AgentName   string          `json:"agent_name"`
+	Provider    string          `json:"provider,omitempty"`
+	Component   string          `json:"component,omitempty"`
+	Outcome     string          `json:"outcome,omitempty"`
 	Content     json.RawMessage `json:"content,omitempty"`
 	store.EventCorrelation
 	ParentSessionID string    `json:"parent_session_id,omitempty"`

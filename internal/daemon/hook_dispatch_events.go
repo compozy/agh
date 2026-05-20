@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	eventspkg "github.com/pedronauck/agh/internal/events"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/store"
 )
@@ -110,7 +111,7 @@ func (e globalHookDispatchEventEmitter) EmitHookDispatchEvent(
 
 	if writeErr := e.summaries.WriteEventSummary(ctx, store.EventSummary{
 		SessionID:        strings.TrimSpace(sessionCtx.SessionID),
-		Type:             "hook.dispatch." + string(phase),
+		Type:             hookDispatchEventType(phase),
 		AgentName:        strings.TrimSpace(sessionCtx.AgentName),
 		Content:          content,
 		EventCorrelation: eventCorrelation,
@@ -118,6 +119,17 @@ func (e globalHookDispatchEventEmitter) EmitHookDispatchEvent(
 		Timestamp:        timestamp.UTC(),
 	}); writeErr != nil {
 		return
+	}
+}
+
+func hookDispatchEventType(phase hookspkg.DispatchPhase) string {
+	switch phase {
+	case hookspkg.DispatchPhaseStart:
+		return eventspkg.HookDispatchStart
+	case hookspkg.DispatchPhaseComplete:
+		return eventspkg.HookDispatchComplete
+	default:
+		return "hook.dispatch." + string(phase)
 	}
 }
 

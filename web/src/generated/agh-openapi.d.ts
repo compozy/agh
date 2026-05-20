@@ -41706,6 +41706,22 @@ export interface operations {
         agent_name?: string;
         /** @description Event type */
         type?: string;
+        /** @description Task run id */
+        run?: string;
+        /** @description Actor kind */
+        actor_kind?: string;
+        /** @description Actor id */
+        actor_id?: string;
+        /** @description Provider id projected at event write time */
+        provider?: string;
+        /** @description Event registry outcome */
+        outcome?: string;
+        /** @description Event registry component */
+        component?: string;
+        /** @description Return warning and failure outcomes only */
+        error_only?: boolean;
+        /** @description Return rows after this event summary sequence */
+        after_seq?: number;
         /** @description Only events emitted since this timestamp */
         since?: string;
         /** @description Maximum number of records to return */
@@ -41732,6 +41748,7 @@ export interface operations {
               actor_kind?: string;
               agent_name: string;
               claim_token_hash?: string;
+              component?: string;
               content?: unknown;
               coordinator_session_id?: string;
               hook_event?: string;
@@ -41739,7 +41756,9 @@ export interface operations {
               id: string;
               /** Format: date-time */
               lease_until?: string | null;
+              outcome?: string;
               parent_session_id?: string;
+              provider?: string;
               release_reason?: string;
               root_session_id?: string;
               run_id?: string;

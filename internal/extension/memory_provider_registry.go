@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	eventspkg "github.com/pedronauck/agh/internal/events"
 	memcontract "github.com/pedronauck/agh/internal/memory/contract"
 	"github.com/pedronauck/agh/internal/store"
 )
@@ -20,7 +21,7 @@ const (
 
 const (
 	defaultMemoryProviderName      = "local"
-	memoryProviderCollisionEvent   = "memory.provider.collision"
+	memoryProviderCollisionEvent   = eventspkg.MemoryProviderCollision
 	memoryProviderNameCollision    = "provider_name"
 	memoryProviderToolCollision    = "tool_name"
 	memoryProviderReservedToolName = "reserved_tool_name"

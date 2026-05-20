@@ -22,8 +22,12 @@ const (
 		"ON event_summaries(actor_kind, actor_id);"
 	idxSummaryHookEventSQL = "CREATE INDEX IF NOT EXISTS idx_summaries_hook_event " +
 		"ON event_summaries(hook_event);"
+	idxSummaryOutcomeTimestampSQL = "CREATE INDEX IF NOT EXISTS idx_summaries_outcome_timestamp " +
+		"ON event_summaries(outcome, timestamp DESC);"
 	idxSummaryParentSQL = "CREATE INDEX IF NOT EXISTS idx_summaries_parent " +
 		"ON event_summaries(parent_session_id);"
+	idxSummaryProviderTimestampSQL = "CREATE INDEX IF NOT EXISTS idx_summaries_provider_timestamp " +
+		"ON event_summaries(provider, timestamp DESC);"
 	idxSummaryRootSQL = "CREATE INDEX IF NOT EXISTS idx_summaries_root " +
 		"ON event_summaries(root_session_id);"
 	idxSummaryRunSQL = "CREATE INDEX IF NOT EXISTS idx_summaries_run " +
@@ -46,6 +50,7 @@ const (
 	globalDBClaimTokenKey                           = "claim_token"
 	globalDBClaimTokenHashKey                       = "claim_token_hash"
 	globalDBLeaseUntilKey                           = "lease_until"
+	globalDBOutcomeKey                              = "outcome"
 	globalDBParentSessionIDKey                      = "parent_session_id"
 	globalDBPermissionPolicyJSONKey                 = "permission_policy_json"
 	globalDBRebuildModelCatalogSourceConstraintsKey = "rebuild_model_catalog_source_constraints"
@@ -952,6 +957,24 @@ var globalSchemaMigrations = []store.Migration{
 		Name:     "add_network_timeline_extensions",
 		Up:       migrateNetworkTimelineExtensions,
 		Checksum: "2026-05-16-add-network-timeline-extensions",
+	},
+	{
+		Version:  27,
+		Name:     "add_config_apply_records",
+		Up:       migrateConfigApplyRecords,
+		Checksum: "2026-05-20-add-config-apply-records",
+	},
+	{
+		Version:  28,
+		Name:     "add_event_summary_projections",
+		Up:       migrateEventSummaryProjections,
+		Checksum: "2026-05-20-add-event-summary-projections",
+	},
+	{
+		Version:  29,
+		Name:     "add_scheduler_pause_state",
+		Up:       migrateSchedulerPauseState,
+		Checksum: "2026-05-20-add-scheduler-pause-state",
 	},
 }
 

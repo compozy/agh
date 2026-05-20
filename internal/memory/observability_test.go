@@ -8,9 +8,28 @@ import (
 	"testing"
 	"time"
 
+	eventspkg "github.com/pedronauck/agh/internal/events"
 	storepkg "github.com/pedronauck/agh/internal/store"
 	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
+
+func TestMemoryEventOpsUseCanonicalRegistry(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should register every memory catalog event operation", func(t *testing.T) {
+		t.Parallel()
+
+		for _, op := range memoryEventOps {
+			meta, ok := eventspkg.Lookup(op)
+			if !ok {
+				t.Fatalf("events.Lookup(%q) = false, want true", op)
+			}
+			if meta.Component != eventspkg.ComponentMemory {
+				t.Fatalf("events.Lookup(%q).Component = %q, want %q", op, meta.Component, eventspkg.ComponentMemory)
+			}
+		}
+	})
+}
 
 func TestStoreListMemoryEventSummaries(t *testing.T) {
 	t.Run("Should aggregate global and workspace memory event databases once", func(t *testing.T) {

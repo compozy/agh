@@ -94,7 +94,7 @@ func TestRegistryLoadAllLoadsUserLevelSkills(t *testing.T) {
 func TestRegistryObserveEvents(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should emit skills shadow for workspace overlays", func(t *testing.T) {
+	t.Run("Should emit skill shadowed for workspace overlays", func(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
@@ -140,7 +140,7 @@ func TestRegistryObserveEvents(t *testing.T) {
 		if got, want := len(summaries), 1; got != want {
 			t.Fatalf("len(summaries) = %d, want %d", got, want)
 		}
-		if got, want := summaries[0].Type, "skills.shadow"; got != want {
+		if got, want := summaries[0].Type, "skill.shadowed"; got != want {
 			t.Fatalf("summaries[0].Type = %q, want %q", got, want)
 		}
 		if got, want := summaries[0].WorkspaceID, "ws-shadow"; got != want {

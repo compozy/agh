@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	eventspkg "github.com/pedronauck/agh/internal/events"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/store"
 )
@@ -22,41 +23,41 @@ const (
 )
 
 const (
-	taskEventCreated            = "task.created"
-	taskEventUpdated            = "task.updated"
-	taskEventPublished          = "task.published"
-	taskEventApproved           = "task.approved"
-	taskEventRejected           = "task.rejected"
-	taskEventCanceled           = "task.canceled"
-	taskEventChildCreated       = "task.child_created"
-	taskEventDependencyAdded    = "task.dependency_added"
-	taskEventDependencyRemoved  = "task.dependency_removed"
-	taskEventRunEnqueued        = "task.run_enqueued"
-	taskEventRunClaimed         = "task.run_claimed"
-	taskEventRunStarting        = "task.run_starting"
-	taskEventRunSessionBound    = "task.run_session_bound"
-	taskEventRunStarted         = "task.run_started"
-	taskEventRunCompleted       = "task.run_completed"
-	taskEventRunFailed          = "task.run_failed"
-	taskEventRunCanceled        = "task.run_canceled"
-	taskEventRunForceStopped    = "task.run_force_stopped"
-	taskEventRunRecovered       = "task.run_recovered"
-	taskEventRunRejected        = "task.run_rejected"
-	taskEventRunLeaseExtended   = "task.run_lease_extended"
-	taskEventRunLeaseExpired    = "task.run_lease_expired"
-	taskEventRunReleased        = "task.run_released"
-	taskEventProfileUpdated     = "task.execution_profile_updated"
-	taskEventProfileDeleted     = "task.execution_profile_deleted"
-	taskEventRunReviewRequested = "task.run_review_requested"
-	taskEventRunReviewBound     = "task.run_review_bound"
-	taskEventRunReviewRecorded  = "task.run_review_recorded"
-	taskEventRunReviewApproved  = "task.run_review_approved"
-	taskEventRunReviewRejected  = "task.run_review_rejected"
-	taskEventRunReviewBlocked   = "task.run_review_blocked"
-	taskEventRunReviewError     = "task.run_review_error"
-	taskEventRunReviewTimeout   = "task.run_review_timeout"
-	taskEventRunReviewInvalid   = "task.run_review_invalid_output"
-	taskEventRunReviewRetry     = "task.run_review_retry_enqueued"
+	taskEventCreated            = eventspkg.TaskCreated
+	taskEventUpdated            = eventspkg.TaskUpdated
+	taskEventPublished          = eventspkg.TaskPublished
+	taskEventApproved           = eventspkg.TaskApproved
+	taskEventRejected           = eventspkg.TaskRejected
+	taskEventCanceled           = eventspkg.TaskCanceled
+	taskEventChildCreated       = eventspkg.TaskChildCreated
+	taskEventDependencyAdded    = eventspkg.TaskDependencyAdded
+	taskEventDependencyRemoved  = eventspkg.TaskDependencyRemoved
+	taskEventRunEnqueued        = eventspkg.TaskRunEnqueued
+	taskEventRunClaimed         = eventspkg.TaskRunClaimed
+	taskEventRunStarting        = eventspkg.TaskRunStarting
+	taskEventRunSessionBound    = eventspkg.TaskRunSessionBound
+	taskEventRunStarted         = eventspkg.TaskRunStarted
+	taskEventRunCompleted       = eventspkg.TaskRunCompleted
+	taskEventRunFailed          = eventspkg.TaskRunFailed
+	taskEventRunCanceled        = eventspkg.TaskRunCanceled
+	taskEventRunForceStopped    = eventspkg.TaskRunForceStopped
+	taskEventRunRecovered       = eventspkg.TaskRunRecovered
+	taskEventRunRejected        = eventspkg.TaskRunRejected
+	taskEventRunLeaseExtended   = eventspkg.TaskRunLeaseExtended
+	taskEventRunLeaseExpired    = eventspkg.TaskRunLeaseExpired
+	taskEventRunReleased        = eventspkg.TaskRunReleased
+	taskEventProfileUpdated     = eventspkg.TaskExecutionProfileUpdated
+	taskEventProfileDeleted     = eventspkg.TaskExecutionProfileDeleted
+	taskEventRunReviewRequested = eventspkg.TaskRunReviewRequested
+	taskEventRunReviewBound     = eventspkg.TaskRunReviewBound
+	taskEventRunReviewRecorded  = eventspkg.TaskRunReviewRecorded
+	taskEventRunReviewApproved  = eventspkg.TaskRunReviewApproved
+	taskEventRunReviewRejected  = eventspkg.TaskRunReviewRejected
+	taskEventRunReviewBlocked   = eventspkg.TaskRunReviewBlocked
+	taskEventRunReviewError     = eventspkg.TaskRunReviewError
+	taskEventRunReviewTimeout   = eventspkg.TaskRunReviewTimeout
+	taskEventRunReviewInvalid   = eventspkg.TaskRunReviewInvalidOutput
+	taskEventRunReviewRetry     = eventspkg.TaskRunReviewRetryEnqueued
 )
 
 // Option customizes Service construction.

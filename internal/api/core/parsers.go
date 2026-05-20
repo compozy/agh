@@ -50,13 +50,29 @@ func ParseObserveEventQuery(c *gin.Context) (store.EventSummaryQuery, error) {
 	if err != nil {
 		return store.EventSummaryQuery{}, err
 	}
+	afterSequence, err := ParseOptionalInt64(firstNonEmpty(c.Query("after_seq"), c.Query("after_sequence")))
+	if err != nil {
+		return store.EventSummaryQuery{}, err
+	}
+	errorOnly, err := ParseOptionalBool(c.Query("error_only"))
+	if err != nil {
+		return store.EventSummaryQuery{}, err
+	}
 
 	return store.EventSummaryQuery{
-		SessionID: strings.TrimSpace(c.Query("session_id")),
-		AgentName: strings.TrimSpace(c.Query("agent_name")),
-		Type:      strings.TrimSpace(c.Query("type")),
-		Since:     since,
-		Limit:     limit,
+		SessionID:     strings.TrimSpace(c.Query("session_id")),
+		AgentName:     strings.TrimSpace(c.Query("agent_name")),
+		Type:          strings.TrimSpace(c.Query("type")),
+		RunID:         strings.TrimSpace(firstNonEmpty(c.Query("run"), c.Query("run_id"))),
+		ActorKind:     strings.TrimSpace(c.Query("actor_kind")),
+		ActorID:       strings.TrimSpace(c.Query("actor_id")),
+		Provider:      strings.TrimSpace(c.Query("provider")),
+		Outcome:       strings.TrimSpace(c.Query("outcome")),
+		Component:     strings.TrimSpace(c.Query("component")),
+		ErrorOnly:     errorOnly,
+		AfterSequence: afterSequence,
+		Since:         since,
+		Limit:         limit,
 	}, nil
 }
 

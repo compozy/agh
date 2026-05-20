@@ -15,6 +15,7 @@ import (
 	"unicode"
 
 	"github.com/pedronauck/agh/internal/diagnostics"
+	eventspkg "github.com/pedronauck/agh/internal/events"
 	memcontract "github.com/pedronauck/agh/internal/memory/contract"
 	storepkg "github.com/pedronauck/agh/internal/store"
 	aghworkspace "github.com/pedronauck/agh/internal/workspace"
@@ -45,37 +46,37 @@ const (
 )
 
 const (
-	memoryEventWriteCommitted         = "memory.write.committed"
-	memoryEventWriteRejected          = "memory.write.rejected"
-	memoryEventWriteShadowed          = "memory.write.shadowed"
-	memoryEventWriteReindex           = "memory.write.reindex"
-	memoryEventWriteReverted          = "memory.write.reverted"
-	memoryEventRecallExecuted         = "memory.recall.executed"
-	memoryEventRecallSkipped          = "memory.recall.skipped"
-	memoryEventRecallSignalDropped    = "memory.recall.signal_dropped"
-	memoryEventRecallSignalFailed     = "memory.recall.signal_update_failed"
-	memoryEventDecisionsSummarized    = "memory.decisions.audit_summarized"
-	memoryEventDecisionsPruned        = "memory.decisions.pruned"
-	memoryEventDreamStarted           = "memory.dream.run.started"
-	memoryEventDreamPromoted          = "memory.dream.run.promoted"
-	memoryEventDreamFailed            = "memory.dream.run.failed"
-	memoryEventExtractorStarted       = "memory.extractor.started"
-	memoryEventExtractorCompleted     = "memory.extractor.completed"
-	memoryEventExtractorFailed        = "memory.extractor.failed"
-	memoryEventExtractorCoalesced     = "memory.extractor.coalesced"
-	memoryEventExtractorDropped       = "memory.extractor.dropped"
-	memoryEventDailyRotated           = "memory.daily.rotated"
-	memoryEventDailyArchived          = "memory.daily.archived"
-	memoryEventDailyRestored          = "memory.daily.restored"
-	memoryEventDailyPurged            = "memory.daily.purged"
-	memoryEventDailyArchivePurged     = "memory.daily.archive_purged"
-	memoryEventProviderEnabled        = "memory.provider.enabled"
-	memoryEventProviderDisabled       = "memory.provider.disabled"
-	memoryEventProviderCollision      = "memory.provider.collision"
-	memoryEventWorkspaceRelocated     = "memory.workspace.relocated"
-	memoryEventWorkspaceRecovered     = "memory.workspace.recovered"
-	memoryEventAgentPurged            = "memory.agent.purged"
-	memoryEventMigrationApplied       = "memory.migration.applied"
+	memoryEventWriteCommitted         = eventspkg.MemoryWriteCommitted
+	memoryEventWriteRejected          = eventspkg.MemoryWriteRejected
+	memoryEventWriteShadowed          = eventspkg.MemoryWriteShadowed
+	memoryEventWriteReindex           = eventspkg.MemoryWriteReindex
+	memoryEventWriteReverted          = eventspkg.MemoryWriteReverted
+	memoryEventRecallExecuted         = eventspkg.MemoryRecallExecuted
+	memoryEventRecallSkipped          = eventspkg.MemoryRecallSkipped
+	memoryEventRecallSignalDropped    = eventspkg.MemoryRecallDropped
+	memoryEventRecallSignalFailed     = eventspkg.MemoryRecallFailed
+	memoryEventDecisionsSummarized    = eventspkg.MemoryDecisionsSummary
+	memoryEventDecisionsPruned        = eventspkg.MemoryDecisionsPruned
+	memoryEventDreamStarted           = eventspkg.MemoryDreamStarted
+	memoryEventDreamPromoted          = eventspkg.MemoryDreamPromoted
+	memoryEventDreamFailed            = eventspkg.MemoryDreamFailed
+	memoryEventExtractorStarted       = eventspkg.MemoryExtractorStarted
+	memoryEventExtractorCompleted     = eventspkg.MemoryExtractorComplete
+	memoryEventExtractorFailed        = eventspkg.MemoryExtractorFailed
+	memoryEventExtractorCoalesced     = eventspkg.MemoryExtractorCoalesced
+	memoryEventExtractorDropped       = eventspkg.MemoryExtractorDropped
+	memoryEventDailyRotated           = eventspkg.MemoryDailyRotated
+	memoryEventDailyArchived          = eventspkg.MemoryDailyArchived
+	memoryEventDailyRestored          = eventspkg.MemoryDailyRestored
+	memoryEventDailyPurged            = eventspkg.MemoryDailyPurged
+	memoryEventDailyArchivePurged     = eventspkg.MemoryDailyArchivePurged
+	memoryEventProviderEnabled        = eventspkg.MemoryProviderEnabled
+	memoryEventProviderDisabled       = eventspkg.MemoryProviderDisabled
+	memoryEventProviderCollision      = eventspkg.MemoryProviderCollision
+	memoryEventWorkspaceRelocated     = eventspkg.MemoryWorkspaceRelocated
+	memoryEventWorkspaceRecovered     = eventspkg.MemoryWorkspaceRecovered
+	memoryEventAgentPurged            = eventspkg.MemoryAgentPurged
+	memoryEventMigrationApplied       = eventspkg.MemoryMigrationApplied
 	memoryEventMetadataActionKey      = "action"
 	memoryEventMetadataFilenameKey    = "filename"
 	memoryEventMetadataLegacyIDKey    = "legacy_id"

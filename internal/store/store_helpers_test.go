@@ -186,10 +186,22 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			},
 		},
 		{
-			name: "global event summary skills shadow",
+			name: "global event summary skill shadowed",
 			validate: func() error {
-				return (EventSummary{Type: "skills.shadow"}).Validate()
+				return (EventSummary{Type: "skill.shadowed"}).Validate()
 			},
+		},
+		{
+			name: "event summary rejects task run dot family",
+			validate: func() error {
+				return (EventSummary{
+					SessionID:   "sess-1",
+					WorkspaceID: "ws-store-helpers",
+					Type:        "task_run.completed",
+					AgentName:   "coder",
+				}).Validate()
+			},
+			wantError: true,
 		},
 		{
 			name: "global event summary skills load failed",

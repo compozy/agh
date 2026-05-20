@@ -74,7 +74,13 @@ func TestOpenGlobalDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 		"token_stats",
 		"permission_log",
 		"extensions",
+		"config_apply_records",
+		"scheduler_pause",
 	)
+	assertTableHasColumns(t, globalDB.db, "event_summaries", []string{
+		"provider",
+		"outcome",
+	})
 	assertTableColumns(t, globalDB.db, "memory_events", []string{
 		"id",
 		"op",
@@ -444,6 +450,21 @@ func expectedGlobalMigrationPrefix() []expectedGlobalMigrationIdentity {
 			version:  26,
 			name:     "add_network_timeline_extensions",
 			checksum: "2026-05-16-add-network-timeline-extensions",
+		},
+		{
+			version:  27,
+			name:     "add_config_apply_records",
+			checksum: "2026-05-20-add-config-apply-records",
+		},
+		{
+			version:  28,
+			name:     "add_event_summary_projections",
+			checksum: "2026-05-20-add-event-summary-projections",
+		},
+		{
+			version:  29,
+			name:     "add_scheduler_pause_state",
+			checksum: "2026-05-20-add-scheduler-pause-state",
 		},
 	}
 }
@@ -1929,6 +1950,8 @@ func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
 			"spawn_depth",
 			"summary",
 			"timestamp",
+			"provider",
+			"outcome",
 		},
 	)
 	assertTableColumns(
@@ -2116,12 +2139,53 @@ func TestGlobalDBWriteEventSummary(t *testing.T) {
 	if got, want := summaries[0].RootSessionID, "sess-summary"; got != want {
 		t.Fatalf("summaries[0].RootSessionID = %q, want %q", got, want)
 	}
+	if got, want := summaries[0].Provider, "claude"; got != want {
+		t.Fatalf("summaries[0].Provider = %q, want %q", got, want)
+	}
+	if got, want := summaries[0].Outcome, "info"; got != want {
+		t.Fatalf("summaries[0].Outcome = %q, want %q", got, want)
+	}
+
+	providerFiltered, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{
+		Provider:  "claude",
+		Component: "session",
+	})
+	if err != nil {
+		t.Fatalf("ListEventSummaries(provider component) error = %v", err)
+	}
+	if got, want := len(providerFiltered), 1; got != want {
+		t.Fatalf("len(providerFiltered) = %d, want %d", got, want)
+	}
+
+	if err := globalDB.WriteEventSummary(testutil.Context(t), EventSummary{
+		SessionID: "sess-summary",
+		Type:      "task.run_failed",
+		AgentName: "coder",
+		Summary:   "task run failed",
+		Timestamp: time.Date(2026, 4, 3, 14, 1, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("WriteEventSummary(failed task run) error = %v", err)
+	}
+	errorOnly, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{
+		Provider:  "claude",
+		Component: "task",
+		ErrorOnly: true,
+	})
+	if err != nil {
+		t.Fatalf("ListEventSummaries(error only) error = %v", err)
+	}
+	if got, want := len(errorOnly), 1; got != want {
+		t.Fatalf("len(errorOnly) = %d, want %d", got, want)
+	}
+	if got, want := errorOnly[0].Outcome, "failure"; got != want {
+		t.Fatalf("errorOnly[0].Outcome = %q, want %q", got, want)
+	}
 }
 
 func TestGlobalDBWriteEventSummaryAllowsGlobalEvents(t *testing.T) {
 	t.Parallel()
 
-	const skillsShadowBody = "" +
+	const skillShadowedBody = "" +
 		`{"skill_name":"review","old_source":"workspace","new_source":"agent-local",` +
 		`"layer_pair":"agent-local>workspace","shadow_kind":"logical_path",` +
 		`"resolution_scope":"agent","agent_name":"reviewer"}`
@@ -2145,17 +2209,17 @@ func TestGlobalDBWriteEventSummaryAllowsGlobalEvents(t *testing.T) {
 			wantBody: `{"section":"skills","source":"http","operation":"patch"}`,
 		},
 		{
-			name: "Should persist skills shadow events without a session",
+			name: "Should persist skill shadowed events without a session",
 			summary: EventSummary{
-				Type:      "skills.shadow",
+				Type:      "skill.shadowed",
 				AgentName: "reviewer",
-				Content:   []byte(skillsShadowBody),
+				Content:   []byte(skillShadowedBody),
 				Summary:   "skill review shadowed workspace with agent-local",
 				Timestamp: time.Date(2026, 5, 4, 14, 6, 0, 0, time.UTC),
 			},
-			wantType:  "skills.shadow",
+			wantType:  "skill.shadowed",
 			wantAgent: "reviewer",
-			wantBody:  skillsShadowBody,
+			wantBody:  skillShadowedBody,
 		},
 	}
 
@@ -2192,6 +2256,115 @@ func TestGlobalDBWriteEventSummaryAllowsGlobalEvents(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProdReadyFoundationMigrationsAppendSharedState(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should upgrade v26 tail with shared event projections and operation state", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		db, err := store.OpenSQLiteDatabase(ctx, path, nil)
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(prefix) error = %v", err)
+		}
+		if err := store.RunMigrations(ctx, db, globalSchemaMigrations[:26]); err != nil {
+			t.Fatalf("RunMigrations(v26 prefix) error = %v", err)
+		}
+
+		now := formatTimestamp(time.Date(2026, 5, 20, 12, 0, 0, 0, time.UTC))
+		if _, err := db.ExecContext(
+			ctx,
+			`INSERT INTO workspaces (id, root_dir, name, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?)`,
+			"ws-prod-ready",
+			filepath.Join(t.TempDir(), "workspace"),
+			"prod-ready",
+			now,
+			now,
+		); err != nil {
+			t.Fatalf("insert workspace error = %v", err)
+		}
+		if _, err := db.ExecContext(
+			ctx,
+			`INSERT INTO sessions (
+				id, name, agent_name, provider, workspace_id, session_type, state, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			"sess-prod-ready",
+			"Prod Ready",
+			"coder",
+			"codex",
+			"ws-prod-ready",
+			defaultSessionType,
+			"stopped",
+			now,
+			now,
+		); err != nil {
+			t.Fatalf("insert session error = %v", err)
+		}
+		if _, err := db.ExecContext(
+			ctx,
+			`INSERT INTO event_summaries (id, session_id, workspace_id, type, agent_name, timestamp)
+			 VALUES (?, ?, ?, ?, ?, ?)`,
+			"sum-prod-ready",
+			"sess-prod-ready",
+			"ws-prod-ready",
+			"task.run_failed",
+			"coder",
+			now,
+		); err != nil {
+			t.Fatalf("insert event summary error = %v", err)
+		}
+		if err := db.Close(); err != nil {
+			t.Fatalf("prefix db.Close() error = %v", err)
+		}
+
+		globalDB, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(upgrade) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("Close(upgrade) error = %v", closeErr)
+			}
+		})
+
+		assertTablesPresent(t, globalDB.db, "config_apply_records", "scheduler_pause")
+		assertTableHasColumns(t, globalDB.db, "event_summaries", []string{"provider", "outcome"})
+		assertIndexesPresent(
+			t,
+			globalDB.db,
+			"event_summaries",
+			"idx_summaries_provider_timestamp",
+			"idx_summaries_outcome_timestamp",
+		)
+
+		var provider string
+		var outcome string
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT provider, outcome FROM event_summaries WHERE id = ?`,
+			"sum-prod-ready",
+		).Scan(&provider, &outcome); err != nil {
+			t.Fatalf("select event summary projections error = %v", err)
+		}
+		if provider != "codex" || outcome != "failure" {
+			t.Fatalf("event projections = provider %q outcome %q, want codex failure", provider, outcome)
+		}
+
+		var paused int
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT paused FROM scheduler_pause WHERE id = 1`,
+		).Scan(&paused); err != nil {
+			t.Fatalf("select scheduler_pause singleton error = %v", err)
+		}
+		if paused != 0 {
+			t.Fatalf("scheduler_pause.paused = %d, want 0", paused)
+		}
+	})
 }
 
 func TestGlobalDBListEventSummariesIncludesMemoryOperations(t *testing.T) {
@@ -2271,6 +2444,46 @@ func TestGlobalDBListEventSummariesIncludesMemoryOperations(t *testing.T) {
 	}
 	if got, want := limited[1].Type, "tool_call"; got != want {
 		t.Fatalf("limited[1].Type = %q, want %q", got, want)
+	}
+
+	if _, err := globalDB.db.ExecContext(
+		testutil.Context(t),
+		`INSERT INTO memory_events (
+				op, scope, agent_name, actor_kind, metadata, ts_ms
+			) VALUES (?, ?, ?, ?, ?, ?)`,
+		"memory.write.rejected",
+		"global",
+		"daemon",
+		"system",
+		`{"summary":"subagent direct write denied"}`,
+		time.Date(2026, 4, 3, 14, 3, 0, 0, time.UTC).UnixNano()/int64(time.Millisecond),
+	); err != nil {
+		t.Fatalf("insert rejected memory event error = %v", err)
+	}
+
+	errorMemory, err := globalDB.ListEventSummaries(
+		testutil.Context(t),
+		EventSummaryQuery{Component: "memory", ErrorOnly: true},
+	)
+	if err != nil {
+		t.Fatalf("ListEventSummaries(memory error only) error = %v", err)
+	}
+	if got, want := len(errorMemory), 1; got != want {
+		t.Fatalf("len(errorMemory) = %d, want %d; events=%#v", got, want, errorMemory)
+	}
+	if got, want := errorMemory[0].Type, "memory.write.rejected"; got != want {
+		t.Fatalf("errorMemory[0].Type = %q, want %q", got, want)
+	}
+	if got, want := errorMemory[0].Outcome, "warning"; got != want {
+		t.Fatalf("errorMemory[0].Outcome = %q, want %q", got, want)
+	}
+
+	taskOnly, err := globalDB.ListEventSummaries(testutil.Context(t), EventSummaryQuery{Component: "task"})
+	if err != nil {
+		t.Fatalf("ListEventSummaries(task component) error = %v", err)
+	}
+	if len(taskOnly) != 0 {
+		t.Fatalf("taskOnly events = %#v, want no memory rows for task component", taskOnly)
 	}
 }
 

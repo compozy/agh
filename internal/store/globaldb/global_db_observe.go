@@ -7,17 +7,21 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
+	eventspkg "github.com/pedronauck/agh/internal/events"
 	"github.com/pedronauck/agh/internal/store"
 )
+
+var memoryOutcomeCaseSQL = sync.OnceValue(buildMemoryOutcomeSQL)
 
 // WriteEventSummary stores a lightweight cross-session summary entry.
 func (g *GlobalDB) WriteEventSummary(ctx context.Context, summary store.EventSummary) error {
 	if err := g.checkReady(ctx, "write event summary"); err != nil {
 		return err
 	}
-	if err := g.populateEventSummaryWorkspace(ctx, &summary); err != nil {
+	if err := g.populateEventSummaryProjections(ctx, &summary); err != nil {
 		return err
 	}
 	if err := summary.Validate(); err != nil {
@@ -37,8 +41,8 @@ func (g *GlobalDB) WriteEventSummary(ctx context.Context, summary store.EventSum
 			id, session_id, workspace_id, type, agent_name, content_json, task_id, run_id, workflow_id, claim_token_hash,
 			lease_until, coordinator_session_id, scheduler_reason, hook_event, hook_name,
 			actor_kind, actor_id, release_reason, parent_session_id, root_session_id,
-			spawn_depth, summary, timestamp
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			spawn_depth, provider, outcome, summary, timestamp
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		summary.ID,
 		summary.SessionID,
 		summary.WorkspaceID,
@@ -60,6 +64,8 @@ func (g *GlobalDB) WriteEventSummary(ctx context.Context, summary store.EventSum
 		summary.ParentSessionID,
 		summary.RootSessionID,
 		summary.SpawnDepth,
+		summary.Provider,
+		summary.Outcome,
 		store.NullableString(summary.Summary),
 		store.FormatTimestamp(summary.Timestamp),
 	); err != nil {
@@ -78,7 +84,7 @@ func (g *GlobalDB) ListEventSummaries(
 	}
 
 	eventQuery := `SELECT 0 AS source_rank, rowid AS source_rowid, id, session_id, workspace_id,` +
-		` type, agent_name, content_json, task_id, run_id, workflow_id, claim_token_hash,` +
+		` type, agent_name, provider, outcome, content_json, task_id, run_id, workflow_id, claim_token_hash,` +
 		` lease_until, coordinator_session_id,
 		scheduler_reason, hook_event, hook_name, actor_kind, actor_id, release_reason,
 		parent_session_id, root_session_id, spawn_depth, summary, timestamp FROM event_summaries`
@@ -87,8 +93,15 @@ func (g *GlobalDB) ListEventSummaries(
 		store.StringClause("session_id", query.SessionID),
 		store.StringClause("agent_name", query.AgentName),
 		store.StringClause("type", query.Type),
+		store.StringClause("run_id", query.RunID),
+		store.StringClause("actor_kind", query.ActorKind),
+		store.StringClause("actor_id", query.ActorID),
+		store.StringClause("provider", query.Provider),
+		store.StringClause("outcome", query.Outcome),
+		store.Int64Clause("rowid", ">", query.AfterSequence),
 		store.TimeClause("timestamp", ">=", query.Since),
 	)
+	eventWhere, args = appendEventRegistryClauses(eventWhere, args, "type", query)
 	eventQuery = store.AppendWhere(eventQuery, eventWhere)
 
 	combinedQuery := eventQuery
@@ -134,6 +147,8 @@ func memoryEventSummaryQuery(query store.EventSummaryQuery) (string, []any) {
 		COALESCE(json_extract(metadata, '$.workspace_id'), '') AS workspace_id,
 		op AS type,
 		COALESCE(agent_name, '') AS agent_name,
+		'' AS provider,
+		` + memoryOutcomeSQL() + ` AS outcome,
 		'' AS content_json,
 		'' AS task_id, '' AS run_id, '' AS workflow_id, '' AS claim_token_hash, '' AS lease_until,
 		'' AS coordinator_session_id, '' AS scheduler_reason, '' AS hook_event, '' AS hook_name,
@@ -147,33 +162,179 @@ func memoryEventSummaryQuery(query store.EventSummaryQuery) (string, []any) {
 		store.StringClause("json_extract(metadata, '$.workspace_id')", query.WorkspaceID),
 		store.StringClause("agent_name", query.AgentName),
 		store.StringClause("op", query.Type),
+		store.Int64Clause("rowid", ">", query.AfterSequence),
 		store.Int64Clause("ts_ms", ">=", timestampMillis(query.Since)),
 	)
+	memoryWhere, memoryArgs = appendMemoryRegistryClauses(memoryWhere, memoryArgs, query)
 	return store.AppendWhere(memoryQuery, memoryWhere), memoryArgs
 }
 
-func (g *GlobalDB) populateEventSummaryWorkspace(ctx context.Context, summary *store.EventSummary) error {
-	if summary == nil || strings.TrimSpace(summary.WorkspaceID) != "" || strings.TrimSpace(summary.SessionID) == "" {
+func appendEventRegistryClauses(
+	where []string,
+	args []any,
+	column string,
+	query store.EventSummaryQuery,
+) ([]string, []any) {
+	if shouldApplyErrorOnlyClause(query) {
+		where = append(where, "outcome IN (?, ?)")
+		args = append(args, string(eventspkg.OutcomeFailure), string(eventspkg.OutcomeWarning))
+	} else if errorOnlyContradictsOutcome(query) {
+		where = append(where, "1 = 0")
+	}
+	if names := eventRegistryNamesForQuery(query); len(names) > 0 {
+		where, args = appendNamesClause(where, args, column, names)
+	}
+	return where, args
+}
+
+func appendMemoryRegistryClauses(
+	where []string,
+	args []any,
+	query store.EventSummaryQuery,
+) ([]string, []any) {
+	if strings.TrimSpace(query.Provider) != "" || strings.TrimSpace(query.RunID) != "" ||
+		strings.TrimSpace(query.ActorKind) != "" || strings.TrimSpace(query.ActorID) != "" {
+		where = append(where, "1 = 0")
+		return where, args
+	}
+	if strings.TrimSpace(query.Outcome) != "" {
+		names := memoryNamesForOutcomes(eventspkg.Outcome(strings.TrimSpace(query.Outcome)))
+		where, args = appendNamesClause(where, args, "op", names)
+	}
+	if shouldApplyErrorOnlyClause(query) {
+		names := memoryNamesForOutcomes(eventspkg.OutcomeFailure, eventspkg.OutcomeWarning)
+		where, args = appendNamesClause(where, args, "op", names)
+	} else if errorOnlyContradictsOutcome(query) {
+		where = append(where, "1 = 0")
+	}
+	if component := strings.TrimSpace(query.Component); component != "" {
+		if component != eventspkg.ComponentMemory {
+			where = append(where, "1 = 0")
+			return where, args
+		}
+		where, args = appendNamesClause(where, args, "op", eventspkg.NamesForComponent(eventspkg.ComponentMemory))
+	}
+	return where, args
+}
+
+func eventRegistryNamesForQuery(query store.EventSummaryQuery) []string {
+	component := strings.TrimSpace(query.Component)
+	if component == "" {
 		return nil
 	}
+	return eventspkg.NamesForComponent(component)
+}
+
+func shouldApplyErrorOnlyClause(query store.EventSummaryQuery) bool {
+	return query.ErrorOnly && strings.TrimSpace(query.Outcome) == ""
+}
+
+func errorOnlyContradictsOutcome(query store.EventSummaryQuery) bool {
+	if !query.ErrorOnly {
+		return false
+	}
+	switch eventspkg.Outcome(strings.TrimSpace(query.Outcome)) {
+	case "", eventspkg.OutcomeFailure, eventspkg.OutcomeWarning:
+		return false
+	default:
+		return true
+	}
+}
+
+func memoryNamesForOutcomes(outcomes ...eventspkg.Outcome) []string {
+	names := eventspkg.NamesForOutcomes(outcomes...)
+	filtered := make([]string, 0, len(names))
+	for _, name := range names {
+		meta, ok := eventspkg.Lookup(name)
+		if ok && meta.Component == eventspkg.ComponentMemory {
+			filtered = append(filtered, name)
+		}
+	}
+	return filtered
+}
+
+func appendNamesClause(where []string, args []any, column string, names []string) ([]string, []any) {
+	if len(names) == 0 {
+		where = append(where, "1 = 0")
+		return where, args
+	}
+	where = append(where, sqlInClause(column, len(names)))
+	for _, name := range names {
+		args = append(args, name)
+	}
+	return where, args
+}
+
+func sqlInClause(column string, count int) string {
+	if count <= 0 {
+		return "1 = 0"
+	}
+	placeholders := make([]string, count)
+	for index := range placeholders {
+		placeholders[index] = "?"
+	}
+	return column + " IN (" + strings.Join(placeholders, ", ") + ")"
+}
+
+func memoryOutcomeSQL() string {
+	return memoryOutcomeCaseSQL()
+}
+
+func buildMemoryOutcomeSQL() string {
+	var builder strings.Builder
+	builder.WriteString("CASE op")
+	for _, meta := range eventspkg.All() {
+		if meta.Component != eventspkg.ComponentMemory {
+			continue
+		}
+		builder.WriteString(" WHEN '")
+		builder.WriteString(meta.Name)
+		builder.WriteString("' THEN '")
+		builder.WriteString(string(meta.Outcome))
+		builder.WriteString("'")
+	}
+	builder.WriteString(" ELSE '")
+	builder.WriteString(string(eventspkg.OutcomeInfo))
+	builder.WriteString("' END")
+	return builder.String()
+}
+
+func (g *GlobalDB) populateEventSummaryProjections(ctx context.Context, summary *store.EventSummary) error {
+	summary.WorkspaceID = strings.TrimSpace(summary.WorkspaceID)
+	summary.Provider = strings.TrimSpace(summary.Provider)
+	summary.Outcome = strings.TrimSpace(summary.Outcome)
+	if strings.TrimSpace(summary.Outcome) == "" {
+		summary.Outcome = string(eventspkg.OutcomeFor(summary.Type))
+	}
+	if strings.TrimSpace(summary.SessionID) == "" ||
+		(summary.WorkspaceID != "" && summary.Provider != "") {
+		return nil
+	}
+
 	var workspaceID string
+	var provider string
 	err := g.db.QueryRowContext(
 		ctx,
-		`SELECT workspace_id FROM sessions WHERE id = ?`,
+		`SELECT workspace_id, provider FROM sessions WHERE id = ?`,
 		strings.TrimSpace(summary.SessionID),
-	).Scan(&workspaceID)
+	).Scan(&workspaceID, &provider)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("store: resolve event summary workspace: %w", err)
+		return fmt.Errorf("store: resolve event summary projections: %w", err)
 	}
-	summary.WorkspaceID = strings.TrimSpace(workspaceID)
+	if summary.WorkspaceID == "" {
+		summary.WorkspaceID = strings.TrimSpace(workspaceID)
+	}
+	if summary.Provider == "" {
+		summary.Provider = strings.TrimSpace(provider)
+	}
 	return nil
 }
 
 func eventSummaryListQuery(combinedQuery string, limit int) string {
-	baseSelect := `SELECT source_rowid, id, session_id, workspace_id, type, agent_name, content_json,` +
+	baseSelect := `SELECT source_rowid, id, session_id, workspace_id, type, agent_name, provider, outcome, content_json,` +
 		` task_id, run_id, workflow_id, claim_token_hash, lease_until, coordinator_session_id,` +
 		` scheduler_reason, hook_event,
 		hook_name, actor_kind, actor_id, release_reason, parent_session_id, root_session_id,
@@ -390,6 +551,8 @@ func scanEventSummary(scanner rowScanner) (store.EventSummary, error) {
 		&summary.WorkspaceID,
 		&summary.Type,
 		&summary.AgentName,
+		&summary.Provider,
+		&summary.Outcome,
 		&contentJSONRaw,
 		&summary.TaskID,
 		&summary.RunID,

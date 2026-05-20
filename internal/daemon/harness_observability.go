@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	eventspkg "github.com/pedronauck/agh/internal/events"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
 )
@@ -20,10 +21,10 @@ import (
 // summaries queue until OnSessionCreated because event_summaries.session_id
 // references the durable sessions index.
 const (
-	harnessSummaryContextResolved  = "harness.context_resolved"
-	harnessSummarySectionSelected  = "harness.section_selected"
-	harnessSummaryAugmenterApplied = "harness.augmenter_applied"
-	harnessSummaryAugmenterFailed  = "harness.augmenter_failed"
+	harnessSummaryContextResolved  = eventspkg.HarnessContextResolved
+	harnessSummarySectionSelected  = eventspkg.HarnessSectionSelected
+	harnessSummaryAugmenterApplied = eventspkg.HarnessAugmenterApplied
+	harnessSummaryAugmenterFailed  = eventspkg.HarnessAugmenterFailed
 	harnessSummaryDefaultAgentName = "daemon"
 )
 

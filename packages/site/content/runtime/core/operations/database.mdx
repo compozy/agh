@@ -118,6 +118,26 @@ order by updated_at desc;
 The global catalog records summaries and indexes. Use the session event database when you need the
 ordered event stream for one session.
 
+## Schema migration discipline
+
+AGH applies global database changes through the numbered `globalSchemaMigrations` registry in the
+runtime binary. New schema work appends at the registry tail. Existing migration versions, names,
+checksums, and order are persisted contracts and are not edited in place.
+
+The prod-ready foundation appends shared operational state after migration v26:
+
+| Table or column            | Owner         | Purpose                                                                                         |
+| -------------------------- | ------------- | ----------------------------------------------------------------------------------------------- |
+| `config_apply_records`     | Configuration | Records desired configuration hashes, active hashes, generation, actor, diff class, and status. |
+| `event_summaries.provider` | Observability | Stores the provider at write time so log filters do not join `sessions` on the read path.       |
+| `event_summaries.outcome`  | Observability | Stores the canonical event outcome for `error-only` log filters.                                |
+| `scheduler_pause`          | Scheduler     | Stores the scheduler-wide pause singleton that later scheduler controls read transactionally.   |
+
+Event names and outcomes are owned by the runtime event registry. Slices that introduce a new
+public event add one registry entry with its family, component, outcome, log eligibility, and
+notification eligibility before producers emit the event. The existing task-run family remains the
+underscore form, such as `task.run_completed`; `task_run.*` is not a public event family.
+
 ## Inspect a session event database
 
 Set the session ID and query its event store:

@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	eventspkg "github.com/pedronauck/agh/internal/events"
 	"github.com/pedronauck/agh/internal/store"
 )
 
@@ -128,14 +129,14 @@ func (r *Registry) buildSkillShadowSummaries(
 			WorkspaceID:     strings.TrimSpace(workspaceID),
 		})
 		if err != nil {
-			r.logger.Warn("skills: marshal skills.shadow content failed", "name", next.Meta.Name, "error", err)
+			r.logger.Warn("skills: marshal skill.shadowed content failed", "name", next.Meta.Name, "error", err)
 			continue
 		}
 
 		summaries = append(summaries, store.EventSummary{
 			WorkspaceID: strings.TrimSpace(workspaceID),
 			AgentName:   strings.TrimSpace(agentName),
-			Type:        "skills.shadow",
+			Type:        eventspkg.SkillShadowed,
 			Content:     content,
 			Summary: fmt.Sprintf(
 				"skill %s shadowed %s with %s",
@@ -186,7 +187,7 @@ func (r *Registry) emitSkillsLoadFailed(ctx context.Context, workspaceID string,
 	if writeErr := r.events.WriteEventSummary(ctx, store.EventSummary{
 		WorkspaceID: strings.TrimSpace(workspaceID),
 		AgentName:   strings.TrimSpace(agentName),
-		Type:        "skills.load_failed",
+		Type:        eventspkg.SkillLoadFailed,
 		Content:     content,
 		Summary:     fmt.Sprintf("agent-local skills load failed for %s", strings.TrimSpace(agentName)),
 	}); writeErr != nil {

@@ -411,6 +411,8 @@ func TestObserveEventPayloadFromEventIncludesLineage(t *testing.T) {
 			SessionID:       "sess-child",
 			Type:            "agent_message",
 			AgentName:       "coder",
+			Provider:        "codex",
+			Outcome:         "info",
 			ParentSessionID: "sess-parent",
 			RootSessionID:   "sess-root",
 			SpawnDepth:      1,
@@ -420,7 +422,10 @@ func TestObserveEventPayloadFromEventIncludesLineage(t *testing.T) {
 
 		if payload.ParentSessionID != "sess-parent" ||
 			payload.RootSessionID != "sess-root" ||
-			payload.SpawnDepth != 1 {
+			payload.SpawnDepth != 1 ||
+			payload.Provider != "codex" ||
+			payload.Outcome != "info" ||
+			payload.Component != "session" {
 			t.Fatalf("payload lineage = %#v", payload)
 		}
 	})
@@ -496,7 +501,7 @@ func TestParseSessionEventQueryAndHelpers(t *testing.T) {
 	ginCtx.Request = httptest.NewRequestWithContext(
 		context.Background(),
 		http.MethodGet,
-		"/events?type=agent_message&agent_name=coder&turn_id=turn-1&after_sequence=5&limit=10&since=2026-04-03T12:00:00Z",
+		"/events?type=agent_message&agent_name=coder&turn_id=turn-1&after_sequence=5&limit=10&since=2026-04-03T12:00:00Z&run=run-1&actor_kind=agent&actor_id=agent:coder&provider=codex&outcome=failure&component=task&error_only=true",
 		http.NoBody,
 	)
 
@@ -532,7 +537,15 @@ func TestParseSessionEventQueryAndHelpers(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseObserveEventQuery() error = %v", err)
 	}
-	if observeQuery.AgentName != "coder" {
+	if observeQuery.AgentName != "coder" ||
+		observeQuery.RunID != "run-1" ||
+		observeQuery.ActorKind != "agent" ||
+		observeQuery.ActorID != "agent:coder" ||
+		observeQuery.Provider != "codex" ||
+		observeQuery.Outcome != "failure" ||
+		observeQuery.Component != "task" ||
+		!observeQuery.ErrorOnly ||
+		observeQuery.AfterSequence != 5 {
 		t.Fatalf("observe query = %#v", observeQuery)
 	}
 

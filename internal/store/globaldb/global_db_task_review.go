@@ -690,7 +690,7 @@ func reviewContinuationMetadata(review taskpkg.RunReview, parentRun *taskpkg.Run
 	payload := map[string]string{
 		globalDBTaskReviewSourceKey:   "task_run_review",
 		globalDBTaskReviewReviewIDKey: review.ReviewID,
-		"outcome":                     string(review.Outcome),
+		globalDBOutcomeKey:            string(review.Outcome),
 	}
 	if parentRun != nil {
 		payload["parent_run_id"] = parentRun.ID
