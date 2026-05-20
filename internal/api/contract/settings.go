@@ -57,6 +57,22 @@ const (
 	SettingsCollectionHooks      SettingsCollectionName = "hooks"
 )
 
+type SettingsApplyTargetName string
+
+const (
+	SettingsApplyTargetGeneral         SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionGeneral)
+	SettingsApplyTargetMemory          SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionMemory)
+	SettingsApplyTargetSkills          SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionSkills)
+	SettingsApplyTargetAutomation      SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionAutomation)
+	SettingsApplyTargetNetwork         SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionNetwork)
+	SettingsApplyTargetObservability   SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionObservability)
+	SettingsApplyTargetHooksExtensions SettingsApplyTargetName = SettingsApplyTargetName(SettingsSectionHooksExtensions)
+	SettingsApplyTargetProviders       SettingsApplyTargetName = SettingsApplyTargetName(SettingsCollectionProviders)
+	SettingsApplyTargetMCPServers      SettingsApplyTargetName = SettingsApplyTargetName(SettingsCollectionMCPServers)
+	SettingsApplyTargetSandboxes       SettingsApplyTargetName = SettingsApplyTargetName(SettingsCollectionSandboxes)
+	SettingsApplyTargetHooks           SettingsApplyTargetName = SettingsApplyTargetName(SettingsCollectionHooks)
+)
+
 type SettingsWriteTargetKind string
 
 const (
@@ -989,8 +1005,8 @@ type SettingsApplyFailurePayload struct {
 }
 
 type SettingsApplyResponse struct {
-	Section          string                        `json:"section,omitempty"`
-	Scope            string                        `json:"scope,omitempty"`
+	Section          SettingsApplyTargetName       `json:"section,omitempty"`
+	Scope            SettingsScopeKind             `json:"scope,omitempty"`
 	WriteTarget      SettingsWriteTargetKind       `json:"write_target,omitempty"`
 	WorkspaceID      string                        `json:"workspace_id,omitempty"`
 	AgentName        string                        `json:"agent_name,omitempty"`

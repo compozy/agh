@@ -14,6 +14,7 @@ vi.mock("../../adapters/settings-api", () => ({
   putSettingsHook: vi.fn(),
   putSettingsMCPServer: vi.fn(),
   putSettingsProvider: vi.fn(),
+  reloadSettings: vi.fn(),
   updateSettingsAutomation: vi.fn(),
   updateSettingsGeneral: vi.fn(),
   updateSettingsHooksExtensions: vi.fn(),
@@ -29,6 +30,7 @@ import {
   disableSettingsExtension,
   enableSettingsExtension,
   putSettingsMCPServer,
+  reloadSettings,
   updateSettingsGeneral,
   updateSettingsMemory,
 } from "../../adapters/settings-api";
@@ -42,6 +44,7 @@ import {
   useDisableSettingsExtension,
   useEnableSettingsExtension,
   usePutSettingsMCPServer,
+  useReloadSettings,
   useUpdateSettingsGeneral,
   useUpdateSettingsMemory,
 } from "../use-settings-mutations";
@@ -58,10 +61,14 @@ function createWrapper() {
 }
 
 const generalMutation = {
+  active_config_hash: "sha256:active-live",
+  active_generation: 42,
   section: "general" as const,
   scope: "global" as const,
-  behavior: "restart_required" as const,
   applied: true,
+  apply_record_id: "cfg_apply_001",
+  lifecycle: "restart-required" as const,
+  next_action: "restart-daemon" as const,
   restart_required: true,
   restart_scope: "daemon",
   warnings: ["restart the daemon"],
@@ -84,7 +91,7 @@ afterEach(() => {
 });
 
 describe("useUpdateSettingsGeneral", () => {
-  it("records mutation state and invalidates only the general section", async () => {
+  it("records mutation state and invalidates the general section plus apply records", async () => {
     const { queryClient, wrapper } = createWrapper();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     vi.mocked(updateSettingsGeneral).mockResolvedValue(generalMutation);
@@ -111,12 +118,17 @@ describe("useUpdateSettingsGeneral", () => {
       expect(invalidateSpy).toHaveBeenCalledWith({
         queryKey: settingsKeys.section("general"),
       });
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: settingsKeys.applyRoot(),
+      });
     });
 
     expect(useSettingsRestartStore.getState().lastMutation?.restartRequired).toBe(true);
     expect(useSettingsRestartStore.getState().lastMutation?.warnings).toEqual([
       "restart the daemon",
     ]);
+    expect(useSettingsRestartStore.getState().lastMutation?.nextAction).toBe("restart-daemon");
+    expect(useSettingsRestartStore.getState().lastMutation?.applyRecordId).toBe("cfg_apply_001");
 
     const memoryInvalidations = invalidateSpy.mock.calls.filter(([arg]) =>
       JSON.stringify(arg?.queryKey).includes("memory")
@@ -126,7 +138,7 @@ describe("useUpdateSettingsGeneral", () => {
 });
 
 describe("useUpdateSettingsMemory", () => {
-  it("invalidates only memory section queries", async () => {
+  it("invalidates memory section and apply records", async () => {
     const { queryClient, wrapper } = createWrapper();
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
     vi.mocked(updateSettingsMemory).mockResolvedValue({
@@ -147,7 +159,28 @@ describe("useUpdateSettingsMemory", () => {
 
     await waitFor(() => {
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: settingsKeys.section("memory") });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: settingsKeys.applyRoot() });
     });
+  });
+});
+
+describe("useReloadSettings", () => {
+  it("records reload state and invalidates all settings queries", async () => {
+    const { queryClient, wrapper } = createWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    vi.mocked(reloadSettings).mockResolvedValue(generalMutation);
+
+    const { result } = renderHook(() => useReloadSettings(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync();
+    });
+
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: settingsKeys.all });
+    });
+
+    expect(useSettingsRestartStore.getState().lastMutation?.activeGeneration).toBe(42);
   });
 });
 
@@ -168,6 +201,7 @@ describe("provider mutations", () => {
 
     await waitFor(() => {
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: settingsKeys.providersRoot() });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: settingsKeys.applyRoot() });
       expect(invalidateSpy).toHaveBeenCalledWith({
         queryKey: settingsKeys.providerDetail("openai"),
       });
@@ -196,6 +230,7 @@ describe("mcp server mutations", () => {
 
     await waitFor(() => {
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: settingsKeys.mcpRoot() });
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: settingsKeys.applyRoot() });
     });
 
     expect(putSettingsMCPServer).toHaveBeenCalledWith(

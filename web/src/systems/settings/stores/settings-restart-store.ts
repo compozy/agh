@@ -1,12 +1,21 @@
 import type { StateCreator } from "zustand";
 
-import type { SettingsMutationResult, SettingsRestartStatusName } from "../types";
+import type {
+  ConfigApplyLifecycle,
+  SettingsApplyNextAction,
+  SettingsMutationResult,
+  SettingsRestartStatusName,
+} from "../types";
 
 export interface PendingSettingsMutation {
   section: SettingsMutationResult["section"];
   restartRequired: boolean;
   restartScope?: string;
   warnings: string[];
+  lifecycle?: ConfigApplyLifecycle;
+  nextAction?: SettingsApplyNextAction;
+  applyRecordId?: string;
+  activeGeneration?: number;
   completedAt: string;
 }
 

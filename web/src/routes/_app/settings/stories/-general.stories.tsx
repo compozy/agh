@@ -136,7 +136,7 @@ export const RestartPolling: Story = {
     ...appRouteParameters("/settings/general"),
     ...storybookMswParameters({
       settings: [
-        http.get("/api/settings/restart/:operationId", async () => {
+        http.get("/api/settings/actions/restart/:operation_id", async () => {
           await delay("infinite");
           return HttpResponse.json({});
         }),
@@ -157,6 +157,16 @@ export const RestartPolling: Story = {
       />
     </>
   ),
+};
+
+/**
+ * Apply-history state -- config apply records include applied, blocked, and
+ * failed rows with next-action and diagnostics surfaced in the general route.
+ */
+export const ApplyHistory: Story = {
+  args: {},
+  parameters: appRouteParameters("/settings/general"),
+  render: () => <StorybookWorkspaceSetup />,
 };
 
 /**

@@ -257,10 +257,6 @@ func (r *configApplyRecordRepository) normalizeForUpdate(record ApplyRecord) App
 	if normalized.UpdatedAt.IsZero() {
 		normalized.UpdatedAt = r.now().UTC()
 	}
-	if normalized.Status == lifecycle.StatusApplied && normalized.AppliedAt == nil {
-		appliedAt := normalized.UpdatedAt
-		normalized.AppliedAt = &appliedAt
-	}
 	if strings.TrimSpace(normalized.Actor) == "" {
 		normalized.Actor = applyRecordActorRuntime
 	}

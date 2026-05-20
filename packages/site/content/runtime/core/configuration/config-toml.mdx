@@ -3,8 +3,10 @@ title: config.toml
 description: Complete AGH config.toml schema, defaults, valid values, merge behavior, and annotated examples.
 ---
 
-`config.toml` is the main AGH runtime configuration file. AGH loads the built-in defaults, then
-overlays global and workspace files when they exist.
+`config.toml` is the main AGH runtime desired-state file. AGH loads the built-in defaults, then
+overlays global and workspace files when they exist. The daemon only treats a change as runtime
+truth after `ConfigApplyService` advances the active generation and writes a `config_apply_records`
+audit row.
 
 | File                           | Scope                 | Loaded when                                                        |
 | ------------------------------ | --------------------- | ------------------------------------------------------------------ |
@@ -27,6 +29,7 @@ Use only `[sandboxes.<name>]` for session execution boundaries.
 | Section                              | Purpose                                                                         | Default                                                                            |
 | ------------------------------------ | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | `[daemon]`                           | Unix domain socket path for CLI and UDS API traffic.                            | `socket = "$AGH_HOME/daemon.sock"`                                                 |
+| `[daemon.reload_timeouts]`           | Live reload timeout budgets for provider, MCP, and bridge subsystem applies.    | providers `5s`, MCP `10s`, bridges `30s`                                           |
 | `[http]`                             | HTTP and SSE bind address.                                                      | `host = "localhost"`, `port = 2123`                                                |
 | `[defaults]`                         | Default agent, provider, and sandbox resolution.                                | `agent = "general"`, `provider = ""`, `sandbox = ""`                               |
 | `[limits]`                           | Daemon-level concurrently running agent cap.                                    | `max_concurrent_agents = 20`                                                       |
@@ -97,6 +100,14 @@ global and workspace MCP sidecars for session and runtime resolution.
 [daemon]
 # Path to the Unix domain socket used by AGH CLI commands.
 socket = "~/.agh/daemon.sock"
+
+[daemon.reload_timeouts]
+# Provider runtime reload budget. Valid range: 1s to 60s.
+providers = "5s"
+# MCP runtime reload budget. Valid range: 1s to 60s.
+mcp = "10s"
+# Bridge runtime reload budget. Valid range: 1s to 300s.
+bridges = "30s"
 
 [http]
 # HTTP/SSE API bind address.

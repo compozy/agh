@@ -13,6 +13,7 @@ import {
   getSettingsRestartStatus,
   getSettingsSkills,
   getSettingsUpdate,
+  listSettingsApplyRecords,
   listSettingsSandboxes,
   listSettingsExtensions,
   listSettingsHooks,
@@ -21,12 +22,18 @@ import {
 } from "../adapters/settings-api";
 import { settingsKeys } from "./query-keys";
 import { isTerminalRestartStatus } from "./restart-status";
-import type { SettingsMCPServerListFilter, SettingsSkillsFilter } from "../types";
+import type {
+  SettingsApplyRecordsFilter,
+  SettingsMCPServerListFilter,
+  SettingsSkillsFilter,
+} from "../types";
 
 const SECTION_STALE_TIME = 15_000;
 const SECTION_REFETCH_INTERVAL = 60_000;
 const COLLECTION_STALE_TIME = 15_000;
 const COLLECTION_REFETCH_INTERVAL = 45_000;
+const APPLY_RECORDS_STALE_TIME = 5_000;
+const APPLY_RECORDS_REFETCH_INTERVAL = 30_000;
 const RESTART_POLL_INTERVAL = 2_000;
 const SETTINGS_QUERY_RETRY_LIMIT = 2;
 
@@ -205,10 +212,22 @@ export function settingsRestartStatusOptions(operationId: string | null, enabled
   });
 }
 
+export function settingsApplyRecordsOptions(filter: SettingsApplyRecordsFilter = {}) {
+  return queryOptions({
+    queryKey: settingsKeys.applyRecords(filter),
+    queryFn: ({ signal }) => listSettingsApplyRecords(filter, signal),
+    staleTime: APPLY_RECORDS_STALE_TIME,
+    refetchInterval: APPLY_RECORDS_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
+  });
+}
+
 export const SETTINGS_QUERY_INTERVALS = {
   sectionStaleTime: SECTION_STALE_TIME,
   sectionRefetchInterval: SECTION_REFETCH_INTERVAL,
   collectionStaleTime: COLLECTION_STALE_TIME,
   collectionRefetchInterval: COLLECTION_REFETCH_INTERVAL,
+  applyRecordsStaleTime: APPLY_RECORDS_STALE_TIME,
+  applyRecordsRefetchInterval: APPLY_RECORDS_REFETCH_INTERVAL,
   restartPollInterval: RESTART_POLL_INTERVAL,
 } as const;

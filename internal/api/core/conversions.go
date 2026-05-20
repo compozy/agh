@@ -1750,8 +1750,8 @@ func SettingsCollectionMutationResultPayloadFromResult(result settingspkg.Mutati
 // SettingsApplyResponseFromResult converts one settings apply result into the public payload.
 func SettingsApplyResponseFromResult(result settingspkg.ApplyResult) contract.SettingsApplyResponse {
 	return contract.SettingsApplyResponse{
-		Section:          strings.TrimSpace(string(result.Section)),
-		Scope:            strings.TrimSpace(string(result.Scope)),
+		Section:          contract.SettingsApplyTargetName(strings.TrimSpace(string(result.Section))),
+		Scope:            contract.SettingsScopeKind(strings.TrimSpace(string(result.Scope))),
 		WriteTarget:      contract.SettingsWriteTargetKind(result.WriteTarget),
 		WorkspaceID:      strings.TrimSpace(result.WorkspaceID),
 		AgentName:        strings.TrimSpace(result.AgentName),

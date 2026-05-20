@@ -6,6 +6,7 @@ import {
 } from "@/lib/api-client";
 
 import type {
+  ConfigApplyRecordsResponse,
   SettingsAutomationSection,
   SettingsSandboxCollection,
   SettingsSandboxDetail,
@@ -27,6 +28,8 @@ import type {
   SettingsProviderCollection,
   SettingsProviderDetail,
   SettingsProviderRequest,
+  SettingsApplyRecordsFilter,
+  SettingsApplyResponse,
   SettingsRestartResponse,
   SettingsRestartStatus,
   SettingsSkillsFilter,
@@ -85,6 +88,14 @@ function normalizeSettingsSkillsFilter(
     scope: filter.scope,
     workspace_id: normalizeOptionalText(filter.workspace_id),
     agent_name: normalizeOptionalText(filter.agent_name),
+  };
+}
+
+function normalizeApplyRecordsFilter(filter: SettingsApplyRecordsFilter = {}) {
+  return {
+    status: filter.status,
+    actor: normalizeOptionalText(filter.actor),
+    limit: filter.limit,
   };
 }
 
@@ -644,6 +655,40 @@ export async function triggerSettingsRestart(
   }
 
   return requireResponseData(data, response, "Failed to trigger daemon restart");
+}
+
+export async function reloadSettings(signal?: AbortSignal): Promise<SettingsApplyResponse> {
+  const { data, error, response } = await apiClient.POST("/api/settings/reload", {
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    throw new SettingsApiError(
+      defaultApiErrorMessage("Failed to reload settings", response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, "Failed to reload settings");
+}
+
+export async function listSettingsApplyRecords(
+  filter: SettingsApplyRecordsFilter = {},
+  signal?: AbortSignal
+): Promise<ConfigApplyRecordsResponse> {
+  const { data, error, response } = await apiClient.GET("/api/settings/apply", {
+    params: { query: normalizeApplyRecordsFilter(filter) },
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    throw new SettingsApiError(
+      defaultApiErrorMessage("Failed to load config apply records", response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, "Failed to load config apply records");
 }
 
 export async function getSettingsRestartStatus(

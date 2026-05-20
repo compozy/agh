@@ -1898,6 +1898,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/settings/apply": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List config apply records for desired and active generation reconciliation */
+    get: operations["listSettingsApplyRecords"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/settings/automation": {
     parameters: {
       query?: never;
@@ -2124,6 +2141,23 @@ export interface paths {
     post?: never;
     /** Delete one settings-backed provider overlay */
     delete: operations["deleteSettingsProvider"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/settings/reload": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Reconcile config.toml with the daemon active generation */
+    post: operations["reloadSettings"];
+    delete?: never;
     options?: never;
     head?: never;
     patch?: never;
@@ -27390,6 +27424,136 @@ export interface operations {
       };
     };
   };
+  listSettingsApplyRecords: {
+    parameters: {
+      query?: {
+        /** @description Filter by apply status */
+        status?: "pending_apply" | "applied" | "blocked" | "failed";
+        /** @description Filter by config apply actor */
+        actor?: string;
+        /** @description Maximum number of records to return */
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            entries: {
+              active_config_hash: string;
+              actor: string;
+              /** Format: date-time */
+              applied_at?: string | null;
+              /** Format: date-time */
+              created_at: string;
+              desired_config_hash: string;
+              diagnostics?: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              }[];
+              /** @enum {string} */
+              diff_class:
+                | "live"
+                | "live-add"
+                | "live-remove-if-unused"
+                | "restart-required"
+                | "session-rebind";
+              /** Format: int64 */
+              generation: number;
+              id: string;
+              /** @enum {string} */
+              lifecycle:
+                | "live"
+                | "live-add"
+                | "live-remove-if-unused"
+                | "restart-required"
+                | "session-rebind";
+              /** @enum {string} */
+              next_action: "none" | "restart-daemon" | "new-session" | "retry";
+              /** @enum {string} */
+              status: "pending_apply" | "applied" | "blocked" | "failed";
+              /** Format: date-time */
+              updated_at: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid apply history filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   getSettingsAutomation: {
     parameters: {
       query?: never;
@@ -27511,23 +27675,47 @@ export interface operations {
         };
         content: {
           "application/json": {
+            active_config_hash: string;
+            /** Format: int64 */
+            active_generation: number;
+            agent_name?: string;
             applied: boolean;
+            apply_record_id: string;
             /** @enum {string} */
-            behavior: "applied_now" | "restart_required" | "action_trigger";
-            restart_required: boolean;
+            lifecycle:
+              | "live"
+              | "live-add"
+              | "live-remove-if-unused"
+              | "restart-required"
+              | "session-rebind";
+            /** @enum {string} */
+            next_action: "none" | "restart-daemon" | "new-session" | "retry";
+            partial_failures?: {
+              diagnostic: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              };
+              subsystem: string;
+            }[];
+            restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global";
-            /** @enum {string} */
-            section:
-              | "general"
-              | "memory"
-              | "skills"
-              | "automation"
-              | "network"
-              | "observability"
-              | "hooks-extensions";
+            scope?: "global" | "workspace" | "agent";
+            section?: string;
+            skipped?: boolean;
+            skipped_reason?: string;
             warnings?: string[];
+            workspace_id?: string;
             /** @enum {string} */
             write_target?:
               | "global-config"
@@ -27818,23 +28006,47 @@ export interface operations {
         };
         content: {
           "application/json": {
+            active_config_hash: string;
+            /** Format: int64 */
+            active_generation: number;
+            agent_name?: string;
             applied: boolean;
+            apply_record_id: string;
             /** @enum {string} */
-            behavior: "applied_now" | "restart_required" | "action_trigger";
-            restart_required: boolean;
+            lifecycle:
+              | "live"
+              | "live-add"
+              | "live-remove-if-unused"
+              | "restart-required"
+              | "session-rebind";
+            /** @enum {string} */
+            next_action: "none" | "restart-daemon" | "new-session" | "retry";
+            partial_failures?: {
+              diagnostic: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              };
+              subsystem: string;
+            }[];
+            restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global";
-            /** @enum {string} */
-            section:
-              | "general"
-              | "memory"
-              | "skills"
-              | "automation"
-              | "network"
-              | "observability"
-              | "hooks-extensions";
+            scope?: "global" | "workspace" | "agent";
+            section?: string;
+            skipped?: boolean;
+            skipped_reason?: string;
             warnings?: string[];
+            workspace_id?: string;
             /** @enum {string} */
             write_target?:
               | "global-config"
@@ -28507,23 +28719,47 @@ export interface operations {
         };
         content: {
           "application/json": {
+            active_config_hash: string;
+            /** Format: int64 */
+            active_generation: number;
+            agent_name?: string;
             applied: boolean;
+            apply_record_id: string;
             /** @enum {string} */
-            behavior: "applied_now" | "restart_required" | "action_trigger";
-            restart_required: boolean;
+            lifecycle:
+              | "live"
+              | "live-add"
+              | "live-remove-if-unused"
+              | "restart-required"
+              | "session-rebind";
+            /** @enum {string} */
+            next_action: "none" | "restart-daemon" | "new-session" | "retry";
+            partial_failures?: {
+              diagnostic: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              };
+              subsystem: string;
+            }[];
+            restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global";
-            /** @enum {string} */
-            section:
-              | "general"
-              | "memory"
-              | "skills"
-              | "automation"
-              | "network"
-              | "observability"
-              | "hooks-extensions";
+            scope?: "global" | "workspace" | "agent";
+            section?: string;
+            skipped?: boolean;
+            skipped_reason?: string;
             warnings?: string[];
+            workspace_id?: string;
             /** @enum {string} */
             write_target?:
               | "global-config"
@@ -28800,16 +29036,47 @@ export interface operations {
         };
         content: {
           "application/json": {
+            active_config_hash: string;
+            /** Format: int64 */
+            active_generation: number;
+            agent_name?: string;
             applied: boolean;
+            apply_record_id: string;
             /** @enum {string} */
-            behavior: "applied_now" | "restart_required" | "action_trigger";
-            restart_required: boolean;
+            lifecycle:
+              | "live"
+              | "live-add"
+              | "live-remove-if-unused"
+              | "restart-required"
+              | "session-rebind";
+            /** @enum {string} */
+            next_action: "none" | "restart-daemon" | "new-session" | "retry";
+            partial_failures?: {
+              diagnostic: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              };
+              subsystem: string;
+            }[];
+            restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global";
-            /** @enum {string} */
-            section: "providers" | "mcp-servers" | "sandboxes" | "hooks";
+            scope?: "global" | "workspace" | "agent";
+            section?: string;
+            skipped?: boolean;
+            skipped_reason?: string;
             warnings?: string[];
+            workspace_id?: string;
             /** @enum {string} */
             write_target?:
               | "global-config"
@@ -28948,16 +29215,47 @@ export interface operations {
         };
         content: {
           "application/json": {
+            active_config_hash: string;
+            /** Format: int64 */
+            active_generation: number;
+            agent_name?: string;
             applied: boolean;
+            apply_record_id: string;
             /** @enum {string} */
-            behavior: "applied_now" | "restart_required" | "action_trigger";
-            restart_required: boolean;
+            lifecycle:
+              | "live"
+              | "live-add"
+              | "live-remove-if-unused"
+              | "restart-required"
+              | "session-rebind";
+            /** @enum {string} */
+            next_action: "none" | "restart-daemon" | "new-session" | "retry";
+            partial_failures?: {
+              diagnostic: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              };
+              subsystem: string;
+            }[];
+            restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global";
-            /** @enum {string} */
-            section: "providers" | "mcp-servers" | "sandboxes" | "hooks";
+            scope?: "global" | "workspace" | "agent";
+            section?: string;
+            skipped?: boolean;
+            skipped_reason?: string;
             warnings?: string[];
+            workspace_id?: string;
             /** @enum {string} */
             write_target?:
               | "global-config"
@@ -29321,15 +29619,45 @@ export interface operations {
         };
         content: {
           "application/json": {
+            active_config_hash: string;
+            /** Format: int64 */
+            active_generation: number;
+            agent_name?: string;
             applied: boolean;
+            apply_record_id: string;
             /** @enum {string} */
-            behavior: "applied_now" | "restart_required" | "action_trigger";
-            restart_required: boolean;
+            lifecycle:
+              | "live"
+              | "live-add"
+              | "live-remove-if-unused"
+              | "restart-required"
+              | "session-rebind";
+            /** @enum {string} */
+            next_action: "none" | "restart-daemon" | "new-session" | "retry";
+            partial_failures?: {
+              diagnostic: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              };
+              subsystem: string;
+            }[];
+            restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global" | "workspace";
-            /** @enum {string} */
-            section: "providers" | "mcp-servers" | "sandboxes" | "hooks";
+            scope?: "global" | "workspace" | "agent";
+            section?: string;
+            skipped?: boolean;
+            skipped_reason?: string;
             warnings?: string[];
             workspace_id?: string;
             /** @enum {string} */
@@ -29502,15 +29830,45 @@ export interface operations {
         };
         content: {
           "application/json": {
+            active_config_hash: string;
+            /** Format: int64 */
+            active_generation: number;
+            agent_name?: string;
             applied: boolean;
+            apply_record_id: string;
             /** @enum {string} */
-            behavior: "applied_now" | "restart_required" | "action_trigger";
-            restart_required: boolean;
+            lifecycle:
+              | "live"
+              | "live-add"
+              | "live-remove-if-unused"
+              | "restart-required"
+              | "session-rebind";
+            /** @enum {string} */
+            next_action: "none" | "restart-daemon" | "new-session" | "retry";
+            partial_failures?: {
+              diagnostic: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              };
+              subsystem: string;
+            }[];
+            restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global" | "workspace";
-            /** @enum {string} */
-            section: "providers" | "mcp-servers" | "sandboxes" | "hooks";
+            scope?: "global" | "workspace" | "agent";
+            section?: string;
+            skipped?: boolean;
+            skipped_reason?: string;
             warnings?: string[];
             workspace_id?: string;
             /** @enum {string} */
@@ -30026,23 +30384,47 @@ export interface operations {
         };
         content: {
           "application/json": {
+            active_config_hash: string;
+            /** Format: int64 */
+            active_generation: number;
+            agent_name?: string;
             applied: boolean;
+            apply_record_id: string;
             /** @enum {string} */
-            behavior: "applied_now" | "restart_required" | "action_trigger";
-            restart_required: boolean;
+            lifecycle:
+              | "live"
+              | "live-add"
+              | "live-remove-if-unused"
+              | "restart-required"
+              | "session-rebind";
+            /** @enum {string} */
+            next_action: "none" | "restart-daemon" | "new-session" | "retry";
+            partial_failures?: {
+              diagnostic: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              };
+              subsystem: string;
+            }[];
+            restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global";
-            /** @enum {string} */
-            section:
-              | "general"
-              | "memory"
-              | "skills"
-              | "automation"
-              | "network"
-              | "observability"
-              | "hooks-extensions";
+            scope?: "global" | "workspace" | "agent";
+            section?: string;
+            skipped?: boolean;
+            skipped_reason?: string;
             warnings?: string[];
+            workspace_id?: string;
             /** @enum {string} */
             write_target?:
               | "global-config"
@@ -30283,23 +30665,47 @@ export interface operations {
         };
         content: {
           "application/json": {
+            active_config_hash: string;
+            /** Format: int64 */
+            active_generation: number;
+            agent_name?: string;
             applied: boolean;
+            apply_record_id: string;
             /** @enum {string} */
-            behavior: "applied_now" | "restart_required" | "action_trigger";
-            restart_required: boolean;
+            lifecycle:
+              | "live"
+              | "live-add"
+              | "live-remove-if-unused"
+              | "restart-required"
+              | "session-rebind";
+            /** @enum {string} */
+            next_action: "none" | "restart-daemon" | "new-session" | "retry";
+            partial_failures?: {
+              diagnostic: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              };
+              subsystem: string;
+            }[];
+            restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global";
-            /** @enum {string} */
-            section:
-              | "general"
-              | "memory"
-              | "skills"
-              | "automation"
-              | "network"
-              | "observability"
-              | "hooks-extensions";
+            scope?: "global" | "workspace" | "agent";
+            section?: string;
+            skipped?: boolean;
+            skipped_reason?: string;
             warnings?: string[];
+            workspace_id?: string;
             /** @enum {string} */
             write_target?:
               | "global-config"
@@ -30547,23 +30953,47 @@ export interface operations {
         };
         content: {
           "application/json": {
+            active_config_hash: string;
+            /** Format: int64 */
+            active_generation: number;
+            agent_name?: string;
             applied: boolean;
+            apply_record_id: string;
             /** @enum {string} */
-            behavior: "applied_now" | "restart_required" | "action_trigger";
-            restart_required: boolean;
+            lifecycle:
+              | "live"
+              | "live-add"
+              | "live-remove-if-unused"
+              | "restart-required"
+              | "session-rebind";
+            /** @enum {string} */
+            next_action: "none" | "restart-daemon" | "new-session" | "retry";
+            partial_failures?: {
+              diagnostic: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              };
+              subsystem: string;
+            }[];
+            restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global";
-            /** @enum {string} */
-            section:
-              | "general"
-              | "memory"
-              | "skills"
-              | "automation"
-              | "network"
-              | "observability"
-              | "hooks-extensions";
+            scope?: "global" | "workspace" | "agent";
+            section?: string;
+            skipped?: boolean;
+            skipped_reason?: string;
             warnings?: string[];
+            workspace_id?: string;
             /** @enum {string} */
             write_target?:
               | "global-config"
@@ -31313,16 +31743,47 @@ export interface operations {
         };
         content: {
           "application/json": {
+            active_config_hash: string;
+            /** Format: int64 */
+            active_generation: number;
+            agent_name?: string;
             applied: boolean;
+            apply_record_id: string;
             /** @enum {string} */
-            behavior: "applied_now" | "restart_required" | "action_trigger";
-            restart_required: boolean;
+            lifecycle:
+              | "live"
+              | "live-add"
+              | "live-remove-if-unused"
+              | "restart-required"
+              | "session-rebind";
+            /** @enum {string} */
+            next_action: "none" | "restart-daemon" | "new-session" | "retry";
+            partial_failures?: {
+              diagnostic: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              };
+              subsystem: string;
+            }[];
+            restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global";
-            /** @enum {string} */
-            section: "providers" | "mcp-servers" | "sandboxes" | "hooks";
+            scope?: "global" | "workspace" | "agent";
+            section?: string;
+            skipped?: boolean;
+            skipped_reason?: string;
             warnings?: string[];
+            workspace_id?: string;
             /** @enum {string} */
             write_target?:
               | "global-config"
@@ -31461,16 +31922,47 @@ export interface operations {
         };
         content: {
           "application/json": {
+            active_config_hash: string;
+            /** Format: int64 */
+            active_generation: number;
+            agent_name?: string;
             applied: boolean;
+            apply_record_id: string;
             /** @enum {string} */
-            behavior: "applied_now" | "restart_required" | "action_trigger";
-            restart_required: boolean;
+            lifecycle:
+              | "live"
+              | "live-add"
+              | "live-remove-if-unused"
+              | "restart-required"
+              | "session-rebind";
+            /** @enum {string} */
+            next_action: "none" | "restart-daemon" | "new-session" | "retry";
+            partial_failures?: {
+              diagnostic: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              };
+              subsystem: string;
+            }[];
+            restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global";
-            /** @enum {string} */
-            section: "providers" | "mcp-servers" | "sandboxes" | "hooks";
+            scope?: "global" | "workspace" | "agent";
+            section?: string;
+            skipped?: boolean;
+            skipped_reason?: string;
             warnings?: string[];
+            workspace_id?: string;
             /** @enum {string} */
             write_target?:
               | "global-config"
@@ -31509,6 +32001,157 @@ export interface operations {
       };
       /** @description Provider not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  reloadSettings: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            active_config_hash: string;
+            /** Format: int64 */
+            active_generation: number;
+            agent_name?: string;
+            applied: boolean;
+            apply_record_id: string;
+            /** @enum {string} */
+            lifecycle:
+              | "live"
+              | "live-add"
+              | "live-remove-if-unused"
+              | "restart-required"
+              | "session-rebind";
+            /** @enum {string} */
+            next_action: "none" | "restart-daemon" | "new-session" | "retry";
+            partial_failures?: {
+              diagnostic: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              };
+              subsystem: string;
+            }[];
+            restart_required?: boolean;
+            restart_scope?: string;
+            /** @enum {string} */
+            scope?: "global" | "workspace" | "agent";
+            section?: string;
+            skipped?: boolean;
+            skipped_reason?: string;
+            warnings?: string[];
+            workspace_id?: string;
+            /** @enum {string} */
+            write_target?:
+              | "global-config"
+              | "workspace-config"
+              | "global-mcp-sidecar"
+              | "workspace-mcp-sidecar"
+              | "global-agent-file"
+              | "workspace-agent-file";
+          };
+        };
+      };
+      /** @description Invalid settings payload */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Conflicting settings change */
+      409: {
         headers: {
           [name: string]: unknown;
         };
@@ -31899,16 +32542,47 @@ export interface operations {
         };
         content: {
           "application/json": {
+            active_config_hash: string;
+            /** Format: int64 */
+            active_generation: number;
+            agent_name?: string;
             applied: boolean;
+            apply_record_id: string;
             /** @enum {string} */
-            behavior: "applied_now" | "restart_required" | "action_trigger";
-            restart_required: boolean;
+            lifecycle:
+              | "live"
+              | "live-add"
+              | "live-remove-if-unused"
+              | "restart-required"
+              | "session-rebind";
+            /** @enum {string} */
+            next_action: "none" | "restart-daemon" | "new-session" | "retry";
+            partial_failures?: {
+              diagnostic: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              };
+              subsystem: string;
+            }[];
+            restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global";
-            /** @enum {string} */
-            section: "providers" | "mcp-servers" | "sandboxes" | "hooks";
+            scope?: "global" | "workspace" | "agent";
+            section?: string;
+            skipped?: boolean;
+            skipped_reason?: string;
             warnings?: string[];
+            workspace_id?: string;
             /** @enum {string} */
             write_target?:
               | "global-config"
@@ -32047,16 +32721,47 @@ export interface operations {
         };
         content: {
           "application/json": {
+            active_config_hash: string;
+            /** Format: int64 */
+            active_generation: number;
+            agent_name?: string;
             applied: boolean;
+            apply_record_id: string;
             /** @enum {string} */
-            behavior: "applied_now" | "restart_required" | "action_trigger";
-            restart_required: boolean;
+            lifecycle:
+              | "live"
+              | "live-add"
+              | "live-remove-if-unused"
+              | "restart-required"
+              | "session-rebind";
+            /** @enum {string} */
+            next_action: "none" | "restart-daemon" | "new-session" | "retry";
+            partial_failures?: {
+              diagnostic: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              };
+              subsystem: string;
+            }[];
+            restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global";
-            /** @enum {string} */
-            section: "providers" | "mcp-servers" | "sandboxes" | "hooks";
+            scope?: "global" | "workspace" | "agent";
+            section?: string;
+            skipped?: boolean;
+            skipped_reason?: string;
             warnings?: string[];
+            workspace_id?: string;
             /** @enum {string} */
             write_target?:
               | "global-config"
@@ -32379,23 +33084,45 @@ export interface operations {
         };
         content: {
           "application/json": {
+            active_config_hash: string;
+            /** Format: int64 */
+            active_generation: number;
             agent_name?: string;
             applied: boolean;
+            apply_record_id: string;
             /** @enum {string} */
-            behavior: "applied_now" | "restart_required" | "action_trigger";
-            restart_required: boolean;
+            lifecycle:
+              | "live"
+              | "live-add"
+              | "live-remove-if-unused"
+              | "restart-required"
+              | "session-rebind";
+            /** @enum {string} */
+            next_action: "none" | "restart-daemon" | "new-session" | "retry";
+            partial_failures?: {
+              diagnostic: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              };
+              subsystem: string;
+            }[];
+            restart_required?: boolean;
             restart_scope?: string;
             /** @enum {string} */
-            scope: "global" | "agent";
-            /** @enum {string} */
-            section:
-              | "general"
-              | "memory"
-              | "skills"
-              | "automation"
-              | "network"
-              | "observability"
-              | "hooks-extensions";
+            scope?: "global" | "workspace" | "agent";
+            section?: string;
+            skipped?: boolean;
+            skipped_reason?: string;
             warnings?: string[];
             workspace_id?: string;
             /** @enum {string} */

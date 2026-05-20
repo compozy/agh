@@ -115,8 +115,12 @@ describe("useSettingsMemoryPage", () => {
     vi.mocked(updateSettingsMemory).mockResolvedValue({
       section: "memory",
       scope: "global",
-      behavior: "restart_required",
       applied: true,
+      active_config_hash: "sha256:test-active",
+      active_generation: 1,
+      apply_record_id: "cfg_apply_test",
+      lifecycle: "live",
+      next_action: "none",
       restart_required: true,
       write_target: "global-config",
     });

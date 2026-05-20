@@ -16,6 +16,8 @@ import (
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	bundlepkg "github.com/pedronauck/agh/internal/bundles"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	diagnosticcontract "github.com/pedronauck/agh/internal/diagnosticcontract"
+	"github.com/pedronauck/agh/internal/diagnostics"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	"github.com/pedronauck/agh/internal/heartbeat"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
@@ -1799,6 +1801,7 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 		TransportParity:            surface,
 		MCPAuth:                    surface,
 		MCPRuntime:                 surface,
+		RuntimeApplier:             daemonSettingsRuntimeApplier{daemon: d, state: state},
 		ProviderSecrets:            settingsProviderVaultDependency(state.providerVault),
 		EventSummaries:             state.registry,
 		ApplyRecords:               applyRecords,
@@ -1825,6 +1828,54 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 	state.deps.SettingsRestart = settingsRestartController{daemon: d}
 	state.deps.SettingsUpdate = settingsUpdateController{manager: updateManager}
 	return nil
+}
+
+type daemonSettingsRuntimeApplier struct {
+	daemon *Daemon
+	state  *bootState
+}
+
+func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
+	ctx context.Context,
+	snap *aghconfig.Config,
+) []settingspkg.ApplyFailure {
+	if a.daemon == nil || a.state == nil || snap == nil {
+		return nil
+	}
+	next := *snap
+
+	a.daemon.mu.Lock()
+	previous := a.state.cfg
+	a.state.cfg = next
+	a.daemon.config = next
+	a.daemon.mu.Unlock()
+
+	var failures []settingspkg.ApplyFailure
+	if a.state.toolMCPResources != nil {
+		if err := a.state.toolMCPResources.Sync(ctx); err != nil {
+			failures = append(failures, settingspkg.ApplyFailure{
+				Subsystem: "mcp",
+				Diagnostic: diagnostics.NewItem(
+					"config.apply.mcp_sync_failed",
+					diagnosticcontract.CodeConfigPartialFailure,
+					diagnosticcontract.CategoryMCP,
+					"MCP runtime sync failed",
+					diagnostics.RedactAndBound(err.Error(), 1024),
+					diagnosticcontract.SeverityError,
+					diagnosticcontract.FreshnessLive,
+					diagnostics.WithSuggestedCommand("agh config reload"),
+				),
+			})
+		}
+	}
+	if len(failures) > 0 {
+		a.daemon.mu.Lock()
+		a.state.cfg = previous
+		a.daemon.config = previous
+		a.daemon.mu.Unlock()
+	}
+
+	return failures
 }
 
 func daemonNetworkInfo(

@@ -1,4 +1,5 @@
 import type {
+  SettingsApplyRecordsFilter,
   SettingsMCPServerListFilter,
   SettingsSectionName,
   SettingsSectionSlug,
@@ -52,6 +53,16 @@ export const settingsKeys = {
 
   restartRoot: () => [...settingsKeys.all, "restart"] as const,
   restartStatus: (operationId: string) => [...settingsKeys.restartRoot(), operationId] as const,
+
+  applyRoot: () => [...settingsKeys.all, "apply"] as const,
+  applyRecords: (filter: SettingsApplyRecordsFilter = {}) =>
+    [
+      ...settingsKeys.applyRoot(),
+      "records",
+      filter.status ?? "",
+      normalizeText(filter.actor),
+      filter.limit ?? "",
+    ] as const,
 
   updateStatus: () => [...settingsKeys.all, "update"] as const,
 };

@@ -1,7 +1,13 @@
 // Types
 export type {
+  ConfigApplyLifecycle,
+  ConfigApplyRecord,
+  ConfigApplyRecordsResponse,
+  ConfigApplyRecordStatus,
+  SettingsApplyNextAction,
+  SettingsApplyRecordsFilter,
+  SettingsApplyResponse,
   SettingsAutomationSection,
-  SettingsBehavior,
   SettingsCollectionName,
   SettingsSandboxCollection,
   SettingsSandboxDetail,
@@ -86,6 +92,7 @@ export {
   getSettingsRestartStatus,
   getSettingsSkills,
   getSettingsUpdate,
+  listSettingsApplyRecords,
   listSettingsSandboxes,
   listSettingsExtensions,
   listSettingsHooks,
@@ -96,6 +103,7 @@ export {
   putSettingsHook,
   putSettingsMCPServer,
   putSettingsProvider,
+  reloadSettings,
   SettingsApiError,
   settingsObservabilityLogTailPath,
   triggerSettingsRestart,
@@ -113,6 +121,7 @@ export { settingsKeys } from "./lib/query-keys";
 export {
   SETTINGS_QUERY_INTERVALS,
   settingsAutomationOptions,
+  settingsApplyRecordsOptions,
   settingsSandboxDetailOptions,
   settingsSandboxesListOptions,
   settingsExtensionsListOptions,
@@ -148,6 +157,7 @@ export type {
 // Hooks -- reads
 export {
   useSettingsAutomation,
+  useSettingsApplyRecords,
   useSettingsGeneral,
   useSettingsHooksExtensions,
   useSettingsMemory,
@@ -178,6 +188,7 @@ export {
   usePutSettingsHook,
   usePutSettingsMCPServer,
   usePutSettingsProvider,
+  useReloadSettings,
   useUpdateSettingsAutomation,
   useUpdateSettingsGeneral,
   useUpdateSettingsHooksExtensions,

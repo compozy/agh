@@ -230,8 +230,12 @@ describe("useSettingsProvidersPage", () => {
     vi.mocked(putSettingsProvider).mockResolvedValue({
       section: "general",
       scope: "global",
-      behavior: "restart_required",
       applied: true,
+      active_config_hash: "sha256:test-active",
+      active_generation: 1,
+      apply_record_id: "cfg_apply_test",
+      lifecycle: "live",
+      next_action: "none",
       restart_required: true,
       write_target: "global-config",
     });
@@ -282,8 +286,12 @@ describe("useSettingsProvidersPage", () => {
     vi.mocked(putSettingsProvider).mockResolvedValue({
       section: "general",
       scope: "global",
-      behavior: "restart_required",
       applied: true,
+      active_config_hash: "sha256:test-active",
+      active_generation: 1,
+      apply_record_id: "cfg_apply_test",
+      lifecycle: "live",
+      next_action: "none",
       restart_required: true,
       write_target: "global-config",
     });
@@ -411,8 +419,12 @@ describe("useSettingsProvidersPage", () => {
     vi.mocked(putSettingsProvider).mockResolvedValue({
       section: "general",
       scope: "global",
-      behavior: "restart_required",
       applied: true,
+      active_config_hash: "sha256:test-active",
+      active_generation: 1,
+      apply_record_id: "cfg_apply_test",
+      lifecycle: "live",
+      next_action: "none",
       restart_required: true,
       write_target: "global-config",
     });
@@ -482,8 +494,12 @@ describe("useSettingsProvidersPage", () => {
     vi.mocked(putSettingsProvider).mockResolvedValue({
       section: "general",
       scope: "global",
-      behavior: "applied_now",
       applied: true,
+      active_config_hash: "sha256:test-active",
+      active_generation: 1,
+      apply_record_id: "cfg_apply_test",
+      lifecycle: "live",
+      next_action: "none",
       restart_required: false,
       write_target: "global-config",
     });
@@ -565,8 +581,12 @@ describe("useSettingsProvidersPage", () => {
     vi.mocked(deleteSettingsProvider).mockResolvedValue({
       section: "general",
       scope: "global",
-      behavior: "restart_required",
       applied: true,
+      active_config_hash: "sha256:test-active",
+      active_generation: 1,
+      apply_record_id: "cfg_apply_test",
+      lifecycle: "live",
+      next_action: "none",
       restart_required: true,
       write_target: "global-config",
     });

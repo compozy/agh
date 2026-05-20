@@ -12,6 +12,8 @@ export { SettingsDecimalInput } from "./settings-decimal-input";
 export { SettingsFieldRow } from "./settings-field-row";
 export type { SettingsFieldRowVariant } from "./settings-field-row";
 export { SettingsNumberInput } from "./settings-number-input";
+export { SettingsApplyRecordsPanel } from "./settings-apply-records-panel";
+export type { SettingsApplyRecordsPanelProps } from "./settings-apply-records-panel";
 export { SettingsSaveBar } from "./settings-save-bar";
 export { SettingsSourceBadge } from "./settings-source-badge";
 export type { SettingsSource } from "./settings-source-badge";

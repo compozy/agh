@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import {
   settingsAutomationOptions,
+  settingsApplyRecordsOptions,
   settingsGeneralOptions,
   settingsHooksExtensionsOptions,
   settingsMemoryOptions,
@@ -10,7 +11,7 @@ import {
   settingsSkillsOptions,
   settingsUpdateOptions,
 } from "../lib/query-options";
-import type { SettingsSkillsFilter } from "../types";
+import type { SettingsApplyRecordsFilter, SettingsSkillsFilter } from "../types";
 
 export function useSettingsGeneral() {
   return useQuery(settingsGeneralOptions());
@@ -18,6 +19,10 @@ export function useSettingsGeneral() {
 
 export function useSettingsUpdate() {
   return useQuery(settingsUpdateOptions());
+}
+
+export function useSettingsApplyRecords(filter: SettingsApplyRecordsFilter = {}) {
+  return useQuery(settingsApplyRecordsOptions(filter));
 }
 
 export function useSettingsMemory() {

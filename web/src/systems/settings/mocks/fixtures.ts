@@ -1,7 +1,9 @@
 import type {
+  ConfigApplyRecordsResponse,
   SettingsAutomationSection,
   SettingsSandboxEntry,
   SettingsExtensionEntry,
+  SettingsApplyResponse,
   SettingsGeneralSection,
   SettingsHookEntry,
   SettingsHooksExtensionsSection,
@@ -788,21 +790,123 @@ export const settingsRestartStatusFixture: SettingsRestartStatus = {
 };
 
 export const settingsAppliedMutationFixture: SettingsMutationResult = {
+  active_config_hash: "sha256:active-live",
+  active_generation: 42,
   applied: true,
+  apply_record_id: "cfg_apply_live",
   section: "general",
   scope: "global",
-  behavior: "applied_now",
+  lifecycle: "live",
+  next_action: "none",
   restart_required: false,
   restart_scope: "none",
   warnings: [],
+  write_target: "global-config",
 };
 
 export const settingsRestartRequiredMutationFixture: SettingsMutationResult = {
+  active_config_hash: "sha256:active-blocked",
+  active_generation: 41,
   applied: true,
+  apply_record_id: "cfg_apply_blocked",
   section: "general",
   scope: "global",
-  behavior: "restart_required",
+  lifecycle: "restart-required",
+  next_action: "restart-daemon",
   restart_required: true,
   restart_scope: "daemon",
   warnings: [],
+  write_target: "global-config",
+};
+
+export const settingsReloadAppliedFixture: SettingsApplyResponse = {
+  active_config_hash: "sha256:active-live",
+  active_generation: 42,
+  applied: true,
+  apply_record_id: "cfg_apply_live",
+  lifecycle: "live",
+  next_action: "none",
+  restart_required: false,
+  warnings: [],
+};
+
+export const settingsReloadBlockedFixture: SettingsApplyResponse = {
+  active_config_hash: "sha256:active-blocked",
+  active_generation: 41,
+  applied: false,
+  apply_record_id: "cfg_apply_blocked",
+  lifecycle: "restart-required",
+  next_action: "restart-daemon",
+  restart_required: true,
+  restart_scope: "daemon",
+  warnings: ["restart the daemon to activate config.toml"],
+};
+
+export const settingsApplyRecordsFixture: ConfigApplyRecordsResponse = {
+  entries: [
+    {
+      id: "cfg_apply_blocked",
+      desired_config_hash: "sha256:desired-restart-required",
+      active_config_hash: "sha256:active-blocked",
+      generation: 41,
+      actor: "http",
+      diff_class: "restart-required",
+      status: "blocked",
+      lifecycle: "restart-required",
+      next_action: "restart-daemon",
+      diagnostics: [
+        {
+          id: "diag_restart_required",
+          code: "config.apply.restart_required",
+          title: "Restart required",
+          message: "daemon.socket changes require a daemon restart.",
+          severity: "warning",
+          category: "configuration",
+          data_freshness: "current",
+          suggested_command: "agh config reload",
+        },
+      ],
+      created_at: "2026-05-20T13:10:00Z",
+      updated_at: "2026-05-20T13:10:03Z",
+    },
+    {
+      id: "cfg_apply_live",
+      desired_config_hash: "sha256:desired-live",
+      active_config_hash: "sha256:active-live",
+      generation: 42,
+      actor: "web",
+      diff_class: "live",
+      status: "applied",
+      lifecycle: "live",
+      next_action: "none",
+      created_at: "2026-05-20T13:18:00Z",
+      applied_at: "2026-05-20T13:18:01Z",
+      updated_at: "2026-05-20T13:18:01Z",
+    },
+    {
+      id: "cfg_apply_failed",
+      desired_config_hash: "sha256:desired-failed",
+      active_config_hash: "sha256:active-live",
+      generation: 42,
+      actor: "autonomy",
+      diff_class: "session-rebind",
+      status: "failed",
+      lifecycle: "session-rebind",
+      next_action: "retry",
+      diagnostics: [
+        {
+          id: "diag_invalid_config",
+          code: "config.invalid",
+          title: "Invalid config",
+          message: "provider timeout must be a positive duration.",
+          severity: "error",
+          category: "configuration",
+          data_freshness: "current",
+          suggested_command: "agh config validate",
+        },
+      ],
+      created_at: "2026-05-20T13:24:00Z",
+      updated_at: "2026-05-20T13:24:02Z",
+    },
+  ],
 };

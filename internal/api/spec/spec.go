@@ -205,6 +205,9 @@ var schemaEnumValues = map[reflect.Type][]string{
 	reflect.TypeFor[contract.SettingsWriteTargetKind]():          settingsWriteTargetValues(),
 	reflect.TypeFor[contract.SettingsTargetSelector]():           settingsTargetSelectorValues(),
 	reflect.TypeFor[contract.SettingsMutationBehavior]():         settingsMutationBehaviorValues(),
+	reflect.TypeFor[contract.SettingsApplyLifecycle]():           settingsApplyLifecycleValues(),
+	reflect.TypeFor[contract.ConfigApplyStatus]():                configApplyStatusValues(),
+	reflect.TypeFor[contract.SettingsApplyNextAction]():          settingsApplyNextActionValues(),
 	reflect.TypeFor[contract.SettingsPermissionMode]():           settingsPermissionModeValues(),
 	reflect.TypeFor[contract.SettingsSourceKind]():               settingsSourceKindValues(),
 	reflect.TypeFor[contract.RestartOperationStatus]():           restartOperationStatusValues(),
@@ -4186,6 +4189,38 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      httpMethodGet,
+		Path:        "/api/settings/apply",
+		OperationID: "listSettingsApplyRecords",
+		Summary:     "List config apply records for desired and active generation reconciliation",
+		Tags:        []string{specSettingsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			enumQueryParam("status", "Filter by apply status", configApplyStatusValues()),
+			queryParam("actor", "Filter by config apply actor", false),
+			intQueryParam("limit", "Maximum number of records to return"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ConfigApplyRecordsResponse{}},
+			{Status: 400, Description: "Invalid apply history filter", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodPost,
+		Path:        "/api/settings/reload",
+		OperationID: "reloadSettings",
+		Summary:     "Reconcile config.toml with the daemon active generation",
+		Tags:        []string{specSettingsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
+			{Status: 400, Description: specInvalidSettingsPayloadDescription, Body: contract.ErrorPayload{}},
+			{Status: 409, Description: specConflictingSettingsChangeDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodGet,
 		Path:        "/api/settings/actions/restart/{operation_id}",
 		OperationID: "getSettingsRestartStatus",
 		Summary:     "Get the persisted status for one daemon restart operation",
@@ -4247,7 +4282,7 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		RequestBody: contract.UpdateSettingsAutomationRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SettingsGlobalSectionMutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
 			{Status: 400, Description: specInvalidSettingsPayloadDescription, Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: specConflictingSettingsChangeDescription, Body: contract.ErrorPayload{}},
@@ -4294,7 +4329,7 @@ var operationRegistry = []OperationSpec{
 		},
 		RequestBody: contract.PutSettingsSandboxRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SettingsGlobalCollectionMutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
 			{Status: 400, Description: "Invalid sandbox payload", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Conflicting sandbox change", Body: contract.ErrorPayload{}},
@@ -4312,7 +4347,7 @@ var operationRegistry = []OperationSpec{
 			pathParam("name", "Sandbox name"),
 		},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SettingsGlobalCollectionMutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Sandbox not found", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
@@ -4339,7 +4374,7 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		RequestBody: contract.UpdateSettingsGeneralRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SettingsGlobalSectionMutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
 			{Status: 400, Description: specInvalidSettingsPayloadDescription, Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: specConflictingSettingsChangeDescription, Body: contract.ErrorPayload{}},
@@ -4370,7 +4405,7 @@ var operationRegistry = []OperationSpec{
 		},
 		RequestBody: contract.PutSettingsHookRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SettingsGlobalCollectionMutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
 			{Status: 400, Description: "Invalid hook payload", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Conflicting hook change", Body: contract.ErrorPayload{}},
@@ -4388,7 +4423,7 @@ var operationRegistry = []OperationSpec{
 			pathParam("name", "Hook name"),
 		},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SettingsGlobalCollectionMutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "Hook not found", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
@@ -4415,7 +4450,7 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		RequestBody: contract.UpdateSettingsHooksExtensionsRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SettingsGlobalSectionMutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
 			{Status: 400, Description: specInvalidSettingsPayloadDescription, Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: specConflictingSettingsChangeDescription, Body: contract.ErrorPayload{}},
@@ -4455,7 +4490,7 @@ var operationRegistry = []OperationSpec{
 		},
 		RequestBody: contract.PutSettingsMCPServerRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SettingsGlobalWorkspaceCollectionMutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
 			{Status: 400, Description: "Invalid MCP server payload", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specWorkspaceNotFoundDescription, Body: contract.ErrorPayload{}},
@@ -4477,7 +4512,7 @@ var operationRegistry = []OperationSpec{
 			enumQueryParam("target", "Select the persistence target", settingsTargetSelectorValues()),
 		},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SettingsGlobalWorkspaceCollectionMutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
 			{Status: 400, Description: "Invalid MCP server request", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 404, Description: "MCP server or workspace not found", Body: contract.ErrorPayload{}},
@@ -4506,7 +4541,7 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		RequestBody: contract.UpdateSettingsMemoryRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SettingsGlobalSectionMutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
 			{Status: 400, Description: specInvalidSettingsPayloadDescription, Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: specConflictingSettingsChangeDescription, Body: contract.ErrorPayload{}},
@@ -4534,7 +4569,7 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		RequestBody: contract.UpdateSettingsNetworkRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SettingsGlobalSectionMutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
 			{Status: 400, Description: specInvalidSettingsPayloadDescription, Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: specConflictingSettingsChangeDescription, Body: contract.ErrorPayload{}},
@@ -4562,7 +4597,7 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		RequestBody: contract.UpdateSettingsObservabilityRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SettingsGlobalSectionMutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
 			{Status: 400, Description: specInvalidSettingsPayloadDescription, Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: specConflictingSettingsChangeDescription, Body: contract.ErrorPayload{}},
@@ -4621,7 +4656,7 @@ var operationRegistry = []OperationSpec{
 		},
 		RequestBody: contract.PutSettingsProviderRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SettingsGlobalCollectionMutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
 			{Status: 400, Description: "Invalid provider payload", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Conflicting provider change", Body: contract.ErrorPayload{}},
@@ -4639,7 +4674,7 @@ var operationRegistry = []OperationSpec{
 			pathParam("name", "Provider name"),
 		},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SettingsGlobalCollectionMutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specProviderNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
@@ -4679,7 +4714,7 @@ var operationRegistry = []OperationSpec{
 		},
 		RequestBody: contract.UpdateSettingsSkillsRequest{},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SettingsSkillsMutationResult{}},
+			{Status: 200, Description: "OK", Body: contract.SettingsApplyResponse{}},
 			{Status: 400, Description: specInvalidSettingsPayloadDescription, Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specAgentNotFoundDescription, Body: contract.ErrorPayload{}},
@@ -5017,6 +5052,34 @@ func settingsMutationBehaviorValues() []string {
 		string(contract.SettingsMutationBehaviorAppliedNow),
 		string(contract.SettingsMutationBehaviorRestartRequired),
 		string(contract.SettingsMutationBehaviorActionTrigger),
+	}
+}
+
+func settingsApplyLifecycleValues() []string {
+	return []string{
+		string(contract.SettingsApplyLifecycleLive),
+		string(contract.SettingsApplyLifecycleLiveAdd),
+		string(contract.SettingsApplyLifecycleLiveRemoveIfUnused),
+		string(contract.SettingsApplyLifecycleRestartRequired),
+		string(contract.SettingsApplyLifecycleSessionRebind),
+	}
+}
+
+func configApplyStatusValues() []string {
+	return []string{
+		string(contract.ConfigApplyStatusPendingApply),
+		string(contract.ConfigApplyStatusApplied),
+		string(contract.ConfigApplyStatusBlocked),
+		string(contract.ConfigApplyStatusFailed),
+	}
+}
+
+func settingsApplyNextActionValues() []string {
+	return []string{
+		string(contract.SettingsApplyNextActionNone),
+		string(contract.SettingsApplyNextActionRestartDaemon),
+		string(contract.SettingsApplyNextActionNewSession),
+		string(contract.SettingsApplyNextActionRetry),
 	}
 }
 

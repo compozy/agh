@@ -5,6 +5,7 @@ import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } fr
 import { useSettingsGeneralPage } from "@/hooks/routes/use-settings-general-page";
 import type { SettingsGeneralSection, SettingsUpdateStatus } from "@/systems/settings";
 import {
+  SettingsApplyRecordsPanel,
   SettingsFieldRow,
   SettingsNumberInput,
   SettingsSaveBar,
@@ -158,6 +159,17 @@ function GeneralSettingsPage() {
       }
     >
       <RuntimeSection envelope={envelope} />
+      <SettingsApplyRecordsPanel
+        records={page.applyRecords.data?.entries ?? []}
+        isLoading={page.applyRecords.isLoading}
+        isFetching={page.applyRecords.isFetching}
+        error={page.applyRecords.error instanceof Error ? page.applyRecords.error : null}
+        reloadError={page.reloadError}
+        reloadResult={page.reloadResult}
+        isReloading={page.isReloading}
+        onRefresh={() => void page.applyRecords.refetch()}
+        onReload={page.handleReload}
+      />
       <SoftwareUpdateSection update={update} />
       <DefaultsSection draft={draft} setDraft={setDraft} />
       <PermissionsSection draft={draft} setDraft={setDraft} />

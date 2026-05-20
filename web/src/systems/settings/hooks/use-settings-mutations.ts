@@ -11,6 +11,7 @@ import {
   putSettingsHook,
   putSettingsMCPServer,
   putSettingsProvider,
+  reloadSettings,
   updateSettingsAutomation,
   updateSettingsGeneral,
   updateSettingsHooksExtensions,
@@ -44,22 +45,36 @@ import type {
 function recordMutation(result: SettingsMutationResult) {
   useSettingsRestartStore.getState().recordMutation({
     section: result.section,
-    restartRequired: result.restart_required,
+    restartRequired: Boolean(result.restart_required),
     restartScope: result.restart_scope,
     warnings: result.warnings ?? [],
+    lifecycle: result.lifecycle,
+    nextAction: result.next_action,
+    applyRecordId: result.apply_record_id,
+    activeGeneration: result.active_generation,
     completedAt: new Date().toISOString(),
   });
+}
+
+function invalidateApplyRecords(queryClient: ReturnType<typeof useQueryClient>) {
+  return queryClient.invalidateQueries({ queryKey: settingsKeys.applyRoot() });
 }
 
 function invalidateSection(
   queryClient: ReturnType<typeof useQueryClient>,
   section: SettingsSectionName
 ) {
-  return queryClient.invalidateQueries({ queryKey: settingsKeys.section(section) });
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: settingsKeys.section(section) }),
+    invalidateApplyRecords(queryClient),
+  ]);
 }
 
 function invalidateProviders(queryClient: ReturnType<typeof useQueryClient>, name?: string) {
-  const tasks = [queryClient.invalidateQueries({ queryKey: settingsKeys.providersRoot() })];
+  const tasks = [
+    queryClient.invalidateQueries({ queryKey: settingsKeys.providersRoot() }),
+    invalidateApplyRecords(queryClient),
+  ];
 
   if (name) {
     tasks.push(queryClient.invalidateQueries({ queryKey: settingsKeys.providerDetail(name) }));
@@ -69,7 +84,10 @@ function invalidateProviders(queryClient: ReturnType<typeof useQueryClient>, nam
 }
 
 function invalidateSandboxes(queryClient: ReturnType<typeof useQueryClient>, name?: string) {
-  const tasks = [queryClient.invalidateQueries({ queryKey: settingsKeys.sandboxesRoot() })];
+  const tasks = [
+    queryClient.invalidateQueries({ queryKey: settingsKeys.sandboxesRoot() }),
+    invalidateApplyRecords(queryClient),
+  ];
 
   if (name) {
     tasks.push(queryClient.invalidateQueries({ queryKey: settingsKeys.sandboxDetail(name) }));
@@ -82,11 +100,25 @@ function invalidateHooks(queryClient: ReturnType<typeof useQueryClient>) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: settingsKeys.hooksRoot() }),
     queryClient.invalidateQueries({ queryKey: settingsKeys.section("hooks-extensions") }),
+    invalidateApplyRecords(queryClient),
   ]);
 }
 
 function invalidateMCPServers(queryClient: ReturnType<typeof useQueryClient>) {
-  return queryClient.invalidateQueries({ queryKey: settingsKeys.mcpRoot() });
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: settingsKeys.mcpRoot() }),
+    invalidateApplyRecords(queryClient),
+  ]);
+}
+
+export function useReloadSettings() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => reloadSettings(),
+    onSuccess: recordMutation,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: settingsKeys.all }),
+  });
 }
 
 export function useUpdateSettingsGeneral() {

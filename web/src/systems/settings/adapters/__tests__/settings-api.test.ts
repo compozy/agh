@@ -12,6 +12,7 @@ import {
   getSettingsRestartStatus,
   getSettingsSkills,
   listSettingsSandboxes,
+  listSettingsApplyRecords,
   listSettingsExtensions,
   listSettingsHooks,
   listSettingsMCPServers,
@@ -19,6 +20,7 @@ import {
   putSettingsSandbox,
   putSettingsMCPServer,
   putSettingsProvider,
+  reloadSettings,
   SettingsApiError,
   settingsObservabilityLogTailPath,
   triggerSettingsRestart,
@@ -63,10 +65,14 @@ const generalSectionFixture = {
 };
 
 const mutationFixture = {
+  active_config_hash: "sha256:active-live",
+  active_generation: 42,
   section: "general" as const,
   scope: "global" as const,
-  behavior: "restart_required" as const,
   applied: true,
+  apply_record_id: "cfg_apply_001",
+  lifecycle: "restart-required" as const,
+  next_action: "restart-daemon" as const,
   restart_required: true,
   restart_scope: "daemon",
   warnings: ["restart the daemon"],
@@ -513,6 +519,53 @@ describe("restart action", () => {
     await expect(getSettingsRestartStatus("missing")).rejects.toThrow(
       "Restart operation not found: missing"
     );
+  });
+});
+
+describe("apply records", () => {
+  it("lists apply records with normalized filters", async () => {
+    mockJsonResponse({
+      entries: [
+        {
+          id: "cfg_apply_001",
+          desired_config_hash: "sha256:desired",
+          active_config_hash: "sha256:active",
+          generation: 42,
+          actor: "http",
+          diff_class: "restart-required" as const,
+          status: "blocked" as const,
+          lifecycle: "restart-required" as const,
+          next_action: "restart-daemon" as const,
+          diagnostics: [],
+          created_at: "2026-05-20T13:00:00Z",
+          updated_at: "2026-05-20T13:00:01Z",
+        },
+      ],
+    });
+
+    const result = await listSettingsApplyRecords({
+      status: "blocked",
+      actor: " http ",
+      limit: 5,
+    });
+
+    expect(result.entries[0]?.status).toBe("blocked");
+    await expectFetchRequest({
+      path: "/api/settings/apply?status=blocked&actor=http&limit=5",
+    });
+  });
+
+  it("reloads settings and returns apply metadata", async () => {
+    mockJsonResponse(mutationFixture);
+
+    const result = await reloadSettings();
+
+    expect(result.next_action).toBe("restart-daemon");
+    expect(result.apply_record_id).toBe("cfg_apply_001");
+    await expectFetchRequest({
+      method: "POST",
+      path: "/api/settings/reload",
+    });
   });
 });
 

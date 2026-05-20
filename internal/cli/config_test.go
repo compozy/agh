@@ -197,7 +197,7 @@ func TestConfigSetDisabledSkillsUsesDaemonSettingsWhenRunning(t *testing.T) {
 			captured = request
 			return SettingsMutationRecord{
 				Section:          "skills",
-				Scope:            string(contract.SettingsAgentScopeGlobal),
+				Scope:            contract.SettingsScopeGlobal,
 				Lifecycle:        contract.SettingsApplyLifecycleLive,
 				ApplyRecordID:    "cfgapp-test",
 				Applied:          true,

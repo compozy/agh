@@ -2,6 +2,7 @@ import { http, HttpResponse, type HttpHandler } from "msw";
 
 import {
   settingsAppliedMutationFixture,
+  settingsApplyRecordsFixture,
   settingsAutomationSectionFixture,
   settingsSandboxesCollectionFixture,
   settingsSandboxFixtures,
@@ -16,6 +17,7 @@ import {
   settingsObservabilitySectionFixture,
   settingsProvidersCollectionFixture,
   settingsProviderFixtures,
+  settingsReloadBlockedFixture,
   settingsRestartRequiredMutationFixture,
   settingsRestartResponseFixture,
   settingsRestartStatusFixture,
@@ -27,6 +29,28 @@ function mutationResult(section: string, restartRequired = false) {
     ...(restartRequired ? settingsRestartRequiredMutationFixture : settingsAppliedMutationFixture),
     section,
   };
+}
+
+function applyRecordsForUrl(request: Request) {
+  const url = new URL(request.url);
+  const status = url.searchParams.get("status");
+  const actor = url.searchParams.get("actor");
+  const limit = Number.parseInt(url.searchParams.get("limit") ?? "", 10);
+  let entries = settingsApplyRecordsFixture.entries;
+
+  if (status) {
+    entries = entries.filter(record => record.status === status);
+  }
+
+  if (actor) {
+    entries = entries.filter(record => record.actor === actor);
+  }
+
+  if (Number.isFinite(limit) && limit >= 0) {
+    entries = entries.slice(0, limit);
+  }
+
+  return { entries };
 }
 
 export const handlers: HttpHandler[] = [
@@ -122,6 +146,9 @@ export const handlers: HttpHandler[] = [
   http.delete("/api/settings/mcp-servers/:name", () =>
     HttpResponse.json(mutationResult("mcp-servers", true))
   ),
+
+  http.get("/api/settings/apply", ({ request }) => HttpResponse.json(applyRecordsForUrl(request))),
+  http.post("/api/settings/reload", () => HttpResponse.json(settingsReloadBlockedFixture)),
 
   http.post("/api/settings/actions/restart", () =>
     HttpResponse.json(settingsRestartResponseFixture, { status: 202 })

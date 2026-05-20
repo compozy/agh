@@ -88,6 +88,13 @@ export type SettingsUpdateHooksExtensionsRequest =
 export type SettingsRestartResponse = OperationResponse<"triggerSettingsRestart", 202>;
 export type SettingsRestartStatus = OperationResponse<"getSettingsRestartStatus", 200>;
 export type SettingsUpdateStatus = OperationResponse<"getSettingsUpdate", 200>;
+export type SettingsApplyResponse = OperationResponse<"reloadSettings", 200>;
+export type ConfigApplyRecordsResponse = OperationResponse<"listSettingsApplyRecords", 200>;
+export type ConfigApplyRecord = ConfigApplyRecordsResponse["entries"][number];
+export type ConfigApplyRecordStatus = ConfigApplyRecord["status"];
+export type ConfigApplyLifecycle = ConfigApplyRecord["lifecycle"];
+export type SettingsApplyNextAction = ConfigApplyRecord["next_action"];
+export type SettingsApplyRecordsFilter = NonNullable<OperationQuery<"listSettingsApplyRecords">>;
 
 export type SettingsMutationResult =
   | OperationResponse<"updateSettingsGeneral", 200>
@@ -106,7 +113,6 @@ export type SettingsMutationResult =
   | OperationResponse<"putSettingsHook", 200>
   | OperationResponse<"deleteSettingsHook", 200>;
 export type SettingsScope = SettingsMutationResult["scope"];
-export type SettingsBehavior = SettingsMutationResult["behavior"];
 export type SettingsWriteTarget = NonNullable<SettingsMutationResult["write_target"]>;
 export type SettingsSectionName =
   | SettingsGeneralSection["section"]
