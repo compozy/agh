@@ -1,7 +1,7 @@
 "use client";
 
 import { baseOptions } from "@/lib/layout.shared";
-import { Logo, buttonVariants, cn } from "@agh/ui";
+import { Eyebrow, Logo, buttonVariants, cn } from "@agh/ui";
 import { GithubLogo } from "@agh/ui/logos";
 import { useHomeLayout } from "fumadocs-ui/layouts/home";
 import Link from "next/link";
@@ -58,8 +58,14 @@ export function HomeHeader(props: ComponentProps<"header">) {
       )}
     >
       <div className="mx-auto flex h-14 w-full max-w-site-layout-width items-center gap-3 lg:gap-5">
-        <Link href="/" aria-label="AGH home" className="shrink-0">
+        <Link href="/" aria-label="AGH home" className="inline-flex shrink-0 items-center gap-3">
           <Logo variant="logo" decorative className="h-8 w-auto" />
+          <span aria-hidden className="hidden sm:inline-flex">
+            <Eyebrow className="flex items-center gap-1.5 text-muted">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+              Alpha
+            </Eyebrow>
+          </span>
         </Link>
 
         <nav className="hidden items-center gap-1 md:flex">

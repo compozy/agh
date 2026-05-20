@@ -1,5 +1,5 @@
 import type { BaseLayoutProps } from "fumadocs-ui/layouts/shared";
-import { Logo } from "@agh/ui";
+import { Eyebrow, Logo } from "@agh/ui";
 import { siteConfig } from "./site-config";
 
 export const baseOptions: BaseLayoutProps = {
@@ -8,6 +8,12 @@ export const baseOptions: BaseLayoutProps = {
       <>
         <span className="sr-only">AGH home</span>
         <Logo variant="logo" decorative className="h-8 w-auto" />
+        <span aria-hidden className="hidden sm:inline-flex">
+          <Eyebrow className="flex items-center gap-1.5 text-muted">
+            <span className="h-1.5 w-1.5 rounded-full bg-accent" />
+            Alpha
+          </Eyebrow>
+        </span>
       </>
     ),
     url: "/",
