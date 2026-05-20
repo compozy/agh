@@ -27674,6 +27674,11 @@ export interface operations {
             available_scopes: "global"[];
             config: {
               daemon: {
+                reload_timeouts: {
+                  bridges: string;
+                  mcp: string;
+                  providers: string;
+                };
                 socket: string;
               };
               defaults: {
@@ -27777,6 +27782,11 @@ export interface operations {
         "application/json": {
           config: {
             daemon: {
+              reload_timeouts: {
+                bridges: string;
+                mcp: string;
+                providers: string;
+              };
               socket: string;
             };
             defaults: {

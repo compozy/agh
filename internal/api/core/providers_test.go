@@ -36,7 +36,7 @@ func TestProviderAuthHandlers(t *testing.T) {
 		if got, want := payload.AuthStatus.State, contract.ProviderAuthStateNone; got != want {
 			t.Fatalf("AuthStatus.State = %q, want %q", got, want)
 		}
-		if got, want := payload.AuthStatus.Message, "No auth required."; got != want {
+		if got, want := payload.AuthStatus.Message, authproviders.ProviderAuthNoAuthRequiredMessage; got != want {
 			t.Fatalf("AuthStatus.Message = %q, want %q", got, want)
 		}
 	})
@@ -50,6 +50,9 @@ func TestProviderAuthHandlers(t *testing.T) {
 		) (authproviders.ProviderAuthCommandResult, error) {
 			if spec.Command != "provider-cli auth status" {
 				t.Fatalf("Command = %q, want provider status command", spec.Command)
+			}
+			if !spec.NoTTY {
+				t.Fatal("NoTTY = false, want daemon probe to be non-interactive")
 			}
 			return authproviders.ProviderAuthCommandResult{ExitCode: 1, Stderr: "HTTP 401 unauthorized"}, nil
 		}
@@ -76,6 +79,45 @@ func TestProviderAuthHandlers(t *testing.T) {
 		}
 		if got, want := payload.AuthStatus.Code, contract.CodeProviderNotAuthenticated; got != want {
 			t.Fatalf("AuthStatus.Code = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should report no auth required for remote none probe", func(t *testing.T) {
+		t.Parallel()
+
+		runner := func(
+			_ context.Context,
+			spec authproviders.ProviderAuthCommandSpec,
+		) (authproviders.ProviderAuthCommandResult, error) {
+			t.Fatalf("ProviderAuthRunner(%q) called, want no subprocess for auth_mode none", spec.Command)
+			return authproviders.ProviderAuthCommandResult{}, nil
+		}
+		cfg := providerAuthTestConfig(t)
+		router := providerAuthTestRouter(t, &cfg, runner)
+		response := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(
+			testutil.Context(t),
+			http.MethodPost,
+			"/providers/public/auth/probe",
+			http.NoBody,
+		)
+		router.ServeHTTP(response, req)
+
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d body = %s, want 200", response.Code, response.Body.String())
+		}
+		var payload contract.ProviderAuthProbeResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(provider none probe) error = %v", err)
+		}
+		if got, want := payload.AuthStatus.State, contract.ProviderAuthStateNone; got != want {
+			t.Fatalf("AuthStatus.State = %q, want %q", got, want)
+		}
+		if got, want := payload.AuthStatus.Message, authproviders.ProviderAuthNoAuthRequiredMessage; got != want {
+			t.Fatalf("AuthStatus.Message = %q, want %q", got, want)
+		}
+		if payload.Probe != nil {
+			t.Fatalf("Probe = %#v, want nil for auth_mode none", payload.Probe)
 		}
 	})
 }

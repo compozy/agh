@@ -30,7 +30,10 @@ export const settingsGeneralSectionFixture: SettingsGeneralSection = {
     restart: { available: true, behavior: "action_trigger", name: "restart" },
   },
   config: {
-    daemon: { socket: "/tmp/agh.sock" },
+    daemon: {
+      reload_timeouts: { bridges: "30s", mcp: "10s", providers: "5s" },
+      socket: "/tmp/agh.sock",
+    },
     defaults: { agent: storyAgentNames.product, provider: "claude", sandbox: "local" },
     http: { host: "127.0.0.1", port: 2123 },
     limits: { max_concurrent_agents: 20 },

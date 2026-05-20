@@ -26,6 +26,7 @@ const (
 	sectionsConsolidateKey            = "consolidate"
 	sectionsControllerKey             = "controller"
 	sectionsDailyKey                  = "daily"
+	sectionsDaemonKey                 = "daemon"
 	sectionsDecisionsKey              = "decisions"
 	sectionsDefaultsKey               = "defaults"
 	sectionsDreamKey                  = "dream"
@@ -43,6 +44,7 @@ const (
 	sectionsProviderKey               = "provider"
 	sectionsQueueKey                  = "queue"
 	sectionsRecallKey                 = "recall"
+	sectionsReloadTimeoutsKey         = "reload_timeouts"
 	sectionsResourcesKey              = "resources"
 	sectionsRestartKey                = "restart"
 	sectionsScoringKey                = "scoring"
@@ -993,17 +995,17 @@ func applyGeneralSettings(editor *aghconfig.OverlayEditor, settings GeneralSetti
 		{path: []string{"permissions", sectionsModeKey}, value: string(settings.Permissions.Mode)},
 		{path: []string{sectionsHTTPKey, "host"}, value: settings.HTTP.Host},
 		{path: []string{sectionsHTTPKey, "port"}, value: settings.HTTP.Port},
-		{path: []string{"daemon", "socket"}, value: settings.Daemon.Socket},
+		{path: []string{sectionsDaemonKey, "socket"}, value: settings.Daemon.Socket},
 		{
-			path:  []string{"daemon", "reload_timeouts", "providers"},
+			path:  []string{sectionsDaemonKey, sectionsReloadTimeoutsKey, string(CollectionProviders)},
 			value: settings.Daemon.ReloadTimeouts.Providers.String(),
 		},
 		{
-			path:  []string{"daemon", "reload_timeouts", "mcp"},
+			path:  []string{sectionsDaemonKey, sectionsReloadTimeoutsKey, "mcp"},
 			value: settings.Daemon.ReloadTimeouts.MCP.String(),
 		},
 		{
-			path:  []string{"daemon", "reload_timeouts", "bridges"},
+			path:  []string{sectionsDaemonKey, sectionsReloadTimeoutsKey, "bridges"},
 			value: settings.Daemon.ReloadTimeouts.Bridges.String(),
 		},
 	}

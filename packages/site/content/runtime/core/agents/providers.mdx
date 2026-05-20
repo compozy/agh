@@ -100,12 +100,20 @@ Provider overrides and custom providers are configured in `config.toml`.
 | `transport`           | string | no                       | Optional Pi model-provider API family hint for custom providers.                                              |
 | `base_url`            | string | no                       | Optional Pi model-provider base URL for custom gateways.                                                      |
 | `auth_mode`           | string | no                       | `native_cli`, `bound_secret`, or `none`. Defaults from configured credential slots.                           |
+| `none_security`       | string | no                       | Safety rationale for `auth_mode = "none"`: `local_transport`, `external_identity`, or `public_readonly`.      |
 | `env_policy`          | string | no                       | `filtered` strips secret-shaped daemon env vars; `isolated` keeps only an operational allowlist.              |
 | `home_policy`         | string | no                       | `operator` uses the daemon user's home; `isolated` uses `$AGH_HOME/providers/<provider>`.                     |
 | `auth_status_command` | string | no                       | Optional native CLI status probe used by `agh provider auth status`.                                          |
 | `auth_login_command`  | string | no                       | Optional native CLI login command used by `agh provider auth login`.                                          |
 | `credential_slots`    | array  | no                       | Bound launch-time secrets. Allowed only with `auth_mode = "bound_secret"`.                                    |
 | `mcp_servers`         | array  | no                       | Provider-level MCP servers merged before agent-level MCP servers.                                             |
+
+`auth_mode = "none"` is an explicit `No auth required` contract, not an authenticated state. Set
+`none_security` to describe why the provider is safe without credentials: `local_transport` for
+local-only transports, `external_identity` when another system authenticates the caller, or
+`public_readonly` for public read-only providers. No-auth providers cannot define
+`credential_slots`, `auth_status_command`, or `auth_login_command`; AGH rejects those combinations
+at config load time.
 
 AGH overlays provider config on top of a built-in provider when the name matches. Unknown provider
 names are accepted only when they have a `[providers.<name>]` entry.
@@ -117,6 +125,9 @@ resolve to their canonical provider IDs. Provider-scoped model aliases resolve t
 `kimi` under `moonshot`; `glm` under `zai`; `grok` under `xai`; `qwen` under `qwen-code`; and
 `opus` under `vercel-ai-gateway`. AGH stores and displays the resolved provider/model IDs in session
 diagnostics and catalog rows.
+
+The old `providers.<id>.aliases` config key was removed for v1. Reference providers by canonical
+name only; config files that set `aliases = [...]` under a provider are rejected during load.
 
 The flat keys `default_model`, `supported_models`, and `supports_reasoning_effort` are no longer
 accepted. Config that still sets them is rejected at load time with a deterministic hard-cut error
@@ -169,14 +180,17 @@ controls inside the running session.
 Native provider auth state belongs to the provider. Run the provider's own login command, such as
 `claude auth login`, `codex login`, `opencode auth login`, or Pi's `/login`, outside AGH or through
 a configured `auth_login_command`. The built-in `claude`, `codex`, `opencode`, and `pi` providers
-expose those login commands through `agh provider auth login <provider>`; the command prints the
-resolved provider command and does not execute interactive native login flows. When a provider uses
-`home_policy = "isolated"`, the output includes the required `HOME`/provider-home environment
-prefix so the native login writes credentials where AGH will read them. Use
+expose those login commands through `agh provider auth login <provider>`. By default, that command
+executes the configured login command locally and attaches the terminal when stdin, stdout, and
+stderr are TTYs, so OAuth URLs and provider prompts remain visible. Use
 `agh provider auth login <provider> --print-command` when automation needs one copyable shell
-command. `pi` prints an env-prefixed `npx -y pi-acp@latest --terminal-login` command. Wrapped
-API-key providers use their configured `credential_slots` instead of Pi login. Custom providers
-should set `auth_mode` to match the runtime's real authentication contract.
+command without executing it, `--no-tty` for deterministic non-interactive runs, and `--timeout`
+when scripts need a bounded login attempt. When a provider uses `home_policy = "isolated"`, the
+resolved command includes the required `HOME`/provider-home environment prefix so the native login
+writes credentials where AGH will read them. Remote HTTP/UDS surfaces never run login commands; they
+only run non-interactive `auth_status_command` probes. Wrapped API-key providers use their
+configured `credential_slots` instead of Pi login. Custom providers should set `auth_mode` to match
+the runtime's real authentication contract.
 
 ## Override a built-in provider
 
@@ -294,8 +308,19 @@ You inspect this repository with the local agent runtime.
 Report risks and cite exact files.
 ```
 
-If the custom provider has no authentication at all, set `auth_mode = "none"`. If it requires an
-AGH-managed key, use `auth_mode = "bound_secret"` and define `credential_slots`:
+If the custom provider has no authentication at all, set `auth_mode = "none"` and document the
+reason with `none_security`:
+
+```toml
+[providers.local-readonly]
+command = "local-readonly-agent --acp"
+auth_mode = "none"
+none_security = "local_transport"
+```
+
+No-auth providers render as `No auth required` in status, doctor, web, and CLI output. They cannot
+define credential slots or login/status commands. If a custom provider requires an AGH-managed key,
+use `auth_mode = "bound_secret"` and define `credential_slots`:
 
 ```toml
 [providers.team-gateway]

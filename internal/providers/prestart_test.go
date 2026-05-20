@@ -80,6 +80,33 @@ func TestPreStart(t *testing.T) {
 		}
 	})
 
+	t.Run("Should run status command without TTY", func(t *testing.T) {
+		InvalidatePreStartCache()
+
+		report := PreStart(testutil.Context(t), aghconfig.ProviderConfig{
+			Command:       "provider acp",
+			AuthMode:      aghconfig.ProviderAuthModeNativeCLI,
+			AuthStatusCmd: "provider auth status",
+		}, &ProbeEnv{
+			ProviderName: "native",
+			LookPath: func(string) (string, error) {
+				return "/bin/provider", nil
+			},
+			RunCommand: func(_ context.Context, spec ProviderAuthCommandSpec) (ProviderAuthCommandResult, error) {
+				if !spec.NoTTY {
+					t.Fatal("NoTTY = false, want pre-start probe to be non-interactive")
+				}
+				return ProviderAuthCommandResult{ExitCode: 1, Stderr: "not logged in"}, nil
+			},
+		})
+		if report.Item == nil {
+			t.Fatal("PreStart(needs login).Item = nil, want diagnostic")
+		}
+		if report.Item.Code != diagcontract.CodeProviderNotAuthenticated {
+			t.Fatalf("Code = %q, want %q", report.Item.Code, diagcontract.CodeProviderNotAuthenticated)
+		}
+	})
+
 	t.Run("Should cache report within TTL", func(t *testing.T) {
 		InvalidatePreStartCache()
 

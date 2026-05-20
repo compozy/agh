@@ -35,7 +35,7 @@ func DiagnosticItem(providerName string, classification Classification) diagcont
 		message,
 		severity,
 		diagcontract.FreshnessLive,
-		diagnostics.WithSuggestedCommand(suggestedCommand(providerName, classification)),
+		diagnostics.WithSuggestedCommand(SuggestedCommand(providerName, classification)),
 		diagnostics.WithEvidence(map[string]any{
 			"provider": strings.TrimSpace(providerName),
 			"state":    string(classification.State),
@@ -58,19 +58,45 @@ func severityForCode(code string) string {
 	}
 }
 
-func suggestedCommand(providerName string, classification Classification) string {
+// SuggestedCommand returns the canonical operator command for a provider-auth classification.
+func SuggestedCommand(providerName string, classification Classification) string {
 	name := strings.TrimSpace(providerName)
 	if name == "" {
 		return "agh provider auth status"
 	}
-	switch classification.Action {
+	switch actionForClassification(classification) {
 	case ProviderFailureActionLogin:
 		return "agh provider auth login " + name
-	case ProviderFailureActionBindSecret, ProviderFailureActionInstallCLI, ProviderFailureActionInspect:
+	case ProviderFailureActionBindSecret,
+		ProviderFailureActionInstallCLI,
+		ProviderFailureActionInspect,
+		ProviderFailureActionNoRetry:
 		return "agh provider auth status " + name
 	case ProviderFailureActionRetry:
 		return "agh provider auth status " + name + " --remote"
 	default:
 		return ""
+	}
+}
+
+func actionForClassification(classification Classification) ProviderFailureAction {
+	if classification.Action != "" {
+		return classification.Action
+	}
+	switch classification.State {
+	case ProviderAuthStateNeedsLogin:
+		return ProviderFailureActionLogin
+	case ProviderAuthStateMissingCredential:
+		return ProviderFailureActionBindSecret
+	case ProviderAuthStateMissingCLI:
+		return ProviderFailureActionInstallCLI
+	case ProviderAuthStateRateLimited, ProviderAuthStateTransient:
+		return ProviderFailureActionRetry
+	case ProviderAuthStatePermissionDenied:
+		return ProviderFailureActionNoRetry
+	case ProviderAuthStateUnknown:
+		return ProviderFailureActionInspect
+	default:
+		return ProviderFailureActionNone
 	}
 }

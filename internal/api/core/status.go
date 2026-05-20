@@ -14,6 +14,7 @@ import (
 	"github.com/pedronauck/agh/internal/diagnostics"
 	"github.com/pedronauck/agh/internal/doctor"
 	observepkg "github.com/pedronauck/agh/internal/observe"
+	authproviders "github.com/pedronauck/agh/internal/providers"
 	"github.com/pedronauck/agh/internal/session"
 	settingspkg "github.com/pedronauck/agh/internal/settings"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
@@ -132,7 +133,20 @@ func (h *BaseHandlers) doctorPayload(ctx context.Context, opts doctor.RunOptions
 			if err != nil {
 				return nil, err
 			}
-			return diagnosticItemsFromStatus(&status), nil
+			return diagnosticItemsFromStatus(&status, false), nil
+		},
+	}); err != nil {
+		return contract.DoctorPayload{}, err
+	}
+	if err := registry.Register(&doctor.ProbeFunc{
+		ProbeID:       "runtime.providers",
+		ProbeCategory: contract.CategoryProvider,
+		RunFunc: func(ctx context.Context, _ *doctor.ProbeEnv) ([]contract.DiagnosticItem, error) {
+			providers, err := h.providerStatusPayloads(ctx)
+			if err != nil {
+				return nil, err
+			}
+			return providerDiagnosticItems(providers), nil
 		},
 	}); err != nil {
 		return contract.DoctorPayload{}, err
@@ -247,19 +261,22 @@ func (h *BaseHandlers) providerStatusPayloads(ctx context.Context) ([]contract.P
 			lastProbeAt = &timestamp
 		}
 		payloads = append(payloads, contract.ProviderStatusPayload{
-			Name:             strings.TrimSpace(provider.Name),
-			DisplayName:      strings.TrimSpace(provider.DisplayName),
-			Default:          provider.Default,
-			Mode:             strings.TrimSpace(status.Mode),
-			EnvPolicy:        strings.TrimSpace(status.EnvPolicy),
-			HomePolicy:       strings.TrimSpace(status.HomePolicy),
-			State:            strings.TrimSpace(status.State),
-			Code:             strings.TrimSpace(status.Code),
-			Message:          diagnostics.RedactAndBound(status.Message, maxDiagnosticPayloadBytes),
-			StatusCommand:    diagnostics.RedactAndBound(status.StatusCmd, maxDiagnosticPayloadBytes),
-			LoginCommand:     diagnostics.RedactAndBound(status.LoginCmd, maxDiagnosticPayloadBytes),
-			LastProbeAt:      lastProbeAt,
-			SuggestedCommand: diagnostics.RedactAndBound(status.LoginCmd, maxDiagnosticPayloadBytes),
+			Name:          strings.TrimSpace(provider.Name),
+			DisplayName:   strings.TrimSpace(provider.DisplayName),
+			Default:       provider.Default,
+			Mode:          strings.TrimSpace(status.Mode),
+			EnvPolicy:     strings.TrimSpace(status.EnvPolicy),
+			HomePolicy:    strings.TrimSpace(status.HomePolicy),
+			State:         strings.TrimSpace(status.State),
+			Code:          strings.TrimSpace(status.Code),
+			Message:       diagnostics.RedactAndBound(status.Message, maxDiagnosticPayloadBytes),
+			StatusCommand: diagnostics.RedactAndBound(status.StatusCmd, maxDiagnosticPayloadBytes),
+			LoginCommand:  diagnostics.RedactAndBound(status.LoginCmd, maxDiagnosticPayloadBytes),
+			LastProbeAt:   lastProbeAt,
+			SuggestedCommand: diagnostics.RedactAndBound(
+				providerSuggestedCommand(provider.Name, status),
+				maxDiagnosticPayloadBytes,
+			),
 		})
 	}
 	return payloads, nil
@@ -412,7 +429,7 @@ func splitStatusFilter(values []string, raw string) []string {
 	return out
 }
 
-func diagnosticItemsFromStatus(status *contract.StatusPayload) []contract.DiagnosticItem {
+func diagnosticItemsFromStatus(status *contract.StatusPayload, includeProviders bool) []contract.DiagnosticItem {
 	if status == nil {
 		return nil
 	}
@@ -426,8 +443,8 @@ func diagnosticItemsFromStatus(status *contract.StatusPayload) []contract.Diagno
 		logTailDiagnosticItem(status.LogTail),
 		taskDiagnosticItem(status.Tasks),
 	}
-	for _, provider := range status.Providers {
-		items = append(items, providerDiagnosticItem(provider))
+	if includeProviders {
+		items = append(items, providerDiagnosticItems(status.Providers)...)
 	}
 	for _, server := range status.MCPServers {
 		items = append(items, mcpServerDiagnosticItem(server))
@@ -436,6 +453,23 @@ func diagnosticItemsFromStatus(status *contract.StatusPayload) []contract.Diagno
 		return items[i].ID < items[j].ID
 	})
 	return items
+}
+
+func providerDiagnosticItems(providers []contract.ProviderStatusPayload) []contract.DiagnosticItem {
+	items := make([]contract.DiagnosticItem, 0, len(providers))
+	for _, provider := range providers {
+		items = append(items, providerDiagnosticItem(provider))
+	}
+	return items
+}
+
+func providerSuggestedCommand(providerName string, status contract.ProviderAuthStatusPayload) string {
+	classification := authproviders.Classification{
+		State:   authproviders.ProviderAuthState(strings.TrimSpace(status.State)),
+		Code:    strings.TrimSpace(status.Code),
+		Message: strings.TrimSpace(status.Message),
+	}
+	return authproviders.SuggestedCommand(providerName, classification)
 }
 
 func daemonDiagnosticItem(status *contract.StatusPayload) contract.DiagnosticItem {

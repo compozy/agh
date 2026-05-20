@@ -12,10 +12,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
 	core "github.com/pedronauck/agh/internal/api/core"
 	"github.com/pedronauck/agh/internal/api/testutil"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/diagnostics"
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
@@ -315,6 +317,51 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			t.Fatalf("transcript status = %d, want %d", transcriptResp.Code, http.StatusOK)
 		}
 	})
+}
+
+func TestCreateSessionProviderAuthFailureReturnsDiagnostic(t *testing.T) {
+	t.Parallel()
+
+	item := diagnostics.NewItem(
+		"provider.codex.auth",
+		contract.CodeProviderCLIMissing,
+		contract.CategoryProvider,
+		"Provider auth status",
+		"Provider CLI is not installed or not available on PATH.",
+		contract.SeverityError,
+		contract.FreshnessLive,
+	)
+	manager := testutil.StubSessionManager{
+		CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
+			return nil, acp.WrapFailure(
+				store.FailureProviderAuth,
+				"provider auth pre-start probe failed",
+				diagnostics.NewStructuredError(item, errors.New("missing provider CLI")),
+			)
+		},
+	}
+	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+
+	response := performRequest(
+		t,
+		fixture.Engine,
+		http.MethodPost,
+		"/sessions",
+		[]byte(`{"agent_name":"coder","provider":"codex","workspace":"alpha"}`),
+	)
+	if response.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("create status = %d body = %s, want 422", response.Code, response.Body.String())
+	}
+	var payload contract.ErrorPayload
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("json.Unmarshal(error payload) error = %v", err)
+	}
+	if payload.Diagnostic == nil {
+		t.Fatal("payload.Diagnostic = nil, want provider diagnostic")
+	}
+	if got, want := payload.Diagnostic.Code, contract.CodeProviderCLIMissing; got != want {
+		t.Fatalf("payload.Diagnostic.Code = %q, want %q", got, want)
+	}
 }
 
 func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {

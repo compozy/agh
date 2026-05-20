@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	acpsdk "github.com/coder/acp-go-sdk"
+	aghconfig "github.com/pedronauck/agh/internal/config"
+	authproviders "github.com/pedronauck/agh/internal/providers"
 )
 
 // ProviderFailureKind classifies provider-facing failures into the recovery
@@ -15,7 +17,7 @@ type ProviderFailureKind string
 
 const (
 	ProviderFailureMissingCLI       ProviderFailureKind = "missing_cli"
-	ProviderFailureUnauthenticated  ProviderFailureKind = "unauthenticated"
+	ProviderFailureUnauthenticated  ProviderFailureKind = "not_authenticated"
 	ProviderFailureInvalidModel     ProviderFailureKind = "invalid_model"
 	ProviderFailureModelUnavailable ProviderFailureKind = "model_unavailable"
 	ProviderFailurePermissionDenied ProviderFailureKind = "permission_denied"
@@ -34,6 +36,7 @@ const (
 	ProviderFailureActionRequestPermission ProviderFailureAction = "request_permission"
 	ProviderFailureActionWait              ProviderFailureAction = "wait"
 	ProviderFailureActionRetry             ProviderFailureAction = "retry"
+	ProviderFailureActionNoRetry           ProviderFailureAction = "no_retry"
 )
 
 // ProviderFailureDiagnostic is the typed provider-specific recovery metadata
@@ -52,62 +55,6 @@ type providerFailurePattern struct {
 }
 
 var providerFailurePatterns = []providerFailurePattern{
-	{
-		kind:     ProviderFailureMissingCLI,
-		action:   ProviderFailureActionInstallCLI,
-		guidance: "install the provider CLI and retry",
-		needles: []string{
-			"executable file not found",
-			"executable not found",
-			"command not found",
-		},
-	},
-	{
-		kind:     ProviderFailureRateLimited,
-		action:   ProviderFailureActionWait,
-		guidance: "wait for the provider quota or rate-limit window, then retry",
-		needles: []string{
-			"429",
-			"rate_limit",
-			"rate limit",
-			"too many requests",
-			"quota exceeded",
-			"insufficient_quota",
-		},
-	},
-	{
-		kind:     ProviderFailureUnauthenticated,
-		action:   ProviderFailureActionLogin,
-		guidance: "run provider auth login for this provider",
-		needles: []string{
-			"401",
-			"unauthorized",
-			"authentication required",
-			"authentication failed",
-			"not logged in",
-			"login required",
-			"invalid api key",
-			"missing api key",
-			"no api key",
-			"expired token",
-		},
-	},
-	{
-		kind:     ProviderFailurePermissionDenied,
-		action:   ProviderFailureActionRequestPermission,
-		guidance: "request provider or model access before retrying",
-		needles: []string{
-			"403",
-			"forbidden",
-			"permission denied",
-			"access denied",
-			"not entitled",
-			"entitlement",
-			"does not have access",
-			"do not have access",
-			"not allowed to access",
-		},
-	},
 	{
 		kind:     ProviderFailureInvalidModel,
 		action:   ProviderFailureActionChangeModel,
@@ -134,23 +81,6 @@ var providerFailurePatterns = []providerFailurePattern{
 			"not available in your region",
 		},
 	},
-	{
-		kind:     ProviderFailureTransient,
-		action:   ProviderFailureActionRetry,
-		guidance: "retry after the provider recovers",
-		needles: []string{
-			"500",
-			"502",
-			"503",
-			"504",
-			"529",
-			"overloaded",
-			"temporarily unavailable",
-			"server error",
-			"connection reset",
-			"jsondecodeerror",
-		},
-	},
 }
 
 // ProviderFailureDiagnosticFromError returns stable provider recovery metadata
@@ -160,34 +90,76 @@ func ProviderFailureDiagnosticFromError(err error) (ProviderFailureDiagnostic, b
 		return ProviderFailureDiagnostic{}, false
 	}
 	if errors.Is(err, execpkg.ErrNotFound) {
-		return providerFailureDiagnostic(
-			ProviderFailureMissingCLI,
-			ProviderFailureActionInstallCLI,
-			"install the provider CLI and retry",
-		), true
+		return providerFailureDiagnosticFromClassification(authproviders.ClassifyError(err))
 	}
+	text := err.Error()
 	if reqErr, ok := errors.AsType[*acpsdk.RequestError](err); ok {
-		if diagnostic, matched := providerFailureDiagnosticFromRequestError(reqErr); matched {
-			return diagnostic, true
-		}
+		text = requestErrorDiagnosticText(reqErr)
 	}
-	return providerFailureDiagnosticFromText(err.Error())
+	if diagnostic, matched := providerFailureDiagnosticFromText(text); matched {
+		return diagnostic, true
+	}
+	return providerAuthFailureDiagnosticFromText(text)
 }
 
-func providerFailureDiagnosticFromRequestError(
-	reqErr *acpsdk.RequestError,
-) (ProviderFailureDiagnostic, bool) {
-	if reqErr == nil {
+func providerAuthFailureDiagnosticFromError(err error) (ProviderFailureDiagnostic, bool) {
+	if errors.Is(err, execpkg.ErrNotFound) {
+		return providerFailureDiagnosticFromClassification(authproviders.ClassifyError(err))
+	}
+	text := err.Error()
+	if reqErr, ok := errors.AsType[*acpsdk.RequestError](err); ok {
+		text = requestErrorDiagnosticText(reqErr)
+	}
+	classification := authproviders.ClassifyProbeResult(
+		aghconfig.ProviderConfig{AuthMode: aghconfig.ProviderAuthModeNativeCLI, Command: "provider"},
+		authproviders.ProbeOutcome{ExitCode: 1, Stderr: text},
+		&authproviders.ProbeEnv{
+			ProviderName: "provider",
+			LookPath: func(string) (string, error) {
+				return "", execpkg.ErrNotFound
+			},
+		},
+	)
+	return providerFailureDiagnosticFromClassification(classification)
+}
+
+func providerAuthFailureDiagnosticFromText(text string) (ProviderFailureDiagnostic, bool) {
+	if strings.TrimSpace(text) == "" {
 		return ProviderFailureDiagnostic{}, false
 	}
-	if reqErr.Code == -32000 {
-		return providerFailureDiagnostic(
-			ProviderFailureUnauthenticated,
-			ProviderFailureActionLogin,
-			"run provider auth login for this provider",
-		), true
+	return providerAuthFailureDiagnosticFromError(errors.New(text))
+}
+
+func providerFailureDiagnosticFromClassification(
+	classification authproviders.Classification,
+) (ProviderFailureDiagnostic, bool) {
+	if classification.Kind == "" || classification.Kind == authproviders.ProviderFailureUnknown {
+		return ProviderFailureDiagnostic{}, false
 	}
-	return providerFailureDiagnosticFromText(requestErrorDiagnosticText(reqErr))
+	return providerFailureDiagnostic(
+		ProviderFailureKind(classification.Kind),
+		ProviderFailureAction(classification.Action),
+		providerFailureGuidance(classification),
+	), true
+}
+
+func providerFailureGuidance(classification authproviders.Classification) string {
+	switch classification.Action {
+	case authproviders.ProviderFailureActionInstallCLI:
+		return "install the provider CLI and retry"
+	case authproviders.ProviderFailureActionLogin:
+		return "run provider auth login for this provider"
+	case authproviders.ProviderFailureActionBindSecret:
+		return "bind the required provider credential and retry"
+	case authproviders.ProviderFailureActionRetry:
+		return "retry after the provider recovers"
+	case authproviders.ProviderFailureActionNoRetry:
+		return "inspect provider access before retrying"
+	case authproviders.ProviderFailureActionInspect:
+		return "inspect provider auth status output"
+	default:
+		return strings.TrimSpace(classification.Message)
+	}
 }
 
 func providerFailureDiagnosticFromText(text string) (ProviderFailureDiagnostic, bool) {

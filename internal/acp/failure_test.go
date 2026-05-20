@@ -140,24 +140,24 @@ func TestProviderFailureDiagnosticFromErrorClassifiesProviderRecoveryActions(t *
 			wantAction: ProviderFailureActionChangeModel,
 		},
 		{
-			name: "Should classify entitlement failures as request permission",
+			name: "Should classify entitlement failures as no retry",
 			err: &acpsdk.RequestError{
 				Code:    -32603,
 				Message: "Internal error",
 				Data:    map[string]any{"error": "403 forbidden: model entitlement required"},
 			},
 			wantKind:   ProviderFailurePermissionDenied,
-			wantAction: ProviderFailureActionRequestPermission,
+			wantAction: ProviderFailureActionNoRetry,
 		},
 		{
-			name: "Should classify provider quotas as wait",
+			name: "Should classify provider quotas as retry",
 			err: &acpsdk.RequestError{
 				Code:    -32603,
 				Message: "Internal error",
 				Data:    map[string]any{"status": 429, "error": "rate limit exceeded"},
 			},
 			wantKind:   ProviderFailureRateLimited,
-			wantAction: ProviderFailureActionWait,
+			wantAction: ProviderFailureActionRetry,
 		},
 		{
 			name: "Should classify overloaded providers as retry",
@@ -209,8 +209,8 @@ func TestFailureFromErrorAddsProviderRecoveryMetadata(t *testing.T) {
 		}
 		for _, want := range []string{
 			"provider_failure_kind=rate_limited",
-			"next_action=wait",
-			"guidance=wait for the provider quota or rate-limit window, then retry",
+			"next_action=retry",
+			"guidance=retry after the provider recovers",
 		} {
 			if !strings.Contains(failure.Summary, want) {
 				t.Fatalf("FailureFromError() summary = %q, want %q", failure.Summary, want)

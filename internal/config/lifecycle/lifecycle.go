@@ -55,6 +55,12 @@ const (
 	NextActionRetry         NextAction = "retry"
 )
 
+const (
+	pathDaemonReloadTimeoutProviders = "daemon.reload_timeouts.providers"
+	pathDaemonReloadTimeoutMCP       = "daemon.reload_timeouts.mcp"
+	pathDaemonReloadTimeoutBridges   = "daemon.reload_timeouts.bridges"
+)
+
 // Rule records the lifecycle for a config path pattern.
 type Rule struct {
 	Pattern   string
@@ -66,9 +72,9 @@ type Rule struct {
 // segments and "*" wildcards for one segment.
 var Matrix = []Rule{
 	{Pattern: "skills.disabled_skills", Lifecycle: Live, DiffClass: DiffClassLive},
-	{Pattern: "daemon.reload_timeouts.providers", Lifecycle: Live, DiffClass: DiffClassLive},
-	{Pattern: "daemon.reload_timeouts.mcp", Lifecycle: Live, DiffClass: DiffClassLive},
-	{Pattern: "daemon.reload_timeouts.bridges", Lifecycle: Live, DiffClass: DiffClassLive},
+	{Pattern: pathDaemonReloadTimeoutProviders, Lifecycle: Live, DiffClass: DiffClassLive},
+	{Pattern: pathDaemonReloadTimeoutMCP, Lifecycle: Live, DiffClass: DiffClassLive},
+	{Pattern: pathDaemonReloadTimeoutBridges, Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "providers.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "mcp-servers.*", Lifecycle: RestartRequired, DiffClass: DiffClassRestartRequired},
 	{Pattern: "sandboxes.*", Lifecycle: SessionRebind, DiffClass: DiffClassSessionRebind},

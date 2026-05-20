@@ -1,11 +1,11 @@
 ---
 title: "agh provider auth login"
-description: "Run the provider native login command"
+description: "Run the provider native login command locally"
 ---
 
 ## agh provider auth login
 
-Run the provider native login command
+Run the provider native login command locally
 
 ```
 agh provider auth login <provider> [flags]
@@ -14,7 +14,10 @@ agh provider auth login <provider> [flags]
 ### Options
 
 ```
-  -h, --help   help for login
+  -h, --help               help for login
+      --no-tty             Disable TTY attachment for the login command
+      --print-command      Print only the resolved provider login command
+      --timeout duration   Optional login command timeout
 ```
 
 ### Options inherited from parent commands

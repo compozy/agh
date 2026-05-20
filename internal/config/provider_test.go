@@ -645,6 +645,72 @@ func TestProviderAuthModeValidation(t *testing.T) {
 			t.Fatalf("ResolveProvider(none with slots) error = %v, want none guidance", err)
 		}
 	})
+
+	t.Run("Should reject status command when auth is none", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := Config{
+			Providers: map[string]ProviderConfig{
+				"custom": {
+					Command:       "custom-agent --acp",
+					AuthMode:      ProviderAuthModeNone,
+					AuthStatusCmd: "custom-agent auth status",
+				},
+			},
+		}
+
+		_, err := cfg.ResolveProvider("custom")
+		if err == nil {
+			t.Fatal("ResolveProvider(none with status command) error = nil, want validation error")
+		}
+		if !strings.Contains(err.Error(), "auth_status_command cannot be set when auth_mode is none") {
+			t.Fatalf("ResolveProvider(none with status command) error = %v, want status command guidance", err)
+		}
+	})
+
+	t.Run("Should reject login command when auth is none", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := Config{
+			Providers: map[string]ProviderConfig{
+				"custom": {
+					Command:      "custom-agent --acp",
+					AuthMode:     ProviderAuthModeNone,
+					AuthLoginCmd: "custom-agent auth login",
+				},
+			},
+		}
+
+		_, err := cfg.ResolveProvider("custom")
+		if err == nil {
+			t.Fatal("ResolveProvider(none with login command) error = nil, want validation error")
+		}
+		if !strings.Contains(err.Error(), "auth_login_command cannot be set when auth_mode is none") {
+			t.Fatalf("ResolveProvider(none with login command) error = %v, want login command guidance", err)
+		}
+	})
+
+	t.Run("Should reject invalid none security rationale", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := Config{
+			Providers: map[string]ProviderConfig{
+				"custom": {
+					Command:      "custom-agent --acp",
+					AuthMode:     ProviderAuthModeNone,
+					NoneSecurity: ProviderNoneSecurity("public-write"),
+				},
+			},
+		}
+
+		_, err := cfg.ResolveProvider("custom")
+		if err == nil {
+			t.Fatal("ResolveProvider(invalid none_security) error = nil, want validation error")
+		}
+		if !strings.Contains(err.Error(), "none_security") {
+			t.Fatalf("ResolveProvider(invalid none_security) error = %v, want none_security guidance", err)
+		}
+	})
 }
 
 func TestProviderCredentialSlotValidateRestrictsSecretRefs(t *testing.T) {
@@ -1247,14 +1313,14 @@ default_reasoning_effort = "high"
 	}
 }
 
-func TestLoadRejectsRemovedProviderModelKeys(t *testing.T) {
+func TestLoadRejectsRemovedProviderKeys(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
-		config      string
-		removedPath string
-		replacement string
+		name            string
+		config          string
+		removedPath     string
+		messageFragment string
 	}{
 		{
 			name: "Should reject old default_model key",
@@ -1262,8 +1328,8 @@ func TestLoadRejectsRemovedProviderModelKeys(t *testing.T) {
 [providers.codex]
 default_model = "gpt-5.4"
 `,
-			removedPath: `providers.codex.default_model`,
-			replacement: `providers.codex.models.default`,
+			removedPath:     `providers.codex.default_model`,
+			messageFragment: `use "providers.codex.models.default"`,
 		},
 		{
 			name: "Should reject old supported_models key",
@@ -1271,8 +1337,8 @@ default_model = "gpt-5.4"
 [providers.codex]
 supported_models = ["gpt-5.4"]
 `,
-			removedPath: `providers.codex.supported_models`,
-			replacement: `providers.codex.models.curated`,
+			removedPath:     `providers.codex.supported_models`,
+			messageFragment: `use "providers.codex.models.curated"`,
 		},
 		{
 			name: "Should reject old supports_reasoning_effort key",
@@ -1280,8 +1346,17 @@ supported_models = ["gpt-5.4"]
 [providers.codex]
 supports_reasoning_effort = true
 `,
-			removedPath: `providers.codex.supports_reasoning_effort`,
-			replacement: `providers.codex.models.curated[].reasoning_efforts`,
+			removedPath:     `providers.codex.supports_reasoning_effort`,
+			messageFragment: `use "providers.codex.models.curated[].reasoning_efforts"`,
+		},
+		{
+			name: "Should reject removed provider aliases key",
+			config: `
+[providers.codex]
+aliases = ["openai"]
+`,
+			removedPath:     `providers.codex.aliases`,
+			messageFragment: "aliases was removed; reference providers by canonical name",
 		},
 	}
 	for _, tc := range tests {
@@ -1303,12 +1378,12 @@ supports_reasoning_effort = true
 			}
 			message := err.Error()
 			if !strings.Contains(message, `removed config key "`+tc.removedPath+`"`) ||
-				!strings.Contains(message, `use "`+tc.replacement+`"`) {
+				!strings.Contains(message, tc.messageFragment) {
 				t.Fatalf(
-					"LoadForHome() error = %v, want removed path %q and replacement %q",
+					"LoadForHome() error = %v, want removed path %q and message fragment %q",
 					err,
 					tc.removedPath,
-					tc.replacement,
+					tc.messageFragment,
 				)
 			}
 		})

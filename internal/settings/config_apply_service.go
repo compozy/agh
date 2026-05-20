@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"reflect"
 	"slices"
@@ -37,7 +38,7 @@ type activeConfigState struct {
 func (s *service) ApplySection(ctx context.Context, req SectionUpdateRequest) (ApplyResult, error) {
 	result, err := s.UpdateSection(ctx, req)
 	if err != nil {
-		return s.recordFailedApply(ctx, SectionName(req.Section), req.Scope, "", "", err)
+		return s.recordFailedApply(ctx, req.Section, req.Scope, "", err)
 	}
 	return s.recordMutationApply(ctx, result)
 }
@@ -50,7 +51,7 @@ func (s *service) ApplyCollectionItem(ctx context.Context, req CollectionItemPut
 	}
 	result, err := s.PutCollectionItem(ctx, req)
 	if err != nil {
-		return s.recordFailedApply(ctx, SectionName(req.Collection), req.Scope, req.WorkspaceID, "", err)
+		return s.recordFailedApply(ctx, SectionName(req.Collection), req.Scope, req.WorkspaceID, err)
 	}
 	result = applyCollectionLifecycle(result, req.Collection, "put", before)
 	return s.recordMutationApply(ctx, result)
@@ -63,7 +64,7 @@ func (s *service) ApplyCollectionDelete(
 ) (ApplyResult, error) {
 	result, err := s.DeleteCollectionItem(ctx, req)
 	if err != nil {
-		return s.recordFailedApply(ctx, SectionName(req.Collection), req.Scope, req.WorkspaceID, "", err)
+		return s.recordFailedApply(ctx, SectionName(req.Collection), req.Scope, req.WorkspaceID, err)
 	}
 	result = applyCollectionLifecycle(result, req.Collection, "delete", true)
 	return s.recordMutationApply(ctx, result)
@@ -77,7 +78,7 @@ func (s *service) Reload(ctx context.Context) (ApplyResult, error) {
 	}
 	desiredHash, desiredConfig, err := s.currentDesiredConfigHash()
 	if err != nil {
-		return s.recordFailedApply(ctx, "", ScopeGlobal, "", "", err)
+		return s.recordFailedApply(ctx, "", ScopeGlobal, "", err)
 	}
 	if desiredHash == state.hash {
 		record, createErr := s.createTerminalApplyRecord(ctx, applyRecordInput{
@@ -99,9 +100,9 @@ func (s *service) Reload(ctx context.Context) (ApplyResult, error) {
 		}, nil
 	}
 
-	configLifecycle, err := classifyReloadLifecycle(state.config, desiredConfig)
+	configLifecycle, err := classifyReloadLifecycle(&state.config, &desiredConfig)
 	if err != nil {
-		return s.recordFailedApply(ctx, "", ScopeGlobal, "", "", err)
+		return s.recordFailedApply(ctx, "", ScopeGlobal, "", err)
 	}
 	status := lifecycle.StatusApplied
 	activeHash := desiredHash
@@ -126,7 +127,7 @@ func (s *service) Reload(ctx context.Context) (ApplyResult, error) {
 		return ApplyResult{}, err
 	}
 	if applied {
-		s.advanceActiveConfig(desiredConfig, desiredHash, generation)
+		s.advanceActiveConfig(&desiredConfig, desiredHash, generation)
 	}
 	return ApplyResult{
 		Record:          record,
@@ -201,7 +202,7 @@ func (s *service) recordMutationApply(ctx context.Context, result MutationResult
 		return ApplyResult{}, err
 	}
 	if applied && !noChanges {
-		s.advanceActiveConfig(desiredConfig, desiredHash, generation)
+		s.advanceActiveConfig(&desiredConfig, desiredHash, generation)
 	}
 	return ApplyResult{
 		Record:          record,
@@ -225,7 +226,6 @@ func (s *service) recordFailedApply(
 	section SectionName,
 	scope ScopeKind,
 	workspaceID string,
-	agentName string,
 	cause error,
 ) (ApplyResult, error) {
 	state, stateErr := s.ensureActiveConfigState(ctx)
@@ -262,7 +262,6 @@ func (s *service) recordFailedApply(
 		Section:         section,
 		Scope:           scope,
 		WorkspaceID:     workspaceID,
-		AgentName:       agentName,
 		Applied:         false,
 		NextAction:      lifecycle.NextActionRetry,
 		RestartRequired: false,
@@ -310,7 +309,7 @@ func (s *service) ensureActiveConfigState(ctx context.Context) (activeSnapshot, 
 		return activeSnapshot{
 			hash:       s.activeConfig.hash,
 			generation: s.activeConfig.generation,
-			config:     cloneActiveConfig(s.activeConfig.config),
+			config:     cloneActiveConfig(&s.activeConfig.config),
 		}, nil
 	}
 
@@ -333,7 +332,7 @@ func (s *service) ensureActiveConfigState(ctx context.Context) (activeSnapshot, 
 	s.activeConfig.hash = hash
 	s.activeConfig.generation = generation
 	s.activeConfig.config = cfg
-	return activeSnapshot{hash: hash, generation: generation, config: cloneActiveConfig(cfg)}, nil
+	return activeSnapshot{hash: hash, generation: generation, config: cloneActiveConfig(&cfg)}, nil
 }
 
 type activeSnapshot struct {
@@ -342,11 +341,11 @@ type activeSnapshot struct {
 	config     aghconfig.Config
 }
 
-func (s *service) advanceActiveConfig(cfg aghconfig.Config, hash string, generation int64) {
+func (s *service) advanceActiveConfig(cfg *aghconfig.Config, hash string, generation int64) {
 	s.activeConfig.mu.Lock()
 	defer s.activeConfig.mu.Unlock()
 	s.activeConfig.initialized = true
-	s.activeConfig.config = cfg
+	s.activeConfig.config = cloneActiveConfig(cfg)
 	s.activeConfig.hash = hash
 	s.activeConfig.generation = generation
 }
@@ -356,14 +355,14 @@ func (s *service) currentDesiredConfigHash() (string, aghconfig.Config, error) {
 	if err != nil {
 		return "", aghconfig.Config{}, fmt.Errorf("settings: load desired config: %w", err)
 	}
-	hash, err := hashConfigSnapshot(s.homePaths.ConfigFile, cfg)
+	hash, err := hashConfigSnapshot(s.homePaths.ConfigFile, &cfg)
 	if err != nil {
 		return "", aghconfig.Config{}, err
 	}
 	return hash, cfg, nil
 }
 
-func hashConfigSnapshot(path string, cfg aghconfig.Config) (string, error) {
+func hashConfigSnapshot(path string, cfg *aghconfig.Config) (string, error) {
 	bytes, err := os.ReadFile(path)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
@@ -391,7 +390,7 @@ func skippedReason(skipped bool) string {
 
 func restartScopeForLifecycle(configLifecycle lifecycle.Lifecycle) string {
 	if configLifecycle == lifecycle.RestartRequired {
-		return "daemon"
+		return restartScopeDaemon
 	}
 	return ""
 }
@@ -462,7 +461,8 @@ func (s *service) collectionItemExistsBeforeMutation(
 	}
 	switch req.Collection {
 	case CollectionProviders:
-		for _, item := range envelope.Providers {
+		for i := range envelope.Providers {
+			item := &envelope.Providers[i]
 			if item.Name == trimmedName {
 				return item.SourceMetadata.EffectiveSource.Kind != SourceKindBuiltinProvider, nil
 			}
@@ -480,7 +480,8 @@ func (s *service) collectionItemExistsBeforeMutation(
 			}
 		}
 	case CollectionHooks:
-		for _, item := range envelope.Hooks {
+		for i := range envelope.Hooks {
+			item := &envelope.Hooks[i]
 			if item.Name == trimmedName {
 				return true, nil
 			}
@@ -489,7 +490,7 @@ func (s *service) collectionItemExistsBeforeMutation(
 	return false, nil
 }
 
-func classifyReloadLifecycle(current aghconfig.Config, desired aghconfig.Config) (lifecycle.Lifecycle, error) {
+func classifyReloadLifecycle(current *aghconfig.Config, desired *aghconfig.Config) (lifecycle.Lifecycle, error) {
 	changed := reloadChangedPaths(current, desired)
 	if len(changed) == 0 {
 		return lifecycle.Live, nil
@@ -498,12 +499,12 @@ func classifyReloadLifecycle(current aghconfig.Config, desired aghconfig.Config)
 	return configLifecycle, err
 }
 
-func reloadChangedPaths(current aghconfig.Config, desired aghconfig.Config) []string {
+func reloadChangedPaths(current *aghconfig.Config, desired *aghconfig.Config) []string {
 	var changed []string
-	changed = append(changed, diffGeneralSettings(&current, generalSettingsFromConfig(desired))...)
+	changed = append(changed, diffGeneralSettings(current, generalSettingsFromConfig(desired))...)
 	changed = append(changed, diffSkillsSettings(current.Skills, desired.Skills)...)
 	changed = append(changed, diffMemorySettings(&current.Memory, &desired.Memory)...)
-	changed = append(changed, diffAutomationSettings(&current, automationSettingsFromConfig(desired))...)
+	changed = append(changed, diffAutomationSettings(current, automationSettingsFromConfig(desired))...)
 	changed = append(changed, diffNetworkSettings(current.Network, desired.Network)...)
 	changed = append(changed, diffObservabilitySettings(current.Observability, desired.Observability)...)
 	changed = append(changed, diffExtensionsSettings(current.Extensions, desired.Extensions)...)
@@ -522,7 +523,7 @@ func reloadChangedPaths(current aghconfig.Config, desired aghconfig.Config) []st
 	return changed
 }
 
-func generalSettingsFromConfig(cfg aghconfig.Config) GeneralSettings {
+func generalSettingsFromConfig(cfg *aghconfig.Config) GeneralSettings {
 	return GeneralSettings{
 		Defaults:       cfg.Defaults,
 		Limits:         cfg.Limits,
@@ -533,7 +534,7 @@ func generalSettingsFromConfig(cfg aghconfig.Config) GeneralSettings {
 	}
 }
 
-func automationSettingsFromConfig(cfg aghconfig.Config) AutomationSettings {
+func automationSettingsFromConfig(cfg *aghconfig.Config) AutomationSettings {
 	return AutomationSettings{
 		Enabled:           cfg.Automation.Enabled,
 		Timezone:          cfg.Automation.Timezone,
@@ -542,8 +543,8 @@ func automationSettingsFromConfig(cfg aghconfig.Config) AutomationSettings {
 	}
 }
 
-func cloneActiveConfig(cfg aghconfig.Config) aghconfig.Config {
-	cloned := cfg
+func cloneActiveConfig(cfg *aghconfig.Config) aghconfig.Config {
+	cloned := *cfg
 	cloned.Providers = mapsClone(cfg.Providers)
 	cloned.Sandboxes = mapsClone(cfg.Sandboxes)
 	cloned.MCPServers = append([]aghconfig.MCPServer(nil), cfg.MCPServers...)
@@ -552,12 +553,5 @@ func cloneActiveConfig(cfg aghconfig.Config) aghconfig.Config {
 }
 
 func mapsClone[K comparable, V any](source map[K]V) map[K]V {
-	if source == nil {
-		return nil
-	}
-	cloned := make(map[K]V, len(source))
-	for key, value := range source {
-		cloned[key] = value
-	}
-	return cloned
+	return maps.Clone(source)
 }

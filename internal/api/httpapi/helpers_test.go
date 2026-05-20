@@ -98,14 +98,20 @@ func (s stubExtensionService) Status(ctx context.Context, name string) (contract
 type stubSettingsService struct {
 	GetSectionFn                func(context.Context, settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error)
 	UpdateSectionFn             func(context.Context, settingspkg.SectionUpdateRequest) (settingspkg.MutationResult, error)
+	ApplySectionFn              func(context.Context, settingspkg.SectionUpdateRequest) (settingspkg.ApplyResult, error)
 	ListCollectionFn            func(context.Context, settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error)
 	PutCollectionItemFn         func(context.Context, settingspkg.CollectionItemPutRequest) (settingspkg.MutationResult, error)
+	ApplyCollectionItemFn       func(context.Context, settingspkg.CollectionItemPutRequest) (settingspkg.ApplyResult, error)
 	DeleteCollectionItemFn      func(context.Context, settingspkg.CollectionItemDeleteRequest) (settingspkg.MutationResult, error)
+	ApplyCollectionDeleteFn     func(context.Context, settingspkg.CollectionItemDeleteRequest) (settingspkg.ApplyResult, error)
+	ReloadFn                    func(context.Context) (settingspkg.ApplyResult, error)
+	ListApplyRecordsFn          func(context.Context, settingspkg.ApplyRecordFilter) ([]settingspkg.ApplyRecord, error)
 	LastGetSectionRequest       settingspkg.SectionRequest
 	LastUpdateSectionRequest    settingspkg.SectionUpdateRequest
 	LastListCollectionRequest   settingspkg.CollectionRequest
 	LastPutCollectionRequest    settingspkg.CollectionItemPutRequest
 	LastDeleteCollectionRequest settingspkg.CollectionItemDeleteRequest
+	LastApplyRecordFilter       settingspkg.ApplyRecordFilter
 }
 
 func (s *stubSettingsService) GetSection(
@@ -136,6 +142,17 @@ func (s *stubSettingsService) UpdateSection(
 	return s.UpdateSectionFn(ctx, req)
 }
 
+func (s *stubSettingsService) ApplySection(
+	ctx context.Context,
+	req settingspkg.SectionUpdateRequest,
+) (settingspkg.ApplyResult, error) {
+	s.LastUpdateSectionRequest = req
+	if s.ApplySectionFn == nil {
+		return settingsTestApplyResultForScope(req.Section, req.Scope, req.WorkspaceID), nil
+	}
+	return s.ApplySectionFn(ctx, req)
+}
+
 func (s *stubSettingsService) ListCollection(
 	ctx context.Context,
 	req settingspkg.CollectionRequest,
@@ -164,6 +181,17 @@ func (s *stubSettingsService) PutCollectionItem(
 	return s.PutCollectionItemFn(ctx, req)
 }
 
+func (s *stubSettingsService) ApplyCollectionItem(
+	ctx context.Context,
+	req settingspkg.CollectionItemPutRequest,
+) (settingspkg.ApplyResult, error) {
+	s.LastPutCollectionRequest = req
+	if s.ApplyCollectionItemFn == nil {
+		return settingsTestApplyResultForScope(settingspkg.SectionName(req.Collection), req.Scope, req.WorkspaceID), nil
+	}
+	return s.ApplyCollectionItemFn(ctx, req)
+}
+
 func (s *stubSettingsService) DeleteCollectionItem(
 	ctx context.Context,
 	req settingspkg.CollectionItemDeleteRequest,
@@ -179,6 +207,64 @@ func (s *stubSettingsService) DeleteCollectionItem(
 		}, nil
 	}
 	return s.DeleteCollectionItemFn(ctx, req)
+}
+
+func (s *stubSettingsService) ApplyCollectionDelete(
+	ctx context.Context,
+	req settingspkg.CollectionItemDeleteRequest,
+) (settingspkg.ApplyResult, error) {
+	s.LastDeleteCollectionRequest = req
+	if s.ApplyCollectionDeleteFn == nil {
+		return settingsTestApplyResultForScope(settingspkg.SectionName(req.Collection), req.Scope, req.WorkspaceID), nil
+	}
+	return s.ApplyCollectionDeleteFn(ctx, req)
+}
+
+func (s *stubSettingsService) Reload(ctx context.Context) (settingspkg.ApplyResult, error) {
+	if s.ReloadFn == nil {
+		return settingsTestApplyResult(""), nil
+	}
+	return s.ReloadFn(ctx)
+}
+
+func (s *stubSettingsService) ListApplyRecords(
+	ctx context.Context,
+	filter settingspkg.ApplyRecordFilter,
+) ([]settingspkg.ApplyRecord, error) {
+	s.LastApplyRecordFilter = filter
+	if s.ListApplyRecordsFn == nil {
+		return nil, nil
+	}
+	return s.ListApplyRecordsFn(ctx, filter)
+}
+
+func settingsTestApplyResult(section settingspkg.SectionName) settingspkg.ApplyResult {
+	return settingsTestApplyResultForScope(section, settingspkg.ScopeGlobal, "")
+}
+
+func settingsTestApplyResultForScope(
+	section settingspkg.SectionName,
+	scope settingspkg.ScopeKind,
+	workspaceID string,
+) settingspkg.ApplyResult {
+	return settingspkg.ApplyResult{
+		Section:     section,
+		Scope:       scope,
+		WorkspaceID: workspaceID,
+		Applied:     true,
+		NextAction:  "none",
+		Record: settingspkg.ApplyRecord{
+			ID:         "cfgapp-test",
+			ActiveHash: "sha256:test",
+			Generation: 1,
+			DiffClass:  "live",
+			Status:     "applied",
+			Lifecycle:  "live",
+			NextAction: "none",
+			CreatedAt:  time.Unix(1, 0).UTC(),
+			UpdatedAt:  time.Unix(1, 0).UTC(),
+		},
+	}
 }
 
 type stubSettingsRestartController struct {

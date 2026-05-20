@@ -618,7 +618,7 @@ func newMemoryReloadCommand(deps commandDeps) *cobra.Command {
 	var flags memorySelectorFlags
 
 	cmd := &cobra.Command{
-		Use:   "reload",
+		Use:   configReloadCommandName,
 		Short: "Invalidate frozen memory snapshots for future session boots",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {

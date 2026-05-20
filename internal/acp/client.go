@@ -16,6 +16,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/diagnostics"
 	authproviders "github.com/pedronauck/agh/internal/providers"
 	"github.com/pedronauck/agh/internal/sandbox"
 	"github.com/pedronauck/agh/internal/store"
@@ -225,7 +226,11 @@ func runProviderPreStart(ctx context.Context, opts StartOpts) error {
 		strings.TrimSpace(opts.ProviderName),
 		message,
 	)
-	return WrapFailure(store.FailureProviderAuth, "provider auth pre-start probe failed", err)
+	return WrapFailure(
+		store.FailureProviderAuth,
+		"provider auth pre-start probe failed",
+		diagnostics.NewStructuredError(*report.Item, err),
+	)
 }
 
 func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (*AgentProcess, error) {

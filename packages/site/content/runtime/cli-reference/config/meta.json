@@ -1,4 +1,16 @@
 {
     "title": "Config",
-    "pages": ["index", "check", "edit", "get", "list", "path", "set", "show", "validate"]
+    "pages": [
+        "index",
+        "apply-history",
+        "check",
+        "edit",
+        "get",
+        "list",
+        "path",
+        "reload",
+        "set",
+        "show",
+        "validate"
+    ]
 }

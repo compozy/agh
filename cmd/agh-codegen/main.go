@@ -301,8 +301,7 @@ func generateLifecycleMatrixMDX() []byte {
 		"`config.toml` is desired state. The daemon active generation advances only when `ConfigApplyService` can apply the desired change to runtime truth.\n\n",
 	)
 	out.WriteString("## Lifecycle Values\n\n")
-	out.WriteString("| Lifecycle | Runtime effect |\n")
-	out.WriteString("| --- | --- |\n")
+	lifecycleRows := make([][]string, 0, 5)
 	for _, value := range []lifecycle.Lifecycle{
 		lifecycle.Live,
 		lifecycle.LiveAdd,
@@ -310,33 +309,79 @@ func generateLifecycleMatrixMDX() []byte {
 		lifecycle.SessionRebind,
 		lifecycle.RestartRequired,
 	} {
-		out.WriteString("| `")
-		out.WriteString(string(value))
-		out.WriteString("` | ")
-		out.WriteString(lifecycleDescription(value))
-		out.WriteString(" |\n")
+		lifecycleRows = append(lifecycleRows, []string{
+			fmt.Sprintf("`%s`", value),
+			lifecycleDescription(value),
+		})
 	}
+	writeMarkdownTable(&out, []string{"Lifecycle", "Runtime effect"}, lifecycleRows)
 	out.WriteString("\n## Matrix\n\n")
-	out.WriteString("| Key path pattern | Lifecycle | Diff class | Next action when not immediately active |\n")
-	out.WriteString("| --- | --- | --- | --- |\n")
+	matrixRows := make([][]string, 0, len(lifecycle.SortedMatrix()))
 	for _, rule := range lifecycle.SortedMatrix() {
-		out.WriteString("| `")
-		out.WriteString(rule.Pattern)
-		out.WriteString("` | `")
-		out.WriteString(string(rule.Lifecycle))
-		out.WriteString("` | `")
-		out.WriteString(string(rule.DiffClass))
-		out.WriteString("` | `")
-		out.WriteString(string(nextActionForDocs(rule.Lifecycle)))
-		out.WriteString("` |\n")
+		matrixRows = append(matrixRows, []string{
+			fmt.Sprintf("`%s`", rule.Pattern),
+			fmt.Sprintf("`%s`", rule.Lifecycle),
+			fmt.Sprintf("`%s`", rule.DiffClass),
+			fmt.Sprintf("`%s`", nextActionForDocs(rule.Lifecycle)),
+		})
 	}
+	writeMarkdownTable(
+		&out,
+		[]string{"Key path pattern", "Lifecycle", "Diff class", "Next action when not immediately active"},
+		matrixRows,
+	)
 	out.WriteString("\n## New Live Reload Budgets\n\n")
-	out.WriteString("| Key | Default | Validation |\n")
-	out.WriteString("| --- | --- | --- |\n")
-	out.WriteString("| `daemon.reload_timeouts.providers` | `5s` | At least `1s` and at most `60s`. |\n")
-	out.WriteString("| `daemon.reload_timeouts.mcp` | `10s` | At least `1s` and at most `60s`. |\n")
-	out.WriteString("| `daemon.reload_timeouts.bridges` | `30s` | At least `1s` and at most `300s`. |\n")
+	writeMarkdownTable(
+		&out,
+		[]string{"Key", "Default", "Validation"},
+		[][]string{
+			{"`daemon.reload_timeouts.providers`", "`5s`", "At least `1s` and at most `60s`."},
+			{"`daemon.reload_timeouts.mcp`", "`10s`", "At least `1s` and at most `60s`."},
+			{"`daemon.reload_timeouts.bridges`", "`30s`", "At least `1s` and at most `300s`."},
+		},
+	)
 	return []byte(out.String())
+}
+
+func writeMarkdownTable(out *strings.Builder, headers []string, rows [][]string) {
+	widths := make([]int, len(headers))
+	for i, header := range headers {
+		widths[i] = len(header)
+	}
+	for _, row := range rows {
+		for i, cell := range row {
+			if i >= len(widths) {
+				continue
+			}
+			widths[i] = max(widths[i], len(cell))
+		}
+	}
+	writeMarkdownTableRow(out, headers, widths)
+	separators := make([]string, len(headers))
+	for i, width := range widths {
+		separators[i] = strings.Repeat("-", width)
+	}
+	writeMarkdownTableRow(out, separators, widths)
+	for _, row := range rows {
+		writeMarkdownTableRow(out, row, widths)
+	}
+}
+
+func writeMarkdownTableRow(out *strings.Builder, cells []string, widths []int) {
+	out.WriteString("|")
+	for i, width := range widths {
+		cell := ""
+		if i < len(cells) {
+			cell = cells[i]
+		}
+		out.WriteString(" ")
+		out.WriteString(cell)
+		if padding := width - len(cell); padding > 0 {
+			out.WriteString(strings.Repeat(" ", padding))
+		}
+		out.WriteString(" |")
+	}
+	out.WriteString("\n")
 }
 
 func lifecycleDescription(value lifecycle.Lifecycle) string {

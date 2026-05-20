@@ -17,6 +17,7 @@ import (
 const (
 	defaultApplyRecordLimit = 50
 	maxApplyRecordLimit     = 500
+	applyRecordActorRuntime = "runtime"
 )
 
 // ApplyRecordDBSource exposes the SQL connection needed by the apply-record repository.
@@ -163,6 +164,7 @@ func (r *configApplyRecordRepository) ListApplyRecords(
 		args = append(args, strings.TrimSpace(filter.Actor))
 	}
 	if len(clauses) > 0 {
+		// #nosec G202 -- clauses are static predicates selected from typed filter fields.
 		query += " WHERE " + strings.Join(clauses, " AND ")
 	}
 	query += " ORDER BY updated_at DESC, created_at DESC"
@@ -233,7 +235,7 @@ func (r *configApplyRecordRepository) normalizeForCreate(record ApplyRecord) App
 		normalized.ID = store.NewID("cfgapp")
 	}
 	if strings.TrimSpace(normalized.Actor) == "" {
-		normalized.Actor = "runtime"
+		normalized.Actor = applyRecordActorRuntime
 	}
 	if normalized.DiffClass == "" {
 		normalized.DiffClass = lifecycle.DiffClassRestartRequired
@@ -260,7 +262,7 @@ func (r *configApplyRecordRepository) normalizeForUpdate(record ApplyRecord) App
 		normalized.AppliedAt = &appliedAt
 	}
 	if strings.TrimSpace(normalized.Actor) == "" {
-		normalized.Actor = "runtime"
+		normalized.Actor = applyRecordActorRuntime
 	}
 	if normalized.DiffClass == "" {
 		normalized.DiffClass = lifecycle.DiffClassRestartRequired

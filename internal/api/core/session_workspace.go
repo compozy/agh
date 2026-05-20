@@ -9,8 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/store"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -153,6 +155,8 @@ func statusForSessionError(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, aghconfig.ErrProviderUnavailable):
 		return http.StatusBadRequest
+	case isProviderAuthFailure(err):
+		return http.StatusUnprocessableEntity
 	case errors.Is(err, session.ErrInvalidRuntimeOverride):
 		return http.StatusBadRequest
 	case errors.Is(err, session.ErrInvalidPermissionDecision):
@@ -168,6 +172,11 @@ func statusForSessionError(err error) int {
 	default:
 		return http.StatusInternalServerError
 	}
+}
+
+func isProviderAuthFailure(err error) bool {
+	var failure *acp.FailureError
+	return errors.As(err, &failure) && failure != nil && failure.Kind == store.FailureProviderAuth
 }
 
 func prefixedError(prefix string, message string) error {

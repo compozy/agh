@@ -57,7 +57,8 @@ const (
 	ProviderFailureActionNoRetry    ProviderFailureAction = "no_retry"
 )
 
-const providerAuthNoAuthRequiredMessage = "No auth required."
+// ProviderAuthNoAuthRequiredMessage is the canonical no-auth provider status.
+const ProviderAuthNoAuthRequiredMessage = "No auth required."
 
 var providerTransientTransportNeedles = []string{
 	"timeout",
@@ -66,6 +67,21 @@ var providerTransientTransportNeedles = []string{
 	"connection reset",
 	"network is unreachable",
 	"temporary failure",
+	"temporarily unavailable",
+	"server error",
+	"provider overloaded",
+	"overloaded",
+	"http 500",
+	"status 500",
+	"http 502",
+	"status 502",
+	"http 503",
+	"status 503",
+	"http 504",
+	"status 504",
+	"http 529",
+	"status 529",
+	"529",
 }
 
 // ProbeOutcome is the redacted output from one provider auth status command.
@@ -94,7 +110,7 @@ func ClassifyDeclared(
 	if authMode == aghconfig.ProviderAuthModeNone {
 		return Classification{
 			State:   ProviderAuthStateNone,
-			Message: providerAuthNoAuthRequiredMessage,
+			Message: ProviderAuthNoAuthRequiredMessage,
 		}, nil
 	}
 	if authMode == aghconfig.ProviderAuthModeBoundSecret {
@@ -146,20 +162,13 @@ func ClassifyProbeResult(
 	if authMode == aghconfig.ProviderAuthModeNone {
 		return Classification{
 			State:   ProviderAuthStateNone,
-			Message: providerAuthNoAuthRequiredMessage,
+			Message: ProviderAuthNoAuthRequiredMessage,
 		}
 	}
 	combined := strings.ToLower(outcome.Stdout + "\n" + outcome.Stderr)
-	var nativeCLI *providerauth.NativeCLIStatus
-	if authMode == aghconfig.ProviderAuthModeNativeCLI {
-		var err error
-		nativeCLI, err = NativeCLIStatus(provider, env)
-		if err != nil {
-			return unknownClassification(err)
-		}
-		if nativeCLI != nil && nativeCLI.Command != "" && !nativeCLI.Present && strings.TrimSpace(combined) == "" {
-			return missingCLIClassification(env.Normalize().ProviderName, provider, nativeCLI)
-		}
+	nativeCLI, classification, classified := classifyNativeCLIProbePrecondition(provider, env, authMode, combined)
+	if classified {
+		return classification
 	}
 	if outcome.ExitCode == 0 && outputLooksAuthenticated(outcome) {
 		return Classification{
@@ -167,23 +176,79 @@ func ClassifyProbeResult(
 			Message: "Provider status command completed successfully.",
 		}
 	}
+	if classification, classified := classifyProbeOutput(provider, combined); classified {
+		return classification
+	}
+	if nativeCLI != nil && nativeCLI.Command != "" && !nativeCLI.Present &&
+		hasAny(combined, "not found on path", "not found", "not installed") {
+		return missingCLIClassification(env.Normalize().ProviderName, provider, nativeCLI)
+	}
+	return Classification{
+		State:   ProviderAuthStateUnknown,
+		Code:    diagcontract.CodeProviderClassificationUnknown,
+		Message: "Provider auth probe completed but AGH could not classify the result.",
+		Kind:    ProviderFailureUnknown,
+		Action:  ProviderFailureActionInspect,
+	}
+}
+
+func classifyNativeCLIProbePrecondition(
+	provider aghconfig.ProviderConfig,
+	env *ProbeEnv,
+	authMode aghconfig.ProviderAuthMode,
+	combined string,
+) (*providerauth.NativeCLIStatus, Classification, bool) {
+	if authMode != aghconfig.ProviderAuthModeNativeCLI {
+		return nil, Classification{}, false
+	}
+	nativeCLI, err := NativeCLIStatus(provider, env)
+	if err != nil {
+		return nil, unknownClassification(err), true
+	}
+	if nativeCLI != nil && nativeCLI.Command != "" && !nativeCLI.Present && strings.TrimSpace(combined) == "" {
+		return nativeCLI, missingCLIClassification(env.Normalize().ProviderName, provider, nativeCLI), true
+	}
+	return nativeCLI, Classification{}, false
+}
+
+func classifyProbeOutput(provider aghconfig.ProviderConfig, combined string) (Classification, bool) {
 	switch {
-	case hasAny(combined, "http 429", "status 429", "429", "rate limit", "too many requests"):
+	case hasAny(
+		combined,
+		"http 429",
+		"status 429",
+		"429",
+		"rate limit",
+		"rate_limit",
+		"too many requests",
+		"quota exceeded",
+		"insufficient_quota",
+	):
 		return Classification{
 			State:   ProviderAuthStateRateLimited,
 			Code:    diagcontract.CodeProviderRateLimited,
 			Message: "Provider auth probe was rate limited; retry later.",
 			Kind:    ProviderFailureRateLimited,
 			Action:  ProviderFailureActionRetry,
-		}
-	case hasAny(combined, "http 403", "status 403", "403", "forbidden", "permission denied"):
+		}, true
+	case hasAny(
+		combined,
+		"http 403",
+		"status 403",
+		"403",
+		"forbidden",
+		"permission denied",
+		"access denied",
+		"not entitled",
+		"entitlement",
+	):
 		return Classification{
 			State:   ProviderAuthStatePermissionDenied,
 			Code:    diagcontract.CodeProviderPermissionDenied,
 			Message: "Provider auth probe was denied by the provider.",
 			Kind:    ProviderFailurePermissionDenied,
 			Action:  ProviderFailureActionNoRetry,
-		}
+		}, true
 	case hasAny(combined, providerTransientTransportNeedles...):
 		return Classification{
 			State:   ProviderAuthStateTransient,
@@ -191,27 +256,32 @@ func ClassifyProbeResult(
 			Message: "Provider auth probe failed with a transient transport error.",
 			Kind:    ProviderFailureTransient,
 			Action:  ProviderFailureActionRetry,
-		}
-	case hasAny(combined, "not logged in", "not authenticated", "unauthorized", "http 401", "status 401", "401"):
+		}, true
+	case hasAny(
+		combined,
+		"not logged in",
+		"not authenticated",
+		"unauthorized",
+		"authentication required",
+		"authentication failed",
+		"login required",
+		"invalid api key",
+		"missing api key",
+		"no api key",
+		"expired token",
+		"http 401",
+		"status 401",
+		"401",
+	):
 		return Classification{
 			State:   ProviderAuthStateNeedsLogin,
 			Code:    diagcontract.CodeProviderNotAuthenticated,
 			Message: loginGuidance(provider),
 			Kind:    ProviderFailureNotAuthenticated,
 			Action:  ProviderFailureActionLogin,
-		}
-	case nativeCLI != nil && nativeCLI.Command != "" && !nativeCLI.Present &&
-		hasAny(combined, "not found on path", "not found", "not installed"):
-		return missingCLIClassification(env.Normalize().ProviderName, provider, nativeCLI)
-	default:
-		return Classification{
-			State:   ProviderAuthStateUnknown,
-			Code:    diagcontract.CodeProviderClassificationUnknown,
-			Message: "Provider auth probe completed but AGH could not classify the result.",
-			Kind:    ProviderFailureUnknown,
-			Action:  ProviderFailureActionInspect,
-		}
+		}, true
 	}
+	return Classification{}, false
 }
 
 // ClassifyError maps provider startup errors onto the canonical auth taxonomy when possible.

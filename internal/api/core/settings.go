@@ -1224,33 +1224,9 @@ func generalSettingsFromPayload(payload contract.SettingsGeneralConfigPayload) (
 			fmt.Errorf("general.config.session_timeout: %w", err),
 		)
 	}
-	defaultReloadTimeouts := aghconfig.DefaultDaemonReloadTimeoutsConfig()
-	providerReloadTimeout, err := parseSettingsDurationOrDefault(
-		payload.Daemon.ReloadTimeouts.Providers,
-		defaultReloadTimeouts.Providers,
-	)
+	reloadTimeouts, err := daemonReloadTimeoutsFromPayload(payload.Daemon.ReloadTimeouts)
 	if err != nil {
-		return settingspkg.GeneralSettings{}, NewSettingsValidationError(
-			fmt.Errorf("general.config.daemon.reload_timeouts.providers: %w", err),
-		)
-	}
-	mcpReloadTimeout, err := parseSettingsDurationOrDefault(
-		payload.Daemon.ReloadTimeouts.MCP,
-		defaultReloadTimeouts.MCP,
-	)
-	if err != nil {
-		return settingspkg.GeneralSettings{}, NewSettingsValidationError(
-			fmt.Errorf("general.config.daemon.reload_timeouts.mcp: %w", err),
-		)
-	}
-	bridgeReloadTimeout, err := parseSettingsDurationOrDefault(
-		payload.Daemon.ReloadTimeouts.Bridges,
-		defaultReloadTimeouts.Bridges,
-	)
-	if err != nil {
-		return settingspkg.GeneralSettings{}, NewSettingsValidationError(
-			fmt.Errorf("general.config.daemon.reload_timeouts.bridges: %w", err),
-		)
+		return settingspkg.GeneralSettings{}, err
 	}
 
 	value := settingspkg.GeneralSettings{
@@ -1271,12 +1247,8 @@ func generalSettingsFromPayload(payload contract.SettingsGeneralConfigPayload) (
 			Port: payload.HTTP.Port,
 		},
 		Daemon: aghconfig.DaemonConfig{
-			Socket: strings.TrimSpace(payload.Daemon.Socket),
-			ReloadTimeouts: aghconfig.DaemonReloadTimeoutsConfig{
-				Providers: providerReloadTimeout,
-				MCP:       mcpReloadTimeout,
-				Bridges:   bridgeReloadTimeout,
-			},
+			Socket:         strings.TrimSpace(payload.Daemon.Socket),
+			ReloadTimeouts: reloadTimeouts,
 		},
 	}
 
@@ -1303,6 +1275,31 @@ func generalSettingsFromPayload(payload contract.SettingsGeneralConfigPayload) (
 	}
 
 	return value, nil
+}
+
+func daemonReloadTimeoutsFromPayload(
+	payload contract.SettingsDaemonReloadTimeoutsPayload,
+) (aghconfig.DaemonReloadTimeoutsConfig, error) {
+	defaults := aghconfig.DefaultDaemonReloadTimeoutsConfig()
+	providers, err := parseSettingsDurationOrDefault(payload.Providers, defaults.Providers)
+	if err != nil {
+		return aghconfig.DaemonReloadTimeoutsConfig{}, NewSettingsValidationError(
+			fmt.Errorf("general.config.daemon.reload_timeouts.providers: %w", err),
+		)
+	}
+	mcp, err := parseSettingsDurationOrDefault(payload.MCP, defaults.MCP)
+	if err != nil {
+		return aghconfig.DaemonReloadTimeoutsConfig{}, NewSettingsValidationError(
+			fmt.Errorf("general.config.daemon.reload_timeouts.mcp: %w", err),
+		)
+	}
+	bridges, err := parseSettingsDurationOrDefault(payload.Bridges, defaults.Bridges)
+	if err != nil {
+		return aghconfig.DaemonReloadTimeoutsConfig{}, NewSettingsValidationError(
+			fmt.Errorf("general.config.daemon.reload_timeouts.bridges: %w", err),
+		)
+	}
+	return aghconfig.DaemonReloadTimeoutsConfig{Providers: providers, MCP: mcp, Bridges: bridges}, nil
 }
 
 func parseSettingsDurationOrDefault(raw string, defaultValue time.Duration) (time.Duration, error) {

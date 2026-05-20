@@ -52,6 +52,17 @@ func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 		h.respondProviderNotFound(c, strings.TrimSpace(c.Param("provider_id")))
 		return
 	}
+	if provider.EffectiveAuthMode() == aghconfig.ProviderAuthModeNone {
+		classification := authproviders.Classification{
+			State:   authproviders.ProviderAuthStateNone,
+			Message: authproviders.ProviderAuthNoAuthRequiredMessage,
+		}
+		c.JSON(http.StatusOK, contract.ProviderAuthProbeResponse{
+			Provider:   providerName,
+			AuthStatus: providerAuthStatusPayload(provider, classification, h.nowUTC()),
+		})
+		return
+	}
 	statusCommand := strings.TrimSpace(provider.AuthStatusCmd)
 	if statusCommand == "" {
 		classification := authproviders.Classification{
@@ -77,6 +88,7 @@ func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 		Command: statusCommand,
 		Env:     env.CommandEnv,
 		Timeout: authproviders.DefaultProviderAuthCommandTimeout,
+		NoTTY:   true,
 	})
 	if err != nil {
 		RespondError(c, http.StatusInternalServerError, err, h.MaskInternalErrors)

@@ -203,6 +203,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/stream",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/tools",
 		"GET /api/settings/actions/restart/:operation_id",
+		"GET /api/settings/apply",
 		"GET /api/settings/automation",
 		"GET /api/settings/sandboxes",
 		"GET /api/settings/sandboxes/:name",
@@ -323,6 +324,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/stop",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/tools/search",
 		"POST /api/settings/actions/restart",
+		"POST /api/settings/reload",
 		"POST /api/skills/:name/disable",
 		"POST /api/skills/:name/enable",
 		"POST /api/skills/marketplace/install",
@@ -387,6 +389,29 @@ func TestRegisterRoutesRejectsLegacyStatusSurfaces(t *testing.T) {
 		resp := performRequest(t, engine, http.MethodGet, path, nil)
 		if resp.Code != http.StatusNotFound {
 			t.Fatalf("GET %s status = %d, want %d", path, resp.Code, http.StatusNotFound)
+		}
+	}
+}
+
+func TestRegisterRoutesRejectsLegacyProviderModelCatalogSurfaces(t *testing.T) {
+	t.Parallel()
+
+	homePaths := newTestHomePaths(t)
+	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, homePaths)
+	engine := newTestRouter(t, handlers)
+
+	for _, tc := range []struct {
+		method string
+		path   string
+	}{
+		{method: http.MethodGet, path: "/api/providers/models"},
+		{method: http.MethodGet, path: "/api/providers/codex/models"},
+		{method: http.MethodPost, path: "/api/providers/codex/models/refresh"},
+		{method: http.MethodGet, path: "/api/providers/codex/models/status"},
+	} {
+		resp := performRequest(t, engine, tc.method, tc.path, nil)
+		if resp.Code != http.StatusNotFound {
+			t.Fatalf("%s %s status = %d, want %d", tc.method, tc.path, resp.Code, http.StatusNotFound)
 		}
 	}
 }

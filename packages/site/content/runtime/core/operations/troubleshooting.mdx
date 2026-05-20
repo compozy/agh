@@ -135,11 +135,14 @@ agh provider auth login <provider>
 
 `agh provider auth login` requires the provider to define `auth_login_command`. Built-in `claude`,
 `codex`, `opencode`, and `pi` providers define one; for custom native providers, configure the
-command or run the provider's own login command outside AGH. AGH prints the resolved command for
-an interactive terminal and does not execute native login flows itself. For isolated provider homes,
-the printed command includes the required environment prefix so native credentials land in AGH's
-provider home. Use `agh provider auth login <provider> --print-command` for one raw copyable shell
-command.
+command or run the provider's own login command outside AGH. `agh provider auth login` executes the
+configured login command locally by default and attaches the terminal when stdin, stdout, and stderr
+are TTYs, so provider prompts and OAuth URLs stay visible. For isolated provider homes, AGH supplies
+the required environment prefix so native credentials land in AGH's provider home. Use
+`agh provider auth login <provider> --print-command` for one raw copyable shell command without
+executing it, `--no-tty` for deterministic non-interactive runs, and `--timeout` when scripts need a
+bounded attempt. HTTP/UDS and daemon pre-start checks never run login commands; they use
+non-interactive `auth_status_command` probes only.
 
 See [Spawning](/runtime/core/agents/spawning) for the exact launch and ACP negotiation flow.
 

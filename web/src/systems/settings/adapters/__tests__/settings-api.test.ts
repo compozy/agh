@@ -144,7 +144,10 @@ describe("section reads and updates", () => {
 
     const body = {
       config: {
-        daemon: { socket: "/tmp/next.sock" },
+        daemon: {
+          reload_timeouts: { bridges: "30s", mcp: "10s", providers: "5s" },
+          socket: "/tmp/next.sock",
+        },
         defaults: { agent: "claude-code" },
         http: { host: "127.0.0.1", port: 2123 },
         limits: { max_concurrent_agents: 4 },

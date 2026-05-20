@@ -578,7 +578,7 @@ func (s *service) putProvider(
 	}
 
 	if _, err := aghconfig.EditConfigOverlay(s.homePaths, "", target, func(editor *aghconfig.OverlayEditor) error {
-		path := []string{"providers", name}
+		path := []string{string(CollectionProviders), name}
 		if err := editor.Delete(path); err != nil {
 			return err
 		}

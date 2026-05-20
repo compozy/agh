@@ -33,6 +33,7 @@ const (
 	configWorkspaceValue       = "Workspace"
 	configBackendKey           = "backend"
 	configCommandKey           = "command"
+	configReloadCommandName    = "reload"
 	configConfigKey            = "config"
 	configDaemonKey            = "daemon"
 	configDefaultsProviderPath = "defaults.provider"
@@ -106,10 +107,6 @@ type configSetRecord struct {
 	NextAction       string `json:"next_action,omitempty"`
 	RestartRequired  bool   `json:"restart_required"`
 	RestartScope     string `json:"restart_scope,omitempty"`
-}
-
-type configApplyHistoryRecord struct {
-	Entries []contract.ConfigApplyRecordPayload `json:"entries"`
 }
 
 type configPathRecord struct {
@@ -434,83 +431,90 @@ func newConfigSetCommand(deps commandDeps) *cobra.Command {
 		Short: "Set one config value through the validated config writer",
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := requireUnmanagedForMutation(deps, "set config values"); err != nil {
-				return err
-			}
-			homePaths, target, workspace, err := configWriteTarget(deps, scopeRaw, workspaceRoot)
-			if err != nil {
-				return err
-			}
-			if err := ensureWriteTargetParent(target); err != nil {
-				return err
-			}
-
-			path, kind, redacted, err := configMutationPath(args[0])
-			if err != nil {
-				return err
-			}
-			lifecycle, err := classifyConfigSetLifecycle(path)
-			if err != nil {
-				return err
-			}
-			value, err := parseConfigSetValue(kind, args[1])
-			if err != nil {
-				return err
-			}
-			if liveRecord, err := maybeApplyConfigSetViaDaemon(
-				cmd.Context(),
-				deps,
-				homePaths,
-				target,
-				path,
-				value,
-				redacted,
-			); err != nil {
-				return err
-			} else if liveRecord != nil {
-				return writeCommandOutput(cmd, configSetBundle(*liveRecord))
-			}
-			if _, err := aghconfig.EditConfigOverlay(
-				homePaths,
-				workspace,
-				target,
-				func(editor *aghconfig.OverlayEditor) error {
-					return editor.SetValue(path, value)
-				},
-			); err != nil {
-				return err
-			}
-
-			outputValue := value
-			if redacted {
-				outputValue = aghconfig.RedactedValue()
-			}
-			record := configSetRecord{
-				Path:            strings.Join(path, "."),
-				Value:           outputValue,
-				Scope:           string(target.Scope()),
-				Target:          target.Path(),
-				Redacted:        redacted,
-				Lifecycle:       lifecycle.Lifecycle,
-				Applied:         lifecycle.Applied,
-				NextAction:      lifecycle.NextAction,
-				RestartRequired: lifecycle.RestartRequired,
-				RestartScope:    lifecycle.RestartScope,
-			}
-			reloadRecord, err := maybeReloadConfigAfterLocalWrite(cmd.Context(), deps, homePaths, target, record)
-			if err != nil {
-				return err
-			}
-			if reloadRecord != nil {
-				record = *reloadRecord
-			}
-			return writeCommandOutput(cmd, configSetBundle(record))
+			return runConfigSetCommand(cmd, deps, scopeRaw, workspaceRoot, args)
 		},
 	}
 	cmd.Flags().
 		StringVar(&scopeRaw, configScopeKey, string(aghconfig.WriteScopeGlobal), "Write scope: global or workspace")
 	cmd.Flags().StringVar(&workspaceRoot, "workspace", "", "Workspace root for workspace-scoped writes")
 	return cmd
+}
+
+func runConfigSetCommand(
+	cmd *cobra.Command,
+	deps commandDeps,
+	scopeRaw string,
+	workspaceRoot string,
+	args []string,
+) error {
+	if err := requireUnmanagedForMutation(deps, "set config values"); err != nil {
+		return err
+	}
+	homePaths, target, workspace, err := configWriteTarget(deps, scopeRaw, workspaceRoot)
+	if err != nil {
+		return err
+	}
+	if err := ensureWriteTargetParent(target); err != nil {
+		return err
+	}
+	path, kind, redacted, err := configMutationPath(args[0])
+	if err != nil {
+		return err
+	}
+	lifecycle, err := classifyConfigSetLifecycle(path)
+	if err != nil {
+		return err
+	}
+	value, err := parseConfigSetValue(kind, args[1])
+	if err != nil {
+		return err
+	}
+	liveRecord, err := maybeApplyConfigSetViaDaemon(cmd.Context(), deps, homePaths, target, path, value, redacted)
+	if err != nil {
+		return err
+	}
+	if liveRecord != nil {
+		return writeCommandOutput(cmd, configSetBundle(*liveRecord))
+	}
+	if _, err := aghconfig.EditConfigOverlay(homePaths, workspace, target, func(editor *aghconfig.OverlayEditor) error {
+		return editor.SetValue(path, value)
+	}); err != nil {
+		return err
+	}
+	record := configSetRecordForLocalWrite(path, value, target, redacted, lifecycle)
+	reloadRecord, err := maybeReloadConfigAfterLocalWrite(cmd.Context(), deps, homePaths, target, record)
+	if err != nil {
+		return err
+	}
+	if reloadRecord != nil {
+		record = *reloadRecord
+	}
+	return writeCommandOutput(cmd, configSetBundle(record))
+}
+
+func configSetRecordForLocalWrite(
+	path []string,
+	value any,
+	target aghconfig.WriteTarget,
+	redacted bool,
+	lifecycle configMutationLifecycle,
+) configSetRecord {
+	outputValue := value
+	if redacted {
+		outputValue = aghconfig.RedactedValue()
+	}
+	return configSetRecord{
+		Path:            strings.Join(path, "."),
+		Value:           outputValue,
+		Scope:           string(target.Scope()),
+		Target:          target.Path(),
+		Redacted:        redacted,
+		Lifecycle:       lifecycle.Lifecycle,
+		Applied:         lifecycle.Applied,
+		NextAction:      lifecycle.NextAction,
+		RestartRequired: lifecycle.RestartRequired,
+		RestartScope:    lifecycle.RestartScope,
+	}
 }
 
 func newConfigPathCommand(deps commandDeps) *cobra.Command {
@@ -758,7 +762,7 @@ func newConfigEditCommand(deps commandDeps) *cobra.Command {
 
 func newConfigReloadCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "reload",
+		Use:   configReloadCommandName,
 		Short: "Reconcile config.toml with the daemon active generation",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -772,7 +776,7 @@ func newConfigReloadCommand(deps commandDeps) *cobra.Command {
 			}
 			return writeCommandOutput(cmd, configSetBundle(configSetRecord{
 				Path:             "config.toml",
-				Value:            "reload",
+				Value:            configReloadCommandName,
 				Scope:            string(aghconfig.WriteScopeGlobal),
 				Target:           "daemon",
 				Lifecycle:        string(result.Lifecycle),
@@ -1351,7 +1355,7 @@ func configApplyHistoryBundle(record SettingsApplyHistoryRecord) outputBundle {
 		human: func() (string, error) {
 			return renderHumanTable("Config Apply History", []string{
 				"ID",
-				"Status",
+				configStatusValue,
 				"Lifecycle",
 				"Generation",
 				"Actor",

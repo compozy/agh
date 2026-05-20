@@ -96,7 +96,10 @@ func DefaultProviderAuthLoginRunner(
 	}
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	attachTTY := !spec.NoTTY && term.IsTerminal(int(os.Stdout.Fd())) && term.IsTerminal(int(os.Stderr.Fd()))
+	attachTTY := !spec.NoTTY &&
+		term.IsTerminal(int(os.Stdin.Fd())) &&
+		term.IsTerminal(int(os.Stdout.Fd())) &&
+		term.IsTerminal(int(os.Stderr.Fd()))
 	if attachTTY {
 		execCmd.Stdin = os.Stdin
 		execCmd.Stdout = os.Stdout

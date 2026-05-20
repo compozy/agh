@@ -14,6 +14,7 @@ agh task create [flags]
 ### Options
 
 ```
+      --as-agent             Create using the current AGH-managed agent session identity
       --channel string       Optional network channel binding
       --description string   Task description
   -h, --help                 help for create
@@ -22,6 +23,7 @@ agh task create [flags]
       --metadata string      Optional metadata JSON
       --owner-kind string    Optional owner kind
       --owner-ref string     Optional owner reference
+      --priority string      Task priority: low, medium, high, or urgent
       --scope string         Task scope: global or workspace
       --title string         Task title
       --workspace string     Workspace path, name, or ID (required when --scope=workspace)

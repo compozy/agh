@@ -5,34 +5,31 @@ description: "Show consolidated runtime status"
 
 ## agh status
 
-Show consolidated runtime status for operators and agents.
+Show consolidated runtime status
 
-```bash
+```
 agh status [flags]
 ```
 
-`agh status` reads the same payload as `GET /api/status` over HTTP and UDS. The
-JSON output includes daemon process state, session totals, observer health,
-memory, automation scheduler state, task queues, bridge health, provider auth,
-MCP server availability, skill registry state, config apply state, and log-tail
-availability.
-
 ### Examples
 
-```bash
-# Human-readable runtime summary
-agh status
+```
+  # Show runtime status
+  agh status
 
-# Agent-readable runtime state
-agh status --output json
+  # Return machine-readable status for agents
+  agh status -o json
+```
 
-# Inspect provider auth and MCP availability
-agh status --output json | jq '{providers, mcp_servers, config, log_tail}'
+### Options
+
+```
+  -h, --help   help for status
 ```
 
 ### Options inherited from parent commands
 
-```bash
+```
       --json            Emit JSON output
   -o, --output string   Output format: human, json, jsonl, or toon (default "human")
 ```
@@ -45,6 +42,8 @@ Every AGH command supports `-o, --output`:
 - `json` for scripts and other machine-readable consumers
 - `jsonl` for wait or streaming commands that emit one JSON record per line
 - `toon` for compact agent-readable summaries
+
+Example:
 
 ```bash
 agh status -o json

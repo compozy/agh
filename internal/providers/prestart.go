@@ -102,6 +102,7 @@ func runPreStart(
 		Command: strings.TrimSpace(provider.AuthStatusCmd),
 		Env:     append([]string(nil), env.CommandEnv...),
 		Timeout: DefaultProviderAuthCommandTimeout,
+		NoTTY:   true,
 	})
 	if err != nil {
 		item := DiagnosticItem(env.ProviderName, ClassifyError(err))

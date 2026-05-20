@@ -11,6 +11,7 @@ import (
 const (
 	classifyConsolidateKey = "consolidate"
 	classifyRestartKey     = "restart"
+	restartScopeDaemon     = "daemon"
 )
 
 // ClassifyMutation maps one section or collection mutation onto the v1 runtime-apply matrix.
@@ -70,29 +71,11 @@ func classifyAction(section SectionName, action string) (MutationClassification,
 	return MutationClassification{}, fmt.Errorf("settings: unsupported action %q for section %q", action, section)
 }
 
-func classifyField(section SectionName, field string) (MutationClassification, error) {
-	trimmed := strings.TrimSpace(field)
-	if trimmed == "" {
-		return MutationClassification{}, errors.New("settings: mutation field is required")
-	}
-
-	rule, err := lifecycle.ClassifyPath(trimmed)
-	if err != nil {
-		return MutationClassification{}, fmt.Errorf(
-			"settings: unsupported mutation field %q for section %q: %w",
-			trimmed,
-			section,
-			err,
-		)
-	}
-	return classificationFromLifecycle(rule.Lifecycle, rule.DiffClass), nil
-}
-
 func restartRequiredClassification() MutationClassification {
 	return MutationClassification{
 		Behavior:        MutationBehaviorRestartRequired,
 		RestartRequired: true,
-		RestartScope:    "daemon",
+		RestartScope:    restartScopeDaemon,
 		Lifecycle:       lifecycle.RestartRequired,
 		DiffClass:       lifecycle.DiffClassRestartRequired,
 	}
@@ -107,7 +90,7 @@ func classificationFromLifecycle(
 		return MutationClassification{
 			Behavior:        MutationBehaviorRestartRequired,
 			RestartRequired: true,
-			RestartScope:    "daemon",
+			RestartScope:    restartScopeDaemon,
 			Lifecycle:       configLifecycle,
 			DiffClass:       diffClass,
 		}

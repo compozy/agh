@@ -62,6 +62,10 @@ const (
 	maxDaemonProviderReloadLimit = 60 * time.Second
 	maxDaemonMCPReloadLimit      = 60 * time.Second
 	maxDaemonBridgeReloadLimit   = 300 * time.Second
+
+	daemonReloadTimeoutProvidersPath = "daemon.reload_timeouts.providers"
+	daemonReloadTimeoutMCPPath       = "daemon.reload_timeouts.mcp"
+	daemonReloadTimeoutBridgesPath   = "daemon.reload_timeouts.bridges"
 )
 
 // DaemonConfig controls daemon-local socket and hot-reload settings.
@@ -1154,21 +1158,23 @@ func (c DaemonConfig) Validate() error {
 
 // Validate ensures daemon reload timeout values stay within bounded retry budgets.
 func (c DaemonReloadTimeoutsConfig) Validate() error {
-	if err := validateDaemonReloadTimeout("daemon.reload_timeouts.providers", c.Providers, maxDaemonProviderReloadLimit); err != nil {
+	err := validateDaemonReloadTimeout(daemonReloadTimeoutProvidersPath, c.Providers, maxDaemonProviderReloadLimit)
+	if err != nil {
 		return err
 	}
-	if err := validateDaemonReloadTimeout("daemon.reload_timeouts.mcp", c.MCP, maxDaemonMCPReloadLimit); err != nil {
+	if err := validateDaemonReloadTimeout(daemonReloadTimeoutMCPPath, c.MCP, maxDaemonMCPReloadLimit); err != nil {
 		return err
 	}
-	if err := validateDaemonReloadTimeout("daemon.reload_timeouts.bridges", c.Bridges, maxDaemonBridgeReloadLimit); err != nil {
+	err = validateDaemonReloadTimeout(daemonReloadTimeoutBridgesPath, c.Bridges, maxDaemonBridgeReloadLimit)
+	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func validateDaemonReloadTimeout(path string, value time.Duration, max time.Duration) error {
-	if value < minDaemonReloadTimeout || value > max {
-		return fmt.Errorf("%s must be between %s and %s: %s", path, minDaemonReloadTimeout, max, value)
+func validateDaemonReloadTimeout(path string, value time.Duration, maxDuration time.Duration) error {
+	if value < minDaemonReloadTimeout || value > maxDuration {
+		return fmt.Errorf("%s must be between %s and %s: %s", path, minDaemonReloadTimeout, maxDuration, value)
 	}
 	return nil
 }
