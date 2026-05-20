@@ -2,18 +2,21 @@ import { fireEvent, render } from "@testing-library/react";
 import { FileEditIcon } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
-import {
-  TOOL_CALL_STATUS_LABEL,
-  TOOL_CALL_STATUS_TONE,
-  ToolCallCard,
-  type ToolCallStatus,
-} from "../tool-call-card";
+import { TOOL_CALL_STATUS_LABEL, ToolCallCard, type ToolCallStatus } from "../tool-call-card";
 
 const TOOL_NAME = "fs.read_file";
 const STATUSES: ToolCallStatus[] = ["pending", "in_progress", "completed", "failed"];
 
 function makeLines(count: number): string {
   return Array.from({ length: count }, (_, index) => `line-${index}`).join("\n");
+}
+
+function queryInputToggle(container: ParentNode): HTMLButtonElement | null {
+  return container.querySelector<HTMLButtonElement>('[data-slot="tool-call-card-input-toggle"]');
+}
+
+function queryOutputToggle(container: ParentNode): HTMLButtonElement | null {
+  return container.querySelector<HTMLButtonElement>('[data-slot="tool-call-card-output-toggle"]');
 }
 
 describe("ToolCallCard", () => {
@@ -39,13 +42,7 @@ describe("ToolCallCard", () => {
     expect(container.querySelector('[data-slot="tool-call-card-path"]')).toBeNull();
   });
 
-  it("Should map every status to its expected PillTone + label", () => {
-    expect(TOOL_CALL_STATUS_TONE).toEqual({
-      pending: "neutral",
-      in_progress: "info",
-      completed: "success",
-      failed: "danger",
-    });
+  it("Should map every status to its expected icon + aria-label", () => {
     expect(TOOL_CALL_STATUS_LABEL).toEqual({
       pending: "Pending",
       in_progress: "Running",
@@ -55,26 +52,29 @@ describe("ToolCallCard", () => {
     for (const status of STATUSES) {
       const { container, unmount } = render(<ToolCallCard toolName={TOOL_NAME} status={status} />);
       const root = container.querySelector<HTMLElement>('[data-slot="tool-call-card"]');
-      const pill = container.querySelector<HTMLElement>('[data-slot="tool-call-card-status"]');
+      const indicator = container.querySelector<HTMLElement>('[data-slot="tool-call-card-status"]');
       expect(root?.getAttribute("data-status")).toBe(status);
-      expect(pill?.getAttribute("data-tone")).toBe(TOOL_CALL_STATUS_TONE[status]);
-      expect(pill?.textContent).toBe(TOOL_CALL_STATUS_LABEL[status]);
+      expect(indicator?.getAttribute("data-status")).toBe(status);
+      expect(indicator?.getAttribute("aria-label")).toBe(TOOL_CALL_STATUS_LABEL[status]);
       unmount();
     }
   });
 
-  it("Should render the optional <Time> + actions slots in the header", () => {
+  it("Should render a spinner with role=status for in_progress", () => {
+    const { container } = render(<ToolCallCard toolName={TOOL_NAME} status="in_progress" />);
+    const indicator = container.querySelector<SVGElement>('[data-slot="tool-call-card-status"]');
+    expect(indicator?.getAttribute("role")).toBe("status");
+    expect(indicator?.classList.contains("animate-spin")).toBe(true);
+  });
+
+  it("Should render the optional actions slot in the header", () => {
     const { container } = render(
       <ToolCallCard
         toolName={TOOL_NAME}
         status="in_progress"
-        timestamp="2026-05-11T12:00:00Z"
         actions={<button type="button">Retry</button>}
       />
     );
-    const time = container.querySelector<HTMLElement>('[data-slot="tool-call-card-time"]');
-    expect(time?.tagName).toBe("TIME");
-    expect(time?.getAttribute("datetime")).toBe("2026-05-11T12:00:00Z");
     const actions = container.querySelector<HTMLElement>('[data-slot="tool-call-card-actions"]');
     expect(actions?.textContent).toBe("Retry");
   });
@@ -89,43 +89,70 @@ describe("ToolCallCard", () => {
     expect(error?.textContent).toBe("ENOENT: no such file");
   });
 
-  it("Should render the Input section closed by default and toggle open on click", () => {
+  it("Should mark the body as empty when Input/Output exist but all chips are closed", () => {
+    const { container } = render(
+      <ToolCallCard toolName={TOOL_NAME} status="completed">
+        <ToolCallCard.Input source="argument" format="code" />
+        <ToolCallCard.Output source="result" format="code" />
+      </ToolCallCard>
+    );
+    const body = container.querySelector<HTMLElement>('[data-slot="tool-call-card-body"]');
+    expect(body).not.toBeNull();
+    expect(body?.getAttribute("data-empty")).toBe("true");
+    expect(body?.className).not.toContain("border-t");
+    expect(container.querySelector('[data-slot="tool-call-card-chip-group"]')).not.toBeNull();
+  });
+
+  it("Should render disclosure chips in the header, not in the body", () => {
     const { container } = render(
       <ToolCallCard toolName={TOOL_NAME} status="in_progress">
         <ToolCallCard.Input source="argument" format="code" />
       </ToolCallCard>
     );
-    const section = container.querySelector<HTMLElement>('[data-slot="tool-call-card-input"]');
-    expect(section?.dataset.open).toBe("false");
-    expect(container.querySelector('[data-slot="tool-call-card-input-body"]')).toBeNull();
-    const toggle = container.querySelector<HTMLButtonElement>(
-      '[data-slot="tool-call-card-input-toggle"]'
-    );
-    expect(toggle?.getAttribute("aria-expanded")).toBe("false");
-    fireEvent.click(toggle!);
-    expect(section?.dataset.open).toBe("true");
-    expect(container.querySelector('[data-slot="tool-call-card-input-body"]')).not.toBeNull();
+    const header = container.querySelector('[data-slot="tool-call-card-header"]');
+    const toggle = queryInputToggle(container);
+    expect(header?.contains(toggle)).toBe(true);
+    const body = container.querySelector<HTMLElement>('[data-slot="tool-call-card-body"]');
+    expect(body?.getAttribute("data-empty")).toBe("true");
+    expect(body?.className).not.toContain("border-t");
   });
 
-  it("Should render the Output section closed by default even when content is long", () => {
+  it("Should render the Input chip closed by default and toggle open on click", () => {
+    const { container } = render(
+      <ToolCallCard toolName={TOOL_NAME} status="in_progress">
+        <ToolCallCard.Input source="argument" format="code" />
+      </ToolCallCard>
+    );
+    const toggle = queryInputToggle(container);
+    expect(toggle?.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle?.getAttribute("data-open")).toBe("false");
+    expect(container.querySelector('[data-slot="tool-call-card-input-body"]')).toBeNull();
+    fireEvent.click(toggle!);
+    const section = container.querySelector<HTMLElement>('[data-slot="tool-call-card-input"]');
+    expect(section?.getAttribute("data-open")).toBe("true");
+    expect(container.querySelector('[data-slot="tool-call-card-input-body"]')).not.toBeNull();
+    const body = container.querySelector<HTMLElement>('[data-slot="tool-call-card-body"]');
+    expect(body?.className).toContain("border-t");
+  });
+
+  it("Should render the Output chip closed by default even when content is long", () => {
     const longOutput = makeLines(300);
     const { container } = render(
       <ToolCallCard toolName={TOOL_NAME} status="completed">
         <ToolCallCard.Output source={longOutput} format="code" />
       </ToolCallCard>
     );
-    const section = container.querySelector<HTMLElement>('[data-slot="tool-call-card-output"]');
-    expect(section?.dataset.open).toBe("false");
+    const toggle = queryOutputToggle(container);
+    expect(toggle?.getAttribute("aria-expanded")).toBe("false");
     expect(container.querySelector('[data-slot="tool-call-card-output-body"]')).toBeNull();
-    const toggle = container.querySelector<HTMLButtonElement>(
-      '[data-slot="tool-call-card-output-toggle"]'
-    );
     fireEvent.click(toggle!);
-    expect(section?.dataset.open).toBe("true");
+    expect(
+      container.querySelector('[data-slot="tool-call-card-output"]')?.getAttribute("data-open")
+    ).toBe("true");
     expect(container.querySelector('[data-slot="tool-call-card-output-body"]')).not.toBeNull();
   });
 
-  it("Should respect `defaultOpen` on sub-components for callers that need it", () => {
+  it("Should honor defaultOpen on Input + Output sections", () => {
     const { container } = render(
       <ToolCallCard toolName={TOOL_NAME} status="completed">
         <ToolCallCard.Input source="argument" format="code" defaultOpen />
@@ -152,7 +179,7 @@ describe("ToolCallCard", () => {
     expect(container.querySelector('[data-slot="tool-call-card-output-body"] pre')).toBeNull();
   });
 
-  it("Should render markdown sources through the Streamdown safe contract", () => {
+  it("Should render markdown sources through the canonical Markdown primitive", () => {
     const { container } = render(
       <ToolCallCard toolName={TOOL_NAME} status="in_progress">
         <ToolCallCard.Input
@@ -163,6 +190,9 @@ describe("ToolCallCard", () => {
       </ToolCallCard>
     );
     const body = container.querySelector('[data-slot="tool-call-card-input-body"]');
+    const markdown = body?.querySelector('[data-slot="markdown"]');
+    expect(markdown).not.toBeNull();
+    expect(markdown?.getAttribute("data-compact")).toBe("true");
     expect(body?.querySelector("script")).toBeNull();
     expect(body?.querySelector("strong")?.textContent).toBe("arg");
     expect(body?.textContent ?? "").not.toContain("alert(1)");
@@ -175,12 +205,18 @@ describe("ToolCallCard", () => {
       </ToolCallCard>
     );
     expect(container.querySelector('[data-testid="raw-stdout"]')?.textContent).toBe("$ ls");
-    expect(container.querySelector('[data-slot="tool-call-card-body"]')).not.toBeNull();
+    const body = container.querySelector<HTMLElement>('[data-slot="tool-call-card-body"]');
+    expect(body).not.toBeNull();
+    expect(body?.getAttribute("data-empty")).toBeNull();
+    expect(body?.className).toContain("border-t");
   });
 
-  it("Should omit the body wrapper entirely when no body content is provided", () => {
+  it("Should mark the body as empty when no body content is provided", () => {
     const { container } = render(<ToolCallCard toolName={TOOL_NAME} status="pending" />);
-    expect(container.querySelector('[data-slot="tool-call-card-body"]')).toBeNull();
+    const body = container.querySelector<HTMLElement>('[data-slot="tool-call-card-body"]');
+    expect(body).not.toBeNull();
+    expect(body?.getAttribute("data-empty")).toBe("true");
+    expect(body?.className).not.toContain("border-t");
   });
 
   it("Should forward className and extra props to the root container", () => {

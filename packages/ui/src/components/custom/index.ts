@@ -108,12 +108,12 @@ export {
 } from "./chat-message-bubble";
 export {
   TOOL_CALL_STATUS_LABEL,
-  TOOL_CALL_STATUS_TONE,
   ToolCallCard,
   type ToolCallCardProps,
   type ToolCallCardSectionProps,
   type ToolCallStatus,
 } from "./tool-call-card";
+export { ToolCallStatusIcon, type ToolCallStatusIconProps } from "./tool-call-status-icon";
 export {
   WireCard,
   WireCardBody,
@@ -240,11 +240,8 @@ export {
 } from "./operational-links-row";
 
 // Content primitives — markdown + run/tool/avatar surfaces.
-export {
-  DescriptionCard,
-  STREAMDOWN_SAFE_CONFIG,
-  type DescriptionCardProps,
-} from "./description-card";
+export { Markdown, STREAMDOWN_SAFE_CONFIG, type MarkdownProps } from "./markdown";
+export { DescriptionCard, type DescriptionCardProps } from "./description-card";
 export {
   RUN_STATUS_LABEL,
   RUN_STATUS_TONE,

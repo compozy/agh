@@ -1,12 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { Streamdown, type Components } from "streamdown";
+import type { Components } from "streamdown";
 
 import { normalizeAghCodeLanguage } from "../../lib/code-theme";
 import { cn } from "../../lib/utils";
 import { CodeBlock } from "./code-block";
-import { STREAMDOWN_SAFE_CONFIG } from "./description-card";
+import { Markdown } from "./markdown";
 
 type StreamMarkdownCodeProps = React.ComponentProps<"code"> & {
   node?: unknown;
@@ -65,8 +65,7 @@ function StreamMarkdownCode({
   );
 }
 
-const STREAM_MARKDOWN_COMPONENTS: Components = {
-  ...(STREAMDOWN_SAFE_CONFIG.components as Components),
+const STREAM_MARKDOWN_COMPONENTS: Partial<Components> = {
   code: StreamMarkdownCode,
   inlineCode: StreamMarkdownCode,
 };
@@ -76,46 +75,22 @@ export interface StreamMarkdownProps extends Omit<React.ComponentProps<"div">, "
   streaming?: boolean;
 }
 
+/**
+ * Streaming wrapper around `<Markdown />` for chat threads. Reuses the canonical
+ * prose grammar but swaps in the AGH `<CodeBlock>` for fenced code blocks (with
+ * copy + syntax highlighting) and keeps inline `<code>` lightweight.
+ */
 function StreamMarkdown({ children, streaming = false, className, ...props }: StreamMarkdownProps) {
   return (
-    <div
+    <Markdown
       data-slot="stream-markdown"
-      className={cn(
-        "max-w-[72ch] text-card-title leading-prose text-fg",
-        "[&_a]:text-accent [&_a]:underline [&_a]:underline-offset-2",
-        "[&_blockquote]:my-3 [&_blockquote]:border-l [&_blockquote]:border-line-strong",
-        "[&_blockquote]:pl-3 [&_blockquote]:text-muted",
-        "[&_h1]:mt-5 [&_h1]:mb-2 [&_h1]:text-(length:--text-section-head)",
-        "[&_h1]:font-medium [&_h1]:tracking-section-head [&_h1]:text-fg-strong",
-        "[&_h2]:mt-5 [&_h2]:mb-2 [&_h2]:text-(length:--text-section-head)",
-        "[&_h2]:font-medium [&_h2]:tracking-section-head [&_h2]:text-fg-strong",
-        "[&_h3]:mt-4 [&_h3]:mb-1.5 [&_h3]:text-small-body",
-        "[&_h3]:font-medium [&_h3]:text-fg-strong",
-        "[&_h4]:mt-3 [&_h4]:mb-1 [&_h4]:text-form-input [&_h4]:font-medium [&_h4]:text-fg",
-        "[&_h5]:mt-3 [&_h5]:mb-1 [&_h5]:text-form-label [&_h5]:font-medium [&_h5]:text-fg",
-        "[&_h6]:mt-3 [&_h6]:mb-1 [&_h6]:text-form-label [&_h6]:font-medium [&_h6]:text-muted",
-        "[&_hr]:my-4 [&_hr]:border-line",
-        "[&_li]:my-0.5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5",
-        "[&_p]:my-2 [&_pre]:my-3 [&_strong]:text-fg-strong",
-        "[&_table]:my-3 [&_table]:w-full [&_table]:border-collapse",
-        "[&_th]:border-b [&_th]:border-line-strong [&_th]:px-2 [&_th]:py-1.5",
-        "[&_th]:text-left [&_th]:text-form-label [&_th]:font-medium [&_th]:text-fg-strong",
-        "[&_td]:border-b [&_td]:border-line [&_td]:px-2 [&_td]:py-1.5 [&_td]:text-form-input",
-        "[&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5",
-        className
-      )}
+      streaming={streaming}
+      components={STREAM_MARKDOWN_COMPONENTS}
+      className={cn("max-w-[72ch]", className)}
       {...props}
     >
-      <Streamdown
-        {...STREAMDOWN_SAFE_CONFIG}
-        components={STREAM_MARKDOWN_COMPONENTS}
-        mode={streaming ? "streaming" : "static"}
-        parseIncompleteMarkdown
-        lineNumbers={false}
-      >
-        {children}
-      </Streamdown>
-    </div>
+      {children}
+    </Markdown>
   );
 }
 

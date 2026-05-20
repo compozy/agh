@@ -149,10 +149,10 @@ describe("DescriptionCard", () => {
 
   it("Should render a styled <img> for relative URLs", () => {
     const { container } = render(<DescriptionCard>{"![alt](./local.png)"}</DescriptionCard>);
-    const img = container.querySelector<HTMLImageElement>('[data-slot="description-card-image"]');
+    const img = container.querySelector<HTMLImageElement>('[data-slot="markdown-image"]');
     expect(img).not.toBeNull();
     expect(img?.getAttribute("src")).toBe("/local.png");
-    expect(container.querySelector('[data-slot="description-card-image-fallback"]')).toBeNull();
+    expect(container.querySelector('[data-slot="markdown-image-fallback"]')).toBeNull();
   });
 
   it.each(XSS_CORPUS)("$label", ({ markdown, expectAbsent, expectPresent }) => {

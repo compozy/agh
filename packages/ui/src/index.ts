@@ -294,11 +294,8 @@ export {
   type OwnerColors,
   type OwnerKind,
 } from "./lib/owner-palette";
-export {
-  DescriptionCard,
-  STREAMDOWN_SAFE_CONFIG,
-  type DescriptionCardProps,
-} from "./components/custom/description-card";
+export { Markdown, STREAMDOWN_SAFE_CONFIG, type MarkdownProps } from "./components/custom/markdown";
+export { DescriptionCard, type DescriptionCardProps } from "./components/custom/description-card";
 export { StreamMarkdown, type StreamMarkdownProps } from "./components/custom/stream-markdown";
 export {
   RUN_STATUS_LABEL,
@@ -491,12 +488,15 @@ export {
 } from "./components/custom/chat-message-bubble";
 export {
   TOOL_CALL_STATUS_LABEL,
-  TOOL_CALL_STATUS_TONE,
   ToolCallCard,
   type ToolCallCardProps,
   type ToolCallCardSectionProps,
   type ToolCallStatus,
 } from "./components/custom/tool-call-card";
+export {
+  ToolCallStatusIcon,
+  type ToolCallStatusIconProps,
+} from "./components/custom/tool-call-status-icon";
 export { Metric, type MetricProps, type MetricTone } from "./components/custom/metric";
 export {
   MetricGrid,
