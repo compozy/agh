@@ -73,17 +73,17 @@ type BridgeDiagnosticsInput struct {
 // canonical bridge facts.
 func BuildBridgeDiagnostics(input BridgeDiagnosticsInput) []BridgeDiagnostic {
 	instance := input.Instance.normalize()
-	diagnostics := make([]BridgeDiagnostic, 0, 5)
-	diagnostics = append(diagnostics, providerDiagnostics(instance, input)...)
-	diagnostics = append(diagnostics, missingTokenDiagnostics(instance, input)...)
-	diagnostics = append(diagnostics, destinationDiagnostics(instance, input)...)
+	bridgeDiagnostics := make([]BridgeDiagnostic, 0, 5)
+	bridgeDiagnostics = append(bridgeDiagnostics, providerDiagnostics(instance, input)...)
+	bridgeDiagnostics = append(bridgeDiagnostics, missingTokenDiagnostics(instance, input)...)
+	bridgeDiagnostics = append(bridgeDiagnostics, destinationDiagnostics(instance, input)...)
 	if diagnostic, ok := permissionDiagnostic(instance, input); ok {
-		diagnostics = append(diagnostics, diagnostic)
+		bridgeDiagnostics = append(bridgeDiagnostics, diagnostic)
 	}
 	if diagnostic, ok := transientDeliveryDiagnostic(instance, input); ok {
-		diagnostics = append(diagnostics, diagnostic)
+		bridgeDiagnostics = append(bridgeDiagnostics, diagnostic)
 	}
-	return diagnostics
+	return bridgeDiagnostics
 }
 
 func providerDiagnostics(instance BridgeInstance, input BridgeDiagnosticsInput) []BridgeDiagnostic {
