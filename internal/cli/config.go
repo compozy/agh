@@ -93,15 +93,23 @@ type configValueRecord struct {
 }
 
 type configSetRecord struct {
-	Path            string `json:"path"`
-	Value           any    `json:"value"`
-	Scope           string `json:"scope"`
-	Target          string `json:"target"`
-	Redacted        bool   `json:"redacted"`
-	Behavior        string `json:"behavior"`
-	Applied         bool   `json:"applied"`
-	RestartRequired bool   `json:"restart_required"`
-	RestartScope    string `json:"restart_scope,omitempty"`
+	Path             string `json:"path"`
+	Value            any    `json:"value"`
+	Scope            string `json:"scope"`
+	Target           string `json:"target"`
+	Redacted         bool   `json:"redacted"`
+	Lifecycle        string `json:"lifecycle"`
+	ApplyRecordID    string `json:"apply_record_id,omitempty"`
+	Applied          bool   `json:"applied"`
+	ActiveGeneration int64  `json:"active_generation,omitempty"`
+	ActiveConfigHash string `json:"active_config_hash,omitempty"`
+	NextAction       string `json:"next_action,omitempty"`
+	RestartRequired  bool   `json:"restart_required"`
+	RestartScope     string `json:"restart_scope,omitempty"`
+}
+
+type configApplyHistoryRecord struct {
+	Entries []contract.ConfigApplyRecordPayload `json:"entries"`
 }
 
 type configPathRecord struct {
@@ -141,10 +149,11 @@ type configValidationFailedError struct {
 }
 
 type configMutationLifecycle struct {
-	Behavior        string
+	Lifecycle       string
 	Applied         bool
 	RestartRequired bool
 	RestartScope    string
+	NextAction      string
 }
 
 func (e configValidationFailedError) Error() string {
@@ -171,14 +180,17 @@ var (
 	configDurationType = reflect.TypeFor[time.Duration]()
 
 	configScalarMutationKinds = map[string]configSetValueKind{
-		"daemon.socket":                configSetString,
-		"http.host":                    configSetString,
-		"http.port":                    configSetInt,
-		"defaults.agent":               configSetString,
-		configDefaultsProviderPath:     configSetString,
-		"defaults.sandbox":             configSetString,
-		"limits.max_concurrent_agents": configSetInt,
-		"session.limits.timeout":       configSetDuration,
+		"daemon.socket":                                   configSetString,
+		"daemon.reload_timeouts.providers":                configSetDuration,
+		"daemon.reload_timeouts.mcp":                      configSetDuration,
+		"daemon.reload_timeouts.bridges":                  configSetDuration,
+		"http.host":                                       configSetString,
+		"http.port":                                       configSetInt,
+		"defaults.agent":                                  configSetString,
+		configDefaultsProviderPath:                        configSetString,
+		"defaults.sandbox":                                configSetString,
+		"limits.max_concurrent_agents":                    configSetInt,
+		"session.limits.timeout":                          configSetDuration,
 		"session.supervision.activity_heartbeat_interval": configSetDuration,
 		"session.supervision.prompt_deadline":             configSetDuration,
 		"session.supervision.progress_notify_interval":    configSetDuration,
@@ -333,6 +345,8 @@ func newConfigCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newConfigValidateCommand(deps))
 	cmd.AddCommand(newConfigCheckCommand(deps))
 	cmd.AddCommand(newConfigEditCommand(deps))
+	cmd.AddCommand(newConfigReloadCommand(deps))
+	cmd.AddCommand(newConfigApplyHistoryCommand(deps))
 	return cmd
 }
 
@@ -471,17 +485,26 @@ func newConfigSetCommand(deps commandDeps) *cobra.Command {
 			if redacted {
 				outputValue = aghconfig.RedactedValue()
 			}
-			return writeCommandOutput(cmd, configSetBundle(configSetRecord{
+			record := configSetRecord{
 				Path:            strings.Join(path, "."),
 				Value:           outputValue,
 				Scope:           string(target.Scope()),
 				Target:          target.Path(),
 				Redacted:        redacted,
-				Behavior:        lifecycle.Behavior,
+				Lifecycle:       lifecycle.Lifecycle,
 				Applied:         lifecycle.Applied,
+				NextAction:      lifecycle.NextAction,
 				RestartRequired: lifecycle.RestartRequired,
 				RestartScope:    lifecycle.RestartScope,
-			}))
+			}
+			reloadRecord, err := maybeReloadConfigAfterLocalWrite(cmd.Context(), deps, homePaths, target, record)
+			if err != nil {
+				return err
+			}
+			if reloadRecord != nil {
+				record = *reloadRecord
+			}
+			return writeCommandOutput(cmd, configSetBundle(record))
 		},
 	}
 	cmd.Flags().
@@ -720,7 +743,8 @@ func newConfigEditCommand(deps commandDeps) *cobra.Command {
 				Value:           "edited",
 				Scope:           string(target.Scope()),
 				Target:          target.Path(),
-				Behavior:        string(settingspkg.MutationBehaviorRestartRequired),
+				Lifecycle:       string(contract.SettingsApplyLifecycleRestartRequired),
+				NextAction:      string(contract.SettingsApplyNextActionRestartDaemon),
 				RestartRequired: true,
 				RestartScope:    configDaemonKey,
 			}))
@@ -729,6 +753,69 @@ func newConfigEditCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		StringVar(&scopeRaw, configScopeKey, string(aghconfig.WriteScopeGlobal), "Edit scope: global or workspace")
 	cmd.Flags().StringVar(&workspaceRoot, "workspace", "", "Workspace root for workspace-scoped edits")
+	return cmd
+}
+
+func newConfigReloadCommand(deps commandDeps) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "reload",
+		Short: "Reconcile config.toml with the daemon active generation",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return fmt.Errorf("cli: create daemon client for config reload: %w", err)
+			}
+			result, err := client.ReloadSettings(cmd.Context())
+			if err != nil {
+				return fmt.Errorf("cli: reload config via daemon settings surface: %w", err)
+			}
+			return writeCommandOutput(cmd, configSetBundle(configSetRecord{
+				Path:             "config.toml",
+				Value:            "reload",
+				Scope:            string(aghconfig.WriteScopeGlobal),
+				Target:           "daemon",
+				Lifecycle:        string(result.Lifecycle),
+				ApplyRecordID:    result.ApplyRecordID,
+				Applied:          result.Applied,
+				ActiveGeneration: result.ActiveGeneration,
+				ActiveConfigHash: result.ActiveConfigHash,
+				NextAction:       string(result.NextAction),
+				RestartRequired:  result.RestartRequired,
+				RestartScope:     result.RestartScope,
+			}))
+		},
+	}
+	return cmd
+}
+
+func newConfigApplyHistoryCommand(deps commandDeps) *cobra.Command {
+	var status string
+	var actor string
+	var limit int
+	cmd := &cobra.Command{
+		Use:   "apply-history",
+		Short: "List persisted config apply records",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return fmt.Errorf("cli: create daemon client for config apply-history: %w", err)
+			}
+			history, err := client.ListSettingsApplyRecords(cmd.Context(), SettingsApplyHistoryQuery{
+				Status: status,
+				Actor:  actor,
+				Limit:  limit,
+			})
+			if err != nil {
+				return fmt.Errorf("cli: list config apply-history: %w", err)
+			}
+			return writeCommandOutput(cmd, configApplyHistoryBundle(history))
+		},
+	}
+	cmd.Flags().StringVar(&status, configStatusKey, "", "Filter by apply status")
+	cmd.Flags().StringVar(&actor, "actor", "", "Filter by apply actor")
+	cmd.Flags().IntVar(&limit, "limit", 50, "Maximum records to return")
 	return cmd
 }
 
@@ -1076,8 +1163,11 @@ func configSetBundle(record configSetRecord) outputBundle {
 		{Label: configScopeValue, Value: stringOrDash(record.Scope)},
 		{Label: configTargetValue, Value: stringOrDash(record.Target)},
 		{Label: configRedactedValue, Value: strconv.FormatBool(record.Redacted)},
-		{Label: "Behavior", Value: stringOrDash(record.Behavior)},
+		{Label: "Lifecycle", Value: stringOrDash(record.Lifecycle)},
 		{Label: "Applied", Value: strconv.FormatBool(record.Applied)},
+		{Label: "Next Action", Value: stringOrDash(record.NextAction)},
+		{Label: "Apply Record", Value: stringOrDash(record.ApplyRecordID)},
+		{Label: "Active Generation", Value: strconv.FormatInt(record.ActiveGeneration, 10)},
 		{Label: "Restart Required", Value: strconv.FormatBool(record.RestartRequired)},
 		{Label: "Restart Scope", Value: stringOrDash(record.RestartScope)},
 	}
@@ -1093,8 +1183,11 @@ func configSetBundle(record configSetRecord) outputBundle {
 				configScopeKey,
 				configTargetKey,
 				configRedactedKey,
-				"behavior",
+				"lifecycle",
 				"applied",
+				"next_action",
+				"apply_record_id",
+				"active_generation",
 				"restart_required",
 				"restart_scope",
 			}, []string{
@@ -1103,8 +1196,11 @@ func configSetBundle(record configSetRecord) outputBundle {
 				record.Scope,
 				record.Target,
 				strconv.FormatBool(record.Redacted),
-				record.Behavior,
+				record.Lifecycle,
 				strconv.FormatBool(record.Applied),
+				record.NextAction,
+				record.ApplyRecordID,
+				strconv.FormatInt(record.ActiveGeneration, 10),
 				strconv.FormatBool(record.RestartRequired),
 				record.RestartScope,
 			}), nil
@@ -1164,16 +1260,56 @@ func maybeApplyConfigSetViaDaemon(
 		outputValue = aghconfig.RedactedValue()
 	}
 	return &configSetRecord{
-		Path:            strings.Join(path, "."),
-		Value:           outputValue,
-		Scope:           string(target.Scope()),
-		Target:          target.Path(),
-		Redacted:        redacted,
-		Behavior:        string(result.Behavior),
-		Applied:         result.Applied,
-		RestartRequired: result.RestartRequired,
-		RestartScope:    result.RestartScope,
+		Path:             strings.Join(path, "."),
+		Value:            outputValue,
+		Scope:            string(target.Scope()),
+		Target:           target.Path(),
+		Redacted:         redacted,
+		Lifecycle:        string(result.Lifecycle),
+		ApplyRecordID:    result.ApplyRecordID,
+		Applied:          result.Applied,
+		ActiveGeneration: result.ActiveGeneration,
+		ActiveConfigHash: result.ActiveConfigHash,
+		NextAction:       string(result.NextAction),
+		RestartRequired:  result.RestartRequired,
+		RestartScope:     result.RestartScope,
 	}, nil
+}
+
+func maybeReloadConfigAfterLocalWrite(
+	ctx context.Context,
+	deps commandDeps,
+	homePaths aghconfig.HomePaths,
+	target aghconfig.WriteTarget,
+	record configSetRecord,
+) (*configSetRecord, error) {
+	if target.Scope() != aghconfig.WriteScopeGlobal {
+		return nil, nil
+	}
+	_, running, err := daemonInfo(homePaths, deps)
+	if err != nil {
+		return nil, fmt.Errorf("cli: inspect daemon state for config reload: %w", err)
+	}
+	if !running {
+		return nil, nil
+	}
+	client, err := clientFromDeps(deps)
+	if err != nil {
+		return nil, fmt.Errorf("cli: create daemon client for config reload: %w", err)
+	}
+	result, err := client.ReloadSettings(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("cli: reload config via daemon settings surface: %w", err)
+	}
+	record.Lifecycle = string(result.Lifecycle)
+	record.ApplyRecordID = result.ApplyRecordID
+	record.Applied = result.Applied
+	record.ActiveGeneration = result.ActiveGeneration
+	record.ActiveConfigHash = result.ActiveConfigHash
+	record.NextAction = string(result.NextAction)
+	record.RestartRequired = result.RestartRequired
+	record.RestartScope = result.RestartScope
+	return &record, nil
 }
 
 func supportsDaemonManagedConfigSet(path []string, target aghconfig.WriteTarget) bool {
@@ -1193,6 +1329,42 @@ func settingsSkillsPayloadFromConfig(cfg aghconfig.SkillsConfig) contract.Settin
 		Marketplace: contract.SettingsMarketplacePayload{
 			Registry: cfg.Marketplace.Registry,
 			BaseURL:  cfg.Marketplace.BaseURL,
+		},
+	}
+}
+
+func configApplyHistoryBundle(record SettingsApplyHistoryRecord) outputBundle {
+	rows := make([][]string, 0, len(record.Entries))
+	for _, entry := range record.Entries {
+		rows = append(rows, []string{
+			entry.ID,
+			string(entry.Status),
+			string(entry.Lifecycle),
+			strconv.FormatInt(entry.Generation, 10),
+			entry.Actor,
+			string(entry.NextAction),
+			entry.UpdatedAt.Format(time.RFC3339),
+		})
+	}
+	return outputBundle{
+		jsonValue: record,
+		human: func() (string, error) {
+			return renderHumanTable("Config Apply History", []string{
+				"ID",
+				"Status",
+				"Lifecycle",
+				"Generation",
+				"Actor",
+				"Next Action",
+				"Updated",
+			}, rows), nil
+		},
+		toon: func() (string, error) {
+			data, err := json.Marshal(record)
+			if err != nil {
+				return "", fmt.Errorf("cli: marshal config apply-history toon payload: %w", err)
+			}
+			return renderToonObject("config_apply_history", []string{"entries"}, []string{string(data)}), nil
 		},
 	}
 }
@@ -1476,19 +1648,25 @@ func settingsSectionForConfigMutation(path []string) settingspkg.SectionName {
 }
 
 func configLifecycleFromSettings(classification settingspkg.MutationClassification) configMutationLifecycle {
+	nextAction := contract.SettingsApplyNextActionNone
+	if classification.RestartRequired {
+		nextAction = contract.SettingsApplyNextActionRestartDaemon
+	}
 	return configMutationLifecycle{
-		Behavior:        string(classification.Behavior),
+		Lifecycle:       string(classification.Lifecycle),
 		Applied:         classification.Applied,
 		RestartRequired: classification.RestartRequired,
 		RestartScope:    classification.RestartScope,
+		NextAction:      string(nextAction),
 	}
 }
 
 func restartRequiredConfigLifecycle() configMutationLifecycle {
 	return configMutationLifecycle{
-		Behavior:        string(settingspkg.MutationBehaviorRestartRequired),
+		Lifecycle:       string(contract.SettingsApplyLifecycleRestartRequired),
 		RestartRequired: true,
 		RestartScope:    configDaemonKey,
+		NextAction:      string(contract.SettingsApplyNextActionRestartDaemon),
 	}
 }
 

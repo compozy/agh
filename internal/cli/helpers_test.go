@@ -25,6 +25,8 @@ type stubClient struct {
 	getSettingsRestartStatusFn  func(context.Context, string) (SettingsRestartStatusRecord, error)
 	getSettingsUpdateFn         func(context.Context) (SettingsUpdateRecord, error)
 	updateSettingsSkillsFn      func(context.Context, UpdateSettingsSkillsRequest) (SettingsMutationRecord, error)
+	reloadSettingsFn            func(context.Context) (SettingsMutationRecord, error)
+	listSettingsApplyRecordsFn  func(context.Context, SettingsApplyHistoryQuery) (SettingsApplyHistoryRecord, error)
 	listProvidersFn             func(context.Context) (contract.ProviderListResponse, error)
 	probeProviderAuthFn         func(context.Context, string) (contract.ProviderAuthProbeResponse, error)
 	listProviderModelsFn        func(context.Context, ProviderModelListQuery) (ProviderModelListRecord, error)
@@ -313,6 +315,23 @@ func (s *stubClient) UpdateSettingsSkills(
 		return s.updateSettingsSkillsFn(ctx, request)
 	}
 	return SettingsMutationRecord{}, errors.New("unexpected UpdateSettingsSkills call")
+}
+
+func (s *stubClient) ReloadSettings(ctx context.Context) (SettingsMutationRecord, error) {
+	if s.reloadSettingsFn != nil {
+		return s.reloadSettingsFn(ctx)
+	}
+	return SettingsMutationRecord{}, errors.New("unexpected ReloadSettings call")
+}
+
+func (s *stubClient) ListSettingsApplyRecords(
+	ctx context.Context,
+	query SettingsApplyHistoryQuery,
+) (SettingsApplyHistoryRecord, error) {
+	if s.listSettingsApplyRecordsFn != nil {
+		return s.listSettingsApplyRecordsFn(ctx, query)
+	}
+	return SettingsApplyHistoryRecord{}, errors.New("unexpected ListSettingsApplyRecords call")
 }
 
 func (s *stubClient) ListProviders(ctx context.Context) (contract.ProviderListResponse, error) {

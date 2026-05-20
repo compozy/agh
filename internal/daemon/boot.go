@@ -1783,6 +1783,10 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 	}
 
 	surface := newSettingsRuntimeSurface(d, state)
+	var applyRecords settingspkg.ApplyRecordStore
+	if dbSource, ok := state.registry.(settingspkg.ApplyRecordDBSource); ok {
+		applyRecords = settingspkg.NewConfigApplyRecordRepository(dbSource.DB(), time.Now)
+	}
 	service, err := settingspkg.NewService(d.homePaths, settingspkg.Dependencies{
 		WorkspaceResolver:          state.workspaceResolver,
 		GeneralRuntime:             surface,
@@ -1797,12 +1801,18 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 		MCPRuntime:                 surface,
 		ProviderSecrets:            settingsProviderVaultDependency(state.providerVault),
 		EventSummaries:             state.registry,
+		ApplyRecords:               applyRecords,
 		RestartActionAvailable:     true,
 		ConsolidateActionAvailable: state.dreamRuntime != nil && state.dreamRuntime.Enabled(),
 		LogTailAvailable:           strings.TrimSpace(d.homePaths.LogFile) != "",
 	})
 	if err != nil {
 		return fmt.Errorf("daemon: create settings service: %w", err)
+	}
+	if applyRecords != nil {
+		if _, err := service.Reload(settingspkg.WithMutationSource(ctx, "boot")); err != nil {
+			return fmt.Errorf("daemon: reconcile desired config with active generation: %w", err)
+		}
 	}
 
 	updateManager, err := newSettingsUpdateManager(d)

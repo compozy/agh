@@ -12,6 +12,7 @@ import (
 
 	automationmodel "github.com/pedronauck/agh/internal/automation/model"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/config/lifecycle"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/resources"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
@@ -542,30 +543,21 @@ func TestUpdateSectionSkillsWithoutRuntimeDoesNotPersistChanges(t *testing.T) {
 	})
 }
 
-func TestUpdateSectionRejectsMixedRuntimeBehaviors(t *testing.T) {
+func TestClassifyMutationDominatesMixedLifecycleWithRestartRequired(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	homePaths := testHomePaths(t)
-	writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
-	service := testService(t, homePaths, Dependencies{SkillsRuntime: newFakeSkillsRuntime(testSkill("alpha", false))})
-
-	_, err := service.UpdateSection(ctx, SectionUpdateRequest{
-		SectionRequest: SectionRequest{Section: SectionSkills},
-		Skills: &aghconfig.SkillsConfig{
-			Enabled:                 true,
-			DisabledSkills:          []string{"beta"},
-			PollInterval:            time.Hour,
-			AllowedMarketplaceMCP:   []string{"ctx"},
-			AllowedMarketplaceHooks: []string{"market"},
-			Marketplace: aghconfig.MarketplaceConfig{
-				Registry: "different",
-				BaseURL:  "https://skills.example",
-			},
-		},
+	classification, err := ClassifyMutation(MutationDescriptor{
+		Section:       SectionSkills,
+		ChangedFields: []string{"skills.disabled_skills", "skills.poll_interval"},
 	})
-	if err == nil || !strings.Contains(err.Error(), "mixes") {
-		t.Fatalf("UpdateSection(mixed skills behavior) error = %v, want mixed-behavior failure", err)
+	if err != nil {
+		t.Fatalf("ClassifyMutation(mixed skills lifecycle) error = %v", err)
+	}
+	if got, want := classification.Lifecycle, lifecycle.RestartRequired; got != want {
+		t.Fatalf("Lifecycle = %q, want %q", got, want)
+	}
+	if !classification.RestartRequired {
+		t.Fatal("RestartRequired = false, want true")
 	}
 }
 
@@ -661,34 +653,49 @@ func TestClassifyMutationSupportsActionTriggers(t *testing.T) {
 func TestClassifyMutationSupportsCollectionFields(t *testing.T) {
 	t.Parallel()
 
-	tests := []MutationDescriptor{
+	tests := []struct {
+		descriptor MutationDescriptor
+		want       MutationBehavior
+	}{
 		{
-			Section:       SectionName(CollectionProviders),
-			ChangedFields: []string{"providers.custom.command"},
+			descriptor: MutationDescriptor{
+				Section:       SectionName(CollectionProviders),
+				ChangedFields: []string{"providers.custom.command"},
+			},
+			want: MutationBehaviorRestartRequired,
 		},
 		{
-			Section:       SectionName(CollectionMCPServers),
-			ChangedFields: []string{"mcp-servers.alpha.command"},
+			descriptor: MutationDescriptor{
+				Section:       SectionName(CollectionMCPServers),
+				ChangedFields: []string{"mcp-servers.alpha.command"},
+			},
+			want: MutationBehaviorRestartRequired,
 		},
 		{
-			Section:       SectionName(CollectionSandboxes),
-			ChangedFields: []string{"sandboxes.dev.backend"},
+			descriptor: MutationDescriptor{
+				Section:       SectionName(CollectionSandboxes),
+				ChangedFields: []string{"sandboxes.dev.backend"},
+			},
+			want: MutationBehaviorAppliedNow,
 		},
 		{
-			Section:       SectionName(CollectionHooks),
-			ChangedFields: []string{"hooks.audit.command"},
+			descriptor: MutationDescriptor{
+				Section:       SectionName(CollectionHooks),
+				ChangedFields: []string{"hooks.audit.command"},
+			},
+			want: MutationBehaviorRestartRequired,
 		},
 	}
 
-	for _, descriptor := range tests {
-		t.Run(string(descriptor.Section), func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(string(tt.descriptor.Section), func(t *testing.T) {
 			t.Parallel()
 
-			classification, err := ClassifyMutation(descriptor)
+			classification, err := ClassifyMutation(tt.descriptor)
 			if err != nil {
 				t.Fatalf("ClassifyMutation() error = %v", err)
 			}
-			if got, want := classification.Behavior, MutationBehaviorRestartRequired; got != want {
+			if got, want := classification.Behavior, tt.want; got != want {
 				t.Fatalf("behavior = %q, want %q", got, want)
 			}
 		})

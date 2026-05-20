@@ -1747,6 +1747,74 @@ func SettingsCollectionMutationResultPayloadFromResult(result settingspkg.Mutati
 	}
 }
 
+// SettingsApplyResponseFromResult converts one settings apply result into the public payload.
+func SettingsApplyResponseFromResult(result settingspkg.ApplyResult) contract.SettingsApplyResponse {
+	return contract.SettingsApplyResponse{
+		Section:          strings.TrimSpace(string(result.Section)),
+		Scope:            strings.TrimSpace(string(result.Scope)),
+		WriteTarget:      contract.SettingsWriteTargetKind(result.WriteTarget),
+		WorkspaceID:      strings.TrimSpace(result.WorkspaceID),
+		AgentName:        strings.TrimSpace(result.AgentName),
+		Applied:          result.Applied,
+		Lifecycle:        contract.SettingsApplyLifecycle(result.Record.Lifecycle),
+		ApplyRecordID:    strings.TrimSpace(result.Record.ID),
+		ActiveGeneration: result.Record.Generation,
+		ActiveConfigHash: strings.TrimSpace(result.Record.ActiveHash),
+		NextAction:       contract.SettingsApplyNextAction(result.NextAction),
+		RestartRequired:  result.RestartRequired,
+		RestartScope:     strings.TrimSpace(result.RestartScope),
+		Warnings:         cloneStrings(result.Warnings),
+		PartialFailures:  settingsApplyFailurePayloads(result.PartialFailures),
+		Skipped:          result.Skipped,
+		SkippedReason:    strings.TrimSpace(result.SkippedReason),
+	}
+}
+
+// ConfigApplyRecordsResponseFromRecords converts apply history rows into the public payload.
+func ConfigApplyRecordsResponseFromRecords(
+	records []settingspkg.ApplyRecord,
+) contract.ConfigApplyRecordsResponse {
+	entries := make([]contract.ConfigApplyRecordPayload, 0, len(records))
+	for _, record := range records {
+		entries = append(entries, configApplyRecordPayload(record))
+	}
+	return contract.ConfigApplyRecordsResponse{Entries: entries}
+}
+
+func configApplyRecordPayload(record settingspkg.ApplyRecord) contract.ConfigApplyRecordPayload {
+	return contract.ConfigApplyRecordPayload{
+		ID:                strings.TrimSpace(record.ID),
+		DesiredConfigHash: strings.TrimSpace(record.DesiredHash),
+		ActiveConfigHash:  strings.TrimSpace(record.ActiveHash),
+		Generation:        record.Generation,
+		Actor:             strings.TrimSpace(record.Actor),
+		DiffClass:         contract.SettingsApplyLifecycle(record.DiffClass),
+		Status:            contract.ConfigApplyStatus(record.Status),
+		Lifecycle:         contract.SettingsApplyLifecycle(record.Lifecycle),
+		NextAction:        contract.SettingsApplyNextAction(record.NextAction),
+		Diagnostics:       append([]contract.DiagnosticItem(nil), record.Diagnostics...),
+		CreatedAt:         record.CreatedAt,
+		AppliedAt:         record.AppliedAt,
+		UpdatedAt:         record.UpdatedAt,
+	}
+}
+
+func settingsApplyFailurePayloads(
+	failures []settingspkg.ApplyFailure,
+) []contract.SettingsApplyFailurePayload {
+	if len(failures) == 0 {
+		return nil
+	}
+	payloads := make([]contract.SettingsApplyFailurePayload, 0, len(failures))
+	for _, failure := range failures {
+		payloads = append(payloads, contract.SettingsApplyFailurePayload{
+			Subsystem:  strings.TrimSpace(failure.Subsystem),
+			Diagnostic: failure.Diagnostic,
+		})
+	}
+	return payloads
+}
+
 // SettingsRestartActionResponseFromOperation converts one daemon restart operation into the action response payload.
 func SettingsRestartActionResponseFromOperation(operation SettingsRestartOperation) contract.RestartActionResponse {
 	return contract.RestartActionResponse{
@@ -1899,6 +1967,11 @@ func settingsGeneralConfigPayload(value settingspkg.GeneralSettings) contract.Se
 		},
 		Daemon: contract.SettingsDaemonPayload{
 			Socket: strings.TrimSpace(value.Daemon.Socket),
+			ReloadTimeouts: contract.SettingsDaemonReloadTimeoutsPayload{
+				Providers: value.Daemon.ReloadTimeouts.Providers.String(),
+				MCP:       value.Daemon.ReloadTimeouts.MCP.String(),
+				Bridges:   value.Daemon.ReloadTimeouts.Bridges.String(),
+			},
 		},
 	}
 }

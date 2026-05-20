@@ -49,6 +49,8 @@ type DaemonClient interface {
 	GetSettingsRestartStatus(ctx context.Context, operationID string) (SettingsRestartStatusRecord, error)
 	GetSettingsUpdate(ctx context.Context) (SettingsUpdateRecord, error)
 	UpdateSettingsSkills(ctx context.Context, request UpdateSettingsSkillsRequest) (SettingsMutationRecord, error)
+	ReloadSettings(ctx context.Context) (SettingsMutationRecord, error)
+	ListSettingsApplyRecords(ctx context.Context, query SettingsApplyHistoryQuery) (SettingsApplyHistoryRecord, error)
 	ListProviders(ctx context.Context) (contract.ProviderListResponse, error)
 	ProbeProviderAuth(ctx context.Context, providerID string) (contract.ProviderAuthProbeResponse, error)
 	ListProviderModels(ctx context.Context, query ProviderModelListQuery) (ProviderModelListRecord, error)
@@ -1034,7 +1036,17 @@ type SettingsRestartStatusRecord = contract.RestartActionStatus
 type SettingsUpdateRecord = contract.SettingsUpdateResponse
 
 // SettingsMutationRecord is the shared settings mutation response payload.
-type SettingsMutationRecord = contract.SettingsSkillsMutationResult
+type SettingsMutationRecord = contract.SettingsApplyResponse
+
+// SettingsApplyHistoryRecord is the shared settings apply-history response payload.
+type SettingsApplyHistoryRecord = contract.ConfigApplyRecordsResponse
+
+// SettingsApplyHistoryQuery captures apply-history filters.
+type SettingsApplyHistoryQuery struct {
+	Status string
+	Actor  string
+	Limit  int
+}
 
 // UpdateSettingsSkillsRequest captures the shared skills settings update payload.
 type UpdateSettingsSkillsRequest = contract.UpdateSettingsSkillsRequest
@@ -1354,6 +1366,35 @@ func (c *unixSocketClient) UpdateSettingsSkills(
 	var response SettingsMutationRecord
 	if err := c.doJSON(ctx, http.MethodPatch, "/api/settings/skills", nil, request, &response); err != nil {
 		return SettingsMutationRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) ReloadSettings(ctx context.Context) (SettingsMutationRecord, error) {
+	var response SettingsMutationRecord
+	if err := c.doJSON(ctx, http.MethodPost, "/api/settings/reload", nil, nil, &response); err != nil {
+		return SettingsMutationRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) ListSettingsApplyRecords(
+	ctx context.Context,
+	query SettingsApplyHistoryQuery,
+) (SettingsApplyHistoryRecord, error) {
+	values := url.Values{}
+	if strings.TrimSpace(query.Status) != "" {
+		values.Set("status", strings.TrimSpace(query.Status))
+	}
+	if strings.TrimSpace(query.Actor) != "" {
+		values.Set("actor", strings.TrimSpace(query.Actor))
+	}
+	if query.Limit > 0 {
+		values.Set("limit", strconv.Itoa(query.Limit))
+	}
+	var response SettingsApplyHistoryRecord
+	if err := c.doJSON(ctx, http.MethodGet, "/api/settings/apply", values, nil, &response); err != nil {
+		return SettingsApplyHistoryRecord{}, err
 	}
 	return response, nil
 }

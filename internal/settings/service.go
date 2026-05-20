@@ -109,6 +109,7 @@ type Dependencies struct {
 	MCPRuntime                 MCPRuntimeProvider
 	ProviderSecrets            ProviderSecretStore
 	EventSummaries             store.EventSummaryStore
+	ApplyRecords               ApplyRecordStore
 	RestartActionAvailable     bool
 	ConsolidateActionAvailable bool
 	LogTailAvailable           bool
@@ -131,6 +132,8 @@ type service struct {
 	mcpRuntime                 MCPRuntimeProvider
 	providerSecrets            ProviderSecretStore
 	eventSummaries             store.EventSummaryStore
+	applyRecords               ApplyRecordStore
+	activeConfig               activeConfigState
 	restartActionAvailable     bool
 	consolidateActionAvailable bool
 	logTailAvailable           bool
@@ -170,6 +173,7 @@ func NewService(homePaths aghconfig.HomePaths, deps Dependencies) (Service, erro
 		mcpRuntime:                 deps.MCPRuntime,
 		providerSecrets:            deps.ProviderSecrets,
 		eventSummaries:             deps.EventSummaries,
+		applyRecords:               deps.ApplyRecords,
 		restartActionAvailable:     deps.RestartActionAvailable,
 		consolidateActionAvailable: deps.ConsolidateActionAvailable,
 		logTailAvailable:           deps.LogTailAvailable,

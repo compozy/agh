@@ -21,6 +21,9 @@ import (
 	"github.com/pedronauck/agh/internal/api/testutil"
 	automationmodel "github.com/pedronauck/agh/internal/automation/model"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/config/lifecycle"
+	diagnosticcontract "github.com/pedronauck/agh/internal/diagnosticcontract"
+	"github.com/pedronauck/agh/internal/diagnostics"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/resources"
@@ -31,21 +34,32 @@ import (
 type stubSettingsService struct {
 	GetSectionFn        func(context.Context, settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error)
 	UpdateSectionFn     func(context.Context, settingspkg.SectionUpdateRequest) (settingspkg.MutationResult, error)
+	ApplySectionFn      func(context.Context, settingspkg.SectionUpdateRequest) (settingspkg.ApplyResult, error)
 	ListCollectionFn    func(context.Context, settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error)
 	PutCollectionItemFn func(context.Context, settingspkg.CollectionItemPutRequest) (settingspkg.MutationResult, error)
+	ApplyCollectionFn   func(context.Context, settingspkg.CollectionItemPutRequest) (settingspkg.ApplyResult, error)
 	DeleteItemFn        func(context.Context, settingspkg.CollectionItemDeleteRequest) (settingspkg.MutationResult, error)
+	ApplyDeleteFn       func(context.Context, settingspkg.CollectionItemDeleteRequest) (settingspkg.ApplyResult, error)
+	ReloadFn            func(context.Context) (settingspkg.ApplyResult, error)
+	ListApplyRecordsFn  func(context.Context, settingspkg.ApplyRecordFilter) ([]settingspkg.ApplyRecord, error)
 
 	LastGetSectionRequest     settingspkg.SectionRequest
 	LastUpdateSectionRequest  settingspkg.SectionUpdateRequest
 	LastListCollectionRequest settingspkg.CollectionRequest
 	LastPutCollectionRequest  settingspkg.CollectionItemPutRequest
 	LastDeleteRequest         settingspkg.CollectionItemDeleteRequest
+	LastApplyRecordFilter     settingspkg.ApplyRecordFilter
 
 	GetSectionCalls        int
 	UpdateSectionCalls     int
+	ApplySectionCalls      int
 	ListCollectionCalls    int
 	PutCollectionItemCalls int
+	ApplyCollectionCalls   int
 	DeleteItemCalls        int
+	ApplyDeleteCalls       int
+	ReloadCalls            int
+	ListApplyRecordsCalls  int
 }
 
 func (s *stubSettingsService) GetSection(
@@ -72,6 +86,18 @@ func (s *stubSettingsService) UpdateSection(
 	return settingspkg.MutationResult{}, nil
 }
 
+func (s *stubSettingsService) ApplySection(
+	ctx context.Context,
+	req settingspkg.SectionUpdateRequest,
+) (settingspkg.ApplyResult, error) {
+	s.ApplySectionCalls++
+	s.LastUpdateSectionRequest = req
+	if s.ApplySectionFn != nil {
+		return s.ApplySectionFn(ctx, req)
+	}
+	return defaultApplyResult(req.Section), nil
+}
+
 func (s *stubSettingsService) ListCollection(
 	ctx context.Context,
 	req settingspkg.CollectionRequest,
@@ -96,6 +122,18 @@ func (s *stubSettingsService) PutCollectionItem(
 	return settingspkg.MutationResult{}, nil
 }
 
+func (s *stubSettingsService) ApplyCollectionItem(
+	ctx context.Context,
+	req settingspkg.CollectionItemPutRequest,
+) (settingspkg.ApplyResult, error) {
+	s.ApplyCollectionCalls++
+	s.LastPutCollectionRequest = req
+	if s.ApplyCollectionFn != nil {
+		return s.ApplyCollectionFn(ctx, req)
+	}
+	return defaultApplyResult(settingspkg.SectionName(req.Collection)), nil
+}
+
 func (s *stubSettingsService) DeleteCollectionItem(
 	ctx context.Context,
 	req settingspkg.CollectionItemDeleteRequest,
@@ -106,6 +144,58 @@ func (s *stubSettingsService) DeleteCollectionItem(
 		return s.DeleteItemFn(ctx, req)
 	}
 	return settingspkg.MutationResult{}, nil
+}
+
+func (s *stubSettingsService) ApplyCollectionDelete(
+	ctx context.Context,
+	req settingspkg.CollectionItemDeleteRequest,
+) (settingspkg.ApplyResult, error) {
+	s.ApplyDeleteCalls++
+	s.LastDeleteRequest = req
+	if s.ApplyDeleteFn != nil {
+		return s.ApplyDeleteFn(ctx, req)
+	}
+	return defaultApplyResult(settingspkg.SectionName(req.Collection)), nil
+}
+
+func (s *stubSettingsService) Reload(ctx context.Context) (settingspkg.ApplyResult, error) {
+	s.ReloadCalls++
+	if s.ReloadFn != nil {
+		return s.ReloadFn(ctx)
+	}
+	return defaultApplyResult(""), nil
+}
+
+func (s *stubSettingsService) ListApplyRecords(
+	ctx context.Context,
+	filter settingspkg.ApplyRecordFilter,
+) ([]settingspkg.ApplyRecord, error) {
+	s.ListApplyRecordsCalls++
+	s.LastApplyRecordFilter = filter
+	if s.ListApplyRecordsFn != nil {
+		return s.ListApplyRecordsFn(ctx, filter)
+	}
+	return nil, nil
+}
+
+func defaultApplyResult(section settingspkg.SectionName) settingspkg.ApplyResult {
+	return settingspkg.ApplyResult{
+		Section:    section,
+		Scope:      settingspkg.ScopeGlobal,
+		Applied:    true,
+		NextAction: "none",
+		Record: settingspkg.ApplyRecord{
+			ID:         "cfgapp-test",
+			ActiveHash: "sha256:test",
+			Generation: 1,
+			DiffClass:  "live",
+			Status:     "applied",
+			Lifecycle:  "live",
+			NextAction: "none",
+			CreatedAt:  time.Unix(1, 0).UTC(),
+			UpdatedAt:  time.Unix(1, 0).UTC(),
+		},
+	}
 }
 
 type unavailableSettingsMemoryProviderService struct {
@@ -264,6 +354,8 @@ func newSettingsHandlerFixture(
 
 func registerSettingsRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	settings := engine.Group("/api/settings")
+	settings.GET("/apply", handlers.ListSettingsApplyRecords)
+	settings.POST("/reload", handlers.ReloadSettings)
 	settings.GET("/general", handlers.GetSettingsGeneral)
 	settings.GET("/update", handlers.GetSettingsUpdate)
 	settings.PATCH("/general", handlers.UpdateSettingsGeneral)
@@ -1594,10 +1686,10 @@ func TestSettingsCollectionHandlersDelegateValidPayloads(t *testing.T) {
 func assertAppliedSettingsMutation(t *testing.T, resp *httptest.ResponseRecorder) {
 	t.Helper()
 
-	var payload contract.SettingsGlobalSectionMutationResult
+	var payload contract.SettingsApplyResponse
 	testutil.DecodeJSONResponse(t, resp, &payload)
-	if !payload.Applied || payload.Behavior != contract.SettingsMutationBehaviorAppliedNow {
-		t.Fatalf("settings mutation payload = %#v, want applied_now", payload)
+	if !payload.Applied || payload.Lifecycle != contract.SettingsApplyLifecycleLive {
+		t.Fatalf("settings mutation payload = %#v, want live", payload)
 	}
 }
 
@@ -2116,11 +2208,9 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 		t.Fatalf("PUT response leaked raw secret value: %s", putResp.Body.String())
 	}
 
-	var putPayload contract.SettingsGlobalWorkspaceCollectionMutationResult
+	var putPayload contract.SettingsApplyResponse
 	decodeJSON(t, putResp.Body.Bytes(), &putPayload)
-	if putPayload.WriteTarget != contract.SettingsWriteTargetWorkspaceMCPSidecar ||
-		putPayload.RestartScope != "daemon" ||
-		!putPayload.RestartRequired {
+	if putPayload.ApplyRecordID == "" || !putPayload.Applied {
 		t.Fatalf("putPayload = %#v", putPayload)
 	}
 
@@ -2143,6 +2233,69 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 	if got := service.LastDeleteRequest.Target; got != settingspkg.TargetSidecar {
 		t.Fatalf("LastDeleteRequest.Target = %q, want %q", got, settingspkg.TargetSidecar)
 	}
+}
+
+func TestListSettingsApplyRecordsReturnsBlockedDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return blocked apply records with redacted diagnostics", func(t *testing.T) {
+		t.Parallel()
+
+		diagnostic := diagnostics.NewItem(
+			"config.apply.restart_required",
+			diagnosticcontract.CodeConfigRestartRequired,
+			diagnosticcontract.CategoryConfig,
+			"Daemon restart required",
+			"Restart required for token=super-secret",
+			diagnosticcontract.SeverityWarn,
+			diagnosticcontract.FreshnessLive,
+		)
+		service := &stubSettingsService{
+			ListApplyRecordsFn: func(
+				_ context.Context,
+				filter settingspkg.ApplyRecordFilter,
+			) ([]settingspkg.ApplyRecord, error) {
+				if got, want := filter.Status, lifecycle.StatusBlocked; got != want {
+					t.Fatalf("filter.Status = %q, want %q", got, want)
+				}
+				return []settingspkg.ApplyRecord{{
+					ID:          "cfgapp-1",
+					DesiredHash: "sha256:desired",
+					ActiveHash:  "sha256:active",
+					Generation:  7,
+					Actor:       "http",
+					DiffClass:   lifecycle.DiffClassRestartRequired,
+					Status:      lifecycle.StatusBlocked,
+					Lifecycle:   lifecycle.RestartRequired,
+					NextAction:  lifecycle.NextActionRestartDaemon,
+					Diagnostics: []diagnosticcontract.DiagnosticItem{diagnostic},
+					CreatedAt:   time.Unix(1, 0).UTC(),
+					UpdatedAt:   time.Unix(2, 0).UTC(),
+				}}, nil
+			},
+		}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/api/settings/apply?status=blocked", nil)
+		if got, want := resp.Code, http.StatusOK; got != want {
+			t.Fatalf("GET status = %d, want %d; body=%s", got, want, resp.Body.String())
+		}
+		var payload contract.ConfigApplyRecordsResponse
+		decodeJSON(t, resp.Body.Bytes(), &payload)
+		if len(payload.Entries) != 1 {
+			t.Fatalf("entries len = %d, want 1", len(payload.Entries))
+		}
+		entry := payload.Entries[0]
+		if got, want := entry.Status, contract.ConfigApplyStatusBlocked; got != want {
+			t.Fatalf("entry.Status = %q, want %q", got, want)
+		}
+		if len(entry.Diagnostics) != 1 {
+			t.Fatalf("entry.Diagnostics len = %d, want 1", len(entry.Diagnostics))
+		}
+		if strings.Contains(entry.Diagnostics[0].Message, "super-secret") {
+			t.Fatalf("diagnostic message leaked secret: %q", entry.Diagnostics[0].Message)
+		}
+	})
 }
 
 func TestSettingsHandlersBehaveIdenticallyAcrossTransportShims(t *testing.T) {

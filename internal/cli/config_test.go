@@ -129,7 +129,7 @@ func TestConfigSetReportsMutationLifecycle(t *testing.T) {
 		name             string
 		path             string
 		value            string
-		wantBehavior     string
+		wantLifecycle    string
 		wantApplied      bool
 		wantRestart      bool
 		wantRestartScope string
@@ -138,16 +138,16 @@ func TestConfigSetReportsMutationLifecycle(t *testing.T) {
 			name:             "Should report daemon restart for persisted log config",
 			path:             "log.level",
 			value:            "debug",
-			wantBehavior:     "restart_required",
+			wantLifecycle:    "restart-required",
 			wantRestart:      true,
 			wantRestartScope: "daemon",
 		},
 		{
-			name:         "Should report applied now for disabled skills",
-			path:         "skills.disabled_skills",
-			value:        `["agent-browser"]`,
-			wantBehavior: "applied_now",
-			wantApplied:  true,
+			name:          "Should report applied now for disabled skills",
+			path:          "skills.disabled_skills",
+			value:         `["agent-browser"]`,
+			wantLifecycle: "live",
+			wantApplied:   true,
 		},
 	}
 
@@ -164,8 +164,8 @@ func TestConfigSetReportsMutationLifecycle(t *testing.T) {
 			if err := json.Unmarshal([]byte(out), &record); err != nil {
 				t.Fatalf("json.Unmarshal(config set %s) error = %v", tt.path, err)
 			}
-			if record.Behavior != tt.wantBehavior {
-				t.Fatalf("config set %s behavior = %q, want %q", tt.path, record.Behavior, tt.wantBehavior)
+			if record.Lifecycle != tt.wantLifecycle {
+				t.Fatalf("config set %s lifecycle = %q, want %q", tt.path, record.Lifecycle, tt.wantLifecycle)
 			}
 			if record.Applied != tt.wantApplied {
 				t.Fatalf("config set %s applied = %v, want %v", tt.path, record.Applied, tt.wantApplied)
@@ -196,10 +196,14 @@ func TestConfigSetDisabledSkillsUsesDaemonSettingsWhenRunning(t *testing.T) {
 		) (SettingsMutationRecord, error) {
 			captured = request
 			return SettingsMutationRecord{
-				Section:  contract.SettingsSectionName("skills"),
-				Scope:    contract.SettingsAgentScopeGlobal,
-				Behavior: contract.SettingsMutationBehaviorAppliedNow,
-				Applied:  true,
+				Section:          "skills",
+				Scope:            string(contract.SettingsAgentScopeGlobal),
+				Lifecycle:        contract.SettingsApplyLifecycleLive,
+				ApplyRecordID:    "cfgapp-test",
+				Applied:          true,
+				ActiveGeneration: 1,
+				ActiveConfigHash: "sha256:test",
+				NextAction:       contract.SettingsApplyNextActionNone,
 			}, nil
 		},
 	}
@@ -251,8 +255,8 @@ func TestConfigSetDisabledSkillsUsesDaemonSettingsWhenRunning(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &record); err != nil {
 		t.Fatalf("json.Unmarshal(config set disabled skills) error = %v", err)
 	}
-	if record.Behavior != string(contract.SettingsMutationBehaviorAppliedNow) || !record.Applied {
-		t.Fatalf("config set disabled skills record = %#v, want applied_now/applied=true", record)
+	if record.Lifecycle != string(contract.SettingsApplyLifecycleLive) || !record.Applied {
+		t.Fatalf("config set disabled skills record = %#v, want live/applied=true", record)
 	}
 }
 

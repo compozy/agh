@@ -378,6 +378,8 @@ func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	privileged := handlers.privilegedMutationGuard()
 	settings := api.Group("/settings")
 
+	settings.GET("/apply", handlers.ListSettingsApplyRecords)
+	settings.POST("/reload", privileged, handlers.ReloadSettings)
 	settings.GET("/general", handlers.GetSettingsGeneral)
 	settings.GET("/update", handlers.GetSettingsUpdate)
 	settings.PATCH("/general", privileged, handlers.UpdateSettingsGeneral)

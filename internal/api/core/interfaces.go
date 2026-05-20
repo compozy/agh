@@ -230,8 +230,13 @@ type MemorySessionLedgerService interface {
 type SettingsService interface {
 	GetSection(ctx context.Context, req settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error)
 	UpdateSection(ctx context.Context, req settingspkg.SectionUpdateRequest) (settingspkg.MutationResult, error)
+	ApplySection(ctx context.Context, req settingspkg.SectionUpdateRequest) (settingspkg.ApplyResult, error)
 	ListCollection(ctx context.Context, req settingspkg.CollectionRequest) (settingspkg.CollectionEnvelope, error)
 	PutCollectionItem(ctx context.Context, req settingspkg.CollectionItemPutRequest) (settingspkg.MutationResult, error)
+	ApplyCollectionItem(
+		ctx context.Context,
+		req settingspkg.CollectionItemPutRequest,
+	) (settingspkg.ApplyResult, error)
 	DeleteCollectionItem(
 		ctx context.Context,
 		req settingspkg.CollectionItemDeleteRequest,
@@ -239,6 +244,12 @@ type SettingsService interface {
 		settingspkg.MutationResult,
 		error,
 	)
+	ApplyCollectionDelete(
+		ctx context.Context,
+		req settingspkg.CollectionItemDeleteRequest,
+	) (settingspkg.ApplyResult, error)
+	Reload(ctx context.Context) (settingspkg.ApplyResult, error)
+	ListApplyRecords(ctx context.Context, filter settingspkg.ApplyRecordFilter) ([]settingspkg.ApplyRecord, error)
 }
 
 // SkillsRegistry exposes the daemon-owned skill catalog.

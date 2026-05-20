@@ -10,6 +10,8 @@ import (
 
 	automationmodel "github.com/pedronauck/agh/internal/automation/model"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/config/lifecycle"
+	diagnosticcontract "github.com/pedronauck/agh/internal/diagnosticcontract"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
 	"github.com/pedronauck/agh/internal/providerauth"
@@ -166,9 +168,14 @@ const (
 type Service interface {
 	GetSection(ctx context.Context, req SectionRequest) (SectionEnvelope, error)
 	UpdateSection(ctx context.Context, req SectionUpdateRequest) (MutationResult, error)
+	ApplySection(ctx context.Context, req SectionUpdateRequest) (ApplyResult, error)
 	ListCollection(ctx context.Context, req CollectionRequest) (CollectionEnvelope, error)
 	PutCollectionItem(ctx context.Context, req CollectionItemPutRequest) (MutationResult, error)
+	ApplyCollectionItem(ctx context.Context, req CollectionItemPutRequest) (ApplyResult, error)
 	DeleteCollectionItem(ctx context.Context, req CollectionItemDeleteRequest) (MutationResult, error)
+	ApplyCollectionDelete(ctx context.Context, req CollectionItemDeleteRequest) (ApplyResult, error)
+	Reload(ctx context.Context) (ApplyResult, error)
+	ListApplyRecords(ctx context.Context, filter ApplyRecordFilter) ([]ApplyRecord, error)
 }
 
 // SectionRequest identifies one section read.
@@ -258,6 +265,8 @@ type MutationResult struct {
 	RestartRequired bool             `json:"restart_required"`
 	RestartScope    string           `json:"restart_scope,omitempty"`
 	Warnings        []string         `json:"warnings,omitempty"`
+	Lifecycle       lifecycle.Lifecycle
+	DiffClass       lifecycle.DiffClass
 }
 
 // MutationDescriptor identifies the changed fields or action behind one mutation.
@@ -273,6 +282,65 @@ type MutationClassification struct {
 	Applied         bool
 	RestartRequired bool
 	RestartScope    string
+	Lifecycle       lifecycle.Lifecycle
+	DiffClass       lifecycle.DiffClass
+}
+
+// ApplyResult is the public config-apply outcome returned by mutation, reload,
+// and reconcile paths after the attempt is persisted.
+type ApplyResult struct {
+	Record          ApplyRecord
+	Section         SectionName
+	Scope           ScopeKind
+	WriteTarget     WriteTargetKind
+	WorkspaceID     string
+	AgentName       string
+	Applied         bool
+	NextAction      lifecycle.NextAction
+	RestartRequired bool
+	RestartScope    string
+	Warnings        []string
+	PartialFailures []ApplyFailure
+	Skipped         bool
+	SkippedReason   string
+}
+
+// ApplyFailure reports one subsystem failure after the desired config was written.
+type ApplyFailure struct {
+	Subsystem  string
+	Diagnostic diagnosticcontract.DiagnosticItem
+}
+
+// ApplyRecord is one persisted config_apply_records row.
+type ApplyRecord struct {
+	ID          string
+	DesiredHash string
+	ActiveHash  string
+	Generation  int64
+	Actor       string
+	DiffClass   lifecycle.DiffClass
+	Status      lifecycle.Status
+	Lifecycle   lifecycle.Lifecycle
+	NextAction  lifecycle.NextAction
+	Diagnostics []diagnosticcontract.DiagnosticItem
+	CreatedAt   time.Time
+	AppliedAt   *time.Time
+	UpdatedAt   time.Time
+}
+
+// ApplyRecordFilter selects apply-record history rows.
+type ApplyRecordFilter struct {
+	Status lifecycle.Status
+	Actor  string
+	Limit  int
+}
+
+// ApplyRecordStore persists config apply attempts.
+type ApplyRecordStore interface {
+	CreateApplyRecord(ctx context.Context, record ApplyRecord) (ApplyRecord, error)
+	UpdateApplyRecord(ctx context.Context, record ApplyRecord) (ApplyRecord, error)
+	ListApplyRecords(ctx context.Context, filter ApplyRecordFilter) ([]ApplyRecord, error)
+	LatestAppliedRecord(ctx context.Context) (*ApplyRecord, error)
 }
 
 // GeneralSettings groups the editable general section config.

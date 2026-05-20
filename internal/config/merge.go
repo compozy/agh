@@ -60,7 +60,14 @@ func (e FileError) Unwrap() error {
 }
 
 type daemonOverlay struct {
-	Socket *string `toml:"socket"`
+	Socket         *string                     `toml:"socket"`
+	ReloadTimeouts daemonReloadTimeoutsOverlay `toml:"reload_timeouts"`
+}
+
+type daemonReloadTimeoutsOverlay struct {
+	Providers *time.Duration `toml:"providers"`
+	MCP       *time.Duration `toml:"mcp"`
+	Bridges   *time.Duration `toml:"bridges"`
 }
 
 type httpOverlay struct {
@@ -642,6 +649,19 @@ func (o *configOverlay) Apply(dst *Config) error {
 func (o daemonOverlay) Apply(dst *DaemonConfig) {
 	if o.Socket != nil {
 		dst.Socket = *o.Socket
+	}
+	o.ReloadTimeouts.Apply(&dst.ReloadTimeouts)
+}
+
+func (o daemonReloadTimeoutsOverlay) Apply(dst *DaemonReloadTimeoutsConfig) {
+	if o.Providers != nil {
+		dst.Providers = *o.Providers
+	}
+	if o.MCP != nil {
+		dst.MCP = *o.MCP
+	}
+	if o.Bridges != nil {
+		dst.Bridges = *o.Bridges
 	}
 }
 

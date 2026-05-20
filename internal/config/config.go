@@ -53,9 +53,28 @@ const (
 	defaultMemoryWorkspaceTOMLPath = "<workspace>/.agh/workspace.toml"
 )
 
-// DaemonConfig controls the daemon-local socket settings.
+const (
+	defaultDaemonProviderReloadTimeout = 5 * time.Second
+	defaultDaemonMCPReloadTimeout      = 10 * time.Second
+	defaultDaemonBridgeReloadTimeout   = 30 * time.Second
+
+	minDaemonReloadTimeout       = time.Second
+	maxDaemonProviderReloadLimit = 60 * time.Second
+	maxDaemonMCPReloadLimit      = 60 * time.Second
+	maxDaemonBridgeReloadLimit   = 300 * time.Second
+)
+
+// DaemonConfig controls daemon-local socket and hot-reload settings.
 type DaemonConfig struct {
-	Socket string `toml:"socket"`
+	Socket         string                     `toml:"socket"`
+	ReloadTimeouts DaemonReloadTimeoutsConfig `toml:"reload_timeouts"`
+}
+
+// DaemonReloadTimeoutsConfig bounds subsystem reload attempts during config apply.
+type DaemonReloadTimeoutsConfig struct {
+	Providers time.Duration `toml:"providers"`
+	MCP       time.Duration `toml:"mcp"`
+	Bridges   time.Duration `toml:"bridges"`
 }
 
 // HTTPConfig controls the HTTP server bind address.
@@ -623,7 +642,8 @@ func defaultConfig() (Config, error) {
 func DefaultWithHome(homePaths HomePaths) Config {
 	return Config{
 		Daemon: DaemonConfig{
-			Socket: homePaths.DaemonSocket,
+			Socket:         homePaths.DaemonSocket,
+			ReloadTimeouts: DefaultDaemonReloadTimeoutsConfig(),
 		},
 		HTTP: HTTPConfig{
 			Host: "localhost",
@@ -1111,12 +1131,45 @@ func (p DaytonaProfile) Resolve() sandbox.DaytonaConfig {
 	return resolved
 }
 
-// Validate ensures the daemon config contains a socket path.
+// DefaultDaemonReloadTimeoutsConfig returns daemon hot-reload timeout defaults.
+func DefaultDaemonReloadTimeoutsConfig() DaemonReloadTimeoutsConfig {
+	return DaemonReloadTimeoutsConfig{
+		Providers: defaultDaemonProviderReloadTimeout,
+		MCP:       defaultDaemonMCPReloadTimeout,
+		Bridges:   defaultDaemonBridgeReloadTimeout,
+	}
+}
+
+// Validate ensures the daemon config contains a socket path and reload timeouts.
 func (c DaemonConfig) Validate() error {
 	if strings.TrimSpace(c.Socket) == "" {
 		return errors.New("daemon.socket is required")
 	}
+	if err := c.ReloadTimeouts.Validate(); err != nil {
+		return err
+	}
 
+	return nil
+}
+
+// Validate ensures daemon reload timeout values stay within bounded retry budgets.
+func (c DaemonReloadTimeoutsConfig) Validate() error {
+	if err := validateDaemonReloadTimeout("daemon.reload_timeouts.providers", c.Providers, maxDaemonProviderReloadLimit); err != nil {
+		return err
+	}
+	if err := validateDaemonReloadTimeout("daemon.reload_timeouts.mcp", c.MCP, maxDaemonMCPReloadLimit); err != nil {
+		return err
+	}
+	if err := validateDaemonReloadTimeout("daemon.reload_timeouts.bridges", c.Bridges, maxDaemonBridgeReloadLimit); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateDaemonReloadTimeout(path string, value time.Duration, max time.Duration) error {
+	if value < minDaemonReloadTimeout || value > max {
+		return fmt.Errorf("%s must be between %s and %s: %s", path, minDaemonReloadTimeout, max, value)
+	}
 	return nil
 }
 

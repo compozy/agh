@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/config/lifecycle"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/providerauth"
 	authproviders "github.com/pedronauck/agh/internal/providers"
@@ -1376,6 +1377,8 @@ func mutationResultForCollection(
 		Applied:         classification.Applied,
 		RestartRequired: classification.RestartRequired,
 		RestartScope:    classification.RestartScope,
+		Lifecycle:       lifecycle.RestartRequired,
+		DiffClass:       lifecycle.DiffClassForRoot(string(collection)),
 	}
 }
 

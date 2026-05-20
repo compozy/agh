@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	automationmodel "github.com/pedronauck/agh/internal/automation/model"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/config/lifecycle"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/resources"
@@ -88,6 +90,41 @@ func (h *BaseHandlers) UpdateSettingsSkills(c *gin.Context) {
 		return
 	}
 	h.updateSettingsSection(c, req)
+}
+
+// ReloadSettings reconciles desired config.toml with the daemon active generation.
+func (h *BaseHandlers) ReloadSettings(c *gin.Context) {
+	if h.Settings == nil {
+		h.respondError(c, http.StatusServiceUnavailable, errSettingsServiceUnavailable)
+		return
+	}
+	result, err := h.Settings.Reload(
+		settingspkg.WithMutationSource(c.Request.Context(), h.TransportName),
+	)
+	if err != nil {
+		h.respondError(c, StatusForSettingsError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, SettingsApplyResponseFromResult(result))
+}
+
+// ListSettingsApplyRecords returns persisted config apply history.
+func (h *BaseHandlers) ListSettingsApplyRecords(c *gin.Context) {
+	if h.Settings == nil {
+		h.respondError(c, http.StatusServiceUnavailable, errSettingsServiceUnavailable)
+		return
+	}
+	filter, err := parseConfigApplyRecordFilter(c)
+	if err != nil {
+		h.respondError(c, StatusForSettingsError(err), err)
+		return
+	}
+	records, err := h.Settings.ListApplyRecords(c.Request.Context(), filter)
+	if err != nil {
+		h.respondError(c, StatusForSettingsError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, ConfigApplyRecordsResponseFromRecords(records))
 }
 
 // GetSettingsAutomation returns the automation settings section.
@@ -403,7 +440,7 @@ func (h *BaseHandlers) updateSettingsSection(c *gin.Context, req settingspkg.Sec
 		return
 	}
 
-	result, err := h.Settings.UpdateSection(
+	result, err := h.Settings.ApplySection(
 		settingspkg.WithMutationSource(c.Request.Context(), h.TransportName),
 		req,
 	)
@@ -412,13 +449,7 @@ func (h *BaseHandlers) updateSettingsSection(c *gin.Context, req settingspkg.Sec
 		return
 	}
 
-	payload, err := SettingsSectionMutationResultPayloadFromResult(result)
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, payload)
+	c.JSON(http.StatusOK, SettingsApplyResponseFromResult(result))
 }
 
 func (h *BaseHandlers) listSettingsCollection(c *gin.Context, collection settingspkg.CollectionName) {
@@ -510,7 +541,7 @@ func (h *BaseHandlers) putSettingsCollectionItem(c *gin.Context, req settingspkg
 		return
 	}
 
-	result, err := h.Settings.PutCollectionItem(
+	result, err := h.Settings.ApplyCollectionItem(
 		settingspkg.WithMutationSource(c.Request.Context(), h.TransportName),
 		req,
 	)
@@ -519,13 +550,7 @@ func (h *BaseHandlers) putSettingsCollectionItem(c *gin.Context, req settingspkg
 		return
 	}
 
-	payload, err := SettingsCollectionMutationResultPayloadFromResult(result)
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, payload)
+	c.JSON(http.StatusOK, SettingsApplyResponseFromResult(result))
 }
 
 func (h *BaseHandlers) deleteSettingsCollectionItem(c *gin.Context, req settingspkg.CollectionItemDeleteRequest) {
@@ -534,7 +559,7 @@ func (h *BaseHandlers) deleteSettingsCollectionItem(c *gin.Context, req settings
 		return
 	}
 
-	result, err := h.Settings.DeleteCollectionItem(
+	result, err := h.Settings.ApplyCollectionDelete(
 		settingspkg.WithMutationSource(c.Request.Context(), h.TransportName),
 		req,
 	)
@@ -543,13 +568,7 @@ func (h *BaseHandlers) deleteSettingsCollectionItem(c *gin.Context, req settings
 		return
 	}
 
-	payload, err := SettingsCollectionMutationResultPayloadFromResult(result)
-	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, payload)
+	c.JSON(http.StatusOK, SettingsApplyResponseFromResult(result))
 }
 
 func parseSettingsSectionRequest(
@@ -592,6 +611,48 @@ func parseSettingsCollectionRequest(
 		Scope:       scope,
 		WorkspaceID: workspaceID,
 	}, nil
+}
+
+func parseConfigApplyRecordFilter(c *gin.Context) (settingspkg.ApplyRecordFilter, error) {
+	limit := 0
+	if rawLimit := strings.TrimSpace(c.Query("limit")); rawLimit != "" {
+		parsed, err := strconv.Atoi(rawLimit)
+		if err != nil {
+			return settingspkg.ApplyRecordFilter{}, NewSettingsValidationError(
+				fmt.Errorf("settings.apply.limit must be a positive integer: %w", err),
+			)
+		}
+		if parsed <= 0 {
+			return settingspkg.ApplyRecordFilter{}, NewSettingsValidationError(
+				fmt.Errorf("settings.apply.limit must be positive: %d", parsed),
+			)
+		}
+		limit = parsed
+	}
+	filter := settingspkg.ApplyRecordFilter{
+		Actor: strings.TrimSpace(c.Query("actor")),
+		Limit: limit,
+	}
+	rawStatus := strings.TrimSpace(c.Query("status"))
+	if rawStatus != "" {
+		switch rawStatus {
+		case string(lifecycle.StatusPendingApply),
+			string(lifecycle.StatusApplied),
+			string(lifecycle.StatusBlocked),
+			string(lifecycle.StatusFailed):
+			filter.Status = lifecycle.Status(rawStatus)
+		default:
+			return settingspkg.ApplyRecordFilter{}, NewSettingsValidationError(
+				fmt.Errorf("settings.apply.status must be one of %q, %q, %q, %q",
+					lifecycle.StatusPendingApply,
+					lifecycle.StatusApplied,
+					lifecycle.StatusBlocked,
+					lifecycle.StatusFailed,
+				),
+			)
+		}
+	}
+	return filter, nil
 }
 
 func parseDeleteSettingsCollectionRequest(
@@ -1163,6 +1224,34 @@ func generalSettingsFromPayload(payload contract.SettingsGeneralConfigPayload) (
 			fmt.Errorf("general.config.session_timeout: %w", err),
 		)
 	}
+	defaultReloadTimeouts := aghconfig.DefaultDaemonReloadTimeoutsConfig()
+	providerReloadTimeout, err := parseSettingsDurationOrDefault(
+		payload.Daemon.ReloadTimeouts.Providers,
+		defaultReloadTimeouts.Providers,
+	)
+	if err != nil {
+		return settingspkg.GeneralSettings{}, NewSettingsValidationError(
+			fmt.Errorf("general.config.daemon.reload_timeouts.providers: %w", err),
+		)
+	}
+	mcpReloadTimeout, err := parseSettingsDurationOrDefault(
+		payload.Daemon.ReloadTimeouts.MCP,
+		defaultReloadTimeouts.MCP,
+	)
+	if err != nil {
+		return settingspkg.GeneralSettings{}, NewSettingsValidationError(
+			fmt.Errorf("general.config.daemon.reload_timeouts.mcp: %w", err),
+		)
+	}
+	bridgeReloadTimeout, err := parseSettingsDurationOrDefault(
+		payload.Daemon.ReloadTimeouts.Bridges,
+		defaultReloadTimeouts.Bridges,
+	)
+	if err != nil {
+		return settingspkg.GeneralSettings{}, NewSettingsValidationError(
+			fmt.Errorf("general.config.daemon.reload_timeouts.bridges: %w", err),
+		)
+	}
 
 	value := settingspkg.GeneralSettings{
 		Defaults: aghconfig.DefaultsConfig{
@@ -1183,6 +1272,11 @@ func generalSettingsFromPayload(payload contract.SettingsGeneralConfigPayload) (
 		},
 		Daemon: aghconfig.DaemonConfig{
 			Socket: strings.TrimSpace(payload.Daemon.Socket),
+			ReloadTimeouts: aghconfig.DaemonReloadTimeoutsConfig{
+				Providers: providerReloadTimeout,
+				MCP:       mcpReloadTimeout,
+				Bridges:   bridgeReloadTimeout,
+			},
 		},
 	}
 
@@ -1209,6 +1303,14 @@ func generalSettingsFromPayload(payload contract.SettingsGeneralConfigPayload) (
 	}
 
 	return value, nil
+}
+
+func parseSettingsDurationOrDefault(raw string, defaultValue time.Duration) (time.Duration, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return defaultValue, nil
+	}
+	return time.ParseDuration(trimmed)
 }
 
 func memoryConfigFromPayload(payload *contract.SettingsMemoryConfigPayload) (aghconfig.MemoryConfig, error) {

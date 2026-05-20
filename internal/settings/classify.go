@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/pedronauck/agh/internal/config/lifecycle"
 )
 
 const (
@@ -26,31 +28,11 @@ func ClassifyMutation(descriptor MutationDescriptor) (MutationClassification, er
 		return MutationClassification{}, errors.New("settings: mutation fields or action are required")
 	}
 
-	var (
-		classification MutationClassification
-		seen           bool
-	)
-	for _, field := range descriptor.ChangedFields {
-		next, err := classifyField(section, field)
-		if err != nil {
-			return MutationClassification{}, err
-		}
-		if !seen {
-			classification = next
-			seen = true
-			continue
-		}
-		if classification.Behavior != next.Behavior {
-			return MutationClassification{}, fmt.Errorf(
-				"settings: section %q mixes %q and %q changes in one mutation",
-				section,
-				classification.Behavior,
-				next.Behavior,
-			)
-		}
+	configLifecycle, diffClass, err := lifecycle.ClassifyPaths(descriptor.ChangedFields)
+	if err != nil {
+		return MutationClassification{}, err
 	}
-
-	return classification, nil
+	return classificationFromLifecycle(configLifecycle, diffClass), nil
 }
 
 func classifyAction(section SectionName, action string) (MutationClassification, error) {
@@ -58,23 +40,29 @@ func classifyAction(section SectionName, action string) (MutationClassification,
 	case SectionGeneral:
 		if action == classifyRestartKey {
 			return MutationClassification{
-				Behavior: MutationBehaviorActionTrigger,
-				Applied:  true,
+				Behavior:  MutationBehaviorActionTrigger,
+				Applied:   true,
+				Lifecycle: lifecycle.Live,
+				DiffClass: lifecycle.DiffClassForRoot(string(section)),
 			}, nil
 		}
 	case SectionMemory:
 		if action == classifyConsolidateKey {
 			return MutationClassification{
-				Behavior: MutationBehaviorActionTrigger,
-				Applied:  true,
+				Behavior:  MutationBehaviorActionTrigger,
+				Applied:   true,
+				Lifecycle: lifecycle.Live,
+				DiffClass: lifecycle.DiffClassForRoot(string(section)),
 			}, nil
 		}
 	case SectionHooksExtensions:
 		switch action {
 		case "extension-install", "extension-enable", "extension-disable":
 			return MutationClassification{
-				Behavior: MutationBehaviorActionTrigger,
-				Applied:  true,
+				Behavior:  MutationBehaviorActionTrigger,
+				Applied:   true,
+				Lifecycle: lifecycle.Live,
+				DiffClass: lifecycle.DiffClassForRoot(string(section)),
 			}, nil
 		}
 	}
@@ -88,41 +76,16 @@ func classifyField(section SectionName, field string) (MutationClassification, e
 		return MutationClassification{}, errors.New("settings: mutation field is required")
 	}
 
-	switch section {
-	case SectionGeneral, SectionMemory, SectionAutomation, SectionNetwork, SectionObservability:
-		return restartRequiredClassification(), nil
-	case SectionSkills:
-		if strings.HasPrefix(trimmed, "skills.disabled_skills") {
-			return MutationClassification{
-				Behavior: MutationBehaviorAppliedNow,
-				Applied:  true,
-			}, nil
-		}
-		if strings.HasPrefix(trimmed, "skills.") {
-			return restartRequiredClassification(), nil
-		}
-	case SectionHooksExtensions:
-		if strings.HasPrefix(trimmed, "extensions.") || strings.HasPrefix(trimmed, "hooks.") {
-			return restartRequiredClassification(), nil
-		}
-	}
-
-	switch {
-	case strings.HasPrefix(trimmed, "providers."):
-		return restartRequiredClassification(), nil
-	case strings.HasPrefix(trimmed, "mcp-servers."):
-		return restartRequiredClassification(), nil
-	case strings.HasPrefix(trimmed, "sandboxes."):
-		return restartRequiredClassification(), nil
-	case strings.HasPrefix(trimmed, "hooks."):
-		return restartRequiredClassification(), nil
-	default:
+	rule, err := lifecycle.ClassifyPath(trimmed)
+	if err != nil {
 		return MutationClassification{}, fmt.Errorf(
-			"settings: unsupported mutation field %q for section %q",
+			"settings: unsupported mutation field %q for section %q: %w",
 			trimmed,
 			section,
+			err,
 		)
 	}
+	return classificationFromLifecycle(rule.Lifecycle, rule.DiffClass), nil
 }
 
 func restartRequiredClassification() MutationClassification {
@@ -130,5 +93,30 @@ func restartRequiredClassification() MutationClassification {
 		Behavior:        MutationBehaviorRestartRequired,
 		RestartRequired: true,
 		RestartScope:    "daemon",
+		Lifecycle:       lifecycle.RestartRequired,
+		DiffClass:       lifecycle.DiffClassRestartRequired,
+	}
+}
+
+func classificationFromLifecycle(
+	configLifecycle lifecycle.Lifecycle,
+	diffClass lifecycle.DiffClass,
+) MutationClassification {
+	switch configLifecycle {
+	case lifecycle.RestartRequired:
+		return MutationClassification{
+			Behavior:        MutationBehaviorRestartRequired,
+			RestartRequired: true,
+			RestartScope:    "daemon",
+			Lifecycle:       configLifecycle,
+			DiffClass:       diffClass,
+		}
+	default:
+		return MutationClassification{
+			Behavior:  MutationBehaviorAppliedNow,
+			Applied:   true,
+			Lifecycle: configLifecycle,
+			DiffClass: diffClass,
+		}
 	}
 }

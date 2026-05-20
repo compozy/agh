@@ -95,6 +95,29 @@ func TestOpenGlobalDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 		"metadata",
 		"ts_ms",
 	})
+	assertTableColumns(t, globalDB.db, "config_apply_records", []string{
+		"id",
+		"desired_config_hash",
+		"active_config_hash",
+		"generation",
+		"actor",
+		"diff_class",
+		"status",
+		"diagnostic_json",
+		"created_at",
+		"applied_at",
+		"updated_at",
+	})
+	assertIndexesPresent(
+		t,
+		globalDB.db,
+		"config_apply_records",
+		"idx_config_apply_records_desired",
+		"idx_config_apply_records_active",
+		"idx_config_apply_records_generation",
+		"idx_config_apply_records_actor",
+		"idx_config_apply_records_status",
+	)
 	assertJournalModeWAL(t, globalDB.db)
 	assertSynchronousNormal(t, globalDB.db)
 }

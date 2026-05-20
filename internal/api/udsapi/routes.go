@@ -403,6 +403,8 @@ func registerExtensionRoutes(api gin.IRouter, handlers *Handlers) {
 func registerSettingsRoutes(api gin.IRouter, handlers *Handlers) {
 	settings := api.Group("/settings")
 
+	settings.GET("/apply", handlers.ListSettingsApplyRecords)
+	settings.POST("/reload", handlers.ReloadSettings)
 	settings.GET("/general", handlers.GetSettingsGeneral)
 	settings.GET("/update", handlers.GetSettingsUpdate)
 	settings.PATCH("/general", handlers.UpdateSettingsGeneral)
