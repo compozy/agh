@@ -210,15 +210,7 @@ function MarkdownInner({
   );
 }
 
-const Markdown = React.memo(MarkdownInner, (prev, next) => {
-  return (
-    prev.children === next.children &&
-    prev.compact === next.compact &&
-    prev.streaming === next.streaming &&
-    prev.components === next.components &&
-    prev.className === next.className
-  );
-});
+const Markdown = React.memo(MarkdownInner);
 Markdown.displayName = "Markdown";
 
 export { Markdown };

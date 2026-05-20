@@ -7,6 +7,7 @@ import { cn } from "../../lib/utils";
 import { CodeBlock } from "./code-block";
 import { Eyebrow } from "./eyebrow";
 import {
+  SLOT_ORDER,
   ToolCallCardContext,
   TOOL_CALL_INPUT_SLOT,
   TOOL_CALL_OUTPUT_SLOT,
@@ -50,8 +51,6 @@ const STATUS_LABEL: Record<ToolCallStatus, string> = {
   completed: "Done",
   failed: "Error",
 };
-
-const SLOT_ORDER: ToolCallSectionSlot[] = ["input", "output"];
 
 const SLOT_LABEL: Record<ToolCallSectionSlot, string> = {
   input: "Input",

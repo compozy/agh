@@ -9,20 +9,20 @@ export type ToolCallSectionSlot = "input" | "output";
  * so React keeps reconciliation continuity across parent re-renders (which
  * is what makes async-loading children like `<CodeBlock>` survive).
  */
-export type SlotRegistration = {
+export interface SlotRegistration {
   defaultOpen: boolean;
-};
+}
 
-export type ToolCallCardContextValue = {
+export interface ToolCallCardContextValue {
   registerSlot: (slot: ToolCallSectionSlot, registration: SlotRegistration) => void;
   unregisterSlot: (slot: ToolCallSectionSlot) => void;
   registeredSlots: Partial<Record<ToolCallSectionSlot, true>>;
   openSlots: Record<ToolCallSectionSlot, boolean>;
   toggleSlot: (slot: ToolCallSectionSlot) => void;
   panelIds: Record<ToolCallSectionSlot, string>;
-};
+}
 
-const SLOT_ORDER: ToolCallSectionSlot[] = ["input", "output"];
+export const SLOT_ORDER: ReadonlyArray<ToolCallSectionSlot> = ["input", "output"];
 
 export const TOOL_CALL_INPUT_SLOT = Symbol("tool-call-input-slot");
 export const TOOL_CALL_OUTPUT_SLOT = Symbol("tool-call-output-slot");

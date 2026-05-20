@@ -1,7 +1,8 @@
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { DescriptionCard, STREAMDOWN_SAFE_CONFIG } from "../description-card";
+import { Markdown } from "../markdown";
 
 interface XssCase {
   label: string;
@@ -153,6 +154,31 @@ describe("DescriptionCard", () => {
     expect(img).not.toBeNull();
     expect(img?.getAttribute("src")).toBe("/local.png");
     expect(container.querySelector('[data-slot="markdown-image-fallback"]')).toBeNull();
+  });
+
+  it("Should rerender when forwarded Markdown container props change", () => {
+    const { rerender } = render(
+      <Markdown data-testid="markdown-props" aria-label="Initial markdown">
+        hello
+      </Markdown>
+    );
+
+    const initial = screen.getByTestId("markdown-props");
+    expect(initial).toHaveAttribute("aria-label", "Initial markdown");
+
+    rerender(
+      <Markdown
+        data-testid="markdown-props"
+        aria-label="Updated markdown"
+        style={{ color: "rgb(95, 191, 133)" }}
+      >
+        hello
+      </Markdown>
+    );
+
+    const updated = screen.getByTestId("markdown-props");
+    expect(updated).toHaveAttribute("aria-label", "Updated markdown");
+    expect(updated).toHaveStyle({ color: "rgb(95, 191, 133)" });
   });
 
   it.each(XSS_CORPUS)("$label", ({ markdown, expectAbsent, expectPresent }) => {

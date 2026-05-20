@@ -52,7 +52,7 @@ describe("Session ToolCallCard — wraps <ToolCallCard> from @agh/ui", () => {
     const indicator = queryStatusIndicator();
     expect(indicator?.getAttribute("data-status")).toBe("in_progress");
     expect(indicator?.getAttribute("aria-label")).toBe("Running");
-    expect(indicator?.classList.contains("animate-spin")).toBe(true);
+    expect(screen.getByRole("status", { name: "Running" })).toBe(indicator);
     expect(screen.getByTestId("tool-card-executing")).toHaveTextContent("Reading...");
   });
 
@@ -62,7 +62,7 @@ describe("Session ToolCallCard — wraps <ToolCallCard> from @agh/ui", () => {
     const indicator = queryStatusIndicator();
     expect(indicator?.getAttribute("data-status")).toBe("completed");
     expect(indicator?.getAttribute("aria-label")).toBe("Done");
-    expect(indicator?.classList.contains("text-success")).toBe(true);
+    expect(screen.getByRole("img", { name: "Done" })).toBe(indicator);
     expect(screen.getByTestId("tool-card-success")).toHaveTextContent("Read file");
   });
 
@@ -76,7 +76,7 @@ describe("Session ToolCallCard — wraps <ToolCallCard> from @agh/ui", () => {
     const indicator = queryStatusIndicator();
     expect(indicator?.getAttribute("data-status")).toBe("failed");
     expect(indicator?.getAttribute("aria-label")).toBe("Error");
-    expect(indicator?.classList.contains("text-danger")).toBe(true);
+    expect(screen.getByRole("img", { name: "Error" })).toBe(indicator);
     const errorNode = document.querySelector('[data-slot="tool-call-card-error"]');
     expect(errorNode?.textContent).toContain("Failed to read file");
     expect(screen.getByTestId("tool-card-error")).toHaveTextContent("Failed to read file");
