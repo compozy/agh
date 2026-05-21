@@ -6,6 +6,7 @@ import {
   useEnqueueTaskRun,
   usePublishTask,
   useTask,
+  useTaskInspect,
   useTaskRuns,
   useTaskTimeline,
   useTaskTree,
@@ -53,6 +54,7 @@ interface UseTaskDetailPageOptions {
   enableTimeline?: boolean;
   enableTree?: boolean;
   enableRuns?: boolean;
+  enableInspect?: boolean;
 }
 
 const DEFAULT_TIMELINE_LIMIT = 50;
@@ -68,6 +70,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
   const enableTimeline = options.enableTimeline ?? true;
   const enableTree = options.enableTree ?? true;
   const enableRuns = options.enableRuns ?? true;
+  const enableInspect = options.enableInspect ?? true;
 
   const timelineFilters: TaskTimelineFilter = useMemo(
     () => ({
@@ -85,6 +88,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
   const runsQuery = useTaskRuns(taskId, options.runFilters ?? {}, {
     enabled: hasTaskId && enableRuns,
   });
+  const inspectQuery = useTaskInspect(taskId, { enabled: hasTaskId && enableInspect });
 
   const publishMutation = usePublishTask();
   const cancelMutation = useCancelTask();
@@ -94,6 +98,7 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
   const runs = runsQuery.data ?? [];
   const timeline = timelineQuery.data ?? [];
   const tree = treeQuery.data ?? null;
+  const inspect = inspectQuery.data ?? null;
 
   const activeRun = useMemo(() => detail?.summary?.active_run ?? null, [detail]);
   const isLive = useMemo(() => isRunActive(activeRun?.status ?? null), [activeRun]);
@@ -182,6 +187,9 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
     isLive,
     isPublishPending: publishMutation.isPending,
     isTimelineSaturated,
+    inspect,
+    inspectError: inspectQuery.error ?? null,
+    inspectLoading: inspectQuery.isLoading && !inspect,
     multiAgent,
     notFound: detailQuery.isError && detailQuery.error?.message?.includes("not found"),
     panel,

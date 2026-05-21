@@ -53,10 +53,12 @@ const (
 	specAPISettingsProvidersNamePath                         = "/api/settings/providers/{name}"
 	specAPISettingsSandboxesNamePath                         = "/api/settings/sandboxes/{name}"
 	specAPISettingsSkillsPath                                = "/api/settings/skills"
+	specAPIRunsIDInspectPath                                 = "/api/runs/{id}/inspect"
 	specAPITaskRunsIDReviewsPath                             = "/api/task-runs/{id}/reviews"
 	specAPITasksPath                                         = "/api/tasks"
 	specAPITasksIDPath                                       = "/api/tasks/{id}"
 	specAPITasksIDExecutionProfilePath                       = "/api/tasks/{id}/execution-profile"
+	specAPITasksIDInspectPath                                = "/api/tasks/{id}/inspect"
 	specAPITasksIDNotificationsBridgesPath                   = "/api/tasks/{id}/notifications/bridges"
 	specAPITasksIDNotificationsBridgesSubscriptionIDPath     = "/api/tasks/{id}/notifications/bridges/{subscription_id}"
 	specAPITasksIDRunsPath                                   = "/api/tasks/{id}/runs"
@@ -3401,6 +3403,24 @@ var operationRegistry = []OperationSpec{
 		},
 	},
 	{
+		Method:      httpMethodGet,
+		Path:        specAPITasksIDInspectPath,
+		OperationID: "inspectTask",
+		Summary:     "Inspect one task with diagnostics",
+		Tags:        []string{specTasksKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskInspectResponse{}},
+			{Status: 404, Description: specTaskNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 422, Description: specInvalidTaskIDDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
 		Method:      httpMethodDelete,
 		Path:        specAPITasksIDPath,
 		OperationID: "deleteTask",
@@ -3793,6 +3813,24 @@ var operationRegistry = []OperationSpec{
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.TaskRunDetailResponse{}},
+			{Status: 404, Description: specTaskRunNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task-run id", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodGet,
+		Path:        specAPIRunsIDInspectPath,
+		OperationID: "inspectRun",
+		Summary:     "Inspect one task run with diagnostics",
+		Tags:        []string{specTasksKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task run id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskInspectResponse{}},
 			{Status: 404, Description: specTaskRunNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 422, Description: "Invalid task-run id", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},

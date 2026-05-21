@@ -327,6 +327,7 @@ func (s SessionInfo) Validate() error {
 
 // SessionListQuery filters global session index queries.
 type SessionListQuery struct {
+	ID              string
 	State           string
 	AgentName       string
 	WorkspaceID     string
@@ -524,6 +525,7 @@ type EventSummaryQuery struct {
 	WorkspaceID   string
 	AgentName     string
 	Type          string
+	TaskID        string
 	RunID         string
 	ActorKind     string
 	ActorID       string

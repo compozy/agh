@@ -6,6 +6,7 @@ import type { TopbarRouteContext } from "@/types/topbar";
 import { useTaskRunPage } from "@/hooks/routes/use-task-run-page";
 import {
   TaskRunDetailHeader,
+  TaskInspectDiagnosticsCard,
   TaskRunTimelinePanel,
   TasksReviewsCard,
   useTaskTimeline,
@@ -79,6 +80,13 @@ function TaskRunDetailRoute() {
           isLoading={timelineQuery.isLoading && timelineItems.length === 0}
           items={timelineItems}
           run={run}
+        />
+        <TaskInspectDiagnosticsCard
+          errorMessage={page.inspectError?.message ?? null}
+          inspect={page.inspect}
+          isLoading={page.inspectLoading}
+          label="Run inspect diagnostics"
+          testId="tasks-run-inspect-diagnostics-card"
         />
         <TasksReviewsCard
           errorMessage={page.reviewsError?.message ?? null}

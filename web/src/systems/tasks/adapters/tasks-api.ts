@@ -29,12 +29,14 @@ import type {
   TaskExecutionProfileSetRequest,
   TaskInboxFilter,
   TaskInboxView,
+  TaskInspectView,
   TaskListFilter,
   TaskListItem,
   TaskRecord,
   TaskReviewsFilter,
   TaskRun,
   TaskRunDetailView,
+  TaskRunInspectView,
   TaskRunReview,
   TaskRunReviewRequest,
   TaskRunReviewRequestResult,
@@ -159,6 +161,26 @@ export async function getTask(id: string, signal?: AbortSignal): Promise<TaskDet
   }
 
   return requireResponseData(data, response, `Failed to fetch task "${id}"`).task;
+}
+
+export async function inspectTask(id: string, signal?: AbortSignal): Promise<TaskInspectView> {
+  const { data, error, response } = await apiClient.GET("/api/tasks/{id}/inspect", {
+    params: { path: { id } },
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new TasksApiError(`Task not found: ${id}`, 404);
+    }
+
+    throw new TasksApiError(
+      defaultApiErrorMessage(`Failed to inspect task "${id}"`, response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, `Failed to inspect task "${id}"`).inspect;
 }
 
 export async function deleteTask(id: string, signal?: AbortSignal): Promise<void> {
@@ -568,6 +590,26 @@ export async function getTaskRun(id: string, signal?: AbortSignal): Promise<Task
   }
 
   return requireResponseData(data, response, `Failed to fetch task run "${id}"`).run;
+}
+
+export async function inspectRun(id: string, signal?: AbortSignal): Promise<TaskRunInspectView> {
+  const { data, error, response } = await apiClient.GET("/api/runs/{id}/inspect", {
+    params: { path: { id } },
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new TasksApiError(`Task run not found: ${id}`, 404);
+    }
+
+    throw new TasksApiError(
+      defaultApiErrorMessage(`Failed to inspect task run "${id}"`, response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, `Failed to inspect task run "${id}"`).inspect;
 }
 
 export async function attachTaskRunSession(

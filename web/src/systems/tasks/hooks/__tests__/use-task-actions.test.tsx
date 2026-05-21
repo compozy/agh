@@ -36,6 +36,8 @@ vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
   claimTaskRun: vi.fn(),
   completeTaskRun: vi.fn(),
   failTaskRun: vi.fn(),
+  inspectTask: vi.fn().mockResolvedValue(null),
+  inspectRun: vi.fn().mockResolvedValue(null),
   startTaskRun: vi.fn(),
   markTaskRead: vi.fn(),
   archiveTask: vi.fn(),

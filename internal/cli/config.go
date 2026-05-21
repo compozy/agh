@@ -1173,7 +1173,7 @@ func configSetBundle(record configSetRecord) outputBundle {
 		{Label: configRedactedValue, Value: strconv.FormatBool(record.Redacted)},
 		{Label: "Lifecycle", Value: stringOrDash(record.Lifecycle)},
 		{Label: "Applied", Value: strconv.FormatBool(record.Applied)},
-		{Label: "Next Action", Value: stringOrDash(record.NextAction)},
+		{Label: cliNextActionValue, Value: stringOrDash(record.NextAction)},
 		{Label: "Apply Record", Value: stringOrDash(record.ApplyRecordID)},
 		{Label: "Active Generation", Value: strconv.FormatInt(record.ActiveGeneration, 10)},
 		{Label: "Restart Required", Value: strconv.FormatBool(record.RestartRequired)},
@@ -1363,7 +1363,7 @@ func configApplyHistoryBundle(record SettingsApplyHistoryRecord) outputBundle {
 				"Lifecycle",
 				"Generation",
 				"Actor",
-				"Next Action",
+				cliNextActionValue,
 				"Updated",
 			}, rows), nil
 		},

@@ -197,6 +197,8 @@ type stubClient struct {
 	createTaskFn                  func(context.Context, CreateTaskRequest) (TaskRecord, error)
 	createTaskAsAgentFn           func(context.Context, CreateTaskRequest, agentidentity.Credentials) (TaskRecord, error)
 	getTaskFn                     func(context.Context, string) (TaskDetailRecord, error)
+	inspectTaskFn                 func(context.Context, string) (TaskInspectRecord, error)
+	inspectRunFn                  func(context.Context, string) (TaskInspectRecord, error)
 	updateTaskFn                  func(context.Context, string, UpdateTaskRequest) (TaskRecord, error)
 	deleteTaskFn                  func(context.Context, string) error
 	getTaskExecutionProfileFn     func(context.Context, string) (TaskExecutionProfileRecord, error)
@@ -1873,6 +1875,20 @@ func (s *stubClient) GetTask(ctx context.Context, id string) (TaskDetailRecord, 
 		return s.getTaskFn(ctx, id)
 	}
 	return TaskDetailRecord{}, errors.New("unexpected GetTask call")
+}
+
+func (s *stubClient) InspectTask(ctx context.Context, id string) (TaskInspectRecord, error) {
+	if s.inspectTaskFn != nil {
+		return s.inspectTaskFn(ctx, id)
+	}
+	return TaskInspectRecord{}, errors.New("unexpected InspectTask call")
+}
+
+func (s *stubClient) InspectRun(ctx context.Context, id string) (TaskInspectRecord, error) {
+	if s.inspectRunFn != nil {
+		return s.inspectRunFn(ctx, id)
+	}
+	return TaskInspectRecord{}, errors.New("unexpected InspectRun call")
 }
 
 func (s *stubClient) UpdateTask(

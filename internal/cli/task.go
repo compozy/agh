@@ -7,9 +7,12 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/pedronauck/agh/internal/api/contract"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	diagnosticcontract "github.com/pedronauck/agh/internal/diagnosticcontract"
+	diagnosticitems "github.com/pedronauck/agh/internal/diagnostics"
 	"github.com/pedronauck/agh/internal/network"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/spf13/cobra"
@@ -72,6 +75,7 @@ const (
 	taskNetworkChannelKey        = "network_channel"
 	taskNextKey                  = "next"
 	taskOriginKey                = "origin"
+	taskOutcomeKey               = "outcome"
 	taskPeerIDKey                = "peer_id"
 	taskProfileKey               = "profile"
 	taskQueuedAtKey              = "queued_at"
@@ -144,6 +148,52 @@ type taskNotificationSubscribeInput struct {
 	DeliveryModeRaw  string
 }
 
+type taskInspectTarget string
+
+const (
+	taskInspectTargetTask taskInspectTarget = "task"
+	taskInspectTargetRun  taskInspectTarget = "run"
+)
+
+func taskInspectTargetForID(id string) taskInspectTarget {
+	trimmed := strings.TrimSpace(id)
+	switch {
+	case strings.HasPrefix(trimmed, "task_"), strings.HasPrefix(trimmed, "task-"):
+		return taskInspectTargetTask
+	case strings.HasPrefix(trimmed, "run_"), strings.HasPrefix(trimmed, "run-"):
+		return taskInspectTargetRun
+	default:
+		return ""
+	}
+}
+
+func cliNow(now func() time.Time) time.Time {
+	if now == nil {
+		return time.Now().UTC()
+	}
+	return now().UTC()
+}
+
+func taskInspectUnknownIDRecord(id string, asOf time.Time) TaskInspectRecord {
+	return TaskInspectRecord{
+		Target:     providerModelAvailabilityUnknown,
+		NextAction: providerModelAvailabilityUnknown,
+		AsOf:       asOf,
+		Diagnostics: []contract.DiagnosticItem{
+			diagnosticitems.NewItem(
+				"task.inspect.id_format_unknown",
+				diagnosticcontract.CodeIDFormatUnknown,
+				diagnosticcontract.CategoryTask,
+				"Task inspect id format is unknown",
+				"Task inspect accepts ids with task_ / task- or run_ / run- prefixes.",
+				diagnosticcontract.SeverityError,
+				diagnosticcontract.FreshnessLive,
+				diagnosticitems.WithEvidence(map[string]any{"id": id}),
+			),
+		},
+	}
+}
+
 func newTaskCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   taskTaskKey,
@@ -164,6 +214,7 @@ func newTaskCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newTaskListCommand(deps))
 	cmd.AddCommand(newTaskCreateCommand(deps))
 	cmd.AddCommand(newTaskGetCommand(deps))
+	cmd.AddCommand(newTaskInspectCommand(deps))
 	cmd.AddCommand(newTaskUpdateCommand(deps))
 	cmd.AddCommand(newTaskDeleteCommand(deps))
 	cmd.AddCommand(newTaskProfileCommand(deps))
@@ -337,6 +388,35 @@ func newTaskGetCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			return writeCommandOutput(cmd, taskDetailBundle(&taskDetail))
+		},
+	}
+}
+
+func newTaskInspectCommand(deps commandDeps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "inspect <id>",
+		Short: "Inspect a task or run with diagnostics",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+
+			id := strings.TrimSpace(args[0])
+			var inspect TaskInspectRecord
+			switch taskInspectTargetForID(id) {
+			case taskInspectTargetTask:
+				inspect, err = client.InspectTask(cmd.Context(), id)
+			case taskInspectTargetRun:
+				inspect, err = client.InspectRun(cmd.Context(), id)
+			default:
+				inspect = taskInspectUnknownIDRecord(id, cliNow(deps.now))
+			}
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, taskInspectBundle(&inspect))
 		},
 	}
 }
@@ -2768,6 +2848,232 @@ func taskDetailBundle(detail *TaskDetailRecord) outputBundle {
 		human:     func() (string, error) { return renderTaskDetailHuman(detail) },
 		toon:      func() (string, error) { return renderTaskDetailToon(detail) },
 	}
+}
+
+func taskInspectBundle(record *TaskInspectRecord) outputBundle {
+	return outputBundle{
+		jsonValue: record,
+		human:     func() (string, error) { return renderTaskInspectHuman(record) },
+		toon:      func() (string, error) { return renderTaskInspectToon(record) },
+	}
+}
+
+func renderTaskInspectHuman(record *TaskInspectRecord) (string, error) {
+	blocks := []string{
+		renderHumanSection("Task Inspect", []keyValue{
+			{Label: "Target", Value: stringOrDash(record.Target)},
+			{Label: taskTaskValue, Value: stringOrDash(record.Task.ID)},
+			{Label: taskTitleValue, Value: stringOrDash(record.Task.Title)},
+			{Label: taskStatusValue, Value: stringOrDash(string(record.Task.Status))},
+			{Label: "Current Run", Value: stringOrDash(taskInspectCurrentRunID(record.CurrentRun))},
+			{Label: cliNextActionValue, Value: stringOrDash(record.NextAction)},
+			{Label: "As Of", Value: stringOrDash(formatTime(record.AsOf))},
+		}),
+	}
+	if record.CurrentRun != nil {
+		blocks = append(blocks, renderHumanSection("Current Run", taskInspectRunSectionRows(record.CurrentRun)))
+	}
+	if record.BoundSession != nil {
+		blocks = append(blocks, renderHumanSection("Bound Session", taskInspectSessionRows(record.BoundSession)))
+	}
+	blocks = append(
+		blocks,
+		renderHumanTable(
+			"Diagnostics",
+			[]string{cliCodeValue, cliSeverityValue, "Message", cliCommandValue},
+			taskInspectDiagnosticRows(record.Diagnostics),
+		),
+		renderHumanTable(
+			"Recent Runs",
+			[]string{
+				taskRunValue,
+				taskStatusValue,
+				taskAttemptValue,
+				taskSessionValue,
+				cliHashValue,
+				"Heartbeat Age",
+				taskErrorValue,
+			},
+			taskInspectRunRows(record.RecentRuns),
+		),
+		renderHumanTable(
+			"Recent Events",
+			[]string{"ID", taskTypeValue, taskRunValue, taskOutcomeValue, authoredContextSummaryValue, taskTimeValue},
+			taskInspectEventRows(record.RecentEvents),
+		),
+	)
+	return renderHumanBlocks(blocks...), nil
+}
+
+func renderTaskInspectToon(record *TaskInspectRecord) (string, error) {
+	blocks := []string{
+		renderToonObject("task_inspect", []string{
+			"target",
+			taskTaskIDKey,
+			taskTitleKey,
+			taskStatusKey,
+			"current_run_id",
+			"next_action",
+			"as_of",
+		}, []string{
+			record.Target,
+			record.Task.ID,
+			record.Task.Title,
+			string(record.Task.Status),
+			taskInspectCurrentRunID(record.CurrentRun),
+			record.NextAction,
+			formatTime(record.AsOf),
+		}),
+		renderToonArray(
+			"diagnostics",
+			[]string{"code", "severity", "message", "command"},
+			taskInspectDiagnosticToonRows(record.Diagnostics),
+		),
+		renderToonArray(
+			"recent_runs",
+			[]string{
+				taskRunIDKey,
+				taskStatusKey,
+				taskAttemptKey,
+				taskSessionIDKey,
+				"hash",
+				"heartbeat_age_seconds",
+				taskErrorKey,
+			},
+			taskInspectRunToonRows(record.RecentRuns),
+		),
+		renderToonArray(
+			"recent_events",
+			[]string{"id", extensionTypeKey, taskRunIDKey, taskOutcomeKey, memorySummaryKey, taskTimestampKey},
+			taskInspectEventToonRows(record.RecentEvents),
+		),
+	}
+	return renderHumanBlocks(blocks...), nil
+}
+
+func taskInspectRunSectionRows(run *contract.TaskInspectRunPayload) []keyValue {
+	return []keyValue{
+		{Label: taskRunValue, Value: stringOrDash(run.RunID)},
+		{Label: taskTaskValue, Value: stringOrDash(run.TaskID)},
+		{Label: taskStatusValue, Value: stringOrDash(string(run.Status))},
+		{Label: taskAttemptValue, Value: intOrDash(run.Attempt)},
+		{Label: taskSessionValue, Value: stringOrDash(run.BoundSessionID)},
+		{Label: "Claim Hash", Value: stringOrDash(run.ClaimTokenHashTruncated)},
+		{Label: "Lease Until", Value: stringOrDash(formatTimePtr(run.LeaseUntil))},
+		{Label: "Heartbeat Age", Value: stringOrDash(taskInspectHeartbeatAge(run.HeartbeatAgeSeconds))},
+		{Label: taskErrorValue, Value: stringOrDash(run.LastErrorSummary)},
+	}
+}
+
+func taskInspectSessionRows(session *contract.TaskInspectSessionPayload) []keyValue {
+	return []keyValue{
+		{Label: taskSessionValue, Value: stringOrDash(session.SessionID)},
+		{Label: taskStatusValue, Value: stringOrDash(session.State)},
+		{Label: "Agent", Value: stringOrDash(session.AgentName)},
+		{Label: installProviderValue, Value: stringOrDash(session.ProviderName)},
+		{Label: taskWorkspaceValue, Value: stringOrDash(session.WorkspaceID)},
+		{Label: taskStartedValue, Value: stringOrDash(formatTimePtr(session.StartedAt))},
+		{Label: "Last Activity", Value: stringOrDash(formatTimePtr(session.LastActivityAt))},
+		{Label: taskReasonValue, Value: stringOrDash(session.StopReason)},
+		{Label: "Failure", Value: stringOrDash(session.FailureKind)},
+	}
+}
+
+func taskInspectDiagnosticRows(items []contract.DiagnosticItem) [][]string {
+	rows := make([][]string, 0, len(items))
+	for _, item := range items {
+		rows = append(rows, []string{
+			stringOrDash(item.Code),
+			stringOrDash(item.Severity),
+			stringOrDash(item.Message),
+			stringOrDash(item.SuggestedCommand),
+		})
+	}
+	return rows
+}
+
+func taskInspectDiagnosticToonRows(items []contract.DiagnosticItem) [][]string {
+	rows := make([][]string, 0, len(items))
+	for _, item := range items {
+		rows = append(rows, []string{item.Code, item.Severity, item.Message, item.SuggestedCommand})
+	}
+	return rows
+}
+
+func taskInspectRunRows(items []contract.TaskInspectRunPayload) [][]string {
+	rows := make([][]string, 0, len(items))
+	for _, item := range items {
+		rows = append(rows, []string{
+			stringOrDash(item.RunID),
+			stringOrDash(string(item.Status)),
+			intOrDash(item.Attempt),
+			stringOrDash(item.BoundSessionID),
+			stringOrDash(item.ClaimTokenHashTruncated),
+			stringOrDash(taskInspectHeartbeatAge(item.HeartbeatAgeSeconds)),
+			stringOrDash(item.LastErrorSummary),
+		})
+	}
+	return rows
+}
+
+func taskInspectRunToonRows(items []contract.TaskInspectRunPayload) [][]string {
+	rows := make([][]string, 0, len(items))
+	for _, item := range items {
+		rows = append(rows, []string{
+			item.RunID,
+			string(item.Status),
+			strconv.Itoa(item.Attempt),
+			item.BoundSessionID,
+			item.ClaimTokenHashTruncated,
+			taskInspectHeartbeatAge(item.HeartbeatAgeSeconds),
+			item.LastErrorSummary,
+		})
+	}
+	return rows
+}
+
+func taskInspectEventRows(items []contract.TaskInspectEventPayload) [][]string {
+	rows := make([][]string, 0, len(items))
+	for _, item := range items {
+		rows = append(rows, []string{
+			stringOrDash(item.ID),
+			stringOrDash(item.Type),
+			stringOrDash(item.RunID),
+			stringOrDash(item.Outcome),
+			stringOrDash(item.Summary),
+			stringOrDash(formatTime(item.Timestamp)),
+		})
+	}
+	return rows
+}
+
+func taskInspectEventToonRows(items []contract.TaskInspectEventPayload) [][]string {
+	rows := make([][]string, 0, len(items))
+	for _, item := range items {
+		rows = append(rows, []string{
+			item.ID,
+			item.Type,
+			item.RunID,
+			item.Outcome,
+			item.Summary,
+			formatTime(item.Timestamp),
+		})
+	}
+	return rows
+}
+
+func taskInspectCurrentRunID(run *contract.TaskInspectRunPayload) string {
+	if run == nil {
+		return ""
+	}
+	return run.RunID
+}
+
+func taskInspectHeartbeatAge(value *int64) string {
+	if value == nil {
+		return ""
+	}
+	return int64OrDash(*value)
 }
 
 func renderTaskDetailHuman(detail *TaskDetailRecord) (string, error) {

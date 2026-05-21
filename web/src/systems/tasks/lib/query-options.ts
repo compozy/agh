@@ -12,6 +12,8 @@ import {
   getTaskRunReview,
   getTaskTimeline,
   getTaskTree,
+  inspectRun,
+  inspectTask,
   listTaskBridgeNotificationSubscriptions,
   listTaskReviews,
   listTaskRunReviews,
@@ -55,6 +57,16 @@ export function taskDetailOptions(id: string, enabled = true) {
   });
 }
 
+export function taskInspectOptions(id: string, enabled = true) {
+  return queryOptions({
+    queryKey: tasksKeys.inspectTask(id),
+    queryFn: ({ signal }) => inspectTask(id, signal),
+    staleTime: LIVE_STALE_TIME,
+    refetchInterval: LIVE_REFETCH_INTERVAL,
+    enabled: Boolean(id) && enabled,
+  });
+}
+
 export function taskRunsOptions(id: string, filters: TaskRunsFilter = {}, enabled = true) {
   return queryOptions({
     queryKey: tasksKeys.runs(id, filters),
@@ -89,6 +101,16 @@ export function taskRunDetailOptions(runId: string, enabled = true) {
   return queryOptions({
     queryKey: tasksKeys.runDetail(runId),
     queryFn: ({ signal }) => getTaskRun(runId, signal),
+    staleTime: LIVE_STALE_TIME,
+    refetchInterval: LIVE_REFETCH_INTERVAL,
+    enabled: Boolean(runId) && enabled,
+  });
+}
+
+export function taskRunInspectOptions(runId: string, enabled = true) {
+  return queryOptions({
+    queryKey: tasksKeys.inspectRun(runId),
+    queryFn: ({ signal }) => inspectRun(runId, signal),
     staleTime: LIVE_STALE_TIME,
     refetchInterval: LIVE_REFETCH_INTERVAL,
     enabled: Boolean(runId) && enabled,

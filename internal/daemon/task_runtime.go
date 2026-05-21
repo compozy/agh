@@ -483,6 +483,9 @@ func taskManagerOptions(
 	if hooks != nil {
 		options = append(options, taskpkg.WithTaskRunHooks(hooks))
 	}
+	if reader, ok := store.(taskpkg.InspectStateReader); ok {
+		options = append(options, taskpkg.WithInspectStateReader(reader))
+	}
 	return options
 }
 

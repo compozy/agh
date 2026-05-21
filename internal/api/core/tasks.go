@@ -21,6 +21,7 @@ const (
 	taskDraftOverfetchMaxLimit = 500
 	taskActionCreate           = "create"
 	taskActionGet              = "get"
+	taskActionInspect          = "inspect"
 	taskActionDelete           = "delete"
 	taskActionPublish          = "publish"
 	taskActionStart            = "start"
@@ -234,6 +235,62 @@ func (h *BaseHandlers) GetTask(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, contract.TaskDetailResponse{Task: TaskDetailPayloadFromView(view)})
+}
+
+// InspectTask returns a diagnostic snapshot for one task.
+func (h *BaseHandlers) InspectTask(c *gin.Context) {
+	manager, ok := h.requireTaskManager(c)
+	if !ok {
+		return
+	}
+
+	taskID, err := requiredPathID(c.Param("id"), "task id")
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	actor, err := h.taskActorContext(c, taskActionInspect)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	view, err := manager.InspectTask(c.Request.Context(), taskID, actor)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusOK, contract.TaskInspectResponse{Inspect: TaskInspectPayloadFromView(view)})
+}
+
+// InspectRun returns a diagnostic snapshot rooted at one run.
+func (h *BaseHandlers) InspectRun(c *gin.Context) {
+	manager, ok := h.requireTaskManager(c)
+	if !ok {
+		return
+	}
+
+	runID, err := requiredPathID(c.Param("id"), "run id")
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	actor, err := h.taskActorContext(c, taskActionInspect)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	view, err := manager.InspectRun(c.Request.Context(), runID, actor)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusOK, contract.TaskInspectResponse{Inspect: TaskInspectPayloadFromView(view)})
 }
 
 // DeleteTask removes one task record and any cascade-owned child rows.
@@ -1759,6 +1816,7 @@ func TaskSummaryPayloadFromSummary(record taskpkg.Summary) contract.TaskSummaryP
 		ApprovalState:   record.ApprovalState,
 		Draft:           record.Draft,
 		Owner:           cloneOwnership(record.Owner),
+		CurrentRunID:    record.CurrentRunID,
 		LatestEventSeq:  record.LatestEventSeq,
 		CreatedBy:       record.CreatedBy,
 		Origin:          record.Origin,
@@ -1795,6 +1853,7 @@ func TaskPayloadFromTask(record *taskpkg.Task) contract.TaskPayload {
 		ApprovalState:  record.ApprovalState,
 		Draft:          record.Status.Normalize() == taskpkg.TaskStatusDraft,
 		Owner:          cloneOwnership(record.Owner),
+		CurrentRunID:   record.CurrentRunID,
 		LatestEventSeq: record.LatestEventSeq,
 		CreatedBy:      record.CreatedBy,
 		Origin:         record.Origin,
@@ -1949,6 +2008,116 @@ func TaskDetailPayloadFromView(view *taskpkg.View) contract.TaskDetailPayload {
 		DependencyReferences: TaskDependencyReferencePayloadsFromReferences(view.DependencyReferences),
 		Runs:                 TaskRunPayloadsFromRuns(view.Runs),
 		Events:               TaskEventPayloadsFromEvents(view.Events),
+	}
+}
+
+// TaskInspectPayloadFromView converts one inspect view into the shared payload.
+func TaskInspectPayloadFromView(view *taskpkg.InspectView) contract.TaskInspectPayload {
+	if view == nil {
+		return contract.TaskInspectPayload{}
+	}
+
+	return contract.TaskInspectPayload{
+		Target:       string(view.Target),
+		Task:         TaskSummaryPayloadFromSummary(view.Task),
+		CurrentRun:   TaskInspectRunPayloadFromSummary(view.CurrentRun),
+		BoundSession: TaskInspectSessionPayloadFromSummary(view.BoundSession),
+		RecentRuns:   TaskInspectRunPayloadsFromSummaries(view.RecentRuns),
+		RecentEvents: TaskInspectEventPayloadsFromSummaries(view.RecentEvents),
+		Scheduler:    TaskInspectSchedulerPayloadFromState(view.Scheduler),
+		Diagnostics:  append([]contract.DiagnosticItem(nil), view.Diagnostics...),
+		NextAction:   string(view.NextAction),
+		AsOf:         view.AsOf,
+	}
+}
+
+// TaskInspectRunPayloadFromSummary converts an inspect run summary into the shared payload.
+func TaskInspectRunPayloadFromSummary(summary *taskpkg.InspectRunSummary) *contract.TaskInspectRunPayload {
+	if summary == nil {
+		return nil
+	}
+	return &contract.TaskInspectRunPayload{
+		RunID:                   summary.RunID,
+		TaskID:                  summary.TaskID,
+		Status:                  summary.Status,
+		ClaimTokenHashTruncated: summary.ClaimTokenHashTruncated,
+		LeaseUntil:              optionalTime(summary.LeaseUntil),
+		HeartbeatAt:             optionalTime(summary.HeartbeatAt),
+		HeartbeatAgeSeconds:     cloneInt64Ptr(summary.HeartbeatAgeSeconds),
+		Retries:                 summary.Retries,
+		LastErrorSummary:        summary.LastErrorSummary,
+		FailureKind:             summary.FailureKind,
+		BoundSessionID:          summary.BoundSessionID,
+		StartedAt:               optionalTime(summary.StartedAt),
+		EndedAt:                 optionalTime(summary.EndedAt),
+		PreviousRunID:           summary.PreviousRunID,
+		QueuedAt:                summary.QueuedAt,
+		Attempt:                 summary.Attempt,
+	}
+}
+
+// TaskInspectRunPayloadsFromSummaries converts inspect run summaries into shared payloads.
+func TaskInspectRunPayloadsFromSummaries(
+	summaries []taskpkg.InspectRunSummary,
+) []contract.TaskInspectRunPayload {
+	payloads := make([]contract.TaskInspectRunPayload, 0, len(summaries))
+	for idx := range summaries {
+		payload := TaskInspectRunPayloadFromSummary(&summaries[idx])
+		if payload != nil {
+			payloads = append(payloads, *payload)
+		}
+	}
+	return payloads
+}
+
+// TaskInspectSessionPayloadFromSummary converts an inspect session summary into the shared payload.
+func TaskInspectSessionPayloadFromSummary(
+	summary *taskpkg.InspectSessionSummary,
+) *contract.TaskInspectSessionPayload {
+	if summary == nil {
+		return nil
+	}
+	return &contract.TaskInspectSessionPayload{
+		SessionID:      summary.SessionID,
+		State:          summary.State,
+		AgentName:      summary.AgentName,
+		ProviderName:   summary.ProviderName,
+		WorkspaceID:    summary.WorkspaceID,
+		StartedAt:      optionalTime(summary.StartedAt),
+		LastActivityAt: optionalTime(summary.LastActivityAt),
+		StopReason:     summary.StopReason,
+		FailureKind:    summary.FailureKind,
+	}
+}
+
+// TaskInspectEventPayloadsFromSummaries converts inspect event summaries into shared payloads.
+func TaskInspectEventPayloadsFromSummaries(
+	summaries []taskpkg.InspectEventSummary,
+) []contract.TaskInspectEventPayload {
+	payloads := make([]contract.TaskInspectEventPayload, 0, len(summaries))
+	for _, summary := range summaries {
+		payloads = append(payloads, contract.TaskInspectEventPayload{
+			ID:        summary.ID,
+			Type:      summary.Type,
+			SessionID: summary.SessionID,
+			TaskID:    summary.TaskID,
+			RunID:     summary.RunID,
+			Outcome:   summary.Outcome,
+			Summary:   summary.Summary,
+			Timestamp: summary.Timestamp,
+		})
+	}
+	return payloads
+}
+
+// TaskInspectSchedulerPayloadFromState converts scheduler state into the shared payload.
+func TaskInspectSchedulerPayloadFromState(state taskpkg.InspectSchedulerState) contract.TaskInspectSchedulerPayload {
+	return contract.TaskInspectSchedulerPayload{
+		Paused:    state.Paused,
+		PausedBy:  state.PausedBy,
+		PausedAt:  optionalTime(state.PausedAt),
+		Reason:    state.Reason,
+		UpdatedAt: optionalTime(state.UpdatedAt),
 	}
 }
 

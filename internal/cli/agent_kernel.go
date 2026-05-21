@@ -468,7 +468,7 @@ func agentChannelsBundle(channels []AgentChannelRecord) outputBundle {
 		channels,
 		channels,
 		"Agent Channels",
-		[]string{"ID", agentKernelChannelValue, "Purpose", "Task", "Run"},
+		[]string{"ID", agentKernelChannelValue, "Purpose", "Task", taskRunValue},
 		"agent_channels",
 		[]string{"id", agentKernelChannelKey, "purpose", "task_id", agentKernelRunIDKey},
 		func(channel AgentChannelRecord) []string {
@@ -524,7 +524,7 @@ func agentChannelMessageBundle(message AgentChannelMessageRecord) outputBundle {
 				{Label: agentKernelChannelValue, Value: message.ChannelID},
 				{Label: bridgeKindValue, Value: string(message.Metadata.MessageKind)},
 				{Label: "Task", Value: stringOrDash(message.Metadata.TaskID)},
-				{Label: "Run", Value: stringOrDash(message.Metadata.RunID)},
+				{Label: taskRunValue, Value: stringOrDash(message.Metadata.RunID)},
 			}), nil
 		},
 		toon: func() (string, error) {

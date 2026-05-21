@@ -10,6 +10,7 @@ import type {
   TaskExecutionProfile,
   TaskInboxItem,
   TaskInboxView,
+  TaskInspectView,
   TaskListItem,
   TaskRecord,
   TaskRun,
@@ -470,6 +471,93 @@ export function buildDetailFixture(overrides: Partial<TaskDetailView> = {}): Tas
     dependency_references: overrides.dependency_references ?? detail.dependency_references,
     runs: overrides.runs ?? detail.runs,
   } as TaskDetailView;
+}
+
+export function buildTaskInspectFixture(overrides: Partial<TaskInspectView> = {}): TaskInspectView {
+  const task = buildTaskFixture();
+  const currentRun = buildTaskRunRecordFixture({
+    id: "run_001",
+    task_id: task.id,
+    status: "running",
+    queued_at: "2026-04-17T09:58:00Z",
+    started_at: "2026-04-17T09:59:00Z",
+    session_id: storySessionIds.product,
+  });
+
+  return {
+    target: "task",
+    task,
+    current_run: {
+      run_id: currentRun.id,
+      task_id: currentRun.task_id,
+      status: currentRun.status,
+      claim_token_hash_truncated: "abcdef12",
+      heartbeat_age_seconds: 420,
+      bound_session_id: storySessionIds.product,
+      queued_at: currentRun.queued_at,
+      started_at: currentRun.started_at,
+      attempt: currentRun.attempt,
+      retries: 1,
+    },
+    bound_session: {
+      session_id: storySessionIds.product,
+      state: "active",
+      agent_name: storyAgentNames.product,
+      provider_name: "codex",
+      workspace_id: STORYBOOK_WORKSPACE_ID,
+      started_at: "2026-04-17T09:59:00Z",
+      last_activity_at: "2026-04-17T18:01:00Z",
+    },
+    recent_runs: [
+      {
+        run_id: currentRun.id,
+        task_id: currentRun.task_id,
+        status: currentRun.status,
+        claim_token_hash_truncated: "abcdef12",
+        heartbeat_age_seconds: 420,
+        bound_session_id: storySessionIds.product,
+        queued_at: currentRun.queued_at,
+        started_at: currentRun.started_at,
+        attempt: currentRun.attempt,
+        retries: 1,
+      },
+    ],
+    recent_events: [
+      {
+        id: "evt_001",
+        type: "task.run_started",
+        session_id: storySessionIds.product,
+        task_id: task.id,
+        run_id: currentRun.id,
+        outcome: "info",
+        summary: "Run started for launch checklist triage.",
+        timestamp: "2026-04-17T09:59:00Z",
+      },
+    ],
+    scheduler: {
+      paused: false,
+    },
+    diagnostics: [
+      {
+        id: "task.inspect.task_run_stuck.run_001",
+        code: "task_run_stuck",
+        severity: "warn",
+        category: "task",
+        title: "Run heartbeat is stale",
+        message: "The claimed run has not reported a heartbeat inside the expected window.",
+        suggested_command: 'agh task release run_001 --reason "stale heartbeat"',
+        data_freshness: "live",
+        evidence: {
+          run_id: "run_001",
+          heartbeat_age_seconds: 420,
+          claim_token_hash_truncated: "abcdef12",
+        },
+      },
+    ],
+    next_action: "recovery_required",
+    as_of: "2026-04-17T18:02:00Z",
+    ...overrides,
+  } as TaskInspectView;
 }
 
 export function buildDashboardFixture(
@@ -992,6 +1080,7 @@ export const taskInboxFixture = buildInboxFixture({
   groups: buildPopulatedInboxGroups(),
 });
 export const taskDetailFixture = buildDetailFixture();
+export const taskInspectFixture = buildTaskInspectFixture();
 export const taskTreeFixture = buildTaskTreeFixture();
 export const taskRunDetailFixture = buildTaskRunDetailFixture();
 

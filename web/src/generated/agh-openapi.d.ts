@@ -1880,6 +1880,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/runs/{id}/inspect": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Inspect one task run with diagnostics */
+    get: operations["inspectRun"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sessions": {
     parameters: {
       query?: never;
@@ -2813,6 +2830,23 @@ export interface paths {
     post?: never;
     /** Delete one task execution profile */
     delete: operations["deleteTaskExecutionProfile"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{id}/inspect": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Inspect one task with diagnostics */
+    get: operations["inspectTask"];
+    put?: never;
+    post?: never;
+    delete?: never;
     options?: never;
     head?: never;
     patch?: never;
@@ -27173,6 +27207,434 @@ export interface operations {
       };
     };
   };
+  inspectRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task run id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            inspect: {
+              /** Format: date-time */
+              as_of: string;
+              bound_session?: {
+                agent_name?: string;
+                failure_kind?: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                provider_name?: string;
+                session_id: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                state?: string;
+                stop_reason?: string;
+                workspace_id?: string;
+              } | null;
+              current_run?: {
+                attempt: number;
+                bound_session_id?: string;
+                claim_token_hash_truncated?: string;
+                /** Format: date-time */
+                ended_at?: string | null;
+                failure_kind?: string;
+                /** Format: int64 */
+                heartbeat_age_seconds?: number | null;
+                /** Format: date-time */
+                heartbeat_at?: string | null;
+                last_error_summary?: string;
+                /** Format: date-time */
+                lease_until?: string | null;
+                previous_run_id?: string;
+                /** Format: date-time */
+                queued_at: string;
+                retries?: number;
+                run_id: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                /** @enum {string} */
+                status:
+                  | "queued"
+                  | "claimed"
+                  | "starting"
+                  | "running"
+                  | "completed"
+                  | "failed"
+                  | "canceled";
+                task_id: string;
+              } | null;
+              diagnostics?: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              }[];
+              next_action: string;
+              recent_events?: {
+                id: string;
+                outcome?: string;
+                run_id?: string;
+                session_id?: string;
+                summary?: string;
+                task_id?: string;
+                /** Format: date-time */
+                timestamp: string;
+                type: string;
+              }[];
+              recent_runs?: {
+                attempt: number;
+                bound_session_id?: string;
+                claim_token_hash_truncated?: string;
+                /** Format: date-time */
+                ended_at?: string | null;
+                failure_kind?: string;
+                /** Format: int64 */
+                heartbeat_age_seconds?: number | null;
+                /** Format: date-time */
+                heartbeat_at?: string | null;
+                last_error_summary?: string;
+                /** Format: date-time */
+                lease_until?: string | null;
+                previous_run_id?: string;
+                /** Format: date-time */
+                queued_at: string;
+                retries?: number;
+                run_id: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                /** @enum {string} */
+                status:
+                  | "queued"
+                  | "claimed"
+                  | "starting"
+                  | "running"
+                  | "completed"
+                  | "failed"
+                  | "canceled";
+                task_id: string;
+              }[];
+              scheduler: {
+                paused: boolean;
+                /** Format: date-time */
+                paused_at?: string | null;
+                paused_by?: string;
+                reason?: string;
+                /** Format: date-time */
+                updated_at?: string | null;
+              };
+              target: string;
+              task: {
+                active_run?: {
+                  attempt: number;
+                  claim_token_hash?: string;
+                  /** Format: date-time */
+                  claimed_at?: string | null;
+                  claimed_by?: {
+                    /** @enum {string} */
+                    kind:
+                      | "human"
+                      | "agent_session"
+                      | "automation"
+                      | "extension"
+                      | "network_peer"
+                      | "daemon";
+                    ref: string;
+                  } | null;
+                  coordination_channel?: {
+                    allowed_message_kinds: (
+                      | "status"
+                      | "request"
+                      | "reply"
+                      | "blocker"
+                      | "handoff"
+                      | "result"
+                      | "review_request"
+                    )[];
+                    channel?: string;
+                    display_name: string;
+                    id: string;
+                    /** Format: date-time */
+                    last_activity_at?: string | null;
+                    purpose?: string;
+                    run_id?: string;
+                    task_id?: string;
+                    workflow_id?: string;
+                    workspace_id?: string;
+                  } | null;
+                  coordination_channel_id?: string;
+                  /** Format: date-time */
+                  ended_at?: string | null;
+                  error?: string;
+                  /** Format: date-time */
+                  heartbeat_at?: string | null;
+                  id: string;
+                  /** Format: date-time */
+                  lease_until?: string | null;
+                  max_attempts: number;
+                  /** Format: date-time */
+                  queued_at: string;
+                  session_id?: string;
+                  /** Format: date-time */
+                  started_at?: string | null;
+                  /** @enum {string} */
+                  status:
+                    | "queued"
+                    | "claimed"
+                    | "starting"
+                    | "running"
+                    | "completed"
+                    | "failed"
+                    | "canceled";
+                  task_id: string;
+                } | null;
+                /** @enum {string} */
+                approval_policy?: "none" | "manual";
+                /** @enum {string} */
+                approval_state?: "not_required" | "pending" | "approved" | "rejected";
+                child_count?: number;
+                /** Format: date-time */
+                closed_at?: string | null;
+                /** Format: date-time */
+                created_at: string;
+                created_by: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                };
+                current_run_id?: string;
+                dependencies?: {
+                  /** Format: date-time */
+                  created_at: string;
+                  depends_on: {
+                    id: string;
+                    identifier?: string;
+                    /** Format: int64 */
+                    latest_event_seq: number;
+                    owner?: {
+                      /** @enum {string} */
+                      kind:
+                        | "human"
+                        | "agent_session"
+                        | "automation"
+                        | "extension"
+                        | "network_peer"
+                        | "pool";
+                      ref: string;
+                    } | null;
+                    /** @enum {string} */
+                    priority?: "low" | "medium" | "high" | "urgent";
+                    /** @enum {string} */
+                    scope: "global" | "workspace";
+                    /** @enum {string} */
+                    status:
+                      | "draft"
+                      | "pending"
+                      | "blocked"
+                      | "ready"
+                      | "in_progress"
+                      | "completed"
+                      | "failed"
+                      | "canceled";
+                    title: string;
+                    workspace_id?: string;
+                  };
+                  depends_on_task_id: string;
+                  /** @enum {string} */
+                  kind: "blocks";
+                  task_id: string;
+                }[];
+                dependency_count?: number;
+                draft?: boolean;
+                id: string;
+                identifier?: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                /** Format: int64 */
+                latest_event_seq: number;
+                max_attempts?: number;
+                network_channel?: string;
+                origin: {
+                  /** @enum {string} */
+                  kind:
+                    | "cli"
+                    | "web"
+                    | "uds"
+                    | "http"
+                    | "automation"
+                    | "extension"
+                    | "network"
+                    | "agent_session"
+                    | "daemon";
+                  ref: string;
+                };
+                owner?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "pool";
+                  ref: string;
+                } | null;
+                parent_task_id?: string;
+                /** @enum {string} */
+                priority?: "low" | "medium" | "high" | "urgent";
+                /** @enum {string} */
+                scope: "global" | "workspace";
+                /** @enum {string} */
+                status:
+                  | "draft"
+                  | "pending"
+                  | "blocked"
+                  | "ready"
+                  | "in_progress"
+                  | "completed"
+                  | "failed"
+                  | "canceled";
+                title: string;
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id?: string;
+              };
+            };
+          };
+        };
+      };
+      /** @description Task run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task-run id */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   listSessions: {
     parameters: {
       query?: {
@@ -39171,6 +39633,7 @@ export interface operations {
                   | "daemon";
                 ref: string;
               };
+              current_run_id?: string;
               dependencies?: {
                 /** Format: date-time */
                 created_at: string;
@@ -39440,6 +39903,7 @@ export interface operations {
                   | "daemon";
                 ref: string;
               };
+              current_run_id?: string;
               description?: string;
               draft?: boolean;
               id: string;
@@ -39759,6 +40223,7 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 };
+                current_run_id?: string;
                 dependencies?: {
                   /** Format: date-time */
                   created_at: string;
@@ -40102,6 +40567,7 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 };
+                current_run_id?: string;
                 dependencies?: {
                   /** Format: date-time */
                   created_at: string;
@@ -40218,6 +40684,7 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 };
+                current_run_id?: string;
                 description?: string;
                 draft?: boolean;
                 id: string;
@@ -40571,6 +41038,7 @@ export interface operations {
                   | "daemon";
                 ref: string;
               };
+              current_run_id?: string;
               description?: string;
               draft?: boolean;
               id: string;
@@ -40889,6 +41357,7 @@ export interface operations {
                   | "daemon";
                 ref: string;
               };
+              current_run_id?: string;
               description?: string;
               draft?: boolean;
               id: string;
@@ -41126,6 +41595,7 @@ export interface operations {
                   | "daemon";
                 ref: string;
               };
+              current_run_id?: string;
               description?: string;
               draft?: boolean;
               id: string;
@@ -41381,6 +41851,7 @@ export interface operations {
                   | "daemon";
                 ref: string;
               };
+              current_run_id?: string;
               description?: string;
               draft?: boolean;
               id: string;
@@ -41709,6 +42180,7 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 };
+                current_run_id?: string;
                 dependencies?: {
                   /** Format: date-time */
                   created_at: string;
@@ -42052,6 +42524,7 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 };
+                current_run_id?: string;
                 dependencies?: {
                   /** Format: date-time */
                   created_at: string;
@@ -42168,6 +42641,7 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 };
+                current_run_id?: string;
                 description?: string;
                 draft?: boolean;
                 id: string;
@@ -42465,6 +42939,7 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 };
+                current_run_id?: string;
                 dependencies?: {
                   /** Format: date-time */
                   created_at: string;
@@ -42808,6 +43283,7 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 };
+                current_run_id?: string;
                 dependencies?: {
                   /** Format: date-time */
                   created_at: string;
@@ -42924,6 +43400,7 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 };
+                current_run_id?: string;
                 description?: string;
                 draft?: boolean;
                 id: string;
@@ -43587,6 +44064,434 @@ export interface operations {
       };
       /** @description Task execution profile conflict */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  inspectTask: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            inspect: {
+              /** Format: date-time */
+              as_of: string;
+              bound_session?: {
+                agent_name?: string;
+                failure_kind?: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                provider_name?: string;
+                session_id: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                state?: string;
+                stop_reason?: string;
+                workspace_id?: string;
+              } | null;
+              current_run?: {
+                attempt: number;
+                bound_session_id?: string;
+                claim_token_hash_truncated?: string;
+                /** Format: date-time */
+                ended_at?: string | null;
+                failure_kind?: string;
+                /** Format: int64 */
+                heartbeat_age_seconds?: number | null;
+                /** Format: date-time */
+                heartbeat_at?: string | null;
+                last_error_summary?: string;
+                /** Format: date-time */
+                lease_until?: string | null;
+                previous_run_id?: string;
+                /** Format: date-time */
+                queued_at: string;
+                retries?: number;
+                run_id: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                /** @enum {string} */
+                status:
+                  | "queued"
+                  | "claimed"
+                  | "starting"
+                  | "running"
+                  | "completed"
+                  | "failed"
+                  | "canceled";
+                task_id: string;
+              } | null;
+              diagnostics?: {
+                category: string;
+                code: string;
+                data_freshness: string;
+                doc_url?: string;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                id: string;
+                message: string;
+                severity: string;
+                suggested_command?: string;
+                title: string;
+              }[];
+              next_action: string;
+              recent_events?: {
+                id: string;
+                outcome?: string;
+                run_id?: string;
+                session_id?: string;
+                summary?: string;
+                task_id?: string;
+                /** Format: date-time */
+                timestamp: string;
+                type: string;
+              }[];
+              recent_runs?: {
+                attempt: number;
+                bound_session_id?: string;
+                claim_token_hash_truncated?: string;
+                /** Format: date-time */
+                ended_at?: string | null;
+                failure_kind?: string;
+                /** Format: int64 */
+                heartbeat_age_seconds?: number | null;
+                /** Format: date-time */
+                heartbeat_at?: string | null;
+                last_error_summary?: string;
+                /** Format: date-time */
+                lease_until?: string | null;
+                previous_run_id?: string;
+                /** Format: date-time */
+                queued_at: string;
+                retries?: number;
+                run_id: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                /** @enum {string} */
+                status:
+                  | "queued"
+                  | "claimed"
+                  | "starting"
+                  | "running"
+                  | "completed"
+                  | "failed"
+                  | "canceled";
+                task_id: string;
+              }[];
+              scheduler: {
+                paused: boolean;
+                /** Format: date-time */
+                paused_at?: string | null;
+                paused_by?: string;
+                reason?: string;
+                /** Format: date-time */
+                updated_at?: string | null;
+              };
+              target: string;
+              task: {
+                active_run?: {
+                  attempt: number;
+                  claim_token_hash?: string;
+                  /** Format: date-time */
+                  claimed_at?: string | null;
+                  claimed_by?: {
+                    /** @enum {string} */
+                    kind:
+                      | "human"
+                      | "agent_session"
+                      | "automation"
+                      | "extension"
+                      | "network_peer"
+                      | "daemon";
+                    ref: string;
+                  } | null;
+                  coordination_channel?: {
+                    allowed_message_kinds: (
+                      | "status"
+                      | "request"
+                      | "reply"
+                      | "blocker"
+                      | "handoff"
+                      | "result"
+                      | "review_request"
+                    )[];
+                    channel?: string;
+                    display_name: string;
+                    id: string;
+                    /** Format: date-time */
+                    last_activity_at?: string | null;
+                    purpose?: string;
+                    run_id?: string;
+                    task_id?: string;
+                    workflow_id?: string;
+                    workspace_id?: string;
+                  } | null;
+                  coordination_channel_id?: string;
+                  /** Format: date-time */
+                  ended_at?: string | null;
+                  error?: string;
+                  /** Format: date-time */
+                  heartbeat_at?: string | null;
+                  id: string;
+                  /** Format: date-time */
+                  lease_until?: string | null;
+                  max_attempts: number;
+                  /** Format: date-time */
+                  queued_at: string;
+                  session_id?: string;
+                  /** Format: date-time */
+                  started_at?: string | null;
+                  /** @enum {string} */
+                  status:
+                    | "queued"
+                    | "claimed"
+                    | "starting"
+                    | "running"
+                    | "completed"
+                    | "failed"
+                    | "canceled";
+                  task_id: string;
+                } | null;
+                /** @enum {string} */
+                approval_policy?: "none" | "manual";
+                /** @enum {string} */
+                approval_state?: "not_required" | "pending" | "approved" | "rejected";
+                child_count?: number;
+                /** Format: date-time */
+                closed_at?: string | null;
+                /** Format: date-time */
+                created_at: string;
+                created_by: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                };
+                current_run_id?: string;
+                dependencies?: {
+                  /** Format: date-time */
+                  created_at: string;
+                  depends_on: {
+                    id: string;
+                    identifier?: string;
+                    /** Format: int64 */
+                    latest_event_seq: number;
+                    owner?: {
+                      /** @enum {string} */
+                      kind:
+                        | "human"
+                        | "agent_session"
+                        | "automation"
+                        | "extension"
+                        | "network_peer"
+                        | "pool";
+                      ref: string;
+                    } | null;
+                    /** @enum {string} */
+                    priority?: "low" | "medium" | "high" | "urgent";
+                    /** @enum {string} */
+                    scope: "global" | "workspace";
+                    /** @enum {string} */
+                    status:
+                      | "draft"
+                      | "pending"
+                      | "blocked"
+                      | "ready"
+                      | "in_progress"
+                      | "completed"
+                      | "failed"
+                      | "canceled";
+                    title: string;
+                    workspace_id?: string;
+                  };
+                  depends_on_task_id: string;
+                  /** @enum {string} */
+                  kind: "blocks";
+                  task_id: string;
+                }[];
+                dependency_count?: number;
+                draft?: boolean;
+                id: string;
+                identifier?: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                /** Format: int64 */
+                latest_event_seq: number;
+                max_attempts?: number;
+                network_channel?: string;
+                origin: {
+                  /** @enum {string} */
+                  kind:
+                    | "cli"
+                    | "web"
+                    | "uds"
+                    | "http"
+                    | "automation"
+                    | "extension"
+                    | "network"
+                    | "agent_session"
+                    | "daemon";
+                  ref: string;
+                };
+                owner?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "pool";
+                  ref: string;
+                } | null;
+                parent_task_id?: string;
+                /** @enum {string} */
+                priority?: "low" | "medium" | "high" | "urgent";
+                /** @enum {string} */
+                scope: "global" | "workspace";
+                /** @enum {string} */
+                status:
+                  | "draft"
+                  | "pending"
+                  | "blocked"
+                  | "ready"
+                  | "in_progress"
+                  | "completed"
+                  | "failed"
+                  | "canceled";
+                title: string;
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id?: string;
+              };
+            };
+          };
+        };
+      };
+      /** @description Task not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task id */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -44415,6 +45320,7 @@ export interface operations {
                   | "daemon";
                 ref: string;
               };
+              current_run_id?: string;
               description?: string;
               draft?: boolean;
               id: string;
@@ -44644,6 +45550,7 @@ export interface operations {
                   | "daemon";
                 ref: string;
               };
+              current_run_id?: string;
               description?: string;
               draft?: boolean;
               id: string;
@@ -45629,6 +46536,7 @@ export interface operations {
                   | "daemon";
                 ref: string;
               };
+              current_run_id?: string;
               description?: string;
               draft?: boolean;
               id: string;

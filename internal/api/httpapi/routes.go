@@ -241,6 +241,7 @@ func registerTaskRoutes(api gin.IRouter, handlers *Handlers) {
 	tasks.POST("", handlers.CreateTask)
 	tasks.GET("", handlers.ListTasks)
 	tasks.GET("/:id", handlers.GetTask)
+	tasks.GET("/:id/inspect", handlers.InspectTask)
 	tasks.DELETE("/:id", handlers.DeleteTask)
 	tasks.PATCH("/:id", handlers.UpdateTask)
 	tasks.GET("/:id/execution-profile", handlers.GetTaskExecutionProfile)
@@ -279,6 +280,9 @@ func registerTaskRoutes(api gin.IRouter, handlers *Handlers) {
 	taskRuns.POST("/:id/complete", handlers.CompleteTaskRun)
 	taskRuns.POST("/:id/fail", handlers.FailTaskRun)
 	taskRuns.POST("/:id/cancel", handlers.CancelTaskRun)
+
+	runs := api.Group("/runs")
+	runs.GET("/:id/inspect", handlers.InspectRun)
 
 	taskReviews := api.Group("/task-reviews")
 	taskReviews.GET("/:id", handlers.GetTaskRunReview)

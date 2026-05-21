@@ -327,6 +327,8 @@ type DaemonClient interface {
 		credentials agentidentity.Credentials,
 	) (TaskRecord, error)
 	GetTask(ctx context.Context, id string) (TaskDetailRecord, error)
+	InspectTask(ctx context.Context, id string) (TaskInspectRecord, error)
+	InspectRun(ctx context.Context, id string) (TaskInspectRecord, error)
 	UpdateTask(ctx context.Context, id string, request UpdateTaskRequest) (TaskRecord, error)
 	DeleteTask(ctx context.Context, id string) error
 	GetTaskExecutionProfile(ctx context.Context, id string) (TaskExecutionProfileRecord, error)
@@ -885,6 +887,9 @@ type TaskRecord = contract.TaskPayload
 
 // TaskDetailRecord is the shared expanded task payload.
 type TaskDetailRecord = contract.TaskDetailPayload
+
+// TaskInspectRecord is the shared task/run inspect payload.
+type TaskInspectRecord = contract.TaskInspectPayload
 
 // TaskDependencyRecord is the shared dependency-edge payload.
 type TaskDependencyRecord = contract.TaskDependencyPayload
@@ -3683,6 +3688,24 @@ func (c *unixSocketClient) GetTask(ctx context.Context, id string) (TaskDetailRe
 		return TaskDetailRecord{}, err
 	}
 	return response.Task, nil
+}
+
+func (c *unixSocketClient) InspectTask(ctx context.Context, id string) (TaskInspectRecord, error) {
+	var response contract.TaskInspectResponse
+	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(id)) + "/inspect"
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return TaskInspectRecord{}, err
+	}
+	return response.Inspect, nil
+}
+
+func (c *unixSocketClient) InspectRun(ctx context.Context, id string) (TaskInspectRecord, error) {
+	var response contract.TaskInspectResponse
+	path := "/api/runs/" + url.PathEscape(strings.TrimSpace(id)) + "/inspect"
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return TaskInspectRecord{}, err
+	}
+	return response.Inspect, nil
 }
 
 func (c *unixSocketClient) UpdateTask(ctx context.Context, id string, request UpdateTaskRequest) (TaskRecord, error) {

@@ -93,6 +93,7 @@ func (g *GlobalDB) ListEventSummaries(
 		store.StringClause("session_id", query.SessionID),
 		store.StringClause("agent_name", query.AgentName),
 		store.StringClause("type", query.Type),
+		store.StringClause("task_id", query.TaskID),
 		store.StringClause("run_id", query.RunID),
 		store.StringClause("actor_kind", query.ActorKind),
 		store.StringClause("actor_id", query.ActorID),
@@ -192,7 +193,8 @@ func appendMemoryRegistryClauses(
 	args []any,
 	query store.EventSummaryQuery,
 ) ([]string, []any) {
-	if strings.TrimSpace(query.Provider) != "" || strings.TrimSpace(query.RunID) != "" ||
+	if strings.TrimSpace(query.Provider) != "" || strings.TrimSpace(query.TaskID) != "" ||
+		strings.TrimSpace(query.RunID) != "" ||
 		strings.TrimSpace(query.ActorKind) != "" || strings.TrimSpace(query.ActorID) != "" {
 		where = append(where, "1 = 0")
 		return where, args

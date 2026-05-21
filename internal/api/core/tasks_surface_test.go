@@ -344,6 +344,8 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 
 	now := time.Date(2026, 4, 17, 13, 0, 0, 0, time.UTC)
 	var publishActor taskpkg.ActorContext
+	var inspectTaskActor taskpkg.ActorContext
+	var inspectRunActor taskpkg.ActorContext
 	var runDetailActor taskpkg.ActorContext
 	var timelineActor taskpkg.ActorContext
 	var timelineQuery taskpkg.TimelineQuery
@@ -360,6 +362,58 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 	var streamQuery taskpkg.StreamQuery
 
 	tasks := testutil.StubTaskManager{
+		InspectTaskFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.InspectView, error) {
+			inspectTaskActor = actor
+			return &taskpkg.InspectView{
+				Target: taskpkg.InspectTargetTask,
+				Task: taskpkg.Summary{
+					ID:          id,
+					Title:       "Published task",
+					Status:      taskpkg.TaskStatusReady,
+					Scope:       taskpkg.ScopeWorkspace,
+					WorkspaceID: "ws-alpha",
+				},
+				CurrentRun: &taskpkg.InspectRunSummary{
+					RunID:                   "run-1",
+					TaskID:                  id,
+					Status:                  taskpkg.TaskRunStatusQueued,
+					ClaimTokenHashTruncated: "abcdef12",
+					QueuedAt:                now.Add(-10 * time.Minute),
+					Attempt:                 1,
+				},
+				Diagnostics: []contract.DiagnosticItem{{
+					ID:            "task.inspect.task_run_stranded.run-1",
+					Code:          contract.CodeTaskRunStranded,
+					Severity:      contract.SeverityWarn,
+					Category:      contract.CategoryTask,
+					Title:         "Queued task run has no eligible session",
+					Message:       "No eligible session is visible.",
+					DataFreshness: contract.FreshnessLive,
+				}},
+				NextAction: taskpkg.InspectNextActionStranded,
+				AsOf:       now,
+			}, nil
+		},
+		InspectRunFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.InspectView, error) {
+			inspectRunActor = actor
+			return &taskpkg.InspectView{
+				Target: taskpkg.InspectTargetRun,
+				Task: taskpkg.Summary{
+					ID:     "task-1",
+					Title:  "Published task",
+					Status: taskpkg.TaskStatusInProgress,
+				},
+				CurrentRun: &taskpkg.InspectRunSummary{
+					RunID:    id,
+					TaskID:   "task-1",
+					Status:   taskpkg.TaskRunStatusRunning,
+					QueuedAt: now.Add(-10 * time.Minute),
+					Attempt:  2,
+				},
+				NextAction: taskpkg.InspectNextActionRunning,
+				AsOf:       now,
+			}, nil
+		},
 		PublishTaskFn: func(
 			_ context.Context,
 			id string,
@@ -690,6 +744,41 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 		if runPayload.Run.Run.ID != "run-1" || runPayload.Run.Session == nil ||
 			runDetailActor.Origin.Ref != "tasks.get_run" {
 			t.Fatalf("run detail payload/actor = %#v / %#v", runPayload, runDetailActor)
+		}
+
+		inspectTaskResp := performRequest(t, fixture.Engine, http.MethodGet, "/tasks/task-1/inspect", nil)
+		if inspectTaskResp.Code != http.StatusOK {
+			t.Fatalf(
+				"task inspect status = %d, want %d; body=%s",
+				inspectTaskResp.Code,
+				http.StatusOK,
+				inspectTaskResp.Body.String(),
+			)
+		}
+		var inspectTaskPayload contract.TaskInspectResponse
+		testutil.DecodeJSONResponse(t, inspectTaskResp, &inspectTaskPayload)
+		if inspectTaskPayload.Inspect.NextAction != string(taskpkg.InspectNextActionStranded) ||
+			inspectTaskPayload.Inspect.CurrentRun == nil ||
+			inspectTaskPayload.Inspect.CurrentRun.ClaimTokenHashTruncated != "abcdef12" ||
+			inspectTaskActor.Origin.Ref != "tasks.inspect" {
+			t.Fatalf("task inspect payload/actor = %#v / %#v", inspectTaskPayload, inspectTaskActor)
+		}
+
+		inspectRunResp := performRequest(t, fixture.Engine, http.MethodGet, "/runs/run-1/inspect", nil)
+		if inspectRunResp.Code != http.StatusOK {
+			t.Fatalf(
+				"run inspect status = %d, want %d; body=%s",
+				inspectRunResp.Code,
+				http.StatusOK,
+				inspectRunResp.Body.String(),
+			)
+		}
+		var inspectRunPayload contract.TaskInspectResponse
+		testutil.DecodeJSONResponse(t, inspectRunResp, &inspectRunPayload)
+		if inspectRunPayload.Inspect.Target != string(taskpkg.InspectTargetRun) ||
+			inspectRunPayload.Inspect.NextAction != string(taskpkg.InspectNextActionRunning) ||
+			inspectRunActor.Origin.Ref != "tasks.inspect" {
+			t.Fatalf("run inspect payload/actor = %#v / %#v", inspectRunPayload, inspectRunActor)
 		}
 
 		timelineResp := performRequest(

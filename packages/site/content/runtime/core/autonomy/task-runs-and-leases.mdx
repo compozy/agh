@@ -130,6 +130,43 @@ Release is also used by daemon-owned cleanup. For example, if a spawned child re
 parent stops, AGH releases active child leases with structured reasons such as `ttl_expired` or
 `parent_stopped` before stopping the child session.
 
+## Task inspect diagnostics
+
+Use inspect when an operator or agent needs a read-only triage snapshot before mutating a task run.
+The CLI auto-detects task and run IDs:
+
+```bash
+agh task inspect task-123 -o json
+agh task inspect run-123 -o json
+```
+
+The same snapshot is available over HTTP and UDS:
+
+| Target | Route                         |
+| ------ | ----------------------------- |
+| Task   | `GET /api/tasks/{id}/inspect` |
+| Run    | `GET /api/runs/{id}/inspect`  |
+
+Inspect reads task runs, bound-session summary, scheduler pause state, and recent event summaries.
+It does not read transcripts and it does not expose raw claim tokens. Claim evidence is limited to
+the 8-character `claim_token_hash_truncated` field.
+
+The response includes `task`, `current_run`, `bound_session`, `recent_runs`,
+`recent_events`, `scheduler`, `diagnostics`, `next_action`, and `as_of`. The web task and
+run detail surfaces render the same diagnostics card as the CLI/API payload.
+
+| Diagnostic code        | Meaning                                                                           |
+| ---------------------- | --------------------------------------------------------------------------------- |
+| `task_run_stuck`       | A claimed run has a stale heartbeat and may need release.                         |
+| `task_run_orphan`      | A claimed run points at a missing or terminal session.                            |
+| `task_run_stranded`    | A queued run is old, the scheduler is active, and no eligible session is visible. |
+| `task_run_crashed`     | The latest run failed without a later retry.                                      |
+| `task_run_stale_lease` | The run still looks claimed after its lease deadline.                             |
+
+`next_action` is a derived enum for agents: `claim_available`, `waiting_for_session`,
+`stranded`, `running`, `recovery_required`, or `terminal`. It is guidance, not a writer; use
+the task service commands to release, fail, retry, pause, or resume.
+
 ## Deterministic autonomy errors
 
 Lease writers and the autonomy tool bridge return the same deterministic reason codes:

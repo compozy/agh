@@ -64,6 +64,79 @@ func TestTaskCreateAndUpdateRejectInvalidFlagCombos(t *testing.T) {
 	}
 }
 
+func TestTaskInspectCommandMapsTargets(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should inspect task ids through the task inspect client", func(t *testing.T) {
+		t.Parallel()
+
+		var gotID string
+		stdout, _, err := executeRootCommand(t, newTestDeps(t, &stubClient{
+			inspectTaskFn: func(_ context.Context, id string) (TaskInspectRecord, error) {
+				gotID = id
+				return sampleTaskInspectRecord("task"), nil
+			},
+		}), "task", "inspect", "task-1", "-o", "json")
+		if err != nil {
+			t.Fatalf("task inspect task id error = %v", err)
+		}
+		var payload TaskInspectRecord
+		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+			t.Fatalf("decode task inspect output: %v", err)
+		}
+		if gotID != "task-1" || payload.Target != "task" || payload.NextAction != "stranded" {
+			t.Fatalf("gotID/payload = %q / %#v", gotID, payload)
+		}
+	})
+
+	t.Run("Should inspect run ids through the run inspect client", func(t *testing.T) {
+		t.Parallel()
+
+		var gotID string
+		stdout, _, err := executeRootCommand(t, newTestDeps(t, &stubClient{
+			inspectRunFn: func(_ context.Context, id string) (TaskInspectRecord, error) {
+				gotID = id
+				return sampleTaskInspectRecord("run"), nil
+			},
+		}), "task", "inspect", "run-1", "-o", "json")
+		if err != nil {
+			t.Fatalf("task inspect run id error = %v", err)
+		}
+		var payload TaskInspectRecord
+		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+			t.Fatalf("decode run inspect output: %v", err)
+		}
+		if gotID != "run-1" || payload.Target != "run" || payload.CurrentRun == nil {
+			t.Fatalf("gotID/payload = %q / %#v", gotID, payload)
+		}
+	})
+
+	t.Run("Should render id format diagnostic without calling the daemon for unknown ids", func(t *testing.T) {
+		t.Parallel()
+
+		stdout, _, err := executeRootCommand(
+			t,
+			newTestDeps(t, &stubClient{}),
+			"task",
+			"inspect",
+			"unknown-1",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("task inspect unknown id error = %v", err)
+		}
+		var payload TaskInspectRecord
+		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+			t.Fatalf("decode unknown inspect output: %v", err)
+		}
+		if payload.Target != "unknown" || len(payload.Diagnostics) != 1 ||
+			payload.Diagnostics[0].Code != contract.CodeIDFormatUnknown {
+			t.Fatalf("unknown inspect payload = %#v", payload)
+		}
+	})
+}
+
 func TestTaskCreateRemainsOperatorExplicitWithAgentEnv(t *testing.T) {
 	t.Parallel()
 
@@ -2041,6 +2114,38 @@ func sampleTaskRecord() TaskRecord {
 		CreatedAt:      fixedTestNow,
 		UpdatedAt:      fixedTestNow,
 		Metadata:       json.RawMessage(`{"priority":"high"}`),
+	}
+}
+
+func sampleTaskInspectRecord(target string) TaskInspectRecord {
+	now := time.Date(2026, 4, 17, 12, 30, 0, 0, time.UTC)
+	return TaskInspectRecord{
+		Target: target,
+		Task: TaskSummaryRecord{
+			ID:     "task-1",
+			Title:  "Inspect task",
+			Status: taskpkg.TaskStatusReady,
+			Scope:  taskpkg.ScopeWorkspace,
+		},
+		CurrentRun: &contract.TaskInspectRunPayload{
+			RunID:                   "run-1",
+			TaskID:                  "task-1",
+			Status:                  taskpkg.TaskRunStatusQueued,
+			ClaimTokenHashTruncated: "abcdef12",
+			QueuedAt:                now.Add(-10 * time.Minute),
+			Attempt:                 1,
+		},
+		Diagnostics: []contract.DiagnosticItem{{
+			ID:            "task.inspect.task_run_stranded.run-1",
+			Code:          contract.CodeTaskRunStranded,
+			Severity:      contract.SeverityWarn,
+			Category:      contract.CategoryTask,
+			Title:         "Queued task run has no eligible session",
+			Message:       "No eligible session is visible.",
+			DataFreshness: contract.FreshnessLive,
+		}},
+		NextAction: "stranded",
+		AsOf:       now,
 	}
 }
 

@@ -1351,7 +1351,7 @@ func diagnosticsTable(items []contract.AuthoredContextDiagnosticPayload) string 
 	}
 	return renderHumanTable(
 		"Diagnostics",
-		[]string{"Severity", cliCodeValue, "Location", authoredContextMessageValue},
+		[]string{cliSeverityValue, cliCodeValue, "Location", authoredContextMessageValue},
 		rows,
 	)
 }

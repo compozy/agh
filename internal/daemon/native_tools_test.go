@@ -6549,6 +6549,22 @@ func (unsupportedNativeTaskManager) GetTask(
 	return nil, errUnexpectedNativeTaskCall
 }
 
+func (unsupportedNativeTaskManager) InspectTask(
+	context.Context,
+	string,
+	taskpkg.ActorContext,
+) (*taskpkg.InspectView, error) {
+	return nil, errUnexpectedNativeTaskCall
+}
+
+func (unsupportedNativeTaskManager) InspectRun(
+	context.Context,
+	string,
+	taskpkg.ActorContext,
+) (*taskpkg.InspectView, error) {
+	return nil, errUnexpectedNativeTaskCall
+}
+
 func (unsupportedNativeTaskManager) ListTaskRuns(
 	context.Context,
 	string,

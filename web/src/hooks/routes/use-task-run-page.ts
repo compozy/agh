@@ -1,10 +1,17 @@
 import { useCallback, useMemo } from "react";
 import { toast } from "sonner";
 
-import { useCancelTaskRun, useTask, useTaskRunDetail, useTaskRunReviews } from "@/systems/tasks";
+import {
+  useCancelTaskRun,
+  useTask,
+  useTaskRunDetail,
+  useTaskRunInspect,
+  useTaskRunReviews,
+} from "@/systems/tasks";
 
 interface UseTaskRunPageOptions {
   enableTaskDetail?: boolean;
+  enableInspect?: boolean;
   enableRunReviews?: boolean;
 }
 
@@ -12,14 +19,17 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
   const hasTaskId = Boolean(taskId);
   const hasRunId = Boolean(runId);
   const enableTaskDetail = options.enableTaskDetail ?? true;
+  const enableInspect = options.enableInspect ?? true;
   const enableRunReviews = options.enableRunReviews ?? true;
 
   const runQuery = useTaskRunDetail(runId, { enabled: hasRunId });
+  const inspectQuery = useTaskRunInspect(runId, { enabled: hasRunId && enableInspect });
   const taskQuery = useTask(taskId, { enabled: hasTaskId && enableTaskDetail });
   const reviewsQuery = useTaskRunReviews(runId, {}, { enabled: hasRunId && enableRunReviews });
   const cancelMutation = useCancelTaskRun();
 
   const run = runQuery.data ?? null;
+  const inspect = inspectQuery.data ?? null;
   const task = taskQuery.data ?? null;
   const session = run?.session ?? null;
   const summary = run?.summary ?? null;
@@ -59,6 +69,9 @@ function useTaskRunPage(taskId: string, runId: string, options: UseTaskRunPageOp
     handleCancelRun,
     isCancelPending: cancelMutation.isPending,
     isLive,
+    inspect,
+    inspectError: inspectQuery.error ?? null,
+    inspectLoading: inspectQuery.isLoading && !inspect,
     notFound: runQuery.isError && runQuery.error?.message?.includes("not found"),
     reviews,
     reviewsError: reviewsQuery.error ?? null,

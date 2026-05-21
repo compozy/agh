@@ -12,10 +12,14 @@ import {
   taskOwnerLabel,
   toRunCardStatus,
 } from "../lib/task-formatters";
-import type { TaskDetailView } from "../types";
+import type { TaskDetailView, TaskInspectView } from "../types";
+import { TaskInspectDiagnosticsCard } from "./task-inspect-diagnostics-card";
 
 export interface TasksDetailOverviewPanelProps {
   detail: TaskDetailView;
+  inspect?: TaskInspectView | null;
+  inspectErrorMessage?: string | null;
+  inspectLoading?: boolean;
 }
 
 /**
@@ -24,7 +28,12 @@ export interface TasksDetailOverviewPanelProps {
  * `border-l-2 border-l-accent` rail, no Stuck pill, no Watch button, no Block
  * reason placeholder (Out of Scope / §6 / §8).
  */
-export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelProps) {
+export function TasksDetailOverviewPanel({
+  detail,
+  inspect = null,
+  inspectErrorMessage = null,
+  inspectLoading = false,
+}: TasksDetailOverviewPanelProps) {
   const record = detail.task;
   const summary = detail.summary;
   const activeRun = summary?.active_run ?? null;
@@ -143,6 +152,13 @@ export function TasksDetailOverviewPanel({ detail }: TasksDetailOverviewPanelPro
           </p>
         )}
       </Section>
+
+      <TaskInspectDiagnosticsCard
+        errorMessage={inspectErrorMessage}
+        inspect={inspect}
+        isLoading={inspectLoading}
+        testId="tasks-detail-inspect-diagnostics-card"
+      />
     </section>
   );
 }

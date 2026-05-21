@@ -40,6 +40,8 @@ vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
   getTaskRunReview: vi.fn(),
   requestTaskRunReview: vi.fn(),
   submitTaskRunReviewVerdict: vi.fn(),
+  inspectTask: vi.fn().mockResolvedValue(null),
+  inspectRun: vi.fn().mockResolvedValue(null),
   getAgentContext: vi.fn(),
   getTaskContextBundle: vi.fn(),
   listTaskBridgeNotificationSubscriptions: vi.fn(),

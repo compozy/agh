@@ -46,6 +46,7 @@ export type {
   TaskInboxItem,
   TaskInboxLane,
   TaskInboxView,
+  TaskInspectView,
   TaskListFilter,
   TaskListItem,
   TaskOwnerKind,
@@ -54,6 +55,7 @@ export type {
   TaskReviewsFilter,
   TaskRun,
   TaskRunDetailView,
+  TaskRunInspectView,
   TaskRunReview,
   TaskRunReviewContinuationRun,
   TaskRunReviewOutcome,
@@ -114,6 +116,8 @@ export {
   getTaskRunReview,
   getTaskTimeline,
   getTaskTree,
+  inspectRun,
+  inspectTask,
   listTaskBridgeNotificationSubscriptions,
   listTaskReviews,
   listTaskRunReviews,
@@ -231,7 +235,13 @@ export type {
 
 // Read hooks
 export { useTask, useTaskRuns, useTasks } from "./hooks/use-tasks";
-export { useTaskRunDetail, useTaskTimeline, useTaskTree } from "./hooks/use-task-live";
+export {
+  useTaskInspect,
+  useTaskRunDetail,
+  useTaskRunInspect,
+  useTaskTimeline,
+  useTaskTree,
+} from "./hooks/use-task-live";
 export { useTaskDashboard } from "./hooks/use-task-dashboard";
 export { useTaskInbox } from "./hooks/use-task-inbox";
 export { useTaskExecutionProfile } from "./hooks/use-task-profile";
@@ -344,6 +354,8 @@ export { TaskRunDetailHeader } from "./components/task-run-detail-header";
 export type { TaskRunDetailHeaderProps } from "./components/task-run-detail-header";
 export { TaskRunTimelinePanel } from "./components/task-run-timeline-panel";
 export type { TaskRunTimelinePanelProps } from "./components/task-run-timeline-panel";
+export { TaskInspectDiagnosticsCard } from "./components/task-inspect-diagnostics-card";
+export type { TaskInspectDiagnosticsCardProps } from "./components/task-inspect-diagnostics-card";
 
 export { TasksMultiAgentPanel } from "./components/tasks-multi-agent-panel";
 export type { TasksMultiAgentPanelProps } from "./components/tasks-multi-agent-panel";

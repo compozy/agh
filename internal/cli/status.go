@@ -139,7 +139,7 @@ func doctorBundle(result DoctorRecord) outputBundle {
 			})
 			table := renderHumanTable(
 				"Diagnostics",
-				[]string{"Severity", "Category", cliCodeValue, "Title", cliCommandValue},
+				[]string{cliSeverityValue, "Category", cliCodeValue, "Title", cliCommandValue},
 				rows,
 			)
 			return header + "\n\n" + table, nil

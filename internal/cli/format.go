@@ -29,14 +29,17 @@ const (
 )
 
 const (
-	cliAuthModeKey   = "auth_mode"
-	cliCodeValue     = "Code"
-	cliCommandValue  = "Command"
-	cliDurationMSKey = "duration_ms"
-	cliDurationValue = "Duration"
-	cliPIDKey        = "pid"
-	cliPIDValue      = "PID"
-	cliUptimeValue   = "Uptime"
+	cliAuthModeKey     = "auth_mode"
+	cliCodeValue       = "Code"
+	cliCommandValue    = "Command"
+	cliDurationMSKey   = "duration_ms"
+	cliDurationValue   = "Duration"
+	cliHashValue       = "Hash"
+	cliNextActionValue = "Next Action"
+	cliPIDKey          = "pid"
+	cliPIDValue        = "PID"
+	cliSeverityValue   = "Severity"
+	cliUptimeValue     = "Uptime"
 )
 
 type outputBundle struct {

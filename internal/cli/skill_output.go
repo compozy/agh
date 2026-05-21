@@ -243,7 +243,7 @@ func skillInstallBundle(item skillInstallItem) outputBundle {
 				{Label: daemonVersionValue, Value: stringOrDash(item.Version)},
 				{Label: "Registry", Value: stringOrDash(item.Registry)},
 				{Label: skillOutputPathValue, Value: stringOrDash(item.Path)},
-				{Label: "Hash", Value: stringOrDash(item.Hash)},
+				{Label: cliHashValue, Value: stringOrDash(item.Hash)},
 				{Label: skillOutputStatusValue, Value: stringOrDash(item.Status)},
 			}), nil
 		},

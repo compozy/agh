@@ -67,6 +67,7 @@ type managerOptions struct {
 	store             Store
 	sessions          SessionExecutor
 	runtimeViews      RuntimeViewReader
+	inspectReader     InspectStateReader
 	eventObserver     EventObserver
 	reviewObserver    RunReviewRequestedObserver
 	taskHooks         RunHookDispatcher
@@ -83,6 +84,7 @@ type Service struct {
 	store             Store
 	sessions          SessionExecutor
 	runtimeViews      RuntimeViewReader
+	inspectReader     InspectStateReader
 	eventObserver     EventObserver
 	reviewObserver    RunReviewRequestedObserver
 	taskHooks         RunHookDispatcher
@@ -117,6 +119,13 @@ func WithSessionExecutor(sessions SessionExecutor) Option {
 func WithRuntimeViewReader(reader RuntimeViewReader) Option {
 	return func(opts *managerOptions) {
 		opts.runtimeViews = reader
+	}
+}
+
+// WithInspectStateReader injects read-only runtime state used by task inspect.
+func WithInspectStateReader(reader InspectStateReader) Option {
+	return func(opts *managerOptions) {
+		opts.inspectReader = reader
 	}
 }
 
@@ -211,6 +220,7 @@ func NewManager(opts ...Option) (*Service, error) {
 		store:             options.store,
 		sessions:          options.sessions,
 		runtimeViews:      options.runtimeViews,
+		inspectReader:     options.inspectReader,
 		eventObserver:     options.eventObserver,
 		reviewObserver:    options.reviewObserver,
 		taskHooks:         defaultTaskRunHooks(options.taskHooks),

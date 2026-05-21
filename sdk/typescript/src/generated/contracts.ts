@@ -3966,6 +3966,7 @@ export interface Task {
   approval_state?: ApprovalState;
   draft?: boolean;
   owner?: Ownership;
+  current_run_id?: string;
   latest_event_seq: number;
   created_by: ActorIdentity;
   origin: Origin;
@@ -4225,6 +4226,7 @@ export interface TaskSummary {
   approval_state?: ApprovalState;
   draft?: boolean;
   owner?: Ownership;
+  current_run_id?: string;
   latest_event_seq: number;
   created_by: ActorIdentity;
   origin: Origin;

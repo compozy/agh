@@ -63,6 +63,8 @@ type Manager interface {
 	) ([]ExpiredLeaseRecoveryResult, error)
 
 	GetTask(ctx context.Context, id string, actor ActorContext) (*View, error)
+	InspectTask(ctx context.Context, taskID string, actor ActorContext) (*InspectView, error)
+	InspectRun(ctx context.Context, runID string, actor ActorContext) (*InspectView, error)
 	ListTaskRuns(ctx context.Context, taskID string, query RunQuery, actor ActorContext) ([]Run, error)
 	ListTasks(ctx context.Context, query Query, actor ActorContext) ([]Summary, error)
 

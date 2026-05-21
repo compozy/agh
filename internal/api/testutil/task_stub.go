@@ -108,6 +108,8 @@ type StubTaskManager struct {
 		taskpkg.ActorContext,
 	) ([]taskpkg.ExpiredLeaseRecoveryResult, error)
 	GetTaskFn      func(context.Context, string, taskpkg.ActorContext) (*taskpkg.View, error)
+	InspectTaskFn  func(context.Context, string, taskpkg.ActorContext) (*taskpkg.InspectView, error)
+	InspectRunFn   func(context.Context, string, taskpkg.ActorContext) (*taskpkg.InspectView, error)
 	ListTaskRunsFn func(context.Context, string, taskpkg.RunQuery, taskpkg.ActorContext) ([]taskpkg.Run, error)
 	ListTasksFn    func(context.Context, taskpkg.Query, taskpkg.ActorContext) ([]taskpkg.Summary, error)
 	TimelineFn     func(
@@ -556,6 +558,28 @@ func (s StubTaskManager) GetTask(
 		return s.GetTaskFn(ctx, id, actor)
 	}
 	return nil, taskpkg.ErrTaskNotFound
+}
+
+func (s StubTaskManager) InspectTask(
+	ctx context.Context,
+	taskID string,
+	actor taskpkg.ActorContext,
+) (*taskpkg.InspectView, error) {
+	if s.InspectTaskFn != nil {
+		return s.InspectTaskFn(ctx, taskID, actor)
+	}
+	return nil, taskpkg.ErrTaskNotFound
+}
+
+func (s StubTaskManager) InspectRun(
+	ctx context.Context,
+	runID string,
+	actor taskpkg.ActorContext,
+) (*taskpkg.InspectView, error) {
+	if s.InspectRunFn != nil {
+		return s.InspectRunFn(ctx, runID, actor)
+	}
+	return nil, taskpkg.ErrTaskRunNotFound
 }
 
 func (s StubTaskManager) ListTaskRuns(

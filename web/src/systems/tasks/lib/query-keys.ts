@@ -46,6 +46,10 @@ export const tasksKeys = {
   details: () => [...tasksKeys.all, "detail"] as const,
   detail: (id: string) => [...tasksKeys.details(), id] as const,
 
+  inspectRoot: () => [...tasksKeys.all, "inspect"] as const,
+  inspectTask: (id: string) => [...tasksKeys.inspectRoot(), "task", id] as const,
+  inspectRun: (runId: string) => [...tasksKeys.inspectRoot(), "run", runId] as const,
+
   runsRoot: () => [...tasksKeys.all, "runs"] as const,
   runs: (id: string, filters: TaskRunsFilter = {}) =>
     [

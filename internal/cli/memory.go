@@ -1676,7 +1676,7 @@ func memoryHistoryBundle(records []MemoryHistoryRecord, now func() time.Time) ou
 		contract.MemoryOperationHistoryResponse{Operations: records},
 		items,
 		"Memory History",
-		[]string{"Time", memoryOperationValue, automationScopeValue, memoryFilenameValue, "Summary"},
+		[]string{"Time", memoryOperationValue, automationScopeValue, memoryFilenameValue, authoredContextSummaryValue},
 		"operations",
 		[]string{networkTimestampKey, memoryOperationKey, automationScopeKey, memoryFilenameKey, memorySummaryKey},
 		func(item memoryHistoryItem) []string {

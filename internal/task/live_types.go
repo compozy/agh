@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	diagnosticcontract "github.com/pedronauck/agh/internal/diagnosticcontract"
 	"github.com/pedronauck/agh/internal/store"
 )
 
@@ -115,9 +116,108 @@ type RunOperationalSummary struct {
 	CostCurrency   *string   `json:"cost_currency,omitempty"`
 }
 
+// InspectTarget identifies whether an inspect response was requested by task or run id.
+type InspectTarget string
+
+const (
+	// InspectTargetTask reports an inspect request rooted at a task id.
+	InspectTargetTask InspectTarget = "task"
+	// InspectTargetRun reports an inspect request rooted at a run id.
+	InspectTargetRun InspectTarget = "run"
+)
+
+// InspectNextAction is the deterministic next-step hint emitted by task inspect.
+type InspectNextAction string
+
+const (
+	InspectNextActionClaimAvailable    InspectNextAction = "claim_available"
+	InspectNextActionWaitingForSession InspectNextAction = "waiting_for_session"
+	InspectNextActionStranded          InspectNextAction = "stranded"
+	InspectNextActionRunning           InspectNextAction = "running"
+	InspectNextActionRecoveryRequired  InspectNextAction = "recovery_required"
+	InspectNextActionTerminal          InspectNextAction = "terminal"
+)
+
+// InspectSchedulerState captures the read-only scheduler pause state used by diagnostics.
+type InspectSchedulerState struct {
+	Paused    bool      `json:"paused"`
+	PausedBy  string    `json:"paused_by,omitempty"`
+	PausedAt  time.Time `json:"paused_at"`
+	Reason    string    `json:"reason,omitempty"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// InspectRunSummary is the redacted run projection used by task inspect.
+type InspectRunSummary struct {
+	RunID                   string    `json:"run_id"`
+	TaskID                  string    `json:"task_id"`
+	Status                  RunStatus `json:"status"`
+	ClaimTokenHashTruncated string    `json:"claim_token_hash_truncated,omitempty"`
+	LeaseUntil              time.Time `json:"lease_until"`
+	HeartbeatAt             time.Time `json:"heartbeat_at"`
+	HeartbeatAgeSeconds     *int64    `json:"heartbeat_age_seconds,omitempty"`
+	Retries                 int       `json:"retries,omitempty"`
+	LastErrorSummary        string    `json:"last_error_summary,omitempty"`
+	FailureKind             string    `json:"failure_kind,omitempty"`
+	BoundSessionID          string    `json:"bound_session_id,omitempty"`
+	StartedAt               time.Time `json:"started_at"`
+	EndedAt                 time.Time `json:"ended_at"`
+	PreviousRunID           string    `json:"previous_run_id,omitempty"`
+	QueuedAt                time.Time `json:"queued_at"`
+	Attempt                 int       `json:"attempt"`
+}
+
+// InspectSessionSummary is the session projection used by task inspect.
+type InspectSessionSummary struct {
+	SessionID      string    `json:"session_id"`
+	State          string    `json:"state,omitempty"`
+	AgentName      string    `json:"agent_name,omitempty"`
+	ProviderName   string    `json:"provider_name,omitempty"`
+	WorkspaceID    string    `json:"workspace_id,omitempty"`
+	StartedAt      time.Time `json:"started_at"`
+	LastActivityAt time.Time `json:"last_activity_at"`
+	StopReason     string    `json:"stop_reason,omitempty"`
+	FailureKind    string    `json:"failure_kind,omitempty"`
+}
+
+// InspectEventSummary is the recent event summary projection used by task inspect.
+type InspectEventSummary struct {
+	ID        string    `json:"id"`
+	Type      string    `json:"type"`
+	SessionID string    `json:"session_id,omitempty"`
+	TaskID    string    `json:"task_id,omitempty"`
+	RunID     string    `json:"run_id,omitempty"`
+	Outcome   string    `json:"outcome,omitempty"`
+	Summary   string    `json:"summary,omitempty"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+// InspectView is the task-domain read-only snapshot behind CLI/API inspect.
+type InspectView struct {
+	Target                InspectTarget                       `json:"target"`
+	Task                  Summary                             `json:"task"`
+	CurrentRun            *InspectRunSummary                  `json:"current_run,omitempty"`
+	BoundSession          *InspectSessionSummary              `json:"bound_session,omitempty"`
+	RecentRuns            []InspectRunSummary                 `json:"recent_runs,omitempty"`
+	RecentEvents          []InspectEventSummary               `json:"recent_events,omitempty"`
+	Scheduler             InspectSchedulerState               `json:"scheduler"`
+	Diagnostics           []diagnosticcontract.DiagnosticItem `json:"diagnostics,omitempty"`
+	NextAction            InspectNextAction                   `json:"next_action"`
+	AsOf                  time.Time                           `json:"as_of"`
+	EligibleSessionCount  int                                 `json:"-"`
+	SessionCatalogPresent bool                                `json:"-"`
+}
+
 // RuntimeViewReader enriches run-detail reads with session and usage telemetry when available.
 type RuntimeViewReader interface {
 	GetSession(ctx context.Context, sessionID string) (*RunSessionRef, error)
 	ListSessionEvents(ctx context.Context, sessionID string, query store.EventQuery) ([]store.SessionEvent, error)
 	ListSessionTokenStats(ctx context.Context, sessionID string) ([]store.TokenStats, error)
+}
+
+// InspectStateReader supplies read-only runtime state for task inspect diagnostics.
+type InspectStateReader interface {
+	ListSessions(ctx context.Context, query store.SessionListQuery) ([]store.SessionInfo, error)
+	ListEventSummaries(ctx context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error)
+	GetSchedulerPauseState(ctx context.Context) (InspectSchedulerState, error)
 }

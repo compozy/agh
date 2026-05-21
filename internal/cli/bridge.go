@@ -648,7 +648,7 @@ func bridgeRoutesBundle(routes []BridgeRouteRecord, now func() time.Time) output
 		routes,
 		"Bridge Routes",
 		[]string{
-			"Hash",
+			cliHashValue,
 			automationScopeValue,
 			configWorkspaceValue,
 			taskPeerValue,

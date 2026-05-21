@@ -96,6 +96,7 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query store.SessionListQuer
 		created_at, updated_at
 	FROM sessions`
 	where, args := store.BuildClauses(
+		store.StringClause("id", query.ID),
 		store.StringClause("state", query.State),
 		store.StringClause("agent_name", query.AgentName),
 		store.StringClause("workspace_id", query.WorkspaceID),
