@@ -59,6 +59,13 @@ const (
 )
 
 var (
+	// ErrSessionNotFound reports that a persisted session row does not exist.
+	ErrSessionNotFound = errors.New("store: session not found")
+	// ErrSessionAttachLocked reports that another holder owns a live attach lease.
+	ErrSessionAttachLocked = errors.New("store: session attach locked")
+	// ErrSessionNotAttachable reports that a session is not eligible for attach/resume.
+	ErrSessionNotAttachable = errors.New("store: session not attachable")
+
 	networkThreadIDPattern = regexp.MustCompile(`^thread_[a-z0-9][a-z0-9_-]{2,95}$`)
 	networkDirectIDPattern = regexp.MustCompile(`^direct_[a-f0-9]{32}$`)
 	networkPeerIDPattern   = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
@@ -278,6 +285,8 @@ type SessionInfo struct {
 	SoulSnapshotID   string
 	SoulDigest       string
 	ParentSoulDigest string
+	AttachedTo       string
+	AttachExpiresAt  *time.Time
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 }
@@ -320,16 +329,60 @@ func (s SessionInfo) Validate() error {
 type SessionListQuery struct {
 	State           string
 	AgentName       string
+	WorkspaceID     string
 	SessionType     string
 	ParentSessionID string
 	RootSessionID   string
 	SpawnRole       string
+	Resumable       bool
+	Sort            string
 	Limit           int
 }
 
 // Validate ensures the query uses sane bounds.
 func (q SessionListQuery) Validate() error {
 	return requirePositiveLimit(q.Limit, "session limit")
+}
+
+// SessionAttachRequest identifies one explicit attach lock acquisition.
+type SessionAttachRequest struct {
+	SessionID  string
+	AttachedTo string
+	Now        time.Time
+	TTL        time.Duration
+}
+
+// Normalize trims the attach request and applies UTC timestamps.
+func (r SessionAttachRequest) Normalize() SessionAttachRequest {
+	r.SessionID = strings.TrimSpace(r.SessionID)
+	r.AttachedTo = strings.TrimSpace(r.AttachedTo)
+	if !r.Now.IsZero() {
+		r.Now = r.Now.UTC()
+	}
+	return r
+}
+
+// Validate ensures the attach request carries the fields needed for a CAS lock.
+func (r SessionAttachRequest) Validate() error {
+	normalized := r.Normalize()
+	if err := requireField(normalized.SessionID, "session attach session id"); err != nil {
+		return err
+	}
+	if err := requireField(normalized.AttachedTo, "session attach holder"); err != nil {
+		return err
+	}
+	if normalized.TTL <= 0 {
+		return fmt.Errorf("store: session attach ttl must be positive")
+	}
+	return nil
+}
+
+// SessionAttach records one acquired attach lock.
+type SessionAttach struct {
+	SessionID       string
+	AttachedTo      string
+	AttachExpiresAt time.Time
+	AttachedAt      time.Time
 }
 
 // SessionStateUpdate updates only the stateful fields of an indexed session.

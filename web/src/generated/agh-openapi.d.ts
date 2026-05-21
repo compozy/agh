@@ -3610,6 +3610,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/attach": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Attach to a resumable live session */
+    post: operations["attachSession"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/events": {
     parameters: {
       query?: never;
@@ -3678,6 +3695,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/recap": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get a deterministic session recap */
+    get: operations["getSessionRecap"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/repair": {
     parameters: {
       query?: never;
@@ -3689,23 +3723,6 @@ export interface paths {
     put?: never;
     /** Inspect and repair an interrupted session transcript */
     post: operations["repairSession"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/workspaces/{workspace_id}/sessions/{session_id}/resume": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Resume a stopped session */
-    post: operations["resumeSession"];
     delete?: never;
     options?: never;
     head?: never;
@@ -5410,8 +5427,6 @@ export interface operations {
       query?: {
         /** @description Workspace id or path */
         workspace?: string;
-        /** @description Include metadata-only session health when available */
-        include_health?: boolean;
       };
       header?: never;
       path?: never;
@@ -6451,6 +6466,11 @@ export interface operations {
                   turn_started_at?: string | null;
                 } | null;
                 agent_name: string;
+                /** Format: date-time */
+                attach_expires_at?: string | null;
+                attachable: boolean;
+                attached_to?: string;
+                badge: string;
                 channel?: string;
                 /** Format: date-time */
                 created_at: string;
@@ -27092,6 +27112,12 @@ export interface operations {
         workspace?: string;
         /** @description Include metadata-only session health when available */
         include_health?: boolean;
+        /** @description Only list sessions eligible for explicit attach */
+        resumable?: boolean;
+        /** @description Optional sort key. Use last_activity with resumable=true. */
+        sort?: string;
+        /** @description Maximum sessions to return when filtering resumable sessions */
+        limit?: number;
       };
       header?: never;
       path?: never;
@@ -27150,6 +27176,11 @@ export interface operations {
                 turn_started_at?: string | null;
               } | null;
               agent_name: string;
+              /** Format: date-time */
+              attach_expires_at?: string | null;
+              attachable: boolean;
+              attached_to?: string;
+              badge: string;
               channel?: string;
               /** Format: date-time */
               created_at: string;
@@ -27381,6 +27412,11 @@ export interface operations {
                 turn_started_at?: string | null;
               } | null;
               agent_name: string;
+              /** Format: date-time */
+              attach_expires_at?: string | null;
+              attachable: boolean;
+              attached_to?: string;
+              badge: string;
               channel?: string;
               /** Format: date-time */
               created_at: string;
@@ -35666,6 +35702,9 @@ export interface operations {
             schema_version: string;
             sessions: {
               active: number;
+              by_badge?: {
+                [key: string]: number;
+              };
               by_status?: {
                 [key: string]: number;
               };
@@ -51329,6 +51368,11 @@ export interface operations {
                 turn_started_at?: string | null;
               } | null;
               agent_name: string;
+              /** Format: date-time */
+              attach_expires_at?: string | null;
+              attachable: boolean;
+              attached_to?: string;
+              badge: string;
               channel?: string;
               /** Format: date-time */
               created_at: string;
@@ -52313,6 +52357,11 @@ export interface operations {
                   turn_started_at?: string | null;
                 } | null;
                 agent_name: string;
+                /** Format: date-time */
+                attach_expires_at?: string | null;
+                attachable: boolean;
+                attached_to?: string;
+                badge: string;
                 channel?: string;
                 /** Format: date-time */
                 created_at: string;
@@ -52637,6 +52686,11 @@ export interface operations {
                   turn_started_at?: string | null;
                 } | null;
                 agent_name: string;
+                /** Format: date-time */
+                attach_expires_at?: string | null;
+                attachable: boolean;
+                attached_to?: string;
+                badge: string;
                 channel?: string;
                 /** Format: date-time */
                 created_at: string;
@@ -54779,6 +54833,11 @@ export interface operations {
                 turn_started_at?: string | null;
               } | null;
               agent_name: string;
+              /** Format: date-time */
+              attach_expires_at?: string | null;
+              attachable: boolean;
+              attached_to?: string;
+              badge: string;
               channel?: string;
               /** Format: date-time */
               created_at: string;
@@ -55076,6 +55135,274 @@ export interface operations {
       };
       /** @description Session not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  attachSession: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody?: {
+      content: {
+        "application/json": {
+          attached_to?: string;
+          ttl_seconds?: number;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            attach: {
+              /** Format: date-time */
+              attach_expires_at: string;
+              /** Format: date-time */
+              attached_at: string;
+              attached_to: string;
+              session_id: string;
+            };
+            session: {
+              acp_caps?: {
+                config_options?: {
+                  current?: string;
+                  description?: string;
+                  id: string;
+                  kind: string;
+                  label?: string;
+                  values?: {
+                    description?: string;
+                    label?: string;
+                    value: string;
+                  }[];
+                }[];
+                supported_models?: string[];
+                supported_modes?: string[];
+                supports_load_session: boolean;
+              } | null;
+              acp_session_id?: string;
+              activity?: {
+                current_tool?: string;
+                /** Format: date-time */
+                deadline_at?: string | null;
+                /** Format: int64 */
+                elapsed_ms: number;
+                /** Format: int64 */
+                elapsed_seconds: number;
+                /** Format: int64 */
+                idle_seconds: number;
+                iteration_current: number;
+                iteration_max: number;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                last_activity_detail?: string;
+                last_activity_kind?: string;
+                /** Format: date-time */
+                last_progress_at?: string | null;
+                tool_call_id?: string;
+                turn_id?: string;
+                turn_source?: string;
+                /** Format: date-time */
+                turn_started_at?: string | null;
+              } | null;
+              agent_name: string;
+              /** Format: date-time */
+              attach_expires_at?: string | null;
+              attachable: boolean;
+              attached_to?: string;
+              badge: string;
+              channel?: string;
+              /** Format: date-time */
+              created_at: string;
+              failure?: {
+                crash_bundle_path?: string;
+                kind: string;
+                summary?: string;
+              } | null;
+              health?: {
+                active_prompt: boolean;
+                agent_name: string;
+                attachable: boolean;
+                eligible_for_wake: boolean;
+                /** @enum {string} */
+                health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+                /** @enum {string} */
+                ineligibility_reason?:
+                  | "session_prompt_active"
+                  | "session_not_attachable"
+                  | "session_unhealthy"
+                  | "session_health_stale"
+                  | "session_health_hung"
+                  | "session_health_dead"
+                  | "session_health_unknown";
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                last_error?: string;
+                /** Format: date-time */
+                last_presence_at?: string | null;
+                session_id: string;
+                /** @enum {string} */
+                state: "idle" | "prompting" | "stopped" | "detached";
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id: string;
+              } | null;
+              id: string;
+              lineage?: {
+                auto_stop_on_parent: boolean;
+                parent_session_id?: string;
+                permission_policy: {
+                  mcp_servers: string[];
+                  network_channels: string[];
+                  sandbox_profiles: string[];
+                  skills: string[];
+                  tools: string[];
+                  workspace_paths: string[];
+                };
+                root_session_id?: string;
+                spawn_budget: {
+                  max_active_per_workspace?: number;
+                  max_children: number;
+                  max_depth: number;
+                  /** Format: int64 */
+                  ttl_seconds: number;
+                };
+                spawn_depth: number;
+                spawn_role?: string;
+                /** Format: date-time */
+                ttl_expires_at?: string | null;
+              } | null;
+              model?: string;
+              name?: string;
+              provider: string;
+              reasoning_effort?: string;
+              sandbox?: {
+                backend?: string;
+                instance_id?: string;
+                last_sync_error?: string;
+                profile?: string;
+                provider_state_json?: unknown;
+                sandbox_id?: string;
+                state?: string;
+              } | null;
+              /** @enum {string} */
+              state: "starting" | "active" | "stopping" | "stopped";
+              stop_detail?: string;
+              /** @enum {string} */
+              stop_reason?:
+                | "completed"
+                | "user_canceled"
+                | "max_iterations"
+                | "loop_detected"
+                | "timeout"
+                | "budget_exceeded"
+                | "error"
+                | "agent_crashed"
+                | "hook_stopped"
+                | "shutdown";
+              /** @enum {string} */
+              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+              workspace_path?: string;
+            };
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session cannot be attached */
+      409: {
         headers: {
           [name: string]: unknown;
         };
@@ -55824,13 +56151,11 @@ export interface operations {
       };
     };
   };
-  repairSession: {
+  getSessionRecap: {
     parameters: {
       query?: {
-        /** @description Report planned repairs without persisting new events */
-        dry_run?: boolean;
-        /** @description Allow repair for stopped sessions whose stop reason is not crash or error */
-        force?: boolean;
+        /** @description Maximum recent messages to include */
+        limit?: number;
       };
       header?: never;
       path: {
@@ -55850,29 +56175,280 @@ export interface operations {
         };
         content: {
           "application/json": {
-            repair: {
-              actions: {
-                code: string;
-                event_id?: string;
-                persisted: boolean;
-                tool_call_id?: string;
-                tool_name?: string;
-                turn_id: string;
+            recap: {
+              active_run?: {
+                attempt: number;
+                claim_token_hash?: string;
+                /** Format: date-time */
+                claimed_at?: string | null;
+                claimed_by?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                } | null;
+                coordination_channel?: {
+                  allowed_message_kinds: (
+                    | "status"
+                    | "request"
+                    | "reply"
+                    | "blocker"
+                    | "handoff"
+                    | "result"
+                    | "review_request"
+                  )[];
+                  channel?: string;
+                  display_name: string;
+                  id: string;
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  purpose?: string;
+                  run_id?: string;
+                  task_id?: string;
+                  workflow_id?: string;
+                  workspace_id?: string;
+                } | null;
+                coordination_channel_id?: string;
+                /** Format: date-time */
+                ended_at?: string | null;
+                error?: string;
+                /** Format: date-time */
+                heartbeat_at?: string | null;
+                id: string;
+                idempotency_key?: string;
+                /** Format: date-time */
+                lease_until?: string | null;
+                metadata?: unknown;
+                network_channel?: string;
+                origin: {
+                  /** @enum {string} */
+                  kind:
+                    | "cli"
+                    | "web"
+                    | "uds"
+                    | "http"
+                    | "automation"
+                    | "extension"
+                    | "network"
+                    | "agent_session"
+                    | "daemon";
+                  ref: string;
+                };
+                /** Format: date-time */
+                queued_at: string;
+                result?: unknown;
+                session_id?: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                /** @enum {string} */
+                status:
+                  | "queued"
+                  | "claimed"
+                  | "starting"
+                  | "running"
+                  | "completed"
+                  | "failed"
+                  | "canceled";
+                task_id: string;
+              } | null;
+              pending_inputs: number;
+              pending_markers: number;
+              recent_markers: {
+                diagnostic?: unknown;
+                evidence?: {
+                  [key: string]: unknown;
+                };
+                kind: string;
+                /** Format: date-time */
+                occurred_at: string;
+                summary: string;
               }[];
-              issues: {
-                code: string;
-                detail?: string;
-                event_id?: string;
-                severity: string;
-                turn_id?: string;
+              recent_messages: {
+                id: string;
+                metadata?: unknown;
+                parts: {
+                  data?: unknown;
+                  errorText?: string;
+                  id?: string;
+                  input?: unknown;
+                  output?: unknown;
+                  preliminary?: boolean;
+                  rawInput?: unknown;
+                  state?: string;
+                  text?: string;
+                  title?: string;
+                  toolCallId?: string;
+                  toolName?: string;
+                  type: string;
+                }[];
+                role: string;
               }[];
-              persisted: boolean;
-              session_id: string;
+              session: {
+                acp_caps?: {
+                  config_options?: {
+                    current?: string;
+                    description?: string;
+                    id: string;
+                    kind: string;
+                    label?: string;
+                    values?: {
+                      description?: string;
+                      label?: string;
+                      value: string;
+                    }[];
+                  }[];
+                  supported_models?: string[];
+                  supported_modes?: string[];
+                  supports_load_session: boolean;
+                } | null;
+                acp_session_id?: string;
+                activity?: {
+                  current_tool?: string;
+                  /** Format: date-time */
+                  deadline_at?: string | null;
+                  /** Format: int64 */
+                  elapsed_ms: number;
+                  /** Format: int64 */
+                  elapsed_seconds: number;
+                  /** Format: int64 */
+                  idle_seconds: number;
+                  iteration_current: number;
+                  iteration_max: number;
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  last_activity_detail?: string;
+                  last_activity_kind?: string;
+                  /** Format: date-time */
+                  last_progress_at?: string | null;
+                  tool_call_id?: string;
+                  turn_id?: string;
+                  turn_source?: string;
+                  /** Format: date-time */
+                  turn_started_at?: string | null;
+                } | null;
+                agent_name: string;
+                /** Format: date-time */
+                attach_expires_at?: string | null;
+                attachable: boolean;
+                attached_to?: string;
+                badge: string;
+                channel?: string;
+                /** Format: date-time */
+                created_at: string;
+                failure?: {
+                  crash_bundle_path?: string;
+                  kind: string;
+                  summary?: string;
+                } | null;
+                health?: {
+                  active_prompt: boolean;
+                  agent_name: string;
+                  attachable: boolean;
+                  eligible_for_wake: boolean;
+                  /** @enum {string} */
+                  health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
+                  /** @enum {string} */
+                  ineligibility_reason?:
+                    | "session_prompt_active"
+                    | "session_not_attachable"
+                    | "session_unhealthy"
+                    | "session_health_stale"
+                    | "session_health_hung"
+                    | "session_health_dead"
+                    | "session_health_unknown";
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  last_error?: string;
+                  /** Format: date-time */
+                  last_presence_at?: string | null;
+                  session_id: string;
+                  /** @enum {string} */
+                  state: "idle" | "prompting" | "stopped" | "detached";
+                  /** Format: date-time */
+                  updated_at: string;
+                  workspace_id: string;
+                } | null;
+                id: string;
+                lineage?: {
+                  auto_stop_on_parent: boolean;
+                  parent_session_id?: string;
+                  permission_policy: {
+                    mcp_servers: string[];
+                    network_channels: string[];
+                    sandbox_profiles: string[];
+                    skills: string[];
+                    tools: string[];
+                    workspace_paths: string[];
+                  };
+                  root_session_id?: string;
+                  spawn_budget: {
+                    max_active_per_workspace?: number;
+                    max_children: number;
+                    max_depth: number;
+                    /** Format: int64 */
+                    ttl_seconds: number;
+                  };
+                  spawn_depth: number;
+                  spawn_role?: string;
+                  /** Format: date-time */
+                  ttl_expires_at?: string | null;
+                } | null;
+                model?: string;
+                name?: string;
+                provider: string;
+                reasoning_effort?: string;
+                sandbox?: {
+                  backend?: string;
+                  instance_id?: string;
+                  last_sync_error?: string;
+                  profile?: string;
+                  provider_state_json?: unknown;
+                  sandbox_id?: string;
+                  state?: string;
+                } | null;
+                /** @enum {string} */
+                state: "starting" | "active" | "stopping" | "stopped";
+                stop_detail?: string;
+                /** @enum {string} */
+                stop_reason?:
+                  | "completed"
+                  | "user_canceled"
+                  | "max_iterations"
+                  | "loop_detected"
+                  | "timeout"
+                  | "budget_exceeded"
+                  | "error"
+                  | "agent_crashed"
+                  | "hook_stopped"
+                  | "shutdown";
+                /** @enum {string} */
+                type?: "user" | "dream" | "system" | "coordinator" | "spawned";
+                /** Format: date-time */
+                updated_at: string;
+                workspace_id?: string;
+                workspace_path?: string;
+              };
+              snapshot: {
+                consistency: string;
+                /** Format: int64 */
+                event_cursor: number;
+                /** Format: date-time */
+                generated_at: string;
+                /** Format: int64 */
+                queue_generation: number;
+                /** Format: int64 */
+                transcript_cursor: number;
+              };
             };
           };
         };
       };
-      /** @description Invalid repair options */
+      /** @description Invalid recap query */
       400: {
         headers: {
           [name: string]: unknown;
@@ -55955,9 +56531,14 @@ export interface operations {
       };
     };
   };
-  resumeSession: {
+  repairSession: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Report planned repairs without persisting new events */
+        dry_run?: boolean;
+        /** @description Allow repair for stopped sessions whose stop reason is not crash or error */
+        force?: boolean;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -55976,146 +56557,50 @@ export interface operations {
         };
         content: {
           "application/json": {
-            session: {
-              acp_caps?: {
-                config_options?: {
-                  current?: string;
-                  description?: string;
-                  id: string;
-                  kind: string;
-                  label?: string;
-                  values?: {
-                    description?: string;
-                    label?: string;
-                    value: string;
-                  }[];
-                }[];
-                supported_models?: string[];
-                supported_modes?: string[];
-                supports_load_session: boolean;
-              } | null;
-              acp_session_id?: string;
-              activity?: {
-                current_tool?: string;
-                /** Format: date-time */
-                deadline_at?: string | null;
-                /** Format: int64 */
-                elapsed_ms: number;
-                /** Format: int64 */
-                elapsed_seconds: number;
-                /** Format: int64 */
-                idle_seconds: number;
-                iteration_current: number;
-                iteration_max: number;
-                /** Format: date-time */
-                last_activity_at?: string | null;
-                last_activity_detail?: string;
-                last_activity_kind?: string;
-                /** Format: date-time */
-                last_progress_at?: string | null;
+            repair: {
+              actions: {
+                code: string;
+                event_id?: string;
+                persisted: boolean;
                 tool_call_id?: string;
+                tool_name?: string;
+                turn_id: string;
+              }[];
+              issues: {
+                code: string;
+                detail?: string;
+                event_id?: string;
+                severity: string;
                 turn_id?: string;
-                turn_source?: string;
-                /** Format: date-time */
-                turn_started_at?: string | null;
-              } | null;
-              agent_name: string;
-              channel?: string;
-              /** Format: date-time */
-              created_at: string;
-              failure?: {
-                crash_bundle_path?: string;
-                kind: string;
-                summary?: string;
-              } | null;
-              health?: {
-                active_prompt: boolean;
-                agent_name: string;
-                attachable: boolean;
-                eligible_for_wake: boolean;
-                /** @enum {string} */
-                health: "healthy" | "degraded" | "stale" | "dead" | "unknown";
-                /** @enum {string} */
-                ineligibility_reason?:
-                  | "session_prompt_active"
-                  | "session_not_attachable"
-                  | "session_unhealthy"
-                  | "session_health_stale"
-                  | "session_health_hung"
-                  | "session_health_dead"
-                  | "session_health_unknown";
-                /** Format: date-time */
-                last_activity_at?: string | null;
-                last_error?: string;
-                /** Format: date-time */
-                last_presence_at?: string | null;
-                session_id: string;
-                /** @enum {string} */
-                state: "idle" | "prompting" | "stopped" | "detached";
-                /** Format: date-time */
-                updated_at: string;
-                workspace_id: string;
-              } | null;
-              id: string;
-              lineage?: {
-                auto_stop_on_parent: boolean;
-                parent_session_id?: string;
-                permission_policy: {
-                  mcp_servers: string[];
-                  network_channels: string[];
-                  sandbox_profiles: string[];
-                  skills: string[];
-                  tools: string[];
-                  workspace_paths: string[];
-                };
-                root_session_id?: string;
-                spawn_budget: {
-                  max_active_per_workspace?: number;
-                  max_children: number;
-                  max_depth: number;
-                  /** Format: int64 */
-                  ttl_seconds: number;
-                };
-                spawn_depth: number;
-                spawn_role?: string;
-                /** Format: date-time */
-                ttl_expires_at?: string | null;
-              } | null;
-              model?: string;
-              name?: string;
-              provider: string;
-              reasoning_effort?: string;
-              sandbox?: {
-                backend?: string;
-                instance_id?: string;
-                last_sync_error?: string;
-                profile?: string;
-                provider_state_json?: unknown;
-                sandbox_id?: string;
-                state?: string;
-              } | null;
-              /** @enum {string} */
-              state: "starting" | "active" | "stopping" | "stopped";
-              stop_detail?: string;
-              /** @enum {string} */
-              stop_reason?:
-                | "completed"
-                | "user_canceled"
-                | "max_iterations"
-                | "loop_detected"
-                | "timeout"
-                | "budget_exceeded"
-                | "error"
-                | "agent_crashed"
-                | "hook_stopped"
-                | "shutdown";
-              /** @enum {string} */
-              type?: "user" | "dream" | "system" | "coordinator" | "spawned";
-              /** Format: date-time */
-              updated_at: string;
-              workspace_id?: string;
-              workspace_path?: string;
+              }[];
+              persisted: boolean;
+              session_id: string;
             };
+          };
+        };
+      };
+      /** @description Invalid repair options */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
           };
         };
       };

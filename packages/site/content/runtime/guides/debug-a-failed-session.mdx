@@ -94,26 +94,28 @@ What happened: AGH inspected the session transcript and reported whether it can 
 state. Repair is for damaged or interrupted transcript state, not a substitute for daemon health
 checks.
 
-## 7. Resume only after the state is understood
+## 7. Attach or recap only after the state is understood
 
 ```bash
+agh session recap sess_1234
 agh session resume sess_1234
 ```
 
-If the provider reports that its original session resource no longer exists, AGH may need to
-classify the resume failure and fall back according to the implemented session resume rules. Read
-[Resume and Replay](/runtime/core/sessions/resume) before treating resume as a data-loss problem.
+`agh session resume` attaches to an eligible live session. If the session is terminal or not
+attachable, inspect the deterministic recap, history, and repair output before starting new work.
+Read [Resume Attach and Replay](/runtime/core/sessions/resume) before treating attach refusal as a
+data-loss problem.
 
 ## Common symptoms
 
-| Symptom                          | First check                                    | Then read                                               |
-| -------------------------------- | ---------------------------------------------- | ------------------------------------------------------- |
-| `agh session prompt` hangs       | `agh session events --follow`                  | [Event Streaming](/runtime/core/sessions/events)        |
-| Session is stopped unexpectedly  | `agh session status -o json`                   | [Session Lifecycle](/runtime/core/sessions/lifecycle)   |
-| Web UI is stale                  | `agh status` and `agh doctor`                  | [Web UI](/runtime/core/getting-started/web-ui)          |
-| Resume fails                     | `agh session history` and `agh session repair` | [Resume and Replay](/runtime/core/sessions/resume)      |
-| Agent cannot see project context | `agh workspace info <name>`                    | [Workspace Resolver](/runtime/core/workspaces/resolver) |
-| Memory is missing                | `agh memory health -o json`                    | [Memory System](/runtime/core/memory/system)            |
+| Symptom                          | First check                                            | Then read                                                 |
+| -------------------------------- | ------------------------------------------------------ | --------------------------------------------------------- |
+| `agh session prompt` hangs       | `agh session events --follow`                          | [Event Streaming](/runtime/core/sessions/events)          |
+| Session is stopped unexpectedly  | `agh session status -o json`                           | [Session Lifecycle](/runtime/core/sessions/lifecycle)     |
+| Web UI is stale                  | `agh status` and `agh doctor`                          | [Web UI](/runtime/core/getting-started/web-ui)            |
+| Attach is refused                | `agh session list --resumable` and `agh session recap` | [Resume Attach and Replay](/runtime/core/sessions/resume) |
+| Agent cannot see project context | `agh workspace info <name>`                            | [Workspace Resolver](/runtime/core/workspaces/resolver)   |
+| Memory is missing                | `agh memory health -o json`                            | [Memory System](/runtime/core/memory/system)              |
 
 ## Evidence to collect before filing a bug
 

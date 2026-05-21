@@ -13,6 +13,7 @@ import type {
   SessionMessage,
   SessionEventPayload,
   SessionPayload,
+  SessionRecapPayload,
   SessionRepairPayload,
   SessionRepairQuery,
   TurnHistoryPayload,
@@ -182,7 +183,7 @@ export async function resumeSession(
   signal?: AbortSignal
 ): Promise<SessionPayload> {
   const { data, error, response } = await apiClient.POST(
-    "/api/workspaces/{workspace_id}/sessions/{session_id}/resume",
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/attach",
     {
       params: { path: { workspace_id: workspaceId, session_id: id } },
       signal,
@@ -192,6 +193,28 @@ export async function resumeSession(
     throwSessionRequestError(response, error, `Failed to resume session "${id}"`, id);
   }
   return requireResponseData(data, response, `Failed to resume session "${id}"`).session;
+}
+
+export async function fetchSessionRecap(
+  workspaceId: string,
+  id: string,
+  limit?: number,
+  signal?: AbortSignal
+): Promise<SessionRecapPayload> {
+  const { data, error, response } = await apiClient.GET(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/recap",
+    {
+      params: {
+        path: { workspace_id: workspaceId, session_id: id },
+        query: limit === undefined ? undefined : { limit },
+      },
+      signal,
+    }
+  );
+  if (apiRequestFailed(response, error)) {
+    throwSessionRequestError(response, error, `Failed to fetch session recap "${id}"`, id);
+  }
+  return requireResponseData(data, response, `Failed to fetch session recap "${id}"`).recap;
 }
 
 export async function repairSession(

@@ -268,7 +268,7 @@ func TestUDSTransportResumeMissingProviderReturnsExplicitBadRequest(t *testing.T
 		t,
 		runtimeHarness.UDSClient,
 		http.MethodPost,
-		runtimeHarness.UDSURL("/api/workspaces/ws-workspace/sessions/"+url.PathEscape(created.Session.ID)+"/resume"),
+		runtimeHarness.UDSURL("/api/workspaces/ws-workspace/sessions/"+url.PathEscape(created.Session.ID)+"/attach"),
 		nil,
 		nil,
 	)
@@ -280,14 +280,14 @@ func TestUDSTransportResumeMissingProviderReturnsExplicitBadRequest(t *testing.T
 	if closeErr != nil {
 		t.Fatalf("close UDS resume body error = %v", closeErr)
 	}
-	if resumeResp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("UDS resume status = %d, want %d; body=%s", resumeResp.StatusCode, http.StatusBadRequest, string(body))
+	if resumeResp.StatusCode != http.StatusConflict {
+		t.Fatalf("UDS attach status = %d, want %d; body=%s", resumeResp.StatusCode, http.StatusConflict, string(body))
 	}
 	if !strings.Contains(string(body), created.Session.ID) {
-		t.Fatalf("UDS resume body = %s, want session id %q", string(body), created.Session.ID)
+		t.Fatalf("UDS attach body = %s, want session id %q", string(body), created.Session.ID)
 	}
-	if !strings.Contains(string(body), transportUDSOverrideProvider) {
-		t.Fatalf("UDS resume body = %s, want provider %q", string(body), transportUDSOverrideProvider)
+	if !strings.Contains(string(body), "not attachable") {
+		t.Fatalf("UDS attach body = %s, want attachability context", string(body))
 	}
 }
 

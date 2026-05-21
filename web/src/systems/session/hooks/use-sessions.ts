@@ -5,6 +5,7 @@ import { useActiveWorkspace } from "@/systems/workspace";
 import {
   sessionDetailOptions,
   sessionLedgerOptions,
+  sessionRecapOptions,
   sessionsListOptions,
 } from "../lib/query-options";
 
@@ -43,4 +44,10 @@ export function useSessionLedger(
   const { activeWorkspaceId } = useActiveWorkspace();
   const workspaceId = workspace ?? activeWorkspaceId ?? "";
   return useQuery(sessionLedgerOptions(workspaceId, id, options));
+}
+
+export function useSessionRecap(id: string, workspace?: string | null, limit?: number) {
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = workspace ?? activeWorkspaceId ?? "";
+  return useQuery(sessionRecapOptions(workspaceId, id, limit));
 }

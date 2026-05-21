@@ -362,22 +362,23 @@ func newTestHandlersWithAutomationBridgesTasksAndWorkspace(
 	workspaces = defaultTestWorkspaceService(workspaces)
 
 	return newHandlers(&handlerConfig{
-		sessions:     manager,
-		tasks:        tasks,
-		observer:     observer,
-		automation:   automation,
-		bridges:      bridges,
-		workspaces:   workspaces,
-		staticFS:     mustStaticFS(t),
-		homePaths:    homePaths,
-		config:       cfg,
-		boundHost:    cfg.HTTP.Host,
-		logger:       discardLogger(),
-		startedAt:    time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-		now:          func() time.Time { return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC) },
-		pollInterval: 5 * time.Millisecond,
-		agentLoader:  aghconfig.LoadAgentDef,
-		httpPort:     cfg.HTTP.Port,
+		sessions:       manager,
+		sessionCatalog: defaultTestSessionCatalog(manager),
+		tasks:          tasks,
+		observer:       observer,
+		automation:     automation,
+		bridges:        bridges,
+		workspaces:     workspaces,
+		staticFS:       mustStaticFS(t),
+		homePaths:      homePaths,
+		config:         cfg,
+		boundHost:      cfg.HTTP.Host,
+		logger:         discardLogger(),
+		startedAt:      time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+		now:            func() time.Time { return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC) },
+		pollInterval:   5 * time.Millisecond,
+		agentLoader:    aghconfig.LoadAgentDef,
+		httpPort:       cfg.HTTP.Port,
 	})
 }
 
@@ -407,6 +408,14 @@ func defaultTestSessionManager(manager core.SessionManager) core.SessionManager 
 		return info, nil
 	}
 	return stub
+}
+
+func defaultTestSessionCatalog(manager core.SessionManager) core.SessionCatalog {
+	catalog, ok := manager.(core.SessionCatalog)
+	if !ok {
+		return nil
+	}
+	return catalog
 }
 
 func defaultTestWorkspaceService(workspaces core.WorkspaceService) core.WorkspaceService {
@@ -452,21 +461,22 @@ func newTestHandlersWithResources(
 	cfg.HTTP.Port = 2123
 
 	return newHandlers(&handlerConfig{
-		sessions:     manager,
-		tasks:        stubTaskManager{},
-		observer:     observer,
-		resources:    resources,
-		workspaces:   stubWorkspaceService{},
-		staticFS:     mustStaticFS(t),
-		homePaths:    homePaths,
-		config:       cfg,
-		boundHost:    cfg.HTTP.Host,
-		logger:       discardLogger(),
-		startedAt:    time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-		now:          func() time.Time { return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC) },
-		pollInterval: 5 * time.Millisecond,
-		agentLoader:  aghconfig.LoadAgentDef,
-		httpPort:     cfg.HTTP.Port,
+		sessions:       manager,
+		sessionCatalog: defaultTestSessionCatalog(manager),
+		tasks:          stubTaskManager{},
+		observer:       observer,
+		resources:      resources,
+		workspaces:     stubWorkspaceService{},
+		staticFS:       mustStaticFS(t),
+		homePaths:      homePaths,
+		config:         cfg,
+		boundHost:      cfg.HTTP.Host,
+		logger:         discardLogger(),
+		startedAt:      time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+		now:            func() time.Time { return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC) },
+		pollInterval:   5 * time.Millisecond,
+		agentLoader:    aghconfig.LoadAgentDef,
+		httpPort:       cfg.HTTP.Port,
 	})
 }
 
@@ -485,22 +495,23 @@ func newTestHandlersWithResourcesAndAuth(
 	cfg.HTTP.Port = 2123
 
 	return newHandlers(&handlerConfig{
-		sessions:     manager,
-		tasks:        stubTaskManager{},
-		observer:     observer,
-		resources:    resources,
-		workspaces:   stubWorkspaceService{},
-		staticFS:     mustStaticFS(t),
-		homePaths:    homePaths,
-		config:       cfg,
-		boundHost:    cfg.HTTP.Host,
-		logger:       discardLogger(),
-		startedAt:    time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-		now:          func() time.Time { return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC) },
-		pollInterval: 5 * time.Millisecond,
-		agentLoader:  aghconfig.LoadAgentDef,
-		httpPort:     cfg.HTTP.Port,
-		resourceAuth: append([]gin.HandlerFunc(nil), auth...),
+		sessions:       manager,
+		sessionCatalog: defaultTestSessionCatalog(manager),
+		tasks:          stubTaskManager{},
+		observer:       observer,
+		resources:      resources,
+		workspaces:     stubWorkspaceService{},
+		staticFS:       mustStaticFS(t),
+		homePaths:      homePaths,
+		config:         cfg,
+		boundHost:      cfg.HTTP.Host,
+		logger:         discardLogger(),
+		startedAt:      time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+		now:            func() time.Time { return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC) },
+		pollInterval:   5 * time.Millisecond,
+		agentLoader:    aghconfig.LoadAgentDef,
+		httpPort:       cfg.HTTP.Port,
+		resourceAuth:   append([]gin.HandlerFunc(nil), auth...),
 	})
 }
 

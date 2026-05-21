@@ -145,7 +145,9 @@ func statusForWorkspaceError(err error) int {
 // StatusForSessionError maps session and workspace-domain errors to transport statuses.
 func statusForSessionError(err error) int {
 	switch {
-	case errors.Is(err, session.ErrSessionNotFound), errors.Is(err, os.ErrNotExist):
+	case errors.Is(err, session.ErrSessionNotFound),
+		errors.Is(err, store.ErrSessionNotFound),
+		errors.Is(err, os.ErrNotExist):
 		return http.StatusNotFound
 	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
 		return http.StatusNotFound
@@ -166,6 +168,8 @@ func statusForSessionError(err error) int {
 	case errors.Is(err, session.ErrPromptInProgress),
 		errors.Is(err, session.ErrPendingPermissionNotFound),
 		errors.Is(err, session.ErrPendingPermissionConflict),
+		errors.Is(err, store.ErrSessionAttachLocked),
+		errors.Is(err, store.ErrSessionNotAttachable),
 		errors.Is(err, workspacepkg.ErrWorkspaceNameTaken),
 		errors.Is(err, workspacepkg.ErrWorkspacePathTaken):
 		return http.StatusConflict

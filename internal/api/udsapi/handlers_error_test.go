@@ -37,9 +37,9 @@ func TestCreateGetResumeDeleteAndStopHandlersReturnExpectedErrors(t *testing.T) 
 			path:   "/api/workspaces/ws-workspace/sessions/missing",
 		},
 		{
-			name:   "ShouldReturnNotFoundWhenResumeFails",
+			name:   "ShouldReturnNotFoundWhenAttachFails",
 			method: http.MethodPost,
-			path:   "/api/workspaces/ws-workspace/sessions/missing/resume",
+			path:   "/api/workspaces/ws-workspace/sessions/missing/attach",
 		},
 		{
 			name:   "ShouldReturnNotFoundWhenDeleteFails",

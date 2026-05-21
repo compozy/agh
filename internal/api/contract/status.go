@@ -105,6 +105,7 @@ type SessionAggregatePayload struct {
 	Active   int            `json:"active"`
 	Total    int            `json:"total"`
 	ByStatus map[string]int `json:"by_status,omitempty"`
+	ByBadge  map[string]int `json:"by_badge,omitempty"`
 }
 
 // TaskHealthPayload exposes observer-owned task health in the status surface.

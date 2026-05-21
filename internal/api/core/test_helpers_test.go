@@ -256,6 +256,7 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 		MaskInternalErrors:           false,
 		IncludeSessionWorkspaceInSSE: true,
 		Sessions:                     manager,
+		SessionCatalog:               manager,
 		Observer:                     observer,
 		Automation:                   automation,
 		Tasks:                        tasks,
@@ -281,7 +282,8 @@ func newHandlerFixtureWithAutomationTasksAndBridges(
 	engine.GET("/workspaces/:workspace_id/sessions/:session_id", handlers.GetSession)
 	engine.DELETE("/workspaces/:workspace_id/sessions/:session_id", handlers.DeleteSession)
 	engine.POST("/workspaces/:workspace_id/sessions/:session_id/stop", handlers.StopSession)
-	engine.POST("/workspaces/:workspace_id/sessions/:session_id/resume", handlers.ResumeSession)
+	engine.POST("/workspaces/:workspace_id/sessions/:session_id/attach", handlers.AttachSession)
+	engine.GET("/workspaces/:workspace_id/sessions/:session_id/recap", handlers.SessionRecap)
 	engine.POST("/workspaces/:workspace_id/sessions/:session_id/repair", handlers.RepairSession)
 	engine.GET("/workspaces/:workspace_id/sessions/:session_id/events", handlers.SessionEvents)
 	engine.GET("/workspaces/:workspace_id/sessions/:session_id/history", handlers.SessionHistory)

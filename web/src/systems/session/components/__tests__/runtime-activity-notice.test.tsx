@@ -5,6 +5,7 @@ import type { AgentEventPayload, RuntimeActivityPayload } from "../../types";
 import {
   isSessionErrorEvent,
   isRuntimeActivityEvent,
+  isTranscriptMarkerEvent,
   RuntimeActivityNotice,
   SessionActivityInline,
 } from "../runtime-activity-notice";
@@ -43,6 +44,12 @@ describe("RuntimeActivityNotice", () => {
       })
     ).toBe(true);
     expect(isSessionErrorEvent({ type: "runtime_warning", error: "failed" })).toBe(false);
+  });
+
+  it("recognizes transcript marker events", () => {
+    expect(isTranscriptMarkerEvent({ type: "transcript_marker.created" })).toBe(true);
+    expect(isTranscriptMarkerEvent({ type: "transcript_marker.redacted" })).toBe(true);
+    expect(isTranscriptMarkerEvent({ type: "runtime_warning" })).toBe(false);
   });
 
   it("renders progress as a separate status notice", () => {
@@ -99,6 +106,32 @@ describe("RuntimeActivityNotice", () => {
     expect(screen.getByTestId("session-error-meta")).toHaveTextContent("process_exit");
     expect(screen.getByTestId("session-error-detail")).toHaveTextContent(
       "peer disconnected before response"
+    );
+  });
+
+  it("renders transcript markers with marker semantics", () => {
+    render(
+      <RuntimeActivityNotice
+        event={{
+          type: "transcript_marker.created",
+          text: "Runtime activity timed out.",
+          title: "transcript_marker.prompt_timeout",
+          raw: {
+            kind: "transcript_marker.prompt_timeout",
+            occurred_at: "2026-04-20T12:00:00Z",
+            summary: "Runtime activity timed out.",
+          },
+        }}
+      />
+    );
+
+    expect(screen.getByRole("alert")).toHaveAttribute("data-tone", "danger");
+    expect(screen.getByTestId("transcript-marker-notice")).toHaveTextContent("Transcript marker");
+    expect(screen.getByTestId("transcript-marker-kind")).toHaveTextContent(
+      "transcript_marker.prompt_timeout"
+    );
+    expect(screen.getByTestId("transcript-marker-summary")).toHaveTextContent(
+      "Runtime activity timed out."
     );
   });
 

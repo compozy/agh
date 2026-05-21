@@ -5531,6 +5531,10 @@ func (r *recordingRegistry) ListSessions(context.Context, store.SessionListQuery
 	return nil, nil
 }
 
+func (r *recordingRegistry) AttachSession(context.Context, store.SessionAttachRequest) (store.SessionAttach, error) {
+	return store.SessionAttach{}, store.ErrSessionNotFound
+}
+
 func (r *recordingRegistry) ReconcileSessions(context.Context, []store.SessionInfo) (store.ReconcileResult, error) {
 	return store.ReconcileResult{}, nil
 }

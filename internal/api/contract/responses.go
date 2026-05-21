@@ -14,6 +14,17 @@ type SessionResponse struct {
 	Session SessionPayload `json:"session"`
 }
 
+// SessionAttachResponse wraps one explicit session attach lease.
+type SessionAttachResponse struct {
+	Session SessionPayload       `json:"session"`
+	Attach  SessionAttachPayload `json:"attach"`
+}
+
+// SessionRecapResponse wraps one deterministic session recap.
+type SessionRecapResponse struct {
+	Recap RecapPayload `json:"recap"`
+}
+
 // SessionEventsResponse wraps the shared session events payload.
 type SessionEventsResponse struct {
 	Events []SessionEventPayload `json:"events"`

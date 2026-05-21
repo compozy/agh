@@ -59,14 +59,14 @@ func TestTestutilStubFallbacksReturnDeterministicErrors(t *testing.T) {
 			fixture.Handlers.ClearSessionConversation,
 		)
 
-		resume := performRequest(
+		attach := performRequest(
 			t,
 			fixture.Engine,
 			http.MethodPost,
-			"/workspaces/ws-workspace/sessions/sess-default/resume",
+			"/workspaces/ws-workspace/sessions/sess-default/attach",
 			nil,
 		)
-		assertAPIErrorResponse(t, resume, http.StatusNotFound, "session not found")
+		assertAPIErrorResponse(t, attach, http.StatusNotFound, "session not found")
 
 		clearResponse := performRequest(
 			t,

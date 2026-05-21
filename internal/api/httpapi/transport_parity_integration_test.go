@@ -177,7 +177,7 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 		}
 	})
 
-	t.Run("Should return explicit bad request when the persisted provider is missing on resume", func(t *testing.T) {
+	t.Run("Should return conflict when attaching a stopped session", func(t *testing.T) {
 		writeTransportProviderOverrideConfig(
 			t,
 			runtimeHarness.WorkspaceRoot,
@@ -233,7 +233,7 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 			runtimeHarness.HTTPClient,
 			http.MethodPost,
 			runtimeHarness.HTTPURL(
-				"/api/workspaces/ws-workspace/sessions/"+url.PathEscape(created.Session.ID)+"/resume",
+				"/api/workspaces/ws-workspace/sessions/"+url.PathEscape(created.Session.ID)+"/attach",
 			),
 			nil,
 			nil,
@@ -246,11 +246,11 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 		if resumeCloseErr != nil {
 			t.Fatalf("close HTTP resume body error = %v", resumeCloseErr)
 		}
-		if resumeResp.StatusCode != http.StatusBadRequest {
+		if resumeResp.StatusCode != http.StatusConflict {
 			t.Fatalf(
-				"HTTP resume status = %d, want %d; body=%s",
+				"HTTP attach status = %d, want %d; body=%s",
 				resumeResp.StatusCode,
-				http.StatusBadRequest,
+				http.StatusConflict,
 				string(resumeBody),
 			)
 		}
@@ -263,13 +263,10 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 		}
 
 		if !strings.Contains(payload.Error, created.Session.ID) {
-			t.Fatalf("HTTP resume error = %s, want session id %q", payload.Error, created.Session.ID)
+			t.Fatalf("HTTP attach error = %s, want session id %q", payload.Error, created.Session.ID)
 		}
-		if !strings.Contains(payload.Error, transportOverrideProvider) {
-			t.Fatalf("HTTP resume error = %s, want provider %q", payload.Error, transportOverrideProvider)
-		}
-		if !strings.Contains(payload.Error, `resolve session agent with provider "`+transportOverrideProvider+`"`) {
-			t.Fatalf("HTTP resume error = %s, want override context", payload.Error)
+		if !strings.Contains(payload.Error, "not attachable") {
+			t.Fatalf("HTTP attach error = %s, want attachability context", payload.Error)
 		}
 	})
 }

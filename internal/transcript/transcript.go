@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/events"
 	"github.com/pedronauck/agh/internal/store"
 )
 
@@ -66,6 +67,7 @@ type event struct {
 	Error      string
 	Failure    *store.SessionFailure
 	Runtime    *acp.RuntimeActivity
+	Marker     *Marker
 	ToolCallID string
 	ToolName   string
 	ToolInput  json.RawMessage
@@ -171,7 +173,7 @@ func processTranscriptEvent(
 	case acp.EventTypeToolResult:
 		flushAssistantBuffer(messages, assistant)
 		applyToolResult(messages, toolStates, parsed)
-	case acp.EventTypeRuntimeWarning, sessionStoppedEventType:
+	case events.TranscriptMarkerCreated, events.TranscriptMarkerRedacted:
 		appendMarkerTranscriptMessage(messages, assistant, parsed)
 	default:
 		flushAssistantBuffer(messages, assistant)
@@ -411,6 +413,9 @@ func parseCanonicalEvent(parsed event, payload map[string]any) event {
 	parsed.Error = nestedString(payload, "error")
 	parsed.Failure = sessionFailureFromValue(payload["failure"])
 	parsed.Runtime = runtimeActivityFromValue(payload["runtime"])
+	if parsed.Type == events.TranscriptMarkerCreated || parsed.Type == events.TranscriptMarkerRedacted {
+		parsed.Marker = parseMarkerFromPayload(payload)
+	}
 	parsed.ToolCallID = firstNonEmpty(nestedString(payload, "tool_call_id"), nestedString(payload, "toolCallId"))
 	parsed.ToolName = firstNonEmpty(nestedString(payload, "tool_name"), nestedString(payload, "title"))
 	parsed.ToolInput = acp.CloneRawMessage(rawMessageFromValue(payload["tool_input"]))
@@ -471,6 +476,9 @@ func parseLooseEvent(parsed event, payload map[string]any) event {
 	parsed.Error = nestedString(payload, "error")
 	parsed.Failure = sessionFailureFromValue(payload["failure"])
 	parsed.Runtime = runtimeActivityFromValue(payload["runtime"])
+	if parsed.Type == events.TranscriptMarkerCreated || parsed.Type == events.TranscriptMarkerRedacted {
+		parsed.Marker = parseMarkerFromPayload(payload)
+	}
 	parsed.ToolCallID = firstNonEmpty(nestedString(payload, "tool_call_id"), nestedString(payload, "toolCallId"))
 	parsed.ToolName = firstNonEmpty(
 		nestedString(payload, "tool_name"),
@@ -820,7 +828,9 @@ func MarshalAgentEvent(event acp.AgentEvent) (string, error) {
 	if len(event.Raw) > 0 {
 		var rawPayload map[string]any
 		if err := json.Unmarshal(event.Raw, &rawPayload); err == nil {
-			if event.Type == acp.EventTypePermission {
+			if event.Type == acp.EventTypePermission ||
+				event.Type == events.TranscriptMarkerCreated ||
+				event.Type == events.TranscriptMarkerRedacted {
 				payload.Raw = acp.CloneRawMessage(event.Raw)
 			}
 			payload.ToolName = legacyToolName(rawPayload)

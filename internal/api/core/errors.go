@@ -376,6 +376,7 @@ func StatusForTaskError(err error) int {
 		errors.Is(err, taskpkg.ErrRunReviewNotFound),
 		errors.Is(err, workspacepkg.ErrWorkspaceNotFound),
 		errors.Is(err, session.ErrSessionNotFound),
+		errors.Is(err, store.ErrSessionNotFound),
 		errors.Is(err, os.ErrNotExist):
 		return http.StatusNotFound
 	case errors.Is(err, workspacepkg.ErrWorkspaceRootMissing):
@@ -385,6 +386,8 @@ func StatusForTaskError(err error) int {
 		errors.Is(err, taskpkg.ErrCycleDetected),
 		errors.Is(err, taskpkg.ErrSessionAlreadyBound),
 		errors.Is(err, taskpkg.ErrSessionAttachNotAllowed),
+		errors.Is(err, store.ErrSessionAttachLocked),
+		errors.Is(err, store.ErrSessionNotAttachable),
 		errors.Is(err, taskpkg.ErrStaleNetworkChannel),
 		errors.Is(err, taskpkg.ErrNoClaimableRun),
 		errors.Is(err, taskpkg.ErrInvalidClaimToken),

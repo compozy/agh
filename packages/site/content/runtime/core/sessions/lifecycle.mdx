@@ -241,7 +241,7 @@ During daemon boot, AGH also inspects stopped sessions whose stop reason is `age
 transcript: dangling tool calls receive interrupted tool results, then the turn receives a terminal
 error event. The repair is append-only; AGH does not truncate, delete, or resequence session events.
 
-This repair happens before resume validation. The repaired session keeps the same AGH session ID.
+This repair happens before recap and replay. The repaired session keeps the same AGH session ID.
 Operators and agents can inspect or run the same transcript repair explicitly:
 
 ```bash
@@ -256,7 +256,7 @@ Every session owns a directory under `~/.agh/sessions/<session-id>/`:
 - `meta.json`: durable session metadata such as state, workspace, stop reason, failure diagnostics, and ACP session ID
 - `events.db`: persisted event, token usage, and hook-run history
 
-That durable store is what makes [resume](/runtime/core/sessions/resume), [event replay](/runtime/core/sessions/events), and [approval audit](/runtime/core/sessions/permissions) possible.
+That durable store is what makes [resume attach](/runtime/core/sessions/resume), [event replay](/runtime/core/sessions/events), deterministic recap, and [approval audit](/runtime/core/sessions/permissions) possible.
 
 ## Session types
 
@@ -278,7 +278,7 @@ TTL, and permission metadata so AGH can reap children when their TTL expires or 
 
 ## Next steps
 
-- Use [Resume and Replay](/runtime/core/sessions/resume) when you need to continue a stopped session.
+- Use [Resume Attach and Replay](/runtime/core/sessions/resume) when you need to attach to a resumable live session or reconstruct prior work.
 - Use [Event Streaming](/runtime/core/sessions/events) when you need the exact stored and streamed session record.
 - Use [Runtime Autonomy](/runtime/core/autonomy) for coordinator, task lease, and safe-spawn behavior.
 - Use [Permissions](/runtime/core/sessions/permissions) when you need to control or approve agent actions.

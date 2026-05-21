@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -19,10 +20,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/events"
 	"github.com/pedronauck/agh/internal/memory"
 	authproviders "github.com/pedronauck/agh/internal/providers"
 	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
+	"github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -31,6 +35,14 @@ const (
 )
 
 const defaultPollInterval = 100 * time.Millisecond
+
+const (
+	defaultSessionAttachTTL      = 15 * time.Minute
+	maxSessionAttachTTL          = 24 * time.Hour
+	defaultSessionRecapLimit     = 20
+	maxSessionRecapLimit         = 100
+	recapConsistencyReadSnapshot = "read_snapshot"
+)
 
 var errCreateAgentRequestInvalid = errors.New("api: invalid create agent request")
 
@@ -43,6 +55,7 @@ type BaseHandlerConfig struct {
 	MaskInternalErrors           bool
 	IncludeSessionWorkspaceInSSE bool
 	Sessions                     SessionManager
+	SessionCatalog               SessionCatalog
 	Network                      NetworkService
 	NetworkStore                 NetworkStore
 	Observer                     Observer
@@ -98,6 +111,7 @@ type BaseHandlers struct {
 	MaskInternalErrors           bool
 	IncludeSessionWorkspaceInSSE bool
 	Sessions                     SessionManager
+	SessionCatalog               SessionCatalog
 	Network                      NetworkService
 	NetworkStore                 NetworkStore
 	Observer                     Observer
@@ -161,6 +175,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		MaskInternalErrors:           cfg.MaskInternalErrors,
 		IncludeSessionWorkspaceInSSE: cfg.IncludeSessionWorkspaceInSSE,
 		Sessions:                     cfg.Sessions,
+		SessionCatalog:               cfg.SessionCatalog,
 		Network:                      cfg.Network,
 		NetworkStore:                 cfg.NetworkStore,
 		Observer:                     cfg.Observer,
@@ -301,13 +316,21 @@ func (h *BaseHandlers) SetHTTPPort(port int) {
 
 // ListSessions returns the visible session list.
 func (h *BaseHandlers) ListSessions(c *gin.Context) {
+	workspaceFilter := strings.TrimSpace(c.Query("workspace"))
+	resumable, err := parseBoolQuery(c, "resumable")
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	if resumable {
+		h.listResumableSessions(c, workspaceFilter)
+		return
+	}
 	infos, err := h.Sessions.ListAll(c.Request.Context())
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
-
-	workspaceFilter := strings.TrimSpace(c.Query("workspace"))
 	if workspaceFilter != "" {
 		workspaceID, lookupErr := h.lookupWorkspaceID(c.Request.Context(), workspaceFilter)
 		if lookupErr != nil {
@@ -327,6 +350,43 @@ func (h *BaseHandlers) ListSessions(c *gin.Context) {
 		return
 	}
 
+	c.JSON(http.StatusOK, contract.SessionsResponse{Sessions: payloads})
+}
+
+func (h *BaseHandlers) listResumableSessions(c *gin.Context, workspaceFilter string) {
+	if h.SessionCatalog == nil {
+		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: session catalog is required"))
+		return
+	}
+	workspaceID := ""
+	if workspaceFilter != "" {
+		resolved, err := h.lookupWorkspaceID(c.Request.Context(), workspaceFilter)
+		if err != nil {
+			h.respondError(c, StatusForWorkspaceError(err), err)
+			return
+		}
+		workspaceID = resolved
+	}
+	limit, err := parseOptionalPositiveIntQuery(c, "limit", 0, maxSessionRecapLimit)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	sortKey := strings.TrimSpace(c.Query("sort"))
+	infos, err := h.SessionCatalog.ListSessions(c.Request.Context(), store.SessionListQuery{
+		WorkspaceID: workspaceID,
+		Resumable:   true,
+		Sort:        sortKey,
+		Limit:       limit,
+	})
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	payloads := make([]contract.SessionPayload, 0, len(infos))
+	for _, info := range infos {
+		payloads = append(payloads, SessionPayloadFromStoreInfo(info))
+	}
 	c.JSON(http.StatusOK, contract.SessionsResponse{Sessions: payloads})
 }
 
@@ -419,19 +479,78 @@ func (h *BaseHandlers) StopSession(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// ResumeSession resumes a stopped session.
+// ResumeSession attaches a caller to an eligible live session.
 func (h *BaseHandlers) ResumeSession(c *gin.Context) {
-	_, sessionID, _, ok := h.routeSessionInWorkspace(c)
+	h.AttachSession(c)
+}
+
+// AttachSession acquires a short-lived attach lease without starting a new runtime authority.
+func (h *BaseHandlers) AttachSession(c *gin.Context) {
+	if h.SessionCatalog == nil {
+		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: session catalog is required"))
+		return
+	}
+	_, sessionID, info, ok := h.routeSessionInWorkspace(c)
 	if !ok {
 		return
 	}
-	sess, err := h.Sessions.Resume(c.Request.Context(), sessionID)
+	var req contract.AttachSessionRequest
+	if err := decodeOptionalJSONBody(c, &req); err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	ttl := defaultSessionAttachTTL
+	if req.TTLSeconds > 0 {
+		ttl = time.Duration(req.TTLSeconds) * time.Second
+	}
+	if ttl > maxSessionAttachTTL {
+		h.respondError(c, http.StatusBadRequest, fmt.Errorf("attach ttl must be <= %s", maxSessionAttachTTL))
+		return
+	}
+	attachedTo := strings.TrimSpace(req.AttachedTo)
+	if attachedTo == "" {
+		attachedTo = fmt.Sprintf("%s:%d", h.transportName(), h.PID())
+	}
+	attach, err := h.SessionCatalog.AttachSession(c.Request.Context(), store.SessionAttachRequest{
+		SessionID:  sessionID,
+		AttachedTo: attachedTo,
+		Now:        h.Now(),
+		TTL:        ttl,
+	})
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.SessionResponse{Session: SessionPayloadFromInfo(sess.Info())})
+	payload := SessionPayloadFromInfo(info)
+	payload.AttachedTo = attach.AttachedTo
+	payload.AttachExpiresAt = &attach.AttachExpiresAt
+	c.JSON(http.StatusOK, contract.SessionAttachResponse{
+		Session: payload,
+		Attach: contract.SessionAttachPayload{
+			SessionID:       attach.SessionID,
+			AttachedTo:      attach.AttachedTo,
+			AttachExpiresAt: attach.AttachExpiresAt,
+			AttachedAt:      attach.AttachedAt,
+		},
+	})
+}
+
+func decodeOptionalJSONBody(c *gin.Context, dest any) error {
+	if c.Request.Body == nil {
+		return nil
+	}
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		return fmt.Errorf("read request body: %w", err)
+	}
+	if strings.TrimSpace(string(body)) == "" {
+		return nil
+	}
+	if err := json.Unmarshal(body, dest); err != nil {
+		return fmt.Errorf("decode request body: %w", err)
+	}
+	return nil
 }
 
 // RepairSession inspects and optionally repairs an interrupted persisted session transcript.
@@ -569,6 +688,139 @@ func (h *BaseHandlers) SessionTranscript(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.SessionTranscriptResponse{Messages: messages})
 }
 
+// SessionRecap returns a deterministic recap composed from persisted session state.
+func (h *BaseHandlers) SessionRecap(c *gin.Context) {
+	_, sessionID, info, ok := h.routeSessionInWorkspace(c)
+	if !ok {
+		return
+	}
+	limit, err := parseOptionalPositiveIntQuery(c, "limit", defaultSessionRecapLimit, maxSessionRecapLimit)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	eventsList, err := h.Sessions.Events(c.Request.Context(), sessionID, store.EventQuery{Limit: maxSessionRecapLimit * 5})
+	if err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+	messages, err := transcript.ToUIMessages(eventsList)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	markers, err := h.recentTranscriptMarkers(c.Request.Context(), sessionID, eventsList, 5)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	eventCursor := maxSessionEventSequence(eventsList)
+	payload := contract.RecapPayload{
+		Session:        SessionPayloadFromInfo(info),
+		RecentMarkers:  markers,
+		RecentMessages: recentUIMessages(messages, limit),
+		PendingInputs:  0,
+		PendingMarkers: 0,
+		Snapshot: contract.RecapSnapshotPayload{
+			GeneratedAt:      h.Now().UTC(),
+			EventCursor:      eventCursor,
+			TranscriptCursor: eventCursor,
+			QueueGeneration:  0,
+			Consistency:      recapConsistencyReadSnapshot,
+		},
+	}
+	c.JSON(http.StatusOK, contract.SessionRecapResponse{Recap: payload})
+}
+
+func (h *BaseHandlers) recentTranscriptMarkers(
+	ctx context.Context,
+	sessionID string,
+	eventsList []store.SessionEvent,
+	limit int,
+) ([]contract.TranscriptMarkerPayload, error) {
+	if limit <= 0 {
+		return []contract.TranscriptMarkerPayload{}, nil
+	}
+	if h.Observer != nil {
+		summaries, err := h.Observer.QueryEvents(ctx, store.EventSummaryQuery{
+			SessionID: sessionID,
+			Type:      events.TranscriptMarkerCreated,
+			Limit:     limit,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("api: query transcript marker summaries: %w", err)
+		}
+		markers := markerPayloadsFromSummaries(summaries)
+		if len(markers) > 0 {
+			return markers, nil
+		}
+	}
+	return markerPayloadsFromEvents(eventsList, limit), nil
+}
+
+func markerPayloadsFromSummaries(summaries []store.EventSummary) []contract.TranscriptMarkerPayload {
+	markers := make([]contract.TranscriptMarkerPayload, 0, len(summaries))
+	for _, summary := range summaries {
+		marker, ok := transcript.ParseMarker(summary.Content)
+		if !ok {
+			continue
+		}
+		markers = append(markers, transcriptMarkerPayload(marker))
+	}
+	return markers
+}
+
+func markerPayloadsFromEvents(eventsList []store.SessionEvent, limit int) []contract.TranscriptMarkerPayload {
+	markers := make([]contract.TranscriptMarkerPayload, 0, limit)
+	for index := len(eventsList) - 1; index >= 0 && len(markers) < limit; index-- {
+		event := eventsList[index]
+		if event.Type != events.TranscriptMarkerCreated && event.Type != events.TranscriptMarkerRedacted {
+			continue
+		}
+		agentEvent, err := transcript.UnmarshalAgentEvent(event.Content)
+		if err != nil {
+			continue
+		}
+		marker, ok := transcript.ParseMarker(agentEvent.Raw)
+		if !ok {
+			continue
+		}
+		markers = append(markers, transcriptMarkerPayload(marker))
+	}
+	return markers
+}
+
+func transcriptMarkerPayload(marker transcript.Marker) contract.TranscriptMarkerPayload {
+	normalized := marker.Normalize()
+	return contract.TranscriptMarkerPayload{
+		Kind:       normalized.Kind,
+		OccurredAt: normalized.OccurredAt,
+		Summary:    normalized.Summary,
+		Evidence:   normalized.Evidence,
+		Diagnostic: normalized.Diagnostic,
+	}
+}
+
+func recentUIMessages(messages []transcript.UIMessage, limit int) []transcript.UIMessage {
+	if len(messages) == 0 || limit == 0 {
+		return []transcript.UIMessage{}
+	}
+	if limit < 0 || limit >= len(messages) {
+		return append([]transcript.UIMessage(nil), messages...)
+	}
+	return append([]transcript.UIMessage(nil), messages[len(messages)-limit:]...)
+}
+
+func maxSessionEventSequence(eventsList []store.SessionEvent) int64 {
+	var maxSequence int64
+	for _, event := range eventsList {
+		if event.Sequence > maxSequence {
+			maxSequence = event.Sequence
+		}
+	}
+	return maxSequence
+}
+
 func repairBoolQuery(c *gin.Context, names ...string) (bool, error) {
 	var (
 		value bool
@@ -591,6 +843,24 @@ func repairBoolQuery(c *gin.Context, names ...string) (bool, error) {
 		}
 		value = parsed
 		seen = true
+	}
+	return value, nil
+}
+
+func parseOptionalPositiveIntQuery(c *gin.Context, name string, fallback int, maxValue int) (int, error) {
+	raw := strings.TrimSpace(c.Query(name))
+	if raw == "" {
+		return fallback, nil
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("invalid %s query: %w", name, err)
+	}
+	if value < 0 {
+		return 0, fmt.Errorf("invalid %s query: must be zero or positive", name)
+	}
+	if maxValue > 0 && value > maxValue {
+		return 0, fmt.Errorf("invalid %s query: must be <= %d", name, maxValue)
 	}
 	return value, nil
 }

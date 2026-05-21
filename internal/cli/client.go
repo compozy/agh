@@ -153,6 +153,7 @@ type DaemonClient interface {
 	RefreshSessionSoul(ctx context.Context, id string, request SessionSoulRefreshRequest) (AgentSoulRecord, error)
 	StopSession(ctx context.Context, id string) error
 	ResumeSession(ctx context.Context, id string) (SessionRecord, error)
+	SessionRecap(ctx context.Context, id string, limit int) (SessionRecapRecord, error)
 	RepairSession(ctx context.Context, id string, query SessionRepairQuery) (SessionRepairRecord, error)
 	ApproveSession(ctx context.Context, id string, request SessionApprovalRequest) (SessionApprovalRecord, error)
 	PromptSession(ctx context.Context, id string, message string) ([]AgentEventRecord, error)
@@ -450,10 +451,16 @@ type CreateSessionRequest = contract.CreateSessionRequest
 // SessionListQuery captures the CLI filters for session list queries.
 type SessionListQuery struct {
 	Workspace string
+	Resumable bool
+	Limit     int
+	Sort      string
 }
 
 // SessionRecord is the shared daemon session payload.
 type SessionRecord = contract.SessionPayload
+
+// SessionRecapRecord is the shared deterministic session recap payload.
+type SessionRecapRecord = contract.RecapPayload
 
 // SessionSoulRefreshRequest captures the managed session Soul refresh payload.
 type SessionSoulRefreshRequest = contract.SessionSoulRefreshRequest
@@ -2225,7 +2232,7 @@ func (c *unixSocketClient) ResumeSession(ctx context.Context, id string) (Sessio
 	var response struct {
 		Session SessionRecord `json:"session"`
 	}
-	path, err := c.sessionScopedPath(ctx, id, "/resume")
+	path, err := c.sessionScopedPath(ctx, id, "/attach")
 	if err != nil {
 		return SessionRecord{}, err
 	}
@@ -2240,6 +2247,24 @@ func (c *unixSocketClient) ResumeSession(ctx context.Context, id string) (Sessio
 		return SessionRecord{}, err
 	}
 	return response.Session, nil
+}
+
+func (c *unixSocketClient) SessionRecap(ctx context.Context, id string, limit int) (SessionRecapRecord, error) {
+	var response struct {
+		Recap SessionRecapRecord `json:"recap"`
+	}
+	path, err := c.sessionScopedPath(ctx, id, "/recap")
+	if err != nil {
+		return SessionRecapRecord{}, err
+	}
+	values := url.Values{}
+	if limit > 0 {
+		values.Set("limit", strconv.Itoa(limit))
+	}
+	if err := c.doJSON(ctx, http.MethodGet, path, values, nil, &response); err != nil {
+		return SessionRecapRecord{}, err
+	}
+	return response.Recap, nil
 }
 
 func (c *unixSocketClient) RepairSession(
@@ -4501,6 +4526,15 @@ func sessionListValues(query SessionListQuery) url.Values {
 	values := url.Values{}
 	if trimmed := strings.TrimSpace(query.Workspace); trimmed != "" {
 		values.Set("workspace", trimmed)
+	}
+	if query.Resumable {
+		values.Set("resumable", "true")
+	}
+	if query.Limit > 0 {
+		values.Set("limit", strconv.Itoa(query.Limit))
+	}
+	if sortKey := strings.TrimSpace(query.Sort); sortKey != "" {
+		values.Set("sort", sortKey)
 	}
 	return values
 }

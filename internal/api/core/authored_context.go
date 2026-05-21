@@ -1346,6 +1346,7 @@ func (h *BaseHandlers) sessionPayloadWithOptionalHealth(
 	if err != nil {
 		return contract.SessionPayload{}, err
 	}
+	payload.Badge = session.BadgeForHealth(info, health)
 	converted, err := contract.SessionHealthPayloadFromDomain(health)
 	if err != nil {
 		return contract.SessionPayload{}, err

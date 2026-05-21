@@ -57,7 +57,7 @@ export const handlers: HttpHandler[] = [
 
     return new HttpResponse(null, { status: 204 });
   }),
-  http.post("/api/workspaces/:workspace_id/sessions/:id/resume", ({ params }) => {
+  http.post("/api/workspaces/:workspace_id/sessions/:id/attach", ({ params }) => {
     const id = String(params.id);
     const session = sessionById.get(id);
 
@@ -68,7 +68,39 @@ export const handlers: HttpHandler[] = [
     return HttpResponse.json({
       session: {
         ...session,
-        state: "active",
+        attached_to: "web:storybook",
+        attach_expires_at: "2026-04-17T18:12:00Z",
+      },
+      attach: {
+        session_id: id,
+        attached_to: "web:storybook",
+        attach_expires_at: "2026-04-17T18:12:00Z",
+        attached_at: "2026-04-17T18:11:00Z",
+      },
+    });
+  }),
+  http.get("/api/workspaces/:workspace_id/sessions/:id/recap", ({ params }) => {
+    const id = String(params.id);
+    const session = sessionById.get(id);
+
+    if (!session) {
+      return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+    }
+
+    return HttpResponse.json({
+      recap: {
+        session,
+        recent_markers: [],
+        recent_messages: sessionTranscriptFixture,
+        pending_inputs: 0,
+        pending_markers: 0,
+        snapshot: {
+          generated_at: "2026-04-17T18:11:00Z",
+          event_cursor: sessionEventsFixture.length,
+          transcript_cursor: sessionTranscriptFixture.length,
+          queue_generation: 0,
+          consistency: "read_snapshot",
+        },
       },
     });
   }),

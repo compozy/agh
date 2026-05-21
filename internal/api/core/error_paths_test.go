@@ -34,8 +34,8 @@ func TestBaseHandlersRejectInvalidRequestsAndMapErrors(t *testing.T) {
 		StatusFn: func(context.Context, string) (*session.Info, error) {
 			return nil, session.ErrSessionNotFound
 		},
-		ResumeFn: func(context.Context, string) (*session.Session, error) {
-			return nil, session.ErrSessionNotFound
+		AttachSessionFn: func(context.Context, store.SessionAttachRequest) (store.SessionAttach, error) {
+			return store.SessionAttach{}, store.ErrSessionNotFound
 		},
 		DeleteFn: func(context.Context, string) error {
 			return session.ErrSessionNotFound
@@ -97,7 +97,7 @@ func TestBaseHandlersRejectInvalidRequestsAndMapErrors(t *testing.T) {
 			want:   http.StatusNotFound,
 		},
 		{method: http.MethodGet, path: "/workspaces/ws-workspace/sessions/missing", want: http.StatusNotFound},
-		{method: http.MethodPost, path: "/workspaces/ws-workspace/sessions/missing/resume", want: http.StatusNotFound},
+		{method: http.MethodPost, path: "/workspaces/ws-workspace/sessions/missing/attach", want: http.StatusNotFound},
 		{method: http.MethodDelete, path: "/workspaces/ws-workspace/sessions/missing", want: http.StatusNotFound},
 		{
 			method: http.MethodGet,

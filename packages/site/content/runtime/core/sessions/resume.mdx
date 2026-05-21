@@ -1,167 +1,164 @@
 ---
-title: Resume and Replay
-description: How AGH resumes stopped sessions, reconstructs transcripts from events, and falls back when ACP session resources are gone.
+title: Resume Attach and Replay
+description: How AGH attaches operators to resumable sessions, reconstructs transcripts from events, and returns deterministic recaps.
 ---
 
-Resume and replay are related, but they are not the same thing in AGH.
+Resume attach and replay are related, but they are not the same thing in AGH.
 
-- **Resume** tries to restart the session as live agent work.
+- **Resume attach** acquires a short-lived holder lease on an existing live session.
 - **Replay** reconstructs durable history from the stored event log.
+- **Recap** returns a bounded, deterministic snapshot for reorientation.
 
 <OperatorNote>
-  `agh session resume` uses ACP `session/load` first. The transcript API is a separate read path for
-  clients and operators. AGH does not currently inject reconstructed transcript messages back into
-  ACP when native load is unavailable.
+  `agh session resume` is an attach command. It does not start another provider subprocess, call ACP
+  `session/load`, or create a second session authority. CLI, HTTP, UDS, and web attach to the same
+  daemon-owned session record.
 </OperatorNote>
 
-## When resume is the right tool
+## When resume attach is the right tool
 
-Use resume when you want to keep working with the same AGH session ID, workspace, and stored history:
+Use resume attach when an operator or agent needs to re-enter a session that is still live and
+eligible for an explicit holder:
 
-- after a clean manual stop
-- after a daemon restart
-- after an agent crash
-- after inspecting old work and deciding the same session should continue
+- after a browser refresh
+- after the CLI process exits while the daemon keeps running
+- after handing an active session from one operator surface to another
+- after listing resumable sessions and choosing the same AGH session ID
 
-Use a new session instead when you want a clean slate, a different workspace, or a different
-agent definition.
+Use a new session when you want a clean slate. Use history, repair, and recap when the session is
+already terminal and you need to understand what happened before deciding the next action.
 
-## Resuming a stopped session
+## Finding an attachable session
 
-Resume from the CLI:
+The daemon computes attach eligibility from runtime truth and persists the result in the session
+payload. List only sessions that can be attached:
+
+```bash
+agh session list --resumable
+agh session list --resumable --workspace checkout-api
+```
+
+Session payloads include a canonical `badge` plus attach metadata:
+
+```json
+{
+  "id": "sess-1234",
+  "state": "active",
+  "badge": "idle",
+  "attachable": true,
+  "attached_to": "cli:pane-7",
+  "attach_expires_at": "2026-05-20T14:03:00Z"
+}
+```
+
+Badges are product contract, not UI decoration. Clients should render the daemon-provided badge
+instead of inferring status from local timers or transcript text.
+
+## Attaching from CLI and HTTP
+
+Attach by ID:
 
 ```bash
 agh session resume sess-1234
 ```
 
-Resume over HTTP:
+Attach the latest eligible session in a workspace:
 
 ```bash
-curl -X POST http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/resume
+agh session resume --latest --workspace checkout-api
 ```
 
-If the session is already active in memory, resume is idempotent: AGH returns the live session
-instead of starting a second subprocess.
-
-## What AGH validates before resume
-
-AGH refuses to resume if any of the durable prerequisites are gone:
-
-- the stored session metadata is invalid
-- the workspace can no longer be resolved
-- the workspace path no longer exists
-- the agent definition is no longer available in that workspace context
-- the per-session `events.db` file is missing
-- the per-session `events.db` file exists but is empty
-
-This is why resume is stricter than just "spawn a new process with the same name".
-
-## Resume flow
-
-For an inactive session, AGH follows this sequence:
-
-1. Read and repair stored metadata if the daemon previously crashed mid-session.
-2. Validate the workspace, agent definition, and session event store.
-3. Start the normal session startup path with the same AGH session ID.
-4. Pass the stored ACP session ID to the driver as `ResumeSessionID`.
-5. Attempt ACP `session/load`.
-6. On success, transition the AGH session back to `active`.
-
-Daemon boot also performs append-only transcript repair for sessions stopped with `agent_crashed` or
-`error`. That pass closes interrupted final turns before replay, so resumed sessions do not inherit
-permanently streaming assistant messages or dangling tool calls. Use
-`agh session repair <session-id> --dry-run` when you want to inspect the planned repair before
-writing events.
-
-### Native ACP resume
-
-If the agent supports `session/load`, AGH asks the upstream ACP runtime to restore its own native
-session state. This is the best case because the agent can recover its own model-facing session
-context directly.
-
-You can inspect that capability through the session payload:
+Attach over HTTP:
 
 ```bash
-curl http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234 | jq '.session.acp_caps'
+curl -X POST http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/attach
 ```
 
-### Missing-resource fallback
+The request body can include an optional `attached_to` holder label. The response returns the
+session and the attach lease:
 
-One fallback is built in today.
-
-If ACP `session/load` fails with the specific ACP request error that means "resource not found",
-AGH clears the stored ACP session ID, keeps the same AGH session ID, and retries the start as a
-fresh ACP `session/new`.
-
-That gives you:
-
-- the same AGH session record
-- the same `events.db`
-- a new underlying ACP session ID
-
-Any other `session/load` failure is returned as an error.
-
-## Replay surfaces
-
-AGH exposes two read paths for old work:
-
-### 1. Raw or grouped event history
-
-Read persisted events directly:
-
-```bash
-agh session events sess-1234 --last 20
+```json
+{
+  "session": {
+    "id": "sess-1234",
+    "state": "active",
+    "badge": "idle",
+    "attachable": true,
+    "attached_to": "cli:pane-7",
+    "attach_expires_at": "2026-05-20T14:03:00Z"
+  },
+  "attach": {
+    "attached_to": "cli:pane-7",
+    "attached_at": "2026-05-20T13:58:00Z",
+    "attach_expires_at": "2026-05-20T14:03:00Z"
+  }
+}
 ```
 
-Read grouped history by turn:
+If the session is not eligible, the daemon returns `409` with `session_not_attachable`. A client
+should then show the recap or history instead of trying to restart the session locally.
+
+## Deterministic recap
+
+Recap is the bounded read path for reorientation. It is deterministic for the same stored event
+set, applies the transcript redaction rules, and reports what was omitted by the limit.
 
 ```bash
-agh session history sess-1234
+agh session recap sess-1234 --limit 20
 ```
 
-### 2. Canonical transcript reconstruction
-
-Read the reconstructed transcript over HTTP:
+HTTP clients use the same daemon operation:
 
 ```bash
-curl http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/transcript
+curl 'http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/recap?limit=20'
 ```
 
 Example response shape:
 
 ```json
 {
-  "messages": [
-    {
-      "id": "evt-user",
-      "role": "user",
-      "content": "Explain the stop path.",
-      "timestamp": "2026-04-16T01:00:00Z"
-    },
-    {
-      "id": "evt-agent",
-      "role": "assistant",
-      "content": "AGH first marks the session stopping...",
-      "thinking": "Need the lifecycle code path.",
-      "thinking_complete": true,
-      "timestamp": "2026-04-16T01:00:02Z"
+  "recap": {
+    "session": { "id": "sess-1234", "badge": "idle", "state": "active" },
+    "recent_markers": [
+      {
+        "kind": "prompt_timeout",
+        "summary": "Prompt exceeded the configured timeout",
+        "occurred_at": "2026-05-20T13:56:00Z"
+      }
+    ],
+    "recent_messages": [],
+    "pending_markers": 0,
+    "pending_inputs": 0,
+    "snapshot": {
+      "generated_at": "2026-05-20T13:58:00Z",
+      "limit": 20
     }
-  ]
+  }
 }
 ```
 
-The transcript assembler produces these canonical roles:
+Recap is useful before attaching, after an interrupted turn, and when agents need a compact state
+summary without parsing raw event rows.
 
-| Role          | Derived from persisted events |
-| ------------- | ----------------------------- |
-| `user`        | `user_message`                |
-| `assistant`   | `agent_message` and `thought` |
-| `tool_call`   | `tool_call`                   |
-| `tool_result` | `tool_result`                 |
+## Transcript markers
 
-There is currently no dedicated `agh session transcript` CLI command.
+AGH emits `transcript_marker.created` and `transcript_marker.redacted` events for operator-relevant
+session facts such as interrupts, prompt timeouts, unhealthy state, and MCP auth prompts. Markers
+are durable event rows and appear in recap output, logs, and web activity notices.
 
-## What replay includes
+Markers have a stable kind, severity, summary, timestamp, and optional diagnostic payload. The
+diagnostic payload is redacted before it leaves the daemon when it contains sensitive context.
+
+## Replay surfaces
+
+AGH exposes four read paths for old work:
+
+| Surface                                                             | Use it for                                |
+| ------------------------------------------------------------------- | ----------------------------------------- |
+| `agh session events`                                                | Raw persisted event rows.                 |
+| `agh session history`                                               | Turn-grouped operator history.            |
+| `GET /api/workspaces/:workspace_id/sessions/:session_id/transcript` | Canonical chat transcript reconstruction. |
+| `agh session recap` / `GET .../recap`                               | Bounded redacted reorientation snapshot.  |
 
 Transcript assembly is deterministic and event-driven:
 
@@ -169,32 +166,34 @@ Transcript assembly is deterministic and event-driven:
 - `agent_message` chunks are concatenated into assistant `content`
 - `thought` chunks are concatenated into assistant `thinking`
 - `tool_call` and `tool_result` are stitched together by `tool_call_id`
+- marker events are kept as marker records instead of being guessed from message text
 - empty text chunks are dropped
 - non-chat events such as `plan`, `system`, `done`, and `error` only flush in-progress assistant buffers
 
 ## Common cases and gotchas
 
-### Resume after a clean stop
+### Attach after a CLI exits
 
-This is the simplest path. The stored ACP session ID is reused if the agent still has that native
-session resource.
+This is the normal path. The daemon still owns the session, and the new surface obtains a holder
+lease on the same AGH session ID.
 
-### Resume after a crash
+### Attach after a terminal stop
 
-AGH first repairs stale metadata before it tries to resume. That repaired stop classification is
-kept as `agent_crashed` so operators can still see what happened.
-
-### Fresh ACP session after fallback
-
-After a missing-resource fallback, the outer AGH session still looks continuous, but the inner
-canonical event payload may show a different ACP `session_id` in future events.
+Attach is intentionally refused. Inspect the recap, history, status, and repair output before
+starting new work.
 
 ### Resume does not rewrite history
 
-The per-session store is append-only for the AGH session ID. A stop, resume, and second stop
-creates one continuous event history with multiple terminal `session_stopped` events.
+The per-session store is append-only for the AGH session ID. Attach records and transcript markers
+are additional evidence, not replacements for earlier events.
+
+### The command name is historical
+
+`agh session resume` remains the operator command name, but its contract is attach. Scripts should
+key off the HTTP operation and response payload, not the English verb in the CLI command.
 
 ## Next steps
 
 - Use [Event Streaming](/runtime/core/sessions/events) to inspect the stored event log and live SSE stream.
-- Use [Permissions](/runtime/core/sessions/permissions) to understand what survives across resume and what still needs approval.
+- Use [Session Lifecycle](/runtime/core/sessions/lifecycle) to understand terminal states and repair.
+- Use [Permissions](/runtime/core/sessions/permissions) to understand what requires approval before and after attach.

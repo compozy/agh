@@ -279,6 +279,8 @@ var globalSchemaStatements = appendSchemaStatements(
 		stall_state    TEXT NOT NULL DEFAULT '',
 		stall_reason   TEXT NOT NULL DEFAULT '',
 		activity_json  TEXT NOT NULL DEFAULT '',
+		attached_to    TEXT NOT NULL DEFAULT '',
+		attach_expires_at TEXT,
 		sandbox_id TEXT NOT NULL DEFAULT '',
 		sandbox_backend TEXT NOT NULL DEFAULT 'local',
 		sandbox_profile TEXT NOT NULL DEFAULT '',
@@ -976,6 +978,41 @@ var globalSchemaMigrations = []store.Migration{
 		Up:       migrateSchedulerPauseState,
 		Checksum: "2026-05-20-add-scheduler-pause-state",
 	},
+	{
+		Version:  30,
+		Name:     "add_session_attach_lock",
+		Up:       migrateSessionAttachLock,
+		Checksum: "2026-05-20-add-session-attach-lock",
+	},
+}
+
+func migrateSessionAttachLock(ctx context.Context, tx *sql.Tx) error {
+	exists, err := tableExists(ctx, tx, "sessions")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+	if err := addMissingMigrationColumns(ctx, tx, "sessions", []migrationColumnSpec{
+		{
+			name: "attached_to",
+			sql:  `ALTER TABLE sessions ADD COLUMN attached_to TEXT NOT NULL DEFAULT ''`,
+		},
+		{
+			name: "attach_expires_at",
+			sql:  `ALTER TABLE sessions ADD COLUMN attach_expires_at TEXT`,
+		},
+	}); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_sessions_attach_lock ON sessions(attached_to, attach_expires_at);`); err != nil {
+		return fmt.Errorf("store: create session attach lock index: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_sessions_resumable ON sessions(state, failure_kind, last_update_at, updated_at);`); err != nil {
+		return fmt.Errorf("store: create session resumable index: %w", err)
+	}
+	return nil
 }
 
 func migrateNetworkTimelineExtensions(ctx context.Context, tx *sql.Tx) error {

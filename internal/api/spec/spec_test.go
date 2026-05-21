@@ -45,8 +45,20 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				}
 
 				sessionSchema := sessionsSchema.Items.Value
-				assertRequired(t, sessionSchema, "id", "agent_name", "provider", "state", "created_at", "updated_at")
-				assertNotRequired(t, sessionSchema, "workspace_id", "workspace_path", "stop_reason", "stop_detail")
+				assertRequired(t, sessionSchema, "id", "agent_name", "provider", "state", "badge", "attachable", "created_at", "updated_at")
+				assertNotRequired(
+					t,
+					sessionSchema,
+					"workspace_id",
+					"workspace_path",
+					"stop_reason",
+					"stop_detail",
+					"attached_to",
+					"attach_expires_at",
+				)
+				assertParameter(t, listSessions, "resumable", openapi3.ParameterInQuery, false)
+				assertParameter(t, listSessions, "sort", openapi3.ParameterInQuery, false)
+				assertParameter(t, listSessions, "limit", openapi3.ParameterInQuery, false)
 				assertEnumValues(
 					t,
 					propertySchema(t, sessionSchema, "type"),
@@ -75,6 +87,56 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"agent_crashed",
 					"hook_stopped",
 					"shutdown",
+				)
+			},
+		},
+		{
+			name: "ShouldDescribeSessionAttachAndRecapContracts",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				attachSession := operationFor(
+					t,
+					doc,
+					"/api/workspaces/{workspace_id}/sessions/{session_id}/attach",
+					"POST",
+				)
+				attachRequest := jsonRequestSchema(t, attachSession)
+				assertNotRequired(t, attachRequest, "attached_to", "ttl_seconds")
+				attachResponse := jsonResponseSchema(t, attachSession, 200)
+				assertRequired(t, attachResponse, "session", "attach")
+				assertRequired(t, propertySchema(t, attachResponse, "attach"), "session_id", "attached_to", "attach_expires_at", "attached_at")
+				assertResponseStatus(t, attachSession, 409)
+
+				recapSession := operationFor(
+					t,
+					doc,
+					"/api/workspaces/{workspace_id}/sessions/{session_id}/recap",
+					"GET",
+				)
+				assertParameter(t, recapSession, "limit", openapi3.ParameterInQuery, false)
+				recapResponse := jsonResponseSchema(t, recapSession, 200)
+				assertRequired(t, recapResponse, "recap")
+				recapSchema := propertySchema(t, recapResponse, "recap")
+				assertRequired(
+					t,
+					recapSchema,
+					"session",
+					"recent_markers",
+					"recent_messages",
+					"pending_inputs",
+					"pending_markers",
+					"snapshot",
+				)
+				snapshotSchema := propertySchema(t, recapSchema, "snapshot")
+				assertRequired(
+					t,
+					snapshotSchema,
+					"generated_at",
+					"event_cursor",
+					"transcript_cursor",
+					"queue_generation",
+					"consistency",
 				)
 			},
 		},

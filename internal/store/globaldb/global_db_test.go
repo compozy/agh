@@ -489,6 +489,11 @@ func expectedGlobalMigrationPrefix() []expectedGlobalMigrationIdentity {
 			name:     "add_scheduler_pause_state",
 			checksum: "2026-05-20-add-scheduler-pause-state",
 		},
+		{
+			version:  30,
+			name:     "add_session_attach_lock",
+			checksum: "2026-05-20-add-session-attach-lock",
+		},
 	}
 }
 
@@ -1673,6 +1678,8 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 			"stall_state",
 			"stall_reason",
 			"activity_json",
+			"attached_to",
+			"attach_expires_at",
 			"sandbox_id",
 			"sandbox_backend",
 			"sandbox_profile",
@@ -1943,6 +1950,8 @@ func TestOpenGlobalDBMigratesLegacyWorkspaceColumn(t *testing.T) {
 			"soul_snapshot_id",
 			"soul_digest",
 			"parent_soul_digest",
+			"attached_to",
+			"attach_expires_at",
 		},
 	)
 	assertTableColumns(
@@ -3111,6 +3120,8 @@ func TestOpenGlobalDBAddsStopColumnsToCurrentSessionSchema(t *testing.T) {
 			"soul_snapshot_id",
 			"soul_digest",
 			"parent_soul_digest",
+			"attached_to",
+			"attach_expires_at",
 		},
 	)
 	assertTableColumns(

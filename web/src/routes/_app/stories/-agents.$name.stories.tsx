@@ -41,6 +41,8 @@ const fallbackFraudSession: SessionPayload = {
   workspace_id: storyWorkspaceIds.risk,
   workspace_path: storyWorkspacePaths.risk,
   state: "active",
+  badge: "idle",
+  attachable: true,
   created_at: "2026-04-17T16:00:00Z",
   updated_at: "2026-04-17T18:10:00Z",
 };
@@ -52,6 +54,8 @@ const memoryExtractionSession: SessionPayload = {
   name: "Memory extractor",
   type: "dream",
   state: "stopped",
+  badge: "stopped",
+  attachable: false,
   updated_at: "2026-04-17T18:44:00Z",
 };
 

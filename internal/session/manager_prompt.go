@@ -405,6 +405,9 @@ func (m *Manager) CancelPrompt(ctx context.Context, id string) error {
 
 	proc := session.processHandle()
 	if proc == nil {
+		m.emitTranscriptMarker(ctx, session, turnID, transcript.MarkerPromptCancel, "Prompt canceled by operator.", map[string]any{
+			"source": "cancel_prompt",
+		})
 		return nil
 	}
 
@@ -421,6 +424,9 @@ func (m *Manager) CancelPrompt(ctx context.Context, id string) error {
 			return fmt.Errorf("session: interrupt scoped tools for %q: %w", target, err)
 		}
 	}
+	m.emitTranscriptMarker(ctx, session, turnID, transcript.MarkerPromptCancel, "Prompt canceled by operator.", map[string]any{
+		"source": "cancel_prompt",
+	})
 	return nil
 }
 
@@ -795,6 +801,84 @@ func (m *Manager) observeRecordAndNotifyPromptEvent(
 			Warn("session: record prompt event failed", "turn_id", turnState.turnID, "error", err)
 	}
 	m.notifyAgentEvent(ctx, session, normalized)
+	if kind, summary, evidence, ok := promptTranscriptMarker(normalized); ok {
+		m.emitTranscriptMarker(ctx, session, turnState.turnID, kind, summary, evidence)
+	}
+}
+
+func (m *Manager) emitTranscriptMarker(
+	ctx context.Context,
+	session *Session,
+	turnID string,
+	kind string,
+	summary string,
+	evidence map[string]any,
+) {
+	marker, err := transcript.NewMarker(kind, summary, m.now(), evidence)
+	if err != nil {
+		m.sessionLogger(session).Warn("session: build transcript marker failed", "kind", kind, "error", err)
+		return
+	}
+	event, err := marker.AgentEvent("", turnID)
+	if err != nil {
+		m.sessionLogger(session).Warn("session: convert transcript marker failed", "kind", kind, "error", err)
+		return
+	}
+	normalized := transcript.RedactAgentEvent(m.normalizeEvent(session, turnID, event))
+	if err := m.recordEvent(ctx, session, normalized); err != nil {
+		m.sessionLogger(session).Warn("session: record transcript marker failed", "kind", kind, "error", err)
+		return
+	}
+	m.notifyAgentEvent(ctx, session, normalized)
+}
+
+func promptTranscriptMarker(event acp.AgentEvent) (string, string, map[string]any, bool) {
+	combined := strings.ToLower(strings.Join([]string{
+		event.Text,
+		event.Error,
+		runtimeActivityKind(event.Runtime),
+		runtimeActivityDetail(event.Runtime),
+	}, " "))
+	summary := firstNonEmpty(event.Text, event.Error, runtimeActivityDetail(event.Runtime))
+	evidence := map[string]any{
+		"event_type": event.Type,
+	}
+	switch {
+	case event.Type == acp.EventTypeRuntimeWarning && (strings.Contains(combined, "timeout") ||
+		strings.Contains(combined, "timed out") ||
+		strings.Contains(combined, "deadline exceeded")):
+		return transcript.MarkerPromptTimeout, firstNonEmpty(summary, "Runtime activity timed out."), evidence, true
+	case event.Type == acp.EventTypeRuntimeWarning && (strings.Contains(combined, "unhealthy") ||
+		strings.Contains(combined, string(store.SessionStallReasonProcessUnhealthy)) ||
+		strings.Contains(combined, "health check failed")):
+		return transcript.MarkerSessionUnhealthy, firstNonEmpty(summary, "Runtime health check failed."), evidence, true
+	case event.Type == acp.EventTypeError && event.Failure != nil:
+		failure := event.Failure.Normalize()
+		evidence["failure_kind"] = string(failure.Kind)
+		if failure.Kind == store.FailureProviderAuth || failure.Kind == store.FailurePermission {
+			if strings.Contains(combined, "mcp") && (strings.Contains(combined, "auth") || strings.Contains(combined, "login")) {
+				return transcript.MarkerMCPAuthRequired, firstNonEmpty(summary, failure.Summary, "MCP authentication is required."), evidence, true
+			}
+			return transcript.MarkerProviderFailure, firstNonEmpty(summary, failure.Summary, "Provider authentication failed."), evidence, true
+		}
+		return transcript.MarkerProviderFailure, firstNonEmpty(summary, failure.Summary, "Provider failed."), evidence, true
+	default:
+		return "", "", nil, false
+	}
+}
+
+func runtimeActivityKind(activity *acp.RuntimeActivity) string {
+	if activity == nil {
+		return ""
+	}
+	return activity.LastActivityKind
+}
+
+func runtimeActivityDetail(activity *acp.RuntimeActivity) string {
+	if activity == nil {
+		return ""
+	}
+	return activity.LastActivityDetail
 }
 
 func (m *Manager) sendPromptPumpEvent(

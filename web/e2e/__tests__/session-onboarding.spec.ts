@@ -133,12 +133,13 @@ test("operator can onboard, create a session, submit work, approve a permission 
   await expect(ui.chatView).toContainText(browserLifecyclePrompt);
   await expect(ui.chatView).toContainText("Streaming response started.");
   await expect(ui.stopButton).toBeVisible();
-
-  await ui.stopButton.click();
   await expect(ui.resumeButton).toBeVisible();
 
   await ui.resumeButton.click();
   await expect(ui.stopButton).toBeVisible();
+
+  await ui.stopButton.click();
+  await expect(ui.resumeButton).not.toBeVisible();
 
   await browserArtifacts.captureScreenshot("session-onboarding-hydrated", appPage);
 });

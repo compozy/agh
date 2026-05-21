@@ -1,10 +1,14 @@
-import { Activity, AlertCircle, AlertTriangle, Clock, Wrench } from "lucide-react";
+import { Activity, AlertCircle, AlertTriangle, Clock, Info, Wrench } from "lucide-react";
 
 import { Alert, AlertDescription, AlertMeta, AlertTitle, Pill, cn } from "@agh/ui";
 
-import type { AgentEventPayload, RuntimeActivityPayload } from "../types";
+import type { AgentEventPayload, RuntimeActivityPayload, TranscriptMarkerPayload } from "../types";
 
 const RUNTIME_EVENT_TYPES = new Set(["runtime_progress", "runtime_warning"]);
+const TRANSCRIPT_MARKER_EVENT_TYPES = new Set([
+  "transcript_marker.created",
+  "transcript_marker.redacted",
+]);
 
 export function isRuntimeActivityEvent(event: AgentEventPayload): boolean {
   return RUNTIME_EVENT_TYPES.has(event.type) && event.runtime !== undefined;
@@ -12,6 +16,10 @@ export function isRuntimeActivityEvent(event: AgentEventPayload): boolean {
 
 export function isSessionErrorEvent(event: AgentEventPayload): boolean {
   return event.type === "error" && (hasText(event.error) || hasText(event.failure?.summary));
+}
+
+export function isTranscriptMarkerEvent(event: AgentEventPayload): boolean {
+  return TRANSCRIPT_MARKER_EVENT_TYPES.has(event.type);
 }
 
 function hasText(value: string | undefined): value is string {
@@ -115,6 +123,48 @@ function sessionErrorDescription(event: AgentEventPayload): string {
   );
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function markerFromEvent(event: AgentEventPayload): TranscriptMarkerPayload | null {
+  if (event.marker) {
+    return event.marker;
+  }
+  if (!isRecord(event.raw)) {
+    return null;
+  }
+  const kind = typeof event.raw.kind === "string" ? event.raw.kind : event.title;
+  const summary = typeof event.raw.summary === "string" ? event.raw.summary : event.text;
+  const occurredAt =
+    typeof event.raw.occurred_at === "string" ? event.raw.occurred_at : event.timestamp;
+  if (!hasText(kind) || !hasText(summary) || !hasText(occurredAt)) {
+    return null;
+  }
+  return {
+    kind,
+    summary,
+    occurred_at: occurredAt,
+    evidence: isRecord(event.raw.evidence) ? event.raw.evidence : undefined,
+    diagnostic: event.raw.diagnostic,
+  };
+}
+
+function markerTone(marker: TranscriptMarkerPayload | null) {
+  const kind = marker?.kind ?? "";
+  if (kind.includes("failure") || kind.includes("timeout") || kind.includes("interrupted")) {
+    return "danger" as const;
+  }
+  if (kind.includes("recovered")) {
+    return "info" as const;
+  }
+  return "warning" as const;
+}
+
+function markerLabel(marker: TranscriptMarkerPayload | null, event: AgentEventPayload): string {
+  return marker?.kind || event.title || event.type;
+}
+
 export function RuntimeActivityNotice({ event }: { event: AgentEventPayload }) {
   if (isSessionErrorEvent(event)) {
     const failureKind = event.failure?.kind?.trim();
@@ -138,6 +188,32 @@ export function RuntimeActivityNotice({ event }: { event: AgentEventPayload }) {
         ) : null}
         <AlertDescription className="break-words" data-testid="session-error-detail">
           {sessionErrorDescription(event)}
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (isTranscriptMarkerEvent(event)) {
+    const marker = markerFromEvent(event);
+    const tone = markerTone(marker);
+    const Icon = tone === "info" ? Info : AlertTriangle;
+    return (
+      <Alert
+        role={tone === "info" ? "status" : "alert"}
+        data-testid="transcript-marker-notice"
+        data-tone={tone}
+        className="my-2 max-w-3xl px-3 py-2"
+        variant={tone === "danger" ? "danger" : tone === "warning" ? "warning" : "accent"}
+      >
+        <Icon aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
+        <AlertTitle>Transcript marker</AlertTitle>
+        <AlertMeta data-testid="transcript-marker-kind">
+          <Pill mono tone={tone === "danger" ? "danger" : tone === "warning" ? "warning" : "info"}>
+            {markerLabel(marker, event)}
+          </Pill>
+        </AlertMeta>
+        <AlertDescription className="break-words" data-testid="transcript-marker-summary">
+          {marker?.summary || event.text || "Runtime marker recorded."}
         </AlertDescription>
       </Alert>
     );

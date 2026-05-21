@@ -1,10 +1,10 @@
 ---
 title: Sessions
-description: The durable runtime unit AGH creates, resumes, audits, and governs.
+description: The durable runtime unit AGH creates, attaches, audits, and governs.
 ---
 
 A session is the unit AGH actually manages. It binds one agent subprocess to a workspace,
-permission policy, event store, and resume record under one stable AGH session ID.
+permission policy, event store, and attach record under one stable AGH session ID.
 
 Live session events are written to `events.db` while the session runs. After the session stops,
 AGH materializes a read-only forensic JSONL ledger at
@@ -18,7 +18,7 @@ Vault records filtered by the session prefix, and the session inspector shows on
 for those refs.
 
 Use this section when a live run needs supervision or forensic detail: why it started, what state it
-entered, which events were persisted, whether it can resume, and which permission checks apply while
+entered, which events were persisted, whether it can be attached, and which permission checks apply while
 the agent works. If the problem is choosing an agent definition, use Agents first. If the problem is
 the daemon or database itself, use Operations after you identify the affected session.
 
@@ -28,13 +28,14 @@ the daemon or database itself, use Operations after you identify the affected se
 </OperatorNote>
 
 The reading order follows the lifecycle. Start with lifecycle for state names and stop
-classification, move to events when you need the durable record, then use resume and permissions for
-the two most common operator questions: "can this continue?" and "why did AGH ask before acting?"
+classification, move to events when you need the durable record, then use resume attach and
+permissions for the two most common operator questions: "can I re-enter this live session?" and
+"why did AGH ask before acting?"
 
 <figure className="not-prose my-8 overflow-hidden rounded-lg border border-(--line) bg-(--canvas-soft) p-2">
   <img
     src="/images/runtime/sessions-overview-storyboard-v1.png"
-    alt="Hand-drawn Sessions poster showing the AGH session lifecycle across create, active, stop, resume, replay, permissions, and audit with the octopus mascot."
+    alt="Hand-drawn Sessions poster showing the AGH session lifecycle across create, active, stop, attach, replay, permissions, and audit."
     loading="eager"
     decoding="async"
     className="h-auto w-full rounded-md"
@@ -61,8 +62,8 @@ the two most common operator questions: "can this continue?" and "why did AGH as
   <RouteRow
     href="/runtime/core/sessions/resume"
     label="Resume"
-    title="Resume stopped sessions and replay stored work"
-    description="Use this page to understand ACP `session/load`, fresh-start fallback, transcript reconstruction, and when resume will fail."
+    title="Attach to live sessions and replay stored work"
+    description="Use this page to understand explicit resume attach, deterministic recap, transcript markers, and replay reconstruction."
     meta="Recovery"
   />
   <RouteRow

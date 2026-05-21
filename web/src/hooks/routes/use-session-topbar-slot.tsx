@@ -4,7 +4,7 @@ import { Play, Square, Trash2 } from "lucide-react";
 
 import { Button, Pill, Spinner, useTopbarSlot, type PillTone } from "@agh/ui";
 
-import type { SessionPayload, SessionState } from "@/systems/session";
+import type { SessionBadge, SessionPayload, SessionState } from "@/systems/session";
 
 interface StateSignal {
   tone: PillTone;
@@ -12,11 +12,22 @@ interface StateSignal {
   label: string;
 }
 
-const STATE_SIGNAL: Record<SessionState, StateSignal> = {
-  active: { tone: "success", label: "active" },
-  starting: { tone: "warning", pulse: true, label: "starting" },
-  stopping: { tone: "warning", label: "stopping" },
+const BADGE_SIGNAL: Record<SessionBadge, StateSignal> = {
+  running: { tone: "success", pulse: true, label: "running" },
+  idle: { tone: "info", label: "idle" },
+  unhealthy: { tone: "warning", label: "unhealthy" },
+  hung: { tone: "danger", pulse: true, label: "hung" },
+  "waiting-for-auth": { tone: "warning", label: "waiting-for-auth" },
   stopped: { tone: "neutral", label: "stopped" },
+  failed: { tone: "danger", label: "failed" },
+  unknown: { tone: "neutral", label: "unknown" },
+};
+
+const STATE_BADGE_FALLBACK: Record<SessionState, SessionBadge> = {
+  active: "idle",
+  starting: "running",
+  stopping: "running",
+  stopped: "stopped",
 };
 
 interface UseSessionTopbarSlotInput {
@@ -31,8 +42,8 @@ interface UseSessionTopbarSlotInput {
 
 /**
  * Composes the session detail-route topbar slot — agent name as
- * the slot title, agent state + provider as the meta slot, and the lifecycle
- * controls (delete/stop/resume) as the actions slot.
+ * the slot title, daemon badge + provider as the meta slot, and the lifecycle
+ * controls (delete/stop/attach) as the actions slot.
  */
 export function useSessionTopbarSlot({
   session,
@@ -43,10 +54,11 @@ export function useSessionTopbarSlot({
   onStop,
   onResume,
 }: UseSessionTopbarSlotInput): void {
-  const signal = STATE_SIGNAL[session.state] ?? STATE_SIGNAL.stopped;
+  const badge = session.badge ?? STATE_BADGE_FALLBACK[session.state] ?? "unknown";
+  const signal = BADGE_SIGNAL[badge] ?? BADGE_SIGNAL.unknown;
   const providerLabel = session.provider?.trim();
   const isActive = session.state === "active" || session.state === "starting";
-  const isStopped = session.state === "stopped";
+  const isAttachable = session.attachable === true;
   const controlsBusy = isStopping || isResuming || isDeleting;
 
   const meta = useMemo<ReactNode>(
@@ -57,9 +69,9 @@ export function useSessionTopbarSlot({
           tone={signal.tone}
           pulse={signal.pulse}
           data-testid="agent-status-dot"
-          aria-label={`Session state: ${signal.label}`}
+          aria-label={`Session badge: ${signal.label}`}
         />
-        <span data-testid="session-topbar-state" className="font-mono text-eyebrow text-faint">
+        <span data-testid="session-topbar-badge" className="font-mono text-eyebrow text-faint">
           {signal.label}
         </span>
         {providerLabel ? (
@@ -117,7 +129,7 @@ export function useSessionTopbarSlot({
             {isStopping ? <Spinner className="size-3" /> : <Square className="size-3" />}
           </Button>
         ) : null}
-        {isStopped ? (
+        {isAttachable ? (
           <Button
             type="button"
             variant="ghost"
@@ -125,7 +137,7 @@ export function useSessionTopbarSlot({
             onClick={onResume}
             disabled={controlsBusy && !isResuming}
             data-testid="resume-button"
-            aria-label="Resume session"
+            aria-label="Attach session"
           >
             {isResuming ? <Spinner className="size-3" /> : <Play className="size-3" />}
           </Button>
@@ -135,7 +147,7 @@ export function useSessionTopbarSlot({
     [
       controlsBusy,
       isActive,
-      isStopped,
+      isAttachable,
       isDeleting,
       isStopping,
       isResuming,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -85,7 +86,7 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query store.SessionListQuer
 		state, acp_session_id, stop_reason, stop_detail,
 		failure_kind, failure_summary, crash_bundle_path,
 		subprocess_pid, subprocess_started_at, last_update_at, stall_state, stall_reason,
-		activity_json,
+		activity_json, attached_to, attach_expires_at,
 		soul_snapshot_id, soul_digest, parent_soul_digest,
 		sandbox_id, sandbox_backend, sandbox_profile, sandbox_instance_id,
 		sandbox_state, sandbox_provider_state_json,
@@ -95,13 +96,22 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query store.SessionListQuer
 	where, args := store.BuildClauses(
 		store.StringClause("state", query.State),
 		store.StringClause("agent_name", query.AgentName),
+		store.StringClause("workspace_id", query.WorkspaceID),
 		store.StringClause("session_type", query.SessionType),
 		store.StringClause("parent_session_id", query.ParentSessionID),
 		store.StringClause("root_session_id", query.RootSessionID),
 		store.StringClause("spawn_role", query.SpawnRole),
 	)
+	if query.Resumable {
+		where = append(
+			where,
+			"state = 'active' AND (failure_kind IS NULL OR trim(failure_kind) = '') AND "+
+				"(attached_to = '' OR attach_expires_at IS NULL OR attach_expires_at <= ?)",
+		)
+		args = append(args, store.FormatTimestamp(g.now()))
+	}
 	sqlQuery = store.AppendWhere(sqlQuery, where)
-	sqlQuery += " ORDER BY updated_at DESC, created_at DESC, id DESC"
+	sqlQuery += sessionListOrderClause(query.Sort)
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
 	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
@@ -125,6 +135,99 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query store.SessionListQuer
 	}
 
 	return sessions, nil
+}
+
+// AttachSession acquires a short-lived attach lease for a resumable session.
+func (g *GlobalDB) AttachSession(ctx context.Context, req store.SessionAttachRequest) (store.SessionAttach, error) {
+	if err := g.checkReady(ctx, "attach session"); err != nil {
+		return store.SessionAttach{}, err
+	}
+	normalized := req.Normalize()
+	if normalized.Now.IsZero() {
+		normalized.Now = g.now().UTC()
+	}
+	if err := normalized.Validate(); err != nil {
+		return store.SessionAttach{}, err
+	}
+	expiresAt := normalized.Now.Add(normalized.TTL).UTC()
+	nowRaw := store.FormatTimestamp(normalized.Now)
+	expiresRaw := store.FormatTimestamp(expiresAt)
+
+	result, err := g.db.ExecContext(
+		ctx,
+		`UPDATE sessions
+			SET attached_to = ?, attach_expires_at = ?, updated_at = ?
+			WHERE id = ?
+				AND state = 'active'
+				AND (failure_kind IS NULL OR trim(failure_kind) = '')
+				AND (attached_to = '' OR attach_expires_at IS NULL OR attach_expires_at <= ?)`,
+		normalized.AttachedTo,
+		expiresRaw,
+		nowRaw,
+		normalized.SessionID,
+		nowRaw,
+	)
+	if err != nil {
+		return store.SessionAttach{}, fmt.Errorf("store: attach session %q: %w", normalized.SessionID, err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return store.SessionAttach{}, fmt.Errorf("store: rows affected for attach session %q: %w", normalized.SessionID, err)
+	}
+	if affected == 0 {
+		if classifyErr := g.classifyAttachFailure(ctx, normalized.SessionID, normalized.Now); classifyErr != nil {
+			return store.SessionAttach{}, classifyErr
+		}
+		return store.SessionAttach{}, fmt.Errorf("%w: %s", store.ErrSessionAttachLocked, normalized.SessionID)
+	}
+	return store.SessionAttach{
+		SessionID:       normalized.SessionID,
+		AttachedTo:      normalized.AttachedTo,
+		AttachExpiresAt: expiresAt,
+		AttachedAt:      normalized.Now,
+	}, nil
+}
+
+func (g *GlobalDB) classifyAttachFailure(ctx context.Context, sessionID string, now time.Time) error {
+	var (
+		state              string
+		failureKind        sql.NullString
+		attachedTo         string
+		attachExpiresAtRaw sql.NullString
+	)
+	if err := g.db.QueryRowContext(
+		ctx,
+		`SELECT state, failure_kind, attached_to, attach_expires_at FROM sessions WHERE id = ?`,
+		sessionID,
+	).Scan(&state, &failureKind, &attachedTo, &attachExpiresAtRaw); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("%w: %s", store.ErrSessionNotFound, sessionID)
+		}
+		return fmt.Errorf("store: classify attach session %q: %w", sessionID, err)
+	}
+	if strings.TrimSpace(state) != "active" || strings.TrimSpace(failureKind.String) != "" {
+		return fmt.Errorf("%w: %s", store.ErrSessionNotAttachable, sessionID)
+	}
+	if strings.TrimSpace(attachedTo) == "" || !attachExpiresAtRaw.Valid || strings.TrimSpace(attachExpiresAtRaw.String) == "" {
+		return nil
+	}
+	expiresAt, err := store.ParseTimestamp(attachExpiresAtRaw.String)
+	if err != nil {
+		return fmt.Errorf("store: parse session attach expiry for %q: %w", sessionID, err)
+	}
+	if expiresAt.After(now.UTC()) {
+		return fmt.Errorf("%w: %s", store.ErrSessionAttachLocked, sessionID)
+	}
+	return nil
+}
+
+func sessionListOrderClause(sortKey string) string {
+	switch strings.TrimSpace(sortKey) {
+	case "last_activity":
+		return " ORDER BY COALESCE(last_update_at, updated_at) DESC, updated_at DESC, id DESC"
+	default:
+		return " ORDER BY updated_at DESC, created_at DESC, id DESC"
+	}
 }
 
 // ReconcileSessions upserts on-disk sessions and marks missing ones as orphaned.
@@ -478,6 +581,9 @@ func buildUpdateSessionStateStatement(update store.SessionStateUpdate, updatedAt
 			sessionSandboxLastSyncError(update.Sandbox),
 		)
 	}
+	if strings.TrimSpace(update.State) == "stopped" {
+		assignments = append(assignments, "attached_to = ''", "attach_expires_at = NULL")
+	}
 
 	assignments = append(assignments, "updated_at = ?")
 	args = append(args, store.FormatTimestamp(updatedAt), update.ID)
@@ -509,6 +615,8 @@ type sessionInfoRow struct {
 	stallState           string
 	stallReason          string
 	activityJSON         string
+	attachedTo           string
+	attachExpiresAt      sql.NullString
 	soulSnapshotID       sql.NullString
 	soulDigest           string
 	parentSoulDigest     string
@@ -610,6 +718,14 @@ func populateSessionScanParts(session *store.SessionInfo, row *sessionInfoRow) e
 		return err
 	}
 	session.Sandbox = sandbox
+	session.AttachedTo = strings.TrimSpace(row.attachedTo)
+	if row.attachExpiresAt.Valid && strings.TrimSpace(row.attachExpiresAt.String) != "" {
+		attachExpiresAt, parseErr := store.ParseTimestamp(row.attachExpiresAt.String)
+		if parseErr != nil {
+			return fmt.Errorf("store: parse session attach expires at: %w", parseErr)
+		}
+		session.AttachExpiresAt = &attachExpiresAt
+	}
 
 	createdAt, updatedAt, err := parseSessionInfoTimestamps(row.createdAtRaw, row.updatedAtRaw)
 	if err != nil {
@@ -651,6 +767,8 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.stallState,
 		&row.stallReason,
 		&row.activityJSON,
+		&row.attachedTo,
+		&row.attachExpiresAt,
 		&row.soulSnapshotID,
 		&row.soulDigest,
 		&row.parentSoulDigest,

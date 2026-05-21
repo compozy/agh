@@ -10,6 +10,7 @@ import (
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/transcript"
 )
 
 const (
@@ -48,6 +49,10 @@ type SessionPayload struct {
 	Channel         string        `json:"channel,omitempty"`
 	Type            session.Type  `json:"type,omitempty"`
 	State           session.State `json:"state"`
+	Badge           session.Badge `json:"badge"`
+	Attachable      bool          `json:"attachable"`
+	AttachedTo      string        `json:"attached_to,omitempty"`
+	AttachExpiresAt *time.Time    `json:"attach_expires_at,omitempty"`
 	// StopReason is the session-level stop classification, distinct from AgentEventPayload.StopReason.
 	StopReason store.StopReason `json:"stop_reason,omitempty"`
 	// StopDetail is the session-level stop context paired with StopReason.
@@ -88,6 +93,50 @@ type RuntimeActivityPayload struct {
 	IdleSeconds        int64      `json:"idle_seconds"`
 	ElapsedSeconds     int64      `json:"elapsed_seconds"`
 	ElapsedMS          int64      `json:"elapsed_ms"`
+}
+
+// AttachSessionRequest captures explicit attach-lock options.
+type AttachSessionRequest struct {
+	AttachedTo string `json:"attached_to,omitempty"`
+	TTLSeconds int    `json:"ttl_seconds,omitempty"`
+}
+
+// SessionAttachPayload reports the attach lease acquired by one caller.
+type SessionAttachPayload struct {
+	SessionID       string    `json:"session_id"`
+	AttachedTo      string    `json:"attached_to"`
+	AttachExpiresAt time.Time `json:"attach_expires_at"`
+	AttachedAt      time.Time `json:"attached_at"`
+}
+
+// TranscriptMarkerPayload is the typed transcript marker shape shared by logs,
+// recap, and transcript UI projections.
+type TranscriptMarkerPayload struct {
+	Kind       string          `json:"kind"`
+	OccurredAt time.Time       `json:"occurred_at"`
+	Summary    string          `json:"summary"`
+	Evidence   map[string]any  `json:"evidence,omitempty"`
+	Diagnostic json.RawMessage `json:"diagnostic,omitempty"`
+}
+
+// RecapSnapshotPayload records the consistent read boundary for one recap.
+type RecapSnapshotPayload struct {
+	GeneratedAt      time.Time `json:"generated_at"`
+	EventCursor      int64     `json:"event_cursor"`
+	TranscriptCursor int64     `json:"transcript_cursor"`
+	QueueGeneration  int64     `json:"queue_generation"`
+	Consistency      string    `json:"consistency"`
+}
+
+// RecapPayload is a deterministic session recap composed from persisted daemon state.
+type RecapPayload struct {
+	Session        SessionPayload            `json:"session"`
+	ActiveRun      *TaskRunPayload           `json:"active_run,omitempty"`
+	RecentMarkers  []TranscriptMarkerPayload `json:"recent_markers"`
+	RecentMessages []transcript.UIMessage    `json:"recent_messages"`
+	PendingInputs  int                       `json:"pending_inputs"`
+	PendingMarkers int                       `json:"pending_markers"`
+	Snapshot       RecapSnapshotPayload      `json:"snapshot"`
 }
 
 // SessionSandboxPayload is the shared session sandbox response payload.

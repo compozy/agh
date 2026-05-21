@@ -18,6 +18,7 @@ import {
   fetchSession,
   fetchSessionEvents,
   fetchSessionLedger,
+  fetchSessionRecap,
   fetchSessionTranscript,
   fetchSessions,
   repairSession,
@@ -322,7 +323,7 @@ describe("cancelSessionPrompt", () => {
 });
 
 describe("resumeSession", () => {
-  it("calls POST resume endpoint", async () => {
+  it("calls POST attach endpoint", async () => {
     mockJsonResponse({ session: { ...mockSession, state: "active" } });
 
     const result = await resumeSession(WORKSPACE_ID, "sess-001");
@@ -330,7 +331,7 @@ describe("resumeSession", () => {
     expect(result.state).toBe("active");
     await expectFetchRequest({
       method: "POST",
-      path: "/api/workspaces/ws_alpha/sessions/sess-001/resume",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/attach",
     });
   });
 
@@ -340,6 +341,35 @@ describe("resumeSession", () => {
     await expect(resumeSession(WORKSPACE_ID, "unknown")).rejects.toThrow(
       "Session not found: unknown"
     );
+  });
+});
+
+describe("fetchSessionRecap", () => {
+  it("calls GET recap endpoint with limit", async () => {
+    const recap = {
+      session: mockSession,
+      recent_markers: [],
+      recent_messages: [],
+      pending_inputs: 0,
+      pending_markers: 0,
+      snapshot: {
+        generated_at: "2026-04-01T01:00:00Z",
+        event_cursor: 4,
+        transcript_cursor: 4,
+        queue_generation: 0,
+        consistency: "read_snapshot",
+      },
+    };
+    mockJsonResponse({ recap });
+
+    const result = await fetchSessionRecap(WORKSPACE_ID, "sess-001", 5);
+
+    expect(result).toEqual(recap);
+    const request = fetchRequest();
+    const url = new URL(request.url);
+    expect(request.method).toBe("GET");
+    expect(url.pathname).toBe("/api/workspaces/ws_alpha/sessions/sess-001/recap");
+    expect(url.searchParams.get("limit")).toBe("5");
   });
 });
 

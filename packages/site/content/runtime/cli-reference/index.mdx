@@ -286,20 +286,21 @@ agh session events sess_1234 --follow
 The daemon start command waits until the socket responds. If a daemon is already running, it returns
 an error instead of starting a second process.
 
-### Resume a Session
+### Attach to a Session
 
-Stopped sessions remain in the session store. List them with `--all`, resume by ID, and then inspect
-the new active state.
+Live sessions expose an explicit attach path. List eligible sessions with `--resumable`, attach by
+ID, and use recap when you need a deterministic read-only reconstruction.
 
 ```bash
-agh session list --all
+agh session list --resumable
 agh session resume sess_1234
+agh session recap sess_1234
 agh session status sess_1234
 ```
 
-Resume succeeds only when the daemon can reconstruct the stored session state and the agent provider
-can load the previous ACP session. If the provider cannot resume, AGH reports the error rather than
-silently starting unrelated work.
+`agh session resume` attaches to an eligible live session. It does not start a new provider
+subprocess or rewrite transcript history. Terminal sessions stay available through
+`agh session recap`, `agh session events`, and `agh session history`.
 
 ### Manage Workspaces
 

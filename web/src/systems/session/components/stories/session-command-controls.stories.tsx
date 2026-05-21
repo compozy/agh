@@ -39,6 +39,18 @@ const errorEvent: AgentEventPayload = {
   timestamp: "2026-05-14T15:32:02Z",
 };
 
+const markerEvent: AgentEventPayload = {
+  type: "transcript_marker.created",
+  text: "Prompt exceeded the configured timeout",
+  marker: {
+    kind: "prompt_timeout",
+    occurred_at: "2026-05-20T13:56:00Z",
+    summary: "Prompt exceeded the configured timeout",
+    evidence: { prompt_timeout_seconds: 180 },
+  },
+  timestamp: "2026-05-20T13:56:00Z",
+};
+
 const meta: Meta<typeof RuntimeActivityNotice> = {
   title: "systems/session/SessionCommandControls",
   component: RuntimeActivityNotice,
@@ -65,7 +77,7 @@ type Story = StoryObj<typeof meta>;
 
 /**
  * RuntimeActivityNotice and SessionActivityInline expose progress, warning,
- * and failure states without opening a live session.
+ * marker, and failure states without opening a live session.
  */
 export const RuntimeActivity: Story = {
   args: {},
@@ -73,6 +85,7 @@ export const RuntimeActivity: Story = {
     <div className="grid gap-4">
       <RuntimeActivityNotice event={progressEvent} />
       <RuntimeActivityNotice event={warningEvent} />
+      <RuntimeActivityNotice event={markerEvent} />
       <RuntimeActivityNotice event={errorEvent} />
       <SessionActivityInline activity={runtimeActivity} />
     </div>

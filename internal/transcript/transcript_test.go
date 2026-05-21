@@ -837,54 +837,32 @@ func TestTranscriptRuntimeMarkers(t *testing.T) {
 
 	timestamp := time.Date(2026, 5, 19, 12, 0, 0, 0, time.UTC)
 	tests := []struct {
-		name  string
-		event acp.AgentEvent
-		want  string
+		name    string
+		turnID  string
+		kind    string
+		summary string
+		want    string
 	}{
 		{
-			name: "Should render timeout marker from runtime warning",
-			event: acp.AgentEvent{
-				Type:      acp.EventTypeRuntimeWarning,
-				SessionID: "sess-marker",
-				TurnID:    "turn-timeout",
-				Timestamp: timestamp,
-				Text:      "Runtime activity timed out (30 seconds idle).",
-				Runtime: &acp.RuntimeActivity{
-					LastActivityKind:   "timeout",
-					LastActivityDetail: "Runtime activity timed out (30 seconds idle).",
-				},
-			},
-			want: "*[timeout]* Runtime activity timed out (30 seconds idle).",
+			name:    "Should render timeout marker from canonical marker event",
+			turnID:  "turn-timeout",
+			kind:    MarkerPromptTimeout,
+			summary: "Runtime activity timed out (30 seconds idle).",
+			want:    "Runtime activity timed out (30 seconds idle).",
 		},
 		{
-			name: "Should render unhealthy marker from runtime warning",
-			event: acp.AgentEvent{
-				Type:      acp.EventTypeRuntimeWarning,
-				SessionID: "sess-marker",
-				TurnID:    "turn-unhealthy",
-				Timestamp: timestamp.Add(time.Second),
-				Text:      "Runtime health check failed; prompt may be stalled.",
-				Runtime: &acp.RuntimeActivity{
-					LastActivityKind:   "warning",
-					LastActivityDetail: string(store.SessionStallReasonProcessUnhealthy),
-				},
-			},
-			want: "*[unhealthy]* Runtime health check failed; prompt may be stalled.",
+			name:    "Should render unhealthy marker from canonical marker event",
+			turnID:  "turn-unhealthy",
+			kind:    MarkerSessionUnhealthy,
+			summary: "Runtime health check failed; prompt may be stalled.",
+			want:    "Runtime health check failed; prompt may be stalled.",
 		},
 		{
-			name: "Should render interrupted marker from session stopped",
-			event: acp.AgentEvent{
-				Type:       sessionStoppedEventType,
-				SessionID:  "sess-marker",
-				TurnID:     "turn-interrupt",
-				Timestamp:  timestamp.Add(2 * time.Second),
-				StopReason: string(store.StopUserCanceled),
-				Failure: &store.SessionFailure{
-					Kind:    store.FailureCanceled,
-					Summary: "operator interrupted the turn",
-				},
-			},
-			want: "*[interrupted]* operator interrupted the turn",
+			name:    "Should render interrupted marker from canonical marker event",
+			turnID:  "turn-interrupt",
+			kind:    MarkerPromptInterrupted,
+			summary: "operator interrupted the turn",
+			want:    "operator interrupted the turn",
 		},
 	}
 
@@ -892,13 +870,21 @@ func TestTranscriptRuntimeMarkers(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
+			marker, err := NewMarker(test.kind, test.summary, timestamp.Add(time.Duration(index)*time.Second), nil)
+			if err != nil {
+				t.Fatalf("NewMarker() error = %v", err)
+			}
+			event, err := marker.AgentEvent("sess-marker", test.turnID)
+			if err != nil {
+				t.Fatalf("AgentEvent() error = %v", err)
+			}
 			events := []store.SessionEvent{
 				mustUIAgentSessionEvent(
 					t,
-					"ev-marker-"+test.event.TurnID,
+					"ev-marker-"+test.turnID,
 					int64(index+1),
-					test.event.Timestamp,
-					test.event,
+					event.Timestamp,
+					event,
 				),
 			}
 			transcriptMessages, err := Assemble(events)

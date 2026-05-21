@@ -47,6 +47,7 @@ type Server struct {
 	now               func() time.Time
 	pollInterval      time.Duration
 	sessions          core.SessionManager
+	sessionCatalog    core.SessionCatalog
 	tasks             core.TaskService
 	network           core.NetworkService
 	networkStore      core.NetworkStore
@@ -162,6 +163,13 @@ func WithPollInterval(interval time.Duration) Option {
 func WithSessionManager(manager core.SessionManager) Option {
 	return func(server *Server) {
 		server.sessions = manager
+	}
+}
+
+// WithSessionCatalog injects the daemon-owned session catalog.
+func WithSessionCatalog(catalog core.SessionCatalog) Option {
+	return func(server *Server) {
+		server.sessionCatalog = catalog
 	}
 }
 
@@ -553,6 +561,7 @@ func (s *Server) ensureEngine() {
 func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 	return &handlerConfig{
 		sessions:          s.sessions,
+		sessionCatalog:    s.sessionCatalog,
 		tasks:             s.tasks,
 		network:           s.network,
 		networkStore:      s.networkStore,

@@ -62,6 +62,8 @@ const fallbackRichSession: SessionPayload = {
   workspace_id: storyWorkspaceIds.risk,
   workspace_path: storyWorkspacePaths.risk,
   state: "active",
+  badge: "idle",
+  attachable: true,
   created_at: "2026-04-17T16:00:00Z",
   updated_at: "2026-04-17T18:10:00Z",
   activity: {
@@ -85,6 +87,8 @@ const failedSessions: SessionPayload[] = [
     ...failureBaseSession,
     id: "sess-failure",
     state: "stopped",
+    badge: "stopped",
+    attachable: false,
     stop_reason: "agent_crashed",
     failure: { kind: "agent_crashed", summary: "broker disconnect" },
     activity: {

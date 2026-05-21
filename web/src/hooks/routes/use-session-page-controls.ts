@@ -56,7 +56,7 @@ function describeResumeError(error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;
   }
-  return "Failed to resume session.";
+  return "Failed to attach session.";
 }
 
 export function useSessionPageControls(

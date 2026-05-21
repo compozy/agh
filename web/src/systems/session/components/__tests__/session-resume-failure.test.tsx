@@ -9,7 +9,7 @@ describe("SessionResumeFailure", () => {
       <SessionResumeFailure
         agentName="claude-agent"
         isRetrying={false}
-        message="session: validate resume infrastructure"
+        message="session: validate attach infrastructure"
         missingProvider="codex"
         onDismiss={vi.fn()}
         onRetry={vi.fn()}
@@ -20,7 +20,7 @@ describe("SessionResumeFailure", () => {
     expect(screen.getByTestId("session-resume-failure")).toBeInTheDocument();
     expect(screen.getByTestId("session-resume-failure-provider")).toHaveTextContent("codex");
     expect(screen.getByTestId("session-resume-failure-title")).toHaveTextContent(
-      "Resume failed: provider no longer available"
+      "Attach failed: provider no longer available"
     );
     expect(screen.getByTestId("session-resume-failure-title").className).toContain("text-sm");
     expect(screen.getByTestId("session-resume-failure-message").className).toContain("text-xs");
@@ -33,7 +33,7 @@ describe("SessionResumeFailure", () => {
     render(
       <SessionResumeFailure
         isRetrying={false}
-        message="Resume failed unexpectedly."
+        message="Attach failed unexpectedly."
         missingProvider={null}
         onDismiss={vi.fn()}
         onRetry={vi.fn()}
@@ -41,9 +41,9 @@ describe("SessionResumeFailure", () => {
       />
     );
 
-    expect(screen.getByTestId("session-resume-failure-title")).toHaveTextContent("Resume failed");
+    expect(screen.getByTestId("session-resume-failure-title")).toHaveTextContent("Attach failed");
     expect(screen.getByTestId("session-resume-failure-message")).toHaveTextContent(
-      "Resume failed unexpectedly."
+      "Attach failed unexpectedly."
     );
     expect(screen.queryByTestId("session-resume-failure-provider")).not.toBeInTheDocument();
   });
@@ -52,7 +52,7 @@ describe("SessionResumeFailure", () => {
     render(
       <SessionResumeFailure
         isRetrying={false}
-        message="Resume failed unexpectedly."
+        message="Attach failed unexpectedly."
         missingProvider="   "
         onDismiss={vi.fn()}
         onRetry={vi.fn()}
@@ -60,9 +60,9 @@ describe("SessionResumeFailure", () => {
       />
     );
 
-    expect(screen.getByTestId("session-resume-failure-title")).toHaveTextContent("Resume failed");
+    expect(screen.getByTestId("session-resume-failure-title")).toHaveTextContent("Attach failed");
     expect(screen.getByTestId("session-resume-failure-message")).toHaveTextContent(
-      "Resume failed unexpectedly."
+      "Attach failed unexpectedly."
     );
     expect(screen.queryByTestId("session-resume-failure-provider")).not.toBeInTheDocument();
   });
@@ -72,7 +72,7 @@ describe("SessionResumeFailure", () => {
       <SessionResumeFailure
         agentName="   "
         isRetrying={false}
-        message="Resume failed unexpectedly."
+        message="Attach failed unexpectedly."
         missingProvider="codex"
         onDismiss={vi.fn()}
         onRetry={vi.fn()}
@@ -92,7 +92,7 @@ describe("SessionResumeFailure", () => {
     render(
       <SessionResumeFailure
         isRetrying={false}
-        message="Resume failed."
+        message="Attach failed."
         missingProvider="codex"
         onDismiss={onDismiss}
         onRetry={onRetry}
@@ -106,11 +106,11 @@ describe("SessionResumeFailure", () => {
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 
-  it("disables retry while a resume attempt is in flight", () => {
+  it("disables retry while an attach attempt is in flight", () => {
     render(
       <SessionResumeFailure
         isRetrying
-        message="Resume failed."
+        message="Attach failed."
         missingProvider="codex"
         onDismiss={vi.fn()}
         onRetry={vi.fn()}

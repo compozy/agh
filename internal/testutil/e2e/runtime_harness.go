@@ -753,13 +753,13 @@ func (h *RuntimeHarness) StopSession(ctx context.Context, sessionID string) erro
 	return nil
 }
 
-// ResumeSession resumes one stopped session through the operator surface.
+// ResumeSession attaches to one resumable live session through the operator surface.
 func (h *RuntimeHarness) ResumeSession(
 	ctx context.Context,
 	sessionID string,
 ) (aghcontract.SessionPayload, error) {
-	var response aghcontract.SessionResponse
-	path, err := h.sessionScopedAPIPath(sessionID, "/resume")
+	var response aghcontract.SessionAttachResponse
+	path, err := h.sessionScopedAPIPath(sessionID, "/attach")
 	if err != nil {
 		return aghcontract.SessionPayload{}, err
 	}

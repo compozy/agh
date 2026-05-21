@@ -2279,7 +2279,6 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			queryParam(specWorkspaceKey, "Workspace id or path", false),
-			boolQueryParam("include_health", "Include metadata-only session health when available"),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.AgentCoordinatorConfigResponse{}},
@@ -3036,6 +3035,9 @@ var operationRegistry = []OperationSpec{
 		Parameters: []ParameterSpec{
 			queryParam(specWorkspaceKey, "Workspace id or path", false),
 			boolQueryParam("include_health", "Include metadata-only session health when available"),
+			boolQueryParam("resumable", "Only list sessions eligible for explicit attach"),
+			queryParam("sort", "Optional sort key. Use last_activity with resumable=true.", false),
+			intQueryParam("limit", "Maximum sessions to return when filtering resumable sessions"),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SessionsResponse{}},
@@ -3113,17 +3115,39 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      httpMethodPost,
-		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/resume",
-		OperationID: "resumeSession",
-		Summary:     "Resume a stopped session",
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/attach",
+		OperationID: "attachSession",
+		Summary:     "Attach to a resumable live session",
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("session_id", "Session id"),
 		},
+		RequestBody:         contract.AttachSessionRequest{},
+		RequestBodyOptional: true,
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.SessionResponse{}},
+			{Status: 200, Description: "OK", Body: contract.SessionAttachResponse{}},
+			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Session cannot be attached", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodGet,
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/recap",
+		OperationID: "getSessionRecap",
+		Summary:     "Get a deterministic session recap",
+		Tags:        []string{specSessionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
+			intQueryParam("limit", "Maximum recent messages to include"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SessionRecapResponse{}},
+			{Status: 400, Description: "Invalid recap query", Body: contract.ErrorPayload{}},
 			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},

@@ -14,6 +14,7 @@ import (
 	"github.com/pedronauck/agh/internal/sandbox"
 	skillspkg "github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
@@ -347,7 +348,34 @@ func (m *Manager) recordSessionStoppedEvent(ctx context.Context, session *Sessio
 		return err
 	}
 	m.notifyAgentEvent(ctx, session, normalizedStop)
+	if kind, summary, evidence, ok := sessionStoppedTranscriptMarker(normalizedStop); ok {
+		m.emitTranscriptMarker(ctx, session, normalizedStop.TurnID, kind, summary, evidence)
+	}
 	return nil
+}
+
+func sessionStoppedTranscriptMarker(event acp.AgentEvent) (string, string, map[string]any, bool) {
+	failure := store.CloneSessionFailure(event.Failure)
+	failureKind := store.FailureKind("")
+	if failure != nil {
+		failureKind = failure.Normalize().Kind
+	}
+	summary := firstNonEmpty(event.Error, event.Text)
+	evidence := map[string]any{
+		"event_type":   event.Type,
+		"stop_reason":  event.StopReason,
+		"failure_kind": string(failureKind),
+	}
+	switch {
+	case event.StopReason == string(store.StopUserCanceled) || failureKind == store.FailureCanceled:
+		return transcript.MarkerPromptInterrupted, firstNonEmpty(summary, "Session interrupted by operator."), evidence, true
+	case event.StopReason == string(store.StopTimeout) || failureKind == store.FailureTimeout:
+		return transcript.MarkerPromptTimeout, firstNonEmpty(summary, "Session timed out."), evidence, true
+	case failureKind != "":
+		return transcript.MarkerProviderFailure, firstNonEmpty(summary, "Provider failed."), evidence, true
+	default:
+		return "", "", nil, false
+	}
 }
 
 func (m *Manager) persistFailedStart(ctx context.Context, session *Session, startErr error) error {

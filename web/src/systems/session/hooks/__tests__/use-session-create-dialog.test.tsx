@@ -95,6 +95,8 @@ const createdSession: SessionPayload = {
   workspace_id: "ws_alpha",
   workspace_path: "/workspace/alpha",
   state: "active",
+  badge: "idle",
+  attachable: true,
   created_at: "2026-04-20T10:00:00Z",
   updated_at: "2026-04-20T10:00:01Z",
 };

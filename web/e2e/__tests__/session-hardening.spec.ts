@@ -244,7 +244,7 @@ test("operator repairs an interrupted session through HTTP, UDS, and CLI without
   await ui.composerTextarea.fill("trigger crash mid-stream");
   await ui.composerTextarea.press("Enter");
   await expect(ui.chatView).toContainText("partial before crash", { timeout: 15_000 });
-  await expect(ui.resumeButton).toBeVisible({ timeout: 20_000 });
+  await expect(ui.resumeButton).not.toBeVisible({ timeout: 20_000 });
 
   const beforeRepair = await captureSessionSnapshot(runtime, workspace.id, session.id);
   expect(JSON.stringify(beforeRepair.history)).toContain("trigger crash mid-stream");
@@ -275,7 +275,7 @@ test("operator repairs an interrupted session through HTTP, UDS, and CLI without
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(ui.chatView).toContainText("partial before crash");
-  await expect(ui.resumeButton).toBeVisible();
+  await expect(ui.resumeButton).not.toBeVisible();
 
   await runtime.artifactCollector.captureJSON("browser_api_snapshots", {
     after_repair: afterRepair,

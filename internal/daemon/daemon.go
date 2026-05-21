@@ -133,6 +133,7 @@ type Observer interface {
 // Registry is the narrowed global database surface shared by observe and workspace.
 type Registry interface {
 	observe.Registry
+	store.SessionCatalog
 	store.NetworkAuditStore
 	store.NetworkChannelStore
 	store.NetworkConversationStore
@@ -1039,6 +1040,7 @@ func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
 		httpapi.WithLogger(deps.Logger),
 		httpapi.WithStartedAt(deps.StartedAt),
 		httpapi.WithSessionManager(deps.Sessions),
+		httpapi.WithSessionCatalog(deps.Registry),
 		httpapi.WithTaskService(deps.Tasks),
 		httpapi.WithNetworkService(deps.Network),
 		httpapi.WithNetworkStore(deps.Registry),
@@ -1084,6 +1086,7 @@ func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 		udsapi.WithLogger(deps.Logger),
 		udsapi.WithStartedAt(deps.StartedAt),
 		udsapi.WithSessionManager(deps.Sessions),
+		udsapi.WithSessionCatalog(deps.Registry),
 		udsapi.WithTaskService(deps.Tasks),
 		udsapi.WithNetworkService(deps.Network),
 		udsapi.WithNetworkStore(deps.Registry),

@@ -17,6 +17,10 @@ export type {
   SessionLedgerResponse,
   SessionMessage,
   SessionPayload,
+  SessionAttachResponse,
+  SessionBadge,
+  SessionRecapPayload,
+  SessionRecapResponse,
   SessionRepairPayload,
   SessionRepairQuery,
   SessionRepairResponse,
@@ -24,6 +28,7 @@ export type {
   SessionState,
   SessionsResponse,
   SessionTranscriptResponse,
+  TranscriptMarkerPayload,
   SessionDataParts,
   TokenUsagePayload,
   ToolUseResult,
@@ -42,6 +47,7 @@ export {
   fetchSessionEvents,
   fetchSessionHistory,
   fetchSessionLedger,
+  fetchSessionRecap,
   fetchSessionTranscript,
   fetchSessions,
   repairSession,
@@ -57,6 +63,7 @@ export {
   sessionEventsOptions,
   sessionHistoryOptions,
   sessionLedgerOptions,
+  sessionRecapOptions,
   sessionTranscriptOptions,
   sessionsListOptions,
 } from "./lib/query-options";
@@ -71,7 +78,7 @@ export type {
 } from "./stores/session-store";
 
 // Hooks
-export { useSession, useSessionLedger, useSessions } from "./hooks/use-sessions";
+export { useSession, useSessionLedger, useSessionRecap, useSessions } from "./hooks/use-sessions";
 export {
   useClearSessionConversation,
   useCreateSession,

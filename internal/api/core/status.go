@@ -226,6 +226,7 @@ func (h *BaseHandlers) sessionAggregate(ctx context.Context) (contract.SessionAg
 		return contract.SessionAggregatePayload{}, fmt.Errorf("api: list sessions for status: %w", err)
 	}
 	byStatus := make(map[string]int)
+	byBadge := make(map[string]int)
 	active := 0
 	for _, info := range infos {
 		if info == nil {
@@ -236,6 +237,11 @@ func (h *BaseHandlers) sessionAggregate(ctx context.Context) (contract.SessionAg
 			state = "unknown"
 		}
 		byStatus[state]++
+		badge := string(session.BadgeForInfo(info))
+		if badge == "" {
+			badge = string(session.BadgeUnknown)
+		}
+		byBadge[badge]++
 		if info.State == session.StateActive {
 			active++
 		}
@@ -244,6 +250,7 @@ func (h *BaseHandlers) sessionAggregate(ctx context.Context) (contract.SessionAg
 		Active:   active,
 		Total:    len(infos),
 		ByStatus: byStatus,
+		ByBadge:  byBadge,
 	}, nil
 }
 

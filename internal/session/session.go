@@ -69,6 +69,8 @@ type Info struct {
 	SoulSnapshotID   string
 	SoulDigest       string
 	ParentSoulDigest string
+	AttachedTo       string
+	AttachExpiresAt  *time.Time
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 }
@@ -100,6 +102,8 @@ type Session struct {
 	SoulSnapshotID   string
 	SoulDigest       string
 	ParentSoulDigest string
+	AttachedTo       string
+	AttachExpiresAt  *time.Time
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 
@@ -156,9 +160,19 @@ func (s *Session) Info() *Info {
 		SoulSnapshotID:   s.SoulSnapshotID,
 		SoulDigest:       s.SoulDigest,
 		ParentSoulDigest: s.ParentSoulDigest,
+		AttachedTo:       strings.TrimSpace(s.AttachedTo),
+		AttachExpiresAt:  cloneSessionTimePtr(s.AttachExpiresAt),
 		CreatedAt:        s.CreatedAt,
 		UpdatedAt:        s.UpdatedAt,
 	}
+}
+
+func cloneSessionTimePtr(value *time.Time) *time.Time {
+	if value == nil || value.IsZero() {
+		return nil
+	}
+	normalized := value.UTC()
+	return &normalized
 }
 
 // SessionDir reports the on-disk session directory path.

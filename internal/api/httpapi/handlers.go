@@ -19,6 +19,7 @@ const (
 
 type handlerConfig struct {
 	sessions          core.SessionManager
+	sessionCatalog    core.SessionCatalog
 	tasks             core.TaskService
 	network           core.NetworkService
 	networkStore      core.NetworkStore
@@ -102,6 +103,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			MaskInternalErrors:           true,
 			IncludeSessionWorkspaceInSSE: true,
 			Sessions:                     cfg.sessions,
+			SessionCatalog:               cfg.sessionCatalog,
 			Tasks:                        cfg.tasks,
 			Network:                      cfg.network,
 			NetworkStore:                 cfg.networkStore,

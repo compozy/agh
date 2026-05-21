@@ -62,6 +62,10 @@ func SessionPayloadFromInfo(info *session.Info) contract.SessionPayload {
 		Channel:         info.Channel,
 		Type:            info.Type,
 		State:           info.State,
+		Badge:           session.BadgeForInfo(info),
+		Attachable:      session.AttachableForInfo(info, time.Now().UTC()),
+		AttachedTo:      strings.TrimSpace(info.AttachedTo),
+		AttachExpiresAt: cloneTimePtr(info.AttachExpiresAt),
 		StopReason:      info.StopReason,
 		StopDetail:      info.StopDetail,
 		Failure:         SessionFailurePayloadFromStore(info.Failure),
@@ -80,6 +84,55 @@ func SessionPayloadFromInfo(info *session.Info) contract.SessionPayload {
 		payload.Sandbox = sandbox
 	}
 	return payload
+}
+
+// SessionPayloadFromStoreInfo converts the persisted session index row into the shared payload.
+func SessionPayloadFromStoreInfo(info store.SessionInfo) contract.SessionPayload {
+	state := session.State(strings.TrimSpace(info.State))
+	converted := &session.Info{
+		ID:               strings.TrimSpace(info.ID),
+		Name:             strings.TrimSpace(info.Name),
+		AgentName:        strings.TrimSpace(info.AgentName),
+		Provider:         strings.TrimSpace(info.Provider),
+		WorkspaceID:      strings.TrimSpace(info.WorkspaceID),
+		Channel:          strings.TrimSpace(info.Channel),
+		Type:             session.Type(strings.TrimSpace(info.SessionType)),
+		State:            state,
+		StopReason:       info.StopReason,
+		StopDetail:       strings.TrimSpace(info.StopDetail),
+		Failure:          store.CloneSessionFailure(info.Failure),
+		ACPSessionID:     stringPointerValue(info.ACPSessionID),
+		Lineage:          store.NormalizeSessionLineage(info.ID, info.Lineage),
+		Liveness:         store.CloneSessionLivenessMeta(info.Liveness),
+		Sandbox:          cloneStoreSessionSandboxMeta(info.Sandbox),
+		SoulSnapshotID:   strings.TrimSpace(info.SoulSnapshotID),
+		SoulDigest:       strings.TrimSpace(info.SoulDigest),
+		ParentSoulDigest: strings.TrimSpace(info.ParentSoulDigest),
+		AttachedTo:       strings.TrimSpace(info.AttachedTo),
+		AttachExpiresAt:  cloneTimePtr(info.AttachExpiresAt),
+		CreatedAt:        info.CreatedAt,
+		UpdatedAt:        info.UpdatedAt,
+	}
+	return SessionPayloadFromInfo(converted)
+}
+
+func stringPointerValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
+}
+
+func cloneStoreSessionSandboxMeta(meta *store.SessionSandboxMeta) *store.SessionSandboxMeta {
+	if meta == nil {
+		return nil
+	}
+	cloned := *meta
+	cloned.RuntimeAdditionalDirs = append([]string(nil), meta.RuntimeAdditionalDirs...)
+	cloned.ProviderState = append([]byte(nil), meta.ProviderState...)
+	cloned.SSHAccessExpiresAt = cloneTimePtr(meta.SSHAccessExpiresAt)
+	cloned.LastSyncAt = cloneTimePtr(meta.LastSyncAt)
+	return &cloned
 }
 
 // RuntimeActivityPayloadFromSessionMeta converts persisted session activity metadata into the shared payload.

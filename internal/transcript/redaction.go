@@ -55,11 +55,20 @@ func redactTranscriptEvent(parsed event) event {
 	parsed.Error = redactDisplayString(parsed.Error)
 	parsed.Failure = redactSessionFailure(parsed.Failure)
 	parsed.Runtime = redactRuntimeActivity(parsed.Runtime)
+	parsed.Marker = redactMarker(parsed.Marker)
 	parsed.ToolCallID = redactDisplayString(parsed.ToolCallID)
 	parsed.ToolName = redactDisplayString(parsed.ToolName)
 	parsed.ToolInput = redactRawMessage(parsed.ToolInput)
 	parsed.ToolResult = redactTranscriptToolResult(parsed.ToolResult)
 	return parsed
+}
+
+func redactMarker(marker *Marker) *Marker {
+	if marker == nil {
+		return nil
+	}
+	redacted := marker.Normalize()
+	return &redacted
 }
 
 func redactTranscriptToolResult(result *ToolResult) *ToolResult {

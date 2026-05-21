@@ -14,6 +14,7 @@ import (
 
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/pedronauck/agh/internal/events"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/store"
@@ -720,6 +721,7 @@ func (o *Observer) writeObservedEventSummary(
 		WorkspaceID:      snapshot.workspaceID,
 		Type:             strings.TrimSpace(event.Type),
 		AgentName:        snapshot.agentName,
+		Content:          observedEventContent(event),
 		EventCorrelation: correlation,
 		ParentSessionID:  snapshot.parentSessionID,
 		RootSessionID:    snapshot.rootSessionID,
@@ -727,6 +729,15 @@ func (o *Observer) writeObservedEventSummary(
 		Summary:          summarizeEvent(event),
 		Timestamp:        timestamp,
 	})
+}
+
+func observedEventContent(event acp.AgentEvent) []byte {
+	switch strings.TrimSpace(event.Type) {
+	case events.TranscriptMarkerCreated, events.TranscriptMarkerRedacted:
+		return acp.CloneRawMessage(event.Raw)
+	default:
+		return nil
+	}
 }
 
 func (o *Observer) aggregateObservedUsage(

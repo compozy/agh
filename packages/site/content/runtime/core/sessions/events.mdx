@@ -279,13 +279,14 @@ matching rows first and then re-sorts them ascending before returning them.
 
 ## Relationship to replay
 
-The [resume and replay](/runtime/core/sessions/resume) path depends on this stored event log:
+The [resume attach and replay](/runtime/core/sessions/resume) path depends on this stored event log:
 
 - `agh session history` groups the stored rows by `turn_id`
 - `GET /api/workspaces/:workspace_id/sessions/:session_id/transcript` assembles canonical replay messages from these rows
-- resume validation requires `events.db` to exist and contain at least one event
+- `GET /api/workspaces/:workspace_id/sessions/:session_id/recap` returns a bounded, redacted reorientation snapshot
+- `transcript_marker.created` and `transcript_marker.redacted` rows preserve interrupts, timeouts, unhealthy state, and MCP auth prompts as durable marker evidence
 
 ## Next steps
 
-- Use [Session Lifecycle](/runtime/core/sessions/lifecycle) to understand how stop and resume interact with the state machine.
+- Use [Session Lifecycle](/runtime/core/sessions/lifecycle) to understand how stop, attach, and repair interact with the state machine.
 - Use [Permissions](/runtime/core/sessions/permissions) to understand the approval events you will see in this stream.

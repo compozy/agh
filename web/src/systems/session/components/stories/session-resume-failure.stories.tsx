@@ -12,7 +12,7 @@ const meta: Meta<typeof SessionResumeFailure> = {
     layout: "fullscreen",
     docs: {
       description: {
-        component: "Inline alert shown when a persisted session cannot be resumed.",
+        component: "Inline alert shown when a session attach attempt fails.",
       },
     },
   },

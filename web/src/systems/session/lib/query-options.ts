@@ -5,6 +5,7 @@ import {
   fetchSessionEvents,
   fetchSessionHistory,
   fetchSessionLedger,
+  fetchSessionRecap,
   fetchSessionTranscript,
   fetchSessions,
   SessionLedgerUnavailableError,
@@ -60,6 +61,15 @@ export function sessionTranscriptOptions(workspace: string, id: string) {
   return queryOptions({
     queryKey: sessionKeys.transcript(workspace, id),
     queryFn: ({ signal }) => fetchSessionTranscript(workspace, id, signal),
+    staleTime: 10_000,
+    enabled: !!workspace && !!id,
+  });
+}
+
+export function sessionRecapOptions(workspace: string, id: string, limit?: number) {
+  return queryOptions({
+    queryKey: sessionKeys.recap(workspace, id, limit),
+    queryFn: ({ signal }) => fetchSessionRecap(workspace, id, limit, signal),
     staleTime: 10_000,
     enabled: !!workspace && !!id,
   });

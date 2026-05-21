@@ -88,6 +88,7 @@ type stubClient struct {
 	refreshSessionSoulFn        func(context.Context, string, SessionSoulRefreshRequest) (AgentSoulRecord, error)
 	stopSessionFn               func(context.Context, string) error
 	resumeSessionFn             func(context.Context, string) (SessionRecord, error)
+	sessionRecapFn              func(context.Context, string, int) (SessionRecapRecord, error)
 	repairSessionFn             func(context.Context, string, SessionRepairQuery) (SessionRepairRecord, error)
 	approveSessionFn            func(context.Context, string, SessionApprovalRequest) (SessionApprovalRecord, error)
 	promptSessionFn             func(context.Context, string, string) ([]AgentEventRecord, error)
@@ -872,6 +873,13 @@ func (s *stubClient) ResumeSession(ctx context.Context, id string) (SessionRecor
 		return s.resumeSessionFn(ctx, id)
 	}
 	return SessionRecord{}, errors.New("unexpected ResumeSession call")
+}
+
+func (s *stubClient) SessionRecap(ctx context.Context, id string, limit int) (SessionRecapRecord, error) {
+	if s.sessionRecapFn != nil {
+		return s.sessionRecapFn(ctx, id, limit)
+	}
+	return SessionRecapRecord{}, errors.New("unexpected SessionRecap call")
 }
 
 func (s *stubClient) RepairSession(

@@ -344,20 +344,21 @@ func newTestHandlersWithRuntime(
 	manager = defaultTestSessionManager(manager)
 	workspaces = defaultTestWorkspaceService(workspaces)
 	return newHandlers(&handlerConfig{
-		sessions:     manager,
-		tasks:        tasks,
-		observer:     observer,
-		automation:   automation,
-		bridges:      bridges,
-		workspaces:   workspaces,
-		homePaths:    homePaths,
-		config:       cfg,
-		logger:       discardLogger(),
-		startedAt:    time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-		now:          func() time.Time { return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC) },
-		pollInterval: 5 * time.Millisecond,
-		agentLoader:  aghconfig.LoadAgentDef,
-		extensions:   extensions,
+		sessions:       manager,
+		sessionCatalog: defaultTestSessionCatalog(manager),
+		tasks:          tasks,
+		observer:       observer,
+		automation:     automation,
+		bridges:        bridges,
+		workspaces:     workspaces,
+		homePaths:      homePaths,
+		config:         cfg,
+		logger:         discardLogger(),
+		startedAt:      time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+		now:            func() time.Time { return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC) },
+		pollInterval:   5 * time.Millisecond,
+		agentLoader:    aghconfig.LoadAgentDef,
+		extensions:     extensions,
 	})
 }
 
@@ -387,6 +388,14 @@ func defaultTestSessionManager(manager core.SessionManager) core.SessionManager 
 		return info, nil
 	}
 	return stub
+}
+
+func defaultTestSessionCatalog(manager core.SessionManager) core.SessionCatalog {
+	catalog, ok := manager.(core.SessionCatalog)
+	if !ok {
+		return nil
+	}
+	return catalog
 }
 
 func defaultTestWorkspaceService(workspaces core.WorkspaceService) core.WorkspaceService {

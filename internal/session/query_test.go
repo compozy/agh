@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/events"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/testutil"
 )
@@ -414,11 +415,14 @@ func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Events(after prompt) error = %v", err)
 	}
-	if len(afterPrompt) != 1 {
-		t.Fatalf("Events(after prompt) = %d events, want 1", len(afterPrompt))
+	if len(afterPrompt) != 2 {
+		t.Fatalf("Events(after prompt) = %d events, want 2", len(afterPrompt))
 	}
 	if got := afterPrompt[0].Type; got != EventTypeSessionStopped {
 		t.Fatalf("Events(after prompt)[0].Type = %q, want %q", got, EventTypeSessionStopped)
+	}
+	if got := afterPrompt[1].Type; got != events.TranscriptMarkerCreated {
+		t.Fatalf("Events(after prompt)[1].Type = %q, want %q", got, events.TranscriptMarkerCreated)
 	}
 
 	stoppedHistory, err := h.manager.History(testutil.Context(t), session.ID, store.EventQuery{})

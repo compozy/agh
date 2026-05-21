@@ -25,6 +25,11 @@ export type SessionHistoryResponse = OperationResponse<"getSessionHistory", 200>
 export type TurnHistoryPayload = SessionHistoryResponse["history"][number];
 
 export type SessionTranscriptResponse = OperationResponse<"getSessionTranscript", 200>;
+export type SessionBadge = SessionPayload["badge"];
+export type SessionAttachResponse = OperationResponse<"attachSession", 200>;
+export type SessionRecapResponse = OperationResponse<"getSessionRecap", 200>;
+export type SessionRecapPayload = SessionRecapResponse["recap"];
+export type TranscriptMarkerPayload = SessionRecapPayload["recent_markers"][number];
 export type SessionRepairResponse = OperationResponse<"repairSession", 200>;
 export type SessionRepairPayload = SessionRepairResponse["repair"];
 export type SessionRepairQuery = OperationQuery<"repairSession">;
@@ -98,6 +103,7 @@ export interface AgentEventPayload {
   failure?: SessionFailurePayload;
   usage?: TokenUsagePayload;
   runtime?: RuntimeActivityPayload;
+  marker?: TranscriptMarkerPayload;
   raw?: unknown;
 }
 

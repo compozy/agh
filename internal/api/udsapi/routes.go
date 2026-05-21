@@ -85,7 +85,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 		workspaceSessions.GET("/:session_id/inspect", handlers.InspectSession)
 		workspaceSessions.DELETE("/:session_id", handlers.DeleteSession)
 		workspaceSessions.POST("/:session_id/stop", handlers.StopSession)
-		workspaceSessions.POST("/:session_id/resume", handlers.ResumeSession)
+		workspaceSessions.POST("/:session_id/attach", handlers.AttachSession)
 		workspaceSessions.POST("/:session_id/repair", handlers.RepairSession)
 		workspaceSessions.POST("/:session_id/clear", handlers.ClearSessionConversation)
 		workspaceSessions.POST("/:session_id/prompt", handlers.promptSession)
@@ -93,6 +93,7 @@ func registerSessionRoutes(api gin.IRouter, handlers *Handlers) {
 		workspaceSessions.GET("/:session_id/events", handlers.SessionEvents)
 		workspaceSessions.GET("/:session_id/history", handlers.SessionHistory)
 		workspaceSessions.GET("/:session_id/transcript", handlers.SessionTranscript)
+		workspaceSessions.GET("/:session_id/recap", handlers.SessionRecap)
 		workspaceSessions.GET("/:session_id/stream", handlers.StreamSession)
 		workspaceSessions.POST("/:session_id/approve", handlers.approveSession)
 	}

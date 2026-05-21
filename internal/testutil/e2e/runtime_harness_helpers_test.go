@@ -944,12 +944,12 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})
-	mux.HandleFunc("/api/workspaces/ws-1/sessions/sess-1/resume", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/workspaces/ws-1/sessions/sess-1/attach", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
-		writeJSON(w, aghcontract.SessionResponse{
+		writeJSON(w, aghcontract.SessionAttachResponse{
 			Session: aghcontract.SessionPayload{
 				ID:            "sess-1",
 				AgentName:     "coder",
@@ -957,6 +957,7 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				WorkspacePath: "/workspace",
 				Channel:       "builders",
 				State:         "active",
+				Badge:         "idle",
 				Sandbox: &aghcontract.SessionSandboxPayload{
 					SandboxID: "env-1",
 					Backend:   "local",
@@ -965,6 +966,12 @@ func newHarnessTestServer(t testing.TB) *harnessTestServer {
 				},
 				CreatedAt: now,
 				UpdatedAt: routeTime,
+			},
+			Attach: aghcontract.SessionAttachPayload{
+				SessionID:       "sess-1",
+				AttachedTo:      "e2e:test",
+				AttachExpiresAt: routeTime.Add(time.Minute),
+				AttachedAt:      routeTime,
 			},
 		})
 	})

@@ -70,10 +70,16 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			}
 			return nil
 		},
-		ResumeFn: func(_ context.Context, id string) (*session.Session, error) {
-			resumed := testutil.NewSession(id)
-			resumed.State = session.StateActive
-			return resumed, nil
+		AttachSessionFn: func(_ context.Context, req store.SessionAttachRequest) (store.SessionAttach, error) {
+			if req.SessionID != "sess-a" {
+				t.Fatalf("AttachSession() session id = %q, want sess-a", req.SessionID)
+			}
+			return store.SessionAttach{
+				SessionID:       req.SessionID,
+				AttachedTo:      req.AttachedTo,
+				AttachedAt:      req.Now,
+				AttachExpiresAt: req.Now.Add(req.TTL),
+			}, nil
 		},
 		RepairFn: func(_ context.Context, opts session.RepairOpts) (*session.RepairResult, error) {
 			repairSeen = opts
@@ -211,16 +217,16 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldResumeSession", func(t *testing.T) {
-		resumeResp := performRequest(
+	t.Run("ShouldAttachSession", func(t *testing.T) {
+		attachResp := performRequest(
 			t,
 			fixture.Engine,
 			http.MethodPost,
-			"/workspaces/ws-workspace/sessions/sess-a/resume",
+			"/workspaces/ws-workspace/sessions/sess-a/attach",
 			nil,
 		)
-		if resumeResp.Code != http.StatusOK {
-			t.Fatalf("resume status = %d, want %d", resumeResp.Code, http.StatusOK)
+		if attachResp.Code != http.StatusOK {
+			t.Fatalf("attach status = %d, want %d", attachResp.Code, http.StatusOK)
 		}
 	})
 

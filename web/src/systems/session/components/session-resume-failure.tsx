@@ -35,7 +35,7 @@ export function SessionResumeFailure({
   const normalizedAgentName = agentName?.trim() ?? "";
   const hasProviderDetail = normalizedMissingProvider.length > 0;
   const hasAgentDetail = normalizedAgentName.length > 0;
-  const title = hasProviderDetail ? "Resume failed: provider no longer available" : "Resume failed";
+  const title = hasProviderDetail ? "Attach failed: provider no longer available" : "Attach failed";
 
   return (
     <Alert
@@ -99,7 +99,7 @@ export function SessionResumeFailure({
           ) : (
             <RefreshCw aria-hidden="true" className="size-3" />
           )}
-          Retry resume
+          Retry attach
         </Button>
       </AlertActions>
     </Alert>

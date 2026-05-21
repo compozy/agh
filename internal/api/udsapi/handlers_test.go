@@ -198,6 +198,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/health",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/history",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/inspect",
+		"GET /api/workspaces/:workspace_id/sessions/:session_id/recap",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/status",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/transcript",
 		"GET /api/workspaces/:workspace_id/sessions/:session_id/stream",
@@ -321,7 +322,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt/cancel",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/repair",
-		"POST /api/workspaces/:workspace_id/sessions/:session_id/resume",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/attach",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/soul/refresh",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/stop",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/tools/search",
@@ -1341,20 +1342,26 @@ func TestStopSessionHandlerReturnsStopped(t *testing.T) {
 	}
 }
 
-func TestResumeSessionHandlerReturnsSession(t *testing.T) {
+func TestAttachSessionHandlerReturnsSession(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		ResumeFn: func(_ context.Context, id string) (*session.Session, error) {
-			if id != "sess-123" {
-				t.Fatalf("Resume() id = %q, want sess-123", id)
+		AttachSessionFn: func(_ context.Context, req store.SessionAttachRequest) (store.SessionAttach, error) {
+			if req.SessionID != "sess-123" {
+				t.Fatalf("AttachSession() session id = %q, want sess-123", req.SessionID)
 			}
-			return newSession("sess-123"), nil
+			now := time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC)
+			return store.SessionAttach{
+				SessionID:       req.SessionID,
+				AttachedTo:      req.AttachedTo,
+				AttachedAt:      now,
+				AttachExpiresAt: now.Add(time.Minute),
+			}, nil
 		},
 	}
 	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
 	engine := newTestRouter(t, handlers)
 
-	recorder := performRequest(t, engine, http.MethodPost, "/api/workspaces/ws-workspace/sessions/sess-123/resume", nil)
+	recorder := performRequest(t, engine, http.MethodPost, "/api/workspaces/ws-workspace/sessions/sess-123/attach", nil)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
 	}

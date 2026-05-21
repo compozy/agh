@@ -68,6 +68,13 @@ type SessionManager interface {
 	ApprovePermission(ctx context.Context, id string, req acp.ApproveRequest) error
 }
 
+// SessionCatalog exposes daemon-owned session catalog operations that must not
+// create a second live session authority.
+type SessionCatalog interface {
+	ListSessions(ctx context.Context, query store.SessionListQuery) ([]store.SessionInfo, error)
+	AttachSession(ctx context.Context, req store.SessionAttachRequest) (store.SessionAttach, error)
+}
+
 // Observer is the observability surface exposed by API transports.
 type Observer interface {
 	QueryEvents(ctx context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error)

@@ -962,21 +962,14 @@ func TestHTTPSessionChannelRoundTrip(t *testing.T) {
 		t,
 		runtime.client,
 		http.MethodPost,
-		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+created.Session.ID+"/resume"),
+		mustURL(runtime.host, runtime.port, "/api/workspaces/ws-workspace/sessions/"+created.Session.ID+"/attach"),
 		nil,
 		nil,
 	)
-	if resumeResp.StatusCode != http.StatusOK {
+	if resumeResp.StatusCode != http.StatusConflict {
 		body, _ := io.ReadAll(resumeResp.Body)
 		_ = resumeResp.Body.Close()
-		t.Fatalf("resume session status = %d, want %d; body=%s", resumeResp.StatusCode, http.StatusOK, string(body))
-	}
-	var resumed struct {
-		Session sessionPayload `json:"session"`
-	}
-	decodeHTTPJSON(t, resumeResp, &resumed)
-	if resumed.Session.Channel != "builders" || resumed.Session.State != session.StateActive {
-		t.Fatalf("resumed session = %#v, want active builders session", resumed.Session)
+		t.Fatalf("attach stopped session status = %d, want %d; body=%s", resumeResp.StatusCode, http.StatusConflict, string(body))
 	}
 }
 
