@@ -878,7 +878,10 @@ func promptTranscriptMarker(event acp.AgentEvent) (string, string, map[string]an
 				evidence,
 				true
 		}
-		return transcript.MarkerProviderFailure, firstNonEmpty(summary, failure.Summary, "Provider failed."), evidence, true
+		return transcript.MarkerProviderFailure,
+			firstNonEmpty(summary, failure.Summary, "Provider failed."),
+			evidence,
+			true
 	default:
 		return "", "", nil, false
 	}
