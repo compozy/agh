@@ -355,7 +355,7 @@ func newNetworkThreadsShowCommand(deps commandDeps, workspaceRef *string) *cobra
 func newNetworkThreadsMessagesCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
 	var flags networkThreadsFlags
 	cmd := &cobra.Command{
-		Use:   "messages",
+		Use:   sessionMessagesKey,
 		Short: "List messages in one public thread",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)
@@ -533,7 +533,7 @@ func newNetworkDirectsShowCommand(deps commandDeps, workspaceRef *string) *cobra
 func newNetworkDirectsMessagesCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
 	var flags networkDirectsFlags
 	cmd := &cobra.Command{
-		Use:   "messages",
+		Use:   sessionMessagesKey,
 		Short: "List messages in one direct room",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)

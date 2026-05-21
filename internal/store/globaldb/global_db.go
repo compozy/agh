@@ -46,6 +46,7 @@ const (
 	globalDBActorRefKey                             = "actor_ref"
 	globalDBAddAgentHeartbeatStorageKey             = "add_agent_heartbeat_storage"
 	globalDBAddAgentSoulSnapshotsKey                = "add_agent_soul_snapshots"
+	globalDBAttachExpiresAtColumn                   = "attach_expires_at"
 	globalDBAutoStopOnParentKey                     = "auto_stop_on_parent"
 	globalDBClaimTokenKey                           = "claim_token"
 	globalDBClaimTokenHashKey                       = "claim_token_hash"
@@ -59,6 +60,9 @@ const (
 	globalDBSpawnBudgetJSONKey                      = "spawn_budget_json"
 	globalDBSpawnDepthKey                           = "spawn_depth"
 	globalDBSpawnRoleKey                            = "spawn_role"
+	globalDBSessionAttachedToColumn                 = "attached_to"
+	globalDBSessionStateActive                      = "active"
+	globalDBSessionStateStopped                     = "stopped"
 	globalDBSummaryKey                              = "summary"
 	globalDBTaskEventsKey                           = "task_events"
 	globalDBTTLExpiresAtKey                         = "ttl_expires_at"
@@ -996,20 +1000,26 @@ func migrateSessionAttachLock(ctx context.Context, tx *sql.Tx) error {
 	}
 	if err := addMissingMigrationColumns(ctx, tx, "sessions", []migrationColumnSpec{
 		{
-			name: "attached_to",
+			name: globalDBSessionAttachedToColumn,
 			sql:  `ALTER TABLE sessions ADD COLUMN attached_to TEXT NOT NULL DEFAULT ''`,
 		},
 		{
-			name: "attach_expires_at",
+			name: globalDBAttachExpiresAtColumn,
 			sql:  `ALTER TABLE sessions ADD COLUMN attach_expires_at TEXT`,
 		},
 	}); err != nil {
 		return err
 	}
-	if _, err := tx.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_sessions_attach_lock ON sessions(attached_to, attach_expires_at);`); err != nil {
+	if _, err := tx.ExecContext(ctx, `
+			CREATE INDEX IF NOT EXISTS idx_sessions_attach_lock
+			ON sessions(attached_to, attach_expires_at);
+		`); err != nil {
 		return fmt.Errorf("store: create session attach lock index: %w", err)
 	}
-	if _, err := tx.ExecContext(ctx, `CREATE INDEX IF NOT EXISTS idx_sessions_resumable ON sessions(state, failure_kind, last_update_at, updated_at);`); err != nil {
+	if _, err := tx.ExecContext(ctx, `
+			CREATE INDEX IF NOT EXISTS idx_sessions_resumable
+			ON sessions(state, failure_kind, last_update_at, updated_at);
+		`); err != nil {
 		return fmt.Errorf("store: create session resumable index: %w", err)
 	}
 	return nil

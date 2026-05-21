@@ -405,9 +405,14 @@ func (m *Manager) CancelPrompt(ctx context.Context, id string) error {
 
 	proc := session.processHandle()
 	if proc == nil {
-		m.emitTranscriptMarker(ctx, session, turnID, transcript.MarkerPromptCancel, "Prompt canceled by operator.", map[string]any{
-			"source": "cancel_prompt",
-		})
+		m.emitTranscriptMarker(
+			ctx,
+			session,
+			turnID,
+			transcript.MarkerPromptCancel,
+			"Prompt canceled by operator.",
+			map[string]any{"source": "cancel_prompt"},
+		)
 		return nil
 	}
 
@@ -856,10 +861,17 @@ func promptTranscriptMarker(event acp.AgentEvent) (string, string, map[string]an
 		failure := event.Failure.Normalize()
 		evidence["failure_kind"] = string(failure.Kind)
 		if failure.Kind == store.FailureProviderAuth || failure.Kind == store.FailurePermission {
-			if strings.Contains(combined, "mcp") && (strings.Contains(combined, "auth") || strings.Contains(combined, "login")) {
-				return transcript.MarkerMCPAuthRequired, firstNonEmpty(summary, failure.Summary, "MCP authentication is required."), evidence, true
+			if strings.Contains(combined, "mcp") &&
+				(strings.Contains(combined, "auth") || strings.Contains(combined, "login")) {
+				return transcript.MarkerMCPAuthRequired,
+					firstNonEmpty(summary, failure.Summary, "MCP authentication is required."),
+					evidence,
+					true
 			}
-			return transcript.MarkerProviderFailure, firstNonEmpty(summary, failure.Summary, "Provider authentication failed."), evidence, true
+			return transcript.MarkerProviderFailure,
+				firstNonEmpty(summary, failure.Summary, "Provider authentication failed."),
+				evidence,
+				true
 		}
 		return transcript.MarkerProviderFailure, firstNonEmpty(summary, failure.Summary, "Provider failed."), evidence, true
 	default:

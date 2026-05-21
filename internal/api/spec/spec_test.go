@@ -45,7 +45,18 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				}
 
 				sessionSchema := sessionsSchema.Items.Value
-				assertRequired(t, sessionSchema, "id", "agent_name", "provider", "state", "badge", "attachable", "created_at", "updated_at")
+				assertRequired(
+					t,
+					sessionSchema,
+					"id",
+					"agent_name",
+					"provider",
+					"state",
+					"badge",
+					"attachable",
+					"created_at",
+					"updated_at",
+				)
 				assertNotRequired(
 					t,
 					sessionSchema,

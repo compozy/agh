@@ -368,7 +368,10 @@ func sessionStoppedTranscriptMarker(event acp.AgentEvent) (string, string, map[s
 	}
 	switch {
 	case event.StopReason == string(store.StopUserCanceled) || failureKind == store.FailureCanceled:
-		return transcript.MarkerPromptInterrupted, firstNonEmpty(summary, "Session interrupted by operator."), evidence, true
+		return transcript.MarkerPromptInterrupted,
+			firstNonEmpty(summary, "Session interrupted by operator."),
+			evidence,
+			true
 	case event.StopReason == string(store.StopTimeout) || failureKind == store.FailureTimeout:
 		return transcript.MarkerPromptTimeout, firstNonEmpty(summary, "Session timed out."), evidence, true
 	case failureKind != "":

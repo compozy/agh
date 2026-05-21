@@ -699,7 +699,11 @@ func (h *BaseHandlers) SessionRecap(c *gin.Context) {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	eventsList, err := h.Sessions.Events(c.Request.Context(), sessionID, store.EventQuery{Limit: maxSessionRecapLimit * 5})
+	eventsList, err := h.Sessions.Events(
+		c.Request.Context(),
+		sessionID,
+		store.EventQuery{Limit: maxSessionRecapLimit * 5},
+	)
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
 		return

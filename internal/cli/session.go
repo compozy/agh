@@ -26,6 +26,7 @@ const (
 	sessionBackendValue   = "Backend"
 	sessionChannelValue   = "Channel"
 	sessionCreatedValue   = "Created"
+	sessionBadgeValue     = "Badge"
 	sessionNameValue      = "Name"
 	sessionProfileValue   = "Profile"
 	sessionProviderValue  = "Provider"
@@ -36,10 +37,12 @@ const (
 	sessionUpdatedValue   = "Updated"
 	sessionWorkspaceValue = "Workspace"
 	sessionAgentNameKey   = "agent_name"
+	sessionBadgeKey       = "badge"
 	sessionChannelKey     = "channel"
 	sessionCreatedAtKey   = "created_at"
 	sessionHistoryIDValue = "history <id>"
 	sessionListKey        = "list"
+	sessionMessagesKey    = "messages"
 	sessionNameKey        = "name"
 	sessionNewKey         = "new"
 	sessionProviderKey    = "provider"
@@ -645,93 +648,105 @@ func streamSessionEvents(cmd *cobra.Command, client DaemonClient, id string, que
 func sessionBundle(info SessionRecord, now func() time.Time) outputBundle {
 	return outputBundle{
 		jsonValue: info,
-		human: func() (string, error) {
-			base := renderHumanSection(sessionSessionValue, []keyValue{
-				{Label: "ID", Value: stringOrDash(info.ID)},
-				{Label: sessionNameValue, Value: stringOrDash(info.Name)},
-				{Label: sessionAgentValue, Value: stringOrDash(info.AgentName)},
-				{Label: sessionProviderValue, Value: stringOrDash(info.Provider)},
-				{Label: sessionWorkspaceValue, Value: stringOrDash(displaySessionWorkspace(info))},
-				{Label: sessionChannelValue, Value: stringOrDash(info.Channel)},
-				{Label: sessionStateValue, Value: stringOrDash(string(info.State))},
-				{Label: "Badge", Value: stringOrDash(string(info.Badge))},
-				{Label: "Attached To", Value: stringOrDash(info.AttachedTo)},
-				{Label: "Attach Expires", Value: stringOrDash(formatTimePtr(info.AttachExpiresAt))},
-				{Label: "Stop Reason", Value: stringOrDash(string(info.StopReason))},
-				{Label: "Stop Detail", Value: stringOrDash(info.StopDetail)},
-				{Label: "Failure Kind", Value: stringOrDash(sessionFailureKind(info))},
-				{Label: "Failure Summary", Value: stringOrDash(sessionFailureSummary(info))},
-				{Label: "Crash Bundle", Value: stringOrDash(sessionCrashBundlePath(info))},
-				{Label: "ACP Session", Value: stringOrDash(info.ACPSessionID)},
-				{Label: sessionCreatedValue, Value: stringOrDash(formatTime(info.CreatedAt))},
-				{Label: sessionUpdatedValue, Value: stringOrDash(formatTime(info.UpdatedAt))},
-				{Label: "Age", Value: stringOrDash(formatAge(now, info.CreatedAt))},
-			})
-
-			blocks := []string{base}
-			if info.Sandbox != nil {
-				blocks = append(blocks, renderHumanSection("Sandbox", []keyValue{
-					{Label: sessionBackendValue, Value: stringOrDash(info.Sandbox.Backend)},
-					{Label: sessionProfileValue, Value: stringOrDash(info.Sandbox.Profile)},
-					{Label: "Sandbox ID", Value: stringOrDash(info.Sandbox.SandboxID)},
-					{Label: "Instance ID", Value: stringOrDash(info.Sandbox.InstanceID)},
-					{Label: sessionStateValue, Value: stringOrDash(info.Sandbox.State)},
-					{Label: "Last Sync Error", Value: stringOrDash(info.Sandbox.LastSyncError)},
-				}))
-			}
-			if info.ACPCaps == nil {
-				return renderHumanBlocks(blocks...), nil
-			}
-			caps := renderHumanSection("Capabilities", []keyValue{
-				{Label: "Supports Load", Value: strconv.FormatBool(info.ACPCaps.SupportsLoadSession)},
-				{Label: "Modes", Value: stringOrDash(strings.Join(info.ACPCaps.SupportedModes, ", "))},
-				{Label: "Models", Value: stringOrDash(strings.Join(info.ACPCaps.SupportedModels, ", "))},
-			})
-			blocks = append(blocks, caps)
-			return renderHumanBlocks(blocks...), nil
-		},
-		toon: func() (string, error) {
-			return renderToonObject(sessionSessionKey, []string{
-				"id",
-				sessionNameKey,
-				sessionAgentNameKey,
-				sessionProviderKey,
-				"sandbox_backend",
-				workspaceSkillSource,
-				sessionChannelKey,
-				sessionStateKey,
-				"badge",
-				"attached_to",
-				"attach_expires_at",
-				"stop_reason",
-				"failure_kind",
-				"failure_summary",
-				"crash_bundle_path",
-				"acp_session_id",
-				sessionCreatedAtKey,
-				sessionUpdatedAtKey,
-			}, []string{
-				info.ID,
-				info.Name,
-				info.AgentName,
-				info.Provider,
-				sessionSandboxBackend(info),
-				displaySessionWorkspace(info),
-				info.Channel,
-				string(info.State),
-				string(info.Badge),
-				info.AttachedTo,
-				formatTimePtr(info.AttachExpiresAt),
-				string(info.StopReason),
-				sessionFailureKind(info),
-				sessionFailureSummary(info),
-				sessionCrashBundlePath(info),
-				info.ACPSessionID,
-				formatTime(info.CreatedAt),
-				formatTime(info.UpdatedAt),
-			}), nil
-		},
+		human:     func() (string, error) { return renderSessionHuman(info, now) },
+		toon:      func() (string, error) { return renderSessionToon(info) },
 	}
+}
+
+func renderSessionHuman(info SessionRecord, now func() time.Time) (string, error) {
+	base := renderHumanSection(sessionSessionValue, []keyValue{
+		{Label: "ID", Value: stringOrDash(info.ID)},
+		{Label: sessionNameValue, Value: stringOrDash(info.Name)},
+		{Label: sessionAgentValue, Value: stringOrDash(info.AgentName)},
+		{Label: sessionProviderValue, Value: stringOrDash(info.Provider)},
+		{Label: sessionWorkspaceValue, Value: stringOrDash(displaySessionWorkspace(info))},
+		{Label: sessionChannelValue, Value: stringOrDash(info.Channel)},
+		{Label: sessionStateValue, Value: stringOrDash(string(info.State))},
+		{Label: sessionBadgeValue, Value: stringOrDash(string(info.Badge))},
+		{Label: "Attached To", Value: stringOrDash(info.AttachedTo)},
+		{Label: "Attach Expires", Value: stringOrDash(formatTimePtr(info.AttachExpiresAt))},
+		{Label: "Stop Reason", Value: stringOrDash(string(info.StopReason))},
+		{Label: "Stop Detail", Value: stringOrDash(info.StopDetail)},
+		{Label: "Failure Kind", Value: stringOrDash(sessionFailureKind(info))},
+		{Label: "Failure Summary", Value: stringOrDash(sessionFailureSummary(info))},
+		{Label: "Crash Bundle", Value: stringOrDash(sessionCrashBundlePath(info))},
+		{Label: "ACP Session", Value: stringOrDash(info.ACPSessionID)},
+		{Label: sessionCreatedValue, Value: stringOrDash(formatTime(info.CreatedAt))},
+		{Label: sessionUpdatedValue, Value: stringOrDash(formatTime(info.UpdatedAt))},
+		{Label: "Age", Value: stringOrDash(formatAge(now, info.CreatedAt))},
+	})
+
+	blocks := []string{base}
+	blocks = appendSessionSandboxBlock(blocks, info)
+	blocks = appendSessionCapsBlock(blocks, info)
+	return renderHumanBlocks(blocks...), nil
+}
+
+func appendSessionSandboxBlock(blocks []string, info SessionRecord) []string {
+	if info.Sandbox == nil {
+		return blocks
+	}
+	return append(blocks, renderHumanSection("Sandbox", []keyValue{
+		{Label: sessionBackendValue, Value: stringOrDash(info.Sandbox.Backend)},
+		{Label: sessionProfileValue, Value: stringOrDash(info.Sandbox.Profile)},
+		{Label: "Sandbox ID", Value: stringOrDash(info.Sandbox.SandboxID)},
+		{Label: "Instance ID", Value: stringOrDash(info.Sandbox.InstanceID)},
+		{Label: sessionStateValue, Value: stringOrDash(info.Sandbox.State)},
+		{Label: "Last Sync Error", Value: stringOrDash(info.Sandbox.LastSyncError)},
+	}))
+}
+
+func appendSessionCapsBlock(blocks []string, info SessionRecord) []string {
+	if info.ACPCaps == nil {
+		return blocks
+	}
+	return append(blocks, renderHumanSection("Capabilities", []keyValue{
+		{Label: "Supports Load", Value: strconv.FormatBool(info.ACPCaps.SupportsLoadSession)},
+		{Label: "Modes", Value: stringOrDash(strings.Join(info.ACPCaps.SupportedModes, ", "))},
+		{Label: "Models", Value: stringOrDash(strings.Join(info.ACPCaps.SupportedModels, ", "))},
+	}))
+}
+
+func renderSessionToon(info SessionRecord) (string, error) {
+	return renderToonObject(sessionSessionKey, []string{
+		"id",
+		sessionNameKey,
+		sessionAgentNameKey,
+		sessionProviderKey,
+		"sandbox_backend",
+		workspaceSkillSource,
+		sessionChannelKey,
+		sessionStateKey,
+		sessionBadgeKey,
+		"attached_to",
+		"attach_expires_at",
+		"stop_reason",
+		"failure_kind",
+		"failure_summary",
+		"crash_bundle_path",
+		"acp_session_id",
+		sessionCreatedAtKey,
+		sessionUpdatedAtKey,
+	}, []string{
+		info.ID,
+		info.Name,
+		info.AgentName,
+		info.Provider,
+		sessionSandboxBackend(info),
+		displaySessionWorkspace(info),
+		info.Channel,
+		string(info.State),
+		string(info.Badge),
+		info.AttachedTo,
+		formatTimePtr(info.AttachExpiresAt),
+		string(info.StopReason),
+		sessionFailureKind(info),
+		sessionFailureSummary(info),
+		sessionCrashBundlePath(info),
+		info.ACPSessionID,
+		formatTime(info.CreatedAt),
+		formatTime(info.UpdatedAt),
+	}), nil
 }
 
 func sessionListBundle(items []SessionRecord, now func() time.Time) outputBundle {
@@ -746,7 +761,7 @@ func sessionListBundle(items []SessionRecord, now func() time.Time) outputBundle
 			sessionProviderValue,
 			sessionBackendValue,
 			sessionStateValue,
-			"Badge",
+			sessionBadgeValue,
 			"Failure",
 			sessionWorkspaceValue,
 			sessionChannelValue,
@@ -760,7 +775,7 @@ func sessionListBundle(items []SessionRecord, now func() time.Time) outputBundle
 			sessionProviderKey,
 			"sandbox_backend",
 			sessionStateKey,
-			"badge",
+			sessionBadgeKey,
 			"failure_kind",
 			workspaceSkillSource,
 			sessionChannelKey,
@@ -824,7 +839,7 @@ func sessionRecapBundle(record SessionRecapRecord) outputBundle {
 			blocks := []string{
 				renderHumanSection("Session Recap", []keyValue{
 					{Label: sessionSessionValue, Value: stringOrDash(record.Session.ID)},
-					{Label: "Badge", Value: stringOrDash(string(record.Session.Badge))},
+					{Label: sessionBadgeValue, Value: stringOrDash(string(record.Session.Badge))},
 					{Label: "Markers", Value: strconv.Itoa(len(record.RecentMarkers))},
 					{Label: "Messages", Value: strconv.Itoa(len(record.RecentMessages))},
 					{Label: "Event Cursor", Value: strconv.FormatInt(record.Snapshot.EventCursor, 10)},
@@ -846,9 +861,9 @@ func sessionRecapBundle(record SessionRecapRecord) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject("recap", []string{
 				sessionSessionIDKey,
-				"badge",
+				sessionBadgeKey,
 				"markers",
-				"messages",
+				sessionMessagesKey,
 				"event_cursor",
 				"consistency",
 			}, []string{

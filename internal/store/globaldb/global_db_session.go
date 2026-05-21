@@ -13,7 +13,9 @@ import (
 )
 
 const (
-	globalDBSessionLocalKey = "local"
+	globalDBSessionLocalKey   = "local"
+	sessionListResumableWhere = "state = 'active' AND (failure_kind IS NULL OR trim(failure_kind) = '') AND " +
+		"(attached_to = '' OR attach_expires_at IS NULL OR attach_expires_at <= ?)"
 )
 
 // RegisterSession inserts or refreshes a session index row.
@@ -105,12 +107,13 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query store.SessionListQuer
 	if query.Resumable {
 		where = append(
 			where,
-			"state = 'active' AND (failure_kind IS NULL OR trim(failure_kind) = '') AND "+
-				"(attached_to = '' OR attach_expires_at IS NULL OR attach_expires_at <= ?)",
+			sessionListResumableWhere,
 		)
 		args = append(args, store.FormatTimestamp(g.now()))
 	}
 	sqlQuery = store.AppendWhere(sqlQuery, where)
+	// The sort value is normalized to one of two constant clauses by sessionListOrderClause.
+	//nolint:gosec
 	sqlQuery += sessionListOrderClause(query.Sort)
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
@@ -172,7 +175,11 @@ func (g *GlobalDB) AttachSession(ctx context.Context, req store.SessionAttachReq
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
-		return store.SessionAttach{}, fmt.Errorf("store: rows affected for attach session %q: %w", normalized.SessionID, err)
+		return store.SessionAttach{}, fmt.Errorf(
+			"store: rows affected for attach session %q: %w",
+			normalized.SessionID,
+			err,
+		)
 	}
 	if affected == 0 {
 		if classifyErr := g.classifyAttachFailure(ctx, normalized.SessionID, normalized.Now); classifyErr != nil {
@@ -205,7 +212,7 @@ func (g *GlobalDB) classifyAttachFailure(ctx context.Context, sessionID string, 
 		}
 		return fmt.Errorf("store: classify attach session %q: %w", sessionID, err)
 	}
-	if strings.TrimSpace(state) != "active" || strings.TrimSpace(failureKind.String) != "" {
+	if strings.TrimSpace(state) != globalDBSessionStateActive || strings.TrimSpace(failureKind.String) != "" {
 		return fmt.Errorf("%w: %s", store.ErrSessionNotAttachable, sessionID)
 	}
 	if strings.TrimSpace(attachedTo) == "" || !attachExpiresAtRaw.Valid || strings.TrimSpace(attachExpiresAtRaw.String) == "" {
@@ -581,7 +588,7 @@ func buildUpdateSessionStateStatement(update store.SessionStateUpdate, updatedAt
 			sessionSandboxLastSyncError(update.Sandbox),
 		)
 	}
-	if strings.TrimSpace(update.State) == "stopped" {
+	if strings.TrimSpace(update.State) == globalDBSessionStateStopped {
 		assignments = append(assignments, "attached_to = ''", "attach_expires_at = NULL")
 	}
 

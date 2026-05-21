@@ -59,7 +59,10 @@ func (s StubSessionManager) ListAll(ctx context.Context) ([]*session.Info, error
 	return nil, nil
 }
 
-func (s StubSessionManager) ListSessions(ctx context.Context, query store.SessionListQuery) ([]store.SessionInfo, error) {
+func (s StubSessionManager) ListSessions(
+	ctx context.Context,
+	query store.SessionListQuery,
+) ([]store.SessionInfo, error) {
 	if s.ListSessionsFn != nil {
 		return s.ListSessionsFn(ctx, query)
 	}
