@@ -187,7 +187,7 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 		}
 	})
 
-	t.Run("Should surface memory health and observe events", func(t *testing.T) {
+	t.Run("Should surface memory health and logs", func(t *testing.T) {
 		var health aghcontract.StatusPayload
 		if err := harness.HTTPJSON(
 			ctx,
@@ -214,9 +214,9 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 			t.Fatalf("health.Memory.LastReindex = nil, want non-nil")
 		}
 
-		var reindexEvents aghcontract.ObserveEventsResponse
-		reindexEventsPath := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) +
-			"/observe/events?type=memory.write.reindex&limit=10"
+		var reindexEvents aghcontract.ListLogsResponse
+		reindexEventsPath := "/api/logs?workspace_id=" + url.QueryEscape(harness.WorkspaceID) +
+			"&type=memory.write.reindex&limit=10"
 		if err := harness.UDSJSON(
 			ctx,
 			http.MethodGet,
@@ -224,15 +224,15 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 			nil,
 			&reindexEvents,
 		); err != nil {
-			t.Fatalf("UDS observe reindex events error = %v", err)
+			t.Fatalf("UDS logs reindex error = %v", err)
 		}
-		if !containsObserveEventSummary(reindexEvents.Events, "memory.write.reindex", "indexed=3") {
-			t.Fatalf("reindex observe events = %#v, want indexed=3 summary", reindexEvents.Events)
+		if !containsLogEventSummary(reindexEvents.Events, "memory.write.reindex", "indexed=3") {
+			t.Fatalf("reindex logs = %#v, want indexed=3 summary", reindexEvents.Events)
 		}
 
-		var searchEvents aghcontract.ObserveEventsResponse
-		searchEventsPath := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) +
-			"/observe/events?type=memory.recall.executed&limit=10"
+		var searchEvents aghcontract.ListLogsResponse
+		searchEventsPath := "/api/logs?workspace_id=" + url.QueryEscape(harness.WorkspaceID) +
+			"&type=memory.recall.executed&limit=10"
 		if err := harness.UDSJSON(
 			ctx,
 			http.MethodGet,
@@ -240,13 +240,13 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 			nil,
 			&searchEvents,
 		); err != nil {
-			t.Fatalf("UDS observe search events error = %v", err)
+			t.Fatalf("UDS logs search error = %v", err)
 		}
-		if !containsObserveEventSummary(searchEvents.Events, "memory.recall.executed", `auth sessions`) {
-			t.Fatalf("search observe events = %#v, want auth search summary", searchEvents.Events)
+		if !containsLogEventSummary(searchEvents.Events, "memory.recall.executed", `auth sessions`) {
+			t.Fatalf("search logs = %#v, want auth search summary", searchEvents.Events)
 		}
-		if !containsObserveEventSummary(searchEvents.Events, "memory.recall.executed", `legacy decoy`) {
-			t.Fatalf("search observe events = %#v, want legacy search summary", searchEvents.Events)
+		if !containsLogEventSummary(searchEvents.Events, "memory.recall.executed", `legacy decoy`) {
+			t.Fatalf("search logs = %#v, want legacy search summary", searchEvents.Events)
 		}
 	})
 }
@@ -446,8 +446,8 @@ func containsSearchResult(response aghcontract.MemorySearchResponse, filename st
 	return false
 }
 
-func containsObserveEventSummary(
-	events []aghcontract.ObserveEventPayload,
+func containsLogEventSummary(
+	events []aghcontract.LogEventPayload,
 	eventType string,
 	summaryFragment string,
 ) bool {

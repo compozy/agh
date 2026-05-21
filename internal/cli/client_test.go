@@ -1374,15 +1374,21 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						http.StatusOK,
 						`{"events":[{"event":"tool.pre_call","family":"tool","sync_eligible":true,"payload_schema":"ToolPreCallPayload","patch_schema":"ToolCallPatch"}]}`,
 					), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/workspaces/ws-1/observe/events":
+				case req.Method == http.MethodGet && req.URL.Path == "/api/logs":
+					if got := req.URL.Query().Get("workspace_id"); got != "ws-1" {
+						t.Fatalf("logs workspace_id query = %q, want %q", got, "ws-1")
+					}
 					if got := req.URL.Query().Get("session_id"); got != "sess-1" {
-						t.Fatalf("observe session_id query = %q, want %q", got, "sess-1")
+						t.Fatalf("logs session_id query = %q, want %q", got, "sess-1")
 					}
 					return newHTTPResponse(
 						http.StatusOK,
 						`{"events":[{"id":"sum-1","session_id":"sess-1","type":"agent_message","agent_name":"coder","timestamp":"2026-04-03T12:00:00Z"}]}`,
 					), nil
-				case req.Method == http.MethodGet && req.URL.Path == "/api/workspaces/ws-1/observe/events/stream":
+				case req.Method == http.MethodGet && req.URL.Path == "/api/logs/stream":
+					if got := req.URL.Query().Get("workspace_id"); got != "ws-1" {
+						t.Fatalf("logs stream workspace_id query = %q, want %q", got, "ws-1")
+					}
 					if got := req.Header.Get("Last-Event-ID"); got != "cursor-1" {
 						t.Fatalf("Last-Event-ID = %q, want %q", got, "cursor-1")
 					}
@@ -1656,22 +1662,22 @@ func TestUnixSocketClientMethods(t *testing.T) {
 		t.Fatalf("DeleteWorkspace() error = %v", err)
 	}
 
-	events, err := client.ObserveEvents(ctx, ObserveEventQuery{WorkspaceRef: "ws-1", SessionID: "sess-1"})
+	events, err := client.ListLogs(ctx, LogsListQuery{WorkspaceRef: "ws-1", SessionID: "sess-1"})
 	if err != nil || len(events) != 1 {
-		t.Fatalf("ObserveEvents() = %#v, %v", events, err)
+		t.Fatalf("ListLogs() = %#v, %v", events, err)
 	}
 
 	var streamed []SSEEvent
-	if err := client.StreamObserveEvents(
+	if err := client.StreamLogs(
 		ctx,
-		ObserveEventQuery{WorkspaceRef: "ws-1"},
+		LogsListQuery{WorkspaceRef: "ws-1"},
 		"cursor-1",
 		func(event SSEEvent) error {
 			streamed = append(streamed, event)
 			return nil
 		},
 	); err != nil {
-		t.Fatalf("StreamObserveEvents() error = %v", err)
+		t.Fatalf("StreamLogs() error = %v", err)
 	}
 	if len(streamed) != 1 || streamed[0].Event != "agent_message" {
 		t.Fatalf("streamed = %#v, want one event", streamed)
@@ -2804,14 +2810,14 @@ func TestReadAPIErrorAndHelpers(t *testing.T) {
 		t.Fatalf("sessionListValues() = %v, want workspace filter", got)
 	}
 
-	if got := observeEventValues(ObserveEventQuery{
+	if got := logsListValues(LogsListQuery{
 		SessionID: "sess-1",
 		AgentName: "coder",
 		Type:      "done",
 		Since:     fixedTestNow,
 		Last:      2,
 	}); got.Get("session_id") != "sess-1" || got.Get("limit") != "2" {
-		t.Fatalf("observeEventValues() = %v, want session_id/limit", got)
+		t.Fatalf("logsListValues() = %v, want session_id/limit", got)
 	}
 
 	if got := hookCatalogValues(HookCatalogQuery{
@@ -3138,8 +3144,8 @@ func TestDoRequestSetsHeaders(t *testing.T) {
 	err := client.doSSE(
 		context.Background(),
 		http.MethodGet,
-		"/api/workspaces/ws-1/observe/events/stream",
-		observeEventValues(ObserveEventQuery{Since: time.Now().UTC()}),
+		"/api/logs/stream",
+		logsListValues(LogsListQuery{Since: time.Now().UTC()}),
 		nil,
 		"cursor-9",
 		func(SSEEvent) error {
@@ -3254,9 +3260,9 @@ func TestCLIUsesSharedContractAliases(t *testing.T) {
 			want:    contract.HookEventPayload{},
 		},
 		{
-			name:    "Should alias ObserveEventRecord to the shared contract",
-			cliType: ObserveEventRecord{},
-			want:    contract.ObserveEventPayload{},
+			name:    "Should alias LogEventRecord to the shared contract",
+			cliType: LogEventRecord{},
+			want:    contract.LogEventPayload{},
 		},
 		{
 			name:    "Should alias WorkspaceCreateRequest to the shared contract",
@@ -3466,13 +3472,13 @@ func TestSharedContractJSONParity(t *testing.T) {
 
 	observeResponse := `{"events":[{"id":"sum-1","session_id":"sess-1","type":"done","agent_name":"coder","summary":"complete","timestamp":"2026-04-03T12:00:00Z"}]}`
 	var cliObserve struct {
-		Events []ObserveEventRecord `json:"events"`
+		Events []LogEventRecord `json:"events"`
 	}
 	if err := json.Unmarshal([]byte(observeResponse), &cliObserve); err != nil {
 		t.Fatalf("json.Unmarshal(cli observe response) error = %v", err)
 	}
 	var sharedObserve struct {
-		Events []contract.ObserveEventPayload `json:"events"`
+		Events []contract.LogEventPayload `json:"events"`
 	}
 	if err := json.Unmarshal([]byte(observeResponse), &sharedObserve); err != nil {
 		t.Fatalf("json.Unmarshal(shared observe response) error = %v", err)

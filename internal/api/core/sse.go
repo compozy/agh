@@ -128,21 +128,21 @@ func writeSSEString(writer FlushWriter, operation string, value string) error {
 	return nil
 }
 
-// EmitObserveEvents writes observe events newer than the supplied cursor.
-func EmitObserveEvents(writer FlushWriter, events []store.EventSummary, cursor ObserveCursor) ObserveCursor {
+// EmitLogs writes log events newer than the supplied cursor.
+func EmitLogs(writer FlushWriter, events []store.EventSummary, cursor LogsCursor) LogsCursor {
 	next := cursor
 	for _, event := range events {
-		if !ObserveEventAfterCursor(event, next) {
+		if !LogEventAfterCursor(event, next) {
 			continue
 		}
 		if err := WriteSSE(writer, SSEMessage{
-			ID:   ObserveEventID(event),
+			ID:   LogEventID(event),
 			Name: event.Type,
-			Data: ObserveEventPayloadFromEvent(event),
+			Data: LogEventPayloadFromSummary(event),
 		}); err != nil {
 			return next
 		}
-		next = ObserveCursor{
+		next = LogsCursor{
 			Timestamp: event.Timestamp.UTC(),
 			Sequence:  event.Sequence,
 			ID:        event.ID,
@@ -151,8 +151,8 @@ func EmitObserveEvents(writer FlushWriter, events []store.EventSummary, cursor O
 	return next
 }
 
-// ObserveEventAfterCursor reports whether an observe event should be emitted after the cursor.
-func ObserveEventAfterCursor(event store.EventSummary, cursor ObserveCursor) bool {
+// LogEventAfterCursor reports whether a log event should be emitted after the cursor.
+func LogEventAfterCursor(event store.EventSummary, cursor LogsCursor) bool {
 	if cursor.Timestamp.IsZero() && cursor.Sequence == 0 && strings.TrimSpace(cursor.ID) == "" {
 		return true
 	}
@@ -171,8 +171,8 @@ func ObserveEventAfterCursor(event store.EventSummary, cursor ObserveCursor) boo
 	}
 }
 
-// ObserveEventID builds a stable Last-Event-ID value for observe streaming.
-func ObserveEventID(event store.EventSummary) string {
+// LogEventID builds a stable Last-Event-ID value for logs streaming.
+func LogEventID(event store.EventSummary) string {
 	buffer := make([]byte, 0, len(time.RFC3339Nano)+1+20)
 	buffer = event.Timestamp.UTC().AppendFormat(buffer, time.RFC3339Nano)
 	buffer = append(buffer, '|')

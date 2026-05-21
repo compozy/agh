@@ -105,7 +105,7 @@ function createStoreHarness(overrides: StoreHarnessOverrides = {}) {
   const { fetchers, callCounts } = createFakeFetchers(overrides.fetcherSpec);
   const store = createNavCountsStore({
     eventSourceFactory: () => eventSource,
-    observeStreamUrl: "/api/workspaces/ws_alpha/observe/events/stream",
+    observeStreamUrl: "/api/logs/stream?workspace_id=ws_alpha",
     fetchers,
     pollIntervalMs: overrides.pollIntervalMs ?? 5_000,
     heartbeatWindowMs: overrides.heartbeatWindowMs ?? 5_000,
@@ -392,7 +392,7 @@ describe("useNavCounts contract", () => {
     const { fetchers } = createFakeFetchers({ tasks: { count: 1 } });
     const store = createNavCountsStore({
       eventSourceFactory: factory,
-      observeStreamUrl: "/api/workspaces/ws_alpha/observe/events/stream",
+      observeStreamUrl: "/api/logs/stream?workspace_id=ws_alpha",
       fetchers,
       pollIntervalMs: 5_000,
       heartbeatWindowMs: 5_000,

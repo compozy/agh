@@ -129,7 +129,7 @@ func newInstallCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, installBundle(record))
 		},
 	}
-	cmd.Flags().StringVar(&provider, memoryProviderKey, "", "Default provider to configure without opening the wizard")
+	cmd.Flags().StringVar(&provider, cliProviderKey, "", "Default provider to configure without opening the wizard")
 	cmd.Flags().StringVar(&model, installModelKey, "", "Default model to configure without opening the wizard")
 	return cmd
 }
@@ -153,7 +153,7 @@ func resolveInstallSelection(
 	if err != nil {
 		return installWizardSelection{}, err
 	}
-	providerChanged := cmd.Flags().Changed(memoryProviderKey)
+	providerChanged := cmd.Flags().Changed(cliProviderKey)
 	modelChanged := cmd.Flags().Changed(installModelKey)
 	if providerChanged || modelChanged || mode != OutputHuman {
 		return resolveNonInteractiveInstallSelection(input, provider, model)
@@ -274,7 +274,7 @@ func installBundle(record installRecord) outputBundle {
 		toon: func() (string, error) {
 			return renderToonObject("install", []string{
 				installAgentNameKey,
-				memoryProviderKey,
+				cliProviderKey,
 				installModelKey,
 				configPermissionsKey,
 				"config_file",

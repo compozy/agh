@@ -138,8 +138,8 @@ const (
 	ToolIDMemorySessionsPrune ToolID = "agh__memory_sessions_prune"
 	// ToolIDMemorySessionsRepair repairs Memory v2 session ledgers.
 	ToolIDMemorySessionsRepair ToolID = "agh__memory_sessions_repair"
-	// ToolIDObserveEvents reads redacted observability events.
-	ToolIDObserveEvents ToolID = "agh__observe_events"
+	// ToolIDListLogs reads redacted runtime logs.
+	ToolIDListLogs ToolID = "agh__logs"
 	// ToolIDObserveMetrics reads daemon observability health and metrics.
 	ToolIDObserveMetrics ToolID = "agh__observe_metrics"
 	// ToolIDObserveSearch searches redacted observability events.

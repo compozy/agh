@@ -228,9 +228,9 @@ type HookEventsResponse struct {
 	Events []HookEventPayload `json:"events"`
 }
 
-// ObserveEventsResponse wraps the observe events payload.
-type ObserveEventsResponse struct {
-	Events []ObserveEventPayload `json:"events"`
+// LogsListResponse wraps the runtime logs payload.
+type LogsListResponse struct {
+	Events []LogEventPayload `json:"events"`
 }
 
 // NetworkStatusResponse wraps the network runtime status payload.

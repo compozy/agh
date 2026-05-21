@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	benchmarkObserveCursor     ObserveCursor
+	benchmarkLogsCursor        LogsCursor
 	benchmarkSessionPayloads   []contract.SessionPayload
 	benchmarkAgentEventPayload contract.AgentEventPayload
 )
@@ -46,7 +46,7 @@ func BenchmarkWriteSSE(b *testing.B) {
 	}
 }
 
-func BenchmarkEmitObserveEvents(b *testing.B) {
+func BenchmarkEmitLogs(b *testing.B) {
 	b.ReportAllocs()
 
 	events := make([]store.EventSummary, 0, 64)
@@ -66,7 +66,7 @@ func BenchmarkEmitObserveEvents(b *testing.B) {
 	writer := &benchmarkFlushWriter{}
 	for b.Loop() {
 		writer.Reset()
-		benchmarkObserveCursor = EmitObserveEvents(writer, events, ObserveCursor{})
+		benchmarkLogsCursor = EmitLogs(writer, events, LogsCursor{})
 	}
 }
 

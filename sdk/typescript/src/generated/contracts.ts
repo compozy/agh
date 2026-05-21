@@ -35,6 +35,7 @@ export type HostAPIMethod =
   | "bridges/instances/list"
   | "bridges/instances/report_state"
   | "bridges/messages/ingest"
+  | "logs/list"
   | "memory/forget"
   | "memory/recall"
   | "memory/store"
@@ -52,7 +53,6 @@ export type HostAPIMethod =
   | "network/thread/messages"
   | "network/threads"
   | "network/work/get"
-  | "observe/events"
   | "observe/health"
   | "resources/get"
   | "resources/list"
@@ -2003,6 +2003,23 @@ export interface Job {
   updated_at: ISODateTime;
 }
 
+export interface ListLogsParams {
+  workspace_id: string;
+  session_id?: string;
+  agent_name?: string;
+  type?: string;
+  run?: string;
+  actor_kind?: string;
+  actor_id?: string;
+  provider?: string;
+  outcome?: string;
+  component?: string;
+  error_only?: boolean;
+  after_seq?: number;
+  since?: ISODateTime;
+  limit?: number;
+}
+
 export type MemoryScope = "global" | "workspace" | "agent";
 
 export interface MemoryForgetParams {
@@ -2623,15 +2640,6 @@ export interface NetworkWorkTransitionedPayload {
   peer_to?: string;
   trace_id?: string;
   causation_id?: string;
-}
-
-export interface ObserveEventsParams {
-  workspace_id: string;
-  session_id?: string;
-  agent_name?: string;
-  type?: string;
-  since?: ISODateTime;
-  limit?: number;
 }
 
 export interface PersistenceHealth {
@@ -5273,8 +5281,8 @@ export interface HostAPIMethodMap {
     params: undefined;
     result: ObserveHealth;
   };
-  "observe/events": {
-    params: ObserveEventsParams | undefined;
+  "logs/list": {
+    params: ListLogsParams | undefined;
     result: SessionEvent[];
   };
   "skills/list": {

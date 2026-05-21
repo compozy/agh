@@ -32,6 +32,7 @@ import (
 const (
 	clientErrorKey   = "error"
 	clientMessageKey = "message"
+	cliOutcomeKey    = "outcome"
 )
 
 const (
@@ -242,8 +243,8 @@ type DaemonClient interface {
 	HookCatalog(ctx context.Context, query HookCatalogQuery) ([]HookCatalogRecord, error)
 	HookRuns(ctx context.Context, workspaceRef string, query HookRunsQuery) ([]HookRunRecord, error)
 	HookEvents(ctx context.Context, query HookEventsQuery) ([]HookEventRecord, error)
-	ObserveEvents(ctx context.Context, query ObserveEventQuery) ([]ObserveEventRecord, error)
-	StreamObserveEvents(ctx context.Context, query ObserveEventQuery, lastEventID string, handler SSEHandler) error
+	ListLogs(ctx context.Context, query LogsListQuery) ([]LogEventRecord, error)
+	StreamLogs(ctx context.Context, query LogsListQuery, lastEventID string, handler SSEHandler) error
 	MemoryHealth(ctx context.Context, workspace string) (MemoryHealthRecord, error)
 	MemoryHistory(ctx context.Context, query MemoryHistoryQuery) ([]MemoryHistoryRecord, error)
 	ListMemory(ctx context.Context, query MemoryListQuery) (MemoryListRecord, error)
@@ -636,17 +637,25 @@ type HookEventsQuery = contract.HookEventsQuery
 // HookEventRecord is one supported hook taxonomy row returned by the daemon API.
 type HookEventRecord = contract.HookEventPayload
 
-// ObserveEventRecord is one cross-session observability event row.
-type ObserveEventRecord = contract.ObserveEventPayload
+// LogEventRecord is one cross-session runtime log row.
+type LogEventRecord = contract.LogEventPayload
 
-// ObserveEventQuery captures the CLI filters for cross-session observability queries.
-type ObserveEventQuery struct {
-	WorkspaceRef string
-	SessionID    string
-	AgentName    string
-	Type         string
-	Since        time.Time
-	Last         int
+// LogsListQuery captures the CLI filters for cross-session runtime log queries.
+type LogsListQuery struct {
+	WorkspaceRef  string
+	SessionID     string
+	AgentName     string
+	Type          string
+	RunID         string
+	ActorKind     string
+	ActorID       string
+	Provider      string
+	Outcome       string
+	Component     string
+	ErrorOnly     bool
+	AfterSequence int64
+	Since         time.Time
+	Last          int
 }
 
 // MemoryHealthRecord is the shared daemon memory health payload.
@@ -2884,19 +2893,15 @@ func (c *unixSocketClient) HookEvents(ctx context.Context, query HookEventsQuery
 	return response.Events, nil
 }
 
-func (c *unixSocketClient) ObserveEvents(ctx context.Context, query ObserveEventQuery) ([]ObserveEventRecord, error) {
+func (c *unixSocketClient) ListLogs(ctx context.Context, query LogsListQuery) ([]LogEventRecord, error) {
 	var response struct {
-		Events []ObserveEventRecord `json:"events"`
-	}
-	path, err := observeBasePath(query.WorkspaceRef)
-	if err != nil {
-		return nil, err
+		Events []LogEventRecord `json:"events"`
 	}
 	if err := c.doJSON(
 		ctx,
 		http.MethodGet,
-		path+"/events",
-		observeEventValues(query),
+		"/api/logs",
+		logsListValues(query),
 		nil,
 		&response,
 	); err != nil {
@@ -2905,21 +2910,17 @@ func (c *unixSocketClient) ObserveEvents(ctx context.Context, query ObserveEvent
 	return response.Events, nil
 }
 
-func (c *unixSocketClient) StreamObserveEvents(
+func (c *unixSocketClient) StreamLogs(
 	ctx context.Context,
-	query ObserveEventQuery,
+	query LogsListQuery,
 	lastEventID string,
 	handler SSEHandler,
 ) error {
-	path, err := observeBasePath(query.WorkspaceRef)
-	if err != nil {
-		return err
-	}
 	return c.doSSE(
 		ctx,
 		http.MethodGet,
-		path+"/events/stream",
-		observeEventValues(query),
+		"/api/logs/stream",
+		logsListValues(query),
 		nil,
 		lastEventID,
 		handler,
@@ -4510,14 +4511,6 @@ func networkBasePath(workspaceRef string) (string, error) {
 	return "/api/workspaces/" + url.PathEscape(workspaceRef) + "/network", nil
 }
 
-func observeBasePath(workspaceRef string) (string, error) {
-	workspaceRef, err := requireNetworkPathValue("workspace_id", workspaceRef)
-	if err != nil {
-		return "", err
-	}
-	return "/api/workspaces/" + url.PathEscape(workspaceRef) + "/observe", nil
-}
-
 func hooksBasePath(workspaceRef string) (string, error) {
 	workspaceRef, err := requireNetworkPathValue("workspace_id", workspaceRef)
 	if err != nil {
@@ -4739,8 +4732,11 @@ func sessionEventValues(query SessionEventQuery) url.Values {
 	return values
 }
 
-func observeEventValues(query ObserveEventQuery) url.Values {
+func logsListValues(query LogsListQuery) url.Values {
 	values := url.Values{}
+	if trimmed := strings.TrimSpace(query.WorkspaceRef); trimmed != "" {
+		values.Set("workspace_id", trimmed)
+	}
 	if trimmed := strings.TrimSpace(query.SessionID); trimmed != "" {
 		values.Set("session_id", trimmed)
 	}
@@ -4749,6 +4745,30 @@ func observeEventValues(query ObserveEventQuery) url.Values {
 	}
 	if trimmed := strings.TrimSpace(query.Type); trimmed != "" {
 		values.Set("type", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.RunID); trimmed != "" {
+		values.Set("run", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.ActorKind); trimmed != "" {
+		values.Set("actor_kind", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.ActorID); trimmed != "" {
+		values.Set("actor_id", trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.Provider); trimmed != "" {
+		values.Set(cliProviderKey, trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.Outcome); trimmed != "" {
+		values.Set(cliOutcomeKey, trimmed)
+	}
+	if trimmed := strings.TrimSpace(query.Component); trimmed != "" {
+		values.Set("component", trimmed)
+	}
+	if query.ErrorOnly {
+		values.Set("error_only", "true")
+	}
+	if query.AfterSequence > 0 {
+		values.Set("after_seq", strconv.FormatInt(query.AfterSequence, 10))
 	}
 	if !query.Since.IsZero() {
 		values.Set("since", query.Since.UTC().Format(time.RFC3339Nano))
@@ -4788,7 +4808,7 @@ func hookRunsValues(query HookRunsQuery) url.Values {
 		values.Set("event", trimmed)
 	}
 	if trimmed := strings.TrimSpace(query.Outcome); trimmed != "" {
-		values.Set("outcome", trimmed)
+		values.Set(cliOutcomeKey, trimmed)
 	}
 	if trimmed := strings.TrimSpace(query.Since); trimmed != "" {
 		values.Set("since", trimmed)

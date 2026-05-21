@@ -29,7 +29,7 @@ import type {
   HostAPIMethod,
   HostAPIMethodMap,
   InboundMessageEnvelope,
-  ObserveEventsParams,
+  ListLogsParams,
   ObserveHealth,
   ResourceGetParams,
   ResourceRecord,
@@ -142,7 +142,10 @@ export class HostAPI {
 
   public readonly observe: {
     health: () => Promise<ObserveHealth>;
-    events: (params?: ObserveEventsParams) => Promise<SessionEvent[]>;
+  };
+
+  public readonly logs: {
+    list: (params?: ListLogsParams) => Promise<SessionEvent[]>;
   };
 
   public readonly skills: {
@@ -232,7 +235,10 @@ export class HostAPI {
 
     this.observe = {
       health: async () => await this.request("observe/health", undefined),
-      events: async params => await this.request("observe/events", params),
+    };
+
+    this.logs = {
+      list: async params => await this.request("logs/list", params),
     };
 
     this.skills = {

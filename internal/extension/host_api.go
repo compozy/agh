@@ -596,7 +596,7 @@ func hostAPIMethodHandlers(handler *HostAPIHandler) map[string]hostAPIMethodFunc
 		hostAPIMemoryForgetPath:                                        handler.handleMemoryForget,
 		hostAPIMemoryRecallPath:                                        handler.handleMemoryRecall,
 		hostAPIMemoryStorePath:                                         handler.handleMemoryStore,
-		hostAPIObserveEventsPath:                                       handler.handleObserveEvents,
+		hostAPIListLogsPath:                                            handler.handleListLogs,
 		hostAPIObserveHealthPath:                                       handler.handleObserveHealth,
 		string(extensioncontract.HostAPIMethodModelsList):              handler.handleModelsList,
 		string(extensioncontract.HostAPIMethodModelsRefresh):           handler.handleModelsRefresh,
@@ -749,7 +749,7 @@ type hostAPIMemoryRecallParams = extensioncontract.MemoryRecallParams
 
 type hostAPIMemoryForgetParams = extensioncontract.MemoryForgetParams
 
-type hostAPIObserveEventsParams = extensioncontract.ObserveEventsParams
+type hostAPIListLogsParams = extensioncontract.ListLogsParams
 
 type hostAPISkillsListParams = extensioncontract.SkillsListParams
 
@@ -1296,12 +1296,12 @@ func (h *HostAPIHandler) handleObserveHealth(ctx context.Context, _ json.RawMess
 	return h.observer.Health(ctx)
 }
 
-func (h *HostAPIHandler) handleObserveEvents(ctx context.Context, raw json.RawMessage) (any, error) {
+func (h *HostAPIHandler) handleListLogs(ctx context.Context, raw json.RawMessage) (any, error) {
 	if h.observer == nil {
 		return nil, errors.New("extension: observer is not configured")
 	}
 
-	var params hostAPIObserveEventsParams
+	var params hostAPIListLogsParams
 	if err := decodeHostAPIParams(raw, &params); err != nil {
 		return nil, err
 	}
@@ -1311,12 +1311,20 @@ func (h *HostAPIHandler) handleObserveEvents(ctx context.Context, raw json.RawMe
 	}
 
 	events, err := h.observer.QueryEvents(ctx, store.EventSummaryQuery{
-		WorkspaceID: workspaceID,
-		SessionID:   strings.TrimSpace(params.SessionID),
-		AgentName:   strings.TrimSpace(params.AgentName),
-		Type:        strings.TrimSpace(params.Type),
-		Since:       params.Since,
-		Limit:       params.Limit,
+		WorkspaceID:   workspaceID,
+		SessionID:     strings.TrimSpace(params.SessionID),
+		AgentName:     strings.TrimSpace(params.AgentName),
+		Type:          strings.TrimSpace(params.Type),
+		RunID:         strings.TrimSpace(params.RunID),
+		ActorKind:     strings.TrimSpace(params.ActorKind),
+		ActorID:       strings.TrimSpace(params.ActorID),
+		Provider:      strings.TrimSpace(params.Provider),
+		Outcome:       strings.TrimSpace(params.Outcome),
+		Component:     strings.TrimSpace(params.Component),
+		ErrorOnly:     params.ErrorOnly,
+		AfterSequence: params.AfterSequence,
+		Since:         params.Since,
+		Limit:         params.Limit,
 	})
 	if err != nil {
 		return nil, err

@@ -258,11 +258,11 @@ describe("HostAPI", () => {
     );
   });
 
-  it("observe.events supports since parameter", async () => {
+  it("logs.list supports since parameter", async () => {
     const pair = createMockTransportPair();
     const host = new HostAPI(pair.extension, { isReady: () => true });
 
-    pair.host.handle("observe/events", async params => {
+    pair.host.handle("logs/list", async params => {
       expect(params).toEqual({
         workspace_id: "ws-1",
         since: "2026-04-10T12:00:00.000Z",
@@ -278,7 +278,7 @@ describe("HostAPI", () => {
     });
 
     await expect(
-      host.observe.events({ workspace_id: "ws-1", since: "2026-04-10T12:00:00.000Z", limit: 5 })
+      host.logs.list({ workspace_id: "ws-1", since: "2026-04-10T12:00:00.000Z", limit: 5 })
     ).resolves.toHaveLength(1);
   });
 

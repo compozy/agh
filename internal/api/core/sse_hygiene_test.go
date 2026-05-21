@@ -56,11 +56,11 @@ func TestWriteSSEScrubsMemoryContext(t *testing.T) {
 	})
 }
 
-func TestObserveEventPayloadScrubsMemoryContext(t *testing.T) {
+func TestLogEventPayloadScrubsMemoryContext(t *testing.T) {
 	t.Run("Should scrub observe summaries and content before response shaping", func(t *testing.T) {
 		t.Parallel()
 
-		payload := core.ObserveEventPayloadFromEvent(store.EventSummary{
+		payload := core.LogEventPayloadFromSummary(store.EventSummary{
 			ID:        "memevt-workspace-1",
 			Type:      "memory.recall.executed",
 			Content:   []byte(`{"text":"<memory-context>content secret</memory-context>"}`),
@@ -68,19 +68,19 @@ func TestObserveEventPayloadScrubsMemoryContext(t *testing.T) {
 			Timestamp: time.Date(2026, 5, 5, 10, 0, 0, 0, time.UTC),
 		})
 		if strings.Contains(string(payload.Content), "content secret") {
-			t.Fatalf("ObserveEventPayload.Content leaked memory context: %s", payload.Content)
+			t.Fatalf("LogEventPayload.Content leaked memory context: %s", payload.Content)
 		}
 		if strings.Contains(payload.Summary, "summary secret") {
-			t.Fatalf("ObserveEventPayload.Summary leaked memory context: %s", payload.Summary)
+			t.Fatalf("LogEventPayload.Summary leaked memory context: %s", payload.Summary)
 		}
 		if !strings.Contains(string(payload.Content), "[memory-context redacted]") ||
 			!strings.Contains(payload.Summary, "[memory-context redacted]") {
-			t.Fatalf("ObserveEventPayload = %#v, want redaction markers", payload)
+			t.Fatalf("LogEventPayload = %#v, want redaction markers", payload)
 		}
 	})
 }
 
-func TestEmitObserveEventsMemoryReconnect(t *testing.T) {
+func TestEmitLogsMemoryReconnect(t *testing.T) {
 	t.Run("Should resume memory events with stable ID ordering when sequences are absent", func(t *testing.T) {
 		t.Parallel()
 
@@ -100,19 +100,19 @@ func TestEmitObserveEventsMemoryReconnect(t *testing.T) {
 			},
 		}
 		writer := &bufferFlusher{}
-		next := core.EmitObserveEvents(writer, events, core.ObserveCursor{
+		next := core.EmitLogs(writer, events, core.LogsCursor{
 			Timestamp: timestamp,
 			ID:        "memevt-global-00000000000000000001",
 		})
 		body := writer.String()
 		if strings.Contains(body, "first memory event") {
-			t.Fatalf("EmitObserveEvents replayed cursor event: %s", body)
+			t.Fatalf("EmitLogs replayed cursor event: %s", body)
 		}
 		if !strings.Contains(body, "second memory event") {
-			t.Fatalf("EmitObserveEvents body = %s, want second event", body)
+			t.Fatalf("EmitLogs body = %s, want second event", body)
 		}
 		if next.ID != "memevt-workspace-00000000000000000002" {
-			t.Fatalf("EmitObserveEvents cursor = %#v, want second event ID", next)
+			t.Fatalf("EmitLogs cursor = %#v, want second event ID", next)
 		}
 	})
 }

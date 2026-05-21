@@ -130,7 +130,7 @@ func TestStreamSessionHandlerStopsWhenSessionIsAlreadyStopped(t *testing.T) {
 	}
 }
 
-func TestStreamObserveEventsPollsForNewEvents(t *testing.T) {
+func TestStreamLogsPollsForNewEvents(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	done := make(chan struct{})
 	callCount := 0
@@ -167,7 +167,7 @@ func TestStreamObserveEventsPollsForNewEvents(t *testing.T) {
 	req := httptest.NewRequestWithContext(
 		context.Background(),
 		http.MethodGet,
-		"/api/workspaces/ws-workspace/observe/events/stream",
+		"/api/logs/stream?workspace_id=ws-workspace",
 		http.NoBody,
 	)
 	engine.ServeHTTP(recorder, req)
@@ -181,7 +181,7 @@ func TestStreamObserveEventsPollsForNewEvents(t *testing.T) {
 	}
 }
 
-func TestStreamObserveEventsCarriesHarnessLifecyclePayloads(t *testing.T) {
+func TestStreamLogsCarriesHarnessLifecyclePayloads(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	done := make(chan struct{})
 	var doneOnce sync.Once
@@ -208,7 +208,7 @@ func TestStreamObserveEventsCarriesHarnessLifecyclePayloads(t *testing.T) {
 	req := httptest.NewRequestWithContext(
 		context.Background(),
 		http.MethodGet,
-		"/api/workspaces/ws-workspace/observe/events/stream?session_id=sess-harness",
+		"/api/logs/stream?workspace_id=ws-workspace&session_id=sess-harness",
 		http.NoBody,
 	)
 	engine.ServeHTTP(recorder, req)
@@ -218,7 +218,7 @@ func TestStreamObserveEventsCarriesHarnessLifecyclePayloads(t *testing.T) {
 		t.Fatalf("len(records) = %d, want %d; body=%s", got, want, recorder.Body.String())
 	}
 
-	var payload observeEventPayload
+	var payload logEventPayload
 	if err := json.Unmarshal(records[0].Data, &payload); err != nil {
 		t.Fatalf("json.Unmarshal(observe payload) error = %v", err)
 	}
@@ -377,7 +377,7 @@ func TestHelperBuildersCoverRemainingBranches(t *testing.T) {
 	}
 	if !observeEventAfterCursor(
 		store.EventSummary{ID: "b", Sequence: 2, Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)},
-		observeCursor{Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC), Sequence: 1},
+		logsCursor{Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC), Sequence: 1},
 	) {
 		t.Fatal("expected event to sort after cursor")
 	}

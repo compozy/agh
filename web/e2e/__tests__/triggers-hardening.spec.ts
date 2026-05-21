@@ -111,7 +111,7 @@ interface WebhookDeliveryResponse {
   };
 }
 
-interface ObserveEventsResponse {
+interface LogsListResponse {
   events: Array<{
     id: string;
     session_id?: string;
@@ -711,8 +711,8 @@ async function captureTriggerParity(runtime: BrowserRuntime, triggerID: string, 
   ]);
   const cliRun = await automationCLI<AutomationRun>(runtime, ["automation", "runs", "get", runID]);
   const observe = httpRun.run.session_id
-    ? await runtime.requestJSON<ObserveEventsResponse>(
-        workspaceObserveEventsPath(httpRun.run.workspace_id, httpRun.run.session_id)
+    ? await runtime.requestJSON<LogsListResponse>(
+        workspaceListLogsPath(httpRun.run.workspace_id, httpRun.run.session_id)
       )
     : { events: [] };
   return {
@@ -727,18 +727,16 @@ async function captureTriggerParity(runtime: BrowserRuntime, triggerID: string, 
   };
 }
 
-function workspaceObserveEventsPath(
+function workspaceListLogsPath(
   workspaceID: string | null | undefined,
   sessionID: string | null | undefined
 ): string {
   const workspace = workspaceID?.trim();
   const session = sessionID?.trim();
   if (!workspace || !session) {
-    throw new Error("observe events parity requires workspace_id and session_id");
+    throw new Error("logs parity requires workspace_id and session_id");
   }
-  return `/api/workspaces/${encodeURIComponent(workspace)}/observe/events?session_id=${encodeURIComponent(
-    session
-  )}&limit=20`;
+  return `/api/logs?workspace_id=${encodeURIComponent(workspace)}&session_id=${encodeURIComponent(session)}&limit=20`;
 }
 
 function sessionAPIPath(workspaceID: string, sessionID: string): string {

@@ -79,32 +79,32 @@ func TestObserveAndSSEHelpers(t *testing.T) {
 		Timestamp: timestamp,
 	}
 
-	if !core.ObserveEventAfterCursor(event, core.ObserveCursor{}) {
-		t.Fatal("ObserveEventAfterCursor(empty cursor) = false, want true")
+	if !core.LogEventAfterCursor(event, core.LogsCursor{}) {
+		t.Fatal("LogEventAfterCursor(empty cursor) = false, want true")
 	}
-	if core.ObserveEventAfterCursor(event, core.ObserveCursor{Timestamp: timestamp.Add(time.Second), ID: "older"}) {
-		t.Fatal("ObserveEventAfterCursor(newer cursor) = true, want false")
+	if core.LogEventAfterCursor(event, core.LogsCursor{Timestamp: timestamp.Add(time.Second), ID: "older"}) {
+		t.Fatal("LogEventAfterCursor(newer cursor) = true, want false")
 	}
-	if core.ObserveEventAfterCursor(event, core.ObserveCursor{Timestamp: timestamp, Sequence: 9}) {
-		t.Fatal("ObserveEventAfterCursor(same timestamp higher sequence) = true, want false")
+	if core.LogEventAfterCursor(event, core.LogsCursor{Timestamp: timestamp, Sequence: 9}) {
+		t.Fatal("LogEventAfterCursor(same timestamp higher sequence) = true, want false")
 	}
-	if got, want := core.ObserveEventID(event), "2026-04-03T12:00:00Z|00000000000000000007"; got != want {
-		t.Fatalf("ObserveEventID() = %q, want %q", got, want)
+	if got, want := core.LogEventID(event), "2026-04-03T12:00:00Z|00000000000000000007"; got != want {
+		t.Fatalf("LogEventID() = %q, want %q", got, want)
 	}
 
 	writer := &bufferFlusher{}
-	next := core.EmitObserveEvents(writer, []store.EventSummary{event}, core.ObserveCursor{})
+	next := core.EmitLogs(writer, []store.EventSummary{event}, core.LogsCursor{})
 	if next.Sequence != event.Sequence || next.Timestamp.IsZero() {
-		t.Fatalf("EmitObserveEvents() cursor = %#v", next)
+		t.Fatalf("EmitLogs() cursor = %#v", next)
 	}
 	if writer.Len() == 0 {
 		t.Fatal("expected SSE output to be written")
 	}
 
 	failingWriter := &failingFlusher{}
-	prior := core.ObserveCursor{Timestamp: timestamp.Add(-time.Second), Sequence: 3, ID: "legacy"}
-	if got := core.EmitObserveEvents(failingWriter, []store.EventSummary{event}, prior); got != prior {
-		t.Fatalf("EmitObserveEvents(failing writer) cursor = %#v, want %#v", got, prior)
+	prior := core.LogsCursor{Timestamp: timestamp.Add(-time.Second), Sequence: 3, ID: "legacy"}
+	if got := core.EmitLogs(failingWriter, []store.EventSummary{event}, prior); got != prior {
+		t.Fatalf("EmitLogs(failing writer) cursor = %#v, want %#v", got, prior)
 	}
 
 	if err := core.WriteSSE(
@@ -776,7 +776,7 @@ func TestObserveStreamAndParseObserveQuery(t *testing.T) {
 		t,
 		fixture.Engine,
 		http.MethodGet,
-		"/workspaces/ws-workspace/observe/events/stream?agent_name=coder",
+		"/logs/stream?workspace_id=ws-workspace&agent_name=coder",
 		nil,
 	)
 	if resp.Code != http.StatusOK {

@@ -246,24 +246,24 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 				{ID: "msg-1", Kind: "say", Channel: "builders", From: "reviewer.sess-1"},
 			}, nil
 		},
-		observeEventsFn: func(_ context.Context, query ObserveEventQuery) ([]ObserveEventRecord, error) {
+		listLogsFn: func(_ context.Context, query LogsListQuery) ([]LogEventRecord, error) {
 			if query.WorkspaceRef != "ws-1" {
-				t.Fatalf("ObserveEvents() workspaceRef = %q, want ws-1", query.WorkspaceRef)
+				t.Fatalf("ListLogs() workspaceRef = %q, want ws-1", query.WorkspaceRef)
 			}
-			return []ObserveEventRecord{
+			return []LogEventRecord{
 				{ID: "sum-1", SessionID: "sess-1", Type: "done", AgentName: "coder", Timestamp: fixedTestNow},
 			}, nil
 		},
-		streamObserveEventsFn: func(_ context.Context, query ObserveEventQuery, _ string, handler SSEHandler) error {
+		streamLogsFn: func(_ context.Context, query LogsListQuery, _ string, handler SSEHandler) error {
 			if query.WorkspaceRef != "ws-1" {
-				t.Fatalf("StreamObserveEvents() workspaceRef = %q, want ws-1", query.WorkspaceRef)
+				t.Fatalf("StreamLogs() workspaceRef = %q, want ws-1", query.WorkspaceRef)
 			}
 			return handler(
 				SSEEvent{
 					Event: "done",
 					Data: mustJSON(
 						t,
-						ObserveEventRecord{
+						LogEventRecord{
 							ID:        "sum-1",
 							SessionID: "sess-1",
 							Type:      "done",
@@ -427,8 +427,8 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 			"json",
 		},
 		{"network", "--workspace", "ws-1", "inbox", "--session", "sess-1", "-o", "json"},
-		{"observe", "events", "--workspace", "ws-1", "-o", "json"},
-		{"observe", "events", "--workspace", "ws-1", "--follow", "-o", "json"},
+		{"logs", "--workspace", "ws-1", "-o", "json"},
+		{"logs", "--workspace", "ws-1", "--follow", "-o", "json"},
 		{"status", "-o", "json"},
 		{"doctor", "-o", "json"},
 		{"bridge", "get", "brg-1", "-o", "json"},

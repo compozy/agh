@@ -150,6 +150,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/workspaces/:workspace_id/hooks/runs",
 		"GET /api/internal/hosted-mcp/projection",
 		"GET /api/internal/hosted-mcp/projection/stream",
+		"GET /api/logs",
+		"GET /api/logs/stream",
 		"GET /api/memory",
 		"GET /api/memory/:filename",
 		"GET /api/memory/config",
@@ -181,8 +183,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/workspaces/:workspace_id/network/channels/:channel/threads/:thread_id/messages",
 		"GET /api/network/status",
 		"GET /api/workspaces/:workspace_id/network/work/:work_id",
-		"GET /api/workspaces/:workspace_id/observe/events",
-		"GET /api/workspaces/:workspace_id/observe/events/stream",
 		"GET /api/status",
 		"GET /api/observe/tasks/dashboard",
 		"GET /api/observe/tasks/inbox",
@@ -1919,7 +1919,7 @@ func TestGetAgentHandlerReturnsAgent(t *testing.T) {
 	}
 }
 
-func TestObserveEventsHandlerReturnsEvents(t *testing.T) {
+func TestListLogsHandlerReturnsEvents(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	observer := stubObserver{
 		QueryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
@@ -1936,13 +1936,13 @@ func TestObserveEventsHandlerReturnsEvents(t *testing.T) {
 	handlers := newTestHandlers(t, stubSessionManager{}, observer, homePaths)
 	engine := newTestRouter(t, handlers)
 
-	recorder := performRequest(t, engine, http.MethodGet, "/api/workspaces/ws-workspace/observe/events", nil)
+	recorder := performRequest(t, engine, http.MethodGet, "/api/logs?workspace_id=ws-workspace", nil)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
 	}
 
 	var response struct {
-		Events []observeEventPayload `json:"events"`
+		Events []logEventPayload `json:"events"`
 	}
 	decodeJSONResponse(t, recorder, &response)
 	if len(response.Events) != 1 || response.Events[0].ID != "sum-1" {
@@ -2062,8 +2062,8 @@ func TestHelperParsersAndPayloads(t *testing.T) {
 	if _, err := parseOptionalInt64("bad"); err == nil {
 		t.Fatal("parseOptionalInt64() error = nil, want non-nil")
 	}
-	if _, err := parseObserveCursor("bad"); err == nil {
-		t.Fatal("parseObserveCursor() error = nil, want non-nil")
+	if _, err := parseLogsCursor("bad"); err == nil {
+		t.Fatal("parseLogsCursor() error = nil, want non-nil")
 	}
 	if got := string(payloadJSON("not-json")); got != `"not-json"` {
 		t.Fatalf("payloadJSON(non-json) = %s, want %q", got, `"not-json"`)
@@ -2130,7 +2130,7 @@ func TestObserveEventStreamUsesLastEventIDCursor(t *testing.T) {
 	req := httptest.NewRequestWithContext(
 		context.Background(),
 		http.MethodGet,
-		"/api/workspaces/ws-workspace/observe/events/stream",
+		"/api/logs/stream?workspace_id=ws-workspace",
 		http.NoBody,
 	)
 	req.Header.Set("Last-Event-ID", timestamp.Format(time.RFC3339Nano)+"|00000000000000000001")

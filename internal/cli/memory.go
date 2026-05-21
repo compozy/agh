@@ -1100,7 +1100,7 @@ func newMemoryExtractorDisableCommand() *cobra.Command {
 
 func newMemoryProviderCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   memoryProviderKey,
+		Use:   cliProviderKey,
 		Short: "Operate Memory v2 providers",
 	}
 	cmd.AddCommand(newMemoryProviderListCommand(deps))

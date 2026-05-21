@@ -404,9 +404,9 @@ func TokenUsagePayloadFromUsage(usage *acp.TokenUsage) *contract.TokenUsagePaylo
 	}
 }
 
-// ObserveEventPayloadFromEvent converts an observe event into the shared payload.
-func ObserveEventPayloadFromEvent(event store.EventSummary) contract.ObserveEventPayload {
-	return contract.ObserveEventPayload{
+// LogEventPayloadFromSummary converts an event summary into the shared logs payload.
+func LogEventPayloadFromSummary(event store.EventSummary) contract.LogEventPayload {
+	return contract.LogEventPayload{
 		ID:               event.ID,
 		SessionID:        event.SessionID,
 		WorkspaceID:      event.WorkspaceID,
@@ -414,7 +414,7 @@ func ObserveEventPayloadFromEvent(event store.EventSummary) contract.ObserveEven
 		AgentName:        event.AgentName,
 		Provider:         event.Provider,
 		Component:        eventspkg.ComponentFor(event.Type),
-		Outcome:          observeEventOutcome(event),
+		Outcome:          logEventOutcome(event),
 		Content:          ssepkg.ScrubMemoryContextBytes(append([]byte(nil), event.Content...)),
 		EventCorrelation: event.Normalize(),
 		ParentSessionID:  event.ParentSessionID,
@@ -425,7 +425,7 @@ func ObserveEventPayloadFromEvent(event store.EventSummary) contract.ObserveEven
 	}
 }
 
-func observeEventOutcome(event store.EventSummary) string {
+func logEventOutcome(event store.EventSummary) string {
 	outcome := strings.TrimSpace(event.Outcome)
 	if outcome != "" {
 		return outcome

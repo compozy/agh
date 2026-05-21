@@ -7,24 +7,24 @@ const (
 )
 
 const (
-	observeEventsKey = "events"
+	listLogsKey      = "events"
 	observeHealthKey = "health"
 )
 
 var observeTools = []toolspkg.Descriptor{
 	nativeDescriptor(
-		toolspkg.ToolIDObserveEvents,
-		"observe_events",
-		"Observe Events",
-		"Read redacted observability events through the current observe query surface.",
-		observeEventsInputSchema,
+		toolspkg.ToolIDListLogs,
+		"logs",
+		"Logs",
+		"Read redacted runtime logs through the logs query surface.",
+		listLogsInputSchema,
 		toolspkg.RiskRead,
 		true,
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDObserve},
-		[]string{observeObserveKey, observeEventsKey},
-		[]string{"observe events", "runtime events"},
+		[]string{"logs", listLogsKey},
+		[]string{"runtime logs", "log events"},
 	),
 	nativeDescriptor(
 		toolspkg.ToolIDObserveMetrics,
@@ -60,7 +60,7 @@ func observeDescriptors() []toolspkg.Descriptor {
 	return observeTools
 }
 
-const observeEventsInputSchema = `{
+const listLogsInputSchema = `{
 	"type":"object",
 	"required":["workspace_id"],
 	"properties":{
@@ -68,6 +68,14 @@ const observeEventsInputSchema = `{
 		"session_id":{"type":"string"},
 		"agent_name":{"type":"string"},
 		"type":{"type":"string"},
+		"run":{"type":"string"},
+		"actor_kind":{"type":"string"},
+		"actor_id":{"type":"string"},
+		"provider":{"type":"string"},
+		"outcome":{"type":"string"},
+		"component":{"type":"string"},
+		"error_only":{"type":"boolean"},
+		"after_seq":{"type":"integer"},
 		"since":{"type":"string"},
 		"limit":{"type":"integer"}
 	},
@@ -83,6 +91,14 @@ const observeSearchInputSchema = `{
 		"session_id":{"type":"string"},
 		"agent_name":{"type":"string"},
 		"type":{"type":"string"},
+		"run":{"type":"string"},
+		"actor_kind":{"type":"string"},
+		"actor_id":{"type":"string"},
+		"provider":{"type":"string"},
+		"outcome":{"type":"string"},
+		"component":{"type":"string"},
+		"error_only":{"type":"boolean"},
+		"after_seq":{"type":"integer"},
 		"since":{"type":"string"},
 		"limit":{"type":"integer"}
 	},

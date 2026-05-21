@@ -947,7 +947,7 @@ func newTaskReviewSubmitCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&input.RunID, "run", "", "Task run ID")
-	cmd.Flags().StringVar(&input.OutcomeRaw, "outcome", "", "Verdict outcome")
+	cmd.Flags().StringVar(&input.OutcomeRaw, cliOutcomeKey, "", "Verdict outcome")
 	cmd.Flags().Float64Var(&input.Confidence, "confidence", 0, "Verdict confidence from 0 to 1")
 	cmd.Flags().StringVar(&input.Reason, "reason", "", "Verdict reason")
 	cmd.Flags().StringVar(&input.DeliveryID, "delivery-id", "", "Idempotent delivery ID")
@@ -958,7 +958,7 @@ func newTaskReviewSubmitCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		BoolVar(&asAgent, "as-agent", false, "Submit review using the current AGH-managed agent session identity")
 	mustMarkFlagRequired(cmd, "run")
-	mustMarkFlagRequired(cmd, "outcome")
+	mustMarkFlagRequired(cmd, cliOutcomeKey)
 	mustMarkFlagRequired(cmd, "confidence")
 	mustMarkFlagRequired(cmd, "reason")
 	mustMarkFlagRequired(cmd, "delivery-id")
@@ -2600,7 +2600,7 @@ func taskRunReviewListBundle(items []TaskRunReviewRecord) outputBundle {
 			taskTaskIDKey,
 			taskRunIDKey,
 			taskStatusKey,
-			"outcome",
+			cliOutcomeKey,
 			"reviewer_session_id",
 			taskUpdatedAtKey,
 		},

@@ -104,7 +104,7 @@ func TestBaseHandlersRejectInvalidRequestsAndMapErrors(t *testing.T) {
 			path:   "/workspaces/ws-workspace/sessions/missing/events?since=bad",
 			want:   http.StatusBadRequest,
 		},
-		{method: http.MethodGet, path: "/workspaces/ws-workspace/observe/events", want: http.StatusInternalServerError},
+		{method: http.MethodGet, path: "/logs?workspace_id=ws-workspace", want: http.StatusInternalServerError},
 		{method: http.MethodGet, path: "/status", want: http.StatusInternalServerError},
 		{method: http.MethodGet, path: "/doctor", want: http.StatusOK},
 		{
@@ -221,7 +221,7 @@ func TestStreamSessionAndObserveErrorBranches(t *testing.T) {
 		t,
 		observeFixture.Engine,
 		http.MethodGet,
-		"/workspaces/ws-workspace/observe/events/stream",
+		"/logs/stream?workspace_id=ws-workspace",
 		nil,
 		map[string]string{"Last-Event-ID": "bad"},
 	)

@@ -91,7 +91,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDMemorySessionReplay,
 			toolspkg.ToolIDMemorySessionsPrune,
 			toolspkg.ToolIDMemorySessionsRepair,
-			toolspkg.ToolIDObserveEvents,
+			toolspkg.ToolIDListLogs,
 			toolspkg.ToolIDObserveMetrics,
 			toolspkg.ToolIDObserveSearch,
 			toolspkg.ToolIDBridgesList,
@@ -365,7 +365,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		} {
 			requireDescriptorRisk(t, descriptors[id], toolspkg.RiskDestructive, false, true, false)
 		}
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDObserveEvents], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDListLogs], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDObserveMetrics], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDObserveSearch], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDBridgesList], toolspkg.RiskRead, true, false, false)
@@ -861,7 +861,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Expand(observe) error = %v", err)
 		}
-		if !slices.Contains(observe, toolspkg.ToolIDObserveEvents) ||
+		if !slices.Contains(observe, toolspkg.ToolIDListLogs) ||
 			!slices.Contains(observe, toolspkg.ToolIDObserveMetrics) ||
 			slices.Contains(observe, toolspkg.ToolID("agh__observe_delete")) {
 			t.Fatalf("observe toolset expansion = %#v, want read-only observe tools", observe)

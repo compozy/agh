@@ -64,8 +64,8 @@ const (
 	HostAPIMethodMemoryForget HostAPIMethod = "memory/forget"
 	// HostAPIMethodObserveHealth returns daemon health.
 	HostAPIMethodObserveHealth HostAPIMethod = "observe/health"
-	// HostAPIMethodObserveEvents returns observed events.
-	HostAPIMethodObserveEvents HostAPIMethod = "observe/events"
+	// HostAPIMethodListLogs returns runtime logs.
+	HostAPIMethodListLogs HostAPIMethod = "logs/list"
 	// HostAPIMethodSkillsList lists skills.
 	HostAPIMethodSkillsList HostAPIMethod = "skills/list"
 	// HostAPIMethodNetworkStatus returns network runtime status.

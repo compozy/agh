@@ -42,6 +42,7 @@ const (
 	nativeToolsHealthKey    = "health"
 	nativeToolsHistoryKey   = "history"
 	nativeToolsLeaseKey     = "lease"
+	nativeToolsLogsKey      = "logs"
 	nativeToolsMessagesKey  = "messages"
 	nativeToolsNetworkKey   = "network"
 	nativeToolsNoteKey      = "note"
@@ -740,8 +741,8 @@ func (n *daemonNativeTools) observeToolBindings(
 	availability toolspkg.NativeAvailabilityFunc,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
-		toolspkg.ToolIDObserveEvents: {
-			call:         n.observeEvents,
+		toolspkg.ToolIDListLogs: {
+			call:         n.listLogs,
 			availability: availability,
 		},
 		toolspkg.ToolIDObserveMetrics: {
@@ -2255,12 +2256,12 @@ func (n *daemonNativeTools) memoryNote(
 	return nativeMemoryDecisionResult(result)
 }
 
-func (n *daemonNativeTools) observeEvents(
+func (n *daemonNativeTools) listLogs(
 	ctx context.Context,
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	input, query, err := decodeObserveEventQueryInput(req, scope)
+	input, query, err := decodeLogQueryInput(req, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -2273,9 +2274,9 @@ func (n *daemonNativeTools) observeEvents(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	payload := observeEventPayloads(events)
-	payload = limitObservePayloads(payload, input.Limit)
-	return structuredResult(map[string]any{nativeToolsEventsKey: payload}, fmt.Sprintf("%d events", len(payload)))
+	payload := logEventPayloads(events)
+	payload = limitLogPayloads(payload, input.Limit)
+	return structuredResult(map[string]any{nativeToolsLogsKey: payload}, fmt.Sprintf("%d logs", len(payload)))
 }
 
 func (n *daemonNativeTools) observeMetrics(
@@ -2314,9 +2315,9 @@ func (n *daemonNativeTools) observeSearch(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	payload := filterObserveEvents(observeEventPayloads(events), input.Query)
-	payload = limitObservePayloads(payload, input.Limit)
-	return structuredResult(map[string]any{nativeToolsEventsKey: payload}, fmt.Sprintf("%d events", len(payload)))
+	payload := filterListLogs(logEventPayloads(events), input.Query)
+	payload = limitLogPayloads(payload, input.Limit)
+	return structuredResult(map[string]any{nativeToolsEventsKey: payload}, fmt.Sprintf("%d logs", len(payload)))
 }
 
 func (n *daemonNativeTools) bridgesList(
@@ -3245,33 +3246,49 @@ type nativeMemoryRecallEntry struct {
 	Score   float64 `json:"score"`
 }
 
-type observeEventQueryInput struct {
-	WorkspaceID string `json:"workspace_id"`
-	SessionID   string `json:"session_id,omitempty"`
-	AgentName   string `json:"agent_name,omitempty"`
-	Type        string `json:"type,omitempty"`
-	Since       string `json:"since,omitempty"`
-	Limit       int    `json:"limit,omitempty"`
+type logQueryInput struct {
+	WorkspaceID   string `json:"workspace_id"`
+	SessionID     string `json:"session_id,omitempty"`
+	AgentName     string `json:"agent_name,omitempty"`
+	Type          string `json:"type,omitempty"`
+	RunID         string `json:"run,omitempty"`
+	ActorKind     string `json:"actor_kind,omitempty"`
+	ActorID       string `json:"actor_id,omitempty"`
+	Provider      string `json:"provider,omitempty"`
+	Outcome       string `json:"outcome,omitempty"`
+	Component     string `json:"component,omitempty"`
+	ErrorOnly     bool   `json:"error_only,omitempty"`
+	AfterSequence int64  `json:"after_seq,omitempty"`
+	Since         string `json:"since,omitempty"`
+	Limit         int    `json:"limit,omitempty"`
 }
 
-func (i observeEventQueryInput) eventSummaryQuery(id toolspkg.ToolID) (store.EventSummaryQuery, error) {
+func (i logQueryInput) eventSummaryQuery(id toolspkg.ToolID) (store.EventSummaryQuery, error) {
 	since, err := parseNativeOptionalRFC3339(id, "since", i.Since)
 	if err != nil {
 		return store.EventSummaryQuery{}, err
 	}
 	query := store.EventSummaryQuery{
-		WorkspaceID: strings.TrimSpace(i.WorkspaceID),
-		SessionID:   strings.TrimSpace(i.SessionID),
-		AgentName:   strings.TrimSpace(i.AgentName),
-		Type:        strings.TrimSpace(i.Type),
-		Since:       since,
-		Limit:       i.Limit,
+		WorkspaceID:   strings.TrimSpace(i.WorkspaceID),
+		SessionID:     strings.TrimSpace(i.SessionID),
+		AgentName:     strings.TrimSpace(i.AgentName),
+		Type:          strings.TrimSpace(i.Type),
+		RunID:         strings.TrimSpace(i.RunID),
+		ActorKind:     strings.TrimSpace(i.ActorKind),
+		ActorID:       strings.TrimSpace(i.ActorID),
+		Provider:      strings.TrimSpace(i.Provider),
+		Outcome:       strings.TrimSpace(i.Outcome),
+		Component:     strings.TrimSpace(i.Component),
+		ErrorOnly:     i.ErrorOnly,
+		AfterSequence: i.AfterSequence,
+		Since:         since,
+		Limit:         i.Limit,
 	}
 	if err := query.Validate(); err != nil {
 		return store.EventSummaryQuery{}, toolspkg.NewToolError(
 			toolspkg.ErrorCodeInvalidInput,
 			id,
-			"observe event query is invalid",
+			"logs query is invalid",
 			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
 			toolspkg.ReasonSchemaInvalid,
 		)
@@ -3281,7 +3298,7 @@ func (i observeEventQueryInput) eventSummaryQuery(id toolspkg.ToolID) (store.Eve
 
 type observeSearchInput struct {
 	Query string `json:"query"`
-	observeEventQueryInput
+	logQueryInput
 }
 
 type bridgeStatusInput struct {
@@ -4610,18 +4627,18 @@ func nativeMemoryToolError(id toolspkg.ToolID, err error) error {
 	}
 }
 
-func decodeObserveEventQueryInput(
+func decodeLogQueryInput(
 	req toolspkg.CallRequest,
 	scope toolspkg.Scope,
-) (observeEventQueryInput, store.EventSummaryQuery, error) {
-	var input observeEventQueryInput
+) (logQueryInput, store.EventSummaryQuery, error) {
+	var input logQueryInput
 	if err := decodeNativeInput(req, &input); err != nil {
-		return observeEventQueryInput{}, store.EventSummaryQuery{}, err
+		return logQueryInput{}, store.EventSummaryQuery{}, err
 	}
 	input.WorkspaceID = firstNonEmpty(input.WorkspaceID, scope.WorkspaceID)
 	query, err := input.eventSummaryQuery(req.ToolID)
 	if err != nil {
-		return observeEventQueryInput{}, store.EventSummaryQuery{}, err
+		return logQueryInput{}, store.EventSummaryQuery{}, err
 	}
 	return input, query, nil
 }
@@ -4663,10 +4680,10 @@ func parseNativeOptionalRFC3339(id toolspkg.ToolID, field string, raw string) (t
 	return timestamp, nil
 }
 
-func observeEventPayloads(events []store.EventSummary) []contract.ObserveEventPayload {
-	payload := make([]contract.ObserveEventPayload, 0, len(events))
+func logEventPayloads(events []store.EventSummary) []contract.LogEventPayload {
+	payload := make([]contract.LogEventPayload, 0, len(events))
 	for _, event := range events {
-		item := core.ObserveEventPayloadFromEvent(event)
+		item := core.LogEventPayloadFromSummary(event)
 		item.Summary = taskpkg.RedactClaimTokens(strings.TrimSpace(item.Summary))
 		payload = append(payload, item)
 	}
@@ -4707,15 +4724,15 @@ func redactObserveHealthPayload(payload contract.ObserveHealthPayload) contract.
 	return payload
 }
 
-func filterObserveEvents(
-	events []contract.ObserveEventPayload,
+func filterListLogs(
+	events []contract.LogEventPayload,
 	query string,
-) []contract.ObserveEventPayload {
+) []contract.LogEventPayload {
 	needle := strings.ToLower(strings.TrimSpace(query))
 	if needle == "" {
 		return events
 	}
-	filtered := make([]contract.ObserveEventPayload, 0, len(events))
+	filtered := make([]contract.LogEventPayload, 0, len(events))
 	for _, event := range events {
 		values := []string{event.ID, event.SessionID, event.Type, event.AgentName, event.Summary}
 		if slices.ContainsFunc(values, func(value string) bool {
@@ -4727,10 +4744,10 @@ func filterObserveEvents(
 	return filtered
 }
 
-func limitObservePayloads(
-	events []contract.ObserveEventPayload,
+func limitLogPayloads(
+	events []contract.LogEventPayload,
 	limit int,
-) []contract.ObserveEventPayload {
+) []contract.LogEventPayload {
 	if limit <= 0 || limit >= len(events) {
 		return events
 	}

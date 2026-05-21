@@ -1143,7 +1143,7 @@ func TestHostAPIIntegrationUnauthorizedExtensionIsDeniedForEveryMethod(t *testin
 		{method: "memory/store", params: map[string]any{"key": "note", "content": "body"}},
 		{method: "memory/forget", params: map[string]any{"key": "note"}},
 		{method: "observe/health", params: nil},
-		{method: "observe/events", params: map[string]any{"session_id": session.ID, "limit": 1}},
+		{method: "logs/list", params: map[string]any{"session_id": session.ID, "limit": 1}},
 		{method: "skills/list", params: map[string]any{"workspace": env.workspaceID}},
 		{method: "automation/jobs", params: map[string]any{"scope": "workspace", "workspace_id": env.workspaceID}},
 		{method: "automation/jobs/create", params: map[string]any{

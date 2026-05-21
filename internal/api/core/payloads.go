@@ -23,8 +23,8 @@ type FlushWriter interface {
 	Flush()
 }
 
-// ObserveCursor is the shared cursor used for observe event streaming.
-type ObserveCursor struct {
+// LogsCursor is the shared cursor used for logs streaming.
+type LogsCursor struct {
 	Timestamp time.Time
 	Sequence  int64
 	ID        string

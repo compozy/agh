@@ -120,7 +120,7 @@ var builtinToolsets = []toolspkg.Toolset{
 	{
 		ID: toolspkg.ToolsetIDObserve,
 		Tools: []string{
-			toolspkg.ToolIDObserveEvents.String(),
+			toolspkg.ToolIDListLogs.String(),
 			toolspkg.ToolIDObserveMetrics.String(),
 			toolspkg.ToolIDObserveSearch.String(),
 		},

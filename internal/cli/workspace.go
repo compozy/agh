@@ -515,7 +515,7 @@ func renderWorkspaceDetailToon(detail WorkspaceDetailRecord) (string, error) {
 			"agents",
 			[]string{
 				automationNameKey,
-				memoryProviderKey,
+				cliProviderKey,
 				workspaceModelKey,
 				workspaceCategoryKey,
 				configPermissionsKey,

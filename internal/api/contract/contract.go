@@ -413,8 +413,8 @@ type TokenUsagePayload struct {
 	Timestamp        time.Time `json:"timestamp"`
 }
 
-// ObserveEventPayload is the shared observability event response payload.
-type ObserveEventPayload struct {
+// LogEventPayload is the shared runtime log response payload.
+type LogEventPayload struct {
 	ID          string          `json:"id"`
 	SessionID   string          `json:"session_id"`
 	WorkspaceID string          `json:"workspace_id,omitempty"`

@@ -136,7 +136,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newToolCommand(deps))
 	cmd.AddCommand(newToolsetsCommand(deps))
 	cmd.AddCommand(newMCPCommand(deps))
-	cmd.AddCommand(newObserveCommand(deps))
+	cmd.AddCommand(newLogsCommand(deps))
 	cmd.AddCommand(newWhoamiCommand(deps))
 	cmd.AddCommand(newDocCommand())
 

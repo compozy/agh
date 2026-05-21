@@ -155,6 +155,21 @@ func TestCapabilityCheckerCheckHostAPIShouldEnforceDualGates(t *testing.T) {
 			wantErr:      true,
 		},
 		{
+			name:     "allows logs list with logs read capability",
+			actions:  []string{"logs/list"},
+			security: []string{"logs.read"},
+			method:   "logs/list",
+		},
+		{
+			name:         "rejects logs list with observe read only",
+			actions:      []string{"logs/list"},
+			security:     []string{"observe.read"},
+			method:       "logs/list",
+			wantRequired: []string{"logs.read"},
+			wantGranted:  []string{"observe.read"},
+			wantErr:      true,
+		},
+		{
 			name:     "automation read requires action and automation.read capability",
 			actions:  []string{"automation/jobs"},
 			security: []string{"automation.read"},
@@ -351,16 +366,16 @@ func TestCapabilityCheckerMarketplaceShouldAllowDefaultReadCapabilities(t *testi
 	checker := newTestCapabilityChecker(
 		"ext",
 		SourceMarketplace,
-		[]string{"memory/recall", "observe/events", "sessions/list"},
+		[]string{"memory/recall", "logs/list", "sessions/list"},
 		[]string{"*"},
 	)
 
-	for _, capability := range []string{"memory.read", "observe.read", "session.read"} {
+	for _, capability := range []string{"memory.read", "logs.read", "observe.read", "session.read"} {
 		if err := checker.Check("ext", capability); err != nil {
 			t.Fatalf("Check(%q) error = %v, want nil", capability, err)
 		}
 	}
-	for _, method := range []string{"memory/recall", "observe/events", "sessions/list"} {
+	for _, method := range []string{"memory/recall", "logs/list", "sessions/list"} {
 		if err := checker.CheckHostAPI("ext", method); err != nil {
 			t.Fatalf("CheckHostAPI(%q) error = %v, want nil", method, err)
 		}
@@ -374,6 +389,7 @@ func TestCapabilityCheckerRegisterShouldApplyMarketplaceTierCeiling(t *testing.T
 	checker.Register("ext", SourceMarketplace, &Manifest{
 		Actions: ActionsConfig{
 			Requires: []string{
+				"logs/list",
 				"memory/recall",
 				"memory/store",
 				"sessions/create",
@@ -387,21 +403,21 @@ func TestCapabilityCheckerRegisterShouldApplyMarketplaceTierCeiling(t *testing.T
 	})
 
 	grant := checker.grants["ext"]
-	if !slices.Equal(grant.actions, []string{"memory/recall", "sessions/list", "skills/list"}) {
+	if !slices.Equal(grant.actions, []string{"logs/list", "memory/recall", "sessions/list", "skills/list"}) {
 		t.Fatalf(
 			"grant.actions = %v, want %v",
 			grant.actions,
-			[]string{"memory/recall", "sessions/list", "skills/list"},
+			[]string{"logs/list", "memory/recall", "sessions/list", "skills/list"},
 		)
 	}
 	if !slices.Equal(
 		grant.security,
-		[]string{"memory.read", "observe.read", "session.read", "skills.read", "tool.read"},
+		[]string{"logs.read", "memory.read", "observe.read", "session.read", "skills.read", "tool.read"},
 	) {
 		t.Fatalf(
 			"grant.security = %v, want %v",
 			grant.security,
-			[]string{"memory.read", "observe.read", "session.read", "skills.read", "tool.read"},
+			[]string{"logs.read", "memory.read", "observe.read", "session.read", "skills.read", "tool.read"},
 		)
 	}
 }

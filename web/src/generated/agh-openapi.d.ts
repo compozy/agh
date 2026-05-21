@@ -1008,6 +1008,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/logs": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List runtime logs */
+    get: operations["listLogs"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/logs/stream": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Stream runtime logs */
+    get: operations["streamLogs"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/memory": {
     parameters: {
       query?: never;
@@ -3482,23 +3516,6 @@ export interface paths {
     };
     /** Get one network work item */
     get: operations["getNetworkWork"];
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/workspaces/{workspace_id}/observe/events": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** List observability events */
-    get: operations["listObserveEvents"];
     put?: never;
     post?: never;
     delete?: never;
@@ -19941,6 +19958,280 @@ export interface operations {
               payload_schema: string;
               sync_eligible: boolean;
             }[];
+          };
+        };
+      };
+      /** @description Invalid filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listLogs: {
+    parameters: {
+      query?: {
+        /** @description Workspace id */
+        workspace_id?: string;
+        /** @description Session id */
+        session_id?: string;
+        /** @description Agent name */
+        agent_name?: string;
+        /** @description Event type */
+        type?: string;
+        /** @description Task run id */
+        run?: string;
+        /** @description Actor as kind:id */
+        actor?: string;
+        /** @description Actor kind */
+        actor_kind?: string;
+        /** @description Actor id */
+        actor_id?: string;
+        /** @description Provider id projected at event write time */
+        provider?: string;
+        /** @description Event registry outcome */
+        outcome?: string;
+        /** @description Event registry component */
+        component?: string;
+        /** @description Return warning and failure outcomes only */
+        error_only?: boolean;
+        /** @description Return rows after this event summary sequence */
+        after_seq?: number;
+        /** @description Only logs emitted since this timestamp */
+        since?: string;
+        /** @description Maximum number of records to return */
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            events: {
+              actor_id?: string;
+              actor_kind?: string;
+              agent_name: string;
+              claim_token_hash?: string;
+              component?: string;
+              content?: unknown;
+              coordinator_session_id?: string;
+              hook_event?: string;
+              hook_name?: string;
+              id: string;
+              /** Format: date-time */
+              lease_until?: string | null;
+              outcome?: string;
+              parent_session_id?: string;
+              provider?: string;
+              release_reason?: string;
+              root_session_id?: string;
+              run_id?: string;
+              scheduler_reason?: string;
+              session_id: string;
+              spawn_depth: number;
+              summary?: string;
+              task_id?: string;
+              /** Format: date-time */
+              timestamp: string;
+              type: string;
+              workflow_id?: string;
+              workspace_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Invalid filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  streamLogs: {
+    parameters: {
+      query?: {
+        /** @description Workspace id */
+        workspace_id?: string;
+        /** @description Session id */
+        session_id?: string;
+        /** @description Agent name */
+        agent_name?: string;
+        /** @description Event type */
+        type?: string;
+        /** @description Task run id */
+        run?: string;
+        /** @description Actor as kind:id */
+        actor?: string;
+        /** @description Actor kind */
+        actor_kind?: string;
+        /** @description Actor id */
+        actor_id?: string;
+        /** @description Provider id projected at event write time */
+        provider?: string;
+        /** @description Event registry outcome */
+        outcome?: string;
+        /** @description Event registry component */
+        component?: string;
+        /** @description Return warning and failure outcomes only */
+        error_only?: boolean;
+        /** @description Return rows after this event summary sequence */
+        after_seq?: number;
+        /** @description Only logs emitted since this timestamp */
+        since?: string;
+        /** @description Maximum number of records to return */
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Log event stream */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/event-stream": {
+            actor_id?: string;
+            actor_kind?: string;
+            agent_name: string;
+            claim_token_hash?: string;
+            component?: string;
+            content?: unknown;
+            coordinator_session_id?: string;
+            hook_event?: string;
+            hook_name?: string;
+            id: string;
+            /** Format: date-time */
+            lease_until?: string | null;
+            outcome?: string;
+            parent_session_id?: string;
+            provider?: string;
+            release_reason?: string;
+            root_session_id?: string;
+            run_id?: string;
+            scheduler_reason?: string;
+            session_id: string;
+            spawn_depth: number;
+            summary?: string;
+            task_id?: string;
+            /** Format: date-time */
+            timestamp: string;
+            type: string;
+            workflow_id?: string;
+            workspace_id?: string;
           };
         };
       };
@@ -53917,143 +54208,6 @@ export interface operations {
       };
       /** @description Network runtime is not configured */
       503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
-    };
-  };
-  listObserveEvents: {
-    parameters: {
-      query?: {
-        /** @description Session id */
-        session_id?: string;
-        /** @description Agent name */
-        agent_name?: string;
-        /** @description Event type */
-        type?: string;
-        /** @description Task run id */
-        run?: string;
-        /** @description Actor kind */
-        actor_kind?: string;
-        /** @description Actor id */
-        actor_id?: string;
-        /** @description Provider id projected at event write time */
-        provider?: string;
-        /** @description Event registry outcome */
-        outcome?: string;
-        /** @description Event registry component */
-        component?: string;
-        /** @description Return warning and failure outcomes only */
-        error_only?: boolean;
-        /** @description Return rows after this event summary sequence */
-        after_seq?: number;
-        /** @description Only events emitted since this timestamp */
-        since?: string;
-        /** @description Maximum number of records to return */
-        limit?: number;
-      };
-      header?: never;
-      path: {
-        /** @description Workspace id */
-        workspace_id: string;
-      };
-      cookie?: never;
-    };
-    requestBody?: never;
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            events: {
-              actor_id?: string;
-              actor_kind?: string;
-              agent_name: string;
-              claim_token_hash?: string;
-              component?: string;
-              content?: unknown;
-              coordinator_session_id?: string;
-              hook_event?: string;
-              hook_name?: string;
-              id: string;
-              /** Format: date-time */
-              lease_until?: string | null;
-              outcome?: string;
-              parent_session_id?: string;
-              provider?: string;
-              release_reason?: string;
-              root_session_id?: string;
-              run_id?: string;
-              scheduler_reason?: string;
-              session_id: string;
-              spawn_depth: number;
-              summary?: string;
-              task_id?: string;
-              /** Format: date-time */
-              timestamp: string;
-              type: string;
-              workflow_id?: string;
-              workspace_id?: string;
-            }[];
-          };
-        };
-      };
-      /** @description Invalid filter */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
         headers: {
           [name: string]: unknown;
         };

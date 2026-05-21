@@ -412,7 +412,7 @@ func bundleActivationBundle(item BundleActivationRecord) outputBundle {
 					"agents",
 					[]string{
 						automationNameKey,
-						memoryProviderKey,
+						cliProviderKey,
 						bundleModelKey,
 						authoredContextSoulKey,
 						bundleHeartbeatKey,

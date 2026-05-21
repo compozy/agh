@@ -49,7 +49,7 @@ const (
 	HostAPIMethodMemoryStore                 HostAPIMethod = "memory/store"
 	HostAPIMethodMemoryForget                HostAPIMethod = "memory/forget"
 	HostAPIMethodObserveHealth               HostAPIMethod = "observe/health"
-	HostAPIMethodObserveEvents               HostAPIMethod = "observe/events"
+	HostAPIMethodListLogs                    HostAPIMethod = "logs/list"
 	HostAPIMethodSkillsList                  HostAPIMethod = "skills/list"
 	HostAPIMethodModelsList                  HostAPIMethod = "models/list"
 	HostAPIMethodModelsRefresh               HostAPIMethod = "models/refresh"
@@ -155,7 +155,7 @@ func preNetworkHostAPIMethods() []HostAPIMethod {
 		HostAPIMethodMemoryStore,
 		HostAPIMethodMemoryForget,
 		HostAPIMethodObserveHealth,
-		HostAPIMethodObserveEvents,
+		HostAPIMethodListLogs,
 		HostAPIMethodSkillsList,
 		HostAPIMethodModelsList,
 		HostAPIMethodModelsRefresh,

@@ -209,7 +209,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDAgentHeartbeatWake)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDWorkspaceDescribe)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDMemoryList)
-		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDObserveEvents)
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDListLogs)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDBridgesList)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDAutomationJobsList)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDExtensionsList)
@@ -230,7 +230,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.ToolIDAgentHeartbeatWake,
 			toolspkg.ToolIDWorkspaceDescribe,
 			toolspkg.ToolIDMemoryList,
-			toolspkg.ToolIDObserveEvents,
+			toolspkg.ToolIDListLogs,
 			toolspkg.ToolIDBridgesList,
 			toolspkg.ToolIDAutomationJobsList,
 			toolspkg.ToolIDExtensionsList,
@@ -4254,12 +4254,12 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Context(),
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDObserveEvents,
+				ToolID: toolspkg.ToolIDListLogs,
 				Input:  json.RawMessage(`{"workspace_id":"ws-native-network","limit":1}`),
 			},
 		)
 		if err != nil {
-			t.Fatalf("Registry.Call(observe_events) error = %v", err)
+			t.Fatalf("Registry.Call(logs) error = %v", err)
 		}
 		requireNativeStructuredContains(t, eventsResult, []byte(`"evt-1"`))
 		requireNativeStructuredExcludes(t, eventsResult, []byte(rawClaim))
@@ -4268,14 +4268,14 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Context(),
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDObserveEvents,
+				ToolID: toolspkg.ToolIDListLogs,
 				Input: json.RawMessage(
 					`{"workspace_id":"ws-native-network","session_id":"sess-2","since":"2026-04-29T15:00:00Z"}`,
 				),
 			},
 		)
 		if err != nil {
-			t.Fatalf("Registry.Call(observe_events filtered) error = %v", err)
+			t.Fatalf("Registry.Call(logs filtered) error = %v", err)
 		}
 		requireNativeStructuredContains(t, filteredEventsResult, []byte(`"evt-2"`))
 		requireNativeStructuredExcludes(t, filteredEventsResult, []byte(`"evt-1"`))
@@ -4311,12 +4311,12 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Context(),
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDObserveEvents,
+				ToolID: toolspkg.ToolIDListLogs,
 				Input:  json.RawMessage(`{"since":"not-a-date"}`),
 			},
 		)
 		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
-			t.Fatalf("Registry.Call(observe_events invalid since) error = %v, want ErrToolInvalidInput", err)
+			t.Fatalf("Registry.Call(logs invalid since) error = %v, want ErrToolInvalidInput", err)
 		}
 		_, err = registry.Call(
 			t.Context(),

@@ -435,7 +435,7 @@ func agentMeBundle(record AgentMeRecord) outputBundle {
 			return renderToonObject("agent_me", []string{
 				automationSessionIDKey,
 				agentKernelAgentNameKey,
-				memoryProviderKey,
+				cliProviderKey,
 				agentKernelModelKey,
 				"workspace_id",
 				"workspace_root",

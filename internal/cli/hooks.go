@@ -176,7 +176,7 @@ func newHooksRunsCommand(deps commandDeps) *cobra.Command {
 
 	cmd.Flags().StringVar(&query.Session, "session", "", "Session ID")
 	cmd.Flags().StringVar(&query.Event, hooksEventKey, "", "Filter by hook event")
-	cmd.Flags().StringVar(&query.Outcome, "outcome", "", "Filter by hook outcome")
+	cmd.Flags().StringVar(&query.Outcome, cliOutcomeKey, "", "Filter by hook outcome")
 	cmd.Flags().StringVar(&sinceRaw, "since", "", "Show runs since an RFC3339 timestamp or relative duration")
 	cmd.Flags().IntVar(&query.Last, "last", 0, "Show only the most recent N runs")
 	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Workspace name, ID, or path")
@@ -337,7 +337,7 @@ func hookRunsBundle(runs []HookRunRecord) outputBundle {
 		"Hook Runs",
 		[]string{"Hook", hooksEventValue, "Outcome", cliDurationValue, hooksErrorValue},
 		"runs",
-		[]string{"hook_name", hooksEventKey, "outcome", cliDurationMSKey, hooksErrorKey, "recorded_at"},
+		[]string{"hook_name", hooksEventKey, cliOutcomeKey, cliDurationMSKey, hooksErrorKey, "recorded_at"},
 		func(item HookRunRecord) []string {
 			return []string{
 				stringOrDash(item.HookName),

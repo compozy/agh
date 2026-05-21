@@ -135,8 +135,8 @@ type stubClient struct {
 	hookCatalogFn                 func(context.Context, HookCatalogQuery) ([]HookCatalogRecord, error)
 	hookRunsFn                    func(context.Context, string, HookRunsQuery) ([]HookRunRecord, error)
 	hookEventsFn                  func(context.Context, HookEventsQuery) ([]HookEventRecord, error)
-	observeEventsFn               func(context.Context, ObserveEventQuery) ([]ObserveEventRecord, error)
-	streamObserveEventsFn         func(context.Context, ObserveEventQuery, string, SSEHandler) error
+	listLogsFn                    func(context.Context, LogsListQuery) ([]LogEventRecord, error)
+	streamLogsFn                  func(context.Context, LogsListQuery, string, SSEHandler) error
 	memoryHealthFn                func(context.Context, string) (MemoryHealthRecord, error)
 	memoryHistoryFn               func(context.Context, MemoryHistoryQuery) ([]MemoryHistoryRecord, error)
 	listMemoryFn                  func(context.Context, MemoryListQuery) (MemoryListRecord, error)
@@ -1304,26 +1304,26 @@ func (s *stubClient) HookEvents(
 	return nil, errors.New("unexpected HookEvents call")
 }
 
-func (s *stubClient) ObserveEvents(
+func (s *stubClient) ListLogs(
 	ctx context.Context,
-	query ObserveEventQuery,
-) ([]ObserveEventRecord, error) {
-	if s.observeEventsFn != nil {
-		return s.observeEventsFn(ctx, query)
+	query LogsListQuery,
+) ([]LogEventRecord, error) {
+	if s.listLogsFn != nil {
+		return s.listLogsFn(ctx, query)
 	}
-	return nil, errors.New("unexpected ObserveEvents call")
+	return nil, errors.New("unexpected ListLogs call")
 }
 
-func (s *stubClient) StreamObserveEvents(
+func (s *stubClient) StreamLogs(
 	ctx context.Context,
-	query ObserveEventQuery,
+	query LogsListQuery,
 	lastEventID string,
 	handler SSEHandler,
 ) error {
-	if s.streamObserveEventsFn != nil {
-		return s.streamObserveEventsFn(ctx, query, lastEventID, handler)
+	if s.streamLogsFn != nil {
+		return s.streamLogsFn(ctx, query, lastEventID, handler)
 	}
-	return errors.New("unexpected StreamObserveEvents call")
+	return errors.New("unexpected StreamLogs call")
 }
 
 func (s *stubClient) MemoryHealth(ctx context.Context, workspace string) (MemoryHealthRecord, error) {

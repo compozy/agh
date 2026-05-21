@@ -22,7 +22,7 @@ const (
 
 const (
 	installPermissionsValue = "Permissions"
-	memoryProviderKey       = "provider"
+	cliProviderKey          = "provider"
 )
 
 const (
@@ -105,7 +105,7 @@ func newAgentCreateCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().String("workspace", "", "Workspace id, name, or path to create the agent under")
-	cmd.Flags().StringVar(&flags.provider, memoryProviderKey, "", "Provider name for sessions using this agent")
+	cmd.Flags().StringVar(&flags.provider, cliProviderKey, "", "Provider name for sessions using this agent")
 	cmd.Flags().StringVar(&flags.command, agentCommandKey, "", "Optional provider command override")
 	cmd.Flags().StringVar(&flags.model, agentModelKey, "", "Optional provider model")
 	cmd.Flags().StringVar(&flags.prompt, "prompt", "", "Agent system prompt body")
@@ -317,7 +317,7 @@ func agentListBundle(items []AgentRecord) outputBundle {
 		"agents",
 		[]string{
 			automationNameKey,
-			memoryProviderKey,
+			cliProviderKey,
 			agentModelKey,
 			agentCategoryKey,
 			"tool_count",
@@ -379,7 +379,7 @@ func agentBundle(item AgentRecord) outputBundle {
 			// Detail output emits tool names; list output keeps the table dense with tool_count.
 			return renderToonObject(agentAgentKey, []string{
 				automationNameKey,
-				memoryProviderKey,
+				cliProviderKey,
 				agentCommandKey,
 				agentModelKey,
 				agentCategoryKey,

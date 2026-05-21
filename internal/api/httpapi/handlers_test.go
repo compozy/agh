@@ -97,6 +97,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/hooks/catalog",
 		"GET /api/hooks/events",
 		"GET /api/workspaces/:workspace_id/hooks/runs",
+		"GET /api/logs",
+		"GET /api/logs/stream",
 		"GET /api/memory",
 		"GET /api/memory/:filename",
 		"GET /api/memory/config",
@@ -128,8 +130,6 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/workspaces/:workspace_id/network/channels/:channel/threads/:thread_id/messages",
 		"GET /api/network/status",
 		"GET /api/workspaces/:workspace_id/network/work/:work_id",
-		"GET /api/workspaces/:workspace_id/observe/events",
-		"GET /api/workspaces/:workspace_id/observe/events/stream",
 		"GET /api/status",
 		"GET /api/observe/tasks/dashboard",
 		"GET /api/observe/tasks/inbox",
@@ -1842,7 +1842,7 @@ func TestListAgentsAndHealthHandlers(t *testing.T) {
 	}
 }
 
-func TestObserveEventsAndApproveHandlers(t *testing.T) {
+func TestListLogsAndApproveHandlers(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{
 		QueryEventsFn: func(context.Context, store.EventSummaryQuery) ([]store.EventSummary, error) {
@@ -1862,14 +1862,14 @@ func TestObserveEventsAndApproveHandlers(t *testing.T) {
 		t,
 		engine,
 		http.MethodGet,
-		"/api/workspaces/ws-workspace/observe/events?session_id=sess-1",
+		"/api/logs?workspace_id=ws-workspace&session_id=sess-1",
 		nil,
 	)
 	if observeResp.Code != http.StatusOK {
 		t.Fatalf("observe status = %d, want %d; body=%s", observeResp.Code, http.StatusOK, observeResp.Body.String())
 	}
 	var observed struct {
-		Events []observeEventPayload `json:"events"`
+		Events []logEventPayload `json:"events"`
 	}
 	decodeJSONResponse(t, observeResp, &observed)
 	if len(observed.Events) != 1 || observed.Events[0].ID != "sum-1" {

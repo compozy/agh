@@ -212,7 +212,7 @@ export type {
   NetworkThreadsParams,
   NetworkWorkGetParams,
   NetworkWorkPayload,
-  ObserveEventsParams,
+  ListLogsParams,
   ObserveHealth,
   PayloadBase,
   PermissionDeniedPatch,

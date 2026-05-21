@@ -1067,11 +1067,11 @@ func TestHostAPIHandlerObserveHealthReturnsSnapshot(t *testing.T) {
 	}
 }
 
-func TestHostAPIHandlerObserveEventsReturnsFilteredEventsWithSince(t *testing.T) {
+func TestHostAPIHandlerListLogsReturnsFilteredEventsWithSince(t *testing.T) {
 	t.Parallel()
 
 	env := newHostAPITestEnv(t)
-	env.grant("ext-observe", []string{"sessions/prompt", "observe/events"}, []string{"session.write", "observe.read"})
+	env.grant("ext-observe", []string{"sessions/prompt", "logs/list"}, []string{"session.write", "logs.read"})
 
 	sess := env.createSession(t)
 	since := env.currentTime().Add(-time.Second).Format(time.RFC3339Nano)
@@ -1079,20 +1079,38 @@ func TestHostAPIHandlerObserveEventsReturnsFilteredEventsWithSince(t *testing.T)
 		t.Fatalf("submitPrompt() error = %v", err)
 	}
 
-	result, err := env.call(t, "ext-observe", "observe/events", map[string]any{
+	result, err := env.call(t, "ext-observe", "logs/list", map[string]any{
 		"workspace_id": env.workspaceID,
 		"session_id":   sess.ID,
 		"since":        since,
 		"limit":        20,
 	})
 	if err != nil {
-		t.Fatalf("Handle(observe/events) error = %v", err)
+		t.Fatalf("Handle(logs/list) error = %v", err)
 	}
 
 	var events []hostAPISessionEvent
 	decodeResult(t, result, &events)
 	if len(events) == 0 {
-		t.Fatal("observe/events len = 0, want at least one event")
+		t.Fatal("logs/list len = 0, want at least one event")
+	}
+}
+
+func TestHostAPIHandlerListLogsRejectsObserveReadWithoutLogsRead(t *testing.T) {
+	t.Parallel()
+
+	env := newHostAPITestEnv(t)
+	env.grant("ext-observe", []string{"logs/list"}, []string{"observe.read"})
+
+	_, err := env.call(t, "ext-observe", "logs/list", map[string]any{
+		"workspace_id": env.workspaceID,
+		"limit":        1,
+	})
+	assertCapabilityDenied(t, err, "logs/list")
+	data := decodeRPCData(t, err)
+	required, ok := data["required"].([]any)
+	if !ok || len(required) != 1 || required[0] != "logs.read" {
+		t.Fatalf("rpc data required = %#v, want [logs.read]", data["required"])
 	}
 }
 
@@ -2275,7 +2293,7 @@ func TestHostAPIHandlerCapabilityErrorsCarryMethodAndRequiredCapabilities(t *tes
 		{method: "memory/store", params: map[string]any{"key": "note", "content": "body"}},
 		{method: "memory/forget", params: map[string]any{"key": "note"}},
 		{method: "observe/health", params: nil},
-		{method: "observe/events", params: map[string]any{"limit": 1}},
+		{method: "logs/list", params: map[string]any{"limit": 1}},
 		{method: "skills/list", params: map[string]any{"workspace": env.workspaceID}},
 		{method: "automation/jobs", params: map[string]any{"scope": "workspace", "workspace_id": env.workspaceID}},
 		{method: "automation/jobs/create", params: map[string]any{

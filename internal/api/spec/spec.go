@@ -116,6 +116,7 @@ const (
 	specExtensionsKey                                        = "extensions"
 	specHooksKey                                             = "hooks"
 	specIntegerKey                                           = "integer"
+	specLogsKey                                              = "logs"
 	specMemoryKey                                            = "memory"
 	specNetworkKey                                           = "network"
 	specObserveKey                                           = "observe"
@@ -311,6 +312,7 @@ func Document() (*openapi3.T, error) {
 			{Name: specNetworkKey},
 			{Name: specExtensionsKey},
 			{Name: specHooksKey},
+			{Name: specLogsKey},
 			{Name: specMemoryKey},
 			{Name: specObserveKey},
 			{Name: specOpenAIKey},
@@ -2895,17 +2897,18 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      httpMethodGet,
-		Path:        "/api/workspaces/{workspace_id}/observe/events",
-		OperationID: "listObserveEvents",
-		Summary:     "List observability events",
-		Tags:        []string{specObserveKey},
+		Path:        "/api/logs",
+		OperationID: "listLogs",
+		Summary:     "List runtime logs",
+		Tags:        []string{specLogsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
-			pathParam("workspace_id", "Workspace id"),
+			queryParam("workspace_id", "Workspace id", false),
 			queryParam("session_id", "Session id", false),
 			queryParam("agent_name", "Agent name", false),
 			queryParam("type", "Event type", false),
 			queryParam("run", "Task run id", false),
+			queryParam("actor", "Actor as kind:id", false),
 			queryParam("actor_kind", "Actor kind", false),
 			queryParam("actor_id", "Actor id", false),
 			queryParam("provider", "Provider id projected at event write time", false),
@@ -2913,11 +2916,46 @@ var operationRegistry = []OperationSpec{
 			queryParam("component", "Event registry component", false),
 			boolQueryParam("error_only", "Return warning and failure outcomes only"),
 			intQueryParam("after_seq", "Return rows after this event summary sequence"),
-			dateTimeQueryParam("since", "Only events emitted since this timestamp"),
+			dateTimeQueryParam("since", "Only logs emitted since this timestamp"),
 			intQueryParam("limit", "Maximum number of records to return"),
 		},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "OK", Body: contract.ObserveEventsResponse{}},
+			{Status: 200, Description: "OK", Body: contract.LogsListResponse{}},
+			{Status: 400, Description: specInvalidFilterDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodGet,
+		Path:        "/api/logs/stream",
+		OperationID: "streamLogs",
+		Summary:     "Stream runtime logs",
+		Tags:        []string{specLogsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			queryParam("workspace_id", "Workspace id", false),
+			queryParam("session_id", "Session id", false),
+			queryParam("agent_name", "Agent name", false),
+			queryParam("type", "Event type", false),
+			queryParam("run", "Task run id", false),
+			queryParam("actor", "Actor as kind:id", false),
+			queryParam("actor_kind", "Actor kind", false),
+			queryParam("actor_id", "Actor id", false),
+			queryParam("provider", "Provider id projected at event write time", false),
+			queryParam("outcome", "Event registry outcome", false),
+			queryParam("component", "Event registry component", false),
+			boolQueryParam("error_only", "Return warning and failure outcomes only"),
+			intQueryParam("after_seq", "Return rows after this event summary sequence"),
+			dateTimeQueryParam("since", "Only logs emitted since this timestamp"),
+			intQueryParam("limit", "Maximum number of records to return"),
+		},
+		Responses: []ResponseSpec{
+			{
+				Status:      200,
+				Description: "Log event stream",
+				Body:        contract.LogEventPayload{},
+				ContentType: "text/event-stream",
+			},
 			{Status: 400, Description: specInvalidFilterDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},

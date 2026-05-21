@@ -384,7 +384,7 @@ function defaultLogger(message: string, err: unknown): void {
  * receive these automatically via createNavCountsStore() without override.
  */
 export function observeStreamUrlForWorkspace(workspaceId: string): string {
-  return `/api/workspaces/${encodeURIComponent(workspaceId)}/observe/events/stream`;
+  return `/api/logs/stream?workspace_id=${encodeURIComponent(workspaceId)}`;
 }
 
 export function createDefaultFetchers(workspaceId?: string | null): NavCountFetchers {

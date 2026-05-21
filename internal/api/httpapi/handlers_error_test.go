@@ -354,7 +354,7 @@ func TestAgentObserveHealthAndDaemonStatusErrorPaths(t *testing.T) {
 		t.Fatalf("agent status = %d, want %d", agentResp.Code, http.StatusNotFound)
 	}
 
-	observeResp := performRequest(t, engine, http.MethodGet, "/api/workspaces/ws-workspace/observe/events", nil)
+	observeResp := performRequest(t, engine, http.MethodGet, "/api/logs?workspace_id=ws-workspace", nil)
 	if observeResp.Code != http.StatusInternalServerError {
 		t.Fatalf("observe status = %d, want %d", observeResp.Code, http.StatusInternalServerError)
 	}
@@ -503,7 +503,7 @@ func TestObserveStreamBadHeaderAndMissingAgentsDir(t *testing.T) {
 		t,
 		engine,
 		http.MethodGet,
-		"/api/workspaces/ws-workspace/observe/events/stream",
+		"/api/logs/stream?workspace_id=ws-workspace",
 		nil,
 		map[string]string{"Last-Event-ID": "bad"},
 	)

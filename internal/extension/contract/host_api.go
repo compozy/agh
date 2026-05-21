@@ -51,7 +51,7 @@ const (
 	HostAPIMethodMemoryStore                 = extensionprotocol.HostAPIMethodMemoryStore
 	HostAPIMethodMemoryForget                = extensionprotocol.HostAPIMethodMemoryForget
 	HostAPIMethodObserveHealth               = extensionprotocol.HostAPIMethodObserveHealth
-	HostAPIMethodObserveEvents               = extensionprotocol.HostAPIMethodObserveEvents
+	HostAPIMethodListLogs                    = extensionprotocol.HostAPIMethodListLogs
 	HostAPIMethodSkillsList                  = extensionprotocol.HostAPIMethodSkillsList
 	HostAPIMethodModelsList                  = extensionprotocol.HostAPIMethodModelsList
 	HostAPIMethodModelsRefresh               = extensionprotocol.HostAPIMethodModelsRefresh
@@ -236,14 +236,22 @@ type MemoryForgetParams struct {
 	Workspace string            `json:"workspace,omitempty"`
 }
 
-// ObserveEventsParams filters workspace observability events.
-type ObserveEventsParams struct {
-	WorkspaceID string    `json:"workspace_id"`
-	SessionID   string    `json:"session_id,omitempty"`
-	AgentName   string    `json:"agent_name,omitempty"`
-	Type        string    `json:"type,omitempty"`
-	Since       time.Time `json:"since,omitzero"`
-	Limit       int       `json:"limit,omitempty"`
+// ListLogsParams filters workspace runtime logs.
+type ListLogsParams struct {
+	WorkspaceID   string    `json:"workspace_id"`
+	SessionID     string    `json:"session_id,omitempty"`
+	AgentName     string    `json:"agent_name,omitempty"`
+	Type          string    `json:"type,omitempty"`
+	RunID         string    `json:"run,omitempty"`
+	ActorKind     string    `json:"actor_kind,omitempty"`
+	ActorID       string    `json:"actor_id,omitempty"`
+	Provider      string    `json:"provider,omitempty"`
+	Outcome       string    `json:"outcome,omitempty"`
+	Component     string    `json:"component,omitempty"`
+	ErrorOnly     bool      `json:"error_only,omitempty"`
+	AfterSequence int64     `json:"after_seq,omitempty"`
+	Since         time.Time `json:"since,omitzero"`
+	Limit         int       `json:"limit,omitempty"`
 }
 
 // SkillsListParams filters skills by workspace scope.
@@ -840,8 +848,8 @@ var hostAPIMethodSpecs = []HostAPIMethodSpec{
 		OptionalParams: true,
 	},
 	{
-		Method:         HostAPIMethodObserveEvents,
-		Params:         NamedType{Name: "ObserveEventsParams", Value: ObserveEventsParams{}},
+		Method:         HostAPIMethodListLogs,
+		Params:         NamedType{Name: "ListLogsParams", Value: ListLogsParams{}},
 		Result:         NamedType{Name: "SessionEvent", Value: []SessionEvent{}},
 		OptionalParams: true,
 	},

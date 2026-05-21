@@ -16,8 +16,8 @@ type sessionPayload = contract.SessionPayload
 type sessionEventPayload = contract.SessionEventPayload
 type turnHistoryPayload = contract.TurnHistoryPayload
 type agentPayload = contract.AgentPayload
-type observeEventPayload = contract.ObserveEventPayload
-type observeCursor = core.ObserveCursor
+type logEventPayload = contract.LogEventPayload
+type logsCursor = core.LogsCursor
 type memoryWriteRequest = contract.MemoryWriteRequest
 type memoryListResponse = contract.MemoryListResponse
 type memoryEntryResponse = contract.MemoryEntryResponse
@@ -41,8 +41,8 @@ func payloadJSON(raw string) json.RawMessage {
 	return core.PayloadJSON(raw)
 }
 
-func observeEventAfterCursor(event store.EventSummary, cursor observeCursor) bool {
-	return core.ObserveEventAfterCursor(event, cursor)
+func observeEventAfterCursor(event store.EventSummary, cursor logsCursor) bool {
+	return core.LogEventAfterCursor(event, cursor)
 }
 
 func acpCapsPayloadFromInfo(caps acp.Caps) *contract.ACPCapsPayload {
@@ -65,8 +65,8 @@ func resolveMemoryWorkspace(raw string) (string, error) {
 	return core.ResolveMemoryWorkspace(raw)
 }
 
-func parseObserveCursor(raw string) (observeCursor, error) {
-	return core.ParseObserveCursor(raw)
+func parseLogsCursor(raw string) (logsCursor, error) {
+	return core.ParseLogsCursor(raw)
 }
 
 func parseOptionalTime(raw string) (time.Time, error) {

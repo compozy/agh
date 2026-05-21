@@ -19,7 +19,7 @@ const (
 	hostAPIBridgesInstancesReportStatePath = "bridges/instances/report_state"
 	hostAPIMemoryForgetPath                = "memory/forget"
 	hostAPIMemoryRecallPath                = "memory/recall"
-	hostAPIObserveEventsPath               = "observe/events"
+	hostAPIListLogsPath                    = "logs/list"
 	hostAPIResourcesListPath               = "resources/list"
 	hostAPIResourcesSnapshotPath           = "resources/snapshot"
 	hostAPISandboxExecPath                 = "sandbox/exec"
@@ -58,6 +58,7 @@ const (
 	capabilityBundledKey                   = "bundled"
 	capabilityHeartbeatReadPath            = "heartbeat.read"
 	capabilityHeartbeatWritePath           = "heartbeat.write"
+	capabilityLogsReadPath                 = "logs.read"
 	capabilityMemoryReadPath               = "memory.read"
 	capabilityMemoryWritePath              = "memory.write"
 	capabilityMemoryStorePath              = "memory/store"
@@ -185,7 +186,7 @@ var (
 		"network/direct/messages":              capabilityNetworkReadPath,
 		"network/work/get":                     capabilityNetworkReadPath,
 		"network/send":                         capabilityNetworkWritePath,
-		hostAPIObserveEventsPath:               capabilityObserveReadPath,
+		hostAPIListLogsPath:                    capabilityLogsReadPath,
 		capabilityObserveHealthPath:            capabilityObserveReadPath,
 		capabilitySandboxListPath:              "",
 		capabilitySandboxInfoPath:              "",
@@ -204,6 +205,7 @@ var (
 
 	marketplaceSecurityCeiling = []string{
 		capabilityMemoryReadPath,
+		capabilityLogsReadPath,
 		capabilityObserveReadPath,
 		capabilitySessionReadPath,
 		capabilitySkillsReadPath,

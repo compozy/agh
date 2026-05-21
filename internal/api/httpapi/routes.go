@@ -20,6 +20,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerWorkspaceRoutes(api, handlers)
 	registerSessionRoutes(api, handlers)
 	registerAgentRoutes(api, handlers)
+	registerLogsRoutes(api, handlers)
 	registerObserveRoutes(api, handlers)
 	registerHookRoutes(api, handlers)
 	registerResourceRoutes(api, handlers)
@@ -140,12 +141,13 @@ func registerAgentRoutes(api gin.IRouter, handlers *Handlers) {
 	agents.GET("/:name", handlers.GetAgent)
 }
 
+func registerLogsRoutes(api gin.IRouter, handlers *Handlers) {
+	api.GET("/logs", handlers.ListLogs)
+	api.GET("/logs/stream", handlers.StreamLogs)
+}
+
 func registerObserveRoutes(api gin.IRouter, handlers *Handlers) {
 	observeGroup := api.Group("/observe")
-
-	workspaceObserveGroup := api.Group("/workspaces/:workspace_id/observe")
-	workspaceObserveGroup.GET("/events", handlers.ObserveEvents)
-	workspaceObserveGroup.GET("/events/stream", handlers.StreamObserveEvents)
 
 	taskObserveGroup := observeGroup.Group("/tasks")
 	taskObserveGroup.GET("/dashboard", handlers.TaskDashboard)

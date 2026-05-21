@@ -452,7 +452,7 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 		t.Fatalf("stream records = %d, want at least 2", len(records))
 	}
 
-	observeResp := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/ws-workspace/observe/events", nil)
+	observeResp := performRequest(t, fixture.Engine, http.MethodGet, "/logs?workspace_id=ws-workspace", nil)
 	if observeResp.Code != http.StatusOK {
 		t.Fatalf("observe status = %d, want %d", observeResp.Code, http.StatusOK)
 	}

@@ -23,6 +23,7 @@
         "hooks",
         "---Operations---",
         "diagnostics",
+        "logs",
         "settings",
         "providers",
         "extensions",

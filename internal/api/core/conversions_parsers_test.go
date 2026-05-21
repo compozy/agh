@@ -399,14 +399,14 @@ func TestSessionEventPayloadFromEventIncludesStopDiagnostics(t *testing.T) {
 	})
 }
 
-func TestObserveEventPayloadFromEventIncludesLineage(t *testing.T) {
+func TestLogEventPayloadFromSummaryIncludesLineage(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should include persisted observe lineage fields", func(t *testing.T) {
 		t.Parallel()
 
 		now := time.Date(2026, 4, 3, 12, 5, 0, 0, time.UTC)
-		payload := core.ObserveEventPayloadFromEvent(store.EventSummary{
+		payload := core.LogEventPayloadFromSummary(store.EventSummary{
 			ID:              "sum-1",
 			SessionID:       "sess-child",
 			Type:            "agent_message",
@@ -433,7 +433,7 @@ func TestObserveEventPayloadFromEventIncludesLineage(t *testing.T) {
 	t.Run("Should preserve observe event content for global events", func(t *testing.T) {
 		t.Parallel()
 
-		payload := core.ObserveEventPayloadFromEvent(store.EventSummary{
+		payload := core.LogEventPayloadFromSummary(store.EventSummary{
 			ID:      "sum-global",
 			Type:    "settings.changed",
 			Content: []byte(`{"section":"skills","source":"http","operation":"patch"}`),
@@ -530,12 +530,12 @@ func TestParseSessionEventQueryAndHelpers(t *testing.T) {
 	if value, err := core.ParseOptionalInt64("9"); err != nil || value != 9 {
 		t.Fatalf("ParseOptionalInt64() = %d, %v", value, err)
 	}
-	if _, err := core.ParseObserveCursor("2026-04-03T12:00:00Z|ev-1"); err != nil {
-		t.Fatalf("ParseObserveCursor() error = %v", err)
+	if _, err := core.ParseLogsCursor("2026-04-03T12:00:00Z|ev-1"); err != nil {
+		t.Fatalf("ParseLogsCursor() error = %v", err)
 	}
-	observeQuery, err := core.ParseObserveEventQuery(ginCtx)
+	observeQuery, err := core.ParseLogsQuery(ginCtx)
 	if err != nil {
-		t.Fatalf("ParseObserveEventQuery() error = %v", err)
+		t.Fatalf("ParseLogsQuery() error = %v", err)
 	}
 	if observeQuery.AgentName != "coder" ||
 		observeQuery.RunID != "run-1" ||

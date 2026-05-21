@@ -1072,18 +1072,13 @@ func (h *BaseHandlers) HookEvents(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.HookEventsResponse{Events: HookEventPayloadsFromDescriptors(events)})
 }
 
-// ObserveEvents returns the filtered observe event list.
-func (h *BaseHandlers) ObserveEvents(c *gin.Context) {
-	query, err := ParseObserveEventQuery(c)
+// ListLogs returns the filtered runtime log list.
+func (h *BaseHandlers) ListLogs(c *gin.Context) {
+	query, err := ParseLogsQuery(c)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	scope, ok := h.resolveWorkspaceScope(c)
-	if !ok {
-		return
-	}
-	query.WorkspaceID = scope.SessionWorkspaceID()
 
 	events, err := h.Observer.QueryEvents(c.Request.Context(), query)
 	if err != nil {
@@ -1091,28 +1086,23 @@ func (h *BaseHandlers) ObserveEvents(c *gin.Context) {
 		return
 	}
 
-	payload := make([]contract.ObserveEventPayload, 0, len(events))
+	payload := make([]contract.LogEventPayload, 0, len(events))
 	for _, event := range events {
-		payload = append(payload, ObserveEventPayloadFromEvent(event))
+		payload = append(payload, LogEventPayloadFromSummary(event))
 	}
 
-	c.JSON(http.StatusOK, contract.ObserveEventsResponse{Events: payload})
+	c.JSON(http.StatusOK, contract.LogsListResponse{Events: payload})
 }
 
-// StreamObserveEvents streams observe events over SSE.
-func (h *BaseHandlers) StreamObserveEvents(c *gin.Context) {
-	query, err := ParseObserveEventQuery(c)
+// StreamLogs streams runtime logs over SSE.
+func (h *BaseHandlers) StreamLogs(c *gin.Context) {
+	query, err := ParseLogsQuery(c)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
 	}
-	scope, ok := h.resolveWorkspaceScope(c)
-	if !ok {
-		return
-	}
-	query.WorkspaceID = scope.SessionWorkspaceID()
 
-	cursor, err := ParseObserveCursor(c.GetHeader("Last-Event-ID"))
+	cursor, err := ParseLogsCursor(c.GetHeader("Last-Event-ID"))
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
 		return
@@ -1133,7 +1123,7 @@ func (h *BaseHandlers) StreamObserveEvents(c *gin.Context) {
 		return
 	}
 
-	cursor = EmitObserveEvents(writer, initial, cursor)
+	cursor = EmitLogs(writer, initial, cursor)
 
 	pollQuery := query
 	pollQuery.Limit = 0
@@ -1162,7 +1152,7 @@ func (h *BaseHandlers) StreamObserveEvents(c *gin.Context) {
 				})
 				return
 			}
-			cursor = EmitObserveEvents(writer, events, cursor)
+			cursor = EmitLogs(writer, events, cursor)
 		}
 	}
 }

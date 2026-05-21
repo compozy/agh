@@ -25,7 +25,7 @@ func TestAllHostAPIMethodsReturnsCanonicalWireOrder(t *testing.T) {
 			HostAPIMethodMemoryStore,
 			HostAPIMethodMemoryForget,
 			HostAPIMethodObserveHealth,
-			HostAPIMethodObserveEvents,
+			HostAPIMethodListLogs,
 			HostAPIMethodSkillsList,
 			HostAPIMethodModelsList,
 			HostAPIMethodModelsRefresh,
