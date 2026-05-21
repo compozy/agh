@@ -2,6 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 
 import {
   SettingsApiError,
+  getSettingsExtensionProvenance,
   getSettingsAutomation,
   getSettingsSandbox,
   getSettingsGeneral,
@@ -19,11 +20,13 @@ import {
   listSettingsHooks,
   listSettingsMCPServers,
   listSettingsProviders,
+  searchSettingsExtensionMarketplace,
 } from "../adapters/settings-api";
 import { settingsKeys } from "./query-keys";
 import { isTerminalRestartStatus } from "./restart-status";
 import type {
   SettingsApplyRecordsFilter,
+  SettingsExtensionMarketplaceFilter,
   SettingsMCPServerListFilter,
   SettingsSkillsFilter,
 } from "../types";
@@ -191,6 +194,29 @@ export function settingsExtensionsListOptions() {
   return queryOptions({
     queryKey: settingsKeys.extensionsList(),
     queryFn: ({ signal }) => listSettingsExtensions(signal),
+    staleTime: COLLECTION_STALE_TIME,
+    refetchInterval: COLLECTION_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
+  });
+}
+
+export function settingsExtensionMarketplaceOptions(
+  filter: SettingsExtensionMarketplaceFilter = {}
+) {
+  return queryOptions({
+    queryKey: settingsKeys.extensionsMarketplace(filter),
+    queryFn: ({ signal }) => searchSettingsExtensionMarketplace(filter, signal),
+    staleTime: COLLECTION_STALE_TIME,
+    refetchInterval: COLLECTION_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
+  });
+}
+
+export function settingsExtensionProvenanceOptions(name: string, enabled = true) {
+  return queryOptions({
+    queryKey: settingsKeys.extensionProvenance(name),
+    queryFn: ({ signal }) => getSettingsExtensionProvenance(name, signal),
+    enabled: Boolean(name) && enabled,
     staleTime: COLLECTION_STALE_TIME,
     refetchInterval: COLLECTION_REFETCH_INTERVAL,
     retry: shouldRetrySettingsQuery,

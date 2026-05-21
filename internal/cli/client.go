@@ -107,10 +107,19 @@ type DaemonClient interface {
 	NetworkSend(ctx context.Context, request NetworkSendRequest) (NetworkSendRecord, error)
 	NetworkInbox(ctx context.Context, workspaceRef string, sessionID string) ([]NetworkEnvelopeRecord, error)
 	ListExtensions(ctx context.Context) ([]ExtensionRecord, error)
+	SearchExtensionMarketplace(
+		ctx context.Context,
+		query string,
+		source string,
+		limit int,
+	) ([]ExtensionMarketplaceRecord, error)
 	InstallExtension(ctx context.Context, request InstallExtensionRequest) (ExtensionRecord, error)
+	UpdateExtension(ctx context.Context, name string, request UpdateExtensionRequest) (ExtensionUpdateRecord, error)
+	RemoveExtension(ctx context.Context, name string) (ManagedExtensionRemoveRecord, error)
 	EnableExtension(ctx context.Context, name string) (ExtensionRecord, error)
 	DisableExtension(ctx context.Context, name string) (ExtensionRecord, error)
 	ExtensionStatus(ctx context.Context, name string) (ExtensionRecord, error)
+	ExtensionProvenance(ctx context.Context, name string) (ExtensionProvenanceRecord, error)
 	ListBundleCatalog(ctx context.Context) ([]BundleCatalogRecord, error)
 	PreviewBundleActivation(ctx context.Context, request ActivateBundleRequest) (BundleActivationRecord, error)
 	ActivateBundle(ctx context.Context, request ActivateBundleRequest) (BundleActivationRecord, error)
@@ -1252,8 +1261,23 @@ type NetworkConversationMessagesQuery struct {
 // InstallExtensionRequest captures the shared extension install payload.
 type InstallExtensionRequest = contract.InstallExtensionRequest
 
+// UpdateExtensionRequest captures the shared extension update payload.
+type UpdateExtensionRequest = contract.UpdateExtensionRequest
+
 // ExtensionRecord is the shared extension response payload.
 type ExtensionRecord = contract.ExtensionPayload
+
+// ExtensionMarketplaceRecord is one marketplace browse result.
+type ExtensionMarketplaceRecord = contract.ExtensionMarketplaceEntry
+
+// ExtensionProvenanceRecord is one installed extension provenance payload.
+type ExtensionProvenanceRecord = contract.ExtensionProvenancePayload
+
+// ExtensionUpdateRecord is one daemon-owned extension update result.
+type ExtensionUpdateRecord = contract.ManagedExtensionUpdatePayload
+
+// ManagedExtensionRemoveRecord is one daemon-owned extension removal result.
+type ManagedExtensionRemoveRecord = contract.ManagedExtensionRemovePayload
 
 // BundleCatalogRecord is one extension bundle catalog entry.
 type BundleCatalogRecord = contract.BundleCatalogPayload
@@ -1919,6 +1943,31 @@ func (c *unixSocketClient) ListExtensions(ctx context.Context) ([]ExtensionRecor
 	return response.Extensions, nil
 }
 
+func (c *unixSocketClient) SearchExtensionMarketplace(
+	ctx context.Context,
+	query string,
+	source string,
+	limit int,
+) ([]ExtensionMarketplaceRecord, error) {
+	values := url.Values{}
+	if strings.TrimSpace(query) != "" {
+		values.Set("q", strings.TrimSpace(query))
+	}
+	if strings.TrimSpace(source) != "" {
+		values.Set("source", strings.TrimSpace(source))
+	}
+	if limit > 0 {
+		values.Set("limit", strconv.Itoa(limit))
+	}
+	var response struct {
+		Extensions []ExtensionMarketplaceRecord `json:"extensions"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, "/api/extensions/marketplace", values, nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Extensions, nil
+}
+
 func (c *unixSocketClient) InstallExtension(
 	ctx context.Context,
 	request InstallExtensionRequest,
@@ -1928,6 +1977,44 @@ func (c *unixSocketClient) InstallExtension(
 	}
 	if err := c.doJSON(ctx, http.MethodPost, "/api/extensions", nil, request, &response); err != nil {
 		return ExtensionRecord{}, err
+	}
+	return response.Extension, nil
+}
+
+func (c *unixSocketClient) UpdateExtension(
+	ctx context.Context,
+	name string,
+	request UpdateExtensionRequest,
+) (ExtensionUpdateRecord, error) {
+	var response struct {
+		Update ExtensionUpdateRecord `json:"update"`
+	}
+	if err := c.doJSON(
+		ctx,
+		http.MethodPut,
+		"/api/extensions/"+url.PathEscape(strings.TrimSpace(name)),
+		nil,
+		request,
+		&response,
+	); err != nil {
+		return ExtensionUpdateRecord{}, err
+	}
+	return response.Update, nil
+}
+
+func (c *unixSocketClient) RemoveExtension(ctx context.Context, name string) (ManagedExtensionRemoveRecord, error) {
+	var response struct {
+		Extension ManagedExtensionRemoveRecord `json:"extension"`
+	}
+	if err := c.doJSON(
+		ctx,
+		http.MethodDelete,
+		"/api/extensions/"+url.PathEscape(strings.TrimSpace(name)),
+		nil,
+		nil,
+		&response,
+	); err != nil {
+		return ManagedExtensionRemoveRecord{}, err
 	}
 	return response.Extension, nil
 }
@@ -1955,6 +2042,23 @@ func (c *unixSocketClient) ExtensionStatus(ctx context.Context, name string) (Ex
 		return ExtensionRecord{}, err
 	}
 	return response.Extension, nil
+}
+
+func (c *unixSocketClient) ExtensionProvenance(ctx context.Context, name string) (ExtensionProvenanceRecord, error) {
+	var response struct {
+		Provenance ExtensionProvenanceRecord `json:"provenance"`
+	}
+	if err := c.doJSON(
+		ctx,
+		http.MethodGet,
+		"/api/extensions/"+url.PathEscape(strings.TrimSpace(name))+"/provenance",
+		nil,
+		nil,
+		&response,
+	); err != nil {
+		return ExtensionProvenanceRecord{}, err
+	}
+	return response.Provenance, nil
 }
 
 func (c *unixSocketClient) ListBundleCatalog(ctx context.Context) ([]BundleCatalogRecord, error) {

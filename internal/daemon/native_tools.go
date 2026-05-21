@@ -102,6 +102,7 @@ type daemonNativeToolsDeps struct {
 	ExtensionRuntime    func() extensionRuntime
 	ExtensionMarket     aghconfig.ExtensionsMarketplaceConfig
 	ExtensionSources    extensionMarketplaceSourceLoader
+	ExtensionEvents     store.EventSummaryStore
 	AgentSkills         agentSkillPublisher
 	ToolMCP             toolMCPPublisher
 	MCPAuth             func() toolspkg.MCPAuthStatusProvider
@@ -263,6 +264,7 @@ func (d *Daemon) nativeToolsDeps(
 		ExtensionRegistry: extensionRegistryDependency(state.registry),
 		ExtensionRuntime:  state.currentExtensionRuntime,
 		ExtensionMarket:   state.cfg.Extensions.Marketplace,
+		ExtensionEvents:   extensionEventSummaryStore(state.registry),
 		AgentSkills:       state.agentSkillResources,
 		ToolMCP:           state.toolMCPResources,
 		Bundles:           state.bundleResources,

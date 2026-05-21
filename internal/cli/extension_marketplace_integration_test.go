@@ -74,7 +74,17 @@ func TestExtensionInstallCommandIntegrationCreatesManagedInstallAndRegistryRecor
 		},
 	})
 
-	stdout, stderr, err := executeRootCommand(t, env.deps, "extension", "install", "acme/integration-ext", "-o", "json")
+	stdout, stderr, err := executeRootCommand(
+		t,
+		env.deps,
+		"extension",
+		"install",
+		"acme/integration-ext",
+		"--allow-unverified",
+		"--yes",
+		"-o",
+		"json",
+	)
 	if err != nil {
 		t.Fatalf("extension install integration error = %v", err)
 	}
@@ -86,8 +96,8 @@ func TestExtensionInstallCommandIntegrationCreatesManagedInstallAndRegistryRecor
 	if payload.Source != "marketplace" {
 		t.Fatalf("extension install integration payload = %#v, want marketplace source", payload)
 	}
-	if !strings.Contains(stderr, "Restart the daemon to activate") {
-		t.Fatalf("extension install integration stderr = %q, want restart guidance", stderr)
+	if strings.TrimSpace(stderr) != "" {
+		t.Fatalf("extension install integration stderr = %q, want empty daemon-managed lifecycle guidance", stderr)
 	}
 
 	info := getInstalledExtension(t, env.homePaths, "integration-ext")
@@ -127,6 +137,8 @@ func TestExtensionUpdateAndRemoveIntegration(t *testing.T) {
 		"extension",
 		"install",
 		"acme/integration-update-ext",
+		"--allow-unverified",
+		"--yes",
 		"-o",
 		"json",
 	); err != nil {
@@ -152,11 +164,21 @@ func TestExtensionUpdateAndRemoveIntegration(t *testing.T) {
 	if err := json.Unmarshal([]byte(checkOut), &checkItems); err != nil {
 		t.Fatalf("json.Unmarshal(extension update --check integration) error = %v; stdout=%s", err, checkOut)
 	}
-	if len(checkItems) != 1 || checkItems[0].Status != "update available" {
+	if len(checkItems) != 1 || checkItems[0].Status != "available" {
 		t.Fatalf("extension update --check integration items = %#v, want update available", checkItems)
 	}
 
-	updateOut, _, err := executeRootCommand(t, env.deps, "extension", "update", "integration-update-ext", "-o", "json")
+	updateOut, _, err := executeRootCommand(
+		t,
+		env.deps,
+		"extension",
+		"update",
+		"integration-update-ext",
+		"--allow-unverified",
+		"--yes",
+		"-o",
+		"json",
+	)
 	if err != nil {
 		t.Fatalf("extension update integration error = %v", err)
 	}

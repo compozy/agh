@@ -10,11 +10,14 @@ vi.mock("../../adapters/settings-api", () => ({
   deleteSettingsProvider: vi.fn(),
   disableSettingsExtension: vi.fn(),
   enableSettingsExtension: vi.fn(),
+  installSettingsExtension: vi.fn(),
   putSettingsSandbox: vi.fn(),
   putSettingsHook: vi.fn(),
   putSettingsMCPServer: vi.fn(),
   putSettingsProvider: vi.fn(),
   reloadSettings: vi.fn(),
+  removeSettingsExtension: vi.fn(),
+  updateSettingsExtension: vi.fn(),
   updateSettingsAutomation: vi.fn(),
   updateSettingsGeneral: vi.fn(),
   updateSettingsHooksExtensions: vi.fn(),
@@ -29,8 +32,11 @@ import {
   deleteSettingsProvider,
   disableSettingsExtension,
   enableSettingsExtension,
+  installSettingsExtension,
   putSettingsMCPServer,
   reloadSettings,
+  removeSettingsExtension,
+  updateSettingsExtension,
   updateSettingsGeneral,
   updateSettingsMemory,
 } from "../../adapters/settings-api";
@@ -43,8 +49,11 @@ import {
   useDeleteSettingsProvider,
   useDisableSettingsExtension,
   useEnableSettingsExtension,
+  useInstallSettingsExtension,
   usePutSettingsMCPServer,
   useReloadSettings,
+  useRemoveSettingsExtension,
+  useUpdateSettingsExtension,
   useUpdateSettingsGeneral,
   useUpdateSettingsMemory,
 } from "../use-settings-mutations";
@@ -316,6 +325,64 @@ describe("extension action mutations", () => {
     await waitFor(() => {
       expect(invalidateSpy).toHaveBeenCalledWith({
         queryKey: settingsKeys.extensionsRoot(),
+      });
+    });
+  });
+
+  it("installs, updates, and removes extensions through the shared invalidation path", async () => {
+    const { queryClient, wrapper } = createWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    vi.mocked(installSettingsExtension).mockResolvedValue(extension);
+    vi.mocked(updateSettingsExtension).mockResolvedValue({
+      name: "daytona",
+      slug: "daytona/daytona-extension",
+      registry: "github",
+      path: "/tmp/agh/extensions/daytona",
+      current_version: "1.2.3",
+      latest_version: "1.2.4",
+      status: "available",
+    });
+    vi.mocked(removeSettingsExtension).mockResolvedValue({
+      name: "daytona",
+      path: "/tmp/agh/extensions/daytona",
+      status: "removed",
+    });
+
+    const install = renderHook(() => useInstallSettingsExtension(), { wrapper });
+    await act(async () => {
+      await install.result.current.mutateAsync({
+        slug: "daytona/daytona-extension",
+        source: "github",
+        allow_unverified: true,
+      });
+    });
+    expect(installSettingsExtension).toHaveBeenCalledWith({
+      slug: "daytona/daytona-extension",
+      source: "github",
+      allow_unverified: true,
+    });
+
+    const update = renderHook(() => useUpdateSettingsExtension(), { wrapper });
+    await act(async () => {
+      await update.result.current.mutateAsync({
+        name: "daytona",
+        body: { version: "1.2.4" },
+      });
+    });
+    expect(updateSettingsExtension).toHaveBeenCalledWith("daytona", { version: "1.2.4" });
+
+    const remove = renderHook(() => useRemoveSettingsExtension(), { wrapper });
+    await act(async () => {
+      await remove.result.current.mutateAsync("daytona");
+    });
+    expect(removeSettingsExtension).toHaveBeenCalledWith("daytona");
+
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: settingsKeys.extensionsRoot(),
+      });
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: settingsKeys.section("hooks-extensions"),
       });
     });
   });

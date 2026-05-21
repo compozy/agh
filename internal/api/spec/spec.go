@@ -40,6 +40,11 @@ const (
 	specAPIAutomationTriggersIDPath                          = "/api/automation/triggers/{id}"
 	specAPIBundlesActivationsIDPath                          = "/api/bundles/activations/{id}"
 	specAPIExtensionsPath                                    = "/api/extensions"
+	specAPIExtensionsMarketplacePath                         = specAPIExtensionsPath + "/marketplace"
+	specAPIExtensionsNamePath                                = "/api/extensions/{name}"
+	specAPIExtensionsNameProvenancePath                      = specAPIExtensionsNamePath + "/provenance"
+	specAPIExtensionsNameEnablePath                          = specAPIExtensionsNamePath + "/enable"
+	specAPIExtensionsNameDisablePath                         = specAPIExtensionsNamePath + "/disable"
 	specAPIMemoryFilenamePath                                = "/api/memory/{filename}"
 	specAPIResourcesKindIDPath                               = "/api/resources/{kind}/{id}"
 	specAPISettingsAutomationPath                            = "/api/settings/automation"
@@ -1699,7 +1704,7 @@ var operationRegistry = []OperationSpec{
 		Method:      httpMethodPost,
 		Path:        specAPIExtensionsPath,
 		OperationID: "installExtension",
-		Summary:     "Install an extension by path and checksum",
+		Summary:     "Install a local or marketplace extension",
 		Tags:        []string{specExtensionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		RequestBody: contract.InstallExtensionRequest{},
@@ -1707,13 +1712,33 @@ var operationRegistry = []OperationSpec{
 			{Status: 201, Description: specCreatedDescription, Body: contract.ExtensionResponse{}},
 			{Status: 400, Description: "Invalid install request", Body: contract.ErrorPayload{}},
 			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Extension trust decision required", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	},
 	{
 		Method:      httpMethodGet,
-		Path:        "/api/extensions/{name}",
+		Path:        specAPIExtensionsMarketplacePath,
+		OperationID: "searchExtensionMarketplace",
+		Summary:     "Search configured extension marketplace sources",
+		Tags:        []string{specExtensionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			queryParam("q", "Search query", false),
+			queryParam("source", "Marketplace source filter", false),
+			queryParam("limit", "Maximum number of results", false),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ExtensionMarketplaceResponse{}},
+			{Status: 400, Description: "Invalid marketplace request", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodGet,
+		Path:        specAPIExtensionsNamePath,
 		OperationID: "getExtension",
 		Summary:     "Get one installed extension",
 		Tags:        []string{specExtensionsKey},
@@ -1729,8 +1754,65 @@ var operationRegistry = []OperationSpec{
 		},
 	},
 	{
+		Method:      httpMethodPut,
+		Path:        specAPIExtensionsNamePath,
+		OperationID: "updateExtension",
+		Summary:     "Update one marketplace-installed extension",
+		Tags:        []string{specExtensionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("name", "Extension name"),
+		},
+		RequestBody: contract.UpdateExtensionRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ExtensionUpdateResponse{}},
+			{Status: 400, Description: "Invalid update request", Body: contract.ErrorPayload{}},
+			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Extension trust decision required", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodDelete,
+		Path:        specAPIExtensionsNamePath,
+		OperationID: "removeExtension",
+		Summary:     "Remove one managed extension",
+		Tags:        []string{specExtensionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("name", "Extension name"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ExtensionRemoveResponse{}},
+			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Extension is in use", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodGet,
+		Path:        specAPIExtensionsNameProvenancePath,
+		OperationID: "getExtensionProvenance",
+		Summary:     "Get extension provenance and trust evidence",
+		Tags:        []string{specExtensionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("name", "Extension name"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.ExtensionProvenanceResponse{}},
+			{Status: 404, Description: specExtensionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specExtensionServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
 		Method:      httpMethodPost,
-		Path:        "/api/extensions/{name}/enable",
+		Path:        specAPIExtensionsNameEnablePath,
 		OperationID: "enableExtension",
 		Summary:     "Enable an installed extension",
 		Tags:        []string{specExtensionsKey},
@@ -1748,7 +1830,7 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      httpMethodPost,
-		Path:        "/api/extensions/{name}/disable",
+		Path:        specAPIExtensionsNameDisablePath,
 		OperationID: "disableExtension",
 		Summary:     "Disable an installed extension",
 		Tags:        []string{specExtensionsKey},

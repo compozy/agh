@@ -63,6 +63,9 @@ func DescribeExtension(ext *Extension, daemonRunning bool, now time.Time) contra
 		LastError:     ext.Status.LastError,
 		DaemonRunning: daemonRunning,
 		Bundles:       bundleSummaryPayloads(ext.Bundles),
+		Provenance:    extensionProvenancePayload(ext.Info.Provenance),
+		Trust:         extensionTrustPayload(ext.Info.Provenance),
+		Diagnostics:   append([]contract.DiagnosticItem(nil), ext.Info.Provenance.Warnings...),
 	}
 }
 
@@ -130,4 +133,51 @@ func bundleSummaryPayloads(values []BundleSpec) []contract.ExtensionBundleSummar
 		})
 	}
 	return payloads
+}
+
+func extensionProvenancePayload(
+	value ExtensionProvenance,
+) *contract.ExtensionProvenancePayload {
+	if !hasExtensionProvenance(value) {
+		return nil
+	}
+	return &contract.ExtensionProvenancePayload{
+		Slug:             value.Slug,
+		InstalledFrom:    value.InstalledFrom,
+		SourceURL:        value.SourceURL,
+		ChecksumSHA256:   value.ChecksumSHA256,
+		ChecksumVerified: value.ChecksumVerified,
+		RegistryTier:     value.RegistryTier,
+		Permissions:      append([]string(nil), value.Permissions...),
+		InstalledAt:      value.InstalledAt,
+		InstalledBy:      value.InstalledBy,
+		AllowUnverified:  value.AllowUnverified,
+		Warnings:         append([]contract.DiagnosticItem(nil), value.Warnings...),
+		Trust:            extensionTrustPayload(value),
+	}
+}
+
+func extensionTrustPayload(value ExtensionProvenance) *contract.ExtensionTrustReportPayload {
+	if !hasExtensionProvenance(value) {
+		return nil
+	}
+	return &contract.ExtensionTrustReportPayload{
+		Decision:         extensionTrustDecision(value),
+		RegistryTier:     value.RegistryTier,
+		ChecksumVerified: value.ChecksumVerified,
+		AllowUnverified:  value.AllowUnverified,
+		Warnings:         append([]contract.DiagnosticItem(nil), value.Warnings...),
+	}
+}
+
+func hasExtensionProvenance(value ExtensionProvenance) bool {
+	return value.Slug != "" ||
+		value.InstalledFrom != "" ||
+		value.SourceURL != "" ||
+		value.ChecksumSHA256 != "" ||
+		value.RegistryTier != "" ||
+		!value.InstalledAt.IsZero() ||
+		value.InstalledBy != "" ||
+		len(value.Permissions) > 0 ||
+		len(value.Warnings) > 0
 }

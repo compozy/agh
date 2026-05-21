@@ -14,6 +14,7 @@ const (
 	ComponentHarness      = "harness"
 	ComponentHook         = "hook"
 	ComponentMemory       = "memory"
+	ComponentExtension    = "extension"
 	ComponentProvider     = "provider"
 	ComponentScheduler    = "scheduler"
 	ComponentSession      = "session"
@@ -164,6 +165,12 @@ const (
 	ProviderUnavailable           = "provider.unavailable"
 	ProviderModelCatalogRefreshed = "provider.model_catalog_refreshed"
 
+	ExtensionInstalled = "extension.installed"
+	ExtensionUpdated   = "extension.updated"
+	ExtensionRemoved   = "extension.removed"
+	ExtensionEnabled   = "extension.enabled"
+	ExtensionDisabled  = "extension.disabled"
+
 	BridgeNotificationSuppressed = "bridge_notification_suppressed"
 )
 
@@ -284,6 +291,12 @@ var registryEntries = []Metadata{
 	notify(global(failure(ProviderPermissionDenied, "provider", ComponentProvider))),
 	notify(global(failure(ProviderUnavailable, "provider", ComponentProvider))),
 	global(success(ProviderModelCatalogRefreshed, "provider", ComponentProvider)),
+
+	notify(global(success(ExtensionInstalled, "extension", ComponentExtension))),
+	notify(global(success(ExtensionUpdated, "extension", ComponentExtension))),
+	notify(global(warning(ExtensionRemoved, "extension", ComponentExtension))),
+	global(success(ExtensionEnabled, "extension", ComponentExtension)),
+	global(warning(ExtensionDisabled, "extension", ComponentExtension)),
 
 	notify(global(warning(BridgeNotificationSuppressed, "bridge_notification", ComponentNotification))),
 }

@@ -19,6 +19,7 @@ import (
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/session"
 	settingspkg "github.com/pedronauck/agh/internal/settings"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/vault"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -50,11 +51,15 @@ func (stubVaultService) DeleteSecret(context.Context, string) error {
 }
 
 type stubExtensionService struct {
-	ListFn    func(context.Context) ([]contract.ExtensionPayload, error)
-	InstallFn func(context.Context, contract.InstallExtensionRequest) (contract.ExtensionPayload, error)
-	EnableFn  func(context.Context, string) (contract.ExtensionPayload, error)
-	DisableFn func(context.Context, string) (contract.ExtensionPayload, error)
-	StatusFn  func(context.Context, string) (contract.ExtensionPayload, error)
+	ListFn              func(context.Context) ([]contract.ExtensionPayload, error)
+	SearchMarketplaceFn func(context.Context, string, string, int) ([]contract.ExtensionMarketplaceEntry, error)
+	InstallFn           func(context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error)
+	UpdateFn            func(context.Context, string, contract.UpdateExtensionRequest, taskpkg.ActorContext) (contract.ManagedExtensionUpdatePayload, error)
+	RemoveFn            func(context.Context, string, taskpkg.ActorContext) (contract.ManagedExtensionRemovePayload, error)
+	EnableFn            func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error)
+	DisableFn           func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error)
+	StatusFn            func(context.Context, string) (contract.ExtensionPayload, error)
+	ProvenanceFn        func(context.Context, string) (contract.ExtensionProvenancePayload, error)
 }
 
 func (s stubExtensionService) List(ctx context.Context) ([]contract.ExtensionPayload, error) {
@@ -64,28 +69,72 @@ func (s stubExtensionService) List(ctx context.Context) ([]contract.ExtensionPay
 	return s.ListFn(ctx)
 }
 
+func (s stubExtensionService) SearchMarketplace(
+	ctx context.Context,
+	query string,
+	source string,
+	limit int,
+) ([]contract.ExtensionMarketplaceEntry, error) {
+	if s.SearchMarketplaceFn == nil {
+		return nil, nil
+	}
+	return s.SearchMarketplaceFn(ctx, query, source, limit)
+}
+
 func (s stubExtensionService) Install(
 	ctx context.Context,
 	req contract.InstallExtensionRequest,
+	actor taskpkg.ActorContext,
 ) (contract.ExtensionPayload, error) {
 	if s.InstallFn == nil {
 		return contract.ExtensionPayload{}, nil
 	}
-	return s.InstallFn(ctx, req)
+	return s.InstallFn(ctx, req, actor)
 }
 
-func (s stubExtensionService) Enable(ctx context.Context, name string) (contract.ExtensionPayload, error) {
+func (s stubExtensionService) Update(
+	ctx context.Context,
+	name string,
+	req contract.UpdateExtensionRequest,
+	actor taskpkg.ActorContext,
+) (contract.ManagedExtensionUpdatePayload, error) {
+	if s.UpdateFn == nil {
+		return contract.ManagedExtensionUpdatePayload{}, nil
+	}
+	return s.UpdateFn(ctx, name, req, actor)
+}
+
+func (s stubExtensionService) Remove(
+	ctx context.Context,
+	name string,
+	actor taskpkg.ActorContext,
+) (contract.ManagedExtensionRemovePayload, error) {
+	if s.RemoveFn == nil {
+		return contract.ManagedExtensionRemovePayload{}, nil
+	}
+	return s.RemoveFn(ctx, name, actor)
+}
+
+func (s stubExtensionService) Enable(
+	ctx context.Context,
+	name string,
+	actor taskpkg.ActorContext,
+) (contract.ExtensionPayload, error) {
 	if s.EnableFn == nil {
 		return contract.ExtensionPayload{}, nil
 	}
-	return s.EnableFn(ctx, name)
+	return s.EnableFn(ctx, name, actor)
 }
 
-func (s stubExtensionService) Disable(ctx context.Context, name string) (contract.ExtensionPayload, error) {
+func (s stubExtensionService) Disable(
+	ctx context.Context,
+	name string,
+	actor taskpkg.ActorContext,
+) (contract.ExtensionPayload, error) {
 	if s.DisableFn == nil {
 		return contract.ExtensionPayload{}, nil
 	}
-	return s.DisableFn(ctx, name)
+	return s.DisableFn(ctx, name, actor)
 }
 
 func (s stubExtensionService) Status(ctx context.Context, name string) (contract.ExtensionPayload, error) {
@@ -93,6 +142,16 @@ func (s stubExtensionService) Status(ctx context.Context, name string) (contract
 		return contract.ExtensionPayload{}, nil
 	}
 	return s.StatusFn(ctx, name)
+}
+
+func (s stubExtensionService) Provenance(
+	ctx context.Context,
+	name string,
+) (contract.ExtensionProvenancePayload, error) {
+	if s.ProvenanceFn == nil {
+		return contract.ExtensionProvenancePayload{}, nil
+	}
+	return s.ProvenanceFn(ctx, name)
 }
 
 type stubSettingsService struct {

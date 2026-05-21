@@ -509,6 +509,11 @@ func expectedGlobalMigrationPrefix() []expectedGlobalMigrationIdentity {
 			name:     "add_task_pause_state",
 			checksum: "2026-05-21-add-task-pause-state",
 		},
+		{
+			version:  34,
+			name:     "add_extension_provenance",
+			checksum: "2026-05-21-add-extension-provenance",
+		},
 	}
 }
 
@@ -606,6 +611,7 @@ func TestOpenGlobalDBCreatesExtensionsTableWithExpectedColumns(t *testing.T) {
 		"registry_slug",
 		"registry_name",
 		"remote_version",
+		globalDBExtensionProvenanceJSONKey,
 	})
 }
 
@@ -644,6 +650,7 @@ func TestOpenGlobalDBExtensionsSchemaIsIdempotent(t *testing.T) {
 		"registry_slug",
 		"registry_name",
 		"remote_version",
+		globalDBExtensionProvenanceJSONKey,
 	})
 }
 
@@ -714,6 +721,7 @@ func TestOpenGlobalDBMigratesLegacyExtensionsTableColumns(t *testing.T) {
 		"registry_slug",
 		"registry_name",
 		"remote_version",
+		globalDBExtensionProvenanceJSONKey,
 	})
 
 	var (

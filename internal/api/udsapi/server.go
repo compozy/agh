@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
 	core "github.com/pedronauck/agh/internal/api/core"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	mcppkg "github.com/pedronauck/agh/internal/mcp"
@@ -47,15 +46,6 @@ const (
 
 // Option customizes UDS server construction.
 type Option func(*Server)
-
-// ExtensionService exposes daemon-backed extension management to the UDS API.
-type ExtensionService interface {
-	List(ctx context.Context) ([]contract.ExtensionPayload, error)
-	Install(ctx context.Context, req contract.InstallExtensionRequest) (contract.ExtensionPayload, error)
-	Enable(ctx context.Context, name string) (contract.ExtensionPayload, error)
-	Disable(ctx context.Context, name string) (contract.ExtensionPayload, error)
-	Status(ctx context.Context, name string) (contract.ExtensionPayload, error)
-}
 
 // Server exposes the daemon API over a Unix domain socket.
 type Server struct {
@@ -937,6 +927,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			NetworkStore:                 cfg.networkStore,
 			Observer:                     cfg.observer,
 			Resources:                    cfg.resources,
+			Extensions:                   cfg.extensions,
 			Automation:                   cfg.automation,
 			Bridges:                      cfg.bridges,
 			Bundles:                      cfg.bundles,

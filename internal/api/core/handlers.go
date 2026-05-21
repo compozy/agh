@@ -60,6 +60,7 @@ type BaseHandlerConfig struct {
 	NetworkStore                 NetworkStore
 	Observer                     Observer
 	Resources                    ResourceService
+	Extensions                   ExtensionService
 	Tools                        ToolRegistry
 	Toolsets                     ToolsetRegistry
 	ToolApprovals                ToolApprovalIssuer
@@ -116,6 +117,7 @@ type BaseHandlers struct {
 	NetworkStore                 NetworkStore
 	Observer                     Observer
 	Resources                    ResourceService
+	Extensions                   ExtensionService
 	Tools                        ToolRegistry
 	Toolsets                     ToolsetRegistry
 	ToolApprovals                ToolApprovalIssuer
@@ -180,6 +182,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		NetworkStore:                 cfg.NetworkStore,
 		Observer:                     cfg.Observer,
 		Resources:                    cfg.Resources,
+		Extensions:                   cfg.Extensions,
 		Tools:                        cfg.Tools,
 		Toolsets:                     cfg.Toolsets,
 		ToolApprovals:                cfg.ToolApprovals,

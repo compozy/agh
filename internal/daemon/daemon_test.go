@@ -31,6 +31,7 @@ import (
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	eventspkg "github.com/pedronauck/agh/internal/events"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
 	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
 	"github.com/pedronauck/agh/internal/heartbeat"
@@ -1557,7 +1558,12 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 		homePaths,
 		discardLogger(),
 		func() time.Time { return fixedNow },
+		withDaemonExtensionEventWriter(db),
 	)
+	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh extension install")
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContext() error = %v", err)
+	}
 
 	fixtureDir := filepath.Join(t.TempDir(), "service-ext")
 	if err := os.MkdirAll(fixtureDir, 0o755); err != nil {
@@ -1580,9 +1586,10 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 	}
 
 	installed, err := service.Install(testutil.Context(t), contract.InstallExtensionRequest{
-		Path:     fixtureDir,
-		Checksum: checksum,
-	})
+		Path:            fixtureDir,
+		Checksum:        checksum,
+		AllowUnverified: true,
+	}, actor)
 	if err != nil {
 		t.Fatalf("service.Install() error = %v", err)
 	}
@@ -1610,7 +1617,7 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 		t.Fatalf("status = %#v, want active extension", status)
 	}
 
-	disabled, err := service.Disable(testutil.Context(t), "service-ext")
+	disabled, err := service.Disable(testutil.Context(t), "service-ext", actor)
 	if err != nil {
 		t.Fatalf("service.Disable() error = %v", err)
 	}
@@ -1618,7 +1625,7 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 		t.Fatalf("disabled extension = %#v, want disabled extension", disabled)
 	}
 
-	enabled, err := service.Enable(testutil.Context(t), "service-ext")
+	enabled, err := service.Enable(testutil.Context(t), "service-ext", actor)
 	if err != nil {
 		t.Fatalf("service.Enable() error = %v", err)
 	}
@@ -1626,7 +1633,7 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 		t.Fatalf("enabled extension = %#v, want active enabled extension", enabled)
 	}
 
-	disabled, err = service.Disable(testutil.Context(t), "service-ext")
+	disabled, err = service.Disable(testutil.Context(t), "service-ext", actor)
 	if err != nil {
 		t.Fatalf("service.Disable(second) error = %v", err)
 	}
@@ -1643,6 +1650,34 @@ func TestDaemonExtensionServiceInstallStatusAndDisable(t *testing.T) {
 	}
 	if syncs != 4 {
 		t.Fatalf("hook binding sync count = %d, want 4", syncs)
+	}
+	summaries, err := db.ListEventSummaries(testutil.Context(t), store.EventSummaryQuery{
+		Component: eventspkg.ComponentExtension,
+	})
+	if err != nil {
+		t.Fatalf("ListEventSummaries(extension) error = %v", err)
+	}
+	wantCounts := map[string]int{
+		eventspkg.ExtensionInstalled: 1,
+		eventspkg.ExtensionEnabled:   1,
+		eventspkg.ExtensionDisabled:  2,
+	}
+	gotCounts := make(map[string]int, len(wantCounts))
+	var installContent []byte
+	for i, summary := range summaries {
+		gotCounts[summary.Type]++
+		if summary.ActorKind != string(taskpkg.ActorKindHuman) || summary.ActorID != "user-1" {
+			t.Fatalf("summary[%d] actor = %s/%s, want human/user-1", i, summary.ActorKind, summary.ActorID)
+		}
+		if summary.Type == eventspkg.ExtensionInstalled {
+			installContent = summary.Content
+		}
+	}
+	if len(summaries) != 4 || !maps.Equal(gotCounts, wantCounts) {
+		t.Fatalf("extension event type counts = %#v from summaries=%#v, want %#v", gotCounts, summaries, wantCounts)
+	}
+	if !bytes.Contains(installContent, []byte("\"allow_unverified\":true")) {
+		t.Fatalf("install event content = %s, want allow_unverified=true", string(installContent))
 	}
 }
 
@@ -1678,6 +1713,10 @@ func TestDaemonExtensionServiceRollsBackFailedInstallReload(t *testing.T) {
 			discardLogger(),
 			time.Now,
 		)
+		actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh extension install")
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
 
 		fixtureDir := filepath.Join(t.TempDir(), "rollback-ext")
 		agentDir := filepath.Join(fixtureDir, "agents", "broken")
@@ -1718,9 +1757,10 @@ Broken agent missing required name.
 		}
 
 		_, err = service.Install(testutil.Context(t), contract.InstallExtensionRequest{
-			Path:     fixtureDir,
-			Checksum: checksum,
-		})
+			Path:            fixtureDir,
+			Checksum:        checksum,
+			AllowUnverified: true,
+		}, actor)
 		if err == nil {
 			t.Fatal("service.Install(invalid extension) error = nil, want reload failure")
 		}

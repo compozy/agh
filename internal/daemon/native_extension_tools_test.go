@@ -97,7 +97,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsInstall,
-				Input:  json.RawMessage(fmt.Sprintf(`{"source":"local","path":%q}`, sourceDir)),
+				Input:  json.RawMessage(fmt.Sprintf(`{"source":"local","path":%q,"allow_unverified":true}`, sourceDir)),
 			},
 		)
 		if err != nil {
@@ -154,7 +154,9 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsInstall,
-				Input:  json.RawMessage(`{"source":"marketplace","slug":"acme/tool-ext","registry":"github"}`),
+				Input: json.RawMessage(
+					`{"source":"marketplace","slug":"acme/tool-ext","registry":"github","allow_unverified":true}`,
+				),
 			},
 		)
 		if err != nil {
@@ -221,7 +223,7 @@ func TestDaemonNativeExtensionTools(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsUpdate,
-				Input:  json.RawMessage(`{"name":"tool-ext"}`),
+				Input:  json.RawMessage(`{"name":"tool-ext","allow_unverified":true}`),
 			},
 		)
 		if err != nil {

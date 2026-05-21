@@ -5,11 +5,18 @@ import {
   SettingsApiError,
   useDisableSettingsExtension,
   useEnableSettingsExtension,
+  useInstallSettingsExtension,
+  useRemoveSettingsExtension,
+  useSettingsExtensionMarketplace,
+  useSettingsExtensionProvenance,
   usePutSettingsHook,
   useSettingsExtensions,
   useSettingsHooksExtensions,
   useUpdateSettingsHooksExtensions,
+  useUpdateSettingsExtension,
   type SettingsExtensionEntry,
+  type SettingsExtensionMarketplaceEntry,
+  type SettingsExtensionMarketplaceFilter,
   type SettingsHookEntry,
   type SettingsHookRequest,
   type SettingsHooksExtensionsSection,
@@ -24,11 +31,25 @@ export type HooksPolicyLastAction =
   | { kind: "saved"; result: SettingsMutationResult }
   | { kind: "hook-toggled"; name: string; enabled: boolean; result: SettingsMutationResult };
 
-export type ExtensionLastAction = {
-  kind: "extension-toggled";
-  name: string;
-  enabled: boolean;
-};
+export type ExtensionLastAction =
+  | {
+      kind: "extension-toggled";
+      name: string;
+      enabled: boolean;
+    }
+  | {
+      kind: "extension-installed";
+      name: string;
+    }
+  | {
+      kind: "extension-updated";
+      name: string;
+      status: string;
+    }
+  | {
+      kind: "extension-removed";
+      name: string;
+    };
 
 type LastAction = HooksPolicyLastAction | ExtensionLastAction | null;
 
@@ -89,6 +110,9 @@ export function useSettingsHooksExtensionsPage() {
   const hookMutation = usePutSettingsHook();
   const enableMutation = useEnableSettingsExtension();
   const disableMutation = useDisableSettingsExtension();
+  const installMutation = useInstallSettingsExtension();
+  const updateExtensionMutation = useUpdateSettingsExtension();
+  const removeExtensionMutation = useRemoveSettingsExtension();
   const page = useSettingsPage({ currentSlug: "hooks-extensions" });
 
   const envelope = query.data ?? null;
@@ -97,6 +121,10 @@ export function useSettingsHooksExtensionsPage() {
   const [lastAction, setLastAction] = useState<LastAction>(null);
   const [pendingHookName, setPendingHookName] = useState<string | null>(null);
   const [pendingExtensionName, setPendingExtensionName] = useState<string | null>(null);
+  const [pendingMarketplaceSlug, setPendingMarketplaceSlug] = useState<string | null>(null);
+  const [marketplaceSearch, setMarketplaceSearch] = useState("");
+  const [marketplaceAllowUnverified, setMarketplaceAllowUnverified] = useState(false);
+  const [selectedProvenanceName, setSelectedProvenanceName] = useState<string | null>(null);
 
   useEffect(() => {
     if (envelope && draft === null) {
@@ -124,6 +152,18 @@ export function useSettingsHooksExtensionsPage() {
       daemon_running: true,
     }));
   }, [extensionsQuery.data, installedFromEnvelope]);
+
+  const marketplaceFilter = useMemo<SettingsExtensionMarketplaceFilter>(
+    () => ({
+      q: marketplaceSearch.trim() || undefined,
+      limit: "12",
+    }),
+    [marketplaceSearch]
+  );
+  const marketplaceQuery = useSettingsExtensionMarketplace(marketplaceFilter);
+  const provenanceQuery = useSettingsExtensionProvenance(selectedProvenanceName ?? "", {
+    enabled: Boolean(selectedProvenanceName),
+  });
 
   const transportParity: SettingsHooksExtensionsTransportParity | null =
     envelope?.transport_parity ?? null;
@@ -222,6 +262,87 @@ export function useSettingsHooksExtensionsPage() {
     [disableMutation, enableMutation]
   );
 
+  const searchMarketplace = useCallback(() => {
+    void marketplaceQuery.refetch();
+  }, [marketplaceQuery]);
+
+  const installMarketplaceExtension = useCallback(
+    (entry: SettingsExtensionMarketplaceEntry) => {
+      installMutation.reset();
+      setPendingMarketplaceSlug(entry.slug);
+      installMutation.mutate(
+        {
+          slug: entry.slug,
+          source: entry.source,
+          version: entry.version,
+          ...(marketplaceAllowUnverified ? { allow_unverified: true } : {}),
+        },
+        {
+          onSuccess: extension => {
+            setLastAction({ kind: "extension-installed", name: extension.name });
+          },
+          onSettled: () => {
+            setPendingMarketplaceSlug(null);
+          },
+        }
+      );
+    },
+    [installMutation, marketplaceAllowUnverified]
+  );
+
+  const updateExtension = useCallback(
+    (entry: SettingsExtensionEntry) => {
+      updateExtensionMutation.reset();
+      setPendingExtensionName(entry.name);
+      updateExtensionMutation.mutate(
+        {
+          name: entry.name,
+          body: marketplaceAllowUnverified ? { allow_unverified: true } : {},
+        },
+        {
+          onSuccess: result => {
+            setLastAction({
+              kind: "extension-updated",
+              name: entry.name,
+              status: result.status,
+            });
+          },
+          onSettled: () => {
+            setPendingExtensionName(null);
+          },
+        }
+      );
+    },
+    [marketplaceAllowUnverified, updateExtensionMutation]
+  );
+
+  const removeExtension = useCallback(
+    (entry: SettingsExtensionEntry) => {
+      removeExtensionMutation.reset();
+      setPendingExtensionName(entry.name);
+      removeExtensionMutation.mutate(entry.name, {
+        onSuccess: () => {
+          setLastAction({ kind: "extension-removed", name: entry.name });
+          if (selectedProvenanceName === entry.name) {
+            setSelectedProvenanceName(null);
+          }
+        },
+        onSettled: () => {
+          setPendingExtensionName(null);
+        },
+      });
+    },
+    [removeExtensionMutation, selectedProvenanceName]
+  );
+
+  const openExtensionProvenance = useCallback((entry: SettingsExtensionEntry) => {
+    setSelectedProvenanceName(entry.name);
+  }, []);
+
+  const closeExtensionProvenance = useCallback(() => {
+    setSelectedProvenanceName(null);
+  }, []);
+
   const dismissLastAction = useCallback(() => setLastAction(null), []);
 
   const hooksCounts = useMemo(() => {
@@ -241,8 +362,8 @@ export function useSettingsHooksExtensionsPage() {
   const canMutateExtensions = transportParity?.extensions_http !== false;
 
   const handleRetry = useCallback(() => {
-    void Promise.all([query.refetch(), extensionsQuery.refetch()]);
-  }, [extensionsQuery, query]);
+    void Promise.all([query.refetch(), extensionsQuery.refetch(), marketplaceQuery.refetch()]);
+  }, [extensionsQuery, marketplaceQuery, query]);
 
   return {
     isLoading: query.isLoading,
@@ -263,8 +384,31 @@ export function useSettingsHooksExtensionsPage() {
     extensionsError: errorMessage(extensionsQuery.error),
     pendingExtensionName,
     toggleExtensionEnabled,
-    extensionActionError: errorMessage(enableMutation.error) ?? errorMessage(disableMutation.error),
+    updateExtension,
+    removeExtension,
+    selectedProvenanceName,
+    selectedProvenance: provenanceQuery.data ?? null,
+    provenanceLoading: provenanceQuery.isLoading,
+    provenanceError: errorMessage(provenanceQuery.error),
+    openExtensionProvenance,
+    closeExtensionProvenance,
+    extensionActionError:
+      errorMessage(enableMutation.error) ??
+      errorMessage(disableMutation.error) ??
+      errorMessage(updateExtensionMutation.error) ??
+      errorMessage(removeExtensionMutation.error),
     canMutateExtensions,
+
+    marketplaceSearch,
+    setMarketplaceSearch,
+    marketplaceEntries: marketplaceQuery.data ?? [],
+    marketplaceLoading: marketplaceQuery.isLoading || marketplaceQuery.isFetching,
+    marketplaceError: errorMessage(marketplaceQuery.error) ?? errorMessage(installMutation.error),
+    marketplaceAllowUnverified,
+    setMarketplaceAllowUnverified,
+    pendingMarketplaceSlug,
+    searchMarketplace,
+    installMarketplaceExtension,
 
     transportParity,
 

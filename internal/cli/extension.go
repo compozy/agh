@@ -1,14 +1,17 @@
 package cli
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	aghdaemon "github.com/pedronauck/agh/internal/daemon"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
@@ -65,6 +68,7 @@ func newExtensionCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newExtensionEnableCommand(deps))
 	cmd.AddCommand(newExtensionDisableCommand(deps))
 	cmd.AddCommand(newExtensionStatusCommand(deps))
+	cmd.AddCommand(newExtensionProvenanceCommand(deps))
 	return cmd
 }
 
@@ -108,6 +112,8 @@ func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
 	var sourceFilter string
 	var version string
 	var asset string
+	var allowUnverified bool
+	var yes bool
 
 	cmd := &cobra.Command{
 		Use:   "install <path-or-slug>",
@@ -118,42 +124,47 @@ func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if err := confirmExtensionUnverifiedInstall(cmd, allowUnverified, yes); err != nil {
+				return err
+			}
 			if isLocalPath {
 				if strings.TrimSpace(sourceFilter) != "" || strings.TrimSpace(version) != "" ||
 					strings.TrimSpace(asset) != "" {
 					return errors.New("cli: --from, --version, and --asset are only supported for registry installs")
 				}
 
-				item, err := installExtension(cmd.Context(), deps, prepared)
+				item, err := installExtension(cmd.Context(), deps, prepared, allowUnverified)
 				if err != nil {
 					return err
 				}
 				return writeCommandOutput(cmd, extensionBundle(item))
 			}
 
-			item, message, err := installMarketplaceExtension(
+			item, err := installMarketplaceExtension(
 				cmd.Context(),
 				deps,
 				args[0],
 				sourceFilter,
 				version,
 				asset,
+				allowUnverified,
 			)
 			if err != nil {
 				return err
 			}
-			if err := writeCommandOutput(cmd, extensionBundle(item)); err != nil {
-				return err
-			}
-			if strings.TrimSpace(message) != "" {
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), message)
-			}
-			return nil
+			return writeCommandOutput(cmd, extensionBundle(item))
 		},
 	}
 	cmd.Flags().StringVar(&sourceFilter, "from", "", "Only use one configured extension registry source")
 	cmd.Flags().StringVar(&version, daemonVersionKey, "", "Install a specific registry version")
 	cmd.Flags().StringVar(&asset, "asset", "", "Select a specific registry asset when multiple archives exist")
+	cmd.Flags().BoolVar(
+		&allowUnverified,
+		"allow-unverified",
+		false,
+		"Allow install when the extension checksum is not registry-verified",
+	)
+	cmd.Flags().BoolVar(&yes, yesFlagName, false, "Skip confirmation when using --allow-unverified")
 	return cmd
 }
 
@@ -175,6 +186,9 @@ func newExtensionRemoveCommand(deps commandDeps) *cobra.Command {
 func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
 	var updateAll bool
 	var checkOnly bool
+	var version string
+	var allowUnverified bool
+	var yes bool
 
 	cmd := &cobra.Command{
 		Use:   "update [name]",
@@ -189,21 +203,37 @@ func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			items, err := updateMarketplaceExtensions(cmd.Context(), deps, args, updateAll, checkOnly)
+			if err := confirmExtensionUnverifiedInstall(cmd, allowUnverified && !checkOnly, yes); err != nil {
+				return err
+			}
+			items, err := updateMarketplaceExtensions(
+				cmd.Context(),
+				deps,
+				args,
+				updateAll,
+				checkOnly,
+				version,
+				allowUnverified,
+			)
 			if err != nil {
 				return err
 			}
 			if err := writeCommandOutput(cmd, extensionUpdateBundle(items)); err != nil {
 				return err
 			}
-			if !checkOnly && extensionUpdatesRequireRestart(items) {
-				_, _ = fmt.Fprintln(cmd.ErrOrStderr(), extensionUpdateRestartMessage)
-			}
 			return nil
 		},
 	}
 	cmd.Flags().BoolVar(&updateAll, "all", false, "Update every installed marketplace extension")
 	cmd.Flags().BoolVar(&checkOnly, "check", false, "Only check for updates without installing them")
+	cmd.Flags().StringVar(&version, daemonVersionKey, "", "Update to a specific registry version")
+	cmd.Flags().BoolVar(
+		&allowUnverified,
+		"allow-unverified",
+		false,
+		"Allow update when the extension checksum is not registry-verified",
+	)
+	cmd.Flags().BoolVar(&yes, yesFlagName, false, "Skip confirmation when using --allow-unverified")
 	return cmd
 }
 
@@ -252,6 +282,21 @@ func newExtensionStatusCommand(deps commandDeps) *cobra.Command {
 	}
 }
 
+func newExtensionProvenanceCommand(deps commandDeps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "provenance <name>",
+		Short: "Show extension provenance and trust report",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			item, err := extensionProvenance(cmd.Context(), deps, args[0])
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, extensionProvenanceBundle(item))
+		},
+	}
+}
+
 func loadExtensionRecords(ctx context.Context, deps commandDeps) ([]ExtensionRecord, error) {
 	client, running, err := extensionClientIfRunning(deps)
 	if err != nil {
@@ -283,6 +328,7 @@ func installExtension(
 	ctx context.Context,
 	deps commandDeps,
 	prepared preparedExtensionInstall,
+	allowUnverified bool,
 ) (ExtensionRecord, error) {
 	client, running, err := extensionClientIfRunning(deps)
 	if err != nil {
@@ -290,16 +336,29 @@ func installExtension(
 	}
 	if running {
 		return client.InstallExtension(ctx, InstallExtensionRequest{
-			Path:     prepared.Path,
-			Checksum: prepared.Checksum,
+			Path:            prepared.Path,
+			Checksum:        prepared.Checksum,
+			AllowUnverified: allowUnverified,
 		})
+	}
+	if !allowUnverified {
+		return ExtensionRecord{}, extensionpkg.NewExtensionChecksumUnverifiedError(
+			prepared.Manifest.Name,
+			prepared.Path,
+		)
 	}
 
 	return withLocalExtensionRegistry(
 		ctx,
 		deps,
 		func(runtime *runtimeContext, registry localExtensionRegistry) (ExtensionRecord, error) {
-			if err := installPreparedExtension(runtime.HomePaths, registry, prepared); err != nil {
+			if err := installPreparedExtension(
+				runtime.HomePaths,
+				registry,
+				prepared,
+				deps.now(),
+				allowUnverified,
+			); err != nil {
 				return ExtensionRecord{}, err
 			}
 			info, err := registry.Get(prepared.Manifest.Name)
@@ -312,60 +371,30 @@ func installExtension(
 }
 
 func mutateExtensionEnabled(ctx context.Context, deps commandDeps, name string, enabled bool) (ExtensionRecord, error) {
-	client, running, err := extensionClientIfRunning(deps)
+	client, err := requireExtensionDaemonClient(deps)
 	if err != nil {
 		return ExtensionRecord{}, err
 	}
-	if running {
-		if enabled {
-			return client.EnableExtension(ctx, name)
-		}
-		return client.DisableExtension(ctx, name)
+	if enabled {
+		return client.EnableExtension(ctx, name)
 	}
-
-	return withLocalExtensionRegistry(
-		ctx,
-		deps,
-		func(_ *runtimeContext, registry localExtensionRegistry) (ExtensionRecord, error) {
-			if enabled {
-				if err := registry.Enable(name); err != nil {
-					return ExtensionRecord{}, err
-				}
-			} else {
-				if err := registry.Disable(name); err != nil {
-					return ExtensionRecord{}, err
-				}
-			}
-
-			info, err := registry.Get(name)
-			if err != nil {
-				return ExtensionRecord{}, err
-			}
-			return localExtensionRecord(*info, deps.now, deps.getenv), nil
-		},
-	)
+	return client.DisableExtension(ctx, name)
 }
 
 func extensionStatus(ctx context.Context, deps commandDeps, name string) (ExtensionRecord, error) {
-	client, running, err := extensionClientIfRunning(deps)
+	client, err := requireExtensionDaemonClient(deps)
 	if err != nil {
 		return ExtensionRecord{}, err
 	}
-	if running {
-		return client.ExtensionStatus(ctx, name)
-	}
+	return client.ExtensionStatus(ctx, name)
+}
 
-	return withLocalExtensionRegistry(
-		ctx,
-		deps,
-		func(_ *runtimeContext, registry localExtensionRegistry) (ExtensionRecord, error) {
-			info, err := registry.Get(name)
-			if err != nil {
-				return ExtensionRecord{}, err
-			}
-			return localExtensionRecord(*info, deps.now, deps.getenv), nil
-		},
-	)
+func extensionProvenance(ctx context.Context, deps commandDeps, name string) (ExtensionProvenanceRecord, error) {
+	client, err := requireExtensionDaemonClient(deps)
+	if err != nil {
+		return ExtensionProvenanceRecord{}, err
+	}
+	return client.ExtensionProvenance(ctx, name)
 }
 
 func extensionClientIfRunning(deps commandDeps) (DaemonClient, bool, error) {
@@ -390,6 +419,43 @@ func extensionClientIfRunning(deps commandDeps) (DaemonClient, bool, error) {
 		return nil, false, err
 	}
 	return client, true, nil
+}
+
+func requireExtensionDaemonClient(deps commandDeps) (DaemonClient, error) {
+	client, running, err := extensionClientIfRunning(deps)
+	if err != nil {
+		return nil, err
+	}
+	if !running {
+		return nil, errors.New("cli: extension marketplace operations require a running daemon")
+	}
+	return client, nil
+}
+
+func confirmExtensionUnverifiedInstall(cmd *cobra.Command, allowUnverified bool, yes bool) error {
+	if !allowUnverified || yes {
+		return nil
+	}
+	mode, err := resolveOutputFormat(cmd)
+	if err != nil {
+		return err
+	}
+	if mode != OutputHuman {
+		return errors.New("cli: --allow-unverified requires --yes for structured output")
+	}
+	message := "This extension checksum is unverified. Continue with allow_unverified? [y/N] "
+	if _, err := fmt.Fprint(cmd.ErrOrStderr(), message); err != nil {
+		return fmt.Errorf("cli: write extension trust prompt: %w", err)
+	}
+	line, err := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
+	if err != nil && !errors.Is(err, io.EOF) {
+		return fmt.Errorf("cli: read extension trust prompt: %w", err)
+	}
+	answer := strings.ToLower(strings.TrimSpace(line))
+	if answer != "y" && answer != yesFlagName {
+		return errors.New("cli: extension install declined")
+	}
+	return nil
 }
 
 func withLocalExtensionRegistry[T any](
@@ -493,6 +559,8 @@ func installPreparedExtension(
 	homePaths aghconfig.HomePaths,
 	registry localExtensionRegistry,
 	prepared preparedExtensionInstall,
+	installedAt time.Time,
+	allowUnverified bool,
 ) error {
 	if registry == nil {
 		return errors.New("extension: registry is required")
@@ -500,16 +568,23 @@ func installPreparedExtension(
 	if prepared.Manifest == nil {
 		return errors.New("extension: manifest is required")
 	}
-	return extensionpkg.InstallLocalManaged(homePaths, registry, prepared.Manifest, prepared.Path, prepared.Checksum)
-}
-
-func extensionUpdatesRequireRestart(items []extensionUpdateItem) bool {
-	for _, item := range items {
-		if item.Status == skillUpdateStatusUpdated {
-			return true
-		}
+	if !allowUnverified {
+		return extensionpkg.NewExtensionChecksumUnverifiedError(prepared.Manifest.Name, prepared.Path)
 	}
-	return false
+	return extensionpkg.InstallLocalManaged(
+		homePaths,
+		registry,
+		prepared.Manifest,
+		prepared.Path,
+		prepared.Checksum,
+		extensionpkg.WithInstallProvenance(extensionpkg.LocalPathProvenance(
+			prepared.Manifest,
+			prepared.Path,
+			prepared.Checksum,
+			installedAt,
+			allowUnverified,
+		)),
+	)
 }
 
 func localExtensionRecord(
@@ -675,6 +750,58 @@ func joinExtensionHealth(health string, message string) string {
 		return health
 	}
 	return health + " (" + message + ")"
+}
+
+func extensionProvenanceBundle(item ExtensionProvenanceRecord) outputBundle {
+	return outputBundle{
+		jsonValue: item,
+		human: func() (string, error) {
+			return renderHumanSection("Extension Provenance", []keyValue{
+				{Label: extensionMarketplaceSlugValue, Value: stringOrDash(item.Slug)},
+				{Label: "Installed From", Value: stringOrDash(item.InstalledFrom)},
+				{Label: "Source URL", Value: stringOrDash(item.SourceURL)},
+				{Label: "Checksum", Value: stringOrDash(item.ChecksumSHA256)},
+				{Label: "Checksum Verified", Value: fmt.Sprintf("%t", item.ChecksumVerified)},
+				{Label: "Registry Tier", Value: stringOrDash(item.RegistryTier)},
+				{Label: "Allow Unverified", Value: fmt.Sprintf("%t", item.AllowUnverified)},
+				{Label: "Installed By", Value: stringOrDash(item.InstalledBy)},
+				{Label: "Trust", Value: stringOrDash(extensionTrustDecisionLabel(item.Trust))},
+				{Label: "Permissions", Value: stringOrDash(strings.Join(item.Permissions, ", "))},
+			}), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject("extension_provenance", []string{
+				extensionMarketplaceSlugKey,
+				"installed_from",
+				"source_url",
+				"checksum_sha256",
+				"checksum_verified",
+				"registry_tier",
+				"allow_unverified",
+				"installed_by",
+				"trust",
+				"permissions",
+			}, []string{
+				item.Slug,
+				item.InstalledFrom,
+				item.SourceURL,
+				item.ChecksumSHA256,
+				fmt.Sprintf("%t", item.ChecksumVerified),
+				item.RegistryTier,
+				fmt.Sprintf("%t", item.AllowUnverified),
+				item.InstalledBy,
+				extensionTrustDecisionLabel(item.Trust),
+				strings.Join(item.Permissions, "|"),
+			}), nil
+		},
+	}
+}
+
+func extensionTrustDecisionLabel(trust *contract.ExtensionTrustReportPayload) string {
+	if trust == nil {
+		return ""
+	}
+	return strings.TrimSpace(trust.Decision)
 }
 
 func boolLabel(value bool, whenTrue string, whenFalse string) string {

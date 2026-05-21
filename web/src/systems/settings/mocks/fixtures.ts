@@ -3,6 +3,7 @@ import type {
   SettingsAutomationSection,
   SettingsSandboxEntry,
   SettingsExtensionEntry,
+  SettingsExtensionMarketplaceEntry,
   SettingsApplyResponse,
   SettingsGeneralSection,
   SettingsHookEntry,
@@ -736,6 +737,39 @@ export const settingsMCPServerFixtures: SettingsMCPServerEntry[] = [
 export const settingsHookFixtures: SettingsHookEntry[] =
   settingsHooksExtensionsSectionFixture.hooks ?? [];
 
+export const settingsExtensionTrustFixture = {
+  decision: "allowed_unverified",
+  registry_tier: "community",
+  checksum_verified: false,
+  allow_unverified: true,
+  warnings: [
+    {
+      id: "diag_extension_checksum_unverified",
+      code: "extension_checksum_unverified",
+      severity: "warning",
+      title: "Extension checksum is not registry-verified",
+      message: "The operator allowed an install without a registry checksum match.",
+      category: "extension",
+      data_freshness: "live",
+    },
+  ],
+} satisfies NonNullable<SettingsExtensionEntry["trust"]>;
+
+export const settingsExtensionProvenanceFixture = {
+  slug: "daytona/daytona-extension",
+  installed_from: "marketplace_registry",
+  source_url: "https://registry.example.com/daytona/daytona-extension",
+  checksum_sha256: "sha256:fixture-daytona",
+  checksum_verified: false,
+  registry_tier: "community",
+  permissions: ["logs.read", "session.read"],
+  installed_at: "2026-05-21T10:00:00Z",
+  installed_by: "operator:web",
+  allow_unverified: true,
+  trust: settingsExtensionTrustFixture,
+  warnings: settingsExtensionTrustFixture.warnings,
+} satisfies NonNullable<SettingsExtensionEntry["provenance"]>;
+
 export const settingsExtensionFixtures: SettingsExtensionEntry[] = [
   {
     name: "daytona",
@@ -748,6 +782,22 @@ export const settingsExtensionFixtures: SettingsExtensionEntry[] = [
     health: "healthy",
     requires_env: ["DAYTONA_TOKEN"],
     missing_env: ["DAYTONA_TOKEN"],
+    provenance: settingsExtensionProvenanceFixture,
+    trust: settingsExtensionTrustFixture,
+  },
+];
+
+export const settingsExtensionMarketplaceFixtures: SettingsExtensionMarketplaceEntry[] = [
+  {
+    slug: "daytona/daytona-extension",
+    name: "daytona",
+    source: "github",
+    type: "backend",
+    version: "1.2.4",
+    author: "daytona",
+    description: "Workspace sandbox integration for AGH sessions.",
+    downloads: 1204,
+    trust: settingsExtensionTrustFixture,
   },
 ];
 
@@ -769,6 +819,10 @@ export const settingsMCPServersCollectionFixture = {
 
 export const settingsExtensionsCollectionFixture = {
   extensions: settingsExtensionFixtures,
+};
+
+export const settingsExtensionMarketplaceCollectionFixture = {
+  extensions: settingsExtensionMarketplaceFixtures,
 };
 
 export const settingsRestartResponseFixture: SettingsRestartResponse = {

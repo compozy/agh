@@ -66,7 +66,7 @@ func newSupportBundleCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&opts.outputPath, outputFlagName, "", "Path or directory for the downloaded bundle")
-	cmd.Flags().BoolVar(&opts.yes, "yes", false, "Confirm support bundle creation without an interactive prompt")
+	cmd.Flags().BoolVar(&opts.yes, yesFlagName, false, "Confirm support bundle creation without an interactive prompt")
 	cmd.Flags().BoolVar(
 		&opts.noStatus,
 		"no-status",
@@ -129,7 +129,7 @@ func confirmSupportBundleCreation(cmd *cobra.Command, yes bool) error {
 		return fmt.Errorf("cli: read support bundle consent: %w", err)
 	}
 	answer := strings.ToLower(strings.TrimSpace(line))
-	if answer != "y" && answer != "yes" {
+	if answer != "y" && answer != yesFlagName {
 		return errors.New("cli: support bundle creation declined")
 	}
 	return nil

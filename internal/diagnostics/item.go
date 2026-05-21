@@ -80,6 +80,12 @@ func NewItem(
 	return item
 }
 
+// EmptyItem returns the zero DiagnosticItem from the diagnostics package so
+// production callers do not construct DiagnosticItem literals directly.
+func EmptyItem() contract.DiagnosticItem {
+	return contract.DiagnosticItem{}
+}
+
 func downgradeInvalidItem(
 	item contract.DiagnosticItem,
 	validationErr error,

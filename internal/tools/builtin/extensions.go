@@ -176,7 +176,8 @@ const extensionInstallInputSchema = `{
 		"slug":{"type":"string"},
 		"registry":{"type":"string"},
 		"version":{"type":"string"},
-		"asset":{"type":"string"}
+		"asset":{"type":"string"},
+		"allow_unverified":{"type":"boolean"}
 	},
 	"additionalProperties":false
 }`
@@ -186,7 +187,9 @@ const extensionUpdateInputSchema = `{
 	"properties":{
 		"name":{"type":"string"},
 		"all":{"type":"boolean"},
-		"check_only":{"type":"boolean"}
+		"check_only":{"type":"boolean"},
+		"version":{"type":"string"},
+		"allow_unverified":{"type":"boolean"}
 	},
 	"additionalProperties":false
 }`

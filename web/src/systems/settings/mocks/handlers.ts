@@ -7,6 +7,7 @@ import {
   settingsSandboxesCollectionFixture,
   settingsSandboxFixtures,
   settingsExtensionsCollectionFixture,
+  settingsExtensionMarketplaceCollectionFixture,
   settingsExtensionFixtures,
   settingsGeneralSectionFixture,
   settingsHooksCollectionFixture,
@@ -158,6 +159,66 @@ export const handlers: HttpHandler[] = [
   ),
 
   http.get("/api/extensions", () => HttpResponse.json(settingsExtensionsCollectionFixture)),
+  http.get("/api/extensions/marketplace", () =>
+    HttpResponse.json(settingsExtensionMarketplaceCollectionFixture)
+  ),
+  http.post("/api/extensions", async ({ request }) => {
+    const body = (await request.json()) as { slug?: string };
+    const marketplaceEntry = settingsExtensionMarketplaceCollectionFixture.extensions.find(
+      entry => entry.slug === body.slug
+    );
+    const installed = marketplaceEntry
+      ? {
+          ...settingsExtensionFixtures[0],
+          name: marketplaceEntry.name,
+          version: marketplaceEntry.version,
+        }
+      : settingsExtensionFixtures[0];
+
+    return HttpResponse.json({ extension: installed }, { status: 201 });
+  }),
+  http.put("/api/extensions/:name", ({ params }) => {
+    const name = String(params.name);
+    const extension = settingsExtensionFixtures.find(entry => entry.name === name);
+
+    if (!extension) {
+      return HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
+    }
+
+    return HttpResponse.json({
+      update: {
+        name,
+        slug: extension.provenance?.slug ?? name,
+        registry: "github",
+        path: `/tmp/agh/extensions/${name}`,
+        current_version: extension.version,
+        latest_version: extension.version,
+        status: "current",
+      },
+    });
+  }),
+  http.delete("/api/extensions/:name", ({ params }) => {
+    const name = String(params.name);
+    const extension = settingsExtensionFixtures.find(entry => entry.name === name);
+
+    if (!extension) {
+      return HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
+    }
+
+    return HttpResponse.json({
+      extension: { name, path: `/tmp/agh/extensions/${name}`, status: "removed" },
+    });
+  }),
+  http.get("/api/extensions/:name/provenance", ({ params }) => {
+    const name = String(params.name);
+    const extension = settingsExtensionFixtures.find(entry => entry.name === name);
+
+    if (!extension?.provenance) {
+      return HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
+    }
+
+    return HttpResponse.json({ provenance: extension.provenance });
+  }),
   http.post("/api/extensions/:name/enable", ({ params }) => {
     const name = String(params.name);
     const extension = settingsExtensionFixtures.find(entry => entry.name === name);
@@ -166,7 +227,7 @@ export const handlers: HttpHandler[] = [
       return HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
     }
 
-    return HttpResponse.json({ ...extension, enabled: true });
+    return HttpResponse.json({ extension: { ...extension, enabled: true } });
   }),
   http.post("/api/extensions/:name/disable", ({ params }) => {
     const name = String(params.name);
@@ -176,6 +237,6 @@ export const handlers: HttpHandler[] = [
       return HttpResponse.json({ error: `Extension not found: ${name}` }, { status: 404 });
     }
 
-    return HttpResponse.json({ ...extension, enabled: false });
+    return HttpResponse.json({ extension: { ...extension, enabled: false } });
   }),
 ];

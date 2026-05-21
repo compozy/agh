@@ -32,6 +32,7 @@ const (
 const (
 	outputFlagName = "output"
 	jsonFlagName   = "json"
+	yesFlagName    = "yes"
 
 	defaultPollInterval = 100 * time.Millisecond
 	defaultStartTimeout = 15 * time.Second
@@ -50,33 +51,32 @@ type runtimeContext struct {
 type installWizardRunner func(context.Context, installWizardInput) (installWizardSelection, error)
 
 type commandDeps struct {
-	loadConfig                   func() (aghconfig.Config, error)
-	loadExtensionRegistrySources extensionRegistrySourceLoader
-	loadSkillRegistrySources     skillRegistrySourceLoader
-	resolveHome                  func() (aghconfig.HomePaths, error)
-	resolveHomeForWorkspace      func(workspaceRoot string) (aghconfig.HomePaths, error)
-	ensureHome                   func(aghconfig.HomePaths) error
-	runInstallWizard             installWizardRunner
-	newClient                    func(socketPath string) (DaemonClient, error)
-	newDaemon                    func() (daemonRunner, error)
-	runRelaunchHelper            func(context.Context, aghdaemon.RelaunchHelperConfig) error
-	readDaemonInfo               func(path string) (aghdaemon.Info, error)
-	signalProcess                func(pid int, sig syscall.Signal) error
-	processAlive                 func(pid int) bool
-	processMatchesStartTime      func(pid int, startedAt time.Time) bool
-	executable                   func() (string, error)
-	getwd                        func() (string, error)
-	getenv                       func(string) string
-	lookPath                     func(string) (string, error)
-	now                          func() time.Time
-	pollInterval                 time.Duration
-	startTimeout                 time.Duration
-	stopTimeout                  time.Duration
-	spawnDetached                func(context.Context, aghconfig.HomePaths) (daemonProcess, error)
-	newUpdateManager             func(aghconfig.HomePaths) (updateManager, error)
-	newMCPAuthClient             newMCPAuthClientFunc
-	runProviderAuthCommand       providerAuthCommandRunner
-	runProviderAuthLoginCommand  providerAuthCommandRunner
+	loadConfig                  func() (aghconfig.Config, error)
+	loadSkillRegistrySources    skillRegistrySourceLoader
+	resolveHome                 func() (aghconfig.HomePaths, error)
+	resolveHomeForWorkspace     func(workspaceRoot string) (aghconfig.HomePaths, error)
+	ensureHome                  func(aghconfig.HomePaths) error
+	runInstallWizard            installWizardRunner
+	newClient                   func(socketPath string) (DaemonClient, error)
+	newDaemon                   func() (daemonRunner, error)
+	runRelaunchHelper           func(context.Context, aghdaemon.RelaunchHelperConfig) error
+	readDaemonInfo              func(path string) (aghdaemon.Info, error)
+	signalProcess               func(pid int, sig syscall.Signal) error
+	processAlive                func(pid int) bool
+	processMatchesStartTime     func(pid int, startedAt time.Time) bool
+	executable                  func() (string, error)
+	getwd                       func() (string, error)
+	getenv                      func(string) string
+	lookPath                    func(string) (string, error)
+	now                         func() time.Time
+	pollInterval                time.Duration
+	startTimeout                time.Duration
+	stopTimeout                 time.Duration
+	spawnDetached               func(context.Context, aghconfig.HomePaths) (daemonProcess, error)
+	newUpdateManager            func(aghconfig.HomePaths) (updateManager, error)
+	newMCPAuthClient            newMCPAuthClientFunc
+	runProviderAuthCommand      providerAuthCommandRunner
+	runProviderAuthLoginCommand providerAuthCommandRunner
 }
 
 // NewRootCommand constructs the AGH v1 CLI command tree.
@@ -285,9 +285,6 @@ func (d commandDeps) withRegistryDefaults() commandDeps {
 		d.loadConfig = func() (aghconfig.Config, error) {
 			return aghconfig.Load()
 		}
-	}
-	if d.loadExtensionRegistrySources == nil {
-		d.loadExtensionRegistrySources = defaultExtensionRegistrySourceLoader
 	}
 	if d.loadSkillRegistrySources == nil {
 		d.loadSkillRegistrySources = defaultSkillRegistrySourceLoader

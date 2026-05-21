@@ -121,7 +121,7 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 			homePaths,
 			env.registry,
 			loader,
-			MarketplaceInstallRequest{Slug: "acme/lifecycle-ext", SourceFilter: "github"},
+			MarketplaceInstallRequest{Slug: "acme/lifecycle-ext", SourceFilter: "github", AllowUnverified: true},
 		)
 		if err != nil {
 			t.Fatalf("InstallMarketplaceManaged() error = %v", err)
@@ -152,12 +152,24 @@ func TestMarketplaceLifecycleInstallsUpdatesAndRemovesManagedExtensions(t *testi
 		requireFileContains(t, filepath.Join(ManagedInstallPath(homePaths, "lifecycle-ext"), "VERSION.txt"), "1.0.0")
 
 		reloads := 0
-		updates, err := UpdateMarketplaceManaged(
+		_, err = UpdateMarketplaceManaged(
 			t.Context(),
 			homePaths,
 			env.registry,
 			loader,
 			MarketplaceUpdateRequest{Names: []string{"lifecycle-ext"}},
+			nil,
+		)
+		if !errors.Is(err, ErrExtensionChecksumUnverified) {
+			t.Fatalf("UpdateMarketplaceManaged(unverified) error = %v, want ErrExtensionChecksumUnverified", err)
+		}
+
+		updates, err := UpdateMarketplaceManaged(
+			t.Context(),
+			homePaths,
+			env.registry,
+			loader,
+			MarketplaceUpdateRequest{Names: []string{"lifecycle-ext"}, AllowUnverified: true},
 			func(context.Context) error {
 				reloads++
 				return nil
@@ -219,7 +231,7 @@ func TestMarketplaceLifecycleRollsBackFailedUpdateReload(t *testing.T) {
 			homePaths,
 			env.registry,
 			loader,
-			MarketplaceInstallRequest{Slug: "acme/lifecycle-ext"},
+			MarketplaceInstallRequest{Slug: "acme/lifecycle-ext", AllowUnverified: true},
 		); err != nil {
 			t.Fatalf("InstallMarketplaceManaged() error = %v", err)
 		}
@@ -231,7 +243,7 @@ func TestMarketplaceLifecycleRollsBackFailedUpdateReload(t *testing.T) {
 			homePaths,
 			env.registry,
 			loader,
-			MarketplaceUpdateRequest{Names: []string{"lifecycle-ext"}},
+			MarketplaceUpdateRequest{Names: []string{"lifecycle-ext"}, AllowUnverified: true},
 			func(context.Context) error {
 				return reloadErr
 			},
@@ -322,6 +334,15 @@ func TestMarketplaceLifecycleValidatesSourcesAndInputs(t *testing.T) {
 			env.registry,
 			loader,
 			MarketplaceInstallRequest{Slug: "acme/lifecycle-ext"},
+		); !errors.Is(err, ErrExtensionChecksumUnverified) {
+			t.Fatalf("InstallMarketplaceManaged(unverified) error = %v, want ErrExtensionChecksumUnverified", err)
+		}
+		if _, err := InstallMarketplaceManaged(
+			t.Context(),
+			homePaths,
+			env.registry,
+			loader,
+			MarketplaceInstallRequest{Slug: "acme/lifecycle-ext", AllowUnverified: true},
 		); err != nil {
 			t.Fatalf("InstallMarketplaceManaged() error = %v", err)
 		}
@@ -330,7 +351,7 @@ func TestMarketplaceLifecycleValidatesSourcesAndInputs(t *testing.T) {
 			homePaths,
 			env.registry,
 			loader,
-			MarketplaceInstallRequest{Slug: "acme/lifecycle-ext"},
+			MarketplaceInstallRequest{Slug: "acme/lifecycle-ext", AllowUnverified: true},
 		); !errors.Is(err, ErrExtensionExists) {
 			t.Fatalf("InstallMarketplaceManaged(duplicate) error = %v, want ErrExtensionExists", err)
 		}
@@ -373,7 +394,7 @@ func TestMarketplaceLifecycleValidatesSourcesAndInputs(t *testing.T) {
 			homePaths,
 			env.registry,
 			loader,
-			MarketplaceUpdateRequest{Names: []string{"lifecycle-ext"}},
+			MarketplaceUpdateRequest{Names: []string{"lifecycle-ext"}, AllowUnverified: true},
 			nil,
 		); err == nil || !strings.Contains(err.Error(), "identity mismatch") {
 			t.Fatalf("UpdateMarketplaceManaged(identity mismatch) error = %v, want identity mismatch", err)

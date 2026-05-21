@@ -11,6 +11,7 @@ import (
 	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	diagnosticcontract "github.com/pedronauck/agh/internal/diagnosticcontract"
 	registrypkg "github.com/pedronauck/agh/internal/registry"
 )
 
@@ -43,10 +44,12 @@ type MutationReload func(context.Context) error
 
 // MarketplaceInstallRequest describes one marketplace-backed extension install.
 type MarketplaceInstallRequest struct {
-	Slug         string
-	SourceFilter string
-	Version      string
-	Asset        string
+	Slug            string
+	SourceFilter    string
+	Version         string
+	Asset           string
+	AllowUnverified bool
+	InstalledBy     string
 }
 
 // ManagedRemoveResult describes one removed managed extension.
@@ -58,9 +61,12 @@ type ManagedRemoveResult struct {
 
 // MarketplaceUpdateRequest describes one marketplace update batch.
 type MarketplaceUpdateRequest struct {
-	Names     []string
-	All       bool
-	CheckOnly bool
+	Names           []string
+	All             bool
+	CheckOnly       bool
+	Version         string
+	AllowUnverified bool
+	InstalledBy     string
 }
 
 // MarketplaceUpdateResult describes one marketplace update outcome.
@@ -77,6 +83,15 @@ type MarketplaceUpdateResult struct {
 type stagedExtensionDirChange struct {
 	targetDir string
 	backupDir string
+}
+
+type marketplaceManagedInstall struct {
+	slug          string
+	detail        *registrypkg.Detail
+	manifest      *Manifest
+	finalDir      string
+	checksum      string
+	remoteVersion string
 }
 
 // SearchMarketplaceExtensions searches configured extension marketplace
@@ -121,72 +136,145 @@ func InstallMarketplaceManaged(
 	if registry == nil {
 		return nil, errors.New("extension: registry is required")
 	}
-	slug := strings.TrimSpace(req.Slug)
-	if slug == "" {
-		return nil, errors.New("extension: marketplace slug is required")
-	}
-
-	sources, err := LoadMarketplaceSources(ctx, loader, req.SourceFilter)
+	prepared, err := prepareMarketplaceManagedInstall(ctx, homePaths, registry, loader, req)
 	if err != nil {
 		return nil, err
 	}
+	provenance := marketplaceInstallProvenance(prepared, req)
+	if err := registry.Install(
+		prepared.manifest,
+		prepared.finalDir,
+		prepared.checksum,
+		WithInstallSource(SourceMarketplace),
+		WithInstallRegistryMetadata(prepared.slug, strings.TrimSpace(prepared.detail.Source), prepared.remoteVersion),
+		WithInstallProvenance(provenance),
+	); err != nil {
+		return nil, errors.Join(err, removeExtensionDir(prepared.finalDir))
+	}
 
-	multi := registrypkg.NewMultiRegistry(slog.Default(), sources...)
+	info, err := registry.Get(prepared.manifest.Name)
+	if err != nil {
+		return nil, err
+	}
+	return info, nil
+}
+
+func prepareMarketplaceManagedInstall(
+	ctx context.Context,
+	homePaths aghconfig.HomePaths,
+	registry LifecycleRegistry,
+	loader MarketplaceSourceLoader,
+	req MarketplaceInstallRequest,
+) (_ marketplaceManagedInstall, err error) {
+	slug := strings.TrimSpace(req.Slug)
+	if slug == "" {
+		return marketplaceManagedInstall{}, errors.New("extension: marketplace slug is required")
+	}
+	multi, err := newExtensionMarketplaceRegistry(ctx, loader, req.SourceFilter)
+	if err != nil {
+		return marketplaceManagedInstall{}, err
+	}
 	defer func() {
 		err = errors.Join(err, multi.Close())
 	}()
 
 	detail, err := multi.Info(ctx, slug)
 	if err != nil {
-		return nil, err
+		return marketplaceManagedInstall{}, err
 	}
-
+	if !req.AllowUnverified {
+		return marketplaceManagedInstall{}, newExtensionChecksumUnverifiedError(slug, detail.Source)
+	}
 	stagingDir, err := NewManagedInstallStagingDir(homePaths)
 	if err != nil {
-		return nil, err
+		return marketplaceManagedInstall{}, err
 	}
 	defer joinRemoveAll(&err, stagingDir, "extension: remove staged extension directory")
 
-	result, err := registrypkg.NewInstaller(multi).Install(ctx, slug, registrypkg.DownloadOpts{
+	result, err := installMarketplaceArchive(ctx, multi, slug, req, stagingDir)
+	if err != nil {
+		return marketplaceManagedInstall{}, err
+	}
+	manifest, finalDir, err := moveMarketplaceInstallIntoPlace(homePaths, registry, slug, result)
+	if err != nil {
+		return marketplaceManagedInstall{}, err
+	}
+	return marketplaceManagedInstall{
+		slug:          slug,
+		detail:        detail,
+		manifest:      manifest,
+		finalDir:      finalDir,
+		checksum:      result.Checksum,
+		remoteVersion: firstNonEmpty(result.Version, detail.Version, manifest.Version),
+	}, nil
+}
+
+func newExtensionMarketplaceRegistry(
+	ctx context.Context,
+	loader MarketplaceSourceLoader,
+	sourceFilter string,
+) (*registrypkg.MultiRegistry, error) {
+	sources, err := LoadMarketplaceSources(ctx, loader, sourceFilter)
+	if err != nil {
+		return nil, err
+	}
+	return registrypkg.NewMultiRegistry(slog.Default(), sources...), nil
+}
+
+func installMarketplaceArchive(
+	ctx context.Context,
+	multi *registrypkg.MultiRegistry,
+	slug string,
+	req MarketplaceInstallRequest,
+	stagingDir string,
+) (*registrypkg.InstallResult, error) {
+	return registrypkg.NewInstaller(multi).Install(ctx, slug, registrypkg.DownloadOpts{
 		Version: strings.TrimSpace(req.Version),
 		Asset:   strings.TrimSpace(req.Asset),
 	}, stagingDir)
-	if err != nil {
-		return nil, err
-	}
+}
 
+func moveMarketplaceInstallIntoPlace(
+	homePaths aghconfig.HomePaths,
+	registry LifecycleRegistry,
+	slug string,
+	result *registrypkg.InstallResult,
+) (*Manifest, string, error) {
 	manifest, err := LoadManifest(result.InstallPath)
 	if err != nil {
-		return nil, fmt.Errorf("extension: load installed extension manifest for %q: %w", slug, err)
+		return nil, "", fmt.Errorf("extension: load installed extension manifest for %q: %w", slug, err)
 	}
 	if err := ensureExtensionNotInstalled(registry, manifest.Name); err != nil {
-		return nil, err
+		return nil, "", err
 	}
-
 	finalDir, err := ManagedInstallPathChecked(homePaths, manifest.Name)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if err := registrypkg.MoveInstalledDir(result.InstallPath, finalDir, false); err != nil {
-		return nil, fmt.Errorf("extension: move %q into managed install path: %w", manifest.Name, err)
+		return nil, "", fmt.Errorf("extension: move %q into managed install path: %w", manifest.Name, err)
 	}
+	return manifest, finalDir, nil
+}
 
-	remoteVersion := firstNonEmpty(result.Version, detail.Version, manifest.Version)
-	if err := registry.Install(
-		manifest,
-		finalDir,
-		result.Checksum,
-		WithInstallSource(SourceMarketplace),
-		WithInstallRegistryMetadata(slug, strings.TrimSpace(detail.Source), remoteVersion),
-	); err != nil {
-		return nil, errors.Join(err, removeExtensionDir(finalDir))
+func marketplaceInstallProvenance(
+	prepared marketplaceManagedInstall,
+	req MarketplaceInstallRequest,
+) ExtensionProvenance {
+	return ExtensionProvenance{
+		Slug:             prepared.slug,
+		InstalledFrom:    ExtensionInstalledFromMarketplace,
+		SourceURL:        strings.TrimSpace(prepared.detail.Repository),
+		ChecksumSHA256:   prepared.checksum,
+		ChecksumVerified: false,
+		RegistryTier:     registryTierForSource(SourceMarketplace, strings.TrimSpace(prepared.detail.Source)),
+		Permissions:      extensionPermissions(prepared.manifest.Capabilities, prepared.manifest.Actions),
+		InstalledBy:      firstNonEmpty(req.InstalledBy, extensionTrustInstalledByOperator),
+		AllowUnverified:  req.AllowUnverified,
+		Warnings: []diagnosticcontract.DiagnosticItem{
+			extensionChecksumUnverifiedDiagnostic(prepared.slug, prepared.detail.Source, true),
+		},
 	}
-
-	info, err := registry.Get(manifest.Name)
-	if err != nil {
-		return nil, err
-	}
-	return info, nil
 }
 
 // RemoveManagedExtension removes one installed extension and rolls back the
@@ -263,7 +351,15 @@ func UpdateMarketplaceManaged(
 
 	items := make([]MarketplaceUpdateResult, 0, len(targets))
 	for _, info := range targets {
-		item, err := updateMarketplaceExtension(ctx, homePaths, registry, loader, info, req.CheckOnly, reload)
+		item, err := updateMarketplaceExtension(
+			ctx,
+			homePaths,
+			registry,
+			loader,
+			info,
+			req,
+			reload,
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -340,38 +436,30 @@ func updateMarketplaceExtension(
 	registry LifecycleRegistry,
 	loader MarketplaceSourceLoader,
 	info ExtensionInfo,
-	checkOnly bool,
+	req MarketplaceUpdateRequest,
 	reload MutationReload,
 ) (_ MarketplaceUpdateResult, err error) {
-	slug := dereferenceOptionalString(info.RegistrySlug)
-	if slug == "" {
-		return MarketplaceUpdateResult{}, fmt.Errorf(
-			"extension: extension %q is missing registry slug metadata",
-			info.Name,
-		)
-	}
-	registryName := dereferenceOptionalString(info.RegistryName)
-	if registryName == "" {
-		return MarketplaceUpdateResult{}, fmt.Errorf(
-			"extension: extension %q is missing registry source metadata",
-			info.Name,
-		)
-	}
-
-	sources, err := LoadMarketplaceSources(ctx, loader, registryName)
+	slug, registryName, err := marketplaceUpdateMetadata(info)
 	if err != nil {
 		return MarketplaceUpdateResult{}, err
 	}
-
-	multi := registrypkg.NewMultiRegistry(slog.Default(), sources...)
+	multi, err := newExtensionMarketplaceRegistry(ctx, loader, registryName)
+	if err != nil {
+		return MarketplaceUpdateResult{}, err
+	}
 	defer func() {
 		err = errors.Join(err, multi.Close())
 	}()
 
 	currentVersion := firstNonEmpty(dereferenceOptionalString(info.RemoteVersion), info.Version)
+	requestedVersion := strings.TrimSpace(req.Version)
 	updateInfo, err := multi.CheckUpdate(ctx, slug, currentVersion)
 	if err != nil {
 		return MarketplaceUpdateResult{}, err
+	}
+	if requestedVersion != "" {
+		updateInfo.HasUpdate = requestedVersion != currentVersion
+		updateInfo.LatestVersion = requestedVersion
 	}
 
 	installDir, err := InstalledExtensionDir(info)
@@ -379,21 +467,17 @@ func updateMarketplaceExtension(
 		return MarketplaceUpdateResult{}, err
 	}
 
-	item := MarketplaceUpdateResult{
-		Name:           info.Name,
-		Slug:           slug,
-		Registry:       registryName,
-		CurrentVersion: currentVersion,
-		LatestVersion:  firstNonEmpty(updateInfo.LatestVersion, currentVersion),
-		Path:           installDir,
-	}
+	item := newMarketplaceUpdateResult(info, slug, registryName, currentVersion, updateInfo.LatestVersion, installDir)
 	if !updateInfo.HasUpdate {
 		item.Status = MarketplaceUpdateStatusCurrent
 		return item, nil
 	}
-	if checkOnly {
+	if req.CheckOnly {
 		item.Status = MarketplaceUpdateStatusAvailable
 		return item, nil
+	}
+	if !req.AllowUnverified {
+		return MarketplaceUpdateResult{}, newExtensionChecksumUnverifiedError(slug, registryName)
 	}
 
 	remoteVersion, err := applyMarketplaceExtensionUpdate(
@@ -403,6 +487,8 @@ func updateMarketplaceExtension(
 		multi,
 		info,
 		updateInfo.LatestVersion,
+		req.AllowUnverified,
+		req.InstalledBy,
 		reload,
 	)
 	if err != nil {
@@ -413,6 +499,36 @@ func updateMarketplaceExtension(
 	return item, nil
 }
 
+func marketplaceUpdateMetadata(info ExtensionInfo) (string, string, error) {
+	slug := dereferenceOptionalString(info.RegistrySlug)
+	if slug == "" {
+		return "", "", fmt.Errorf("extension: extension %q is missing registry slug metadata", info.Name)
+	}
+	registryName := dereferenceOptionalString(info.RegistryName)
+	if registryName == "" {
+		return "", "", fmt.Errorf("extension: extension %q is missing registry source metadata", info.Name)
+	}
+	return slug, registryName, nil
+}
+
+func newMarketplaceUpdateResult(
+	info ExtensionInfo,
+	slug string,
+	registryName string,
+	currentVersion string,
+	latestVersion string,
+	installDir string,
+) MarketplaceUpdateResult {
+	return MarketplaceUpdateResult{
+		Name:           info.Name,
+		Slug:           slug,
+		Registry:       registryName,
+		CurrentVersion: currentVersion,
+		LatestVersion:  firstNonEmpty(latestVersion, currentVersion),
+		Path:           installDir,
+	}
+}
+
 func applyMarketplaceExtensionUpdate(
 	ctx context.Context,
 	homePaths aghconfig.HomePaths,
@@ -420,6 +536,8 @@ func applyMarketplaceExtensionUpdate(
 	multi *registrypkg.MultiRegistry,
 	info ExtensionInfo,
 	latestVersion string,
+	allowUnverified bool,
+	installedBy string,
 	reload MutationReload,
 ) (_ string, err error) {
 	slug := dereferenceOptionalString(info.RegistrySlug)
@@ -453,12 +571,25 @@ func applyMarketplaceExtensionUpdate(
 	}
 
 	remoteVersion := firstNonEmpty(result.Version, latestVersion, manifest.Version)
+	provenance := info.Provenance
+	provenance.Slug = slug
+	provenance.InstalledFrom = ExtensionInstalledFromMarketplace
+	provenance.ChecksumSHA256 = result.Checksum
+	provenance.ChecksumVerified = false
+	provenance.RegistryTier = registryTierForSource(SourceMarketplace, registryName)
+	provenance.Permissions = extensionPermissions(manifest.Capabilities, manifest.Actions)
+	provenance.AllowUnverified = allowUnverified
+	provenance.InstalledBy = firstNonEmpty(installedBy, provenance.InstalledBy, extensionTrustInstalledByOperator)
+	provenance.Warnings = []diagnosticcontract.DiagnosticItem{
+		extensionChecksumUnverifiedDiagnostic(slug, registryName, allowUnverified),
+	}
 	if err := registry.Install(
 		manifest,
 		installDir,
 		result.Checksum,
 		WithInstallSource(SourceMarketplace),
 		WithInstallRegistryMetadata(slug, registryName, remoteVersion),
+		WithInstallProvenance(provenance),
 		WithInstallReplaceExisting(),
 	); err != nil {
 		return "", errors.Join(err, change.Rollback())
@@ -588,6 +719,7 @@ func reinstallExtensionInfo(
 
 	installOpts := []InstallOption{
 		WithInstallSource(info.Source),
+		WithInstallProvenance(info.Provenance),
 	}
 	if info.Source == SourceMarketplace {
 		installOpts = append(installOpts, WithInstallRegistryMetadata(

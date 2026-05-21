@@ -19,6 +19,21 @@ export type SettingsHooksExtensionsTransportParity =
   SettingsHooksExtensionsSection["transport_parity"];
 
 export type SettingsExtensionEntry = OperationResponse<"listExtensions", 200>["extensions"][number];
+export type SettingsExtensionMarketplaceEntry = OperationResponse<
+  "searchExtensionMarketplace",
+  200
+>["extensions"][number];
+export type SettingsExtensionMarketplaceFilter = NonNullable<
+  OperationQuery<"searchExtensionMarketplace">
+>;
+export type SettingsExtensionProvenance = OperationResponse<
+  "getExtensionProvenance",
+  200
+>["provenance"];
+export type SettingsInstallExtensionRequest = OperationRequestBody<"installExtension">;
+export type SettingsUpdateExtensionRequest = OperationRequestBody<"updateExtension">;
+export type SettingsExtensionUpdate = OperationResponse<"updateExtension", 200>["update"];
+export type SettingsExtensionRemove = OperationResponse<"removeExtension", 200>["extension"];
 
 export type SettingsProviderCollection = OperationResponse<"listSettingsProviders", 200>;
 export type SettingsProviderEntry = SettingsProviderCollection["providers"][number];

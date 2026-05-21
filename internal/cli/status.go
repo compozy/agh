@@ -173,7 +173,7 @@ func renderStatusHuman(status *StatusRecord, now func() time.Time) string {
 		for _, provider := range status.Providers {
 			defaultValue := ""
 			if provider.Default {
-				defaultValue = "yes"
+				defaultValue = yesFlagName
 			}
 			rows = append(rows, []string{
 				provider.Name,

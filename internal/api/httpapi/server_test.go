@@ -20,6 +20,7 @@ import (
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
 	settingspkg "github.com/pedronauck/agh/internal/settings"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
 func TestNewHonorsOptionsAndDefaults(t *testing.T) {
@@ -289,15 +290,15 @@ func TestLoopbackServerAllowsSettingsAndExtensionMutations(t *testing.T) {
 		disabledName string
 	)
 	extensionService := &stubExtensionService{
-		InstallFn: func(_ context.Context, req contract.InstallExtensionRequest) (contract.ExtensionPayload, error) {
+		InstallFn: func(_ context.Context, req contract.InstallExtensionRequest, _ taskpkg.ActorContext) (contract.ExtensionPayload, error) {
 			installedReq = req
 			return contract.ExtensionPayload{Name: "demo", State: "registered"}, nil
 		},
-		EnableFn: func(_ context.Context, name string) (contract.ExtensionPayload, error) {
+		EnableFn: func(_ context.Context, name string, _ taskpkg.ActorContext) (contract.ExtensionPayload, error) {
 			enabledName = name
 			return contract.ExtensionPayload{Name: name, Enabled: true, State: "active"}, nil
 		},
-		DisableFn: func(_ context.Context, name string) (contract.ExtensionPayload, error) {
+		DisableFn: func(_ context.Context, name string, _ taskpkg.ActorContext) (contract.ExtensionPayload, error) {
 			disabledName = name
 			return contract.ExtensionPayload{Name: name, Enabled: false, State: "inactive"}, nil
 		},
@@ -593,7 +594,7 @@ func TestLoopbackServerMapsDuplicateExtensionInstallToConflict(t *testing.T) {
 		WithObserver(stubObserver{}),
 		WithWorkspaceResolver(stubWorkspaceService{}),
 		WithExtensionService(&stubExtensionService{
-			InstallFn: func(context.Context, contract.InstallExtensionRequest) (contract.ExtensionPayload, error) {
+			InstallFn: func(context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error) {
 				return contract.ExtensionPayload{}, extensionpkg.ErrExtensionExists
 			},
 		}),
@@ -644,15 +645,15 @@ func TestNonLoopbackServerBlocksDaemonAPIRoutes(t *testing.T) {
 		StatusFn: func(_ context.Context, name string) (contract.ExtensionPayload, error) {
 			return contract.ExtensionPayload{Name: name, State: "registered"}, nil
 		},
-		InstallFn: func(context.Context, contract.InstallExtensionRequest) (contract.ExtensionPayload, error) {
+		InstallFn: func(context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error) {
 			t.Fatal("Install should not be called on non-loopback HTTP bind")
 			return contract.ExtensionPayload{}, nil
 		},
-		EnableFn: func(context.Context, string) (contract.ExtensionPayload, error) {
+		EnableFn: func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error) {
 			t.Fatal("Enable should not be called on non-loopback HTTP bind")
 			return contract.ExtensionPayload{}, nil
 		},
-		DisableFn: func(context.Context, string) (contract.ExtensionPayload, error) {
+		DisableFn: func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error) {
 			t.Fatal("Disable should not be called on non-loopback HTTP bind")
 			return contract.ExtensionPayload{}, nil
 		},

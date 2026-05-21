@@ -24,6 +24,7 @@ import (
 	"github.com/pedronauck/agh/internal/session"
 	settingspkg "github.com/pedronauck/agh/internal/settings"
 	"github.com/pedronauck/agh/internal/store"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/transcript"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
@@ -47,6 +48,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"DELETE /api/automation/triggers/:id",
 		"DELETE /api/bridges/:id/secret-bindings/:binding_name",
 		"DELETE /api/bundles/activations/:id",
+		"DELETE /api/extensions/:name",
 		"DELETE /api/memory/:filename",
 		"DELETE /api/settings/sandboxes/:name",
 		"DELETE /api/settings/hooks/:name",
@@ -94,6 +96,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/doctor",
 		"GET /api/extensions",
 		"GET /api/extensions/:name",
+		"GET /api/extensions/:name/provenance",
+		"GET /api/extensions/marketplace",
 		"GET /api/hooks/catalog",
 		"GET /api/hooks/events",
 		"GET /api/workspaces/:workspace_id/hooks/runs",
@@ -323,6 +327,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"PUT /api/agents/:name/heartbeat",
 		"PUT /api/agents/:name/soul",
 		"PUT /api/bridges/:id/secret-bindings/:binding_name",
+		"PUT /api/extensions/:name",
 		"PUT /api/settings/sandboxes/:name",
 		"PUT /api/settings/hooks/:name",
 		"PUT /api/settings/mcp-servers/:name",
@@ -579,15 +584,15 @@ func TestSettingsAndExtensionMutationsReturnForbiddenOnNonLoopbackHost(t *testin
 			},
 		},
 		stubExtensionService{
-			InstallFn: func(context.Context, contract.InstallExtensionRequest) (contract.ExtensionPayload, error) {
+			InstallFn: func(context.Context, contract.InstallExtensionRequest, taskpkg.ActorContext) (contract.ExtensionPayload, error) {
 				t.Fatal("Install should not be called when HTTP mutations are blocked")
 				return contract.ExtensionPayload{}, nil
 			},
-			EnableFn: func(context.Context, string) (contract.ExtensionPayload, error) {
+			EnableFn: func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error) {
 				t.Fatal("Enable should not be called when HTTP mutations are blocked")
 				return contract.ExtensionPayload{}, nil
 			},
-			DisableFn: func(context.Context, string) (contract.ExtensionPayload, error) {
+			DisableFn: func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionPayload, error) {
 				t.Fatal("Disable should not be called when HTTP mutations are blocked")
 				return contract.ExtensionPayload{}, nil
 			},
@@ -662,15 +667,15 @@ func TestSettingsAndExtensionMutationsReachHandlersOnLoopbackHost(t *testing.T) 
 		settingsService,
 		restartController,
 		stubExtensionService{
-			InstallFn: func(_ context.Context, req contract.InstallExtensionRequest) (contract.ExtensionPayload, error) {
+			InstallFn: func(_ context.Context, req contract.InstallExtensionRequest, _ taskpkg.ActorContext) (contract.ExtensionPayload, error) {
 				installedReq = req
 				return contract.ExtensionPayload{Name: "demo", State: "registered"}, nil
 			},
-			EnableFn: func(_ context.Context, name string) (contract.ExtensionPayload, error) {
+			EnableFn: func(_ context.Context, name string, _ taskpkg.ActorContext) (contract.ExtensionPayload, error) {
 				enabledName = name
 				return contract.ExtensionPayload{Name: name, Enabled: true, State: "active"}, nil
 			},
-			DisableFn: func(_ context.Context, name string) (contract.ExtensionPayload, error) {
+			DisableFn: func(_ context.Context, name string, _ taskpkg.ActorContext) (contract.ExtensionPayload, error) {
 				disabledName = name
 				return contract.ExtensionPayload{Name: name, Enabled: false, State: "inactive"}, nil
 			},

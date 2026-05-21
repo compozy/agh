@@ -109,6 +109,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			NetworkStore:                 cfg.networkStore,
 			Observer:                     cfg.observer,
 			Resources:                    cfg.resources,
+			Extensions:                   cfg.extensions,
 			Automation:                   cfg.automation,
 			Bridges:                      cfg.bridges,
 			Bundles:                      cfg.bundles,

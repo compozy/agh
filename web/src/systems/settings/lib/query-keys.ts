@@ -1,5 +1,6 @@
 import type {
   SettingsApplyRecordsFilter,
+  SettingsExtensionMarketplaceFilter,
   SettingsMCPServerListFilter,
   SettingsSectionName,
   SettingsSectionSlug,
@@ -50,6 +51,16 @@ export const settingsKeys = {
 
   extensionsRoot: () => [...settingsKeys.all, "extensions"] as const,
   extensionsList: () => [...settingsKeys.extensionsRoot(), "list"] as const,
+  extensionsMarketplace: (filter: SettingsExtensionMarketplaceFilter = {}) =>
+    [
+      ...settingsKeys.extensionsRoot(),
+      "marketplace",
+      normalizeText(filter.q),
+      normalizeText(filter.source),
+      normalizeText(filter.limit),
+    ] as const,
+  extensionProvenance: (name: string) =>
+    [...settingsKeys.extensionsRoot(), "provenance", name] as const,
 
   restartRoot: () => [...settingsKeys.all, "restart"] as const,
   restartStatus: (operationId: string) => [...settingsKeys.restartRoot(), operationId] as const,

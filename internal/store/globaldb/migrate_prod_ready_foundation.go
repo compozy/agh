@@ -190,6 +190,26 @@ func migratePauseState(ctx context.Context, tx *sql.Tx) error {
 	return nil
 }
 
+func migrateExtensionProvenance(ctx context.Context, tx *sql.Tx) error {
+	exists, err := tableExists(ctx, tx, "extensions")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+	columns := []migrationColumnSpec{
+		{
+			name: globalDBExtensionProvenanceJSONKey,
+			sql:  "ALTER TABLE extensions ADD COLUMN " + globalDBExtensionProvenanceJSONKey + " TEXT NOT NULL DEFAULT '{}'",
+		},
+	}
+	if addErr := addMissingMigrationColumns(ctx, tx, "extensions", columns); addErr != nil {
+		return addErr
+	}
+	return nil
+}
+
 func backfillEventSummaryOutcomes(ctx context.Context, tx *sql.Tx) error {
 	statements := []string{
 		`CREATE TEMP TABLE IF NOT EXISTS event_summary_outcome_backfill (
@@ -199,33 +219,37 @@ func backfillEventSummaryOutcomes(ctx context.Context, tx *sql.Tx) error {
 		`DELETE FROM event_summary_outcome_backfill;`,
 	}
 	for _, statement := range statements {
-		if _, err := tx.ExecContext(ctx, statement); err != nil {
-			return fmt.Errorf("store: prepare event summary outcome backfill: %w", err)
+		_, execErr := tx.ExecContext(ctx, statement)
+		if execErr != nil {
+			return fmt.Errorf("store: prepare event summary outcome backfill: %w", execErr)
 		}
 	}
 
 	for _, meta := range eventspkg.All() {
-		if _, err := tx.ExecContext(
+		_, execErr := tx.ExecContext(
 			ctx,
 			`INSERT INTO event_summary_outcome_backfill (type, outcome) VALUES (?, ?)`,
 			meta.Name,
 			string(meta.Outcome),
-		); err != nil {
-			return fmt.Errorf("store: stage event summary outcome for %s: %w", meta.Name, err)
+		)
+		if execErr != nil {
+			return fmt.Errorf("store: stage event summary outcome for %s: %w", meta.Name, execErr)
 		}
 	}
 
-	if _, err := tx.ExecContext(
+	_, execErr := tx.ExecContext(
 		ctx,
 		eventSummaryOutcomeBackfillSQL,
 		string(eventspkg.OutcomeInfo),
 		string(eventspkg.OutcomeInfo),
-	); err != nil {
-		return fmt.Errorf("store: backfill event summary outcomes: %w", err)
+	)
+	if execErr != nil {
+		return fmt.Errorf("store: backfill event summary outcomes: %w", execErr)
 	}
 
-	if _, err := tx.ExecContext(ctx, `DROP TABLE event_summary_outcome_backfill`); err != nil {
-		return fmt.Errorf("store: drop event summary outcome backfill table: %w", err)
+	_, execErr = tx.ExecContext(ctx, `DROP TABLE event_summary_outcome_backfill`)
+	if execErr != nil {
+		return fmt.Errorf("store: drop event summary outcome backfill table: %w", execErr)
 	}
 	return nil
 }

@@ -7,11 +7,14 @@ import {
   deleteSettingsProvider,
   disableSettingsExtension,
   enableSettingsExtension,
+  installSettingsExtension,
   putSettingsSandbox,
   putSettingsHook,
   putSettingsMCPServer,
   putSettingsProvider,
   reloadSettings,
+  removeSettingsExtension,
+  updateSettingsExtension,
   updateSettingsAutomation,
   updateSettingsGeneral,
   updateSettingsHooksExtensions,
@@ -24,14 +27,18 @@ import { settingsKeys } from "../lib/query-keys";
 import { useSettingsRestartStore } from "../stores/use-settings-restart-store";
 import type {
   SettingsSandboxRequest,
+  SettingsExtensionRemove,
   SettingsExtensionEntry,
+  SettingsExtensionUpdate,
   SettingsHookRequest,
+  SettingsInstallExtensionRequest,
   SettingsMCPServerDeleteFilter,
   SettingsMCPServerPutFilter,
   SettingsMCPServerRequest,
   SettingsMutationResult,
   SettingsProviderRequest,
   SettingsUpdateAutomationRequest,
+  SettingsUpdateExtensionRequest,
   SettingsUpdateGeneralRequest,
   SettingsUpdateHooksExtensionsRequest,
   SettingsUpdateMemoryRequest,
@@ -276,6 +283,11 @@ interface MCPDeleteParams {
   filter?: SettingsMCPServerDeleteFilter;
 }
 
+interface SettingsExtensionUpdateParams {
+  name: string;
+  body: SettingsUpdateExtensionRequest;
+}
+
 export function usePutSettingsMCPServer() {
   const queryClient = useQueryClient();
 
@@ -318,6 +330,33 @@ export function useDisableSettingsExtension() {
 
   return useMutation<SettingsExtensionEntry, Error, string>({
     mutationFn: name => disableSettingsExtension(name),
+    onSettled: () => invalidateExtensions(queryClient),
+  });
+}
+
+export function useInstallSettingsExtension() {
+  const queryClient = useQueryClient();
+
+  return useMutation<SettingsExtensionEntry, Error, SettingsInstallExtensionRequest>({
+    mutationFn: body => installSettingsExtension(body),
+    onSettled: () => invalidateExtensions(queryClient),
+  });
+}
+
+export function useUpdateSettingsExtension() {
+  const queryClient = useQueryClient();
+
+  return useMutation<SettingsExtensionUpdate, Error, SettingsExtensionUpdateParams>({
+    mutationFn: ({ name, body }) => updateSettingsExtension(name, body),
+    onSettled: () => invalidateExtensions(queryClient),
+  });
+}
+
+export function useRemoveSettingsExtension() {
+  const queryClient = useQueryClient();
+
+  return useMutation<SettingsExtensionRemove, Error, string>({
+    mutationFn: name => removeSettingsExtension(name),
     onSettled: () => invalidateExtensions(queryClient),
   });
 }

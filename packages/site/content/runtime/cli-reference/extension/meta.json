@@ -6,6 +6,7 @@
         "enable",
         "install",
         "list",
+        "provenance",
         "remove",
         "search",
         "status",

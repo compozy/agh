@@ -141,8 +141,12 @@ func TestSessionListOutputFormatsIntegration(t *testing.T) {
 	h := newIntegrationHarness(t)
 	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
 	defer func() {
-		_, _, _ = executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json")
-		_ = h.runner.waitForExit()
+		if _, _, err := executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json"); err != nil {
+			t.Fatalf("daemon stop error = %v", err)
+		}
+		if err := h.runner.waitForExit(); err != nil {
+			t.Fatalf("daemon runner wait error = %v", err)
+		}
 	}()
 
 	sessionOut, _, err := executeRootCommand(
@@ -1141,7 +1145,16 @@ func TestExtensionCommandRoundTripIntegration(t *testing.T) {
 
 	dir := writeExtensionFixture(t, "integration-ext", extensionFixtureOptions{})
 
-	installOut, _, err := executeRootCommand(t, h.deps, "extension", "install", dir, "-o", "json")
+	installOut, _, err := executeRootCommand(
+		t,
+		h.deps,
+		"extension",
+		"install",
+		dir,
+		"--allow-unverified",
+		"-o",
+		"json",
+	)
 	if err != nil {
 		t.Fatalf("extension install error = %v", err)
 	}
@@ -3105,6 +3118,7 @@ func (s *integrationExtensionService) List(ctx context.Context) ([]contract.Exte
 func (s *integrationExtensionService) Install(
 	ctx context.Context,
 	req contract.InstallExtensionRequest,
+	_ taskpkg.ActorContext,
 ) (contract.ExtensionPayload, error) {
 	manifest, err := extensionpkg.LoadManifest(req.Path)
 	if err != nil {
@@ -3119,7 +3133,11 @@ func (s *integrationExtensionService) Install(
 	return s.Status(ctx, manifest.Name)
 }
 
-func (s *integrationExtensionService) Enable(ctx context.Context, name string) (contract.ExtensionPayload, error) {
+func (s *integrationExtensionService) Enable(
+	ctx context.Context,
+	name string,
+	_ taskpkg.ActorContext,
+) (contract.ExtensionPayload, error) {
 	if err := s.registry.Enable(name); err != nil {
 		return contract.ExtensionPayload{}, err
 	}
@@ -3129,7 +3147,11 @@ func (s *integrationExtensionService) Enable(ctx context.Context, name string) (
 	return s.Status(ctx, name)
 }
 
-func (s *integrationExtensionService) Disable(ctx context.Context, name string) (contract.ExtensionPayload, error) {
+func (s *integrationExtensionService) Disable(
+	ctx context.Context,
+	name string,
+	_ taskpkg.ActorContext,
+) (contract.ExtensionPayload, error) {
 	if err := s.registry.Disable(name); err != nil {
 		return contract.ExtensionPayload{}, err
 	}

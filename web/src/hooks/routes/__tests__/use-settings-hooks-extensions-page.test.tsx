@@ -9,7 +9,12 @@ vi.mock("@tanstack/react-router", () => ({
 
 vi.mock("@/systems/settings/adapters/settings-api", () => ({
   getSettingsHooksExtensions: vi.fn(),
+  getSettingsExtensionProvenance: vi.fn(),
+  installSettingsExtension: vi.fn(),
   listSettingsExtensions: vi.fn(),
+  removeSettingsExtension: vi.fn(),
+  searchSettingsExtensionMarketplace: vi.fn(),
+  updateSettingsExtension: vi.fn(),
   updateSettingsHooksExtensions: vi.fn(),
   putSettingsHook: vi.fn(),
   enableSettingsExtension: vi.fn(),
@@ -24,9 +29,14 @@ vi.mock("@/systems/settings/adapters/settings-api", () => ({
 import {
   disableSettingsExtension,
   enableSettingsExtension,
+  getSettingsExtensionProvenance,
   getSettingsHooksExtensions,
+  installSettingsExtension,
   listSettingsExtensions,
   putSettingsHook,
+  removeSettingsExtension,
+  searchSettingsExtensionMarketplace,
+  updateSettingsExtension,
   updateSettingsHooksExtensions,
 } from "@/systems/settings/adapters/settings-api";
 import { initialSettingsRestartState } from "@/systems/settings/stores/settings-restart-store";
@@ -95,6 +105,24 @@ const extensionEntry: SettingsExtensionEntry = {
   health: "healthy",
   requires_env: ["DAYTONA_TOKEN"],
   missing_env: ["DAYTONA_TOKEN"],
+  trust: {
+    decision: "allowed_unverified",
+    registry_tier: "community",
+    checksum_verified: false,
+    allow_unverified: true,
+  },
+  provenance: {
+    slug: "daytona/daytona-extension",
+    installed_from: "marketplace_registry",
+    source_url: "https://registry.example.com/daytona/daytona-extension",
+    checksum_sha256: "sha256:fixture-daytona",
+    checksum_verified: false,
+    registry_tier: "community",
+    permissions: ["logs.read"],
+    installed_at: "2026-05-21T10:00:00Z",
+    installed_by: "operator:web",
+    allow_unverified: true,
+  },
 };
 
 function createWrapper() {
@@ -117,6 +145,19 @@ beforeEach(() => {
   });
   vi.mocked(getSettingsHooksExtensions).mockResolvedValue(envelope);
   vi.mocked(listSettingsExtensions).mockResolvedValue([extensionEntry]);
+  vi.mocked(searchSettingsExtensionMarketplace).mockResolvedValue([
+    {
+      slug: "daytona/daytona-extension",
+      name: "daytona",
+      source: "github",
+      type: "backend",
+      version: "1.2.4",
+      trust: extensionEntry.trust,
+    },
+  ]);
+  vi.mocked(getSettingsExtensionProvenance).mockResolvedValue(
+    extensionEntry.provenance as NonNullable<SettingsExtensionEntry["provenance"]>
+  );
 });
 
 afterEach(() => {
@@ -203,6 +244,73 @@ describe("useSettingsHooksExtensionsPage", () => {
     expect(disableSettingsExtension).toHaveBeenCalledWith("daytona");
     // Extension toggles never publish to the restart banner.
     expect(useSettingsRestartStore.getState().lastMutation).toBeNull();
+  });
+
+  it("installs marketplace extensions with the explicit trust decision", async () => {
+    vi.mocked(installSettingsExtension).mockResolvedValue(extensionEntry);
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsHooksExtensionsPage(), { wrapper });
+
+    await waitFor(() => expect(result.current.marketplaceEntries).toHaveLength(1));
+
+    act(() => {
+      result.current.setMarketplaceAllowUnverified(true);
+    });
+
+    await act(async () => {
+      result.current.installMarketplaceExtension(result.current.marketplaceEntries[0]);
+    });
+
+    await waitFor(() => {
+      expect(result.current.lastAction?.kind).toBe("extension-installed");
+    });
+    expect(installSettingsExtension).toHaveBeenCalledWith({
+      slug: "daytona/daytona-extension",
+      source: "github",
+      version: "1.2.4",
+      allow_unverified: true,
+    });
+  });
+
+  it("loads provenance and routes update/remove through daemon mutations", async () => {
+    vi.mocked(updateSettingsExtension).mockResolvedValue({
+      name: "daytona",
+      slug: "daytona/daytona-extension",
+      registry: "github",
+      path: "/tmp/agh/extensions/daytona",
+      current_version: "1.2.3",
+      latest_version: "1.2.4",
+      status: "available",
+    });
+    vi.mocked(removeSettingsExtension).mockResolvedValue({
+      name: "daytona",
+      path: "/tmp/agh/extensions/daytona",
+      status: "removed",
+    });
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsHooksExtensionsPage(), { wrapper });
+
+    await waitFor(() => expect(result.current.extensions).toHaveLength(1));
+
+    act(() => {
+      result.current.openExtensionProvenance(extensionEntry);
+    });
+
+    await waitFor(() => {
+      expect(result.current.selectedProvenance?.installed_from).toBe("marketplace_registry");
+    });
+
+    await act(async () => {
+      result.current.updateExtension(extensionEntry);
+    });
+    await waitFor(() => expect(result.current.lastAction?.kind).toBe("extension-updated"));
+    expect(updateSettingsExtension).toHaveBeenCalledWith("daytona", {});
+
+    await act(async () => {
+      result.current.removeExtension(extensionEntry);
+    });
+    await waitFor(() => expect(result.current.lastAction?.kind).toBe("extension-removed"));
+    expect(removeSettingsExtension).toHaveBeenCalledWith("daytona");
   });
 
   it("drives the hook toggle through putSettingsHook and tracks pending state", async () => {

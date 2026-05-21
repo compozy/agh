@@ -11,6 +11,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/api/contract"
 	extensionpkg "github.com/pedronauck/agh/internal/extension"
+	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
 func TestListExtensionsHandler(t *testing.T) {
@@ -57,7 +58,11 @@ func TestInstallExtensionHandler(t *testing.T) {
 
 		homePaths := newTestHomePaths(t)
 		handlers := newTestHandlersWithExtensions(t, stubSessionManager{}, stubObserver{}, stubExtensionService{
-			InstallFn: func(_ context.Context, req contract.InstallExtensionRequest) (contract.ExtensionPayload, error) {
+			InstallFn: func(
+				_ context.Context,
+				req contract.InstallExtensionRequest,
+				_ taskpkg.ActorContext,
+			) (contract.ExtensionPayload, error) {
 				if req.Path != "/tmp/ext-a" || req.Checksum != "sha256:abc" {
 					t.Fatalf("Install() req = %#v", req)
 				}
@@ -136,13 +141,21 @@ func TestEnableDisableExtensionHandlers(t *testing.T) {
 
 		homePaths := newTestHomePaths(t)
 		handlers := newTestHandlersWithExtensions(t, stubSessionManager{}, stubObserver{}, stubExtensionService{
-			EnableFn: func(_ context.Context, name string) (contract.ExtensionPayload, error) {
+			EnableFn: func(
+				_ context.Context,
+				name string,
+				_ taskpkg.ActorContext,
+			) (contract.ExtensionPayload, error) {
 				if name != "ext-a" {
 					t.Fatalf("Enable() name = %q, want ext-a", name)
 				}
 				return contract.ExtensionPayload{Name: name, Enabled: true, State: "active"}, nil
 			},
-			DisableFn: func(_ context.Context, name string) (contract.ExtensionPayload, error) {
+			DisableFn: func(
+				_ context.Context,
+				name string,
+				_ taskpkg.ActorContext,
+			) (contract.ExtensionPayload, error) {
 				if name != "ext-a" {
 					t.Fatalf("Disable() name = %q, want ext-a", name)
 				}

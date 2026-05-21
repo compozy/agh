@@ -1,10 +1,25 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { AlertCircle, AlertTriangle, Check, Puzzle, Webhook, X } from "lucide-react";
+import {
+  AlertCircle,
+  AlertTriangle,
+  Check,
+  Download,
+  Info,
+  Puzzle,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Trash2,
+  Webhook,
+  X,
+} from "lucide-react";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
 import { useSettingsHooksExtensionsPage } from "@/hooks/routes/use-settings-hooks-extensions-page";
 import type {
   SettingsExtensionEntry,
+  SettingsExtensionMarketplaceEntry,
+  SettingsExtensionProvenance,
   SettingsHookEntry,
   SettingsHooksExtensionsSection,
   SettingsHooksExtensionsTransportParity,
@@ -153,6 +168,28 @@ function HooksExtensionsSettingsPage() {
         isLoading={page.extensionsLoading}
         canMutate={page.canMutateExtensions}
         onToggle={page.toggleExtensionEnabled}
+        onUpdate={page.updateExtension}
+        onRemove={page.removeExtension}
+        onOpenProvenance={page.openExtensionProvenance}
+        selectedProvenanceName={page.selectedProvenanceName}
+        selectedProvenance={page.selectedProvenance}
+        provenanceLoading={page.provenanceLoading}
+        provenanceError={page.provenanceError}
+        onCloseProvenance={page.closeExtensionProvenance}
+      />
+
+      <MarketplaceSection
+        entries={page.marketplaceEntries}
+        query={page.marketplaceSearch}
+        setQuery={page.setMarketplaceSearch}
+        allowUnverified={page.marketplaceAllowUnverified}
+        setAllowUnverified={page.setMarketplaceAllowUnverified}
+        pendingSlug={page.pendingMarketplaceSlug}
+        error={page.marketplaceError}
+        isLoading={page.marketplaceLoading}
+        canMutate={page.canMutateExtensions}
+        onSearch={page.searchMarketplace}
+        onInstall={page.installMarketplaceExtension}
       />
 
       <PolicySection
@@ -352,6 +389,14 @@ interface ExtensionsSectionProps {
   isLoading: boolean;
   canMutate: boolean;
   onToggle: (entry: SettingsExtensionEntry, nextEnabled: boolean) => void;
+  onUpdate: (entry: SettingsExtensionEntry) => void;
+  onRemove: (entry: SettingsExtensionEntry) => void;
+  onOpenProvenance: (entry: SettingsExtensionEntry) => void;
+  selectedProvenanceName: string | null;
+  selectedProvenance: SettingsExtensionProvenance | null;
+  provenanceLoading: boolean;
+  provenanceError: string | null;
+  onCloseProvenance: () => void;
 }
 
 function ExtensionsSection({
@@ -361,6 +406,14 @@ function ExtensionsSection({
   isLoading,
   canMutate,
   onToggle,
+  onUpdate,
+  onRemove,
+  onOpenProvenance,
+  selectedProvenanceName,
+  selectedProvenance,
+  provenanceLoading,
+  provenanceError,
+  onCloseProvenance,
 }: ExtensionsSectionProps) {
   return (
     <Section
@@ -403,6 +456,14 @@ function ExtensionsSection({
               pending={pendingExtensionName === entry.name}
               canMutate={canMutate}
               onToggle={onToggle}
+              onUpdate={onUpdate}
+              onRemove={onRemove}
+              onOpenProvenance={onOpenProvenance}
+              provenanceOpen={selectedProvenanceName === entry.name}
+              selectedProvenance={selectedProvenance}
+              provenanceLoading={provenanceLoading}
+              provenanceError={provenanceError}
+              onCloseProvenance={onCloseProvenance}
             />
           ))}
         </ul>
@@ -416,11 +477,27 @@ function ExtensionRow({
   pending,
   canMutate,
   onToggle,
+  onUpdate,
+  onRemove,
+  onOpenProvenance,
+  provenanceOpen,
+  selectedProvenance,
+  provenanceLoading,
+  provenanceError,
+  onCloseProvenance,
 }: {
   entry: SettingsExtensionEntry;
   pending: boolean;
   canMutate: boolean;
   onToggle: (entry: SettingsExtensionEntry, nextEnabled: boolean) => void;
+  onUpdate: (entry: SettingsExtensionEntry) => void;
+  onRemove: (entry: SettingsExtensionEntry) => void;
+  onOpenProvenance: (entry: SettingsExtensionEntry) => void;
+  provenanceOpen: boolean;
+  selectedProvenance: SettingsExtensionProvenance | null;
+  provenanceLoading: boolean;
+  provenanceError: string | null;
+  onCloseProvenance: () => void;
 }) {
   const healthTone: "success" | "warning" | "danger" | "neutral" =
     entry.health === "healthy"
@@ -432,62 +509,397 @@ function ExtensionRow({
           : "neutral";
   const missingEnv = entry.missing_env ?? [];
 
+  const provenance = entry.provenance;
+
   return (
     <li
-      className="flex items-center justify-between gap-3 rounded-md border border-line bg-elevated px-3 py-2"
+      className="flex flex-col gap-3 rounded-md border border-line bg-elevated px-3 py-2"
       data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}`}
     >
-      <div className="flex min-w-0 items-center gap-3">
-        <Pill.Dot tone={healthTone} size="md" pulse={entry.health === "degraded"} />
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="truncate font-mono text-sm text-fg">{entry.name}</span>
-          <Eyebrow className="text-subtle flex flex-wrap items-center gap-1.5">
-            <span>{entry.state || (entry.enabled ? "running" : "stopped")}</span>
-            {entry.version ? (
-              <Pill mono tone="neutral">
-                v{entry.version}
-              </Pill>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <Pill.Dot tone={healthTone} size="md" pulse={entry.health === "degraded"} />
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <span className="truncate font-mono text-sm text-fg">{entry.name}</span>
+            <Eyebrow className="text-subtle flex flex-wrap items-center gap-1.5">
+              <span>{entry.state || (entry.enabled ? "running" : "stopped")}</span>
+              {entry.version ? (
+                <Pill mono tone="neutral">
+                  v{entry.version}
+                </Pill>
+              ) : null}
+              {entry.health ? (
+                <Pill mono tone={healthTone}>
+                  {entry.health}
+                </Pill>
+              ) : null}
+              {entry.trust ? <TrustBadge trust={entry.trust} /> : null}
+              {missingEnv.length > 0 ? (
+                <Pill mono tone="warning">
+                  env missing
+                </Pill>
+              ) : null}
+            </Eyebrow>
+            {provenance ? (
+              <span
+                className="max-w-full break-all font-mono text-badge text-muted"
+                data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}-provenance-summary`}
+              >
+                {provenance.installed_from} · {provenance.registry_tier}
+                {provenance.allow_unverified ? " · allow_unverified=true" : ""}
+              </span>
             ) : null}
-            {entry.health ? (
-              <Pill mono tone={healthTone}>
-                {entry.health}
-              </Pill>
+            {entry.last_error ? (
+              <span
+                className="text-badge text-danger"
+                data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}-error`}
+              >
+                {entry.last_error}
+              </span>
             ) : null}
             {missingEnv.length > 0 ? (
-              <Pill mono tone="warning">
-                env missing
-              </Pill>
+              <span
+                className="max-w-full break-all font-mono text-badge text-warning"
+                data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}-missing-env`}
+              >
+                Missing env: {missingEnv.join(", ")}
+              </span>
             ) : null}
-          </Eyebrow>
-          {entry.last_error ? (
-            <span
-              className="text-badge text-danger"
-              data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}-error`}
-            >
-              {entry.last_error}
-            </span>
-          ) : null}
-          {missingEnv.length > 0 ? (
-            <span
-              className="max-w-full break-all font-mono text-badge text-warning"
-              data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}-missing-env`}
-            >
-              Missing env: {missingEnv.join(", ")}
-            </span>
-          ) : null}
+          </div>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          {pending ? <Spinner className="size-3 text-subtle" /> : null}
+          <Button
+            data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}-provenance`}
+            disabled={pending}
+            onClick={() => onOpenProvenance(entry)}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            <Info className="size-3.5" />
+            Provenance
+          </Button>
+          <Button
+            data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}-update`}
+            disabled={pending || !canMutate}
+            onClick={() => onUpdate(entry)}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            <RefreshCw className="size-3.5" />
+            Update
+          </Button>
+          <Button
+            data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}-remove`}
+            disabled={pending || !canMutate}
+            onClick={() => onRemove(entry)}
+            size="sm"
+            type="button"
+            variant="destructive"
+          >
+            <Trash2 className="size-3.5" />
+            Remove
+          </Button>
+          <Switch
+            data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}-toggle`}
+            checked={entry.enabled}
+            disabled={pending || !canMutate}
+            onCheckedChange={checked => onToggle(entry, checked)}
+            aria-label={`Toggle extension ${entry.name}`}
+          />
         </div>
       </div>
-      <div className="flex items-center gap-2">
-        {pending ? <Spinner className="size-3 text-subtle" /> : null}
-        <Switch
-          data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}-toggle`}
-          checked={entry.enabled}
-          disabled={pending || !canMutate}
-          onCheckedChange={checked => onToggle(entry, checked)}
-          aria-label={`Toggle extension ${entry.name}`}
+      {provenanceOpen ? (
+        <ProvenancePanel
+          name={entry.name}
+          provenance={selectedProvenance}
+          isLoading={provenanceLoading}
+          error={provenanceError}
+          onClose={onCloseProvenance}
         />
-      </div>
+      ) : null}
     </li>
+  );
+}
+
+type ExtensionTrustReport = NonNullable<
+  SettingsExtensionEntry["trust"] | SettingsExtensionMarketplaceEntry["trust"]
+>;
+
+function trustTone(trust: ExtensionTrustReport): "success" | "warning" | "danger" | "neutral" {
+  if (trust.decision === "verified" && trust.checksum_verified) return "success";
+  if (trust.decision === "allowed_unverified" || trust.allow_unverified) return "warning";
+  if (trust.decision === "blocked") return "danger";
+  return "neutral";
+}
+
+function TrustBadge({ trust }: { trust: ExtensionTrustReport }) {
+  return (
+    <Pill
+      mono
+      tone={trustTone(trust)}
+      data-testid={`settings-page-hooks-extensions-trust-${trust.decision}`}
+    >
+      {trust.decision}
+      {trust.allow_unverified ? " · allow_unverified=true" : ""}
+    </Pill>
+  );
+}
+
+function ProvenancePanel({
+  name,
+  provenance,
+  isLoading,
+  error,
+  onClose,
+}: {
+  name: string;
+  provenance: SettingsExtensionProvenance | null;
+  isLoading: boolean;
+  error: string | null;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="rounded-md border border-line bg-canvas px-3 py-2"
+      data-testid={`settings-page-hooks-extensions-extensions-item-${name}-provenance-panel`}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <Eyebrow className="text-muted">Provenance</Eyebrow>
+        <Button
+          aria-label={`Close provenance for ${name}`}
+          onClick={onClose}
+          size="icon-sm"
+          type="button"
+          variant="ghost"
+        >
+          <X className="size-3.5" />
+        </Button>
+      </div>
+      {isLoading ? (
+        <div className="mt-2 flex items-center gap-2 text-xs text-subtle">
+          <Spinner className="size-3" />
+          Loading provenance…
+        </div>
+      ) : error ? (
+        <p className="mt-2 text-xs text-danger">{error}</p>
+      ) : provenance ? (
+        <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2">
+          <ProvenanceField label="installed_from" value={provenance.installed_from} />
+          <ProvenanceField label="registry_tier" value={provenance.registry_tier} />
+          <ProvenanceField label="checksum_sha256" value={provenance.checksum_sha256 || "--"} />
+          <ProvenanceField
+            label="checksum_verified"
+            value={provenance.checksum_verified ? "true" : "false"}
+          />
+          <ProvenanceField
+            label="allow_unverified"
+            value={provenance.allow_unverified ? "true" : "false"}
+          />
+          <ProvenanceField label="installed_by" value={provenance.installed_by || "--"} />
+        </div>
+      ) : (
+        <p className="mt-2 text-xs text-subtle">No provenance returned.</p>
+      )}
+      {provenance?.trust ? (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <TrustBadge trust={provenance.trust} />
+          {provenance.trust.warnings?.map(item => (
+            <Pill key={item.id} mono tone="warning">
+              {item.code}
+            </Pill>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ProvenanceField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="eyebrow text-muted">{label}</dt>
+      <dd className="truncate font-mono text-badge text-fg" title={value}>
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+interface MarketplaceSectionProps {
+  entries: SettingsExtensionMarketplaceEntry[];
+  query: string;
+  setQuery: (value: string) => void;
+  allowUnverified: boolean;
+  setAllowUnverified: (value: boolean) => void;
+  pendingSlug: string | null;
+  error: string | null;
+  isLoading: boolean;
+  canMutate: boolean;
+  onSearch: () => void;
+  onInstall: (entry: SettingsExtensionMarketplaceEntry) => void;
+}
+
+function MarketplaceSection({
+  entries,
+  query,
+  setQuery,
+  allowUnverified,
+  setAllowUnverified,
+  pendingSlug,
+  error,
+  isLoading,
+  canMutate,
+  onSearch,
+  onInstall,
+}: MarketplaceSectionProps) {
+  return (
+    <Section
+      data-testid="settings-page-hooks-extensions-marketplace-section"
+      label="Extension marketplace"
+      note="daemon-owned search and install"
+      right={
+        <label className="flex items-center gap-2 text-xs text-muted">
+          <Switch
+            aria-label="Allow unverified extension install"
+            checked={allowUnverified}
+            disabled={!canMutate}
+            onCheckedChange={setAllowUnverified}
+            data-testid="settings-page-hooks-extensions-marketplace-allow-unverified"
+          />
+          allow_unverified
+        </label>
+      }
+    >
+      <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            aria-label="Search extension marketplace"
+            className="font-mono"
+            data-testid="settings-page-hooks-extensions-marketplace-search-input"
+            placeholder="owner/repo or bridge"
+            value={query}
+            onChange={event => setQuery(event.target.value)}
+            onKeyDown={event => {
+              if (event.key === "Enter") {
+                onSearch();
+              }
+            }}
+          />
+          <Button
+            data-testid="settings-page-hooks-extensions-marketplace-search"
+            disabled={isLoading}
+            onClick={onSearch}
+            type="button"
+            variant="outline"
+          >
+            {isLoading ? <Spinner className="size-3.5" /> : <Search className="size-3.5" />}
+            Search
+          </Button>
+        </div>
+        {error ? (
+          <span
+            className="text-xs text-danger"
+            data-testid="settings-page-hooks-extensions-marketplace-error"
+          >
+            {error}
+          </span>
+        ) : null}
+        {isLoading && entries.length === 0 ? (
+          <div
+            className="flex items-center gap-2 text-xs text-subtle"
+            data-testid="settings-page-hooks-extensions-marketplace-loading"
+          >
+            <Spinner className="size-3" />
+            Loading marketplace…
+          </div>
+        ) : entries.length === 0 ? (
+          <Empty
+            icon={ShieldCheck}
+            title="No marketplace entries"
+            description="Search the configured registry for an installable extension slug."
+            data-testid="settings-page-hooks-extensions-marketplace-empty"
+          />
+        ) : (
+          <div
+            className="overflow-hidden rounded-lg border border-line"
+            data-testid="settings-page-hooks-extensions-marketplace-list"
+          >
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-elevated">
+                  <TableHead className="eyebrow text-muted">Extension</TableHead>
+                  <TableHead className="eyebrow text-muted">Source</TableHead>
+                  <TableHead className="eyebrow text-muted">Trust</TableHead>
+                  <TableHead className="eyebrow w-[1%] text-right text-muted">Install</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {entries.map(entry => (
+                  <MarketplaceRow
+                    key={`${entry.source}:${entry.slug}`}
+                    entry={entry}
+                    pending={pendingSlug === entry.slug}
+                    canMutate={canMutate}
+                    onInstall={onInstall}
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
+    </Section>
+  );
+}
+
+function MarketplaceRow({
+  entry,
+  pending,
+  canMutate,
+  onInstall,
+}: {
+  entry: SettingsExtensionMarketplaceEntry;
+  pending: boolean;
+  canMutate: boolean;
+  onInstall: (entry: SettingsExtensionMarketplaceEntry) => void;
+}) {
+  return (
+    <TableRow data-testid={`settings-page-hooks-extensions-marketplace-row-${entry.slug}`}>
+      <TableCell>
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="truncate font-mono text-sm text-fg">{entry.name}</span>
+          <span className="max-w-md truncate text-xs text-muted">
+            {entry.description ?? entry.slug}
+          </span>
+        </div>
+      </TableCell>
+      <TableCell>
+        <div className="flex flex-col gap-0.5">
+          <span className="font-mono text-xs text-fg">{entry.source}</span>
+          <Eyebrow className="text-subtle">{entry.version ?? "latest"}</Eyebrow>
+        </div>
+      </TableCell>
+      <TableCell>
+        {entry.trust ? <TrustBadge trust={entry.trust} /> : <Pill mono>unknown</Pill>}
+      </TableCell>
+      <TableCell>
+        <div className="flex justify-end">
+          <Button
+            data-testid={`settings-page-hooks-extensions-marketplace-row-${entry.slug}-install`}
+            disabled={pending || !canMutate}
+            onClick={() => onInstall(entry)}
+            size="sm"
+            type="button"
+          >
+            {pending ? <Spinner className="size-3.5" /> : <Download className="size-3.5" />}
+            Install
+          </Button>
+        </div>
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -926,6 +1338,24 @@ function describeAction(
     return {
       message: `Hook "${action.name}" ${state} · ${restartBadge}.`,
       tone: "success",
+    };
+  }
+  if (action.kind === "extension-installed") {
+    return {
+      message: `Extension "${action.name}" installed · trust decision recorded.`,
+      tone: "info",
+    };
+  }
+  if (action.kind === "extension-updated") {
+    return {
+      message: `Extension "${action.name}" update ${action.status}.`,
+      tone: "info",
+    };
+  }
+  if (action.kind === "extension-removed") {
+    return {
+      message: `Extension "${action.name}" removed.`,
+      tone: "info",
     };
   }
   const state = action.enabled ? "enabled" : "disabled";

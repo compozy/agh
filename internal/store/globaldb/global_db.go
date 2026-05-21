@@ -54,6 +54,7 @@ const (
 	globalDBOutcomeKey                              = "outcome"
 	globalDBParentSessionIDKey                      = "parent_session_id"
 	globalDBPermissionPolicyJSONKey                 = "permission_policy_json"
+	globalDBExtensionProvenanceJSONKey              = "provenance_json"
 	globalDBRebuildModelCatalogSourceConstraintsKey = "rebuild_model_catalog_source_constraints"
 	globalDBRootSessionIDKey                        = "root_session_id"
 	globalDBScopeKey                                = "scope"
@@ -388,7 +389,8 @@ var globalSchemaStatements = appendSchemaStatements(
 		checksum      TEXT NOT NULL,
 		registry_slug TEXT,
 		registry_name TEXT,
-		remote_version TEXT
+		remote_version TEXT,
+		` + globalDBExtensionProvenanceJSONKey + ` TEXT NOT NULL DEFAULT '{}'
 	);`,
 		`CREATE TABLE IF NOT EXISTS automation_jobs (
 		id           TEXT PRIMARY KEY,
@@ -1016,6 +1018,12 @@ var globalSchemaMigrations = []store.Migration{
 		Name:     "add_task_pause_state",
 		Up:       migratePauseState,
 		Checksum: "2026-05-21-add-task-pause-state",
+	},
+	{
+		Version:  34,
+		Name:     "add_extension_provenance",
+		Up:       migrateExtensionProvenance,
+		Checksum: "2026-05-21-add-extension-provenance",
 	},
 }
 

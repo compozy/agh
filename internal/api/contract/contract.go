@@ -1051,8 +1051,60 @@ type NetworkPeerDetailPayload struct {
 
 // InstallExtensionRequest is the shared extension install request payload.
 type InstallExtensionRequest struct {
-	Path     string `json:"path"`
-	Checksum string `json:"checksum"`
+	Path            string `json:"path,omitempty"`
+	Checksum        string `json:"checksum,omitempty"`
+	Slug            string `json:"slug,omitempty"`
+	Version         string `json:"version,omitempty"`
+	Source          string `json:"source,omitempty"`
+	Asset           string `json:"asset,omitempty"`
+	AllowUnverified bool   `json:"allow_unverified,omitempty"`
+}
+
+// UpdateExtensionRequest is the shared marketplace extension update payload.
+type UpdateExtensionRequest struct {
+	Version         string `json:"version,omitempty"`
+	CheckOnly       bool   `json:"check_only,omitempty"`
+	AllowUnverified bool   `json:"allow_unverified,omitempty"`
+}
+
+// ExtensionTrustReportPayload records the trust decision for an installed or
+// marketplace extension.
+type ExtensionTrustReportPayload struct {
+	Decision         string           `json:"decision"`
+	RegistryTier     string           `json:"registry_tier"`
+	ChecksumVerified bool             `json:"checksum_verified"`
+	AllowUnverified  bool             `json:"allow_unverified"`
+	Warnings         []DiagnosticItem `json:"warnings,omitempty"`
+}
+
+// ExtensionProvenancePayload is the persisted source and trust record for one
+// installed extension.
+type ExtensionProvenancePayload struct {
+	Slug             string                       `json:"slug,omitempty"`
+	InstalledFrom    string                       `json:"installed_from"`
+	SourceURL        string                       `json:"source_url,omitempty"`
+	ChecksumSHA256   string                       `json:"checksum_sha256"`
+	ChecksumVerified bool                         `json:"checksum_verified"`
+	RegistryTier     string                       `json:"registry_tier"`
+	Permissions      []string                     `json:"permissions,omitempty"`
+	InstalledAt      time.Time                    `json:"installed_at"`
+	InstalledBy      string                       `json:"installed_by"`
+	AllowUnverified  bool                         `json:"allow_unverified"`
+	Warnings         []DiagnosticItem             `json:"warnings,omitempty"`
+	Trust            *ExtensionTrustReportPayload `json:"trust,omitempty"`
+}
+
+// ExtensionMarketplaceEntry is one daemon-owned extension marketplace result.
+type ExtensionMarketplaceEntry struct {
+	Slug        string                       `json:"slug"`
+	Name        string                       `json:"name"`
+	Description string                       `json:"description,omitempty"`
+	Author      string                       `json:"author,omitempty"`
+	Version     string                       `json:"version,omitempty"`
+	Downloads   int                          `json:"downloads,omitempty"`
+	Source      string                       `json:"source"`
+	Type        string                       `json:"type"`
+	Trust       *ExtensionTrustReportPayload `json:"trust,omitempty"`
 }
 
 // ExtensionPayload is the shared extension response payload surfaced by CLI APIs.
@@ -1074,6 +1126,9 @@ type ExtensionPayload struct {
 	LastError     string                          `json:"last_error,omitempty"`
 	DaemonRunning bool                            `json:"daemon_running"`
 	Bundles       []ExtensionBundleSummaryPayload `json:"bundles,omitempty"`
+	Provenance    *ExtensionProvenancePayload     `json:"provenance,omitempty"`
+	Trust         *ExtensionTrustReportPayload    `json:"trust,omitempty"`
+	Diagnostics   []DiagnosticItem                `json:"diagnostics,omitempty"`
 }
 
 // ExtensionBundleSummaryPayload captures the installed bundle catalog surfaced

@@ -1,6 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 
 import {
+  settingsExtensionMarketplaceOptions,
+  settingsExtensionProvenanceOptions,
   settingsSandboxDetailOptions,
   settingsSandboxesListOptions,
   settingsExtensionsListOptions,
@@ -9,7 +11,7 @@ import {
   settingsProviderDetailOptions,
   settingsProvidersListOptions,
 } from "../lib/query-options";
-import type { SettingsMCPServerListFilter } from "../types";
+import type { SettingsExtensionMarketplaceFilter, SettingsMCPServerListFilter } from "../types";
 
 interface QueryEnabledOptions {
   enabled?: boolean;
@@ -41,4 +43,12 @@ export function useSettingsMCPServers(filter: SettingsMCPServerListFilter = {}) 
 
 export function useSettingsExtensions() {
   return useQuery(settingsExtensionsListOptions());
+}
+
+export function useSettingsExtensionMarketplace(filter: SettingsExtensionMarketplaceFilter = {}) {
+  return useQuery(settingsExtensionMarketplaceOptions(filter));
+}
+
+export function useSettingsExtensionProvenance(name: string, options: QueryEnabledOptions = {}) {
+  return useQuery(settingsExtensionProvenanceOptions(name, options.enabled ?? true));
 }

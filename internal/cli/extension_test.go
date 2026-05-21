@@ -30,7 +30,17 @@ func TestExtensionInstallOfflinePersistsExtension(t *testing.T) {
 	deps, homePaths := newExtensionLocalDeps(t, &stubClient{})
 	dir := writeExtensionFixture(t, "alpha-ext", extensionFixtureOptions{})
 
-	stdout, _, err := executeRootCommand(t, deps, "extension", "install", dir, "-o", "json")
+	stdout, _, err := executeRootCommand(
+		t,
+		deps,
+		"extension",
+		"install",
+		dir,
+		"--allow-unverified",
+		"--yes",
+		"-o",
+		"json",
+	)
 	if err != nil {
 		t.Fatalf("extension install error = %v", err)
 	}
@@ -46,6 +56,9 @@ func TestExtensionInstallOfflinePersistsExtension(t *testing.T) {
 	info := getInstalledExtension(t, homePaths, "alpha-ext")
 	if !info.Enabled {
 		t.Fatalf("installed extension enabled = false, want true")
+	}
+	if !info.Provenance.AllowUnverified {
+		t.Fatalf("installed provenance allow_unverified = false, want true")
 	}
 }
 
@@ -98,6 +111,8 @@ func TestInstallPreparedExtensionDetectsChecksumMismatch(t *testing.T) {
 		homePaths,
 		registry,
 		prepared,
+		fixedTestNow,
+		true,
 	); err == nil ||
 		!errors.Is(err, extensionpkg.ErrExtensionChecksumMismatch) {
 		t.Fatalf("installPreparedExtension(checksum mismatch) error = %v, want ErrExtensionChecksumMismatch", err)
@@ -110,7 +125,17 @@ func TestExtensionInstallAndRemoveOfflinePreservesSourceDirectory(t *testing.T) 
 	deps, homePaths := newExtensionLocalDeps(t, &stubClient{})
 	sourceDir := writeExtensionFixture(t, "local-remove-ext", extensionFixtureOptions{})
 
-	if _, _, err := executeRootCommand(t, deps, "extension", "install", sourceDir, "-o", "json"); err != nil {
+	if _, _, err := executeRootCommand(
+		t,
+		deps,
+		"extension",
+		"install",
+		sourceDir,
+		"--allow-unverified",
+		"--yes",
+		"-o",
+		"json",
+	); err != nil {
 		t.Fatalf("extension install error = %v", err)
 	}
 
@@ -123,20 +148,18 @@ func TestExtensionInstallAndRemoveOfflinePreservesSourceDirectory(t *testing.T) 
 		t.Fatalf("source manifest stat after install error = %v", err)
 	}
 
-	if _, _, err := executeRootCommand(t, deps, "extension", "remove", "local-remove-ext", "-o", "json"); err != nil {
-		t.Fatalf("extension remove error = %v", err)
+	if _, _, err := executeRootCommand(t, deps, "extension", "remove", "local-remove-ext", "-o", "json"); err == nil ||
+		!strings.Contains(err.Error(), "running daemon") {
+		t.Fatalf("extension remove offline error = %v, want running daemon requirement", err)
 	}
 
 	if _, err := os.Stat(filepath.Join(sourceDir, "extension.toml")); err != nil {
-		t.Fatalf("source manifest stat after remove error = %v", err)
+		t.Fatalf("source manifest stat after offline remove rejection error = %v", err)
 	}
 	if _, err := os.Stat(
 		extensionpkg.ManagedInstallPath(homePaths, "local-remove-ext"),
-	); !errors.Is(
-		err,
-		os.ErrNotExist,
-	) {
-		t.Fatalf("managed install dir stat error = %v, want not exist", err)
+	); err != nil {
+		t.Fatalf("managed install dir stat after offline remove rejection error = %v", err)
 	}
 }
 
@@ -154,7 +177,16 @@ func TestExtensionListFormatsOffline(t *testing.T) {
 		if err != nil {
 			t.Fatalf("extension list human error = %v", err)
 		}
-		for _, token := range []string{"Extensions", "Name", "Version", "Type", "State", "Capabilities", "list-ext", "memory.backend"} {
+		for _, token := range []string{
+			"Extensions",
+			"Name",
+			"Version",
+			"Type",
+			"State",
+			"Capabilities",
+			"list-ext",
+			"memory.backend",
+		} {
 			if !strings.Contains(stdout, token) {
 				t.Fatalf("human output missing %q: %s", token, stdout)
 			}
@@ -199,18 +231,14 @@ func TestExtensionEnableDisableOffline(t *testing.T) {
 	}
 	cleanup()
 
-	if _, _, err := executeRootCommand(t, deps, "extension", "enable", "toggle-ext", "-o", "json"); err != nil {
-		t.Fatalf("extension enable error = %v", err)
-	}
-	if info := getInstalledExtension(t, homePaths, "toggle-ext"); !info.Enabled {
-		t.Fatalf("enabled state = false, want true")
+	if _, _, err := executeRootCommand(t, deps, "extension", "enable", "toggle-ext", "-o", "json"); err == nil ||
+		!strings.Contains(err.Error(), "running daemon") {
+		t.Fatalf("extension enable offline error = %v, want running daemon requirement", err)
 	}
 
-	if _, _, err := executeRootCommand(t, deps, "extension", "disable", "toggle-ext", "-o", "json"); err != nil {
-		t.Fatalf("extension disable error = %v", err)
-	}
-	if info := getInstalledExtension(t, homePaths, "toggle-ext"); info.Enabled {
-		t.Fatalf("enabled state = true, want false")
+	if _, _, err := executeRootCommand(t, deps, "extension", "disable", "toggle-ext", "-o", "json"); err == nil ||
+		!strings.Contains(err.Error(), "running daemon") {
+		t.Fatalf("extension disable offline error = %v, want running daemon requirement", err)
 	}
 }
 
@@ -220,8 +248,8 @@ func TestExtensionEnableUnknownReturnsNotFound(t *testing.T) {
 	deps, _ := newExtensionLocalDeps(t, &stubClient{})
 
 	_, _, err := executeRootCommand(t, deps, "extension", "enable", "missing-ext", "-o", "json")
-	if err == nil || !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
-		t.Fatalf("extension enable unknown error = %v, want ErrExtensionNotFound", err)
+	if err == nil || !strings.Contains(err.Error(), "running daemon") {
+		t.Fatalf("extension enable unknown offline error = %v, want running daemon requirement", err)
 	}
 }
 
@@ -278,17 +306,9 @@ func TestExtensionStatusOfflineUsesRegistryState(t *testing.T) {
 	})
 	installExtensionFixture(t, homePaths, dir)
 
-	stdout, _, err := executeRootCommand(t, deps, "extension", "status", "offline-ext", "-o", "json")
-	if err != nil {
-		t.Fatalf("extension status offline error = %v", err)
-	}
-
-	var item ExtensionRecord
-	if err := json.Unmarshal([]byte(stdout), &item); err != nil {
-		t.Fatalf("json.Unmarshal(status) error = %v", err)
-	}
-	if item.Name != "offline-ext" || item.DaemonRunning || item.State != "enabled" {
-		t.Fatalf("offline status payload = %#v, want daemon offline enabled state", item)
+	_, _, err := executeRootCommand(t, deps, "extension", "status", "offline-ext", "-o", "json")
+	if err == nil || !strings.Contains(err.Error(), "running daemon") {
+		t.Fatalf("extension status offline error = %v, want running daemon requirement", err)
 	}
 }
 
@@ -306,6 +326,22 @@ func TestExtensionStatusOfflineReportsMissingEnvWithoutLeakingValues(t *testing.
 		requiresEnv: []string{"PRESENT_TOKEN", "MISSING_TOKEN"},
 	})
 	installExtensionFixture(t, homePaths, dir)
+
+	deps.readDaemonInfo = func(string) (aghdaemon.Info, error) {
+		return aghdaemon.Info{PID: 999, StartedAt: fixedTestNow}, nil
+	}
+	deps.processAlive = func(int) bool { return true }
+	statusClient := &stubClient{
+		extensionStatusFn: func(_ context.Context, name string) (ExtensionRecord, error) {
+			if name != "env-ext" {
+				t.Fatalf("ExtensionStatus() name = %q, want env-ext", name)
+			}
+			return localExtensionRecord(*getInstalledExtension(t, homePaths, "env-ext"), deps.now, deps.getenv), nil
+		},
+	}
+	deps.newClient = func(string) (DaemonClient, error) {
+		return statusClient, nil
+	}
 
 	stdout, _, err := executeRootCommand(t, deps, "extension", "status", "env-ext", "-o", "json")
 	if err != nil {
@@ -362,11 +398,21 @@ func TestExtensionInstallUsesDaemonClientWhenRunning(t *testing.T) {
 	}
 	deps.processAlive = func(int) bool { return true }
 
-	if _, _, err := executeRootCommand(t, deps, "extension", "install", dir, "-o", "json"); err != nil {
+	if _, _, err := executeRootCommand(
+		t,
+		deps,
+		"extension",
+		"install",
+		dir,
+		"--allow-unverified",
+		"--yes",
+		"-o",
+		"json",
+	); err != nil {
 		t.Fatalf("extension install online error = %v", err)
 	}
-	if captured.Path == "" || captured.Checksum == "" {
-		t.Fatalf("captured install request = %#v, want path and checksum", captured)
+	if captured.Path == "" || captured.Checksum == "" || !captured.AllowUnverified {
+		t.Fatalf("captured install request = %#v, want path, checksum, and allow_unverified", captured)
 	}
 }
 
@@ -405,7 +451,8 @@ func TestExtensionBundleAndHelpers(t *testing.T) {
 	}
 	if !strings.Contains(
 		toon,
-		"extension{name,version,type,source,enabled,state,daemon_running,pid,uptime_seconds,health,last_error,capabilities,actions,requires_env,missing_env}:",
+		"extension{name,version,type,source,enabled,state,daemon_running,"+
+			"pid,uptime_seconds,health,last_error,capabilities,actions,requires_env,missing_env}:",
 	) {
 		t.Fatalf("toon output = %q, want extension TOON object", toon)
 	}

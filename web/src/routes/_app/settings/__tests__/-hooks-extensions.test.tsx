@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
   SettingsExtensionEntry,
+  SettingsExtensionMarketplaceEntry,
+  SettingsExtensionProvenance,
   SettingsHookEntry,
   SettingsHooksExtensionsSection,
   SettingsHooksExtensionsTransportParity,
@@ -89,6 +91,51 @@ const extensionEntry: SettingsExtensionEntry = {
   health: "healthy",
   requires_env: ["DAYTONA_TOKEN"],
   missing_env: ["DAYTONA_TOKEN"],
+  trust: {
+    decision: "allowed_unverified",
+    registry_tier: "community",
+    checksum_verified: false,
+    allow_unverified: true,
+    warnings: [
+      {
+        id: "diag_extension_checksum_unverified",
+        code: "extension_checksum_unverified",
+        severity: "warning",
+        title: "Extension checksum is not registry-verified",
+        message: "The operator allowed an install without a registry checksum match.",
+        category: "extension",
+        data_freshness: "live",
+      },
+    ],
+  },
+  provenance: {
+    slug: "daytona/daytona-extension",
+    installed_from: "marketplace_registry",
+    source_url: "https://registry.example.com/daytona/daytona-extension",
+    checksum_sha256: "sha256:fixture-daytona",
+    checksum_verified: false,
+    registry_tier: "community",
+    permissions: ["logs.read", "session.read"],
+    installed_at: "2026-05-21T10:00:00Z",
+    installed_by: "operator:web",
+    allow_unverified: true,
+    trust: {
+      decision: "allowed_unverified",
+      registry_tier: "community",
+      checksum_verified: false,
+      allow_unverified: true,
+    },
+  },
+};
+
+const marketplaceEntry: SettingsExtensionMarketplaceEntry = {
+  slug: "daytona/daytona-extension",
+  name: "daytona",
+  source: "github",
+  type: "backend",
+  version: "1.2.4",
+  description: "Workspace sandbox integration for AGH sessions.",
+  trust: extensionEntry.trust,
 };
 
 type RestartBanner = {
@@ -140,8 +187,26 @@ type PageState = {
   extensionsError: string | null;
   pendingExtensionName: string | null;
   toggleExtensionEnabled: ReturnType<typeof vi.fn>;
+  updateExtension: ReturnType<typeof vi.fn>;
+  removeExtension: ReturnType<typeof vi.fn>;
+  selectedProvenanceName: string | null;
+  selectedProvenance: SettingsExtensionProvenance | null;
+  provenanceLoading: boolean;
+  provenanceError: string | null;
+  openExtensionProvenance: ReturnType<typeof vi.fn>;
+  closeExtensionProvenance: ReturnType<typeof vi.fn>;
   extensionActionError: string | null;
   canMutateExtensions: boolean;
+  marketplaceSearch: string;
+  setMarketplaceSearch: ReturnType<typeof vi.fn>;
+  marketplaceEntries: SettingsExtensionMarketplaceEntry[];
+  marketplaceLoading: boolean;
+  marketplaceError: string | null;
+  marketplaceAllowUnverified: boolean;
+  setMarketplaceAllowUnverified: ReturnType<typeof vi.fn>;
+  pendingMarketplaceSlug: string | null;
+  searchMarketplace: ReturnType<typeof vi.fn>;
+  installMarketplaceExtension: ReturnType<typeof vi.fn>;
   transportParity: SettingsHooksExtensionsTransportParity | null;
   isPolicyDirty: boolean;
   isSavingPolicy: boolean;
@@ -162,7 +227,10 @@ type PageState = {
         enabled: boolean;
         result: { restart_required: boolean };
       }
-    | { kind: "extension-toggled"; name: string; enabled: boolean };
+    | { kind: "extension-toggled"; name: string; enabled: boolean }
+    | { kind: "extension-installed"; name: string }
+    | { kind: "extension-updated"; name: string; status: string }
+    | { kind: "extension-removed"; name: string };
   dismissLastAction: ReturnType<typeof vi.fn>;
   restart: RestartBanner;
 };
@@ -187,8 +255,26 @@ function makeState(overrides: Partial<PageState> = {}): PageState {
     extensionsError: null,
     pendingExtensionName: null,
     toggleExtensionEnabled: vi.fn(),
+    updateExtension: vi.fn(),
+    removeExtension: vi.fn(),
+    selectedProvenanceName: null,
+    selectedProvenance: null,
+    provenanceLoading: false,
+    provenanceError: null,
+    openExtensionProvenance: vi.fn(),
+    closeExtensionProvenance: vi.fn(),
     extensionActionError: null,
     canMutateExtensions: true,
+    marketplaceSearch: "",
+    setMarketplaceSearch: vi.fn(),
+    marketplaceEntries: [marketplaceEntry],
+    marketplaceLoading: false,
+    marketplaceError: null,
+    marketplaceAllowUnverified: false,
+    setMarketplaceAllowUnverified: vi.fn(),
+    pendingMarketplaceSlug: null,
+    searchMarketplace: vi.fn(),
+    installMarketplaceExtension: vi.fn(),
     transportParity: baseEnvelope.transport_parity,
     isPolicyDirty: false,
     isSavingPolicy: false,
@@ -284,6 +370,27 @@ describe("HooksExtensionsSettingsPage", () => {
     expect(
       screen.getByTestId("settings-page-hooks-extensions-extensions-item-daytona")
     ).toHaveTextContent("running");
+    expect(
+      screen.getByTestId(
+        "settings-page-hooks-extensions-extensions-item-daytona-provenance-summary"
+      )
+    ).toHaveTextContent("allow_unverified=true");
+    expect(
+      screen.getAllByTestId("settings-page-hooks-extensions-trust-allowed_unverified")[0]
+    ).toHaveTextContent("allow_unverified=true");
+  });
+
+  it("renders provenance details for the selected extension", () => {
+    pageState = makeState({
+      selectedProvenanceName: "daytona",
+      selectedProvenance: extensionEntry.provenance ?? null,
+    });
+    render(<HooksExtensionsSettingsPage />);
+    const panel = screen.getByTestId(
+      "settings-page-hooks-extensions-extensions-item-daytona-provenance-panel"
+    );
+    expect(panel).toHaveTextContent("marketplace_registry");
+    expect(panel).toHaveTextContent("allow_unverified");
   });
 
   it("renders missing extension environment requirements by name only", () => {
@@ -342,6 +449,48 @@ describe("HooksExtensionsSettingsPage", () => {
     const [entry, nextEnabled] = pageState.toggleExtensionEnabled.mock.calls[0];
     expect((entry as SettingsExtensionEntry).name).toBe("daytona");
     expect(nextEnabled).toBe(false);
+  });
+
+  it("wires extension provenance, update, and remove actions", () => {
+    render(<HooksExtensionsSettingsPage />);
+    fireEvent.click(
+      screen.getByTestId("settings-page-hooks-extensions-extensions-item-daytona-provenance")
+    );
+    fireEvent.click(
+      screen.getByTestId("settings-page-hooks-extensions-extensions-item-daytona-update")
+    );
+    fireEvent.click(
+      screen.getByTestId("settings-page-hooks-extensions-extensions-item-daytona-remove")
+    );
+
+    expect(pageState.openExtensionProvenance).toHaveBeenCalledWith(extensionEntry);
+    expect(pageState.updateExtension).toHaveBeenCalledWith(extensionEntry);
+    expect(pageState.removeExtension).toHaveBeenCalledWith(extensionEntry);
+  });
+
+  it("renders marketplace entries and routes install through the daemon action", () => {
+    render(<HooksExtensionsSettingsPage />);
+    expect(
+      screen.getByTestId("settings-page-hooks-extensions-marketplace-row-daytona/daytona-extension")
+    ).toHaveTextContent("Workspace sandbox");
+
+    fireEvent.click(screen.getByTestId("settings-page-hooks-extensions-marketplace-search"));
+    fireEvent.click(
+      screen.getByTestId(
+        "settings-page-hooks-extensions-marketplace-row-daytona/daytona-extension-install"
+      )
+    );
+
+    expect(pageState.searchMarketplace).toHaveBeenCalledTimes(1);
+    expect(pageState.installMarketplaceExtension).toHaveBeenCalledWith(marketplaceEntry);
+  });
+
+  it("surfaces the allow_unverified marketplace toggle", () => {
+    render(<HooksExtensionsSettingsPage />);
+    fireEvent.click(
+      screen.getByTestId("settings-page-hooks-extensions-marketplace-allow-unverified")
+    );
+    expect(pageState.setMarketplaceAllowUnverified.mock.calls[0]?.[0]).toBe(true);
   });
 
   it("wires policy save and reset controls", () => {

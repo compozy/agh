@@ -48,7 +48,8 @@ const (
 			checksum,
 			registry_slug,
 			registry_name,
-			remote_version
+			remote_version,
+			provenance_json
 	`
 	registryInsertColumns = `
 			name,
@@ -62,7 +63,8 @@ const (
 			checksum,
 			registry_slug,
 			registry_name,
-			remote_version
+			remote_version,
+			provenance_json
 	`
 )
 
@@ -86,6 +88,7 @@ type ExtensionInfo struct {
 	RegistrySlug  *string
 	RegistryName  *string
 	RemoteVersion *string
+	Provenance    ExtensionProvenance
 }
 
 type installConfig struct {
@@ -94,6 +97,7 @@ type installConfig struct {
 	registrySlug    *string
 	registryName    *string
 	remoteVersion   *string
+	provenance      *ExtensionProvenance
 }
 
 // InstallOption customizes one extension registry install operation.
@@ -119,6 +123,13 @@ func WithInstallRegistryMetadata(slug string, registryName string, remoteVersion
 		cfg.registrySlug = optionalInstallString(slug)
 		cfg.registryName = optionalInstallString(registryName)
 		cfg.remoteVersion = optionalInstallString(remoteVersion)
+	}
+}
+
+// WithInstallProvenance records the explicit source and trust evidence for one install.
+func WithInstallProvenance(provenance ExtensionProvenance) InstallOption {
+	return func(cfg *installConfig) {
+		cfg.provenance = &provenance
 	}
 }
 
@@ -420,19 +431,38 @@ func registryInstallInfo(
 	actualChecksum string,
 	config installConfig,
 ) ExtensionInfo {
+	installedAt := r.now().UTC()
+	capabilities := normalizeCapabilitiesConfig(resolvedManifest.Capabilities)
+	actions := normalizeActionsConfig(resolvedManifest.Actions)
+	fallbackProvenance := ExtensionProvenance{
+		Slug:             dereferenceOptionalString(config.registrySlug),
+		InstalledFrom:    installedFromForSource(config.source),
+		SourceURL:        manifestPath,
+		ChecksumSHA256:   actualChecksum,
+		ChecksumVerified: config.source != SourceMarketplace,
+		RegistryTier:     registryTierForSource(config.source, dereferenceOptionalString(config.registryName)),
+		Permissions:      extensionPermissions(capabilities, actions),
+		InstalledAt:      installedAt,
+		InstalledBy:      extensionTrustInstalledByOperator,
+	}
+	provenance := fallbackProvenance
+	if config.provenance != nil {
+		provenance = normalizeExtensionProvenance(*config.provenance, fallbackProvenance)
+	}
 	return ExtensionInfo{
 		Name:          strings.TrimSpace(resolvedManifest.Name),
 		Version:       strings.TrimSpace(resolvedManifest.Version),
 		Source:        config.source,
 		Enabled:       true,
 		ManifestPath:  manifestPath,
-		InstalledAt:   r.now().UTC(),
-		Capabilities:  normalizeCapabilitiesConfig(resolvedManifest.Capabilities),
-		Actions:       normalizeActionsConfig(resolvedManifest.Actions),
+		InstalledAt:   installedAt,
+		Capabilities:  capabilities,
+		Actions:       actions,
 		Checksum:      actualChecksum,
 		RegistrySlug:  config.registrySlug,
 		RegistryName:  config.registryName,
 		RemoteVersion: config.remoteVersion,
+		Provenance:    provenance,
 	}
 }
 
@@ -445,12 +475,16 @@ func (r *Registry) persistInstalledInfo(info ExtensionInfo, sourceText string, r
 	if err != nil {
 		return fmt.Errorf("extension: marshal actions for %q: %w", info.Name, err)
 	}
+	provenanceJSON, err := json.Marshal(info.Provenance)
+	if err != nil {
+		return fmt.Errorf("extension: marshal provenance for %q: %w", info.Name, err)
+	}
 
 	query := `
 		INSERT INTO extensions (
 ` + registryInsertColumns + `
 		)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	if replaceExisting {
 		query += `
@@ -464,7 +498,8 @@ func (r *Registry) persistInstalledInfo(info ExtensionInfo, sourceText string, r
 			checksum = excluded.checksum,
 			registry_slug = excluded.registry_slug,
 			registry_name = excluded.registry_name,
-			remote_version = excluded.remote_version
+			remote_version = excluded.remote_version,
+			provenance_json = excluded.provenance_json
 		`
 	}
 
@@ -483,6 +518,7 @@ func (r *Registry) persistInstalledInfo(info ExtensionInfo, sourceText string, r
 		nullableStringValue(info.RegistrySlug),
 		nullableStringValue(info.RegistryName),
 		nullableStringValue(info.RemoteVersion),
+		string(provenanceJSON),
 	)
 	if err != nil {
 		if replaceExisting {
@@ -606,6 +642,7 @@ func scanExtensionInfo(scanner interface{ Scan(dest ...any) error }) (*Extension
 		registrySlug    sql.NullString
 		registryName    sql.NullString
 		remoteVersion   sql.NullString
+		provenanceRaw   string
 	)
 
 	if err := scanner.Scan(
@@ -621,6 +658,7 @@ func scanExtensionInfo(scanner interface{ Scan(dest ...any) error }) (*Extension
 		&registrySlug,
 		&registryName,
 		&remoteVersion,
+		&provenanceRaw,
 	); err != nil {
 		return nil, err
 	}
@@ -648,6 +686,21 @@ func scanExtensionInfo(scanner interface{ Scan(dest ...any) error }) (*Extension
 	info.RegistrySlug = nullableStringPointer(registrySlug)
 	info.RegistryName = nullableStringPointer(registryName)
 	info.RemoteVersion = nullableStringPointer(remoteVersion)
+	if err := decodeRegistryJSON(provenanceRaw, &info.Provenance); err != nil {
+		return nil, fmt.Errorf("extension: decode provenance for %q: %w", info.Name, err)
+	}
+	info.Provenance = normalizeExtensionProvenance(info.Provenance, ExtensionProvenance{
+		Slug:             dereferenceOptionalString(info.RegistrySlug),
+		InstalledFrom:    installedFromForSource(info.Source),
+		SourceURL:        info.ManifestPath,
+		ChecksumSHA256:   info.Checksum,
+		ChecksumVerified: info.Source != SourceMarketplace,
+		RegistryTier:     registryTierForSource(info.Source, dereferenceOptionalString(info.RegistryName)),
+		Permissions:      extensionPermissions(info.Capabilities, info.Actions),
+		InstalledAt:      info.InstalledAt,
+		InstalledBy:      extensionTrustInstalledByOperator,
+		AllowUnverified:  false,
+	})
 
 	return &info, nil
 }

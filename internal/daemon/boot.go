@@ -1670,6 +1670,8 @@ func (d *Daemon) attachExtensionRuntime(
 		d.homePaths,
 		state.logger,
 		d.now,
+		withDaemonExtensionMarketplace(state.cfg.Extensions.Marketplace, nil),
+		withDaemonExtensionEventWriter(extensionEventSummaryStore(state.registry)),
 	)
 	if state.agentSkillResources != nil {
 		if err := state.agentSkillResources.Sync(ctx); err != nil {

@@ -31,7 +31,8 @@ const registryTestExtensionsTableSchema = `CREATE TABLE IF NOT EXISTS extensions
 	checksum      TEXT NOT NULL,
 	registry_slug TEXT,
 	registry_name TEXT,
-	remote_version TEXT
+	remote_version TEXT,
+	provenance_json TEXT NOT NULL DEFAULT '{}'
 );`
 
 const legacyRegistryTestExtensionsTableSchema = `CREATE TABLE IF NOT EXISTS extensions (

@@ -7,6 +7,7 @@ import {
   deleteSettingsProvider,
   disableSettingsExtension,
   enableSettingsExtension,
+  getSettingsExtensionProvenance,
   getSettingsGeneral,
   getSettingsObservability,
   getSettingsRestartStatus,
@@ -21,9 +22,13 @@ import {
   putSettingsMCPServer,
   putSettingsProvider,
   reloadSettings,
+  installSettingsExtension,
+  removeSettingsExtension,
+  searchSettingsExtensionMarketplace,
   SettingsApiError,
   settingsObservabilityLogTailPath,
   triggerSettingsRestart,
+  updateSettingsExtension,
   updateSettingsAutomation,
   updateSettingsGeneral,
   updateSettingsSkills,
@@ -591,6 +596,106 @@ describe("extension operational actions", () => {
     expect(result).toEqual([extensionFixture]);
     expect(result[0]?.missing_env).toEqual(["DAYTONA_TOKEN"]);
     await expectFetchRequest({ path: "/api/extensions" });
+  });
+
+  it("searches extension marketplace through the HTTP endpoint", async () => {
+    const marketplaceEntry = {
+      slug: "daytona/daytona-extension",
+      name: "daytona",
+      source: "github",
+      type: "backend",
+      version: "1.2.4",
+      trust: {
+        decision: "allowed_unverified",
+        registry_tier: "community",
+        checksum_verified: false,
+        allow_unverified: true,
+      },
+    };
+    mockJsonResponse({ extensions: [marketplaceEntry] });
+
+    const result = await searchSettingsExtensionMarketplace({
+      q: "daytona",
+      source: "github",
+      limit: "12",
+    });
+
+    expect(result).toEqual([marketplaceEntry]);
+    await expectFetchRequest({
+      path: "/api/extensions/marketplace?q=daytona&source=github&limit=12",
+    });
+  });
+
+  it("installs marketplace extensions with allow_unverified carried in the body", async () => {
+    mockJsonResponse({ extension: extensionFixture }, { status: 201 });
+
+    const result = await installSettingsExtension({
+      slug: "daytona/daytona-extension",
+      source: "github",
+      version: "1.2.4",
+      allow_unverified: true,
+    });
+
+    expect(result).toEqual(extensionFixture);
+    await expectFetchRequest({
+      method: "POST",
+      path: "/api/extensions",
+      body: {
+        slug: "daytona/daytona-extension",
+        source: "github",
+        version: "1.2.4",
+        allow_unverified: true,
+      },
+    });
+  });
+
+  it("updates, removes, and reads extension provenance through daemon routes", async () => {
+    mockJsonResponse({
+      update: {
+        name: "daytona",
+        slug: "daytona/daytona-extension",
+        registry: "github",
+        path: "/tmp/agh/extensions/daytona",
+        current_version: "1.2.3",
+        latest_version: "1.2.4",
+        status: "available",
+      },
+    });
+    const update = await updateSettingsExtension("daytona", {
+      version: "1.2.4",
+      allow_unverified: true,
+    });
+    expect(update.status).toBe("available");
+    await expectFetchRequest({
+      method: "PUT",
+      path: "/api/extensions/daytona",
+      body: { version: "1.2.4", allow_unverified: true },
+    });
+
+    mockJsonResponse({
+      extension: { name: "daytona", path: "/tmp/agh/extensions/daytona", status: "removed" },
+    });
+    const removed = await removeSettingsExtension("daytona");
+    expect(removed.status).toBe("removed");
+    await expectFetchRequest({
+      callIndex: 1,
+      method: "DELETE",
+      path: "/api/extensions/daytona",
+    });
+
+    const provenance = {
+      installed_from: "marketplace_registry",
+      checksum_sha256: "sha256:fixture-daytona",
+      checksum_verified: false,
+      registry_tier: "community",
+      permissions: ["logs.read"],
+      installed_at: "2026-05-21T10:00:00Z",
+      installed_by: "operator:web",
+      allow_unverified: true,
+    };
+    mockJsonResponse({ provenance });
+    await expect(getSettingsExtensionProvenance("daytona")).resolves.toEqual(provenance);
+    await expectFetchRequest({ callIndex: 2, path: "/api/extensions/daytona/provenance" });
   });
 
   it("enables an extension and returns the updated record", async () => {

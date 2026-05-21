@@ -12,6 +12,11 @@ import type {
   SettingsSandboxDetail,
   SettingsSandboxRequest,
   SettingsExtensionEntry,
+  SettingsExtensionMarketplaceEntry,
+  SettingsExtensionMarketplaceFilter,
+  SettingsExtensionProvenance,
+  SettingsExtensionRemove,
+  SettingsExtensionUpdate,
   SettingsGeneralSection,
   SettingsHookCollection,
   SettingsHookRequest,
@@ -37,7 +42,9 @@ import type {
   SettingsUpdateStatus,
   SettingsUpdateAutomationRequest,
   SettingsUpdateGeneralRequest,
+  SettingsInstallExtensionRequest,
   SettingsUpdateHooksExtensionsRequest,
+  SettingsUpdateExtensionRequest,
   SettingsUpdateMemoryRequest,
   SettingsUpdateNetworkRequest,
   SettingsUpdateObservabilityRequest,
@@ -78,6 +85,14 @@ function normalizeMCPMutationFilter(
     scope: filter.scope,
     workspace_id: normalizeOptionalText(filter.workspace_id),
     target: filter.target,
+  };
+}
+
+function normalizeExtensionMarketplaceFilter(filter: SettingsExtensionMarketplaceFilter = {}) {
+  return {
+    q: normalizeOptionalText(filter.q),
+    source: normalizeOptionalText(filter.source),
+    limit: normalizeOptionalText(filter.limit),
   };
 }
 
@@ -736,6 +751,116 @@ export async function listSettingsExtensions(
   }
 
   return requireResponseData(data, response, "Failed to list extensions").extensions;
+}
+
+export async function searchSettingsExtensionMarketplace(
+  filter: SettingsExtensionMarketplaceFilter = {},
+  signal?: AbortSignal
+): Promise<SettingsExtensionMarketplaceEntry[]> {
+  const { data, error, response } = await apiClient.GET("/api/extensions/marketplace", {
+    params: { query: normalizeExtensionMarketplaceFilter(filter) },
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    throw new SettingsApiError(
+      defaultApiErrorMessage("Failed to search extension marketplace", response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, "Failed to search extension marketplace").extensions;
+}
+
+export async function installSettingsExtension(
+  body: SettingsInstallExtensionRequest,
+  signal?: AbortSignal
+): Promise<SettingsExtensionEntry> {
+  const { data, error, response } = await apiClient.POST("/api/extensions", {
+    body,
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    throw new SettingsApiError(
+      defaultApiErrorMessage("Failed to install extension", response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, "Failed to install extension").extension;
+}
+
+export async function updateSettingsExtension(
+  name: string,
+  body: SettingsUpdateExtensionRequest,
+  signal?: AbortSignal
+): Promise<SettingsExtensionUpdate> {
+  const { data, error, response } = await apiClient.PUT("/api/extensions/{name}", {
+    params: { path: { name } },
+    body,
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new SettingsApiError(`Extension not found: ${name}`, 404);
+    }
+
+    throw new SettingsApiError(
+      defaultApiErrorMessage(`Failed to update extension "${name}"`, response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, `Failed to update extension "${name}"`).update;
+}
+
+export async function removeSettingsExtension(
+  name: string,
+  signal?: AbortSignal
+): Promise<SettingsExtensionRemove> {
+  const { data, error, response } = await apiClient.DELETE("/api/extensions/{name}", {
+    params: { path: { name } },
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new SettingsApiError(`Extension not found: ${name}`, 404);
+    }
+
+    throw new SettingsApiError(
+      defaultApiErrorMessage(`Failed to remove extension "${name}"`, response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, `Failed to remove extension "${name}"`).extension;
+}
+
+export async function getSettingsExtensionProvenance(
+  name: string,
+  signal?: AbortSignal
+): Promise<SettingsExtensionProvenance> {
+  const { data, error, response } = await apiClient.GET("/api/extensions/{name}/provenance", {
+    params: { path: { name } },
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new SettingsApiError(`Extension not found: ${name}`, 404);
+    }
+
+    throw new SettingsApiError(
+      defaultApiErrorMessage(`Failed to load extension provenance for "${name}"`, response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, `Failed to load extension provenance for "${name}"`)
+    .provenance;
 }
 
 export async function enableSettingsExtension(
