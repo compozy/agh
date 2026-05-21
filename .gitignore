@@ -60,6 +60,7 @@ ai-docs/
 .compozy/tasks/*/reviews-*/peer-review/*.json
 .compozy/tasks/*/reviews-*/peer-review/*.patch
 .compozy/tasks/*/reviews-*/peer-review/*.txt
+.compozy/tasks/**/*/.dispatch
 
 # Python
 __pycache__/
