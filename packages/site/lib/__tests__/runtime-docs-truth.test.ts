@@ -42,8 +42,33 @@ function listManualDocs(dir: string): ManualDoc[] {
   return docs.sort((left, right) => left.path.localeCompare(right.path));
 }
 
+function listAllDocs(dir: string): ManualDoc[] {
+  const docs: ManualDoc[] = [];
+  for (const entry of readdirSync(dir)) {
+    const fullPath = resolve(dir, entry);
+    const stat = statSync(fullPath);
+    if (stat.isDirectory()) {
+      docs.push(...listAllDocs(fullPath));
+      continue;
+    }
+    if (stat.isFile() && fullPath.endsWith(".mdx")) {
+      docs.push({
+        path: relative(contentRoot, fullPath),
+        content: readFileSync(fullPath, "utf8"),
+      });
+    }
+  }
+  return docs.sort((left, right) => left.path.localeCompare(right.path));
+}
+
 function manualContent(): string {
   return listManualDocs(contentRoot)
+    .map(doc => `\n--- ${doc.path} ---\n${doc.content}`)
+    .join("\n");
+}
+
+function allRuntimeContent(): string {
+  return listAllDocs(resolve(contentRoot, "runtime"))
     .map(doc => `\n--- ${doc.path} ---\n${doc.content}`)
     .join("\n");
 }
@@ -395,5 +420,31 @@ describe("runtime docs truth", () => {
     ]) {
       expect(ids.has(removed)).toBe(false);
     }
+  });
+
+  it("keeps prod-ready hard-cut surfaces out of current runtime docs", () => {
+    const content = allRuntimeContent();
+    const forbiddenSnippets = [
+      "/api/daemon/status",
+      "/api/observe/health",
+      "/api/observe/events",
+      "agh daemon status",
+      "agh observe health",
+      "agh observe events",
+      "pending_changes",
+      "network.presence.active_window_minutes",
+      "useNetworkPresence",
+      "use-network-presence",
+      "skills.shadow",
+      "daemonUnavailableError",
+      "ProviderConfig.Aliases",
+      "[notifications.presets",
+    ];
+
+    for (const snippet of forbiddenSnippets) {
+      expect(content).not.toContain(snippet);
+    }
+    expect(content).not.toMatch(/\/api\/support\/bundle(?!s)/);
+    expect(content).not.toMatch(/\/api\/providers\/(?:\{provider_id\}|[a-z0-9_-]+)\/models/);
   });
 });
