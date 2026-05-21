@@ -27,7 +27,7 @@ import {
   deriveSkillRecentCalls,
   skillSourceTone,
 } from "../lib/skill-formatters";
-import type { SkillPayload } from "../types";
+import type { SkillPayload, SkillShadowsResponse } from "../types";
 
 interface SkillDetailPanelProps {
   skill: SkillPayload | undefined;
@@ -41,6 +41,9 @@ interface SkillDetailPanelProps {
   onDisable: (name: string) => void;
   onEnable: (name: string) => void;
   isActionPending: boolean;
+  shadows: SkillShadowsResponse | undefined;
+  isShadowsLoading: boolean;
+  shadowsError: Error | null;
 }
 
 interface SkillContentSectionProps {
@@ -202,6 +205,117 @@ function SkillRecentCallsSection({ skill }: { skill: SkillPayload }) {
   );
 }
 
+function SkillProvenanceSection({ skill }: { skill: SkillPayload }) {
+  const provenance = skill.provenance;
+  if (!provenance) return null;
+  const rows = [
+    ["Tier", provenance.precedence_tier],
+    ["Extension", provenance.installed_from_extension],
+    ["Bundle", provenance.installed_from_bundle],
+    ["Registry", provenance.registry],
+    ["Slug", provenance.slug],
+    ["Version", provenance.version],
+  ].filter(([, value]) => typeof value === "string" && value.trim() !== "");
+
+  return (
+    <Section label="Provenance">
+      <div
+        className="overflow-hidden rounded-lg border border-line"
+        data-testid="skill-provenance-table"
+      >
+        <Table>
+          <TableBody>
+            {rows.map(([label, value]) => (
+              <TableRow key={label}>
+                <TableCell className="w-32 text-eyebrow text-subtle">{label}</TableCell>
+                <TableCell className="font-mono text-xs text-muted">{value}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </Section>
+  );
+}
+
+function SkillShadowSection({
+  shadows,
+  isLoading,
+  error,
+}: {
+  shadows: SkillShadowsResponse | undefined;
+  isLoading: boolean;
+  error: Error | null;
+}) {
+  if (isLoading) {
+    return (
+      <Section label="Resolution">
+        <div
+          className="flex items-center gap-2 rounded-lg border border-line px-4 py-3 text-small-body text-muted"
+          data-testid="skill-shadows-loading"
+        >
+          <Spinner aria-hidden="true" className="size-4 text-subtle" />
+          Loading resolver paths…
+        </div>
+      </Section>
+    );
+  }
+  if (error) {
+    return (
+      <Section label="Resolution">
+        <p className="rounded-lg border border-danger/40 px-4 py-3 text-small-body text-danger">
+          {error.message ?? "Failed to load skill resolution."}
+        </p>
+      </Section>
+    );
+  }
+  if (!shadows || shadows.shadows.length === 0) return null;
+
+  return (
+    <Section label="Resolution">
+      <div
+        className="overflow-hidden rounded-lg border border-line"
+        data-testid="skill-shadow-table"
+      >
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-20">Winner</TableHead>
+              <TableHead className="w-28">Tier</TableHead>
+              <TableHead>Path</TableHead>
+              <TableHead className="w-30 text-right">Detected</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {shadows.shadows.map(entry => (
+              <TableRow key={`${entry.tier}-${entry.path}`}>
+                <TableCell>
+                  <StatusDot
+                    label={entry.resolved_to_winner ? "winner" : "shadowed"}
+                    tone={entry.resolved_to_winner ? "accent" : "faint"}
+                    variant={entry.resolved_to_winner ? "solid" : "ring"}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Pill mono tone={skillSourceTone(entry.tier)}>
+                    {entry.tier}
+                  </Pill>
+                </TableCell>
+                <TableCell className="max-w-0 truncate font-mono text-xs text-muted">
+                  {entry.path}
+                </TableCell>
+                <TableCell className="text-right font-mono text-eyebrow text-subtle">
+                  <Time iso={entry.detected_at} />
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </Section>
+  );
+}
+
 function SkillDetailPanel({
   skill,
   isLoading,
@@ -214,6 +328,9 @@ function SkillDetailPanel({
   onDisable,
   onEnable,
   isActionPending,
+  shadows,
+  isShadowsLoading,
+  shadowsError,
 }: SkillDetailPanelProps) {
   if (isLoading) {
     return (
@@ -281,7 +398,7 @@ function SkillDetailPanel({
             ) : null}
             {author ? <Pill mono data-testid="detail-author-badge">{`@${author}`}</Pill> : null}
             <Pill mono data-testid="source-badge" tone={skillSourceTone(skill.source)}>
-              {skill.source}
+              {skill.provenance?.precedence_tier ?? skill.source}
             </Pill>
           </>
         }
@@ -318,6 +435,8 @@ function SkillDetailPanel({
         </Section>
 
         <SkillCapabilitiesSection skill={skill} />
+        <SkillProvenanceSection skill={skill} />
+        <SkillShadowSection error={shadowsError} isLoading={isShadowsLoading} shadows={shadows} />
         <SkillRecentCallsSection skill={skill} />
       </div>
     </div>

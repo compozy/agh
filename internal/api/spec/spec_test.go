@@ -454,6 +454,10 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertParameter(t, listSkills, "for_agent", openapi3.ParameterInQuery, false)
 				listSkillsSchema := jsonResponseSchema(t, listSkills, 200)
 				skillSchema := propertySchema(t, listSkillsSchema, "skills").Items.Value
+				provenanceSchema := propertySchema(t, skillSchema, "provenance")
+				assertRequired(t, provenanceSchema, "precedence_tier")
+				shadowEntrySchema := propertySchema(t, provenanceSchema, "shadowed_by").Items.Value
+				assertRequired(t, shadowEntrySchema, "path", "tier", "resolved_to_winner", "detected_at")
 				skillDiagnosticsSchema := propertySchema(t, skillSchema, "diagnostics").Items.Value
 				assertRequired(t, skillDiagnosticsSchema, "name", "state", "verification_status")
 				assertEnumValues(
@@ -481,6 +485,14 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				getSkillContent := operationFor(t, doc, "/api/skills/{name}/content", "GET")
 				assertParameter(t, getSkillContent, "workspace", openapi3.ParameterInQuery, false)
 				assertParameter(t, getSkillContent, "for_agent", openapi3.ParameterInQuery, false)
+
+				getSkillShadows := operationFor(t, doc, "/api/skills/{name}/shadows", "GET")
+				assertParameter(t, getSkillShadows, "workspace", openapi3.ParameterInQuery, false)
+				assertParameter(t, getSkillShadows, "for_agent", openapi3.ParameterInQuery, false)
+				shadowsSchema := jsonResponseSchema(t, getSkillShadows, 200)
+				assertRequired(t, shadowsSchema, "name", "winner", "shadows")
+				winnerSchema := propertySchema(t, shadowsSchema, "winner")
+				assertRequired(t, winnerSchema, "path", "tier", "resolved_to_winner", "detected_at")
 
 				enableSkill := operationFor(t, doc, "/api/skills/{name}/enable", "POST")
 				assertParameter(t, enableSkill, "workspace", openapi3.ParameterInQuery, false)

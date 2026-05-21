@@ -12,7 +12,9 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
+	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/skills"
 	skillbundled "github.com/pedronauck/agh/skills"
@@ -196,7 +198,76 @@ func skillInfoItemFromRecord(record SkillRecord) skillInfoItem {
 		Path:        record.Dir,
 		Enabled:     record.Enabled,
 		Metadata:    cloneMetadata(record.Metadata),
+		Provenance:  record.Provenance,
 	}
+}
+
+func skillInfoItemFromSkill(skill *skills.Skill, resources []string, now time.Time) skillInfoItem {
+	item := skillInfoItem{
+		Name:        skill.Meta.Name,
+		Description: skill.Meta.Description,
+		Version:     skill.Meta.Version,
+		Source:      skillSourceLabel(skill.Source),
+		Path:        skill.FilePath,
+		Enabled:     skill.Enabled,
+		Metadata:    cloneMetadata(skill.Meta.Metadata),
+		Resources:   resources,
+	}
+	shadows, ok := skills.ShadowsForSkill(skill, now)
+	if ok {
+		provenance := skillProvenanceRecordFromSkill(skill, shadows)
+		item.Provenance = &provenance
+	}
+	return item
+}
+
+func skillShadowsRecordFromDomain(snapshot skills.SkillShadows) SkillShadowsRecord {
+	return SkillShadowsRecord{
+		Name:    strings.TrimSpace(snapshot.Name),
+		Winner:  skillShadowEntryRecordFromDomain(snapshot.Winner),
+		Shadows: skillShadowEntryRecordsFromDomain(snapshot.Shadows),
+	}
+}
+
+func skillShadowEntryRecordsFromDomain(entries []skills.ShadowEntry) []contract.SkillShadowEntryPayload {
+	if len(entries) == 0 {
+		return nil
+	}
+	records := make([]contract.SkillShadowEntryPayload, 0, len(entries))
+	for _, entry := range entries {
+		records = append(records, skillShadowEntryRecordFromDomain(entry))
+	}
+	return records
+}
+
+func skillShadowEntryRecordFromDomain(entry skills.ShadowEntry) contract.SkillShadowEntryPayload {
+	return contract.SkillShadowEntryPayload{
+		Path:             strings.TrimSpace(entry.Path),
+		Tier:             strings.TrimSpace(entry.Tier),
+		ResolvedToWinner: entry.ResolvedToWinner,
+		DetectedAt:       entry.DetectedAt.UTC(),
+	}
+}
+
+func skillProvenanceRecordFromSkill(skill *skills.Skill, shadows skills.SkillShadows) SkillProvenanceRecord {
+	provenance := SkillProvenanceRecord{
+		InstalledFromBundle:    strings.TrimSpace(skill.InstalledFromBundle),
+		InstalledFromExtension: strings.TrimSpace(skill.InstalledFromExtension),
+		PrecedenceTier:         skills.SkillPrecedenceTierName(skill.Source),
+	}
+	if skill.Provenance != nil {
+		provenance.Slug = strings.TrimSpace(skill.Provenance.Slug)
+		provenance.Registry = strings.TrimSpace(skill.Provenance.Registry)
+		provenance.Version = strings.TrimSpace(skill.Provenance.Version)
+		if !skill.Provenance.InstalledAt.IsZero() {
+			installedAt := skill.Provenance.InstalledAt.UTC()
+			provenance.InstalledAt = &installedAt
+		}
+	}
+	if len(shadows.Shadows) > 1 {
+		provenance.ShadowedBy = skillShadowEntryRecordsFromDomain(shadows.Shadows[1:])
+	}
+	return provenance
 }
 
 func commandWorkspaceFlag(cmd *cobra.Command) (string, error) {

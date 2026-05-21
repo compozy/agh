@@ -135,6 +135,7 @@ type stubClient struct {
 	listSkillsFn                  func(context.Context, SkillQuery) ([]SkillRecord, error)
 	getSkillFn                    func(context.Context, string, SkillQuery) (SkillRecord, error)
 	getSkillContentFn             func(context.Context, string, SkillQuery) (string, error)
+	getSkillShadowsFn             func(context.Context, string, SkillQuery) (SkillShadowsRecord, error)
 	enableSkillFn                 func(context.Context, string, SkillQuery) (SkillActionRecord, error)
 	disableSkillFn                func(context.Context, string, SkillQuery) (SkillActionRecord, error)
 	listToolsFn                   func(context.Context, ToolQuery) (ToolsResponseRecord, error)
@@ -1323,6 +1324,17 @@ func (s *stubClient) GetSkillContent(ctx context.Context, name string, query Ski
 		return s.getSkillContentFn(ctx, name, query)
 	}
 	return "", errors.New("unexpected GetSkillContent call")
+}
+
+func (s *stubClient) GetSkillShadows(
+	ctx context.Context,
+	name string,
+	query SkillQuery,
+) (SkillShadowsRecord, error) {
+	if s.getSkillShadowsFn != nil {
+		return s.getSkillShadowsFn(ctx, name, query)
+	}
+	return SkillShadowsRecord{}, errors.New("unexpected GetSkillShadows call")
 }
 
 func (s *stubClient) EnableSkill(ctx context.Context, name string, query SkillQuery) (SkillActionRecord, error) {

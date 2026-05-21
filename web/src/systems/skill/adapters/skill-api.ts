@@ -15,6 +15,7 @@ import type {
   SkillMarketplaceUpdatePayload,
   SkillMarketplaceUpdateRequest,
   SkillPayload,
+  SkillShadowsResponse,
 } from "../types";
 
 export class SkillApiError extends Error {
@@ -87,6 +88,30 @@ export async function getSkillContent(
     );
   }
   return requireResponseData(data, response, `Failed to fetch skill content "${name}"`).content;
+}
+
+export async function getSkillShadows(
+  name: string,
+  workspace: string,
+  signal?: AbortSignal
+): Promise<SkillShadowsResponse> {
+  const { data, error, response } = await apiClient.GET("/api/skills/{name}/shadows", {
+    params: {
+      path: { name },
+      query: { workspace },
+    },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new SkillApiError("Skill not found: " + name, 404);
+    }
+    throw new SkillApiError(
+      defaultApiErrorMessage('Failed to fetch skill resolution "' + name + '"', response, error),
+      response.status
+    );
+  }
+  return requireResponseData(data, response, 'Failed to fetch skill resolution "' + name + '"');
 }
 
 export async function enableSkill(

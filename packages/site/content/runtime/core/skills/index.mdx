@@ -108,6 +108,29 @@ Enabled extensions can also register runtime-owned skills into the live registry
 are not filesystem-backed, so they are documented as runtime registry behavior rather than as one
 more scan root.
 
+## Provenance And Shadow Audit
+
+Every skill list/detail payload includes `provenance.precedence_tier`, which is the resolver tier
+that won for that skill: `bundled`, `marketplace`, `user`, `additional`, `workspace`, or
+`agent_local`. Marketplace metadata remains in `slug`, `registry`, `version`, and `installed_at`.
+Skills supplied by higher-level runtime packages can also carry `installed_from_bundle` or
+`installed_from_extension` so operators can trace the owning bundle or extension.
+
+When more than one declaration uses the same skill name, AGH keeps the normal precedence order and
+records the losing declarations in `provenance.shadowed_by`. The full resolver view is available
+through the same operator and agent-manageable surfaces:
+
+| Surface  | Operation                                                                                    |
+| -------- | -------------------------------------------------------------------------------------------- |
+| CLI      | `agh skill where <name> [--workspace <ref>] [--for-agent <name>]`                            |
+| HTTP/UDS | `GET /api/skills/{name}/shadows?workspace=<ref>&for_agent=<name>`                            |
+| Web      | Skills detail shows the winning tier, installed-from fields, and every winner/shadowed path. |
+
+The shadows response lists the winner first and marks it with `resolved_to_winner: true`.
+Lower-precedence declarations remain visible with `resolved_to_winner: false`. AGH also writes a
+canonical `skill.shadowed` event whenever resolver reconciliation detects a shadow relationship,
+including daemon boot, workspace resolution, agent-local overlays, and extension/resource updates.
+
 ## Resolution Flow
 
 <Mermaid

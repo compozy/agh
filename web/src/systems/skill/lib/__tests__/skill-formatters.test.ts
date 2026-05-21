@@ -64,6 +64,7 @@ describe("skill-formatters", () => {
             slug: "compozy",
             registry: "official",
             installed_at: "",
+            precedence_tier: "marketplace",
             version: "1",
           },
         })
@@ -76,6 +77,7 @@ describe("skill-formatters", () => {
             slug: "workspace",
             registry: "workspace",
             installed_at: "",
+            precedence_tier: "workspace",
             version: "1",
           },
           metadata: { author: "pedronauck" },

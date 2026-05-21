@@ -182,6 +182,9 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 	if len(loaded.Skills) != 1 || loaded.Skills[0].Meta.Name != "ext-review" {
 		t.Fatalf("Get(ext-runtime).Skills = %#v, want ext-review extension snapshot", loaded.Skills)
 	}
+	if got, want := loaded.Skills[0].InstalledFromExtension, "ext-runtime"; got != want {
+		t.Fatalf("Get(ext-runtime).Skills[0].InstalledFromExtension = %q, want %q", got, want)
+	}
 	if !loaded.Status.Active {
 		t.Fatalf("Get(ext-runtime).Status.Active = false, want true")
 	}
@@ -193,6 +196,54 @@ func TestManagerStartRegistersResourcesAndActivatesExtension(t *testing.T) {
 	}
 	if got, want := loaded.Status.Phase, ExtensionPhaseActivate; got != want {
 		t.Fatalf("Get(ext-runtime).Status.Phase = %q, want %q", got, want)
+	}
+}
+
+func TestExtensionSkillInstalledFrom(t *testing.T) {
+	t.Parallel()
+
+	registrySlug := "acme/marketplace-ext"
+	tests := []struct {
+		name string
+		info ExtensionInfo
+		want string
+	}{
+		{
+			name: "Should prefer marketplace registry slug",
+			info: ExtensionInfo{
+				Name:         "runtime-name",
+				RegistrySlug: &registrySlug,
+				Provenance: ExtensionProvenance{
+					Slug: "acme/provenance-ext",
+				},
+			},
+			want: "acme/marketplace-ext",
+		},
+		{
+			name: "Should use provenance slug when registry slug is absent",
+			info: ExtensionInfo{
+				Name: "runtime-name",
+				Provenance: ExtensionProvenance{
+					Slug: "acme/provenance-ext",
+				},
+			},
+			want: "acme/provenance-ext",
+		},
+		{
+			name: "Should fall back to extension name for local installs",
+			info: ExtensionInfo{Name: "runtime-name"},
+			want: "runtime-name",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := extensionSkillInstalledFrom(tt.info); got != tt.want {
+				t.Fatalf("extensionSkillInstalledFrom() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

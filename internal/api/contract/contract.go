@@ -1312,6 +1312,13 @@ type SkillDiagnosticPayload struct {
 	Failure            *SkillVerificationFailurePayload  `json:"failure,omitempty"`
 }
 
+type SkillShadowEntryPayload struct {
+	Path             string    `json:"path"`
+	Tier             string    `json:"tier"`
+	ResolvedToWinner bool      `json:"resolved_to_winner"`
+	DetectedAt       time.Time `json:"detected_at"`
+}
+
 // SkillPayload is the HTTP response type for a skill.
 type SkillPayload struct {
 	Name        string                   `json:"name"`
@@ -1402,10 +1409,14 @@ type SkillContentResponse struct {
 
 // ProvenancePayload is the nested provenance metadata for marketplace skills.
 type ProvenancePayload struct {
-	Slug        string    `json:"slug"`
-	Registry    string    `json:"registry"`
-	Version     string    `json:"version"`
-	InstalledAt time.Time `json:"installed_at"`
+	Slug                   string                    `json:"slug,omitempty"`
+	Registry               string                    `json:"registry,omitempty"`
+	Version                string                    `json:"version,omitempty"`
+	InstalledAt            *time.Time                `json:"installed_at,omitempty"`
+	InstalledFromBundle    string                    `json:"installed_from_bundle,omitempty"`
+	InstalledFromExtension string                    `json:"installed_from_extension,omitempty"`
+	PrecedenceTier         string                    `json:"precedence_tier"`
+	ShadowedBy             []SkillShadowEntryPayload `json:"shadowed_by,omitempty"`
 }
 
 // SkillActionResponse is the shared skill enable/disable response payload.

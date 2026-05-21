@@ -31,6 +31,9 @@ function renderPanel(props: Partial<React.ComponentProps<typeof SkillDetailPanel
     onDisable: vi.fn(),
     onEnable: vi.fn(),
     isActionPending: false,
+    shadows: undefined,
+    isShadowsLoading: false,
+    shadowsError: null,
     ...props,
   };
   return render(
@@ -62,7 +65,13 @@ describe("SkillDetailPanel", () => {
         name: "alpha-skill",
         source: "marketplace",
         version: "3.1.0",
-        provenance: { slug: "author", registry: "clawhub", installed_at: "", version: "3.1.0" },
+        provenance: {
+          slug: "author",
+          registry: "clawhub",
+          installed_at: "",
+          precedence_tier: "marketplace",
+          version: "3.1.0",
+        },
       }),
     });
 
@@ -72,6 +81,55 @@ describe("SkillDetailPanel", () => {
     expect(within(header).getByTestId("detail-version-badge")).toHaveTextContent("v3.1.0");
     expect(within(header).getByTestId("detail-author-badge")).toHaveTextContent("@author");
     expect(within(header).getByTestId("source-badge")).toHaveAttribute("data-tone", "accent");
+  });
+
+  it("Should render provenance and resolver shadow rows", () => {
+    renderPanel({
+      skill: makeSkill({
+        source: "workspace",
+        provenance: {
+          installed_from_extension: "review-pack",
+          precedence_tier: "workspace",
+          shadowed_by: [
+            {
+              detected_at: "2026-04-17T17:00:00Z",
+              path: "/home/agh/skills/alpha-skill/SKILL.md",
+              resolved_to_winner: false,
+              tier: "marketplace",
+            },
+          ],
+        },
+      }),
+      shadows: {
+        name: "alpha-skill",
+        winner: {
+          detected_at: "2026-04-17T17:00:00Z",
+          path: "/workspace/.agh/skills/alpha-skill/SKILL.md",
+          resolved_to_winner: true,
+          tier: "workspace",
+        },
+        shadows: [
+          {
+            detected_at: "2026-04-17T17:00:00Z",
+            path: "/workspace/.agh/skills/alpha-skill/SKILL.md",
+            resolved_to_winner: true,
+            tier: "workspace",
+          },
+          {
+            detected_at: "2026-04-17T17:00:00Z",
+            path: "/home/agh/skills/alpha-skill/SKILL.md",
+            resolved_to_winner: false,
+            tier: "marketplace",
+          },
+        ],
+      },
+    });
+
+    expect(screen.getByTestId("skill-provenance-table")).toHaveTextContent("review-pack");
+    expect(screen.getByTestId("skill-shadow-table")).toHaveTextContent("marketplace");
+    expect(screen.getByTestId("skill-shadow-table")).toHaveTextContent(
+      "/workspace/.agh/skills/alpha-skill/SKILL.md"
+    );
   });
 
   it("Should render the enable/disable Switch inside the DetailHeader actions slot", () => {
@@ -176,11 +234,14 @@ describe("SkillDetailPanel", () => {
           isActionPending={false}
           isContentLoading={false}
           isLoading={false}
+          isShadowsLoading={false}
           onDisable={vi.fn()}
           onEnable={vi.fn()}
           onRetryContent={vi.fn()}
           onViewContent={vi.fn()}
           skill={makeSkill()}
+          shadows={undefined}
+          shadowsError={null}
         />
       </UIProvider>
     );
@@ -195,11 +256,14 @@ describe("SkillDetailPanel", () => {
           isActionPending={false}
           isContentLoading={false}
           isLoading={false}
+          isShadowsLoading={false}
           onDisable={vi.fn()}
           onEnable={vi.fn()}
           onRetryContent={vi.fn()}
           onViewContent={vi.fn()}
           skill={makeSkill()}
+          shadows={undefined}
+          shadowsError={null}
         />
       </UIProvider>
     );

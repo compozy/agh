@@ -1363,16 +1363,83 @@ func SkillPayloadFromSkill(skill *skills.Skill) contract.SkillPayload {
 		Metadata:    skill.Meta.Metadata,
 		Diagnostics: SkillDiagnosticPayloadsFromDiagnostics(skills.DiagnosticsForSkill(skill)),
 	}
+	payload.Provenance = &contract.ProvenancePayload{
+		InstalledFromBundle:    strings.TrimSpace(skill.InstalledFromBundle),
+		InstalledFromExtension: strings.TrimSpace(skill.InstalledFromExtension),
+		PrecedenceTier:         skills.SkillPrecedenceTierName(skill.Source),
+		ShadowedBy:             SkillShadowEntryPayloadsFromRefs(skill.Diagnostics.ShadowedDefinitions),
+	}
 	if skill.Provenance != nil {
-		payload.Provenance = &contract.ProvenancePayload{
-			Slug:        skill.Provenance.Slug,
-			Registry:    skill.Provenance.Registry,
-			Version:     skill.Provenance.Version,
-			InstalledAt: skill.Provenance.InstalledAt,
+		payload.Provenance.Slug = skill.Provenance.Slug
+		payload.Provenance.Registry = skill.Provenance.Registry
+		payload.Provenance.Version = skill.Provenance.Version
+		if !skill.Provenance.InstalledAt.IsZero() {
+			installedAt := skill.Provenance.InstalledAt.UTC()
+			payload.Provenance.InstalledAt = &installedAt
 		}
 	}
 
 	return payload
+}
+
+// SkillShadowsResponseFromDomain converts one resolver shadow snapshot into the shared API payload.
+func SkillShadowsResponseFromDomain(snapshot skills.SkillShadows) contract.SkillShadowsResponse {
+	return contract.SkillShadowsResponse{
+		Name:    strings.TrimSpace(snapshot.Name),
+		Winner:  SkillShadowEntryPayloadFromDomain(snapshot.Winner),
+		Shadows: SkillShadowEntryPayloadsFromDomain(snapshot.Shadows),
+	}
+}
+
+func SkillShadowEntryPayloadsFromDomain(entries []skills.ShadowEntry) []contract.SkillShadowEntryPayload {
+	if len(entries) == 0 {
+		return nil
+	}
+	payloads := make([]contract.SkillShadowEntryPayload, 0, len(entries))
+	for _, entry := range entries {
+		payloads = append(payloads, SkillShadowEntryPayloadFromDomain(entry))
+	}
+	return payloads
+}
+
+func SkillShadowEntryPayloadFromDomain(entry skills.ShadowEntry) contract.SkillShadowEntryPayload {
+	return contract.SkillShadowEntryPayload{
+		Path:             strings.TrimSpace(entry.Path),
+		Tier:             strings.TrimSpace(entry.Tier),
+		ResolvedToWinner: entry.ResolvedToWinner,
+		DetectedAt:       skillShadowDetectedAt(entry.DetectedAt),
+	}
+}
+
+func SkillShadowEntryPayloadsFromRefs(refs []skills.SkillDefinitionRef) []contract.SkillShadowEntryPayload {
+	if len(refs) == 0 {
+		return nil
+	}
+	payloads := make([]contract.SkillShadowEntryPayload, 0, len(refs))
+	for _, ref := range refs {
+		payloads = append(payloads, contract.SkillShadowEntryPayload{
+			Path:             strings.TrimSpace(ref.Path),
+			Tier:             skillPrecedenceTierFromSourceLabel(ref.Source),
+			ResolvedToWinner: false,
+			DetectedAt:       skillShadowDetectedAt(ref.DetectedAt),
+		})
+	}
+	return payloads
+}
+
+func skillPrecedenceTierFromSourceLabel(source string) string {
+	trimmed := strings.TrimSpace(source)
+	if trimmed == "agent-local" {
+		return "agent_local"
+	}
+	return trimmed
+}
+
+func skillShadowDetectedAt(value time.Time) time.Time {
+	if value.IsZero() {
+		return time.Now().UTC()
+	}
+	return value.UTC()
 }
 
 // SkillDiagnosticPayloadsFromDiagnostics converts skill registry diagnostics for API payloads.

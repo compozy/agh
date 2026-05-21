@@ -8,6 +8,7 @@ import {
   useSkillContent,
   useSkillMarketplaceInfo,
   useSkillMarketplaceSearch,
+  useSkillShadows,
   useSkills,
 } from "../use-skills";
 
@@ -15,6 +16,7 @@ vi.mock("../../adapters/skill-api", () => ({
   listSkills: vi.fn(),
   getSkill: vi.fn(),
   getSkillContent: vi.fn(),
+  getSkillShadows: vi.fn(),
   enableSkill: vi.fn(),
   disableSkill: vi.fn(),
   searchSkillMarketplace: vi.fn(),
@@ -24,6 +26,7 @@ vi.mock("../../adapters/skill-api", () => ({
 import {
   getSkill,
   getSkillContent,
+  getSkillShadows,
   getSkillMarketplaceInfo,
   listSkills,
   searchSkillMarketplace,
@@ -142,6 +145,30 @@ describe("useSkillContent", () => {
     });
 
     expect(getSkillContent).not.toHaveBeenCalled();
+  });
+});
+
+describe("useSkillShadows", () => {
+  it("loads skill shadow rows when name and workspace are present", async () => {
+    const response = {
+      name: "test-skill",
+      winner: {
+        detected_at: "2026-04-17T17:00:00Z",
+        path: "/workspace/.agh/skills/test-skill/SKILL.md",
+        resolved_to_winner: true,
+        tier: "workspace",
+      },
+      shadows: [],
+    };
+    vi.mocked(getSkillShadows).mockResolvedValue(response);
+
+    const { result } = renderHook(() => useSkillShadows("test-skill", "ws_123"), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual(response);
+    expect(getSkillShadows).toHaveBeenCalledWith("test-skill", "ws_123", expect.any(AbortSignal));
   });
 });
 

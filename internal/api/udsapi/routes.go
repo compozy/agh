@@ -335,6 +335,7 @@ func registerSkillRoutes(api gin.IRouter, handlers *Handlers) {
 		skillsGroup.DELETE("/marketplace/:name", handlers.RemoveSkillMarketplace)
 		skillsGroup.GET("/:name", handlers.GetSkill)
 		skillsGroup.GET("/:name/content", handlers.GetSkillContent)
+		skillsGroup.GET("/:name/shadows", handlers.GetSkillShadows)
 		skillsGroup.POST("/:name/enable", handlers.EnableSkill)
 		skillsGroup.POST("/:name/disable", handlers.DisableSkill)
 	}

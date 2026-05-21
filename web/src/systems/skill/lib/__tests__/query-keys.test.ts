@@ -12,6 +12,12 @@ describe("skillKeys", () => {
       "my-skill",
       "ws_123",
     ]);
+    expect(skillKeys.shadows("my-skill", "ws_123")).toEqual([
+      "skills",
+      "shadows",
+      "my-skill",
+      "ws_123",
+    ]);
   });
 
   it("list keys extend all keys", () => {

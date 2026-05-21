@@ -1520,6 +1520,7 @@ func (m *Manager) loadSkillResources(ext *managedExtension) ([]*skillspkg.Skill,
 			if err != nil {
 				return nil, err
 			}
+			skill.InstalledFromExtension = extensionSkillInstalledFrom(ext.info)
 			loaded[skill.Meta.Name] = skill
 		}
 	}
@@ -1529,6 +1530,18 @@ func (m *Manager) loadSkillResources(ext *managedExtension) ([]*skillspkg.Skill,
 		skills = append(skills, loaded[name])
 	}
 	return skills, nil
+}
+
+func extensionSkillInstalledFrom(info ExtensionInfo) string {
+	if info.RegistrySlug != nil {
+		if slug := strings.TrimSpace(*info.RegistrySlug); slug != "" {
+			return slug
+		}
+	}
+	if slug := strings.TrimSpace(info.Provenance.Slug); slug != "" {
+		return slug
+	}
+	return strings.TrimSpace(info.Name)
 }
 
 func (m *Manager) loadAgentResources(ext *managedExtension) ([]aghconfig.AgentDef, error) {

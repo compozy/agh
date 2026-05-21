@@ -4717,6 +4717,27 @@ var operationRegistry = []OperationSpec{
 		},
 	},
 	{
+		Method:      httpMethodGet,
+		Path:        "/api/skills/{name}/shadows",
+		OperationID: "getSkillShadows",
+		Summary:     "Get resolver provenance and shadow declarations for one skill",
+		Tags:        []string{specSkillsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("name", "Skill name"),
+			queryParam(specWorkspaceKey, "Workspace id or path for resolution context", false),
+			queryParam("for_agent", "Logical agent name for agent-local resolution", false),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SkillShadowsResponse{}},
+			{Status: 400, Description: specInvalidSkillLookupDescription, Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specSkillOrScopeNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 422, Description: specInvalidAgentLocalLayerDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specSkillsRegistryIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
 		Method:      httpMethodPost,
 		Path:        "/api/skills/{name}/enable",
 		OperationID: "enableSkill",

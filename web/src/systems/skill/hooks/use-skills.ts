@@ -5,6 +5,7 @@ import {
   skillDetailOptions,
   skillMarketplaceInfoOptions,
   skillMarketplaceSearchOptions,
+  skillShadowsOptions,
   skillsListOptions,
 } from "@/systems/skill/lib/query-options";
 
@@ -18,6 +19,10 @@ export function useSkill(name: string, workspace: string) {
 
 export function useSkillContent(name: string, workspace: string, enabled = false) {
   return useQuery(skillContentOptions(name, workspace, enabled));
+}
+
+export function useSkillShadows(name: string, workspace: string) {
+  return useQuery(skillShadowsOptions(name, workspace));
 }
 
 export function useSkillMarketplaceSearch(query: string, limit?: number) {

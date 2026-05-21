@@ -21,18 +21,20 @@ const (
 // The full SKILL.md body intentionally remains outside the resource record and
 // is loaded through the skills package when callers need content.
 type SkillResourceSpec struct {
-	Name          string              `json:"name"`
-	Description   string              `json:"description"`
-	Version       string              `json:"version,omitempty"`
-	Metadata      map[string]any      `json:"metadata,omitempty"`
-	Source        string              `json:"source"`
-	Dir           string              `json:"dir,omitempty"`
-	FilePath      string              `json:"file_path,omitempty"`
-	Enabled       bool                `json:"enabled"`
-	MCPServers    []MCPServerDecl     `json:"mcp_servers,omitempty"`
-	Hooks         []hookspkg.HookDecl `json:"hooks,omitempty"`
-	Provenance    *Provenance         `json:"provenance,omitempty"`
-	InstalledFrom string              `json:"installed_from,omitempty"`
+	Name                   string              `json:"name"`
+	Description            string              `json:"description"`
+	Version                string              `json:"version,omitempty"`
+	Metadata               map[string]any      `json:"metadata,omitempty"`
+	Source                 string              `json:"source"`
+	Dir                    string              `json:"dir,omitempty"`
+	FilePath               string              `json:"file_path,omitempty"`
+	Enabled                bool                `json:"enabled"`
+	MCPServers             []MCPServerDecl     `json:"mcp_servers,omitempty"`
+	Hooks                  []hookspkg.HookDecl `json:"hooks,omitempty"`
+	Provenance             *Provenance         `json:"provenance,omitempty"`
+	InstalledFrom          string              `json:"installed_from,omitempty"`
+	InstalledFromBundle    string              `json:"installed_from_bundle,omitempty"`
+	InstalledFromExtension string              `json:"installed_from_extension,omitempty"`
 }
 
 // NewResourceCodec builds the canonical skill resource codec.
@@ -46,18 +48,20 @@ func SkillToResourceSpec(skill *Skill) SkillResourceSpec {
 		return SkillResourceSpec{}
 	}
 	return SkillResourceSpec{
-		Name:          strings.TrimSpace(skill.Meta.Name),
-		Description:   strings.TrimSpace(skill.Meta.Description),
-		Version:       strings.TrimSpace(skill.Meta.Version),
-		Metadata:      cloneMetadataMap(skill.Meta.Metadata),
-		Source:        skillSourceName(skill.Source),
-		Dir:           strings.TrimSpace(skill.Dir),
-		FilePath:      strings.TrimSpace(skill.FilePath),
-		Enabled:       skill.Enabled,
-		MCPServers:    cloneMCPServerDecls(skill.MCPServers),
-		Hooks:         cloneSkillHookDecls(skill.Hooks),
-		Provenance:    cloneProvenance(skill.Provenance),
-		InstalledFrom: strings.TrimSpace(skill.InstalledFrom),
+		Name:                   strings.TrimSpace(skill.Meta.Name),
+		Description:            strings.TrimSpace(skill.Meta.Description),
+		Version:                strings.TrimSpace(skill.Meta.Version),
+		Metadata:               cloneMetadataMap(skill.Meta.Metadata),
+		Source:                 skillSourceName(skill.Source),
+		Dir:                    strings.TrimSpace(skill.Dir),
+		FilePath:               strings.TrimSpace(skill.FilePath),
+		Enabled:                skill.Enabled,
+		MCPServers:             cloneMCPServerDecls(skill.MCPServers),
+		Hooks:                  cloneSkillHookDecls(skill.Hooks),
+		Provenance:             cloneProvenance(skill.Provenance),
+		InstalledFrom:          strings.TrimSpace(skill.InstalledFrom),
+		InstalledFromBundle:    strings.TrimSpace(skill.InstalledFromBundle),
+		InstalledFromExtension: strings.TrimSpace(skill.InstalledFromExtension),
 	}
 }
 
@@ -74,14 +78,16 @@ func SkillFromResourceSpec(spec SkillResourceSpec) (*Skill, error) {
 			Version:     strings.TrimSpace(spec.Version),
 			Metadata:    cloneMetadataMap(spec.Metadata),
 		},
-		Source:        source,
-		Dir:           strings.TrimSpace(spec.Dir),
-		FilePath:      strings.TrimSpace(spec.FilePath),
-		Enabled:       spec.Enabled,
-		MCPServers:    cloneMCPServerDecls(spec.MCPServers),
-		Hooks:         cloneSkillHookDecls(spec.Hooks),
-		Provenance:    cloneProvenance(spec.Provenance),
-		InstalledFrom: strings.TrimSpace(spec.InstalledFrom),
+		Source:                 source,
+		Dir:                    strings.TrimSpace(spec.Dir),
+		FilePath:               strings.TrimSpace(spec.FilePath),
+		Enabled:                spec.Enabled,
+		MCPServers:             cloneMCPServerDecls(spec.MCPServers),
+		Hooks:                  cloneSkillHookDecls(spec.Hooks),
+		Provenance:             cloneProvenance(spec.Provenance),
+		InstalledFrom:          strings.TrimSpace(spec.InstalledFrom),
+		InstalledFromBundle:    strings.TrimSpace(spec.InstalledFromBundle),
+		InstalledFromExtension: strings.TrimSpace(spec.InstalledFromExtension),
 	}
 	refreshSkillHookDecls(skill)
 	return skill, nil
@@ -98,18 +104,20 @@ func validateSkillResourceSpec(
 	}
 
 	normalized := SkillResourceSpec{
-		Name:          strings.TrimSpace(spec.Name),
-		Description:   strings.TrimSpace(spec.Description),
-		Version:       strings.TrimSpace(spec.Version),
-		Metadata:      cloneMetadataMap(spec.Metadata),
-		Source:        strings.TrimSpace(spec.Source),
-		Dir:           strings.TrimSpace(spec.Dir),
-		FilePath:      strings.TrimSpace(spec.FilePath),
-		Enabled:       spec.Enabled,
-		MCPServers:    cloneMCPServerDecls(spec.MCPServers),
-		Hooks:         cloneSkillHookDecls(spec.Hooks),
-		Provenance:    cloneProvenance(spec.Provenance),
-		InstalledFrom: strings.TrimSpace(spec.InstalledFrom),
+		Name:                   strings.TrimSpace(spec.Name),
+		Description:            strings.TrimSpace(spec.Description),
+		Version:                strings.TrimSpace(spec.Version),
+		Metadata:               cloneMetadataMap(spec.Metadata),
+		Source:                 strings.TrimSpace(spec.Source),
+		Dir:                    strings.TrimSpace(spec.Dir),
+		FilePath:               strings.TrimSpace(spec.FilePath),
+		Enabled:                spec.Enabled,
+		MCPServers:             cloneMCPServerDecls(spec.MCPServers),
+		Hooks:                  cloneSkillHookDecls(spec.Hooks),
+		Provenance:             cloneProvenance(spec.Provenance),
+		InstalledFrom:          strings.TrimSpace(spec.InstalledFrom),
+		InstalledFromBundle:    strings.TrimSpace(spec.InstalledFromBundle),
+		InstalledFromExtension: strings.TrimSpace(spec.InstalledFromExtension),
 	}
 	if normalized.Name == "" {
 		return SkillResourceSpec{}, fmt.Errorf("%w: skill.name is required", resources.ErrValidation)

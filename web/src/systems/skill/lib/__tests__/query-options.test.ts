@@ -4,6 +4,7 @@ import {
   skillDetailOptions,
   skillMarketplaceInfoOptions,
   skillMarketplaceSearchOptions,
+  skillShadowsOptions,
   skillsListOptions,
 } from "../query-options";
 
@@ -54,6 +55,19 @@ describe("skillDetailOptions", () => {
   it("is enabled when both name and workspace are provided", () => {
     const options = skillDetailOptions("my-skill", "ws_123");
     expect(options.enabled).toBe(true);
+  });
+});
+
+describe("skillShadowsOptions", () => {
+  it("includes name and workspace in query key", () => {
+    const options = skillShadowsOptions("my-skill", "ws_123");
+    expect(options.queryKey).toEqual(["skills", "shadows", "my-skill", "ws_123"]);
+  });
+
+  it("is disabled until name and workspace are provided", () => {
+    expect(skillShadowsOptions("", "ws_123").enabled).toBe(false);
+    expect(skillShadowsOptions("my-skill", "").enabled).toBe(false);
+    expect(skillShadowsOptions("my-skill", "ws_123").enabled).toBe(true);
   });
 });
 

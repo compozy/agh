@@ -68,7 +68,6 @@ func (r *Registry) ForAgent(
 			skillsByName,
 			agentLocalSkills,
 			"agent",
-			"",
 			resourceWorkspaceKey(resolved),
 			target,
 		),

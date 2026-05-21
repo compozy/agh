@@ -9,6 +9,7 @@ import {
   useSkill,
   useSkillContent,
   useSkillMarketplaceSearch,
+  useSkillShadows,
   useSkills,
   useUpdateSkillMarketplace,
 } from "@/systems/skill";
@@ -55,6 +56,11 @@ function useSkillsPage(search: SkillsRouteSearch = {}) {
     isLoading: isLoadingDetail,
     error: detailError,
   } = useSkill(effectiveSelectedName ?? "", workspaceId);
+  const {
+    data: selectedSkillShadows,
+    error: shadowsError,
+    isLoading: isLoadingShadows,
+  } = useSkillShadows(effectiveSelectedName ?? "", workspaceId);
 
   const disableMutation = useDisableSkill();
   const enableMutation = useEnableSkill();
@@ -192,6 +198,7 @@ function useSkillsPage(search: SkillsRouteSearch = {}) {
     isInstalling: installMutation.isPending,
     isLoading: skillsQuery.isLoading && !hasSkills,
     isLoadingDetail: isLoadingDetail && effectiveSelectedName !== null,
+    isLoadingShadows: isLoadingShadows && effectiveSelectedName !== null,
     isMarketplaceSearchEnabled: marketplaceQueryActive,
     isMarketplaceSearching: marketplaceQueryActive && marketplaceSearchQuery.isFetching,
     isRemoving: removeMutation.isPending,
@@ -204,6 +211,8 @@ function useSkillsPage(search: SkillsRouteSearch = {}) {
       ? (selectedSkill ?? skills.find(skill => skill.name === effectiveSelectedName))
       : undefined,
     selectedSkillContent: shouldLoadSelectedContent ? selectedSkillContent : undefined,
+    selectedSkillShadows,
+    shadowsError,
     setActiveTab,
     setSearchQuery,
     setSelectedSkillName,

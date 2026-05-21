@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/filesnap"
@@ -81,10 +82,7 @@ func mergedSkillList(globalSkills, workspaceSkills map[string]*Skill) []*Skill {
 			if global := globalSkills[name]; global != nil {
 				cloned.Diagnostics.ShadowedDefinitions = append(
 					cloneSkillDefinitionRefs(cloned.Diagnostics.ShadowedDefinitions),
-					SkillDefinitionRef{
-						Source: skillSourceName(global.Source),
-						Path:   strings.TrimSpace(global.FilePath),
-					},
+					shadowDefinitionRefsForWinner(global, time.Time{})...,
 				)
 			}
 			skills = append(skills, cloned)

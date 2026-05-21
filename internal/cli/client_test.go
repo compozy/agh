@@ -1325,6 +1325,14 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						t.Fatalf("skill content workspace query = %q, want %q", got, "alpha")
 					}
 					return newHTTPResponse(http.StatusOK, `{"content":"# Review\n\nUse this skill."}`), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/skills/review/shadows":
+					if got := req.URL.Query().Get("workspace"); got != "alpha" {
+						t.Fatalf("skill shadows workspace query = %q, want %q", got, "alpha")
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"name":"review","winner":{"path":"/workspace/project/.agh/skills/review/SKILL.md","tier":"workspace","resolved_to_winner":true,"detected_at":"2026-04-03T12:00:00Z"},"shadows":[{"path":"/workspace/project/.agh/skills/review/SKILL.md","tier":"workspace","resolved_to_winner":true,"detected_at":"2026-04-03T12:00:00Z"}]}`,
+					), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/hooks/catalog":
 					if got := req.URL.Query().Get("workspace"); got != "alpha" {
 						t.Fatalf("hook catalog workspace query = %q, want %q", got, "alpha")
@@ -1603,6 +1611,11 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	content, err := client.GetSkillContent(ctx, "review", SkillQuery{Workspace: "alpha"})
 	if err != nil || !strings.Contains(content, "Use this skill.") {
 		t.Fatalf("GetSkillContent() = %q, %v", content, err)
+	}
+
+	shadows, err := client.GetSkillShadows(ctx, "review", SkillQuery{Workspace: "alpha"})
+	if err != nil || shadows.Winner.Tier != "workspace" {
+		t.Fatalf("GetSkillShadows() = %#v, %v", shadows, err)
 	}
 
 	hookCatalog, err := client.HookCatalog(ctx, HookCatalogQuery{

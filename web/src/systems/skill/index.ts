@@ -16,6 +16,8 @@ export type {
   SkillMarketplaceUpdateRequest,
   SkillMarketplaceUpdateResponse,
   SkillPayload,
+  SkillShadowEntryPayload,
+  SkillShadowsResponse,
   SkillResponse,
   SkillsResponse,
 } from "./types";
@@ -26,6 +28,7 @@ export {
   enableSkill,
   getSkill,
   getSkillContent,
+  getSkillShadows,
   getSkillMarketplaceInfo,
   installSkillMarketplace,
   listSkills,
@@ -42,6 +45,7 @@ export {
   skillDetailOptions,
   skillMarketplaceInfoOptions,
   skillMarketplaceSearchOptions,
+  skillShadowsOptions,
   skillsListOptions,
 } from "./lib/query-options";
 
@@ -51,6 +55,7 @@ export {
   useSkillContent,
   useSkillMarketplaceInfo,
   useSkillMarketplaceSearch,
+  useSkillShadows,
   useSkills,
 } from "./hooks/use-skills";
 export {

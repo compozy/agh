@@ -147,18 +147,30 @@ func TestRegistryObserveEvents(t *testing.T) {
 			t.Fatalf("summaries[0].WorkspaceID = %q, want %q", got, want)
 		}
 
-		var content map[string]string
+		var content skillShadowContent
 		if err := json.Unmarshal(summaries[0].Content, &content); err != nil {
 			t.Fatalf("Unmarshal(content) error = %v", err)
 		}
-		if got, want := content["skill_name"], "review"; got != want {
-			t.Fatalf("content.skill_name = %q, want %q", got, want)
+		if got, want := content.SkillID, "review"; got != want {
+			t.Fatalf("content.skill_id = %q, want %q", got, want)
 		}
-		if got, want := content["resolution_scope"], "workspace"; got != want {
+		if got, want := content.WinnerTier, "workspace"; got != want {
+			t.Fatalf("content.winner_tier = %q, want %q", got, want)
+		}
+		if got, want := len(content.Losers), 1; got != want {
+			t.Fatalf("len(content.losers) = %d, want %d", got, want)
+		}
+		if got, want := content.Losers[0].Tier, "user"; got != want {
+			t.Fatalf("content.losers[0].tier = %q, want %q", got, want)
+		}
+		if got, want := content.ResolutionScope, "workspace"; got != want {
 			t.Fatalf("content.resolution_scope = %q, want %q", got, want)
 		}
-		if got, want := content["workspace_id"], "ws-shadow"; got != want {
+		if got, want := content.WorkspaceID, "ws-shadow"; got != want {
 			t.Fatalf("content.workspace_id = %q, want %q", got, want)
+		}
+		if content.DetectedAt == "" {
+			t.Fatal("content.detected_at is empty")
 		}
 	})
 

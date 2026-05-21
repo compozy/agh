@@ -298,7 +298,6 @@ func (r *Registry) refreshWorkspaceCacheLocked(
 		globalSkills,
 		workspaceSkills,
 		skillSourceWorkspaceName,
-		"",
 		workspaceKey,
 		"",
 	)
@@ -371,10 +370,10 @@ func (r *Registry) reloadGlobal(ctx context.Context) error {
 	}
 
 	r.mu.Lock()
-	defer r.mu.Unlock()
 
 	r.evictExpiredWorkspaceLocked(r.now())
 	if r.globalLoaded && filesnap.Equal(r.globalSnapshots, snapshots) {
+		r.mu.Unlock()
 		return nil
 	}
 
@@ -383,6 +382,9 @@ func (r *Registry) reloadGlobal(ctx context.Context) error {
 	r.globalLoaded = true
 	r.globalSkills = loaded
 	r.globalVersion.Add(1)
+	shadowEvents := r.buildSkillShadowSummariesFromResolved(mergedSkillList(loaded, nil), "global", "", "")
+	r.mu.Unlock()
+	r.emitEventSummaries(ctx, shadowEvents)
 
 	return nil
 }
@@ -446,13 +448,14 @@ func (r *Registry) ApplyResourceRecords(revision int64, records []resources.Reco
 		if err != nil {
 			return fmt.Errorf("skills: convert resource %q: %w", record.ID, err)
 		}
+		applySkillResourceOrigin(record, skill)
 		name := strings.TrimSpace(skill.Meta.Name)
 		if name == "" {
 			continue
 		}
 		switch record.Scope.Kind.Normalize() {
 		case resources.ResourceScopeKindGlobal:
-			globalSkills[name] = skill
+			r.overlaySkill(globalSkills, skill)
 		case resources.ResourceScopeKindWorkspace:
 			workspaceID := strings.TrimSpace(record.Scope.ID)
 			if workspaceID == "" {
@@ -461,9 +464,13 @@ func (r *Registry) ApplyResourceRecords(revision int64, records []resources.Reco
 			if workspaceSkills[workspaceID] == nil {
 				workspaceSkills[workspaceID] = make(map[string]*Skill)
 			}
-			workspaceSkills[workspaceID][name] = skill
+			r.overlaySkill(workspaceSkills[workspaceID], skill)
 		}
 	}
+	r.emitEventSummaries(
+		context.Background(),
+		r.buildSkillShadowSummariesFromResolved(mergedSkillList(globalSkills, nil), "global", "", ""),
+	)
 
 	workspaceIDs := make([]string, 0, len(workspaceSkills))
 	for workspaceID := range workspaceSkills {
@@ -478,7 +485,6 @@ func (r *Registry) ApplyResourceRecords(revision int64, records []resources.Reco
 				globalSkills,
 				workspaceSkills[workspaceID],
 				skillSourceWorkspaceName,
-				"",
 				workspaceID,
 				"",
 			),
@@ -848,6 +854,22 @@ func skillRecordSortKey(record resources.Record[SkillResourceSpec]) string {
 		strings.TrimSpace(record.ID)
 }
 
+func applySkillResourceOrigin(record resources.Record[SkillResourceSpec], skill *Skill) {
+	if skill == nil {
+		return
+	}
+	source := record.Source.Normalize()
+	if source.Kind == resources.ResourceSourceKind("extension") &&
+		strings.TrimSpace(skill.InstalledFromExtension) == "" {
+		skill.InstalledFromExtension = strings.TrimSpace(source.ID)
+	}
+	owner := record.Owner.Normalize()
+	if owner.Kind == resources.ResourceOwnerKind("bundle.activation") &&
+		strings.TrimSpace(skill.InstalledFromBundle) == "" {
+		skill.InstalledFromBundle = strings.TrimSpace(owner.ID)
+	}
+}
+
 func mergeDisabledSkills(base []string, extra []string) []string {
 	merged := slices.Clone(base)
 	for _, name := range extra {
@@ -903,13 +925,9 @@ func (r *Registry) logSkillOverride(existing *Skill, skill *Skill, workspaceID s
 func (r *Registry) overlaySkill(dst map[string]*Skill, skill *Skill) {
 	if existing, ok := dst[skill.Meta.Name]; ok {
 		r.logSkillOverride(existing, skill, "")
-		shadowed := SkillDefinitionRef{
-			Source: skillSourceName(existing.Source),
-			Path:   strings.TrimSpace(existing.FilePath),
-		}
 		skill.Diagnostics.ShadowedDefinitions = append(
 			cloneSkillDefinitionRefs(skill.Diagnostics.ShadowedDefinitions),
-			shadowed,
+			shadowDefinitionRefsForWinner(existing, r.now())...,
 		)
 	}
 
@@ -960,6 +978,16 @@ func checkRegistryContext(ctx context.Context) error {
 // SkillSourceName returns the canonical string label for a skill source.
 func SkillSourceName(source SkillSource) string {
 	return skillSourceName(source)
+}
+
+// SkillPrecedenceTierName returns the canonical public resolver tier label.
+func SkillPrecedenceTierName(source SkillSource) string {
+	switch source {
+	case SourceAgentLocal:
+		return "agent_local"
+	default:
+		return skillSourceName(source)
+	}
 }
 
 func skillSourceName(source SkillSource) string {

@@ -123,6 +123,8 @@ func skillInfoBundle(item skillInfoItem) outputBundle {
 				{Label: skillOutputPathValue, Value: stringOrDash(item.Path)},
 				{Label: skillOutputEnabledValue, Value: strconv.FormatBool(item.Enabled)},
 			})
+			provenanceRows := skillProvenanceRows(item.Provenance)
+			provenance := renderHumanTable("Provenance", []string{"Field", skillOutputValueValue}, provenanceRows)
 
 			metadataRows := make([][]string, 0, len(item.Metadata))
 			for _, entry := range sortedSkillMetadataEntries(item.Metadata) {
@@ -136,7 +138,7 @@ func skillInfoBundle(item skillInfoItem) outputBundle {
 			}
 			resources := renderHumanTable("Resources", []string{skillOutputPathValue}, resourceRows)
 
-			return renderHumanBlocks(base, metadata, resources), nil
+			return renderHumanBlocks(base, provenance, metadata, resources), nil
 		},
 		toon: func() (string, error) {
 			metadataRows := make([][]string, 0, len(item.Metadata))
@@ -169,11 +171,87 @@ func skillInfoBundle(item skillInfoItem) outputBundle {
 						strconv.FormatBool(item.Enabled),
 					},
 				),
+				renderToonArray(
+					"provenance",
+					[]string{"field", skillOutputValueKey},
+					skillProvenanceRows(item.Provenance),
+				),
 				renderToonArray("metadata", []string{"key", skillOutputValueKey}, metadataRows),
 				renderToonArray("resources", []string{skillOutputPathKey}, resourceRows),
 			), nil
 		},
 	}
+}
+
+func skillProvenanceRows(provenance *SkillProvenanceRecord) [][]string {
+	if provenance == nil {
+		return nil
+	}
+	rows := [][]string{
+		{"precedence_tier", stringOrDash(provenance.PrecedenceTier)},
+	}
+	if provenance.Slug != "" {
+		rows = append(rows, []string{"slug", provenance.Slug})
+	}
+	if provenance.Registry != "" {
+		rows = append(rows, []string{skillOutputRegistryKey, provenance.Registry})
+	}
+	if provenance.Version != "" {
+		rows = append(rows, []string{"version", provenance.Version})
+	}
+	if provenance.InstalledFromBundle != "" {
+		rows = append(rows, []string{"installed_from_bundle", provenance.InstalledFromBundle})
+	}
+	if provenance.InstalledFromExtension != "" {
+		rows = append(rows, []string{"installed_from_extension", provenance.InstalledFromExtension})
+	}
+	if count := len(provenance.ShadowedBy); count > 0 {
+		rows = append(rows, []string{"shadowed_definitions", strconv.Itoa(count)})
+	}
+	return rows
+}
+
+func skillWhereBundle(record SkillShadowsRecord) outputBundle {
+	return outputBundle{
+		jsonValue: record,
+		human: func() (string, error) {
+			rows := skillWhereRows(record)
+			return renderHumanBlocks(
+				renderHumanSection("Skill Resolution", []keyValue{
+					{Label: automationNameValue, Value: stringOrDash(record.Name)},
+					{Label: "Winner", Value: stringOrDash(record.Winner.Path)},
+					{Label: "Tier", Value: stringOrDash(record.Winner.Tier)},
+				}),
+				renderHumanTable("Locations", []string{"Winner", "Tier", skillOutputPathValue}, rows),
+			), nil
+		},
+		toon: func() (string, error) {
+			return renderHumanBlocks(
+				renderToonObject(
+					"skill_resolution",
+					[]string{automationNameKey, "winner_path", "winner_tier"},
+					[]string{record.Name, record.Winner.Path, record.Winner.Tier},
+				),
+				renderToonArray("locations", []string{"winner", "tier", skillOutputPathKey}, skillWhereRows(record)),
+			), nil
+		},
+	}
+}
+
+func skillWhereRows(record SkillShadowsRecord) [][]string {
+	rows := make([][]string, 0, len(record.Shadows))
+	for _, entry := range record.Shadows {
+		winner := "no"
+		if entry.ResolvedToWinner {
+			winner = "yes"
+		}
+		rows = append(rows, []string{
+			winner,
+			stringOrDash(entry.Tier),
+			stringOrDash(entry.Path),
+		})
+	}
+	return rows
 }
 
 func skillCreateBundle(item skillCreateItem) outputBundle {

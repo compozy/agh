@@ -2661,6 +2661,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/skills/{name}/shadows": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get resolver provenance and shadow declarations for one skill */
+    get: operations["getSkillShadows"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/status": {
     parameters: {
       query?: never;
@@ -38186,10 +38203,20 @@ export interface operations {
               name: string;
               provenance?: {
                 /** Format: date-time */
-                installed_at: string;
-                registry: string;
-                slug: string;
-                version: string;
+                installed_at?: string | null;
+                installed_from_bundle?: string;
+                installed_from_extension?: string;
+                precedence_tier: string;
+                registry?: string;
+                shadowed_by?: {
+                  /** Format: date-time */
+                  detected_at: string;
+                  path: string;
+                  resolved_to_winner: boolean;
+                  tier: string;
+                }[];
+                slug?: string;
+                version?: string;
               } | null;
               source: string;
               version?: string;
@@ -39121,10 +39148,20 @@ export interface operations {
               name: string;
               provenance?: {
                 /** Format: date-time */
-                installed_at: string;
-                registry: string;
-                slug: string;
-                version: string;
+                installed_at?: string | null;
+                installed_from_bundle?: string;
+                installed_from_extension?: string;
+                precedence_tier: string;
+                registry?: string;
+                shadowed_by?: {
+                  /** Format: date-time */
+                  detected_at: string;
+                  path: string;
+                  resolved_to_winner: boolean;
+                  tier: string;
+                }[];
+                slug?: string;
+                version?: string;
               } | null;
               source: string;
               version?: string;
@@ -39612,6 +39649,181 @@ export interface operations {
         content: {
           "application/json": {
             ok: boolean;
+          };
+        };
+      };
+      /** @description Invalid skill lookup */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Skill or scope not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid agent-local layer */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Skills registry is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getSkillShadows: {
+    parameters: {
+      query?: {
+        /** @description Workspace id or path for resolution context */
+        workspace?: string;
+        /** @description Logical agent name for agent-local resolution */
+        for_agent?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Skill name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            name: string;
+            shadows: {
+              /** Format: date-time */
+              detected_at: string;
+              path: string;
+              resolved_to_winner: boolean;
+              tier: string;
+            }[];
+            winner: {
+              /** Format: date-time */
+              detected_at: string;
+              path: string;
+              resolved_to_winner: boolean;
+              tier: string;
+            };
           };
         };
       };

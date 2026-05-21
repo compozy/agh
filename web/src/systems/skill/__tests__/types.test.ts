@@ -30,10 +30,19 @@ describe("skill contract types", () => {
     }>();
 
     expectTypeOf<ProvenancePayload>().toMatchTypeOf<{
-      slug: string;
-      registry: string;
-      version: string;
-      installed_at: string;
+      slug?: string;
+      registry?: string;
+      version?: string;
+      installed_at?: string | null;
+      installed_from_bundle?: string;
+      installed_from_extension?: string;
+      precedence_tier: string;
+      shadowed_by?: {
+        detected_at: string;
+        path: string;
+        resolved_to_winner: boolean;
+        tier: string;
+      }[];
     }>();
 
     expectTypeOf<SkillsResponse>().toMatchTypeOf<{ skills: SkillPayload[] }>();

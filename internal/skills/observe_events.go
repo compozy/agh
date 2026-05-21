@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	eventspkg "github.com/pedronauck/agh/internal/events"
 	"github.com/pedronauck/agh/internal/store"
@@ -17,16 +18,19 @@ const (
 )
 
 type skillShadowContent struct {
-	SkillName       string `json:"skill_name"`
-	OldSource       string `json:"old_source"`
-	NewSource       string `json:"new_source"`
-	OldPath         string `json:"old_path,omitempty"`
-	NewPath         string `json:"new_path,omitempty"`
-	LayerPair       string `json:"layer_pair"`
-	ShadowKind      string `json:"shadow_kind"`
-	ResolutionScope string `json:"resolution_scope"`
-	AgentName       string `json:"agent_name,omitempty"`
-	WorkspaceID     string `json:"workspace_id,omitempty"`
+	SkillID         string                  `json:"skill_id"`
+	WinnerPath      string                  `json:"winner_path"`
+	WinnerTier      string                  `json:"winner_tier"`
+	Losers          []skillShadowEventLoser `json:"losers"`
+	DetectedAt      string                  `json:"detected_at"`
+	ResolutionScope string                  `json:"resolution_scope"`
+	AgentName       string                  `json:"agent_name,omitempty"`
+	WorkspaceID     string                  `json:"workspace_id,omitempty"`
+}
+
+type skillShadowEventLoser struct {
+	Path string `json:"path"`
+	Tier string `json:"tier"`
 }
 
 type skillLoadFailedContent struct {
@@ -82,7 +86,6 @@ func (r *Registry) buildSkillShadowSummaries(
 	base map[string]*Skill,
 	overlay map[string]*Skill,
 	resolutionScope string,
-	layerPair string,
 	workspaceID string,
 	agentName string,
 ) []store.EventSummary {
@@ -107,23 +110,27 @@ func (r *Registry) buildSkillShadowSummaries(
 			continue
 		}
 
-		shadowKind := "logical"
-		if strings.TrimSpace(existing.FilePath) != "" && strings.TrimSpace(next.FilePath) != "" {
-			shadowKind = "logical_path"
+		detectedAt := normalizedShadowDetectedAt(r.now())
+		winner := cloneSkill(next)
+		winner.Diagnostics.ShadowedDefinitions = append(
+			cloneSkillDefinitionRefs(winner.Diagnostics.ShadowedDefinitions),
+			shadowDefinitionRefsForWinner(existing, detectedAt)...,
+		)
+		shadows, ok := ShadowsForSkill(winner, detectedAt)
+		if !ok {
+			continue
 		}
-		pair := strings.TrimSpace(layerPair)
-		if pair == "" {
-			pair = skillSourceName(next.Source) + ">" + skillSourceName(existing.Source)
+		losers := skillShadowEventLosers(shadows.Shadows)
+		if len(losers) == 0 {
+			continue
 		}
 
 		content, err := json.Marshal(skillShadowContent{
-			SkillName:       strings.TrimSpace(next.Meta.Name),
-			OldSource:       skillSourceName(existing.Source),
-			NewSource:       skillSourceName(next.Source),
-			OldPath:         strings.TrimSpace(existing.FilePath),
-			NewPath:         strings.TrimSpace(next.FilePath),
-			LayerPair:       pair,
-			ShadowKind:      shadowKind,
+			SkillID:         strings.TrimSpace(shadows.Name),
+			WinnerPath:      strings.TrimSpace(shadows.Winner.Path),
+			WinnerTier:      strings.TrimSpace(shadows.Winner.Tier),
+			Losers:          losers,
+			DetectedAt:      detectedAt.Format(time.RFC3339Nano),
 			ResolutionScope: strings.TrimSpace(resolutionScope),
 			AgentName:       strings.TrimSpace(agentName),
 			WorkspaceID:     strings.TrimSpace(workspaceID),
@@ -139,14 +146,84 @@ func (r *Registry) buildSkillShadowSummaries(
 			Type:        eventspkg.SkillShadowed,
 			Content:     content,
 			Summary: fmt.Sprintf(
-				"skill %s shadowed %s with %s",
-				strings.TrimSpace(next.Meta.Name),
-				skillSourceName(existing.Source),
-				skillSourceName(next.Source),
+				"skill %s resolved to %s and shadowed %d declaration(s)",
+				strings.TrimSpace(shadows.Name),
+				strings.TrimSpace(shadows.Winner.Tier),
+				len(losers),
 			),
 		})
 	}
 	return summaries
+}
+
+func (r *Registry) buildSkillShadowSummariesFromResolved(
+	skills []*Skill,
+	resolutionScope string,
+	workspaceID string,
+	agentName string,
+) []store.EventSummary {
+	if r == nil || len(skills) == 0 {
+		return nil
+	}
+	detectedAt := normalizedShadowDetectedAt(r.now())
+	summaries := make([]store.EventSummary, 0)
+	for _, skill := range skills {
+		if skill == nil || len(skill.Diagnostics.ShadowedDefinitions) == 0 {
+			continue
+		}
+		shadows, ok := ShadowsForSkill(skill, detectedAt)
+		if !ok {
+			continue
+		}
+		losers := skillShadowEventLosers(shadows.Shadows)
+		if len(losers) == 0 {
+			continue
+		}
+		content, err := json.Marshal(skillShadowContent{
+			SkillID:         strings.TrimSpace(shadows.Name),
+			WinnerPath:      strings.TrimSpace(shadows.Winner.Path),
+			WinnerTier:      strings.TrimSpace(shadows.Winner.Tier),
+			Losers:          losers,
+			DetectedAt:      detectedAt.Format(time.RFC3339Nano),
+			ResolutionScope: strings.TrimSpace(resolutionScope),
+			AgentName:       strings.TrimSpace(agentName),
+			WorkspaceID:     strings.TrimSpace(workspaceID),
+		})
+		if err != nil {
+			r.logger.Warn("skills: marshal skill.shadowed content failed", "name", skill.Meta.Name, "error", err)
+			continue
+		}
+		summaries = append(summaries, store.EventSummary{
+			WorkspaceID: strings.TrimSpace(workspaceID),
+			AgentName:   strings.TrimSpace(agentName),
+			Type:        eventspkg.SkillShadowed,
+			Content:     content,
+			Summary: fmt.Sprintf(
+				"skill %s resolved to %s and shadowed %d declaration(s)",
+				strings.TrimSpace(shadows.Name),
+				strings.TrimSpace(shadows.Winner.Tier),
+				len(losers),
+			),
+		})
+	}
+	return summaries
+}
+
+func skillShadowEventLosers(entries []ShadowEntry) []skillShadowEventLoser {
+	if len(entries) == 0 {
+		return nil
+	}
+	losers := make([]skillShadowEventLoser, 0, len(entries))
+	for _, entry := range entries {
+		if entry.ResolvedToWinner {
+			continue
+		}
+		losers = append(losers, skillShadowEventLoser{
+			Path: strings.TrimSpace(entry.Path),
+			Tier: precedenceTierFromSourceLabel(entry.Tier),
+		})
+	}
+	return losers
 }
 
 func (r *Registry) emitEventSummaries(ctx context.Context, summaries []store.EventSummary) {

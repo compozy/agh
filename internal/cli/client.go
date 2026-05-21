@@ -247,6 +247,7 @@ type DaemonClient interface {
 	ListSkills(ctx context.Context, query SkillQuery) ([]SkillRecord, error)
 	GetSkill(ctx context.Context, name string, query SkillQuery) (SkillRecord, error)
 	GetSkillContent(ctx context.Context, name string, query SkillQuery) (string, error)
+	GetSkillShadows(ctx context.Context, name string, query SkillQuery) (SkillShadowsRecord, error)
 	EnableSkill(ctx context.Context, name string, query SkillQuery) (SkillActionRecord, error)
 	DisableSkill(ctx context.Context, name string, query SkillQuery) (SkillActionRecord, error)
 	ListTools(ctx context.Context, query ToolQuery) (ToolsResponseRecord, error)
@@ -636,6 +637,12 @@ type AgentQuery struct {
 
 // SkillRecord is the shared daemon skill payload.
 type SkillRecord = contract.SkillPayload
+
+// SkillShadowsRecord is the shared daemon skill shadow payload.
+type SkillShadowsRecord = contract.SkillShadowsResponse
+
+// SkillProvenanceRecord is the shared daemon skill provenance payload.
+type SkillProvenanceRecord = contract.ProvenancePayload
 
 // SkillQuery captures daemon skill filters.
 type SkillQuery struct {
@@ -3132,6 +3139,25 @@ func (c *unixSocketClient) GetSkillContent(ctx context.Context, name string, que
 		return "", err
 	}
 	return response.Content, nil
+}
+
+func (c *unixSocketClient) GetSkillShadows(
+	ctx context.Context,
+	name string,
+	query SkillQuery,
+) (SkillShadowsRecord, error) {
+	var response SkillShadowsRecord
+	if err := c.doJSON(
+		ctx,
+		http.MethodGet,
+		"/api/skills/"+url.PathEscape(strings.TrimSpace(name))+"/shadows",
+		skillValues(query),
+		nil,
+		&response,
+	); err != nil {
+		return SkillShadowsRecord{}, err
+	}
+	return response, nil
 }
 
 func (c *unixSocketClient) EnableSkill(ctx context.Context, name string, query SkillQuery) (SkillActionRecord, error) {

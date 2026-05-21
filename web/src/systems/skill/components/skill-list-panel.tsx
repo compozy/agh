@@ -21,6 +21,7 @@ import {
   compareSkillSource,
   filterSkillsByQuery,
   skillSourceLabel,
+  skillSourceTone,
   skillStatusTone,
 } from "../lib/skill-formatters";
 import type { SkillPayload } from "../types";
@@ -91,6 +92,14 @@ function SkillListItem({ skill, isSelected, onSelect }: SkillListItemProps) {
             {skill.version ? (
               <Eyebrow className="text-subtle shrink-0">v{skill.version}</Eyebrow>
             ) : null}
+            <Pill
+              className="shrink-0"
+              data-testid={`skill-tier-badge-${skill.name}`}
+              mono
+              tone={skillSourceTone(skill.provenance?.precedence_tier ?? skill.source)}
+            >
+              {skill.provenance?.precedence_tier ?? skill.source}
+            </Pill>
           </ItemTitle>
         </ItemContent>
       </ItemHeader>

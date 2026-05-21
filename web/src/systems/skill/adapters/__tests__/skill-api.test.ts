@@ -6,6 +6,7 @@ import {
   enableSkill,
   getSkill,
   getSkillContent,
+  getSkillShadows,
   getSkillMarketplaceInfo,
   installSkillMarketplace,
   listSkills,
@@ -138,6 +139,34 @@ describe("getSkillContent", () => {
     await getSkillContent("my skill", "ws_123");
 
     await expectFetchRequest({ path: "/api/skills/my%20skill/content?workspace=ws_123" });
+  });
+});
+
+describe("getSkillShadows", () => {
+  it("calls GET /api/skills/:name/shadows?workspace=:id and returns resolver rows", async () => {
+    const response = {
+      name: "test-skill",
+      winner: {
+        detected_at: "2026-04-17T17:00:00Z",
+        path: "/workspace/.agh/skills/test-skill/SKILL.md",
+        resolved_to_winner: true,
+        tier: "workspace",
+      },
+      shadows: [
+        {
+          detected_at: "2026-04-17T17:00:00Z",
+          path: "/workspace/.agh/skills/test-skill/SKILL.md",
+          resolved_to_winner: true,
+          tier: "workspace",
+        },
+      ],
+    };
+    mockJsonResponse(response);
+
+    const result = await getSkillShadows("test-skill", "ws_123");
+
+    expect(result).toEqual(response);
+    await expectFetchRequest({ path: "/api/skills/test-skill/shadows?workspace=ws_123" });
   });
 });
 

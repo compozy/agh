@@ -70,6 +70,7 @@ func newSkillsHandlerFixtureWithMarketplace(
 	engine.DELETE("/api/skills/marketplace/:name", handlers.RemoveSkillMarketplace)
 	engine.GET("/api/skills/:name", handlers.GetSkill)
 	engine.GET("/api/skills/:name/content", handlers.GetSkillContent)
+	engine.GET("/api/skills/:name/shadows", handlers.GetSkillShadows)
 	engine.POST("/api/skills/:name/enable", handlers.EnableSkill)
 	engine.POST("/api/skills/:name/disable", handlers.DisableSkill)
 
@@ -180,10 +181,12 @@ func TestSkillPayloadFromSkill(t *testing.T) {
 				Message:  "Skill references an external link.",
 			}},
 			ShadowedDefinitions: []skills.SkillDefinitionRef{{
-				Source: "bundled",
-				Path:   "test-skill/SKILL.md",
+				Source:     "bundled",
+				Path:       "test-skill/SKILL.md",
+				DetectedAt: time.Date(2026, 4, 2, 9, 0, 0, 0, time.UTC),
 			}},
 		}
+		skill.InstalledFromExtension = "review-tools"
 		payload := core.SkillPayloadFromSkill(skill)
 
 		if payload.Name != "test-skill" {
@@ -218,6 +221,24 @@ func TestSkillPayloadFromSkill(t *testing.T) {
 		}
 		if payload.Provenance.Version != "1.0.0" {
 			t.Errorf("Provenance.Version = %q", payload.Provenance.Version)
+		}
+		if payload.Provenance.InstalledAt == nil || payload.Provenance.InstalledAt.IsZero() {
+			t.Fatalf("Provenance.InstalledAt = %#v, want populated timestamp", payload.Provenance.InstalledAt)
+		}
+		if payload.Provenance.PrecedenceTier != "marketplace" {
+			t.Errorf("Provenance.PrecedenceTier = %q, want marketplace", payload.Provenance.PrecedenceTier)
+		}
+		if payload.Provenance.InstalledFromExtension != "review-tools" {
+			t.Errorf(
+				"Provenance.InstalledFromExtension = %q, want review-tools",
+				payload.Provenance.InstalledFromExtension,
+			)
+		}
+		if got, want := len(payload.Provenance.ShadowedBy), 1; got != want {
+			t.Fatalf("Provenance.ShadowedBy len = %d, want %d", got, want)
+		}
+		if payload.Provenance.ShadowedBy[0].Tier != "bundled" {
+			t.Errorf("Provenance.ShadowedBy[0].Tier = %q, want bundled", payload.Provenance.ShadowedBy[0].Tier)
 		}
 		if got, want := len(payload.Diagnostics), 2; got != want {
 			t.Fatalf("Diagnostics len = %d, want %d", got, want)
@@ -273,10 +294,17 @@ func TestSkillPayloadFromSkill(t *testing.T) {
 			t.Fatalf("json.Unmarshal() error = %v", err)
 		}
 
-		for _, key := range []string{"version", "metadata", "provenance"} {
+		for _, key := range []string{"version", "metadata"} {
 			if _, exists := m[key]; exists {
 				t.Errorf("JSON contains %q but field should be omitted", key)
 			}
+		}
+		provenance, ok := m["provenance"].(map[string]any)
+		if !ok {
+			t.Fatalf("JSON provenance = %#v, want object", m["provenance"])
+		}
+		if got, want := provenance["precedence_tier"], "bundled"; got != want {
+			t.Fatalf("provenance.precedence_tier = %#v, want %q", got, want)
 		}
 	})
 
@@ -880,6 +908,71 @@ func TestGetSkill(t *testing.T) {
 	})
 }
 
+func TestGetSkillShadows(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return winner and shadow declarations from resolver diagnostics", func(t *testing.T) {
+		t.Parallel()
+
+		skill := testSkill()
+		skill.Source = skills.SourceWorkspace
+		skill.FilePath = "/workspace/.agh/skills/test-skill/SKILL.md"
+		skill.Diagnostics.ShadowedDefinitions = []skills.SkillDefinitionRef{{
+			Source:     "marketplace",
+			Path:       "/home/agh/skills/test-skill/SKILL.md",
+			DetectedAt: time.Date(2026, 4, 2, 9, 0, 0, 0, time.UTC),
+		}}
+		registry := &stubSkillsRegistry{
+			GetFn: func(name string) (*skills.Skill, bool) {
+				if name == "test-skill" {
+					return skill, true
+				}
+				return nil, false
+			},
+		}
+		engine := newSkillsHandlerFixture(t, registry, testutil.StubWorkspaceService{})
+		rec := testutil.PerformRequest(t, engine, http.MethodGet, "/api/skills/test-skill/shadows", nil)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+		}
+
+		var resp contract.SkillShadowsResponse
+		testutil.DecodeJSONResponse(t, rec, &resp)
+		if resp.Name != "test-skill" {
+			t.Fatalf("Name = %q, want test-skill", resp.Name)
+		}
+		if !resp.Winner.ResolvedToWinner || resp.Winner.Tier != "workspace" {
+			t.Fatalf("Winner = %#v, want workspace winner", resp.Winner)
+		}
+		if got, want := len(resp.Shadows), 2; got != want {
+			t.Fatalf("len(Shadows) = %d, want %d", got, want)
+		}
+		if resp.Shadows[0].Tier != "workspace" || !resp.Shadows[0].ResolvedToWinner {
+			t.Fatalf("Shadows[0] = %#v, want winner first", resp.Shadows[0])
+		}
+		if resp.Shadows[1].Tier != "marketplace" || resp.Shadows[1].ResolvedToWinner {
+			t.Fatalf("Shadows[1] = %#v, want marketplace loser", resp.Shadows[1])
+		}
+	})
+
+	t.Run("Should return 404 when skill is missing", func(t *testing.T) {
+		t.Parallel()
+
+		registry := &stubSkillsRegistry{
+			GetFn: func(_ string) (*skills.Skill, bool) {
+				return nil, false
+			},
+		}
+		engine := newSkillsHandlerFixture(t, registry, testutil.StubWorkspaceService{})
+		rec := testutil.PerformRequest(t, engine, http.MethodGet, "/api/skills/missing/shadows", nil)
+
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusNotFound, rec.Body.String())
+		}
+	})
+}
+
 func TestGetSkillContent(t *testing.T) {
 	t.Parallel()
 
@@ -1140,6 +1233,7 @@ func TestSkillsRegistryNotConfigured(t *testing.T) {
 		{"ListSkills", http.MethodGet, "/api/skills?workspace=ws-1"},
 		{"GetSkill", http.MethodGet, "/api/skills/test"},
 		{"GetSkillContent", http.MethodGet, "/api/skills/test/content"},
+		{"GetSkillShadows", http.MethodGet, "/api/skills/test/shadows"},
 		{"EnableSkill", http.MethodPost, "/api/skills/test/enable?workspace=ws-1"},
 		{"DisableSkill", http.MethodPost, "/api/skills/test/disable?workspace=ws-1"},
 	}

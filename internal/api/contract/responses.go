@@ -390,6 +390,13 @@ type SkillResponse struct {
 	Skill SkillPayload `json:"skill"`
 }
 
+// SkillShadowsResponse wraps the resolver shadow evidence for one skill name.
+type SkillShadowsResponse struct {
+	Name    string                    `json:"name"`
+	Winner  SkillShadowEntryPayload   `json:"winner"`
+	Shadows []SkillShadowEntryPayload `json:"shadows"`
+}
+
 // ExtensionsResponse wraps the extension list payload.
 type ExtensionsResponse struct {
 	Extensions []ExtensionPayload `json:"extensions"`

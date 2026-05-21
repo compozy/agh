@@ -3,7 +3,11 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { SkillMarketplaceListingPayload, SkillPayload } from "@/systems/skill/types";
+import type {
+  SkillMarketplaceListingPayload,
+  SkillPayload,
+  SkillShadowsResponse,
+} from "@/systems/skill/types";
 import { renderWithTopbar } from "@/test/render-with-topbar";
 
 function render(ui: React.ReactElement) {
@@ -24,6 +28,9 @@ let mockSkillDetailError: Error | null = null;
 let mockSkillContent: string | undefined;
 let mockSkillContentLoading = false;
 let mockSkillContentError: Error | null = null;
+let mockSkillShadows: SkillShadowsResponse | undefined;
+let mockSkillShadowsLoading = false;
+let mockSkillShadowsError: Error | null = null;
 const mockRefetchSkillContent = vi.fn();
 const routerState = vi.hoisted(() => ({
   navigateMock: vi.fn(),
@@ -156,6 +163,11 @@ vi.mock("@/systems/skill", async () => {
       error: enabled ? mockSkillContentError : null,
       refetch: mockRefetchSkillContent,
     }),
+    useSkillShadows: () => ({
+      data: mockSkillShadows,
+      isLoading: mockSkillShadowsLoading,
+      error: mockSkillShadowsError,
+    }),
     useDisableSkill: () => ({
       mutate: mockDisableMutate,
       isPending: mockDisablePending,
@@ -220,7 +232,13 @@ const MARKETPLACE_SKILLS: SkillPayload[] = [
     enabled: true,
     version: "3.1.0",
     metadata: { tags: ["testing", "ai"], downloads: 1234 },
-    provenance: { slug: "author", registry: "clawhub", version: "3.1.0", installed_at: "" },
+    provenance: {
+      slug: "author",
+      registry: "clawhub",
+      version: "3.1.0",
+      installed_at: "",
+      precedence_tier: "marketplace",
+    },
   }),
 ];
 
@@ -266,6 +284,9 @@ describe("SkillsPage", () => {
     mockSkillContent = undefined;
     mockSkillContentLoading = false;
     mockSkillContentError = null;
+    mockSkillShadows = undefined;
+    mockSkillShadowsLoading = false;
+    mockSkillShadowsError = null;
     mockRefetchSkillContent.mockReset();
     mockDisablePending = false;
     mockEnablePending = false;
@@ -416,7 +437,13 @@ describe("SkillsPage", () => {
       name: "mp-plugin",
       source: "marketplace",
       version: "3.1.0",
-      provenance: { slug: "author", registry: "clawhub", version: "3.1.0", installed_at: "" },
+      provenance: {
+        slug: "author",
+        registry: "clawhub",
+        version: "3.1.0",
+        installed_at: "",
+        precedence_tier: "marketplace",
+      },
     });
     render(<SkillsPage />);
 

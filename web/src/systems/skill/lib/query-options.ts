@@ -3,6 +3,7 @@ import { queryOptions } from "@tanstack/react-query";
 import {
   getSkill,
   getSkillContent,
+  getSkillShadows,
   getSkillMarketplaceInfo,
   listSkills,
   searchSkillMarketplace,
@@ -34,6 +35,15 @@ export function skillContentOptions(name: string, workspace: string, enabled: bo
     queryFn: ({ signal }) => getSkillContent(name, workspace, signal),
     staleTime: 30_000,
     enabled: enabled && !!name && !!workspace,
+  });
+}
+
+export function skillShadowsOptions(name: string, workspace: string) {
+  return queryOptions({
+    queryKey: skillKeys.shadows(name, workspace),
+    queryFn: ({ signal }) => getSkillShadows(name, workspace, signal),
+    staleTime: 30_000,
+    enabled: !!name && !!workspace,
   });
 }
 

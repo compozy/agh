@@ -114,11 +114,14 @@ function SkillsPage() {
               isActionPending={page.isActionPending}
               isContentLoading={page.isContentLoading}
               isLoading={page.isLoadingDetail}
+              isShadowsLoading={page.isLoadingShadows}
               onDisable={page.handleDisable}
               onEnable={page.handleEnable}
               onRetryContent={page.handleRetryContent}
               onViewContent={page.handleViewContent}
               skill={page.selectedSkill}
+              shadows={page.selectedSkillShadows}
+              shadowsError={page.shadowsError}
             />
           }
           list={

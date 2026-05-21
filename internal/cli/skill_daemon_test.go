@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/agentidentity"
+	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/session"
 )
 
@@ -51,6 +52,29 @@ func TestSkillWorkspaceCommandsUseDaemon(t *testing.T) {
 					t.Fatalf("GetSkillContent() workspace = %q, want %q", query.Workspace, workspace)
 				}
 				return "# Extension Review\n\nUse extension evidence.", nil
+			},
+			getSkillShadowsFn: func(_ context.Context, name string, query SkillQuery) (SkillShadowsRecord, error) {
+				if name != record.Name {
+					t.Fatalf("GetSkillShadows() name = %q, want %q", name, record.Name)
+				}
+				if query.Workspace != workspace {
+					t.Fatalf("GetSkillShadows() workspace = %q, want %q", query.Workspace, workspace)
+				}
+				return SkillShadowsRecord{
+					Name: record.Name,
+					Winner: contract.SkillShadowEntryPayload{
+						Path:             record.Dir + "/SKILL.md",
+						Tier:             "user",
+						ResolvedToWinner: true,
+						DetectedAt:       fixedTestNow,
+					},
+					Shadows: []contract.SkillShadowEntryPayload{{
+						Path:             record.Dir + "/SKILL.md",
+						Tier:             "user",
+						ResolvedToWinner: true,
+						DetectedAt:       fixedTestNow,
+					}},
+				}, nil
 			},
 		})
 
@@ -97,6 +121,28 @@ func TestSkillWorkspaceCommandsUseDaemon(t *testing.T) {
 		}
 		if info.Name != record.Name || info.Source != "user" || info.Path != record.Dir {
 			t.Fatalf("skill info = %#v, want daemon skill record", info)
+		}
+
+		stdout, _, err = executeRootCommand(
+			t,
+			deps,
+			"skill",
+			"where",
+			record.Name,
+			"--workspace",
+			workspace,
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("skill where --workspace error = %v", err)
+		}
+		var where SkillShadowsRecord
+		if err := json.Unmarshal([]byte(stdout), &where); err != nil {
+			t.Fatalf("json.Unmarshal(skill where) error = %v; stdout=%s", err, stdout)
+		}
+		if where.Winner.Tier != "user" || !where.Winner.ResolvedToWinner {
+			t.Fatalf("skill where = %#v, want user winner", where)
 		}
 
 		stdout, _, err = executeRootCommand(t, deps, "skill", "view", " "+record.Name+" ", "--workspace", workspace)

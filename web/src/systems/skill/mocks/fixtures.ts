@@ -28,9 +28,18 @@ export const skillFixtures: SkillPayload[] = [
     },
     provenance: {
       installed_at: "2026-04-17T16:40:00Z",
+      precedence_tier: "workspace",
       registry: "workspace",
       slug: "workspace",
       version: "1.2.0",
+      shadowed_by: [
+        {
+          detected_at: "2026-04-17T16:41:00Z",
+          path: "/opt/agh/skills/executive-brief-synth/SKILL.md",
+          resolved_to_winner: false,
+          tier: "marketplace",
+        },
+      ],
     },
   },
   {
@@ -45,6 +54,9 @@ export const skillFixtures: SkillPayload[] = [
       tags: ["marketing", "copy", "claims"],
       downloads: 284,
     },
+    provenance: {
+      precedence_tier: "workspace",
+    },
   },
   {
     name: storySkillNames.frontendQa,
@@ -58,6 +70,10 @@ export const skillFixtures: SkillPayload[] = [
       tags: ["frontend", "qa", "launch"],
       downloads: 227,
     },
+    provenance: {
+      precedence_tier: "workspace",
+      installed_from_extension: "launch-qa-pack",
+    },
   },
   {
     name: storySkillNames.financePrep,
@@ -70,6 +86,10 @@ export const skillFixtures: SkillPayload[] = [
     metadata: {
       tags: ["finance", "gmv", "reporting"],
       downloads: 141,
+    },
+    provenance: {
+      precedence_tier: "workspace",
+      installed_from_bundle: "launch-room/default",
     },
   },
   {
@@ -86,12 +106,32 @@ export const skillFixtures: SkillPayload[] = [
     },
     provenance: {
       installed_at: "2026-04-17T15:00:00Z",
+      precedence_tier: "marketplace",
       registry: "community",
       slug: "@community/merchant-escalation-handoff",
       version: "0.8.2",
     },
   },
 ];
+
+export const skillShadowsFixtures = Object.fromEntries(
+  skillFixtures.map(skill => {
+    const winner = {
+      detected_at: "2026-04-17T16:41:00Z",
+      path: `${skill.dir}/SKILL.md`,
+      resolved_to_winner: true,
+      tier: skill.provenance?.precedence_tier ?? skill.source,
+    };
+    return [
+      skill.name,
+      {
+        name: skill.name,
+        winner,
+        shadows: [winner, ...(skill.provenance?.shadowed_by ?? [])],
+      },
+    ];
+  })
+);
 
 export const primarySkillFixture: SkillPayload = skillFixtures[0];
 

@@ -174,6 +174,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"GET /api/skills",
 		"GET /api/skills/:name",
 		"GET /api/skills/:name/content",
+		"GET /api/skills/:name/shadows",
 		"GET /api/skills/marketplace/info",
 		"GET /api/skills/marketplace/search",
 		"GET /api/scheduler",

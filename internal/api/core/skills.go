@@ -99,6 +99,38 @@ func (h *BaseHandlers) GetSkillContent(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.SkillContentResponse{Content: content})
 }
 
+// GetSkillShadows returns every declaration involved in resolving one skill.
+func (h *BaseHandlers) GetSkillShadows(c *gin.Context) {
+	if h.SkillsRegistry == nil {
+		h.respondError(
+			c,
+			http.StatusServiceUnavailable,
+			fmt.Errorf("%s: skills registry is not configured", h.transportName()),
+		)
+		return
+	}
+
+	name := strings.TrimSpace(c.Param("name"))
+	if name == "" {
+		h.respondError(c, http.StatusBadRequest, fmt.Errorf("%w: skill name is required", ErrSkillValidation))
+		return
+	}
+
+	skill, err := h.resolveSkill(c, name)
+	if err != nil {
+		h.respondError(c, StatusForSkillError(err), err)
+		return
+	}
+
+	shadows, ok := skills.ShadowsForSkill(skill, h.Now())
+	if !ok {
+		h.respondError(c, StatusForSkillError(ErrSkillNotFound), fmt.Errorf("%w: %q", ErrSkillNotFound, name))
+		return
+	}
+
+	c.JSON(http.StatusOK, SkillShadowsResponseFromDomain(shadows))
+}
+
 // EnableSkill enables a skill by name.
 func (h *BaseHandlers) EnableSkill(c *gin.Context) {
 	if h.SkillsRegistry == nil {

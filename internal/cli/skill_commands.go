@@ -31,6 +31,7 @@ func newSkillCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSkillListCommand(deps))
 	cmd.AddCommand(newSkillViewCommand(deps))
 	cmd.AddCommand(newSkillInfoCommand(deps))
+	cmd.AddCommand(newSkillWhereCommand(deps))
 	cmd.AddCommand(newSkillSearchCommand(deps))
 	cmd.AddCommand(newSkillInstallCommand(deps))
 	cmd.AddCommand(newSkillRemoveCommand(deps))
@@ -297,18 +298,56 @@ func newSkillInfoCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			item := skillInfoItem{
-				Name:        skill.Meta.Name,
-				Description: skill.Meta.Description,
-				Version:     skill.Meta.Version,
-				Source:      skillSourceLabel(skill.Source),
-				Path:        skill.FilePath,
-				Enabled:     skill.Enabled,
-				Metadata:    cloneMetadata(skill.Meta.Metadata),
-				Resources:   resources,
-			}
+			item := skillInfoItemFromSkill(skill, resources, cliNow(deps.now))
 
 			return writeCommandOutput(cmd, skillInfoBundle(item))
+		},
+	}
+	cmd.Flags().StringVar(
+		&workspace,
+		workspaceSkillSource,
+		"",
+		"Resolve the daemon-managed skill from a workspace id, name, or path",
+	)
+	cmd.Flags().StringVar(&agentName, "for-agent", "", "Resolve the effective skill set for one logical agent")
+	return cmd
+}
+
+func newSkillWhereCommand(deps commandDeps) *cobra.Command {
+	var workspace string
+	var agentName string
+
+	cmd := &cobra.Command{
+		Use:     "where <name>",
+		Short:   "Show every path participating in skill resolution",
+		Example: "  # Show which skill declaration wins and which ones are shadowed\n  agh skill where code-review",
+		Args:    exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			scope, err := resolveSkillCommandScope(cmd.Context(), cmd, deps, agentActionCLI("skill.where"))
+			if err != nil {
+				return err
+			}
+			if scope.useDaemon {
+				client, err := clientFromDeps(deps)
+				if err != nil {
+					return err
+				}
+				record, err := client.GetSkillShadows(cmd.Context(), args[0], scope.query)
+				if err != nil {
+					return err
+				}
+				return writeCommandOutput(cmd, skillWhereBundle(record))
+			}
+
+			ctx, err := loadSkillCommandContext(cmd.Context(), deps, scope.query.ForAgent)
+			if err != nil {
+				return err
+			}
+			shadows, ok := skills.ShadowsForSkillList(ctx.skills, args[0], cliNow(deps.now))
+			if !ok {
+				return fmt.Errorf("skill %q not found", strings.TrimSpace(args[0]))
+			}
+			return writeCommandOutput(cmd, skillWhereBundle(skillShadowsRecordFromDomain(shadows)))
 		},
 	}
 	cmd.Flags().StringVar(

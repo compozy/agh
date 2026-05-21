@@ -19,16 +19,18 @@ type SkillMeta struct {
 
 // Skill is the metadata-first in-memory representation of a parsed skill file.
 type Skill struct {
-	Meta          SkillMeta
-	Source        SkillSource
-	Dir           string
-	FilePath      string
-	Enabled       bool
-	MCPServers    []MCPServerDecl
-	Hooks         []hookspkg.HookDecl
-	Provenance    *Provenance
-	InstalledFrom string
-	Diagnostics   SkillDiagnostics
+	Meta                   SkillMeta
+	Source                 SkillSource
+	Dir                    string
+	FilePath               string
+	Enabled                bool
+	MCPServers             []MCPServerDecl
+	Hooks                  []hookspkg.HookDecl
+	Provenance             *Provenance
+	InstalledFrom          string
+	InstalledFromBundle    string
+	InstalledFromExtension string
+	Diagnostics            SkillDiagnostics
 }
 
 // SkillSource identifies where a skill was loaded from.
@@ -109,8 +111,27 @@ const (
 
 // SkillDefinitionRef identifies a skill definition involved in resolution diagnostics.
 type SkillDefinitionRef struct {
-	Source string
-	Path   string
+	Source     string
+	Path       string
+	DetectedAt time.Time
+}
+
+// ShadowEntry is the public read model for one declaration participating in
+// skill resolution. The winner and every shadowed declaration come from the
+// same resolver snapshot.
+type ShadowEntry struct {
+	Path             string
+	Tier             string
+	ResolvedToWinner bool
+	DetectedAt       time.Time
+}
+
+// SkillShadows describes every declaration for one skill name with the
+// resolver winner called out explicitly.
+type SkillShadows struct {
+	Name    string
+	Winner  ShadowEntry
+	Shadows []ShadowEntry
 }
 
 // SkillVerificationFailure captures an actionable verification rejection.

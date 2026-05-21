@@ -44,14 +44,15 @@ type skillViewItem struct {
 }
 
 type skillInfoItem struct {
-	Name        string         `json:"name"`
-	Description string         `json:"description"`
-	Version     string         `json:"version,omitempty"`
-	Source      string         `json:"source"`
-	Path        string         `json:"path"`
-	Enabled     bool           `json:"enabled"`
-	Metadata    map[string]any `json:"metadata,omitempty"`
-	Resources   []string       `json:"resources,omitempty"`
+	Name        string                 `json:"name"`
+	Description string                 `json:"description"`
+	Version     string                 `json:"version,omitempty"`
+	Source      string                 `json:"source"`
+	Path        string                 `json:"path"`
+	Enabled     bool                   `json:"enabled"`
+	Metadata    map[string]any         `json:"metadata,omitempty"`
+	Resources   []string               `json:"resources,omitempty"`
+	Provenance  *SkillProvenanceRecord `json:"provenance,omitempty"`
 }
 
 type skillCreateItem struct {

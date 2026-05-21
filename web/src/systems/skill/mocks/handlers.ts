@@ -4,6 +4,7 @@ import {
   skillActionFixture,
   skillContentFixtures,
   skillFixtures,
+  skillShadowsFixtures,
   skillMarketplaceDetailFixture,
   skillMarketplaceInstallFixture,
   skillMarketplaceListingBySlug,
@@ -112,6 +113,16 @@ export const handlers: HttpHandler[] = [
     }
 
     return HttpResponse.json({ content });
+  }),
+  http.get("/api/skills/:name/shadows", ({ params }) => {
+    const name = String(params.name);
+    const shadows = skillShadowsFixtures[name];
+
+    if (!shadows) {
+      return HttpResponse.json({ error: `Skill not found: ${name}` }, { status: 404 });
+    }
+
+    return HttpResponse.json(shadows);
   }),
   http.post("/api/skills/:name/enable", ({ params }) => {
     if (!skillByName.has(String(params.name))) {
