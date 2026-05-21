@@ -500,6 +500,20 @@ func (g *GlobalDB) selectClaimableRunID(
 ) (string, error) {
 	where := []string{
 		"tr.status = ?",
+		"COALESCE(t.paused, 0) = 0",
+		`NOT EXISTS (SELECT 1 FROM scheduler_pause sp WHERE sp.id = 1 AND sp.paused = 1)`,
+		`NOT EXISTS (
+			WITH RECURSIVE ancestors(id, parent_task_id, paused) AS (
+				SELECT parent.id, parent.parent_task_id, parent.paused
+				  FROM tasks parent
+				 WHERE parent.id = t.parent_task_id
+				UNION ALL
+				SELECT parent.id, parent.parent_task_id, parent.paused
+				  FROM tasks parent
+				  JOIN ancestors a ON parent.id = a.parent_task_id
+			)
+			SELECT 1 FROM ancestors WHERE COALESCE(paused, 0) = 1
+		)`,
 		"t.status NOT IN (?, ?, ?)",
 		taskPriorityValueSQL + " >= ?",
 		`NOT EXISTS (

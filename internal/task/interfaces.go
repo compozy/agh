@@ -17,6 +17,8 @@ type Manager interface {
 	ApproveTask(ctx context.Context, id string, req ExecutionRequest, actor ActorContext) (*Execution, error)
 	RejectTask(ctx context.Context, id string, actor ActorContext) (*Task, error)
 	CancelTask(ctx context.Context, id string, req CancelTask, actor ActorContext) (*Task, error)
+	PauseTask(ctx context.Context, id string, req PauseTaskRequest, actor ActorContext) (*Task, error)
+	ResumeTask(ctx context.Context, id string, req ResumeTaskRequest, actor ActorContext) (*Task, error)
 	MarkTaskRead(ctx context.Context, id string, actor ActorContext) (TriageState, error)
 	ArchiveTask(ctx context.Context, id string, actor ActorContext) (TriageState, error)
 	DismissTask(ctx context.Context, id string, actor ActorContext) (TriageState, error)
@@ -66,6 +68,11 @@ type Manager interface {
 		recovery ExpiredLeaseRecovery,
 		actor ActorContext,
 	) ([]ExpiredLeaseRecoveryResult, error)
+	SchedulerStatus(ctx context.Context, actor ActorContext) (SchedulerStatus, error)
+	PauseScheduler(ctx context.Context, req SchedulerPauseRequest, actor ActorContext) (SchedulerStatus, error)
+	ResumeScheduler(ctx context.Context, req SchedulerResumeRequest, actor ActorContext) (SchedulerStatus, error)
+	DrainScheduler(ctx context.Context, req SchedulerDrainRequest, actor ActorContext) (SchedulerDrainResult, error)
+	SchedulerBacklog(ctx context.Context, query SchedulerBacklogQuery, actor ActorContext) (SchedulerBacklog, error)
 
 	GetTask(ctx context.Context, id string, actor ActorContext) (*View, error)
 	InspectTask(ctx context.Context, taskID string, actor ActorContext) (*InspectView, error)

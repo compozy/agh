@@ -80,6 +80,7 @@ var taskTableIndexStatements = []string{
 	`CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id);`,
 	`CREATE INDEX IF NOT EXISTS idx_tasks_owner ON tasks(owner_kind, owner_ref);`,
 	`CREATE INDEX IF NOT EXISTS idx_tasks_channel ON tasks(network_channel);`,
+	`CREATE INDEX IF NOT EXISTS idx_tasks_paused ON tasks(paused, updated_at DESC);`,
 	taskCurrentRunIndexStatement,
 }
 
@@ -514,6 +515,10 @@ var globalSchemaStatements = appendSchemaStatements(
 		closed_at       TEXT,
 		metadata_json   TEXT,
 		current_run_id  TEXT REFERENCES task_runs(id) ON DELETE SET NULL,
+		paused          INTEGER NOT NULL DEFAULT 0 CHECK (paused IN (0, 1)),
+		paused_by       TEXT NOT NULL DEFAULT '',
+		paused_at       TEXT,
+		paused_reason   TEXT NOT NULL DEFAULT '',
 		max_runtime_seconds INTEGER NOT NULL DEFAULT 0 CHECK (max_runtime_seconds >= 0),
 		spawn_failure_count INTEGER NOT NULL DEFAULT 0 CHECK (spawn_failure_count >= 0),
 		last_spawn_error TEXT NOT NULL DEFAULT '',
@@ -552,6 +557,7 @@ var globalSchemaStatements = appendSchemaStatements(
 		taskTableIndexStatements[5],
 		taskTableIndexStatements[6],
 		taskTableIndexStatements[7],
+		taskTableIndexStatements[8],
 		`CREATE TABLE IF NOT EXISTS task_runs (
 		id              TEXT PRIMARY KEY,
 		task_id         TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
@@ -1004,6 +1010,12 @@ var globalSchemaMigrations = []store.Migration{
 		Name:     "add_task_run_force_ops",
 		Up:       migrateTaskRunForceOps,
 		Checksum: "2026-05-21-add-task-run-force-ops",
+	},
+	{
+		Version:  33,
+		Name:     "add_task_pause_state",
+		Up:       migratePauseState,
+		Checksum: "2026-05-21-add-task-pause-state",
 	},
 }
 

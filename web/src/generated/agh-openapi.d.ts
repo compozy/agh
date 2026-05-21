@@ -1982,6 +1982,91 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/scheduler": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get scheduler pause state and queue pressure */
+    get: operations["getScheduler"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/scheduler/backlog": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List queued scheduler backlog rows */
+    get: operations["getSchedulerBacklog"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/scheduler/drain": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Pause the scheduler and wait for active claims to drain */
+    post: operations["drainScheduler"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/scheduler/pause": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Pause scheduler dispatch and task-run claims */
+    post: operations["pauseScheduler"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/scheduler/resume": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Resume scheduler dispatch and task-run claims */
+    post: operations["resumeScheduler"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/sessions": {
     parameters: {
       query?: never;
@@ -2973,6 +3058,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/tasks/{id}/pause": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Pause one task for future scheduler claims */
+    post: operations["pauseTask"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/tasks/{id}/publish": {
     parameters: {
       query?: never;
@@ -3001,6 +3103,23 @@ export interface paths {
     put?: never;
     /** Reject one approval-gated task */
     post: operations["rejectTask"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/tasks/{id}/resume": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Resume one paused task for future scheduler claims */
+    post: operations["resumeTask"];
     delete?: never;
     options?: never;
     head?: never;
@@ -5298,6 +5417,7 @@ export interface operations {
                     /** Format: int64 */
                     sequence: number;
                     task: {
+                      effective_paused?: boolean;
                       id: string;
                       identifier?: string;
                       /** Format: int64 */
@@ -5313,6 +5433,8 @@ export interface operations {
                           | "pool";
                         ref: string;
                       } | null;
+                      paused?: boolean;
+                      paused_by_task_id?: string;
                       /** @enum {string} */
                       priority?: "low" | "medium" | "high" | "urgent";
                       /** @enum {string} */
@@ -5354,6 +5476,7 @@ export interface operations {
                     status: string;
                   }[];
                   task: {
+                    effective_paused?: boolean;
                     id: string;
                     identifier?: string;
                     /** Format: int64 */
@@ -5369,6 +5492,8 @@ export interface operations {
                         | "pool";
                       ref: string;
                     } | null;
+                    paused?: boolean;
+                    paused_by_task_id?: string;
                     /** @enum {string} */
                     priority?: "low" | "medium" | "high" | "urgent";
                     /** @enum {string} */
@@ -5440,6 +5565,7 @@ export interface operations {
                   task_id: string;
                 } | null;
                 task?: {
+                  effective_paused?: boolean;
                   id: string;
                   identifier?: string;
                   /** Format: int64 */
@@ -5455,6 +5581,8 @@ export interface operations {
                       | "pool";
                     ref: string;
                   } | null;
+                  paused?: boolean;
+                  paused_by_task_id?: string;
                   /** @enum {string} */
                   priority?: "low" | "medium" | "high" | "urgent";
                   /** @enum {string} */
@@ -7108,6 +7236,7 @@ export interface operations {
                 task_id: string;
               };
               task: {
+                effective_paused?: boolean;
                 id: string;
                 identifier?: string;
                 /** Format: int64 */
@@ -7123,6 +7252,8 @@ export interface operations {
                     | "pool";
                   ref: string;
                 } | null;
+                paused?: boolean;
+                paused_by_task_id?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
                 /** @enum {string} */
@@ -25812,6 +25943,7 @@ export interface operations {
                     task_id: string;
                   } | null;
                   task: {
+                    effective_paused?: boolean;
                     id: string;
                     identifier?: string;
                     /** Format: int64 */
@@ -25827,6 +25959,8 @@ export interface operations {
                         | "pool";
                       ref: string;
                     } | null;
+                    paused?: boolean;
+                    paused_by_task_id?: string;
                     /** @enum {string} */
                     priority?: "low" | "medium" | "high" | "urgent";
                     /** @enum {string} */
@@ -28351,6 +28485,7 @@ export interface operations {
                   /** Format: date-time */
                   created_at: string;
                   depends_on: {
+                    effective_paused?: boolean;
                     id: string;
                     identifier?: string;
                     /** Format: int64 */
@@ -28366,6 +28501,8 @@ export interface operations {
                         | "pool";
                       ref: string;
                     } | null;
+                    paused?: boolean;
+                    paused_by_task_id?: string;
                     /** @enum {string} */
                     priority?: "low" | "medium" | "high" | "urgent";
                     /** @enum {string} */
@@ -28390,6 +28527,7 @@ export interface operations {
                 }[];
                 dependency_count?: number;
                 draft?: boolean;
+                effective_paused?: boolean;
                 id: string;
                 identifier?: string;
                 /** Format: date-time */
@@ -28424,6 +28562,12 @@ export interface operations {
                   ref: string;
                 } | null;
                 parent_task_id?: string;
+                paused?: boolean;
+                /** Format: date-time */
+                paused_at?: string | null;
+                paused_by?: string;
+                paused_by_task_id?: string;
+                paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
                 /** @enum {string} */
@@ -29145,6 +29289,992 @@ export interface operations {
       };
       /** @description Force-operation rate limit exceeded */
       429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getScheduler: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            scheduler: {
+              active_claim_count: number;
+              /** Format: date-time */
+              as_of: string;
+              drain_in_progress: boolean;
+              /** Format: date-time */
+              drain_started_at?: string | null;
+              paused: boolean;
+              /** Format: date-time */
+              paused_at?: string | null;
+              paused_by?: string;
+              paused_reason?: string;
+              paused_task_count: number;
+              queued_run_count: number;
+            };
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getSchedulerBacklog: {
+    parameters: {
+      query?: {
+        /** @description Maximum number of queued runs to return */
+        limit?: number;
+        /** @description Filter by workspace path, name, or ID */
+        workspace?: string;
+        /** @description Include runs blocked by task pause state */
+        include_paused?: boolean;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            backlog: {
+              runs: {
+                run: {
+                  attempt: number;
+                  claim_token_hash?: string;
+                  /** Format: date-time */
+                  claimed_at?: string | null;
+                  claimed_by?: {
+                    /** @enum {string} */
+                    kind:
+                      | "human"
+                      | "agent_session"
+                      | "automation"
+                      | "extension"
+                      | "network_peer"
+                      | "daemon";
+                    ref: string;
+                  } | null;
+                  coordination_channel?: {
+                    allowed_message_kinds: (
+                      | "status"
+                      | "request"
+                      | "reply"
+                      | "blocker"
+                      | "handoff"
+                      | "result"
+                      | "review_request"
+                    )[];
+                    channel?: string;
+                    display_name: string;
+                    id: string;
+                    /** Format: date-time */
+                    last_activity_at?: string | null;
+                    purpose?: string;
+                    run_id?: string;
+                    task_id?: string;
+                    workflow_id?: string;
+                    workspace_id?: string;
+                  } | null;
+                  coordination_channel_id?: string;
+                  /** Format: date-time */
+                  ended_at?: string | null;
+                  error?: string;
+                  failure_kind?: string;
+                  /** Format: date-time */
+                  heartbeat_at?: string | null;
+                  id: string;
+                  idempotency_key?: string;
+                  /** Format: date-time */
+                  lease_until?: string | null;
+                  metadata?: unknown;
+                  network_channel?: string;
+                  origin: {
+                    /** @enum {string} */
+                    kind:
+                      | "cli"
+                      | "web"
+                      | "uds"
+                      | "http"
+                      | "automation"
+                      | "extension"
+                      | "network"
+                      | "agent_session"
+                      | "daemon";
+                    ref: string;
+                  };
+                  previous_run_id?: string;
+                  /** Format: date-time */
+                  queued_at: string;
+                  result?: unknown;
+                  session_id?: string;
+                  /** Format: date-time */
+                  started_at?: string | null;
+                  /** @enum {string} */
+                  status:
+                    | "queued"
+                    | "claimed"
+                    | "starting"
+                    | "running"
+                    | "completed"
+                    | "failed"
+                    | "canceled";
+                  task_id: string;
+                };
+                task: {
+                  active_run?: {
+                    attempt: number;
+                    claim_token_hash?: string;
+                    /** Format: date-time */
+                    claimed_at?: string | null;
+                    claimed_by?: {
+                      /** @enum {string} */
+                      kind:
+                        | "human"
+                        | "agent_session"
+                        | "automation"
+                        | "extension"
+                        | "network_peer"
+                        | "daemon";
+                      ref: string;
+                    } | null;
+                    coordination_channel?: {
+                      allowed_message_kinds: (
+                        | "status"
+                        | "request"
+                        | "reply"
+                        | "blocker"
+                        | "handoff"
+                        | "result"
+                        | "review_request"
+                      )[];
+                      channel?: string;
+                      display_name: string;
+                      id: string;
+                      /** Format: date-time */
+                      last_activity_at?: string | null;
+                      purpose?: string;
+                      run_id?: string;
+                      task_id?: string;
+                      workflow_id?: string;
+                      workspace_id?: string;
+                    } | null;
+                    coordination_channel_id?: string;
+                    /** Format: date-time */
+                    ended_at?: string | null;
+                    error?: string;
+                    failure_kind?: string;
+                    /** Format: date-time */
+                    heartbeat_at?: string | null;
+                    id: string;
+                    /** Format: date-time */
+                    lease_until?: string | null;
+                    max_attempts: number;
+                    previous_run_id?: string;
+                    /** Format: date-time */
+                    queued_at: string;
+                    session_id?: string;
+                    /** Format: date-time */
+                    started_at?: string | null;
+                    /** @enum {string} */
+                    status:
+                      | "queued"
+                      | "claimed"
+                      | "starting"
+                      | "running"
+                      | "completed"
+                      | "failed"
+                      | "canceled";
+                    task_id: string;
+                  } | null;
+                  /** @enum {string} */
+                  approval_policy?: "none" | "manual";
+                  /** @enum {string} */
+                  approval_state?: "not_required" | "pending" | "approved" | "rejected";
+                  child_count?: number;
+                  /** Format: date-time */
+                  closed_at?: string | null;
+                  /** Format: date-time */
+                  created_at: string;
+                  created_by: {
+                    /** @enum {string} */
+                    kind:
+                      | "human"
+                      | "agent_session"
+                      | "automation"
+                      | "extension"
+                      | "network_peer"
+                      | "daemon";
+                    ref: string;
+                  };
+                  current_run_id?: string;
+                  dependencies?: {
+                    /** Format: date-time */
+                    created_at: string;
+                    depends_on: {
+                      effective_paused?: boolean;
+                      id: string;
+                      identifier?: string;
+                      /** Format: int64 */
+                      latest_event_seq: number;
+                      owner?: {
+                        /** @enum {string} */
+                        kind:
+                          | "human"
+                          | "agent_session"
+                          | "automation"
+                          | "extension"
+                          | "network_peer"
+                          | "pool";
+                        ref: string;
+                      } | null;
+                      paused?: boolean;
+                      paused_by_task_id?: string;
+                      /** @enum {string} */
+                      priority?: "low" | "medium" | "high" | "urgent";
+                      /** @enum {string} */
+                      scope: "global" | "workspace";
+                      /** @enum {string} */
+                      status:
+                        | "draft"
+                        | "pending"
+                        | "blocked"
+                        | "ready"
+                        | "in_progress"
+                        | "completed"
+                        | "failed"
+                        | "canceled";
+                      title: string;
+                      workspace_id?: string;
+                    };
+                    depends_on_task_id: string;
+                    /** @enum {string} */
+                    kind: "blocks";
+                    task_id: string;
+                  }[];
+                  dependency_count?: number;
+                  draft?: boolean;
+                  effective_paused?: boolean;
+                  id: string;
+                  identifier?: string;
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  /** Format: int64 */
+                  latest_event_seq: number;
+                  max_attempts?: number;
+                  network_channel?: string;
+                  origin: {
+                    /** @enum {string} */
+                    kind:
+                      | "cli"
+                      | "web"
+                      | "uds"
+                      | "http"
+                      | "automation"
+                      | "extension"
+                      | "network"
+                      | "agent_session"
+                      | "daemon";
+                    ref: string;
+                  };
+                  owner?: {
+                    /** @enum {string} */
+                    kind:
+                      | "human"
+                      | "agent_session"
+                      | "automation"
+                      | "extension"
+                      | "network_peer"
+                      | "pool";
+                    ref: string;
+                  } | null;
+                  parent_task_id?: string;
+                  paused?: boolean;
+                  /** Format: date-time */
+                  paused_at?: string | null;
+                  paused_by?: string;
+                  paused_by_task_id?: string;
+                  paused_reason?: string;
+                  /** @enum {string} */
+                  priority?: "low" | "medium" | "high" | "urgent";
+                  /** @enum {string} */
+                  scope: "global" | "workspace";
+                  /** @enum {string} */
+                  status:
+                    | "draft"
+                    | "pending"
+                    | "blocked"
+                    | "ready"
+                    | "in_progress"
+                    | "completed"
+                    | "failed"
+                    | "canceled";
+                  title: string;
+                  /** Format: date-time */
+                  updated_at: string;
+                  workspace_id?: string;
+                };
+              }[];
+              total: number;
+            };
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid scheduler backlog query */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  drainScheduler: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody?: {
+      content: {
+        "application/json": {
+          reason?: string;
+          timeout_seconds?: number | null;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            completed: boolean;
+            /** Format: date-time */
+            completed_at: string;
+            remaining_claims: number;
+            scheduler: {
+              active_claim_count: number;
+              /** Format: date-time */
+              as_of: string;
+              drain_in_progress: boolean;
+              /** Format: date-time */
+              drain_started_at?: string | null;
+              paused: boolean;
+              /** Format: date-time */
+              paused_at?: string | null;
+              paused_by?: string;
+              paused_reason?: string;
+              paused_task_count: number;
+              queued_run_count: number;
+            };
+            /** Format: date-time */
+            started_at: string;
+            timed_out?: boolean;
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid scheduler drain request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  pauseScheduler: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody?: {
+      content: {
+        "application/json": {
+          reason?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            scheduler: {
+              active_claim_count: number;
+              /** Format: date-time */
+              as_of: string;
+              drain_in_progress: boolean;
+              /** Format: date-time */
+              drain_started_at?: string | null;
+              paused: boolean;
+              /** Format: date-time */
+              paused_at?: string | null;
+              paused_by?: string;
+              paused_reason?: string;
+              paused_task_count: number;
+              queued_run_count: number;
+            };
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid scheduler pause request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  resumeScheduler: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody?: {
+      content: {
+        "application/json": {
+          reason?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            scheduler: {
+              active_claim_count: number;
+              /** Format: date-time */
+              as_of: string;
+              drain_in_progress: boolean;
+              /** Format: date-time */
+              drain_started_at?: string | null;
+              paused: boolean;
+              /** Format: date-time */
+              paused_at?: string | null;
+              paused_by?: string;
+              paused_reason?: string;
+              paused_task_count: number;
+              queued_run_count: number;
+            };
+          };
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid scheduler resume request */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -38985,6 +40115,7 @@ export interface operations {
                 turn_count?: number | null;
               };
               task: {
+                effective_paused?: boolean;
                 id: string;
                 identifier?: string;
                 /** Format: int64 */
@@ -39000,6 +40131,8 @@ export interface operations {
                     | "pool";
                   ref: string;
                 } | null;
+                paused?: boolean;
+                paused_by_task_id?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
                 /** @enum {string} */
@@ -41247,6 +42380,7 @@ export interface operations {
                 /** Format: date-time */
                 created_at: string;
                 depends_on: {
+                  effective_paused?: boolean;
                   id: string;
                   identifier?: string;
                   /** Format: int64 */
@@ -41262,6 +42396,8 @@ export interface operations {
                       | "pool";
                     ref: string;
                   } | null;
+                  paused?: boolean;
+                  paused_by_task_id?: string;
                   /** @enum {string} */
                   priority?: "low" | "medium" | "high" | "urgent";
                   /** @enum {string} */
@@ -41286,6 +42422,7 @@ export interface operations {
               }[];
               dependency_count?: number;
               draft?: boolean;
+              effective_paused?: boolean;
               id: string;
               identifier?: string;
               /** Format: date-time */
@@ -41320,6 +42457,12 @@ export interface operations {
                 ref: string;
               } | null;
               parent_task_id?: string;
+              paused?: boolean;
+              /** Format: date-time */
+              paused_at?: string | null;
+              paused_by?: string;
+              paused_by_task_id?: string;
+              paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
               /** @enum {string} */
@@ -41515,6 +42658,7 @@ export interface operations {
               current_run_id?: string;
               description?: string;
               draft?: boolean;
+              effective_paused?: boolean;
               id: string;
               identifier?: string;
               /** Format: int64 */
@@ -41548,6 +42692,12 @@ export interface operations {
                 ref: string;
               } | null;
               parent_task_id?: string;
+              paused?: boolean;
+              /** Format: date-time */
+              paused_at?: string | null;
+              paused_by?: string;
+              paused_by_task_id?: string;
+              paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
               /** @enum {string} */
@@ -41839,6 +42989,7 @@ export interface operations {
                   /** Format: date-time */
                   created_at: string;
                   depends_on: {
+                    effective_paused?: boolean;
                     id: string;
                     identifier?: string;
                     /** Format: int64 */
@@ -41854,6 +43005,8 @@ export interface operations {
                         | "pool";
                       ref: string;
                     } | null;
+                    paused?: boolean;
+                    paused_by_task_id?: string;
                     /** @enum {string} */
                     priority?: "low" | "medium" | "high" | "urgent";
                     /** @enum {string} */
@@ -41878,6 +43031,7 @@ export interface operations {
                 }[];
                 dependency_count?: number;
                 draft?: boolean;
+                effective_paused?: boolean;
                 id: string;
                 identifier?: string;
                 /** Format: date-time */
@@ -41912,6 +43066,12 @@ export interface operations {
                   ref: string;
                 } | null;
                 parent_task_id?: string;
+                paused?: boolean;
+                /** Format: date-time */
+                paused_at?: string | null;
+                paused_by?: string;
+                paused_by_task_id?: string;
+                paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
                 /** @enum {string} */
@@ -41943,6 +43103,7 @@ export interface operations {
                 /** Format: date-time */
                 created_at: string;
                 depends_on: {
+                  effective_paused?: boolean;
                   id: string;
                   identifier?: string;
                   /** Format: int64 */
@@ -41958,6 +43119,8 @@ export interface operations {
                       | "pool";
                     ref: string;
                   } | null;
+                  paused?: boolean;
+                  paused_by_task_id?: string;
                   /** @enum {string} */
                   priority?: "low" | "medium" | "high" | "urgent";
                   /** @enum {string} */
@@ -42187,6 +43350,7 @@ export interface operations {
                   /** Format: date-time */
                   created_at: string;
                   depends_on: {
+                    effective_paused?: boolean;
                     id: string;
                     identifier?: string;
                     /** Format: int64 */
@@ -42202,6 +43366,8 @@ export interface operations {
                         | "pool";
                       ref: string;
                     } | null;
+                    paused?: boolean;
+                    paused_by_task_id?: string;
                     /** @enum {string} */
                     priority?: "low" | "medium" | "high" | "urgent";
                     /** @enum {string} */
@@ -42226,6 +43392,7 @@ export interface operations {
                 }[];
                 dependency_count?: number;
                 draft?: boolean;
+                effective_paused?: boolean;
                 id: string;
                 identifier?: string;
                 /** Format: date-time */
@@ -42260,6 +43427,12 @@ export interface operations {
                   ref: string;
                 } | null;
                 parent_task_id?: string;
+                paused?: boolean;
+                /** Format: date-time */
+                paused_at?: string | null;
+                paused_by?: string;
+                paused_by_task_id?: string;
+                paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
                 /** @enum {string} */
@@ -42302,6 +43475,7 @@ export interface operations {
                 current_run_id?: string;
                 description?: string;
                 draft?: boolean;
+                effective_paused?: boolean;
                 id: string;
                 identifier?: string;
                 /** Format: int64 */
@@ -42335,6 +43509,12 @@ export interface operations {
                   ref: string;
                 } | null;
                 parent_task_id?: string;
+                paused?: boolean;
+                /** Format: date-time */
+                paused_at?: string | null;
+                paused_by?: string;
+                paused_by_task_id?: string;
+                paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
                 /** @enum {string} */
@@ -42656,6 +43836,7 @@ export interface operations {
               current_run_id?: string;
               description?: string;
               draft?: boolean;
+              effective_paused?: boolean;
               id: string;
               identifier?: string;
               /** Format: int64 */
@@ -42689,6 +43870,12 @@ export interface operations {
                 ref: string;
               } | null;
               parent_task_id?: string;
+              paused?: boolean;
+              /** Format: date-time */
+              paused_at?: string | null;
+              paused_by?: string;
+              paused_by_task_id?: string;
+              paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
               /** @enum {string} */
@@ -42977,6 +44164,7 @@ export interface operations {
               current_run_id?: string;
               description?: string;
               draft?: boolean;
+              effective_paused?: boolean;
               id: string;
               identifier?: string;
               /** Format: int64 */
@@ -43010,6 +44198,12 @@ export interface operations {
                 ref: string;
               } | null;
               parent_task_id?: string;
+              paused?: boolean;
+              /** Format: date-time */
+              paused_at?: string | null;
+              paused_by?: string;
+              paused_by_task_id?: string;
+              paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
               /** @enum {string} */
@@ -43215,6 +44409,7 @@ export interface operations {
               current_run_id?: string;
               description?: string;
               draft?: boolean;
+              effective_paused?: boolean;
               id: string;
               identifier?: string;
               /** Format: int64 */
@@ -43248,6 +44443,12 @@ export interface operations {
                 ref: string;
               } | null;
               parent_task_id?: string;
+              paused?: boolean;
+              /** Format: date-time */
+              paused_at?: string | null;
+              paused_by?: string;
+              paused_by_task_id?: string;
+              paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
               /** @enum {string} */
@@ -43471,6 +44672,7 @@ export interface operations {
               current_run_id?: string;
               description?: string;
               draft?: boolean;
+              effective_paused?: boolean;
               id: string;
               identifier?: string;
               /** Format: int64 */
@@ -43504,6 +44706,12 @@ export interface operations {
                 ref: string;
               } | null;
               parent_task_id?: string;
+              paused?: boolean;
+              /** Format: date-time */
+              paused_at?: string | null;
+              paused_by?: string;
+              paused_by_task_id?: string;
+              paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
               /** @enum {string} */
@@ -43804,6 +45012,7 @@ export interface operations {
                   /** Format: date-time */
                   created_at: string;
                   depends_on: {
+                    effective_paused?: boolean;
                     id: string;
                     identifier?: string;
                     /** Format: int64 */
@@ -43819,6 +45028,8 @@ export interface operations {
                         | "pool";
                       ref: string;
                     } | null;
+                    paused?: boolean;
+                    paused_by_task_id?: string;
                     /** @enum {string} */
                     priority?: "low" | "medium" | "high" | "urgent";
                     /** @enum {string} */
@@ -43843,6 +45054,7 @@ export interface operations {
                 }[];
                 dependency_count?: number;
                 draft?: boolean;
+                effective_paused?: boolean;
                 id: string;
                 identifier?: string;
                 /** Format: date-time */
@@ -43877,6 +45089,12 @@ export interface operations {
                   ref: string;
                 } | null;
                 parent_task_id?: string;
+                paused?: boolean;
+                /** Format: date-time */
+                paused_at?: string | null;
+                paused_by?: string;
+                paused_by_task_id?: string;
+                paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
                 /** @enum {string} */
@@ -43908,6 +45126,7 @@ export interface operations {
                 /** Format: date-time */
                 created_at: string;
                 depends_on: {
+                  effective_paused?: boolean;
                   id: string;
                   identifier?: string;
                   /** Format: int64 */
@@ -43923,6 +45142,8 @@ export interface operations {
                       | "pool";
                     ref: string;
                   } | null;
+                  paused?: boolean;
+                  paused_by_task_id?: string;
                   /** @enum {string} */
                   priority?: "low" | "medium" | "high" | "urgent";
                   /** @enum {string} */
@@ -44152,6 +45373,7 @@ export interface operations {
                   /** Format: date-time */
                   created_at: string;
                   depends_on: {
+                    effective_paused?: boolean;
                     id: string;
                     identifier?: string;
                     /** Format: int64 */
@@ -44167,6 +45389,8 @@ export interface operations {
                         | "pool";
                       ref: string;
                     } | null;
+                    paused?: boolean;
+                    paused_by_task_id?: string;
                     /** @enum {string} */
                     priority?: "low" | "medium" | "high" | "urgent";
                     /** @enum {string} */
@@ -44191,6 +45415,7 @@ export interface operations {
                 }[];
                 dependency_count?: number;
                 draft?: boolean;
+                effective_paused?: boolean;
                 id: string;
                 identifier?: string;
                 /** Format: date-time */
@@ -44225,6 +45450,12 @@ export interface operations {
                   ref: string;
                 } | null;
                 parent_task_id?: string;
+                paused?: boolean;
+                /** Format: date-time */
+                paused_at?: string | null;
+                paused_by?: string;
+                paused_by_task_id?: string;
+                paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
                 /** @enum {string} */
@@ -44267,6 +45498,7 @@ export interface operations {
                 current_run_id?: string;
                 description?: string;
                 draft?: boolean;
+                effective_paused?: boolean;
                 id: string;
                 identifier?: string;
                 /** Format: int64 */
@@ -44300,6 +45532,12 @@ export interface operations {
                   ref: string;
                 } | null;
                 parent_task_id?: string;
+                paused?: boolean;
+                /** Format: date-time */
+                paused_at?: string | null;
+                paused_by?: string;
+                paused_by_task_id?: string;
+                paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
                 /** @enum {string} */
@@ -44569,6 +45807,7 @@ export interface operations {
                   /** Format: date-time */
                   created_at: string;
                   depends_on: {
+                    effective_paused?: boolean;
                     id: string;
                     identifier?: string;
                     /** Format: int64 */
@@ -44584,6 +45823,8 @@ export interface operations {
                         | "pool";
                       ref: string;
                     } | null;
+                    paused?: boolean;
+                    paused_by_task_id?: string;
                     /** @enum {string} */
                     priority?: "low" | "medium" | "high" | "urgent";
                     /** @enum {string} */
@@ -44608,6 +45849,7 @@ export interface operations {
                 }[];
                 dependency_count?: number;
                 draft?: boolean;
+                effective_paused?: boolean;
                 id: string;
                 identifier?: string;
                 /** Format: date-time */
@@ -44642,6 +45884,12 @@ export interface operations {
                   ref: string;
                 } | null;
                 parent_task_id?: string;
+                paused?: boolean;
+                /** Format: date-time */
+                paused_at?: string | null;
+                paused_by?: string;
+                paused_by_task_id?: string;
+                paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
                 /** @enum {string} */
@@ -44673,6 +45921,7 @@ export interface operations {
                 /** Format: date-time */
                 created_at: string;
                 depends_on: {
+                  effective_paused?: boolean;
                   id: string;
                   identifier?: string;
                   /** Format: int64 */
@@ -44688,6 +45937,8 @@ export interface operations {
                       | "pool";
                     ref: string;
                   } | null;
+                  paused?: boolean;
+                  paused_by_task_id?: string;
                   /** @enum {string} */
                   priority?: "low" | "medium" | "high" | "urgent";
                   /** @enum {string} */
@@ -44917,6 +46168,7 @@ export interface operations {
                   /** Format: date-time */
                   created_at: string;
                   depends_on: {
+                    effective_paused?: boolean;
                     id: string;
                     identifier?: string;
                     /** Format: int64 */
@@ -44932,6 +46184,8 @@ export interface operations {
                         | "pool";
                       ref: string;
                     } | null;
+                    paused?: boolean;
+                    paused_by_task_id?: string;
                     /** @enum {string} */
                     priority?: "low" | "medium" | "high" | "urgent";
                     /** @enum {string} */
@@ -44956,6 +46210,7 @@ export interface operations {
                 }[];
                 dependency_count?: number;
                 draft?: boolean;
+                effective_paused?: boolean;
                 id: string;
                 identifier?: string;
                 /** Format: date-time */
@@ -44990,6 +46245,12 @@ export interface operations {
                   ref: string;
                 } | null;
                 parent_task_id?: string;
+                paused?: boolean;
+                /** Format: date-time */
+                paused_at?: string | null;
+                paused_by?: string;
+                paused_by_task_id?: string;
+                paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
                 /** @enum {string} */
@@ -45032,6 +46293,7 @@ export interface operations {
                 current_run_id?: string;
                 description?: string;
                 draft?: boolean;
+                effective_paused?: boolean;
                 id: string;
                 identifier?: string;
                 /** Format: int64 */
@@ -45065,6 +46327,12 @@ export interface operations {
                   ref: string;
                 } | null;
                 parent_task_id?: string;
+                paused?: boolean;
+                /** Format: date-time */
+                paused_at?: string | null;
+                paused_by?: string;
+                paused_by_task_id?: string;
+                paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
                 /** @enum {string} */
@@ -46000,6 +47268,7 @@ export interface operations {
                   /** Format: date-time */
                   created_at: string;
                   depends_on: {
+                    effective_paused?: boolean;
                     id: string;
                     identifier?: string;
                     /** Format: int64 */
@@ -46015,6 +47284,8 @@ export interface operations {
                         | "pool";
                       ref: string;
                     } | null;
+                    paused?: boolean;
+                    paused_by_task_id?: string;
                     /** @enum {string} */
                     priority?: "low" | "medium" | "high" | "urgent";
                     /** @enum {string} */
@@ -46039,6 +47310,7 @@ export interface operations {
                 }[];
                 dependency_count?: number;
                 draft?: boolean;
+                effective_paused?: boolean;
                 id: string;
                 identifier?: string;
                 /** Format: date-time */
@@ -46073,6 +47345,12 @@ export interface operations {
                   ref: string;
                 } | null;
                 parent_task_id?: string;
+                paused?: boolean;
+                /** Format: date-time */
+                paused_at?: string | null;
+                paused_by?: string;
+                paused_by_task_id?: string;
+                paused_reason?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
                 /** @enum {string} */
@@ -46823,6 +48101,301 @@ export interface operations {
       };
     };
   };
+  pauseTask: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          metadata?: unknown;
+          reason: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            task: {
+              /** @enum {string} */
+              approval_policy?: "none" | "manual";
+              /** @enum {string} */
+              approval_state?: "not_required" | "pending" | "approved" | "rejected";
+              /** Format: date-time */
+              closed_at?: string | null;
+              /** Format: date-time */
+              created_at: string;
+              created_by: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              };
+              current_run_id?: string;
+              description?: string;
+              draft?: boolean;
+              effective_paused?: boolean;
+              id: string;
+              identifier?: string;
+              /** Format: int64 */
+              latest_event_seq: number;
+              max_attempts?: number;
+              metadata?: unknown;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              owner?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "pool";
+                ref: string;
+              } | null;
+              parent_task_id?: string;
+              paused?: boolean;
+              /** Format: date-time */
+              paused_at?: string | null;
+              paused_by?: string;
+              paused_by_task_id?: string;
+              paused_reason?: string;
+              /** @enum {string} */
+              priority?: "low" | "medium" | "high" | "urgent";
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              status:
+                | "draft"
+                | "pending"
+                | "blocked"
+                | "ready"
+                | "in_progress"
+                | "completed"
+                | "failed"
+                | "canceled";
+              title: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Force operation forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task pause conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task pause request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Force-operation rate limit exceeded */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   publishTask: {
     parameters: {
       query?: never;
@@ -46956,6 +48529,7 @@ export interface operations {
               current_run_id?: string;
               description?: string;
               draft?: boolean;
+              effective_paused?: boolean;
               id: string;
               identifier?: string;
               /** Format: int64 */
@@ -46989,6 +48563,12 @@ export interface operations {
                 ref: string;
               } | null;
               parent_task_id?: string;
+              paused?: boolean;
+              /** Format: date-time */
+              paused_at?: string | null;
+              paused_by?: string;
+              paused_by_task_id?: string;
+              paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
               /** @enum {string} */
@@ -47186,6 +48766,7 @@ export interface operations {
               current_run_id?: string;
               description?: string;
               draft?: boolean;
+              effective_paused?: boolean;
               id: string;
               identifier?: string;
               /** Format: int64 */
@@ -47219,6 +48800,12 @@ export interface operations {
                 ref: string;
               } | null;
               parent_task_id?: string;
+              paused?: boolean;
+              /** Format: date-time */
+              paused_at?: string | null;
+              paused_by?: string;
+              paused_by_task_id?: string;
+              paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
               /** @enum {string} */
@@ -47293,6 +48880,300 @@ export interface operations {
       };
       /** @description Invalid task rejection request */
       422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  resumeTask: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody?: {
+      content: {
+        "application/json": {
+          metadata?: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            task: {
+              /** @enum {string} */
+              approval_policy?: "none" | "manual";
+              /** @enum {string} */
+              approval_state?: "not_required" | "pending" | "approved" | "rejected";
+              /** Format: date-time */
+              closed_at?: string | null;
+              /** Format: date-time */
+              created_at: string;
+              created_by: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              };
+              current_run_id?: string;
+              description?: string;
+              draft?: boolean;
+              effective_paused?: boolean;
+              id: string;
+              identifier?: string;
+              /** Format: int64 */
+              latest_event_seq: number;
+              max_attempts?: number;
+              metadata?: unknown;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              owner?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "pool";
+                ref: string;
+              } | null;
+              parent_task_id?: string;
+              paused?: boolean;
+              /** Format: date-time */
+              paused_at?: string | null;
+              paused_by?: string;
+              paused_by_task_id?: string;
+              paused_reason?: string;
+              /** @enum {string} */
+              priority?: "low" | "medium" | "high" | "urgent";
+              /** @enum {string} */
+              scope: "global" | "workspace";
+              /** @enum {string} */
+              status:
+                | "draft"
+                | "pending"
+                | "blocked"
+                | "ready"
+                | "in_progress"
+                | "completed"
+                | "failed"
+                | "canceled";
+              title: string;
+              /** Format: date-time */
+              updated_at: string;
+              workspace_id?: string;
+            };
+          };
+        };
+      };
+      /** @description Force operation forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task resume conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid task resume request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Force-operation rate limit exceeded */
+      429: {
         headers: {
           [name: string]: unknown;
         };
@@ -48178,6 +50059,7 @@ export interface operations {
               current_run_id?: string;
               description?: string;
               draft?: boolean;
+              effective_paused?: boolean;
               id: string;
               identifier?: string;
               /** Format: int64 */
@@ -48211,6 +50093,12 @@ export interface operations {
                 ref: string;
               } | null;
               parent_task_id?: string;
+              paused?: boolean;
+              /** Format: date-time */
+              paused_at?: string | null;
+              paused_by?: string;
+              paused_by_task_id?: string;
+              paused_reason?: string;
               /** @enum {string} */
               priority?: "low" | "medium" | "high" | "urgent";
               /** @enum {string} */
@@ -48487,6 +50375,7 @@ export interface operations {
               /** Format: int64 */
               sequence: number;
               task: {
+                effective_paused?: boolean;
                 id: string;
                 identifier?: string;
                 /** Format: int64 */
@@ -48502,6 +50391,8 @@ export interface operations {
                     | "pool";
                   ref: string;
                 } | null;
+                paused?: boolean;
+                paused_by_task_id?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
                 /** @enum {string} */
@@ -48755,6 +50646,7 @@ export interface operations {
               /** Format: int64 */
               sequence: number;
               task: {
+                effective_paused?: boolean;
                 id: string;
                 identifier?: string;
                 /** Format: int64 */
@@ -48770,6 +50662,8 @@ export interface operations {
                     | "pool";
                   ref: string;
                 } | null;
+                paused?: boolean;
+                paused_by_task_id?: string;
                 /** @enum {string} */
                 priority?: "low" | "medium" | "high" | "urgent";
                 /** @enum {string} */
@@ -48993,6 +50887,7 @@ export interface operations {
                 last_activity_at: string;
                 parent_task_id?: string;
                 task: {
+                  effective_paused?: boolean;
                   id: string;
                   identifier?: string;
                   /** Format: int64 */
@@ -49008,6 +50903,8 @@ export interface operations {
                       | "pool";
                     ref: string;
                   } | null;
+                  paused?: boolean;
+                  paused_by_task_id?: string;
                   /** @enum {string} */
                   priority?: "low" | "medium" | "high" | "urgent";
                   /** @enum {string} */
@@ -49098,6 +50995,7 @@ export interface operations {
                 last_activity_at: string;
                 parent_task_id?: string;
                 task: {
+                  effective_paused?: boolean;
                   id: string;
                   identifier?: string;
                   /** Format: int64 */
@@ -49113,6 +51011,8 @@ export interface operations {
                       | "pool";
                     ref: string;
                   } | null;
+                  paused?: boolean;
+                  paused_by_task_id?: string;
                   /** @enum {string} */
                   priority?: "low" | "medium" | "high" | "urgent";
                   /** @enum {string} */

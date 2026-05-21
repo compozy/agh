@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { PanelSurface } from "@/storybook/story-layout";
+import { schedulerBacklogFixture, schedulerStatusFixture } from "@/systems/scheduler/mocks";
 import type { TaskDashboardView } from "../../types";
 import { TasksDashboardView } from "../tasks-dashboard-view";
 import { buildDashboardFixture } from "../test-fixtures";
@@ -95,7 +96,11 @@ POPULATED.totals = {
 export const Populated: Story = {
   render: () => (
     <Frame>
-      <TasksDashboardView dashboard={POPULATED} />
+      <TasksDashboardView
+        dashboard={POPULATED}
+        scheduler={schedulerStatusFixture}
+        schedulerBacklog={schedulerBacklogFixture}
+      />
     </Frame>
   ),
 };
@@ -147,7 +152,11 @@ export const BacklogWarning: Story = {
     });
     return (
       <Frame>
-        <TasksDashboardView dashboard={dashboard} />
+        <TasksDashboardView
+          dashboard={dashboard}
+          scheduler={schedulerStatusFixture}
+          schedulerBacklog={schedulerBacklogFixture}
+        />
       </Frame>
     );
   },

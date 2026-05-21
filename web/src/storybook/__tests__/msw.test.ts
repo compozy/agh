@@ -59,6 +59,7 @@ describe("storybook msw helpers", () => {
       ...storybookSystemHandlerGroups.session,
       ...storybookSystemHandlerGroups.settings,
       ...storybookSystemHandlerGroups.skill,
+      ...storybookSystemHandlerGroups.scheduler,
       ...storybookSystemHandlerGroups.tasks,
       ...storybookSystemHandlerGroups.workspace,
     ]);

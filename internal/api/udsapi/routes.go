@@ -266,6 +266,8 @@ func registerTaskRoutes(api gin.IRouter, handlers *Handlers) {
 		tasks.POST("/:id/publish", handlers.PublishTask)
 		tasks.POST("/:id/start", handlers.StartTask)
 		tasks.POST("/:id/cancel", handlers.CancelTask)
+		tasks.POST("/:id/pause", handlers.PauseTask)
+		tasks.POST("/:id/resume", handlers.ResumeTask)
 		tasks.POST("/:id/children", handlers.CreateChildTask)
 		tasks.POST("/:id/dependencies", handlers.AddTaskDependency)
 		tasks.DELETE("/:id/dependencies/:depends_on_id", handlers.RemoveTaskDependency)
@@ -304,6 +306,15 @@ func registerTaskRunRoutes(api gin.IRouter, handlers *Handlers) {
 		runs.POST("/:id/release", handlers.ForceReleaseTaskRun)
 		runs.POST("/:id/fail", handlers.ForceFailTaskRun)
 		runs.POST("/:id/retry", handlers.RetryTaskRun)
+	}
+
+	scheduler := api.Group("/scheduler")
+	{
+		scheduler.GET("", handlers.GetScheduler)
+		scheduler.GET("/backlog", handlers.GetSchedulerBacklog)
+		scheduler.POST("/pause", handlers.PauseScheduler)
+		scheduler.POST("/resume", handlers.ResumeScheduler)
+		scheduler.POST("/drain", handlers.DrainScheduler)
 	}
 
 	taskReviews := api.Group("/task-reviews")

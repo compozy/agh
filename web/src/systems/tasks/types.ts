@@ -105,6 +105,8 @@ export type ForceReleaseTaskRunRequest = OperationRequestBody<"forceReleaseTaskR
 export type ForceFailTaskRunRequest = OperationRequestBody<"forceFailTaskRun">;
 export type RetryTaskRunRequest = OperationRequestBody<"retryTaskRun">;
 export type RetryTaskRunResult = OperationResponse<"retryTaskRun", 201>;
+export type PauseTaskRequest = OperationRequestBody<"pauseTask">;
+export type ResumeTaskRequest = OperationRequestBody<"resumeTask">;
 export type BulkForceTaskRunRequest = OperationRequestBody<"bulkForceReleaseTaskRuns">;
 export type StartTaskRunRequest = OperationRequestBody<"startTaskRun">;
 

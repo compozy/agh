@@ -37,6 +37,11 @@ const archiveTaskMock = vi.fn();
 const markTaskReadMock = vi.fn();
 const dismissTaskMock = vi.fn();
 const enqueueTaskRunMock = vi.fn();
+const getSchedulerMock = vi.fn();
+const getSchedulerBacklogMock = vi.fn();
+const pauseSchedulerMock = vi.fn();
+const resumeSchedulerMock = vi.fn();
+const drainSchedulerMock = vi.fn();
 
 vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
   listTasks: (...args: unknown[]) => listTasksMock(...args),
@@ -71,6 +76,14 @@ vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
   markTaskRead: (...args: unknown[]) => markTaskReadMock(...args),
   archiveTask: (...args: unknown[]) => archiveTaskMock(...args),
   dismissTask: (...args: unknown[]) => dismissTaskMock(...args),
+}));
+
+vi.mock("@/systems/scheduler/adapters/scheduler-api", () => ({
+  getScheduler: (...args: unknown[]) => getSchedulerMock(...args),
+  getSchedulerBacklog: (...args: unknown[]) => getSchedulerBacklogMock(...args),
+  pauseScheduler: (...args: unknown[]) => pauseSchedulerMock(...args),
+  resumeScheduler: (...args: unknown[]) => resumeSchedulerMock(...args),
+  drainScheduler: (...args: unknown[]) => drainSchedulerMock(...args),
 }));
 
 vi.mock("@/systems/workspace", () => ({
@@ -157,6 +170,36 @@ describe("TasksRoute", () => {
     markTaskReadMock.mockReset();
     dismissTaskMock.mockReset();
     enqueueTaskRunMock.mockReset();
+    getSchedulerMock.mockReset();
+    getSchedulerMock.mockResolvedValue({
+      active_claim_count: 0,
+      as_of: "2026-04-17T10:00:00Z",
+      drain_in_progress: false,
+      paused: false,
+      paused_task_count: 0,
+      queued_run_count: 1,
+    });
+    getSchedulerBacklogMock.mockReset();
+    getSchedulerBacklogMock.mockResolvedValue({ runs: [], total: 0 });
+    pauseSchedulerMock.mockReset();
+    pauseSchedulerMock.mockResolvedValue({});
+    resumeSchedulerMock.mockReset();
+    resumeSchedulerMock.mockResolvedValue({});
+    drainSchedulerMock.mockReset();
+    drainSchedulerMock.mockResolvedValue({
+      completed: true,
+      completed_at: "2026-04-17T10:00:01Z",
+      remaining_claims: 0,
+      scheduler: {
+        active_claim_count: 0,
+        as_of: "2026-04-17T10:00:01Z",
+        drain_in_progress: false,
+        paused: true,
+        paused_task_count: 0,
+        queued_run_count: 1,
+      },
+      started_at: "2026-04-17T10:00:00Z",
+    });
   });
 
   it("renders the shared tasks shell body container", () => {
@@ -199,6 +242,7 @@ describe("TasksRoute", () => {
     });
 
     expect(await screen.findByTestId("tasks-dashboard-view")).toBeInTheDocument();
+    expect(screen.getByTestId("scheduler-controls-panel")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-dashboard-cards")).toBeInTheDocument();
     expect(screen.getByTestId("tasks-dashboard-queue-health")).toBeInTheDocument();
     expect(screen.queryByTestId("tasks-list-surface")).not.toBeInTheDocument();

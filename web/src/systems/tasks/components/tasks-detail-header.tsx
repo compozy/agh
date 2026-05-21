@@ -1,8 +1,20 @@
-import { useCallback } from "react";
 import { Link, useRouter } from "@tanstack/react-router";
-import { Radio } from "lucide-react";
+import { PauseCircle, PlayCircle, Radio } from "lucide-react";
 
-import { Button, DetailHeader, MonoId, Pill, Time } from "@agh/ui";
+import {
+  Button,
+  DetailHeader,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  MonoId,
+  Pill,
+  Textarea,
+  Time,
+} from "@agh/ui";
 
 import {
   runCoordinationChannelLabel,
@@ -23,6 +35,7 @@ import {
   taskStatusSignal,
   taskStatusTone,
 } from "../lib/task-formatters";
+import { useTaskPauseDialog } from "../hooks/use-task-pause-dialog";
 import type { TaskDetailView } from "../types";
 import { TaskDeleteAction } from "./task-delete-action";
 
@@ -33,11 +46,15 @@ export interface TasksDetailHeaderProps {
     publish?: boolean;
     cancel?: boolean;
     enqueue?: boolean;
+    pause?: boolean;
+    resume?: boolean;
   };
   onDelete?: (taskId: string) => void;
   onPublish?: () => void;
   onCancel?: () => void;
   onEnqueueRun?: () => void;
+  onPause?: (reason: string) => void | Promise<void>;
+  onResume?: () => void | Promise<void>;
 }
 
 /**
@@ -54,19 +71,24 @@ export function TasksDetailHeader({
   onPublish,
   onCancel,
   onEnqueueRun,
+  onPause,
+  onResume,
 }: TasksDetailHeaderProps) {
   const router = useRouter();
-  const handleBack = useCallback(() => {
-    router.history.back();
-  }, [router]);
+  const pauseDialog = useTaskPauseDialog(onPause);
 
   const isDeletePending = pending?.delete ?? false;
   const isPublishPending = pending?.publish ?? false;
   const isCancelPending = pending?.cancel ?? false;
   const isEnqueuePending = pending?.enqueue ?? false;
+  const isPausePending = pending?.pause ?? false;
+  const isResumePending = pending?.resume ?? false;
   const record = detail.task;
   const identifier = taskShortId(record);
   const isDraft = taskIsDraft(record);
+  const isDirectlyPaused = Boolean(record.paused);
+  const isEffectivelyPaused = Boolean(detail.summary?.effective_paused ?? record.paused);
+  const pausedByTaskId = detail.summary?.paused_by_task_id;
   const canCancel =
     record.status === "ready" || record.status === "in_progress" || record.status === "blocked";
   const signal = taskStatusSignal(record.status);
@@ -85,11 +107,14 @@ export function TasksDetailHeader({
   const publishCopy = taskHandoffActionCopy("publish");
   const startCopy = taskHandoffActionCopy("start");
   const channelLabel = runIsCoordinated(activeRun) ? runCoordinationChannelLabel(activeRun) : null;
+  const startTitle = isEffectivelyPaused
+    ? "Resume task dispatch before starting a run."
+    : startCopy.tooltip;
 
   return (
     <DetailHeader
       data-testid="tasks-detail-header"
-      back={handleBack}
+      back={() => router.history.back()}
       backLabel="Back to tasks"
       crumbs={
         <span data-testid="tasks-detail-breadcrumb" className="inline-flex items-center gap-1.5">
@@ -148,6 +173,21 @@ export function TasksDetailHeader({
               {taskApprovalStateLabel(record.approval_state)}
             </Pill>
           ) : null}
+          {isEffectivelyPaused ? (
+            <Pill
+              data-testid="tasks-detail-pause-state"
+              title={
+                isDirectlyPaused
+                  ? record.paused_reason || "Task is paused for future scheduler claims."
+                  : pausedByTaskId
+                    ? `Task is paused through ancestor ${pausedByTaskId}.`
+                    : "Task is paused through an ancestor."
+              }
+              tone="warning"
+            >
+              {isDirectlyPaused ? "Paused" : "Paused by ancestor"}
+            </Pill>
+          ) : null}
         </>
       }
       meta={
@@ -196,6 +236,33 @@ export function TasksDetailHeader({
               Cancel
             </Button>
           ) : null}
+          {isDirectlyPaused && onResume ? (
+            <Button
+              data-testid="tasks-detail-resume"
+              disabled={isResumePending}
+              onClick={() => void onResume()}
+              size="sm"
+              title="Resume scheduler claims for this task."
+              type="button"
+              variant="neutral"
+            >
+              <PlayCircle className="size-3" aria-hidden="true" />
+              Resume
+            </Button>
+          ) : !isDirectlyPaused && onPause ? (
+            <Button
+              data-testid="tasks-detail-pause"
+              disabled={isPausePending}
+              onClick={pauseDialog.open}
+              size="sm"
+              title="Pause future scheduler claims for this task."
+              type="button"
+              variant="neutral"
+            >
+              <PauseCircle className="size-3" aria-hidden="true" />
+              Pause
+            </Button>
+          ) : null}
           {onDelete ? (
             <TaskDeleteAction
               taskId={record.id}
@@ -223,10 +290,10 @@ export function TasksDetailHeader({
           {!isDraft && !hasOpenRun && onEnqueueRun ? (
             <Button
               data-testid="tasks-detail-enqueue"
-              disabled={isEnqueuePending}
+              disabled={isEnqueuePending || isEffectivelyPaused}
               onClick={onEnqueueRun}
               size="sm"
-              title={startCopy.tooltip}
+              title={startTitle}
               type="button"
             >
               {startCopy.label}
@@ -234,6 +301,60 @@ export function TasksDetailHeader({
           ) : null}
         </div>
       }
-    />
+    >
+      <Dialog open={pauseDialog.isOpen} onOpenChange={pauseDialog.onOpenChange}>
+        <DialogContent
+          data-testid="tasks-detail-pause-dialog"
+          showCloseButton={!isPausePending}
+          className="max-w-md"
+        >
+          <DialogHeader>
+            <DialogTitle>Pause task?</DialogTitle>
+            <DialogDescription>
+              New scheduler claims stop for this task; active runs continue.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2">
+            <label className="eyebrow text-muted" htmlFor="tasks-detail-pause-reason">
+              Reason
+            </label>
+            <Textarea
+              aria-invalid={Boolean(pauseDialog.error)}
+              data-testid="tasks-detail-pause-reason"
+              disabled={isPausePending}
+              id="tasks-detail-pause-reason"
+              onChange={pauseDialog.onReasonChange}
+              rows={3}
+              value={pauseDialog.reason}
+            />
+            {pauseDialog.error ? (
+              <p className="text-form-hint text-danger" data-testid="tasks-detail-pause-error">
+                {pauseDialog.error}
+              </p>
+            ) : null}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              disabled={isPausePending}
+              onClick={pauseDialog.close}
+              size="sm"
+              type="button"
+              variant="neutral"
+            >
+              Cancel
+            </Button>
+            <Button
+              data-testid="tasks-detail-pause-confirm"
+              disabled={isPausePending}
+              onClick={() => void pauseDialog.confirm()}
+              size="sm"
+              type="button"
+            >
+              Pause
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </DetailHeader>
   );
 }

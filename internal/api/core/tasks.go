@@ -65,6 +65,13 @@ const (
 	taskActionTriageRead       = "triage_read"
 	taskActionTriageArchive    = "triage_archive"
 	taskActionTriageDismiss    = "triage_dismiss"
+	taskActionPauseTask        = "pause_task"
+	taskActionResumeTask       = "resume_task"
+	taskActionSchedulerStatus  = "scheduler_status"
+	taskActionSchedulerPause   = "scheduler_pause"
+	taskActionSchedulerResume  = "scheduler_resume"
+	taskActionSchedulerDrain   = "scheduler_drain"
+	taskActionSchedulerBacklog = "scheduler_backlog"
 )
 
 func (h *BaseHandlers) requireTaskManager(c *gin.Context) (TaskService, bool) {
@@ -1984,6 +1991,12 @@ func TaskSummaryPayloadFromSummary(record taskpkg.Summary) contract.TaskSummaryP
 		Owner:           cloneOwnership(record.Owner),
 		CurrentRunID:    record.CurrentRunID,
 		LatestEventSeq:  record.LatestEventSeq,
+		Paused:          record.Paused,
+		PausedBy:        record.PausedBy,
+		PausedAt:        optionalTime(record.PausedAt),
+		PausedReason:    record.PausedReason,
+		EffectivePaused: record.EffectivePaused,
+		PausedByTaskID:  record.PausedByTaskID,
 		CreatedBy:       record.CreatedBy,
 		Origin:          record.Origin,
 		CreatedAt:       record.CreatedAt,
@@ -2004,29 +2017,40 @@ func TaskPayloadFromTask(record *taskpkg.Task) contract.TaskPayload {
 	}
 
 	return contract.TaskPayload{
-		ID:             record.ID,
-		Identifier:     record.Identifier,
-		Scope:          record.Scope,
-		WorkspaceID:    record.WorkspaceID,
-		ParentTaskID:   record.ParentTaskID,
-		NetworkChannel: record.NetworkChannel,
-		Title:          record.Title,
-		Description:    record.Description,
-		Priority:       record.Priority,
-		MaxAttempts:    record.MaxAttempts,
-		Status:         record.Status,
-		ApprovalPolicy: record.ApprovalPolicy,
-		ApprovalState:  record.ApprovalState,
-		Draft:          record.Status.Normalize() == taskpkg.TaskStatusDraft,
-		Owner:          cloneOwnership(record.Owner),
-		CurrentRunID:   record.CurrentRunID,
-		LatestEventSeq: record.LatestEventSeq,
-		CreatedBy:      record.CreatedBy,
-		Origin:         record.Origin,
-		CreatedAt:      record.CreatedAt,
-		UpdatedAt:      record.UpdatedAt,
-		ClosedAt:       optionalTime(record.ClosedAt),
-		Metadata:       cloneRawMessage(record.Metadata),
+		ID:              record.ID,
+		Identifier:      record.Identifier,
+		Scope:           record.Scope,
+		WorkspaceID:     record.WorkspaceID,
+		ParentTaskID:    record.ParentTaskID,
+		NetworkChannel:  record.NetworkChannel,
+		Title:           record.Title,
+		Description:     record.Description,
+		Priority:        record.Priority,
+		MaxAttempts:     record.MaxAttempts,
+		Status:          record.Status,
+		ApprovalPolicy:  record.ApprovalPolicy,
+		ApprovalState:   record.ApprovalState,
+		Draft:           record.Status.Normalize() == taskpkg.TaskStatusDraft,
+		Owner:           cloneOwnership(record.Owner),
+		CurrentRunID:    record.CurrentRunID,
+		LatestEventSeq:  record.LatestEventSeq,
+		Paused:          record.Paused,
+		PausedBy:        record.PausedBy,
+		PausedAt:        optionalTime(record.PausedAt),
+		PausedReason:    record.PausedReason,
+		EffectivePaused: record.Paused,
+		PausedByTaskID: func() string {
+			if record.Paused {
+				return record.ID
+			}
+			return ""
+		}(),
+		CreatedBy: record.CreatedBy,
+		Origin:    record.Origin,
+		CreatedAt: record.CreatedAt,
+		UpdatedAt: record.UpdatedAt,
+		ClosedAt:  optionalTime(record.ClosedAt),
+		Metadata:  cloneRawMessage(record.Metadata),
 	}
 }
 
@@ -2205,9 +2229,14 @@ func TaskDetailPayloadFromView(view *taskpkg.View) contract.TaskDetailPayload {
 		return contract.TaskDetailPayload{}
 	}
 
+	summary := TaskSummaryPayloadFromSummary(view.Summary)
+	taskRecord := TaskPayloadFromTask(&view.Task)
+	taskRecord.EffectivePaused = summary.EffectivePaused
+	taskRecord.PausedByTaskID = summary.PausedByTaskID
+
 	return contract.TaskDetailPayload{
-		Summary:              TaskSummaryPayloadFromSummary(view.Summary),
-		Task:                 TaskPayloadFromTask(&view.Task),
+		Summary:              summary,
+		Task:                 taskRecord,
 		Children:             TaskSummaryPayloadsFromSummaries(view.Children),
 		Dependencies:         TaskDependencyPayloadsFromDependencies(view.Dependencies),
 		DependencyReferences: TaskDependencyReferencePayloadsFromReferences(view.DependencyReferences),

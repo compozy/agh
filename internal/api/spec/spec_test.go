@@ -1213,6 +1213,123 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertRequired(t, startTaskResponse, "task", "run")
 				assertResponseStatus(t, startTask, 409)
 				assertResponseStatus(t, startTask, 422)
+
+				pauseTask := operationFor(t, doc, "/api/tasks/{id}/pause", "POST")
+				assertParameter(t, pauseTask, "id", openapi3.ParameterInPath, true)
+				pauseTaskSchema := jsonRequestSchema(t, pauseTask)
+				assertRequired(t, pauseTaskSchema, "reason")
+				assertNotRequired(t, pauseTaskSchema, "metadata")
+				pauseTaskResponse := jsonResponseSchema(t, pauseTask, 200)
+				assertRequired(t, pauseTaskResponse, "task")
+				assertResponseStatus(t, pauseTask, 403)
+				assertResponseStatus(t, pauseTask, 409)
+				assertResponseStatus(t, pauseTask, 429)
+
+				resumeTask := operationFor(t, doc, "/api/tasks/{id}/resume", "POST")
+				assertParameter(t, resumeTask, "id", openapi3.ParameterInPath, true)
+				if resumeTask.RequestBody == nil || resumeTask.RequestBody.Value == nil {
+					t.Fatal("resume task missing optional request body schema")
+				}
+				if resumeTask.RequestBody.Value.Required {
+					t.Fatal("resume task request body is required, want optional")
+				}
+				resumeTaskSchema := jsonRequestSchema(t, resumeTask)
+				assertNotRequired(t, resumeTaskSchema, "metadata")
+				resumeTaskResponse := jsonResponseSchema(t, resumeTask, 200)
+				assertRequired(t, resumeTaskResponse, "task")
+				assertResponseStatus(t, resumeTask, 403)
+				assertResponseStatus(t, resumeTask, 409)
+				assertResponseStatus(t, resumeTask, 429)
+			},
+		},
+		{
+			name: "ShouldDescribeSchedulerControlSchemas",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				status := operationFor(t, doc, "/api/scheduler", "GET")
+				assertTagsContain(t, status, "tasks")
+				statusResponse := jsonResponseSchema(t, status, 200)
+				assertRequired(t, statusResponse, "scheduler")
+				schedulerSchema := propertySchema(t, statusResponse, "scheduler")
+				assertRequired(
+					t,
+					schedulerSchema,
+					"paused",
+					"active_claim_count",
+					"queued_run_count",
+					"paused_task_count",
+					"drain_in_progress",
+					"as_of",
+				)
+				assertNotRequired(t, schedulerSchema, "paused_by", "paused_at", "paused_reason", "drain_started_at")
+
+				pauseScheduler := operationFor(t, doc, "/api/scheduler/pause", "POST")
+				if pauseScheduler.RequestBody == nil || pauseScheduler.RequestBody.Value == nil {
+					t.Fatal("pause scheduler missing optional request body schema")
+				}
+				if pauseScheduler.RequestBody.Value.Required {
+					t.Fatal("pause scheduler request body is required, want optional")
+				}
+				pauseSchema := jsonRequestSchema(t, pauseScheduler)
+				assertNotRequired(t, pauseSchema, "reason")
+				assertRequired(t, jsonResponseSchema(t, pauseScheduler, 200), "scheduler")
+				assertResponseStatus(t, pauseScheduler, 403)
+				assertResponseStatus(t, pauseScheduler, 422)
+
+				resumeScheduler := operationFor(t, doc, "/api/scheduler/resume", "POST")
+				if resumeScheduler.RequestBody == nil || resumeScheduler.RequestBody.Value == nil {
+					t.Fatal("resume scheduler missing optional request body schema")
+				}
+				if resumeScheduler.RequestBody.Value.Required {
+					t.Fatal("resume scheduler request body is required, want optional")
+				}
+				resumeSchema := jsonRequestSchema(t, resumeScheduler)
+				assertNotRequired(t, resumeSchema, "reason")
+				assertRequired(t, jsonResponseSchema(t, resumeScheduler, 200), "scheduler")
+				assertResponseStatus(t, resumeScheduler, 403)
+				assertResponseStatus(t, resumeScheduler, 422)
+
+				drainScheduler := operationFor(t, doc, "/api/scheduler/drain", "POST")
+				if drainScheduler.RequestBody == nil || drainScheduler.RequestBody.Value == nil {
+					t.Fatal("drain scheduler missing optional request body schema")
+				}
+				if drainScheduler.RequestBody.Value.Required {
+					t.Fatal("drain scheduler request body is required, want optional")
+				}
+				drainSchema := jsonRequestSchema(t, drainScheduler)
+				assertNotRequired(t, drainSchema, "reason", "timeout_seconds")
+				drainResponse := jsonResponseSchema(t, drainScheduler, 200)
+				assertRequired(
+					t,
+					drainResponse,
+					"scheduler",
+					"completed",
+					"remaining_claims",
+					"started_at",
+					"completed_at",
+				)
+				assertResponseStatus(t, drainScheduler, 403)
+				assertResponseStatus(t, drainScheduler, 422)
+
+				backlog := operationFor(t, doc, "/api/scheduler/backlog", "GET")
+				assertParameter(t, backlog, "limit", openapi3.ParameterInQuery, false)
+				assertParameter(t, backlog, "workspace", openapi3.ParameterInQuery, false)
+				assertParameter(t, backlog, "include_paused", openapi3.ParameterInQuery, false)
+				backlogResponse := jsonResponseSchema(t, backlog, 200)
+				assertRequired(t, backlogResponse, "backlog")
+				backlogSchema := propertySchema(t, backlogResponse, "backlog")
+				assertRequired(t, backlogSchema, "runs", "total")
+				runsSchema := propertySchema(t, backlogSchema, "runs")
+				if runsSchema.Items == nil || runsSchema.Items.Value == nil {
+					t.Fatal("expected backlog runs to define an items schema")
+				}
+				backlogRunSchema := runsSchema.Items.Value
+				assertRequired(t, backlogRunSchema, "task", "run")
+				backlogTaskSchema := propertySchema(t, backlogRunSchema, "task")
+				propertySchema(t, backlogTaskSchema, "paused")
+				propertySchema(t, backlogTaskSchema, "effective_paused")
+				propertySchema(t, backlogTaskSchema, "paused_by_task_id")
 			},
 		},
 		{

@@ -6317,6 +6317,24 @@ func (unsupportedNativeTaskManager) CancelTask(
 	return nil, errUnexpectedNativeTaskCall
 }
 
+func (unsupportedNativeTaskManager) PauseTask(
+	context.Context,
+	string,
+	taskpkg.PauseTaskRequest,
+	taskpkg.ActorContext,
+) (*taskpkg.Task, error) {
+	return nil, errUnexpectedNativeTaskCall
+}
+
+func (unsupportedNativeTaskManager) ResumeTask(
+	context.Context,
+	string,
+	taskpkg.ResumeTaskRequest,
+	taskpkg.ActorContext,
+) (*taskpkg.Task, error) {
+	return nil, errUnexpectedNativeTaskCall
+}
+
 func (unsupportedNativeTaskManager) MarkTaskRead(
 	context.Context,
 	string,
@@ -6531,6 +6549,45 @@ func (unsupportedNativeTaskManager) BulkForceFailRuns(
 	taskpkg.ActorContext,
 ) (taskpkg.BulkForceRunResult, error) {
 	return taskpkg.BulkForceRunResult{}, errUnexpectedNativeTaskCall
+}
+
+func (unsupportedNativeTaskManager) SchedulerStatus(
+	context.Context,
+	taskpkg.ActorContext,
+) (taskpkg.SchedulerStatus, error) {
+	return taskpkg.SchedulerStatus{}, errUnexpectedNativeTaskCall
+}
+
+func (unsupportedNativeTaskManager) PauseScheduler(
+	context.Context,
+	taskpkg.SchedulerPauseRequest,
+	taskpkg.ActorContext,
+) (taskpkg.SchedulerStatus, error) {
+	return taskpkg.SchedulerStatus{}, errUnexpectedNativeTaskCall
+}
+
+func (unsupportedNativeTaskManager) ResumeScheduler(
+	context.Context,
+	taskpkg.SchedulerResumeRequest,
+	taskpkg.ActorContext,
+) (taskpkg.SchedulerStatus, error) {
+	return taskpkg.SchedulerStatus{}, errUnexpectedNativeTaskCall
+}
+
+func (unsupportedNativeTaskManager) DrainScheduler(
+	context.Context,
+	taskpkg.SchedulerDrainRequest,
+	taskpkg.ActorContext,
+) (taskpkg.SchedulerDrainResult, error) {
+	return taskpkg.SchedulerDrainResult{}, errUnexpectedNativeTaskCall
+}
+
+func (unsupportedNativeTaskManager) SchedulerBacklog(
+	context.Context,
+	taskpkg.SchedulerBacklogQuery,
+	taskpkg.ActorContext,
+) (taskpkg.SchedulerBacklog, error) {
+	return taskpkg.SchedulerBacklog{}, errUnexpectedNativeTaskCall
 }
 
 func (unsupportedNativeTaskManager) CompleteRunLease(

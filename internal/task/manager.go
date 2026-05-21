@@ -32,6 +32,8 @@ const (
 	taskEventChildCreated          = eventspkg.TaskChildCreated
 	taskEventDependencyAdded       = eventspkg.TaskDependencyAdded
 	taskEventDependencyRemoved     = eventspkg.TaskDependencyRemoved
+	taskEventPaused                = eventspkg.TaskPaused
+	taskEventResumed               = eventspkg.TaskResumed
 	taskEventRunEnqueued           = eventspkg.TaskRunEnqueued
 	taskEventRunClaimed            = eventspkg.TaskRunClaimed
 	taskEventRunStarting           = eventspkg.TaskRunStarting
@@ -1540,6 +1542,9 @@ func (m *Service) enrichTaskSummaryFromState(
 	summary.DependencyCount = len(dependencies)
 	summary.ActiveRun = activeRunSummary(runs, record.MaxAttempts)
 	summary.LastActivityAt = latestTaskActivityAt(record, runs, events)
+	if err := m.applyEffectivePauseToSummary(ctx, &summary); err != nil {
+		return Summary{}, err
+	}
 	summary.Dependencies, err = m.buildDependencyReferences(ctx, dependencies)
 	if err != nil {
 		return Summary{}, err
@@ -3542,22 +3547,33 @@ func marshalTaskEventPayload(payload any) (json.RawMessage, error) {
 
 func summaryFromTaskRecord(record Task) Summary {
 	return Summary{
-		ID:             record.ID,
-		Identifier:     record.Identifier,
-		Scope:          record.Scope,
-		WorkspaceID:    record.WorkspaceID,
-		ParentTaskID:   record.ParentTaskID,
-		NetworkChannel: record.NetworkChannel,
-		Title:          record.Title,
-		Priority:       record.Priority,
-		MaxAttempts:    record.MaxAttempts,
-		Status:         record.Status,
-		ApprovalPolicy: record.ApprovalPolicy,
-		ApprovalState:  record.ApprovalState,
-		Draft:          record.Status.Normalize() == TaskStatusDraft,
-		Owner:          cloneOwnership(record.Owner),
-		CurrentRunID:   record.CurrentRunID,
-		LatestEventSeq: record.LatestEventSeq,
+		ID:              record.ID,
+		Identifier:      record.Identifier,
+		Scope:           record.Scope,
+		WorkspaceID:     record.WorkspaceID,
+		ParentTaskID:    record.ParentTaskID,
+		NetworkChannel:  record.NetworkChannel,
+		Title:           record.Title,
+		Priority:        record.Priority,
+		MaxAttempts:     record.MaxAttempts,
+		Status:          record.Status,
+		ApprovalPolicy:  record.ApprovalPolicy,
+		ApprovalState:   record.ApprovalState,
+		Draft:           record.Status.Normalize() == TaskStatusDraft,
+		Owner:           cloneOwnership(record.Owner),
+		CurrentRunID:    record.CurrentRunID,
+		LatestEventSeq:  record.LatestEventSeq,
+		Paused:          record.Paused,
+		PausedBy:        record.PausedBy,
+		PausedAt:        record.PausedAt,
+		PausedReason:    record.PausedReason,
+		EffectivePaused: record.Paused,
+		PausedByTaskID: func() string {
+			if record.Paused {
+				return record.ID
+			}
+			return ""
+		}(),
 		CreatedBy:      record.CreatedBy,
 		Origin:         record.Origin,
 		CreatedAt:      record.CreatedAt,
@@ -3584,6 +3600,10 @@ func taskRecordFromSummary(summary Summary) Task {
 		Owner:          cloneOwnership(summary.Owner),
 		CurrentRunID:   summary.CurrentRunID,
 		LatestEventSeq: summary.LatestEventSeq,
+		Paused:         summary.Paused,
+		PausedBy:       summary.PausedBy,
+		PausedAt:       summary.PausedAt,
+		PausedReason:   summary.PausedReason,
 		CreatedBy:      summary.CreatedBy,
 		Origin:         summary.Origin,
 		CreatedAt:      summary.CreatedAt,
@@ -3609,21 +3629,79 @@ func (m *Service) taskReference(ctx context.Context, taskID string) (Reference, 
 	if err != nil {
 		return Reference{}, err
 	}
-	return taskReferenceFromTask(record, status), nil
+	reference := taskReferenceFromTask(record, status)
+	if err := m.applyEffectivePauseToReference(ctx, &reference); err != nil {
+		return Reference{}, err
+	}
+	return reference, nil
 }
 
 func taskReferenceFromTask(record Task, status Status) Reference {
 	return Reference{
-		ID:             record.ID,
-		Identifier:     record.Identifier,
-		Title:          record.Title,
-		Status:         status,
-		Priority:       record.Priority,
-		Owner:          cloneOwnership(record.Owner),
-		Scope:          record.Scope,
-		WorkspaceID:    record.WorkspaceID,
-		LatestEventSeq: record.LatestEventSeq,
+		ID:              record.ID,
+		Identifier:      record.Identifier,
+		Title:           record.Title,
+		Status:          status,
+		Priority:        record.Priority,
+		Owner:           cloneOwnership(record.Owner),
+		Scope:           record.Scope,
+		WorkspaceID:     record.WorkspaceID,
+		LatestEventSeq:  record.LatestEventSeq,
+		Paused:          record.Paused,
+		EffectivePaused: record.Paused,
+		PausedByTaskID: func() string {
+			if record.Paused {
+				return record.ID
+			}
+			return ""
+		}(),
 	}
+}
+
+type effectiveTaskPauseReader interface {
+	IsTaskEffectivelyPaused(ctx context.Context, taskID string) (bool, string, error)
+}
+
+func (m *Service) applyEffectivePauseToSummary(ctx context.Context, summary *Summary) error {
+	if summary == nil {
+		return nil
+	}
+	summary.EffectivePaused = summary.Paused
+	if summary.Paused {
+		summary.PausedByTaskID = summary.ID
+	}
+	reader, ok := m.store.(effectiveTaskPauseReader)
+	if !ok {
+		return nil
+	}
+	paused, pausedByTaskID, err := reader.IsTaskEffectivelyPaused(ctx, summary.ID)
+	if err != nil {
+		return err
+	}
+	summary.EffectivePaused = paused
+	summary.PausedByTaskID = pausedByTaskID
+	return nil
+}
+
+func (m *Service) applyEffectivePauseToReference(ctx context.Context, reference *Reference) error {
+	if reference == nil {
+		return nil
+	}
+	reference.EffectivePaused = reference.Paused
+	if reference.Paused {
+		reference.PausedByTaskID = reference.ID
+	}
+	reader, ok := m.store.(effectiveTaskPauseReader)
+	if !ok {
+		return nil
+	}
+	paused, pausedByTaskID, err := reader.IsTaskEffectivelyPaused(ctx, reference.ID)
+	if err != nil {
+		return err
+	}
+	reference.EffectivePaused = paused
+	reference.PausedByTaskID = pausedByTaskID
+	return nil
 }
 
 func activeRunSummary(runs []Run, maxAttempts int) *RunSummary {

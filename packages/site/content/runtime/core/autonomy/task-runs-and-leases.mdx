@@ -169,6 +169,39 @@ Every force operation emits canonical audit events:
 Agents may call these surfaces when `[task.recovery].allow_agent_force = true`. Set it to
 `false` when only non-agent operator identities should perform recovery.
 
+## Scheduler and task pause
+
+Pause controls stop new scheduler claims without freezing active ownership. In-flight runs keep
+heartbeating, completing, failing, releasing, and expiring through the normal lease recovery path.
+Use scheduler-wide pause when dispatch must stop globally, and task pause when one task or a task
+subtree must stop receiving new claims.
+
+| Operation         | CLI path                                      | API route                     | Effect                                       |
+| ----------------- | --------------------------------------------- | ----------------------------- | -------------------------------------------- |
+| Scheduler status  | `agh scheduler status`                        | `GET /api/scheduler`          | Shows pause state and queue pressure.        |
+| Scheduler pause   | `agh scheduler pause --reason "incident"`     | `POST /api/scheduler/pause`   | Stops new dispatch and claim eligibility.    |
+| Scheduler resume  | `agh scheduler resume`                        | `POST /api/scheduler/resume`  | Re-enables new dispatch and claims.          |
+| Scheduler drain   | `agh scheduler drain --timeout 30s`           | `POST /api/scheduler/drain`   | Pauses dispatch and waits for active claims. |
+| Scheduler backlog | `agh scheduler backlog --include-paused`      | `GET /api/scheduler/backlog`  | Lists queued runs in scheduler order.        |
+| Task pause        | `agh task pause task-123 --reason "incident"` | `POST /api/tasks/{id}/pause`  | Stops new claims for that task subtree.      |
+| Task resume       | `agh task resume task-123`                    | `POST /api/tasks/{id}/resume` | Clears the direct task pause.                |
+
+Task pause is inherited by descendants through typed task columns. Backlog responses expose
+`effective_paused` and `paused_by_task_id` so agents can tell whether a queued run is blocked by
+its own task or by an ancestor. Scheduler backlog excludes paused tasks by default; pass
+`include_paused=true` when diagnosing why a queued run is not claimable.
+
+Every pause mutation records actor evidence and emits canonical events:
+
+| Event                       | When AGH emits it                                     |
+| --------------------------- | ----------------------------------------------------- |
+| `scheduler.paused`          | Scheduler dispatch was paused or drain was requested. |
+| `scheduler.resumed`         | Scheduler dispatch was resumed.                       |
+| `scheduler.drain_started`   | Drain requested a scheduler pause and began waiting.  |
+| `scheduler.drain_completed` | Drain reached zero active claims or timed out.        |
+| `task.paused`               | A task was paused for future scheduler claims.        |
+| `task.resumed`              | A task's direct pause was cleared.                    |
+
 ## Task inspect diagnostics
 
 Use inspect when an operator or agent needs a read-only triage snapshot before mutating a task run.

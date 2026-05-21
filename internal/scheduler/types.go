@@ -34,6 +34,11 @@ type TaskSource interface {
 	) ([]taskpkg.ExpiredLeaseRecoveryResult, error)
 }
 
+// PauseStore supplies the persisted scheduler-wide pause flag.
+type PauseStore interface {
+	GetSchedulerPause(ctx context.Context) (taskpkg.SchedulerPauseState, error)
+}
+
 // SessionSource provides live runtime sessions that may be notified.
 type SessionSource interface {
 	Sessions(ctx context.Context) ([]SessionSnapshot, error)
@@ -87,6 +92,7 @@ type CycleResult struct {
 	NoMatchRuns      int
 	RecentlyNotified int
 	UnclaimableRuns  int
+	Paused           bool
 	SelectedRunIDs   []string
 	NoMatchRunIDs    []string
 	RecoveredRunIDs  []string
@@ -177,5 +183,12 @@ func WithSweepLimit(limit int) Option {
 func WithActor(actor taskpkg.ActorContext) Option {
 	return func(s *Scheduler) {
 		s.actor = actor
+	}
+}
+
+// WithPauseStore lets the scheduler skip wake dispatch while preserving lease sweep.
+func WithPauseStore(store PauseStore) Option {
+	return func(s *Scheduler) {
+		s.pauseStore = store
 	}
 }

@@ -4,7 +4,9 @@ import { toast } from "sonner";
 import {
   useCancelTask,
   useEnqueueTaskRun,
+  usePauseTask,
   usePublishTask,
+  useResumeTask,
   useTask,
   useTaskInspect,
   useTaskRuns,
@@ -93,6 +95,8 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
   const publishMutation = usePublishTask();
   const cancelMutation = useCancelTask();
   const enqueueMutation = useEnqueueTaskRun();
+  const pauseMutation = usePauseTask();
+  const resumeMutation = useResumeTask();
 
   const detail = detailQuery.data ?? null;
   const runs = runsQuery.data ?? [];
@@ -167,6 +171,39 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
     }
   }, [enqueueMutation, hasTaskId, taskId]);
 
+  const handlePauseTask = useCallback(
+    async (reason: string) => {
+      if (!hasTaskId) {
+        return;
+      }
+
+      try {
+        await pauseMutation.mutateAsync({ id: taskId, data: { reason } });
+        toast.success("Task paused.");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to pause task";
+        toast.error(message);
+        throw error;
+      }
+    },
+    [hasTaskId, pauseMutation, taskId]
+  );
+
+  const handleResumeTask = useCallback(async () => {
+    if (!hasTaskId) {
+      return;
+    }
+
+    try {
+      await resumeMutation.mutateAsync({ id: taskId });
+      toast.success("Task resumed.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to resume task";
+      toast.error(message);
+      throw error;
+    }
+  }, [hasTaskId, resumeMutation, taskId]);
+
   const isTimelineSaturated =
     typeof timelineFilters.limit === "number" && timeline.length >= timelineFilters.limit;
 
@@ -179,13 +216,17 @@ function useTaskDetailPage(taskId: string, options: UseTaskDetailPageOptions = {
     handleCancelTask,
     handleEnqueueRun,
     handlePanelChange,
+    handlePauseTask,
     handlePublishTask,
+    handleResumeTask,
     handleTimelineLoadMore,
     handleTimelineReset,
     isCancelPending: cancelMutation.isPending,
     isEnqueuePending: enqueueMutation.isPending,
     isLive,
+    isPausePending: pauseMutation.isPending,
     isPublishPending: publishMutation.isPending,
+    isResumePending: resumeMutation.isPending,
     isTimelineSaturated,
     inspect,
     inspectError: inspectQuery.error ?? null,

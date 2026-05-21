@@ -50,3 +50,28 @@ export const LongTitle: Story = {
     );
   },
 };
+
+export const Paused: Story = {
+  render: () => {
+    const detail = buildDetailFixture();
+    detail.task = {
+      ...detail.task,
+      paused: true,
+      paused_reason: "provider incident",
+    };
+    detail.summary = {
+      ...detail.summary,
+      effective_paused: true,
+      paused_by_task_id: detail.task.id,
+    };
+    return (
+      <PanelSurface>
+        <TasksDetailHeader
+          detail={detail}
+          onEnqueueRun={() => undefined}
+          onResume={() => undefined}
+        />
+      </PanelSurface>
+    );
+  },
+};

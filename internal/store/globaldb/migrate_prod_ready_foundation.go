@@ -153,6 +153,43 @@ func migrateTaskRunForceOps(ctx context.Context, tx *sql.Tx) error {
 	return nil
 }
 
+func migratePauseState(ctx context.Context, tx *sql.Tx) error {
+	exists, err := tableExists(ctx, tx, "tasks")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+	if err := addMissingMigrationColumns(ctx, tx, "tasks", []migrationColumnSpec{
+		{
+			name: "paused",
+			sql:  `ALTER TABLE tasks ADD COLUMN paused INTEGER NOT NULL DEFAULT 0 CHECK (paused IN (0, 1))`,
+		},
+		{
+			name: "paused_by",
+			sql:  `ALTER TABLE tasks ADD COLUMN paused_by TEXT NOT NULL DEFAULT ''`,
+		},
+		{
+			name: "paused_at",
+			sql:  `ALTER TABLE tasks ADD COLUMN paused_at TEXT`,
+		},
+		{
+			name: "paused_reason",
+			sql:  `ALTER TABLE tasks ADD COLUMN paused_reason TEXT NOT NULL DEFAULT ''`,
+		},
+	}); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(
+		ctx,
+		`CREATE INDEX IF NOT EXISTS idx_tasks_paused ON tasks(paused, updated_at DESC);`,
+	); err != nil {
+		return fmt.Errorf("store: create task paused index: %w", err)
+	}
+	return nil
+}
+
 func backfillEventSummaryOutcomes(ctx context.Context, tx *sql.Tx) error {
 	statements := []string{
 		`CREATE TEMP TABLE IF NOT EXISTS event_summary_outcome_backfill (

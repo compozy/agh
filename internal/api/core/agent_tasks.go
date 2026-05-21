@@ -539,6 +539,7 @@ func taskReferencePayloadFromTask(record taskpkg.Task) contract.TaskReferencePay
 		Owner:       cloneOwnership(record.Owner),
 		Scope:       record.Scope,
 		WorkspaceID: record.WorkspaceID,
+		Paused:      record.Paused,
 	}
 }
 

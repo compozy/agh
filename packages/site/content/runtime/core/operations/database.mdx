@@ -132,6 +132,10 @@ The prod-ready foundation appends shared operational state after migration v26:
 | `event_summaries.provider` | Observability | Stores the provider at write time so log filters do not join `sessions` on the read path.       |
 | `event_summaries.outcome`  | Observability | Stores the canonical event outcome for `error-only` log filters.                                |
 | `scheduler_pause`          | Scheduler     | Stores the scheduler-wide pause singleton that later scheduler controls read transactionally.   |
+| `tasks.paused`             | Scheduler     | Marks tasks whose queued runs are not eligible for new claims.                                  |
+| `tasks.paused_by`          | Scheduler     | Records the actor that paused a task.                                                           |
+| `tasks.paused_at`          | Scheduler     | Records when a task pause was written.                                                          |
+| `tasks.paused_reason`      | Scheduler     | Stores operator or agent evidence for a task pause.                                             |
 
 Event names and outcomes are owned by the runtime event registry. Slices that introduce a new
 public event add one registry entry with its family, component, outcome, log eligibility, and

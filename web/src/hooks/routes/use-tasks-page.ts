@@ -18,6 +18,13 @@ import {
   useTaskInbox,
   useTasks,
 } from "@/systems/tasks";
+import {
+  useDrainScheduler,
+  usePauseScheduler,
+  useResumeScheduler,
+  useSchedulerBacklog,
+  useSchedulerStatus,
+} from "@/systems/scheduler";
 import { DEFAULT_TASK_TEMPLATE_ID, getTaskTemplate } from "@/systems/tasks/lib/task-templates";
 import type { TaskTemplateId } from "@/systems/tasks/lib/task-templates";
 import {
@@ -123,6 +130,15 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     [backendScope, scopedWorkspace]
   );
 
+  const schedulerBacklogFilters = useMemo(
+    () => ({
+      limit: 5,
+      workspace: scopedWorkspace,
+      include_paused: true,
+    }),
+    [scopedWorkspace]
+  );
+
   const inboxFilters: TaskInboxFilter = useMemo(
     () => ({
       scope: backendScope,
@@ -137,6 +153,10 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
   const isListTab = mode === "list" || mode === "kanban" || options.forceListData === true;
   const tasksQuery = useTasks(listFilters, { enabled: isListTab });
   const dashboardQuery = useTaskDashboard(dashboardFilters, { enabled: mode === "dashboard" });
+  const schedulerStatusQuery = useSchedulerStatus({ enabled: mode === "dashboard" });
+  const schedulerBacklogQuery = useSchedulerBacklog(schedulerBacklogFilters, {
+    enabled: mode === "dashboard",
+  });
   const inboxQuery = useTaskInbox(inboxFilters, { enabled: mode === "inbox" });
 
   const createMutation = useCreateTask();
@@ -148,6 +168,9 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
   const markReadMutation = useMarkTaskRead();
   const archiveMutation = useArchiveTask();
   const dismissMutation = useDismissTask();
+  const pauseSchedulerMutation = usePauseScheduler();
+  const resumeSchedulerMutation = useResumeScheduler();
+  const drainSchedulerMutation = useDrainScheduler();
 
   const allTasks = tasksQuery.data ?? [];
   const visibleTasks = useMemo(() => {
@@ -435,6 +458,58 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     [enqueueMutation]
   );
 
+  const handlePauseScheduler = useCallback(
+    async (reason: string) => {
+      try {
+        const normalizedReason = reason.trim();
+        await pauseSchedulerMutation.mutateAsync(
+          normalizedReason ? { reason: normalizedReason } : {}
+        );
+        toast.success("Scheduler paused.");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to pause scheduler";
+        toast.error(message);
+        throw error;
+      }
+    },
+    [pauseSchedulerMutation]
+  );
+
+  const handleResumeScheduler = useCallback(
+    async (reason?: string) => {
+      try {
+        const normalizedReason = reason?.trim();
+        await resumeSchedulerMutation.mutateAsync(
+          normalizedReason ? { reason: normalizedReason } : {}
+        );
+        toast.success("Scheduler resumed.");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to resume scheduler";
+        toast.error(message);
+        throw error;
+      }
+    },
+    [resumeSchedulerMutation]
+  );
+
+  const handleDrainScheduler = useCallback(
+    async ({ reason, timeoutSeconds }: { reason?: string; timeoutSeconds?: number }) => {
+      try {
+        const normalizedReason = reason?.trim();
+        await drainSchedulerMutation.mutateAsync({
+          ...(normalizedReason ? { reason: normalizedReason } : {}),
+          timeout_seconds: timeoutSeconds ?? 60,
+        });
+        toast.success("Scheduler drain requested.");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to drain scheduler";
+        toast.error(message);
+        throw error;
+      }
+    },
+    [drainSchedulerMutation]
+  );
+
   const isEmpty = !tasksQuery.isLoading && allTasks.length === 0;
   const isFilteredEmpty =
     !isEmpty && !tasksQuery.isLoading && visibleTasks.length === 0 && allTasks.length > 0;
@@ -451,6 +526,12 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     dashboardError: dashboardQuery.error ?? null,
     dashboardLoading: dashboardQuery.isLoading && !dashboardQuery.data,
     dashboardFetching: dashboardQuery.isFetching,
+    schedulerStatus: schedulerStatusQuery.data ?? null,
+    schedulerStatusError: schedulerStatusQuery.error ?? null,
+    schedulerStatusLoading: schedulerStatusQuery.isLoading && !schedulerStatusQuery.data,
+    schedulerBacklog: schedulerBacklogQuery.data ?? null,
+    schedulerBacklogError: schedulerBacklogQuery.error ?? null,
+    schedulerBacklogLoading: schedulerBacklogQuery.isLoading && !schedulerBacklogQuery.data,
     dismissSelectedTask,
     draftTasks,
     effectiveSelectedTaskId,
@@ -470,7 +551,10 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     handlePriorityChange,
     handlePublishTask,
     handleRejectTask,
+    handleDrainScheduler,
+    handlePauseScheduler,
     handleRetryTask,
+    handleResumeScheduler,
     handleScopeChange,
     handleSortChange,
     handleStatusChange,
@@ -499,6 +583,9 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     isPublishPending: publishMutation.isPending,
     isRejectTaskPending: rejectMutation.isPending,
     isRetryTaskPending: enqueueMutation.isPending,
+    isSchedulerDrainPending: drainSchedulerMutation.isPending,
+    isSchedulerPausePending: pauseSchedulerMutation.isPending,
+    isSchedulerResumePending: resumeSchedulerMutation.isPending,
     kanbanColumns,
     kanbanColumnDefinitions: getKanbanColumns(),
     listError: tasksQuery.error ?? null,

@@ -191,6 +191,130 @@ func TestGlobalDBClaimNextRunFiltersByCapabilitiesScopeAndChannel(t *testing.T) 
 	}
 }
 
+func TestGlobalDBClaimNextRunRespectsSchedulerPause(t *testing.T) {
+	t.Run("Should stop new claims while preserving queued runs", func(t *testing.T) {
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 5, 21, 10, 30, 0, 0, time.UTC)
+		taskRecord := taskRecordForTest("task-claim-scheduler-paused")
+		taskRecord.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run := taskRunForTest("run-claim-scheduler-paused", taskRecord.ID)
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+		if _, err := globalDB.SetSchedulerPaused(ctx, "operator:ops", "maintenance"); err != nil {
+			t.Fatalf("SetSchedulerPaused() error = %v", err)
+		}
+
+		_, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeGlobal,
+			ClaimerSessionID: "sess-paused",
+			LeaseDuration:    time.Minute,
+			Now:              now,
+		})
+		if !errors.Is(err, taskpkg.ErrNoClaimableRun) {
+			t.Fatalf("ClaimNextRun(paused) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
+		}
+		stored, err := globalDB.GetTaskRun(ctx, run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun() error = %v", err)
+		}
+		if got, want := stored.Status, taskpkg.TaskRunStatusQueued; got != want {
+			t.Fatalf("paused run status = %q, want %q", got, want)
+		}
+		if _, err := globalDB.SetSchedulerResumed(ctx); err != nil {
+			t.Fatalf("SetSchedulerResumed() error = %v", err)
+		}
+		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeGlobal,
+			ClaimerSessionID: "sess-resumed",
+			LeaseDuration:    time.Minute,
+			Now:              now.Add(time.Second),
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun(resumed) error = %v", err)
+		}
+		if got, want := claim.Run.ID, run.ID; got != want {
+			t.Fatalf("claim.Run.ID = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestGlobalDBClaimNextRunRespectsEffectiveTaskPause(t *testing.T) {
+	t.Run("Should block descendants of a paused task without mutating child rows", func(t *testing.T) {
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 5, 21, 11, 0, 0, 0, time.UTC)
+		parent := taskRecordForTest("task-claim-paused-parent")
+		parent.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, parent); err != nil {
+			t.Fatalf("CreateTask(parent) error = %v", err)
+		}
+		child := taskRecordForTest("task-claim-paused-child")
+		child.Status = taskpkg.TaskStatusReady
+		child.ParentTaskID = parent.ID
+		if err := globalDB.CreateTask(ctx, child); err != nil {
+			t.Fatalf("CreateTask(child) error = %v", err)
+		}
+		run := taskRunForTest("run-claim-paused-child", child.ID)
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun(child) error = %v", err)
+		}
+		if _, err := globalDB.PauseTask(ctx, taskpkg.PauseMutation{
+			TaskID:   parent.ID,
+			Actor:    "operator:ops",
+			Reason:   "parent incident",
+			PausedAt: now,
+		}); err != nil {
+			t.Fatalf("PauseTask(parent) error = %v", err)
+		}
+
+		paused, pausedBy, err := globalDB.IsTaskEffectivelyPaused(ctx, child.ID)
+		if err != nil {
+			t.Fatalf("IsTaskEffectivelyPaused() error = %v", err)
+		}
+		if !paused || pausedBy != parent.ID {
+			t.Fatalf("effective pause = (%v, %q), want true by %q", paused, pausedBy, parent.ID)
+		}
+		if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeGlobal,
+			ClaimerSessionID: "sess-child-paused",
+			LeaseDuration:    time.Minute,
+			Now:              now.Add(time.Second),
+		}); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
+			t.Fatalf("ClaimNextRun(paused child) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
+		}
+		storedChild, err := globalDB.GetTask(ctx, child.ID)
+		if err != nil {
+			t.Fatalf("GetTask(child) error = %v", err)
+		}
+		if storedChild.Paused {
+			t.Fatal("child.Paused = true, want inherited pause without mutating child row")
+		}
+		if _, err := globalDB.ResumeTask(ctx, taskpkg.ResumeMutation{
+			TaskID:    parent.ID,
+			ResumedAt: now.Add(2 * time.Second),
+		}); err != nil {
+			t.Fatalf("ResumeTask(parent) error = %v", err)
+		}
+		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeGlobal,
+			ClaimerSessionID: "sess-child-resumed",
+			LeaseDuration:    time.Minute,
+			Now:              now.Add(3 * time.Second),
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun(resumed child) error = %v", err)
+		}
+		if got, want := claim.Run.ID, run.ID; got != want {
+			t.Fatalf("claim.Run.ID = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestGlobalDBClaimNextRunAppliesExecutionProfileEligibility(t *testing.T) {
 	t.Run("Should reject ineligible agents and missing profile capabilities", func(t *testing.T) {
 		globalDB := openTestGlobalDB(t)
@@ -1247,6 +1371,117 @@ func TestGlobalDBClaimNextRunSkipsBlockedTasks(t *testing.T) {
 	}); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
 		t.Fatalf("ClaimNextRun(blocked) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
 	}
+}
+
+func TestGlobalDBTaskPauseControlsClaimEligibilityAndBacklog(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should skip direct and inherited paused tasks in claim and backlog scans", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		pausedAt := time.Date(2026, 5, 21, 9, 30, 0, 0, time.UTC)
+
+		root := taskRecordForTest("task-pause-root")
+		root.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, root); err != nil {
+			t.Fatalf("CreateTask(root) error = %v", err)
+		}
+		child := taskRecordForTest("task-pause-child")
+		child.ParentTaskID = root.ID
+		child.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, child); err != nil {
+			t.Fatalf("CreateTask(child) error = %v", err)
+		}
+		peer := taskRecordForTest("task-pause-peer")
+		peer.Status = taskpkg.TaskStatusReady
+		peer.Priority = taskpkg.PriorityHigh
+		if err := globalDB.CreateTask(ctx, peer); err != nil {
+			t.Fatalf("CreateTask(peer) error = %v", err)
+		}
+		for _, run := range []taskpkg.Run{
+			taskRunForTest("run-pause-child", child.ID),
+			taskRunForTest("run-pause-peer", peer.ID),
+		} {
+			if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+				t.Fatalf("CreateTaskRun(%q) error = %v", run.ID, err)
+			}
+		}
+		if _, err := globalDB.PauseTask(ctx, taskpkg.PauseMutation{
+			TaskID:   root.ID,
+			Actor:    "human:operator",
+			Reason:   "provider incident",
+			PausedAt: pausedAt,
+		}); err != nil {
+			t.Fatalf("PauseTask(root) error = %v", err)
+		}
+
+		effectivePaused, pausedByTaskID, err := globalDB.IsTaskEffectivelyPaused(ctx, child.ID)
+		if err != nil {
+			t.Fatalf("IsTaskEffectivelyPaused(child) error = %v", err)
+		}
+		if !effectivePaused || pausedByTaskID != root.ID {
+			t.Fatalf("child effective pause = %v by %q, want true by root", effectivePaused, pausedByTaskID)
+		}
+		visibleCount, err := globalDB.CountQueuedTaskRuns(ctx, false)
+		if err != nil {
+			t.Fatalf("CountQueuedTaskRuns(false) error = %v", err)
+		}
+		allCount, err := globalDB.CountQueuedTaskRuns(ctx, true)
+		if err != nil {
+			t.Fatalf("CountQueuedTaskRuns(true) error = %v", err)
+		}
+		if visibleCount != 1 || allCount != 2 {
+			t.Fatalf("queued counts = visible %d all %d, want 1 and 2", visibleCount, allCount)
+		}
+
+		backlog, err := globalDB.SchedulerBacklog(ctx, taskpkg.SchedulerBacklogQuery{IncludePaused: true})
+		if err != nil {
+			t.Fatalf("SchedulerBacklog(include paused) error = %v", err)
+		}
+		pausedByRun := make(map[string]taskpkg.SchedulerBacklogRun, len(backlog.Runs))
+		for _, item := range backlog.Runs {
+			pausedByRun[item.Run.ID] = item
+		}
+		if item := pausedByRun["run-pause-child"]; !item.EffectivePaused || item.PausedByTaskID != root.ID {
+			t.Fatalf("child backlog item = %#v, want inherited pause from root", item)
+		}
+		if item := pausedByRun["run-pause-peer"]; item.EffectivePaused {
+			t.Fatalf("peer backlog item = %#v, want unpaused", item)
+		}
+
+		claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeGlobal,
+			ClaimerSessionID: "sess-pause-peer",
+			LeaseDuration:    time.Minute,
+			Now:              pausedAt.Add(time.Minute),
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun(peer) error = %v", err)
+		}
+		if got, want := claim.Run.ID, "run-pause-peer"; got != want {
+			t.Fatalf("ClaimNextRun(peer) run = %q, want %q", got, want)
+		}
+		if _, err := globalDB.ResumeTask(ctx, taskpkg.ResumeMutation{
+			TaskID:    root.ID,
+			ResumedAt: pausedAt.Add(2 * time.Minute),
+		}); err != nil {
+			t.Fatalf("ResumeTask(root) error = %v", err)
+		}
+		childClaim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeGlobal,
+			ClaimerSessionID: "sess-pause-child",
+			LeaseDuration:    time.Minute,
+			Now:              pausedAt.Add(3 * time.Minute),
+		})
+		if err != nil {
+			t.Fatalf("ClaimNextRun(child after resume) error = %v", err)
+		}
+		if got, want := childClaim.Run.ID, "run-pause-child"; got != want {
+			t.Fatalf("ClaimNextRun(child after resume) run = %q, want %q", got, want)
+		}
+	})
 }
 
 func setupCurrentRunProjectionTest(

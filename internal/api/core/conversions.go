@@ -2869,15 +2869,18 @@ func durationString(value time.Duration) string {
 // TaskReferencePayloadFromReference converts one task reference into the shared payload.
 func TaskReferencePayloadFromReference(record taskpkg.Reference) contract.TaskReferencePayload {
 	return contract.TaskReferencePayload{
-		ID:             record.ID,
-		Identifier:     record.Identifier,
-		Title:          record.Title,
-		Status:         record.Status,
-		Priority:       record.Priority,
-		Owner:          cloneOwnership(record.Owner),
-		Scope:          record.Scope,
-		WorkspaceID:    record.WorkspaceID,
-		LatestEventSeq: record.LatestEventSeq,
+		ID:              record.ID,
+		Identifier:      record.Identifier,
+		Title:           record.Title,
+		Status:          record.Status,
+		Priority:        record.Priority,
+		Owner:           cloneOwnership(record.Owner),
+		Scope:           record.Scope,
+		WorkspaceID:     record.WorkspaceID,
+		LatestEventSeq:  record.LatestEventSeq,
+		Paused:          record.Paused,
+		EffectivePaused: record.EffectivePaused,
+		PausedByTaskID:  record.PausedByTaskID,
 	}
 }
 

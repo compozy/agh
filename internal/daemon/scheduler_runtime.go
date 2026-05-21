@@ -39,6 +39,10 @@ type schedulerTaskSource struct {
 	store   taskStore
 }
 
+type effectiveTaskPauseStore interface {
+	IsTaskEffectivelyPaused(ctx context.Context, taskID string) (bool, string, error)
+}
+
 type schedulerSessionSource struct {
 	sessions  SessionManager
 	situation *situation.Service
@@ -73,6 +77,7 @@ func (d *Daemon) bootScheduler(ctx context.Context, state *bootState, cleanup *b
 	if logger == nil {
 		logger = slog.Default()
 	}
+	logSchedulerPauseState(ctx, state.tasks.store, logger)
 
 	waker := newSchedulerSessionWaker(ctx, state.sessions, logger)
 	if err := waker.configureHeartbeatWake(state.registry, state.sessions, state.cfg.Agents.Heartbeat); err != nil {
@@ -114,6 +119,36 @@ func (d *Daemon) bootScheduler(ctx context.Context, state *bootState, cleanup *b
 	return nil
 }
 
+func logSchedulerPauseState(ctx context.Context, store taskStore, logger *slog.Logger) {
+	if store == nil || logger == nil {
+		return
+	}
+	if pauseReader, ok := store.(interface {
+		GetSchedulerPause(context.Context) (taskpkg.SchedulerPauseState, error)
+	}); ok {
+		state, err := pauseReader.GetSchedulerPause(ctx)
+		if err != nil {
+			logger.Warn("daemon: scheduler pause state unavailable", "error", err)
+		} else if state.Paused {
+			logger.Warn(
+				"daemon: scheduler booting paused",
+				"paused_by", state.PausedBy,
+				"reason", state.Reason,
+			)
+		}
+	}
+	if counter, ok := store.(interface {
+		CountPausedTasks(context.Context) (int, error)
+	}); ok {
+		count, err := counter.CountPausedTasks(ctx)
+		if err != nil {
+			logger.Warn("daemon: paused task count unavailable", "error", err)
+		} else if count > 0 {
+			logger.Info("daemon: scheduler found paused tasks", "paused_task_count", count)
+		}
+	}
+}
+
 func newSchedulerRuntime(
 	ctx context.Context,
 	manager *taskpkg.Service,
@@ -141,6 +176,10 @@ func newSchedulerRuntime(
 	if logger == nil {
 		logger = slog.Default()
 	}
+	var pauseStore schedulerpkg.PauseStore
+	if candidate, ok := store.(schedulerpkg.PauseStore); ok {
+		pauseStore = candidate
+	}
 
 	scheduler, err := schedulerpkg.New(
 		schedulerTaskSource{manager: manager, store: store},
@@ -151,6 +190,7 @@ func newSchedulerRuntime(
 		schedulerpkg.WithSweepReason(mechanicalSchedulerSweepReason),
 		schedulerpkg.WithWakeReason(mechanicalSchedulerWakeReason),
 		schedulerpkg.WithSweepLimit(defaultMechanicalSchedulerSweepLimit),
+		schedulerpkg.WithPauseStore(pauseStore),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create scheduler: %w", err)
@@ -181,7 +221,11 @@ func (s schedulerTaskSource) PendingRuns(ctx context.Context) ([]schedulerpkg.Ru
 	if err != nil {
 		return nil, err
 	}
-	return s.joinRunsWithTasks(ctx, runs)
+	snapshots, err := s.joinRunsWithTasks(ctx, runs)
+	if err != nil {
+		return nil, err
+	}
+	return s.filterPausedRuns(ctx, snapshots)
 }
 
 func (s schedulerTaskSource) ActiveRuns(ctx context.Context) ([]taskpkg.Run, error) {
@@ -210,9 +254,46 @@ func (s schedulerTaskSource) joinRunsWithTasks(
 		if err != nil {
 			return nil, fmt.Errorf("daemon: scheduler load task %q for run %q: %w", run.TaskID, run.ID, err)
 		}
+		if taskRecord.Paused {
+			continue
+		}
+		if pauseReader, ok := s.store.(interface {
+			IsTaskEffectivelyPaused(context.Context, string) (bool, string, error)
+		}); ok {
+			paused, _, err := pauseReader.IsTaskEffectivelyPaused(ctx, taskRecord.ID)
+			if err != nil {
+				return nil, err
+			}
+			if paused {
+				continue
+			}
+		}
 		work = append(work, schedulerpkg.RunSnapshot{Task: taskRecord, Run: run})
 	}
 	return work, nil
+}
+
+func (s schedulerTaskSource) filterPausedRuns(
+	ctx context.Context,
+	snapshots []schedulerpkg.RunSnapshot,
+) ([]schedulerpkg.RunSnapshot, error) {
+	pauseStore, ok := s.store.(effectiveTaskPauseStore)
+	if !ok {
+		return snapshots, nil
+	}
+	filtered := make([]schedulerpkg.RunSnapshot, 0, len(snapshots))
+	for idx := range snapshots {
+		snapshot := &snapshots[idx]
+		paused, _, err := pauseStore.IsTaskEffectivelyPaused(ctx, snapshot.Task.ID)
+		if err != nil {
+			return nil, fmt.Errorf("daemon: scheduler check task %q pause: %w", snapshot.Task.ID, err)
+		}
+		if paused {
+			continue
+		}
+		filtered = append(filtered, *snapshot)
+	}
+	return filtered, nil
 }
 
 func (s schedulerSessionSource) Sessions(ctx context.Context) ([]schedulerpkg.SessionSnapshot, error) {

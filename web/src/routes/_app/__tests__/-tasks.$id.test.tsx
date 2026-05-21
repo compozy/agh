@@ -87,6 +87,8 @@ vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
   updateTask: vi.fn(),
   publishTask: vi.fn(),
   cancelTask: vi.fn(),
+  pauseTask: vi.fn(),
+  resumeTask: vi.fn(),
   approveTask: vi.fn(),
   rejectTask: vi.fn(),
   createChildTask: vi.fn(),

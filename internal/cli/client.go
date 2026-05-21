@@ -383,6 +383,8 @@ type DaemonClient interface {
 	ApproveTask(ctx context.Context, id string, request TaskExecutionRequest) (TaskExecutionRecord, error)
 	RejectTask(ctx context.Context, id string) (TaskRecord, error)
 	CancelTask(ctx context.Context, id string, request CancelTaskRequest) (TaskRecord, error)
+	PauseTask(ctx context.Context, id string, request PauseTaskRequest) (TaskRecord, error)
+	ResumeTask(ctx context.Context, id string, request ResumeTaskRequest) (TaskRecord, error)
 	CreateChildTask(ctx context.Context, id string, request CreateTaskChildRequest) (TaskRecord, error)
 	AddTaskDependency(ctx context.Context, id string, request AddTaskDependencyRequest) (TaskDetailRecord, error)
 	RemoveTaskDependency(ctx context.Context, id string, dependsOnID string) (TaskDetailRecord, error)
@@ -399,6 +401,11 @@ type DaemonClient interface {
 	RetryTaskRun(ctx context.Context, id string, request RetryTaskRunRequest) (RetryTaskRunRecord, error)
 	BulkForceReleaseTaskRuns(ctx context.Context, request BulkForceTaskRunRequest) (BulkForceTaskRunRecord, error)
 	BulkForceFailTaskRuns(ctx context.Context, request BulkForceTaskRunRequest) (BulkForceTaskRunRecord, error)
+	SchedulerStatus(ctx context.Context) (SchedulerStatusRecord, error)
+	PauseScheduler(ctx context.Context, request SchedulerPauseRequest) (SchedulerStatusRecord, error)
+	ResumeScheduler(ctx context.Context, request SchedulerResumeRequest) (SchedulerStatusRecord, error)
+	DrainScheduler(ctx context.Context, request SchedulerDrainRequest) (SchedulerDrainRecord, error)
+	SchedulerBacklog(ctx context.Context, query SchedulerBacklogQuery) (SchedulerBacklogRecord, error)
 	AgentMe(ctx context.Context, credentials agentidentity.Credentials) (AgentMeRecord, error)
 	AgentContext(ctx context.Context, credentials agentidentity.Credentials) (AgentContextRecord, error)
 	AgentSpawn(
@@ -902,6 +909,12 @@ type TaskDependencyRecord = contract.TaskDependencyPayload
 // TaskRunRecord is the shared task-run payload.
 type TaskRunRecord = contract.TaskRunPayload
 
+// PauseTaskRequest captures the shared task-pause payload.
+type PauseTaskRequest = contract.PauseTaskRequest
+
+// ResumeTaskRequest captures the shared task-resume payload.
+type ResumeTaskRequest = contract.ResumeTaskRequest
+
 // RetryTaskRunRecord is the shared retry response payload.
 type RetryTaskRunRecord = contract.RetryTaskRunResponse
 
@@ -910,6 +923,27 @@ type BulkForceTaskRunRecord = contract.BulkForceTaskRunResponse
 
 // BulkForceTaskRunItemRecord records one bulk force-operation row.
 type BulkForceTaskRunItemRecord = contract.BulkForceTaskRunItemPayload
+
+// SchedulerStatusRecord is the shared scheduler status payload.
+type SchedulerStatusRecord = contract.SchedulerStatusPayload
+
+// SchedulerPauseRequest captures the shared scheduler pause payload.
+type SchedulerPauseRequest = contract.SchedulerPauseRequest
+
+// SchedulerResumeRequest captures the shared scheduler resume payload.
+type SchedulerResumeRequest = contract.SchedulerResumeRequest
+
+// SchedulerDrainRequest captures the shared scheduler drain payload.
+type SchedulerDrainRequest = contract.SchedulerDrainRequest
+
+// SchedulerDrainRecord is the shared scheduler drain response payload.
+type SchedulerDrainRecord = contract.SchedulerDrainResponse
+
+// SchedulerBacklogQuery captures scheduler backlog filters.
+type SchedulerBacklogQuery = contract.SchedulerBacklogQuery
+
+// SchedulerBacklogRecord is the shared scheduler backlog payload.
+type SchedulerBacklogRecord = contract.SchedulerBacklogPayload
 
 // TaskExecutionRecord is the shared task execution-boundary payload.
 type TaskExecutionRecord = contract.TaskExecutionResponse
@@ -3981,6 +4015,28 @@ func (c *unixSocketClient) CancelTask(ctx context.Context, id string, request Ca
 	return response.Task, nil
 }
 
+func (c *unixSocketClient) PauseTask(ctx context.Context, id string, request PauseTaskRequest) (TaskRecord, error) {
+	var response contract.TaskResponse
+	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(id)) + "/pause"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return TaskRecord{}, err
+	}
+	return response.Task, nil
+}
+
+func (c *unixSocketClient) ResumeTask(
+	ctx context.Context,
+	id string,
+	request ResumeTaskRequest,
+) (TaskRecord, error) {
+	var response contract.TaskResponse
+	path := "/api/tasks/" + url.PathEscape(strings.TrimSpace(id)) + "/resume"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return TaskRecord{}, err
+	}
+	return response.Task, nil
+}
+
 func (c *unixSocketClient) CreateChildTask(
 	ctx context.Context,
 	id string,
@@ -4139,6 +4195,65 @@ func (c *unixSocketClient) BulkForceFailTaskRuns(
 	request BulkForceTaskRunRequest,
 ) (BulkForceTaskRunRecord, error) {
 	return c.bulkForceTaskRunAction(ctx, "fail", request)
+}
+
+func (c *unixSocketClient) SchedulerStatus(ctx context.Context) (SchedulerStatusRecord, error) {
+	var response contract.SchedulerStatusResponse
+	if err := c.doJSON(ctx, http.MethodGet, "/api/scheduler", nil, nil, &response); err != nil {
+		return SchedulerStatusRecord{}, err
+	}
+	return response.Scheduler, nil
+}
+
+func (c *unixSocketClient) PauseScheduler(
+	ctx context.Context,
+	request SchedulerPauseRequest,
+) (SchedulerStatusRecord, error) {
+	var response contract.SchedulerStatusResponse
+	if err := c.doJSON(ctx, http.MethodPost, "/api/scheduler/pause", nil, request, &response); err != nil {
+		return SchedulerStatusRecord{}, err
+	}
+	return response.Scheduler, nil
+}
+
+func (c *unixSocketClient) ResumeScheduler(
+	ctx context.Context,
+	request SchedulerResumeRequest,
+) (SchedulerStatusRecord, error) {
+	var response contract.SchedulerStatusResponse
+	if err := c.doJSON(ctx, http.MethodPost, "/api/scheduler/resume", nil, request, &response); err != nil {
+		return SchedulerStatusRecord{}, err
+	}
+	return response.Scheduler, nil
+}
+
+func (c *unixSocketClient) DrainScheduler(
+	ctx context.Context,
+	request SchedulerDrainRequest,
+) (SchedulerDrainRecord, error) {
+	var response contract.SchedulerDrainResponse
+	if err := c.doJSON(ctx, http.MethodPost, "/api/scheduler/drain", nil, request, &response); err != nil {
+		return SchedulerDrainRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) SchedulerBacklog(
+	ctx context.Context,
+	query SchedulerBacklogQuery,
+) (SchedulerBacklogRecord, error) {
+	var response contract.SchedulerBacklogResponse
+	if err := c.doJSON(
+		ctx,
+		http.MethodGet,
+		"/api/scheduler/backlog",
+		schedulerBacklogValues(query),
+		nil,
+		&response,
+	); err != nil {
+		return SchedulerBacklogRecord{}, err
+	}
+	return response.Backlog, nil
 }
 
 func (c *unixSocketClient) AgentMe(
@@ -5305,6 +5420,20 @@ func taskRunValues(query TaskRunListQuery) url.Values {
 	}
 	if query.Limit > 0 {
 		values.Set("limit", strconv.Itoa(query.Limit))
+	}
+	return values
+}
+
+func schedulerBacklogValues(query SchedulerBacklogQuery) url.Values {
+	values := url.Values{}
+	if query.Limit > 0 {
+		values.Set("limit", strconv.Itoa(query.Limit))
+	}
+	if trimmed := strings.TrimSpace(query.WorkspaceID); trimmed != "" {
+		values.Set("workspace", trimmed)
+	}
+	if query.IncludePaused {
+		values.Set("include_paused", "true")
 	}
 	return values
 }

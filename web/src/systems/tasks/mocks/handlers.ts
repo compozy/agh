@@ -428,6 +428,45 @@ export const handlers: HttpHandler[] = [
       },
     });
   }),
+  http.post("/api/tasks/:id/pause", async ({ params, request }) => {
+    const id = String(params.id);
+    const task = resolveTaskRecord(id);
+    if (!task) {
+      return notFound("Task", id);
+    }
+    const body = (await request.json()) as { reason?: string };
+
+    return HttpResponse.json({
+      task: {
+        ...task,
+        paused: true,
+        effective_paused: true,
+        paused_by: "human:storybook",
+        paused_at: "2026-04-17T10:05:00Z",
+        paused_by_task_id: task.id,
+        paused_reason: body.reason ?? "storybook pause",
+      },
+    });
+  }),
+  http.post("/api/tasks/:id/resume", ({ params }) => {
+    const id = String(params.id);
+    const task = resolveTaskRecord(id);
+    if (!task) {
+      return notFound("Task", id);
+    }
+
+    return HttpResponse.json({
+      task: {
+        ...task,
+        paused: false,
+        effective_paused: false,
+        paused_by: "",
+        paused_at: null,
+        paused_by_task_id: "",
+        paused_reason: "",
+      },
+    });
+  }),
   http.post("/api/tasks/:id/approve", ({ params }) => {
     const id = String(params.id);
     const task = resolveTaskRecord(id);

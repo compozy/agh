@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { schedulerKeys } from "@/systems/scheduler";
 
 import {
   addTaskDependency,
@@ -18,10 +19,12 @@ import {
   forceFailTaskRun,
   forceReleaseTaskRun,
   markTaskRead,
+  pauseTask,
   publishTask,
   rejectTask,
   removeTaskDependency,
   retryTaskRun,
+  resumeTask,
   startTaskRun,
   updateTask,
 } from "../adapters/tasks-api";
@@ -39,7 +42,9 @@ import type {
   FailTaskRunRequest,
   ForceFailTaskRunRequest,
   ForceReleaseTaskRunRequest,
+  PauseTaskRequest,
   RetryTaskRunRequest,
+  ResumeTaskRequest,
   StartTaskRunRequest,
   UpdateTaskRequest,
 } from "../types";
@@ -60,6 +65,14 @@ interface UpdateTaskParams extends TaskIdParams {
 
 interface CancelTaskParams extends TaskIdParams {
   data?: CancelTaskRequest;
+}
+
+interface PauseTaskParams extends TaskIdParams {
+  data: PauseTaskRequest;
+}
+
+interface ResumeTaskParams extends TaskIdParams {
+  data?: ResumeTaskRequest;
 }
 
 interface CreateChildTaskParams {
@@ -135,6 +148,7 @@ function invalidateAggregateQueries(queryClient: QueryClient) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: [...tasksKeys.all, "dashboard"] }),
     queryClient.invalidateQueries({ queryKey: [...tasksKeys.all, "inbox"] }),
+    queryClient.invalidateQueries({ queryKey: schedulerKeys.all }),
   ]);
 }
 
@@ -204,6 +218,32 @@ export function useCancelTask() {
 
   return useMutation({
     mutationFn: ({ id, data }: CancelTaskParams) => cancelTask(id, data ?? {}),
+    onSettled: (_result, _error, { id }) =>
+      Promise.all([
+        invalidateTaskQueries(queryClient, id),
+        invalidateAggregateQueries(queryClient),
+      ]),
+  });
+}
+
+export function usePauseTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: PauseTaskParams) => pauseTask(id, data),
+    onSettled: (_result, _error, { id }) =>
+      Promise.all([
+        invalidateTaskQueries(queryClient, id),
+        invalidateAggregateQueries(queryClient),
+      ]),
+  });
+}
+
+export function useResumeTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: ResumeTaskParams) => resumeTask(id, data ?? {}),
     onSettled: (_result, _error, { id }) =>
       Promise.all([
         invalidateTaskQueries(queryClient, id),

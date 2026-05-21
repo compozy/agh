@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -116,6 +116,52 @@ describe("TasksDetailHeader", () => {
     expect(screen.getByTestId("tasks-detail-delete")).toBeDisabled();
     expect(screen.getByTestId("tasks-detail-cancel")).toBeDisabled();
     expect(screen.getByTestId("tasks-detail-enqueue")).toBeDisabled();
+  });
+
+  it("requires a reason before pausing a task", async () => {
+    const onPause = vi.fn().mockResolvedValue(undefined);
+
+    render(<TasksDetailHeader detail={buildDetail({ status: "ready" })} onPause={onPause} />);
+
+    fireEvent.click(screen.getByTestId("tasks-detail-pause"));
+    expect(screen.getByTestId("tasks-detail-pause-dialog")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("tasks-detail-pause-confirm"));
+    expect(screen.getByTestId("tasks-detail-pause-error")).toHaveTextContent(
+      "Provide a pause reason."
+    );
+
+    fireEvent.change(screen.getByTestId("tasks-detail-pause-reason"), {
+      target: { value: "provider incident" },
+    });
+    fireEvent.click(screen.getByTestId("tasks-detail-pause-confirm"));
+
+    await waitFor(() => {
+      expect(onPause).toHaveBeenCalledWith("provider incident");
+    });
+  });
+
+  it("surfaces resume for directly paused tasks and blocks start-run copy", () => {
+    const onResume = vi.fn();
+    render(
+      <TasksDetailHeader
+        detail={buildDetail(
+          {
+            status: "ready",
+            paused: true,
+            paused_reason: "provider incident",
+          },
+          { effective_paused: true }
+        )}
+        onEnqueueRun={() => {}}
+        onResume={onResume}
+      />
+    );
+
+    expect(screen.getByTestId("tasks-detail-pause-state")).toHaveTextContent("Paused");
+    expect(screen.getByTestId("tasks-detail-enqueue")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("tasks-detail-resume"));
+    expect(onResume).toHaveBeenCalledTimes(1);
   });
 
   it("renders the saved-intent lifecycle pill and hint for draft tasks without implying autonomy", () => {

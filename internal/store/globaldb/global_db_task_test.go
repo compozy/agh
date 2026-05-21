@@ -60,6 +60,10 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"closed_at",
 		"metadata_json",
 		"current_run_id",
+		"paused",
+		"paused_by",
+		"paused_at",
+		"paused_reason",
 		"max_runtime_seconds",
 		"spawn_failure_count",
 		"last_spawn_error",
@@ -170,6 +174,7 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"idx_tasks_owner",
 		"idx_tasks_channel",
 		"idx_tasks_current_run",
+		"idx_tasks_paused",
 		"idx_tasks_review_policy",
 		"idx_tasks_review_round",
 	)

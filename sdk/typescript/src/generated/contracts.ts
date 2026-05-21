@@ -3968,6 +3968,12 @@ export interface Task {
   owner?: Ownership;
   current_run_id?: string;
   latest_event_seq: number;
+  paused?: boolean;
+  paused_by?: string;
+  paused_at?: ISODateTime;
+  paused_reason?: string;
+  effective_paused?: boolean;
+  paused_by_task_id?: string;
   created_by: ActorIdentity;
   origin: Origin;
   created_at: ISODateTime;
@@ -4166,6 +4172,9 @@ export interface TaskReferencePayload {
   scope: Scope;
   workspace_id?: string;
   latest_event_seq: number;
+  paused?: boolean;
+  effective_paused?: boolean;
+  paused_by_task_id?: string;
 }
 
 export interface TaskDependencyReferencePayload {
@@ -4230,6 +4239,12 @@ export interface TaskSummary {
   owner?: Ownership;
   current_run_id?: string;
   latest_event_seq: number;
+  paused?: boolean;
+  paused_by?: string;
+  paused_at?: ISODateTime;
+  paused_reason?: string;
+  effective_paused?: boolean;
+  paused_by_task_id?: string;
   created_by: ActorIdentity;
   origin: Origin;
   created_at: ISODateTime;

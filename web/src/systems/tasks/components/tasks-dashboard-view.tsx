@@ -1,6 +1,8 @@
 import { AlertCircle } from "lucide-react";
 
 import { BlockLoading, Empty, Eyebrow } from "@agh/ui";
+import type { SchedulerBacklog, SchedulerStatus } from "@/systems/scheduler";
+import { SchedulerControlsPanel } from "@/systems/scheduler";
 
 import type { TaskDashboardView } from "../types";
 import { TasksDashboardActiveRuns } from "./tasks-dashboard-active-runs";
@@ -12,6 +14,18 @@ export interface TasksDashboardViewProps {
   dashboard: TaskDashboardView | null;
   isLoading?: boolean;
   errorMessage?: string | null;
+  scheduler?: SchedulerStatus | null;
+  schedulerBacklog?: SchedulerBacklog | null;
+  schedulerLoading?: boolean;
+  schedulerBacklogLoading?: boolean;
+  schedulerErrorMessage?: string | null;
+  schedulerBacklogErrorMessage?: string | null;
+  isSchedulerPausePending?: boolean;
+  isSchedulerResumePending?: boolean;
+  isSchedulerDrainPending?: boolean;
+  onPauseScheduler?: (reason: string) => void | Promise<void>;
+  onResumeScheduler?: () => void | Promise<void>;
+  onDrainScheduler?: (input: { reason?: string; timeoutSeconds?: number }) => void | Promise<void>;
 }
 
 /**
@@ -24,6 +38,18 @@ export function TasksDashboardView({
   dashboard,
   isLoading = false,
   errorMessage = null,
+  scheduler = null,
+  schedulerBacklog = null,
+  schedulerLoading = false,
+  schedulerBacklogLoading = false,
+  schedulerErrorMessage = null,
+  schedulerBacklogErrorMessage = null,
+  isSchedulerPausePending = false,
+  isSchedulerResumePending = false,
+  isSchedulerDrainPending = false,
+  onPauseScheduler,
+  onResumeScheduler,
+  onDrainScheduler,
 }: TasksDashboardViewProps) {
   if (isLoading && !dashboard) {
     return (
@@ -63,6 +89,23 @@ export function TasksDashboardView({
       className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-5"
       data-testid="tasks-dashboard-view"
     >
+      <SchedulerControlsPanel
+        backlog={schedulerBacklog}
+        backlogErrorMessage={schedulerBacklogErrorMessage}
+        errorMessage={schedulerErrorMessage}
+        isBacklogLoading={schedulerBacklogLoading}
+        isLoading={schedulerLoading}
+        onDrain={onDrainScheduler ? () => onDrainScheduler({ timeoutSeconds: 60 }) : undefined}
+        onPause={onPauseScheduler}
+        onResume={onResumeScheduler}
+        pending={{
+          drain: isSchedulerDrainPending,
+          pause: isSchedulerPausePending,
+          resume: isSchedulerResumePending,
+        }}
+        status={scheduler}
+      />
+
       <TasksDashboardCards dashboard={dashboard} />
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[2fr_1fr]">

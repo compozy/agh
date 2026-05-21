@@ -296,6 +296,10 @@ type taskTableMigrationSpec struct {
 	approvalPolicyExpr        string
 	approvalStateExpr         string
 	currentRunIDExpr          string
+	pausedExpr                string
+	pausedByExpr              string
+	pausedAtExpr              string
+	pausedReasonExpr          string
 	maxRuntimeSecondsExpr     string
 	spawnFailureCountExpr     string
 	lastSpawnErrorExpr        string
@@ -335,6 +339,10 @@ func taskTableMigrationSpecForExistingSchema(
 		approvalPolicyExpr:        existingTaskColumnExpr(columns, "approval_policy", `'none'`),
 		approvalStateExpr:         existingTaskColumnExpr(columns, "approval_state", `'not_required'`),
 		currentRunIDExpr:          existingTaskColumnExpr(columns, "current_run_id", "NULL"),
+		pausedExpr:                existingTaskColumnExpr(columns, "paused", "0"),
+		pausedByExpr:              existingTaskColumnExpr(columns, "paused_by", `''`),
+		pausedAtExpr:              existingTaskColumnExpr(columns, "paused_at", "NULL"),
+		pausedReasonExpr:          existingTaskColumnExpr(columns, "paused_reason", `''`),
 		maxRuntimeSecondsExpr:     existingTaskColumnExpr(columns, "max_runtime_seconds", "0"),
 		spawnFailureCountExpr:     existingTaskColumnExpr(columns, "spawn_failure_count", "0"),
 		lastSpawnErrorExpr:        existingTaskColumnExpr(columns, "last_spawn_error", `''`),
@@ -443,8 +451,7 @@ func migrateTaskEventSequenceColumn(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
-func taskTableCreateStatement() string {
-	return `CREATE TABLE tasks_new (
+const taskTableCreateSQL = `CREATE TABLE tasks_new (
 		id              TEXT PRIMARY KEY,
 		identifier      TEXT,
 		scope           TEXT NOT NULL CHECK (scope IN ('global', 'workspace')),
@@ -491,6 +498,10 @@ func taskTableCreateStatement() string {
 		closed_at       TEXT,
 		metadata_json   TEXT,
 		current_run_id  TEXT REFERENCES task_runs(id) ON DELETE SET NULL,
+		paused          INTEGER NOT NULL DEFAULT 0 CHECK (paused IN (0, 1)),
+		paused_by       TEXT NOT NULL DEFAULT '',
+		paused_at       TEXT,
+		paused_reason   TEXT NOT NULL DEFAULT '',
 		max_runtime_seconds INTEGER NOT NULL DEFAULT 0 CHECK (max_runtime_seconds >= 0),
 		spawn_failure_count INTEGER NOT NULL DEFAULT 0 CHECK (spawn_failure_count >= 0),
 		last_spawn_error TEXT NOT NULL DEFAULT '',
@@ -520,7 +531,10 @@ func taskTableCreateStatement() string {
 			(approval_policy = 'none' AND approval_state = 'not_required') OR
 			(approval_policy = 'manual' AND approval_state IN ('pending', 'approved', 'rejected'))
 		)
-	);`
+		);`
+
+func taskTableCreateStatement() string {
+	return taskTableCreateSQL
 }
 
 func taskTableCopyStatement(spec taskTableMigrationSpec) string {
@@ -529,20 +543,26 @@ func taskTableCopyStatement(spec taskTableMigrationSpec) string {
 			id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
 			priority, max_attempts, status, approval_policy, approval_state,
 			owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
-			created_at, updated_at, closed_at, metadata_json, current_run_id, max_runtime_seconds,
+			created_at, updated_at, closed_at, metadata_json, current_run_id,
+			paused, paused_by, paused_at, paused_reason, max_runtime_seconds,
 			spawn_failure_count, last_spawn_error, review_policy, review_max_rounds, review_round,
 			last_review_id, last_review_outcome, review_circuit_opened_at, review_circuit_reason
 		) SELECT
 			id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
 			%s, %s, status, %s, %s,
 			owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
-			created_at, updated_at, closed_at, metadata_json, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+			created_at, updated_at, closed_at, metadata_json, %s,
+			%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
 		FROM tasks`,
 		spec.priorityExpr,
 		spec.maxAttemptsExpr,
 		spec.approvalPolicyExpr,
 		spec.approvalStateExpr,
 		spec.currentRunIDExpr,
+		spec.pausedExpr,
+		spec.pausedByExpr,
+		spec.pausedAtExpr,
+		spec.pausedReasonExpr,
 		spec.maxRuntimeSecondsExpr,
 		spec.spawnFailureCountExpr,
 		spec.lastSpawnErrorExpr,
@@ -1498,8 +1518,11 @@ func loadWorkspaceNames(ctx context.Context, exec sqlQueryExecutor) (map[string]
 
 func tableExists(ctx context.Context, exec sqlQueryExecutor, table string) (bool, error) {
 	var name string
-	err := exec.QueryRowContext(ctx, `SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`, strings.TrimSpace(table)).
-		Scan(&name)
+	err := exec.QueryRowContext(
+		ctx,
+		`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`,
+		strings.TrimSpace(table),
+	).Scan(&name)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}

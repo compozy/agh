@@ -1220,6 +1220,82 @@ func TestTaskMutationCommandsMapRequests(t *testing.T) {
 			},
 		},
 		{
+			name: "Should parse task pause request",
+			run: func(t *testing.T) {
+				t.Helper()
+
+				var (
+					pauseTaskID  string
+					pauseRequest PauseTaskRequest
+				)
+				deps := newTestDeps(t, &stubClient{
+					pauseTaskFn: func(_ context.Context, taskID string, request PauseTaskRequest) (TaskRecord, error) {
+						pauseTaskID = taskID
+						pauseRequest = request
+						record := sampleTaskRecord()
+						record.Paused = true
+						record.PausedReason = request.Reason
+						return record, nil
+					},
+				})
+
+				if _, _, err := executeRootCommand(
+					t,
+					deps,
+					"task",
+					"pause",
+					"task-1",
+					"--reason",
+					"provider incident",
+					"--metadata",
+					"{\"source\":\"cli\"}",
+					"-o",
+					"json",
+				); err != nil {
+					t.Fatalf("task pause error = %v", err)
+				}
+				if pauseTaskID != "task-1" || pauseRequest.Reason != "provider incident" ||
+					string(pauseRequest.Metadata) != "{\"source\":\"cli\"}" {
+					t.Fatalf("pause request = %#v taskID=%q, want parsed pause payload", pauseRequest, pauseTaskID)
+				}
+			},
+		},
+		{
+			name: "Should parse task resume request",
+			run: func(t *testing.T) {
+				t.Helper()
+
+				var (
+					resumeTaskID  string
+					resumeRequest ResumeTaskRequest
+				)
+				deps := newTestDeps(t, &stubClient{
+					resumeTaskFn: func(_ context.Context, taskID string, request ResumeTaskRequest) (TaskRecord, error) {
+						resumeTaskID = taskID
+						resumeRequest = request
+						return sampleTaskRecord(), nil
+					},
+				})
+
+				if _, _, err := executeRootCommand(
+					t,
+					deps,
+					"task",
+					"resume",
+					"task-1",
+					"--metadata",
+					"{\"source\":\"cli\"}",
+					"-o",
+					"json",
+				); err != nil {
+					t.Fatalf("task resume error = %v", err)
+				}
+				if resumeTaskID != "task-1" || string(resumeRequest.Metadata) != "{\"source\":\"cli\"}" {
+					t.Fatalf("resume request = %#v taskID=%q, want parsed resume payload", resumeRequest, resumeTaskID)
+				}
+			},
+		},
+		{
 			name: "Should parse child task create request",
 			run: func(t *testing.T) {
 				t.Helper()

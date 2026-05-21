@@ -59,6 +59,11 @@ const (
 	specAPIRunsIDInspectPath                                 = "/api/runs/{id}/inspect"
 	specAPIRunsIDReleasePath                                 = "/api/runs/{id}/release"
 	specAPIRunsIDRetryPath                                   = "/api/runs/{id}/retry"
+	specAPISchedulerPath                                     = "/api/scheduler"
+	specAPISchedulerBacklogPath                              = "/api/scheduler/backlog"
+	specAPISchedulerDrainPath                                = "/api/scheduler/drain"
+	specAPISchedulerPausePath                                = "/api/scheduler/pause"
+	specAPISchedulerResumePath                               = "/api/scheduler/resume"
 	specAPITaskRunsIDReviewsPath                             = "/api/task-runs/{id}/reviews"
 	specAPITasksPath                                         = "/api/tasks"
 	specAPITasksIDPath                                       = "/api/tasks/{id}"
@@ -66,6 +71,8 @@ const (
 	specAPITasksIDInspectPath                                = "/api/tasks/{id}/inspect"
 	specAPITasksIDNotificationsBridgesPath                   = "/api/tasks/{id}/notifications/bridges"
 	specAPITasksIDNotificationsBridgesSubscriptionIDPath     = "/api/tasks/{id}/notifications/bridges/{subscription_id}"
+	specAPITasksIDPausePath                                  = "/api/tasks/{id}/pause"
+	specAPITasksIDResumePath                                 = "/api/tasks/{id}/resume"
 	specAPITasksIDRunsPath                                   = "/api/tasks/{id}/runs"
 	specAPIVaultEntriesPath                                  = "/api/vault/secrets"
 	specAPIWorkspacesIDPath                                  = "/api/workspaces/{id}"
@@ -3709,6 +3716,51 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      httpMethodPost,
+		Path:        specAPITasksIDPausePath,
+		OperationID: "pauseTask",
+		Summary:     "Pause one task for future scheduler claims",
+		Tags:        []string{specTasksKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task id"),
+		},
+		RequestBody: contract.PauseTaskRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskResponse{}},
+			{Status: 403, Description: specForceOperationForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specTaskNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Task pause conflict", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task pause request", Body: contract.ErrorPayload{}},
+			{Status: 429, Description: specForceOperationRateLimitExceededDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodPost,
+		Path:        specAPITasksIDResumePath,
+		OperationID: "resumeTask",
+		Summary:     "Resume one paused task for future scheduler claims",
+		Tags:        []string{specTasksKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task id"),
+		},
+		RequestBody:         contract.ResumeTaskRequest{},
+		RequestBodyOptional: true,
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskResponse{}},
+			{Status: 403, Description: specForceOperationForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specTaskNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Task resume conflict", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid task resume request", Body: contract.ErrorPayload{}},
+			{Status: 429, Description: specForceOperationRateLimitExceededDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodPost,
 		Path:        "/api/tasks/{id}/children",
 		OperationID: "createChildTask",
 		Summary:     "Create one child task",
@@ -3940,6 +3992,91 @@ var operationRegistry = []OperationSpec{
 			{Status: 403, Description: specForceOperationForbiddenDescription, Body: contract.ErrorPayload{}},
 			{Status: 422, Description: "Invalid bulk forced-failure request", Body: contract.ErrorPayload{}},
 			{Status: 429, Description: specForceOperationRateLimitExceededDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodGet,
+		Path:        specAPISchedulerPath,
+		OperationID: "getScheduler",
+		Summary:     "Get scheduler pause state and queue pressure",
+		Tags:        []string{specTasksKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SchedulerStatusResponse{}},
+			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:              httpMethodPost,
+		Path:                specAPISchedulerPausePath,
+		OperationID:         "pauseScheduler",
+		Summary:             "Pause scheduler dispatch and task-run claims",
+		Tags:                []string{specTasksKey},
+		Transports:          []Transport{TransportHTTP, TransportUDS},
+		RequestBody:         contract.SchedulerPauseRequest{},
+		RequestBodyOptional: true,
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SchedulerStatusResponse{}},
+			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid scheduler pause request", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:              httpMethodPost,
+		Path:                specAPISchedulerResumePath,
+		OperationID:         "resumeScheduler",
+		Summary:             "Resume scheduler dispatch and task-run claims",
+		Tags:                []string{specTasksKey},
+		Transports:          []Transport{TransportHTTP, TransportUDS},
+		RequestBody:         contract.SchedulerResumeRequest{},
+		RequestBodyOptional: true,
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SchedulerStatusResponse{}},
+			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid scheduler resume request", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:              httpMethodPost,
+		Path:                specAPISchedulerDrainPath,
+		OperationID:         "drainScheduler",
+		Summary:             "Pause the scheduler and wait for active claims to drain",
+		Tags:                []string{specTasksKey},
+		Transports:          []Transport{TransportHTTP, TransportUDS},
+		RequestBody:         contract.SchedulerDrainRequest{},
+		RequestBodyOptional: true,
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SchedulerDrainResponse{}},
+			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid scheduler drain request", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodGet,
+		Path:        specAPISchedulerBacklogPath,
+		OperationID: "getSchedulerBacklog",
+		Summary:     "List queued scheduler backlog rows",
+		Tags:        []string{specTasksKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			intQueryParam("limit", "Maximum number of queued runs to return"),
+			queryParam(specWorkspaceKey, "Filter by workspace path, name, or ID", false),
+			boolQueryParam("include_paused", "Include runs blocked by task pause state"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SchedulerBacklogResponse{}},
+			{Status: 403, Description: specForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid scheduler backlog query", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},

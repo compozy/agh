@@ -504,6 +504,11 @@ func expectedGlobalMigrationPrefix() []expectedGlobalMigrationIdentity {
 			name:     "add_task_run_force_ops",
 			checksum: "2026-05-21-add-task-run-force-ops",
 		},
+		{
+			version:  33,
+			name:     "add_task_pause_state",
+			checksum: "2026-05-21-add-task-pause-state",
+		},
 	}
 }
 

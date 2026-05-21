@@ -32,9 +32,10 @@ type selectionResult struct {
 
 // Scheduler owns one mechanical sweep/notify loop.
 type Scheduler struct {
-	tasks    TaskSource
-	sessions SessionSource
-	waker    Waker
+	tasks      TaskSource
+	sessions   SessionSource
+	waker      Waker
+	pauseStore PauseStore
 
 	logger       *slog.Logger
 	clock        clockwork.Clock
@@ -282,6 +283,24 @@ func (s *Scheduler) RunOnce(ctx context.Context) (CycleResult, error) {
 	if err != nil {
 		return result, errors.Join(append(errs, err)...)
 	}
+	paused, err := s.isPaused(ctx)
+	if err != nil {
+		errs = append(errs, err)
+	}
+	if paused {
+		result.Paused = true
+		s.recordCycle(now, result)
+		s.logger.Warn(
+			"scheduler.paused",
+			"pending_runs",
+			result.PendingRuns,
+			"active_runs",
+			result.ActiveRuns,
+			"sessions_scanned",
+			result.SessionsScanned,
+		)
+		return result, errors.Join(errs...)
+	}
 
 	selection := s.selectWakeTargets(now, pending, sessions, active)
 	applySelection(&result, selection)
@@ -292,6 +311,17 @@ func (s *Scheduler) RunOnce(ctx context.Context) (CycleResult, error) {
 		s.logger.Info("scheduler.wake.no_match", "runs", result.NoMatchRunIDs)
 	}
 	return result, errors.Join(errs...)
+}
+
+func (s *Scheduler) isPaused(ctx context.Context) (bool, error) {
+	if s.pauseStore == nil {
+		return false, nil
+	}
+	state, err := s.pauseStore.GetSchedulerPause(ctx)
+	if err != nil {
+		return false, fmt.Errorf("scheduler: read pause state: %w", err)
+	}
+	return state.Paused, nil
 }
 
 func (s *Scheduler) sweepExpiredLeases(ctx context.Context, now time.Time, result *CycleResult) []error {
@@ -576,6 +606,9 @@ func isPotentiallyClaimable(work *RunSnapshot) bool {
 		return false
 	}
 	if work.Run.Status.Normalize() != taskpkg.TaskRunStatusQueued {
+		return false
+	}
+	if work.Task.Paused {
 		return false
 	}
 	switch work.Task.Status.Normalize() {

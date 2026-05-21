@@ -83,8 +83,8 @@ func (g *GlobalDB) CreateTask(ctx context.Context, record taskpkg.Task) error {
 			id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
 			priority, max_attempts, status, approval_policy, approval_state,
 			owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
-			created_at, updated_at, closed_at, metadata_json
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			created_at, updated_at, closed_at, paused, paused_by, paused_at, paused_reason, metadata_json
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		normalized.ID,
 		store.NullableString(normalized.Identifier),
 		string(normalized.Scope),
@@ -107,6 +107,10 @@ func (g *GlobalDB) CreateTask(ctx context.Context, record taskpkg.Task) error {
 		store.FormatTimestamp(normalized.CreatedAt),
 		store.FormatTimestamp(normalized.UpdatedAt),
 		nullableTaskTimestamp(normalized.ClosedAt),
+		taskBoolToInt(normalized.Paused),
+		normalized.PausedBy,
+		nullableTaskTimestamp(normalized.PausedAt),
+		normalized.PausedReason,
 		nullableTaskJSON(normalized.Metadata),
 	)
 	if err != nil {
@@ -203,7 +207,8 @@ func (g *GlobalDB) updateTaskWithExecutor(
 		     max_attempts = ?, status = ?, approval_policy = ?, approval_state = ?,
 		     owner_kind = ?, owner_ref = ?, created_by_kind = ?,
 		     created_by_ref = ?, origin_kind = ?, origin_ref = ?,
-		     created_at = ?, updated_at = ?, closed_at = ?, metadata_json = ?
+		     created_at = ?, updated_at = ?, closed_at = ?,
+		     paused = ?, paused_by = ?, paused_at = ?, paused_reason = ?, metadata_json = ?
 		 WHERE id = ?`,
 		store.NullableString(normalized.Identifier),
 		string(normalized.Scope),
@@ -226,6 +231,10 @@ func (g *GlobalDB) updateTaskWithExecutor(
 		store.FormatTimestamp(normalized.CreatedAt),
 		store.FormatTimestamp(normalized.UpdatedAt),
 		nullableTaskTimestamp(normalized.ClosedAt),
+		taskBoolToInt(normalized.Paused),
+		normalized.PausedBy,
+		nullableTaskTimestamp(normalized.PausedAt),
+		normalized.PausedReason,
 		nullableTaskJSON(normalized.Metadata),
 		normalized.ID,
 	)
@@ -253,7 +262,8 @@ func (g *GlobalDB) GetTask(ctx context.Context, id string) (taskpkg.Task, error)
 			id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
 			priority, max_attempts, status, approval_policy, approval_state,
 			owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
-			created_at, updated_at, closed_at, current_run_id, `+taskLatestEventSeqSelectSQL+`, metadata_json
+			created_at, updated_at, closed_at, current_run_id, `+taskLatestEventSeqSelectSQL+`,
+			paused, paused_by, paused_at, paused_reason, metadata_json
 			 FROM tasks
 			 WHERE id = ?`,
 		trimmedID,
@@ -283,7 +293,8 @@ func (g *GlobalDB) ListTasks(ctx context.Context, query taskpkg.Query) ([]taskpk
 		id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
 		priority, max_attempts, status, approval_policy, approval_state,
 		owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
-		created_at, updated_at, closed_at, current_run_id, ` + taskLatestEventSeqSelectSQL + `, metadata_json
+		created_at, updated_at, closed_at, current_run_id, ` + taskLatestEventSeqSelectSQL + `,
+		paused, paused_by, paused_at, paused_reason, metadata_json
 		FROM tasks`
 	where, args := store.BuildClauses(
 		store.StringClause("scope", string(normalized.Scope)),
@@ -1038,6 +1049,9 @@ func scanTaskRecord(scanner rowScanner) (taskpkg.Task, error) {
 	)
 	record.CurrentRunID = strings.TrimSpace(fields.currentRunID.String)
 	record.LatestEventSeq = fields.latestEventSeq
+	record.Paused = fields.paused != 0
+	record.PausedBy = strings.TrimSpace(fields.pausedBy)
+	record.PausedReason = strings.TrimSpace(fields.pausedReason)
 	if err := assignTaskRecordTimestamps(
 		&record,
 		fields.createdAtRaw,
@@ -1047,6 +1061,9 @@ func scanTaskRecord(scanner rowScanner) (taskpkg.Task, error) {
 		return taskpkg.Task{}, err
 	}
 	if err := assignTaskMetadata(&record.Metadata, fields.metadataJSON, "task.metadata_json"); err != nil {
+		return taskpkg.Task{}, err
+	}
+	if err := assignNullableTaskTimestamp(&record.PausedAt, fields.pausedAtRaw); err != nil {
 		return taskpkg.Task{}, err
 	}
 	record = normalizeTaskRecord(record)
@@ -1078,6 +1095,10 @@ type taskScanFields struct {
 	closedAtRaw    sql.NullString
 	currentRunID   sql.NullString
 	latestEventSeq int64
+	paused         int
+	pausedBy       string
+	pausedAtRaw    sql.NullString
+	pausedReason   string
 	metadataJSON   sql.NullString
 }
 
@@ -1109,6 +1130,10 @@ func scanTaskRecordColumns(scanner rowScanner) (taskpkg.Task, taskScanFields, er
 		&fields.closedAtRaw,
 		&fields.currentRunID,
 		&fields.latestEventSeq,
+		&fields.paused,
+		&fields.pausedBy,
+		&fields.pausedAtRaw,
+		&fields.pausedReason,
 		&fields.metadataJSON,
 	); err != nil {
 		return taskpkg.Task{}, taskScanFields{}, fmt.Errorf("store: scan task: %w", err)
@@ -1400,6 +1425,8 @@ func normalizeTaskRecord(record taskpkg.Task) taskpkg.Task {
 	normalized.CurrentRunID = strings.TrimSpace(normalized.CurrentRunID)
 	normalized.Title = strings.TrimSpace(normalized.Title)
 	normalized.Description = strings.TrimSpace(normalized.Description)
+	normalized.PausedBy = strings.TrimSpace(normalized.PausedBy)
+	normalized.PausedReason = strings.TrimSpace(normalized.PausedReason)
 	normalized.Status = normalized.Status.Normalize()
 	normalized.CreatedBy.Kind = normalized.CreatedBy.Kind.Normalize()
 	normalized.CreatedBy.Ref = strings.TrimSpace(normalized.CreatedBy.Ref)
@@ -1442,6 +1469,9 @@ func normalizeTaskRecord(record taskpkg.Task) taskpkg.Task {
 	}
 	if !normalized.ClosedAt.IsZero() {
 		normalized.ClosedAt = normalized.ClosedAt.UTC()
+	}
+	if !normalized.PausedAt.IsZero() {
+		normalized.PausedAt = normalized.PausedAt.UTC()
 	}
 	return normalized
 }
@@ -1605,22 +1635,33 @@ func normalizeTaskRunQuery(query taskpkg.RunQuery) taskpkg.RunQuery {
 
 func taskSummaryFromRecord(record taskpkg.Task) taskpkg.Summary {
 	return taskpkg.Summary{
-		ID:             record.ID,
-		Identifier:     record.Identifier,
-		Scope:          record.Scope,
-		WorkspaceID:    record.WorkspaceID,
-		ParentTaskID:   record.ParentTaskID,
-		NetworkChannel: record.NetworkChannel,
-		Title:          record.Title,
-		Priority:       record.Priority,
-		MaxAttempts:    record.MaxAttempts,
-		Status:         record.Status,
-		ApprovalPolicy: record.ApprovalPolicy,
-		ApprovalState:  record.ApprovalState,
-		Draft:          record.Status.Normalize() == taskpkg.TaskStatusDraft,
-		Owner:          record.Owner,
-		CurrentRunID:   record.CurrentRunID,
-		LatestEventSeq: record.LatestEventSeq,
+		ID:              record.ID,
+		Identifier:      record.Identifier,
+		Scope:           record.Scope,
+		WorkspaceID:     record.WorkspaceID,
+		ParentTaskID:    record.ParentTaskID,
+		NetworkChannel:  record.NetworkChannel,
+		Title:           record.Title,
+		Priority:        record.Priority,
+		MaxAttempts:     record.MaxAttempts,
+		Status:          record.Status,
+		ApprovalPolicy:  record.ApprovalPolicy,
+		ApprovalState:   record.ApprovalState,
+		Draft:           record.Status.Normalize() == taskpkg.TaskStatusDraft,
+		Owner:           record.Owner,
+		CurrentRunID:    record.CurrentRunID,
+		LatestEventSeq:  record.LatestEventSeq,
+		Paused:          record.Paused,
+		PausedBy:        record.PausedBy,
+		PausedAt:        record.PausedAt,
+		PausedReason:    record.PausedReason,
+		EffectivePaused: record.Paused,
+		PausedByTaskID: func() string {
+			if record.Paused {
+				return record.ID
+			}
+			return ""
+		}(),
 		CreatedBy:      record.CreatedBy,
 		Origin:         record.Origin,
 		CreatedAt:      record.CreatedAt,
@@ -1643,6 +1684,13 @@ func taskOwnerKindValue(owner *taskpkg.Ownership) any {
 		return nil
 	}
 	return string(owner.Kind)
+}
+
+func taskBoolToInt(value bool) int {
+	if value {
+		return 1
+	}
+	return 0
 }
 
 func taskOwnerRefValue(owner *taskpkg.Ownership) any {

@@ -19,8 +19,10 @@ import type {
   FailTaskRunRequest,
   ForceFailTaskRunRequest,
   ForceReleaseTaskRunRequest,
+  PauseTaskRequest,
   RetryTaskRunRequest,
   RetryTaskRunResult,
+  ResumeTaskRequest,
   StartTaskRunRequest,
   TaskBridgeNotificationSubscription,
   TaskBridgeNotificationSubscriptionCreateRequest,
@@ -290,6 +292,56 @@ export async function cancelTask(
   }
 
   return requireResponseData(data, response, `Failed to cancel task "${id}"`).task;
+}
+
+export async function pauseTask(
+  id: string,
+  body: PauseTaskRequest,
+  signal?: AbortSignal
+): Promise<TaskRecord> {
+  const { data, error, response } = await apiClient.POST("/api/tasks/{id}/pause", {
+    params: { path: { id } },
+    body,
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new TasksApiError(`Task not found: ${id}`, 404);
+    }
+
+    throw new TasksApiError(
+      defaultApiErrorMessage(`Failed to pause task "${id}"`, response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, `Failed to pause task "${id}"`).task;
+}
+
+export async function resumeTask(
+  id: string,
+  body: ResumeTaskRequest = {},
+  signal?: AbortSignal
+): Promise<TaskRecord> {
+  const { data, error, response } = await apiClient.POST("/api/tasks/{id}/resume", {
+    params: { path: { id } },
+    body,
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new TasksApiError(`Task not found: ${id}`, 404);
+    }
+
+    throw new TasksApiError(
+      defaultApiErrorMessage(`Failed to resume task "${id}"`, response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, `Failed to resume task "${id}"`).task;
 }
 
 export async function approveTask(id: string, signal?: AbortSignal): Promise<TaskRecord> {

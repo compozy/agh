@@ -232,6 +232,8 @@ func newTaskCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newTaskFailCommand(deps))
 	cmd.AddCommand(newTaskReleaseCommand(deps))
 	cmd.AddCommand(newTaskRetryCommand(deps))
+	cmd.AddCommand(newTaskPauseCommand(deps))
+	cmd.AddCommand(newTaskResumeCommand(deps))
 	cmd.AddCommand(newTaskChildCommand(deps))
 	cmd.AddCommand(newTaskDependencyCommand(deps))
 	cmd.AddCommand(newTaskRunCommand(deps))
@@ -1563,6 +1565,84 @@ func newTaskRetryCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
+func newTaskPauseCommand(deps commandDeps) *cobra.Command {
+	var reason string
+	var metadataRaw string
+
+	cmd := &cobra.Command{
+		Use:   "pause <task-id>",
+		Short: "Pause new runs for one task",
+		Args:  cobra.ExactArgs(1),
+		Example: `  # Pause a noisy task while current claims finish
+  agh task pause task-123 --reason "provider incident"`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			taskID, err := requiredTaskID(args[0])
+			if err != nil {
+				return err
+			}
+			request := PauseTaskRequest{Reason: strings.TrimSpace(reason)}
+			if request.Reason == "" {
+				return errors.New("cli: --reason is required")
+			}
+			if cmd.Flags().Changed("metadata") {
+				request.Metadata, err = parseAgentTaskJSONFlag("metadata", metadataRaw)
+				if err != nil {
+					return err
+				}
+			}
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			record, err := client.PauseTask(cmd.Context(), taskID, request)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, taskBundle(record))
+		},
+	}
+	cmd.Flags().StringVar(&reason, "reason", "", "Task-pause reason")
+	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional task-pause metadata JSON")
+	mustMarkFlagRequired(cmd, "reason")
+	return cmd
+}
+
+func newTaskResumeCommand(deps commandDeps) *cobra.Command {
+	var metadataRaw string
+
+	cmd := &cobra.Command{
+		Use:   "resume <task-id>",
+		Short: "Resume new runs for one paused task",
+		Args:  cobra.ExactArgs(1),
+		Example: `  # Re-enable scheduler claims for a task
+  agh task resume task-123`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			taskID, err := requiredTaskID(args[0])
+			if err != nil {
+				return err
+			}
+			request := ResumeTaskRequest{}
+			if cmd.Flags().Changed("metadata") {
+				request.Metadata, err = parseAgentTaskJSONFlag("metadata", metadataRaw)
+				if err != nil {
+					return err
+				}
+			}
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			record, err := client.ResumeTask(cmd.Context(), taskID, request)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, taskBundle(record))
+		},
+	}
+	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional task-resume metadata JSON")
+	return cmd
+}
+
 func newTaskChildCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "child",
@@ -2277,6 +2357,14 @@ func requiredAgentTaskRunID(rawRunID string) (string, error) {
 	return runID, nil
 }
 
+func requiredTaskID(rawTaskID string) (string, error) {
+	taskID := strings.TrimSpace(rawTaskID)
+	if taskID == "" {
+		return "", errors.New("cli: task id is required")
+	}
+	return taskID, nil
+}
+
 func requiredTaskRunIDs(rawRunIDs []string) ([]string, error) {
 	if len(rawRunIDs) == 0 {
 		return nil, errors.New("cli: at least one run id is required")
@@ -2453,6 +2541,9 @@ func taskBundle(item TaskRecord) outputBundle {
 				{Label: taskTitleValue, Value: stringOrDash(item.Title)},
 				{Label: taskDescriptionValue, Value: stringOrDash(item.Description)},
 				{Label: taskStatusValue, Value: stringOrDash(string(item.Status))},
+				{Label: "Paused", Value: strconv.FormatBool(item.Paused)},
+				{Label: "Paused By", Value: stringOrDash(item.PausedBy)},
+				{Label: taskReasonValue, Value: stringOrDash(item.PausedReason)},
 				{Label: taskOwnerValue, Value: stringOrDash(formatTaskOwnership(item.Owner))},
 				{Label: taskCreatedByValue, Value: stringOrDash(formatTaskActor(item.CreatedBy))},
 				{Label: taskOriginValue, Value: stringOrDash(formatTaskOrigin(item.Origin))},
@@ -2473,6 +2564,9 @@ func taskBundle(item TaskRecord) outputBundle {
 				taskTitleKey,
 				taskDescriptionKey,
 				taskStatusKey,
+				"paused",
+				"paused_by",
+				"paused_reason",
 				taskOwnerKey,
 				"created_by",
 				taskOriginKey,
@@ -2490,6 +2584,9 @@ func taskBundle(item TaskRecord) outputBundle {
 				item.Title,
 				item.Description,
 				string(item.Status),
+				strconv.FormatBool(item.Paused),
+				item.PausedBy,
+				item.PausedReason,
 				formatTaskOwnership(item.Owner),
 				formatTaskActor(item.CreatedBy),
 				formatTaskOrigin(item.Origin),

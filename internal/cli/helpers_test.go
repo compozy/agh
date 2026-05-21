@@ -245,6 +245,8 @@ type stubClient struct {
 	approveTaskFn          func(context.Context, string, TaskExecutionRequest) (TaskExecutionRecord, error)
 	rejectTaskFn           func(context.Context, string) (TaskRecord, error)
 	cancelTaskFn           func(context.Context, string, CancelTaskRequest) (TaskRecord, error)
+	pauseTaskFn            func(context.Context, string, PauseTaskRequest) (TaskRecord, error)
+	resumeTaskFn           func(context.Context, string, ResumeTaskRequest) (TaskRecord, error)
 	createChildTaskFn      func(context.Context, string, CreateTaskChildRequest) (TaskRecord, error)
 	addTaskDependencyFn    func(context.Context, string, AddTaskDependencyRequest) (TaskDetailRecord, error)
 	removeTaskDependencyFn func(context.Context, string, string) (TaskDetailRecord, error)
@@ -261,6 +263,11 @@ type stubClient struct {
 	retryTaskRunFn         func(context.Context, string, RetryTaskRunRequest) (RetryTaskRunRecord, error)
 	bulkForceReleaseRunsFn func(context.Context, BulkForceTaskRunRequest) (BulkForceTaskRunRecord, error)
 	bulkForceFailRunsFn    func(context.Context, BulkForceTaskRunRequest) (BulkForceTaskRunRecord, error)
+	schedulerStatusFn      func(context.Context) (SchedulerStatusRecord, error)
+	pauseSchedulerFn       func(context.Context, SchedulerPauseRequest) (SchedulerStatusRecord, error)
+	resumeSchedulerFn      func(context.Context, SchedulerResumeRequest) (SchedulerStatusRecord, error)
+	drainSchedulerFn       func(context.Context, SchedulerDrainRequest) (SchedulerDrainRecord, error)
+	schedulerBacklogFn     func(context.Context, SchedulerBacklogQuery) (SchedulerBacklogRecord, error)
 	agentMeFn              func(context.Context, agentidentity.Credentials) (AgentMeRecord, error)
 	agentContextFn         func(context.Context, agentidentity.Credentials) (AgentContextRecord, error)
 	agentSpawnFn           func(context.Context, AgentSpawnRequest, agentidentity.Credentials) (AgentSpawnRecord, error)
@@ -2104,6 +2111,28 @@ func (s *stubClient) CancelTask(
 	return TaskRecord{}, errors.New("unexpected CancelTask call")
 }
 
+func (s *stubClient) PauseTask(
+	ctx context.Context,
+	id string,
+	request PauseTaskRequest,
+) (TaskRecord, error) {
+	if s.pauseTaskFn != nil {
+		return s.pauseTaskFn(ctx, id, request)
+	}
+	return TaskRecord{}, errors.New("unexpected PauseTask call")
+}
+
+func (s *stubClient) ResumeTask(
+	ctx context.Context,
+	id string,
+	request ResumeTaskRequest,
+) (TaskRecord, error) {
+	if s.resumeTaskFn != nil {
+		return s.resumeTaskFn(ctx, id, request)
+	}
+	return TaskRecord{}, errors.New("unexpected ResumeTask call")
+}
+
 func (s *stubClient) CreateChildTask(
 	ctx context.Context,
 	id string,
@@ -2276,6 +2305,53 @@ func (s *stubClient) BulkForceFailTaskRuns(
 		return s.bulkForceFailRunsFn(ctx, request)
 	}
 	return BulkForceTaskRunRecord{}, errors.New("unexpected BulkForceFailTaskRuns call")
+}
+
+func (s *stubClient) SchedulerStatus(ctx context.Context) (SchedulerStatusRecord, error) {
+	if s.schedulerStatusFn != nil {
+		return s.schedulerStatusFn(ctx)
+	}
+	return SchedulerStatusRecord{}, errors.New("unexpected SchedulerStatus call")
+}
+
+func (s *stubClient) PauseScheduler(
+	ctx context.Context,
+	request SchedulerPauseRequest,
+) (SchedulerStatusRecord, error) {
+	if s.pauseSchedulerFn != nil {
+		return s.pauseSchedulerFn(ctx, request)
+	}
+	return SchedulerStatusRecord{}, errors.New("unexpected PauseScheduler call")
+}
+
+func (s *stubClient) ResumeScheduler(
+	ctx context.Context,
+	request SchedulerResumeRequest,
+) (SchedulerStatusRecord, error) {
+	if s.resumeSchedulerFn != nil {
+		return s.resumeSchedulerFn(ctx, request)
+	}
+	return SchedulerStatusRecord{}, errors.New("unexpected ResumeScheduler call")
+}
+
+func (s *stubClient) DrainScheduler(
+	ctx context.Context,
+	request SchedulerDrainRequest,
+) (SchedulerDrainRecord, error) {
+	if s.drainSchedulerFn != nil {
+		return s.drainSchedulerFn(ctx, request)
+	}
+	return SchedulerDrainRecord{}, errors.New("unexpected DrainScheduler call")
+}
+
+func (s *stubClient) SchedulerBacklog(
+	ctx context.Context,
+	query SchedulerBacklogQuery,
+) (SchedulerBacklogRecord, error) {
+	if s.schedulerBacklogFn != nil {
+		return s.schedulerBacklogFn(ctx, query)
+	}
+	return SchedulerBacklogRecord{}, errors.New("unexpected SchedulerBacklog call")
 }
 
 func (s *stubClient) AgentMe(ctx context.Context, credentials agentidentity.Credentials) (AgentMeRecord, error) {

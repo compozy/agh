@@ -95,6 +95,18 @@ function TasksRoute() {
             dashboard={page.dashboard}
             errorMessage={page.dashboardError?.message ?? null}
             isLoading={page.dashboardLoading}
+            scheduler={page.schedulerStatus}
+            schedulerBacklog={page.schedulerBacklog}
+            schedulerBacklogErrorMessage={page.schedulerBacklogError?.message ?? null}
+            schedulerBacklogLoading={page.schedulerBacklogLoading}
+            schedulerErrorMessage={page.schedulerStatusError?.message ?? null}
+            schedulerLoading={page.schedulerStatusLoading}
+            isSchedulerDrainPending={page.isSchedulerDrainPending}
+            isSchedulerPausePending={page.isSchedulerPausePending}
+            isSchedulerResumePending={page.isSchedulerResumePending}
+            onDrainScheduler={page.handleDrainScheduler}
+            onPauseScheduler={page.handlePauseScheduler}
+            onResumeScheduler={page.handleResumeScheduler}
           />
         ) : surfaceMode === "inbox" ? (
           <TasksInboxView
