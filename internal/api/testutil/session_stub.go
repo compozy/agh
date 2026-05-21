@@ -27,6 +27,10 @@ type StubSessionManager struct {
 	AttachSessionFn func(context.Context, store.SessionAttachRequest) (store.SessionAttach, error)
 	ClearFn         func(context.Context, string) (*session.Session, error)
 	PromptFn        func(context.Context, string, string) (<-chan acp.AgentEvent, error)
+	SendPromptFn    func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error)
+	InterruptFn     func(context.Context, string) (session.SendPromptResult, error)
+	SteerFn         func(context.Context, string, string) (session.SendPromptResult, error)
+	CancelQueuedFn  func(context.Context, string, string) (session.SendPromptResult, error)
 	CancelPromptFn  func(context.Context, string) error
 	ApproveFn       func(context.Context, string, acp.ApproveRequest) error
 }
@@ -198,6 +202,53 @@ func (s StubSessionManager) Prompt(ctx context.Context, id string, msg string) (
 	ch := make(chan acp.AgentEvent)
 	close(ch)
 	return ch, nil
+}
+
+func (s StubSessionManager) SendPrompt(
+	ctx context.Context,
+	id string,
+	opts session.SendPromptOpts,
+) (session.SendPromptResult, error) {
+	if s.SendPromptFn != nil {
+		return s.SendPromptFn(ctx, id, opts)
+	}
+	events, err := s.Prompt(ctx, id, opts.Message)
+	if err != nil {
+		return session.SendPromptResult{}, err
+	}
+	return session.SendPromptResult{Status: "accepted", Events: events}, nil
+}
+
+func (s StubSessionManager) InterruptPrompt(ctx context.Context, id string) (session.SendPromptResult, error) {
+	if s.InterruptFn != nil {
+		return s.InterruptFn(ctx, id)
+	}
+	if err := s.CancelPrompt(ctx, id); err != nil {
+		return session.SendPromptResult{}, err
+	}
+	return session.SendPromptResult{Status: "interrupted", Interrupted: true}, nil
+}
+
+func (s StubSessionManager) SteerPrompt(
+	ctx context.Context,
+	id string,
+	msg string,
+) (session.SendPromptResult, error) {
+	if s.SteerFn != nil {
+		return s.SteerFn(ctx, id, msg)
+	}
+	return session.SendPromptResult{Status: "staged", Staged: true}, nil
+}
+
+func (s StubSessionManager) CancelQueuedPrompt(
+	ctx context.Context,
+	id string,
+	queueEntryID string,
+) (session.SendPromptResult, error) {
+	if s.CancelQueuedFn != nil {
+		return s.CancelQueuedFn(ctx, id, queueEntryID)
+	}
+	return session.SendPromptResult{Status: "canceled", QueueEntryID: queueEntryID}, nil
 }
 
 func (s StubSessionManager) CancelPrompt(ctx context.Context, id string) error {

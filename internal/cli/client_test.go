@@ -1223,12 +1223,14 @@ func TestUnixSocketClientMethods(t *testing.T) {
 					if !strings.Contains(string(body), `"message":"hello"`) {
 						t.Fatalf("prompt body = %s, want message", body)
 					}
-					return newHTTPResponse(http.StatusOK, strings.Join([]string{
+					resp := newHTTPResponse(http.StatusOK, strings.Join([]string{
 						"id: 1",
 						"event: agent_message",
 						`data: {"session_id":"sess-1","turn_id":"turn-1","type":"agent_message","timestamp":"2026-04-03T12:00:00Z","text":"hello back"}`,
 						"",
-					}, "\n")), nil
+					}, "\n"))
+					resp.Header.Set("Content-Type", "text/event-stream")
+					return resp, nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/events":
 					if got := req.URL.Query().Get("type"); got != "tool_call" {
 						t.Fatalf("session events type query = %q, want %q", got, "tool_call")

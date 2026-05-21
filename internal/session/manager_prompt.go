@@ -555,6 +555,7 @@ func (m *Manager) pumpPrompt(
 			if fatalPromptFailure != nil {
 				m.stopSessionAfterFatalPromptFailure(ctx, session, fatalPromptFailure, fatalPromptError)
 			} else {
+				m.startNextQueuedInputPrompt(session.ID)
 				m.startNextQueuedSyntheticPrompt(session.ID)
 			}
 		}
@@ -854,6 +855,17 @@ func promptTranscriptMarker(event acp.AgentEvent) (string, string, map[string]an
 		"event_type": event.Type,
 	}
 	switch {
+	case event.Type == acp.EventTypeUserMessage && event.Action == acp.PromptActionSteered:
+		if queueEntryID := strings.TrimSpace(event.RequestID); queueEntryID != "" {
+			evidence["queue_entry_id"] = queueEntryID
+		}
+		if generation := strings.TrimSpace(event.Decision); generation != "" {
+			evidence[promptEvidenceQueueGenerationKey] = generation
+		}
+		return transcript.MarkerPromptSteered,
+			firstNonEmpty(summary, "Steering input injected at tool result boundary."),
+			evidence,
+			true
 	case event.Type == acp.EventTypeRuntimeWarning && (strings.Contains(combined, "timeout") ||
 		strings.Contains(combined, "timed out") ||
 		strings.Contains(combined, "deadline exceeded")):

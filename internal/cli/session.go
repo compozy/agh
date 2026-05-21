@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pedronauck/agh/internal/api/contract"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/spf13/cobra"
 )
@@ -454,12 +455,52 @@ func newSessionWaitCommand(deps commandDeps) *cobra.Command {
 }
 
 func newSessionPromptCommand(deps commandDeps) *cobra.Command {
-	return &cobra.Command{
+	var (
+		queue       bool
+		interrupt   bool
+		steer       bool
+		cancelEntry string
+	)
+
+	cmd := &cobra.Command{
 		Use:   "prompt <id> <message>",
 		Short: "Send a prompt to a session",
 		Example: `  # Send a follow-up prompt to an active session
-  agh session prompt sess_1234 "Summarize the current changes."`,
-		Args: cobra.ExactArgs(2),
+  agh session prompt sess_1234 "Summarize the current changes."
+
+  # Queue input while the session is busy
+  agh session prompt sess_1234 "Run the next check." --queue
+
+  # Steer the current turn after the next tool result
+  agh session prompt sess_1234 "Prefer the smaller patch." --steer
+
+  # Cancel queued input by entry id
+  agh session prompt sess_1234 --cancel queue_entry_1234`,
+		Args: func(cmd *cobra.Command, args []string) error {
+			cancelChanged := cmd.Flags().Changed("cancel")
+			modeCount := 0
+			for _, enabled := range []bool{queue, interrupt, steer, cancelChanged} {
+				if enabled {
+					modeCount++
+				}
+			}
+			if modeCount > 1 {
+				return errors.New("cli: choose only one of --queue, --interrupt, --steer, or --cancel")
+			}
+			if cancelChanged {
+				if strings.TrimSpace(cancelEntry) == "" {
+					return errors.New("cli: --cancel requires a queue entry id")
+				}
+				if len(args) != 1 {
+					return fmt.Errorf("cli: session prompt --cancel accepts 1 arg, received %d", len(args))
+				}
+				return nil
+			}
+			if len(args) != 2 {
+				return fmt.Errorf("cli: session prompt accepts 2 args, received %d", len(args))
+			}
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			mode, err := resolveOutputFormat(cmd)
 			if err != nil {
@@ -470,16 +511,55 @@ func newSessionPromptCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			if mode == OutputJSONL {
+				if queue || interrupt || steer || cmd.Flags().Changed("cancel") {
+					return errors.New("cli: busy-input prompt actions do not support jsonl output")
+				}
 				return streamPromptEventsJSONL(cmd, client, args[0], args[1])
 			}
 
-			events, err := client.PromptSession(cmd.Context(), args[0], args[1])
+			record, err := runSessionPromptAction(cmd, client, args, queue, interrupt, steer, cancelEntry)
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, agentEventsBundle(events))
+			return writeCommandOutput(cmd, sessionPromptBundle(record))
 		},
 	}
+	cmd.Flags().BoolVar(&queue, "queue", false, "Queue the prompt if the session is busy")
+	cmd.Flags().BoolVar(&interrupt, "interrupt", false, "Interrupt the active turn before sending this prompt")
+	cmd.Flags().BoolVar(&steer, "steer", false, "Stage steering guidance for the active turn")
+	cmd.Flags().StringVar(&cancelEntry, "cancel", "", "Cancel a queued prompt entry by id")
+	return cmd
+}
+
+func runSessionPromptAction(
+	cmd *cobra.Command,
+	client DaemonClient,
+	args []string,
+	queue bool,
+	interrupt bool,
+	steer bool,
+	cancelEntry string,
+) (SessionPromptRecord, error) {
+	if cmd == nil {
+		return SessionPromptRecord{}, errors.New("cli: command is required")
+	}
+	if client == nil {
+		return SessionPromptRecord{}, errors.New("cli: daemon client is required")
+	}
+	if cmd.Flags().Changed("cancel") {
+		return client.CancelQueuedSessionPrompt(cmd.Context(), args[0], strings.TrimSpace(cancelEntry))
+	}
+	if steer {
+		return client.SteerSessionPrompt(cmd.Context(), args[0], args[1])
+	}
+	request := SessionPromptRequest{Message: args[1]}
+	if queue {
+		request.Mode = contract.PromptModeQueue
+	}
+	if interrupt {
+		request.Mode = contract.PromptModeInterrupt
+	}
+	return client.SendSessionPrompt(cmd.Context(), args[0], request)
 }
 
 func newSessionEventsCommand(deps commandDeps) *cobra.Command {
@@ -1098,6 +1178,91 @@ func agentEventsBundle(events []AgentEventRecord) outputBundle {
 			}
 		},
 	)
+}
+
+func sessionPromptBundle(record SessionPromptRecord) outputBundle {
+	if record.Prompt.Status == "" && len(record.Events) > 0 {
+		return agentEventsBundle(record.Events)
+	}
+	return outputBundle{
+		jsonValue: record,
+		human: func() (string, error) {
+			return renderHumanSectionResult("Prompt", sessionPromptRows(record.Prompt))
+		},
+		toon: func() (string, error) {
+			return renderToonObject("prompt", sessionPromptFields(), sessionPromptValues(record.Prompt)), nil
+		},
+	}
+}
+
+func sessionPromptRows(result SessionPromptResultRecord) []keyValue {
+	rows := []keyValue{
+		{Label: sessionStatusValue, Value: stringOrDash(result.Status)},
+	}
+	if result.Mode != "" {
+		rows = append(rows, keyValue{Label: "Mode", Value: string(result.Mode)})
+	}
+	if result.QueueEntryID != "" {
+		rows = append(rows, keyValue{Label: "Queue Entry", Value: result.QueueEntryID})
+	}
+	if result.QueuePosition > 0 {
+		rows = append(rows, keyValue{Label: "Queue Position", Value: strconv.Itoa(result.QueuePosition)})
+	}
+	if result.QueueGeneration > 0 {
+		rows = append(rows, keyValue{Label: "Queue Generation", Value: strconv.FormatInt(result.QueueGeneration, 10)})
+	}
+	if result.PreviousTurnID != "" {
+		rows = append(rows, keyValue{Label: "Previous Turn", Value: result.PreviousTurnID})
+	}
+	if result.NewTurnID != "" {
+		rows = append(rows, keyValue{Label: "New Turn", Value: result.NewTurnID})
+	}
+	if result.CanceledQueuedEntries > 0 {
+		rows = append(rows, keyValue{Label: "Canceled Queued", Value: strconv.Itoa(result.CanceledQueuedEntries)})
+	}
+	if result.FallbackModeIfNoToolResult != "" {
+		rows = append(rows, keyValue{Label: "Fallback Mode", Value: string(result.FallbackModeIfNoToolResult)})
+	}
+	rows = append(rows,
+		keyValue{Label: "Queued", Value: strconv.FormatBool(result.Queued)},
+		keyValue{Label: "Staged", Value: strconv.FormatBool(result.Staged)},
+		keyValue{Label: "Interrupted", Value: strconv.FormatBool(result.Interrupted)},
+	)
+	return rows
+}
+
+func sessionPromptFields() []string {
+	return []string{
+		sessionStatusKey,
+		"mode",
+		"queued",
+		"staged",
+		"interrupted",
+		"queue_entry_id",
+		"queue_position",
+		"queue_generation",
+		"previous_turn_id",
+		"new_turn_id",
+		"canceled_queued_entries",
+		"fallback_mode_if_no_tool_result",
+	}
+}
+
+func sessionPromptValues(result SessionPromptResultRecord) []string {
+	return []string{
+		result.Status,
+		string(result.Mode),
+		strconv.FormatBool(result.Queued),
+		strconv.FormatBool(result.Staged),
+		strconv.FormatBool(result.Interrupted),
+		result.QueueEntryID,
+		strconv.Itoa(result.QueuePosition),
+		strconv.FormatInt(result.QueueGeneration, 10),
+		result.PreviousTurnID,
+		result.NewTurnID,
+		strconv.Itoa(result.CanceledQueuedEntries),
+		string(result.FallbackModeIfNoToolResult),
+	}
 }
 
 func filterActiveSessions(items []SessionRecord) []SessionRecord {

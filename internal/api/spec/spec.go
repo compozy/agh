@@ -82,6 +82,7 @@ const (
 	specForbiddenWorkspaceOrPermissionMismatchDescription    = "Forbidden - workspace or permission mismatch"
 	specInternalDaemonErrorDescription                       = "Internal daemon error"
 	specInternalServerErrorDescription                       = "Internal server error"
+	specSessionPromptConflictDescription                     = "Session prompt conflict"
 	specInvalidAgentLocalLayerDescription                    = "Invalid agent-local layer"
 	specInvalidAutomationRunFilterDescription                = "Invalid automation run filter"
 	specInvalidBridgeStateTransitionDescription              = "Invalid bridge state transition"
@@ -3130,6 +3131,84 @@ var operationRegistry = []OperationSpec{
 			{Status: 200, Description: "OK", Body: contract.SessionAttachResponse{}},
 			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Session cannot be attached", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodPost,
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt",
+		OperationID: "sendSessionPrompt",
+		Summary:     "Send, queue, interrupt, or steer a session prompt",
+		Tags:        []string{specSessionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
+		},
+		RequestBody: contract.SendPromptRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "Prompt accepted", Body: contract.SendPromptResultResponse{}},
+			{Status: 202, Description: "Prompt queued or staged", Body: contract.SendPromptResultResponse{}},
+			{Status: 400, Description: "Invalid prompt request", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 409, Description: specSessionPromptConflictDescription, Body: contract.ErrorPayload{}},
+			{Status: 413, Description: "Session input queue is full", Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodPost,
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/interrupt",
+		OperationID: "interruptSessionPrompt",
+		Summary:     "Interrupt the active prompt turn for a session",
+		Tags:        []string{specSessionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "Prompt interrupted", Body: contract.SendPromptResultResponse{}},
+			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 409, Description: specSessionPromptConflictDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodPost,
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/steer",
+		OperationID: "steerSessionPrompt",
+		Summary:     "Stage steering input for the active session turn",
+		Tags:        []string{specSessionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
+		},
+		RequestBody: contract.SteerPromptRequest{},
+		Responses: []ResponseSpec{
+			{Status: 202, Description: "Prompt steering staged", Body: contract.SendPromptResultResponse{}},
+			{Status: 400, Description: "Invalid steer request", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 409, Description: specSessionPromptConflictDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodDelete,
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}",
+		OperationID: "cancelQueuedSessionPrompt",
+		Summary:     "Cancel a queued session prompt entry",
+		Tags:        []string{specSessionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
+			pathParam("queue_entry_id", "Queue entry id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "Queued prompt canceled", Body: contract.SendPromptResultResponse{}},
+			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	},

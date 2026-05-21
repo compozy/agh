@@ -24,6 +24,18 @@ const routeHookMocks = vi.hoisted(() => ({
     isPending: false,
     mutate: vi.fn(),
   },
+  queuePromptMutation: {
+    isPending: false,
+    mutateAsync: vi.fn(),
+  },
+  interruptPromptMutation: {
+    isPending: false,
+    mutateAsync: vi.fn(),
+  },
+  steerPromptMutation: {
+    isPending: false,
+    mutateAsync: vi.fn(),
+  },
   stopMutation: {
     isPending: false,
     mutate: vi.fn(),
@@ -51,7 +63,10 @@ vi.mock("@/systems/session", () => ({
   cancelSessionPrompt: routeHookMocks.cancelSessionPrompt,
   useClearSessionConversation: () => routeHookMocks.clearMutation,
   useDeleteSession: () => routeHookMocks.deleteMutation,
+  useInterruptSessionPrompt: () => routeHookMocks.interruptPromptMutation,
+  useQueueSessionPrompt: () => routeHookMocks.queuePromptMutation,
   useResumeSession: () => routeHookMocks.resumeMutation,
+  useSteerSessionPrompt: () => routeHookMocks.steerPromptMutation,
   useStopSession: () => routeHookMocks.stopMutation,
 }));
 
@@ -92,6 +107,12 @@ describe("useSessionPageControls", () => {
     routeHookMocks.deleteMutation.mutate.mockReset();
     routeHookMocks.resumeMutation.isPending = false;
     routeHookMocks.resumeMutation.mutate.mockReset();
+    routeHookMocks.queuePromptMutation.isPending = false;
+    routeHookMocks.queuePromptMutation.mutateAsync.mockReset();
+    routeHookMocks.interruptPromptMutation.isPending = false;
+    routeHookMocks.interruptPromptMutation.mutateAsync.mockReset();
+    routeHookMocks.steerPromptMutation.isPending = false;
+    routeHookMocks.steerPromptMutation.mutateAsync.mockReset();
     routeHookMocks.stopMutation.isPending = false;
     routeHookMocks.stopMutation.mutate.mockReset();
   });

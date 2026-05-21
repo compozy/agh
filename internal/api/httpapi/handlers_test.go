@@ -263,6 +263,9 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/clear",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt/cancel",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/interrupt",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/steer",
+		"DELETE /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue/:queue_entry_id",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/repair",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/attach",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/soul/refresh",
@@ -1570,6 +1573,54 @@ func TestPromptSessionHandlerPreservesToolInputAfterOutOfOrderToolResult(t *test
 			if strings.Contains(recorder.Body.String(), leaked) {
 				t.Fatalf("prompt SSE leaked %q in body=%s", leaked, recorder.Body.String())
 			}
+		}
+	})
+}
+
+func TestPromptSessionHandlerReturnsBusyInputDecision(t *testing.T) {
+	t.Run("ShouldReturnAcceptedQueuePayloadWhenPromptIsQueued", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newTestHomePaths(t)
+		var gotOpts session.SendPromptOpts
+		manager := stubSessionManager{
+			SendPromptFn: func(_ context.Context, id string, opts session.SendPromptOpts) (session.SendPromptResult, error) {
+				if id != "sess-123" {
+					t.Fatalf("SendPrompt() id = %q, want sess-123", id)
+				}
+				gotOpts = opts
+				return session.SendPromptResult{
+					Status:          "queued",
+					Mode:            session.BusyInputModeQueue,
+					Queued:          true,
+					QueueEntryID:    "inq-1",
+					QueuePosition:   2,
+					QueueGeneration: 4,
+				}, nil
+			},
+		}
+		handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
+		engine := newTestRouter(t, handlers)
+
+		recorder := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
+			[]byte("{\"message\":\"queue me\",\"mode\":\"queue\"}"),
+		)
+		if recorder.Code != http.StatusAccepted {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusAccepted, recorder.Body.String())
+		}
+		if gotOpts.Message != "queue me" || gotOpts.Mode != session.BusyInputModeQueue {
+			t.Fatalf("SendPrompt() opts = %#v, want queue me queue", gotOpts)
+		}
+		var decoded contract.SendPromptResultResponse
+		if err := json.Unmarshal(recorder.Body.Bytes(), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(prompt result) error = %v; body=%s", err, recorder.Body.String())
+		}
+		if decoded.Prompt.Status != "queued" || decoded.Prompt.QueueEntryID != "inq-1" || !decoded.Prompt.Queued {
+			t.Fatalf("decoded prompt = %#v, want queued inq-1", decoded.Prompt)
 		}
 	})
 }

@@ -92,6 +92,9 @@ type stubClient struct {
 	repairSessionFn             func(context.Context, string, SessionRepairQuery) (SessionRepairRecord, error)
 	approveSessionFn            func(context.Context, string, SessionApprovalRequest) (SessionApprovalRecord, error)
 	promptSessionFn             func(context.Context, string, string) ([]AgentEventRecord, error)
+	sendSessionPromptFn         func(context.Context, string, SessionPromptRequest) (SessionPromptRecord, error)
+	steerSessionPromptFn        func(context.Context, string, string) (SessionPromptRecord, error)
+	cancelQueuedSessionPromptFn func(context.Context, string, string) (SessionPromptRecord, error)
 	streamPromptSessionFn       func(context.Context, string, string, SSEHandler) error
 	sessionEventsFn             func(context.Context, string, SessionEventQuery) ([]SessionEventRecord, error)
 	streamSessionFn             func(context.Context, string, SessionEventQuery, string, SSEHandler) error
@@ -913,6 +916,39 @@ func (s *stubClient) PromptSession(
 		return s.promptSessionFn(ctx, id, message)
 	}
 	return nil, errors.New("unexpected PromptSession call")
+}
+
+func (s *stubClient) SendSessionPrompt(
+	ctx context.Context,
+	id string,
+	request SessionPromptRequest,
+) (SessionPromptRecord, error) {
+	if s.sendSessionPromptFn != nil {
+		return s.sendSessionPromptFn(ctx, id, request)
+	}
+	return SessionPromptRecord{}, errors.New("unexpected SendSessionPrompt call")
+}
+
+func (s *stubClient) SteerSessionPrompt(
+	ctx context.Context,
+	id string,
+	text string,
+) (SessionPromptRecord, error) {
+	if s.steerSessionPromptFn != nil {
+		return s.steerSessionPromptFn(ctx, id, text)
+	}
+	return SessionPromptRecord{}, errors.New("unexpected SteerSessionPrompt call")
+}
+
+func (s *stubClient) CancelQueuedSessionPrompt(
+	ctx context.Context,
+	id string,
+	queueEntryID string,
+) (SessionPromptRecord, error) {
+	if s.cancelQueuedSessionPromptFn != nil {
+		return s.cancelQueuedSessionPromptFn(ctx, id, queueEntryID)
+	}
+	return SessionPromptRecord{}, errors.New("unexpected CancelQueuedSessionPrompt call")
 }
 
 func (s *stubClient) StreamPromptSession(

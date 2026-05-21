@@ -194,3 +194,28 @@ export const MixedStreaming: Story = {
     }),
   },
 };
+
+/**
+ * Busy turn controls — queue, steer, and interrupt share the running composer surface.
+ */
+export const BusyInputControls: Story = {
+  args: {
+    sessionId: primarySessionFixture.id,
+    agentName: primarySessionFixture.agent_name,
+    canPrompt: true,
+    onCancelPrompt: () => undefined,
+    onQueuePrompt: () => undefined,
+    onInterruptPrompt: () => undefined,
+    onSteerPrompt: () => undefined,
+    isBusyInputPending: true,
+  },
+  parameters: {
+    ...storybookMswParameters({
+      session: [
+        http.get("/api/workspaces/:workspace_id/sessions/:id/transcript", () =>
+          HttpResponse.json({ messages: mixedStreamingTranscript })
+        ),
+      ],
+    }),
+  },
+};

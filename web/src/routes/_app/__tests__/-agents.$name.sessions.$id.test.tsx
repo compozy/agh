@@ -42,6 +42,9 @@ const {
   mockStop,
   mockClear,
   mockDelete,
+  mockQueuePrompt,
+  mockInterruptPrompt,
+  mockSteerPrompt,
 } = vi.hoisted(() => ({
   mockNavigate: vi.fn(),
   mockUseSession: vi.fn(),
@@ -75,6 +78,18 @@ const {
   },
   mockDelete: {
     mutate: vi.fn(),
+    isPending: false,
+  },
+  mockQueuePrompt: {
+    mutateAsync: vi.fn(),
+    isPending: false,
+  },
+  mockInterruptPrompt: {
+    mutateAsync: vi.fn(),
+    isPending: false,
+  },
+  mockSteerPrompt: {
+    mutateAsync: vi.fn(),
     isPending: false,
   },
 }));
@@ -123,6 +138,9 @@ vi.mock("@/systems/session/hooks/use-session-actions", () => ({
   useStopSession: () => mockStop,
   useClearSessionConversation: () => mockClear,
   useDeleteSession: () => mockDelete,
+  useQueueSessionPrompt: () => mockQueuePrompt,
+  useInterruptSessionPrompt: () => mockInterruptPrompt,
+  useSteerSessionPrompt: () => mockSteerPrompt,
 }));
 
 vi.mock("@/systems/session/adapters/session-api", () => ({
@@ -188,6 +206,12 @@ describe("Nested agent session route — Topbar slot migration", () => {
     mockStop.mutate.mockReset();
     mockClear.mutate.mockReset();
     mockDelete.mutate.mockReset();
+    mockQueuePrompt.mutateAsync.mockReset();
+    mockQueuePrompt.isPending = false;
+    mockInterruptPrompt.mutateAsync.mockReset();
+    mockInterruptPrompt.isPending = false;
+    mockSteerPrompt.mutateAsync.mockReset();
+    mockSteerPrompt.isPending = false;
     mockUseSession.mockReset();
     mockUseSessionVaultSecrets.mockReset();
     mockUseSessionVaultSecrets.mockReturnValue({ data: [], isLoading: false, error: null });
@@ -262,6 +286,12 @@ describe("Nested agent session route — attach failure UX", () => {
     mockStop.mutate.mockReset();
     mockClear.mutate.mockReset();
     mockDelete.mutate.mockReset();
+    mockQueuePrompt.mutateAsync.mockReset();
+    mockQueuePrompt.isPending = false;
+    mockInterruptPrompt.mutateAsync.mockReset();
+    mockInterruptPrompt.isPending = false;
+    mockSteerPrompt.mutateAsync.mockReset();
+    mockSteerPrompt.isPending = false;
     mockUseSession.mockReset();
     mockUseSessionVaultSecrets.mockReset();
     mockUseSessionVaultSecrets.mockReturnValue({ data: [], isLoading: false, error: null });

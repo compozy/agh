@@ -101,6 +101,35 @@ Two operational details matter here:
   events, health is consumed by `HEARTBEAT.md` wake decisions and the
   `agh session health|status|inspect` surfaces.
 
+### Busy input modes
+
+An active session still processes one prompt turn at a time, but AGH accepts explicit busy-input
+modes so operators and agents do not have to guess what happens when a prompt is already running.
+`session.busy_input.default_mode` defaults to `queue`; `session.busy_input.queue_cap` bounds
+the persisted queue.
+
+| Mode        | CLI                                            | HTTP shape                                                                                        | Result                                                                                                                                                     |
+| ----------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `queue`     | `agh session prompt <id> "<text>" --queue`     | `POST /api/workspaces/:workspace/sessions/:id/prompt` with `{"mode":"queue","message":"..."}`     | Persists the input in FIFO order and returns `202` with `queue_entry_id`, position, and generation.                                                        |
+| `interrupt` | `agh session prompt <id> "<text>" --interrupt` | `POST /api/workspaces/:workspace/sessions/:id/prompt` with `{"mode":"interrupt","message":"..."}` | Cancels the active turn through the session cancellation path, advances the queue generation, drops stale queued input, and starts the replacement prompt. |
+| `steer`     | `agh session prompt <id> "<text>" --steer`     | `POST /api/workspaces/:workspace/sessions/:id/steer` with `{"text":"..."}`                        | Stages steering text for the next ACP `tool_result` boundary and reports `fallback_mode_if_no_tool_result: "queue"`.                                       |
+
+Queued entries can be canceled when the caller has the queue entry id:
+
+```bash
+agh session prompt sess-1234 --cancel queue_entry_1234
+```
+
+```bash
+curl -X DELETE \
+  http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234/prompt/queue/queue_entry_1234
+```
+
+`POST /api/workspaces/:workspace/sessions/:id/interrupt` is the dedicated cancel-current-turn
+operation when the caller wants to interrupt without supplying a replacement prompt. Every busy-input
+transition writes transcript marker evidence for recap, replay, and audit: queued, accepted,
+interrupted, steered, and dropped stale input are visible instead of being hidden client behavior.
+
 ### Runtime activity supervision
 
 Activity supervision is designed for prompts that may run for hours. It treats inactivity as the

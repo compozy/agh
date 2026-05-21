@@ -14,6 +14,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/sandbox"
+	"github.com/pedronauck/agh/internal/session/inputqueue"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/store/sessiondb"
 	workspacepkg "github.com/pedronauck/agh/internal/workspace"
@@ -108,6 +109,8 @@ type Manager struct {
 	networkPeers                 NetworkPeerLifecycle
 	turnEndNotifier              TurnEndNotifier
 	inputAugmenter               PromptInputAugmenter
+	inputQueue                   *inputqueue.Service
+	inputQueueStore              store.SessionInputQueueStore
 	startupOverlay               StartupPromptOverlay
 	hooks                        HookSet
 	sandbox                      *sandbox.Registry
@@ -125,6 +128,7 @@ type Manager struct {
 	openStore                    StoreOpener
 	assembler                    PromptAssembler
 	supervision                  aghconfig.SessionSupervisionConfig
+	busyInput                    aghconfig.SessionBusyInputConfig
 	sessionHealthStaleAfter      time.Duration
 	lifecycleCtx                 context.Context
 	now                          func() time.Time
@@ -285,6 +289,13 @@ func WithPromptInputAugmenter(augmenter PromptInputAugmenter) Option {
 	}
 }
 
+// WithSessionInputQueueStore injects durable busy-input queue storage.
+func WithSessionInputQueueStore(queueStore store.SessionInputQueueStore) Option {
+	return func(manager *Manager) {
+		manager.inputQueueStore = queueStore
+	}
+}
+
 // WithStartupPromptOverlay injects a daemon-owned startup prompt overlay.
 func WithStartupPromptOverlay(overlay StartupPromptOverlay) Option {
 	return func(manager *Manager) {
@@ -334,6 +345,13 @@ func WithSessionSupervision(config aghconfig.SessionSupervisionConfig) Option {
 	}
 }
 
+// WithSessionBusyInputConfig overrides busy-input queue behavior.
+func WithSessionBusyInputConfig(config aghconfig.SessionBusyInputConfig) Option {
+	return func(manager *Manager) {
+		manager.busyInput = config.Normalize()
+	}
+}
+
 // NewManager constructs a session manager with sensible defaults.
 func NewManager(opts ...Option) (*Manager, error) {
 	homePaths, err := aghconfig.ResolveHomePaths()
@@ -357,6 +375,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 			return sessiondb.OpenSessionDB(ctx, sessionID, path)
 		},
 		supervision:                  aghconfig.DefaultSessionSupervisionConfig(),
+		busyInput:                    aghconfig.DefaultSessionBusyInputConfig(),
 		sessionHealthStaleAfter:      aghconfig.DefaultHeartbeatConfig().SessionHealthStaleAfter,
 		sessionHealthHookMinInterval: aghconfig.DefaultHeartbeatConfig().SessionHealthHookMinInterval,
 		lifecycleCtx:                 context.Background(),
@@ -446,12 +465,39 @@ func (m *Manager) applyRuntimeDefaults() error {
 	if err := m.supervision.Validate(); err != nil {
 		return fmt.Errorf("session: %w", err)
 	}
+	if err := m.applyInputQueueDefaults(); err != nil {
+		return err
+	}
 	if m.sessionHealthStaleAfter <= 0 {
 		m.sessionHealthStaleAfter = aghconfig.DefaultHeartbeatConfig().SessionHealthStaleAfter
 	}
 	if m.sessionHealthHookMinInterval <= 0 {
 		m.sessionHealthHookMinInterval = aghconfig.DefaultHeartbeatConfig().SessionHealthHookMinInterval
 	}
+	return nil
+}
+
+func (m *Manager) applyInputQueueDefaults() error {
+	m.busyInput = m.busyInput.Normalize()
+	if err := m.busyInput.Validate(); err != nil {
+		return fmt.Errorf("session: %w", err)
+	}
+	if m.inputQueueStore == nil {
+		return nil
+	}
+	queue, err := inputqueue.New(
+		m.inputQueueStore,
+		inputqueue.Config{
+			QueueCap:     m.busyInput.QueueCap,
+			MaxTextBytes: m.busyInput.MaxTextBytes,
+		},
+		inputqueue.WithClock(m.now),
+		inputqueue.WithIDGenerator(func() string { return newID("inq") }),
+	)
+	if err != nil {
+		return fmt.Errorf("session: input queue: %w", err)
+	}
+	m.inputQueue = queue
 	return nil
 }
 

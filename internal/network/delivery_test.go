@@ -439,8 +439,14 @@ func TestDeliveryCoordinatorIdleAndBusyBehavior(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("acceptOne(busy) error = %v", err)
 		}
-		if got := coordinator.queueDepth("sess-busy"); got != 1 {
-			t.Fatalf("queueDepth(sess-busy) = %d, want 1", got)
+		if err := coordinator.acceptOne(context.Background(), Delivery{
+			SessionID: "sess-busy",
+			Envelope:  testDeliveryEnvelope(t, "msg-busy-2", "second busy message"),
+		}); err != nil {
+			t.Fatalf("acceptOne(second busy) error = %v", err)
+		}
+		if got := coordinator.queueDepth("sess-busy"); got != 2 {
+			t.Fatalf("queueDepth(sess-busy) = %d, want 2", got)
 		}
 		if got := prompter.callCount(); got != 0 {
 			t.Fatalf("callCount() while busy = %d, want 0", got)
@@ -457,7 +463,29 @@ func TestDeliveryCoordinatorIdleAndBusyBehavior(t *testing.T) {
 		if got, want := call.meta.MessageID, "msg-busy"; got != want {
 			t.Fatalf("busy call meta message_id = %q, want %q", got, want)
 		}
+		if got, want := call.meta.Kind, string(KindSay); got != want {
+			t.Fatalf("busy call meta kind = %q, want %q", got, want)
+		}
+		if got, want := call.meta.Surface, string(SurfaceDirect); got != want {
+			t.Fatalf("busy call meta surface = %q, want %q", got, want)
+		}
+		if got, want := call.meta.DirectID, "direct_0123456789abcdef0123456789abcdef"; got != want {
+			t.Fatalf("busy call meta direct_id = %q, want %q", got, want)
+		}
+		if got, want := call.meta.Trust, networkMessageTrustUntrusted; got != want {
+			t.Fatalf("busy call meta trust = %q, want %q", got, want)
+		}
 		prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
+
+		prompter.waitForCalls(t, 2)
+		secondCall := prompter.call(1)
+		if !strings.Contains(secondCall.message, "second busy message") {
+			t.Fatalf("second busy call message missing rendered preview: %s", secondCall.message)
+		}
+		if got, want := secondCall.meta.MessageID, "msg-busy-2"; got != want {
+			t.Fatalf("second busy call meta message_id = %q, want %q", got, want)
+		}
+		prompter.finishCall(1, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
 		coordinator.wait()
 	})
 }

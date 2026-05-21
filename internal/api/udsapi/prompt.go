@@ -10,15 +10,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/api/contract"
 	core "github.com/pedronauck/agh/internal/api/core"
+	"github.com/pedronauck/agh/internal/session"
 )
 
 const detachedPromptDrainTimeout = 30 * time.Second
 const promptStreamFormatRaw = "raw"
 
-type promptRequest struct {
-	Message string `json:"message"`
-}
+type promptRequest = contract.SendPromptRequest
 
 func (h *Handlers) promptSession(c *gin.Context) {
 	var req promptRequest
@@ -36,7 +36,7 @@ func (h *Handlers) promptSession(c *gin.Context) {
 	}
 
 	if strings.EqualFold(strings.TrimSpace(c.Query("format")), promptStreamFormatRaw) {
-		h.promptSessionRaw(c, sessionID, req.Message)
+		h.promptSessionRaw(c, sessionID, req.Message, session.BusyInputMode(req.Mode))
 		return
 	}
 
@@ -47,11 +47,23 @@ func (h *Handlers) promptSession(c *gin.Context) {
 			cancelOnReturn()
 		}
 	}()
-	events, err := h.Sessions.Prompt(promptCtx, sessionID, req.Message)
+	result, err := h.Sessions.SendPrompt(promptCtx, sessionID, session.SendPromptOpts{
+		Message: req.Message,
+		Mode:    session.BusyInputMode(req.Mode),
+	})
 	if err != nil {
 		core.RespondError(c, core.StatusForSessionError(err), err, false)
 		return
 	}
+	if result.Events == nil {
+		status := http.StatusOK
+		if result.Queued || result.Staged {
+			status = http.StatusAccepted
+		}
+		c.JSON(status, contract.SendPromptResultResponse{Prompt: core.PromptResultPayloadFromSession(result)})
+		return
+	}
+	events := result.Events
 
 	c.Header("x-vercel-ai-ui-message-stream", "v1")
 	writer, err := core.PrepareSSE(c)
@@ -85,7 +97,12 @@ func (h *Handlers) promptSession(c *gin.Context) {
 	}
 }
 
-func (h *Handlers) promptSessionRaw(c *gin.Context, sessionID string, message string) {
+func (h *Handlers) promptSessionRaw(
+	c *gin.Context,
+	sessionID string,
+	message string,
+	mode session.BusyInputMode,
+) {
 	promptCtx, cancelPrompt := context.WithCancel(context.WithoutCancel(c.Request.Context()))
 	cancelOnReturn := cancelPrompt
 	defer func() {
@@ -93,11 +110,23 @@ func (h *Handlers) promptSessionRaw(c *gin.Context, sessionID string, message st
 			cancelOnReturn()
 		}
 	}()
-	events, err := h.Sessions.Prompt(promptCtx, sessionID, message)
+	result, err := h.Sessions.SendPrompt(promptCtx, sessionID, session.SendPromptOpts{
+		Message: message,
+		Mode:    mode,
+	})
 	if err != nil {
 		core.RespondError(c, core.StatusForSessionError(err), err, false)
 		return
 	}
+	if result.Events == nil {
+		status := http.StatusOK
+		if result.Queued || result.Staged {
+			status = http.StatusAccepted
+		}
+		c.JSON(status, contract.SendPromptResultResponse{Prompt: core.PromptResultPayloadFromSession(result)})
+		return
+	}
+	events := result.Events
 
 	writer, err := core.PrepareSSE(c)
 	if err != nil {
@@ -127,6 +156,59 @@ func (h *Handlers) promptSessionRaw(c *gin.Context, sessionID string, message st
 			}
 		}
 	}
+}
+
+func (h *Handlers) interruptSessionPrompt(c *gin.Context) {
+	sessionID, ok := h.RequireRouteSessionInWorkspace(c)
+	if !ok {
+		return
+	}
+	result, err := h.Sessions.InterruptPrompt(c.Request.Context(), sessionID)
+	if err != nil {
+		core.RespondError(c, core.StatusForSessionError(err), err, false)
+		return
+	}
+	c.JSON(http.StatusOK, contract.SendPromptResultResponse{Prompt: core.PromptResultPayloadFromSession(result)})
+}
+
+func (h *Handlers) steerSessionPrompt(c *gin.Context) {
+	var req contract.SteerPromptRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		core.RespondError(c, http.StatusBadRequest, fmt.Errorf("udsapi: decode steer request: %w", err), false)
+		return
+	}
+	if strings.TrimSpace(req.Text) == "" {
+		core.RespondError(c, http.StatusBadRequest, errors.New("text is required"), false)
+		return
+	}
+	sessionID, ok := h.RequireRouteSessionInWorkspace(c)
+	if !ok {
+		return
+	}
+	result, err := h.Sessions.SteerPrompt(c.Request.Context(), sessionID, req.Text)
+	if err != nil {
+		core.RespondError(c, core.StatusForSessionError(err), err, false)
+		return
+	}
+	c.JSON(http.StatusAccepted, contract.SendPromptResultResponse{Prompt: core.PromptResultPayloadFromSession(result)})
+}
+
+func (h *Handlers) cancelQueuedSessionPrompt(c *gin.Context) {
+	sessionID, ok := h.RequireRouteSessionInWorkspace(c)
+	if !ok {
+		return
+	}
+	queueEntryID := strings.TrimSpace(c.Param("queue_entry_id"))
+	if queueEntryID == "" {
+		core.RespondError(c, http.StatusBadRequest, errors.New("queue entry id is required"), false)
+		return
+	}
+	result, err := h.Sessions.CancelQueuedPrompt(c.Request.Context(), sessionID, queueEntryID)
+	if err != nil {
+		core.RespondError(c, core.StatusForSessionError(err), err, false)
+		return
+	}
+	c.JSON(http.StatusOK, contract.SendPromptResultResponse{Prompt: core.PromptResultPayloadFromSession(result)})
 }
 
 func (h *Handlers) drainPromptEventsAsync(

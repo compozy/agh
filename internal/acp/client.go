@@ -65,6 +65,7 @@ type Driver struct {
 	launcher             sandbox.Launcher
 	toolHost             sandbox.ToolHost
 	processRegistry      *toolruntime.Registry
+	steerSource          SteerSource
 }
 
 // WithLogger directs driver diagnostics to the provided logger.
@@ -127,6 +128,13 @@ func WithProcessRegistry(registry *toolruntime.Registry) Option {
 func WithProcessRecordTimeout(timeout time.Duration) Option {
 	return func(driver *Driver) {
 		driver.processRecordTimeout = timeout
+	}
+}
+
+// WithSteerSource injects the staged busy-input source consumed at tool-result boundaries.
+func WithSteerSource(source SteerSource) Option {
+	return func(driver *Driver) {
+		driver.steerSource = source
 	}
 }
 
@@ -339,6 +347,7 @@ func (d *Driver) newAgentProcess(
 		permissionTimeout:    d.permissionWait,
 		systemPrompt:         normalized.SystemPrompt,
 		systemPromptDelivery: normalized.SystemPromptDelivery,
+		steerSource:          d.steerSource,
 	}
 }
 

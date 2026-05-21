@@ -3695,6 +3695,57 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/interrupt": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Interrupt the active prompt turn for a session */
+    post: operations["interruptSessionPrompt"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Send, queue, interrupt, or steer a session prompt */
+    post: operations["sendSessionPrompt"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Cancel a queued session prompt entry */
+    delete: operations["cancelQueuedSessionPrompt"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/recap": {
     parameters: {
       query?: never;
@@ -3757,6 +3808,23 @@ export interface paths {
     get: operations["getSessionStatus"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/steer": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Stage steering input for the active session turn */
+    post: operations["steerSessionPrompt"];
     delete?: never;
     options?: never;
     head?: never;
@@ -56151,6 +56219,448 @@ export interface operations {
       };
     };
   };
+  interruptSessionPrompt: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Prompt interrupted */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            prompt: {
+              canceled_queued_entries?: number;
+              /** Format: date-time */
+              estimated_send_at?: string | null;
+              fallback_mode_if_no_tool_result?: string;
+              interrupted?: boolean;
+              mode?: string;
+              new_turn_id?: string;
+              previous_turn_id?: string;
+              queue_entry_id?: string;
+              /** Format: int64 */
+              queue_generation?: number;
+              queue_position?: number;
+              queued?: boolean;
+              staged?: boolean;
+              status: string;
+            };
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session prompt conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  sendSessionPrompt: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          message?: string;
+          messages?: {
+            content?: string;
+            parts?: {
+              text?: string;
+              type?: string;
+            }[];
+            role: string;
+          }[];
+          mode?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Prompt accepted */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            prompt: {
+              canceled_queued_entries?: number;
+              /** Format: date-time */
+              estimated_send_at?: string | null;
+              fallback_mode_if_no_tool_result?: string;
+              interrupted?: boolean;
+              mode?: string;
+              new_turn_id?: string;
+              previous_turn_id?: string;
+              queue_entry_id?: string;
+              /** Format: int64 */
+              queue_generation?: number;
+              queue_position?: number;
+              queued?: boolean;
+              staged?: boolean;
+              status: string;
+            };
+          };
+        };
+      };
+      /** @description Prompt queued or staged */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            prompt: {
+              canceled_queued_entries?: number;
+              /** Format: date-time */
+              estimated_send_at?: string | null;
+              fallback_mode_if_no_tool_result?: string;
+              interrupted?: boolean;
+              mode?: string;
+              new_turn_id?: string;
+              previous_turn_id?: string;
+              queue_entry_id?: string;
+              /** Format: int64 */
+              queue_generation?: number;
+              queue_position?: number;
+              queued?: boolean;
+              staged?: boolean;
+              status: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid prompt request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session prompt conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session input queue is full */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  cancelQueuedSessionPrompt: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+        /** @description Queue entry id */
+        queue_entry_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Queued prompt canceled */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            prompt: {
+              canceled_queued_entries?: number;
+              /** Format: date-time */
+              estimated_send_at?: string | null;
+              fallback_mode_if_no_tool_result?: string;
+              interrupted?: boolean;
+              mode?: string;
+              new_turn_id?: string;
+              previous_turn_id?: string;
+              queue_entry_id?: string;
+              /** Format: int64 */
+              queue_generation?: number;
+              queue_position?: number;
+              queued?: boolean;
+              staged?: boolean;
+              status: string;
+            };
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   getSessionRecap: {
     parameters: {
       query?: {
@@ -57024,6 +57534,162 @@ export interface operations {
       };
       /** @description Session not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  steerSessionPrompt: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          text: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Prompt steering staged */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            prompt: {
+              canceled_queued_entries?: number;
+              /** Format: date-time */
+              estimated_send_at?: string | null;
+              fallback_mode_if_no_tool_result?: string;
+              interrupted?: boolean;
+              mode?: string;
+              new_turn_id?: string;
+              previous_turn_id?: string;
+              queue_entry_id?: string;
+              /** Format: int64 */
+              queue_generation?: number;
+              queue_position?: number;
+              queued?: boolean;
+              staged?: boolean;
+              status: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid steer request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Session prompt conflict */
+      409: {
         headers: {
           [name: string]: unknown;
         };

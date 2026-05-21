@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef } from "react";
+import { useCallback, useEffect, useEffectEvent, useRef } from "react";
 import { useAui, useAuiEvent, useAuiState } from "@assistant-ui/react";
 
 import { useSessionStore } from "@/systems/session/hooks/use-session-store";
@@ -15,6 +15,11 @@ export function useSessionComposerState(sessionId: string) {
   const clearDraftForSession = useEffectEvent(() => {
     clearDraft(sessionId);
   });
+
+  const clearComposer = useCallback(() => {
+    aui.composer().setText("");
+    clearDraft(sessionId);
+  }, [aui, clearDraft, sessionId]);
 
   useEffect(() => {
     if (hasHydratedDraftRef.current) {
@@ -36,5 +41,5 @@ export function useSessionComposerState(sessionId: string) {
 
   useAuiEvent("composer.send", clearDraftForSession);
 
-  return { isRunning };
+  return { clearComposer, composerText, isRunning };
 }

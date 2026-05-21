@@ -65,6 +65,16 @@ func (g *GlobalDB) withNetworkImmediateTransaction(
 	action string,
 	run func(exec networkSQLExecutor) error,
 ) (err error) {
+	return g.withImmediateTransaction(ctx, action, func(exec globalSQLExecutor) error {
+		return run(exec)
+	})
+}
+
+func (g *GlobalDB) withImmediateTransaction(
+	ctx context.Context,
+	action string,
+	run func(exec globalSQLExecutor) error,
+) (err error) {
 	conn, err := g.db.Conn(ctx)
 	if err != nil {
 		return fmt.Errorf("store: open connection for %s: %w", action, err)

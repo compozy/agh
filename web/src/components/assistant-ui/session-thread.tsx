@@ -6,7 +6,15 @@ import {
   ThreadPrimitive,
   type ToolCallMessagePartProps,
 } from "@assistant-ui/react";
-import { Activity, SendHorizontal, Square, Trash2 } from "lucide-react";
+import {
+  Activity,
+  CornerDownRight,
+  ListPlus,
+  Scissors,
+  SendHorizontal,
+  Square,
+  Trash2,
+} from "lucide-react";
 import { type ComponentPropsWithoutRef, useCallback, useState } from "react";
 
 import { cn } from "@/lib/utils";
@@ -26,11 +34,17 @@ import {
 } from "@agh/ui";
 import { useSessionComposerState } from "./hooks/use-session-composer-state";
 
+type SessionBusyInputHandler = (message: string) => void | Promise<void>;
+
 interface SessionThreadProps {
   sessionId: string;
   agentName: string;
   canPrompt: boolean;
   onCancelPrompt: () => void;
+  onQueuePrompt?: SessionBusyInputHandler;
+  onInterruptPrompt?: SessionBusyInputHandler;
+  onSteerPrompt?: SessionBusyInputHandler;
+  isBusyInputPending?: boolean;
   onClearConversation?: () => void;
   canClearConversation?: boolean;
   isClearingConversation?: boolean;
@@ -171,6 +185,10 @@ function SessionComposer({
   sessionId,
   canPrompt,
   onCancelPrompt,
+  onQueuePrompt,
+  onInterruptPrompt,
+  onSteerPrompt,
+  isBusyInputPending = false,
   onClearConversation,
   canClearConversation = false,
   isClearingConversation = false,
@@ -179,17 +197,38 @@ function SessionComposer({
   | "sessionId"
   | "canPrompt"
   | "onCancelPrompt"
+  | "onQueuePrompt"
+  | "onInterruptPrompt"
+  | "onSteerPrompt"
+  | "isBusyInputPending"
   | "onClearConversation"
   | "canClearConversation"
   | "isClearingConversation"
 >) {
-  const { isRunning } = useSessionComposerState(sessionId);
+  const { clearComposer, composerText, isRunning } = useSessionComposerState(sessionId);
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
+  const trimmedComposerText = composerText.trim();
+  const canSubmitBusyInput =
+    isRunning && canPrompt && trimmedComposerText.length > 0 && !isBusyInputPending;
+  const showBusyInputControls = isRunning || isBusyInputPending;
 
   const handleConfirmClear = useCallback(() => {
     setClearDialogOpen(false);
     onClearConversation?.();
   }, [onClearConversation]);
+
+  const handleBusyInputAction = useCallback(
+    (handler?: SessionBusyInputHandler) => {
+      if (!handler || !canSubmitBusyInput) {
+        return;
+      }
+
+      void Promise.resolve(handler(trimmedComposerText))
+        .then(clearComposer)
+        .catch(() => undefined);
+    },
+    [canSubmitBusyInput, clearComposer, trimmedComposerText]
+  );
 
   return (
     <>
@@ -216,40 +255,81 @@ function SessionComposer({
               "dark:bg-transparent"
             )}
           />
-          <div className="flex items-center justify-between gap-3">
-            {onClearConversation ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => setClearDialogOpen(true)}
-                disabled={!canClearConversation || isRunning || isClearingConversation}
-                data-testid="composer-clear-button"
-              >
-                {isClearingConversation ? (
-                  <Spinner className="size-3" />
-                ) : (
-                  <Trash2 className="size-3" />
-                )}
-                Clear conversation
-              </Button>
-            ) : (
-              <span />
-            )}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              {onClearConversation ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setClearDialogOpen(true)}
+                  disabled={!canClearConversation || isRunning || isClearingConversation}
+                  data-testid="composer-clear-button"
+                >
+                  {isClearingConversation ? (
+                    <Spinner className="size-3" />
+                  ) : (
+                    <Trash2 className="size-3" />
+                  )}
+                  Clear conversation
+                </Button>
+              ) : null}
+            </div>
 
-            {isRunning ? (
-              <button
-                type="button"
-                onClick={onCancelPrompt}
-                className={cn(
-                  "inline-flex h-9 items-center gap-2 rounded-full px-3",
-                  "bg-danger/12 text-danger",
-                  "transition-colors hover:bg-danger/18"
-                )}
-              >
-                <Square className="size-3 fill-current" />
-                <span className="text-sm font-medium">Stop</span>
-              </button>
+            {showBusyInputControls ? (
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {onQueuePrompt ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleBusyInputAction(onQueuePrompt)}
+                    disabled={!canSubmitBusyInput}
+                    data-testid="composer-queue-button"
+                  >
+                    <ListPlus className="size-3" />
+                    Queue
+                  </Button>
+                ) : null}
+                {onSteerPrompt ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleBusyInputAction(onSteerPrompt)}
+                    disabled={!canSubmitBusyInput}
+                    data-testid="composer-steer-button"
+                  >
+                    <CornerDownRight className="size-3" />
+                    Steer
+                  </Button>
+                ) : null}
+                {onInterruptPrompt ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => handleBusyInputAction(onInterruptPrompt)}
+                    disabled={!canSubmitBusyInput}
+                    data-testid="composer-interrupt-button"
+                  >
+                    <Scissors className="size-3" />
+                    Interrupt
+                  </Button>
+                ) : null}
+                {isRunning ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    onClick={onCancelPrompt}
+                    data-testid="composer-stop-button"
+                  >
+                    <Square className="size-3 fill-current" />
+                    Stop
+                  </Button>
+                ) : null}
+              </div>
             ) : (
               <ComposerPrimitive.Send
                 aria-label="Send message"
@@ -347,6 +427,10 @@ export function SessionThread({
   agentName,
   canPrompt,
   onCancelPrompt,
+  onQueuePrompt,
+  onInterruptPrompt,
+  onSteerPrompt,
+  isBusyInputPending = false,
   onClearConversation,
   canClearConversation = false,
   isClearingConversation = false,
@@ -368,6 +452,10 @@ export function SessionThread({
         sessionId={sessionId}
         canPrompt={canPrompt}
         onCancelPrompt={onCancelPrompt}
+        onQueuePrompt={onQueuePrompt}
+        onInterruptPrompt={onInterruptPrompt}
+        onSteerPrompt={onSteerPrompt}
+        isBusyInputPending={isBusyInputPending}
         onClearConversation={onClearConversation}
         canClearConversation={canClearConversation}
         isClearingConversation={isClearingConversation}

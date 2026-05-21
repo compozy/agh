@@ -791,6 +791,8 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		WorkspaceResolver:   state.workspaceResolver,
 		SandboxRegistry:     state.sandboxRegistry,
 		SessionSupervision:  state.cfg.Session.Supervision,
+		SessionBusyInput:    state.cfg.Session.BusyInput,
+		SessionInputQueue:   sessionInputQueueStoreDependency(state.registry),
 		SessionHealthConfig: state.cfg.Agents.Heartbeat,
 		ProcessRegistry:     state.processRegistry,
 		HostedMCP:           hostedMCPLauncher(state.hostedMCP),
@@ -799,6 +801,14 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		SoulRunChecker:      soulRunActivityCheckerDependency(state.registry),
 		SessionHealthStore:  sessionHealthStoreDependency(state.registry),
 	}
+}
+
+func sessionInputQueueStoreDependency(registry Registry) store.SessionInputQueueStore {
+	queueStore, ok := registry.(store.SessionInputQueueStore)
+	if !ok {
+		return nil
+	}
+	return queueStore
 }
 
 func (d *Daemon) newSessionLedgerMaterializer(state *bootState) (session.LedgerMaterializer, error) {

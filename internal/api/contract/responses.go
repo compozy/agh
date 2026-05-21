@@ -45,6 +45,11 @@ type SessionRepairResponse struct {
 	Repair SessionRepairPayload `json:"repair"`
 }
 
+// SendPromptResultResponse wraps non-streaming busy-input prompt outcomes.
+type SendPromptResultResponse struct {
+	Prompt SendPromptResultPayload `json:"prompt"`
+}
+
 // SessionApprovalResponse wraps the approve-session success payload.
 type SessionApprovalResponse struct {
 	Status string `json:"status"`

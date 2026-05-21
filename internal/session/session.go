@@ -17,6 +17,8 @@ var (
 	ErrInvalidStateTransition = errors.New("session: invalid state transition")
 	// ErrPromptInProgress reports that the session already has prompt setup or execution in flight.
 	ErrPromptInProgress = errors.New("session: prompt already in progress")
+	// ErrPromptNotInProgress reports that an operation requires an active prompt turn.
+	ErrPromptNotInProgress = errors.New("session: prompt is not in progress")
 )
 
 // State is the lifecycle state of a managed runtime session.

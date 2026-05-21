@@ -21,6 +21,7 @@ import (
 
 const (
 	nativeMemoryAdminToolsCompletedKey = "completed"
+	nativeMemoryAdminToolsCanceledKey  = "canceled"
 )
 
 type memoryAdminAvailabilitySet struct {
@@ -1416,7 +1417,7 @@ func memoryAdminDreamState(record memorypkg.DreamRunRecord) contract.MemoryDream
 			return contract.MemoryDreamStatePromoted
 		}
 		return contract.MemoryDreamStateSkipped
-	case "canceled":
+	case nativeMemoryAdminToolsCanceledKey:
 		return contract.MemoryDreamStateSkipped
 	default:
 		return contract.MemoryDreamStateIdle

@@ -365,6 +365,8 @@ type SessionManagerDeps struct {
 	WorkspaceResolver    workspacepkg.RuntimeResolver
 	SandboxRegistry      *sandbox.Registry
 	SessionSupervision   aghconfig.SessionSupervisionConfig
+	SessionBusyInput     aghconfig.SessionBusyInputConfig
+	SessionInputQueue    store.SessionInputQueueStore
 	SessionHealthConfig  aghconfig.HeartbeatConfig
 	ProcessRegistry      *toolruntime.Registry
 	HostedMCP            session.HostedMCPLauncher
@@ -638,6 +640,8 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithWorkspaceResolver(deps.WorkspaceResolver),
 			session.WithSandboxRegistry(deps.SandboxRegistry),
 			session.WithSessionSupervision(deps.SessionSupervision),
+			session.WithSessionBusyInputConfig(deps.SessionBusyInput),
+			session.WithSessionInputQueueStore(deps.SessionInputQueue),
 			session.WithSessionHealthConfig(deps.SessionHealthConfig),
 			session.WithSessionHealthStore(deps.SessionHealthStore),
 			session.WithHostedMCPLauncher(deps.HostedMCP),
@@ -648,6 +652,7 @@ func (d *Daemon) applySessionManagerFactoryDefault() {
 			session.WithDriver(session.NewACPDriverAdapter(acp.New(
 				acp.WithLogger(deps.Logger),
 				acp.WithProcessRegistry(deps.ProcessRegistry),
+				acp.WithSteerSource(sessionSteerSource{queue: deps.SessionInputQueue, now: d.now}),
 			))),
 		)
 	}

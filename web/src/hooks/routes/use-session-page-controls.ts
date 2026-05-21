@@ -6,7 +6,10 @@ import {
   cancelSessionPrompt,
   useClearSessionConversation,
   useDeleteSession,
+  useInterruptSessionPrompt,
+  useQueueSessionPrompt,
   useResumeSession,
+  useSteerSessionPrompt,
   useStopSession,
   type SessionPayload,
 } from "@/systems/session";
@@ -59,6 +62,13 @@ function describeResumeError(error: unknown): string {
   return "Failed to attach session.";
 }
 
+function describePromptActionError(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+  return fallback;
+}
+
 export function useSessionPageControls(
   sessionId: string,
   sessionState: SessionPayload["state"],
@@ -73,6 +83,9 @@ export function useSessionPageControls(
   const stopMutation = useStopSession({ workspaceId });
   const resumeMutation = useResumeSession({ workspaceId });
   const clearMutation = useClearSessionConversation({ workspaceId });
+  const queuePromptMutation = useQueueSessionPrompt({ workspaceId });
+  const interruptPromptMutation = useInterruptSessionPrompt({ workspaceId });
+  const steerPromptMutation = useSteerSessionPrompt({ workspaceId });
   const [isCancellingPrompt, setIsCancellingPrompt] = useState(false);
   const [resumeFailure, setResumeFailure] = useState<SessionResumeFailure | null>(null);
 
@@ -97,8 +110,66 @@ export function useSessionPageControls(
   const isResuming = resumeMutation.isPending;
   const isDeleting = deleteMutation.isPending;
   const isClearing = clearMutation.isPending;
-  const controlsBusy = isStopping || isResuming || isDeleting || isClearing;
+  const isBusyInputPending =
+    queuePromptMutation.isPending ||
+    interruptPromptMutation.isPending ||
+    steerPromptMutation.isPending;
+  const controlsBusy = isStopping || isResuming || isDeleting || isClearing || isBusyInputPending;
   const canClear = messages.length > 0 && !controlsBusy && !isRunning;
+
+  const handleQueuePrompt = useCallback(
+    async (message: string) => {
+      const text = message.trim();
+      if (!isRunning || isBusyInputPending || text.length === 0) {
+        return;
+      }
+
+      try {
+        await queuePromptMutation.mutateAsync({ id: sessionId, message: text });
+        toast.success("Prompt queued.");
+      } catch (error) {
+        toast.error(describePromptActionError(error, "Couldn't queue prompt."));
+        throw error;
+      }
+    },
+    [isBusyInputPending, isRunning, queuePromptMutation, sessionId]
+  );
+
+  const handleInterruptPrompt = useCallback(
+    async (message: string) => {
+      const text = message.trim();
+      if (!isRunning || isBusyInputPending || text.length === 0) {
+        return;
+      }
+
+      try {
+        await interruptPromptMutation.mutateAsync({ id: sessionId, message: text });
+        toast.success("Prompt interrupted.");
+      } catch (error) {
+        toast.error(describePromptActionError(error, "Couldn't interrupt prompt."));
+        throw error;
+      }
+    },
+    [interruptPromptMutation, isBusyInputPending, isRunning, sessionId]
+  );
+
+  const handleSteerPrompt = useCallback(
+    async (message: string) => {
+      const text = message.trim();
+      if (!isRunning || isBusyInputPending || text.length === 0) {
+        return;
+      }
+
+      try {
+        await steerPromptMutation.mutateAsync({ id: sessionId, message: text });
+        toast.success("Steer staged.");
+      } catch (error) {
+        toast.error(describePromptActionError(error, "Couldn't stage steer."));
+        throw error;
+      }
+    },
+    [isBusyInputPending, isRunning, sessionId, steerPromptMutation]
+  );
 
   const handleStop = useCallback(() => {
     if (controlsBusy) {
@@ -175,8 +246,12 @@ export function useSessionPageControls(
       handleClear,
       handleDismissResumeFailure,
       handleDelete,
+      handleInterruptPrompt,
+      handleQueuePrompt,
       handleResume,
+      handleSteerPrompt,
       handleStop,
+      isBusyInputPending,
       isClearing,
       isDeleting,
       isResuming,
@@ -191,8 +266,12 @@ export function useSessionPageControls(
       handleClear,
       handleDismissResumeFailure,
       handleDelete,
+      handleInterruptPrompt,
+      handleQueuePrompt,
       handleResume,
+      handleSteerPrompt,
       handleStop,
+      isBusyInputPending,
       isClearing,
       isDeleting,
       isResuming,

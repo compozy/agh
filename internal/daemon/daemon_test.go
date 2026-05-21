@@ -4936,6 +4936,54 @@ func (f *fakeSessionManager) Prompt(ctx context.Context, id string, msg string) 
 	return ch, nil
 }
 
+func (f *fakeSessionManager) SendPrompt(
+	ctx context.Context,
+	id string,
+	opts session.SendPromptOpts,
+) (session.SendPromptResult, error) {
+	events, err := f.Prompt(ctx, id, opts.Message)
+	if err != nil {
+		return session.SendPromptResult{}, err
+	}
+	return session.SendPromptResult{
+		Status: "accepted",
+		Mode:   opts.Mode,
+		Events: events,
+	}, nil
+}
+
+func (f *fakeSessionManager) InterruptPrompt(context.Context, string) (session.SendPromptResult, error) {
+	return session.SendPromptResult{
+		Status:      "interrupted",
+		Mode:        session.BusyInputModeInterrupt,
+		Interrupted: true,
+	}, nil
+}
+
+func (f *fakeSessionManager) SteerPrompt(
+	_ context.Context,
+	_ string,
+	_ string,
+) (session.SendPromptResult, error) {
+	return session.SendPromptResult{
+		Status: "staged",
+		Mode:   session.BusyInputModeSteer,
+		Staged: true,
+	}, nil
+}
+
+func (f *fakeSessionManager) CancelQueuedPrompt(
+	_ context.Context,
+	_ string,
+	queueEntryID string,
+) (session.SendPromptResult, error) {
+	return session.SendPromptResult{
+		Status:       "canceled",
+		Mode:         session.BusyInputModeQueue,
+		QueueEntryID: queueEntryID,
+	}, nil
+}
+
 func (f *fakeSessionManager) CancelPrompt(context.Context, string) error {
 	return nil
 }

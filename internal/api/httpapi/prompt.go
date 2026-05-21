@@ -11,7 +11,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/acp"
+	"github.com/pedronauck/agh/internal/api/contract"
 	core "github.com/pedronauck/agh/internal/api/core"
+	"github.com/pedronauck/agh/internal/session"
 )
 
 const (
@@ -20,24 +22,12 @@ const (
 
 const detachedPromptDrainTimeout = 30 * time.Second
 
-type promptRequest struct {
-	Message  string              `json:"message"`
-	Messages []uiMessageEnvelope `json:"messages"`
-}
-
-type uiMessageEnvelope struct {
-	Role    string              `json:"role"`
-	Content string              `json:"content"`
-	Parts   []uiMessageTextPart `json:"parts"`
-}
-
-type uiMessageTextPart struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
-}
+type promptRequest = contract.SendPromptRequest
+type uiMessageEnvelope = contract.PromptUIMessage
+type uiMessageTextPart = contract.PromptUITextPart
 
 func (h *Handlers) promptSession(c *gin.Context) {
-	var req promptRequest
+	var req contract.SendPromptRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.Logger.Debug("httpapi: decode prompt request failed", "error", err)
 		core.RespondError(c, http.StatusBadRequest, invalidRequestPayloadError{cause: err}, true)
@@ -61,11 +51,23 @@ func (h *Handlers) promptSession(c *gin.Context) {
 			cancelOnReturn()
 		}
 	}()
-	events, err := h.Sessions.Prompt(promptCtx, sessionID, message)
+	result, err := h.Sessions.SendPrompt(promptCtx, sessionID, session.SendPromptOpts{
+		Message: message,
+		Mode:    session.BusyInputMode(req.Mode),
+	})
 	if err != nil {
 		core.RespondError(c, core.StatusForSessionError(err), err, true)
 		return
 	}
+	if result.Events == nil {
+		status := http.StatusOK
+		if result.Queued || result.Staged {
+			status = http.StatusAccepted
+		}
+		c.JSON(status, contract.SendPromptResultResponse{Prompt: core.PromptResultPayloadFromSession(result)})
+		return
+	}
+	events := result.Events
 
 	c.Header("x-vercel-ai-ui-message-stream", "v1")
 	writer, err := core.PrepareSSE(c)
@@ -100,6 +102,59 @@ func (h *Handlers) promptSession(c *gin.Context) {
 	}
 }
 
+func (h *Handlers) interruptSessionPrompt(c *gin.Context) {
+	sessionID, ok := h.RequireRouteSessionInWorkspace(c)
+	if !ok {
+		return
+	}
+	result, err := h.Sessions.InterruptPrompt(c.Request.Context(), sessionID)
+	if err != nil {
+		core.RespondError(c, core.StatusForSessionError(err), err, true)
+		return
+	}
+	c.JSON(http.StatusOK, contract.SendPromptResultResponse{Prompt: core.PromptResultPayloadFromSession(result)})
+}
+
+func (h *Handlers) steerSessionPrompt(c *gin.Context) {
+	var req contract.SteerPromptRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		core.RespondError(c, http.StatusBadRequest, invalidRequestPayloadError{cause: err}, true)
+		return
+	}
+	if strings.TrimSpace(req.Text) == "" {
+		core.RespondError(c, http.StatusBadRequest, errors.New("text is required"), true)
+		return
+	}
+	sessionID, ok := h.RequireRouteSessionInWorkspace(c)
+	if !ok {
+		return
+	}
+	result, err := h.Sessions.SteerPrompt(c.Request.Context(), sessionID, req.Text)
+	if err != nil {
+		core.RespondError(c, core.StatusForSessionError(err), err, true)
+		return
+	}
+	c.JSON(http.StatusAccepted, contract.SendPromptResultResponse{Prompt: core.PromptResultPayloadFromSession(result)})
+}
+
+func (h *Handlers) cancelQueuedSessionPrompt(c *gin.Context) {
+	sessionID, ok := h.RequireRouteSessionInWorkspace(c)
+	if !ok {
+		return
+	}
+	queueEntryID := strings.TrimSpace(c.Param("queue_entry_id"))
+	if queueEntryID == "" {
+		core.RespondError(c, http.StatusBadRequest, errors.New("queue entry id is required"), true)
+		return
+	}
+	result, err := h.Sessions.CancelQueuedPrompt(c.Request.Context(), sessionID, queueEntryID)
+	if err != nil {
+		core.RespondError(c, core.StatusForSessionError(err), err, true)
+		return
+	}
+	c.JSON(http.StatusOK, contract.SendPromptResultResponse{Prompt: core.PromptResultPayloadFromSession(result)})
+}
+
 func (h *Handlers) drainPromptEventsAsync(
 	ctx context.Context,
 	events <-chan acp.AgentEvent,
@@ -109,7 +164,8 @@ func (h *Handlers) drainPromptEventsAsync(
 		return
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		cancelPrompt()
+		return
 	}
 	drainCtx, cancelDrain := detachPromptDrainContext(ctx)
 	h.promptDrainWG.Go(func() {
@@ -120,9 +176,6 @@ func (h *Handlers) drainPromptEventsAsync(
 }
 
 func detachPromptDrainContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	if ctx == nil {
-		return context.WithTimeout(context.Background(), detachedPromptDrainTimeout)
-	}
 	drainCtx := context.WithoutCancel(ctx)
 	if deadline, ok := ctx.Deadline(); ok {
 		return context.WithDeadline(drainCtx, deadline)
@@ -165,7 +218,7 @@ func (h *Handlers) waitForPromptDrains(ctx context.Context) error {
 	}
 }
 
-func extractPromptMessage(req promptRequest) (string, error) {
+func extractPromptMessage(req contract.SendPromptRequest) (string, error) {
 	if message := strings.TrimSpace(req.Message); message != "" {
 		return message, nil
 	}

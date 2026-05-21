@@ -321,6 +321,9 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/clear",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/prompt/cancel",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/interrupt",
+		"POST /api/workspaces/:workspace_id/sessions/:session_id/steer",
+		"DELETE /api/workspaces/:workspace_id/sessions/:session_id/prompt/queue/:queue_entry_id",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/repair",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/attach",
 		"POST /api/workspaces/:workspace_id/sessions/:session_id/soul/refresh",
@@ -1482,6 +1485,52 @@ func TestPromptSessionHandlerReturnsRawSSEStreamWhenRequested(t *testing.T) {
 		}
 		if records[0].Event != "agent_message" || records[1].Event != "done" {
 			t.Fatalf("events = [%s %s], want [agent_message done]", records[0].Event, records[1].Event)
+		}
+	})
+}
+
+func TestPromptSessionRawHandlerPreservesBusyInputMode(t *testing.T) {
+	t.Run("ShouldForwardInterruptModeOnRawCLIPath", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newTestHomePaths(t)
+		var gotOpts session.SendPromptOpts
+		manager := stubSessionManager{
+			SendPromptFn: func(_ context.Context, id string, opts session.SendPromptOpts) (session.SendPromptResult, error) {
+				if id != "sess-123" {
+					t.Fatalf("SendPrompt() id = %q, want sess-123", id)
+				}
+				gotOpts = opts
+				return session.SendPromptResult{
+					Status:      "interrupted",
+					Mode:        opts.Mode,
+					Interrupted: true,
+					NewTurnID:   "turn-2",
+				}, nil
+			},
+		}
+		handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
+		engine := newTestRouter(t, handlers)
+
+		recorder := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/workspaces/ws-workspace/sessions/sess-123/prompt?format=raw",
+			[]byte("{\"message\":\"replace\",\"mode\":\"interrupt\"}"),
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
+		if gotOpts.Message != "replace" || gotOpts.Mode != session.BusyInputModeInterrupt {
+			t.Fatalf("SendPrompt() opts = %#v, want interrupt replace", gotOpts)
+		}
+		var decoded contract.SendPromptResultResponse
+		if err := json.Unmarshal(recorder.Body.Bytes(), &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(prompt result) error = %v; body=%s", err, recorder.Body.String())
+		}
+		if decoded.Prompt.Mode != contract.PromptModeInterrupt || !decoded.Prompt.Interrupted {
+			t.Fatalf("decoded prompt = %#v, want interrupted mode", decoded.Prompt)
 		}
 	})
 }

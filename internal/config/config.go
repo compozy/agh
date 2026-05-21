@@ -154,6 +154,7 @@ type LimitsConfig struct {
 type SessionConfig struct {
 	Limits      SessionLimitsConfig      `toml:"limits"`
 	Supervision SessionSupervisionConfig `toml:"supervision"`
+	BusyInput   SessionBusyInputConfig   `toml:"busy_input"`
 }
 
 // SessionLimitsConfig defines runtime limits applied to every session.
@@ -170,6 +171,20 @@ type SessionSupervisionConfig struct {
 	InactivityTimeout         time.Duration `toml:"inactivity_timeout,omitempty"`
 	TimeoutCancelGrace        time.Duration `toml:"timeout_cancel_grace,omitempty"`
 }
+
+// SessionBusyInputConfig controls operator input submitted while a turn is active.
+type SessionBusyInputConfig struct {
+	DefaultMode  string `toml:"default_mode,omitempty"`
+	QueueCap     int    `toml:"queue_cap,omitempty"`
+	MaxTextBytes int    `toml:"max_text_bytes,omitempty"`
+}
+
+const (
+	minSessionBusyInputQueueCap  = 1
+	maxSessionBusyInputQueueCap  = 1000
+	minSessionBusyInputTextBytes = 512
+	maxSessionBusyInputTextBytes = 1 << 20
+)
 
 // PermissionMode is the static permission policy applied by the daemon.
 type PermissionMode string
@@ -674,6 +689,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		Session: SessionConfig{
 			Limits:      SessionLimitsConfig{},
 			Supervision: DefaultSessionSupervisionConfig(),
+			BusyInput:   DefaultSessionBusyInputConfig(),
 		},
 		Permissions: PermissionsConfig{
 			Mode: PermissionModeApproveAll,
@@ -1353,7 +1369,10 @@ func (c SessionConfig) Validate() error {
 	if err := c.Limits.Validate(); err != nil {
 		return err
 	}
-	return c.Supervision.Validate()
+	if err := c.Supervision.Validate(); err != nil {
+		return err
+	}
+	return c.BusyInput.Validate()
 }
 
 // Validate ensures session timeout settings are internally consistent.
@@ -1374,6 +1393,65 @@ func DefaultSessionSupervisionConfig() SessionSupervisionConfig {
 		InactivityTimeout:         30 * time.Minute,
 		TimeoutCancelGrace:        30 * time.Second,
 	}
+}
+
+// DefaultSessionBusyInputConfig returns the default busy-input behavior.
+func DefaultSessionBusyInputConfig() SessionBusyInputConfig {
+	return SessionBusyInputConfig{
+		DefaultMode:  "queue",
+		QueueCap:     10,
+		MaxTextBytes: 64 << 10,
+	}
+}
+
+// Normalize returns a config copy with implicit defaults applied.
+func (c SessionBusyInputConfig) Normalize() SessionBusyInputConfig {
+	normalized := c
+	if strings.TrimSpace(normalized.DefaultMode) == "" {
+		normalized.DefaultMode = DefaultSessionBusyInputConfig().DefaultMode
+	} else {
+		normalized.DefaultMode = strings.TrimSpace(normalized.DefaultMode)
+	}
+	if normalized.QueueCap == 0 {
+		normalized.QueueCap = DefaultSessionBusyInputConfig().QueueCap
+	}
+	if normalized.MaxTextBytes == 0 {
+		normalized.MaxTextBytes = DefaultSessionBusyInputConfig().MaxTextBytes
+	}
+	return normalized
+}
+
+// Validate ensures busy-input controls are internally consistent.
+func (c SessionBusyInputConfig) Validate() error {
+	normalized := c.Normalize()
+	switch strings.TrimSpace(normalized.DefaultMode) {
+	case "queue", "interrupt", "steer":
+	case "":
+		return errors.New("session.busy_input.default_mode is required")
+	default:
+		return fmt.Errorf(
+			"session.busy_input.default_mode must be queue, interrupt, or steer: %q",
+			normalized.DefaultMode,
+		)
+	}
+	if normalized.QueueCap < minSessionBusyInputQueueCap || normalized.QueueCap > maxSessionBusyInputQueueCap {
+		return fmt.Errorf(
+			"session.busy_input.queue_cap must be between %d and %d: %d",
+			minSessionBusyInputQueueCap,
+			maxSessionBusyInputQueueCap,
+			normalized.QueueCap,
+		)
+	}
+	if normalized.MaxTextBytes < minSessionBusyInputTextBytes ||
+		normalized.MaxTextBytes > maxSessionBusyInputTextBytes {
+		return fmt.Errorf(
+			"session.busy_input.max_text_bytes must be between %d and %d: %d",
+			minSessionBusyInputTextBytes,
+			maxSessionBusyInputTextBytes,
+			normalized.MaxTextBytes,
+		)
+	}
+	return nil
 }
 
 // Validate ensures session supervision settings are internally consistent.

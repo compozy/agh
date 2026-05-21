@@ -988,6 +988,62 @@ var globalSchemaMigrations = []store.Migration{
 		Up:       migrateSessionAttachLock,
 		Checksum: "2026-05-20-add-session-attach-lock",
 	},
+	{
+		Version:  31,
+		Name:     "add_session_input_queue",
+		Up:       migrateSessionInputQueue,
+		Checksum: "2026-05-21-add-session-input-queue",
+	},
+}
+
+func migrateSessionInputQueue(ctx context.Context, tx *sql.Tx) error {
+	exists, err := tableExists(ctx, tx, "sessions")
+	if err != nil {
+		return err
+	}
+	if exists {
+		if err := addMissingMigrationColumns(ctx, tx, "sessions", []migrationColumnSpec{
+			{
+				name: sessionInputGenerationColumn,
+				sql:  `ALTER TABLE sessions ADD COLUMN input_generation INTEGER NOT NULL DEFAULT 0`,
+			},
+		}); err != nil {
+			return err
+		}
+	}
+	statements := []string{
+		`CREATE TABLE IF NOT EXISTS session_input_queue (
+			id TEXT PRIMARY KEY,
+			session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+			status TEXT NOT NULL CHECK (status IN ('queued', 'dispatching', 'sent', 'failed', 'canceled')),
+			mode TEXT NOT NULL CHECK (mode IN ('queue', 'steer')),
+			text TEXT NOT NULL,
+			session_generation INTEGER NOT NULL DEFAULT 0,
+			task_run_id TEXT NOT NULL DEFAULT '',
+			run_generation INTEGER,
+			attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+			enqueued_at TEXT NOT NULL,
+			dispatch_started_at TEXT,
+			sent_at TEXT,
+			failed_at TEXT,
+			failure_summary TEXT NOT NULL DEFAULT '',
+			canceled_at TEXT,
+			updated_at TEXT NOT NULL
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_session_input_queue_pending
+			ON session_input_queue(session_id, status, enqueued_at, id);`,
+		`CREATE INDEX IF NOT EXISTS idx_session_input_queue_generation
+			ON session_input_queue(session_id, session_generation, status);`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uq_session_input_queue_active_steer
+			ON session_input_queue(session_id)
+			WHERE mode = 'steer' AND status IN ('queued', 'dispatching');`,
+	}
+	for _, statement := range statements {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("store: create session input queue schema: %w", err)
+		}
+	}
+	return nil
 }
 
 func migrateSessionAttachLock(ctx context.Context, tx *sql.Tx) error {

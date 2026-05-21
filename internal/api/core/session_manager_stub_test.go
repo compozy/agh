@@ -24,6 +24,10 @@ type sessionManagerStub struct {
 	resume            func(context.Context, string) (*session.Session, error)
 	clearConversation func(context.Context, string) (*session.Session, error)
 	prompt            func(context.Context, string, string) (<-chan acp.AgentEvent, error)
+	sendPrompt        func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error)
+	interruptPrompt   func(context.Context, string) (session.SendPromptResult, error)
+	steerPrompt       func(context.Context, string, string) (session.SendPromptResult, error)
+	cancelQueued      func(context.Context, string, string) (session.SendPromptResult, error)
 	cancelPrompt      func(context.Context, string) error
 	approvePermission func(context.Context, string, acp.ApproveRequest) error
 }
@@ -137,6 +141,46 @@ func (s sessionManagerStub) Prompt(ctx context.Context, id string, msg string) (
 		return s.prompt(ctx, id, msg)
 	}
 	return nil, session.ErrSessionNotFound
+}
+
+func (s sessionManagerStub) SendPrompt(
+	ctx context.Context,
+	id string,
+	opts session.SendPromptOpts,
+) (session.SendPromptResult, error) {
+	if s.sendPrompt != nil {
+		return s.sendPrompt(ctx, id, opts)
+	}
+	return session.SendPromptResult{}, session.ErrSessionNotFound
+}
+
+func (s sessionManagerStub) InterruptPrompt(ctx context.Context, id string) (session.SendPromptResult, error) {
+	if s.interruptPrompt != nil {
+		return s.interruptPrompt(ctx, id)
+	}
+	return session.SendPromptResult{}, session.ErrSessionNotFound
+}
+
+func (s sessionManagerStub) SteerPrompt(
+	ctx context.Context,
+	id string,
+	msg string,
+) (session.SendPromptResult, error) {
+	if s.steerPrompt != nil {
+		return s.steerPrompt(ctx, id, msg)
+	}
+	return session.SendPromptResult{}, session.ErrSessionNotFound
+}
+
+func (s sessionManagerStub) CancelQueuedPrompt(
+	ctx context.Context,
+	id string,
+	queueEntryID string,
+) (session.SendPromptResult, error) {
+	if s.cancelQueued != nil {
+		return s.cancelQueued(ctx, id, queueEntryID)
+	}
+	return session.SendPromptResult{}, session.ErrSessionNotFound
 }
 
 func (s sessionManagerStub) CancelPrompt(ctx context.Context, id string) error {

@@ -147,6 +147,7 @@ func statusForSessionError(err error) int {
 	switch {
 	case errors.Is(err, session.ErrSessionNotFound),
 		errors.Is(err, store.ErrSessionNotFound),
+		errors.Is(err, store.ErrSessionInputQueueEntryNotFound),
 		errors.Is(err, os.ErrNotExist):
 		return http.StatusNotFound
 	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
@@ -166,6 +167,7 @@ func statusForSessionError(err error) int {
 	case errors.Is(err, session.ErrSessionNotActive):
 		return http.StatusBadRequest
 	case errors.Is(err, session.ErrPromptInProgress),
+		errors.Is(err, session.ErrPromptNotInProgress),
 		errors.Is(err, session.ErrPendingPermissionNotFound),
 		errors.Is(err, session.ErrPendingPermissionConflict),
 		errors.Is(err, store.ErrSessionAttachLocked),
@@ -173,6 +175,8 @@ func statusForSessionError(err error) int {
 		errors.Is(err, workspacepkg.ErrWorkspaceNameTaken),
 		errors.Is(err, workspacepkg.ErrWorkspacePathTaken):
 		return http.StatusConflict
+	case errors.Is(err, store.ErrSessionInputQueueFull):
+		return http.StatusRequestEntityTooLarge
 	default:
 		return http.StatusInternalServerError
 	}

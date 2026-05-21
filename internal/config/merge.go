@@ -114,6 +114,7 @@ type limitsOverlay struct {
 type sessionOverlay struct {
 	Limits      sessionLimitsOverlay      `toml:"limits"`
 	Supervision sessionSupervisionOverlay `toml:"supervision"`
+	BusyInput   sessionBusyInputOverlay   `toml:"busy_input"`
 }
 
 type sessionLimitsOverlay struct {
@@ -127,6 +128,12 @@ type sessionSupervisionOverlay struct {
 	InactivityWarningAfter    *time.Duration `toml:"inactivity_warning_after"`
 	InactivityTimeout         *time.Duration `toml:"inactivity_timeout"`
 	TimeoutCancelGrace        *time.Duration `toml:"timeout_cancel_grace"`
+}
+
+type sessionBusyInputOverlay struct {
+	DefaultMode  *string `toml:"default_mode"`
+	QueueCap     *int    `toml:"queue_cap"`
+	MaxTextBytes *int    `toml:"max_text_bytes"`
 }
 
 type permissionsOverlay struct {
@@ -755,6 +762,7 @@ func (o limitsOverlay) Apply(dst *LimitsConfig) {
 func (o sessionOverlay) Apply(dst *SessionConfig) {
 	o.Limits.Apply(&dst.Limits)
 	o.Supervision.Apply(&dst.Supervision)
+	o.BusyInput.Apply(&dst.BusyInput)
 }
 
 func (o sessionLimitsOverlay) Apply(dst *SessionLimitsConfig) {
@@ -781,6 +789,18 @@ func (o sessionSupervisionOverlay) Apply(dst *SessionSupervisionConfig) {
 	}
 	if o.TimeoutCancelGrace != nil {
 		dst.TimeoutCancelGrace = *o.TimeoutCancelGrace
+	}
+}
+
+func (o sessionBusyInputOverlay) Apply(dst *SessionBusyInputConfig) {
+	if o.DefaultMode != nil {
+		dst.DefaultMode = *o.DefaultMode
+	}
+	if o.QueueCap != nil {
+		dst.QueueCap = *o.QueueCap
+	}
+	if o.MaxTextBytes != nil {
+		dst.MaxTextBytes = *o.MaxTextBytes
 	}
 }
 

@@ -18,6 +18,8 @@ const (
 	MarkerPromptInterrupted = "transcript_marker.prompt_interrupted"
 	MarkerPromptSteered     = "transcript_marker.prompt_steered"
 	MarkerPromptQueued      = "transcript_marker.prompt_queued"
+	MarkerPromptAccepted    = "transcript_marker.prompt_accepted"
+	MarkerPromptDropped     = "transcript_marker.prompt_dropped"
 	MarkerSessionUnhealthy  = "transcript_marker.session_unhealthy"
 	MarkerSessionRecovered  = "transcript_marker.session_recovered"
 	MarkerProviderFailure   = "transcript_marker.provider_failure"
@@ -144,6 +146,8 @@ func validMarkerKind(kind string) bool {
 		MarkerPromptInterrupted,
 		MarkerPromptSteered,
 		MarkerPromptQueued,
+		MarkerPromptAccepted,
+		MarkerPromptDropped,
 		MarkerSessionUnhealthy,
 		MarkerSessionRecovered,
 		MarkerProviderFailure,

@@ -33,6 +33,11 @@ export type TranscriptMarkerPayload = SessionRecapPayload["recent_markers"][numb
 export type SessionRepairResponse = OperationResponse<"repairSession", 200>;
 export type SessionRepairPayload = SessionRepairResponse["repair"];
 export type SessionRepairQuery = OperationQuery<"repairSession">;
+export type SessionPromptRequest = OperationRequestBody<"sendSessionPrompt">;
+export type SessionPromptResponse =
+  | OperationResponse<"sendSessionPrompt", 200>
+  | OperationResponse<"sendSessionPrompt", 202>;
+export type SessionPromptPayload = SessionPromptResponse["prompt"];
 
 export type SessionLedgerResponse = OperationResponse<"getMemorySessionLedger", 200>;
 export type SessionLedgerMeta = SessionLedgerResponse["meta"];

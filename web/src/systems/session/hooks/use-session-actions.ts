@@ -1,6 +1,12 @@
-import { type QueryKey, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  type QueryClient,
+  type QueryKey,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import {
+  cancelQueuedSessionPrompt,
   clearSessionConversation,
   createSession,
   type CreateSessionParams,
@@ -8,12 +14,19 @@ import {
   repairSession,
   resumeSession,
   SessionApiError,
+  sendSessionPrompt,
+  steerSessionPrompt,
   stopSession,
 } from "../adapters/session-api";
 import { useActiveWorkspace } from "@/systems/workspace";
 import { useSessionStore } from "./use-session-store";
 import { sessionKeys } from "../lib/query-keys";
-import type { SessionPayload, SessionRepairQuery } from "../types";
+import type {
+  SessionPayload,
+  SessionPromptPayload,
+  SessionPromptRequest,
+  SessionRepairQuery,
+} from "../types";
 
 function mergeSessionList(
   current: SessionPayload[] | undefined,
@@ -52,6 +65,18 @@ function resolveWorkspaceId(
   activeWorkspaceId: string | null | undefined
 ): string | null {
   return workspaceId ?? activeWorkspaceId ?? null;
+}
+
+function invalidateSessionPromptSurfaces(
+  queryClient: QueryClient,
+  workspaceId: string,
+  id: string
+) {
+  void queryClient.invalidateQueries({ queryKey: sessionKeys.detail(workspaceId, id) });
+  void queryClient.invalidateQueries({ queryKey: sessionKeys.events(workspaceId, id) });
+  void queryClient.invalidateQueries({ queryKey: sessionKeys.history(workspaceId, id) });
+  void queryClient.invalidateQueries({ queryKey: sessionKeys.transcript(workspaceId, id) });
+  void queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
 }
 
 export function useCreateSession() {
@@ -223,6 +248,89 @@ export function useClearSessionConversation(options: UseSessionWorkspaceOptions 
       queryClient.invalidateQueries({ queryKey: sessionKeys.history(settledWorkspaceId, id) });
       queryClient.invalidateQueries({ queryKey: sessionKeys.transcript(settledWorkspaceId, id) });
       queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
+    },
+  });
+}
+
+export interface SessionPromptActionParams {
+  id: string;
+  message: string;
+}
+
+export interface SendSessionPromptParams extends SessionPromptActionParams {
+  mode?: SessionPromptRequest["mode"];
+}
+
+export interface CancelQueuedSessionPromptParams {
+  id: string;
+  queueEntryId: string;
+}
+
+export function useSendSessionPrompt(options: UseSessionWorkspaceOptions = {}) {
+  const queryClient = useQueryClient();
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
+
+  return useMutation<SessionPromptPayload, Error, SendSessionPromptParams>({
+    mutationFn: ({ id, message, mode }) =>
+      sendSessionPrompt(requireWorkspace(workspaceId), id, { message, mode }),
+    onSettled: (_data, _error, params) => {
+      invalidateSessionPromptSurfaces(queryClient, workspaceId ?? "", params.id);
+    },
+  });
+}
+
+export function useQueueSessionPrompt(options: UseSessionWorkspaceOptions = {}) {
+  const queryClient = useQueryClient();
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
+
+  return useMutation<SessionPromptPayload, Error, SessionPromptActionParams>({
+    mutationFn: ({ id, message }) =>
+      sendSessionPrompt(requireWorkspace(workspaceId), id, { message, mode: "queue" }),
+    onSettled: (_data, _error, params) => {
+      invalidateSessionPromptSurfaces(queryClient, workspaceId ?? "", params.id);
+    },
+  });
+}
+
+export function useInterruptSessionPrompt(options: UseSessionWorkspaceOptions = {}) {
+  const queryClient = useQueryClient();
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
+
+  return useMutation<SessionPromptPayload, Error, SessionPromptActionParams>({
+    mutationFn: ({ id, message }) =>
+      sendSessionPrompt(requireWorkspace(workspaceId), id, { message, mode: "interrupt" }),
+    onSettled: (_data, _error, params) => {
+      invalidateSessionPromptSurfaces(queryClient, workspaceId ?? "", params.id);
+    },
+  });
+}
+
+export function useSteerSessionPrompt(options: UseSessionWorkspaceOptions = {}) {
+  const queryClient = useQueryClient();
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
+
+  return useMutation<SessionPromptPayload, Error, SessionPromptActionParams>({
+    mutationFn: ({ id, message }) => steerSessionPrompt(requireWorkspace(workspaceId), id, message),
+    onSettled: (_data, _error, params) => {
+      invalidateSessionPromptSurfaces(queryClient, workspaceId ?? "", params.id);
+    },
+  });
+}
+
+export function useCancelQueuedSessionPrompt(options: UseSessionWorkspaceOptions = {}) {
+  const queryClient = useQueryClient();
+  const { activeWorkspaceId } = useActiveWorkspace();
+  const workspaceId = resolveWorkspaceId(options.workspaceId, activeWorkspaceId);
+
+  return useMutation<SessionPromptPayload, Error, CancelQueuedSessionPromptParams>({
+    mutationFn: ({ id, queueEntryId }) =>
+      cancelQueuedSessionPrompt(requireWorkspace(workspaceId), id, queueEntryId),
+    onSettled: (_data, _error, params) => {
+      invalidateSessionPromptSurfaces(queryClient, workspaceId ?? "", params.id);
     },
   });
 }

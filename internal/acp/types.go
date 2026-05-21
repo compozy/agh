@@ -165,6 +165,23 @@ type PromptActivityReport struct {
 }
 
 const (
+	// PromptActionSteered identifies a user message injected from the busy-input steer queue.
+	PromptActionSteered = "prompt_steered"
+)
+
+// SteerInput is one staged operator message consumed at a tool-result boundary.
+type SteerInput struct {
+	Text            string
+	QueueEntryID    string
+	QueueGeneration int64
+}
+
+// SteerSource is the ACP-side consumption boundary for staged steer input.
+type SteerSource interface {
+	ConsumeSteer(ctx context.Context, sessionID string) (SteerInput, bool, error)
+}
+
+const (
 	// PromptTurnSourceUser identifies a daemon prompt that originated from the
 	// user-facing prompt surfaces.
 	PromptTurnSourceUser = "user"
@@ -567,6 +584,7 @@ type AgentProcess struct {
 	terminals       *terminalManager
 	processRegistry *toolruntime.Registry
 	processRecord   *toolruntime.Handle
+	steerSource     SteerSource
 
 	terminalOwnershipMu sync.RWMutex
 	terminalOwnership   map[string]terminalOwnership

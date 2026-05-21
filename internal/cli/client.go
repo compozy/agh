@@ -157,6 +157,9 @@ type DaemonClient interface {
 	RepairSession(ctx context.Context, id string, query SessionRepairQuery) (SessionRepairRecord, error)
 	ApproveSession(ctx context.Context, id string, request SessionApprovalRequest) (SessionApprovalRecord, error)
 	PromptSession(ctx context.Context, id string, message string) ([]AgentEventRecord, error)
+	SendSessionPrompt(ctx context.Context, id string, request SessionPromptRequest) (SessionPromptRecord, error)
+	SteerSessionPrompt(ctx context.Context, id string, text string) (SessionPromptRecord, error)
+	CancelQueuedSessionPrompt(ctx context.Context, id string, queueEntryID string) (SessionPromptRecord, error)
 	StreamPromptSession(ctx context.Context, id string, message string, handler SSEHandler) error
 	SessionEvents(ctx context.Context, id string, query SessionEventQuery) ([]SessionEventRecord, error)
 	StreamSessionEvents(
@@ -502,6 +505,18 @@ type SessionApprovalRequest = contract.ApproveSessionRequest
 
 // SessionApprovalRecord is the shared session approval response payload.
 type SessionApprovalRecord = contract.SessionApprovalResponse
+
+// SessionPromptRequest captures a session prompt plus explicit busy-input mode.
+type SessionPromptRequest = contract.SendPromptRequest
+
+// SessionPromptResultRecord is the shared non-streaming prompt outcome payload.
+type SessionPromptResultRecord = contract.SendPromptResultPayload
+
+// SessionPromptRecord wraps prompt outcomes that may either stream events or return a busy-input decision.
+type SessionPromptRecord struct {
+	Prompt SessionPromptResultRecord `json:"prompt"`
+	Events []AgentEventRecord        `json:"events,omitempty"`
+}
 
 // SessionEventRecord is one persisted session event row returned by the daemon API.
 type SessionEventRecord = contract.SessionEventPayload
@@ -2309,38 +2324,56 @@ func (c *unixSocketClient) ApproveSession(
 }
 
 func (c *unixSocketClient) PromptSession(ctx context.Context, id string, message string) ([]AgentEventRecord, error) {
-	var events []AgentEventRecord
+	record, err := c.SendSessionPrompt(ctx, id, SessionPromptRequest{Message: message})
+	if err != nil {
+		return nil, err
+	}
+	if record.Events == nil {
+		return []AgentEventRecord{}, nil
+	}
+	return record.Events, nil
+}
+
+func (c *unixSocketClient) SendSessionPrompt(
+	ctx context.Context,
+	id string,
+	request SessionPromptRequest,
+) (SessionPromptRecord, error) {
 	query := url.Values{}
 	query.Set("format", "raw")
 	path, err := c.sessionScopedPath(ctx, id, "/prompt")
 	if err != nil {
-		return nil, err
+		return SessionPromptRecord{}, err
 	}
-	err = c.doSSE(
-		ctx,
-		http.MethodPost,
-		path,
-		query,
-		map[string]string{clientMessageKey: message},
-		"",
-		func(event SSEEvent) error {
-			var payload AgentEventRecord
-			if len(event.Data) > 0 {
-				if err := json.Unmarshal(event.Data, &payload); err != nil {
-					return fmt.Errorf("cli: decode prompt event: %w", err)
-				}
-			}
-			if payload.Type == "" {
-				payload.Type = event.Event
-			}
-			events = append(events, payload)
-			return nil
-		},
-	)
+	return c.doSessionPrompt(ctx, http.MethodPost, path, query, request)
+}
+
+func (c *unixSocketClient) SteerSessionPrompt(
+	ctx context.Context,
+	id string,
+	text string,
+) (SessionPromptRecord, error) {
+	path, err := c.sessionScopedPath(ctx, id, "/steer")
 	if err != nil {
-		return nil, err
+		return SessionPromptRecord{}, err
 	}
-	return events, nil
+	return c.doSessionPrompt(ctx, http.MethodPost, path, nil, contract.SteerPromptRequest{Text: text})
+}
+
+func (c *unixSocketClient) CancelQueuedSessionPrompt(
+	ctx context.Context,
+	id string,
+	queueEntryID string,
+) (SessionPromptRecord, error) {
+	entryID, err := requireNetworkPathValue("queue_entry_id", queueEntryID)
+	if err != nil {
+		return SessionPromptRecord{}, err
+	}
+	path, err := c.sessionScopedPath(ctx, id, "/prompt/queue/"+url.PathEscape(entryID))
+	if err != nil {
+		return SessionPromptRecord{}, err
+	}
+	return c.doSessionPrompt(ctx, http.MethodDelete, path, nil, nil)
 }
 
 func (c *unixSocketClient) StreamPromptSession(
@@ -4372,6 +4405,61 @@ func (c *unixSocketClient) doSSE(
 		return drainResponseBody(method, path, response.Body)
 	}
 	return decodeSSE(ctx, response.Body, handler)
+}
+
+func (c *unixSocketClient) doSessionPrompt(
+	ctx context.Context,
+	method string,
+	path string,
+	query url.Values,
+	requestBody any,
+) (SessionPromptRecord, error) {
+	response, err := c.doRequestWithCredentialsAndClient(
+		ctx,
+		method,
+		path,
+		query,
+		requestBody,
+		"",
+		agentidentity.Credentials{},
+		c.streamHTTPClient(),
+	)
+	if err != nil {
+		return SessionPromptRecord{}, err
+	}
+	defer func() {
+		_ = response.Body.Close()
+	}()
+
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return SessionPromptRecord{}, readAPIError(response)
+	}
+
+	if strings.Contains(strings.ToLower(response.Header.Get("Content-Type")), "text/event-stream") {
+		var events []AgentEventRecord
+		if err := decodeSSE(ctx, response.Body, func(event SSEEvent) error {
+			var payload AgentEventRecord
+			if len(event.Data) > 0 {
+				if err := json.Unmarshal(event.Data, &payload); err != nil {
+					return fmt.Errorf("cli: decode prompt event: %w", err)
+				}
+			}
+			if payload.Type == "" {
+				payload.Type = event.Event
+			}
+			events = append(events, payload)
+			return nil
+		}); err != nil {
+			return SessionPromptRecord{}, err
+		}
+		return SessionPromptRecord{Events: events}, nil
+	}
+
+	var responseBody contract.SendPromptResultResponse
+	if err := json.NewDecoder(response.Body).Decode(&responseBody); err != nil {
+		return SessionPromptRecord{}, fmt.Errorf("cli: decode %s %s response: %w", method, path, err)
+	}
+	return SessionPromptRecord{Prompt: responseBody.Prompt}, nil
 }
 
 func (c *unixSocketClient) doRequest(
