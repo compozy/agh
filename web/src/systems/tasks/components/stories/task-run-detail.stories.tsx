@@ -113,7 +113,13 @@ function DetailSurface({ run, items = sampleEvents, isLive = true }: DetailSurfa
   return (
     <PanelSurface className="min-h-[820px] flex-col p-0">
       <div className="flex min-h-0 flex-1 flex-col">
-        <TaskRunDetailHeader onCancelRun={() => undefined} run={run} />
+        <TaskRunDetailHeader
+          onCancelRun={() => undefined}
+          onForceFailRun={() => undefined}
+          onForceReleaseRun={() => undefined}
+          onRetryRun={() => undefined}
+          run={run}
+        />
         <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-5">
           <TaskRunTimelinePanel isLive={isLive} items={items} run={run} />
         </div>
@@ -152,6 +158,22 @@ export const Completed: Story = {
           task: { id: "task_001", identifier: "TASK-42" },
         } as unknown as TaskTimelineItem,
       ]}
+    />
+  ),
+};
+
+export const Claimed: Story = {
+  render: () => (
+    <DetailSurface
+      isLive={false}
+      run={buildRun({
+        run: {
+          ...buildRun().run,
+          status: "claimed",
+          started_at: null,
+        },
+      } as Partial<TaskRunDetailView>)}
+      items={sampleEvents.slice(0, 2)}
     />
   ),
 };

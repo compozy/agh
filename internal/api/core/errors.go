@@ -358,6 +358,14 @@ func StatusForTaskError(err error) int {
 		return http.StatusRequestEntityTooLarge
 	case errors.Is(err, taskpkg.ErrPermissionDenied):
 		return http.StatusForbidden
+	case errors.Is(err, taskpkg.ErrForbiddenOperatorAction):
+		return http.StatusForbidden
+	case errors.Is(err, taskpkg.ErrForceOpRateLimited):
+		return http.StatusTooManyRequests
+	case errors.Is(err, taskpkg.ErrForceOpRequiresReason),
+		errors.Is(err, taskpkg.ErrRetryChainTooDeep),
+		errors.Is(err, taskpkg.ErrBulkTooLarge):
+		return http.StatusUnprocessableEntity
 	case errors.Is(err, errAgentIdentityUnavailable),
 		errors.Is(err, agentidentity.ErrIdentityLookupUnavailable):
 		return http.StatusServiceUnavailable

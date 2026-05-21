@@ -561,6 +561,10 @@ var globalSchemaStatements = appendSchemaStatements(
 			)
 		),
 		attempt         INTEGER NOT NULL CHECK (attempt > 0),
+		previous_run_id TEXT,
+		failure_kind    TEXT NOT NULL DEFAULT '' CHECK (
+			failure_kind = '' OR failure_kind IN ('operator_forced')
+		),
 		claimed_by_kind TEXT CHECK (
 			claimed_by_kind IS NULL OR claimed_by_kind IN (
 				'human', 'agent_session', 'automation', 'extension', 'network_peer', 'daemon'
@@ -618,6 +622,7 @@ var globalSchemaStatements = appendSchemaStatements(
 		`CREATE INDEX IF NOT EXISTS idx_task_runs_task ON task_runs(task_id, queued_at DESC, id DESC);`,
 		`CREATE INDEX IF NOT EXISTS idx_task_runs_task_status ON task_runs(task_id, status, queued_at DESC, id DESC);`,
 		`CREATE INDEX IF NOT EXISTS idx_task_runs_status ON task_runs(status);`,
+		`CREATE INDEX IF NOT EXISTS idx_task_runs_previous ON task_runs(previous_run_id);`,
 		`CREATE INDEX IF NOT EXISTS idx_task_runs_session ON task_runs(session_id);`,
 		`CREATE INDEX IF NOT EXISTS idx_task_runs_channel ON task_runs(network_channel);`,
 		`CREATE TABLE IF NOT EXISTS task_dependencies (
@@ -993,6 +998,12 @@ var globalSchemaMigrations = []store.Migration{
 		Name:     "add_session_input_queue",
 		Up:       migrateSessionInputQueue,
 		Checksum: "2026-05-21-add-session-input-queue",
+	},
+	{
+		Version:  32,
+		Name:     "add_task_run_force_ops",
+		Up:       migrateTaskRunForceOps,
+		Checksum: "2026-05-21-add-task-run-force-ops",
 	},
 }
 

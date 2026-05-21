@@ -4196,6 +4196,8 @@ export interface TaskRunSummaryPayload {
   task_id: string;
   status: RunStatus;
   attempt: number;
+  previous_run_id?: string;
+  failure_kind?: string;
   max_attempts: number;
   session_id?: string;
   claimed_by?: ActorIdentity;
@@ -4252,6 +4254,8 @@ export interface TaskRun {
   task_id: string;
   status: RunStatus;
   attempt: number;
+  previous_run_id?: string;
+  failure_kind?: string;
   claimed_by?: ActorIdentity;
   session_id?: string;
   origin: Origin;

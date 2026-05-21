@@ -25,6 +25,12 @@ const (
 // TaskConfig controls task runtime behavior.
 type TaskConfig struct {
 	Orchestration TaskOrchestrationConfig `toml:"orchestration"`
+	Recovery      TaskRecoveryConfig      `toml:"recovery"`
+}
+
+// TaskRecoveryConfig controls task-run recovery verbs.
+type TaskRecoveryConfig struct {
+	AllowAgentForce bool `toml:"allow_agent_force"`
 }
 
 // TaskOrchestrationConfig controls bounded task orchestration behavior.
@@ -101,6 +107,9 @@ func DefaultTaskConfig() TaskConfig {
 				NextRoundGuidanceMaxBytes: 4096,
 				FailurePolicy:             TaskReviewFailureBlockTask,
 			},
+		},
+		Recovery: TaskRecoveryConfig{
+			AllowAgentForce: true,
 		},
 	}
 }

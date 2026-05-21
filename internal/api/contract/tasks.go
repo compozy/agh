@@ -126,6 +126,8 @@ type TaskRunPayload struct {
 	TaskID                string                      `json:"task_id"`
 	Status                taskpkg.RunStatus           `json:"status"`
 	Attempt               int                         `json:"attempt"`
+	PreviousRunID         string                      `json:"previous_run_id,omitempty"`
+	FailureKind           string                      `json:"failure_kind,omitempty"`
 	ClaimedBy             *taskpkg.ActorIdentity      `json:"claimed_by,omitempty"`
 	SessionID             string                      `json:"session_id,omitempty"`
 	Origin                taskpkg.Origin              `json:"origin"`
@@ -151,6 +153,8 @@ type TaskRunSummaryPayload struct {
 	TaskID                string                      `json:"task_id"`
 	Status                taskpkg.RunStatus           `json:"status"`
 	Attempt               int                         `json:"attempt"`
+	PreviousRunID         string                      `json:"previous_run_id,omitempty"`
+	FailureKind           string                      `json:"failure_kind,omitempty"`
 	MaxAttempts           int                         `json:"max_attempts"`
 	SessionID             string                      `json:"session_id,omitempty"`
 	ClaimedBy             *taskpkg.ActorIdentity      `json:"claimed_by,omitempty"`
@@ -714,6 +718,38 @@ type CompleteTaskRunRequest struct {
 type FailTaskRunRequest struct {
 	Error    string          `json:"error"`
 	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// ForceReleaseTaskRunRequest is the shared force-release request payload.
+type ForceReleaseTaskRunRequest struct {
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// ForceFailTaskRunRequest is the shared forced-failure request payload.
+type ForceFailTaskRunRequest struct {
+	Reason   string          `json:"reason"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// RetryTaskRunRequest is the shared retry request payload.
+type RetryTaskRunRequest struct {
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// BulkForceTaskRunRequest is the shared bounded bulk force-operation payload.
+type BulkForceTaskRunRequest struct {
+	RunIDs   []string        `json:"run_ids"`
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// BulkForceTaskRunItemPayload records one per-row bulk force-operation outcome.
+type BulkForceTaskRunItemPayload struct {
+	RunID string          `json:"run_id"`
+	OK    bool            `json:"ok"`
+	Run   *TaskRunPayload `json:"run,omitempty"`
+	Error *ErrorPayload   `json:"error,omitempty"`
 }
 
 // CancelTaskRunRequest is the shared run-cancel request payload.

@@ -5882,6 +5882,27 @@ func (r *recordingRegistry) ReleaseRunLease(
 	return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
 }
 
+func (r *recordingRegistry) ForceReleaseTaskRun(
+	context.Context,
+	taskpkg.ForceReleaseRunMutation,
+) (taskpkg.ForceRunMutationResult, error) {
+	return taskpkg.ForceRunMutationResult{}, taskpkg.ErrTaskRunNotFound
+}
+
+func (r *recordingRegistry) ForceFailTaskRun(
+	context.Context,
+	taskpkg.ForceFailRunMutation,
+) (taskpkg.ForceRunMutationResult, error) {
+	return taskpkg.ForceRunMutationResult{}, taskpkg.ErrTaskRunNotFound
+}
+
+func (r *recordingRegistry) RetryTaskRun(
+	context.Context,
+	taskpkg.RetryRunMutation,
+) (taskpkg.RetryRunResult, error) {
+	return taskpkg.RetryRunResult{}, taskpkg.ErrTaskRunNotFound
+}
+
 func (r *recordingRegistry) CompleteRunLease(
 	context.Context,
 	taskpkg.LeaseCompletion,

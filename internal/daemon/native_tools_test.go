@@ -6490,6 +6490,49 @@ func (unsupportedNativeTaskManager) ReleaseRunLease(
 	return nil, errUnexpectedNativeTaskCall
 }
 
+func (unsupportedNativeTaskManager) ForceReleaseRun(
+	context.Context,
+	string,
+	taskpkg.ForceReleaseRun,
+	taskpkg.ActorContext,
+) (*taskpkg.Run, error) {
+	return nil, errUnexpectedNativeTaskCall
+}
+
+func (unsupportedNativeTaskManager) ForceFailRun(
+	context.Context,
+	string,
+	taskpkg.ForceFailRun,
+	taskpkg.ActorContext,
+) (*taskpkg.Run, error) {
+	return nil, errUnexpectedNativeTaskCall
+}
+
+func (unsupportedNativeTaskManager) RetryRun(
+	context.Context,
+	string,
+	taskpkg.RetryRunRequest,
+	taskpkg.ActorContext,
+) (*taskpkg.RetryRunResult, error) {
+	return nil, errUnexpectedNativeTaskCall
+}
+
+func (unsupportedNativeTaskManager) BulkForceReleaseRuns(
+	context.Context,
+	taskpkg.BulkForceRunRequest,
+	taskpkg.ActorContext,
+) (taskpkg.BulkForceRunResult, error) {
+	return taskpkg.BulkForceRunResult{}, errUnexpectedNativeTaskCall
+}
+
+func (unsupportedNativeTaskManager) BulkForceFailRuns(
+	context.Context,
+	taskpkg.BulkForceRunRequest,
+	taskpkg.ActorContext,
+) (taskpkg.BulkForceRunResult, error) {
+	return taskpkg.BulkForceRunResult{}, errUnexpectedNativeTaskCall
+}
+
 func (unsupportedNativeTaskManager) CompleteRunLease(
 	context.Context,
 	taskpkg.LeaseCompletion,

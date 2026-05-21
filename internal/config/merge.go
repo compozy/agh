@@ -451,6 +451,11 @@ type toolsPolicyOverlay struct {
 
 type taskOverlay struct {
 	Orchestration taskOrchestrationOverlay `toml:"orchestration"`
+	Recovery      taskRecoveryOverlay      `toml:"recovery"`
+}
+
+type taskRecoveryOverlay struct {
+	AllowAgentForce *bool `toml:"allow_agent_force"`
 }
 
 type taskOrchestrationOverlay struct {
@@ -1441,6 +1446,13 @@ func (o toolsPolicyOverlay) Apply(dst *ToolsPolicyConfig) {
 
 func (o taskOverlay) Apply(dst *TaskConfig) {
 	o.Orchestration.Apply(&dst.Orchestration)
+	o.Recovery.Apply(&dst.Recovery)
+}
+
+func (o taskRecoveryOverlay) Apply(dst *TaskRecoveryConfig) {
+	if o.AllowAgentForce != nil {
+		dst.AllowAgentForce = *o.AllowAgentForce
+	}
 }
 
 func (o taskOrchestrationOverlay) Apply(dst *TaskOrchestrationConfig) {

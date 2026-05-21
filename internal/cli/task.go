@@ -67,6 +67,7 @@ const (
 	taskDescriptionKey           = "description"
 	taskEndedAtKey               = "ended_at"
 	taskErrorKey                 = "error"
+	taskFailureKindKey           = "failure_kind"
 	taskGetIDValue               = "get <id>"
 	taskGroupIDKey               = "group_id"
 	taskIdentifierKey            = "identifier"
@@ -230,6 +231,7 @@ func newTaskCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newTaskCompleteCommand(deps))
 	cmd.AddCommand(newTaskFailCommand(deps))
 	cmd.AddCommand(newTaskReleaseCommand(deps))
+	cmd.AddCommand(newTaskRetryCommand(deps))
 	cmd.AddCommand(newTaskChildCommand(deps))
 	cmd.AddCommand(newTaskDependencyCommand(deps))
 	cmd.AddCommand(newTaskRunCommand(deps))
@@ -1410,30 +1412,30 @@ func newTaskCompleteCommand(deps commandDeps) *cobra.Command {
 }
 
 func newTaskFailCommand(deps commandDeps) *cobra.Command {
-	var errorMessage string
+	var reason string
 	var metadataRaw string
 
 	cmd := &cobra.Command{
-		Use:   "fail <run-id>",
-		Short: "Fail a claimed task run for the current agent session",
-		Args:  cobra.ExactArgs(1),
-		Example: `  # Mark a claimed run failed
-  agh task fail run-123 --error "tests failed"
+		Use:   "fail <run-id> [run-id...]",
+		Short: "Force fail queued or claimed task runs",
+		Args:  cobra.MinimumNArgs(1),
+		Example: `  # Force fail one run
+  agh task fail run-123 --reason "operator recovery"
 
-	  # Include structured failure metadata
-	  agh task fail run-123 \
-	    --error "tests failed" \
-	    --metadata '{"command":"make test"}'`,
+  # Force fail multiple runs with shared audit evidence
+  agh task fail run-123 run-456 \
+    --reason "provider credentials revoked" \
+    --metadata '{"incident":"INC-42"}'`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			runID, err := requiredAgentTaskRunID(args[0])
+			runIDs, err := requiredTaskRunIDs(args)
 			if err != nil {
 				return err
 			}
-			request := AgentTaskFailRequest{
-				Error: strings.TrimSpace(errorMessage),
+			request := ForceFailTaskRunRequest{
+				Reason: strings.TrimSpace(reason),
 			}
-			if request.Error == "" {
-				return errors.New("cli: --error is required")
+			if request.Reason == "" {
+				return errors.New("cli: --reason is required")
 			}
 			if cmd.Flags().Changed("metadata") {
 				request.Metadata, err = parseAgentTaskJSONFlag("metadata", metadataRaw)
@@ -1446,65 +1448,118 @@ func newTaskFailCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			credentials, err := requireAgentCommandIdentity(cmd.Context(), deps, client, agentActionCLI("task.fail"))
+			if len(runIDs) == 1 {
+				record, err := client.ForceFailTaskRun(cmd.Context(), runIDs[0], request)
+				if err != nil {
+					return err
+				}
+				return writeCommandOutput(cmd, taskRunBundle(record))
+			}
+			record, err := client.BulkForceFailTaskRuns(cmd.Context(), BulkForceTaskRunRequest{
+				RunIDs:   runIDs,
+				Reason:   request.Reason,
+				Metadata: request.Metadata,
+			})
 			if err != nil {
 				return err
 			}
-			record, err := client.AgentTaskFail(cmd.Context(), runID, request, credentials)
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, agentTaskLeaseBundle(record))
+			return writeCommandOutput(cmd, bulkForceTaskRunBundle(record))
 		},
 	}
-	cmd.Flags().StringVar(&errorMessage, taskErrorKey, "", "Failure message")
-	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional failure metadata JSON")
-	mustMarkFlagRequired(cmd, taskErrorKey)
+	cmd.Flags().StringVar(&reason, "reason", "", "Forced-failure reason")
+	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional forced-failure metadata JSON")
+	mustMarkFlagRequired(cmd, "reason")
 	return cmd
 }
 
 func newTaskReleaseCommand(deps commandDeps) *cobra.Command {
 	var reason string
+	var metadataRaw string
 
 	cmd := &cobra.Command{
-		Use:   "release <run-id>",
-		Short: "Release a claimed task run for the current agent session",
-		Args:  cobra.ExactArgs(1),
+		Use:   "release <run-id> [run-id...]",
+		Short: "Force release claimed task runs back to the queue",
+		Args:  cobra.MinimumNArgs(1),
 		Example: `  # Release a claim without completing the run
   agh task release run-123
 
-	  # Include a structured reason for observability
-  agh task release run-123 --reason handoff`,
+  # Release multiple claims with shared audit evidence
+  agh task release run-123 run-456 --reason handoff`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			runID, err := requiredAgentTaskRunID(args[0])
+			runIDs, err := requiredTaskRunIDs(args)
 			if err != nil {
 				return err
 			}
-			request := AgentTaskReleaseRequest{
+			request := ForceReleaseTaskRunRequest{
 				Reason: strings.TrimSpace(reason),
+			}
+			if cmd.Flags().Changed("metadata") {
+				request.Metadata, err = parseAgentTaskJSONFlag("metadata", metadataRaw)
+				if err != nil {
+					return err
+				}
 			}
 
 			client, err := clientFromDeps(deps)
 			if err != nil {
 				return err
 			}
-			credentials, err := requireAgentCommandIdentity(
-				cmd.Context(),
-				deps,
-				client,
-				agentActionCLI("task.release"),
-			)
+			if len(runIDs) == 1 {
+				record, err := client.ForceReleaseTaskRun(cmd.Context(), runIDs[0], request)
+				if err != nil {
+					return err
+				}
+				return writeCommandOutput(cmd, taskRunBundle(record))
+			}
+			record, err := client.BulkForceReleaseTaskRuns(cmd.Context(), BulkForceTaskRunRequest{
+				RunIDs:   runIDs,
+				Reason:   request.Reason,
+				Metadata: request.Metadata,
+			})
 			if err != nil {
 				return err
 			}
-			record, err := client.AgentTaskRelease(cmd.Context(), runID, request, credentials)
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, agentTaskLeaseBundle(record))
+			return writeCommandOutput(cmd, bulkForceTaskRunBundle(record))
 		},
 	}
 	cmd.Flags().StringVar(&reason, "reason", "", "Optional release reason")
+	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional release metadata JSON")
+	return cmd
+}
+
+func newTaskRetryCommand(deps commandDeps) *cobra.Command {
+	var metadataRaw string
+
+	cmd := &cobra.Command{
+		Use:   "retry <run-id>",
+		Short: "Retry one failed task run",
+		Args:  cobra.ExactArgs(1),
+		Example: `  # Re-enqueue one failed run
+  agh task retry run-123`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runIDs, err := requiredTaskRunIDs(args)
+			if err != nil {
+				return err
+			}
+			request := RetryTaskRunRequest{}
+			if cmd.Flags().Changed("metadata") {
+				request.Metadata, err = parseAgentTaskJSONFlag("metadata", metadataRaw)
+				if err != nil {
+					return err
+				}
+			}
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			record, err := client.RetryTaskRun(cmd.Context(), runIDs[0], request)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, retryTaskRunBundle(&record))
+		},
+	}
+	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional retry metadata JSON")
 	return cmd
 }
 
@@ -2220,6 +2275,21 @@ func requiredAgentTaskRunID(rawRunID string) (string, error) {
 		return "", errors.New("cli: run id is required")
 	}
 	return runID, nil
+}
+
+func requiredTaskRunIDs(rawRunIDs []string) ([]string, error) {
+	if len(rawRunIDs) == 0 {
+		return nil, errors.New("cli: at least one run id is required")
+	}
+	runIDs := make([]string, 0, len(rawRunIDs))
+	for _, rawRunID := range rawRunIDs {
+		runID, err := requiredAgentTaskRunID(rawRunID)
+		if err != nil {
+			return nil, err
+		}
+		runIDs = append(runIDs, runID)
+	}
+	return runIDs, nil
 }
 
 func validateAgentTaskLeaseSeconds(seconds int64) error {
@@ -3185,6 +3255,8 @@ func taskRunBundle(item TaskRunRecord) outputBundle {
 				{Label: taskTaskValue, Value: stringOrDash(item.TaskID)},
 				{Label: taskStatusValue, Value: stringOrDash(string(item.Status))},
 				{Label: taskAttemptValue, Value: intOrDash(item.Attempt)},
+				{Label: "Previous Run", Value: stringOrDash(item.PreviousRunID)},
+				{Label: "Failure Kind", Value: stringOrDash(item.FailureKind)},
 				{Label: taskClaimedByValue, Value: stringOrDash(formatTaskActorPtr(item.ClaimedBy))},
 				{Label: taskSessionValue, Value: stringOrDash(item.SessionID)},
 				{Label: taskOriginValue, Value: stringOrDash(formatTaskOrigin(item.Origin))},
@@ -3205,6 +3277,8 @@ func taskRunBundle(item TaskRunRecord) outputBundle {
 				taskTaskIDKey,
 				taskStatusKey,
 				taskAttemptKey,
+				"previous_run_id",
+				taskFailureKindKey,
 				taskClaimedByKey,
 				taskSessionIDKey,
 				taskOriginKey,
@@ -3222,6 +3296,8 @@ func taskRunBundle(item TaskRunRecord) outputBundle {
 				item.TaskID,
 				string(item.Status),
 				strconv.Itoa(item.Attempt),
+				item.PreviousRunID,
+				item.FailureKind,
 				formatTaskActorPtr(item.ClaimedBy),
 				item.SessionID,
 				formatTaskOrigin(item.Origin),
@@ -3237,6 +3313,86 @@ func taskRunBundle(item TaskRunRecord) outputBundle {
 			}), nil
 		},
 	}
+}
+
+func retryTaskRunBundle(record *RetryTaskRunRecord) outputBundle {
+	return outputBundle{
+		jsonValue: record,
+		human: func() (string, error) {
+			return renderHumanSection("Task Run Retry", []keyValue{
+				{Label: "Source Run", Value: stringOrDash(record.PreviousRun.ID)},
+				{Label: "Source Status", Value: stringOrDash(string(record.PreviousRun.Status))},
+				{Label: "New Run", Value: stringOrDash(record.Run.ID)},
+				{Label: taskTaskValue, Value: stringOrDash(record.Run.TaskID)},
+				{Label: taskStatusValue, Value: stringOrDash(string(record.Run.Status))},
+				{Label: taskAttemptValue, Value: intOrDash(record.Run.Attempt)},
+			}), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject("task_run_retry", []string{
+				"source_run_id",
+				"source_status",
+				"new_run_id",
+				taskTaskIDKey,
+				taskStatusKey,
+				taskAttemptKey,
+			}, []string{
+				record.PreviousRun.ID,
+				string(record.PreviousRun.Status),
+				record.Run.ID,
+				record.Run.TaskID,
+				string(record.Run.Status),
+				strconv.Itoa(record.Run.Attempt),
+			}), nil
+		},
+	}
+}
+
+func bulkForceTaskRunBundle(record BulkForceTaskRunRecord) outputBundle {
+	return listBundle(
+		record,
+		record.Results,
+		"Task Run Force Operations",
+		[]string{"Run ID", "OK", taskStatusValue, taskErrorValue},
+		"task_run_force_operations",
+		[]string{taskRunIDKey, "ok", taskStatusKey, taskErrorKey},
+		func(item BulkForceTaskRunItemRecord) []string {
+			return []string{
+				item.RunID,
+				strconv.FormatBool(item.OK),
+				bulkForceTaskRunStatus(item),
+				bulkForceTaskRunError(item),
+			}
+		},
+		func(item BulkForceTaskRunItemRecord) []string {
+			return []string{
+				item.RunID,
+				strconv.FormatBool(item.OK),
+				bulkForceTaskRunStatus(item),
+				bulkForceTaskRunError(item),
+			}
+		},
+	)
+}
+
+func bulkForceTaskRunStatus(item BulkForceTaskRunItemRecord) string {
+	if item.Run == nil {
+		return ""
+	}
+	return string(item.Run.Status)
+}
+
+func bulkForceTaskRunError(item BulkForceTaskRunItemRecord) string {
+	if item.Error == nil {
+		return ""
+	}
+	if strings.TrimSpace(item.Error.Error) != "" {
+		return item.Error.Error
+	}
+	if item.Error.Diagnostic != nil {
+		return item.Error.Diagnostic.Code
+	}
+	return ""
 }
 
 func taskRunListBundle(items []TaskRunRecord) outputBundle {

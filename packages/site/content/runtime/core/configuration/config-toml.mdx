@@ -71,6 +71,7 @@ Use only `[sandboxes.<name>]` for session execution boundaries.
 | `[task.orchestration]`               | Bounds for run summaries, context bundles, scheduler health, and max-runtime.   | 4 KiB summaries, 8 KiB context, prior 5/recent 50 events, spawn fail limit 5       |
 | `[task.orchestration.profile]`       | Defaults and gates for task execution profiles.                                 | inherit coordinator/worker/sandbox; provider override + sandbox `none` allowed     |
 | `[task.orchestration.review]`        | Defaults and bounds for the post-terminal review gate.                          | policy `none`, max rounds 3, max attempts 2, timeout 20m, failure `block_task`     |
+| `[task.recovery]`                    | Gates agent access to task-run force recovery verbs.                            | agents may force release, force fail, and retry                                    |
 | `[[hooks.declarations]]`             | Config-defined runtime hooks.                                                   | empty list                                                                         |
 | `[network]`                          | Experimental AGH network runtime.                                               | enabled, channel `default`                                                         |
 
@@ -517,6 +518,11 @@ reason_max_bytes = 2048
 review_text_max_bytes = 12000
 next_round_guidance_max_bytes = 4096
 failure_policy = "block_task"
+
+[task.recovery]
+# When true, agent identities may use force release, force fail, retry, and bulk recovery surfaces.
+# Set false to reserve those verbs for non-agent operator identities.
+allow_agent_force = true
 
 [[hooks.declarations]]
 name = "record-session-start"
@@ -1316,6 +1322,20 @@ defaults and the bounded reviewer evidence enforced by `task.Service.RecordRunRe
 
 Workspace overlays may tighten or relax these values per workspace through
 `<workspace>/.agh/config.toml`. Unknown keys still fail validation.
+
+## `[task.recovery]`
+
+`[task.recovery]` controls who may call the task-run recovery verbs documented in
+[Task Runs and Leases](/runtime/core/autonomy/task-runs-and-leases#force-operations). The setting
+does not change normal token-fenced claim, heartbeat, complete, fail, or release tools.
+
+| Field               | Type    | Default | Valid values      | Description                                                                                 |
+| ------------------- | ------- | ------- | ----------------- | ------------------------------------------------------------------------------------------- |
+| `allow_agent_force` | boolean | `true`  | `true` or `false` | When false, agent identities cannot force release, force fail, retry, or bulk-recover runs. |
+
+Set `allow_agent_force = false` when recovery should require a non-agent operator identity. The
+CLI/API/UDS surfaces then return a deterministic authorization diagnostic for agent callers and
+leave the run unchanged.
 
 ## `[[hooks.declarations]]`
 

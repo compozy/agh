@@ -64,6 +64,7 @@ const (
 	toolSurfaceTaskOrchestrationSchedulerBadTickThresholdPath = "task.orchestration.scheduler_bad_tick_threshold"
 	toolSurfaceTaskOrchestrationSpawnFailureLimitPath         = "task.orchestration.spawn_failure_limit"
 	toolSurfaceTaskOrchestrationSummaryMaxBytesPath           = "task.orchestration.summary_max_bytes"
+	toolSurfaceTaskRecoveryAllowAgentForcePath                = "task.recovery.allow_agent_force"
 	toolSurfaceToolsDefaultMaxResultBytesPath                 = "tools.default_max_result_bytes"
 	toolSurfaceWebhookSecretRefKey                            = "webhook_secret_ref"
 )
@@ -258,6 +259,7 @@ var (
 		toolSurfaceTaskOrchestrationReviewReviewTextMaxBytesPath:      ConfigValueInt,
 		reviewNextGuidanceBytesPath:                                   ConfigValueInt,
 		toolSurfaceTaskOrchestrationReviewFailurePolicyPath:           ConfigValueString,
+		toolSurfaceTaskRecoveryAllowAgentForcePath:                    ConfigValueBool,
 		toolSurfaceToolsDefaultMaxResultBytesPath:                     ConfigValueInt64,
 	}
 )

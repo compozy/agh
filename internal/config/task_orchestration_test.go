@@ -62,6 +62,9 @@ func TestTaskOrchestrationConfigDefaultsAndValidation(t *testing.T) {
 		if !orchestration.Profile.AllowTaskSandboxNone {
 			t.Fatal("DefaultWithHome() profile AllowTaskSandboxNone = false, want true")
 		}
+		if !cfg.Task.Recovery.AllowAgentForce {
+			t.Fatal("DefaultWithHome() recovery AllowAgentForce = false, want true")
+		}
 		if got, want := orchestration.Review.DefaultPolicy, TaskReviewPolicyNone; got != want {
 			t.Fatalf("DefaultWithHome() review DefaultPolicy = %q, want %q", got, want)
 		}
@@ -322,6 +325,9 @@ scheduler_bad_tick_threshold = 5
 scheduler_bad_tick_cooldown = "4m"
 default_max_runtime = "1h"
 
+[task.recovery]
+allow_agent_force = false
+
 [task.orchestration.profile]
 default_coordinator_mode = "guided"
 default_worker_mode = "inherit"
@@ -347,6 +353,9 @@ failure_policy = "fail_task"
 [task.orchestration]
 summary_max_bytes = 3000
 default_max_runtime = "0s"
+
+[task.recovery]
+allow_agent_force = true
 
 [task.orchestration.review]
 default_policy = "on_success"
@@ -389,6 +398,9 @@ timeout = "10m"
 		if got, want := orchestration.Review.FailurePolicy, TaskReviewFailureFailTask; got != want {
 			t.Fatalf("LoadForHome() Review.FailurePolicy = %q, want global value %q", got, want)
 		}
+		if !cfg.Task.Recovery.AllowAgentForce {
+			t.Fatal("LoadForHome() Recovery.AllowAgentForce = false, want workspace override true")
+		}
 	})
 
 	t.Run("Should reject unknown task orchestration keys", func(t *testing.T) {
@@ -413,6 +425,31 @@ unknown = true
 		}
 		if !strings.Contains(err.Error(), "task.orchestration.unknown") {
 			t.Fatalf("LoadForHome() error = %v, want task.orchestration.unknown", err)
+		}
+	})
+
+	t.Run("Should reject unknown task recovery keys", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := t.TempDir()
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		if err := EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		writeFile(t, homePaths.ConfigFile, `
+[task.recovery]
+unknown = true
+`)
+
+		_, err = LoadForHome(homePaths, WithWorkspaceRoot(workspaceRoot))
+		if err == nil {
+			t.Fatal("LoadForHome() error = nil, want unknown-key failure")
+		}
+		if !strings.Contains(err.Error(), "task.recovery.unknown") {
+			t.Fatalf("LoadForHome() error = %v, want task.recovery.unknown", err)
 		}
 	})
 }

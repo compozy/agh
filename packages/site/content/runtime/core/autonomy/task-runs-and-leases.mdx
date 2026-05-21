@@ -90,9 +90,11 @@ agh task complete run-123 \
 
 The optional result JSON must not contain raw lease credentials.
 
-## Failing a run
+## Failing a claimed run
 
-Use `fail` when the current claim cannot complete successfully.
+Use the session-bound fail path when the current claim cannot complete successfully. This path is
+token-fenced server-side: the caller supplies a `run_id`, and AGH resolves the managed session's
+active lease before mutating the run.
 
 Tool path:
 
@@ -103,16 +105,18 @@ agh__task_run_fail  { "run_id": "run-123", "error": "tests failed", "metadata": 
 CLI path:
 
 ```bash
-agh task fail run-123 \
+agh task run fail run-123 \
   --error "tests failed" \
   --metadata '{"command":"make test"}'
 ```
 
 Failure metadata must not contain raw lease credentials.
 
-## Releasing a run
+## Releasing a claimed run
 
-Use `release` when the session should give up ownership without making the run terminal.
+Use session-bound release when the current managed session should give up ownership without making
+the run terminal. The autonomy tool resolves the internal lease from the caller session and
+`run_id`; raw claim tokens never cross the public surface.
 
 Tool path:
 
@@ -120,15 +124,50 @@ Tool path:
 agh__task_run_release  { "run_id": "run-123", "reason": "handoff" }
 ```
 
-CLI path:
-
-```bash
-agh task release run-123 --reason handoff
-```
-
 Release is also used by daemon-owned cleanup. For example, if a spawned child reaches TTL or its
 parent stops, AGH releases active child leases with structured reasons such as `ttl_expired` or
 `parent_stopped` before stopping the child session.
+
+## Force operations
+
+Use force operations when a run needs operator recovery and the normal session-bound lease path is
+not available or should not be trusted. Force operations still mutate `task_runs` only through
+`task.Service`; they do not accept raw claim tokens, and they apply compare-and-swap state
+preconditions before committing.
+
+| Operation     | CLI path                                    | API route                     | Valid source state    |
+| ------------- | ------------------------------------------- | ----------------------------- | --------------------- |
+| Force release | `agh task release run-123 --reason handoff` | `POST /api/runs/{id}/release` | `claimed`             |
+| Force fail    | `agh task fail run-123 --reason "recovery"` | `POST /api/runs/{id}/fail`    | `queued` or `claimed` |
+| Retry         | `agh task retry run-123`                    | `POST /api/runs/{id}/retry`   | `failed`              |
+
+Bulk force release and force fail use bounded batches of run IDs:
+
+```bash
+agh task release run-123 run-456 --reason handoff -o json
+agh task fail run-123 run-456 --reason "provider credentials revoked" -o json
+```
+
+The HTTP and UDS bulk routes are `POST /api/runs/bulk/release` and
+`POST /api/runs/bulk/fail`. Bulk responses report one row per run so an agent can retry only the
+failed rows.
+
+Force fail requires a non-empty `reason` and records `failure_kind = "operator_forced"` on the
+run. Retry creates a new queued run linked through `previous_run_id` and refuses chains deeper
+than the runtime cap. Force release and force fail invalidate queued input generations for the
+previously bound session when that session exists, so stale prompts cannot be delivered after a
+recovery action.
+
+Every force operation emits canonical audit events:
+
+| Event                           | When AGH emits it                                                 |
+| ------------------------------- | ----------------------------------------------------------------- |
+| `task.run_released`             | A claimed run is force released back to the queue.                |
+| `task.run_operator_forced_fail` | A queued or claimed run is force failed with operator evidence.   |
+| `task.run_operator_retry`       | A failed run creates a new queued retry linked to the source run. |
+
+Agents may call these surfaces when `[task.recovery].allow_agent_force = true`. Set it to
+`false` when only non-agent operator identities should perform recovery.
 
 ## Task inspect diagnostics
 

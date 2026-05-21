@@ -13,9 +13,12 @@ import {
   useDismissTask,
   useEnqueueTaskRun,
   useFailTaskRun,
+  useForceFailTaskRun,
+  useForceReleaseTaskRun,
   useMarkTaskRead,
   usePublishTask,
   useRejectTask,
+  useRetryTaskRun,
   useUpdateTask,
 } from "@/systems/tasks";
 
@@ -36,6 +39,9 @@ vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
   claimTaskRun: vi.fn(),
   completeTaskRun: vi.fn(),
   failTaskRun: vi.fn(),
+  forceFailTaskRun: vi.fn(),
+  forceReleaseTaskRun: vi.fn(),
+  retryTaskRun: vi.fn(),
   inspectTask: vi.fn().mockResolvedValue(null),
   inspectRun: vi.fn().mockResolvedValue(null),
   startTaskRun: vi.fn(),
@@ -54,9 +60,12 @@ import {
   dismissTask,
   enqueueTaskRun,
   failTaskRun,
+  forceFailTaskRun,
+  forceReleaseTaskRun,
   markTaskRead,
   publishTask,
   rejectTask,
+  retryTaskRun,
   updateTask,
 } from "@/systems/tasks/adapters/tasks-api";
 
@@ -195,6 +204,12 @@ describe("task mutation hooks", () => {
     vi.mocked(enqueueTaskRun).mockResolvedValue(runFixture as never);
     vi.mocked(cancelTaskRun).mockResolvedValue(runFixture as never);
     vi.mocked(failTaskRun).mockResolvedValue(runFixture as never);
+    vi.mocked(forceReleaseTaskRun).mockResolvedValue(runFixture as never);
+    vi.mocked(forceFailTaskRun).mockResolvedValue(runFixture as never);
+    vi.mocked(retryTaskRun).mockResolvedValue({
+      previous_run: runFixture,
+      run: runFixture,
+    } as never);
 
     const queryClient = buildClient();
     const spy = vi.spyOn(queryClient, "invalidateQueries");
@@ -208,22 +223,46 @@ describe("task mutation hooks", () => {
     const failRunHook = renderHook(() => useFailTaskRun(), {
       wrapper: createWrapper(queryClient),
     });
+    const forceReleaseHook = renderHook(() => useForceReleaseTaskRun(), {
+      wrapper: createWrapper(queryClient),
+    });
+    const forceFailHook = renderHook(() => useForceFailTaskRun(), {
+      wrapper: createWrapper(queryClient),
+    });
+    const retryHook = renderHook(() => useRetryTaskRun(), {
+      wrapper: createWrapper(queryClient),
+    });
 
     act(() => {
       enqueueHook.result.current.mutate({ id: "task_001" });
       cancelRunHook.result.current.mutate({ runId: "run_001" });
       failRunHook.result.current.mutate({ runId: "run_001", data: { error: "boom" } });
+      forceReleaseHook.result.current.mutate({ runId: "run_001", data: { reason: "handoff" } });
+      forceFailHook.result.current.mutate({
+        runId: "run_001",
+        data: { reason: "operator recovery" },
+      });
+      retryHook.result.current.mutate({
+        runId: "run_001",
+        data: { metadata: { source: "operator" } },
+      });
     });
 
     await waitFor(() => {
       expect(enqueueHook.result.current.isSuccess).toBe(true);
       expect(cancelRunHook.result.current.isSuccess).toBe(true);
       expect(failRunHook.result.current.isSuccess).toBe(true);
+      expect(forceReleaseHook.result.current.isSuccess).toBe(true);
+      expect(forceFailHook.result.current.isSuccess).toBe(true);
+      expect(retryHook.result.current.isSuccess).toBe(true);
     });
 
     expect(enqueueTaskRun).toHaveBeenCalledWith("task_001", {});
     expect(cancelTaskRun).toHaveBeenCalledWith("run_001", {});
     expect(failTaskRun).toHaveBeenCalledWith("run_001", { error: "boom" });
+    expect(forceReleaseTaskRun).toHaveBeenCalledWith("run_001", { reason: "handoff" });
+    expect(forceFailTaskRun).toHaveBeenCalledWith("run_001", { reason: "operator recovery" });
+    expect(retryTaskRun).toHaveBeenCalledWith("run_001", { metadata: { source: "operator" } });
     expect(spy).toHaveBeenCalledWith({ queryKey: ["tasks", "run-detail", "run_001"] });
   });
 

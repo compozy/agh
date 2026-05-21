@@ -499,6 +499,11 @@ func expectedGlobalMigrationPrefix() []expectedGlobalMigrationIdentity {
 			name:     "add_session_input_queue",
 			checksum: "2026-05-21-add-session-input-queue",
 		},
+		{
+			version:  32,
+			name:     "add_task_run_force_ops",
+			checksum: "2026-05-21-add-task-run-force-ops",
+		},
 	}
 }
 

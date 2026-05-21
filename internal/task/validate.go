@@ -442,6 +442,9 @@ func (r Run) Validate() error {
 	if r.Attempt <= 0 {
 		return fmt.Errorf("%w: task_run.attempt must be positive: %d", ErrValidation, r.Attempt)
 	}
+	if err := validateRunLineageFields(r); err != nil {
+		return err
+	}
 	if r.ClaimedBy != nil {
 		if err := r.ClaimedBy.Validate("task_run.claimed_by"); err != nil {
 			return err
@@ -482,6 +485,21 @@ func (r Run) Validate() error {
 		return fmt.Errorf("%w: task_run.result must not contain raw lease credentials", ErrValidation)
 	}
 	return nil
+}
+
+func validateRunLineageFields(r Run) error {
+	if strings.TrimSpace(r.PreviousRunID) == r.ID {
+		return fmt.Errorf("%w: task_run.previous_run_id must not equal task_run.id", ErrValidation)
+	}
+	if strings.TrimSpace(r.FailureKind) == "" || strings.TrimSpace(r.FailureKind) == FailureKindOperatorForced {
+		return nil
+	}
+	return fmt.Errorf(
+		"%w: task_run.failure_kind must be %q when set: %q",
+		ErrValidation,
+		FailureKindOperatorForced,
+		r.FailureKind,
+	)
 }
 
 func validateTaskRunReviewGateFields(r Run) error {

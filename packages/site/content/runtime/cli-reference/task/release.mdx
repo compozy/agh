@@ -1,14 +1,14 @@
 ---
 title: "agh task release"
-description: "Release a claimed task run for the current agent session"
+description: "Force release claimed task runs back to the queue"
 ---
 
 ## agh task release
 
-Release a claimed task run for the current agent session
+Force release claimed task runs back to the queue
 
 ```
-agh task release <run-id> [flags]
+agh task release <run-id> [run-id...] [flags]
 ```
 
 ### Examples
@@ -17,15 +17,16 @@ agh task release <run-id> [flags]
   # Release a claim without completing the run
   agh task release run-123
 
-	  # Include a structured reason for observability
-  agh task release run-123 --reason handoff
+  # Release multiple claims with shared audit evidence
+  agh task release run-123 run-456 --reason handoff
 ```
 
 ### Options
 
 ```
-  -h, --help            help for release
-      --reason string   Optional release reason
+  -h, --help              help for release
+      --metadata string   Optional release metadata JSON
+      --reason string     Optional release reason
 ```
 
 ### Options inherited from parent commands
@@ -47,5 +48,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh task release <run-id> -o json
+agh task release <run-id> [run-id...] -o json
 ```

@@ -499,7 +499,11 @@ func TestSchedulerRequeuesDeadWorkerLeaseAndWakesReplacementIntegration(t *testi
 			LeaseDuration: time.Minute,
 			Now:           base.Add(11 * time.Second),
 		}, deadActor); !errors.Is(err, taskpkg.ErrInvalidClaimToken) {
-			t.Fatalf("HeartbeatRunLease(dead token after release) error = %v, want %v", err, taskpkg.ErrInvalidClaimToken)
+			t.Fatalf(
+				"HeartbeatRunLease(dead token after release) error = %v, want %v",
+				err,
+				taskpkg.ErrInvalidClaimToken,
+			)
 		}
 
 		waker := &fakeWaker{}

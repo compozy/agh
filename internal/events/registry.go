@@ -86,6 +86,8 @@ const (
 	TaskRunLeaseExtended        = "task.run_lease_extended"
 	TaskRunLeaseExpired         = "task.run_lease_expired"
 	TaskRunReleased             = "task.run_released"
+	TaskRunOperatorForcedFail   = "task.run_operator_forced_fail"
+	TaskRunOperatorRetry        = "task.run_operator_retry"
 	TaskExecutionProfileUpdated = "task.execution_profile_updated"
 	TaskExecutionProfileDeleted = "task.execution_profile_deleted"
 	TaskRunReviewRequested      = "task.run_review_requested"
@@ -207,6 +209,8 @@ var registryEntries = []Metadata{
 	info(TaskRunLeaseExtended, "task", ComponentTask),
 	warning(TaskRunLeaseExpired, "task", ComponentTask),
 	info(TaskRunReleased, "task", ComponentTask),
+	notify(failure(TaskRunOperatorForcedFail, "task", ComponentTask)),
+	info(TaskRunOperatorRetry, "task", ComponentTask),
 	info(TaskExecutionProfileUpdated, "task", ComponentTask),
 	info(TaskExecutionProfileDeleted, "task", ComponentTask),
 	info(TaskRunReviewRequested, "task", ComponentTask),

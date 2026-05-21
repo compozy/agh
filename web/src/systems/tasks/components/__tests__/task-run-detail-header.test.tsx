@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -103,5 +103,48 @@ describe("TaskRunDetailHeader", () => {
       />
     );
     expect(screen.queryByTestId("task-run-detail-cancel")).not.toBeInTheDocument();
+  });
+
+  it("fires force release callback for claimed runs", () => {
+    const onForceReleaseRun = vi.fn();
+    render(
+      <TaskRunDetailHeader
+        onForceReleaseRun={onForceReleaseRun}
+        run={buildRun({ status: "claimed" })}
+      />
+    );
+    fireEvent.click(screen.getByTestId("task-run-detail-force-release"));
+    expect(onForceReleaseRun).toHaveBeenCalledTimes(1);
+  });
+
+  it("requires a reason before force failing a run", async () => {
+    const onForceFailRun = vi.fn().mockResolvedValue(undefined);
+    render(
+      <TaskRunDetailHeader onForceFailRun={onForceFailRun} run={buildRun({ status: "claimed" })} />
+    );
+
+    fireEvent.click(screen.getByTestId("task-run-detail-force-fail"));
+    fireEvent.click(await screen.findByTestId("task-run-detail-force-fail-confirm"));
+    expect(screen.getByRole("alert")).toHaveTextContent("Reason is required.");
+    expect(onForceFailRun).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByTestId("task-run-detail-force-fail-reason"), {
+      target: { value: "operator recovery" },
+    });
+    fireEvent.click(screen.getByTestId("task-run-detail-force-fail-confirm"));
+
+    await waitFor(() => expect(onForceFailRun).toHaveBeenCalledWith("operator recovery"));
+  });
+
+  it("fires retry callback for failed runs", () => {
+    const onRetryRun = vi.fn();
+    render(
+      <TaskRunDetailHeader
+        onRetryRun={onRetryRun}
+        run={buildRun({ status: "failed", ended_at: "2026-04-11T14:45:00Z" })}
+      />
+    );
+    fireEvent.click(screen.getByTestId("task-run-detail-retry"));
+    expect(onRetryRun).toHaveBeenCalledTimes(1);
   });
 });

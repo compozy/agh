@@ -969,7 +969,12 @@ func TestHTTPSessionChannelRoundTrip(t *testing.T) {
 	if resumeResp.StatusCode != http.StatusConflict {
 		body, _ := io.ReadAll(resumeResp.Body)
 		_ = resumeResp.Body.Close()
-		t.Fatalf("attach stopped session status = %d, want %d; body=%s", resumeResp.StatusCode, http.StatusConflict, string(body))
+		t.Fatalf(
+			"attach stopped session status = %d, want %d; body=%s",
+			resumeResp.StatusCode,
+			http.StatusConflict,
+			string(body),
+		)
 	}
 }
 

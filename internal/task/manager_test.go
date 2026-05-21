@@ -29,6 +29,20 @@ type inMemoryManagerStore struct {
 	idempotencyByKey  map[string]RunIdempotency
 }
 
+type forceInputStore struct {
+	*inMemoryManagerStore
+	advanceCalls        []string
+	cancelCalls         []forceInputCancelCall
+	nextGeneration      int64
+	pendingCancelCounts map[string]int
+}
+
+type forceInputCancelCall struct {
+	SessionID      string
+	Generation     int64
+	CanceledInputs int
+}
+
 type inMemoryManagerSnapshot struct {
 	tasks             map[string]Task
 	dependencies      map[string]map[string]Dependency
@@ -276,6 +290,40 @@ func newInMemoryManagerStore() *inMemoryManagerStore {
 		eventSequenceByID: make(map[string]int64),
 		idempotencyByKey:  make(map[string]RunIdempotency),
 	}
+}
+
+func newForceInputStore() *forceInputStore {
+	return &forceInputStore{
+		inMemoryManagerStore: newInMemoryManagerStore(),
+		pendingCancelCounts:  make(map[string]int),
+	}
+}
+
+func (s *forceInputStore) AdvanceSessionInputGeneration(
+	_ context.Context,
+	sessionID string,
+	_ time.Time,
+) (int64, error) {
+	s.nextGeneration++
+	s.advanceCalls = append(s.advanceCalls, strings.TrimSpace(sessionID))
+	return s.nextGeneration, nil
+}
+
+func (s *forceInputStore) CancelPendingSessionInputs(
+	_ context.Context,
+	sessionID string,
+	generation int64,
+	_ time.Time,
+) (int, error) {
+	trimmed := strings.TrimSpace(sessionID)
+	canceled := s.pendingCancelCounts[trimmed]
+	s.pendingCancelCounts[trimmed] = 0
+	s.cancelCalls = append(s.cancelCalls, forceInputCancelCall{
+		SessionID:      trimmed,
+		Generation:     generation,
+		CanceledInputs: canceled,
+	})
+	return canceled, nil
 }
 
 func (s *inMemoryManagerStore) WithDeleteTaskTransaction(
@@ -955,6 +1003,102 @@ func (s *inMemoryManagerStore) FailRunLease(_ context.Context, failure LeaseFail
 	run.EndedAt = normalized.Now
 	s.runs[run.ID] = cloneTaskRun(run)
 	return cloneTaskRun(run), nil
+}
+
+func (s *inMemoryManagerStore) ForceReleaseTaskRun(
+	_ context.Context,
+	release ForceReleaseRunMutation,
+) (ForceRunMutationResult, error) {
+	run, ok := s.runs[strings.TrimSpace(release.RunID)]
+	if !ok {
+		return ForceRunMutationResult{}, ErrTaskRunNotFound
+	}
+	if run.Status.Normalize() != TaskRunStatusClaimed {
+		return ForceRunMutationResult{}, ErrInvalidStatusTransition
+	}
+	previous := cloneTaskRun(run)
+	run = requeuedTestRun(run)
+	s.runs[run.ID] = cloneTaskRun(run)
+	return ForceRunMutationResult{Previous: previous, Run: cloneTaskRun(run)}, nil
+}
+
+func (s *inMemoryManagerStore) ForceFailTaskRun(
+	_ context.Context,
+	failure ForceFailRunMutation,
+) (ForceRunMutationResult, error) {
+	run, ok := s.runs[strings.TrimSpace(failure.RunID)]
+	if !ok {
+		return ForceRunMutationResult{}, ErrTaskRunNotFound
+	}
+	switch run.Status.Normalize() {
+	case TaskRunStatusQueued, TaskRunStatusClaimed:
+	default:
+		return ForceRunMutationResult{}, ErrInvalidStatusTransition
+	}
+	previous := cloneTaskRun(run)
+	run.Status = TaskRunStatusFailed
+	run.Error = strings.TrimSpace(failure.Reason)
+	run.FailureKind = FailureKindOperatorForced
+	run.Result = nil
+	run.ClaimToken = ""
+	run.ClaimTokenHash = ""
+	run.LeaseUntil = time.Time{}
+	run.HeartbeatAt = time.Time{}
+	run.EndedAt = failure.Now.UTC()
+	if run.EndedAt.IsZero() {
+		run.EndedAt = time.Now().UTC()
+	}
+	s.runs[run.ID] = cloneTaskRun(run)
+	return ForceRunMutationResult{Previous: previous, Run: cloneTaskRun(run)}, nil
+}
+
+func (s *inMemoryManagerStore) RetryTaskRun(
+	_ context.Context,
+	retry RetryRunMutation,
+) (RetryRunResult, error) {
+	source, ok := s.runs[strings.TrimSpace(retry.SourceRunID)]
+	if !ok {
+		return RetryRunResult{}, ErrTaskRunNotFound
+	}
+	if source.Status.Normalize() != TaskRunStatusFailed {
+		return RetryRunResult{}, ErrInvalidStatusTransition
+	}
+	for _, run := range s.runs {
+		if strings.TrimSpace(run.PreviousRunID) == source.ID {
+			return RetryRunResult{}, ErrInvalidStatusTransition
+		}
+	}
+	taskRecord, ok := s.tasks[source.TaskID]
+	if !ok {
+		return RetryRunResult{}, ErrTaskNotFound
+	}
+	attempt := 1
+	for _, run := range s.runs {
+		if run.TaskID == source.TaskID && run.Attempt >= attempt {
+			attempt = run.Attempt + 1
+		}
+	}
+	if attempt > taskRecord.MaxAttempts {
+		return RetryRunResult{}, ErrInvalidStatusTransition
+	}
+	queuedAt := retry.QueuedAt.UTC()
+	if queuedAt.IsZero() {
+		queuedAt = time.Now().UTC()
+	}
+	run := Run{
+		ID:                    strings.TrimSpace(retry.NewRunID),
+		TaskID:                source.TaskID,
+		Status:                TaskRunStatusQueued,
+		Attempt:               attempt,
+		PreviousRunID:         source.ID,
+		Origin:                retry.Origin,
+		NetworkChannel:        source.NetworkChannel,
+		CoordinationChannelID: source.CoordinationChannelID,
+		Metadata:              cloneRawJSON(retry.Metadata),
+		QueuedAt:              queuedAt,
+	}
+	s.runs[run.ID] = cloneTaskRun(run)
+	return RetryRunResult{PreviousRun: cloneTaskRun(source), Run: cloneTaskRun(run)}, nil
 }
 
 func (s *inMemoryManagerStore) RecoverExpiredRunLeases(
@@ -4509,6 +4653,256 @@ func TestManagerAttachRunSessionAndRetryLatestRunOutcome(t *testing.T) {
 	if got, want := store.tasks[taskRecord.ID].Status, TaskStatusFailed; got != want {
 		t.Fatalf("task.Status after retry failure = %q, want %q", got, want)
 	}
+}
+
+func TestManagerForceRunOperations(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should force release claimed run and invalidate queued session input", func(t *testing.T) {
+		t.Parallel()
+
+		store := newForceInputStore()
+		store.pendingCancelCounts["sess-force"] = 2
+		manager := newTaskManagerForTest(t, store)
+		actor := validActorContext()
+
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Force release",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		run, err = manager.ClaimRun(context.Background(), run.ID, ClaimRun{}, actor)
+		if err != nil {
+			t.Fatalf("ClaimRun() error = %v", err)
+		}
+		storedRun := store.runs[run.ID]
+		storedRun.SessionID = "sess-force"
+		store.runs[run.ID] = storedRun
+
+		released, err := manager.ForceReleaseRun(context.Background(), run.ID, ForceReleaseRun{
+			Reason: "handoff",
+		}, actor)
+		if err != nil {
+			t.Fatalf("ForceReleaseRun() error = %v", err)
+		}
+		if got, want := released.Status, TaskRunStatusQueued; got != want {
+			t.Fatalf("ForceReleaseRun().Status = %q, want %q", got, want)
+		}
+		if released.SessionID != "" || released.ClaimTokenHash != "" || !released.LeaseUntil.IsZero() {
+			t.Fatalf("released run retained claim fields: %#v", released)
+		}
+		if len(store.advanceCalls) != 1 || store.advanceCalls[0] != "sess-force" {
+			t.Fatalf("advanceCalls = %#v, want sess-force", store.advanceCalls)
+		}
+		if len(store.cancelCalls) != 1 ||
+			store.cancelCalls[0].SessionID != "sess-force" ||
+			store.cancelCalls[0].Generation != 1 ||
+			store.cancelCalls[0].CanceledInputs != 2 {
+			t.Fatalf("cancelCalls = %#v, want session generation cancellation", store.cancelCalls)
+		}
+
+		events, err := store.ListTaskEvents(context.Background(), EventQuery{
+			TaskID:    taskRecord.ID,
+			RunID:     run.ID,
+			EventType: taskEventRunReleased,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskEvents(released) error = %v", err)
+		}
+		if got, want := len(events), 1; got != want {
+			t.Fatalf("released event count = %d, want %d", got, want)
+		}
+		var payload releasedRunPayload
+		if err := json.Unmarshal(events[0].Payload, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(release payload) error = %v", err)
+		}
+		if payload.Reason != "handoff" || payload.QueueGeneration != 1 || payload.CanceledQueuedInputs != 2 {
+			t.Fatalf("release payload = %#v, want reason and input cancellation evidence", payload)
+		}
+	})
+
+	t.Run("Should force fail require reason and record operator evidence", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		actor := validActorContext()
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Force fail",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		if _, err := manager.ForceFailRun(context.Background(), run.ID, ForceFailRun{}, actor); !errors.Is(
+			err,
+			ErrForceOpRequiresReason,
+		) {
+			t.Fatalf("ForceFailRun(no reason) error = %v, want %v", err, ErrForceOpRequiresReason)
+		}
+
+		failed, err := manager.ForceFailRun(context.Background(), run.ID, ForceFailRun{
+			Reason: "operator recovery",
+		}, actor)
+		if err != nil {
+			t.Fatalf("ForceFailRun() error = %v", err)
+		}
+		if got, want := failed.Status, TaskRunStatusFailed; got != want {
+			t.Fatalf("ForceFailRun().Status = %q, want %q", got, want)
+		}
+		if got, want := failed.FailureKind, FailureKindOperatorForced; got != want {
+			t.Fatalf("ForceFailRun().FailureKind = %q, want %q", got, want)
+		}
+		if got, want := failed.Error, "operator recovery"; got != want {
+			t.Fatalf("ForceFailRun().Error = %q, want %q", got, want)
+		}
+		events, err := store.ListTaskEvents(context.Background(), EventQuery{
+			TaskID:    taskRecord.ID,
+			RunID:     run.ID,
+			EventType: taskEventRunOperatorForcedFail,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskEvents(force fail) error = %v", err)
+		}
+		if got, want := len(events), 1; got != want {
+			t.Fatalf("force-fail event count = %d, want %d", got, want)
+		}
+		var payload operatorForcedFailPayload
+		if err := json.Unmarshal(events[0].Payload, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(force fail payload) error = %v", err)
+		}
+		if payload.Reason != "operator recovery" || payload.PreviousStatus != TaskRunStatusQueued {
+			t.Fatalf("force-fail payload = %#v, want reason and previous queued status", payload)
+		}
+	})
+
+	t.Run("Should retry failed run once and link previous run id", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		actor := validActorContext()
+		maxAttempts := 3
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope:       ScopeGlobal,
+			Title:       "Retry failed",
+			MaxAttempts: &maxAttempts,
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		failed, err := manager.ForceFailRun(context.Background(), run.ID, ForceFailRun{
+			Reason: "operator recovery",
+		}, actor)
+		if err != nil {
+			t.Fatalf("ForceFailRun() error = %v", err)
+		}
+
+		retry, err := manager.RetryRun(context.Background(), failed.ID, RetryRunRequest{
+			Metadata: json.RawMessage("{\"source\":\"operator\"}"),
+		}, actor)
+		if err != nil {
+			t.Fatalf("RetryRun() error = %v", err)
+		}
+		if retry.PreviousRun.ID != failed.ID {
+			t.Fatalf("RetryRun().PreviousRun.ID = %q, want %q", retry.PreviousRun.ID, failed.ID)
+		}
+		if retry.Run.PreviousRunID != failed.ID || retry.Run.Status != TaskRunStatusQueued {
+			t.Fatalf("RetryRun().Run = %#v, want queued run linked to previous", retry.Run)
+		}
+		if _, err := manager.RetryRun(context.Background(), failed.ID, RetryRunRequest{}, actor); !errors.Is(
+			err,
+			ErrInvalidStatusTransition,
+		) {
+			t.Fatalf("RetryRun(duplicate) error = %v, want %v", err, ErrInvalidStatusTransition)
+		}
+		events, err := store.ListTaskEvents(context.Background(), EventQuery{
+			TaskID:    taskRecord.ID,
+			RunID:     retry.Run.ID,
+			EventType: taskEventRunOperatorRetry,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskEvents(retry) error = %v", err)
+		}
+		if got, want := len(events), 1; got != want {
+			t.Fatalf("retry event count = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should reject disabled agent force and rate limit noisy agents", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		disabledManager := newTaskManagerForTestWithOptions(
+			t,
+			store,
+			WithForceRecoveryOptions(ForceRecoveryOptions{AllowAgentForce: false}),
+		)
+		operator := validActorContext()
+		agent, err := DeriveAgentSessionActorContext("sess-force-agent")
+		if err != nil {
+			t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
+		}
+		taskRecord, err := disabledManager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Agent force disabled",
+		}, operator)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := disabledManager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, operator)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		if _, err := disabledManager.ForceFailRun(context.Background(), run.ID, ForceFailRun{
+			Reason: "agent blocked",
+		}, agent); !errors.Is(err, ErrForbiddenOperatorAction) {
+			t.Fatalf("ForceFailRun(agent disabled) error = %v, want %v", err, ErrForbiddenOperatorAction)
+		}
+
+		rateStore := newInMemoryManagerStore()
+		rateManager := newTaskManagerForTestWithOptions(
+			t,
+			rateStore,
+			WithForceRecoveryOptions(ForceRecoveryOptions{AllowAgentForce: true, RateLimitPerMinute: 1}),
+		)
+		rateTask, err := rateManager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Agent force rate",
+		}, operator)
+		if err != nil {
+			t.Fatalf("CreateTask(rate) error = %v", err)
+		}
+		rateRun, err := rateManager.EnqueueRun(context.Background(), EnqueueRun{TaskID: rateTask.ID}, operator)
+		if err != nil {
+			t.Fatalf("EnqueueRun(rate) error = %v", err)
+		}
+		if _, err := rateManager.ForceFailRun(context.Background(), rateRun.ID, ForceFailRun{
+			Reason: "first recovery",
+		}, agent); err != nil {
+			t.Fatalf("ForceFailRun(first) error = %v", err)
+		}
+		if _, err := rateManager.RetryRun(context.Background(), rateRun.ID, RetryRunRequest{}, agent); !errors.Is(
+			err,
+			ErrForceOpRateLimited,
+		) {
+			t.Fatalf("RetryRun(rate limited) error = %v, want %v", err, ErrForceOpRateLimited)
+		}
+	})
 }
 
 func TestManagerNonHumanIdempotencyAndExecutionGuards(t *testing.T) {

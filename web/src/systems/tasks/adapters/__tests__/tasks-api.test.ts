@@ -28,6 +28,8 @@ import {
   dismissTask,
   enqueueTaskRun,
   failTaskRun,
+  forceFailTaskRun,
+  forceReleaseTaskRun,
   getTask,
   getTaskDashboard,
   getTaskInbox,
@@ -42,6 +44,7 @@ import {
   publishTask,
   rejectTask,
   removeTaskDependency,
+  retryTaskRun,
   startTaskRun,
   updateTask,
 } from "@/systems/tasks/adapters/tasks-api";
@@ -507,6 +510,33 @@ describe("task runs", () => {
       callIndex: 5,
       method: "POST",
       path: "/api/task-runs/run_001/attach-session",
+    });
+  });
+
+  it("runs force recovery commands against /api/runs/{id}/*", async () => {
+    mockJsonSequence({ run: runFixture });
+
+    await forceReleaseTaskRun("run_001", { reason: "handoff" });
+    await forceFailTaskRun("run_001", { reason: "operator recovery" });
+    const retry = await retryTaskRun("run_001", { metadata: { source: "operator" } });
+
+    expect(retry.run).toEqual(runFixture);
+    await expectFetchRequest({
+      body: { reason: "handoff" },
+      method: "POST",
+      path: "/api/runs/run_001/release",
+    });
+    await expectFetchRequest({
+      body: { reason: "operator recovery" },
+      callIndex: 1,
+      method: "POST",
+      path: "/api/runs/run_001/fail",
+    });
+    await expectFetchRequest({
+      body: { metadata: { source: "operator" } },
+      callIndex: 2,
+      method: "POST",
+      path: "/api/runs/run_001/retry",
     });
   });
 });

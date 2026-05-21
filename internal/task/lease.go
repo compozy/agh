@@ -14,8 +14,10 @@ import (
 )
 
 const (
-	leaseHandoffKey = "handoff"
-	leaseStatusKey  = "status"
+	leaseHandoffKey   = "handoff"
+	leaseStatusKey    = "status"
+	runEvidenceIDKey  = "run_id"
+	taskEvidenceIDKey = "task_id"
 )
 
 const (

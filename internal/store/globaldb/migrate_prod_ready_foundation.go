@@ -122,6 +122,37 @@ func migrateSchedulerPauseState(ctx context.Context, tx *sql.Tx) error {
 	return nil
 }
 
+func migrateTaskRunForceOps(ctx context.Context, tx *sql.Tx) error {
+	exists, err := tableExists(ctx, tx, "task_runs")
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+	if err := addMissingMigrationColumns(ctx, tx, "task_runs", []migrationColumnSpec{
+		{
+			name: "previous_run_id",
+			sql:  `ALTER TABLE task_runs ADD COLUMN previous_run_id TEXT`,
+		},
+		{
+			name: migrateWorkspaceFailureKindKey,
+			sql: `ALTER TABLE task_runs ADD COLUMN failure_kind TEXT NOT NULL DEFAULT '' CHECK (
+				failure_kind = '' OR failure_kind IN ('operator_forced')
+			)`,
+		},
+	}); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(
+		ctx,
+		`CREATE INDEX IF NOT EXISTS idx_task_runs_previous ON task_runs(previous_run_id);`,
+	); err != nil {
+		return fmt.Errorf("store: create task run previous index: %w", err)
+	}
+	return nil
+}
+
 func backfillEventSummaryOutcomes(ctx context.Context, tx *sql.Tx) error {
 	statements := []string{
 		`CREATE TEMP TABLE IF NOT EXISTS event_summary_outcome_backfill (

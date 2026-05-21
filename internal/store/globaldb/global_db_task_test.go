@@ -86,6 +86,8 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"task_id",
 		"status",
 		"attempt",
+		"previous_run_id",
+		"failure_kind",
 		"claimed_by_kind",
 		"claimed_by_ref",
 		"session_id",
@@ -179,6 +181,7 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"idx_task_runs_task",
 		"idx_task_runs_task_status",
 		"idx_task_runs_status",
+		"idx_task_runs_previous",
 		"idx_task_runs_session",
 		"idx_task_runs_channel",
 		"idx_task_runs_pending_claim",
@@ -832,6 +835,144 @@ func TestGlobalDBTaskRunRoundTripAndFilters(t *testing.T) {
 	if got, want := activeBindings, 0; got != want {
 		t.Fatalf("CountActiveSessionBindings(completed) = %d, want %d", got, want)
 	}
+}
+
+func TestGlobalDBTaskRunForceOperations(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should force release claimed run with snapshot fencing", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		taskRecord := taskRecordForTest("task-force-release")
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run := taskRunForTest("run-force-release", taskRecord.ID)
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+		claimed := run
+		claimed.Status = taskpkg.TaskRunStatusClaimed
+		claimed.ClaimedBy = actorForTest(taskpkg.ActorKindAgentSession, "sess-worker")
+		claimed.SessionID = "sess-worker"
+		claimed.ClaimToken = "raw-token"
+		claimed.ClaimTokenHash = "sha256:" + strings.Repeat("a", 64)
+		claimed.LeaseUntil = claimed.QueuedAt.Add(10 * time.Minute)
+		claimed.HeartbeatAt = claimed.QueuedAt.Add(time.Minute)
+		claimed.ClaimedAt = claimed.QueuedAt.Add(time.Second)
+		if err := globalDB.UpdateTaskRun(ctx, claimed); err != nil {
+			t.Fatalf("UpdateTaskRun(claimed) error = %v", err)
+		}
+
+		result, err := globalDB.ForceReleaseTaskRun(ctx, taskpkg.ForceReleaseRunMutation{
+			RunID: claimed.ID,
+			Now:   claimed.QueuedAt.Add(2 * time.Minute),
+		})
+		if err != nil {
+			t.Fatalf("ForceReleaseTaskRun() error = %v", err)
+		}
+		if got, want := result.Previous.Status, taskpkg.TaskRunStatusClaimed; got != want {
+			t.Fatalf("Previous.Status = %q, want %q", got, want)
+		}
+		if got, want := result.Run.Status, taskpkg.TaskRunStatusQueued; got != want {
+			t.Fatalf("Run.Status = %q, want %q", got, want)
+		}
+		if result.Run.SessionID != "" || result.Run.ClaimedBy != nil ||
+			result.Run.ClaimTokenHash != "" || !result.Run.LeaseUntil.IsZero() {
+			t.Fatalf("ForceReleaseTaskRun() retained lease fields: %#v", result.Run)
+		}
+	})
+
+	t.Run("Should force fail queued run with operator failure kind", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		taskRecord := taskRecordForTest("task-force-fail")
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run := taskRunForTest("run-force-fail", taskRecord.ID)
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+		if _, err := globalDB.ForceFailTaskRun(ctx, taskpkg.ForceFailRunMutation{
+			RunID:  run.ID,
+			Reason: " ",
+		}); !errors.Is(err, taskpkg.ErrValidation) {
+			t.Fatalf("ForceFailTaskRun(empty reason) error = %v, want %v", err, taskpkg.ErrValidation)
+		}
+
+		result, err := globalDB.ForceFailTaskRun(ctx, taskpkg.ForceFailRunMutation{
+			RunID:  run.ID,
+			Reason: "operator recovery",
+			Now:    run.QueuedAt.Add(3 * time.Minute),
+		})
+		if err != nil {
+			t.Fatalf("ForceFailTaskRun() error = %v", err)
+		}
+		if got, want := result.Run.Status, taskpkg.TaskRunStatusFailed; got != want {
+			t.Fatalf("Run.Status = %q, want %q", got, want)
+		}
+		if got, want := result.Run.FailureKind, taskpkg.FailureKindOperatorForced; got != want {
+			t.Fatalf("Run.FailureKind = %q, want %q", got, want)
+		}
+		if got, want := result.Run.Error, "operator recovery"; got != want {
+			t.Fatalf("Run.Error = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should retry failed run once and preserve source row", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		taskRecord := taskRecordForTest("task-force-retry")
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		source := taskRunForTest("run-force-retry-source", taskRecord.ID)
+		source.Status = taskpkg.TaskRunStatusFailed
+		source.Error = "failed before retry"
+		source.EndedAt = source.QueuedAt.Add(time.Minute)
+		if err := globalDB.CreateTaskRun(ctx, source); err != nil {
+			t.Fatalf("CreateTaskRun(source) error = %v", err)
+		}
+
+		result, err := globalDB.RetryTaskRun(ctx, taskpkg.RetryRunMutation{
+			SourceRunID: source.ID,
+			NewRunID:    "run-force-retry-child",
+			Origin:      taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "task.retry"},
+			Metadata:    json.RawMessage("{\"source\":\"operator\"}"),
+			QueuedAt:    source.QueuedAt.Add(2 * time.Minute),
+		})
+		if err != nil {
+			t.Fatalf("RetryTaskRun() error = %v", err)
+		}
+		if result.PreviousRun.ID != source.ID || result.PreviousRun.Status != taskpkg.TaskRunStatusFailed {
+			t.Fatalf("PreviousRun = %#v, want unchanged failed source", result.PreviousRun)
+		}
+		if result.Run.PreviousRunID != source.ID || result.Run.Status != taskpkg.TaskRunStatusQueued {
+			t.Fatalf("Run = %#v, want queued retry linked to source", result.Run)
+		}
+		storedSource, err := globalDB.GetTaskRun(ctx, source.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(source) error = %v", err)
+		}
+		if storedSource.Status != taskpkg.TaskRunStatusFailed || storedSource.PreviousRunID != "" {
+			t.Fatalf("stored source = %#v, want failed source unchanged", storedSource)
+		}
+		if _, err := globalDB.RetryTaskRun(ctx, taskpkg.RetryRunMutation{
+			SourceRunID: source.ID,
+			NewRunID:    "run-force-retry-duplicate",
+			Origin:      taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "task.retry"},
+			QueuedAt:    source.QueuedAt.Add(3 * time.Minute),
+		}); !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
+			t.Fatalf("RetryTaskRun(duplicate) error = %v, want %v", err, taskpkg.ErrInvalidStatusTransition)
+		}
+	})
 }
 
 func TestGlobalDBReserveQueuedRunDeduplicatesConcurrentIdempotentRequests(t *testing.T) {
@@ -1966,6 +2107,8 @@ func assertTaskRunEqual(t *testing.T, got taskpkg.Run, want taskpkg.Run) {
 		got.TaskID != want.TaskID ||
 		got.Status != want.Status ||
 		got.Attempt != want.Attempt ||
+		got.PreviousRunID != want.PreviousRunID ||
+		got.FailureKind != want.FailureKind ||
 		got.SessionID != want.SessionID ||
 		got.Origin != want.Origin ||
 		got.IdempotencyKey != want.IdempotencyKey ||

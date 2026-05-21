@@ -311,6 +311,9 @@ func inspectErrorSummary(raw string) string {
 }
 
 func inspectFailureKind(run Run) string {
+	if strings.TrimSpace(run.FailureKind) != "" {
+		return strings.TrimSpace(run.FailureKind)
+	}
 	if run.Status.Normalize() == TaskRunStatusFailed && strings.TrimSpace(run.Error) != "" {
 		return "error"
 	}
@@ -318,6 +321,9 @@ func inspectFailureKind(run Run) string {
 }
 
 func inspectPreviousRunID(run Run) string {
+	if strings.TrimSpace(run.PreviousRunID) != "" {
+		return strings.TrimSpace(run.PreviousRunID)
+	}
 	if run.Review == nil {
 		return ""
 	}

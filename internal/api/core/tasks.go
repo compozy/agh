@@ -38,6 +38,11 @@ const (
 	taskActionAttachRun        = "attach_run_session"
 	taskActionCompleteRun      = "complete_run"
 	taskActionFailRun          = "fail_run"
+	taskActionForceReleaseRun  = "force_release_run"
+	taskActionForceFailRun     = "force_fail_run"
+	taskActionRetryRun         = "retry_run"
+	taskActionBulkReleaseRuns  = "bulk_release_runs"
+	taskActionBulkFailRuns     = "bulk_fail_runs"
 	taskActionCancelRun        = "cancel_run"
 	taskActionTimeline         = "timeline"
 	taskActionStream           = "stream"
@@ -1341,6 +1346,167 @@ func (h *BaseHandlers) FailTaskRun(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.TaskRunResponse{Run: TaskRunPayloadFromRun(run)})
 }
 
+// ForceReleaseTaskRun force releases one claimed run without requiring the raw claim token.
+func (h *BaseHandlers) ForceReleaseTaskRun(c *gin.Context) {
+	manager, ok := h.requireTaskManager(c)
+	if !ok {
+		return
+	}
+	runID, err := requiredPathID(c.Param("id"), "run id")
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	var req contract.ForceReleaseTaskRunRequest
+	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			NewTaskValidationError(fmt.Errorf("%s: decode force release run request: %w", h.transportName(), err)),
+		)
+		return
+	}
+	actor, err := h.taskActorContext(c, taskActionForceReleaseRun)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	run, err := manager.ForceReleaseRun(
+		c.Request.Context(),
+		runID,
+		taskpkg.ForceReleaseRun{Reason: req.Reason, Metadata: req.Metadata},
+		actor,
+	)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.TaskRunResponse{Run: TaskRunPayloadFromRun(run)})
+}
+
+// ForceFailTaskRun force fails one queued or claimed run without requiring the raw claim token.
+func (h *BaseHandlers) ForceFailTaskRun(c *gin.Context) {
+	manager, ok := h.requireTaskManager(c)
+	if !ok {
+		return
+	}
+	runID, err := requiredPathID(c.Param("id"), "run id")
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	var req contract.ForceFailTaskRunRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			NewTaskValidationError(fmt.Errorf("%s: decode force fail run request: %w", h.transportName(), err)),
+		)
+		return
+	}
+	actor, err := h.taskActorContext(c, taskActionForceFailRun)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	run, err := manager.ForceFailRun(
+		c.Request.Context(),
+		runID,
+		taskpkg.ForceFailRun{Reason: req.Reason, Metadata: req.Metadata},
+		actor,
+	)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.TaskRunResponse{Run: TaskRunPayloadFromRun(run)})
+}
+
+// RetryTaskRun enqueues a new run linked to one failed source run.
+func (h *BaseHandlers) RetryTaskRun(c *gin.Context) {
+	manager, ok := h.requireTaskManager(c)
+	if !ok {
+		return
+	}
+	runID, err := requiredPathID(c.Param("id"), "run id")
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	var req contract.RetryTaskRunRequest
+	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			NewTaskValidationError(fmt.Errorf("%s: decode retry run request: %w", h.transportName(), err)),
+		)
+		return
+	}
+	actor, err := h.taskActorContext(c, taskActionRetryRun)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	result, err := manager.RetryRun(
+		c.Request.Context(),
+		runID,
+		taskpkg.RetryRunRequest{Metadata: req.Metadata},
+		actor,
+	)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	c.JSON(http.StatusCreated, RetryTaskRunResponseFromResult(result))
+}
+
+// BulkForceReleaseTaskRuns force releases a bounded set of runs.
+func (h *BaseHandlers) BulkForceReleaseTaskRuns(c *gin.Context) {
+	h.bulkForceTaskRuns(c, taskActionBulkReleaseRuns, false)
+}
+
+// BulkForceFailTaskRuns force fails a bounded set of runs.
+func (h *BaseHandlers) BulkForceFailTaskRuns(c *gin.Context) {
+	h.bulkForceTaskRuns(c, taskActionBulkFailRuns, true)
+}
+
+func (h *BaseHandlers) bulkForceTaskRuns(c *gin.Context, action string, fail bool) {
+	manager, ok := h.requireTaskManager(c)
+	if !ok {
+		return
+	}
+	var req contract.BulkForceTaskRunRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			NewTaskValidationError(fmt.Errorf("%s: decode bulk force run request: %w", h.transportName(), err)),
+		)
+		return
+	}
+	actor, err := h.taskActorContext(c, action)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	domainReq := taskpkg.BulkForceRunRequest{
+		RunIDs:   req.RunIDs,
+		Reason:   req.Reason,
+		Metadata: req.Metadata,
+	}
+	var result taskpkg.BulkForceRunResult
+	if fail {
+		result, err = manager.BulkForceFailRuns(c.Request.Context(), domainReq, actor)
+	} else {
+		result, err = manager.BulkForceReleaseRuns(c.Request.Context(), domainReq, actor)
+	}
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, BulkForceTaskRunResponseFromResult(result))
+}
+
 // CancelTaskRun cancels one non-terminal run.
 func (h *BaseHandlers) CancelTaskRun(c *gin.Context) {
 	manager, ok := h.requireTaskManager(c)
@@ -1909,6 +2075,8 @@ func TaskRunPayloadFromRun(run *taskpkg.Run) contract.TaskRunPayload {
 		TaskID:                run.TaskID,
 		Status:                run.Status,
 		Attempt:               run.Attempt,
+		PreviousRunID:         run.PreviousRunID,
+		FailureKind:           run.FailureKind,
 		ClaimedBy:             cloneActorIdentity(run.ClaimedBy),
 		SessionID:             run.SessionID,
 		Origin:                run.Origin,
@@ -1926,6 +2094,43 @@ func TaskRunPayloadFromRun(run *taskpkg.Run) contract.TaskRunPayload {
 		Metadata:              redactRawClaimTokenFields(run.Metadata),
 		Result:                redactRawClaimTokenFields(run.Result),
 	}
+}
+
+// RetryTaskRunResponseFromResult converts one retry result into the shared payload.
+func RetryTaskRunResponseFromResult(result *taskpkg.RetryRunResult) contract.RetryTaskRunResponse {
+	if result == nil {
+		return contract.RetryTaskRunResponse{}
+	}
+	return contract.RetryTaskRunResponse{
+		PreviousRun: TaskRunPayloadFromRun(&result.PreviousRun),
+		Run:         TaskRunPayloadFromRun(&result.Run),
+	}
+}
+
+// BulkForceTaskRunResponseFromResult converts per-row bulk force outcomes into shared payloads.
+func BulkForceTaskRunResponseFromResult(result taskpkg.BulkForceRunResult) contract.BulkForceTaskRunResponse {
+	items := make([]contract.BulkForceTaskRunItemPayload, 0, len(result.Items))
+	for _, item := range result.Items {
+		payload := contract.BulkForceTaskRunItemPayload{
+			RunID: item.RunID,
+			OK:    item.OK,
+			Run:   optionalTaskRunPayload(item.Run),
+		}
+		if item.Err != nil {
+			errorPayload := ErrorPayloadForStatus(StatusForTaskError(item.Err), item.Err, false)
+			payload.Error = &errorPayload
+		}
+		items = append(items, payload)
+	}
+	return contract.BulkForceTaskRunResponse{Results: items}
+}
+
+func optionalTaskRunPayload(run *taskpkg.Run) *contract.TaskRunPayload {
+	if run == nil {
+		return nil
+	}
+	payload := TaskRunPayloadFromRun(run)
+	return &payload
 }
 
 func redactRawClaimTokenFields(raw json.RawMessage) json.RawMessage {

@@ -394,6 +394,11 @@ type DaemonClient interface {
 	CompleteTaskRun(ctx context.Context, id string, request CompleteTaskRunRequest) (TaskRunRecord, error)
 	FailTaskRun(ctx context.Context, id string, request FailTaskRunRequest) (TaskRunRecord, error)
 	CancelTaskRun(ctx context.Context, id string, request CancelTaskRunRequest) (TaskRunRecord, error)
+	ForceReleaseTaskRun(ctx context.Context, id string, request ForceReleaseTaskRunRequest) (TaskRunRecord, error)
+	ForceFailTaskRun(ctx context.Context, id string, request ForceFailTaskRunRequest) (TaskRunRecord, error)
+	RetryTaskRun(ctx context.Context, id string, request RetryTaskRunRequest) (RetryTaskRunRecord, error)
+	BulkForceReleaseTaskRuns(ctx context.Context, request BulkForceTaskRunRequest) (BulkForceTaskRunRecord, error)
+	BulkForceFailTaskRuns(ctx context.Context, request BulkForceTaskRunRequest) (BulkForceTaskRunRecord, error)
 	AgentMe(ctx context.Context, credentials agentidentity.Credentials) (AgentMeRecord, error)
 	AgentContext(ctx context.Context, credentials agentidentity.Credentials) (AgentContextRecord, error)
 	AgentSpawn(
@@ -897,6 +902,15 @@ type TaskDependencyRecord = contract.TaskDependencyPayload
 // TaskRunRecord is the shared task-run payload.
 type TaskRunRecord = contract.TaskRunPayload
 
+// RetryTaskRunRecord is the shared retry response payload.
+type RetryTaskRunRecord = contract.RetryTaskRunResponse
+
+// BulkForceTaskRunRecord is the shared bulk force-operation response payload.
+type BulkForceTaskRunRecord = contract.BulkForceTaskRunResponse
+
+// BulkForceTaskRunItemRecord records one bulk force-operation row.
+type BulkForceTaskRunItemRecord = contract.BulkForceTaskRunItemPayload
+
 // TaskExecutionRecord is the shared task execution-boundary payload.
 type TaskExecutionRecord = contract.TaskExecutionResponse
 
@@ -1045,6 +1059,18 @@ type CompleteTaskRunRequest = contract.CompleteTaskRunRequest
 
 // FailTaskRunRequest captures the shared run-fail payload.
 type FailTaskRunRequest = contract.FailTaskRunRequest
+
+// ForceReleaseTaskRunRequest captures the shared force-release request payload.
+type ForceReleaseTaskRunRequest = contract.ForceReleaseTaskRunRequest
+
+// ForceFailTaskRunRequest captures the shared forced-failure request payload.
+type ForceFailTaskRunRequest = contract.ForceFailTaskRunRequest
+
+// RetryTaskRunRequest captures the shared retry request payload.
+type RetryTaskRunRequest = contract.RetryTaskRunRequest
+
+// BulkForceTaskRunRequest captures the shared bounded bulk force-operation payload.
+type BulkForceTaskRunRequest = contract.BulkForceTaskRunRequest
 
 // CancelTaskRunRequest captures the shared run-cancel payload.
 type CancelTaskRunRequest = contract.CancelTaskRunRequest
@@ -4072,6 +4098,49 @@ func (c *unixSocketClient) CancelTaskRun(
 	return c.taskRunAction(ctx, strings.TrimSpace(id), "cancel", request)
 }
 
+func (c *unixSocketClient) ForceReleaseTaskRun(
+	ctx context.Context,
+	id string,
+	request ForceReleaseTaskRunRequest,
+) (TaskRunRecord, error) {
+	return c.forceTaskRunAction(ctx, strings.TrimSpace(id), "release", request)
+}
+
+func (c *unixSocketClient) ForceFailTaskRun(
+	ctx context.Context,
+	id string,
+	request ForceFailTaskRunRequest,
+) (TaskRunRecord, error) {
+	return c.forceTaskRunAction(ctx, strings.TrimSpace(id), "fail", request)
+}
+
+func (c *unixSocketClient) RetryTaskRun(
+	ctx context.Context,
+	id string,
+	request RetryTaskRunRequest,
+) (RetryTaskRunRecord, error) {
+	var response contract.RetryTaskRunResponse
+	path := "/api/runs/" + url.PathEscape(strings.TrimSpace(id)) + "/retry"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return RetryTaskRunRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) BulkForceReleaseTaskRuns(
+	ctx context.Context,
+	request BulkForceTaskRunRequest,
+) (BulkForceTaskRunRecord, error) {
+	return c.bulkForceTaskRunAction(ctx, "release", request)
+}
+
+func (c *unixSocketClient) BulkForceFailTaskRuns(
+	ctx context.Context,
+	request BulkForceTaskRunRequest,
+) (BulkForceTaskRunRecord, error) {
+	return c.bulkForceTaskRunAction(ctx, "fail", request)
+}
+
 func (c *unixSocketClient) AgentMe(
 	ctx context.Context,
 	credentials agentidentity.Credentials,
@@ -4320,6 +4389,33 @@ func (c *unixSocketClient) taskRunAction(
 		return TaskRunRecord{}, err
 	}
 	return response.Run, nil
+}
+
+func (c *unixSocketClient) forceTaskRunAction(
+	ctx context.Context,
+	id string,
+	action string,
+	requestBody any,
+) (TaskRunRecord, error) {
+	var response contract.TaskRunResponse
+	path := "/api/runs/" + url.PathEscape(id) + "/" + strings.TrimSpace(action)
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, requestBody, &response); err != nil {
+		return TaskRunRecord{}, err
+	}
+	return response.Run, nil
+}
+
+func (c *unixSocketClient) bulkForceTaskRunAction(
+	ctx context.Context,
+	action string,
+	requestBody BulkForceTaskRunRequest,
+) (BulkForceTaskRunRecord, error) {
+	var response contract.BulkForceTaskRunResponse
+	path := "/api/runs/bulk/" + strings.TrimSpace(action)
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, requestBody, &response); err != nil {
+		return BulkForceTaskRunRecord{}, err
+	}
+	return response, nil
 }
 
 func (c *unixSocketClient) taskExecutionAction(

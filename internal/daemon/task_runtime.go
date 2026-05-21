@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/procutil"
 	"github.com/pedronauck/agh/internal/session"
@@ -332,6 +333,7 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 			eventObserver,
 			state.notifier,
 			reviewRequests,
+			state.cfg.Task.Recovery,
 		)...,
 	)
 	if err != nil {
@@ -471,6 +473,7 @@ func taskManagerOptions(
 	events taskpkg.EventObserver,
 	hooks *hooksNotifier,
 	reviewRequests taskpkg.RunReviewRequestedObserver,
+	recovery aghconfig.TaskRecoveryConfig,
 ) []taskpkg.Option {
 	options := []taskpkg.Option{
 		taskpkg.WithStore(store),
@@ -479,6 +482,9 @@ func taskManagerOptions(
 		taskpkg.WithRunReviewRequestedObserver(reviewRequests),
 		taskpkg.WithNetworkChannelValidator(network.ValidateChannel),
 		taskpkg.WithCancelGracePeriod(defaultTaskCancelGrace),
+		taskpkg.WithForceRecoveryOptions(taskpkg.ForceRecoveryOptions{
+			AllowAgentForce: recovery.AllowAgentForce,
+		}),
 	}
 	if hooks != nil {
 		options = append(options, taskpkg.WithTaskRunHooks(hooks))

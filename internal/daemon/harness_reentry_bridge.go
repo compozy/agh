@@ -271,7 +271,8 @@ func (b *harnessReentryBridge) recoverPendingRuns(ctx context.Context) error {
 		return err
 	}
 
-	for _, item := range recovered {
+	for i := range recovered {
+		item := &recovered[i]
 		if err := b.processTerminalRun(
 			item.run.TaskID,
 			item.run.ID,

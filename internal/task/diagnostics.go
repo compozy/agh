@@ -202,8 +202,8 @@ func inspectDiagnosticItem(
 func inspectRunEvidence(snapshot *inspectDiagnosticSnapshot, extra map[string]any) map[string]any {
 	run := snapshot.CurrentRun
 	evidence := map[string]any{
-		"task_id":                    snapshot.Task.ID,
-		"run_id":                     run.RunID,
+		taskEvidenceIDKey:            snapshot.Task.ID,
+		runEvidenceIDKey:             run.RunID,
 		leaseStatusKey:               string(run.Status),
 		"attempt":                    run.Attempt,
 		"claim_token_hash_truncated": run.ClaimTokenHashTruncated,

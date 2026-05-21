@@ -311,22 +311,6 @@ func TestAgentCommandsRejectMissingIdentityBeforeAgentCalls(t *testing.T) {
 			name: "Should reject task complete without identity",
 			args: []string{"task", "complete", "run-1", "-o", "json"},
 		},
-		{
-			name: "Should reject task fail without identity",
-			args: []string{
-				"task",
-				"fail",
-				"run-1",
-				"--error",
-				"boom",
-				"-o",
-				"json",
-			},
-		},
-		{
-			name: "Should reject task release without identity",
-			args: []string{"task", "release", "run-1", "-o", "json"},
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

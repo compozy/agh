@@ -465,6 +465,7 @@ describe("generated autonomy CLI references", () => {
     "cli-reference/task/complete.mdx",
     "cli-reference/task/fail.mdx",
     "cli-reference/task/release.mdx",
+    "cli-reference/task/retry.mdx",
   ];
 
   it("keeps regenerated command pages present for agent-facing autonomy commands", () => {
@@ -479,6 +480,7 @@ describe("generated autonomy CLI references", () => {
     const complete = readRuntimeDoc("cli-reference/task/complete.mdx");
     const fail = readRuntimeDoc("cli-reference/task/fail.mdx");
     const release = readRuntimeDoc("cli-reference/task/release.mdx");
+    const retry = readRuntimeDoc("cli-reference/task/retry.mdx");
     const send = readRuntimeDoc("cli-reference/ch/send.mdx");
     const reply = readRuntimeDoc("cli-reference/ch/reply.mdx");
     const spawn = readRuntimeDoc("cli-reference/spawn.mdx");
@@ -486,9 +488,9 @@ describe("generated autonomy CLI references", () => {
     expectIncludesAll(taskNext, ["--wait", "--lease-seconds", "--capability", "--priority-min"]);
     expectIncludesAll(heartbeat, ["--lease-seconds"]);
     expectIncludesAll(complete, ["--result"]);
-    expectIncludesAll(fail, ["--error", "--metadata"]);
+    expectIncludesAll(fail, ["--reason", "--metadata"]);
     expectIncludesAll(release, ["--reason"]);
-    for (const content of [heartbeat, complete, fail, release]) {
+    for (const content of [heartbeat, complete, fail, release, retry]) {
       expect(content).not.toContain("--claim-token");
     }
     expectIncludesAll(send, [

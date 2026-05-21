@@ -16,6 +16,7 @@
         "publish",
         "reject",
         "release",
+        "retry",
         "start",
         "update",
         "child",

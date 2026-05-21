@@ -282,7 +282,12 @@ func registerTaskRoutes(api gin.IRouter, handlers *Handlers) {
 	taskRuns.POST("/:id/cancel", handlers.CancelTaskRun)
 
 	runs := api.Group("/runs")
+	runs.POST("/bulk/release", handlers.BulkForceReleaseTaskRuns)
+	runs.POST("/bulk/fail", handlers.BulkForceFailTaskRuns)
 	runs.GET("/:id/inspect", handlers.InspectRun)
+	runs.POST("/:id/release", handlers.ForceReleaseTaskRun)
+	runs.POST("/:id/fail", handlers.ForceFailTaskRun)
+	runs.POST("/:id/retry", handlers.RetryTaskRun)
 
 	taskReviews := api.Group("/task-reviews")
 	taskReviews.GET("/:id", handlers.GetTaskRunReview)

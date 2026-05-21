@@ -51,6 +51,11 @@ type Manager interface {
 	AttachRunSession(ctx context.Context, runID string, sessionID string, actor ActorContext) (*Run, error)
 	HeartbeatRunLease(ctx context.Context, heartbeat LeaseHeartbeat, actor ActorContext) (*Run, error)
 	ReleaseRunLease(ctx context.Context, release LeaseRelease, actor ActorContext) (*Run, error)
+	ForceReleaseRun(ctx context.Context, runID string, release ForceReleaseRun, actor ActorContext) (*Run, error)
+	ForceFailRun(ctx context.Context, runID string, failure ForceFailRun, actor ActorContext) (*Run, error)
+	RetryRun(ctx context.Context, runID string, retry RetryRunRequest, actor ActorContext) (*RetryRunResult, error)
+	BulkForceReleaseRuns(ctx context.Context, req BulkForceRunRequest, actor ActorContext) (BulkForceRunResult, error)
+	BulkForceFailRuns(ctx context.Context, req BulkForceRunRequest, actor ActorContext) (BulkForceRunResult, error)
 	CompleteRunLease(ctx context.Context, completion LeaseCompletion, actor ActorContext) (*Run, error)
 	FailRunLease(ctx context.Context, failure LeaseFailure, actor ActorContext) (*Run, error)
 	CompleteRun(ctx context.Context, runID string, result RunResult, actor ActorContext) (*Run, error)
@@ -123,6 +128,9 @@ type RunStore interface {
 	ReleaseRunLease(ctx context.Context, release LeaseRelease) (Run, error)
 	CompleteRunLease(ctx context.Context, completion LeaseCompletion) (Run, error)
 	FailRunLease(ctx context.Context, failure LeaseFailure) (Run, error)
+	ForceReleaseTaskRun(ctx context.Context, release ForceReleaseRunMutation) (ForceRunMutationResult, error)
+	ForceFailTaskRun(ctx context.Context, failure ForceFailRunMutation) (ForceRunMutationResult, error)
+	RetryTaskRun(ctx context.Context, retry RetryRunMutation) (RetryRunResult, error)
 	RecoverExpiredRunLeases(ctx context.Context, recovery ExpiredLeaseRecovery) ([]ExpiredLeaseRecoveryResult, error)
 	ReserveQueuedRun(
 		ctx context.Context,

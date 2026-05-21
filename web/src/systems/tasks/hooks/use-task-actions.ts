@@ -15,10 +15,13 @@ import {
   dismissTask,
   enqueueTaskRun,
   failTaskRun,
+  forceFailTaskRun,
+  forceReleaseTaskRun,
   markTaskRead,
   publishTask,
   rejectTask,
   removeTaskDependency,
+  retryTaskRun,
   startTaskRun,
   updateTask,
 } from "../adapters/tasks-api";
@@ -34,6 +37,9 @@ import type {
   CreateTaskRequest,
   EnqueueTaskRunRequest,
   FailTaskRunRequest,
+  ForceFailTaskRunRequest,
+  ForceReleaseTaskRunRequest,
+  RetryTaskRunRequest,
   StartTaskRunRequest,
   UpdateTaskRequest,
 } from "../types";
@@ -95,6 +101,18 @@ interface CompleteTaskRunParams extends TaskRunIdParams {
 
 interface FailTaskRunParams extends TaskRunIdParams {
   data: FailTaskRunRequest;
+}
+
+interface ForceReleaseTaskRunParams extends TaskRunIdParams {
+  data?: ForceReleaseTaskRunRequest;
+}
+
+interface ForceFailTaskRunParams extends TaskRunIdParams {
+  data: ForceFailTaskRunRequest;
+}
+
+interface RetryTaskRunParams extends TaskRunIdParams {
+  data?: RetryTaskRunRequest;
 }
 
 function invalidateTaskQueries(queryClient: QueryClient, id?: string) {
@@ -345,6 +363,49 @@ export function useFailTaskRun() {
 
   return useMutation({
     mutationFn: ({ runId, data }: FailTaskRunParams) => failTaskRun(runId, data),
+    onSettled: (_result, _error, { runId }) =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: tasksKeys.runDetail(runId) }),
+        invalidateTaskQueries(queryClient),
+        invalidateAggregateQueries(queryClient),
+      ]),
+  });
+}
+
+export function useForceReleaseTaskRun() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ runId, data }: ForceReleaseTaskRunParams) =>
+      forceReleaseTaskRun(runId, data ?? {}),
+    onSettled: (_result, _error, { runId }) =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: tasksKeys.runDetail(runId) }),
+        invalidateTaskQueries(queryClient),
+        invalidateAggregateQueries(queryClient),
+      ]),
+  });
+}
+
+export function useForceFailTaskRun() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ runId, data }: ForceFailTaskRunParams) => forceFailTaskRun(runId, data),
+    onSettled: (_result, _error, { runId }) =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: tasksKeys.runDetail(runId) }),
+        invalidateTaskQueries(queryClient),
+        invalidateAggregateQueries(queryClient),
+      ]),
+  });
+}
+
+export function useRetryTaskRun() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ runId, data }: RetryTaskRunParams) => retryTaskRun(runId, data ?? {}),
     onSettled: (_result, _error, { runId }) =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: tasksKeys.runDetail(runId) }),

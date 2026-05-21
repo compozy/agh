@@ -181,6 +181,17 @@ type TaskRunResponse struct {
 	Run TaskRunPayload `json:"run"`
 }
 
+// RetryTaskRunResponse wraps one retry source and newly queued run payload.
+type RetryTaskRunResponse struct {
+	PreviousRun TaskRunPayload `json:"previous_run"`
+	Run         TaskRunPayload `json:"run"`
+}
+
+// BulkForceTaskRunResponse wraps bounded per-row force-operation results.
+type BulkForceTaskRunResponse struct {
+	Results []BulkForceTaskRunItemPayload `json:"results"`
+}
+
 // TaskRunReviewRequestResponse wraps one review request and idempotent-create marker.
 type TaskRunReviewRequestResponse struct {
 	Review  TaskRunReviewPayload `json:"review"`

@@ -51,4 +51,14 @@ var (
 	ErrLeaseExpired = errors.New("task: lease expired")
 	// ErrActiveRunLease reports that a session already owns an active task-run lease.
 	ErrActiveRunLease = errors.New("task: active run lease exists")
+	// ErrForbiddenOperatorAction reports that config or policy forbids a force operation for the actor.
+	ErrForbiddenOperatorAction = errors.New("task: forbidden operator action")
+	// ErrForceOpRequiresReason reports that a force operation requires a non-empty reason.
+	ErrForceOpRequiresReason = errors.New("task: force operation requires reason")
+	// ErrForceOpRateLimited reports that an actor exceeded the force-operation rate limit.
+	ErrForceOpRateLimited = errors.New("task: force operation rate limited")
+	// ErrRetryChainTooDeep reports that retry would exceed the configured retry lineage depth.
+	ErrRetryChainTooDeep = errors.New("task: retry chain too deep")
+	// ErrBulkTooLarge reports that a bulk operation exceeded its bounded item limit.
+	ErrBulkTooLarge = errors.New("task: bulk operation too large")
 )

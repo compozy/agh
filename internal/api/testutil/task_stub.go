@@ -7,6 +7,33 @@ import (
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
+type forceReleaseRunFunc func(
+	context.Context,
+	string,
+	taskpkg.ForceReleaseRun,
+	taskpkg.ActorContext,
+) (*taskpkg.Run, error)
+
+type forceFailRunFunc func(
+	context.Context,
+	string,
+	taskpkg.ForceFailRun,
+	taskpkg.ActorContext,
+) (*taskpkg.Run, error)
+
+type retryRunFunc func(
+	context.Context,
+	string,
+	taskpkg.RetryRunRequest,
+	taskpkg.ActorContext,
+) (*taskpkg.RetryRunResult, error)
+
+type bulkForceRunFunc func(
+	context.Context,
+	taskpkg.BulkForceRunRequest,
+	taskpkg.ActorContext,
+) (taskpkg.BulkForceRunResult, error)
+
 type StubTaskManager struct {
 	CreateTaskFn      func(context.Context, taskpkg.CreateTask, taskpkg.ActorContext) (*taskpkg.Task, error)
 	CreateChildTaskFn func(
@@ -92,6 +119,11 @@ type StubTaskManager struct {
 	AttachRunSessionFn          func(context.Context, string, string, taskpkg.ActorContext) (*taskpkg.Run, error)
 	HeartbeatRunLeaseFn         func(context.Context, taskpkg.LeaseHeartbeat, taskpkg.ActorContext) (*taskpkg.Run, error)
 	ReleaseRunLeaseFn           func(context.Context, taskpkg.LeaseRelease, taskpkg.ActorContext) (*taskpkg.Run, error)
+	ForceReleaseRunFn           forceReleaseRunFunc
+	ForceFailRunFn              forceFailRunFunc
+	RetryRunFn                  retryRunFunc
+	BulkForceReleaseRunsFn      bulkForceRunFunc
+	BulkForceFailRunsFn         bulkForceRunFunc
 	CompleteRunLeaseFn          func(context.Context, taskpkg.LeaseCompletion, taskpkg.ActorContext) (*taskpkg.Run, error)
 	FailRunLeaseFn              func(context.Context, taskpkg.LeaseFailure, taskpkg.ActorContext) (*taskpkg.Run, error)
 	LookupActiveRunForSessionFn func(
@@ -467,6 +499,64 @@ func (s StubTaskManager) ReleaseRunLease(
 		return s.ReleaseRunLeaseFn(ctx, release, actor)
 	}
 	return nil, taskpkg.ErrTaskRunNotFound
+}
+
+func (s StubTaskManager) ForceReleaseRun(
+	ctx context.Context,
+	runID string,
+	release taskpkg.ForceReleaseRun,
+	actor taskpkg.ActorContext,
+) (*taskpkg.Run, error) {
+	if s.ForceReleaseRunFn != nil {
+		return s.ForceReleaseRunFn(ctx, runID, release, actor)
+	}
+	return nil, taskpkg.ErrTaskRunNotFound
+}
+
+func (s StubTaskManager) ForceFailRun(
+	ctx context.Context,
+	runID string,
+	failure taskpkg.ForceFailRun,
+	actor taskpkg.ActorContext,
+) (*taskpkg.Run, error) {
+	if s.ForceFailRunFn != nil {
+		return s.ForceFailRunFn(ctx, runID, failure, actor)
+	}
+	return nil, taskpkg.ErrTaskRunNotFound
+}
+
+func (s StubTaskManager) RetryRun(
+	ctx context.Context,
+	runID string,
+	retry taskpkg.RetryRunRequest,
+	actor taskpkg.ActorContext,
+) (*taskpkg.RetryRunResult, error) {
+	if s.RetryRunFn != nil {
+		return s.RetryRunFn(ctx, runID, retry, actor)
+	}
+	return nil, taskpkg.ErrTaskRunNotFound
+}
+
+func (s StubTaskManager) BulkForceReleaseRuns(
+	ctx context.Context,
+	req taskpkg.BulkForceRunRequest,
+	actor taskpkg.ActorContext,
+) (taskpkg.BulkForceRunResult, error) {
+	if s.BulkForceReleaseRunsFn != nil {
+		return s.BulkForceReleaseRunsFn(ctx, req, actor)
+	}
+	return taskpkg.BulkForceRunResult{}, taskpkg.ErrTaskRunNotFound
+}
+
+func (s StubTaskManager) BulkForceFailRuns(
+	ctx context.Context,
+	req taskpkg.BulkForceRunRequest,
+	actor taskpkg.ActorContext,
+) (taskpkg.BulkForceRunResult, error) {
+	if s.BulkForceFailRunsFn != nil {
+		return s.BulkForceFailRunsFn(ctx, req, actor)
+	}
+	return taskpkg.BulkForceRunResult{}, taskpkg.ErrTaskRunNotFound
 }
 
 func (s StubTaskManager) CompleteRunLease(

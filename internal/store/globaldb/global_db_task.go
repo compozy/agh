@@ -49,8 +49,9 @@ const taskListOrderByActivitySQL = ` ORDER BY COALESCE((
 	)
 ), tasks.updated_at) DESC, updated_at DESC, created_at DESC, id DESC`
 
-const taskRunSelectColumnsSQL = `id, task_id, status, attempt, claimed_by_kind, claimed_by_ref,
-	session_id, origin_kind, origin_ref, idempotency_key, network_channel, '' AS claim_token,
+const taskRunSelectColumnsSQL = `id, task_id, status, attempt, previous_run_id, failure_kind,
+	claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
+	network_channel, '' AS claim_token,
 	claim_token_hash, lease_until, heartbeat_at, coordination_channel_id, queued_at,
 	claimed_at, started_at, ended_at, error, metadata_json, result_json, review_required,
 	review_request_round, review_policy_snapshot, review_request_id, parent_run_id, review_id,
@@ -434,7 +435,7 @@ func updateTaskRunRecordWithExecutor(ctx context.Context, exec taskSQLExecutor, 
 	result, err := exec.ExecContext(
 		ctx,
 		`UPDATE task_runs
-		 SET task_id = ?, status = ?, attempt = ?, claimed_by_kind = ?,
+		 SET task_id = ?, status = ?, attempt = ?, previous_run_id = ?, failure_kind = ?, claimed_by_kind = ?,
 		     claimed_by_ref = ?, session_id = ?, origin_kind = ?,
 		     origin_ref = ?, idempotency_key = ?, network_channel = ?,
 		     claim_token = ?, claim_token_hash = ?, lease_until = ?,
@@ -448,6 +449,8 @@ func updateTaskRunRecordWithExecutor(ctx context.Context, exec taskSQLExecutor, 
 		run.TaskID,
 		string(run.Status),
 		run.Attempt,
+		store.NullableString(run.PreviousRunID),
+		strings.TrimSpace(run.FailureKind),
 		taskActorKindValue(run.ClaimedBy),
 		taskActorRefValue(run.ClaimedBy),
 		store.NullableString(run.SessionID),
@@ -771,17 +774,20 @@ func insertTaskRunWithExecutor(ctx context.Context, exec taskSQLExecutor, run ta
 	if _, err := exec.ExecContext(
 		ctx,
 		`INSERT INTO task_runs (
-			id, task_id, status, attempt, claimed_by_kind, claimed_by_ref, session_id, origin_kind, origin_ref,
-			idempotency_key, network_channel, claim_token, claim_token_hash, lease_until,
+			id, task_id, status, attempt, previous_run_id, failure_kind, claimed_by_kind,
+			claimed_by_ref, session_id, origin_kind, origin_ref, idempotency_key,
+			network_channel, claim_token, claim_token_hash, lease_until,
 			heartbeat_at, coordination_channel_id, queued_at, claimed_at, started_at, ended_at,
 			error, metadata_json, result_json, review_required, review_request_round,
 			review_policy_snapshot, review_request_id, parent_run_id, review_id, review_round,
 			continuation_reason, missing_work_json, next_round_guidance
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		run.ID,
 		run.TaskID,
 		string(run.Status),
 		run.Attempt,
+		store.NullableString(run.PreviousRunID),
+		strings.TrimSpace(run.FailureKind),
 		taskActorKindValue(run.ClaimedBy),
 		taskActorRefValue(run.ClaimedBy),
 		store.NullableString(run.SessionID),
@@ -1118,6 +1124,8 @@ func scanTaskRunRecord(scanner rowScanner) (taskpkg.Run, error) {
 		&run.TaskID,
 		&fields.status,
 		&run.Attempt,
+		&fields.previousRunID,
+		&fields.failureKind,
 		&fields.claimedByKind,
 		&fields.claimedByRef,
 		&fields.sessionID,
@@ -1155,6 +1163,8 @@ func scanTaskRunRecord(scanner rowScanner) (taskpkg.Run, error) {
 
 type taskRunScanFields struct {
 	status               string
+	previousRunID        sql.NullString
+	failureKind          string
 	claimedByKind        sql.NullString
 	claimedByRef         sql.NullString
 	sessionID            sql.NullString
@@ -1189,6 +1199,8 @@ func (fields *taskRunScanFields) record(run taskpkg.Run) (taskpkg.Run, error) {
 	assignScannedTaskRunRecord(
 		&run,
 		fields.status,
+		fields.previousRunID,
+		fields.failureKind,
 		fields.claimedByKind,
 		fields.claimedByRef,
 		fields.sessionID,
@@ -1295,6 +1307,8 @@ func assignTaskRecordTimestamps(
 func assignScannedTaskRunRecord(
 	run *taskpkg.Run,
 	status string,
+	previousRunID sql.NullString,
+	failureKind string,
 	claimedByKind sql.NullString,
 	claimedByRef sql.NullString,
 	sessionID sql.NullString,
@@ -1307,6 +1321,8 @@ func assignScannedTaskRunRecord(
 	runErr sql.NullString,
 ) {
 	run.Status = taskpkg.RunStatus(strings.TrimSpace(status))
+	run.PreviousRunID = taskNullStringValue(previousRunID)
+	run.FailureKind = strings.TrimSpace(failureKind)
 	if claimedByKind.Valid || claimedByRef.Valid {
 		run.ClaimedBy = &taskpkg.ActorIdentity{
 			Kind: taskpkg.ActorKind(strings.TrimSpace(claimedByKind.String)),
@@ -1435,6 +1451,8 @@ func normalizeTaskRunRecord(run taskpkg.Run) taskpkg.Run {
 	normalized.ID = strings.TrimSpace(normalized.ID)
 	normalized.TaskID = strings.TrimSpace(normalized.TaskID)
 	normalized.Status = normalized.Status.Normalize()
+	normalized.PreviousRunID = strings.TrimSpace(normalized.PreviousRunID)
+	normalized.FailureKind = strings.TrimSpace(normalized.FailureKind)
 	if normalized.ClaimedBy != nil {
 		claimedBy := *normalized.ClaimedBy
 		claimedBy.Kind = claimedBy.Kind.Normalize()

@@ -2892,6 +2892,8 @@ func TaskRunSummaryPayloadFromSummary(summary *taskpkg.RunSummary) *contract.Tas
 		TaskID:                summary.TaskID,
 		Status:                summary.Status,
 		Attempt:               summary.Attempt,
+		PreviousRunID:         summary.PreviousRunID,
+		FailureKind:           summary.FailureKind,
 		MaxAttempts:           summary.MaxAttempts,
 		SessionID:             summary.SessionID,
 		ClaimedBy:             cloneActorIdentity(summary.ClaimedBy),

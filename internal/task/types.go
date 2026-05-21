@@ -99,6 +99,17 @@ const (
 	TaskRunStatusCanceled RunStatus = "canceled"
 )
 
+const (
+	// FailureKindOperatorForced identifies an operator-authored forced terminal failure.
+	FailureKindOperatorForced = "operator_forced"
+	// MaxForceRunBulkIDs bounds per-request bulk recovery work.
+	MaxForceRunBulkIDs = 50
+	// MaxRetryRunChainDepth bounds linear retry lineage to prevent accidental retry loops.
+	MaxRetryRunChainDepth = 10
+	// DefaultForceRunRateLimitPerMinute bounds force operations by actor and task.
+	DefaultForceRunRateLimitPerMinute = 10
+)
+
 // ActorKind identifies the authenticated principal class behind task writes.
 type ActorKind string
 
@@ -283,6 +294,8 @@ type Run struct {
 	TaskID                string            `json:"task_id"`
 	Status                RunStatus         `json:"status"`
 	Attempt               int               `json:"attempt"`
+	PreviousRunID         string            `json:"previous_run_id,omitempty"`
+	FailureKind           string            `json:"failure_kind,omitempty"`
 	ClaimedBy             *ActorIdentity    `json:"claimed_by,omitempty"`
 	SessionID             string            `json:"session_id,omitempty"`
 	Origin                Origin            `json:"origin"`
@@ -394,6 +407,8 @@ type RunSummary struct {
 	TaskID                string         `json:"task_id"`
 	Status                RunStatus      `json:"status"`
 	Attempt               int            `json:"attempt"`
+	PreviousRunID         string         `json:"previous_run_id,omitempty"`
+	FailureKind           string         `json:"failure_kind,omitempty"`
 	MaxAttempts           int            `json:"max_attempts"`
 	SessionID             string         `json:"session_id,omitempty"`
 	ClaimedBy             *ActorIdentity `json:"claimed_by,omitempty"`
@@ -526,6 +541,83 @@ type RunResult struct {
 type RunFailure struct {
 	Error    string          `json:"error"`
 	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// ForceRecoveryOptions controls operator/agent force-operation policy.
+type ForceRecoveryOptions struct {
+	AllowAgentForce    bool `json:"allow_agent_force"`
+	RateLimitPerMinute int  `json:"rate_limit_per_minute,omitempty"`
+}
+
+// ForceReleaseRun captures one operator/agent force release request.
+type ForceReleaseRun struct {
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// ForceFailRun captures one operator/agent forced failure request.
+type ForceFailRun struct {
+	Reason   string          `json:"reason"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// RetryRunRequest captures one operator/agent retry request.
+type RetryRunRequest struct {
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// RetryRunResult records the source terminal run and the newly queued retry.
+type RetryRunResult struct {
+	PreviousRun Run `json:"previous_run"`
+	Run         Run `json:"run"`
+}
+
+// BulkForceRunRequest captures a bounded release/fail batch.
+type BulkForceRunRequest struct {
+	RunIDs   []string        `json:"run_ids"`
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// BulkForceRunItem records one per-run bulk recovery outcome.
+type BulkForceRunItem struct {
+	RunID string `json:"run_id"`
+	OK    bool   `json:"ok"`
+	Run   *Run   `json:"run,omitempty"`
+	Err   error  `json:"-"`
+}
+
+// BulkForceRunResult records bounded per-row outcomes.
+type BulkForceRunResult struct {
+	Items []BulkForceRunItem `json:"items"`
+}
+
+// ForceRunMutationResult records the before/after state for one force mutation.
+type ForceRunMutationResult struct {
+	Previous Run `json:"previous"`
+	Run      Run `json:"run"`
+}
+
+// ForceReleaseRunMutation captures one transactional force-release write.
+type ForceReleaseRunMutation struct {
+	RunID string    `json:"run_id"`
+	Now   time.Time `json:"now"`
+}
+
+// ForceFailRunMutation captures one transactional force-fail write.
+type ForceFailRunMutation struct {
+	RunID  string    `json:"run_id"`
+	Reason string    `json:"reason"`
+	Now    time.Time `json:"now"`
+}
+
+// RetryRunMutation captures one transactional retry write.
+type RetryRunMutation struct {
+	SourceRunID string          `json:"source_run_id"`
+	NewRunID    string          `json:"new_run_id"`
+	Origin      Origin          `json:"origin"`
+	Metadata    json.RawMessage `json:"metadata,omitempty"`
+	QueuedAt    time.Time       `json:"queued_at"`
 }
 
 // Query captures the supported list filters for task reads.

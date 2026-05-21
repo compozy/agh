@@ -1880,6 +1880,57 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/runs/bulk/fail": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Force fail a bounded set of queued or claimed task runs */
+    post: operations["bulkForceFailTaskRuns"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/runs/bulk/release": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Force release a bounded set of claimed task runs */
+    post: operations["bulkForceReleaseTaskRuns"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/runs/{id}/fail": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Force fail one queued or claimed task run */
+    post: operations["forceFailTaskRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/runs/{id}/inspect": {
     parameters: {
       query?: never;
@@ -1891,6 +1942,40 @@ export interface paths {
     get: operations["inspectRun"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/runs/{id}/release": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Force release one claimed task run */
+    post: operations["forceReleaseTaskRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/runs/{id}/retry": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Retry one failed task run */
+    post: operations["retryTaskRun"];
     delete?: never;
     options?: never;
     head?: never;
@@ -5006,12 +5091,14 @@ export interface operations {
                     /** Format: date-time */
                     ended_at: string;
                     error?: string;
+                    failure_kind?: string;
                     /** Format: date-time */
                     heartbeat_at: string;
                     id: string;
                     /** Format: date-time */
                     lease_until: string;
                     max_attempts: number;
+                    previous_run_id?: string;
                     /** Format: date-time */
                     queued_at: string;
                     session_id?: string;
@@ -5111,12 +5198,14 @@ export interface operations {
                     /** Format: date-time */
                     ended_at: string;
                     error?: string;
+                    failure_kind?: string;
                     /** Format: date-time */
                     heartbeat_at: string;
                     id: string;
                     /** Format: date-time */
                     lease_until: string;
                     max_attempts: number;
+                    previous_run_id?: string;
                     /** Format: date-time */
                     queued_at: string;
                     session_id?: string;
@@ -5182,12 +5271,14 @@ export interface operations {
                       /** Format: date-time */
                       ended_at: string;
                       error?: string;
+                      failure_kind?: string;
                       /** Format: date-time */
                       heartbeat_at: string;
                       id: string;
                       /** Format: date-time */
                       lease_until: string;
                       max_attempts: number;
+                      previous_run_id?: string;
                       /** Format: date-time */
                       queued_at: string;
                       session_id?: string;
@@ -6975,6 +7066,7 @@ export interface operations {
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
+                failure_kind?: string;
                 /** Format: date-time */
                 heartbeat_at?: string | null;
                 id: string;
@@ -6997,6 +7089,7 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 };
+                previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
                 result?: unknown;
@@ -25694,12 +25787,14 @@ export interface operations {
                     /** Format: date-time */
                     ended_at?: string | null;
                     error?: string;
+                    failure_kind?: string;
                     /** Format: date-time */
                     heartbeat_at?: string | null;
                     id: string;
                     /** Format: date-time */
                     lease_until?: string | null;
                     max_attempts: number;
+                    previous_run_id?: string;
                     /** Format: date-time */
                     queued_at: string;
                     session_id?: string;
@@ -27207,6 +27302,829 @@ export interface operations {
       };
     };
   };
+  bulkForceFailTaskRuns: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          metadata?: unknown;
+          reason?: string;
+          run_ids: string[];
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            results: {
+              error?: {
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                error: string;
+              } | null;
+              ok: boolean;
+              run?: {
+                attempt: number;
+                claim_token_hash?: string;
+                /** Format: date-time */
+                claimed_at?: string | null;
+                claimed_by?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                } | null;
+                coordination_channel?: {
+                  allowed_message_kinds: (
+                    | "status"
+                    | "request"
+                    | "reply"
+                    | "blocker"
+                    | "handoff"
+                    | "result"
+                    | "review_request"
+                  )[];
+                  channel?: string;
+                  display_name: string;
+                  id: string;
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  purpose?: string;
+                  run_id?: string;
+                  task_id?: string;
+                  workflow_id?: string;
+                  workspace_id?: string;
+                } | null;
+                coordination_channel_id?: string;
+                /** Format: date-time */
+                ended_at?: string | null;
+                error?: string;
+                failure_kind?: string;
+                /** Format: date-time */
+                heartbeat_at?: string | null;
+                id: string;
+                idempotency_key?: string;
+                /** Format: date-time */
+                lease_until?: string | null;
+                metadata?: unknown;
+                network_channel?: string;
+                origin: {
+                  /** @enum {string} */
+                  kind:
+                    | "cli"
+                    | "web"
+                    | "uds"
+                    | "http"
+                    | "automation"
+                    | "extension"
+                    | "network"
+                    | "agent_session"
+                    | "daemon";
+                  ref: string;
+                };
+                previous_run_id?: string;
+                /** Format: date-time */
+                queued_at: string;
+                result?: unknown;
+                session_id?: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                /** @enum {string} */
+                status:
+                  | "queued"
+                  | "claimed"
+                  | "starting"
+                  | "running"
+                  | "completed"
+                  | "failed"
+                  | "canceled";
+                task_id: string;
+              } | null;
+              run_id: string;
+            }[];
+          };
+        };
+      };
+      /** @description Force operation forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid bulk forced-failure request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Force-operation rate limit exceeded */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  bulkForceReleaseTaskRuns: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          metadata?: unknown;
+          reason?: string;
+          run_ids: string[];
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            results: {
+              error?: {
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                error: string;
+              } | null;
+              ok: boolean;
+              run?: {
+                attempt: number;
+                claim_token_hash?: string;
+                /** Format: date-time */
+                claimed_at?: string | null;
+                claimed_by?: {
+                  /** @enum {string} */
+                  kind:
+                    | "human"
+                    | "agent_session"
+                    | "automation"
+                    | "extension"
+                    | "network_peer"
+                    | "daemon";
+                  ref: string;
+                } | null;
+                coordination_channel?: {
+                  allowed_message_kinds: (
+                    | "status"
+                    | "request"
+                    | "reply"
+                    | "blocker"
+                    | "handoff"
+                    | "result"
+                    | "review_request"
+                  )[];
+                  channel?: string;
+                  display_name: string;
+                  id: string;
+                  /** Format: date-time */
+                  last_activity_at?: string | null;
+                  purpose?: string;
+                  run_id?: string;
+                  task_id?: string;
+                  workflow_id?: string;
+                  workspace_id?: string;
+                } | null;
+                coordination_channel_id?: string;
+                /** Format: date-time */
+                ended_at?: string | null;
+                error?: string;
+                failure_kind?: string;
+                /** Format: date-time */
+                heartbeat_at?: string | null;
+                id: string;
+                idempotency_key?: string;
+                /** Format: date-time */
+                lease_until?: string | null;
+                metadata?: unknown;
+                network_channel?: string;
+                origin: {
+                  /** @enum {string} */
+                  kind:
+                    | "cli"
+                    | "web"
+                    | "uds"
+                    | "http"
+                    | "automation"
+                    | "extension"
+                    | "network"
+                    | "agent_session"
+                    | "daemon";
+                  ref: string;
+                };
+                previous_run_id?: string;
+                /** Format: date-time */
+                queued_at: string;
+                result?: unknown;
+                session_id?: string;
+                /** Format: date-time */
+                started_at?: string | null;
+                /** @enum {string} */
+                status:
+                  | "queued"
+                  | "claimed"
+                  | "starting"
+                  | "running"
+                  | "completed"
+                  | "failed"
+                  | "canceled";
+                task_id: string;
+              } | null;
+              run_id: string;
+            }[];
+          };
+        };
+      };
+      /** @description Force operation forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid bulk force-release request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Force-operation rate limit exceeded */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  forceFailTaskRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task run id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          metadata?: unknown;
+          reason: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            run: {
+              attempt: number;
+              claim_token_hash?: string;
+              /** Format: date-time */
+              claimed_at?: string | null;
+              claimed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              coordination_channel?: {
+                allowed_message_kinds: (
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request"
+                )[];
+                channel?: string;
+                display_name: string;
+                id: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                purpose?: string;
+                run_id?: string;
+                task_id?: string;
+                workflow_id?: string;
+                workspace_id?: string;
+              } | null;
+              coordination_channel_id?: string;
+              /** Format: date-time */
+              ended_at?: string | null;
+              error?: string;
+              failure_kind?: string;
+              /** Format: date-time */
+              heartbeat_at?: string | null;
+              id: string;
+              idempotency_key?: string;
+              /** Format: date-time */
+              lease_until?: string | null;
+              metadata?: unknown;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              previous_run_id?: string;
+              /** Format: date-time */
+              queued_at: string;
+              result?: unknown;
+              session_id?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "claimed"
+                | "starting"
+                | "running"
+                | "completed"
+                | "failed"
+                | "canceled";
+              task_id: string;
+            };
+          };
+        };
+      };
+      /** @description Force operation forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task-run forced-failure conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid forced-failure request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Force-operation rate limit exceeded */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   inspectRun: {
     parameters: {
       query?: never;
@@ -27384,12 +28302,14 @@ export interface operations {
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
+                  failure_kind?: string;
                   /** Format: date-time */
                   heartbeat_at?: string | null;
                   id: string;
                   /** Format: date-time */
                   lease_until?: string | null;
                   max_attempts: number;
+                  previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
                   session_id?: string;
@@ -27554,6 +28474,677 @@ export interface operations {
       };
       /** @description Invalid task-run id */
       422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  forceReleaseTaskRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task run id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          metadata?: unknown;
+          reason?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            run: {
+              attempt: number;
+              claim_token_hash?: string;
+              /** Format: date-time */
+              claimed_at?: string | null;
+              claimed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              coordination_channel?: {
+                allowed_message_kinds: (
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request"
+                )[];
+                channel?: string;
+                display_name: string;
+                id: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                purpose?: string;
+                run_id?: string;
+                task_id?: string;
+                workflow_id?: string;
+                workspace_id?: string;
+              } | null;
+              coordination_channel_id?: string;
+              /** Format: date-time */
+              ended_at?: string | null;
+              error?: string;
+              failure_kind?: string;
+              /** Format: date-time */
+              heartbeat_at?: string | null;
+              id: string;
+              idempotency_key?: string;
+              /** Format: date-time */
+              lease_until?: string | null;
+              metadata?: unknown;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              previous_run_id?: string;
+              /** Format: date-time */
+              queued_at: string;
+              result?: unknown;
+              session_id?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "claimed"
+                | "starting"
+                | "running"
+                | "completed"
+                | "failed"
+                | "canceled";
+              task_id: string;
+            };
+          };
+        };
+      };
+      /** @description Force operation forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task-run force-release conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid force-release request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Force-operation rate limit exceeded */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  retryTaskRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task run id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          metadata?: unknown;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            previous_run: {
+              attempt: number;
+              claim_token_hash?: string;
+              /** Format: date-time */
+              claimed_at?: string | null;
+              claimed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              coordination_channel?: {
+                allowed_message_kinds: (
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request"
+                )[];
+                channel?: string;
+                display_name: string;
+                id: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                purpose?: string;
+                run_id?: string;
+                task_id?: string;
+                workflow_id?: string;
+                workspace_id?: string;
+              } | null;
+              coordination_channel_id?: string;
+              /** Format: date-time */
+              ended_at?: string | null;
+              error?: string;
+              failure_kind?: string;
+              /** Format: date-time */
+              heartbeat_at?: string | null;
+              id: string;
+              idempotency_key?: string;
+              /** Format: date-time */
+              lease_until?: string | null;
+              metadata?: unknown;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              previous_run_id?: string;
+              /** Format: date-time */
+              queued_at: string;
+              result?: unknown;
+              session_id?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "claimed"
+                | "starting"
+                | "running"
+                | "completed"
+                | "failed"
+                | "canceled";
+              task_id: string;
+            };
+            run: {
+              attempt: number;
+              claim_token_hash?: string;
+              /** Format: date-time */
+              claimed_at?: string | null;
+              claimed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              coordination_channel?: {
+                allowed_message_kinds: (
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request"
+                )[];
+                channel?: string;
+                display_name: string;
+                id: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                purpose?: string;
+                run_id?: string;
+                task_id?: string;
+                workflow_id?: string;
+                workspace_id?: string;
+              } | null;
+              coordination_channel_id?: string;
+              /** Format: date-time */
+              ended_at?: string | null;
+              error?: string;
+              failure_kind?: string;
+              /** Format: date-time */
+              heartbeat_at?: string | null;
+              id: string;
+              idempotency_key?: string;
+              /** Format: date-time */
+              lease_until?: string | null;
+              metadata?: unknown;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              previous_run_id?: string;
+              /** Format: date-time */
+              queued_at: string;
+              result?: unknown;
+              session_id?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "claimed"
+                | "starting"
+                | "running"
+                | "completed"
+                | "failed"
+                | "canceled";
+              task_id: string;
+            };
+          };
+        };
+      };
+      /** @description Force operation forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task-run retry conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid retry request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Force-operation rate limit exceeded */
+      429: {
         headers: {
           [name: string]: unknown;
         };
@@ -37022,6 +38613,7 @@ export interface operations {
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              failure_kind?: string;
               /** Format: date-time */
               heartbeat_at?: string | null;
               id: string;
@@ -37044,6 +38636,7 @@ export interface operations {
                   | "daemon";
                 ref: string;
               };
+              previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
               result?: unknown;
@@ -37320,6 +38913,7 @@ export interface operations {
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
+                failure_kind?: string;
                 /** Format: date-time */
                 heartbeat_at?: string | null;
                 id: string;
@@ -37342,6 +38936,7 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 };
+                previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
                 result?: unknown;
@@ -37601,6 +39196,7 @@ export interface operations {
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              failure_kind?: string;
               /** Format: date-time */
               heartbeat_at?: string | null;
               id: string;
@@ -37623,6 +39219,7 @@ export interface operations {
                   | "daemon";
                 ref: string;
               };
+              previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
               result?: unknown;
@@ -37844,6 +39441,7 @@ export interface operations {
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              failure_kind?: string;
               /** Format: date-time */
               heartbeat_at?: string | null;
               id: string;
@@ -37866,6 +39464,7 @@ export interface operations {
                   | "daemon";
                 ref: string;
               };
+              previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
               result?: unknown;
@@ -38086,6 +39685,7 @@ export interface operations {
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              failure_kind?: string;
               /** Format: date-time */
               heartbeat_at?: string | null;
               id: string;
@@ -38108,6 +39708,7 @@ export interface operations {
                   | "daemon";
                 ref: string;
               };
+              previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
               result?: unknown;
@@ -38328,6 +39929,7 @@ export interface operations {
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              failure_kind?: string;
               /** Format: date-time */
               heartbeat_at?: string | null;
               id: string;
@@ -38350,6 +39952,7 @@ export interface operations {
                   | "daemon";
                 ref: string;
               };
+              previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
               result?: unknown;
@@ -38571,6 +40174,7 @@ export interface operations {
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              failure_kind?: string;
               /** Format: date-time */
               heartbeat_at?: string | null;
               id: string;
@@ -38593,6 +40197,7 @@ export interface operations {
                   | "daemon";
                 ref: string;
               };
+              previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
               result?: unknown;
@@ -39319,6 +40924,7 @@ export interface operations {
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              failure_kind?: string;
               /** Format: date-time */
               heartbeat_at?: string | null;
               id: string;
@@ -39341,6 +40947,7 @@ export interface operations {
                   | "daemon";
                 ref: string;
               };
+              previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
               result?: unknown;
@@ -39591,12 +41198,14 @@ export interface operations {
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
+                failure_kind?: string;
                 /** Format: date-time */
                 heartbeat_at?: string | null;
                 id: string;
                 /** Format: date-time */
                 lease_until?: string | null;
                 max_attempts: number;
+                previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
                 session_id?: string;
@@ -40181,12 +41790,14 @@ export interface operations {
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
+                  failure_kind?: string;
                   /** Format: date-time */
                   heartbeat_at?: string | null;
                   id: string;
                   /** Format: date-time */
                   lease_until?: string | null;
                   max_attempts: number;
+                  previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
                   session_id?: string;
@@ -40444,6 +42055,7 @@ export interface operations {
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
+                failure_kind?: string;
                 /** Format: date-time */
                 heartbeat_at?: string | null;
                 id: string;
@@ -40466,6 +42078,7 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 };
+                previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
                 result?: unknown;
@@ -40525,12 +42138,14 @@ export interface operations {
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
+                  failure_kind?: string;
                   /** Format: date-time */
                   heartbeat_at?: string | null;
                   id: string;
                   /** Format: date-time */
                   lease_until?: string | null;
                   max_attempts: number;
+                  previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
                   session_id?: string;
@@ -41298,6 +42913,7 @@ export interface operations {
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              failure_kind?: string;
               /** Format: date-time */
               heartbeat_at?: string | null;
               id: string;
@@ -41320,6 +42936,7 @@ export interface operations {
                   | "daemon";
                 ref: string;
               };
+              previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
               result?: unknown;
@@ -42138,12 +43755,14 @@ export interface operations {
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
+                  failure_kind?: string;
                   /** Format: date-time */
                   heartbeat_at?: string | null;
                   id: string;
                   /** Format: date-time */
                   lease_until?: string | null;
                   max_attempts: number;
+                  previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
                   session_id?: string;
@@ -42401,6 +44020,7 @@ export interface operations {
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
+                failure_kind?: string;
                 /** Format: date-time */
                 heartbeat_at?: string | null;
                 id: string;
@@ -42423,6 +44043,7 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 };
+                previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
                 result?: unknown;
@@ -42482,12 +44103,14 @@ export interface operations {
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
+                  failure_kind?: string;
                   /** Format: date-time */
                   heartbeat_at?: string | null;
                   id: string;
                   /** Format: date-time */
                   lease_until?: string | null;
                   max_attempts: number;
+                  previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
                   session_id?: string;
@@ -42897,12 +44520,14 @@ export interface operations {
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
+                  failure_kind?: string;
                   /** Format: date-time */
                   heartbeat_at?: string | null;
                   id: string;
                   /** Format: date-time */
                   lease_until?: string | null;
                   max_attempts: number;
+                  previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
                   session_id?: string;
@@ -43160,6 +44785,7 @@ export interface operations {
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
+                failure_kind?: string;
                 /** Format: date-time */
                 heartbeat_at?: string | null;
                 id: string;
@@ -43182,6 +44808,7 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 };
+                previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
                 result?: unknown;
@@ -43241,12 +44868,14 @@ export interface operations {
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
+                  failure_kind?: string;
                   /** Format: date-time */
                   heartbeat_at?: string | null;
                   id: string;
                   /** Format: date-time */
                   lease_until?: string | null;
                   max_attempts: number;
+                  previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
                   session_id?: string;
@@ -44322,12 +45951,14 @@ export interface operations {
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
+                  failure_kind?: string;
                   /** Format: date-time */
                   heartbeat_at?: string | null;
                   id: string;
                   /** Format: date-time */
                   lease_until?: string | null;
                   max_attempts: number;
+                  previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
                   session_id?: string;
@@ -45261,6 +46892,7 @@ export interface operations {
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              failure_kind?: string;
               /** Format: date-time */
               heartbeat_at?: string | null;
               id: string;
@@ -45283,6 +46915,7 @@ export interface operations {
                   | "daemon";
                 ref: string;
               };
+              previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
               result?: unknown;
@@ -46014,6 +47647,7 @@ export interface operations {
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              failure_kind?: string;
               /** Format: date-time */
               heartbeat_at?: string | null;
               id: string;
@@ -46036,6 +47670,7 @@ export interface operations {
                   | "daemon";
                 ref: string;
               };
+              previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
               result?: unknown;
@@ -46233,6 +47868,7 @@ export interface operations {
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              failure_kind?: string;
               /** Format: date-time */
               heartbeat_at?: string | null;
               id: string;
@@ -46255,6 +47891,7 @@ export interface operations {
                   | "daemon";
                 ref: string;
               };
+              previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
               result?: unknown;
@@ -46477,6 +48114,7 @@ export interface operations {
               /** Format: date-time */
               ended_at?: string | null;
               error?: string;
+              failure_kind?: string;
               /** Format: date-time */
               heartbeat_at?: string | null;
               id: string;
@@ -46499,6 +48137,7 @@ export interface operations {
                   | "daemon";
                 ref: string;
               };
+              previous_run_id?: string;
               /** Format: date-time */
               queued_at: string;
               result?: unknown;
@@ -46821,12 +48460,14 @@ export interface operations {
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
+                failure_kind?: string;
                 /** Format: date-time */
                 heartbeat_at?: string | null;
                 id: string;
                 /** Format: date-time */
                 lease_until?: string | null;
                 max_attempts: number;
+                previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
                 session_id?: string;
@@ -47087,12 +48728,14 @@ export interface operations {
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
+                failure_kind?: string;
                 /** Format: date-time */
                 heartbeat_at?: string | null;
                 id: string;
                 /** Format: date-time */
                 lease_until?: string | null;
                 max_attempts: number;
+                previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
                 session_id?: string;
@@ -47320,12 +48963,14 @@ export interface operations {
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
+                  failure_kind?: string;
                   /** Format: date-time */
                   heartbeat_at?: string | null;
                   id: string;
                   /** Format: date-time */
                   lease_until?: string | null;
                   max_attempts: number;
+                  previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
                   session_id?: string;
@@ -47423,12 +49068,14 @@ export interface operations {
                   /** Format: date-time */
                   ended_at?: string | null;
                   error?: string;
+                  failure_kind?: string;
                   /** Format: date-time */
                   heartbeat_at?: string | null;
                   id: string;
                   /** Format: date-time */
                   lease_until?: string | null;
                   max_attempts: number;
+                  previous_run_id?: string;
                   /** Format: date-time */
                   queued_at: string;
                   session_id?: string;
@@ -57635,6 +59282,7 @@ export interface operations {
                 /** Format: date-time */
                 ended_at?: string | null;
                 error?: string;
+                failure_kind?: string;
                 /** Format: date-time */
                 heartbeat_at?: string | null;
                 id: string;
@@ -57657,6 +59305,7 @@ export interface operations {
                     | "daemon";
                   ref: string;
                 };
+                previous_run_id?: string;
                 /** Format: date-time */
                 queued_at: string;
                 result?: unknown;

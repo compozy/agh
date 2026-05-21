@@ -181,7 +181,7 @@ func TestGlobalDBTaskRunLeaseAdversarialFencing(t *testing.T) {
 		if got, want := len(successes), 1; got != want {
 			t.Fatalf("successful transitions = %d, want %d (results=%#v)", got, want, results)
 		}
-		assertLeaseRaceWinner(ctx, t, globalDB, claim.Run.TaskID, successes[0])
+		assertLeaseRaceWinner(ctx, t, globalDB, claim.Run.TaskID, &successes[0])
 		if _, err := globalDB.HeartbeatRunLease(ctx, taskpkg.LeaseHeartbeat{
 			RunID:         claim.Run.ID,
 			ClaimToken:    claim.ClaimToken,
@@ -336,7 +336,7 @@ func assertLeaseRaceWinner(
 	t *testing.T,
 	globalDB *GlobalDB,
 	taskID string,
-	winner transitionResult,
+	winner *transitionResult,
 ) {
 	t.Helper()
 

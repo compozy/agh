@@ -53,7 +53,12 @@ const (
 	specAPISettingsProvidersNamePath                         = "/api/settings/providers/{name}"
 	specAPISettingsSandboxesNamePath                         = "/api/settings/sandboxes/{name}"
 	specAPISettingsSkillsPath                                = "/api/settings/skills"
+	specAPIRunsBulkFailPath                                  = "/api/runs/bulk/fail"
+	specAPIRunsBulkReleasePath                               = "/api/runs/bulk/release"
+	specAPIRunsIDFailPath                                    = "/api/runs/{id}/fail"
 	specAPIRunsIDInspectPath                                 = "/api/runs/{id}/inspect"
+	specAPIRunsIDReleasePath                                 = "/api/runs/{id}/release"
+	specAPIRunsIDRetryPath                                   = "/api/runs/{id}/retry"
 	specAPITaskRunsIDReviewsPath                             = "/api/task-runs/{id}/reviews"
 	specAPITasksPath                                         = "/api/tasks"
 	specAPITasksIDPath                                       = "/api/tasks/{id}"
@@ -80,6 +85,8 @@ const (
 	specExtensionNotFoundDescription                         = "Extension not found"
 	specExtensionServiceIsNotConfiguredDescription           = "Extension service is not configured"
 	specForbiddenDescription                                 = "Forbidden"
+	specForceOperationForbiddenDescription                   = "Force operation forbidden"
+	specForceOperationRateLimitExceededDescription           = "Force-operation rate limit exceeded"
 	specSupportBundleServiceIsNotConfiguredDescription       = "Support bundle service is not configured"
 	specForbiddenWorkspaceOrPermissionMismatchDescription    = "Forbidden - workspace or permission mismatch"
 	specInternalDaemonErrorDescription                       = "Internal daemon error"
@@ -3833,6 +3840,106 @@ var operationRegistry = []OperationSpec{
 			{Status: 200, Description: "OK", Body: contract.TaskInspectResponse{}},
 			{Status: 404, Description: specTaskRunNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 422, Description: "Invalid task-run id", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodPost,
+		Path:        specAPIRunsIDReleasePath,
+		OperationID: "forceReleaseTaskRun",
+		Summary:     "Force release one claimed task run",
+		Tags:        []string{specTasksKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task run id"),
+		},
+		RequestBody: contract.ForceReleaseTaskRunRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskRunResponse{}},
+			{Status: 403, Description: specForceOperationForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specTaskRunNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Task-run force-release conflict", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid force-release request", Body: contract.ErrorPayload{}},
+			{Status: 429, Description: specForceOperationRateLimitExceededDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodPost,
+		Path:        specAPIRunsIDFailPath,
+		OperationID: "forceFailTaskRun",
+		Summary:     "Force fail one queued or claimed task run",
+		Tags:        []string{specTasksKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task run id"),
+		},
+		RequestBody: contract.ForceFailTaskRunRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskRunResponse{}},
+			{Status: 403, Description: specForceOperationForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specTaskRunNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Task-run forced-failure conflict", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid forced-failure request", Body: contract.ErrorPayload{}},
+			{Status: 429, Description: specForceOperationRateLimitExceededDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodPost,
+		Path:        specAPIRunsIDRetryPath,
+		OperationID: "retryTaskRun",
+		Summary:     "Retry one failed task run",
+		Tags:        []string{specTasksKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task run id"),
+		},
+		RequestBody: contract.RetryTaskRunRequest{},
+		Responses: []ResponseSpec{
+			{Status: 201, Description: specCreatedDescription, Body: contract.RetryTaskRunResponse{}},
+			{Status: 403, Description: specForceOperationForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specTaskRunNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Task-run retry conflict", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid retry request", Body: contract.ErrorPayload{}},
+			{Status: 429, Description: specForceOperationRateLimitExceededDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodPost,
+		Path:        specAPIRunsBulkReleasePath,
+		OperationID: "bulkForceReleaseTaskRuns",
+		Summary:     "Force release a bounded set of claimed task runs",
+		Tags:        []string{specTasksKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		RequestBody: contract.BulkForceTaskRunRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.BulkForceTaskRunResponse{}},
+			{Status: 403, Description: specForceOperationForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid bulk force-release request", Body: contract.ErrorPayload{}},
+			{Status: 429, Description: specForceOperationRateLimitExceededDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodPost,
+		Path:        specAPIRunsBulkFailPath,
+		OperationID: "bulkForceFailTaskRuns",
+		Summary:     "Force fail a bounded set of queued or claimed task runs",
+		Tags:        []string{specTasksKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		RequestBody: contract.BulkForceTaskRunRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.BulkForceTaskRunResponse{}},
+			{Status: 403, Description: specForceOperationForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid bulk forced-failure request", Body: contract.ErrorPayload{}},
+			{Status: 429, Description: specForceOperationRateLimitExceededDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},

@@ -23,41 +23,43 @@ const (
 )
 
 const (
-	taskEventCreated            = eventspkg.TaskCreated
-	taskEventUpdated            = eventspkg.TaskUpdated
-	taskEventPublished          = eventspkg.TaskPublished
-	taskEventApproved           = eventspkg.TaskApproved
-	taskEventRejected           = eventspkg.TaskRejected
-	taskEventCanceled           = eventspkg.TaskCanceled
-	taskEventChildCreated       = eventspkg.TaskChildCreated
-	taskEventDependencyAdded    = eventspkg.TaskDependencyAdded
-	taskEventDependencyRemoved  = eventspkg.TaskDependencyRemoved
-	taskEventRunEnqueued        = eventspkg.TaskRunEnqueued
-	taskEventRunClaimed         = eventspkg.TaskRunClaimed
-	taskEventRunStarting        = eventspkg.TaskRunStarting
-	taskEventRunSessionBound    = eventspkg.TaskRunSessionBound
-	taskEventRunStarted         = eventspkg.TaskRunStarted
-	taskEventRunCompleted       = eventspkg.TaskRunCompleted
-	taskEventRunFailed          = eventspkg.TaskRunFailed
-	taskEventRunCanceled        = eventspkg.TaskRunCanceled
-	taskEventRunForceStopped    = eventspkg.TaskRunForceStopped
-	taskEventRunRecovered       = eventspkg.TaskRunRecovered
-	taskEventRunRejected        = eventspkg.TaskRunRejected
-	taskEventRunLeaseExtended   = eventspkg.TaskRunLeaseExtended
-	taskEventRunLeaseExpired    = eventspkg.TaskRunLeaseExpired
-	taskEventRunReleased        = eventspkg.TaskRunReleased
-	taskEventProfileUpdated     = eventspkg.TaskExecutionProfileUpdated
-	taskEventProfileDeleted     = eventspkg.TaskExecutionProfileDeleted
-	taskEventRunReviewRequested = eventspkg.TaskRunReviewRequested
-	taskEventRunReviewBound     = eventspkg.TaskRunReviewBound
-	taskEventRunReviewRecorded  = eventspkg.TaskRunReviewRecorded
-	taskEventRunReviewApproved  = eventspkg.TaskRunReviewApproved
-	taskEventRunReviewRejected  = eventspkg.TaskRunReviewRejected
-	taskEventRunReviewBlocked   = eventspkg.TaskRunReviewBlocked
-	taskEventRunReviewError     = eventspkg.TaskRunReviewError
-	taskEventRunReviewTimeout   = eventspkg.TaskRunReviewTimeout
-	taskEventRunReviewInvalid   = eventspkg.TaskRunReviewInvalidOutput
-	taskEventRunReviewRetry     = eventspkg.TaskRunReviewRetryEnqueued
+	taskEventCreated               = eventspkg.TaskCreated
+	taskEventUpdated               = eventspkg.TaskUpdated
+	taskEventPublished             = eventspkg.TaskPublished
+	taskEventApproved              = eventspkg.TaskApproved
+	taskEventRejected              = eventspkg.TaskRejected
+	taskEventCanceled              = eventspkg.TaskCanceled
+	taskEventChildCreated          = eventspkg.TaskChildCreated
+	taskEventDependencyAdded       = eventspkg.TaskDependencyAdded
+	taskEventDependencyRemoved     = eventspkg.TaskDependencyRemoved
+	taskEventRunEnqueued           = eventspkg.TaskRunEnqueued
+	taskEventRunClaimed            = eventspkg.TaskRunClaimed
+	taskEventRunStarting           = eventspkg.TaskRunStarting
+	taskEventRunSessionBound       = eventspkg.TaskRunSessionBound
+	taskEventRunStarted            = eventspkg.TaskRunStarted
+	taskEventRunCompleted          = eventspkg.TaskRunCompleted
+	taskEventRunFailed             = eventspkg.TaskRunFailed
+	taskEventRunCanceled           = eventspkg.TaskRunCanceled
+	taskEventRunForceStopped       = eventspkg.TaskRunForceStopped
+	taskEventRunRecovered          = eventspkg.TaskRunRecovered
+	taskEventRunRejected           = eventspkg.TaskRunRejected
+	taskEventRunLeaseExtended      = eventspkg.TaskRunLeaseExtended
+	taskEventRunLeaseExpired       = eventspkg.TaskRunLeaseExpired
+	taskEventRunReleased           = eventspkg.TaskRunReleased
+	taskEventRunOperatorForcedFail = eventspkg.TaskRunOperatorForcedFail
+	taskEventRunOperatorRetry      = eventspkg.TaskRunOperatorRetry
+	taskEventProfileUpdated        = eventspkg.TaskExecutionProfileUpdated
+	taskEventProfileDeleted        = eventspkg.TaskExecutionProfileDeleted
+	taskEventRunReviewRequested    = eventspkg.TaskRunReviewRequested
+	taskEventRunReviewBound        = eventspkg.TaskRunReviewBound
+	taskEventRunReviewRecorded     = eventspkg.TaskRunReviewRecorded
+	taskEventRunReviewApproved     = eventspkg.TaskRunReviewApproved
+	taskEventRunReviewRejected     = eventspkg.TaskRunReviewRejected
+	taskEventRunReviewBlocked      = eventspkg.TaskRunReviewBlocked
+	taskEventRunReviewError        = eventspkg.TaskRunReviewError
+	taskEventRunReviewTimeout      = eventspkg.TaskRunReviewTimeout
+	taskEventRunReviewInvalid      = eventspkg.TaskRunReviewInvalidOutput
+	taskEventRunReviewRetry        = eventspkg.TaskRunReviewRetryEnqueued
 )
 
 // Option customizes Service construction.
@@ -73,6 +75,7 @@ type managerOptions struct {
 	taskHooks         RunHookDispatcher
 	channelValidator  func(string) error
 	profileValidation ExecutionProfileValidationOptions
+	forceRecovery     ForceRecoveryOptions
 	now               func() time.Time
 	newID             func(prefix string) string
 	cancelGracePeriod time.Duration
@@ -90,9 +93,11 @@ type Service struct {
 	taskHooks         RunHookDispatcher
 	channelValidator  func(string) error
 	profileValidation ExecutionProfileValidationOptions
+	forceRecovery     ForceRecoveryOptions
 	now               func() time.Time
 	newID             func(prefix string) string
 	cancelGracePeriod time.Duration
+	forceRateLimiter  *forceRunRateLimiter
 	liveMu            sync.Mutex
 	liveSubscribers   map[uint64]*taskStreamSubscriber
 	nextSubscriberID  uint64
@@ -167,6 +172,13 @@ func WithExecutionProfileValidationOptions(options ExecutionProfileValidationOpt
 	}
 }
 
+// WithForceRecoveryOptions injects config-backed force-operation policy.
+func WithForceRecoveryOptions(options ForceRecoveryOptions) Option {
+	return func(opts *managerOptions) {
+		opts.forceRecovery = options
+	}
+}
+
 // WithManagerNow overrides the manager clock for deterministic tests.
 func WithManagerNow(now func() time.Time) Option {
 	return func(opts *managerOptions) {
@@ -193,6 +205,10 @@ func WithCancelGracePeriod(timeout time.Duration) Option {
 func NewManager(opts ...Option) (*Service, error) {
 	options := managerOptions{
 		profileValidation: DefaultExecutionProfileValidationOptions(),
+		forceRecovery: ForceRecoveryOptions{
+			AllowAgentForce:    true,
+			RateLimitPerMinute: DefaultForceRunRateLimitPerMinute,
+		},
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -226,9 +242,11 @@ func NewManager(opts ...Option) (*Service, error) {
 		taskHooks:         defaultTaskRunHooks(options.taskHooks),
 		channelValidator:  options.channelValidator,
 		profileValidation: options.profileValidation,
+		forceRecovery:     normalizeForceRecoveryOptions(options.forceRecovery),
 		now:               options.now,
 		newID:             options.newID,
 		cancelGracePeriod: options.cancelGracePeriod,
+		forceRateLimiter:  newForceRunRateLimiter(),
 		liveSubscribers:   make(map[uint64]*taskStreamSubscriber),
 	}, nil
 }
@@ -3628,6 +3646,8 @@ func activeRunSummary(runs []Run, maxAttempts int) *RunSummary {
 		TaskID:                current.TaskID,
 		Status:                current.Status,
 		Attempt:               current.Attempt,
+		PreviousRunID:         current.PreviousRunID,
+		FailureKind:           current.FailureKind,
 		MaxAttempts:           maxAttempts,
 		SessionID:             current.SessionID,
 		ClaimedBy:             cloneActorIdentity(current.ClaimedBy),
@@ -3894,11 +3914,19 @@ type leaseExtendedPayload struct {
 }
 
 type releasedRunPayload struct {
-	PreviousStatus RunStatus `json:"previous_status"`
-	Status         RunStatus `json:"status"`
-	TaskStatus     Status    `json:"task_status"`
-	Reason         string    `json:"reason,omitempty"`
-	SessionID      string    `json:"session_id,omitempty"`
+	Manual                          bool       `json:"manual,omitempty"`
+	ActorKind                       ActorKind  `json:"actor_kind,omitempty"`
+	ActorID                         string     `json:"actor_id,omitempty"`
+	PreviousStatus                  RunStatus  `json:"previous_status"`
+	Status                          RunStatus  `json:"status"`
+	TaskStatus                      Status     `json:"task_status"`
+	Reason                          string     `json:"reason,omitempty"`
+	SessionID                       string     `json:"session_id,omitempty"`
+	PreviousSessionID               string     `json:"previous_session_id,omitempty"`
+	PreviousClaimTokenHashTruncated string     `json:"previous_claim_token_hash_truncated,omitempty"`
+	PreviousLeaseUntil              *time.Time `json:"previous_lease_until,omitempty"`
+	QueueGeneration                 int64      `json:"queue_generation,omitempty"`
+	CanceledQueuedInputs            int        `json:"canceled_queued_inputs,omitempty"`
 }
 
 type expiredLeasePayload struct {

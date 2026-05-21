@@ -1,34 +1,34 @@
 ---
 title: "agh task fail"
-description: "Fail a claimed task run for the current agent session"
+description: "Force fail queued or claimed task runs"
 ---
 
 ## agh task fail
 
-Fail a claimed task run for the current agent session
+Force fail queued or claimed task runs
 
 ```
-agh task fail <run-id> [flags]
+agh task fail <run-id> [run-id...] [flags]
 ```
 
 ### Examples
 
 ```
-  # Mark a claimed run failed
-  agh task fail run-123 --error "tests failed"
+  # Force fail one run
+  agh task fail run-123 --reason "operator recovery"
 
-	  # Include structured failure metadata
-	  agh task fail run-123 \
-	    --error "tests failed" \
-	    --metadata '{"command":"make test"}'
+  # Force fail multiple runs with shared audit evidence
+  agh task fail run-123 run-456 \
+    --reason "provider credentials revoked" \
+    --metadata '{"incident":"INC-42"}'
 ```
 
 ### Options
 
 ```
-      --error string      Failure message
   -h, --help              help for fail
-      --metadata string   Optional failure metadata JSON
+      --metadata string   Optional forced-failure metadata JSON
+      --reason string     Forced-failure reason
 ```
 
 ### Options inherited from parent commands
@@ -50,5 +50,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh task fail <run-id> -o json
+agh task fail <run-id> [run-id...] -o json
 ```

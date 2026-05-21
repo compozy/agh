@@ -256,6 +256,11 @@ type stubClient struct {
 	completeTaskRunFn      func(context.Context, string, CompleteTaskRunRequest) (TaskRunRecord, error)
 	failTaskRunFn          func(context.Context, string, FailTaskRunRequest) (TaskRunRecord, error)
 	cancelTaskRunFn        func(context.Context, string, CancelTaskRunRequest) (TaskRunRecord, error)
+	forceReleaseTaskRunFn  func(context.Context, string, ForceReleaseTaskRunRequest) (TaskRunRecord, error)
+	forceFailTaskRunFn     func(context.Context, string, ForceFailTaskRunRequest) (TaskRunRecord, error)
+	retryTaskRunFn         func(context.Context, string, RetryTaskRunRequest) (RetryTaskRunRecord, error)
+	bulkForceReleaseRunsFn func(context.Context, BulkForceTaskRunRequest) (BulkForceTaskRunRecord, error)
+	bulkForceFailRunsFn    func(context.Context, BulkForceTaskRunRequest) (BulkForceTaskRunRecord, error)
 	agentMeFn              func(context.Context, agentidentity.Credentials) (AgentMeRecord, error)
 	agentContextFn         func(context.Context, agentidentity.Credentials) (AgentContextRecord, error)
 	agentSpawnFn           func(context.Context, AgentSpawnRequest, agentidentity.Credentials) (AgentSpawnRecord, error)
@@ -2218,6 +2223,59 @@ func (s *stubClient) CancelTaskRun(
 		return s.cancelTaskRunFn(ctx, id, request)
 	}
 	return TaskRunRecord{}, errors.New("unexpected CancelTaskRun call")
+}
+
+func (s *stubClient) ForceReleaseTaskRun(
+	ctx context.Context,
+	id string,
+	request ForceReleaseTaskRunRequest,
+) (TaskRunRecord, error) {
+	if s.forceReleaseTaskRunFn != nil {
+		return s.forceReleaseTaskRunFn(ctx, id, request)
+	}
+	return TaskRunRecord{}, errors.New("unexpected ForceReleaseTaskRun call")
+}
+
+func (s *stubClient) ForceFailTaskRun(
+	ctx context.Context,
+	id string,
+	request ForceFailTaskRunRequest,
+) (TaskRunRecord, error) {
+	if s.forceFailTaskRunFn != nil {
+		return s.forceFailTaskRunFn(ctx, id, request)
+	}
+	return TaskRunRecord{}, errors.New("unexpected ForceFailTaskRun call")
+}
+
+func (s *stubClient) RetryTaskRun(
+	ctx context.Context,
+	id string,
+	request RetryTaskRunRequest,
+) (RetryTaskRunRecord, error) {
+	if s.retryTaskRunFn != nil {
+		return s.retryTaskRunFn(ctx, id, request)
+	}
+	return RetryTaskRunRecord{}, errors.New("unexpected RetryTaskRun call")
+}
+
+func (s *stubClient) BulkForceReleaseTaskRuns(
+	ctx context.Context,
+	request BulkForceTaskRunRequest,
+) (BulkForceTaskRunRecord, error) {
+	if s.bulkForceReleaseRunsFn != nil {
+		return s.bulkForceReleaseRunsFn(ctx, request)
+	}
+	return BulkForceTaskRunRecord{}, errors.New("unexpected BulkForceReleaseTaskRuns call")
+}
+
+func (s *stubClient) BulkForceFailTaskRuns(
+	ctx context.Context,
+	request BulkForceTaskRunRequest,
+) (BulkForceTaskRunRecord, error) {
+	if s.bulkForceFailRunsFn != nil {
+		return s.bulkForceFailRunsFn(ctx, request)
+	}
+	return BulkForceTaskRunRecord{}, errors.New("unexpected BulkForceFailTaskRuns call")
 }
 
 func (s *stubClient) AgentMe(ctx context.Context, credentials agentidentity.Credentials) (AgentMeRecord, error) {

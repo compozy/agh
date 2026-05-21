@@ -1264,6 +1264,11 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	var completedRun taskpkg.RunResult
 	var failedRun taskpkg.RunFailure
 	var cancelledRun taskpkg.CancelRun
+	var forceReleasedRun taskpkg.ForceReleaseRun
+	var forceFailedRun taskpkg.ForceFailRun
+	var retryRunRequest taskpkg.RetryRunRequest
+	var bulkForceRelease taskpkg.BulkForceRunRequest
+	var bulkForceFail taskpkg.BulkForceRunRequest
 
 	taskView := &taskpkg.View{
 		Task: taskpkg.Task{
@@ -1501,6 +1506,102 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 				CoordinationChannelID: "builders",
 			}, nil
 		},
+		ForceReleaseRunFn: func(
+			_ context.Context,
+			runID string,
+			req taskpkg.ForceReleaseRun,
+			actor taskpkg.ActorContext,
+		) (*taskpkg.Run, error) {
+			forceReleasedRun = req
+			return &taskpkg.Run{
+				ID:       runID,
+				TaskID:   "task-1",
+				Status:   taskpkg.TaskRunStatusQueued,
+				Attempt:  1,
+				Origin:   actor.Origin,
+				QueuedAt: now,
+			}, nil
+		},
+		ForceFailRunFn: func(
+			_ context.Context,
+			runID string,
+			req taskpkg.ForceFailRun,
+			actor taskpkg.ActorContext,
+		) (*taskpkg.Run, error) {
+			forceFailedRun = req
+			return &taskpkg.Run{
+				ID:          runID,
+				TaskID:      "task-1",
+				Status:      taskpkg.TaskRunStatusFailed,
+				Attempt:     2,
+				Origin:      actor.Origin,
+				QueuedAt:    now,
+				EndedAt:     now,
+				Error:       req.Reason,
+				FailureKind: taskpkg.FailureKindOperatorForced,
+			}, nil
+		},
+		RetryRunFn: func(
+			_ context.Context,
+			runID string,
+			req taskpkg.RetryRunRequest,
+			actor taskpkg.ActorContext,
+		) (*taskpkg.RetryRunResult, error) {
+			retryRunRequest = req
+			return &taskpkg.RetryRunResult{
+				PreviousRun: taskpkg.Run{
+					ID:       runID,
+					TaskID:   "task-1",
+					Status:   taskpkg.TaskRunStatusFailed,
+					Attempt:  2,
+					Origin:   actor.Origin,
+					QueuedAt: now,
+					EndedAt:  now,
+				},
+				Run: taskpkg.Run{
+					ID:            "run-retry",
+					TaskID:        "task-1",
+					Status:        taskpkg.TaskRunStatusQueued,
+					Attempt:       3,
+					PreviousRunID: runID,
+					Origin:        actor.Origin,
+					QueuedAt:      now,
+				},
+			}, nil
+		},
+		BulkForceReleaseRunsFn: func(
+			_ context.Context,
+			req taskpkg.BulkForceRunRequest,
+			_ taskpkg.ActorContext,
+		) (taskpkg.BulkForceRunResult, error) {
+			bulkForceRelease = req
+			return taskpkg.BulkForceRunResult{Items: []taskpkg.BulkForceRunItem{
+				{
+					RunID: "run-1",
+					OK:    true,
+					Run:   &taskpkg.Run{ID: "run-1", TaskID: "task-1", Status: taskpkg.TaskRunStatusQueued},
+				},
+				{
+					RunID: "run-2",
+					OK:    true,
+					Run:   &taskpkg.Run{ID: "run-2", TaskID: "task-1", Status: taskpkg.TaskRunStatusQueued},
+				},
+			}}, nil
+		},
+		BulkForceFailRunsFn: func(
+			_ context.Context,
+			req taskpkg.BulkForceRunRequest,
+			_ taskpkg.ActorContext,
+		) (taskpkg.BulkForceRunResult, error) {
+			bulkForceFail = req
+			return taskpkg.BulkForceRunResult{Items: []taskpkg.BulkForceRunItem{
+				{
+					RunID: "run-2",
+					OK:    true,
+					Run:   &taskpkg.Run{ID: "run-2", TaskID: "task-1", Status: taskpkg.TaskRunStatusFailed},
+				},
+			}}, nil
+		},
 	}
 	workspaces := testutil.StubWorkspaceService{
 		GetFn: func(_ context.Context, ref string) (workspacepkg.Workspace, error) {
@@ -1709,6 +1810,61 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		t.Fatalf("canceled response = %#v, want preserved network/coordination channel", cancelledResp.Run)
 	}
 
+	resp = performRequest(
+		t,
+		fixture.Engine,
+		http.MethodPost,
+		"/runs/run-1/release",
+		[]byte("{\"reason\":\"handoff\",\"metadata\":{\"source\":\"operator\"}}"),
+	)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("force release status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+	}
+
+	resp = performRequest(
+		t,
+		fixture.Engine,
+		http.MethodPost,
+		"/runs/run-2/fail",
+		[]byte("{\"reason\":\"operator recovery\",\"metadata\":{\"incident\":\"INC-42\"}}"),
+	)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("force fail status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+	}
+
+	resp = performRequest(
+		t,
+		fixture.Engine,
+		http.MethodPost,
+		"/runs/run-2/retry",
+		[]byte("{\"metadata\":{\"source\":\"operator\"}}"),
+	)
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("retry status = %d, want %d; body=%s", resp.Code, http.StatusCreated, resp.Body.String())
+	}
+
+	resp = performRequest(
+		t,
+		fixture.Engine,
+		http.MethodPost,
+		"/runs/bulk/release",
+		[]byte("{\"run_ids\":[\"run-1\",\"run-2\"],\"reason\":\"handoff\"}"),
+	)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("bulk release status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+	}
+
+	resp = performRequest(
+		t,
+		fixture.Engine,
+		http.MethodPost,
+		"/runs/bulk/fail",
+		[]byte("{\"run_ids\":[\"run-2\"],\"reason\":\"operator recovery\"}"),
+	)
+	if resp.Code != http.StatusOK {
+		t.Fatalf("bulk fail status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+	}
+
 	if listedQuery.WorkspaceID != "ws-alpha" || listedQuery.Scope != taskpkg.ScopeWorkspace ||
 		listedQuery.NetworkChannel != "builders" {
 		t.Fatalf("listed query = %#v", listedQuery)
@@ -1775,6 +1931,22 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	}
 	if cancelledRun.Reason != "operator canceled" {
 		t.Fatalf("canceled run = %#v", cancelledRun)
+	}
+	if forceReleasedRun.Reason != "handoff" || string(forceReleasedRun.Metadata) != "{\"source\":\"operator\"}" {
+		t.Fatalf("force release run = %#v", forceReleasedRun)
+	}
+	if forceFailedRun.Reason != "operator recovery" ||
+		string(forceFailedRun.Metadata) != "{\"incident\":\"INC-42\"}" {
+		t.Fatalf("force fail run = %#v", forceFailedRun)
+	}
+	if string(retryRunRequest.Metadata) != "{\"source\":\"operator\"}" {
+		t.Fatalf("retry run request = %#v", retryRunRequest)
+	}
+	if strings.Join(bulkForceRelease.RunIDs, ",") != "run-1,run-2" || bulkForceRelease.Reason != "handoff" {
+		t.Fatalf("bulk force release = %#v", bulkForceRelease)
+	}
+	if strings.Join(bulkForceFail.RunIDs, ",") != "run-2" || bulkForceFail.Reason != "operator recovery" {
+		t.Fatalf("bulk force fail = %#v", bulkForceFail)
 	}
 }
 

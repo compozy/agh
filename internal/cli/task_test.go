@@ -844,52 +844,6 @@ func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
 				}
 			},
 		},
-		{
-			name: "Should map task fail request",
-			args: []string{
-				"task", "fail", "run-1", "--error", "boom", "--metadata", `{"code":"E_TASK"}`, "-o", "json",
-			},
-			fn: func(t *testing.T) *stubClient {
-				t.Helper()
-				return &stubClient{
-					agentTaskFailFn: func(
-						_ context.Context,
-						runID string,
-						request AgentTaskFailRequest,
-						credentials agentidentity.Credentials,
-					) (AgentTaskLeaseRecord, error) {
-						assertAgentCredentials(t, credentials)
-						if runID != "run-1" ||
-							request.Error != "boom" ||
-							string(request.Metadata) != `{"code":"E_TASK"}` {
-							t.Fatalf("fail runID=%q request=%#v, want run-1 error metadata", runID, request)
-						}
-						return agentTaskLeaseRecord(taskpkg.TaskRunStatusFailed), nil
-					},
-				}
-			},
-		},
-		{
-			name: "Should map task release request",
-			args: []string{"task", "release", "run-1", "--reason", "handoff", "-o", "json"},
-			fn: func(t *testing.T) *stubClient {
-				t.Helper()
-				return &stubClient{
-					agentTaskReleaseFn: func(
-						_ context.Context,
-						runID string,
-						request AgentTaskReleaseRequest,
-						credentials agentidentity.Credentials,
-					) (AgentTaskLeaseRecord, error) {
-						assertAgentCredentials(t, credentials)
-						if runID != "run-1" || request.Reason != "handoff" {
-							t.Fatalf("release runID=%q request=%#v, want run-1 reason", runID, request)
-						}
-						return agentTaskLeaseRecord(taskpkg.TaskRunStatusQueued), nil
-					},
-				}
-			},
-		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -910,6 +864,144 @@ func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTaskForceCommandsMapRequests(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should map single force fail request", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			forceFailTaskRunFn: func(
+				_ context.Context,
+				runID string,
+				request ForceFailTaskRunRequest,
+			) (TaskRunRecord, error) {
+				if runID != "run-1" ||
+					request.Reason != "boom" ||
+					string(request.Metadata) != `{"code":"E_TASK"}` {
+					t.Fatalf("force fail runID=%q request=%#v, want reason metadata", runID, request)
+				}
+				return taskRunRecord("run-1", taskpkg.TaskRunStatusFailed), nil
+			},
+		})
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"task",
+			"fail",
+			"run-1",
+			"--reason",
+			"boom",
+			"--metadata",
+			`{"code":"E_TASK"}`,
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("task fail error = %v", err)
+		}
+		var output TaskRunRecord
+		if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+			t.Fatalf("json.Unmarshal(task fail) error = %v", err)
+		}
+		if output.ID != "run-1" || output.Status != taskpkg.TaskRunStatusFailed {
+			t.Fatalf("task fail output = %#v, want failed run-1", output)
+		}
+	})
+
+	t.Run("Should map bulk release request", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			bulkForceReleaseRunsFn: func(
+				_ context.Context,
+				request BulkForceTaskRunRequest,
+			) (BulkForceTaskRunRecord, error) {
+				if strings.Join(request.RunIDs, ",") != "run-1,run-2" || request.Reason != "handoff" {
+					t.Fatalf("bulk release request = %#v, want two run ids and reason", request)
+				}
+				run1 := taskRunRecord("run-1", taskpkg.TaskRunStatusQueued)
+				run2 := taskRunRecord("run-2", taskpkg.TaskRunStatusQueued)
+				return BulkForceTaskRunRecord{Results: []BulkForceTaskRunItemRecord{
+					{
+						RunID: "run-1",
+						OK:    true,
+						Run:   &run1,
+					},
+					{
+						RunID: "run-2",
+						OK:    true,
+						Run:   &run2,
+					},
+				}}, nil
+			},
+		})
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"task",
+			"release",
+			"run-1",
+			"run-2",
+			"--reason",
+			"handoff",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("task release error = %v", err)
+		}
+		var output BulkForceTaskRunRecord
+		if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+			t.Fatalf("json.Unmarshal(task release) error = %v", err)
+		}
+		if len(output.Results) != 2 || !output.Results[0].OK || !output.Results[1].OK {
+			t.Fatalf("task release output = %#v, want two ok results", output)
+		}
+	})
+
+	t.Run("Should map retry request", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			retryTaskRunFn: func(
+				_ context.Context,
+				runID string,
+				request RetryTaskRunRequest,
+			) (RetryTaskRunRecord, error) {
+				if runID != "run-1" || string(request.Metadata) != `{"source":"operator"}` {
+					t.Fatalf("retry runID=%q request=%#v, want metadata", runID, request)
+				}
+				return RetryTaskRunRecord{
+					PreviousRun: taskRunRecord("run-1", taskpkg.TaskRunStatusFailed),
+					Run:         taskRunRecord("run-2", taskpkg.TaskRunStatusQueued),
+				}, nil
+			},
+		})
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"task",
+			"retry",
+			"run-1",
+			"--metadata",
+			`{"source":"operator"}`,
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("task retry error = %v", err)
+		}
+		var output RetryTaskRunRecord
+		if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+			t.Fatalf("json.Unmarshal(task retry) error = %v", err)
+		}
+		if output.PreviousRun.ID != "run-1" || output.Run.ID != "run-2" {
+			t.Fatalf("task retry output = %#v, want source run-1 and new run-2", output)
+		}
+	})
 }
 
 func TestAgentTaskCommandsValidateBeforeAgentCalls(t *testing.T) {
@@ -970,12 +1062,12 @@ func TestAgentTaskCommandsValidateBeforeAgentCalls(t *testing.T) {
 			wantErr: "must not contain raw lease credential",
 		},
 		{
-			name: "Should reject raw claim token in failure metadata",
+			name: "Should reject raw claim token in force-failure metadata",
 			args: []string{
 				"task",
 				"fail",
 				"run-1",
-				"--error",
+				"--reason",
 				"boom",
 				"--metadata",
 				`{"claim_token":"secret"}`,
@@ -1014,6 +1106,18 @@ func TestAgentTaskCommandsValidateBeforeAgentCalls(t *testing.T) {
 				agentTaskReleaseFn: func(context.Context, string, AgentTaskReleaseRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error) {
 					t.Fatal("AgentTaskRelease should not be called for local validation errors")
 					return AgentTaskLeaseRecord{}, nil
+				},
+				forceFailTaskRunFn: func(context.Context, string, ForceFailTaskRunRequest) (TaskRunRecord, error) {
+					t.Fatal("ForceFailTaskRun should not be called for local validation errors")
+					return TaskRunRecord{}, nil
+				},
+				forceReleaseTaskRunFn: func(context.Context, string, ForceReleaseTaskRunRequest) (TaskRunRecord, error) {
+					t.Fatal("ForceReleaseTaskRun should not be called for local validation errors")
+					return TaskRunRecord{}, nil
+				},
+				retryTaskRunFn: func(context.Context, string, RetryTaskRunRequest) (RetryTaskRunRecord, error) {
+					t.Fatal("RetryTaskRun should not be called for local validation errors")
+					return RetryTaskRunRecord{}, nil
 				},
 			}
 			deps := newTestDeps(t, client)
@@ -2321,6 +2425,17 @@ func agentTaskLeaseRecord(status taskpkg.RunStatus) AgentTaskLeaseRecord {
 		LeaseUntil:            &leaseUntil,
 		HeartbeatAt:           &heartbeatAt,
 		CoordinationChannelID: "builders",
+	}
+}
+
+func taskRunRecord(id string, status taskpkg.RunStatus) TaskRunRecord {
+	return TaskRunRecord{
+		ID:       id,
+		TaskID:   "task-1",
+		Status:   status,
+		Attempt:  1,
+		Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "cli"},
+		QueuedAt: fixedTestNow,
 	}
 }
 

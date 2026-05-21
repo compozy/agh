@@ -1044,7 +1044,8 @@ func (g *GlobalDB) GetTaskRunByIdempotencyKey(
 	row := g.db.QueryRowContext(
 		ctx,
 		`SELECT
-			tr.id, tr.task_id, tr.status, tr.attempt, tr.claimed_by_kind, tr.claimed_by_ref,
+			tr.id, tr.task_id, tr.status, tr.attempt, tr.previous_run_id, tr.failure_kind,
+			tr.claimed_by_kind, tr.claimed_by_ref,
 			tr.session_id, tr.origin_kind, tr.origin_ref, tr.idempotency_key, tr.network_channel,
 			'' AS claim_token, tr.claim_token_hash, tr.lease_until, tr.heartbeat_at,
 			tr.coordination_channel_id, tr.queued_at, tr.claimed_at, tr.started_at, tr.ended_at,
