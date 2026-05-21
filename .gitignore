@@ -32,6 +32,7 @@ ai-docs/
 .peer-reviews
 .agh
 .clawpatch
+.claude/analysis
 
 # Ephemeral QA artifacts under .compozy/tasks/<slug>/qa/
 # Keep only markdown deliverables (test-plans, test-cases, issues, bug-reports,
