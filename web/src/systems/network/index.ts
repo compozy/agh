@@ -24,6 +24,8 @@ export type {
   NetworkPeerDetailResponse,
   NetworkPeerSummary,
   NetworkPeersResponse,
+  NetworkPresence,
+  NetworkPresenceState,
   NetworkRecentEntry,
   NetworkResolveDirectRoomRequest,
   NetworkResolveDirectRoomResponse,
@@ -90,6 +92,7 @@ export {
   formatNetworkDateTime,
   formatNetworkKindLabel,
   formatNetworkNumber,
+  formatNetworkPresenceLabel,
   formatNetworkRelativeTime,
   formatNetworkWorkStateLabel,
   getMessageAuthorInitial,
@@ -104,6 +107,7 @@ export {
   shouldRenderNetworkWorkChip,
   sortAgentsForNetwork,
   toNetworkKindFilter,
+  toNetworkPresenceState,
   toggleDraftAgent,
 } from "./lib/network-formatters";
 export type { NetworkWorkState } from "./lib/network-formatters";
@@ -166,12 +170,6 @@ export { useNetworkMessages } from "./hooks/use-messages";
 export type { UseNetworkMessagesArgs, UseNetworkMessagesResult } from "./hooks/use-messages";
 export { useNetworkPage } from "./hooks/use-network-page";
 export type { UseNetworkPageResult } from "./hooks/use-network-page";
-export { useNetworkPresence } from "./hooks/use-network-presence";
-export type {
-  NetworkPresence,
-  NetworkPresenceArgs,
-  NetworkPresenceState,
-} from "./hooks/use-network-presence";
 export { useDirectRoom } from "./hooks/use-direct-room";
 export type { UseDirectRoomArgs, UseDirectRoomResult } from "./hooks/use-direct-room";
 export { useThreadOverlay } from "./hooks/use-thread-overlay";

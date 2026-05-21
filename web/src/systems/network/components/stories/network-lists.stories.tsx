@@ -29,9 +29,30 @@ const workEntry: OpenWorkEntry = {
   lastActivityAt: networkWorkFixture.last_activity_at ?? null,
 };
 const members: ChannelMember[] = [
-  { peerId: "northstar-local", displayName: "Northstar Local", role: "agent", local: true },
-  { peerId: "partner-settlement", displayName: "Partner Settlement", role: "agent", local: false },
-  { peerId: "ops-human", displayName: "Ops Human", role: "human", local: false },
+  {
+    peerId: "northstar-local",
+    displayName: "Northstar Local",
+    role: "agent",
+    local: true,
+    presenceState: "local",
+    lastSeenAgeSeconds: null,
+  },
+  {
+    peerId: "partner-settlement",
+    displayName: "Partner Settlement",
+    role: "agent",
+    local: false,
+    presenceState: "active",
+    lastSeenAgeSeconds: 12,
+  },
+  {
+    peerId: "ops-human",
+    displayName: "Ops Human",
+    role: "human",
+    local: false,
+    presenceState: "inactive",
+    lastSeenAgeSeconds: 91,
+  },
 ];
 
 const meta: Meta<typeof ThreadsList> = {
@@ -93,8 +114,17 @@ export const Directs: Story = {
           displayName: "Partner Settlement",
           role: "agent",
           local: false,
+          presenceState: "active",
+          lastSeenAgeSeconds: 12,
         },
-        { peerId: "northstar-growth", displayName: "Growth Desk", role: "human", local: false },
+        {
+          peerId: "northstar-growth",
+          displayName: "Growth Desk",
+          role: "human",
+          local: false,
+          presenceState: "unknown",
+          lastSeenAgeSeconds: null,
+        },
       ]}
       onNewDirect={fn()}
     />

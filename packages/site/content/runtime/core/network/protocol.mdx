@@ -127,14 +127,14 @@ network in MVP.
 
 | Concern                               | Owned by                                                  | Authority over                                               |
 | ------------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------ |
-| Peer presence and `greet_interval`    | `[network]` config + `internal/network`                   | Network membership and discovery only.                       |
+| Peer presence and `greet_interval`    | `[network]` config + `internal/network`                   | Activity-derived network membership and discovery only.      |
 | Authored persona                      | `SOUL.md` + `[agents.soul]`                               | Local prompt content and read models.                        |
 | Authored wake/reentry policy          | `HEARTBEAT.md` + `[agents.heartbeat]`                     | Local advisory wake decisions for already eligible sessions. |
 | Session presence and wake eligibility | `session_health` + `[agents.heartbeat]` health thresholds | Local liveness metadata for managed sessions.                |
 
-A peer being online never makes a session wake-eligible by itself. The wake service consults
-local session health and `HEARTBEAT.md`, not greet state. Persona, wake policy, and health are
-not advertised in peer cards or capability documents.
+A peer's `presence_state` never makes a session wake-eligible by itself. The wake service
+consults local session health and `HEARTBEAT.md`, not greet state. Persona, wake policy, and
+health are not advertised in peer cards or capability documents.
 
 ## Related pages
 

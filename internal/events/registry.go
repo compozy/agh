@@ -14,6 +14,7 @@ const (
 	ComponentHarness      = "harness"
 	ComponentHook         = "hook"
 	ComponentMemory       = "memory"
+	ComponentNetwork      = "network"
 	ComponentExtension    = "extension"
 	ComponentProvider     = "provider"
 	ComponentScheduler    = "scheduler"
@@ -175,6 +176,8 @@ const (
 	ExtensionDisabled  = "extension.disabled"
 
 	BridgeNotificationSuppressed = "bridge_notification_suppressed"
+	NetworkPeerJoined            = "network.peer.joined"
+	NetworkPeerLeft              = "network.peer.left"
 
 	NotificationPresetCreated        = "notification.preset_created"
 	NotificationPresetUpdated        = "notification.preset_updated"
@@ -314,6 +317,8 @@ var registryEntries = []Metadata{
 	global(warning(NotificationPresetDeleted, "notification.preset", ComponentNotification)),
 	global(failure(NotificationPresetDispatchFailed, "notification.preset", ComponentNotification)),
 	notify(global(warning(BridgeNotificationSuppressed, "bridge_notification", ComponentNotification))),
+	notify(global(success(NetworkPeerJoined, "network.peer", ComponentNetwork))),
+	notify(global(warning(NetworkPeerLeft, "network.peer", ComponentNetwork))),
 }
 
 var registryByName = mustBuildRegistry(registryEntries)

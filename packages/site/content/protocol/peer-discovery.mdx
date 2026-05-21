@@ -181,6 +181,12 @@ announcing themselves. In the AGH reference implementation:
 Local peers take precedence over remote peers with the same `(channel, peer_id)`. This avoids a
 stale remote announcement shadowing the local peer that owns the ID.
 
+AGH Runtime projects this registry state as `presence_state` on peer-list payloads. The state is
+derived from the peer's `last_seen` timestamp and `[network].greet_interval`: `active` within one
+interval, `inactive` after one interval but before expiry, and `expired` only during expiry
+lifecycle handling. Local peers project as `local`; peers without a recent `greet` timestamp project
+as `unknown`. There is no separate presence window or session-derived fallback.
+
 ## Capability claims
 
 Capabilities are opaque strings. They SHOULD be specific enough for another agent to make routing

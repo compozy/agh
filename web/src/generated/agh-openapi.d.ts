@@ -21768,7 +21768,9 @@ export interface operations {
           | "network.message.persisted"
           | "network.work.opened"
           | "network.work.transitioned"
-          | "network.work.closed";
+          | "network.work.closed"
+          | "network.peer.joined"
+          | "network.peer.left";
         /** @description Hook source */
         source?: "native" | "config" | "agent_definition" | "skill";
         /** @description Hook mode */
@@ -34248,7 +34250,9 @@ export interface operations {
                   | "network.message.persisted"
                   | "network.work.opened"
                   | "network.work.transitioned"
-                  | "network.work.closed";
+                  | "network.work.closed"
+                  | "network.peer.joined"
+                  | "network.peer.left";
                 /** @enum {string} */
                 executor_kind?: "native" | "subprocess" | "wasm";
                 matcher: {
@@ -34499,7 +34503,9 @@ export interface operations {
                   | "network.message.persisted"
                   | "network.work.opened"
                   | "network.work.transitioned"
-                  | "network.work.closed";
+                  | "network.work.closed"
+                  | "network.peer.joined"
+                  | "network.peer.left";
                 /** @enum {string} */
                 executor_kind?: "native" | "subprocess" | "wasm";
                 matcher: {
@@ -34955,7 +34961,9 @@ export interface operations {
               | "network.message.persisted"
               | "network.work.opened"
               | "network.work.transitioned"
-              | "network.work.closed";
+              | "network.work.closed"
+              | "network.peer.joined"
+              | "network.peer.left";
             /** @enum {string} */
             executor_kind?: "native" | "subprocess" | "wasm";
             matcher: {
@@ -58901,7 +58909,9 @@ export interface operations {
           | "network.message.persisted"
           | "network.work.opened"
           | "network.work.transitioned"
-          | "network.work.closed";
+          | "network.work.closed"
+          | "network.peer.joined"
+          | "network.peer.left";
         /** @description Hook execution outcome */
         outcome?: "applied" | "denied" | "failed" | "skipped" | "dropped" | "rejected";
         /** @description Only runs recorded since this timestamp */
@@ -59364,6 +59374,8 @@ export interface operations {
                 joined_at?: string | null;
                 /** Format: date-time */
                 last_seen?: string | null;
+                /** Format: int64 */
+                last_seen_age_seconds?: number | null;
                 local: boolean;
                 peer_card: {
                   artifacts_supported: string[];
@@ -59380,6 +59392,7 @@ export interface operations {
                   trust_modes_supported: string[];
                 };
                 peer_id: string;
+                presence_state: string;
                 session_id?: string | null;
                 workspace_id?: string;
               }[];
@@ -59693,6 +59706,8 @@ export interface operations {
                 joined_at?: string | null;
                 /** Format: date-time */
                 last_seen?: string | null;
+                /** Format: int64 */
+                last_seen_age_seconds?: number | null;
                 local: boolean;
                 peer_card: {
                   artifacts_supported: string[];
@@ -59709,6 +59724,7 @@ export interface operations {
                   trust_modes_supported: string[];
                 };
                 peer_id: string;
+                presence_state: string;
                 session_id?: string | null;
                 workspace_id?: string;
               }[];
@@ -61250,6 +61266,8 @@ export interface operations {
               joined_at?: string | null;
               /** Format: date-time */
               last_seen?: string | null;
+              /** Format: int64 */
+              last_seen_age_seconds?: number | null;
               local: boolean;
               peer_card: {
                 artifacts_supported: string[];
@@ -61266,6 +61284,7 @@ export interface operations {
                 trust_modes_supported: string[];
               };
               peer_id: string;
+              presence_state: string;
               session_id?: string | null;
               workspace_id?: string;
             }[];
@@ -61400,6 +61419,8 @@ export interface operations {
               joined_at?: string | null;
               /** Format: date-time */
               last_seen?: string | null;
+              /** Format: int64 */
+              last_seen_age_seconds?: number | null;
               local?: boolean;
               metrics: {
                 /** Format: int64 */
@@ -61426,6 +61447,7 @@ export interface operations {
                 trust_modes_supported: string[];
               };
               peer_id: string;
+              presence_state: string;
               session_id?: string | null;
             };
           };

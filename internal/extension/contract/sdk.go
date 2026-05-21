@@ -498,6 +498,8 @@ var namedHookTypes = map[string]NamedType{
 		Value: hooks.AuthoredContextObservationPatch{},
 	},
 	sdkNetworkPayloadValue:       {Name: sdkNetworkPayloadValue, Value: hooks.NetworkPayload{}},
+	"NetworkPeerJoinedPayload":   {Name: "NetworkPeerJoinedPayload", Value: hooks.NetworkPeerJoinedPayload{}},
+	"NetworkPeerLeftPayload":     {Name: "NetworkPeerLeftPayload", Value: hooks.NetworkPeerLeftPayload{}},
 	"NetworkThreadOpenedPayload": {Name: "NetworkThreadOpenedPayload", Value: hooks.NetworkThreadOpenedPayload{}},
 	"NetworkDirectRoomOpenedPayload": {
 		Name:  "NetworkDirectRoomOpenedPayload",

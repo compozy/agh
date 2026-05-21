@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -14,7 +15,11 @@ import (
 
 const defaultTimeout = 45 * time.Second
 
-var tcpPortCounter atomic.Uint32
+var (
+	tcpPortCounter       atomic.Uint32
+	tcpPortReservationMu sync.Mutex
+	tcpPortReservations  = make(map[int]struct{})
+)
 
 // Context returns a context canceled during test cleanup.
 func Context(t testing.TB) context.Context {
@@ -61,12 +66,40 @@ func FreeTCPPort(t testing.TB) int {
 		if err != nil {
 			continue
 		}
+		if !reserveTCPPort(port) {
+			if err := ln.Close(); err != nil {
+				t.Fatalf("net.Listener.Close(%d) error = %v", port, err)
+			}
+			continue
+		}
 		if err := ln.Close(); err != nil {
+			releaseTCPPort(port)
 			t.Fatalf("net.Listener.Close(%d) error = %v", port, err)
 		}
+		t.Cleanup(func() {
+			releaseTCPPort(port)
+		})
 		return port
 	}
 
 	t.Fatal("FreeTCPPort() exhausted candidate range")
 	return 0
+}
+
+func reserveTCPPort(port int) bool {
+	tcpPortReservationMu.Lock()
+	defer tcpPortReservationMu.Unlock()
+
+	if _, ok := tcpPortReservations[port]; ok {
+		return false
+	}
+	tcpPortReservations[port] = struct{}{}
+	return true
+}
+
+func releaseTCPPort(port int) {
+	tcpPortReservationMu.Lock()
+	defer tcpPortReservationMu.Unlock()
+
+	delete(tcpPortReservations, port)
 }

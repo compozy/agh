@@ -3,8 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 
 import { useActiveWorkspace } from "@/systems/workspace";
 
+import { toNetworkPresenceState } from "../lib/network-formatters";
 import { networkPeersOptions } from "../lib/query-options";
-import type { NetworkPeerSummary } from "../types";
+import type { NetworkPeerSummary, NetworkPresenceState } from "../types";
 
 export type ChannelMemberRole = "agent" | "human";
 
@@ -13,6 +14,8 @@ export interface ChannelMember {
   displayName: string;
   role: ChannelMemberRole;
   local: boolean;
+  presenceState: NetworkPresenceState;
+  lastSeenAgeSeconds: number | null;
 }
 
 export interface UseChannelMembersResult {
@@ -51,6 +54,8 @@ export function useChannelMembers(
       displayName: (peer.display_name?.trim() || peer.peer_card?.display_name?.trim()) ?? "",
       role: classifyPeer(peer),
       local: Boolean(peer.local),
+      presenceState: toNetworkPresenceState(peer.presence_state),
+      lastSeenAgeSeconds: peer.last_seen_age_seconds ?? null,
     }));
     members.sort((left, right) => {
       if (left.role !== right.role) {

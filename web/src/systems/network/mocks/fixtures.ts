@@ -449,12 +449,14 @@ export const networkChannelFixture: NetworkChannel = {
   peer_count: 8,
   peers: [
     {
+      workspace_id: storyWorkspaceIds.hq,
       channel: storyHeroNetworkChannel,
       display_name: "Northstar Launch Control",
       joined_at: "2026-04-17T14:00:00Z",
       local: true,
       peer_card: primaryPeerCard,
       peer_id: primaryPeerCard.peer_id,
+      presence_state: "local",
       session_id: storySessionIds.product,
     },
     {
@@ -464,6 +466,7 @@ export const networkChannelFixture: NetworkChannel = {
       local: true,
       peer_card: ctoPeerCard,
       peer_id: ctoPeerCard.peer_id,
+      presence_state: "local",
       session_id: storySessionIds.cto,
     },
     {
@@ -473,6 +476,7 @@ export const networkChannelFixture: NetworkChannel = {
       local: true,
       peer_card: financePeerCard,
       peer_id: financePeerCard.peer_id,
+      presence_state: "local",
       session_id: storySessionIds.cfo,
     },
     {
@@ -482,6 +486,7 @@ export const networkChannelFixture: NetworkChannel = {
       local: true,
       peer_card: growthPeerCard,
       peer_id: growthPeerCard.peer_id,
+      presence_state: "local",
       session_id: storySessionIds.marketing,
     },
     {
@@ -491,6 +496,7 @@ export const networkChannelFixture: NetworkChannel = {
       local: true,
       peer_card: supportPeerCard,
       peer_id: supportPeerCard.peer_id,
+      presence_state: "local",
       session_id: storySessionIds.support,
     },
     {
@@ -500,6 +506,7 @@ export const networkChannelFixture: NetworkChannel = {
       local: true,
       peer_card: frontendPeerCard,
       peer_id: frontendPeerCard.peer_id,
+      presence_state: "local",
       session_id: storySessionIds.frontend,
     },
     {
@@ -510,6 +517,8 @@ export const networkChannelFixture: NetworkChannel = {
       local: false,
       peer_card: remotePeerCard,
       peer_id: remotePeerCard.peer_id,
+      presence_state: "active",
+      last_seen_age_seconds: 12,
       session_id: "sess_partner_bank",
     },
     {
@@ -520,6 +529,8 @@ export const networkChannelFixture: NetworkChannel = {
       local: false,
       peer_card: creativePeerCard,
       peer_id: creativePeerCard.peer_id,
+      presence_state: "inactive",
+      last_seen_age_seconds: 82,
       session_id: "sess_creative_studio",
     },
   ],
@@ -650,7 +661,7 @@ export const networkThreadMessagesFixture: NetworkThreadMessage[] = [
   {
     body: {
       summary:
-        "Launch Control heartbeat with product, finance, engineering, support, and partner desks online.",
+        "Launch Control heartbeat with product, finance, engineering, support, and partner desks active.",
       peer_card: {
         display_name: "Northstar Launch Control",
         capabilities: ["chat", "tools"],
@@ -664,7 +675,7 @@ export const networkThreadMessagesFixture: NetworkThreadMessage[] = [
     message_id: "msg_launch_001",
     peer_from: primaryPeerCard.peer_id,
     preview_text:
-      "Launch Control heartbeat with product, finance, engineering, support, and partner desks online.",
+      "Launch Control heartbeat with product, finance, engineering, support, and partner desks active.",
     session_id: storySessionIds.product,
     timestamp: "2026-04-17T17:50:00Z",
     presence_count: 4,
@@ -1053,6 +1064,7 @@ export const networkPeersFixture: NetworkPeerSummary[] = [
     local: true,
     peer_card: primaryPeerCard,
     peer_id: primaryPeerCard.peer_id,
+    presence_state: "local",
     session_id: storySessionIds.product,
   },
   {
@@ -1062,6 +1074,7 @@ export const networkPeersFixture: NetworkPeerSummary[] = [
     local: true,
     peer_card: financePeerCard,
     peer_id: financePeerCard.peer_id,
+    presence_state: "local",
     session_id: storySessionIds.cfo,
   },
   {
@@ -1071,6 +1084,7 @@ export const networkPeersFixture: NetworkPeerSummary[] = [
     local: true,
     peer_card: growthPeerCard,
     peer_id: growthPeerCard.peer_id,
+    presence_state: "local",
     session_id: storySessionIds.marketing,
   },
   {
@@ -1080,6 +1094,7 @@ export const networkPeersFixture: NetworkPeerSummary[] = [
     local: true,
     peer_card: supportPeerCard,
     peer_id: supportPeerCard.peer_id,
+    presence_state: "local",
     session_id: storySessionIds.support,
   },
   {
@@ -1089,6 +1104,7 @@ export const networkPeersFixture: NetworkPeerSummary[] = [
     local: true,
     peer_card: frontendPeerCard,
     peer_id: frontendPeerCard.peer_id,
+    presence_state: "local",
     session_id: storySessionIds.frontend,
   },
   {
@@ -1098,6 +1114,7 @@ export const networkPeersFixture: NetworkPeerSummary[] = [
     local: true,
     peer_card: ctoPeerCard,
     peer_id: ctoPeerCard.peer_id,
+    presence_state: "local",
     session_id: storySessionIds.cto,
   },
   {
@@ -1108,6 +1125,8 @@ export const networkPeersFixture: NetworkPeerSummary[] = [
     local: false,
     peer_card: remotePeerCard,
     peer_id: remotePeerCard.peer_id,
+    presence_state: "active",
+    last_seen_age_seconds: 12,
     session_id: "sess_partner_bank",
   },
   {
@@ -1118,6 +1137,8 @@ export const networkPeersFixture: NetworkPeerSummary[] = [
     local: false,
     peer_card: creativePeerCard,
     peer_id: creativePeerCard.peer_id,
+    presence_state: "inactive",
+    last_seen_age_seconds: 82,
     session_id: "sess_creative_studio",
   },
 ];
@@ -1136,6 +1157,7 @@ export const networkPeerFixture: NetworkPeerDetail = {
   peer_card: primaryPeerCard,
   capability_catalog: primaryCapabilityCatalog,
   peer_id: primaryPeerCard.peer_id,
+  presence_state: "local",
   session_id: storySessionIds.product,
 };
 
@@ -1154,6 +1176,8 @@ export const networkRemotePeerFixture: NetworkPeerDetail = {
   peer_card: remotePeerCard,
   capability_catalog: remoteCapabilityCatalog,
   peer_id: remotePeerCard.peer_id,
+  presence_state: "active",
+  last_seen_age_seconds: 12,
   session_id: "sess_partner_bank",
 };
 
@@ -1226,6 +1250,7 @@ export const networkDirectRoomsFixture: NetworkDirectRoomSummary[] = [
 ];
 
 export const networkDirectRoomDetailFixture: NetworkDirectRoomDetail = {
+  workspace_id: storyWorkspaceIds.hq,
   channel: storyHeroNetworkChannel,
   direct_id: "direct_story_launch_corridor",
   last_activity_at: "2026-04-17T18:12:00Z",

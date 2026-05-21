@@ -1,10 +1,17 @@
 import { useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 
-import type { NetworkConversationMessage, NetworkDirectRoomDetail } from "../types";
+import { toNetworkPresenceState } from "../lib/network-formatters";
+import { networkPeersOptions } from "../lib/query-options";
+import type {
+  NetworkConversationMessage,
+  NetworkDirectRoomDetail,
+  NetworkPeerSummary,
+  NetworkPresence,
+} from "../types";
 import { useLastRead } from "./use-last-read";
 import { useNetworkDirectDetail } from "./use-directs";
 import { useNetworkMessages } from "./use-messages";
-import { useNetworkPresence, type NetworkPresence } from "./use-network-presence";
 
 export interface UseDirectRoomArgs {
   channel: string;
@@ -34,6 +41,13 @@ function pickOtherPeerId(detail: NetworkDirectRoomDetail | null, selfPeerId?: st
   return detail.peer_a === selfPeerId ? detail.peer_b : detail.peer_a;
 }
 
+function presenceFromPeer(peer: NetworkPeerSummary | undefined): NetworkPresence {
+  return {
+    state: toNetworkPresenceState(peer?.presence_state),
+    lastSeenAgeSeconds: peer?.last_seen_age_seconds ?? null,
+  };
+}
+
 export function useDirectRoom({
   channel,
   directId,
@@ -50,7 +64,14 @@ export function useDirectRoom({
     () => pickOtherPeerId(detail.direct, selfPeerId),
     [detail.direct, selfPeerId]
   );
-  const presence = useNetworkPresence({ channel, peerId: otherPeerId });
+  const workspaceId = detail.direct?.workspace_id ?? "";
+  const peersQuery = useQuery(
+    networkPeersOptions(workspaceId, channel, Boolean(workspaceId && channel && otherPeerId))
+  );
+  const presence = useMemo(
+    () => presenceFromPeer(peersQuery.data?.find(peer => peer.peer_id === otherPeerId)),
+    [otherPeerId, peersQuery.data]
+  );
   const { lastReadAt, markRead } = useLastRead();
   const lastReadIso = lastReadAt({ channel, containerId: directId, surface: "direct" });
 

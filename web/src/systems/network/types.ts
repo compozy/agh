@@ -63,6 +63,13 @@ export type NetworkCapabilityBrief = NetworkPeerCard["capabilities"][number];
 export type NetworkCapabilityCatalog = NonNullable<NetworkPeerDetail["capability_catalog"]>;
 export type NetworkCapability = NetworkCapabilityCatalog["capabilities"][number];
 
+export type NetworkPresenceState = "local" | "active" | "inactive" | "expired" | "unknown";
+
+export interface NetworkPresence {
+  state: NetworkPresenceState;
+  lastSeenAgeSeconds: number | null;
+}
+
 export type CreateNetworkChannelRequest = OperationRequestBody<"createNetworkChannel">;
 export type CreateNetworkChannelResponse = OperationResponse<"createNetworkChannel", 201>;
 export type NetworkSendRequest = OperationRequestBody<"sendNetworkMessage">;

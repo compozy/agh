@@ -179,6 +179,8 @@ func TestAllEventDescriptorsReturnsFullTaxonomy(t *testing.T) {
 	}
 
 	networkDescriptors := map[HookEvent]string{
+		HookNetworkPeerJoined:       "NetworkPeerJoinedPayload",
+		HookNetworkPeerLeft:         "NetworkPeerLeftPayload",
 		HookNetworkThreadOpened:     "NetworkThreadOpenedPayload",
 		HookNetworkDirectRoomOpened: "NetworkDirectRoomOpenedPayload",
 		HookNetworkMessagePersisted: "NetworkMessagePersistedPayload",

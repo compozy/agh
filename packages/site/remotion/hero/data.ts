@@ -49,7 +49,7 @@ export const CONVERSATION: Conversation = {
         summary: "2 peers joined",
       },
       reply: {
-        text: "reviewer-03 and ops-bot online. Routing to incident-payments.",
+        text: "reviewer-03 and ops-bot active. Routing to incident-payments.",
         start: 56,
         duration: 32,
       },

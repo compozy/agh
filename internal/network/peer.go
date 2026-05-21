@@ -46,6 +46,17 @@ type PeerInfo struct {
 	JoinedAt               *time.Time
 	LastSeen               *time.Time
 	ExpiresAt              *time.Time
+	PresenceState          PresenceState
+	LastSeenAgeSeconds     *int64
+}
+
+// RemoteRefreshResult reports one remote greet cache mutation plus any peers
+// expired while applying the same captured time.
+type RemoteRefreshResult struct {
+	Entry   RemotePeerEntry
+	Stored  bool
+	Joined  bool
+	Expired []RemotePeerEntry
 }
 
 // ChannelInfo summarizes one active runtime channel.
@@ -326,21 +337,42 @@ func (r *PeerRegistry) RefreshRemoteWithCapabilityCatalog(
 	capabilityCatalogKnown bool,
 	seenAt time.Time,
 ) (RemotePeerEntry, bool, error) {
+	result, err := r.RefreshRemoteDetailed(
+		workspaceID,
+		channel,
+		card,
+		capabilityCatalog,
+		capabilityCatalogKnown,
+		seenAt,
+	)
+	return result.Entry, result.Stored, err
+}
+
+// RefreshRemoteDetailed stores or refreshes one remote peer advertisement and
+// reports lifecycle changes caused by the same registry mutation.
+func (r *PeerRegistry) RefreshRemoteDetailed(
+	workspaceID string,
+	channel string,
+	card PeerCard,
+	capabilityCatalog []sessionpkg.NetworkPeerCapability,
+	capabilityCatalogKnown bool,
+	seenAt time.Time,
+) (RemoteRefreshResult, error) {
 	if r == nil {
-		return RemotePeerEntry{}, false, fmt.Errorf("%w: peer registry is required", ErrInvalidField)
+		return RemoteRefreshResult{}, fmt.Errorf("%w: peer registry is required", ErrInvalidField)
 	}
 
 	trimmedWorkspaceID := strings.TrimSpace(workspaceID)
 	if err := ValidateWorkspaceID(trimmedWorkspaceID); err != nil {
-		return RemotePeerEntry{}, false, err
+		return RemoteRefreshResult{}, err
 	}
 	trimmedChannel := strings.TrimSpace(channel)
 	if err := ValidateChannel(trimmedChannel); err != nil {
-		return RemotePeerEntry{}, false, err
+		return RemoteRefreshResult{}, err
 	}
 	normalizedCard, err := normalizePeerCard(card)
 	if err != nil {
-		return RemotePeerEntry{}, false, err
+		return RemoteRefreshResult{}, err
 	}
 	if seenAt.IsZero() {
 		seenAt = r.now()
@@ -350,10 +382,10 @@ func (r *PeerRegistry) RefreshRemoteWithCapabilityCatalog(
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.expireRemotesLocked(seenAt)
+	expired := r.expireRemotesLocked(seenAt)
 	if _, ok := r.lookupLocalLocked(trimmedWorkspaceID, trimmedChannel, normalizedCard.PeerID); ok {
 		r.deleteRemoteLocked(trimmedWorkspaceID, trimmedChannel, normalizedCard.PeerID)
-		return RemotePeerEntry{}, false, nil
+		return RemoteRefreshResult{Expired: expired}, nil
 	}
 
 	key := peerChannelKey(trimmedWorkspaceID, trimmedChannel)
@@ -381,7 +413,12 @@ func (r *PeerRegistry) RefreshRemoteWithCapabilityCatalog(
 	}
 	r.remotesByChannel[key][entry.PeerID] = entry
 
-	return cloneRemotePeerEntry(entry), true, nil
+	return RemoteRefreshResult{
+		Entry:   cloneRemotePeerEntry(entry),
+		Stored:  true,
+		Joined:  !hasExisting,
+		Expired: expired,
+	}, nil
 }
 
 // RemoteByPeer resolves one active remote peer entry.
@@ -403,11 +440,13 @@ func (r *PeerRegistry) RemoteByPeer(
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.expireRemotesLocked(at)
 	key := peerChannelKey(strings.TrimSpace(workspaceID), strings.TrimSpace(channel))
 	channelEntries := r.remotesByChannel[key]
 	entry, ok := channelEntries[strings.TrimSpace(peerID)]
 	if !ok {
+		return RemotePeerEntry{}, false
+	}
+	if remoteExpiredAt(entry, at) {
 		return RemotePeerEntry{}, false
 	}
 	return cloneRemotePeerEntry(entry), true
@@ -436,11 +475,13 @@ func (r *PeerRegistry) LookupPresence(
 	defer r.mu.Unlock()
 
 	if local, ok := r.lookupLocalLocked(trimmedWorkspaceID, trimmedChannel, trimmedPeerID); ok {
-		return peerInfoFromLocal(local), true
+		return peerInfoFromLocal(local, at, r.greetInterval), true
 	}
-	r.expireRemotesLocked(at)
 	if entry, ok := r.remotesByChannel[peerChannelKey(trimmedWorkspaceID, trimmedChannel)][trimmedPeerID]; ok {
-		return peerInfoFromRemote(entry), true
+		if remoteExpiredAt(entry, at) {
+			return PeerInfo{}, false
+		}
+		return peerInfoFromRemote(entry, at, r.greetInterval), true
 	}
 	return PeerInfo{}, false
 }
@@ -465,46 +506,81 @@ func (r *PeerRegistry) ListPeers(workspaceID string, channel string, at time.Tim
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	r.expireRemotesLocked(at)
 	trimmedWorkspaceID := strings.TrimSpace(workspaceID)
 	trimmedChannel := strings.TrimSpace(channel)
 	if trimmedWorkspaceID != "" && trimmedChannel != "" {
-		return listPeersForChannelLocked(r, trimmedWorkspaceID, trimmedChannel)
+		return listPeersForChannelLocked(r, trimmedWorkspaceID, trimmedChannel, at)
 	}
 
+	peers := make([]PeerInfo, 0, r.countVisiblePeersLocked(trimmedWorkspaceID, at))
+	peers = r.appendVisibleLocalPeersLocked(peers, trimmedWorkspaceID, at)
+	peers = r.appendVisibleRemotePeersLocked(peers, trimmedWorkspaceID, at)
+	sortPeerInfos(peers)
+	return peers
+}
+
+func (r *PeerRegistry) countVisiblePeersLocked(workspaceID string, at time.Time) int {
 	total := 0
 	for _, local := range r.localsByID {
-		if trimmedWorkspaceID != "" && local.WorkspaceID != trimmedWorkspaceID {
-			continue
+		if localVisibleInWorkspace(local, workspaceID) {
+			total++
 		}
-		total++
 	}
 	for key, entries := range r.remotesByChannel {
-		workspace, _ := splitPeerChannelKey(key)
-		if trimmedWorkspaceID != "" && workspace != trimmedWorkspaceID {
-			continue
-		}
-		total += len(entries)
-	}
-
-	peers := make([]PeerInfo, 0, total)
-	for _, local := range r.localsByID {
-		if trimmedWorkspaceID != "" && local.WorkspaceID != trimmedWorkspaceID {
-			continue
-		}
-		peers = append(peers, peerInfoFromLocal(local))
-	}
-	for key, entries := range r.remotesByChannel {
-		workspace, _ := splitPeerChannelKey(key)
-		if trimmedWorkspaceID != "" && workspace != trimmedWorkspaceID {
+		if !remoteChannelVisibleInWorkspace(key, workspaceID) {
 			continue
 		}
 		for _, entry := range entries {
-			peers = append(peers, peerInfoFromRemote(entry))
+			if !remoteExpiredAt(entry, at) {
+				total++
+			}
 		}
 	}
-	sortPeerInfos(peers)
+	return total
+}
+
+func (r *PeerRegistry) appendVisibleLocalPeersLocked(
+	peers []PeerInfo,
+	workspaceID string,
+	at time.Time,
+) []PeerInfo {
+	for _, local := range r.localsByID {
+		if localVisibleInWorkspace(local, workspaceID) {
+			peers = append(peers, peerInfoFromLocal(local, at, r.greetInterval))
+		}
+	}
 	return peers
+}
+
+func (r *PeerRegistry) appendVisibleRemotePeersLocked(
+	peers []PeerInfo,
+	workspaceID string,
+	at time.Time,
+) []PeerInfo {
+	for key, entries := range r.remotesByChannel {
+		if !remoteChannelVisibleInWorkspace(key, workspaceID) {
+			continue
+		}
+		for _, entry := range entries {
+			if remoteExpiredAt(entry, at) {
+				continue
+			}
+			peers = append(peers, peerInfoFromRemote(entry, at, r.greetInterval))
+		}
+	}
+	return peers
+}
+
+func localVisibleInWorkspace(local LocalPeer, workspaceID string) bool {
+	return workspaceID == "" || local.WorkspaceID == workspaceID
+}
+
+func remoteChannelVisibleInWorkspace(key string, workspaceID string) bool {
+	if workspaceID == "" {
+		return true
+	}
+	workspace, _ := splitPeerChannelKey(key)
+	return workspace == workspaceID
 }
 
 // ListChannels returns active runtime channels plus current peer counts.
@@ -522,7 +598,6 @@ func (r *PeerRegistry) ListChannels(workspaceID string, at time.Time) []ChannelI
 	defer r.mu.Unlock()
 
 	trimmedWorkspaceID := strings.TrimSpace(workspaceID)
-	r.expireRemotesLocked(at)
 	counts := make(map[string]int)
 	for _, local := range r.localsByID {
 		if trimmedWorkspaceID != "" && local.WorkspaceID != trimmedWorkspaceID {
@@ -535,7 +610,11 @@ func (r *PeerRegistry) ListChannels(workspaceID string, at time.Time) []ChannelI
 		if trimmedWorkspaceID != "" && workspace != trimmedWorkspaceID {
 			continue
 		}
-		counts[key] += len(entries)
+		for _, entry := range entries {
+			if !remoteExpiredAt(entry, at) {
+				counts[key]++
+			}
+		}
 	}
 
 	channels := make([]ChannelInfo, 0, len(counts))
@@ -589,10 +668,28 @@ func (r *PeerRegistry) deleteRemoteLocked(workspaceID string, channel string, pe
 	}
 }
 
-func (r *PeerRegistry) expireRemotesLocked(at time.Time) {
+// ExpireRemotes removes expired remotes and reports each peer removed by the
+// same captured time.
+func (r *PeerRegistry) ExpireRemotes(at time.Time) []RemotePeerEntry {
+	if r == nil {
+		return nil
+	}
+	if at.IsZero() {
+		at = r.now()
+	}
+	at = at.UTC()
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.expireRemotesLocked(at)
+}
+
+func (r *PeerRegistry) expireRemotesLocked(at time.Time) []RemotePeerEntry {
+	var expired []RemotePeerEntry
 	for channel, entries := range r.remotesByChannel {
 		for peerID, entry := range entries {
-			if !entry.ExpiresAt.After(at) {
+			if remoteExpiredAt(entry, at) {
+				expired = append(expired, cloneRemotePeerEntry(entry))
 				delete(entries, peerID)
 			}
 		}
@@ -600,6 +697,20 @@ func (r *PeerRegistry) expireRemotesLocked(at time.Time) {
 			delete(r.remotesByChannel, channel)
 		}
 	}
+	sort.Slice(expired, func(i int, j int) bool {
+		if expired[i].WorkspaceID != expired[j].WorkspaceID {
+			return expired[i].WorkspaceID < expired[j].WorkspaceID
+		}
+		if expired[i].Channel != expired[j].Channel {
+			return expired[i].Channel < expired[j].Channel
+		}
+		return expired[i].PeerID < expired[j].PeerID
+	})
+	return expired
+}
+
+func remoteExpiredAt(entry RemotePeerEntry, at time.Time) bool {
+	return entry.ExpiresAt.IsZero() || !entry.ExpiresAt.After(at)
 }
 
 func normalizePeerCard(card PeerCard) (PeerCard, error) {
@@ -660,10 +771,10 @@ func cloneRemotePeerEntry(entry RemotePeerEntry) RemotePeerEntry {
 	}
 }
 
-func peerInfoFromLocal(local LocalPeer) PeerInfo {
+func peerInfoFromLocal(local LocalPeer, at time.Time, greetInterval time.Duration) PeerInfo {
 	sessionID := strings.TrimSpace(local.SessionID)
 	joinedAt := local.JoinedAt.UTC()
-	return PeerInfo{
+	return applyPresence(PeerInfo{
 		SessionID:              &sessionID,
 		PeerID:                 local.PeerID,
 		WorkspaceID:            local.WorkspaceID,
@@ -673,13 +784,13 @@ func peerInfoFromLocal(local LocalPeer) PeerInfo {
 		CapabilityCatalog:      cloneNetworkPeerCapabilityCatalog(local.CapabilityCatalog),
 		CapabilityCatalogKnown: true,
 		JoinedAt:               &joinedAt,
-	}
+	}, at, greetInterval)
 }
 
-func peerInfoFromRemote(entry RemotePeerEntry) PeerInfo {
+func peerInfoFromRemote(entry RemotePeerEntry, at time.Time, greetInterval time.Duration) PeerInfo {
 	lastSeen := entry.LastSeen.UTC()
 	expiresAt := entry.ExpiresAt.UTC()
-	return PeerInfo{
+	return applyPresence(PeerInfo{
 		PeerID:                 entry.PeerID,
 		WorkspaceID:            entry.WorkspaceID,
 		Channel:                entry.Channel,
@@ -689,7 +800,7 @@ func peerInfoFromRemote(entry RemotePeerEntry) PeerInfo {
 		CapabilityCatalogKnown: entry.CapabilityCatalogKnown,
 		LastSeen:               &lastSeen,
 		ExpiresAt:              &expiresAt,
-	}
+	}, at, greetInterval)
 }
 
 func nextRemoteCapabilityCatalog(
@@ -754,7 +865,7 @@ func containsString(values []string, target string) bool {
 	return false
 }
 
-func listPeersForChannelLocked(r *PeerRegistry, workspaceID string, channel string) []PeerInfo {
+func listPeersForChannelLocked(r *PeerRegistry, workspaceID string, channel string, at time.Time) []PeerInfo {
 	key := peerChannelKey(workspaceID, channel)
 	sessionIDs := r.localsByChannel[key]
 	remoteEntries := r.remotesByChannel[key]
@@ -768,10 +879,13 @@ func listPeersForChannelLocked(r *PeerRegistry, workspaceID string, channel stri
 		if !ok {
 			continue
 		}
-		peers = append(peers, peerInfoFromLocal(local))
+		peers = append(peers, peerInfoFromLocal(local, at, r.greetInterval))
 	}
 	for _, entry := range remoteEntries {
-		peers = append(peers, peerInfoFromRemote(entry))
+		if remoteExpiredAt(entry, at) {
+			continue
+		}
+		peers = append(peers, peerInfoFromRemote(entry, at, r.greetInterval))
 	}
 	sortPeerInfos(peers)
 	return peers

@@ -61,7 +61,9 @@ agh network peers release-readiness -o json
 ```
 
 What happened: AGH returned local and remote peer records known to the daemon. A peer card is a
-claim about profiles and capabilities; it is not proof that the peer is trustworthy.
+claim about profiles and capabilities; it is not proof that the peer is trustworthy. The
+`presence_state` field is activity-derived from the latest `greet` observation and
+`[network].greet_interval`.
 
 ## 4. Send one envelope
 
@@ -130,12 +132,12 @@ you need to verify whether delivery reached the runtime before investigating the
 
 ## Common failures
 
-| Symptom                                          | Likely cause                                                                   | First command                                           |
-| ------------------------------------------------ | ------------------------------------------------------------------------------ | ------------------------------------------------------- |
-| No peers appear                                  | The session has not joined the expected channel or the remote peer is offline. | `agh network peers -o json`                             |
-| Message is sent but no session responds          | The peer is visible but no managed session consumed the inbound queue.         | `agh network inbox --session <id> -o json`              |
-| Interaction has no progress                      | The receiver has not emitted `receipt` or `trace` updates.                     | `agh session events <session-id>`                       |
-| Protocol example does not match runtime behavior | You may be reading wire reference instead of runtime CLI behavior.             | [Network CLI Reference](/runtime/cli-reference/network) |
+| Symptom                                          | Likely cause                                                                                             | First command                                           |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| No peers appear                                  | The session has not joined the expected channel or the remote peer has no recent `greet` in this daemon. | `agh network peers -o json`                             |
+| Message is sent but no session responds          | The peer is visible but no managed session consumed the inbound queue.                                   | `agh network inbox --session <id> -o json`              |
+| Interaction has no progress                      | The receiver has not emitted `receipt` or `trace` updates.                                               | `agh session events <session-id>`                       |
+| Protocol example does not match runtime behavior | You may be reading wire reference instead of runtime CLI behavior.                                       | [Network CLI Reference](/runtime/cli-reference/network) |
 
 ## When to use protocol docs instead
 

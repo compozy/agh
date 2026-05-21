@@ -5,6 +5,7 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const directDetailMock = vi.hoisted(() => vi.fn());
+const listNetworkPeersMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, ...rest }: { children: React.ReactNode }) => (
@@ -13,9 +14,13 @@ vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => () => undefined,
 }));
 
-vi.mock("../../../hooks/use-network-presence", () => ({
-  useNetworkPresence: () => ({ state: "idle" }),
-}));
+vi.mock("../../../adapters/network-api", async original => {
+  const actual = (await original()) as Record<string, unknown>;
+  return {
+    ...actual,
+    listNetworkPeers: (...args: unknown[]) => listNetworkPeersMock(...args),
+  };
+});
 
 vi.mock("../../../hooks/use-directs", async () => {
   const actual = await vi.importActual<typeof import("../../../hooks/use-directs")>(
@@ -53,8 +58,29 @@ import { DirectRoom } from "../direct-room";
 
 describe("DirectRoom headerless layout", () => {
   beforeEach(() => {
+    directDetailMock.mockReset();
+    listNetworkPeersMock.mockReset();
+    listNetworkPeersMock.mockResolvedValue([
+      {
+        channel: "ops",
+        display_name: "Remote Peer",
+        last_seen: "2026-04-17T18:00:00Z",
+        last_seen_age_seconds: 12,
+        local: false,
+        peer_card: {
+          peer_id: "peer-remote",
+          profiles_supported: [],
+          capabilities: [],
+          artifacts_supported: [],
+          trust_modes_supported: [],
+        },
+        peer_id: "peer-remote",
+        presence_state: "active",
+      },
+    ]);
     directDetailMock.mockReturnValue({
       direct: {
+        workspace_id: "ws-test",
         channel: "ops",
         direct_id: "direct_test",
         last_activity_at: "2026-04-17T18:00:00Z",
@@ -102,9 +128,13 @@ describe("DirectRoom headerless layout", () => {
     expect(screen.getByText("agent")).toBeInTheDocument();
   });
 
-  it("Should not render a presence dot when state is idle", () => {
+  it("Should render the daemon-derived direct peer presence", async () => {
     renderRoom();
-    expect(screen.queryByTestId("network-direct-presence-dot")).toBeNull();
+    await screen.findByText("active 12s ago");
+    const badge = screen.getByTestId("network-direct-presence");
+    expect(badge).toHaveAttribute("data-state", "active");
+    expect(badge).toHaveAttribute("aria-label", "peer presence active 12s ago");
+    expect(badge).toHaveTextContent("active 12s ago");
   });
 
   it("Should render an unavailable state without composer when the direct detail fails", () => {

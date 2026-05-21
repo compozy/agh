@@ -2,7 +2,7 @@ package hooks
 
 import "testing"
 
-const expectedHookEventCount = 70
+const expectedHookEventCount = 72
 
 func TestAllHookEvents(t *testing.T) {
 	t.Parallel()
@@ -48,6 +48,8 @@ func TestSyncEligibleClassification(t *testing.T) {
 		HookAgentHeartbeatPolicyResolved: {},
 		HookAgentHeartbeatWakeAfter:      {},
 		HookSessionHealthUpdateAfter:     {},
+		HookNetworkPeerJoined:            {},
+		HookNetworkPeerLeft:              {},
 		HookNetworkThreadOpened:          {},
 		HookNetworkDirectRoomOpened:      {},
 		HookNetworkMessagePersisted:      {},
@@ -96,6 +98,8 @@ func TestNetworkHookEventsHaveExpectedFamiliesAndSyncEligibility(t *testing.T) {
 	t.Parallel()
 
 	expected := []HookEvent{
+		HookNetworkPeerJoined,
+		HookNetworkPeerLeft,
 		HookNetworkThreadOpened,
 		HookNetworkDirectRoomOpened,
 		HookNetworkMessagePersisted,

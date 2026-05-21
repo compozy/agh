@@ -58,13 +58,16 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 				seenPeersQuery = query
 				displayName := "Reviewer"
 				sessionID := "sess-a"
+				lastSeenAgeSeconds := int64(15)
 				lastSeen := fixedTestNow
 				expires := fixedTestNow.Add(time.Minute)
 				return []NetworkPeerRecord{{
-					PeerID:    "reviewer.sess-a",
-					SessionID: &sessionID,
-					Channel:   "builders",
-					Local:     true,
+					PeerID:             "reviewer.sess-a",
+					SessionID:          &sessionID,
+					Channel:            "builders",
+					Local:              false,
+					PresenceState:      contract.NetworkPresenceActive,
+					LastSeenAgeSeconds: &lastSeenAgeSeconds,
 					PeerCard: NetworkPeerCardRecord{
 						PeerID:            "reviewer.sess-a",
 						DisplayName:       &displayName,
@@ -184,6 +187,29 @@ func TestNetworkCommandsAndFormatting(t *testing.T) {
 		}
 		if len(peers) != 1 || peers[0].PeerID != "reviewer.sess-a" {
 			t.Fatalf("peers = %#v, want one reviewer peer", peers)
+		}
+		if peers[0].PresenceState != contract.NetworkPresenceActive ||
+			peers[0].LastSeenAgeSeconds == nil ||
+			*peers[0].LastSeenAgeSeconds != 15 {
+			t.Fatalf("peer presence = %#v/%#v, want active age", peers[0].PresenceState, peers[0].LastSeenAgeSeconds)
+		}
+
+		peersHumanOut, _, err := executeRootCommand(
+			t,
+			deps,
+			"network",
+			"--workspace",
+			"ws-alpha",
+			"peers",
+			"builders",
+			"-o",
+			"human",
+		)
+		if err != nil {
+			t.Fatalf("network peers human error = %v", err)
+		}
+		if !strings.Contains(peersHumanOut, "Presence") || !strings.Contains(peersHumanOut, "active 15s ago") {
+			t.Fatalf("network peers human output = %q, want Presence column with age", peersHumanOut)
 		}
 
 		channelsOut, _, err := executeRootCommand(

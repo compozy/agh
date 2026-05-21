@@ -4,6 +4,7 @@ import type {
   NetworkConversationMessage,
   NetworkCreateChannelDraft,
   NetworkKindFilter,
+  NetworkPresenceState,
   NetworkPeerSummary,
   NetworkSignalTone,
   NetworkStatus,
@@ -178,6 +179,50 @@ export function getPeerRecencyAt(
   peer: Pick<NetworkPeerSummary, "joined_at" | "last_seen"> | null | undefined
 ): string | null {
   return getMostRecentTimestamp(peer?.last_seen, peer?.joined_at);
+}
+
+export function toNetworkPresenceState(value?: string | null): NetworkPresenceState {
+  switch (value?.trim()) {
+    case "local":
+      return "local";
+    case "active":
+      return "active";
+    case "inactive":
+      return "inactive";
+    case "expired":
+      return "expired";
+    default:
+      return "unknown";
+  }
+}
+
+export function formatNetworkPresenceLabel(
+  state: NetworkPresenceState,
+  lastSeenAgeSeconds?: number | null
+): string {
+  if (state === "local") {
+    return "local";
+  }
+  if (state === "unknown") {
+    return "no recent greet";
+  }
+  if (lastSeenAgeSeconds == null) {
+    return state;
+  }
+  return `${state} ${formatNetworkAgeSeconds(lastSeenAgeSeconds)} ago`;
+}
+
+function formatNetworkAgeSeconds(value: number): string {
+  const seconds = Math.max(0, Math.floor(value));
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h`;
 }
 
 export function getNetworkStatusTone(status?: string | null): NetworkSignalTone {

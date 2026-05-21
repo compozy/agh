@@ -37,6 +37,7 @@ const (
 	networkMessageValue          = "Message"
 	networkMessagesValue         = "Messages"
 	networkOpenedAtValue         = "Opened At"
+	networkPresenceValue         = "Presence"
 	networkStateValue            = "State"
 	networkStatusValue           = "Status"
 	networkSurfaceValue          = "Surface"
@@ -133,7 +134,7 @@ func newNetworkStatusCommand(deps commandDeps) *cobra.Command {
 func newNetworkPeersCommand(deps commandDeps, workspaceRef *string) *cobra.Command {
 	return &cobra.Command{
 		Use:   "peers [channel]",
-		Short: "List visible local and remote peers",
+		Short: "List visible local and remote peers with derived presence",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -844,6 +845,7 @@ func networkPeersBundle(peers []NetworkPeerRecord) outputBundle {
 			"Display",
 			agentKernelSessionValue,
 			networkChannelValue,
+			networkPresenceValue,
 			"Local",
 			"Joined",
 			"Last Seen",
@@ -855,6 +857,7 @@ func networkPeersBundle(peers []NetworkPeerRecord) outputBundle {
 			"display_name",
 			"session_id",
 			networkChannelKey,
+			"presence_state",
 			networkLocalKey,
 			"joined_at",
 			"last_seen",
@@ -866,6 +869,7 @@ func networkPeersBundle(peers []NetworkPeerRecord) outputBundle {
 				stringOrDash(optionalString(peer.PeerCard.DisplayName)),
 				stringOrDash(optionalString(peer.SessionID)),
 				stringOrDash(peer.Channel),
+				stringOrDash(networkPeerPresenceLabel(peer)),
 				strconv.FormatBool(peer.Local),
 				stringOrDash(formatTimePtr(peer.JoinedAt)),
 				stringOrDash(formatTimePtr(peer.LastSeen)),
@@ -878,6 +882,7 @@ func networkPeersBundle(peers []NetworkPeerRecord) outputBundle {
 				optionalString(peer.PeerCard.DisplayName),
 				optionalString(peer.SessionID),
 				peer.Channel,
+				peer.PresenceState,
 				strconv.FormatBool(peer.Local),
 				formatTimePtr(peer.JoinedAt),
 				formatTimePtr(peer.LastSeen),
@@ -885,6 +890,17 @@ func networkPeersBundle(peers []NetworkPeerRecord) outputBundle {
 			}
 		},
 	)
+}
+
+func networkPeerPresenceLabel(peer NetworkPeerRecord) string {
+	state := strings.TrimSpace(peer.PresenceState)
+	if state == "" {
+		return ""
+	}
+	if peer.LastSeenAgeSeconds == nil {
+		return state
+	}
+	return fmt.Sprintf("%s %ds ago", state, *peer.LastSeenAgeSeconds)
 }
 
 func networkChannelsBundle(channels []NetworkChannelRecord) outputBundle {

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -195,6 +196,118 @@ func TestManagerSkipsNetworkHooksForDuplicateConversationWrites(t *testing.T) {
 	}
 }
 
+func TestManagerDispatchesPeerLifecycleHooksFromJoinAndLeave(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should emit peer joined and left only from network lifecycle calls", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		t.Cleanup(cancel)
+		fixedNow := time.Date(2026, 5, 21, 13, 30, 0, 0, time.UTC)
+		dispatcher := &recordingNetworkHookDispatcher{}
+		manager, err := NewManager(
+			ctx,
+			testManagerConfig(),
+			newFakeDeliveryPrompter(),
+			filepath.Join(t.TempDir(), "network.audit"),
+			nil,
+			WithManagerLogger(discardManagerLogger()),
+			WithManagerClock(func() time.Time { return fixedNow }),
+			WithManagerHookDispatcher(dispatcher),
+		)
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Shutdown(context.Background()); err != nil {
+				t.Fatalf("Shutdown() error = %v", err)
+			}
+		})
+
+		join := testJoinRequest("sess-local", "reviewer.sess-local", "builders")
+		if err := manager.JoinChannel(ctx, join); err != nil {
+			t.Fatalf("JoinChannel() error = %v", err)
+		}
+		if err := manager.LeaveChannel(ctx, join.SessionID); err != nil {
+			t.Fatalf("LeaveChannel() error = %v", err)
+		}
+
+		calls := dispatcher.lifecycleCalls()
+		if got, want := len(calls), 2; got != want {
+			t.Fatalf("peer lifecycle hook count = %d, want %d: %#v", got, want, calls)
+		}
+		if calls[0].event != hookspkg.HookNetworkPeerJoined || calls[1].event != hookspkg.HookNetworkPeerLeft {
+			t.Fatalf("peer lifecycle events = %#v, want joined then left", dispatcher.events())
+		}
+		for _, call := range calls {
+			if call.payload.PeerID != join.PeerID ||
+				call.payload.PeerFrom != join.PeerID ||
+				call.payload.WorkspaceID != join.WorkspaceID ||
+				call.payload.Channel != join.Channel {
+				t.Fatalf("peer lifecycle payload = %#v, want joined peer metadata", call.payload)
+			}
+		}
+	})
+}
+
+func TestManagerListPeersSweepsExpiredRemoteAndDispatchesLeftOnce(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should emit one peer-left hook when a list snapshot sweeps an expired remote", func(t *testing.T) {
+		t.Parallel()
+
+		startedAt := time.Date(2026, 5, 21, 14, 30, 0, 0, time.UTC)
+		current := startedAt
+		registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return current }))
+		if err != nil {
+			t.Fatalf("NewPeerRegistry() error = %v", err)
+		}
+		remote := mustPeerCard(t, "coder.sess-expiring")
+		if _, stored, refreshErr := registry.RefreshRemote(
+			testWorkspaceID,
+			"builders",
+			remote,
+			startedAt,
+		); refreshErr != nil {
+			t.Fatalf("RefreshRemote() error = %v", refreshErr)
+		} else if !stored {
+			t.Fatal("RefreshRemote() stored = false, want true")
+		}
+
+		dispatcher := &recordingNetworkHookDispatcher{}
+		manager := &Manager{
+			logger: discardManagerLogger(),
+			now: func() time.Time {
+				return current
+			},
+			config: testManagerConfig(),
+			peers:  registry,
+			hooks:  dispatcher,
+		}
+
+		current = startedAt.Add(21 * time.Second)
+		peers, listErr := manager.ListPeers(context.Background(), testWorkspaceID, "builders")
+		if listErr != nil {
+			t.Fatalf("ListPeers() error = %v", listErr)
+		}
+		if len(peers) != 0 {
+			t.Fatalf("ListPeers() = %#v, want expired remote omitted", peers)
+		}
+		wantEvents := []hookspkg.HookEvent{hookspkg.HookNetworkPeerLeft}
+		if got := dispatcher.events(); !reflect.DeepEqual(got, wantEvents) {
+			t.Fatalf("events after expiry sweep = %#v, want %#v", got, wantEvents)
+		}
+
+		if _, listErr = manager.ListPeers(context.Background(), testWorkspaceID, "builders"); listErr != nil {
+			t.Fatalf("ListPeers(second) error = %v", listErr)
+		}
+		if got := dispatcher.events(); !reflect.DeepEqual(got, wantEvents) {
+			t.Fatalf("events after second sweep = %#v, want still %#v", got, wantEvents)
+		}
+	})
+}
+
 func TestNetworkMetricLabelsExcludeHighCardinalityIDs(t *testing.T) {
 	t.Parallel()
 
@@ -295,6 +408,20 @@ type recordingNetworkHookDispatcher struct {
 	commitMisses   int
 }
 
+func (d *recordingNetworkHookDispatcher) DispatchNetworkPeerJoined(
+	_ context.Context,
+	payload hookspkg.NetworkPeerJoinedPayload,
+) (hookspkg.NetworkPeerJoinedPayload, error) {
+	return payload, d.record(hookspkg.HookNetworkPeerJoined, payload)
+}
+
+func (d *recordingNetworkHookDispatcher) DispatchNetworkPeerLeft(
+	_ context.Context,
+	payload hookspkg.NetworkPeerLeftPayload,
+) (hookspkg.NetworkPeerLeftPayload, error) {
+	return payload, d.record(hookspkg.HookNetworkPeerLeft, payload)
+}
+
 func (d *recordingNetworkHookDispatcher) DispatchNetworkThreadOpened(
 	_ context.Context,
 	payload hookspkg.NetworkThreadOpenedPayload,
@@ -361,6 +488,18 @@ func (d *recordingNetworkHookDispatcher) callsSnapshot() []networkHookCall {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return append([]networkHookCall(nil), d.calls...)
+}
+
+func (d *recordingNetworkHookDispatcher) lifecycleCalls() []networkHookCall {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	calls := make([]networkHookCall, 0, len(d.calls))
+	for _, call := range d.calls {
+		if call.event == hookspkg.HookNetworkPeerJoined || call.event == hookspkg.HookNetworkPeerLeft {
+			calls = append(calls, call)
+		}
+	}
+	return calls
 }
 
 func (d *recordingNetworkHookDispatcher) commitFailures() int {

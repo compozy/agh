@@ -6903,6 +6903,20 @@ func (f *fakeHookRuntime) DispatchSessionHealthUpdateAfter(
 	return payload, nil
 }
 
+func (f *fakeHookRuntime) DispatchNetworkPeerJoined(
+	_ context.Context,
+	payload hookspkg.NetworkPeerJoinedPayload,
+) (hookspkg.NetworkPeerJoinedPayload, error) {
+	return payload, nil
+}
+
+func (f *fakeHookRuntime) DispatchNetworkPeerLeft(
+	_ context.Context,
+	payload hookspkg.NetworkPeerLeftPayload,
+) (hookspkg.NetworkPeerLeftPayload, error) {
+	return payload, nil
+}
+
 func (f *fakeHookRuntime) DispatchNetworkThreadOpened(
 	_ context.Context,
 	payload hookspkg.NetworkThreadOpenedPayload,

@@ -67,10 +67,29 @@ type RouteResult struct {
 	Envelope   *Envelope
 	Deliveries []Delivery
 	Generated  []Envelope
+	PeerEvents []PeerLifecycleEvent
 	Duplicate  bool
 	Ignored    bool
 	Rejected   bool
 	ReasonCode *ReasonCode
+}
+
+// PeerLifecycleKind describes one peer membership transition observed by the
+// router or manager lifecycle.
+type PeerLifecycleKind string
+
+const (
+	PeerLifecycleJoined PeerLifecycleKind = "joined"
+	PeerLifecycleLeft   PeerLifecycleKind = "left"
+)
+
+// PeerLifecycleEvent is the runtime-local representation of a peer presence
+// transition. Transports convert it to hooks or event summaries; it is not part
+// of the wire protocol.
+type PeerLifecycleEvent struct {
+	Kind      PeerLifecycleKind
+	Peer      PeerInfo
+	Timestamp time.Time
 }
 
 // Heartbeat owns one periodic greet publisher.
@@ -476,15 +495,53 @@ func (r *Router) handleReceivedGreet(state *receiveState) (RouteResult, error) {
 	if err != nil {
 		return RouteResult{}, err
 	}
-	if _, _, refreshErr := r.peers.RefreshRemote(
+	refresh, refreshErr := r.peers.RefreshRemoteDetailed(
 		state.envelope.WorkspaceID,
 		state.envelope.Channel,
 		body.PeerCard,
+		nil,
+		false,
 		state.now,
-	); refreshErr != nil {
+	)
+	if refreshErr != nil {
 		return RouteResult{}, refreshErr
 	}
+	state.result.PeerEvents = append(
+		state.result.PeerEvents,
+		peerLifecycleEventsFromExpired(refresh.Expired, state.now, r.peers.GreetInterval())...,
+	)
+	if refresh.Joined {
+		state.result.PeerEvents = append(
+			state.result.PeerEvents,
+			PeerLifecycleEvent{
+				Kind:      PeerLifecycleJoined,
+				Peer:      peerInfoFromRemote(refresh.Entry, state.now, r.peers.GreetInterval()),
+				Timestamp: state.now,
+			},
+		)
+	}
 	return state.result, nil
+}
+
+func peerLifecycleEventsFromExpired(
+	expired []RemotePeerEntry,
+	at time.Time,
+	greetInterval time.Duration,
+) []PeerLifecycleEvent {
+	if len(expired) == 0 {
+		return nil
+	}
+	events := make([]PeerLifecycleEvent, 0, len(expired))
+	for _, entry := range expired {
+		peer := peerInfoFromRemote(entry, at, greetInterval)
+		peer.PresenceState = PresenceStateExpired
+		events = append(events, PeerLifecycleEvent{
+			Kind:      PeerLifecycleLeft,
+			Peer:      peer,
+			Timestamp: at,
+		})
+	}
+	return events
 }
 
 func (r *Router) handleReceivedSay(ctx context.Context, state *receiveState) (RouteResult, error) {

@@ -169,7 +169,9 @@ export type HookEvent =
   | "network.message.persisted"
   | "network.work.opened"
   | "network.work.transitioned"
-  | "network.work.closed";
+  | "network.work.closed"
+  | "network.peer.joined"
+  | "network.peer.left";
 
 export interface AgentCrashedPayload {
   event: HookEvent;
@@ -2318,6 +2320,7 @@ export interface NetworkDirectResolveParams {
 export interface NetworkDirectRoomOpenedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  workspace_id?: string;
   session_id?: string;
   channel?: string;
   surface?: string;
@@ -2328,8 +2331,10 @@ export interface NetworkDirectRoomOpenedPayload {
   direction?: string;
   work_id?: string;
   work_state?: string;
+  peer_id?: string;
   peer_from?: string;
   peer_to?: string;
+  last_seen_at?: ISODateTime;
   trace_id?: string;
   causation_id?: string;
 }
@@ -2366,6 +2371,7 @@ export interface NetworkMatcher {
 export interface NetworkMessagePersistedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  workspace_id?: string;
   session_id?: string;
   channel?: string;
   surface?: string;
@@ -2376,8 +2382,10 @@ export interface NetworkMessagePersistedPayload {
   direction?: string;
   work_id?: string;
   work_state?: string;
+  peer_id?: string;
   peer_from?: string;
   peer_to?: string;
+  last_seen_at?: ISODateTime;
   trace_id?: string;
   causation_id?: string;
 }
@@ -2389,6 +2397,7 @@ export interface NetworkObservationPatch {
 export interface NetworkPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  workspace_id?: string;
   session_id?: string;
   channel?: string;
   surface?: string;
@@ -2399,8 +2408,54 @@ export interface NetworkPayload {
   direction?: string;
   work_id?: string;
   work_state?: string;
+  peer_id?: string;
   peer_from?: string;
   peer_to?: string;
+  last_seen_at?: ISODateTime;
+  trace_id?: string;
+  causation_id?: string;
+}
+
+export interface NetworkPeerJoinedPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  workspace_id?: string;
+  session_id?: string;
+  channel?: string;
+  surface?: string;
+  thread_id?: string;
+  direct_id?: string;
+  message_id?: string;
+  kind?: string;
+  direction?: string;
+  work_id?: string;
+  work_state?: string;
+  peer_id?: string;
+  peer_from?: string;
+  peer_to?: string;
+  last_seen_at?: ISODateTime;
+  trace_id?: string;
+  causation_id?: string;
+}
+
+export interface NetworkPeerLeftPayload {
+  event: HookEvent;
+  timestamp: ISODateTime;
+  workspace_id?: string;
+  session_id?: string;
+  channel?: string;
+  surface?: string;
+  thread_id?: string;
+  direct_id?: string;
+  message_id?: string;
+  kind?: string;
+  direction?: string;
+  work_id?: string;
+  work_state?: string;
+  peer_id?: string;
+  peer_from?: string;
+  peer_to?: string;
+  last_seen_at?: ISODateTime;
   trace_id?: string;
   causation_id?: string;
 }
@@ -2431,6 +2486,8 @@ export interface NetworkPeerPayload {
   joined_at?: ISODateTime;
   last_seen?: ISODateTime;
   expires_at?: ISODateTime;
+  presence_state: string;
+  last_seen_age_seconds?: number;
 }
 
 export interface NetworkPeersParams {
@@ -2539,6 +2596,7 @@ export interface NetworkThreadMessagesParams {
 export interface NetworkThreadOpenedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  workspace_id?: string;
   session_id?: string;
   channel?: string;
   surface?: string;
@@ -2549,8 +2607,10 @@ export interface NetworkThreadOpenedPayload {
   direction?: string;
   work_id?: string;
   work_state?: string;
+  peer_id?: string;
   peer_from?: string;
   peer_to?: string;
+  last_seen_at?: ISODateTime;
   trace_id?: string;
   causation_id?: string;
 }
@@ -2587,6 +2647,7 @@ export interface NetworkThreadsParams {
 export interface NetworkWorkClosedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  workspace_id?: string;
   session_id?: string;
   channel?: string;
   surface?: string;
@@ -2597,8 +2658,10 @@ export interface NetworkWorkClosedPayload {
   direction?: string;
   work_id?: string;
   work_state?: string;
+  peer_id?: string;
   peer_from?: string;
   peer_to?: string;
+  last_seen_at?: ISODateTime;
   trace_id?: string;
   causation_id?: string;
 }
@@ -2611,6 +2674,7 @@ export interface NetworkWorkGetParams {
 export interface NetworkWorkOpenedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  workspace_id?: string;
   session_id?: string;
   channel?: string;
   surface?: string;
@@ -2621,8 +2685,10 @@ export interface NetworkWorkOpenedPayload {
   direction?: string;
   work_id?: string;
   work_state?: string;
+  peer_id?: string;
   peer_from?: string;
   peer_to?: string;
+  last_seen_at?: ISODateTime;
   trace_id?: string;
   causation_id?: string;
 }
@@ -2646,6 +2712,7 @@ export interface NetworkWorkPayload {
 export interface NetworkWorkTransitionedPayload {
   event: HookEvent;
   timestamp: ISODateTime;
+  workspace_id?: string;
   session_id?: string;
   channel?: string;
   surface?: string;
@@ -2656,8 +2723,10 @@ export interface NetworkWorkTransitionedPayload {
   direction?: string;
   work_id?: string;
   work_state?: string;
+  peer_id?: string;
   peer_from?: string;
   peer_to?: string;
+  last_seen_at?: ISODateTime;
   trace_id?: string;
   causation_id?: string;
 }
@@ -5182,6 +5251,8 @@ export interface HookPayloadByEvent {
   "network.work.opened": NetworkWorkOpenedPayload;
   "network.work.transitioned": NetworkWorkTransitionedPayload;
   "network.work.closed": NetworkWorkClosedPayload;
+  "network.peer.joined": NetworkPeerJoinedPayload;
+  "network.peer.left": NetworkPeerLeftPayload;
 }
 
 export interface HookPatchByEvent {
@@ -5255,6 +5326,8 @@ export interface HookPatchByEvent {
   "network.work.opened": NetworkObservationPatch;
   "network.work.transitioned": NetworkObservationPatch;
   "network.work.closed": NetworkObservationPatch;
+  "network.peer.joined": NetworkObservationPatch;
+  "network.peer.left": NetworkObservationPatch;
 }
 
 export interface HostAPIMethodMap {

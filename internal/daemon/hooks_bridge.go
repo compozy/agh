@@ -227,6 +227,14 @@ type hookRuntime interface {
 		context.Context,
 		hookspkg.SessionHealthUpdateAfterPayload,
 	) (hookspkg.SessionHealthUpdateAfterPayload, error)
+	DispatchNetworkPeerJoined(
+		context.Context,
+		hookspkg.NetworkPeerJoinedPayload,
+	) (hookspkg.NetworkPeerJoinedPayload, error)
+	DispatchNetworkPeerLeft(
+		context.Context,
+		hookspkg.NetworkPeerLeftPayload,
+	) (hookspkg.NetworkPeerLeftPayload, error)
 	DispatchNetworkThreadOpened(
 		context.Context,
 		hookspkg.NetworkThreadOpenedPayload,
@@ -1178,6 +1186,20 @@ func (n *hooksNotifier) DispatchSessionHealthUpdateAfter(
 		payload,
 		hookRuntime.DispatchSessionHealthUpdateAfter,
 	)
+}
+
+func (n *hooksNotifier) DispatchNetworkPeerJoined(
+	ctx context.Context,
+	payload hookspkg.NetworkPeerJoinedPayload,
+) (hookspkg.NetworkPeerJoinedPayload, error) {
+	return dispatchRuntime(ctx, n, hookspkg.HookNetworkPeerJoined, payload, hookRuntime.DispatchNetworkPeerJoined)
+}
+
+func (n *hooksNotifier) DispatchNetworkPeerLeft(
+	ctx context.Context,
+	payload hookspkg.NetworkPeerLeftPayload,
+) (hookspkg.NetworkPeerLeftPayload, error) {
+	return dispatchRuntime(ctx, n, hookspkg.HookNetworkPeerLeft, payload, hookRuntime.DispatchNetworkPeerLeft)
 }
 
 func (n *hooksNotifier) DispatchNetworkThreadOpened(

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createNetworkChannelDraft,
   formatNetworkKindLabel,
+  formatNetworkPresenceLabel,
   formatNetworkRelativeTime,
   getMessageAuthorInitial,
   getMostRecentTimestamp,
@@ -13,6 +14,7 @@ import {
   isNetworkRunning,
   toggleDraftAgent,
   toNetworkKindFilter,
+  toNetworkPresenceState,
 } from "../network-formatters";
 
 describe("formatNetworkKindLabel", () => {
@@ -173,6 +175,26 @@ describe("getPeerDisplayName + getPeerRecencyAt", () => {
         last_seen: undefined,
       })
     ).toBe("2026-04-28T07:00:00Z");
+  });
+});
+
+describe("network presence formatting", () => {
+  it.each([
+    ["local", "local"],
+    ["active", "active"],
+    ["inactive", "inactive"],
+    ["expired", "expired"],
+    ["legacy", "unknown"],
+    [null, "unknown"],
+  ] as const)("normalizes %s to %s", (input, state) => {
+    expect(toNetworkPresenceState(input)).toBe(state);
+  });
+
+  it("formats activity-derived labels without online/offline language", () => {
+    expect(formatNetworkPresenceLabel("active", 12)).toBe("active 12s ago");
+    expect(formatNetworkPresenceLabel("inactive", 125)).toBe("inactive 2m ago");
+    expect(formatNetworkPresenceLabel("expired", 7200)).toBe("expired 2h ago");
+    expect(formatNetworkPresenceLabel("unknown", null)).toBe("no recent greet");
   });
 });
 

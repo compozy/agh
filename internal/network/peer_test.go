@@ -10,6 +10,56 @@ import (
 	sessionpkg "github.com/pedronauck/agh/internal/session"
 )
 
+func TestPeerRegistryDerivesPresenceFromSnapshotTime(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should derive remote activity state and emit expired entries once", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 21, 12, 15, 0, 0, time.UTC)
+		registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+		if err != nil {
+			t.Fatalf("NewPeerRegistry() error = %v", err)
+		}
+		localCard := mustPeerCard(t, "coder.sess-local")
+		remoteCard := mustPeerCard(t, "reviewer.sess-remote")
+		if _, err := registry.RegisterLocal("sess-local", testWorkspaceID, "builders", localCard, now); err != nil {
+			t.Fatalf("RegisterLocal(local) error = %v", err)
+		}
+		if _, stored, err := registry.RefreshRemote(testWorkspaceID, "builders", remoteCard, now); err != nil {
+			t.Fatalf("RefreshRemote(remote) error = %v", err)
+		} else if !stored {
+			t.Fatal("RefreshRemote(remote) stored = false, want true")
+		}
+
+		snapshotAt := now.Add(15 * time.Second)
+		peers := registry.ListPeers(testWorkspaceID, "builders", snapshotAt)
+		if got, want := len(peers), 2; got != want {
+			t.Fatalf("ListPeers() len = %d, want %d", got, want)
+		}
+		if peers[0].PresenceState != PresenceStateLocal {
+			t.Fatalf("local presence_state = %q, want %q", peers[0].PresenceState, PresenceStateLocal)
+		}
+		if peers[1].PresenceState != PresenceStateInactive {
+			t.Fatalf("remote presence_state = %q, want %q", peers[1].PresenceState, PresenceStateInactive)
+		}
+		if peers[1].LastSeenAgeSeconds == nil || *peers[1].LastSeenAgeSeconds != 15 {
+			t.Fatalf("remote last_seen_age_seconds = %#v, want 15", peers[1].LastSeenAgeSeconds)
+		}
+
+		expired := registry.ExpireRemotes(now.Add(20 * time.Second))
+		if got, want := len(expired), 1; got != want {
+			t.Fatalf("ExpireRemotes() len = %d, want %d", got, want)
+		}
+		if expired[0].PeerID != remoteCard.PeerID {
+			t.Fatalf("expired peer_id = %q, want %q", expired[0].PeerID, remoteCard.PeerID)
+		}
+		if again := registry.ExpireRemotes(now.Add(21 * time.Second)); len(again) != 0 {
+			t.Fatalf("ExpireRemotes() second result = %#v, want none", again)
+		}
+	})
+}
+
 func TestPeerRegistryIsolatesChannelsExpiresRemotesAndLeavesLocal(t *testing.T) {
 	t.Parallel()
 
@@ -66,6 +116,49 @@ func TestPeerRegistryIsolatesChannelsExpiresRemotesAndLeavesLocal(t *testing.T) 
 	if _, ok := registry.LookupPresence(testWorkspaceID, "builders", localCard.PeerID, expiredAt); ok {
 		t.Fatalf("LookupPresence(builders, %q) after leave = present, want removed", localCard.PeerID)
 	}
+}
+
+func TestPeerRegistryPresenceAndExpiryLifecycle(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, time.May, 21, 13, 0, 0, 0, time.UTC)
+	registry, err := NewPeerRegistry(30*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+	if err != nil {
+		t.Fatalf("NewPeerRegistry() error = %v", err)
+	}
+	remoteCard := mustPeerCard(t, "reviewer.sess-activity")
+	if _, stored, err := registry.RefreshRemote(testWorkspaceID, "builders", remoteCard, now); err != nil {
+		t.Fatalf("RefreshRemote() error = %v", err)
+	} else if !stored {
+		t.Fatal("RefreshRemote() stored = false, want true")
+	}
+
+	t.Run("Should derive visible peer presence from one captured registry time", func(t *testing.T) {
+		peers := registry.ListPeers(testWorkspaceID, "builders", now.Add(45*time.Second))
+		if got, want := len(peers), 1; got != want {
+			t.Fatalf("len(ListPeers()) = %d, want %d", got, want)
+		}
+		if peers[0].PresenceState != PresenceStateInactive {
+			t.Fatalf("PresenceState = %q, want %q", peers[0].PresenceState, PresenceStateInactive)
+		}
+		if peers[0].LastSeenAgeSeconds == nil || *peers[0].LastSeenAgeSeconds != 45 {
+			t.Fatalf("LastSeenAgeSeconds = %#v, want 45", peers[0].LastSeenAgeSeconds)
+		}
+	})
+
+	t.Run("Should remove and report expired remotes once", func(t *testing.T) {
+		expiredAt := now.Add(61 * time.Second)
+		expired := registry.ExpireRemotes(expiredAt)
+		if got, want := len(expired), 1; got != want {
+			t.Fatalf("len(ExpireRemotes()) = %d, want %d", got, want)
+		}
+		if got, want := expired[0].PeerID, remoteCard.PeerID; got != want {
+			t.Fatalf("expired[0].PeerID = %q, want %q", got, want)
+		}
+		if again := registry.ExpireRemotes(expiredAt.Add(time.Second)); len(again) != 0 {
+			t.Fatalf("second ExpireRemotes() = %#v, want no duplicate expiry", again)
+		}
+	})
 }
 
 func TestPeerRegistryAccessorsAndChannelSummaries(t *testing.T) {

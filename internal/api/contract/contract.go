@@ -858,18 +858,33 @@ type NetworkPeerCardPayload struct {
 	Ext                 map[string]json.RawMessage      `json:"ext,omitempty"`
 }
 
+const (
+	// NetworkPresenceLocal identifies a daemon-local peer joined to a channel.
+	NetworkPresenceLocal = "local"
+	// NetworkPresenceActive identifies a remote peer seen within one greet interval.
+	NetworkPresenceActive = "active"
+	// NetworkPresenceInactive identifies a remote peer seen within the expiry window.
+	NetworkPresenceInactive = "inactive"
+	// NetworkPresenceExpired identifies a remote peer whose cleanup is due.
+	NetworkPresenceExpired = "expired"
+	// NetworkPresenceUnknown identifies a peer without a recent activity observation.
+	NetworkPresenceUnknown = "unknown"
+)
+
 // NetworkPeerPayload is the shared JSON representation of one visible peer.
 type NetworkPeerPayload struct {
-	WorkspaceID string                 `json:"workspace_id,omitempty"`
-	SessionID   *string                `json:"session_id,omitempty"`
-	PeerID      string                 `json:"peer_id"`
-	DisplayName string                 `json:"display_name,omitempty"`
-	Channel     string                 `json:"channel"`
-	Local       bool                   `json:"local"`
-	PeerCard    NetworkPeerCardPayload `json:"peer_card"`
-	JoinedAt    *time.Time             `json:"joined_at,omitempty"`
-	LastSeen    *time.Time             `json:"last_seen,omitempty"`
-	ExpiresAt   *time.Time             `json:"expires_at,omitempty"`
+	WorkspaceID        string                 `json:"workspace_id,omitempty"`
+	SessionID          *string                `json:"session_id,omitempty"`
+	PeerID             string                 `json:"peer_id"`
+	DisplayName        string                 `json:"display_name,omitempty"`
+	Channel            string                 `json:"channel"`
+	Local              bool                   `json:"local"`
+	PeerCard           NetworkPeerCardPayload `json:"peer_card"`
+	JoinedAt           *time.Time             `json:"joined_at,omitempty"`
+	LastSeen           *time.Time             `json:"last_seen,omitempty"`
+	ExpiresAt          *time.Time             `json:"expires_at,omitempty"`
+	PresenceState      string                 `json:"presence_state"`
+	LastSeenAgeSeconds *int64                 `json:"last_seen_age_seconds,omitempty"`
 }
 
 // NetworkChannelPayload is the shared JSON representation of one active channel.
@@ -1036,17 +1051,19 @@ type NetworkPeerMetricsPayload struct {
 
 // NetworkPeerDetailPayload is the shared selected-peer detail payload.
 type NetworkPeerDetailPayload struct {
-	SessionID         *string                          `json:"session_id,omitempty"`
-	PeerID            string                           `json:"peer_id"`
-	DisplayName       string                           `json:"display_name,omitempty"`
-	Channel           string                           `json:"channel,omitempty"`
-	Local             bool                             `json:"local,omitempty"`
-	PeerCard          NetworkPeerCardPayload           `json:"peer_card"`
-	CapabilityCatalog *NetworkCapabilityCatalogPayload `json:"capability_catalog,omitempty"`
-	JoinedAt          *time.Time                       `json:"joined_at,omitempty"`
-	LastSeen          *time.Time                       `json:"last_seen,omitempty"`
-	ExpiresAt         *time.Time                       `json:"expires_at,omitempty"`
-	Metrics           NetworkPeerMetricsPayload        `json:"metrics"`
+	SessionID          *string                          `json:"session_id,omitempty"`
+	PeerID             string                           `json:"peer_id"`
+	DisplayName        string                           `json:"display_name,omitempty"`
+	Channel            string                           `json:"channel,omitempty"`
+	Local              bool                             `json:"local,omitempty"`
+	PeerCard           NetworkPeerCardPayload           `json:"peer_card"`
+	CapabilityCatalog  *NetworkCapabilityCatalogPayload `json:"capability_catalog,omitempty"`
+	JoinedAt           *time.Time                       `json:"joined_at,omitempty"`
+	LastSeen           *time.Time                       `json:"last_seen,omitempty"`
+	ExpiresAt          *time.Time                       `json:"expires_at,omitempty"`
+	PresenceState      string                           `json:"presence_state"`
+	LastSeenAgeSeconds *int64                           `json:"last_seen_age_seconds,omitempty"`
+	Metrics            NetworkPeerMetricsPayload        `json:"metrics"`
 }
 
 // InstallExtensionRequest is the shared extension install request payload.

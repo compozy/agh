@@ -73,6 +73,7 @@ describe("useActiveNetworkSession", () => {
               trust_modes_supported: [],
             },
             peer_id: "peer-self",
+            presence_state: "local",
             session_id: "sess-1",
           },
         ],

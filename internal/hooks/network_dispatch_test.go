@@ -11,6 +11,8 @@ func TestDispatchNetworkHooksUseAsyncObservationPayloads(t *testing.T) {
 	t.Parallel()
 
 	events := []HookEvent{
+		HookNetworkPeerJoined,
+		HookNetworkPeerLeft,
 		HookNetworkThreadOpened,
 		HookNetworkDirectRoomOpened,
 		HookNetworkMessagePersisted,
@@ -57,6 +59,10 @@ func TestDispatchNetworkHooksUseAsyncObservationPayloads(t *testing.T) {
 			payload := networkDispatchTestPayload(event)
 			var err error
 			switch event {
+			case HookNetworkPeerJoined:
+				_, err = hooks.DispatchNetworkPeerJoined(t.Context(), payload)
+			case HookNetworkPeerLeft:
+				_, err = hooks.DispatchNetworkPeerLeft(t.Context(), payload)
 			case HookNetworkThreadOpened:
 				_, err = hooks.DispatchNetworkThreadOpened(t.Context(), payload)
 			case HookNetworkDirectRoomOpened:

@@ -1494,6 +1494,114 @@ func TestRouterReceivesGreetAndDirectedWhoisRequest(t *testing.T) {
 	}
 }
 
+func TestRouterReceiveGreetReportsPeerLifecycleEvents(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should report remote join once and later expiry plus next join", func(t *testing.T) {
+		t.Parallel()
+
+		current := time.Date(2026, 5, 21, 13, 0, 0, 0, time.UTC)
+		registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return current }))
+		if err != nil {
+			t.Fatalf("NewPeerRegistry() error = %v", err)
+		}
+		router, err := NewRouter(
+			registry,
+			&spyRouterTransport{},
+			DefaultMaxReplayAge,
+			WithRouterClock(func() time.Time { return current }),
+		)
+		if err != nil {
+			t.Fatalf("NewRouter() error = %v", err)
+		}
+
+		firstRemote := mustPeerCard(t, "coder.sess-remote-a")
+		secondRemote := mustPeerCard(t, "coder.sess-remote-b")
+		first := receiveGreetForLifecycleTest(t, router, firstRemote, "msg-greet-a-1", current)
+		assertPeerLifecycleEvents(t, first.PeerEvents, []PeerLifecycleEvent{{
+			Kind:      PeerLifecycleJoined,
+			Peer:      PeerInfo{PeerID: firstRemote.PeerID, PresenceState: PresenceStateActive},
+			Timestamp: current,
+		}})
+
+		current = current.Add(time.Second)
+		second := receiveGreetForLifecycleTest(t, router, firstRemote, "msg-greet-a-2", current)
+		if len(second.PeerEvents) != 0 {
+			t.Fatalf("second greet peer events = %#v, want none", second.PeerEvents)
+		}
+
+		current = current.Add(20 * time.Second)
+		third := receiveGreetForLifecycleTest(t, router, secondRemote, "msg-greet-b-1", current)
+		assertPeerLifecycleEvents(t, third.PeerEvents, []PeerLifecycleEvent{
+			{
+				Kind:      PeerLifecycleLeft,
+				Peer:      PeerInfo{PeerID: firstRemote.PeerID, PresenceState: PresenceStateExpired},
+				Timestamp: current,
+			},
+			{
+				Kind:      PeerLifecycleJoined,
+				Peer:      PeerInfo{PeerID: secondRemote.PeerID, PresenceState: PresenceStateActive},
+				Timestamp: current,
+			},
+		})
+	})
+}
+
+func receiveGreetForLifecycleTest(
+	t *testing.T,
+	router *Router,
+	card PeerCard,
+	messageID string,
+	now time.Time,
+) RouteResult {
+	t.Helper()
+
+	payload, err := json.Marshal(Envelope{
+		Protocol:    ProtocolV0,
+		WorkspaceID: testWorkspaceID,
+		ID:          messageID,
+		Kind:        KindGreet,
+		Channel:     "builders",
+		From:        card.PeerID,
+		TS:          now.Unix(),
+		Body:        mustRawJSON(t, GreetBody{PeerCard: card, Summary: "hello"}),
+	})
+	if err != nil {
+		t.Fatalf("json.Marshal(greet envelope) error = %v", err)
+	}
+	result, err := router.Receive(context.Background(), payload)
+	if err != nil {
+		t.Fatalf("Receive(greet) error = %v", err)
+	}
+	return result
+}
+
+func assertPeerLifecycleEvents(t *testing.T, got []PeerLifecycleEvent, want []PeerLifecycleEvent) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("peer lifecycle event count = %d, want %d: %#v", len(got), len(want), got)
+	}
+	for idx := range want {
+		if got[idx].Kind != want[idx].Kind {
+			t.Fatalf("event[%d].Kind = %q, want %q", idx, got[idx].Kind, want[idx].Kind)
+		}
+		if got[idx].Peer.PeerID != want[idx].Peer.PeerID {
+			t.Fatalf("event[%d].PeerID = %q, want %q", idx, got[idx].Peer.PeerID, want[idx].Peer.PeerID)
+		}
+		if got[idx].Peer.PresenceState != want[idx].Peer.PresenceState {
+			t.Fatalf(
+				"event[%d].PresenceState = %q, want %q",
+				idx,
+				got[idx].Peer.PresenceState,
+				want[idx].Peer.PresenceState,
+			)
+		}
+		if !got[idx].Timestamp.Equal(want[idx].Timestamp) {
+			t.Fatalf("event[%d].Timestamp = %s, want %s", idx, got[idx].Timestamp, want[idx].Timestamp)
+		}
+	}
+}
+
 func TestRouterConstructionAndHelperErrors(t *testing.T) {
 	t.Parallel()
 

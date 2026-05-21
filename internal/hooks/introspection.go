@@ -502,6 +502,20 @@ var hookEventDescriptors = map[HookEvent]EventDescriptor{
 		PayloadSchema: "SpawnReapedPayload",
 		PatchSchema:   introspectionSpawnObservationPatchValue,
 	},
+	HookNetworkPeerJoined: {
+		Event:         HookNetworkPeerJoined,
+		Family:        HookEventFamilyNetwork,
+		SyncEligible:  false,
+		PayloadSchema: "NetworkPeerJoinedPayload",
+		PatchSchema:   introspectionNetworkObservationPatchValue,
+	},
+	HookNetworkPeerLeft: {
+		Event:         HookNetworkPeerLeft,
+		Family:        HookEventFamilyNetwork,
+		SyncEligible:  false,
+		PayloadSchema: "NetworkPeerLeftPayload",
+		PatchSchema:   introspectionNetworkObservationPatchValue,
+	},
 	HookNetworkThreadOpened: {
 		Event:         HookNetworkThreadOpened,
 		Family:        HookEventFamilyNetwork,

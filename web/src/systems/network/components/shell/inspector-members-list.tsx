@@ -14,6 +14,8 @@ import {
 import { cn } from "@/lib/utils";
 
 import type { ChannelMember } from "../../hooks/use-channel-members";
+import { formatNetworkPresenceLabel } from "../../lib/network-formatters";
+import type { NetworkPresenceState } from "../../types";
 import { MessageAvatar } from "../timeline/message-avatar";
 
 export interface InspectorMembersListProps {
@@ -37,6 +39,21 @@ function MembersSkeleton() {
       </div>
     </SkeletonRows>
   );
+}
+
+function presenceDotTone(state: NetworkPresenceState): string {
+  switch (state) {
+    case "local":
+      return "bg-info";
+    case "active":
+      return "bg-success";
+    case "inactive":
+      return "bg-warning";
+    case "expired":
+      return "bg-danger";
+    default:
+      return "bg-muted";
+  }
 }
 
 export function InspectorMembersList({
@@ -87,9 +104,26 @@ export function InspectorMembersList({
             <ItemTitle className="min-w-0 text-small-body">
               {member.displayName || `@${member.peerId}`}
             </ItemTitle>
-            <Eyebrow data-testid={`network-inspector-member-role-${member.peerId}`}>
-              {member.role === "agent" ? "AGENT" : "HUMAN"}
-            </Eyebrow>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <Eyebrow data-testid={`network-inspector-member-role-${member.peerId}`}>
+                {member.role === "agent" ? "AGENT" : "HUMAN"}
+              </Eyebrow>
+              <span
+                className="inline-flex min-w-0 items-center gap-1 text-form-label text-muted"
+                data-testid={`network-inspector-member-presence-${member.peerId}`}
+              >
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "size-1.5 shrink-0 rounded-full",
+                    presenceDotTone(member.presenceState)
+                  )}
+                />
+                <span className="min-w-0 truncate">
+                  {formatNetworkPresenceLabel(member.presenceState, member.lastSeenAgeSeconds)}
+                </span>
+              </span>
+            </div>
           </ItemContent>
         </Item>
       ))}

@@ -497,18 +497,41 @@ func NetworkPeerPayloadFromInfo(peer network.PeerInfo) contract.NetworkPeerPaylo
 			displayName = trimmed
 		}
 	}
+	presenceState, lastSeenAgeSeconds := networkPresenceFields(peer)
 	return contract.NetworkPeerPayload{
-		WorkspaceID: strings.TrimSpace(peer.WorkspaceID),
-		SessionID:   peer.SessionID,
-		PeerID:      peer.PeerID,
-		DisplayName: displayName,
-		Channel:     peer.Channel,
-		Local:       peer.Local,
-		PeerCard:    networkPeerCardPayload(peer),
-		JoinedAt:    cloneTimePtr(peer.JoinedAt),
-		LastSeen:    cloneTimePtr(peer.LastSeen),
-		ExpiresAt:   cloneTimePtr(peer.ExpiresAt),
+		WorkspaceID:        strings.TrimSpace(peer.WorkspaceID),
+		SessionID:          peer.SessionID,
+		PeerID:             peer.PeerID,
+		DisplayName:        displayName,
+		Channel:            peer.Channel,
+		Local:              peer.Local,
+		PeerCard:           networkPeerCardPayload(peer),
+		JoinedAt:           cloneTimePtr(peer.JoinedAt),
+		LastSeen:           cloneTimePtr(peer.LastSeen),
+		ExpiresAt:          cloneTimePtr(peer.ExpiresAt),
+		PresenceState:      presenceState,
+		LastSeenAgeSeconds: lastSeenAgeSeconds,
 	}
+}
+
+func networkPresenceFields(peer network.PeerInfo) (string, *int64) {
+	state := string(peer.PresenceState)
+	if state == "" && peer.Local {
+		state = contract.NetworkPresenceLocal
+	}
+	switch state {
+	case contract.NetworkPresenceLocal,
+		contract.NetworkPresenceActive,
+		contract.NetworkPresenceInactive,
+		contract.NetworkPresenceExpired,
+		contract.NetworkPresenceUnknown:
+	default:
+		state = contract.NetworkPresenceUnknown
+	}
+	if state == contract.NetworkPresenceLocal || state == contract.NetworkPresenceUnknown {
+		return state, nil
+	}
+	return state, cloneInt64Ptr(peer.LastSeenAgeSeconds)
 }
 
 func networkPeerCardPayload(peer network.PeerInfo) contract.NetworkPeerCardPayload {

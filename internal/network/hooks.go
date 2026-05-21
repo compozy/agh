@@ -11,6 +11,14 @@ import (
 
 // HookDispatcher observes committed network conversation state changes.
 type HookDispatcher interface {
+	DispatchNetworkPeerJoined(
+		context.Context,
+		hookspkg.NetworkPeerJoinedPayload,
+	) (hookspkg.NetworkPeerJoinedPayload, error)
+	DispatchNetworkPeerLeft(
+		context.Context,
+		hookspkg.NetworkPeerLeftPayload,
+	) (hookspkg.NetworkPeerLeftPayload, error)
 	DispatchNetworkThreadOpened(
 		context.Context,
 		hookspkg.NetworkThreadOpenedPayload,
@@ -77,7 +85,16 @@ func (m *Manager) dispatchNetworkHooks(
 }
 
 func (m *Manager) dispatchNetworkHook(ctx context.Context, payload hookspkg.NetworkPayload) error {
+	if m == nil || m.hooks == nil {
+		return nil
+	}
 	switch payload.Event {
+	case hookspkg.HookNetworkPeerJoined:
+		_, err := m.hooks.DispatchNetworkPeerJoined(ctx, payload)
+		return err
+	case hookspkg.HookNetworkPeerLeft:
+		_, err := m.hooks.DispatchNetworkPeerLeft(ctx, payload)
+		return err
 	case hookspkg.HookNetworkThreadOpened:
 		_, err := m.hooks.DispatchNetworkThreadOpened(ctx, payload)
 		return err
@@ -116,12 +133,88 @@ func (m *Manager) logNetworkHookFailure(
 		"work_id", strings.TrimSpace(payload.WorkID),
 		"trace_id", strings.TrimSpace(payload.TraceID),
 		"causation_id", strings.TrimSpace(payload.CausationID),
+		"peer_id", strings.TrimSpace(payload.PeerID),
 		"channel", strings.TrimSpace(payload.Channel),
 		"surface", strings.TrimSpace(payload.Surface),
 		"thread_id", strings.TrimSpace(payload.ThreadID),
 		"direct_id", strings.TrimSpace(payload.DirectID),
 		"error", err,
 	)
+}
+
+func (m *Manager) dispatchNetworkPeerLifecycleHooks(
+	ctx context.Context,
+	events []PeerLifecycleEvent,
+) {
+	if m == nil || len(events) == 0 {
+		return
+	}
+	for _, event := range events {
+		payload, ok := networkPayloadForPeerLifecycle(event)
+		if !ok {
+			continue
+		}
+		if err := m.dispatchNetworkHook(ctx, payload); err != nil {
+			m.logNetworkHookFailure(payload.Event, payload, err)
+		}
+	}
+}
+
+func networkPayloadForPeerLifecycle(event PeerLifecycleEvent) (hookspkg.NetworkPayload, bool) {
+	if strings.TrimSpace(event.Peer.PeerID) == "" {
+		return hookspkg.NetworkPayload{}, false
+	}
+	timestamp := event.Timestamp.UTC()
+	if timestamp.IsZero() {
+		return hookspkg.NetworkPayload{}, false
+	}
+	eventName, ok := hookEventForPeerLifecycle(event.Kind)
+	if !ok {
+		return hookspkg.NetworkPayload{}, false
+	}
+	return hookspkg.NetworkPayload{
+		PayloadBase: hookspkg.PayloadBase{
+			Event:     eventName,
+			Timestamp: timestamp,
+		},
+		WorkspaceID: strings.TrimSpace(event.Peer.WorkspaceID),
+		Channel:     strings.TrimSpace(event.Peer.Channel),
+		PeerID:      strings.TrimSpace(event.Peer.PeerID),
+		PeerFrom:    strings.TrimSpace(event.Peer.PeerID),
+		LastSeenAt:  peerLifecycleLastSeenAt(event, timestamp),
+	}, true
+}
+
+func peerLifecycleLastSeenAt(event PeerLifecycleEvent, timestamp time.Time) *time.Time {
+	if event.Peer.LastSeen != nil && !event.Peer.LastSeen.IsZero() {
+		return cloneHookTimePtr(event.Peer.LastSeen)
+	}
+	if event.Kind == PeerLifecycleJoined && event.Peer.JoinedAt != nil && !event.Peer.JoinedAt.IsZero() {
+		return cloneHookTimePtr(event.Peer.JoinedAt)
+	}
+	if timestamp.IsZero() {
+		return nil
+	}
+	return cloneHookTimePtr(&timestamp)
+}
+
+func hookEventForPeerLifecycle(kind PeerLifecycleKind) (hookspkg.HookEvent, bool) {
+	switch kind {
+	case PeerLifecycleJoined:
+		return hookspkg.HookNetworkPeerJoined, true
+	case PeerLifecycleLeft:
+		return hookspkg.HookNetworkPeerLeft, true
+	default:
+		return "", false
+	}
+}
+
+func cloneHookTimePtr(value *time.Time) *time.Time {
+	if value == nil || value.IsZero() {
+		return nil
+	}
+	cloned := value.UTC()
+	return &cloned
 }
 
 func networkHookEventsForWrite(
@@ -164,6 +257,7 @@ func networkPayloadForWrite(
 			Event:     hookspkg.HookNetworkMessagePersisted,
 			Timestamp: timestamp,
 		},
+		WorkspaceID: strings.TrimSpace(entry.WorkspaceID),
 		SessionID:   strings.TrimSpace(entry.SessionID),
 		Channel:     strings.TrimSpace(entry.Channel),
 		Surface:     strings.TrimSpace(entry.Surface),

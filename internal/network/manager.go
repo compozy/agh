@@ -390,6 +390,11 @@ func (m *Manager) JoinChannel(ctx context.Context, join sessionpkg.NetworkPeerJo
 		return err
 	}
 	m.storeManagedSession(runtime)
+	m.dispatchNetworkPeerLifecycleHooks(ctx, []PeerLifecycleEvent{{
+		Kind:      PeerLifecycleJoined,
+		Peer:      peerInfoFromLocal(local, local.JoinedAt, m.config.GreetIntervalDuration()),
+		Timestamp: local.JoinedAt,
+	}})
 
 	m.logger.Info(
 		"network.peer.joined",
@@ -575,7 +580,7 @@ func (m *Manager) LeaveChannel(ctx context.Context, sessionID string) error {
 	runtime, ok := m.removeSessionRuntime(targetSession)
 	if !ok {
 		m.deliveries.dropSession(targetSession)
-		m.router.Leave(targetSession)
+		m.dispatchLocalPeerLeft(ctx, targetSession)
 		return nil
 	}
 
@@ -593,7 +598,7 @@ func (m *Manager) LeaveChannel(ctx context.Context, sessionID string) error {
 	if err := m.releaseBroadcastSubscription(runtime.workspaceID, runtime.channel); err != nil {
 		errs = append(errs, err)
 	}
-	m.router.Leave(targetSession)
+	m.dispatchLocalPeerLeft(ctx, targetSession)
 
 	m.logger.Info(
 		"network.peer.left",
@@ -603,6 +608,22 @@ func (m *Manager) LeaveChannel(ctx context.Context, sessionID string) error {
 		managerChannelKey, runtime.channel,
 	)
 	return errors.Join(errs...)
+}
+
+func (m *Manager) dispatchLocalPeerLeft(ctx context.Context, sessionID string) {
+	if m == nil || m.router == nil {
+		return
+	}
+	left, ok := m.router.Leave(sessionID)
+	if !ok {
+		return
+	}
+	leftAt := m.now().UTC()
+	m.dispatchNetworkPeerLifecycleHooks(ctx, []PeerLifecycleEvent{{
+		Kind:      PeerLifecycleLeft,
+		Peer:      peerInfoFromLocal(left, leftAt, m.config.GreetIntervalDuration()),
+		Timestamp: leftAt,
+	}})
 }
 
 // OnTurnEnd wakes the per-session delivery worker after a prompt turn finishes.
@@ -621,6 +642,7 @@ func (m *Manager) Send(ctx context.Context, req SendRequest) (string, error) {
 	if m == nil || m.router == nil {
 		return "", errors.New("network: manager router is required")
 	}
+	m.sweepExpiredRemotePeers(ctx, m.now())
 
 	prepared, err := m.router.PrepareSend(ctx, req)
 	if err != nil {
@@ -678,6 +700,7 @@ func (m *Manager) startAuditedHeartbeat(sessionID string, summary string) (*Hear
 			case <-m.lifecycleCtx.Done():
 				return
 			case <-ticker.C:
+				m.sweepExpiredRemotePeers(m.lifecycleCtx, m.now())
 				if err := m.publishGreetWithAudit(m.lifecycleCtx, sessionID, summary); err != nil {
 					switch {
 					case errors.Is(err, context.Canceled), errors.Is(err, ErrLocalPeerNotFound):
@@ -720,7 +743,9 @@ func (m *Manager) ListPeers(ctx context.Context, workspaceID string, channel str
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return m.peers.ListPeers(strings.TrimSpace(workspaceID), strings.TrimSpace(channel), m.now()), nil
+	now := m.now().UTC()
+	m.sweepExpiredRemotePeers(ctx, now)
+	return m.peers.ListPeers(strings.TrimSpace(workspaceID), strings.TrimSpace(channel), now), nil
 }
 
 // ListChannels returns the currently active runtime channels.
@@ -734,7 +759,27 @@ func (m *Manager) ListChannels(ctx context.Context, workspaceID string) ([]Chann
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return m.peers.ListChannels(strings.TrimSpace(workspaceID), m.now()), nil
+	now := m.now().UTC()
+	m.sweepExpiredRemotePeers(ctx, now)
+	return m.peers.ListChannels(strings.TrimSpace(workspaceID), now), nil
+}
+
+func (m *Manager) sweepExpiredRemotePeers(ctx context.Context, at time.Time) {
+	if m == nil || m.peers == nil {
+		return
+	}
+	if at.IsZero() {
+		at = m.now()
+	}
+	at = at.UTC()
+	m.dispatchNetworkPeerLifecycleHooks(
+		ctx,
+		peerLifecycleEventsFromExpired(
+			m.peers.ExpireRemotes(at),
+			at,
+			m.config.GreetIntervalDuration(),
+		),
+	)
 }
 
 // Status returns a safe diagnostics snapshot without exposing transport credentials.
@@ -749,8 +794,14 @@ func (m *Manager) Status(ctx context.Context) (*Status, error) {
 		return nil, err
 	}
 
-	peers := m.peers.ListPeers("", "", m.now())
-	channels := m.peers.ListChannels("", m.now())
+	peers, err := m.ListPeers(ctx, "", "")
+	if err != nil {
+		return nil, err
+	}
+	channels, err := m.ListChannels(ctx, "")
+	if err != nil {
+		return nil, err
+	}
 	localPeers := 0
 	for _, peer := range peers {
 		if peer.Local {
@@ -917,6 +968,7 @@ func (m *Manager) handleInboundMessage(payload []byte) {
 		m.logger.Warn("network.message.receive_failed", "error", err)
 		return
 	}
+	m.dispatchNetworkPeerLifecycleHooks(m.lifecycleCtx, result.PeerEvents)
 	persisted, err := m.writeInboundConversationMessages(m.lifecycleCtx, result)
 	if err != nil {
 		m.logger.Warn("network.message.persist_failed", "error", err)

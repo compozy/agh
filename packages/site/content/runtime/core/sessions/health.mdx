@@ -112,8 +112,8 @@ These reasons appear in `agh agent heartbeat status`, `agh agent heartbeat wake`
 - Session health is **not** `HEARTBEAT.md`. The authored file expresses wake/reentry preferences
   within config bounds. Health is always present; `HEARTBEAT.md` is optional.
 - Session health is **not** AGH Network presence. Peer presence and `greet_interval` belong to
-  the [protocol model](/runtime/core/network/protocol). A peer being online never makes a session
-  wake-eligible by itself.
+  the [protocol model](/runtime/core/network/protocol). A peer's derived activity state never
+  makes a session wake-eligible by itself.
 - Session health is **not** an event bus. `session.health.update.after` fires on transitions only
   and is rate-limited by `[agents.heartbeat].session_health_hook_min_interval`.
 

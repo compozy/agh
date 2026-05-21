@@ -138,6 +138,8 @@ const (
 	HookNetworkWorkOpened       HookEvent = "network.work.opened"
 	HookNetworkWorkTransitioned HookEvent = "network.work.transitioned"
 	HookNetworkWorkClosed       HookEvent = "network.work.closed"
+	HookNetworkPeerJoined       HookEvent = "network.peer.joined"
+	HookNetworkPeerLeft         HookEvent = "network.peer.left"
 )
 
 type hookEventSpec struct {
@@ -357,6 +359,14 @@ var hookEventSpecs = map[HookEvent]hookEventSpec{
 		family:       HookEventFamilyNetwork,
 		syncEligible: false,
 	},
+	HookNetworkPeerJoined: {
+		family:       HookEventFamilyNetwork,
+		syncEligible: false,
+	},
+	HookNetworkPeerLeft: {
+		family:       HookEventFamilyNetwork,
+		syncEligible: false,
+	},
 }
 
 var allHookEvents = []HookEvent{
@@ -430,6 +440,8 @@ var allHookEvents = []HookEvent{
 	HookNetworkWorkOpened,
 	HookNetworkWorkTransitioned,
 	HookNetworkWorkClosed,
+	HookNetworkPeerJoined,
+	HookNetworkPeerLeft,
 }
 
 var _ = func() bool {

@@ -407,12 +407,15 @@ func TestNetworkPayloadHelpersCloneAndNormalize(t *testing.T) {
 		expiresAt := joinedAt.Add(10 * time.Minute)
 		displayName := " Support Bot "
 		sessionID := "sess-1"
+		ageSeconds := int64(42)
 		ext := map[string]json.RawMessage{"role": json.RawMessage(`"support"`)}
 		peerPayloads := NetworkPeerPayloadsFromInfos([]network.PeerInfo{{
-			SessionID: &sessionID,
-			PeerID:    "peer-1",
-			Channel:   "builders",
-			Local:     true,
+			SessionID:          &sessionID,
+			PeerID:             "peer-1",
+			Channel:            "builders",
+			Local:              false,
+			PresenceState:      network.PresenceStateActive,
+			LastSeenAgeSeconds: &ageSeconds,
 			PeerCard: network.PeerCard{
 				PeerID:              "peer-1",
 				DisplayName:         &displayName,
@@ -436,10 +439,20 @@ func TestNetworkPayloadHelpersCloneAndNormalize(t *testing.T) {
 		if peerPayloads[0].PeerCard.Ext["role"] == nil {
 			t.Fatalf("PeerCard.Ext = %#v, want copied metadata", peerPayloads[0].PeerCard.Ext)
 		}
+		if got := peerPayloads[0].PresenceState; got != contract.NetworkPresenceActive {
+			t.Fatalf("PresenceState = %q, want %q", got, contract.NetworkPresenceActive)
+		}
+		if peerPayloads[0].LastSeenAgeSeconds == nil || *peerPayloads[0].LastSeenAgeSeconds != 42 {
+			t.Fatalf("LastSeenAgeSeconds = %#v, want 42", peerPayloads[0].LastSeenAgeSeconds)
+		}
 
 		displayName = "mutated"
+		ageSeconds = 99
 		ext["role"][0] = '['
-		if peerPayloads[0].DisplayName != "Support Bot" || string(peerPayloads[0].PeerCard.Ext["role"]) != `"support"` {
+		if peerPayloads[0].DisplayName != "Support Bot" ||
+			string(peerPayloads[0].PeerCard.Ext["role"]) != `"support"` ||
+			peerPayloads[0].LastSeenAgeSeconds == nil ||
+			*peerPayloads[0].LastSeenAgeSeconds != 42 {
 			t.Fatalf("peer payload mutated with source data = %#v", peerPayloads[0])
 		}
 

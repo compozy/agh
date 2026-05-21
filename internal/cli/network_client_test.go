@@ -35,7 +35,7 @@ func TestUnixSocketClientNetworkMethods(t *testing.T) {
 						}
 						return newHTTPResponse(
 							http.StatusOK,
-							`{"peers":[{"peer_id":"reviewer.sess-a","session_id":"sess-a","channel":"builders","local":true,"peer_card":{"peer_id":"reviewer.sess-a","display_name":"Reviewer","profiles_supported":["v0"],"capabilities":[{"id":"send","summary":"Send direct messages"}],"artifacts_supported":["text"],"trust_modes_supported":["untrusted"]}}]}`,
+							`{"peers":[{"peer_id":"reviewer.sess-a","session_id":"sess-a","channel":"builders","local":true,"presence_state":"local","peer_card":{"peer_id":"reviewer.sess-a","display_name":"Reviewer","profiles_supported":["v0"],"capabilities":[{"id":"send","summary":"Send direct messages"}],"artifacts_supported":["text"],"trust_modes_supported":["untrusted"]}}]}`,
 						), nil
 					case req.Method == http.MethodGet && req.URL.Path == "/api/workspaces/ws-alpha/network/channels":
 						return newHTTPResponse(
@@ -180,7 +180,8 @@ func TestUnixSocketClientNetworkMethods(t *testing.T) {
 		}
 
 		peers, err := client.NetworkPeers(ctx, NetworkPeersQuery{WorkspaceRef: "ws-alpha", Channel: "builders"})
-		if err != nil || len(peers) != 1 || peers[0].PeerID != "reviewer.sess-a" {
+		if err != nil || len(peers) != 1 || peers[0].PeerID != "reviewer.sess-a" ||
+			peers[0].PresenceState != contract.NetworkPresenceLocal {
 			t.Fatalf("NetworkPeers() = %#v, %v", peers, err)
 		}
 

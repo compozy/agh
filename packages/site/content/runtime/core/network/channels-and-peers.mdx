@@ -40,6 +40,34 @@ Peer listings combine:
 - peer cards, including protocol profiles, capability briefs, artifact support, and trust modes
 - optional rich capability catalogs when explicit discovery data is available
 
+## Presence states
+
+AGH derives peer presence from runtime activity only. The daemon captures one snapshot time, reads
+the peer's `last_seen` and `expires_at` values from the in-memory registry, and compares them with
+`[network].greet_interval`. There is no separate presence window, no persisted presence table, and
+no session-derived fallback.
+
+| State      | Meaning                                                                    |
+| ---------- | -------------------------------------------------------------------------- |
+| `local`    | The peer is a local AGH session currently registered in the channel.       |
+| `active`   | A remote peer's last `greet` landed within one `greet_interval`.           |
+| `inactive` | The peer was last seen after one interval but before the expiry window.    |
+| `expired`  | The peer crossed the expiry window and is being removed from the registry. |
+| `unknown`  | The daemon has no recent `greet` timestamp for the peer.                   |
+
+`last_seen_age_seconds` is included for remote peers when the daemon can compute an age. Local and
+unknown peers omit it. Normal peer-list responses remove expired remote peers after the expiry
+sweep, but expiry can appear in lifecycle hooks and short-lived snapshots.
+
+Presence is intentionally independent from session UX fields such as badge, attachability, recap
+state, health, and busy-input queues. Those fields describe local session management; peer
+presence describes observed network activity.
+
+The network runtime emits `network.peer.joined` when a local peer joins a channel or when a remote
+peer is first observed by `greet`. It emits `network.peer.left` when a local peer leaves or when a
+remote peer crosses the expiry window and is swept from the registry. Attach, resume, health, and
+session badge changes do not emit peer lifecycle hooks.
+
 ## Peer cards
 
 A peer card is the compact discovery record carried by `greet` and `whois`.

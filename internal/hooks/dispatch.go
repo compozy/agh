@@ -569,6 +569,40 @@ func (h *Hooks) DispatchSessionHealthUpdateAfter(
 	)
 }
 
+// DispatchNetworkPeerJoined runs the network.peer.joined hook dispatch.
+func (h *Hooks) DispatchNetworkPeerJoined(
+	ctx context.Context,
+	payload NetworkPeerJoinedPayload,
+) (NetworkPeerJoinedPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookNetworkPeerJoined,
+		payload,
+		dispatchConfig[NetworkPeerJoinedPayload, NetworkObservationPatch]{
+			match: matchNetwork,
+			apply: applyNoop[NetworkPeerJoinedPayload, NetworkObservationPatch],
+		},
+	)
+}
+
+// DispatchNetworkPeerLeft runs the network.peer.left hook dispatch.
+func (h *Hooks) DispatchNetworkPeerLeft(
+	ctx context.Context,
+	payload NetworkPeerLeftPayload,
+) (NetworkPeerLeftPayload, error) {
+	return executeDispatch(
+		ctx,
+		h,
+		HookNetworkPeerLeft,
+		payload,
+		dispatchConfig[NetworkPeerLeftPayload, NetworkObservationPatch]{
+			match: matchNetwork,
+			apply: applyNoop[NetworkPeerLeftPayload, NetworkObservationPatch],
+		},
+	)
+}
+
 // DispatchNetworkThreadOpened runs the network.thread.opened hook dispatch.
 func (h *Hooks) DispatchNetworkThreadOpened(
 	ctx context.Context,

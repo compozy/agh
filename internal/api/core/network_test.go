@@ -385,6 +385,62 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 		}
 	})
 
+	t.Run("Should expose derived presence state and cloned last-seen age", func(t *testing.T) {
+		t.Parallel()
+
+		lastSeenAgeSeconds := int64(12)
+		payload := core.NetworkPeerPayloadFromInfo(network.PeerInfo{
+			PeerID:             "reviewer.sess-b",
+			Channel:            "builders",
+			PresenceState:      network.PresenceStateActive,
+			LastSeenAgeSeconds: &lastSeenAgeSeconds,
+			PeerCard:           network.PeerCard{PeerID: "reviewer.sess-b"},
+		})
+		lastSeenAgeSeconds = 99
+
+		if got, want := payload.PresenceState, "active"; got != want {
+			t.Fatalf("payload.PresenceState = %q, want %q", got, want)
+		}
+		if payload.LastSeenAgeSeconds == nil || *payload.LastSeenAgeSeconds != 12 {
+			t.Fatalf("payload.LastSeenAgeSeconds = %#v, want 12", payload.LastSeenAgeSeconds)
+		}
+	})
+
+	t.Run("Should default missing presence to unknown and preserve remote age", func(t *testing.T) {
+		t.Parallel()
+
+		ageSeconds := int64(45)
+		remotePayload := core.NetworkPeerPayloadFromInfo(network.PeerInfo{
+			PeerID:             "reviewer.sess-active",
+			Channel:            "builders",
+			PresenceState:      network.PresenceStateActive,
+			LastSeenAgeSeconds: &ageSeconds,
+			PeerCard:           network.PeerCard{PeerID: "reviewer.sess-active"},
+		})
+		if remotePayload.PresenceState != contract.NetworkPresenceActive {
+			t.Fatalf("remote PresenceState = %q, want %q", remotePayload.PresenceState, contract.NetworkPresenceActive)
+		}
+		if remotePayload.LastSeenAgeSeconds == nil || *remotePayload.LastSeenAgeSeconds != 45 {
+			t.Fatalf("remote LastSeenAgeSeconds = %#v, want 45", remotePayload.LastSeenAgeSeconds)
+		}
+
+		unknownPayload := core.NetworkPeerPayloadFromInfo(network.PeerInfo{
+			PeerID:   "reviewer.sess-unknown",
+			Channel:  "builders",
+			PeerCard: network.PeerCard{PeerID: "reviewer.sess-unknown"},
+		})
+		if unknownPayload.PresenceState != contract.NetworkPresenceUnknown {
+			t.Fatalf(
+				"unknown PresenceState = %q, want %q",
+				unknownPayload.PresenceState,
+				contract.NetworkPresenceUnknown,
+			)
+		}
+		if unknownPayload.LastSeenAgeSeconds != nil {
+			t.Fatalf("unknown LastSeenAgeSeconds = %#v, want nil", unknownPayload.LastSeenAgeSeconds)
+		}
+	})
+
 	t.Run("Should normalize empty peer-card arrays to empty slices", func(t *testing.T) {
 		t.Parallel()
 
