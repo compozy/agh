@@ -35,6 +35,21 @@ export type SettingsUpdateExtensionRequest = OperationRequestBody<"updateExtensi
 export type SettingsExtensionUpdate = OperationResponse<"updateExtension", 200>["update"];
 export type SettingsExtensionRemove = OperationResponse<"removeExtension", 200>["extension"];
 
+export type SettingsNotificationPresetCollection = OperationResponse<
+  "listNotificationPresets",
+  200
+>;
+export type SettingsNotificationPresetEntry =
+  SettingsNotificationPresetCollection["presets"][number];
+export type SettingsNotificationPresetTarget = SettingsNotificationPresetEntry["targets"][number];
+export type SettingsNotificationPresetFilter = NonNullable<
+  OperationQuery<"listNotificationPresets">
+>;
+export type SettingsCreateNotificationPresetRequest =
+  OperationRequestBody<"createNotificationPreset">;
+export type SettingsUpdateNotificationPresetRequest =
+  OperationRequestBody<"updateNotificationPreset">;
+
 export type SettingsProviderCollection = OperationResponse<"listSettingsProviders", 200>;
 export type SettingsProviderEntry = SettingsProviderCollection["providers"][number];
 export type SettingsProviderDetail = OperationResponse<"getSettingsProvider", 200>["provider"];

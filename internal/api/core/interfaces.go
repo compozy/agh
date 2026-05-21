@@ -15,6 +15,7 @@ import (
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/modelcatalog"
 	"github.com/pedronauck/agh/internal/network"
+	presetspkg "github.com/pedronauck/agh/internal/notifications/presets"
 	"github.com/pedronauck/agh/internal/observe"
 	registrypkg "github.com/pedronauck/agh/internal/registry"
 	"github.com/pedronauck/agh/internal/resources"
@@ -108,6 +109,15 @@ type BridgeService interface {
 	StartInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error)
 	StopInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error)
 	RestartInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error)
+}
+
+// NotificationPresetService is the daemon-owned notification preset runtime.
+type NotificationPresetService interface {
+	List(ctx context.Context, query presetspkg.Query) ([]presetspkg.Preset, error)
+	Get(ctx context.Context, name string) (presetspkg.Preset, error)
+	Create(ctx context.Context, req presetspkg.CreateRequest) (presetspkg.Preset, error)
+	Update(ctx context.Context, name string, req presetspkg.UpdateRequest) (presetspkg.Preset, error)
+	Delete(ctx context.Context, name string) error
 }
 
 // BundleService exposes extension bundle catalog, activation, and effective

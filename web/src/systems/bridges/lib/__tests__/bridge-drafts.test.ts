@@ -95,6 +95,7 @@ describe("buildBridgeCreateRequest", () => {
         dm_policy: "pairing",
         enabled: true,
         extension_name: "ext-telegram",
+        notification_suppress: false,
         platform: "telegram",
         provider_config: {
           mode: "bot",

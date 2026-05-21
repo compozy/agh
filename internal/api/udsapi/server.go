@@ -68,6 +68,7 @@ type Server struct {
 	resources         core.ResourceService
 	automation        core.AutomationManager
 	bridges           core.BridgeService
+	notifications     core.NotificationPresetService
 	bundles           core.BundleService
 	supportBundles    core.SupportBundleService
 	tools             core.ToolRegistry
@@ -119,6 +120,7 @@ type handlerConfig struct {
 	resources         core.ResourceService
 	automation        core.AutomationManager
 	bridges           core.BridgeService
+	notifications     core.NotificationPresetService
 	bundles           core.BundleService
 	supportBundles    core.SupportBundleService
 	tools             core.ToolRegistry
@@ -280,6 +282,13 @@ func WithAutomation(manager core.AutomationManager) Option {
 func WithBridgeService(bridges core.BridgeService) Option {
 	return func(server *Server) {
 		server.bridges = bridges
+	}
+}
+
+// WithNotificationPresetService injects the daemon-owned notification preset runtime.
+func WithNotificationPresetService(service core.NotificationPresetService) Option {
+	return func(server *Server) {
+		server.notifications = service
 	}
 }
 
@@ -647,6 +656,7 @@ func (s *Server) handlerConfig() *handlerConfig {
 		resources:         s.resources,
 		automation:        s.automation,
 		bridges:           s.bridges,
+		notifications:     s.notifications,
 		bundles:           s.bundles,
 		supportBundles:    s.supportBundles,
 		tools:             s.tools,
@@ -930,6 +940,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			Extensions:                   cfg.extensions,
 			Automation:                   cfg.automation,
 			Bridges:                      cfg.bridges,
+			Notifications:                cfg.notifications,
 			Bundles:                      cfg.bundles,
 			SupportBundles:               cfg.supportBundles,
 			Tools:                        cfg.tools,

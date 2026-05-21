@@ -41,6 +41,7 @@ func TestOpenGlobalDBCreatesBridgeTables(t *testing.T) {
 		"routing_policy",
 		"provider_config",
 		"delivery_defaults",
+		"notification_suppress",
 		"degradation_reason",
 		"degradation_message",
 		"created_at",
@@ -779,6 +780,7 @@ func TestMigrateBridgeInstanceColumnsAddsMissingColumns(t *testing.T) {
 		"provider_config",
 		"degradation_reason",
 		"degradation_message",
+		"notification_suppress",
 	})
 }
 

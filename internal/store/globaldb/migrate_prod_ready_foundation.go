@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	eventspkg "github.com/pedronauck/agh/internal/events"
+	presetspkg "github.com/pedronauck/agh/internal/notifications/presets"
 )
 
 const eventSummaryProviderColumn = "provider"
@@ -236,6 +238,34 @@ func migrateBridgeTargetDirectory(ctx context.Context, tx *sql.Tx) error {
 	for _, statement := range statements {
 		if _, err := tx.ExecContext(ctx, statement); err != nil {
 			return fmt.Errorf("store: apply bridge target directory schema: %w", err)
+		}
+	}
+	return nil
+}
+
+func migrateNotificationPresets(ctx context.Context, tx *sql.Tx) error {
+	exists, err := tableExists(ctx, tx, "bridge_instances")
+	if err != nil {
+		return err
+	}
+	if exists {
+		if err := addMissingMigrationColumns(ctx, tx, "bridge_instances", []migrationColumnSpec{
+			{
+				name: globalDBBridgeNotificationSuppressColumn,
+				sql:  `ALTER TABLE bridge_instances ADD COLUMN notification_suppress BOOLEAN NOT NULL DEFAULT 0`,
+			},
+		}); err != nil {
+			return err
+		}
+	}
+	for _, statement := range notificationPresetSchemaStatements() {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("store: create notification preset schema: %w", err)
+		}
+	}
+	for _, defaultPreset := range presetspkg.BuiltInPresets(time.Now().UTC()) {
+		if err := seedNotificationPresetDefault(ctx, tx, defaultPreset, time.Now().UTC()); err != nil {
+			return err
 		}
 	}
 	return nil

@@ -123,6 +123,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSessionCommand(deps))
 	cmd.AddCommand(newProviderCommand(deps))
 	cmd.AddCommand(newBridgeCommand(deps))
+	cmd.AddCommand(newNotificationsCommand(deps))
 	cmd.AddCommand(newBundleCommand(deps))
 	cmd.AddCommand(newWorkspaceCommand(deps))
 	cmd.AddCommand(newAgentCommand(deps))

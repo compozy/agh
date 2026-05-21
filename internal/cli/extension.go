@@ -37,6 +37,8 @@ const (
 	extensionHealthKey         = "health"
 	extensionListKey           = "list"
 	extensionSearchQueryValue  = "search <query>"
+	cliUseEnableName           = "enable <name>"
+	cliUseDisableName          = "disable <name>"
 )
 
 type preparedExtensionInstall struct {
@@ -239,7 +241,7 @@ func newExtensionUpdateCommand(deps commandDeps) *cobra.Command {
 
 func newExtensionEnableCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "enable <name>",
+		Use:   cliUseEnableName,
 		Short: "Enable an installed extension",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -254,7 +256,7 @@ func newExtensionEnableCommand(deps commandDeps) *cobra.Command {
 
 func newExtensionDisableCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "disable <name>",
+		Use:   cliUseDisableName,
 		Short: "Disable an installed extension",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {

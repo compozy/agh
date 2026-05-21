@@ -61,6 +61,9 @@ const (
 	ACPDone             = "done"
 	ACPError            = "error"
 	SessionStopped      = "session_stopped"
+	SessionUnhealthy    = "session.unhealthy"
+	SessionHung         = "session.hung"
+	SessionRecovered    = "session.recovered"
 
 	TaskCreated                 = "task.created"
 	TaskUpdated                 = "task.updated"
@@ -172,6 +175,11 @@ const (
 	ExtensionDisabled  = "extension.disabled"
 
 	BridgeNotificationSuppressed = "bridge_notification_suppressed"
+
+	NotificationPresetCreated        = "notification.preset_created"
+	NotificationPresetUpdated        = "notification.preset_updated"
+	NotificationPresetDeleted        = "notification.preset_deleted"
+	NotificationPresetDispatchFailed = "notification.preset_dispatch_failed"
 )
 
 var registryEntries = []Metadata{
@@ -190,6 +198,9 @@ var registryEntries = []Metadata{
 	success(ACPDone, "session", ComponentSession),
 	failure(ACPError, "session", ComponentSession),
 	info(SessionStopped, "session", ComponentSession),
+	notify(warning(SessionUnhealthy, "session", ComponentSession)),
+	notify(warning(SessionHung, "session", ComponentSession)),
+	notify(success(SessionRecovered, "session", ComponentSession)),
 
 	info(TaskCreated, "task", ComponentTask),
 	info(TaskUpdated, "task", ComponentTask),
@@ -298,6 +309,10 @@ var registryEntries = []Metadata{
 	global(success(ExtensionEnabled, "extension", ComponentExtension)),
 	global(warning(ExtensionDisabled, "extension", ComponentExtension)),
 
+	global(success(NotificationPresetCreated, "notification.preset", ComponentNotification)),
+	global(info(NotificationPresetUpdated, "notification.preset", ComponentNotification)),
+	global(warning(NotificationPresetDeleted, "notification.preset", ComponentNotification)),
+	global(failure(NotificationPresetDispatchFailed, "notification.preset", ComponentNotification)),
 	notify(global(warning(BridgeNotificationSuppressed, "bridge_notification", ComponentNotification))),
 }
 

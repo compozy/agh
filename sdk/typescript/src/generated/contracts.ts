@@ -961,6 +961,7 @@ export interface BridgeInstance {
   routing_policy: RoutingPolicy;
   provider_config?: JSONValue;
   delivery_defaults?: JSONValue;
+  notification_suppress: boolean;
   degradation?: BridgeDegradation;
   created_at: ISODateTime;
   updated_at: ISODateTime;

@@ -256,26 +256,26 @@ func TestAllowSlackDirectMessagePolicies(t *testing.T) {
 
 	user := slackUserIdentity{ID: "U123", Username: "alice"}
 
-	if !allowSlackDirectMessage(resolvedInstanceConfig{dmPolicy: bridgepkg.BridgeDMPolicyOpen}, user, true) {
+	if !allowSlackDirectMessage(&resolvedInstanceConfig{dmPolicy: bridgepkg.BridgeDMPolicyOpen}, user, true) {
 		t.Fatal("allowSlackDirectMessage(open) = false, want true")
 	}
-	if !allowSlackDirectMessage(resolvedInstanceConfig{
+	if !allowSlackDirectMessage(&resolvedInstanceConfig{
 		dmPolicy:       bridgepkg.BridgeDMPolicyAllowlist,
 		allowUserIDs:   map[string]struct{}{"U123": {}},
 		allowUsernames: map[string]struct{}{"bob": {}},
 	}, user, true) {
 		t.Fatal("allowSlackDirectMessage(allowlist by id) = false, want true")
 	}
-	if !allowSlackDirectMessage(resolvedInstanceConfig{
+	if !allowSlackDirectMessage(&resolvedInstanceConfig{
 		dmPolicy:        bridgepkg.BridgeDMPolicyPairing,
 		pairedUsernames: map[string]struct{}{"alice": {}},
 	}, user, true) {
 		t.Fatal("allowSlackDirectMessage(pairing by username) = false, want true")
 	}
-	if allowSlackDirectMessage(resolvedInstanceConfig{dmPolicy: bridgepkg.BridgeDMPolicyAllowlist}, user, true) {
+	if allowSlackDirectMessage(&resolvedInstanceConfig{dmPolicy: bridgepkg.BridgeDMPolicyAllowlist}, user, true) {
 		t.Fatal("allowSlackDirectMessage(rejected direct) = true, want false")
 	}
-	if !allowSlackDirectMessage(resolvedInstanceConfig{dmPolicy: bridgepkg.BridgeDMPolicyAllowlist}, user, false) {
+	if !allowSlackDirectMessage(&resolvedInstanceConfig{dmPolicy: bridgepkg.BridgeDMPolicyAllowlist}, user, false) {
 		t.Fatal("allowSlackDirectMessage(non-direct) = false, want true")
 	}
 }
@@ -630,7 +630,7 @@ func TestHandleJSONWebhookChallengeAndReaction(t *testing.T) {
 	}
 
 	challengeRecorder := httptest.NewRecorder()
-	if err := runtime.handleJSONWebhook(context.Background(), challengeRecorder, cfg, bridgesdk.WebhookRequest{
+	if err := runtime.handleJSONWebhook(context.Background(), challengeRecorder, &cfg, bridgesdk.WebhookRequest{
 		Body:       []byte(`{"type":"url_verification","challenge":"abc123"}`),
 		ReceivedAt: now,
 	}); err != nil {
@@ -644,7 +644,7 @@ func TestHandleJSONWebhookChallengeAndReaction(t *testing.T) {
 	}
 
 	reactionRecorder := httptest.NewRecorder()
-	if err := runtime.handleJSONWebhook(context.Background(), reactionRecorder, cfg, bridgesdk.WebhookRequest{
+	if err := runtime.handleJSONWebhook(context.Background(), reactionRecorder, &cfg, bridgesdk.WebhookRequest{
 		Body: []byte(
 			`{"type":"event_callback","team_id":"T1","event_id":"EvReaction","event":{"type":"reaction_added","user":"U1","reaction":"eyes","event_ts":"1775866803.100000","item":{"type":"message","channel":"C123","ts":"1775866803.000000"}}}`,
 		),
@@ -943,7 +943,7 @@ func TestWebhookRetriesAfterTransientIngestFailure(t *testing.T) {
 				commandBody := []byte(
 					"token=t&team_id=T1&channel_id=C123&channel_name=general&user_id=U123&user_name=alice&command=%2Fagh&text=hello&trigger_id=1337.42",
 				)
-				return recorder, runtime.handleFormWebhook(ctx, recorder, cfg, bridgesdk.WebhookRequest{
+				return recorder, runtime.handleFormWebhook(ctx, recorder, &cfg, bridgesdk.WebhookRequest{
 					Body:       commandBody,
 					ReceivedAt: now,
 				})
@@ -960,7 +960,7 @@ func TestWebhookRetriesAfterTransientIngestFailure(t *testing.T) {
 			) (*httptest.ResponseRecorder, error) {
 				recorder := httptest.NewRecorder()
 				body := []byte("payload=" + url.QueryEscape(slackBlockActionsPayloadJSON()))
-				return recorder, runtime.handleFormWebhook(ctx, recorder, cfg, bridgesdk.WebhookRequest{
+				return recorder, runtime.handleFormWebhook(ctx, recorder, &cfg, bridgesdk.WebhookRequest{
 					Body:       body,
 					ReceivedAt: now,
 				})
@@ -976,7 +976,7 @@ func TestWebhookRetriesAfterTransientIngestFailure(t *testing.T) {
 				now time.Time,
 			) (*httptest.ResponseRecorder, error) {
 				recorder := httptest.NewRecorder()
-				return recorder, runtime.handleJSONWebhook(ctx, recorder, cfg, bridgesdk.WebhookRequest{
+				return recorder, runtime.handleJSONWebhook(ctx, recorder, &cfg, bridgesdk.WebhookRequest{
 					Body:       []byte(slackMessageWebhookPayload()),
 					ReceivedAt: now,
 				})
@@ -1223,7 +1223,7 @@ func TestHandleFormWebhookRejectsMissingPayload(t *testing.T) {
 	err = runtime.handleFormWebhook(
 		context.Background(),
 		recorder,
-		resolvedInstanceConfig{},
+		&resolvedInstanceConfig{},
 		bridgesdk.WebhookRequest{
 			Body:       []byte("payload="),
 			ReceivedAt: time.Now().UTC(),
@@ -1300,7 +1300,7 @@ func TestHandleBridgesDeliverErrorPaths(t *testing.T) {
 		t.Fatal("handleBridgesDeliver(missing instance) error = nil, want non-nil")
 	}
 
-	runtime.apiFactory = func(resolvedInstanceConfig) slackAPI {
+	runtime.apiFactory = func(*resolvedInstanceConfig) slackAPI {
 		return fakeSlackAPIError{err: &bridgesdk.AuthError{Err: errors.New("invalid_auth")}}
 	}
 	if _, err := runtime.handleBridgesDeliver(
@@ -1680,7 +1680,7 @@ func TestDetermineInitialStateRetryAndHealthHelpers(t *testing.T) {
 	}
 
 	badConfig := errors.New("bad config")
-	status, degradation, err := runtime.determineInitialState(context.Background(), resolvedInstanceConfig{
+	status, degradation, err := runtime.determineInitialState(context.Background(), &resolvedInstanceConfig{
 		instanceID:  "cfg-err",
 		configError: badConfig,
 	})
@@ -1694,7 +1694,7 @@ func TestDetermineInitialStateRetryAndHealthHelpers(t *testing.T) {
 		t.Fatalf("degradation reason = %q, want %q", got, want)
 	}
 
-	runtime.apiFactory = func(cfg resolvedInstanceConfig) slackAPI {
+	runtime.apiFactory = func(cfg *resolvedInstanceConfig) slackAPI {
 		switch cfg.instanceID {
 		case "auth":
 			return fakeSlackAPIError{err: &bridgesdk.AuthError{Err: errors.New("invalid_auth")}}
@@ -1705,7 +1705,7 @@ func TestDetermineInitialStateRetryAndHealthHelpers(t *testing.T) {
 		}
 	}
 
-	status, degradation, err = runtime.determineInitialState(context.Background(), resolvedInstanceConfig{
+	status, degradation, err = runtime.determineInitialState(context.Background(), &resolvedInstanceConfig{
 		instanceID:    "auth",
 		botToken:      "xoxb",
 		signingSecret: "secret",
@@ -1720,7 +1720,7 @@ func TestDetermineInitialStateRetryAndHealthHelpers(t *testing.T) {
 		t.Fatalf("auth degradation = %q, want %q", got, want)
 	}
 
-	status, degradation, err = runtime.determineInitialState(context.Background(), resolvedInstanceConfig{
+	status, degradation, err = runtime.determineInitialState(context.Background(), &resolvedInstanceConfig{
 		instanceID:    "transient",
 		botToken:      "xoxb",
 		signingSecret: "secret",

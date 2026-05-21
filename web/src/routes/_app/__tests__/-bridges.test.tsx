@@ -196,6 +196,7 @@ function makeBridge(overrides: Partial<BridgesListResponse["bridges"][number]> =
     enabled: true,
     extension_name: "ext-telegram",
     id: "brg_support",
+    notification_suppress: false,
     platform: "telegram",
     provider_config: {
       mode: "bot",
@@ -564,6 +565,7 @@ describe("BridgesPage", () => {
         display_name: "Telegram",
         enabled: true,
         extension_name: "ext-telegram",
+        notification_suppress: false,
         platform: "telegram",
         provider_config: {
           mode: "bot",

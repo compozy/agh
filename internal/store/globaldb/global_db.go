@@ -55,6 +55,7 @@ const (
 	globalDBParentSessionIDKey                      = "parent_session_id"
 	globalDBPermissionPolicyJSONKey                 = "permission_policy_json"
 	globalDBExtensionProvenanceJSONKey              = "provenance_json"
+	globalDBBridgeNotificationSuppressColumn        = "notification_suppress"
 	globalDBRebuildModelCatalogSourceConstraintsKey = "rebuild_model_catalog_source_constraints"
 	globalDBRootSessionIDKey                        = "root_session_id"
 	globalDBScopeKey                                = "scope"
@@ -688,6 +689,7 @@ var globalSchemaStatements = appendSchemaStatements(
 	taskRunReviewTableSchemaStatements(),
 	taskReviewGateIndexStatements(),
 	notificationCursorSchemaStatements(),
+	notificationPresetSchemaStatements(),
 	[]string{
 		`CREATE TABLE IF NOT EXISTS task_triage_state (
 		task_id               TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
@@ -720,6 +722,7 @@ var globalSchemaStatements = appendSchemaStatements(
 		routing_policy    TEXT NOT NULL,
 		provider_config   TEXT,
 		delivery_defaults TEXT,
+		notification_suppress BOOLEAN NOT NULL DEFAULT 0,
 		degradation_reason TEXT,
 		degradation_message TEXT,
 		created_at        TEXT NOT NULL,
@@ -1030,6 +1033,12 @@ var globalSchemaMigrations = []store.Migration{
 		Name:     "add_bridge_target_directory",
 		Up:       migrateBridgeTargetDirectory,
 		Checksum: "2026-05-21-add-bridge-target-directory",
+	},
+	{
+		Version:  36,
+		Name:     "add_notification_presets",
+		Up:       migrateNotificationPresets,
+		Checksum: "2026-05-21-add-notification-presets",
 	},
 }
 

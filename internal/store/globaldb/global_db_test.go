@@ -519,6 +519,11 @@ func expectedGlobalMigrationPrefix() []expectedGlobalMigrationIdentity {
 			name:     "add_bridge_target_directory",
 			checksum: "2026-05-21-add-bridge-target-directory",
 		},
+		{
+			version:  36,
+			name:     "add_notification_presets",
+			checksum: "2026-05-21-add-notification-presets",
+		},
 	}
 }
 

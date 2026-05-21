@@ -345,6 +345,7 @@ describe("createBridge", () => {
       display_name: "Support",
       enabled: true,
       extension_name: "ext-telegram",
+      notification_suppress: false,
       platform: "telegram",
       provider_config: {
         mode: "bot",
@@ -376,6 +377,7 @@ describe("createBridge", () => {
         display_name: "Support",
         enabled: true,
         extension_name: "ext-telegram",
+        notification_suppress: false,
         platform: "telegram",
         routing_policy: {
           include_group: true,

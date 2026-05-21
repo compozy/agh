@@ -9,6 +9,7 @@ import {
   getSettingsHooksExtensions,
   getSettingsMemory,
   getSettingsNetwork,
+  listSettingsNotificationPresets,
   getSettingsObservability,
   getSettingsProvider,
   getSettingsRestartStatus,
@@ -28,6 +29,7 @@ import type {
   SettingsApplyRecordsFilter,
   SettingsExtensionMarketplaceFilter,
   SettingsMCPServerListFilter,
+  SettingsNotificationPresetFilter,
   SettingsSkillsFilter,
 } from "../types";
 
@@ -217,6 +219,16 @@ export function settingsExtensionProvenanceOptions(name: string, enabled = true)
     queryKey: settingsKeys.extensionProvenance(name),
     queryFn: ({ signal }) => getSettingsExtensionProvenance(name, signal),
     enabled: Boolean(name) && enabled,
+    staleTime: COLLECTION_STALE_TIME,
+    refetchInterval: COLLECTION_REFETCH_INTERVAL,
+    retry: shouldRetrySettingsQuery,
+  });
+}
+
+export function settingsNotificationPresetsOptions(filter: SettingsNotificationPresetFilter = {}) {
+  return queryOptions({
+    queryKey: settingsKeys.notificationPresetsList(filter),
+    queryFn: ({ signal }) => listSettingsNotificationPresets(filter, signal),
     staleTime: COLLECTION_STALE_TIME,
     refetchInterval: COLLECTION_REFETCH_INTERVAL,
     retry: shouldRetrySettingsQuery,

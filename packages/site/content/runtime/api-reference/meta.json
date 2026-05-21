@@ -17,6 +17,7 @@
         "bundles",
         "automation",
         "bridges",
+        "notifications",
         "---Network---",
         "network",
         "observe",

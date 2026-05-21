@@ -10,6 +10,8 @@ import type {
   SettingsHookEntry,
   SettingsHooksExtensionsSection,
   SettingsHooksExtensionsTransportParity,
+  SettingsCreateNotificationPresetRequest,
+  SettingsNotificationPresetEntry,
 } from "@/systems/settings";
 
 type Envelope = SettingsHooksExtensionsSection;
@@ -138,6 +140,26 @@ const marketplaceEntry: SettingsExtensionMarketplaceEntry = {
   trust: extensionEntry.trust,
 };
 
+const notificationPresetEntry: SettingsNotificationPresetEntry = {
+  name: "task_terminal",
+  events: ["task.run_*"],
+  targets: [
+    {
+      bridge_id: "brg_ops",
+      canonical_route: "channel:ops",
+      delivery_mode: "direct-send",
+    },
+  ],
+  enabled: false,
+  built_in: true,
+  default_version: "1",
+  default_hash: "hash_task_terminal_v1",
+  user_modified: false,
+  default_update_available: false,
+  created_at: "2026-05-21T10:00:00Z",
+  updated_at: "2026-05-21T10:00:00Z",
+};
+
 type RestartBanner = {
   isVisible: boolean;
   isRestartRequired: boolean;
@@ -207,6 +229,15 @@ type PageState = {
   pendingMarketplaceSlug: string | null;
   searchMarketplace: ReturnType<typeof vi.fn>;
   installMarketplaceExtension: ReturnType<typeof vi.fn>;
+  notificationPresets: SettingsNotificationPresetEntry[];
+  notificationPresetsLoading: boolean;
+  notificationPresetsError: string | null;
+  notificationPresetActionError: string | null;
+  pendingNotificationPresetName: string | null;
+  canMutateNotificationPresets: boolean;
+  createNotificationPreset: ReturnType<typeof vi.fn>;
+  toggleNotificationPreset: ReturnType<typeof vi.fn>;
+  deleteNotificationPreset: ReturnType<typeof vi.fn>;
   transportParity: SettingsHooksExtensionsTransportParity | null;
   isPolicyDirty: boolean;
   isSavingPolicy: boolean;
@@ -230,7 +261,10 @@ type PageState = {
     | { kind: "extension-toggled"; name: string; enabled: boolean }
     | { kind: "extension-installed"; name: string }
     | { kind: "extension-updated"; name: string; status: string }
-    | { kind: "extension-removed"; name: string };
+    | { kind: "extension-removed"; name: string }
+    | { kind: "notification-preset-created"; name: string }
+    | { kind: "notification-preset-toggled"; name: string; enabled: boolean }
+    | { kind: "notification-preset-deleted"; name: string };
   dismissLastAction: ReturnType<typeof vi.fn>;
   restart: RestartBanner;
 };
@@ -275,6 +309,16 @@ function makeState(overrides: Partial<PageState> = {}): PageState {
     pendingMarketplaceSlug: null,
     searchMarketplace: vi.fn(),
     installMarketplaceExtension: vi.fn(),
+    notificationPresets: [],
+    notificationPresetsLoading: false,
+    notificationPresetsError: null,
+    notificationPresetActionError: null,
+    pendingNotificationPresetName: null,
+    canMutateNotificationPresets: true,
+    createNotificationPreset: vi.fn<(body: SettingsCreateNotificationPresetRequest) => void>(),
+    toggleNotificationPreset:
+      vi.fn<(preset: SettingsNotificationPresetEntry, enabled: boolean) => void>(),
+    deleteNotificationPreset: vi.fn<(preset: SettingsNotificationPresetEntry) => void>(),
     transportParity: baseEnvelope.transport_parity,
     isPolicyDirty: false,
     isSavingPolicy: false,
@@ -491,6 +535,82 @@ describe("HooksExtensionsSettingsPage", () => {
       screen.getByTestId("settings-page-hooks-extensions-marketplace-allow-unverified")
     );
     expect(pageState.setMarketplaceAllowUnverified.mock.calls[0]?.[0]).toBe(true);
+  });
+
+  it("renders and creates notification presets", () => {
+    const createNotificationPreset =
+      vi.fn<(body: SettingsCreateNotificationPresetRequest) => void>();
+    pageState = makeState({
+      notificationPresets: [notificationPresetEntry],
+      createNotificationPreset,
+    });
+
+    render(<HooksExtensionsSettingsPage />);
+
+    expect(
+      screen.getByTestId("settings-page-hooks-extensions-notification-preset-row-task_terminal")
+    ).toBeInTheDocument();
+
+    fireEvent.change(
+      screen.getByTestId("settings-page-hooks-extensions-notification-preset-name"),
+      { target: { value: "provider_failures" } }
+    );
+    fireEvent.change(
+      screen.getByTestId("settings-page-hooks-extensions-notification-preset-events"),
+      { target: { value: "provider.*" } }
+    );
+    fireEvent.change(
+      screen.getByTestId("settings-page-hooks-extensions-notification-preset-target"),
+      { target: { value: "brg_ops:channel:incident-room" } }
+    );
+    fireEvent.change(
+      screen.getByTestId("settings-page-hooks-extensions-notification-preset-filter"),
+      { target: { value: "severity >= warning" } }
+    );
+    fireEvent.click(
+      screen.getByTestId("settings-page-hooks-extensions-notification-preset-create")
+    );
+
+    expect(createNotificationPreset).toHaveBeenCalledWith({
+      name: "provider_failures",
+      events: ["provider.*"],
+      targets: [
+        {
+          bridge_id: "brg_ops",
+          canonical_route: "channel:incident-room",
+          delivery_mode: "direct-send",
+        },
+      ],
+      filter: "severity >= warning",
+      enabled: false,
+    });
+  });
+
+  it("toggles notification presets and blocks built-in deletion", () => {
+    const toggleNotificationPreset =
+      vi.fn<(preset: SettingsNotificationPresetEntry, enabled: boolean) => void>();
+    const deleteNotificationPreset = vi.fn<(preset: SettingsNotificationPresetEntry) => void>();
+    pageState = makeState({
+      notificationPresets: [notificationPresetEntry],
+      toggleNotificationPreset,
+      deleteNotificationPreset,
+    });
+
+    render(<HooksExtensionsSettingsPage />);
+
+    fireEvent.click(
+      screen.getByTestId(
+        "settings-page-hooks-extensions-notification-preset-row-task_terminal-toggle"
+      )
+    );
+
+    expect(toggleNotificationPreset).toHaveBeenCalledWith(notificationPresetEntry, true);
+    expect(
+      screen.getByTestId(
+        "settings-page-hooks-extensions-notification-preset-row-task_terminal-delete"
+      )
+    ).toBeDisabled();
+    expect(deleteNotificationPreset).not.toHaveBeenCalled();
   });
 
   it("wires policy save and reset controls", () => {

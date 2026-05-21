@@ -730,6 +730,14 @@ func migrateBridgeInstanceColumns(ctx context.Context, db *sql.DB) error {
 			return fmt.Errorf("store: add bridge_instances.degradation_message column: %w", err)
 		}
 	}
+	if _, ok := columns[globalDBBridgeNotificationSuppressColumn]; !ok {
+		if _, err := db.ExecContext(
+			ctx,
+			`ALTER TABLE bridge_instances ADD COLUMN notification_suppress BOOLEAN NOT NULL DEFAULT 0`,
+		); err != nil {
+			return fmt.Errorf("store: add bridge_instances.notification_suppress column: %w", err)
+		}
+	}
 
 	return nil
 }

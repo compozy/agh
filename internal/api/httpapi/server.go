@@ -54,6 +54,7 @@ type Server struct {
 	observer          core.Observer
 	automation        core.AutomationManager
 	bridges           core.BridgeService
+	notifications     core.NotificationPresetService
 	bundles           core.BundleService
 	supportBundles    core.SupportBundleService
 	tools             core.ToolRegistry
@@ -212,6 +213,13 @@ func WithAutomation(manager core.AutomationManager) Option {
 func WithBridgeService(bridges core.BridgeService) Option {
 	return func(server *Server) {
 		server.bridges = bridges
+	}
+}
+
+// WithNotificationPresetService injects the daemon-owned notification preset runtime.
+func WithNotificationPresetService(service core.NotificationPresetService) Option {
+	return func(server *Server) {
+		server.notifications = service
 	}
 }
 
@@ -569,6 +577,7 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 		resources:         s.resources,
 		automation:        s.automation,
 		bridges:           s.bridges,
+		notifications:     s.notifications,
 		bundles:           s.bundles,
 		supportBundles:    s.supportBundles,
 		tools:             s.tools,

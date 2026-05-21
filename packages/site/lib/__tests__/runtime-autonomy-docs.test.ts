@@ -92,6 +92,7 @@ describe("runtime autonomy docs", () => {
         "execution-profiles",
         "review-gate",
         "notification-cursors",
+        "notification-presets",
         "coordination-channels",
         "safe-spawn",
       ],

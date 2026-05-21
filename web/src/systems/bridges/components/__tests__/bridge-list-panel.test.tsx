@@ -14,6 +14,7 @@ function makeBridge(overrides: Partial<BridgeSummary> = {}): BridgeSummary {
     enabled: true,
     extension_name: "ext-telegram",
     id: "brg_support",
+    notification_suppress: false,
     platform: "telegram",
     provider_config: {},
     routing_policy: { include_group: true, include_peer: true, include_thread: true },

@@ -40,22 +40,23 @@ type Registry interface {
 
 // CreateInstanceRequest captures the persisted configuration for a new bridge instance.
 type CreateInstanceRequest struct {
-	ID               string               `json:"id,omitempty"`
-	Scope            Scope                `json:"scope"`
-	WorkspaceID      string               `json:"workspace_id,omitempty"`
-	Platform         string               `json:"platform"`
-	ExtensionName    string               `json:"extension_name"`
-	DisplayName      string               `json:"display_name"`
-	Source           BridgeInstanceSource `json:"source,omitempty"`
-	Enabled          bool                 `json:"enabled"`
-	Status           BridgeStatus         `json:"status"`
-	DMPolicy         BridgeDMPolicy       `json:"dm_policy,omitempty"`
-	RoutingPolicy    RoutingPolicy        `json:"routing_policy"`
-	ProviderConfig   json.RawMessage      `json:"provider_config,omitempty"`
-	DeliveryDefaults json.RawMessage      `json:"delivery_defaults,omitempty"`
-	Degradation      *BridgeDegradation   `json:"degradation,omitempty"`
-	CreatedAt        time.Time            `json:"created_at"`
-	UpdatedAt        time.Time            `json:"updated_at"`
+	ID                   string               `json:"id,omitempty"`
+	Scope                Scope                `json:"scope"`
+	WorkspaceID          string               `json:"workspace_id,omitempty"`
+	Platform             string               `json:"platform"`
+	ExtensionName        string               `json:"extension_name"`
+	DisplayName          string               `json:"display_name"`
+	Source               BridgeInstanceSource `json:"source,omitempty"`
+	Enabled              bool                 `json:"enabled"`
+	Status               BridgeStatus         `json:"status"`
+	DMPolicy             BridgeDMPolicy       `json:"dm_policy,omitempty"`
+	RoutingPolicy        RoutingPolicy        `json:"routing_policy"`
+	ProviderConfig       json.RawMessage      `json:"provider_config,omitempty"`
+	DeliveryDefaults     json.RawMessage      `json:"delivery_defaults,omitempty"`
+	NotificationSuppress bool                 `json:"notification_suppress"`
+	Degradation          *BridgeDegradation   `json:"degradation,omitempty"`
+	CreatedAt            time.Time            `json:"created_at"`
+	UpdatedAt            time.Time            `json:"updated_at"`
 }
 
 // Validate reports whether the creation request contains a valid instance definition.
@@ -67,15 +68,16 @@ func (r CreateInstanceRequest) Validate() error {
 // UpdateInstanceRequest captures one mutation of bridge-instance fields that
 // do not change the lifecycle state machine.
 type UpdateInstanceRequest struct {
-	ID               string             `json:"id"`
-	DisplayName      *string            `json:"display_name,omitempty"`
-	DMPolicy         *BridgeDMPolicy    `json:"dm_policy,omitempty"`
-	RoutingPolicy    *RoutingPolicy     `json:"routing_policy,omitempty"`
-	ProviderConfig   *json.RawMessage   `json:"provider_config,omitempty"`
-	DeliveryDefaults *json.RawMessage   `json:"delivery_defaults,omitempty"`
-	Degradation      *BridgeDegradation `json:"degradation,omitempty"`
-	ClearDegradation bool               `json:"clear_degradation,omitempty"`
-	UpdatedAt        time.Time          `json:"updated_at"`
+	ID                   string             `json:"id"`
+	DisplayName          *string            `json:"display_name,omitempty"`
+	DMPolicy             *BridgeDMPolicy    `json:"dm_policy,omitempty"`
+	RoutingPolicy        *RoutingPolicy     `json:"routing_policy,omitempty"`
+	ProviderConfig       *json.RawMessage   `json:"provider_config,omitempty"`
+	DeliveryDefaults     *json.RawMessage   `json:"delivery_defaults,omitempty"`
+	NotificationSuppress *bool              `json:"notification_suppress,omitempty"`
+	Degradation          *BridgeDegradation `json:"degradation,omitempty"`
+	ClearDegradation     bool               `json:"clear_degradation,omitempty"`
+	UpdatedAt            time.Time          `json:"updated_at"`
 }
 
 // Validate reports whether the request contains at least one mutable field and
@@ -96,6 +98,7 @@ func (r UpdateInstanceRequest) hasMutableField() bool {
 		r.RoutingPolicy != nil ||
 		r.ProviderConfig != nil ||
 		r.DeliveryDefaults != nil ||
+		r.NotificationSuppress != nil ||
 		r.Degradation != nil ||
 		r.ClearDegradation
 }
@@ -295,6 +298,9 @@ func (s *Service) UpdateInstance(ctx context.Context, req UpdateInstanceRequest)
 			)
 		}
 		instance.DeliveryDefaults = normalized
+	}
+	if req.NotificationSuppress != nil {
+		instance.NotificationSuppress = *req.NotificationSuppress
 	}
 	if req.ClearDegradation {
 		instance.Degradation = nil
@@ -590,22 +596,23 @@ func (r CreateInstanceRequest) toInstance(now func() time.Time) (BridgeInstance,
 	}
 
 	instance := BridgeInstance{
-		ID:               strings.TrimSpace(r.ID),
-		Scope:            r.Scope.Normalize(),
-		WorkspaceID:      strings.TrimSpace(r.WorkspaceID),
-		Platform:         strings.TrimSpace(r.Platform),
-		ExtensionName:    strings.TrimSpace(r.ExtensionName),
-		DisplayName:      strings.TrimSpace(r.DisplayName),
-		Source:           r.Source.Normalize(),
-		Enabled:          r.Enabled,
-		Status:           r.Status.Normalize(),
-		DMPolicy:         r.DMPolicy.Normalize(),
-		RoutingPolicy:    r.RoutingPolicy,
-		ProviderConfig:   r.ProviderConfig,
-		DeliveryDefaults: r.DeliveryDefaults,
-		Degradation:      r.Degradation,
-		CreatedAt:        r.CreatedAt,
-		UpdatedAt:        r.UpdatedAt,
+		ID:                   strings.TrimSpace(r.ID),
+		Scope:                r.Scope.Normalize(),
+		WorkspaceID:          strings.TrimSpace(r.WorkspaceID),
+		Platform:             strings.TrimSpace(r.Platform),
+		ExtensionName:        strings.TrimSpace(r.ExtensionName),
+		DisplayName:          strings.TrimSpace(r.DisplayName),
+		Source:               r.Source.Normalize(),
+		Enabled:              r.Enabled,
+		Status:               r.Status.Normalize(),
+		DMPolicy:             r.DMPolicy.Normalize(),
+		RoutingPolicy:        r.RoutingPolicy,
+		ProviderConfig:       r.ProviderConfig,
+		DeliveryDefaults:     r.DeliveryDefaults,
+		NotificationSuppress: r.NotificationSuppress,
+		Degradation:          r.Degradation,
+		CreatedAt:            r.CreatedAt,
+		UpdatedAt:            r.UpdatedAt,
 	}
 	if instance.ID == "" {
 		instance.ID = store.NewID("brg")

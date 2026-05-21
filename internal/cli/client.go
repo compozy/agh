@@ -142,6 +142,18 @@ type DaemonClient interface {
 	BridgeRoutes(ctx context.Context, id string) ([]BridgeRouteRecord, error)
 	BridgeTargets(ctx context.Context, id string, query string, limit int) (BridgeTargetsRecord, error)
 	ResolveBridgeTarget(ctx context.Context, id string, name string) (BridgeResolveTargetRecord, error)
+	ListNotificationPresets(ctx context.Context, query NotificationPresetQuery) (NotificationPresetListRecord, error)
+	GetNotificationPreset(ctx context.Context, name string) (NotificationPresetRecord, error)
+	CreateNotificationPreset(
+		ctx context.Context,
+		request CreateNotificationPresetRequest,
+	) (NotificationPresetRecord, error)
+	UpdateNotificationPreset(
+		ctx context.Context,
+		name string,
+		request UpdateNotificationPresetRequest,
+	) (NotificationPresetRecord, error)
+	DeleteNotificationPreset(ctx context.Context, name string) error
 	ListBridgeSecretBindings(ctx context.Context, id string) ([]BridgeSecretBindingRecord, error)
 	PutBridgeSecretBinding(
 		ctx context.Context,
@@ -1369,6 +1381,29 @@ type DeliveryTargetRecord = bridgepkg.DeliveryTarget
 // BridgeTestDeliveryRecord is the shared dry-run bridge delivery response payload.
 type BridgeTestDeliveryRecord = contract.BridgeTestDeliveryResponse
 
+// NotificationPresetRecord is one persisted notification preset.
+type NotificationPresetRecord = contract.NotificationPresetPayload
+
+// NotificationPresetTarget is one bridge target attached to a preset.
+type NotificationPresetTarget = contract.NotificationTargetPayload
+
+// NotificationPresetListRecord wraps notification preset list results.
+type NotificationPresetListRecord = contract.NotificationPresetListResponse
+
+// CreateNotificationPresetRequest captures notification preset creation input.
+type CreateNotificationPresetRequest = contract.CreateNotificationPresetRequest
+
+// UpdateNotificationPresetRequest captures mutable notification preset fields.
+type UpdateNotificationPresetRequest = contract.UpdateNotificationPresetRequest
+
+// NotificationPresetQuery filters preset list operations.
+type NotificationPresetQuery struct {
+	Enabled *bool
+	BuiltIn *bool
+	Name    string
+	Limit   int
+}
+
 // IdentityRecord is the local agent identity exposed by `agh whoami`.
 type IdentityRecord struct {
 	SessionID string `json:"session_id,omitempty"`
@@ -2307,6 +2342,82 @@ func bridgeResolveTargetHasStructuredPayload(response BridgeResolveTargetRecord)
 		response.Result.Ambiguous ||
 		len(response.Result.Candidates) > 0 ||
 		response.Result.Step != 0
+}
+
+func (c *unixSocketClient) ListNotificationPresets(
+	ctx context.Context,
+	query NotificationPresetQuery,
+) (NotificationPresetListRecord, error) {
+	var response NotificationPresetListRecord
+	if err := c.doJSON(
+		ctx,
+		http.MethodGet,
+		"/api/notifications/presets",
+		notificationPresetValues(query),
+		nil,
+		&response,
+	); err != nil {
+		return NotificationPresetListRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) GetNotificationPreset(
+	ctx context.Context,
+	name string,
+) (NotificationPresetRecord, error) {
+	var response contract.NotificationPresetResponse
+	path := "/api/notifications/presets/" + url.PathEscape(strings.TrimSpace(name))
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return NotificationPresetRecord{}, err
+	}
+	return response.Preset, nil
+}
+
+func (c *unixSocketClient) CreateNotificationPreset(
+	ctx context.Context,
+	request CreateNotificationPresetRequest,
+) (NotificationPresetRecord, error) {
+	var response contract.NotificationPresetResponse
+	if err := c.doJSON(ctx, http.MethodPost, "/api/notifications/presets", nil, request, &response); err != nil {
+		return NotificationPresetRecord{}, err
+	}
+	return response.Preset, nil
+}
+
+func (c *unixSocketClient) UpdateNotificationPreset(
+	ctx context.Context,
+	name string,
+	request UpdateNotificationPresetRequest,
+) (NotificationPresetRecord, error) {
+	var response contract.NotificationPresetResponse
+	path := "/api/notifications/presets/" + url.PathEscape(strings.TrimSpace(name))
+	if err := c.doJSON(ctx, http.MethodPut, path, nil, request, &response); err != nil {
+		return NotificationPresetRecord{}, err
+	}
+	return response.Preset, nil
+}
+
+func (c *unixSocketClient) DeleteNotificationPreset(ctx context.Context, name string) error {
+	path := "/api/notifications/presets/" + url.PathEscape(strings.TrimSpace(name))
+	return c.doJSON(ctx, http.MethodDelete, path, nil, nil, nil)
+}
+
+func notificationPresetValues(query NotificationPresetQuery) url.Values {
+	values := url.Values{}
+	if query.Enabled != nil {
+		values.Set("enabled", strconv.FormatBool(*query.Enabled))
+	}
+	if query.BuiltIn != nil {
+		values.Set("built_in", strconv.FormatBool(*query.BuiltIn))
+	}
+	if strings.TrimSpace(query.Name) != "" {
+		values.Set("name", strings.TrimSpace(query.Name))
+	}
+	if query.Limit > 0 {
+		values.Set("limit", strconv.Itoa(query.Limit))
+	}
+	return values
 }
 
 func (c *unixSocketClient) ListBridgeSecretBindings(

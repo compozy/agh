@@ -21,6 +21,7 @@ import type {
   SettingsHookCollection,
   SettingsHookRequest,
   SettingsHooksExtensionsSection,
+  SettingsCreateNotificationPresetRequest,
   SettingsMCPServerCollection,
   SettingsMCPServerDeleteFilter,
   SettingsMCPServerListFilter,
@@ -29,6 +30,9 @@ import type {
   SettingsMemorySection,
   SettingsMutationResult,
   SettingsNetworkSection,
+  SettingsNotificationPresetCollection,
+  SettingsNotificationPresetFilter,
+  SettingsNotificationPresetEntry,
   SettingsObservabilitySection,
   SettingsProviderCollection,
   SettingsProviderDetail,
@@ -44,6 +48,7 @@ import type {
   SettingsUpdateGeneralRequest,
   SettingsInstallExtensionRequest,
   SettingsUpdateHooksExtensionsRequest,
+  SettingsUpdateNotificationPresetRequest,
   SettingsUpdateExtensionRequest,
   SettingsUpdateMemoryRequest,
   SettingsUpdateNetworkRequest,
@@ -93,6 +98,15 @@ function normalizeExtensionMarketplaceFilter(filter: SettingsExtensionMarketplac
     q: normalizeOptionalText(filter.q),
     source: normalizeOptionalText(filter.source),
     limit: normalizeOptionalText(filter.limit),
+  };
+}
+
+function normalizeNotificationPresetFilter(filter: SettingsNotificationPresetFilter = {}) {
+  return {
+    enabled: filter.enabled,
+    built_in: filter.built_in,
+    name: normalizeOptionalText(filter.name),
+    limit: filter.limit,
   };
 }
 
@@ -208,6 +222,82 @@ export async function getSettingsSkills(
   }
 
   return requireResponseData(data, response, "Failed to load skills settings");
+}
+
+export async function listSettingsNotificationPresets(
+  filter: SettingsNotificationPresetFilter = {},
+  signal?: AbortSignal
+): Promise<SettingsNotificationPresetCollection> {
+  const { data, error, response } = await apiClient.GET("/api/notifications/presets", {
+    params: { query: normalizeNotificationPresetFilter(filter) },
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    throw new SettingsApiError(
+      defaultApiErrorMessage("Failed to load notification presets", response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, "Failed to load notification presets");
+}
+
+export async function createSettingsNotificationPreset(
+  body: SettingsCreateNotificationPresetRequest,
+  signal?: AbortSignal
+): Promise<SettingsNotificationPresetEntry> {
+  const { data, error, response } = await apiClient.POST("/api/notifications/presets", {
+    body,
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    throw new SettingsApiError(
+      defaultApiErrorMessage("Failed to create notification preset", response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, "Failed to create notification preset").preset;
+}
+
+export async function updateSettingsNotificationPreset(
+  name: string,
+  body: SettingsUpdateNotificationPresetRequest,
+  signal?: AbortSignal
+): Promise<SettingsNotificationPresetEntry> {
+  const { data, error, response } = await apiClient.PUT("/api/notifications/presets/{name}", {
+    params: { path: { name } },
+    body,
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    throw new SettingsApiError(
+      defaultApiErrorMessage("Failed to update notification preset", response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, "Failed to update notification preset").preset;
+}
+
+export async function deleteSettingsNotificationPreset(
+  name: string,
+  signal?: AbortSignal
+): Promise<void> {
+  const { error, response } = await apiClient.DELETE("/api/notifications/presets/{name}", {
+    params: { path: { name } },
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    throw new SettingsApiError(
+      defaultApiErrorMessage("Failed to delete notification preset", response, error),
+      response.status
+    );
+  }
 }
 
 export async function updateSettingsSkills(

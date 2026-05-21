@@ -12,6 +12,7 @@ import type {
   SettingsMemorySection,
   SettingsMutationResult,
   SettingsNetworkSection,
+  SettingsNotificationPresetCollection,
   SettingsObservabilitySection,
   SettingsProviderEntry,
   SettingsRestartResponse,
@@ -89,6 +90,67 @@ export const settingsNetworkSectionFixture: SettingsNetworkSection = {
     delivery_workers: 3,
   },
   links: [{ label: "network", path: "/network" }],
+};
+
+export const settingsNotificationPresetCollectionFixture: SettingsNotificationPresetCollection = {
+  presets: [
+    {
+      name: "task_terminal",
+      events: ["task.run_*"],
+      targets: [
+        {
+          bridge_id: "bridge_slack_ops",
+          canonical_route: "channel:ops",
+          display_name: "#ops",
+          delivery_mode: "direct-send",
+        },
+      ],
+      filter: "outcome >= warning",
+      enabled: true,
+      built_in: true,
+      default_version: "1",
+      default_hash: "hash_task_terminal_v1",
+      user_modified: true,
+      default_update_available: false,
+      created_at: "2026-04-17T09:00:00Z",
+      updated_at: "2026-04-17T11:00:00Z",
+    },
+    {
+      name: "session_unhealthy",
+      events: ["session.unhealthy", "session.hung", "session.recovered"],
+      targets: [],
+      filter: "",
+      enabled: false,
+      built_in: true,
+      default_version: "1",
+      default_hash: "hash_session_unhealthy_v1",
+      user_modified: false,
+      default_update_available: false,
+      created_at: "2026-04-17T09:00:00Z",
+      updated_at: "2026-04-17T09:00:00Z",
+    },
+    {
+      name: "provider_failure",
+      events: [
+        "provider.auth_required",
+        "provider.rate_limited",
+        "provider.permission_denied",
+        "provider.unavailable",
+      ],
+      targets: [],
+      filter: "",
+      enabled: false,
+      built_in: true,
+      default_version: "1",
+      default_hash: "hash_provider_failure_v1",
+      user_modified: false,
+      default_update_available: false,
+      created_at: "2026-04-17T09:00:00Z",
+      updated_at: "2026-04-17T09:00:00Z",
+    },
+  ],
+  total: 3,
+  generated_at: "2026-04-17T11:00:00Z",
 };
 
 export const settingsAutomationSectionFixture: SettingsAutomationSection = {

@@ -68,7 +68,7 @@ type slackProvider struct {
 	routes         map[string]resolvedInstanceConfig
 	deliveries     map[string]deliveryState
 	reportedStatus map[string]bridgepkg.BridgeStatus
-	apiFactory     func(resolvedInstanceConfig) slackAPI
+	apiFactory     func(*resolvedInstanceConfig) slackAPI
 
 	stopCh   chan struct{}
 	stopOnce sync.Once
@@ -101,7 +101,7 @@ type slackProviderConfig struct {
 }
 
 type resolvedInstanceConfig struct {
-	managed            subprocess.InitializeBridgeManagedInstance
+	managed            *subprocess.InitializeBridgeManagedInstance
 	instanceID         string
 	listenAddr         string
 	webhookPath        string
@@ -346,7 +346,7 @@ func newSlackProvider(stderr io.Writer) (*slackProvider, error) {
 		reportedStatus: make(map[string]bridgepkg.BridgeStatus),
 		stopCh:         make(chan struct{}),
 	}
-	provider.apiFactory = func(cfg resolvedInstanceConfig) slackAPI {
+	provider.apiFactory = func(cfg *resolvedInstanceConfig) slackAPI {
 		return &slackBotClient{
 			baseURL:  cfg.apiBaseURL,
 			botToken: cfg.botToken,
@@ -488,7 +488,7 @@ func (p *slackProvider) handleBridgesDeliver(
 		os.Exit(23)
 	}
 
-	api := p.apiFactory(cfg)
+	api := p.apiFactory(&cfg)
 	ack, state, err := executeDelivery(ctx, api, request, p.deliveryState(cfg.instanceID, request.Event.DeliveryID))
 	if err != nil {
 		marker.Error = err.Error()
@@ -577,7 +577,8 @@ func (p *slackProvider) stop() {
 		close(p.stopCh)
 		batchersToClose := make(map[*bridgesdk.InboundBatcher]struct{})
 		p.mu.Lock()
-		for id, cfg := range p.routes {
+		for id := range p.routes {
+			cfg := p.routes[id]
 			if cfg.batcher != nil {
 				batchersToClose[cfg.batcher] = struct{}{}
 				cfg.batcher = nil
@@ -742,7 +743,8 @@ func (p *slackProvider) reconcileInstanceConfigs(
 	if len(managed) == 0 {
 		batchersToClose := make(map[*bridgesdk.InboundBatcher]struct{})
 		p.mu.Lock()
-		for _, cfg := range p.routes {
+		for id := range p.routes {
+			cfg := p.routes[id]
 			if cfg.batcher != nil {
 				batchersToClose[cfg.batcher] = struct{}{}
 			}
@@ -759,7 +761,7 @@ func (p *slackProvider) reconcileInstanceConfigs(
 	closeInboundBatchers(p.swapSlackRoutes(nextRoutes, requestedListen))
 
 	for idx := range configs {
-		status, degradation, err := p.determineInitialState(ctx, configs[idx])
+		status, degradation, err := p.determineInitialState(ctx, &configs[idx])
 		if err != nil {
 			p.setLastError(err)
 		}
@@ -872,7 +874,8 @@ func (p *slackProvider) swapSlackRoutes(
 	defer p.mu.Unlock()
 
 	existing := p.routes
-	for instanceID, cfg := range nextRoutes {
+	for instanceID := range nextRoutes {
+		cfg := nextRoutes[instanceID]
 		if prior, ok := existing[instanceID]; ok && prior.batcher != nil && prior.batcher != cfg.batcher {
 			batchersToClose[prior.batcher] = struct{}{}
 		}
@@ -899,7 +902,7 @@ func (p *slackProvider) resolveInstanceConfig(
 	if len(managed.Instance.ProviderConfig) > 0 {
 		if err := json.Unmarshal(managed.Instance.ProviderConfig, &cfg); err != nil {
 			return resolvedInstanceConfig{
-				managed:     managed,
+				managed:     &managed,
 				instanceID:  managed.Instance.ID,
 				configError: fmt.Errorf("slack: decode provider_config for %q: %w", managed.Instance.ID, err),
 			}
@@ -917,7 +920,7 @@ func (p *slackProvider) resolveInstanceConfig(
 	)
 
 	resolved := resolvedInstanceConfig{
-		managed:         managed,
+		managed:         &managed,
 		instanceID:      strings.TrimSpace(managed.Instance.ID),
 		listenAddr:      listenAddr,
 		webhookPath:     webhookPath,
@@ -969,8 +972,12 @@ func (p *slackProvider) resolveInstanceConfig(
 
 func (p *slackProvider) determineInitialState(
 	ctx context.Context,
-	cfg resolvedInstanceConfig,
+	cfg *resolvedInstanceConfig,
 ) (bridgepkg.BridgeStatus, *bridgepkg.BridgeDegradation, error) {
+	if cfg == nil {
+		err := errors.New("slack: resolved instance config is required")
+		return bridgepkg.BridgeStatusError, nil, err
+	}
 	if cfg.configError != nil {
 		return bridgepkg.BridgeStatusDegraded, &bridgepkg.BridgeDegradation{
 			Reason:  bridgepkg.BridgeDegradationReasonTenantConfigInvalid,
@@ -1076,7 +1083,7 @@ func (p *slackProvider) serveWebhookHTTP(w http.ResponseWriter, r *http.Request)
 		},
 		Now: func() time.Time { return p.now() },
 	}, func(w http.ResponseWriter, r *http.Request, request bridgesdk.WebhookRequest) error {
-		return p.handleWebhookRequest(w, r, cfg, request)
+		return p.handleWebhookRequest(w, r, &cfg, request)
 	})
 	if err != nil {
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
@@ -1089,7 +1096,7 @@ func (p *slackProvider) serveWebhookHTTP(w http.ResponseWriter, r *http.Request)
 func (p *slackProvider) handleWebhookRequest(
 	w http.ResponseWriter,
 	r *http.Request,
-	cfg resolvedInstanceConfig,
+	cfg *resolvedInstanceConfig,
 	request bridgesdk.WebhookRequest,
 ) error {
 	contentType := strings.TrimSpace(r.Header.Get("Content-Type"))
@@ -1102,7 +1109,7 @@ func (p *slackProvider) handleWebhookRequest(
 func (p *slackProvider) handleFormWebhook(
 	ctx context.Context,
 	w http.ResponseWriter,
-	cfg resolvedInstanceConfig,
+	cfg *resolvedInstanceConfig,
 	request bridgesdk.WebhookRequest,
 ) error {
 	values, err := url.ParseQuery(string(request.Body))
@@ -1110,7 +1117,7 @@ func (p *slackProvider) handleFormWebhook(
 		return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: "invalid slack form payload"}
 	}
 	if values.Has("command") && !values.Has("payload") {
-		mapped, err := mapSlackSlashCommand(values, cfg.managed, request.ReceivedAt)
+		mapped, err := mapSlackSlashCommand(values, *cfg.managed, request.ReceivedAt)
 		if err != nil {
 			return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: err.Error()}
 		}
@@ -1139,7 +1146,7 @@ func (p *slackProvider) handleFormWebhook(
 		return writeWebhookOK(w)
 	}
 
-	mapped, err := mapSlackBlockActions(payload, cfg.managed, request.ReceivedAt)
+	mapped, err := mapSlackBlockActions(payload, *cfg.managed, request.ReceivedAt)
 	if err != nil {
 		return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: err.Error()}
 	}
@@ -1161,7 +1168,7 @@ func (p *slackProvider) handleFormWebhook(
 func (p *slackProvider) handleJSONWebhook(
 	ctx context.Context,
 	w http.ResponseWriter,
-	cfg resolvedInstanceConfig,
+	cfg *resolvedInstanceConfig,
 	request bridgesdk.WebhookRequest,
 ) error {
 	var payload slackWebhookEnvelope
@@ -1209,7 +1216,7 @@ func handleSlackJSONHandshake(w http.ResponseWriter, payload slackWebhookEnvelop
 func (p *slackProvider) handleSlackMessageJSONEvent(
 	ctx context.Context,
 	w http.ResponseWriter,
-	cfg resolvedInstanceConfig,
+	cfg *resolvedInstanceConfig,
 	request bridgesdk.WebhookRequest,
 	payload slackWebhookEnvelope,
 ) error {
@@ -1219,7 +1226,7 @@ func (p *slackProvider) handleSlackMessageJSONEvent(
 	}
 	mapped, ignored, err := mapSlackMessageEvent(
 		event,
-		cfg.managed,
+		*cfg.managed,
 		request.ReceivedAt,
 		payload.EventID,
 		payload.TeamID,
@@ -1237,7 +1244,7 @@ func (p *slackProvider) handleSlackMessageJSONEvent(
 func (p *slackProvider) handleSlackReactionJSONEvent(
 	ctx context.Context,
 	w http.ResponseWriter,
-	cfg resolvedInstanceConfig,
+	cfg *resolvedInstanceConfig,
 	request bridgesdk.WebhookRequest,
 	payload slackWebhookEnvelope,
 ) error {
@@ -1245,7 +1252,7 @@ func (p *slackProvider) handleSlackReactionJSONEvent(
 	if err := json.Unmarshal(payload.Event, &event); err != nil {
 		return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: "invalid slack reaction event"}
 	}
-	mapped, err := mapSlackReactionEvent(event, cfg.managed, request.ReceivedAt, payload.EventID, payload.TeamID)
+	mapped, err := mapSlackReactionEvent(event, *cfg.managed, request.ReceivedAt, payload.EventID, payload.TeamID)
 	if err != nil {
 		return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: err.Error()}
 	}
@@ -1255,7 +1262,7 @@ func (p *slackProvider) handleSlackReactionJSONEvent(
 func (p *slackProvider) dispatchSlackWebhookEnvelope(
 	ctx context.Context,
 	w http.ResponseWriter,
-	cfg resolvedInstanceConfig,
+	cfg *resolvedInstanceConfig,
 	mapped slackMappedInbound,
 	allowBatch bool,
 ) error {
@@ -1374,7 +1381,8 @@ func (p *slackProvider) waitForInstanceConfig(
 func (p *slackProvider) configForPath(path string) (resolvedInstanceConfig, bool) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	for _, cfg := range p.routes {
+	for id := range p.routes {
+		cfg := p.routes[id]
 		if cfg.configError != nil {
 			continue
 		}
@@ -2029,9 +2037,12 @@ func slackReactionReceivedAt(event slackReactionEvent, fallback time.Time) time.
 	return parsed
 }
 
-func allowSlackDirectMessage(cfg resolvedInstanceConfig, user slackUserIdentity, direct bool) bool {
+func allowSlackDirectMessage(cfg *resolvedInstanceConfig, user slackUserIdentity, direct bool) bool {
 	if !direct {
 		return true
+	}
+	if cfg == nil {
+		return false
 	}
 
 	switch cfg.dmPolicy.Normalize() {

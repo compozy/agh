@@ -48,9 +48,9 @@ func (g *GlobalDB) InsertBridgeInstance(ctx context.Context, instance bridges.Br
 		`INSERT INTO bridge_instances (
 			id, scope, workspace_id, platform, extension_name, display_name,
 			source, enabled, status, dm_policy, routing_policy, provider_config,
-			delivery_defaults, degradation_reason, degradation_message,
+			delivery_defaults, notification_suppress, degradation_reason, degradation_message,
 			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		normalized.ID,
 		string(normalized.Scope),
 		store.NullableString(normalized.WorkspaceID),
@@ -64,6 +64,7 @@ func (g *GlobalDB) InsertBridgeInstance(ctx context.Context, instance bridges.Br
 		routingPolicyJSON,
 		providerConfig,
 		deliveryDefaults,
+		normalized.NotificationSuppress,
 		degradationReason,
 		degradationMessage,
 		store.FormatTimestamp(normalized.CreatedAt),
@@ -101,7 +102,7 @@ func (g *GlobalDB) UpdateBridgeInstance(ctx context.Context, instance bridges.Br
 		 SET scope = ?, workspace_id = ?, platform = ?, extension_name = ?,
 		     display_name = ?, source = ?, enabled = ?, status = ?,
 		     dm_policy = ?, routing_policy = ?, provider_config = ?,
-		     delivery_defaults = ?, degradation_reason = ?,
+		     delivery_defaults = ?, notification_suppress = ?, degradation_reason = ?,
 		     degradation_message = ?, updated_at = ?
 		 WHERE id = ?`,
 		string(normalized.Scope),
@@ -116,6 +117,7 @@ func (g *GlobalDB) UpdateBridgeInstance(ctx context.Context, instance bridges.Br
 		routingPolicyJSON,
 		providerConfig,
 		deliveryDefaults,
+		normalized.NotificationSuppress,
 		degradationReason,
 		degradationMessage,
 		store.FormatTimestamp(normalized.UpdatedAt),
@@ -179,7 +181,7 @@ func (g *GlobalDB) GetBridgeInstance(ctx context.Context, id string) (bridges.Br
 		`SELECT
 			id, scope, workspace_id, platform, extension_name, display_name,
 			source, enabled, status, dm_policy, routing_policy, provider_config,
-			delivery_defaults, degradation_reason, degradation_message,
+			delivery_defaults, notification_suppress, degradation_reason, degradation_message,
 			created_at, updated_at
 		 FROM bridge_instances WHERE id = ?`,
 		trimmedID,
@@ -206,7 +208,7 @@ func (g *GlobalDB) ListBridgeInstances(ctx context.Context) ([]bridges.BridgeIns
 		`SELECT
 			id, scope, workspace_id, platform, extension_name, display_name,
 			source, enabled, status, dm_policy, routing_policy, provider_config,
-			delivery_defaults, degradation_reason, degradation_message,
+			delivery_defaults, notification_suppress, degradation_reason, degradation_message,
 			created_at, updated_at
 		 FROM bridge_instances
 		 ORDER BY display_name ASC, created_at ASC, id ASC`,
@@ -358,9 +360,9 @@ func upsertPreparedBridgeInstance(
 		`INSERT INTO bridge_instances (
 			id, scope, workspace_id, platform, extension_name, display_name,
 			source, enabled, status, dm_policy, routing_policy, provider_config,
-			delivery_defaults, degradation_reason, degradation_message,
+			delivery_defaults, notification_suppress, degradation_reason, degradation_message,
 			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			scope = excluded.scope,
 			workspace_id = excluded.workspace_id,
@@ -374,6 +376,7 @@ func upsertPreparedBridgeInstance(
 			routing_policy = excluded.routing_policy,
 			provider_config = excluded.provider_config,
 			delivery_defaults = excluded.delivery_defaults,
+			notification_suppress = excluded.notification_suppress,
 			degradation_reason = excluded.degradation_reason,
 			degradation_message = excluded.degradation_message,
 			updated_at = excluded.updated_at`,
@@ -390,6 +393,7 @@ func upsertPreparedBridgeInstance(
 		record.routingPolicyJSON,
 		record.providerConfig,
 		record.deliveryDefaults,
+		normalized.NotificationSuppress,
 		record.degradationReason,
 		record.degradationMessage,
 		store.FormatTimestamp(normalized.CreatedAt),
@@ -1073,20 +1077,21 @@ func normalizeOptionalRawJSON(value json.RawMessage) (any, error) {
 
 func scanBridgeInstance(scanner rowScanner) (bridges.BridgeInstance, error) {
 	var (
-		instance            bridges.BridgeInstance
-		scopeRaw            string
-		workspaceID         sql.NullString
-		sourceRaw           string
-		enabled             bool
-		statusRaw           string
-		dmPolicyRaw         string
-		routingPolicyRaw    string
-		providerConfigRaw   sql.NullString
-		deliveryDefaultsRaw sql.NullString
-		degradationReason   sql.NullString
-		degradationMessage  sql.NullString
-		createdAtRaw        string
-		updatedAtRaw        string
+		instance             bridges.BridgeInstance
+		scopeRaw             string
+		workspaceID          sql.NullString
+		sourceRaw            string
+		enabled              bool
+		statusRaw            string
+		dmPolicyRaw          string
+		routingPolicyRaw     string
+		providerConfigRaw    sql.NullString
+		deliveryDefaultsRaw  sql.NullString
+		notificationSuppress bool
+		degradationReason    sql.NullString
+		degradationMessage   sql.NullString
+		createdAtRaw         string
+		updatedAtRaw         string
 	)
 	if err := scanner.Scan(
 		&instance.ID,
@@ -1102,6 +1107,7 @@ func scanBridgeInstance(scanner rowScanner) (bridges.BridgeInstance, error) {
 		&routingPolicyRaw,
 		&providerConfigRaw,
 		&deliveryDefaultsRaw,
+		&notificationSuppress,
 		&degradationReason,
 		&degradationMessage,
 		&createdAtRaw,
@@ -1127,6 +1133,7 @@ func scanBridgeInstance(scanner rowScanner) (bridges.BridgeInstance, error) {
 	if deliveryDefaultsRaw.Valid {
 		instance.DeliveryDefaults = json.RawMessage(strings.TrimSpace(deliveryDefaultsRaw.String))
 	}
+	instance.NotificationSuppress = notificationSuppress
 	if degradationReason.Valid || degradationMessage.Valid {
 		instance.Degradation = &bridges.BridgeDegradation{
 			Reason:  bridges.BridgeDegradationReason(strings.TrimSpace(degradationReason.String)),

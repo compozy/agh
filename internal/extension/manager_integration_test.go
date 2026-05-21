@@ -520,7 +520,10 @@ func TestManagerIntegrationBridgeAdapterRestartPreservesNegotiatedSurface(t *tes
 		t.Fatalf("initialize markers = %d, want at least 2 launches", len(markers))
 	}
 	for index, marker := range markers[:2] {
-		if !slicesEqualStrings(marker.Request.Methods.ExtensionServices, []string{"bridges/deliver", "bridges/targets/snapshot"}) {
+		if !slicesEqualStrings(
+			marker.Request.Methods.ExtensionServices,
+			[]string{"bridges/deliver", "bridges/targets/snapshot"},
+		) {
 			t.Fatalf(
 				"marker %d extension services = %#v, want [bridges/deliver bridges/targets/snapshot]",
 				index,

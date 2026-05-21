@@ -43,7 +43,7 @@ func TestTelegramProviderContracts(t *testing.T) {
 			},
 			stopCh: make(chan struct{}),
 		}
-		provider.apiFactory = func(resolvedInstanceConfig) telegramAPI {
+		provider.apiFactory = func(*resolvedInstanceConfig) telegramAPI {
 			return &fakeTelegramAPI{nextMessageID: 900}
 		}
 

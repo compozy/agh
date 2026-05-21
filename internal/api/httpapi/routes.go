@@ -17,6 +17,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 
 	registerStatusRoutes(api, handlers)
 	registerBridgeRoutes(api, handlers)
+	registerNotificationRoutes(api, handlers)
 	registerWorkspaceRoutes(api, handlers)
 	registerSessionRoutes(api, handlers)
 	registerAgentRoutes(api, handlers)
@@ -67,6 +68,16 @@ func registerBridgeRoutes(api gin.IRouter, handlers *Handlers) {
 	bridges.PUT("/:id/secret-bindings/:binding_name", handlers.PutBridgeSecretBinding)
 	bridges.DELETE("/:id/secret-bindings/:binding_name", handlers.DeleteBridgeSecretBinding)
 	bridges.POST("/:id/test-delivery", handlers.TestBridgeDelivery)
+}
+
+func registerNotificationRoutes(api gin.IRouter, handlers *Handlers) {
+	notifications := api.Group("/notifications")
+	presets := notifications.Group("/presets")
+	presets.GET("", handlers.ListNotificationPresets)
+	presets.POST("", handlers.CreateNotificationPreset)
+	presets.GET("/:name", handlers.GetNotificationPreset)
+	presets.PUT("/:name", handlers.UpdateNotificationPreset)
+	presets.DELETE("/:name", handlers.DeleteNotificationPreset)
 }
 
 func registerWorkspaceRoutes(api gin.IRouter, handlers *Handlers) {

@@ -60,6 +60,7 @@ export const bridgesListFixture: BridgesListResponse = {
       enabled: true,
       extension_name: "ext-slack",
       id: "brg_launch_room",
+      notification_suppress: false,
       platform: "slack",
       provider_config: {
         workspace: "northstar-launch",

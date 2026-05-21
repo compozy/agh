@@ -2,6 +2,7 @@ import type {
   SettingsApplyRecordsFilter,
   SettingsExtensionMarketplaceFilter,
   SettingsMCPServerListFilter,
+  SettingsNotificationPresetFilter,
   SettingsSectionName,
   SettingsSectionSlug,
   SettingsSkillsFilter,
@@ -61,6 +62,17 @@ export const settingsKeys = {
     ] as const,
   extensionProvenance: (name: string) =>
     [...settingsKeys.extensionsRoot(), "provenance", name] as const,
+
+  notificationsRoot: () => [...settingsKeys.all, "notifications"] as const,
+  notificationPresetsList: (filter: SettingsNotificationPresetFilter = {}) =>
+    [
+      ...settingsKeys.notificationsRoot(),
+      "presets",
+      filter.enabled ?? "",
+      filter.built_in ?? "",
+      normalizeText(filter.name),
+      filter.limit ?? "",
+    ] as const,
 
   restartRoot: () => [...settingsKeys.all, "restart"] as const,
   restartStatus: (operationId: string) => [...settingsKeys.restartRoot(), operationId] as const,

@@ -198,6 +198,7 @@ describe("Extension", () => {
                 display_name: "Telegram",
                 enabled: true,
                 status: "ready",
+                notification_suppress: false,
                 routing_policy: {
                   include_peer: true,
                   include_thread: false,

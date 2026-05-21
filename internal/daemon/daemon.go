@@ -162,6 +162,7 @@ type RuntimeDeps struct {
 	Observer            Observer
 	Automation          core.AutomationManager
 	Bridges             core.BridgeService
+	Notifications       core.NotificationPresetService
 	Registry            Registry
 	MemoryStore         *memory.Store
 	MemoryExtractor     core.MemoryExtractorService
@@ -1052,6 +1053,7 @@ func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
 		httpapi.WithObserver(deps.Observer),
 		httpapi.WithAutomation(deps.Automation),
 		httpapi.WithBridgeService(deps.Bridges),
+		httpapi.WithNotificationPresetService(notificationPresetServiceFromDeps(deps)),
 		httpapi.WithBundleService(deps.Bundles),
 		httpapi.WithToolRegistry(deps.ToolRegistry),
 		httpapi.WithToolsetRegistry(deps.Toolsets),
@@ -1084,6 +1086,13 @@ func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
 	}
 }
 
+func notificationPresetServiceFromDeps(deps *RuntimeDeps) core.NotificationPresetService {
+	if deps == nil {
+		return nil
+	}
+	return deps.Notifications
+}
+
 func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 	return []udsapi.Option{
 		udsapi.WithHomePaths(deps.HomePaths),
@@ -1098,6 +1107,7 @@ func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 		udsapi.WithObserver(deps.Observer),
 		udsapi.WithAutomation(deps.Automation),
 		udsapi.WithBridgeService(deps.Bridges),
+		udsapi.WithNotificationPresetService(notificationPresetServiceFromDeps(deps)),
 		udsapi.WithBundleService(deps.Bundles),
 		udsapi.WithToolRegistry(deps.ToolRegistry),
 		udsapi.WithToolsetRegistry(deps.Toolsets),

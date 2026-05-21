@@ -1,5 +1,7 @@
 import { http, HttpResponse, type HttpHandler } from "msw";
 
+import type { SettingsNotificationPresetCollection } from "@/systems/settings";
+
 import {
   settingsAppliedMutationFixture,
   settingsApplyRecordsFixture,
@@ -15,6 +17,7 @@ import {
   settingsMCPServersCollectionFixture,
   settingsMemorySectionFixture,
   settingsNetworkSectionFixture,
+  settingsNotificationPresetCollectionFixture,
   settingsObservabilitySectionFixture,
   settingsProvidersCollectionFixture,
   settingsProviderFixtures,
@@ -85,6 +88,54 @@ export const handlers: HttpHandler[] = [
   http.patch("/api/settings/hooks-extensions", () =>
     HttpResponse.json(mutationResult("hooks-extensions", true))
   ),
+
+  http.get("/api/notifications/presets", () =>
+    HttpResponse.json(settingsNotificationPresetCollectionFixture)
+  ),
+  http.post("/api/notifications/presets", async ({ request }) => {
+    const body = (await request.json()) as {
+      name?: string;
+      events?: string[];
+      targets?: SettingsNotificationPresetCollection["presets"][number]["targets"];
+      filter?: string;
+      enabled?: boolean;
+    };
+    return HttpResponse.json(
+      {
+        preset: {
+          name: body.name ?? "custom",
+          events: body.events ?? [],
+          targets: body.targets ?? [],
+          filter: body.filter ?? "",
+          enabled: body.enabled ?? false,
+          built_in: false,
+          default_version: "",
+          default_hash: "",
+          user_modified: false,
+          default_update_available: false,
+          created_at: "2026-04-17T11:30:00Z",
+          updated_at: "2026-04-17T11:30:00Z",
+        },
+      },
+      { status: 201 }
+    );
+  }),
+  http.put("/api/notifications/presets/:name", async ({ params, request }) => {
+    const name = String(params.name);
+    const body = (await request.json()) as { enabled?: boolean };
+    const existing = settingsNotificationPresetCollectionFixture.presets.find(
+      preset => preset.name === name
+    );
+    return HttpResponse.json({
+      preset: {
+        ...(existing ?? settingsNotificationPresetCollectionFixture.presets[0]),
+        name,
+        enabled: body.enabled ?? existing?.enabled ?? true,
+        updated_at: "2026-04-17T11:45:00Z",
+      },
+    });
+  }),
+  http.delete("/api/notifications/presets/:name", () => new HttpResponse(null, { status: 204 })),
 
   http.get("/api/settings/providers", () => HttpResponse.json(settingsProvidersCollectionFixture)),
   http.get("/api/settings/providers/:name", ({ params }) => {

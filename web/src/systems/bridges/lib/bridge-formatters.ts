@@ -76,12 +76,15 @@ export function normalizeBridgeDeliveryDefaults(value: unknown): BridgeDeliveryD
 export function compactBridgeDeliveryDefaults(
   value: BridgeDeliveryDefaults
 ): BridgeDeliveryDefaults | undefined {
-  const normalized = {
-    group_id: normalizeText(value.group_id),
-    mode: value.mode,
-    peer_id: normalizeText(value.peer_id),
-    thread_id: normalizeText(value.thread_id),
-  };
+  const normalized: BridgeDeliveryDefaults = {};
+  const groupId = normalizeText(value.group_id);
+  const peerId = normalizeText(value.peer_id);
+  const threadId = normalizeText(value.thread_id);
+
+  if (groupId) normalized.group_id = groupId;
+  if (value.mode) normalized.mode = value.mode;
+  if (peerId) normalized.peer_id = peerId;
+  if (threadId) normalized.thread_id = threadId;
 
   if (!normalized.group_id && !normalized.mode && !normalized.peer_id && !normalized.thread_id) {
     return undefined;

@@ -528,7 +528,7 @@ func TestBridgeBundleAndHelpers(t *testing.T) {
 	}
 	if !strings.Contains(
 		toon,
-		"bridge{id,display_name,platform,extension_name,scope,workspace_id,enabled,status,routing,include_peer,include_thread,include_group,delivery_defaults,created_at,updated_at}:",
+		"bridge{id,display_name,platform,extension_name,scope,workspace_id,enabled,status,routing,include_peer,include_thread,include_group,notification_suppress,delivery_defaults,created_at,updated_at}:",
 	) {
 		t.Fatalf("bridgeBundle().toon() = %q, want bridge TOON object", toon)
 	}

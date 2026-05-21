@@ -6,9 +6,11 @@ description: Bridge terminal task notifications, durable cursor diagnostics, rep
 `internal/notifications` is a narrow durable primitive. It records confirmed delivery progress for
 notification consumers and never owns task ownership, event fan-out, hook dispatch, review
 authority, queue semantics, or task SSE replay state. The first concrete consumer is bridge-
-delivered terminal task notifications owned by `internal/bridges`. This page documents the cursor
-contract, the bridge subscription lifecycle, the operator-facing diagnostics, and the
-`latest_event_seq` seed used by the web stream-resume surface.
+delivered terminal task notifications owned by `internal/bridges`. Notification presets are the
+second consumer: they match canonical event names, fan out through bridge targets, and persist their
+progress in the same cursor table. This page documents the cursor contract, the bridge subscription
+lifecycle, notification preset fanout, operator-facing diagnostics, and the `latest_event_seq` seed
+used by the web stream-resume surface.
 
 <OperatorNote>
   Cursors record what was delivered, not who owns work. A stale cursor never blocks a worker, and
@@ -47,6 +49,56 @@ cannot block another. The store enforces:
 
 External delivery remains at-least-once: a process crash after external delivery but before
 `Advance` may duplicate delivery, but it never skips events.
+
+## Notification presets
+
+`notification_presets` is the SQLite-authoritative preset table. Presets are not stored in
+`config.toml`, and there are no `notifications.presets.*` config keys. Built-in presets are seeded
+disabled and keep their default metadata in the row:
+
+| Field                      | Meaning                                                                  |
+| -------------------------- | ------------------------------------------------------------------------ |
+| `default_version`          | Version of the built-in default AGH seeded.                              |
+| `default_hash`             | Stable hash of the seeded mutable fields.                                |
+| `user_modified`            | True when the row's mutable fields no longer match `default_hash`.       |
+| `default_update_available` | True when AGH has a newer built-in default but the operator changed row. |
+
+Seed reconciliation preserves operator edits. AGH may insert missing built-ins or refresh untouched
+built-ins, but it never treats `config.toml` as the preset authority and never overwrites a
+user-modified preset silently.
+
+The built-ins are:
+
+| Preset              | Events                                                                                                  |
+| ------------------- | ------------------------------------------------------------------------------------------------------- |
+| `task_terminal`     | `task.run_*`                                                                                            |
+| `session_unhealthy` | `session.unhealthy`, `session.hung`, `session.recovered`                                                |
+| `provider_failure`  | `provider.auth_required`, `provider.rate_limited`, `provider.permission_denied`, `provider.unavailable` |
+
+Event patterns use canonical registry names. Suffix wildcards are limited to a public event family,
+so `task.run_*` matches `task.run_completed` and `task.run_failed` without matching session or
+provider events. Optional filters support the documented comparison grammar over event fields such
+as `severity`, `workspace`, `agent`, `provider`, and `event_type`; AGH rejects arbitrary CEL or
+script expressions.
+
+Preset fanout uses one cursor per concrete target:
+
+```text
+consumer_id = preset:<name>:target:<stable_target_hash>
+stream_name = event_summaries
+subject_id = <preset name>
+```
+
+The dispatcher advances that cursor only after one of three terminal outcomes:
+
+| Outcome            | Cursor effect                   | Delivery behavior                                           |
+| ------------------ | ------------------------------- | ----------------------------------------------------------- |
+| confirmed delivery | Advances to the event sequence. | Bridge delivery returned a valid acknowledgment.            |
+| deterministic skip | Advances to the event sequence. | Preset disabled, targetless, filter miss, or cursor replay. |
+| bridge suppression | Advances to the event sequence. | The bridge has `notification_suppress = true`; no delivery. |
+
+Transient delivery failures record `last_error` and do not advance, so replay can retry without
+skipping the event.
 
 ## Bridge task subscription lifecycle
 
@@ -158,6 +210,42 @@ The CLI does not expose a cursor-reset verb. Cursor reset is deliberately kept o
 notification command group, so normal operator recovery starts by repairing task/review state and
 letting replay run again.
 
+## Manage presets from the CLI
+
+The `agh notifications` command group operates over UDS and manages the preset rows directly.
+
+```bash
+# List SQLite-backed presets.
+agh notifications presets list -o json
+
+# Inspect the built-in task terminal preset.
+agh notifications preset show task_terminal -o json
+
+# Create a custom preset and keep it disabled until the target has been checked.
+agh notifications preset create provider_ops \
+  --event provider.unavailable \
+  --target bridge_slack_ops:channel:ops \
+  --filter 'severity >= warning' \
+  -o json
+
+# Enable or disable without editing config.toml.
+agh notifications preset enable provider_ops -o json
+agh notifications preset disable provider_ops -o json
+
+# Delete only custom presets. Built-ins cannot be deleted.
+agh notifications preset delete provider_ops -o json
+```
+
+Generated reference for each verb:
+
+- [agh notifications](/runtime/cli-reference/notifications)
+- [agh notifications presets list](/runtime/cli-reference/notifications/presets/list)
+- [agh notifications preset show](/runtime/cli-reference/notifications/preset/show)
+- [agh notifications preset create](/runtime/cli-reference/notifications/preset/create)
+- [agh notifications preset enable](/runtime/cli-reference/notifications/preset/enable)
+- [agh notifications preset disable](/runtime/cli-reference/notifications/preset/disable)
+- [agh notifications preset delete](/runtime/cli-reference/notifications/preset/delete)
+
 ## Manage subscriptions with native tools
 
 Managed agents use the same bridge subscription contract through the `agh__tasks` toolset:
@@ -189,6 +277,16 @@ cursor read endpoint. Generated TypeScript types for web consumers live in
 `web/src/generated/agh-openapi.d.ts`. The legacy
 `bridge-notification-subscriptions` route shape is no longer accepted; clients should use the
 canonical `/api/tasks/{id}/notifications/bridges` paths above.
+
+Preset CRUD uses the same HTTP/UDS transport parity:
+
+| Method   | Path                                | Operation ID               | Purpose                                |
+| -------- | ----------------------------------- | -------------------------- | -------------------------------------- |
+| `GET`    | `/api/notifications/presets`        | `listNotificationPresets`  | List presets with optional filters.    |
+| `POST`   | `/api/notifications/presets`        | `createNotificationPreset` | Create one custom notification preset. |
+| `GET`    | `/api/notifications/presets/{name}` | `getNotificationPreset`    | Read one preset.                       |
+| `PUT`    | `/api/notifications/presets/{name}` | `updateNotificationPreset` | Update mutable preset fields.          |
+| `DELETE` | `/api/notifications/presets/{name}` | `deleteNotificationPreset` | Delete one custom preset.              |
 
 ## Inspect from the operator web UI
 

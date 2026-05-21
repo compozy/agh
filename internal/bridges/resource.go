@@ -30,19 +30,20 @@ type BridgeProviderLookup func(context.Context, string) (BridgeProvider, bool, e
 // the bridge runtime store. This spec carries only desired configuration plus provider manifest
 // metadata that must be validated with the provider before persistence.
 type BridgeInstanceSpec struct {
-	Scope            Scope                       `json:"scope,omitempty"`
-	WorkspaceID      string                      `json:"workspace_id,omitempty"`
-	Platform         string                      `json:"platform"`
-	ExtensionName    string                      `json:"extension_name"`
-	DisplayName      string                      `json:"display_name"`
-	Source           BridgeInstanceSource        `json:"source,omitempty"`
-	Enabled          bool                        `json:"enabled"`
-	DMPolicy         BridgeDMPolicy              `json:"dm_policy,omitempty"`
-	RoutingPolicy    RoutingPolicy               `json:"routing_policy"`
-	ProviderConfig   json.RawMessage             `json:"provider_config,omitempty"`
-	DeliveryDefaults json.RawMessage             `json:"delivery_defaults,omitempty"`
-	SecretSlots      []BridgeSecretSlot          `json:"secret_slots,omitempty"`
-	ConfigSchema     *BridgeProviderConfigSchema `json:"config_schema,omitempty"`
+	Scope                Scope                       `json:"scope,omitempty"`
+	WorkspaceID          string                      `json:"workspace_id,omitempty"`
+	Platform             string                      `json:"platform"`
+	ExtensionName        string                      `json:"extension_name"`
+	DisplayName          string                      `json:"display_name"`
+	Source               BridgeInstanceSource        `json:"source,omitempty"`
+	Enabled              bool                        `json:"enabled"`
+	DMPolicy             BridgeDMPolicy              `json:"dm_policy,omitempty"`
+	RoutingPolicy        RoutingPolicy               `json:"routing_policy"`
+	ProviderConfig       json.RawMessage             `json:"provider_config,omitempty"`
+	DeliveryDefaults     json.RawMessage             `json:"delivery_defaults,omitempty"`
+	NotificationSuppress bool                        `json:"notification_suppress"`
+	SecretSlots          []BridgeSecretSlot          `json:"secret_slots,omitempty"`
+	ConfigSchema         *BridgeProviderConfigSchema `json:"config_schema,omitempty"`
 }
 
 // NewBridgeInstanceResourceCodec builds the typed codec for bridge.instance records.
@@ -88,17 +89,18 @@ func BridgeInstanceSpecFromCreateRequest(
 func BridgeInstanceSpecFromInstance(instance BridgeInstance) BridgeInstanceSpec {
 	normalized := instance.normalize()
 	return BridgeInstanceSpec{
-		Scope:            normalized.Scope,
-		WorkspaceID:      normalized.WorkspaceID,
-		Platform:         normalized.Platform,
-		ExtensionName:    normalized.ExtensionName,
-		DisplayName:      normalized.DisplayName,
-		Source:           normalized.Source,
-		Enabled:          normalized.Enabled,
-		DMPolicy:         normalized.DMPolicy,
-		RoutingPolicy:    normalized.RoutingPolicy,
-		ProviderConfig:   cloneRawJSON(normalized.ProviderConfig),
-		DeliveryDefaults: cloneRawJSON(normalized.DeliveryDefaults),
+		Scope:                normalized.Scope,
+		WorkspaceID:          normalized.WorkspaceID,
+		Platform:             normalized.Platform,
+		ExtensionName:        normalized.ExtensionName,
+		DisplayName:          normalized.DisplayName,
+		Source:               normalized.Source,
+		Enabled:              normalized.Enabled,
+		DMPolicy:             normalized.DMPolicy,
+		RoutingPolicy:        normalized.RoutingPolicy,
+		ProviderConfig:       cloneRawJSON(normalized.ProviderConfig),
+		DeliveryDefaults:     cloneRawJSON(normalized.DeliveryDefaults),
+		NotificationSuppress: normalized.NotificationSuppress,
 	}
 }
 
@@ -423,21 +425,22 @@ func bridgeInstanceFromResourceRecord(
 	}
 
 	instance := BridgeInstance{
-		ID:               strings.TrimSpace(record.ID),
-		Scope:            record.Spec.Scope,
-		WorkspaceID:      record.Spec.WorkspaceID,
-		Platform:         record.Spec.Platform,
-		ExtensionName:    record.Spec.ExtensionName,
-		DisplayName:      record.Spec.DisplayName,
-		Source:           record.Spec.Source,
-		Enabled:          record.Spec.Enabled,
-		Status:           bridgeStatusForProjectedRecord(record.Spec.Enabled, existing),
-		DMPolicy:         record.Spec.DMPolicy,
-		RoutingPolicy:    record.Spec.RoutingPolicy,
-		ProviderConfig:   cloneRawJSON(record.Spec.ProviderConfig),
-		DeliveryDefaults: cloneRawJSON(record.Spec.DeliveryDefaults),
-		CreatedAt:        createdAt,
-		UpdatedAt:        timestamp,
+		ID:                   strings.TrimSpace(record.ID),
+		Scope:                record.Spec.Scope,
+		WorkspaceID:          record.Spec.WorkspaceID,
+		Platform:             record.Spec.Platform,
+		ExtensionName:        record.Spec.ExtensionName,
+		DisplayName:          record.Spec.DisplayName,
+		Source:               record.Spec.Source,
+		Enabled:              record.Spec.Enabled,
+		Status:               bridgeStatusForProjectedRecord(record.Spec.Enabled, existing),
+		DMPolicy:             record.Spec.DMPolicy,
+		RoutingPolicy:        record.Spec.RoutingPolicy,
+		ProviderConfig:       cloneRawJSON(record.Spec.ProviderConfig),
+		DeliveryDefaults:     cloneRawJSON(record.Spec.DeliveryDefaults),
+		NotificationSuppress: record.Spec.NotificationSuppress,
+		CreatedAt:            createdAt,
+		UpdatedAt:            timestamp,
 	}
 	if existing != nil && record.Spec.Enabled {
 		instance.Degradation = cloneBridgeDegradationPointer(existing.Degradation)

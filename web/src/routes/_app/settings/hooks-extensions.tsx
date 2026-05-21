@@ -24,6 +24,7 @@ import type {
   SettingsHooksExtensionsSection,
   SettingsHooksExtensionsTransportParity,
 } from "@/systems/settings";
+import { NotificationPresetsPanel } from "@/systems/notifications";
 import { SettingsFieldRow, SettingsNumberInput } from "@/systems/settings/components";
 import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
 import type { TopbarRouteContext } from "@/types/topbar";
@@ -78,6 +79,7 @@ const MAX_SCOPE_OPTIONS = ["session", "workspace", "global"] as const;
 
 function HooksExtensionsSettingsPage() {
   const page = useSettingsHooksExtensionsPage();
+  const notificationPresets = page.notificationPresets ?? [];
   const envelopeForSlot = page.envelope;
   useTopbarSlot({
     tabs: envelopeForSlot ? (
@@ -190,6 +192,17 @@ function HooksExtensionsSettingsPage() {
         canMutate={page.canMutateExtensions}
         onSearch={page.searchMarketplace}
         onInstall={page.installMarketplaceExtension}
+      />
+
+      <NotificationPresetsPanel
+        presets={notificationPresets}
+        isLoading={page.notificationPresetsLoading}
+        error={page.notificationPresetsError ?? page.notificationPresetActionError}
+        pendingName={page.pendingNotificationPresetName}
+        canMutate={page.canMutateNotificationPresets}
+        onCreate={page.createNotificationPreset}
+        onToggle={page.toggleNotificationPreset}
+        onDelete={page.deleteNotificationPreset}
       />
 
       <PolicySection
@@ -516,7 +529,7 @@ function ExtensionRow({
       className="flex flex-col gap-3 rounded-md border border-line bg-elevated px-3 py-2"
       data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}`}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           <Pill.Dot tone={healthTone} size="md" pulse={entry.health === "degraded"} />
           <div className="flex min-w-0 flex-col gap-0.5">
@@ -542,7 +555,7 @@ function ExtensionRow({
             </Eyebrow>
             {provenance ? (
               <span
-                className="max-w-full break-all font-mono text-badge text-muted"
+                className="max-w-full break-words font-mono text-badge text-muted"
                 data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}-provenance-summary`}
               >
                 {provenance.installed_from} · {provenance.registry_tier}
@@ -559,7 +572,7 @@ function ExtensionRow({
             ) : null}
             {missingEnv.length > 0 ? (
               <span
-                className="max-w-full break-all font-mono text-badge text-warning"
+                className="max-w-full break-words font-mono text-badge text-warning"
                 data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}-missing-env`}
               >
                 Missing env: {missingEnv.join(", ")}
@@ -567,7 +580,7 @@ function ExtensionRow({
             ) : null}
           </div>
         </div>
-        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-start gap-2 sm:justify-end">
           {pending ? <Spinner className="size-3 text-subtle" /> : null}
           <Button
             data-testid={`settings-page-hooks-extensions-extensions-item-${entry.name}-provenance`}
@@ -1355,6 +1368,25 @@ function describeAction(
   if (action.kind === "extension-removed") {
     return {
       message: `Extension "${action.name}" removed.`,
+      tone: "info",
+    };
+  }
+  if (action.kind === "notification-preset-created") {
+    return {
+      message: "Notification preset " + action.name + " created.",
+      tone: "success",
+    };
+  }
+  if (action.kind === "notification-preset-toggled") {
+    const state = action.enabled ? "enabled" : "disabled";
+    return {
+      message: "Notification preset " + action.name + " " + state + ".",
+      tone: "success",
+    };
+  }
+  if (action.kind === "notification-preset-deleted") {
+    return {
+      message: "Notification preset " + action.name + " deleted.",
       tone: "info",
     };
   }

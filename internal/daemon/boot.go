@@ -29,6 +29,8 @@ import (
 	localprovider "github.com/pedronauck/agh/internal/memory/provider/local"
 	"github.com/pedronauck/agh/internal/memory/provider/local/memstore"
 	"github.com/pedronauck/agh/internal/network"
+	"github.com/pedronauck/agh/internal/notifications"
+	presetspkg "github.com/pedronauck/agh/internal/notifications/presets"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/sandbox"
@@ -114,6 +116,7 @@ type bootState struct {
 	resourceReconcile      resources.ReconcileDriver
 	automation             automationRuntime
 	bridges                *bridgeRuntime
+	notificationPresets    *presetspkg.Service
 	bundles                *bundlepkg.Service
 	httpServer             Server
 	udsServer              Server
@@ -465,7 +468,11 @@ func (d *Daemon) bootRuntime(ctx context.Context, state *bootState, cleanup *boo
 	return nil
 }
 
-func (d *Daemon) bootLockAndSocket(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
+func (d *Daemon) bootLockAndSocket(
+	ctx context.Context,
+	state *bootState,
+	cleanup *bootCleanup,
+) error {
 	pid := d.pid()
 	lock, err := d.acquireLock(d.homePaths.DaemonLock, pid)
 	if err != nil {
@@ -478,7 +485,13 @@ func (d *Daemon) bootLockAndSocket(ctx context.Context, state *bootState, cleanu
 
 	if stalePID := d.resolveStaleDaemonPID(lock, pid, state.logger); stalePID > 0 {
 		if cleanupErr := d.cleanupOrphans(ctx, stalePID); cleanupErr != nil {
-			state.logger.Warn("daemon: cleanup orphan processes failed", "stale_pid", stalePID, "error", cleanupErr)
+			state.logger.Warn(
+				"daemon: cleanup orphan processes failed",
+				"stale_pid",
+				stalePID,
+				"error",
+				cleanupErr,
+			)
 		}
 	}
 
@@ -501,7 +514,13 @@ func (d *Daemon) resolveStaleDaemonPID(lock *Lock, pid int, logger *slog.Logger)
 	case err == nil && existingInfo.PID > 0 && existingInfo.PID != pid && !d.processAlive(existingInfo.PID):
 		return existingInfo.PID
 	case err != nil && !errors.Is(err, os.ErrNotExist) && logger != nil:
-		logger.Warn("daemon: read stale daemon info failed", "path", d.homePaths.DaemonInfo, "error", err)
+		logger.Warn(
+			"daemon: read stale daemon info failed",
+			"path",
+			d.homePaths.DaemonInfo,
+			"error",
+			err,
+		)
 	}
 	return 0
 }
@@ -584,6 +603,9 @@ func (d *Daemon) bootRuntimeServices(
 		return err
 	}
 	state.bridges = d.composeBridgeRuntime(state, cleanup)
+	if err := d.bootNotificationPresets(ctx, state); err != nil {
+		return err
+	}
 	hostedMCP, err := d.buildHostedMCPService(state)
 	if err != nil {
 		return err
@@ -606,7 +628,10 @@ func (d *Daemon) bootRuntimeResourceGraph(state *bootState) error {
 	if err != nil {
 		return err
 	}
-	bridgeResources, err := bridgeInstanceResourceStore(resourceRawStore(resourceKernel), state.resourceCodecs)
+	bridgeResources, err := bridgeInstanceResourceStore(
+		resourceRawStore(resourceKernel),
+		state.resourceCodecs,
+	)
 	if err != nil {
 		return err
 	}
@@ -679,7 +704,10 @@ func (d *Daemon) bootSessionRepair(ctx context.Context, state *bootState) error 
 			continue
 		}
 
-		result, repairErr := state.sessions.RepairSession(ctx, session.RepairOpts{SessionID: info.ID})
+		result, repairErr := state.sessions.RepairSession(
+			ctx,
+			session.RepairOpts{SessionID: info.ID},
+		)
 		if repairErr != nil {
 			if ctxErr := ctx.Err(); ctxErr != nil {
 				return fmt.Errorf("daemon: boot session repair canceled: %w", ctxErr)
@@ -811,7 +839,9 @@ func sessionInputQueueStoreDependency(registry Registry) store.SessionInputQueue
 	return queueStore
 }
 
-func (d *Daemon) newSessionLedgerMaterializer(state *bootState) (session.LedgerMaterializer, error) {
+func (d *Daemon) newSessionLedgerMaterializer(
+	state *bootState,
+) (session.LedgerMaterializer, error) {
 	if state == nil || !state.cfg.Memory.Enabled {
 		return nil, nil
 	}
@@ -951,7 +981,11 @@ func mcpResolverDependency(resolver *skills.MCPResolver) session.MCPResolver {
 	return resolver
 }
 
-func (d *Daemon) runtimeDeps(ctx context.Context, state *bootState, sessions SessionManager) RuntimeDeps {
+func (d *Daemon) runtimeDeps(
+	ctx context.Context,
+	state *bootState,
+	sessions SessionManager,
+) RuntimeDeps {
 	if state != nil && state.dreamSvc != nil {
 		lockPath := memory.ConsolidationLockPath(state.globalMemoryDir)
 		state.dreamRuntime = consolidation.NewRuntime(
@@ -981,6 +1015,7 @@ func (d *Daemon) runtimeDeps(ctx context.Context, state *bootState, sessions Ses
 		Logger:              state.logger,
 		Sessions:            sessions,
 		Bridges:             state.bridges,
+		Notifications:       state.notificationPresets,
 		Registry:            state.registry,
 		MemoryStore:         state.memoryStore,
 		MemoryExtractor:     state.memoryExtractor,
@@ -1159,7 +1194,11 @@ func (d *Daemon) attachRuntimeObserver(ctx context.Context, state *bootState) er
 	return nil
 }
 
-func (d *Daemon) bootResourceReconcile(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
+func (d *Daemon) bootResourceReconcile(
+	ctx context.Context,
+	state *bootState,
+	cleanup *bootCleanup,
+) error {
 	if state == nil {
 		return errors.New("daemon: reconcile boot state is required")
 	}
@@ -1308,7 +1347,9 @@ func (d *Daemon) bootHooks(ctx context.Context, state *bootState, cleanup *bootC
 	return nil
 }
 
-func (d *Daemon) initializeHookObservers(state *bootState) ([]hookspkg.HookDecl, map[string]hookspkg.Executor) {
+func (d *Daemon) initializeHookObservers(
+	state *bootState,
+) ([]hookspkg.HookDecl, map[string]hookspkg.Executor) {
 	state.lifecycleObservers = newSessionLifecycleFanout()
 	if state.observer != nil {
 		state.lifecycleObservers.Add(state.observer)
@@ -1366,22 +1407,27 @@ func (d *Daemon) newHookBindingPublisher(
 	hooks *hookspkg.Hooks,
 	providers []hookBindingDeclarationProvider,
 ) (hookBindingPublisher, error) {
-	hookBindings := hookBindingPublisher(hookBindingPublisherFunc(func(reloadCtx context.Context) error {
-		decls, err := chainDeclarationProviders(providers...)(reloadCtx)
-		if err != nil {
-			return err
-		}
-		nextState, err := hooks.BuildBindingState(decls)
-		if err != nil {
-			return err
-		}
-		return hooks.ApplyBindingState(nextState, 0)
-	}))
+	hookBindings := hookBindingPublisher(
+		hookBindingPublisherFunc(func(reloadCtx context.Context) error {
+			decls, err := chainDeclarationProviders(providers...)(reloadCtx)
+			if err != nil {
+				return err
+			}
+			nextState, err := hooks.BuildBindingState(decls)
+			if err != nil {
+				return err
+			}
+			return hooks.ApplyBindingState(nextState, 0)
+		}),
+	)
 	if state.resourceKernel == nil || state.resourceCodecs == nil {
 		return hookBindings, nil
 	}
 
-	hookCodec, err := resources.ResolveCodec[hookspkg.HookDecl](state.resourceCodecs, hookBindingResourceKind)
+	hookCodec, err := resources.ResolveCodec[hookspkg.HookDecl](
+		state.resourceCodecs,
+		hookBindingResourceKind,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: resolve hook binding codec: %w", err)
 	}
@@ -1494,7 +1540,13 @@ func (d *Daemon) bootBundles(_ context.Context, state *bootState) error {
 		resourceStore,
 		extRegistry,
 		func(ctx context.Context, name string) (*extensionpkg.Extension, error) {
-			return loadExtensionSnapshot(ctx, extRegistry, state.currentExtensionRuntime(), state.logger, name)
+			return loadExtensionSnapshot(
+				ctx,
+				extRegistry,
+				state.currentExtensionRuntime(),
+				state.logger,
+				name,
+			)
 		},
 		bundlepkg.WithWorkspaceResolver(state.workspaceResolver),
 		bundlepkg.WithConfiguredDefaultChannel(state.cfg.Network.DefaultChannel),
@@ -1516,7 +1568,9 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 
 	dbSource, ok := state.registry.(extensionDBSource)
 	if !ok || dbSource.DB() == nil {
-		state.logger.Warn("daemon: skipping extensions because global registry does not expose a SQL database handle")
+		state.logger.Warn(
+			"daemon: skipping extensions because global registry does not expose a SQL database handle",
+		)
 		return nil
 	}
 
@@ -1676,22 +1730,38 @@ func (d *Daemon) attachExtensionRuntime(
 	)
 	if state.agentSkillResources != nil {
 		if err := state.agentSkillResources.Sync(ctx); err != nil {
-			state.logger.Error("daemon: sync agent/skill resources after extension boot failed", "error", err)
+			state.logger.Error(
+				"daemon: sync agent/skill resources after extension boot failed",
+				"error",
+				err,
+			)
 		}
 	}
 	if state.hookBindings != nil {
 		if err := state.hookBindings.Sync(ctx); err != nil {
-			state.logger.Error("daemon: sync hook bindings after extension boot failed", "error", err)
+			state.logger.Error(
+				"daemon: sync hook bindings after extension boot failed",
+				"error",
+				err,
+			)
 		}
 	}
 	if state.toolMCPResources != nil {
 		if err := state.toolMCPResources.Sync(ctx); err != nil {
-			state.logger.Error("daemon: sync tool/mcp resources after extension boot failed", "error", err)
+			state.logger.Error(
+				"daemon: sync tool/mcp resources after extension boot failed",
+				"error",
+				err,
+			)
 		}
 	}
 	if state.bundleResources != nil {
 		if err := state.bundleResources.Sync(ctx); err != nil {
-			state.logger.Error("daemon: sync bundle resources after extension boot failed", "error", err)
+			state.logger.Error(
+				"daemon: sync bundle resources after extension boot failed",
+				"error",
+				err,
+			)
 		}
 	}
 	if state.hookBindings != nil {
@@ -2193,7 +2263,9 @@ func (d *Daemon) composeBridgeRuntime(state *bootState, cleanup *bootCleanup) *b
 	store, ok := state.registry.(bridgeRuntimeStore)
 	if !ok {
 		if state.logger != nil {
-			state.logger.Debug("daemon: skipping bridge runtime because registry does not expose bridge persistence")
+			state.logger.Debug(
+				"daemon: skipping bridge runtime because registry does not expose bridge persistence",
+			)
 		}
 		return nil
 	}
@@ -2213,6 +2285,44 @@ func (d *Daemon) composeBridgeRuntime(state *bootState, cleanup *bootCleanup) *b
 		})
 	}
 	return runtime
+}
+
+func (d *Daemon) bootNotificationPresets(ctx context.Context, state *bootState) error {
+	if state == nil || state.registry == nil {
+		return nil
+	}
+	store, ok := state.registry.(presetspkg.Store)
+	if !ok {
+		if state.logger != nil {
+			state.logger.Debug(
+				"daemon: skipping notification presets because registry does not expose preset persistence",
+			)
+		}
+		return nil
+	}
+	cursors, ok := state.registry.(notifications.CursorStore)
+	if !ok {
+		if state.logger != nil {
+			state.logger.Debug(
+				"daemon: skipping notification presets because registry does not expose cursor persistence",
+			)
+		}
+		return nil
+	}
+	service := presetspkg.NewService(presetspkg.Config{
+		Store:   store,
+		Cursors: cursors,
+		Bridges: state.bridges,
+		Events:  extensionEventSummaryStore(state.registry),
+		Logger:  state.logger,
+		Now:     d.now,
+		Timeout: state.cfg.Task.Orchestration.BridgeNotificationTimeout,
+	})
+	if err := service.EnsureBuiltIns(ctx); err != nil {
+		return fmt.Errorf("daemon: seed notification preset defaults: %w", err)
+	}
+	state.notificationPresets = service
+	return nil
 }
 
 func bridgeRuntimeDedupStore(runtime *bridgeRuntime) bridgeDedupStore {

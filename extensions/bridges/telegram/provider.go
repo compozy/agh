@@ -54,7 +54,7 @@ type telegramProvider struct {
 	routes         map[string]resolvedInstanceConfig
 	deliveries     map[string]deliveryState
 	reportedStatus map[string]bridgepkg.BridgeStatus
-	apiFactory     func(resolvedInstanceConfig) telegramAPI
+	apiFactory     func(*resolvedInstanceConfig) telegramAPI
 
 	stopCh   chan struct{}
 	stopOnce sync.Once
@@ -88,7 +88,7 @@ type telegramProviderConfig struct {
 }
 
 type resolvedInstanceConfig struct {
-	managed            subprocess.InitializeBridgeManagedInstance
+	managed            *subprocess.InitializeBridgeManagedInstance
 	instanceID         string
 	listenAddr         string
 	webhookPath        string
@@ -206,7 +206,7 @@ func newTelegramProvider(stderr io.Writer) (*telegramProvider, error) {
 		reportedStatus: make(map[string]bridgepkg.BridgeStatus),
 		stopCh:         make(chan struct{}),
 	}
-	provider.apiFactory = func(cfg resolvedInstanceConfig) telegramAPI {
+	provider.apiFactory = func(cfg *resolvedInstanceConfig) telegramAPI {
 		return &telegramBotClient{
 			baseURL:  cfg.apiBaseURL,
 			botToken: cfg.botToken,
@@ -297,7 +297,8 @@ func (p *telegramProvider) afterInitialize(session *bridgesdk.Session) {
 	}
 
 	configs := p.reconcileInstanceConfigs(ctx, session, listed)
-	for _, cfg := range configs {
+	for idx := range configs {
+		cfg := configs[idx]
 		if p.stopped() {
 			return
 		}
@@ -366,11 +367,10 @@ func (p *telegramProvider) handleBridgesDeliver(
 		os.Exit(23)
 	}
 
-	api := p.apiFactory(cfg)
+	api := p.apiFactory(&cfg)
 	ack, state, err := executeDelivery(
 		ctx,
 		api,
-		cfg,
 		request,
 		p.deliveryState(cfg.instanceID, request.Event.DeliveryID),
 	)
@@ -469,7 +469,8 @@ func (p *telegramProvider) stop() {
 		close(p.stopCh)
 		p.mu.Lock()
 		defer p.mu.Unlock()
-		for id, cfg := range p.routes {
+		for id := range p.routes {
+			cfg := p.routes[id]
 			if cfg.batcher != nil {
 				cfg.batcher.Close()
 				cfg.batcher = nil
@@ -674,7 +675,7 @@ func (p *telegramProvider) resolveInstanceConfig(
 	cfg, err := decodeTelegramProviderConfig(managed)
 	if err != nil {
 		return resolvedInstanceConfig{
-			managed:    managed,
+			managed:    &managed,
 			instanceID: managed.Instance.ID,
 			configError: fmt.Errorf(
 				"telegram: decode provider_config for %q: %w",
@@ -713,7 +714,7 @@ func buildTelegramResolvedInstance(
 	webhookSecret, _ := session.Cache().BoundSecretValue(managed.Instance.ID, "webhook_secret")
 
 	resolved := resolvedInstanceConfig{
-		managed:    managed,
+		managed:    &managed,
 		instanceID: strings.TrimSpace(managed.Instance.ID),
 		listenAddr: firstNonEmpty(
 			cfg.Webhook.ListenAddr,
@@ -791,8 +792,12 @@ func configureTelegramBatcher(
 
 func (p *telegramProvider) determineInitialState(
 	ctx context.Context,
-	cfg resolvedInstanceConfig,
+	cfg *resolvedInstanceConfig,
 ) (bridgepkg.BridgeStatus, *bridgepkg.BridgeDegradation, error) {
+	if cfg == nil {
+		err := errors.New("telegram: resolved instance config is required")
+		return bridgepkg.BridgeStatusError, nil, err
+	}
 	if cfg.configError != nil {
 		return bridgepkg.BridgeStatusDegraded, &bridgepkg.BridgeDegradation{
 			Reason:  bridgepkg.BridgeDegradationReasonTenantConfigInvalid,
@@ -907,7 +912,7 @@ func (p *telegramProvider) serveWebhookHTTP(w http.ResponseWriter, r *http.Reque
 		},
 		Now: func() time.Time { return p.now() },
 	}, func(w http.ResponseWriter, r *http.Request, request bridgesdk.WebhookRequest) error {
-		return p.handleWebhookRequest(w, r, cfg, request)
+		return p.handleWebhookRequest(w, r, &cfg, request)
 	})
 	if err != nil {
 		http.Error(
@@ -924,7 +929,7 @@ func (p *telegramProvider) serveWebhookHTTP(w http.ResponseWriter, r *http.Reque
 func (p *telegramProvider) handleWebhookRequest(
 	w http.ResponseWriter,
 	_ *http.Request,
-	cfg resolvedInstanceConfig,
+	cfg *resolvedInstanceConfig,
 	request bridgesdk.WebhookRequest,
 ) error {
 	update := telegramUpdate{}
@@ -939,7 +944,7 @@ func (p *telegramProvider) handleWebhookRequest(
 		return writeTelegramWebhookOK(w)
 	}
 
-	envelope, err := mapTelegramUpdate(update, cfg.managed, request.ReceivedAt)
+	envelope, err := mapTelegramUpdate(update, *cfg.managed, request.ReceivedAt)
 	if err != nil {
 		return &bridgesdk.HTTPError{StatusCode: http.StatusBadRequest, Message: err.Error()}
 	}
@@ -1071,7 +1076,8 @@ func (p *telegramProvider) waitForInstanceConfig(
 func (p *telegramProvider) configForPath(path string) (resolvedInstanceConfig, bool) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	for _, cfg := range p.routes {
+	for id := range p.routes {
+		cfg := p.routes[id]
 		if cfg.configError != nil {
 			continue
 		}
@@ -1132,7 +1138,6 @@ func (p *telegramProvider) reportSideEffectError(action string, err error) {
 func executeDelivery(
 	ctx context.Context,
 	api telegramAPI,
-	_ resolvedInstanceConfig,
 	request bridgepkg.DeliveryRequest,
 	state deliveryState,
 ) (bridgepkg.DeliveryAck, deliveryState, error) {
@@ -1257,13 +1262,15 @@ func (p *telegramProvider) swapTelegramRoutes(
 
 	p.mu.Lock()
 	existing := p.routes
-	for _, cfg := range configs {
+	for idx := range configs {
+		cfg := configs[idx]
 		if prior, ok := existing[cfg.instanceID]; ok && prior.batcher != nil && cfg.batcher == nil {
 			prior.batcher.Close()
 		}
 		nextRoutes[cfg.instanceID] = cfg
 	}
-	for instanceID, prior := range existing {
+	for instanceID := range existing {
+		prior := existing[instanceID]
 		if _, ok := nextRoutes[instanceID]; ok {
 			continue
 		}
@@ -1281,7 +1288,7 @@ func (p *telegramProvider) populateTelegramInitialStates(
 	configs []resolvedInstanceConfig,
 ) {
 	for idx := range configs {
-		status, degradation, err := p.determineInitialState(ctx, configs[idx])
+		status, degradation, err := p.determineInitialState(ctx, &configs[idx])
 		if err != nil {
 			p.setLastError(err)
 		}
@@ -1483,9 +1490,12 @@ func shouldPostNewMessage(
 	return strings.TrimSpace(state.RemoteMessageID) == ""
 }
 
-func allowDirectMessage(cfg resolvedInstanceConfig, message telegramMessage) bool {
+func allowDirectMessage(cfg *resolvedInstanceConfig, message telegramMessage) bool {
 	if !isDirectChat(message.Chat.Type) {
 		return true
+	}
+	if cfg == nil {
+		return false
 	}
 
 	switch cfg.dmPolicy.Normalize() {

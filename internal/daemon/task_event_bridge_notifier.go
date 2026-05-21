@@ -8,7 +8,9 @@ import (
 	"time"
 
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	eventspkg "github.com/pedronauck/agh/internal/events"
 	"github.com/pedronauck/agh/internal/notifications"
+	presetspkg "github.com/pedronauck/agh/internal/notifications/presets"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
@@ -73,6 +75,8 @@ func (f *taskEventObserverFanout) OnTaskEvent(ctx context.Context, record taskpk
 
 type bridgeTerminalTaskNotificationObserver struct {
 	notifier *bridgepkg.TerminalTaskNotifier
+	presets  notificationPresetDispatcher
+	tasks    bridgepkg.TerminalTaskEventReader
 	logger   *slog.Logger
 	timeout  time.Duration
 	ctx      context.Context
@@ -84,13 +88,19 @@ type bridgeTerminalTaskNotificationObserver struct {
 	queue    chan bridgeTerminalTaskNotificationWake
 }
 
+type notificationPresetDispatcher interface {
+	Dispatch(ctx context.Context, event presetspkg.Event) (presetspkg.DispatchResult, error)
+}
+
 var _ taskpkg.EventObserver = (*bridgeTerminalTaskNotificationObserver)(nil)
 
 type bridgeTerminalTaskNotificationWake struct {
-	taskID    string
-	eventID   string
-	runID     string
-	eventType string
+	taskID     string
+	pendingKey string
+	eventID    string
+	runID      string
+	eventType  string
+	record     taskpkg.EventRecord
 }
 
 func (d *Daemon) composeTaskEventObserver(
@@ -107,11 +117,16 @@ func (d *Daemon) composeTaskEventObserver(
 		state.bridges,
 		state.bridges,
 		state.bridges,
+		state.notificationPresets,
 		state.logger,
 		d.now,
 		state.cfg.Task.Orchestration.BridgeNotificationTimeout,
 	)
-	return newTaskEventObserverFanout(state.logger, reentry, bridgeEventObserver), bridgeEventObserver
+	return newTaskEventObserverFanout(
+		state.logger,
+		reentry,
+		bridgeEventObserver,
+	), bridgeEventObserver
 }
 
 func newBridgeTerminalTaskNotificationObserver(
@@ -120,11 +135,12 @@ func newBridgeTerminalTaskNotificationObserver(
 	instances bridgepkg.BridgeInstanceReader,
 	cursors notifications.CursorStore,
 	transport bridgepkg.DeliveryTransport,
+	presets notificationPresetDispatcher,
 	logger *slog.Logger,
 	now func() time.Time,
 	timeout time.Duration,
 ) *bridgeTerminalTaskNotificationObserver {
-	if subscriptions == nil || taskEvents == nil || instances == nil || cursors == nil || transport == nil {
+	if taskEvents == nil || cursors == nil || transport == nil {
 		return nil
 	}
 	if timeout <= 0 {
@@ -132,20 +148,33 @@ func newBridgeTerminalTaskNotificationObserver(
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	observer := &bridgeTerminalTaskNotificationObserver{
-		notifier: bridgepkg.NewTerminalTaskNotifier(bridgepkg.TerminalTaskNotifierConfig{
+		logger:  logger,
+		timeout: timeout,
+		tasks:   taskEvents,
+		ctx:     ctx,
+		cancel:  cancel,
+		pending: make(map[string]struct{}),
+		queue: make(
+			chan bridgeTerminalTaskNotificationWake,
+			defaultBridgeTerminalNotificationQueueSize,
+		),
+	}
+	if subscriptions != nil && instances != nil {
+		observer.notifier = bridgepkg.NewTerminalTaskNotifier(bridgepkg.TerminalTaskNotifierConfig{
 			Subscriptions: subscriptions,
 			TaskEvents:    taskEvents,
 			Instances:     instances,
 			Cursors:       cursors,
 			Transport:     transport,
 			Now:           now,
-		}),
-		logger:  logger,
-		timeout: timeout,
-		ctx:     ctx,
-		cancel:  cancel,
-		pending: make(map[string]struct{}),
-		queue:   make(chan bridgeTerminalTaskNotificationWake, defaultBridgeTerminalNotificationQueueSize),
+		})
+	}
+	if presets != nil {
+		observer.presets = presets
+	}
+	if observer.notifier == nil && observer.presets == nil {
+		cancel()
+		return nil
 	}
 	observer.start()
 	return observer
@@ -155,7 +184,17 @@ func (o *bridgeTerminalTaskNotificationObserver) OnTaskEvent(
 	_ context.Context,
 	record taskpkg.EventRecord,
 ) {
-	if o == nil || o.notifier == nil || !isBridgeTerminalNotificationWake(record.Event.EventType) {
+	if o == nil || strings.TrimSpace(record.Event.TaskID) == "" {
+		return
+	}
+	if o.notifier == nil && o.presets == nil {
+		return
+	}
+	if o.notifier != nil && isBridgeTerminalNotificationWake(record.Event.EventType) {
+		o.enqueue(record)
+		return
+	}
+	if o.presets == nil {
 		return
 	}
 	o.enqueue(record)
@@ -196,16 +235,27 @@ func (o *bridgeTerminalTaskNotificationObserver) enqueue(record taskpkg.EventRec
 		eventID:   strings.TrimSpace(record.Event.ID),
 		runID:     strings.TrimSpace(record.Event.RunID),
 		eventType: strings.TrimSpace(record.Event.EventType),
+		record:    record,
 	}
 	if wake.taskID == "" {
 		return
 	}
+	wake.pendingKey = wake.taskID
+	if o.presets != nil {
+		wake.pendingKey = wake.eventID
+		if wake.pendingKey == "" {
+			wake.pendingKey = strings.Join([]string{wake.taskID, wake.runID, wake.eventType}, ":")
+		}
+	}
+	if wake.pendingKey == "" {
+		return
+	}
 	o.mu.Lock()
-	if _, exists := o.pending[wake.taskID]; exists {
+	if _, exists := o.pending[wake.pendingKey]; exists {
 		o.mu.Unlock()
 		return
 	}
-	o.pending[wake.taskID] = struct{}{}
+	o.pending[wake.pendingKey] = struct{}{}
 	o.backlog = append(o.backlog, wake)
 	o.mu.Unlock()
 	o.drainQueue()
@@ -233,10 +283,12 @@ func (o *bridgeTerminalTaskNotificationObserver) drainQueue() {
 	}
 }
 
-func (o *bridgeTerminalTaskNotificationObserver) processWake(wake bridgeTerminalTaskNotificationWake) {
+func (o *bridgeTerminalTaskNotificationObserver) processWake(
+	wake bridgeTerminalTaskNotificationWake,
+) {
 	defer func() {
 		o.mu.Lock()
-		delete(o.pending, wake.taskID)
+		delete(o.pending, wake.pendingKey)
 		o.mu.Unlock()
 		o.drainQueue()
 	}()
@@ -248,38 +300,154 @@ func (o *bridgeTerminalTaskNotificationObserver) processWake(wake bridgeTerminal
 	}
 	defer cancel()
 
+	if o.notifier != nil && isBridgeTerminalNotificationWake(wake.eventType) {
+		o.processTerminalWake(notifyCtx, wake)
+	}
+	if o.presets != nil {
+		o.processPresetWake(notifyCtx, wake)
+	}
+}
+
+func (o *bridgeTerminalTaskNotificationObserver) processTerminalWake(
+	ctx context.Context,
+	wake bridgeTerminalTaskNotificationWake,
+) {
 	sweep, err := o.notifier.DeliverDue(
-		notifyCtx,
+		ctx,
 		bridgepkg.BridgeTaskSubscriptionQuery{TaskID: wake.taskID},
 	)
 	if err != nil {
-		o.log().Warn(
-			"daemon: bridge terminal task notification delivery failed",
-			"error", err,
-			"event_id", wake.eventID,
-			"task_id", wake.taskID,
-			"run_id", wake.runID,
-			"event_type", wake.eventType,
-			"subscriptions", sweep.Subscriptions,
-			"delivered", sweep.Delivered,
-			"deferred", sweep.Deferred,
-			"failed", sweep.Failed,
-		)
+		o.logTerminalWakeFailure(wake, sweep, err)
 		return
 	}
-	if sweep.Delivered > 0 || sweep.Deferred > 0 || sweep.Failed > 0 {
-		o.log().Debug(
-			"daemon: bridge terminal task notification sweep complete",
-			"event_id", wake.eventID,
-			"task_id", wake.taskID,
-			"run_id", wake.runID,
-			"event_type", wake.eventType,
-			"subscriptions", sweep.Subscriptions,
-			"delivered", sweep.Delivered,
-			"deferred", sweep.Deferred,
-			"failed", sweep.Failed,
-		)
+	if sweep.Delivered > 0 || sweep.Suppressed > 0 || sweep.Deferred > 0 || sweep.Failed > 0 {
+		o.logTerminalWakeSuccess(wake, sweep)
 	}
+}
+
+func (o *bridgeTerminalTaskNotificationObserver) processPresetWake(
+	ctx context.Context,
+	wake bridgeTerminalTaskNotificationWake,
+) {
+	event := presetEventFromTaskRecord(ctx, o.tasks, wake.record, o.log())
+	result, err := o.presets.Dispatch(ctx, event)
+	if err != nil {
+		o.logPresetWakeFailure(wake, result, err)
+		return
+	}
+	if result.Delivered > 0 || result.Suppressed > 0 || result.Failed > 0 {
+		o.logPresetWakeSuccess(wake, result)
+	}
+}
+
+func (o *bridgeTerminalTaskNotificationObserver) logTerminalWakeFailure(
+	wake bridgeTerminalTaskNotificationWake,
+	sweep bridgepkg.TerminalTaskNotificationSweep,
+	err error,
+) {
+	o.log().Warn(
+		"daemon: bridge terminal task notification delivery failed",
+		"error", err,
+		"event_id", wake.eventID,
+		"task_id", wake.taskID,
+		"run_id", wake.runID,
+		"event_type", wake.eventType,
+		"subscriptions", sweep.Subscriptions,
+		"delivered", sweep.Delivered,
+		"suppressed", sweep.Suppressed,
+		"deferred", sweep.Deferred,
+		"failed", sweep.Failed,
+	)
+}
+
+func (o *bridgeTerminalTaskNotificationObserver) logTerminalWakeSuccess(
+	wake bridgeTerminalTaskNotificationWake,
+	sweep bridgepkg.TerminalTaskNotificationSweep,
+) {
+	o.log().Debug(
+		"daemon: bridge terminal task notification sweep complete",
+		"event_id", wake.eventID,
+		"task_id", wake.taskID,
+		"run_id", wake.runID,
+		"event_type", wake.eventType,
+		"subscriptions", sweep.Subscriptions,
+		"delivered", sweep.Delivered,
+		"suppressed", sweep.Suppressed,
+		"deferred", sweep.Deferred,
+		"failed", sweep.Failed,
+	)
+}
+
+func (o *bridgeTerminalTaskNotificationObserver) logPresetWakeFailure(
+	wake bridgeTerminalTaskNotificationWake,
+	result presetspkg.DispatchResult,
+	err error,
+) {
+	o.log().Warn(
+		"daemon: notification preset delivery failed",
+		"error", err,
+		"event_id", wake.eventID,
+		"task_id", wake.taskID,
+		"run_id", wake.runID,
+		"event_type", wake.eventType,
+		"matched", result.Matched,
+		"delivered", result.Delivered,
+		"suppressed", result.Suppressed,
+		"skipped", result.Skipped,
+		"failed", result.Failed,
+	)
+}
+
+func (o *bridgeTerminalTaskNotificationObserver) logPresetWakeSuccess(
+	wake bridgeTerminalTaskNotificationWake,
+	result presetspkg.DispatchResult,
+) {
+	o.log().Debug(
+		"daemon: notification preset sweep complete",
+		"event_id", wake.eventID,
+		"task_id", wake.taskID,
+		"run_id", wake.runID,
+		"event_type", wake.eventType,
+		"matched", result.Matched,
+		"delivered", result.Delivered,
+		"suppressed", result.Suppressed,
+		"skipped", result.Skipped,
+		"failed", result.Failed,
+	)
+}
+
+func presetEventFromTaskRecord(
+	ctx context.Context,
+	tasks bridgepkg.TerminalTaskEventReader,
+	record taskpkg.EventRecord,
+	logger *slog.Logger,
+) presetspkg.Event {
+	event := presetspkg.Event{
+		ID:        strings.TrimSpace(record.Event.ID),
+		Type:      strings.TrimSpace(record.Event.EventType),
+		AgentName: strings.TrimSpace(record.Event.Actor.Ref),
+		TaskID:    strings.TrimSpace(record.Event.TaskID),
+		RunID:     strings.TrimSpace(record.Event.RunID),
+		Outcome:   eventspkg.OutcomeFor(record.Event.EventType),
+		Sequence:  record.Sequence,
+		Payload:   append([]byte(nil), record.Event.Payload...),
+		Timestamp: record.Event.Timestamp,
+	}
+	if tasks != nil && event.TaskID != "" {
+		taskRecord, err := tasks.GetTask(ctx, event.TaskID)
+		if err == nil {
+			event.WorkspaceID = strings.TrimSpace(taskRecord.WorkspaceID)
+			event.Summary = strings.TrimSpace(taskRecord.Title)
+		} else if logger != nil {
+			logger.Debug(
+				"daemon: notification preset could not enrich task event",
+				"task_id", event.TaskID,
+				"event_id", event.ID,
+				"error", err,
+			)
+		}
+	}
+	return event
 }
 
 func (o *bridgeTerminalTaskNotificationObserver) log() *slog.Logger {

@@ -167,6 +167,7 @@ export function buildBridgeCreateRequest(
       dm_policy: parseBridgeDmPolicy(draft.dmPolicy),
       enabled: true,
       extension_name: provider.extension_name,
+      notification_suppress: false,
       platform: provider.platform,
       provider_config: providerConfigResult.value,
       routing_policy: draft.routingPolicy,

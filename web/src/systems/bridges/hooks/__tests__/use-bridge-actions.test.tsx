@@ -68,6 +68,7 @@ describe("useCreateBridge", () => {
         enabled: true,
         extension_name: "ext-telegram",
         id: "brg_support",
+        notification_suppress: false,
         platform: "telegram",
         routing_policy: { include_group: true, include_peer: true, include_thread: true },
         scope: "workspace",
@@ -97,6 +98,7 @@ describe("useCreateBridge", () => {
         display_name: "Support",
         enabled: true,
         extension_name: "ext-telegram",
+        notification_suppress: false,
         platform: "telegram",
         provider_config: {
           mode: "bot",
@@ -116,6 +118,7 @@ describe("useCreateBridge", () => {
       display_name: "Support",
       enabled: true,
       extension_name: "ext-telegram",
+      notification_suppress: false,
       platform: "telegram",
       provider_config: {
         mode: "bot",
@@ -205,6 +208,7 @@ describe("bridge mutations", () => {
         enabled: true,
         extension_name: "ext-telegram",
         id: "brg_support",
+        notification_suppress: false,
         platform: "telegram",
         routing_policy: { include_group: true, include_peer: true, include_thread: true },
         scope: "workspace",

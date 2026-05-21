@@ -58,6 +58,7 @@ type TerminalTaskNotifierConfig struct {
 type TerminalTaskNotificationSweep struct {
 	Subscriptions int `json:"subscriptions"`
 	Delivered     int `json:"delivered"`
+	Suppressed    int `json:"suppressed"`
 	Deferred      int `json:"deferred"`
 	Failed        int `json:"failed"`
 }
@@ -116,6 +117,8 @@ func (n *TerminalTaskNotifier) DeliverDue(
 		switch outcome {
 		case terminalTaskNotificationDelivered:
 			sweep.Delivered++
+		case terminalTaskNotificationSuppressed:
+			sweep.Suppressed++
 		case terminalTaskNotificationDeferred:
 			sweep.Deferred++
 		case terminalTaskNotificationFailed:
@@ -131,10 +134,11 @@ func (n *TerminalTaskNotifier) DeliverDue(
 type terminalTaskNotificationOutcome string
 
 const (
-	terminalTaskNotificationNoop      terminalTaskNotificationOutcome = ""
-	terminalTaskNotificationDelivered terminalTaskNotificationOutcome = "delivered"
-	terminalTaskNotificationDeferred  terminalTaskNotificationOutcome = "deferred"
-	terminalTaskNotificationFailed    terminalTaskNotificationOutcome = "failed"
+	terminalTaskNotificationNoop       terminalTaskNotificationOutcome = ""
+	terminalTaskNotificationDelivered  terminalTaskNotificationOutcome = "delivered"
+	terminalTaskNotificationSuppressed terminalTaskNotificationOutcome = "suppressed"
+	terminalTaskNotificationDeferred   terminalTaskNotificationOutcome = "deferred"
+	terminalTaskNotificationFailed     terminalTaskNotificationOutcome = "failed"
 )
 
 type terminalTaskNotificationDecision string
@@ -142,6 +146,7 @@ type terminalTaskNotificationDecision string
 const (
 	terminalTaskNotificationDecisionIgnore   terminalTaskNotificationDecision = ""
 	terminalTaskNotificationDecisionDeliver  terminalTaskNotificationDecision = "deliver"
+	terminalTaskNotificationDecisionSuppress terminalTaskNotificationDecision = "suppress"
 	terminalTaskNotificationDecisionDefer    terminalTaskNotificationDecision = "defer"
 	terminalTaskNotificationDecisionMismatch terminalTaskNotificationDecision = "mismatch"
 )
@@ -214,6 +219,8 @@ func (n *TerminalTaskNotifier) deliverSubscription(
 		switch outcome {
 		case terminalTaskNotificationDecisionDeliver:
 			return terminalTaskNotificationDelivered, nil
+		case terminalTaskNotificationDecisionSuppress:
+			return terminalTaskNotificationSuppressed, nil
 		case terminalTaskNotificationDecisionMismatch:
 			safeSequence = updatedSequence
 			mismatchErr = errors.Join(mismatchErr, delivered)
@@ -285,6 +292,24 @@ func (n *TerminalTaskNotifier) processTaskNotificationRecord(
 	}
 
 	if err := n.deliverNotification(ctx, subscription, resolution.notification); err != nil {
+		if errors.Is(err, ErrBridgeNotificationSuppressed) {
+			if _, advanceErr := n.advanceTaskNotificationCursor(
+				ctx,
+				cursorKey,
+				record.Sequence,
+				resolution.notification.DeliveryID,
+			); advanceErr != nil {
+				return processTaskNotificationResult{}, fmt.Errorf(
+					"bridges: advance suppressed task notification cursor for subscription %q: %w",
+					subscription.SubscriptionID,
+					advanceErr,
+				)
+			}
+			return processTaskNotificationResult{
+				decision: terminalTaskNotificationDecisionSuppress,
+				sequence: record.Sequence,
+			}, nil
+		}
 		if recordErr := n.recordCursorError(ctx, cursorKey, err); recordErr != nil {
 			err = errors.Join(err, recordErr)
 		}
@@ -491,6 +516,9 @@ func (n *TerminalTaskNotifier) deliverNotification(
 			instance.Status.Normalize(),
 			instance.Enabled,
 		)
+	}
+	if instance.NotificationSuppress {
+		return fmt.Errorf("%w: bridge instance %q", ErrBridgeNotificationSuppressed, instance.ID)
 	}
 
 	metadata, err := json.Marshal(notification)

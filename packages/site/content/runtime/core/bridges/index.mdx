@@ -223,3 +223,16 @@ agh bridge resolve brg_123 "launch room" -o json
 The HTTP/UDS equivalents are `GET /api/bridges/:id/targets` and
 `POST /api/bridges/:id/resolve`. Resolve returns a structured diagnostic for ambiguous or unknown
 names instead of selecting a candidate silently.
+
+## Notification suppression
+
+Each bridge instance has a live `notification_suppress` flag. When it is true, the common bridge
+notification delivery path suppresses notification deliveries for that bridge and returns a
+deterministic suppression result to the caller. Notification presets treat suppression as a terminal
+skip and advance their cursor, so a muted bridge does not replay the same preset event forever. Task
+bridge subscriptions and direct notifiers use the same common check.
+
+Use suppression for planned bridge maintenance or noisy downstream systems. It is not a replacement
+for disabling the bridge: disabled or unhealthy bridges reject delivery as unavailable and leave
+cursors unadvanced for retry, while suppression intentionally records that the event was skipped for
+that bridge.

@@ -1130,7 +1130,7 @@ func newMemoryProviderListCommand(deps commandDeps) *cobra.Command {
 
 func newMemoryProviderEnableCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "enable <name>",
+		Use:   cliUseEnableName,
 		Short: "Enable and select one Memory v2 provider",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -1154,7 +1154,7 @@ func newMemoryProviderEnableCommand(deps commandDeps) *cobra.Command {
 
 func newMemoryProviderDisableCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "disable <name>",
+		Use:   cliUseDisableName,
 		Short: "Disable one Memory v2 provider",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {

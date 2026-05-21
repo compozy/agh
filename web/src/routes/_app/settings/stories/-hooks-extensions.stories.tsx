@@ -110,6 +110,25 @@ export const ProvenanceOpen: Story = {
 };
 
 /**
+ * Notification preset management with SQLite-backed built-ins and target fanout visible.
+ */
+export const NotificationPresets: Story = {
+  args: {},
+  parameters: appRouteParameters("/settings/hooks-extensions"),
+  render: () => <StorybookWorkspaceSetup />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const section = await canvas.findByTestId(
+      "settings-page-hooks-extensions-notification-presets-section"
+    );
+    section.scrollIntoView({ block: "center" });
+    await expect(
+      canvas.findByTestId("settings-page-hooks-extensions-notification-presets-table")
+    ).resolves.toBeDefined();
+  },
+};
+
+/**
  * Restart banner after saving policy that changes extension capabilities or declaration loading.
  */
 export const RestartBanner: Story = {

@@ -8,10 +8,15 @@ import {
   settingsExtensionsListOptions,
   settingsHooksListOptions,
   settingsMCPServersListOptions,
+  settingsNotificationPresetsOptions,
   settingsProviderDetailOptions,
   settingsProvidersListOptions,
 } from "../lib/query-options";
-import type { SettingsExtensionMarketplaceFilter, SettingsMCPServerListFilter } from "../types";
+import type {
+  SettingsExtensionMarketplaceFilter,
+  SettingsMCPServerListFilter,
+  SettingsNotificationPresetFilter,
+} from "../types";
 
 interface QueryEnabledOptions {
   enabled?: boolean;
@@ -51,4 +56,8 @@ export function useSettingsExtensionMarketplace(filter: SettingsExtensionMarketp
 
 export function useSettingsExtensionProvenance(name: string, options: QueryEnabledOptions = {}) {
   return useQuery(settingsExtensionProvenanceOptions(name, options.enabled ?? true));
+}
+
+export function useSettingsNotificationPresets(filter: SettingsNotificationPresetFilter = {}) {
+  return useQuery(settingsNotificationPresetsOptions(filter));
 }

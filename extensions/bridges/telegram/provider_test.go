@@ -105,10 +105,7 @@ func TestAllowDirectMessagePolicies(t *testing.T) {
 		From: telegramUser{ID: 42, Username: "alice"},
 	}
 
-	if !allowDirectMessage(
-		resolvedInstanceConfig{dmPolicy: bridgepkg.BridgeDMPolicyOpen},
-		message,
-	) {
+	if !allowDirectMessage(&resolvedInstanceConfig{dmPolicy: bridgepkg.BridgeDMPolicyOpen}, message) {
 		t.Fatal("allowDirectMessage(open) = false, want true")
 	}
 
@@ -117,7 +114,7 @@ func TestAllowDirectMessagePolicies(t *testing.T) {
 		allowUserIDs:   map[string]struct{}{"42": {}},
 		allowUsernames: map[string]struct{}{"bob": {}},
 	}
-	if !allowDirectMessage(allowlist, message) {
+	if !allowDirectMessage(&allowlist, message) {
 		t.Fatal("allowDirectMessage(allowlist by id) = false, want true")
 	}
 
@@ -125,14 +122,14 @@ func TestAllowDirectMessagePolicies(t *testing.T) {
 		dmPolicy:        bridgepkg.BridgeDMPolicyPairing,
 		pairedUsernames: map[string]struct{}{"alice": {}},
 	}
-	if !allowDirectMessage(pairing, message) {
+	if !allowDirectMessage(&pairing, message) {
 		t.Fatal("allowDirectMessage(pairing by username) = false, want true")
 	}
 
 	rejected := resolvedInstanceConfig{
 		dmPolicy: bridgepkg.BridgeDMPolicyAllowlist,
 	}
-	if allowDirectMessage(rejected, message) {
+	if allowDirectMessage(&rejected, message) {
 		t.Fatal("allowDirectMessage(rejected) = true, want false")
 	}
 }
@@ -141,7 +138,6 @@ func TestExecuteDeliveryPostEditDeleteAndResume(t *testing.T) {
 	t.Parallel()
 
 	api := &fakeTelegramAPI{nextMessageID: 500}
-	cfg := resolvedInstanceConfig{instanceID: "brg-1"}
 
 	startReq := testDeliveryRequest(
 		"brg-1",
@@ -153,7 +149,6 @@ func TestExecuteDeliveryPostEditDeleteAndResume(t *testing.T) {
 	startAck, state, err := executeDelivery(
 		context.Background(),
 		api,
-		cfg,
 		startReq,
 		deliveryState{},
 	)
@@ -172,7 +167,7 @@ func TestExecuteDeliveryPostEditDeleteAndResume(t *testing.T) {
 		true,
 	)
 	finalReq.Event.Content.Text = "hello world"
-	finalAck, state, err := executeDelivery(context.Background(), api, cfg, finalReq, state)
+	finalAck, state, err := executeDelivery(context.Background(), api, finalReq, state)
 	if err != nil {
 		t.Fatalf("executeDelivery(final) error = %v", err)
 	}
@@ -188,7 +183,7 @@ func TestExecuteDeliveryPostEditDeleteAndResume(t *testing.T) {
 		true,
 	)
 	finalNoOpReq.Event.Content.Text = "hello world"
-	finalNoOpAck, state, err := executeDelivery(context.Background(), api, cfg, finalNoOpReq, state)
+	finalNoOpAck, state, err := executeDelivery(context.Background(), api, finalNoOpReq, state)
 	if err != nil {
 		t.Fatalf("executeDelivery(final no-op) error = %v", err)
 	}
@@ -200,7 +195,7 @@ func TestExecuteDeliveryPostEditDeleteAndResume(t *testing.T) {
 	}
 
 	deleteReq := testDeleteRequest("brg-1", "delivery-1", 4, finalNoOpAck.RemoteMessageID)
-	deleteAck, _, err := executeDelivery(context.Background(), api, cfg, deleteReq, state)
+	deleteAck, _, err := executeDelivery(context.Background(), api, deleteReq, state)
 	if err != nil {
 		t.Fatalf("executeDelivery(delete) error = %v", err)
 	}
@@ -238,7 +233,6 @@ func TestExecuteDeliveryPostEditDeleteAndResume(t *testing.T) {
 	resumeAck, _, err := executeDelivery(
 		context.Background(),
 		resumeAPI,
-		cfg,
 		resumeReq,
 		deliveryState{},
 	)
@@ -280,7 +274,6 @@ func TestExecuteDeliveryPostEditDeleteAndResume(t *testing.T) {
 	resumeEditAck, resumeEditState, err := executeDelivery(
 		context.Background(),
 		resumeEditAPI,
-		cfg,
 		resumeEditReq,
 		deliveryState{},
 	)
@@ -861,7 +854,7 @@ func TestDetermineInitialStateRetryAndHealthHelpers(t *testing.T) {
 	badConfig := errors.New("bad config")
 	status, degradation, err := runtime.determineInitialState(
 		context.Background(),
-		resolvedInstanceConfig{
+		&resolvedInstanceConfig{
 			instanceID:  "cfg-err",
 			configError: badConfig,
 		},
@@ -879,7 +872,7 @@ func TestDetermineInitialStateRetryAndHealthHelpers(t *testing.T) {
 
 	status, degradation, err = runtime.determineInitialState(
 		context.Background(),
-		resolvedInstanceConfig{instanceID: "missing-token"},
+		&resolvedInstanceConfig{instanceID: "missing-token"},
 	)
 	if err == nil {
 		t.Fatal("determineInitialState(missing token) error = nil, want non-nil")
@@ -891,7 +884,7 @@ func TestDetermineInitialStateRetryAndHealthHelpers(t *testing.T) {
 		t.Fatalf("degradation = %#v, want auth failed", degradation)
 	}
 
-	runtime.apiFactory = func(cfg resolvedInstanceConfig) telegramAPI {
+	runtime.apiFactory = func(cfg *resolvedInstanceConfig) telegramAPI {
 		switch cfg.instanceID {
 		case "auth":
 			return fakeTelegramAPIError{err: &bridgesdk.AuthError{Err: errors.New("invalid token")}}
@@ -909,7 +902,7 @@ func TestDetermineInitialStateRetryAndHealthHelpers(t *testing.T) {
 
 	status, degradation, err = runtime.determineInitialState(
 		context.Background(),
-		resolvedInstanceConfig{
+		&resolvedInstanceConfig{
 			instanceID: "auth",
 			botToken:   "telegram-token",
 		},
@@ -926,7 +919,7 @@ func TestDetermineInitialStateRetryAndHealthHelpers(t *testing.T) {
 
 	status, degradation, err = runtime.determineInitialState(
 		context.Background(),
-		resolvedInstanceConfig{
+		&resolvedInstanceConfig{
 			instanceID: "transient",
 			botToken:   "telegram-token",
 		},
@@ -944,7 +937,7 @@ func TestDetermineInitialStateRetryAndHealthHelpers(t *testing.T) {
 
 	status, degradation, err = runtime.determineInitialState(
 		context.Background(),
-		resolvedInstanceConfig{
+		&resolvedInstanceConfig{
 			instanceID: "ready",
 			botToken:   "telegram-token",
 		},
@@ -1147,13 +1140,13 @@ func TestWebhookShortCircuitsAndBatchDispatch(t *testing.T) {
 
 	dedupCfg := resolvedInstanceConfig{
 		instanceID: "brg-1",
-		managed:    managed,
+		managed:    &managed,
 		dedup:      bridgesdk.NewDedupCache(time.Minute, 10),
 		dmPolicy:   bridgepkg.BridgeDMPolicyOpen,
 	}
 	dedupCfg.dedup.Mark("telegram:brg-1:1001")
 	recorder := httptest.NewRecorder()
-	if err := runtime.handleWebhookRequest(recorder, nil, dedupCfg, bridgesdk.WebhookRequest{
+	if err := runtime.handleWebhookRequest(recorder, nil, &dedupCfg, bridgesdk.WebhookRequest{
 		Body:       []byte(telegramWebhookPayload()),
 		ReceivedAt: time.Date(2026, 4, 15, 14, 10, 0, 0, time.UTC),
 	}); err != nil {
@@ -1164,9 +1157,9 @@ func TestWebhookShortCircuitsAndBatchDispatch(t *testing.T) {
 	}
 
 	blockedRecorder := httptest.NewRecorder()
-	if err := runtime.handleWebhookRequest(blockedRecorder, nil, resolvedInstanceConfig{
+	if err := runtime.handleWebhookRequest(blockedRecorder, nil, &resolvedInstanceConfig{
 		instanceID: "brg-1",
-		managed:    managed,
+		managed:    &managed,
 		dedup:      bridgesdk.NewDedupCache(time.Minute, 10),
 		dmPolicy:   bridgepkg.BridgeDMPolicyAllowlist,
 	}, bridgesdk.WebhookRequest{
@@ -1180,9 +1173,9 @@ func TestWebhookShortCircuitsAndBatchDispatch(t *testing.T) {
 	}
 
 	noopRecorder := httptest.NewRecorder()
-	if err := runtime.handleWebhookRequest(noopRecorder, nil, resolvedInstanceConfig{
+	if err := runtime.handleWebhookRequest(noopRecorder, nil, &resolvedInstanceConfig{
 		instanceID: "brg-1",
-		managed:    managed,
+		managed:    &managed,
 		dedup:      bridgesdk.NewDedupCache(time.Minute, 10),
 		dmPolicy:   bridgepkg.BridgeDMPolicyOpen,
 	}, bridgesdk.WebhookRequest{
@@ -1337,7 +1330,6 @@ func TestExecuteDeliveryRejectsMalformedThreadID(t *testing.T) {
 		t.Parallel()
 
 		api := &fakeTelegramAPI{nextMessageID: 500}
-		cfg := resolvedInstanceConfig{instanceID: "brg-1"}
 		request := testDeliveryRequest(
 			"brg-1",
 			"delivery-invalid-thread",
@@ -1350,7 +1342,7 @@ func TestExecuteDeliveryRejectsMalformedThreadID(t *testing.T) {
 		request.Event.RoutingKey.GroupID = "-100777"
 		request.Event.RoutingKey.ThreadID = "abc"
 
-		_, _, err := executeDelivery(context.Background(), api, cfg, request, deliveryState{})
+		_, _, err := executeDelivery(context.Background(), api, request, deliveryState{})
 		if err == nil {
 			t.Fatal("executeDelivery(invalid thread id) error = nil, want non-nil")
 		}

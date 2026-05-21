@@ -26,6 +26,20 @@ vi.mock("@/systems/settings/adapters/settings-api", () => ({
   },
 }));
 
+vi.mock("@/systems/notifications/adapters/notifications-api", () => ({
+  listNotificationPresets: vi.fn(),
+  createNotificationPreset: vi.fn(),
+  updateNotificationPreset: vi.fn(),
+  deleteNotificationPreset: vi.fn(),
+}));
+
+import {
+  createNotificationPreset,
+  deleteNotificationPreset,
+  listNotificationPresets,
+  updateNotificationPreset,
+} from "@/systems/notifications/adapters/notifications-api";
+import type { NotificationPresetEntry } from "@/systems/notifications";
 import {
   disableSettingsExtension,
   enableSettingsExtension,
@@ -125,6 +139,21 @@ const extensionEntry: SettingsExtensionEntry = {
   },
 };
 
+const notificationPreset: NotificationPresetEntry = {
+  name: "task_terminal",
+  events: ["task.run_*"],
+  targets: [{ bridge_id: "bridge_slack_ops", canonical_route: "channel:ops" }],
+  filter: "",
+  enabled: false,
+  built_in: true,
+  default_version: "1",
+  default_hash: "sha256:task-terminal",
+  user_modified: false,
+  default_update_available: false,
+  created_at: "2026-05-21T10:00:00Z",
+  updated_at: "2026-05-21T10:00:00Z",
+};
+
 function createWrapper() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -158,6 +187,11 @@ beforeEach(() => {
   vi.mocked(getSettingsExtensionProvenance).mockResolvedValue(
     extensionEntry.provenance as NonNullable<SettingsExtensionEntry["provenance"]>
   );
+  vi.mocked(listNotificationPresets).mockResolvedValue({
+    presets: [notificationPreset],
+    total: 1,
+    generated_at: "2026-05-21T10:00:00Z",
+  });
 });
 
 afterEach(() => {
@@ -403,5 +437,59 @@ describe("useSettingsHooksExtensionsPage", () => {
       expect(result.current.extensionActionError).toBe("remote denied");
     });
     expect(result.current.savePolicyError).toBeNull();
+  });
+
+  it("manages notification presets through the daemon preset API", async () => {
+    vi.mocked(createNotificationPreset).mockResolvedValue({
+      ...notificationPreset,
+      name: "custom_task",
+      built_in: false,
+    });
+    vi.mocked(updateNotificationPreset).mockResolvedValue({
+      ...notificationPreset,
+      enabled: true,
+    });
+    vi.mocked(deleteNotificationPreset).mockResolvedValue();
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsHooksExtensionsPage(), { wrapper });
+
+    await waitFor(() => expect(result.current.notificationPresets).toHaveLength(1));
+
+    await act(async () => {
+      result.current.createNotificationPreset({
+        name: "custom_task",
+        events: ["task.run_*"],
+        targets: [],
+        enabled: false,
+      });
+    });
+
+    await waitFor(() => {
+      expect(result.current.lastAction?.kind).toBe("notification-preset-created");
+    });
+    expect(createNotificationPreset).toHaveBeenCalledWith({
+      name: "custom_task",
+      events: ["task.run_*"],
+      targets: [],
+      enabled: false,
+    });
+
+    await act(async () => {
+      result.current.toggleNotificationPreset(notificationPreset, true);
+    });
+
+    await waitFor(() => {
+      expect(result.current.lastAction?.kind).toBe("notification-preset-toggled");
+    });
+    expect(updateNotificationPreset).toHaveBeenCalledWith("task_terminal", { enabled: true });
+
+    await act(async () => {
+      result.current.deleteNotificationPreset(notificationPreset);
+    });
+
+    await waitFor(() => {
+      expect(result.current.lastAction?.kind).toBe("notification-preset-deleted");
+    });
+    expect(deleteNotificationPreset).toHaveBeenCalledWith("task_terminal");
   });
 });

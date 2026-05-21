@@ -118,6 +118,61 @@ func TestTerminalTaskNotifierDeliverDue(t *testing.T) {
 		}
 	})
 
+	t.Run("Should suppress bridge notifications and advance the cursor without delivery", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		subscription := bridgeTaskSubscriptionForNotifierTest()
+		cursorStore := newMemoryCursorStore()
+		transport := &fakeDeliveryTransport{}
+		notifier := terminalTaskNotifierForTestWithInstance(
+			subscription,
+			cursorStore,
+			transport,
+			terminalTaskReaderFixture{
+				task: taskpkg.Task{
+					ID:     "task-1",
+					Status: taskpkg.TaskStatusCompleted,
+				},
+				runs: []taskpkg.Run{{
+					ID:     "run-1",
+					TaskID: "task-1",
+					Status: taskpkg.TaskRunStatusCompleted,
+				}},
+				records: []taskpkg.EventRecord{terminalTaskEventRecordForTest(
+					7,
+					"evt-7",
+					"task-1",
+					"run-1",
+					terminalTaskEventRunCompleted,
+				)},
+			},
+			BridgeInstance{NotificationSuppress: true},
+		)
+
+		sweep, err := notifier.DeliverDue(ctx, BridgeTaskSubscriptionQuery{TaskID: "task-1"})
+		if err != nil {
+			t.Fatalf("DeliverDue() error = %v", err)
+		}
+		if sweep.Suppressed != 1 || sweep.Delivered != 0 || sweep.Failed != 0 || sweep.Deferred != 0 {
+			t.Fatalf("DeliverDue() sweep = %#v, want one suppressed notification", sweep)
+		}
+		if calls := transport.snapshotCalls(); len(calls) != 0 {
+			t.Fatalf("delivery calls = %d, want 0 for suppressed notification", len(calls))
+		}
+
+		cursor, cursorErr := cursorStore.GetCursor(ctx, subscription.CursorKey())
+		if cursorErr != nil {
+			t.Fatalf("GetCursor(after suppression) error = %v", cursorErr)
+		}
+		if cursor.LastSequence != 7 || cursor.LastDeliveryID != "notif:sub-1:7" {
+			t.Fatalf("cursor = %#v, want suppressed sequence 7", cursor)
+		}
+		if cursor.LastError != "" {
+			t.Fatalf("cursor.LastError = %q, want no diagnostic after suppression", cursor.LastError)
+		}
+	})
+
 	t.Run("Should not advance cursor when bridge delivery fails", func(t *testing.T) {
 		t.Parallel()
 
@@ -676,22 +731,42 @@ func terminalTaskNotifierForTest(
 	transport DeliveryTransport,
 	fixture terminalTaskReaderFixture,
 ) *TerminalTaskNotifier {
+	return terminalTaskNotifierForTestWithInstance(
+		subscription,
+		cursorStore,
+		transport,
+		fixture,
+		BridgeInstance{},
+	)
+}
+
+func terminalTaskNotifierForTestWithInstance(
+	subscription BridgeTaskSubscription,
+	cursorStore notifications.CursorStore,
+	transport DeliveryTransport,
+	fixture terminalTaskReaderFixture,
+	override BridgeInstance,
+) *TerminalTaskNotifier {
+	instance := BridgeInstance{
+		ID:            "brg-1",
+		Scope:         ScopeGlobal,
+		Platform:      "telegram",
+		ExtensionName: "telegram-extension",
+		DisplayName:   "Telegram",
+		Source:        BridgeInstanceSourceDynamic,
+		Enabled:       true,
+		Status:        BridgeStatusReady,
+		DMPolicy:      BridgeDMPolicyOpen,
+		RoutingPolicy: RoutingPolicy{IncludePeer: true},
+		CreatedAt:     terminalTaskNotifierTestTime(),
+		UpdatedAt:     terminalTaskNotifierTestTime(),
+	}
+	if override.NotificationSuppress {
+		instance.NotificationSuppress = true
+	}
 	instances := &fakeBridgeInstanceReader{
 		instances: map[string]BridgeInstance{
-			"brg-1": {
-				ID:            "brg-1",
-				Scope:         ScopeGlobal,
-				Platform:      "telegram",
-				ExtensionName: "telegram-extension",
-				DisplayName:   "Telegram",
-				Source:        BridgeInstanceSourceDynamic,
-				Enabled:       true,
-				Status:        BridgeStatusReady,
-				DMPolicy:      BridgeDMPolicyOpen,
-				RoutingPolicy: RoutingPolicy{IncludePeer: true},
-				CreatedAt:     terminalTaskNotifierTestTime(),
-				UpdatedAt:     terminalTaskNotifierTestTime(),
-			},
+			"brg-1": instance,
 		},
 	}
 	return NewTerminalTaskNotifier(TerminalTaskNotifierConfig{

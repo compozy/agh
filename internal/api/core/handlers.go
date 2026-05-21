@@ -67,6 +67,7 @@ type BaseHandlerConfig struct {
 	Automation                   AutomationManager
 	Tasks                        TaskService
 	Bridges                      BridgeService
+	Notifications                NotificationPresetService
 	Bundles                      BundleService
 	SupportBundles               SupportBundleService
 	Settings                     SettingsService
@@ -124,6 +125,7 @@ type BaseHandlers struct {
 	Automation                   AutomationManager
 	Tasks                        TaskService
 	Bridges                      BridgeService
+	Notifications                NotificationPresetService
 	Bundles                      BundleService
 	SupportBundles               SupportBundleService
 	Settings                     SettingsService
@@ -189,6 +191,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		Automation:                   cfg.Automation,
 		Tasks:                        cfg.Tasks,
 		Bridges:                      cfg.Bridges,
+		Notifications:                cfg.Notifications,
 		Bundles:                      cfg.Bundles,
 		SupportBundles:               cfg.SupportBundles,
 		Settings:                     cfg.Settings,

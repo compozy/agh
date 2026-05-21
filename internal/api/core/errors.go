@@ -19,6 +19,7 @@ import (
 	"github.com/pedronauck/agh/internal/memory"
 	"github.com/pedronauck/agh/internal/modelcatalog"
 	"github.com/pedronauck/agh/internal/network"
+	presetspkg "github.com/pedronauck/agh/internal/notifications/presets"
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
 	settingspkg "github.com/pedronauck/agh/internal/settings"
@@ -448,6 +449,30 @@ func StatusForBridgeError(err error) int {
 		return http.StatusServiceUnavailable
 	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
 		return http.StatusNotFound
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
+// StatusForNotificationPresetError maps notification preset failures to transport statuses.
+func StatusForNotificationPresetError(err error) int {
+	switch {
+	case err == nil:
+		return http.StatusOK
+	case errors.Is(err, presetspkg.ErrInvalidPreset):
+		return http.StatusBadRequest
+	case errors.Is(err, presetspkg.ErrPresetNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, presetspkg.ErrPresetDuplicateName):
+		return http.StatusConflict
+	case errors.Is(err, presetspkg.ErrPresetBuiltIn):
+		return http.StatusConflict
+	case errors.Is(err, bridgepkg.ErrBridgeTargetAmbiguous):
+		return http.StatusUnprocessableEntity
+	case errors.Is(err, bridgepkg.ErrBridgeInstanceUnavailable),
+		errors.Is(err, bridgepkg.ErrDeliveryQueueSaturated),
+		errors.Is(err, bridgepkg.ErrDeliveryTransportUnavailable):
+		return http.StatusServiceUnavailable
 	default:
 		return http.StatusInternalServerError
 	}

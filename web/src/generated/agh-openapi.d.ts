@@ -1795,6 +1795,43 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/notifications/presets": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List notification presets */
+    get: operations["listNotificationPresets"];
+    put?: never;
+    /** Create a notification preset */
+    post: operations["createNotificationPreset"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/notifications/presets/{name}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get one notification preset */
+    get: operations["getNotificationPreset"];
+    /** Update one notification preset */
+    put: operations["updateNotificationPreset"];
+    post?: never;
+    /** Delete one custom notification preset */
+    delete: operations["deleteNotificationPreset"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/observe/tasks/dashboard": {
     parameters: {
       query?: never;
@@ -15773,6 +15810,7 @@ export interface operations {
               enabled: boolean;
               extension_name: string;
               id: string;
+              notification_suppress: boolean;
               platform: string;
               provider_config?: {
                 [key: string]: unknown;
@@ -15901,6 +15939,7 @@ export interface operations {
           dm_policy?: "open" | "allowlist" | "pairing";
           enabled: boolean;
           extension_name: string;
+          notification_suppress?: boolean;
           platform: string;
           provider_config?: {
             [key: string]: unknown;
@@ -15950,6 +15989,7 @@ export interface operations {
               enabled: boolean;
               extension_name: string;
               id: string;
+              notification_suppress: boolean;
               platform: string;
               provider_config?: {
                 [key: string]: unknown;
@@ -16274,6 +16314,7 @@ export interface operations {
               enabled: boolean;
               extension_name: string;
               id: string;
+              notification_suppress: boolean;
               platform: string;
               provider_config?: {
                 [key: string]: unknown;
@@ -16467,6 +16508,7 @@ export interface operations {
           display_name?: string | null;
           /** @enum {string} */
           dm_policy?: "open" | "allowlist" | "pairing";
+          notification_suppress?: boolean | null;
           provider_config?: {
             [key: string]: unknown;
           } | null;
@@ -16512,6 +16554,7 @@ export interface operations {
               enabled: boolean;
               extension_name: string;
               id: string;
+              notification_suppress: boolean;
               platform: string;
               provider_config?: {
                 [key: string]: unknown;
@@ -16740,6 +16783,7 @@ export interface operations {
               enabled: boolean;
               extension_name: string;
               id: string;
+              notification_suppress: boolean;
               platform: string;
               provider_config?: {
                 [key: string]: unknown;
@@ -16968,6 +17012,7 @@ export interface operations {
               enabled: boolean;
               extension_name: string;
               id: string;
+              notification_suppress: boolean;
               platform: string;
               provider_config?: {
                 [key: string]: unknown;
@@ -17460,6 +17505,7 @@ export interface operations {
               enabled: boolean;
               extension_name: string;
               id: string;
+              notification_suppress: boolean;
               platform: string;
               provider_config?: {
                 [key: string]: unknown;
@@ -27027,6 +27073,751 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listNotificationPresets: {
+    parameters: {
+      query?: {
+        /** @description Filter by enabled state */
+        enabled?: boolean;
+        /** @description Filter by built-in state */
+        built_in?: boolean;
+        /** @description Filter by exact preset name */
+        name?: string;
+        /** @description Maximum number of presets to return */
+        limit?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: date-time */
+            generated_at: string;
+            presets: {
+              built_in: boolean;
+              /** Format: date-time */
+              created_at: string;
+              default_hash?: string;
+              default_update_available: boolean;
+              default_version?: string;
+              enabled: boolean;
+              events: string[];
+              filter?: string;
+              name: string;
+              targets: {
+                bridge_id: string;
+                canonical_route?: string;
+                delivery_mode?: string;
+                display_name?: string;
+              }[];
+              /** Format: date-time */
+              updated_at: string;
+              user_modified: boolean;
+            }[];
+            total: number;
+          };
+        };
+      };
+      /** @description Invalid notification preset filter */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Notification preset service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  createNotificationPreset: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          enabled: boolean;
+          events: string[];
+          filter?: string;
+          name: string;
+          targets: {
+            bridge_id: string;
+            canonical_route?: string;
+            delivery_mode?: string;
+            display_name?: string;
+          }[];
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            preset: {
+              built_in: boolean;
+              /** Format: date-time */
+              created_at: string;
+              default_hash?: string;
+              default_update_available: boolean;
+              default_version?: string;
+              enabled: boolean;
+              events: string[];
+              filter?: string;
+              name: string;
+              targets: {
+                bridge_id: string;
+                canonical_route?: string;
+                delivery_mode?: string;
+                display_name?: string;
+              }[];
+              /** Format: date-time */
+              updated_at: string;
+              user_modified: boolean;
+            };
+          };
+        };
+      };
+      /** @description Invalid notification preset */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Notification preset already exists */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Notification preset service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getNotificationPreset: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Notification preset name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            preset: {
+              built_in: boolean;
+              /** Format: date-time */
+              created_at: string;
+              default_hash?: string;
+              default_update_available: boolean;
+              default_version?: string;
+              enabled: boolean;
+              events: string[];
+              filter?: string;
+              name: string;
+              targets: {
+                bridge_id: string;
+                canonical_route?: string;
+                delivery_mode?: string;
+                display_name?: string;
+              }[];
+              /** Format: date-time */
+              updated_at: string;
+              user_modified: boolean;
+            };
+          };
+        };
+      };
+      /** @description Notification preset not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Notification preset service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  updateNotificationPreset: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Notification preset name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          enabled?: boolean | null;
+          events?: string[] | null;
+          filter?: string | null;
+          targets?:
+            | {
+                bridge_id: string;
+                canonical_route?: string;
+                delivery_mode?: string;
+                display_name?: string;
+              }[]
+            | null;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            preset: {
+              built_in: boolean;
+              /** Format: date-time */
+              created_at: string;
+              default_hash?: string;
+              default_update_available: boolean;
+              default_version?: string;
+              enabled: boolean;
+              events: string[];
+              filter?: string;
+              name: string;
+              targets: {
+                bridge_id: string;
+                canonical_route?: string;
+                delivery_mode?: string;
+                display_name?: string;
+              }[];
+              /** Format: date-time */
+              updated_at: string;
+              user_modified: boolean;
+            };
+          };
+        };
+      };
+      /** @description Invalid notification preset update */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Notification preset not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Bridge target lookup is ambiguous */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Notification preset service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  deleteNotificationPreset: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Notification preset name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description No Content */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Notification preset not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Built-in notification preset cannot be deleted */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Notification preset service is not configured */
+      503: {
         headers: {
           [name: string]: unknown;
         };

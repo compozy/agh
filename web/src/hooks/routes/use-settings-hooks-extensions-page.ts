@@ -24,6 +24,14 @@ import {
   type SettingsMutationResult,
   type SettingsUpdateHooksExtensionsRequest,
 } from "@/systems/settings";
+import {
+  useCreateNotificationPreset,
+  useDeleteNotificationPreset,
+  useNotificationPresets,
+  useUpdateNotificationPreset,
+  type CreateNotificationPresetRequest as SettingsCreateNotificationPresetRequest,
+  type NotificationPresetEntry as SettingsNotificationPresetEntry,
+} from "@/systems/notifications";
 
 type PolicyConfig = SettingsHooksExtensionsSection["config"];
 
@@ -48,6 +56,19 @@ export type ExtensionLastAction =
     }
   | {
       kind: "extension-removed";
+      name: string;
+    }
+  | {
+      kind: "notification-preset-created";
+      name: string;
+    }
+  | {
+      kind: "notification-preset-toggled";
+      name: string;
+      enabled: boolean;
+    }
+  | {
+      kind: "notification-preset-deleted";
       name: string;
     };
 
@@ -113,6 +134,10 @@ export function useSettingsHooksExtensionsPage() {
   const installMutation = useInstallSettingsExtension();
   const updateExtensionMutation = useUpdateSettingsExtension();
   const removeExtensionMutation = useRemoveSettingsExtension();
+  const notificationPresetsQuery = useNotificationPresets();
+  const createNotificationPresetMutation = useCreateNotificationPreset();
+  const updateNotificationPresetMutation = useUpdateNotificationPreset();
+  const deleteNotificationPresetMutation = useDeleteNotificationPreset();
   const page = useSettingsPage({ currentSlug: "hooks-extensions" });
 
   const envelope = query.data ?? null;
@@ -122,6 +147,9 @@ export function useSettingsHooksExtensionsPage() {
   const [pendingHookName, setPendingHookName] = useState<string | null>(null);
   const [pendingExtensionName, setPendingExtensionName] = useState<string | null>(null);
   const [pendingMarketplaceSlug, setPendingMarketplaceSlug] = useState<string | null>(null);
+  const [pendingNotificationPresetName, setPendingNotificationPresetName] = useState<string | null>(
+    null
+  );
   const [marketplaceSearch, setMarketplaceSearch] = useState("");
   const [marketplaceAllowUnverified, setMarketplaceAllowUnverified] = useState(false);
   const [selectedProvenanceName, setSelectedProvenanceName] = useState<string | null>(null);
@@ -164,6 +192,10 @@ export function useSettingsHooksExtensionsPage() {
   const provenanceQuery = useSettingsExtensionProvenance(selectedProvenanceName ?? "", {
     enabled: Boolean(selectedProvenanceName),
   });
+  const notificationPresets = useMemo<SettingsNotificationPresetEntry[]>(
+    () => notificationPresetsQuery.data?.presets ?? [],
+    [notificationPresetsQuery.data?.presets]
+  );
 
   const transportParity: SettingsHooksExtensionsTransportParity | null =
     envelope?.transport_parity ?? null;
@@ -335,6 +367,61 @@ export function useSettingsHooksExtensionsPage() {
     [removeExtensionMutation, selectedProvenanceName]
   );
 
+  const createNotificationPreset = useCallback(
+    (body: SettingsCreateNotificationPresetRequest) => {
+      createNotificationPresetMutation.reset();
+      setPendingNotificationPresetName(body.name ?? null);
+      createNotificationPresetMutation.mutate(body, {
+        onSuccess: preset => {
+          setLastAction({ kind: "notification-preset-created", name: preset.name });
+        },
+        onSettled: () => {
+          setPendingNotificationPresetName(null);
+        },
+      });
+    },
+    [createNotificationPresetMutation]
+  );
+
+  const toggleNotificationPreset = useCallback(
+    (preset: SettingsNotificationPresetEntry, nextEnabled: boolean) => {
+      updateNotificationPresetMutation.reset();
+      setPendingNotificationPresetName(preset.name);
+      updateNotificationPresetMutation.mutate(
+        { name: preset.name, body: { enabled: nextEnabled } },
+        {
+          onSuccess: updated => {
+            setLastAction({
+              kind: "notification-preset-toggled",
+              name: updated.name,
+              enabled: updated.enabled,
+            });
+          },
+          onSettled: () => {
+            setPendingNotificationPresetName(null);
+          },
+        }
+      );
+    },
+    [updateNotificationPresetMutation]
+  );
+
+  const deleteNotificationPreset = useCallback(
+    (preset: SettingsNotificationPresetEntry) => {
+      deleteNotificationPresetMutation.reset();
+      setPendingNotificationPresetName(preset.name);
+      deleteNotificationPresetMutation.mutate(preset.name, {
+        onSuccess: () => {
+          setLastAction({ kind: "notification-preset-deleted", name: preset.name });
+        },
+        onSettled: () => {
+          setPendingNotificationPresetName(null);
+        },
+      });
+    },
+    [deleteNotificationPresetMutation]
+  );
+
   const openExtensionProvenance = useCallback((entry: SettingsExtensionEntry) => {
     setSelectedProvenanceName(entry.name);
   }, []);
@@ -362,8 +449,13 @@ export function useSettingsHooksExtensionsPage() {
   const canMutateExtensions = transportParity?.extensions_http !== false;
 
   const handleRetry = useCallback(() => {
-    void Promise.all([query.refetch(), extensionsQuery.refetch(), marketplaceQuery.refetch()]);
-  }, [extensionsQuery, marketplaceQuery, query]);
+    void Promise.all([
+      query.refetch(),
+      extensionsQuery.refetch(),
+      marketplaceQuery.refetch(),
+      notificationPresetsQuery.refetch(),
+    ]);
+  }, [extensionsQuery, marketplaceQuery, notificationPresetsQuery, query]);
 
   return {
     isLoading: query.isLoading,
@@ -409,6 +501,19 @@ export function useSettingsHooksExtensionsPage() {
     pendingMarketplaceSlug,
     searchMarketplace,
     installMarketplaceExtension,
+
+    notificationPresets,
+    notificationPresetsLoading: notificationPresetsQuery.isLoading,
+    notificationPresetsError: errorMessage(notificationPresetsQuery.error),
+    notificationPresetActionError:
+      errorMessage(createNotificationPresetMutation.error) ??
+      errorMessage(updateNotificationPresetMutation.error) ??
+      errorMessage(deleteNotificationPresetMutation.error),
+    pendingNotificationPresetName,
+    canMutateNotificationPresets: true,
+    createNotificationPreset,
+    toggleNotificationPreset,
+    deleteNotificationPreset,
 
     transportParity,
 

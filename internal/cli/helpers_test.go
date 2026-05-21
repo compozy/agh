@@ -81,6 +81,11 @@ type stubClient struct {
 	bridgeRoutesFn               func(context.Context, string) ([]BridgeRouteRecord, error)
 	bridgeTargetsFn              func(context.Context, string, string, int) (BridgeTargetsRecord, error)
 	resolveBridgeTargetFn        func(context.Context, string, string) (BridgeResolveTargetRecord, error)
+	listNotificationPresetsFn    func(context.Context, NotificationPresetQuery) (NotificationPresetListRecord, error)
+	getNotificationPresetFn      func(context.Context, string) (NotificationPresetRecord, error)
+	createNotificationPresetFn   func(context.Context, CreateNotificationPresetRequest) (NotificationPresetRecord, error)
+	updateNotificationPresetFn   func(context.Context, string, UpdateNotificationPresetRequest) (NotificationPresetRecord, error)
+	deleteNotificationPresetFn   func(context.Context, string) error
 	listBridgeSecretBindingsFn   func(context.Context, string) ([]BridgeSecretBindingRecord, error)
 	putBridgeSecretBindingFn     func(context.Context, string, string, BridgeSecretBindingRequest) (BridgeSecretBindingRecord, error)
 	deleteBridgeSecretBindingFn  func(context.Context, string, string) error
@@ -843,6 +848,51 @@ func (s *stubClient) ResolveBridgeTarget(
 		return s.resolveBridgeTargetFn(ctx, id, name)
 	}
 	return BridgeResolveTargetRecord{}, errors.New("unexpected ResolveBridgeTarget call")
+}
+
+func (s *stubClient) ListNotificationPresets(
+	ctx context.Context,
+	query NotificationPresetQuery,
+) (NotificationPresetListRecord, error) {
+	if s.listNotificationPresetsFn != nil {
+		return s.listNotificationPresetsFn(ctx, query)
+	}
+	return NotificationPresetListRecord{}, errors.New("unexpected ListNotificationPresets call")
+}
+
+func (s *stubClient) GetNotificationPreset(ctx context.Context, name string) (NotificationPresetRecord, error) {
+	if s.getNotificationPresetFn != nil {
+		return s.getNotificationPresetFn(ctx, name)
+	}
+	return NotificationPresetRecord{}, errors.New("unexpected GetNotificationPreset call")
+}
+
+func (s *stubClient) CreateNotificationPreset(
+	ctx context.Context,
+	request CreateNotificationPresetRequest,
+) (NotificationPresetRecord, error) {
+	if s.createNotificationPresetFn != nil {
+		return s.createNotificationPresetFn(ctx, request)
+	}
+	return NotificationPresetRecord{}, errors.New("unexpected CreateNotificationPreset call")
+}
+
+func (s *stubClient) UpdateNotificationPreset(
+	ctx context.Context,
+	name string,
+	request UpdateNotificationPresetRequest,
+) (NotificationPresetRecord, error) {
+	if s.updateNotificationPresetFn != nil {
+		return s.updateNotificationPresetFn(ctx, name, request)
+	}
+	return NotificationPresetRecord{}, errors.New("unexpected UpdateNotificationPreset call")
+}
+
+func (s *stubClient) DeleteNotificationPreset(ctx context.Context, name string) error {
+	if s.deleteNotificationPresetFn != nil {
+		return s.deleteNotificationPresetFn(ctx, name)
+	}
+	return errors.New("unexpected DeleteNotificationPreset call")
 }
 
 func (s *stubClient) ListBridgeSecretBindings(
