@@ -52,10 +52,13 @@ const (
 	bridgeListKey           = "list"
 	bridgeMessageKey        = "message"
 	bridgePeerIDKey         = "peer_id"
+	bridgeResolvedValue     = "resolved"
 	bridgeScopeKey          = "scope"
+	bridgeStepValue         = "Step"
 	bridgeSessionIDKey      = "session_id"
 	bridgeStatusKey         = "status"
 	bridgeThreadIDKey       = "thread_id"
+	bridgeUnresolvedValue   = "unresolved"
 	bridgeUpdateIDValue     = "update <id>"
 	bridgeUpdatedAtKey      = "updated_at"
 	bridgeWorkspaceIDKey    = "workspace_id"
@@ -77,6 +80,8 @@ func newBridgeCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newBridgeDisableCommand(deps))
 	cmd.AddCommand(newBridgeRestartCommand(deps))
 	cmd.AddCommand(newBridgeRoutesCommand(deps))
+	cmd.AddCommand(newBridgeTargetsCommand(deps))
+	cmd.AddCommand(newBridgeResolveCommand(deps))
 	cmd.AddCommand(newBridgeSecretBindingsCommand(deps))
 	cmd.AddCommand(newBridgeTestDeliveryCommand(deps))
 	return cmd
@@ -389,6 +394,52 @@ func newBridgeRoutesCommand(deps commandDeps) *cobra.Command {
 	}
 }
 
+func newBridgeTargetsCommand(deps commandDeps) *cobra.Command {
+	var query string
+	var limit int
+	cmd := &cobra.Command{
+		Use:   "targets <id>",
+		Short: "List discovered targets for one bridge instance",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if limit < 0 {
+				return errors.New("cli: --limit cannot be negative")
+			}
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			result, err := client.BridgeTargets(cmd.Context(), args[0], query, limit)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, bridgeTargetsBundle(result, deps.now))
+		},
+	}
+	cmd.Flags().StringVarP(&query, "query", "q", "", "Filter targets by display name, qualifier, or route")
+	cmd.Flags().IntVar(&limit, "limit", 0, "Maximum targets to return")
+	return cmd
+}
+
+func newBridgeResolveCommand(deps commandDeps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "resolve <id> <name>",
+		Short: "Resolve a bridge target name without sending",
+		Args:  exactTwoNonBlankArgs(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			result, err := client.ResolveBridgeTarget(cmd.Context(), args[0], args[1])
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, bridgeResolveTargetBundle(result))
+		},
+	}
+}
+
 func newBridgeSecretBindingsCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "secret-bindings",
@@ -697,6 +748,92 @@ func bridgeRoutesBundle(routes []BridgeRouteRecord, now func() time.Time) output
 			}
 		},
 	)
+}
+
+func bridgeTargetsBundle(result BridgeTargetsRecord, now func() time.Time) outputBundle {
+	return listBundle(
+		result,
+		result.Targets,
+		"Bridge Targets",
+		[]string{"ROUTE", automationNameValue, "TYPE", "QUALIFIER", "CAPABILITIES", "LAST SEEN"},
+		"bridge_targets",
+		[]string{
+			"canonical_route",
+			bridgeDisplayNameKey,
+			"target_type",
+			"qualifier",
+			"capabilities",
+			"last_seen_at",
+		},
+		func(target BridgeTargetRecord) []string {
+			return []string{
+				stringOrDash(target.CanonicalRoute),
+				stringOrDash(target.DisplayName),
+				stringOrDash(string(target.TargetType)),
+				stringOrDash(target.Qualifier),
+				stringOrDash(strings.Join(target.Capabilities, ",")),
+				stringOrDash(formatAge(now, target.LastSeenAt)),
+			}
+		},
+		func(target BridgeTargetRecord) []string {
+			return []string{
+				target.CanonicalRoute,
+				target.DisplayName,
+				string(target.TargetType),
+				target.Qualifier,
+				strings.Join(target.Capabilities, ","),
+				formatTime(target.LastSeenAt),
+			}
+		},
+	)
+}
+
+func bridgeResolveTargetBundle(result BridgeResolveTargetRecord) outputBundle {
+	return outputBundle{
+		jsonValue: result,
+		human: func() (string, error) {
+			if result.Result.Match == nil {
+				return renderHumanSection("Bridge Target", []keyValue{
+					{Label: automationStatusValue, Value: bridgeUnresolvedValue},
+					{Label: bridgeStepValue, Value: fmt.Sprintf("%d", result.Result.Step)},
+					{Label: "Ambiguous", Value: fmt.Sprintf("%t", result.Result.Ambiguous)},
+					{Label: "Candidates", Value: fmt.Sprintf("%d", len(result.Result.Candidates))},
+				}), nil
+			}
+			target := result.Result.Match
+			return renderHumanSection("Bridge Target", []keyValue{
+				{Label: automationStatusValue, Value: bridgeResolvedValue},
+				{Label: bridgeStepValue, Value: fmt.Sprintf("%d", result.Result.Step)},
+				{Label: "Route", Value: stringOrDash(target.CanonicalRoute)},
+				{Label: automationNameValue, Value: stringOrDash(target.DisplayName)},
+				{Label: "Type", Value: stringOrDash(string(target.TargetType))},
+				{Label: "Qualifier", Value: stringOrDash(target.Qualifier)},
+			}), nil
+		},
+		toon: func() (string, error) {
+			status := bridgeUnresolvedValue
+			route := ""
+			name := ""
+			if result.Result.Match != nil {
+				status = bridgeResolvedValue
+				route = result.Result.Match.CanonicalRoute
+				name = result.Result.Match.DisplayName
+			}
+			return renderToonObject("bridge_target", []string{
+				bridgeStatusKey,
+				"step",
+				"ambiguous",
+				"canonical_route",
+				bridgeDisplayNameKey,
+			}, []string{
+				status,
+				fmt.Sprintf("%d", result.Result.Step),
+				fmt.Sprintf("%t", result.Result.Ambiguous),
+				route,
+				name,
+			}), nil
+		},
+	}
 }
 
 func bridgeSecretBindingListBundle(items []BridgeSecretBindingRecord) outputBundle {

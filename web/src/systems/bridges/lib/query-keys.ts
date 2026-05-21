@@ -1,4 +1,4 @@
-import type { BridgeListFilter } from "../types";
+import type { BridgeListFilter, BridgeTargetsQuery } from "../types";
 
 function normalizeText(value?: string) {
   return value ?? "";
@@ -19,6 +19,14 @@ export const bridgeKeys = {
   detail: (id: string) => [...bridgeKeys.details(), normalizeText(id)] as const,
   routesRoot: () => [...bridgeKeys.all, "routes"] as const,
   routes: (id: string) => [...bridgeKeys.routesRoot(), normalizeText(id)] as const,
+  targetsRoot: () => [...bridgeKeys.all, "targets"] as const,
+  targets: (id: string, query: BridgeTargetsQuery = {}) =>
+    [
+      ...bridgeKeys.targetsRoot(),
+      normalizeText(id),
+      normalizeText(query.q),
+      normalizeText(query.limit),
+    ] as const,
   secretBindingsRoot: () => [...bridgeKeys.all, "secret-bindings"] as const,
   secretBindings: (id: string) => [...bridgeKeys.secretBindingsRoot(), normalizeText(id)] as const,
 };

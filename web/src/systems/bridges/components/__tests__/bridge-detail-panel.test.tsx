@@ -2,7 +2,15 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import type { BridgeHealth, BridgeProvider, BridgeRoute, BridgeSummary } from "@/systems/bridges";
+import type {
+  BridgeHealth,
+  BridgeProvider,
+  BridgeResolveTargetResponse,
+  BridgeRoute,
+  BridgeSummary,
+  BridgeTarget,
+  BridgeTargetsResponse,
+} from "@/systems/bridges";
 import { BridgeDetailPanel } from "@/systems/bridges/components/bridge-detail-panel";
 
 function makeBridge(overrides: Partial<BridgeSummary> = {}): BridgeSummary {
@@ -87,6 +95,32 @@ function makeRoute(overrides: Partial<BridgeRoute> = {}): BridgeRoute {
     updated_at: "2026-04-13T12:15:00Z",
     workspace_id: "ws_test",
     ...overrides,
+  };
+}
+
+function makeTarget(overrides: Partial<BridgeTarget> = {}): BridgeTarget {
+  return {
+    bridge_id: "brg_support",
+    canonical_route: "telegram:channel:support",
+    capabilities: ["direct-send", "reply"],
+    display_name: "Support room",
+    last_seen_at: "2026-04-13T12:20:00Z",
+    normalized: "support room",
+    qualifier: "telegram",
+    target_type: "channel",
+    updated_at: "2026-04-13T12:20:00Z",
+    ...overrides,
+  };
+}
+
+function makeTargetsResponse(targets: BridgeTarget[] = [makeTarget()]): BridgeTargetsResponse {
+  return {
+    bridge_id: "brg_support",
+    cache_stale: false,
+    generated_at: "2026-04-13T12:20:00Z",
+    last_successful_refresh_at: "2026-04-13T12:20:00Z",
+    targets,
+    total: targets.length,
   };
 }
 
@@ -222,6 +256,104 @@ describe("BridgeDetailPanel", () => {
 
     expect(routeRow).toHaveTextContent("sess_trace_123");
     expect(within(routeRow).getByText("Session")).toHaveAttribute("data-slot", "eyebrow");
+  });
+
+  it("renders target directory rows and submits resolve requests", async () => {
+    const user = userEvent.setup();
+    const onQueryChange = vi.fn();
+    const onResolveInputChange = vi.fn();
+    const onResolveSubmit = vi.fn();
+
+    render(
+      <BridgeDetailPanel
+        bridge={makeBridge()}
+        error={null}
+        health={makeHealth()}
+        state={{ isLoading: false, isRoutesLoading: false }}
+        onOpenTestDelivery={vi.fn()}
+        routes={[]}
+        targetDirectory={{
+          error: null,
+          isLoading: false,
+          isResolving: false,
+          onQueryChange,
+          onResolveInputChange,
+          onResolveSubmit,
+          query: "",
+          resolveInput: "Support room",
+          resolveResult: null,
+          response: makeTargetsResponse(),
+        }}
+      />
+    );
+
+    expect(screen.getByTestId("bridge-target-directory")).toHaveTextContent("Support room");
+    expect(screen.getByTestId("bridge-target-telegram:channel:support")).toHaveTextContent(
+      "telegram:channel:support"
+    );
+
+    await user.type(screen.getByTestId("bridge-target-search"), "ops");
+    expect(onQueryChange).toHaveBeenCalled();
+
+    await user.click(screen.getByTestId("bridge-target-resolve-submit"));
+    expect(onResolveSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders ambiguous target resolution candidates without choosing one", () => {
+    const candidates = [
+      makeTarget({ canonical_route: "telegram:channel:support", display_name: "Support room" }),
+      makeTarget({ canonical_route: "telegram:channel:support-ops", display_name: "Support ops" }),
+    ];
+    const resolveResult: BridgeResolveTargetResponse = {
+      diagnostic: {
+        category: "bridge",
+        code: "target_ambiguous",
+        data_freshness: "live",
+        id: "bridge_target_resolve:brg_support",
+        message: 'Bridge target "support" matched 2 candidates',
+        severity: "warn",
+        title: "Bridge target is ambiguous",
+      },
+      result: {
+        ambiguous: true,
+        candidates,
+        step: 4,
+      },
+    };
+
+    render(
+      <BridgeDetailPanel
+        bridge={makeBridge()}
+        error={null}
+        health={makeHealth()}
+        state={{ isLoading: false, isRoutesLoading: false }}
+        onOpenTestDelivery={vi.fn()}
+        routes={[]}
+        targetDirectory={{
+          error: null,
+          isLoading: false,
+          isResolving: false,
+          onQueryChange: vi.fn(),
+          onResolveInputChange: vi.fn(),
+          onResolveSubmit: vi.fn(),
+          query: "",
+          resolveInput: "support",
+          resolveResult,
+          response: makeTargetsResponse(candidates),
+        }}
+      />
+    );
+
+    expect(screen.getByTestId("bridge-target-resolve-ambiguous")).toHaveTextContent(
+      "Bridge target is ambiguous"
+    );
+    expect(screen.getByTestId("bridge-target-resolve-ambiguous")).toHaveTextContent("2 candidates");
+    expect(
+      screen.getByTestId("bridge-target-resolve-candidate-telegram:channel:support")
+    ).toHaveTextContent("Support room");
+    expect(
+      screen.getByTestId("bridge-target-resolve-candidate-telegram:channel:support-ops")
+    ).toHaveTextContent("Support ops");
   });
 
   it("uses unique default route identities when rendering multiple route fixtures", () => {

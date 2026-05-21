@@ -61,6 +61,8 @@ func registerBridgeRoutes(api gin.IRouter, handlers *Handlers) {
 	bridges.POST("/:id/disable", handlers.DisableBridge)
 	bridges.POST("/:id/restart", handlers.RestartBridge)
 	bridges.GET("/:id/routes", handlers.ListBridgeRoutes)
+	bridges.GET("/:id/targets", handlers.ListBridgeTargets)
+	bridges.POST("/:id/resolve", handlers.ResolveBridgeTarget)
 	bridges.GET("/:id/secret-bindings", handlers.ListBridgeSecretBindings)
 	bridges.PUT("/:id/secret-bindings/:binding_name", handlers.PutBridgeSecretBinding)
 	bridges.DELETE("/:id/secret-bindings/:binding_name", handlers.DeleteBridgeSecretBinding)

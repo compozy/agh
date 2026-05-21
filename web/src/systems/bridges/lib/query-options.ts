@@ -5,10 +5,11 @@ import {
   listBridgeSecretBindings,
   listBridgeProviders,
   listBridgeRoutes,
+  listBridgeTargets,
   listBridges,
 } from "../adapters/bridges-api";
 import { bridgeKeys } from "./query-keys";
-import type { BridgeListFilter } from "../types";
+import type { BridgeListFilter, BridgeTargetsQuery } from "../types";
 
 const DEFAULT_STALE_TIME = 15_000;
 const DEFAULT_REFETCH_INTERVAL = 30_000;
@@ -47,6 +48,16 @@ export function bridgeRoutesOptions(id: string, enabled = true) {
   return queryOptions({
     queryKey: bridgeKeys.routes(id),
     queryFn: ({ signal }) => listBridgeRoutes(id, signal),
+    staleTime: DEFAULT_STALE_TIME,
+    refetchInterval: DEFAULT_REFETCH_INTERVAL,
+    enabled: Boolean(id) && enabled,
+  });
+}
+
+export function bridgeTargetsOptions(id: string, query: BridgeTargetsQuery = {}, enabled = true) {
+  return queryOptions({
+    queryKey: bridgeKeys.targets(id, query),
+    queryFn: ({ signal }) => listBridgeTargets(id, query, signal),
     staleTime: DEFAULT_STALE_TIME,
     refetchInterval: DEFAULT_REFETCH_INTERVAL,
     enabled: Boolean(id) && enabled,

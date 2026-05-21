@@ -10,6 +10,7 @@ import type {
   BridgeRoute,
   BridgeScope,
   BridgeStatus,
+  BridgeTarget,
 } from "@/systems/bridges/types";
 
 function normalizeText(value: unknown): string | undefined {
@@ -240,6 +241,20 @@ export function describeBridgeRouteTarget(
   }
 
   return parts.length > 0 ? parts.join(" · ") : "default target";
+}
+
+export function describeBridgeTargetQualifier(target: Pick<BridgeTarget, "qualifier">): string {
+  return normalizeText(target.qualifier) ?? "No qualifier";
+}
+
+export function describeBridgeTargetCapabilities(
+  target: Pick<BridgeTarget, "capabilities">
+): string {
+  return target.capabilities.length > 0 ? target.capabilities.join(" + ") : "No capabilities";
+}
+
+export function bridgeTargetTypeLabel(target: Pick<BridgeTarget, "target_type">): string {
+  return target.target_type.replaceAll("_", " ");
 }
 
 export function describeBridgeTestTarget(

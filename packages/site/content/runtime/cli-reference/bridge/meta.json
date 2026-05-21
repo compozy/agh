@@ -7,8 +7,10 @@
         "enable",
         "get",
         "list",
+        "resolve",
         "restart",
         "routes",
+        "targets",
         "test-delivery",
         "update",
         "secret-bindings"

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -105,6 +106,90 @@ func TestOpenGlobalDBCreatesBridgeTables(t *testing.T) {
 	if loaded.Source == "" {
 		t.Fatal("loaded.Source = empty, want default source value")
 	}
+}
+
+func TestGlobalDBBridgeTargetDirectoryRefresh(t *testing.T) {
+	t.Run("Should preserve missing target rows while advancing bridge refresh freshness", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		instance := bridges.BridgeInstance{
+			ID:            "brg-target-refresh",
+			Scope:         bridges.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "slack-extension",
+			DisplayName:   "Slack",
+			Enabled:       true,
+			Status:        bridges.BridgeStatusReady,
+			DMPolicy:      bridges.BridgeDMPolicyOpen,
+			CreatedAt:     time.Date(2026, 5, 21, 10, 0, 0, 0, time.UTC),
+			UpdatedAt:     time.Date(2026, 5, 21, 10, 0, 0, 0, time.UTC),
+		}
+		if err := globalDB.InsertBridgeInstance(ctx, instance); err != nil {
+			t.Fatalf("InsertBridgeInstance() error = %v", err)
+		}
+
+		firstRefresh := time.Date(2026, 5, 21, 11, 0, 0, 0, time.UTC)
+		firstService := bridges.NewRegistry(globalDB, bridges.WithNow(func() time.Time { return firstRefresh }))
+		if _, err := firstService.RefreshBridgeTargets(ctx, instance.ID, []bridges.BridgeTargetSnapshot{
+			{
+				CanonicalRoute: "slack:channel:C123",
+				DisplayName:    "#alerts",
+				TargetType:     bridges.BridgeTargetTypeChannel,
+				Qualifier:      "slack",
+			},
+			{
+				CanonicalRoute: "slack:channel:C999",
+				DisplayName:    "#archive",
+				TargetType:     bridges.BridgeTargetTypeChannel,
+				Qualifier:      "slack",
+			},
+		}); err != nil {
+			t.Fatalf("RefreshBridgeTargets(first) error = %v", err)
+		}
+
+		secondRefresh := firstRefresh.Add(5 * time.Minute)
+		secondService := bridges.NewRegistry(globalDB, bridges.WithNow(func() time.Time { return secondRefresh }))
+		if _, err := secondService.RefreshBridgeTargets(ctx, instance.ID, []bridges.BridgeTargetSnapshot{
+			{
+				CanonicalRoute: "slack:channel:C123",
+				DisplayName:    "#alerts",
+				TargetType:     bridges.BridgeTargetTypeChannel,
+				Qualifier:      "slack",
+			},
+		}); err != nil {
+			t.Fatalf("RefreshBridgeTargets(second) error = %v", err)
+		}
+
+		page, err := globalDB.ListBridgeTargets(ctx, bridges.BridgeTargetQuery{BridgeID: instance.ID, Limit: 10})
+		if err != nil {
+			t.Fatalf("ListBridgeTargets() error = %v", err)
+		}
+		if got, want := page.Total, 2; got != want {
+			t.Fatalf("ListBridgeTargets().Total = %d, want %d", got, want)
+		}
+		if !page.LastSuccessfulRefreshAt.Equal(secondRefresh) {
+			t.Fatalf(
+				"ListBridgeTargets().LastSuccessfulRefreshAt = %s, want %s",
+				page.LastSuccessfulRefreshAt,
+				secondRefresh,
+			)
+		}
+
+		var archive bridges.BridgeTarget
+		for _, target := range page.Items {
+			if target.CanonicalRoute == "slack:channel:C999" {
+				archive = target
+			}
+		}
+		if archive.CanonicalRoute == "" {
+			t.Fatal("ListBridgeTargets() missing stale archive target")
+		}
+		if !archive.LastSeenAt.Equal(firstRefresh) {
+			t.Fatalf("archive.LastSeenAt = %s, want %s", archive.LastSeenAt, firstRefresh)
+		}
+	})
 }
 
 func TestGlobalDBBridgeGuardClauses(t *testing.T) {
@@ -393,6 +478,104 @@ func TestGlobalDBBridgePersistenceHelpers(t *testing.T) {
 	if err := globalDB.DeleteBridgeInstance(testutil.Context(t), instance.ID); err != nil {
 		t.Fatalf("DeleteBridgeInstance() error = %v", err)
 	}
+}
+
+func TestGlobalDBBridgeTargetDirectoryShouldPreserveMissingSnapshots(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should upsert refreshed targets without deleting stale rows", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		now := time.Date(2026, 5, 21, 11, 0, 0, 0, time.UTC)
+		registry := bridges.NewRegistry(globalDB, bridges.WithNow(func() time.Time { return now }))
+		instance := bridges.BridgeInstance{
+			ID:            "brg-targets",
+			Scope:         bridges.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "ext-slack",
+			DisplayName:   "Slack Targets",
+			Enabled:       true,
+			Status:        bridges.BridgeStatusReady,
+			RoutingPolicy: bridges.RoutingPolicy{IncludePeer: true, IncludeGroup: true},
+		}
+		if err := globalDB.InsertBridgeInstance(ctx, instance); err != nil {
+			t.Fatalf("InsertBridgeInstance() error = %v", err)
+		}
+
+		generalLastSeen := now.Add(-30 * time.Minute)
+		if _, err := registry.RefreshBridgeTargets(ctx, instance.ID, []bridges.BridgeTargetSnapshot{
+			{
+				CanonicalRoute: "slack://T1/C-general",
+				DisplayName:    "General",
+				TargetType:     bridges.BridgeTargetTypeChannel,
+				Qualifier:      "northstar",
+				Capabilities:   []string{"thread", "send", "send"},
+				LastSeenAt:     generalLastSeen,
+			},
+			{
+				CanonicalRoute: "slack://T1/C-ops",
+				DisplayName:    "Ops",
+				TargetType:     bridges.BridgeTargetTypeChannel,
+				Qualifier:      "northstar",
+				Capabilities:   []string{"send"},
+			},
+		}); err != nil {
+			t.Fatalf("RefreshBridgeTargets(initial) error = %v", err)
+		}
+
+		now = now.Add(10 * time.Minute)
+		if _, err := registry.RefreshBridgeTargets(ctx, instance.ID, []bridges.BridgeTargetSnapshot{
+			{
+				CanonicalRoute: "slack://T1/C-ops",
+				DisplayName:    "Ops",
+				TargetType:     bridges.BridgeTargetTypeChannel,
+				Qualifier:      "northstar",
+				Capabilities:   []string{"send", "mention"},
+			},
+		}); err != nil {
+			t.Fatalf("RefreshBridgeTargets(refresh) error = %v", err)
+		}
+
+		page, err := globalDB.ListBridgeTargets(ctx, bridges.BridgeTargetQuery{
+			BridgeID: instance.ID,
+			Limit:    10,
+		})
+		if err != nil {
+			t.Fatalf("ListBridgeTargets() error = %v", err)
+		}
+		if got, want := page.Total, 2; got != want {
+			t.Fatalf("ListBridgeTargets().Total = %d, want %d", got, want)
+		}
+		targets := make(map[string]bridges.BridgeTarget, len(page.Items))
+		for _, target := range page.Items {
+			targets[target.CanonicalRoute] = target
+		}
+		general, ok := targets["slack://T1/C-general"]
+		if !ok {
+			t.Fatal("missing stale general target after refresh")
+		}
+		if !general.LastSeenAt.Equal(generalLastSeen) {
+			t.Fatalf("general.LastSeenAt = %s, want %s", general.LastSeenAt, generalLastSeen)
+		}
+		if got, want := general.Capabilities, []string{"send", "thread"}; !slices.Equal(got, want) {
+			t.Fatalf("general.Capabilities = %#v, want %#v", got, want)
+		}
+		ops, ok := targets["slack://T1/C-ops"]
+		if !ok {
+			t.Fatal("missing refreshed ops target")
+		}
+		if !ops.LastSeenAt.Equal(now) {
+			t.Fatalf("ops.LastSeenAt = %s, want %s", ops.LastSeenAt, now)
+		}
+		if got, want := ops.Capabilities, []string{"mention", "send"}; !slices.Equal(got, want) {
+			t.Fatalf("ops.Capabilities = %#v, want %#v", got, want)
+		}
+		if !page.LastSuccessfulRefreshAt.Equal(now) {
+			t.Fatalf("LastSuccessfulRefreshAt = %s, want %s", page.LastSuccessfulRefreshAt, now)
+		}
+	})
 }
 
 func TestGlobalDBReplaceBridgeInstancesAtomicallySwapsProjection(t *testing.T) {

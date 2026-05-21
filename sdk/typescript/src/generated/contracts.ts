@@ -970,6 +970,25 @@ export interface BridgeInstanceTargetParams {
   bridge_instance_id: string;
 }
 
+export type BridgeTargetType = string;
+
+export interface BridgeTargetSnapshot {
+  canonical_route: string;
+  display_name: string;
+  target_type: BridgeTargetType;
+  qualifier?: string;
+  capabilities?: string[];
+  last_seen_at?: ISODateTime;
+}
+
+export interface BridgeTargetSnapshotRequest {
+  bridge_instance_id: string;
+}
+
+export interface BridgeTargetSnapshotResponse {
+  targets: BridgeTargetSnapshot[];
+}
+
 export interface BridgesInstancesReportStateParams {
   bridge_instance_id: string;
   status: BridgeStatus;

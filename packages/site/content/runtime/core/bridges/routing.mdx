@@ -185,6 +185,41 @@ agh bridge test-delivery brg_123 \
 
 The HTTP endpoint for the same dry run is `POST /api/bridges/:id/test-delivery`.
 
+## Friendly target resolver
+
+The bridge target directory lets operators resolve platform targets by stable provider identity or by
+the names adapters report from the platform. Resolution is read-only; it never sends a message.
+
+Adapters report target snapshots, while the daemon owns validation, persistence, and freshness.
+Rows are keyed by canonical provider route, refresh on bridge connect and periodically while the
+adapter is connected, and remain in the directory when a later snapshot omits them so operators can
+distinguish stale cache from deletion.
+
+The resolver checks in this order:
+
+1. Exact canonical route.
+2. Exact normalized display name. Normalization lowercases text and strips leading `#` or `@`.
+3. Exact `qualifier/name`, where the qualifier is the provider-reported namespace such as a
+   workspace, guild, team, or room family.
+4. Prefix match.
+
+Ambiguous matches return `target_ambiguous` with candidate targets. Unknown names return
+`target_unknown`. AGH does not pick a winner for an ambiguous friendly name.
+
+List the current directory and resolve names from the CLI:
+
+```bash
+agh bridge targets brg_123 --query launch -o json
+agh bridge resolve brg_123 "northstar/launch room" -o json
+```
+
+The API surfaces are:
+
+| Route                           | Purpose                                                                    |
+| ------------------------------- | -------------------------------------------------------------------------- |
+| `GET /api/bridges/:id/targets`  | List daemon-owned targets, freshness, cache-stale state, and total.        |
+| `POST /api/bridges/:id/resolve` | Resolve one target name and return match, step, candidates, or diagnostic. |
+
 ## Delivery guarantees
 
 AGH preserves order per route. The delivery broker runs workers by route, projects session events

@@ -98,6 +98,7 @@ type Observer interface {
 // BridgeService is the daemon-owned bridge runtime surface exposed by API transports.
 type BridgeService interface {
 	bridgepkg.Registry
+	bridgepkg.TargetDirectory
 	bridgepkg.BridgeTaskSubscriptionStore
 	bridgepkg.TargetResolver
 	ListProviders(ctx context.Context) ([]bridgepkg.BridgeProvider, error)

@@ -418,7 +418,11 @@ func StatusForBridgeError(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, bridgepkg.ErrInvalidBridgeTaskSubscription):
 		return http.StatusBadRequest
+	case errors.Is(err, bridgepkg.ErrInvalidBridgeTarget):
+		return http.StatusBadRequest
 	case errors.Is(err, bridgepkg.ErrBridgeInstanceNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, bridgepkg.ErrBridgeTargetUnknown):
 		return http.StatusNotFound
 	case errors.Is(err, bridgepkg.ErrBridgeSecretBindingNotFound):
 		return http.StatusNotFound
@@ -428,6 +432,8 @@ func StatusForBridgeError(err error) int {
 		return http.StatusNotFound
 	case errors.Is(err, bridgepkg.ErrBridgeInstanceUnavailable):
 		return http.StatusConflict
+	case errors.Is(err, bridgepkg.ErrBridgeTargetAmbiguous):
+		return http.StatusUnprocessableEntity
 	case errors.Is(err, bridgepkg.ErrInvalidBridgeStateTransition):
 		return http.StatusConflict
 	case errors.Is(err, bridgepkg.ErrBridgeInstanceReadOnly):
@@ -437,6 +443,8 @@ func StatusForBridgeError(err error) int {
 	case errors.Is(err, bridgepkg.ErrDeliveryQueueSaturated):
 		return http.StatusServiceUnavailable
 	case errors.Is(err, bridgepkg.ErrDeliveryTransportUnavailable):
+		return http.StatusServiceUnavailable
+	case errors.Is(err, bridgepkg.ErrBridgeTargetDirectoryUnavailable):
 		return http.StatusServiceUnavailable
 	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
 		return http.StatusNotFound

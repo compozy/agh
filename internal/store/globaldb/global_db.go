@@ -1025,6 +1025,12 @@ var globalSchemaMigrations = []store.Migration{
 		Up:       migrateExtensionProvenance,
 		Checksum: "2026-05-21-add-extension-provenance",
 	},
+	{
+		Version:  35,
+		Name:     "add_bridge_target_directory",
+		Up:       migrateBridgeTargetDirectory,
+		Checksum: "2026-05-21-add-bridge-target-directory",
+	},
 }
 
 func migrateSessionInputQueue(ctx context.Context, tx *sql.Tx) error {

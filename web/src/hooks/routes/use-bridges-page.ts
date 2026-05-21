@@ -16,6 +16,7 @@ import {
   useBridgeProviders,
   useBridgeRoutes,
   useBridgeSecretBindings,
+  useBridgeTargets,
   useBridges,
   useCreateBridge,
   useDeleteBridgeSecretBinding,
@@ -23,12 +24,14 @@ import {
   useEnableBridge,
   usePutBridgeSecretBinding,
   useRestartBridge,
+  useResolveBridgeTarget,
   useTestBridgeDelivery,
   useUpdateBridge,
 } from "@/systems/bridges";
 import type {
   BridgeCreateDraft,
   BridgeListFilter,
+  BridgeResolveTargetResponse,
   BridgeScopeFilter,
   BridgeSummary,
   BridgeTestDeliveryDraft,
@@ -101,6 +104,10 @@ function useBridgesPage() {
   const [editDraft, setEditDraft] = useState<BridgeUpdateDraft>(() => createBridgeUpdateDraft());
   const [secretInputValues, setSecretInputValues] = useState<Record<string, string>>({});
   const [restartRequiredByID, setRestartRequiredByID] = useState<Record<string, true>>({});
+  const [targetSearchQuery, setTargetSearchQuery] = useState("");
+  const [targetResolveInput, setTargetResolveInput] = useState("");
+  const [targetResolveResult, setTargetResolveResult] =
+    useState<BridgeResolveTargetResponse | null>(null);
   const [testDeliveryDraft, setTestDeliveryDraft] = useState<BridgeTestDeliveryDraft>(() =>
     createBridgeTestDeliveryDraft()
   );
@@ -109,6 +116,7 @@ function useBridgesPage() {
   );
 
   const deferredSearchQuery = useDeferredValue(searchQuery);
+  const deferredTargetSearchQuery = useDeferredValue(targetSearchQuery);
 
   const bridgeListFilters = useMemo<BridgeListFilter>(() => {
     if (activeScope === "global" || (activeScope === "all" && !activeWorkspaceId)) {
@@ -130,6 +138,7 @@ function useBridgesPage() {
   const enableBridgeMutation = useEnableBridge();
   const disableBridgeMutation = useDisableBridge();
   const restartBridgeMutation = useRestartBridge();
+  const resolveBridgeTargetMutation = useResolveBridgeTarget();
   const testDeliveryMutation = useTestBridgeDelivery();
 
   const bridges = bridgesQuery.data?.bridges ?? [];
@@ -169,6 +178,11 @@ function useBridgesPage() {
   const bridgeRoutesQuery = useBridgeRoutes(effectiveSelectedBridgeId ?? "", {
     enabled: Boolean(effectiveSelectedBridgeId),
   });
+  const bridgeTargetsQuery = useBridgeTargets(
+    effectiveSelectedBridgeId ?? "",
+    { limit: "50", q: deferredTargetSearchQuery },
+    { enabled: Boolean(effectiveSelectedBridgeId) }
+  );
   const bridgeSecretBindingsQuery = useBridgeSecretBindings(effectiveSelectedBridgeId ?? "", {
     enabled: Boolean(effectiveSelectedBridgeId),
   });
@@ -490,6 +504,53 @@ function useBridgesPage() {
     }
   };
 
+  const handleSelectBridge = (bridgeID: string) => {
+    setSelectedBridgeId(bridgeID);
+    setTargetSearchQuery("");
+    setTargetResolveInput("");
+    setTargetResolveResult(null);
+  };
+
+  const handleTargetSearchChange = (query: string) => {
+    setTargetSearchQuery(query);
+  };
+
+  const handleTargetResolveInputChange = (value: string) => {
+    setTargetResolveInput(value);
+    setTargetResolveResult(null);
+  };
+
+  const handleResolveBridgeTarget = async () => {
+    if (!selectedBridge) {
+      return;
+    }
+
+    const name = targetResolveInput.trim();
+    if (name === "") {
+      toast.error("Enter a bridge target name to resolve.");
+      return;
+    }
+
+    try {
+      const result = await resolveBridgeTargetMutation.mutateAsync({
+        id: selectedBridge.id,
+        data: { name },
+      });
+      setTargetResolveResult(result);
+      if (result.result.match) {
+        toast.success(`Resolved target ${result.result.match.display_name}.`);
+        return;
+      }
+      if (result.result.ambiguous) {
+        toast.error(result.diagnostic?.message ?? "Bridge target matched multiple candidates.");
+        return;
+      }
+      toast.error(result.diagnostic?.message ?? "Bridge target was not found.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to resolve bridge target");
+    }
+  };
+
   const selectScope = (scope: BridgeScopeFilter) => {
     startTransition(() => {
       setActiveScope(scope);
@@ -501,7 +562,7 @@ function useBridgesPage() {
     bridgeHealth,
     bridges: visibleBridges,
     onSearchChange: setSearchQuery,
-    onSelectBridge: setSelectedBridgeId,
+    onSelectBridge: handleSelectBridge,
     searchQuery,
     selectedBridgeId: effectiveSelectedBridgeId,
     summary: listSummary,
@@ -521,6 +582,18 @@ function useBridgesPage() {
       isSecretBindingPending,
       isSecretBindingsLoading:
         bridgeSecretBindingsQuery.isLoading && !bridgeSecretBindingsQuery.data,
+    },
+    targetDirectory: {
+      error: bridgeTargetsQuery.error,
+      isLoading: bridgeTargetsQuery.isLoading && !bridgeTargetsQuery.data,
+      isResolving: resolveBridgeTargetMutation.isPending,
+      onQueryChange: handleTargetSearchChange,
+      onResolveInputChange: handleTargetResolveInputChange,
+      onResolveSubmit: handleResolveBridgeTarget,
+      query: targetSearchQuery,
+      resolveInput: targetResolveInput,
+      resolveResult: targetResolveResult,
+      response: bridgeTargetsQuery.data,
     },
     onDeleteSecretBinding: handleDeleteSecretBinding,
     onDisableBridge: handleDisableBridge,

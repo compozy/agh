@@ -13,6 +13,8 @@ export type {
   BridgeProviderConfig,
   BridgeProviderConfigSchemaHint,
   BridgeProviderSecretSlot,
+  BridgeResolveTargetRequest,
+  BridgeResolveTargetResponse,
   BridgeRoute,
   BridgeRoutingPolicy,
   BridgesListResponse,
@@ -20,6 +22,9 @@ export type {
   BridgeScopeFilter,
   BridgeStatus,
   BridgeSummary,
+  BridgeTarget,
+  BridgeTargetsQuery,
+  BridgeTargetsResponse,
   BridgeTestDeliveryDraft,
   BridgeUpdateDraft,
   BridgeSecretBindingsResponse,
@@ -45,9 +50,11 @@ export {
   listBridgeSecretBindings,
   listBridgeProviders,
   listBridgeRoutes,
+  listBridgeTargets,
   listBridges,
   putBridgeSecretBinding,
   restartBridge,
+  resolveBridgeTarget,
   testBridgeDelivery,
   updateBridge,
 } from "./adapters/bridges-api";
@@ -67,6 +74,7 @@ export {
   bridgeScopeTone,
   bridgeStatusLabel,
   bridgeStatusTone,
+  bridgeTargetTypeLabel,
   buildBridgeProviderKey,
   compactBridgeDeliveryDefaults,
   describeBridgeDmPolicy,
@@ -76,6 +84,8 @@ export {
   describeBridgeRoutingPolicy,
   describeBridgeSecretSlot,
   describeBridgeTestTarget,
+  describeBridgeTargetCapabilities,
+  describeBridgeTargetQualifier,
   findBridgeProviderByKey,
   formatBridgeProviderConfig,
   formatBridgeDateTime,
@@ -89,6 +99,7 @@ export {
   bridgeProvidersOptions,
   bridgeRoutesOptions,
   bridgeSecretBindingsOptions,
+  bridgeTargetsOptions,
   bridgesListOptions,
 } from "./lib/query-options";
 export {
@@ -97,6 +108,7 @@ export {
   useBridges,
   useBridgeRoutes,
   useBridgeSecretBindings,
+  useBridgeTargets,
 } from "./hooks/use-bridges";
 export {
   useCreateBridge,
@@ -105,6 +117,7 @@ export {
   useEnableBridge,
   usePutBridgeSecretBinding,
   useRestartBridge,
+  useResolveBridgeTarget,
   useTestBridgeDelivery,
   useUpdateBridge,
 } from "./hooks/use-bridge-actions";

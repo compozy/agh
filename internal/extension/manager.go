@@ -207,6 +207,7 @@ type managedExtension struct {
 }
 
 var _ bridgepkg.DeliveryTransport = (*Manager)(nil)
+var _ bridgepkg.TargetSnapshotTransport = (*Manager)(nil)
 
 // Manager orchestrates extension loading, subprocess lifecycle, and resource registration.
 type Manager struct {
@@ -779,6 +780,56 @@ func (m *Manager) DeliverBridge(
 		return bridgepkg.DeliveryAck{}, fmt.Errorf("extension: deliver bridge via %q: %w", name, err)
 	}
 	return ack, nil
+}
+
+// BridgeTargetSnapshots calls the negotiated bridge target snapshot service on
+// the named bridge-capable extension runtime.
+func (m *Manager) BridgeTargetSnapshots(
+	ctx context.Context,
+	extensionName string,
+	req bridgepkg.BridgeTargetSnapshotRequest,
+) ([]bridgepkg.BridgeTargetSnapshot, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
+	process, name, err := m.extensionServiceProcess(
+		ctx,
+		extensionName,
+		extensionprotocol.ExtensionServiceMethodBridgeTargets,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	var response bridgepkg.BridgeTargetSnapshotResponse
+	if err := process.Call(
+		ctx,
+		string(extensionprotocol.ExtensionServiceMethodBridgeTargets),
+		req,
+		&response,
+	); err != nil {
+		return nil, fmt.Errorf("extension: list bridge target snapshots via %q: %w", name, err)
+	}
+	for index, target := range response.Targets {
+		if err := target.Validate(); err != nil {
+			return nil, fmt.Errorf("extension: bridge target snapshot %d from %q: %w", index, name, err)
+		}
+	}
+	return cloneBridgeTargetSnapshots(response.Targets), nil
+}
+
+func cloneBridgeTargetSnapshots(values []bridgepkg.BridgeTargetSnapshot) []bridgepkg.BridgeTargetSnapshot {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make([]bridgepkg.BridgeTargetSnapshot, len(values))
+	for index, value := range values {
+		cloned[index] = value
+		if len(value.Capabilities) > 0 {
+			cloned[index].Capabilities = append([]string(nil), value.Capabilities...)
+		}
+	}
+	return cloned
 }
 
 // HookDeclarations returns the manifest-declared hook resources from loaded extensions.

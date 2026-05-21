@@ -15,7 +15,10 @@ import (
 	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
 
-var _ bridges.BridgeTaskSubscriptionStore = (*GlobalDB)(nil)
+var (
+	_ bridges.BridgeTaskSubscriptionStore = (*GlobalDB)(nil)
+	_ bridges.TargetDirectoryStore        = (*GlobalDB)(nil)
+)
 
 // InsertBridgeInstance creates a new persisted bridge instance row.
 func (g *GlobalDB) InsertBridgeInstance(ctx context.Context, instance bridges.BridgeInstance) error {

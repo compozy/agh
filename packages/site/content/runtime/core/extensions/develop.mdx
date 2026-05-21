@@ -212,7 +212,7 @@ Important current provide surfaces:
 | Provide surface  | AGH calls into the extension with                |
 | ---------------- | ------------------------------------------------ |
 | `memory.backend` | `memory/store`, `memory/recall`, `memory/forget` |
-| `bridge.adapter` | `bridges/deliver`                                |
+| `bridge.adapter` | `bridges/deliver`, `bridges/targets/snapshot`    |
 | `model.source`   | `models/list`                                    |
 
 `bridge.adapter` extensions must also declare bridge metadata:
@@ -225,6 +225,11 @@ provides = ["bridge.adapter"]
 platform = "slack"
 display_name = "Slack"
 ```
+
+Bridge adapters also return target snapshots through `bridges/targets/snapshot`. The daemon owns
+the target directory, freshness timestamps, persistence, and ambiguity checks; adapters only return
+provider-derived snapshots with immutable canonical routes, display names, types, qualifiers, and
+capabilities.
 
 Marketplace extensions run under a stricter policy. They are constrained to read-oriented grants:
 `logs.read`, `memory.read`, `model.read`, `observe.read`, `session.read`, `skills.read`, and

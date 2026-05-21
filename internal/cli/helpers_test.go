@@ -79,6 +79,8 @@ type stubClient struct {
 	disableBridgeFn              func(context.Context, string) (BridgeRecord, error)
 	restartBridgeFn              func(context.Context, string) (BridgeRecord, error)
 	bridgeRoutesFn               func(context.Context, string) ([]BridgeRouteRecord, error)
+	bridgeTargetsFn              func(context.Context, string, string, int) (BridgeTargetsRecord, error)
+	resolveBridgeTargetFn        func(context.Context, string, string) (BridgeResolveTargetRecord, error)
 	listBridgeSecretBindingsFn   func(context.Context, string) ([]BridgeSecretBindingRecord, error)
 	putBridgeSecretBindingFn     func(context.Context, string, string, BridgeSecretBindingRequest) (BridgeSecretBindingRecord, error)
 	deleteBridgeSecretBindingFn  func(context.Context, string, string) error
@@ -818,6 +820,29 @@ func (s *stubClient) BridgeRoutes(ctx context.Context, id string) ([]BridgeRoute
 		return s.bridgeRoutesFn(ctx, id)
 	}
 	return nil, errors.New("unexpected BridgeRoutes call")
+}
+
+func (s *stubClient) BridgeTargets(
+	ctx context.Context,
+	id string,
+	query string,
+	limit int,
+) (BridgeTargetsRecord, error) {
+	if s.bridgeTargetsFn != nil {
+		return s.bridgeTargetsFn(ctx, id, query, limit)
+	}
+	return BridgeTargetsRecord{}, errors.New("unexpected BridgeTargets call")
+}
+
+func (s *stubClient) ResolveBridgeTarget(
+	ctx context.Context,
+	id string,
+	name string,
+) (BridgeResolveTargetRecord, error) {
+	if s.resolveBridgeTargetFn != nil {
+		return s.resolveBridgeTargetFn(ctx, id, name)
+	}
+	return BridgeResolveTargetRecord{}, errors.New("unexpected ResolveBridgeTarget call")
 }
 
 func (s *stubClient) ListBridgeSecretBindings(

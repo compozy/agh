@@ -219,8 +219,11 @@ func TestManagerIntegrationBridgeAdapterNegotiatesDeliveryRuntime(t *testing.T) 
 		t.Fatal("initialize markers = empty, want negotiated bridge handshake")
 	}
 	request := markers[0].Request
-	if !slicesEqualStrings(request.Methods.ExtensionServices, []string{"bridges/deliver"}) {
-		t.Fatalf("initialize extension services = %#v, want [bridges/deliver]", request.Methods.ExtensionServices)
+	if !slicesEqualStrings(request.Methods.ExtensionServices, []string{"bridges/deliver", "bridges/targets/snapshot"}) {
+		t.Fatalf(
+			"initialize extension services = %#v, want [bridges/deliver bridges/targets/snapshot]",
+			request.Methods.ExtensionServices,
+		)
 	}
 	if request.Runtime.Bridge == nil {
 		t.Fatal("initialize runtime bridge = nil, want bound bridge launch payload")
@@ -517,9 +520,9 @@ func TestManagerIntegrationBridgeAdapterRestartPreservesNegotiatedSurface(t *tes
 		t.Fatalf("initialize markers = %d, want at least 2 launches", len(markers))
 	}
 	for index, marker := range markers[:2] {
-		if !slicesEqualStrings(marker.Request.Methods.ExtensionServices, []string{"bridges/deliver"}) {
+		if !slicesEqualStrings(marker.Request.Methods.ExtensionServices, []string{"bridges/deliver", "bridges/targets/snapshot"}) {
 			t.Fatalf(
-				"marker %d extension services = %#v, want [bridges/deliver]",
+				"marker %d extension services = %#v, want [bridges/deliver bridges/targets/snapshot]",
 				index,
 				marker.Request.Methods.ExtensionServices,
 			)

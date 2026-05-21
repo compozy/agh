@@ -11,9 +11,11 @@ import {
   listBridgeSecretBindings,
   listBridgeProviders,
   listBridgeRoutes,
+  listBridgeTargets,
   listBridges,
   putBridgeSecretBinding,
   restartBridge,
+  resolveBridgeTarget,
   testBridgeDelivery,
   updateBridge,
 } from "@/systems/bridges/adapters/bridges-api";
@@ -217,6 +219,106 @@ describe("listBridgeRoutes", () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 404 }));
 
     await expect(listBridgeRoutes("missing")).rejects.toThrow("Bridge not found: missing");
+  });
+});
+
+describe("listBridgeTargets", () => {
+  it("calls GET /api/bridges/:id/targets with filters", async () => {
+    mockJsonResponse({
+      bridge_id: "brg_support",
+      cache_stale: false,
+      generated_at: "2026-05-21T12:00:00Z",
+      last_successful_refresh_at: "2026-05-21T11:58:00Z",
+      targets: [
+        {
+          bridge_id: "brg_support",
+          canonical_route: "slack://T123/C456",
+          capabilities: ["send", "thread"],
+          display_name: "Launch Room",
+          last_seen_at: "2026-05-21T11:58:00Z",
+          normalized: "launch room",
+          qualifier: "northstar",
+          target_type: "channel",
+          updated_at: "2026-05-21T11:58:00Z",
+        },
+      ],
+      total: 1,
+    });
+
+    const result = await listBridgeTargets("brg_support", { limit: "25", q: " launch " });
+
+    expect(result.targets).toHaveLength(1);
+    expect(result.targets[0]?.canonical_route).toBe("slack://T123/C456");
+    await expectFetchRequest({ path: "/api/bridges/brg_support/targets?q=launch&limit=25" });
+  });
+});
+
+describe("resolveBridgeTarget", () => {
+  it("calls POST /api/bridges/:id/resolve and returns the match", async () => {
+    mockJsonResponse({
+      result: {
+        ambiguous: false,
+        match: {
+          bridge_id: "brg_support",
+          canonical_route: "slack://T123/C456",
+          capabilities: ["send"],
+          display_name: "Launch Room",
+          normalized: "launch room",
+          qualifier: "northstar",
+          target_type: "channel",
+          updated_at: "2026-05-21T11:58:00Z",
+        },
+        step: 2,
+      },
+    });
+
+    const payload = { name: "Launch Room" };
+    const result = await resolveBridgeTarget("brg_support", payload);
+
+    expect(result.result.match?.canonical_route).toBe("slack://T123/C456");
+    await expectFetchRequest({
+      body: payload,
+      method: "POST",
+      path: "/api/bridges/brg_support/resolve",
+    });
+  });
+
+  it("returns ambiguous diagnostics without throwing", async () => {
+    mockJsonResponse(
+      {
+        diagnostic: {
+          category: "bridge",
+          code: "target_ambiguous",
+          data_freshness: "fresh",
+          id: "diag_target_ambiguous",
+          message: "Target lookup matched multiple candidates.",
+          severity: "warning",
+          title: "Target lookup is ambiguous",
+        },
+        result: {
+          ambiguous: true,
+          candidates: [
+            {
+              bridge_id: "brg_support",
+              canonical_route: "slack://T123/C456",
+              capabilities: ["send"],
+              display_name: "Launch Room",
+              normalized: "launch room",
+              qualifier: "northstar",
+              target_type: "channel",
+              updated_at: "2026-05-21T11:58:00Z",
+            },
+          ],
+          step: 4,
+        },
+      },
+      { status: 422 }
+    );
+
+    const result = await resolveBridgeTarget("brg_support", { name: "launch" });
+
+    expect(result.result.ambiguous).toBe(true);
+    expect(result.diagnostic?.code).toBe("target_ambiguous");
   });
 });
 

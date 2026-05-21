@@ -514,6 +514,11 @@ func expectedGlobalMigrationPrefix() []expectedGlobalMigrationIdentity {
 			name:     "add_extension_provenance",
 			checksum: "2026-05-21-add-extension-provenance",
 		},
+		{
+			version:  35,
+			name:     "add_bridge_target_directory",
+			checksum: "2026-05-21-add-bridge-target-directory",
+		},
 	}
 }
 

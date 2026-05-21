@@ -30,6 +30,7 @@ type bridgeDedupStore interface {
 
 type bridgeRuntimeStore interface {
 	bridgepkg.RegistryStore
+	bridgepkg.TargetDirectoryStore
 	bridgepkg.ResourceProjectionStore
 	bridgepkg.BridgeTaskSubscriptionStore
 	bridgeDedupStore
@@ -39,6 +40,11 @@ type bridgeRuntimeStore interface {
 }
 
 var errBridgeSecretResolverRequired = errors.New("daemon: bridge secret resolver is required")
+
+const (
+	bridgeTargetRefreshInterval = 5 * time.Minute
+	bridgeTargetRefreshTimeout  = 30 * time.Second
+)
 
 // BridgeSecretResolver resolves daemon-owned bound secret material for one
 // persisted bridge secret binding.
@@ -68,6 +74,9 @@ type bridgeRuntime struct {
 	extensionLifecycleLocks map[string]*bridgeLifecycleLock
 	mu                      sync.RWMutex
 	extensions              extensionRuntime
+	targetRefreshMu         sync.Mutex
+	targetRefreshCancel     context.CancelFunc
+	targetRefreshDone       chan struct{}
 }
 
 type bridgeLifecycleLock struct {
@@ -253,6 +262,21 @@ func (r *bridgeRuntime) DeliverBridge(
 		return bridgepkg.DeliveryAck{}, bridgepkg.ErrDeliveryTransportUnavailable
 	}
 	return transport.DeliverBridge(ctx, extensionName, req)
+}
+
+func (r *bridgeRuntime) BridgeTargetSnapshots(
+	ctx context.Context,
+	extensionName string,
+	req bridgepkg.BridgeTargetSnapshotRequest,
+) ([]bridgepkg.BridgeTargetSnapshot, error) {
+	if r == nil {
+		return nil, bridgepkg.ErrBridgeTargetDirectoryUnavailable
+	}
+	transport, ok := r.extensionRuntime().(bridgepkg.TargetSnapshotTransport)
+	if !ok || transport == nil {
+		return nil, bridgepkg.ErrBridgeTargetDirectoryUnavailable
+	}
+	return transport.BridgeTargetSnapshots(ctx, extensionName, req)
 }
 
 func (r *bridgeRuntime) setResourceDefinitions(
@@ -859,10 +883,153 @@ func normalizedBridgeConfigSchema(
 }
 
 func (r *bridgeRuntime) Close() {
-	if r == nil || r.broker == nil {
+	if r == nil {
 		return
 	}
-	r.broker.Close()
+	r.stopTargetDirectoryRefresh()
+	if r.broker != nil {
+		r.broker.Close()
+	}
+}
+
+func (r *bridgeRuntime) startTargetDirectoryRefresh(ctx context.Context) {
+	if r == nil {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	r.targetRefreshMu.Lock()
+	defer r.targetRefreshMu.Unlock()
+	if r.targetRefreshCancel != nil {
+		return
+	}
+	loopCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	r.targetRefreshCancel = cancel
+	r.targetRefreshDone = done
+	go r.targetDirectoryRefreshLoop(loopCtx, done)
+}
+
+func (r *bridgeRuntime) stopTargetDirectoryRefresh() {
+	if r == nil {
+		return
+	}
+
+	r.targetRefreshMu.Lock()
+	cancel := r.targetRefreshCancel
+	done := r.targetRefreshDone
+	r.targetRefreshCancel = nil
+	r.targetRefreshDone = nil
+	r.targetRefreshMu.Unlock()
+
+	if cancel != nil {
+		cancel()
+	}
+	if done != nil {
+		<-done
+	}
+}
+
+func (r *bridgeRuntime) targetDirectoryRefreshLoop(ctx context.Context, done chan<- struct{}) {
+	defer close(done)
+	r.refreshBridgeTargetDirectoryWithTimeout(ctx)
+
+	ticker := time.NewTicker(bridgeTargetRefreshInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			r.refreshBridgeTargetDirectoryWithTimeout(ctx)
+		}
+	}
+}
+
+func (r *bridgeRuntime) refreshBridgeTargetDirectoryWithTimeout(ctx context.Context) {
+	if r == nil {
+		return
+	}
+	refreshCtx, cancel := context.WithTimeout(ctx, bridgeTargetRefreshTimeout)
+	defer cancel()
+	if err := r.refreshBridgeTargetDirectory(refreshCtx); err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return
+		}
+		logger := r.logger
+		if logger == nil {
+			logger = slog.Default()
+		}
+		logger.Warn("daemon: bridge target directory refresh failed", "error", err)
+	}
+}
+
+func (r *bridgeRuntime) refreshBridgeTargetDirectory(ctx context.Context) error {
+	if r == nil {
+		return errors.New("daemon: bridge runtime is required")
+	}
+	if ctx == nil {
+		return errors.New("daemon: bridge target refresh context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	transport, ok := r.extensionRuntime().(bridgepkg.TargetSnapshotTransport)
+	if !ok || transport == nil {
+		return bridgepkg.ErrBridgeTargetDirectoryUnavailable
+	}
+
+	instances, err := r.ListInstances(ctx)
+	if err != nil {
+		return fmt.Errorf("daemon: list bridge instances for target refresh: %w", err)
+	}
+	for _, instance := range instances {
+		if !bridgeInstanceNeedsTargetRefresh(instance) {
+			continue
+		}
+		snapshots, err := transport.BridgeTargetSnapshots(
+			ctx,
+			instance.ExtensionName,
+			bridgepkg.BridgeTargetSnapshotRequest{BridgeInstanceID: instance.ID},
+		)
+		if err != nil {
+			logger := r.logger
+			if logger == nil {
+				logger = slog.Default()
+			}
+			logger.Warn(
+				"daemon: bridge target snapshot failed",
+				"bridge_id",
+				instance.ID,
+				"extension_name",
+				instance.ExtensionName,
+				"error",
+				err,
+			)
+			continue
+		}
+		if _, err := r.RefreshBridgeTargets(ctx, instance.ID, snapshots); err != nil {
+			logger := r.logger
+			if logger == nil {
+				logger = slog.Default()
+			}
+			logger.Warn("daemon: persist bridge target snapshot failed", "bridge_id", instance.ID, "error", err)
+			continue
+		}
+	}
+	return nil
+}
+
+func bridgeInstanceNeedsTargetRefresh(instance bridgepkg.BridgeInstance) bool {
+	if strings.TrimSpace(instance.ID) == "" || strings.TrimSpace(instance.ExtensionName) == "" {
+		return false
+	}
+	if !instance.Enabled {
+		return false
+	}
+	return instance.Status.Normalize() != bridgepkg.BridgeStatusDisabled
 }
 
 func (r *bridgeRuntime) setExtensionRuntime(runtime extensionRuntime) {
@@ -870,6 +1037,7 @@ func (r *bridgeRuntime) setExtensionRuntime(runtime extensionRuntime) {
 		return
 	}
 
+	r.stopTargetDirectoryRefresh()
 	var transport bridgepkg.DeliveryTransport
 	if runtimeTransport, ok := runtime.(bridgepkg.DeliveryTransport); ok {
 		transport = runtimeTransport
@@ -881,6 +1049,9 @@ func (r *bridgeRuntime) setExtensionRuntime(runtime extensionRuntime) {
 
 	if r.broker != nil {
 		r.broker.SetTransport(transport)
+	}
+	if _, ok := runtime.(bridgepkg.TargetSnapshotTransport); ok {
+		r.startTargetDirectoryRefresh(context.Background())
 	}
 }
 

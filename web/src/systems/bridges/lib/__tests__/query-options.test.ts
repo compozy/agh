@@ -5,6 +5,7 @@ import {
   bridgeProvidersOptions,
   bridgeRoutesOptions,
   bridgeSecretBindingsOptions,
+  bridgeTargetsOptions,
   bridgesListOptions,
 } from "@/systems/bridges/lib/query-options";
 
@@ -48,6 +49,16 @@ describe("bridgeRoutesOptions", () => {
 
     expect(options.queryKey).toEqual(["bridges", "routes", "brg_support"]);
     expect(options.enabled).toBe(true);
+  });
+});
+
+describe("bridgeTargetsOptions", () => {
+  it("uses the target directory key and is gated by id", () => {
+    const options = bridgeTargetsOptions("brg_support", { limit: "50", q: "support" });
+
+    expect(options.queryKey).toEqual(["bridges", "targets", "brg_support", "support", "50"]);
+    expect(options.enabled).toBe(true);
+    expect(options.refetchInterval).toBe(30_000);
   });
 });
 

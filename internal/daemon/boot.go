@@ -1551,6 +1551,7 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 	}
 	if state.bridges != nil {
 		state.bridges.setExtensionRuntime(manager)
+		state.bridges.startTargetDirectoryRefresh(ctx)
 	}
 	state.setExtensionRuntime(manager)
 	d.attachExtensionRuntime(ctx, state, extRegistry, manager)

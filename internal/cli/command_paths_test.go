@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/pedronauck/agh/internal/api/contract"
+	bridgepkg "github.com/pedronauck/agh/internal/bridges"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	aghdaemon "github.com/pedronauck/agh/internal/daemon"
 	"github.com/pedronauck/agh/internal/procutil"
@@ -337,6 +338,44 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 				},
 			}, nil
 		},
+		bridgeTargetsFn: func(context.Context, string, string, int) (BridgeTargetsRecord, error) {
+			return BridgeTargetsRecord{
+				BridgeID: "brg-1",
+				Targets: []BridgeTargetRecord{
+					{
+						BridgeID:       "brg-1",
+						CanonicalRoute: "telegram:channel:support",
+						DisplayName:    "Support room",
+						Normalized:     "support room",
+						TargetType:     bridgepkg.BridgeTargetTypeChannel,
+						Qualifier:      "telegram",
+						Capabilities:   []string{"reply"},
+						UpdatedAt:      fixedTestNow,
+						LastSeenAt:     fixedTestNow,
+					},
+				},
+				Total:       1,
+				GeneratedAt: fixedTestNow,
+			}, nil
+		},
+		resolveBridgeTargetFn: func(context.Context, string, string) (BridgeResolveTargetRecord, error) {
+			return BridgeResolveTargetRecord{
+				Result: bridgepkg.ResolveBridgeTargetResult{
+					Step: 2,
+					Match: &bridgepkg.BridgeTarget{
+						BridgeID:       "brg-1",
+						CanonicalRoute: "telegram:channel:support",
+						DisplayName:    "Support room",
+						Normalized:     "support room",
+						TargetType:     bridgepkg.BridgeTargetTypeChannel,
+						Qualifier:      "telegram",
+						Capabilities:   []string{"reply"},
+						UpdatedAt:      fixedTestNow,
+						LastSeenAt:     fixedTestNow,
+					},
+				},
+			}, nil
+		},
 		testBridgeDeliveryFn: func(context.Context, string, BridgeTestDeliveryRequest) (BridgeTestDeliveryRecord, error) {
 			return BridgeTestDeliveryRecord{
 				Status:         "resolved",
@@ -433,6 +472,8 @@ func TestCommandPathsAndHelpers(t *testing.T) {
 		{"doctor", "-o", "json"},
 		{"bridge", "get", "brg-1", "-o", "json"},
 		{"bridge", "routes", "brg-1", "-o", "json"},
+		{"bridge", "targets", "brg-1", "-o", "json"},
+		{"bridge", "resolve", "brg-1", "support", "-o", "json"},
 		{"bridge", "test-delivery", "brg-1", "--peer-id", "peer-1", "--mode", "reply", "-o", "json"},
 		{"session", "soul", "refresh", "sess-1", "--expected-digest", "sha256:old", "-o", "json"},
 		{"session", "health", "sess-1", "-o", "json"},

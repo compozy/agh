@@ -8,10 +8,14 @@ import {
 import type {
   BridgeDetailResponse,
   BridgeListFilter,
+  BridgeResolveTargetRequest,
+  BridgeResolveTargetResponse,
   BridgeRoute,
   BridgeSecretBinding,
   BridgeProvider,
   BridgeSecretBindingsResponse,
+  BridgeTargetsQuery,
+  BridgeTargetsResponse,
   DisableBridgeResponse,
   EnableBridgeResponse,
   BridgesListResponse,
@@ -122,6 +126,72 @@ export async function listBridgeRoutes(id: string, signal?: AbortSignal): Promis
   }
 
   return requireResponseData(data, response, `Failed to load routes for bridge "${id}"`).routes;
+}
+
+function normalizeBridgeTargetsQuery(query: BridgeTargetsQuery = {}): BridgeTargetsQuery {
+  return {
+    q: normalizeOptionalText(query.q),
+    limit: normalizeOptionalText(query.limit),
+  };
+}
+
+export async function listBridgeTargets(
+  id: string,
+  query: BridgeTargetsQuery = {},
+  signal?: AbortSignal
+): Promise<BridgeTargetsResponse> {
+  const { data, error, response } = await apiClient.GET("/api/bridges/{id}/targets", {
+    params: { path: { id }, query: normalizeBridgeTargetsQuery(query) },
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new BridgesApiError(`Bridge not found: ${id}`, 404);
+    }
+
+    throw new BridgesApiError(
+      defaultApiErrorMessage(`Failed to load targets for bridge "${id}"`, response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, `Failed to load targets for bridge "${id}"`);
+}
+
+function isBridgeResolveTargetPayload(value: unknown): value is BridgeResolveTargetResponse {
+  return Boolean(value && typeof value === "object" && "result" in value);
+}
+
+export async function resolveBridgeTarget(
+  id: string,
+  body: BridgeResolveTargetRequest,
+  signal?: AbortSignal
+): Promise<BridgeResolveTargetResponse> {
+  const { data, error, response } = await apiClient.POST("/api/bridges/{id}/resolve", {
+    body,
+    params: { path: { id } },
+    signal,
+  });
+
+  if (apiRequestFailed(response, error)) {
+    if (
+      (response.status === 404 || response.status === 422) &&
+      isBridgeResolveTargetPayload(error)
+    ) {
+      return error;
+    }
+    if (response.status === 404) {
+      throw new BridgesApiError(`Bridge not found: ${id}`, 404);
+    }
+
+    throw new BridgesApiError(
+      defaultApiErrorMessage(`Failed to resolve target for bridge "${id}"`, response, error),
+      response.status
+    );
+  }
+
+  return requireResponseData(data, response, `Failed to resolve target for bridge "${id}"`);
 }
 
 export async function listBridgeSecretBindings(

@@ -140,6 +140,8 @@ type DaemonClient interface {
 	DisableBridge(ctx context.Context, id string) (BridgeRecord, error)
 	RestartBridge(ctx context.Context, id string) (BridgeRecord, error)
 	BridgeRoutes(ctx context.Context, id string) ([]BridgeRouteRecord, error)
+	BridgeTargets(ctx context.Context, id string, query string, limit int) (BridgeTargetsRecord, error)
+	ResolveBridgeTarget(ctx context.Context, id string, name string) (BridgeResolveTargetRecord, error)
 	ListBridgeSecretBindings(ctx context.Context, id string) ([]BridgeSecretBindingRecord, error)
 	PutBridgeSecretBinding(
 		ctx context.Context,
@@ -1343,6 +1345,18 @@ type BridgeRecord = bridgepkg.BridgeInstance
 // BridgeRouteRecord is one persisted bridge route returned by the daemon API.
 type BridgeRouteRecord = bridgepkg.BridgeRoute
 
+// BridgeTargetRecord is one persisted bridge target returned by the daemon API.
+type BridgeTargetRecord = bridgepkg.BridgeTarget
+
+// BridgeTargetsRecord wraps the bridge target directory response.
+type BridgeTargetsRecord = contract.BridgeTargetsResponse
+
+// BridgeResolveTargetRequest captures one bridge target resolve lookup.
+type BridgeResolveTargetRequest = contract.BridgeResolveTargetRequest
+
+// BridgeResolveTargetRecord wraps one bridge target resolver response.
+type BridgeResolveTargetRecord = contract.BridgeResolveTargetResponse
+
 // BridgeSecretBindingRequest captures one bridge secret binding write payload.
 type BridgeSecretBindingRequest = contract.PutBridgeSecretBindingRequest
 
@@ -2222,6 +2236,77 @@ func (c *unixSocketClient) BridgeRoutes(ctx context.Context, id string) ([]Bridg
 		return nil, err
 	}
 	return response.Routes, nil
+}
+
+func (c *unixSocketClient) BridgeTargets(
+	ctx context.Context,
+	id string,
+	query string,
+	limit int,
+) (BridgeTargetsRecord, error) {
+	values := url.Values{}
+	if strings.TrimSpace(query) != "" {
+		values.Set("q", strings.TrimSpace(query))
+	}
+	if limit > 0 {
+		values.Set("limit", fmt.Sprintf("%d", limit))
+	}
+	path := "/api/bridges/" + url.PathEscape(strings.TrimSpace(id)) + "/targets"
+	var response BridgeTargetsRecord
+	if err := c.doJSON(ctx, http.MethodGet, path, values, nil, &response); err != nil {
+		return BridgeTargetsRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) ResolveBridgeTarget(
+	ctx context.Context,
+	id string,
+	name string,
+) (record BridgeResolveTargetRecord, err error) {
+	path := "/api/bridges/" + url.PathEscape(strings.TrimSpace(id)) + "/resolve"
+	var response BridgeResolveTargetRecord
+	requestBody := BridgeResolveTargetRequest{Name: strings.TrimSpace(name)}
+	httpResponse, err := c.doRequest(
+		ctx,
+		http.MethodPost,
+		path,
+		nil,
+		requestBody,
+	)
+	if err != nil {
+		return BridgeResolveTargetRecord{}, err
+	}
+	defer func() {
+		if closeErr := httpResponse.Body.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("cli: close %s %s response: %w", http.MethodPost, path, closeErr))
+		}
+	}()
+	if httpResponse.StatusCode >= 200 && httpResponse.StatusCode < 300 {
+		if err := json.NewDecoder(httpResponse.Body).Decode(&response); err != nil {
+			return BridgeResolveTargetRecord{}, fmt.Errorf("cli: decode %s %s response: %w", http.MethodPost, path, err)
+		}
+		return response, nil
+	}
+	if httpResponse.StatusCode == http.StatusNotFound || httpResponse.StatusCode == http.StatusUnprocessableEntity {
+		body, readErr := io.ReadAll(io.LimitReader(httpResponse.Body, 1<<20))
+		if readErr != nil {
+			return BridgeResolveTargetRecord{}, fmt.Errorf("cli: read bridge target resolve response: %w", readErr)
+		}
+		if json.Unmarshal(body, &response) == nil && bridgeResolveTargetHasStructuredPayload(response) {
+			return response, nil
+		}
+		return BridgeResolveTargetRecord{}, readAPIErrorBody(httpResponse.StatusCode, httpResponse.Status, body)
+	}
+	return BridgeResolveTargetRecord{}, readAPIError(httpResponse)
+}
+
+func bridgeResolveTargetHasStructuredPayload(response BridgeResolveTargetRecord) bool {
+	return response.Diagnostic != nil ||
+		response.Result.Match != nil ||
+		response.Result.Ambiguous ||
+		len(response.Result.Candidates) > 0 ||
+		response.Result.Step != 0
 }
 
 func (c *unixSocketClient) ListBridgeSecretBindings(

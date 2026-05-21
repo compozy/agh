@@ -361,6 +361,93 @@ func TestBridgeRoutesRenderPeerThreadAndGroupSeparately(t *testing.T) {
 	}
 }
 
+func TestBridgeTargetsUseDaemonClientAndRenderDirectory(t *testing.T) {
+	t.Parallel()
+
+	deps := newTestDeps(t, &stubClient{
+		bridgeTargetsFn: func(_ context.Context, id string, query string, limit int) (BridgeTargetsRecord, error) {
+			if id != "brg-1" {
+				t.Fatalf("BridgeTargets() id = %q, want brg-1", id)
+			}
+			if query != "support" || limit != 25 {
+				t.Fatalf("BridgeTargets() query/limit = %q/%d, want support/25", query, limit)
+			}
+			return BridgeTargetsRecord{
+				BridgeID: "brg-1",
+				Targets: []BridgeTargetRecord{{
+					BridgeID:       "brg-1",
+					CanonicalRoute: "telegram:channel:support",
+					DisplayName:    "Support room",
+					Normalized:     "support room",
+					TargetType:     bridgepkg.BridgeTargetTypeChannel,
+					Qualifier:      "telegram",
+					Capabilities:   []string{"direct-send", "reply"},
+					UpdatedAt:      fixedTestNow,
+					LastSeenAt:     fixedTestNow,
+				}},
+				Total:       1,
+				CacheStale:  false,
+				GeneratedAt: fixedTestNow,
+			}, nil
+		},
+	})
+
+	stdout, _, err := executeRootCommand(
+		t,
+		deps,
+		"bridge", "targets", "brg-1", "--query", "support", "--limit", "25", "-o", "human",
+	)
+	if err != nil {
+		t.Fatalf("bridge targets human error = %v", err)
+	}
+
+	for _, token := range []string{"Bridge Targets", "telegram:channel:support", "Support room", "telegram", "direct-send,reply"} {
+		if !strings.Contains(stdout, token) {
+			t.Fatalf("bridge targets human output missing %q: %s", token, stdout)
+		}
+	}
+}
+
+func TestBridgeResolveUsesDaemonClientAndReportsAmbiguity(t *testing.T) {
+	t.Parallel()
+
+	deps := newTestDeps(t, &stubClient{
+		resolveBridgeTargetFn: func(_ context.Context, id string, name string) (BridgeResolveTargetRecord, error) {
+			if id != "brg-1" || name != "support" {
+				t.Fatalf("ResolveBridgeTarget() id/name = %q/%q, want brg-1/support", id, name)
+			}
+			return BridgeResolveTargetRecord{
+				Result: bridgepkg.ResolveBridgeTargetResult{
+					Step:      4,
+					Ambiguous: true,
+					Candidates: []bridgepkg.BridgeTarget{{
+						BridgeID:       "brg-1",
+						CanonicalRoute: "telegram:channel:support",
+						DisplayName:    "Support room",
+						Normalized:     "support room",
+						TargetType:     bridgepkg.BridgeTargetTypeChannel,
+						Qualifier:      "telegram",
+						Capabilities:   []string{"reply"},
+						UpdatedAt:      fixedTestNow,
+						LastSeenAt:     fixedTestNow,
+					}},
+				},
+			}, nil
+		},
+	})
+
+	stdout, _, err := executeRootCommand(t, deps, "bridge", "resolve", "brg-1", "support", "-o", "human")
+	if err != nil {
+		t.Fatalf("bridge resolve human error = %v", err)
+	}
+
+	for _, token := range []string{"Bridge Target", "unresolved", "Step", "4", "Ambiguous", "true", "Candidates", "1"} {
+		if !strings.Contains(stdout, token) {
+			t.Fatalf("bridge resolve human output missing %q: %s", token, stdout)
+		}
+	}
+}
+
 func TestBridgeTestDeliveryUsesTypedTargetPayload(t *testing.T) {
 	t.Parallel()
 

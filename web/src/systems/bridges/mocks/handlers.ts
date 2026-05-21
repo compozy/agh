@@ -3,8 +3,10 @@ import { http, HttpResponse, type HttpHandler } from "msw";
 import {
   bridgeDetailFixture,
   bridgeProvidersFixture,
+  bridgeResolveTargetFixture,
   bridgeRoutesFixture,
   bridgeSecretBindingsFixture,
+  bridgeTargetsFixture,
   bridgesListFixture,
   createBridgeFixture,
   testBridgeDeliveryFixture,
@@ -33,6 +35,93 @@ export const handlers: HttpHandler[] = [
     }
 
     return HttpResponse.json({ routes: bridgeRoutesFixture });
+  }),
+  http.get("/api/bridges/:id/targets", ({ params, request }) => {
+    const id = String(params.id);
+
+    if (id !== bridgeDetailFixture.bridge.id) {
+      return HttpResponse.json({ error: `Bridge not found: ${id}` }, { status: 404 });
+    }
+
+    const url = new URL(request.url);
+    const query = url.searchParams.get("q")?.trim().toLowerCase();
+    const targets = query
+      ? bridgeTargetsFixture.targets.filter(
+          target =>
+            target.display_name.toLowerCase().includes(query) ||
+            target.canonical_route.toLowerCase().includes(query) ||
+            target.qualifier?.toLowerCase().includes(query)
+        )
+      : bridgeTargetsFixture.targets;
+
+    return HttpResponse.json({
+      ...bridgeTargetsFixture,
+      targets,
+      total: targets.length,
+    });
+  }),
+  http.post("/api/bridges/:id/resolve", async ({ params, request }) => {
+    const id = String(params.id);
+
+    if (id !== bridgeDetailFixture.bridge.id) {
+      return HttpResponse.json({ error: `Bridge not found: ${id}` }, { status: 404 });
+    }
+
+    const body = (await request.json()) as { name?: string };
+    const query = body.name?.trim().toLowerCase() ?? "";
+    if (query === "launch" || query === "launch room") {
+      return HttpResponse.json(bridgeResolveTargetFixture);
+    }
+    if (query === "merchant") {
+      return HttpResponse.json(
+        {
+          diagnostic: {
+            category: "bridge",
+            code: "target_ambiguous",
+            data_freshness: "live",
+            evidence: {
+              candidates: 2,
+              query,
+            },
+            id: "bridge_target_resolve:brg_launch_room",
+            message: 'Bridge target "merchant" matched 2 candidates',
+            severity: "warn",
+            title: "Bridge target is ambiguous",
+          },
+          result: {
+            ambiguous: true,
+            candidates: bridgeTargetsFixture.targets,
+            step: 4,
+          },
+        },
+        { status: 422 }
+      );
+    }
+
+    return HttpResponse.json(
+      {
+        diagnostic: {
+          category: "bridge",
+          code: "target_unknown",
+          data_freshness: "live",
+          evidence: {
+            candidates: 0,
+            query,
+          },
+          id: "bridge_target_resolve:brg_launch_room",
+          message: `Bridge target "${query}" could not be resolved`,
+          severity: "warn",
+          title: "Bridge target resolution failed",
+        },
+        result: {
+          ambiguous: false,
+          candidates: [],
+          match: null,
+          step: 0,
+        },
+      },
+      { status: 404 }
+    );
   }),
   http.get("/api/bridges/:id/secret-bindings", ({ params }) => {
     const id = String(params.id);

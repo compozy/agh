@@ -14,6 +14,14 @@ import (
 var (
 	// ErrBridgeInstanceNotFound reports that no persisted bridge instance matched the lookup.
 	ErrBridgeInstanceNotFound = errors.New("bridges: bridge instance not found")
+	// ErrBridgeTargetDirectoryUnavailable reports that the daemon has no target-directory persistence surface.
+	ErrBridgeTargetDirectoryUnavailable = errors.New("bridges: bridge target directory unavailable")
+	// ErrBridgeTargetUnknown reports that no persisted bridge target matched the lookup.
+	ErrBridgeTargetUnknown = errors.New("bridges: bridge target unknown")
+	// ErrBridgeTargetAmbiguous reports that a friendly bridge target lookup matched multiple candidates.
+	ErrBridgeTargetAmbiguous = errors.New("bridges: bridge target ambiguous")
+	// ErrInvalidBridgeTarget reports malformed target-directory input.
+	ErrInvalidBridgeTarget = errors.New("bridges: invalid bridge target")
 	// ErrBridgeInstanceUnavailable reports that the instance exists but cannot currently accept routing work.
 	ErrBridgeInstanceUnavailable = errors.New("bridges: bridge instance unavailable")
 	// ErrInvalidBridgeSecretBinding reports that a bridge secret binding payload

@@ -35,9 +35,16 @@ type StubBridgeService struct {
 		context.Context,
 		bridgepkg.ResolveDeliveryTargetRequest,
 	) (*bridgepkg.DeliveryTarget, error)
-	StartInstanceFn   func(context.Context, string) (*bridgepkg.BridgeInstance, error)
-	StopInstanceFn    func(context.Context, string) (*bridgepkg.BridgeInstance, error)
-	RestartInstanceFn func(context.Context, string) (*bridgepkg.BridgeInstance, error)
+	RefreshBridgeTargetsFn func(
+		context.Context,
+		string,
+		[]bridgepkg.BridgeTargetSnapshot,
+	) ([]bridgepkg.BridgeTarget, error)
+	ListBridgeTargetsFn   func(context.Context, bridgepkg.BridgeTargetQuery) (bridgepkg.BridgeTargetsResult, error)
+	ResolveBridgeTargetFn func(context.Context, string, string) (bridgepkg.ResolveBridgeTargetResult, error)
+	StartInstanceFn       func(context.Context, string) (*bridgepkg.BridgeInstance, error)
+	StopInstanceFn        func(context.Context, string) (*bridgepkg.BridgeInstance, error)
+	RestartInstanceFn     func(context.Context, string) (*bridgepkg.BridgeInstance, error)
 }
 
 func (s StubBridgeService) CreateInstance(
@@ -218,6 +225,38 @@ func (s StubBridgeService) ResolveDeliveryTarget(
 		return s.ResolveDeliveryTargetFn(ctx, req)
 	}
 	return nil, bridgepkg.ErrBridgeInstanceNotFound
+}
+
+func (s StubBridgeService) RefreshBridgeTargets(
+	ctx context.Context,
+	bridgeID string,
+	snapshots []bridgepkg.BridgeTargetSnapshot,
+) ([]bridgepkg.BridgeTarget, error) {
+	if s.RefreshBridgeTargetsFn != nil {
+		return s.RefreshBridgeTargetsFn(ctx, bridgeID, snapshots)
+	}
+	return nil, bridgepkg.ErrBridgeTargetDirectoryUnavailable
+}
+
+func (s StubBridgeService) ListBridgeTargets(
+	ctx context.Context,
+	query bridgepkg.BridgeTargetQuery,
+) (bridgepkg.BridgeTargetsResult, error) {
+	if s.ListBridgeTargetsFn != nil {
+		return s.ListBridgeTargetsFn(ctx, query)
+	}
+	return bridgepkg.BridgeTargetsResult{}, bridgepkg.ErrBridgeTargetDirectoryUnavailable
+}
+
+func (s StubBridgeService) ResolveBridgeTarget(
+	ctx context.Context,
+	bridgeID string,
+	query string,
+) (bridgepkg.ResolveBridgeTargetResult, error) {
+	if s.ResolveBridgeTargetFn != nil {
+		return s.ResolveBridgeTargetFn(ctx, bridgeID, query)
+	}
+	return bridgepkg.ResolveBridgeTargetResult{}, bridgepkg.ErrBridgeTargetDirectoryUnavailable
 }
 
 func (s StubBridgeService) StartInstance(ctx context.Context, id string) (*bridgepkg.BridgeInstance, error) {

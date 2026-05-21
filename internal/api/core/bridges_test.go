@@ -486,6 +486,78 @@ func TestBridgeHandlersRoutesAndTestDelivery(t *testing.T) {
 	}
 }
 
+func TestBridgeHandlersTargetDirectory(t *testing.T) {
+	t.Run("Should list targets and return structured ambiguity diagnostics", func(t *testing.T) {
+		t.Parallel()
+
+		var listQuery bridgepkg.BridgeTargetQuery
+		target := bridgepkg.BridgeTarget{
+			BridgeID:       "brg-core",
+			CanonicalRoute: "slack:channel:C123",
+			DisplayName:    "#ops",
+			Normalized:     "ops",
+			TargetType:     bridgepkg.BridgeTargetTypeChannel,
+			Qualifier:      "slack",
+			UpdatedAt:      time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+			LastSeenAt:     time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+		}
+		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			ListBridgeTargetsFn: func(_ context.Context, query bridgepkg.BridgeTargetQuery) (bridgepkg.BridgeTargetsResult, error) {
+				listQuery = query
+				return bridgepkg.BridgeTargetsResult{
+					BridgeID:    query.BridgeID,
+					Items:       []bridgepkg.BridgeTarget{target},
+					Total:       1,
+					GeneratedAt: time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC),
+				}, nil
+			},
+			ResolveBridgeTargetFn: func(
+				_ context.Context,
+				bridgeID string,
+				query string,
+			) (bridgepkg.ResolveBridgeTargetResult, error) {
+				return bridgepkg.ResolveBridgeTargetResult{
+					Step:       4,
+					Ambiguous:  true,
+					Candidates: []bridgepkg.BridgeTarget{target, target},
+				}, fmt.Errorf("bridge %q query %q: %w", bridgeID, query, bridgepkg.ErrBridgeTargetAmbiguous)
+			},
+		})
+
+		listResp := performRequest(t, engine, http.MethodGet, "/bridges/brg-core/targets?q=ops&limit=5", nil)
+		if listResp.Code != http.StatusOK {
+			t.Fatalf("target list status = %d body=%s", listResp.Code, listResp.Body.String())
+		}
+		if listQuery.BridgeID != "brg-core" || listQuery.Query != "ops" || listQuery.Limit != 5 {
+			t.Fatalf("ListBridgeTargets() query = %#v", listQuery)
+		}
+		var listPayload contract.BridgeTargetsResponse
+		testutil.DecodeJSONResponse(t, listResp, &listPayload)
+		if got, want := len(listPayload.Targets), 1; got != want {
+			t.Fatalf("len(targets) = %d, want %d", got, want)
+		}
+
+		resolveResp := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/bridges/brg-core/resolve",
+			[]byte("{\"name\":\"ops\"}"),
+		)
+		if resolveResp.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("target resolve status = %d body=%s", resolveResp.Code, resolveResp.Body.String())
+		}
+		var resolvePayload contract.BridgeResolveTargetResponse
+		testutil.DecodeJSONResponse(t, resolveResp, &resolvePayload)
+		if resolvePayload.Diagnostic == nil || resolvePayload.Diagnostic.Code != contract.CodeTargetAmbiguous {
+			t.Fatalf("resolve diagnostic = %#v, want target_ambiguous", resolvePayload.Diagnostic)
+		}
+		if got, want := len(resolvePayload.Result.Candidates), 2; got != want {
+			t.Fatalf("len(resolve candidates) = %d, want %d", got, want)
+		}
+	})
+}
+
 func TestBridgeHandlersSecretBindingsCRUD(t *testing.T) {
 	t.Parallel()
 
@@ -1396,6 +1468,8 @@ func newBridgeHandlerFixture(t *testing.T, bridges core.BridgeService) (*core.Ba
 	engine.POST("/bridges/:id/disable", handlers.DisableBridge)
 	engine.POST("/bridges/:id/restart", handlers.RestartBridge)
 	engine.GET("/bridges/:id/routes", handlers.ListBridgeRoutes)
+	engine.GET("/bridges/:id/targets", handlers.ListBridgeTargets)
+	engine.POST("/bridges/:id/resolve", handlers.ResolveBridgeTarget)
 	engine.GET("/bridges/:id/secret-bindings", handlers.ListBridgeSecretBindings)
 	engine.PUT("/bridges/:id/secret-bindings/:binding_name", handlers.PutBridgeSecretBinding)
 	engine.DELETE("/bridges/:id/secret-bindings/:binding_name", handlers.DeleteBridgeSecretBinding)

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"slices"
 	"strings"
@@ -28,6 +29,13 @@ type InitializeHandler func(context.Context, *Session) error
 // DeliveryHandler handles one daemon-originated `bridges/deliver` request.
 type DeliveryHandler func(context.Context, *Session, bridgepkg.DeliveryRequest) (bridgepkg.DeliveryAck, error)
 
+// TargetSnapshotHandler handles one daemon-originated bridge target discovery request.
+type TargetSnapshotHandler func(
+	context.Context,
+	*Session,
+	bridgepkg.BridgeTargetSnapshotRequest,
+) ([]bridgepkg.BridgeTargetSnapshot, error)
+
 // HealthHandler handles one daemon health-check probe.
 type HealthHandler func(context.Context, *Session) error
 
@@ -36,12 +44,13 @@ type ShutdownHandler func(context.Context, *Session, subprocess.ShutdownRequest)
 
 // RuntimeConfig configures the shared provider runtime scaffold.
 type RuntimeConfig struct {
-	ExtensionInfo subprocess.InitializeExtensionInfo
-	Initialize    InitializeHandler
-	Deliver       DeliveryHandler
-	HealthCheck   HealthHandler
-	Shutdown      ShutdownHandler
-	Now           func() time.Time
+	ExtensionInfo   subprocess.InitializeExtensionInfo
+	Initialize      InitializeHandler
+	Deliver         DeliveryHandler
+	TargetSnapshots TargetSnapshotHandler
+	HealthCheck     HealthHandler
+	Shutdown        ShutdownHandler
+	Now             func() time.Time
 }
 
 // Runtime is the shared provider runtime scaffold built on the bridge SDK.
@@ -84,6 +93,9 @@ func NewRuntime(config RuntimeConfig) (*Runtime, error) {
 	if config.Deliver == nil {
 		return nil, errors.New("bridgesdk: runtime deliver handler is required")
 	}
+	if config.TargetSnapshots == nil {
+		config.TargetSnapshots = TargetSnapshotsFromManagedInstances
+	}
 	if config.Now == nil {
 		config.Now = func() time.Time {
 			return time.Now().UTC()
@@ -106,6 +118,9 @@ func (r *Runtime) Serve(ctx context.Context, stdin io.Reader, stdout io.Writer) 
 		return err
 	}
 	if err := peer.Handle("bridges/deliver", r.handleDeliver); err != nil {
+		return err
+	}
+	if err := peer.Handle("bridges/targets/snapshot", r.handleTargetSnapshots); err != nil {
 		return err
 	}
 	if err := peer.Handle("health_check", r.handleHealthCheck); err != nil {
@@ -327,6 +342,37 @@ func (r *Runtime) handleDeliver(ctx context.Context, raw json.RawMessage) (any, 
 	return ack, nil
 }
 
+func (r *Runtime) handleTargetSnapshots(ctx context.Context, raw json.RawMessage) (any, error) {
+	session, err := r.requireSession()
+	if err != nil {
+		return nil, err
+	}
+
+	var request bridgepkg.BridgeTargetSnapshotRequest
+	if err := decodeParams(raw, &request); err != nil {
+		return nil, err
+	}
+	if err := request.Validate(); err != nil {
+		return nil, subprocess.NewRPCError(bridgeSDKRPCCodeInvalidParams, "Invalid params", map[string]string{
+			runtimeErrorKey: err.Error(),
+		})
+	}
+
+	targets, err := r.config.TargetSnapshots(ctx, session, request)
+	if err != nil {
+		return nil, err
+	}
+	response := bridgepkg.BridgeTargetSnapshotResponse{Targets: targets}
+	for index, target := range response.Targets {
+		if err := target.Validate(); err != nil {
+			return nil, subprocess.NewRPCError(bridgeSDKRPCCodeInvalidParams, "Invalid params", map[string]string{
+				runtimeErrorKey: fmt.Sprintf("target %d: %s", index, err.Error()),
+			})
+		}
+	}
+	return response, nil
+}
+
 func (r *Runtime) handleHealthCheck(ctx context.Context, _ json.RawMessage) (any, error) {
 	session, err := r.requireSession()
 	if err != nil {
@@ -413,6 +459,7 @@ func (r *Runtime) requireSession() (*Session, error) {
 func (r *Runtime) initializeResponse(request subprocess.InitializeRequest) subprocess.InitializeResponse {
 	implemented := []string{
 		string(extensionprotocol.ExtensionServiceMethodBridgesDeliver),
+		string(extensionprotocol.ExtensionServiceMethodBridgeTargets),
 		"health_check",
 		"shutdown",
 	}

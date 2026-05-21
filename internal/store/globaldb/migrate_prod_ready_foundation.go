@@ -210,6 +210,37 @@ func migrateExtensionProvenance(ctx context.Context, tx *sql.Tx) error {
 	return nil
 }
 
+func migrateBridgeTargetDirectory(ctx context.Context, tx *sql.Tx) error {
+	statements := []string{
+		`CREATE TABLE IF NOT EXISTS bridge_target_directory (
+			bridge_id       TEXT NOT NULL REFERENCES bridge_instances(id) ON DELETE CASCADE,
+			canonical_route TEXT NOT NULL,
+			display_name    TEXT NOT NULL,
+			normalized      TEXT NOT NULL,
+			target_type     TEXT NOT NULL CHECK (target_type IN ('channel','user','room','thread','group')),
+			qualifier       TEXT NOT NULL DEFAULT '',
+			capabilities    TEXT NOT NULL DEFAULT '',
+			updated_at      TEXT NOT NULL,
+			last_seen_at    TEXT,
+			PRIMARY KEY (bridge_id, canonical_route)
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_btd_bridge_norm
+			ON bridge_target_directory(bridge_id, normalized);`,
+		`CREATE INDEX IF NOT EXISTS idx_btd_bridge_qualifier
+			ON bridge_target_directory(bridge_id, qualifier);`,
+		`CREATE TABLE IF NOT EXISTS bridge_target_directory_refresh (
+			bridge_id                  TEXT PRIMARY KEY REFERENCES bridge_instances(id) ON DELETE CASCADE,
+			last_successful_refresh_at TEXT NOT NULL
+		);`,
+	}
+	for _, statement := range statements {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("store: apply bridge target directory schema: %w", err)
+		}
+	}
+	return nil
+}
+
 func backfillEventSummaryOutcomes(ctx context.Context, tx *sql.Tx) error {
 	statements := []string{
 		`CREATE TEMP TABLE IF NOT EXISTS event_summary_outcome_backfill (

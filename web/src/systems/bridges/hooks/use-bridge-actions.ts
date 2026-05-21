@@ -7,12 +7,14 @@ import {
   enableBridge,
   putBridgeSecretBinding,
   restartBridge,
+  resolveBridgeTarget,
   testBridgeDelivery,
   updateBridge,
 } from "../adapters/bridges-api";
 import { bridgeKeys } from "../lib/query-keys";
 import type {
   CreateBridgeRequest,
+  BridgeResolveTargetRequest,
   PutBridgeSecretBindingRequest,
   TestBridgeDeliveryRequest,
   UpdateBridgeRequest,
@@ -24,6 +26,10 @@ interface BridgeMutationIdParams {
 
 interface TestBridgeDeliveryParams extends BridgeMutationIdParams {
   data: TestBridgeDeliveryRequest;
+}
+
+interface ResolveBridgeTargetParams extends BridgeMutationIdParams {
+  data: BridgeResolveTargetRequest;
 }
 
 interface UpdateBridgeParams extends BridgeMutationIdParams {
@@ -82,6 +88,12 @@ export function useTestBridgeDelivery() {
     mutationFn: ({ id, data }: TestBridgeDeliveryParams) => testBridgeDelivery(id, data),
     onSettled: (_result, _error, { id }) =>
       invalidateBridgeQueries(queryClient, id, { includeRoutes: true }),
+  });
+}
+
+export function useResolveBridgeTarget() {
+  return useMutation({
+    mutationFn: ({ id, data }: ResolveBridgeTargetParams) => resolveBridgeTarget(id, data),
   });
 }
 

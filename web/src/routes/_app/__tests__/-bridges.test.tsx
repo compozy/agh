@@ -7,8 +7,10 @@ import { renderWithTopbar as render } from "@/test/render-with-topbar";
 import type {
   BridgeDetailResponse,
   BridgeProvider,
+  BridgeResolveTargetResponse,
   BridgeRoute,
   BridgeSecretBinding,
+  BridgeTargetsResponse,
   BridgesListResponse,
   CreateBridgeResponse,
   TestBridgeDeliveryResponse,
@@ -37,6 +39,9 @@ let mockBridgeDetailError: Error | null = null;
 let mockBridgeRoutes: BridgeRoute[] | undefined;
 let mockBridgeRoutesLoading = false;
 let mockBridgeRoutesError: Error | null = null;
+let mockBridgeTargets: BridgeTargetsResponse | undefined;
+let mockBridgeTargetsLoading = false;
+let mockBridgeTargetsError: Error | null = null;
 let mockSecretBindingsData: BridgeSecretBinding[] | undefined;
 let mockSecretBindingsLoading = false;
 let mockSecretBindingsError: Error | null = null;
@@ -48,6 +53,7 @@ const mockDeleteBridgeSecretBindingMutateAsync = vi.fn();
 const mockEnableBridgeMutateAsync = vi.fn();
 const mockDisableBridgeMutateAsync = vi.fn();
 const mockRestartBridgeMutateAsync = vi.fn();
+const mockResolveBridgeTargetMutateAsync = vi.fn();
 const mockTestDeliveryMutateAsync = vi.fn();
 let mockCreateBridgePending = false;
 let mockUpdateBridgePending = false;
@@ -56,6 +62,7 @@ let mockDeleteBridgeSecretBindingPending = false;
 let mockEnableBridgePending = false;
 let mockDisableBridgePending = false;
 let mockRestartBridgePending = false;
+let mockResolveBridgeTargetPending = false;
 let mockTestDeliveryPending = false;
 
 let mockActiveWorkspaceId: string | null = "ws_test";
@@ -129,6 +136,11 @@ vi.mock("@/systems/bridges", async () => {
       error: mockBridgeRoutesError,
       isLoading: mockBridgeRoutesLoading,
     }),
+    useBridgeTargets: () => ({
+      data: mockBridgeTargets,
+      error: mockBridgeTargetsError,
+      isLoading: mockBridgeTargetsLoading,
+    }),
     useBridgeSecretBindings: () => ({
       data: mockSecretBindingsData,
       error: mockSecretBindingsError,
@@ -162,6 +174,10 @@ vi.mock("@/systems/bridges", async () => {
     useRestartBridge: () => ({
       isPending: mockRestartBridgePending,
       mutateAsync: mockRestartBridgeMutateAsync,
+    }),
+    useResolveBridgeTarget: () => ({
+      isPending: mockResolveBridgeTargetPending,
+      mutateAsync: mockResolveBridgeTargetMutateAsync,
     }),
     useTestBridgeDelivery: () => ({
       isPending: mockTestDeliveryPending,
@@ -256,6 +272,32 @@ function makeRoute(overrides: Partial<BridgeRoute> = {}): BridgeRoute {
   };
 }
 
+function makeTargets(
+  overrides: Partial<BridgeTargetsResponse["targets"][number]> = {}
+): BridgeTargetsResponse {
+  const target = {
+    bridge_id: "brg_support",
+    canonical_route: "telegram:channel:support",
+    capabilities: ["direct-send", "reply"],
+    display_name: "Support room",
+    last_seen_at: "2026-04-13T12:16:00Z",
+    normalized: "support room",
+    qualifier: "telegram",
+    target_type: "channel",
+    updated_at: "2026-04-13T12:16:00Z",
+    ...overrides,
+  };
+
+  return {
+    bridge_id: "brg_support",
+    cache_stale: false,
+    generated_at: "2026-04-13T12:16:00Z",
+    last_successful_refresh_at: "2026-04-13T12:16:00Z",
+    targets: [target],
+    total: 1,
+  };
+}
+
 function makeSecretBinding(overrides: Partial<BridgeSecretBinding> = {}): BridgeSecretBinding {
   return {
     binding_name: "bot_token",
@@ -293,6 +335,9 @@ describe("BridgesPage", () => {
     mockBridgeRoutes = [makeRoute()];
     mockBridgeRoutesLoading = false;
     mockBridgeRoutesError = null;
+    mockBridgeTargets = makeTargets();
+    mockBridgeTargetsLoading = false;
+    mockBridgeTargetsError = null;
     mockSecretBindingsData = [makeSecretBinding()];
     mockSecretBindingsLoading = false;
     mockSecretBindingsError = null;
@@ -303,6 +348,7 @@ describe("BridgesPage", () => {
     mockEnableBridgePending = false;
     mockDisableBridgePending = false;
     mockRestartBridgePending = false;
+    mockResolveBridgeTargetPending = false;
     mockTestDeliveryPending = false;
     mockActiveWorkspaceId = "ws_test";
     mockActiveWorkspaceName = "test-workspace";
@@ -314,6 +360,7 @@ describe("BridgesPage", () => {
     mockEnableBridgeMutateAsync.mockReset();
     mockDisableBridgeMutateAsync.mockReset();
     mockRestartBridgeMutateAsync.mockReset();
+    mockResolveBridgeTargetMutateAsync.mockReset();
     mockTestDeliveryMutateAsync.mockReset();
     toast.success.mockReset();
     toast.error.mockReset();
@@ -349,6 +396,13 @@ describe("BridgesPage", () => {
       bridge: makeBridge({ status: "starting" }),
       health: makeHealth({ status: "starting" }),
     } satisfies BridgeDetailResponse);
+    mockResolveBridgeTargetMutateAsync.mockResolvedValue({
+      result: {
+        ambiguous: false,
+        match: makeTargets().targets[0],
+        step: 2,
+      },
+    } satisfies BridgeResolveTargetResponse);
   });
 
   it("renders loading and error states from the list queries", () => {
@@ -398,6 +452,9 @@ describe("BridgesPage", () => {
     );
     expect(within(detailPanel).getByTestId("bridge-detail-secret-slots")).toHaveTextContent(
       "bot_token"
+    );
+    expect(within(detailPanel).getByTestId("bridge-target-directory")).toHaveTextContent(
+      "Support room"
     );
     expect(screen.getByTestId("bridge-route-sess_123")).toBeInTheDocument();
   });
@@ -581,6 +638,26 @@ describe("BridgesPage", () => {
 
     expect(screen.getByTestId("bridge-test-delivery-result")).toHaveTextContent("peer:peer_123");
     expect(toast.success).toHaveBeenCalledWith("Resolved delivery target for Support.");
+  });
+
+  it("resolves bridge target names from the target directory section", async () => {
+    const user = userEvent.setup();
+    render(<BridgesPage />);
+
+    await user.type(screen.getByTestId("bridge-target-resolve-input"), "Support room");
+    await user.click(screen.getByTestId("bridge-target-resolve-submit"));
+
+    await waitFor(() => {
+      expect(mockResolveBridgeTargetMutateAsync).toHaveBeenCalledWith({
+        data: { name: "Support room" },
+        id: "brg_support",
+      });
+    });
+
+    expect(screen.getByTestId("bridge-target-resolve-result")).toHaveTextContent(
+      "telegram:channel:support"
+    );
+    expect(toast.success).toHaveBeenCalledWith("Resolved target Support room.");
   });
 
   it("edits mutable bridge fields and prompts for restart", async () => {

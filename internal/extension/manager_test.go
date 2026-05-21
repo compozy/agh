@@ -299,8 +299,11 @@ func TestManagerStartBridgeAdapterNegotiatesScopedLaunchRuntime(t *testing.T) {
 	}
 
 	request := requests[0]
-	if !slices.Equal(request.Methods.ExtensionServices, []string{"bridges/deliver"}) {
-		t.Fatalf("initialize extension services = %#v, want [bridges/deliver]", request.Methods.ExtensionServices)
+	if !slices.Equal(request.Methods.ExtensionServices, []string{"bridges/deliver", "bridges/targets/snapshot"}) {
+		t.Fatalf(
+			"initialize extension services = %#v, want [bridges/deliver bridges/targets/snapshot]",
+			request.Methods.ExtensionServices,
+		)
 	}
 	if !slices.Equal(request.Capabilities.GrantedActions, []extensionprotocol.HostAPIMethod{
 		extensionprotocol.HostAPIMethodBridgesInstancesGet,
@@ -1953,6 +1956,22 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 			ack.ReplaceRemoteMessageID = fmt.Sprintf("remote-%d", ack.Seq-1)
 		}
 		return h.sendResult(req.ID, ack)
+	case "bridges/targets/snapshot":
+		var params bridgepkg.BridgeTargetSnapshotRequest
+		if err := json.Unmarshal(req.Params, &params); err != nil {
+			return err
+		}
+		return h.sendResult(req.ID, bridgepkg.BridgeTargetSnapshotResponse{
+			Targets: []bridgepkg.BridgeTargetSnapshot{
+				{
+					CanonicalRoute: "bridge://" + strings.TrimSpace(params.BridgeInstanceID) + "/general",
+					DisplayName:    "general",
+					TargetType:     bridgepkg.BridgeTargetTypeChannel,
+					Qualifier:      "workspace",
+					Capabilities:   []string{"send"},
+				},
+			},
+		})
 	case "models/list":
 		var params extensioncontract.ModelSourceListParams
 		if err := json.Unmarshal(req.Params, &params); err != nil {

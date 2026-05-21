@@ -294,6 +294,27 @@ type BridgeRoutesResponse struct {
 	Routes []bridgepkg.BridgeRoute `json:"routes"`
 }
 
+// BridgeTargetsResponse wraps one bridge's daemon-owned target directory.
+type BridgeTargetsResponse struct {
+	BridgeID                string                   `json:"bridge_id"`
+	Targets                 []bridgepkg.BridgeTarget `json:"targets"`
+	Total                   int                      `json:"total"`
+	CacheStale              bool                     `json:"cache_stale"`
+	GeneratedAt             time.Time                `json:"generated_at"`
+	LastSuccessfulRefreshAt *time.Time               `json:"last_successful_refresh_at,omitempty"`
+}
+
+// BridgeResolveTargetRequest resolves a human-facing or canonical bridge target name.
+type BridgeResolveTargetRequest struct {
+	Name string `json:"name"`
+}
+
+// BridgeResolveTargetResponse wraps the deterministic bridge target resolver result.
+type BridgeResolveTargetResponse struct {
+	Result     bridgepkg.ResolveBridgeTargetResult `json:"result"`
+	Diagnostic *DiagnosticItem                     `json:"diagnostic,omitempty"`
+}
+
 // TaskBridgeNotificationCursorPayload exposes the durable cursor identity and
 // latest diagnostic state for one bridge terminal notification subscription.
 type TaskBridgeNotificationCursorPayload struct {

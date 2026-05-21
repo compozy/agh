@@ -714,6 +714,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/bridges/{id}/resolve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Resolve a bridge target name without sending */
+    post: operations["resolveBridgeTarget"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/bridges/{id}/restart": {
     parameters: {
       query?: never;
@@ -778,6 +795,23 @@ export interface paths {
     post?: never;
     /** Delete one bridge secret binding */
     delete: operations["deleteBridgeSecretBinding"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/bridges/{id}/targets": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List discovered targets for a bridge instance */
+    get: operations["listBridgeTargets"];
+    put?: never;
+    post?: never;
+    delete?: never;
     options?: never;
     head?: never;
     patch?: never;
@@ -17117,6 +17151,270 @@ export interface operations {
       };
     };
   };
+  resolveBridgeTarget: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Bridge instance id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          name: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            result: {
+              ambiguous: boolean;
+              candidates?: {
+                bridge_id: string;
+                canonical_route: string;
+                capabilities: string[];
+                display_name: string;
+                /** Format: date-time */
+                last_seen_at: string;
+                normalized: string;
+                qualifier?: string;
+                target_type: string;
+                /** Format: date-time */
+                updated_at: string;
+              }[];
+              match?: {
+                bridge_id: string;
+                canonical_route: string;
+                capabilities: string[];
+                display_name: string;
+                /** Format: date-time */
+                last_seen_at: string;
+                normalized: string;
+                qualifier?: string;
+                target_type: string;
+                /** Format: date-time */
+                updated_at: string;
+              } | null;
+              step: number;
+            };
+          };
+        };
+      };
+      /** @description Invalid target resolve request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Bridge instance or target not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            result: {
+              ambiguous: boolean;
+              candidates?: {
+                bridge_id: string;
+                canonical_route: string;
+                capabilities: string[];
+                display_name: string;
+                /** Format: date-time */
+                last_seen_at: string;
+                normalized: string;
+                qualifier?: string;
+                target_type: string;
+                /** Format: date-time */
+                updated_at: string;
+              }[];
+              match?: {
+                bridge_id: string;
+                canonical_route: string;
+                capabilities: string[];
+                display_name: string;
+                /** Format: date-time */
+                last_seen_at: string;
+                normalized: string;
+                qualifier?: string;
+                target_type: string;
+                /** Format: date-time */
+                updated_at: string;
+              } | null;
+              step: number;
+            };
+          };
+        };
+      };
+      /** @description Bridge target lookup is ambiguous */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            result: {
+              ambiguous: boolean;
+              candidates?: {
+                bridge_id: string;
+                canonical_route: string;
+                capabilities: string[];
+                display_name: string;
+                /** Format: date-time */
+                last_seen_at: string;
+                normalized: string;
+                qualifier?: string;
+                target_type: string;
+                /** Format: date-time */
+                updated_at: string;
+              }[];
+              match?: {
+                bridge_id: string;
+                canonical_route: string;
+                capabilities: string[];
+                display_name: string;
+                /** Format: date-time */
+                last_seen_at: string;
+                normalized: string;
+                qualifier?: string;
+                target_type: string;
+                /** Format: date-time */
+                updated_at: string;
+              } | null;
+              step: number;
+            };
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Bridge service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   restartBridge: {
     parameters: {
       query?: never;
@@ -17781,6 +18079,136 @@ export interface operations {
         content?: never;
       };
       /** @description Bridge instance or secret binding not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Bridge service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  listBridgeTargets: {
+    parameters: {
+      query?: {
+        /** @description Filter targets by display name, qualifier, or route */
+        q?: string;
+        /** @description Maximum targets to return */
+        limit?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Bridge instance id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            bridge_id: string;
+            cache_stale: boolean;
+            /** Format: date-time */
+            generated_at: string;
+            /** Format: date-time */
+            last_successful_refresh_at?: string | null;
+            targets: {
+              bridge_id: string;
+              canonical_route: string;
+              capabilities: string[];
+              display_name: string;
+              /** Format: date-time */
+              last_seen_at: string;
+              normalized: string;
+              qualifier?: string;
+              target_type: string;
+              /** Format: date-time */
+              updated_at: string;
+            }[];
+            total: number;
+          };
+        };
+      };
+      /** @description Bridge instance not found */
       404: {
         headers: {
           [name: string]: unknown;

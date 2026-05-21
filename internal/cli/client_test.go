@@ -2685,6 +2685,26 @@ func TestUnixSocketClientBridgeMethods(t *testing.T) {
 						http.StatusOK,
 						`{"routes":[{"routing_key_hash":"hash-a","scope":"global","bridge_instance_id":"brg-a","peer_id":"peer-1","thread_id":"thread-1","session_id":"sess-1","agent_name":"coder","last_activity_at":"2026-04-11T12:09:00Z","created_at":"2026-04-11T12:00:00Z","updated_at":"2026-04-11T12:09:00Z"}]}`,
 					), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/bridges/brg-a/targets":
+					if req.URL.Query().Get("q") != "support" || req.URL.Query().Get("limit") != "25" {
+						t.Fatalf("bridge targets query = %s, want q=support&limit=25", req.URL.RawQuery)
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"bridge_id":"brg-a","targets":[{"bridge_id":"brg-a","canonical_route":"telegram:channel:support","display_name":"Support room","normalized":"support room","target_type":"channel","qualifier":"telegram","capabilities":["reply"],"updated_at":"2026-04-11T12:09:00Z","last_seen_at":"2026-04-11T12:09:00Z"}],"total":1,"cache_stale":false,"generated_at":"2026-04-11T12:09:30Z"}`,
+					), nil
+				case req.Method == http.MethodPost && req.URL.Path == "/api/bridges/brg-a/resolve":
+					var payload contract.BridgeResolveTargetRequest
+					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+						t.Fatalf("json.Decode(resolve target body) error = %v", err)
+					}
+					if payload.Name != "Support room" {
+						t.Fatalf("resolve target payload = %#v, want Support room", payload)
+					}
+					return newHTTPResponse(
+						http.StatusOK,
+						`{"result":{"step":2,"ambiguous":false,"match":{"bridge_id":"brg-a","canonical_route":"telegram:channel:support","display_name":"Support room","normalized":"support room","target_type":"channel","qualifier":"telegram","capabilities":["reply"],"updated_at":"2026-04-11T12:09:00Z","last_seen_at":"2026-04-11T12:09:00Z"}}}`,
+					), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/bridges/brg-a/test-delivery":
 					var payload contract.BridgeTestDeliveryRequest
 					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
@@ -2759,6 +2779,17 @@ func TestUnixSocketClientBridgeMethods(t *testing.T) {
 	routes, err := client.BridgeRoutes(ctx, "brg-a")
 	if err != nil || len(routes) != 1 || routes[0].ThreadID != "thread-1" {
 		t.Fatalf("BridgeRoutes() = %#v, %v", routes, err)
+	}
+
+	targets, err := client.BridgeTargets(ctx, "brg-a", "support", 25)
+	if err != nil || len(targets.Targets) != 1 || targets.Targets[0].CanonicalRoute != "telegram:channel:support" {
+		t.Fatalf("BridgeTargets() = %#v, %v", targets, err)
+	}
+
+	resolved, err := client.ResolveBridgeTarget(ctx, "brg-a", "Support room")
+	if err != nil || resolved.Result.Match == nil ||
+		resolved.Result.Match.CanonicalRoute != "telegram:channel:support" {
+		t.Fatalf("ResolveBridgeTarget() = %#v, %v", resolved, err)
 	}
 
 	delivery, err := client.TestBridgeDelivery(ctx, "brg-a", BridgeTestDeliveryRequest{

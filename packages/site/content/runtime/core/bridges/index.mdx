@@ -54,6 +54,7 @@ letting each platform adapter speak the platform API directly.
 | Bridge instance    | AGH bridge registry | Stores scope, workspace, provider selection, routing policy, delivery defaults, provider config, status, and degradation metadata. |
 | Secret binding     | AGH daemon          | Maps a provider slot such as `bot_token` to a vault-backed secret reference and stores the write-only secret value encrypted.      |
 | Bridge route       | AGH routing layer   | Maps one canonical platform identity to one AGH session and agent name.                                                            |
+| Target directory   | AGH daemon          | Stores provider-discovered immutable target identities and resolver indexes for operator-friendly names.                           |
 | Delivery target    | Delivery broker     | Identifies where a response should be posted, replied to, edited, or deleted on the platform.                                      |
 
 The provider catalog is dynamic. `GET /api/bridges/providers` returns every installed and enabled
@@ -199,3 +200,26 @@ accepted only on write.
 Bridge health is exposed with each bridge payload and through the bridge health stream. It includes
 route count, delivery backlog, dropped delivery count, delivery failures, auth failures, last success,
 last error, and degradation metadata.
+
+## Target directory
+
+Bridge adapters can report platform targets such as channels, rooms, users, groups, and threads.
+The adapter only returns snapshots. The daemon validates those snapshots, writes
+`bridge_target_directory`, and records the latest successful refresh time. The directory refreshes
+when an extension runtime connects and then every five minutes while that runtime remains connected.
+
+Each target stores the provider-derived immutable route, display name, normalized lookup key,
+optional qualifier, type, capabilities, `updated_at`, and `last_seen_at`. Missing targets are not
+deleted during refresh; their `last_seen_at` remains the last time the provider saw them so operators
+can distinguish stale but known targets from new unknown names.
+
+Use the target APIs before wiring notification presets or explicit outbound targets:
+
+```bash
+agh bridge targets brg_123 --query launch -o json
+agh bridge resolve brg_123 "launch room" -o json
+```
+
+The HTTP/UDS equivalents are `GET /api/bridges/:id/targets` and
+`POST /api/bridges/:id/resolve`. Resolve returns a structured diagnostic for ambiguous or unknown
+names instead of selecting a candidate silently.

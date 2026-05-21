@@ -27,6 +27,7 @@ const (
 	ExtensionServiceMethodMemoryRecall   ExtensionServiceMethod = "memory/recall"
 	ExtensionServiceMethodMemoryForget   ExtensionServiceMethod = "memory/forget"
 	ExtensionServiceMethodBridgesDeliver ExtensionServiceMethod = "bridges/deliver"
+	ExtensionServiceMethodBridgeTargets  ExtensionServiceMethod = "bridges/targets/snapshot"
 	ExtensionServiceMethodProvideTools   ExtensionServiceMethod = "provide_tools"
 	ExtensionServiceMethodToolsCall      ExtensionServiceMethod = "tools/call"
 	ExtensionServiceMethodModelsList     ExtensionServiceMethod = "models/list"
@@ -234,6 +235,7 @@ var capabilityServiceMethods = map[string][]ExtensionServiceMethod{
 	},
 	CapabilityProvideBridgeAdapter: {
 		ExtensionServiceMethodBridgesDeliver,
+		ExtensionServiceMethodBridgeTargets,
 	},
 	CapabilityToolProvider: {
 		ExtensionServiceMethodProvideTools,
