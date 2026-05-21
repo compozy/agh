@@ -1,5 +1,6 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { screen } from "@testing-library/react";
-import { renderWithTopbar as render } from "@/test/render-with-topbar";
+import { renderWithTopbar } from "@/test/render-with-topbar";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -114,6 +115,13 @@ import { Route } from "../observability";
 
 const ObservabilitySettingsPage = routeComponent(Route);
 
+function render(ui: ReactNode) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return renderWithTopbar(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
+
 describe("ObservabilitySettingsPage", () => {
   it("renders a loading indicator during the initial fetch", () => {
     pageState.isLoading = true;
@@ -151,6 +159,18 @@ describe("ObservabilitySettingsPage", () => {
 
     const link = screen.getByTestId("settings-page-observability-log-tail-link");
     expect(link).toHaveAttribute("href", "/api/settings/observability/log-tail");
+  });
+
+  it("renders support bundle consent before daemon download", () => {
+    render(<ObservabilitySettingsPage />);
+
+    expect(screen.getByTestId("settings-page-observability-support-bundle")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("settings-page-observability-support-bundle-status")
+    ).toHaveTextContent("status: idle");
+    expect(
+      screen.getByTestId("settings-page-observability-support-bundle-consent")
+    ).not.toBeChecked();
   });
 
   it("renders the overview metric grid via @agh/ui Metric", () => {

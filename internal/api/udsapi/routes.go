@@ -13,6 +13,7 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	registerAgentRoutes(api, handlers)
 	registerAgentKernelRoutes(api, handlers)
 	registerLogsRoutes(api, handlers)
+	registerSupportRoutes(api, handlers)
 	registerObserveRoutes(api, handlers)
 	registerHookRoutes(api, handlers)
 	registerResourceRoutes(api, handlers)
@@ -147,6 +148,15 @@ func registerAgentKernelRoutes(api gin.IRouter, handlers *Handlers) {
 func registerLogsRoutes(api gin.IRouter, handlers *Handlers) {
 	api.GET("/logs", handlers.ListLogs)
 	api.GET("/logs/stream", handlers.StreamLogs)
+}
+
+func registerSupportRoutes(api gin.IRouter, handlers *Handlers) {
+	support := api.Group("/support")
+	{
+		support.POST("/bundles", handlers.CreateSupportBundle)
+		support.GET("/bundles/:operation_id", handlers.GetSupportBundle)
+		support.GET("/bundles/:operation_id/download", handlers.DownloadSupportBundle)
+	}
 }
 
 func registerObserveRoutes(api gin.IRouter, handlers *Handlers) {

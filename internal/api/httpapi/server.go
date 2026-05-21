@@ -54,6 +54,7 @@ type Server struct {
 	automation        core.AutomationManager
 	bridges           core.BridgeService
 	bundles           core.BundleService
+	supportBundles    core.SupportBundleService
 	tools             core.ToolRegistry
 	toolsets          core.ToolsetRegistry
 	toolApprovals     core.ToolApprovalIssuer
@@ -210,6 +211,13 @@ func WithBridgeService(bridges core.BridgeService) Option {
 func WithBundleService(service core.BundleService) Option {
 	return func(server *Server) {
 		server.bundles = service
+	}
+}
+
+// WithSupportBundleService injects the daemon-owned support bundle operation service.
+func WithSupportBundleService(service core.SupportBundleService) Option {
+	return func(server *Server) {
+		server.supportBundles = service
 	}
 }
 
@@ -553,6 +561,7 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 		automation:        s.automation,
 		bridges:           s.bridges,
 		bundles:           s.bundles,
+		supportBundles:    s.supportBundles,
 		tools:             s.tools,
 		toolsets:          s.toolsets,
 		toolApprovals:     s.toolApprovals,

@@ -184,6 +184,7 @@ type RuntimeDeps struct {
 	Settings            core.SettingsService
 	SettingsRestart     core.SettingsRestartController
 	SettingsUpdate      core.SettingsUpdateController
+	SupportBundles      core.SupportBundleService
 	Vault               core.VaultService
 	Extensions          udsapi.ExtensionService
 	Bundles             core.BundleService
@@ -1051,6 +1052,7 @@ func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
 		httpapi.WithSettingsService(deps.Settings),
 		httpapi.WithSettingsRestartController(deps.SettingsRestart),
 		httpapi.WithSettingsUpdateController(deps.SettingsUpdate),
+		httpapi.WithSupportBundleService(deps.SupportBundles),
 		httpapi.WithVaultService(deps.Vault),
 		httpapi.WithResourceService(deps.Resources),
 		httpapi.WithWorkspaceResolver(deps.WorkspaceService),
@@ -1095,6 +1097,7 @@ func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 		udsapi.WithSettingsService(deps.Settings),
 		udsapi.WithSettingsRestartController(deps.SettingsRestart),
 		udsapi.WithSettingsUpdateController(deps.SettingsUpdate),
+		udsapi.WithSupportBundleService(deps.SupportBundles),
 		udsapi.WithVaultService(deps.Vault),
 		udsapi.WithResourceService(deps.Resources),
 		udsapi.WithWorkspaceResolver(deps.WorkspaceService),

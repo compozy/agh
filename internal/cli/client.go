@@ -48,6 +48,9 @@ type DaemonClient interface {
 	DaemonStatus(ctx context.Context) (DaemonStatus, error)
 	TriggerSettingsRestart(ctx context.Context) (SettingsRestartActionRecord, error)
 	GetSettingsRestartStatus(ctx context.Context, operationID string) (SettingsRestartStatusRecord, error)
+	CreateSupportBundle(ctx context.Context, request CreateSupportBundleRequest) (SupportBundleOperationRecord, error)
+	GetSupportBundle(ctx context.Context, operationID string) (SupportBundleOperationRecord, error)
+	DownloadSupportBundle(ctx context.Context, operationID string, dst io.Writer) error
 	GetSettingsUpdate(ctx context.Context) (SettingsUpdateRecord, error)
 	UpdateSettingsSkills(ctx context.Context, request UpdateSettingsSkillsRequest) (SettingsMutationRecord, error)
 	ReloadSettings(ctx context.Context) (SettingsMutationRecord, error)
@@ -1041,6 +1044,12 @@ type SettingsRestartActionRecord = contract.RestartActionResponse
 // SettingsRestartStatusRecord is the shared restart polling payload.
 type SettingsRestartStatusRecord = contract.RestartActionStatus
 
+// CreateSupportBundleRequest captures one daemon-owned support bundle request.
+type CreateSupportBundleRequest = contract.CreateSupportBundleRequest
+
+// SupportBundleOperationRecord is the shared support bundle operation payload.
+type SupportBundleOperationRecord = contract.SupportBundleOperationPayload
+
 // SettingsUpdateRecord is the shared settings update status payload.
 type SettingsUpdateRecord = contract.SettingsUpdateResponse
 
@@ -1358,6 +1367,64 @@ func (c *unixSocketClient) GetSettingsRestartStatus(
 		return SettingsRestartStatusRecord{}, err
 	}
 	return response, nil
+}
+
+func (c *unixSocketClient) CreateSupportBundle(
+	ctx context.Context,
+	request CreateSupportBundleRequest,
+) (SupportBundleOperationRecord, error) {
+	var response contract.SupportBundleOperationResponse
+	if err := c.doJSON(ctx, http.MethodPost, "/api/support/bundles", nil, request, &response); err != nil {
+		return SupportBundleOperationRecord{}, err
+	}
+	return response.Operation, nil
+}
+
+func (c *unixSocketClient) GetSupportBundle(
+	ctx context.Context,
+	operationID string,
+) (SupportBundleOperationRecord, error) {
+	path := supportBundleOperationPath(operationID)
+	var response contract.SupportBundleOperationResponse
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return SupportBundleOperationRecord{}, err
+	}
+	return response.Operation, nil
+}
+
+func (c *unixSocketClient) DownloadSupportBundle(
+	ctx context.Context,
+	operationID string,
+	dst io.Writer,
+) (err error) {
+	if dst == nil {
+		return errors.New("cli: support bundle download writer is required")
+	}
+	response, err := c.doRequest(ctx, http.MethodGet, supportBundleOperationPath(operationID)+"/download", nil, nil)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if closeErr := response.Body.Close(); closeErr != nil {
+			closeErr = fmt.Errorf("cli: close support bundle download response: %w", closeErr)
+			if err == nil {
+				err = closeErr
+				return
+			}
+			err = errors.Join(err, closeErr)
+		}
+	}()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return readAPIError(response)
+	}
+	if _, err := io.Copy(dst, response.Body); err != nil {
+		return fmt.Errorf("cli: download support bundle: %w", err)
+	}
+	return nil
+}
+
+func supportBundleOperationPath(operationID string) string {
+	return "/api/support/bundles/" + url.PathEscape(strings.TrimSpace(operationID))
 }
 
 func (c *unixSocketClient) GetSettingsUpdate(ctx context.Context) (SettingsUpdateRecord, error) {
@@ -4196,7 +4263,7 @@ func (c *unixSocketClient) doJSON(
 	requestBody any,
 	responseBody any,
 ) error {
-	response, err := c.doRequest(ctx, method, path, query, requestBody, "")
+	response, err := c.doRequest(ctx, method, path, query, requestBody)
 	if err != nil {
 		return err
 	}
@@ -4288,7 +4355,6 @@ func (c *unixSocketClient) doRequest(
 	path string,
 	query url.Values,
 	requestBody any,
-	lastEventID string,
 ) (*http.Response, error) {
 	return c.doRequestWithCredentials(
 		ctx,
@@ -4296,7 +4362,7 @@ func (c *unixSocketClient) doRequest(
 		path,
 		query,
 		requestBody,
-		lastEventID,
+		"",
 		agentidentity.Credentials{},
 	)
 }

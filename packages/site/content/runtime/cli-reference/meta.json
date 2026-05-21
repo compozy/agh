@@ -30,6 +30,7 @@
         "observe",
         "provider",
         "resource",
+        "support",
         "bridge",
         "vault",
         "---System---",

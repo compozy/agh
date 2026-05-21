@@ -54,6 +54,10 @@ port = 2123
 
 [log]
 level = "info"
+max_size_mb = 10
+max_backups = 5
+max_age_days = 30
+compress_backups = false
 
 [limits]
 max_concurrent_agents = 20
@@ -83,27 +87,23 @@ For concrete service files, see [Daemon Operations](/runtime/core/operations/dae
 ## 4. Configure log retention
 
 AGH writes structured logs to `$AGH_HOME/logs/agh.log`. Detached daemon startup also appends child
-stdout and stderr there.
+stdout and stderr there. The daemon rotates this file directly from the LogSink configured under
+`[log]`; no external `logrotate` rule is required for the default file.
 
-If your host uses logrotate, use a rule like this and adjust user, group, and path:
-
-```text
-/var/lib/agh/logs/agh.log {
-  daily
-  rotate 14
-  compress
-  missingok
-  notifempty
-  copytruncate
-  create 0640 agh agh
-}
+```toml
+[log]
+level = "info"
+max_size_mb = 10
+max_backups = 5
+max_age_days = 30
+compress_backups = false
 ```
 
-| Check        | Pass condition                                                                  |
-| ------------ | ------------------------------------------------------------------------------- |
-| Retention    | Logs rotate before filling the filesystem.                                      |
-| Access       | Only operators who need runtime logs can read them.                             |
-| Error review | Recent `error` lines are reviewed during incident response and before upgrades. |
+| Check        | Pass condition                                                                                  |
+| ------------ | ----------------------------------------------------------------------------------------------- |
+| Retention    | `max_size_mb * (max_backups + 1)` fits the filesystem budget for the AGH home.                  |
+| Access       | Only operators who need runtime logs can read `$AGH_HOME/logs/` and downloaded support bundles. |
+| Error review | Recent `error` lines are reviewed during incident response and before upgrades.                 |
 
 ## 5. Monitor daemon and runtime health
 

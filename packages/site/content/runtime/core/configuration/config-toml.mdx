@@ -47,7 +47,7 @@ Use only `[sandboxes.<name>]` for session execution boundaries.
 | `[sandboxes.<name>]`                 | Local or provider-backed execution sandbox profiles.                            | local backend when no profile is selected                                          |
 | `[observability]`                    | Event summary retention and global byte cap.                                    | enabled, 7 days, 1 GiB                                                             |
 | `[observability.transcripts]`        | Transcript segment sizing and per-session cap.                                  | enabled, 1 MiB segments, 256 MiB per session                                       |
-| `[log]`                              | Structured log level.                                                           | `level = "info"`                                                                   |
+| `[log]`                              | Structured log level and daemon-owned rotation.                                 | `level = "info"`, 10 MiB, 5 backups, 30 days, compression off                      |
 | `[memory]`                           | Persistent memory runtime and global memory directory.                          | enabled, `$AGH_HOME/memory`                                                        |
 | `[memory.controller]`                | Hybrid write controller mode, latency, and fallback op.                         | hybrid, 300 ms, noop                                                               |
 | `[memory.controller.llm]`            | Controller LLM tiebreaker.                                                      | enabled, `anthropic/claude-haiku-4`, 250 ms, top_k 5                               |
@@ -292,6 +292,10 @@ max_bytes_per_session = 268435456
 
 [log]
 level = "info"
+max_size_mb = 10
+max_backups = 5
+max_age_days = 30
+compress_backups = false
 
 [memory]
 enabled = true
@@ -916,9 +920,19 @@ concurrent refresh requests for the same provider coalesce behind the in-flight 
 
 ## `[log]`
 
-| Field   | Type   | Default | Valid values                     | Description                  |
-| ------- | ------ | ------- | -------------------------------- | ---------------------------- |
-| `level` | string | `info`  | `debug`, `info`, `warn`, `error` | Structured daemon log level. |
+The daemon writes structured logs to `$AGH_HOME/logs/agh.log`. Rotation is owned by the daemon's
+LogSink, so operators do not need an external `logrotate` rule for the default file.
+
+Changing any `[log]` key is `restart-required` in v1. The daemon applies the new rotation
+writer on the next start.
+
+| Field              | Type    | Default | Valid values                     | Description                                                           |
+| ------------------ | ------- | ------- | -------------------------------- | --------------------------------------------------------------------- |
+| `level`            | string  | `info`  | `debug`, `info`, `warn`, `error` | Structured daemon log level.                                          |
+| `max_size_mb`      | integer | `10`    | Positive integer.                | Rotate `agh.log` when the active file would exceed this size.         |
+| `max_backups`      | integer | `5`     | Zero or positive integer.        | Maximum rotated backups to keep. `0` disables backup count retention. |
+| `max_age_days`     | integer | `30`    | Zero or positive integer.        | Delete backups older than this many days. `0` disables age retention. |
+| `compress_backups` | boolean | `false` | `true` or `false`                | Compress rotated backups with gzip after rotation.                    |
 
 ## `[memory]`
 

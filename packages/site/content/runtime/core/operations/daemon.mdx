@@ -159,7 +159,8 @@ tail -f "$AGH_HOME/logs/agh.log"
 ```
 
 The default log level is `info`. Supported levels are `debug`, `info`, `warn`, and `error`; configure
-them in [config.toml](/runtime/core/configuration/config-toml).
+them in [config.toml](/runtime/core/configuration/config-toml). The same `[log]` section also
+controls daemon-owned rotation for `agh.log`.
 
 Detached startup appends child stdout and stderr to the same file. If the detached child exits before
 readiness, the CLI returns the recent log text and prefers a recent line beginning with `error:`.

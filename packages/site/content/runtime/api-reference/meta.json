@@ -25,6 +25,7 @@
         "diagnostics",
         "logs",
         "settings",
+        "support",
         "providers",
         "extensions",
         "vault",

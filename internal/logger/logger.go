@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 const (
@@ -17,9 +19,19 @@ const (
 const mirrorToStderrEnvKey = "AGH_INTERNAL_LOG_MIRROR_STDERR"
 
 type options struct {
-	level        string
-	filePath     string
-	mirrorStderr bool
+	level          string
+	filePath       string
+	rotation       FileRotationConfig
+	rotationActive bool
+	mirrorStderr   bool
+}
+
+// FileRotationConfig configures the daemon log sink's file rotation policy.
+type FileRotationConfig struct {
+	MaxSizeMB       int
+	MaxBackups      int
+	MaxAgeDays      int
+	CompressBackups bool
 }
 
 // Option customizes logger construction.
@@ -36,6 +48,14 @@ func WithLevel(level string) Option {
 func WithFile(path string) Option {
 	return func(opts *options) {
 		opts.filePath = path
+	}
+}
+
+// WithFileRotation enables lumberjack-backed rotation for the structured file sink.
+func WithFileRotation(rotation FileRotationConfig) Option {
+	return func(opts *options) {
+		opts.rotation = rotation
+		opts.rotationActive = true
 	}
 }
 
@@ -71,12 +91,12 @@ func New(opts ...Option) (*slog.Logger, func() error, error) {
 			return nil, nil, fmt.Errorf("create log directory for %q: %w", options.filePath, err)
 		}
 
-		file, err := os.OpenFile(options.filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		fileSink, err := openFileSink(options.filePath, options.rotation, options.rotationActive)
 		if err != nil {
-			return nil, nil, fmt.Errorf("open log file %q: %w", options.filePath, err)
+			return nil, nil, err
 		}
-		writers = append(writers, file)
-		closeFn = file.Close
+		writers = append(writers, fileSink)
+		closeFn = fileSink.Close
 	}
 
 	if options.mirrorStderr || len(writers) == 0 {
@@ -93,6 +113,24 @@ func New(opts ...Option) (*slog.Logger, func() error, error) {
 	})
 
 	return slog.New(handler), closeFn, nil
+}
+
+func openFileSink(path string, rotation FileRotationConfig, enabled bool) (io.WriteCloser, error) {
+	if enabled {
+		return &lumberjack.Logger{
+			Filename:   path,
+			MaxSize:    rotation.MaxSizeMB,
+			MaxBackups: rotation.MaxBackups,
+			MaxAge:     rotation.MaxAgeDays,
+			Compress:   rotation.CompressBackups,
+		}, nil
+	}
+
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return nil, fmt.Errorf("open log file %q: %w", path, err)
+	}
+	return file, nil
 }
 
 // MirrorToStderrEnabled reports whether process-local logging should still be mirrored to stderr.

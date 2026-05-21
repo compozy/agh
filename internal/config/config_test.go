@@ -115,6 +115,10 @@ max_bytes_per_session = 4096
 
 [log]
 level = "debug"
+max_size_mb = 20
+max_backups = 4
+max_age_days = 14
+compress_backups = true
 
 [skills]
 enabled = false
@@ -257,6 +261,10 @@ max_queue_depth = 250
 	if cfg.Log.Level != "debug" {
 		t.Fatalf("Load() Log.Level = %q, want %q", cfg.Log.Level, "debug")
 	}
+	if cfg.Log.MaxSizeMB != 20 || cfg.Log.MaxBackups != 4 ||
+		cfg.Log.MaxAgeDays != 14 || !cfg.Log.CompressBackups {
+		t.Fatalf("Load() Log rotation = %#v", cfg.Log)
+	}
 	if cfg.Skills.Enabled {
 		t.Fatal("Load() Skills.Enabled = true, want false")
 	}
@@ -354,6 +362,71 @@ max_queue_depth = 250
 	}
 	if len(claude.MCPServers) != 1 || claude.MCPServers[0].Name != "github" {
 		t.Fatalf("ResolveProvider() MCPServers = %#v", claude.MCPServers)
+	}
+}
+
+func TestLogConfigDefaultsAndValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldExposeRotationDefaults", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		cfg := DefaultWithHome(homePaths)
+		if cfg.Log.MaxSizeMB != 10 || cfg.Log.MaxBackups != 5 || cfg.Log.MaxAgeDays != 30 {
+			t.Fatalf("DefaultWithHome() Log = %#v, want rotation defaults", cfg.Log)
+		}
+		if cfg.Log.CompressBackups {
+			t.Fatal("DefaultWithHome() Log.CompressBackups = true, want false")
+		}
+	})
+
+	tests := []struct {
+		name    string
+		config  LogConfig
+		wantErr string
+	}{
+		{
+			name:   "ShouldAcceptValidRotationConfig",
+			config: LogConfig{Level: "info", MaxSizeMB: 1, MaxBackups: 0, MaxAgeDays: 0},
+		},
+		{
+			name:    "ShouldRejectNonPositiveMaxSize",
+			config:  LogConfig{Level: "info", MaxSizeMB: 0, MaxBackups: 1, MaxAgeDays: 1},
+			wantErr: "log.max_size_mb",
+		},
+		{
+			name:    "ShouldRejectNegativeMaxBackups",
+			config:  LogConfig{Level: "info", MaxSizeMB: 1, MaxBackups: -1, MaxAgeDays: 1},
+			wantErr: "log.max_backups",
+		},
+		{
+			name:    "ShouldRejectNegativeMaxAge",
+			config:  LogConfig{Level: "info", MaxSizeMB: 1, MaxBackups: 1, MaxAgeDays: -1},
+			wantErr: "log.max_age_days",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tt.config.Validate()
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Validate() error = %v, want nil", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("Validate() error = nil, want non-nil")
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("Validate() error = %v, want %q", err, tt.wantErr)
+			}
+		})
 	}
 }
 

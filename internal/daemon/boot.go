@@ -41,6 +41,7 @@ import (
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/soul"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/support"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	"github.com/pedronauck/agh/internal/toolruntime"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
@@ -215,6 +216,7 @@ func (d *Daemon) bootComponents(ctx context.Context, state *bootState, cleanup *
 		func() error { return d.bootResourceReconcile(ctx, state, cleanup) },
 		func() error { return d.bootExtensions(ctx, state, cleanup) },
 		func() error { return d.bootSettings(ctx, state) },
+		func() error { return d.bootSupportBundles(state) },
 		func() error { return d.bootServers(ctx, state, cleanup) },
 		func() error { return d.bootFinalize(ctx, state) },
 	}
@@ -277,6 +279,12 @@ func (d *Daemon) bootConfig(state *bootState, cleanup *bootCleanup) error {
 		logger, closeLogger, err = aghlogger.New(
 			aghlogger.WithLevel(cfg.Log.Level),
 			aghlogger.WithFile(d.homePaths.LogFile),
+			aghlogger.WithFileRotation(aghlogger.FileRotationConfig{
+				MaxSizeMB:       cfg.Log.MaxSizeMB,
+				MaxBackups:      cfg.Log.MaxBackups,
+				MaxAgeDays:      cfg.Log.MaxAgeDays,
+				CompressBackups: cfg.Log.CompressBackups,
+			}),
 			aghlogger.WithMirrorToStderr(aghlogger.MirrorToStderrEnabled(os.Getenv)),
 		)
 		if err != nil {
@@ -1828,6 +1836,81 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 	state.deps.SettingsRestart = settingsRestartController{daemon: d}
 	state.deps.SettingsUpdate = settingsUpdateController{manager: updateManager}
 	return nil
+}
+
+func (d *Daemon) bootSupportBundles(state *bootState) error {
+	if state == nil {
+		return errors.New("daemon: boot support bundles state is required")
+	}
+	snapshots := d.supportBundleSnapshotHandlers(state)
+	state.deps.SupportBundles = support.NewService(&support.Builder{
+		HomePaths: d.homePaths,
+		Config:    state.cfg,
+		Now:       d.now,
+		Sources: support.Sources{
+			Status: func(ctx context.Context) (any, error) {
+				return snapshots.StatusSnapshot(ctx)
+			},
+			Doctor: func(ctx context.Context) (any, error) {
+				return snapshots.DoctorSnapshot(ctx)
+			},
+			Providers: func(ctx context.Context) (any, error) {
+				return snapshots.ProviderListSnapshot(ctx)
+			},
+			ConfigApplyRecords: func(ctx context.Context) (any, error) {
+				return snapshots.ConfigApplyRecordsSnapshot(ctx)
+			},
+			EventSummaries: func(ctx context.Context) (any, error) {
+				return snapshots.EventSummariesSnapshot(ctx)
+			},
+			Sessions: func(ctx context.Context) (any, error) {
+				return snapshots.SessionsSnapshot(ctx)
+			},
+		},
+	})
+	return nil
+}
+
+func (d *Daemon) supportBundleSnapshotHandlers(state *bootState) *core.BaseHandlers {
+	return core.NewBaseHandlers(&core.BaseHandlerConfig{
+		TransportName:       "support",
+		Sessions:            state.deps.Sessions,
+		Tasks:               state.deps.Tasks,
+		Network:             state.deps.Network,
+		NetworkStore:        state.deps.Registry,
+		Observer:            state.deps.Observer,
+		Resources:           state.deps.Resources,
+		Automation:          state.deps.Automation,
+		Bridges:             state.deps.Bridges,
+		Bundles:             state.deps.Bundles,
+		Settings:            state.deps.Settings,
+		SettingsRestart:     state.deps.SettingsRestart,
+		SettingsUpdate:      state.deps.SettingsUpdate,
+		Vault:               state.deps.Vault,
+		Workspaces:          state.deps.WorkspaceService,
+		AgentCatalog:        state.deps.AgentCatalog,
+		ModelCatalog:        state.deps.ModelCatalog,
+		AgentContextService: state.deps.AgentContext,
+		CoordinatorConfig:   state.deps.CoordinatorConfig,
+		SoulAuthoring:       state.deps.SoulAuthoring,
+		SoulRefresher:       state.deps.SoulRefresher,
+		HeartbeatAuthoring:  state.deps.HeartbeatAuthor,
+		HeartbeatStatus:     state.deps.HeartbeatStatus,
+		HeartbeatWake:       state.deps.HeartbeatWake,
+		SessionHealth:       state.deps.SessionHealth,
+		HeartbeatWakeEvents: state.deps.WakeEvents,
+		SkillsRegistry:      state.deps.SkillsRegistry,
+		MemoryStore:         state.deps.MemoryStore,
+		DreamTrigger:        state.deps.DreamTrigger,
+		MemoryExtractor:     state.deps.MemoryExtractor,
+		MemoryProviders:     state.deps.MemoryProviders,
+		MemorySessionLedger: state.deps.MemorySessionLedger,
+		HomePaths:           d.homePaths,
+		Config:              state.cfg,
+		Logger:              state.logger,
+		StartedAt:           state.startedAt,
+		Now:                 d.now,
+	})
 }
 
 type daemonSettingsRuntimeApplier struct {

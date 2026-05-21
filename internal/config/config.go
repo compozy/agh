@@ -29,6 +29,10 @@ const (
 	configExtractorKey                       = "extractor"
 	configHybridKey                          = "hybrid"
 	configJsonlKey                           = "jsonl"
+	configLogLevelDebug                      = "debug"
+	configLogLevelError                      = "error"
+	configLogLevelInfo                       = "info"
+	configLogLevelWarn                       = "warn"
 	configMemoryRecallWeightsBm25UnicodePath = "memory.recall.weights.bm25_unicode"
 	configProviderKey                        = "provider"
 	configToolKey                            = "tool"
@@ -203,7 +207,11 @@ type ObservabilityTranscriptConfig struct {
 
 // LogConfig controls structured logging.
 type LogConfig struct {
-	Level string `toml:"level"`
+	Level           string `toml:"level"`
+	MaxSizeMB       int    `toml:"max_size_mb"`
+	MaxBackups      int    `toml:"max_backups"`
+	MaxAgeDays      int    `toml:"max_age_days"`
+	CompressBackups bool   `toml:"compress_backups"`
 }
 
 // MemoryConfig controls persistent memory features.
@@ -685,7 +693,11 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			},
 		},
 		Log: LogConfig{
-			Level: "info",
+			Level:           configLogLevelInfo,
+			MaxSizeMB:       10,
+			MaxBackups:      5,
+			MaxAgeDays:      30,
+			CompressBackups: false,
 		},
 		Memory: DefaultMemoryConfig(homePaths),
 		Skills: SkillsConfig{
@@ -1466,11 +1478,27 @@ func (c ObservabilityTranscriptConfig) Validate() error {
 // Validate ensures the log level is supported.
 func (c LogConfig) Validate() error {
 	switch strings.ToLower(strings.TrimSpace(c.Level)) {
-	case "debug", "info", "warn", "error":
-		return nil
+	case configLogLevelDebug, configLogLevelInfo, configLogLevelWarn, configLogLevelError:
 	default:
-		return fmt.Errorf("log.level must be one of %q, %q, %q, %q: %q", "debug", "info", "warn", "error", c.Level)
+		return fmt.Errorf(
+			"log.level must be one of %q, %q, %q, %q: %q",
+			configLogLevelDebug,
+			configLogLevelInfo,
+			configLogLevelWarn,
+			configLogLevelError,
+			c.Level,
+		)
 	}
+	if c.MaxSizeMB <= 0 {
+		return fmt.Errorf("log.max_size_mb must be positive: %d", c.MaxSizeMB)
+	}
+	if c.MaxBackups < 0 {
+		return fmt.Errorf("log.max_backups must be zero or positive: %d", c.MaxBackups)
+	}
+	if c.MaxAgeDays < 0 {
+		return fmt.Errorf("log.max_age_days must be zero or positive: %d", c.MaxAgeDays)
+	}
+	return nil
 }
 
 // Validate ensures the memory configuration is internally consistent.

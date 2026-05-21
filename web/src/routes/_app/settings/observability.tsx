@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Activity, AlertCircle, ExternalLink } from "lucide-react";
+import { Activity, AlertCircle, Download, ExternalLink } from "lucide-react";
 import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 
 import { useSettingsObservabilityPage } from "@/hooks/routes/use-settings-observability-page";
@@ -10,6 +10,7 @@ import {
   SettingsSaveBar,
 } from "@/systems/settings/components";
 import { restartBannerPropsFor } from "@/systems/settings/lib/restart-banner-mapper";
+import { useSupportBundleDownload } from "@/systems/support";
 import type { TopbarRouteContext } from "@/types/topbar";
 import {
   Button,
@@ -174,6 +175,7 @@ function ObservabilitySettingsPage() {
         validationErrors={validationErrors}
         setValidationError={setValidationError}
       />
+      <SupportBundleSection />
       <LogTailSection logTail={logTail} runtime={runtime} />
     </PageShell>
   );
@@ -419,6 +421,92 @@ function LogTailSection({ logTail, runtime }: { logTail: LogTailMeta; runtime: R
             <ExternalLink className="size-3" />
             Open stream
           </a>
+        ) : null}
+      </div>
+    </Section>
+  );
+}
+
+function SupportBundleSection() {
+  const supportBundle = useSupportBundleDownload();
+  const [approved, setApproved] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
+  const operation = supportBundle.operation;
+  const operationStatus = operation?.status ?? "idle";
+  const errorMessage =
+    consentError ??
+    (supportBundle.error instanceof Error ? supportBundle.error.message : undefined);
+
+  const handleCreate = useCallback(async () => {
+    if (!approved) {
+      setConsentError("Approval is required before creating a support bundle.");
+      return;
+    }
+    setConsentError(null);
+    await supportBundle.create({ includeStatus: true });
+  }, [approved, supportBundle]);
+
+  return (
+    <Section divided label="Support bundle" note="redacted daemon archive">
+      <div
+        className="flex flex-col gap-4 rounded-md border border-line bg-elevated px-4 py-3"
+        data-testid="settings-page-observability-support-bundle"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-col gap-1">
+            <span className="text-sm text-fg">Create support bundle</span>
+            <Eyebrow
+              className="text-muted"
+              data-testid="settings-page-observability-support-bundle-status"
+            >
+              status: {operationStatus}
+            </Eyebrow>
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            disabled={supportBundle.isPending}
+            onClick={() => {
+              void handleCreate().catch(() => undefined);
+            }}
+            data-testid="settings-page-observability-support-bundle-button"
+          >
+            {supportBundle.isPending ? (
+              <Spinner className="size-3.5" />
+            ) : (
+              <Download className="size-3.5" />
+            )}
+            {supportBundle.isPending ? "Preparing" : "Create bundle"}
+          </Button>
+        </div>
+        <label className="flex items-start gap-3 text-sm text-subtle">
+          <input
+            type="checkbox"
+            checked={approved}
+            onChange={event => {
+              setApproved(event.currentTarget.checked);
+              if (event.currentTarget.checked) {
+                setConsentError(null);
+              }
+            }}
+            className="mt-0.5 size-4 rounded border border-line bg-canvas-soft accent-[var(--accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            data-testid="settings-page-observability-support-bundle-consent"
+          />
+          <span>I approve creating a redacted diagnostics archive.</span>
+        </label>
+        {operation?.size_bytes ? (
+          <Eyebrow className="text-muted" data-testid="settings-page-observability-support-size">
+            size: {formatBytes(operation.size_bytes)}
+          </Eyebrow>
+        ) : null}
+        {errorMessage ? (
+          <p
+            role="alert"
+            className="text-sm text-danger"
+            data-testid="settings-page-observability-support-bundle-error"
+          >
+            {errorMessage}
+          </p>
         ) : null}
       </div>
     </Section>

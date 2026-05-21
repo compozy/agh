@@ -110,6 +110,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newVersionCommand())
 	cmd.AddCommand(newInstallCommand(deps))
 	cmd.AddCommand(newConfigCommand(deps))
+	cmd.AddCommand(newSupportCommand(deps))
 	cmd.AddCommand(newUpdateCommand(deps))
 	cmd.AddCommand(newUninstallCommand(deps))
 	cmd.AddCommand(newStatusCommand(deps))

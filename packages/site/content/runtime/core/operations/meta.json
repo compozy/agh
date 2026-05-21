@@ -1,5 +1,5 @@
 {
     "title": "Operations",
     "icon": "Activity",
-    "pages": ["daemon", "database", "troubleshooting", "production"]
+    "pages": ["daemon", "database", "support-bundles", "troubleshooting", "production"]
 }

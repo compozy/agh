@@ -30,6 +30,46 @@ func TestNewWritesStructuredLogsToFile(t *testing.T) {
 	}
 }
 
+func TestNewWithFileRotation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ShouldRotateStructuredLogFileWhenSizeCapIsReached", func(t *testing.T) {
+		t.Parallel()
+
+		logFile := filepath.Join(t.TempDir(), "logs", "agh.log")
+		log, closeFn, err := New(
+			WithLevel("info"),
+			WithFile(logFile),
+			WithFileRotation(FileRotationConfig{MaxSizeMB: 1, MaxBackups: 2, MaxAgeDays: 1}),
+			WithMirrorToStderr(false),
+		)
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		payload := strings.Repeat("x", 2048)
+		for i := range 700 {
+			log.Info("rotation-check", "index", i, "payload", payload)
+		}
+		if err := closeFn(); err != nil {
+			t.Fatalf("closeFn() error = %v", err)
+		}
+		entries, err := os.ReadDir(filepath.Dir(logFile))
+		if err != nil {
+			t.Fatalf("ReadDir() error = %v", err)
+		}
+		rotated := false
+		for _, entry := range entries {
+			name := entry.Name()
+			if name != filepath.Base(logFile) && strings.HasPrefix(name, "agh-") && strings.HasSuffix(name, ".log") {
+				rotated = true
+			}
+		}
+		if !rotated {
+			t.Fatalf("rotated log file not found in %v", entries)
+		}
+	})
+}
+
 func TestParseLevelRejectsUnsupportedValue(t *testing.T) {
 	t.Parallel()
 

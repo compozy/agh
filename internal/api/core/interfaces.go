@@ -24,6 +24,7 @@ import (
 	skillmarketplace "github.com/pedronauck/agh/internal/skills/marketplace"
 	"github.com/pedronauck/agh/internal/soul"
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/support"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 	toolspkg "github.com/pedronauck/agh/internal/tools"
 	"github.com/pedronauck/agh/internal/transcript"
@@ -250,6 +251,13 @@ type SettingsService interface {
 	) (settingspkg.ApplyResult, error)
 	Reload(ctx context.Context) (settingspkg.ApplyResult, error)
 	ListApplyRecords(ctx context.Context, filter settingspkg.ApplyRecordFilter) ([]settingspkg.ApplyRecord, error)
+}
+
+// SupportBundleService exposes daemon-owned support bundle operations to transports.
+type SupportBundleService interface {
+	Create(ctx context.Context, req support.CreateRequest) (support.Operation, error)
+	Get(ctx context.Context, operationID string) (support.Operation, error)
+	DownloadPath(ctx context.Context, operationID string) (support.Operation, string, error)
 }
 
 // SkillsRegistry exposes the daemon-owned skill catalog.

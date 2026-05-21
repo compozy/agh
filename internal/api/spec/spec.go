@@ -78,6 +78,7 @@ const (
 	specExtensionNotFoundDescription                         = "Extension not found"
 	specExtensionServiceIsNotConfiguredDescription           = "Extension service is not configured"
 	specForbiddenDescription                                 = "Forbidden"
+	specSupportBundleServiceIsNotConfiguredDescription       = "Support bundle service is not configured"
 	specForbiddenWorkspaceOrPermissionMismatchDescription    = "Forbidden - workspace or permission mismatch"
 	specInternalDaemonErrorDescription                       = "Internal daemon error"
 	specInternalServerErrorDescription                       = "Internal server error"
@@ -125,6 +126,7 @@ const (
 	specSessionsKey                                          = "sessions"
 	specSettingsKey                                          = "settings"
 	specSkillsKey                                            = "skills"
+	specSupportKey                                           = "support"
 	specTasksKey                                             = "tasks"
 	specToolsKey                                             = "tools"
 	specToolsetsKey                                          = "toolsets"
@@ -320,6 +322,7 @@ func Document() (*openapi3.T, error) {
 			{Name: specResourcesKey},
 			{Name: specSessionsKey},
 			{Name: specSettingsKey},
+			{Name: specSupportKey},
 			{Name: specSkillsKey},
 			{Name: specTasksKey},
 			{Name: specToolsKey},
@@ -2957,6 +2960,69 @@ var operationRegistry = []OperationSpec{
 				ContentType: "text/event-stream",
 			},
 			{Status: 400, Description: specInvalidFilterDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:              httpMethodPost,
+		Path:                "/api/support/bundles",
+		OperationID:         "createSupportBundle",
+		Summary:             "Create a support bundle",
+		Tags:                []string{specSupportKey},
+		Transports:          []Transport{TransportHTTP, TransportUDS},
+		RequestBody:         contract.CreateSupportBundleRequest{},
+		RequestBodyOptional: true,
+		Responses: []ResponseSpec{
+			{Status: 202, Description: specAcceptedDescription, Body: contract.SupportBundleOperationResponse{}},
+			{Status: 400, Description: "Invalid support bundle request", Body: contract.ErrorPayload{}},
+			{
+				Status:      503,
+				Description: specSupportBundleServiceIsNotConfiguredDescription,
+				Body:        contract.ErrorPayload{},
+			},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodGet,
+		Path:        "/api/support/bundles/{operation_id}",
+		OperationID: "getSupportBundle",
+		Summary:     "Get support bundle operation status",
+		Tags:        []string{specSupportKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("operation_id", "Support bundle operation id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SupportBundleOperationResponse{}},
+			{Status: 404, Description: "Support bundle operation not found", Body: contract.ErrorPayload{}},
+			{
+				Status:      503,
+				Description: specSupportBundleServiceIsNotConfiguredDescription,
+				Body:        contract.ErrorPayload{},
+			},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodGet,
+		Path:        "/api/support/bundles/{operation_id}/download",
+		OperationID: "downloadSupportBundle",
+		Summary:     "Download a completed support bundle archive",
+		Tags:        []string{specSupportKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("operation_id", "Support bundle operation id"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "Support bundle archive"},
+			{Status: 404, Description: "Support bundle operation not found", Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Support bundle operation is not ready", Body: contract.ErrorPayload{}},
+			{
+				Status:      503,
+				Description: specSupportBundleServiceIsNotConfiguredDescription,
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	},

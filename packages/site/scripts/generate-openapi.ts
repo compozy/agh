@@ -213,6 +213,7 @@ const TAG_ICONS: Record<string, string> = {
   resources: "Database",
   sessions: "Send",
   settings: "Settings",
+  support: "Archive",
   skills: "FileCode",
   tasks: "Workflow",
   tools: "Plug",

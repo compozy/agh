@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -23,6 +24,9 @@ type stubClient struct {
 	daemonStatusFn              func(context.Context) (DaemonStatus, error)
 	triggerSettingsRestartFn    func(context.Context) (SettingsRestartActionRecord, error)
 	getSettingsRestartStatusFn  func(context.Context, string) (SettingsRestartStatusRecord, error)
+	createSupportBundleFn       func(context.Context, CreateSupportBundleRequest) (SupportBundleOperationRecord, error)
+	getSupportBundleFn          func(context.Context, string) (SupportBundleOperationRecord, error)
+	downloadSupportBundleFn     func(context.Context, string, io.Writer) error
 	getSettingsUpdateFn         func(context.Context) (SettingsUpdateRecord, error)
 	updateSettingsSkillsFn      func(context.Context, UpdateSettingsSkillsRequest) (SettingsMutationRecord, error)
 	reloadSettingsFn            func(context.Context) (SettingsMutationRecord, error)
@@ -298,6 +302,37 @@ func (s *stubClient) GetSettingsRestartStatus(
 		return s.getSettingsRestartStatusFn(ctx, operationID)
 	}
 	return SettingsRestartStatusRecord{}, errors.New("unexpected GetSettingsRestartStatus call")
+}
+
+func (s *stubClient) CreateSupportBundle(
+	ctx context.Context,
+	request CreateSupportBundleRequest,
+) (SupportBundleOperationRecord, error) {
+	if s.createSupportBundleFn != nil {
+		return s.createSupportBundleFn(ctx, request)
+	}
+	return SupportBundleOperationRecord{}, errors.New("unexpected CreateSupportBundle call")
+}
+
+func (s *stubClient) GetSupportBundle(
+	ctx context.Context,
+	operationID string,
+) (SupportBundleOperationRecord, error) {
+	if s.getSupportBundleFn != nil {
+		return s.getSupportBundleFn(ctx, operationID)
+	}
+	return SupportBundleOperationRecord{}, errors.New("unexpected GetSupportBundle call")
+}
+
+func (s *stubClient) DownloadSupportBundle(
+	ctx context.Context,
+	operationID string,
+	dst io.Writer,
+) error {
+	if s.downloadSupportBundleFn != nil {
+		return s.downloadSupportBundleFn(ctx, operationID, dst)
+	}
+	return errors.New("unexpected DownloadSupportBundle call")
 }
 
 func (s *stubClient) GetSettingsUpdate(ctx context.Context) (SettingsUpdateRecord, error) {

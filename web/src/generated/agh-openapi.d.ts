@@ -2455,6 +2455,57 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/support/bundles": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Create a support bundle */
+    post: operations["createSupportBundle"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/support/bundles/{operation_id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get support bundle operation status */
+    get: operations["getSupportBundle"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/support/bundles/{operation_id}/download": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Download a completed support bundle archive */
+    get: operations["downloadSupportBundle"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/task-reviews/{id}": {
     parameters: {
       query?: never;
@@ -35704,6 +35755,427 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  createSupportBundle: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody?: {
+      content: {
+        "application/json": {
+          include_status?: boolean | null;
+        };
+      };
+    };
+    responses: {
+      /** @description Accepted */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            operation: {
+              /** Format: date-time */
+              completed_at?: string | null;
+              /** Format: date-time */
+              created_at: string;
+              download_url?: string;
+              failure_reason?: string;
+              file_name?: string;
+              manifest?: {
+                /** Format: int64 */
+                artifact_max_bytes: number;
+                artifacts: {
+                  /** Format: int64 */
+                  bytes: number;
+                  included: boolean;
+                  omitted_reason?: string;
+                  path: string;
+                  redaction_version?: string;
+                  truncated: boolean;
+                }[];
+                /** Format: int64 */
+                bundle_max_bytes: number;
+                /** Format: date-time */
+                created_at: string;
+                /** Format: int64 */
+                event_summary_max_bytes: number;
+                /** Format: int64 */
+                log_tail_max_bytes: number;
+                operation_id: string;
+                redaction_version: string;
+                schema_version: string;
+              } | null;
+              operation_id: string;
+              /** Format: int64 */
+              size_bytes?: number;
+              status: string;
+              status_url: string;
+              /** Format: date-time */
+              updated_at: string;
+            };
+          };
+        };
+      };
+      /** @description Invalid support bundle request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Support bundle service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  getSupportBundle: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Support bundle operation id */
+        operation_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            operation: {
+              /** Format: date-time */
+              completed_at?: string | null;
+              /** Format: date-time */
+              created_at: string;
+              download_url?: string;
+              failure_reason?: string;
+              file_name?: string;
+              manifest?: {
+                /** Format: int64 */
+                artifact_max_bytes: number;
+                artifacts: {
+                  /** Format: int64 */
+                  bytes: number;
+                  included: boolean;
+                  omitted_reason?: string;
+                  path: string;
+                  redaction_version?: string;
+                  truncated: boolean;
+                }[];
+                /** Format: int64 */
+                bundle_max_bytes: number;
+                /** Format: date-time */
+                created_at: string;
+                /** Format: int64 */
+                event_summary_max_bytes: number;
+                /** Format: int64 */
+                log_tail_max_bytes: number;
+                operation_id: string;
+                redaction_version: string;
+                schema_version: string;
+              } | null;
+              operation_id: string;
+              /** Format: int64 */
+              size_bytes?: number;
+              status: string;
+              status_url: string;
+              /** Format: date-time */
+              updated_at: string;
+            };
+          };
+        };
+      };
+      /** @description Support bundle operation not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Support bundle service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  downloadSupportBundle: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Support bundle operation id */
+        operation_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Support bundle archive */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Support bundle operation not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Support bundle operation is not ready */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Support bundle service is not configured */
+      503: {
         headers: {
           [name: string]: unknown;
         };
