@@ -429,9 +429,14 @@ func (m *Manager) CancelPrompt(ctx context.Context, id string) error {
 			return fmt.Errorf("session: interrupt scoped tools for %q: %w", target, err)
 		}
 	}
-	m.emitTranscriptMarker(ctx, session, turnID, transcript.MarkerPromptCancel, "Prompt canceled by operator.", map[string]any{
-		"source": "cancel_prompt",
-	})
+	m.emitTranscriptMarker(
+		ctx,
+		session,
+		turnID,
+		transcript.MarkerPromptCancel,
+		"Prompt canceled by operator.",
+		map[string]any{"source": "cancel_prompt"},
+	)
 	return nil
 }
 

@@ -116,7 +116,14 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertNotRequired(t, attachRequest, "attached_to", "ttl_seconds")
 				attachResponse := jsonResponseSchema(t, attachSession, 200)
 				assertRequired(t, attachResponse, "session", "attach")
-				assertRequired(t, propertySchema(t, attachResponse, "attach"), "session_id", "attached_to", "attach_expires_at", "attached_at")
+				assertRequired(
+					t,
+					propertySchema(t, attachResponse, "attach"),
+					"session_id",
+					"attached_to",
+					"attach_expires_at",
+					"attached_at",
+				)
 				assertResponseStatus(t, attachSession, 409)
 
 				recapSession := operationFor(

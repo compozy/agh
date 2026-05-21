@@ -112,8 +112,7 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query store.SessionListQuer
 		args = append(args, store.FormatTimestamp(g.now()))
 	}
 	sqlQuery = store.AppendWhere(sqlQuery, where)
-	// The sort value is normalized to one of two constant clauses by sessionListOrderClause.
-	//nolint:gosec
+	//nolint:gosec // sessionListOrderClause returns one of two constant ORDER BY clauses.
 	sqlQuery += sessionListOrderClause(query.Sort)
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
@@ -215,7 +214,9 @@ func (g *GlobalDB) classifyAttachFailure(ctx context.Context, sessionID string, 
 	if strings.TrimSpace(state) != globalDBSessionStateActive || strings.TrimSpace(failureKind.String) != "" {
 		return fmt.Errorf("%w: %s", store.ErrSessionNotAttachable, sessionID)
 	}
-	if strings.TrimSpace(attachedTo) == "" || !attachExpiresAtRaw.Valid || strings.TrimSpace(attachExpiresAtRaw.String) == "" {
+	if strings.TrimSpace(attachedTo) == "" ||
+		!attachExpiresAtRaw.Valid ||
+		strings.TrimSpace(attachExpiresAtRaw.String) == "" {
 		return nil
 	}
 	expiresAt, err := store.ParseTimestamp(attachExpiresAtRaw.String)
