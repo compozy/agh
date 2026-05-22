@@ -13,7 +13,10 @@ import (
 	"github.com/pedronauck/agh/internal/store"
 )
 
-const sessionUpdateConfigOption = "config_option_update"
+const (
+	sessionUpdateConfigOption = "config_option_update"
+	steerDispatchTimeout      = 10 * time.Second
+)
 
 type wireSessionNotification struct {
 	SessionID acpsdk.SessionId `json:"sessionId"`
@@ -317,7 +320,10 @@ func (p *AgentProcess) injectSteerAfterToolResult(ctx context.Context, boundary 
 	if sessionID == "" {
 		return
 	}
-	input, ok, err := p.steerSource.ConsumeSteer(steerConsumeContext(ctx, p), sessionID)
+	consumeCtx, cancel := steerConsumeContext(ctx, p)
+	defer cancel()
+
+	input, ok, err := p.steerSource.ConsumeSteer(consumeCtx, sessionID)
 	if err != nil {
 		p.emitPromptEvent(AgentEvent{
 			Type:      EventTypeError,
@@ -348,11 +354,19 @@ func (p *AgentProcess) injectSteerAfterToolResult(ctx context.Context, boundary 
 	go p.dispatchSteerPrompt(steerDispatchContext(p), input, turnID)
 }
 
-func steerConsumeContext(ctx context.Context, process *AgentProcess) context.Context {
+func steerConsumeContext(ctx context.Context, process *AgentProcess) (context.Context, context.CancelFunc) {
 	if ctx != nil {
-		return context.WithoutCancel(ctx)
+		detached, cancel := withoutCancelPreservingDeadline(ctx)
+		if _, ok := detached.Deadline(); ok {
+			return detached, cancel
+		}
+		timeoutCtx, timeoutCancel := context.WithTimeout(detached, steerDispatchTimeout)
+		return timeoutCtx, func() {
+			timeoutCancel()
+			cancel()
+		}
 	}
-	return steerDispatchContext(process)
+	return context.WithTimeout(steerDispatchContext(process), steerDispatchTimeout)
 }
 
 func steerDispatchContext(process *AgentProcess) context.Context {
@@ -366,6 +380,9 @@ func (p *AgentProcess) dispatchSteerPrompt(ctx context.Context, input SteerInput
 	if p == nil || p.conn == nil {
 		return
 	}
+	dispatchCtx, cancel := steerTimeoutContext(ctx)
+	defer cancel()
+
 	request := acpsdk.PromptRequest{
 		SessionId: acpsdk.SessionId(p.SessionID),
 		Prompt:    []acpsdk.ContentBlock{acpsdk.TextBlock(strings.TrimSpace(input.Text))},
@@ -384,7 +401,7 @@ func (p *AgentProcess) dispatchSteerPrompt(ctx context.Context, input SteerInput
 	}
 	if _, err := acpsdk.SendRequest[wirePromptResponse](
 		p.conn,
-		ctx,
+		dispatchCtx,
 		acpsdk.AgentMethodSessionPrompt,
 		request,
 	); err != nil {
@@ -398,6 +415,16 @@ func (p *AgentProcess) dispatchSteerPrompt(ctx context.Context, input SteerInput
 			Failure:   failure,
 		})
 	}
+}
+
+func steerTimeoutContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		return context.WithTimeout(context.Background(), steerDispatchTimeout)
+	}
+	if _, ok := ctx.Deadline(); ok {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, steerDispatchTimeout)
 }
 
 func steerPromptMeta(input SteerInput) (map[string]any, error) {

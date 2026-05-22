@@ -159,3 +159,54 @@ func TestSettingsMutationResultsJSONShape(t *testing.T) {
 		})
 	}
 }
+
+func TestSettingsProviderAuthStatusPayloadJSONShape(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should include auth status code when populated", func(t *testing.T) {
+		t.Parallel()
+
+		payload := SettingsProviderAuthStatusPayload{
+			Mode:       "native_cli",
+			EnvPolicy:  "filtered",
+			HomePolicy: "operator",
+			State:      "not_authenticated",
+			Code:       "provider_not_authenticated",
+		}
+
+		data, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		var decoded map[string]any
+		if err := json.Unmarshal(data, &decoded); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if decoded["code"] != "provider_not_authenticated" {
+			t.Fatalf("code = %#v, want %#v", decoded["code"], "provider_not_authenticated")
+		}
+	})
+
+	t.Run("Should omit auth status code when empty", func(t *testing.T) {
+		t.Parallel()
+
+		payload := SettingsProviderAuthStatusPayload{
+			Mode:       "native_cli",
+			EnvPolicy:  "filtered",
+			HomePolicy: "operator",
+			State:      "authenticated",
+		}
+
+		data, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatalf("json.Marshal() error = %v", err)
+		}
+		var decoded map[string]any
+		if err := json.Unmarshal(data, &decoded); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if _, ok := decoded["code"]; ok {
+			t.Fatalf("decoded JSON unexpectedly included code in %s", string(data))
+		}
+	})
+}

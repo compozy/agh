@@ -708,6 +708,7 @@ func (h *BaseHandlers) SessionRecap(c *gin.Context) {
 	eventsList, err := h.Sessions.Events(
 		c.Request.Context(),
 		sessionID,
+		// Over-fetch so transcript/message filtering can still return a full recap window.
 		store.EventQuery{Limit: maxSessionRecapLimit * 5},
 	)
 	if err != nil {
@@ -752,11 +753,7 @@ func (h *BaseHandlers) recentTranscriptMarkers(
 		return []contract.TranscriptMarkerPayload{}, nil
 	}
 	if h.Observer != nil {
-		summaries, err := h.Observer.QueryEvents(ctx, store.EventSummaryQuery{
-			SessionID: sessionID,
-			Type:      events.TranscriptMarkerCreated,
-			Limit:     limit,
-		})
+		summaries, err := h.queryRecentTranscriptMarkerSummaries(ctx, sessionID, limit)
 		if err != nil {
 			return nil, fmt.Errorf("api: query transcript marker summaries: %w", err)
 		}
@@ -766,6 +763,39 @@ func (h *BaseHandlers) recentTranscriptMarkers(
 		}
 	}
 	return markerPayloadsFromEvents(eventsList, limit), nil
+}
+
+func (h *BaseHandlers) queryRecentTranscriptMarkerSummaries(
+	ctx context.Context,
+	sessionID string,
+	limit int,
+) ([]store.EventSummary, error) {
+	summaries := make([]store.EventSummary, 0, limit*2)
+	seen := make(map[string]struct{}, limit*2)
+	for _, eventType := range []string{events.TranscriptMarkerCreated, events.TranscriptMarkerRedacted} {
+		results, err := h.Observer.QueryEvents(ctx, store.EventSummaryQuery{
+			SessionID: sessionID,
+			Type:      eventType,
+			Limit:     limit,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("query %s summaries: %w", eventType, err)
+		}
+		for _, summary := range results {
+			if _, ok := seen[summary.ID]; ok {
+				continue
+			}
+			seen[summary.ID] = struct{}{}
+			summaries = append(summaries, summary)
+		}
+	}
+	sort.SliceStable(summaries, func(i int, j int) bool {
+		return summaries[i].Timestamp.After(summaries[j].Timestamp)
+	})
+	if limit > 0 && len(summaries) > limit {
+		summaries = summaries[:limit]
+	}
+	return summaries, nil
 }
 
 func markerPayloadsFromSummaries(summaries []store.EventSummary) []contract.TranscriptMarkerPayload {
@@ -1357,6 +1387,10 @@ func (h *BaseHandlers) HookEvents(c *gin.Context) {
 
 // ListLogs returns the filtered runtime log list.
 func (h *BaseHandlers) ListLogs(c *gin.Context) {
+	if h.Observer == nil {
+		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: observer is required"))
+		return
+	}
 	query, err := ParseLogsQuery(c)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
@@ -1379,6 +1413,10 @@ func (h *BaseHandlers) ListLogs(c *gin.Context) {
 
 // StreamLogs streams runtime logs over SSE.
 func (h *BaseHandlers) StreamLogs(c *gin.Context) {
+	if h.Observer == nil {
+		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: observer is required"))
+		return
+	}
 	query, err := ParseLogsQuery(c)
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)

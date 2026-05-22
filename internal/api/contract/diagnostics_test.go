@@ -2,6 +2,7 @@ package contract_test
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/pedronauck/agh/internal/api/contract"
@@ -84,6 +85,9 @@ func TestDiagnosticItemContract(t *testing.T) {
 		if err == nil {
 			t.Fatal("ValidateDiagnosticItem() error = nil, want unknown code failure")
 		}
+		if !strings.Contains(err.Error(), "not_registered") {
+			t.Fatalf("ValidateDiagnosticItem() error = %v, want unknown code detail", err)
+		}
 	})
 
 	t.Run("Should reject code category mismatches", func(t *testing.T) {
@@ -100,6 +104,9 @@ func TestDiagnosticItemContract(t *testing.T) {
 		})
 		if err == nil {
 			t.Fatal("ValidateDiagnosticItem() error = nil, want category mismatch failure")
+		}
+		if !strings.Contains(strings.ToLower(err.Error()), "category") {
+			t.Fatalf("ValidateDiagnosticItem() error = %v, want category mismatch detail", err)
 		}
 	})
 }

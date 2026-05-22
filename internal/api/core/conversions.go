@@ -1406,7 +1406,7 @@ func SkillShadowEntryPayloadsFromDomain(entries []skills.ShadowEntry) []contract
 func SkillShadowEntryPayloadFromDomain(entry skills.ShadowEntry) contract.SkillShadowEntryPayload {
 	return contract.SkillShadowEntryPayload{
 		Path:             strings.TrimSpace(entry.Path),
-		Tier:             strings.TrimSpace(entry.Tier),
+		Tier:             skillPrecedenceTierFromSourceLabel(entry.Tier),
 		ResolvedToWinner: entry.ResolvedToWinner,
 		DetectedAt:       skillShadowDetectedAt(entry.DetectedAt),
 	}
@@ -1438,7 +1438,7 @@ func skillPrecedenceTierFromSourceLabel(source string) string {
 
 func skillShadowDetectedAt(value time.Time) time.Time {
 	if value.IsZero() {
-		return time.Now().UTC()
+		return time.Time{}
 	}
 	return value.UTC()
 }

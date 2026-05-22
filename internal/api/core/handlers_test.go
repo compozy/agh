@@ -18,6 +18,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/testutil"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/diagnostics"
+	"github.com/pedronauck/agh/internal/events"
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
@@ -138,14 +139,14 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 
 	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
 
-	t.Run("ShouldListSessions", func(t *testing.T) {
+	t.Run("Should list sessions", func(t *testing.T) {
 		listResp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions", nil)
 		if listResp.Code != http.StatusOK {
 			t.Fatalf("list status = %d, want %d", listResp.Code, http.StatusOK)
 		}
 	})
 
-	t.Run("ShouldCreateSession", func(t *testing.T) {
+	t.Run("Should create sessions", func(t *testing.T) {
 		createResp := performRequest(
 			t,
 			fixture.Engine,
@@ -165,14 +166,14 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldGetSession", func(t *testing.T) {
+	t.Run("Should get session details", func(t *testing.T) {
 		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/workspaces/ws-workspace/sessions/sess-a", nil)
 		if getResp.Code != http.StatusOK {
 			t.Fatalf("get status = %d, want %d", getResp.Code, http.StatusOK)
 		}
 	})
 
-	t.Run("ShouldReturnNotFoundForMissingSession", func(t *testing.T) {
+	t.Run("Should return not found for missing sessions", func(t *testing.T) {
 		notFoundResp := performRequest(
 			t,
 			fixture.Engine,
@@ -185,7 +186,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldDeleteSession", func(t *testing.T) {
+	t.Run("Should delete sessions", func(t *testing.T) {
 		deleteResp := performRequest(
 			t,
 			fixture.Engine,
@@ -201,7 +202,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldStopSession", func(t *testing.T) {
+	t.Run("Should stop sessions", func(t *testing.T) {
 		stopResp := performRequest(
 			t,
 			fixture.Engine,
@@ -217,7 +218,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldAttachSession", func(t *testing.T) {
+	t.Run("Should attach sessions", func(t *testing.T) {
 		attachResp := performRequest(
 			t,
 			fixture.Engine,
@@ -228,9 +229,44 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		if attachResp.Code != http.StatusOK {
 			t.Fatalf("attach status = %d, want %d", attachResp.Code, http.StatusOK)
 		}
+		var payload contract.SessionAttachResponse
+		if err := json.Unmarshal(attachResp.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(attach response) error = %v", err)
+		}
+		if payload.Attach.SessionID != "sess-a" {
+			t.Fatalf("attach session id = %q, want %q", payload.Attach.SessionID, "sess-a")
+		}
+		if payload.Attach.AttachedAt.IsZero() {
+			t.Fatal("attach attached_at = zero, want populated timestamp")
+		}
+		if !payload.Attach.AttachExpiresAt.After(payload.Attach.AttachedAt) {
+			t.Fatalf(
+				"attach expires_at = %v, attached_at = %v; want expires after attached",
+				payload.Attach.AttachExpiresAt,
+				payload.Attach.AttachedAt,
+			)
+		}
+		if payload.Session.ID != "sess-a" {
+			t.Fatalf("session id = %q, want %q", payload.Session.ID, "sess-a")
+		}
+		if payload.Session.AttachedTo != payload.Attach.AttachedTo {
+			t.Fatalf(
+				"session attached_to = %q, attach attached_to = %q; want match",
+				payload.Session.AttachedTo,
+				payload.Attach.AttachedTo,
+			)
+		}
+		if payload.Session.AttachExpiresAt == nil ||
+			!payload.Session.AttachExpiresAt.Equal(payload.Attach.AttachExpiresAt) {
+			t.Fatalf(
+				"session attach_expires_at = %#v, attach attach_expires_at = %v; want match",
+				payload.Session.AttachExpiresAt,
+				payload.Attach.AttachExpiresAt,
+			)
+		}
 	})
 
-	t.Run("ShouldRepairSession", func(t *testing.T) {
+	t.Run("Should repair sessions", func(t *testing.T) {
 		repairResp := performRequest(
 			t,
 			fixture.Engine,
@@ -269,7 +305,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldRejectConflictingRepairQueryAliases", func(t *testing.T) {
+	t.Run("Should reject conflicting repair query aliases", func(t *testing.T) {
 		repairResp := performRequest(
 			t,
 			fixture.Engine,
@@ -285,7 +321,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldReturnSessionEvents", func(t *testing.T) {
+	t.Run("Should return session events", func(t *testing.T) {
 		eventsResp := performRequest(
 			t,
 			fixture.Engine,
@@ -298,7 +334,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldReturnSessionHistory", func(t *testing.T) {
+	t.Run("Should return session history", func(t *testing.T) {
 		historyResp := performRequest(
 			t,
 			fixture.Engine,
@@ -311,7 +347,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldReturnSessionTranscript", func(t *testing.T) {
+	t.Run("Should return session transcript", func(t *testing.T) {
 		transcriptResp := performRequest(
 			t,
 			fixture.Engine,
@@ -328,61 +364,81 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 func TestCreateSessionProviderAuthFailureReturnsDiagnostic(t *testing.T) {
 	t.Parallel()
 
-	item := diagnostics.NewItem(
-		"provider.codex.auth",
-		contract.CodeProviderCLIMissing,
-		contract.CategoryProvider,
-		"Provider auth status",
-		"Provider CLI is not installed or not available on PATH.",
-		contract.SeverityError,
-		contract.FreshnessLive,
-	)
-	manager := testutil.StubSessionManager{
-		CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
-			return nil, acp.WrapFailure(
-				store.FailureProviderAuth,
-				"provider auth pre-start probe failed",
-				diagnostics.NewStructuredError(item, errors.New("missing provider CLI")),
-			)
-		},
-	}
-	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+	t.Run("Should return diagnostic for provider auth failure", func(t *testing.T) {
+		t.Parallel()
 
-	response := performRequest(
-		t,
-		fixture.Engine,
-		http.MethodPost,
-		"/sessions",
-		[]byte(`{"agent_name":"coder","provider":"codex","workspace":"alpha"}`),
-	)
-	if response.Code != http.StatusUnprocessableEntity {
-		t.Fatalf("create status = %d body = %s, want 422", response.Code, response.Body.String())
-	}
-	var payload contract.ErrorPayload
-	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
-		t.Fatalf("json.Unmarshal(error payload) error = %v", err)
-	}
-	if payload.Diagnostic == nil {
-		t.Fatal("payload.Diagnostic = nil, want provider diagnostic")
-	}
-	if got, want := payload.Diagnostic.Code, contract.CodeProviderCLIMissing; got != want {
-		t.Fatalf("payload.Diagnostic.Code = %q, want %q", got, want)
-	}
+		item := diagnostics.NewItem(
+			"provider.codex.auth",
+			contract.CodeProviderCLIMissing,
+			contract.CategoryProvider,
+			"Provider auth status",
+			"Provider CLI is not installed or not available on PATH.",
+			contract.SeverityError,
+			contract.FreshnessLive,
+		)
+		manager := testutil.StubSessionManager{
+			CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
+				return nil, acp.WrapFailure(
+					store.FailureProviderAuth,
+					"provider auth pre-start probe failed",
+					diagnostics.NewStructuredError(item, errors.New("missing provider CLI")),
+				)
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/sessions",
+			[]byte(`{"agent_name":"coder","provider":"codex","workspace":"alpha"}`),
+		)
+		if response.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("create status = %d body = %s, want 422", response.Code, response.Body.String())
+		}
+		var payload contract.ErrorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(error payload) error = %v", err)
+		}
+		if payload.Diagnostic == nil {
+			t.Fatal("payload.Diagnostic = nil, want provider diagnostic")
+		}
+		if got, want := payload.Diagnostic.Code, contract.CodeProviderCLIMissing; got != want {
+			t.Fatalf("payload.Diagnostic.Code = %q, want %q", got, want)
+		}
+	})
 }
 
-func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
+func TestSessionRecapIncludesRedactedObserverMarkers(t *testing.T) {
 	t.Parallel()
 
-	done := make(chan struct{})
-	var sessionCalls atomic.Int32
-	var observeCalls atomic.Int32
-	manager := testutil.StubSessionManager{
-		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
-			return testutil.NewSessionInfo(id), nil
-		},
-		EventsFn: func(_ context.Context, id string, _ store.EventQuery) ([]store.SessionEvent, error) {
-			switch sessionCalls.Add(1) {
-			case 1:
+	t.Run("Should include redacted transcript markers from observer summaries", func(t *testing.T) {
+		t.Parallel()
+
+		occurredAt := time.Date(2026, 4, 3, 12, 0, 2, 0, time.UTC)
+		marker, err := transcript.NewMarker(
+			transcript.MarkerPromptInterrupted,
+			"Prompt interrupted",
+			occurredAt,
+			map[string]any{"reason": "operator"},
+		)
+		if err != nil {
+			t.Fatalf("transcript.NewMarker() error = %v", err)
+		}
+		rawMarker, err := json.Marshal(marker)
+		if err != nil {
+			t.Fatalf("json.Marshal(marker) error = %v", err)
+		}
+
+		manager := testutil.StubSessionManager{
+			StatusFn: func(context.Context, string) (*session.Info, error) {
+				return testutil.NewSessionInfo("sess-a"), nil
+			},
+			EventsFn: func(_ context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error) {
+				if id != "sess-a" || query.Limit != 500 {
+					t.Fatalf("Events() call = %q %#v, want recap query", id, query)
+				}
 				return []store.SessionEvent{{
 					ID:        "ev-1",
 					SessionID: id,
@@ -391,119 +447,234 @@ func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
 					Type:      "agent_message",
 					AgentName: "coder",
 					Content:   `{"text":"hello"}`,
-					Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+					Timestamp: occurredAt.Add(-time.Second),
 				}}, nil
-			case 2:
-				close(done)
-				return []store.SessionEvent{{
-					ID:        "ev-2",
-					SessionID: id,
-					Sequence:  2,
-					TurnID:    "turn-1",
-					Type:      "done",
-					AgentName: "coder",
-					Content:   `{"stop_reason":"end_turn"}`,
-					Timestamp: time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC),
-				}}, nil
-			default:
-				return nil, nil
-			}
-		},
-		ListAllFn: func(context.Context) ([]*session.Info, error) {
-			return []*session.Info{testutil.NewSessionInfo("sess-a")}, nil
-		},
-	}
-	observer := testutil.StubObserver{
-		QueryEventsFn: func(_ context.Context, _ store.EventSummaryQuery) ([]store.EventSummary, error) {
-			call := observeCalls.Add(1)
-			ts := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
-			switch call {
-			case 1:
-				return []store.EventSummary{
-					{ID: "sum-1", SessionID: "sess-a", Type: "agent_message", AgentName: "coder", Timestamp: ts},
-				}, nil
-			case 2:
-				return []store.EventSummary{
-					{
-						ID:        "sum-2",
+			},
+		}
+		observer := testutil.StubObserver{
+			QueryEventsFn: func(_ context.Context, query store.EventSummaryQuery) ([]store.EventSummary, error) {
+				switch query.Type {
+				case events.TranscriptMarkerCreated:
+					return nil, nil
+				case events.TranscriptMarkerRedacted:
+					return []store.EventSummary{{
+						ID:        "sum-redacted",
 						SessionID: "sess-a",
+						Type:      events.TranscriptMarkerRedacted,
+						Content:   rawMarker,
+						Timestamp: occurredAt,
+					}}, nil
+				default:
+					t.Fatalf("unexpected marker summary query = %#v", query)
+					return nil, nil
+				}
+			},
+		}
+
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-a/recap?limit=5",
+			nil,
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf("recap status = %d body=%s, want %d", response.Code, response.Body.String(), http.StatusOK)
+		}
+
+		var payload contract.SessionRecapResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(recap response) error = %v", err)
+		}
+		if got, want := len(payload.Recap.RecentMarkers), 1; got != want {
+			t.Fatalf("len(recent_markers) = %d, want %d", got, want)
+		}
+		if got, want := payload.Recap.RecentMarkers[0].Kind, transcript.MarkerPromptInterrupted; got != want {
+			t.Fatalf("recent_markers[0].Kind = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestLogsEndpointsRequireObserver(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return service unavailable when observer is missing", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Observer = nil
+
+		for _, path := range []string{
+			"/logs?workspace_id=ws-workspace",
+			"/logs/stream?workspace_id=ws-workspace",
+		} {
+			response := performRequest(t, fixture.Engine, http.MethodGet, path, nil)
+			if response.Code != http.StatusServiceUnavailable {
+				t.Fatalf(
+					"%s status = %d, want %d; body=%s",
+					path,
+					response.Code,
+					http.StatusServiceUnavailable,
+					response.Body.String(),
+				)
+			}
+			if !strings.Contains(response.Body.String(), "observer is required") {
+				t.Fatalf("%s body = %q, want observer error", path, response.Body.String())
+			}
+		}
+	})
+}
+
+func TestBaseHandlersStreamingAndObserveEndpoints(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should stream session events and expose observe endpoints", func(t *testing.T) {
+		t.Parallel()
+
+		done := make(chan struct{})
+		var sessionCalls atomic.Int32
+		var observeCalls atomic.Int32
+		manager := testutil.StubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				return testutil.NewSessionInfo(id), nil
+			},
+			EventsFn: func(_ context.Context, id string, _ store.EventQuery) ([]store.SessionEvent, error) {
+				switch sessionCalls.Add(1) {
+				case 1:
+					return []store.SessionEvent{{
+						ID:        "ev-1",
+						SessionID: id,
+						Sequence:  1,
+						TurnID:    "turn-1",
+						Type:      "agent_message",
+						AgentName: "coder",
+						Content:   `{"text":"hello"}`,
+						Timestamp: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+					}}, nil
+				case 2:
+					close(done)
+					return []store.SessionEvent{{
+						ID:        "ev-2",
+						SessionID: id,
+						Sequence:  2,
+						TurnID:    "turn-1",
 						Type:      "done",
 						AgentName: "coder",
-						Timestamp: ts.Add(time.Second),
-					},
-				}, nil
-			default:
-				return nil, nil
-			}
-		},
-		HealthFn: func(context.Context) (observe.Health, error) {
-			return observe.Health{Status: "ok", ActiveSessions: 1, Version: "dev"}, nil
-		},
-	}
+						Content:   `{"stop_reason":"end_turn"}`,
+						Timestamp: time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC),
+					}}, nil
+				default:
+					return nil, nil
+				}
+			},
+			ListAllFn: func(context.Context) ([]*session.Info, error) {
+				return []*session.Info{testutil.NewSessionInfo("sess-a")}, nil
+			},
+		}
+		observer := testutil.StubObserver{
+			QueryEventsFn: func(_ context.Context, _ store.EventSummaryQuery) ([]store.EventSummary, error) {
+				call := observeCalls.Add(1)
+				ts := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
+				switch call {
+				case 1:
+					return []store.EventSummary{
+						{ID: "sum-1", SessionID: "sess-a", Type: "agent_message", AgentName: "coder", Timestamp: ts},
+					}, nil
+				case 2:
+					return []store.EventSummary{
+						{
+							ID:        "sum-2",
+							SessionID: "sess-a",
+							Type:      "done",
+							AgentName: "coder",
+							Timestamp: ts.Add(time.Second),
+						},
+					}, nil
+				default:
+					return nil, nil
+				}
+			},
+			HealthFn: func(context.Context) (observe.Health, error) {
+				return observe.Health{Status: "ok", ActiveSessions: 1, Version: "dev"}, nil
+			},
+		}
 
-	fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
-	fixture.Handlers.SetStreamDone(done)
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Handlers.SetStreamDone(done)
 
-	streamResp := performRequest(
-		t,
-		fixture.Engine,
-		http.MethodGet,
-		"/workspaces/ws-workspace/sessions/sess-a/stream",
-		nil,
-	)
-	if streamResp.Code != http.StatusOK {
-		t.Fatalf("stream status = %d, want %d", streamResp.Code, http.StatusOK)
-	}
-	if records := testutil.ParseSSE(t, streamResp.Body.String()); len(records) < 2 {
-		t.Fatalf("stream records = %d, want at least 2", len(records))
-	}
+		streamResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/sessions/sess-a/stream",
+			nil,
+		)
+		if streamResp.Code != http.StatusOK {
+			t.Fatalf("stream status = %d, want %d", streamResp.Code, http.StatusOK)
+		}
+		if records := testutil.ParseSSE(t, streamResp.Body.String()); len(records) < 2 {
+			t.Fatalf("stream records = %d, want at least 2", len(records))
+		}
 
-	observeResp := performRequest(t, fixture.Engine, http.MethodGet, "/logs?workspace_id=ws-workspace", nil)
-	if observeResp.Code != http.StatusOK {
-		t.Fatalf("observe status = %d, want %d", observeResp.Code, http.StatusOK)
-	}
+		observeResp := performRequest(t, fixture.Engine, http.MethodGet, "/logs?workspace_id=ws-workspace", nil)
+		if observeResp.Code != http.StatusOK {
+			t.Fatalf("observe status = %d, want %d", observeResp.Code, http.StatusOK)
+		}
 
-	statusResp := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
-	if statusResp.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", statusResp.Code, http.StatusOK)
-	}
+		statusResp := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
+		if statusResp.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d", statusResp.Code, http.StatusOK)
+		}
 
-	doctorResp := performRequest(t, fixture.Engine, http.MethodGet, "/doctor", nil)
-	if doctorResp.Code != http.StatusOK {
-		t.Fatalf("doctor = %d, want %d", doctorResp.Code, http.StatusOK)
-	}
+		doctorResp := performRequest(t, fixture.Engine, http.MethodGet, "/doctor", nil)
+		if doctorResp.Code != http.StatusOK {
+			t.Fatalf("doctor = %d, want %d", doctorResp.Code, http.StatusOK)
+		}
+	})
 }
 
 func TestBaseHandlersAgentEndpoints(t *testing.T) {
 	t.Parallel()
 
-	fixture := newHandlerFixture(
-		t,
-		testutil.StubSessionManager{},
-		testutil.StubObserver{},
-		testutil.StubWorkspaceService{},
-		nil,
-		nil,
-	)
-	testutil.WriteAgentDef(t, fixture.HomePaths, "coder")
+	t.Run("Should serve agent read endpoints and surface loader failures", func(t *testing.T) {
+		t.Parallel()
 
-	getResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/coder", nil)
-	if getResp.Code != http.StatusOK {
-		t.Fatalf("get agent status = %d, want %d", getResp.Code, http.StatusOK)
-	}
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		testutil.WriteAgentDef(t, fixture.HomePaths, "coder")
 
-	listResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents", nil)
-	if listResp.Code != http.StatusOK {
-		t.Fatalf("list agents status = %d, want %d", listResp.Code, http.StatusOK)
-	}
+		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/coder", nil)
+		if getResp.Code != http.StatusOK {
+			t.Fatalf("get agent status = %d, want %d", getResp.Code, http.StatusOK)
+		}
 
-	fixture.Handlers.AgentLoader = func(string, aghconfig.HomePaths) (aghconfig.AgentDef, error) {
-		return aghconfig.AgentDef{}, errors.New("boom")
-	}
-	missingResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/missing", nil)
-	if missingResp.Code != http.StatusInternalServerError {
-		t.Fatalf("missing agent status = %d, want %d", missingResp.Code, http.StatusInternalServerError)
-	}
+		listResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents", nil)
+		if listResp.Code != http.StatusOK {
+			t.Fatalf("list agents status = %d, want %d", listResp.Code, http.StatusOK)
+		}
+
+		fixture.Handlers.AgentLoader = func(string, aghconfig.HomePaths) (aghconfig.AgentDef, error) {
+			return aghconfig.AgentDef{}, errors.New("boom")
+		}
+		missingResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/missing", nil)
+		if missingResp.Code != http.StatusInternalServerError {
+			t.Fatalf("missing agent status = %d, want %d", missingResp.Code, http.StatusInternalServerError)
+		}
+	})
 }
 
 func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
@@ -784,65 +955,69 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 func TestBaseHandlersAgentCatalogEndpoints(t *testing.T) {
 	t.Parallel()
 
-	fixture := newHandlerFixture(
-		t,
-		testutil.StubSessionManager{},
-		testutil.StubObserver{},
-		testutil.StubWorkspaceService{},
-		nil,
-		nil,
-	)
-	fixture.Handlers.AgentCatalog = stubAgentCatalog{
-		agents: []aghconfig.AgentDef{
-			{Name: "zeta", Prompt: "Zeta prompt"},
-			{Name: "alpha", Prompt: "Alpha prompt"},
-		},
-		get: map[string]aghconfig.AgentDef{
-			"alpha": {Name: "alpha", Prompt: "Alpha prompt"},
-		},
-	}
+	t.Run("Should expose agent catalog lists, lookups, and error mappings", func(t *testing.T) {
+		t.Parallel()
 
-	listResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents", nil)
-	if listResp.Code != http.StatusOK {
-		t.Fatalf("list agent catalog status = %d, want %d", listResp.Code, http.StatusOK)
-	}
-	var listed contract.AgentsResponse
-	if err := json.Unmarshal(listResp.Body.Bytes(), &listed); err != nil {
-		t.Fatalf("json.Unmarshal(list agents) error = %v", err)
-	}
-	if len(listed.Agents) != 2 || listed.Agents[0].Name != "alpha" || listed.Agents[1].Name != "zeta" {
-		t.Fatalf("listed agents = %#v, want alpha then zeta", listed.Agents)
-	}
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.AgentCatalog = stubAgentCatalog{
+			agents: []aghconfig.AgentDef{
+				{Name: "zeta", Prompt: "Zeta prompt"},
+				{Name: "alpha", Prompt: "Alpha prompt"},
+			},
+			get: map[string]aghconfig.AgentDef{
+				"alpha": {Name: "alpha", Prompt: "Alpha prompt"},
+			},
+		}
 
-	getResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/alpha", nil)
-	if getResp.Code != http.StatusOK {
-		t.Fatalf("get agent catalog status = %d, want %d", getResp.Code, http.StatusOK)
-	}
+		listResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents", nil)
+		if listResp.Code != http.StatusOK {
+			t.Fatalf("list agent catalog status = %d, want %d", listResp.Code, http.StatusOK)
+		}
+		var listed contract.AgentsResponse
+		if err := json.Unmarshal(listResp.Body.Bytes(), &listed); err != nil {
+			t.Fatalf("json.Unmarshal(list agents) error = %v", err)
+		}
+		if len(listed.Agents) != 2 || listed.Agents[0].Name != "alpha" || listed.Agents[1].Name != "zeta" {
+			t.Fatalf("listed agents = %#v, want alpha then zeta", listed.Agents)
+		}
 
-	fixture.Handlers.AgentCatalog = stubAgentCatalog{getErr: os.ErrNotExist}
-	missingResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/missing", nil)
-	if missingResp.Code != http.StatusNotFound {
-		t.Fatalf("get missing catalog agent status = %d, want %d", missingResp.Code, http.StatusNotFound)
-	}
+		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/alpha", nil)
+		if getResp.Code != http.StatusOK {
+			t.Fatalf("get agent catalog status = %d, want %d", getResp.Code, http.StatusOK)
+		}
 
-	fixture.Handlers.AgentCatalog = stubAgentCatalog{listErr: os.ErrNotExist}
-	missingListResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents", nil)
-	if missingListResp.Code != http.StatusOK {
-		t.Fatalf("list missing catalog status = %d, want %d", missingListResp.Code, http.StatusOK)
-	}
-	var missingList contract.AgentsResponse
-	if err := json.Unmarshal(missingListResp.Body.Bytes(), &missingList); err != nil {
-		t.Fatalf("json.Unmarshal(missing list agents) error = %v", err)
-	}
-	if len(missingList.Agents) != 0 {
-		t.Fatalf("missing catalog agents = %#v, want empty list", missingList.Agents)
-	}
+		fixture.Handlers.AgentCatalog = stubAgentCatalog{getErr: os.ErrNotExist}
+		missingResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/missing", nil)
+		if missingResp.Code != http.StatusNotFound {
+			t.Fatalf("get missing catalog agent status = %d, want %d", missingResp.Code, http.StatusNotFound)
+		}
 
-	fixture.Handlers.AgentCatalog = stubAgentCatalog{listErr: errors.New("catalog unavailable")}
-	errorResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents", nil)
-	if errorResp.Code != http.StatusInternalServerError {
-		t.Fatalf("list catalog error status = %d, want %d", errorResp.Code, http.StatusInternalServerError)
-	}
+		fixture.Handlers.AgentCatalog = stubAgentCatalog{listErr: os.ErrNotExist}
+		missingListResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents", nil)
+		if missingListResp.Code != http.StatusOK {
+			t.Fatalf("list missing catalog status = %d, want %d", missingListResp.Code, http.StatusOK)
+		}
+		var missingList contract.AgentsResponse
+		if err := json.Unmarshal(missingListResp.Body.Bytes(), &missingList); err != nil {
+			t.Fatalf("json.Unmarshal(missing list agents) error = %v", err)
+		}
+		if len(missingList.Agents) != 0 {
+			t.Fatalf("missing catalog agents = %#v, want empty list", missingList.Agents)
+		}
+
+		fixture.Handlers.AgentCatalog = stubAgentCatalog{listErr: errors.New("catalog unavailable")}
+		errorResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents", nil)
+		if errorResp.Code != http.StatusInternalServerError {
+			t.Fatalf("list catalog error status = %d, want %d", errorResp.Code, http.StatusInternalServerError)
+		}
+	})
 }
 
 func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
@@ -974,54 +1149,58 @@ func (s stubAgentCatalog) GetAgent(_ context.Context, name string) (aghconfig.Ag
 func TestDaemonStatusIncludesNetworkDiagnosticsWithoutCredentials(t *testing.T) {
 	t.Parallel()
 
-	manager := testutil.StubSessionManager{
-		ListAllFn: func(context.Context) ([]*session.Info, error) {
-			return []*session.Info{{ID: "sess-1"}}, nil
-		},
-	}
-	observer := testutil.StubObserver{
-		HealthFn: func(context.Context) (observe.Health, error) {
-			return observe.Health{Status: "ok", ActiveSessions: 1, Version: "dev"}, nil
-		},
-	}
-	fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
-	fixture.Handlers.Config.Network.Enabled = true
-	fixture.Handlers.Network = testutil.StubNetworkService{
-		StatusFn: func(context.Context) (*network.Status, error) {
-			return &network.Status{
-				Enabled:      true,
-				Status:       network.StatusRunning,
-				ListenerHost: "127.0.0.1",
-				ListenerPort: 4222,
-				LocalPeers:   1,
-				RemotePeers:  2,
-				Channels:     3,
-			}, nil
-		},
-	}
+	t.Run("Should include network diagnostics in daemon status without leaking credentials", func(t *testing.T) {
+		t.Parallel()
 
-	resp := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
-	if resp.Code != http.StatusOK {
-		t.Fatalf("daemon status = %d, want %d", resp.Code, http.StatusOK)
-	}
+		manager := testutil.StubSessionManager{
+			ListAllFn: func(context.Context) ([]*session.Info, error) {
+				return []*session.Info{{ID: "sess-1"}}, nil
+			},
+		}
+		observer := testutil.StubObserver{
+			HealthFn: func(context.Context) (observe.Health, error) {
+				return observe.Health{Status: "ok", ActiveSessions: 1, Version: "dev"}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{
+			StatusFn: func(context.Context) (*network.Status, error) {
+				return &network.Status{
+					Enabled:      true,
+					Status:       network.StatusRunning,
+					ListenerHost: "127.0.0.1",
+					ListenerPort: 4222,
+					LocalPeers:   1,
+					RemotePeers:  2,
+					Channels:     3,
+				}, nil
+			},
+		}
 
-	var payload struct {
-		Daemon contract.DaemonStatusPayload `json:"daemon"`
-	}
-	testutil.DecodeJSONResponse(t, resp, &payload)
-	if payload.Daemon.Network == nil {
-		t.Fatal("daemon network payload = nil, want diagnostics")
-	}
-	if got, want := payload.Daemon.Network.ListenerPort, 4222; got != want {
-		t.Fatalf("daemon network listener port = %d, want %d", got, want)
-	}
-	if got, want := payload.Daemon.Network.RemotePeers, 2; got != want {
-		t.Fatalf("daemon network remote peers = %d, want %d", got, want)
-	}
-	if got, want := payload.Daemon.Network.Channels, 3; got != want {
-		t.Fatalf("daemon network channels = %d, want %d", got, want)
-	}
-	if strings.Contains(strings.ToLower(resp.Body.String()), "token=") {
-		t.Fatalf("daemon status leaked credentials: %s", resp.Body.String())
-	}
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/status", nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("daemon status = %d, want %d", resp.Code, http.StatusOK)
+		}
+
+		var payload struct {
+			Daemon contract.DaemonStatusPayload `json:"daemon"`
+		}
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if payload.Daemon.Network == nil {
+			t.Fatal("daemon network payload = nil, want diagnostics")
+		}
+		if got, want := payload.Daemon.Network.ListenerPort, 4222; got != want {
+			t.Fatalf("daemon network listener port = %d, want %d", got, want)
+		}
+		if got, want := payload.Daemon.Network.RemotePeers, 2; got != want {
+			t.Fatalf("daemon network remote peers = %d, want %d", got, want)
+		}
+		if got, want := payload.Daemon.Network.Channels, 3; got != want {
+			t.Fatalf("daemon network channels = %d, want %d", got, want)
+		}
+		if strings.Contains(strings.ToLower(resp.Body.String()), "token=") {
+			t.Fatalf("daemon status leaked credentials: %s", resp.Body.String())
+		}
+	})
 }

@@ -21,166 +21,180 @@ import (
 func TestBridgeHandlersCreateListGetAndUpdate(t *testing.T) {
 	t.Parallel()
 
-	var createCalled, updateCalled bool
-	_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
-		CreateInstanceFn: func(_ context.Context, req bridgepkg.CreateInstanceRequest) (*bridgepkg.BridgeInstance, error) {
-			createCalled = true
-			if req.Scope != bridgepkg.ScopeGlobal || req.Platform != "telegram" || req.DisplayName != "Support" {
-				t.Fatalf("CreateInstance() req = %#v", req)
-			}
-			if req.Status != bridgepkg.BridgeStatusStarting {
-				t.Fatalf("CreateInstance().Status = %q, want %q", req.Status, bridgepkg.BridgeStatusStarting)
-			}
-			if req.DMPolicy != bridgepkg.BridgeDMPolicyPairing {
-				t.Fatalf("CreateInstance().DMPolicy = %q, want %q", req.DMPolicy, bridgepkg.BridgeDMPolicyPairing)
-			}
-			if got, want := string(req.ProviderConfig), `{"mode":"bot","tenant":"acme"}`; got != want {
-				t.Fatalf("CreateInstance().ProviderConfig = %s, want %s", got, want)
-			}
-			if got, want := string(req.DeliveryDefaults), `{"peer_id":"peer-default","mode":"reply"}`; got != want {
-				t.Fatalf("CreateInstance().DeliveryDefaults = %s, want %s", got, want)
-			}
-			return &bridgepkg.BridgeInstance{
-				ID:               "brg-core",
-				Scope:            req.Scope,
-				Platform:         req.Platform,
-				ExtensionName:    req.ExtensionName,
-				DisplayName:      req.DisplayName,
-				Enabled:          req.Enabled,
-				Status:           req.Status,
-				DMPolicy:         req.DMPolicy,
-				RoutingPolicy:    req.RoutingPolicy,
-				ProviderConfig:   req.ProviderConfig,
-				DeliveryDefaults: req.DeliveryDefaults,
-				CreatedAt:        time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC),
-				UpdatedAt:        time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC),
-			}, nil
-		},
-		ListInstancesFn: func(context.Context) ([]bridgepkg.BridgeInstance, error) {
-			return []bridgepkg.BridgeInstance{{
-				ID:               "brg-core",
-				Scope:            bridgepkg.ScopeGlobal,
-				Platform:         "telegram",
-				ExtensionName:    "ext-telegram",
-				DisplayName:      "Support",
-				Enabled:          true,
-				Status:           bridgepkg.BridgeStatusReady,
-				DMPolicy:         bridgepkg.BridgeDMPolicyOpen,
-				RoutingPolicy:    bridgepkg.RoutingPolicy{IncludePeer: true},
-				ProviderConfig:   []byte(`{"mode":"bot","tenant":"acme"}`),
-				DeliveryDefaults: []byte(`{"peer_id":"peer-default","mode":"reply"}`),
-			}}, nil
-		},
-		GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
-			return &bridgepkg.BridgeInstance{
-				ID:               id,
-				Scope:            bridgepkg.ScopeGlobal,
-				Platform:         "telegram",
-				ExtensionName:    "ext-telegram",
-				DisplayName:      "Support",
-				Enabled:          true,
-				Status:           bridgepkg.BridgeStatusReady,
-				DMPolicy:         bridgepkg.BridgeDMPolicyOpen,
-				RoutingPolicy:    bridgepkg.RoutingPolicy{IncludePeer: true},
-				ProviderConfig:   []byte(`{"mode":"bot","tenant":"acme"}`),
-				DeliveryDefaults: []byte(`{"peer_id":"peer-default","mode":"reply"}`),
-				Degradation: &bridgepkg.BridgeDegradation{
-					Reason: bridgepkg.BridgeDegradationReasonProviderTimeout,
-				},
-			}, nil
-		},
-		UpdateInstanceFn: func(_ context.Context, req bridgepkg.UpdateInstanceRequest) (*bridgepkg.BridgeInstance, error) {
-			updateCalled = true
-			if req.ID != "brg-core" || req.DisplayName == nil || *req.DisplayName != "Renamed" {
-				t.Fatalf("UpdateInstance() req = %#v", req)
-			}
-			if req.DMPolicy == nil || *req.DMPolicy != bridgepkg.BridgeDMPolicyAllowlist {
-				t.Fatalf("UpdateInstance().DMPolicy = %#v", req.DMPolicy)
-			}
-			if req.ProviderConfig == nil || string(*req.ProviderConfig) != `{"mode":"comments"}` {
-				t.Fatalf("UpdateInstance().ProviderConfig = %#v", req.ProviderConfig)
-			}
-			if req.DeliveryDefaults == nil ||
-				string(*req.DeliveryDefaults) != `{"group_id":"ops","mode":"direct-send"}` {
-				t.Fatalf("UpdateInstance().DeliveryDefaults = %#v", req.DeliveryDefaults)
-			}
-			if req.Degradation == nil || req.Degradation.Reason != bridgepkg.BridgeDegradationReasonAuthFailed {
-				t.Fatalf("UpdateInstance().Degradation = %#v", req.Degradation)
-			}
-			return &bridgepkg.BridgeInstance{
-				ID:               req.ID,
-				Scope:            bridgepkg.ScopeGlobal,
-				Platform:         "telegram",
-				ExtensionName:    "ext-telegram",
-				DisplayName:      *req.DisplayName,
-				Enabled:          true,
-				Status:           bridgepkg.BridgeStatusReady,
-				DMPolicy:         *req.DMPolicy,
-				RoutingPolicy:    bridgepkg.RoutingPolicy{IncludePeer: true},
-				ProviderConfig:   *req.ProviderConfig,
-				DeliveryDefaults: *req.DeliveryDefaults,
-				Degradation:      req.Degradation,
-			}, nil
-		},
+	t.Run("Should create, list, get, and update bridge instances", func(t *testing.T) {
+		t.Parallel()
+
+		var createCalled, updateCalled bool
+		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			CreateInstanceFn: func(_ context.Context, req bridgepkg.CreateInstanceRequest) (*bridgepkg.BridgeInstance, error) {
+				createCalled = true
+				if req.Scope != bridgepkg.ScopeGlobal || req.Platform != "telegram" || req.DisplayName != "Support" {
+					t.Fatalf("CreateInstance() req = %#v", req)
+				}
+				if req.Status != bridgepkg.BridgeStatusStarting {
+					t.Fatalf("CreateInstance().Status = %q, want %q", req.Status, bridgepkg.BridgeStatusStarting)
+				}
+				if req.DMPolicy != bridgepkg.BridgeDMPolicyPairing {
+					t.Fatalf("CreateInstance().DMPolicy = %q, want %q", req.DMPolicy, bridgepkg.BridgeDMPolicyPairing)
+				}
+				if got, want := string(req.ProviderConfig), `{"mode":"bot","tenant":"acme"}`; got != want {
+					t.Fatalf("CreateInstance().ProviderConfig = %s, want %s", got, want)
+				}
+				if got, want := string(req.DeliveryDefaults), `{"peer_id":"peer-default","mode":"reply"}`; got != want {
+					t.Fatalf("CreateInstance().DeliveryDefaults = %s, want %s", got, want)
+				}
+				return &bridgepkg.BridgeInstance{
+					ID:               "brg-core",
+					Scope:            req.Scope,
+					Platform:         req.Platform,
+					ExtensionName:    req.ExtensionName,
+					DisplayName:      req.DisplayName,
+					Enabled:          req.Enabled,
+					Status:           req.Status,
+					DMPolicy:         req.DMPolicy,
+					RoutingPolicy:    req.RoutingPolicy,
+					ProviderConfig:   req.ProviderConfig,
+					DeliveryDefaults: req.DeliveryDefaults,
+					CreatedAt:        time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC),
+					UpdatedAt:        time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC),
+				}, nil
+			},
+			ListInstancesFn: func(context.Context) ([]bridgepkg.BridgeInstance, error) {
+				return []bridgepkg.BridgeInstance{{
+					ID:               "brg-core",
+					Scope:            bridgepkg.ScopeGlobal,
+					Platform:         "telegram",
+					ExtensionName:    "ext-telegram",
+					DisplayName:      "Support",
+					Enabled:          true,
+					Status:           bridgepkg.BridgeStatusReady,
+					DMPolicy:         bridgepkg.BridgeDMPolicyOpen,
+					RoutingPolicy:    bridgepkg.RoutingPolicy{IncludePeer: true},
+					ProviderConfig:   []byte(`{"mode":"bot","tenant":"acme"}`),
+					DeliveryDefaults: []byte(`{"peer_id":"peer-default","mode":"reply"}`),
+				}}, nil
+			},
+			GetInstanceFn: func(_ context.Context, id string) (*bridgepkg.BridgeInstance, error) {
+				return &bridgepkg.BridgeInstance{
+					ID:               id,
+					Scope:            bridgepkg.ScopeGlobal,
+					Platform:         "telegram",
+					ExtensionName:    "ext-telegram",
+					DisplayName:      "Support",
+					Enabled:          true,
+					Status:           bridgepkg.BridgeStatusReady,
+					DMPolicy:         bridgepkg.BridgeDMPolicyOpen,
+					RoutingPolicy:    bridgepkg.RoutingPolicy{IncludePeer: true},
+					ProviderConfig:   []byte(`{"mode":"bot","tenant":"acme"}`),
+					DeliveryDefaults: []byte(`{"peer_id":"peer-default","mode":"reply"}`),
+					Degradation: &bridgepkg.BridgeDegradation{
+						Reason: bridgepkg.BridgeDegradationReasonProviderTimeout,
+					},
+				}, nil
+			},
+			UpdateInstanceFn: func(_ context.Context, req bridgepkg.UpdateInstanceRequest) (*bridgepkg.BridgeInstance, error) {
+				updateCalled = true
+				if req.ID != "brg-core" || req.DisplayName == nil || *req.DisplayName != "Renamed" {
+					t.Fatalf("UpdateInstance() req = %#v", req)
+				}
+				if req.DMPolicy == nil || *req.DMPolicy != bridgepkg.BridgeDMPolicyAllowlist {
+					t.Fatalf("UpdateInstance().DMPolicy = %#v", req.DMPolicy)
+				}
+				if req.ProviderConfig == nil || string(*req.ProviderConfig) != `{"mode":"comments"}` {
+					t.Fatalf("UpdateInstance().ProviderConfig = %#v", req.ProviderConfig)
+				}
+				if req.DeliveryDefaults == nil ||
+					string(*req.DeliveryDefaults) != `{"group_id":"ops","mode":"direct-send"}` {
+					t.Fatalf("UpdateInstance().DeliveryDefaults = %#v", req.DeliveryDefaults)
+				}
+				if req.Degradation == nil || req.Degradation.Reason != bridgepkg.BridgeDegradationReasonAuthFailed {
+					t.Fatalf("UpdateInstance().Degradation = %#v", req.Degradation)
+				}
+				return &bridgepkg.BridgeInstance{
+					ID:               req.ID,
+					Scope:            bridgepkg.ScopeGlobal,
+					Platform:         "telegram",
+					ExtensionName:    "ext-telegram",
+					DisplayName:      *req.DisplayName,
+					Enabled:          true,
+					Status:           bridgepkg.BridgeStatusReady,
+					DMPolicy:         *req.DMPolicy,
+					RoutingPolicy:    bridgepkg.RoutingPolicy{IncludePeer: true},
+					ProviderConfig:   *req.ProviderConfig,
+					DeliveryDefaults: *req.DeliveryDefaults,
+					Degradation:      req.Degradation,
+				}, nil
+			},
+		})
+
+		createResp := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/bridges",
+			[]byte(
+				`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"dm_policy":"pairing","routing_policy":{"include_peer":true},"provider_config":{"mode":"bot","tenant":"acme"},"delivery_defaults":{"peer_id":"peer-default","mode":"reply"}}`,
+			),
+		)
+		if createResp.Code != http.StatusCreated || !createCalled {
+			t.Fatalf(
+				"create status = %d createCalled=%v body=%s",
+				createResp.Code,
+				createCalled,
+				createResp.Body.String(),
+			)
+		}
+
+		listResp := performRequest(t, engine, http.MethodGet, "/bridges", nil)
+		if listResp.Code != http.StatusOK {
+			t.Fatalf("list status = %d body=%s", listResp.Code, listResp.Body.String())
+		}
+		var listPayload contract.BridgesResponse
+		testutil.DecodeJSONResponse(t, listResp, &listPayload)
+		if got, want := len(listPayload.Bridges), 1; got != want {
+			t.Fatalf("len(bridges) = %d, want %d", got, want)
+		}
+		if got, want := string(listPayload.Bridges[0].ProviderConfig), `{"mode":"bot","tenant":"acme"}`; got != want {
+			t.Fatalf("list provider_config = %s, want %s", got, want)
+		}
+		if got, want := string(
+			listPayload.Bridges[0].DeliveryDefaults,
+		), `{"peer_id":"peer-default","mode":"reply"}`; got != want {
+			t.Fatalf("list delivery_defaults = %s, want %s", got, want)
+		}
+
+		getResp := performRequest(t, engine, http.MethodGet, "/bridges/brg-core", nil)
+		if getResp.Code != http.StatusOK {
+			t.Fatalf("get status = %d body=%s", getResp.Code, getResp.Body.String())
+		}
+		var getPayload contract.BridgeResponse
+		testutil.DecodeJSONResponse(t, getResp, &getPayload)
+		if getPayload.Bridge.DMPolicy != bridgepkg.BridgeDMPolicyOpen {
+			t.Fatalf("get bridge dm_policy = %q, want %q", getPayload.Bridge.DMPolicy, bridgepkg.BridgeDMPolicyOpen)
+		}
+		if getPayload.Bridge.Degradation == nil ||
+			getPayload.Bridge.Degradation.Reason != bridgepkg.BridgeDegradationReasonProviderTimeout {
+			t.Fatalf("get bridge degradation = %#v", getPayload.Bridge.Degradation)
+		}
+
+		updateResp := performRequest(
+			t,
+			engine,
+			http.MethodPatch,
+			"/bridges/brg-core",
+			[]byte(
+				`{"display_name":"Renamed","dm_policy":"allowlist","provider_config":{"mode":"comments"},"delivery_defaults":{"group_id":"ops","mode":"direct-send"},"degradation":{"reason":"auth_failed"}}`,
+			),
+		)
+		if updateResp.Code != http.StatusOK || !updateCalled {
+			t.Fatalf(
+				"update status = %d updateCalled=%v body=%s",
+				updateResp.Code,
+				updateCalled,
+				updateResp.Body.String(),
+			)
+		}
 	})
-
-	createResp := performRequest(
-		t,
-		engine,
-		http.MethodPost,
-		"/bridges",
-		[]byte(
-			`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"dm_policy":"pairing","routing_policy":{"include_peer":true},"provider_config":{"mode":"bot","tenant":"acme"},"delivery_defaults":{"peer_id":"peer-default","mode":"reply"}}`,
-		),
-	)
-	if createResp.Code != http.StatusCreated || !createCalled {
-		t.Fatalf("create status = %d createCalled=%v body=%s", createResp.Code, createCalled, createResp.Body.String())
-	}
-
-	listResp := performRequest(t, engine, http.MethodGet, "/bridges", nil)
-	if listResp.Code != http.StatusOK {
-		t.Fatalf("list status = %d body=%s", listResp.Code, listResp.Body.String())
-	}
-	var listPayload contract.BridgesResponse
-	testutil.DecodeJSONResponse(t, listResp, &listPayload)
-	if got, want := len(listPayload.Bridges), 1; got != want {
-		t.Fatalf("len(bridges) = %d, want %d", got, want)
-	}
-	if got, want := string(listPayload.Bridges[0].ProviderConfig), `{"mode":"bot","tenant":"acme"}`; got != want {
-		t.Fatalf("list provider_config = %s, want %s", got, want)
-	}
-	if got, want := string(
-		listPayload.Bridges[0].DeliveryDefaults,
-	), `{"peer_id":"peer-default","mode":"reply"}`; got != want {
-		t.Fatalf("list delivery_defaults = %s, want %s", got, want)
-	}
-
-	getResp := performRequest(t, engine, http.MethodGet, "/bridges/brg-core", nil)
-	if getResp.Code != http.StatusOK {
-		t.Fatalf("get status = %d body=%s", getResp.Code, getResp.Body.String())
-	}
-	var getPayload contract.BridgeResponse
-	testutil.DecodeJSONResponse(t, getResp, &getPayload)
-	if getPayload.Bridge.DMPolicy != bridgepkg.BridgeDMPolicyOpen {
-		t.Fatalf("get bridge dm_policy = %q, want %q", getPayload.Bridge.DMPolicy, bridgepkg.BridgeDMPolicyOpen)
-	}
-	if getPayload.Bridge.Degradation == nil ||
-		getPayload.Bridge.Degradation.Reason != bridgepkg.BridgeDegradationReasonProviderTimeout {
-		t.Fatalf("get bridge degradation = %#v", getPayload.Bridge.Degradation)
-	}
-
-	updateResp := performRequest(
-		t,
-		engine,
-		http.MethodPatch,
-		"/bridges/brg-core",
-		[]byte(
-			`{"display_name":"Renamed","dm_policy":"allowlist","provider_config":{"mode":"comments"},"delivery_defaults":{"group_id":"ops","mode":"direct-send"},"degradation":{"reason":"auth_failed"}}`,
-		),
-	)
-	if updateResp.Code != http.StatusOK || !updateCalled {
-		t.Fatalf("update status = %d updateCalled=%v body=%s", updateResp.Code, updateCalled, updateResp.Body.String())
-	}
 }
 
 func TestBridgeHandlersListFiltersActiveWorkspaceScope(t *testing.T) {
@@ -434,56 +448,60 @@ func TestBridgeHandlersLifecycleTransitions(t *testing.T) {
 func TestBridgeHandlersRoutesAndTestDelivery(t *testing.T) {
 	t.Parallel()
 
-	_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
-		ListRoutesFn: func(_ context.Context, bridgeInstanceID string) ([]bridgepkg.BridgeRoute, error) {
-			return []bridgepkg.BridgeRoute{{
-				RoutingKeyHash:   "hash-1",
-				Scope:            bridgepkg.ScopeGlobal,
-				BridgeInstanceID: bridgeInstanceID,
-				PeerID:           "peer-1",
-				ThreadID:         "thread-1",
-				SessionID:        "sess-1",
-				AgentName:        "coder",
-				LastActivityAt:   time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC),
-				CreatedAt:        time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC),
-				UpdatedAt:        time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC),
-			}}, nil
-		},
-		ResolveDeliveryTargetFn: func(_ context.Context, req bridgepkg.ResolveDeliveryTargetRequest) (*bridgepkg.DeliveryTarget, error) {
-			return &bridgepkg.DeliveryTarget{
-				BridgeInstanceID: req.BridgeInstanceID,
-				PeerID:           "peer-default",
-				ThreadID:         req.ThreadID,
-				Mode:             bridgepkg.DeliveryModeReply,
-			}, nil
-		},
+	t.Run("Should list routes and resolve test delivery targets", func(t *testing.T) {
+		t.Parallel()
+
+		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			ListRoutesFn: func(_ context.Context, bridgeInstanceID string) ([]bridgepkg.BridgeRoute, error) {
+				return []bridgepkg.BridgeRoute{{
+					RoutingKeyHash:   "hash-1",
+					Scope:            bridgepkg.ScopeGlobal,
+					BridgeInstanceID: bridgeInstanceID,
+					PeerID:           "peer-1",
+					ThreadID:         "thread-1",
+					SessionID:        "sess-1",
+					AgentName:        "coder",
+					LastActivityAt:   time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC),
+					CreatedAt:        time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC),
+					UpdatedAt:        time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC),
+				}}, nil
+			},
+			ResolveDeliveryTargetFn: func(_ context.Context, req bridgepkg.ResolveDeliveryTargetRequest) (*bridgepkg.DeliveryTarget, error) {
+				return &bridgepkg.DeliveryTarget{
+					BridgeInstanceID: req.BridgeInstanceID,
+					PeerID:           "peer-default",
+					ThreadID:         req.ThreadID,
+					Mode:             bridgepkg.DeliveryModeReply,
+				}, nil
+			},
+		})
+
+		routesResp := performRequest(t, engine, http.MethodGet, "/bridges/brg-core/routes", nil)
+		if routesResp.Code != http.StatusOK {
+			t.Fatalf("routes status = %d body=%s", routesResp.Code, routesResp.Body.String())
+		}
+		var routes contract.BridgeRoutesResponse
+		testutil.DecodeJSONResponse(t, routesResp, &routes)
+		if got, want := len(routes.Routes), 1; got != want {
+			t.Fatalf("len(routes) = %d, want %d", got, want)
+		}
+
+		testResp := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/bridges/brg-core/test-delivery",
+			[]byte(`{"target":{"thread_id":"thread-1"}}`),
+		)
+		if testResp.Code != http.StatusOK {
+			t.Fatalf("test delivery status = %d body=%s", testResp.Code, testResp.Body.String())
+		}
+		var payload contract.BridgeTestDeliveryResponse
+		testutil.DecodeJSONResponse(t, testResp, &payload)
+		if payload.DeliveryTarget.BridgeInstanceID != "brg-core" || payload.DeliveryTarget.ThreadID != "thread-1" {
+			t.Fatalf("payload = %#v", payload)
+		}
 	})
-
-	routesResp := performRequest(t, engine, http.MethodGet, "/bridges/brg-core/routes", nil)
-	if routesResp.Code != http.StatusOK {
-		t.Fatalf("routes status = %d body=%s", routesResp.Code, routesResp.Body.String())
-	}
-	var routes contract.BridgeRoutesResponse
-	testutil.DecodeJSONResponse(t, routesResp, &routes)
-	if got, want := len(routes.Routes), 1; got != want {
-		t.Fatalf("len(routes) = %d, want %d", got, want)
-	}
-
-	testResp := performRequest(
-		t,
-		engine,
-		http.MethodPost,
-		"/bridges/brg-core/test-delivery",
-		[]byte(`{"target":{"thread_id":"thread-1"}}`),
-	)
-	if testResp.Code != http.StatusOK {
-		t.Fatalf("test delivery status = %d body=%s", testResp.Code, testResp.Body.String())
-	}
-	var payload contract.BridgeTestDeliveryResponse
-	testutil.DecodeJSONResponse(t, testResp, &payload)
-	if payload.DeliveryTarget.BridgeInstanceID != "brg-core" || payload.DeliveryTarget.ThreadID != "thread-1" {
-		t.Fatalf("payload = %#v", payload)
-	}
 }
 
 func TestBridgeHandlersTargetDirectory(t *testing.T) {
@@ -556,89 +574,123 @@ func TestBridgeHandlersTargetDirectory(t *testing.T) {
 			t.Fatalf("len(resolve candidates) = %d, want %d", got, want)
 		}
 	})
+
+	t.Run("Should reject blank target names before resolver dispatch", func(t *testing.T) {
+		t.Parallel()
+
+		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			ResolveBridgeTargetFn: func(context.Context, string, string) (bridgepkg.ResolveBridgeTargetResult, error) {
+				t.Fatal("ResolveBridgeTarget() should not be called for blank target names")
+				return bridgepkg.ResolveBridgeTargetResult{}, nil
+			},
+		})
+
+		response := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/bridges/brg-core/resolve",
+			[]byte(`{"name":"   "}`),
+		)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf(
+				"target resolve status = %d body=%s, want %d",
+				response.Code,
+				response.Body.String(),
+				http.StatusBadRequest,
+			)
+		}
+		if !strings.Contains(response.Body.String(), "bridge target name is required") {
+			t.Fatalf("target resolve body = %q, want blank-name error", response.Body.String())
+		}
+	})
 }
 
 func TestBridgeHandlersSecretBindingsCRUD(t *testing.T) {
 	t.Parallel()
 
-	var (
-		putBinding       bridgepkg.BridgeSecretBinding
-		putSecretValue   *string
-		deleteInstanceID string
-		deleteName       string
-	)
+	t.Run("Should manage bridge secret bindings without leaking write-only values", func(t *testing.T) {
+		t.Parallel()
 
-	_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
-		ListSecretBindingsFn: func(_ context.Context, bridgeInstanceID string) ([]bridgepkg.BridgeSecretBinding, error) {
-			if bridgeInstanceID != "brg-core" {
-				t.Fatalf("ListSecretBindings() bridgeInstanceID = %q, want brg-core", bridgeInstanceID)
-			}
-			return []bridgepkg.BridgeSecretBinding{{
-				BridgeInstanceID: bridgeInstanceID,
-				BindingName:      "bot_token",
-				SecretRef:        "vault:bridges/brg-core/bot_token",
-				Kind:             "token",
-			}}, nil
-		},
-		PutSecretBindingFn: func(_ context.Context, binding bridgepkg.BridgeSecretBinding, secretValue *string) error {
-			putBinding = binding
-			putSecretValue = secretValue
-			return nil
-		},
-		DeleteSecretBindingFn: func(_ context.Context, bridgeInstanceID string, bindingName string) error {
-			deleteInstanceID = bridgeInstanceID
-			deleteName = bindingName
-			return nil
-		},
+		var (
+			putBinding       bridgepkg.BridgeSecretBinding
+			putSecretValue   *string
+			deleteInstanceID string
+			deleteName       string
+		)
+
+		_, engine := newBridgeHandlerFixture(t, testutil.StubBridgeService{
+			ListSecretBindingsFn: func(_ context.Context, bridgeInstanceID string) ([]bridgepkg.BridgeSecretBinding, error) {
+				if bridgeInstanceID != "brg-core" {
+					t.Fatalf("ListSecretBindings() bridgeInstanceID = %q, want brg-core", bridgeInstanceID)
+				}
+				return []bridgepkg.BridgeSecretBinding{{
+					BridgeInstanceID: bridgeInstanceID,
+					BindingName:      "bot_token",
+					SecretRef:        "vault:bridges/brg-core/bot_token",
+					Kind:             "token",
+				}}, nil
+			},
+			PutSecretBindingFn: func(_ context.Context, binding bridgepkg.BridgeSecretBinding, secretValue *string) error {
+				putBinding = binding
+				putSecretValue = secretValue
+				return nil
+			},
+			DeleteSecretBindingFn: func(_ context.Context, bridgeInstanceID string, bindingName string) error {
+				deleteInstanceID = bridgeInstanceID
+				deleteName = bindingName
+				return nil
+			},
+		})
+
+		listResp := performRequest(t, engine, http.MethodGet, "/bridges/brg-core/secret-bindings", nil)
+		if listResp.Code != http.StatusOK {
+			t.Fatalf("list secret bindings status = %d body=%s", listResp.Code, listResp.Body.String())
+		}
+		var listPayload contract.BridgeSecretBindingsResponse
+		testutil.DecodeJSONResponse(t, listResp, &listPayload)
+		if got, want := len(listPayload.Bindings), 1; got != want {
+			t.Fatalf("len(bindings) = %d, want %d", got, want)
+		}
+		if listPayload.Bindings[0].BindingName != "bot_token" ||
+			listPayload.Bindings[0].SecretRef != "vault:bridges/brg-core/bot_token" ||
+			listPayload.Bindings[0].Kind != "token" {
+			t.Fatalf("binding = %#v", listPayload.Bindings[0])
+		}
+		if strings.Contains(listResp.Body.String(), "secret_value") {
+			t.Fatalf("list response leaked write-only secret field: %s", listResp.Body.String())
+		}
+
+		putResp := performRequest(
+			t,
+			engine,
+			http.MethodPut,
+			"/bridges/brg-core/secret-bindings/bot_token",
+			[]byte(`{"secret_ref":"vault:bridges/brg-core/bot_token","kind":"token","secret_value":"telegram-token"}`),
+		)
+		if putResp.Code != http.StatusOK {
+			t.Fatalf("put secret binding status = %d body=%s", putResp.Code, putResp.Body.String())
+		}
+		if putBinding.BridgeInstanceID != "brg-core" || putBinding.BindingName != "bot_token" ||
+			putBinding.SecretRef != "vault:bridges/brg-core/bot_token" ||
+			putBinding.Kind != "token" {
+			t.Fatalf("put binding = %#v", putBinding)
+		}
+		if putSecretValue == nil || *putSecretValue != "telegram-token" {
+			t.Fatalf("put secret value = %v, want write-only value", putSecretValue)
+		}
+		if strings.Contains(putResp.Body.String(), "telegram-token") {
+			t.Fatalf("put response leaked secret_value: %s", putResp.Body.String())
+		}
+
+		deleteResp := performRequest(t, engine, http.MethodDelete, "/bridges/brg-core/secret-bindings/bot_token", nil)
+		if deleteResp.Code != http.StatusNoContent {
+			t.Fatalf("delete secret binding status = %d body=%s", deleteResp.Code, deleteResp.Body.String())
+		}
+		if deleteInstanceID != "brg-core" || deleteName != "bot_token" {
+			t.Fatalf("delete args = %q/%q, want brg-core/bot_token", deleteInstanceID, deleteName)
+		}
 	})
-
-	listResp := performRequest(t, engine, http.MethodGet, "/bridges/brg-core/secret-bindings", nil)
-	if listResp.Code != http.StatusOK {
-		t.Fatalf("list secret bindings status = %d body=%s", listResp.Code, listResp.Body.String())
-	}
-	var listPayload contract.BridgeSecretBindingsResponse
-	testutil.DecodeJSONResponse(t, listResp, &listPayload)
-	if got, want := len(listPayload.Bindings), 1; got != want {
-		t.Fatalf("len(bindings) = %d, want %d", got, want)
-	}
-	if listPayload.Bindings[0].BindingName != "bot_token" ||
-		listPayload.Bindings[0].SecretRef != "vault:bridges/brg-core/bot_token" ||
-		listPayload.Bindings[0].Kind != "token" {
-		t.Fatalf("binding = %#v", listPayload.Bindings[0])
-	}
-	if strings.Contains(listResp.Body.String(), "secret_value") {
-		t.Fatalf("list response leaked write-only secret field: %s", listResp.Body.String())
-	}
-
-	putResp := performRequest(
-		t,
-		engine,
-		http.MethodPut,
-		"/bridges/brg-core/secret-bindings/bot_token",
-		[]byte(`{"secret_ref":"vault:bridges/brg-core/bot_token","kind":"token","secret_value":"telegram-token"}`),
-	)
-	if putResp.Code != http.StatusOK {
-		t.Fatalf("put secret binding status = %d body=%s", putResp.Code, putResp.Body.String())
-	}
-	if putBinding.BridgeInstanceID != "brg-core" || putBinding.BindingName != "bot_token" ||
-		putBinding.SecretRef != "vault:bridges/brg-core/bot_token" ||
-		putBinding.Kind != "token" {
-		t.Fatalf("put binding = %#v", putBinding)
-	}
-	if putSecretValue == nil || *putSecretValue != "telegram-token" {
-		t.Fatalf("put secret value = %v, want write-only value", putSecretValue)
-	}
-	if strings.Contains(putResp.Body.String(), "telegram-token") {
-		t.Fatalf("put response leaked secret_value: %s", putResp.Body.String())
-	}
-
-	deleteResp := performRequest(t, engine, http.MethodDelete, "/bridges/brg-core/secret-bindings/bot_token", nil)
-	if deleteResp.Code != http.StatusNoContent {
-		t.Fatalf("delete secret binding status = %d body=%s", deleteResp.Code, deleteResp.Body.String())
-	}
-	if deleteInstanceID != "brg-core" || deleteName != "bot_token" {
-		t.Fatalf("delete args = %q/%q, want brg-core/bot_token", deleteInstanceID, deleteName)
-	}
 }
 
 func TestBridgeHandlersLifecycleAndSecretBindingErrorPaths(t *testing.T) {
@@ -1253,181 +1305,198 @@ func TestBridgeHandlersListProviders(t *testing.T) {
 func TestBridgeHandlersIncludeObservedHealthPayloads(t *testing.T) {
 	t.Parallel()
 
-	gin.SetMode(gin.TestMode)
-	homePaths := testutil.NewTestHomePaths(t)
-	cfg := aghconfig.DefaultWithHome(homePaths)
-	cfg.HTTP.Host = "127.0.0.1"
-	cfg.HTTP.Port = 2123
+	t.Run("Should include observed health payloads in list and get responses", func(t *testing.T) {
+		t.Parallel()
 
-	bridge := bridgepkg.BridgeInstance{
-		ID:            "brg-health",
-		Scope:         bridgepkg.ScopeGlobal,
-		Platform:      "telegram",
-		ExtensionName: "ext-telegram",
-		DisplayName:   "Support",
-		Enabled:       true,
-		Status:        bridgepkg.BridgeStatusDegraded,
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-		Degradation: &bridgepkg.BridgeDegradation{
-			Reason:  bridgepkg.BridgeDegradationReasonRateLimited,
-			Message: "provider throttled",
-		},
-	}
+		gin.SetMode(gin.TestMode)
+		homePaths := testutil.NewTestHomePaths(t)
+		cfg := aghconfig.DefaultWithHome(homePaths)
+		cfg.HTTP.Host = "127.0.0.1"
+		cfg.HTTP.Port = 2123
 
-	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
-		TransportName:                "api-core-test",
-		MaskInternalErrors:           false,
-		IncludeSessionWorkspaceInSSE: true,
-		Sessions:                     testutil.StubSessionManager{},
-		Observer: testutil.StubObserver{
-			QueryBridgeHealthFn: func(context.Context) ([]observe.BridgeInstanceHealth, error) {
-				return []observe.BridgeInstanceHealth{{
-					BridgeInstanceID:      bridge.ID,
-					Status:                bridgepkg.BridgeStatusDegraded,
-					RouteCount:            2,
-					DeliveryBacklog:       1,
-					DeliveryFailuresTotal: 3,
-					AuthFailuresTotal:     1,
-					LastSuccessAt:         time.Date(2026, 4, 3, 11, 59, 0, 0, time.UTC),
-					LastError:             "adapter unavailable",
-				}}, nil
+		bridge := bridgepkg.BridgeInstance{
+			ID:            "brg-health",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "telegram",
+			ExtensionName: "ext-telegram",
+			DisplayName:   "Support",
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusDegraded,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+			Degradation: &bridgepkg.BridgeDegradation{
+				Reason:  bridgepkg.BridgeDegradationReasonRateLimited,
+				Message: "provider throttled",
 			},
-		},
-		Bridges: testutil.StubBridgeService{ListInstancesFn: func(context.Context) ([]bridgepkg.BridgeInstance, error) {
-			return []bridgepkg.BridgeInstance{bridge}, nil
-		}, GetInstanceFn: func(context.Context, string) (*bridgepkg.BridgeInstance, error) { return &bridge, nil }},
-		Workspaces: testutil.StubWorkspaceService{},
-		HomePaths:  homePaths,
-		Config:     cfg,
-		Logger:     testutil.DiscardLogger(),
-		StartedAt:  time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-		Now: func() time.Time {
-			return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC)
-		},
-		HTTPPort: cfg.HTTP.Port,
+		}
+
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			TransportName:                "api-core-test",
+			MaskInternalErrors:           false,
+			IncludeSessionWorkspaceInSSE: true,
+			Sessions:                     testutil.StubSessionManager{},
+			Observer: testutil.StubObserver{
+				QueryBridgeHealthFn: func(context.Context) ([]observe.BridgeInstanceHealth, error) {
+					return []observe.BridgeInstanceHealth{{
+						BridgeInstanceID:      bridge.ID,
+						Status:                bridgepkg.BridgeStatusDegraded,
+						RouteCount:            2,
+						DeliveryBacklog:       1,
+						DeliveryFailuresTotal: 3,
+						AuthFailuresTotal:     1,
+						LastSuccessAt:         time.Date(2026, 4, 3, 11, 59, 0, 0, time.UTC),
+						LastError:             "adapter unavailable",
+					}}, nil
+				},
+			},
+			Bridges: testutil.StubBridgeService{
+				ListInstancesFn: func(context.Context) ([]bridgepkg.BridgeInstance, error) {
+					return []bridgepkg.BridgeInstance{bridge}, nil
+				},
+				GetInstanceFn: func(context.Context, string) (*bridgepkg.BridgeInstance, error) {
+					return &bridge, nil
+				},
+			},
+			Workspaces: testutil.StubWorkspaceService{},
+			HomePaths:  homePaths,
+			Config:     cfg,
+			Logger:     testutil.DiscardLogger(),
+			StartedAt:  time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+			Now: func() time.Time {
+				return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC)
+			},
+			HTTPPort: cfg.HTTP.Port,
+		})
+
+		engine := gin.New()
+		engine.GET("/bridges", handlers.ListBridges)
+		engine.GET("/bridges/:id", handlers.GetBridge)
+
+		listResp := performRequest(t, engine, http.MethodGet, "/bridges", nil)
+		if listResp.Code != http.StatusOK {
+			t.Fatalf("list status = %d body=%s", listResp.Code, listResp.Body.String())
+		}
+		var listPayload contract.BridgesResponse
+		testutil.DecodeJSONResponse(t, listResp, &listPayload)
+		if got, want := listPayload.BridgeHealth[bridge.ID].DeliveryBacklog, 1; got != want {
+			t.Fatalf("bridge_health backlog = %d, want %d", got, want)
+		}
+		if listPayload.BridgeHealth[bridge.ID].Degradation == nil ||
+			listPayload.BridgeHealth[bridge.ID].Degradation.Reason != bridgepkg.BridgeDegradationReasonRateLimited {
+			t.Fatalf("bridge_health degradation = %#v", listPayload.BridgeHealth[bridge.ID].Degradation)
+		}
+
+		getResp := performRequest(t, engine, http.MethodGet, "/bridges/"+bridge.ID, nil)
+		if getResp.Code != http.StatusOK {
+			t.Fatalf("get status = %d body=%s", getResp.Code, getResp.Body.String())
+		}
+		var getPayload contract.BridgeResponse
+		testutil.DecodeJSONResponse(t, getResp, &getPayload)
+		if got, want := getPayload.Health.Status, bridgepkg.BridgeStatusDegraded; got != want {
+			t.Fatalf("get health status = %q, want %q", got, want)
+		}
+		if got, want := getPayload.Health.RouteCount, 2; got != want {
+			t.Fatalf("get health route_count = %d, want %d", got, want)
+		}
+		if getPayload.Health.Degradation == nil ||
+			getPayload.Health.Degradation.Reason != bridgepkg.BridgeDegradationReasonRateLimited {
+			t.Fatalf("get health degradation = %#v", getPayload.Health.Degradation)
+		}
+		if getPayload.Health.LastSuccessAt == nil ||
+			!getPayload.Health.LastSuccessAt.Equal(time.Date(2026, 4, 3, 11, 59, 0, 0, time.UTC)) {
+			t.Fatalf("get health last_success_at = %#v, want 2026-04-03T11:59:00Z", getPayload.Health.LastSuccessAt)
+		}
 	})
-
-	engine := gin.New()
-	engine.GET("/bridges", handlers.ListBridges)
-	engine.GET("/bridges/:id", handlers.GetBridge)
-
-	listResp := performRequest(t, engine, http.MethodGet, "/bridges", nil)
-	if listResp.Code != http.StatusOK {
-		t.Fatalf("list status = %d body=%s", listResp.Code, listResp.Body.String())
-	}
-	var listPayload contract.BridgesResponse
-	testutil.DecodeJSONResponse(t, listResp, &listPayload)
-	if got, want := listPayload.BridgeHealth[bridge.ID].DeliveryBacklog, 1; got != want {
-		t.Fatalf("bridge_health backlog = %d, want %d", got, want)
-	}
-	if listPayload.BridgeHealth[bridge.ID].Degradation == nil ||
-		listPayload.BridgeHealth[bridge.ID].Degradation.Reason != bridgepkg.BridgeDegradationReasonRateLimited {
-		t.Fatalf("bridge_health degradation = %#v", listPayload.BridgeHealth[bridge.ID].Degradation)
-	}
-
-	getResp := performRequest(t, engine, http.MethodGet, "/bridges/"+bridge.ID, nil)
-	if getResp.Code != http.StatusOK {
-		t.Fatalf("get status = %d body=%s", getResp.Code, getResp.Body.String())
-	}
-	var getPayload contract.BridgeResponse
-	testutil.DecodeJSONResponse(t, getResp, &getPayload)
-	if got, want := getPayload.Health.Status, bridgepkg.BridgeStatusDegraded; got != want {
-		t.Fatalf("get health status = %q, want %q", got, want)
-	}
-	if got, want := getPayload.Health.RouteCount, 2; got != want {
-		t.Fatalf("get health route_count = %d, want %d", got, want)
-	}
-	if getPayload.Health.Degradation == nil ||
-		getPayload.Health.Degradation.Reason != bridgepkg.BridgeDegradationReasonRateLimited {
-		t.Fatalf("get health degradation = %#v", getPayload.Health.Degradation)
-	}
-	if getPayload.Health.LastSuccessAt == nil ||
-		!getPayload.Health.LastSuccessAt.Equal(time.Date(2026, 4, 3, 11, 59, 0, 0, time.UTC)) {
-		t.Fatalf("get health last_success_at = %#v, want 2026-04-03T11:59:00Z", getPayload.Health.LastSuccessAt)
-	}
 }
 
 func TestBridgeHandlersMutationReturnsBestEffortPayloadWhenHealthLookupFails(t *testing.T) {
 	t.Parallel()
 
-	gin.SetMode(gin.TestMode)
-	homePaths := testutil.NewTestHomePaths(t)
-	cfg := aghconfig.DefaultWithHome(homePaths)
-	cfg.HTTP.Host = "127.0.0.1"
-	cfg.HTTP.Port = 2123
+	t.Run("Should return best-effort bridge health payloads when observer lookup fails", func(t *testing.T) {
+		t.Parallel()
 
-	bridge := bridgepkg.BridgeInstance{
-		ID:            "brg-core",
-		Scope:         bridgepkg.ScopeGlobal,
-		Platform:      "telegram",
-		ExtensionName: "ext-telegram",
-		DisplayName:   "Support",
-		Enabled:       true,
-		Status:        bridgepkg.BridgeStatusStarting,
-		RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
-	}
+		gin.SetMode(gin.TestMode)
+		homePaths := testutil.NewTestHomePaths(t)
+		cfg := aghconfig.DefaultWithHome(homePaths)
+		cfg.HTTP.Host = "127.0.0.1"
+		cfg.HTTP.Port = 2123
 
-	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
-		TransportName:                "api-core-test",
-		MaskInternalErrors:           false,
-		IncludeSessionWorkspaceInSSE: true,
-		Sessions:                     testutil.StubSessionManager{},
-		Observer: testutil.StubObserver{
-			QueryBridgeHealthFn: func(context.Context) ([]observe.BridgeInstanceHealth, error) {
-				return nil, errors.New("observer unavailable")
+		bridge := bridgepkg.BridgeInstance{
+			ID:            "brg-core",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "telegram",
+			ExtensionName: "ext-telegram",
+			DisplayName:   "Support",
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusStarting,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		}
+
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			TransportName:                "api-core-test",
+			MaskInternalErrors:           false,
+			IncludeSessionWorkspaceInSSE: true,
+			Sessions:                     testutil.StubSessionManager{},
+			Observer: testutil.StubObserver{
+				QueryBridgeHealthFn: func(context.Context) ([]observe.BridgeInstanceHealth, error) {
+					return nil, errors.New("observer unavailable")
+				},
 			},
-		},
-		Bridges: testutil.StubBridgeService{
-			CreateInstanceFn: func(context.Context, bridgepkg.CreateInstanceRequest) (*bridgepkg.BridgeInstance, error) {
-				return &bridge, nil
+			Bridges: testutil.StubBridgeService{
+				CreateInstanceFn: func(context.Context, bridgepkg.CreateInstanceRequest) (*bridgepkg.BridgeInstance, error) {
+					return &bridge, nil
+				},
 			},
-		},
-		Workspaces: testutil.StubWorkspaceService{},
-		HomePaths:  homePaths,
-		Config:     cfg,
-		Logger:     testutil.DiscardLogger(),
-		StartedAt:  time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-		Now: func() time.Time {
-			return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC)
-		},
-		HTTPPort: cfg.HTTP.Port,
+			Workspaces: testutil.StubWorkspaceService{},
+			HomePaths:  homePaths,
+			Config:     cfg,
+			Logger:     testutil.DiscardLogger(),
+			StartedAt:  time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+			Now: func() time.Time {
+				return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC)
+			},
+			HTTPPort: cfg.HTTP.Port,
+		})
+
+		engine := gin.New()
+		engine.POST("/bridges", handlers.CreateBridge)
+
+		resp := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/bridges",
+			[]byte(
+				`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"routing_policy":{"include_peer":true}}`,
+			),
+		)
+		if resp.Code != http.StatusCreated {
+			t.Fatalf("create status = %d, want %d; body=%s", resp.Code, http.StatusCreated, resp.Body.String())
+		}
+
+		var payload contract.BridgeResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if payload.Bridge.ID != bridge.ID || payload.Bridge.Status != bridgepkg.BridgeStatusStarting {
+			t.Fatalf("payload.Bridge = %#v, want created bridge payload", payload.Bridge)
+		}
+		if payload.Health.BridgeInstanceID != bridge.ID || payload.Health.Status != bridgepkg.BridgeStatusStarting ||
+			payload.Health.RouteCount != 0 {
+			t.Fatalf("payload.Health = %#v, want best-effort bridge identity and zero counters", payload.Health)
+		}
 	})
-
-	engine := gin.New()
-	engine.POST("/bridges", handlers.CreateBridge)
-
-	resp := performRequest(
-		t,
-		engine,
-		http.MethodPost,
-		"/bridges",
-		[]byte(
-			`{"scope":"global","platform":"telegram","extension_name":"ext-telegram","display_name":"Support","enabled":true,"routing_policy":{"include_peer":true}}`,
-		),
-	)
-	if resp.Code != http.StatusCreated {
-		t.Fatalf("create status = %d, want %d; body=%s", resp.Code, http.StatusCreated, resp.Body.String())
-	}
-
-	var payload contract.BridgeResponse
-	testutil.DecodeJSONResponse(t, resp, &payload)
-	if payload.Bridge.ID != bridge.ID || payload.Bridge.Status != bridgepkg.BridgeStatusStarting {
-		t.Fatalf("payload.Bridge = %#v, want created bridge payload", payload.Bridge)
-	}
-	if payload.Health.BridgeInstanceID != bridge.ID || payload.Health.Status != bridgepkg.BridgeStatusStarting ||
-		payload.Health.RouteCount != 0 {
-		t.Fatalf("payload.Health = %#v, want best-effort bridge identity and zero counters", payload.Health)
-	}
 }
 
 func TestBridgeHandlersReturnServiceUnavailableWhenNotConfigured(t *testing.T) {
 	t.Parallel()
 
-	_, engine := newBridgeHandlerFixture(t, nil)
-	resp := performRequest(t, engine, http.MethodGet, "/bridges", nil)
-	if resp.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusServiceUnavailable, resp.Body.String())
-	}
+	t.Run("Should return service unavailable when bridge handlers are not configured", func(t *testing.T) {
+		t.Parallel()
+
+		_, engine := newBridgeHandlerFixture(t, nil)
+		resp := performRequest(t, engine, http.MethodGet, "/bridges", nil)
+		if resp.Code != http.StatusServiceUnavailable {
+			t.Fatalf("status = %d, want %d; body=%s", resp.Code, http.StatusServiceUnavailable, resp.Body.String())
+		}
+	})
 }
 
 func newBridgeHandlerFixture(t *testing.T, bridges core.BridgeService) (*core.BaseHandlers, *gin.Engine) {

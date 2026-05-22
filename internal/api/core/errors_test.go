@@ -251,6 +251,9 @@ func TestRespondErrorDiagnosticPayload(t *testing.T) {
 			diagnostics.NewStructuredError(item, errors.New("token=cause-secret")),
 			false,
 		)
+		if recorder.Code != http.StatusUnprocessableEntity {
+			t.Fatalf("status = %d, want %d", recorder.Code, http.StatusUnprocessableEntity)
+		}
 
 		var payload contract.ErrorPayload
 		if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
@@ -289,6 +292,9 @@ func TestRespondOpenAIErrorRedaction(t *testing.T) {
 			errors.New("provider returned Authorization: Bearer sk-openai-secret"),
 			false,
 		)
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want %d", recorder.Code, http.StatusBadRequest)
+		}
 
 		var payload contract.OpenAIErrorResponse
 		if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
@@ -306,29 +312,33 @@ func TestRespondOpenAIErrorRedaction(t *testing.T) {
 func TestErrorPayloadForError(t *testing.T) {
 	t.Parallel()
 
-	item := diagnostics.NewItem(
-		"stream.daemon_unavailable",
-		contract.CodeDaemonUnavailable,
-		contract.CategoryDaemon,
-		"Daemon unavailable",
-		"socket token=stream-secret failed",
-		contract.SeverityError,
-		contract.FreshnessOffline,
-	)
-	payload := ErrorPayloadForError(diagnostics.NewStructuredError(item, errors.New("token=cause-secret")))
-	if payload.Diagnostic == nil {
-		t.Fatal("payload.Diagnostic = nil, want diagnostic")
-	}
-	if payload.Diagnostic.Code != contract.CodeDaemonUnavailable {
-		t.Fatalf("payload.Diagnostic.Code = %q, want %q", payload.Diagnostic.Code, contract.CodeDaemonUnavailable)
-	}
-	for _, leaked := range []string{"stream-secret", "cause-secret"} {
-		raw, err := json.Marshal(payload)
-		if err != nil {
-			t.Fatalf("json.Marshal() error = %v", err)
+	t.Run("Should redact structured diagnostic secrets in serialized payload", func(t *testing.T) {
+		t.Parallel()
+
+		item := diagnostics.NewItem(
+			"stream.daemon_unavailable",
+			contract.CodeDaemonUnavailable,
+			contract.CategoryDaemon,
+			"Daemon unavailable",
+			"socket token=stream-secret failed",
+			contract.SeverityError,
+			contract.FreshnessOffline,
+		)
+		payload := ErrorPayloadForError(diagnostics.NewStructuredError(item, errors.New("token=cause-secret")))
+		if payload.Diagnostic == nil {
+			t.Fatal("payload.Diagnostic = nil, want diagnostic")
 		}
-		if strings.Contains(string(raw), leaked) {
-			t.Fatalf("payload = %s leaked %q", raw, leaked)
+		if payload.Diagnostic.Code != contract.CodeDaemonUnavailable {
+			t.Fatalf("payload.Diagnostic.Code = %q, want %q", payload.Diagnostic.Code, contract.CodeDaemonUnavailable)
 		}
-	}
+		for _, leaked := range []string{"stream-secret", "cause-secret"} {
+			raw, err := json.Marshal(payload)
+			if err != nil {
+				t.Fatalf("json.Marshal() error = %v", err)
+			}
+			if strings.Contains(string(raw), leaked) {
+				t.Fatalf("payload = %s leaked %q", raw, leaked)
+			}
+		}
+	})
 }

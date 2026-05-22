@@ -17,6 +17,7 @@ import (
 	automationpkg "github.com/pedronauck/agh/internal/automation"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/session"
+	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
@@ -24,145 +25,149 @@ import (
 func TestSessionPayloadFromInfo(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
-	ttl := now.Add(time.Hour)
-	payload := core.SessionPayloadFromInfo(&session.Info{
-		ID:              "sess-1",
-		Name:            "demo",
-		AgentName:       "coder",
-		Provider:        "fake",
-		Model:           "  gpt-test  ",
-		ReasoningEffort: "  high  ",
-		WorkspaceID:     "ws_alpha",
-		Workspace:       "/workspace",
-		Channel:         "builders",
-		Type:            session.SessionTypeDream,
-		Lineage: &store.SessionLineage{
-			ParentSessionID:  "sess-root",
-			RootSessionID:    "sess-root",
-			SpawnDepth:       1,
-			SpawnRole:        "worker",
-			TTLExpiresAt:     &ttl,
-			AutoStopOnParent: true,
-			SpawnBudget: store.SessionSpawnBudget{
-				MaxChildren:           2,
-				MaxDepth:              1,
-				TTLSeconds:            3600,
-				MaxActivePerWorkspace: 3,
+	t.Run("Should map session info into a sanitized session payload", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
+		ttl := now.Add(time.Hour)
+		payload := core.SessionPayloadFromInfo(&session.Info{
+			ID:              "sess-1",
+			Name:            "demo",
+			AgentName:       "coder",
+			Provider:        "fake",
+			Model:           "  gpt-test  ",
+			ReasoningEffort: "  high  ",
+			WorkspaceID:     "ws_alpha",
+			Workspace:       "/workspace",
+			Channel:         "builders",
+			Type:            session.SessionTypeDream,
+			Lineage: &store.SessionLineage{
+				ParentSessionID:  "sess-root",
+				RootSessionID:    "sess-root",
+				SpawnDepth:       1,
+				SpawnRole:        "worker",
+				TTLExpiresAt:     &ttl,
+				AutoStopOnParent: true,
+				SpawnBudget: store.SessionSpawnBudget{
+					MaxChildren:           2,
+					MaxDepth:              1,
+					TTLSeconds:            3600,
+					MaxActivePerWorkspace: 3,
+				},
+				PermissionPolicy: store.SessionPermissionPolicy{
+					Tools:           []string{"edit"},
+					NetworkChannels: []string{"coord"},
+				},
 			},
-			PermissionPolicy: store.SessionPermissionPolicy{
-				Tools:           []string{"edit"},
-				NetworkChannels: []string{"coord"},
+			State:      session.StateActive,
+			StopReason: store.StopTimeout,
+			StopDetail: "deadline exceeded",
+			Failure: &store.SessionFailure{
+				Kind:            store.FailureTimeout,
+				Summary:         "deadline exceeded",
+				CrashBundlePath: "/tmp/agh-crash.json",
 			},
-		},
-		State:      session.StateActive,
-		StopReason: store.StopTimeout,
-		StopDetail: "deadline exceeded",
-		Failure: &store.SessionFailure{
-			Kind:            store.FailureTimeout,
-			Summary:         "deadline exceeded",
-			CrashBundlePath: "/tmp/agh-crash.json",
-		},
-		ACPSessionID: "acp-123",
-		Sandbox: &store.SessionSandboxMeta{
-			SandboxID:     "env-1",
-			Backend:       "local",
-			Profile:       "local",
-			State:         "prepared",
-			InstanceID:    "instance-1",
-			ProviderState: json.RawMessage(`{"sandbox_id":"sb-123","token":"secret"}`),
-			LastSyncError: "sync failed",
-		},
-		Liveness: &store.SessionLivenessMeta{
-			Activity: &store.SessionActivityMeta{
-				TurnID: "turn-1",
+			ACPSessionID: "acp-123",
+			Sandbox: &store.SessionSandboxMeta{
+				SandboxID:     "env-1",
+				Backend:       "local",
+				Profile:       "local",
+				State:         "prepared",
+				InstanceID:    "instance-1",
+				ProviderState: json.RawMessage(`{"sandbox_id":"sb-123","token":"secret"}`),
+				LastSyncError: "sync failed",
 			},
-		},
-		CreatedAt: now,
-		UpdatedAt: now,
-		ACPCaps: acp.Caps{
-			SupportsLoadSession: true,
-			SupportedModes:      []string{"chat"},
-			SupportedModels:     []string{"gpt-test"},
-			ConfigOptions: []acp.SessionConfigOption{
-				{
-					ID:      "reasoning_effort",
-					Label:   "Reasoning effort",
-					Kind:    acp.SessionConfigOptionKindSelect,
-					Current: "high",
-					Values: []acp.SessionConfigOptionValue{
-						{Value: "low", Label: "Low"},
-						{Value: "high", Label: "High"},
+			Liveness: &store.SessionLivenessMeta{
+				Activity: &store.SessionActivityMeta{
+					TurnID: "turn-1",
+				},
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+			ACPCaps: acp.Caps{
+				SupportsLoadSession: true,
+				SupportedModes:      []string{"chat"},
+				SupportedModels:     []string{"gpt-test"},
+				ConfigOptions: []acp.SessionConfigOption{
+					{
+						ID:      "reasoning_effort",
+						Label:   "Reasoning effort",
+						Kind:    acp.SessionConfigOptionKindSelect,
+						Current: "high",
+						Values: []acp.SessionConfigOptionValue{
+							{Value: "low", Label: "Low"},
+							{Value: "high", Label: "High"},
+						},
 					},
 				},
 			},
-		},
-	})
+		})
 
-	if payload.ID != "sess-1" || payload.WorkspaceID != "ws_alpha" || payload.WorkspacePath != "/workspace" ||
-		payload.Channel != "builders" {
-		t.Fatalf("payload = %#v", payload)
-	}
-	if payload.Provider != "fake" {
-		t.Fatalf("payload.Provider = %q, want %q", payload.Provider, "fake")
-	}
-	if payload.Model != "gpt-test" {
-		t.Fatalf("payload.Model = %q, want %q", payload.Model, "gpt-test")
-	}
-	if payload.ReasoningEffort != "high" {
-		t.Fatalf("payload.ReasoningEffort = %q, want %q", payload.ReasoningEffort, "high")
-	}
-	if payload.State != session.StateActive || payload.ACPSessionID != "acp-123" {
-		t.Fatalf("payload session fields = %#v", payload)
-	}
-	if payload.Type != session.SessionTypeDream {
-		t.Fatalf("payload.Type = %q, want %q", payload.Type, session.SessionTypeDream)
-	}
-	if payload.Lineage == nil ||
-		payload.Lineage.ParentSessionID != "sess-root" ||
-		payload.Lineage.RootSessionID != "sess-root" ||
-		payload.Lineage.SpawnDepth != 1 ||
-		payload.Lineage.SpawnRole != "worker" ||
-		payload.Lineage.SpawnBudget.MaxChildren != 2 ||
-		payload.Lineage.PermissionPolicy.Tools[0] != "edit" {
-		t.Fatalf("payload.Lineage = %#v", payload.Lineage)
-	}
-	if payload.Activity == nil || payload.Activity.TurnID != "turn-1" {
-		t.Fatalf("activity = %#v", payload.Activity)
-	}
-	if payload.StopReason != store.StopTimeout || payload.StopDetail != "deadline exceeded" {
-		t.Fatalf("payload stop fields = %#v", payload)
-	}
-	if payload.Failure == nil ||
-		payload.Failure.Kind != store.FailureTimeout ||
-		payload.Failure.Summary != "deadline exceeded" ||
-		payload.Failure.CrashBundlePath != "/tmp/agh-crash.json" {
-		t.Fatalf("payload failure = %#v", payload.Failure)
-	}
-	if payload.ACPCaps == nil || !payload.ACPCaps.SupportsLoadSession || len(payload.ACPCaps.SupportedModels) != 1 {
-		t.Fatalf("caps = %#v", payload.ACPCaps)
-	}
-	if len(payload.ACPCaps.ConfigOptions) != 1 {
-		t.Fatalf("config options = %#v", payload.ACPCaps.ConfigOptions)
-	}
-	if got := payload.ACPCaps.ConfigOptions[0]; got.ID != "reasoning_effort" || got.Current != "high" ||
-		got.Kind != "select" || len(got.Values) != 2 {
-		t.Fatalf("config option payload = %#v", got)
-	}
-	if got := payload.ACPCaps.ConfigOptions[0].Values; got[0].Value != "low" || got[1].Value != "high" {
-		t.Fatalf("config option values = %#v, want [low high]", got)
-	}
-	if payload.Sandbox == nil || payload.Sandbox.SandboxID != "env-1" ||
-		payload.Sandbox.Backend != "local" ||
-		payload.Sandbox.Profile != "local" ||
-		payload.Sandbox.State != "prepared" ||
-		payload.Sandbox.InstanceID != "instance-1" ||
-		payload.Sandbox.LastSyncError != "sync failed" {
-		t.Fatalf("sandbox = %#v", payload.Sandbox)
-	}
-	if payload.Sandbox.ProviderStateJSON != nil {
-		t.Fatalf("sandbox provider state = %s, want omitted", string(payload.Sandbox.ProviderStateJSON))
-	}
+		if payload.ID != "sess-1" || payload.WorkspaceID != "ws_alpha" || payload.WorkspacePath != "/workspace" ||
+			payload.Channel != "builders" {
+			t.Fatalf("payload = %#v", payload)
+		}
+		if payload.Provider != "fake" {
+			t.Fatalf("payload.Provider = %q, want %q", payload.Provider, "fake")
+		}
+		if payload.Model != "gpt-test" {
+			t.Fatalf("payload.Model = %q, want %q", payload.Model, "gpt-test")
+		}
+		if payload.ReasoningEffort != "high" {
+			t.Fatalf("payload.ReasoningEffort = %q, want %q", payload.ReasoningEffort, "high")
+		}
+		if payload.State != session.StateActive || payload.ACPSessionID != "acp-123" {
+			t.Fatalf("payload session fields = %#v", payload)
+		}
+		if payload.Type != session.SessionTypeDream {
+			t.Fatalf("payload.Type = %q, want %q", payload.Type, session.SessionTypeDream)
+		}
+		if payload.Lineage == nil ||
+			payload.Lineage.ParentSessionID != "sess-root" ||
+			payload.Lineage.RootSessionID != "sess-root" ||
+			payload.Lineage.SpawnDepth != 1 ||
+			payload.Lineage.SpawnRole != "worker" ||
+			payload.Lineage.SpawnBudget.MaxChildren != 2 ||
+			payload.Lineage.PermissionPolicy.Tools[0] != "edit" {
+			t.Fatalf("payload.Lineage = %#v", payload.Lineage)
+		}
+		if payload.Activity == nil || payload.Activity.TurnID != "turn-1" {
+			t.Fatalf("activity = %#v", payload.Activity)
+		}
+		if payload.StopReason != store.StopTimeout || payload.StopDetail != "deadline exceeded" {
+			t.Fatalf("payload stop fields = %#v", payload)
+		}
+		if payload.Failure == nil ||
+			payload.Failure.Kind != store.FailureTimeout ||
+			payload.Failure.Summary != "deadline exceeded" ||
+			payload.Failure.CrashBundlePath != "/tmp/agh-crash.json" {
+			t.Fatalf("payload failure = %#v", payload.Failure)
+		}
+		if payload.ACPCaps == nil || !payload.ACPCaps.SupportsLoadSession || len(payload.ACPCaps.SupportedModels) != 1 {
+			t.Fatalf("caps = %#v", payload.ACPCaps)
+		}
+		if len(payload.ACPCaps.ConfigOptions) != 1 {
+			t.Fatalf("config options = %#v", payload.ACPCaps.ConfigOptions)
+		}
+		if got := payload.ACPCaps.ConfigOptions[0]; got.ID != "reasoning_effort" || got.Current != "high" ||
+			got.Kind != "select" || len(got.Values) != 2 {
+			t.Fatalf("config option payload = %#v", got)
+		}
+		if got := payload.ACPCaps.ConfigOptions[0].Values; got[0].Value != "low" || got[1].Value != "high" {
+			t.Fatalf("config option values = %#v, want [low high]", got)
+		}
+		if payload.Sandbox == nil || payload.Sandbox.SandboxID != "env-1" ||
+			payload.Sandbox.Backend != "local" ||
+			payload.Sandbox.Profile != "local" ||
+			payload.Sandbox.State != "prepared" ||
+			payload.Sandbox.InstanceID != "instance-1" ||
+			payload.Sandbox.LastSyncError != "sync failed" {
+			t.Fatalf("sandbox = %#v", payload.Sandbox)
+		}
+		if payload.Sandbox.ProviderStateJSON != nil {
+			t.Fatalf("sandbox provider state = %s, want omitted", string(payload.Sandbox.ProviderStateJSON))
+		}
+	})
 }
 
 func TestRuntimeActivityPayloadFromSessionMeta(t *testing.T) {
@@ -496,70 +501,97 @@ func TestJobPayloadFromJobCopiesNestedOptionalFields(t *testing.T) {
 func TestParseSessionEventQueryAndHelpers(t *testing.T) {
 	t.Parallel()
 
-	recorder := httptest.NewRecorder()
-	ginCtx, _ := gin.CreateTestContext(recorder)
-	ginCtx.Request = httptest.NewRequestWithContext(
-		context.Background(),
-		http.MethodGet,
-		"/events?type=agent_message&agent_name=coder&turn_id=turn-1&after_sequence=5&limit=10&since=2026-04-03T12:00:00Z&run=run-1&actor_kind=agent&actor_id=agent:coder&provider=codex&outcome=failure&component=task&error_only=true",
-		http.NoBody,
-	)
+	t.Run("Should parse event and logs helper query parameters", func(t *testing.T) {
+		t.Parallel()
 
-	query, err := core.ParseSessionEventQuery(ginCtx)
-	if err != nil {
-		t.Fatalf("ParseSessionEventQuery() error = %v", err)
-	}
-	if query.Type != "agent_message" || query.AgentName != "coder" || query.TurnID != "turn-1" ||
-		query.AfterSequence != 5 ||
-		query.Limit != 10 {
-		t.Fatalf("query = %#v", query)
-	}
+		recorder := httptest.NewRecorder()
+		ginCtx, _ := gin.CreateTestContext(recorder)
+		ginCtx.Request = httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			"/events?type=agent_message&agent_name=coder&turn_id=turn-1&after_sequence=5&limit=10&since=2026-04-03T12:00:00Z&run=run-1&actor_kind=agent&actor_id=agent:coder&provider=codex&outcome=failure&component=task&error_only=true",
+			http.NoBody,
+		)
 
-	if _, err := core.ParseOptionalTime(""); err != nil {
-		t.Fatalf("ParseOptionalTime(empty) error = %v", err)
-	}
-	if parsed, err := core.ParseOptionalTime("2026-04-03T12:00:00Z"); err != nil || parsed.IsZero() {
-		t.Fatalf("ParseOptionalTime(valid) = %v, %v", parsed, err)
-	}
-	if _, err := core.ParseOptionalTime("bad"); err == nil {
-		t.Fatal("ParseOptionalTime(bad) error = nil, want non-nil")
-	}
-	if value, err := core.ParseOptionalInt("7"); err != nil || value != 7 {
-		t.Fatalf("ParseOptionalInt() = %d, %v", value, err)
-	}
-	if value, err := core.ParseOptionalInt64("9"); err != nil || value != 9 {
-		t.Fatalf("ParseOptionalInt64() = %d, %v", value, err)
-	}
-	if _, err := core.ParseLogsCursor("2026-04-03T12:00:00Z|ev-1"); err != nil {
-		t.Fatalf("ParseLogsCursor() error = %v", err)
-	}
-	observeQuery, err := core.ParseLogsQuery(ginCtx)
-	if err != nil {
-		t.Fatalf("ParseLogsQuery() error = %v", err)
-	}
-	if observeQuery.AgentName != "coder" ||
-		observeQuery.RunID != "run-1" ||
-		observeQuery.ActorKind != "agent" ||
-		observeQuery.ActorID != "agent:coder" ||
-		observeQuery.Provider != "codex" ||
-		observeQuery.Outcome != "failure" ||
-		observeQuery.Component != "task" ||
-		!observeQuery.ErrorOnly ||
-		observeQuery.AfterSequence != 5 {
-		t.Fatalf("observe query = %#v", observeQuery)
-	}
+		query, err := core.ParseSessionEventQuery(ginCtx)
+		if err != nil {
+			t.Fatalf("ParseSessionEventQuery() error = %v", err)
+		}
+		if query.Type != "agent_message" || query.AgentName != "coder" || query.TurnID != "turn-1" ||
+			query.AfterSequence != 5 ||
+			query.Limit != 10 {
+			t.Fatalf("query = %#v", query)
+		}
 
-	invalidRecorder := httptest.NewRecorder()
-	invalidContext, _ := gin.CreateTestContext(invalidRecorder)
-	invalidContext.Request = httptest.NewRequestWithContext(
-		context.Background(),
-		http.MethodGet,
-		"/events?since=bad",
-		http.NoBody,
-	)
-	if _, err := core.ParseSessionEventQuery(invalidContext); err == nil {
-		t.Fatal("ParseSessionEventQuery(invalid) error = nil, want non-nil")
-	}
+		if _, err := core.ParseOptionalTime(""); err != nil {
+			t.Fatalf("ParseOptionalTime(empty) error = %v", err)
+		}
+		if parsed, err := core.ParseOptionalTime("2026-04-03T12:00:00Z"); err != nil || parsed.IsZero() {
+			t.Fatalf("ParseOptionalTime(valid) = %v, %v", parsed, err)
+		}
+		if _, err := core.ParseOptionalTime("bad"); err == nil {
+			t.Fatal("ParseOptionalTime(bad) error = nil, want non-nil")
+		}
+		if value, err := core.ParseOptionalInt("7"); err != nil || value != 7 {
+			t.Fatalf("ParseOptionalInt() = %d, %v", value, err)
+		}
+		if value, err := core.ParseOptionalInt64("9"); err != nil || value != 9 {
+			t.Fatalf("ParseOptionalInt64() = %d, %v", value, err)
+		}
+		if _, err := core.ParseLogsCursor("2026-04-03T12:00:00Z|ev-1"); err != nil {
+			t.Fatalf("ParseLogsCursor() error = %v", err)
+		}
+		observeQuery, err := core.ParseLogsQuery(ginCtx)
+		if err != nil {
+			t.Fatalf("ParseLogsQuery() error = %v", err)
+		}
+		if observeQuery.AgentName != "coder" ||
+			observeQuery.RunID != "run-1" ||
+			observeQuery.ActorKind != "agent" ||
+			observeQuery.ActorID != "agent:coder" ||
+			observeQuery.Provider != "codex" ||
+			observeQuery.Outcome != "failure" ||
+			observeQuery.Component != "task" ||
+			!observeQuery.ErrorOnly ||
+			observeQuery.AfterSequence != 5 {
+			t.Fatalf("observe query = %#v", observeQuery)
+		}
+
+		invalidRecorder := httptest.NewRecorder()
+		invalidContext, _ := gin.CreateTestContext(invalidRecorder)
+		invalidContext.Request = httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			"/events?since=bad",
+			http.NoBody,
+		)
+		if _, err := core.ParseSessionEventQuery(invalidContext); err == nil {
+			t.Fatal("ParseSessionEventQuery(invalid) error = nil, want non-nil")
+		}
+	})
+}
+
+func TestSkillShadowEntryPayloadFromDomain(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should normalize domain tiers and preserve zero detected timestamps", func(t *testing.T) {
+		t.Parallel()
+
+		payload := core.SkillShadowEntryPayloadFromDomain(skills.ShadowEntry{
+			Path:             " /tmp/skill/SKILL.md ",
+			Tier:             "agent-local",
+			ResolvedToWinner: true,
+		})
+		if payload.Path != "/tmp/skill/SKILL.md" {
+			t.Fatalf("Path = %q, want %q", payload.Path, "/tmp/skill/SKILL.md")
+		}
+		if payload.Tier != "agent_local" {
+			t.Fatalf("Tier = %q, want %q", payload.Tier, "agent_local")
+		}
+		if !payload.DetectedAt.IsZero() {
+			t.Fatalf("DetectedAt = %v, want zero time", payload.DetectedAt)
+		}
+	})
 }
 
 func TestRespondErrorMaskingModes(t *testing.T) {
@@ -594,29 +626,33 @@ func TestRespondErrorMaskingModes(t *testing.T) {
 func TestPrepareSSESetsHeaders(t *testing.T) {
 	t.Parallel()
 
-	recorder := httptest.NewRecorder()
-	ginCtx, _ := gin.CreateTestContext(recorder)
-	ginCtx.Request = httptest.NewRequestWithContext(
-		context.Background(),
-		http.MethodGet,
-		"/stream",
-		http.NoBody,
-	)
+	t.Run("Should prepare SSE responses with streaming headers", func(t *testing.T) {
+		t.Parallel()
 
-	writer, err := core.PrepareSSE(ginCtx)
-	if err != nil {
-		t.Fatalf("PrepareSSE() error = %v", err)
-	}
-	if writer == nil {
-		t.Fatal("PrepareSSE() writer = nil")
-	}
-	if got := recorder.Header().Get("Content-Type"); got != "text/event-stream" {
-		t.Fatalf("Content-Type = %q, want text/event-stream", got)
-	}
-	if got := recorder.Header().Get("Cache-Control"); got != "no-cache" {
-		t.Fatalf("Cache-Control = %q, want no-cache", got)
-	}
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
-	}
+		recorder := httptest.NewRecorder()
+		ginCtx, _ := gin.CreateTestContext(recorder)
+		ginCtx.Request = httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodGet,
+			"/stream",
+			http.NoBody,
+		)
+
+		writer, err := core.PrepareSSE(ginCtx)
+		if err != nil {
+			t.Fatalf("PrepareSSE() error = %v", err)
+		}
+		if writer == nil {
+			t.Fatal("PrepareSSE() writer = nil")
+		}
+		if got := recorder.Header().Get("Content-Type"); got != "text/event-stream" {
+			t.Fatalf("Content-Type = %q, want text/event-stream", got)
+		}
+		if got := recorder.Header().Get("Cache-Control"); got != "no-cache" {
+			t.Fatalf("Cache-Control = %q, want no-cache", got)
+		}
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d", recorder.Code, http.StatusOK)
+		}
+	})
 }

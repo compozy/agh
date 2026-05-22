@@ -59,7 +59,7 @@ func (h *BaseHandlers) ListExtensions(c *gin.Context) {
 
 	items, err := service.List(c.Request.Context())
 	if err != nil {
-		RespondError(c, http.StatusInternalServerError, err, false)
+		h.respondExtensionError(c, http.StatusInternalServerError, err)
 		return
 	}
 	c.JSON(http.StatusOK, contract.ExtensionsResponse{Extensions: items})
@@ -72,7 +72,7 @@ func (h *BaseHandlers) SearchExtensionMarketplace(c *gin.Context) {
 		return
 	}
 
-	limit, ok := extensionMarketplaceLimit(c)
+	limit, ok := extensionMarketplaceLimit(h, c)
 	if !ok {
 		return
 	}
@@ -83,7 +83,7 @@ func (h *BaseHandlers) SearchExtensionMarketplace(c *gin.Context) {
 		limit,
 	)
 	if err != nil {
-		RespondError(c, ExtensionStatusCode(err), err, false)
+		h.respondExtensionError(c, ExtensionStatusCode(err), err)
 		return
 	}
 	c.JSON(http.StatusOK, contract.ExtensionMarketplaceResponse{Extensions: items})
@@ -98,20 +98,20 @@ func (h *BaseHandlers) InstallExtension(c *gin.Context) {
 
 	var req contract.InstallExtensionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err, false)
+		h.respondExtensionError(c, http.StatusBadRequest, err)
 		return
 	}
 	normalizeInstallExtensionRequest(&req)
 	if req.Path == "" && req.Slug == "" {
-		RespondError(c, http.StatusBadRequest, errors.New("path or slug is required"), false)
+		h.respondExtensionError(c, http.StatusBadRequest, errors.New("path or slug is required"))
 		return
 	}
 	if req.Path != "" && req.Slug != "" {
-		RespondError(c, http.StatusBadRequest, errors.New("path and slug are mutually exclusive"), false)
+		h.respondExtensionError(c, http.StatusBadRequest, errors.New("path and slug are mutually exclusive"))
 		return
 	}
 	if req.Path != "" && req.Checksum == "" {
-		RespondError(c, http.StatusBadRequest, errors.New("checksum is required for local installs"), false)
+		h.respondExtensionError(c, http.StatusBadRequest, errors.New("checksum is required for local installs"))
 		return
 	}
 	actor, ok := h.extensionActorContext(c, extensionActionInstall)
@@ -121,7 +121,7 @@ func (h *BaseHandlers) InstallExtension(c *gin.Context) {
 
 	item, err := service.Install(c.Request.Context(), req, actor)
 	if err != nil {
-		RespondError(c, ExtensionStatusCode(err), err, false)
+		h.respondExtensionError(c, ExtensionStatusCode(err), err)
 		return
 	}
 	c.JSON(http.StatusCreated, contract.ExtensionResponse{Extension: item})
@@ -136,7 +136,7 @@ func (h *BaseHandlers) UpdateExtension(c *gin.Context) {
 
 	var req contract.UpdateExtensionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		RespondError(c, http.StatusBadRequest, err, false)
+		h.respondExtensionError(c, http.StatusBadRequest, err)
 		return
 	}
 	req.Version = strings.TrimSpace(req.Version)
@@ -146,7 +146,7 @@ func (h *BaseHandlers) UpdateExtension(c *gin.Context) {
 	}
 	item, err := service.Update(c.Request.Context(), name, req, actor)
 	if err != nil {
-		RespondError(c, ExtensionStatusCode(err), err, false)
+		h.respondExtensionError(c, ExtensionStatusCode(err), err)
 		return
 	}
 	c.JSON(http.StatusOK, contract.ExtensionUpdateResponse{Update: item})
@@ -165,7 +165,7 @@ func (h *BaseHandlers) RemoveExtension(c *gin.Context) {
 
 	item, err := service.Remove(c.Request.Context(), name, actor)
 	if err != nil {
-		RespondError(c, ExtensionStatusCode(err), err, false)
+		h.respondExtensionError(c, ExtensionStatusCode(err), err)
 		return
 	}
 	c.JSON(http.StatusOK, contract.ExtensionRemoveResponse{Extension: item})
@@ -190,7 +190,7 @@ func (h *BaseHandlers) ExtensionStatus(c *gin.Context) {
 
 	item, err := service.Status(c.Request.Context(), name)
 	if err != nil {
-		RespondError(c, ExtensionStatusCode(err), err, false)
+		h.respondExtensionError(c, ExtensionStatusCode(err), err)
 		return
 	}
 	c.JSON(http.StatusOK, contract.ExtensionResponse{Extension: item})
@@ -205,7 +205,7 @@ func (h *BaseHandlers) ExtensionProvenance(c *gin.Context) {
 
 	item, err := service.Provenance(c.Request.Context(), name)
 	if err != nil {
-		RespondError(c, ExtensionStatusCode(err), err, false)
+		h.respondExtensionError(c, ExtensionStatusCode(err), err)
 		return
 	}
 	c.JSON(http.StatusOK, contract.ExtensionProvenanceResponse{Provenance: item})
@@ -263,7 +263,7 @@ func (h *BaseHandlers) mutateExtensionEnabled(c *gin.Context, enabled bool) {
 		item, err = service.Disable(c.Request.Context(), name, actor)
 	}
 	if err != nil {
-		RespondError(c, ExtensionStatusCode(err), err, false)
+		h.respondExtensionError(c, ExtensionStatusCode(err), err)
 		return
 	}
 	c.JSON(http.StatusOK, contract.ExtensionResponse{Extension: item})
@@ -276,7 +276,7 @@ func (h *BaseHandlers) namedExtensionService(c *gin.Context) (ExtensionService, 
 	}
 	name := strings.TrimSpace(c.Param("name"))
 	if name == "" {
-		RespondError(c, http.StatusBadRequest, errors.New("name is required"), false)
+		h.respondExtensionError(c, http.StatusBadRequest, errors.New("name is required"))
 		return nil, "", false
 	}
 	return service, name, true
@@ -284,11 +284,10 @@ func (h *BaseHandlers) namedExtensionService(c *gin.Context) (ExtensionService, 
 
 func (h *BaseHandlers) extensionService(c *gin.Context) (ExtensionService, bool) {
 	if h == nil || h.Extensions == nil {
-		RespondError(
+		h.respondExtensionError(
 			c,
 			http.StatusServiceUnavailable,
 			errors.New("api: extension service is not configured"),
-			false,
 		)
 		return nil, false
 	}
@@ -300,7 +299,7 @@ func (h *BaseHandlers) extensionActorContext(c *gin.Context, action string) (tas
 	if h.TaskActorContextResolver != nil {
 		actor, err := h.TaskActorContextResolver(c, action)
 		if err != nil {
-			RespondError(c, StatusForTaskError(err), err, false)
+			h.respondExtensionError(c, StatusForTaskError(err), err)
 			return taskpkg.ActorContext{}, false
 		}
 		return actor, true
@@ -309,7 +308,7 @@ func (h *BaseHandlers) extensionActorContext(c *gin.Context, action string) (tas
 	if hasAgentCallerIdentityCredentials(credentials) {
 		caller, err := h.resolveAgentCallerForWorkspace(c.Request.Context(), credentials, action, "")
 		if err != nil {
-			RespondError(c, StatusForTaskError(err), err, false)
+			h.respondExtensionError(c, StatusForTaskError(err), err)
 			return taskpkg.ActorContext{}, false
 		}
 		return caller.Actor, true
@@ -320,23 +319,31 @@ func (h *BaseHandlers) extensionActorContext(c *gin.Context, action string) (tas
 		action,
 	)
 	if err != nil {
-		RespondError(c, StatusForTaskError(err), err, false)
+		h.respondExtensionError(c, StatusForTaskError(err), err)
 		return taskpkg.ActorContext{}, false
 	}
 	return actor, true
 }
 
-func extensionMarketplaceLimit(c *gin.Context) (int, bool) {
+func extensionMarketplaceLimit(h *BaseHandlers, c *gin.Context) (int, bool) {
 	limit := defaultExtensionMarketplaceLimit
 	if rawLimit := strings.TrimSpace(c.Query("limit")); rawLimit != "" {
 		parsed, err := strconv.Atoi(rawLimit)
 		if err != nil || parsed <= 0 {
-			RespondError(c, http.StatusBadRequest, errors.New("limit must be a positive integer"), false)
+			h.respondExtensionError(c, http.StatusBadRequest, errors.New("limit must be a positive integer"))
 			return 0, false
 		}
 		limit = parsed
 	}
 	return limit, true
+}
+
+func (h *BaseHandlers) respondExtensionError(c *gin.Context, status int, err error) {
+	mask := false
+	if h != nil {
+		mask = h.MaskInternalErrors
+	}
+	RespondError(c, status, err, mask)
 }
 
 func normalizeInstallExtensionRequest(req *contract.InstallExtensionRequest) {

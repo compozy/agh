@@ -466,16 +466,21 @@ func (h *BaseHandlers) ResolveBridgeTarget(c *gin.Context) {
 		)
 		return
 	}
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		h.respondError(c, http.StatusBadRequest, fmt.Errorf("%s: bridge target name is required", h.transportName()))
+		return
+	}
 	result, err := bridges.ResolveBridgeTarget(
 		c.Request.Context(),
 		strings.TrimSpace(c.Param("id")),
-		strings.TrimSpace(req.Name),
+		name,
 	)
 	if err != nil {
 		if errors.Is(err, bridgepkg.ErrBridgeTargetAmbiguous) {
 			diagnostic := bridgeTargetResolveDiagnostic(
 				strings.TrimSpace(c.Param("id")),
-				strings.TrimSpace(req.Name),
+				name,
 				result,
 				contract.CodeTargetAmbiguous,
 			)
@@ -488,7 +493,7 @@ func (h *BaseHandlers) ResolveBridgeTarget(c *gin.Context) {
 		if errors.Is(err, bridgepkg.ErrBridgeTargetUnknown) {
 			diagnostic := bridgeTargetResolveDiagnostic(
 				strings.TrimSpace(c.Param("id")),
-				strings.TrimSpace(req.Name),
+				name,
 				result,
 				contract.CodeTargetUnknown,
 			)
