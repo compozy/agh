@@ -53,12 +53,17 @@ describe("tool-first canonical surface docs", () => {
       "agh__memory",
       "agh__memory_admin",
       "agh__memory_admin_history",
+      "agh__bundles",
+      "agh__resources",
+      "agh__mcp",
     ]);
     expectExcludesAll(toolsets, ["agh__memory_history"]);
     expectIncludesAll(tools, [
       "task bridge notification subscription management",
       "Memory v2 operational/admin actions",
       "provider model catalog list/refresh/status",
+      "extension bundle activation and desired-state resource inspection",
+      "MCP server probe/status diagnostics",
     ]);
   });
 
@@ -119,6 +124,9 @@ describe("tool-first canonical surface docs", () => {
       "`agh__extensions`",
       "`agh__extensions_install`",
       "`agh__extensions_remove`",
+      "`agh__bundles_activate`",
+      "`agh__resources_snapshot`",
+      "`resource.write` capability names are not accepted",
       "EXTENSION_SOURCE_FORBIDDEN",
       "EXTENSION_APPROVAL_REQUIRED",
     ]);
@@ -128,10 +136,23 @@ describe("tool-first canonical surface docs", () => {
     const configToml = readDoc("core/configuration/config-toml.mdx");
 
     expectIncludesAll(configToml, [
+      "`agh__mcp_status`",
       "`agh__mcp_auth_status`",
       "operator-only management flows",
+      "omitted from callable discovery",
       "agh mcp auth login",
       "agh mcp auth logout",
+    ]);
+  });
+
+  it("documents restart-required lifecycle truth for config-backed hook and extension mutations", () => {
+    const configToml = readDoc("core/configuration/config-toml.mdx");
+
+    expectIncludesAll(configToml, [
+      "`hooks.*` and `extensions.*`",
+      "`applied=false`",
+      '`lifecycle="restart-required"`',
+      '`next_action="restart-daemon"`',
     ]);
   });
 

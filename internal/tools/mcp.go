@@ -304,7 +304,7 @@ func mcpRegistryDescriptor(source SourceRef, desc MCPToolDescriptor) (Descriptor
 	if displayTitle == "" {
 		displayTitle = rawTool
 	}
-	return Descriptor{
+	descriptor := Descriptor{
 		ID:              id,
 		Backend:         BackendRef{Kind: BackendMCP, MCPServer: owner, MCPTool: rawTool},
 		DisplayTitle:    displayTitle,
@@ -318,7 +318,8 @@ func mcpRegistryDescriptor(source SourceRef, desc MCPToolDescriptor) (Descriptor
 		Destructive:     false,
 		OpenWorld:       openWorld,
 		ConcurrencySafe: readOnly,
-	}, nil
+	}
+	return DescriptorWithSchemaDigests(descriptor)
 }
 
 func canonicalMCPSegment(field string, raw string) (string, error) {

@@ -231,39 +231,55 @@ func (s *daemonExtensionService) Update(
 	req contract.UpdateExtensionRequest,
 	actor taskpkg.ActorContext,
 ) (contract.ManagedExtensionUpdatePayload, error) {
-	if err := s.checkReady(); err != nil {
-		return contract.ManagedExtensionUpdatePayload{}, err
-	}
-	if err := validateExtensionWriteActor(actor); err != nil {
-		return contract.ManagedExtensionUpdatePayload{}, err
-	}
-	items, err := extensionpkg.UpdateMarketplaceManaged(
-		ctx,
-		s.homePaths,
-		s.registry,
-		s.marketplaceSourceLoader(),
-		extensionpkg.MarketplaceUpdateRequest{
-			Names:           []string{name},
-			Version:         req.Version,
-			CheckOnly:       req.CheckOnly,
-			AllowUnverified: req.AllowUnverified,
-			InstalledBy:     extensionInstalledBy(actor),
-		},
-		s.reload,
-	)
+	items, err := s.UpdateBatch(ctx, extensionpkg.MarketplaceUpdateRequest{
+		Names:           []string{name},
+		Version:         req.Version,
+		CheckOnly:       req.CheckOnly,
+		AllowUnverified: req.AllowUnverified,
+	}, actor)
 	if err != nil {
 		return contract.ManagedExtensionUpdatePayload{}, err
 	}
 	if len(items) == 0 {
 		return contract.ManagedExtensionUpdatePayload{}, extensionpkg.ErrExtensionNotFound
 	}
-	item := extensionUpdatePayload(items[0])
-	if item.Status == extensionpkg.MarketplaceUpdateStatusUpdated {
-		if err := s.recordExtensionUpdateEvent(ctx, actor, item); err != nil {
-			return contract.ManagedExtensionUpdatePayload{}, err
+	return items[0], nil
+}
+
+func (s *daemonExtensionService) UpdateBatch(
+	ctx context.Context,
+	req extensionpkg.MarketplaceUpdateRequest,
+	actor taskpkg.ActorContext,
+) ([]contract.ManagedExtensionUpdatePayload, error) {
+	if err := s.checkReady(); err != nil {
+		return nil, err
+	}
+	if err := validateExtensionWriteActor(actor); err != nil {
+		return nil, err
+	}
+	req.InstalledBy = extensionInstalledBy(actor)
+	items, err := extensionpkg.UpdateMarketplaceManaged(
+		ctx,
+		s.homePaths,
+		s.registry,
+		s.marketplaceSourceLoader(),
+		req,
+		s.reload,
+	)
+	if err != nil {
+		return nil, err
+	}
+	payloads := make([]contract.ManagedExtensionUpdatePayload, 0, len(items))
+	for _, value := range items {
+		item := extensionUpdatePayload(value)
+		payloads = append(payloads, item)
+		if item.Status == extensionpkg.MarketplaceUpdateStatusUpdated {
+			if err := s.recordExtensionUpdateEvent(ctx, actor, item); err != nil {
+				return nil, err
+			}
 		}
 	}
-	return item, nil
+	return payloads, nil
 }
 
 func (s *daemonExtensionService) Remove(

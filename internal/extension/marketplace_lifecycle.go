@@ -268,7 +268,7 @@ func marketplaceInstallProvenance(
 		ChecksumSHA256:   prepared.checksum,
 		ChecksumVerified: false,
 		RegistryTier:     registryTierForSource(SourceMarketplace, strings.TrimSpace(prepared.detail.Source)),
-		Permissions:      extensionPermissions(prepared.manifest.Capabilities, prepared.manifest.Actions),
+		Permissions:      extensionPermissions(prepared.manifest),
 		InstalledBy:      firstNonEmpty(req.InstalledBy, extensionTrustInstalledByOperator),
 		AllowUnverified:  req.AllowUnverified,
 		Warnings: []diagnosticcontract.DiagnosticItem{
@@ -577,7 +577,7 @@ func applyMarketplaceExtensionUpdate(
 	provenance.ChecksumSHA256 = result.Checksum
 	provenance.ChecksumVerified = false
 	provenance.RegistryTier = registryTierForSource(SourceMarketplace, registryName)
-	provenance.Permissions = extensionPermissions(manifest.Capabilities, manifest.Actions)
+	provenance.Permissions = extensionPermissions(manifest)
 	provenance.AllowUnverified = allowUnverified
 	provenance.InstalledBy = firstNonEmpty(installedBy, provenance.InstalledBy, extensionTrustInstalledByOperator)
 	provenance.Warnings = []diagnosticcontract.DiagnosticItem{

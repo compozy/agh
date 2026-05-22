@@ -25,6 +25,7 @@ const (
 
 const defaultSDKContractsPath = "sdk/typescript/src/generated/contracts.ts"
 const defaultLifecycleMatrixPath = "packages/site/content/runtime/core/configuration/lifecycle-matrix.mdx"
+const defaultNativeToolCatalogPath = "internal/tools/builtin/testdata/native-tool-catalog.json"
 
 var ErrStaleGeneratedFile = errors.New("generated file is stale")
 
@@ -44,9 +45,10 @@ func run(ctx context.Context, args []string) error {
 
 func runWithPaths(ctx context.Context, args []string, openapiPath string, sdkContractsPath string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: agh-codegen <openapi|sdk-contracts|lifecycle-matrix|all|check>")
+		return fmt.Errorf("usage: agh-codegen <openapi|sdk-contracts|lifecycle-matrix|native-tool-catalog|all|check>")
 	}
 	lifecycleMatrixPath := lifecycleMatrixPathFor(openapiPath)
+	nativeToolCatalogPath := nativeToolCatalogPathFor(openapiPath)
 
 	switch args[0] {
 	case "openapi":
@@ -55,8 +57,10 @@ func runWithPaths(ctx context.Context, args []string, openapiPath string, sdkCon
 		return writeSDKContracts(ctx, sdkContractsPath)
 	case "lifecycle-matrix":
 		return writeLifecycleMatrix(lifecycleMatrixPath)
+	case "native-tool-catalog":
+		return writeNativeToolCatalog(nativeToolCatalogPath)
 	case "all":
-		return writeAll(ctx, openapiPath, sdkContractsPath, lifecycleMatrixPath)
+		return writeAll(ctx, openapiPath, sdkContractsPath, lifecycleMatrixPath, nativeToolCatalogPath)
 	case subcommandCheck:
 		if err := checkOpenAPI(openapiPath); err != nil {
 			return err
@@ -64,7 +68,10 @@ func runWithPaths(ctx context.Context, args []string, openapiPath string, sdkCon
 		if err := checkSDKContracts(ctx, sdkContractsPath); err != nil {
 			return err
 		}
-		return checkLifecycleMatrix(lifecycleMatrixPath)
+		if err := checkLifecycleMatrix(lifecycleMatrixPath); err != nil {
+			return err
+		}
+		return checkNativeToolCatalog(nativeToolCatalogPath)
 	default:
 		return fmt.Errorf("unknown codegen target %q", args[0])
 	}
@@ -92,7 +99,13 @@ func writeSDKContracts(ctx context.Context, path string) error {
 	return nil
 }
 
-func writeAll(ctx context.Context, openapiPath string, sdkContractsPath string, lifecycleMatrixPath string) error {
+func writeAll(
+	ctx context.Context,
+	openapiPath string,
+	sdkContractsPath string,
+	lifecycleMatrixPath string,
+	nativeToolCatalogPath string,
+) error {
 	if err := writeAllWith(
 		ctx,
 		openapiPath,
@@ -103,7 +116,10 @@ func writeAll(ctx context.Context, openapiPath string, sdkContractsPath string, 
 	); err != nil {
 		return err
 	}
-	return writeLifecycleMatrix(lifecycleMatrixPath)
+	if err := writeLifecycleMatrix(lifecycleMatrixPath); err != nil {
+		return err
+	}
+	return writeNativeToolCatalog(nativeToolCatalogPath)
 }
 
 func writeAllWith(
@@ -212,6 +228,25 @@ func checkLifecycleMatrix(path string) error {
 	return checkFile(path, generateLifecycleMatrixMDX())
 }
 
+func writeNativeToolCatalog(path string) error {
+	content, err := generateNativeToolCatalog()
+	if err != nil {
+		return err
+	}
+	if err := publishGeneratedFile(path, content); err != nil {
+		return fmt.Errorf("write native tool catalog to %q: %w", path, err)
+	}
+	return nil
+}
+
+func checkNativeToolCatalog(path string) error {
+	content, err := generateNativeToolCatalog()
+	if err != nil {
+		return err
+	}
+	return checkJSONFile(path, content)
+}
+
 func marshalOpenAPI() ([]byte, error) {
 	data, err := spec.Render()
 	if err != nil {
@@ -286,6 +321,13 @@ func lifecycleMatrixPathFor(openapiPath string) string {
 		return defaultLifecycleMatrixPath
 	}
 	return filepath.Join(filepath.Dir(openapiPath), "lifecycle-matrix.mdx")
+}
+
+func nativeToolCatalogPathFor(openapiPath string) string {
+	if filepath.Clean(openapiPath) == filepath.Clean(spec.DefaultPath) {
+		return defaultNativeToolCatalogPath
+	}
+	return filepath.Join(filepath.Dir(openapiPath), "native-tool-catalog.json")
 }
 
 func generateLifecycleMatrixMDX() []byte {

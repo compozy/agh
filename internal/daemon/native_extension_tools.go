@@ -241,32 +241,15 @@ func (n *daemonNativeTools) extensionUpdate(
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
 	}
 
-	items, err := extensionpkg.UpdateMarketplaceManaged(
-		ctx,
-		n.deps.HomePaths,
-		n.deps.ExtensionRegistry,
-		n.extensionMarketplaceLoader(),
-		extensionpkg.MarketplaceUpdateRequest{
-			Names:           names,
-			All:             input.All,
-			CheckOnly:       input.CheckOnly,
-			Version:         input.Version,
-			AllowUnverified: input.AllowUnverified,
-			InstalledBy:     extensionInstalledBy(actor),
-		},
-		n.extensionService().reload,
-	)
+	items, err := n.extensionService().UpdateBatch(ctx, extensionpkg.MarketplaceUpdateRequest{
+		Names:           names,
+		All:             input.All,
+		CheckOnly:       input.CheckOnly,
+		Version:         input.Version,
+		AllowUnverified: input.AllowUnverified,
+	}, actor)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
-	}
-	service := n.extensionService()
-	for _, item := range items {
-		if item.Status != extensionpkg.MarketplaceUpdateStatusUpdated {
-			continue
-		}
-		if err := service.recordExtensionUpdateEvent(ctx, actor, extensionUpdatePayload(item)); err != nil {
-			return toolspkg.ToolResult{}, nativeExtensionToolError(req.ToolID, err)
-		}
 	}
 	return structuredResult(map[string]any{"updates": items}, fmt.Sprintf("%d extension updates", len(items)))
 }
@@ -398,7 +381,7 @@ func (n *daemonNativeTools) extensionService() *daemonExtensionService {
 		n.deps.HookBindings,
 		n.deps.AgentSkills,
 		n.deps.ToolMCP,
-		n.deps.Bundles,
+		n.deps.BundleResources,
 		n.deps.HomePaths,
 		nil,
 		nil,

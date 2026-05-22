@@ -16,6 +16,7 @@ import (
 	"github.com/pedronauck/agh/internal/api/contract"
 	apitest "github.com/pedronauck/agh/internal/api/testutil"
 	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	bundlepkg "github.com/pedronauck/agh/internal/bundles"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/heartbeat"
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
@@ -26,6 +27,7 @@ import (
 	"github.com/pedronauck/agh/internal/network"
 	"github.com/pedronauck/agh/internal/notifications"
 	"github.com/pedronauck/agh/internal/observe"
+	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/session"
 	"github.com/pedronauck/agh/internal/skills"
 	"github.com/pedronauck/agh/internal/store"
@@ -152,6 +154,9 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(tool_list) error = %v", err)
 		}
 		requireNativeStructuredContains(t, listResult, []byte(`"agh__task_child_create"`))
+		requireNativeStructuredContains(t, listResult, []byte(`"agh__bundles_list"`))
+		requireNativeStructuredContains(t, listResult, []byte(`"agh__resources_list"`))
+		requireNativeStructuredContains(t, listResult, []byte(`"agh__mcp_status"`))
 		requireNativeStructuredContains(t, listResult, []byte(`"agh__mcp_auth_status"`))
 		requireNativeStructuredExcludes(t, listResult, []byte(`"agh__task_claim"`))
 		requireNativeStructuredExcludes(t, listResult, []byte(`"agh__skill_install"`))
@@ -190,6 +195,54 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should dispatch bundle and resource native tools through daemon services", func(t *testing.T) {
+		t.Parallel()
+
+		bundleService := &nativeBundleServiceStub{
+			catalog: []bundlepkg.CatalogEntry{{ExtensionName: "ext-bundle"}},
+			activations: []bundlepkg.ActivationPreview{{
+				Activation: bundlepkg.Activation{
+					ID:            "act-1",
+					ExtensionName: "ext-bundle",
+					BundleName:    "starter",
+					ProfileName:   "default",
+					Scope:         bundlepkg.ScopeGlobal,
+				},
+			}},
+		}
+		resourceService := &nativeResourceServiceStub{
+			records: []resources.RawRecord{{
+				Kind:     resources.ResourceKind("tool.mcp_server"),
+				ID:       "mcp.github",
+				SpecJSON: json.RawMessage(`{"name":"github"}`),
+			}},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			BundleService: bundleService,
+			Resources:     resourceService,
+		}, nativeApproveAllPolicyInputs())
+
+		bundleResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDBundlesList},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(bundles_list) error = %v", err)
+		}
+		requireNativeStructuredContains(t, bundleResult, []byte(`"act-1"`))
+
+		resourceResult, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDResourcesSnapshot},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(resources_snapshot) error = %v", err)
+		}
+		requireNativeStructuredContains(t, resourceResult, []byte(`"mcp.github"`))
+	})
+
 	t.Run("Should keep unavailable read surfaces operator-only with deterministic reasons", func(t *testing.T) {
 		t.Parallel()
 
@@ -213,6 +266,9 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDBridgesList)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDAutomationJobsList)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDExtensionsList)
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDBundlesList)
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDResourcesList)
+		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDMCPStatus)
 		requireNativeToolUnavailableReason(t, operatorViews, toolspkg.ToolIDMCPAuthStatus)
 
 		sessionViews, err := registry.List(t.Context(), toolspkg.Scope{SessionID: "sess-1"})
@@ -948,19 +1004,17 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
-	t.Run("Should manage config backed hooks through normalized binding sync", func(t *testing.T) {
+	t.Run("Should manage config backed hooks through restart-required lifecycle", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := testHomePaths(t)
 		observer := &nativeObserverStub{}
-		bindings := &nativeHookBindingsStub{}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			HomePaths:    homePaths,
-			Observer:     observer,
-			HookBindings: bindings,
+			HomePaths: homePaths,
+			Observer:  observer,
 		}, nativeApproveAllPolicyInputs())
 
-		_, err := registry.Call(
+		createResult, err := registry.Call(
 			t.Context(),
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
@@ -973,9 +1027,9 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(hooks_create) error = %v", err)
 		}
-		if bindings.syncCalls != 1 {
-			t.Fatalf("HookBindings.Sync calls = %d, want 1", bindings.syncCalls)
-		}
+		requireNativeStructuredContains(t, createResult, []byte(`"applied":false`))
+		requireNativeStructuredContains(t, createResult, []byte(`"lifecycle":"restart-required"`))
+		requireNativeStructuredContains(t, createResult, []byte(`"next_action":"restart-daemon"`))
 		target, err := aghconfig.ResolveConfigWriteTarget(homePaths, "", aghconfig.WriteScopeGlobal)
 		if err != nil {
 			t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
@@ -988,7 +1042,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("OverlayHookDeclarations() = %#v, want created hook", decls)
 		}
 
-		_, err = registry.Call(
+		disableResult, err := registry.Call(
 			t.Context(),
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
@@ -999,6 +1053,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(hooks_disable) error = %v", err)
 		}
+		requireNativeStructuredContains(t, disableResult, []byte(`"applied":false`))
+		requireNativeStructuredContains(t, disableResult, []byte(`"lifecycle":"restart-required"`))
 		cfg, err := aghconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome() error = %v", err)
@@ -1011,7 +1067,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("HookDeclarations(disabled) len = %d, want 0", len(active))
 		}
 
-		_, err = registry.Call(
+		enableResult, err := registry.Call(
 			t.Context(),
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
@@ -1022,6 +1078,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(hooks_enable) error = %v", err)
 		}
+		requireNativeStructuredContains(t, enableResult, []byte(`"applied":false`))
+		requireNativeStructuredContains(t, enableResult, []byte(`"next_action":"restart-daemon"`))
 		cfg, err = aghconfig.LoadForHome(homePaths)
 		if err != nil {
 			t.Fatalf("LoadForHome(enabled) error = %v", err)
@@ -1034,7 +1092,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("HookDeclarations(enabled) = %#v, want active tool-audit", active)
 		}
 
-		_, err = registry.Call(
+		updateResult, err := registry.Call(
 			t.Context(),
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
@@ -1045,6 +1103,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(hooks_update) error = %v", err)
 		}
+		requireNativeStructuredContains(t, updateResult, []byte(`"applied":false`))
+		requireNativeStructuredContains(t, updateResult, []byte(`"lifecycle":"restart-required"`))
 		decls, err = aghconfig.OverlayHookDeclarations(target)
 		if err != nil {
 			t.Fatalf("OverlayHookDeclarations(updated) error = %v", err)
@@ -1053,7 +1113,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("OverlayHookDeclarations(updated) = %#v, want updated command", decls)
 		}
 
-		_, err = registry.Call(
+		deleteResult, err := registry.Call(
 			t.Context(),
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
@@ -1064,15 +1124,14 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(hooks_delete) error = %v", err)
 		}
+		requireNativeStructuredContains(t, deleteResult, []byte(`"applied":false`))
+		requireNativeStructuredContains(t, deleteResult, []byte(`"next_action":"restart-daemon"`))
 		decls, err = aghconfig.OverlayHookDeclarations(target)
 		if err != nil {
 			t.Fatalf("OverlayHookDeclarations(deleted) error = %v", err)
 		}
 		if len(decls) != 0 {
 			t.Fatalf("OverlayHookDeclarations(deleted) = %#v, want empty", decls)
-		}
-		if bindings.syncCalls != 5 {
-			t.Fatalf("HookBindings.Sync calls = %d, want 5", bindings.syncCalls)
 		}
 	})
 
@@ -5545,6 +5604,118 @@ type nativeHookBindingsStub struct {
 func (b *nativeHookBindingsStub) Sync(context.Context) error {
 	b.syncCalls++
 	return b.err
+}
+
+type nativeBundleServiceStub struct {
+	catalog     []bundlepkg.CatalogEntry
+	activations []bundlepkg.ActivationPreview
+	network     bundlepkg.NetworkSettings
+}
+
+func (s *nativeBundleServiceStub) Catalog(context.Context) ([]bundlepkg.CatalogEntry, error) {
+	return append([]bundlepkg.CatalogEntry(nil), s.catalog...), nil
+}
+
+func (s *nativeBundleServiceStub) PreviewActivation(
+	_ context.Context,
+	_ bundlepkg.ActivateRequest,
+) (bundlepkg.ActivationPreview, error) {
+	return bundlepkg.ActivationPreview{}, errors.New("native bundle stub: preview should not be called")
+}
+
+func (s *nativeBundleServiceStub) Activate(
+	_ context.Context,
+	req bundlepkg.ActivateRequest,
+) (bundlepkg.ActivationPreview, error) {
+	return bundlepkg.ActivationPreview{
+		Activation: bundlepkg.Activation{
+			ID:                          "act-created",
+			ExtensionName:               req.ExtensionName,
+			BundleName:                  req.BundleName,
+			ProfileName:                 req.ProfileName,
+			Scope:                       req.Scope,
+			WorkspaceID:                 req.Workspace,
+			BindPrimaryChannelAsDefault: req.BindPrimaryChannelAsDefault,
+		},
+	}, nil
+}
+
+func (s *nativeBundleServiceStub) ListActivations(context.Context) ([]bundlepkg.ActivationPreview, error) {
+	return append([]bundlepkg.ActivationPreview(nil), s.activations...), nil
+}
+
+func (s *nativeBundleServiceStub) GetActivation(
+	_ context.Context,
+	id string,
+) (bundlepkg.ActivationPreview, error) {
+	for _, item := range s.activations {
+		if item.Activation.ID == id {
+			return item, nil
+		}
+	}
+	return bundlepkg.ActivationPreview{}, bundlepkg.ErrActivationNotFound
+}
+
+func (s *nativeBundleServiceStub) UpdateActivation(
+	_ context.Context,
+	_ bundlepkg.UpdateActivationRequest,
+) (bundlepkg.ActivationPreview, error) {
+	return bundlepkg.ActivationPreview{}, errors.New("native bundle stub: update should not be called")
+}
+
+func (s *nativeBundleServiceStub) Deactivate(context.Context, string) error {
+	return nil
+}
+
+func (s *nativeBundleServiceStub) NetworkSettings(context.Context) (bundlepkg.NetworkSettings, error) {
+	return s.network, nil
+}
+
+type nativeResourceServiceStub struct {
+	records []resources.RawRecord
+}
+
+func (s *nativeResourceServiceStub) List(
+	_ context.Context,
+	filter resources.ResourceFilter,
+) ([]resources.RawRecord, error) {
+	results := make([]resources.RawRecord, 0, len(s.records))
+	for _, record := range s.records {
+		if filter.Kind != "" && record.Kind != filter.Kind {
+			continue
+		}
+		results = append(results, record)
+	}
+	return results, nil
+}
+
+func (s *nativeResourceServiceStub) Get(
+	_ context.Context,
+	kind resources.ResourceKind,
+	id string,
+) (resources.RawRecord, error) {
+	for _, record := range s.records {
+		if record.Kind == kind && record.ID == id {
+			return record, nil
+		}
+	}
+	return resources.RawRecord{}, resources.ErrNotFound
+}
+
+func (s *nativeResourceServiceStub) Put(
+	_ context.Context,
+	_ resources.RawDraft,
+) (resources.RawRecord, error) {
+	return resources.RawRecord{}, errors.New("native resource stub: put should not be called")
+}
+
+func (s *nativeResourceServiceStub) Delete(
+	_ context.Context,
+	_ resources.ResourceKind,
+	_ string,
+	_ int64,
+) error {
+	return errors.New("native resource stub: delete should not be called")
 }
 
 type nativeObserverStub struct {

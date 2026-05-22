@@ -33,7 +33,7 @@ var bridgeTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDBridges},
-		[]string{bridgesBridgesKey, "status", bridgesHealthKey},
+		[]string{bridgesBridgesKey, descriptorKeywordStatus, bridgesHealthKey},
 		[]string{"bridge status", "bridge health"},
 	),
 }

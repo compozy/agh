@@ -6,7 +6,11 @@ import (
 	toolspkg "github.com/pedronauck/agh/internal/tools"
 )
 
-const emptyInputSchema = `{"type":"object","additionalProperties":false}`
+const (
+	descriptorKeywordCatalog = "catalog"
+	descriptorKeywordStatus  = "status"
+	emptyInputSchema         = `{"type":"object","additionalProperties":false}`
+)
 
 // NativeDescriptors returns the MVP native_go built-in descriptors.
 func NativeDescriptors() []toolspkg.Descriptor {
@@ -28,6 +32,9 @@ func NativeDescriptors() []toolspkg.Descriptor {
 		hookDescriptors(),
 		automationDescriptors(),
 		extensionDescriptors(),
+		bundleDescriptors(),
+		resourceDescriptors(),
+		mcpDescriptors(),
 		mcpAuthDescriptors(),
 	}
 	total := 0
@@ -41,6 +48,11 @@ func NativeDescriptors() []toolspkg.Descriptor {
 		}
 	}
 	return descriptors
+}
+
+func withRequiredCapabilities(descriptor toolspkg.Descriptor, capabilities ...string) toolspkg.Descriptor {
+	descriptor.Backend.RequiresCapabilities = append([]string(nil), capabilities...)
+	return descriptor
 }
 
 func nativeDescriptor(

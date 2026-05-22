@@ -162,6 +162,15 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDExtensionsRemove,
 			toolspkg.ToolIDExtensionsEnable,
 			toolspkg.ToolIDExtensionsDisable,
+			toolspkg.ToolIDBundlesList,
+			toolspkg.ToolIDBundlesInfo,
+			toolspkg.ToolIDBundlesActivate,
+			toolspkg.ToolIDBundlesDeactivate,
+			toolspkg.ToolIDBundlesStatus,
+			toolspkg.ToolIDResourcesList,
+			toolspkg.ToolIDResourcesInfo,
+			toolspkg.ToolIDResourcesSnapshot,
+			toolspkg.ToolIDMCPStatus,
 			toolspkg.ToolIDMCPAuthStatus,
 		}
 		if gotLen, wantLen := len(got), len(want); gotLen != wantLen {
@@ -601,7 +610,80 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			false,
 			false,
 		)
-		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMCPAuthStatus], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDBundlesList], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDBundlesInfo], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDBundlesActivate],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDBundlesDeactivate],
+			toolspkg.RiskDestructive,
+			false,
+			true,
+			false,
+		)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDBundlesStatus], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDResourcesList], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDResourcesInfo], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDResourcesSnapshot],
+			toolspkg.RiskRead,
+			true,
+			false,
+			false,
+		)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDMCPStatus], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDMCPAuthStatus],
+			toolspkg.RiskRead,
+			true,
+			false,
+			false,
+		)
+	})
+
+	t.Run("Should publish native schema digests and capability roster", func(t *testing.T) {
+		t.Parallel()
+
+		descriptors := descriptorMap(NativeDescriptors())
+		cases := []struct {
+			id         toolspkg.ToolID
+			capability string
+		}{
+			{id: toolspkg.ToolIDBundlesList, capability: "bundles.read"},
+			{id: toolspkg.ToolIDBundlesActivate, capability: "bundles.write"},
+			{id: toolspkg.ToolIDResourcesList, capability: "resources.read"},
+			{id: toolspkg.ToolIDResourcesSnapshot, capability: "resources.read"},
+		}
+		for _, tc := range cases {
+			descriptor, ok := descriptors[tc.id]
+			if !ok {
+				t.Fatalf("descriptor %q missing", tc.id)
+			}
+			withDigests, err := toolspkg.DescriptorWithSchemaDigests(descriptor)
+			if err != nil {
+				t.Fatalf("DescriptorWithSchemaDigests(%s) error = %v", tc.id, err)
+			}
+			if strings.TrimSpace(withDigests.InputSchemaDigest) == "" {
+				t.Fatalf("%s input schema digest is empty", tc.id)
+			}
+			if !slices.Contains(withDigests.Backend.RequiresCapabilities, tc.capability) {
+				t.Fatalf(
+					"%s capabilities = %#v, want %q",
+					tc.id,
+					withDigests.Backend.RequiresCapabilities,
+					tc.capability,
+				)
+			}
+		}
 	})
 
 	t.Run("Should keep network schemas closed and hard-cut vocabulary out of descriptors", func(t *testing.T) {
@@ -913,6 +995,33 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			!slices.Contains(extensions, toolspkg.ToolIDExtensionsRemove) ||
 			slices.Contains(extensions, toolspkg.ToolID("agh__extensions_trust_root_set")) {
 			t.Fatalf("extensions toolset expansion = %#v, want bounded extension lifecycle tools", extensions)
+		}
+
+		bundles, err := catalog.Expand(toolspkg.ToolsetIDBundles, universe)
+		if err != nil {
+			t.Fatalf("Expand(bundles) error = %v", err)
+		}
+		if !slices.Contains(bundles, toolspkg.ToolIDBundlesActivate) ||
+			!slices.Contains(bundles, toolspkg.ToolIDBundlesStatus) {
+			t.Fatalf("bundles toolset expansion = %#v, want bundle lifecycle tools", bundles)
+		}
+
+		resourceTools, err := catalog.Expand(toolspkg.ToolsetIDResources, universe)
+		if err != nil {
+			t.Fatalf("Expand(resources) error = %v", err)
+		}
+		if !slices.Contains(resourceTools, toolspkg.ToolIDResourcesList) ||
+			!slices.Contains(resourceTools, toolspkg.ToolIDResourcesSnapshot) ||
+			slices.Contains(resourceTools, toolspkg.ToolID("agh__resource_list")) {
+			t.Fatalf("resources toolset expansion = %#v, want plural desired-state resource tools", resourceTools)
+		}
+
+		mcp, err := catalog.Expand(toolspkg.ToolsetIDMCP, universe)
+		if err != nil {
+			t.Fatalf("Expand(mcp) error = %v", err)
+		}
+		if want := []toolspkg.ToolID{toolspkg.ToolIDMCPStatus}; !slices.Equal(mcp, want) {
+			t.Fatalf("mcp expansion = %#v, want %#v", mcp, want)
 		}
 
 		mcpAuth, err := catalog.Expand(toolspkg.ToolsetIDMCPAuth, universe)

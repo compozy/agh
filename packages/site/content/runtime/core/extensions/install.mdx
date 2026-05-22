@@ -46,6 +46,11 @@ Extension bundles have their own UDS-backed CLI surface. After installing an ext
 inspect and manage preset activations with `agh bundle catalog`, `agh bundle preview`,
 `agh bundle activate`, `agh bundle list`, `agh bundle get`, `agh bundle update`,
 `agh bundle deactivate`, and `agh bundle network-settings`.
+The same daemon service is exposed to agents through `agh__bundles_list`, `agh__bundles_info`,
+`agh__bundles_activate`, `agh__bundles_deactivate`, and `agh__bundles_status`. Desired-state
+resources published by extensions are inspectable through `agh__resources_list`,
+`agh__resources_info`, and `agh__resources_snapshot`; the old singular `resource.read` and
+`resource.write` capability names are not accepted.
 
 ## Install From A Local Directory
 

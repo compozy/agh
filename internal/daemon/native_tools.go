@@ -106,7 +106,9 @@ type daemonNativeToolsDeps struct {
 	AgentSkills         agentSkillPublisher
 	ToolMCP             toolMCPPublisher
 	MCPAuth             func() toolspkg.MCPAuthStatusProvider
-	Bundles             bundleResourcePublisher
+	BundleResources     bundleResourcePublisher
+	BundleService       core.BundleService
+	Resources           core.ResourceService
 }
 
 type daemonNativeTools struct {
@@ -206,12 +208,14 @@ func (d *Daemon) bootToolRegistry(_ context.Context, state *bootState) error {
 	if mcpProvider != nil {
 		providers = append(providers, mcpProvider)
 	}
-	registry, err = toolspkg.NewRegistry(
+	registryOptions := []toolspkg.RegistryOption{
 		toolspkg.WithProviders(providers...),
 		toolspkg.WithPolicyInputResolver(policyResolver, toolsets),
 		toolspkg.WithApprovalBridge(approvalBridge),
 		toolspkg.WithDefaultMaxResultBytes(state.cfg.Tools.DefaultMaxResultBytes),
-	)
+	}
+	registryOptions = appendToolEventSinkOption(registryOptions, state.registry, d.now)
+	registry, err = toolspkg.NewRegistry(registryOptions...)
 	if err != nil {
 		return fmt.Errorf("daemon: create tool registry: %w", err)
 	}
@@ -222,6 +226,21 @@ func (d *Daemon) bootToolRegistry(_ context.Context, state *bootState) error {
 	state.deps.Toolsets = registry
 	state.deps.ToolApprovals = approvalTokens
 	return nil
+}
+
+func appendToolEventSinkOption(
+	options []toolspkg.RegistryOption,
+	registry Registry,
+	now func() time.Time,
+) []toolspkg.RegistryOption {
+	writer := extensionEventSummaryStore(registry)
+	if writer == nil {
+		return options
+	}
+	return append(options, toolspkg.WithToolEventSink(&daemonToolEventSink{
+		writer: writer,
+		now:    now,
+	}))
 }
 
 func (d *Daemon) nativeToolsDeps(
@@ -267,7 +286,9 @@ func (d *Daemon) nativeToolsDeps(
 		ExtensionEvents:   extensionEventSummaryStore(state.registry),
 		AgentSkills:       state.agentSkillResources,
 		ToolMCP:           state.toolMCPResources,
-		Bundles:           state.bundleResources,
+		BundleResources:   state.bundleResources,
+		BundleService:     state.deps.Bundles,
+		Resources:         state.deps.Resources,
 	}
 }
 
@@ -441,6 +462,8 @@ type nativeToolAvailabilitySet struct {
 	hookMutation        toolspkg.NativeAvailabilityFunc
 	automation          toolspkg.NativeAvailabilityFunc
 	extensions          toolspkg.NativeAvailabilityFunc
+	bundles             toolspkg.NativeAvailabilityFunc
+	resources           toolspkg.NativeAvailabilityFunc
 	mcpAuth             toolspkg.NativeAvailabilityFunc
 }
 
@@ -476,6 +499,8 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 	addNativeToolBindings(bindings, n.hookToolBindings(availability.hookRead, availability.hookMutation))
 	addNativeToolBindings(bindings, n.automationToolBindings(availability.automation))
 	addNativeToolBindings(bindings, n.extensionToolBindings(availability.extensions))
+	addNativeToolBindings(bindings, n.bundleToolBindings(availability.bundles))
+	addNativeToolBindings(bindings, n.resourceToolBindings(availability.resources))
 	addNativeToolBindings(bindings, n.mcpAuthToolBindings(availability.mcpAuth))
 	return bindings
 }
@@ -526,13 +551,15 @@ func (n *daemonNativeTools) nativeToolAvailability() nativeToolAvailabilitySet {
 		config:   n.dependencyAvailability(configReady),
 		hookRead: n.dependencyAvailability(func() bool { return n.deps.Observer != nil }),
 		hookMutation: n.dependencyAvailability(func() bool {
-			return configReady() && n.deps.Observer != nil && n.deps.HookBindings != nil
+			return configReady() && n.deps.Observer != nil
 		}),
 		automation: n.dependencyAvailability(func() bool { return n.automationManager() != nil }),
 		extensions: n.dependencyAvailability(func() bool {
 			return n.deps.ExtensionRegistry != nil && strings.TrimSpace(n.deps.HomePaths.HomeDir) != ""
 		}),
-		mcpAuth: n.dependencyAvailability(func() bool { return n.mcpAuthProvider() != nil }),
+		bundles:   n.dependencyAvailability(func() bool { return n.deps.BundleService != nil }),
+		resources: n.dependencyAvailability(func() bool { return n.deps.Resources != nil }),
+		mcpAuth:   n.dependencyAvailability(func() bool { return n.mcpAuthProvider() != nil }),
 	}
 }
 

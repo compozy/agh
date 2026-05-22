@@ -28,7 +28,7 @@ func TestCloneDaemonMCPServer(t *testing.T) {
 				RevocationURL:    "https://issuer.example.test/revoke",
 				ClientID:         "agh-client",
 				ClientSecretRef:  "env:GITHUB_MCP_CLIENT_SECRET",
-				Scopes:           []string{"tools.read", "tools.write"},
+				Scopes:           []string{"tools.read", "issues.write"},
 			},
 		}
 

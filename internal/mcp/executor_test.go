@@ -424,7 +424,7 @@ func TestMCPCallExecutorHelpers(t *testing.T) {
 				Status:       mcpauth.StatusAuthenticated,
 				AuthType:     string(aghconfig.MCPAuthTypeOAuth2PKCE),
 				ClientID:     "client-id",
-				Scopes:       []string{" tools.read ", "tools.write"},
+				Scopes:       []string{" tools.read ", "issues.write"},
 				ExpiresAt:    &expiresAt,
 				TokenPresent: true,
 				Refreshable:  true,

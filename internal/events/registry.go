@@ -21,6 +21,7 @@ const (
 	ComponentSession      = "session"
 	ComponentSkill        = "skill"
 	ComponentTask         = "task"
+	ComponentTools        = "tools"
 	ComponentTranscript   = "transcript"
 	ComponentNotification = "notification"
 )
@@ -162,6 +163,12 @@ const (
 	TranscriptMarkerCreated  = "transcript_marker.created"
 	TranscriptMarkerRedacted = "transcript_marker.redacted"
 
+	ToolCallStarted     = "tool.call_started"
+	ToolCallCompleted   = "tool.call_completed"
+	ToolCallFailed      = "tool.call_failed"
+	ToolCallDenied      = "tool.call_denied"
+	ToolResultTruncated = "tool.result_truncated"
+
 	ProviderAuthRequired          = "provider.auth_required"
 	ProviderAuthRecovered         = "provider.auth_recovered"
 	ProviderRateLimited           = "provider.rate_limited"
@@ -298,6 +305,12 @@ var registryEntries = []Metadata{
 
 	info(TranscriptMarkerCreated, "transcript_marker", ComponentTranscript),
 	warning(TranscriptMarkerRedacted, "transcript_marker", ComponentTranscript),
+
+	global(info(ToolCallStarted, "tool", ComponentTools)),
+	global(success(ToolCallCompleted, "tool", ComponentTools)),
+	notify(global(failure(ToolCallFailed, "tool", ComponentTools))),
+	notify(global(warning(ToolCallDenied, "tool", ComponentTools))),
+	notify(global(warning(ToolResultTruncated, "tool", ComponentTools))),
 
 	notify(global(warning(ProviderAuthRequired, "provider", ComponentProvider))),
 	global(success(ProviderAuthRecovered, "provider", ComponentProvider)),

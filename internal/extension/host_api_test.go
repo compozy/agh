@@ -705,7 +705,7 @@ func TestHostAPIHandlerResourcesListAndGetEnforceSameSourceAndGrantedKinds(t *te
 		t,
 		"ext-resources",
 		[]string{"resources/list", "resources/get", "resources/snapshot"},
-		[]string{"resource.read", "resource.write"},
+		[]string{"resources.read", "resources.write"},
 		[]string{"tools"},
 		resources.ResourceScopeKindWorkspace,
 	)
@@ -796,7 +796,7 @@ func TestHostAPIHandlerResourcesSnapshotRejectsStaleVersionAndInactiveNonce(t *t
 		t,
 		"ext-snapshot",
 		[]string{"resources/snapshot"},
-		[]string{"resource.write"},
+		[]string{"resources.write"},
 		[]string{"tools"},
 		resources.ResourceScopeKindWorkspace,
 	)
@@ -839,7 +839,7 @@ func TestHostAPIHandlerResourcesMethodsCoexistWithBridgeOperationalMethods(t *te
 		t,
 		"telegram-adapter",
 		[]string{"resources/list", "bridges/instances/list", "bridges/instances/get"},
-		[]string{"resource.read", "bridge.read"},
+		[]string{"resources.read", "bridge.read"},
 		[]string{"tools"},
 		resources.ResourceScopeKindWorkspace,
 	)
@@ -2581,7 +2581,7 @@ func TestNormalizeHostAPIRPCErrorMapsResourceStatuses(t *testing.T) {
 func TestRPCCapabilityDeniedUsesHTTPStatusForResourceMethods(t *testing.T) {
 	t.Parallel()
 
-	resourceErr := rpcCapabilityDenied(newCapabilityDeniedError("resources/get", []string{"resource.read"}, nil))
+	resourceErr := rpcCapabilityDenied(newCapabilityDeniedError("resources/get", []string{"resources.read"}, nil))
 	assertRPCErrorCode(t, resourceErr, 403)
 	data := decodeRPCData(t, resourceErr)
 	if got := data["method"]; got != "resources/get" {

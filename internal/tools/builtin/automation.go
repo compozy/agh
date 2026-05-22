@@ -24,7 +24,7 @@ var automationTools = []toolspkg.Descriptor{
 		toolspkg.RiskRead,
 		true,
 		false,
-		[]string{automationAutomationKey, automationJobsKey, "catalog"},
+		[]string{automationAutomationKey, automationJobsKey, descriptorKeywordCatalog},
 		[]string{"automation jobs", "scheduled jobs"},
 	),
 	nativeAutomationDescriptor(

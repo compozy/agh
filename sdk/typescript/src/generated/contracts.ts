@@ -4958,6 +4958,8 @@ export interface Tool {
   description: string;
   input_schema: JSONValue;
   output_schema?: JSONValue;
+  input_schema_digest: string;
+  output_schema_digest?: string;
   source: SourceRef;
   visibility: Visibility;
   risk: RiskClass;

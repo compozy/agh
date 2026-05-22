@@ -53,6 +53,40 @@ func SchemaDigest(raw json.RawMessage) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
+// DescriptorWithSchemaDigests returns a descriptor with canonical schema digests populated.
+func DescriptorWithSchemaDigests(descriptor Descriptor) (Descriptor, error) {
+	inputDigest, err := SchemaDigest(descriptor.InputSchema)
+	if err != nil {
+		return Descriptor{}, wrapField(err, "input_schema")
+	}
+	if existing := strings.TrimSpace(descriptor.InputSchemaDigest); existing != "" && existing != inputDigest {
+		return Descriptor{}, NewValidationError(
+			"input_schema_digest",
+			ReasonRuntimeDescriptorMismatch,
+			"input schema digest does not match input_schema",
+		)
+	}
+	descriptor.InputSchemaDigest = inputDigest
+
+	if len(bytes.TrimSpace(descriptor.OutputSchema)) == 0 {
+		descriptor.OutputSchemaDigest = ""
+		return descriptor, nil
+	}
+	outputDigest, err := SchemaDigest(descriptor.OutputSchema)
+	if err != nil {
+		return Descriptor{}, wrapField(err, "output_schema")
+	}
+	if existing := strings.TrimSpace(descriptor.OutputSchemaDigest); existing != "" && existing != outputDigest {
+		return Descriptor{}, NewValidationError(
+			"output_schema_digest",
+			ReasonRuntimeDescriptorMismatch,
+			"output schema digest does not match output_schema",
+		)
+	}
+	descriptor.OutputSchemaDigest = outputDigest
+	return descriptor, nil
+}
+
 func appendCanonicalValue(builder *strings.Builder, value any) error {
 	switch typed := value.(type) {
 	case nil:

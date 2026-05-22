@@ -441,7 +441,7 @@ func registryInstallInfo(
 		ChecksumSHA256:   actualChecksum,
 		ChecksumVerified: config.source != SourceMarketplace,
 		RegistryTier:     registryTierForSource(config.source, dereferenceOptionalString(config.registryName)),
-		Permissions:      extensionPermissions(capabilities, actions),
+		Permissions:      extensionPermissions(resolvedManifest),
 		InstalledAt:      installedAt,
 		InstalledBy:      extensionTrustInstalledByOperator,
 	}
@@ -578,7 +578,7 @@ func (r *Registry) ensureNoActiveBundles(extensionName string) (err error) {
 
 	rows, err := r.db.QueryContext(
 		registryContext(),
-		`SELECT spec_json FROM resource_records WHERE kind = ?`,
+		`SELECT id, spec_json FROM resource_records WHERE kind = ?`,
 		"bundle.activation",
 	)
 	if err != nil {
@@ -593,11 +593,12 @@ func (r *Registry) ensureNoActiveBundles(extensionName string) (err error) {
 		}
 	}()
 
-	count := 0
+	activationIDs := []string{}
 	trimmedName := strings.TrimSpace(extensionName)
 	for rows.Next() {
+		var id string
 		var raw string
-		if err := rows.Scan(&raw); err != nil {
+		if err := rows.Scan(&id, &raw); err != nil {
 			return fmt.Errorf("extension: scan active bundle activation for %q: %w", extensionName, err)
 		}
 		var spec struct {
@@ -607,14 +608,20 @@ func (r *Registry) ensureNoActiveBundles(extensionName string) (err error) {
 			return fmt.Errorf("extension: decode active bundle activation for %q: %w", extensionName, err)
 		}
 		if strings.TrimSpace(spec.ExtensionName) == trimmedName {
-			count++
+			activationIDs = append(activationIDs, strings.TrimSpace(id))
 		}
 	}
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("extension: iterate active bundle activations for %q: %w", extensionName, err)
 	}
-	if count > 0 {
-		return fmt.Errorf("%w: %q has %d active activation(s)", ErrExtensionHasActiveBundles, extensionName, count)
+	if len(activationIDs) > 0 {
+		slices.Sort(activationIDs)
+		return fmt.Errorf(
+			"%w: %q has active activation(s): %s",
+			ErrExtensionHasActiveBundles,
+			extensionName,
+			strings.Join(activationIDs, ", "),
+		)
 	}
 	return nil
 }
@@ -696,7 +703,7 @@ func scanExtensionInfo(scanner interface{ Scan(dest ...any) error }) (*Extension
 		ChecksumSHA256:   info.Checksum,
 		ChecksumVerified: info.Source != SourceMarketplace,
 		RegistryTier:     registryTierForSource(info.Source, dereferenceOptionalString(info.RegistryName)),
-		Permissions:      extensionPermissions(info.Capabilities, info.Actions),
+		Permissions:      extensionPermissionsFromParts(info.Capabilities, info.Actions),
 		InstalledAt:      info.InstalledAt,
 		InstalledBy:      extensionTrustInstalledByOperator,
 		AllowUnverified:  false,

@@ -15,6 +15,8 @@ type ToolDescriptorPayload struct {
 	Description         string                `json:"description"`
 	InputSchema         json.RawMessage       `json:"input_schema"`
 	OutputSchema        json.RawMessage       `json:"output_schema,omitempty"`
+	InputSchemaDigest   string                `json:"input_schema_digest"`
+	OutputSchemaDigest  string                `json:"output_schema_digest,omitempty"`
 	Source              ToolSourceRefPayload  `json:"source"`
 	Visibility          tools.Visibility      `json:"visibility"`
 	Risk                tools.RiskClass       `json:"risk"`

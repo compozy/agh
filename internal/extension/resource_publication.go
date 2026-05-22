@@ -124,12 +124,14 @@ func resolveManifestToolDescriptor(
 		Tags:                normalizeStrings(cfg.Tags),
 		SearchHints:         normalizeStrings(cfg.SearchHints),
 	}
-	if err := tool.Validate(); err != nil {
-		return ManifestToolDescriptor{}, fmt.Errorf("descriptor: %w", err)
-	}
 	runtimeDescriptor, err := manifestRuntimeDescriptor(tool)
 	if err != nil {
 		return ManifestToolDescriptor{}, err
+	}
+	tool.InputSchemaDigest = runtimeDescriptor.InputSchemaDigest
+	tool.OutputSchemaDigest = runtimeDescriptor.OutputSchemaDigest
+	if err := tool.Validate(); err != nil {
+		return ManifestToolDescriptor{}, fmt.Errorf("descriptor: %w", err)
 	}
 	return ManifestToolDescriptor{
 		Name:              trimmedName,

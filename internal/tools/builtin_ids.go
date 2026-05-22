@@ -280,6 +280,24 @@ const (
 	ToolIDExtensionsEnable ToolID = "agh__extensions_enable"
 	// ToolIDExtensionsDisable disables one installed extension.
 	ToolIDExtensionsDisable ToolID = "agh__extensions_disable"
+	// ToolIDBundlesList lists the extension bundle catalog and active bundle records.
+	ToolIDBundlesList ToolID = "agh__bundles_list"
+	// ToolIDBundlesInfo reads one active bundle record.
+	ToolIDBundlesInfo ToolID = "agh__bundles_info"
+	// ToolIDBundlesActivate activates one extension bundle profile.
+	ToolIDBundlesActivate ToolID = "agh__bundles_activate"
+	// ToolIDBundlesDeactivate deactivates one bundle activation.
+	ToolIDBundlesDeactivate ToolID = "agh__bundles_deactivate"
+	// ToolIDBundlesStatus reports bundle catalog, activation, and network-default status.
+	ToolIDBundlesStatus ToolID = "agh__bundles_status"
+	// ToolIDResourcesList lists desired-state resource records.
+	ToolIDResourcesList ToolID = "agh__resources_list"
+	// ToolIDResourcesInfo reads one desired-state resource record.
+	ToolIDResourcesInfo ToolID = "agh__resources_info"
+	// ToolIDResourcesSnapshot reads a filtered desired-state resource snapshot.
+	ToolIDResourcesSnapshot ToolID = "agh__resources_snapshot"
+	// ToolIDMCPStatus probes one configured MCP server without exposing login/logout as tools.
+	ToolIDMCPStatus ToolID = "agh__mcp_status"
 	// ToolIDMCPAuthStatus reads redacted MCP auth diagnostics for one configured server.
 	ToolIDMCPAuthStatus ToolID = "agh__mcp_auth_status"
 )
@@ -319,6 +337,12 @@ const (
 	ToolsetIDAutomation ToolsetID = "agh__automation"
 	// ToolsetIDExtensions groups extension discovery and lifecycle tools.
 	ToolsetIDExtensions ToolsetID = "agh__extensions"
+	// ToolsetIDBundles groups extension bundle lifecycle tools.
+	ToolsetIDBundles ToolsetID = "agh__bundles"
+	// ToolsetIDResources groups desired-state resource inspection tools.
+	ToolsetIDResources ToolsetID = "agh__resources"
+	// ToolsetIDMCP groups MCP probe and status diagnostics.
+	ToolsetIDMCP ToolsetID = "agh__mcp"
 	// ToolsetIDMCPAuth groups redacted MCP auth diagnostics.
 	ToolsetIDMCPAuth ToolsetID = "agh__mcp_auth"
 )

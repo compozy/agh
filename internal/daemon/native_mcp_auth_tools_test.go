@@ -86,7 +86,7 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 		}
 	})
 
-	t.Run("Should expose only status tool for MCP auth diagnostics", func(t *testing.T) {
+	t.Run("Should expose only status tools for MCP auth diagnostics", func(t *testing.T) {
 		t.Parallel()
 
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
@@ -99,9 +99,47 @@ func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {
 		if err != nil {
 			t.Fatalf("SessionProjection() error = %v", err)
 		}
+		requireNativeViewContains(t, views, toolspkg.ToolIDMCPStatus)
 		requireNativeViewContains(t, views, toolspkg.ToolIDMCPAuthStatus)
 		requireNativeViewExcludes(t, views, toolspkg.ToolID("agh__mcp_auth_login"))
 		requireNativeViewExcludes(t, views, toolspkg.ToolID("agh__mcp_auth_logout"))
+	})
+
+	t.Run("Should expose MCP probe status without login or logout tools", func(t *testing.T) {
+		t.Parallel()
+
+		provider := &nativeMCPAuthStatusProvider{
+			status: toolspkg.MCPAuthStatus{
+				ServerName: "linear",
+				Status:     "needs_login",
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			MCPAuth: func() toolspkg.MCPAuthStatusProvider {
+				return provider
+			},
+		}, nativeApproveAllPolicyInputs())
+
+		result, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-1"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDMCPStatus,
+				Input:  json.RawMessage(`{"server_name":"linear"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(mcp_status) error = %v", err)
+		}
+		var payload mcpStatusPayload
+		if err := json.Unmarshal(result.Structured, &payload); err != nil {
+			t.Fatalf("Unmarshal(mcp status payload) error = %v", err)
+		}
+		if payload.State != "auth-blocked" ||
+			payload.RepairPaths.LoginCLI != `agh mcp auth login "linear"` ||
+			!strings.Contains(payload.CallableDiscoveryNote, "omitted from callable discovery") {
+			t.Fatalf("payload = %#v, want auth-blocked probe with management repair paths", payload)
+		}
 	})
 
 	t.Run("Should reject status calls when MCP auth provider is unavailable", func(t *testing.T) {

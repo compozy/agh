@@ -3,6 +3,7 @@ package extensionpkg
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -101,7 +102,7 @@ func LocalPathProvenance(
 		AllowUnverified:  allowUnverified,
 	}
 	if manifest != nil {
-		provenance.Permissions = extensionPermissions(manifest.Capabilities, manifest.Actions)
+		provenance.Permissions = extensionPermissions(manifest)
 		provenance.Warnings = []contract.DiagnosticItem{
 			extensionChecksumUnverifiedDiagnostic(manifest.Name, sourcePath, allowUnverified),
 		}
@@ -169,20 +170,90 @@ func normalizeExtensionProvenance(value ExtensionProvenance, fallback ExtensionP
 	return value
 }
 
-func extensionPermissions(capabilities CapabilitiesConfig, actions ActionsConfig) []string {
-	items := make([]string, 0, len(capabilities.Provides)+len(actions.Requires))
-	for _, value := range capabilities.Provides {
-		trimmed := strings.TrimSpace(value)
-		if trimmed != "" {
-			items = append(items, trimmed)
-		}
+func extensionPermissions(manifest *Manifest) []string {
+	if manifest == nil {
+		return nil
 	}
-	for _, value := range actions.Requires {
-		trimmed := strings.TrimSpace(value)
-		if trimmed != "" {
-			items = append(items, trimmed)
-		}
+	items := permissionSet{}
+	items.addValues("capabilities.provides", manifest.Capabilities.Provides)
+	items.addValues("security.capability", manifest.Security.Capabilities)
+	items.addValues("actions.requires", manifest.Actions.Requires)
+	items.addValues("requires_env", manifest.RequiresEnv)
+	if len(manifest.Resources.Publish.Families) > 0 {
+		items.addValues("resources.publish.family", manifest.Resources.Publish.Families)
 	}
+	if strings.TrimSpace(string(manifest.Resources.Publish.MaxScope)) != "" {
+		items.add("resources.publish.max_scope", string(manifest.Resources.Publish.MaxScope))
+	}
+	for name := range manifest.Resources.MCPServers {
+		items.add("resources.mcp_server", name)
+	}
+	for name := range manifest.Resources.Tools {
+		tool := manifest.Resources.Tools[name]
+		toolName := strings.TrimSpace(name)
+		if strings.TrimSpace(tool.Backend.Kind) != "" {
+			items.add("tool.backend", toolName+":"+strings.TrimSpace(tool.Backend.Kind))
+		}
+		items.addValues("tool.required_capability:"+toolName, tool.RequiredCapabilities)
+		items.addValues("tool.requires_env:"+toolName, tool.RequiresEnv)
+	}
+	if strings.TrimSpace(manifest.Subprocess.Command) != "" {
+		items.add("subprocess.command", manifest.Subprocess.Command)
+	}
+	items.addMapKeys("subprocess.env", manifest.Subprocess.Env)
+	items.addMapKeys("subprocess.secret_env", manifest.Subprocess.SecretEnv)
+	for i := range manifest.Resources.Hooks {
+		hook := &manifest.Resources.Hooks[i]
+		hookName := strings.TrimSpace(hook.Name)
+		items.addMapKeys("hook.env:"+hookName, hook.Env)
+		items.addMapKeys("hook.secret_env:"+hookName, hook.SecretEnv)
+		items.addMapKeys("hook.executor.env:"+hookName, hook.Executor.Env)
+		items.addMapKeys("hook.executor.secret_env:"+hookName, hook.Executor.SecretEnv)
+	}
+	for _, slot := range manifest.Bridge.SecretSlots {
+		items.add("bridge.secret_slot", slot.Name)
+	}
+	return items.sorted()
+}
+
+func extensionPermissionsFromParts(capabilities CapabilitiesConfig, actions ActionsConfig) []string {
+	items := permissionSet{}
+	items.addValues("capabilities.provides", capabilities.Provides)
+	items.addValues("actions.requires", actions.Requires)
+	return items.sorted()
+}
+
+type permissionSet map[string]struct{}
+
+func (s permissionSet) add(prefix string, value string) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return
+	}
+	s[prefix+":"+trimmed] = struct{}{}
+}
+
+func (s permissionSet) addValues(prefix string, values []string) {
+	for _, value := range values {
+		s.add(prefix, value)
+	}
+}
+
+func (s permissionSet) addMapKeys(prefix string, values map[string]string) {
+	for key := range values {
+		s.add(prefix, key)
+	}
+}
+
+func (s permissionSet) sorted() []string {
+	if len(s) == 0 {
+		return nil
+	}
+	items := make([]string, 0, len(s))
+	for item := range s {
+		items = append(items, item)
+	}
+	slices.Sort(items)
 	return items
 }
 

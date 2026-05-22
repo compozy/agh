@@ -134,7 +134,7 @@ func TestHostAPIIntegrationResourcesSnapshotPublishesAndReadsBack(t *testing.T) 
 		t,
 		"ext-resources",
 		[]string{"resources/list", "resources/get", "resources/snapshot"},
-		[]string{"resource.read", "resource.write"},
+		[]string{"resources.read", "resources.write"},
 		[]string{"tools"},
 		resources.ResourceScopeKindWorkspace,
 	)
@@ -193,7 +193,7 @@ func TestHostAPIIntegrationBridgeProviderKeepsOperationalMethodsAlongsideGeneric
 		t,
 		"telegram-adapter",
 		[]string{"resources/list", "resources/get", "bridges/instances/list", "bridges/instances/get"},
-		[]string{"resource.read", "bridge.read"},
+		[]string{"resources.read", "bridge.read"},
 		[]string{"tools"},
 		resources.ResourceScopeKindWorkspace,
 	)
@@ -265,7 +265,7 @@ func TestHostAPIIntegrationSecondResourceSessionInvalidatesOlderNonce(t *testing
 		t,
 		"ext-resources",
 		[]string{"resources/snapshot"},
-		[]string{"resource.write"},
+		[]string{"resources.write"},
 		[]string{"tools"},
 		resources.ResourceScopeKindWorkspace,
 	)
@@ -323,7 +323,7 @@ func TestHostAPIIntegrationResourceSnapshotReplacesToolSetAndRemovesStaleTools(t
 		t,
 		"ext-resources",
 		[]string{"resources/list", "resources/snapshot"},
-		[]string{"resource.read", "resource.write"},
+		[]string{"resources.read", "resources.write"},
 		[]string{"tools"},
 		resources.ResourceScopeKindWorkspace,
 	)

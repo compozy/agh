@@ -700,8 +700,8 @@ They can point at local stdio processes or remote HTTP/SSE MCP endpoints.
 
 OAuth-enabled remote servers store only metadata in config. Token material is kept in the AGH
 Vault as encrypted refs and is exposed through API, settings, CLI, logs, and the agent-callable
-`agh__mcp_auth_status` tool only as redacted status. Login/logout happen on CLI and HTTP. These are
-operator-only management flows.
+`agh__mcp_status` / `agh__mcp_auth_status` tools only as redacted status. Login/logout happen on
+CLI and HTTP. These are operator-only management flows.
 
 | `auth` field        | Type         | Required    | Description                                                                                             |
 | ------------------- | ------------ | ----------- | ------------------------------------------------------------------------------------------------------- |
@@ -725,9 +725,10 @@ agh mcp auth status remote-docs --refresh
 agh mcp auth logout remote-docs
 ```
 
-Agents can read the same redacted status from inside a session through the
-`agh__mcp_auth_status` tool. The tool never triggers an OAuth browser flow; missing or expired
-authentication is repaired through the operator login/logout commands above.
+Agents can read the same redacted status from inside a session through `agh__mcp_status` or
+`agh__mcp_auth_status`. These tools never trigger an OAuth browser flow; missing or expired
+authentication is repaired through the operator login/logout commands above. Auth-blocked MCP
+tools are omitted from callable discovery while status/probe output explains the repair path.
 
 ## `[providers.<name>]`
 
@@ -1280,6 +1281,11 @@ when neither the global file nor a workspace overlay sets a value.
 `[task.orchestration]` keys are agent-mutable through the existing config tool surface
 (`agh config set` and the `agh__config_*` native tools). Workspace overlays apply through the
 existing config loader without any special handling.
+
+Config and hook mutation tools return lifecycle truth in their structured payloads. Writes under
+`hooks.*` and `extensions.*` are persisted as desired state with `applied=false`,
+`lifecycle="restart-required"`, and `next_action="restart-daemon"`; agents should not treat
+those writes as active runtime truth until the daemon restarts.
 
 ### `[task.orchestration.profile]`
 

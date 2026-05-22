@@ -54310,10 +54310,12 @@ export interface operations {
                 destructive: boolean;
                 display_title?: string;
                 input_schema: unknown;
+                input_schema_digest: string;
                 /** Format: int64 */
                 max_result_bytes?: number;
                 open_world: boolean;
                 output_schema?: unknown;
+                output_schema_digest?: string;
                 read_only: boolean;
                 requires_interaction: boolean;
                 /** @enum {string} */
@@ -54606,10 +54608,12 @@ export interface operations {
                 destructive: boolean;
                 display_title?: string;
                 input_schema: unknown;
+                input_schema_digest: string;
                 /** Format: int64 */
                 max_result_bytes?: number;
                 open_world: boolean;
                 output_schema?: unknown;
+                output_schema_digest?: string;
                 read_only: boolean;
                 requires_interaction: boolean;
                 /** @enum {string} */
@@ -54979,10 +54983,12 @@ export interface operations {
                 destructive: boolean;
                 display_title?: string;
                 input_schema: unknown;
+                input_schema_digest: string;
                 /** Format: int64 */
                 max_result_bytes?: number;
                 open_world: boolean;
                 output_schema?: unknown;
+                output_schema_digest?: string;
                 read_only: boolean;
                 requires_interaction: boolean;
                 /** @enum {string} */
@@ -65009,10 +65015,12 @@ export interface operations {
                 destructive: boolean;
                 display_title?: string;
                 input_schema: unknown;
+                input_schema_digest: string;
                 /** Format: int64 */
                 max_result_bytes?: number;
                 open_world: boolean;
                 output_schema?: unknown;
+                output_schema_digest?: string;
                 read_only: boolean;
                 requires_interaction: boolean;
                 /** @enum {string} */
@@ -65310,10 +65318,12 @@ export interface operations {
                 destructive: boolean;
                 display_title?: string;
                 input_schema: unknown;
+                input_schema_digest: string;
                 /** Format: int64 */
                 max_result_bytes?: number;
                 open_world: boolean;
                 output_schema?: unknown;
+                output_schema_digest?: string;
                 read_only: boolean;
                 requires_interaction: boolean;
                 /** @enum {string} */

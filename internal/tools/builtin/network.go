@@ -19,7 +19,7 @@ var networkTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
-		[]string{networkNetworkKey, "status"},
+		[]string{networkNetworkKey, descriptorKeywordStatus},
 		[]string{"network status", "network diagnostics"},
 	),
 	nativeDescriptor(

@@ -17,6 +17,8 @@ type Tool struct {
 	Description         string          `json:"description"`
 	InputSchema         json.RawMessage `json:"input_schema"`
 	OutputSchema        json.RawMessage `json:"output_schema,omitempty"`
+	InputSchemaDigest   string          `json:"input_schema_digest"`
+	OutputSchemaDigest  string          `json:"output_schema_digest,omitempty"`
 	Source              SourceRef       `json:"source"`
 	Visibility          Visibility      `json:"visibility"`
 	Risk                RiskClass       `json:"risk"`
@@ -39,6 +41,8 @@ type Descriptor struct {
 	Description         string          `json:"description"`
 	InputSchema         json.RawMessage `json:"input_schema"`
 	OutputSchema        json.RawMessage `json:"output_schema,omitempty"`
+	InputSchemaDigest   string          `json:"input_schema_digest"`
+	OutputSchemaDigest  string          `json:"output_schema_digest,omitempty"`
 	Source              SourceRef       `json:"source"`
 	Visibility          Visibility      `json:"visibility"`
 	Risk                RiskClass       `json:"risk"`
@@ -62,6 +66,8 @@ func (t Tool) Descriptor() Descriptor {
 		Description:         t.Description,
 		InputSchema:         cloneRawMessage(t.InputSchema),
 		OutputSchema:        cloneRawMessage(t.OutputSchema),
+		InputSchemaDigest:   t.InputSchemaDigest,
+		OutputSchemaDigest:  t.OutputSchemaDigest,
 		Source:              t.Source,
 		Visibility:          t.Visibility,
 		Risk:                t.Risk,
@@ -86,6 +92,8 @@ func (d Descriptor) Tool() Tool {
 		Description:         d.Description,
 		InputSchema:         cloneRawMessage(d.InputSchema),
 		OutputSchema:        cloneRawMessage(d.OutputSchema),
+		InputSchemaDigest:   d.InputSchemaDigest,
+		OutputSchemaDigest:  d.OutputSchemaDigest,
 		Source:              d.Source,
 		Visibility:          d.Visibility,
 		Risk:                d.Risk,

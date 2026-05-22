@@ -20,7 +20,7 @@ type NativeTool struct {
 // NativeProvider serves daemon-compiled native_go tools.
 type NativeProvider struct {
 	source SourceRef
-	tools  map[ToolID]NativeTool
+	tools  map[ToolID]*NativeTool
 	ids    []ToolID
 }
 
@@ -33,10 +33,16 @@ func NewNativeProvider(source SourceRef, nativeTools ...NativeTool) (*NativeProv
 	}
 	provider := &NativeProvider{
 		source: source,
-		tools:  make(map[ToolID]NativeTool, len(nativeTools)),
+		tools:  make(map[ToolID]*NativeTool, len(nativeTools)),
 		ids:    make([]ToolID, 0, len(nativeTools)),
 	}
-	for i, nativeTool := range nativeTools {
+	for i := range nativeTools {
+		nativeTool := &nativeTools[i]
+		descriptor, err := DescriptorWithSchemaDigests(nativeTool.Descriptor)
+		if err != nil {
+			return nil, wrapField(err, fmt.Sprintf("tools[%d].descriptor", i))
+		}
+		nativeTool.Descriptor = descriptor
 		if err := validateNativeTool(source, nativeTool); err != nil {
 			return nil, wrapField(err, fmt.Sprintf("tools[%d]", i))
 		}
@@ -171,7 +177,10 @@ func Unavailable(reason ReasonCode) Availability {
 	}
 }
 
-func validateNativeTool(source SourceRef, nativeTool NativeTool) error {
+func validateNativeTool(source SourceRef, nativeTool *NativeTool) error {
+	if nativeTool == nil {
+		return NewValidationError("tool", ReasonDependencyMissing, "native tool is required")
+	}
 	if nativeTool.Call == nil {
 		return NewValidationError("call", ReasonHandlerMissing, "native tool handler is required")
 	}
@@ -199,8 +208,11 @@ func validateNativeTool(source SourceRef, nativeTool NativeTool) error {
 	return nil
 }
 
-func cloneNativeTool(src NativeTool) NativeTool {
-	return NativeTool{
+func cloneNativeTool(src *NativeTool) *NativeTool {
+	if src == nil {
+		return nil
+	}
+	return &NativeTool{
 		Descriptor:   cloneDescriptor(src.Descriptor),
 		Call:         src.Call,
 		Availability: src.Availability,

@@ -10,11 +10,6 @@ const (
 	providerModelsModelsKey = "models"
 )
 
-const (
-	providerModelsCatalogKey = "catalog"
-	providerModelsStatusKey  = "status"
-)
-
 var providerModelTools = []toolspkg.Descriptor{
 	nativeDescriptor(
 		toolspkg.ToolIDProviderModelsList,
@@ -27,7 +22,7 @@ var providerModelTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDProviderModels},
-		[]string{providerModelsProvidersKey, providerModelsModelsKey, providerModelsCatalogKey},
+		[]string{providerModelsProvidersKey, providerModelsModelsKey, descriptorKeywordCatalog},
 		[]string{"provider models", "model catalog", "list models"},
 	),
 	nativeDescriptor(
@@ -41,7 +36,7 @@ var providerModelTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDProviderModels},
-		[]string{providerModelsProvidersKey, providerModelsModelsKey, providerModelsCatalogKey, "refresh"},
+		[]string{providerModelsProvidersKey, providerModelsModelsKey, descriptorKeywordCatalog, "refresh"},
 		[]string{"refresh provider models", "refresh model catalog"},
 	),
 	nativeDescriptor(
@@ -58,8 +53,8 @@ var providerModelTools = []toolspkg.Descriptor{
 		[]string{
 			providerModelsProvidersKey,
 			providerModelsModelsKey,
-			providerModelsCatalogKey,
-			providerModelsStatusKey,
+			descriptorKeywordCatalog,
+			descriptorKeywordStatus,
 		},
 		[]string{"provider model status", "model catalog status"},
 	),
