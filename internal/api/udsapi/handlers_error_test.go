@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
+	"github.com/pedronauck/agh/internal/api/contract"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/observe"
 	"github.com/pedronauck/agh/internal/session"
@@ -24,32 +26,38 @@ func TestCreateGetResumeDeleteAndStopHandlersReturnExpectedErrors(t *testing.T) 
 		method string
 		path   string
 		body   []byte
+		error  string
 	}{
 		{
 			name:   "ShouldReturnNotFoundWhenCreateFails",
 			method: http.MethodPost,
 			path:   "/api/sessions",
 			body:   []byte(`{"agent_name":"coder","workspace":"alpha"}`),
+			error:  "file does not exist",
 		},
 		{
 			name:   "ShouldReturnNotFoundWhenSessionLookupFails",
 			method: http.MethodGet,
 			path:   "/api/workspaces/ws-workspace/sessions/missing",
+			error:  "session not found",
 		},
 		{
 			name:   "ShouldReturnNotFoundWhenAttachFails",
 			method: http.MethodPost,
 			path:   "/api/workspaces/ws-workspace/sessions/missing/attach",
+			error:  "session not found",
 		},
 		{
 			name:   "ShouldReturnNotFoundWhenDeleteFails",
 			method: http.MethodDelete,
 			path:   "/api/workspaces/ws-workspace/sessions/missing",
+			error:  "session not found",
 		},
 		{
 			name:   "ShouldReturnNotFoundWhenStopFails",
 			method: http.MethodPost,
 			path:   "/api/workspaces/ws-workspace/sessions/missing/stop",
+			error:  "session not found",
 		},
 	}
 
@@ -87,6 +95,11 @@ func TestCreateGetResumeDeleteAndStopHandlersReturnExpectedErrors(t *testing.T) 
 					http.StatusNotFound,
 					resp.Body.String(),
 				)
+			}
+			var payload contract.ErrorPayload
+			decodeJSONResponse(t, resp, &payload)
+			if !strings.Contains(payload.Error, tt.error) {
+				t.Fatalf("error = %q, want substring %q", payload.Error, tt.error)
 			}
 		})
 	}

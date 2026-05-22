@@ -1,7 +1,7 @@
 import type { BridgeListFilter, BridgeTargetsQuery } from "../types";
 
-function normalizeText(value?: string) {
-  return value ?? "";
+function normalizeKeyValue(value?: string | number | null) {
+  return value == null ? "" : String(value);
 }
 
 export const bridgeKeys = {
@@ -11,22 +11,23 @@ export const bridgeKeys = {
     [
       ...bridgeKeys.lists(),
       filters.scope ?? "all",
-      normalizeText(filters.workspace_id),
-      normalizeText(filters.workspace),
+      normalizeKeyValue(filters.workspace_id),
+      normalizeKeyValue(filters.workspace),
     ] as const,
   providers: () => [...bridgeKeys.all, "providers"] as const,
   details: () => [...bridgeKeys.all, "detail"] as const,
-  detail: (id: string) => [...bridgeKeys.details(), normalizeText(id)] as const,
+  detail: (id: string) => [...bridgeKeys.details(), normalizeKeyValue(id)] as const,
   routesRoot: () => [...bridgeKeys.all, "routes"] as const,
-  routes: (id: string) => [...bridgeKeys.routesRoot(), normalizeText(id)] as const,
+  routes: (id: string) => [...bridgeKeys.routesRoot(), normalizeKeyValue(id)] as const,
   targetsRoot: () => [...bridgeKeys.all, "targets"] as const,
   targets: (id: string, query: BridgeTargetsQuery = {}) =>
     [
       ...bridgeKeys.targetsRoot(),
-      normalizeText(id),
-      normalizeText(query.q),
-      normalizeText(query.limit),
+      normalizeKeyValue(id),
+      normalizeKeyValue(query.q),
+      normalizeKeyValue(query.limit),
     ] as const,
   secretBindingsRoot: () => [...bridgeKeys.all, "secret-bindings"] as const,
-  secretBindings: (id: string) => [...bridgeKeys.secretBindingsRoot(), normalizeText(id)] as const,
+  secretBindings: (id: string) =>
+    [...bridgeKeys.secretBindingsRoot(), normalizeKeyValue(id)] as const,
 };

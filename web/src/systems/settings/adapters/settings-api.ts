@@ -97,7 +97,7 @@ function normalizeExtensionMarketplaceFilter(filter: SettingsExtensionMarketplac
   return {
     q: normalizeOptionalText(filter.q),
     source: normalizeOptionalText(filter.source),
-    limit: normalizeOptionalText(filter.limit),
+    limit: filter.limit,
   };
 }
 

@@ -266,6 +266,10 @@ var schemaEnumValues = map[reflect.Type][]string{
 }
 
 var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
+	reflect.TypeFor[binaryResponse](): func(schema *openapi3.Schema) {
+		*schema = *openapi3.NewStringSchema()
+		schema.Format = "binary"
+	},
 	rawMessageType: func(schema *openapi3.Schema) {
 		*schema = *openapi3.NewSchema()
 	},
@@ -284,6 +288,8 @@ const (
 	TransportHTTP Transport = "http"
 	TransportUDS  Transport = "uds"
 )
+
+type binaryResponse struct{}
 
 // ParameterSpec describes one OpenAPI parameter.
 type ParameterSpec struct {
@@ -1283,7 +1289,7 @@ var operationRegistry = []OperationSpec{
 		Parameters: []ParameterSpec{
 			pathParam("id", "Bridge instance id"),
 			queryParam("q", "Filter targets by display name, qualifier, or route", false),
-			queryParam("limit", "Maximum targets to return", false),
+			intQueryParam("limit", "Maximum targets to return"),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.BridgeTargetsResponse{}},
@@ -1780,7 +1786,7 @@ var operationRegistry = []OperationSpec{
 		Parameters: []ParameterSpec{
 			queryParam("q", "Search query", false),
 			queryParam("source", "Marketplace source filter", false),
-			queryParam("limit", "Maximum number of results", false),
+			intQueryParam("limit", "Maximum number of results"),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.ExtensionMarketplaceResponse{}},
@@ -3056,23 +3062,7 @@ var operationRegistry = []OperationSpec{
 		Summary:     "List runtime logs",
 		Tags:        []string{specLogsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			queryParam("workspace_id", "Workspace id", false),
-			queryParam("session_id", "Session id", false),
-			queryParam("agent_name", "Agent name", false),
-			queryParam("type", "Event type", false),
-			queryParam("run", "Task run id", false),
-			queryParam("actor", "Actor as kind:id", false),
-			queryParam("actor_kind", "Actor kind", false),
-			queryParam("actor_id", "Actor id", false),
-			queryParam("provider", "Provider id projected at event write time", false),
-			queryParam("outcome", "Event registry outcome", false),
-			queryParam("component", "Event registry component", false),
-			boolQueryParam("error_only", "Return warning and failure outcomes only"),
-			intQueryParam("after_seq", "Return rows after this event summary sequence"),
-			dateTimeQueryParam("since", "Only logs emitted since this timestamp"),
-			intQueryParam("limit", "Maximum number of records to return"),
-		},
+		Parameters:  logFilterQueryParams(),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.LogsListResponse{}},
 			{Status: 400, Description: specInvalidFilterDescription, Body: contract.ErrorPayload{}},
@@ -3086,23 +3076,7 @@ var operationRegistry = []OperationSpec{
 		Summary:     "Stream runtime logs",
 		Tags:        []string{specLogsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
-			queryParam("workspace_id", "Workspace id", false),
-			queryParam("session_id", "Session id", false),
-			queryParam("agent_name", "Agent name", false),
-			queryParam("type", "Event type", false),
-			queryParam("run", "Task run id", false),
-			queryParam("actor", "Actor as kind:id", false),
-			queryParam("actor_kind", "Actor kind", false),
-			queryParam("actor_id", "Actor id", false),
-			queryParam("provider", "Provider id projected at event write time", false),
-			queryParam("outcome", "Event registry outcome", false),
-			queryParam("component", "Event registry component", false),
-			boolQueryParam("error_only", "Return warning and failure outcomes only"),
-			intQueryParam("after_seq", "Return rows after this event summary sequence"),
-			dateTimeQueryParam("since", "Only logs emitted since this timestamp"),
-			intQueryParam("limit", "Maximum number of records to return"),
-		},
+		Parameters:  logFilterQueryParams(),
 		Responses: []ResponseSpec{
 			{
 				Status:      200,
@@ -3166,7 +3140,12 @@ var operationRegistry = []OperationSpec{
 			pathParam("operation_id", "Support bundle operation id"),
 		},
 		Responses: []ResponseSpec{
-			{Status: 200, Description: "Support bundle archive"},
+			{
+				Status:      200,
+				Description: "Support bundle archive",
+				Body:        binaryResponse{},
+				ContentType: "application/gzip",
+			},
 			{Status: 404, Description: "Support bundle operation not found", Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Support bundle operation is not ready", Body: contract.ErrorPayload{}},
 			{
@@ -6141,6 +6120,26 @@ func intQueryParam(name string, description string) ParameterSpec {
 		Required:    false,
 		Kind:        specIntegerKey,
 		Format:      "int32",
+	}
+}
+
+func logFilterQueryParams() []ParameterSpec {
+	return []ParameterSpec{
+		queryParam("workspace_id", "Workspace id", false),
+		queryParam("session_id", "Session id", false),
+		queryParam("agent_name", "Agent name", false),
+		queryParam("type", "Event type", false),
+		queryParam("run", "Task run id", false),
+		queryParam("actor", "Actor as kind:id", false),
+		queryParam("actor_kind", "Actor kind", false),
+		queryParam("actor_id", "Actor id", false),
+		queryParam("provider", "Provider id projected at event write time", false),
+		queryParam("outcome", "Event registry outcome", false),
+		queryParam("component", "Event registry component", false),
+		boolQueryParam("error_only", "Return warning and failure outcomes only"),
+		intQueryParam("after_seq", "Return rows after this event summary sequence"),
+		dateTimeQueryParam("since", "Only logs emitted since this timestamp"),
+		intQueryParam("limit", "Maximum number of records to return"),
 	}
 }
 

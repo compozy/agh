@@ -617,7 +617,7 @@ describe("extension operational actions", () => {
     const result = await searchSettingsExtensionMarketplace({
       q: "daytona",
       source: "github",
-      limit: "12",
+      limit: 12,
     });
 
     expect(result).toEqual([marketplaceEntry]);

@@ -17,6 +17,13 @@ function normalizeText(value?: string | null): string {
   return trimmed;
 }
 
+function normalizeKeyValue(value?: string | number | null): string {
+  if (typeof value === "number") {
+    return String(value);
+  }
+  return normalizeText(value);
+}
+
 export type SettingsSectionKey = SettingsSectionName | SettingsSectionSlug;
 
 export const settingsKeys = {
@@ -58,7 +65,7 @@ export const settingsKeys = {
       "marketplace",
       normalizeText(filter.q),
       normalizeText(filter.source),
-      normalizeText(filter.limit),
+      normalizeKeyValue(filter.limit),
     ] as const,
   extensionProvenance: (name: string) =>
     [...settingsKeys.extensionsRoot(), "provenance", name] as const,

@@ -245,7 +245,7 @@ describe("listBridgeTargets", () => {
       total: 1,
     });
 
-    const result = await listBridgeTargets("brg_support", { limit: "25", q: " launch " });
+    const result = await listBridgeTargets("brg_support", { limit: 25, q: " launch " });
 
     expect(result.targets).toHaveLength(1);
     expect(result.targets[0]?.canonical_route).toBe("slack://T123/C456");

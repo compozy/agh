@@ -478,10 +478,14 @@ func TestRegisterRoutesRejectsLegacyStatusSurfaces(t *testing.T) {
 	engine := newTestRouter(t, handlers)
 
 	for _, path := range []string{"/api/daemon/status", "/api/observe/health"} {
-		resp := performRequest(t, engine, http.MethodGet, path, nil)
-		if resp.Code != http.StatusNotFound {
-			t.Fatalf("GET %s status = %d, want %d", path, resp.Code, http.StatusNotFound)
-		}
+		t.Run("Should return 404 for "+path, func(t *testing.T) {
+			t.Parallel()
+
+			resp := performRequest(t, engine, http.MethodGet, path, nil)
+			if resp.Code != http.StatusNotFound {
+				t.Fatalf("GET %s status = %d, want %d", path, resp.Code, http.StatusNotFound)
+			}
+		})
 	}
 }
 
@@ -501,10 +505,14 @@ func TestRegisterRoutesRejectsLegacyProviderModelCatalogSurfaces(t *testing.T) {
 		{method: http.MethodPost, path: "/api/providers/codex/models/refresh"},
 		{method: http.MethodGet, path: "/api/providers/codex/models/status"},
 	} {
-		resp := performRequest(t, engine, tc.method, tc.path, nil)
-		if resp.Code != http.StatusNotFound {
-			t.Fatalf("%s %s status = %d, want %d", tc.method, tc.path, resp.Code, http.StatusNotFound)
-		}
+		t.Run("Should return 404 for "+tc.method+" "+tc.path, func(t *testing.T) {
+			t.Parallel()
+
+			resp := performRequest(t, engine, tc.method, tc.path, nil)
+			if resp.Code != http.StatusNotFound {
+				t.Fatalf("%s %s status = %d, want %d", tc.method, tc.path, resp.Code, http.StatusNotFound)
+			}
+		})
 	}
 }
 
@@ -2215,6 +2223,8 @@ func TestHelperParsersAndPayloads(t *testing.T) {
 	}
 	if _, err := parseLogsCursor("bad"); err == nil {
 		t.Fatal("parseLogsCursor() error = nil, want non-nil")
+	} else if !strings.Contains(err.Error(), "invalid Last-Event-ID") {
+		t.Fatalf("parseLogsCursor() error = %q, want invalid Last-Event-ID", err)
 	}
 	if got := string(payloadJSON("not-json")); got != `"not-json"` {
 		t.Fatalf("payloadJSON(non-json) = %s, want %q", got, `"not-json"`)

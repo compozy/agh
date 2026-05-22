@@ -18213,7 +18213,7 @@ export interface operations {
         /** @description Filter targets by display name, qualifier, or route */
         q?: string;
         /** @description Maximum targets to return */
-        limit?: string;
+        limit?: number;
       };
       header?: never;
       path: {
@@ -20369,7 +20369,7 @@ export interface operations {
         /** @description Marketplace source filter */
         source?: string;
         /** @description Maximum number of results */
-        limit?: string;
+        limit?: number;
       };
       header?: never;
       path?: never;
@@ -41946,7 +41946,9 @@ export interface operations {
         headers: {
           [name: string]: unknown;
         };
-        content?: never;
+        content: {
+          "application/gzip": string;
+        };
       };
       /** @description Support bundle operation not found */
       404: {

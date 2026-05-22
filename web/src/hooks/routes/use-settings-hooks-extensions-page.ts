@@ -184,7 +184,7 @@ export function useSettingsHooksExtensionsPage() {
   const marketplaceFilter = useMemo<SettingsExtensionMarketplaceFilter>(
     () => ({
       q: marketplaceSearch.trim() || undefined,
-      limit: "12",
+      limit: 12,
     }),
     [marketplaceSearch]
   );

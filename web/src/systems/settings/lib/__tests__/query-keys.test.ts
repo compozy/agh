@@ -80,7 +80,7 @@ describe("settingsKeys", () => {
     expect(settingsKeys.extensionsRoot()).toEqual(["settings", "extensions"]);
     expect(settingsKeys.extensionsList()).toEqual(["settings", "extensions", "list"]);
     expect(
-      settingsKeys.extensionsMarketplace({ q: "daytona", source: "github", limit: "12" })
+      settingsKeys.extensionsMarketplace({ q: "daytona", source: "github", limit: 12 })
     ).toEqual(["settings", "extensions", "marketplace", "daytona", "github", "12"]);
     expect(settingsKeys.extensionProvenance("daytona")).toEqual([
       "settings",

@@ -25,7 +25,7 @@ describe("bridgeKeys", () => {
   it("includes bridge ids in detail and route query keys", () => {
     expect(bridgeKeys.detail("brg_support")).toEqual(["bridges", "detail", "brg_support"]);
     expect(bridgeKeys.routes("brg_support")).toEqual(["bridges", "routes", "brg_support"]);
-    expect(bridgeKeys.targets("brg_support", { limit: "25", q: "launch" })).toEqual([
+    expect(bridgeKeys.targets("brg_support", { limit: 25, q: "launch" })).toEqual([
       "bridges",
       "targets",
       "brg_support",

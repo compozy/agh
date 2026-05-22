@@ -180,7 +180,7 @@ function useBridgesPage() {
   });
   const bridgeTargetsQuery = useBridgeTargets(
     effectiveSelectedBridgeId ?? "",
-    { limit: "50", q: deferredTargetSearchQuery },
+    { limit: 50, q: deferredTargetSearchQuery },
     { enabled: Boolean(effectiveSelectedBridgeId) }
   );
   const bridgeSecretBindingsQuery = useBridgeSecretBindings(effectiveSelectedBridgeId ?? "", {

@@ -129,7 +129,7 @@ func (h *Handlers) steerSessionPrompt(c *gin.Context) {
 	if !ok {
 		return
 	}
-	result, err := h.Sessions.SteerPrompt(c.Request.Context(), sessionID, req.Text)
+	result, err := h.Sessions.SteerPrompt(context.WithoutCancel(c.Request.Context()), sessionID, req.Text)
 	if err != nil {
 		core.RespondError(c, core.StatusForSessionError(err), err, true)
 		return

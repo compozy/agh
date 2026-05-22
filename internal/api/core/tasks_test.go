@@ -1107,6 +1107,7 @@ func TestBaseHandlersTaskSchedulerControlEndpoints(t *testing.T) {
 		t.Parallel()
 
 		var pauseReason string
+		var resumeReason string
 		var drainRequest taskpkg.SchedulerDrainRequest
 		var backlogQuery taskpkg.SchedulerBacklogQuery
 		now := time.Date(2026, 5, 21, 10, 15, 0, 0, time.UTC)
@@ -1132,9 +1133,10 @@ func TestBaseHandlersTaskSchedulerControlEndpoints(t *testing.T) {
 			},
 			ResumeSchedulerFn: func(
 				_ context.Context,
-				_ taskpkg.SchedulerResumeRequest,
+				req taskpkg.SchedulerResumeRequest,
 				_ taskpkg.ActorContext,
 			) (taskpkg.SchedulerStatus, error) {
+				resumeReason = req.Reason
 				return taskpkg.SchedulerStatus{Paused: false, QueuedRunCount: 3, AsOf: now.Add(time.Minute)}, nil
 			},
 			DrainSchedulerFn: func(
@@ -1228,6 +1230,27 @@ func TestBaseHandlersTaskSchedulerControlEndpoints(t *testing.T) {
 		}
 		if !pausedScheduler.Scheduler.Paused || pausedScheduler.Scheduler.PausedTaskCount != 1 {
 			t.Fatalf("pause response = %#v, want paused with task count", pausedScheduler.Scheduler)
+		}
+
+		resumeResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/scheduler/resume",
+			[]byte("{\"reason\":\"deploy complete\"}"),
+		)
+		if resumeResp.Code != http.StatusOK {
+			t.Fatalf("scheduler resume response status = %d body = %s", resumeResp.Code, resumeResp.Body.String())
+		}
+		if resumeReason != "deploy complete" {
+			t.Fatalf("ResumeScheduler reason = %q, want deploy complete", resumeReason)
+		}
+		var resumedScheduler contract.SchedulerStatusResponse
+		if err := json.Unmarshal(resumeResp.Body.Bytes(), &resumedScheduler); err != nil {
+			t.Fatalf("decode scheduler resume response: %v", err)
+		}
+		if resumedScheduler.Scheduler.Paused || resumedScheduler.Scheduler.QueuedRunCount != 3 {
+			t.Fatalf("resume response = %#v, want unpaused with queued count", resumedScheduler.Scheduler)
 		}
 
 		drainResp := performRequest(
@@ -1865,7 +1888,7 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 				{
 					RunID: "run-2",
 					OK:    false,
-					Err:   errors.New("database password=internal-secret exploded"),
+					Err:   errors.New("database internal detail exploded"),
 				},
 			}}, nil
 		},
@@ -2077,74 +2100,127 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		t.Fatalf("canceled response = %#v, want preserved network/coordination channel", cancelledResp.Run)
 	}
 
-	resp = performRequest(
-		t,
-		fixture.Engine,
-		http.MethodPost,
-		"/runs/run-1/release",
-		[]byte("{\"reason\":\"handoff\",\"metadata\":{\"source\":\"operator\"}}"),
-	)
-	if resp.Code != http.StatusOK {
-		t.Fatalf("force release status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
-	}
+	// not parallel: these cases share one fixture and captured request variables for the end-of-flow assertions.
+	t.Run("Should force release run", func(t *testing.T) {
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/runs/run-1/release",
+			[]byte("{\"reason\":\"handoff\",\"metadata\":{\"source\":\"operator\"}}"),
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("force release status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		if forceReleasedRun.Reason != "handoff" || string(forceReleasedRun.Metadata) != "{\"source\":\"operator\"}" {
+			t.Fatalf("force release run = %#v", forceReleasedRun)
+		}
+	})
 
-	resp = performRequest(
-		t,
-		fixture.Engine,
-		http.MethodPost,
-		"/runs/run-2/fail",
-		[]byte("{\"reason\":\"operator recovery\",\"metadata\":{\"incident\":\"INC-42\"}}"),
-	)
-	if resp.Code != http.StatusOK {
-		t.Fatalf("force fail status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
-	}
+	t.Run("Should force fail run", func(t *testing.T) {
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/runs/run-2/fail",
+			[]byte("{\"reason\":\"operator recovery\",\"metadata\":{\"incident\":\"INC-42\"}}"),
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("force fail status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		if forceFailedRun.Reason != "operator recovery" ||
+			string(forceFailedRun.Metadata) != "{\"incident\":\"INC-42\"}" {
+			t.Fatalf("force fail run = %#v", forceFailedRun)
+		}
+	})
 
-	resp = performRequest(
-		t,
-		fixture.Engine,
-		http.MethodPost,
-		"/runs/run-2/retry",
-		[]byte("{\"metadata\":{\"source\":\"operator\"}}"),
-	)
-	if resp.Code != http.StatusCreated {
-		t.Fatalf("retry status = %d, want %d; body=%s", resp.Code, http.StatusCreated, resp.Body.String())
-	}
+	t.Run("Should retry run", func(t *testing.T) {
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/runs/run-2/retry",
+			[]byte("{\"metadata\":{\"source\":\"operator\"}}"),
+		)
+		if resp.Code != http.StatusCreated {
+			t.Fatalf("retry status = %d, want %d; body=%s", resp.Code, http.StatusCreated, resp.Body.String())
+		}
+		if string(retryRunRequest.Metadata) != "{\"source\":\"operator\"}" {
+			t.Fatalf("retry run request = %#v", retryRunRequest)
+		}
+	})
 
-	resp = performRequest(
-		t,
-		fixture.Engine,
-		http.MethodPost,
-		"/runs/bulk/release",
-		[]byte("{\"run_ids\":[\"run-1\",\"run-2\"],\"reason\":\"handoff\"}"),
-	)
-	if resp.Code != http.StatusOK {
-		t.Fatalf("bulk release status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
-	}
+	t.Run("Should bulk release runs", func(t *testing.T) {
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/runs/bulk/release",
+			[]byte("{\"run_ids\":[\"run-1\",\"run-2\"],\"reason\":\"handoff\"}"),
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("bulk release status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		if strings.Join(bulkForceRelease.RunIDs, ",") != "run-1,run-2" || bulkForceRelease.Reason != "handoff" {
+			t.Fatalf("bulk force release = %#v", bulkForceRelease)
+		}
+	})
 
-	resp = performRequest(
-		t,
-		fixture.Engine,
-		http.MethodPost,
-		"/runs/bulk/fail",
-		[]byte("{\"run_ids\":[\"run-2\"],\"reason\":\"operator recovery\"}"),
-	)
-	if resp.Code != http.StatusOK {
-		t.Fatalf("bulk fail status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
-	}
-	var bulkFailPayload contract.BulkForceTaskRunResponse
-	if err := json.Unmarshal(resp.Body.Bytes(), &bulkFailPayload); err != nil {
-		t.Fatalf("decode bulk fail response: %v", err)
-	}
-	if len(bulkFailPayload.Results) != 1 || bulkFailPayload.Results[0].Error == nil {
-		t.Fatalf("bulk fail payload = %#v, want item error", bulkFailPayload.Results)
-	}
-	if got, want := bulkFailPayload.Results[0].Error.Error,
-		http.StatusText(http.StatusInternalServerError); got != want {
-		t.Fatalf("bulk fail item error = %q, want %q", got, want)
-	}
-	if strings.Contains(bulkFailPayload.Results[0].Error.Error, "internal-secret") {
-		t.Fatalf("bulk fail item error leaked secret: %#v", bulkFailPayload.Results[0].Error)
-	}
+	t.Run("Should bulk fail runs with unmasked handler errors", func(t *testing.T) {
+		fixture.Handlers.MaskInternalErrors = false
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/runs/bulk/fail",
+			[]byte("{\"run_ids\":[\"run-2\"],\"reason\":\"operator recovery\"}"),
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("bulk fail status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		var bulkFailPayload contract.BulkForceTaskRunResponse
+		if err := json.Unmarshal(resp.Body.Bytes(), &bulkFailPayload); err != nil {
+			t.Fatalf("decode bulk fail response: %v", err)
+		}
+		if len(bulkFailPayload.Results) != 1 || bulkFailPayload.Results[0].Error == nil {
+			t.Fatalf("bulk fail payload = %#v, want item error", bulkFailPayload.Results)
+		}
+		if got, want := bulkFailPayload.Results[0].Error.Error,
+			"database internal detail exploded"; got != want {
+			t.Fatalf("bulk fail item error = %q, want %q", got, want)
+		}
+		if strings.Join(bulkForceFail.RunIDs, ",") != "run-2" || bulkForceFail.Reason != "operator recovery" {
+			t.Fatalf("bulk force fail = %#v", bulkForceFail)
+		}
+	})
+
+	t.Run("Should bulk fail runs with masked handler errors", func(t *testing.T) {
+		fixture.Handlers.MaskInternalErrors = true
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/runs/bulk/fail",
+			[]byte("{\"run_ids\":[\"run-2\"],\"reason\":\"operator recovery\"}"),
+		)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("bulk fail status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		var bulkFailPayload contract.BulkForceTaskRunResponse
+		if err := json.Unmarshal(resp.Body.Bytes(), &bulkFailPayload); err != nil {
+			t.Fatalf("decode bulk fail response: %v", err)
+		}
+		if len(bulkFailPayload.Results) != 1 || bulkFailPayload.Results[0].Error == nil {
+			t.Fatalf("bulk fail payload = %#v, want item error", bulkFailPayload.Results)
+		}
+		if got, want := bulkFailPayload.Results[0].Error.Error,
+			http.StatusText(http.StatusInternalServerError); got != want {
+			t.Fatalf("bulk fail item error = %q, want %q", got, want)
+		}
+		if strings.Contains(bulkFailPayload.Results[0].Error.Error, "internal detail") {
+			t.Fatalf("bulk fail item error leaked internal detail: %#v", bulkFailPayload.Results[0].Error)
+		}
+	})
 
 	if listedQuery.WorkspaceID != "ws-alpha" || listedQuery.Scope != taskpkg.ScopeWorkspace ||
 		listedQuery.NetworkChannel != "builders" {
@@ -2212,22 +2288,6 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	}
 	if cancelledRun.Reason != "operator canceled" {
 		t.Fatalf("canceled run = %#v", cancelledRun)
-	}
-	if forceReleasedRun.Reason != "handoff" || string(forceReleasedRun.Metadata) != "{\"source\":\"operator\"}" {
-		t.Fatalf("force release run = %#v", forceReleasedRun)
-	}
-	if forceFailedRun.Reason != "operator recovery" ||
-		string(forceFailedRun.Metadata) != "{\"incident\":\"INC-42\"}" {
-		t.Fatalf("force fail run = %#v", forceFailedRun)
-	}
-	if string(retryRunRequest.Metadata) != "{\"source\":\"operator\"}" {
-		t.Fatalf("retry run request = %#v", retryRunRequest)
-	}
-	if strings.Join(bulkForceRelease.RunIDs, ",") != "run-1,run-2" || bulkForceRelease.Reason != "handoff" {
-		t.Fatalf("bulk force release = %#v", bulkForceRelease)
-	}
-	if strings.Join(bulkForceFail.RunIDs, ",") != "run-2" || bulkForceFail.Reason != "operator recovery" {
-		t.Fatalf("bulk force fail = %#v", bulkForceFail)
 	}
 }
 

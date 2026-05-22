@@ -131,7 +131,7 @@ export async function listBridgeRoutes(id: string, signal?: AbortSignal): Promis
 function normalizeBridgeTargetsQuery(query: BridgeTargetsQuery = {}): BridgeTargetsQuery {
   return {
     q: normalizeOptionalText(query.q),
-    limit: normalizeOptionalText(query.limit),
+    limit: query.limit,
   };
 }
 

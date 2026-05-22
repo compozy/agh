@@ -54,7 +54,7 @@ describe("bridgeRoutesOptions", () => {
 
 describe("bridgeTargetsOptions", () => {
   it("uses the target directory key and is gated by id", () => {
-    const options = bridgeTargetsOptions("brg_support", { limit: "50", q: "support" });
+    const options = bridgeTargetsOptions("brg_support", { limit: 50, q: "support" });
 
     expect(options.queryKey).toEqual(["bridges", "targets", "brg_support", "support", "50"]);
     expect(options.enabled).toBe(true);

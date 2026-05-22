@@ -1511,7 +1511,7 @@ func (h *BaseHandlers) bulkForceTaskRuns(c *gin.Context, action string, fail boo
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
-	c.JSON(http.StatusOK, BulkForceTaskRunResponseFromResult(result))
+	c.JSON(http.StatusOK, BulkForceTaskRunResponseFromResult(result, h.MaskInternalErrors))
 }
 
 // CancelTaskRun cancels one non-terminal run.
@@ -2132,7 +2132,10 @@ func RetryTaskRunResponseFromResult(result *taskpkg.RetryRunResult) contract.Ret
 }
 
 // BulkForceTaskRunResponseFromResult converts per-row bulk force outcomes into shared payloads.
-func BulkForceTaskRunResponseFromResult(result taskpkg.BulkForceRunResult) contract.BulkForceTaskRunResponse {
+func BulkForceTaskRunResponseFromResult(
+	result taskpkg.BulkForceRunResult,
+	maskInternalErrors bool,
+) contract.BulkForceTaskRunResponse {
 	items := make([]contract.BulkForceTaskRunItemPayload, 0, len(result.Items))
 	for _, item := range result.Items {
 		payload := contract.BulkForceTaskRunItemPayload{
@@ -2141,7 +2144,7 @@ func BulkForceTaskRunResponseFromResult(result taskpkg.BulkForceRunResult) contr
 			Run:   optionalTaskRunPayload(item.Run),
 		}
 		if item.Err != nil {
-			errorPayload := ErrorPayloadForStatus(StatusForTaskError(item.Err), item.Err, true)
+			errorPayload := ErrorPayloadForStatus(StatusForTaskError(item.Err), item.Err, maskInternalErrors)
 			payload.Error = &errorPayload
 		}
 		items = append(items, payload)
