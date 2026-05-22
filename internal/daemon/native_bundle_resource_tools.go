@@ -66,7 +66,7 @@ func (n *daemonNativeTools) resourceToolBindings(
 
 func (n *daemonNativeTools) bundlesList(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	catalog, err := n.deps.BundleService.Catalog(ctx)
@@ -77,6 +77,7 @@ func (n *daemonNativeTools) bundlesList(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeBundleToolError(req.ToolID, err)
 	}
+	activations = nativeBundleActivationsForScope(scope, activations)
 	payload := map[string]any{
 		"bundles":     core.BundleCatalogPayloads(catalog),
 		"activations": bundleActivationPayloads(activations),
@@ -86,7 +87,7 @@ func (n *daemonNativeTools) bundlesList(
 
 func (n *daemonNativeTools) bundlesInfo(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input bundleInfoInput
@@ -101,24 +102,31 @@ func (n *daemonNativeTools) bundlesInfo(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeBundleToolError(req.ToolID, err)
 	}
+	if !nativeBundleActivationAllowed(scope, activation.Activation) {
+		return toolspkg.ToolResult{}, nativeScopeMismatchError(req.ToolID, "id")
+	}
 	return structuredResult(map[string]any{"activation": core.BundleActivationPayload(activation)}, id)
 }
 
 func (n *daemonNativeTools) bundlesActivate(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input bundleActivateToolInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	activationScope, workspaceID, err := nativeBundleActivationScope(req.ToolID, input, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	activation, err := n.deps.BundleService.Activate(ctx, bundlepkg.ActivateRequest{
 		ExtensionName:               strings.TrimSpace(input.ExtensionName),
 		BundleName:                  strings.TrimSpace(input.BundleName),
 		ProfileName:                 strings.TrimSpace(input.ProfileName),
-		Scope:                       bundlepkg.Scope(strings.TrimSpace(input.Scope)).Normalize(),
-		Workspace:                   strings.TrimSpace(input.Workspace),
+		Scope:                       activationScope,
+		Workspace:                   workspaceID,
 		BindPrimaryChannelAsDefault: input.BindPrimaryChannelAsDefault,
 	})
 	if err != nil {
@@ -132,7 +140,7 @@ func (n *daemonNativeTools) bundlesActivate(
 
 func (n *daemonNativeTools) bundlesDeactivate(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input bundleInfoInput
@@ -143,6 +151,13 @@ func (n *daemonNativeTools) bundlesDeactivate(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	activation, err := n.deps.BundleService.GetActivation(ctx, id)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeBundleToolError(req.ToolID, err)
+	}
+	if !nativeBundleActivationAllowed(scope, activation.Activation) {
+		return toolspkg.ToolResult{}, nativeScopeMismatchError(req.ToolID, "id")
+	}
 	if err := n.deps.BundleService.Deactivate(ctx, id); err != nil {
 		return toolspkg.ToolResult{}, nativeBundleToolError(req.ToolID, err)
 	}
@@ -151,7 +166,7 @@ func (n *daemonNativeTools) bundlesDeactivate(
 
 func (n *daemonNativeTools) bundlesStatus(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	catalog, err := n.deps.BundleService.Catalog(ctx)
@@ -166,6 +181,8 @@ func (n *daemonNativeTools) bundlesStatus(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeBundleToolError(req.ToolID, err)
 	}
+	activations = nativeBundleActivationsForScope(scope, activations)
+	network.DeclaredChannels = nativeBundleChannelsForScope(scope, network.DeclaredChannels)
 	payload := map[string]any{
 		"bundle_count":     len(catalog),
 		"activation_count": len(activations),
@@ -181,10 +198,10 @@ func (n *daemonNativeTools) bundlesStatus(
 
 func (n *daemonNativeTools) resourcesList(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	filter, err := decodeResourceFilterInput(req)
+	filter, err := decodeResourceFilterInput(req, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -200,7 +217,7 @@ func (n *daemonNativeTools) resourcesList(
 
 func (n *daemonNativeTools) resourcesInfo(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	kind, id, err := decodeResourceInfoInput(req)
@@ -211,15 +228,18 @@ func (n *daemonNativeTools) resourcesInfo(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeResourceToolError(req.ToolID, err)
 	}
+	if !nativeResourceRecordAllowed(scope, record) {
+		return toolspkg.ToolResult{}, nativeScopeMismatchError(req.ToolID, "id")
+	}
 	return structuredResult(map[string]any{"record": core.ResourceRecordPayloadFromRaw(record)}, id)
 }
 
 func (n *daemonNativeTools) resourcesSnapshot(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	filter, err := decodeResourceFilterInput(req)
+	filter, err := decodeResourceFilterInput(req, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -245,7 +265,73 @@ func bundleActivationPayloads(items []bundlepkg.ActivationPreview) []contract.Bu
 	return payload
 }
 
-func decodeResourceFilterInput(req toolspkg.CallRequest) (resources.ResourceFilter, error) {
+func nativeBundleActivationScope(
+	id toolspkg.ToolID,
+	input bundleActivateToolInput,
+	scope toolspkg.Scope,
+) (bundlepkg.Scope, string, error) {
+	activationScope := bundlepkg.Scope(strings.TrimSpace(input.Scope)).Normalize()
+	if activationScope == "" {
+		activationScope = bundlepkg.ScopeGlobal
+		if !scope.Operator && strings.TrimSpace(scope.WorkspaceID) != "" {
+			activationScope = bundlepkg.ScopeWorkspace
+		}
+	}
+	if !scope.Operator && strings.TrimSpace(scope.WorkspaceID) != "" && activationScope != bundlepkg.ScopeWorkspace {
+		return "", "", nativeScopeMismatchError(id, "scope")
+	}
+	workspaceID, err := nativeCallerWorkspaceInput(id, "workspace", input.Workspace, scope)
+	if err != nil {
+		return "", "", err
+	}
+	return activationScope, workspaceID, nil
+}
+
+func nativeBundleActivationsForScope(
+	scope toolspkg.Scope,
+	items []bundlepkg.ActivationPreview,
+) []bundlepkg.ActivationPreview {
+	if scope.Operator || strings.TrimSpace(scope.WorkspaceID) == "" {
+		return items
+	}
+	filtered := make([]bundlepkg.ActivationPreview, 0, len(items))
+	for _, item := range items {
+		if nativeBundleActivationAllowed(scope, item.Activation) {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
+}
+
+func nativeBundleChannelsForScope(
+	scope toolspkg.Scope,
+	items []bundlepkg.DeclaredChannel,
+) []bundlepkg.DeclaredChannel {
+	if scope.Operator || strings.TrimSpace(scope.WorkspaceID) == "" {
+		return items
+	}
+	workspaceID := strings.TrimSpace(scope.WorkspaceID)
+	filtered := make([]bundlepkg.DeclaredChannel, 0, len(items))
+	for _, item := range items {
+		if strings.TrimSpace(item.WorkspaceID) == workspaceID {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
+}
+
+func nativeBundleActivationAllowed(scope toolspkg.Scope, activation bundlepkg.Activation) bool {
+	if scope.Operator || strings.TrimSpace(scope.WorkspaceID) == "" {
+		return true
+	}
+	return activation.Scope.Normalize() == bundlepkg.ScopeWorkspace &&
+		strings.TrimSpace(activation.WorkspaceID) == strings.TrimSpace(scope.WorkspaceID)
+}
+
+func decodeResourceFilterInput(
+	req toolspkg.CallRequest,
+	scope toolspkg.Scope,
+) (resources.ResourceFilter, error) {
 	var input resourceFilterInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return resources.ResourceFilter{}, err
@@ -272,7 +358,43 @@ func decodeResourceFilterInput(req toolspkg.CallRequest) (resources.ResourceFilt
 	} else if ok {
 		filter.Source = &source
 	}
+	if err := nativeApplyResourceScope(req.ToolID, &filter, scope); err != nil {
+		return resources.ResourceFilter{}, err
+	}
 	return filter, nil
+}
+
+func nativeApplyResourceScope(
+	id toolspkg.ToolID,
+	filter *resources.ResourceFilter,
+	scope toolspkg.Scope,
+) error {
+	if filter == nil || scope.Operator || strings.TrimSpace(scope.WorkspaceID) == "" {
+		return nil
+	}
+	workspaceScope := resources.ResourceScope{
+		Kind: resources.ResourceScopeKindWorkspace,
+		ID:   strings.TrimSpace(scope.WorkspaceID),
+	}
+	if filter.Scope == nil {
+		filter.Scope = &workspaceScope
+		return nil
+	}
+	if filter.Scope.Kind.Normalize() != resources.ResourceScopeKindWorkspace ||
+		strings.TrimSpace(filter.Scope.ID) != workspaceScope.ID {
+		return nativeScopeMismatchError(id, "scope")
+	}
+	filter.Scope.ID = workspaceScope.ID
+	return nil
+}
+
+func nativeResourceRecordAllowed(scope toolspkg.Scope, record resources.RawRecord) bool {
+	if scope.Operator || strings.TrimSpace(scope.WorkspaceID) == "" {
+		return true
+	}
+	recordScope := record.Scope.Normalize()
+	return recordScope.Kind == resources.ResourceScopeKindWorkspace &&
+		recordScope.ID == strings.TrimSpace(scope.WorkspaceID)
 }
 
 func decodeResourceInfoInput(req toolspkg.CallRequest) (resources.ResourceKind, string, error) {

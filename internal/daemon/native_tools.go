@@ -3837,7 +3837,10 @@ func (n *daemonNativeTools) nativeResolvedWorkspace(
 	workspaceRef string,
 	scope toolspkg.Scope,
 ) (workspacepkg.ResolvedWorkspace, error) {
-	ref := firstNonEmpty(workspaceRef, scope.WorkspaceID)
+	ref, err := nativeCallerWorkspaceInput(id, "workspace_id", workspaceRef, scope)
+	if err != nil {
+		return workspacepkg.ResolvedWorkspace{}, err
+	}
 	if ref == "" {
 		return workspacepkg.ResolvedWorkspace{}, nativeRequiredInputError(id, "workspace_id")
 	}
@@ -3852,6 +3855,42 @@ func (n *daemonNativeTools) nativeResolvedWorkspace(
 		return workspacepkg.ResolvedWorkspace{}, nativeNetworkInputError(id, err)
 	}
 	return resolved, nil
+}
+
+func nativeCallerWorkspaceInput(
+	id toolspkg.ToolID,
+	field string,
+	value string,
+	scope toolspkg.Scope,
+) (string, error) {
+	trusted := strings.TrimSpace(scope.WorkspaceID)
+	current := strings.TrimSpace(value)
+	if scope.Operator {
+		if current == "" {
+			return trusted, nil
+		}
+		return current, nil
+	}
+	if trusted == "" {
+		return current, nil
+	}
+	if current == "" {
+		return trusted, nil
+	}
+	if current != trusted {
+		return "", nativeScopeMismatchError(id, field)
+	}
+	return current, nil
+}
+
+func nativeScopeMismatchError(id toolspkg.ToolID, field string) error {
+	return toolspkg.NewToolError(
+		toolspkg.ErrorCodeDenied,
+		id,
+		fmt.Sprintf("tool %q call %s conflicts with caller scope", id, field),
+		toolspkg.ErrToolDenied,
+		toolspkg.ReasonScopeMismatch,
+	)
 }
 
 func (n *daemonNativeTools) nativeNetworkWorkspaceID(
@@ -4664,7 +4703,11 @@ func decodeLogQueryInput(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return logQueryInput{}, store.EventSummaryQuery{}, err
 	}
-	input.WorkspaceID = firstNonEmpty(input.WorkspaceID, scope.WorkspaceID)
+	workspaceID, err := nativeCallerWorkspaceInput(req.ToolID, "workspace_id", input.WorkspaceID, scope)
+	if err != nil {
+		return logQueryInput{}, store.EventSummaryQuery{}, err
+	}
+	input.WorkspaceID = workspaceID
 	query, err := input.eventSummaryQuery(req.ToolID)
 	if err != nil {
 		return logQueryInput{}, store.EventSummaryQuery{}, err
@@ -4683,7 +4726,11 @@ func decodeObserveSearchInput(
 	if _, err := requiredNativeString(req.ToolID, "query", input.Query); err != nil {
 		return observeSearchInput{}, store.EventSummaryQuery{}, err
 	}
-	input.WorkspaceID = firstNonEmpty(input.WorkspaceID, scope.WorkspaceID)
+	workspaceID, err := nativeCallerWorkspaceInput(req.ToolID, "workspace_id", input.WorkspaceID, scope)
+	if err != nil {
+		return observeSearchInput{}, store.EventSummaryQuery{}, err
+	}
+	input.WorkspaceID = workspaceID
 	query, err := input.eventSummaryQuery(req.ToolID)
 	if err != nil {
 		return observeSearchInput{}, store.EventSummaryQuery{}, err

@@ -243,6 +243,296 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeStructuredContains(t, resourceResult, []byte(`"mcp.github"`))
 	})
 
+	t.Run("Should bind bundle and resource native tools to the caller workspace", func(t *testing.T) {
+		t.Parallel()
+
+		bundleService := &nativeBundleServiceStub{
+			catalog: []bundlepkg.CatalogEntry{{ExtensionName: "ext-bundle"}},
+			activations: []bundlepkg.ActivationPreview{
+				{
+					Activation: bundlepkg.Activation{
+						ID:            "act-ws-1",
+						ExtensionName: "ext-bundle",
+						BundleName:    "starter",
+						ProfileName:   "default",
+						Scope:         bundlepkg.ScopeWorkspace,
+						WorkspaceID:   "ws-1",
+					},
+				},
+				{
+					Activation: bundlepkg.Activation{
+						ID:            "act-ws-2",
+						ExtensionName: "ext-bundle",
+						BundleName:    "starter",
+						ProfileName:   "default",
+						Scope:         bundlepkg.ScopeWorkspace,
+						WorkspaceID:   "ws-2",
+					},
+				},
+			},
+		}
+		resourceService := &nativeResourceServiceStub{
+			records: []resources.RawRecord{
+				{
+					Kind:     resources.ResourceKind("tool.mcp_server"),
+					ID:       "mcp.ws-1",
+					Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"},
+					SpecJSON: json.RawMessage(`{"name":"github"}`),
+				},
+				{
+					Kind:     resources.ResourceKind("tool.mcp_server"),
+					ID:       "mcp.ws-2",
+					Scope:    resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-2"},
+					SpecJSON: json.RawMessage(`{"name":"linear"}`),
+				},
+			},
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			BundleService: bundleService,
+			Resources:     resourceService,
+		}, nativeApproveAllPolicyInputs())
+		scope := toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "coder"}
+
+		listResult, err := registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDBundlesList},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(bundles_list) error = %v", err)
+		}
+		requireNativeStructuredContains(t, listResult, []byte(`"act-ws-1"`))
+		requireNativeStructuredExcludes(t, listResult, []byte(`"act-ws-2"`))
+
+		_, err = registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDBundlesActivate,
+				Input: json.RawMessage(
+					`{"extension_name":"ext-bundle","bundle_name":"starter","profile_name":"default"}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(bundles_activate scoped default) error = %v", err)
+		}
+		if bundleService.activateCalls != 1 ||
+			bundleService.lastActivate.Scope != bundlepkg.ScopeWorkspace ||
+			bundleService.lastActivate.Workspace != "ws-1" {
+			t.Fatalf(
+				"Activate request = %#v after %d calls, want workspace ws-1",
+				bundleService.lastActivate,
+				bundleService.activateCalls,
+			)
+		}
+
+		_, err = registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDBundlesActivate,
+				Input: json.RawMessage(
+					`{"extension_name":"ext-bundle","bundle_name":"starter","profile_name":"default","scope":"workspace","workspace":"ws-2"}`,
+				),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		if bundleService.activateCalls != 1 {
+			t.Fatalf(
+				"Activate calls = %d, want cross-workspace request rejected before service",
+				bundleService.activateCalls,
+			)
+		}
+
+		_, err = registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDBundlesInfo,
+				Input:  json.RawMessage(`{"id":"act-ws-2"}`),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+
+		_, err = registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDBundlesDeactivate,
+				Input:  json.RawMessage(`{"id":"act-ws-2"}`),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		if bundleService.deactivateCalls != 0 {
+			t.Fatalf(
+				"Deactivate calls = %d, want cross-workspace request rejected before mutation",
+				bundleService.deactivateCalls,
+			)
+		}
+
+		_, err = registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDResourcesList},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(resources_list scoped default) error = %v", err)
+		}
+		if resourceService.listCalls != 1 ||
+			resourceService.lastFilter.Scope == nil ||
+			resourceService.lastFilter.Scope.Kind != resources.ResourceScopeKindWorkspace ||
+			resourceService.lastFilter.Scope.ID != "ws-1" {
+			t.Fatalf(
+				"Resource filter = %#v after %d calls, want workspace ws-1",
+				resourceService.lastFilter,
+				resourceService.listCalls,
+			)
+		}
+
+		_, err = registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDResourcesSnapshot,
+				Input:  json.RawMessage(`{"scope_kind":"workspace","scope_id":"ws-2"}`),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		if resourceService.listCalls != 1 {
+			t.Fatalf(
+				"Resource list calls = %d, want cross-workspace filter rejected before service",
+				resourceService.listCalls,
+			)
+		}
+
+		_, err = registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDResourcesInfo,
+				Input:  json.RawMessage(`{"kind":"tool.mcp_server","id":"mcp.ws-2"}`),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+	})
+
+	t.Run("Should bind shared native workspace resolution to the caller workspace", func(t *testing.T) {
+		t.Parallel()
+
+		adapter := &daemonNativeTools{
+			deps: &daemonNativeToolsDeps{
+				Workspaces: nativeNetworkTestWorkspaceService(t),
+			},
+		}
+		scope := toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "coder"}
+
+		resolved, err := adapter.nativeResolvedWorkspace(
+			t.Context(),
+			toolspkg.ToolIDNetworkPeers,
+			"",
+			scope,
+		)
+		if err != nil {
+			t.Fatalf("nativeResolvedWorkspace(scoped default) error = %v", err)
+		}
+		if resolved.WorkspaceID != "ws-1" {
+			t.Fatalf("Resolved workspace id = %q, want ws-1", resolved.WorkspaceID)
+		}
+
+		_, err = adapter.nativeResolvedWorkspace(
+			t.Context(),
+			toolspkg.ToolIDNetworkPeers,
+			"ws-2",
+			scope,
+		)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+
+		operatorResolved, err := adapter.nativeResolvedWorkspace(
+			t.Context(),
+			toolspkg.ToolIDNetworkPeers,
+			"ws-2",
+			toolspkg.Scope{Operator: true},
+		)
+		if err != nil {
+			t.Fatalf("nativeResolvedWorkspace(operator) error = %v", err)
+		}
+		if operatorResolved.WorkspaceID != "ws-2" {
+			t.Fatalf("Operator resolved workspace id = %q, want ws-2", operatorResolved.WorkspaceID)
+		}
+
+		operatorDefaultResolved, err := adapter.nativeResolvedWorkspace(
+			t.Context(),
+			toolspkg.ToolIDNetworkPeers,
+			"",
+			toolspkg.Scope{Operator: true, WorkspaceID: "ws-1"},
+		)
+		if err != nil {
+			t.Fatalf("nativeResolvedWorkspace(operator default) error = %v", err)
+		}
+		if operatorDefaultResolved.WorkspaceID != "ws-1" {
+			t.Fatalf(
+				"Operator default resolved workspace id = %q, want ws-1",
+				operatorDefaultResolved.WorkspaceID,
+			)
+		}
+
+		filter, err := hookCatalogFilter(toolspkg.ToolIDHooksList, hooksListInput{}, scope)
+		if err != nil {
+			t.Fatalf("hookCatalogFilter(scoped default) error = %v", err)
+		}
+		if filter.WorkspaceID != "ws-1" {
+			t.Fatalf("Hook filter workspace id = %q, want ws-1", filter.WorkspaceID)
+		}
+
+		_, err = hookCatalogFilter(
+			toolspkg.ToolIDHooksList,
+			hooksListInput{WorkspaceID: "ws-2"},
+			scope,
+		)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+
+		operatorFilter, err := hookCatalogFilter(
+			toolspkg.ToolIDHooksList,
+			hooksListInput{WorkspaceID: "ws-2"},
+			toolspkg.Scope{Operator: true},
+		)
+		if err != nil {
+			t.Fatalf("hookCatalogFilter(operator) error = %v", err)
+		}
+		if operatorFilter.WorkspaceID != "ws-2" {
+			t.Fatalf("Operator hook filter workspace id = %q, want ws-2", operatorFilter.WorkspaceID)
+		}
+
+		observer := &nativeObserverStub{}
+		registry := newDaemonNativeRegistry(
+			t,
+			&daemonNativeToolsDeps{Observer: observer},
+			nativeApproveAllPolicyInputs(),
+		)
+		_, err = registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDHooksList,
+				Input:  json.RawMessage(`{"workspace_id":"ws-2"}`),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		_, err = registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDHooksInfo,
+				Input:  json.RawMessage(`{"workspace_id":"ws-2","name":"hook-a"}`),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+		if observer.catalogCall != 0 {
+			t.Fatalf("QueryHookCatalog calls = %d, want 0", observer.catalogCall)
+		}
+	})
+
 	t.Run("Should keep unavailable read surfaces operator-only with deterministic reasons", func(t *testing.T) {
 		t.Parallel()
 
@@ -4278,20 +4568,22 @@ func TestDaemonNativeTools(t *testing.T) {
 		observer := &nativeObserverStub{
 			eventSummaries: []store.EventSummary{
 				{
-					ID:        "evt-1",
-					SessionID: "sess-1",
-					Type:      "agent_message",
-					AgentName: "coder",
-					Summary:   "deploy completed " + rawClaim,
-					Timestamp: now,
+					ID:          "evt-1",
+					WorkspaceID: "ws-native-network",
+					SessionID:   "sess-1",
+					Type:        "agent_message",
+					AgentName:   "coder",
+					Summary:     "deploy completed " + rawClaim,
+					Timestamp:   now,
 				},
 				{
-					ID:        "evt-2",
-					SessionID: "sess-2",
-					Type:      "agent_message",
-					AgentName: "reviewer",
-					Summary:   "review completed",
-					Timestamp: now.Add(time.Second),
+					ID:          "evt-2",
+					WorkspaceID: "ws-native-network",
+					SessionID:   "sess-2",
+					Type:        "agent_message",
+					AgentName:   "reviewer",
+					Summary:     "review completed",
+					Timestamp:   now.Add(time.Second),
 				},
 			},
 			health: observe.Health{
@@ -4388,6 +4680,26 @@ func TestDaemonNativeTools(t *testing.T) {
 		if !errors.Is(err, toolspkg.ErrToolInvalidInput) {
 			t.Fatalf("Registry.Call(observe_search empty query) error = %v, want ErrToolInvalidInput", err)
 		}
+
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-native-network", AgentName: "coder"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDListLogs,
+				Input:  json.RawMessage(`{"workspace_id":"ws-other"}`),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+
+		_, err = registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-native-network", AgentName: "coder"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDObserveSearch,
+				Input:  json.RawMessage(`{"workspace_id":"ws-other","query":"deploy"}`),
+			},
+		)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
 	})
 
 	t.Run(
@@ -5607,9 +5919,12 @@ func (b *nativeHookBindingsStub) Sync(context.Context) error {
 }
 
 type nativeBundleServiceStub struct {
-	catalog     []bundlepkg.CatalogEntry
-	activations []bundlepkg.ActivationPreview
-	network     bundlepkg.NetworkSettings
+	catalog         []bundlepkg.CatalogEntry
+	activations     []bundlepkg.ActivationPreview
+	network         bundlepkg.NetworkSettings
+	activateCalls   int
+	lastActivate    bundlepkg.ActivateRequest
+	deactivateCalls int
 }
 
 func (s *nativeBundleServiceStub) Catalog(context.Context) ([]bundlepkg.CatalogEntry, error) {
@@ -5627,6 +5942,8 @@ func (s *nativeBundleServiceStub) Activate(
 	_ context.Context,
 	req bundlepkg.ActivateRequest,
 ) (bundlepkg.ActivationPreview, error) {
+	s.activateCalls++
+	s.lastActivate = req
 	return bundlepkg.ActivationPreview{
 		Activation: bundlepkg.Activation{
 			ID:                          "act-created",
@@ -5664,6 +5981,7 @@ func (s *nativeBundleServiceStub) UpdateActivation(
 }
 
 func (s *nativeBundleServiceStub) Deactivate(context.Context, string) error {
+	s.deactivateCalls++
 	return nil
 }
 
@@ -5672,16 +5990,23 @@ func (s *nativeBundleServiceStub) NetworkSettings(context.Context) (bundlepkg.Ne
 }
 
 type nativeResourceServiceStub struct {
-	records []resources.RawRecord
+	records    []resources.RawRecord
+	listCalls  int
+	lastFilter resources.ResourceFilter
 }
 
 func (s *nativeResourceServiceStub) List(
 	_ context.Context,
 	filter resources.ResourceFilter,
 ) ([]resources.RawRecord, error) {
+	s.listCalls++
+	s.lastFilter = filter
 	results := make([]resources.RawRecord, 0, len(s.records))
 	for _, record := range s.records {
 		if filter.Kind != "" && record.Kind != filter.Kind {
+			continue
+		}
+		if filter.Scope != nil && record.Scope.Normalize() != filter.Scope.Normalize() {
 			continue
 		}
 		results = append(results, record)
@@ -5728,14 +6053,21 @@ type nativeObserverStub struct {
 	eventSummaries   []store.EventSummary
 	bridgeHealth     []observe.BridgeInstanceHealth
 	health           observe.Health
+	eventQueryCalls  int
+	lastEventQuery   store.EventSummaryQuery
 }
 
 func (o *nativeObserverStub) QueryEvents(
 	_ context.Context,
 	query store.EventSummaryQuery,
 ) ([]store.EventSummary, error) {
+	o.eventQueryCalls++
+	o.lastEventQuery = query
 	results := make([]store.EventSummary, 0, len(o.eventSummaries))
 	for _, event := range o.eventSummaries {
+		if query.WorkspaceID != "" && event.WorkspaceID != query.WorkspaceID {
+			continue
+		}
 		if query.SessionID != "" && event.SessionID != query.SessionID {
 			continue
 		}

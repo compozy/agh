@@ -321,9 +321,9 @@ func (n *daemonNativeTools) hooksList(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	filter, err := hookCatalogFilter(input, scope)
+	filter, err := hookCatalogFilter(req.ToolID, input, scope)
 	if err != nil {
-		return toolspkg.ToolResult{}, nativeHookValidationError(req.ToolID, err)
+		return toolspkg.ToolResult{}, nativeHookCatalogFilterError(req.ToolID, err)
 	}
 	entries, err := n.deps.Observer.QueryHookCatalog(ctx, filter)
 	if err != nil {
@@ -345,9 +345,9 @@ func (n *daemonNativeTools) hooksInfo(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	filter, err := hookCatalogFilter(input.hooksListInput, scope)
+	filter, err := hookCatalogFilter(req.ToolID, input.hooksListInput, scope)
 	if err != nil {
-		return toolspkg.ToolResult{}, nativeHookValidationError(req.ToolID, err)
+		return toolspkg.ToolResult{}, nativeHookCatalogFilterError(req.ToolID, err)
 	}
 	entries, err := n.deps.Observer.QueryHookCatalog(ctx, filter)
 	if err != nil {
@@ -727,9 +727,17 @@ func nativeScopeForWorkspace(workspaceRoot string) string {
 	return string(aghconfig.WriteScopeWorkspace)
 }
 
-func hookCatalogFilter(input hooksListInput, scope toolspkg.Scope) (hookspkg.CatalogFilter, error) {
+func hookCatalogFilter(
+	id toolspkg.ToolID,
+	input hooksListInput,
+	scope toolspkg.Scope,
+) (hookspkg.CatalogFilter, error) {
+	workspaceID, err := nativeCallerWorkspaceInput(id, "workspace_id", input.WorkspaceID, scope)
+	if err != nil {
+		return hookspkg.CatalogFilter{}, err
+	}
 	filter := hookspkg.CatalogFilter{
-		WorkspaceID:   firstNonEmpty(input.WorkspaceID, scope.WorkspaceID),
+		WorkspaceID:   workspaceID,
 		WorkspaceRoot: strings.TrimSpace(input.WorkspaceRoot),
 		AgentName:     strings.TrimSpace(input.Agent),
 	}
@@ -909,6 +917,13 @@ func nativeHookValidationError(id toolspkg.ToolID, err error) error {
 		fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
 		toolspkg.ReasonHookValidationFailed,
 	)
+}
+
+func nativeHookCatalogFilterError(id toolspkg.ToolID, err error) error {
+	if toolErr, ok := errors.AsType[*toolspkg.ToolError](err); ok && toolErr != nil {
+		return err
+	}
+	return nativeHookValidationError(id, err)
 }
 
 func nativeHookNotFoundError(id toolspkg.ToolID, name string) error {
