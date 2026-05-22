@@ -18,6 +18,11 @@ const (
 	schedulerDrainPollInterval   = 500 * time.Millisecond
 )
 
+// DefaultSchedulerDrainTimeout keeps API transports from duplicating scheduler policy.
+func DefaultSchedulerDrainTimeout() time.Duration {
+	return defaultSchedulerDrainTimeout
+}
+
 type taskPauseStore interface {
 	PauseTask(context.Context, PauseMutation) (Task, error)
 	ResumeTask(context.Context, ResumeMutation) (Task, error)

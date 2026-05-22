@@ -1199,8 +1199,122 @@ func TestDaemonStatusIncludesNetworkDiagnosticsWithoutCredentials(t *testing.T) 
 		if got, want := payload.Daemon.Network.Channels, 3; got != want {
 			t.Fatalf("daemon network channels = %d, want %d", got, want)
 		}
-		if strings.Contains(strings.ToLower(resp.Body.String()), "token=") {
-			t.Fatalf("daemon status leaked credentials: %s", resp.Body.String())
+		bodyLower := strings.ToLower(resp.Body.String())
+		for _, forbidden := range []string{
+			"token=",
+			"claim_token",
+			"agh_claim_",
+			"authorization: bearer",
+			"pkce_verifier",
+			"oauth_code",
+			"access_token",
+			"refresh_token",
+			"secret_binding",
+		} {
+			if strings.Contains(bodyLower, forbidden) {
+				t.Fatalf("daemon status leaked credentials (%s): %s", forbidden, resp.Body.String())
+			}
+		}
+	})
+
+	t.Run("Should report enabled network as unavailable when status cannot be collected", func(t *testing.T) {
+		t.Parallel()
+
+		manager := testutil.StubSessionManager{
+			ListAllFn: func(context.Context) ([]*session.Info, error) {
+				return []*session.Info{{ID: "sess-1"}}, nil
+			},
+		}
+		observer := testutil.StubObserver{
+			HealthFn: func(context.Context) (observe.Health, error) {
+				return observe.Health{Status: "ok", ActiveSessions: 1, Version: "dev"}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = nil
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/doctor", nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("doctor status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		var payload contract.DoctorPayload
+		if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(doctor) error = %v", err)
+		}
+		for _, item := range payload.Items {
+			if item.ID != "doctor.network.status" {
+				continue
+			}
+			if item.Code != contract.CodeNetworkUnavailable || item.Severity != contract.SeverityWarn {
+				t.Fatalf("network diagnostic = %#v, want unavailable warning", item)
+			}
+			return
+		}
+		t.Fatalf("doctor items = %#v, want network diagnostic", payload.Items)
+	})
+
+	t.Run("Should keep doctor status ok for informational diagnostics", func(t *testing.T) {
+		t.Parallel()
+
+		manager := testutil.StubSessionManager{
+			ListAllFn: func(context.Context) ([]*session.Info, error) {
+				return []*session.Info{{ID: "sess-1"}}, nil
+			},
+		}
+		observer := testutil.StubObserver{
+			HealthFn: func(context.Context) (observe.Health, error) {
+				return observe.Health{Status: "ok", ActiveSessions: 1, Version: "dev"}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, observer, testutil.StubWorkspaceService{}, nil, nil)
+		fixture.Handlers.Config.Network.Enabled = false
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/doctor", nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("doctor status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		var payload contract.DoctorPayload
+		if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(doctor) error = %v", err)
+		}
+		for _, item := range payload.Items {
+			if item.ID == "doctor.network.status" &&
+				item.Code == contract.CodeNetworkDisabled &&
+				item.Severity == contract.SeverityInfo {
+				return
+			}
+		}
+		t.Fatalf("doctor items = %#v, want disabled network info diagnostic", payload.Items)
+	})
+}
+
+func TestLogsEndpointsRejectConflictingAliases(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject conflicting logs query aliases", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		for _, path := range []string{
+			"/logs?after_seq=1&after_sequence=2",
+			"/logs?workspace_id=ws-one&workspace=ws-two",
+			"/logs?run=run-one&run_id=run-two",
+		} {
+			resp := performRequest(t, fixture.Engine, http.MethodGet, path, nil)
+			if resp.Code != http.StatusBadRequest {
+				t.Fatalf("%s status = %d, want %d; body=%s", path, resp.Code, http.StatusBadRequest, resp.Body.String())
+			}
+			if !strings.Contains(resp.Body.String(), "conflicting query values") {
+				t.Fatalf("%s body = %q, want conflicting query values message", path, resp.Body.String())
+			}
 		}
 	})
 }

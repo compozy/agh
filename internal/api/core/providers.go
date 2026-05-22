@@ -18,7 +18,10 @@ import (
 	authproviders "github.com/pedronauck/agh/internal/providers"
 )
 
-var errProviderAuthStatusCommandRequired = errors.New("provider auth_status_command is required for remote probe")
+var (
+	errProviderAuthStatusCommandRequired = errors.New("provider auth_status_command is required for remote probe")
+	errProviderNotFound                  = errors.New("provider not found")
+)
 
 // ListProviders returns the canonical provider inventory and declared auth readiness.
 func (h *BaseHandlers) ListProviders(c *gin.Context) {
@@ -34,7 +37,7 @@ func (h *BaseHandlers) ListProviders(c *gin.Context) {
 func (h *BaseHandlers) GetProvider(c *gin.Context) {
 	providerName, provider, err := h.resolveProvider(c.Param("provider_id"))
 	if err != nil {
-		h.respondProviderNotFound(c, strings.TrimSpace(c.Param("provider_id")))
+		h.respondProviderResolutionError(c, err, strings.TrimSpace(c.Param("provider_id")))
 		return
 	}
 	payload, err := h.providerSummaryPayload(c.Request.Context(), providerName, provider)
@@ -49,7 +52,7 @@ func (h *BaseHandlers) GetProvider(c *gin.Context) {
 func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 	providerName, provider, err := h.resolveProvider(c.Param("provider_id"))
 	if err != nil {
-		h.respondProviderNotFound(c, strings.TrimSpace(c.Param("provider_id")))
+		h.respondProviderResolutionError(c, err, strings.TrimSpace(c.Param("provider_id")))
 		return
 	}
 	if provider.EffectiveAuthMode() == aghconfig.ProviderAuthModeNone {
@@ -104,8 +107,8 @@ func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 		AuthStatus: providerAuthStatusPayload(provider, classification, h.nowUTC()),
 		Probe: &contract.ProviderAuthProbeResult{
 			ExitCode:   result.ExitCode,
-			Stdout:     result.Stdout,
-			Stderr:     result.Stderr,
+			Stdout:     diagnostics.RedactAndBound(result.Stdout, maxDiagnosticPayloadBytes),
+			Stderr:     diagnostics.RedactAndBound(result.Stderr, maxDiagnosticPayloadBytes),
 			DurationMs: result.DurationMs,
 		},
 	})
@@ -172,13 +175,39 @@ func (h *BaseHandlers) resolveProvider(
 ) (string, aghconfig.ProviderConfig, error) {
 	providerName := aghconfig.CanonicalProviderName(providerRef)
 	if providerName == "" {
-		return "", aghconfig.ProviderConfig{}, aghconfig.ErrProviderUnavailable
+		return "", aghconfig.ProviderConfig{}, errProviderNotFound
+	}
+	if !providerExists(&h.Config, providerName) {
+		return "", aghconfig.ProviderConfig{}, fmt.Errorf("%w: %q", errProviderNotFound, providerName)
 	}
 	provider, err := h.Config.ResolveProvider(providerName)
 	if err != nil {
 		return "", aghconfig.ProviderConfig{}, err
 	}
 	return providerName, provider, nil
+}
+
+func providerExists(cfg *aghconfig.Config, providerName string) bool {
+	if _, ok := aghconfig.BuiltinProviders()[providerName]; ok {
+		return true
+	}
+	if cfg == nil {
+		return false
+	}
+	_, ok := cfg.Providers[providerName]
+	return ok
+}
+
+func (h *BaseHandlers) respondProviderResolutionError(
+	c *gin.Context,
+	err error,
+	providerName string,
+) {
+	if errors.Is(err, errProviderNotFound) {
+		h.respondProviderNotFound(c, providerName)
+		return
+	}
+	RespondError(c, http.StatusInternalServerError, err, h.MaskInternalErrors)
 }
 
 func (h *BaseHandlers) respondProviderNotFound(c *gin.Context, providerName string) {

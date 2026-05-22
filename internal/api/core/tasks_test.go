@@ -1864,8 +1864,8 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 			return taskpkg.BulkForceRunResult{Items: []taskpkg.BulkForceRunItem{
 				{
 					RunID: "run-2",
-					OK:    true,
-					Run:   &taskpkg.Run{ID: "run-2", TaskID: "task-1", Status: taskpkg.TaskRunStatusFailed},
+					OK:    false,
+					Err:   errors.New("database password=internal-secret exploded"),
 				},
 			}}, nil
 		},
@@ -2130,6 +2130,20 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 	)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("bulk fail status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+	}
+	var bulkFailPayload contract.BulkForceTaskRunResponse
+	if err := json.Unmarshal(resp.Body.Bytes(), &bulkFailPayload); err != nil {
+		t.Fatalf("decode bulk fail response: %v", err)
+	}
+	if len(bulkFailPayload.Results) != 1 || bulkFailPayload.Results[0].Error == nil {
+		t.Fatalf("bulk fail payload = %#v, want item error", bulkFailPayload.Results)
+	}
+	if got, want := bulkFailPayload.Results[0].Error.Error,
+		http.StatusText(http.StatusInternalServerError); got != want {
+		t.Fatalf("bulk fail item error = %q, want %q", got, want)
+	}
+	if strings.Contains(bulkFailPayload.Results[0].Error.Error, "internal-secret") {
+		t.Fatalf("bulk fail item error leaked secret: %#v", bulkFailPayload.Results[0].Error)
 	}
 
 	if listedQuery.WorkspaceID != "ws-alpha" || listedQuery.Scope != taskpkg.ScopeWorkspace ||

@@ -104,6 +104,7 @@ const (
 	CodeMigrationsPending             = "migrations_pending"
 	CodeNetworkDisabled               = "network_disabled"
 	CodeNetworkReady                  = "network_ready"
+	CodeNetworkUnavailable            = "network_unavailable"
 	CodePresetBuiltinProtected        = "preset_builtin_protected"
 	CodePresetDuplicateName           = "preset_duplicate_name"
 	CodePresetFilterInvalid           = "preset_filter_invalid"
@@ -206,6 +207,7 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeMigrationsPending, Category: CategoryMigrations},
 	{Code: CodeNetworkDisabled, Category: CategoryNetwork},
 	{Code: CodeNetworkReady, Category: CategoryNetwork},
+	{Code: CodeNetworkUnavailable, Category: CategoryNetwork},
 	{Code: CodePresetBuiltinProtected, Category: CategoryBridge},
 	{Code: CodePresetDuplicateName, Category: CategoryBridge},
 	{Code: CodePresetFilterInvalid, Category: CategoryBridge},

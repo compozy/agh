@@ -32,7 +32,9 @@ func (h *BaseHandlers) CreateSupportBundle(c *gin.Context) {
 	if request.IncludeStatus != nil {
 		includeStatus = *request.IncludeStatus
 	}
-	op, err := h.SupportBundles.Create(detachedRequestContext(c.Request.Context()), support.CreateRequest{
+	runCtx, cancel := detachedRequestContext(c.Request.Context())
+	defer cancel()
+	op, err := h.SupportBundles.Create(runCtx, support.CreateRequest{
 		IncludeStatus: includeStatus,
 	})
 	if err != nil {
@@ -71,11 +73,15 @@ func (h *BaseHandlers) DownloadSupportBundle(c *gin.Context) {
 	c.FileAttachment(path, strings.TrimSpace(op.FileName))
 }
 
-func detachedRequestContext(ctx context.Context) context.Context {
+func detachedRequestContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	if ctx == nil {
-		return context.Background()
+		return context.Background(), func() {}
 	}
-	return context.WithoutCancel(ctx)
+	detached := context.WithoutCancel(ctx)
+	if deadline, ok := ctx.Deadline(); ok {
+		return context.WithDeadline(detached, deadline)
+	}
+	return detached, func() {}
 }
 
 func statusForSupportBundleError(err error) int {

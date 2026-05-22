@@ -622,6 +622,14 @@ func bridgeDiagnosticEvidence(status contract.BridgeAggregateHealthPayload) map[
 }
 
 func networkDiagnosticItem(status *contract.NetworkStatusPayload) contract.DiagnosticItem {
+	evidence := map[string]any{}
+	if status != nil {
+		evidence = map[string]any{
+			"status":   status.Status,
+			"channels": status.Channels,
+			"peers":    status.LocalPeers + status.RemotePeers,
+		}
+	}
 	if status == nil || !status.Enabled {
 		return diagnostics.NewItem(
 			"doctor.network.status",
@@ -633,6 +641,18 @@ func networkDiagnosticItem(status *contract.NetworkStatusPayload) contract.Diagn
 			contract.FreshnessLive,
 		)
 	}
+	if strings.EqualFold(strings.TrimSpace(status.Status), memoryHealthStatusUnavailable) {
+		return diagnostics.NewItem(
+			"doctor.network.status",
+			contract.CodeNetworkUnavailable,
+			contract.CategoryNetwork,
+			"Network status is unavailable",
+			"AGH Network is enabled but runtime status could not be collected.",
+			contract.SeverityWarn,
+			contract.FreshnessLive,
+			diagnostics.WithEvidence(evidence),
+		)
+	}
 	return diagnostics.NewItem(
 		"doctor.network.status",
 		contract.CodeNetworkReady,
@@ -641,11 +661,7 @@ func networkDiagnosticItem(status *contract.NetworkStatusPayload) contract.Diagn
 		"AGH Network status is available from the daemon.",
 		contract.SeverityOK,
 		contract.FreshnessLive,
-		diagnostics.WithEvidence(map[string]any{
-			"status":   status.Status,
-			"channels": status.Channels,
-			"peers":    status.LocalPeers + status.RemotePeers,
-		}),
+		diagnostics.WithEvidence(evidence),
 	)
 }
 
@@ -832,10 +848,6 @@ func diagnosticStatus(items []contract.DiagnosticItem) string {
 			return statusStateError
 		case contract.SeverityWarn:
 			result = statusStateWarn
-		case contract.SeverityInfo:
-			if result == statusStateOK {
-				result = contract.SeverityInfo
-			}
 		}
 	}
 	return result

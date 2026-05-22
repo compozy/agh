@@ -50,7 +50,19 @@ func ParseLogsQuery(c *gin.Context) (store.EventSummaryQuery, error) {
 	if err != nil {
 		return store.EventSummaryQuery{}, err
 	}
-	afterSequence, err := ParseOptionalInt64(firstNonEmpty(c.Query("after_seq"), c.Query("after_sequence")))
+	afterSequenceRaw, err := firstQueryAlias(c, "after_seq", "after_sequence")
+	if err != nil {
+		return store.EventSummaryQuery{}, err
+	}
+	afterSequence, err := ParseOptionalInt64(afterSequenceRaw)
+	if err != nil {
+		return store.EventSummaryQuery{}, err
+	}
+	workspaceID, err := firstQueryAlias(c, "workspace_id", "workspace")
+	if err != nil {
+		return store.EventSummaryQuery{}, err
+	}
+	runID, err := firstQueryAlias(c, "run", "run_id")
 	if err != nil {
 		return store.EventSummaryQuery{}, err
 	}
@@ -64,11 +76,11 @@ func ParseLogsQuery(c *gin.Context) (store.EventSummaryQuery, error) {
 	}
 
 	return store.EventSummaryQuery{
-		WorkspaceID:   strings.TrimSpace(firstNonEmpty(c.Query("workspace_id"), c.Query("workspace"))),
+		WorkspaceID:   strings.TrimSpace(workspaceID),
 		SessionID:     strings.TrimSpace(c.Query("session_id")),
 		AgentName:     strings.TrimSpace(c.Query("agent_name")),
 		Type:          strings.TrimSpace(c.Query("type")),
-		RunID:         strings.TrimSpace(firstNonEmpty(c.Query("run"), c.Query("run_id"))),
+		RunID:         strings.TrimSpace(runID),
 		ActorKind:     actorKind,
 		ActorID:       actorID,
 		Provider:      strings.TrimSpace(c.Query("provider")),
@@ -79,6 +91,23 @@ func ParseLogsQuery(c *gin.Context) (store.EventSummaryQuery, error) {
 		Since:         since,
 		Limit:         limit,
 	}, nil
+}
+
+func firstQueryAlias(c *gin.Context, names ...string) (string, error) {
+	selected := ""
+	selectedName := ""
+	for _, name := range names {
+		value := strings.TrimSpace(c.Query(name))
+		if value == "" {
+			continue
+		}
+		if selected != "" && value != selected {
+			return "", fmt.Errorf("conflicting query values for %s, %s", selectedName, name)
+		}
+		selected = value
+		selectedName = name
+	}
+	return selected, nil
 }
 
 func parseActorQuery(c *gin.Context) (string, string, error) {

@@ -10,7 +10,7 @@ import (
 	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
-// PauseTask marks one task as paused for future claims.
+// PauseTask routes task pauses through the service so claim eligibility remains centralized.
 func (h *BaseHandlers) PauseTask(c *gin.Context) {
 	manager, ok := h.requireTaskManager(c)
 	if !ok {
@@ -48,7 +48,7 @@ func (h *BaseHandlers) PauseTask(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.TaskResponse{Task: TaskPayloadFromTask(taskRecord)})
 }
 
-// ResumeTask clears one task pause for future claims.
+// ResumeTask keeps pause recovery on the same service path that owns claim eligibility.
 func (h *BaseHandlers) ResumeTask(c *gin.Context) {
 	manager, ok := h.requireTaskManager(c)
 	if !ok {
@@ -86,7 +86,7 @@ func (h *BaseHandlers) ResumeTask(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.TaskResponse{Task: TaskPayloadFromTask(taskRecord)})
 }
 
-// GetScheduler returns scheduler-wide pause state and queue pressure.
+// GetScheduler exposes service-owned scheduler state without deriving queue pressure in the API.
 func (h *BaseHandlers) GetScheduler(c *gin.Context) {
 	manager, ok := h.requireTaskManager(c)
 	if !ok {
@@ -105,7 +105,7 @@ func (h *BaseHandlers) GetScheduler(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.SchedulerStatusResponse{Scheduler: SchedulerStatusPayloadFromDomain(status)})
 }
 
-// PauseScheduler marks the scheduler as paused for new dispatch and claims.
+// PauseScheduler delegates global pause state to the task service's transactional controls.
 func (h *BaseHandlers) PauseScheduler(c *gin.Context) {
 	manager, ok := h.requireTaskManager(c)
 	if !ok {
@@ -137,7 +137,7 @@ func (h *BaseHandlers) PauseScheduler(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.SchedulerStatusResponse{Scheduler: SchedulerStatusPayloadFromDomain(status)})
 }
 
-// ResumeScheduler clears scheduler-wide pause state.
+// ResumeScheduler clears global pause state through the same control store that claims read.
 func (h *BaseHandlers) ResumeScheduler(c *gin.Context) {
 	manager, ok := h.requireTaskManager(c)
 	if !ok {
@@ -169,7 +169,7 @@ func (h *BaseHandlers) ResumeScheduler(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.SchedulerStatusResponse{Scheduler: SchedulerStatusPayloadFromDomain(status)})
 }
 
-// DrainScheduler pauses the scheduler and waits for active claims to drain.
+// DrainScheduler lets the task service own drain policy while the API only maps request overrides.
 func (h *BaseHandlers) DrainScheduler(c *gin.Context) {
 	manager, ok := h.requireTaskManager(c)
 	if !ok {
@@ -184,7 +184,7 @@ func (h *BaseHandlers) DrainScheduler(c *gin.Context) {
 		)
 		return
 	}
-	timeout := 60 * time.Second
+	timeout := taskpkg.DefaultSchedulerDrainTimeout()
 	if req.TimeoutSeconds != nil {
 		if *req.TimeoutSeconds < 0 {
 			h.respondError(
@@ -216,7 +216,7 @@ func (h *BaseHandlers) DrainScheduler(c *gin.Context) {
 	c.JSON(http.StatusOK, SchedulerDrainResponseFromDomain(result))
 }
 
-// GetSchedulerBacklog returns queued scheduler backlog rows.
+// GetSchedulerBacklog keeps pause-aware backlog projection behind the task service boundary.
 func (h *BaseHandlers) GetSchedulerBacklog(c *gin.Context) {
 	manager, ok := h.requireTaskManager(c)
 	if !ok {
@@ -244,7 +244,7 @@ func (h *BaseHandlers) GetSchedulerBacklog(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.SchedulerBacklogResponse{Backlog: SchedulerBacklogPayloadFromDomain(backlog)})
 }
 
-// SchedulerStatusPayloadFromDomain converts scheduler status into the shared payload.
+// SchedulerStatusPayloadFromDomain keeps transports on one scheduler DTO shape.
 func SchedulerStatusPayloadFromDomain(status taskpkg.SchedulerStatus) contract.SchedulerStatusPayload {
 	return contract.SchedulerStatusPayload{
 		Paused:           status.Paused,
@@ -260,7 +260,7 @@ func SchedulerStatusPayloadFromDomain(status taskpkg.SchedulerStatus) contract.S
 	}
 }
 
-// SchedulerDrainResponseFromDomain converts one drain result into the shared response payload.
+// SchedulerDrainResponseFromDomain preserves drain result semantics across HTTP and UDS.
 func SchedulerDrainResponseFromDomain(result taskpkg.SchedulerDrainResult) contract.SchedulerDrainResponse {
 	return contract.SchedulerDrainResponse{
 		Scheduler:       SchedulerStatusPayloadFromDomain(result.Status),
@@ -272,7 +272,7 @@ func SchedulerDrainResponseFromDomain(result taskpkg.SchedulerDrainResult) contr
 	}
 }
 
-// SchedulerBacklogPayloadFromDomain converts queued scheduler backlog rows into the shared payload.
+// SchedulerBacklogPayloadFromDomain exposes effective pause state without leaking store rows.
 func SchedulerBacklogPayloadFromDomain(backlog taskpkg.SchedulerBacklog) contract.SchedulerBacklogPayload {
 	runs := make([]contract.SchedulerBacklogRunPayload, 0, len(backlog.Runs))
 	for idx := range backlog.Runs {
@@ -288,7 +288,7 @@ func SchedulerBacklogPayloadFromDomain(backlog taskpkg.SchedulerBacklog) contrac
 	return contract.SchedulerBacklogPayload{Runs: runs, Total: backlog.Total}
 }
 
-// TaskSummaryPayloadFromTask converts one durable task into a summary-shaped payload.
+// TaskSummaryPayloadFromTask provides the compact task shape used by list and backlog surfaces.
 func TaskSummaryPayloadFromTask(record *taskpkg.Task) contract.TaskSummaryPayload {
 	if record == nil {
 		return contract.TaskSummaryPayload{}

@@ -2141,7 +2141,7 @@ func BulkForceTaskRunResponseFromResult(result taskpkg.BulkForceRunResult) contr
 			Run:   optionalTaskRunPayload(item.Run),
 		}
 		if item.Err != nil {
-			errorPayload := ErrorPayloadForStatus(StatusForTaskError(item.Err), item.Err, false)
+			errorPayload := ErrorPayloadForStatus(StatusForTaskError(item.Err), item.Err, true)
 			payload.Error = &errorPayload
 		}
 		items = append(items, payload)

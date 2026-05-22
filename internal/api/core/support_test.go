@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -107,6 +108,43 @@ func TestBaseHandlersSupportBundles(t *testing.T) {
 		}
 		if getPayload.Operation.Status != string(support.OperationRunning) {
 			t.Fatalf("get payload status = %q, want running", getPayload.Operation.Status)
+		}
+	})
+
+	t.Run("Should preserve request deadline when creating detached operations", func(t *testing.T) {
+		t.Parallel()
+
+		deadline := time.Now().UTC().Add(time.Hour)
+		seenDeadline := time.Time{}
+		engine := newSupportBundleTestEngine(t, supportBundleServiceStub{
+			createFn: func(ctx context.Context, request support.CreateRequest) (support.Operation, error) {
+				if !request.IncludeStatus {
+					t.Fatal("Create() IncludeStatus = false, want default true")
+				}
+				var ok bool
+				seenDeadline, ok = ctx.Deadline()
+				if !ok {
+					t.Fatal("Create() context has no deadline")
+				}
+				return support.Operation{
+					OperationID: "op_deadline",
+					Status:      support.OperationPending,
+					CreatedAt:   deadline,
+					UpdatedAt:   deadline,
+				}, nil
+			},
+		})
+		reqCtx, cancel := context.WithDeadline(context.Background(), deadline)
+		defer cancel()
+		request := httptest.NewRequestWithContext(reqCtx, http.MethodPost, "/support/bundles", http.NoBody)
+		response := httptest.NewRecorder()
+		engine.ServeHTTP(response, request)
+
+		if response.Code != http.StatusAccepted {
+			t.Fatalf("POST /support/bundles status = %d body=%s", response.Code, response.Body.String())
+		}
+		if !seenDeadline.Equal(deadline) {
+			t.Fatalf("Create() deadline = %s, want %s", seenDeadline, deadline)
 		}
 	})
 

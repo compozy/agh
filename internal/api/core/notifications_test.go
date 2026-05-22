@@ -3,6 +3,7 @@ package core_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"testing"
 	"time"
@@ -189,7 +190,7 @@ func (s *stubNotificationPresetService) List(
 	if s.listFn != nil {
 		return s.listFn(ctx, query)
 	}
-	return nil, nil
+	return nil, errors.New("unexpected notification preset List call")
 }
 
 func (s *stubNotificationPresetService) Get(
@@ -199,7 +200,7 @@ func (s *stubNotificationPresetService) Get(
 	if s.getFn != nil {
 		return s.getFn(ctx, name)
 	}
-	return notificationPresetForHandlerTest(name), nil
+	return presetspkg.Preset{}, errors.New("unexpected notification preset Get call")
 }
 
 func (s *stubNotificationPresetService) Create(
@@ -209,7 +210,7 @@ func (s *stubNotificationPresetService) Create(
 	if s.createFn != nil {
 		return s.createFn(ctx, request)
 	}
-	return notificationPresetForHandlerTest(request.Name), nil
+	return presetspkg.Preset{}, errors.New("unexpected notification preset Create call")
 }
 
 func (s *stubNotificationPresetService) Update(
@@ -220,14 +221,14 @@ func (s *stubNotificationPresetService) Update(
 	if s.updateFn != nil {
 		return s.updateFn(ctx, name, request)
 	}
-	return notificationPresetForHandlerTest(name), nil
+	return presetspkg.Preset{}, errors.New("unexpected notification preset Update call")
 }
 
 func (s *stubNotificationPresetService) Delete(ctx context.Context, name string) error {
 	if s.deleteFn != nil {
 		return s.deleteFn(ctx, name)
 	}
-	return nil
+	return errors.New("unexpected notification preset Delete call")
 }
 
 var _ core.NotificationPresetService = (*stubNotificationPresetService)(nil)

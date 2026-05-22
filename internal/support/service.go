@@ -143,8 +143,11 @@ func (s *Service) Create(ctx context.Context, req CreateRequest) (Operation, err
 	s.store.cleanup(s.retention)
 	operationID := uuid.NewString()
 	op := s.store.create(operationID)
-	runCtx := detachedContext(ctx)
-	go s.run(runCtx, operationID, req)
+	runCtx, cancel := detachedContext(ctx)
+	go func() {
+		defer cancel()
+		s.run(runCtx, operationID, req)
+	}()
 	return op, nil
 }
 
@@ -339,11 +342,15 @@ func closeBundleFileAfterWriterError(file *os.File, stage string, err error) err
 	return fmt.Errorf("support: close %s writer: %w", stage, err)
 }
 
-func detachedContext(ctx context.Context) context.Context {
+func detachedContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	if ctx == nil {
-		return context.Background()
+		return context.Background(), func() {}
 	}
-	return context.WithoutCancel(ctx)
+	detached := context.WithoutCancel(ctx)
+	if deadline, ok := ctx.Deadline(); ok {
+		return context.WithDeadline(detached, deadline)
+	}
+	return detached, func() {}
 }
 
 func (b *Builder) nowUTC() time.Time {

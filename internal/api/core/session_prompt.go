@@ -23,8 +23,8 @@ func PromptResultPayloadFromSession(result session.SendPromptResult) contract.Se
 		NewTurnID:             strings.TrimSpace(result.NewTurnID),
 		CanceledQueuedEntries: result.CanceledQueuedEntries,
 	}
-	if strings.TrimSpace(result.FallbackModeIfNoToolResult) != "" {
-		payload.FallbackModeIfNoToolResult = contract.PromptMode(result.FallbackModeIfNoToolResult)
+	if fallbackMode := strings.TrimSpace(result.FallbackModeIfNoToolResult); fallbackMode != "" {
+		payload.FallbackModeIfNoToolResult = contract.PromptMode(fallbackMode)
 	}
 	return payload
 }

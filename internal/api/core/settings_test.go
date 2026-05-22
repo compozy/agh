@@ -95,6 +95,13 @@ func (s *stubSettingsService) ApplySection(
 	if s.ApplySectionFn != nil {
 		return s.ApplySectionFn(ctx, req)
 	}
+	if s.UpdateSectionFn != nil {
+		result, err := s.UpdateSectionFn(ctx, req)
+		if err != nil {
+			return settingspkg.ApplyResult{}, err
+		}
+		return applyResultFromMutation(result), nil
+	}
 	return defaultApplyResult(req.Section), nil
 }
 
@@ -131,6 +138,13 @@ func (s *stubSettingsService) ApplyCollectionItem(
 	if s.ApplyCollectionFn != nil {
 		return s.ApplyCollectionFn(ctx, req)
 	}
+	if s.PutCollectionItemFn != nil {
+		result, err := s.PutCollectionItemFn(ctx, req)
+		if err != nil {
+			return settingspkg.ApplyResult{}, err
+		}
+		return applyResultFromMutation(result), nil
+	}
 	return defaultApplyResult(settingspkg.SectionName(req.Collection)), nil
 }
 
@@ -154,6 +168,13 @@ func (s *stubSettingsService) ApplyCollectionDelete(
 	s.LastDeleteRequest = req
 	if s.ApplyDeleteFn != nil {
 		return s.ApplyDeleteFn(ctx, req)
+	}
+	if s.DeleteItemFn != nil {
+		result, err := s.DeleteItemFn(ctx, req)
+		if err != nil {
+			return settingspkg.ApplyResult{}, err
+		}
+		return applyResultFromMutation(result), nil
 	}
 	return defaultApplyResult(settingspkg.SectionName(req.Collection)), nil
 }
@@ -192,6 +213,48 @@ func defaultApplyResult(section settingspkg.SectionName) settingspkg.ApplyResult
 			Status:     "applied",
 			Lifecycle:  "live",
 			NextAction: "none",
+			CreatedAt:  time.Unix(1, 0).UTC(),
+			UpdatedAt:  time.Unix(1, 0).UTC(),
+		},
+	}
+}
+
+func applyResultFromMutation(result settingspkg.MutationResult) settingspkg.ApplyResult {
+	configLifecycle := result.Lifecycle
+	if configLifecycle == "" {
+		configLifecycle = lifecycle.Live
+		if result.RestartRequired {
+			configLifecycle = lifecycle.RestartRequired
+		}
+	}
+	diffClass := result.DiffClass
+	if diffClass == "" {
+		diffClass = lifecycle.DiffClass(configLifecycle)
+	}
+	status := lifecycle.StatusApplied
+	if !result.Applied {
+		status = lifecycle.StatusBlocked
+	}
+	nextAction := lifecycle.NextActionForLifecycle(configLifecycle, status)
+	return settingspkg.ApplyResult{
+		Section:         result.Section,
+		Scope:           result.Scope,
+		WriteTarget:     result.WriteTarget,
+		WorkspaceID:     result.WorkspaceID,
+		AgentName:       result.AgentName,
+		Applied:         result.Applied,
+		NextAction:      nextAction,
+		RestartRequired: result.RestartRequired,
+		RestartScope:    result.RestartScope,
+		Warnings:        append([]string(nil), result.Warnings...),
+		Record: settingspkg.ApplyRecord{
+			ID:         "cfgapp-test",
+			ActiveHash: "sha256:test",
+			Generation: 1,
+			DiffClass:  diffClass,
+			Status:     status,
+			Lifecycle:  configLifecycle,
+			NextAction: nextAction,
 			CreatedAt:  time.Unix(1, 0).UTC(),
 			UpdatedAt:  time.Unix(1, 0).UTC(),
 		},
@@ -2210,7 +2273,10 @@ func TestSettingsMCPServerMutationsPreserveScopeWorkspaceTargetAndMutationMetada
 
 	var putPayload contract.SettingsApplyResponse
 	decodeJSON(t, putResp.Body.Bytes(), &putPayload)
-	if putPayload.ApplyRecordID == "" || !putPayload.Applied {
+	if putPayload.ApplyRecordID == "" ||
+		putPayload.Applied ||
+		!putPayload.RestartRequired ||
+		putPayload.NextAction != contract.SettingsApplyNextActionRestartDaemon {
 		t.Fatalf("putPayload = %#v", putPayload)
 	}
 

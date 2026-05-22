@@ -91,6 +91,7 @@ const (
 	CodeMigrationsPending             = diagnosticcontract.CodeMigrationsPending
 	CodeNetworkDisabled               = diagnosticcontract.CodeNetworkDisabled
 	CodeNetworkReady                  = diagnosticcontract.CodeNetworkReady
+	CodeNetworkUnavailable            = diagnosticcontract.CodeNetworkUnavailable
 	CodePresetBuiltinProtected        = diagnosticcontract.CodePresetBuiltinProtected
 	CodePresetDuplicateName           = diagnosticcontract.CodePresetDuplicateName
 	CodePresetFilterInvalid           = diagnosticcontract.CodePresetFilterInvalid
