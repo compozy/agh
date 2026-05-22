@@ -82,7 +82,7 @@ func TestBaseHandlersSupportBundles(t *testing.T) {
 			},
 		})
 
-		createResp := performRequest(t, engine, http.MethodPost, "/support/bundles", nil)
+		createResp := performRequest(t, engine, http.MethodPost, "/support/bundles", []byte(`{"yes":true}`))
 		if createResp.Code != http.StatusAccepted {
 			t.Fatalf("POST /support/bundles status = %d body=%s", createResp.Code, createResp.Body.String())
 		}
@@ -136,7 +136,13 @@ func TestBaseHandlersSupportBundles(t *testing.T) {
 		})
 		reqCtx, cancel := context.WithDeadline(context.Background(), deadline)
 		defer cancel()
-		request := httptest.NewRequestWithContext(reqCtx, http.MethodPost, "/support/bundles", http.NoBody)
+		request := httptest.NewRequestWithContext(
+			reqCtx,
+			http.MethodPost,
+			"/support/bundles",
+			strings.NewReader(`{"yes":true}`),
+		)
+		request.Header.Set("Content-Type", "application/json")
 		response := httptest.NewRecorder()
 		engine.ServeHTTP(response, request)
 
@@ -145,6 +151,29 @@ func TestBaseHandlersSupportBundles(t *testing.T) {
 		}
 		if !seenDeadline.Equal(deadline) {
 			t.Fatalf("Create() deadline = %s, want %s", seenDeadline, deadline)
+		}
+	})
+
+	t.Run("Should reject create without explicit consent diagnostic", func(t *testing.T) {
+		t.Parallel()
+
+		engine := newSupportBundleTestEngine(t, supportBundleServiceStub{
+			createFn: func(context.Context, support.CreateRequest) (support.Operation, error) {
+				t.Fatal("Create() called without support bundle consent")
+				return support.Operation{}, nil
+			},
+		})
+
+		response := performRequest(t, engine, http.MethodPost, "/support/bundles", nil)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("POST /support/bundles status = %d body=%s", response.Code, response.Body.String())
+		}
+		var payload contract.ErrorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(error) error = %v", err)
+		}
+		if payload.Diagnostic == nil || payload.Diagnostic.Code != contract.CodeBundleConsentRequired {
+			t.Fatalf("diagnostic = %#v, want %s", payload.Diagnostic, contract.CodeBundleConsentRequired)
 		}
 	})
 

@@ -503,17 +503,21 @@ func (s *Session) rollbackActivation(now time.Time) {
 	}
 }
 
-func (s *Session) observeRuntimeActivity(activity store.SessionActivityMeta, now time.Time) {
-	s.observeRuntimeActivityState(activity, now, true)
+func (s *Session) observeRuntimeActivity(activity store.SessionActivityMeta, now time.Time) (string, string) {
+	return s.observeRuntimeActivityState(activity, now, true)
 }
 
 func (s *Session) observeRuntimeEventActivity(activity store.SessionActivityMeta, now time.Time) {
-	s.observeRuntimeActivityState(activity, now, false)
+	_, _ = s.observeRuntimeActivityState(activity, now, false)
 }
 
-func (s *Session) observeRuntimeActivityState(activity store.SessionActivityMeta, now time.Time, clearStall bool) {
+func (s *Session) observeRuntimeActivityState(
+	activity store.SessionActivityMeta,
+	now time.Time,
+	clearStall bool,
+) (string, string) {
 	if s == nil || now.IsZero() {
-		return
+		return "", ""
 	}
 
 	s.mu.Lock()
@@ -529,11 +533,16 @@ func (s *Session) observeRuntimeActivityState(activity store.SessionActivityMeta
 		lastUpdateAt = cloned.LastActivityAt.UTC()
 	}
 	s.Liveness.LastUpdateAt = &lastUpdateAt
+	previousStallState := ""
+	previousStallReason := ""
 	if clearStall {
+		previousStallState = strings.TrimSpace(s.Liveness.StallState)
+		previousStallReason = strings.TrimSpace(s.Liveness.StallReason)
 		s.Liveness.StallState = ""
 		s.Liveness.StallReason = ""
 	}
 	s.UpdatedAt = now.UTC()
+	return previousStallState, previousStallReason
 }
 
 func (s *Session) clearRuntimeActivity(now time.Time) {

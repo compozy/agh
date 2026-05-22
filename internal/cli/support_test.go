@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -25,6 +26,9 @@ func TestSupportBundleCommand(t *testing.T) {
 		client := &stubClient{
 			createSupportBundleFn: func(_ context.Context, request CreateSupportBundleRequest) (SupportBundleOperationRecord, error) {
 				createCalled = true
+				if !request.Yes {
+					t.Fatalf("CreateSupportBundle() Yes = false, want true")
+				}
 				if request.IncludeStatus == nil || !*request.IncludeStatus {
 					t.Fatalf("CreateSupportBundle() IncludeStatus = %v, want true", request.IncludeStatus)
 				}
@@ -118,11 +122,44 @@ func TestSupportBundleCommand(t *testing.T) {
 		}
 	})
 
+	t.Run("Should require explicit yes when stdin is not interactive", func(t *testing.T) {
+		t.Parallel()
+
+		createCalled := false
+		deps := newTestDeps(t, &stubClient{
+			createSupportBundleFn: func(context.Context, CreateSupportBundleRequest) (SupportBundleOperationRecord, error) {
+				createCalled = true
+				return SupportBundleOperationRecord{}, nil
+			},
+		})
+		cmd := newRootCommand(deps)
+		var stdout bytes.Buffer
+		var stderr bytes.Buffer
+		cmd.SetOut(&stdout)
+		cmd.SetErr(&stderr)
+		cmd.SetIn(strings.NewReader("y\n"))
+		cmd.SetArgs([]string{"support", "bundle"})
+
+		err := cmd.ExecuteContext(t.Context())
+		if err == nil {
+			t.Fatal("support bundle error = nil, want non-interactive --yes failure")
+		}
+		if !strings.Contains(err.Error(), "requires --yes when stdin is not interactive") {
+			t.Fatalf("support bundle error = %v, want non-interactive --yes context", err)
+		}
+		if createCalled {
+			t.Fatal("CreateSupportBundle() called despite missing non-interactive consent")
+		}
+	})
+
 	t.Run("ShouldPassNoStatusRequestToDaemon", func(t *testing.T) {
 		t.Parallel()
 
 		client := &stubClient{
 			createSupportBundleFn: func(_ context.Context, request CreateSupportBundleRequest) (SupportBundleOperationRecord, error) {
+				if !request.Yes {
+					t.Fatalf("CreateSupportBundle() Yes = false, want true")
+				}
 				if request.IncludeStatus == nil || *request.IncludeStatus {
 					t.Fatalf("CreateSupportBundle() IncludeStatus = %v, want false", request.IncludeStatus)
 				}

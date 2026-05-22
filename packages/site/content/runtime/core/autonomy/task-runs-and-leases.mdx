@@ -158,6 +158,10 @@ than the runtime cap. Force release and force fail invalidate queued input gener
 previously bound session when that session exists, so stale prompts cannot be delivered after a
 recovery action.
 
+`task_runs.failure_kind` is task-run recovery metadata. In v1 its public value is
+`"operator_forced"`; provider authentication failures are recorded on the session failure fields
+and provider diagnostics instead of on task-run rows.
+
 Every force operation emits canonical audit events:
 
 | Event                           | When AGH emits it                                                 |
@@ -192,6 +196,10 @@ its own task or by an ancestor. Scheduler backlog excludes paused tasks by defau
 `include_paused=true` when diagnosing why a queued run is not claimable.
 
 Every pause mutation records actor evidence and emits canonical events:
+
+Scheduler drain returns a final JSON result over CLI, HTTP, and UDS. The v1 runtime does not expose
+a scheduler-drain SSE progress stream; clients should poll scheduler status or backlog separately
+when they need an independent progress view.
 
 | Event                       | When AGH emits it                                     |
 | --------------------------- | ----------------------------------------------------- |

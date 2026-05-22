@@ -524,6 +524,71 @@ func (g *GlobalDB) CurrentSessionInputGeneration(ctx context.Context, sessionID 
 	return generation, nil
 }
 
+// SessionInputQueueSummary returns the current generation and active pending counts for one session.
+func (g *GlobalDB) SessionInputQueueSummary(
+	ctx context.Context,
+	sessionID string,
+) (store.SessionInputQueueSummary, error) {
+	if err := g.checkReady(ctx, "read session input queue summary"); err != nil {
+		return store.SessionInputQueueSummary{}, err
+	}
+	target := strings.TrimSpace(sessionID)
+	if target == "" {
+		return store.SessionInputQueueSummary{}, errors.New("store: session id is required")
+	}
+	var summary store.SessionInputQueueSummary
+	summary.SessionID = target
+	err := g.db.QueryRowContext(ctx, `
+		SELECT input_generation FROM sessions WHERE id = ?`,
+		target,
+	).Scan(&summary.Generation)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return store.SessionInputQueueSummary{}, fmt.Errorf("%w: %s", store.ErrSessionNotFound, target)
+		}
+		return store.SessionInputQueueSummary{}, fmt.Errorf("store: read session input generation: %w", err)
+	}
+	rows, err := g.db.QueryContext(ctx, `
+		SELECT mode, status, COUNT(*)
+		FROM session_input_queue
+		WHERE session_id = ?
+		  AND session_generation = ?
+		  AND status IN (?, ?)
+		GROUP BY mode, status`,
+		target,
+		summary.Generation,
+		store.SessionInputQueueStatusQueued,
+		store.SessionInputQueueStatusDispatching,
+	)
+	if err != nil {
+		return store.SessionInputQueueSummary{}, fmt.Errorf("store: query session input queue summary: %w", err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+	for rows.Next() {
+		var mode, status string
+		var count int
+		if scanErr := rows.Scan(&mode, &status, &count); scanErr != nil {
+			return store.SessionInputQueueSummary{}, fmt.Errorf("store: scan session input queue summary: %w", scanErr)
+		}
+		summary.PendingActive += count
+		switch strings.TrimSpace(mode) {
+		case store.SessionInputQueueModeQueue:
+			summary.PendingQueued += count
+		case store.SessionInputQueueModeSteer:
+			summary.PendingSteer += count
+		}
+		if strings.TrimSpace(status) == store.SessionInputQueueStatusDispatching {
+			summary.PendingLeased += count
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return store.SessionInputQueueSummary{}, fmt.Errorf("store: iterate session input queue summary: %w", err)
+	}
+	return summary, nil
+}
+
 func insertSessionInputQueueEntry(
 	ctx context.Context,
 	exec globalSQLExecutor,

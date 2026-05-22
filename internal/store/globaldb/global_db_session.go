@@ -15,6 +15,7 @@ import (
 const (
 	globalDBSessionLocalKey   = "local"
 	sessionListResumableWhere = "state = 'active' AND (failure_kind IS NULL OR trim(failure_kind) = '') AND " +
+		"(stall_state IS NULL OR trim(stall_state) = '') AND " +
 		"(attached_to = '' OR attach_expires_at IS NULL OR attach_expires_at <= ?)"
 )
 
@@ -81,6 +82,10 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query store.SessionListQuer
 	if err := query.Validate(); err != nil {
 		return nil, err
 	}
+	now := g.now()
+	if _, err := g.SweepExpiredSessionAttachLocks(ctx, now); err != nil {
+		return nil, err
+	}
 
 	sqlQuery := `SELECT id, name, agent_name, provider, workspace_id, channel, session_type,
 		parent_session_id, root_session_id, spawn_depth, spawn_role, ttl_expires_at,
@@ -110,7 +115,7 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query store.SessionListQuer
 			where,
 			sessionListResumableWhere,
 		)
-		args = append(args, store.FormatTimestamp(g.now()))
+		args = append(args, store.FormatTimestamp(now))
 	}
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	//nolint:gosec // sessionListOrderClause returns one of two constant ORDER BY clauses.
@@ -140,6 +145,49 @@ func (g *GlobalDB) ListSessions(ctx context.Context, query store.SessionListQuer
 	return sessions, nil
 }
 
+// SweepExpiredSessionAttachLocks clears expired attach leases from the session catalog.
+func (g *GlobalDB) SweepExpiredSessionAttachLocks(ctx context.Context, now time.Time) (int64, error) {
+	if err := g.checkReady(ctx, "sweep expired session attach locks"); err != nil {
+		return 0, err
+	}
+	if now.IsZero() {
+		now = g.now()
+	}
+	now = now.UTC()
+	nowRaw := store.FormatTimestamp(now)
+	var expiredLocks int64
+	if err := g.db.QueryRowContext(ctx, `
+		SELECT COUNT(1)
+		FROM sessions
+		WHERE trim(attached_to) != ''
+		  AND attach_expires_at IS NOT NULL
+		  AND attach_expires_at <= ?`,
+		nowRaw,
+	).Scan(&expiredLocks); err != nil {
+		return 0, fmt.Errorf("store: count expired session attach locks: %w", err)
+	}
+	if expiredLocks == 0 {
+		return 0, nil
+	}
+	result, err := g.db.ExecContext(ctx, `
+		UPDATE sessions
+		SET attached_to = '', attach_expires_at = NULL, updated_at = ?
+		WHERE trim(attached_to) != ''
+		  AND attach_expires_at IS NOT NULL
+		  AND attach_expires_at <= ?`,
+		nowRaw,
+		nowRaw,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("store: sweep expired session attach locks: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("store: rows affected for expired session attach lock sweep: %w", err)
+	}
+	return rows, nil
+}
+
 // AttachSession acquires a short-lived attach lease for a resumable session.
 func (g *GlobalDB) AttachSession(ctx context.Context, req store.SessionAttachRequest) (store.SessionAttach, error) {
 	if err := g.checkReady(ctx, "attach session"); err != nil {
@@ -150,6 +198,9 @@ func (g *GlobalDB) AttachSession(ctx context.Context, req store.SessionAttachReq
 		normalized.Now = g.now().UTC()
 	}
 	if err := normalized.Validate(); err != nil {
+		return store.SessionAttach{}, err
+	}
+	if _, err := g.SweepExpiredSessionAttachLocks(ctx, normalized.Now); err != nil {
 		return store.SessionAttach{}, err
 	}
 	expiresAt := normalized.Now.Add(normalized.TTL).UTC()
@@ -163,6 +214,7 @@ func (g *GlobalDB) AttachSession(ctx context.Context, req store.SessionAttachReq
 			WHERE id = ?
 				AND state = 'active'
 				AND (failure_kind IS NULL OR trim(failure_kind) = '')
+				AND (stall_state IS NULL OR trim(stall_state) = '')
 				AND (attached_to = '' OR attach_expires_at IS NULL OR attach_expires_at <= ?)`,
 		normalized.AttachedTo,
 		expiresRaw,
@@ -199,20 +251,23 @@ func (g *GlobalDB) classifyAttachFailure(ctx context.Context, sessionID string, 
 	var (
 		state              string
 		failureKind        sql.NullString
+		stallState         sql.NullString
 		attachedTo         string
 		attachExpiresAtRaw sql.NullString
 	)
 	if err := g.db.QueryRowContext(
 		ctx,
-		`SELECT state, failure_kind, attached_to, attach_expires_at FROM sessions WHERE id = ?`,
+		`SELECT state, failure_kind, stall_state, attached_to, attach_expires_at FROM sessions WHERE id = ?`,
 		sessionID,
-	).Scan(&state, &failureKind, &attachedTo, &attachExpiresAtRaw); err != nil {
+	).Scan(&state, &failureKind, &stallState, &attachedTo, &attachExpiresAtRaw); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("%w: %s", store.ErrSessionNotFound, sessionID)
 		}
 		return fmt.Errorf("store: classify attach session %q: %w", sessionID, err)
 	}
-	if strings.TrimSpace(state) != globalDBSessionStateActive || strings.TrimSpace(failureKind.String) != "" {
+	if strings.TrimSpace(state) != globalDBSessionStateActive ||
+		strings.TrimSpace(failureKind.String) != "" ||
+		strings.TrimSpace(stallState.String) == store.SessionStallStateDetected {
 		return fmt.Errorf("%w: %s", store.ErrSessionNotAttachable, sessionID)
 	}
 	if strings.TrimSpace(attachedTo) == "" ||

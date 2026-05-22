@@ -141,6 +141,10 @@ another activation.
 | Agent conflict           | A bundled agent name must not collide with another visible agent.     |
 | Agent references         | Jobs and triggers must reference packaged or already-visible agents.  |
 
+Native bundle tools inherit a trusted caller workspace when one is present. That means an
+`agh__bundles_activate` call made from a workspace-scoped agent or operator context defaults to a
+workspace activation unless it explicitly requests global scope without a workspace.
+
 ## Deactivation
 
 ```http

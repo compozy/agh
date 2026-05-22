@@ -168,6 +168,26 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 			t.Fatalf("sandbox provider state = %s, want omitted", string(payload.Sandbox.ProviderStateJSON))
 		}
 	})
+
+	t.Run("Should mark stalled session payloads as hung and not attachable", func(t *testing.T) {
+		t.Parallel()
+
+		payload := core.SessionPayloadFromInfo(&session.Info{
+			ID:        "sess-stalled",
+			AgentName: "coder",
+			State:     session.StateActive,
+			Liveness: &store.SessionLivenessMeta{
+				StallState:  store.SessionStallStateDetected,
+				StallReason: store.SessionStallReasonActivityTimeout,
+			},
+		})
+		if payload.Badge != session.BadgeHung {
+			t.Fatalf("payload.Badge = %q, want %q", payload.Badge, session.BadgeHung)
+		}
+		if payload.Attachable {
+			t.Fatalf("payload.Attachable = true, want false for stalled session")
+		}
+	})
 }
 
 func TestRuntimeActivityPayloadFromSessionMeta(t *testing.T) {

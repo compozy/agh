@@ -238,7 +238,7 @@ var registryEntries = []Metadata{
 	warning(TaskRunLeaseExpired, "task", ComponentTask),
 	info(TaskRunReleased, "task", ComponentTask),
 	notify(failure(TaskRunOperatorForcedFail, "task", ComponentTask)),
-	info(TaskRunOperatorRetry, "task", ComponentTask),
+	notify(info(TaskRunOperatorRetry, "task", ComponentTask)),
 	info(TaskExecutionProfileUpdated, "task", ComponentTask),
 	info(TaskExecutionProfileDeleted, "task", ComponentTask),
 	info(TaskRunReviewRequested, "task", ComponentTask),

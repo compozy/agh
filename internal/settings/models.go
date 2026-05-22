@@ -175,6 +175,7 @@ type Service interface {
 	DeleteCollectionItem(ctx context.Context, req CollectionItemDeleteRequest) (MutationResult, error)
 	ApplyCollectionDelete(ctx context.Context, req CollectionItemDeleteRequest) (ApplyResult, error)
 	Reload(ctx context.Context) (ApplyResult, error)
+	ActiveConfig(ctx context.Context) (aghconfig.Config, error)
 	ListApplyRecords(ctx context.Context, filter ApplyRecordFilter) ([]ApplyRecord, error)
 }
 

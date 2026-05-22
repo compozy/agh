@@ -38,6 +38,9 @@ type LifecycleRegistry interface {
 // optional source filter is an already-normalized operator/tool input.
 type MarketplaceSourceLoader func(context.Context) ([]registrypkg.Source, error)
 
+// ErrMarketplaceSourceUnavailable reports that a marketplace source cannot be resolved or used.
+var ErrMarketplaceSourceUnavailable = errors.New("extension: marketplace source unavailable")
+
 // MutationReload is called after a registry/on-disk mutation and before the
 // lifecycle helper commits any staged filesystem backup.
 type MutationReload func(context.Context) error
@@ -412,16 +415,23 @@ func LoadMarketplaceSources(
 
 	sources, err := loader(ctx)
 	if err != nil {
-		return nil, joinMarketplaceSourceError(err, closeRegistrySources(sources))
+		return nil, joinMarketplaceSourceError(
+			fmt.Errorf("%w: %w", ErrMarketplaceSourceUnavailable, err),
+			closeRegistrySources(sources),
+		)
 	}
 	if len(sources) == 0 {
-		err := errors.New("extension: no marketplace registry sources are configured")
+		err := fmt.Errorf("%w: no marketplace registry sources are configured", ErrMarketplaceSourceUnavailable)
 		return nil, joinMarketplaceSourceError(err, closeRegistrySources(sources))
 	}
 
 	filtered := filterExtensionRegistrySources(sources, sourceFilter)
 	if len(filtered) == 0 {
-		err := fmt.Errorf("extension: marketplace registry source %q is not configured", sourceFilter)
+		err := fmt.Errorf(
+			"%w: marketplace registry source %q is not configured",
+			ErrMarketplaceSourceUnavailable,
+			sourceFilter,
+		)
 		return nil, joinMarketplaceSourceError(err, closeRegistrySources(sources))
 	}
 	if err := closeUnselectedExtensionRegistrySources(sources, sourceFilter); err != nil {

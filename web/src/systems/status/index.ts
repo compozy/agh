@@ -21,4 +21,4 @@ export {
   type ConnectionStatus,
 } from "./hooks/use-daemon-connection-status";
 export { useDaemonHealth } from "./hooks/use-daemon-health";
-export { useDaemonStatus } from "./hooks/use-daemon-status";
+export { useStatus } from "./hooks/use-status";

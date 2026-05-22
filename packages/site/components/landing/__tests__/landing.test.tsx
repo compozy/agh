@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { baseOptions } from "@/lib/layout.shared";
 
@@ -169,28 +169,10 @@ describe("BentoSection", () => {
 describe("SupportedAgents", () => {
   it("renders as a compact support strip, not a hero section", () => {
     render(<SupportedAgents />);
-    const expected = [
-      "claude",
-      "codex",
-      "gemini",
-      "opencode",
-      "copilot",
-      "cursor",
-      "kiro",
-      "pi",
-      "blackbox",
-      "cline",
-      "goose",
-      "hermes",
-      "junie",
-      "kimi-cli",
-      "openclaw",
-      "openhands",
-      "qoder",
-      "qwen-code",
-    ];
-    for (const id of expected) {
-      expect(screen.getByText(id)).toBeDefined();
+    const list = screen.getByRole("list", { name: "Supported agent CLIs" });
+
+    for (const provider of PROVIDERS) {
+      expect(within(list).getByRole("listitem", { name: provider.name })).toBeDefined();
     }
     expect(screen.getByText("Your CLI on the network")).toBeDefined();
   });

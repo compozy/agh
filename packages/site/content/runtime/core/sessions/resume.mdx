@@ -131,7 +131,10 @@ Example response shape:
     "pending_inputs": 0,
     "snapshot": {
       "generated_at": "2026-05-20T13:58:00Z",
-      "limit": 20
+      "event_cursor": 42,
+      "transcript_cursor": 42,
+      "queue_generation": 7,
+      "consistency": "persisted_reads"
     }
   }
 }
@@ -139,6 +142,10 @@ Example response shape:
 
 Recap is useful before attaching, after an interrupted turn, and when agents need a compact state
 summary without parsing raw event rows.
+
+`snapshot.consistency` is a closed string. v1 returns `"persisted_reads"`, which means the recap
+was assembled from persisted event, marker, and input-queue read models with stable cursors. AGH does
+not currently return `"read_snapshot"`.
 
 ## Transcript markers
 

@@ -3,11 +3,14 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/pedronauck/agh/internal/store"
+	"github.com/pedronauck/agh/internal/testutil"
 )
 
 func TestScanSessionInfoReadsStopFields(t *testing.T) {
@@ -361,6 +364,115 @@ func TestScanSessionInfoRejectsStallStateWithoutReason(t *testing.T) {
 			want,
 		) {
 			t.Fatalf("scanSessionInfo() error = %v, want substring %q", err, want)
+		}
+	})
+}
+
+func TestGlobalDBAttachSessionRejectsStalledSessions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should exclude stalled sessions from resumable attach paths", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"stalled-attach-workspace",
+			filepath.Join(t.TempDir(), "stalled-attach-workspace"),
+		)
+		now := time.Date(2026, 5, 22, 10, 0, 0, 0, time.UTC)
+		if err := globalDB.RegisterSession(ctx, store.SessionInfo{
+			ID:          "sess-stalled-attach",
+			Name:        "Stalled Attach",
+			AgentName:   "coder",
+			Provider:    "claude",
+			WorkspaceID: workspaceID,
+			SessionType: defaultSessionType,
+			State:       globalDBSessionStateActive,
+			Liveness: &store.SessionLivenessMeta{
+				SubprocessPID: 77,
+				StallState:    store.SessionStallStateDetected,
+				StallReason:   store.SessionStallReasonActivityTimeout,
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("RegisterSession() error = %v", err)
+		}
+
+		resumable, err := globalDB.ListSessions(ctx, store.SessionListQuery{Resumable: true})
+		if err != nil {
+			t.Fatalf("ListSessions(resumable) error = %v", err)
+		}
+		if len(resumable) != 0 {
+			t.Fatalf("resumable sessions = %#v, want none for stalled session", resumable)
+		}
+		_, err = globalDB.AttachSession(ctx, store.SessionAttachRequest{
+			SessionID:  "sess-stalled-attach",
+			AttachedTo: "operator",
+			Now:        now,
+			TTL:        time.Minute,
+		})
+		if !errors.Is(err, store.ErrSessionNotAttachable) {
+			t.Fatalf("AttachSession(stalled) error = %v, want ErrSessionNotAttachable", err)
+		}
+	})
+}
+
+func TestGlobalDBListSessionsSweepsExpiredAttachLocks(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should clear expired attach holder fields before returning sessions", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"expired-attach-workspace",
+			filepath.Join(t.TempDir(), "expired-attach-workspace"),
+		)
+		now := time.Date(2026, 5, 22, 11, 0, 0, 0, time.UTC)
+		expiredAt := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+		if err := globalDB.RegisterSession(ctx, store.SessionInfo{
+			ID:              "sess-expired-attach",
+			Name:            "Expired Attach",
+			AgentName:       "coder",
+			Provider:        "claude",
+			WorkspaceID:     workspaceID,
+			SessionType:     defaultSessionType,
+			State:           globalDBSessionStateActive,
+			AttachedTo:      "operator-old",
+			AttachExpiresAt: &expiredAt,
+			CreatedAt:       now.Add(-time.Hour),
+			UpdatedAt:       now.Add(-time.Hour),
+		}); err != nil {
+			t.Fatalf("RegisterSession() error = %v", err)
+		}
+
+		sessions, err := globalDB.ListSessions(ctx, store.SessionListQuery{ID: "sess-expired-attach"})
+		if err != nil {
+			t.Fatalf("ListSessions() error = %v", err)
+		}
+		if len(sessions) != 1 {
+			t.Fatalf("len(sessions) = %d, want 1", len(sessions))
+		}
+		if sessions[0].AttachedTo != "" || sessions[0].AttachExpiresAt != nil {
+			t.Fatalf(
+				"session attach fields = %#v/%#v, want cleared",
+				sessions[0].AttachedTo,
+				sessions[0].AttachExpiresAt,
+			)
+		}
+		cleared, err := globalDB.SweepExpiredSessionAttachLocks(ctx, now)
+		if err != nil {
+			t.Fatalf("SweepExpiredSessionAttachLocks(after list) error = %v", err)
+		}
+		if cleared != 0 {
+			t.Fatalf("SweepExpiredSessionAttachLocks(after list) = %d, want 0", cleared)
 		}
 	})
 }

@@ -417,6 +417,38 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
 	})
 
+	t.Run("Should default operator bundle activation to the scoped workspace", func(t *testing.T) {
+		t.Parallel()
+
+		bundleService := &nativeBundleServiceStub{}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			BundleService: bundleService,
+		}, nativeApproveAllPolicyInputs())
+
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true, WorkspaceID: "ws-operator"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDBundlesActivate,
+				Input: json.RawMessage(
+					"{\"extension_name\":\"ext-bundle\",\"bundle_name\":\"starter\",\"profile_name\":\"default\"}",
+				),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(bundles_activate operator scoped default) error = %v", err)
+		}
+		if bundleService.activateCalls != 1 ||
+			bundleService.lastActivate.Scope != bundlepkg.ScopeWorkspace ||
+			bundleService.lastActivate.Workspace != "ws-operator" {
+			t.Fatalf(
+				"Activate request = %#v after %d calls, want workspace ws-operator",
+				bundleService.lastActivate,
+				bundleService.activateCalls,
+			)
+		}
+	})
+
 	t.Run("Should bind shared native workspace resolution to the caller workspace", func(t *testing.T) {
 		t.Parallel()
 
@@ -530,6 +562,42 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
 		if observer.catalogCall != 0 {
 			t.Fatalf("QueryHookCatalog calls = %d, want 0", observer.catalogCall)
+		}
+	})
+
+	t.Run("Should reject foreign workspace inputs for scoped session and skill native tools", func(t *testing.T) {
+		t.Parallel()
+
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: apitest.StubSessionManager{
+				ListAllFn: func(context.Context) ([]*session.Info, error) {
+					return []*session.Info{{ID: "sess-1", WorkspaceID: "ws-1"}}, nil
+				},
+			},
+			Skills: newLoadedNativeSkillRegistry(t),
+		}, nativeApproveAllPolicyInputs())
+		scope := toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "coder"}
+
+		cases := []struct {
+			id    toolspkg.ToolID
+			input json.RawMessage
+		}{
+			{toolspkg.ToolIDSessionList, json.RawMessage("{\"workspace\":\"ws-2\"}")},
+			{toolspkg.ToolIDSkillList, json.RawMessage("{\"workspace_id\":\"ws-2\"}")},
+			{toolspkg.ToolIDSkillSearch, json.RawMessage("{\"query\":\"agh\",\"workspace_id\":\"ws-2\"}")},
+			{toolspkg.ToolIDSkillView, json.RawMessage("{\"name\":\"agh\",\"workspace_id\":\"ws-2\"}")},
+		}
+		for _, tc := range cases {
+			t.Run(tc.id.String(), func(t *testing.T) {
+				t.Parallel()
+
+				_, err := registry.Call(
+					t.Context(),
+					scope,
+					toolspkg.CallRequest{ToolID: tc.id, Input: tc.input},
+				)
+				requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonScopeMismatch)
+			})
 		}
 	})
 

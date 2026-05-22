@@ -3,7 +3,6 @@ import type { SchedulerBacklog, SchedulerDrainResult, SchedulerStatus } from "..
 export const schedulerStatusFixture: SchedulerStatus = {
   active_claim_count: 1,
   as_of: "2026-04-17T18:02:00Z",
-  drain_in_progress: false,
   paused: false,
   paused_task_count: 1,
   queued_run_count: 3,

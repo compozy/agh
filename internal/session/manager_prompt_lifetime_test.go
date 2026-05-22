@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/pedronauck/agh/internal/acp"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/pedronauck/agh/internal/transcript"
 )
 
 func TestPromptCallerCancellationContract(t *testing.T) {
@@ -86,6 +88,40 @@ func TestPromptCallerCancellationContract(t *testing.T) {
 		waitForCondition(t, "prompt state cleared after explicit cancellation", func() bool {
 			return !session.IsPrompting()
 		})
+	})
+}
+
+func TestPromptTranscriptMarkerClassifiesStructuredMCPAuthReason(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should classify MCP auth from structured request error data", func(t *testing.T) {
+		t.Parallel()
+
+		kind, _, _, ok := promptTranscriptMarker(acp.AgentEvent{
+			Type:  acp.EventTypeError,
+			Error: "provider authentication failed",
+			Failure: &store.SessionFailure{
+				Kind: store.FailureProviderAuth,
+			},
+			Raw: []byte(`{"data":{"reason_codes":["mcp_auth_required"]}}`),
+		})
+		if !ok {
+			t.Fatal("promptTranscriptMarker() ok = false, want true")
+		}
+		if kind != transcript.MarkerMCPAuthRequired {
+			t.Fatalf("promptTranscriptMarker() kind = %q, want %q", kind, transcript.MarkerMCPAuthRequired)
+		}
+	})
+
+	t.Run("Should stop MCP auth reason scanning at bounded JSON depth", func(t *testing.T) {
+		t.Parallel()
+
+		raw := strings.Repeat(`{"child":`, maxMCPAuthReasonJSONDepth+2) +
+			`{"reason":"mcp_auth_required"}` +
+			strings.Repeat(`}`, maxMCPAuthReasonJSONDepth+2)
+		if eventHasMCPAuthReason(acp.AgentEvent{Raw: []byte(raw)}) {
+			t.Fatal("eventHasMCPAuthReason() = true for reason beyond bounded scan depth")
+		}
 	})
 }
 

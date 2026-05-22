@@ -60,6 +60,13 @@ func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 		if got, want := result.Record.Generation, int64(1); got != want {
 			t.Fatalf("Generation = %d, want %d", got, want)
 		}
+		active, err := service.ActiveConfig(ctx)
+		if err != nil {
+			t.Fatalf("ActiveConfig() error = %v", err)
+		}
+		if len(active.Skills.DisabledSkills) != 1 || active.Skills.DisabledSkills[0] != "alpha" {
+			t.Fatalf("ActiveConfig().Skills.DisabledSkills = %#v, want [alpha]", active.Skills.DisabledSkills)
+		}
 
 		records, err := service.ListApplyRecords(ctx, ApplyRecordFilter{Status: lifecycle.StatusApplied})
 		if err != nil {

@@ -1093,7 +1093,7 @@ func (n *daemonNativeTools) skillList(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	skillList, err := n.skillsFor(ctx, scope, input.WorkspaceID)
+	skillList, err := n.skillsFor(ctx, scope, req.ToolID, input.WorkspaceID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -1113,7 +1113,7 @@ func (n *daemonNativeTools) skillSearch(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	skillList, err := n.skillsFor(ctx, scope, input.WorkspaceID)
+	skillList, err := n.skillsFor(ctx, scope, req.ToolID, input.WorkspaceID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -1134,7 +1134,7 @@ func (n *daemonNativeTools) skillView(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	skill, err := n.resolveSkill(ctx, scope, input.WorkspaceID, input.Name)
+	skill, err := n.resolveSkill(ctx, scope, req.ToolID, input.WorkspaceID, input.Name)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -1674,11 +1674,14 @@ func (n *daemonNativeTools) sessionList(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	workspaceRef, err := nativeCallerWorkspaceInput(req.ToolID, "workspace", input.Workspace, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	infos, err := n.deps.Sessions.ListAll(ctx)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	workspaceRef := firstNonEmpty(input.Workspace, scope.WorkspaceID)
 	if workspaceRef != "" {
 		workspaceID, err := n.workspaceID(ctx, workspaceRef)
 		if err != nil {
@@ -2747,13 +2750,17 @@ func (n *daemonNativeTools) autonomyRelease(
 func (n *daemonNativeTools) skillsFor(
 	ctx context.Context,
 	scope toolspkg.Scope,
+	id toolspkg.ToolID,
 	workspaceID string,
 ) ([]*skills.Skill, error) {
 	if n.deps.Skills == nil {
 		return nil, errors.New("daemon: skills registry is required")
 	}
 	agentName := strings.TrimSpace(scope.AgentName)
-	workspaceID = firstNonEmpty(workspaceID, scope.WorkspaceID)
+	workspaceID, err := nativeCallerWorkspaceInput(id, "workspace_id", workspaceID, scope)
+	if err != nil {
+		return nil, err
+	}
 	if workspaceID == "" {
 		if agentName != "" {
 			return n.deps.Skills.ForAgent(ctx, nil, agentName)
@@ -2776,11 +2783,15 @@ func (n *daemonNativeTools) skillsFor(
 func (n *daemonNativeTools) resolveSkill(
 	ctx context.Context,
 	scope toolspkg.Scope,
+	id toolspkg.ToolID,
 	workspaceID string,
 	name string,
 ) (*skills.Skill, error) {
 	trimmedName := strings.TrimSpace(name)
-	workspaceID = firstNonEmpty(workspaceID, scope.WorkspaceID)
+	workspaceID, err := nativeCallerWorkspaceInput(id, "workspace_id", workspaceID, scope)
+	if err != nil {
+		return nil, err
+	}
 	if workspaceID == "" {
 		skill, ok := n.deps.Skills.Get(trimmedName)
 		if !ok {
@@ -2788,7 +2799,7 @@ func (n *daemonNativeTools) resolveSkill(
 		}
 		return skill, nil
 	}
-	skillList, err := n.skillsFor(ctx, scope, workspaceID)
+	skillList, err := n.skillsFor(ctx, scope, id, workspaceID)
 	if err != nil {
 		return nil, err
 	}

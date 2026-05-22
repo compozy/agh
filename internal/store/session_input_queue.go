@@ -50,6 +50,16 @@ type SessionInputQueueEntry struct {
 	UpdatedAt         time.Time
 }
 
+// SessionInputQueueSummary captures the current generation and pending entries for recap/status reads.
+type SessionInputQueueSummary struct {
+	SessionID     string
+	Generation    int64
+	PendingActive int
+	PendingQueued int
+	PendingSteer  int
+	PendingLeased int
+}
+
 // SessionInputQueueInsert captures the atomic insert request for busy input.
 type SessionInputQueueInsert struct {
 	ID                string
@@ -148,4 +158,5 @@ type SessionInputQueueStore interface {
 	) (int, error)
 	AdvanceSessionInputGeneration(ctx context.Context, sessionID string, now time.Time) (int64, error)
 	CurrentSessionInputGeneration(ctx context.Context, sessionID string) (int64, error)
+	SessionInputQueueSummary(ctx context.Context, sessionID string) (SessionInputQueueSummary, error)
 }

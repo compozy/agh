@@ -17,6 +17,7 @@ type sessionManagerStub struct {
 	events            func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
 	history           func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
 	transcript        func(context.Context, string) ([]transcript.UIMessage, error)
+	inputQueueSummary func(context.Context, string) (session.InputQueueSummary, error)
 	repairSession     func(context.Context, session.RepairOpts) (*session.RepairResult, error)
 	delete            func(context.Context, string) error
 	stop              func(context.Context, string) error
@@ -87,6 +88,16 @@ func (s sessionManagerStub) Transcript(ctx context.Context, id string) ([]transc
 		return s.transcript(ctx, id)
 	}
 	return nil, session.ErrSessionNotFound
+}
+
+func (s sessionManagerStub) InputQueueSummary(
+	ctx context.Context,
+	id string,
+) (session.InputQueueSummary, error) {
+	if s.inputQueueSummary != nil {
+		return s.inputQueueSummary(ctx, id)
+	}
+	return session.InputQueueSummary{}, nil
 }
 
 func (s sessionManagerStub) RepairSession(ctx context.Context, opts session.RepairOpts) (*session.RepairResult, error) {

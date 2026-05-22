@@ -33,6 +33,7 @@ type StubSessionManager struct {
 	CancelQueuedFn  func(context.Context, string, string) (session.SendPromptResult, error)
 	CancelPromptFn  func(context.Context, string) error
 	ApproveFn       func(context.Context, string, acp.ApproveRequest) error
+	InputQueueFn    func(context.Context, string) (session.InputQueueSummary, error)
 }
 
 func (s StubSessionManager) Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error) {
@@ -263,6 +264,13 @@ func (s StubSessionManager) ApprovePermission(ctx context.Context, id string, re
 		return s.ApproveFn(ctx, id, req)
 	}
 	return nil
+}
+
+func (s StubSessionManager) InputQueueSummary(ctx context.Context, id string) (session.InputQueueSummary, error) {
+	if s.InputQueueFn != nil {
+		return s.InputQueueFn(ctx, id)
+	}
+	return session.InputQueueSummary{}, nil
 }
 
 var _ core.SessionManager = (*StubSessionManager)(nil)

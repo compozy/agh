@@ -1,7 +1,7 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 
-import { useDaemonStatus } from "@/systems/status";
+import { useStatus } from "@/systems/status";
 
 import { useResolveWorkspace } from "./use-workspaces";
 
@@ -30,15 +30,15 @@ export function useWorkspaceSetupContent({
   onSuccessClose,
 }: UseWorkspaceSetupContentOptions) {
   const resolveWorkspace = useResolveWorkspace();
-  const daemonStatusQuery = useDaemonStatus();
+  const statusQuery = useStatus();
   const [manualPath, setManualPath] = useState("");
   const [submissionMode, setSubmissionMode] = useState<SubmissionMode>(null);
   const [manualError, setManualError] = useState<string | null>(null);
 
-  const userHomeDir = daemonStatusQuery.data?.user_home_dir ?? "";
+  const userHomeDir = statusQuery.data?.user_home_dir ?? "";
 
   const globalUnavailableReason = useMemo(() => {
-    if (daemonStatusQuery.isLoading) {
+    if (statusQuery.isLoading) {
       return "Loading daemon status...";
     }
 
@@ -47,7 +47,7 @@ export function useWorkspaceSetupContent({
     }
 
     return null;
-  }, [daemonStatusQuery.isLoading, userHomeDir]);
+  }, [statusQuery.isLoading, userHomeDir]);
 
   const runResolve = async (path: string, mode: Exclude<SubmissionMode, null>) => {
     setSubmissionMode(mode);

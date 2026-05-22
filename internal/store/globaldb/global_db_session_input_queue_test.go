@@ -132,6 +132,71 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 			t.Fatal("ConsumeSessionSteer(second) ok = true, want false after one-shot consume")
 		}
 	})
+
+	t.Run("Should summarize only current generation pending input", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, globalDB)
+		now := time.Date(2026, 5, 21, 12, 7, 0, 0, time.UTC)
+
+		if _, _, err := globalDB.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+			ID:                "inq-old-summary",
+			SessionID:         sessionID,
+			Mode:              store.SessionInputQueueModeQueue,
+			Text:              "old queued input",
+			SessionGeneration: 0,
+			QueueCap:          10,
+			Now:               now,
+		}); err != nil {
+			t.Fatalf("EnqueueSessionInput(old) error = %v", err)
+		}
+		generation, err := globalDB.AdvanceSessionInputGeneration(ctx, sessionID, now.Add(time.Second))
+		if err != nil {
+			t.Fatalf("AdvanceSessionInputGeneration() error = %v", err)
+		}
+		if _, err := globalDB.StageSessionSteer(ctx, store.SessionInputQueueInsert{
+			ID:                "steer-current-summary",
+			SessionID:         sessionID,
+			Text:              "current steer",
+			SessionGeneration: generation,
+			QueueCap:          10,
+			Now:               now.Add(2 * time.Second),
+		}); err != nil {
+			t.Fatalf("StageSessionSteer(current) error = %v", err)
+		}
+		if _, _, err := globalDB.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+			ID:                "inq-current-summary",
+			SessionID:         sessionID,
+			Mode:              store.SessionInputQueueModeQueue,
+			Text:              "current queued input",
+			SessionGeneration: generation,
+			QueueCap:          10,
+			Now:               now.Add(3 * time.Second),
+		}); err != nil {
+			t.Fatalf("EnqueueSessionInput(current) error = %v", err)
+		}
+		claimed, ok, err := globalDB.ClaimNextSessionInput(ctx, sessionID, now.Add(4*time.Second))
+		if err != nil {
+			t.Fatalf("ClaimNextSessionInput() error = %v", err)
+		}
+		if !ok || claimed.SessionGeneration != generation {
+			t.Fatalf("ClaimNextSessionInput() = %#v/%v, want current generation %d", claimed, ok, generation)
+		}
+
+		summary, err := globalDB.SessionInputQueueSummary(ctx, sessionID)
+		if err != nil {
+			t.Fatalf("SessionInputQueueSummary() error = %v", err)
+		}
+		if summary.Generation != generation {
+			t.Fatalf("summary.Generation = %d, want %d", summary.Generation, generation)
+		}
+		if summary.PendingActive != 2 || summary.PendingQueued != 1 ||
+			summary.PendingSteer != 1 || summary.PendingLeased != 1 {
+			t.Fatalf("SessionInputQueueSummary() = %#v, want active=2 queued=1 steer=1 leased=1", summary)
+		}
+	})
 }
 
 func TestGlobalDBSessionInputQueueCapacity(t *testing.T) {

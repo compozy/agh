@@ -31,15 +31,26 @@ Filter fields are `severity`, `workspace`, `agent`, `event_type`, `provider`, `t
 Operators are `=`, `!=`, `>=`, `>`, `<=`, and `<`; expressions support `AND`, `OR`, and
 parentheses.
 
+Suffix wildcards stay inside one public event family. The built-in `task_terminal` preset matches
+notification-eligible task run events such as `task.run_completed`, `task.run_failed`, and
+`task.run_operator_retry`; it does not match session or provider events.
+
 Each concrete target uses a notification cursor:
 
 ```text
 preset:<name>:target:<stable_target_hash>
 ```
 
-The cursor advances only after confirmed delivery, deterministic skip, or bridge suppression. A
-delivery error records cursor diagnostics and leaves the cursor unchanged so replay can retry the
-same event.
+Preset dispatch processes targets sequentially and applies the configured bridge delivery timeout to
+each target. The cursor advances only after confirmed delivery, deterministic skip, or bridge
+suppression. A delivery error records cursor diagnostics and leaves the cursor unchanged so replay can
+retry the same event.
+
+The v1 dispatcher intentionally does not fan out one preset's targets in parallel. This keeps cursor
+ordering deterministic and makes each target's retry point explicit.
+
+Targets use `bridge_id:canonical_route`. The CLI splits on the first colon; everything after that
+first colon is the canonical route, so routes such as `channel:ops` are valid.
 
 ## Bridge Suppression
 

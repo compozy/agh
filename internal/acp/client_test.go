@@ -1448,6 +1448,48 @@ func TestProcessCrashDetected(t *testing.T) {
 	}
 }
 
+func TestPromptErrorPreservesRequestErrorData(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should emit structured request error data for downstream marker classification", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		proc := startHelperProcess(t, driver, "prompt_request_error_with_reason", "", StartOpts{})
+		t.Cleanup(func() {
+			stopProcess(t, driver, proc)
+		})
+
+		eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
+			TurnID:  "turn-mcp-auth",
+			Message: "trigger structured auth error",
+		})
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+
+		events := collectEvents(t, eventsCh)
+		if len(events) == 0 {
+			t.Fatal("Prompt() events = empty, want error event")
+		}
+		event := events[len(events)-1]
+		if event.Type != EventTypeError {
+			t.Fatalf("Prompt() last event type = %q, want %q", event.Type, EventTypeError)
+		}
+		var payload struct {
+			Data struct {
+				ReasonCodes []string `json:"reason_codes"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(event.Raw, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(event.Raw) error = %v raw=%s", err, string(event.Raw))
+		}
+		if !slices.Contains(payload.Data.ReasonCodes, "mcp_auth_required") {
+			t.Fatalf("request error reason codes = %#v, want mcp_auth_required", payload.Data.ReasonCodes)
+		}
+	})
+}
+
 func TestPromptStopDoesNotEmitRuntimeError(t *testing.T) {
 	t.Parallel()
 
@@ -2218,6 +2260,14 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 	switch a.scenario {
 	case "crash_on_prompt":
 		os.Exit(23)
+	case "prompt_request_error_with_reason":
+		return acpsdk.PromptResponse{}, &acpsdk.RequestError{
+			Code:    -32000,
+			Message: "Authentication required",
+			Data: map[string]any{
+				"reason_codes": []string{"mcp_auth_required"},
+			},
+		}
 	case "block_prompt_until_cancel":
 		if sendErr := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
 			SessionId: params.SessionId,

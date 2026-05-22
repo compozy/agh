@@ -37,11 +37,12 @@ const (
 const defaultPollInterval = 100 * time.Millisecond
 
 const (
-	defaultSessionAttachTTL      = 15 * time.Minute
-	maxSessionAttachTTL          = 24 * time.Hour
-	defaultSessionRecapLimit     = 20
-	maxSessionRecapLimit         = 100
-	recapConsistencyReadSnapshot = "read_snapshot"
+	defaultSessionAttachTTL        = 15 * time.Minute
+	maxSessionAttachTTL            = 24 * time.Hour
+	defaultSessionRecapLimit       = 20
+	maxSessionRecapLimit           = 100
+	pendingTranscriptMarkerLimit   = maxSessionRecapLimit * 5
+	recapConsistencyPersistedReads = "persisted_reads"
 )
 
 var errCreateAgentRequestInvalid = errors.New("api: invalid create agent request")
@@ -725,22 +726,135 @@ func (h *BaseHandlers) SessionRecap(c *gin.Context) {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
+	queueSummary, err := h.Sessions.InputQueueSummary(c.Request.Context(), sessionID)
+	if err != nil {
+		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+	pendingMarkers, err := h.pendingTranscriptMarkerCount(c.Request.Context(), sessionID)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
 	eventCursor := maxSessionEventSequence(eventsList)
 	payload := contract.RecapPayload{
 		Session:        SessionPayloadFromInfo(info),
 		RecentMarkers:  markers,
 		RecentMessages: recentUIMessages(messages, limit),
-		PendingInputs:  0,
-		PendingMarkers: 0,
+		PendingInputs:  queueSummary.PendingInputs,
+		PendingMarkers: pendingMarkers,
 		Snapshot: contract.RecapSnapshotPayload{
 			GeneratedAt:      h.Now().UTC(),
 			EventCursor:      eventCursor,
 			TranscriptCursor: eventCursor,
-			QueueGeneration:  0,
-			Consistency:      recapConsistencyReadSnapshot,
+			QueueGeneration:  queueSummary.QueueGeneration,
+			Consistency:      recapConsistencyPersistedReads,
 		},
 	}
 	c.JSON(http.StatusOK, contract.SessionRecapResponse{Recap: payload})
+}
+
+func (h *BaseHandlers) pendingTranscriptMarkerCount(ctx context.Context, sessionID string) (int, error) {
+	allMarkers := make([]markerWithSequence, 0)
+	for _, eventType := range []string{events.TranscriptMarkerCreated, events.TranscriptMarkerRedacted} {
+		eventsList, err := h.Sessions.Events(ctx, sessionID, store.EventQuery{
+			Type:  eventType,
+			Limit: pendingTranscriptMarkerLimit,
+		})
+		if err != nil {
+			return 0, fmt.Errorf("query %s markers: %w", eventType, err)
+		}
+		for _, event := range eventsList {
+			agentEvent, err := transcript.UnmarshalAgentEvent(event.Content)
+			if err != nil {
+				logger := h.Logger
+				if logger == nil {
+					logger = slog.Default()
+				}
+				logger.Warn(
+					"api: skip invalid transcript marker event while counting pending markers",
+					"event_id", event.ID,
+					"event_type", eventType,
+					"session_id", sessionID,
+					"error", err,
+				)
+				continue
+			}
+			marker, ok := transcript.ParseMarker(agentEvent.Raw)
+			if !ok {
+				continue
+			}
+			allMarkers = append(allMarkers, markerWithSequence{
+				Sequence:  event.Sequence,
+				EventType: eventType,
+				Marker:    marker.Normalize(),
+			})
+		}
+	}
+	if len(allMarkers) == 0 {
+		return 0, nil
+	}
+	sort.SliceStable(allMarkers, func(i int, j int) bool {
+		return allMarkers[i].Sequence < allMarkers[j].Sequence
+	})
+	var runtimeRecoveredAfter int64
+	redactedAfterByKind := make(map[string]int64)
+	for _, item := range allMarkers {
+		kind := strings.TrimSpace(item.Marker.Kind)
+		if item.EventType == events.TranscriptMarkerCreated &&
+			kind == transcript.MarkerSessionRecovered &&
+			item.Sequence > runtimeRecoveredAfter {
+			runtimeRecoveredAfter = item.Sequence
+			continue
+		}
+		if item.EventType == events.TranscriptMarkerRedacted && item.Sequence > redactedAfterByKind[kind] {
+			redactedAfterByKind[kind] = item.Sequence
+		}
+	}
+	pending := 0
+	for _, item := range allMarkers {
+		if item.EventType != events.TranscriptMarkerCreated {
+			continue
+		}
+		kind := strings.TrimSpace(item.Marker.Kind)
+		if item.Sequence <= redactedAfterByKind[kind] {
+			continue
+		}
+		if transcriptMarkerRuntimeOpenKind(kind) && item.Sequence > runtimeRecoveredAfter {
+			pending++
+			continue
+		}
+		if transcriptMarkerDurableOpenKind(kind) {
+			pending++
+		}
+	}
+	return pending, nil
+}
+
+type markerWithSequence struct {
+	Sequence  int64
+	EventType string
+	Marker    transcript.Marker
+}
+
+func transcriptMarkerRuntimeOpenKind(kind string) bool {
+	switch strings.TrimSpace(kind) {
+	case transcript.MarkerSessionUnhealthy,
+		transcript.MarkerPromptTimeout:
+		return true
+	default:
+		return false
+	}
+}
+
+func transcriptMarkerDurableOpenKind(kind string) bool {
+	switch strings.TrimSpace(kind) {
+	case transcript.MarkerProviderFailure,
+		transcript.MarkerMCPAuthRequired:
+		return true
+	default:
+		return false
+	}
 }
 
 func (h *BaseHandlers) recentTranscriptMarkers(

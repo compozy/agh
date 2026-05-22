@@ -114,6 +114,31 @@ func TestInspectTaskDiagnostics(t *testing.T) {
 		}
 	})
 
+	t.Run("Should not emit stranded diagnostic while scheduler is paused", func(t *testing.T) {
+		t.Parallel()
+
+		reader := inspectReaderForTest{scheduler: InspectSchedulerState{Paused: true}}
+		manager, now := newInspectManagerForTest(t, reader)
+		seedInspectTaskRun(t, manager.store.(*inMemoryManagerStore), inspectSeed{
+			TaskID:    "task-inspect-paused-scheduler",
+			RunID:     "run-inspect-paused-scheduler",
+			Status:    TaskRunStatusQueued,
+			QueuedAt:  now.Add(-10 * time.Minute),
+			ClaimedAt: time.Time{},
+		})
+
+		view, err := manager.InspectTask(context.Background(), "task-inspect-paused-scheduler", validActorContext())
+		if err != nil {
+			t.Fatalf("InspectTask() error = %v", err)
+		}
+		if inspectCodesContain(view.Diagnostics, diagnosticcontract.CodeTaskRunStranded) {
+			t.Fatalf("diagnostics = %#v, want no %s", view.Diagnostics, diagnosticcontract.CodeTaskRunStranded)
+		}
+		if view.NextAction != InspectNextActionWaitingForSession {
+			t.Fatalf("NextAction = %q, want %q", view.NextAction, InspectNextActionWaitingForSession)
+		}
+	})
+
 	t.Run("Should emit orphan diagnostic for terminal bound session", func(t *testing.T) {
 		t.Parallel()
 
@@ -146,6 +171,42 @@ func TestInspectTaskDiagnostics(t *testing.T) {
 		}
 		if view.BoundSession == nil || view.BoundSession.State != "stopped" {
 			t.Fatalf("BoundSession = %#v, want stopped session", view.BoundSession)
+		}
+	})
+
+	t.Run("Should not emit crashed diagnostic when a later retry exists", func(t *testing.T) {
+		t.Parallel()
+
+		manager, now := newInspectManagerForTest(t, inspectReaderForTest{})
+		store := manager.store.(*inMemoryManagerStore)
+		seedInspectTaskRun(t, store, inspectSeed{
+			TaskID:   "task-inspect-crashed-retry",
+			RunID:    "run-inspect-crashed",
+			Status:   TaskRunStatusFailed,
+			QueuedAt: now.Add(-10 * time.Minute),
+		})
+		failedRun := store.runs["run-inspect-crashed"]
+		failedRun.Error = "provider exited before completion"
+		store.runs["run-inspect-crashed"] = failedRun
+		store.runs["run-inspect-retry"] = Run{
+			ID:            "run-inspect-retry",
+			TaskID:        "task-inspect-crashed-retry",
+			Status:        TaskRunStatusQueued,
+			Attempt:       2,
+			PreviousRunID: "run-inspect-crashed",
+			Origin:        Origin{Kind: OriginKindCLI, Ref: "task.inspect.test"},
+			QueuedAt:      now.Add(-time.Minute),
+		}
+
+		view, err := manager.InspectTask(context.Background(), "task-inspect-crashed-retry", validActorContext())
+		if err != nil {
+			t.Fatalf("InspectTask() error = %v", err)
+		}
+		if inspectCodesContain(view.Diagnostics, diagnosticcontract.CodeTaskRunCrashed) {
+			t.Fatalf("diagnostics = %#v, want no %s", view.Diagnostics, diagnosticcontract.CodeTaskRunCrashed)
+		}
+		if view.NextAction != InspectNextActionTerminal {
+			t.Fatalf("NextAction = %q, want %q", view.NextAction, InspectNextActionTerminal)
 		}
 	})
 }

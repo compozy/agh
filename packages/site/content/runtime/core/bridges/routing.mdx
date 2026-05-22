@@ -187,13 +187,18 @@ The HTTP endpoint for the same dry run is `POST /api/bridges/:id/test-delivery`.
 
 ## Friendly target resolver
 
-The bridge target directory lets operators resolve platform targets by stable provider identity or by
-the names adapters report from the platform. Resolution is read-only; it never sends a message.
+The bridge target directory lets operators resolve bridge targets by stable provider identity or by
+the names adapters report. Resolution is read-only; it never sends a message.
 
-Adapters report target snapshots, while the daemon owns validation, persistence, and freshness.
-Rows are keyed by canonical provider route, refresh on bridge connect and periodically while the
-adapter is connected, and remain in the directory when a later snapshot omits them so operators can
-distinguish stale cache from deletion.
+Adapters can report target snapshots from the platform. When an adapter does not implement native
+target enumeration, AGH falls back to the operator-declared delivery defaults for that bridge
+instance. The daemon owns validation, persistence, and freshness either way. Rows are keyed by
+canonical provider route, refresh on bridge connect and periodically while the adapter is connected,
+and remain in the directory when a later snapshot omits them so operators can distinguish stale cache
+from deletion.
+
+For v1, this fallback is the contract for bundled Slack, Discord, and Telegram target directories;
+platform API enumeration can be added by an adapter later without changing routing keys.
 
 The resolver checks in this order:
 

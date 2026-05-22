@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderWithTopbar } from "@/test/render-with-topbar";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -82,9 +83,24 @@ const restartBanner: RestartBanner = {
   dismiss: vi.fn(),
 };
 
+const supportBundleMock = vi.hoisted(() => ({
+  create: vi.fn(),
+  reset: vi.fn(),
+}));
+
 vi.mock("@tanstack/react-router", () => ({
   createFileRoute: () => (opts: { component: () => ReactNode }) => ({
     component: opts.component,
+  }),
+}));
+
+vi.mock("@/systems/support", () => ({
+  useSupportBundleDownload: () => ({
+    create: supportBundleMock.create,
+    operation: null,
+    isPending: false,
+    error: null,
+    reset: supportBundleMock.reset,
   }),
 }));
 
@@ -93,6 +109,9 @@ vi.mock("@/hooks/routes/use-settings-observability-page", () => ({
 }));
 
 beforeEach(() => {
+  supportBundleMock.create.mockReset();
+  supportBundleMock.create.mockResolvedValue(undefined);
+  supportBundleMock.reset.mockReset();
   pageState = {
     isLoading: false,
     error: null,
@@ -171,6 +190,16 @@ describe("ObservabilitySettingsPage", () => {
     expect(
       screen.getByTestId("settings-page-observability-support-bundle-consent")
     ).not.toBeChecked();
+  });
+
+  it("sends support bundle consent after checkbox approval", async () => {
+    const user = userEvent.setup();
+    render(<ObservabilitySettingsPage />);
+
+    await user.click(screen.getByTestId("settings-page-observability-support-bundle-consent"));
+    await user.click(screen.getByTestId("settings-page-observability-support-bundle-button"));
+
+    expect(supportBundleMock.create).toHaveBeenCalledWith({ includeStatus: true, yes: true });
   });
 
   it("renders the overview metric grid via @agh/ui Metric", () => {

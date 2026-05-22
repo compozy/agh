@@ -9,6 +9,7 @@ import (
 	"time"
 
 	diagnosticcontract "github.com/pedronauck/agh/internal/diagnosticcontract"
+	diagnosticitems "github.com/pedronauck/agh/internal/diagnostics"
 	eventspkg "github.com/pedronauck/agh/internal/events"
 	"github.com/pedronauck/agh/internal/store"
 )
@@ -97,6 +98,9 @@ func (m *Service) PauseTask(
 	previous, err := m.store.GetTask(ctx, taskID)
 	if err != nil {
 		return nil, err
+	}
+	if isTerminalTaskStatus(previous.Status) {
+		return nil, terminalTaskPauseError(previous)
 	}
 	if err := m.requireForceRunRate(actor, previous.ID); err != nil {
 		return nil, err
@@ -287,7 +291,9 @@ func (m *Service) DrainScheduler(
 		StartedAt: startedAt,
 	})
 
-	result, err := m.waitForSchedulerDrain(ctx, controlStore, timeout, startedAt)
+	drainCtx, cancelDrain := detachedSchedulerDrainContext(ctx, timeout)
+	defer cancelDrain()
+	result, err := m.waitForSchedulerDrain(drainCtx, controlStore, timeout, startedAt)
 	if err != nil {
 		return SchedulerDrainResult{}, err
 	}
@@ -319,6 +325,36 @@ func (m *Service) SchedulerBacklog(
 		return SchedulerBacklog{}, err
 	}
 	return controlStore.SchedulerBacklog(ctx, query)
+}
+
+func terminalTaskPauseError(record Task) error {
+	status := record.Status.Normalize()
+	item := diagnosticitems.NewItem(
+		"task.pause."+diagnosticcontract.CodeTaskRunAlreadyTerminal,
+		diagnosticcontract.CodeTaskRunAlreadyTerminal,
+		diagnosticcontract.CategoryTask,
+		"Task is already terminal",
+		fmt.Sprintf("Task %s is %s and cannot be paused.", record.ID, status),
+		diagnosticcontract.SeverityInfo,
+		diagnosticcontract.FreshnessLive,
+		diagnosticitems.WithSuggestedCommand(fmt.Sprintf("agh task inspect %s", record.ID)),
+		diagnosticitems.WithEvidence(map[string]any{
+			taskEvidenceIDKey: record.ID,
+			"task_status":     string(status),
+		}),
+	)
+	return diagnosticitems.NewStructuredError(item, ErrInvalidStatusTransition)
+}
+
+func detachedSchedulerDrainContext(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	drainWindow := timeout
+	if drainWindow <= 0 {
+		drainWindow = schedulerDrainPollInterval
+	}
+	return context.WithTimeout(context.WithoutCancel(ctx), drainWindow+schedulerDrainPollInterval)
 }
 
 func (m *Service) waitForSchedulerDrain(

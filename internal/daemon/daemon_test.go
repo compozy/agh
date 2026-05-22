@@ -4738,6 +4738,13 @@ func (f *fakeSessionManager) Transcript(context.Context, string) ([]transcript.U
 	return nil, nil
 }
 
+func (f *fakeSessionManager) InputQueueSummary(
+	context.Context,
+	string,
+) (session.InputQueueSummary, error) {
+	return session.InputQueueSummary{}, nil
+}
+
 func (f *fakeSessionManager) RepairSession(
 	_ context.Context,
 	opts session.RepairOpts,

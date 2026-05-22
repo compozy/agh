@@ -27,6 +27,11 @@ const (
 	extensionRegistryGitHub         = "github"
 )
 
+var (
+	errExtensionMarketplaceNotConfigured = errors.New("daemon: extensions marketplace is not configured")
+	errExtensionRegistryUnsupported      = errors.New("daemon: unsupported extension registry")
+)
+
 type extensionMarketplaceSourceLoader func(
 	context.Context,
 	aghconfig.ExtensionsMarketplaceConfig,
@@ -421,14 +426,14 @@ func defaultDaemonExtensionMarketplaceSourceLoader(
 ) ([]registrypkg.Source, error) {
 	registryName := strings.ToLower(strings.TrimSpace(cfg.Registry))
 	if registryName == "" && strings.TrimSpace(cfg.BaseURL) == "" {
-		return nil, errors.New("daemon: extensions marketplace is not configured")
+		return nil, errExtensionMarketplaceNotConfigured
 	}
 
 	switch registryName {
 	case extensionRegistryGitHub:
 		return []registrypkg.Source{registrygithub.NewClient(cfg.BaseURL)}, nil
 	default:
-		return nil, fmt.Errorf("daemon: unsupported extension registry %q", cfg.Registry)
+		return nil, fmt.Errorf("%w: %q", errExtensionRegistryUnsupported, cfg.Registry)
 	}
 }
 
@@ -520,12 +525,8 @@ func nativeExtensionSourceError(id toolspkg.ToolID, err error) error {
 }
 
 func isExtensionSourceError(err error) bool {
-	if err == nil {
-		return false
-	}
-	message := strings.ToLower(err.Error())
-	return strings.Contains(message, "marketplace") ||
-		strings.Contains(message, "registry source") ||
-		strings.Contains(message, "registry is not configured") ||
-		strings.Contains(message, "unsupported extension registry")
+	return errors.Is(err, extensionpkg.ErrMarketplaceSourceUnavailable) ||
+		errors.Is(err, extensionpkg.ErrExtensionChecksumUnverified) ||
+		errors.Is(err, errExtensionMarketplaceNotConfigured) ||
+		errors.Is(err, errExtensionRegistryUnsupported)
 }

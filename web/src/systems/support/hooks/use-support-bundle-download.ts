@@ -7,6 +7,7 @@ import type { SupportBundleDownloadResult, SupportBundleOperation } from "../typ
 
 interface SupportBundleDownloadInput {
   includeStatus?: boolean;
+  yes: true;
 }
 
 function supportBundleFileName(operation: SupportBundleOperation): string {
@@ -50,8 +51,9 @@ export function useSupportBundleDownload() {
   const mutation = useMutation({
     mutationFn: async ({
       includeStatus = true,
-    }: SupportBundleDownloadInput = {}): Promise<SupportBundleDownloadResult> => {
-      const created = await supportApi.create({ include_status: includeStatus });
+      yes,
+    }: SupportBundleDownloadInput): Promise<SupportBundleDownloadResult> => {
+      const created = await supportApi.create({ include_status: includeStatus, yes });
       setOperation(created);
       const completed = await waitForSupportBundle(created.operation_id);
       setOperation(completed);
@@ -66,7 +68,7 @@ export function useSupportBundleDownload() {
   });
 
   const create = useCallback(
-    (input?: SupportBundleDownloadInput) => mutation.mutateAsync(input ?? {}),
+    (input: SupportBundleDownloadInput) => mutation.mutateAsync(input),
     [mutation]
   );
 

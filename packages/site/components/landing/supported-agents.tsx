@@ -1,4 +1,13 @@
-import { Eyebrow } from "@agh/ui";
+"use client";
+
+import {
+  Eyebrow,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+  UIProvider,
+} from "@agh/ui";
 import {
   BlackboxLogo,
   ClaudeLogo,
@@ -100,6 +109,21 @@ export const PROVIDERS: Provider[] = [
   { id: "groq", name: "Groq", logo: <GroqLogo aria-hidden className="size-6" /> },
 ];
 
+// 14×4 scatter ribbon, '*' = logo slot, '.' = empty slot. Logo slots align 1:1
+// with PROVIDERS order; keep the '*' count in sync whenever PROVIDERS grows or
+// shrinks so the radial mask continues to fade the band ends instead of orphans.
+const QUILT_PATTERN = [
+  ".*..*.*.*..*.*",
+  "*.*.**.*.*..*.",
+  ".*.**.*.*.*.*.",
+  "*..*.*.*..*..*",
+] as const;
+const QUILT_COLS = QUILT_PATTERN[0].length;
+
+const QUILT_LAYOUT: readonly ("logo" | "empty")[] = QUILT_PATTERN.flatMap(row =>
+  Array.from(row, ch => (ch === "*" ? ("logo" as const) : ("empty" as const)))
+);
+
 /**
  * Compact strip showing which agent CLIs are supported. Frames each CLI as a
  * peer on AGH Network , the strip's job is to make the operator see their
@@ -124,22 +148,73 @@ export function SupportedAgents() {
           </Link>
         </div>
 
-        <ul className="grid w-full grid-cols-3 gap-2 sm:grid-cols-6 lg:w-auto lg:grid-cols-9">
-          {PROVIDERS.map(provider => (
-            <li key={provider.id}>
-              <div
-                className="flex h-16 w-full min-w-19 flex-col items-center justify-center gap-1 rounded-icon-well border border-line bg-canvas-soft px-2 transition-colors hover:border-accent/35"
-                title={provider.name}
-              >
-                <span aria-hidden="true" className="flex size-6 items-center justify-center">
-                  {provider.logo}
-                </span>
-                <Eyebrow className="text-subtle">{provider.id}</Eyebrow>
-              </div>
-            </li>
-          ))}
-        </ul>
+        <ProviderQuilt providers={PROVIDERS} />
       </div>
     </SectionFrame>
+  );
+}
+
+function ProviderQuilt({ providers }: { providers: Provider[] }) {
+  let logoCursor = 0;
+  return (
+    <div
+      // Radial mask fades only the band ends — vertical fade is muted because the ribbon is short.
+      className="relative mx-auto w-full max-w-md md:max-w-2xl lg:mx-0 lg:max-w-[40rem]"
+      style={{
+        maskImage: "radial-gradient(ellipse 85% 120% at center, black 60%, transparent 100%)",
+        WebkitMaskImage: "radial-gradient(ellipse 85% 120% at center, black 60%, transparent 100%)",
+      }}
+    >
+      <UIProvider>
+        <TooltipProvider delay={120}>
+          <ul
+            aria-label="Supported agent CLIs"
+            className="grid w-full gap-1.5"
+            style={{ gridTemplateColumns: `repeat(${QUILT_COLS}, minmax(0, 1fr))` }}
+          >
+            {QUILT_LAYOUT.map((slot, idx) => {
+              if (slot === "empty") {
+                return (
+                  <li
+                    key={`empty-${idx}`}
+                    aria-hidden="true"
+                    className="aspect-square rounded-icon-well border border-line-soft bg-canvas"
+                  />
+                );
+              }
+              const provider = providers[logoCursor];
+              logoCursor += 1;
+              if (!provider) {
+                return (
+                  <li
+                    key={`logo-missing-${idx}`}
+                    aria-hidden="true"
+                    className="aspect-square rounded-icon-well border border-line-soft bg-canvas"
+                  />
+                );
+              }
+              return (
+                <Tooltip key={provider.id}>
+                  <TooltipTrigger
+                    render={
+                      <li
+                        aria-label={provider.name}
+                        tabIndex={0}
+                        className="flex aspect-square cursor-default items-center justify-center rounded-icon-well border border-line bg-canvas-soft transition-colors hover:border-accent/35 focus-visible:border-accent/35 focus-visible:outline-none"
+                      />
+                    }
+                  >
+                    <span aria-hidden="true" className="flex items-center justify-center">
+                      {provider.logo}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>{provider.name}</TooltipContent>
+                </Tooltip>
+              );
+            })}
+          </ul>
+        </TooltipProvider>
+      </UIProvider>
+    </div>
   );
 }

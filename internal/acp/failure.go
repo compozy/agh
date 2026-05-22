@@ -182,6 +182,26 @@ func requestErrorDiagnosticText(reqErr *acpsdk.RequestError) string {
 	return strings.Join(parts, " ")
 }
 
+func requestErrorRaw(err error) json.RawMessage {
+	reqErr, ok := errors.AsType[*acpsdk.RequestError](err)
+	if !ok || reqErr == nil {
+		return nil
+	}
+	payload, marshalErr := json.Marshal(struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+		Data    any    `json:"data,omitempty"`
+	}{
+		Code:    reqErr.Code,
+		Message: reqErr.Message,
+		Data:    reqErr.Data,
+	})
+	if marshalErr != nil {
+		return nil
+	}
+	return payload
+}
+
 func firstNonEmptyFailureText(values ...string) string {
 	for _, value := range values {
 		if trimmed := strings.TrimSpace(value); trimmed != "" {

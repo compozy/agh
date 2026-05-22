@@ -2,8 +2,10 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -25,6 +27,8 @@ type promptSubmissionPath string
 const (
 	promptSubmissionPathUserFacing promptSubmissionPath = "user_facing"
 	promptSubmissionPathSynthetic  promptSubmissionPath = "synthetic"
+	jsonReasonFieldReason                               = "reason"
+	maxMCPAuthReasonJSONDepth                           = 16
 )
 
 type promptPumpLoopState struct {
@@ -844,12 +848,6 @@ func (m *Manager) emitTranscriptMarker(
 }
 
 func promptTranscriptMarker(event acp.AgentEvent) (string, string, map[string]any, bool) {
-	combined := strings.ToLower(strings.Join([]string{
-		event.Text,
-		event.Error,
-		runtimeActivityKind(event.Runtime),
-		runtimeActivityDetail(event.Runtime),
-	}, " "))
 	summary := firstNonEmpty(event.Text, event.Error, runtimeActivityDetail(event.Runtime))
 	evidence := map[string]any{
 		"event_type": event.Type,
@@ -866,20 +864,11 @@ func promptTranscriptMarker(event acp.AgentEvent) (string, string, map[string]an
 			firstNonEmpty(summary, "Steering input injected at tool result boundary."),
 			evidence,
 			true
-	case event.Type == acp.EventTypeRuntimeWarning && (strings.Contains(combined, "timeout") ||
-		strings.Contains(combined, "timed out") ||
-		strings.Contains(combined, "deadline exceeded")):
-		return transcript.MarkerPromptTimeout, firstNonEmpty(summary, "Runtime activity timed out."), evidence, true
-	case event.Type == acp.EventTypeRuntimeWarning && (strings.Contains(combined, "unhealthy") ||
-		strings.Contains(combined, string(store.SessionStallReasonProcessUnhealthy)) ||
-		strings.Contains(combined, "health check failed")):
-		return transcript.MarkerSessionUnhealthy, firstNonEmpty(summary, "Runtime health check failed."), evidence, true
 	case event.Type == acp.EventTypeError && event.Failure != nil:
 		failure := event.Failure.Normalize()
 		evidence["failure_kind"] = string(failure.Kind)
 		if failure.Kind == store.FailureProviderAuth || failure.Kind == store.FailurePermission {
-			if strings.Contains(combined, "mcp") &&
-				(strings.Contains(combined, "auth") || strings.Contains(combined, "login")) {
+			if eventHasMCPAuthReason(event) {
 				return transcript.MarkerMCPAuthRequired,
 					firstNonEmpty(summary, failure.Summary, "MCP authentication is required."),
 					evidence,
@@ -899,11 +888,69 @@ func promptTranscriptMarker(event acp.AgentEvent) (string, string, map[string]an
 	}
 }
 
-func runtimeActivityKind(activity *acp.RuntimeActivity) string {
-	if activity == nil {
-		return ""
+func eventHasMCPAuthReason(event acp.AgentEvent) bool {
+	if len(event.Raw) == 0 {
+		return false
 	}
-	return activity.LastActivityKind
+	var payload any
+	if err := json.Unmarshal(event.Raw, &payload); err != nil {
+		return false
+	}
+	return jsonValueHasMCPAuthReason(payload, 0)
+}
+
+func jsonValueHasMCPAuthReason(value any, depth int) bool {
+	if depth > maxMCPAuthReasonJSONDepth {
+		return false
+	}
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, nested := range typed {
+			if jsonReasonFieldHasMCPAuthReason(key, nested) {
+				return true
+			}
+			if jsonValueHasMCPAuthReason(nested, depth+1) {
+				return true
+			}
+		}
+	case []any:
+		return slices.ContainsFunc(typed, func(nested any) bool {
+			return jsonValueHasMCPAuthReason(nested, depth+1)
+		})
+	}
+	return false
+}
+
+func jsonReasonFieldHasMCPAuthReason(key string, value any) bool {
+	switch strings.TrimSpace(key) {
+	case jsonReasonFieldReason, "reason_code", "reason_codes", "code", "diagnostic_code":
+	default:
+		return false
+	}
+	switch typed := value.(type) {
+	case string:
+		return mcpAuthReasonCode(typed)
+	case []any:
+		for _, item := range typed {
+			if jsonReasonFieldHasMCPAuthReason(key, item) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func mcpAuthReasonCode(reason string) bool {
+	switch strings.TrimSpace(reason) {
+	case "mcp_auth_unconfigured",
+		"mcp_auth_required",
+		"mcp_auth_expired",
+		"mcp_auth_invalid",
+		"mcp_auth_refresh_failed":
+		return true
+	default:
+		return false
+	}
 }
 
 func runtimeActivityDetail(activity *acp.RuntimeActivity) string {

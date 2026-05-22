@@ -31748,9 +31748,6 @@ export interface operations {
               active_claim_count: number;
               /** Format: date-time */
               as_of: string;
-              drain_in_progress: boolean;
-              /** Format: date-time */
-              drain_started_at?: string | null;
               paused: boolean;
               /** Format: date-time */
               paused_at?: string | null;
@@ -32291,9 +32288,6 @@ export interface operations {
               active_claim_count: number;
               /** Format: date-time */
               as_of: string;
-              drain_in_progress: boolean;
-              /** Format: date-time */
-              drain_started_at?: string | null;
               paused: boolean;
               /** Format: date-time */
               paused_at?: string | null;
@@ -32443,9 +32437,6 @@ export interface operations {
               active_claim_count: number;
               /** Format: date-time */
               as_of: string;
-              drain_in_progress: boolean;
-              /** Format: date-time */
-              drain_started_at?: string | null;
               paused: boolean;
               /** Format: date-time */
               paused_at?: string | null;
@@ -32592,9 +32583,6 @@ export interface operations {
               active_claim_count: number;
               /** Format: date-time */
               as_of: string;
-              drain_in_progress: boolean;
-              /** Format: date-time */
-              drain_started_at?: string | null;
               paused: boolean;
               /** Format: date-time */
               paused_at?: string | null;
@@ -41643,10 +41631,11 @@ export interface operations {
       cookie?: never;
     };
     /** @description JSON request body */
-    requestBody?: {
+    requestBody: {
       content: {
         "application/json": {
           include_status?: boolean | null;
+          yes: boolean;
         };
       };
     };

@@ -127,6 +127,15 @@ func (s *service) Reload(ctx context.Context) (ApplyResult, error) {
 	}, nil
 }
 
+// ActiveConfig returns the daemon's last successfully applied config generation.
+func (s *service) ActiveConfig(ctx context.Context) (aghconfig.Config, error) {
+	state, err := s.ensureActiveConfigState(ctx)
+	if err != nil {
+		return aghconfig.Config{}, err
+	}
+	return state.config, nil
+}
+
 // ListApplyRecords returns apply history rows.
 func (s *service) ListApplyRecords(
 	ctx context.Context,

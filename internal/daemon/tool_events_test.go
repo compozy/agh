@@ -41,15 +41,15 @@ func TestDaemonToolEventSink(t *testing.T) {
 		summary := writer.summaries[0]
 		if summary.Type != eventspkg.ToolCallFailed ||
 			summary.Outcome != string(eventspkg.OutcomeFailure) ||
-			summary.Provider != string(toolspkg.SourceBuiltin) ||
+			summary.Provider != "" ||
 			!summary.Timestamp.Equal(now) {
-			t.Fatalf("summary = %#v, want registered failed tool event summary", summary)
+			t.Fatalf("summary = %#v, want registered failed tool event summary without synthetic provider", summary)
 		}
 		var stored toolspkg.ToolCallEvent
 		if err := json.Unmarshal(summary.Content, &stored); err != nil {
 			t.Fatalf("Unmarshal(summary.Content) error = %v", err)
 		}
-		if stored.Kind != event.Kind || stored.ToolID != event.ToolID {
+		if stored.Kind != event.Kind || stored.ToolID != event.ToolID || stored.SourceKind != event.SourceKind {
 			t.Fatalf("stored event = %#v, want %#v", stored, event)
 		}
 	})

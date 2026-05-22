@@ -443,7 +443,7 @@ function SupportBundleSection() {
       return;
     }
     setConsentError(null);
-    await supportBundle.create({ includeStatus: true });
+    await supportBundle.create({ includeStatus: true, yes: true });
   }, [approved, supportBundle]);
 
   return (

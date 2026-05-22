@@ -204,9 +204,14 @@ last error, and degradation metadata.
 ## Target directory
 
 Bridge adapters can report platform targets such as channels, rooms, users, groups, and threads.
-The adapter only returns snapshots. The daemon validates those snapshots, writes
+Adapters that do not implement native target enumeration use AGH's fallback snapshot from the bridge
+instance's operator-declared delivery defaults. The daemon validates snapshots, writes
 `bridge_target_directory`, and records the latest successful refresh time. The directory refreshes
 when an extension runtime connects and then every five minutes while that runtime remains connected.
+
+The bundled v1 Slack, Discord, and Telegram walkthroughs use those operator-declared delivery
+defaults for target snapshots. Native platform discovery such as Slack `conversations.list` is not
+part of the v1 target-directory contract.
 
 Each target stores the provider-derived immutable route, display name, normalized lookup key,
 optional qualifier, type, capabilities, `updated_at`, and `last_seen_at`. Missing targets are not

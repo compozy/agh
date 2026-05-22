@@ -174,7 +174,6 @@ describe("TasksRoute", () => {
     getSchedulerMock.mockResolvedValue({
       active_claim_count: 0,
       as_of: "2026-04-17T10:00:00Z",
-      drain_in_progress: false,
       paused: false,
       paused_task_count: 0,
       queued_run_count: 1,
@@ -193,7 +192,6 @@ describe("TasksRoute", () => {
       scheduler: {
         active_claim_count: 0,
         as_of: "2026-04-17T10:00:01Z",
-        drain_in_progress: false,
         paused: true,
         paused_task_count: 0,
         queued_run_count: 1,

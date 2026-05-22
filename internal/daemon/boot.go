@@ -32,6 +32,7 @@ import (
 	"github.com/pedronauck/agh/internal/notifications"
 	presetspkg "github.com/pedronauck/agh/internal/notifications/presets"
 	"github.com/pedronauck/agh/internal/observe"
+	"github.com/pedronauck/agh/internal/providers"
 	"github.com/pedronauck/agh/internal/resources"
 	"github.com/pedronauck/agh/internal/sandbox"
 	"github.com/pedronauck/agh/internal/sandbox/daytona"
@@ -1925,11 +1926,20 @@ func (d *Daemon) bootSupportBundles(state *bootState) error {
 	if state == nil {
 		return errors.New("daemon: boot support bundles state is required")
 	}
+	configSnapshot := support.ConfigSnapshotFunc(nil)
+	if activeSettings, ok := state.deps.Settings.(interface {
+		ActiveConfig(context.Context) (aghconfig.Config, error)
+	}); ok {
+		configSnapshot = func(ctx context.Context) (aghconfig.Config, error) {
+			return activeSettings.ActiveConfig(ctx)
+		}
+	}
 	snapshots := d.supportBundleSnapshotHandlers(state)
 	state.deps.SupportBundles = support.NewService(&support.Builder{
-		HomePaths: d.homePaths,
-		Config:    state.cfg,
-		Now:       d.now,
+		HomePaths:      d.homePaths,
+		Config:         state.cfg,
+		ConfigSnapshot: configSnapshot,
+		Now:            d.now,
 		Sources: support.Sources{
 			Status: func(ctx context.Context) (any, error) {
 				return snapshots.StatusSnapshot(ctx)
@@ -2039,7 +2049,10 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 		a.state.cfg = previous
 		a.daemon.config = previous
 		a.daemon.mu.Unlock()
+		return failures
 	}
+
+	providers.InvalidatePreStartCache()
 
 	return failures
 }

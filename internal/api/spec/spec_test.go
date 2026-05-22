@@ -1271,10 +1271,9 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"active_claim_count",
 					"queued_run_count",
 					"paused_task_count",
-					"drain_in_progress",
 					"as_of",
 				)
-				assertNotRequired(t, schedulerSchema, "paused_by", "paused_at", "paused_reason", "drain_started_at")
+				assertNotRequired(t, schedulerSchema, "paused_by", "paused_at", "paused_reason")
 
 				pauseScheduler := operationFor(t, doc, "/api/scheduler/pause", "POST")
 				if pauseScheduler.RequestBody == nil || pauseScheduler.RequestBody.Value == nil {

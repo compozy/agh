@@ -18,6 +18,7 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	aghconfig "github.com/pedronauck/agh/internal/config"
 	"github.com/pedronauck/agh/internal/toolruntime"
+	toolspkg "github.com/pedronauck/agh/internal/tools"
 )
 
 func TestDriverOptionsAndNormalization(t *testing.T) {
@@ -1219,6 +1220,30 @@ func TestHelperUtilities(t *testing.T) {
 	}
 	if requestError(errors.New("boom")) == nil {
 		t.Fatal("requestError(internal) = nil, want request error")
+	}
+	toolReqErr := requestError(toolspkg.NewToolError(
+		toolspkg.ErrorCodeUnavailable,
+		toolspkg.ToolID("mcp/github/search"),
+		"MCP login required",
+		errors.New("auth unavailable"),
+		toolspkg.ReasonMCPAuthRequired,
+	))
+	var reasonData struct {
+		ReasonCodes []string `json:"reason_codes"`
+	}
+	encoded, err := json.Marshal(toolReqErr.Data)
+	if err != nil {
+		t.Fatalf("json.Marshal(tool request error data) error = %v", err)
+	}
+	if err := json.Unmarshal(encoded, &reasonData); err != nil {
+		t.Fatalf("json.Unmarshal(tool request error data) error = %v", err)
+	}
+	if !slices.Contains(reasonData.ReasonCodes, string(toolspkg.ReasonMCPAuthRequired)) {
+		t.Fatalf(
+			"tool request error reason codes = %#v, want %q",
+			reasonData.ReasonCodes,
+			toolspkg.ReasonMCPAuthRequired,
+		)
 	}
 
 	buffer := &lockedBuffer{}

@@ -13,13 +13,15 @@ import (
 	"github.com/pedronauck/agh/internal/diagnostics"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/subprocess"
+	"github.com/pedronauck/agh/internal/transcript"
 )
 
 const (
-	runtimeActivityKindPromptStarted = "prompt_started"
-	runtimeActivityKindAgentWaiting  = "agent_waiting"
-	runtimeActivityKindWarning       = "warning"
-	runtimeActivityKindTimeout       = "timeout"
+	runtimeActivityKindPromptStarted   = "prompt_started"
+	runtimeActivityKindAgentWaiting    = "agent_waiting"
+	runtimeActivityKindWarning         = "warning"
+	runtimeActivityKindTimeout         = "timeout"
+	runtimeActivityEvidenceStallReason = "stall_reason"
 )
 
 type promptActivitySupervisor struct {
@@ -174,6 +176,23 @@ func (s *promptActivitySupervisor) finish(now time.Time) {
 		s.manager.sessionLogger(s.session).
 			Warn("session: persist runtime idle health failed", "turn_id", s.turnID, "error", err)
 	}
+}
+
+func (s *promptActivitySupervisor) emitRecoveredMarkerIfNeeded(reason string) {
+	if s == nil || s.manager == nil || s.session == nil {
+		return
+	}
+	if strings.TrimSpace(reason) == "" {
+		return
+	}
+	s.manager.emitTranscriptMarker(
+		s.ctx,
+		s.session,
+		s.turnID,
+		transcript.MarkerSessionRecovered,
+		"Runtime activity recovered.",
+		map[string]any{runtimeActivityEvidenceStallReason: reason},
+	)
 }
 
 func (s *promptActivitySupervisor) run() {
@@ -338,6 +357,14 @@ func (s *promptActivitySupervisor) recordRuntimeTimeout(now time.Time, stopDetai
 		s.manager.sessionLogger(s.session).
 			Warn("session: persist runtime timeout health failed", "turn_id", s.turnID, "error", err)
 	}
+	s.manager.emitTranscriptMarker(
+		s.ctx,
+		s.session,
+		s.turnID,
+		transcript.MarkerPromptTimeout,
+		"Runtime activity timed out.",
+		map[string]any{runtimeActivityEvidenceStallReason: stopDetail},
+	)
 }
 
 func (s *promptActivitySupervisor) cancelPromptAfterRuntimeTimeout() {
@@ -416,7 +443,6 @@ func (s *promptActivitySupervisor) recordWaitingHeartbeat(now time.Time, detail 
 	if processUnhealthy {
 		return
 	}
-
 	s.mu.Lock()
 	s.unhealthy = false
 	s.unhealthyWarned = false
@@ -437,7 +463,7 @@ func (s *promptActivitySupervisor) recordWaitingHeartbeat(now time.Time, detail 
 	}
 	s.mu.Unlock()
 
-	s.session.observeRuntimeActivity(activity, now)
+	stallState, stallReason := s.session.observeRuntimeActivity(activity, now)
 	if err := s.manager.writeMeta(s.session); err != nil {
 		s.manager.sessionLogger(s.session).
 			Warn("session: persist runtime heartbeat failed", "turn_id", s.turnID, "error", err)
@@ -445,6 +471,9 @@ func (s *promptActivitySupervisor) recordWaitingHeartbeat(now time.Time, detail 
 	if _, err := s.manager.persistSessionPromptActivity(s.ctx, s.session, lastActivityAt); err != nil {
 		s.manager.sessionLogger(s.session).
 			Warn("session: persist runtime heartbeat health failed", "turn_id", s.turnID, "error", err)
+	}
+	if stallState == store.SessionStallStateDetected {
+		s.emitRecoveredMarkerIfNeeded(stallReason)
 	}
 }
 
@@ -466,7 +495,6 @@ func (s *promptActivitySupervisor) touchWithTool(
 	if processUnhealthy && kind == runtimeActivityKindAgentWaiting {
 		return
 	}
-
 	s.mu.Lock()
 	s.unhealthy = false
 	s.unhealthyWarned = false
@@ -491,7 +519,7 @@ func (s *promptActivitySupervisor) touchWithTool(
 	activity := *store.CloneSessionActivityMeta(&s.activity)
 	s.mu.Unlock()
 
-	s.session.observeRuntimeActivity(activity, now)
+	stallState, stallReason := s.session.observeRuntimeActivity(activity, now)
 	if err := s.manager.writeMeta(s.session); err != nil {
 		s.manager.sessionLogger(s.session).
 			Warn("session: persist runtime activity failed", "turn_id", s.turnID, "error", err)
@@ -499,6 +527,9 @@ func (s *promptActivitySupervisor) touchWithTool(
 	if _, err := s.manager.persistSessionPromptActivity(s.ctx, s.session, lastActivityAt); err != nil {
 		s.manager.sessionLogger(s.session).
 			Warn("session: persist runtime activity health failed", "turn_id", s.turnID, "error", err)
+	}
+	if stallState == store.SessionStallStateDetected {
+		s.emitRecoveredMarkerIfNeeded(stallReason)
 	}
 }
 
@@ -700,6 +731,14 @@ func (s *promptActivitySupervisor) handleUnhealthyProcess(now time.Time, emitWar
 		}
 	}
 	if shouldWarn {
+		s.manager.emitTranscriptMarker(
+			s.ctx,
+			s.session,
+			s.turnID,
+			transcript.MarkerSessionUnhealthy,
+			"Runtime health check failed.",
+			map[string]any{runtimeActivityEvidenceStallReason: store.SessionStallReasonProcessUnhealthy},
+		)
 		s.emitRuntimeEvent(acp.EventTypeRuntimeWarning, unhealthyProcessText(health), now, nil)
 	}
 	return true

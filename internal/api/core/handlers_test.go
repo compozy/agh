@@ -430,25 +430,139 @@ func TestSessionRecapIncludesRedactedObserverMarkers(t *testing.T) {
 		if err != nil {
 			t.Fatalf("json.Marshal(marker) error = %v", err)
 		}
+		openMarker, err := transcript.NewMarker(
+			transcript.MarkerSessionUnhealthy,
+			"Runtime health check failed.",
+			occurredAt.Add(-500*time.Millisecond),
+			map[string]any{"stall_reason": store.SessionStallReasonProcessUnhealthy},
+		)
+		if err != nil {
+			t.Fatalf("transcript.NewMarker(open) error = %v", err)
+		}
+		recoveredMarker, err := transcript.NewMarker(
+			transcript.MarkerSessionRecovered,
+			"Runtime activity recovered.",
+			occurredAt.Add(-250*time.Millisecond),
+			map[string]any{"stall_reason": store.SessionStallReasonProcessUnhealthy},
+		)
+		if err != nil {
+			t.Fatalf("transcript.NewMarker(recovered) error = %v", err)
+		}
+		providerMarker, err := transcript.NewMarker(
+			transcript.MarkerProviderFailure,
+			"Provider failed.",
+			occurredAt.Add(250*time.Millisecond),
+			map[string]any{"failure_kind": string(store.FailurePrompt)},
+		)
+		if err != nil {
+			t.Fatalf("transcript.NewMarker(provider) error = %v", err)
+		}
+		preRecoveryProviderMarker, err := transcript.NewMarker(
+			transcript.MarkerProviderFailure,
+			"Provider auth failed before runtime recovery.",
+			occurredAt.Add(-750*time.Millisecond),
+			map[string]any{"failure_kind": string(store.FailureProviderAuth)},
+		)
+		if err != nil {
+			t.Fatalf("transcript.NewMarker(preRecoveryProvider) error = %v", err)
+		}
+		markerEventContent := func(marker transcript.Marker, turnID string) string {
+			t.Helper()
+			agentEvent, err := marker.AgentEvent("sess-a", turnID)
+			if err != nil {
+				t.Fatalf("marker.AgentEvent(%s) error = %v", marker.Kind, err)
+			}
+			content, err := transcript.MarshalAgentEvent(agentEvent)
+			if err != nil {
+				t.Fatalf("transcript.MarshalAgentEvent(%s) error = %v", marker.Kind, err)
+			}
+			return content
+		}
 
 		manager := testutil.StubSessionManager{
 			StatusFn: func(context.Context, string) (*session.Info, error) {
 				return testutil.NewSessionInfo("sess-a"), nil
 			},
 			EventsFn: func(_ context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error) {
-				if id != "sess-a" || query.Limit != 500 {
-					t.Fatalf("Events() call = %q %#v, want recap query", id, query)
+				if id != "sess-a" {
+					t.Fatalf("Events() id = %q, want sess-a", id)
 				}
-				return []store.SessionEvent{{
-					ID:        "ev-1",
-					SessionID: id,
-					Sequence:  1,
-					TurnID:    "turn-1",
-					Type:      "agent_message",
-					AgentName: "coder",
-					Content:   `{"text":"hello"}`,
-					Timestamp: occurredAt.Add(-time.Second),
-				}}, nil
+				switch query.Type {
+				case "":
+					if query.Limit != 500 {
+						t.Fatalf("Events() query = %#v, want recap query limit 500", query)
+					}
+					return []store.SessionEvent{{
+						ID:        "ev-1",
+						SessionID: id,
+						Sequence:  1,
+						TurnID:    "turn-1",
+						Type:      "agent_message",
+						AgentName: "coder",
+						Content:   `{"text":"hello"}`,
+						Timestamp: occurredAt.Add(-time.Second),
+					}}, nil
+				case events.TranscriptMarkerCreated:
+					if query.Limit != 500 {
+						t.Fatalf("Events() created marker limit = %d, want %d", query.Limit, 500)
+					}
+					return []store.SessionEvent{
+						{
+							ID:        "ev-marker-provider-before-recovery",
+							SessionID: id,
+							Sequence:  1,
+							TurnID:    "turn-provider-before",
+							Type:      events.TranscriptMarkerCreated,
+							AgentName: "coder",
+							Content:   markerEventContent(preRecoveryProviderMarker, "turn-provider-before"),
+							Timestamp: occurredAt.Add(-750 * time.Millisecond),
+						},
+						{
+							ID:        "ev-marker-open",
+							SessionID: id,
+							Sequence:  2,
+							TurnID:    "turn-open",
+							Type:      events.TranscriptMarkerCreated,
+							AgentName: "coder",
+							Content:   markerEventContent(openMarker, "turn-open"),
+							Timestamp: occurredAt.Add(-500 * time.Millisecond),
+						},
+						{
+							ID:        "ev-marker-recovered",
+							SessionID: id,
+							Sequence:  3,
+							TurnID:    "turn-open",
+							Type:      events.TranscriptMarkerCreated,
+							AgentName: "coder",
+							Content:   markerEventContent(recoveredMarker, "turn-open"),
+							Timestamp: occurredAt.Add(-250 * time.Millisecond),
+						},
+						{
+							ID:        "ev-marker-provider",
+							SessionID: id,
+							Sequence:  4,
+							TurnID:    "turn-provider",
+							Type:      events.TranscriptMarkerCreated,
+							AgentName: "coder",
+							Content:   markerEventContent(providerMarker, "turn-provider"),
+							Timestamp: occurredAt.Add(250 * time.Millisecond),
+						},
+					}, nil
+				case events.TranscriptMarkerRedacted:
+					if query.Limit != 500 {
+						t.Fatalf("Events() redacted marker limit = %d, want %d", query.Limit, 500)
+					}
+					return nil, nil
+				default:
+					t.Fatalf("unexpected Events() query = %#v", query)
+					return nil, nil
+				}
+			},
+			InputQueueFn: func(_ context.Context, id string) (session.InputQueueSummary, error) {
+				if id != "sess-a" {
+					t.Fatalf("InputQueueSummary() id = %q, want sess-a", id)
+				}
+				return session.InputQueueSummary{QueueGeneration: 7, PendingInputs: 2}, nil
 			},
 		}
 		observer := testutil.StubObserver{
@@ -492,6 +606,18 @@ func TestSessionRecapIncludesRedactedObserverMarkers(t *testing.T) {
 		}
 		if got, want := payload.Recap.RecentMarkers[0].Kind, transcript.MarkerPromptInterrupted; got != want {
 			t.Fatalf("recent_markers[0].Kind = %q, want %q", got, want)
+		}
+		if got, want := payload.Recap.PendingInputs, 2; got != want {
+			t.Fatalf("pending_inputs = %d, want %d", got, want)
+		}
+		if got, want := payload.Recap.PendingMarkers, 2; got != want {
+			t.Fatalf("pending_markers = %d, want %d", got, want)
+		}
+		if got, want := payload.Recap.Snapshot.QueueGeneration, int64(7); got != want {
+			t.Fatalf("snapshot.queue_generation = %d, want %d", got, want)
+		}
+		if got, want := payload.Recap.Snapshot.Consistency, "persisted_reads"; got != want {
+			t.Fatalf("snapshot.consistency = %q, want %q", got, want)
 		}
 	})
 }

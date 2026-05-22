@@ -75,6 +75,13 @@ func TestRegistryMetadata(t *testing.T) {
 		if failed.Outcome != OutcomeFailure || failed.Component != ComponentTask || !failed.NotificationEligible {
 			t.Fatalf("TaskRunFailed metadata = %#v", failed)
 		}
+		retry, ok := Lookup(TaskRunOperatorRetry)
+		if !ok {
+			t.Fatal("Lookup(TaskRunOperatorRetry) = false")
+		}
+		if retry.Outcome != OutcomeInfo || retry.Component != ComponentTask || !retry.NotificationEligible {
+			t.Fatalf("TaskRunOperatorRetry metadata = %#v", retry)
+		}
 		shadowed, ok := Lookup(SkillShadowed)
 		if !ok {
 			t.Fatal("Lookup(SkillShadowed) = false")

@@ -12,6 +12,12 @@ import (
 	"github.com/pedronauck/agh/internal/store"
 )
 
+// InputQueueSummary is the session package projection of durable busy-input queue state.
+type InputQueueSummary struct {
+	QueueGeneration int64
+	PendingInputs   int
+}
+
 // ListAll returns active and stopped sessions discovered from on-disk metadata.
 func (m *Manager) ListAll(ctx context.Context) ([]*Info, error) {
 	if ctx == nil {
@@ -102,6 +108,28 @@ func (m *Manager) Status(ctx context.Context, id string) (*Info, error) {
 		return nil, err
 	}
 	return m.sessionInfoFromMeta(ctx, meta), nil
+}
+
+// InputQueueSummary returns the durable busy-input state for one session.
+func (m *Manager) InputQueueSummary(ctx context.Context, id string) (InputQueueSummary, error) {
+	if ctx == nil {
+		return InputQueueSummary{}, errors.New("session: input queue summary context is required")
+	}
+	target := strings.TrimSpace(id)
+	if target == "" {
+		return InputQueueSummary{}, errors.New("session: session id is required")
+	}
+	if m.inputQueueStore == nil {
+		return InputQueueSummary{}, nil
+	}
+	summary, err := m.inputQueueStore.SessionInputQueueSummary(ctx, target)
+	if err != nil {
+		return InputQueueSummary{}, fmt.Errorf("session: read input queue summary for %q: %w", target, err)
+	}
+	return InputQueueSummary{
+		QueueGeneration: summary.Generation,
+		PendingInputs:   summary.PendingActive,
+	}, nil
 }
 
 // Events returns persisted session events for active or stopped sessions.

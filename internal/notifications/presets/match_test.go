@@ -23,6 +23,13 @@ func TestNotificationPresetMatchingAndFilters(t *testing.T) {
 		if !MatchesAny([]string{"task.run_*"}, eventspkg.TaskRunCompleted) {
 			t.Fatal("MatchesAny(task.run_*) = false, want task.run_completed match")
 		}
+		if !MatchesAny([]string{"task.run_*"}, eventspkg.TaskRunOperatorRetry) {
+			t.Fatal("MatchesAny(task.run_*) = false, want task.run_operator_retry match")
+		}
+		retry, ok := eventspkg.Lookup(eventspkg.TaskRunOperatorRetry)
+		if !ok || !retry.NotificationEligible {
+			t.Fatalf("TaskRunOperatorRetry metadata = %#v, want notification eligible", retry)
+		}
 		if MatchesAny([]string{"task.run_*"}, eventspkg.SessionUnhealthy) {
 			t.Fatal("MatchesAny(task.run_*) matched session.unhealthy, want family isolation")
 		}

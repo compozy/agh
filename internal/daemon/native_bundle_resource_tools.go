@@ -273,16 +273,25 @@ func nativeBundleActivationScope(
 	activationScope := bundlepkg.Scope(strings.TrimSpace(input.Scope)).Normalize()
 	if activationScope == "" {
 		activationScope = bundlepkg.ScopeGlobal
-		if !scope.Operator && strings.TrimSpace(scope.WorkspaceID) != "" {
+		if strings.TrimSpace(scope.WorkspaceID) != "" {
 			activationScope = bundlepkg.ScopeWorkspace
 		}
 	}
 	if !scope.Operator && strings.TrimSpace(scope.WorkspaceID) != "" && activationScope != bundlepkg.ScopeWorkspace {
 		return "", "", nativeScopeMismatchError(id, "scope")
 	}
-	workspaceID, err := nativeCallerWorkspaceInput(id, "workspace", input.Workspace, scope)
-	if err != nil {
-		return "", "", err
+	workspaceID := ""
+	if activationScope == bundlepkg.ScopeWorkspace {
+		resolved, err := nativeCallerWorkspaceInput(id, "workspace", input.Workspace, scope)
+		if err != nil {
+			return "", "", err
+		}
+		if strings.TrimSpace(resolved) == "" {
+			return "", "", nativeRequiredInputError(id, "workspace")
+		}
+		workspaceID = resolved
+	} else if strings.TrimSpace(input.Workspace) != "" {
+		return "", "", nativeScopeMismatchError(id, "workspace")
 	}
 	return activationScope, workspaceID, nil
 }

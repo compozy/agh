@@ -978,6 +978,7 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 			Timestamp: timeNowUTC(),
 			Error:     firstNonEmptyFailureText(failureSummary(failure), err.Error()),
 			Failure:   failure,
+			Raw:       requestErrorRaw(err),
 		}
 		proc.emitPromptEvent(event)
 		return

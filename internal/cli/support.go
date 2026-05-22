@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 const (
@@ -77,7 +78,8 @@ func newSupportBundleCommand(deps commandDeps) *cobra.Command {
 }
 
 func runSupportBundleCommand(cmd *cobra.Command, deps commandDeps, opts supportBundleOptions) error {
-	if err := confirmSupportBundleCreation(cmd, opts.yes); err != nil {
+	confirmed, err := confirmSupportBundleCreation(cmd, opts.yes)
+	if err != nil {
 		return err
 	}
 	client, err := clientFromDeps(deps)
@@ -86,6 +88,7 @@ func runSupportBundleCommand(cmd *cobra.Command, deps commandDeps, opts supportB
 	}
 	includeStatus := !opts.noStatus
 	created, err := client.CreateSupportBundle(cmd.Context(), CreateSupportBundleRequest{
+		Yes:           confirmed,
 		IncludeStatus: &includeStatus,
 	})
 	if err != nil {
@@ -108,31 +111,40 @@ func runSupportBundleCommand(cmd *cobra.Command, deps commandDeps, opts supportB
 	})
 }
 
-func confirmSupportBundleCreation(cmd *cobra.Command, yes bool) error {
+func confirmSupportBundleCreation(cmd *cobra.Command, yes bool) (bool, error) {
 	if yes {
-		return nil
+		return true, nil
 	}
 	mode, err := resolveSupportBundleOutputFormat(cmd)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if mode != OutputHuman {
-		return errors.New("cli: support bundle creation requires --yes for structured output")
+		return false, errors.New("cli: support bundle creation requires --yes for structured output")
+	}
+	input := cmd.InOrStdin()
+	if !supportBundleInputIsTerminal(input) {
+		return false, errors.New("cli: support bundle creation requires --yes when stdin is not interactive")
 	}
 	message := "Support bundles include redacted config, log tail, provider metadata, " +
 		"event summaries, and status artifacts. Create support bundle? [y/N] "
 	if _, err := fmt.Fprint(cmd.ErrOrStderr(), message); err != nil {
-		return fmt.Errorf("cli: write support bundle consent prompt: %w", err)
+		return false, fmt.Errorf("cli: write support bundle consent prompt: %w", err)
 	}
-	line, err := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
+	line, err := bufio.NewReader(input).ReadString('\n')
 	if err != nil && !errors.Is(err, io.EOF) {
-		return fmt.Errorf("cli: read support bundle consent: %w", err)
+		return false, fmt.Errorf("cli: read support bundle consent: %w", err)
 	}
 	answer := strings.ToLower(strings.TrimSpace(line))
 	if answer != "y" && answer != yesFlagName {
-		return errors.New("cli: support bundle creation declined")
+		return false, errors.New("cli: support bundle creation declined")
 	}
-	return nil
+	return true, nil
+}
+
+func supportBundleInputIsTerminal(input io.Reader) bool {
+	file, ok := input.(*os.File)
+	return ok && term.IsTerminal(int(file.Fd()))
 }
 
 func resolveSupportBundleOutputFormat(cmd *cobra.Command) (OutputFormat, error) {

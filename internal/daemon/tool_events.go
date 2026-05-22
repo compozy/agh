@@ -44,7 +44,6 @@ func (s *daemonToolEventSink) EmitToolEvent(ctx context.Context, event toolspkg.
 		WorkspaceID: event.WorkspaceID,
 		SessionID:   event.SessionID,
 		AgentName:   event.AgentName,
-		Provider:    string(event.SourceKind),
 		Outcome:     string(eventspkg.OutcomeFor(eventType)),
 		Content:     content,
 		Summary:     fmt.Sprintf("%s %s", event.ToolID, event.Kind),

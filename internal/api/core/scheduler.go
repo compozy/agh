@@ -254,8 +254,6 @@ func SchedulerStatusPayloadFromDomain(status taskpkg.SchedulerStatus) contract.S
 		ActiveClaimCount: status.ActiveClaimCount,
 		QueuedRunCount:   status.QueuedRunCount,
 		PausedTaskCount:  status.PausedTaskCount,
-		DrainInProgress:  status.DrainInProgress,
-		DrainStartedAt:   optionalTime(status.DrainStartedAt),
 		AsOf:             status.AsOf,
 	}
 }

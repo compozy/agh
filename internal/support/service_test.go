@@ -144,6 +144,42 @@ func TestBuilderBuild(t *testing.T) {
 			t.Fatalf("status manifest artifact = %#v, want disabled omission", artifact)
 		}
 	})
+
+	t.Run("Should write active config snapshot when available", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newSupportTestHome(t)
+		bootConfig := aghconfig.DefaultWithHome(homePaths)
+		bootConfig.Defaults.Provider = "boot-provider"
+		activeConfig := bootConfig
+		activeConfig.Defaults.Provider = "active-provider"
+		called := false
+		builder := Builder{
+			HomePaths: homePaths,
+			Config:    bootConfig,
+			ConfigSnapshot: func(context.Context) (aghconfig.Config, error) {
+				called = true
+				return activeConfig, nil
+			},
+			Now: func() time.Time { return time.Date(2026, 5, 20, 13, 30, 0, 0, time.UTC) },
+		}
+
+		operation, err := builder.Build(t.Context(), "op_active_config", CreateRequest{IncludeStatus: true})
+		if err != nil {
+			t.Fatalf("Build() error = %v", err)
+		}
+		if !called {
+			t.Fatal("ConfigSnapshot() was not called")
+		}
+		files := readSupportBundleArchive(t, operation.FilePath)
+		var captured aghconfig.Config
+		if err := json.Unmarshal(files["config-redacted.json"], &captured); err != nil {
+			t.Fatalf("json.Unmarshal(config-redacted.json) error = %v", err)
+		}
+		if got, want := captured.Defaults.Provider, "active-provider"; got != want {
+			t.Fatalf("config-redacted defaults.provider = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestServiceCreate(t *testing.T) {

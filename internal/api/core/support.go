@@ -8,12 +8,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/pedronauck/agh/internal/api/contract"
+	"github.com/pedronauck/agh/internal/diagnostics"
 	"github.com/pedronauck/agh/internal/support"
 )
 
 const supportBundlesPathPrefix = "/api/support/bundles/"
 
 var errSupportBundleServiceUnavailable = errors.New("support bundle service is not configured")
+var errSupportBundleConsentRequired = errors.New("support bundle consent required")
 
 // CreateSupportBundle starts an asynchronous daemon-owned support bundle operation.
 func (h *BaseHandlers) CreateSupportBundle(c *gin.Context) {
@@ -27,6 +29,10 @@ func (h *BaseHandlers) CreateSupportBundle(c *gin.Context) {
 			h.respondError(c, http.StatusBadRequest, err)
 			return
 		}
+	}
+	if !request.Yes {
+		h.respondError(c, http.StatusBadRequest, supportBundleConsentError())
+		return
 	}
 	includeStatus := true
 	if request.IncludeStatus != nil {
@@ -71,6 +77,22 @@ func (h *BaseHandlers) DownloadSupportBundle(c *gin.Context) {
 	}
 	c.Header("Content-Type", "application/gzip")
 	c.FileAttachment(path, strings.TrimSpace(op.FileName))
+}
+
+func supportBundleConsentError() error {
+	detail := "Support bundle creation requires explicit consent because bundles include redacted config, " +
+		"log tails, provider metadata, event summaries, and status artifacts."
+	item := diagnostics.NewItem(
+		"support.bundle.consent_required",
+		contract.CodeBundleConsentRequired,
+		contract.CategoryDaemon,
+		"Support bundle consent required",
+		detail,
+		contract.SeverityError,
+		contract.FreshnessLive,
+		diagnostics.WithSuggestedCommand("agh support bundle --yes"),
+	)
+	return diagnostics.NewStructuredError(item, errSupportBundleConsentRequired)
 }
 
 func detachedRequestContext(ctx context.Context) (context.Context, context.CancelFunc) {

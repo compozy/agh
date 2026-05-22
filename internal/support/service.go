@@ -88,6 +88,8 @@ type ManifestArtifact struct {
 
 type SnapshotFunc func(context.Context) (any, error)
 
+type ConfigSnapshotFunc func(context.Context) (aghconfig.Config, error)
+
 type Sources struct {
 	Status             SnapshotFunc
 	Doctor             SnapshotFunc
@@ -100,6 +102,7 @@ type Sources struct {
 type Builder struct {
 	HomePaths            aghconfig.HomePaths
 	Config               aghconfig.Config
+	ConfigSnapshot       ConfigSnapshotFunc
 	Sources              Sources
 	Now                  func() time.Time
 	BundleMaxBytes       int64
@@ -301,7 +304,7 @@ func (b *Builder) addArtifacts(
 		b.eventSummaryMaxBytes(),
 	)
 	b.addSnapshotArtifact(ctx, writer, manifest, "sessions.json", true, b.Sources.Sessions, artifactMax)
-	b.addConfigArtifact(writer, manifest)
+	b.addConfigArtifact(ctx, writer, manifest)
 	b.addLogTailArtifact(writer, manifest)
 	b.addVersionsArtifact(writer, manifest)
 	b.addHomeTreeArtifact(writer, manifest)
@@ -415,8 +418,17 @@ func (b *Builder) addSnapshotArtifact(
 	}
 }
 
-func (b *Builder) addConfigArtifact(writer *bundleArchiveWriter, manifest *Manifest) {
-	if err := writer.addJSON("config-redacted.json", b.Config, b.artifactMaxBytes(), true, manifest); err != nil {
+func (b *Builder) addConfigArtifact(ctx context.Context, writer *bundleArchiveWriter, manifest *Manifest) {
+	cfg := b.Config
+	if b.ConfigSnapshot != nil {
+		var err error
+		cfg, err = b.ConfigSnapshot(ctx)
+		if err != nil {
+			manifest.omit("config-redacted.json", diagnostics.RedactAndBound(err.Error(), 512))
+			return
+		}
+	}
+	if err := writer.addJSON("config-redacted.json", cfg, b.artifactMaxBytes(), true, manifest); err != nil {
 		manifest.omit("config-redacted.json", diagnostics.RedactAndBound(err.Error(), 512))
 	}
 }

@@ -3,6 +3,7 @@ package contract
 import "time"
 
 type CreateSupportBundleRequest struct {
+	Yes           bool  `json:"yes"`
 	IncludeStatus *bool `json:"include_status,omitempty"`
 }
 

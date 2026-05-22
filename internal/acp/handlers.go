@@ -11,6 +11,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/pedronauck/agh/internal/store"
+	toolspkg "github.com/pedronauck/agh/internal/tools"
 )
 
 const (
@@ -413,6 +414,7 @@ func (p *AgentProcess) dispatchSteerPrompt(ctx context.Context, input SteerInput
 			Timestamp: timeNowUTC(),
 			Error:     fmt.Sprintf("dispatch staged steer input: %v", err),
 			Failure:   failure,
+			Raw:       requestErrorRaw(err),
 		})
 	}
 }
@@ -698,12 +700,53 @@ func requestError(err error) *acpsdk.RequestError {
 	if requestErr, ok := errors.AsType[*acpsdk.RequestError](err); ok {
 		return requestErr
 	}
+	if data, ok := toolErrorRequestData(err); ok {
+		return acpsdk.NewInternalError(data)
+	}
 	if errors.Is(err, ErrPermissionDenied) || errors.Is(err, ErrInvalidPath) ||
 		errors.Is(err, ErrPathOutsideWorkspace) ||
 		errors.Is(err, ErrToolBlockedForNetworkTurn) {
 		return acpsdk.NewInvalidParams(map[string]any{EventTypeError: err.Error()})
 	}
 	return acpsdk.NewInternalError(map[string]any{EventTypeError: err.Error()})
+}
+
+func toolErrorRequestData(err error) (map[string]any, bool) {
+	var toolErr *toolspkg.ToolError
+	if errors.As(err, &toolErr) && toolErr != nil {
+		data := map[string]any{
+			EventTypeError: err.Error(),
+			"tool_code":    string(toolErr.Code),
+		}
+		if string(toolErr.ToolID) != "" {
+			data["tool_id"] = string(toolErr.ToolID)
+		}
+		if len(toolErr.ReasonCodes) > 0 {
+			data["reason_codes"] = reasonCodesAsStrings(toolErr.ReasonCodes)
+		}
+		return data, true
+	}
+	if validation, ok := errors.AsType[*toolspkg.ValidationError](err); ok {
+		data := map[string]any{
+			EventTypeError: err.Error(),
+			"reason":       string(validation.Reason),
+		}
+		if strings.TrimSpace(validation.Field) != "" {
+			data["field"] = strings.TrimSpace(validation.Field)
+		}
+		return data, true
+	}
+	return nil, false
+}
+
+func reasonCodesAsStrings(reasons []toolspkg.ReasonCode) []string {
+	values := make([]string, 0, len(reasons))
+	for _, reason := range reasons {
+		if trimmed := strings.TrimSpace(string(reason)); trimmed != "" {
+			values = append(values, trimmed)
+		}
+	}
+	return values
 }
 
 func sliceLines(content string, line, limit *int) string {

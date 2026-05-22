@@ -76,10 +76,11 @@ The built-ins are:
 | `provider_failure`  | `provider.auth_required`, `provider.rate_limited`, `provider.permission_denied`, `provider.unavailable` |
 
 Event patterns use canonical registry names. Suffix wildcards are limited to a public event family,
-so `task.run_*` matches `task.run_completed` and `task.run_failed` without matching session or
-provider events. Optional filters support the documented comparison grammar over event fields such
-as `severity`, `workspace`, `agent`, `provider`, and `event_type`; AGH rejects arbitrary CEL or
-script expressions.
+so `task.run_*` matches notification-eligible task run events such as `task.run_completed`,
+`task.run_failed`, and `task.run_operator_retry` without matching session or provider events.
+Optional filters support the documented comparison grammar over event fields such as `severity`,
+`workspace`, `agent`, `provider`, and `event_type`; AGH rejects arbitrary CEL or script
+expressions.
 
 Preset fanout uses one cursor per concrete target:
 
@@ -97,8 +98,9 @@ The dispatcher advances that cursor only after one of three terminal outcomes:
 | deterministic skip | Advances to the event sequence. | Preset disabled, targetless, filter miss, or cursor replay. |
 | bridge suppression | Advances to the event sequence. | The bridge has `notification_suppress = true`; no delivery. |
 
-Transient delivery failures record `last_error` and do not advance, so replay can retry without
-skipping the event.
+Preset dispatch processes targets sequentially and applies the configured bridge delivery timeout to
+each target. Transient delivery failures record `last_error` and do not advance, so replay can retry
+without skipping the event.
 
 ## Bridge task subscription lifecycle
 
@@ -235,6 +237,9 @@ agh notifications preset disable provider_ops -o json
 # Delete only custom presets. Built-ins cannot be deleted.
 agh notifications preset delete provider_ops -o json
 ```
+
+The `--target` value is `bridge_id:canonical_route`. The CLI splits on the first colon, so the
+canonical route itself may contain additional colons.
 
 Generated reference for each verb:
 

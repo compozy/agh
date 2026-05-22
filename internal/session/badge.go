@@ -30,6 +30,7 @@ type BadgeInputs struct {
 	Failure             *store.SessionFailure
 	PendingAuth         bool
 	ActivePrompt        bool
+	Stalled             bool
 	IneligibilityReason string
 }
 
@@ -46,6 +47,9 @@ func CanonicalBadge(input BadgeInputs) Badge {
 	}
 	if input.PendingAuth || failureKindIsAuth(failure) {
 		return BadgeWaitingForAuth
+	}
+	if input.Stalled {
+		return BadgeHung
 	}
 	if input.IneligibilityReason == string(heartbeat.SessionHealthReasonHung) ||
 		input.Health == heartbeat.SessionHealthDead ||
@@ -84,6 +88,7 @@ func BadgeForInfo(info *Info) Badge {
 		State:       info.State,
 		Failure:     info.Failure,
 		PendingAuth: infoFailureNeedsAuth(info.Failure),
+		Stalled:     infoHasDetectedStall(info),
 		ActivePrompt: info.Liveness != nil &&
 			info.Liveness.Activity != nil &&
 			strings.TrimSpace(info.Liveness.Activity.TurnID) != "",
@@ -103,6 +108,9 @@ func AttachableForInfo(info *Info, now time.Time) bool {
 	if info.Failure != nil && strings.TrimSpace(string(info.Failure.Kind)) != "" {
 		return false
 	}
+	if infoHasDetectedStall(info) {
+		return false
+	}
 	if strings.TrimSpace(info.AttachedTo) == "" || info.AttachExpiresAt == nil {
 		return true
 	}
@@ -110,6 +118,12 @@ func AttachableForInfo(info *Info, now time.Time) bool {
 		now = time.Now().UTC()
 	}
 	return !info.AttachExpiresAt.After(now.UTC())
+}
+
+func infoHasDetectedStall(info *Info) bool {
+	return info != nil &&
+		info.Liveness != nil &&
+		strings.TrimSpace(info.Liveness.StallState) == store.SessionStallStateDetected
 }
 
 // BadgeForHealth computes a badge from an explicit health row, preserving

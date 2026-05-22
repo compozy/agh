@@ -15,8 +15,6 @@ type SchedulerStatusPayload struct {
 	ActiveClaimCount int        `json:"active_claim_count"`
 	QueuedRunCount   int        `json:"queued_run_count"`
 	PausedTaskCount  int        `json:"paused_task_count"`
-	DrainInProgress  bool       `json:"drain_in_progress"`
-	DrainStartedAt   *time.Time `json:"drain_started_at,omitempty"`
 	AsOf             time.Time  `json:"as_of"`
 }
 

@@ -3,16 +3,19 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/pedronauck/agh/internal/acp"
 	aghconfig "github.com/pedronauck/agh/internal/config"
+	eventspkg "github.com/pedronauck/agh/internal/events"
 	"github.com/pedronauck/agh/internal/heartbeat"
 	"github.com/pedronauck/agh/internal/store"
 	"github.com/pedronauck/agh/internal/subprocess"
 	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/pedronauck/agh/internal/transcript"
 )
 
 func TestPromptActivitySupervisorReportPersistsHeartbeatWithoutEvent(t *testing.T) {
@@ -439,6 +442,85 @@ func TestPromptActivitySupervisorTimeoutCancelsThenStopsSession(t *testing.T) {
 	if meta.Liveness == nil || meta.Liveness.Activity != nil {
 		t.Fatalf("meta.Liveness = %#v, want cleared activity after forced stop", meta.Liveness)
 	}
+	marker := requireTranscriptMarker(t, h.manager, session.ID, transcript.MarkerPromptTimeout)
+	if got, want := marker.Evidence["stall_reason"], store.SessionStallReasonActivityTimeout; got != want {
+		t.Fatalf("timeout marker stall_reason = %#v, want %q", got, want)
+	}
+}
+
+func TestPromptActivitySupervisorRecordsRecoveredMarker(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should persist recovered marker when activity clears a stalled session", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 22, 10, 15, 0, 0, time.UTC)
+		h := newHarness(t, WithNow(func() time.Time { return now }))
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil &&
+				!errors.Is(err, ErrSessionNotFound) {
+				t.Errorf("Stop() cleanup error = %v", err)
+			}
+		})
+
+		supervisor := newPromptActivitySupervisor(
+			testutil.Context(t),
+			h.manager,
+			session,
+			newPromptTurnDispatchState(session, "turn-recovered", TurnSourceUser, "hello"),
+			testSupervisionConfig(),
+		)
+		session.markRuntimeStalled(store.SessionStallReasonProcessUnhealthy, now)
+		supervisor.touch(now.Add(time.Second), runtimeActivityKindAgentWaiting, "provider responded")
+
+		meta := readMeta(t, session.MetaPath())
+		if meta.Liveness == nil {
+			t.Fatal("meta.Liveness = nil, want liveness after recovery")
+		}
+		if meta.Liveness.StallState != "" || meta.Liveness.StallReason != "" {
+			t.Fatalf("meta.Liveness stall = %#v, want cleared after recovery", meta.Liveness)
+		}
+		marker := requireTranscriptMarker(t, h.manager, session.ID, transcript.MarkerSessionRecovered)
+		if got, want := marker.Evidence["stall_reason"], store.SessionStallReasonProcessUnhealthy; got != want {
+			t.Fatalf("recovered marker stall_reason = %#v, want %q", got, want)
+		}
+	})
+
+	t.Run("Should emit one recovered marker for repeated activity after one stall", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 22, 10, 20, 0, 0, time.UTC)
+		h := newHarness(t, WithNow(func() time.Time { return now }))
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil &&
+				!errors.Is(err, ErrSessionNotFound) {
+				t.Errorf("Stop() cleanup error = %v", err)
+			}
+		})
+
+		supervisor := newPromptActivitySupervisor(
+			testutil.Context(t),
+			h.manager,
+			session,
+			newPromptTurnDispatchState(session, "turn-recovered-once", TurnSourceUser, "hello"),
+			testSupervisionConfig(),
+		)
+		session.markRuntimeStalled(store.SessionStallReasonActivityTimeout, now)
+		supervisor.touch(now.Add(time.Second), runtimeActivityKindAgentWaiting, "provider responded")
+		supervisor.touch(now.Add(2*time.Second), runtimeActivityKindAgentWaiting, "provider responded again")
+
+		got := countTranscriptMarkers(
+			t,
+			h.manager,
+			session.ID,
+			transcript.MarkerSessionRecovered,
+		)
+		if want := 1; got != want {
+			t.Fatalf("recovered marker count = %d, want %d", got, want)
+		}
+	})
 }
 
 func TestPromptActivitySupervisorPromptDeadlineStopsWithDeadlineDetail(t *testing.T) {
@@ -642,6 +724,56 @@ func drainPromptEvents(t *testing.T, events <-chan acp.AgentEvent) {
 			t.Fatal("timed out waiting for prompt event channel to close")
 		}
 	}
+}
+
+func requireTranscriptMarker(t *testing.T, manager *Manager, sessionID string, kind string) transcript.Marker {
+	t.Helper()
+
+	eventsList, err := manager.Events(
+		testutil.Context(t),
+		sessionID,
+		store.EventQuery{Type: eventspkg.TranscriptMarkerCreated},
+	)
+	if err != nil {
+		t.Fatalf("Events(transcript marker) error = %v", err)
+	}
+	for _, event := range eventsList {
+		agentEvent, err := transcript.UnmarshalAgentEvent(event.Content)
+		if err != nil {
+			t.Fatalf("transcript.UnmarshalAgentEvent(%s) error = %v", event.ID, err)
+		}
+		marker, ok := transcript.ParseMarker(agentEvent.Raw)
+		if ok && marker.Kind == kind {
+			return marker.Normalize()
+		}
+	}
+	t.Fatalf("transcript marker %q not found in %#v", kind, eventsList)
+	return transcript.Marker{}
+}
+
+func countTranscriptMarkers(t *testing.T, manager *Manager, sessionID string, kind string) int {
+	t.Helper()
+
+	eventsList, err := manager.Events(
+		testutil.Context(t),
+		sessionID,
+		store.EventQuery{Type: eventspkg.TranscriptMarkerCreated},
+	)
+	if err != nil {
+		t.Fatalf("Events(transcript marker) error = %v", err)
+	}
+	count := 0
+	for _, event := range eventsList {
+		agentEvent, err := transcript.UnmarshalAgentEvent(event.Content)
+		if err != nil {
+			t.Fatalf("transcript.UnmarshalAgentEvent(%s) error = %v", event.ID, err)
+		}
+		marker, ok := transcript.ParseMarker(agentEvent.Raw)
+		if ok && marker.Kind == kind {
+			count++
+		}
+	}
+	return count
 }
 
 func storedEventsContainType(events []store.SessionEvent, eventType string) bool {
