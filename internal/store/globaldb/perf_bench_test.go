@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/bridges"
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/agh/internal/store"
 )
 
 func BenchmarkReplaceBridgeInstances(b *testing.B) {

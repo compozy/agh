@@ -12,15 +12,15 @@ import (
 	"sync"
 	"time"
 
-	automationpkg "github.com/pedronauck/agh/internal/automation"
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	modelpkg "github.com/pedronauck/agh/internal/bundles/model"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	extensionpkg "github.com/pedronauck/agh/internal/extension"
-	"github.com/pedronauck/agh/internal/heartbeat"
-	"github.com/pedronauck/agh/internal/resources"
-	"github.com/pedronauck/agh/internal/soul"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	automationpkg "github.com/compozy/agh/internal/automation"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	modelpkg "github.com/compozy/agh/internal/bundles/model"
+	aghconfig "github.com/compozy/agh/internal/config"
+	extensionpkg "github.com/compozy/agh/internal/extension"
+	"github.com/compozy/agh/internal/heartbeat"
+	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/agh/internal/soul"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 const (

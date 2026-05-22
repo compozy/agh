@@ -3,7 +3,7 @@ package contract
 import (
 	"time"
 
-	taskpkg "github.com/pedronauck/agh/internal/task"
+	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 // SchedulerStatusPayload exposes scheduler-wide pause state and queue pressure.

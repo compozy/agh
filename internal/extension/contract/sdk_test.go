@@ -3,7 +3,7 @@ package contract
 import (
 	"testing"
 
-	"github.com/pedronauck/agh/internal/hooks"
+	"github.com/compozy/agh/internal/hooks"
 )
 
 func TestHookContractsResolveDescriptors(t *testing.T) {

@@ -11,9 +11,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/pedronauck/agh/internal/diagnostics"
-	"github.com/pedronauck/agh/internal/notifications"
-	taskpkg "github.com/pedronauck/agh/internal/task"
+	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/notifications"
+	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 const (

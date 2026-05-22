@@ -444,7 +444,7 @@ func TestImportBoundary(t *testing.T) {
 			"list",
 			"-f",
 			"{{join .Imports \"\\n\"}}",
-			"github.com/pedronauck/agh/internal/memory/contract",
+			"github.com/compozy/agh/internal/memory/contract",
 		)
 		cmd.Dir = repoRoot
 		output, err := cmd.CombinedOutput()
@@ -453,11 +453,11 @@ func TestImportBoundary(t *testing.T) {
 		}
 
 		forbiddenPrefixes := []string{
-			"github.com/pedronauck/agh/internal/memory/",
-			"github.com/pedronauck/agh/internal/api",
-			"github.com/pedronauck/agh/internal/cli",
-			"github.com/pedronauck/agh/internal/daemon",
-			"github.com/pedronauck/agh/internal/extension",
+			"github.com/compozy/agh/internal/memory/",
+			"github.com/compozy/agh/internal/api",
+			"github.com/compozy/agh/internal/cli",
+			"github.com/compozy/agh/internal/daemon",
+			"github.com/compozy/agh/internal/extension",
 		}
 		for imported := range strings.FieldsSeq(string(output)) {
 			for _, forbidden := range forbiddenPrefixes {

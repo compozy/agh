@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pedronauck/agh/internal/config/lifecycle"
+	"github.com/compozy/agh/internal/config/lifecycle"
 )
 
 const (

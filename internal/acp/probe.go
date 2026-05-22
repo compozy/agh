@@ -9,7 +9,7 @@ import (
 
 	"golang.org/x/sys/execabs"
 
-	"github.com/pedronauck/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/diagnostics"
 )
 
 const (

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
+	aghconfig "github.com/compozy/agh/internal/config"
 )
 
 // ErrTokenNotFound reports missing persisted MCP auth state for one server.

@@ -7,12 +7,12 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/compozy/agh/internal/api/contract"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/skills"
+	skillmarketplace "github.com/compozy/agh/internal/skills/marketplace"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/skills"
-	skillmarketplace "github.com/pedronauck/agh/internal/skills/marketplace"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 // ListSkills returns skills for the selected workspace or global scope.

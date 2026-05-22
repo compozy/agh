@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	aghdaemon "github.com/pedronauck/agh/internal/daemon"
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/api/contract"
+	aghdaemon "github.com/compozy/agh/internal/daemon"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 type contractDaemonProcess struct {

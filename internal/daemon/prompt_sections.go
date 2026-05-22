@@ -6,9 +6,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/pedronauck/agh/internal/session"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
-	skillbundled "github.com/pedronauck/agh/skills"
+	"github.com/compozy/agh/internal/session"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
+	skillbundled "github.com/compozy/agh/skills"
 )
 
 const (
@@ -34,7 +34,7 @@ const (
 	startupMemorySectionBudget    = 24_000
 	startupSoulSectionBudget      = 16_000
 	startupSkillsSectionBudget    = 16_000
-	startupToolsSectionBudget     = 12_000
+	startupToolsSectionBudget     = 16_000
 	startupNetworkSectionBudget   = 12_000
 )
 

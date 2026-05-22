@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	aghupdate "github.com/pedronauck/agh/internal/update"
+	aghupdate "github.com/compozy/agh/internal/update"
 	"github.com/spf13/cobra"
 )
 

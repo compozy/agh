@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
 )
 
 func TestRenderInboundMessageFamilyLines(t *testing.T) {

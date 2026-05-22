@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/sandbox"
+	"github.com/compozy/agh/internal/sandbox"
 )
 
 func TestDaytonaProviderSyncFromRuntimeExtractionErrorClosesRemoteProducerContract(t *testing.T) {

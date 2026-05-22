@@ -3,7 +3,7 @@ package session
 import (
 	"context"
 
-	"github.com/pedronauck/agh/internal/acp"
+	"github.com/compozy/agh/internal/acp"
 )
 
 func (m *Manager) notifyAgentEvent(ctx context.Context, session *Session, event any) {

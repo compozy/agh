@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
+	aghconfig "github.com/compozy/agh/internal/config"
 )
 
 func NewTestHomePaths(t *testing.T) aghconfig.HomePaths {

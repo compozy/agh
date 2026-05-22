@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	"github.com/compozy/agh/internal/api/contract"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
 )
 
 type bridgeProviderCatalog struct {

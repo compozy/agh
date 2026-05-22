@@ -336,10 +336,10 @@ describe("NetworkSection", () => {
 describe("InstallSection", () => {
   it("renders three install tabs and the three CLI steps", () => {
     render(<InstallSection />);
-    expect(screen.getByRole("tab", { name: "curl" })).toBeDefined();
-    expect(screen.getByRole("tab", { name: "Package manager" })).toBeDefined();
-    expect(screen.getByRole("tab", { name: "Build from source" })).toBeDefined();
-    expect(screen.getByText("curl -fsSL https://agh.network/install.sh | sh")).toBeDefined();
+    expect(screen.getByRole("tab", { name: "Homebrew" })).toBeDefined();
+    expect(screen.getByRole("tab", { name: "npm" })).toBeDefined();
+    expect(screen.getByRole("tab", { name: "Go" })).toBeDefined();
+    expect(screen.getByText("brew install compozy/compozy/agh")).toBeDefined();
     expect(screen.getByText("Bootstrap your AGH home")).toBeDefined();
     expect(screen.getByText("Start the daemon")).toBeDefined();
     expect(screen.getByText("Launch a real session")).toBeDefined();
@@ -348,34 +348,34 @@ describe("InstallSection", () => {
   it("wires tab roles, panels, and keyboard navigation", () => {
     render(<InstallSection />);
 
-    const curl = screen.getByRole("tab", { name: "curl" });
-    const packageManager = screen.getByRole("tab", { name: "Package manager" });
-    const source = screen.getByRole("tab", { name: "Build from source" });
+    const homebrew = screen.getByRole("tab", { name: "Homebrew" });
+    const npm = screen.getByRole("tab", { name: "npm" });
+    const go = screen.getByRole("tab", { name: "Go" });
 
-    expect(curl.getAttribute("id")).toBe("install-tab-curl");
-    expect(curl.getAttribute("aria-controls")).toBe("install-panel-curl");
-    expect(curl.getAttribute("tabindex")).toBe("0");
-    expect(packageManager.getAttribute("tabindex")).toBe("-1");
-    expect(source.getAttribute("tabindex")).toBe("-1");
+    expect(homebrew.getAttribute("id")).toBe("install-tab-homebrew");
+    expect(homebrew.getAttribute("aria-controls")).toBe("install-panel-homebrew");
+    expect(homebrew.getAttribute("tabindex")).toBe("0");
+    expect(npm.getAttribute("tabindex")).toBe("-1");
+    expect(go.getAttribute("tabindex")).toBe("-1");
 
-    fireEvent.keyDown(curl, { key: "ArrowRight" });
+    fireEvent.keyDown(homebrew, { key: "ArrowRight" });
 
-    expect(packageManager.getAttribute("aria-selected")).toBe("true");
+    expect(npm.getAttribute("aria-selected")).toBe("true");
     let panel = screen.getByRole("tabpanel");
-    expect(panel.getAttribute("id")).toBe("install-panel-package");
-    expect(panel.getAttribute("aria-labelledby")).toBe("install-tab-package");
+    expect(panel.getAttribute("id")).toBe("install-panel-npm");
+    expect(panel.getAttribute("aria-labelledby")).toBe("install-tab-npm");
 
-    fireEvent.keyDown(packageManager, { key: "End" });
+    fireEvent.keyDown(npm, { key: "End" });
 
-    expect(source.getAttribute("aria-selected")).toBe("true");
+    expect(go.getAttribute("aria-selected")).toBe("true");
     panel = screen.getByRole("tabpanel");
-    expect(panel.getAttribute("id")).toBe("install-panel-source");
+    expect(panel.getAttribute("id")).toBe("install-panel-go");
 
-    fireEvent.keyDown(source, { key: "Home" });
+    fireEvent.keyDown(go, { key: "Home" });
 
-    expect(curl.getAttribute("aria-selected")).toBe("true");
+    expect(homebrew.getAttribute("aria-selected")).toBe("true");
     panel = screen.getByRole("tabpanel");
-    expect(panel.getAttribute("id")).toBe("install-panel-curl");
+    expect(panel.getAttribute("id")).toBe("install-panel-homebrew");
   });
 });
 

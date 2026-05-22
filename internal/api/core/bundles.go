@@ -8,11 +8,11 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/compozy/agh/internal/api/contract"
+	bundlepkg "github.com/compozy/agh/internal/bundles"
+	extensionpkg "github.com/compozy/agh/internal/extension"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	bundlepkg "github.com/pedronauck/agh/internal/bundles"
-	extensionpkg "github.com/pedronauck/agh/internal/extension"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func (h *BaseHandlers) ListBundleCatalog(c *gin.Context) {

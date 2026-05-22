@@ -5,8 +5,8 @@ package bridges_test
 import (
 	"testing"
 
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	"github.com/pedronauck/agh/internal/testutil"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestRegistryGlobalAndWorkspaceRoutesStayIsolated(t *testing.T) {

@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/diagnosticcontract"
-	"github.com/pedronauck/agh/internal/diagnostics"
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/compozy/agh/internal/diagnosticcontract"
+	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/store"
 )
 
 // Store is the persistence boundary for busy input.

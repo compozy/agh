@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/compozy/agh/internal/agentidentity"
+	"github.com/compozy/agh/internal/api/contract"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/agentidentity"
-	"github.com/pedronauck/agh/internal/api/contract"
 )
 
 const (

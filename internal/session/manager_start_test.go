@@ -3,7 +3,7 @@ package session
 import (
 	"testing"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
+	aghconfig "github.com/compozy/agh/internal/config"
 )
 
 func TestSessionStartEnvFiltersDaemonSecrets(t *testing.T) {

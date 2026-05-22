@@ -13,14 +13,14 @@ import (
 	"strings"
 	"time"
 
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
 
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/frontmatter"
+	"github.com/compozy/agh/internal/memory"
+	ssepkg "github.com/compozy/agh/internal/sse"
+	aghworkspace "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/frontmatter"
-	"github.com/pedronauck/agh/internal/memory"
-	ssepkg "github.com/pedronauck/agh/internal/sse"
-	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
 
 const (

@@ -3,8 +3,8 @@ package core
 import (
 	"sync"
 
-	"github.com/pedronauck/agh/internal/diagnostics"
-	"github.com/pedronauck/agh/internal/vault"
+	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/vault"
 )
 
 var vaultSecretRedactions vaultSecretRedactionRegistry

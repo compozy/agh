@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	automationpkg "github.com/pedronauck/agh/internal/automation"
-	"github.com/pedronauck/agh/internal/resources"
+	automationpkg "github.com/compozy/agh/internal/automation"
+	"github.com/compozy/agh/internal/resources"
 )
 
 type automationResourceProjectorTarget interface {

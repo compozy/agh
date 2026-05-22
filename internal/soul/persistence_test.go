@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
+	aghconfig "github.com/compozy/agh/internal/config"
 )
 
 func TestSoulPersistenceSnapshotHelpers(t *testing.T) {

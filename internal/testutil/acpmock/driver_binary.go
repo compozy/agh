@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
+	aghconfig "github.com/compozy/agh/internal/config"
 )
 
 const driverBinaryEnvVar = "AGH_TEST_ACPMOCK_DRIVER_BIN"

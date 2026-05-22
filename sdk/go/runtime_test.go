@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	aghsdk "github.com/pedronauck/agh/sdk/go"
+	aghsdk "github.com/compozy/agh/sdk/go"
 )
 
 func TestStdioTransportBidirectionalCalls(t *testing.T) {

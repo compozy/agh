@@ -14,11 +14,11 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	"github.com/pedronauck/agh/internal/bridgesdk"
-	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
-	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
-	"github.com/pedronauck/agh/internal/subprocess"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/agh/internal/bridgesdk"
+	extensioncontract "github.com/compozy/agh/internal/extension/contract"
+	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	"github.com/compozy/agh/internal/subprocess"
 )
 
 func TestMapTelegramUpdateToInboundEnvelope(t *testing.T) {

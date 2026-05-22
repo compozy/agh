@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pedronauck/agh/internal/store"
-	aghworkspace "github.com/pedronauck/agh/internal/workspace"
+	"github.com/compozy/agh/internal/store"
+	aghworkspace "github.com/compozy/agh/internal/workspace"
 )
 
 // InsertWorkspace creates a new persisted workspace registration row.

@@ -15,12 +15,12 @@ import (
 	"github.com/kballard/go-shellquote"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/diagnostics"
-	authproviders "github.com/pedronauck/agh/internal/providers"
-	"github.com/pedronauck/agh/internal/sandbox"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/toolruntime"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/diagnostics"
+	authproviders "github.com/compozy/agh/internal/providers"
+	"github.com/compozy/agh/internal/sandbox"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/toolruntime"
 )
 
 const (

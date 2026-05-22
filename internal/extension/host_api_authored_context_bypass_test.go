@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	apicontract "github.com/pedronauck/agh/internal/api/contract"
-	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
-	"github.com/pedronauck/agh/internal/heartbeat"
+	apicontract "github.com/compozy/agh/internal/api/contract"
+	extensioncontract "github.com/compozy/agh/internal/extension/contract"
+	"github.com/compozy/agh/internal/heartbeat"
 )
 
 func TestHostAPIAuthoredContextWriteBypassRejections(t *testing.T) {

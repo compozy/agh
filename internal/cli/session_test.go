@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/acp"
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/session"
+	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/session"
 )
 
 func TestParseSinceFlagRFC3339(t *testing.T) {

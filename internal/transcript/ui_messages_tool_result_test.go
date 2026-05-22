@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/acp"
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/agh/internal/store"
 )
 
 func TestToUIMessagesToolResultContract(t *testing.T) {

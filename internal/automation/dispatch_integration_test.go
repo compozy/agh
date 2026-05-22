@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/store/globaldb"
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestDispatcherIntegrationDifferentActivationKindsShareConcurrencyGate(t *testing.T) {

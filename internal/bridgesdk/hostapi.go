@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	extensioncontract "github.com/compozy/agh/internal/extension/contract"
 )
 
 // CallFunc issues one typed Host API request.

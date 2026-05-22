@@ -40,9 +40,9 @@ builds:
         goarch: arm64
     ldflags:
       - -s -w
-      - -X github.com/pedronauck/agh/internal/version.Version={{ .Version }}
-      - -X github.com/pedronauck/agh/internal/version.Commit={{ .ShortCommit }}
-      - -X github.com/pedronauck/agh/internal/version.BuildDate={{ .Date }}
+      - -X github.com/compozy/agh/internal/version.Version={{ .Version }}
+      - -X github.com/compozy/agh/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/compozy/agh/internal/version.BuildDate={{ .Date }}
     env:
       - CGO_ENABLED=0
     flags:
@@ -102,6 +102,18 @@ nfpms:
     formats:
       - deb
       - rpm
+
+npms:
+  - name: "@compozy/agh"
+    ids:
+      - agh-archive
+    description: "AGH — Artificial General Hivemind"
+    repository: "git+https://github.com/compozy/agh.git"
+    bugs: "https://github.com/compozy/agh/issues"
+    access: public
+    format: tar.gz
+    license: "BSL-1.1"
+    homepage: "https://agh.network"
 
 checksum:
   name_template: "checksums.txt"

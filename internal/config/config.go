@@ -14,11 +14,11 @@ import (
 	"strings"
 	"time"
 
-	automationpkg "github.com/pedronauck/agh/internal/automation/model"
-	"github.com/pedronauck/agh/internal/extension/surfaces"
-	"github.com/pedronauck/agh/internal/resources"
-	"github.com/pedronauck/agh/internal/sandbox"
-	"github.com/pedronauck/agh/internal/vault"
+	automationpkg "github.com/compozy/agh/internal/automation/model"
+	"github.com/compozy/agh/internal/extension/surfaces"
+	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/agh/internal/sandbox"
+	"github.com/compozy/agh/internal/vault"
 )
 
 const (

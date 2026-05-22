@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestRunMigrationsAppliedRegistryContract(t *testing.T) {

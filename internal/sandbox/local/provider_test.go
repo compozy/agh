@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/sandbox"
-	"github.com/pedronauck/agh/internal/sandbox/providertest"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/sandbox"
+	"github.com/compozy/agh/internal/sandbox/providertest"
 )
 
 func TestLocalProviderBackend(t *testing.T) {

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/bridges"
+	"github.com/compozy/agh/internal/bridges"
 )
 
 type discardWriteCloser struct {

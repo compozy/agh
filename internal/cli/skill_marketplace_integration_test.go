@@ -9,11 +9,11 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	registrypkg "github.com/pedronauck/agh/internal/registry"
-	"github.com/pedronauck/agh/internal/skills"
-	"github.com/pedronauck/agh/internal/testutil"
-	skillbundled "github.com/pedronauck/agh/skills"
+	aghconfig "github.com/compozy/agh/internal/config"
+	registrypkg "github.com/compozy/agh/internal/registry"
+	"github.com/compozy/agh/internal/skills"
+	"github.com/compozy/agh/internal/testutil"
+	skillbundled "github.com/compozy/agh/skills"
 )
 
 func TestSkillSearchInstallListRemoveIntegrationFlow(t *testing.T) {

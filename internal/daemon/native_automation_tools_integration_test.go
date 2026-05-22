@@ -12,15 +12,15 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/pedronauck/agh/internal/acp"
-	apitest "github.com/pedronauck/agh/internal/api/testutil"
-	automationpkg "github.com/pedronauck/agh/internal/automation"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/store/globaldb"
-	"github.com/pedronauck/agh/internal/testutil"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	"github.com/compozy/agh/internal/acp"
+	apitest "github.com/compozy/agh/internal/api/testutil"
+	automationpkg "github.com/compozy/agh/internal/automation"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/store/globaldb"
+	"github.com/compozy/agh/internal/testutil"
+	toolspkg "github.com/compozy/agh/internal/tools"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 func TestDaemonNativeAutomationToolsIntegrationLifecycleParity(t *testing.T) {

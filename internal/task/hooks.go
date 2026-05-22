@@ -3,7 +3,7 @@ package task
 import (
 	"context"
 
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	hookspkg "github.com/compozy/agh/internal/hooks"
 )
 
 // RunHookDispatcher is the narrow hook bridge consumed by task-run transitions.

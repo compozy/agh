@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/transcript"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/transcript"
 )
 
 type networkCorrelationExpectation struct {

@@ -3,7 +3,7 @@ package testutil
 import (
 	"time"
 
-	"github.com/pedronauck/agh/internal/session"
+	"github.com/compozy/agh/internal/session"
 )
 
 func NewSessionInfo(id string) *session.Info {

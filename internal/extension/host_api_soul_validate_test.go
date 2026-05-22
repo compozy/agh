@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
-	"github.com/pedronauck/agh/internal/soul"
+	extensioncontract "github.com/compozy/agh/internal/extension/contract"
+	"github.com/compozy/agh/internal/soul"
 )
 
 func TestHostAPIHandlerSoulValidateBodyPresenceContract(t *testing.T) {

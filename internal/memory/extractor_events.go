@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/diagnostics"
-	memoryextractor "github.com/pedronauck/agh/internal/memory/extractor"
-	storepkg "github.com/pedronauck/agh/internal/store"
+	"github.com/compozy/agh/internal/diagnostics"
+	memoryextractor "github.com/compozy/agh/internal/memory/extractor"
+	storepkg "github.com/compozy/agh/internal/store"
 )
 
 // RecordExtractorEvent persists canonical extractor telemetry into memory_events.

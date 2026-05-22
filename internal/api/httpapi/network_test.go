@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/api/contract"
+	apispec "github.com/compozy/agh/internal/api/spec"
+	"github.com/compozy/agh/internal/api/testutil"
+	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/store"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	apispec "github.com/pedronauck/agh/internal/api/spec"
-	"github.com/pedronauck/agh/internal/api/testutil"
-	"github.com/pedronauck/agh/internal/network"
-	"github.com/pedronauck/agh/internal/store"
 )
 
 const networkHTTPTestWorkspaceID = "ws-workspace"

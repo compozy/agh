@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/automation"
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/automation"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestGlobalDBAutomationPersistenceSurvivesReopen(t *testing.T) {

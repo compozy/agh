@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	"github.com/compozy/agh/internal/api/contract"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 type workspaceResolveServiceStub struct {

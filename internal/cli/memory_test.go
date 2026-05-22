@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
+	"github.com/compozy/agh/internal/api/contract"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
 )
 
 func TestMemoryCommandTreeHardCutsLegacyVerbs(t *testing.T) {

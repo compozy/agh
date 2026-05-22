@@ -7,7 +7,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/pedronauck/agh/internal/frontmatter"
+	"github.com/compozy/agh/internal/frontmatter"
 )
 
 const skillFileName = "SKILL.md"

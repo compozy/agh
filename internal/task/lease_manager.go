@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	hookspkg "github.com/compozy/agh/internal/hooks"
 )
 
 // ClaimNextRun atomically claims the next eligible run for one session and returns the raw claim token once.

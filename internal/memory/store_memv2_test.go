@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
-	"github.com/pedronauck/agh/internal/memory/controller"
-	"github.com/pedronauck/agh/internal/testutil"
-	aghworkspace "github.com/pedronauck/agh/internal/workspace"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
+	"github.com/compozy/agh/internal/memory/controller"
+	"github.com/compozy/agh/internal/testutil"
+	aghworkspace "github.com/compozy/agh/internal/workspace"
 )
 
 func TestStoreAgentRoots(t *testing.T) {

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/spf13/cobra"
 )
 

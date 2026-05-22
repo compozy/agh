@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	automationpkg "github.com/pedronauck/agh/internal/automation"
+	automationpkg "github.com/compozy/agh/internal/automation"
 )
 
 func TestLoadBundleSpecsLoadsMixedFormatsAndSorts(t *testing.T) {

@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/acp"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/memory"
+	"github.com/compozy/agh/internal/observe"
+	"github.com/compozy/agh/internal/session"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/acp"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/memory"
-	"github.com/pedronauck/agh/internal/observe"
-	"github.com/pedronauck/agh/internal/session"
 )
 
 func TestNewHonorsOptionsAndDefaults(t *testing.T) {

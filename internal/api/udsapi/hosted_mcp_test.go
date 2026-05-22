@@ -12,9 +12,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/agh/internal/api/contract"
+	mcppkg "github.com/compozy/agh/internal/mcp"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	mcppkg "github.com/pedronauck/agh/internal/mcp"
 )
 
 func TestHostedMCPStreamErrorData(t *testing.T) {

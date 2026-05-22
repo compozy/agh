@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
-	"github.com/pedronauck/agh/internal/subprocess"
-	"github.com/pedronauck/agh/internal/testutil"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
+	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/agh/internal/testutil"
+	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
 func TestExtensionToolProviderAvailability(t *testing.T) {
@@ -507,7 +507,7 @@ func buildGoSDKToolProviderBinary(t *testing.T, name string, readOnly bool) stri
 	writeFile(
 		t,
 		filepath.Join(dir, "go.mod"),
-		"module example.com/"+name+"\n\ngo 1.26.3\n\nrequire github.com/pedronauck/agh v0.0.0\n",
+		"module example.com/"+name+"\n\ngo 1.26.3\n\nrequire github.com/compozy/agh v0.0.0\n",
 	)
 	writeFile(t, filepath.Join(dir, "main.go"), goSDKToolProviderSource(name, readOnly))
 
@@ -517,7 +517,7 @@ func buildGoSDKToolProviderBinary(t *testing.T, name string, readOnly bool) stri
 		"mod",
 		"edit",
 		"-replace",
-		"github.com/pedronauck/agh="+repoRoot,
+		"github.com/compozy/agh="+repoRoot,
 	)
 	edit.Dir = dir
 	if output, err := edit.CombinedOutput(); err != nil {
@@ -542,7 +542,7 @@ import (
 	"fmt"
 	"os"
 
-	aghsdk "github.com/pedronauck/agh/sdk/go"
+	aghsdk "github.com/compozy/agh/sdk/go"
 )
 
 type searchInput struct {

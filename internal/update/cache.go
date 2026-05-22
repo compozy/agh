@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/fileutil"
+	"github.com/compozy/agh/internal/fileutil"
 )
 
 func readCache(path string) (*cacheEntry, error) {

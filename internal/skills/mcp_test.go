@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
+	aghconfig "github.com/compozy/agh/internal/config"
 )
 
 func TestNewMCPResolverClonesAllowedMarketplaceConfig(t *testing.T) {

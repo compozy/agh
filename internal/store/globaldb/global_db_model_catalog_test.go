@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/modelcatalog"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/modelcatalog"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 const (

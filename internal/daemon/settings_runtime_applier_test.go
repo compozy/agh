@@ -4,9 +4,9 @@ import (
 	"os/exec"
 	"testing"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	diagcontract "github.com/pedronauck/agh/internal/diagnosticcontract"
-	"github.com/pedronauck/agh/internal/providers"
+	aghconfig "github.com/compozy/agh/internal/config"
+	diagcontract "github.com/compozy/agh/internal/diagnosticcontract"
+	"github.com/compozy/agh/internal/providers"
 )
 
 func TestDaemonSettingsRuntimeApplier(t *testing.T) {

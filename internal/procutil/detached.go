@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/pedronauck/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/diagnostics"
 )
 
 const maxDetachedCommandErrorBytes = 4 * 1024

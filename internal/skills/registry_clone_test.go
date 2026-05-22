@@ -3,7 +3,7 @@ package skills
 import (
 	"testing"
 
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	hookspkg "github.com/compozy/agh/internal/hooks"
 )
 
 func TestCloneSkillHookSecretEnvContract(t *testing.T) {

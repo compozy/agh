@@ -17,11 +17,11 @@ import (
 	"strings"
 	"time"
 
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/procutil"
+	"github.com/compozy/agh/internal/providerenv"
+	"github.com/compozy/agh/internal/vault"
 	"github.com/kballard/go-shellquote"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/procutil"
-	"github.com/pedronauck/agh/internal/providerenv"
-	"github.com/pedronauck/agh/internal/vault"
 )
 
 const (

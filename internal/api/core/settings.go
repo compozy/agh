@@ -12,15 +12,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/agh/internal/api/contract"
+	automationmodel "github.com/compozy/agh/internal/automation/model"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/config/lifecycle"
+	extensionpkg "github.com/compozy/agh/internal/extension"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/resources"
+	settingspkg "github.com/compozy/agh/internal/settings"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	automationmodel "github.com/pedronauck/agh/internal/automation/model"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/config/lifecycle"
-	extensionpkg "github.com/pedronauck/agh/internal/extension"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
-	"github.com/pedronauck/agh/internal/resources"
-	settingspkg "github.com/pedronauck/agh/internal/settings"
 )
 
 const (

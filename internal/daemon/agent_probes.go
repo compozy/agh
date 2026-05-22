@@ -7,9 +7,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/pedronauck/agh/internal/acp"
-	core "github.com/pedronauck/agh/internal/api/core"
-	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/compozy/agh/internal/acp"
+	core "github.com/compozy/agh/internal/api/core"
+	aghconfig "github.com/compozy/agh/internal/config"
 )
 
 func agentProbeTargetSource(

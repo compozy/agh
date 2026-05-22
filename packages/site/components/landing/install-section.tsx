@@ -7,27 +7,26 @@ import { CodeBlock } from "./primitives/code-block";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";
 
-type TabId = "curl" | "package" | "source";
+type TabId = "homebrew" | "npm" | "go";
 
 const INSTALL_TABS: { id: TabId; label: string; command: string; note: string }[] = [
   {
-    id: "curl",
-    label: "curl",
-    command: "curl -fsSL https://agh.network/install.sh | sh",
-    note: "Recommended · macOS + Linux · verifies release provenance and opens agh install",
-  },
-  {
-    id: "package",
-    label: "Package manager",
+    id: "homebrew",
+    label: "Homebrew",
     command: "brew install compozy/compozy/agh",
-    note: "Managed updates · macOS · Homebrew tap",
+    note: "Managed updates · macOS + Linux · Compozy tap",
   },
   {
-    id: "source",
-    label: "Build from source",
-    command:
-      "git clone https://github.com/compozy/agh && cd agh && go build -o ./bin/agh ./cmd/agh",
-    note: "Repository checkout · useful when you are already in the source tree",
+    id: "npm",
+    label: "npm",
+    command: "npm install -g @compozy/agh",
+    note: "Managed updates · Node package · downloads the AGH release archive",
+  },
+  {
+    id: "go",
+    label: "Go",
+    command: "go install github.com/compozy/agh/cmd/agh@latest",
+    note: "Requires Go · builds the current release from the public module",
   },
 ];
 
@@ -50,7 +49,7 @@ const STEPS = [
     title: "Launch a real session",
     description:
       "Create the session from the repository you want AGH to manage so workspace resolution is explicit.",
-    code: 'agh session new --cwd "$PWD" --agent general',
+    code: 'agh workspace add "$PWD" --name current\nagh session new --workspace current --agent general',
   },
 ];
 
@@ -63,7 +62,7 @@ function getPanelId(id: TabId) {
 }
 
 export function InstallSection() {
-  const [tab, setTab] = useState<TabId>("curl");
+  const [tab, setTab] = useState<TabId>("homebrew");
 
   function selectTab(next: TabId) {
     setTab(next);
@@ -108,7 +107,7 @@ export function InstallSection() {
         align="center"
         eyebrow="Getting started"
         title="Three commands. First session in under a minute."
-        description="macOS and Linux. Install with curl, use a package manager, or build from a source checkout if you are already inside the repository."
+        description="macOS and Linux. Install with Homebrew, npm, or Go. The full installation guide also covers the verified binary installer, Linux packages, and source builds."
       />
 
       <div className="mx-auto mt-10 w-full max-w-190">

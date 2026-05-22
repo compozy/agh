@@ -33,7 +33,10 @@ Hermes, and other ACP-compatible providers, and shared inspection through the CL
 domain socket, and web UI.
 
 ```bash
-$ curl -fsSL https://agh.network/install.sh | sh
+$ brew install compozy/compozy/agh
+# or: npm install -g @compozy/agh
+# or: go install github.com/compozy/agh/cmd/agh@latest
+$ agh install
 $ agh daemon start
 ```
 
@@ -408,7 +411,10 @@ If you want the shortest path, install AGH, bootstrap the runtime, start the dae
 durable session in a real repository.
 
 ```bash
-$ curl -fsSL https://agh.network/install.sh | sh
+$ brew install compozy/compozy/agh
+# or: npm install -g @compozy/agh
+# or: go install github.com/compozy/agh/cmd/agh@latest
+$ agh install
 $ agh daemon start
 $ agh workspace add "$PWD" --name current
 $ agh session new --workspace current --agent general --name first-run

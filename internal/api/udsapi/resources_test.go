@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/resources"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/resources"
 )
 
 func TestListResourcesHandlerPreservesFilterSemantics(t *testing.T) {

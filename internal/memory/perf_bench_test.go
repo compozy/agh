@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
+	memcontract "github.com/compozy/agh/internal/memory/contract"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/goccy/go-yaml"
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func BenchmarkStoreScanCappedWorkspace(b *testing.B) {

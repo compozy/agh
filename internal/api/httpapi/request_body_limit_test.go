@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pedronauck/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/api/contract"
 )
 
 func TestRequestBodyLimitRejectsOversizedChunkedAPIRequestsContract(t *testing.T) {

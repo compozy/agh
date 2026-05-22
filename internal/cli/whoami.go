@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"github.com/pedronauck/agh/internal/agentidentity"
+	"github.com/compozy/agh/internal/agentidentity"
 	"github.com/spf13/cobra"
 )
 

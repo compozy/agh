@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/config/lifecycle"
-	diagnosticcontract "github.com/pedronauck/agh/internal/diagnosticcontract"
-	"github.com/pedronauck/agh/internal/diagnostics"
-	"github.com/pedronauck/agh/internal/store/globaldb"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/config/lifecycle"
+	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
+	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/store/globaldb"
 )
 
 func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {

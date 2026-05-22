@@ -13,7 +13,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/pedronauck/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/diagnostics"
 )
 
 const (

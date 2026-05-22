@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	aghconfig "github.com/compozy/agh/internal/config"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 // CoordinatorConfigResolver resolves coordinator policy without starting coordinator behavior.

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/notifications"
-	taskpkg "github.com/pedronauck/agh/internal/task"
+	"github.com/compozy/agh/internal/notifications"
+	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 const (

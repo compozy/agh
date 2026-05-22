@@ -148,6 +148,27 @@ func TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets(t *testing.T) 
 			}
 		}
 	})
+
+	t.Run("Should configure public NPM package target", func(t *testing.T) {
+		npms := sliceAt(t, cfg, "npms")
+		if len(npms) != 1 {
+			t.Fatalf("npms len = %d, want 1", len(npms))
+		}
+		npm := asMap(t, npms[0], "npms[0]")
+		assertEqualString(t, "npms[0].name", stringAt(t, npm, "name"), "@compozy/agh")
+		if !stringSliceContains(sliceAt(t, npm, "ids"), "agh-archive") {
+			t.Fatalf("npms[0].ids = %#v, want agh-archive", npm["ids"])
+		}
+		assertEqualString(t, "npms[0].access", stringAt(t, npm, "access"), "public")
+		assertEqualString(t, "npms[0].format", stringAt(t, npm, "format"), "tar.gz")
+		assertEqualString(
+			t,
+			"npms[0].repository",
+			stringAt(t, npm, "repository"),
+			"git+https://github.com/compozy/agh.git",
+		)
+		assertEqualString(t, "npms[0].homepage", stringAt(t, npm, "homepage"), "https://agh.network")
+	})
 }
 
 func TestPackagingMetadataStaysAlignedWithRuntimeAndInstaller(t *testing.T) {
@@ -253,6 +274,14 @@ func TestPackagingMetadataStaysAlignedWithRuntimeAndInstaller(t *testing.T) {
 		assertEqualString(t, "build id", buildID, "agh")
 		assertEqualString(t, "build binary", stringAt(t, build, "binary"), "agh")
 		assertEqualString(t, "build main", stringAt(t, build, "main"), "./cmd/agh")
+		ldflags := strings.Join(stringsFromSlice(t, sliceAt(t, build, "ldflags"), "builds[0].ldflags"), "\n")
+		assertContainsText(
+			t,
+			"GoReleaser ldflags",
+			ldflags,
+			"github.com/compozy/agh/internal/version.Version",
+		)
+		assertNotContainsText(t, "GoReleaser ldflags", ldflags, "github.com/pedronauck/agh")
 
 		archive := firstMapAt(t, goreleaser, "archives")
 		if !stringSliceContains(sliceAt(t, archive, "ids"), buildID) {
@@ -330,6 +359,7 @@ func TestReleaseWorkflowPreservesInstallerSourceTextGuards(t *testing.T) {
 
 	root := findRepoRootForReleaseConfigTest(t)
 	workflow := readTextFile(t, root, filepath.Join(".github", "workflows", "release.yml"))
+	header := readTextFile(t, root, ".goreleaser.release-header.md.tmpl")
 	footer := readTextFile(t, root, ".goreleaser.release-footer.md.tmpl")
 
 	t.Run("Should keep release workflow guards for public installer provenance", func(t *testing.T) {
@@ -341,11 +371,28 @@ func TestReleaseWorkflowPreservesInstallerSourceTextGuards(t *testing.T) {
 			"install.sh must verify checksums.txt with checksums.txt.sigstore.json",
 			"grep -q 'packages/site/public/install.sh' .goreleaser.yml",
 			".goreleaser.yml must upload packages/site/public/install.sh as a release extra file",
+			`grep -q 'name: "@compozy/agh"' .goreleaser.yml`,
+			".goreleaser.yml must publish the @compozy/agh npm package",
 			`grep -q -- '--bundle=\${signature}' .goreleaser.yml`,
 			".goreleaser.yml must sign checksums with a Sigstore bundle artifact",
 		} {
 			assertContainsText(t, "release workflow", workflow, snippet)
 		}
+	})
+
+	t.Run("Should keep release header aligned with public install methods", func(t *testing.T) {
+		t.Parallel()
+
+		for _, snippet := range []string{
+			"brew install compozy/compozy/agh",
+			"npm install -g @compozy/agh",
+			"go install github.com/compozy/agh/cmd/agh@{{ .Tag }}",
+			"curl -fsSL https://agh.network/install.sh | sh",
+			"Verified Binary Installer",
+		} {
+			assertContainsText(t, "GoReleaser release header", header, snippet)
+		}
+		assertNotContainsText(t, "GoReleaser release header", header, "github.com/pedronauck/agh")
 	})
 
 	t.Run("Should keep GoReleaser invocation tied to generated release text", func(t *testing.T) {

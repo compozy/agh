@@ -426,6 +426,8 @@ func updateRecommendation(installMethod string, releaseURL string) string {
 	switch installMethod {
 	case string(InstallMethodHomebrew):
 		return "Use `brew upgrade compozy/compozy/agh`."
+	case string(InstallMethodNPM):
+		return "Use `npm update -g @compozy/agh`."
 	case string(InstallMethodAPT):
 		return "Use `sudo apt update && sudo apt upgrade agh`."
 	case string(InstallMethodDNF):

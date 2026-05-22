@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/fileutil"
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/compozy/agh/internal/fileutil"
+	"github.com/compozy/agh/internal/store"
 )
 
 type sessionDBBackup struct {

@@ -7,8 +7,8 @@ import (
 	"net/url"
 	"strings"
 
-	aghcontract "github.com/pedronauck/agh/internal/api/contract"
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	aghcontract "github.com/compozy/agh/internal/api/contract"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
 )
 
 func bridgePath(bridgeID string) (string, error) {

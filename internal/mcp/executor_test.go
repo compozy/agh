@@ -14,12 +14,12 @@ import (
 	"testing"
 	"time"
 
+	aghconfig "github.com/compozy/agh/internal/config"
+	mcpauth "github.com/compozy/agh/internal/mcp/auth"
+	toolspkg "github.com/compozy/agh/internal/tools"
 	mcptransport "github.com/mark3labs/mcp-go/client/transport"
 	mcpsdk "github.com/mark3labs/mcp-go/mcp"
 	mcpsrv "github.com/mark3labs/mcp-go/server"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
 )
 
 const (

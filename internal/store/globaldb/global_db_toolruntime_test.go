@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/testutil"
-	"github.com/pedronauck/agh/internal/toolruntime"
+	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/agh/internal/toolruntime"
 )
 
 func TestGlobalDBToolProcessRecords(t *testing.T) {

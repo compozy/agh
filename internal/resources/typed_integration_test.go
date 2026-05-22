@@ -5,7 +5,7 @@ package resources
 import (
 	"testing"
 
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestTypedStoreIntegrationPersistLoadAndList(t *testing.T) {

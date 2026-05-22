@@ -4,7 +4,7 @@ import (
 	"slices"
 	"testing"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
+	aghconfig "github.com/compozy/agh/internal/config"
 )
 
 func TestWriteAgentDefCategoryPath(t *testing.T) {

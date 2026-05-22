@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	authproviders "github.com/pedronauck/agh/internal/providers"
+	aghconfig "github.com/compozy/agh/internal/config"
+	authproviders "github.com/compozy/agh/internal/providers"
 )
 
 // ProviderFailureKind classifies provider-facing failures into the recovery

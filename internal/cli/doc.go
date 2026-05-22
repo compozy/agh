@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/pedronauck/agh/internal/cli/docpost"
+	"github.com/compozy/agh/internal/cli/docpost"
 	"github.com/spf13/cobra"
 	"github.com/spf13/cobra/doc"
 )

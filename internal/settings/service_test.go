@@ -10,15 +10,15 @@ import (
 	"testing"
 	"time"
 
-	automationmodel "github.com/pedronauck/agh/internal/automation/model"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/config/lifecycle"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
-	"github.com/pedronauck/agh/internal/resources"
-	skillspkg "github.com/pedronauck/agh/internal/skills"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/vault"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	automationmodel "github.com/compozy/agh/internal/automation/model"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/config/lifecycle"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/resources"
+	skillspkg "github.com/compozy/agh/internal/skills"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/vault"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 func TestGetSectionBuildsSupportedSections(t *testing.T) {

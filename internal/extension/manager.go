@@ -16,17 +16,17 @@ import (
 	"sync"
 	"time"
 
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/diagnostics"
-	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
-	"github.com/pedronauck/agh/internal/resources"
-	skillspkg "github.com/pedronauck/agh/internal/skills"
-	"github.com/pedronauck/agh/internal/subprocess"
-	"github.com/pedronauck/agh/internal/toolruntime"
-	"github.com/pedronauck/agh/internal/vault"
-	"github.com/pedronauck/agh/internal/version"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/diagnostics"
+	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/resources"
+	skillspkg "github.com/compozy/agh/internal/skills"
+	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/agh/internal/toolruntime"
+	"github.com/compozy/agh/internal/vault"
+	"github.com/compozy/agh/internal/version"
 )
 
 const (

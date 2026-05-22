@@ -315,4 +315,44 @@ func TestManagerCheck(t *testing.T) {
 			t.Fatalf("state.Recommendation = %q, want Windows manual guidance", state.Recommendation)
 		}
 	})
+
+	t.Run("Should defer managed npm and go-install updates with package-specific guidance", func(t *testing.T) {
+		t.Parallel()
+
+		manager, _ := newManagerWithExecutable(t, Config{})
+		tests := []struct {
+			name   string
+			method InstallMethod
+			want   string
+		}{
+			{
+				name:   "Should recommend npm global update for npm installs",
+				method: InstallMethodNPM,
+				want:   "npm update -g @compozy/agh",
+			},
+			{
+				name:   "Should recommend public go install path for Go installs",
+				method: InstallMethodGoInstall,
+				want:   "go install github.com/compozy/agh/cmd/agh@latest",
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				state := manager.composeState(
+					installInfo{Method: string(tc.method), Managed: true},
+					&Release{Version: "v1.1.0"},
+					nil,
+				)
+				if state.Status != StatusDeferred || !state.Managed {
+					t.Fatalf("state = %#v, want deferred managed update", state)
+				}
+				if !strings.Contains(state.Recommendation, tc.want) {
+					t.Fatalf("state.Recommendation = %q, want %q", state.Recommendation, tc.want)
+				}
+			})
+		}
+	})
 }

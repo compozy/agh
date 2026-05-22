@@ -120,7 +120,7 @@ describe("@agh/create-extension", () => {
       expect(goMod).toContain("module example.com/go-tool-provider");
 
       const repoRoot = path.resolve(__dirname, "../../../..");
-      execFileSync("go", ["mod", "edit", "-replace", `github.com/pedronauck/agh=${repoRoot}`], {
+      execFileSync("go", ["mod", "edit", "-replace", `github.com/compozy/agh=${repoRoot}`], {
         cwd: projectDir,
         stdio: "pipe",
         timeout: goCommandTimeoutMs,

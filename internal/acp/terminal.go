@@ -20,8 +20,8 @@ import (
 	"github.com/kballard/go-shellquote"
 	"golang.org/x/sys/execabs"
 
-	"github.com/pedronauck/agh/internal/procutil"
-	"github.com/pedronauck/agh/internal/toolruntime"
+	"github.com/compozy/agh/internal/procutil"
+	"github.com/compozy/agh/internal/toolruntime"
 )
 
 const (

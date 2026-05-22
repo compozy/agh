@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/session"
+	"github.com/compozy/agh/internal/session"
 )
 
 // SectionSelector resolves startup policy and selects eligible startup prompt

@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
+	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/jonboulle/clockwork"
-	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
 const (

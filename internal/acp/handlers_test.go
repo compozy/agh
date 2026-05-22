@@ -16,9 +16,9 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/toolruntime"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/toolruntime"
+	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
 func TestDriverOptionsAndNormalization(t *testing.T) {

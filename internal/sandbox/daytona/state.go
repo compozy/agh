@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/sandbox"
+	"github.com/compozy/agh/internal/sandbox"
 )
 
 const (

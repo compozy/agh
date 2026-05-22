@@ -17,9 +17,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/agh/internal/codegen/openapits"
+	"github.com/compozy/agh/internal/e2elane"
 	"github.com/magefile/mage/sh"
-	"github.com/pedronauck/agh/internal/codegen/openapits"
-	"github.com/pedronauck/agh/internal/e2elane"
 )
 
 const (
@@ -28,7 +28,7 @@ const (
 	gotestsumVersion          = "v1.13.0"
 	binDir                    = "bin"
 	cliBinary                 = "agh"
-	versionPackage            = "github.com/pedronauck/agh/internal/version"
+	versionPackage            = "github.com/compozy/agh/internal/version"
 	openAPISpecPath           = "openapi/agh.json"
 	compozyOpenAPISpecPath    = "openapi/compozy-daemon.json"
 	webOpenAPITypePath        = "web/src/generated/agh-openapi.d.ts"
@@ -504,7 +504,7 @@ func Boundaries() error {
 		if _, err := os.Stat(importerDir); os.IsNotExist(err) {
 			continue
 		}
-		importPath := "github.com/pedronauck/agh/" + rule.imported
+		importPath := "github.com/compozy/agh/" + rule.imported
 		cmd := exec.Command("grep", "-r", "--include=*.go", "-l", importPath, importerDir)
 		out, err := cmd.Output()
 		if err != nil {

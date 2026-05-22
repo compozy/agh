@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pedronauck/agh/internal/resources"
+	"github.com/compozy/agh/internal/resources"
 )
 
 type externalSpec struct {

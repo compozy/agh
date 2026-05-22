@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	aghlogger "github.com/pedronauck/agh/internal/logger"
+	aghconfig "github.com/compozy/agh/internal/config"
+	aghlogger "github.com/compozy/agh/internal/logger"
 )
 
 func TestSpawnDetachedDaemonProcess(t *testing.T) {

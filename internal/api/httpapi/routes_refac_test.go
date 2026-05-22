@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/agh/internal/api/core"
+	apispec "github.com/compozy/agh/internal/api/spec"
+	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/core"
-	apispec "github.com/pedronauck/agh/internal/api/spec"
-	aghconfig "github.com/pedronauck/agh/internal/config"
 )
 
 var _ core.CoordinatorConfigResolver = httpapiCoordinatorConfigResolverFunc(nil)

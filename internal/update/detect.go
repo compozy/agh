@@ -33,6 +33,8 @@ func (m *Manager) resolveInstall(ctx context.Context) installInfo {
 	switch {
 	case isHomebrewPath(normalizedPath):
 		return installInfo{Method: string(InstallMethodHomebrew), Managed: true}
+	case isNPMPath(normalizedPath):
+		return installInfo{Method: string(InstallMethodNPM), Managed: true}
 	case isScoopPath(normalizedPath):
 		return installInfo{Method: string(InstallMethodScoop), Managed: true}
 	case isGoInstallPath(normalizedPath, installEnvironment{
@@ -99,6 +101,8 @@ func normalizeInstallMethod(raw string) string {
 		return ""
 	case "brew", "homebrew":
 		return string(InstallMethodHomebrew)
+	case "npm", "node", "nodejs":
+		return string(InstallMethodNPM)
 	case "apt", "deb", "debian":
 		return string(InstallMethodAPT)
 	case "dnf":
@@ -122,6 +126,10 @@ func normalizePath(path string) string {
 
 func isHomebrewPath(path string) bool {
 	return strings.Contains(path, "/cellar/") || strings.Contains(path, "/caskroom/")
+}
+
+func isNPMPath(path string) bool {
+	return strings.Contains(path, "/node_modules/@compozy/agh/")
 }
 
 func isScoopPath(path string) bool {

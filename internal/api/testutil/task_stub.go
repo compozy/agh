@@ -3,8 +3,8 @@ package testutil
 import (
 	"context"
 
-	core "github.com/pedronauck/agh/internal/api/core"
-	taskpkg "github.com/pedronauck/agh/internal/task"
+	core "github.com/compozy/agh/internal/api/core"
+	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 type forceReleaseRunFunc func(

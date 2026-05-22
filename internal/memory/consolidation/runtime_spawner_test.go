@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/memory"
-	"github.com/pedronauck/agh/internal/session"
+	"github.com/compozy/agh/internal/memory"
+	"github.com/compozy/agh/internal/session"
 )
 
 func TestNewSessionSpawnerContract(t *testing.T) {

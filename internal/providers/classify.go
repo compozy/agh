@@ -8,10 +8,10 @@ import (
 	"os/exec"
 	"strings"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	diagcontract "github.com/pedronauck/agh/internal/diagnosticcontract"
-	"github.com/pedronauck/agh/internal/diagnostics"
-	"github.com/pedronauck/agh/internal/providerauth"
+	aghconfig "github.com/compozy/agh/internal/config"
+	diagcontract "github.com/compozy/agh/internal/diagnosticcontract"
+	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/providerauth"
 )
 
 // ProviderAuthState is the canonical provider authentication state.

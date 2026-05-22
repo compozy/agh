@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/session"
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/session"
 )
 
 func TestClearSessionConversationHandler(t *testing.T) {

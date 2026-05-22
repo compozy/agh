@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/diagnostics"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/diagnostics"
 )
 
 const diagnosticSessionHealthUnsupported = "session_health_unsupported"

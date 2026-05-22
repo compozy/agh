@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
+	ssepkg "github.com/compozy/agh/internal/sse"
+	"github.com/compozy/agh/internal/store"
+	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/gin-gonic/gin"
-	ssepkg "github.com/pedronauck/agh/internal/sse"
-	"github.com/pedronauck/agh/internal/store"
-	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
 // PrepareSSE configures a Gin response for SSE streaming.

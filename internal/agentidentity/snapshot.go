@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/store"
 )
 
 // SessionSnapshot is the daemon-authoritative session subset needed for identity validation.

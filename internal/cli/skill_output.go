@@ -3,7 +3,7 @@ package cli
 import (
 	"strconv"
 
-	registrypkg "github.com/pedronauck/agh/internal/registry"
+	registrypkg "github.com/compozy/agh/internal/registry"
 )
 
 const (

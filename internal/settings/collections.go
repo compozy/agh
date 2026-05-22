@@ -10,13 +10,13 @@ import (
 	"sort"
 	"strings"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/config/lifecycle"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
-	"github.com/pedronauck/agh/internal/providerauth"
-	authproviders "github.com/pedronauck/agh/internal/providers"
-	"github.com/pedronauck/agh/internal/vault"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/config/lifecycle"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/providerauth"
+	authproviders "github.com/compozy/agh/internal/providers"
+	"github.com/compozy/agh/internal/vault"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 const settingsCredentialSourceEnv = "env"

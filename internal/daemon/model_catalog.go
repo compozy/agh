@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	extensionpkg "github.com/pedronauck/agh/internal/extension"
-	"github.com/pedronauck/agh/internal/modelcatalog"
+	extensionpkg "github.com/compozy/agh/internal/extension"
+	"github.com/compozy/agh/internal/modelcatalog"
 )
 
 const defaultModelCatalogRefreshTimeout = 10 * time.Second

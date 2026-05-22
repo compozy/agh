@@ -8,11 +8,11 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/observe"
+	taskpkg "github.com/compozy/agh/internal/task"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/observe"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func newExpandedTaskHandlers(workspaceGet func(context.Context, string) (workspacepkg.Workspace, error)) *BaseHandlers {

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestStoreSQLHelpers(t *testing.T) {

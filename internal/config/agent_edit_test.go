@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	hookspkg "github.com/compozy/agh/internal/hooks"
 )
 
 func TestEditAgentDefFileCategoryPath(t *testing.T) {

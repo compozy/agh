@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestDispatcherSessionStopTimeout(t *testing.T) {

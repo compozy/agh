@@ -15,11 +15,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/testutil"
 
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
-	memoryrecall "github.com/pedronauck/agh/internal/memory/recall"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
+	memoryrecall "github.com/compozy/agh/internal/memory/recall"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 func TestServiceConstructionDefaults(t *testing.T) {

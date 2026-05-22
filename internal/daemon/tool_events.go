@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	eventspkg "github.com/pedronauck/agh/internal/events"
-	"github.com/pedronauck/agh/internal/store"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
+	eventspkg "github.com/compozy/agh/internal/events"
+	"github.com/compozy/agh/internal/store"
+	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
 type daemonToolEventSink struct {

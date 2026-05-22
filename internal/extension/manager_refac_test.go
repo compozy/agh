@@ -7,8 +7,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/pedronauck/agh/internal/resources"
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestManagerStopShutdownErrors(t *testing.T) {

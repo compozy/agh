@@ -14,17 +14,17 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
+	aghcontract "github.com/compozy/agh/internal/api/contract"
+	automationpkg "github.com/compozy/agh/internal/automation"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	aghconfig "github.com/compozy/agh/internal/config"
+	extensionpkg "github.com/compozy/agh/internal/extension"
+	extensiontest "github.com/compozy/agh/internal/extensiontest"
+	"github.com/compozy/agh/internal/sandbox"
+	sessionpkg "github.com/compozy/agh/internal/session"
+	taskpkg "github.com/compozy/agh/internal/task"
+	e2etest "github.com/compozy/agh/internal/testutil/e2e"
 	"github.com/kballard/go-shellquote"
-	aghcontract "github.com/pedronauck/agh/internal/api/contract"
-	automationpkg "github.com/pedronauck/agh/internal/automation"
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	extensionpkg "github.com/pedronauck/agh/internal/extension"
-	extensiontest "github.com/pedronauck/agh/internal/extensiontest"
-	"github.com/pedronauck/agh/internal/sandbox"
-	sessionpkg "github.com/pedronauck/agh/internal/session"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	e2etest "github.com/pedronauck/agh/internal/testutil/e2e"
 )
 
 const (

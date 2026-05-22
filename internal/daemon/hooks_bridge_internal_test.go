@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/skills"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/skills"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 func TestActiveSkillsForHookDeclarations(t *testing.T) {

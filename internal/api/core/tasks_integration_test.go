@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/api/testutil"
+	taskpkg "github.com/compozy/agh/internal/task"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/testutil"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestTaskHandlersCreateTaskAndListFiltersReachManagerIntegration(t *testing.T) {

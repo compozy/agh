@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	aghdaemon "github.com/pedronauck/agh/internal/daemon"
+	aghdaemon "github.com/compozy/agh/internal/daemon"
 )
 
 func TestDaemonRelaunchCommandInvokesHelper(t *testing.T) {

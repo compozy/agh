@@ -9,8 +9,8 @@ import (
 	"strings"
 	"syscall"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	aghupdate "github.com/pedronauck/agh/internal/update"
+	aghconfig "github.com/compozy/agh/internal/config"
+	aghupdate "github.com/compozy/agh/internal/update"
 	"github.com/spf13/cobra"
 )
 
@@ -92,6 +92,13 @@ func managedRecommendation(manager string, action string) string {
 			return "Use `brew uninstall compozy/compozy/agh`."
 		}
 		return "Use `brew upgrade compozy/compozy/agh`."
+	case strings.Contains(normalizedManager, "npm") ||
+		strings.Contains(normalizedManager, "node") ||
+		strings.Contains(normalizedManager, "nodejs"):
+		if strings.Contains(normalizedAction, lifecycleUninstallKey) {
+			return "Use `npm uninstall -g @compozy/agh`."
+		}
+		return "Use `npm update -g @compozy/agh`."
 	case strings.Contains(normalizedManager, "scoop"):
 		if strings.Contains(normalizedAction, lifecycleUninstallKey) {
 			return "Use `scoop uninstall agh`."

@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	eventspkg "github.com/pedronauck/agh/internal/events"
-	storepkg "github.com/pedronauck/agh/internal/store"
-	aghworkspace "github.com/pedronauck/agh/internal/workspace"
+	eventspkg "github.com/compozy/agh/internal/events"
+	storepkg "github.com/compozy/agh/internal/store"
+	aghworkspace "github.com/compozy/agh/internal/workspace"
 )
 
 func TestMemoryEventOpsUseCanonicalRegistry(t *testing.T) {

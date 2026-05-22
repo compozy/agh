@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pedronauck/agh/internal/registry"
+	"github.com/compozy/agh/internal/registry"
 )
 
 func TestClientBehaviorContracts(t *testing.T) {

@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/compozy/agh/internal/frontmatter"
+	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/goccy/go-yaml"
-	"github.com/pedronauck/agh/internal/frontmatter"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
 )
 
 // EditAgentDefFile rewrites one AGENT.md frontmatter block while preserving the prompt body.

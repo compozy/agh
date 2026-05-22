@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/vault"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/vault"
 )
 
 var errVaultServiceUnavailable = errors.New("vault service is not configured")

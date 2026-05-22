@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/pedronauck/agh/internal/notifications"
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/compozy/agh/internal/notifications"
+	"github.com/compozy/agh/internal/store"
 )
 
 var _ notifications.CursorStore = (*GlobalDB)(nil)

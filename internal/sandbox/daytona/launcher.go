@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/pedronauck/agh/internal/sandbox"
+	"github.com/compozy/agh/internal/sandbox"
 )
 
 var (

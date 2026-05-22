@@ -7,7 +7,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/pedronauck/agh/internal/procutil"
+	"github.com/compozy/agh/internal/procutil"
 )
 
 func configureManagedCommand(cmd *exec.Cmd) {

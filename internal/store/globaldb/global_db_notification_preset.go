@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	presetspkg "github.com/pedronauck/agh/internal/notifications/presets"
-	"github.com/pedronauck/agh/internal/store"
+	presetspkg "github.com/compozy/agh/internal/notifications/presets"
+	"github.com/compozy/agh/internal/store"
 )
 
 var _ presetspkg.Store = (*GlobalDB)(nil)

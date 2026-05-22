@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/api/testutil"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	settingspkg "github.com/pedronauck/agh/internal/settings"
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/api/testutil"
+	aghconfig "github.com/compozy/agh/internal/config"
+	settingspkg "github.com/compozy/agh/internal/settings"
 )
 
 func TestSettingsProviderAuthStatusPayload(t *testing.T) {

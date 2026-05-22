@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pedronauck/agh/internal/tools"
+	"github.com/compozy/agh/internal/tools"
 )
 
 func TestToolContractsMarshalCanonicalIDsAndStructuredErrors(t *testing.T) {

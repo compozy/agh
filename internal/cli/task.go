@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	diagnosticcontract "github.com/pedronauck/agh/internal/diagnosticcontract"
-	diagnosticitems "github.com/pedronauck/agh/internal/diagnostics"
-	"github.com/pedronauck/agh/internal/network"
-	taskpkg "github.com/pedronauck/agh/internal/task"
+	"github.com/compozy/agh/internal/api/contract"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
+	diagnosticitems "github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/network"
+	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/spf13/cobra"
 )
 

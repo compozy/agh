@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pedronauck/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/api/contract"
 	"github.com/spf13/cobra"
 )
 

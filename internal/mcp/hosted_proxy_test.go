@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/tools"
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	mcptransport "github.com/mark3labs/mcp-go/client/transport"
 	sdkmcp "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
-	"github.com/pedronauck/agh/internal/tools"
 )
 
 func TestApplyHostedToolsUsesDescriptorRawSchemas(t *testing.T) {

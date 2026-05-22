@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/compozy/agh/internal/store"
 )
 
 func BenchmarkSessionDBQuery(b *testing.B) {

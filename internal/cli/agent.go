@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
+	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/spf13/cobra"
 )
 

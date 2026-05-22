@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/store"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/store"
 )
 
 const (

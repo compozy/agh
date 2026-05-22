@@ -7,8 +7,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	aghconfig "github.com/compozy/agh/internal/config"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 const (

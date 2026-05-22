@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/compozy/agh/internal/api/contract"
+	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
 // RequestTaskRunReview creates or replays one authoritative review request for a task run.

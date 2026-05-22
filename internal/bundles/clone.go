@@ -8,9 +8,9 @@ import (
 	"maps"
 	"strings"
 
-	automationpkg "github.com/pedronauck/agh/internal/automation"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	extensionpkg "github.com/pedronauck/agh/internal/extension"
+	automationpkg "github.com/compozy/agh/internal/automation"
+	aghconfig "github.com/compozy/agh/internal/config"
+	extensionpkg "github.com/compozy/agh/internal/extension"
 )
 
 func cloneActivation(value Activation) Activation {

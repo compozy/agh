@@ -4,8 +4,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/heartbeat"
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/compozy/agh/internal/heartbeat"
+	"github.com/compozy/agh/internal/store"
 )
 
 // Badge is the canonical user-facing session status token.

@@ -8,15 +8,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pedronauck/agh/internal/acp"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/resources"
-	"github.com/pedronauck/agh/internal/sandbox"
-	skillspkg "github.com/pedronauck/agh/internal/skills"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/subprocess"
-	"github.com/pedronauck/agh/internal/toolruntime"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	"github.com/compozy/agh/internal/acp"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/agh/internal/sandbox"
+	skillspkg "github.com/compozy/agh/internal/skills"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/agh/internal/toolruntime"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 // TurnSource classifies the origin of a prompt turn inside the daemon runtime.

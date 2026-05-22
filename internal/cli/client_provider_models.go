@@ -7,7 +7,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/pedronauck/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/api/contract"
 )
 
 // ProviderModelListQuery captures provider model catalog list filters.

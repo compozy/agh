@@ -3,9 +3,9 @@ package contract
 import (
 	"time"
 
-	automationmodel "github.com/pedronauck/agh/internal/automation/model"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
-	"github.com/pedronauck/agh/internal/resources"
+	automationmodel "github.com/compozy/agh/internal/automation/model"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/resources"
 )
 
 type SettingsScopeKind string

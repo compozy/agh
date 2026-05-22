@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/agentidentity"
-	"github.com/pedronauck/agh/internal/api/contract"
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	taskpkg "github.com/pedronauck/agh/internal/task"
+	"github.com/compozy/agh/internal/agentidentity"
+	"github.com/compozy/agh/internal/api/contract"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 func TestTaskCreateAndUpdateRejectInvalidFlagCombos(t *testing.T) {

@@ -16,11 +16,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/acp"
+	aghconfig "github.com/compozy/agh/internal/config"
+	sessionpkg "github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/store"
 	"github.com/nats-io/nats.go"
-	"github.com/pedronauck/agh/internal/acp"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	sessionpkg "github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/store"
 )
 
 func nilTestContext() context.Context {

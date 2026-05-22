@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/heartbeat"
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/compozy/agh/internal/heartbeat"
+	"github.com/compozy/agh/internal/store"
 )
 
 const heartbeatOrderByCreatedDesc = " ORDER BY created_at DESC, id DESC"

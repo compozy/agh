@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/skills"
-	skillbundled "github.com/pedronauck/agh/skills"
+	"github.com/compozy/agh/internal/api/contract"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/skills"
+	skillbundled "github.com/compozy/agh/skills"
 	"github.com/spf13/cobra"
 )
 

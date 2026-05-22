@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/compozy/agh/internal/api/contract"
+	presetspkg "github.com/compozy/agh/internal/notifications/presets"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	presetspkg "github.com/pedronauck/agh/internal/notifications/presets"
 )
 
 var errNotificationPresetServiceUnavailable = errors.New("notification preset service unavailable")

@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	apicontract "github.com/pedronauck/agh/internal/api/contract"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
-	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
-	"github.com/pedronauck/agh/internal/modelcatalog"
-	"github.com/pedronauck/agh/internal/store/globaldb"
-	"github.com/pedronauck/agh/internal/testutil"
+	apicontract "github.com/compozy/agh/internal/api/contract"
+	aghconfig "github.com/compozy/agh/internal/config"
+	extensioncontract "github.com/compozy/agh/internal/extension/contract"
+	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	"github.com/compozy/agh/internal/modelcatalog"
+	"github.com/compozy/agh/internal/store/globaldb"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestModelSourceShouldPersistValidatedRowsThroughCatalogService(t *testing.T) {

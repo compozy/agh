@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/acp"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	envpkg "github.com/pedronauck/agh/internal/sandbox"
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/compozy/agh/internal/acp"
+	aghconfig "github.com/compozy/agh/internal/config"
+	envpkg "github.com/compozy/agh/internal/sandbox"
+	"github.com/compozy/agh/internal/store"
 )
 
 var benchmarkSessionTime = time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC)

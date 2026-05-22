@@ -11,8 +11,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/pedronauck/agh/internal/acp"
-	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/compozy/agh/internal/acp"
+	aghconfig "github.com/compozy/agh/internal/config"
 )
 
 func TestLoadFixtureParsesMultipleAgentsAndScenarioPrimitives(t *testing.T) {

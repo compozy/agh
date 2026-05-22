@@ -13,12 +13,12 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	authproviders "github.com/pedronauck/agh/internal/providers"
-	"github.com/pedronauck/agh/internal/sandbox"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/subprocess"
-	"github.com/pedronauck/agh/internal/toolruntime"
+	aghconfig "github.com/compozy/agh/internal/config"
+	authproviders "github.com/compozy/agh/internal/providers"
+	"github.com/compozy/agh/internal/sandbox"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/agh/internal/toolruntime"
 )
 
 const (

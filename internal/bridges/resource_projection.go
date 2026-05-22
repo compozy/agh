@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/resources"
+	"github.com/compozy/agh/internal/resources"
 )
 
 // ResourceProjectionStore is the bridge desired-runtime surface updated by resource projection.

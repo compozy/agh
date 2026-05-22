@@ -16,10 +16,10 @@ import (
 	"sync"
 	"time"
 
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/version"
 	"github.com/google/uuid"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/diagnostics"
-	"github.com/pedronauck/agh/internal/version"
 )
 
 const (

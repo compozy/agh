@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/session"
+	"github.com/compozy/agh/internal/session"
 )
 
 func BenchmarkResolveWorkspacesRecentSessions(b *testing.B) {

@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	mcppkg "github.com/pedronauck/agh/internal/mcp"
-	"github.com/pedronauck/agh/internal/session"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
+	aghconfig "github.com/compozy/agh/internal/config"
+	mcppkg "github.com/compozy/agh/internal/mcp"
+	"github.com/compozy/agh/internal/session"
+	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
 type hostedMCPLauncherAdapter struct {

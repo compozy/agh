@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/pedronauck/agh/internal/cli"
+	"github.com/compozy/agh/internal/cli"
 )
 
 func main() {

@@ -3,7 +3,7 @@ package model
 import (
 	"time"
 
-	taskpkg "github.com/pedronauck/agh/internal/task"
+	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 // DefaultTimezone is the default schedule timezone used by automation config.

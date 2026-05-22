@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	toolspkg "github.com/pedronauck/agh/internal/tools"
+	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
 func TestDaemonNativeMCPAuthStatusTool(t *testing.T) {

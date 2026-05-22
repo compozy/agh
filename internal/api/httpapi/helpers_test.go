@@ -12,16 +12,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/api/contract"
+	core "github.com/compozy/agh/internal/api/core"
+	"github.com/compozy/agh/internal/api/testutil"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/session"
+	settingspkg "github.com/compozy/agh/internal/settings"
+	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/agh/internal/vault"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	core "github.com/pedronauck/agh/internal/api/core"
-	"github.com/pedronauck/agh/internal/api/testutil"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/session"
-	settingspkg "github.com/pedronauck/agh/internal/settings"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	"github.com/pedronauck/agh/internal/vault"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 type stubSessionManager = testutil.StubSessionManager

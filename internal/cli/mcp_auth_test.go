@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/diagnostics"
-	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/diagnostics"
+	mcpauth "github.com/compozy/agh/internal/mcp/auth"
 )
 
 func TestMCPAuthStatusReportsRedactedState(t *testing.T) {

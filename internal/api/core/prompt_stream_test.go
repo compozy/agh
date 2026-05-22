@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/acp"
-	"github.com/pedronauck/agh/internal/api/core"
+	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/agh/internal/api/core"
 )
 
 func TestPromptStreamEncoderPermissionDataPartIdentity(t *testing.T) {

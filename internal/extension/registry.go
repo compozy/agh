@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/compozy/agh/internal/store"
 	"modernc.org/sqlite"
 	sqlite3 "modernc.org/sqlite/lib"
 )

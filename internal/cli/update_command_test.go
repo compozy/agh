@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	aghupdate "github.com/pedronauck/agh/internal/update"
+	aghconfig "github.com/compozy/agh/internal/config"
+	aghupdate "github.com/compozy/agh/internal/update"
 )
 
 func TestUpdateCommandFlows(t *testing.T) {

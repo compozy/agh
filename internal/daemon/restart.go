@@ -11,11 +11,11 @@ import (
 	"syscall"
 	"time"
 
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/fileutil"
+	aghlogger "github.com/compozy/agh/internal/logger"
+	"github.com/compozy/agh/internal/procutil"
 	"github.com/google/uuid"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/fileutil"
-	aghlogger "github.com/pedronauck/agh/internal/logger"
-	"github.com/pedronauck/agh/internal/procutil"
 )
 
 const (

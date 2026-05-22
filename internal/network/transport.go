@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
+	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
-	aghconfig "github.com/pedronauck/agh/internal/config"
 )
 
 const (

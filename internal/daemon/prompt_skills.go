@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pedronauck/agh/internal/session"
-	skillspkg "github.com/pedronauck/agh/internal/skills"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	"github.com/compozy/agh/internal/session"
+	skillspkg "github.com/compozy/agh/internal/skills"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 type promptSkillsRegistry interface {

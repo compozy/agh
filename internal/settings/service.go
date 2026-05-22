@@ -9,12 +9,12 @@ import (
 	"strings"
 	"sync"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
-	skillspkg "github.com/pedronauck/agh/internal/skills"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/vault"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	aghconfig "github.com/compozy/agh/internal/config"
+	mcpauth "github.com/compozy/agh/internal/mcp/auth"
+	skillspkg "github.com/compozy/agh/internal/skills"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/vault"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 // WorkspaceResolver resolves and lists registered workspaces for settings flows.

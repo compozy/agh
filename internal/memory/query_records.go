@@ -11,8 +11,8 @@ import (
 	"strings"
 	"time"
 
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
-	storepkg "github.com/pedronauck/agh/internal/store"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
+	storepkg "github.com/compozy/agh/internal/store"
 )
 
 // DerivedResetResult reports derived-catalog reset work.

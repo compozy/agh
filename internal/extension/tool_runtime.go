@@ -7,8 +7,8 @@ import (
 	"slices"
 	"strings"
 
-	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
+	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
 var _ toolspkg.ExtensionToolInvoker = (*Manager)(nil)

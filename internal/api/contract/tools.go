@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/pedronauck/agh/internal/tools"
+	"github.com/compozy/agh/internal/tools"
 )
 
 // ToolDescriptorPayload is the public descriptor shape exposed by daemon APIs.

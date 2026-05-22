@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	core "github.com/pedronauck/agh/internal/api/core"
+	"github.com/compozy/agh/internal/api/contract"
+	core "github.com/compozy/agh/internal/api/core"
 )
 
 func TestPromptRequestPayloadRemainsTransportLocal(t *testing.T) {

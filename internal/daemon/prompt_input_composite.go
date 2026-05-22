@@ -10,9 +10,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/pedronauck/agh/internal/acp"
-	"github.com/pedronauck/agh/internal/memory"
-	"github.com/pedronauck/agh/internal/session"
+	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/agh/internal/memory"
+	"github.com/compozy/agh/internal/session"
 )
 
 const (

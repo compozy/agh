@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/api/core"
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/compozy/agh/internal/api/core"
+	"github.com/compozy/agh/internal/store"
 )
 
 func TestWriteSSEScrubsMemoryContext(t *testing.T) {

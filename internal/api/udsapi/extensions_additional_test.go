@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pedronauck/agh/internal/acp"
-	"github.com/pedronauck/agh/internal/api/contract"
-	extensionpkg "github.com/pedronauck/agh/internal/extension"
-	taskpkg "github.com/pedronauck/agh/internal/task"
+	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/agh/internal/api/contract"
+	extensionpkg "github.com/compozy/agh/internal/extension"
+	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 func TestListExtensionsHandler(t *testing.T) {

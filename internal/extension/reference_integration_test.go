@@ -21,17 +21,17 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
+	"github.com/compozy/agh/internal/cli"
+	aghconfig "github.com/compozy/agh/internal/config"
+	daemonpkg "github.com/compozy/agh/internal/daemon"
+	extensionpkg "github.com/compozy/agh/internal/extension"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/store/globaldb"
+	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/agh/internal/testutil"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
 	"github.com/kballard/go-shellquote"
-	"github.com/pedronauck/agh/internal/cli"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	daemonpkg "github.com/pedronauck/agh/internal/daemon"
-	extensionpkg "github.com/pedronauck/agh/internal/extension"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
-	"github.com/pedronauck/agh/internal/store/globaldb"
-	"github.com/pedronauck/agh/internal/subprocess"
-	"github.com/pedronauck/agh/internal/testutil"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 const (

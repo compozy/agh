@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 func TestRegistryConcurrentReadAPIsAndSetEnabledContract(t *testing.T) {

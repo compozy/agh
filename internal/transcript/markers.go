@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/acp"
-	"github.com/pedronauck/agh/internal/diagnostics"
-	"github.com/pedronauck/agh/internal/events"
+	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/events"
 )
 
 const (

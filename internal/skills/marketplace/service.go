@@ -15,10 +15,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	registrypkg "github.com/pedronauck/agh/internal/registry"
-	registryclawhub "github.com/pedronauck/agh/internal/registry/clawhub"
-	"github.com/pedronauck/agh/internal/skills"
+	aghconfig "github.com/compozy/agh/internal/config"
+	registrypkg "github.com/compozy/agh/internal/registry"
+	registryclawhub "github.com/compozy/agh/internal/registry/clawhub"
+	"github.com/compozy/agh/internal/skills"
 	"golang.org/x/text/unicode/norm"
 )
 

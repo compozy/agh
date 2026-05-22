@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/api/testutil"
-	automationpkg "github.com/pedronauck/agh/internal/automation"
-	"github.com/pedronauck/agh/internal/session"
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/api/testutil"
+	automationpkg "github.com/compozy/agh/internal/automation"
+	"github.com/compozy/agh/internal/session"
 )
 
 func TestTestutilStubFallbacksReturnDeterministicErrors(t *testing.T) {

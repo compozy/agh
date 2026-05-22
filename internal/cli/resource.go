@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/pedronauck/agh/internal/resources"
+	"github.com/compozy/agh/internal/resources"
 	"github.com/spf13/cobra"
 )
 

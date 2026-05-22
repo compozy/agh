@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pedronauck/agh/internal/sandbox"
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/sandbox"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestDaemonSandboxReconcileIntegrationBootFinalizeReattachesBeforeObserverReconcile(t *testing.T) {

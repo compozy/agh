@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/testutil"
 	"github.com/jonboulle/clockwork"
-	"github.com/pedronauck/agh/internal/testutil"
 )
 
 func TestSchedulerCronStateUsesDeterministicNextRun(t *testing.T) {

@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	"github.com/pedronauck/agh/internal/notifications"
-	taskpkg "github.com/pedronauck/agh/internal/task"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/agh/internal/notifications"
+	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 func TestBridgeTerminalTaskNotificationObserver(t *testing.T) {

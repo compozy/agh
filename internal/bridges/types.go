@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/vault"
+	"github.com/compozy/agh/internal/vault"
 )
 
 var (

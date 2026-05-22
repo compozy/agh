@@ -10,12 +10,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/agh/internal/api/contract"
+	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	"github.com/compozy/agh/internal/hooks"
+	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/agh/internal/tools"
 	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/pedronauck/agh/internal/api/contract"
-	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
-	"github.com/pedronauck/agh/internal/hooks"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	"github.com/pedronauck/agh/internal/tools"
 )
 
 func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {

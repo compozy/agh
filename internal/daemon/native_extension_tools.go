@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	extensionpkg "github.com/pedronauck/agh/internal/extension"
-	registrypkg "github.com/pedronauck/agh/internal/registry"
-	registrygithub "github.com/pedronauck/agh/internal/registry/github"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
+	"github.com/compozy/agh/internal/api/contract"
+	aghconfig "github.com/compozy/agh/internal/config"
+	extensionpkg "github.com/compozy/agh/internal/extension"
+	registrypkg "github.com/compozy/agh/internal/registry"
+	registrygithub "github.com/compozy/agh/internal/registry/github"
+	taskpkg "github.com/compozy/agh/internal/task"
+	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
 const (

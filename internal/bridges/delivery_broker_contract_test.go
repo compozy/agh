@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestBrokerRegisterPromptDeliveryContract(t *testing.T) {

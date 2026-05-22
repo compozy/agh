@@ -10,9 +10,9 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/diagnostics"
-	taskpkg "github.com/pedronauck/agh/internal/task"
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/diagnostics"
+	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 const (
