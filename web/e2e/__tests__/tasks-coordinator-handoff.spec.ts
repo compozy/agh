@@ -69,6 +69,8 @@ test("creating a task is saved intent, no run is enqueued and labels never imply
 
   await tasksUI.openCreate.click();
   await expect(appPage).toHaveURL(/\/tasks\/new$/);
+  await tasksUI.createTemplate("recurring").click();
+  await expect(tasksUI.createSaveDraft).toContainText("Save draft");
   await tasksUI.createPriority("medium").click();
   await tasksUI.createTitle.fill(draftTitle);
   await tasksUI.createDescription.fill(draftDescription);
@@ -91,7 +93,6 @@ test("creating a task is saved intent, no run is enqueued and labels never imply
     throw new Error(`Expected a created draft task for "${draftTitle}".`);
   }
 
-  await tasksUI.taskCard(draftId).click();
   await expect(tasksUI.detailContent).toContainText(draftTitle);
 
   await expect(tasksUI.detailLifecycle).toHaveText(/saved intent/i);
@@ -125,6 +126,8 @@ test("publishing a draft hands off to the coordinator and binds a coordination c
   await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/tasks");
   await tasksUI.openCreate.click();
+  await tasksUI.createTemplate("recurring").click();
+  await expect(tasksUI.createSaveDraft).toContainText("Save draft");
   await tasksUI.createPriority("high").click();
   const publishedTitle = `Coordinator handoff publish ${Date.now()}`;
   await tasksUI.createTitle.fill(publishedTitle);
@@ -143,8 +146,6 @@ test("publishing a draft hands off to the coordinator and binds a coordination c
       return created?.status ?? "";
     })
     .toBe("draft");
-
-  await tasksUI.taskCard(draftId).click();
 
   const publishResponsePromise = appPage.waitForResponse(response => {
     return (

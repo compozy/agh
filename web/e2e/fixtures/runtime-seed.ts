@@ -97,7 +97,22 @@ export interface BrowserSkillSeed {
   version?: string;
 }
 
+export interface BrowserSkillMarketplaceListingSeed {
+  author?: string;
+  description?: string;
+  downloads?: number;
+  name: string;
+  slug: string;
+  source?: string;
+  version?: string;
+}
+
+export interface BrowserSkillMarketplaceSeed {
+  listings: BrowserSkillMarketplaceListingSeed[];
+}
+
 export interface BrowserRuntimeSeed {
+  skillMarketplace?: BrowserSkillMarketplaceSeed;
   skills?: BrowserSkillSeed[];
   mockAgents?: BrowserMockAgentSeed[];
   workspace?: BrowserWorkspaceSeed;
@@ -107,6 +122,7 @@ export interface BrowserRuntimeSeed {
 export interface BrowserAutomationOperatorFlowSeed {
   agentName: string;
   timeoutMs?: number;
+  workspaceId?: string;
 }
 
 export interface BridgeAdapterMarkerPaths {
@@ -211,6 +227,14 @@ type BrowserBridgeOperatorSeedRuntime = Pick<
   BrowserRuntimeSeedClient,
   "requestJSON" | "requestOperatorJSON"
 > &
+  Partial<Pick<BrowserRuntimeSeedClient, "resolveWorkspace">> & {
+    paths?: {
+      homeDir: string;
+    };
+    seeded?: BrowserRuntimeSeedResult;
+  };
+
+type BrowserAutomationOperatorSeedRuntime = Pick<BrowserRuntimeSeedClient, "requestJSON"> &
   Partial<Pick<BrowserRuntimeSeedClient, "resolveWorkspace">> & {
     paths?: {
       homeDir: string;
@@ -961,7 +985,7 @@ export async function seedBrowserSandboxProfiles(
 }
 
 export async function seedBrowserAutomationOperatorFlow(
-  runtime: Pick<BrowserRuntimeSeedClient, "requestJSON">,
+  runtime: BrowserAutomationOperatorSeedRuntime,
   seed: BrowserAutomationOperatorFlowSeed
 ): Promise<BrowserAutomationOperatorFlowResult> {
   const agentName = seed.agentName.trim();
@@ -1011,9 +1035,11 @@ export async function seedBrowserAutomationOperatorFlow(
 
   await waitForSeedCondition(
     async () => {
-      const workspaceId = requireSeedWorkspaceID(
-        (baselineRun as { workspace_id?: string }).workspace_id,
-        `automation run ${baselineRun.id}`
+      const workspaceId = await resolveBrowserAutomationWorkspaceID(
+        runtime,
+        seed,
+        timeoutMs,
+        (baselineRun as { workspace_id?: string }).workspace_id
       );
       const payload = await runtime.requestJSON<{ messages: unknown[] }>(
         workspaceSessionPath(workspaceId, baselineRun.session_id ?? "", "/transcript")
@@ -1550,6 +1576,7 @@ async function installBrowserBridgeExtension(
   await requestOperatorJSON<{ extension: { name: string } }>("/api/extensions", {
     method: "POST",
     body: JSON.stringify({
+      allow_unverified: true,
       checksum: prepared.checksum,
       path: prepared.extensionDir,
     }),
@@ -1702,6 +1729,46 @@ async function resolveBrowserTasksWorkspace(
     "browser tasks workspace",
     timeoutMs
   );
+}
+
+async function resolveBrowserAutomationWorkspaceID(
+  runtime: BrowserAutomationOperatorSeedRuntime,
+  seed: BrowserAutomationOperatorFlowSeed,
+  timeoutMs: number,
+  runWorkspaceId?: string
+): Promise<string> {
+  const explicitWorkspaceID = runWorkspaceId?.trim() || seed.workspaceId?.trim();
+  if (explicitWorkspaceID) {
+    return explicitWorkspaceID;
+  }
+
+  const seededWorkspaceID = runtime.seeded?.workspace?.id?.trim();
+  if (seededWorkspaceID) {
+    return seededWorkspaceID;
+  }
+
+  const resolveWorkspace = runtime.resolveWorkspace?.bind(runtime);
+  const homeDir = runtime.paths?.homeDir;
+  if (resolveWorkspace && homeDir) {
+    const workspace = await waitForSeedCondition(
+      async () => await resolveWorkspace(homeDir),
+      "browser automation workspace",
+      timeoutMs
+    );
+    return workspace.id;
+  }
+
+  const workspace = await waitForSeedCondition(
+    async () => {
+      const payload = await runtime.requestJSON<{ workspaces: WorkspacePayload[] }>(
+        "/api/workspaces"
+      );
+      return payload.workspaces[0] ?? null;
+    },
+    "browser automation workspace",
+    timeoutMs
+  );
+  return workspace.id;
 }
 
 async function createBrowserTask(

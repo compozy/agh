@@ -191,7 +191,7 @@ test("operator can inspect automation, trigger a real run, and inspect the linke
   await expect
     .poll(() => new URL(appPage.url()).pathname)
     .toBe(automationSessionPath(uiTriggeredRun.session_id));
-  await expect(sessionUI.chatHeader).toBeVisible();
+  await expect(sessionUI.chatView).toBeVisible();
   await expect(sessionUI.chatView).toContainText(browserAutomationOperatorFlowScenario.job.prompt);
   await expect(sessionUI.chatView).toContainText(
     browserAutomationOperatorFlowScenario.transcript.assistant

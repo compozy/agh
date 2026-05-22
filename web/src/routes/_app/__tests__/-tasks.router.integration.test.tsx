@@ -241,6 +241,7 @@ function buildSelectionRouter(initialUrl: string) {
           onOwnerChange={() => {}}
           onPriorityChange={() => {}}
           onScopeChange={() => {}}
+          onSearchQueryChange={() => {}}
           onSelectTask={taskId => {
             void navigate({ params: { id: taskId }, to: "/tasks/$id" });
           }}
@@ -249,6 +250,7 @@ function buildSelectionRouter(initialUrl: string) {
           ownerFilter={null}
           ownerOptions={[]}
           priorityFilter={null}
+          searchQuery=""
           scopeFilter="all"
           sortBy="recent"
           statusFilter={null}

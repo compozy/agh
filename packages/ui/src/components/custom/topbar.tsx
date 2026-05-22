@@ -75,13 +75,14 @@ function Topbar({ route, navCount, className, titleRef, ...props }: TopbarProps)
   const renderedTitle: React.ReactNode = slot?.title ?? route?.title ?? "Untitled";
   const back = slot?.back;
   const backLabel = slot?.backLabel ?? "Go back";
+  const hasTabs = Boolean(slot?.tabs);
 
   return (
     <header
       data-slot="topbar"
       data-mode={back ? "detail" : "default"}
       className={cn(
-        "flex h-12 min-w-0 shrink-0 items-center gap-3 border-b border-line bg-canvas px-4",
+        "flex h-12 min-w-0 shrink-0 items-center gap-3 overflow-hidden border-b border-line bg-canvas px-4",
         className
       )}
       {...props}
@@ -136,11 +137,17 @@ function Topbar({ route, navCount, className, titleRef, ...props }: TopbarProps)
         ) : null}
       </div>
       {slot?.tabs ? (
-        <div data-slot="topbar-tabs" className="flex min-w-0 items-center">
+        <div
+          data-slot="topbar-tabs"
+          className="flex min-w-0 flex-1 items-center overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
           {slot.tabs}
         </div>
       ) : null}
-      <div data-slot="topbar-trailing" className="ml-auto flex shrink-0 items-center gap-2">
+      <div
+        data-slot="topbar-trailing"
+        className={cn("flex shrink-0 items-center gap-2", hasTabs ? "ml-0" : "ml-auto")}
+      >
         {slot?.search ? <div data-slot="topbar-search">{slot.search}</div> : null}
         {slot?.actions ? <div data-slot="topbar-actions">{slot.actions}</div> : null}
         {slot?.overflow ? (

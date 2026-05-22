@@ -570,25 +570,18 @@ func inputUIMessage(decoded *decodedStoredEvent, role string) *UIMessage {
 }
 
 func runtimeMarkerUIMessage(decoded *decodedStoredEvent, markerText string) UIMessage {
-	parts := []UIMessagePart{{
-		Type:  uiPartText,
-		Text:  markerText,
-		State: uiPartStateDone,
-	}}
-	if payload := decoded.dataPayload(); len(payload) > 0 {
-		parts = append(parts, UIMessagePart{
-			Type: uiPartDataEvent,
-			Data: acp.CloneRawMessage(payload),
-		})
-	}
 	return UIMessage{
 		ID: fallbackMessageID(
 			strings.TrimSpace(decoded.stored.ID),
 			strings.TrimSpace(decoded.parsed.ID),
 			"runtime-marker",
 		),
-		Role:  UIRoleSystem,
-		Parts: parts,
+		Role: UIRoleSystem,
+		Parts: []UIMessagePart{{
+			Type:  uiPartText,
+			Text:  markerText,
+			State: uiPartStateDone,
+		}},
 	}
 }
 

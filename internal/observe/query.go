@@ -10,6 +10,7 @@ import (
 
 	hookspkg "github.com/pedronauck/agh/internal/hooks"
 	"github.com/pedronauck/agh/internal/store"
+	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
 
 // QueryEvents returns cross-session event summaries ordered for CLI/API consumption.
@@ -33,14 +34,18 @@ func (o *Observer) QueryEvents(ctx context.Context, query store.EventSummaryQuer
 	if err != nil {
 		return nil, err
 	}
-	memoryEvents, err := memorySource.ListMemoryEventSummaries(ctx, workspaces, query)
+	memoryQuery, err := memoryEventQueryForWorkspaces(ctx, query, workspaces)
+	if err != nil {
+		return nil, err
+	}
+	memoryEvents, err := memorySource.ListMemoryEventSummaries(ctx, workspaces, memoryQuery)
 	if err != nil {
 		return nil, fmt.Errorf("observe: query memory events: %w", err)
 	}
 
 	events = append(filterRegistryMemoryEvents(events), memoryEvents...)
-	sortObserveEvents(events)
-	return clampObserveEvents(events, query.Limit), nil
+	sortEventSummaries(events)
+	return clampEventSummaries(events, query.Limit), nil
 }
 
 // QueryTokenStats returns aggregated per-session token usage rows.
@@ -99,7 +104,7 @@ func filterRegistryMemoryEvents(events []store.EventSummary) []store.EventSummar
 	return filtered
 }
 
-func sortObserveEvents(events []store.EventSummary) {
+func sortEventSummaries(events []store.EventSummary) {
 	sort.SliceStable(events, func(i, j int) bool {
 		left := events[i]
 		right := events[j]
@@ -115,11 +120,35 @@ func sortObserveEvents(events []store.EventSummary) {
 	})
 }
 
-func clampObserveEvents(events []store.EventSummary, limit int) []store.EventSummary {
+func clampEventSummaries(events []store.EventSummary, limit int) []store.EventSummary {
 	if limit <= 0 || len(events) <= limit {
 		return events
 	}
 	return append([]store.EventSummary(nil), events[len(events)-limit:]...)
+}
+
+func memoryEventQueryForWorkspaces(
+	ctx context.Context,
+	query store.EventSummaryQuery,
+	workspaces []string,
+) (store.EventSummaryQuery, error) {
+	if strings.TrimSpace(query.WorkspaceID) == "" || len(workspaces) != 1 {
+		return query, nil
+	}
+	workspaceRoot := strings.TrimSpace(workspaces[0])
+	if workspaceRoot == "" {
+		return query, nil
+	}
+	identity, err := aghworkspace.EnsureIdentity(ctx, workspaceRoot)
+	if err != nil {
+		return store.EventSummaryQuery{}, fmt.Errorf(
+			"observe: resolve memory event workspace identity %q: %w",
+			workspaceRoot,
+			err,
+		)
+	}
+	query.WorkspaceID = identity.WorkspaceID
+	return query, nil
 }
 
 // QueryPermissionLog returns permission audit rows.

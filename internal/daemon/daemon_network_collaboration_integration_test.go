@@ -275,6 +275,8 @@ func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {
 
 		postTerminalDirectArgs := []string{
 			"network",
+			"--workspace",
+			harness.WorkspaceID,
 			"send",
 			"--session",
 			patchSession.ID,
@@ -961,7 +963,10 @@ func mustSendNetworkCLI(
 	t.Helper()
 
 	var payload aghcontract.NetworkSendPayload
-	fullArgs := append([]string{"network", "send"}, append(args, "-o", "json")...)
+	fullArgs := append(
+		[]string{"network", "--workspace", harness.WorkspaceID, "send"},
+		append(args, "-o", "json")...,
+	)
 	if err := harness.CLI.RunJSON(ctx, &payload, fullArgs...); err != nil {
 		t.Fatalf("CLI %v error = %v", fullArgs, err)
 	}
@@ -1009,7 +1014,16 @@ func assertCLINetworkParity(
 	t.Helper()
 
 	var cliStatus aghcontract.NetworkStatusPayload
-	if err := harness.CLI.RunJSON(ctx, &cliStatus, "network", "status", "-o", "json"); err != nil {
+	if err := harness.CLI.RunJSON(
+		ctx,
+		&cliStatus,
+		"network",
+		"--workspace",
+		harness.WorkspaceID,
+		"status",
+		"-o",
+		"json",
+	); err != nil {
 		t.Fatalf("CLI network status error = %v", err)
 	}
 	if cliStatus.Enabled != httpStatus.Enabled ||
@@ -1020,7 +1034,17 @@ func assertCLINetworkParity(
 	}
 
 	var cliPeers []aghcontract.NetworkPeerPayload
-	if err := harness.CLI.RunJSON(ctx, &cliPeers, "network", "peers", httpChannel.Channel, "-o", "json"); err != nil {
+	if err := harness.CLI.RunJSON(
+		ctx,
+		&cliPeers,
+		"network",
+		"--workspace",
+		harness.WorkspaceID,
+		"peers",
+		httpChannel.Channel,
+		"-o",
+		"json",
+	); err != nil {
 		t.Fatalf("CLI network peers error = %v", err)
 	}
 	assertNetworkPeerOrdering(t, "HTTP peer list", httpPeers)
@@ -1038,7 +1062,16 @@ func assertCLINetworkParity(
 	}
 
 	var cliChannels []aghcontract.NetworkChannelPayload
-	if err := harness.CLI.RunJSON(ctx, &cliChannels, "network", "channels", "-o", "json"); err != nil {
+	if err := harness.CLI.RunJSON(
+		ctx,
+		&cliChannels,
+		"network",
+		"--workspace",
+		harness.WorkspaceID,
+		"channels",
+		"-o",
+		"json",
+	); err != nil {
 		t.Fatalf("CLI network channels error = %v", err)
 	}
 	cliChannel, ok := findChannelPayload(cliChannels, httpChannel.Channel)

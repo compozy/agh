@@ -222,10 +222,10 @@ describe("SandboxPage", () => {
       },
     });
     render(<SandboxPage />);
-    expect(screen.getByTestId("settings-modal-editor-title")).toHaveTextContent(
+    expect(screen.getByTestId("settings-sandbox-editor-title")).toHaveTextContent(
       "New sandbox profile"
     );
-    expect(screen.queryByTestId("settings-sandbox-editor-title")).toBeNull();
+    expect(screen.queryByTestId("settings-modal-editor-title")).toBeNull();
     expect(screen.getByTestId("sandbox-editor-name-input")).not.toBeDisabled();
     expect(screen.getByTestId("sandbox-editor-backend-input")).toHaveValue("local");
   });

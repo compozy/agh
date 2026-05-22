@@ -635,6 +635,70 @@ func TestDispatchScheduledReservedRunCancelsOnFireLimit(t *testing.T) {
 	)
 }
 
+func TestDispatchReservedRunAdvancesAttemptAcrossRetry(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	store := newMemoryRunStore()
+	creator := newRecordingSessionCreator(
+		sessionAttemptPlan{
+			events: []acp.AgentEvent{{Error: "first reserved failure"}},
+		},
+		sessionAttemptPlan{},
+	)
+	dispatcher := newTestDispatcher(
+		t,
+		creator,
+		store,
+		WithDispatcherSleep(func(context.Context, time.Duration) error { return nil }),
+	)
+
+	job := testJob(AutomationScopeGlobal, "job-reserved-retry", "")
+	job.Retry = RetryConfig{
+		Strategy:   RetryStrategyBackoff,
+		MaxRetries: 1,
+		BaseDelay:  "1s",
+	}
+	reserved, err := store.CreateRun(ctx, Run{
+		ID:        "run-reserved-retry",
+		JobID:     job.ID,
+		Status:    RunScheduled,
+		Attempt:   1,
+		StartedAt: timePointer(time.Date(2026, 5, 21, 12, 0, 0, 0, time.UTC)),
+	})
+	if err != nil {
+		t.Fatalf("CreateRun(reserved) error = %v", err)
+	}
+
+	run, err := dispatcher.Dispatch(ctx, DispatchRequest{
+		Kind:        DispatchKindSchedule,
+		Job:         &job,
+		ReservedRun: &reserved,
+	})
+	if err != nil {
+		t.Fatalf("Dispatch() error = %v", err)
+	}
+	if run == nil {
+		t.Fatal("Dispatch() run = nil, want completed reserved run")
+	}
+	if got, want := run.Attempt, 2; got != want {
+		t.Fatalf("run.Attempt = %d, want %d after retry", got, want)
+	}
+	var stored Run
+	for _, candidate := range store.listRuns() {
+		if candidate.ID == reserved.ID {
+			stored = candidate
+			break
+		}
+	}
+	if stored.ID == "" {
+		t.Fatalf("stored reserved run %q not found", reserved.ID)
+	}
+	if got, want := stored.Attempt, 2; got != want {
+		t.Fatalf("stored.Attempt = %d, want %d after retry", got, want)
+	}
+}
+
 func TestDispatchFireLimitIgnoresCancelledRuns(t *testing.T) {
 	t.Run("Should ignore canceled runs when counting the fire-limit window", func(t *testing.T) {
 		t.Parallel()

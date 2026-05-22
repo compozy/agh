@@ -91,7 +91,7 @@ func TestRegistryLoadAllLoadsUserLevelSkills(t *testing.T) {
 	}
 }
 
-func TestRegistryObserveEvents(t *testing.T) {
+func TestRegistryEventSummaries(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should emit skill shadowed for workspace overlays", func(t *testing.T) {

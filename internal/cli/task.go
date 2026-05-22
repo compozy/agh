@@ -1414,14 +1414,16 @@ func newTaskCompleteCommand(deps commandDeps) *cobra.Command {
 }
 
 func newTaskFailCommand(deps commandDeps) *cobra.Command {
-	var reason string
-	var metadataRaw string
+	flags := taskFailCommandFlags{}
 
 	cmd := &cobra.Command{
 		Use:   "fail <run-id> [run-id...]",
-		Short: "Force fail queued or claimed task runs",
+		Short: "Fail task runs through a session-bound lease or operator override",
 		Args:  cobra.MinimumNArgs(1),
-		Example: `  # Force fail one run
+		Example: `  # Fail the current session's claimed run
+  agh task fail run-123 --error "provider returned invalid JSON"
+
+  # Force fail one run
   agh task fail run-123 --reason "operator recovery"
 
   # Force fail multiple runs with shared audit evidence
@@ -1429,49 +1431,121 @@ func newTaskFailCommand(deps commandDeps) *cobra.Command {
     --reason "provider credentials revoked" \
     --metadata '{"incident":"INC-42"}'`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			runIDs, err := requiredTaskRunIDs(args)
-			if err != nil {
-				return err
-			}
-			request := ForceFailTaskRunRequest{
-				Reason: strings.TrimSpace(reason),
-			}
-			if request.Reason == "" {
-				return errors.New("cli: --reason is required")
-			}
-			if cmd.Flags().Changed("metadata") {
-				request.Metadata, err = parseAgentTaskJSONFlag("metadata", metadataRaw)
-				if err != nil {
-					return err
-				}
-			}
-
-			client, err := clientFromDeps(deps)
-			if err != nil {
-				return err
-			}
-			if len(runIDs) == 1 {
-				record, err := client.ForceFailTaskRun(cmd.Context(), runIDs[0], request)
-				if err != nil {
-					return err
-				}
-				return writeCommandOutput(cmd, taskRunBundle(record))
-			}
-			record, err := client.BulkForceFailTaskRuns(cmd.Context(), BulkForceTaskRunRequest{
-				RunIDs:   runIDs,
-				Reason:   request.Reason,
-				Metadata: request.Metadata,
-			})
-			if err != nil {
-				return err
-			}
-			return writeCommandOutput(cmd, bulkForceTaskRunBundle(record))
+			return runTaskFailCommand(cmd, args, deps, flags)
 		},
 	}
-	cmd.Flags().StringVar(&reason, "reason", "", "Forced-failure reason")
-	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional forced-failure metadata JSON")
-	mustMarkFlagRequired(cmd, "reason")
+	cmd.Flags().StringVar(&flags.reason, "reason", "", "Forced-failure reason")
+	cmd.Flags().StringVar(&flags.errorMessage, taskErrorKey, "", "Session-bound failure message")
+	cmd.Flags().StringVar(&flags.metadataRaw, "metadata", "", "Optional failure metadata JSON")
 	return cmd
+}
+
+type taskFailCommandFlags struct {
+	reason       string
+	errorMessage string
+	metadataRaw  string
+}
+
+func runTaskFailCommand(
+	cmd *cobra.Command,
+	args []string,
+	deps commandDeps,
+	flags taskFailCommandFlags,
+) error {
+	runIDs, err := requiredTaskRunIDs(args)
+	if err != nil {
+		return err
+	}
+	if cmd.Flags().Changed(taskErrorKey) {
+		return runSessionTaskFailCommand(cmd, deps, runIDs, flags)
+	}
+	return runForceTaskFailCommand(cmd, deps, runIDs, flags)
+}
+
+func runSessionTaskFailCommand(
+	cmd *cobra.Command,
+	deps commandDeps,
+	runIDs []string,
+	flags taskFailCommandFlags,
+) error {
+	if cmd.Flags().Changed("reason") {
+		return errors.New(
+			"cli: choose either --error for session-bound failure or --reason for force failure",
+		)
+	}
+	if len(runIDs) != 1 {
+		return errors.New("cli: --error supports exactly one run id")
+	}
+	request := AgentTaskFailRequest{Error: strings.TrimSpace(flags.errorMessage)}
+	if request.Error == "" {
+		return errors.New("cli: --error is required")
+	}
+	if cmd.Flags().Changed("metadata") {
+		metadata, err := parseAgentTaskJSONFlag("metadata", flags.metadataRaw)
+		if err != nil {
+			return err
+		}
+		request.Metadata = metadata
+	}
+	client, err := clientFromDeps(deps)
+	if err != nil {
+		return err
+	}
+	credentials, err := requireAgentCommandIdentity(
+		cmd.Context(),
+		deps,
+		client,
+		agentActionCLI("task.fail"),
+	)
+	if err != nil {
+		return err
+	}
+	record, err := client.AgentTaskFail(cmd.Context(), runIDs[0], request, credentials)
+	if err != nil {
+		return err
+	}
+	return writeCommandOutput(cmd, agentTaskLeaseBundle(record))
+}
+
+func runForceTaskFailCommand(
+	cmd *cobra.Command,
+	deps commandDeps,
+	runIDs []string,
+	flags taskFailCommandFlags,
+) error {
+	request := ForceFailTaskRunRequest{
+		Reason: strings.TrimSpace(flags.reason),
+	}
+	if request.Reason == "" {
+		return errors.New("cli: --reason is required")
+	}
+	if cmd.Flags().Changed("metadata") {
+		metadata, err := parseAgentTaskJSONFlag("metadata", flags.metadataRaw)
+		if err != nil {
+			return err
+		}
+		request.Metadata = metadata
+	}
+	client, err := clientFromDeps(deps)
+	if err != nil {
+		return err
+	}
+	if len(runIDs) == 1 {
+		record, err := client.ForceFailTaskRun(cmd.Context(), runIDs[0], request)
+		if err != nil {
+			return err
+		}
+		return writeCommandOutput(cmd, taskRunBundle(record))
+	}
+	record, err := client.BulkForceFailTaskRuns(cmd.Context(), BulkForceTaskRunRequest{
+		RunIDs:   runIDs,
+		Reason:   request.Reason,
+		Metadata: request.Metadata,
+	})
+	if err != nil {
+		return err
+	}
+	return writeCommandOutput(cmd, bulkForceTaskRunBundle(record))
 }
 
 func newTaskReleaseCommand(deps commandDeps) *cobra.Command {

@@ -263,7 +263,7 @@ func memorySearchResultPayloadsFromSearchResults(
 	workspaceID string,
 ) []contract.MemorySearchResultPayload {
 	if len(results) == 0 {
-		return nil
+		return []contract.MemorySearchResultPayload{}
 	}
 	normalizedWorkspaceID := strings.TrimSpace(workspaceID)
 	payloads := make([]contract.MemorySearchResultPayload, 0, len(results))

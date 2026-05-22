@@ -214,7 +214,7 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 			t.Fatalf("health.Memory.LastReindex = nil, want non-nil")
 		}
 
-		var reindexEvents aghcontract.ListLogsResponse
+		var reindexEvents aghcontract.LogsListResponse
 		reindexEventsPath := "/api/logs?workspace_id=" + url.QueryEscape(harness.WorkspaceID) +
 			"&type=memory.write.reindex&limit=10"
 		if err := harness.UDSJSON(
@@ -230,7 +230,7 @@ func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T)
 			t.Fatalf("reindex logs = %#v, want indexed=3 summary", reindexEvents.Events)
 		}
 
-		var searchEvents aghcontract.ListLogsResponse
+		var searchEvents aghcontract.LogsListResponse
 		searchEventsPath := "/api/logs?workspace_id=" + url.QueryEscape(harness.WorkspaceID) +
 			"&type=memory.recall.executed&limit=10"
 		if err := harness.UDSJSON(

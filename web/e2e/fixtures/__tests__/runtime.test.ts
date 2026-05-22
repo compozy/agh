@@ -72,6 +72,24 @@ describe("runtime helpers", () => {
     ).toContain("[network]\nenabled = false\n");
   });
 
+  it("renders a seeded skill marketplace base URL for launch-mode browser E2E", () => {
+    expect(
+      renderRuntimeConfig({
+        host: "127.0.0.1",
+        port: 4321,
+        skillsMarketplaceBaseURL: "http://127.0.0.1:9876",
+        socketPath: "/tmp/agh.sock",
+      })
+    ).toContain(
+      [
+        "[skills.marketplace]",
+        'registry = "clawhub"',
+        'base_url = "http://127.0.0.1:9876"',
+        "",
+      ].join("\n")
+    );
+  });
+
   it("requires API readiness probes only for loopback HTTP bindings", () => {
     expect(requiresHTTPAPIReadinessProbe("")).toBe(true);
     expect(requiresHTTPAPIReadinessProbe("localhost")).toBe(true);

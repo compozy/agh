@@ -63,18 +63,17 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
   await tasksUI.navTasks.click();
 
   await expect(appPage).toHaveURL(/\/tasks$/);
-  await expect(tasksUI.modeKanban).toHaveAttribute("aria-pressed", "true");
-  await tasksUI.modeList.click();
   await expect(tasksUI.modeList).toHaveAttribute("aria-pressed", "true");
   await expect(tasksUI.taskCard(seeded.referenceTask.id)).toBeVisible();
   await expect(tasksUI.taskCard(seeded.approvalTask.id)).toBeVisible();
   await expect(tasksUI.taskCard(seeded.runningTask.id)).toBeVisible();
-  await expect(tasksUI.detailPreviewPanel).toBeVisible();
   await browserArtifacts.captureScreenshot("tasks-list-seeded", appPage);
 
   await tasksUI.openCreate.click();
   await expect(appPage).toHaveURL(/\/tasks\/new$/);
   await expect(tasksUI.createEditorSurface).toBeVisible();
+  await tasksUI.createTemplate("recurring").click();
+  await expect(tasksUI.createSaveDraft).toContainText("Save draft");
   await tasksUI.createPriority("high").click();
   const createdDraftTitle = uniqueDraftTitle("Draft Tasks browser evidence rollout");
   await tasksUI.createTitle.fill(createdDraftTitle);
@@ -99,8 +98,6 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
     throw new Error(`Expected a created draft task for "${createdDraftTitle}".`);
   }
 
-  await expect(tasksUI.taskCard(createdDraftId)).toBeVisible();
-  await tasksUI.taskCard(createdDraftId).click();
   await expect(tasksUI.detailContent).toContainText(createdDraftTitle);
   await expect(tasksUI.detailPublish).toBeVisible();
   await browserArtifacts.captureScreenshot("tasks-draft-created", appPage);
@@ -142,10 +139,10 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
   await tasksUI.detailTabAgents.click();
   await expect(tasksUI.multiAgentPanel).toBeVisible();
   await expect(tasksUI.multiAgentSummary).toContainText("1 running");
-  await expect(tasksUI.multiAgentAgentRun(createdDraftId)).toBeVisible();
-  await expect(tasksUI.multiAgentAgentRun(createdDraftId)).toHaveAttribute(
+  await expect(tasksUI.multiAgentAgentLink(createdDraftId)).toBeVisible();
+  await expect(tasksUI.multiAgentAgentLink(createdDraftId)).toHaveAttribute(
     "href",
-    new RegExp(`/tasks/${createdDraftId}/runs/`)
+    `/tasks/${createdDraftId}`
   );
   await browserArtifacts.captureScreenshot("tasks-live-agents", appPage);
 
@@ -237,6 +234,8 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
   await tasksUI.openCreate.click();
   await expect(appPage).toHaveURL(/\/tasks\/new$/);
   await expect(tasksUI.createEditorSurface).toBeVisible();
+  await tasksUI.createTemplate("recurring").click();
+  await expect(tasksUI.createSaveDraft).toContainText("Save draft");
   const deleteDraftTitle = uniqueDraftTitle("Draft Tasks delete confirmation smoke");
   await tasksUI.createTitle.fill(deleteDraftTitle);
   await tasksUI.createDescription.fill(deleteDraftDescription);
@@ -259,8 +258,6 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
     throw new Error(`Expected a deletable draft task for "${deleteDraftTitle}".`);
   }
 
-  await expect(tasksUI.taskCard(deleteDraftId)).toBeVisible();
-  await tasksUI.taskCard(deleteDraftId).click();
   await expect(tasksUI.detailContent).toContainText(deleteDraftTitle);
   await tasksUI.detailDelete.click();
   await expect(tasksUI.detailDeleteDialog).toBeVisible();

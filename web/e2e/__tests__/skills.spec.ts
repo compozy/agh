@@ -95,6 +95,19 @@ test.use({
           fixturePath: skillsContextFixture,
         },
       ],
+      skillMarketplace: {
+        listings: [
+          {
+            author: "agh",
+            description: "Marketplace metadata visible through the daemon catalog.",
+            downloads: 7,
+            name: marketplaceSkillName,
+            slug: "@agh/browser-marketplace-skill",
+            source: "clawhub",
+            version: "2.0.0",
+          },
+        ],
+      },
       skills: [
         {
           name: contextSkillName,
@@ -169,7 +182,7 @@ test("operator manages Skills against a real daemon and proves next-session prom
 
   await appPage.goto(runtime.url("/skills"), { waitUntil: "domcontentloaded" });
   await expect(skillsUI.shell).toBeVisible();
-  await expect(skillsUI.tabInstalled).toHaveAttribute("aria-selected", "true");
+  await expect(skillsUI.tabInstalled).toHaveAttribute("aria-pressed", "true");
   await expect(skillsUI.listPanel).toBeVisible();
 
   await skillsUI.searchInput.fill("browser-context");

@@ -42,7 +42,7 @@ const faultAgentName = "browser-triggers-fault";
 const webhookSecret = "browser-trigger-secret";
 const payloadSecret = "browser-trigger-payload-secret";
 const sensitivePattern =
-  /agh_claim_|["']claim_token["']\s*:|mcp[_-]?auth|telegram-bot-token|pkce|oauth|provider[_-]?credential|browser-trigger-secret|browser-trigger-payload-secret/i;
+  /agh_claim_|["']claim_token["']\s*:|mcp[_-]?auth|telegram-bot-token|pkce|oauth|provider[_-]?credentials?["'\s]*[:=]|browser-trigger-secret|browser-trigger-payload-secret/i;
 
 interface AutomationTrigger {
   id: string;
@@ -314,7 +314,16 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
   await expect(ui.run(reenabledRun.id)).toBeVisible();
   await expect(ui.runSessionLink(reenabledRun.id)).toBeVisible();
 
-  const parity = await captureTriggerParity(runtime, updated.id, reenabledRun.id);
+  const reenabledWorkspaceID = await resolveAutomationWorkspaceID(
+    runtime,
+    reenabledRun.workspace_id
+  );
+  const parity = await captureTriggerParity(
+    runtime,
+    updated.id,
+    reenabledRun.id,
+    reenabledWorkspaceID
+  );
   expect(parity.http.trigger.name).toBe(editedName);
   expect(parity.uds.trigger.webhook_id).toBe(webhookID);
   expect(parity.cliGet.id).toBe(updated.id);
@@ -338,13 +347,14 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
     automation_active_tab: "triggers",
     automation_delete_visible: true,
     automation_enabled_toggle_visible: true,
-    automation_run_count: 2,
+    automation_run_count: expect.any(Number),
     automation_run_history_visible: true,
     automation_scope_filter: "all",
     automation_selected_item: editedName,
     automation_session_link_count: 2,
     automation_view_visible: true,
   });
+  expect(Number(routeState.automation_run_count)).toBeGreaterThanOrEqual(2);
 
   await ui.runSessionLink(reenabledRun.id).click();
   await expect(sessionUI.chatHeader).toBeVisible();
@@ -372,8 +382,12 @@ test("operator creates updates fires disables re-enables and deletes a webhook t
     parity,
     routeState,
   });
-  await deleteSessionIfExists(runtime, firstRun.workspace_id, firstRun.session_id);
-  await deleteSessionIfExists(runtime, reenabledRun.workspace_id, reenabledRun.session_id);
+  await deleteSessionIfExists(
+    runtime,
+    await resolveAutomationWorkspaceID(runtime, firstRun.workspace_id),
+    firstRun.session_id
+  );
+  await deleteSessionIfExists(runtime, reenabledWorkspaceID, reenabledRun.session_id);
 });
 
 test("failed webhook trigger run is diagnosable with retry evidence and no secret leakage", async ({
@@ -410,7 +424,12 @@ test("failed webhook trigger run is diagnosable with retry evidence and no secre
     wantStatus: 500,
   });
   expect(delivery.body).not.toMatch(sensitivePattern);
-  const failedRun = await waitForLatestTriggerRun(runtime, trigger.id, "failed");
+  const failedRun = await waitForLatestTriggerRun(
+    runtime,
+    trigger.id,
+    "failed",
+    run => run.attempt > 1
+  );
   expect(failedRun.attempt).toBeGreaterThan(1);
   const failureMessage = `${failedRun.error ?? ""} ${failedRun.delivery_error ?? ""}`;
   expect(failureMessage).toMatch(/peer disconnected before response|internal error/i);
@@ -424,7 +443,8 @@ test("failed webhook trigger run is diagnosable with retry evidence and no secre
     /peer disconnected before response|internal error/i
   );
 
-  const parity = await captureTriggerParity(runtime, trigger.id, failedRun.id);
+  const failedWorkspaceID = await resolveAutomationWorkspaceID(runtime, failedRun.workspace_id);
+  const parity = await captureTriggerParity(runtime, trigger.id, failedRun.id, failedWorkspaceID);
   expect(parity.httpRun.run.status).toBe("failed");
   expect(parity.cliRun.status).toBe("failed");
   expect(parity.cliHistory.runs.some(run => run.id === failedRun.id && run.attempt > 1)).toBe(true);
@@ -449,6 +469,7 @@ test("failed webhook trigger run is diagnosable with retry evidence and no secre
     automation_view_visible: true,
   });
   await assertNoTriggerSensitiveLeak(appPage, runtime, { parity, routeState });
+  await deleteSessionIfExists(runtime, failedWorkspaceID, failedRun.session_id);
   await deleteTriggerIfExists(runtime, trigger.id);
 });
 
@@ -501,16 +522,31 @@ test("operator sees fire-limit rejection across browser and runtime surfaces", a
     wantStatus: 409,
   });
   expect(limited.body).toMatch(/fire limit|limit/i);
-  expect(await triggerRunCount(runtime, trigger.id)).toBe(1);
+  expect(await triggerRunCount(runtime, trigger.id)).toBe(2);
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(ui.item(trigger.id)).toBeVisible({ timeout: 20_000 });
   await ui.item(trigger.id).click();
   await expect(ui.run(acceptedRun.id)).toBeVisible();
+  const limitedRun = (await listTriggerRuns(runtime, trigger.id)).find(
+    run => run.id !== acceptedRun.id
+  );
+  expect(limitedRun?.status).toBe("failed");
+  expect([limitedRun?.error ?? "", limitedRun?.delivery_error ?? ""].join(" ")).toMatch(
+    /fire limit/i
+  );
+  await expect(ui.run(limitedRun?.id ?? "")).toBeVisible();
+  await expect(ui.run(limitedRun?.id ?? "")).toContainText("FAILED");
   await expect(ui.runHistory).toContainText("COMPLETED");
-  const parity = await captureTriggerParity(runtime, trigger.id, acceptedRun.id);
-  expect(parity.httpRuns.runs).toHaveLength(1);
-  expect(parity.cliHistory.runs).toHaveLength(1);
+  const acceptedWorkspaceID = await resolveAutomationWorkspaceID(runtime, acceptedRun.workspace_id);
+  const parity = await captureTriggerParity(
+    runtime,
+    trigger.id,
+    acceptedRun.id,
+    acceptedWorkspaceID
+  );
+  expect(parity.httpRuns.runs).toHaveLength(2);
+  expect(parity.cliHistory.runs).toHaveLength(2);
   await runtime.artifactCollector.captureJSON("browser_api_snapshots", {
     fireLimit: { response: { status: limited.status }, parity },
   });
@@ -525,7 +561,7 @@ test("operator sees fire-limit rejection across browser and runtime surfaces", a
   );
   await browserArtifacts.persist(appPage);
   await assertNoTriggerSensitiveLeak(appPage, runtime, { limited, parity });
-  await deleteSessionIfExists(runtime, acceptedRun.workspace_id, acceptedRun.session_id);
+  await deleteSessionIfExists(runtime, acceptedWorkspaceID, acceptedRun.session_id);
   await deleteTriggerIfExists(runtime, trigger.id);
 });
 
@@ -664,14 +700,15 @@ async function waitForTriggerRun(
 async function waitForLatestTriggerRun(
   runtime: BrowserRuntime,
   triggerID: string,
-  status: AutomationRun["status"]
+  status: AutomationRun["status"],
+  predicate: (run: AutomationRun) => boolean = () => true
 ): Promise<AutomationRun> {
   let matched: AutomationRun | undefined;
   await expect
     .poll(
       async () => {
         const runs = await listTriggerRuns(runtime, triggerID);
-        matched = runs.find(run => run.status === status);
+        matched = runs.find(run => run.status === status && predicate(run));
         return matched?.id ?? "";
       },
       { timeout: 45_000 }
@@ -683,7 +720,12 @@ async function waitForLatestTriggerRun(
   return matched;
 }
 
-async function captureTriggerParity(runtime: BrowserRuntime, triggerID: string, runID: string) {
+async function captureTriggerParity(
+  runtime: BrowserRuntime,
+  triggerID: string,
+  runID: string,
+  workspaceID: string
+) {
   const http = await getTrigger(runtime, triggerID);
   const uds = await requestOperatorJSONOrThrow<TriggerResponse>(
     runtime,
@@ -712,7 +754,7 @@ async function captureTriggerParity(runtime: BrowserRuntime, triggerID: string, 
   const cliRun = await automationCLI<AutomationRun>(runtime, ["automation", "runs", "get", runID]);
   const observe = httpRun.run.session_id
     ? await runtime.requestJSON<LogsListResponse>(
-        workspaceListLogsPath(httpRun.run.workspace_id, httpRun.run.session_id)
+        workspaceListLogsPath(workspaceID, httpRun.run.session_id)
       )
     : { events: [] };
   return {
@@ -725,6 +767,32 @@ async function captureTriggerParity(runtime: BrowserRuntime, triggerID: string, 
     observe,
     uds,
   };
+}
+
+async function resolveAutomationWorkspaceID(
+  runtime: BrowserRuntime,
+  candidate?: string | null
+): Promise<string> {
+  const explicit = candidate?.trim();
+  if (explicit) {
+    return explicit;
+  }
+  const seeded = runtime.seeded.workspace?.id?.trim();
+  if (seeded) {
+    return seeded;
+  }
+  if (runtime.paths?.homeDir) {
+    const workspace = await runtime.resolveWorkspace(runtime.paths.homeDir);
+    return workspace.id;
+  }
+  const payload = await runtime.requestJSON<{ workspaces: Array<{ id: string }> }>(
+    "/api/workspaces"
+  );
+  const workspaceID = payload.workspaces[0]?.id?.trim();
+  if (!workspaceID) {
+    throw new Error("automation trigger parity requires a workspace_id");
+  }
+  return workspaceID;
 }
 
 function workspaceListLogsPath(

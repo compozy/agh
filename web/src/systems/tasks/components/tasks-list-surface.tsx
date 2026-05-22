@@ -1,7 +1,7 @@
 import { AlertCircle, ListChecks, Search } from "lucide-react";
 import { useMemo } from "react";
 
-import { Empty, Skeleton } from "@agh/ui";
+import { Empty, SearchInput, Skeleton } from "@agh/ui";
 
 import { groupTasksForList } from "../lib/task-grouping";
 import type { TaskFilterOwnerOption, TaskScopeFilter } from "../lib/tasks-list-filters";
@@ -34,11 +34,13 @@ export interface TasksListSurfaceProps {
   scopeFilter: TaskScopeFilter;
   ownerOptions: TaskFilterOwnerOption[];
   sortBy: TaskListSortKey;
+  searchQuery: string;
   onStatusChange: (next: TaskStatus | null) => void;
   onOwnerChange: (next: string | null) => void;
   onPriorityChange: (next: TaskPriority | null) => void;
   onScopeChange: (next: TaskScopeFilter) => void;
   onSortChange: (next: TaskListSortKey) => void;
+  onSearchQueryChange: (next: string) => void;
 }
 
 /**
@@ -62,11 +64,13 @@ export function TasksListSurface({
   scopeFilter,
   ownerOptions,
   sortBy,
+  searchQuery,
   onStatusChange,
   onOwnerChange,
   onPriorityChange,
   onScopeChange,
   onSortChange,
+  onSearchQueryChange,
 }: TasksListSurfaceProps) {
   const buckets = useMemo(
     () => groupTasksForList(tasks).filter(bucket => bucket.tasks.length > 0),
@@ -92,6 +96,14 @@ export function TasksListSurface({
           visibleCount={visibleCount}
           workspaceName={workspaceName}
         />
+        <div className="mt-4">
+          <SearchInput
+            data-testid="tasks-list-search-input"
+            onChange={onSearchQueryChange}
+            placeholder="Search tasks..."
+            value={searchQuery}
+          />
+        </div>
         <TasksListFilters
           onOwnerChange={onOwnerChange}
           onPriorityChange={onPriorityChange}

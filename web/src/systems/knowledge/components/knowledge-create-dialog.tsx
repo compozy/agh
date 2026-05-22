@@ -116,76 +116,78 @@ function KnowledgeCreateDialog({
   return (
     <Dialog onOpenChange={updateDialogOpen} open={open}>
       <DialogContent
-        className="gap-0 p-0 sm:max-w-2xl"
+        className="grid-rows-[auto_minmax(0,1fr)_auto_auto] max-h-[min(var(--height-modal-tall),calc(100vh-2rem))] gap-0 overflow-hidden p-0 sm:max-w-2xl"
         data-testid="knowledge-create-dialog"
         showCloseButton={false}
       >
-        <DialogHeader className="gap-2 border-b border-line px-5 py-4">
+        <DialogHeader className="gap-2 border-b border-line px-5 py-4" variant="ruled">
           <DialogTitle>Create knowledge entry</DialogTitle>
           <DialogDescription>
             Add knowledge in the {scope} scope through the controller. The entry is recorded as a
             decision and becomes available to matching future recall.
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col gap-4 px-5 py-4">
-          <div className="flex flex-col gap-2">
-            <Label className="eyebrow text-muted" htmlFor="knowledge-create-name">
-              Type
-            </Label>
-            <div
-              aria-label="Knowledge type"
-              className="grid grid-cols-1 gap-2 sm:grid-cols-2"
-              data-testid="knowledge-create-type-grid"
-              role="radiogroup"
-            >
-              {TYPE_OPTIONS.map(option => (
-                <RadioCard
-                  data-testid={`knowledge-create-type-${option.value}`}
-                  description={option.description}
-                  icon={option.icon}
-                  key={option.value}
-                  onSelect={() => setSelectedType(option.value)}
-                  selected={type === option.value}
-                  title={option.title}
-                />
-              ))}
+        <div className="min-h-0 overflow-y-auto px-5 py-4">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-2">
+              <Label className="eyebrow text-muted" htmlFor="knowledge-create-name">
+                Type
+              </Label>
+              <div
+                aria-label="Knowledge type"
+                className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+                data-testid="knowledge-create-type-grid"
+                role="radiogroup"
+              >
+                {TYPE_OPTIONS.map(option => (
+                  <RadioCard
+                    data-testid={`knowledge-create-type-${option.value}`}
+                    description={option.description}
+                    icon={option.icon}
+                    key={option.value}
+                    onSelect={() => setSelectedType(option.value)}
+                    selected={type === option.value}
+                    title={option.title}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label className="eyebrow text-muted" htmlFor="knowledge-create-name">
-              Name
-            </Label>
-            <Input
-              data-testid="knowledge-create-name"
-              id="knowledge-create-name"
-              onChange={event => setName(event.target.value)}
-              placeholder="Canonical knowledge name"
-              value={name}
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label className="eyebrow text-muted" htmlFor="knowledge-create-description">
-              Description
-            </Label>
-            <Input
-              data-testid="knowledge-create-description"
-              id="knowledge-create-description"
-              onChange={event => setDescription(event.target.value)}
-              placeholder="Optional summary"
-              value={description}
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label className="eyebrow text-muted" htmlFor="knowledge-create-content">
-              Content
-            </Label>
-            <Textarea
-              className="h-60 font-mono text-small-body"
-              data-testid="knowledge-create-content"
-              id="knowledge-create-content"
-              onChange={event => setContent(event.target.value)}
-              value={content}
-            />
+            <div className="flex flex-col gap-1.5">
+              <Label className="eyebrow text-muted" htmlFor="knowledge-create-name">
+                Name
+              </Label>
+              <Input
+                data-testid="knowledge-create-name"
+                id="knowledge-create-name"
+                onChange={event => setName(event.target.value)}
+                placeholder="Canonical knowledge name"
+                value={name}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label className="eyebrow text-muted" htmlFor="knowledge-create-description">
+                Description
+              </Label>
+              <Input
+                data-testid="knowledge-create-description"
+                id="knowledge-create-description"
+                onChange={event => setDescription(event.target.value)}
+                placeholder="Optional summary"
+                value={description}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label className="eyebrow text-muted" htmlFor="knowledge-create-content">
+                Content
+              </Label>
+              <Textarea
+                className="h-60 font-mono text-small-body"
+                data-testid="knowledge-create-content"
+                id="knowledge-create-content"
+                onChange={event => setContent(event.target.value)}
+                value={content}
+              />
+            </div>
           </div>
         </div>
         {error ? (
@@ -196,7 +198,10 @@ function KnowledgeCreateDialog({
             {error}
           </div>
         ) : null}
-        <DialogFooter className="mx-0 mb-0 rounded-b-xl border-t border-line bg-transparent px-5 py-3">
+        <DialogFooter
+          className="mx-0 mb-0 rounded-b-xl border-t border-line bg-transparent px-5 py-3"
+          variant="ruled"
+        >
           <Button
             data-testid="cancel-create-memory-btn"
             onClick={() => updateDialogOpen(false)}

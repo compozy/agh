@@ -72,8 +72,7 @@ function TasksInboxRow({
       data-unread={unread ? "true" : "false"}
       onClick={clickable ? () => onSelect?.() : undefined}
       onKeyDown={handleKeyDown}
-      role="button"
-      aria-disabled={!clickable}
+      role={clickable ? "button" : undefined}
       tabIndex={clickable ? 0 : undefined}
       className={cn(
         "grid min-h-11 items-stretch gap-3 border-b border-line-soft py-2.5 pr-3.5 text-left transition-colors duration-base ease-out",

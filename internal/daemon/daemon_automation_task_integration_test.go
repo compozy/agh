@@ -78,6 +78,14 @@ func TestDaemonE2EAutomationPromptTriggerCreatesCompletedSystemSession(t *testin
 		t.Fatalf("len(delivery.Runs) = %d, want %d", got, want)
 	}
 
+	globalWorkspace, err := harness.ResolveWorkspace(ctx, harness.HomePaths.HomeDir)
+	if err != nil {
+		t.Fatalf("ResolveWorkspace(%q) error = %v", harness.HomePaths.HomeDir, err)
+	}
+	if strings.TrimSpace(globalWorkspace.ID) == "" {
+		t.Fatalf("global automation workspace ID = empty; workspace=%#v", globalWorkspace)
+	}
+
 	runID := delivery.Runs[0].ID
 	waitForRuntimeCondition(t, "automation webhook run completion", 10*time.Second, func() bool {
 		run, err := harness.GetAutomationRun(ctx, runID)

@@ -4,9 +4,5 @@ export function workspaceFilterForActiveScope(
   scopeFilter: WorkspaceScopeFilter,
   activeWorkspaceId: string | null | undefined
 ): string | undefined {
-  if (scopeFilter === "global") {
-    return undefined;
-  }
-
-  return activeWorkspaceId ?? undefined;
+  return scopeFilter === "workspace" ? (activeWorkspaceId ?? undefined) : undefined;
 }

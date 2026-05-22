@@ -41,7 +41,7 @@ const faultFixture = path.resolve(
 const automationAgentName = "browser-jobs-runner";
 const faultAgentName = "browser-jobs-fault";
 const sensitivePattern =
-  /agh_claim_|["']claim_token["']\s*:|mcp[_-]?auth|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credential|browser-job-secret|shared-secret/i;
+  /agh_claim_|["']claim_token["']\s*:|mcp[_-]?auth|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credentials?["'\s]*[:=]|browser-job-secret|shared-secret/i;
 
 interface AutomationJob {
   id: string;
@@ -488,14 +488,33 @@ async function deleteSessionIfExists(
   if (!id) {
     return;
   }
-  const workspace = workspaceID?.trim();
-  if (!workspace) {
-    throw new Error(`delete session ${id} requires workspace_id`);
-  }
+  const workspace = await resolveSessionWorkspaceID(runtime, workspaceID, id);
   const response = await fetch(runtime.url(sessionAPIPath(workspace, id)), {
     method: "DELETE",
   });
   expect([204, 404]).toContain(response.status);
+}
+
+async function resolveSessionWorkspaceID(
+  runtime: BrowserRuntime,
+  workspaceID: string | null | undefined,
+  sessionID: string
+): Promise<string> {
+  const workspace = workspaceID?.trim();
+  if (workspace) {
+    return workspace;
+  }
+
+  const seededWorkspace = runtime.seeded.workspace?.id?.trim();
+  if (seededWorkspace) {
+    return seededWorkspace;
+  }
+
+  if (runtime.paths?.homeDir) {
+    return (await runtime.resolveWorkspace(runtime.paths.homeDir)).id;
+  }
+
+  throw new Error(`delete session ${sessionID} requires workspace_id`);
 }
 
 function sessionAPIPath(workspaceID: string, sessionID: string): string {

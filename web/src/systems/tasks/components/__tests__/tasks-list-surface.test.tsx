@@ -42,12 +42,14 @@ function renderSurface(options: RenderOptions = {}) {
         onOwnerChange={() => {}}
         onPriorityChange={() => {}}
         onScopeChange={() => {}}
+        onSearchQueryChange={() => {}}
         onSelectTask={options.onSelectTask ?? (() => {})}
         onSortChange={() => {}}
         onStatusChange={() => {}}
         ownerFilter={null}
         ownerOptions={[]}
         priorityFilter={null}
+        searchQuery=""
         scopeFilter="all"
         sortBy="recent"
         statusFilter={options.statusFilter ?? null}
@@ -89,6 +91,37 @@ describe("TasksListSurface", () => {
 
     fireEvent.click(screen.getByTestId("task-card-task_777"));
     expect(onSelectTask).toHaveBeenCalledWith("task_777");
+  });
+
+  it("Should render search and forward list query changes", () => {
+    const handleSearchQueryChange = vi.fn();
+    render(
+      <UIProvider reducedMotion="always">
+        <TasksListSurface
+          onOwnerChange={() => {}}
+          onPriorityChange={() => {}}
+          onScopeChange={() => {}}
+          onSearchQueryChange={handleSearchQueryChange}
+          onSelectTask={() => {}}
+          onSortChange={() => {}}
+          onStatusChange={() => {}}
+          ownerFilter={null}
+          ownerOptions={[]}
+          priorityFilter={null}
+          searchQuery="api"
+          scopeFilter="all"
+          sortBy="recent"
+          statusFilter={null}
+          tasks={[buildTask({ id: "task_search" })]}
+          totalCount={1}
+        />
+      </UIProvider>
+    );
+
+    const search = screen.getByTestId("tasks-list-search-input");
+    expect(search).toHaveValue("api");
+    fireEvent.change(search, { target: { value: "deploy" } });
+    expect(handleSearchQueryChange).toHaveBeenCalledWith("deploy");
   });
 
   it("Should render the empty state when the list is empty", () => {

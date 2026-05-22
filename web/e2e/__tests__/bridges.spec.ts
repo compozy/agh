@@ -105,12 +105,16 @@ test("operator can edit bridge config, enable runtime, observe status updates, a
   await bridgeUI.createBridgeButton.click();
   await expect(bridgeUI.createDialog).toBeVisible();
   await bridgeUI.providerCard(createdBridgeProviderKey).click();
+  await expect(bridgeUI.createWizardNext).toBeEnabled();
+  await bridgeUI.createWizardNext.click();
   await bridgeUI.createDisplayNameInput.fill(createdBridgeName);
   await bridgeUI.createProviderConfigInput.fill("{invalid");
-  await expect(bridgeUI.submitBridgeCreate).toBeDisabled();
+  await expect(bridgeUI.createWizardNext).toBeDisabled();
   await bridgeUI.createProviderConfigInput.fill(
     JSON.stringify(browserBridgeOperatorFlowScenario.bridge.initialProviderConfig, null, 2)
   );
+  await expect(bridgeUI.createWizardNext).toBeEnabled();
+  await bridgeUI.createWizardNext.click();
   await expect(bridgeUI.submitBridgeCreate).toBeEnabled();
 
   const createResponsePromise = appPage.waitForResponse(response => {
@@ -202,7 +206,7 @@ test("operator can edit bridge config, enable runtime, observe status updates, a
     browserBridgeOperatorFlowScenario.testDelivery.threadId
   );
   await expect(bridgeUI.submitTestDelivery).toBeEnabled();
-  await bridgeUI.testDeliveryThreadInput.press("Enter");
+  await bridgeUI.submitTestDelivery.click();
 
   await expect(bridgeUI.testDeliveryResult).toBeVisible();
   await expect(bridgeUI.testDeliveryResult).toContainText(
@@ -273,11 +277,12 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
   await expect(bridgeUI.createDialog).toBeVisible();
   await expect(bridgeUI.providerCard(providerKey)).toBeVisible();
   await bridgeUI.providerCard(providerKey).click();
-  await expect(bridgeUI.submitBridgeCreate).toBeEnabled();
+  await expect(bridgeUI.createWizardNext).toBeEnabled();
+  await bridgeUI.createWizardNext.click();
 
   await bridgeUI.createProviderConfigInput.fill("{invalid-json");
   await expect(bridgeUI.createProviderConfigError).toBeVisible();
-  await expect(bridgeUI.submitBridgeCreate).toBeDisabled();
+  await expect(bridgeUI.createWizardNext).toBeDisabled();
   await browserArtifacts.captureScreenshot("bridge-create-invalid-provider-config", appPage);
 
   await bridgeUI.createProviderConfigInput.fill(
@@ -292,6 +297,8 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
   );
   await bridgeUI.createDisplayNameInput.fill(createdName);
   await bridgeUI.createScopeSelect.selectOption("workspace");
+  await expect(bridgeUI.createWizardNext).toBeEnabled();
+  await bridgeUI.createWizardNext.click();
   await bridgeUI.createDeliveryModeSelect.selectOption("direct-send");
   await bridgeUI.createDeliveryPeerInput.fill("telegram-peer-lifecycle");
   await bridgeUI.createDeliveryThreadInput.fill("777");
@@ -374,9 +381,15 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
   await browserArtifacts.captureScreenshot("bridge-created-outbound-resolved", appPage);
 
   await bridgeUI.deleteSecret(browserBridgeOperatorFlowScenario.secretBinding.name).click();
+  const confirmDeleteSecret = appPage.getByTestId(
+    `confirm-delete-bridge-secret-${browserBridgeOperatorFlowScenario.secretBinding.name}`
+  );
+  await confirmDeleteSecret.click();
   await expect(
     bridgeUI.secretBinding(browserBridgeOperatorFlowScenario.secretBinding.name)
   ).toContainText("UNBOUND");
+  await appPage.keyboard.press("Escape");
+  await expect(confirmDeleteSecret).toBeHidden();
   await expect(bridgeUI.restartRequired).toBeVisible();
 
   await bridgeUI.restartBridgeButton.click();

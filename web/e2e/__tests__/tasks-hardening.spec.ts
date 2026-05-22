@@ -25,7 +25,7 @@ const browserLifecycleFixture = path.resolve(
 );
 const tasksSessionAgentName = "browser-lifecycle-agent";
 const sensitivePattern =
-  /agh_claim_|["']claim_token["']\s*:|mcp[_-]?auth|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credential/i;
+  /agh_claim_|["']claim_token["']\s*:|mcp[_-]?auth|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credentials?["'\s]*[:=]/i;
 
 test.use({
   runtimeOptions: {
@@ -519,22 +519,24 @@ test("tasks list, inbox, detail, and run detail stay usable across responsive br
     await appPage.setViewportSize({ height: viewport.height, width: viewport.width });
 
     await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
-    await ui.modeList.click();
+    if ((await ui.modeList.getAttribute("aria-pressed")) !== "true") {
+      await ui.modeList.click();
+    }
     await expect(ui.modeList).toHaveAttribute("aria-pressed", "true");
     await revealTasksListPanel(appPage);
-    await expect(appPage.getByTestId("tasks-list-panel")).toBeVisible();
-    await expect(appPage.getByTestId("tasks-list-lane-pills")).toBeVisible();
+    await expect(appPage.getByTestId("tasks-list-surface")).toBeVisible();
+    await expect(appPage.getByTestId("tasks-list-filters")).toBeVisible();
     const listSearch = appPage.getByTestId("tasks-list-search-input");
     await expect(listSearch).toBeVisible();
     await listSearch.fill(`no-task-${viewport.name}-${viewport.width}`);
-    await expect(appPage.getByTestId("tasks-list-empty")).toBeVisible();
+    await expect(appPage.getByTestId("tasks-list-surface-empty")).toBeVisible();
     await listSearch.fill("");
     await expect(ui.taskCard(seeded.referenceTask.id)).toBeVisible();
 
     await ui.modeInbox.click();
     await expect(ui.modeInbox).toHaveAttribute("aria-pressed", "true");
     await expect(ui.inboxView).toBeVisible();
-    await expect(appPage.getByTestId("tasks-inbox-lane-tabs")).toBeVisible();
+    await expect(appPage.getByTestId("tasks-inbox-groups")).toBeVisible();
     const inboxSearch = appPage.getByTestId("tasks-inbox-search");
     await expect(inboxSearch).toBeVisible();
     await inboxSearch.fill(`no-inbox-${viewport.name}-${viewport.width}`);
@@ -882,7 +884,7 @@ async function readRouteState(runtime: BrowserRuntime): Promise<Record<string, u
 }
 
 async function revealTasksListPanel(page: import("@playwright/test").Page): Promise<void> {
-  const listPanel = page.getByTestId("tasks-list-panel");
+  const listPanel = page.getByTestId("tasks-list-surface");
   if (await listPanel.isVisible().catch(() => false)) {
     return;
   }

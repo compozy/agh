@@ -175,7 +175,7 @@ test("operator can create a provider/model override session and attach without l
     .poll(() => new URL(appPage.url()).pathname)
     .toBe(browserLifecycleSessionPath(createdSession.session.id));
   await expect(ui.chatHeader).toBeVisible();
-  await expect(appPage.getByTestId("session-provider-badge")).toHaveText(overrideProvider);
+  await expect(appPage.getByRole("banner")).toContainText(overrideProvider);
   await browserArtifacts.captureScreenshot("session-provider-created", appPage);
 
   await assertSessionParity(
@@ -206,7 +206,7 @@ test("operator can create a provider/model override session and attach without l
   await ui.resumeButton.click();
   expect((await attachResponsePromise).ok()).toBe(true);
   await expect(ui.stopButton).toBeVisible();
-  await expect(appPage.getByTestId("session-provider-badge")).toHaveText(overrideProvider);
+  await expect(appPage.getByRole("banner")).toContainText(overrideProvider);
   await assertSessionParity(
     runtime,
     createdSession.session.workspace_id,

@@ -43,7 +43,7 @@ test("operator can inspect and delete a session-scoped vault secret from the vau
     await appPage.getByTestId(`vault-secrets-delete-${ref}`).click();
     await expect(appPage.getByTestId("settings-vault-delete")).toBeVisible();
     await expect(appPage.getByTestId("settings-vault-delete-description")).toContainText(ref);
-    await appPage.getByTestId("settings-vault-delete-confirm").click();
+    await confirmVaultSecretDelete(appPage, ref);
 
     await expect(appPage.getByTestId("vault-page-action-result")).toContainText(
       "Deleted vault secret"
@@ -137,7 +137,7 @@ test("operator stores and deletes a vault secret without plaintext readback", as
   await appPage.getByTestId(`vault-secrets-delete-${secretRef}`).click();
   await expect(appPage.getByTestId("settings-vault-delete")).toBeVisible();
   await expect(appPage.getByTestId("settings-vault-delete-description")).toContainText(secretRef);
-  await appPage.getByTestId("settings-vault-delete-confirm").click();
+  await confirmVaultSecretDelete(appPage, secretRef);
 
   await expect(appPage.getByTestId("vault-page-action-result")).toContainText("Deleted");
   await expect(appPage.getByTestId("vault-secrets-row")).toHaveCount(0);
@@ -156,6 +156,14 @@ async function deleteVaultSecretIfPresent(url: string) {
   if (response.ok || response.status === 404) return;
   const body = await response.text();
   throw new Error(`cleanup delete vault secret failed with ${response.status}: ${body.trim()}`);
+}
+
+async function confirmVaultSecretDelete(page: Page, ref: string): Promise<void> {
+  const typingInput = page.getByTestId("settings-vault-delete-confirm-typing");
+  if (await typingInput.isVisible().catch(() => false)) {
+    await typingInput.fill(ref);
+  }
+  await page.getByTestId("settings-vault-delete-confirm").click();
 }
 
 function assertLaunchRuntime(

@@ -105,10 +105,7 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const deferredInboxQuery = useDeferredValue(inboxSearchQuery);
   const scopedWorkspace = workspaceFilterForActiveScope(scopeFilter, activeWorkspaceId);
-  // The "all" UI scope still reads the active workspace on the backend because
-  // the task endpoints remain workspace-scoped whenever a workspace is selected.
-  const backendScope =
-    scopeFilter === "all" ? (scopedWorkspace ? "workspace" : undefined) : scopeFilter;
+  const backendScope = scopeFilter === "all" ? undefined : scopeFilter;
 
   const listFilters: TaskListFilter = useMemo(
     () => ({

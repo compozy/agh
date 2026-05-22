@@ -1259,6 +1259,7 @@ func cloneEnvelope(envelope Envelope) Envelope {
 	return Envelope{
 		Protocol:    envelope.Protocol,
 		ID:          envelope.ID,
+		WorkspaceID: envelope.WorkspaceID,
 		Kind:        envelope.Kind,
 		Channel:     envelope.Channel,
 		Surface:     cloneSurfacePtr(envelope.Surface),

@@ -146,16 +146,15 @@ describe("captureRouteState", () => {
         <button data-testid="automation-item-job_weekly_triage"></button>
       </aside>
       <section data-testid="automation-detail-panel">
-        <h2>deploy-review</h2>
+        <h1>deploy-review</h1>
         <button data-testid="toggle-automation-btn"></button>
         <button data-testid="trigger-job-btn"></button>
         <button data-testid="delete-automation-btn"></button>
         <div data-testid="automation-job-scheduler"></div>
       </section>
       <section data-testid="automation-run-history">
-        <article data-testid="automation-run-run_001"></article>
+        <a data-testid="automation-run-run_001" href="/session/sess_001"></a>
         <article data-testid="automation-run-run_002"></article>
-        <a data-testid="automation-run-session-link-run_001"></a>
       </section>
       <form data-testid="automation-job-form"></form>
     `;
@@ -198,7 +197,7 @@ describe("captureRouteState", () => {
         <button data-testid="bridge-item-brg_support"></button>
       </aside>
       <section data-testid="bridge-detail-panel">
-        <h2>Telegram Bridge Ops</h2>
+        <h1>Telegram Bridge Ops</h1>
       </section>
       <article data-testid="bridge-secret-binding-bot_token"></article>
       <article data-testid="bridge-route-sess_bridge_01"></article>

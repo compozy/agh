@@ -1103,6 +1103,7 @@ describe("browser runtime seed helpers", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
+          allow_unverified: true,
           checksum: "bridge-checksum",
           path: "/tmp/telegram-reference",
         }),

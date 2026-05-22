@@ -82,7 +82,7 @@ func TestUDSTransportApprovalFlowMatchesHTTP(t *testing.T) {
 				t,
 				clients.UDSClient,
 				http.MethodPost,
-				clients.UDSBaseURL+"/api/workspaces/ws-workspace/sessions/"+url.PathEscape(session.ID)+"/approve",
+				clients.UDSBaseURL+transportHarnessSessionPath(t, runtimeHarness, session.ID, "/approve"),
 				[]byte(fmt.Sprintf(`{"request_id":"%s","decision":"allow-always"}`, payload.RequestID)),
 				nil,
 			)
@@ -167,7 +167,7 @@ func TestUDSTransportSessionProviderCreateReadMatchesHTTP(t *testing.T) {
 	if err := runtimeHarness.UDSJSON(
 		ctx,
 		http.MethodGet,
-		"/api/workspaces/ws-workspace/sessions/"+url.PathEscape(created.Session.ID),
+		transportHarnessSessionPath(t, runtimeHarness, created.Session.ID, ""),
 		nil,
 		&udsDetail,
 	); err != nil {
@@ -185,7 +185,7 @@ func TestUDSTransportSessionProviderCreateReadMatchesHTTP(t *testing.T) {
 	if err := runtimeHarness.HTTPJSON(
 		ctx,
 		http.MethodGet,
-		"/api/workspaces/ws-workspace/sessions/"+url.PathEscape(created.Session.ID),
+		transportHarnessSessionPath(t, runtimeHarness, created.Session.ID, ""),
 		nil,
 		&httpDetail,
 	); err != nil {
@@ -240,7 +240,7 @@ func TestUDSTransportResumeMissingProviderReturnsExplicitBadRequest(t *testing.T
 		t,
 		runtimeHarness.UDSClient,
 		http.MethodPost,
-		runtimeHarness.UDSURL("/api/workspaces/ws-workspace/sessions/"+url.PathEscape(created.Session.ID)+"/stop"),
+		runtimeHarness.UDSURL(transportHarnessSessionPath(t, runtimeHarness, created.Session.ID, "/stop")),
 		nil,
 		nil,
 	)
@@ -268,7 +268,7 @@ func TestUDSTransportResumeMissingProviderReturnsExplicitBadRequest(t *testing.T
 		t,
 		runtimeHarness.UDSClient,
 		http.MethodPost,
-		runtimeHarness.UDSURL("/api/workspaces/ws-workspace/sessions/"+url.PathEscape(created.Session.ID)+"/attach"),
+		runtimeHarness.UDSURL(transportHarnessSessionPath(t, runtimeHarness, created.Session.ID, "/attach")),
 		nil,
 		nil,
 	)
@@ -440,7 +440,7 @@ func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
 			err := runtimeHarness.HTTPJSON(
 				fetchCtx,
 				http.MethodGet,
-				"/api/logs?workspace_id=ws-workspace?session_id="+url.QueryEscape(session.ID)+"&limit=20",
+				transportHarnessLogsPath(t, runtimeHarness, session.ID),
 				nil,
 				&response,
 			)
@@ -457,7 +457,7 @@ func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
 			err := runtimeHarness.UDSJSON(
 				fetchCtx,
 				http.MethodGet,
-				"/api/logs?workspace_id=ws-workspace?session_id="+url.QueryEscape(session.ID)+"&limit=20",
+				transportHarnessLogsPath(t, runtimeHarness, session.ID),
 				nil,
 				&response,
 			)
@@ -489,6 +489,40 @@ func TestUDSTransportObserveHarnessLifecycleParityMatchesHTTP(t *testing.T) {
 	if !strings.Contains(httpHarnessEvents[5].Summary, "augmenter=situation") {
 		t.Fatalf("augmenter summary = %q, want situation metadata", httpHarnessEvents[5].Summary)
 	}
+}
+
+func transportHarnessSessionPath(
+	t testing.TB,
+	harness *e2etest.RuntimeHarness,
+	sessionID string,
+	suffix string,
+) string {
+	t.Helper()
+
+	workspaceID := strings.TrimSpace(harness.WorkspaceID)
+	if workspaceID == "" {
+		t.Fatal("runtime harness WorkspaceID = empty")
+	}
+	return "/api/workspaces/" + url.PathEscape(workspaceID) +
+		"/sessions/" + url.PathEscape(sessionID) + suffix
+}
+
+func transportHarnessLogsPath(
+	t testing.TB,
+	harness *e2etest.RuntimeHarness,
+	sessionID string,
+) string {
+	t.Helper()
+
+	workspaceID := strings.TrimSpace(harness.WorkspaceID)
+	if workspaceID == "" {
+		t.Fatal("runtime harness WorkspaceID = empty")
+	}
+	query := url.Values{}
+	query.Set("workspace_id", workspaceID)
+	query.Set("session_id", strings.TrimSpace(sessionID))
+	query.Set("limit", "20")
+	return "/api/logs?" + query.Encode()
 }
 
 func TestUDSTransportSettingsReadParityMatchesHTTP(t *testing.T) {

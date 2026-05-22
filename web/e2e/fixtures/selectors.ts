@@ -158,6 +158,7 @@ export const bridgeOperatorTestIds = {
   createBridgeRoutingIncludePeer: "bridge-routing-include-peer",
   createBridgeRoutingIncludeThread: "bridge-routing-include-thread",
   createBridgeScopeSelect: "bridge-scope-select",
+  createBridgeWizardNext: "bridge-wizard-next",
   createBridgeButton: "create-bridge-btn",
   disableBridgeButton: "disable-bridge-btn",
   editBridgeButton: "edit-bridge-btn",
@@ -188,7 +189,7 @@ export const knowledgeOperatorTestIds = {
   createDescription: "knowledge-create-description",
   createDialog: "knowledge-create-dialog",
   createName: "knowledge-create-name",
-  createType: "knowledge-create-type",
+  createType: "knowledge-create-type-grid",
   deleteButton: "delete-memory-btn",
   deleteDialog: "knowledge-delete-dialog",
   detailPanel: "knowledge-detail-panel",
@@ -382,6 +383,7 @@ export interface BridgeOperatorSelectors {
   createRoutingIncludePeer: Locator;
   createRoutingIncludeThread: Locator;
   createScopeSelect: Locator;
+  createWizardNext: Locator;
   deleteSecret(bindingName: string): Locator;
   detailPanel: Locator;
   disableBridgeButton: Locator;
@@ -557,7 +559,7 @@ export const settingsProvidersTestIds = {
   editorNameInput: "settings-providers-editor-name-input",
   editorCommandInput: "settings-providers-editor-command-input",
   editorModelInput: "settings-providers-editor-model-input",
-  editorSave: "settings-providers-editor-save",
+  editorSave: "provider-inspector-save",
   deleteDialog: "settings-providers-delete",
   deleteConfirm: "settings-providers-delete-confirm",
   restartBanner: "settings-page-providers-restart-banner",
@@ -705,9 +707,9 @@ export interface SettingsOperatorSelectors {
 export const tasksOperatorTestIds = {
   appSidebar: sessionLifecycleTestIds.appSidebar,
   createDescription: "task-editor-description-input",
-  createEditorSurface: "task-editor-surface",
-  createSaveDraft: "task-editor-save-draft",
-  createSubmit: "task-editor-submit",
+  createEditorSurface: "task-editor-modal",
+  createSaveDraft: "task-editor-modal-submit",
+  createSubmit: "task-editor-modal-submit",
   createTitle: "task-editor-title-input",
   dashboardView: "tasks-dashboard-view",
   detailActiveRunChannel: "tasks-detail-active-run-channel",
@@ -765,6 +767,11 @@ export const tasksOperatorTestIds = {
   workspaceOnboarding: sessionLifecycleTestIds.workspaceOnboarding,
   workspaceUseGlobal: sessionLifecycleTestIds.workspaceUseGlobal,
 } as const;
+
+const tasksInboxGroupByLane: Record<string, string> = {
+  approvals: "needs_review",
+  failed_runs: "needs_review",
+};
 
 export interface TasksOperatorSelectors {
   appSidebar: Locator;
@@ -840,7 +847,7 @@ export interface TasksOperatorSelectors {
   multiAgentNoActive: Locator;
   multiAgentPanel: Locator;
   multiAgentSummary: Locator;
-  multiAgentAgentRun(taskId: string): Locator;
+  multiAgentAgentLink(taskId: string): Locator;
   navTasks: Locator;
   openCreate: Locator;
   runDetailContent: Locator;
@@ -859,7 +866,7 @@ export function sessionLifecycleSelectors(
     agentPageNewSession: page.getByTestId("agent-page-new-session"),
     agentRow: (agentName: string) => page.getByTestId(`agent-row-${agentName}`),
     appSidebar: page.getByTestId(sessionLifecycleTestIds.appSidebar),
-    chatHeader: page.getByTestId(sessionLifecycleTestIds.chatHeader),
+    chatHeader: page.getByTestId(sessionLifecycleTestIds.chatView),
     chatView: page.getByTestId(sessionLifecycleTestIds.chatView),
     composerSendButton: page.getByRole("button", { name: "Send message" }),
     composerTextarea: page.getByRole("textbox", { name: "Session prompt" }),
@@ -1071,7 +1078,7 @@ export function automationOperatorSelectors(
     navTriggers: page.getByTestId(automationOperatorTestIds.navTriggers),
     run: (id: string) => page.getByTestId(`automation-run-${id}`),
     runHistory: page.getByTestId(automationOperatorTestIds.automationRunHistory),
-    runSessionLink: (runId: string) => page.getByTestId(`automation-run-session-link-${runId}`),
+    runSessionLink: (runId: string) => page.getByTestId(`automation-run-${runId}`),
     submitJobForm: page.getByTestId(automationOperatorTestIds.submitJobForm),
     submitTriggerForm: page.getByTestId(automationOperatorTestIds.submitTriggerForm),
     triggerAgentInput: page.getByTestId(automationOperatorTestIds.triggerAgentInput),
@@ -1130,6 +1137,7 @@ export function bridgeOperatorSelectors(page: Pick<Page, "getByTestId">): Bridge
       bridgeOperatorTestIds.createBridgeRoutingIncludeThread
     ),
     createScopeSelect: page.getByTestId(bridgeOperatorTestIds.createBridgeScopeSelect),
+    createWizardNext: page.getByTestId(bridgeOperatorTestIds.createBridgeWizardNext),
     deleteSecret: (bindingName: string) => page.getByTestId(`delete-bridge-secret-${bindingName}`),
     detailPanel: page.getByTestId(bridgeOperatorTestIds.bridgeDetailPanel),
     disableBridgeButton: page.getByTestId(bridgeOperatorTestIds.disableBridgeButton),
@@ -1171,6 +1179,10 @@ export function bridgeOperatorSelectors(page: Pick<Page, "getByTestId">): Bridge
 export function settingsOperatorSelectors(
   page: Pick<Page, "getByTestId" | "locator">
 ): SettingsOperatorSelectors {
+  const generalRestartAction = page.locator(
+    `[data-testid="${settingsGeneralTestIds.restartBanner}"] [data-slot="restart-banner-action"]`
+  );
+
   return {
     shell: {
       navSettings: page.getByTestId(settingsShellTestIds.navSettings),
@@ -1186,11 +1198,11 @@ export function settingsOperatorSelectors(
     general: {
       page: page.getByTestId(settingsGeneralTestIds.page),
       pageHeader: page.getByTestId(settingsGeneralTestIds.pageHeader),
-      restartAction: page.getByTestId(settingsGeneralTestIds.restartAction),
+      restartAction: generalRestartAction,
       restartBanner: page.getByTestId(settingsGeneralTestIds.restartBanner),
       restartBannerMessage: page.getByTestId(settingsGeneralTestIds.restartBannerMessage),
       restartBannerOp: page.getByTestId(settingsGeneralTestIds.restartBannerOp),
-      restartBannerTrigger: page.getByTestId(settingsGeneralTestIds.restartBannerTrigger),
+      restartBannerTrigger: generalRestartAction,
       saveBar: page.getByTestId(settingsGeneralTestIds.saveBar),
       saveButton: page.getByTestId(settingsGeneralTestIds.saveButton),
       resetButton: page.getByTestId(settingsGeneralTestIds.resetButton),
@@ -1217,7 +1229,7 @@ export function settingsOperatorSelectors(
       create: page.getByTestId(settingsProvidersTestIds.create),
       actionResult: page.getByTestId(settingsProvidersTestIds.actionResult),
       actionResultDismiss: page.getByTestId(settingsProvidersTestIds.actionResultDismiss),
-      editor: page.getByTestId(settingsProvidersTestIds.editor),
+      editor: page.locator('[data-testid="provider-inspector-sheet"][data-mode="edit"]'),
       editorNameInput: page.getByTestId(settingsProvidersTestIds.editorNameInput),
       editorCommandInput: page.getByTestId(settingsProvidersTestIds.editorCommandInput),
       editorModelInput: page.getByTestId(settingsProvidersTestIds.editorModelInput),
@@ -1226,8 +1238,7 @@ export function settingsOperatorSelectors(
       deleteConfirm: page.getByTestId(settingsProvidersTestIds.deleteConfirm),
       restartBanner: page.getByTestId(settingsProvidersTestIds.restartBanner),
       card: (name: string) => page.getByTestId(`settings-page-providers-card-${name}`),
-      cardCommand: (name: string) =>
-        page.getByTestId(`settings-page-providers-card-${name}-command`),
+      cardCommand: (name: string) => page.getByTestId(`settings-page-providers-card-${name}-hint`),
       cardSource: (name: string) => page.getByTestId(`settings-page-providers-card-${name}-source`),
       editCard: (name: string) => page.getByTestId(`settings-page-providers-card-${name}-edit`),
       deleteCard: (name: string) => page.getByTestId(`settings-page-providers-card-${name}-delete`),
@@ -1343,7 +1354,8 @@ export function tasksOperatorSelectors(page: Pick<Page, "getByTestId">): TasksOp
     inboxArchive: (taskId: string) => page.getByTestId(`tasks-inbox-item-archive-${taskId}`),
     inboxDismiss: (taskId: string) => page.getByTestId(`tasks-inbox-item-dismiss-${taskId}`),
     inboxItem: (taskId: string) => page.getByTestId(`tasks-inbox-item-${taskId}`),
-    inboxLane: (lane: string) => page.getByTestId(`tasks-inbox-lane-${lane}`),
+    inboxLane: (lane: string) =>
+      page.getByTestId(`tasks-inbox-group-${tasksInboxGroupByLane[lane] ?? lane}`),
     inboxOpenTask: (taskId: string) => page.getByTestId(`tasks-inbox-item-open-${taskId}`),
     inboxReject: (taskId: string) => page.getByTestId(`tasks-inbox-item-reject-${taskId}`),
     inboxRetry: (taskId: string) => page.getByTestId(`tasks-inbox-item-retry-${taskId}`),
@@ -1357,8 +1369,8 @@ export function tasksOperatorSelectors(page: Pick<Page, "getByTestId">): TasksOp
     multiAgentNoActive: page.getByTestId(tasksOperatorTestIds.multiAgentNoActive),
     multiAgentPanel: page.getByTestId(tasksOperatorTestIds.multiAgentPanel),
     multiAgentSummary: page.getByTestId(tasksOperatorTestIds.multiAgentSummary),
-    multiAgentAgentRun: (taskId: string) =>
-      page.getByTestId(`tasks-multi-agent-agent-run-${taskId}`),
+    multiAgentAgentLink: (taskId: string) =>
+      page.getByTestId(`tasks-multi-agent-agent-link-${taskId}`),
     navTasks: page.getByTestId(tasksOperatorTestIds.navTasks),
     openCreate: page.getByTestId(tasksOperatorTestIds.openCreate),
     runDetailContent: page.getByTestId(tasksOperatorTestIds.runDetailContent),

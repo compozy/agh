@@ -3,6 +3,7 @@ package session
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -99,6 +100,31 @@ func TestManagerRepairSession(t *testing.T) {
 		messages, err := h.manager.Transcript(testutil.Context(t), meta.ID)
 		if err != nil {
 			t.Fatalf("Transcript(repaired) error = %v", err)
+		}
+		assertTranscriptHasDonePart(t, messages)
+	})
+
+	t.Run("ShouldPreservePartialAssistantTranscriptWhenRepairingInterruptedTextTurn", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		meta := repairSessionMeta("sess-repair-partial-text", store.StopAgentCrashed, h.workspaceID)
+		seedRepairSession(t, h, meta, interruptedTextTurnEvents(t, meta.ID, meta.AgentName)...)
+
+		result, err := h.manager.RepairSession(testutil.Context(t), RepairOpts{SessionID: meta.ID})
+		if err != nil {
+			t.Fatalf("RepairSession() error = %v", err)
+		}
+		if !result.Persisted {
+			t.Fatal("RepairSession().Persisted = false, want true")
+		}
+
+		messages, err := h.manager.Transcript(testutil.Context(t), meta.ID)
+		if err != nil {
+			t.Fatalf("Transcript(repaired partial text) error = %v", err)
+		}
+		if got := transcript.JoinUIMessageText(messages); !strings.Contains(got, "partial before crash") {
+			t.Fatalf("Transcript(repaired partial text) text = %q, want partial assistant evidence", got)
 		}
 		assertTranscriptHasDonePart(t, messages)
 	})
@@ -275,6 +301,30 @@ func interruptedTurnEvents(t *testing.T, sessionID string, agentName string) []s
 				Title:      "Bash",
 				ToolCallID: "tool-1",
 				Raw:        []byte(`{"rawInput":{"command":"pwd"},"_meta":{"claudeCode":{"toolName":"Bash"}}}`),
+			},
+		),
+	}
+}
+
+func interruptedTextTurnEvents(t *testing.T, sessionID string, agentName string) []store.SessionEvent {
+	t.Helper()
+
+	base := time.Date(2026, 4, 28, 14, 0, 0, 0, time.UTC)
+	return []store.SessionEvent{
+		repairStoredEvent(t, sessionID, agentName, acp.EventTypeUserMessage, "turn-text", base, acp.AgentEvent{
+			Type: acp.EventTypeUserMessage,
+			Text: "trigger crash mid-stream",
+		}),
+		repairStoredEvent(
+			t,
+			sessionID,
+			agentName,
+			acp.EventTypeAgentMessage,
+			"turn-text",
+			base.Add(time.Second),
+			acp.AgentEvent{
+				Type: acp.EventTypeAgentMessage,
+				Text: "partial before crash",
 			},
 		),
 	}

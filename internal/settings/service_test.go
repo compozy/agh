@@ -2072,7 +2072,7 @@ func (r *recordingEventSummaryStore) ListEventSummaries(
 	return cloned, nil
 }
 
-func TestSettingsMutationsEmitObserveEvents(t *testing.T) {
+func TestSettingsMutationsEmitEventSummaries(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should emit settings changed for section updates", func(t *testing.T) {

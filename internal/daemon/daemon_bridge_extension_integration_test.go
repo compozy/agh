@@ -69,8 +69,9 @@ func TestDaemonE2EBridgeIngressCreatesAndReusesRouteThroughTelegramExtension(t *
 	}
 
 	installed, err := harness.InstallExtension(ctx, aghcontract.InstallExtensionRequest{
-		Path:     extensionDir,
-		Checksum: checksum,
+		Path:            extensionDir,
+		Checksum:        checksum,
+		AllowUnverified: true,
 	})
 	if err != nil {
 		t.Fatalf("InstallExtension(%q) error = %v", extensionDir, err)

@@ -54,9 +54,10 @@ function createAISDKV6HistoryAdapter(
 ): GenericThreadHistoryAdapter<SessionMessage> {
   const adapter = {
     async load() {
-      const messages = await queryClient.ensureQueryData(
-        sessionTranscriptOptions(workspaceId, sessionId)
-      );
+      const messages = await queryClient.fetchQuery({
+        ...sessionTranscriptOptions(workspaceId, sessionId),
+        staleTime: 0,
+      });
       return toLinearRepository(messages);
     },
     async append() {},

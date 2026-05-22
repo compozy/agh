@@ -230,6 +230,8 @@ test("operator installs a local extension tool provider, invokes it over transpo
   const installed = await runBrowserRuntimeCLIJSON<ExtensionPayload>(runtime, [
     "extension",
     "install",
+    "--allow-unverified",
+    "--yes",
     extensionDir,
   ]);
   expect(projectExtension(installed)).toMatchObject({
@@ -489,7 +491,7 @@ test("operator installs a local extension tool provider, invokes it over transpo
   const failureHTTP = await appPage.request.post(runtime.url("/api/extensions"), {
     data: { path: checksumFailureDir, checksum: "sha256:bad-checksum" },
   });
-  expect(failureHTTP.status()).toBe(400);
+  expect(failureHTTP.status()).toBe(422);
   const checksumFailureBody = (await failureHTTP.json()) as { error?: unknown };
   expect(checksumFailureBody).toHaveProperty("error");
   expect(JSON.stringify(checksumFailureBody.error)).toMatch(/checksum|mismatch/i);

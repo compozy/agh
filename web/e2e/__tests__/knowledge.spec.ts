@@ -138,12 +138,9 @@ test("operator creates edits reverts searches recalls and deletes workspace know
   const originalContent = `Remember me: auth migration uses sessions and workspace-scoped recall. ${marker}`;
   const editedContent = `Remember me: auth migration uses sessions after browser edit and revert. ${marker}`;
 
-  const createResponsePromise = appPage.waitForResponse(
-    response => response.request().method() === "POST" && response.url().endsWith("/api/memory")
-  );
   await knowledgeUI.createButton.click();
   await expect(knowledgeUI.createDialog).toBeVisible();
-  await expect(knowledgeUI.createDialog).toHaveAttribute("data-frame", "unframed");
+  await expect(knowledgeUI.createDialog).toHaveAttribute("data-frame", "framed");
   await expect(knowledgeUI.createDialog.locator('[data-slot="dialog-header"]')).toHaveAttribute(
     "data-variant",
     "ruled"
@@ -152,10 +149,15 @@ test("operator creates edits reverts searches recalls and deletes workspace know
     "data-variant",
     "ruled"
   );
-  await knowledgeUI.createType.selectOption("project");
+  const projectType = appPage.getByTestId("knowledge-create-type-project");
+  await projectType.click();
+  await expect(projectType).toHaveAttribute("aria-checked", "true");
   await knowledgeUI.createName.fill(memoryName);
   await knowledgeUI.createDescription.fill("browser-created workspace recall contract");
   await knowledgeUI.createContent.fill(originalContent);
+  const createResponsePromise = appPage.waitForResponse(
+    response => response.request().method() === "POST" && response.url().endsWith("/api/memory")
+  );
   await knowledgeUI.confirmCreateMemory.click();
   const createPayload = (await (await createResponsePromise).json()) as MemoryMutationResponse;
   expect(JSON.stringify(createPayload)).not.toMatch(sensitivePattern);
@@ -278,11 +280,6 @@ test("operator creates edits reverts searches recalls and deletes workspace know
   await knowledgeUI.tabWorkspace.click();
   await expect(knowledgeUI.item(`workspace:${filename}`)).toBeVisible();
   await knowledgeUI.item(`workspace:${filename}`).click();
-  const deleteResponsePromise = appPage.waitForResponse(
-    response =>
-      response.request().method() === "DELETE" &&
-      response.url().includes(`/api/memory/${encodeURIComponent(filename)}`)
-  );
   await knowledgeUI.deleteButton.click();
   await expect(knowledgeUI.deleteDialog).toBeVisible();
   await expect(knowledgeUI.deleteDialog).toHaveAttribute("data-frame", "unframed");
@@ -293,6 +290,12 @@ test("operator creates edits reverts searches recalls and deletes workspace know
   await expect(knowledgeUI.deleteDialog.locator('[data-slot="dialog-footer"]')).toHaveAttribute(
     "data-variant",
     "ruled"
+  );
+  await appPage.getByTestId("knowledge-delete-confirm-typing").fill(filename);
+  const deleteResponsePromise = appPage.waitForResponse(
+    response =>
+      response.request().method() === "DELETE" &&
+      response.url().includes(`/api/memory/${encodeURIComponent(filename)}`)
   );
   await knowledgeUI.confirmDeleteMemory.click();
   const deletePayload = (await (await deleteResponsePromise).json()) as MemoryMutationResponse;

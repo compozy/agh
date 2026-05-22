@@ -524,7 +524,7 @@ func (d *Dispatcher) reserveExistingRun(ctx context.Context, req DispatchRequest
 	if strings.TrimSpace(reserved.ID) == "" {
 		return nil, errors.New("automation: reserved run id is required")
 	}
-	if reserved.Attempt == 0 {
+	if reserved.Attempt < attempt {
 		reserved.Attempt = attempt
 	}
 	if req.Job != nil && strings.TrimSpace(reserved.JobID) != strings.TrimSpace(req.Job.ID) {

@@ -38,7 +38,6 @@ test("operator can navigate the settings shell and complete a restart-aware gene
     .toEqual([
       "General",
       "Providers",
-      "Vault",
       "MCP Servers",
       "Memory",
       "Skills",
@@ -191,7 +190,8 @@ test("operator can replace a builtin provider with a config overlay and delete i
   await expect(settingsUI.providers.list).toBeVisible();
   await expect(settingsUI.providers.card(builtinProviderName)).toBeVisible();
 
-  await settingsUI.providers.editCard(builtinProviderName).click();
+  await appPage.getByTestId(`settings-page-providers-card-${builtinProviderName}-open`).click();
+  await appPage.getByTestId("provider-inspector-edit").click();
   await expect(settingsUI.providers.editor).toBeVisible();
   await settingsUI.providers.editorCommandInput.fill(
     browserSettingsOperatorFlowScenario.providers.overlayCommand
@@ -211,7 +211,8 @@ test("operator can replace a builtin provider with a config overlay and delete i
   );
   await expect(settingsUI.providers.cardSource(builtinProviderName)).toContainText(/config/i);
 
-  await settingsUI.providers.deleteCard(builtinProviderName).click();
+  await appPage.getByTestId(`settings-page-providers-card-${builtinProviderName}-open`).click();
+  await appPage.getByTestId("provider-inspector-delete").click();
   await expect(settingsUI.providers.deleteDialog).toBeVisible();
   await settingsUI.providers.deleteConfirm.click();
 

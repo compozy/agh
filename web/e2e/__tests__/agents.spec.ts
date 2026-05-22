@@ -85,9 +85,11 @@ test.describe("seeded agent detail", () => {
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents/agent-detail-primary");
 
     await expect(appPage.getByTestId("agent-detail-page")).toBeVisible();
-    await expect(appPage.getByTestId("agent-page-header")).toContainText("agent-detail-primary");
-    await expect(appPage.getByTestId("agent-info-panel")).toBeVisible();
-    await expect(appPage.getByTestId("agent-info-mcp-servers")).toBeVisible();
+    await expect(appPage.getByRole("heading", { name: "agent-detail-primary" })).toBeVisible();
+    await expect(appPage.getByRole("heading", { exact: true, name: "MCP Servers" })).toBeVisible();
+    await expect(
+      appPage.getByRole("heading", { exact: true, name: "No MCP servers" })
+    ).toBeVisible();
     await expect(appPage.getByTestId("agent-sessions-empty")).toBeVisible();
     await expect(appPage.getByTestId("agent-stats-grid")).not.toContainText(
       String.fromCharCode(0x2014)

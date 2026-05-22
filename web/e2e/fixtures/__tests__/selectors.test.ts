@@ -130,7 +130,7 @@ describe("automation operator selectors", () => {
     );
     expect(selectors.item("job_daily_review")).toBe("locator:automation-item-job_daily_review");
     expect(selectors.run("run_001")).toBe("locator:automation-run-run_001");
-    expect(selectors.runSessionLink("run_001")).toBe("locator:automation-run-session-link-run_001");
+    expect(selectors.runSessionLink("run_001")).toBe("locator:automation-run-run_001");
   });
 });
 
@@ -317,6 +317,16 @@ describe("settings operator selectors", () => {
 
     expect(selectors.general.page).toBe(`locator:${settingsGeneralTestIds.page}`);
     expect(selectors.general.saveButton).toBe(`locator:${settingsGeneralTestIds.saveButton}`);
+    expect(selectors.general.restartAction).toBe(
+      'locator:[data-testid="' +
+        settingsGeneralTestIds.restartBanner +
+        '"] [data-slot="restart-banner-action"]'
+    );
+    expect(selectors.general.restartBannerTrigger).toBe(
+      'locator:[data-testid="' +
+        settingsGeneralTestIds.restartBanner +
+        '"] [data-slot="restart-banner-action"]'
+    );
     expect(selectors.general.restartBannerOp).toBe(
       `locator:${settingsGeneralTestIds.restartBannerOp}`
     );
@@ -339,9 +349,13 @@ describe("settings operator selectors", () => {
 
     expect(selectors.providers.page).toBe(`locator:${settingsProvidersTestIds.page}`);
     expect(selectors.providers.create).toBe(`locator:${settingsProvidersTestIds.create}`);
+    expect(selectors.providers.editor).toBe(
+      'locator:[data-testid="provider-inspector-sheet"][data-mode="edit"]'
+    );
+    expect(selectors.providers.editorSave).toBe("locator:provider-inspector-save");
     expect(selectors.providers.card("codex")).toBe("locator:settings-page-providers-card-codex");
     expect(selectors.providers.cardCommand("codex")).toBe(
-      "locator:settings-page-providers-card-codex-command"
+      "locator:settings-page-providers-card-codex-hint"
     );
     expect(selectors.providers.cardSource("codex")).toBe(
       "locator:settings-page-providers-card-codex-source"
@@ -445,7 +459,7 @@ describe("tasks operator selectors", () => {
       "locator:tasks-dashboard-active-run-link-run_browser_01"
     );
     expect(selectors.inboxView).toBe(`locator:${tasksOperatorTestIds.inboxView}`);
-    expect(selectors.inboxLane("approvals")).toBe("locator:tasks-inbox-lane-approvals");
+    expect(selectors.inboxLane("approvals")).toBe("locator:tasks-inbox-group-needs_review");
     expect(selectors.inboxItem("task_browser_approval")).toBe(
       "locator:tasks-inbox-item-task_browser_approval"
     );

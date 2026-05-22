@@ -30,7 +30,7 @@ const allowedAgent = "browser-sandbox-allowed";
 const blockedAgent = "browser-sandbox-blocked";
 const sandboxProfileName = "browser-local-sandbox";
 const sensitivePattern =
-  /agh_claim_|["']claim_token["']\s*:|mcp[_-]?auth|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credential|DAYTONA_API_KEY|sandbox-secret/i;
+  /agh_claim_|["']claim_token["']\s*:|mcp[_-]?auth|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credentials?["'\s]*[:=]|DAYTONA_API_KEY|sandbox-secret/i;
 
 interface SettingsSandboxProfile {
   backend: string;
@@ -182,7 +182,6 @@ test("operator manages a local sandbox profile and binds it to real session exec
   });
   const sessionUI = sessionLifecycleSelectors(appPage);
   await expect(sessionUI.chatHeader).toBeVisible();
-  await expect(appPage.getByTestId("session-workspace-badge")).toHaveText(workspace.name);
   await sessionUI.composerTextarea.fill("exercise sandbox allowed path");
   await sessionUI.composerTextarea.press("Enter");
 

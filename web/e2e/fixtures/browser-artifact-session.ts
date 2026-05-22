@@ -268,7 +268,7 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
           : undefined;
     const automationSelectedItem =
       document
-        .querySelector<HTMLElement>('[data-testid="automation-detail-panel"] h2')
+        .querySelector<HTMLElement>('[data-testid="automation-detail-panel"] h1')
         ?.textContent?.trim() || undefined;
     const automationEditorKind = document.querySelector('[data-testid="automation-job-form"]')
       ? "job"
@@ -286,7 +286,7 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
           : undefined;
     const bridgeSelectedItem =
       document
-        .querySelector<HTMLElement>('[data-testid="bridge-detail-panel"] h2')
+        .querySelector<HTMLElement>('[data-testid="bridge-detail-panel"] h1')
         ?.textContent?.trim() || undefined;
     const tasksActiveMode = (["dashboard", "inbox", "kanban", "list"] as const).find(
       mode =>
@@ -357,7 +357,9 @@ export async function captureRouteState(page: Pick<Page, "evaluate">): Promise<B
         document.querySelector('[data-testid="automation-job-scheduler"]') !== null,
       automation_scope_filter: automationScopeFilter,
       automation_selected_item: automationSelectedItem,
-      automation_session_link_count: countByPrefix("automation-run-session-link-"),
+      automation_session_link_count: document.querySelectorAll(
+        'a[data-testid^="automation-run-"][href^="/session/"]'
+      ).length,
       automation_trigger_visible:
         document.querySelector('[data-testid="trigger-job-btn"]') !== null,
       automation_view_visible:

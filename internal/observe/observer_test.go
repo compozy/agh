@@ -147,6 +147,47 @@ func TestObserverQueryEventsAggregatesMemoryEventSource(t *testing.T) {
 	})
 }
 
+func TestObserverQueryEventsNormalizesMemoryWorkspaceFilter(t *testing.T) {
+	t.Run("Should translate public workspace id to memory workspace identity", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		memoryIdentity, err := aghworkspace.EnsureIdentity(testutil.Context(t), h.workspace)
+		if err != nil {
+			t.Fatalf("EnsureIdentity(%q) error = %v", h.workspace, err)
+		}
+		source := &stubMemoryEventSource{
+			events: []store.EventSummary{{
+				ID:          "memevt-workspace-filter-01",
+				Type:        "memory.write.reindex",
+				WorkspaceID: memoryIdentity.WorkspaceID,
+				Summary:     "scope=workspace indexed=3",
+				Timestamp:   h.now.Add(time.Minute),
+			}},
+		}
+		h.observer.mu.Lock()
+		h.observer.memoryEventSource = source
+		h.observer.mu.Unlock()
+
+		events, err := h.observer.QueryEvents(
+			testutil.Context(t),
+			store.EventSummaryQuery{WorkspaceID: h.workspaceID, Type: "memory.write.reindex"},
+		)
+		if err != nil {
+			t.Fatalf("QueryEvents(workspace) error = %v", err)
+		}
+		if got, want := len(events), 1; got != want {
+			t.Fatalf("len(events) = %d, want %d; events=%#v", got, want, events)
+		}
+		if got, want := source.query.WorkspaceID, memoryIdentity.WorkspaceID; got != want {
+			t.Fatalf("memory source query workspace_id = %q, want %q", got, want)
+		}
+		if len(source.workspaces) != 1 || source.workspaces[0] != h.workspace {
+			t.Fatalf("memory source workspaces = %#v, want [%q]", source.workspaces, h.workspace)
+		}
+	})
+}
+
 func TestObserverQueryEventsKeepsSessionScopedEventsNarrow(t *testing.T) {
 	t.Run("Should not fan memory source into session-scoped queries yet", func(t *testing.T) {
 		t.Parallel()

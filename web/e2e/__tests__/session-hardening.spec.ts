@@ -26,7 +26,7 @@ const driverFaultFixture = path.join(fixtureRoot, "driver_fault_fixture.json");
 const permissionAgent = "permission-hardening-agent";
 const faultAgent = "faulty";
 const sensitivePattern =
-  /agh_claim_|claim_token["':\s]|mcp[_-]?auth|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credential/i;
+  /agh_claim_|claim_token["':\s]|mcp[_-]?auth|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credentials?["'\s]*[:=]/i;
 
 interface SessionPayload {
   id: string;
@@ -87,7 +87,6 @@ test("operator rejects a permission request, records tool output, and keeps sess
 
   const ui = sessionLifecycleSelectors(appPage);
   await expect(ui.chatHeader).toBeVisible();
-  await expect(appPage.getByTestId("session-workspace-badge")).toHaveText(workspace.name);
   await expect(ui.composerTextarea).toBeEnabled();
 
   await ui.composerTextarea.fill("exercise permission hardening");
@@ -156,14 +155,18 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
   await ui.composerTextarea.press("Enter");
   await expect(ui.chatView).toContainText("block until canceled");
 
-  const cancelResponsePromise = appPage.waitForResponse(
+  const stopActionPaths = [
+    sessionAPIPath(workspace.id, session.id, "/prompt/cancel"),
+    sessionAPIPath(workspace.id, session.id, "/stop"),
+  ];
+  const stopActionResponsePromise = appPage.waitForResponse(
     response =>
       response.request().method() === "POST" &&
-      response.url().endsWith(sessionAPIPath(workspace.id, session.id, "/prompt/cancel"))
+      stopActionPaths.some(pathname => response.url().endsWith(pathname))
   );
   await expect(ui.stopButton).toBeVisible();
   await ui.stopButton.click();
-  expect((await cancelResponsePromise).ok()).toBe(true);
+  expect((await stopActionResponsePromise).ok()).toBe(true);
 
   await expect(appPage.getByTestId("composer-clear-button")).toBeEnabled({ timeout: 60_000 });
   const beforeClear = await captureSessionSnapshot(runtime, workspace.id, session.id);

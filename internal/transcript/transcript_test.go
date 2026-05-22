@@ -914,6 +914,12 @@ func TestTranscriptRuntimeMarkers(t *testing.T) {
 			if got := UIMessageText(uiMessages[0]); got != test.want {
 				t.Fatalf("UI text = %q, want %q", got, test.want)
 			}
+			if got, want := len(uiMessages[0].Parts), 1; got != want {
+				t.Fatalf("UI marker parts = %d, want %d; parts=%#v", got, want, uiMessages[0].Parts)
+			}
+			if got, want := uiMessages[0].Parts[0].Type, uiPartText; got != want {
+				t.Fatalf("UI marker part type = %q, want %q", got, want)
+			}
 		})
 	}
 }

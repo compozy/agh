@@ -10,6 +10,18 @@ import (
 func TestMemorySearchResultPayloadsFromSearchResults(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should return an empty JSON array payload for no fallback search results", func(t *testing.T) {
+		t.Parallel()
+
+		results := memorySearchResultPayloadsFromSearchResults(nil, "ws_alpha")
+		if results == nil {
+			t.Fatal("memorySearchResultPayloadsFromSearchResults() = nil, want empty slice")
+		}
+		if len(results) != 0 {
+			t.Fatalf("len(results) = %d, want 0", len(results))
+		}
+	})
+
 	t.Run("Should use the canonical workspace ID instead of the fallback workspace path", func(t *testing.T) {
 		t.Parallel()
 

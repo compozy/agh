@@ -12,7 +12,7 @@ test("operator runs onboarding, then re-opens the ruled workspace setup dialog f
   await expect(optionCards).toHaveCount(2);
   const globalCard = appPage.getByTestId("workspace-setup-global-card");
   await expect(globalCard).toHaveAttribute("data-slot", "option-card");
-  await expect(globalCard).toHaveAttribute("data-density", "comfortable");
+  await expect(globalCard).toHaveAttribute("data-size", "comfortable");
 
   await ui.workspaceUseGlobal.click();
   await expect(ui.workspaceOnboarding).toBeHidden();
@@ -29,7 +29,7 @@ test("operator runs onboarding, then re-opens the ruled workspace setup dialog f
   await expect(ruledHeader).toContainText("Add workspace");
 
   const dialogGlobalCard = dialog.getByTestId("workspace-setup-global-card");
-  await expect(dialogGlobalCard).toHaveAttribute("data-density", "compact");
+  await expect(dialogGlobalCard).toHaveAttribute("data-size", "compact");
 
   // The ruled chrome means the trigger row uses px-5 / py-4. Verify computed rule via DOM box.
   const ruledHeaderBox = await ruledHeader.evaluate(node => {

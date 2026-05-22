@@ -91,6 +91,50 @@ func TestClientSearchEmptyResultsReturnsEmptySlice(t *testing.T) {
 	}
 }
 
+func TestDecodeListingsSupportsCurrentItemsEnvelope(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should map current ClawHub items envelope into registry listings", func(t *testing.T) {
+		t.Parallel()
+
+		payload := strings.NewReader(`{
+			"items": [
+				{
+					"slug": "clone-website",
+					"displayName": "Clone, copy and duplicate any website into a clean project",
+					"summary": "Clone any website into a project scaffold.",
+					"tags": {"latest": "1.0.0"},
+					"stats": {"downloads": 7, "installsAllTime": 11, "installsCurrent": 3}
+				}
+			]
+		}`)
+		listings, err := decodeListings(payload)
+		if err != nil {
+			t.Fatalf("decodeListings() error = %v", err)
+		}
+		if len(listings) != 1 {
+			t.Fatalf("len(decodeListings()) = %d, want 1", len(listings))
+		}
+
+		got := listings[0]
+		if got.Slug != "clone-website" {
+			t.Fatalf("decodeListings() slug = %q, want clone-website", got.Slug)
+		}
+		if got.Name != "clone-website" {
+			t.Fatalf("decodeListings() name = %q, want slug-derived name", got.Name)
+		}
+		if got.Description != "Clone any website into a project scaffold." {
+			t.Fatalf("decodeListings() description = %q, want summary", got.Description)
+		}
+		if got.Version != "1.0.0" {
+			t.Fatalf("decodeListings() version = %q, want tags.latest", got.Version)
+		}
+		if got.Downloads != 7 {
+			t.Fatalf("decodeListings() downloads = %d, want stats.downloads", got.Downloads)
+		}
+	})
+}
+
 func TestClientInfoParsesSkillDetail(t *testing.T) {
 	t.Parallel()
 

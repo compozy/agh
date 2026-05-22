@@ -844,6 +844,42 @@ func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "Should map task fail request",
+			args: []string{
+				"task",
+				"fail",
+				"run-1",
+				"--error",
+				"boom",
+				"--metadata",
+				`{"phase":"agent"}`,
+				"-o",
+				"json",
+			},
+			fn: func(t *testing.T) *stubClient {
+				t.Helper()
+				return &stubClient{
+					agentTaskFailFn: func(
+						ctx context.Context,
+						runID string,
+						request AgentTaskFailRequest,
+						credentials agentidentity.Credentials,
+					) (AgentTaskLeaseRecord, error) {
+						if ctx == nil {
+							t.Fatal("AgentTaskFail context is nil")
+						}
+						assertAgentCredentials(t, credentials)
+						if runID != "run-1" ||
+							request.Error != "boom" ||
+							string(request.Metadata) != `{"phase":"agent"}` {
+							t.Fatalf("fail runID=%q request=%#v, want run-1 error metadata", runID, request)
+						}
+						return agentTaskLeaseRecord(taskpkg.TaskRunStatusFailed), nil
+					},
+				}
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

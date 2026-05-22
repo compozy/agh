@@ -104,7 +104,7 @@ func TestHTTPTransportApprovalFlowUsesSharedRuntimeHarness(t *testing.T) {
 		t,
 		clients.HTTPClient,
 		http.MethodGet,
-		runtimeHarness.HTTPURL("/api/workspaces/ws-workspace/sessions/"+url.PathEscape(session.ID)),
+		runtimeHarness.HTTPURL(transportHarnessSessionPath(t, runtimeHarness, session.ID, "")),
 		nil,
 		nil,
 	)
@@ -162,7 +162,7 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 		if err := runtimeHarness.HTTPJSON(
 			ctx,
 			http.MethodGet,
-			"/api/workspaces/ws-workspace/sessions/"+url.PathEscape(created.Session.ID),
+			transportHarnessSessionPath(t, runtimeHarness, created.Session.ID, ""),
 			nil,
 			&detail,
 		); err != nil {
@@ -199,7 +199,7 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 			t,
 			runtimeHarness.HTTPClient,
 			http.MethodPost,
-			runtimeHarness.HTTPURL("/api/workspaces/ws-workspace/sessions/"+url.PathEscape(created.Session.ID)+"/stop"),
+			runtimeHarness.HTTPURL(transportHarnessSessionPath(t, runtimeHarness, created.Session.ID, "/stop")),
 			nil,
 			nil,
 		)
@@ -233,7 +233,7 @@ func TestHTTPTransportSessionProviderLifecycle(t *testing.T) {
 			runtimeHarness.HTTPClient,
 			http.MethodPost,
 			runtimeHarness.HTTPURL(
-				"/api/workspaces/ws-workspace/sessions/"+url.PathEscape(created.Session.ID)+"/attach",
+				transportHarnessSessionPath(t, runtimeHarness, created.Session.ID, "/attach"),
 			),
 			nil,
 			nil,
@@ -356,7 +356,7 @@ func TestHTTPTransportPromptFailureProjectionUsesSharedRuntimeHarness(t *testing
 	if err := runtimeHarness.HTTPJSON(
 		ctx,
 		http.MethodGet,
-		"/api/workspaces/ws-workspace/sessions/"+url.PathEscape(session.ID)+"/events",
+		transportHarnessSessionPath(t, runtimeHarness, session.ID, "/events"),
 		nil,
 		&eventsResp,
 	); err != nil {
@@ -365,6 +365,22 @@ func TestHTTPTransportPromptFailureProjectionUsesSharedRuntimeHarness(t *testing
 	if !httpSessionEventsContainType(eventsResp.Events, "error") {
 		t.Fatalf("HTTP session events = %#v, want error projection", eventsResp.Events)
 	}
+}
+
+func transportHarnessSessionPath(
+	t testing.TB,
+	harness *e2etest.RuntimeHarness,
+	sessionID string,
+	suffix string,
+) string {
+	t.Helper()
+
+	workspaceID := strings.TrimSpace(harness.WorkspaceID)
+	if workspaceID == "" {
+		t.Fatal("runtime harness WorkspaceID = empty")
+	}
+	return "/api/workspaces/" + url.PathEscape(workspaceID) +
+		"/sessions/" + url.PathEscape(sessionID) + suffix
 }
 
 func TestHTTPTransportExtensionParityMatchesUDS(t *testing.T) {

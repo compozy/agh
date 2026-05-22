@@ -355,6 +355,7 @@ function SandboxEditor({
     <SettingsEditorDialog
       open={open}
       mode={isCreate ? "create" : "edit"}
+      slug="sandbox"
       title={title}
       description={description}
       metadata={

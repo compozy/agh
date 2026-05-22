@@ -59,6 +59,12 @@ func TestInboundQueuePreservesFIFOAndDropsOldestOnOverflow(t *testing.T) {
 	if gotSecond.Envelope.ID != third.ID {
 		t.Fatalf("second dequeue id = %q, want %q", gotSecond.Envelope.ID, third.ID)
 	}
+	if gotFirst.Envelope.WorkspaceID != testWorkspaceID {
+		t.Fatalf("first dequeue workspace_id = %q, want %q", gotFirst.Envelope.WorkspaceID, testWorkspaceID)
+	}
+	if gotSecond.Envelope.WorkspaceID != testWorkspaceID {
+		t.Fatalf("second dequeue workspace_id = %q, want %q", gotSecond.Envelope.WorkspaceID, testWorkspaceID)
+	}
 }
 
 func TestFormatNetworkMessageEscapesPreviewAndPreservesCanonicalBody(t *testing.T) {

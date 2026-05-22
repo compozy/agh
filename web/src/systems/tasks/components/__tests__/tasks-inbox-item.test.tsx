@@ -100,6 +100,28 @@ describe("TasksInboxItem", () => {
     expect(onApprove).toHaveBeenCalledWith("task_apr");
   });
 
+  it("Should keep inline actions enabled when the row itself has no open handler", () => {
+    const item = buildInboxItemFixture({
+      lane: "approvals",
+      approval_policy: "manual",
+      approval_state: "pending",
+      task: {
+        id: "task_apr",
+        identifier: "TASK-33",
+        scope: "workspace",
+        status: "pending",
+        title: "Rotate keys",
+      },
+    });
+
+    render(<TasksInboxItem group="needs_review" item={item} onApprove={vi.fn()} />);
+
+    const row = screen.getByTestId("tasks-inbox-item-task_apr");
+    expect(row).not.toHaveAttribute("role", "button");
+    expect(row).not.toHaveAttribute("aria-disabled");
+    expect(screen.getByTestId("tasks-inbox-item-approve-task_apr")).toBeEnabled();
+  });
+
   it("Should not invoke row selection when the Reject button is clicked", () => {
     const onOpen = vi.fn();
     const onReject = vi.fn();

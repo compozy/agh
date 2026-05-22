@@ -25,7 +25,8 @@ export default defineConfig({
   use: {
     ...devices["Desktop Chrome"],
     headless: process.env.PLAYWRIGHT_HEADFUL !== "1",
-    trace: "retain-on-failure",
+    // BrowserArtifactSession owns trace capture for scenario manifests.
+    trace: "off",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
   },

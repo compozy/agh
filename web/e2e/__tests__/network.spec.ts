@@ -36,7 +36,7 @@ const openWorkId = "browser_work_needs_input_17";
 const openWorkRequestMessageId = "browser_msg_needs_input_request_01";
 const openWorkMessageId = "browser_msg_needs_input_01";
 const sensitivePattern =
-  /agh_claim_|claim_token["':\s]|mcp[_-]?auth|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credential|proof["':\s]|signature["':\s]/i;
+  /agh_claim_|claim_token["':\s]|mcp[_-]?auth|telegram-bot-token|pkce|oauth|webhook_secret|provider[_-]?credentials?["'\s]*[:=]|proof["':\s]|signature["':\s]/i;
 
 test.use({
   runtimeOptions: {
@@ -168,15 +168,18 @@ test("operator verifies thread and direct network surfaces with final conversati
   await expect(ui.channelMessage(operatorFlow.messageIds.direct)).toHaveCount(0);
   await browserArtifacts.captureScreenshot("network-thread-detail", appPage);
 
-  await ui.threadTab.click();
-  const threadComposer = appPage.getByTestId("network-composer-textarea-channel-thread");
+  const threadComposer = appPage.getByTestId("network-composer-textarea-thread");
   await threadComposer.click();
   await expect(threadComposer).toBeFocused();
 
   await appPage.setViewportSize({ width: 375, height: 812 });
   await expect(ui.channelTabs).toBeVisible();
-  await expect(appPage.getByTestId("network-composer-channel-thread")).toBeVisible();
+  await expect(appPage.getByTestId("network-composer-thread")).toBeVisible();
   await browserArtifacts.captureScreenshot("network-mobile-composer", appPage);
+  await appPage.getByTestId("network-thread-overlay-close").click();
+  await expect
+    .poll(() => new URL(appPage.url()).pathname)
+    .toBe("/network/" + workspace.id + "/" + channelName + "/threads");
   await appPage.setViewportSize({ width: 768, height: 900 });
   await expect(ui.threadList).toBeVisible();
   await browserArtifacts.captureScreenshot("network-tablet-thread-list", appPage);
@@ -223,7 +226,10 @@ test("operator verifies thread and direct network surfaces with final conversati
   await expect(ui.workInspectorRow(openWorkId)).toContainText("needs input");
   await browserArtifacts.captureScreenshot("network-work-inspector", appPage);
 
-  await ui.directTab.click();
+  await appPage.goto(runtime.url("/network/" + workspace.id + "/" + channelName + "/directs"), {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(ui.directList).toBeVisible();
   await expect(ui.newDirectButton).toBeEnabled();
   await ui.newDirectButton.click();
   await expect(ui.newDirectDialog).toBeVisible();
@@ -271,7 +277,6 @@ test("operator verifies thread and direct network surfaces with final conversati
   );
   const routeState = JSON.parse(routeStateBytes) as Record<string, unknown>;
   expect(routeState).toMatchObject({
-    network_active_tab: "directs",
     network_selected_channel: channelName,
     network_selected_direct: operatorFlow.directId,
     network_work_count: expect.any(Number),

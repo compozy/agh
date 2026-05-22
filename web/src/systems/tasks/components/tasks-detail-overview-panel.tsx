@@ -129,12 +129,14 @@ export function TasksDetailOverviewPanel({
         </Section>
       ) : (
         <Section data-testid="tasks-detail-active-run-empty" label="Execution">
-          <p
-            className="text-small-body text-muted"
-            data-testid="tasks-detail-active-run-empty-hint"
-          >
-            {taskLifecyclePhaseDescription(lifecyclePhase)}
-          </p>
+          <div data-testid="tasks-detail-lifecycle-hint">
+            <p
+              className="text-small-body text-muted"
+              data-testid="tasks-detail-active-run-empty-hint"
+            >
+              {taskLifecyclePhaseDescription(lifecyclePhase)}
+            </p>
+          </div>
         </Section>
       )}
 

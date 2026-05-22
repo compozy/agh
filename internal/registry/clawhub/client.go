@@ -441,18 +441,18 @@ func decodeListings(body io.Reader) ([]registry.Listing, error) {
 		return nil, err
 	}
 
-	var direct []registry.Listing
+	var direct []clawhubListing
 	if err := json.Unmarshal(payload, &direct); err == nil {
 		if direct == nil {
 			return []registry.Listing{}, nil
 		}
-		return direct, nil
+		return normalizeClawHubListings(direct), nil
 	}
 
 	var envelope struct {
-		Skills  []registry.Listing `json:"skills"`
-		Results []registry.Listing `json:"results"`
-		Items   []registry.Listing `json:"items"`
+		Skills  []clawhubListing `json:"skills"`
+		Results []clawhubListing `json:"results"`
+		Items   []clawhubListing `json:"items"`
 	}
 	if err := json.Unmarshal(payload, &envelope); err != nil {
 		return nil, err
@@ -460,14 +460,88 @@ func decodeListings(body io.Reader) ([]registry.Listing, error) {
 
 	switch {
 	case envelope.Skills != nil:
-		return envelope.Skills, nil
+		return normalizeClawHubListings(envelope.Skills), nil
 	case envelope.Results != nil:
-		return envelope.Results, nil
+		return normalizeClawHubListings(envelope.Results), nil
 	case envelope.Items != nil:
-		return envelope.Items, nil
+		return normalizeClawHubListings(envelope.Items), nil
 	default:
 		return []registry.Listing{}, nil
 	}
+}
+
+type clawhubListing struct {
+	registry.Listing
+	DisplayName   string              `json:"displayName"`
+	Summary       string              `json:"summary"`
+	Tags          clawhubListingTags  `json:"tags"`
+	Stats         clawhubListingStats `json:"stats"`
+	LatestVersion struct {
+		Version string `json:"version"`
+	} `json:"latestVersion"`
+}
+
+type clawhubListingTags struct {
+	Latest string `json:"latest"`
+}
+
+type clawhubListingStats struct {
+	Downloads       int `json:"downloads"`
+	InstallsAllTime int `json:"installsAllTime"`
+	InstallsCurrent int `json:"installsCurrent"`
+}
+
+func normalizeClawHubListings(listings []clawhubListing) []registry.Listing {
+	if listings == nil {
+		return []registry.Listing{}
+	}
+
+	normalized := make([]registry.Listing, 0, len(listings))
+	for _, listing := range listings {
+		normalized = append(normalized, listing.registryListing())
+	}
+	return normalized
+}
+
+func (listing clawhubListing) registryListing() registry.Listing {
+	result := listing.Listing
+	result.Slug = strings.TrimSpace(result.Slug)
+	result.Name = firstNonEmpty(result.Name, listingNameFromSlug(result.Slug), listing.DisplayName)
+	result.Description = firstNonEmpty(result.Description, listing.Summary, listing.DisplayName)
+	result.Author = firstNonEmpty(result.Author, listingAuthorFromSlug(result.Slug))
+	result.Version = firstNonEmpty(result.Version, listing.Tags.Latest, listing.LatestVersion.Version)
+	if result.Downloads <= 0 {
+		result.Downloads = firstPositiveInt(
+			listing.Stats.Downloads,
+			listing.Stats.InstallsAllTime,
+			listing.Stats.InstallsCurrent,
+		)
+	}
+	return result
+}
+
+func listingNameFromSlug(slug string) string {
+	trimmed := strings.TrimSpace(slug)
+	if trimmed == "" {
+		return ""
+	}
+	_, name, found := strings.Cut(strings.TrimPrefix(trimmed, "@"), "/")
+	if found {
+		return strings.TrimSpace(name)
+	}
+	return trimmed
+}
+
+func listingAuthorFromSlug(slug string) string {
+	trimmed := strings.TrimSpace(slug)
+	if !strings.HasPrefix(trimmed, "@") {
+		return ""
+	}
+	author, _, found := strings.Cut(strings.TrimPrefix(trimmed, "@"), "/")
+	if !found {
+		return ""
+	}
+	return strings.TrimSpace(author)
 }
 
 func sleepContext(ctx context.Context, wait time.Duration) error {
@@ -572,6 +646,15 @@ func firstPositiveInt64(values ...int64) int64 {
 		}
 	}
 	return -1
+}
+
+func firstPositiveInt(values ...int) int {
+	for _, value := range values {
+		if value > 0 {
+			return value
+		}
+	}
+	return 0
 }
 
 type tempFileReadCloser struct {

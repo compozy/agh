@@ -147,6 +147,57 @@ func TestConfigApplyServiceRecordsRestartRequiredWithoutAdvancingGeneration(t *t
 	})
 }
 
+func TestConfigApplyServiceProviderOverlayForBuiltinRequiresRestart(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should block active generation when provider overlay replaces builtin provider", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(ctx); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+		})
+
+		service := testService(t, homePaths, Dependencies{
+			ApplyRecords: NewConfigApplyRecordRepository(db.DB(), nil),
+		})
+
+		result, err := service.ApplyCollectionItem(
+			WithMutationSource(ctx, "http"),
+			CollectionItemPutRequest{
+				CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+				Name:              "codex",
+				Provider: &ProviderSettings{
+					Command: "codex-browser",
+				},
+			},
+		)
+		if err != nil {
+			t.Fatalf("ApplyCollectionItem(provider codex) error = %v", err)
+		}
+		if result.Applied {
+			t.Fatal("ApplyCollectionItem(provider codex).Applied = true, want false")
+		}
+		if !result.RestartRequired {
+			t.Fatal("ApplyCollectionItem(provider codex).RestartRequired = false, want true")
+		}
+		if got, want := result.Record.Lifecycle, lifecycle.RestartRequired; got != want {
+			t.Fatalf("Lifecycle = %q, want %q", got, want)
+		}
+		if got, want := result.Record.Status, lifecycle.StatusBlocked; got != want {
+			t.Fatalf("Status = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestConfigApplyServiceReloadClassifiesUnknownPathsConservatively(t *testing.T) {
 	t.Parallel()
 

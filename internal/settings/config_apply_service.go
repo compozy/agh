@@ -646,7 +646,7 @@ func (s *service) collectionItemExistsBeforeMutation(
 		for i := range envelope.Providers {
 			item := &envelope.Providers[i]
 			if item.Name == trimmedName {
-				return item.SourceMetadata.EffectiveSource.Kind != SourceKindBuiltinProvider, nil
+				return true, nil
 			}
 		}
 	case CollectionMCPServers:

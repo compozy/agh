@@ -59,6 +59,7 @@ function Stateful(props: Partial<TasksListSurfaceProps>) {
     useState<TasksListSurfaceProps["priorityFilter"]>(null);
   const [scopeFilter, setScopeFilter] = useState<TasksListSurfaceProps["scopeFilter"]>("all");
   const [sortBy, setSortBy] = useState<TasksListSurfaceProps["sortBy"]>("recent");
+  const [searchQuery, setSearchQuery] = useState("");
 
   return (
     <UIProvider reducedMotion="always">
@@ -68,12 +69,14 @@ function Stateful(props: Partial<TasksListSurfaceProps>) {
           onOwnerChange={setOwnerFilter}
           onPriorityChange={setPriorityFilter}
           onScopeChange={setScopeFilter}
+          onSearchQueryChange={setSearchQuery}
           onSelectTask={() => {}}
           onSortChange={setSortBy}
           onStatusChange={setStatusFilter}
           ownerFilter={ownerFilter}
           ownerOptions={OWNER_OPTIONS}
           priorityFilter={priorityFilter}
+          searchQuery={searchQuery}
           scopeFilter={scopeFilter}
           sortBy={sortBy}
           statusFilter={statusFilter}
