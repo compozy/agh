@@ -8,6 +8,7 @@
 - Site docs
 - Vocabulary
 - Generated docs
+- Design-system lessons
 
 ## Truthful Docs
 
@@ -25,13 +26,15 @@ Before using words such as today, supported, live, complete, or shipping, verify
 
 packages/ui/src/tokens.css is the runtime token source. DESIGN.md is generated and carries design-system specification and rationale. Do not invent colors, radii, spacing, typography, motion, or shadows for AGH surfaces.
 
-Do not hand-edit generated DESIGN.md token regions. Run the design sync/codegen path when changing tokens.
+Do not hand-edit generated DESIGN.md token regions. Run `make codegen` when changing runtime tokens, site theme tokens, or generated design inputs; `make codegen-check` detects drift.
 
 ## Site Docs
 
 Fumadocs runtime docs live under packages/site/content/runtime/. CLI reference pages are generated from command sources. If generated references are wrong, fix source commands, not generated output.
 
 Site validation uses Turbo-backed commands from the repo root. Do not rely on package-local Bun commands as final evidence.
+
+Generated site/runtime artifacts include the config lifecycle matrix at `packages/site/content/runtime/core/configuration/lifecycle-matrix.mdx`. Native tool catalog drift is checked through `internal/tools/builtin/testdata/native-tool-catalog.json`. Update sources and run codegen rather than editing generated output by hand.
 
 ## Vocabulary
 
@@ -47,3 +50,13 @@ Do not rename product concepts without updating code, docs, specs, task artifact
 ## Generated Docs
 
 Generated docs and generated design regions are contracts only through their source generators. Do not add tests that merely freeze generated prose unless generated prose itself is the product artifact under test.
+
+`cmd/agh-codegen` owns `openapi`, `sdk-contracts`, `lifecycle-matrix`, `native-tool-catalog`, `all`, and `check`. Use `make codegen` for regeneration and `make codegen-check` for verification.
+
+## Design-System Lessons
+
+For design or UI-facing docs, check:
+
+- `docs/_memory/lessons/L-022-eyebrow-canonical-source.md` before changing eyebrow typography or inline uppercase label patterns.
+- `docs/_memory/lessons/L-023-token-utility-canonical-form.md` before changing Tailwind token utilities or arbitrary token syntax.
+- `docs/_memory/lessons/L-024-design-md-generated-tokens.md` before touching `DESIGN.md`, token tables, or codegen-backed design docs.

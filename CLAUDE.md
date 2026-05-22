@@ -52,6 +52,29 @@ These govern how features move from idea to ship. Internalize them before openin
 - **Two-touch rule.** If the same package or behavior has been patched twice in the same workstream, the third change MUST be a structural redesign, not a third patch. Open a new TechSpec.
 - **Conversation in Brazilian Portuguese; artifacts in English.** Spoken/typed exchanges may use BR-PT. TechSpecs, ADRs, code, commit messages, docs are always English.
 
+## AGH Cross-Surface Impact Audit
+
+Every feature, bug fix, refactor, public contract change, CLI/API/native-tool/config/docs update, or runtime behavior change MUST include an `AGH Impact Audit` in the plan, task body, review-fix notes, or completion notes. Purely editorial docs may state `not applicable — editorial only` only when they do not describe runtime behavior.
+
+Use this exact four-row shape:
+
+```markdown
+AGH Impact Audit:
+
+- Native tools: <changed tool IDs/toolsets/descriptors/schema digests/capability gates/tests, or no impact with checked surfaces>
+- Extensibility and hooks: <extensions, hooks, skills/capabilities, tools/resources, bundles, registries, bridge SDKs, MCP sidecars, config lifecycle, or no impact with checked surfaces>
+- Workspace data isolation: <global/workspace/session/agent scope decision, workspace_id propagation through CLI/HTTP/UDS/core/store/web/SSE/cache/events, tests, or no impact with checked surfaces>
+- Official AGH skill: <skills/agh/SKILL.md or skills/agh/references/\*.md updates, or no impact with checked surfaces>
+```
+
+Audit rules:
+
+- `No impact` is valid only when the artifact names the exact checked surfaces and why they remain unchanged.
+- **Native tools** includes `agh__*` IDs, toolsets, descriptors, input/output schemas, schema digests, risk flags, availability diagnostics, capability gates, and CLI/API fallbacks used by agents.
+- **Extensibility and hooks** includes extension manifests/resources, hook taxonomy and dispatch call sites, skill/capability declarations, tools/resources, bundles, registries, bridge SDKs, MCP sidecars, `config.toml` lifecycle, docs, and tests.
+- **Workspace data isolation** is runtime data ownership, not QA/worktree isolation. Decide whether each new or changed datum is global, workspace-scoped, session-scoped, or agent-scoped; prove list/read/cache/SSE/event paths cannot leak data across workspaces when the surface crosses those boundaries.
+- **Official AGH skill** updates are required when public behavior, tool IDs, CLI paths, hook events, capabilities, bundles/resources, memory/network/task semantics, or agent guidance changes. The canonical bundled skill lives under `skills/agh/`.
+
 ## Design System
 
 **`packages/ui/src/tokens.css` is the canonical runtime token source. `DESIGN.md` is the generated design-system specification plus stable rationale for every AGH surface** — runtime UI, marketing site, and docs. Any UI or asset work MUST:

@@ -8,6 +8,7 @@
 - Tool grants
 - Providers and MCP
 - Setup workflow
+- Provider aliases and settings apply
 
 ## Files And Precedence
 
@@ -42,7 +43,7 @@ Do not use categories or slash strings for hierarchy. They are not runtime seman
 
 ## Tool Grants
 
-Do not add agh**bootstrap or agh**catalog only for discovery. AGH adds those default discovery toolsets unless policy denies them.
+Do not add `agh__bootstrap` or `agh__catalog` only for discovery. AGH adds those default discovery toolsets unless policy denies them.
 
 Keep frontmatter grants narrow and intentional. Add extra tools only when the agent needs those runtime capabilities.
 
@@ -58,6 +59,13 @@ Per-agent MCP servers belong in AGENT.md or an agent-local mcp.json sidecar. mcp
 2. Create $AGH_HOME/agents/<name>/AGENT.md or workspace-local equivalent.
 3. Keep frontmatter small and put behavior in the Markdown body.
 4. Add only the toolsets and MCP servers the agent actually needs.
-5. Validate with AGH CLI/API rather than guessing from file shape.
+5. Reconcile desired config with runtime truth after config edits, using `agh config reload -o json` when the daemon is running.
+6. Validate with AGH CLI/API rather than guessing from file shape.
 
 If AGH rejects the agent, inspect missing name, invalid permissions, empty prompt body, malformed mcp_servers, or a directory/name mismatch first.
+
+## Provider Aliases And Settings Apply
+
+Provider aliases are small built-in conveniences, not user-configured compatibility keys. `claude-code` resolves to the canonical `claude` provider; aliases such as `ai-gateway`, `vercel`, `kimi`, `glm`, `x.ai`, `grok`, `open-code`, and `qwen` resolve before launch. Config files must still reference canonical provider IDs, and the removed `providers.<id>.aliases` key is rejected.
+
+Settings writes are governed by the config apply lifecycle. After changing provider defaults, MCP sidecars, sandboxes, hooks, or skills config, inspect `lifecycle`, `applied`, `next_action`, `active_generation`, and `apply_record_id` in the command response or `agh config apply-history -o json`. New-session or restart-required changes are not active for already-running sessions unless the lifecycle says they are.

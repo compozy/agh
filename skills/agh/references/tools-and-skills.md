@@ -6,6 +6,7 @@
 - Discovery loop
 - Skill loading
 - Bundled skill resources
+- Skill provenance and shadows
 - Native AGH tool map
 - Management-surface exceptions
 - Skill authoring rules
@@ -26,7 +27,7 @@ Use this sequence for AGH-native work:
 3. Invoke the dedicated tool with the descriptor's input schema.
 4. Diagnose denied or missing tools from reason codes before changing surface.
 
-For skills, search with agh**skill_search and load full instructions with agh**skill_view. Use the operator CLI fallback only when the tool path is denied, absent, or the user asks for CLI output.
+For skills, search with `agh__skill_search` and load full instructions with `agh__skill_view`. Use the operator CLI fallback only when the tool path is denied, absent, or the user asks for CLI output.
 
 ## Skill Loading
 
@@ -45,9 +46,22 @@ Bundled AGH skills are compiled from the repository skills/<name>/ directories. 
 
 Resource files are load-bearing. A summary in SKILL.md is never a substitute for reading the referenced file selected by the router.
 
+## Skill Provenance And Shadows
+
+Every skill list/detail payload includes resolver provenance. `provenance.precedence_tier` names the winning tier, and installed-from metadata identifies bundle or extension ownership when present.
+
+When multiple declarations use the same skill name, AGH keeps the normal precedence order and records losing declarations as shadows. Use these surfaces before assuming which skill body is active:
+
+    agh skill where <name> --workspace <ref> --for-agent <agent>
+    GET /api/skills/{name}/shadows?workspace=<ref>&for_agent=<agent>
+
+The response shape is `SkillShadowsRecord` / `SkillShadowsResponse`: `winner` is the effective declaration, and each entry in `shadows` carries `path`, `tier`, `resolved_to_winner`, and `detected_at`. The winning entry is marked `resolved_to_winner: true`; lower-precedence declarations remain visible with `false`.
+
+Do not diagnose skill drift from filesystem paths alone. Use the resolver view so workspace, agent-local, bundled, marketplace, extension, and additional-path precedence are all considered.
+
 ## Native AGH Tool Map
 
-Agents running inside AGH should read references/native-tools.md before choosing a tool or CLI fallback. That file lists the daemon-native toolsets and stable agh** IDs, but the source of truth for parameters and availability is always the live descriptor returned by agh**tool_info.
+Agents running inside AGH should read references/native-tools.md before choosing a tool or CLI fallback. That file lists the daemon-native toolsets and stable `agh__*` IDs, but the source of truth for parameters and availability is always the live descriptor returned by `agh__tool_info`.
 
 ## Management-Surface Exceptions
 

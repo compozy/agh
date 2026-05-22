@@ -8,6 +8,7 @@
 - Command selection
 - Final verification
 - QA labs
+- Scenario QA references
 
 ## Test Decision
 
@@ -60,3 +61,11 @@ Passing tests are evidence only for what they cover. Audit the original requirem
 For release or scenario QA, use isolated AGH homes, daemon ports, and bridge sockets. Reuse a QA lab only when continuing the same active QA session with a matching manifest. Fresh independent QA passes should use fresh labs.
 
 Persist lab root, runtime home, base URL, and verification evidence when a QA pass creates a bootstrap manifest.
+
+## Scenario QA References
+
+Release-grade QA follows SD-005 in `docs/_memory/standing_directives.md`: `make verify` is necessary but not sufficient when the change affects real agent workflows, provider lanes, network/task orchestration, or UI surfaces.
+
+Use the `real-scenario-qa` skill for release/scenario validation. It routes through `qa-report` and `qa-execution` for persona, journey, exploratory, and evidence capture.
+
+When parallel QA or parallel agents are involved, apply `docs/_memory/lessons/L-009-concurrent-worktree-deadlock.md`: unique `AGH_HOME`, daemon port, and bridge socket per lab. When native providers are involved, apply `docs/_memory/lessons/L-016-native-provider-qa-home-policy.md`: isolate AGH runtime state, but preserve operator `HOME` for `native_cli` providers with `home_policy=operator` unless the scenario explicitly tests isolated provider-home behavior.

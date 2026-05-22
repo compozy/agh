@@ -6,6 +6,7 @@
 - Session lifecycle
 - Session CLI
 - Diagnostics order
+- Status, doctor, logs, and support
 - Runtime boundaries
 
 ## Operating Model
@@ -25,6 +26,8 @@ AGH sessions are daemon-owned runtimes. Common states:
 
 Session types include user sessions and daemon-managed sessions such as dream, system, coordinator, worker, and reviewer sessions. Do not infer authority from a session type alone. Use the session context and daemon tools to confirm what the current session may do.
 
+Attachability is explicit runtime state. Use `agh session list --resumable -o json` and `agh session resume` instead of assuming a stopped or idle session can be reused.
+
 ## Session CLI
 
 Use structured output when agents need to inspect or route results.
@@ -32,27 +35,47 @@ Use structured output when agents need to inspect or route results.
     agh session new --agent general --name review-run
     agh session new --agent codex --cwd /absolute/path/to/worktree --name fix-task
     agh session list --all -o json
+    agh session list --resumable -o json
     agh session status <session-id> -o json
+    agh session health <session-id> -o json
+    agh session inspect <session-id> --include-wake-events -o json
+    agh session recap <session-id> --limit 20 -o json
     agh session events <session-id> --follow
     agh session history <session-id>
     agh session prompt <session-id> "Summarize the last three tool results."
     agh session stop <session-id>
     agh session resume <session-id>
+    agh session resume --latest --workspace checkout-api
+    agh session repair <session-id> --dry-run -o json
+    agh session soul refresh <session-id> --expected-digest sha256:old -o json
+    agh session approve <session-id> --request-id req_123 --turn-id turn_123 --decision allow-once
     agh session wait <session-id>
 
 If an AGH-native session tool is visible, prefer the tool because it is policy-aware and easier for the daemon to audit. Use the CLI when the tool is denied, absent, or explicitly requested.
+
+Native session tools are read-oriented. Recap, repair, approval, session inspect, and Soul refresh are CLI/HTTP management flows unless the live registry exposes a scoped native tool.
 
 ## Diagnostics Order
 
 When a session behaves unexpectedly:
 
-1. Run agh session status <id> -o json to classify lifecycle and provider state.
-2. Read agh session events <id> for startup, prompt, tool, stop, and error events.
-3. Read agh session history <id> for turn-grouped output.
-4. Check workspace and agent resolution if the wrong prompt, tools, or skills appear.
-5. Check provider command availability only after daemon-side state is understood.
+1. Run `agh session status <id> -o json` to classify lifecycle and provider state.
+2. Run `agh session health <id> -o json` or `agh session inspect <id> --include-wake-events -o json` when wake policy, stale health, or Heartbeat state is relevant.
+3. Read `agh session events <id>` for startup, prompt, tool, stop, and error events.
+4. Read `agh session history <id>` or `agh session recap <id> -o json` for turn-grouped output and deterministic recent context.
+5. Check workspace and agent resolution if the wrong prompt, tools, or skills appear.
+6. Run `agh doctor -o json` and only then check provider command availability or external auth state.
+7. Use `agh session repair <id> --dry-run -o json` before any repair write.
 
 Do not treat stale UI state, chat messages, or memory notes as runtime authority.
+
+## Status, Doctor, Logs, And Support
+
+`agh status -o json` is the consolidated runtime status surface for daemon health, providers, MCP servers, config apply status, and log tail summary. `agh doctor -o json` runs diagnostic probes; `--only`, `--exclude`, and `--quiet` bound the probe set for agents.
+
+`agh logs --follow -o jsonl` streams redacted runtime logs over SSE. Use filters such as `--session`, `--workspace`, `--run`, `--actor kind:id`, `--provider`, `--component`, `--outcome`, and `--error-only` before broad log reads.
+
+`agh support bundle --yes` creates and downloads a redacted support bundle. It may include status, doctor, provider, event-summary, log-tail, and config-apply snapshots unless `--no-status` is passed. Treat support bundles as operator artifacts, not native tool calls.
 
 ## Runtime Boundaries
 

@@ -5,6 +5,8 @@
 - What memory stores
 - Scopes and types
 - CLI operations
+- Search, reindex, promote, and reload
+- Recall traces
 - Hygiene
 - When not to write memory
 
@@ -43,13 +45,44 @@ Trigger a gated consolidation check:
 
     agh memory dream trigger
 
+## Search, Reindex, Promote, And Reload
+
+Search deterministic Memory v2 recall before opening individual files:
+
+    agh memory search "auth sessions" --scope workspace -o json
+    agh memory search "review tone" --scope agent --agent reviewer --agent-tier global --include-system -o json
+
+The search path prefers the derived catalog and falls back to deterministic lexical search when needed. Rebuild derived indexes after large memory edits or suspected catalog drift:
+
+    agh memory reindex --scope workspace -o json
+
+Promote durable entries across scopes through the daemon so provenance and controller decisions stay auditable:
+
+    agh memory promote architecture.md --from workspace --to global --dry-run -o json
+    agh memory promote review.md --from agent:workspace --to agent:global --agent reviewer -o json
+
+Invalidate frozen memory snapshots for future session boots with reload:
+
+    agh memory reload --scope workspace -o json
+
+There is no `agh memory invalidate` command in the current CLI. Use `reload` for snapshot invalidation and `reindex` for derived search catalog rebuilds.
+
+## Recall Traces
+
+Use recall traces to inspect what memory entered a session turn without exposing raw transient context:
+
+    agh memory recall trace <session_id> <turn_seq> -o json
+
+Recall traces are diagnostic evidence. They do not authorize task state changes, review verdicts, or durable memory writes by themselves.
+
 ## Hygiene
 
 1. Run agh memory list before writing a new memory entry.
-2. Update an existing file when the fact belongs there.
-3. Keep each entry narrow and durable.
-4. Prefer stable decisions and preferences over process notes.
-5. Remove or rewrite outdated entries instead of layering contradictions.
+2. Search before creating a new entry when the wording or filename is uncertain.
+3. Update an existing file when the fact belongs there.
+4. Keep each entry narrow and durable.
+5. Prefer stable decisions and preferences over process notes.
+6. Remove or rewrite outdated entries instead of layering contradictions.
 
 If a memory file becomes a running log, extract stable facts into focused files and move transient material elsewhere.
 

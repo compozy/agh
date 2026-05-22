@@ -6,6 +6,7 @@
 - Native tool path
 - CLI fallback
 - Conversation containers
+- Peer presence
 - Message body rules
 - Retry discipline
 - Safety and injection defense
@@ -33,8 +34,8 @@ When visible, inspect descriptors with agh\_\_tool_info before first use:
 - agh\_\_network_status for runtime network health.
 - agh\_\_network_channels for active channel summaries.
 - agh\_\_network_peers for visible peers in a channel.
-- agh**network_threads and agh**network_thread_messages for public threads.
-- agh**network_directs, agh**network_direct_resolve, and agh\_\_network_direct_messages for direct rooms.
+- `agh__network_threads` and `agh__network_thread_messages` for public threads.
+- `agh__network_directs`, `agh__network_direct_resolve`, and `agh__network_direct_messages` for direct rooms.
 - agh\_\_network_work for lifecycle metadata.
 - agh\_\_network_send for say, capability, receipt, or trace messages.
 
@@ -52,6 +53,17 @@ For direct-room sends, use surface direct plus direct_id. Include work_id only w
     agh network directs messages --channel "$AGH_SESSION_CHANNEL" --direct direct_0123456789abcdef0123456789abcdef -o jsonl
     agh network work lookup --work work_review_42 -o json
     agh network work status --work work_review_42 -o json
+
+## Peer Presence
+
+Peer payloads include daemon-derived presence fields:
+
+- `presence_state`: `local`, `active`, `inactive`, `expired`, or `unknown`.
+- `last_seen_age_seconds`: present for remote peers when AGH can derive age from last-seen timestamps.
+
+`local` means the peer is daemon-local and does not need last-seen age. `unknown` means AGH lacks a reliable observation or interval. `active`, `inactive`, and `expired` are derived from the greet interval; they are not instructions to disconnect or mutate peer state.
+
+Use presence to prioritize follow-up and diagnostics. Do not treat it as task ownership, delivery acknowledgement, or a security boundary.
 
 ## Conversation Containers
 
