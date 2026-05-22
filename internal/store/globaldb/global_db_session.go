@@ -267,7 +267,7 @@ func (g *GlobalDB) classifyAttachFailure(ctx context.Context, sessionID string, 
 	}
 	if strings.TrimSpace(state) != globalDBSessionStateActive ||
 		strings.TrimSpace(failureKind.String) != "" ||
-		strings.TrimSpace(stallState.String) == store.SessionStallStateDetected {
+		strings.TrimSpace(stallState.String) != "" {
 		return fmt.Errorf("%w: %s", store.ErrSessionNotAttachable, sessionID)
 	}
 	if strings.TrimSpace(attachedTo) == "" ||

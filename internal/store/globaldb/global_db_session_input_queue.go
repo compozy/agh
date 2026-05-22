@@ -528,7 +528,7 @@ func (g *GlobalDB) CurrentSessionInputGeneration(ctx context.Context, sessionID 
 func (g *GlobalDB) SessionInputQueueSummary(
 	ctx context.Context,
 	sessionID string,
-) (store.SessionInputQueueSummary, error) {
+) (summary store.SessionInputQueueSummary, err error) {
 	if err := g.checkReady(ctx, "read session input queue summary"); err != nil {
 		return store.SessionInputQueueSummary{}, err
 	}
@@ -536,9 +536,8 @@ func (g *GlobalDB) SessionInputQueueSummary(
 	if target == "" {
 		return store.SessionInputQueueSummary{}, errors.New("store: session id is required")
 	}
-	var summary store.SessionInputQueueSummary
 	summary.SessionID = target
-	err := g.db.QueryRowContext(ctx, `
+	err = g.db.QueryRowContext(ctx, `
 		SELECT input_generation FROM sessions WHERE id = ?`,
 		target,
 	).Scan(&summary.Generation)
@@ -564,7 +563,9 @@ func (g *GlobalDB) SessionInputQueueSummary(
 		return store.SessionInputQueueSummary{}, fmt.Errorf("store: query session input queue summary: %w", err)
 	}
 	defer func() {
-		_ = rows.Close()
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("store: close session input queue summary rows: %w", closeErr)
+		}
 	}()
 	for rows.Next() {
 		var mode, status string
@@ -583,8 +584,8 @@ func (g *GlobalDB) SessionInputQueueSummary(
 			summary.PendingLeased += count
 		}
 	}
-	if err := rows.Err(); err != nil {
-		return store.SessionInputQueueSummary{}, fmt.Errorf("store: iterate session input queue summary: %w", err)
+	if iterErr := rows.Err(); iterErr != nil {
+		return store.SessionInputQueueSummary{}, fmt.Errorf("store: iterate session input queue summary: %w", iterErr)
 	}
 	return summary, nil
 }

@@ -733,7 +733,7 @@ func (h *BaseHandlers) SessionRecap(c *gin.Context) {
 	}
 	pendingMarkers, err := h.pendingTranscriptMarkerCount(c.Request.Context(), sessionID)
 	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
+		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
 	eventCursor := maxSessionEventSequence(eventsList)

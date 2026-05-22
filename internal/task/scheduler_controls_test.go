@@ -21,6 +21,10 @@ type schedulerControlTestStore struct {
 	requireDeadline  bool
 }
 
+var _ taskPauseStore = (*schedulerControlTestStore)(nil)
+var _ schedulerControlStore = (*schedulerControlTestStore)(nil)
+var _ eventSummaryStore = (*schedulerControlTestStore)(nil)
+
 func newSchedulerControlTestStore() *schedulerControlTestStore {
 	return &schedulerControlTestStore{inMemoryManagerStore: newInMemoryManagerStore()}
 }
