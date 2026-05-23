@@ -100,9 +100,9 @@ func (m *Manager) promptExecutionContext(
 
 The execution context has three cancellation paths. The handler can call `cancelPromptExecution` directly. The manager's fallback lifecycle context fires on daemon shutdown via `context.AfterFunc`. The cancel endpoint can reach the same handle through the session's stored cancel function. The returned `CancelFunc` releases the `AfterFunc` registration when the turn ends normally — without that release, every completed prompt would leak a registration on the lifecycle context.
 
-The rule the code enforces: every goroutine the session manager spawns is tracked by a manager-owned `sync.WaitGroup` and joined during shutdown. The `agh-code-guidelines` skill states it explicitly — *"No fire-and-forget goroutines. Track with `sync.WaitGroup` (or equivalent owner-side primitive) and join on shutdown."* `internal/CLAUDE.md` adds the architectural form: *"Goroutines spawned by `internal/session/manager_*.go` MUST be tracked by Manager-owned WaitGroup and joined in Manager shutdown."*
+The rule the code enforces: every goroutine the session manager spawns is tracked by a manager-owned `sync.WaitGroup` and joined during shutdown. The `agh-code-guidelines` skill states it explicitly — _"No fire-and-forget goroutines. Track with `sync.WaitGroup` (or equivalent owner-side primitive) and join on shutdown."_ `internal/CLAUDE.md` adds the architectural form: _"Goroutines spawned by `internal/session/manager\__.go` MUST be tracked by Manager-owned WaitGroup and joined in Manager shutdown."\*
 
-The combination — detached lifetime *plus* explicit supervisor — is what makes the pattern safe. Detachment without supervision is leaking. Supervision without detachment is request-bound execution dressed up.
+The combination — detached lifetime _plus_ explicit supervisor — is what makes the pattern safe. Detachment without supervision is leaking. Supervision without detachment is request-bound execution dressed up.
 
 ## Three places AGH applies the same shape
 
@@ -128,7 +128,7 @@ POST /api/workspaces/:workspace_id/sessions/:session_id/prompt/cancel
 
 The handler is six lines (`internal/api/httpapi/sessions.go:52`): require the session, call `Sessions.CancelPrompt(ctx, sessionID)`, return 200. The session manager's `CancelPrompt` in `internal/session/manager_prompt.go` looks up the live session, calls the stored cancel handle (`session.cancelCurrentPrompt()`), then asks the driver to interrupt the underlying ACP subprocess and any scoped tool calls in flight. Idempotent: cancelling an already-finished prompt returns nil.
 
-The same verb exists on the UDS surface for CLI parity. `agh session cancel <id>` is the operator path; the HTTP route is the web path; both end at the same `Manager.CancelPrompt`. The standing directive on supervision codifies the rule: *"`CancelPrompt`, session stop, and timeout collapse into ONE idempotent cancellation path."*
+The same verb exists on the UDS surface for CLI parity. `agh session cancel <id>` is the operator path; the HTTP route is the web path; both end at the same `Manager.CancelPrompt`. The standing directive on supervision codifies the rule: _"`CancelPrompt`, session stop, and timeout collapse into ONE idempotent cancellation path."_
 
 Transport-level aborts are a fact about the wire, not about the work. A WebSocket dropping, a TCP reset, a refresh, a `curl` aborted with Ctrl-C — none of them carry intent. They carry network state. An agent runtime that conflates network state with operator intent has built a coordination layer on top of accident. Named cancel verbs make intent legible. They also make it auditable: every cancellation appears in the event store with `actor_id`, `release_reason`, and `claim_token_hash` populated, so an operator (or a peer agent) can answer the question "who stopped this turn?" later.
 

@@ -114,7 +114,7 @@ func RedactAgentEvent(event acp.AgentEvent) acp.AgentEvent {
 
 `internal/transcript/redaction.go:14-29`. The structure is deliberate. Every displayable string runs through `redactDisplayString`. Every structured payload — synthetic prompt metadata, runtime activity, tool results, the raw JSON envelope — runs through its own typed redactor. The `Raw` JSON blob is parsed and walked; any key whose normalized form contains `claim_token`, `lease_token`, `api_key`, `access_token`, `mcp_auth_token`, `pkce_verifier`, `secret_binding`, or one of the other listed substrings is replaced with `[REDACTED]`.
 
-The invariant that makes this work is not the function itself; it is that the function is the *only* path. Transcript assembly, SSE broadcast, the CLI replay command, and the web UI all consume the redacted event, never the persisted one. A transport added tomorrow does not get a chance to forget to redact, because the only event type it can receive is already redacted. The threat being modeled is not a malicious operator; it is the boring case of a future contributor who adds a new event field, forgets to update one of three transports, and ships a regression. The single chokepoint absorbs that mistake before it leaves the daemon.
+The invariant that makes this work is not the function itself; it is that the function is the _only_ path. Transcript assembly, SSE broadcast, the CLI replay command, and the web UI all consume the redacted event, never the persisted one. A transport added tomorrow does not get a chance to forget to redact, because the only event type it can receive is already redacted. The threat being modeled is not a malicious operator; it is the boring case of a future contributor who adds a new event field, forgets to update one of three transports, and ships a regression. The single chokepoint absorbs that mistake before it leaves the daemon.
 
 A live trace makes the discipline visible. A coordination channel message that references a claim shows `claim_token_hash: sha256:af3c…`. The corresponding event in `runtime.db` shows the same hash. The CLI stream, the SSE frame, and the operator log all show the same hash. Nothing on any of those surfaces shows the raw `agh_claim_…` bearer.
 
@@ -124,12 +124,12 @@ A coordinator that holds a lease for four hours often needs help. It may want a 
 
 The spawn contract is narrow on purpose. Four bounds apply to every child:
 
-| Bound                   | Default                       | Where                                                  |
-| ----------------------- | ----------------------------- | ------------------------------------------------------ |
-| TTL                     | required, positive            | `SpawnOpts.TTL` validation, `internal/session/spawn.go:164` |
-| Max depth               | `1`                           | `DefaultSpawnMaxDepth`, `internal/session/spawn.go:18` |
-| Max children per parent | `5`                           | `DefaultSpawnMaxChildren`, `internal/session/spawn.go:16` |
-| Permission set          | subset of parent              | `ValidatePermissionSubset`, called before and after the `spawn.pre_create` hook |
+| Bound                   | Default            | Where                                                                           |
+| ----------------------- | ------------------ | ------------------------------------------------------------------------------- |
+| TTL                     | required, positive | `SpawnOpts.TTL` validation, `internal/session/spawn.go:164`                     |
+| Max depth               | `1`                | `DefaultSpawnMaxDepth`, `internal/session/spawn.go:18`                          |
+| Max children per parent | `5`                | `DefaultSpawnMaxChildren`, `internal/session/spawn.go:16`                       |
+| Permission set          | subset of parent   | `ValidatePermissionSubset`, called before and after the `spawn.pre_create` hook |
 
 The MVP rejects three classes of request outright: a child with no TTL, a child whose role is `coordinator` (coordinators are daemon-managed roots, never spawned), and a child whose tools, skills, MCP servers, workspace paths, network channels, or sandbox profiles include any atom the parent does not hold. Unknown permission atoms count as widening and reject the spawn.
 

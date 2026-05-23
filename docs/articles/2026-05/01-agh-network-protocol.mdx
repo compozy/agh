@@ -79,14 +79,14 @@ What sits in `kind` is the next question.
 
 `agh-network/v0` defines exactly six kinds. Each carries one verb. Nothing else is on the wire today, and adding a kind is a protocol-version change — not a runtime feature flag.
 
-| Kind         | Verb                                                       |
-| ------------ | ---------------------------------------------------------- |
-| `greet`      | "I'm here, here is my Peer Card."                          |
-| `whois`      | "Who matches this query?"                                  |
-| `say`        | "Talk inside this thread or direct room."                  |
-| `capability` | "Take this reusable artifact."                             |
-| `receipt`    | "I accept, reject, or cancel this work."                   |
-| `trace`      | "Here is progress, results, or a failure on this work."    |
+| Kind         | Verb                                                    |
+| ------------ | ------------------------------------------------------- |
+| `greet`      | "I'm here, here is my Peer Card."                       |
+| `whois`      | "Who matches this query?"                               |
+| `say`        | "Talk inside this thread or direct room."               |
+| `capability` | "Take this reusable artifact."                          |
+| `receipt`    | "I accept, reject, or cancel this work."                |
+| `trace`      | "Here is progress, results, or a failure on this work." |
 
 `greet` broadcasts a Peer Card — display name, supported profiles, advertised capabilities, accepted trust modes. Receivers refresh local peer presence. The reference runtime repeats `greet` every 30 seconds as a presence heartbeat and expires peers that miss two intervals.
 
@@ -171,19 +171,19 @@ The current AGH Runtime ships v0 only — `proof` is preserved as opaque JSON, a
 
 Conformance is graded, not binary. Three tiers, each strictly additive:
 
-| Tier      | What it includes                                                  | Required of                                                                       |
-| --------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Tier      | What it includes                                                   | Required of                                                                        |
+| --------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
 | **Core**  | Envelope + the six kinds + lifecycle + delivery + extension rules. | Any runtime, bridge, test harness, or library that exchanges AGH Network messages. |
-| **Trust** | Core + the Ed25519 + JCS baseline.                                | Implementations that claim cryptographic sender verification.                     |
-| **Full**  | Trust + the NATS v0 transport binding.                            | Peers that interoperate over `agh-network/v0` on NATS.                            |
+| **Trust** | Core + the Ed25519 + JCS baseline.                                 | Implementations that claim cryptographic sender verification.                      |
+| **Full**  | Trust + the NATS v0 transport binding.                             | Peers that interoperate over `agh-network/v0` on NATS.                             |
 
 Every tier requires all six kinds. The split is not "which kinds to ship" but "which profiles to add":
 
-| Tier  | greet | whois | say  | capability | receipt | trace | Adds                  |
-| ----- | ----- | ----- | ---- | ---------- | ------- | ----- | --------------------- |
-| Core  | MUST  | MUST  | MUST | MUST       | MUST    | MUST  | envelope grammar      |
-| Trust | MUST  | MUST  | MUST | MUST       | MUST    | MUST  | Ed25519+JCS proofs    |
-| Full  | MUST  | MUST  | MUST | MUST       | MUST    | MUST  | NATS subject binding  |
+| Tier  | greet | whois | say  | capability | receipt | trace | Adds                 |
+| ----- | ----- | ----- | ---- | ---------- | ------- | ----- | -------------------- |
+| Core  | MUST  | MUST  | MUST | MUST       | MUST    | MUST  | envelope grammar     |
+| Trust | MUST  | MUST  | MUST | MUST       | MUST    | MUST  | Ed25519+JCS proofs   |
+| Full  | MUST  | MUST  | MUST | MUST       | MUST    | MUST  | NATS subject binding |
 
 Every tier requires all six kinds; the differentiator is the additional profile each tier layers on. A Core Peer validates envelopes, routes them, and emits them. A Trust Peer additionally verifies baseline proofs and advertises trust support in its Peer Card. A Full Peer additionally binds to the NATS subject grammar above.
 
@@ -213,7 +213,9 @@ What is still alpha is the next question.
 ## What is still alpha
 
 <Callout tone="accent" eyebrow="Alpha">
-  `agh-network/v0` is alpha. The wire shape may still evolve before v1. The six kinds, the envelope grammar, and the workspace-qualified routing are stable enough to build against today, but each of the items below names a real boundary an implementer should plan around.
+  `agh-network/v0` is alpha. The wire shape may still evolve before v1. The six kinds, the envelope
+  grammar, and the workspace-qualified routing are stable enough to build against today, but each of
+  the items below names a real boundary an implementer should plan around.
 </Callout>
 
 - **Trust is documented but not enforced by the reference runtime.** The Ed25519 + JCS profile is normative; AGH Runtime v0 routes `proof` as opaque JSON and does not classify trust state at the routing layer. Third-party trust implementations are valid protocol-side; cross-implementation verification is not yet a shipped runtime gate.

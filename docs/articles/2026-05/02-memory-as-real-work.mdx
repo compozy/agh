@@ -65,8 +65,8 @@ flowchart LR
   class S out;
 ```
 
-*Three scopes feed one session view. Agent overrides workspace; workspace
-overrides global. Higher-precedence entries shadow lower ones by name.*
+_Three scopes feed one session view. Agent overrides workspace; workspace
+overrides global. Higher-precedence entries shadow lower ones by name._
 
 The scopes are not a suggestion in the source — they are a closed enum.
 `internal/memory/contract/enums.go:13-16` declares `ScopeGlobal`,
@@ -83,7 +83,7 @@ hidden from the active session unless the operator asks for it with
 workspace convention for one project without rewriting the global note, and
 lets a workspace override a personal default without editing global truth.
 
-The default *write* scope is not picked at random either. The runtime resolves
+The default _write_ scope is not picked at random either. The runtime resolves
 it from the memory type:
 `user` and `feedback` land in `global`, `project` and `reference` land in
 `workspace` (`internal/memory/contract/enums.go:119-130`). The agent never has
@@ -113,8 +113,8 @@ the repository.
 └── reference_api_spec.md
 ```
 
-*Memory on disk: one Markdown file per entry, one index file per scope. The
-index lives at `internal/memory/store.go:27` as `indexFilename = "MEMORY.md"`.*
+_Memory on disk: one Markdown file per entry, one index file per scope. The
+index lives at `internal/memory/store.go:27` as `indexFilename = "MEMORY.md"`._
 
 Each entry carries a validated header. `internal/memory/contract/types.go:16-27`
 defines it: `name`, `description`, `type`, `scope`, optional `agent_name` and
@@ -178,7 +178,7 @@ inspectable by `agh memory recall trace get` and the rebuild path is
 `internal/cli/memory.go`. There is no opaque ranker. The same query produces
 the same answer until the underlying files or scopes change.
 
-The closed type set has a second job: it constrains the *write* side. A new
+The closed type set has a second job: it constrains the _write_ side. A new
 entry without a valid `type` does not get written. An agent attempting to
 invent a fifth type fails at the controller decision point
 (`OpReject` in `internal/memory/contract/enums.go:155`) before anything
@@ -228,10 +228,10 @@ func (s *Service) ShouldRun() (bool, error) {
 priorMtime, ok, err := s.acquireLock()
 ```
 
-*The cascade is ordered by cost. The time gate is a single stat on the lock
+_The cascade is ordered by cost. The time gate is a single stat on the lock
 file. The session gate walks a directory of session metadata. The lock gate
 performs an atomic file-system acquire. Each gate is a cheaper "no" before a
-more expensive one ever runs.*
+more expensive one ever runs._
 
 The defaults sit at the top of the same file (`dream.go:21-23`):
 `defaultMinHours = 24` and `defaultMinSessions = 3`. Both are tunable through
@@ -292,9 +292,9 @@ NAME                      TYPE       AGE
 feedback_review_tone      feedback   12h
 ```
 
-*The same verbs work for the runtime, the operator, and another agent
+_The same verbs work for the runtime, the operator, and another agent
 reaching across UDS. Output is structured under `-o json` for downstream
-tools.*
+tools._
 
 The verb set covers the full lifecycle. `list`, `show`, `write`, `edit`,
 `delete` for direct manipulation. `search` for content queries.
