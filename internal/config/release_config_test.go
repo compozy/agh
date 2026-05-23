@@ -236,6 +236,31 @@ func TestPackagingMetadataStaysAlignedWithRuntimeAndInstaller(t *testing.T) {
 		assertEqualString(t, "setup-go default", stringAt(t, setupGoVersion, "default"), goVersion)
 	})
 
+	t.Run("Should budget release dry-run for sequential heavy gates", func(t *testing.T) {
+		t.Parallel()
+
+		jobs := mapAt(t, releaseWorkflow, "jobs")
+		dryRun := mapAt(t, jobs, "dry-run")
+		if got, minimum := intAt(t, dryRun, "timeout-minutes"), 180; got < minimum {
+			t.Fatalf(
+				"dry-run timeout-minutes = %d, want at least %d for GoReleaser, nightly E2E, and integration",
+				got,
+				minimum,
+			)
+		}
+
+		commands := workflowRunCommands(t, sliceAt(t, dryRun, "steps"))
+		for _, want := range []string{
+			"go run \"${{ env.PR_RELEASE_MODULE }}\" dry-run --ci-output",
+			"make test-e2e-nightly",
+			"make test-integration",
+		} {
+			if !stringListContains(commands, want) {
+				t.Fatalf("dry-run step commands = %#v, want %q", commands, want)
+			}
+		}
+	})
+
 	t.Run("Should keep Bun workspace release artifacts backed by workspace metadata", func(t *testing.T) {
 		t.Parallel()
 
@@ -584,6 +609,20 @@ func stringAt(t *testing.T, src map[string]any, key string) string {
 	return text
 }
 
+func intAt(t *testing.T, src map[string]any, key string) int {
+	t.Helper()
+
+	value, ok := src[key]
+	if !ok {
+		t.Fatalf("%s missing", key)
+	}
+	number, ok := value.(int)
+	if !ok {
+		t.Fatalf("%s type = %T, want int", key, value)
+	}
+	return number
+}
+
 func stringSliceContains(values []any, want string) bool {
 	for _, value := range values {
 		if text, ok := value.(string); ok && text == want {
@@ -609,6 +648,20 @@ func stringsFromSlice(t *testing.T, values []any, label string) []string {
 
 func stringListContains(values []string, want string) bool {
 	return slices.Contains(values, want)
+}
+
+func workflowRunCommands(t *testing.T, steps []any) []string {
+	t.Helper()
+
+	commands := make([]string, 0, len(steps))
+	for _, entry := range steps {
+		step := asMap(t, entry, "workflow steps[]")
+		command, ok := step["run"].(string)
+		if ok {
+			commands = append(commands, command)
+		}
+	}
+	return commands
 }
 
 func firstMapAt(t *testing.T, src map[string]any, key string) map[string]any {
