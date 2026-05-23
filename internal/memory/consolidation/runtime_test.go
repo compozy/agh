@@ -13,11 +13,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/acp"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/memory"
-	"github.com/pedronauck/agh/internal/session"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	"github.com/compozy/agh/internal/acp"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/memory"
+	"github.com/compozy/agh/internal/session"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 func TestRuntimeTriggerReturnsAlreadyRunningWhenLockUnavailable(t *testing.T) {

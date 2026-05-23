@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/network"
-	"github.com/pedronauck/agh/internal/session"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	"github.com/pedronauck/agh/internal/testutil"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/session"
+	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/agh/internal/testutil"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 func TestCoordinatorBootstrapStartsOnceForUserTaskRunsIntegration(t *testing.T) {

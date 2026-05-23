@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/compozy/agh/internal/store"
 )
 
 const (

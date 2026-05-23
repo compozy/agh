@@ -19,12 +19,12 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	registrypkg "github.com/pedronauck/agh/internal/registry"
-	"github.com/pedronauck/agh/internal/skills"
-	"github.com/pedronauck/agh/internal/store/globaldb"
-	"github.com/pedronauck/agh/internal/testutil"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	aghconfig "github.com/compozy/agh/internal/config"
+	registrypkg "github.com/compozy/agh/internal/registry"
+	"github.com/compozy/agh/internal/skills"
+	"github.com/compozy/agh/internal/store/globaldb"
+	"github.com/compozy/agh/internal/testutil"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 type skillTestEnv struct {

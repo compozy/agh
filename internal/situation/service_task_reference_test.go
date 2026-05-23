@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/session"
-	taskpkg "github.com/pedronauck/agh/internal/task"
+	"github.com/compozy/agh/internal/session"
+	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 func TestContextForSessionTopLevelTaskReferenceContract(t *testing.T) {

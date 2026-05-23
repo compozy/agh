@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/resources"
+	"github.com/compozy/agh/internal/resources"
 )
 
 func BenchmarkBuildResourceState(b *testing.B) {

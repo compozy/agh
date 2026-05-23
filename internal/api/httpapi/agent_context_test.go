@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/agentidentity"
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/session"
+	"github.com/compozy/agh/internal/agentidentity"
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/session"
 )
 
 func TestAgentContextHTTPIdentity(t *testing.T) {

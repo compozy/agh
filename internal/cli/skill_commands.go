@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/skills"
-	skillbundled "github.com/pedronauck/agh/skills"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/skills"
+	skillbundled "github.com/compozy/agh/skills"
 	"github.com/spf13/cobra"
 )
 

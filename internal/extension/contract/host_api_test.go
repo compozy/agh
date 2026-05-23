@@ -3,7 +3,7 @@ package contract
 import (
 	"testing"
 
-	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
 )
 
 func TestHostAPIMethodSpecsFollowProtocolWireOrder(t *testing.T) {

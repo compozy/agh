@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pedronauck/agh/internal/bridgesdk"
+	"github.com/compozy/agh/internal/bridgesdk"
 )
 
 const (

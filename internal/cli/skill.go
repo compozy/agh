@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/pedronauck/agh/internal/skills"
+	"github.com/compozy/agh/internal/skills"
 )
 
 const (

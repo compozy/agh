@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
+	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/nats-io/nats.go"
-	aghconfig "github.com/pedronauck/agh/internal/config"
 )
 
 func TestNewTransportRejectsMissingRuntimeInputs(t *testing.T) {

@@ -3,8 +3,8 @@ package core
 import (
 	"strings"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/compozy/agh/internal/api/contract"
+	aghconfig "github.com/compozy/agh/internal/config"
 )
 
 // CoordinatorConfigPayloadFromConfig converts resolved coordinator config into a safe read model.

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	automationpkg "github.com/pedronauck/agh/internal/automation"
+	"github.com/compozy/agh/internal/api/contract"
+	automationpkg "github.com/compozy/agh/internal/automation"
 )
 
 func TestAutomationJobsCreateParsesWorkspaceScopeAndRetry(t *testing.T) {

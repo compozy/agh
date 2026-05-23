@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/kballard/go-shellquote"
-	aghconfig "github.com/pedronauck/agh/internal/config"
 )
 
 // RegisterOptions describes one temporary fixture-backed AGENT.md registration.

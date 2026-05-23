@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/subprocess"
+	"github.com/compozy/agh/internal/subprocess"
 )
 
 func TestPeerCallDispatchesRequestAndResponse(t *testing.T) {

@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/testutil"
-	"github.com/pedronauck/agh/internal/vault"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/agh/internal/vault"
 )
 
 func TestLiveProviderSources(t *testing.T) {

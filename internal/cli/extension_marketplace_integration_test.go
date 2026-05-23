@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	extensionpkg "github.com/pedronauck/agh/internal/extension"
-	registrypkg "github.com/pedronauck/agh/internal/registry"
+	extensionpkg "github.com/compozy/agh/internal/extension"
+	registrypkg "github.com/compozy/agh/internal/registry"
 )
 
 func TestExtensionSearchCommandIntegrationReturnsRegistryListings(t *testing.T) {

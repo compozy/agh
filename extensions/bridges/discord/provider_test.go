@@ -21,10 +21,10 @@ import (
 	"time"
 	"unsafe"
 
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	"github.com/pedronauck/agh/internal/bridgesdk"
-	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
-	"github.com/pedronauck/agh/internal/subprocess"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/agh/internal/bridgesdk"
+	extensioncontract "github.com/compozy/agh/internal/extension/contract"
+	"github.com/compozy/agh/internal/subprocess"
 )
 
 func TestVerifyDiscordSignatureRejectsInvalidPublicKeySignatures(t *testing.T) {

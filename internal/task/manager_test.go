@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	storepkg "github.com/pedronauck/agh/internal/store"
+	storepkg "github.com/compozy/agh/internal/store"
 )
 
 type inMemoryManagerStore struct {

@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	aghdaemon "github.com/pedronauck/agh/internal/daemon"
-	aghupdate "github.com/pedronauck/agh/internal/update"
+	"github.com/compozy/agh/internal/api/contract"
+	aghconfig "github.com/compozy/agh/internal/config"
+	aghdaemon "github.com/compozy/agh/internal/daemon"
+	aghupdate "github.com/compozy/agh/internal/update"
 )
 
 func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {

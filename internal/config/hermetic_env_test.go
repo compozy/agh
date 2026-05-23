@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestHermeticEnvShieldsConfigAndHomeLoads(t *testing.T) {

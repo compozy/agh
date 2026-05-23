@@ -8,8 +8,8 @@ import (
 	"path"
 	"strings"
 
+	webassets "github.com/compozy/agh/web"
 	"github.com/gin-gonic/gin"
-	webassets "github.com/pedronauck/agh/web"
 )
 
 func newStaticFS() (fs.FS, error) {

@@ -15,10 +15,10 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/filesnap"
-	"github.com/pedronauck/agh/internal/frontmatter"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/filesnap"
+	"github.com/compozy/agh/internal/frontmatter"
+	hookspkg "github.com/compozy/agh/internal/hooks"
 )
 
 func TestParseSkillContentValidCases(t *testing.T) {

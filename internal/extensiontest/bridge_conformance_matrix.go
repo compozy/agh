@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
 )
 
 // CoverageTarget identifies one task-level verification target proven by a provider scenario.

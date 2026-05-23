@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	internal "github.com/pedronauck/agh/internal/skills"
+	internal "github.com/compozy/agh/internal/skills"
 )
 
 var expectedAghReferences = []string{

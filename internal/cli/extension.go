@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	aghdaemon "github.com/pedronauck/agh/internal/daemon"
-	extensionpkg "github.com/pedronauck/agh/internal/extension"
-	"github.com/pedronauck/agh/internal/store/globaldb"
+	"github.com/compozy/agh/internal/api/contract"
+	aghconfig "github.com/compozy/agh/internal/config"
+	aghdaemon "github.com/compozy/agh/internal/daemon"
+	extensionpkg "github.com/compozy/agh/internal/extension"
+	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/spf13/cobra"
 )
 

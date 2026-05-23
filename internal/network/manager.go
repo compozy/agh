@@ -13,10 +13,10 @@ import (
 	"sync"
 	"time"
 
+	aghconfig "github.com/compozy/agh/internal/config"
+	sessionpkg "github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/store"
 	"github.com/nats-io/nats.go"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	sessionpkg "github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/store"
 )
 
 const (

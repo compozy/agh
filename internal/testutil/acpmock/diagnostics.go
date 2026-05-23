@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	"github.com/pedronauck/agh/internal/acp"
+	"github.com/compozy/agh/internal/acp"
 )
 
 // DiagnosticsRecord captures one prompt execution emitted by the ACP mock driver.

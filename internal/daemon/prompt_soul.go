@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/soul"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/soul"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 type soulPromptSectionProvider struct{}

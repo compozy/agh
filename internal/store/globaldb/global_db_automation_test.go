@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/automation"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/testutil"
-	aghworkspace "github.com/pedronauck/agh/internal/workspace"
+	"github.com/compozy/agh/internal/automation"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/testutil"
+	aghworkspace "github.com/compozy/agh/internal/workspace"
 )
 
 type Job = automation.Job

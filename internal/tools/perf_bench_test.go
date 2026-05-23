@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/pedronauck/agh/internal/resources"
+	"github.com/compozy/agh/internal/resources"
 )
 
 var (

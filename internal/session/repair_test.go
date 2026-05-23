@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/acp"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/store/sessiondb"
-	"github.com/pedronauck/agh/internal/testutil"
-	"github.com/pedronauck/agh/internal/transcript"
+	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/sessiondb"
+	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/agh/internal/transcript"
 )
 
 func TestManagerRepairSession(t *testing.T) {

@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	automation "github.com/pedronauck/agh/internal/automation/model"
-	"github.com/pedronauck/agh/internal/store"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	aghworkspace "github.com/pedronauck/agh/internal/workspace"
+	automation "github.com/compozy/agh/internal/automation/model"
+	"github.com/compozy/agh/internal/store"
+	taskpkg "github.com/compozy/agh/internal/task"
+	aghworkspace "github.com/compozy/agh/internal/workspace"
 )
 
 // CreateJob stores a new automation job definition.

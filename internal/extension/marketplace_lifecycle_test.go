@@ -13,8 +13,8 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	registrypkg "github.com/pedronauck/agh/internal/registry"
+	aghconfig "github.com/compozy/agh/internal/config"
+	registrypkg "github.com/compozy/agh/internal/registry"
 )
 
 type lifecycleSource struct {

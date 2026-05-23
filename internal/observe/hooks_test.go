@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/store/sessiondb"
-	"github.com/pedronauck/agh/internal/testutil"
+	aghconfig "github.com/compozy/agh/internal/config"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/sessiondb"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestObserverAttachHooksAndQueryHookCatalog(t *testing.T) {

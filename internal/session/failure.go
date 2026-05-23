@@ -3,9 +3,9 @@ package session
 import (
 	"strings"
 
-	"github.com/pedronauck/agh/internal/acp"
-	"github.com/pedronauck/agh/internal/diagnostics"
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/store"
 )
 
 const maxSessionFailureSummaryBytes = 2048

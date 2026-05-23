@@ -9,20 +9,20 @@ import (
 	"strings"
 	"time"
 
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	core "github.com/pedronauck/agh/internal/api/core"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/diagnostics"
-	mcppkg "github.com/pedronauck/agh/internal/mcp"
-	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
-	"github.com/pedronauck/agh/internal/memory"
-	"github.com/pedronauck/agh/internal/network"
-	settingspkg "github.com/pedronauck/agh/internal/settings"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
-	aghupdate "github.com/pedronauck/agh/internal/update"
-	"github.com/pedronauck/agh/internal/version"
+	"github.com/compozy/agh/internal/api/contract"
+	core "github.com/compozy/agh/internal/api/core"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/diagnostics"
+	mcppkg "github.com/compozy/agh/internal/mcp"
+	mcpauth "github.com/compozy/agh/internal/mcp/auth"
+	"github.com/compozy/agh/internal/memory"
+	"github.com/compozy/agh/internal/network"
+	settingspkg "github.com/compozy/agh/internal/settings"
+	toolspkg "github.com/compozy/agh/internal/tools"
+	aghupdate "github.com/compozy/agh/internal/update"
+	"github.com/compozy/agh/internal/version"
 )
 
 const defaultSettingsMCPProbeTimeout = 5 * time.Second

@@ -6,7 +6,7 @@ import (
 	"maps"
 	"strings"
 
-	"github.com/pedronauck/agh/internal/vault"
+	"github.com/compozy/agh/internal/vault"
 )
 
 // ErrExecutorResolverRequired reports that full normalization needs an executor

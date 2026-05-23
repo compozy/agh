@@ -19,7 +19,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"github.com/pedronauck/agh/internal/bridgesdk"
+	"github.com/compozy/agh/internal/bridgesdk"
 )
 
 const (

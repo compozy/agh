@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/api/core"
+	presetspkg "github.com/compozy/agh/internal/notifications/presets"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/api/core"
-	presetspkg "github.com/pedronauck/agh/internal/notifications/presets"
 )
 
 func TestNotificationPresetHandlers(t *testing.T) {

@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/store"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/store"
 )
 
 var testBenchmarkTime = time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC)

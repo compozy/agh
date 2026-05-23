@@ -8,15 +8,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/agh/internal/api/contract"
+	core "github.com/compozy/agh/internal/api/core"
+	"github.com/compozy/agh/internal/frontmatter"
+	memorypkg "github.com/compozy/agh/internal/memory"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
+	memorycontroller "github.com/compozy/agh/internal/memory/controller"
+	taskpkg "github.com/compozy/agh/internal/task"
+	toolspkg "github.com/compozy/agh/internal/tools"
 	"github.com/goccy/go-yaml"
-	"github.com/pedronauck/agh/internal/api/contract"
-	core "github.com/pedronauck/agh/internal/api/core"
-	"github.com/pedronauck/agh/internal/frontmatter"
-	memorypkg "github.com/pedronauck/agh/internal/memory"
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
-	memorycontroller "github.com/pedronauck/agh/internal/memory/controller"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
 )
 
 const (

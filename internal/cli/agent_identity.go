@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pedronauck/agh/internal/agentidentity"
-	diagnosticspkg "github.com/pedronauck/agh/internal/diagnostics"
-	taskpkg "github.com/pedronauck/agh/internal/task"
+	"github.com/compozy/agh/internal/agentidentity"
+	diagnosticspkg "github.com/compozy/agh/internal/diagnostics"
+	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 func agentCredentialsFromEnv(deps commandDeps) agentidentity.Credentials {

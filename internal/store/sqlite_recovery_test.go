@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestOpenSQLiteDatabaseRecoveryContract(t *testing.T) {

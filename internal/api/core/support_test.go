@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/api/core"
+	"github.com/compozy/agh/internal/api/testutil"
+	"github.com/compozy/agh/internal/support"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/api/core"
-	"github.com/pedronauck/agh/internal/api/testutil"
-	"github.com/pedronauck/agh/internal/support"
 )
 
 type supportBundleServiceStub struct {

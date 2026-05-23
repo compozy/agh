@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
+	aghconfig "github.com/compozy/agh/internal/config"
 )
 
 func TestDetectInstallUsesManagedEnvironmentOverride(t *testing.T) {
@@ -28,6 +28,27 @@ func TestDetectInstallUsesManagedEnvironmentOverride(t *testing.T) {
 		}
 		if info.Method != string(InstallMethodHomebrew) {
 			t.Fatalf("detectInstall() method = %q, want %q", info.Method, InstallMethodHomebrew)
+		}
+	})
+
+	t.Run("Should normalize npm managed environment aliases", func(t *testing.T) {
+		t.Parallel()
+
+		manager := testManager(t, Config{
+			Getenv: func(key string) string {
+				if key == ManagedEnvName {
+					return "nodejs"
+				}
+				return ""
+			},
+		})
+
+		info := manager.detectInstall(context.Background())
+		if !info.Managed {
+			t.Fatal("detectInstall() managed = false, want true")
+		}
+		if info.Method != string(InstallMethodNPM) {
+			t.Fatalf("detectInstall() method = %q, want %q", info.Method, InstallMethodNPM)
 		}
 	})
 }

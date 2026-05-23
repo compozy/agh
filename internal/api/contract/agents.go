@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/session"
-	taskpkg "github.com/pedronauck/agh/internal/task"
+	"github.com/compozy/agh/internal/session"
+	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 var rawClaimTokenValuePattern = regexp.MustCompile(`(?i)agh_claim_[A-Za-z0-9_-]+`)

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	eventspkg "github.com/pedronauck/agh/internal/events"
-	presetspkg "github.com/pedronauck/agh/internal/notifications/presets"
+	eventspkg "github.com/compozy/agh/internal/events"
+	presetspkg "github.com/compozy/agh/internal/notifications/presets"
 )
 
 const eventSummaryProviderColumn = "provider"

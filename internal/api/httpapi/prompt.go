@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/agh/internal/api/contract"
+	core "github.com/compozy/agh/internal/api/core"
+	"github.com/compozy/agh/internal/session"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/acp"
-	"github.com/pedronauck/agh/internal/api/contract"
-	core "github.com/pedronauck/agh/internal/api/core"
-	"github.com/pedronauck/agh/internal/session"
 )
 
 const (

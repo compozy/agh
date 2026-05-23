@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/store"
 )
 
 // Reconcile scans the sessions directory and reconciles the global session index.

@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/diagnostics"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/diagnostics"
 )
 
 func TestParseHeartbeatPolicy(t *testing.T) {

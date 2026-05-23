@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	core "github.com/pedronauck/agh/internal/api/core"
-	automationpkg "github.com/pedronauck/agh/internal/automation"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
+	"github.com/compozy/agh/internal/api/contract"
+	core "github.com/compozy/agh/internal/api/core"
+	automationpkg "github.com/compozy/agh/internal/automation"
+	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
 const (

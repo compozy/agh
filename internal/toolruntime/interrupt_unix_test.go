@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/procutil"
+	"github.com/compozy/agh/internal/procutil"
 )
 
 func TestDefaultInterrupterProcessGroups(t *testing.T) {

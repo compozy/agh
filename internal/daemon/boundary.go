@@ -17,7 +17,7 @@ const (
 	boundaryTrueKey = "true"
 )
 
-const moduleImportPath = "github.com/pedronauck/agh"
+const moduleImportPath = "github.com/compozy/agh"
 
 // Boundaries performs a best-effort import boundary verification for local source checkouts.
 func (d *Daemon) Boundaries(context.Context) error {

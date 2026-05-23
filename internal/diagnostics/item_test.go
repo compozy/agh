@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	contract "github.com/pedronauck/agh/internal/diagnosticcontract"
+	contract "github.com/compozy/agh/internal/diagnosticcontract"
 )
 
 func TestNewItemRedactsDiagnosticFields(t *testing.T) {

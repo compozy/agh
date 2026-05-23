@@ -15,7 +15,7 @@ import (
 
 	"golang.org/x/sys/execabs"
 
-	"github.com/pedronauck/agh/internal/toolruntime"
+	"github.com/compozy/agh/internal/toolruntime"
 )
 
 const (

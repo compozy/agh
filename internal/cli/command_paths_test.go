@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	aghdaemon "github.com/pedronauck/agh/internal/daemon"
-	"github.com/pedronauck/agh/internal/procutil"
+	"github.com/compozy/agh/internal/api/contract"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	aghconfig "github.com/compozy/agh/internal/config"
+	aghdaemon "github.com/compozy/agh/internal/daemon"
+	"github.com/compozy/agh/internal/procutil"
 )
 
 type stubRunner struct {

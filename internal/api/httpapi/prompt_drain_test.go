@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/acp"
-	core "github.com/pedronauck/agh/internal/api/core"
+	"github.com/compozy/agh/internal/acp"
+	core "github.com/compozy/agh/internal/api/core"
 )
 
 func TestDrainPromptEventsAsyncContract(t *testing.T) {

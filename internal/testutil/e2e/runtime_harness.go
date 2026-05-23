@@ -22,11 +22,11 @@ import (
 	"testing"
 	"time"
 
-	aghcontract "github.com/pedronauck/agh/internal/api/contract"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/testutil"
-	"github.com/pedronauck/agh/internal/testutil/acpmock"
+	aghcontract "github.com/compozy/agh/internal/api/contract"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/agh/internal/testutil/acpmock"
 	"golang.org/x/sys/execabs"
 )
 

@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
+	aghconfig "github.com/compozy/agh/internal/config"
 )
 
 const (

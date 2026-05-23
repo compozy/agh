@@ -4,10 +4,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pedronauck/agh/internal/api/core"
-	bundlepkg "github.com/pedronauck/agh/internal/bundles"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	extensionpkg "github.com/pedronauck/agh/internal/extension"
+	"github.com/compozy/agh/internal/api/core"
+	bundlepkg "github.com/compozy/agh/internal/bundles"
+	aghconfig "github.com/compozy/agh/internal/config"
+	extensionpkg "github.com/compozy/agh/internal/extension"
 )
 
 func TestBundleActivationPayloadCategoryPath(t *testing.T) {

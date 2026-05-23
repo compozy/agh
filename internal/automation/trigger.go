@@ -15,10 +15,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pedronauck/agh/internal/diagnostics"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/vault"
+	"github.com/compozy/agh/internal/diagnostics"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/vault"
 )
 
 const (

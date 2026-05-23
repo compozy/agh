@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/api/core"
+	"github.com/compozy/agh/internal/api/testutil"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/observe"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/api/core"
-	"github.com/pedronauck/agh/internal/api/testutil"
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/observe"
 )
 
 func TestBridgeHandlersExposeDiagnostics(t *testing.T) {

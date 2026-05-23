@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/api/contract"
+	core "github.com/compozy/agh/internal/api/core"
+	"github.com/compozy/agh/internal/api/testutil"
+	toolspkg "github.com/compozy/agh/internal/tools"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	core "github.com/pedronauck/agh/internal/api/core"
-	"github.com/pedronauck/agh/internal/api/testutil"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestToolHandlersExposeOperatorSessionInvokeAndToolsets(t *testing.T) {

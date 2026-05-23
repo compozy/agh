@@ -13,9 +13,9 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
+	aghcontract "github.com/compozy/agh/internal/api/contract"
+	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/kballard/go-shellquote"
-	aghcontract "github.com/pedronauck/agh/internal/api/contract"
-	aghconfig "github.com/pedronauck/agh/internal/config"
 )
 
 const e2eACPHelperEnvKey = "AGH_TEST_E2E_ACP_HELPER"

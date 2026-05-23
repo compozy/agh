@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/memory"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
+	"github.com/compozy/agh/internal/memory/provider/local/memstore"
+	"github.com/compozy/agh/internal/testutil"
 	"github.com/goccy/go-yaml"
-	"github.com/pedronauck/agh/internal/memory"
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
-	"github.com/pedronauck/agh/internal/memory/provider/local/memstore"
-	"github.com/pedronauck/agh/internal/testutil"
 )
 
 func TestAdapter(t *testing.T) {

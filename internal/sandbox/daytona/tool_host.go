@@ -11,9 +11,9 @@ import (
 	"sync"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	"github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/sandbox"
-	"github.com/pedronauck/agh/internal/toolruntime"
+	"github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/sandbox"
+	"github.com/compozy/agh/internal/toolruntime"
 )
 
 var _ sandbox.ToolHost = (*daytonaToolHost)(nil)

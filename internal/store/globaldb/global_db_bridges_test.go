@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/bridges"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/testutil"
-	aghworkspace "github.com/pedronauck/agh/internal/workspace"
+	"github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/testutil"
+	aghworkspace "github.com/compozy/agh/internal/workspace"
 )
 
 func TestOpenGlobalDBCreatesBridgeTables(t *testing.T) {

@@ -11,15 +11,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/acp"
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/store/globaldb"
-	"github.com/pedronauck/agh/internal/testutil"
-	"github.com/pedronauck/agh/internal/version"
-	aghworkspace "github.com/pedronauck/agh/internal/workspace"
+	"github.com/compozy/agh/internal/acp"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb"
+	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/agh/internal/version"
+	aghworkspace "github.com/compozy/agh/internal/workspace"
 )
 
 func TestOnSessionCreatedRegistersSessionInGlobalDB(t *testing.T) {

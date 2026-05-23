@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/acp"
+	"github.com/compozy/agh/internal/acp"
 )
 
 func TestInboundQueuePreservesFIFOAndDropsOldestOnOverflow(t *testing.T) {

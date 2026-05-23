@@ -14,11 +14,11 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/compozy/agh/internal/frontmatter"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
+	"github.com/compozy/agh/internal/memory/prompts"
+	"github.com/compozy/agh/internal/memory/scan"
 	"github.com/goccy/go-yaml"
-	"github.com/pedronauck/agh/internal/frontmatter"
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
-	"github.com/pedronauck/agh/internal/memory/prompts"
-	"github.com/pedronauck/agh/internal/memory/scan"
 )
 
 const (

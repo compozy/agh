@@ -14,11 +14,11 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/pedronauck/agh/internal/diagnostics"
-	eventspkg "github.com/pedronauck/agh/internal/events"
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
-	storepkg "github.com/pedronauck/agh/internal/store"
-	aghworkspace "github.com/pedronauck/agh/internal/workspace"
+	"github.com/compozy/agh/internal/diagnostics"
+	eventspkg "github.com/compozy/agh/internal/events"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
+	storepkg "github.com/compozy/agh/internal/store"
+	aghworkspace "github.com/compozy/agh/internal/workspace"
 )
 
 const (

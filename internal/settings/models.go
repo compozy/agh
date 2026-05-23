@@ -8,15 +8,15 @@ import (
 	"strings"
 	"time"
 
-	automationmodel "github.com/pedronauck/agh/internal/automation/model"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/config/lifecycle"
-	diagnosticcontract "github.com/pedronauck/agh/internal/diagnosticcontract"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
-	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
-	"github.com/pedronauck/agh/internal/providerauth"
-	"github.com/pedronauck/agh/internal/resources"
-	skillspkg "github.com/pedronauck/agh/internal/skills"
+	automationmodel "github.com/compozy/agh/internal/automation/model"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/config/lifecycle"
+	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	mcpauth "github.com/compozy/agh/internal/mcp/auth"
+	"github.com/compozy/agh/internal/providerauth"
+	"github.com/compozy/agh/internal/resources"
+	skillspkg "github.com/compozy/agh/internal/skills"
 )
 
 // ScopeKind identifies the supported settings scope.

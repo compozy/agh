@@ -6,13 +6,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/compozy/agh/internal/api/contract"
+	core "github.com/compozy/agh/internal/api/core"
+	apitestutil "github.com/compozy/agh/internal/api/testutil"
+	aghconfig "github.com/compozy/agh/internal/config"
+	authproviders "github.com/compozy/agh/internal/providers"
+	"github.com/compozy/agh/internal/testutil"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	core "github.com/pedronauck/agh/internal/api/core"
-	apitestutil "github.com/pedronauck/agh/internal/api/testutil"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	authproviders "github.com/pedronauck/agh/internal/providers"
-	"github.com/pedronauck/agh/internal/testutil"
 )
 
 func TestDoctorProviderFilterIncludesProviderDiagnostics(t *testing.T) {

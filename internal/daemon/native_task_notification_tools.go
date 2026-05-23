@@ -9,13 +9,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	core "github.com/pedronauck/agh/internal/api/core"
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	"github.com/pedronauck/agh/internal/notifications"
-	"github.com/pedronauck/agh/internal/store"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
+	"github.com/compozy/agh/internal/api/contract"
+	core "github.com/compozy/agh/internal/api/core"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/agh/internal/notifications"
+	"github.com/compozy/agh/internal/store"
+	taskpkg "github.com/compozy/agh/internal/task"
+	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
 const (

@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/pedronauck/agh/internal/acp"
+	"github.com/compozy/agh/internal/acp"
 )
 
 const (

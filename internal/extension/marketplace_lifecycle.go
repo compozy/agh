@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	diagnosticcontract "github.com/pedronauck/agh/internal/diagnosticcontract"
-	registrypkg "github.com/pedronauck/agh/internal/registry"
+	aghconfig "github.com/compozy/agh/internal/config"
+	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
+	registrypkg "github.com/compozy/agh/internal/registry"
 )
 
 const (

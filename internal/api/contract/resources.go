@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/pedronauck/agh/internal/resources"
+	"github.com/compozy/agh/internal/resources"
 )
 
 // PutResourceRequest is the shared desired-state upsert payload.

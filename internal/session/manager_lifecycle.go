@@ -8,14 +8,14 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/pedronauck/agh/internal/acp"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/diagnostics"
-	"github.com/pedronauck/agh/internal/sandbox"
-	skillspkg "github.com/pedronauck/agh/internal/skills"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/transcript"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	"github.com/compozy/agh/internal/acp"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/sandbox"
+	skillspkg "github.com/compozy/agh/internal/skills"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/transcript"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 // Create resolves an agent definition, opens the session store, and starts a new runtime session.

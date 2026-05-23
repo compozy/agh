@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/acp"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/skills"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/testutil"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	"github.com/compozy/agh/internal/acp"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/skills"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/testutil"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 func TestHooksNotifierDispatchesLifecycleAgentAndStreamEvents(t *testing.T) {

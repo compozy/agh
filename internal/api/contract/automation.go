@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	automationpkg "github.com/pedronauck/agh/internal/automation"
+	automationpkg "github.com/compozy/agh/internal/automation"
 )
 
 // AutomationResourceStatusPayload reports total and enabled counts for one

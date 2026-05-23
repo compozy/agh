@@ -14,13 +14,13 @@ import (
 	"testing"
 	"time"
 
-	aghcontract "github.com/pedronauck/agh/internal/api/contract"
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	extensionpkg "github.com/pedronauck/agh/internal/extension"
-	extensiontest "github.com/pedronauck/agh/internal/extensiontest"
-	"github.com/pedronauck/agh/internal/testutil/acpmock"
-	e2etest "github.com/pedronauck/agh/internal/testutil/e2e"
+	aghcontract "github.com/compozy/agh/internal/api/contract"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	aghconfig "github.com/compozy/agh/internal/config"
+	extensionpkg "github.com/compozy/agh/internal/extension"
+	extensiontest "github.com/compozy/agh/internal/extensiontest"
+	"github.com/compozy/agh/internal/testutil/acpmock"
+	e2etest "github.com/compozy/agh/internal/testutil/e2e"
 )
 
 const bridgeIngressFixtureAgentName = "mock-bridge-runner"

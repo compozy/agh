@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/filesnap"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/filesnap"
+	hookspkg "github.com/compozy/agh/internal/hooks"
 )
 
 func recordSidecarSnapshots(paths []string, snapshots map[string]filesnap.Snapshot) error {

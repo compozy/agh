@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/heartbeat"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/subprocess"
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/heartbeat"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestPromptActivitySupervisorHealthContract(t *testing.T) {

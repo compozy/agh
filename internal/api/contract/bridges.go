@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	taskpkg "github.com/pedronauck/agh/internal/task"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 // ErrUnsafeBridgeProviderConfigPayload reports raw credentials in bridge provider config JSON.

@@ -14,10 +14,10 @@ import (
 	"time"
 
 	burnttoml "github.com/BurntSushi/toml"
+	"github.com/compozy/agh/internal/api/contract"
+	aghconfig "github.com/compozy/agh/internal/config"
+	settingspkg "github.com/compozy/agh/internal/settings"
 	"github.com/kballard/go-shellquote"
-	"github.com/pedronauck/agh/internal/api/contract"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	settingspkg "github.com/pedronauck/agh/internal/settings"
 	"github.com/spf13/cobra"
 )
 

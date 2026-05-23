@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/resources"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	"github.com/pedronauck/agh/internal/testutil"
-	"github.com/pedronauck/agh/internal/vault"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/resources"
+	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/agh/internal/vault"
 )
 
 func TestAutomationResourceCodecsRejectInvalidSpecs(t *testing.T) {

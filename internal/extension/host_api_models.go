@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	apicontract "github.com/pedronauck/agh/internal/api/contract"
-	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
-	"github.com/pedronauck/agh/internal/modelcatalog"
+	apicontract "github.com/compozy/agh/internal/api/contract"
+	extensioncontract "github.com/compozy/agh/internal/extension/contract"
+	"github.com/compozy/agh/internal/modelcatalog"
 )
 
 type hostAPIModelCatalogService interface {

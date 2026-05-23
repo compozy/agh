@@ -3,11 +3,11 @@ package testutil
 import (
 	"context"
 
-	core "github.com/pedronauck/agh/internal/api/core"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
-	"github.com/pedronauck/agh/internal/observe"
-	"github.com/pedronauck/agh/internal/store"
-	taskpkg "github.com/pedronauck/agh/internal/task"
+	core "github.com/compozy/agh/internal/api/core"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/observe"
+	"github.com/compozy/agh/internal/store"
+	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 type StubObserver struct {

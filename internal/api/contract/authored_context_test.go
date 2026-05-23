@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	heartbeatpkg "github.com/pedronauck/agh/internal/heartbeat"
-	soulpkg "github.com/pedronauck/agh/internal/soul"
+	heartbeatpkg "github.com/compozy/agh/internal/heartbeat"
+	soulpkg "github.com/compozy/agh/internal/soul"
 )
 
 func TestAuthoredContextPayloadJSONShapeAndRedaction(t *testing.T) {

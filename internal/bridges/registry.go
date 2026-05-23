@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/compozy/agh/internal/store"
 )
 
 // RegistryStore is the persistence surface consumed by the daemon-owned bridge

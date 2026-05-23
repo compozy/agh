@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/sandbox"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/sandbox"
 )
 
 func TestSeedConfigPreservesLiveProviderAndAgentValidation(t *testing.T) {

@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	registrypkg "github.com/pedronauck/agh/internal/registry"
-	registryclawhub "github.com/pedronauck/agh/internal/registry/clawhub"
-	"github.com/pedronauck/agh/internal/skills"
-	skillmarketplace "github.com/pedronauck/agh/internal/skills/marketplace"
+	registrypkg "github.com/compozy/agh/internal/registry"
+	registryclawhub "github.com/compozy/agh/internal/registry/clawhub"
+	"github.com/compozy/agh/internal/skills"
+	skillmarketplace "github.com/compozy/agh/internal/skills/marketplace"
 )
 
 const (

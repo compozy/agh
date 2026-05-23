@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/vault"
+	mcpauth "github.com/compozy/agh/internal/mcp/auth"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/vault"
 )
 
 const (

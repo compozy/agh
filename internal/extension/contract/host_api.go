@@ -4,15 +4,15 @@ import (
 	"encoding/json"
 	"time"
 
-	apicontract "github.com/pedronauck/agh/internal/api/contract"
-	automationpkg "github.com/pedronauck/agh/internal/automation"
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
-	observepkg "github.com/pedronauck/agh/internal/observe"
-	"github.com/pedronauck/agh/internal/resources"
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/store"
+	apicontract "github.com/compozy/agh/internal/api/contract"
+	automationpkg "github.com/compozy/agh/internal/automation"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
+	observepkg "github.com/compozy/agh/internal/observe"
+	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/store"
 )
 
 const (

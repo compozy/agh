@@ -10,12 +10,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	aghdaemon "github.com/pedronauck/agh/internal/daemon"
-	aghlogger "github.com/pedronauck/agh/internal/logger"
-	"github.com/pedronauck/agh/internal/procutil"
-	"github.com/pedronauck/agh/internal/version"
+	"github.com/compozy/agh/internal/api/contract"
+	aghconfig "github.com/compozy/agh/internal/config"
+	aghdaemon "github.com/compozy/agh/internal/daemon"
+	aghlogger "github.com/compozy/agh/internal/logger"
+	"github.com/compozy/agh/internal/procutil"
+	"github.com/compozy/agh/internal/version"
 	"github.com/spf13/cobra"
 )
 

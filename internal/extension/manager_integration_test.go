@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
-	"github.com/pedronauck/agh/internal/resources"
-	"github.com/pedronauck/agh/internal/subprocess"
-	"github.com/pedronauck/agh/internal/testutil"
+	aghconfig "github.com/compozy/agh/internal/config"
+	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 type managerInitializeMarker struct {

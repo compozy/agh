@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	eventspkg "github.com/pedronauck/agh/internal/events"
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
-	"github.com/pedronauck/agh/internal/store"
+	eventspkg "github.com/compozy/agh/internal/events"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
+	"github.com/compozy/agh/internal/store"
 )
 
 const (

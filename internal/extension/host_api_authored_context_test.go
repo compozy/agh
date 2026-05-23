@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	apicontract "github.com/pedronauck/agh/internal/api/contract"
-	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
-	"github.com/pedronauck/agh/internal/heartbeat"
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/soul"
+	apicontract "github.com/compozy/agh/internal/api/contract"
+	extensioncontract "github.com/compozy/agh/internal/extension/contract"
+	"github.com/compozy/agh/internal/heartbeat"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/soul"
 )
 
 func TestHostAPIHandlerAuthoredContextSoulGrantsAndManagedWrites(t *testing.T) {

@@ -12,12 +12,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/memory"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
+	localprovider "github.com/compozy/agh/internal/memory/provider/local"
+	"github.com/compozy/agh/internal/memory/provider/local/memstore"
+	"github.com/compozy/agh/internal/testutil"
 	"github.com/goccy/go-yaml"
-	"github.com/pedronauck/agh/internal/memory"
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
-	localprovider "github.com/pedronauck/agh/internal/memory/provider/local"
-	"github.com/pedronauck/agh/internal/memory/provider/local/memstore"
-	"github.com/pedronauck/agh/internal/testutil"
 )
 
 func TestProviderLifecycle(t *testing.T) {
@@ -530,8 +530,8 @@ func TestProviderImportBoundary(t *testing.T) {
 				strings.HasSuffix(imported, "/internal/memory/recall") {
 				t.Fatalf("local provider imports runtime-private package %q", imported)
 			}
-			if strings.HasPrefix(imported, "github.com/pedronauck/agh/internal/") &&
-				imported != "github.com/pedronauck/agh/internal/memory/contract" {
+			if strings.HasPrefix(imported, "github.com/compozy/agh/internal/") &&
+				imported != "github.com/compozy/agh/internal/memory/contract" {
 				t.Fatalf("local provider imports non-contract internal package %q", imported)
 			}
 		}

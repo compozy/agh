@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/compozy/agh/internal/api/contract"
+	toolspkg "github.com/compozy/agh/internal/tools"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
 )
 
 const (

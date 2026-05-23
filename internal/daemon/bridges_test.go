@@ -12,13 +12,13 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	extensionpkg "github.com/pedronauck/agh/internal/extension"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
-	"github.com/pedronauck/agh/internal/resources"
-	"github.com/pedronauck/agh/internal/subprocess"
-	"github.com/pedronauck/agh/internal/testutil"
-	"github.com/pedronauck/agh/internal/vault"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	extensionpkg "github.com/compozy/agh/internal/extension"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/agh/internal/vault"
 )
 
 var errUnexpectedBridgeRuntimeStoreCall = errors.New("unexpected bridge runtime store stub call")

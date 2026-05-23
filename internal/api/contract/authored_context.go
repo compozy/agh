@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/diagnostics"
-	heartbeatpkg "github.com/pedronauck/agh/internal/heartbeat"
-	soulpkg "github.com/pedronauck/agh/internal/soul"
+	"github.com/compozy/agh/internal/diagnostics"
+	heartbeatpkg "github.com/compozy/agh/internal/heartbeat"
+	soulpkg "github.com/compozy/agh/internal/soul"
 )
 
 const maxAuthoredContextLastErrorBytes = 2048

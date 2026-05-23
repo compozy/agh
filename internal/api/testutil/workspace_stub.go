@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	core "github.com/pedronauck/agh/internal/api/core"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	core "github.com/compozy/agh/internal/api/core"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 var ErrStubWorkspaceServiceNotImplemented = errors.New("stub workspace service method not implemented")

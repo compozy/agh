@@ -8,9 +8,9 @@ import (
 	"sort"
 	"strings"
 
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
-	"github.com/pedronauck/agh/internal/store"
-	aghworkspace "github.com/pedronauck/agh/internal/workspace"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/store"
+	aghworkspace "github.com/compozy/agh/internal/workspace"
 )
 
 // QueryEvents returns cross-session event summaries ordered for CLI/API consumption.

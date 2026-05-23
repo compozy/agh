@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/soul"
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/soul"
+	"github.com/compozy/agh/internal/testutil"
 
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/compozy/agh/internal/store"
 )
 
 func TestReconciliationIndexesSessionDirNotInDB(t *testing.T) {

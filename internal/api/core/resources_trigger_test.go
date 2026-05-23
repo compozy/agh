@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/resources"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/resources"
 )
 
 func TestResourceContractTriggerFailures(t *testing.T) {

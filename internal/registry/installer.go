@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/pedronauck/agh/internal/frontmatter"
+	"github.com/compozy/agh/internal/frontmatter"
 	"gopkg.in/yaml.v3"
 )
 

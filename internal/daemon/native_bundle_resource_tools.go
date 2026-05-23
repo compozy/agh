@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	core "github.com/pedronauck/agh/internal/api/core"
-	bundlepkg "github.com/pedronauck/agh/internal/bundles"
-	"github.com/pedronauck/agh/internal/resources"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
+	"github.com/compozy/agh/internal/api/contract"
+	core "github.com/compozy/agh/internal/api/core"
+	bundlepkg "github.com/compozy/agh/internal/bundles"
+	"github.com/compozy/agh/internal/resources"
+	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
 type bundleInfoInput struct {

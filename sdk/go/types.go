@@ -13,7 +13,7 @@ const (
 )
 
 // SDKName is advertised during extension initialization.
-const SDKName = "github.com/pedronauck/agh/sdk/go"
+const SDKName = "github.com/compozy/agh/sdk/go"
 
 // SDKVersion is the public SDK protocol implementation version.
 const SDKVersion = "0.1.0"

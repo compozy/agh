@@ -3,9 +3,9 @@ package bridgesdk
 import (
 	"testing"
 
-	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
-	"github.com/pedronauck/agh/internal/resources"
-	"github.com/pedronauck/agh/internal/subprocess"
+	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/agh/internal/subprocess"
 )
 
 func TestSessionInitializeRequestClonesHandshakeSlicesContract(t *testing.T) {

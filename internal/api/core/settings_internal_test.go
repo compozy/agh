@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	automationmodel "github.com/pedronauck/agh/internal/automation/model"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
-	"github.com/pedronauck/agh/internal/resources"
-	settingspkg "github.com/pedronauck/agh/internal/settings"
+	"github.com/compozy/agh/internal/api/contract"
+	automationmodel "github.com/compozy/agh/internal/automation/model"
+	aghconfig "github.com/compozy/agh/internal/config"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/resources"
+	settingspkg "github.com/compozy/agh/internal/settings"
 )
 
 func TestSettingsHelperFunctionsAndNilErrorWrappers(t *testing.T) {

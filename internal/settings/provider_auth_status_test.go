@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/providerauth"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/providerauth"
 )
 
 func TestProviderAuthStatusDiagnostics(t *testing.T) {

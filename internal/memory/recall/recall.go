@@ -13,7 +13,7 @@ import (
 	"time"
 	"unicode"
 
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
 )
 
 const (

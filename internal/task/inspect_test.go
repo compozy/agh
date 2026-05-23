@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	diagnosticcontract "github.com/pedronauck/agh/internal/diagnosticcontract"
-	storepkg "github.com/pedronauck/agh/internal/store"
+	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
+	storepkg "github.com/compozy/agh/internal/store"
 )
 
 type inspectReaderForTest struct {

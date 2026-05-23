@@ -11,14 +11,14 @@ import (
 	"testing"
 	"time"
 
+	core "github.com/compozy/agh/internal/api/core"
+	"github.com/compozy/agh/internal/api/httpapi"
+	"github.com/compozy/agh/internal/api/testutil"
+	"github.com/compozy/agh/internal/api/udsapi"
+	"github.com/compozy/agh/internal/session"
+	toolspkg "github.com/compozy/agh/internal/tools"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
-	core "github.com/pedronauck/agh/internal/api/core"
-	"github.com/pedronauck/agh/internal/api/httpapi"
-	"github.com/pedronauck/agh/internal/api/testutil"
-	"github.com/pedronauck/agh/internal/api/udsapi"
-	"github.com/pedronauck/agh/internal/session"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestToolRoutesStayHTTPAndUDSBehaviorallyAligned(t *testing.T) {

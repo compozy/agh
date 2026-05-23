@@ -14,11 +14,11 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	extensionpkg "github.com/pedronauck/agh/internal/extension"
-	registrypkg "github.com/pedronauck/agh/internal/registry"
-	"github.com/pedronauck/agh/internal/store/globaldb"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
+	aghconfig "github.com/compozy/agh/internal/config"
+	extensionpkg "github.com/compozy/agh/internal/extension"
+	registrypkg "github.com/compozy/agh/internal/registry"
+	"github.com/compozy/agh/internal/store/globaldb"
+	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
 type nativeExtensionSource struct {

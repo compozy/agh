@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/testutil"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/testutil"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 func TestBundledCoordinatorFallback(t *testing.T) {

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
+	core "github.com/compozy/agh/internal/api/core"
+	mcppkg "github.com/compozy/agh/internal/mcp"
 	"github.com/gin-gonic/gin"
-	core "github.com/pedronauck/agh/internal/api/core"
-	mcppkg "github.com/pedronauck/agh/internal/mcp"
 )
 
 var errHostedMCPBackend = errors.New("hosted-mcp backend error")

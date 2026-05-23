@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/pedronauck/agh/internal/agentidentity"
-	"github.com/pedronauck/agh/internal/api/contract"
-	taskpkg "github.com/pedronauck/agh/internal/task"
+	"github.com/compozy/agh/internal/agentidentity"
+	"github.com/compozy/agh/internal/api/contract"
+	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 func TestUnixSocketClientCreateTaskAsAgentSendsIdentityHeaders(t *testing.T) {

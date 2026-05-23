@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	"github.com/pedronauck/agh/internal/acp"
-	"github.com/pedronauck/agh/internal/testutil/acpmock"
+	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/agh/internal/testutil/acpmock"
 )
 
 func TestExtractPromptTextPreservesAugmentedPromptDiagnostics(t *testing.T) {

@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
-	"github.com/pedronauck/agh/internal/resources"
-	"github.com/pedronauck/agh/internal/sandbox"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/agh/internal/sandbox"
 )
 
 func TestLoadValidTOMLConfigWithAllSections(t *testing.T) {

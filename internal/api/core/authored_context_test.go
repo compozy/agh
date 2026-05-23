@@ -12,13 +12,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/api/testutil"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/heartbeat"
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/soul"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/api/testutil"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/heartbeat"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/soul"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 type soulIfMatchTestAuthoring struct {

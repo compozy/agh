@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
-	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
-	"github.com/pedronauck/agh/internal/testutil"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
+	extensioncontract "github.com/compozy/agh/internal/extension/contract"
+	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	"github.com/compozy/agh/internal/testutil"
+	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
 func TestManagerListModelSourceRows(t *testing.T) {

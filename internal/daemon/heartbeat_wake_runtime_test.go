@@ -7,16 +7,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/acp"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/heartbeat"
-	schedulerpkg "github.com/pedronauck/agh/internal/scheduler"
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/store/globaldb"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	"github.com/pedronauck/agh/internal/testutil"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	"github.com/compozy/agh/internal/acp"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/heartbeat"
+	schedulerpkg "github.com/compozy/agh/internal/scheduler"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb"
+	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/agh/internal/testutil"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 func TestHeartbeatWakeHealthReader(t *testing.T) {

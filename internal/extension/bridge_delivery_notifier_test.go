@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/acp"
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/subprocess"
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/acp"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 type recordingDeliveryTransport struct {

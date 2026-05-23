@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pedronauck/agh/internal/version"
+	"github.com/compozy/agh/internal/version"
 )
 
 func TestRunPrintsVersion(t *testing.T) {

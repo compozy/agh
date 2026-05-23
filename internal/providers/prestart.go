@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	diagcontract "github.com/pedronauck/agh/internal/diagnosticcontract"
+	aghconfig "github.com/compozy/agh/internal/config"
+	diagcontract "github.com/compozy/agh/internal/diagnosticcontract"
 )
 
 const preStartCacheTTL = 30 * time.Second

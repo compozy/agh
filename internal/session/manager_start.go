@@ -10,14 +10,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/acp"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
-	"github.com/pedronauck/agh/internal/procutil"
-	"github.com/pedronauck/agh/internal/soul"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/workref"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	"github.com/compozy/agh/internal/acp"
+	aghconfig "github.com/compozy/agh/internal/config"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/procutil"
+	"github.com/compozy/agh/internal/soul"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/workref"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 type sessionStartSpec struct {

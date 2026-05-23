@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	aghcontract "github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/testutil/acpmock"
-	e2etest "github.com/pedronauck/agh/internal/testutil/e2e"
+	aghcontract "github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/testutil/acpmock"
+	e2etest "github.com/compozy/agh/internal/testutil/e2e"
 )
 
 func TestDaemonE2EFixtureBackedMockAgentLaunchesThroughNormalAgentDefinition(t *testing.T) {

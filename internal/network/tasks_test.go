@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	taskpkg "github.com/pedronauck/agh/internal/task"
+	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 type fakeNetworkTaskService struct {

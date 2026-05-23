@@ -14,14 +14,14 @@ import (
 
 	"github.com/BurntSushi/toml"
 
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
-	"github.com/pedronauck/agh/internal/extension/surfaces"
-	"github.com/pedronauck/agh/internal/modelcatalog"
-	"github.com/pedronauck/agh/internal/resources"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
-	"github.com/pedronauck/agh/internal/vault"
-	"github.com/pedronauck/agh/internal/version"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	"github.com/compozy/agh/internal/extension/surfaces"
+	"github.com/compozy/agh/internal/modelcatalog"
+	"github.com/compozy/agh/internal/resources"
+	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/agh/internal/vault"
+	"github.com/compozy/agh/internal/version"
 )
 
 const (

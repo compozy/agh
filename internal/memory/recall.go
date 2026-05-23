@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
-	"github.com/pedronauck/agh/internal/session"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
+	"github.com/compozy/agh/internal/session"
 )
 
 const (

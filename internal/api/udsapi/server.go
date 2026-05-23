@@ -14,11 +14,11 @@ import (
 	"sync"
 	"time"
 
+	core "github.com/compozy/agh/internal/api/core"
+	aghconfig "github.com/compozy/agh/internal/config"
+	mcppkg "github.com/compozy/agh/internal/mcp"
+	"github.com/compozy/agh/internal/memory"
 	"github.com/gin-gonic/gin"
-	core "github.com/pedronauck/agh/internal/api/core"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	mcppkg "github.com/pedronauck/agh/internal/mcp"
-	"github.com/pedronauck/agh/internal/memory"
 )
 
 const (

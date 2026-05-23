@@ -7,13 +7,13 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/pedronauck/agh/internal/acp"
-	core "github.com/pedronauck/agh/internal/api/core"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/heartbeat"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/soul"
+	"github.com/compozy/agh/internal/acp"
+	core "github.com/compozy/agh/internal/api/core"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/heartbeat"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/soul"
 )
 
 const (

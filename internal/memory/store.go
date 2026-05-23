@@ -13,14 +13,14 @@ import (
 	"time"
 	"unicode/utf8"
 
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/fileutil"
+	"github.com/compozy/agh/internal/frontmatter"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
+	memoryrecall "github.com/compozy/agh/internal/memory/recall"
+	storepkg "github.com/compozy/agh/internal/store"
+	aghworkspace "github.com/compozy/agh/internal/workspace"
 	"github.com/goccy/go-yaml"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/fileutil"
-	"github.com/pedronauck/agh/internal/frontmatter"
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
-	memoryrecall "github.com/pedronauck/agh/internal/memory/recall"
-	storepkg "github.com/pedronauck/agh/internal/store"
-	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
 
 const (

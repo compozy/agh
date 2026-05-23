@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
 )
 
 const (

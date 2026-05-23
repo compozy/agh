@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/store"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/store"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 var errWorkspaceScopedResourceNotFound = errors.New("api: workspace-scoped resource not found")

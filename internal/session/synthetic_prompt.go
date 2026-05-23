@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/acp"
+	"github.com/compozy/agh/internal/acp"
 )
 
 // SyntheticPromptOpts carries daemon-owned synthetic prompt input plus

@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
-	automationpkg "github.com/pedronauck/agh/internal/automation"
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/heartbeat"
-	"github.com/pedronauck/agh/internal/resources"
-	"github.com/pedronauck/agh/internal/soul"
+	automationpkg "github.com/compozy/agh/internal/automation"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/heartbeat"
+	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/agh/internal/soul"
 )
 
 const (

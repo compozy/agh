@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/agentidentity"
+	"github.com/compozy/agh/internal/api/contract"
+	core "github.com/compozy/agh/internal/api/core"
+	apitestutil "github.com/compozy/agh/internal/api/testutil"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/store"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/agentidentity"
-	"github.com/pedronauck/agh/internal/api/contract"
-	core "github.com/pedronauck/agh/internal/api/core"
-	apitestutil "github.com/pedronauck/agh/internal/api/testutil"
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/store"
 )
 
 func TestBaseHandlersAgentSpawnMapsRequestAndDefaultsAutoStop(t *testing.T) {

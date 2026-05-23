@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	"github.com/pedronauck/agh/internal/testutil"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestVaultBridgeSecretResolverContract(t *testing.T) {

@@ -14,16 +14,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/acp"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/memory"
-	"github.com/pedronauck/agh/internal/session"
-	skillspkg "github.com/pedronauck/agh/internal/skills"
-	"github.com/pedronauck/agh/internal/store/sessiondb"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	"github.com/pedronauck/agh/internal/testutil"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
-	skillbundled "github.com/pedronauck/agh/skills"
+	"github.com/compozy/agh/internal/acp"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/memory"
+	"github.com/compozy/agh/internal/session"
+	skillspkg "github.com/compozy/agh/internal/skills"
+	"github.com/compozy/agh/internal/store/sessiondb"
+	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/agh/internal/testutil"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
+	skillbundled "github.com/compozy/agh/skills"
 )
 
 func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing.T) {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	core "github.com/pedronauck/agh/internal/api/core"
-	"github.com/pedronauck/agh/internal/resources"
+	core "github.com/compozy/agh/internal/api/core"
+	"github.com/compozy/agh/internal/resources"
 )
 
 const (

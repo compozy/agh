@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/toolruntime"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/toolruntime"
 )
 
 var _ toolruntime.Store = (*GlobalDB)(nil)

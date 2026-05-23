@@ -3,7 +3,7 @@ package testutil
 import (
 	"testing"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
+	aghconfig "github.com/compozy/agh/internal/config"
 )
 
 // ConfigWithDisabledNetwork returns a default test config with networking turned off.

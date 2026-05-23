@@ -12,12 +12,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/agentidentity"
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/session"
+	taskpkg "github.com/compozy/agh/internal/task"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/agentidentity"
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/session"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 type workspaceGetterFunc func(context.Context, string) (workspacepkg.Workspace, error)

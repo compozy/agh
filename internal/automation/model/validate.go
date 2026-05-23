@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	networkrules "github.com/pedronauck/agh/internal/network/rules"
-	"github.com/pedronauck/agh/internal/vault"
+	networkrules "github.com/compozy/agh/internal/network/rules"
+	"github.com/compozy/agh/internal/vault"
 	cron "github.com/robfig/cron/v3"
 )
 

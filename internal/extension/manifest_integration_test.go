@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
-	"github.com/pedronauck/agh/internal/version"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	"github.com/compozy/agh/internal/version"
 )
 
 func TestLoadManifestBridgeMetadataRoundTrip(t *testing.T) {

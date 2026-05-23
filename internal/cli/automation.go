@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	automationpkg "github.com/pedronauck/agh/internal/automation"
+	"github.com/compozy/agh/internal/api/contract"
+	automationpkg "github.com/compozy/agh/internal/automation"
 	"github.com/spf13/cobra"
 )
 

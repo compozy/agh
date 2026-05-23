@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/api/testutil"
-	"github.com/pedronauck/agh/internal/network"
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/api/testutil"
+	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/store"
 )
 
 const networkUDSTestWorkspaceID = "ws-workspace"

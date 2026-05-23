@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/resources"
-	"github.com/pedronauck/agh/internal/session"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/agh/internal/session"
+	taskpkg "github.com/compozy/agh/internal/task"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 func TestNewDisabledNetworkHomeConfig(t *testing.T) {

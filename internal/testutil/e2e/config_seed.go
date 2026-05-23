@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/testutil"
 	"github.com/goccy/go-yaml"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/testutil"
 )
 
 var socketPathCounter atomic.Uint64

@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestRequestRestartPersistsPreRestartContextBeforeShutdownSignal(t *testing.T) {

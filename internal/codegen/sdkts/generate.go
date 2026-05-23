@@ -10,14 +10,14 @@ import (
 	"time"
 	"unicode/utf8"
 
-	apicontract "github.com/pedronauck/agh/internal/api/contract"
-	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
-	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
-	"github.com/pedronauck/agh/internal/hooks"
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/tools"
+	apicontract "github.com/compozy/agh/internal/api/contract"
+	extensioncontract "github.com/compozy/agh/internal/extension/contract"
+	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	"github.com/compozy/agh/internal/hooks"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/tools"
 )
 
 const (
@@ -636,7 +636,7 @@ func shouldAutoEmitNamedType(t reflect.Type) bool {
 	if t == nil || t.Name() == "" {
 		return false
 	}
-	if !strings.HasPrefix(t.PkgPath(), "github.com/pedronauck/agh/internal/") {
+	if !strings.HasPrefix(t.PkgPath(), "github.com/compozy/agh/internal/") {
 		return false
 	}
 	return t.Kind() == reflect.Struct || isEnumType(t) || isPrimitiveAliasType(t)

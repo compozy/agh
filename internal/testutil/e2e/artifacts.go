@@ -13,8 +13,8 @@ import (
 	"sync"
 	"testing"
 
-	aghcontract "github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/store"
+	aghcontract "github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/store"
 )
 
 // ArtifactKind identifies one stable E2E diagnostic surface.

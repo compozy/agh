@@ -7,10 +7,10 @@ import (
 	"slices"
 	"strings"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
-	"github.com/pedronauck/agh/internal/vault"
+	aghconfig "github.com/compozy/agh/internal/config"
+	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	toolspkg "github.com/compozy/agh/internal/tools"
+	"github.com/compozy/agh/internal/vault"
 )
 
 var defaultManifestToolInputSchema = json.RawMessage(`{"type":"object"}`)

@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/network"
-	"github.com/pedronauck/agh/internal/store"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/store"
+	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestTaskManagerHistoricalNetworkChannelIntegration(t *testing.T) {

@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
-	memoryextractor "github.com/pedronauck/agh/internal/memory/extractor"
-	storepkg "github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/testutil"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
+	memoryextractor "github.com/compozy/agh/internal/memory/extractor"
+	storepkg "github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestStoreExtractorControllerFlow(t *testing.T) {

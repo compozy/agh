@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/api/core"
-	aghconfig "github.com/pedronauck/agh/internal/config"
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/api/core"
+	aghconfig "github.com/compozy/agh/internal/config"
 )
 
 func TestCoordinatorConfigPayloadFromConfig(t *testing.T) {

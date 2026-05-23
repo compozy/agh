@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/store"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/network"
-	"github.com/pedronauck/agh/internal/store"
 )
 
 // NetworkThreads returns public-thread summaries for one channel.

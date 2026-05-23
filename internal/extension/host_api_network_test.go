@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	apicontract "github.com/pedronauck/agh/internal/api/contract"
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
-	"github.com/pedronauck/agh/internal/network"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/store/globaldb"
-	"github.com/pedronauck/agh/internal/testutil"
+	apicontract "github.com/compozy/agh/internal/api/contract"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	extensioncontract "github.com/compozy/agh/internal/extension/contract"
+	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 const hostAPINetworkWorkspaceID = "ws-host-network"

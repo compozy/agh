@@ -6,9 +6,9 @@ import (
 	"context"
 	"testing"
 
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	"github.com/pedronauck/agh/internal/testutil"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestTaskRunPostClaimHookDispatchesAfterAuditEventIntegration(t *testing.T) {

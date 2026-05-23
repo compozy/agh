@@ -15,11 +15,11 @@ import (
 	"time"
 	"unicode/utf8"
 
+	memcontract "github.com/compozy/agh/internal/memory/contract"
+	storepkg "github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb"
+	aghworkspace "github.com/compozy/agh/internal/workspace"
 	"github.com/goccy/go-yaml"
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
-	storepkg "github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/store/globaldb"
-	aghworkspace "github.com/pedronauck/agh/internal/workspace"
 )
 
 type testMemoryMeta struct {

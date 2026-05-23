@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/testutil"
 	"github.com/gorilla/websocket"
-	"github.com/pedronauck/agh/internal/testutil"
 )
 
 func TestSidecarSessionCleanupContract(t *testing.T) {

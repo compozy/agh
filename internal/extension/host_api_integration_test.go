@@ -9,15 +9,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/acp"
-	apicontract "github.com/pedronauck/agh/internal/api/contract"
-	automationpkg "github.com/pedronauck/agh/internal/automation"
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
-	"github.com/pedronauck/agh/internal/resources"
-	"github.com/pedronauck/agh/internal/session"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/acp"
+	apicontract "github.com/compozy/agh/internal/api/contract"
+	automationpkg "github.com/compozy/agh/internal/automation"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/agh/internal/session"
+	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func withHostAPIHooks(hooks *hookspkg.Hooks) hostAPITestEnvOption {

@@ -9,13 +9,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pedronauck/agh/internal/acp"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/heartbeat"
-	schedulerpkg "github.com/pedronauck/agh/internal/scheduler"
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/situation"
-	taskpkg "github.com/pedronauck/agh/internal/task"
+	"github.com/compozy/agh/internal/acp"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/heartbeat"
+	schedulerpkg "github.com/compozy/agh/internal/scheduler"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/situation"
+	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 const (

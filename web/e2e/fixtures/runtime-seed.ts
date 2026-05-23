@@ -2144,7 +2144,7 @@ async function computeDirectoryChecksum(rootDir: string): Promise<string> {
       '\t"os"',
       '\t"strings"',
       "",
-      '\textensionpkg "github.com/pedronauck/agh/internal/extension"',
+      '\textensionpkg "github.com/compozy/agh/internal/extension"',
       ")",
       "",
       "func main() {",

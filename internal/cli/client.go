@@ -17,16 +17,16 @@ import (
 	"syscall"
 	"time"
 
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
 
-	"github.com/pedronauck/agh/internal/agentidentity"
-	"github.com/pedronauck/agh/internal/api/contract"
-	automationpkg "github.com/pedronauck/agh/internal/automation"
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	diagnosticspkg "github.com/pedronauck/agh/internal/diagnostics"
-	mcppkg "github.com/pedronauck/agh/internal/mcp"
-	"github.com/pedronauck/agh/internal/resources"
-	"github.com/pedronauck/agh/internal/sse"
+	"github.com/compozy/agh/internal/agentidentity"
+	"github.com/compozy/agh/internal/api/contract"
+	automationpkg "github.com/compozy/agh/internal/automation"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	diagnosticspkg "github.com/compozy/agh/internal/diagnostics"
+	mcppkg "github.com/compozy/agh/internal/mcp"
+	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/agh/internal/sse"
 )
 
 const (

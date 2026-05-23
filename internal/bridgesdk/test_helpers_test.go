@@ -3,9 +3,9 @@ package bridgesdk
 import (
 	"time"
 
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
-	"github.com/pedronauck/agh/internal/subprocess"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	"github.com/compozy/agh/internal/subprocess"
 )
 
 func testBridgeInstance(id string) bridgepkg.BridgeInstance {

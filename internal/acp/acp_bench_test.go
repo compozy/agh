@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	aghconfig "github.com/pedronauck/agh/internal/config"
+	aghconfig "github.com/compozy/agh/internal/config"
 )
 
 var benchmarkCommandEnv []string

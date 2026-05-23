@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/compozy/agh/internal/store"
 )
 
 type networkMessageCursor struct {

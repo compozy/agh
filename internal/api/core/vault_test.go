@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/api/core"
+	"github.com/compozy/agh/internal/api/testutil"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/vault"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/api/core"
-	"github.com/pedronauck/agh/internal/api/testutil"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/diagnostics"
-	"github.com/pedronauck/agh/internal/vault"
 )
 
 type stubVaultService struct {

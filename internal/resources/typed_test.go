@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 type testTypedSpec struct {

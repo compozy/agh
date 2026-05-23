@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	diagcontract "github.com/pedronauck/agh/internal/diagnosticcontract"
-	"github.com/pedronauck/agh/internal/diagnostics"
+	diagcontract "github.com/compozy/agh/internal/diagnosticcontract"
+	"github.com/compozy/agh/internal/diagnostics"
 )
 
 // DiagnosticItem builds the canonical provider diagnostic for a classifier result.

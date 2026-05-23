@@ -3,7 +3,7 @@ package providertest
 import (
 	"testing"
 
-	"github.com/pedronauck/agh/internal/sandbox"
+	"github.com/compozy/agh/internal/sandbox"
 )
 
 func TestRunLifecycleAssertPreparedOrderContract(t *testing.T) {

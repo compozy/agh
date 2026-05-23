@@ -9,7 +9,7 @@ import (
 	"maps"
 	"strings"
 
-	contract "github.com/pedronauck/agh/internal/diagnosticcontract"
+	contract "github.com/compozy/agh/internal/diagnosticcontract"
 )
 
 // ItemOption customizes a DiagnosticItem built by NewItem.

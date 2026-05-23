@@ -9,15 +9,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/agh/internal/api/contract"
+	automationpkg "github.com/compozy/agh/internal/automation"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/session"
+	taskpkg "github.com/compozy/agh/internal/task"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	automationpkg "github.com/pedronauck/agh/internal/automation"
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	"github.com/pedronauck/agh/internal/diagnostics"
-	"github.com/pedronauck/agh/internal/network"
-	"github.com/pedronauck/agh/internal/session"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestStatusForBridgeError(t *testing.T) {

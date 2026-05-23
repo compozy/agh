@@ -17,7 +17,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
 )
 
 func TestTeamsContractHealthAggregation(t *testing.T) {

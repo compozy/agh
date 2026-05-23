@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	eventspkg "github.com/pedronauck/agh/internal/events"
-	"github.com/pedronauck/agh/internal/store"
+	eventspkg "github.com/compozy/agh/internal/events"
+	"github.com/compozy/agh/internal/store"
 )
 
 type settingsChangedContent struct {

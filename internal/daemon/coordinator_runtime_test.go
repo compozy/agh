@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/coordinator"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
-	"github.com/pedronauck/agh/internal/session"
-	storepkg "github.com/pedronauck/agh/internal/store"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/coordinator"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/session"
+	storepkg "github.com/compozy/agh/internal/store"
+	taskpkg "github.com/compozy/agh/internal/task"
+	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
 func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {

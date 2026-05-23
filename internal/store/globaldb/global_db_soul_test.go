@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/soul"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/testutil"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/soul"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestGlobalDBSoulMigration(t *testing.T) {

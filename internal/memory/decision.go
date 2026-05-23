@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/fileutil"
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
-	"github.com/pedronauck/agh/internal/memory/controller"
-	storepkg "github.com/pedronauck/agh/internal/store"
+	"github.com/compozy/agh/internal/fileutil"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
+	"github.com/compozy/agh/internal/memory/controller"
+	storepkg "github.com/compozy/agh/internal/store"
 )
 
 const (

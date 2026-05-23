@@ -9,15 +9,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/doctor"
+	observepkg "github.com/compozy/agh/internal/observe"
+	authproviders "github.com/compozy/agh/internal/providers"
+	"github.com/compozy/agh/internal/session"
+	settingspkg "github.com/compozy/agh/internal/settings"
+	skillspkg "github.com/compozy/agh/internal/skills"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/diagnostics"
-	"github.com/pedronauck/agh/internal/doctor"
-	observepkg "github.com/pedronauck/agh/internal/observe"
-	authproviders "github.com/pedronauck/agh/internal/providers"
-	"github.com/pedronauck/agh/internal/session"
-	settingspkg "github.com/pedronauck/agh/internal/settings"
-	skillspkg "github.com/pedronauck/agh/internal/skills"
 )
 
 const (

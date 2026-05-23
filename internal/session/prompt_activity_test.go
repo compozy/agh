@@ -8,14 +8,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/acp"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	eventspkg "github.com/pedronauck/agh/internal/events"
-	"github.com/pedronauck/agh/internal/heartbeat"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/subprocess"
-	"github.com/pedronauck/agh/internal/testutil"
-	"github.com/pedronauck/agh/internal/transcript"
+	"github.com/compozy/agh/internal/acp"
+	aghconfig "github.com/compozy/agh/internal/config"
+	eventspkg "github.com/compozy/agh/internal/events"
+	"github.com/compozy/agh/internal/heartbeat"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/agh/internal/transcript"
 )
 
 func TestPromptActivitySupervisorReportPersistsHeartbeatWithoutEvent(t *testing.T) {

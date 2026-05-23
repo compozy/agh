@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	toolspkg "github.com/pedronauck/agh/internal/tools"
+	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
 type schemaDigestFixture struct {

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestRunMigrationsAppliesOrderedMigrationsOnce(t *testing.T) {

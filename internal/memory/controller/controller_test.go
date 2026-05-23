@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
-	"github.com/pedronauck/agh/internal/testutil"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestControllerDecide(t *testing.T) {

@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/acp"
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/diagnostics"
-	ssepkg "github.com/pedronauck/agh/internal/sse"
-	taskpkg "github.com/pedronauck/agh/internal/task"
+	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/diagnostics"
+	ssepkg "github.com/compozy/agh/internal/sse"
+	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 const (

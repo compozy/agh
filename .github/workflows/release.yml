@@ -275,6 +275,10 @@ jobs:
             echo "::error::.goreleaser.yml must sign checksums with a Sigstore bundle artifact"
             exit 1
           fi
+          if ! grep -q 'name: "@compozy/agh"' .goreleaser.yml; then
+            echo "::error::.goreleaser.yml must publish the @compozy/agh npm package"
+            exit 1
+          fi
 
       - uses: goreleaser/goreleaser-action@v6
         with:
@@ -290,4 +294,6 @@ jobs:
           RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           COSIGN_EXPERIMENTAL: 1
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           GOTMPDIR: ${{ runner.temp }}/go-tmp

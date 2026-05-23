@@ -12,12 +12,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/acp"
-	"github.com/pedronauck/agh/internal/diagnostics"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
-	envpkg "github.com/pedronauck/agh/internal/sandbox"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/vault"
+	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/agh/internal/diagnostics"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	envpkg "github.com/compozy/agh/internal/sandbox"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/vault"
 )
 
 const (

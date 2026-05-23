@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/filesnap"
-	"github.com/pedronauck/agh/internal/sandbox"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/filesnap"
+	"github.com/compozy/agh/internal/sandbox"
 )
 
 // RegisterOptions describes a workspace registration request.

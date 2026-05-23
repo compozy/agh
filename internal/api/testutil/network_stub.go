@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"errors"
 
-	core "github.com/pedronauck/agh/internal/api/core"
-	"github.com/pedronauck/agh/internal/network"
-	"github.com/pedronauck/agh/internal/store"
+	core "github.com/compozy/agh/internal/api/core"
+	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/store"
 )
 
 type StubNetworkService struct {

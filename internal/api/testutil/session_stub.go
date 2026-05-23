@@ -3,11 +3,11 @@ package testutil
 import (
 	"context"
 
-	"github.com/pedronauck/agh/internal/acp"
-	core "github.com/pedronauck/agh/internal/api/core"
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/transcript"
+	"github.com/compozy/agh/internal/acp"
+	core "github.com/compozy/agh/internal/api/core"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/transcript"
 )
 
 type StubSessionManager struct {

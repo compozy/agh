@@ -13,10 +13,10 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/pedronauck/agh/internal/api/spec"
-	"github.com/pedronauck/agh/internal/codegen/sdkts"
-	"github.com/pedronauck/agh/internal/config/lifecycle"
-	"github.com/pedronauck/agh/internal/fileutil"
+	"github.com/compozy/agh/internal/api/spec"
+	"github.com/compozy/agh/internal/codegen/sdkts"
+	"github.com/compozy/agh/internal/config/lifecycle"
+	"github.com/compozy/agh/internal/fileutil"
 )
 
 const (

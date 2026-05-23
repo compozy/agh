@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	registrypkg "github.com/pedronauck/agh/internal/registry"
-	"github.com/pedronauck/agh/internal/skills"
+	registrypkg "github.com/compozy/agh/internal/registry"
+	"github.com/compozy/agh/internal/skills"
 )
 
 func timeNowForTest() time.Time {

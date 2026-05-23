@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
+	sessionpkg "github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/testutil"
 	"github.com/nats-io/nats.go"
-	sessionpkg "github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/testutil"
 )
 
 func TestRoutersDiscoverEachOtherAndExchangeDirectAndBroadcastMessages(t *testing.T) {

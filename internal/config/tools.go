@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	toolspkg "github.com/pedronauck/agh/internal/tools"
+	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
 const (

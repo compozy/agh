@@ -12,14 +12,14 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/diagnostics"
-	"github.com/pedronauck/agh/internal/heartbeat"
-	aghstore "github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/store/globaldb"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	"github.com/pedronauck/agh/internal/testutil"
-	aghworkspace "github.com/pedronauck/agh/internal/workspace"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/heartbeat"
+	aghstore "github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb"
+	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/agh/internal/testutil"
+	aghworkspace "github.com/compozy/agh/internal/workspace"
 )
 
 func TestManagedHeartbeatAuthoringServicePutValidateAndCAS(t *testing.T) {

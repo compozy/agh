@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/pedronauck/agh/internal/sandbox"
+	"github.com/compozy/agh/internal/sandbox"
 )
 
 func (p *daytonaProvider) SyncToRuntime(

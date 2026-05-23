@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/agh/internal/api/contract"
+	automationpkg "github.com/compozy/agh/internal/automation"
+	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	automationpkg "github.com/pedronauck/agh/internal/automation"
-	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
 const (

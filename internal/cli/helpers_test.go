@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/agentidentity"
-	"github.com/pedronauck/agh/internal/api/contract"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/agentidentity"
+	"github.com/compozy/agh/internal/api/contract"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 var fixedTestNow = time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)

@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	aghconfig "github.com/pedronauck/agh/internal/config"
+	aghconfig "github.com/compozy/agh/internal/config"
 )
 
 func TestInstallCommandWritesBootstrapConfigAndAgent(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	hookspkg "github.com/compozy/agh/internal/hooks"
 )
 
 func TestLoadParsesConfigHookDeclarationWithAllFields(t *testing.T) {

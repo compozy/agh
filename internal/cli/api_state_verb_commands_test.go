@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/resources"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
+	"github.com/compozy/agh/internal/resources"
+	taskpkg "github.com/compozy/agh/internal/task"
+	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
 func TestAPIStateTransitionCommandsExposeExactLeaves(t *testing.T) {

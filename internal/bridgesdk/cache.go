@@ -7,8 +7,8 @@ import (
 	"strings"
 	"sync"
 
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	"github.com/pedronauck/agh/internal/subprocess"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/agh/internal/subprocess"
 )
 
 // InstanceCache keeps the provider-owned managed-instance snapshot locally,

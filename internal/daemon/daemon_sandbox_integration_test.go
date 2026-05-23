@@ -12,13 +12,13 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
+	aghcontract "github.com/compozy/agh/internal/api/contract"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/sandbox"
+	sessionpkg "github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/store"
+	e2etest "github.com/compozy/agh/internal/testutil/e2e"
 	"github.com/kballard/go-shellquote"
-	aghcontract "github.com/pedronauck/agh/internal/api/contract"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/sandbox"
-	sessionpkg "github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/store"
-	e2etest "github.com/pedronauck/agh/internal/testutil/e2e"
 )
 
 const (

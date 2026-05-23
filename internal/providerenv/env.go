@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
+	aghconfig "github.com/compozy/agh/internal/config"
 )
 
 var errProviderDirSymlink = errors.New("isolated provider directory contains symlink")

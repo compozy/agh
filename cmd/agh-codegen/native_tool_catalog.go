@@ -6,8 +6,8 @@ import (
 	"slices"
 	"strings"
 
-	toolspkg "github.com/pedronauck/agh/internal/tools"
-	builtintools "github.com/pedronauck/agh/internal/tools/builtin"
+	toolspkg "github.com/compozy/agh/internal/tools"
+	builtintools "github.com/compozy/agh/internal/tools/builtin"
 )
 
 type nativeToolCatalogEntry struct {

@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	retrypkg "github.com/pedronauck/agh/internal/retry"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	retrypkg "github.com/compozy/agh/internal/retry"
 )
 
 // ErrorClass is the shared bridge-sdk provider failure classification.

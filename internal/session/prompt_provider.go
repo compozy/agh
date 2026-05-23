@@ -3,7 +3,7 @@ package session
 import (
 	"context"
 
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 // PromptProvider returns one workspace-scoped prompt section for composed

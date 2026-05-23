@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	core "github.com/pedronauck/agh/internal/api/core"
-	"github.com/pedronauck/agh/internal/modelcatalog"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
+	"github.com/compozy/agh/internal/api/contract"
+	core "github.com/compozy/agh/internal/api/core"
+	"github.com/compozy/agh/internal/modelcatalog"
+	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
 type providerModelsListInput struct {

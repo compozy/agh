@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/heartbeat"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/compozy/agh/internal/heartbeat"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/store"
 )
 
 // HealthStore is the durable store used by metadata-only session health.

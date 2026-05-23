@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	aghupdate "github.com/pedronauck/agh/internal/update"
+	aghconfig "github.com/compozy/agh/internal/config"
+	aghupdate "github.com/compozy/agh/internal/update"
 )
 
 type stubUpdateManager struct {
@@ -122,6 +122,22 @@ func TestInstallUpdateAndUninstallReportManagedState(t *testing.T) {
 		!strings.Contains(uninstall.Recommendation, "brew") {
 		t.Fatalf("managed uninstall record = %#v, want deferred brew recommendation", uninstall)
 	}
+}
+
+func TestManagedRecommendationReportsNPMCommands(t *testing.T) {
+	t.Run("Should report npm lifecycle commands for npm-managed installs", func(t *testing.T) {
+		t.Parallel()
+
+		update := managedRecommendation("npm", "update AGH")
+		if !strings.Contains(update, "npm update -g @compozy/agh") {
+			t.Fatalf("managedRecommendation(update) = %q, want npm update command", update)
+		}
+
+		uninstall := managedRecommendation("nodejs", "uninstall AGH")
+		if !strings.Contains(uninstall, "npm uninstall -g @compozy/agh") {
+			t.Fatalf("managedRecommendation(uninstall) = %q, want npm uninstall command", uninstall)
+		}
+	})
 }
 
 func TestUninstallRemovesRuntimeArtifactsIdempotentlyAndRequiresForceForPurge(t *testing.T) {

@@ -7,13 +7,13 @@ import (
 	"strings"
 	"testing"
 
-	automationpkg "github.com/pedronauck/agh/internal/automation"
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	extensionpkg "github.com/pedronauck/agh/internal/extension"
-	"github.com/pedronauck/agh/internal/resources"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	"github.com/pedronauck/agh/internal/testutil"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	automationpkg "github.com/compozy/agh/internal/automation"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	extensionpkg "github.com/compozy/agh/internal/extension"
+	"github.com/compozy/agh/internal/resources"
+	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/agh/internal/testutil"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 func TestServiceRefacs(t *testing.T) {

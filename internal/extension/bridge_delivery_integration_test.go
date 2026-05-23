@@ -17,17 +17,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/acp"
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/memory"
-	"github.com/pedronauck/agh/internal/session"
-	skillspkg "github.com/pedronauck/agh/internal/skills"
-	"github.com/pedronauck/agh/internal/store/globaldb"
-	"github.com/pedronauck/agh/internal/subprocess"
-	"github.com/pedronauck/agh/internal/testutil"
-	transcriptpkg "github.com/pedronauck/agh/internal/transcript"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	"github.com/compozy/agh/internal/acp"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/memory"
+	"github.com/compozy/agh/internal/session"
+	skillspkg "github.com/compozy/agh/internal/skills"
+	"github.com/compozy/agh/internal/store/globaldb"
+	"github.com/compozy/agh/internal/subprocess"
+	"github.com/compozy/agh/internal/testutil"
+	transcriptpkg "github.com/compozy/agh/internal/transcript"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 type scriptedPromptEvent struct {

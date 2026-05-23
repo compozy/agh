@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"strings"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/store"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/store"
+	toolspkg "github.com/compozy/agh/internal/tools"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 type nativeToolPolicyResolverDeps struct {

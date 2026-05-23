@@ -25,6 +25,24 @@ func TestDetectInstallMethods(t *testing.T) {
 				want: string(InstallMethodHomebrew),
 			},
 			{
+				name: "Should detect NPM installs from the executable path",
+				cfg: Config{
+					ExecutablePath: func() (string, error) {
+						return "/usr/local/lib/node_modules/@compozy/agh/bin/agh", nil
+					},
+				},
+				want: string(InstallMethodNPM),
+			},
+			{
+				name: "Should detect Windows NPM installs from the executable path",
+				cfg: Config{
+					ExecutablePath: func() (string, error) {
+						return "C:\\Users\\pedro\\AppData\\Roaming\\npm\\node_modules\\@compozy\\agh\\bin\\agh.exe", nil
+					},
+				},
+				want: string(InstallMethodNPM),
+			},
+			{
 				name: "Should detect Scoop installs from the executable path",
 				cfg: Config{
 					ExecutablePath: func() (string, error) {

@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/acp"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/testutil"
-	"github.com/pedronauck/agh/internal/toolruntime"
+	"github.com/compozy/agh/internal/acp"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/agh/internal/toolruntime"
 )
 
 func TestDriverSandboxCancellationCleanup(t *testing.T) {

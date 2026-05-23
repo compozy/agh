@@ -17,17 +17,17 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/compozy/agh/internal/api/contract"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/events"
+	"github.com/compozy/agh/internal/memory"
+	authproviders "github.com/compozy/agh/internal/providers"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/store"
+	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/agh/internal/transcript"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/events"
-	"github.com/pedronauck/agh/internal/memory"
-	authproviders "github.com/pedronauck/agh/internal/providers"
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/store"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	"github.com/pedronauck/agh/internal/transcript"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 const (

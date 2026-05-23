@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/store"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/store"
 )
 
 const agentActionSpawn = "agent.spawn"

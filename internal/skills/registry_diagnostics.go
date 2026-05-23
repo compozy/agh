@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	aghconfig "github.com/compozy/agh/internal/config"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 // SkillDiagnostics returns diagnostics for the same resolution scope used by

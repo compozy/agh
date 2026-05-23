@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	extensionpkg "github.com/pedronauck/agh/internal/extension"
+	extensionpkg "github.com/compozy/agh/internal/extension"
 )
 
 const (

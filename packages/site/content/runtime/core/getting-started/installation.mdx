@@ -12,7 +12,8 @@ your first durable session.
 Make sure you have:
 
 - **macOS or Linux**. AGH currently targets local-first Unix-like environments.
-- **Release verification tools**. The curl installer requires `curl`, `tar`, `cosign`, and either
+- **An install method that fits your machine**. Use Homebrew, npm, or Go for managed installs.
+  The verified binary installer additionally requires `curl`, `tar`, `cosign`, and either
   `sha256sum` or `shasum`.
 - **At least one supported agent CLI** such as Claude Code, OpenClaw, Hermes, or another
   ACP-compatible agent runtime you already use.
@@ -31,9 +32,38 @@ export OPENROUTER_API_KEY="..."
 
 ## Install the Binary
 
-### Option 1: curl installer
+### Option 1: managed install
 
-This is the recommended path on macOS and Linux:
+Use one of the managed install methods when you want updates to stay attached to the package
+manager that installed AGH.
+
+#### Homebrew
+
+```bash
+brew install compozy/compozy/agh
+```
+
+Use this path on macOS or Linuxbrew. Make sure Homebrew's `bin` directory is on `PATH` before
+running `agh version`.
+
+#### npm
+
+```bash
+npm install -g @compozy/agh
+```
+
+#### Go
+
+```bash
+go install github.com/compozy/agh/cmd/agh@latest
+```
+
+Homebrew, npm, and Go installs should be updated with the same tool that installed them.
+`agh update --check` reports the exact command to run when it detects a managed install.
+
+### Option 2: verified binary installer
+
+Use the verified installer when you want a standalone binary install on macOS or Linux:
 
 ```bash
 curl -fsSL https://agh.network/install.sh | sh
@@ -61,19 +91,13 @@ curl -fsSL https://agh.network/install.sh |
 
 If the target directory is not on your `PATH`, the installer prints the exact directory to add.
 
-### Option 2: package manager releases
+### Option 3: Linux packages
 
-Tagged releases publish archive checksums, `checksums.txt.sigstore.json`, SBOMs, a Homebrew formula,
-and Linux `.deb` and `.rpm` packages.
+Tagged releases publish archive checksums, `checksums.txt.sigstore.json`, SBOMs, and Linux `.deb`
+and `.rpm` packages. Download the package for your architecture from the GitHub release, verify it
+against `checksums.txt`, then install it with your distribution package manager.
 
-```bash
-brew install compozy/compozy/agh
-```
-
-For Linux package installs, download the `.deb` or `.rpm` for your architecture from the GitHub
-release, verify it against `checksums.txt`, then install it with your distribution package manager.
-
-### Option 3: build from a repository checkout
+### Option 4: build from a repository checkout
 
 Use this when you are already working from the AGH source tree or want a local build artifact you
 control explicitly. This path requires Go 1.25 or later.
@@ -97,8 +121,9 @@ If your shell reports `command not found`, fix `PATH` first. Do that before you 
 
 ## Bootstrap the AGH Home
 
-The curl installer runs this step automatically when it can access an interactive terminal. If you
-used `--skip-bootstrap`, a package manager, or a source build, run the interactive bootstrap once:
+The verified binary installer runs this step automatically when it can access an interactive
+terminal. If you used `--skip-bootstrap`, a managed install, a Linux package, or a source build, run
+the interactive bootstrap once:
 
 ```bash
 agh install
@@ -121,17 +146,19 @@ bounded repair.
 
 `agh update` applies the latest stable release for direct-binary macOS and Linux installs. Use
 `agh update --check` when you want a status-only check. Managed installs defer to the package
-manager and return the exact upgrade command instead of mutating files directly. Windows
-direct-binary installs remain manual in this first cut. `agh uninstall` removes runtime launch
+manager and return the exact upgrade command instead of mutating files directly, such as
+`brew upgrade compozy/compozy/agh`, `npm update -g @compozy/agh`, or
+`go install github.com/compozy/agh/cmd/agh@latest`. Windows direct-binary installs remain manual in
+this first cut. `agh uninstall` removes runtime launch
 artifacts idempotently and preserves `~/.agh` unless you explicitly pass `--purge --force`.
 
 ## Sanity Check the Runtime Inputs
 
-Before moving to Quick Start, verify these three things:
+Before moving to Quick Start, verify these four things:
 
 1. `agh version` succeeds.
-2. `agh install` completed, either from the curl installer or manually, and created
-   `~/.agh/config.toml`.
+2. `agh install` completed, either through the verified binary installer's automatic bootstrap, a
+   managed install, a Linux package, or a manual run, and created `~/.agh/config.toml`.
 3. `agh config validate` reports a valid config.
 4. Your selected provider is authenticated. For native CLI providers, run the provider's own login
    command first; for `bound_secret` providers, make sure the daemon can resolve the configured

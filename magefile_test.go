@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pedronauck/agh/internal/e2elane"
+	"github.com/compozy/agh/internal/e2elane"
 )
 
 func TestShouldEnsureWebBundle(t *testing.T) {

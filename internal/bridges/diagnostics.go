@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pedronauck/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/diagnostics"
 )
 
 // BridgeDiagnosticKind identifies one operator-actionable bridge diagnostic.

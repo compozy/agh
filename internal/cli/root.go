@@ -13,14 +13,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/pedronauck/agh/internal/agentidentity"
-	"github.com/pedronauck/agh/internal/api/contract"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	aghdaemon "github.com/pedronauck/agh/internal/daemon"
-	diagnosticspkg "github.com/pedronauck/agh/internal/diagnostics"
-	"github.com/pedronauck/agh/internal/procutil"
-	aghupdate "github.com/pedronauck/agh/internal/update"
-	"github.com/pedronauck/agh/internal/version"
+	"github.com/compozy/agh/internal/agentidentity"
+	"github.com/compozy/agh/internal/api/contract"
+	aghconfig "github.com/compozy/agh/internal/config"
+	aghdaemon "github.com/compozy/agh/internal/daemon"
+	diagnosticspkg "github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/procutil"
+	aghupdate "github.com/compozy/agh/internal/update"
+	"github.com/compozy/agh/internal/version"
 	"github.com/spf13/cobra"
 )
 

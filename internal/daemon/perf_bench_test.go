@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/resources"
-	skillspkg "github.com/pedronauck/agh/internal/skills"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/store/globaldb"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/resources"
+	skillspkg "github.com/compozy/agh/internal/skills"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb"
+	toolspkg "github.com/compozy/agh/internal/tools"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 func BenchmarkResourceCatalogSnapshotAgentRecords(b *testing.B) {

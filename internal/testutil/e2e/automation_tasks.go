@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	aghcontract "github.com/pedronauck/agh/internal/api/contract"
-	coreapi "github.com/pedronauck/agh/internal/api/core"
-	automationpkg "github.com/pedronauck/agh/internal/automation"
+	aghcontract "github.com/compozy/agh/internal/api/contract"
+	coreapi "github.com/compozy/agh/internal/api/core"
+	automationpkg "github.com/compozy/agh/internal/automation"
 )
 
 // AutomationFixtureSeed describes one batch of automation definitions seeded

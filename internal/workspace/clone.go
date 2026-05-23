@@ -3,11 +3,11 @@ package workspace
 import (
 	"maps"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/filesnap"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
-	"github.com/pedronauck/agh/internal/resources"
-	"github.com/pedronauck/agh/internal/sandbox"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/filesnap"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/agh/internal/sandbox"
 )
 
 func cloneSnapshots(snapshots map[string]filesnap.Snapshot) map[string]filesnap.Snapshot {

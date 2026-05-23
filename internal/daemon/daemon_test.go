@@ -23,34 +23,34 @@ import (
 	"testing"
 	"time"
 
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
 
+	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/agh/internal/api/contract"
+	automationpkg "github.com/compozy/agh/internal/automation"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	aghconfig "github.com/compozy/agh/internal/config"
+	eventspkg "github.com/compozy/agh/internal/events"
+	extensionpkg "github.com/compozy/agh/internal/extension"
+	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	"github.com/compozy/agh/internal/heartbeat"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/memory"
+	"github.com/compozy/agh/internal/memory/consolidation"
+	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/observe"
+	"github.com/compozy/agh/internal/procutil"
+	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/skills"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb"
+	"github.com/compozy/agh/internal/subprocess"
+	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/agh/internal/transcript"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gofrs/flock"
-	"github.com/pedronauck/agh/internal/acp"
-	"github.com/pedronauck/agh/internal/api/contract"
-	automationpkg "github.com/pedronauck/agh/internal/automation"
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	eventspkg "github.com/pedronauck/agh/internal/events"
-	extensionpkg "github.com/pedronauck/agh/internal/extension"
-	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
-	"github.com/pedronauck/agh/internal/heartbeat"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
-	"github.com/pedronauck/agh/internal/memory"
-	"github.com/pedronauck/agh/internal/memory/consolidation"
-	"github.com/pedronauck/agh/internal/network"
-	"github.com/pedronauck/agh/internal/observe"
-	"github.com/pedronauck/agh/internal/procutil"
-	"github.com/pedronauck/agh/internal/resources"
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/skills"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/store/globaldb"
-	"github.com/pedronauck/agh/internal/subprocess"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	"github.com/pedronauck/agh/internal/testutil"
-	"github.com/pedronauck/agh/internal/transcript"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 	"go.uber.org/goleak"
 )
 
@@ -2120,7 +2120,7 @@ func TestVerifyImportBoundariesReportsViolations(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(
 		filepath.Join(root, "go.mod"),
-		[]byte("module github.com/pedronauck/agh\n"),
+		[]byte("module github.com/compozy/agh\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(go.mod) error = %v", err)
@@ -2132,7 +2132,7 @@ func TestVerifyImportBoundariesReportsViolations(t *testing.T) {
 	}
 	if err := os.WriteFile(
 		filepath.Join(sourceDir, "worker.go"),
-		[]byte("package worker\n\nimport _ \"github.com/pedronauck/agh/internal/daemon\"\n"),
+		[]byte("package worker\n\nimport _ \"github.com/compozy/agh/internal/daemon\"\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(worker.go) error = %v", err)
@@ -2151,7 +2151,7 @@ func TestVerifyImportBoundariesAllowsDaemonSubpackages(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(
 		filepath.Join(root, "go.mod"),
-		[]byte("module github.com/pedronauck/agh\n"),
+		[]byte("module github.com/compozy/agh\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(go.mod) error = %v", err)
@@ -2163,7 +2163,7 @@ func TestVerifyImportBoundariesAllowsDaemonSubpackages(t *testing.T) {
 	}
 	if err := os.WriteFile(
 		filepath.Join(sourceDir, "subsystem.go"),
-		[]byte("package subsystem\n\nimport _ \"github.com/pedronauck/agh/internal/cli\"\n"),
+		[]byte("package subsystem\n\nimport _ \"github.com/compozy/agh/internal/cli\"\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(subsystem.go) error = %v", err)
@@ -2182,7 +2182,7 @@ func TestVerifyImportBoundariesDoesNotExemptHTTPPackages(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(
 		filepath.Join(root, "go.mod"),
-		[]byte("module github.com/pedronauck/agh\n"),
+		[]byte("module github.com/compozy/agh\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(go.mod) error = %v", err)
@@ -2194,7 +2194,7 @@ func TestVerifyImportBoundariesDoesNotExemptHTTPPackages(t *testing.T) {
 	}
 	if err := os.WriteFile(
 		filepath.Join(sourceDir, "handler.go"),
-		[]byte("package httpapi\n\nimport _ \"github.com/pedronauck/agh/internal/cli\"\n"),
+		[]byte("package httpapi\n\nimport _ \"github.com/compozy/agh/internal/cli\"\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(handler.go) error = %v", err)
@@ -2690,7 +2690,7 @@ func TestBoundariesUsesConfiguredRoot(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(
 		filepath.Join(root, "go.mod"),
-		[]byte("module github.com/pedronauck/agh\n"),
+		[]byte("module github.com/compozy/agh\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(go.mod) error = %v", err)
@@ -2714,7 +2714,7 @@ func TestBoundariesReturnsViolations(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(
 		filepath.Join(root, "go.mod"),
-		[]byte("module github.com/pedronauck/agh\n"),
+		[]byte("module github.com/compozy/agh\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(go.mod) error = %v", err)
@@ -2725,7 +2725,7 @@ func TestBoundariesReturnsViolations(t *testing.T) {
 	}
 	if err := os.WriteFile(
 		filepath.Join(violatingDir, "worker.go"),
-		[]byte("package worker\n\nimport _ \"github.com/pedronauck/agh/internal/cli\"\n"),
+		[]byte("package worker\n\nimport _ \"github.com/compozy/agh/internal/cli\"\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(worker.go) error = %v", err)
@@ -2746,7 +2746,7 @@ func TestBoundariesUsesWorkingDirectoryWhenRootUnset(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(
 		filepath.Join(root, "go.mod"),
-		[]byte("module github.com/pedronauck/agh\n"),
+		[]byte("module github.com/compozy/agh\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("os.WriteFile(go.mod) error = %v", err)

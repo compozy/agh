@@ -3,9 +3,9 @@ package testutil
 import (
 	"context"
 
-	core "github.com/pedronauck/agh/internal/api/core"
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	"github.com/pedronauck/agh/internal/notifications"
+	core "github.com/compozy/agh/internal/api/core"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/agh/internal/notifications"
 )
 
 type StubBridgeService struct {

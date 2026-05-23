@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/agh/internal/api/contract"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
 )
 
 func TestCanonicalHostNormalizesBoundHostPorts(t *testing.T) {

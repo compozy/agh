@@ -17,12 +17,12 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/diagnostics"
-	"github.com/pedronauck/agh/internal/fileutil"
-	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
-	"github.com/pedronauck/agh/internal/store/globaldb"
-	"github.com/pedronauck/agh/internal/vault"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/fileutil"
+	mcpauth "github.com/compozy/agh/internal/mcp/auth"
+	"github.com/compozy/agh/internal/store/globaldb"
+	"github.com/compozy/agh/internal/vault"
 	"github.com/spf13/cobra"
 )
 

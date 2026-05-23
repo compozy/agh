@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
+	aghconfig "github.com/compozy/agh/internal/config"
 )
 
 func TestMCPServerTargetSelectorValidation(t *testing.T) {

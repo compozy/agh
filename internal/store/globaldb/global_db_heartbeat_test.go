@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/heartbeat"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/testutil"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/heartbeat"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestGlobalDBHeartbeatMigration(t *testing.T) {

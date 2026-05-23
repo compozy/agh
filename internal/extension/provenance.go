@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	contract "github.com/pedronauck/agh/internal/diagnosticcontract"
-	"github.com/pedronauck/agh/internal/diagnostics"
+	contract "github.com/compozy/agh/internal/diagnosticcontract"
+	"github.com/compozy/agh/internal/diagnostics"
 )
 
 const (

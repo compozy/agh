@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pedronauck/agh/internal/soul"
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/compozy/agh/internal/soul"
+	"github.com/compozy/agh/internal/store"
 )
 
 // UpsertSoulSnapshot inserts a resolved Soul snapshot or reuses the existing row for its digest.

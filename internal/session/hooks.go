@@ -3,7 +3,7 @@ package session
 import (
 	"context"
 
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	hookspkg "github.com/compozy/agh/internal/hooks"
 )
 
 // LifecycleHooks groups create/resume/stop session lifecycle hook dispatch.

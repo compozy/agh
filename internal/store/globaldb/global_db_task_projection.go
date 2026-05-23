@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	taskpkg "github.com/pedronauck/agh/internal/task"
+	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 func updateTaskCurrentRunProjectionForRunUpdate(

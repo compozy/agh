@@ -8,7 +8,7 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/compozy/agh/internal/store"
 )
 
 func TestFailureFromErrorClassifiesTypedAndContextFailures(t *testing.T) {

@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
 
-	aghcontract "github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/testutil/acpmock"
-	e2etest "github.com/pedronauck/agh/internal/testutil/e2e"
+	aghcontract "github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/testutil/acpmock"
+	e2etest "github.com/compozy/agh/internal/testutil/e2e"
 )
 
 func TestDaemonE2EMemoryCatalogCLIHTTPParityAndLegacyPathIsolation(t *testing.T) {

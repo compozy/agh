@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/notifications"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/notifications"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestGlobalDBNotificationCursorSchemaMigration(t *testing.T) {

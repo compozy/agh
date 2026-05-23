@@ -11,14 +11,14 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/network"
-	"github.com/pedronauck/agh/internal/session"
-	skillspkg "github.com/pedronauck/agh/internal/skills"
-	"github.com/pedronauck/agh/internal/soul"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	"github.com/compozy/agh/internal/api/contract"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/session"
+	skillspkg "github.com/compozy/agh/internal/skills"
+	"github.com/compozy/agh/internal/soul"
+	taskpkg "github.com/compozy/agh/internal/task"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 const (

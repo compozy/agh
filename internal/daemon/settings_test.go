@@ -8,15 +8,15 @@ import (
 	"testing"
 	"time"
 
+	core "github.com/compozy/agh/internal/api/core"
+	aghconfig "github.com/compozy/agh/internal/config"
+	mcpauth "github.com/compozy/agh/internal/mcp/auth"
+	settingspkg "github.com/compozy/agh/internal/settings"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/globaldb"
+	aghupdate "github.com/compozy/agh/internal/update"
 	mcpsdk "github.com/mark3labs/mcp-go/mcp"
 	mcpsrv "github.com/mark3labs/mcp-go/server"
-	core "github.com/pedronauck/agh/internal/api/core"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	mcpauth "github.com/pedronauck/agh/internal/mcp/auth"
-	settingspkg "github.com/pedronauck/agh/internal/settings"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/store/globaldb"
-	aghupdate "github.com/pedronauck/agh/internal/update"
 )
 
 func TestSettingsRuntimeSurfaceTransportParityStatus(t *testing.T) {

@@ -7,8 +7,8 @@ import (
 	"errors"
 	"testing"
 
-	extensionpkg "github.com/pedronauck/agh/internal/extension"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
+	extensionpkg "github.com/compozy/agh/internal/extension"
+	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
 func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {

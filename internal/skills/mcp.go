@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
+	aghconfig "github.com/compozy/agh/internal/config"
 )
 
 // MCPResolver collects and resolves MCP server declarations from active skills.

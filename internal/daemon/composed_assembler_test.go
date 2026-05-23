@@ -9,12 +9,12 @@ import (
 	"testing"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/memory"
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/soul"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
-	skillbundled "github.com/pedronauck/agh/skills"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/memory"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/soul"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
+	skillbundled "github.com/compozy/agh/skills"
 )
 
 func TestComposedAssemblerAssemble(t *testing.T) {

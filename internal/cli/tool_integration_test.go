@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	core "github.com/pedronauck/agh/internal/api/core"
-	"github.com/pedronauck/agh/internal/api/testutil"
-	"github.com/pedronauck/agh/internal/api/udsapi"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
+	"github.com/compozy/agh/internal/api/contract"
+	core "github.com/compozy/agh/internal/api/core"
+	"github.com/compozy/agh/internal/api/testutil"
+	"github.com/compozy/agh/internal/api/udsapi"
+	aghconfig "github.com/compozy/agh/internal/config"
+	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
 func TestCLIToolCommandsMatchUDSContractsIntegration(t *testing.T) {

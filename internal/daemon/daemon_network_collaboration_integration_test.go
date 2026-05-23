@@ -12,12 +12,12 @@ import (
 	"testing"
 	"time"
 
-	aghcontract "github.com/pedronauck/agh/internal/api/contract"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/testutil/acpmock"
-	e2etest "github.com/pedronauck/agh/internal/testutil/e2e"
-	"github.com/pedronauck/agh/internal/transcript"
+	aghcontract "github.com/compozy/agh/internal/api/contract"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/testutil/acpmock"
+	e2etest "github.com/compozy/agh/internal/testutil/e2e"
+	"github.com/compozy/agh/internal/transcript"
 )
 
 func TestDaemonE2ENetworkDirectReplyLifecycleWithMockAgents(t *testing.T) {

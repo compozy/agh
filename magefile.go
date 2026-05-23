@@ -17,18 +17,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/agh/internal/codegen/openapits"
+	"github.com/compozy/agh/internal/e2elane"
 	"github.com/magefile/mage/sh"
-	"github.com/pedronauck/agh/internal/codegen/openapits"
-	"github.com/pedronauck/agh/internal/e2elane"
 )
 
 const (
 	golangciLintVersion       = "v2.12.2"
+	golangciLintTimeout       = "10m"
 	goplsModernizeVersion     = "v0.22.0"
 	gotestsumVersion          = "v1.13.0"
 	binDir                    = "bin"
 	cliBinary                 = "agh"
-	versionPackage            = "github.com/pedronauck/agh/internal/version"
+	versionPackage            = "github.com/compozy/agh/internal/version"
 	openAPISpecPath           = "openapi/agh.json"
 	compozyOpenAPISpecPath    = "openapi/compozy-daemon.json"
 	webOpenAPITypePath        = "web/src/generated/agh-openapi.d.ts"
@@ -110,17 +111,41 @@ func Lint() error {
 	if err := ensureWebBundle(); err != nil {
 		return err
 	}
-	if err := sh.RunV(
-		"go",
-		"run",
-		"github.com/golangci/golangci-lint/v2/cmd/golangci-lint@"+golangciLintVersion,
-		"run",
-		"--allow-parallel-runners",
-		"./...",
-	); err != nil {
+	if err := runGolangCILint(); err != nil {
 		return err
 	}
 	return Modernize()
+}
+
+func runGolangCILint() error {
+	args := []string{
+		"run",
+		"--allow-parallel-runners",
+		"--timeout",
+		golangciLintTimeout,
+		"./...",
+	}
+	if hasPinnedTool("golangci-lint", golangciLintVersion) {
+		return sh.RunV("golangci-lint", args...)
+	}
+	goRunArgs := append(
+		[]string{"run", "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@" + golangciLintVersion},
+		args...,
+	)
+	return sh.RunV("go", goRunArgs...)
+}
+
+func hasPinnedTool(name string, wantVersion string) bool {
+	path, err := exec.LookPath(name)
+	if err != nil {
+		return false
+	}
+	output, err := exec.Command(path, "version").CombinedOutput()
+	if err != nil {
+		return false
+	}
+	versionToken := "version " + strings.TrimPrefix(wantVersion, "v")
+	return bytes.Contains(output, []byte(versionToken))
 }
 
 // Modernize runs gopls' modernize analyzer for min/max/slices idiom suggestions.
@@ -504,7 +529,7 @@ func Boundaries() error {
 		if _, err := os.Stat(importerDir); os.IsNotExist(err) {
 			continue
 		}
-		importPath := "github.com/pedronauck/agh/" + rule.imported
+		importPath := "github.com/compozy/agh/" + rule.imported
 		cmd := exec.Command("grep", "-r", "--include=*.go", "-l", importPath, importerDir)
 		out, err := cmd.Output()
 		if err != nil {

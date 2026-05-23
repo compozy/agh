@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
+	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
 )
 
 func TestManifestValidateModelSourceCapability(t *testing.T) {

@@ -9,13 +9,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/pedronauck/agh/internal/acp"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/diagnostics"
-	"github.com/pedronauck/agh/internal/fileutil"
-	"github.com/pedronauck/agh/internal/providerenv"
-	authproviders "github.com/pedronauck/agh/internal/providers"
-	"github.com/pedronauck/agh/internal/vault"
+	"github.com/compozy/agh/internal/acp"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/fileutil"
+	"github.com/compozy/agh/internal/providerenv"
+	authproviders "github.com/compozy/agh/internal/providers"
+	"github.com/compozy/agh/internal/vault"
 )
 
 const (

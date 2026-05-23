@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	aghsdk "github.com/pedronauck/agh/sdk/go"
+	aghsdk "github.com/compozy/agh/sdk/go"
 )
 
 type SearchInput struct {

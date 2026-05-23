@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
+	"github.com/compozy/agh/internal/frontmatter"
 	"github.com/goccy/go-yaml"
-	"github.com/pedronauck/agh/internal/frontmatter"
 )
 
 func TestParseAgentDefValidFrontmatterAndBody(t *testing.T) {

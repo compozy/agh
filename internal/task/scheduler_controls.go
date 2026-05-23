@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	diagnosticcontract "github.com/pedronauck/agh/internal/diagnosticcontract"
-	diagnosticitems "github.com/pedronauck/agh/internal/diagnostics"
-	eventspkg "github.com/pedronauck/agh/internal/events"
-	"github.com/pedronauck/agh/internal/store"
+	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
+	diagnosticitems "github.com/compozy/agh/internal/diagnostics"
+	eventspkg "github.com/compozy/agh/internal/events"
+	"github.com/compozy/agh/internal/store"
 )
 
 const (

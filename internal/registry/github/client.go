@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pedronauck/agh/internal/registry"
+	"github.com/compozy/agh/internal/registry"
 )
 
 const (

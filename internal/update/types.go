@@ -9,13 +9,13 @@ import (
 	"sync"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
+	aghconfig "github.com/compozy/agh/internal/config"
 )
 
 const (
 	githubReleaseAPIURL        = "https://api.github.com/repos/compozy/agh/releases/latest"
 	githubRepositorySlug       = "compozy/agh"
-	goInstallModulePath        = "github.com/pedronauck/agh/cmd/agh"
+	goInstallModulePath        = "github.com/compozy/agh/cmd/agh"
 	checksumsAssetName         = "checksums.txt"
 	checksumsBundleAssetName   = "checksums.txt.sigstore.json"
 	sigstoreOIDCIssuer         = "https://token.actions.githubusercontent.com"
@@ -70,6 +70,7 @@ type InstallMethod string
 const (
 	InstallMethodDirectBinary InstallMethod = "direct-binary"
 	InstallMethodHomebrew     InstallMethod = "homebrew"
+	InstallMethodNPM          InstallMethod = "npm"
 	InstallMethodAPT          InstallMethod = "apt"
 	InstallMethodDNF          InstallMethod = "dnf"
 	InstallMethodRPM          InstallMethod = "rpm"

@@ -3,8 +3,8 @@ package testutil
 import (
 	"context"
 
-	core "github.com/pedronauck/agh/internal/api/core"
-	automationpkg "github.com/pedronauck/agh/internal/automation"
+	core "github.com/compozy/agh/internal/api/core"
+	automationpkg "github.com/compozy/agh/internal/automation"
 )
 
 type StubAutomationManager struct {

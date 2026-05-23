@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/api/testutil"
-	automationpkg "github.com/pedronauck/agh/internal/automation"
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/api/testutil"
+	automationpkg "github.com/compozy/agh/internal/automation"
 )
 
 func TestAutomationEndpointsAdditionalCoverage(t *testing.T) {

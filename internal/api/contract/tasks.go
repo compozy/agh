@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	taskpkg "github.com/pedronauck/agh/internal/task"
+	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 // TaskReferencePayload is the human-meaningful task identity shared across task read models.

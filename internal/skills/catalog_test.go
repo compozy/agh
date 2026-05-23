@@ -7,7 +7,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 func TestBuildCatalogReturnsEmptyStringWhenNoSkills(t *testing.T) {

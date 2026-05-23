@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pedronauck/agh/internal/resources"
+	"github.com/compozy/agh/internal/resources"
 
-	extensionpkg "github.com/pedronauck/agh/internal/extension"
+	extensionpkg "github.com/compozy/agh/internal/extension"
 )
 
 const (

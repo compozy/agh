@@ -10,16 +10,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/api/core"
+	automationpkg "github.com/compozy/agh/internal/automation"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/skills"
+	"github.com/compozy/agh/internal/store"
+	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/acp"
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/api/core"
-	automationpkg "github.com/pedronauck/agh/internal/automation"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/session"
-	"github.com/pedronauck/agh/internal/skills"
-	"github.com/pedronauck/agh/internal/store"
-	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
 func TestSessionPayloadFromInfo(t *testing.T) {

@@ -9,9 +9,9 @@ import (
 	"os/exec"
 	"strings"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/providerauth"
-	"github.com/pedronauck/agh/internal/vault"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/providerauth"
+	"github.com/compozy/agh/internal/vault"
 )
 
 // VaultRefResolver resolves redacted provider credential metadata.

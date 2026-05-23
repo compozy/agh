@@ -5,10 +5,10 @@ import (
 	"slices"
 	"testing"
 
-	automationpkg "github.com/pedronauck/agh/internal/automation"
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	bundlepkg "github.com/pedronauck/agh/internal/bundles"
-	"github.com/pedronauck/agh/internal/resources"
+	automationpkg "github.com/compozy/agh/internal/automation"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	bundlepkg "github.com/compozy/agh/internal/bundles"
+	"github.com/compozy/agh/internal/resources"
 )
 
 type fakeBundleActivationProjector struct{}

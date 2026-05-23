@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	"github.com/pedronauck/agh/internal/bridgesdk"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/agh/internal/bridgesdk"
 )
 
 func TestGitHubWebhookRateLimitKey(t *testing.T) {

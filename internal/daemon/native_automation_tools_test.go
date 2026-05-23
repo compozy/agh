@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	apitest "github.com/pedronauck/agh/internal/api/testutil"
-	automationpkg "github.com/pedronauck/agh/internal/automation"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
+	apitest "github.com/compozy/agh/internal/api/testutil"
+	automationpkg "github.com/compozy/agh/internal/automation"
+	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
 func TestDaemonNativeAutomationTools(t *testing.T) {

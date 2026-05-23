@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/compozy/agh/internal/api/contract"
+	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
 // PauseTask routes task pauses through the service so claim eligibility remains centralized.

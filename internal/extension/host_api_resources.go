@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 
-	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
-	"github.com/pedronauck/agh/internal/resources"
+	extensioncontract "github.com/compozy/agh/internal/extension/contract"
+	"github.com/compozy/agh/internal/resources"
 )
 
 func (h *HostAPIHandler) handleResourcesList(ctx context.Context, raw json.RawMessage) (any, error) {

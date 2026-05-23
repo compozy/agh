@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	diagnosticcontract "github.com/pedronauck/agh/internal/diagnosticcontract"
-	diagnosticitems "github.com/pedronauck/agh/internal/diagnostics"
+	diagnosticcontract "github.com/compozy/agh/internal/diagnosticcontract"
+	diagnosticitems "github.com/compozy/agh/internal/diagnostics"
 )
 
 const (

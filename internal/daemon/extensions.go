@@ -11,14 +11,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/api/udsapi"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	eventspkg "github.com/pedronauck/agh/internal/events"
-	extensionpkg "github.com/pedronauck/agh/internal/extension"
-	registrypkg "github.com/pedronauck/agh/internal/registry"
-	"github.com/pedronauck/agh/internal/store"
-	taskpkg "github.com/pedronauck/agh/internal/task"
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/api/udsapi"
+	aghconfig "github.com/compozy/agh/internal/config"
+	eventspkg "github.com/compozy/agh/internal/events"
+	extensionpkg "github.com/compozy/agh/internal/extension"
+	registrypkg "github.com/compozy/agh/internal/registry"
+	"github.com/compozy/agh/internal/store"
+	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 type daemonExtensionService struct {

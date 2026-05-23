@@ -6,14 +6,14 @@ import (
 	"os"
 	"testing"
 
-	bundlepkg "github.com/pedronauck/agh/internal/bundles"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/heartbeat"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
-	"github.com/pedronauck/agh/internal/resources"
-	skillspkg "github.com/pedronauck/agh/internal/skills"
-	"github.com/pedronauck/agh/internal/soul"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	bundlepkg "github.com/compozy/agh/internal/bundles"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/heartbeat"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/resources"
+	skillspkg "github.com/compozy/agh/internal/skills"
+	"github.com/compozy/agh/internal/soul"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {

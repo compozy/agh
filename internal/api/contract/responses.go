@@ -1,7 +1,7 @@
 package contract
 
 import (
-	"github.com/pedronauck/agh/internal/transcript"
+	"github.com/compozy/agh/internal/transcript"
 )
 
 // SessionsResponse wraps the shared session list payload.

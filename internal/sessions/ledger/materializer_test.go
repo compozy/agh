@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/store/sessiondb"
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/sessiondb"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestMaterializer(t *testing.T) {

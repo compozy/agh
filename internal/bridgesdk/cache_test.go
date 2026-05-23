@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
 )
 
 func TestInstanceCacheSyncPreservesBoundSecrets(t *testing.T) {

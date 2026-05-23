@@ -9,11 +9,11 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/compozy/agh/internal/api/contract"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/session"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/session"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 // CreateWorkspace registers a workspace.

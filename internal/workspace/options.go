@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
+	aghconfig "github.com/compozy/agh/internal/config"
 )
 
 const defaultCacheTTL = 10 * time.Minute

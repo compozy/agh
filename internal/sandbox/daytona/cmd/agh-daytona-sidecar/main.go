@@ -19,8 +19,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/compozy/agh/internal/procutil"
 	"github.com/gorilla/websocket"
-	"github.com/pedronauck/agh/internal/procutil"
 )
 
 const (

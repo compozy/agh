@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
 )
 
 func TestBridgeListRendersScopePlatformAndStatusInHumanOutput(t *testing.T) {

@@ -10,9 +10,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/compozy/agh/internal/tools"
 	sdkmcp "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
-	"github.com/pedronauck/agh/internal/tools"
 )
 
 const (

@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/hooks"
+	"github.com/compozy/agh/internal/hooks"
 )
 
 type EmbeddedJSONFields struct {

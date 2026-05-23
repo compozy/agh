@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	toolspkg "github.com/pedronauck/agh/internal/tools"
+	taskpkg "github.com/compozy/agh/internal/task"
+	toolspkg "github.com/compozy/agh/internal/tools"
 )
 
 const (

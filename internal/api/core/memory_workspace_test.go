@@ -13,17 +13,17 @@ import (
 	"testing"
 	"time"
 
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
 
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/api/core"
+	"github.com/compozy/agh/internal/api/testutil"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/memory"
+	"github.com/compozy/agh/internal/observe"
+	"github.com/compozy/agh/internal/session"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/goccy/go-yaml"
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/api/core"
-	"github.com/pedronauck/agh/internal/api/testutil"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/memory"
-	"github.com/pedronauck/agh/internal/observe"
-	"github.com/pedronauck/agh/internal/session"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
 )
 
 func TestMemoryHandlersAndHelpers(t *testing.T) {

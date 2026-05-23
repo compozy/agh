@@ -8,9 +8,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/pedronauck/agh/internal/bridges"
-	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
-	"github.com/pedronauck/agh/internal/resources"
+	"github.com/compozy/agh/internal/bridges"
+	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	"github.com/compozy/agh/internal/resources"
 )
 
 // CloneInitializeRequest returns a deep copy safe to expose to callers.

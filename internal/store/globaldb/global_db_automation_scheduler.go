@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	automation "github.com/pedronauck/agh/internal/automation/model"
-	"github.com/pedronauck/agh/internal/store"
+	automation "github.com/compozy/agh/internal/automation/model"
+	"github.com/compozy/agh/internal/store"
 	"modernc.org/sqlite"
 	sqlite3 "modernc.org/sqlite/lib"
 )

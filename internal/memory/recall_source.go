@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/diagnostics"
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
-	memoryrecall "github.com/pedronauck/agh/internal/memory/recall"
-	storepkg "github.com/pedronauck/agh/internal/store"
-	aghworkspace "github.com/pedronauck/agh/internal/workspace"
+	"github.com/compozy/agh/internal/diagnostics"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
+	memoryrecall "github.com/compozy/agh/internal/memory/recall"
+	storepkg "github.com/compozy/agh/internal/store"
+	aghworkspace "github.com/compozy/agh/internal/workspace"
 )
 
 const (

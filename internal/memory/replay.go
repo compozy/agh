@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
-	storepkg "github.com/pedronauck/agh/internal/store"
-	aghworkspace "github.com/pedronauck/agh/internal/workspace"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
+	storepkg "github.com/compozy/agh/internal/store"
+	aghworkspace "github.com/compozy/agh/internal/workspace"
 )
 
 // ReplayResult reports boot-time recovery work applied from memory_decisions.

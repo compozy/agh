@@ -11,14 +11,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/api/httpapi"
+	"github.com/compozy/agh/internal/api/testutil"
+	"github.com/compozy/agh/internal/api/udsapi"
+	"github.com/compozy/agh/internal/cli"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/modelcatalog"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/api/httpapi"
-	"github.com/pedronauck/agh/internal/api/testutil"
-	"github.com/pedronauck/agh/internal/api/udsapi"
-	"github.com/pedronauck/agh/internal/cli"
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/modelcatalog"
 )
 
 func TestModelCatalogTransportParity(t *testing.T) {

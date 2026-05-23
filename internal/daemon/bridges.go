@@ -10,12 +10,12 @@ import (
 	"sync"
 	"time"
 
-	bridgepkg "github.com/pedronauck/agh/internal/bridges"
-	extensionpkg "github.com/pedronauck/agh/internal/extension"
-	extensionprotocol "github.com/pedronauck/agh/internal/extension/protocol"
-	"github.com/pedronauck/agh/internal/notifications"
-	"github.com/pedronauck/agh/internal/resources"
-	"github.com/pedronauck/agh/internal/subprocess"
+	bridgepkg "github.com/compozy/agh/internal/bridges"
+	extensionpkg "github.com/compozy/agh/internal/extension"
+	extensionprotocol "github.com/compozy/agh/internal/extension/protocol"
+	"github.com/compozy/agh/internal/notifications"
+	"github.com/compozy/agh/internal/resources"
+	"github.com/compozy/agh/internal/subprocess"
 )
 
 type bridgeDedupStore interface {

@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	sessionpkg "github.com/pedronauck/agh/internal/session"
+	sessionpkg "github.com/compozy/agh/internal/session"
 )
 
 func withCanonicalDirectedEnvelope(t *testing.T, env Envelope) Envelope {

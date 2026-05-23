@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
+	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/agh/internal/testutil"
 	"github.com/jonboulle/clockwork"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	"github.com/pedronauck/agh/internal/testutil"
 )
 
 func TestRunOnceWakesOnlyEligibleIdleSessions(t *testing.T) {

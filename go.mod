@@ -1,4 +1,4 @@
-module github.com/pedronauck/agh
+module github.com/compozy/agh
 
 go 1.26.3
 

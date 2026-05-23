@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/compozy/agh/internal/api/contract"
+	extensionpkg "github.com/compozy/agh/internal/extension"
+	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/gin-gonic/gin"
-	"github.com/pedronauck/agh/internal/api/contract"
-	extensionpkg "github.com/pedronauck/agh/internal/extension"
-	taskpkg "github.com/pedronauck/agh/internal/task"
 )
 
 const (

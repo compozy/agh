@@ -106,7 +106,7 @@ jobs:
   verify:
     name: Verify (fmt, lint, unit, build)
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     needs: changes
     if: needs.changes.outputs.relevant == 'true'
     steps:

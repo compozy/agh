@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	aghconfig "github.com/pedronauck/agh/internal/config"
-	"github.com/pedronauck/agh/internal/soul"
-	"github.com/pedronauck/agh/internal/store"
-	workspacepkg "github.com/pedronauck/agh/internal/workspace"
+	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/soul"
+	"github.com/compozy/agh/internal/store"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 var (

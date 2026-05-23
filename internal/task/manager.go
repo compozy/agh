@@ -12,9 +12,9 @@ import (
 	"sync"
 	"time"
 
-	eventspkg "github.com/pedronauck/agh/internal/events"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
-	"github.com/pedronauck/agh/internal/store"
+	eventspkg "github.com/compozy/agh/internal/events"
+	hookspkg "github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/store"
 )
 
 const (

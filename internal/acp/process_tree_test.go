@@ -14,8 +14,8 @@ import (
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
+	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/kballard/go-shellquote"
-	aghconfig "github.com/pedronauck/agh/internal/config"
 )
 
 func TestStopTerminatesWrappedProcessTree(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	extensioncontract "github.com/pedronauck/agh/internal/extension/contract"
+	extensioncontract "github.com/compozy/agh/internal/extension/contract"
 )
 
 type bridgeSessionHandling string

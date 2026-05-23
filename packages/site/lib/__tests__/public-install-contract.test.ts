@@ -14,10 +14,15 @@ const launchPostPath = resolve(
   "content/blog/posts/introducing-agh-the-first-agent-network-protocol.mdx"
 );
 const landingInstallPath = resolve(siteRoot, "components/landing/install-section.tsx");
+const readmePath = resolve(siteRoot, "../../README.md");
 
-const primaryInstallCommand = "curl -fsSL https://agh.network/install.sh | sh";
-const packageInstallCommand = "brew install compozy/compozy/agh";
+const homebrewInstallCommand = "brew install compozy/compozy/agh";
+const npmInstallCommand = "npm install -g @compozy/agh";
+const goInstallCommand = "go install github.com/compozy/agh/cmd/agh@latest";
+const verifiedInstallerCommand = "curl -fsSL https://agh.network/install.sh | sh";
 const sourceInstallCommand = "go build -o ./bin/agh ./cmd/agh";
+const workspaceAddCommand = 'agh workspace add "$PWD" --name current';
+const firstSessionCommand = "agh session new --workspace current --agent general";
 const retiredPackageInstallCommands = [
   "brew install --cask pedronauck/agh/agh",
   "pedronauck/agh/agh",
@@ -26,7 +31,7 @@ const retiredPackageInstallCommands = [
 const installOptions = ["--version", "--dir", "--skip-bootstrap", "--dry-run", "--help"];
 const installEnvVars = ["AGH_VERSION", "AGH_INSTALL_DIR", "AGH_SKIP_BOOTSTRAP"];
 const installerReleaseGuaranteeSnippets = [
-  "curl -fsSL https://agh.network/install.sh | sh",
+  verifiedInstallerCommand,
   "Requires:",
   "curl, tar, cosign, and sha256sum or shasum.",
   'command -v cosign >/dev/null 2>&1 || fail "cosign is required to verify release provenance"',
@@ -167,7 +172,7 @@ describe("public install contract", () => {
     const badOption = runInstallScript(["--not-a-real-option"]);
 
     expect(help.status).toBe(0);
-    expect(help.stdout).toContain(primaryInstallCommand);
+    expect(help.stdout).toContain(verifiedInstallerCommand);
     for (const option of installOptions) {
       expect(help.stdout, option).toContain(option);
     }
@@ -251,22 +256,38 @@ describe("public install contract", () => {
     expect(headers).toContain("Content-Security-Policy:");
   });
 
-  it("keeps landing, docs, and launch post aligned on install commands", () => {
-    const checkedFiles = [landingInstallPath, installPagePath, launchPostPath];
-    const missingPrimaryCommand = checkedFiles
-      .filter(path => !readSiteFile(path).includes(primaryInstallCommand))
-      .map(path => relative(siteRoot, path));
+  it("keeps README, landing, docs, and launch post aligned on install commands", () => {
+    const readme = readSiteFile(readmePath);
     const installPage = readSiteFile(installPagePath);
     const landingInstall = readSiteFile(landingInstallPath);
+    const launchPost = readSiteFile(launchPostPath);
 
-    expect(missingPrimaryCommand).toEqual([]);
-    expect(landingInstall).toContain(packageInstallCommand);
-    expect(landingInstall).toContain(sourceInstallCommand);
-    expect(installPage).toContain(packageInstallCommand);
+    for (const command of [homebrewInstallCommand, npmInstallCommand, goInstallCommand]) {
+      const missingPrimaryCommand = [
+        readmePath,
+        landingInstallPath,
+        installPagePath,
+        launchPostPath,
+      ]
+        .filter(path => !readSiteFile(path).includes(command))
+        .map(path => relative(siteRoot, path));
+      expect(missingPrimaryCommand, command).toEqual([]);
+    }
+
+    expect(installPage).toContain(verifiedInstallerCommand);
     expect(installPage).toContain(sourceInstallCommand);
+    expect(launchPost).toContain("agh install");
     for (const retiredCommand of retiredPackageInstallCommands) {
+      expect(readme).not.toContain(retiredCommand);
       expect(landingInstall).not.toContain(retiredCommand);
       expect(installPage).not.toContain(retiredCommand);
+      expect(launchPost).not.toContain(retiredCommand);
+    }
+    for (const command of [workspaceAddCommand, firstSessionCommand]) {
+      const missingFirstSessionCommand = [readmePath, landingInstallPath, launchPostPath]
+        .filter(path => !readSiteFile(path).includes(command))
+        .map(path => relative(siteRoot, path));
+      expect(missingFirstSessionCommand, command).toEqual([]);
     }
     for (const option of installOptions.slice(0, -1)) {
       expect(installPage, option).toContain(option);

@@ -15,12 +15,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/hooks"
-	"github.com/pedronauck/agh/internal/memory"
-	memcontract "github.com/pedronauck/agh/internal/memory/contract"
-	"github.com/pedronauck/agh/internal/memory/extractor"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/hooks"
+	"github.com/compozy/agh/internal/memory"
+	memcontract "github.com/compozy/agh/internal/memory/contract"
+	"github.com/compozy/agh/internal/memory/extractor"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestRuntime(t *testing.T) {

@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/pedronauck/agh/internal/acp"
-	"github.com/pedronauck/agh/internal/store"
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/acp"
+	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestClearConversationRestartsSameSessionWithFreshContext(t *testing.T) {

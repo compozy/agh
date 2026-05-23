@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/bridges"
-	"github.com/pedronauck/agh/internal/store"
-	taskpkg "github.com/pedronauck/agh/internal/task"
-	aghworkspace "github.com/pedronauck/agh/internal/workspace"
+	"github.com/compozy/agh/internal/bridges"
+	"github.com/compozy/agh/internal/store"
+	taskpkg "github.com/compozy/agh/internal/task"
+	aghworkspace "github.com/compozy/agh/internal/workspace"
 )
 
 var (

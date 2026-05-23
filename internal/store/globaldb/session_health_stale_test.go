@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/heartbeat"
-	"github.com/pedronauck/agh/internal/testutil"
+	"github.com/compozy/agh/internal/heartbeat"
+	"github.com/compozy/agh/internal/testutil"
 )
 
 func TestGlobalDBSessionHealthStaleDetection(t *testing.T) {

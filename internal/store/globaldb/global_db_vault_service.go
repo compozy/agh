@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/pedronauck/agh/internal/vault"
+	"github.com/compozy/agh/internal/vault"
 )
 
 func (g *GlobalDB) vaultService() (*vault.Service, error) {

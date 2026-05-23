@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/agh/internal/procutil"
 	"github.com/gofrs/flock"
-	"github.com/pedronauck/agh/internal/procutil"
 )
 
 const (

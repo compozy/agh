@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/pedronauck/agh/internal/api/contract"
-	"github.com/pedronauck/agh/internal/doctor"
-	"github.com/pedronauck/agh/internal/settings"
-	"github.com/pedronauck/agh/internal/store"
+	"github.com/compozy/agh/internal/api/contract"
+	"github.com/compozy/agh/internal/doctor"
+	"github.com/compozy/agh/internal/settings"
+	"github.com/compozy/agh/internal/store"
 )
 
 // StatusSnapshot returns the same runtime status payload used by /api/status.

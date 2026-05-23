@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pedronauck/agh/internal/acp"
-	hookspkg "github.com/pedronauck/agh/internal/hooks"
+	"github.com/compozy/agh/internal/acp"
+	hookspkg "github.com/compozy/agh/internal/hooks"
 )
 
 const (

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pedronauck/agh/internal/bridges"
+	"github.com/compozy/agh/internal/bridges"
 )
 
 func TestInitializeBridgeRuntimeValidateContract(t *testing.T) {
