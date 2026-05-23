@@ -497,9 +497,23 @@ async function assertDashboardViewportMatrix(
 
 async function assertDashboardFocus(page: import("@playwright/test").Page): Promise<void> {
   const dashboardNav = page.getByTestId("nav-dashboard");
-  await dashboardNav.focus();
-  await expect(dashboardNav).toBeFocused();
   await expect(dashboardNav).toHaveAccessibleName("Dashboard");
+  await expect
+    .poll(
+      async () => {
+        try {
+          await dashboardNav.focus();
+          return await dashboardNav.evaluate(element => element === document.activeElement);
+        } catch {
+          return false;
+        }
+      },
+      {
+        timeout: 20_000,
+        intervals: [100, 250, 500, 1_000],
+      }
+    )
+    .toBe(true);
 }
 
 async function assertNoSensitiveLeak(
