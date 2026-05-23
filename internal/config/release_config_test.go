@@ -57,10 +57,13 @@ func TestGoReleaserConfigPreservesTrustArtifactsAndPackageTargets(t *testing.T) 
 	})
 
 	t.Run("Should preserve SBOM artifact coverage", func(t *testing.T) {
+		t.Parallel()
+
 		sboms := sliceAt(t, cfg, "sboms")
-		assertSBOMArtifact(t, sboms, "archive")
-		assertSBOMArtifact(t, sboms, "package")
-		assertSBOMArtifact(t, sboms, "source")
+		assertUniqueSBOMIDs(t, sboms)
+		assertSBOMArtifact(t, sboms, "archive", "archive")
+		assertSBOMArtifact(t, sboms, "package", "package")
+		assertSBOMArtifact(t, sboms, "source", "source")
 	})
 
 	t.Run("Should publish stable archives and curl installer asset", func(t *testing.T) {
@@ -698,16 +701,30 @@ func assertNotContainsText(t *testing.T, label string, text string, unwanted str
 	}
 }
 
-func assertSBOMArtifact(t *testing.T, sboms []any, artifact string) {
+func assertUniqueSBOMIDs(t *testing.T, sboms []any) {
+	t.Helper()
+
+	seen := make(map[string]struct{}, len(sboms))
+	for index, entry := range sboms {
+		sbom := asMap(t, entry, "sboms[]")
+		id := stringAt(t, sbom, "id")
+		if _, ok := seen[id]; ok {
+			t.Fatalf("sboms[%d].id = %q, want unique SBOM IDs", index, id)
+		}
+		seen[id] = struct{}{}
+	}
+}
+
+func assertSBOMArtifact(t *testing.T, sboms []any, id string, artifact string) {
 	t.Helper()
 
 	for _, entry := range sboms {
 		sbom := asMap(t, entry, "sboms[]")
-		if value, ok := sbom["artifacts"].(string); ok && value == artifact {
+		if stringAt(t, sbom, "id") == id && stringAt(t, sbom, "artifacts") == artifact {
 			return
 		}
 	}
-	t.Fatalf("sboms = %#v, want artifacts %q", sboms, artifact)
+	t.Fatalf("sboms = %#v, want id %q with artifacts %q", sboms, id, artifact)
 }
 
 func assertReleaseExtraFile(t *testing.T, extraFiles []any, glob string, nameTemplate string) {

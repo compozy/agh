@@ -205,7 +205,9 @@ release:
       name_template: install.sh
 
 sboms:
-  - artifacts: archive
-  - artifacts: package
+  - id: archive
+    artifacts: archive
+  - id: package
+    artifacts: package
   - id: source
     artifacts: source
