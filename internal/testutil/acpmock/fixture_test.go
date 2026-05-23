@@ -735,7 +735,7 @@ func TestRegistrationHelperOverridesAndDiagnosticsErrors(t *testing.T) {
 	t.Run("Should render agent def uses default prompt", func(t *testing.T) {
 		t.Parallel()
 
-		content := renderAgentDef("mock-alpha", AgentFixture{Provider: "claude"}, "node driver.js")
+		content := renderAgentDef("mock-alpha", AgentFixture{Provider: "claude"}, "node driver.js", "claude")
 		if !strings.Contains(content, "You are mock-alpha.") {
 			t.Fatalf("renderAgentDef() = %q, want default prompt", content)
 		}

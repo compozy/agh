@@ -2955,6 +2955,7 @@ func newIntegrationRuntime(t *testing.T) integrationRuntime {
 		WithSocketPath(socketPath),
 		WithLogger(discardLogger()),
 		WithSessionManager(manager),
+		WithSessionCatalog(registry),
 		WithTaskService(taskManager),
 		WithObserver(observer),
 		WithResourceService(resourceService),

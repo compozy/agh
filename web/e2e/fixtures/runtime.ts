@@ -155,6 +155,7 @@ export async function createBrowserRuntime(
       paths.configFile,
       renderRuntimeConfig({
         host: boundHost,
+        includeMockAgentProvider: (options.seed?.mockAgents?.length ?? 0) > 0,
         networkEnabled: options.networkEnabled,
         port: httpPort,
         skillsMarketplaceBaseURL: skillMarketplace?.baseURL,

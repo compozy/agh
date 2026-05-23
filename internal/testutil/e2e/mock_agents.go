@@ -263,8 +263,28 @@ func registerMockAgent(
 		FixturePath:     spec.FixturePath,
 		FixtureAgent:    spec.FixtureAgent,
 		AgentName:       spec.AgentName,
+		ProviderName:    acpmock.ProviderName,
 		DiagnosticsPath: diagnosticsPath,
 	})
+}
+
+func ensureMockAgentProviderConfig(t testing.TB, cfg *aghconfig.Config) {
+	t.Helper()
+
+	if cfg == nil {
+		return
+	}
+	if cfg.Providers == nil {
+		cfg.Providers = map[string]aghconfig.ProviderConfig{}
+	}
+	if _, ok := cfg.Providers[acpmock.ProviderName]; ok {
+		return
+	}
+	driverPath, err := acpmock.DefaultDriverPath()
+	if err != nil {
+		t.Fatalf("acpmock.DefaultDriverPath() error = %v", err)
+	}
+	cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(driverPath)
 }
 
 func mockAgentDiagnosticsPath(

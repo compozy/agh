@@ -1028,6 +1028,16 @@ func mustHarnessWorkspace(
 	return workspace
 }
 
+func harnessWorkspaceID(workspace *workspacepkg.ResolvedWorkspace) string {
+	if workspace == nil {
+		return ""
+	}
+	if workspaceID := strings.TrimSpace(workspace.WorkspaceID); workspaceID != "" {
+		return workspaceID
+	}
+	return strings.TrimSpace(workspace.ID)
+}
+
 func installHarnessExtension(
 	t testing.TB,
 	globalDB *globaldb.GlobalDB,
@@ -1124,7 +1134,7 @@ func harnessCreateInstanceRequest(
 	createReq := bridgepkg.CreateInstanceRequest{
 		ID:             firstNonEmpty(managedCfg.ID, fmt.Sprintf("brg-%d", seq)),
 		Scope:          bridgepkg.ScopeWorkspace,
-		WorkspaceID:    workspace.ID,
+		WorkspaceID:    harnessWorkspaceID(workspace),
 		Platform:       firstNonEmpty(cfg.Platform, "telegram"),
 		ExtensionName:  extensionName,
 		DisplayName:    firstNonEmpty(managedCfg.DisplayName, cfg.DisplayName, "Telegram Reference"),
@@ -1531,7 +1541,7 @@ func (r *staticWorkspaceResolver) Resolve(_ context.Context, idOrPath string) (w
 	if trimmed == "" {
 		return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 	}
-	if trimmed == r.resolved.ID || trimmed == r.resolved.RootDir {
+	if trimmed == r.resolved.ID || trimmed == r.resolved.WorkspaceID || trimmed == r.resolved.RootDir {
 		return r.resolved, nil
 	}
 	return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
@@ -1545,7 +1555,7 @@ func (r *staticWorkspaceResolver) ResolveOrRegister(
 		return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
 	}
 	trimmed := strings.TrimSpace(path)
-	if trimmed == "" || trimmed == r.resolved.RootDir {
+	if trimmed == "" || trimmed == r.resolved.RootDir || trimmed == r.resolved.WorkspaceID || trimmed == r.resolved.ID {
 		return r.resolved, nil
 	}
 	return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
@@ -1575,6 +1585,7 @@ func defaultResolvedWorkspace(root string, now time.Time) workspacepkg.ResolvedW
 			CreatedAt:    now,
 			UpdatedAt:    now,
 		},
+		WorkspaceID: "ws-bridge-adapter",
 		Config: aghconfig.Config{
 			Defaults: aghconfig.DefaultsConfig{Agent: bridgeAdapterHarnessCoderKey},
 			Providers: map[string]aghconfig.ProviderConfig{

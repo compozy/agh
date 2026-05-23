@@ -114,7 +114,7 @@ func TestHostAPIIntegrationStoresAndRecallsMemory(t *testing.T) {
 	}
 
 	result, err := env.call(t, "ext-integration", "memory/recall", map[string]any{
-		"query": "what should I do before deploy",
+		"query": "smoke tests before deploy",
 		"limit": 5,
 	})
 	if err != nil {

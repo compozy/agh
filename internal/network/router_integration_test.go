@@ -79,8 +79,8 @@ func TestRoutersDiscoverEachOtherAndExchangeDirectAndBroadcastMessages(t *testin
 	}
 
 	waitForRouterCondition(t, ctx, func() bool {
-		return registryA.HasPresence("builders", peerB.PeerID, time.Now().UTC()) &&
-			registryB.HasPresence("builders", peerA.PeerID, time.Now().UTC())
+		return registryA.HasPresence(testWorkspaceID, "builders", peerB.PeerID, time.Now().UTC()) &&
+			registryB.HasPresence(testWorkspaceID, "builders", peerA.PeerID, time.Now().UTC())
 	}, "peer discovery")
 
 	if _, err := routerA.Send(ctx, withTestConversation(SendRequest{
@@ -183,8 +183,8 @@ func TestRoutersExchangeThreadCapabilityTransfers(t *testing.T) {
 		}
 
 		waitForRouterCondition(t, ctx, func() bool {
-			return registryA.HasPresence("builders", peerB.PeerID, time.Now().UTC()) &&
-				registryB.HasPresence("builders", peerA.PeerID, time.Now().UTC())
+			return registryA.HasPresence(testWorkspaceID, "builders", peerB.PeerID, time.Now().UTC()) &&
+				registryB.HasPresence(testWorkspaceID, "builders", peerA.PeerID, time.Now().UTC())
 		}, "peer discovery")
 
 		if _, err := routerA.Send(ctx, withTestConversation(SendRequest{
@@ -294,8 +294,8 @@ func TestRoutersPreserveCapabilityLifecycleAcrossPeers(t *testing.T) {
 		}
 
 		waitForRouterCondition(t, ctx, func() bool {
-			return registryA.HasPresence("builders", peerB.PeerID, time.Now().UTC()) &&
-				registryB.HasPresence("builders", peerA.PeerID, time.Now().UTC())
+			return registryA.HasPresence(testWorkspaceID, "builders", peerB.PeerID, time.Now().UTC()) &&
+				registryB.HasPresence(testWorkspaceID, "builders", peerA.PeerID, time.Now().UTC())
 		}, "peer discovery")
 
 		const workID = "work_capability_lifecycle"
@@ -479,20 +479,20 @@ func TestHeartbeatExpiryAndFreshGreetRecovery(t *testing.T) {
 		t.Fatalf("routerB.StartHeartbeat() error = %v", err)
 	}
 	waitForRouterCondition(t, ctx, func() bool {
-		return registryA.HasPresence("builders", peerB.PeerID, time.Now().UTC())
+		return registryA.HasPresence(testWorkspaceID, "builders", peerB.PeerID, time.Now().UTC())
 	}, "initial heartbeat discoverability")
 
 	heartbeat.Stop()
 
 	waitForRouterCondition(t, ctx, func() bool {
-		return !registryA.HasPresence("builders", peerB.PeerID, time.Now().UTC())
+		return !registryA.HasPresence(testWorkspaceID, "builders", peerB.PeerID, time.Now().UTC())
 	}, "heartbeat expiry")
 
 	if _, err := routerB.PublishGreet(ctx, "sess-b", "back"); err != nil {
 		t.Fatalf("routerB.PublishGreet(recover) error = %v", err)
 	}
 	waitForRouterCondition(t, ctx, func() bool {
-		return registryA.HasPresence("builders", peerB.PeerID, time.Now().UTC())
+		return registryA.HasPresence(testWorkspaceID, "builders", peerB.PeerID, time.Now().UTC())
 	}, "fresh greet recovery")
 
 	select {
@@ -588,7 +588,7 @@ func TestDirectedWhoisRichDiscoveryDeliversPeerCardAndCapabilityCatalog(t *testi
 		t.Fatalf("routerB.PublishGreet() error = %v", err)
 	}
 	waitForRouterCondition(t, ctx, func() bool {
-		return registryA.HasPresence("builders", peerB.PeerID, time.Now().UTC())
+		return registryA.HasPresence(testWorkspaceID, "builders", peerB.PeerID, time.Now().UTC())
 	}, "peerB discoverability before directed rich whois")
 
 	if _, err := routerA.Send(ctx, SendRequest{
@@ -741,7 +741,7 @@ func TestDirectedWhoisRichDiscoveryFilteringRefreshesRemotePresence(t *testing.T
 		t.Fatalf("routerB.PublishGreet() error = %v", err)
 	}
 	waitForRouterCondition(t, ctx, func() bool {
-		return registryA.HasPresence("builders", peerB.PeerID, time.Now().UTC())
+		return registryA.HasPresence(testWorkspaceID, "builders", peerB.PeerID, time.Now().UTC())
 	}, "peerB discoverability before filtered rich whois")
 
 	before, ok := registryA.RemoteByPeer(testWorkspaceID, "builders", peerB.PeerID, time.Now().UTC())

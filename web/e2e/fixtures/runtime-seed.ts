@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
   chmod,
+  copyFile,
   cp,
   mkdir,
   mkdtemp,
@@ -9,6 +10,7 @@ import {
   readFile,
   rm,
   stat,
+  symlink,
   writeFile,
 } from "node:fs/promises";
 import os from "node:os";
@@ -50,6 +52,7 @@ import type {
 } from "@/systems/tasks";
 
 const execFileAsync = promisify(execFile);
+const MOCK_AGENT_PROVIDER_NAME = "acpmock";
 
 export interface WorkspacePayload {
   id: string;
@@ -516,6 +519,7 @@ export async function seedBrowserRuntimeHome(
   }
 
   const driverPath = await ensureACPmockDriverBinary(paths.repoRoot);
+  await installACPmockDriverShim(paths.homeDir, driverPath);
   const agentsDir = path.join(paths.homeDir, "agents");
   const diagnosticsDir = path.join(paths.homeDir, "logs", "acpmock");
 
@@ -1939,9 +1943,37 @@ async function buildACPmockDriverBinary(repoRoot: string): Promise<string> {
   return outputPath;
 }
 
+async function installACPmockDriverShim(homeDir: string, driverPath: string): Promise<void> {
+  const binDir = path.join(homeDir, "bin");
+  const targetPath = path.join(binDir, acpMockDriverBinaryName());
+  await mkdir(binDir, { recursive: true });
+  await rm(targetPath, { force: true });
+
+  if (process.platform !== "win32") {
+    try {
+      await symlink(driverPath, targetPath);
+      return;
+    } catch {
+      // Fall back to copying below when symlinks are unavailable.
+    }
+  }
+
+  await copyFile(driverPath, targetPath);
+  await chmod(targetPath, 0o755);
+}
+
+function acpMockDriverBinaryName(): string {
+  return process.platform === "win32" ? "acpmock-driver.exe" : "acpmock-driver";
+}
+
 function renderMockAgentDef(name: string, agent: MockFixtureAgent, command: string): string {
   const prompt = agent.prompt?.trim() || `You are ${name}.`;
-  const lines = ["---", `name: ${name}`, `provider: ${agent.provider}`, `command: ${command}`];
+  const lines = [
+    "---",
+    `name: ${name}`,
+    `provider: ${MOCK_AGENT_PROVIDER_NAME}`,
+    `command: ${command}`,
+  ];
 
   if (agent.model?.trim()) {
     lines.push(`model: ${agent.model.trim()}`);

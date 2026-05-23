@@ -90,6 +90,27 @@ describe("runtime helpers", () => {
     );
   });
 
+  it("renders the auth-free acpmock provider when browser E2E seeds mock agents", () => {
+    expect(
+      renderRuntimeConfig({
+        host: "127.0.0.1",
+        includeMockAgentProvider: true,
+        port: 4321,
+        socketPath: "/tmp/agh.sock",
+      })
+    ).toContain(
+      [
+        "[providers.acpmock]",
+        'command = "acpmock-driver"',
+        'display_name = "ACP Mock"',
+        'harness = "acp"',
+        'auth_mode = "none"',
+        'none_security = "local_transport"',
+        "",
+      ].join("\n")
+    );
+  });
+
   it("requires API readiness probes only for loopback HTTP bindings", () => {
     expect(requiresHTTPAPIReadinessProbe("")).toBe(true);
     expect(requiresHTTPAPIReadinessProbe("localhost")).toBe(true);

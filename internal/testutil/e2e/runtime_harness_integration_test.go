@@ -15,6 +15,7 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	aghcontract "github.com/compozy/agh/internal/api/contract"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/testutil/acpmock"
 	"github.com/kballard/go-shellquote"
 )
 
@@ -134,15 +135,19 @@ func TestStartRuntimeHarnessResolvesSeededWorkspaceThroughPublicSurface(t *testi
 func TestStartRuntimeHarnessCapturesTranscriptAndEventsArtifacts(t *testing.T) {
 	t.Parallel()
 
+	helperCommand := e2eACPHelperCommand(t)
 	harness := StartRuntimeHarness(t, RuntimeHarnessOptions{
 		Env: map[string]string{
 			e2eACPHelperEnvKey: "1",
 		},
 		ConfigSeed: ConfigSeedOptions{
+			Providers: map[string]aghconfig.ProviderConfig{
+				acpmock.ProviderName: acpmock.ProviderConfig(helperCommand),
+			},
 			AgentDefs: []AgentSeed{{
 				Name:        "coder",
-				Provider:    "claude",
-				Command:     e2eACPHelperCommand(t),
+				Provider:    acpmock.ProviderName,
+				Command:     helperCommand,
 				Permissions: string(aghconfig.PermissionModeApproveReads),
 				Prompt:      "You are a deterministic E2E helper.",
 			}},

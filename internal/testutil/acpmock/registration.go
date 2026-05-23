@@ -16,9 +16,13 @@ type RegisterOptions struct {
 	FixturePath     string
 	FixtureAgent    string
 	AgentName       string
+	ProviderName    string
 	DriverPath      string
 	DiagnosticsPath string
 }
+
+// ProviderName is the auth-free local provider used by fixture-backed ACP mocks.
+const ProviderName = "acpmock"
 
 // Registration captures one temporary mock-agent definition written into AGH home.
 type Registration struct {
@@ -68,13 +72,14 @@ func Register(homePaths aghconfig.HomePaths, opts RegisterOptions) (Registration
 		return Registration{}, fmt.Errorf("acpmock: resolve diagnostics path for %q: %w", runtimeAgentName, err)
 	}
 	command := BuildCommand(driverPath, fixture.path, fixture.agentName, diagnosticsPath)
+	providerName := registrationProviderName(opts.ProviderName, fixture.agent.Provider)
 
 	agentDefPath := filepath.Join(homePaths.AgentsDir, runtimeAgentName, "AGENT.md")
 	if err := os.MkdirAll(filepath.Dir(agentDefPath), 0o755); err != nil {
 		return Registration{}, fmt.Errorf("acpmock: create agent directory %q: %w", filepath.Dir(agentDefPath), err)
 	}
 
-	content := renderAgentDef(runtimeAgentName, fixture.agent, command)
+	content := renderAgentDef(runtimeAgentName, fixture.agent, command, providerName)
 	if err := os.WriteFile(agentDefPath, []byte(content), 0o600); err != nil {
 		return Registration{}, fmt.Errorf("acpmock: write agent definition %q: %w", agentDefPath, err)
 	}
@@ -88,6 +93,9 @@ func Register(homePaths aghconfig.HomePaths, opts RegisterOptions) (Registration
 		)
 	}
 	cfg := aghconfig.DefaultWithHome(homePaths)
+	if providerName == ProviderName {
+		cfg.Providers[ProviderName] = ProviderConfig(driverPath)
+	}
 	if _, err := cfg.ResolveAgent(loaded); err != nil {
 		return Registration{}, postWriteRegistrationError(
 			agentDefPath,
@@ -104,10 +112,34 @@ func Register(homePaths aghconfig.HomePaths, opts RegisterOptions) (Registration
 		DiagnosticsPath: diagnosticsPath,
 		AgentDefPath:    agentDefPath,
 		Command:         command,
-		Provider:        fixture.agent.Provider,
+		Provider:        providerName,
 		Model:           fixture.agent.Model,
 		Permissions:     fixture.agent.Permissions,
 	}, nil
+}
+
+// ProviderConfig returns the local auth-free provider config for ACP mock agents.
+func ProviderConfig(command ...string) aghconfig.ProviderConfig {
+	providerCommand := "acpmock-driver"
+	if len(command) > 0 {
+		if trimmed := strings.TrimSpace(command[0]); trimmed != "" {
+			providerCommand = trimmed
+		}
+	}
+	return aghconfig.ProviderConfig{
+		Command:      providerCommand,
+		DisplayName:  "ACP Mock",
+		Harness:      aghconfig.ProviderHarnessACP,
+		AuthMode:     aghconfig.ProviderAuthModeNone,
+		NoneSecurity: aghconfig.ProviderNoneSecurityLocalTransport,
+	}
+}
+
+func registrationProviderName(override string, fixtureProvider string) string {
+	if trimmed := strings.TrimSpace(override); trimmed != "" {
+		return trimmed
+	}
+	return strings.TrimSpace(fixtureProvider)
 }
 
 type registrationFixture struct {
@@ -154,7 +186,7 @@ func BuildCommand(driverPath string, fixturePath string, fixtureAgent string, di
 	return shellquote.Join(argv...)
 }
 
-func renderAgentDef(name string, agent AgentFixture, command string) string {
+func renderAgentDef(name string, agent AgentFixture, command string, providerName string) string {
 	prompt := strings.TrimSpace(agent.Prompt)
 	if prompt == "" {
 		prompt = "You are " + name + "."
@@ -163,7 +195,7 @@ func renderAgentDef(name string, agent AgentFixture, command string) string {
 	var builder strings.Builder
 	builder.WriteString("---\n")
 	builder.WriteString("name: " + strings.TrimSpace(name) + "\n")
-	builder.WriteString("provider: " + strings.TrimSpace(agent.Provider) + "\n")
+	builder.WriteString("provider: " + strings.TrimSpace(providerName) + "\n")
 	builder.WriteString("command: " + yamlSingleQuote(strings.TrimSpace(command)) + "\n")
 	if model := strings.TrimSpace(agent.Model); model != "" {
 		builder.WriteString("model: " + model + "\n")

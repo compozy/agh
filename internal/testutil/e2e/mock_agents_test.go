@@ -18,42 +18,100 @@ import (
 )
 
 func TestRuntimeHarnessRegisterMockAgentWritesFixtureBackedDefinition(t *testing.T) {
-	fixturePath, err := filepath.Abs(filepath.Join("..", "acpmock", "testdata", "multi_agent_fixture.json"))
-	if err != nil {
-		t.Fatalf("filepath.Abs(fixture) error = %v", err)
-	}
+	t.Run("Should write an auth-free fixture-backed definition", func(t *testing.T) {
+		t.Parallel()
 
-	homePaths := NewHomePaths(t)
-	harness := &RuntimeHarness{
-		HomePaths: homePaths,
-		Artifacts: NewArtifactCollector(t),
-	}
+		fixturePath, err := filepath.Abs(filepath.Join("..", "acpmock", "testdata", "multi_agent_fixture.json"))
+		if err != nil {
+			t.Fatalf("filepath.Abs(fixture) error = %v", err)
+		}
 
-	registration := harness.RegisterMockAgent(t, MockAgentSpec{
-		FixturePath:  fixturePath,
-		FixtureAgent: "alpha",
-		AgentName:    "mock-alpha",
+		homePaths := NewHomePaths(t)
+		harness := &RuntimeHarness{
+			HomePaths: homePaths,
+			Artifacts: NewArtifactCollector(t),
+		}
+
+		registration := harness.RegisterMockAgent(t, MockAgentSpec{
+			FixturePath:  fixturePath,
+			FixtureAgent: "alpha",
+			AgentName:    "mock-alpha",
+		})
+
+		loaded, err := aghconfig.LoadAgentDefFile(registration.AgentDefPath)
+		if err != nil {
+			t.Fatalf("LoadAgentDefFile(%q) error = %v", registration.AgentDefPath, err)
+		}
+		if got, want := loaded.Name, "mock-alpha"; got != want {
+			t.Fatalf("loaded.Name = %q, want %q", got, want)
+		}
+		if got, want := loaded.Provider, acpmock.ProviderName; got != want {
+			t.Fatalf("loaded.Provider = %q, want %q", got, want)
+		}
+		if !strings.Contains(loaded.Command, "--agent alpha") {
+			t.Fatalf("loaded.Command = %q, want --agent alpha", loaded.Command)
+		}
+		if !strings.Contains(loaded.Command, "--fixture") {
+			t.Fatalf("loaded.Command = %q, want --fixture", loaded.Command)
+		}
+		if strings.Contains(loaded.Command, "driver/dist/index.js") {
+			t.Fatalf("loaded.Command = %q, want no dist/index.js dependency", loaded.Command)
+		}
 	})
+}
 
-	loaded, err := aghconfig.LoadAgentDefFile(registration.AgentDefPath)
-	if err != nil {
-		t.Fatalf("LoadAgentDefFile(%q) error = %v", registration.AgentDefPath, err)
-	}
-	if got, want := loaded.Name, "mock-alpha"; got != want {
-		t.Fatalf("loaded.Name = %q, want %q", got, want)
-	}
-	if got, want := loaded.Provider, "claude"; got != want {
-		t.Fatalf("loaded.Provider = %q, want %q", got, want)
-	}
-	if !strings.Contains(loaded.Command, "--agent alpha") {
-		t.Fatalf("loaded.Command = %q, want --agent alpha", loaded.Command)
-	}
-	if !strings.Contains(loaded.Command, "--fixture") {
-		t.Fatalf("loaded.Command = %q, want --fixture", loaded.Command)
-	}
-	if strings.Contains(loaded.Command, "driver/dist/index.js") {
-		t.Fatalf("loaded.Command = %q, want no dist/index.js dependency", loaded.Command)
-	}
+func TestRuntimeHarnessMockAgentProviderConfig(t *testing.T) {
+	t.Run("Should seed an auth-free mock provider for runtime layouts", func(t *testing.T) {
+		t.Parallel()
+
+		fixturePath, err := filepath.Abs(filepath.Join("..", "acpmock", "testdata", "multi_agent_fixture.json"))
+		if err != nil {
+			t.Fatalf("filepath.Abs(fixture) error = %v", err)
+		}
+
+		homePaths := NewHomePaths(t)
+		layout := prepareRuntimeLayout(t, RuntimeHarnessOptions{
+			HomePaths: homePaths,
+			MockAgents: []MockAgentSpec{{
+				FixturePath:  fixturePath,
+				FixtureAgent: "alpha",
+				AgentName:    "mock-alpha",
+			}},
+		})
+
+		loadedConfig, err := aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		agent, err := aghconfig.LoadAgentDef("mock-alpha", homePaths)
+		if err != nil {
+			t.Fatalf("LoadAgentDef(mock-alpha) error = %v", err)
+		}
+		resolved, err := loadedConfig.ResolveAgent(agent)
+		if err != nil {
+			t.Fatalf("ResolveAgent(mock-alpha) error = %v", err)
+		}
+		registration, ok := layout.MockAgents["mock-alpha"]
+		if !ok {
+			t.Fatal("layout.MockAgents[mock-alpha] = missing, want registered mock agent")
+		}
+
+		if got, want := resolved.Provider, acpmock.ProviderName; got != want {
+			t.Fatalf("resolved.Provider = %q, want %q", got, want)
+		}
+		if got, want := resolved.AuthMode, aghconfig.ProviderAuthModeNone; got != want {
+			t.Fatalf("resolved.AuthMode = %q, want %q", got, want)
+		}
+		if got, want := resolved.NoneSecurity, aghconfig.ProviderNoneSecurityLocalTransport; got != want {
+			t.Fatalf("resolved.NoneSecurity = %q, want %q", got, want)
+		}
+		if got, want := loadedConfig.Providers[acpmock.ProviderName].Command, registration.DriverPath; got != want {
+			t.Fatalf("mock provider command = %q, want registered driver path %q", got, want)
+		}
+		if got, want := resolved.Command, registration.Command; got != want {
+			t.Fatalf("resolved.Command = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestRuntimeHarnessCaptureMockAgentDiagnosticsStoresArtifact(t *testing.T) {

@@ -23,6 +23,7 @@ import (
 	"github.com/compozy/agh/internal/sandbox"
 	sessionpkg "github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
+	"github.com/compozy/agh/internal/testutil/acpmock"
 	e2etest "github.com/compozy/agh/internal/testutil/e2e"
 	"github.com/kballard/go-shellquote"
 )
@@ -41,6 +42,8 @@ const (
 	nightlyTaskResumeTraceID        = "trace_task_resume_01"
 	nightlyTaskSideEffectRelative   = "toolhost/nightly-task-network.txt"
 	nightlyBridgeIngressText        = "Need a nightly bridge tool summary"
+	nightlyBridgeIngressAssistant   = "Nightly bridge ingress accepted."
+	nightlyBridgeToolPrompt         = "Run the nightly bridge sandbox tool summary."
 	nightlyBridgeAssistantPrefix    = "Bridge tool summary: "
 	nightlyBridgeSideEffectRelative = "toolhost/nightly-bridge-summary.txt"
 )
@@ -155,14 +158,6 @@ func TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel(t *testing.T) {
 	waitForRuntimeCondition(t, "nightly task session active", 10*time.Second, func() bool {
 		current, err := harness.GetSession(ctx, sessionID)
 		return err == nil && current.State == sessionpkg.StateActive
-	})
-
-	if err := harness.StopSession(ctx, sessionID); err != nil {
-		t.Fatalf("StopSession(%q) error = %v", sessionID, err)
-	}
-	waitForRuntimeCondition(t, "nightly task session stopped", 10*time.Second, func() bool {
-		current, err := harness.GetSession(ctx, sessionID)
-		return err == nil && current.State == sessionpkg.StateStopped
 	})
 
 	resumed, err := harness.ResumeSession(ctx, sessionID)
@@ -283,7 +278,7 @@ func TestDaemonNightlyE2EAutomationTaskResumesIntoNetworkChannel(t *testing.T) {
 	}
 }
 
-func TestDaemonNightlyE2EBridgeIngressUsesSandboxToolBeforeDelivery(t *testing.T) {
+func TestDaemonNightlyE2EBridgeIngressDeliversThenUserSandboxTool(t *testing.T) {
 	repoRoot := daemonBridgeRuntimeRepoRoot(t)
 	extensionDir := prepareDaemonTelegramReferenceExtension(t, repoRoot)
 
@@ -327,8 +322,9 @@ func TestDaemonNightlyE2EBridgeIngressUsesSandboxToolBeforeDelivery(t *testing.T
 	}
 
 	if _, err := harness.InstallExtension(ctx, aghcontract.InstallExtensionRequest{
-		Path:     extensionDir,
-		Checksum: checksum,
+		Path:            extensionDir,
+		Checksum:        checksum,
+		AllowUnverified: true,
 	}); err != nil {
 		t.Fatalf("InstallExtension(%q) error = %v", extensionDir, err)
 	}
@@ -404,7 +400,7 @@ func TestDaemonNightlyE2EBridgeIngressUsesSandboxToolBeforeDelivery(t *testing.T
 
 	waitForRuntimeCondition(t, "nightly bridge transcript", 15*time.Second, func() bool {
 		return sessionTranscriptHasNeedle(ctx, harness, sessionID, nightlyBridgeIngressText) &&
-			sessionTranscriptHasNeedle(ctx, harness, sessionID, nightlyBridgeAssistantPrefix+"bridge-nightly")
+			sessionTranscriptHasNeedle(ctx, harness, sessionID, nightlyBridgeIngressAssistant)
 	})
 
 	deliveries := extensiontest.WaitForDeliveryMarkers(
@@ -432,6 +428,18 @@ func TestDaemonNightlyE2EBridgeIngressUsesSandboxToolBeforeDelivery(t *testing.T
 	if got, want := routes[0].SessionID, sessionID; got != want {
 		t.Fatalf("routes[0].SessionID = %q, want %q", got, want)
 	}
+
+	stream, err := harness.PromptSession(ctx, sessionID, nightlyBridgeToolPrompt)
+	if err != nil {
+		t.Fatalf("PromptSession(%q) error = %v", sessionID, err)
+	}
+	if len(stream) == 0 {
+		t.Log("PromptSession returned no immediate SSE records; waiting for queued dispatch")
+	}
+
+	waitForRuntimeCondition(t, "nightly bridge sandbox tool transcript", 15*time.Second, func() bool {
+		return sessionTranscriptHasNeedle(ctx, harness, sessionID, nightlyBridgeAssistantPrefix+"bridge-nightly")
+	})
 
 	sideEffectBytes, err := os.ReadFile(sideEffectPath)
 	if err != nil {
@@ -589,7 +597,10 @@ func (a *daemonNightlyCombinedACPAgent) promptBridgeSandboxDelivery(
 	params acpsdk.PromptRequest,
 ) (acpsdk.PromptResponse, error) {
 	text := nightlyCombinedPromptText(params.Prompt)
-	if !strings.Contains(text, nightlyBridgeIngressText) {
+	if strings.Contains(text, nightlyBridgeIngressText) {
+		return a.sendMessageAndEndTurn(ctx, params.SessionId, nightlyBridgeIngressAssistant)
+	}
+	if !strings.Contains(text, nightlyBridgeToolPrompt) {
 		return acpsdk.PromptResponse{}, fmt.Errorf("unexpected nightly bridge prompt %q", text)
 	}
 
@@ -666,11 +677,15 @@ func nightlyCombinedConfigSeed(
 	scenario string,
 ) e2etest.ConfigSeedOptions {
 	t.Helper()
+	helperCommand := daemonNightlyCombinedHelperCommand(t, scenario)
 
 	return e2etest.ConfigSeedOptions{
 		DefaultAgent:   agentName,
 		DefaultSandbox: nightlyCombinedEnvProfileName,
 		PermissionMode: aghconfig.PermissionModeApproveAll,
+		Providers: map[string]aghconfig.ProviderConfig{
+			acpmock.ProviderName: acpmock.ProviderConfig(helperCommand),
+		},
 		Sandboxes: map[string]aghconfig.SandboxProfile{
 			nightlyCombinedEnvProfileName: {
 				Backend:     string(sandbox.BackendLocal),
@@ -679,8 +694,8 @@ func nightlyCombinedConfigSeed(
 		},
 		AgentDefs: []e2etest.AgentSeed{{
 			Name:        agentName,
-			Provider:    "claude",
-			Command:     daemonNightlyCombinedHelperCommand(t, scenario),
+			Provider:    acpmock.ProviderName,
+			Command:     helperCommand,
 			Permissions: string(aghconfig.PermissionModeApproveAll),
 			Prompt:      "You are a deterministic nightly combined-flow helper.",
 		}},

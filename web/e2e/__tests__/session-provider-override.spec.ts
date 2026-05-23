@@ -24,6 +24,7 @@ const browserLifecycleFixture = path.resolve(
 );
 
 const browserLifecycleAgent = "browser-lifecycle-agent";
+const mockAgentProvider = "acpmock";
 const overrideProvider = "qa-browser-override";
 const driftedDefaultProvider = "gemini";
 
@@ -76,7 +77,7 @@ test("operator can create a provider/model override session and attach without l
 
   await writeWorkspaceConfig({
     rootDir: workspaceRoot,
-    defaultProvider: "claude",
+    defaultProvider: mockAgentProvider,
     overrideCommand,
     includeOverride: true,
   });
@@ -100,8 +101,10 @@ test("operator can create a provider/model override session and attach without l
     browserLifecycleAgent
   );
   const providerSelect = appPage.getByTestId("session-create-provider-select");
-  await expect(providerSelect).toContainText("Claude Code");
-  await expect(appPage.getByTestId("session-create-provider-runtime")).toContainText("claude");
+  await expect(providerSelect).toContainText("ACP Mock");
+  await expect(appPage.getByTestId("session-create-provider-runtime")).toContainText(
+    mockAgentProvider
+  );
 
   await providerSelect.click();
   const dialogOptions = await appPage
@@ -300,6 +303,10 @@ async function writeWorkspaceConfig(input: {
     lines.push(
       `[providers.${overrideProvider}]`,
       `command = "${escapeTomlString(input.overrideCommand)}"`,
+      `display_name = "QA Browser Override"`,
+      `harness = "acp"`,
+      `auth_mode = "none"`,
+      `none_security = "local_transport"`,
       `[providers.${overrideProvider}.models]`,
       `default = "qa-browser-model"`,
       `[[providers.${overrideProvider}.models.curated]]`,
@@ -308,12 +315,6 @@ async function writeWorkspaceConfig(input: {
       `supports_reasoning = true`,
       `reasoning_efforts = ["low", "medium", "high"]`,
       `default_reasoning_effort = "medium"`,
-      `[[providers.${overrideProvider}.credential_slots]]`,
-      `name = "api_key"`,
-      `target_env = "QA_BROWSER_API_KEY"`,
-      `secret_ref = "env:QA_BROWSER_API_KEY"`,
-      `kind = "api_key"`,
-      `required = false`,
       ""
     );
   }

@@ -307,6 +307,9 @@ func prepareRuntimeLayout(t testing.TB, opts RuntimeHarnessOptions) runtimeLayou
 		if originalMutate != nil {
 			originalMutate(cfg)
 		}
+		if len(opts.MockAgents) > 0 {
+			ensureMockAgentProviderConfig(t, cfg)
+		}
 		if opts.EnableNetwork {
 			cfg.Network.Enabled = true
 		}

@@ -1704,16 +1704,18 @@ func TestBootNetworkEnabledDeliversInboundAndShutsDownCleanly(t *testing.T) {
 		t.Fatal("network lifecycle binding = nil, want boot-time late binding")
 	}
 	if err := lifecycle.JoinChannel(testutil.Context(t), session.NetworkPeerJoin{
-		SessionID: "sess-net",
-		PeerID:    "coder.sess-net",
-		Channel:   "builders",
+		SessionID:   "sess-net",
+		WorkspaceID: "ws-integration",
+		PeerID:      "coder.sess-net",
+		Channel:     "builders",
 	}); err != nil {
 		t.Fatalf("JoinChannel() error = %v", err)
 	}
 	if err := lifecycle.JoinChannel(testutil.Context(t), session.NetworkPeerJoin{
-		SessionID: "sess-sender",
-		PeerID:    "coder.sess-sender",
-		Channel:   "builders",
+		SessionID:   "sess-sender",
+		WorkspaceID: "ws-integration",
+		PeerID:      "coder.sess-sender",
+		Channel:     "builders",
 	}); err != nil {
 		t.Fatalf("JoinChannel(sender) error = %v", err)
 	}
@@ -1815,16 +1817,18 @@ func TestBootNetworkShutdownTracksInterruptedInFlightDelivery(t *testing.T) {
 		t.Fatal("network lifecycle binding = nil, want boot-time late binding")
 	}
 	if err := lifecycle.JoinChannel(testutil.Context(t), session.NetworkPeerJoin{
-		SessionID: "sess-net",
-		PeerID:    "coder.sess-net",
-		Channel:   "builders",
+		SessionID:   "sess-net",
+		WorkspaceID: "ws-integration",
+		PeerID:      "coder.sess-net",
+		Channel:     "builders",
 	}); err != nil {
 		t.Fatalf("JoinChannel() error = %v", err)
 	}
 	if err := lifecycle.JoinChannel(testutil.Context(t), session.NetworkPeerJoin{
-		SessionID: "sess-sender",
-		PeerID:    "coder.sess-sender",
-		Channel:   "builders",
+		SessionID:   "sess-sender",
+		WorkspaceID: "ws-integration",
+		PeerID:      "coder.sess-sender",
+		Channel:     "builders",
 	}); err != nil {
 		t.Fatalf("JoinChannel(sender) error = %v", err)
 	}
@@ -2457,7 +2461,7 @@ body
 		ID:          "sess-1",
 		Name:        "demo",
 		AgentName:   "coder",
-		WorkspaceID: resolvedWorkspace.ID,
+		WorkspaceID: resolvedWorkspace.WorkspaceID,
 		Workspace:   resolvedWorkspace.RootDir,
 		Type:        session.SessionTypeUser,
 		State:       session.StateStopped,
@@ -2565,7 +2569,7 @@ args = [".agh/hooks/capture-task-run.sh", ".agh/task-run-enqueued.json"]
 			TaskRunContext: hookspkg.TaskRunContext{
 				TaskID:                "task-1",
 				RunID:                 "run-1",
-				WorkspaceID:           resolvedWorkspace.ID,
+				WorkspaceID:           resolvedWorkspace.WorkspaceID,
 				CoordinationChannelID: "operations",
 				NetworkChannel:        "operations",
 				AgentName:             "qa",
@@ -2590,7 +2594,7 @@ args = [".agh/hooks/capture-task-run.sh", ".agh/task-run-enqueued.json"]
 			t.Fatalf("json.Unmarshal(task run hook payload) error = %v; body=%s", err, string(body))
 		}
 		if captured.Event != hookspkg.HookTaskRunEnqueued ||
-			captured.WorkspaceID != resolvedWorkspace.ID ||
+			captured.WorkspaceID != resolvedWorkspace.WorkspaceID ||
 			captured.RunID != "run-1" {
 			t.Fatalf("captured payload = %#v, want enqueued payload for the seeded workspace run", captured)
 		}
@@ -2671,7 +2675,7 @@ body
 	sess := &session.Session{
 		ID:          "sess-watch",
 		AgentName:   "general",
-		WorkspaceID: resolvedWorkspace.ID,
+		WorkspaceID: resolvedWorkspace.WorkspaceID,
 		Workspace:   resolvedWorkspace.RootDir,
 		Type:        session.SessionTypeUser,
 		State:       session.StateActive,
@@ -2767,7 +2771,7 @@ func TestRunDreamTickerAndSpawnerIntegration(t *testing.T) {
 		infos: []*session.Info{
 			{
 				ID:          "sess-user",
-				WorkspaceID: resolvedWorkspace.ID,
+				WorkspaceID: resolvedWorkspace.WorkspaceID,
 				Type:        session.SessionTypeUser,
 				UpdatedAt:   time.Date(2026, 4, 4, 10, 0, 0, 0, time.UTC),
 			},
@@ -2820,8 +2824,8 @@ func TestRunDreamTickerAndSpawnerIntegration(t *testing.T) {
 	if got := sessions.createCall(0).Provider; got != "" {
 		t.Fatalf("Create() provider = %q, want explicit empty provider", got)
 	}
-	if got := sessions.createCall(0).Workspace; got != resolvedWorkspace.ID {
-		t.Fatalf("Create() workspace = %q, want %q", got, resolvedWorkspace.ID)
+	if got := sessions.createCall(0).Workspace; got != resolvedWorkspace.WorkspaceID {
+		t.Fatalf("Create() workspace = %q, want %q", got, resolvedWorkspace.WorkspaceID)
 	}
 	if got := sessions.createCall(0).WorkspacePath; got != "" {
 		t.Fatalf("Create() workspace_path = %q, want empty", got)
@@ -2912,8 +2916,12 @@ func TestBootStartsBridgeExtensionWithBoundRuntime(t *testing.T) {
 		t.Fatal("initialize markers = empty, want bridge launch handshake")
 	}
 	request := markers[0].Request
-	if len(request.Methods.ExtensionServices) != 1 || request.Methods.ExtensionServices[0] != "bridges/deliver" {
-		t.Fatalf("initialize extension services = %#v, want [bridges/deliver]", request.Methods.ExtensionServices)
+	if !slices.Contains(request.Methods.ExtensionServices, "bridges/deliver") ||
+		!slices.Contains(request.Methods.ExtensionServices, "bridges/targets/snapshot") {
+		t.Fatalf(
+			"initialize extension services = %#v, want bridges/deliver and bridges/targets/snapshot",
+			request.Methods.ExtensionServices,
+		)
 	}
 	if request.Runtime.Bridge == nil {
 		t.Fatal("initialize runtime bridge = nil, want bound launch payload")
@@ -4183,8 +4191,8 @@ func assertLifecycleHookPayload(
 		if !unmarshalOK {
 			t.Skip("payload unavailable after unmarshal failure")
 		}
-		if payload.WorkspaceID != wantWorkspace.ID {
-			t.Fatalf("payload.WorkspaceID = %q, want %q", payload.WorkspaceID, wantWorkspace.ID)
+		if payload.WorkspaceID != wantWorkspace.WorkspaceID {
+			t.Fatalf("payload.WorkspaceID = %q, want %q", payload.WorkspaceID, wantWorkspace.WorkspaceID)
 		}
 	})
 

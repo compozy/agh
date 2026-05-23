@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { mkdtemp, mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { lstat, mkdtemp, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -47,7 +47,9 @@ describe("browser runtime seed helpers", () => {
     const homeDir = await mkdtemp(path.join(os.tmpdir(), "agh-browser-runtime-home-"));
     await mkdir(path.join(homeDir, "agents"), { recursive: true });
     await mkdir(path.join(homeDir, "logs"), { recursive: true });
-    vi.stubEnv("AGH_TEST_ACPMOCK_DRIVER_BIN", "/tmp/acpmock-driver");
+    const driverPath = path.join(homeDir, "test-acpmock-driver");
+    await writeFile(driverPath, "#!/bin/sh\n", { encoding: "utf8", mode: 0o700 });
+    vi.stubEnv("AGH_TEST_ACPMOCK_DRIVER_BIN", driverPath);
 
     await seedBrowserRuntimeHome(
       {
@@ -76,11 +78,13 @@ describe("browser runtime seed helpers", () => {
     );
 
     expect(agentDef).toContain("name: browser-lifecycle-agent");
-    expect(agentDef).toContain("provider: claude");
+    expect(agentDef).toContain("provider: acpmock");
     expect(agentDef).toContain("--fixture");
     expect(agentDef).toContain("browser_session_lifecycle_fixture.json");
     expect(agentDef).toContain("--agent browser-lifecycle-agent");
     expect(agentDef).not.toContain("driver/dist/index.js");
+    const driverShim = await lstat(path.join(homeDir, "bin", "acpmock-driver"));
+    expect(driverShim.isFile() || driverShim.isSymbolicLink()).toBe(true);
   });
 
   it("writes deterministic user and marketplace skill seeds into the isolated browser runtime home", async () => {

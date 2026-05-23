@@ -21,6 +21,14 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
+func stringPtr(value string) *string {
+	return &value
+}
+
+func surfacePtr(value Surface) *Surface {
+	return &value
+}
+
 func TestManagerJoinPublishesProjectedCapabilityBriefInInitialAndReconnectGreets(t *testing.T) {
 	t.Parallel()
 
@@ -311,9 +319,10 @@ func TestManagerPersistsRuntimeConversationSurfacesAndHandoff(t *testing.T) {
 		}
 
 		threadMessages, err := db.ListConversationMessages(ctx, store.NetworkConversationRef{
-			Channel:  "builders",
-			Surface:  store.NetworkSurfaceThread,
-			ThreadID: testThreadRef().ThreadID,
+			WorkspaceID: testWorkspaceID,
+			Channel:     "builders",
+			Surface:     store.NetworkSurfaceThread,
+			ThreadID:    testThreadRef().ThreadID,
 		}, store.NetworkConversationMessageQuery{Limit: 10})
 		if err != nil {
 			t.Fatalf("ListConversationMessages(thread) error = %v", err)
@@ -324,9 +333,10 @@ func TestManagerPersistsRuntimeConversationSurfacesAndHandoff(t *testing.T) {
 		}
 
 		directMessages, err := db.ListConversationMessages(ctx, store.NetworkConversationRef{
-			Channel:  "builders",
-			Surface:  store.NetworkSurfaceDirect,
-			DirectID: directID,
+			WorkspaceID: testWorkspaceID,
+			Channel:     "builders",
+			Surface:     store.NetworkSurfaceDirect,
+			DirectID:    directID,
 		}, store.NetworkConversationMessageQuery{Limit: 10})
 		if err != nil {
 			t.Fatalf("ListConversationMessages(direct) error = %v", err)
@@ -345,7 +355,7 @@ func TestManagerPersistsRuntimeConversationSurfacesAndHandoff(t *testing.T) {
 		if got, want := handoff.CausationID, "msg-thread-runtime"; got != want {
 			t.Fatalf("handoff CausationID = %q, want %q", got, want)
 		}
-		work, err := db.GetWork(ctx, "work_direct_handoff")
+		work, err := db.GetWork(ctx, testWorkspaceID, "work_direct_handoff")
 		if err != nil {
 			t.Fatalf("GetWork(handoff) error = %v", err)
 		}

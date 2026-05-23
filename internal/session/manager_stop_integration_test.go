@@ -620,6 +620,20 @@ func (sessionStopACPAgent) Cancel(context.Context, acpsdk.CancelNotification) er
 	return nil
 }
 
+func (sessionStopACPAgent) CloseSession(
+	context.Context,
+	acpsdk.CloseSessionRequest,
+) (acpsdk.CloseSessionResponse, error) {
+	return acpsdk.CloseSessionResponse{}, nil
+}
+
+func (sessionStopACPAgent) ListSessions(
+	context.Context,
+	acpsdk.ListSessionsRequest,
+) (acpsdk.ListSessionsResponse, error) {
+	return acpsdk.ListSessionsResponse{Sessions: []acpsdk.SessionInfo{}}, nil
+}
+
 func (sessionStopACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (acpsdk.NewSessionResponse, error) {
 	return acpsdk.NewSessionResponse{
 		SessionId: "sess-stop-helper",
@@ -628,6 +642,13 @@ func (sessionStopACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest)
 
 func (sessionStopACPAgent) LoadSession(context.Context, acpsdk.LoadSessionRequest) (acpsdk.LoadSessionResponse, error) {
 	return acpsdk.LoadSessionResponse{}, nil
+}
+
+func (sessionStopACPAgent) ResumeSession(
+	context.Context,
+	acpsdk.ResumeSessionRequest,
+) (acpsdk.ResumeSessionResponse, error) {
+	return acpsdk.ResumeSessionResponse{}, nil
 }
 
 func (sessionStopACPAgent) Prompt(context.Context, acpsdk.PromptRequest) (acpsdk.PromptResponse, error) {
@@ -641,4 +662,11 @@ func (sessionStopACPAgent) SetSessionMode(
 	acpsdk.SetSessionModeRequest,
 ) (acpsdk.SetSessionModeResponse, error) {
 	return acpsdk.SetSessionModeResponse{}, nil
+}
+
+func (sessionStopACPAgent) SetSessionConfigOption(
+	context.Context,
+	acpsdk.SetSessionConfigOptionRequest,
+) (acpsdk.SetSessionConfigOptionResponse, error) {
+	return acpsdk.SetSessionConfigOptionResponse{ConfigOptions: []acpsdk.SessionConfigOption{}}, nil
 }

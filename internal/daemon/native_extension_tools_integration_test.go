@@ -24,7 +24,9 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsInstall,
-				Input:  json.RawMessage(`{"source":"marketplace","slug":"acme/tool-ext","registry":"github"}`),
+				Input: json.RawMessage(
+					"{\"source\":\"marketplace\",\"slug\":\"acme/tool-ext\",\"registry\":\"github\",\"allow_unverified\":true}",
+				),
 			},
 		); err != nil {
 			t.Fatalf("Registry.Call(extensions_install) error = %v", err)
@@ -35,7 +37,7 @@ func TestNativeExtensionToolsIntegrationLifecycleParity(t *testing.T) {
 			toolspkg.Scope{},
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDExtensionsUpdate,
-				Input:  json.RawMessage(`{"name":"tool-ext"}`),
+				Input:  json.RawMessage("{\"name\":\"tool-ext\",\"allow_unverified\":true}"),
 			},
 		); err != nil {
 			t.Fatalf("Registry.Call(extensions_update) error = %v", err)

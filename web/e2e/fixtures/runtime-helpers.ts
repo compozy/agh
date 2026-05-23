@@ -15,6 +15,7 @@ export type RuntimeMode = RuntimeModeAttach | RuntimeModeLaunch;
 
 export interface RuntimeConfigInput {
   host: string;
+  includeMockAgentProvider?: boolean;
   networkEnabled?: boolean;
   port: number;
   skillsMarketplaceBaseURL?: string;
@@ -71,6 +72,17 @@ export function renderRuntimeConfig(input: RuntimeConfigInput): string {
     ...(input.toolsExternalDefault === undefined
       ? []
       : ["[tools.policy]", `external_default = ${tomlString(input.toolsExternalDefault)}`, ""]),
+    ...(input.includeMockAgentProvider === true
+      ? [
+          "[providers.acpmock]",
+          'command = "acpmock-driver"',
+          'display_name = "ACP Mock"',
+          'harness = "acp"',
+          'auth_mode = "none"',
+          'none_security = "local_transport"',
+          "",
+        ]
+      : []),
   ].join("\n");
 }
 

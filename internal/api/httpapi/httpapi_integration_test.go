@@ -3221,6 +3221,12 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 	if err != nil {
 		t.Fatalf("workspace.NewResolver() error = %v", err)
 	}
+	if _, err := resolver.Register(context.Background(), workspacepkg.RegisterOptions{
+		RootDir: workspace,
+		Name:    "ws-workspace",
+	}); err != nil {
+		t.Fatalf("workspace.Register(%q) error = %v", workspace, err)
+	}
 	driver := newIntegrationDriver(permissionWait)
 	sandboxRegistry, err := sandboxlocal.NewRegistry()
 	if err != nil {
@@ -3328,6 +3334,7 @@ func newIntegrationRuntimeWithPermissionWait(t *testing.T, permissionWait time.D
 		WithPort(cfg.HTTP.Port),
 		WithLogger(discardLogger()),
 		WithSessionManager(manager),
+		WithSessionCatalog(registry),
 		WithTaskService(taskManager),
 		WithObserver(observer),
 		WithResourceService(resourceService),

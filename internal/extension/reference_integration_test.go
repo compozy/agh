@@ -358,8 +358,9 @@ func (h *referenceHarness) installExtension(t *testing.T, relativePath string) c
 	defer cancel()
 
 	record, err := h.client.InstallExtension(ctx, cli.InstallExtensionRequest{
-		Path:     root,
-		Checksum: checksum,
+		Path:            root,
+		Checksum:        checksum,
+		AllowUnverified: true,
 	})
 	if err != nil {
 		t.Fatalf("InstallExtension(%q) error = %v", relativePath, err)

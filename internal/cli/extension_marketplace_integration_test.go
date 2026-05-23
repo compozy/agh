@@ -3,16 +3,153 @@
 package cli
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	aghconfig "github.com/compozy/agh/internal/config"
 	extensionpkg "github.com/compozy/agh/internal/extension"
 	registrypkg "github.com/compozy/agh/internal/registry"
 )
+
+type extensionRegistryTestEnv struct {
+	deps      commandDeps
+	homePaths aghconfig.HomePaths
+}
+
+type extensionRegistrySourceStub struct {
+	name         string
+	caps         registrypkg.SourceCaps
+	searchFunc   func(context.Context, string, registrypkg.SearchOpts) ([]registrypkg.Listing, error)
+	infoFunc     func(context.Context, string) (*registrypkg.Detail, error)
+	downloadFunc func(context.Context, string, registrypkg.DownloadOpts) (*registrypkg.DownloadResult, error)
+}
+
+var _ registrypkg.Source = (*extensionRegistrySourceStub)(nil)
+
+func newExtensionRegistryTestEnv(t *testing.T, sources ...registrypkg.Source) extensionRegistryTestEnv {
+	t.Helper()
+
+	h := newIntegrationHarness(t)
+	h.runner.extensionSources = append([]registrypkg.Source(nil), sources...)
+	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
+	t.Cleanup(func() {
+		if _, _, err := executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json"); err != nil {
+			t.Fatalf("daemon stop cleanup error = %v", err)
+		}
+	})
+	return extensionRegistryTestEnv{deps: h.deps, homePaths: h.homePaths}
+}
+
+func (s *extensionRegistrySourceStub) Name() string {
+	if strings.TrimSpace(s.name) == "" {
+		return "github"
+	}
+	return s.name
+}
+
+func (s *extensionRegistrySourceStub) Capabilities() registrypkg.SourceCaps {
+	return s.caps
+}
+
+func (s *extensionRegistrySourceStub) Search(
+	ctx context.Context,
+	query string,
+	opts registrypkg.SearchOpts,
+) ([]registrypkg.Listing, error) {
+	if s.searchFunc != nil {
+		return s.searchFunc(ctx, query, opts)
+	}
+	return nil, errors.New("extension registry search is not configured")
+}
+
+func (s *extensionRegistrySourceStub) Info(ctx context.Context, slug string) (*registrypkg.Detail, error) {
+	if s.infoFunc != nil {
+		return s.infoFunc(ctx, slug)
+	}
+	return nil, errors.New("extension registry info is not configured")
+}
+
+func (s *extensionRegistrySourceStub) Download(
+	ctx context.Context,
+	slug string,
+	opts registrypkg.DownloadOpts,
+) (*registrypkg.DownloadResult, error) {
+	if s.downloadFunc != nil {
+		return s.downloadFunc(ctx, slug, opts)
+	}
+	return nil, errors.New("extension registry download is not configured")
+}
+
+func (s *extensionRegistrySourceStub) Close() error {
+	return nil
+}
+
+func newExtensionDownloadResult(
+	t *testing.T,
+	slug string,
+	version string,
+	files map[string]string,
+) *registrypkg.DownloadResult {
+	t.Helper()
+
+	archive := extensionArchive(t, files)
+	return &registrypkg.DownloadResult{
+		Reader:      io.NopCloser(bytes.NewReader(archive)),
+		Slug:        slug,
+		Version:     version,
+		ContentSize: int64(len(archive)),
+		ContentType: "application/gzip",
+	}
+}
+
+func remoteExtensionArchiveFiles(name string, version string) map[string]string {
+	return map[string]string{
+		filepath.Join(name, "extension.toml"): fmt.Sprintf(
+			"[extension]\nname = %q\nversion = %q\ndescription = \"CLI marketplace integration fixture\"\nmin_agh_version = \"0.5.0\"\n\n[capabilities]\nprovides = [\"memory.backend\"]\n\n[actions]\nrequires = [\"sessions/list\"]\n",
+			name,
+			version,
+		),
+		filepath.Join(name, "README.md"): "# " + name + "\n",
+	}
+}
+
+func extensionArchive(t *testing.T, files map[string]string) []byte {
+	t.Helper()
+
+	var buffer bytes.Buffer
+	gzipWriter := gzip.NewWriter(&buffer)
+	tarWriter := tar.NewWriter(gzipWriter)
+	for name, content := range files {
+		header := &tar.Header{
+			Name: name,
+			Mode: 0o644,
+			Size: int64(len(content)),
+		}
+		if err := tarWriter.WriteHeader(header); err != nil {
+			t.Fatalf("tarWriter.WriteHeader(%q) error = %v", name, err)
+		}
+		if _, err := tarWriter.Write([]byte(content)); err != nil {
+			t.Fatalf("tarWriter.Write(%q) error = %v", name, err)
+		}
+	}
+	if err := tarWriter.Close(); err != nil {
+		t.Fatalf("tarWriter.Close() error = %v", err)
+	}
+	if err := gzipWriter.Close(); err != nil {
+		t.Fatalf("gzipWriter.Close() error = %v", err)
+	}
+	return buffer.Bytes()
+}
 
 func TestExtensionSearchCommandIntegrationReturnsRegistryListings(t *testing.T) {
 	t.Parallel()

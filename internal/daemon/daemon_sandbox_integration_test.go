@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/agh/internal/sandbox"
 	sessionpkg "github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/testutil/acpmock"
 	e2etest "github.com/compozy/agh/internal/testutil/e2e"
 	"github.com/kballard/go-shellquote"
 )
@@ -388,6 +389,7 @@ func startSandboxRuntimeHarness(
 	permissions aghconfig.PermissionMode,
 ) *e2etest.RuntimeHarness {
 	t.Helper()
+	helperCommand := daemonSandboxHelperCommand(t)
 
 	return e2etest.StartRuntimeHarness(t, e2etest.RuntimeHarnessOptions{
 		Env: map[string]string{
@@ -397,6 +399,9 @@ func startSandboxRuntimeHarness(
 		ConfigSeed: e2etest.ConfigSeedOptions{
 			DefaultAgent:   daemonSandboxFixtureAgentName,
 			DefaultSandbox: daemonSandboxProfileName,
+			Providers: map[string]aghconfig.ProviderConfig{
+				acpmock.ProviderName: acpmock.ProviderConfig(helperCommand),
+			},
 			Sandboxes: map[string]aghconfig.SandboxProfile{
 				daemonSandboxProfileName: {
 					Backend:     string(sandbox.BackendLocal),
@@ -405,8 +410,8 @@ func startSandboxRuntimeHarness(
 			},
 			AgentDefs: []e2etest.AgentSeed{{
 				Name:        daemonSandboxFixtureAgentName,
-				Provider:    "claude",
-				Command:     daemonSandboxHelperCommand(t),
+				Provider:    acpmock.ProviderName,
+				Command:     helperCommand,
 				Permissions: string(permissions),
 				Prompt:      "You are a deterministic sandbox runtime helper.",
 			}},
