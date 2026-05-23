@@ -24,6 +24,7 @@ import (
 
 const (
 	golangciLintVersion       = "v2.12.2"
+	golangciLintTimeout       = "10m"
 	goplsModernizeVersion     = "v0.22.0"
 	gotestsumVersion          = "v1.13.0"
 	binDir                    = "bin"
@@ -110,17 +111,41 @@ func Lint() error {
 	if err := ensureWebBundle(); err != nil {
 		return err
 	}
-	if err := sh.RunV(
-		"go",
-		"run",
-		"github.com/golangci/golangci-lint/v2/cmd/golangci-lint@"+golangciLintVersion,
-		"run",
-		"--allow-parallel-runners",
-		"./...",
-	); err != nil {
+	if err := runGolangCILint(); err != nil {
 		return err
 	}
 	return Modernize()
+}
+
+func runGolangCILint() error {
+	args := []string{
+		"run",
+		"--allow-parallel-runners",
+		"--timeout",
+		golangciLintTimeout,
+		"./...",
+	}
+	if hasPinnedTool("golangci-lint", golangciLintVersion) {
+		return sh.RunV("golangci-lint", args...)
+	}
+	goRunArgs := append(
+		[]string{"run", "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@" + golangciLintVersion},
+		args...,
+	)
+	return sh.RunV("go", goRunArgs...)
+}
+
+func hasPinnedTool(name string, wantVersion string) bool {
+	path, err := exec.LookPath(name)
+	if err != nil {
+		return false
+	}
+	output, err := exec.Command(path, "version").CombinedOutput()
+	if err != nil {
+		return false
+	}
+	versionToken := "version " + strings.TrimPrefix(wantVersion, "v")
+	return bytes.Contains(output, []byte(versionToken))
 }
 
 // Modernize runs gopls' modernize analyzer for min/max/slices idiom suggestions.

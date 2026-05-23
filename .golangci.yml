@@ -5,7 +5,7 @@ run:
     - ""
   issues-exit-code: 1
   tests: true
-  timeout: 5m
+  timeout: 10m
 
 linters:
   default: none
