@@ -312,7 +312,7 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
   await expect(bridgeUI.detailPanel).toContainText("UNBOUND");
   await browserArtifacts.captureScreenshot("bridge-created-unbound", appPage);
 
-  const initialSnapshots = await collectBridgeSnapshots(runtime, createdBridge.id);
+  const initialSnapshots = await waitForBridgeSnapshots(runtime, createdBridge.id, "auth_required");
   expect(initialSnapshots.http.bridge.id).toBe(createdBridge.id);
   expect(initialSnapshots.uds.bridge.id).toBe(createdBridge.id);
   expect(initialSnapshots.cli.id).toBe(createdBridge.id);
@@ -535,6 +535,35 @@ async function collectBridgeSnapshots(runtime: BrowserRuntime, bridgeId: string)
   ]);
 
   return { cli, cliBindings, http, httpBindings, uds, udsBindings };
+}
+
+async function waitForBridgeSnapshots(
+  runtime: BrowserRuntime,
+  bridgeId: string,
+  status: BridgeHealth["status"]
+) {
+  const deadline = Date.now() + 60_000;
+  let lastError: Error | null = null;
+  let lastStatus = "unknown";
+  while (Date.now() < deadline) {
+    try {
+      const snapshots = await collectBridgeSnapshots(runtime, bridgeId);
+      lastError = null;
+      lastStatus = `http=${snapshots.http.health.status} uds=${snapshots.uds.health.status}`;
+      if (snapshots.http.health.status === status && snapshots.uds.health.status === status) {
+        return snapshots;
+      }
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+    }
+    await delay(250);
+  }
+
+  throw new Error(
+    `bridge ${bridgeId} snapshots status ${lastStatus}; expected ${status}${
+      lastError ? ` (last error: ${lastError.message})` : ""
+    }`
+  );
 }
 
 async function collectBridgeRouteSnapshots(runtime: BrowserRuntime, bridgeId: string) {

@@ -333,7 +333,7 @@ test("scheduled job survives daemon restart and does not duplicate fire ids", as
       timeout: 45_000,
     })
     .toBe("ready");
-  await reloadDaemonServedPage(appPage, runtime, "/jobs");
+  await reloadDaemonServedPage(appPage, runtime, "/jobs", { readyTestId: "jobs-shell" });
   await expect(ui.jobsShell).toBeVisible();
   await expect(ui.item(job.id)).toBeVisible({ timeout: 20_000 });
   await ui.item(job.id).click();

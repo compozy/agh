@@ -94,7 +94,9 @@ test("operator can navigate the settings shell and complete a restart-aware gene
   await expect(settingsUI.general.restartBannerMessage).toContainText("Restarting daemon");
   await browserArtifacts.captureScreenshot("tc-func-002-general-restart-polling", appPage);
 
-  await reloadDaemonServedPage(appPage, runtime, "/settings/general");
+  await reloadDaemonServedPage(appPage, runtime, "/settings/general", {
+    readyTestId: "settings-page-general",
+  });
   if (await settingsUI.general.restartBanner.isVisible().catch(() => false)) {
     await expect(settingsUI.general.restartBannerOp).toContainText(operationID);
   } else {

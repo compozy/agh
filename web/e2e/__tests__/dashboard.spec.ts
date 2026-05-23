@@ -247,7 +247,7 @@ test("dashboard refreshes after daemon restart action without stale health", asy
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
   );
 
-  await reloadDaemonServedPage(appPage, runtime, "/");
+  await reloadDaemonServedPage(appPage, runtime, "/", { readyTestId: "home-shell" });
   await expect(appPage.getByTestId("home-shell")).toBeVisible({ timeout: 15_000 });
   await browserArtifacts.captureScreenshot("dashboard-restart-polling", appPage);
 
@@ -256,7 +256,7 @@ test("dashboard refreshes after daemon restart action without stale health", asy
       timeout: 45_000,
     })
     .toBe("ready");
-  await reloadDaemonServedPage(appPage, runtime, "/");
+  await reloadDaemonServedPage(appPage, runtime, "/", { readyTestId: "home-shell" });
 
   const afterRestart = await captureDashboardSnapshot(runtime, workspace);
   await expect(appPage.getByTestId("home-connection-indicator")).toHaveAttribute(
