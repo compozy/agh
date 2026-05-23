@@ -24,6 +24,6 @@
         ".agents/skills/**",
         "**/routeTree.gen.ts",
         ".compozy/tasks/**",
-        "docs/design/**"
+        "docs/**"
     ]
 }
