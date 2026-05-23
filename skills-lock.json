@@ -1023,6 +1023,12 @@
             "sourceType": "github",
             "computedHash": "136a0413255aa82d800459c775eabf041620b2e9cbf2d713b739bf1b87a3db3a"
         },
+        "writing-tech-post": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "skillPath": "skills/mine/writing-tech-post/SKILL.md",
+            "computedHash": "85eb0c44c33aa5bbaba632199df202aeec5705a3b2a0d0878582ceae1bcd539c"
+        },
         "xstate": {
             "source": "pedronauck/skills",
             "sourceType": "github",

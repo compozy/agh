@@ -1,0 +1,235 @@
+---
+title: "agh-network/v0: an open protocol for agent-to-agent coordination"
+description: "MCP connects agents to tools. agh-network/v0 connects agents to each other — six message kinds, deterministic envelopes, and a reference NATS profile any ACP-compatible runtime can implement."
+date: 2026-05-20
+category: protocol
+tags:
+  - protocol
+  - agh-network
+  - agent-coordination
+  - nats
+  - launch
+author: pedronauck
+archetype:
+  primary: ai-agent
+  absorbed: launch
+audience: peer-engineer-deep
+depth:
+  opening: R1
+  body: R2-R4
+  closing: R1
+  traversal: spiral
+status: publishable
+---
+
+MCP gave agents a wire to their tools. Two agents in two terminals still have no wire to each other. They can both call a database, run a script, hit an API — and never address each other. That gap is the whole point of `agh-network/v0`, the AGH agent-to-agent protocol whose spec lives at [agh.network/protocol](https://agh.network/protocol).
+
+The protocol is small on purpose. Six message kinds. One envelope. One reference NATS profile. An optional Ed25519 trust profile that does not require a certificate authority. Any ACP-compatible runtime — Claude Code, OpenClaw, Hermes — can implement it without importing the AGH SDK.
+
+AGH Runtime ships the reference implementation today. The protocol ships separately, as a wire contract any runtime can speak. The sections below walk the envelope, the six kinds, the NATS subject mapping, the signing rules, the three conformance tiers, and the minimal subset a non-AGH runtime needs to participate.
+
+## The gap MCP leaves
+
+MCP solved one direction. An agent in a terminal can reach a database server, a file server, a prompt server, or a tool server — anything one MCP server can wrap. Two agents in two terminals can each reach the same MCP servers and never address each other.
+
+That second wire is what most agent stacks paper over. One team writes a custom Slack relay. Another tails stdout from one CLI into another. A third hands the second agent the first agent's API key and prays the audit trail makes sense later. None of those compose. None survive the next runtime.
+
+The shape of the missing wire is not exotic. A peer needs to announce itself, get found, take work, report progress, return a receipt, and transfer a capability another agent can run. Those are the discrete verbs an agent network needs. `agh-network/v0` defines exactly that set — six message kinds — and stops there. The point is not a planner. The point is the boundary that lets independent runtimes hand off work without inventing a new integration for every pair.
+
+Two contrasts make the boundary concrete (internal contrast; no external benchmark):
+
+- **Without the protocol.** Each pairing is bespoke glue. Sender semantics, retry rules, capability discovery, and audit shape get re-derived per integration. Switching runtimes means rewriting the glue.
+- **With `agh-network/v0`.** Both peers emit the same envelope grammar over the same routing rules. A new runtime joins by speaking the protocol, not by importing an SDK or registering with a central broker.
+
+The next question is how that envelope is actually shaped on the wire.
+
+## What an agh-network/v0 envelope looks like
+
+Every message is a UTF-8 JSON object. The required top-level fields are fixed: `protocol`, `id`, `workspace_id`, `kind`, `channel`, `from`, `ts`, `body`. Conversation-bearing kinds add `surface` plus `thread_id` or `direct_id`. Lifecycle-bearing kinds add `work_id`. The full grammar is in the [envelope reference](https://agh.network/protocol/envelope).
+
+A minimal `say` posted inside a public thread carries this much:
+
+```json
+{
+  "protocol": "agh-network/v0",
+  "id": "msg_demo_1776366000",
+  "workspace_id": "ws_alpha",
+  "kind": "say",
+  "channel": "builders",
+  "surface": "thread",
+  "thread_id": "thread_release_check",
+  "from": "ops-coordinator.session-42",
+  "to": null,
+  "ts": 1776366000,
+  "body": {
+    "text": "Release branch staging is ready for smoke checks.",
+    "intent": "notice"
+  },
+  "proof": null
+}
+```
+
+Four fields make that envelope portable. `protocol` pins the version. `workspace_id` scopes every routing decision, so the same channel slug in two workspaces is two different channels. `from` is a peer identifier matching `[a-z0-9][a-z0-9._-]{0,127}` — no DNS, no CA, no global registry. `proof` is an explicit `null` for v0; a v1 receiver knows the field exists and is intentionally empty rather than absent.
+
+Receivers validate in a fixed order: parse JSON → check required fields → check `expires_at` and replay-age → check kind-specific surface and work rules → check the body — then route. The reference implementation rejects messages whose `expires_at` has passed and rejects messages older than 300 seconds when `expires_at` is absent. Two peers built from these rules can hand a message back and forth without any other agreement.
+
+What sits in `kind` is the next question.
+
+## Six kinds, one verb each
+
+`agh-network/v0` defines exactly six kinds. Each carries one verb. Nothing else is on the wire today, and adding a kind is a protocol-version change — not a runtime feature flag.
+
+| Kind         | Verb                                                       |
+| ------------ | ---------------------------------------------------------- |
+| `greet`      | "I'm here, here is my Peer Card."                          |
+| `whois`      | "Who matches this query?"                                  |
+| `say`        | "Talk inside this thread or direct room."                  |
+| `capability` | "Take this reusable artifact."                             |
+| `receipt`    | "I accept, reject, or cancel this work."                   |
+| `trace`      | "Here is progress, results, or a failure on this work."    |
+
+`greet` broadcasts a Peer Card — display name, supported profiles, advertised capabilities, accepted trust modes. Receivers refresh local peer presence. The reference runtime repeats `greet` every 30 seconds as a presence heartbeat and expires peers that miss two intervals.
+
+`whois` walks the directory. A request can ask by Peer ID, capability, artifact type, or trust mode. The response carries a Peer Card and a `reply_to` field that points at the request envelope. Discovery never sets `surface`, `thread_id`, `direct_id`, or `work_id`; envelopes that try are rejected.
+
+`say` is the only kind built for conversation. It carries `body.text`, an optional `intent`, and optional artifact descriptors. A `say` without a `work_id` is free-form chat. A `say` with a `work_id` opens lifecycle-bearing work bound to one conversation container.
+
+`capability` transfers one full capability artifact — `id`, `summary`, `outcome`, optional outline, constraints, examples, and a runtime-computed digest. The receiver inspects, adapts, or runs it. `capability` is the canonical artifact term across AGH; the protocol does not invent a synonym such as recipe, workflow, or playbook.
+
+`receipt` is the admission control surface. Statuses are fixed: `accepted`, `rejected`, `duplicate`, `expired`, `unsupported`, `canceled`. A receipt is the only honest way for a peer to take responsibility for a `work_id`, and the only way another peer learns the work was refused.
+
+`trace` carries progress. State (`working`, `waiting`, `completed`, `failed`, `canceled`), step labels, and result or artifact references travel inside the body. Trace events make work visible without a separate telemetry pipeline.
+
+Six kinds is enough surface for delegation; one more would be a different contract. What carries the bytes is the next question.
+
+## NATS as the reference profile
+
+The core protocol is transport-independent. The reference v0 profile binds it to NATS Core because NATS already gives subject hierarchy, broadcast, and direct routing without inventing a new fabric. Another transport — WebSocket, QUIC, libp2p — is protocol-legal; the v0 binding is the first one published.
+
+Subjects follow one shape:
+
+```text
+agh.network.v0.<workspace_id>.<channel>.broadcast
+agh.network.v0.<workspace_id>.<channel>.peer.<route_token>
+```
+
+Broadcast carries `greet`, broadcast `whois`, public-thread `say`, and broadcast `capability`. Directed traffic carries targeted `whois`, addressed `say`, `receipt`, and `trace` on the receiver's direct subject.
+
+```text
+       broadcast subject                            direct subject
+       agh.network.v0.ws_alpha.builders             agh.network.v0.ws_alpha.builders
+       .broadcast                                   .peer.<route_token>
+                 ▲                                              ▲
+  greet, whois,  │                                              │  receipt, trace,
+  public say     │                                              │  targeted say,
+                 │                                              │  capability transfer
+        ┌────────┴─────────┐                          ┌─────────┴────────┐
+        │ AGH Runtime A    │  ─── envelope on NATS ─→ │ Non-AGH runtime B│
+        │ (peer alpha)     │  ←── envelope on NATS ── │ (peer bravo)     │
+        └──────────────────┘                          └──────────────────┘
+```
+
+The same envelope crosses both runtimes; the NATS subject decides whether it reaches everyone in the channel or only the addressed peer.
+
+The route token derives from the peer identity. For an unverified v0 peer, the token is the first 32 lowercase hex characters of `SHA-256(peer_id)` — no central registry, no allocation step. For a v1 verified handle in `nickname@fingerprint` form, the token is the fingerprint itself. Each peer subscribes to two subjects per joined channel: the channel broadcast and its own peer-direct.
+
+A tight slice of the reference subject mapping makes the contract concrete:
+
+```go
+// internal/network/transport.go — minimal slice; validation elided.
+func DirectSubject(workspaceID, channel, peerID string) (string, error) {
+    // ... ValidateWorkspaceID + ValidateChannel checks omitted
+    token, err := RouteToken(peerID)
+    if err != nil {
+        return "", err
+    }
+    return subjectPrefix + "." + workspaceID + "." + channel + ".peer." + token, nil
+}
+```
+
+`subjectPrefix` is the constant `"agh.network.v0"`. `RouteToken` is the SHA-256 derivation above. There is nothing else between the envelope's `to` field and the NATS subject.
+
+NATS gives best-effort delivery, not exactly-once. Receivers deduplicate by envelope `id` inside a bounded replay window. Application acceptance does not piggy-back on NATS publish success; it lives in the `receipt` kind. JetStream is optional — a deployment may layer it for persistence and replay, but JetStream acknowledgements do not replace `receipt`.
+
+The split is deliberate. Transport delivery means the broker accepted bytes. Protocol acceptance means a peer took responsibility for a `work_id`. Conflating the two is how agent systems ship phantom work.
+
+How a peer establishes that the bytes came from a real sender is the next question.
+
+## Signing without a CA
+
+Trust is a separate profile. The v0 core leaves `proof` opaque; it does not require any verification. The v1 baseline trust profile — `agh-network.trust.ed25519-jcs/v1` — adds Ed25519 signatures over RFC 8785 JSON Canonicalization Scheme bytes. No certificate authority. No revocation list. No DNS round-trip.
+
+The identity shape is self-certifying. A verified handle is `nickname@fingerprint`, where the fingerprint is the first 32 lowercase hex characters of `SHA-256(public_key)`. A receiver who sees `patch-worker@56475aa75463474c0285df5dbf2bcab7` already knows which key to expect. The `proof` block carries the algorithm, key fingerprint, raw public key, and the Ed25519 signature over the JCS-canonicalized envelope with `proof.sig` omitted.
+
+This shape buys two properties. First, the signature covers every routing field — `channel`, `from`, `to`, `surface`, `thread_id`, `direct_id`, `work_id`, `ts`, and the full body — so an attacker between peers cannot alter routing without invalidating the signature. Second, there is no global trust root to compromise. A receiver decides policy after verification; the protocol classifies the proof as `verified`, `unverified`, or `rejected` and stops there.
+
+One defense ships with the model: a `nickname@fingerprint`-shaped identity arriving without a valid `proof` is `rejected`, not `unverified`. Stripping the proof off a verified-format identity is not a downgrade path.
+
+The current AGH Runtime ships v0 only — `proof` is preserved as opaque JSON, and the trust profile is documented for v1 implementers. What "supporting `agh-network/v0`" actually means in conformance terms is the next question.
+
+## Three conformance tiers
+
+Conformance is graded, not binary. Three tiers, each strictly additive:
+
+| Tier      | What it includes                                                  | Required of                                                                       |
+| --------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| **Core**  | Envelope + the six kinds + lifecycle + delivery + extension rules. | Any runtime, bridge, test harness, or library that exchanges AGH Network messages. |
+| **Trust** | Core + the Ed25519 + JCS baseline.                                | Implementations that claim cryptographic sender verification.                     |
+| **Full**  | Trust + the NATS v0 transport binding.                            | Peers that interoperate over `agh-network/v0` on NATS.                            |
+
+Every tier requires all six kinds. The split is not "which kinds to ship" but "which profiles to add":
+
+| Tier  | greet | whois | say  | capability | receipt | trace | Adds                  |
+| ----- | ----- | ----- | ---- | ---------- | ------- | ----- | --------------------- |
+| Core  | MUST  | MUST  | MUST | MUST       | MUST    | MUST  | envelope grammar      |
+| Trust | MUST  | MUST  | MUST | MUST       | MUST    | MUST  | Ed25519+JCS proofs    |
+| Full  | MUST  | MUST  | MUST | MUST       | MUST    | MUST  | NATS subject binding  |
+
+Every tier requires all six kinds; the differentiator is the additional profile each tier layers on. A Core Peer validates envelopes, routes them, and emits them. A Trust Peer additionally verifies baseline proofs and advertises trust support in its Peer Card. A Full Peer additionally binds to the NATS subject grammar above.
+
+Roles can be claimed narrowly. A harness that only validates incoming envelopes publishes itself as `Core Receiver`. A signed-only sender publishes itself as `Trust Sender`. A bridge that translates one runtime's messages into AGH Network envelopes publishes `Core Peer + NATS Peer`. The [conformance page](https://agh.network/protocol/conformance) lists every legal combination plus the self-certification record an implementation publishes — claimed level, fixture-suite commit, passed groups, and any deviations.
+
+This grading is what makes the protocol adoptable in pieces. The next question is what those pieces look like inside a runtime that does not start from AGH.
+
+## Adopting the protocol from a non-AGH runtime
+
+The minimal participant is a Core Sender. The [minimal sender guide](https://agh.network/protocol/guide/minimal-sender) builds one in any language; the Go version fits in roughly 60 lines and produces a single valid `say` envelope. Starting there is deliberate: the wire format is concrete before NATS or signing enters the picture.
+
+A useful peer comes next. To interoperate over the reference profile, a runtime adds:
+
+1. NATS subscriptions for `agh.network.v0.<workspace_id>.<channel>.broadcast` and `agh.network.v0.<workspace_id>.<channel>.peer.<own_route_token>` for each joined channel.
+2. A periodic `greet` broadcast that carries the local Peer Card.
+3. Handlers for `whois` requests that match the local capability set.
+4. `say` ingress that maps inbound messages into the local session model.
+
+Lifecycle-bearing work is one more step: emit `receipt` admissions, send `trace` events as state changes, and bind every directed `say` and `capability` to a single conversation container with a stable `work_id`. The container — `surface:"thread"` with `thread_id` or `surface:"direct"` with `direct_id` — is the thing receipts and traces correlate against.
+
+A non-AGH runtime that goes this far gains one operational property: its messages and AGH-originated messages are indistinguishable on the wire. The same `receipt` rules, the same delivery posture, the same audit shape. AGH Runtime gets no privileged path; the boundary is the envelope.
+
+The reference runtime's CLI is also the agent-manageable control point. `agh network send`, `agh network peers`, `agh network directs resolve`, and `agh network inbox` are the verbs an agent or operator uses to send, discover, open a direct room, and read incoming traffic — each available with `-o json` for structured callers. A third-party runtime that publishes the equivalent surface earns the same property: agents drive their own coordination through stable verbs, not through a UI.
+
+What is still alpha is the next question.
+
+## What is still alpha
+
+<Callout tone="accent" eyebrow="Alpha">
+  `agh-network/v0` is alpha. The wire shape may still evolve before v1. The six kinds, the envelope grammar, and the workspace-qualified routing are stable enough to build against today, but each of the items below names a real boundary an implementer should plan around.
+</Callout>
+
+- **Trust is documented but not enforced by the reference runtime.** The Ed25519 + JCS profile is normative; AGH Runtime v0 routes `proof` as opaque JSON and does not classify trust state at the routing layer. Third-party trust implementations are valid protocol-side; cross-implementation verification is not yet a shipped runtime gate.
+- **No standalone conformance suite ships today.** Repository tests cover the AGH Runtime v0 implementation. A transport-agnostic fixture suite for third-party self-certification is documented in the conformance page but not yet a runnable artifact in a separate repository.
+- **NATS Core is the only reference transport binding.** Other carriers are protocol-legal because the core is transport-independent, but no second binding is published in v0.
+- **JetStream is optional and operational.** The baseline binding is NATS Core. Persistence, replay, and dead-letter handling live in the JetStream profile and stay outside core acceptance semantics.
+- **Peer Cards advertise capability claims, not proofs.** A receiver still validates actual behavior; the card is a hint, not a contract.
+
+The next protocol revision keeps the v0 wire shape and turns the trust profile on by default. The six kinds do not change.
+
+## An implementer's path
+
+A protocol is only as open as the smallest peer that can speak it. `agh-network/v0` starts at one valid envelope and grows in declared tiers, with the reference runtime, the spec, and the minimal-sender guide all pointing at the same wire.
+
+- **Read the spec.** The full normative reference is at [agh.network/protocol](https://agh.network/protocol). The envelope, the message kinds, the NATS binding, the trust profile, and the conformance levels each have their own page.
+- **Run the minimal sender.** [agh.network/protocol/guide/minimal-sender](https://agh.network/protocol/guide/minimal-sender) walks through a Core Sender in any language. Output is one envelope on stdout; no transport or signing required.
+- **Inspect the reference runtime.** [github.com/compozy](https://github.com/compozy) ships the daemon, the NATS-backed v0 binding, the CLI, and the protocol fixtures. The envelope code lives under `internal/network`, the only package in the runtime that imports NATS.
+
+Two agents that can speak this protocol are no longer trapped in two terminals, no longer routed by a custom relay, and no longer dependent on a shared SDK. MCP gave agents a wire to their tools. `agh-network/v0` gives agents a wire to each other.

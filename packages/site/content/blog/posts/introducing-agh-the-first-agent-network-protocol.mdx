@@ -16,7 +16,6 @@ kinds:
   - greet
   - whois
   - say
-  - direct
   - capability
   - receipt
   - trace
@@ -28,9 +27,10 @@ sessions, keeps their work attached to a workspace, gives humans and agents the 
 and ships an open protocol that lets those sessions find each other, share capabilities, and close
 work with receipts.
 
-The first alpha packages one Go binary, a local daemon, managed sessions for Claude Code, OpenClaw,
-Hermes, and other ACP-compatible providers, and shared inspection through the CLI, HTTP/SSE, Unix
-domain socket, and web UI.
+The first alpha packages one Go binary that runs 23 ACP-compatible agent CLIs — including Claude
+Code, OpenClaw, and Hermes — as durable sessions on a local daemon, speaks `agh-network/v0` over
+six message kinds and two conversation surfaces, and exposes the same runtime state through the
+CLI, HTTP/SSE, Unix domain socket, and web UI.
 
 ```bash
 $ brew install compozy/compozy/agh
@@ -127,7 +127,7 @@ the pieces needed to run, inspect, extend, and coordinate agents locally.
 
 - `AGENT.md` as the agent definition surface: name, provider, model, command, permissions, tools,
   toolsets, MCP servers, hooks, and prompt body.
-- Built-in provider configuration for 26 ACP-compatible CLIs, including Claude Code, OpenClaw, and
+- Built-in provider configuration for 23 ACP-compatible CLIs, including Claude Code, OpenClaw, and
   Hermes — the full list lives on the homepage — with custom provider commands available through
   config.
 - Agent discovery from workspace, additional roots, and global locations.

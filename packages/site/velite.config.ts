@@ -2,7 +2,7 @@ import { AGH_CODE_THEMES } from "@agh/ui/lib/code-theme";
 import { defineConfig, s } from "velite";
 import rehypePrettyCode, { type Options as RehypePrettyCodeOptions } from "rehype-pretty-code";
 
-const wireKinds = ["greet", "whois", "say", "direct", "capability", "receipt", "trace"] as const;
+const wireKinds = ["greet", "whois", "say", "capability", "receipt", "trace"] as const;
 
 const blogCategories = ["protocol", "runtime", "engineering", "network"] as const;
 
