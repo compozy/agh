@@ -326,30 +326,65 @@ func TestPackagingMetadataStaysAlignedWithRuntimeAndInstaller(t *testing.T) {
 	})
 }
 
-func TestPRReleaseConfigGeneratesSiteChangelogArtifact(t *testing.T) {
+func TestPRReleaseConfigGeneratesReleaseArtifacts(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should generate site changelog release artifact", func(t *testing.T) {
+	t.Run("Should generate and format release artifacts", func(t *testing.T) {
 		t.Parallel()
 
 		root := findRepoRootForReleaseConfigTest(t)
 		cfg := readYAMLMap(t, root, ".pr-release")
 		artifacts := sliceAt(t, cfg, "release_artifacts")
-		if len(artifacts) != 1 {
-			t.Fatalf("release_artifacts len = %d, want 1", len(artifacts))
+		if len(artifacts) != 2 {
+			t.Fatalf("release_artifacts len = %d, want 2", len(artifacts))
 		}
-		artifact := asMap(t, artifacts[0], "release_artifacts[0]")
-		if got, want := stringAt(t, artifact, "name"), "site-changelog"; got != want {
+
+		siteArtifact := asMap(t, artifacts[0], "release_artifacts[0]")
+		if got, want := stringAt(t, siteArtifact, "name"), "site-changelog"; got != want {
 			t.Fatalf("release_artifacts[0].name = %q, want %q", got, want)
 		}
-		if got, want := stringAt(t, artifact, "command"), "bun"; got != want {
+		if got, want := stringAt(t, siteArtifact, "command"), "bun"; got != want {
 			t.Fatalf("release_artifacts[0].command = %q, want %q", got, want)
 		}
-		if !stringSliceContains(sliceAt(t, artifact, "args"), "release:site-changelog") {
-			t.Fatalf("release_artifacts[0].args = %#v, want release:site-changelog", artifact["args"])
+		if !stringSliceContains(sliceAt(t, siteArtifact, "args"), "release:site-changelog") {
+			t.Fatalf("release_artifacts[0].args = %#v, want release:site-changelog", siteArtifact["args"])
 		}
-		if !stringSliceContains(sliceAt(t, artifact, "add"), "packages/site/content/blog/changelog/*.mdx") {
-			t.Fatalf("release_artifacts[0].add = %#v, want site changelog glob", artifact["add"])
+		if !stringSliceContains(sliceAt(t, siteArtifact, "add"), "packages/site/content/blog/changelog/*.mdx") {
+			t.Fatalf("release_artifacts[0].add = %#v, want site changelog glob", siteArtifact["add"])
+		}
+
+		formatArtifact := asMap(t, artifacts[1], "release_artifacts[1]")
+		if got, want := stringAt(t, formatArtifact, "name"), "format-release-artifacts"; got != want {
+			t.Fatalf("release_artifacts[1].name = %q, want %q", got, want)
+		}
+		if got, want := stringAt(t, formatArtifact, "command"), "bun"; got != want {
+			t.Fatalf("release_artifacts[1].command = %q, want %q", got, want)
+		}
+		formatArgs := sliceAt(t, formatArtifact, "args")
+		for _, arg := range []string{
+			"x",
+			"oxfmt",
+			"CHANGELOG.md",
+			"RELEASE_BODY.md",
+			"RELEASE_NOTES.md",
+			"package.json",
+			"packages/site/content/blog/changelog/*.mdx",
+		} {
+			if !stringSliceContains(formatArgs, arg) {
+				t.Fatalf("release_artifacts[1].args = %#v, want %q", formatArtifact["args"], arg)
+			}
+		}
+		formatAdds := sliceAt(t, formatArtifact, "add")
+		for _, path := range []string{
+			"CHANGELOG.md",
+			"RELEASE_BODY.md",
+			"RELEASE_NOTES.md",
+			"package.json",
+			"packages/site/content/blog/changelog/*.mdx",
+		} {
+			if !stringSliceContains(formatAdds, path) {
+				t.Fatalf("release_artifacts[1].add = %#v, want %q", formatArtifact["add"], path)
+			}
 		}
 	})
 }
