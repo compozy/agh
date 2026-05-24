@@ -198,7 +198,7 @@ func TestSessionListOutputFormatsIntegration(t *testing.T) {
 	}
 	if !strings.Contains(
 		toonOut,
-		"sessions[1]{id,name,agent_name,provider,sandbox_backend,state,failure_kind,workspace,channel,updated_at}:",
+		"sessions[1]{id,name,agent_name,provider,sandbox_backend,state,badge,failure_kind,workspace,channel,updated_at}:",
 	) {
 		t.Fatalf("toon output = %q, want TOON table", toonOut)
 	}
@@ -268,16 +268,10 @@ func TestCLISessionChannelRoundTripIntegration(t *testing.T) {
 		t.Fatalf("stopped = %#v, want stopped builders session", stopped)
 	}
 
-	resumeOut, _, err := executeRootCommand(t, h.deps, "session", "resume", created.ID, "-o", "json")
-	if err != nil {
-		t.Fatalf("session resume error = %v", err)
-	}
-	var resumed SessionRecord
-	if err := json.Unmarshal([]byte(resumeOut), &resumed); err != nil {
-		t.Fatalf("json.Unmarshal(session resume) error = %v", err)
-	}
-	if resumed.Channel != "builders" || resumed.State != session.StateActive {
-		t.Fatalf("resumed = %#v, want active builders session", resumed)
+	if _, _, err := executeRootCommand(t, h.deps, "session", "resume", created.ID, "-o", "json"); err == nil {
+		t.Fatal("session resume stopped error = nil, want attach rejection")
+	} else if !strings.Contains(err.Error(), "session not attachable") {
+		t.Fatalf("session resume stopped error = %v, want not attachable", err)
 	}
 }
 
@@ -363,17 +357,10 @@ func TestCLISessionProviderOverrideIntegration(t *testing.T) {
 		t.Fatalf("stopped = %#v, want stopped fake-alt session", stopped)
 	}
 
-	resumeOut, _, err := executeRootCommand(t, h.deps, "session", "resume", created.ID, "-o", "json")
-	if err != nil {
-		t.Fatalf("session resume error = %v", err)
-	}
-
-	var resumed SessionRecord
-	if err := json.Unmarshal([]byte(resumeOut), &resumed); err != nil {
-		t.Fatalf("json.Unmarshal(session resume) error = %v", err)
-	}
-	if resumed.Provider != "fake-alt" || resumed.State != session.StateActive {
-		t.Fatalf("resumed = %#v, want active fake-alt session", resumed)
+	if _, _, err := executeRootCommand(t, h.deps, "session", "resume", created.ID, "-o", "json"); err == nil {
+		t.Fatal("session resume stopped provider override error = nil, want attach rejection")
+	} else if !strings.Contains(err.Error(), "session not attachable") {
+		t.Fatalf("session resume stopped provider override error = %v, want not attachable", err)
 	}
 }
 
@@ -898,7 +885,7 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 		t.Fatal("timed out waiting for blocked receiver prompt")
 	}
 
-	sendDirect := func(messageID string, text string) {
+	sendDirect := func(messageID string, workID string, text string) {
 		t.Helper()
 
 		out, _, err := executeRootCommand(t, h.deps,
@@ -909,7 +896,7 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 			"--direct", directID,
 			"--kind", "say",
 			"--to", receiverPeerID,
-			"--work", "work_review_1",
+			"--work", workID,
 			"--id", messageID,
 			"--body", fmt.Sprintf(`{"text":%q}`, text),
 			"-o", "json",
@@ -954,8 +941,8 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 		return status
 	}
 
-	sendDirect("msg-direct-retry-1", "please review auth.go")
-	sendDirect("msg-direct-retry-1", "please review auth.go")
+	sendDirect("msg-direct-retry-1", "work_review_1", "please review auth.go")
+	sendDirect("msg-direct-retry-1", "work_review_1", "please review auth.go")
 
 	waitForCondition(t, 2*time.Second, func() bool {
 		inbox := readInbox(receiver.ID)
@@ -1079,16 +1066,16 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 		t.Fatalf("stopped receiver = %#v, want stopped state", stopped)
 	}
 
-	resumeOut, _, err := executeRootCommand(t, h.deps, "session", "resume", receiver.ID, "-o", "json")
+	if _, _, err := executeRootCommand(t, h.deps, "session", "resume", receiver.ID, "-o", "json"); err == nil {
+		t.Fatal("session resume stopped receiver error = nil, want attach rejection")
+	} else if !strings.Contains(err.Error(), "session not attachable") {
+		t.Fatalf("session resume stopped receiver error = %v, want not attachable", err)
+	}
+	receiver = newSession("receiver-reconnect")
+	receiverPeerID = "coder." + receiver.ID
+	directID, _, _, err = network.DirectRoomIdentity(sender.WorkspaceID, "builders", senderPeerID, receiverPeerID)
 	if err != nil {
-		t.Fatalf("session resume receiver error = %v", err)
-	}
-	var resumed SessionRecord
-	if err := json.Unmarshal([]byte(resumeOut), &resumed); err != nil {
-		t.Fatalf("json.Unmarshal(session resume receiver) error = %v", err)
-	}
-	if resumed.State != session.StateActive || resumed.Channel != "builders" {
-		t.Fatalf("resumed receiver = %#v, want active builders session", resumed)
+		t.Fatalf("DirectRoomIdentity(reconnected receiver) error = %v", err)
 	}
 
 	resumedEvents, err := h.runner.blockSession(receiver.ID)
@@ -1102,7 +1089,7 @@ func TestCLINetworkDirectRetryAndResumeIntegration(t *testing.T) {
 		t.Fatal("timed out waiting for blocked resumed receiver prompt")
 	}
 
-	sendDirect("msg-direct-resume-1", "please review after resume")
+	sendDirect("msg-direct-resume-1", "work_review_2", "please review after resume")
 
 	waitForCondition(t, 2*time.Second, func() bool {
 		inbox := readInbox(receiver.ID)
@@ -1153,6 +1140,7 @@ func TestExtensionCommandRoundTripIntegration(t *testing.T) {
 		"install",
 		dir,
 		"--allow-unverified",
+		"--yes",
 		"-o",
 		"json",
 	)
@@ -1370,22 +1358,31 @@ func TestMemoryWriteListIntegration(t *testing.T) {
 		_ = h.runner.waitForExit()
 	}()
 
-	if _, _, err := executeRootCommand(
+	writeOut, _, err := executeRootCommand(
 		t,
 		h.deps,
 		"memory",
 		"write",
-		"prefs.md",
 		"--type",
 		"user",
+		"--name",
+		"Prefs",
 		"--description",
 		"cli memory",
 		"--content",
 		"remember this",
 		"-o",
 		"json",
-	); err != nil {
+	)
+	if err != nil {
 		t.Fatalf("memory write error = %v", err)
+	}
+	var written MemoryMutationRecord
+	if err := json.Unmarshal([]byte(writeOut), &written); err != nil {
+		t.Fatalf("json.Unmarshal(memory write) error = %v; out=%s", err, writeOut)
+	}
+	if !written.Applied || written.Decision.TargetFilename == "" {
+		t.Fatalf("written = %#v, want applied decision with target filename", written)
 	}
 
 	listOut, _, err := executeRootCommand(t, h.deps, "memory", "list", "--scope", "global", "-o", "json")
@@ -1393,12 +1390,15 @@ func TestMemoryWriteListIntegration(t *testing.T) {
 		t.Fatalf("memory list error = %v", err)
 	}
 
-	var memories []memoryListItem
-	if err := json.Unmarshal([]byte(listOut), &memories); err != nil {
+	var listed struct {
+		Memories []memoryListItem `json:"memories"`
+	}
+	if err := json.Unmarshal([]byte(listOut), &listed); err != nil {
 		t.Fatalf("json.Unmarshal(memory list) error = %v; out=%s", err, listOut)
 	}
-	if len(memories) != 1 || memories[0].Filename != "prefs.md" {
-		t.Fatalf("memories = %#v, want prefs.md", memories)
+	memories := listed.Memories
+	if len(memories) != 1 || memories[0].Filename != written.Decision.TargetFilename {
+		t.Fatalf("memories = %#v, want %q", memories, written.Decision.TargetFilename)
 	}
 }
 
@@ -2225,14 +2225,7 @@ func TestCLIHistoricalChannelTaskRunStartAfterDaemonRestartIntegration(t *testin
 			t.Fatalf("record.PeerCount after complete = %d, want %d", got, want)
 		}
 
-		statusOut := mustExecuteRoot(t, h.deps, "daemon", "status", "-o", "json")
-		var status DaemonStatus
-		if err := json.Unmarshal([]byte(statusOut), &status); err != nil {
-			t.Fatalf("json.Unmarshal(daemon status) error = %v", err)
-		}
-		if status.ActiveSessions != 0 {
-			t.Fatalf("status.ActiveSessions = %d, want 0", status.ActiveSessions)
-		}
+		assertNoActiveSessions(t, h.deps)
 	})
 }
 
@@ -2282,11 +2275,12 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 	if worker.ID == "" || worker.WorkspaceID == "" || worker.State != session.StateActive {
 		t.Fatalf("worker = %#v, want active workspace session", worker)
 	}
+	agentSessionID := worker.ID
 	agentDeps := h.deps
 	agentDeps.getenv = func(key string) string {
 		switch key {
 		case agentidentity.EnvSessionID:
-			return worker.ID
+			return agentSessionID
 		case agentidentity.EnvAgent:
 			return worker.AgentName
 		default:
@@ -2360,23 +2354,7 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 		channelName = firstCLIValue(next.Claim.CoordinationChannel.Channel, channelID)
 	})
 
-	t.Run("Should reconnect and renew the claimed lease", func(t *testing.T) {
-		if _, _, err := executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json"); err != nil {
-			t.Fatalf("daemon stop before reconnect error = %v", err)
-		}
-		if err := h.runner.waitForExit(); err != nil {
-			t.Fatalf("waitForExit(before reconnect) error = %v", err)
-		}
-		mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-		resumeOut := mustExecuteRoot(t, h.deps, "session", "resume", worker.ID, "-o", "json")
-		var resumed SessionRecord
-		if err := json.Unmarshal([]byte(resumeOut), &resumed); err != nil {
-			t.Fatalf("json.Unmarshal(session resume) error = %v", err)
-		}
-		if resumed.State != session.StateActive {
-			t.Fatalf("resumed = %#v, want active worker after reconnect", resumed)
-		}
-
+	t.Run("Should renew the claimed lease", func(t *testing.T) {
 		heartbeatOut := mustExecuteRoot(
 			t,
 			agentDeps,
@@ -2552,34 +2530,16 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 		}
 		waitUntilLeaseExpires(t, *staleNext.Claim.Lease.LeaseUntil, 3*time.Second)
 
-		if _, _, err := executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json"); err != nil {
-			t.Fatalf("daemon stop before lease recovery error = %v", err)
-		}
-		if err := h.runner.waitForExit(); err != nil {
-			t.Fatalf("waitForExit(before lease recovery) error = %v", err)
-		}
-		mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
-		recoveredResumeOut := mustExecuteRoot(t, h.deps, "session", "resume", worker.ID, "-o", "json")
-		var recoveredWorker SessionRecord
-		if err := json.Unmarshal([]byte(recoveredResumeOut), &recoveredWorker); err != nil {
-			t.Fatalf("json.Unmarshal(recovered session resume) error = %v", err)
-		}
-		if recoveredWorker.State != session.StateActive {
-			t.Fatalf("recovered worker = %#v, want active worker after recovery boot", recoveredWorker)
-		}
-
 		for _, tt := range []struct {
 			name string
 			args []string
 		}{
 			{
-				name: "release",
+				name: "heartbeat",
 				args: []string{
 					"task",
-					"release",
+					"heartbeat",
 					staleRun.ID,
-					"--reason",
-					"stale holder",
 					"-o",
 					"json",
 				},
@@ -2597,16 +2557,16 @@ func TestCLIAgentTaskLeaseLifecycleIntegration(t *testing.T) {
 				},
 			},
 		} {
-			t.Run("Should reject stale "+tt.name+" after recovery", func(t *testing.T) {
+			t.Run("Should reject expired "+tt.name+" mutation", func(t *testing.T) {
 				exitCode, _, stderr := executeRootCommandWithExit(t, agentDeps, tt.args...)
 				if exitCode == 0 {
-					t.Fatalf("task %s after recovery exit code = 0, want stale token rejection", tt.name)
+					t.Fatalf("task %s after expiry exit code = 0, want lease expiry rejection", tt.name)
 				}
-				if !strings.Contains(stderr, "not an active lease") {
-					t.Fatalf("task %s after recovery stderr did not include inactive lease rejection", tt.name)
+				if !strings.Contains(stderr, "lease expired") {
+					t.Fatalf("task %s after expiry stderr = %q, want lease expired rejection", tt.name, stderr)
 				}
 				if strings.Contains(stderr, `"claim_token"`) || strings.Contains(stderr, "agh_claim_") {
-					t.Fatalf("task %s after recovery leaked raw claim token", tt.name)
+					t.Fatalf("task %s after expiry leaked raw claim token", tt.name)
 				}
 			})
 		}
@@ -2661,6 +2621,7 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 	if worker.ID == "" || worker.State != session.StateActive || worker.Channel != channel {
 		t.Fatalf("worker = %#v, want active worker on %q", worker, channel)
 	}
+	agentSessionID := worker.ID
 
 	stopOut := mustExecuteRoot(t, h.deps, "session", "stop", worker.ID, "-o", "json")
 	var stopped SessionRecord
@@ -2753,7 +2714,7 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 	agentDeps.getenv = func(key string) string {
 		switch key {
 		case agentidentity.EnvSessionID:
-			return worker.ID
+			return agentSessionID
 		case agentidentity.EnvAgent:
 			return worker.AgentName
 		default:
@@ -2770,14 +2731,30 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 		}
 		mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
 
-		resumeOut := mustExecuteRoot(t, h.deps, "session", "resume", worker.ID, "-o", "json")
+		resumeOut := mustExecuteRoot(
+			t,
+			h.deps,
+			"session",
+			"new",
+			"--agent",
+			"coder",
+			"--name",
+			"history-worker-restarted",
+			"--workspace",
+			"alpha",
+			"--channel",
+			channel,
+			"-o",
+			"json",
+		)
 		var resumed SessionRecord
 		if err := json.Unmarshal([]byte(resumeOut), &resumed); err != nil {
-			t.Fatalf("json.Unmarshal(session resume) error = %v", err)
+			t.Fatalf("json.Unmarshal(session new after restart) error = %v", err)
 		}
 		if resumed.State != session.StateActive || resumed.Channel != channel {
-			t.Fatalf("resumed = %#v, want active resumed worker on %q", resumed, channel)
+			t.Fatalf("resumed = %#v, want active restarted worker on %q", resumed, channel)
 		}
+		agentSessionID = resumed.ID
 
 		nextOut := mustExecuteRoot(t, agentDeps, "task", "next", "--lease-seconds", "60", "-o", "json")
 		var next AgentTaskNextRecord
@@ -2847,13 +2824,13 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 			t.Fatalf("len(detail.Runs) = %d, want %d", got, want)
 		}
 		if detail.Runs[0].Status != taskpkg.TaskRunStatusCompleted ||
-			detail.Runs[0].SessionID != worker.ID ||
+			detail.Runs[0].SessionID != agentSessionID ||
 			detail.Runs[0].NetworkChannel != channel ||
 			detail.Runs[0].CoordinationChannelID != channel {
 			t.Fatalf("detail.Runs[0] = %#v, want completed persisted historical run", detail.Runs[0])
 		}
 
-		stopOut := mustExecuteRoot(t, h.deps, "session", "stop", worker.ID, "-o", "json")
+		stopOut := mustExecuteRoot(t, h.deps, "session", "stop", agentSessionID, "-o", "json")
 		var stoppedAfterResume SessionRecord
 		if err := json.Unmarshal([]byte(stopOut), &stoppedAfterResume); err != nil {
 			t.Fatalf("json.Unmarshal(session stop after resume) error = %v", err)
@@ -2870,15 +2847,21 @@ func TestCLIHistoricalChannelTaskNextAfterDaemonRestartIntegration(t *testing.T)
 			t.Fatalf("record.PresenceCount after cleanup = %d, want at least 2", record.PresenceCount)
 		}
 
-		statusOut := mustExecuteRoot(t, h.deps, "daemon", "status", "-o", "json")
-		var status DaemonStatus
-		if err := json.Unmarshal([]byte(statusOut), &status); err != nil {
-			t.Fatalf("json.Unmarshal(daemon status) error = %v", err)
-		}
-		if status.ActiveSessions != 0 {
-			t.Fatalf("status.ActiveSessions = %d, want 0", status.ActiveSessions)
-		}
+		assertNoActiveSessions(t, h.deps)
 	})
+}
+
+func assertNoActiveSessions(t *testing.T, deps commandDeps) {
+	t.Helper()
+
+	statusOut := mustExecuteRoot(t, deps, "status", "-o", "json")
+	var status StatusRecord
+	if err := json.Unmarshal([]byte(statusOut), &status); err != nil {
+		t.Fatalf("json.Unmarshal(status) error = %v", err)
+	}
+	if status.Sessions.Active != 0 {
+		t.Fatalf("status.Sessions.Active = %d, want 0", status.Sessions.Active)
+	}
 }
 
 type integrationHarness struct {
@@ -3347,6 +3330,7 @@ func newIntegrationHarness(t *testing.T) integrationHarness {
 	if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
+	workspace := t.TempDir()
 	writeAgentDef(t, homePaths, "coder")
 
 	cfg := aghconfig.DefaultWithHome(homePaths)
@@ -3362,7 +3346,7 @@ func newIntegrationHarness(t *testing.T) integrationHarness {
 		t:         t,
 		homePaths: homePaths,
 		cfg:       cfg,
-		pid:       4242,
+		pid:       os.Getpid(),
 		startedAt: time.Now().UTC(),
 	}
 
@@ -3381,8 +3365,11 @@ func newIntegrationHarness(t *testing.T) integrationHarness {
 		readDaemonInfo: aghdaemon.ReadInfo,
 		signalProcess:  runner.signalProcess,
 		processAlive:   runner.processAlive,
+		processMatchesStartTime: func(pid int, startedAt time.Time) bool {
+			return pid == runner.pid && startedAt.Equal(runner.startedAt)
+		},
 		getwd: func() (string, error) {
-			return t.TempDir(), nil
+			return workspace, nil
 		},
 		getenv: func(string) string { return "" },
 		now: func() time.Time {
@@ -3395,11 +3382,23 @@ func newIntegrationHarness(t *testing.T) integrationHarness {
 			return runner.spawnDetached()
 		},
 	}
+	t.Cleanup(func() {
+		if !runner.processAlive(runner.pid) {
+			return
+		}
+		if err := runner.signalProcess(runner.pid, syscall.SIGTERM); err != nil {
+			t.Errorf("integration daemon cleanup signal error = %v", err)
+			return
+		}
+		if err := runner.waitForExit(); err != nil {
+			t.Errorf("integration daemon cleanup wait error = %v", err)
+		}
+	})
 
 	return integrationHarness{
 		deps:      deps,
 		homePaths: homePaths,
-		workspace: t.TempDir(),
+		workspace: workspace,
 		runner:    runner,
 	}
 }

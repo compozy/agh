@@ -1927,12 +1927,13 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 		if err := json.Unmarshal(req.Params, &params); err != nil {
 			return err
 		}
+		if h.scenario == "slow_record_deliveries" {
+			time.Sleep(200 * time.Millisecond)
+		}
 		if err := h.recordDelivery(params); err != nil {
 			return err
 		}
 		switch h.scenario {
-		case "slow_record_deliveries":
-			time.Sleep(40 * time.Millisecond)
 		case "exit_once_record_deliveries":
 			if markerLineCount(h.marker) == 1 {
 				os.Exit(1)

@@ -80,19 +80,16 @@ jobs:
         run: |
           go run "${{ env.PR_RELEASE_MODULE }}" pr-release --force --enable-rollback --ci-output
 
-  # Job 2: Dry-run gate — runs on every Release PR.
-  # Covers pr-release build validation + full heavy test coverage
-  # (e2e-nightly credentialed lane + integration suite). This is the
-  # choke point that replaces a nightly cron.
+  # Job 2: GoReleaser dry-run on every Release PR.
   dry-run:
-    name: Dry-Run + Heavy Tests
+    name: Dry-Run Build Validation
     if: |
       github.event_name == 'pull_request' &&
       (startsWith(github.event.pull_request.title, 'ci(release): Release ') ||
        startsWith(github.event.pull_request.title, 'release: Release ') ||
        startsWith(github.base_ref, 'release/v'))
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
         with:
@@ -107,12 +104,12 @@ jobs:
       - uses: ./.github/actions/setup-go
         with:
           go-version: ${{ env.GO_VERSION }}
-          install-tools: "true"
+          install-tools: "false"
 
       - uses: ./.github/actions/setup-bun
         with:
           bun-version: ${{ env.BUN_VERSION }}
-          install-playwright: "true"
+          install-playwright: "false"
 
       - name: Setup Release Tools
         uses: ./.github/actions/setup-release
@@ -134,10 +131,42 @@ jobs:
           GOTMPDIR: ${{ runner.temp }}/go-tmp
         run: go run "${{ env.PR_RELEASE_MODULE }}" dry-run --ci-output
 
+  # Job 3: Credentialed nightly E2E gate on a fresh runner.
+  e2e-nightly:
+    name: E2E Nightly Lane
+    if: |
+      github.event_name == 'pull_request' &&
+      (startsWith(github.event.pull_request.title, 'ci(release): Release ') ||
+       startsWith(github.event.pull_request.title, 'release: Release ') ||
+       startsWith(github.base_ref, 'release/v'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Prepare Go temporary directory
+        env:
+          GOTMPDIR: ${{ runner.temp }}/go-tmp
+        run: mkdir -p "$GOTMPDIR"
+
+      - uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          install-tools: "false"
+
+      - uses: ./.github/actions/setup-bun
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+          install-playwright: "true"
+
       - name: Run E2E nightly lane (credentialed)
         env:
           CI: "true"
           CGO_ENABLED: 0
+          GOTMPDIR: ${{ runner.temp }}/go-tmp
           DAYTONA_API_KEY: ${{ secrets.DAYTONA_API_KEY }}
           DAYTONA_API_URL: ${{ secrets.DAYTONA_API_URL }}
           DAYTONA_ORGANIZATION_ID: ${{ secrets.DAYTONA_ORGANIZATION_ID }}
@@ -146,29 +175,70 @@ jobs:
           DAYTONA_SSH_HOST: ${{ secrets.DAYTONA_SSH_HOST }}
         run: make test-e2e-nightly
 
-      - name: Run full integration suite
-        env:
-          CI: "true"
-          CGO_ENABLED: 0
-        run: make test-integration
-
-      - name: Upload dry-run artifacts on failure
+      - name: Upload E2E artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: dry-run-artifacts
+          name: e2e-nightly-artifacts
           path: |
-            coverage.out
-            test-results.xml
             web/playwright-report
             web/test-results
             web/blob-report
             /tmp/agh-e2e-*
-            dist
           if-no-files-found: ignore
           retention-days: 14
 
-  # Job 3: Production release on merge of the Release PR
+  # Job 4: Full integration suite on a fresh runner.
+  integration:
+    name: Full Integration Suite
+    if: |
+      github.event_name == 'pull_request' &&
+      (startsWith(github.event.pull_request.title, 'ci(release): Release ') ||
+       startsWith(github.event.pull_request.title, 'release: Release ') ||
+       startsWith(github.base_ref, 'release/v'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Prepare Go temporary directory
+        env:
+          GOTMPDIR: ${{ runner.temp }}/go-tmp
+        run: mkdir -p "$GOTMPDIR"
+
+      - uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          install-tools: "false"
+
+      - uses: ./.github/actions/setup-bun
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+          install-playwright: "false"
+
+      - name: Run full integration suite
+        env:
+          CI: "true"
+          CGO_ENABLED: 0
+          GOTMPDIR: ${{ runner.temp }}/go-tmp
+        run: make test-integration
+
+      - name: Upload integration artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-artifacts
+          path: |
+            coverage.out
+            test-results.xml
+            /tmp/agh-e2e-*
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # Job 5: Production release on merge of the Release PR
   release:
     name: Production Release
     if: |

@@ -23,6 +23,7 @@ import (
 	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/agh/internal/testutil/acpmock"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/kballard/go-shellquote"
 )
@@ -65,7 +66,9 @@ func TestSessionStopACPWrapperProcess(t *testing.T) {
 
 	if pidFile := strings.TrimSpace(os.Getenv(testSessionStopWrapperPIDFile)); pidFile != "" {
 		if writeErr := os.WriteFile(pidFile, []byte(strconv.Itoa(cmd.Process.Pid)), 0o644); writeErr != nil {
-			_ = cmd.Process.Kill()
+			if killErr := cmd.Process.Kill(); killErr != nil {
+				os.Exit(1)
+			}
 			os.Exit(1)
 		}
 	}
@@ -81,6 +84,8 @@ func TestManagerIntegrationStopFinalizesWrappedACPProcess(t *testing.T) {
 	pidFile := filepath.Join(t.TempDir(), "wrapped-helper.pid")
 
 	h := newHarness(t)
+	command := sessionStopWrapperCommand(t, pidFile)
+	h.cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
 	driver := acp.New(
 		acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		acp.WithStopTimeout(100*time.Millisecond),
@@ -94,8 +99,8 @@ func TestManagerIntegrationStopFinalizesWrappedACPProcess(t *testing.T) {
 		Config: h.cfg,
 		Agents: []aghconfig.AgentDef{{
 			Name:     "coder",
-			Provider: "claude",
-			Command:  sessionStopWrapperCommand(t, pidFile),
+			Provider: acpmock.ProviderName,
+			Command:  command,
 			Prompt:   "You are a coding assistant.",
 		}},
 	})
@@ -132,6 +137,7 @@ func TestManagerIntegrationKillProcessPersistsAgentCrashedStopReason(t *testing.
 		acp.WithStopTimeout(100*time.Millisecond),
 	)
 	command := sessionStopHelperCommand(t)
+	h.cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
 	h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
 		Workspace: workspacepkg.Workspace{
 			ID:      h.workspaceID,
@@ -141,7 +147,7 @@ func TestManagerIntegrationKillProcessPersistsAgentCrashedStopReason(t *testing.
 		Config: h.cfg,
 		Agents: []aghconfig.AgentDef{{
 			Name:     "coder",
-			Provider: "claude",
+			Provider: acpmock.ProviderName,
 			Command:  command,
 			Prompt:   "You are a coding assistant.",
 		}},
@@ -196,7 +202,7 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 	})
 
 	cfg := aghconfig.DefaultWithHome(homePaths)
-	cfg.Providers["claude"] = aghconfig.ProviderConfig{Command: command}
+	cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
 
 	resolver, err := workspacepkg.NewResolver(
 		registry,
@@ -243,7 +249,8 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Prompt() error = %v", err)
 	}
-	_ = collectEvents(t, events)
+	for range events {
+	}
 
 	if err := manager.Stop(testutil.Context(t), session.ID); err != nil {
 		t.Fatalf("Stop() error = %v", err)
@@ -355,7 +362,7 @@ func TestManagerIntegrationResumeFailsWhenAgentRemoved(t *testing.T) {
 		Config: h.cfg,
 		Agents: []aghconfig.AgentDef{{
 			Name:     aghconfig.DefaultAgentName,
-			Provider: "claude",
+			Provider: acpmock.ProviderName,
 			Command:  sessionStopHelperCommand(t),
 			Prompt:   "You are a coding assistant.",
 		}},
@@ -444,6 +451,7 @@ func newRealACPIntegrationHarness(t *testing.T, command string) *harness {
 	t.Helper()
 
 	h := newHarness(t)
+	h.cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
 	driver := acp.New(
 		acp.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		acp.WithStopTimeout(100*time.Millisecond),
@@ -457,7 +465,7 @@ func newRealACPIntegrationHarness(t *testing.T, command string) *harness {
 		Config: h.cfg,
 		Agents: []aghconfig.AgentDef{{
 			Name:     "coder",
-			Provider: "claude",
+			Provider: acpmock.ProviderName,
 			Command:  command,
 			Prompt:   "You are a coding assistant.",
 		}},
@@ -522,7 +530,7 @@ func writeSessionIntegrationAgentDef(t *testing.T, homePaths aghconfig.HomePaths
 	contents := strings.Join([]string{
 		"---",
 		"name: " + name,
-		"provider: claude",
+		"provider: " + acpmock.ProviderName,
 		"command: " + command,
 		"---",
 		"You are a coding assistant.",

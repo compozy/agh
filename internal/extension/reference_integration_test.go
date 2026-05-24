@@ -29,6 +29,7 @@ import (
 	"github.com/compozy/agh/internal/store/globaldb"
 	"github.com/compozy/agh/internal/subprocess"
 	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/agh/internal/testutil/acpmock"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/gin-gonic/gin"
 	"github.com/kballard/go-shellquote"
@@ -304,8 +305,10 @@ func newReferenceHarness(t *testing.T, repoRoot string) *referenceHarness {
 	t.Setenv("AGH_PROMPT_ENHANCER_CAPABILITY_PATH", harness.promptCapabilityPath)
 	t.Setenv("AGH_PROMPT_ENHANCER_SHUTDOWN_PATH", harness.promptShutdownPath)
 
-	cfg := referenceConfig(t, homePaths)
-	referenceWriteAgentDef(t, homePaths, "coder", referenceACPHelperCommand(t))
+	command := referenceACPHelperCommand(t)
+	cfg := referenceConfig(t, homePaths, command)
+	referenceWriteProviderConfig(t, homePaths, acpmock.ProviderName, command)
+	referenceWriteAgentDef(t, homePaths, "coder", command)
 	harness.workspace = referenceSeedWorkspace(t, homePaths, cfg, filepath.Join(t.TempDir(), "workspace"))
 
 	logger := slog.New(slog.NewTextHandler(harness.logBuffer, nil))
@@ -765,7 +768,7 @@ func referenceHomePaths(t *testing.T) aghconfig.HomePaths {
 	return homePaths
 }
 
-func referenceConfig(t *testing.T, homePaths aghconfig.HomePaths) aghconfig.Config {
+func referenceConfig(t *testing.T, homePaths aghconfig.HomePaths, command string) aghconfig.Config {
 	t.Helper()
 
 	cfg := aghconfig.DefaultWithHome(homePaths)
@@ -773,12 +776,10 @@ func referenceConfig(t *testing.T, homePaths aghconfig.HomePaths) aghconfig.Conf
 	cfg.HTTP.Port = referenceFreeTCPPort(t)
 	cfg.Daemon.Socket = homePaths.DaemonSocket
 	cfg.Defaults.Agent = "coder"
-	cfg.Defaults.Provider = "claude"
+	cfg.Defaults.Provider = acpmock.ProviderName
 	cfg.Memory.Enabled = false
 	cfg.Skills.Enabled = false
-	cfg.Providers["claude"] = aghconfig.ProviderConfig{
-		Command: referenceACPHelperCommand(t),
-	}
+	cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
 	return cfg
 }
 
@@ -855,7 +856,7 @@ func referenceWriteAgentDef(t *testing.T, homePaths aghconfig.HomePaths, name st
 	content := strings.Join([]string{
 		"---",
 		"name: " + name,
-		"provider: claude",
+		"provider: " + acpmock.ProviderName,
 		"command: " + command,
 		"---",
 		"You are a coding assistant.",
@@ -863,6 +864,31 @@ func referenceWriteAgentDef(t *testing.T, homePaths aghconfig.HomePaths, name st
 	}, "\n")
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteFile(%q) error = %v", path, err)
+	}
+}
+
+func referenceWriteProviderConfig(
+	t *testing.T,
+	homePaths aghconfig.HomePaths,
+	providerName string,
+	command string,
+) {
+	t.Helper()
+
+	content := strings.Join([]string{
+		"[defaults]",
+		"agent = \"coder\"",
+		"provider = " + fmt.Sprintf("%q", providerName),
+		"",
+		"[providers." + providerName + "]",
+		"command = " + fmt.Sprintf("%q", command),
+		"harness = \"acp\"",
+		"auth_mode = \"none\"",
+		"none_security = \"local_transport\"",
+		"",
+	}, "\n")
+	if err := os.WriteFile(homePaths.ConfigFile, []byte(content), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", homePaths.ConfigFile, err)
 	}
 }
 

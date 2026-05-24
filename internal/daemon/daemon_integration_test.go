@@ -33,6 +33,7 @@ import (
 	"github.com/compozy/agh/internal/store/globaldb"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/agh/internal/testutil/acpmock"
 	"github.com/compozy/agh/internal/vault"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 	"github.com/kballard/go-shellquote"
@@ -2134,7 +2135,9 @@ func TestShutdownPersistsShutdownStopReason(t *testing.T) {
 	homePaths := integrationHomePaths(t)
 	cfg := testConfig(t, homePaths)
 	command := daemonSessionStopHelperCommand(t)
-	cfg.Providers["claude"] = aghconfig.ProviderConfig{Command: command}
+	cfg.Defaults.Provider = acpmock.ProviderName
+	cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(command)
+	writeDaemonIntegrationProviderConfig(t, homePaths, acpmock.ProviderName, command)
 	writeDaemonIntegrationAgentDef(t, homePaths, "coder", command)
 
 	workspaceRoot := filepath.Join(t.TempDir(), "workspace")
@@ -2156,7 +2159,9 @@ func TestShutdownPersistsShutdownStopReason(t *testing.T) {
 		if shutdown {
 			return
 		}
-		_ = d.Shutdown(testutil.Context(t))
+		if err := d.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("cleanup Shutdown() error = %v", err)
+		}
 	})
 
 	if err := d.boot(testutil.Context(t)); err != nil {
@@ -3930,7 +3935,7 @@ func writeDaemonIntegrationAgentDef(t *testing.T, homePaths aghconfig.HomePaths,
 	content := strings.Join([]string{
 		"---",
 		"name: " + name,
-		"provider: claude",
+		"provider: " + acpmock.ProviderName,
 		"command: " + command,
 		"---",
 		"You are a coding assistant.",
@@ -3938,6 +3943,31 @@ func writeDaemonIntegrationAgentDef(t *testing.T, homePaths aghconfig.HomePaths,
 	}, "\n")
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("os.WriteFile(%q) error = %v", path, err)
+	}
+}
+
+func writeDaemonIntegrationProviderConfig(
+	t *testing.T,
+	homePaths aghconfig.HomePaths,
+	providerName string,
+	command string,
+) {
+	t.Helper()
+
+	content := strings.Join([]string{
+		"[defaults]",
+		"agent = \"coder\"",
+		"provider = " + fmt.Sprintf("%q", providerName),
+		"",
+		"[providers." + providerName + "]",
+		"command = " + fmt.Sprintf("%q", command),
+		"harness = \"acp\"",
+		"auth_mode = \"none\"",
+		"none_security = \"local_transport\"",
+		"",
+	}, "\n")
+	if err := os.WriteFile(homePaths.ConfigFile, []byte(content), 0o600); err != nil {
+		t.Fatalf("os.WriteFile(%q) error = %v", homePaths.ConfigFile, err)
 	}
 }
 

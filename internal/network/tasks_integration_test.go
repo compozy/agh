@@ -47,7 +47,7 @@ func TestNetworkTaskIngressCreateAndEnqueueRun(t *testing.T) {
 	if got, want := created.CreatedBy.Ref, peerID; got != want {
 		t.Fatalf("created.CreatedBy.Ref = %q, want %q", got, want)
 	}
-	if got, want := created.Origin.Ref, "peer:"+peerID+"/channel:ops"; got != want {
+	if got, want := created.Origin.Ref, "workspace:wks_test/channel:ops/peer:"+peerID; got != want {
 		t.Fatalf("created.Origin.Ref = %q, want %q", got, want)
 	}
 
@@ -75,7 +75,7 @@ func TestNetworkTaskIngressCreateAndEnqueueRun(t *testing.T) {
 	if got, want := run.NetworkChannel, "ops"; got != want {
 		t.Fatalf("run.NetworkChannel = %q, want %q", got, want)
 	}
-	if got, want := run.Origin.Ref, "peer:"+peerID+"/channel:ops"; got != want {
+	if got, want := run.Origin.Ref, "workspace:wks_test/channel:ops/peer:"+peerID; got != want {
 		t.Fatalf("run.Origin.Ref = %q, want %q", got, want)
 	}
 
@@ -366,8 +366,9 @@ func findNetworkAuditByMessageID(t *testing.T, db *globaldb.GlobalDB, messageID 
 	t.Helper()
 
 	entries, err := db.ListNetworkAudit(testutil.Context(t), store.NetworkAuditQuery{
-		MessageID: messageID,
-		Limit:     10,
+		WorkspaceID: testWorkspaceID,
+		MessageID:   messageID,
+		Limit:       10,
 	})
 	if err != nil {
 		t.Fatalf("ListNetworkAudit(%q) error = %v", messageID, err)

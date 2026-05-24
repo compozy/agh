@@ -617,7 +617,8 @@ func (m *Manager) stopManagedExtension(ctx context.Context, item *managedExtensi
 						itemErr,
 						fmt.Errorf("extension %q stop: %w", item.info.Name, errors.Join(err, waitErr)),
 					)
-				} else if !errors.Is(err, context.DeadlineExceeded) {
+				} else if !errors.Is(err, context.DeadlineExceeded) &&
+					!errors.Is(err, subprocess.ErrTransportClosedBeforeResponse) {
 					itemErr = errors.Join(itemErr, fmt.Errorf("extension %q stop: %w", item.info.Name, err))
 				}
 			case <-ctx.Done():

@@ -262,14 +262,7 @@ func TestCLIHistoricalChannelTaskRunTerminalAfterDaemonRestartIntegration(t *tes
 				t.Fatalf("detail.Events = %#v, want event type %q", detail.Events, tt.wantEventType)
 			}
 
-			statusOut := mustExecuteRoot(t, h.deps, "daemon", "status", "-o", "json")
-			var daemonStatus DaemonStatus
-			if err := json.Unmarshal([]byte(statusOut), &daemonStatus); err != nil {
-				t.Fatalf("json.Unmarshal(daemon status) error = %v", err)
-			}
-			if daemonStatus.ActiveSessions != 0 {
-				t.Fatalf("daemonStatus = %#v, want active_sessions=0", daemonStatus)
-			}
+			assertNoActiveSessions(t, h.deps)
 		})
 	}
 }

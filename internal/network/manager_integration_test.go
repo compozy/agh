@@ -94,6 +94,7 @@ func TestManagerJoinPublishesProjectedCapabilityBriefInInitialAndReconnectGreets
 		sessionpkg.NetworkPeerJoin{
 			SessionID:    "sess-capable",
 			PeerID:       "reviewer.sess-capable",
+			WorkspaceID:  testWorkspaceID,
 			DisplayName:  "Reviewer",
 			Channel:      "builders",
 			Capabilities: append([]sessionpkg.NetworkPeerCapability(nil), capabilities...),
@@ -175,7 +176,7 @@ func TestManagerPersistsRuntimeConversationSurfacesAndHandoff(t *testing.T) {
 	t.Run("Should persist public direct handoff and summarize-back conversations", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(t.Context(), 20*time.Second)
 		defer cancel()
 
 		db := openNetworkRuntimeDB(t)

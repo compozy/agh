@@ -21,6 +21,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 			name: "greet",
 			raw: []byte(`{
 			  "protocol": "agh-network/v0",
+			  "workspace_id": "wks_test",
 			  "id": "msg_greet_01",
 			  "kind": "greet",
 			  "channel": "builders",
@@ -42,6 +43,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 			name: "whois response",
 			raw: []byte(`{
 			  "protocol": "agh-network/v0",
+			  "workspace_id": "wks_test",
 			  "id": "msg_whois_01",
 			  "kind": "whois",
 			  "channel": "builders",
@@ -65,6 +67,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 			name: "say",
 			raw: []byte(`{
 			  "protocol": "agh-network/v0",
+			  "workspace_id": "wks_test",
 			  "id": "msg_say_01",
 			  "kind": "say",
 			  "channel": "builders",
@@ -83,6 +86,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 			name: "direct room say",
 			raw: []byte(`{
 			  "protocol": "agh-network/v0",
+			  "workspace_id": "wks_test",
 			  "id": "msg_direct_01",
 			  "kind": "say",
 			  "channel": "builders",
@@ -110,6 +114,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 			name: "capability",
 			raw: []byte(`{
 			  "protocol": "agh-network/v0",
+			  "workspace_id": "wks_test",
 			  "id": "msg_capability_01",
 			  "kind": "capability",
 			  "channel": "builders",
@@ -137,6 +142,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 			name: "receipt",
 			raw: []byte(`{
 			  "protocol": "agh-network/v0",
+			  "workspace_id": "wks_test",
 			  "id": "msg_receipt_01",
 			  "kind": "receipt",
 			  "channel": "builders",
@@ -158,6 +164,7 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 			name: "trace",
 			raw: []byte(`{
 			  "protocol": "agh-network/v0",
+			  "workspace_id": "wks_test",
 			  "id": "msg_trace_01",
 			  "kind": "trace",
 			  "channel": "builders",
@@ -222,12 +229,13 @@ func TestProtocolFixturesRoundTripWithoutSemanticDrift(t *testing.T) {
 
 func envelopeSnapshot(env Envelope) map[string]any {
 	snapshot := map[string]any{
-		"protocol": env.Protocol,
-		"id":       env.ID,
-		"kind":     env.Kind,
-		"channel":  env.Channel,
-		"from":     env.From,
-		"ts":       env.TS,
+		"protocol":     env.Protocol,
+		"workspace_id": env.WorkspaceID,
+		"id":           env.ID,
+		"kind":         env.Kind,
+		"channel":      env.Channel,
+		"from":         env.From,
+		"ts":           env.TS,
 	}
 	if env.To != nil {
 		snapshot["to"] = *env.To

@@ -236,27 +236,25 @@ func TestPackagingMetadataStaysAlignedWithRuntimeAndInstaller(t *testing.T) {
 		assertEqualString(t, "setup-go default", stringAt(t, setupGoVersion, "default"), goVersion)
 	})
 
-	t.Run("Should budget release dry-run for sequential heavy gates", func(t *testing.T) {
+	t.Run("Should isolate release verification gates across runners", func(t *testing.T) {
 		t.Parallel()
 
 		jobs := mapAt(t, releaseWorkflow, "jobs")
-		dryRun := mapAt(t, jobs, "dry-run")
-		if got, minimum := intAt(t, dryRun, "timeout-minutes"), 180; got < minimum {
-			t.Fatalf(
-				"dry-run timeout-minutes = %d, want at least %d for GoReleaser, nightly E2E, and integration",
-				got,
-				minimum,
-			)
-		}
-
-		commands := workflowRunCommands(t, sliceAt(t, dryRun, "steps"))
-		for _, want := range []string{
+		assertWorkflowJobCommand(
+			t,
+			jobs,
+			"dry-run",
+			60,
 			"go run \"${{ env.PR_RELEASE_MODULE }}\" dry-run --ci-output",
-			"make test-e2e-nightly",
-			"make test-integration",
-		} {
-			if !stringListContains(commands, want) {
-				t.Fatalf("dry-run step commands = %#v, want %q", commands, want)
+		)
+		assertWorkflowJobCommand(t, jobs, "e2e-nightly", 90, "make test-e2e-nightly")
+		assertWorkflowJobCommand(t, jobs, "integration", 120, "make test-integration")
+
+		dryRun := mapAt(t, jobs, "dry-run")
+		dryRunCommands := workflowRunCommands(t, sliceAt(t, dryRun, "steps"))
+		for _, unwanted := range []string{"make test-e2e-nightly", "make test-integration"} {
+			if stringListContains(dryRunCommands, unwanted) {
+				t.Fatalf("dry-run step commands = %#v, want %q isolated in its own job", dryRunCommands, unwanted)
 			}
 		}
 	})
@@ -662,6 +660,19 @@ func workflowRunCommands(t *testing.T, steps []any) []string {
 		}
 	}
 	return commands
+}
+
+func assertWorkflowJobCommand(t *testing.T, jobs map[string]any, jobName string, minimumTimeout int, command string) {
+	t.Helper()
+
+	job := mapAt(t, jobs, jobName)
+	if got := intAt(t, job, "timeout-minutes"); got < minimumTimeout {
+		t.Fatalf("%s timeout-minutes = %d, want at least %d", jobName, got, minimumTimeout)
+	}
+	commands := workflowRunCommands(t, sliceAt(t, job, "steps"))
+	if !stringListContains(commands, command) {
+		t.Fatalf("%s step commands = %#v, want %q", jobName, commands, command)
+	}
 }
 
 func firstMapAt(t *testing.T, src map[string]any, key string) map[string]any {

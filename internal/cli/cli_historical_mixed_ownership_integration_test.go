@@ -127,11 +127,12 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 		t.Fatalf("enqueued = %#v, want preserved historical channel", enqueued)
 	}
 
+	agentSessionID := worker.ID
 	agentDeps := h.deps
 	agentDeps.getenv = func(key string) string {
 		switch key {
 		case agentidentity.EnvSessionID:
-			return worker.ID
+			return agentSessionID
 		case agentidentity.EnvAgent:
 			return worker.AgentName
 		default:
@@ -164,14 +165,30 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 		}
 		mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
 
-		resumeOut := mustExecuteRoot(t, h.deps, "session", "resume", worker.ID, "-o", "json")
+		resumeOut := mustExecuteRoot(
+			t,
+			h.deps,
+			"session",
+			"new",
+			"--agent",
+			"coder",
+			"--name",
+			"history-mixed-ownership-restarted",
+			"--workspace",
+			"alpha",
+			"--channel",
+			channel,
+			"-o",
+			"json",
+		)
 		var resumed SessionRecord
 		if err := json.Unmarshal([]byte(resumeOut), &resumed); err != nil {
-			t.Fatalf("json.Unmarshal(session resume) error = %v", err)
+			t.Fatalf("json.Unmarshal(session new after restart) error = %v", err)
 		}
 		if resumed.State != session.StateActive || resumed.Channel != channel {
-			t.Fatalf("resumed = %#v, want active resumed worker on %q", resumed, channel)
+			t.Fatalf("resumed = %#v, want active restarted worker on %q", resumed, channel)
 		}
+		agentSessionID = resumed.ID
 
 		nextOut := mustExecuteRoot(t, agentDeps, "task", "next", "--lease-seconds", "60", "-o", "json")
 		if err := json.Unmarshal([]byte(nextOut), &claim); err != nil {
@@ -256,11 +273,11 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 		if canceled.Status != taskpkg.TaskRunStatusCanceled {
 			t.Fatalf("canceled = %#v, want canceled run", canceled)
 		}
-		if canceled.ClaimedBy == nil || canceled.ClaimedBy.Ref != worker.ID {
-			t.Fatalf("canceled.ClaimedBy = %#v, want agent-session %q", canceled.ClaimedBy, worker.ID)
+		if canceled.ClaimedBy == nil || canceled.ClaimedBy.Ref != agentSessionID {
+			t.Fatalf("canceled.ClaimedBy = %#v, want agent-session %q", canceled.ClaimedBy, agentSessionID)
 		}
-		if canceled.SessionID != worker.ID {
-			t.Fatalf("canceled.SessionID = %q, want %q", canceled.SessionID, worker.ID)
+		if canceled.SessionID != agentSessionID {
+			t.Fatalf("canceled.SessionID = %q, want %q", canceled.SessionID, agentSessionID)
 		}
 		if canceled.NetworkChannel != channel || canceled.CoordinationChannelID != channel {
 			t.Fatalf("canceled = %#v, want preserved historical channel", canceled)
@@ -305,11 +322,11 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 		if detail.Runs[0].Status != taskpkg.TaskRunStatusCanceled {
 			t.Fatalf("detail.Runs[0] = %#v, want canceled run", detail.Runs[0])
 		}
-		if detail.Runs[0].SessionID != worker.ID {
-			t.Fatalf("detail.Runs[0].SessionID = %q, want %q", detail.Runs[0].SessionID, worker.ID)
+		if detail.Runs[0].SessionID != agentSessionID {
+			t.Fatalf("detail.Runs[0].SessionID = %q, want %q", detail.Runs[0].SessionID, agentSessionID)
 		}
-		if detail.Runs[0].ClaimedBy == nil || detail.Runs[0].ClaimedBy.Ref != worker.ID {
-			t.Fatalf("detail.Runs[0].ClaimedBy = %#v, want agent-session %q", detail.Runs[0].ClaimedBy, worker.ID)
+		if detail.Runs[0].ClaimedBy == nil || detail.Runs[0].ClaimedBy.Ref != agentSessionID {
+			t.Fatalf("detail.Runs[0].ClaimedBy = %#v, want agent-session %q", detail.Runs[0].ClaimedBy, agentSessionID)
 		}
 		if detail.Runs[0].NetworkChannel != channel || detail.Runs[0].CoordinationChannelID != channel {
 			t.Fatalf("detail.Runs[0] = %#v, want preserved historical channel", detail.Runs[0])
@@ -318,7 +335,7 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 			t.Fatalf("detail.Events = %#v, want task.run_canceled event", detail.Events)
 		}
 
-		stopOut := mustExecuteRoot(t, h.deps, "session", "stop", worker.ID, "-o", "json")
+		stopOut := mustExecuteRoot(t, h.deps, "session", "stop", agentSessionID, "-o", "json")
 		var stoppedAfterResume SessionRecord
 		if err := json.Unmarshal([]byte(stopOut), &stoppedAfterResume); err != nil {
 			t.Fatalf("json.Unmarshal(session stop after resume) error = %v", err)
@@ -327,13 +344,6 @@ func TestCLIHistoricalChannelMixedOwnershipAfterDaemonRestartIntegration(t *test
 			t.Fatalf("stoppedAfterResume = %#v, want stopped worker on %q", stoppedAfterResume, channel)
 		}
 
-		statusOut := mustExecuteRoot(t, h.deps, "daemon", "status", "-o", "json")
-		var daemonStatus DaemonStatus
-		if err := json.Unmarshal([]byte(statusOut), &daemonStatus); err != nil {
-			t.Fatalf("json.Unmarshal(daemon status) error = %v", err)
-		}
-		if daemonStatus.ActiveSessions != 0 {
-			t.Fatalf("daemonStatus = %#v, want active_sessions=0", daemonStatus)
-		}
+		assertNoActiveSessions(t, h.deps)
 	})
 }

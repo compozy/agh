@@ -13,6 +13,7 @@ import (
 
 	"github.com/compozy/agh/internal/acp"
 	aghconfig "github.com/compozy/agh/internal/config"
+	eventspkg "github.com/compozy/agh/internal/events"
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/sandbox"
 	"github.com/compozy/agh/internal/store"
@@ -71,14 +72,17 @@ func TestManagerIntegrationFullLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Query(reopen) error = %v", err)
 	}
-	if len(events) != 8 {
-		t.Fatalf("stored events = %d, want 8", len(events))
+	if len(events) != 10 {
+		t.Fatalf("stored events = %d, want 10", len(events))
 	}
 	if !containsEventType(events, acp.EventTypeAgentMessage) || !containsEventType(events, acp.EventTypeDone) {
 		t.Fatalf("stored events missing expected types: %#v", events)
 	}
 	if got := countEventType(events, EventTypeSessionStopped); got != 2 {
 		t.Fatalf("stored %q events = %d, want 2", EventTypeSessionStopped, got)
+	}
+	if got := countEventType(events, eventspkg.TranscriptMarkerCreated); got != 2 {
+		t.Fatalf("stored %q events = %d, want 2", eventspkg.TranscriptMarkerCreated, got)
 	}
 
 	meta := readMeta(t, resumed.MetaPath())
@@ -903,6 +907,8 @@ func TestManagerIntegrationFullLifecycleHooksFireInOrder(t *testing.T) {
 		"session.pre_stop",
 		"event.pre_record:session_stopped",
 		"event.post_record:session_stopped",
+		"event.pre_record:transcript_marker.created",
+		"event.post_record:transcript_marker.created",
 		"agent.stopped",
 		"session.post_stop",
 	}

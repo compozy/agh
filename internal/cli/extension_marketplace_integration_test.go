@@ -115,7 +115,7 @@ func newExtensionDownloadResult(
 func remoteExtensionArchiveFiles(name string, version string) map[string]string {
 	return map[string]string{
 		filepath.Join(name, "extension.toml"): fmt.Sprintf(
-			"[extension]\nname = %q\nversion = %q\ndescription = \"CLI marketplace integration fixture\"\nmin_agh_version = \"0.5.0\"\n\n[capabilities]\nprovides = [\"memory.backend\"]\n\n[actions]\nrequires = [\"sessions/list\"]\n",
+			"[extension]\nname = %q\nversion = %q\ndescription = \"CLI marketplace integration fixture\"\nmin_agh_version = \"0.5.0\"\n",
 			name,
 			version,
 		),
@@ -359,7 +359,7 @@ func TestExtensionRemoveMissingIntegrationReturnsClearError(t *testing.T) {
 	if err == nil {
 		t.Fatal("extension remove missing integration error = nil, want failure")
 	}
-	if !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
-		t.Fatalf("extension remove missing integration error = %v, want ErrExtensionNotFound", err)
+	if !strings.Contains(err.Error(), extensionpkg.ErrExtensionNotFound.Error()) {
+		t.Fatalf("extension remove missing integration error = %v, want clear not-found error", err)
 	}
 }

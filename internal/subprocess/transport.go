@@ -32,6 +32,10 @@ const (
 	codeShutdownProgress = -32004
 )
 
+// ErrTransportClosedBeforeResponse reports a subprocess transport that closed
+// while an RPC call was still waiting for its response.
+var ErrTransportClosedBeforeResponse = errors.New("subprocess: transport closed before response")
+
 // HandlerFunc handles one inbound JSON-RPC request.
 type HandlerFunc func(context.Context, json.RawMessage) (any, error)
 
@@ -180,7 +184,7 @@ func (t *transport) call(ctx context.Context, method string, params, result any)
 			if transportErr := t.process.currentTransportError(); transportErr != nil {
 				return transportErr
 			}
-			return errors.New("subprocess: transport closed before response")
+			return ErrTransportClosedBeforeResponse
 		}
 		if response.err != nil {
 			return response.err

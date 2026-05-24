@@ -406,7 +406,7 @@ func TestLocalToolHostWaitForTerminalExitSignalOnlyFailure(t *testing.T) {
 		t.Skip("POSIX signal behavior")
 	}
 
-	t.Run("ShouldReturnErrorForSignalOnlyExit", func(t *testing.T) {
+	t.Run("Should return error for signal-only exit", func(t *testing.T) {
 		host, _ := newTestLocalToolHost(t, aghconfig.PermissionModeApproveAll)
 		response, err := host.CreateTerminal(testutil.Context(t), acpsdk.CreateTerminalRequest{
 			SessionId: "sess-terminal",
@@ -437,71 +437,76 @@ func TestLocalToolHostScopedInterruptStopsOnlyRequestedTerminal(t *testing.T) {
 		t.Skip("POSIX shell process-group interrupt test")
 	}
 
-	ctx := testutil.Context(t)
-	root := t.TempDir()
-	store := toolruntime.NewMemoryStore()
-	registry := toolruntime.NewRegistry(store)
-	host, err := newLocalToolHost(
-		ctx,
-		root,
-		aghconfig.PermissionModeApproveAll,
-		testDiscardLogger(),
-		WithLocalProcessRegistry(registry),
-	)
-	if err != nil {
-		t.Fatalf("newLocalToolHost() error = %v", err)
-	}
-	t.Cleanup(host.Close)
+	t.Run("Should stop only the requested terminal", func(t *testing.T) {
+		t.Parallel()
 
-	first, err := host.CreateTerminal(ctx, acpsdk.CreateTerminalRequest{
-		SessionId: "sess-terminal",
-		Command:   "/bin/sh",
-		Args:      []string{"-c", "sleep 5"},
+		ctx := testutil.Context(t)
+		root := t.TempDir()
+		store := toolruntime.NewMemoryStore()
+		registry := toolruntime.NewRegistry(store)
+		host, err := newLocalToolHost(
+			ctx,
+			root,
+			aghconfig.PermissionModeApproveAll,
+			testDiscardLogger(),
+			WithLocalProcessRegistry(registry),
+		)
+		if err != nil {
+			t.Fatalf("newLocalToolHost() error = %v", err)
+		}
+		t.Cleanup(host.Close)
+
+		first, err := host.CreateTerminal(ctx, acpsdk.CreateTerminalRequest{
+			SessionId: "sess-terminal",
+			Command:   "/bin/sh",
+			Args:      []string{"-c", "sleep 5"},
+		})
+		if err != nil {
+			t.Fatalf("CreateTerminal(first) error = %v", err)
+		}
+		second, err := host.CreateTerminal(ctx, acpsdk.CreateTerminalRequest{
+			SessionId: "sess-terminal",
+			Command:   "/bin/sh",
+			Args:      []string{"-c", "sleep 5"},
+		})
+		if err != nil {
+			t.Fatalf("CreateTerminal(second) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := host.ReleaseTerminal(first.TerminalId); err != nil {
+				t.Fatalf("ReleaseTerminal(first) error = %v", err)
+			}
+		})
+
+		report, err := registry.Interrupt(ctx, toolruntime.InterruptScope{TerminalID: second.TerminalId})
+		if err != nil {
+			t.Fatalf("Interrupt(second) error = %v", err)
+		}
+		if report.Matched != 1 || report.Signaled != 1 {
+			t.Fatalf("Interrupt(second) = %#v, want one signaled terminal", report)
+		}
+		waitCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		exitCode, err := host.WaitForTerminalExit(waitCtx, second.TerminalId)
+		if err != nil && !strings.Contains(err.Error(), "signal") {
+			t.Fatalf("WaitForTerminalExit(second) error = %v, want signal detail", err)
+		}
+		if err == nil && exitCode == 0 {
+			t.Fatalf("WaitForTerminalExit(second) exitCode = %d, want interrupted terminal to stop non-zero", exitCode)
+		}
+
+		stillRunningCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+		if _, err := host.WaitForTerminalExit(
+			stillRunningCtx,
+			first.TerminalId,
+		); !errors.Is(
+			err,
+			context.DeadlineExceeded,
+		) {
+			t.Fatalf("WaitForTerminalExit(first) error = %v, want context deadline", err)
+		}
 	})
-	if err != nil {
-		t.Fatalf("CreateTerminal(first) error = %v", err)
-	}
-	second, err := host.CreateTerminal(ctx, acpsdk.CreateTerminalRequest{
-		SessionId: "sess-terminal",
-		Command:   "/bin/sh",
-		Args:      []string{"-c", "sleep 5"},
-	})
-	if err != nil {
-		t.Fatalf("CreateTerminal(second) error = %v", err)
-	}
-	t.Cleanup(func() { _ = host.ReleaseTerminal(first.TerminalId) })
-
-	report, err := registry.Interrupt(ctx, toolruntime.InterruptScope{TerminalID: second.TerminalId})
-	if err != nil {
-		t.Fatalf("Interrupt(second) error = %v", err)
-	}
-	if report.Matched != 1 || report.Signaled != 1 {
-		t.Fatalf("Interrupt(second) = %#v, want one signaled terminal", report)
-	}
-	waitCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-	defer cancel()
-	exitCode, err := host.WaitForTerminalExit(waitCtx, second.TerminalId)
-	if err == nil {
-		t.Fatal("WaitForTerminalExit(second) error = nil, want interrupted terminal failure")
-	}
-	if exitCode == 0 {
-		t.Fatalf("WaitForTerminalExit(second) exitCode = %d, want non-zero fallback", exitCode)
-	}
-	if !strings.Contains(err.Error(), "signal") {
-		t.Fatalf("WaitForTerminalExit(second) error = %v, want signal detail", err)
-	}
-
-	stillRunningCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
-	defer cancel()
-	if _, err := host.WaitForTerminalExit(
-		stillRunningCtx,
-		first.TerminalId,
-	); !errors.Is(
-		err,
-		context.DeadlineExceeded,
-	) {
-		t.Fatalf("WaitForTerminalExit(first) error = %v, want context deadline", err)
-	}
 }
 
 func TestDriverUsesInjectedLauncherAndToolHostOptions(t *testing.T) {
@@ -534,7 +539,9 @@ func TestDriverStartUsesInjectedLauncher(t *testing.T) {
 	if err != nil {
 		t.Fatalf("launchAgentProcess() error = %v", err)
 	}
-	handle.finish()
+	if err := handle.finish(); err != nil {
+		t.Fatalf("finish fake handle: %v", err)
+	}
 	select {
 	case <-proc.Done():
 	case <-time.After(time.Second):
@@ -655,15 +662,16 @@ func (h *fakeHandle) Wait() error {
 }
 
 func (h *fakeHandle) Stop(context.Context) error {
-	h.finish()
-	return nil
+	return h.finish()
 }
 
-func (h *fakeHandle) finish() {
+func (h *fakeHandle) finish() error {
+	var closeErr error
 	h.finishOnce.Do(func() {
-		_ = h.stdoutWriter.Close()
+		closeErr = h.stdoutWriter.Close()
 		close(h.done)
 	})
+	return closeErr
 }
 
 func (noopWriteCloser) Write(p []byte) (int, error) {

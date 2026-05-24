@@ -29,6 +29,7 @@ import (
 	"github.com/compozy/agh/internal/store/sessiondb"
 	"github.com/compozy/agh/internal/subprocess"
 	aghtestutil "github.com/compozy/agh/internal/testutil"
+	"github.com/compozy/agh/internal/testutil/acpmock"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
@@ -1589,13 +1590,13 @@ func defaultResolvedWorkspace(root string, now time.Time) workspacepkg.ResolvedW
 		Config: aghconfig.Config{
 			Defaults: aghconfig.DefaultsConfig{Agent: bridgeAdapterHarnessCoderKey},
 			Providers: map[string]aghconfig.ProviderConfig{
-				"fake": {Command: "fake-agent"},
+				acpmock.ProviderName: acpmock.ProviderConfig("fake-agent"),
 			},
 			Permissions: aghconfig.PermissionsConfig{Mode: aghconfig.PermissionModeApproveAll},
 		},
 		Agents: []aghconfig.AgentDef{{
 			Name:        bridgeAdapterHarnessCoderKey,
-			Provider:    "fake",
+			Provider:    acpmock.ProviderName,
 			Permissions: string(aghconfig.PermissionModeApproveAll),
 			Prompt:      "You are a reliable coder.",
 		}},
