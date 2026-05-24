@@ -1,0 +1,223 @@
+## 0.0.1 - 2026-05-24
+
+### Other Changes
+
+- Lessons learned
+
+### ♻️ Refactoring
+
+- Project structure (#7)
+- Kb improvements (#12)
+- Rename spaces to channels (#17)
+- Add extensions gaps (#21)
+- Improve tool calls ui (#22)
+- Remove web app header
+- Module improvements (#29)
+- Memory improvements (#35)
+- Storybook for web and ui (#38)
+- Enable AGH network by default for new installs (#57)
+- Hermes adjustments (#69)
+- Badges design (#84)
+- Storybook scenario and logos gallery
+- Migrate typescript tests (#114)
+- Internal go packages (#120)
+- Ui patterns (#127)
+- Improve e2e tests (#130)
+- Ui redesign
+- Workspace isolation across runtime surfaces (#145)
+- Prod ready applies (#162)
+- Tool card ui (#164)
+- Alpha on logo
+- Prod ready features (#167)
+
+### 🎉 Features
+
+- Implement config foundation packages
+- Implement sqlite store package
+- Add ACP client package
+- Add session lifecycle manager
+- Implement observe package
+- Add daemon composition root
+- Add uds api server
+- Implement cli package
+- Add http api server
+- Add system design
+- Add foundation types, schemas, and layout shell for web client
+- Add daemon health polling and agent sidebar systems for web client
+- Add session system CRUD, streaming core, and session store for web client
+- Add chat view, messages, and composer tests for web client
+- Add tool cards and renderers for web client
+- Add file-backed memory store core
+- Scaffold memory session seams
+- Add memory dream consolidation service
+- Wire memory assembler into daemon
+- Add memory api and cli
+- New skills system (#1)
+- Add workspace entity (#5)
+- Add new skill capabilities (#8)
+- Web ui v2 (#9)
+- Improve hooks system (#10)
+- Session resilience (#11)
+- Add extensability (#13)
+- Add automation (#16)
+- Add channels (#14)
+- Add network implementation (#15)
+- Add network, bridges and automations web pages (#18)
+- Ext registry (#20)
+- Add core tasks (#19)
+- Bridge adapters (#23)
+- Add site (#26)
+- Add ext refac and sandbox (#25)
+- Settings ui (#37)
+- Tasks ui (#36)
+- Harness improvements (#44)
+- Agent capabilities (#49)
+- Redesign ui (#48)
+- Unify capability (#53)
+- Redesign network workspace (#59)
+- Add task deletion and split session delete from stop (#58)
+- Session provider selection (#60)
+- Production grade adjustments (#66)
+- Autonomous system (#75)
+- Add agent session route (#80)
+- Tools registry (#85)
+- Agents soul (#88)
+- Add network threads (#105)
+- Orchestration improvements (#106)
+- Memory v2 (#108)
+- Agent categories (#113)
+- Providers model (#118)
+- Add canonical AGH bundled skill (#143)
+
+### 🐛 Bug Fixes
+
+- Review round
+- Review rounds
+- Resolve memory extensibility review batch
+- Embed web into daemon
+- Defaults agents
+- Acp integration (#4)
+- Lint errors
+- Prd folder
+- Remove orphan web actions and dead surfaces (#55)
+- Qa testing and fixes (#73)
+- New review rounds (#82)
+- Security audit (#90)
+- Release qa round (#95)
+- Add missing tools (#141)
+- New qa round (#147)
+- Advanced qa round (#149)
+- Homebrew tap
+- Final review round (#151)
+- Daemon healthy
+- Reasoning models (#158)
+- Lint errors (#160)
+- Review round (#168)
+- Release adjustments (#171)
+- Stabilize release ci fixtures
+
+### 📚 Documentation
+
+- Update agents.md
+- Update prd
+- Update skills
+- Update compozy tasks
+- Update compozy
+- Update compozy
+- Add new skills
+- Archive prd
+- Update prds
+- Update rfc
+- Update prds
+- Update prds
+- Add automation prd
+- Channels prd
+- Update prd
+- Update prd
+- New prds
+- Archive prds
+- Bridges adapters prd
+- Sandbox prd
+- Update
+- Archive prd
+- Update
+- Add new prd
+- New design
+- Update prd
+- Archive prds
+- Update prds
+- Tasks-ui prd tasks
+- Update prd
+- Update design docs
+- Agent capabilities prd
+- Improve site docs
+- Remove old design references
+- Udpate
+- Autonomous prd
+- Update skills
+- Blog design
+- Agent sould prd
+- Final qa plan
+- Update
+- Remove codex ledgers from gitignore
+- Remove not needed files
+- Udpate ledger
+- Update cy-codex-loop skill
+- Orchestration improves prd
+- Update prds
+- Orch improvs prd
+- Memv2 prd
+- Providers model prd
+- Update refacs prd
+- New design proposal
+- Update rules
+- Update skills
+- New blog posts (#173)
+- Format docs
+
+### 📦 Build System
+
+- Initial structure
+- Commitlint
+- Frontend base structure
+- Update vscode settings
+- Add subagents
+- Coderabbit
+- Prd and tooling
+- Bun lock
+- Lint tooling
+- Copy.md and tooling adjusts
+- Add repoclone rc
+- Upgrade skeeper to v0.2.0
+- Update go.mod
+- Adopt task artifacts into skeeper
+- Sync codex plans with skeeper
+- Skeeper lock
+- Skeeper lock
+- New skills
+- Skeeper lock
+- Skeeper lock
+- Skeeper lock
+- Update deps and go
+- Regenerate daytona sidecar assets for go 1.26.3
+- Fix cliff
+- Ignore docs on fmt
+- Build web assets before goreleaser
+- Extend release dry-run timeout
+
+### 🔧 CI/CD
+
+- Lint errors
+- Fint release pr
+- Fix goreleaser
+
+### 🧪 Testing
+
+- Add e2e tests (#27)
+- Qa rounds (#78)
+- Improve test suite (#138)
+- Harden daemon-served restart reloads
+- Harden daemon-served readiness waits
+- Stabilize dashboard focus assertion
+- Stabilize release integration gates
+- Stabilize release e2e markers
