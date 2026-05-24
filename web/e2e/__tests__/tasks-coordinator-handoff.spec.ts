@@ -61,10 +61,11 @@ test("creating a task is saved intent, no run is enqueued and labels never imply
 }) => {
   const tasksUI = tasksOperatorSelectors(appPage);
 
+  await ensureGlobalWorkspace(runtime);
+  await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
   await useGlobalWorkspaceIfPrompted(tasksUI);
 
   await expect(tasksUI.navTasks).toBeVisible();
-  await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
   await expect(appPage).toHaveURL(/\/tasks$/);
 
   await tasksUI.openCreate.click();
@@ -121,9 +122,9 @@ test("publishing a draft hands off to the coordinator and binds a coordination c
 }) => {
   const tasksUI = tasksOperatorSelectors(appPage);
 
-  await useGlobalWorkspaceIfPrompted(tasksUI);
-
+  await ensureGlobalWorkspace(runtime);
   await appPage.goto(runtime.url("/tasks"), { waitUntil: "domcontentloaded" });
+  await useGlobalWorkspaceIfPrompted(tasksUI);
   await expect.poll(() => new URL(appPage.url()).pathname).toBe("/tasks");
   await tasksUI.openCreate.click();
   await tasksUI.createTemplate("recurring").click();

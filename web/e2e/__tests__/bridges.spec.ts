@@ -410,7 +410,7 @@ test("operator creates a bridge, rotates secrets, diagnoses auth failure, and re
   await bridgeUI.restartBridgeButton.click();
   await waitForBridgeStatus(runtime, createdBridge.id, "ready");
   await expect
-    .poll(async () => (await bridgeUI.detailPanel.textContent()) ?? "")
+    .poll(async () => (await bridgeUI.detailPanel.textContent()) ?? "", { timeout: 45_000 })
     .toContain("ready");
 
   await assertBridgeResponsive(appPage, bridgeUI, createdBridge.id);

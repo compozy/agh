@@ -9,6 +9,7 @@ import type { Page } from "@playwright/test";
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
+import { ensureGlobalWorkspace } from "../fixtures/workspace";
 
 const execFileAsync = promisify(execFile);
 
@@ -31,6 +32,7 @@ test("operator applies Memory, Network, Automation, and Observability settings w
 }) => {
   assertLaunchRuntime(runtime, "settings parity");
 
+  await ensureGlobalWorkspace(runtime);
   await useGlobalWorkspaceIfPrompted(sessionLifecycleSelectors(appPage));
 
   const memoryBefore = await runtime.requestJSON<{ config: { recall: { top_k: number } } }>(
@@ -194,6 +196,7 @@ test("operator sees restart failure and active-session warning without losing re
   browserArtifacts,
   runtime,
 }) => {
+  await ensureGlobalWorkspace(runtime);
   await useGlobalWorkspaceIfPrompted(sessionLifecycleSelectors(appPage));
   await appPage.goto(runtime.url("/settings/general"), { waitUntil: "domcontentloaded" });
   await expect(appPage.getByTestId("settings-page-general-session-timeout-input")).toBeVisible();

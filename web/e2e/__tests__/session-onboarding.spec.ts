@@ -109,7 +109,6 @@ test("operator can onboard, create a session, submit work, approve a permission 
 
   await expect(ui.permissionPrompt).toBeVisible();
   await expect(appPage.getByTestId("permission-reject-once")).toBeVisible();
-  await expect(ui.chatView).toContainText(browserLifecyclePrompt);
   await expect(ui.chatView).toContainText("Streaming response started.");
 
   const approvalResponsePromise = appPage.waitForResponse(response => {

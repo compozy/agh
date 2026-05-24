@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
+import { ensureGlobalWorkspace } from "../fixtures/workspace";
 
 const browserLifecycleFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -20,9 +21,12 @@ test.use({ viewport: { width: 1440, height: 900 } });
 
 test("agent navigation renders the empty list state when no agents are installed", async ({
   appPage,
+  runtime,
 }) => {
   const ui = sessionLifecycleSelectors(appPage);
 
+  await ensureGlobalWorkspace(runtime);
+  await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   await useGlobalWorkspaceIfPrompted(ui);
 
   await expect(appPage.getByTestId("agents-empty")).toBeVisible();
@@ -43,6 +47,7 @@ test("agent navigation renders the error state when the agents endpoint fails", 
     });
   });
 
+  await ensureGlobalWorkspace(runtime);
   await page.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   const ui = sessionLifecycleSelectors(page);
   await useGlobalWorkspaceIfPrompted(ui);

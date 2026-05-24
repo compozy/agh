@@ -9,7 +9,7 @@ import type { Page } from "@playwright/test";
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
+import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 
 const execFileAsync = promisify(execFile);
 
@@ -33,8 +33,9 @@ test("operator can inspect and delete a session-scoped vault secret from the vau
   });
 
   try {
-    await useGlobalWorkspaceIfPrompted(sessionLifecycleSelectors(appPage));
+    await ensureGlobalWorkspace(runtime);
     await appPage.goto(runtime.url("/vault"), { waitUntil: "domcontentloaded" });
+    await useGlobalWorkspaceIfPrompted(sessionLifecycleSelectors(appPage));
 
     await expect(appPage.getByTestId("vault-shell")).toBeVisible({ timeout: 20_000 });
     await expect(appPage.getByTestId("vault-page-table")).toBeVisible();
@@ -72,8 +73,9 @@ test("operator stores and deletes a vault secret without plaintext readback", as
   const secretRef = `vault:providers/browser-settings-secret-${Date.now()}`;
   const secretValue = "browser-settings-secret-value-11";
 
-  await useGlobalWorkspaceIfPrompted(sessionLifecycleSelectors(appPage));
+  await ensureGlobalWorkspace(runtime);
   await appPage.goto(runtime.url("/vault"), { waitUntil: "domcontentloaded" });
+  await useGlobalWorkspaceIfPrompted(sessionLifecycleSelectors(appPage));
   await expect(appPage.getByTestId("vault-shell")).toBeVisible({ timeout: 20_000 });
   await expect(appPage.getByTestId("vault-page-create")).toBeVisible();
 

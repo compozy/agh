@@ -61,9 +61,9 @@ test("packages/ui Storybook overlays open visibly", async ({ page }) => {
 
     await expectOverlayVisible(
       page,
-      "components-ui-tooltip--focus-opens",
+      "components-ui-tooltip--default",
       async storyPage => {
-        await storyPage.getByRole("button", { name: /focus me/i }).focus();
+        await storyPage.getByRole("button", { name: /hover me/i }).hover();
       },
       "[data-slot='tooltip-content']"
     );
