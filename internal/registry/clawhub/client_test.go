@@ -22,50 +22,59 @@ import (
 func TestClientSearchParsesListingsAndLimit(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.Method != http.MethodGet {
-			t.Fatalf("request.Method = %q, want %q", request.Method, http.MethodGet)
+	t.Run("Should search skills through the ClawHub search endpoint", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			if request.Method != http.MethodGet {
+				t.Fatalf("request.Method = %q, want %q", request.Method, http.MethodGet)
+			}
+			if request.URL.Path != "/api/v1/search" {
+				t.Fatalf("request.URL.Path = %q, want %q", request.URL.Path, "/api/v1/search")
+			}
+			if got := request.URL.Query().Get("q"); got != "agent" {
+				t.Fatalf("query q = %q, want %q", got, "agent")
+			}
+			if got := request.URL.Query().Get("type"); got != "skill" {
+				t.Fatalf("query type = %q, want %q", got, "skill")
+			}
+			if got := request.URL.Query().Get("limit"); got != "7" {
+				t.Fatalf("query limit = %q, want %q", got, "7")
+			}
+
+			writer.Header().Set("Content-Type", "application/json")
+			if _, err := writer.Write(
+				[]byte(
+					`{"results":[{"slug":"review","displayName":"Review","summary":"Review code","ownerHandle":"agh","tags":{"latest":"1.2.0"},"stats":{"downloads":42}}]}`,
+				),
+			); err != nil {
+				t.Fatalf("write response: %v", err)
+			}
+		}))
+		t.Cleanup(server.Close)
+
+		client := NewClient(server.URL)
+
+		listings, err := client.Search(context.Background(), "agent", registry.SearchOpts{Limit: 7})
+		if err != nil {
+			t.Fatalf("Search() error = %v", err)
 		}
-		if request.URL.Path != "/api/v1/skills" {
-			t.Fatalf("request.URL.Path = %q, want %q", request.URL.Path, "/api/v1/skills")
-		}
-		if got := request.URL.Query().Get("q"); got != "agent" {
-			t.Fatalf("query q = %q, want %q", got, "agent")
-		}
-		if got := request.URL.Query().Get("limit"); got != "7" {
-			t.Fatalf("query limit = %q, want %q", got, "7")
+		if len(listings) != 1 {
+			t.Fatalf("len(Search()) = %d, want 1", len(listings))
 		}
 
-		writer.Header().Set("Content-Type", "application/json")
-		_, _ = writer.Write(
-			[]byte(
-				`{"skills":[{"slug":"@agh/review","name":"Review","description":"Review code","author":"agh","version":"1.2.0","downloads":42}]}`,
-			),
-		)
-	}))
-	defer server.Close()
-
-	client := NewClient(server.URL)
-
-	listings, err := client.Search(context.Background(), "agent", registry.SearchOpts{Limit: 7})
-	if err != nil {
-		t.Fatalf("Search() error = %v", err)
-	}
-	if len(listings) != 1 {
-		t.Fatalf("len(Search()) = %d, want 1", len(listings))
-	}
-
-	got := listings[0]
-	if got.Slug != "@agh/review" || got.Name != "Review" || got.Author != "agh" || got.Version != "1.2.0" ||
-		got.Downloads != 42 {
-		t.Fatalf("Search() listing = %#v", got)
-	}
-	if got.Source != "clawhub" {
-		t.Fatalf("Search() source = %q, want clawhub", got.Source)
-	}
-	if got.Type != registry.PackageTypeSkill {
-		t.Fatalf("Search() type = %q, want %q", got.Type, registry.PackageTypeSkill)
-	}
+		got := listings[0]
+		if got.Slug != "review" || got.Name != "review" || got.Author != "agh" ||
+			got.Description != "Review code" || got.Version != "1.2.0" || got.Downloads != 42 {
+			t.Fatalf("Search() listing = %#v", got)
+		}
+		if got.Source != "clawhub" {
+			t.Fatalf("Search() source = %q, want clawhub", got.Source)
+		}
+		if got.Type != registry.PackageTypeSkill {
+			t.Fatalf("Search() type = %q, want %q", got.Type, registry.PackageTypeSkill)
+		}
+	})
 }
 
 func TestClientSearchEmptyResultsReturnsEmptySlice(t *testing.T) {

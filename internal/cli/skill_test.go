@@ -2497,7 +2497,7 @@ func newMarketplaceTestServer(t *testing.T, fixture marketplaceServerFixture) *m
 
 	handler := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		switch {
-		case request.Method == http.MethodGet && request.URL.Path == "/api/v1/skills":
+		case request.Method == http.MethodGet && request.URL.Path == "/api/v1/search":
 			srv.mu.Lock()
 			if limit := strings.TrimSpace(request.URL.Query().Get("limit")); limit != "" {
 				value := 0
@@ -2507,9 +2507,11 @@ func newMarketplaceTestServer(t *testing.T, fixture marketplaceServerFixture) *m
 			}
 			srv.mu.Unlock()
 
-			_ = json.NewEncoder(writer).Encode(map[string]any{
-				"skills": srv.fixture.searchResults,
-			})
+			if err := json.NewEncoder(writer).Encode(map[string]any{
+				"results": srv.fixture.searchResults,
+			}); err != nil {
+				t.Fatalf("encode search results: %v", err)
+			}
 			return
 		case request.Method == http.MethodGet && strings.HasPrefix(request.URL.Path, "/api/v1/skills/") && strings.Contains(request.URL.Path, "/versions/") && strings.HasSuffix(request.URL.Path, "/archive"):
 			slug := strings.TrimPrefix(request.URL.Path, "/api/v1/skills/")
