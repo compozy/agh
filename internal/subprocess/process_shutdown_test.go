@@ -92,6 +92,33 @@ func TestProcessShutdownCancellationContract(t *testing.T) {
 			t.Fatal("Shutdown returned before process exited after cancellation")
 		}
 	})
+
+	t.Run("Should treat cooperative timeout as escalation when caller context remains active", func(t *testing.T) {
+		t.Parallel()
+
+		process := launchHelperProcess(t, "shutdown_delayed_ack", LaunchConfig{
+			ShutdownTimeout: 20 * time.Millisecond,
+			PostSignalGrace: 25 * time.Millisecond,
+		})
+		cleanupProcessShutdownContract(t, process)
+		initializeProcess(t, process, InitializeRuntime{
+			HealthCheckIntervalMS: 1_000,
+			HealthCheckTimeoutMS:  100,
+			ShutdownTimeoutMS:     20,
+			DefaultHookTimeoutMS:  100,
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		startedAt := time.Now()
+		if err := process.Shutdown(ctx); err != nil {
+			t.Fatalf("Shutdown(cooperative timeout) error = %v, want nil", err)
+		}
+		if elapsed := time.Since(startedAt); elapsed < 20*time.Millisecond {
+			t.Fatalf("Shutdown(cooperative timeout) elapsed = %v, want wait through shutdown timeout", elapsed)
+		}
+	})
 }
 
 func cleanupProcessShutdownContract(t *testing.T, process *Process) {

@@ -3148,17 +3148,26 @@ func TestBootSkillsWatcherRefreshesOnGlobalChangesAndStopsOnShutdown(t *testing.
 	if registry == nil {
 		t.Fatal("boot() did not initialize the skills registry")
 	}
+	skillsDone := d.skillsDone
+	if skillsDone == nil {
+		t.Fatal("boot() did not start the skills watcher")
+	}
 
 	writeDaemonSkill(t, homePaths.SkillsDir, "watched-skill", "Global watched skill")
 	waitForCondition(t, "watcher refresh after boot", func() bool {
 		_, ok := registry.Get("watched-skill")
 		return ok
 	})
-	versionAfterRefresh := registry.GlobalVersion()
 
 	if err := d.Shutdown(testutil.Context(t)); err != nil {
 		t.Fatalf("Shutdown() error = %v", err)
 	}
+	select {
+	case <-skillsDone:
+	default:
+		t.Fatal("skills watcher was still running after shutdown")
+	}
+	versionAfterShutdown := registry.GlobalVersion()
 
 	writeDaemonSkill(
 		t,
@@ -3167,8 +3176,8 @@ func TestBootSkillsWatcherRefreshesOnGlobalChangesAndStopsOnShutdown(t *testing.
 		"Should not be observed",
 	)
 
-	if got := registry.GlobalVersion(); got != versionAfterRefresh {
-		t.Fatalf("registry version after shutdown = %d, want %d", got, versionAfterRefresh)
+	if got := registry.GlobalVersion(); got != versionAfterShutdown {
+		t.Fatalf("registry version after shutdown file write = %d, want %d", got, versionAfterShutdown)
 	}
 	if _, ok := registry.Get("after-shutdown"); ok {
 		t.Fatal("skills watcher continued refreshing after shutdown")

@@ -1072,6 +1072,9 @@ func (h *helperServer) handleShutdown(envelope rpcEnvelope) {
 	if h.shutdownMarker != "" {
 		_ = os.WriteFile(h.shutdownMarker, []byte("shutdown"), 0o644)
 	}
+	if h.scenario == "shutdown_delayed_ack" {
+		time.Sleep(100 * time.Millisecond)
+	}
 	if h.scenario == "shutdown_hang" {
 		h.shutdownHang = true
 		configureIgnoreTermination()

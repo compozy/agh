@@ -435,7 +435,7 @@ func (p *Process) Shutdown(ctx context.Context) error {
 			Reason:     p.shutdownReason,
 			DeadlineMS: p.shutdownTimeout.Milliseconds(),
 		}, &response)
-		if err != nil {
+		if err != nil && !cooperativeShutdownTimedOut(ctx, shutdownCtx, err) {
 			errs = append(errs, fmt.Errorf("subprocess: cooperative shutdown: %w", err))
 		}
 	}
@@ -472,11 +472,11 @@ func (p *Process) Shutdown(ctx context.Context) error {
 	}
 	stopCtxErr = shutdownContextError(ctx, stopCtxErr)
 
-	if err := killManagedProcess(p.cmd); err != nil {
+	if err := forceManagedProcessGroupExit(p.cmd, defaultProcessGroupWait); err != nil {
 		errs = append(errs, fmt.Errorf("subprocess: kill process tree: %w", err))
 	}
 
-	waitErr := p.waitWithContext(waitCtx, p.postSignalGrace)
+	waitErr := p.waitWithContext(waitCtx, defaultProcessGroupWait)
 	if waitErr == nil {
 		stopCtxErr = shutdownContextError(ctx, stopCtxErr)
 		return joinShutdownResult(errs, p.Wait(), stopCtxErr)
@@ -516,6 +516,16 @@ func shutdownWaitContext(ctx context.Context, stopCtxErr error) context.Context 
 		return context.WithoutCancel(ctx)
 	}
 	return ctx
+}
+
+func cooperativeShutdownTimedOut(ctx context.Context, shutdownCtx context.Context, err error) bool {
+	if err == nil || shutdownCtx == nil || shutdownCtx.Err() == nil {
+		return false
+	}
+	if ctx != nil && ctx.Err() != nil {
+		return false
+	}
+	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
 }
 
 func (p *Process) checkpointShutdownRequested(ctx context.Context) {
