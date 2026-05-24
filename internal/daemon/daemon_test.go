@@ -3670,8 +3670,13 @@ func TestLockHelpersAndErrors(t *testing.T) {
 
 func waitForCondition(t *testing.T, label string, fn func() bool) {
 	t.Helper()
+	waitForConditionWithin(t, label, 2*time.Second, fn)
+}
 
-	deadline := time.Now().Add(2 * time.Second)
+func waitForConditionWithin(t *testing.T, label string, timeout time.Duration, fn func() bool) {
+	t.Helper()
+
+	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		if fn() {
 			return

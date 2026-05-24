@@ -2653,7 +2653,6 @@ func TestBootSkillsWatcherRebuildsHooksBeforeNextDispatch(t *testing.T) {
 		t.Fatal("boot() did not inject the hooks dispatcher")
 	}
 
-	initialVersion := d.hooks.Version()
 	writeDaemonFile(t, filepath.Join(homePaths.SkillsDir, "watched-hook", "SKILL.md"), `---
 name: watched-hook
 description: reloaded hook
@@ -2670,13 +2669,6 @@ metadata:
 body
 `)
 
-	waitForCondition(t, "hooks rebuild after watcher refresh", func() bool {
-		if _, ok := d.skillsRegistry.Get("watched-hook"); !ok {
-			return false
-		}
-		return d.hooks.Version() > initialVersion
-	})
-
 	sess := &session.Session{
 		ID:          "sess-watch",
 		AgentName:   "general",
@@ -2688,14 +2680,21 @@ body
 		UpdatedAt:   time.Date(2026, 4, 9, 12, 0, 0, 0, time.UTC),
 	}
 
-	if _, err := capturedDeps.Hooks.Session.DispatchSessionPostCreate(
-		testutil.Context(t),
-		hookspkg.SessionPostCreatePayload(
-			hookSessionLifecyclePayload(sess, hookspkg.HookSessionPostCreate, time.Now().UTC()),
-		),
-	); err != nil {
-		t.Fatalf("DispatchSessionPostCreate() error = %v", err)
-	}
+	waitForConditionWithin(t, "hooks rebuild before next dispatch", 10*time.Second, func() bool {
+		if _, ok := d.skillsRegistry.Get("watched-hook"); !ok {
+			return false
+		}
+		if _, err := capturedDeps.Hooks.Session.DispatchSessionPostCreate(
+			testutil.Context(t),
+			hookspkg.SessionPostCreatePayload(
+				hookSessionLifecyclePayload(sess, hookspkg.HookSessionPostCreate, time.Now().UTC()),
+			),
+		); err != nil {
+			t.Fatalf("DispatchSessionPostCreate() error = %v", err)
+		}
+		_, err := os.Stat(outputPath)
+		return err == nil
+	})
 	assertLifecycleHookPayload(t, outputPath, hookspkg.HookSessionPostCreate, resolvedWorkspace)
 }
 

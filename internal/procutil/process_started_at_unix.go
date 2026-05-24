@@ -14,6 +14,7 @@ import (
 )
 
 const psStartedAtLayout = "Mon Jan _2 15:04:05 2006"
+const processStartLookupTimeout = 5 * time.Second
 
 // StartedAt reports the observed start time for pid using the host process table.
 func StartedAt(pid int) (time.Time, error) {
@@ -21,7 +22,7 @@ func StartedAt(pid int) (time.Time, error) {
 		return time.Time{}, fmt.Errorf("procutil: invalid process pid %d", pid)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), processStartLookupTimeout)
 	defer cancel()
 
 	cmd := execabs.CommandContext(

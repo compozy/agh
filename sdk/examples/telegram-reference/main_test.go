@@ -690,7 +690,8 @@ func TestUtilityHelpers(t *testing.T) {
 		t.Fatal("isNotInitializedRPCError(non-rpc) = true, want false")
 	}
 
-	target := filepath.Join(t.TempDir(), "crash-once.json")
+	sideEffectRoot := tempSideEffectDir(t, "agh-telegram-reference-utils-")
+	target := filepath.Join(sideEffectRoot, "crash-once.json")
 	if !shouldCrashOnce(target) {
 		t.Fatal("shouldCrashOnce(missing file) = false, want true")
 	}
@@ -701,7 +702,7 @@ func TestUtilityHelpers(t *testing.T) {
 		t.Fatal("shouldCrashOnce(existing file) = true, want false")
 	}
 
-	markerPath := filepath.Join(t.TempDir(), "markers", "lines.log")
+	markerPath := filepath.Join(sideEffectRoot, "markers", "lines.log")
 	if err := appendMarkerLine(markerPath, " hello "); err != nil {
 		t.Fatalf("appendMarkerLine() error = %v", err)
 	}
@@ -709,7 +710,7 @@ func TestUtilityHelpers(t *testing.T) {
 		t.Fatalf("marker line = %q, want %q", got, want)
 	}
 
-	jsonlPath := filepath.Join(t.TempDir(), "markers", "data.jsonl")
+	jsonlPath := filepath.Join(sideEffectRoot, "markers", "data.jsonl")
 	if err := appendJSONLine(jsonlPath, map[string]string{"hello": "world"}); err != nil {
 		t.Fatalf("appendJSONLine() error = %v", err)
 	}
@@ -717,7 +718,7 @@ func TestUtilityHelpers(t *testing.T) {
 		t.Fatalf("jsonl lines = %#v, want encoded payload", got)
 	}
 
-	jsonPath := filepath.Join(t.TempDir(), "markers", "state.json")
+	jsonPath := filepath.Join(sideEffectRoot, "markers", "state.json")
 	if err := writeJSONFile(jsonPath, map[string]string{"status": "ready"}); err != nil {
 		t.Fatalf("writeJSONFile() error = %v", err)
 	}
@@ -751,8 +752,12 @@ func newRuntimePeerPair(t *testing.T) (*telegramReferenceRuntime, *bridgesdk.Pee
 		once.Do(func() {
 			cancel()
 			runtime.stop()
-			_ = hostConn.Close()
-			_ = runtimeConn.Close()
+			if err := hostConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+				t.Errorf("hostConn.Close() error = %v", err)
+			}
+			if err := runtimeConn.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+				t.Errorf("runtimeConn.Close() error = %v", err)
+			}
 			for range 2 {
 				err := <-errCh
 				if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, net.ErrClosed) {
@@ -870,9 +875,10 @@ func testDeliveryRequest(
 }
 
 func setAdapterTestEnv(t *testing.T) adapterEnv {
+	// not parallel: mutates process environment for adapter marker paths.
 	t.Helper()
 
-	root := filepath.Join(t.TempDir(), "markers")
+	root := tempSideEffectDir(t, "agh-telegram-reference-markers-")
 	env := adapterEnv{
 		handshakePath: filepath.Join(root, "handshake.json"),
 		ownershipPath: filepath.Join(root, "ownership.json"),
@@ -896,6 +902,25 @@ func setAdapterTestEnv(t *testing.T) adapterEnv {
 	t.Setenv(adapterCrashOnceEnv, "")
 
 	return env
+}
+
+func tempSideEffectDir(t *testing.T, pattern string) string {
+	t.Helper()
+
+	root, err := os.MkdirTemp("", pattern)
+	if err != nil {
+		t.Fatalf("os.MkdirTemp(%q) error = %v", pattern, err)
+	}
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Logf("telegram-reference side-effect directory retained at %s", root)
+			return
+		}
+		if err := os.RemoveAll(root); err != nil {
+			t.Errorf("os.RemoveAll(%q) error = %v", root, err)
+		}
+	})
+	return root
 }
 
 func waitForNonEmptyLines(t *testing.T, path string) []string {

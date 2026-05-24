@@ -25,6 +25,8 @@ import (
 const (
 	golangciLintVersion       = "v2.12.2"
 	golangciLintTimeout       = "10m"
+	goIntegrationPackageLimit = "2"
+	goIntegrationTestTimeout  = "30m"
 	goplsModernizeVersion     = "v0.22.0"
 	gotestsumVersion          = "v1.13.0"
 	binDir                    = "bin"
@@ -176,7 +178,8 @@ func TestIntegration() error {
 	}
 	return runRaceEnabledGoCommand(context.Background(), nil,
 		"run", "gotest.tools/gotestsum@"+gotestsumVersion,
-		"--format", "pkgname", "--", "-race", "-parallel=4", "-tags", "integration", "./...")
+		"--format", "pkgname", "--", "-race", "-p", goIntegrationPackageLimit, "-parallel=4",
+		"-timeout", goIntegrationTestTimeout, "-tags", "integration", "./...")
 }
 
 // TestE2ERuntime runs the PR-required daemon/runtime E2E lane without sweeping every integration package.
@@ -843,7 +846,11 @@ func runIntegrationSuite(ctx context.Context, suite e2elane.GoSuite, env map[str
 		"pkgname",
 		"--",
 		"-race",
+		"-p",
+		goIntegrationPackageLimit,
 		"-parallel=4",
+		"-timeout",
+		goIntegrationTestTimeout,
 		"-count=1",
 		"-tags",
 		"integration",

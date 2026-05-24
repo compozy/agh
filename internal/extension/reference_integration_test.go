@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -70,7 +71,7 @@ type referenceHarness struct {
 	daemonCancel context.CancelFunc
 	daemonErrCh  chan error
 	homePaths    aghconfig.HomePaths
-	logBuffer    *bytes.Buffer
+	logBuffer    *lockedBuffer
 	repoRoot     string
 	workspace    workspacepkg.ResolvedWorkspace
 
@@ -88,6 +89,29 @@ type referenceHarness struct {
 	promptShutdownPath   string
 }
 
+type lockedBuffer struct {
+	mu     sync.Mutex
+	buffer bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(payload []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buffer.Write(payload)
+}
+
+func (b *lockedBuffer) Len() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buffer.Len()
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buffer.String()
+}
+
 type referenceACPAgent struct{}
 
 func TestReferenceExtensionACPHelperProcess(t *testing.T) {
@@ -101,6 +125,7 @@ func TestReferenceExtensionACPHelperProcess(t *testing.T) {
 }
 
 func TestReferenceExtensionsEndToEnd(t *testing.T) {
+	// not parallel: the reference extensions read process environment marker paths.
 	if runtime.GOOS == "windows" {
 		t.Skip("reference extension integration uses Unix domain sockets and shell command quoting")
 	}
@@ -272,10 +297,10 @@ func newReferenceHarness(t *testing.T, repoRoot string) *referenceHarness {
 		t.Fatalf("EnsureHomeLayout() error = %v", err)
 	}
 
-	markersDir := filepath.Join(t.TempDir(), "markers")
+	markersDir := referenceMarkerDir(t)
 	harness := &referenceHarness{
 		homePaths: homePaths,
-		logBuffer: &bytes.Buffer{},
+		logBuffer: &lockedBuffer{},
 		repoRoot:  repoRoot,
 
 		promptLogPath: filepath.Join(markersDir, "acp-prompts.jsonl"),
@@ -336,13 +361,32 @@ func newReferenceHarness(t *testing.T, repoRoot string) *referenceHarness {
 	harness.waitForDaemonReady(t)
 
 	t.Cleanup(func() {
+		harness.shutdown(t)
 		if t.Failed() && harness.logBuffer.Len() > 0 {
 			t.Logf("reference daemon logs:\n%s", harness.logBuffer.String())
 		}
-		harness.shutdown(t)
 	})
 
 	return harness
+}
+
+func referenceMarkerDir(t *testing.T) string {
+	t.Helper()
+
+	dir, err := os.MkdirTemp("", "agh-reference-extension-markers-")
+	if err != nil {
+		t.Fatalf("os.MkdirTemp(reference markers) error = %v", err)
+	}
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Logf("reference marker directory retained at %s", dir)
+			return
+		}
+		if err := os.RemoveAll(dir); err != nil {
+			t.Errorf("os.RemoveAll(%q) error = %v", dir, err)
+		}
+	})
+	return dir
 }
 
 func (h *referenceHarness) installExtension(t *testing.T, relativePath string) cli.ExtensionRecord {
