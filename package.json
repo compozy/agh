@@ -1,4 +1,5 @@
 {
+    "version": "0.0.1",
     "private": true,
     "workspaces": [
         "packages/ui",
@@ -9,31 +10,31 @@
         "sdk/examples/prompt-enhancer"
     ],
     "scripts": {
-        "postinstall": "bash scripts/postinstall.sh",
-        "prepare": "husky",
+        "build": "make build && turbo run build",
+        "bun:build": "turbo run build",
+        "bun:lint": "bun run format:check && bunx oxlint --deny-warnings",
+        "bun:test": "turbo run test",
+        "bun:test:cold": "turbo run test --force",
+        "bun:typecheck": "turbo run typecheck",
         "codegen": "make codegen",
         "codegen-check": "make codegen-check",
         "dev": "turbo run dev --filter=./web",
-        "build": "make build && turbo run build",
-        "lint": "bun run go:lint && bun run bun:lint",
         "format": "make fmt && oxfmt",
         "format:check": "bunx oxfmt --check",
-        "typecheck": "bun run bun:typecheck",
+        "go:lint": "go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4 run --allow-parallel-runners ./... && go run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@v0.21.1 ./...",
+        "lint": "bun run go:lint && bun run bun:lint",
+        "postinstall": "bash scripts/postinstall.sh",
+        "prepare": "husky",
+        "prs:scrape": "bun run scripts/scrape-prs.ts",
+        "release:site-changelog": "bun run packages/site/scripts/generate-changelog-release.ts",
         "test": "make test && bun run bun:test",
         "test:cold": "bun run bun:test:cold",
-        "tests": "bun run test",
-        "bun:build": "turbo run build",
-        "bun:lint": "bun run format:check && bunx oxlint --deny-warnings",
-        "bun:typecheck": "turbo run typecheck",
-        "bun:test": "turbo run test",
-        "bun:test:cold": "turbo run test --force",
-        "go:lint": "go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4 run --allow-parallel-runners ./... && go run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@v0.21.1 ./...",
-        "test:e2e:runtime": "make test-e2e-runtime",
-        "test:e2e:web": "make test-e2e-web",
         "test:e2e": "make test-e2e",
         "test:e2e:nightly": "make test-e2e-nightly",
-        "prs:scrape": "bun run scripts/scrape-prs.ts",
-        "release:site-changelog": "bun run packages/site/scripts/generate-changelog-release.ts"
+        "test:e2e:runtime": "make test-e2e-runtime",
+        "test:e2e:web": "make test-e2e-web",
+        "tests": "bun run test",
+        "typecheck": "bun run bun:typecheck"
     },
     "devDependencies": {
         "@commitlint/cli": "^21.0.1",
@@ -57,12 +58,12 @@
     },
     "lint-staged": {
         "*.go": "make fmt",
+        "*.{css,html,json,jsonc,yaml,yml,md}": [
+            "oxfmt --no-error-on-unmatched-pattern"
+        ],
         "*.{js,jsx,ts,tsx}": [
             "oxfmt --no-error-on-unmatched-pattern",
             "oxlint --deny-warnings"
-        ],
-        "*.{css,html,json,jsonc,yaml,yml,md}": [
-            "oxfmt --no-error-on-unmatched-pattern"
         ]
     },
     "packageManager": "bun@1.3.4",
