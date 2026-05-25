@@ -114,6 +114,9 @@ func newInstallCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if _, _, err := aghconfig.EnsureOnboardingAgent(homePaths); err != nil {
+				return err
+			}
 
 			record := installRecord{
 				AgentName:    aghconfig.DefaultAgentName,

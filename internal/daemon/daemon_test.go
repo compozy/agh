@@ -5708,6 +5708,18 @@ func (r *recordingRegistry) DeleteNetworkChannel(context.Context, store.NetworkC
 	return nil
 }
 
+func (r *recordingRegistry) GetAppMetadata(context.Context, string) (string, bool, error) {
+	return "", false, nil
+}
+
+func (r *recordingRegistry) SetAppMetadata(context.Context, string, string) error {
+	return nil
+}
+
+func (r *recordingRegistry) DeleteAppMetadata(context.Context, string) error {
+	return nil
+}
+
 func (r *recordingRegistry) WriteNetworkMessage(context.Context, store.NetworkMessageEntry) error {
 	return nil
 }

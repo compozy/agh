@@ -55,6 +55,7 @@ Workspace tools:
 - `agh__workspace_list`
 - `agh__workspace_info`
 - `agh__workspace_describe`
+- `agh__agent_create` — authors one `AGENT.md` definition at `global` or `workspace` scope (mutating; reuses the same writer as `POST /api/agents`). Provide `scope`, `name`, `provider`, and `prompt`; workspace scope also needs `workspace`.
 
 Provider model tools:
 
@@ -88,6 +89,7 @@ Coordination tools:
 
 - `agh__network_status`
 - `agh__network_channels`
+- `agh__network_channel_create` — registers one channel with a stated `purpose` for a workspace (mutating). Channel names are lowercase `[a-z0-9][a-z0-9_-]{0,63}`.
 - `agh__network_inbox`
 - `agh__network_peers`
 - `agh__network_send`

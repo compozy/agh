@@ -89,6 +89,13 @@ type NetworkChannelStore interface {
 	DeleteNetworkChannel(ctx context.Context, ref NetworkChannelRef) error
 }
 
+// AppMetadataStore manages a small global key-value table for instance-level flags.
+type AppMetadataStore interface {
+	GetAppMetadata(ctx context.Context, key string) (string, bool, error)
+	SetAppMetadata(ctx context.Context, key string, value string) error
+	DeleteAppMetadata(ctx context.Context, key string) error
+}
+
 // NetworkMessageStore manages persisted network timeline messages.
 type NetworkMessageStore interface {
 	WriteNetworkMessage(ctx context.Context, entry NetworkMessageEntry) error

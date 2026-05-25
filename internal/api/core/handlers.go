@@ -76,6 +76,7 @@ type BaseHandlerConfig struct {
 	SettingsUpdate               SettingsUpdateController
 	Vault                        VaultService
 	Workspaces                   WorkspaceService
+	Onboarding                   OnboardingStore
 	AgentCatalog                 AgentCatalog
 	ModelCatalog                 ModelCatalogService
 	ProviderAuthRunner           authproviders.ProviderAuthCommandRunner
@@ -134,6 +135,7 @@ type BaseHandlers struct {
 	SettingsUpdate               SettingsUpdateController
 	Vault                        VaultService
 	Workspaces                   WorkspaceService
+	Onboarding                   OnboardingStore
 	AgentCatalog                 AgentCatalog
 	ModelCatalog                 ModelCatalogService
 	ProviderAuthRunner           authproviders.ProviderAuthCommandRunner
@@ -200,6 +202,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		SettingsUpdate:               cfg.SettingsUpdate,
 		Vault:                        cfg.Vault,
 		Workspaces:                   cfg.Workspaces,
+		Onboarding:                   cfg.Onboarding,
 		AgentCatalog:                 cfg.AgentCatalog,
 		ModelCatalog:                 cfg.ModelCatalog,
 		ProviderAuthRunner:           defaults.providerAuthRunner,
@@ -1276,46 +1279,7 @@ func (h *BaseHandlers) createAgentDefinitionPath(
 	ctx context.Context,
 	req contract.CreateAgentRequest,
 ) (string, error) {
-	name := aghconfig.NormalizeAgentName(req.Agent.Name)
-	switch req.Scope {
-	case contract.AgentCreateScopeGlobal:
-		return filepath.Join(h.HomePaths.AgentsDir, name, aghconfig.AgentDefinitionFileName), nil
-	case contract.AgentCreateScopeWorkspace:
-		workspaceRef := strings.TrimSpace(req.Workspace)
-		if workspaceRef == "" {
-			return "", errors.Join(
-				errCreateAgentRequestInvalid,
-				errors.New("workspace is required for workspace-scoped agents"),
-			)
-		}
-		if h.Workspaces == nil {
-			return "", fmt.Errorf("%s: %w", h.transportName(), workspacepkg.ErrWorkspaceResolverUnavailable)
-		}
-		resolved, err := h.Workspaces.Resolve(ctx, workspaceRef)
-		if err != nil {
-			return "", err
-		}
-		rootDir := strings.TrimSpace(resolved.RootDir)
-		if rootDir == "" {
-			return "", fmt.Errorf("%s: %w", h.transportName(), workspacepkg.ErrWorkspaceRootMissing)
-		}
-		return filepath.Join(
-			rootDir,
-			aghconfig.DirName,
-			aghconfig.AgentsDirName,
-			name,
-			aghconfig.AgentDefinitionFileName,
-		), nil
-	default:
-		return "", errors.Join(
-			errCreateAgentRequestInvalid,
-			fmt.Errorf(
-				"scope must be %q or %q",
-				contract.AgentCreateScopeWorkspace,
-				contract.AgentCreateScopeGlobal,
-			),
-		)
-	}
+	return createAgentDefinitionPathFor(ctx, req, h.HomePaths, h.Workspaces, h.transportName())
 }
 
 func (h *BaseHandlers) workspaceAgentDefs(ctx context.Context, workspaceRef string) ([]aghconfig.AgentDef, error) {

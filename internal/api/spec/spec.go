@@ -105,6 +105,7 @@ const (
 	specForbiddenWorkspaceOrPermissionMismatchDescription    = "Forbidden - workspace or permission mismatch"
 	specInternalDaemonErrorDescription                       = "Internal daemon error"
 	specInternalServerErrorDescription                       = "Internal server error"
+	specOnboardingStoreUnavailableDescription                = "Onboarding store is not configured"
 	specSessionPromptConflictDescription                     = "Session prompt conflict"
 	specInvalidAgentLocalLayerDescription                    = "Invalid agent-local layer"
 	specInvalidAutomationRunFilterDescription                = "Invalid automation run filter"
@@ -139,6 +140,8 @@ const (
 	specBridgesKey                                           = "bridges"
 	specBundlesKey                                           = "bundles"
 	specDiagnosticsKey                                       = "diagnostics"
+	specOnboardingKey                                        = "onboarding"
+	specFilesystemKey                                        = "filesystem"
 	specExtensionKey                                         = "extension"
 	specExtensionsKey                                        = "extensions"
 	specHooksKey                                             = "hooks"
@@ -344,6 +347,8 @@ func Document() (*openapi3.T, error) {
 			{Name: specBridgesKey},
 			{Name: specBundlesKey},
 			{Name: specDiagnosticsKey},
+			{Name: specOnboardingKey},
+			{Name: specFilesystemKey},
 			{Name: specNetworkKey},
 			{Name: specNotificationsKey},
 			{Name: specExtensionsKey},
@@ -1432,6 +1437,64 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.StatusPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodGet,
+		Path:        "/api/onboarding",
+		OperationID: "getOnboardingStatus",
+		Summary:     "Get the first-run onboarding completion status",
+		Tags:        []string{specOnboardingKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.OnboardingStatusResponse{}},
+			{Status: 503, Description: specOnboardingStoreUnavailableDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodPost,
+		Path:        "/api/onboarding/complete",
+		OperationID: "completeOnboarding",
+		Summary:     "Mark first-run onboarding as completed",
+		Tags:        []string{specOnboardingKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.OnboardingStatusResponse{}},
+			{Status: 503, Description: specOnboardingStoreUnavailableDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodDelete,
+		Path:        "/api/onboarding",
+		OperationID: "resetOnboarding",
+		Summary:     "Clear the onboarding completion flag",
+		Tags:        []string{specOnboardingKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.OnboardingStatusResponse{}},
+			{Status: 503, Description: specOnboardingStoreUnavailableDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodGet,
+		Path:        "/api/fs/browse",
+		OperationID: "browseDirectory",
+		Summary:     "List directory entries for the workspace folder picker",
+		Tags:        []string{specFilesystemKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			queryParam("path", "Absolute directory path to list (defaults to the operator home)", false),
+			boolQueryParam("show_hidden", "Include dotfiles in the listing"),
+			boolQueryParam("dirs_only", "Return only directory entries"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.FSBrowseResponse{}},
+			{Status: 400, Description: "Invalid directory path", Body: contract.ErrorPayload{}},
+			{Status: 403, Description: "Directory is not accessible", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Directory not found", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	},

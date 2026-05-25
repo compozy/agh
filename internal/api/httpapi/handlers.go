@@ -38,6 +38,7 @@ type handlerConfig struct {
 	settingsUpdate    core.SettingsUpdateController
 	vault             core.VaultService
 	workspaces        core.WorkspaceService
+	onboarding        core.OnboardingStore
 	agentCatalog      core.AgentCatalog
 	modelCatalog      core.ModelCatalogService
 	agentContext      core.AgentContextService
@@ -124,6 +125,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			SettingsUpdate:               cfg.settingsUpdate,
 			Vault:                        cfg.vault,
 			Workspaces:                   cfg.workspaces,
+			Onboarding:                   cfg.onboarding,
 			AgentCatalog:                 cfg.agentCatalog,
 			ModelCatalog:                 cfg.modelCatalog,
 			AgentContextService:          cfg.agentContext,

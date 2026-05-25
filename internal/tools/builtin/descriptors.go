@@ -9,6 +9,7 @@ import (
 const (
 	descriptorKeywordCatalog = "catalog"
 	descriptorKeywordStatus  = "status"
+	descriptorKeywordCreate  = "create"
 	emptyInputSchema         = `{"type":"object","additionalProperties":false}`
 )
 

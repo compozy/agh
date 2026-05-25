@@ -205,6 +205,8 @@ const TAG_ICONS: Record<string, string> = {
   automation: "Activity",
   bridges: "Layers",
   daemon: "Activity",
+  onboarding: "Rocket",
+  filesystem: "Folder",
   extensions: "Plug",
   hooks: "Waypoints",
   memory: "Brain",

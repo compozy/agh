@@ -138,6 +138,7 @@ type Registry interface {
 	store.NetworkChannelStore
 	store.NetworkConversationStore
 	store.NetworkMessageStore
+	store.AppMetadataStore
 	workspacepkg.Store
 }
 
@@ -1050,6 +1051,7 @@ func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
 		httpapi.WithTaskService(deps.Tasks),
 		httpapi.WithNetworkService(deps.Network),
 		httpapi.WithNetworkStore(deps.Registry),
+		httpapi.WithOnboardingStore(deps.Registry),
 		httpapi.WithObserver(deps.Observer),
 		httpapi.WithAutomation(deps.Automation),
 		httpapi.WithBridgeService(deps.Bridges),
@@ -1104,6 +1106,7 @@ func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 		udsapi.WithTaskService(deps.Tasks),
 		udsapi.WithNetworkService(deps.Network),
 		udsapi.WithNetworkStore(deps.Registry),
+		udsapi.WithOnboardingStore(deps.Registry),
 		udsapi.WithObserver(deps.Observer),
 		udsapi.WithAutomation(deps.Automation),
 		udsapi.WithBridgeService(deps.Bridges),

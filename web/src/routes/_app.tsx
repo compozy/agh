@@ -10,11 +10,12 @@ import {
 } from "@tanstack/react-router";
 import { AlertTriangle, Compass, RefreshCw } from "lucide-react";
 
-import { Button, Empty, buttonVariants } from "@agh/ui";
+import { Button, Empty, Spinner, buttonVariants } from "@agh/ui";
 
 import { TopbarShell } from "@/components/topbar-shell";
 import { useAppLayout } from "@/hooks/routes/use-app-layout";
 import { AgentCreateDialog } from "@/systems/agent";
+import { OnboardingWizard, useOnboardingStatus } from "@/systems/onboarding";
 import { AppSidebar } from "@/systems/runtime";
 import { SessionCreateDialog, SessionCreateProvider } from "@/systems/session";
 import { WorkspaceOnboarding, WorkspaceSetupDialog } from "@/systems/workspace";
@@ -26,7 +27,24 @@ export const Route = createFileRoute("/_app")({
 });
 
 function AppLayout() {
+  const onboarding = useOnboardingStatus();
   const page = useAppLayout();
+
+  if (onboarding.isLoading) {
+    return (
+      <main
+        id="app-content"
+        data-testid="onboarding-gate-loading"
+        className="flex min-h-0 flex-1 items-center justify-center bg-canvas"
+      >
+        <Spinner />
+      </main>
+    );
+  }
+
+  if (onboarding.data && !onboarding.data.completed) {
+    return <OnboardingWizard onComplete={() => void onboarding.refetch()} />;
+  }
 
   if (!page.areWorkspacesLoading && !page.workspacesError && !page.hasWorkspaces) {
     return <WorkspaceOnboarding onWorkspaceResolved={page.setActiveWorkspaceId} />;

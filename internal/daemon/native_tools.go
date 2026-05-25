@@ -447,6 +447,7 @@ type nativeToolAvailabilitySet struct {
 	heartbeatWake       toolspkg.NativeAvailabilityFunc
 	workspaces          toolspkg.NativeAvailabilityFunc
 	workspaceDetails    toolspkg.NativeAvailabilityFunc
+	agentCreate         toolspkg.NativeAvailabilityFunc
 	providerModels      toolspkg.NativeAvailabilityFunc
 	tasks               toolspkg.NativeAvailabilityFunc
 	taskNotifications   toolspkg.NativeAvailabilityFunc
@@ -482,7 +483,10 @@ func (n *daemonNativeTools) bindings() map[toolspkg.ToolID]nativeToolBinding {
 			availability.heartbeatWake,
 		),
 	)
-	addNativeToolBindings(bindings, n.workspaceToolBindings(availability.workspaces, availability.workspaceDetails))
+	addNativeToolBindings(
+		bindings,
+		n.workspaceToolBindings(availability.workspaces, availability.workspaceDetails, availability.agentCreate),
+	)
 	addNativeToolBindings(bindings, n.providerModelToolBindings(availability.providerModels))
 	addNativeToolBindings(bindings, n.memoryToolBindings(availability.memory))
 	addNativeToolBindings(bindings, n.memoryAdminToolBindings(memoryAdminAvailabilitySet{
@@ -531,6 +535,9 @@ func (n *daemonNativeTools) nativeToolAvailability() nativeToolAvailabilitySet {
 		}),
 		workspaceDetails: n.dependencyAvailability(func() bool {
 			return n.deps.Workspaces != nil && n.deps.Sessions != nil
+		}),
+		agentCreate: n.dependencyAvailability(func() bool {
+			return n.deps.Workspaces != nil && strings.TrimSpace(n.deps.HomePaths.AgentsDir) != ""
 		}),
 		providerModels: n.dependencyAvailability(func() bool { return n.deps.ModelCatalog != nil }),
 		taskNotifications: n.dependencyAvailability(func() bool {
@@ -644,6 +651,10 @@ func (n *daemonNativeTools) networkToolBindings(
 			call:         n.networkSend,
 			availability: availability,
 		},
+		toolspkg.ToolIDNetworkChannelCreate: {
+			call:         n.networkChannelCreate,
+			availability: readAvailability,
+		},
 		toolspkg.ToolIDNetworkThreads: {
 			call:         n.networkThreads,
 			availability: readAvailability,
@@ -722,6 +733,7 @@ func (n *daemonNativeTools) authoredContextToolBindings(
 func (n *daemonNativeTools) workspaceToolBindings(
 	availability toolspkg.NativeAvailabilityFunc,
 	describeAvailability toolspkg.NativeAvailabilityFunc,
+	agentCreateAvailability toolspkg.NativeAvailabilityFunc,
 ) map[toolspkg.ToolID]nativeToolBinding {
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDWorkspaceList: {
@@ -735,6 +747,10 @@ func (n *daemonNativeTools) workspaceToolBindings(
 		toolspkg.ToolIDWorkspaceDescribe: {
 			call:         n.workspaceDescribe,
 			availability: describeAvailability,
+		},
+		toolspkg.ToolIDAgentCreate: {
+			call:         n.agentCreate,
+			availability: agentCreateAvailability,
 		},
 	}
 }

@@ -1,5 +1,16 @@
 [
     {
+        "tool_id": "agh__agent_create",
+        "native_name": "agent_create",
+        "toolsets": ["agh__workspace"],
+        "risk": "mutating",
+        "read_only": false,
+        "destructive": false,
+        "open_world": false,
+        "input_schema_digest": "c2c9d3250e8649d8fd71991d2d6ca8aa48e88ef93a0a7a74b8e278b2dc87d2fe",
+        "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    },
+    {
         "tool_id": "agh__agent_heartbeat_status",
         "native_name": "agent_heartbeat_status",
         "toolsets": ["agh__authored_context"],
@@ -992,6 +1003,17 @@
         "destructive": false,
         "open_world": false,
         "input_schema_digest": "7f8fdc4e22ee207848d71d44607b924bd3b9b73dfac5530821ac7e8e38f92133",
+        "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    },
+    {
+        "tool_id": "agh__network_channel_create",
+        "native_name": "network_channel_create",
+        "toolsets": ["agh__coordination"],
+        "risk": "mutating",
+        "read_only": false,
+        "destructive": false,
+        "open_world": false,
+        "input_schema_digest": "1061e2da36bee2353d12436617fe5e19c8aad7d5403715ed2936fda6ede39de6",
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {

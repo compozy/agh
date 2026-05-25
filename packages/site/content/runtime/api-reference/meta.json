@@ -24,6 +24,8 @@
         "hooks",
         "---Operations---",
         "diagnostics",
+        "onboarding",
+        "filesystem",
         "logs",
         "settings",
         "support",

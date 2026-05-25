@@ -79,6 +79,7 @@ type Server struct {
 	settingsUpdate    core.SettingsUpdateController
 	vault             core.VaultService
 	workspaces        core.WorkspaceService
+	onboarding        core.OnboardingStore
 	agentCatalog      core.AgentCatalog
 	modelCatalog      core.ModelCatalogService
 	agentContext      core.AgentContextService
@@ -131,6 +132,7 @@ type handlerConfig struct {
 	settingsUpdate    core.SettingsUpdateController
 	vault             core.VaultService
 	workspaces        core.WorkspaceService
+	onboarding        core.OnboardingStore
 	agentCatalog      core.AgentCatalog
 	modelCatalog      core.ModelCatalogService
 	agentContext      core.AgentContextService
@@ -359,6 +361,13 @@ func WithVaultService(service core.VaultService) Option {
 func WithWorkspaceResolver(workspaces core.WorkspaceService) Option {
 	return func(server *Server) {
 		server.workspaces = workspaces
+	}
+}
+
+// WithOnboardingStore injects the first-run onboarding completion store.
+func WithOnboardingStore(store core.OnboardingStore) Option {
+	return func(server *Server) {
+		server.onboarding = store
 	}
 }
 
@@ -667,6 +676,7 @@ func (s *Server) handlerConfig() *handlerConfig {
 		settingsUpdate:    s.settingsUpdate,
 		vault:             s.vault,
 		workspaces:        s.workspaces,
+		onboarding:        s.onboarding,
 		agentCatalog:      s.agentCatalog,
 		modelCatalog:      s.modelCatalog,
 		agentContext:      s.agentContext,
@@ -951,6 +961,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			SettingsUpdate:               cfg.settingsUpdate,
 			Vault:                        cfg.vault,
 			Workspaces:                   cfg.workspaces,
+			Onboarding:                   cfg.onboarding,
 			AgentCatalog:                 cfg.agentCatalog,
 			ModelCatalog:                 cfg.modelCatalog,
 			AgentContextService:          cfg.agentContext,

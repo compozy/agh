@@ -567,6 +567,24 @@ export {
   type ItemSelectionIndicatorProps,
 } from "./components/item";
 export { NativeSelect, NativeSelectOptGroup, NativeSelectOption } from "./components/native-select";
+export {
+  useStepper,
+  useStepItem,
+  Stepper,
+  StepperItem,
+  StepperTrigger,
+  StepperIndicator,
+  StepperSeparator,
+  StepperTitle,
+  StepperDescription,
+  StepperPanel,
+  StepperContent,
+  StepperNav,
+  type StepperProps,
+  type StepperItemProps,
+  type StepperTriggerProps,
+  type StepperContentProps,
+} from "./components/reui/stepper";
 export { Tree, TreeItem, TreeItemLabel, TreeDragLine } from "./components/reui/tree";
 export type {
   TreeProps,

@@ -47,6 +47,15 @@ Do not add `agh__bootstrap` or `agh__catalog` only for discovery. AGH adds those
 
 Keep frontmatter grants narrow and intentional. Add extra tools only when the agent needs those runtime capabilities.
 
+## Managed Bundled Agents
+
+AGH ensures two managed agent definitions exist on first boot and during `agh install`:
+
+- `general` — the default general-purpose agent (`defaults.agent`).
+- `onboarding` — the first-run onboarding agent. It interviews the operator in the web onboarding wizard and provisions channels and agents through its `agh__coordination` + `agh__workspace` toolsets (which include `agh__network_channel_create` and `agh__agent_create`). It runs with `approve-all` over that narrow toolset.
+
+Both are recreated only when missing; operator edits are preserved.
+
 ## Providers And MCP
 
 Built-in provider names include claude, codex, gemini, opencode, copilot, cursor, kiro, and pi. Provider config can supply launch command, default model, API key environment, and provider-level MCP servers.

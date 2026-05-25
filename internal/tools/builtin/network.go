@@ -81,6 +81,20 @@ var networkTools = []toolspkg.Descriptor{
 		[]string{"network message", "send to peer"},
 	),
 	nativeDescriptor(
+		toolspkg.ToolIDNetworkChannelCreate,
+		"network_channel_create",
+		"Network Channel Create",
+		"Register one AGH network channel with a stated purpose so agents can coordinate inside it.",
+		networkChannelCreateInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
+		[]string{networkNetworkKey, "channels", descriptorKeywordCreate},
+		[]string{"create channel", "register coordination channel"},
+	),
+	nativeDescriptor(
 		toolspkg.ToolIDNetworkThreads,
 		"network_threads",
 		"Network Threads",
@@ -225,6 +239,17 @@ const networkSendInputSchema = `{
 		"expires_at":{"type":"integer"},
 		"id":{"type":"string"},
 		"ext":{"type":"object"}
+	},
+	"additionalProperties":false
+}`
+
+const networkChannelCreateInputSchema = `{
+	"type":"object",
+	"required":["workspace_id","channel","purpose"],
+	"properties":{
+		"workspace_id":{"type":"string"},
+		"channel":{"type":"string"},
+		"purpose":{"type":"string"}
 	},
 	"additionalProperties":false
 }`

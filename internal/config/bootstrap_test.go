@@ -332,3 +332,51 @@ func TestEnsureBootstrapAgentCreatesAndPreservesManagedAgent(t *testing.T) {
 		t.Fatalf("agent contents after second ensure = %q, want custom", string(preserved))
 	}
 }
+
+func TestEnsureOnboardingAgentCreatesValidProvisioningAgent(t *testing.T) {
+	t.Parallel()
+
+	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+	if err != nil {
+		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+	}
+
+	path, created, err := EnsureOnboardingAgent(homePaths)
+	if err != nil {
+		t.Fatalf("EnsureOnboardingAgent() error = %v", err)
+	}
+	if !created {
+		t.Fatal("EnsureOnboardingAgent() created = false, want true")
+	}
+
+	agent, err := LoadAgentDef(OnboardingAgentName, homePaths)
+	if err != nil {
+		t.Fatalf("LoadAgentDef(onboarding) error = %v", err)
+	}
+	if agent.Name != OnboardingAgentName {
+		t.Fatalf("agent name = %q, want %q", agent.Name, OnboardingAgentName)
+	}
+	wantToolsets := map[string]bool{onboardingCoordinationToolset: false, onboardingWorkspaceToolset: false}
+	for _, toolset := range agent.Toolsets {
+		if _, ok := wantToolsets[toolset]; ok {
+			wantToolsets[toolset] = true
+		}
+	}
+	for toolset, present := range wantToolsets {
+		if !present {
+			t.Fatalf("onboarding agent missing toolset %q (got %v)", toolset, agent.Toolsets)
+		}
+	}
+	if agent.Permissions != string(PermissionModeApproveAll) {
+		t.Fatalf("onboarding agent permissions = %q, want %q", agent.Permissions, PermissionModeApproveAll)
+	}
+
+	_, createdAgain, err := EnsureOnboardingAgent(homePaths)
+	if err != nil {
+		t.Fatalf("EnsureOnboardingAgent() second error = %v", err)
+	}
+	if createdAgain {
+		t.Fatal("EnsureOnboardingAgent() second created = true, want false")
+	}
+	_ = path
+}
