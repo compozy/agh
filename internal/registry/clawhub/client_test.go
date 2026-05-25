@@ -80,11 +80,20 @@ func TestClientSearchParsesListingsAndLimit(t *testing.T) {
 func TestClientSearchEmptyResultsReturnsEmptySlice(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/api/v1/search" {
+			t.Fatalf("request.URL.Path = %q, want %q", request.URL.Path, "/api/v1/search")
+		}
+		if got := request.URL.Query().Get("type"); got != "skill" {
+			t.Fatalf("query type = %q, want %q", got, "skill")
+		}
+
 		writer.Header().Set("Content-Type", "application/json")
-		_, _ = writer.Write([]byte(`{"skills":[]}`))
+		if _, err := writer.Write([]byte("{\"results\":[]}")); err != nil {
+			t.Fatalf("write response: %v", err)
+		}
 	}))
-	defer server.Close()
+	t.Cleanup(server.Close)
 
 	client := NewClient(server.URL)
 

@@ -107,7 +107,7 @@ interface RuntimeLaunchState {
   skillMarketplaceServer?: Server;
 }
 
-interface SkillMarketplaceTestServer {
+export interface SkillMarketplaceTestServer {
   baseURL: string;
   server: Server;
 }
@@ -305,7 +305,7 @@ async function validateDaemonServedRuntime(
   assertDaemonServedHTML(html, baseURL);
 }
 
-async function startSkillMarketplaceServer(
+export async function startSkillMarketplaceServer(
   seed: BrowserRuntimeSeed["skillMarketplace"] | undefined
 ): Promise<SkillMarketplaceTestServer | undefined> {
   if (seed === undefined || seed.listings.length === 0) {
@@ -315,12 +315,16 @@ async function startSkillMarketplaceServer(
   const listings = seed.listings.map(normalizeSkillMarketplaceListing);
   const server = createServer((request, response) => {
     const requestURL = new URL(request.url ?? "/", `http://${DEFAULT_HOST}`);
-    const matchesSearchPath =
-      requestURL.pathname === "/skills" || requestURL.pathname === "/api/v1/skills";
-    if (request.method !== "GET" || !matchesSearchPath) {
+    if (request.method !== "GET" || requestURL.pathname !== "/api/v1/search") {
       response.statusCode = 404;
       response.setHeader("content-type", "application/json");
       response.end(JSON.stringify({ error: "not_found" }));
+      return;
+    }
+    if (requestURL.searchParams.get("type") !== "skill") {
+      response.statusCode = 400;
+      response.setHeader("content-type", "application/json");
+      response.end(JSON.stringify({ error: "skill_type_required" }));
       return;
     }
 
@@ -332,7 +336,7 @@ async function startSkillMarketplaceServer(
 
     response.statusCode = 200;
     response.setHeader("content-type", "application/json");
-    response.end(JSON.stringify({ skills: results }));
+    response.end(JSON.stringify({ results }));
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -397,7 +401,7 @@ function parseMarketplaceLimit(rawValue: string | null, fallback: number): numbe
   return fallback;
 }
 
-async function closeSkillMarketplaceServer(server: Server | undefined): Promise<void> {
+export async function closeSkillMarketplaceServer(server: Server | undefined): Promise<void> {
   if (server === undefined || !server.listening) {
     return;
   }
