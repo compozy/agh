@@ -18,9 +18,9 @@ interface TopbarShellProps {
  *   `useNavCounts()` value via `useTopbarShellModel`.
  * - Hosts `<TopbarSlotProvider>` so any descendant route can call
  *   `useTopbarSlot` to push tabs/search/actions.
- * - Subscribes to `router.subscribe("onResolved")` to clear the slot on every
- *   navigation and to move focus to the topbar `h1` for the screen-reader and
- *   keyboard handoff after route resolution.
+ * - Subscribes to `router.subscribe("onResolved")` to clear the slot on
+ *   path-changing navigation and to move focus to the topbar `h1` for the
+ *   screen-reader and keyboard handoff after route resolution.
  */
 export function TopbarShell({ children }: TopbarShellProps) {
   return (
@@ -38,7 +38,11 @@ function TopbarShellInner({ children }: TopbarShellProps) {
   const { route, navCount } = useTopbarShellModel();
 
   useEffect(() => {
-    const unsubscribe = router.subscribe("onResolved", () => {
+    const unsubscribe = router.subscribe("onResolved", event => {
+      if (!event.pathChanged) {
+        return;
+      }
+
       setSlot?.(null);
       const node = titleRef.current;
       if (node) {

@@ -7,6 +7,12 @@ import { TopbarShell } from "@/components/topbar-shell";
 const matchesMock = vi.fn();
 const subscribeMock = vi.fn();
 
+interface OnResolvedEvent {
+  pathChanged: boolean;
+}
+
+type OnResolvedHandler = (event: OnResolvedEvent) => void;
+
 vi.mock("@tanstack/react-router", () => ({
   useRouter: () => ({
     subscribe: (event: string, handler: () => void) => {
@@ -20,6 +26,15 @@ vi.mock("@tanstack/react-router", () => ({
 vi.mock("@/systems/runtime", () => ({
   useNavCounts: () => ({ counts: {}, refresh: vi.fn(), status: "ready" }),
 }));
+
+function getLatestOnResolvedHandler(): OnResolvedHandler {
+  const handler = subscribeMock.mock.calls.at(-1)?.[1];
+  if (typeof handler !== "function") {
+    throw new Error("TopbarShell did not subscribe to the onResolved event.");
+  }
+
+  return handler;
+}
 
 describe("TopbarShell", () => {
   it("Should render route icon, title, and count from the deepest match's topbar context", () => {
@@ -76,5 +91,44 @@ describe("TopbarShell", () => {
     const heading = screen.getByTestId("topbar-title-text");
     expect(heading.tagName).toBe("H1");
     expect(heading.getAttribute("tabindex")).toBe("-1");
+  });
+
+  it("Should move focus to the topbar title when route resolution changes path", () => {
+    matchesMock.mockReturnValue([{ context: { topbar: { title: "Tasks" } } }]);
+    subscribeMock.mockClear();
+
+    render(
+      <TopbarShell>
+        <main id="app-content">
+          <label htmlFor="task-filter">Filter tasks</label>
+          <input id="task-filter" />
+        </main>
+      </TopbarShell>
+    );
+
+    screen.getByLabelText("Filter tasks").focus();
+    getLatestOnResolvedHandler()({ pathChanged: true });
+
+    expect(screen.getByTestId("topbar-title-text")).toHaveFocus();
+  });
+
+  it("Should preserve field focus when route resolution only changes search params", () => {
+    matchesMock.mockReturnValue([{ context: { topbar: { title: "Skills" } } }]);
+    subscribeMock.mockClear();
+
+    render(
+      <TopbarShell>
+        <main id="app-content">
+          <label htmlFor="marketplace-search">Search marketplace skills</label>
+          <input id="marketplace-search" />
+        </main>
+      </TopbarShell>
+    );
+
+    const input = screen.getByLabelText("Search marketplace skills");
+    input.focus();
+    getLatestOnResolvedHandler()({ pathChanged: false });
+
+    expect(input).toHaveFocus();
   });
 });

@@ -136,6 +136,7 @@ func (c *Client) Search(ctx context.Context, query string, opts registry.SearchO
 
 	values := url.Values{}
 	values.Set("q", trimmedQuery)
+	values.Set("type", string(registry.PackageTypeSkill))
 	if opts.Limit > 0 {
 		values.Set("limit", fmt.Sprintf("%d", opts.Limit))
 	}
@@ -143,7 +144,7 @@ func (c *Client) Search(ctx context.Context, query string, opts registry.SearchO
 		values.Set("offset", fmt.Sprintf("%d", opts.Offset))
 	}
 
-	response, err := c.doRequest(ctx, "/skills", values, "search", "")
+	response, err := c.doRequest(ctx, "/search", values, "search", "")
 	if err != nil {
 		return nil, err
 	}
@@ -473,12 +474,16 @@ func decodeListings(body io.Reader) ([]registry.Listing, error) {
 type clawhubListing struct {
 	registry.Listing
 	DisplayName   string              `json:"displayName"`
+	OwnerHandle   string              `json:"ownerHandle"`
 	Summary       string              `json:"summary"`
 	Tags          clawhubListingTags  `json:"tags"`
 	Stats         clawhubListingStats `json:"stats"`
 	LatestVersion struct {
 		Version string `json:"version"`
 	} `json:"latestVersion"`
+	Owner struct {
+		Handle string `json:"handle"`
+	} `json:"owner"`
 }
 
 type clawhubListingTags struct {
@@ -508,7 +513,12 @@ func (listing clawhubListing) registryListing() registry.Listing {
 	result.Slug = strings.TrimSpace(result.Slug)
 	result.Name = firstNonEmpty(result.Name, listingNameFromSlug(result.Slug), listing.DisplayName)
 	result.Description = firstNonEmpty(result.Description, listing.Summary, listing.DisplayName)
-	result.Author = firstNonEmpty(result.Author, listingAuthorFromSlug(result.Slug))
+	result.Author = firstNonEmpty(
+		result.Author,
+		listing.OwnerHandle,
+		listing.Owner.Handle,
+		listingAuthorFromSlug(result.Slug),
+	)
 	result.Version = firstNonEmpty(result.Version, listing.Tags.Latest, listing.LatestVersion.Version)
 	if result.Downloads <= 0 {
 		result.Downloads = firstPositiveInt(

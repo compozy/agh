@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
+import { closeSkillMarketplaceServer, startSkillMarketplaceServer } from "../runtime";
 import {
   assertDaemonServedHTML,
   buildResolveWorkspaceRequest,
@@ -88,6 +89,56 @@ describe("runtime helpers", () => {
         "",
       ].join("\n")
     );
+  });
+
+  it("serves seeded skill marketplace listings through the ClawHub search contract", async () => {
+    const marketplace = await startSkillMarketplaceServer({
+      listings: [
+        {
+          author: "agh",
+          description: "Marketplace metadata visible through the daemon catalog.",
+          downloads: 12,
+          name: "browser-marketplace-skill",
+          slug: "@agh/browser-marketplace-skill",
+          version: "2.0.0",
+        },
+      ],
+    });
+    if (marketplace === undefined) {
+      throw new Error("expected seeded marketplace test server");
+    }
+    try {
+      const oldPathResponse = await fetch(`${marketplace.baseURL}/api/v1/skills?q=browser`);
+      expect(oldPathResponse.status).toBe(404);
+      await expect(oldPathResponse.json()).resolves.toEqual({ error: "not_found" });
+
+      const missingTypeResponse = await fetch(
+        `${marketplace.baseURL}/api/v1/search?q=browser-marketplace`
+      );
+      expect(missingTypeResponse.status).toBe(400);
+      await expect(missingTypeResponse.json()).resolves.toEqual({ error: "skill_type_required" });
+
+      const response = await fetch(
+        `${marketplace.baseURL}/api/v1/search?q=browser-marketplace&type=skill&limit=1`
+      );
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({
+        results: [
+          {
+            author: "agh",
+            description: "Marketplace metadata visible through the daemon catalog.",
+            downloads: 12,
+            name: "browser-marketplace-skill",
+            slug: "@agh/browser-marketplace-skill",
+            source: "clawhub",
+            type: "skill",
+            version: "2.0.0",
+          },
+        ],
+      });
+    } finally {
+      await closeSkillMarketplaceServer(marketplace.server);
+    }
   });
 
   it("renders the auth-free acpmock provider when browser E2E seeds mock agents", () => {
