@@ -1034,6 +1034,12 @@
             "sourceType": "github",
             "computedHash": "c4f8f138b52427d22fa9db83663f629aca8813eabcc6714025d9fba39407de57"
         },
+        "yc-apply": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "skillPath": "skills/mine/yc-apply/SKILL.md",
+            "computedHash": "3c563fdeb5ce887f4f1606bca73bcfb7c15837740c90d4841ccb6c88a7807b59"
+        },
         "zod": {
             "source": "pedronauck/skills",
             "sourceType": "github",

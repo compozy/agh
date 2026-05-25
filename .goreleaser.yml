@@ -7,7 +7,7 @@ project_name: agh
 
 metadata:
   mod_timestamp: "{{ .CommitTimestamp }}"
-  license: "BSL-1.1"
+  license: "MIT"
   homepage: "https://agh.network"
   description: "AGH — Artificial General Hivemind"
   maintainers:
@@ -72,7 +72,7 @@ brews:
     directory: Formula
     homepage: "https://agh.network"
     description: "AGH — Artificial General Hivemind"
-    license: "BSL-1.1"
+    license: "MIT"
     test: |
       system "#{bin}/agh", "version"
     caveats: |
@@ -96,7 +96,7 @@ nfpms:
     homepage: "https://agh.network"
     maintainer: "AGH Team"
     description: "AGH — Artificial General Hivemind"
-    license: "BSL-1.1"
+    license: "MIT"
     bindir: /usr/bin
     section: utils
     priority: optional
@@ -113,7 +113,7 @@ npms:
     bugs: "https://github.com/compozy/agh/issues"
     access: public
     format: tar.gz
-    license: "BSL-1.1"
+    license: "MIT"
     homepage: "https://agh.network"
 
 checksum:

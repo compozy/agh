@@ -2,6 +2,11 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { baseOptions } from "@/lib/layout.shared";
 
+const remotionPlayerMocks = vi.hoisted(() => ({
+  player: vi.fn(),
+  thumbnail: vi.fn(),
+}));
+
 // Mock next/link to render as a plain anchor
 vi.mock("next/link", () => ({
   default: ({
@@ -22,6 +27,17 @@ vi.mock("next/link", () => ({
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
   usePathname: () => "/",
+}));
+
+vi.mock("@remotion/player", () => ({
+  Player: (props: Record<string, unknown>) => {
+    remotionPlayerMocks.player(props);
+    return <div data-testid="remotion-player" />;
+  },
+  Thumbnail: (props: Record<string, unknown>) => {
+    remotionPlayerMocks.thumbnail(props);
+    return <div data-testid="remotion-thumbnail" />;
+  },
 }));
 
 import { Hero } from "../hero";
@@ -81,6 +97,19 @@ describe("Hero", () => {
     expect(screen.getByText(`${PROVIDERS.length} ACP drivers supported`)).toBeDefined();
     expect(screen.getByText("Tool registry, one control path")).toBeDefined();
     expect(screen.getByText("Single binary, no infra")).toBeDefined();
+  });
+
+  it("starts the Remotion player muted so browser autoplay can advance frames", () => {
+    remotionPlayerMocks.player.mockClear();
+
+    render(<Hero />);
+
+    expect(remotionPlayerMocks.player).toHaveBeenCalledWith(
+      expect.objectContaining({
+        autoPlay: true,
+        initiallyMuted: true,
+      })
+    );
   });
 });
 

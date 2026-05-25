@@ -51,6 +51,7 @@ export function HeroPlayer({ className }: HeroPlayerProps) {
         fps={FPS}
         loop
         autoPlay
+        initiallyMuted
         controls={false}
         clickToPlay={false}
         doubleClickToFullscreen={false}
