@@ -1,3 +1,5 @@
+"use client";
+
 import type { ButtonHTMLAttributes, ComponentProps, HTMLAttributes } from "react";
 
 import { cn } from "@agh/ui/lib/utils";
