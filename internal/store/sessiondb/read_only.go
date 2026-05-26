@@ -14,9 +14,69 @@ import (
 )
 
 const (
-	readOnlyOpenMaxAttempts   = 15
-	readOnlyOpenMinRetryDelay = 20 * time.Millisecond
-	readOnlyOpenMaxRetryDelay = 150 * time.Millisecond
+	defaultReadOnlyOpenMaxAttempts   = 15
+	defaultReadOnlyOpenMinRetryDelay = 20 * time.Millisecond
+	defaultReadOnlyOpenMaxRetryDelay = 150 * time.Millisecond
+)
+
+// ReadOnlyOpenOption customizes read-only session database opening.
+type ReadOnlyOpenOption func(*readOnlyOpenConfig)
+
+type readOnlyOpenConfig struct {
+	maxAttempts   int
+	minRetryDelay time.Duration
+	maxRetryDelay time.Duration
+}
+
+// WithReadOnlyOpenRetry configures retry behavior for read-only session
+// database opens.
+func WithReadOnlyOpenRetry(
+	maxAttempts int,
+	minRetryDelay time.Duration,
+	maxRetryDelay time.Duration,
+) ReadOnlyOpenOption {
+	return func(config *readOnlyOpenConfig) {
+		config.maxAttempts = maxAttempts
+		config.minRetryDelay = minRetryDelay
+		config.maxRetryDelay = maxRetryDelay
+	}
+}
+
+func newReadOnlyOpenConfig(options []ReadOnlyOpenOption) readOnlyOpenConfig {
+	config := readOnlyOpenConfig{
+		maxAttempts:   defaultReadOnlyOpenMaxAttempts,
+		minRetryDelay: defaultReadOnlyOpenMinRetryDelay,
+		maxRetryDelay: defaultReadOnlyOpenMaxRetryDelay,
+	}
+	for _, option := range options {
+		if option != nil {
+			option(&config)
+		}
+	}
+	return config.normalize()
+}
+
+func (c readOnlyOpenConfig) normalize() readOnlyOpenConfig {
+	if c.maxAttempts <= 0 {
+		c.maxAttempts = defaultReadOnlyOpenMaxAttempts
+	}
+	if c.minRetryDelay <= 0 {
+		c.minRetryDelay = defaultReadOnlyOpenMinRetryDelay
+	}
+	if c.maxRetryDelay <= 0 {
+		c.maxRetryDelay = defaultReadOnlyOpenMaxRetryDelay
+	}
+	if c.maxRetryDelay < c.minRetryDelay {
+		c.maxRetryDelay = c.minRetryDelay
+	}
+	return c
+}
+
+var (
+	// ErrReadOnlyRecordEvents reports a rejected event write against a read-only session database.
+	ErrReadOnlyRecordEvents = errors.New("store: read-only session database cannot record events")
+	// ErrReadOnlyRecordTokenUsage reports a rejected token-usage write against a read-only session database.
+	ErrReadOnlyRecordTokenUsage = errors.New("store: read-only session database cannot record token usage")
 )
 
 // ReadOnlySessionDB opens an existing per-session events database for queries
@@ -31,8 +91,20 @@ var _ store.EventRecorder = (*ReadOnlySessionDB)(nil)
 // OpenSessionDBReadOnly opens an existing per-session events database in
 // SQLite read-only mode. It intentionally fails for missing paths instead of
 // creating a fresh database during stale transcript/event reads.
-func OpenSessionDBReadOnly(ctx context.Context, sessionID string, path string) (*ReadOnlySessionDB, error) {
-	return openSessionDBReadOnlyWithRetry(ctx, sessionID, path, openSessionDBReadOnlyOnce, store.IsSQLiteBusy)
+func OpenSessionDBReadOnly(
+	ctx context.Context,
+	sessionID string,
+	path string,
+	options ...ReadOnlyOpenOption,
+) (*ReadOnlySessionDB, error) {
+	return openSessionDBReadOnlyWithRetry(
+		ctx,
+		sessionID,
+		path,
+		openSessionDBReadOnlyOnce,
+		store.IsSQLiteBusy,
+		newReadOnlyOpenConfig(options),
+	)
 }
 
 type readOnlySessionDBOpener func(context.Context, string, string) (*ReadOnlySessionDB, error)
@@ -43,6 +115,7 @@ func openSessionDBReadOnlyWithRetry(
 	path string,
 	opener readOnlySessionDBOpener,
 	retryable func(error) bool,
+	config readOnlyOpenConfig,
 ) (*ReadOnlySessionDB, error) {
 	if opener == nil {
 		return nil, errors.New("store: read-only session database opener is required")
@@ -50,18 +123,19 @@ func openSessionDBReadOnlyWithRetry(
 	if retryable == nil {
 		retryable = func(error) bool { return false }
 	}
+	config = config.normalize()
 
 	var lastErr error
-	for attempt := 1; attempt <= readOnlyOpenMaxAttempts; attempt++ {
+	for attempt := 1; attempt <= config.maxAttempts; attempt++ {
 		reader, err := opener(ctx, sessionID, path)
 		if err == nil {
 			return reader, nil
 		}
 		lastErr = err
-		if !retryable(err) || attempt == readOnlyOpenMaxAttempts {
+		if !retryable(err) || attempt == config.maxAttempts {
 			return nil, err
 		}
-		if waitErr := waitForReadOnlyOpenRetry(ctx, readOnlyOpenRetryDelay(attempt)); waitErr != nil {
+		if waitErr := waitForReadOnlyOpenRetry(ctx, readOnlyOpenRetryDelay(config, attempt)); waitErr != nil {
 			return nil, errors.Join(err, waitErr)
 		}
 	}
@@ -116,13 +190,14 @@ func readOnlySessionSQLiteDSN(path string) string {
 	return u.String()
 }
 
-func readOnlyOpenRetryDelay(attempt int) time.Duration {
+func readOnlyOpenRetryDelay(config readOnlyOpenConfig, attempt int) time.Duration {
+	config = config.normalize()
 	if attempt <= 0 {
-		return readOnlyOpenMinRetryDelay
+		return config.minRetryDelay
 	}
-	delay := time.Duration(attempt) * readOnlyOpenMinRetryDelay
-	if delay > readOnlyOpenMaxRetryDelay {
-		return readOnlyOpenMaxRetryDelay
+	delay := time.Duration(attempt) * config.minRetryDelay
+	if delay > config.maxRetryDelay {
+		return config.maxRetryDelay
 	}
 	return delay
 }
@@ -155,11 +230,11 @@ func closeReadOnlySessionDBAfterOpenError(db *sql.DB, openErr error) error {
 }
 
 func (s *ReadOnlySessionDB) Record(context.Context, store.SessionEvent) error {
-	return errors.New("store: read-only session database cannot record events")
+	return ErrReadOnlyRecordEvents
 }
 
 func (s *ReadOnlySessionDB) RecordTokenUsage(context.Context, store.TokenUsage) error {
-	return errors.New("store: read-only session database cannot record token usage")
+	return ErrReadOnlyRecordTokenUsage
 }
 
 // Query returns events filtered by the supplied options.

@@ -441,6 +441,8 @@ func TestManagerEventsAndHistoryRetryClosedActiveRecorder(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should retry when finalization closes the active recorder during a query", func(t *testing.T) {
+		t.Parallel()
+
 		h := newHarness(t)
 		session := createSession(t, h)
 		originalRecorder := session.recorderHandle()

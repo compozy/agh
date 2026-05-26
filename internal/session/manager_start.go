@@ -450,7 +450,7 @@ func (m *Manager) openSessionStartStorage(
 	}
 	if spec.clearEventStoreOnOpen {
 		if err := clearSessionStartRecorder(ctx, recorder, dbPath); err != nil {
-			closeCtx, cancel := context.WithTimeout(context.Background(), defaultLifecycleTimeout)
+			closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
 			defer cancel()
 			return sessionStartStorage{}, errors.Join(err, recorder.Close(closeCtx))
 		}

@@ -96,6 +96,7 @@ export type {
 
 // Hooks
 export { useSession, useSessionLedger, useSessionRecap, useSessions } from "./hooks/use-sessions";
+export { useSessionTranscriptThreadMessages } from "./hooks/use-session-transcript-thread-messages";
 export {
   useClearSessionConversation,
   useCancelQueuedSessionPrompt,

@@ -164,12 +164,19 @@ func TestOpenSessionDBReadOnly(t *testing.T) {
 			AgentName: "coder",
 			Content:   "{\"text\":\"forbidden\"}",
 		})
-		if err == nil || !strings.Contains(err.Error(), "cannot record events") {
+		if !errors.Is(err, ErrReadOnlyRecordEvents) {
 			t.Fatalf("Record(read-only) error = %v, want read-only write rejection", err)
+		}
+
+		err = reader.RecordTokenUsage(ctx, TokenUsage{TurnID: "turn-forbidden"})
+		if !errors.Is(err, ErrReadOnlyRecordTokenUsage) {
+			t.Fatalf("RecordTokenUsage(read-only) error = %v, want read-only usage rejection", err)
 		}
 	})
 
 	t.Run("Should retry transient SQLite locks while opening", func(t *testing.T) {
+		t.Parallel()
+
 		ctx := testutil.Context(t)
 		path := filepath.Join(t.TempDir(), SessionDatabaseName)
 		transientLock := errors.New("database is locked")
@@ -189,6 +196,9 @@ func TestOpenSessionDBReadOnly(t *testing.T) {
 			func(err error) bool {
 				return errors.Is(err, transientLock)
 			},
+			newReadOnlyOpenConfig([]ReadOnlyOpenOption{
+				WithReadOnlyOpenRetry(3, time.Nanosecond, time.Nanosecond),
+			}),
 		)
 		if err != nil {
 			t.Fatalf("openSessionDBReadOnlyWithRetry() error = %v", err)
@@ -198,6 +208,48 @@ func TestOpenSessionDBReadOnly(t *testing.T) {
 		}
 		if got, want := calls, 3; got != want {
 			t.Fatalf("openSessionDBReadOnlyWithRetry() calls = %d, want %d", got, want)
+		}
+	})
+}
+
+func TestSessionDBClear(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should serialize through the writer queue", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		sessionDB := &SessionDB{
+			writeCh: make(chan sessionWriteRequest, 1),
+		}
+		sessionDB.state.Store(sessionStateOpen)
+
+		received := make(chan sessionWriteKind, 1)
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			req, ok := <-sessionDB.writeCh
+			if !ok {
+				return
+			}
+			received <- req.kind
+			req.result <- sessionWriteResult{}
+		}()
+		t.Cleanup(func() {
+			close(sessionDB.writeCh)
+			<-done
+		})
+
+		if err := sessionDB.Clear(ctx); err != nil {
+			t.Fatalf("Clear() error = %v", err)
+		}
+		select {
+		case got := <-received:
+			if got != sessionWriteClear {
+				t.Fatalf("Clear() queued kind = %d, want %d", got, sessionWriteClear)
+			}
+		case <-ctx.Done():
+			t.Fatalf("Clear() writer request not observed: %v", ctx.Err())
 		}
 	})
 }

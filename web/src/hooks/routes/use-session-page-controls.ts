@@ -11,11 +11,11 @@ import {
   useResumeSession,
   useSteerSessionPrompt,
   useStopSession,
+  useSessionTranscriptThreadMessages,
   isSessionRunning,
   isUserControllableSession,
   type SessionPayload,
 } from "@/systems/session";
-import { useSessionTranscriptThreadMessages } from "@/systems/session/hooks/use-session-transcript-thread-messages";
 
 interface UseSessionPageControlsOptions {
   onDeleteSuccess?: () => void;

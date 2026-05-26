@@ -16,14 +16,14 @@ func (m *Manager) Transcript(ctx context.Context, id string) ([]transcript.UIMes
 	target := strings.TrimSpace(id)
 	var err error
 	for attempt := range 2 {
-		recorder, cleanup, openErr := m.openQueryRecorder(ctx, id)
+		recorder, cleanup, openErr := m.openQueryRecorder(ctx, target)
 		if openErr != nil {
 			return nil, openErr
 		}
 
 		var events []store.SessionEvent
 		events, err = recorder.Query(ctx, store.EventQuery{})
-		m.logTranscriptCleanupError(target, cleanup())
+		m.logTranscriptCleanupError(ctx, target, cleanup())
 		if err == nil {
 			return transcript.ToUIMessages(events)
 		}
@@ -42,7 +42,7 @@ func (m *Manager) Transcript(ctx context.Context, id string) ([]transcript.UIMes
 	return nil, fmt.Errorf("session: query transcript events for %q: %w", target, err)
 }
 
-func (m *Manager) logTranscriptCleanupError(sessionID string, err error) {
+func (m *Manager) logTranscriptCleanupError(ctx context.Context, sessionID string, err error) {
 	if err == nil {
 		return
 	}
@@ -50,5 +50,5 @@ func (m *Manager) logTranscriptCleanupError(sessionID string, err error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	logger.Warn("session: transcript cleanup failed", "session_id", sessionID, "error", err)
+	logger.WarnContext(ctx, "session: transcript cleanup failed", "session_id", sessionID, "error", err)
 }

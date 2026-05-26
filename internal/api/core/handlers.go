@@ -1744,6 +1744,10 @@ func (h *BaseHandlers) logSessionReadError(operation string, sessionID string, e
 		handlersErrorKey,
 		err,
 	)
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		logger.Debug("api: session read canceled", logAttrs...)
+		return
+	}
 	logger.Warn("api: session read failed", logAttrs...)
 }
 

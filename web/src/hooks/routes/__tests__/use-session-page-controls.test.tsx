@@ -77,9 +77,6 @@ vi.mock("@/systems/session", () => ({
   useResumeSession: () => routeHookMocks.resumeMutation,
   useSteerSessionPrompt: () => routeHookMocks.steerPromptMutation,
   useStopSession: () => routeHookMocks.stopMutation,
-}));
-
-vi.mock("@/systems/session/hooks/use-session-transcript-thread-messages", () => ({
   useSessionTranscriptThreadMessages: () => routeHookMocks.transcriptMessages,
 }));
 

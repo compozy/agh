@@ -106,6 +106,7 @@ const (
 	sessionWriteEvent sessionWriteKind = iota + 1
 	sessionWriteUsage
 	sessionWriteHookRun
+	sessionWriteClear
 )
 
 type sessionWriteRequest struct {
@@ -288,10 +289,24 @@ func (s *SessionDB) Clear(ctx context.Context) error {
 	if s.state.Load() != sessionStateOpen {
 		return store.ErrClosed
 	}
-	if err := clearSessionSQLite(ctx, s.db); err != nil {
-		return fmt.Errorf("store: clear session database: %w", err)
+
+	req := sessionWriteRequest{
+		ctx:    ctx,
+		kind:   sessionWriteClear,
+		result: make(chan sessionWriteResult, 1),
 	}
-	return nil
+	select {
+	case s.writeCh <- req:
+	case <-ctx.Done():
+		return fmt.Errorf("store: enqueue session clear: %w", ctx.Err())
+	}
+
+	select {
+	case result := <-req.result:
+		return result.err
+	case <-ctx.Done():
+		return fmt.Errorf("store: wait for session clear completion: %w", ctx.Err())
+	}
 }
 
 // RecordHookRun stores one hook execution audit record in the per-session store.
@@ -611,6 +626,12 @@ func (s *SessionDB) executeWrite(req sessionWriteRequest) sessionWriteResult {
 		return sessionWriteResult{err: s.writeTokenUsage(req.ctx, req.usage)}
 	case sessionWriteHookRun:
 		return sessionWriteResult{err: s.writeHookRun(req.ctx, req.hook)}
+	case sessionWriteClear:
+		err := clearSessionSQLite(req.ctx, s.db)
+		if err != nil {
+			err = fmt.Errorf("store: clear session database: %w", err)
+		}
+		return sessionWriteResult{err: err}
 	default:
 		return sessionWriteResult{err: fmt.Errorf("store: unsupported session write kind %d", req.kind)}
 	}

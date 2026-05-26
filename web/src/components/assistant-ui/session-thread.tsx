@@ -33,7 +33,7 @@ import { cn } from "@/lib/utils";
 import { MessageMarkdown } from "@/systems/session/components/message-markdown";
 import { ThinkingBlock } from "@/systems/session/components/thinking-block";
 import { BackendToolPart } from "@/systems/session/lib/session-toolkit";
-import { useSessionTranscriptThreadMessages } from "@/systems/session/hooks/use-session-transcript-thread-messages";
+import { useSessionTranscriptThreadMessages } from "@/systems/session";
 import {
   Button,
   Dialog,
