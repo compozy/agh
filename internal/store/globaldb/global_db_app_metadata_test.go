@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/compozy/agh/internal/testutil"
@@ -55,9 +56,13 @@ func TestAppMetadataFreshDB(t *testing.T) {
 	t.Run("Should reject blank keys", func(t *testing.T) {
 		if err := db.SetAppMetadata(ctx, "   ", "x"); err == nil {
 			t.Fatal("SetAppMetadata(blank) error = nil, want error")
+		} else if !strings.Contains(err.Error(), "app metadata key is required") {
+			t.Fatalf("SetAppMetadata(blank) error = %v, want key-required message", err)
 		}
 		if _, _, err := db.GetAppMetadata(ctx, ""); err == nil {
 			t.Fatal("GetAppMetadata(blank) error = nil, want error")
+		} else if !strings.Contains(err.Error(), "app metadata key is required") {
+			t.Fatalf("GetAppMetadata(blank) error = %v, want key-required message", err)
 		}
 	})
 
@@ -78,38 +83,42 @@ func TestAppMetadataFreshDB(t *testing.T) {
 func TestAppMetadataReopenAfterRestart(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-	path := filepath.Join(dir, GlobalDatabaseName)
-	ctx := testutil.Context(t)
+	t.Run("Should persist app metadata after reopening the database", func(t *testing.T) {
+		t.Parallel()
 
-	first, err := OpenGlobalDB(ctx, path)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB() error = %v", err)
-	}
-	if err := first.SetAppMetadata(ctx, "onboarding.completed_at", "2026-05-25T00:00:00Z"); err != nil {
-		t.Fatalf("SetAppMetadata() error = %v", err)
-	}
-	if err := first.Close(ctx); err != nil {
-		t.Fatalf("Close() error = %v", err)
-	}
+		dir := t.TempDir()
+		path := filepath.Join(dir, GlobalDatabaseName)
+		ctx := testutil.Context(t)
 
-	second, err := OpenGlobalDB(ctx, path)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB() reopen error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := second.Close(ctx); err != nil {
-			t.Errorf("Close(reopened) error = %v", err)
+		first, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		if err := first.SetAppMetadata(ctx, "onboarding.completed_at", "2026-05-25T00:00:00Z"); err != nil {
+			t.Fatalf("SetAppMetadata() error = %v", err)
+		}
+		if err := first.Close(ctx); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+
+		second, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() reopen error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := second.Close(ctx); err != nil {
+				t.Errorf("Close(reopened) error = %v", err)
+			}
+		})
+
+		value, found, err := second.GetAppMetadata(ctx, "onboarding.completed_at")
+		if err != nil {
+			t.Fatalf("GetAppMetadata() error = %v", err)
+		}
+		if !found || value != "2026-05-25T00:00:00Z" {
+			t.Fatalf("GetAppMetadata() = (%q, %v) after restart, want persisted value", value, found)
 		}
 	})
-
-	value, found, err := second.GetAppMetadata(ctx, "onboarding.completed_at")
-	if err != nil {
-		t.Fatalf("GetAppMetadata() error = %v", err)
-	}
-	if !found || value != "2026-05-25T00:00:00Z" {
-		t.Fatalf("GetAppMetadata() = (%q, %v) after restart, want persisted value", value, found)
-	}
 }
 
 func TestOnboardingMetadataLifecycle(t *testing.T) {
@@ -175,6 +184,8 @@ func TestOnboardingMetadataLifecycle(t *testing.T) {
 
 		if _, err := db.CompleteOnboarding(ctx, "   "); err == nil {
 			t.Fatal("CompleteOnboarding(blank) error = nil, want error")
+		} else if !strings.Contains(err.Error(), "onboarding completed_at is required") {
+			t.Fatalf("CompleteOnboarding(blank) error = %v, want completed_at-required message", err)
 		}
 	})
 }

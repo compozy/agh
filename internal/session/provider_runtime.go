@@ -131,9 +131,17 @@ func shouldUseManagedOnboardingCodexHome(session *Session, resolved aghconfig.Re
 		return false
 	}
 	return sessionUsesManagedOnboardingAgent(session, resolved) &&
-		strings.TrimSpace(resolved.Provider) == runtimeProviderCodex &&
+		effectiveRuntimeProvider(resolved) == runtimeProviderCodex &&
 		resolved.AuthMode == aghconfig.ProviderAuthModeNativeCLI &&
 		resolved.HomePolicy == aghconfig.ProviderHomePolicyOperator
+}
+
+func effectiveRuntimeProvider(resolved aghconfig.ResolvedAgent) string {
+	runtimeProvider := strings.TrimSpace(resolved.RuntimeProvider)
+	if runtimeProvider != "" {
+		return runtimeProvider
+	}
+	return strings.TrimSpace(resolved.Provider)
 }
 
 func sessionUsesManagedOnboardingAgent(session *Session, resolved aghconfig.ResolvedAgent) bool {

@@ -168,7 +168,14 @@ func TestOnboardingHandlers(t *testing.T) {
 		rec := httptest.NewRecorder()
 		engine.ServeHTTP(rec, onboardingRequest(http.MethodPost, "/api/onboarding/complete"))
 		if rec.Code != http.StatusServiceUnavailable {
-			t.Fatalf("POST complete without store = %d, want 503", rec.Code)
+			t.Fatalf("POST complete without store = %d, want 503 (body=%s)", rec.Code, rec.Body.String())
+		}
+		var payload contract.ErrorPayload
+		if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("decode onboarding error response: %v (body=%s)", err, rec.Body.String())
+		}
+		if payload.Error != "api: onboarding store is not configured" {
+			t.Fatalf("onboarding error = %q, want store-not-configured message", payload.Error)
 		}
 	})
 }

@@ -142,7 +142,7 @@ function StepperTrigger({
       className={cn(
         "focus-visible:border-ring focus-visible:ring-ring/50 cursor-pointer outline-none focus-visible:z-10 focus-visible:ring-3 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-60",
         "group-data-[orientation=horizontal]/stepper-nav:inline-flex group-data-[orientation=horizontal]/stepper-nav:items-center group-data-[orientation=horizontal]/stepper-nav:gap-2.5 group-data-[orientation=horizontal]/stepper-nav:rounded-full",
-        "group-data-[orientation=vertical]/stepper-nav:grid group-data-[orientation=vertical]/stepper-nav:w-full group-data-[orientation=vertical]/stepper-nav:grid-cols-[26px_1fr] group-data-[orientation=vertical]/stepper-nav:items-start group-data-[orientation=vertical]/stepper-nav:gap-x-[13px] group-data-[orientation=vertical]/stepper-nav:rounded-md group-data-[orientation=vertical]/stepper-nav:text-left group-data-[orientation=vertical]/stepper-nav:enabled:hover:**:data-[slot=stepper-title]:text-fg",
+        "group-data-[orientation=vertical]/stepper-nav:flex group-data-[orientation=vertical]/stepper-nav:w-full group-data-[orientation=vertical]/stepper-nav:items-start group-data-[orientation=vertical]/stepper-nav:gap-3 group-data-[orientation=vertical]/stepper-nav:rounded-md group-data-[orientation=vertical]/stepper-nav:text-left group-data-[orientation=vertical]/stepper-nav:enabled:hover:**:data-[slot=stepper-title]:text-fg",
         className
       )}
       onClick={selectStep}
@@ -155,7 +155,7 @@ function StepperTrigger({
   );
 }
 
-function StepperRail({ children, className }: ComponentProps<"div">) {
+function StepperRail({ children, className, ...props }: ComponentProps<"div">) {
   return (
     <div
       data-slot="stepper-rail"
@@ -163,20 +163,22 @@ function StepperRail({ children, className }: ComponentProps<"div">) {
         "hidden group-data-[orientation=vertical]/stepper-nav:flex group-data-[orientation=vertical]/stepper-nav:flex-col group-data-[orientation=vertical]/stepper-nav:items-center group-data-[orientation=vertical]/stepper-nav:self-stretch",
         className
       )}
+      {...props}
     >
       {children}
     </div>
   );
 }
 
-function StepperBody({ children, className }: ComponentProps<"div">) {
+function StepperBody({ children, className, ...props }: ComponentProps<"div">) {
   return (
     <div
       data-slot="stepper-body"
       className={cn(
-        "group-data-[orientation=vertical]/stepper-nav:pt-0.5 group-data-[orientation=vertical]/stepper-nav:pb-[26px]",
+        "group-data-[orientation=vertical]/stepper-nav:pt-0.5 group-data-[orientation=vertical]/stepper-nav:pb-6",
         className
       )}
+      {...props}
     >
       {children}
     </div>
@@ -225,7 +227,7 @@ function StepperSeparator({ className }: ComponentProps<"div">) {
       className={cn(
         "rounded-sm bg-line transition-colors duration-base",
         "group-data-[orientation=horizontal]/stepper-nav:m-0.5 group-data-[orientation=horizontal]/stepper-nav:h-0.5 group-data-[orientation=horizontal]/stepper-nav:flex-1",
-        "group-data-[orientation=vertical]/stepper-nav:my-1.25 group-data-[orientation=vertical]/stepper-nav:w-[1.5px] group-data-[orientation=vertical]/stepper-nav:min-h-button-default group-data-[orientation=vertical]/stepper-nav:flex-1 group-data-[orientation=vertical]/stepper-nav:data-[state=completed]:bg-accent-dim",
+        "group-data-[orientation=vertical]/stepper-nav:my-1.25 group-data-[orientation=vertical]/stepper-nav:w-px group-data-[orientation=vertical]/stepper-nav:min-h-button-default group-data-[orientation=vertical]/stepper-nav:flex-1 group-data-[orientation=vertical]/stepper-nav:data-[state=completed]:bg-accent-dim",
         className
       )}
     />
@@ -240,7 +242,7 @@ function StepperTitle({ children, className }: ComponentProps<"h3">) {
       data-slot="stepper-title"
       data-state={state}
       className={cn(
-        "text-[13.5px] leading-none font-medium tracking-[-0.01em] transition-colors duration-base",
+        "text-card-title leading-none font-medium tracking-normal transition-colors duration-base",
         "data-[state=inactive]:text-muted",
         "data-[state=active]:text-fg-strong",
         "data-[state=completed]:text-fg",
@@ -260,7 +262,7 @@ function StepperDescription({ children, className }: ComponentProps<"div">) {
       data-slot="stepper-description"
       data-state={state}
       className={cn(
-        "mt-[3px] text-[11.5px] leading-normal transition-colors duration-base",
+        "mt-1 text-form-hint leading-normal transition-colors duration-base",
         "data-[state=inactive]:text-faint data-[state=completed]:text-faint",
         "data-[state=active]:text-muted",
         className

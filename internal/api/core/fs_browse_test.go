@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -59,6 +60,23 @@ func browse(
 		}
 	}
 	return rec, resp
+}
+
+func assertBrowseError(t *testing.T, rec *httptest.ResponseRecorder, wantStatus int, wantText string) {
+	t.Helper()
+	if rec.Code != wantStatus {
+		t.Fatalf("browse status = %d, want %d (body=%s)", rec.Code, wantStatus, rec.Body.String())
+	}
+	var payload contract.ErrorPayload
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode browse error response: %v (body=%s)", err, rec.Body.String())
+	}
+	if payload.Error == "" {
+		t.Fatalf("browse error payload = %#v, want non-empty error", payload)
+	}
+	if wantText != "" && !strings.Contains(payload.Error, wantText) {
+		t.Fatalf("browse error = %q, want it to contain %q", payload.Error, wantText)
+	}
 }
 
 func TestBrowseDirectoryHandler(t *testing.T) {
@@ -136,25 +154,19 @@ func TestBrowseDirectoryHandler(t *testing.T) {
 	t.Run("Should reject relative paths", func(t *testing.T) {
 		t.Parallel()
 		rec, _ := browse(t, engine, url.Values{"path": {"relative/dir"}})
-		if rec.Code != http.StatusBadRequest {
-			t.Fatalf("relative path = %d, want 400", rec.Code)
-		}
+		assertBrowseError(t, rec, http.StatusBadRequest, "api: directory path must be absolute")
 	})
 
 	t.Run("Should return 404 for a missing directory", func(t *testing.T) {
 		t.Parallel()
 		rec, _ := browse(t, engine, url.Values{"path": {filepath.Join(root, "does-not-exist")}})
-		if rec.Code != http.StatusNotFound {
-			t.Fatalf("missing path = %d, want 404", rec.Code)
-		}
+		assertBrowseError(t, rec, http.StatusNotFound, "no such file")
 	})
 
 	t.Run("Should return 400 when the path is a file", func(t *testing.T) {
 		t.Parallel()
 		rec, _ := browse(t, engine, url.Values{"path": {filepath.Join(root, "readme.txt")}})
-		if rec.Code != http.StatusBadRequest {
-			t.Fatalf("file path = %d, want 400", rec.Code)
-		}
+		assertBrowseError(t, rec, http.StatusBadRequest, "path is not a directory")
 	})
 }
 

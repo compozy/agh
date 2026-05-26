@@ -1516,7 +1516,11 @@ func TestPromptSessionHandlerReturnsAISDKSSEStream(t *testing.T) {
 }
 
 func TestPromptSessionHandlerRequiresAcceptedTurnIDForAISDKStream(t *testing.T) {
+	t.Parallel()
+
 	t.Run("ShouldRejectAcceptedStreamWithoutDurableTurnID", func(t *testing.T) {
+		t.Parallel()
+
 		homePaths := newTestHomePaths(t)
 		manager := stubSessionManager{
 			SendPromptFn: func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error) {

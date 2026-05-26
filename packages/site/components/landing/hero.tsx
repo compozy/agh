@@ -5,7 +5,11 @@ import { SUPPORTED_AGENT_COUNT } from "./provider-data";
 import { CtaButton } from "./primitives/cta-button";
 
 const featuredAgentNames = ["Claude Code", "OpenClaw", "Hermes"];
-const additionalAgentCount = SUPPORTED_AGENT_COUNT - featuredAgentNames.length;
+const additionalAgentCount = Math.max(0, SUPPORTED_AGENT_COUNT - featuredAgentNames.length);
+const featuredAgentDetail =
+  additionalAgentCount > 0
+    ? `${featuredAgentNames.join(", ")}, and ${additionalAgentCount} more ${additionalAgentCount === 1 ? "agent" : "agents"}.`
+    : `${featuredAgentNames.join(", ")}.`;
 
 const signalItems = [
   {
@@ -14,7 +18,7 @@ const signalItems = [
   },
   {
     label: `${SUPPORTED_AGENT_COUNT} ACP drivers supported`,
-    detail: `${featuredAgentNames.join(", ")}, and ${additionalAgentCount} more.`,
+    detail: featuredAgentDetail,
   },
   {
     label: "Tool registry, one control path",

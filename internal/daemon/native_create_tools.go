@@ -127,7 +127,7 @@ func (n *daemonNativeTools) agentCreateRequest(
 	// The bundled onboarding agent runs with approve-all over its toolsets, so a prompt-injection
 	// attempt could try to author a global-scope agent. Pin it to workspace-scoped authoring.
 	if createReq.Scope == contract.AgentCreateScopeGlobal &&
-		strings.TrimSpace(scope.AgentName) == aghconfig.OnboardingAgentName {
+		aghconfig.NormalizeAgentName(scope.AgentName) == aghconfig.OnboardingAgentName {
 		return contract.CreateAgentRequest{}, toolspkg.NewToolError(
 			toolspkg.ErrorCodeDenied,
 			id,

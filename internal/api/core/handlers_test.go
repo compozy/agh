@@ -806,6 +806,13 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 		if onboardingResp.Code != http.StatusNotFound {
 			t.Fatalf("get onboarding status = %d, want %d", onboardingResp.Code, http.StatusNotFound)
 		}
+		var onboardingPayload contract.ErrorPayload
+		if err := json.Unmarshal(onboardingResp.Body.Bytes(), &onboardingPayload); err != nil {
+			t.Fatalf("json.Unmarshal(onboarding error) error = %v; body=%s", err, onboardingResp.Body.String())
+		}
+		if !strings.Contains(onboardingPayload.Error, "not available") {
+			t.Fatalf("onboarding error = %q, want not-available message", onboardingPayload.Error)
+		}
 
 		fixture.Handlers.AgentLoader = func(string, aghconfig.HomePaths) (aghconfig.AgentDef, error) {
 			return aghconfig.AgentDef{}, errors.New("boom")
@@ -1149,11 +1156,25 @@ func TestBaseHandlersAgentCatalogEndpoints(t *testing.T) {
 		if onboardingResp.Code != http.StatusNotFound {
 			t.Fatalf("get onboarding catalog status = %d, want %d", onboardingResp.Code, http.StatusNotFound)
 		}
+		var onboardingPayload contract.ErrorPayload
+		if err := json.Unmarshal(onboardingResp.Body.Bytes(), &onboardingPayload); err != nil {
+			t.Fatalf("json.Unmarshal(onboarding catalog error) error = %v; body=%s", err, onboardingResp.Body.String())
+		}
+		if !strings.Contains(onboardingPayload.Error, "not available") {
+			t.Fatalf("onboarding catalog error = %q, want not-available message", onboardingPayload.Error)
+		}
 
 		fixture.Handlers.AgentCatalog = stubAgentCatalog{getErr: os.ErrNotExist}
 		missingResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/missing", nil)
 		if missingResp.Code != http.StatusNotFound {
 			t.Fatalf("get missing catalog agent status = %d, want %d", missingResp.Code, http.StatusNotFound)
+		}
+		var missingPayload contract.ErrorPayload
+		if err := json.Unmarshal(missingResp.Body.Bytes(), &missingPayload); err != nil {
+			t.Fatalf("json.Unmarshal(missing catalog error) error = %v; body=%s", err, missingResp.Body.String())
+		}
+		if !strings.Contains(missingPayload.Error, "file does not exist") {
+			t.Fatalf("missing catalog error = %q, want file-missing message", missingPayload.Error)
 		}
 
 		fixture.Handlers.AgentCatalog = stubAgentCatalog{listErr: os.ErrNotExist}
@@ -1281,6 +1302,17 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 				http.StatusNotFound,
 				onboardingResp.Body.String(),
 			)
+		}
+		var onboardingPayload contract.ErrorPayload
+		if err := json.Unmarshal(onboardingResp.Body.Bytes(), &onboardingPayload); err != nil {
+			t.Fatalf(
+				"json.Unmarshal(workspace onboarding error) error = %v; body=%s",
+				err,
+				onboardingResp.Body.String(),
+			)
+		}
+		if !strings.Contains(onboardingPayload.Error, "not available") {
+			t.Fatalf("workspace onboarding error = %q, want not-available message", onboardingPayload.Error)
 		}
 
 		missingResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/missing?workspace="+workspaceRef, nil)

@@ -31,9 +31,9 @@ type stubClient struct {
 	updateSettingsSkillsFn       func(context.Context, UpdateSettingsSkillsRequest) (SettingsMutationRecord, error)
 	reloadSettingsFn             func(context.Context) (SettingsMutationRecord, error)
 	listSettingsApplyRecordsFn   func(context.Context, SettingsApplyHistoryQuery) (SettingsApplyHistoryRecord, error)
-	getOnboardingStatusFn        func() (contract.OnboardingStatusResponse, error)
-	completeOnboardingFn         func() (contract.OnboardingStatusResponse, error)
-	resetOnboardingFn            func() (contract.OnboardingStatusResponse, error)
+	getOnboardingStatusFn        func(context.Context) (contract.OnboardingStatusResponse, error)
+	completeOnboardingFn         func(context.Context) (contract.OnboardingStatusResponse, error)
+	resetOnboardingFn            func(context.Context) (contract.OnboardingStatusResponse, error)
 	listProvidersFn              func(context.Context) (contract.ProviderListResponse, error)
 	probeProviderAuthFn          func(context.Context, string) (contract.ProviderAuthProbeResponse, error)
 	listProviderModelsFn         func(context.Context, ProviderModelListQuery) (ProviderModelListRecord, error)
@@ -402,23 +402,23 @@ func (s *stubClient) ListSettingsApplyRecords(
 	return SettingsApplyHistoryRecord{}, errors.New("unexpected ListSettingsApplyRecords call")
 }
 
-func (s *stubClient) GetOnboardingStatus(_ context.Context) (contract.OnboardingStatusResponse, error) {
+func (s *stubClient) GetOnboardingStatus(ctx context.Context) (contract.OnboardingStatusResponse, error) {
 	if s.getOnboardingStatusFn != nil {
-		return s.getOnboardingStatusFn()
+		return s.getOnboardingStatusFn(ctx)
 	}
 	return contract.OnboardingStatusResponse{}, errors.New("unexpected GetOnboardingStatus call")
 }
 
-func (s *stubClient) CompleteOnboarding(_ context.Context) (contract.OnboardingStatusResponse, error) {
+func (s *stubClient) CompleteOnboarding(ctx context.Context) (contract.OnboardingStatusResponse, error) {
 	if s.completeOnboardingFn != nil {
-		return s.completeOnboardingFn()
+		return s.completeOnboardingFn(ctx)
 	}
 	return contract.OnboardingStatusResponse{}, errors.New("unexpected CompleteOnboarding call")
 }
 
-func (s *stubClient) ResetOnboarding(_ context.Context) (contract.OnboardingStatusResponse, error) {
+func (s *stubClient) ResetOnboarding(ctx context.Context) (contract.OnboardingStatusResponse, error) {
 	if s.resetOnboardingFn != nil {
-		return s.resetOnboardingFn()
+		return s.resetOnboardingFn(ctx)
 	}
 	return contract.OnboardingStatusResponse{}, errors.New("unexpected ResetOnboarding call")
 }

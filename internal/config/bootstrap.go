@@ -130,12 +130,6 @@ func ensureManagedAgent(homePaths HomePaths, agentName string, contents string) 
 	}
 
 	path := filepath.Join(homePaths.AgentsDir, agentName, agentDefName)
-	if _, err := os.Stat(path); err == nil {
-		return path, false, nil
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return "", false, fmt.Errorf("stat managed agent file %q: %w", path, err)
-	}
-
 	agentDir := filepath.Dir(path)
 	if err := os.MkdirAll(agentDir, privateDirMode); err != nil {
 		return "", false, fmt.Errorf("create managed agent directory %q: %w", filepath.Dir(path), err)
@@ -143,8 +137,21 @@ func ensureManagedAgent(homePaths HomePaths, agentName string, contents string) 
 	if err := os.Chmod(agentDir, privateDirMode); err != nil {
 		return "", false, fmt.Errorf("secure managed agent directory %q: %w", agentDir, err)
 	}
-	if err := os.WriteFile(path, []byte(contents), privateFileMode); err != nil {
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, privateFileMode)
+	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return path, false, nil
+		}
+		return "", false, fmt.Errorf("create managed agent file %q: %w", path, err)
+	}
+	if _, err := file.WriteString(contents); err != nil {
+		if closeErr := file.Close(); closeErr != nil {
+			err = errors.Join(err, closeErr)
+		}
 		return "", false, fmt.Errorf("write managed agent file %q: %w", path, err)
+	}
+	if err := file.Close(); err != nil {
+		return "", false, fmt.Errorf("close managed agent file %q: %w", path, err)
 	}
 	return path, true, nil
 }

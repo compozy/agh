@@ -123,6 +123,7 @@ func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T)
 		assertProviderRuntimeFileMode(t, filepath.Join(wantHome, "codex"), 0o700)
 	})
 
+	// The onboarding agent narrows inherited native Codex credentials into an AGH-owned home.
 	t.Run("Should isolate onboarding codex home while preserving native auth", func(t *testing.T) {
 		t.Parallel()
 
@@ -204,6 +205,21 @@ func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T)
 		}
 		if got := envValue(opts.ProviderAuthEnv.CommandEnv, "CODEX_HOME"); got != wantCodexHome {
 			t.Fatalf("ProviderAuthEnv CODEX_HOME = %q, want %q", got, wantCodexHome)
+		}
+	})
+
+	t.Run("Should treat runtime provider codex as onboarding codex for managed home", func(t *testing.T) {
+		t.Parallel()
+
+		session := &Session{AgentName: aghconfig.OnboardingAgentName, WorkspaceID: "ws_test"}
+		resolved := aghconfig.ResolvedAgent{
+			Provider:        "pi",
+			RuntimeProvider: "codex",
+			AuthMode:        aghconfig.ProviderAuthModeNativeCLI,
+			HomePolicy:      aghconfig.ProviderHomePolicyOperator,
+		}
+		if !shouldUseManagedOnboardingCodexHome(session, resolved) {
+			t.Fatal("shouldUseManagedOnboardingCodexHome() = false, want true for runtime provider codex")
 		}
 	})
 

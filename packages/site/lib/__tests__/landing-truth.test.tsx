@@ -12,6 +12,7 @@ const providerSourcePath = resolve(repoRoot, "internal/config/provider.go");
 const serverLandingMetricModules = ["hero.tsx", "comparison.tsx"].map(file =>
   resolve(landingRoot, file)
 );
+const clientSupportedAgentsImportPattern = /(?:from\s+|import\()\s*["'][^"']*supported-agents["']/;
 
 const deepCitationTargets = new Map([
   ["hooks catalog", "/runtime/core/hooks"],
@@ -127,7 +128,7 @@ describe("landing truth", () => {
   it("keeps server-rendered landing metrics off client-only provider UI modules", () => {
     const violations = serverLandingMetricModules.flatMap(file => {
       const source = readFileSync(file, "utf8");
-      if (!source.includes('from "./supported-agents"')) {
+      if (!clientSupportedAgentsImportPattern.test(source)) {
         return [];
       }
       return [

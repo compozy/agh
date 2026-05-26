@@ -2393,25 +2393,29 @@ func TestOptionsConfigureDaemon(t *testing.T) {
 func TestBootConfigEnsuresManagedAgents(t *testing.T) {
 	t.Parallel()
 
-	homePaths := testHomePaths(t)
-	cfg := testConfig(t, homePaths)
-	d := newTestDaemon(t, homePaths, &cfg)
-	state := &bootState{}
-	cleanup := &bootCleanup{}
+	t.Run("Should ensure the default managed agent definitions", func(t *testing.T) {
+		t.Parallel()
 
-	if err := d.bootConfig(state, cleanup); err != nil {
-		t.Fatalf("bootConfig() error = %v", err)
-	}
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		d := newTestDaemon(t, homePaths, &cfg)
+		state := &bootState{}
+		cleanup := &bootCleanup{}
 
-	for _, name := range []string{aghconfig.DefaultAgentName, aghconfig.OnboardingAgentName} {
-		agent, err := aghconfig.LoadAgentDef(name, homePaths)
-		if err != nil {
-			t.Fatalf("LoadAgentDef(%s) error = %v", name, err)
+		if err := d.bootConfig(state, cleanup); err != nil {
+			t.Fatalf("bootConfig() error = %v", err)
 		}
-		if agent.Name != name {
-			t.Fatalf("LoadAgentDef(%s).Name = %q, want %q", name, agent.Name, name)
+
+		for _, name := range []string{aghconfig.DefaultAgentName, aghconfig.OnboardingAgentName} {
+			agent, err := aghconfig.LoadAgentDef(name, homePaths)
+			if err != nil {
+				t.Fatalf("LoadAgentDef(%s) error = %v", name, err)
+			}
+			if agent.Name != name {
+				t.Fatalf("LoadAgentDef(%s).Name = %q, want %q", name, agent.Name, name)
+			}
 		}
-	}
+	})
 }
 
 func TestRunShutsDownOnInjectedSignal(t *testing.T) {

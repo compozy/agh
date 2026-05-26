@@ -181,9 +181,7 @@ func TestNativeNetworkChannelCreate(t *testing.T) {
 				`{"workspace_id":"ws-native-network","channel":"Bad Name","purpose":"x"}`,
 			),
 		})
-		if err == nil {
-			t.Fatal("Registry.Call(invalid channel) error = nil, want validation error")
-		}
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
 	})
 
 	t.Run("Should require a purpose", func(t *testing.T) {
@@ -193,9 +191,7 @@ func TestNativeNetworkChannelCreate(t *testing.T) {
 				`{"workspace_id":"ws-native-network","channel":"general","purpose":"   "}`,
 			),
 		})
-		if err == nil {
-			t.Fatal("Registry.Call(blank purpose) error = nil, want validation error")
-		}
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
 	})
 }
 
@@ -240,9 +236,7 @@ func TestNativeAgentCreate(t *testing.T) {
 			ToolID: toolspkg.ToolIDAgentCreate,
 			Input:  json.RawMessage(`{"scope":"global","name":"nope","prompt":"x"}`),
 		})
-		if err == nil {
-			t.Fatal("Registry.Call(missing provider) error = nil, want validation error")
-		}
+		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
 	})
 
 	t.Run("Should reject reserved internal agent names", func(t *testing.T) {

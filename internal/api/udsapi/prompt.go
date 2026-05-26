@@ -18,14 +18,6 @@ const promptStreamFormatRaw = "raw"
 
 type promptRequest = contract.SendPromptRequest
 
-func acceptedPromptStreamTurnID(result session.SendPromptResult) (string, error) {
-	turnID := strings.TrimSpace(result.NewTurnID)
-	if turnID == "" {
-		return "", errors.New("accepted prompt stream missing turn id")
-	}
-	return turnID, nil
-}
-
 func (h *Handlers) promptSession(c *gin.Context) {
 	var req promptRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -67,7 +59,7 @@ func (h *Handlers) promptSession(c *gin.Context) {
 		return
 	}
 	events := result.Events
-	turnID, err := acceptedPromptStreamTurnID(result)
+	turnID, err := core.AcceptedPromptStreamTurnID(result)
 	if err != nil {
 		core.RespondError(c, http.StatusInternalServerError, err, false)
 		return

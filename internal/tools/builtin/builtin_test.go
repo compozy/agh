@@ -287,6 +287,14 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			false,
 		)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkWork], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDNetworkChannelCreate],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionList], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionStatus], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionHistory], toolspkg.RiskRead, true, false, false)
@@ -304,6 +312,14 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		requireDescriptorRisk(
 			t,
 			descriptors[toolspkg.ToolIDAgentHeartbeatWake],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDAgentCreate],
 			toolspkg.RiskMutating,
 			false,
 			false,

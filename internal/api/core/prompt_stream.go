@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/agh/internal/acp"
 	"github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/session"
 	ssepkg "github.com/compozy/agh/internal/sse"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
@@ -18,6 +19,14 @@ const (
 	promptStreamErrorKey = "error"
 	promptStreamStopKey  = "stop"
 )
+
+func AcceptedPromptStreamTurnID(result session.SendPromptResult) (string, error) {
+	turnID := strings.TrimSpace(result.NewTurnID)
+	if turnID == "" {
+		return "", errors.New("accepted prompt stream missing turn id")
+	}
+	return turnID, nil
+}
 
 type promptAgentEventPayload struct {
 	Type       string                           `json:"type"`

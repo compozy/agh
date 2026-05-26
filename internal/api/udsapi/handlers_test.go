@@ -1734,6 +1734,9 @@ func TestPromptSessionHandlerSeparatesPromptExecutionFromDelivery(t *testing.T) 
 		if !errors.Is(deliveryCtx.Err(), context.Canceled) {
 			t.Fatalf("delivery context err = %v, want context.Canceled", deliveryCtx.Err())
 		}
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
 		if body := recorder.Body.String(); !strings.Contains(body, `"type":"start","messageId":"turn-accepted"`) {
 			t.Fatalf("response body = %q, want early start frame with accepted turn id", body)
 		}
@@ -1800,6 +1803,12 @@ func TestPromptSessionHandlerSeparatesPromptExecutionFromDelivery(t *testing.T) 
 		}
 		if !errors.Is(deliveryCtx.Err(), context.Canceled) {
 			t.Fatalf("delivery context err = %v, want context.Canceled after stream shutdown", deliveryCtx.Err())
+		}
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
+		}
+		if body := recorder.Body.String(); !strings.Contains(body, `"type":"start","messageId":"turn-accepted"`) {
+			t.Fatalf("response body = %q, want early start frame with accepted turn id", body)
 		}
 		close(events)
 	})
