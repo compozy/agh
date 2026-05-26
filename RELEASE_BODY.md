@@ -1,4 +1,4 @@
-## 0.0.1 - 2026-05-26
+## 0.0.2 - 2026-05-26
 
 ### Other Changes
 
@@ -226,6 +226,7 @@
 - Fint release pr
 - Fix goreleaser
 - Fix release
+- Fix release process
 
 ### 🧪 Testing
 
@@ -238,3 +239,4 @@
 - Stabilize release integration gates
 - Stabilize release e2e markers
 - Stabilize release e2e flows
+- Improve suite speed
