@@ -12,6 +12,6 @@ export const Route = createFileRoute("/_app/network/$workspaceId/$channel/direct
 });
 
 function NetworkChannelDirectDetailRoute() {
-  const { channel, directId } = Route.useParams();
-  return <DirectRoom channel={channel} directId={directId} />;
+  const { workspaceId, channel, directId } = Route.useParams();
+  return <DirectRoom channel={channel} directId={directId} workspaceId={workspaceId} />;
 }

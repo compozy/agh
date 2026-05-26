@@ -112,11 +112,11 @@ export const CompactRows: Story = {
   args: {},
   render: () => (
     <div className="relative grid gap-3">
-      <MessageRowCollapsed message={message} onReply={fn()} onPin={fn()} />
+      <MessageRowCollapsed message={message} onCopyLink={fn()} onCopyText={fn()} />
       <MessageRowSystem message={systemMessage} />
       <div className="group relative min-h-10 rounded-lg border border-line p-4">
         <span className="text-small-body text-muted">Hover toolbar container</span>
-        <HoverToolbar testIdSuffix="story" onReply={fn()} onFork={fn()} onMore={fn()} />
+        <HoverToolbar testIdSuffix="story" onCopyLink={fn()} onCopyText={fn()} />
       </div>
     </div>
   ),

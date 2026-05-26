@@ -26,6 +26,12 @@ export interface TimelineProps {
   className?: string;
   /** Stable id used by aria-label and data attributes. */
   ariaLabel?: string;
+  /**
+   * Whether the list owns its own vertical scroll. Defaults to `true`. Set to
+   * `false` when an ancestor (e.g. a `ScrollArea`) owns scrolling, so the list
+   * renders at natural height instead of double-scrolling.
+   */
+  asScrollContainer?: boolean;
   toolbarHandlers?: (message: NetworkConversationMessage) => HoverToolbarHandlers | undefined;
   /** Retry handler for failed optimistic sends per `_design.md` §7.3. */
   onRetryOptimistic?: (message: NetworkConversationMessage) => void;
@@ -69,6 +75,7 @@ export function Timeline({
   lastReadAt,
   className,
   ariaLabel = "Timeline",
+  asScrollContainer = true,
   toolbarHandlers,
   onRetryOptimistic,
   onDiscardOptimistic,
@@ -105,7 +112,11 @@ export function Timeline({
   return (
     <div
       aria-label={ariaLabel}
-      className={cn("flex flex-1 flex-col gap-1 overflow-y-auto py-2", className)}
+      className={cn(
+        "flex flex-col gap-1 py-2",
+        asScrollContainer && "flex-1 overflow-y-auto",
+        className
+      )}
       data-density={density}
       data-testid="network-timeline"
       role="log"
@@ -131,10 +142,8 @@ export function Timeline({
               density={density}
               key={entry.id}
               message={entry.message}
-              onFork={handlers?.onFork}
-              onMore={handlers?.onMore}
-              onPin={handlers?.onPin}
-              onReply={handlers?.onReply}
+              onCopyLink={handlers?.onCopyLink}
+              onCopyText={handlers?.onCopyText}
             />
           );
         }
@@ -143,11 +152,9 @@ export function Timeline({
             density={density}
             key={entry.id}
             message={entry.message}
+            onCopyLink={handlers?.onCopyLink}
+            onCopyText={handlers?.onCopyText}
             onDiscard={onDiscardOptimistic}
-            onFork={handlers?.onFork}
-            onMore={handlers?.onMore}
-            onPin={handlers?.onPin}
-            onReply={handlers?.onReply}
             onRetry={onRetryOptimistic}
             onWorkChipClick={onWorkChipClick}
           />

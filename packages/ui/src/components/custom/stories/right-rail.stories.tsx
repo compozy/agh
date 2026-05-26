@@ -10,7 +10,7 @@ const meta: Meta<typeof RightRail> = {
     docs: {
       description: {
         component:
-          "Right rail panel for thread overlays and channel inspectors. 360px default width via `--rail-inspector-w`, left rule on `--line`, surface on `--canvas-soft`. Gracefully renders nothing when `open=false`.",
+          "Right rail panel for thread overlays and channel inspectors. Fills its container (`h-full w-full`) so the parent — a `ResizablePanel` in the network shell — owns sizing. Left rule on `--line`, surface on `--canvas-soft`. Gracefully renders nothing when `open=false`.",
       },
     },
   },
@@ -18,7 +18,9 @@ const meta: Meta<typeof RightRail> = {
     Story => (
       <div className="flex h-[400px] w-full bg-background border border-line">
         <div className="flex-1 p-4 text-[13px] text-muted">Main pane</div>
-        <Story />
+        <div className="w-(--width-right-rail-default) shrink-0">
+          <Story />
+        </div>
       </div>
     ),
   ],

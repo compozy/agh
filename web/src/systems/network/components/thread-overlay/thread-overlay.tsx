@@ -1,6 +1,9 @@
+import { ScrollArea } from "@agh/ui";
+
 import { DetailComposer } from "../composer/detail-composer";
 import { ConversationError } from "../empty-states/conversation-error";
 import { ThreadEmpty } from "../empty-states/thread-empty";
+import { useMessageCopyActions } from "../timeline/use-message-copy-actions";
 import { WorkBanner } from "../work/work-banner";
 import { ThreadOverlayHeader } from "./thread-overlay-header";
 import { ThreadOverlayReplies } from "./thread-overlay-replies";
@@ -25,6 +28,12 @@ export function ThreadOverlay({
   const { overlay, session, disabledReason, openWork, handleRetry, handleDiscard } = view;
   const detailError = overlay.detailError;
   const isResolvingDetail = !detailError && !overlay.detail;
+  const toolbarHandlers = useMessageCopyActions({
+    surface: "thread",
+    workspaceId,
+    channel,
+    conversationId: threadId,
+  });
 
   return (
     <section
@@ -48,10 +57,10 @@ export function ThreadOverlay({
           />
         </div>
       ) : isResolvingDetail ? (
-        <>
+        <ScrollArea className="min-h-0 flex-1">
           <ThreadOverlayRoot isLoading rootMessage={null} />
           <ThreadOverlayReplies isLoading messages={[]} replyCount={0} />
-        </>
+        </ScrollArea>
       ) : (
         <>
           <WorkBanner
@@ -60,19 +69,23 @@ export function ThreadOverlay({
             openCount={openWork.openCount}
             workingCount={openWork.workingCount}
           />
-          <ThreadOverlayRoot
-            isLoading={overlay.isDetailLoading}
-            rootMessage={overlay.rootMessage}
-          />
-          <ThreadOverlayReplies
-            emptyOverride={<ThreadEmpty />}
-            isLoading={overlay.isMessagesLoading}
-            lastReadAt={overlay.lastReadIso}
-            messages={overlay.replies}
-            onDiscardOptimistic={handleDiscard}
-            onRetryOptimistic={handleRetry}
-            replyCount={overlay.replyCount}
-          />
+          <ScrollArea className="min-h-0 flex-1">
+            <ThreadOverlayRoot
+              isLoading={overlay.isDetailLoading}
+              rootMessage={overlay.rootMessage}
+              toolbarHandlers={toolbarHandlers}
+            />
+            <ThreadOverlayReplies
+              emptyOverride={<ThreadEmpty />}
+              isLoading={overlay.isMessagesLoading}
+              lastReadAt={overlay.lastReadIso}
+              messages={overlay.replies}
+              onDiscardOptimistic={handleDiscard}
+              onRetryOptimistic={handleRetry}
+              replyCount={overlay.replyCount}
+              toolbarHandlers={toolbarHandlers}
+            />
+          </ScrollArea>
 
           <DetailComposer
             channel={channel}

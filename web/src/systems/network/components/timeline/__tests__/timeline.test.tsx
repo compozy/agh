@@ -2,7 +2,7 @@
 
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { Timeline } from "../timeline";
 import type { NetworkConversationMessage } from "../../../types";
@@ -143,6 +143,51 @@ describe("Timeline", () => {
 
     expect(screen.queryByRole("button", { name: /add reaction/i })).toBeNull();
     expect(screen.queryByTestId("network-message-toolbar-react-m1")).toBeNull();
+  });
+
+  it("Should not render a message toolbar when no toolbar handlers are wired", () => {
+    render(<Timeline messages={[makeMessage({ message_id: "m1" })]} />);
+
+    expect(screen.queryByTestId("network-message-toolbar-m1")).toBeNull();
+    expect(screen.queryByRole("button", { name: /copy link/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /copy message text/i })).toBeNull();
+  });
+
+  it("Should expose only the wired Copy actions and invoke them on click", async () => {
+    const user = userEvent.setup();
+    const onCopyLink = vi.fn();
+    const onCopyText = vi.fn();
+    render(
+      <Timeline
+        messages={[makeMessage({ message_id: "m1", text: "Body" })]}
+        toolbarHandlers={() => ({ onCopyLink, onCopyText })}
+      />
+    );
+
+    // The removed, never-implemented actions must be gone.
+    expect(screen.queryByRole("button", { name: /reply in thread/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /pin to capability/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /fork thread/i })).toBeNull();
+
+    const copyLink = screen.getByTestId("network-message-toolbar-copy-link-m1");
+    const copyText = screen.getByTestId("network-message-toolbar-copy-text-m1");
+    await user.click(copyLink);
+    await user.click(copyText);
+
+    expect(onCopyLink).toHaveBeenCalledTimes(1);
+    expect(onCopyText).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should omit the Copy text action when only a link handler is wired", () => {
+    render(
+      <Timeline
+        messages={[makeMessage({ message_id: "m1", text: "Body" })]}
+        toolbarHandlers={() => ({ onCopyLink: vi.fn() })}
+      />
+    );
+
+    expect(screen.getByTestId("network-message-toolbar-copy-link-m1")).toBeInTheDocument();
+    expect(screen.queryByTestId("network-message-toolbar-copy-text-m1")).toBeNull();
   });
 
   it("Should not declare any box-shadow on the timeline subtree", () => {

@@ -21,10 +21,8 @@ export function MessageRowCollapsed({
   message,
   density = "channel",
   className,
-  onReply,
-  onPin,
-  onFork,
-  onMore,
+  onCopyLink,
+  onCopyText,
 }: MessageRowCollapsedProps) {
   const clock = formatTimelineClockWithSeconds(message.timestamp);
   const iso = formatTimelineIso(message.timestamp);
@@ -33,7 +31,7 @@ export function MessageRowCollapsed({
     <article
       aria-label="Message continuation"
       className={cn(
-        "group relative flex gap-3 px-5 py-0.5",
+        "group relative flex gap-3 px-5 py-1 transition-colors duration-fast ease-out hover:bg-row-hover",
         density === "overlay" && "px-4",
         className
       )}
@@ -62,10 +60,8 @@ export function MessageRowCollapsed({
       </div>
 
       <HoverToolbar
-        onFork={onFork}
-        onMore={onMore}
-        onPin={onPin}
-        onReply={onReply}
+        onCopyLink={onCopyLink}
+        onCopyText={onCopyText}
         testIdSuffix={message.message_id}
       />
     </article>

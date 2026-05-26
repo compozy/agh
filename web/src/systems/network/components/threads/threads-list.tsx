@@ -4,6 +4,7 @@ import {
   Eyebrow,
   Item,
   ItemContent,
+  ItemDescription,
   ItemFooter,
   ItemHeader,
   ItemTitle,
@@ -56,12 +57,14 @@ function ThreadsListRow({ workspaceId, channel, thread, active }: ThreadsListRow
   const openWorkCount = thread.open_work_count ?? 0;
   const lastActivity = formatNetworkRelativeTime(thread.last_activity_at ?? null);
   const opener = thread.opened_by_peer_id?.trim() || "unknown";
+  const title = thread.title ?? "Untitled thread";
+  const preview = thread.last_message_preview ?? "No messages yet.";
 
   return (
     <Item
       aria-current={active ? "page" : undefined}
       className={cn(
-        "rounded-none border-b border-line px-5 py-4",
+        "min-w-0 flex-nowrap overflow-hidden rounded-none border-b border-line px-5 py-4",
         active ? "bg-canvas-soft" : null
       )}
       data-testid={`network-thread-list-row-${thread.thread_id}`}
@@ -75,17 +78,27 @@ function ThreadsListRow({ workspaceId, channel, thread, active }: ThreadsListRow
       selectable
       selected={active}
     >
-      <ItemContent className="gap-1.5">
-        <ItemHeader>
+      <ItemContent className="min-w-0 flex-1 gap-1.5 overflow-hidden">
+        <ItemHeader className="min-w-0">
           <ItemTitle className="min-w-0 flex-1">
-            <span className="truncate">{thread.title ?? "Untitled thread"}</span>
+            <span
+              className="block min-w-0 truncate"
+              data-testid={`network-thread-list-row-title-${thread.thread_id}`}
+              title={thread.title ?? undefined}
+            >
+              {title}
+            </span>
           </ItemTitle>
           <ThreadWorkPill openWorkCount={openWorkCount} />
         </ItemHeader>
 
-        <p className="line-clamp-2 text-small-body text-muted">
-          {thread.last_message_preview ?? "No messages yet."}
-        </p>
+        <ItemDescription
+          className="line-clamp-2 min-w-0 break-words"
+          data-testid={`network-thread-list-row-preview-${thread.thread_id}`}
+          title={thread.last_message_preview ?? undefined}
+        >
+          {preview}
+        </ItemDescription>
 
         <ItemFooter className="items-start">
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
@@ -148,7 +161,7 @@ export function ThreadsList({
       aria-label={`Threads in #${channel}`}
       aria-live="polite"
       className={cn(
-        "flex flex-1 flex-col overflow-y-auto transition-opacity",
+        "flex min-w-0 flex-1 flex-col overflow-x-hidden overflow-y-auto transition-opacity",
         dim ? "opacity-55" : "opacity-100"
       )}
       data-dim={dim ? "true" : "false"}
