@@ -81,6 +81,8 @@ jobs:
       - name: Run PR Release Orchestrator
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          AGH_WEB_ASSETS_TOKEN: ${{ secrets.AGH_WEB_ASSETS_TOKEN || secrets.RELEASE_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
           INITIAL_VERSION: ${{ env.INITIAL_VERSION }}
@@ -122,6 +124,40 @@ jobs:
         with:
           bun-version: ${{ env.BUN_VERSION }}
           install-playwright: "false"
+
+      - name: Resolve dry-run release version
+        env:
+          RELEASE_PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          VERSION="${GITHUB_HEAD_REF#release/v}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            VERSION="$(printf '%s\n' "$RELEASE_PR_TITLE" | sed -E 's/.*Release v([0-9]+\.[0-9]+\.[0-9]+).*/\1/')"
+          fi
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Could not extract release version for dry-run (got: $VERSION)"
+            exit 1
+          fi
+          echo "RELEASE_VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Verify npm publish authentication
+        run: |
+          if [ -z "${NPM_TOKEN:-}" ]; then
+            echo "::error::NPM_TOKEN is required to publish @compozy/agh"
+            exit 1
+          fi
+          npm whoami --registry=https://registry.npmjs.org
+          npm_view_output="$(mktemp)"
+          if npm view "@compozy/agh@${RELEASE_VERSION}" version --registry=https://registry.npmjs.org >"$npm_view_output" 2>&1; then
+            echo "::error::@compozy/agh@${RELEASE_VERSION} is already published and npm versions are immutable"
+            exit 1
+          fi
+          if grep -Eq 'E404|404 Not Found' "$npm_view_output"; then
+            echo "@compozy/agh@${RELEASE_VERSION} is not published yet"
+          else
+            cat "$npm_view_output"
+            echo "::error::Could not confirm @compozy/agh@${RELEASE_VERSION} is unpublished"
+            exit 1
+          fi
 
       - name: Setup Release Tools
         uses: ./.github/actions/setup-release

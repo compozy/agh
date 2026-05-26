@@ -44,9 +44,12 @@ const (
 	webDistIndex              = "web/dist/index.html"
 	webDistDirEnvVar          = "AGH_WEB_DIST_DIR"
 	webAssetsModulePath       = "github.com/compozy/agh-web-assets"
+	webAssetsRemoteURL        = "https://github.com/compozy/agh-web-assets.git"
 	webAssetsModuleDistDir    = "dist"
 	webAssetsMetadataFile     = "assets.go"
 	webAssetsSourceRepository = "github.com/compozy/agh"
+	webAssetsTokenEnvVar      = "AGH_WEB_ASSETS_TOKEN"
+	releaseTokenEnvVar        = "RELEASE_TOKEN"
 	daemonBinaryEnvVar        = "AGH_TEST_DAEMON_BIN"
 	driverBinaryEnvVar        = "AGH_TEST_ACPMOCK_DRIVER_BIN"
 	designSyncScriptPath      = "scripts/sync-design-md.mjs"
@@ -450,6 +453,10 @@ func WebAssetsPublicCheck() error {
 	return webAssetsPublicCheck(ctx, version)
 }
 
+func ReleaseWebAssetsSync() error {
+	return releaseWebAssetsSync(context.Background())
+}
+
 func ReleaseInstallCheck() error {
 	return runMageSteps([]mageStep{
 		{name: "WebBuild", run: WebBuild},
@@ -458,6 +465,51 @@ func ReleaseInstallCheck() error {
 		{name: "WebAssetsPublicCheck", run: WebAssetsPublicCheck},
 		{name: "SourceInstallCheck", run: SourceInstallCheck},
 	})
+}
+
+func releaseWebAssetsSync(ctx context.Context) error {
+	if err := WebAssetsDeterminismCheck(); err != nil {
+		return err
+	}
+	buildDigest, err := directoryDigest(webDistDir)
+	if err != nil {
+		return fmt.Errorf("digest local web build: %w", err)
+	}
+	sourceCommit, err := gitCommandOutput(ctx, ".", "rev-parse", "HEAD")
+	if err != nil {
+		return fmt.Errorf("resolve release source commit: %w", err)
+	}
+	token := webAssetsPublishToken()
+	if token == "" {
+		return fmt.Errorf("%s or %s is required to publish %s", webAssetsTokenEnvVar, releaseTokenEnvVar, webAssetsModulePath)
+	}
+
+	assetsRepoDir, err := os.MkdirTemp("", "agh-web-assets-release-sync-")
+	if err != nil {
+		return fmt.Errorf("create web assets sync repo dir: %w", err)
+	}
+	defer os.RemoveAll(assetsRepoDir)
+
+	if err := cloneWebAssetsRepository(ctx, assetsRepoDir, token); err != nil {
+		return err
+	}
+	metadata := webAssetsMetadata{
+		BuildDigest:      buildDigest,
+		SourceRepository: webAssetsSourceRepository,
+		SourceCommit:     sourceCommit,
+	}
+	tag, err := publishWebAssetsModule(ctx, assetsRepoDir, metadata)
+	if err != nil {
+		return err
+	}
+	if err := waitForWebAssetsPublic(ctx, tag); err != nil {
+		return err
+	}
+	if err := pinWebAssetsModule(ctx, tag); err != nil {
+		return err
+	}
+	fmt.Printf("Pinned %s@%s for web assets digest %s\n", webAssetsModulePath, tag, buildDigest)
+	return nil
 }
 
 func webAssetsModuleDir(ctx context.Context) (string, error) {
@@ -474,6 +526,231 @@ func webAssetsModuleDir(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("locate %s module: go list returned an empty directory", webAssetsModulePath)
 	}
 	return moduleDir, nil
+}
+
+func webAssetsPublishToken() string {
+	if token := strings.TrimSpace(os.Getenv(webAssetsTokenEnvVar)); token != "" {
+		return token
+	}
+	return strings.TrimSpace(os.Getenv(releaseTokenEnvVar))
+}
+
+func cloneWebAssetsRepository(ctx context.Context, destDir string, token string) error {
+	askpassDir, err := os.MkdirTemp("", "agh-web-assets-askpass-")
+	if err != nil {
+		return fmt.Errorf("create web assets git credentials dir: %w", err)
+	}
+	defer os.RemoveAll(askpassDir)
+
+	askpassPath := filepath.Join(askpassDir, "askpass.sh")
+	askpassScript := strings.Join([]string{
+		"#!/bin/sh",
+		"case \"$1\" in",
+		"*Username*) printf '%s\\n' x-access-token ;;",
+		"*Password*) printf '%s\\n' \"$AGH_WEB_ASSETS_GIT_TOKEN\" ;;",
+		"*) printf '\\n' ;;",
+		"esac",
+		"",
+	}, "\n")
+	if err := os.WriteFile(askpassPath, []byte(askpassScript), 0o700); err != nil {
+		return fmt.Errorf("write web assets git credentials helper: %w", err)
+	}
+	env := map[string]string{
+		"AGH_WEB_ASSETS_GIT_TOKEN": token,
+		"GIT_ASKPASS":              askpassPath,
+		"GIT_TERMINAL_PROMPT":      "0",
+	}
+	if err := runCommandInDirWithEnv(ctx, ".", env, "git", "clone", "--no-single-branch", webAssetsRemoteURL, destDir); err != nil {
+		return fmt.Errorf("clone %s: %w", webAssetsRemoteURL, err)
+	}
+	return nil
+}
+
+func publishWebAssetsModule(ctx context.Context, assetsRepoDir string, metadata webAssetsMetadata) (string, error) {
+	if err := runCommandInDir(ctx, assetsRepoDir, "git", "fetch", "--tags", "origin"); err != nil {
+		return "", fmt.Errorf("fetch web assets tags: %w", err)
+	}
+	if err := runCommandInDir(ctx, assetsRepoDir, "git", "config", "user.name", "github-actions[bot]"); err != nil {
+		return "", fmt.Errorf("configure web assets git user name: %w", err)
+	}
+	if err := runCommandInDir(ctx, assetsRepoDir, "git", "config", "user.email", "github-actions[bot]@users.noreply.github.com"); err != nil {
+		return "", fmt.Errorf("configure web assets git user email: %w", err)
+	}
+
+	tag, err := matchingWebAssetsTag(ctx, assetsRepoDir, metadata)
+	if err != nil {
+		return "", err
+	}
+	if tag != "" {
+		fmt.Printf("Reusing existing assets tag %s for %s\n", tag, metadata.SourceCommit)
+		return tag, nil
+	}
+
+	if err := prepareWebAssetsRepo(webDistDir, assetsRepoDir, metadata); err != nil {
+		return "", err
+	}
+	hasDiff, err := gitHasDiff(ctx, assetsRepoDir, webAssetsModuleDistDir, webAssetsMetadataFile)
+	if err != nil {
+		return "", err
+	}
+	if hasDiff {
+		if err := runCommandInDir(ctx, assetsRepoDir, "git", "add", webAssetsModuleDistDir, webAssetsMetadataFile); err != nil {
+			return "", fmt.Errorf("stage web assets module update: %w", err)
+		}
+		message := fmt.Sprintf("build: sync AGH web assets %s", shortCommit(metadata.SourceCommit))
+		if err := runCommandInDir(ctx, assetsRepoDir, "git", "commit", "-m", message); err != nil {
+			return "", fmt.Errorf("commit web assets module update: %w", err)
+		}
+	}
+
+	tags, err := gitTags(assetsRepoDir)
+	if err != nil {
+		return "", err
+	}
+	nextTag, err := nextWebAssetsTag(tags)
+	if err != nil {
+		return "", err
+	}
+	if err := runCommandInDir(ctx, assetsRepoDir, "git", "tag", "-a", nextTag, "-m", "AGH web assets "+metadata.SourceCommit); err != nil {
+		return "", fmt.Errorf("tag web assets module %s: %w", nextTag, err)
+	}
+	if hasDiff {
+		if err := runCommandInDir(ctx, assetsRepoDir, "git", "push", "origin", "HEAD:main", nextTag); err != nil {
+			return "", fmt.Errorf("push web assets module update %s: %w", nextTag, err)
+		}
+		return nextTag, nil
+	}
+	if err := runCommandInDir(ctx, assetsRepoDir, "git", "push", "origin", nextTag); err != nil {
+		return "", fmt.Errorf("push web assets module tag %s: %w", nextTag, err)
+	}
+	return nextTag, nil
+}
+
+func matchingWebAssetsTag(ctx context.Context, assetsRepoDir string, metadata webAssetsMetadata) (string, error) {
+	output, err := gitCommandOutput(ctx, assetsRepoDir, "tag", "--list", "v*", "--sort=-v:refname")
+	if err != nil {
+		return "", fmt.Errorf("list web assets tags: %w", err)
+	}
+	for _, line := range strings.Split(output, "\n") {
+		tag := strings.TrimSpace(line)
+		if tag == "" {
+			continue
+		}
+		source, ok, err := gitShowFile(ctx, assetsRepoDir, tag, webAssetsMetadataFile)
+		if err != nil {
+			return "", err
+		}
+		if !ok {
+			continue
+		}
+		tagMetadata := parseWebAssetsMetadataSource(source)
+		if tagMetadata.BuildDigest == metadata.BuildDigest && tagMetadata.SourceCommit == metadata.SourceCommit {
+			return tag, nil
+		}
+	}
+	return "", nil
+}
+
+func gitShowFile(ctx context.Context, repoDir string, ref string, path string) (string, bool, error) {
+	cmd := exec.CommandContext(ctx, "git", "-C", repoDir, "show", ref+":"+path)
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		return string(output), true, nil
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && exitErr.ExitCode() == 128 {
+		return "", false, nil
+	}
+	return "", false, fmt.Errorf("read %s from %s: %w\n%s", path, ref, err, output)
+}
+
+func gitHasDiff(ctx context.Context, repoDir string, paths ...string) (bool, error) {
+	args := []string{"-C", repoDir, "diff", "--quiet", "--"}
+	args = append(args, paths...)
+	cmd := exec.CommandContext(ctx, "git", args...)
+	err := cmd.Run()
+	if err == nil {
+		return false, nil
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+		return true, nil
+	}
+	return false, fmt.Errorf("check web assets diff: %w", err)
+}
+
+func gitCommandOutput(ctx context.Context, dir string, args ...string) (string, error) {
+	fullArgs := append([]string{"-C", dir}, args...)
+	cmd := exec.CommandContext(ctx, "git", fullArgs...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("git %s: %w\n%s", strings.Join(args, " "), err, output)
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+func parseWebAssetsMetadataSource(source string) webAssetsMetadata {
+	return webAssetsMetadata{
+		BuildDigest:      goStringConst(source, "BuildDigest"),
+		SourceRepository: goStringConst(source, "SourceRepository"),
+		SourceCommit:     goStringConst(source, "SourceCommit"),
+	}
+}
+
+func shortCommit(commit string) string {
+	if len(commit) <= 7 {
+		return commit
+	}
+	return commit[:7]
+}
+
+func waitForWebAssetsPublic(ctx context.Context, version string) error {
+	const attempts = 30
+	const delay = 20 * time.Second
+
+	var lastErr error
+	for attempt := 1; attempt <= attempts; attempt++ {
+		if err := webAssetsPublicCheck(ctx, version); err != nil {
+			lastErr = err
+		} else {
+			return nil
+		}
+		if attempt == attempts {
+			break
+		}
+		fmt.Printf(
+			"Waiting for %s@%s to resolve publicly (attempt %d/%d): %v\n",
+			webAssetsModulePath,
+			version,
+			attempt,
+			attempts,
+			lastErr,
+		)
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return fmt.Errorf("wait for public %s@%s: %w", webAssetsModulePath, version, ctx.Err())
+		case <-timer.C:
+		}
+	}
+	return fmt.Errorf("%s@%s did not resolve publicly after %d attempts: %w", webAssetsModulePath, version, attempts, lastErr)
+}
+
+func pinWebAssetsModule(ctx context.Context, version string) error {
+	version = strings.TrimSpace(version)
+	if version == "" {
+		return errors.New("web assets module version is required")
+	}
+	moduleVersion := webAssetsModulePath + "@" + version
+	env := webAssetsPublicModuleEnv("")
+	if err := runCommandInDirWithEnv(ctx, ".", env, "go", "get", moduleVersion); err != nil {
+		return fmt.Errorf("pin %s: %w", moduleVersion, err)
+	}
+	if err := runCommandInDirWithEnv(ctx, ".", env, "go", "mod", "tidy"); err != nil {
+		return fmt.Errorf("tidy after pinning %s: %w", moduleVersion, err)
+	}
+	return nil
 }
 
 func directoryDigest(root string) (string, error) {
@@ -624,12 +901,7 @@ func readWebAssetsMetadata(moduleDir string) (webAssetsMetadata, error) {
 	if err != nil {
 		return webAssetsMetadata{}, fmt.Errorf("read %s metadata: %w", webAssetsModulePath, err)
 	}
-	source := string(data)
-	return webAssetsMetadata{
-		BuildDigest:      goStringConst(source, "BuildDigest"),
-		SourceRepository: goStringConst(source, "SourceRepository"),
-		SourceCommit:     goStringConst(source, "SourceCommit"),
-	}, nil
+	return parseWebAssetsMetadataSource(string(data)), nil
 }
 
 func goStringConst(source string, name string) string {
@@ -780,21 +1052,29 @@ func webAssetsPublicCheck(ctx context.Context, version string) error {
 	}
 	defer os.RemoveAll(tmpDir)
 
-	env := map[string]string{
-		"GO111MODULE": "on",
-		"GOFLAGS":     "-mod=mod",
-		"GOMODCACHE":  filepath.Join(tmpDir, "mod"),
-		"GONOSUMDB":   "",
-		"GOPATH":      filepath.Join(tmpDir, "gopath"),
-		"GOPRIVATE":   "",
-		"GOPROXY":     "https://proxy.golang.org,direct",
-		"GOSUMDB":     "sum.golang.org",
-	}
+	env := webAssetsPublicModuleEnv(tmpDir)
 	moduleVersion := webAssetsModulePath + "@" + version
 	if err := runCommandInDirWithEnv(ctx, tmpDir, env, "go", "list", "-m", moduleVersion); err != nil {
 		return fmt.Errorf("public resolve %s: %w", moduleVersion, err)
 	}
 	return nil
+}
+
+func webAssetsPublicModuleEnv(tmpDir string) map[string]string {
+	env := map[string]string{
+		"GO111MODULE": "on",
+		"GOFLAGS":     "-mod=mod",
+		"GONOPROXY":   "",
+		"GONOSUMDB":   "",
+		"GOPRIVATE":   "",
+		"GOPROXY":     "https://proxy.golang.org,direct",
+		"GOSUMDB":     "sum.golang.org",
+	}
+	if tmpDir != "" {
+		env["GOMODCACHE"] = filepath.Join(tmpDir, "mod")
+		env["GOPATH"] = filepath.Join(tmpDir, "gopath")
+	}
+	return env
 }
 
 // DaytonaSidecars regenerates embedded Linux launcher sidecar assets.

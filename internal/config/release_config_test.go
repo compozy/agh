@@ -202,6 +202,7 @@ func TestPackagingMetadataStaysAlignedWithRuntimeAndInstaller(t *testing.T) {
 	rootPackage := readJSONMap(t, root, "package.json")
 	prRelease := readYAMLMap(t, root, ".pr-release")
 	installScript := readTextFile(t, root, filepath.Join("packages", "site", "public", "install.sh"))
+	ciWorkflowText := readTextFile(t, root, filepath.Join(".github", "workflows", "ci.yml"))
 	releaseWorkflowText := readTextFile(t, root, filepath.Join(".github", "workflows", "release.yml"))
 	syncWebAssetsWorkflowText := readTextFile(t, root, filepath.Join(".github", "workflows", "sync-web-assets.yml"))
 	cliffConfig := readTextFile(t, root, "cliff.toml")
@@ -297,6 +298,7 @@ func TestPackagingMetadataStaysAlignedWithRuntimeAndInstaller(t *testing.T) {
 		for _, snippet := range []string{
 			"webAssetsModulePath       = \"github.com/compozy/agh-web-assets\"",
 			"func WebAssetsCheck() error",
+			"func ReleaseWebAssetsSync() error",
 			"func ReleaseInstallCheck() error",
 			"WebAssetsPublicCheck",
 			"SourceInstallCheck",
@@ -373,6 +375,16 @@ func TestPackagingMetadataStaysAlignedWithRuntimeAndInstaller(t *testing.T) {
 			"GOPROXY=https://proxy.golang.org,direct",
 		)
 		assertContainsText(t, "sync web assets workflow", syncWebAssetsWorkflowText, "GOPRIVATE=")
+		assertContainsText(t, "sync web assets workflow", syncWebAssetsWorkflowText, "GONOPROXY: \"\"")
+		assertNotContainsText(t, "sync web assets workflow", syncWebAssetsWorkflowText, "GOPROXY: direct")
+		waitIndex := strings.Index(syncWebAssetsWorkflowText, "- name: Wait for public module availability")
+		updateIndex := strings.Index(syncWebAssetsWorkflowText, "- name: Update pinned assets module")
+		if waitIndex == -1 || updateIndex == -1 {
+			t.Fatalf("sync web assets workflow missing wait/update steps")
+		}
+		if waitIndex > updateIndex {
+			t.Fatalf("sync web assets workflow updates go.mod before public proxy availability is proven")
+		}
 
 		permissions := mapAt(t, syncWebAssetsWorkflow, "permissions")
 		assertEqualString(t, "sync contents permission", stringAt(t, permissions, "contents"), "write")
@@ -392,6 +404,18 @@ func TestPackagingMetadataStaysAlignedWithRuntimeAndInstaller(t *testing.T) {
 			"releaseInstallCheck",
 		} {
 			assertContainsText(t, "sync web assets commands", commands, snippet)
+		}
+	})
+
+	t.Run("Should keep CI path filtering resilient to rollback pushes", func(t *testing.T) {
+		t.Parallel()
+
+		for _, snippet := range []string{
+			"git cat-file -e \"${PUSH_BEFORE_SHA}^{commit}\"",
+			"Base push SHA $PUSH_BEFORE_SHA is unavailable; treating current tree as changed.",
+			"git ls-tree -r --name-only \"$CURRENT_SHA\"",
+		} {
+			assertContainsText(t, "CI workflow", ciWorkflowText, snippet)
 		}
 	})
 
@@ -444,10 +468,18 @@ func TestPackagingMetadataStaysAlignedWithRuntimeAndInstaller(t *testing.T) {
 		setupNodeSteps := sliceAt(t, runs, "steps")
 		setupNodeAction := workflowStepByUses(t, setupNodeSteps, "actions/setup-node@v6")
 		with := mapAt(t, setupNodeAction, "with")
-		assertEqualString(t, "setup-node registry-url", stringAt(t, with, "registry-url"), "https://registry.npmjs.org")
+		assertEqualString(
+			t,
+			"setup-node registry-url",
+			stringAt(t, with, "registry-url"),
+			"https://registry.npmjs.org",
+		)
 		assertEqualString(t, "setup-node scope", stringAt(t, with, "scope"), "@compozy")
-		if !stringListContains(workflowRunCommands(t, setupNodeSteps), "npm whoami") {
-			t.Fatalf("setup-node step commands = %#v, want npm whoami", workflowRunCommands(t, setupNodeSteps))
+		if stringListContains(workflowRunCommands(t, setupNodeSteps), "npm whoami") {
+			t.Fatalf(
+				"setup-node step commands = %#v, want npm auth checks in release-owned jobs",
+				workflowRunCommands(t, setupNodeSteps),
+			)
 		}
 
 		jobs := mapAt(t, releaseWorkflow, "jobs")
@@ -460,7 +492,23 @@ func TestPackagingMetadataStaysAlignedWithRuntimeAndInstaller(t *testing.T) {
 		release := mapAt(t, jobs, "release")
 		releaseSteps := sliceAt(t, release, "steps")
 		assertWorkflowUsesBefore(t, releaseSteps, "./.github/actions/setup-node", "goreleaser/goreleaser-action@v6")
+		dryRun := mapAt(t, jobs, "dry-run")
+		dryRunSteps := sliceAt(t, dryRun, "steps")
+		assertWorkflowRunBeforeUses(
+			t,
+			dryRunSteps,
+			"npm whoami --registry=https://registry.npmjs.org",
+			"./.github/actions/setup-release",
+		)
+		assertWorkflowRunBeforeUses(
+			t,
+			dryRunSteps,
+			"npm view \"@compozy/agh@${RELEASE_VERSION}\" version --registry=https://registry.npmjs.org",
+			"./.github/actions/setup-release",
+		)
 		for _, snippet := range []string{
+			"AGH_WEB_ASSETS_TOKEN: ${{ secrets.AGH_WEB_ASSETS_TOKEN || secrets.RELEASE_TOKEN }}",
+			"name: Resolve dry-run release version",
 			"echo \"RELEASE_VERSION=$VERSION\" >> \"$GITHUB_ENV\"",
 			"echo \"RELEASE_TAG=$TAG\" >> \"$GITHUB_ENV\"",
 			"name: Verify npm publish authentication",
@@ -605,30 +653,57 @@ func TestPRReleaseConfigGeneratesReleaseArtifacts(t *testing.T) {
 		root := findRepoRootForReleaseConfigTest(t)
 		cfg := readYAMLMap(t, root, ".pr-release")
 		artifacts := sliceAt(t, cfg, "release_artifacts")
-		if len(artifacts) != 2 {
-			t.Fatalf("release_artifacts len = %d, want 2", len(artifacts))
+		if len(artifacts) != 3 {
+			t.Fatalf("release_artifacts len = %d, want 3", len(artifacts))
 		}
 
-		siteArtifact := asMap(t, artifacts[0], "release_artifacts[0]")
-		if got, want := stringAt(t, siteArtifact, "name"), "site-changelog"; got != want {
+		syncArtifact := asMap(t, artifacts[0], "release_artifacts[0]")
+		if got, want := stringAt(t, syncArtifact, "name"), "sync-web-assets-module"; got != want {
 			t.Fatalf("release_artifacts[0].name = %q, want %q", got, want)
 		}
-		if got, want := stringAt(t, siteArtifact, "command"), "bun"; got != want {
+		if got, want := stringAt(t, syncArtifact, "command"), "go"; got != want {
 			t.Fatalf("release_artifacts[0].command = %q, want %q", got, want)
 		}
-		if !stringSliceContains(sliceAt(t, siteArtifact, "args"), "release:site-changelog") {
-			t.Fatalf("release_artifacts[0].args = %#v, want release:site-changelog", siteArtifact["args"])
+		syncArgs := sliceAt(t, syncArtifact, "args")
+		for _, arg := range []string{
+			"run",
+			"github.com/magefile/mage@v1.17.0",
+			"releaseWebAssetsSync",
+		} {
+			if !stringSliceContains(syncArgs, arg) {
+				t.Fatalf("release_artifacts[0].args = %#v, want %q", syncArtifact["args"], arg)
+			}
 		}
-		if !stringSliceContains(sliceAt(t, siteArtifact, "add"), "packages/site/content/blog/changelog/*.mdx") {
-			t.Fatalf("release_artifacts[0].add = %#v, want site changelog glob", siteArtifact["add"])
+		syncAdds := sliceAt(t, syncArtifact, "add")
+		for _, path := range []string{"go.mod", "go.sum"} {
+			if !stringSliceContains(syncAdds, path) {
+				t.Fatalf("release_artifacts[0].add = %#v, want %q", syncArtifact["add"], path)
+			}
+		}
+		if got, want := intAt(t, syncArtifact, "timeout_seconds"), 900; got != want {
+			t.Fatalf("release_artifacts[0].timeout_seconds = %d, want %d", got, want)
 		}
 
-		formatArtifact := asMap(t, artifacts[1], "release_artifacts[1]")
-		if got, want := stringAt(t, formatArtifact, "name"), "format-release-artifacts"; got != want {
+		siteArtifact := asMap(t, artifacts[1], "release_artifacts[1]")
+		if got, want := stringAt(t, siteArtifact, "name"), "site-changelog"; got != want {
 			t.Fatalf("release_artifacts[1].name = %q, want %q", got, want)
 		}
-		if got, want := stringAt(t, formatArtifact, "command"), "bun"; got != want {
+		if got, want := stringAt(t, siteArtifact, "command"), "bun"; got != want {
 			t.Fatalf("release_artifacts[1].command = %q, want %q", got, want)
+		}
+		if !stringSliceContains(sliceAt(t, siteArtifact, "args"), "release:site-changelog") {
+			t.Fatalf("release_artifacts[1].args = %#v, want release:site-changelog", siteArtifact["args"])
+		}
+		if !stringSliceContains(sliceAt(t, siteArtifact, "add"), "packages/site/content/blog/changelog/*.mdx") {
+			t.Fatalf("release_artifacts[1].add = %#v, want site changelog glob", siteArtifact["add"])
+		}
+
+		formatArtifact := asMap(t, artifacts[2], "release_artifacts[2]")
+		if got, want := stringAt(t, formatArtifact, "name"), "format-release-artifacts"; got != want {
+			t.Fatalf("release_artifacts[2].name = %q, want %q", got, want)
+		}
+		if got, want := stringAt(t, formatArtifact, "command"), "bun"; got != want {
+			t.Fatalf("release_artifacts[2].command = %q, want %q", got, want)
 		}
 		formatArgs := sliceAt(t, formatArtifact, "args")
 		for _, arg := range []string{
@@ -641,7 +716,7 @@ func TestPRReleaseConfigGeneratesReleaseArtifacts(t *testing.T) {
 			"packages/site/content/blog/changelog/*.mdx",
 		} {
 			if !stringSliceContains(formatArgs, arg) {
-				t.Fatalf("release_artifacts[1].args = %#v, want %q", formatArtifact["args"], arg)
+				t.Fatalf("release_artifacts[2].args = %#v, want %q", formatArtifact["args"], arg)
 			}
 		}
 		formatAdds := sliceAt(t, formatArtifact, "add")
@@ -653,7 +728,7 @@ func TestPRReleaseConfigGeneratesReleaseArtifacts(t *testing.T) {
 			"packages/site/content/blog/changelog/*.mdx",
 		} {
 			if !stringSliceContains(formatAdds, path) {
-				t.Fatalf("release_artifacts[1].add = %#v, want %q", formatArtifact["add"], path)
+				t.Fatalf("release_artifacts[2].add = %#v, want %q", formatArtifact["add"], path)
 			}
 		}
 	})

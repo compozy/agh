@@ -58,7 +58,12 @@ jobs:
             if [[ "$EVENT_NAME" == "pull_request" && -n "$PR_BASE_SHA" && -n "$PR_HEAD_SHA" ]]; then
               changed_files=$(git diff --name-only "$PR_BASE_SHA" "$PR_HEAD_SHA")
             elif [[ -n "${PUSH_BEFORE_SHA:-}" && "$PUSH_BEFORE_SHA" != "$zero_sha" ]]; then
-              changed_files=$(git diff --name-only "$PUSH_BEFORE_SHA" "$CURRENT_SHA")
+              if git cat-file -e "${PUSH_BEFORE_SHA}^{commit}" 2>/dev/null; then
+                changed_files=$(git diff --name-only "$PUSH_BEFORE_SHA" "$CURRENT_SHA")
+              else
+                echo "Base push SHA $PUSH_BEFORE_SHA is unavailable; treating current tree as changed."
+                changed_files=$(git ls-tree -r --name-only "$CURRENT_SHA")
+              fi
             else
               changed_files=$(git ls-tree -r --name-only "$CURRENT_SHA")
             fi

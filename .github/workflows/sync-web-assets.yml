@@ -124,15 +124,6 @@ jobs:
           git -C "$WEB_ASSETS_REPO" push origin HEAD:main "$assets_tag"
           echo "WEB_ASSETS_TAG=$assets_tag" >> "$GITHUB_ENV"
 
-      - name: Update pinned assets module
-        env:
-          GOPRIVATE: github.com/compozy/agh-web-assets
-          GOPROXY: direct
-          GOFLAGS: -mod=mod
-        run: |
-          go get "${WEB_ASSETS_MODULE}@${WEB_ASSETS_TAG}"
-          go mod tidy
-
       - name: Wait for public module availability
         run: |
           set -euo pipefail
@@ -157,6 +148,18 @@ jobs:
 
           echo "::error::${WEB_ASSETS_MODULE}@${WEB_ASSETS_TAG} did not resolve publicly"
           exit 1
+
+      - name: Update pinned assets module
+        env:
+          GOFLAGS: -mod=mod
+          GONOPROXY: ""
+          GONOSUMDB: ""
+          GOPRIVATE: ""
+          GOPROXY: https://proxy.golang.org,direct
+          GOSUMDB: sum.golang.org
+        run: |
+          go get "${WEB_ASSETS_MODULE}@${WEB_ASSETS_TAG}"
+          go mod tidy
 
       - name: Validate release install contract
         run: go run github.com/magefile/mage@v1.17.0 releaseInstallCheck

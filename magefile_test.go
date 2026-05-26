@@ -211,6 +211,70 @@ func TestWebAssetsNextTag(t *testing.T) {
 	}
 }
 
+func TestWebAssetsReleaseSyncHelpers(t *testing.T) {
+	t.Run("Should prefer the dedicated web assets token over the release token", func(t *testing.T) {
+		t.Setenv(webAssetsTokenEnvVar, "assets-token")
+		t.Setenv(releaseTokenEnvVar, "release-token")
+
+		if got := webAssetsPublishToken(); got != "assets-token" {
+			t.Fatalf("webAssetsPublishToken() = %q, want dedicated token", got)
+		}
+	})
+
+	t.Run("Should fall back to the release token", func(t *testing.T) {
+		t.Setenv(webAssetsTokenEnvVar, "")
+		t.Setenv(releaseTokenEnvVar, "release-token")
+
+		if got := webAssetsPublishToken(); got != "release-token" {
+			t.Fatalf("webAssetsPublishToken() = %q, want release token", got)
+		}
+	})
+
+	t.Run("Should force public module resolution through the Go proxy", func(t *testing.T) {
+		t.Parallel()
+
+		env := webAssetsPublicModuleEnv("/tmp/agh-web-assets-test")
+		want := map[string]string{
+			"GO111MODULE": "on",
+			"GOFLAGS":     "-mod=mod",
+			"GONOPROXY":   "",
+			"GONOSUMDB":   "",
+			"GOPRIVATE":   "",
+			"GOPROXY":     "https://proxy.golang.org,direct",
+			"GOSUMDB":     "sum.golang.org",
+			"GOMODCACHE":  filepath.Join("/tmp/agh-web-assets-test", "mod"),
+			"GOPATH":      filepath.Join("/tmp/agh-web-assets-test", "gopath"),
+		}
+		for key, value := range want {
+			if env[key] != value {
+				t.Fatalf("webAssetsPublicModuleEnv() %s = %q, want %q", key, env[key], value)
+			}
+		}
+	})
+
+	t.Run("Should parse generated assets metadata from a tag", func(t *testing.T) {
+		t.Parallel()
+
+		source := strings.Join([]string{
+			"package webassets",
+			"const (",
+			"\tBuildDigest = \"digest-123\"",
+			"\tSourceRepository = \"github.com/compozy/agh\"",
+			"\tSourceCommit = \"abcdef123456\"",
+			")",
+		}, "\n")
+		got := parseWebAssetsMetadataSource(source)
+		want := webAssetsMetadata{
+			BuildDigest:      "digest-123",
+			SourceRepository: webAssetsSourceRepository,
+			SourceCommit:     "abcdef123456",
+		}
+		if got != want {
+			t.Fatalf("parseWebAssetsMetadataSource() = %#v, want %#v", got, want)
+		}
+	})
+}
+
 func TestWebAssetsPrepare(t *testing.T) {
 	t.Parallel()
 

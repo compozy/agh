@@ -22,8 +22,3 @@ runs:
         node-version: ${{ inputs.node-version }}
         registry-url: "https://registry.npmjs.org"
         scope: "@compozy"
-
-    - name: Check npm registry identity
-      shell: bash
-      run: npm whoami
-      continue-on-error: true
