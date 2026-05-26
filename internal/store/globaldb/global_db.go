@@ -1040,6 +1040,12 @@ var globalSchemaMigrations = []store.Migration{
 		Up:       migrateNotificationPresets,
 		Checksum: "2026-05-21-add-notification-presets",
 	},
+	{
+		Version:  37,
+		Name:     "add_app_metadata",
+		Up:       migrateAppMetadata,
+		Checksum: "2026-05-25-add-app-metadata",
+	},
 }
 
 func migrateSessionInputQueue(ctx context.Context, tx *sql.Tx) error {
@@ -1560,6 +1566,22 @@ func migrateUnifiedSecretRefs(ctx context.Context, tx *sql.Tx) error {
 	}
 	if err := migrateMCPAuthTokens(ctx, tx); err != nil {
 		return err
+	}
+	return nil
+}
+
+func migrateAppMetadata(ctx context.Context, tx *sql.Tx) error {
+	statements := []string{
+		`CREATE TABLE IF NOT EXISTS app_metadata (
+			key        TEXT PRIMARY KEY,
+			value      TEXT NOT NULL,
+			updated_at TEXT NOT NULL
+		);`,
+	}
+	for _, statement := range statements {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("store: migrate app metadata: %w", err)
+		}
 	}
 	return nil
 }

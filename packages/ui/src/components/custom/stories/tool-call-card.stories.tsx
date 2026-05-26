@@ -222,6 +222,23 @@ export const CodeBlockInsideInput: Story = {
   ),
 };
 
+const LONG_HEADER_COMMAND =
+  'agh tool invoke agh__tool_info --input \'{"tool_id":"agh__skill_view","workspace_id":"ws-demo"}\' -o json';
+
+export const LongHeaderTitle: Story = {
+  args: {
+    toolName: "Bash",
+    filePath: LONG_HEADER_COMMAND,
+    status: "completed",
+  },
+  render: args => (
+    <ToolCallCard {...args}>
+      <ToolCallCard.Input source={LONG_HEADER_COMMAND} format="code" language="bash" />
+      <ToolCallCard.Output source="ok" format="code" language="plaintext" />
+    </ToolCallCard>
+  ),
+};
+
 export const AllStatuses: Story = {
   render: () => (
     <div className="flex flex-col gap-3" data-testid="all-statuses">

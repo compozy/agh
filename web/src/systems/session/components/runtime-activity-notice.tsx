@@ -174,7 +174,7 @@ export function RuntimeActivityNotice({ event }: { event: AgentEventPayload }) {
         role="alert"
         data-testid="session-error-notice"
         data-tone="danger"
-        className="my-2 max-w-3xl px-3 py-2"
+        className="my-2 w-full min-w-0 px-3 py-2"
         variant="danger"
       >
         <AlertCircle aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
@@ -202,7 +202,7 @@ export function RuntimeActivityNotice({ event }: { event: AgentEventPayload }) {
         role={tone === "info" ? "status" : "alert"}
         data-testid="transcript-marker-notice"
         data-tone={tone}
-        className="my-2 max-w-3xl px-3 py-2"
+        className="my-2 w-full min-w-0 px-3 py-2"
         variant={tone === "danger" ? "danger" : tone === "warning" ? "warning" : "accent"}
       >
         <Icon aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
@@ -235,7 +235,7 @@ export function RuntimeActivityNotice({ event }: { event: AgentEventPayload }) {
       role={isWarning ? "alert" : "status"}
       data-testid="runtime-activity-notice"
       data-tone={isWarning ? "warning" : "progress"}
-      className="my-2 max-w-3xl px-3 py-2"
+      className="my-2 w-full min-w-0 px-3 py-2"
       variant={isWarning ? "warning" : "accent"}
     >
       <Icon aria-hidden="true" className="mt-0.5 size-3 shrink-0" />

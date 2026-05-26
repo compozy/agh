@@ -28,6 +28,8 @@ const (
 	ToolIDNetworkInbox ToolID = "agh__network_inbox"
 	// ToolIDNetworkSend sends one network message through the existing network manager.
 	ToolIDNetworkSend ToolID = "agh__network_send"
+	// ToolIDNetworkChannelCreate registers one AGH network channel with a stated purpose.
+	ToolIDNetworkChannelCreate ToolID = "agh__network_channel_create"
 	// ToolIDNetworkThreads lists public network thread summaries.
 	ToolIDNetworkThreads ToolID = "agh__network_threads"
 	// ToolIDNetworkThreadMessages reads messages in one public network thread.
@@ -62,6 +64,8 @@ const (
 	ToolIDWorkspaceInfo ToolID = "agh__workspace_info"
 	// ToolIDWorkspaceDescribe reads one resolved workspace detail projection.
 	ToolIDWorkspaceDescribe ToolID = "agh__workspace_describe"
+	// ToolIDAgentCreate authors one AGENT.md definition at global or workspace scope.
+	ToolIDAgentCreate ToolID = "agh__agent_create"
 	// ToolIDProviderModelsList lists the daemon provider model catalog.
 	ToolIDProviderModelsList ToolID = "agh__provider_models_list"
 	// ToolIDProviderModelsRefresh refreshes one or more provider model catalog sources.
@@ -317,7 +321,7 @@ const (
 	ToolsetIDSessions ToolsetID = "agh__sessions"
 	// ToolsetIDAuthoredContext groups managed Soul/Heartbeat read and wake tools.
 	ToolsetIDAuthoredContext ToolsetID = "agh__authored_context"
-	// ToolsetIDWorkspace groups read-only workspace tools.
+	// ToolsetIDWorkspace groups workspace inspection and managed agent authoring tools.
 	ToolsetIDWorkspace ToolsetID = "agh__workspace"
 	// ToolsetIDProviderModels groups provider model catalog tools.
 	ToolsetIDProviderModels ToolsetID = "agh__provider_models"

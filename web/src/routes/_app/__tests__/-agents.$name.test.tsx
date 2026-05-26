@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -72,10 +72,6 @@ vi.mock("@/systems/agent", () => ({
       data-session-ids={sessions.map(session => session.id).join(",")}
     />
   ),
-  splitAgentSessions: (sessions: SessionPayload[]) => ({
-    normalSessions: sessions.filter(session => session.type !== "dream"),
-    memoryExtractionSessions: sessions.filter(session => session.type === "dream"),
-  }),
 }));
 
 import { Route } from "../agents.$name";
@@ -141,22 +137,50 @@ describe("Agent detail route", () => {
     expect(screen.getByTestId("agent-stats-grid")).toBeInTheDocument();
   });
 
-  it("separates memory extraction sessions from default metrics and list", () => {
+  it("omits memory extraction sessions from agent metrics and list", () => {
     const normalSession = {
       ...primarySessionFixture,
       id: "sess-normal",
       type: "user",
       state: "active",
     } satisfies SessionPayload;
-    const memoryExtractionSession = {
+    const legacyDreamSession = {
       ...primarySessionFixture,
-      id: "sess-memory",
+      id: "sess-dream",
       name: "Memory extractor",
       type: "dream",
       state: "active",
     } satisfies SessionPayload;
+    const spawnedMemorySession = {
+      ...primarySessionFixture,
+      id: "sess-memory",
+      name: "Memory extractor",
+      type: "spawned",
+      state: "stopped",
+      lineage: {
+        parent_session_id: "sess-normal",
+        root_session_id: "sess-normal",
+        spawn_depth: 1,
+        spawn_role: "memory-extractor",
+        ttl_expires_at: "2026-04-17T20:00:00Z",
+        auto_stop_on_parent: true,
+        spawn_budget: {
+          max_children: 4,
+          max_depth: 1,
+          ttl_seconds: 7200,
+        },
+        permission_policy: {
+          tools: [],
+          skills: [],
+          mcp_servers: [],
+          workspace_paths: [],
+          network_channels: [],
+          sandbox_profiles: [],
+        },
+      },
+    } satisfies SessionPayload;
     mockUseAgentDetailPage.mockReturnValue(
-      makePage({ sessions: [memoryExtractionSession, normalSession] })
+      makePage({ sessions: [legacyDreamSession, spawnedMemorySession, normalSession] })
     );
 
     render(<AgentDetailRoute />);
@@ -174,17 +198,6 @@ describe("Agent detail route", () => {
       "data-session-ids",
       "sess-normal"
     );
-    expect(screen.getByTestId("agent-session-view-toggle")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId("agent-session-view-memory-extraction"));
-
-    expect(screen.getByTestId("agent-stats-grid")).toHaveAttribute(
-      "data-session-ids",
-      "sess-normal"
-    );
-    expect(screen.getByTestId("agent-sessions-list")).toHaveAttribute(
-      "data-session-ids",
-      "sess-memory"
-    );
+    expect(screen.queryByTestId("agent-session-view-toggle")).not.toBeInTheDocument();
   });
 });

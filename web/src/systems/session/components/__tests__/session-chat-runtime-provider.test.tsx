@@ -3,16 +3,55 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { SessionThread } from "@/components/assistant-ui/session-thread";
+import { formatMessageError, SessionThread } from "@/components/assistant-ui/session-thread";
 import { primarySessionFixture, sessionTranscriptFixture } from "@/systems/session/mocks/fixtures";
+import type { TranscriptMessage } from "@/systems/session/types";
 
 import { SessionChatRuntimeProvider } from "../session-chat-runtime-provider";
+
+describe("formatMessageError", () => {
+  it("extracts provider failure detail from JSON-RPC error envelopes", () => {
+    expect(
+      formatMessageError(
+        '{"code":-32603,"message":"Internal error","data":{"error":"peer disconnected before response"}}'
+      )
+    ).toBe("peer disconnected before response");
+  });
+
+  it("does not produce empty message chrome for blank provider errors", () => {
+    expect(formatMessageError("")).toBeNull();
+  });
+
+  it("does not render raw JSON when no provider error detail exists", () => {
+    expect(formatMessageError('{"type":"abort"}')).toBeNull();
+  });
+});
 
 function jsonResponse(body: unknown, init?: ResponseInit) {
   return new Response(JSON.stringify(body), {
     headers: { "Content-Type": "application/json" },
     ...init,
   });
+}
+
+function sseResponse(frames: string[]) {
+  const encoder = new TextEncoder();
+  return new Response(
+    new ReadableStream({
+      start(controller) {
+        for (const frame of frames) {
+          controller.enqueue(encoder.encode(frame));
+        }
+        controller.close();
+      },
+    }),
+    {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "x-vercel-ai-ui-message-stream": "v1",
+      },
+    }
+  );
 }
 
 function getPathname(input: RequestInfo | URL): string {
@@ -40,7 +79,49 @@ function createQueryClient() {
   });
 }
 
-function renderSessionThread() {
+class FakeSessionEventSource {
+  readonly listeners = new Map<string, Set<EventListenerOrEventListenerObject>>();
+  closed = false;
+  onmessage: ((event: MessageEvent) => void) | null = null;
+  onerror: ((event: Event) => void) | null = null;
+
+  constructor(readonly url: string) {}
+
+  addEventListener(type: string, listener: EventListenerOrEventListenerObject) {
+    const listeners = this.listeners.get(type) ?? new Set<EventListenerOrEventListenerObject>();
+    listeners.add(listener);
+    this.listeners.set(type, listeners);
+  }
+
+  removeEventListener(type: string, listener: EventListenerOrEventListenerObject) {
+    this.listeners.get(type)?.delete(listener);
+  }
+
+  close() {
+    this.closed = true;
+  }
+
+  dispatch(type: string, payload: unknown, lastEventId: string) {
+    const event = new MessageEvent(type, { data: JSON.stringify(payload) });
+    Object.defineProperty(event, "lastEventId", { value: lastEventId });
+    if (type === "message") {
+      this.onmessage?.(event);
+    }
+    for (const listener of this.listeners.get(type) ?? []) {
+      if (typeof listener === "function") {
+        listener(event);
+      } else {
+        listener.handleEvent(event);
+      }
+    }
+  }
+}
+
+function renderSessionThread(
+  options: {
+    eventSourceFactory?: (url: string) => FakeSessionEventSource;
+  } = {}
+) {
   const queryClient = createQueryClient();
 
   return render(
@@ -48,6 +129,7 @@ function renderSessionThread() {
       <SessionChatRuntimeProvider
         sessionId={primarySessionFixture.id}
         workspaceId={primarySessionFixture.workspace_id}
+        eventSourceFactory={options.eventSourceFactory}
       >
         <SessionThread
           sessionId={primarySessionFixture.id}
@@ -61,6 +143,22 @@ function renderSessionThread() {
 }
 
 describe("SessionChatRuntimeProvider", () => {
+  it("Should align viewport and composer on the shared thread content rail", async () => {
+    renderSessionThread();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("chat-view")).toBeInTheDocument();
+    });
+
+    const chatView = screen.getByTestId("chat-view");
+    const viewportRail = within(chatView).getByTestId("thread-content-rail");
+    expect(viewportRail).toHaveClass("px-4");
+
+    const composerShell = screen.getByTestId("composer-shell");
+    const composerRail = within(composerShell).getByTestId("thread-content-rail");
+    expect(composerRail).toHaveClass("px-4");
+  });
+
   let transcriptMessages = sessionTranscriptFixture.slice(0, 2);
   let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -85,6 +183,20 @@ describe("SessionChatRuntimeProvider", () => {
         `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/transcript`
       ) {
         return jsonResponse({ messages: transcriptMessages });
+      }
+
+      if (
+        pathname ===
+        `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/prompt`
+      ) {
+        return sseResponse([
+          'data: {"type":"start","messageId":"turn-runtime-001"}\n\n',
+          'data: {"type":"text-start","id":"turn-runtime-001-text-1"}\n\n',
+          'data: {"type":"text-delta","id":"turn-runtime-001-text-1","delta":"Live runtime answer before transcript reconciliation."}\n\n',
+          'data: {"type":"text-end","id":"turn-runtime-001-text-1"}\n\n',
+          'data: {"type":"finish","finishReason":"stop"}\n\n',
+          "data: [DONE]\n\n",
+        ]);
       }
 
       throw new Error(`Unhandled fetch in test: ${pathname}`);
@@ -126,6 +238,36 @@ describe("SessionChatRuntimeProvider", () => {
         );
       })
     ).toHaveLength(2);
+  }, 10_000);
+
+  it("keeps live prompt stream output visible before transcript reconciliation", async () => {
+    const user = userEvent.setup();
+    renderSessionThread();
+
+    await waitFor(() => {
+      expect(screen.getByText("Launch readiness snapshot")).toBeInTheDocument();
+    });
+
+    await user.type(screen.getByTestId("composer-textarea"), "Continue from the reattached thread");
+    await user.click(screen.getByTestId("composer-send-button"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Live runtime answer before transcript reconciliation.")
+      ).toBeInTheDocument();
+    });
+
+    expect(
+      transcriptMessages.some(message => JSON.stringify(message).includes("Live runtime answer"))
+    ).toBe(false);
+    expect(
+      fetchMock.mock.calls.some(([input]) => {
+        return (
+          getPathname(input as RequestInfo | URL) ===
+          `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/prompt`
+        );
+      })
+    ).toBe(true);
   }, 10_000);
 
   it("renders runtime progress events as activity notices instead of assistant text", async () => {
@@ -202,6 +344,40 @@ describe("SessionChatRuntimeProvider", () => {
     expect(screen.getByTestId("session-error-detail")).toHaveTextContent(
       "peer disconnected before response"
     );
+  }, 10_000);
+
+  it("does not render empty error chrome for incomplete message status without a detail", async () => {
+    transcriptMessages = [
+      ...sessionTranscriptFixture.slice(0, 1),
+      {
+        id: "transcript_empty_error_status_001",
+        role: "assistant",
+        status: {
+          type: "incomplete",
+          reason: "error",
+          error: "",
+        },
+        parts: [
+          {
+            type: "data-agh-event",
+            data: {
+              type: "error",
+            },
+          },
+        ],
+      } as unknown as TranscriptMessage,
+    ];
+
+    renderSessionThread();
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Summarize the launch blockers before the 18:30 UTC cutover.")
+      ).toBeInTheDocument();
+    });
+
+    expect(screen.queryByTestId("session-message-error")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("session-error-notice")).not.toBeInTheDocument();
   }, 10_000);
 
   it("renders only unresolved permission events as interactive prompts", async () => {
@@ -356,5 +532,119 @@ describe("SessionChatRuntimeProvider", () => {
     expect(dataIndex).toBeGreaterThan(beforeIndex);
     expect(afterIndex).toBeGreaterThan(dataIndex);
     expect(within(chat).getByTestId("session-data-part")).toHaveTextContent("Provider note");
+  }, 10_000);
+
+  it("reconciles durable transcript after a live session stream event", async () => {
+    transcriptMessages = sessionTranscriptFixture.slice(0, 1);
+    const sources: FakeSessionEventSource[] = [];
+
+    renderSessionThread({
+      eventSourceFactory: url => {
+        const source = new FakeSessionEventSource(url);
+        sources.push(source);
+        return source;
+      },
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Summarize the launch blockers before the 18:30 UTC cutover.")
+      ).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(sources[0]?.url).toBe(
+        `/api/workspaces/${primarySessionFixture.workspace_id}/sessions/${primarySessionFixture.id}/stream`
+      );
+    });
+
+    transcriptMessages = [
+      ...sessionTranscriptFixture.slice(0, 1),
+      {
+        id: "transcript_assistant_live_tail_001",
+        role: "assistant",
+        parts: [{ type: "text", text: "Live reattached answer.", state: "done" }],
+      },
+    ];
+    sources[0]?.dispatch(
+      "agent_message",
+      {
+        sequence: 1,
+        type: "agent_message",
+        session_id: primarySessionFixture.id,
+        turn_id: "turn_live_001",
+        text: "Live reattached answer.",
+      },
+      "1"
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Live reattached answer.")).toBeInTheDocument();
+    });
+  }, 10_000);
+
+  it("recovers stream gaps from durable transcript before resuming from the latest cursor", async () => {
+    transcriptMessages = sessionTranscriptFixture.slice(0, 1);
+    const sources: FakeSessionEventSource[] = [];
+
+    renderSessionThread({
+      eventSourceFactory: url => {
+        const source = new FakeSessionEventSource(url);
+        sources.push(source);
+        return source;
+      },
+    });
+
+    await waitFor(() => {
+      expect(sources).toHaveLength(1);
+    });
+
+    transcriptMessages = [
+      ...sessionTranscriptFixture.slice(0, 1),
+      {
+        id: "transcript_gap_recovery_001",
+        role: "assistant",
+        parts: [{ type: "text", text: "Recovered from the durable transcript.", state: "done" }],
+      },
+    ];
+    sources[0]?.dispatch(
+      "agent_message",
+      {
+        sequence: 4,
+        type: "agent_message",
+        session_id: primarySessionFixture.id,
+        turn_id: "turn_gap_001",
+        text: "Recovered from the durable transcript.",
+      },
+      "4"
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Recovered from the durable transcript.")).toBeInTheDocument();
+    });
+
+    const transcriptFetches = fetchMock.mock.calls.filter(([input]) =>
+      getPathname(input as RequestInfo | URL).endsWith(`/${primarySessionFixture.id}/transcript`)
+    );
+    expect(transcriptFetches.length).toBeGreaterThanOrEqual(2);
+  }, 10_000);
+
+  it("virtualizes large transcript histories while preserving visible message order", async () => {
+    transcriptMessages = Array.from({ length: 80 }, (_, index) => ({
+      id: `transcript_large_${index}`,
+      role: index % 2 === 0 ? "user" : "assistant",
+      parts: [{ type: "text", text: `Large transcript message ${index}`, state: "done" }],
+    })) as TranscriptMessage[];
+
+    renderSessionThread();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("virtualized-thread-messages")).toBeInTheDocument();
+    });
+
+    const rowIndexes = screen
+      .getAllByTestId("virtualized-thread-row")
+      .map(row => Number(row.getAttribute("data-index")));
+    expect(rowIndexes.length).toBeGreaterThan(0);
+    expect(rowIndexes).toEqual([...rowIndexes].sort((left, right) => left - right));
   }, 10_000);
 });

@@ -266,7 +266,7 @@ func TestHandlersRejectBadPromptAndQueryValues(t *testing.T) {
 func TestPromptSessionHandlerCoversThoughtPermissionAndErrorBranches(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		PromptFn: func(context.Context, string, string) (<-chan acp.AgentEvent, error) {
+		SendPromptFn: func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error) {
 			ch := make(chan acp.AgentEvent, 3)
 			ch <- acp.AgentEvent{
 				Type:      "thought",
@@ -288,7 +288,7 @@ func TestPromptSessionHandlerCoversThoughtPermissionAndErrorBranches(t *testing.
 				Error:     "boom",
 			}
 			close(ch)
-			return ch, nil
+			return session.SendPromptResult{Status: "accepted", Events: ch, NewTurnID: "turn-err"}, nil
 		},
 	}
 	engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, homePaths))

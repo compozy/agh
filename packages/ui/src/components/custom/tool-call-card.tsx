@@ -204,6 +204,10 @@ function ToolCallCardOutput(props: ToolCallCardSectionProps) {
 }
 ToolCallCardOutput.slotMarker = TOOL_CALL_OUTPUT_SLOT;
 
+function nativeTitle(value: React.ReactNode): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
 function renderToolCallIcon(icon: ToolCallCardProps["icon"]): React.ReactNode {
   const iconClass = "size-3.5 shrink-0 text-faint";
   if (icon === undefined) {
@@ -263,19 +267,27 @@ function ToolCallCardInner({
           className="flex min-h-11 min-w-0 items-center gap-3 px-4 py-2.5"
         >
           {iconContent}
-          <span data-slot="tool-call-card-tool" className="text-card-title font-medium text-fg">
-            {toolName}
-          </span>
-          {filePath ? (
+          <div
+            data-slot="tool-call-card-title-cluster"
+            className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden"
+          >
             <span
-              data-slot="tool-call-card-path"
-              className="min-w-0 flex-1 truncate font-mono text-small-body text-subtle"
+              data-slot="tool-call-card-tool"
+              className="min-w-0 truncate text-card-title font-medium text-fg"
+              title={nativeTitle(toolName)}
             >
-              {filePath}
+              {toolName}
             </span>
-          ) : (
-            <span className="min-w-0 flex-1" aria-hidden="true" />
-          )}
+            {filePath ? (
+              <span
+                data-slot="tool-call-card-path"
+                className="min-w-0 flex-1 truncate font-mono text-small-body text-subtle"
+                title={nativeTitle(filePath)}
+              >
+                {filePath}
+              </span>
+            ) : null}
+          </div>
           <div className="ml-auto flex shrink-0 items-center gap-2.5">
             <ToolCallCardHeaderChips />
             <ToolCallStatusIcon status={status} />

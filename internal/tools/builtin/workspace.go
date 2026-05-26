@@ -53,6 +53,20 @@ var workspaceTools = []toolspkg.Descriptor{
 		[]string{workspaceWorkspaceKey, "describe"},
 		[]string{"workspace describe", "workspace detail"},
 	),
+	nativeDescriptor(
+		toolspkg.ToolIDAgentCreate,
+		"agent_create",
+		"Agent Create",
+		"Author one AGENT.md definition at global or workspace scope through the existing agent authoring surface.",
+		agentCreateInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDWorkspace},
+		[]string{workspaceWorkspaceKey, "agent", descriptorKeywordCreate},
+		[]string{"create agent", "author agent definition"},
+	),
 }
 
 func workspaceDescriptors() []toolspkg.Descriptor {
@@ -64,6 +78,27 @@ const workspaceRefInputSchema = `{
 	"required":["workspace"],
 	"properties":{
 		"workspace":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
+const agentCreateInputSchema = `{
+	"type":"object",
+	"required":["scope","name","provider","prompt"],
+	"properties":{
+		"scope":{"type":"string","enum":["global","workspace"]},
+		"workspace":{"type":"string"},
+		"name":{"type":"string"},
+		"provider":{"type":"string"},
+		"model":{"type":"string"},
+		"command":{"type":"string"},
+		"prompt":{"type":"string"},
+		"permissions":{"type":"string","enum":["deny-all","approve-reads","approve-all"]},
+		"tools":{"type":"array","items":{"type":"string"}},
+		"toolsets":{"type":"array","items":{"type":"string"}},
+		"deny_tools":{"type":"array","items":{"type":"string"}},
+		"category_path":{"type":"array","items":{"type":"string"}},
+		"disabled_skills":{"type":"array","items":{"type":"string"}}
 	},
 	"additionalProperties":false
 }`

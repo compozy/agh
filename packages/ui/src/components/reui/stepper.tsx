@@ -1,3 +1,5 @@
+"use client";
+
 import type { ButtonHTMLAttributes, ComponentProps, HTMLAttributes } from "react";
 
 import { cn } from "@agh/ui/lib/utils";
@@ -84,7 +86,7 @@ function StepperItem({
       <div
         data-slot="stepper-item"
         className={cn(
-          "group/step flex items-center justify-center not-last:flex-1 group-data-[orientation=horizontal]/stepper-nav:flex-row group-data-[orientation=vertical]/stepper-nav:flex-col",
+          "group/step flex items-center justify-center not-last:flex-1 group-data-[orientation=horizontal]/stepper-nav:flex-row group-data-[orientation=vertical]/stepper-nav:block group-data-[orientation=vertical]/stepper-nav:w-full",
           className
         )}
         data-state={state}
@@ -140,8 +142,9 @@ function StepperTrigger({
       data-state={state}
       data-loading={isLoading}
       className={cn(
-        "focus-visible:border-ring focus-visible:ring-ring/50 inline-flex cursor-pointer items-center outline-none focus-visible:z-10 focus-visible:ring-3 disabled:pointer-events-none disabled:opacity-60",
-        "gap-2.5 rounded-full",
+        "focus-visible:border-ring focus-visible:ring-ring/50 cursor-pointer outline-none focus-visible:z-10 focus-visible:ring-3 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-60",
+        "group-data-[orientation=horizontal]/stepper-nav:inline-flex group-data-[orientation=horizontal]/stepper-nav:items-center group-data-[orientation=horizontal]/stepper-nav:gap-2.5 group-data-[orientation=horizontal]/stepper-nav:rounded-full",
+        "group-data-[orientation=vertical]/stepper-nav:flex group-data-[orientation=vertical]/stepper-nav:w-full group-data-[orientation=vertical]/stepper-nav:items-start group-data-[orientation=vertical]/stepper-nav:gap-3 group-data-[orientation=vertical]/stepper-nav:rounded-md group-data-[orientation=vertical]/stepper-nav:text-left group-data-[orientation=vertical]/stepper-nav:enabled:hover:**:data-[slot=stepper-title]:text-fg",
         className
       )}
       onClick={selectStep}
@@ -154,6 +157,36 @@ function StepperTrigger({
   );
 }
 
+function StepperRail({ children, className, ...props }: ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="stepper-rail"
+      className={cn(
+        "hidden group-data-[orientation=vertical]/stepper-nav:flex group-data-[orientation=vertical]/stepper-nav:flex-col group-data-[orientation=vertical]/stepper-nav:items-center group-data-[orientation=vertical]/stepper-nav:self-stretch",
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}
+
+function StepperBody({ children, className, ...props }: ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="stepper-body"
+      className={cn(
+        "group-data-[orientation=vertical]/stepper-nav:pt-0.5 group-data-[orientation=vertical]/stepper-nav:pb-6",
+        className
+      )}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}
+
 function StepperIndicator({ children, className }: ComponentProps<"div">) {
   const { state, isLoading } = useStepItem();
   const { indicators } = useStepper();
@@ -163,8 +196,10 @@ function StepperIndicator({ children, className }: ComponentProps<"div">) {
       data-slot="stepper-indicator"
       data-state={state}
       className={cn(
-        "border-background bg-accent text-accent-foreground data-[state=completed]:bg-primary data-[state=completed]:text-primary-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground relative flex size-6 shrink-0 items-center justify-center overflow-hidden",
-        "rounded-full text-xs",
+        "relative flex size-button-icon-default shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-semibold tabular-nums transition-all duration-base",
+        "data-[state=inactive]:bg-elevated data-[state=inactive]:text-subtle data-[state=inactive]:shadow-focus-ring-inset",
+        "data-[state=active]:bg-accent data-[state=active]:text-accent-ink data-[state=active]:shadow-[var(--shadow-highlight),0_0_0_4px_var(--color-accent-tint)]",
+        "data-[state=completed]:bg-accent data-[state=completed]:text-accent-ink data-[state=completed]:shadow-highlight",
         className
       )}
     >
@@ -192,7 +227,9 @@ function StepperSeparator({ className }: ComponentProps<"div">) {
       data-slot="stepper-separator"
       data-state={state}
       className={cn(
-        "bg-muted rounded-sm group-data-[orientation=horizontal]/stepper-nav:h-0.5 group-data-[orientation=vertical]/stepper-nav:h-12 group-data-[orientation=vertical]/stepper-nav:w-0.5 m-0.5 group-data-[orientation=horizontal]/stepper-nav:flex-1",
+        "rounded-sm bg-line transition-colors duration-base",
+        "group-data-[orientation=horizontal]/stepper-nav:m-0.5 group-data-[orientation=horizontal]/stepper-nav:h-0.5 group-data-[orientation=horizontal]/stepper-nav:flex-1",
+        "group-data-[orientation=vertical]/stepper-nav:my-1.25 group-data-[orientation=vertical]/stepper-nav:w-px group-data-[orientation=vertical]/stepper-nav:min-h-button-default group-data-[orientation=vertical]/stepper-nav:flex-1 group-data-[orientation=vertical]/stepper-nav:data-[state=completed]:bg-accent-dim",
         className
       )}
     />
@@ -206,7 +243,13 @@ function StepperTitle({ children, className }: ComponentProps<"h3">) {
     <h3
       data-slot="stepper-title"
       data-state={state}
-      className={cn("text-sm leading-none font-medium", className)}
+      className={cn(
+        "text-card-title leading-none font-medium tracking-normal transition-colors duration-base",
+        "data-[state=inactive]:text-muted",
+        "data-[state=active]:text-fg-strong",
+        "data-[state=completed]:text-fg",
+        className
+      )}
     >
       {children}
     </h3>
@@ -220,7 +263,12 @@ function StepperDescription({ children, className }: ComponentProps<"div">) {
     <div
       data-slot="stepper-description"
       data-state={state}
-      className={cn("text-muted-foreground text-sm", className)}
+      className={cn(
+        "mt-1 text-form-hint leading-normal transition-colors duration-base",
+        "data-[state=inactive]:text-faint data-[state=completed]:text-faint",
+        "data-[state=active]:text-muted",
+        className
+      )}
     >
       {children}
     </div>
@@ -286,6 +334,8 @@ export {
   Stepper,
   StepperItem,
   StepperTrigger,
+  StepperRail,
+  StepperBody,
   StepperIndicator,
   StepperSeparator,
   StepperTitle,

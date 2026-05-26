@@ -82,8 +82,15 @@ Session creation first resolves the agent name, then resolves the provider and r
 | Permissions   | `agent.permissions` -> `[permissions].mode`                | Must be one of the supported permission modes.                                              |
 | Category path | `agent.category_path`                                      | Display-only hierarchy surfaced by CLI/API/Web views; never affects runtime behavior.       |
 
-The bootstrap `general` agent created by `agh install` intentionally contains only `name: general`
-and a prompt. Its provider and model come from `~/.agh/config.toml`.
+The managed public `general` agent created by daemon boot and `agh install` intentionally contains
+only `name: general` and a prompt. Its provider and model come from `~/.agh/config.toml`, and it is
+the default public agent (`defaults.agent`) operators see in agent lists and workspace navigation
+unless a workspace-local `general` overrides it.
+
+AGH also maintains a reserved internal `onboarding` agent for first-run setup. Public authoring
+surfaces reject `onboarding` as an agent name, and public list/detail payloads hide it. The web
+onboarding wizard can still explicitly start `agent_name: "onboarding"` sessions so that setup can
+provision channels and workspace-local agents through bounded tool grants.
 
 Tool discovery works the same way. The `tools` and `toolsets` frontmatter fields start empty, but
 the effective runtime policy adds `agh__bootstrap` and `agh__catalog` by default unless a deny or

@@ -65,6 +65,7 @@ type Server struct {
 	settingsUpdate    core.SettingsUpdateController
 	vault             core.VaultService
 	workspaces        core.WorkspaceService
+	onboarding        core.OnboardingStore
 	agentCatalog      core.AgentCatalog
 	modelCatalog      core.ModelCatalogService
 	agentContext      core.AgentContextService
@@ -290,6 +291,13 @@ func WithVaultService(service core.VaultService) Option {
 func WithWorkspaceResolver(workspaces core.WorkspaceService) Option {
 	return func(server *Server) {
 		server.workspaces = workspaces
+	}
+}
+
+// WithOnboardingStore injects the first-run onboarding completion store.
+func WithOnboardingStore(store core.OnboardingStore) Option {
+	return func(server *Server) {
+		server.onboarding = store
 	}
 }
 
@@ -588,6 +596,7 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 		settingsUpdate:    s.settingsUpdate,
 		vault:             s.vault,
 		workspaces:        s.workspaces,
+		onboarding:        s.onboarding,
 		agentCatalog:      s.agentCatalog,
 		modelCatalog:      s.modelCatalog,
 		agentContext:      s.agentContext,
@@ -717,7 +726,6 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	serveDone := s.serveDone
 	streamCancel := s.streamCancel
 	serveErr := s.serveErr
-	handlers := s.handlers
 	s.httpServer = nil
 	s.listener = nil
 	s.serveDone = nil
@@ -743,11 +751,6 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	}
 	if serveDone != nil {
 		if err := waitForServeDone(ctx, serveDone); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	if handlers != nil {
-		if err := handlers.waitForPromptDrains(ctx); err != nil {
 			errs = append(errs, err)
 		}
 	}

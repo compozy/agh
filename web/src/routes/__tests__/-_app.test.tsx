@@ -12,6 +12,10 @@ const workspaceFixture = {
 };
 
 let mockHasWorkspaces = true;
+let mockOnboardingCompleted = true;
+let mockOnboardingLoading = false;
+let mockOnboardingError: Error | null = null;
+const mockOnboardingRefetch = vi.fn();
 let mockActiveWorkspaceId: string | null = "ws_alpha";
 let mockPathname = "/tasks";
 let mockLatestPathname = "/tasks";
@@ -227,6 +231,24 @@ vi.mock("@/systems/workspace", () => ({
     ) : null,
 }));
 
+vi.mock("@/systems/onboarding", () => ({
+  useOnboardingStatus: () => ({
+    data:
+      mockOnboardingLoading || mockOnboardingError
+        ? undefined
+        : { completed: mockOnboardingCompleted },
+    isLoading: mockOnboardingLoading,
+    isError: mockOnboardingError !== null,
+    error: mockOnboardingError,
+    refetch: mockOnboardingRefetch,
+  }),
+  OnboardingWizard: ({ onComplete }: { onComplete: () => void }) => (
+    <button data-testid="onboarding-wizard" onClick={onComplete} type="button">
+      Onboarding wizard
+    </button>
+  ),
+}));
+
 import { routeComponent, routeErrorComponent, routeNotFoundComponent } from "@/test/route-options";
 
 import { Route } from "../_app";
@@ -240,6 +262,10 @@ const AppNotFoundBoundary: (props: { isNotFound: true; routeId: string }) => Rea
 describe("AppLayout", () => {
   beforeEach(() => {
     mockHasWorkspaces = true;
+    mockOnboardingCompleted = true;
+    mockOnboardingLoading = false;
+    mockOnboardingError = null;
+    mockOnboardingRefetch.mockReset();
     mockActiveWorkspaceId = workspaceFixture.id;
     mockPathname = "/tasks";
     mockLatestPathname = "/tasks";
@@ -279,7 +305,48 @@ describe("AppLayout", () => {
     expect(screen.getByTestId("app-content")).toHaveClass("min-[880px]:col-start-3");
   });
 
-  it("renders onboarding instead of the shell when no workspaces exist", () => {
+  it("renders the first-run wizard until onboarding is completed", () => {
+    mockOnboardingCompleted = false;
+
+    render(<AppLayout />);
+
+    expect(screen.getByTestId("onboarding-wizard")).toBeInTheDocument();
+    expect(screen.queryByTestId("app-sidebar")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("workspace-onboarding")).not.toBeInTheDocument();
+  });
+
+  it("refetches onboarding status when the wizard reports completion", () => {
+    mockOnboardingCompleted = false;
+
+    render(<AppLayout />);
+    fireEvent.click(screen.getByTestId("onboarding-wizard"));
+
+    expect(mockOnboardingRefetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a loading gate while onboarding status resolves", () => {
+    mockOnboardingLoading = true;
+
+    render(<AppLayout />);
+
+    expect(screen.getByTestId("onboarding-gate-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("app-sidebar")).not.toBeInTheDocument();
+  });
+
+  it("fails closed with retry when onboarding status cannot be loaded", () => {
+    mockOnboardingError = new Error("daemon unavailable");
+
+    render(<AppLayout />);
+
+    expect(screen.getByTestId("onboarding-gate-error")).toBeInTheDocument();
+    expect(screen.getByText("daemon unavailable")).toBeInTheDocument();
+    expect(screen.queryByTestId("app-sidebar")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(mockOnboardingRefetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders workspace recovery instead of the shell when no workspaces exist", () => {
     mockHasWorkspaces = false;
     mockActiveWorkspaceId = null;
 

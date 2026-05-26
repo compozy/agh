@@ -3,7 +3,11 @@ import { useMatchRoute } from "@tanstack/react-router";
 import { hotkeysCoreFeature, selectionFeature, syncDataLoaderFeature } from "@headless-tree/core";
 import { useTree } from "@headless-tree/react";
 
-import type { SessionPayload } from "@/systems/session";
+import {
+  idleAttachableAgentNames,
+  runningAgentNames,
+  type SessionPayload,
+} from "@/systems/session";
 
 import {
   AGENT_CATEGORY_FOLDER_ID_PREFIX,
@@ -75,15 +79,6 @@ function findActiveAgent(
   return null;
 }
 
-function collectActiveAgentNames(sessions: SessionPayload[] | undefined): Set<string> {
-  const names = new Set<string>();
-  if (!sessions) return names;
-  for (const session of sessions) {
-    if (session.state === "active") names.add(session.agent_name);
-  }
-  return names;
-}
-
 // Computed once at mount and handed to useTree's initialState.expandedItems.
 // Headless-tree treats initialState as a seed value, so route changes after the
 // tree has mounted MUST NOT silently auto-expand a different category -- operator
@@ -104,7 +99,8 @@ function deriveInitialExpanded(
 export interface AgentCategoryTreeModel {
   nodes: AgentCategoryNode[];
   tree: ReturnType<typeof useTree<AgentCategoryTreeItemData>>;
-  activeAgentNames: Set<string>;
+  runningAgentNames: Set<string>;
+  idleAgentNames: Set<string>;
   matchRoute: ReturnType<typeof useMatchRoute>;
 }
 
@@ -113,7 +109,8 @@ export function useAgentCategoryTreeModel(
   sessions: SessionPayload[] | undefined
 ): AgentCategoryTreeModel {
   const matchRoute = useMatchRoute();
-  const activeAgentNames = useMemo(() => collectActiveAgentNames(sessions), [sessions]);
+  const agentNamesWithRunningSessions = useMemo(() => runningAgentNames(sessions), [sessions]);
+  const agentNamesWithIdleSessions = useMemo(() => idleAttachableAgentNames(sessions), [sessions]);
   const nodes = useMemo(() => buildAgentCategoryTree(agents ?? []), [agents]);
   const flat = useMemo(() => flattenNodes(nodes), [nodes]);
   const initialExpanded = useMemo(
@@ -131,5 +128,11 @@ export function useAgentCategoryTreeModel(
     },
     features: [syncDataLoaderFeature, selectionFeature, hotkeysCoreFeature],
   });
-  return { nodes, tree, activeAgentNames, matchRoute };
+  return {
+    nodes,
+    tree,
+    runningAgentNames: agentNamesWithRunningSessions,
+    idleAgentNames: agentNamesWithIdleSessions,
+    matchRoute,
+  };
 }

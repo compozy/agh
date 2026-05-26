@@ -29,6 +29,7 @@ var builtinToolsets = []toolspkg.Toolset{
 			toolspkg.ToolIDNetworkInbox.String(),
 			toolspkg.ToolIDNetworkPeers.String(),
 			toolspkg.ToolIDNetworkSend.String(),
+			toolspkg.ToolIDNetworkChannelCreate.String(),
 			toolspkg.ToolIDNetworkThreads.String(),
 			toolspkg.ToolIDNetworkThreadMessages.String(),
 			toolspkg.ToolIDNetworkDirects.String(),
@@ -62,6 +63,7 @@ var builtinToolsets = []toolspkg.Toolset{
 			toolspkg.ToolIDWorkspaceList.String(),
 			toolspkg.ToolIDWorkspaceInfo.String(),
 			toolspkg.ToolIDWorkspaceDescribe.String(),
+			toolspkg.ToolIDAgentCreate.String(),
 		},
 	},
 	{

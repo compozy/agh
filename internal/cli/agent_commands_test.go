@@ -238,6 +238,29 @@ func TestAgentCreateCommand(t *testing.T) {
 			t.Fatalf("loaded agent = %#v, want created agent definition", loaded)
 		}
 	})
+
+	t.Run("Should reject the reserved onboarding agent name", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{})
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"agent",
+			"create",
+			aghconfig.OnboardingAgentName,
+			"--provider",
+			"claude",
+			"--prompt",
+			"Reserved.",
+		)
+		if err == nil {
+			t.Fatal("agent create onboarding error = nil, want reserved-name error")
+		}
+		if !strings.Contains(err.Error(), "reserved for internal AGH use") {
+			t.Fatalf("agent create onboarding error = %v, want reserved-name message", err)
+		}
+	})
 }
 
 func TestAgentWorkspaceFlagRejectsEmptyExplicitValue(t *testing.T) {

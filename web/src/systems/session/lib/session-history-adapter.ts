@@ -6,9 +6,11 @@ import type {
   MessageFormatRepository,
   ThreadHistoryAdapter,
 } from "@assistant-ui/react";
+import { ExportedMessageRepository } from "@assistant-ui/react";
 
 import type { SessionMessage } from "../types";
 import { sessionTranscriptOptions } from "./query-options";
+import { toThreadMessageLikes } from "./session-thread-repository";
 
 type AISDKStorageFormat = Omit<SessionMessage, "id">;
 
@@ -74,7 +76,11 @@ export function createSessionHistoryAdapter(
 
   const adapter = {
     async load() {
-      return { messages: [] };
+      const messages = await queryClient.fetchQuery({
+        ...sessionTranscriptOptions(workspaceId, sessionId),
+        staleTime: 0,
+      });
+      return ExportedMessageRepository.fromArray(toThreadMessageLikes(messages));
     },
     async append() {},
     withFormat(

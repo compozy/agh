@@ -2,6 +2,7 @@ package core
 
 import (
 	"encoding/json"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/compozy/agh/internal/acp"
 	"github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/session"
 	ssepkg "github.com/compozy/agh/internal/sse"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
@@ -17,6 +19,14 @@ const (
 	promptStreamErrorKey = "error"
 	promptStreamStopKey  = "stop"
 )
+
+func AcceptedPromptStreamTurnID(result session.SendPromptResult) (string, error) {
+	turnID := strings.TrimSpace(result.NewTurnID)
+	if turnID == "" {
+		return "", errors.New("accepted prompt stream missing turn id")
+	}
+	return turnID, nil
+}
 
 type promptAgentEventPayload struct {
 	Type       string                           `json:"type"`
@@ -168,6 +178,24 @@ func (e *PromptStreamEncoder) Emit(writer FlushWriter, event acp.AgentEvent) err
 	default:
 		return e.emitGenericEvent(writer, event)
 	}
+}
+
+// Start emits the public prompt stream start frame as soon as the daemon has
+// accepted a durable turn. Later event frames reuse the same message id.
+func (e *PromptStreamEncoder) Start(writer FlushWriter, messageID string) error {
+	e.ensureInitialized()
+	messageID = strings.TrimSpace(messageID)
+	if messageID == "" {
+		return errors.New("prompt stream start requires message id")
+	}
+	if e.messageStarted {
+		return nil
+	}
+	e.messageID = messageID
+	e.messageStarted = true
+	return WriteSSE(writer, SSEMessage{
+		Data: promptStartPayload{Type: "start", MessageID: e.messageID},
+	})
 }
 
 // Finish closes any open blocks and emits the terminal finish frame followed by
@@ -363,22 +391,31 @@ func (e *PromptStreamEncoder) toolNameByID(toolCallID string) string {
 }
 
 func (e *PromptStreamEncoder) toolName(event acp.AgentEvent) string {
-	toolName := strings.TrimSpace(event.Title)
-	if toolName != "" {
-		return toolName
-	}
-
 	rawPayload := promptRawEventMap(event.Raw)
-	if toolName = strings.TrimSpace(promptStringValue(rawPayload["tool_name"])); toolName != "" {
+	if toolName := promptMetaToolName(rawPayload); toolName != "" {
 		return toolName
 	}
-	if toolName = strings.TrimSpace(promptStringValue(rawPayload["title"])); toolName != "" {
+	if toolName := strings.TrimSpace(promptStringValue(rawPayload["tool_name"])); toolName != "" {
 		return toolName
 	}
+	return strings.TrimSpace(event.Title)
+}
 
+func promptMetaToolName(rawPayload map[string]any) string {
 	meta := promptMapValue(rawPayload["_meta"])
-	claudeCode := promptMapValue(meta["claudeCode"])
-	return strings.TrimSpace(promptStringValue(claudeCode["toolName"]))
+	if meta == nil {
+		return ""
+	}
+	for _, value := range meta {
+		nested, ok := value.(map[string]any)
+		if !ok {
+			continue
+		}
+		if toolName := strings.TrimSpace(promptStringValue(nested["toolName"])); toolName != "" {
+			return toolName
+		}
+	}
+	return ""
 }
 
 func (e *PromptStreamEncoder) errorText(event acp.AgentEvent) string {

@@ -16,6 +16,8 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	}
 
 	registerStatusRoutes(api, handlers)
+	registerOnboardingRoutes(api, handlers)
+	registerFilesystemRoutes(api, handlers)
 	registerBridgeRoutes(api, handlers)
 	registerNotificationRoutes(api, handlers)
 	registerWorkspaceRoutes(api, handlers)
@@ -48,6 +50,19 @@ func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 func registerStatusRoutes(api gin.IRouter, handlers *Handlers) {
 	api.GET("/status", handlers.GetStatus)
 	api.GET("/doctor", handlers.GetDoctor)
+}
+
+func registerOnboardingRoutes(api gin.IRouter, handlers *Handlers) {
+	privileged := handlers.privilegedMutationGuard()
+	onboarding := api.Group("/onboarding")
+	onboarding.GET("", handlers.GetOnboardingStatus)
+	onboarding.POST("/complete", privileged, handlers.CompleteOnboarding)
+	onboarding.DELETE("", privileged, handlers.ResetOnboarding)
+}
+
+func registerFilesystemRoutes(api gin.IRouter, handlers *Handlers) {
+	fsGroup := api.Group("/fs")
+	fsGroup.GET("/browse", handlers.BrowseDirectory)
 }
 
 func registerBridgeRoutes(api gin.IRouter, handlers *Handlers) {

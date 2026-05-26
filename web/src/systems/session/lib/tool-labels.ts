@@ -130,6 +130,32 @@ const TOOL_LABELS: Record<string, ToolLabels> = {
   Skill: { active: "Loading skill...", past: "Loaded skill", failure: "load skill" },
 };
 
+const REGISTERED_TOOL_NAMES = new Set(Object.keys(TOOL_LABELS));
+
+export function isRegisteredToolName(toolName: string): boolean {
+  return REGISTERED_TOOL_NAMES.has(toolName.trim());
+}
+
+/**
+ * Resolve a canonical registry tool id from a streamed or persisted tool name.
+ * Accepts exact ids ("Read") and ACP-style titles ("Read routes.go").
+ */
+export function resolveRegisteredToolName(toolName: string): string {
+  const trimmed = toolName.trim();
+  if (trimmed === "") {
+    return "tool";
+  }
+  if (REGISTERED_TOOL_NAMES.has(trimmed)) {
+    return trimmed;
+  }
+  for (const registered of REGISTERED_TOOL_NAMES) {
+    if (trimmed.startsWith(`${registered} `)) {
+      return registered;
+    }
+  }
+  return trimmed;
+}
+
 export function getToolLabel(toolName: string, tense: ToolLabelTense): string {
   const labels = TOOL_LABELS[toolName];
   if (labels) return labels[tense];

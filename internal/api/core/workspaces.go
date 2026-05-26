@@ -95,7 +95,7 @@ func (h *BaseHandlers) GetWorkspace(c *gin.Context) {
 
 	c.JSON(http.StatusOK, contract.WorkspaceDetailPayload{
 		Workspace: WorkspacePayloadFromWorkspace(resolved.Workspace),
-		Sessions:  SessionPayloadsFromInfos(filterSessionInfosByWorkspaceIDInternal(sessions, resolved.WorkspaceID)),
+		Sessions:  SessionPayloadsForWorkspace(sessions, resolved.WorkspaceID),
 		Agents:    AgentPayloadsFromDefs(agents),
 		Skills:    WorkspaceSkillPayloads(resolved.Skills),
 		Providers: SessionProviderOptionPayloadsFromConfig(&resolved.Config),
@@ -112,6 +112,9 @@ func (h *BaseHandlers) workspaceDetailAgents(
 
 	merged := make(map[string]aghconfig.AgentDef, len(resolved.Agents))
 	for _, agent := range resolved.Agents {
+		if !aghconfig.IsPublicAgentDef(agent) {
+			continue
+		}
 		name := strings.TrimSpace(agent.Name)
 		if name == "" {
 			continue
@@ -127,6 +130,9 @@ func (h *BaseHandlers) workspaceDetailAgents(
 			}
 		}
 		for _, agent := range catalogAgents {
+			if !aghconfig.IsPublicAgentDef(agent) {
+				continue
+			}
 			name := strings.TrimSpace(agent.Name)
 			if name == "" {
 				continue
@@ -269,5 +275,7 @@ func (h *BaseHandlers) lookupWorkspaceID(ctx context.Context, ref string) (strin
 
 // SessionPayloadsForWorkspace filters and converts sessions for one workspace.
 func SessionPayloadsForWorkspace(infos []*session.Info, workspaceID string) []contract.SessionPayload {
-	return SessionPayloadsFromInfos(filterSessionInfosByWorkspaceIDInternal(infos, workspaceID))
+	return SessionPayloadsFromInfos(
+		visibleSessionInfosInternal(filterSessionInfosByWorkspaceIDInternal(infos, workspaceID)),
+	)
 }

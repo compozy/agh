@@ -24,7 +24,7 @@ import {
   NAV_ROW_CLASS,
 } from "@/components/sidebar-nav-classes";
 import { AgentCategoryTree, type AgentPayload } from "@/systems/agent";
-import type { SessionPayload } from "@/systems/session";
+import { isSessionRunning, type SessionPayload } from "@/systems/session";
 import type { WorkspacePayload } from "@/systems/workspace";
 
 import { RuntimeConnectionIndicator } from "./connection-indicator";
@@ -158,7 +158,7 @@ function computeAgentsCount(
   if (total === 0) return { live: 0, total: 0 };
   const liveNames = new Set<string>();
   for (const session of sessions ?? []) {
-    if (session.state === "active") {
+    if (isSessionRunning(session)) {
       liveNames.add(session.agent_name);
     }
   }
@@ -173,7 +173,7 @@ function countActiveSessions(sessions: SessionPayload[] | undefined): number {
   if (!sessions) return 0;
   let count = 0;
   for (const session of sessions) {
-    if (session.state === "active") count += 1;
+    if (isSessionRunning(session)) count += 1;
   }
   return count;
 }

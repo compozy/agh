@@ -2,13 +2,17 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { PROVIDERS } from "@/components/landing/supported-agents";
+import { SUPPORTED_AGENT_PROVIDERS } from "@/components/landing/provider-data";
 
 const siteRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const repoRoot = resolve(siteRoot, "../..");
 const landingRoot = resolve(siteRoot, "components/landing");
 const runtimeRoot = resolve(siteRoot, "content/runtime");
 const providerSourcePath = resolve(repoRoot, "internal/config/provider.go");
+const serverLandingMetricModules = ["hero.tsx", "comparison.tsx"].map(file =>
+  resolve(landingRoot, file)
+);
+const clientSupportedAgentsImportPattern = /(?:from\s+|import\()\s*["'][^"']*supported-agents["']/;
 
 const deepCitationTargets = new Map([
   ["hooks catalog", "/runtime/core/hooks"],
@@ -114,9 +118,25 @@ function runtimeRouteExists(route: string): boolean {
 describe("landing truth", () => {
   it("keeps provider names aligned with the runtime built-in registry", () => {
     const runtimeProviders = builtinProviderNames();
-    const landingProviders = new Map(PROVIDERS.map(provider => [provider.id, provider.name]));
+    const landingProviders = new Map(
+      SUPPORTED_AGENT_PROVIDERS.map(provider => [provider.id, provider.name])
+    );
 
     expect(Object.fromEntries(landingProviders)).toEqual(Object.fromEntries(runtimeProviders));
+  });
+
+  it("keeps server-rendered landing metrics off client-only provider UI modules", () => {
+    const violations = serverLandingMetricModules.flatMap(file => {
+      const source = readFileSync(file, "utf8");
+      if (!clientSupportedAgentsImportPattern.test(source)) {
+        return [];
+      }
+      return [
+        `${relative(siteRoot, file)} imports the client-only supported agent UI module for a server metric`,
+      ];
+    });
+
+    expect(violations).toEqual([]);
   });
 
   it("fails loudly when runtime provider constants cannot be resolved", () => {

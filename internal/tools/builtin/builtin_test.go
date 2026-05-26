@@ -36,6 +36,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDNetworkInbox,
 			toolspkg.ToolIDNetworkPeers,
 			toolspkg.ToolIDNetworkSend,
+			toolspkg.ToolIDNetworkChannelCreate,
 			toolspkg.ToolIDNetworkThreads,
 			toolspkg.ToolIDNetworkThreadMessages,
 			toolspkg.ToolIDNetworkDirects,
@@ -53,6 +54,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDWorkspaceList,
 			toolspkg.ToolIDWorkspaceInfo,
 			toolspkg.ToolIDWorkspaceDescribe,
+			toolspkg.ToolIDAgentCreate,
 			toolspkg.ToolIDProviderModelsList,
 			toolspkg.ToolIDProviderModelsRefresh,
 			toolspkg.ToolIDProviderModelsStatus,
@@ -285,6 +287,14 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			false,
 		)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDNetworkWork], toolspkg.RiskRead, true, false, false)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDNetworkChannelCreate],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionList], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionStatus], toolspkg.RiskRead, true, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionHistory], toolspkg.RiskRead, true, false, false)
@@ -302,6 +312,14 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		requireDescriptorRisk(
 			t,
 			descriptors[toolspkg.ToolIDAgentHeartbeatWake],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDAgentCreate],
 			toolspkg.RiskMutating,
 			false,
 			false,
@@ -692,6 +710,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		descriptors := descriptorMap(NativeDescriptors())
 		networkIDs := []toolspkg.ToolID{
 			toolspkg.ToolIDNetworkSend,
+			toolspkg.ToolIDNetworkChannelCreate,
 			toolspkg.ToolIDNetworkThreads,
 			toolspkg.ToolIDNetworkThreadMessages,
 			toolspkg.ToolIDNetworkDirects,
@@ -825,6 +844,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			t.Fatalf("Expand(coordination) error = %v", err)
 		}
 		if want := []toolspkg.ToolID{
+			toolspkg.ToolIDNetworkChannelCreate,
 			toolspkg.ToolIDNetworkChannels,
 			toolspkg.ToolIDNetworkDirectMessages,
 			toolspkg.ToolIDNetworkDirectResolve,
@@ -869,8 +889,9 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		}
 		if !slices.Contains(workspace, toolspkg.ToolIDWorkspaceList) ||
 			!slices.Contains(workspace, toolspkg.ToolIDWorkspaceDescribe) ||
+			!slices.Contains(workspace, toolspkg.ToolIDAgentCreate) ||
 			slices.Contains(workspace, toolspkg.ToolID("agh__workspace_remove")) {
-			t.Fatalf("workspace toolset expansion = %#v, want read-only workspace tools", workspace)
+			t.Fatalf("workspace toolset expansion = %#v, want workspace read + agent authoring tools", workspace)
 		}
 
 		providerModels, err := catalog.Expand(toolspkg.ToolsetIDProviderModels, universe)

@@ -247,6 +247,7 @@ func (c *resourceAgentCatalog) lookupAgentRecord(
 	if resolved != nil {
 		workspaceID = strings.TrimSpace(resolved.ID)
 	}
+	internalTarget := aghconfig.IsInternalManagedAgentName(target)
 
 	var (
 		globalKey      string
@@ -273,6 +274,9 @@ func (c *resourceAgentCatalog) lookupAgentRecord(
 				globalFound = true
 			}
 		case resources.ResourceScopeKindWorkspace:
+			if internalTarget {
+				continue
+			}
 			if workspaceID == "" || strings.TrimSpace(record.Scope.ID) != workspaceID {
 				continue
 			}
@@ -299,6 +303,9 @@ func resolveAgentFromWorkspaceSnapshot(
 ) (aghconfig.AgentDef, error) {
 	if resolved == nil {
 		return aghconfig.AgentDef{}, errors.New("session: resolved workspace is required")
+	}
+	if aghconfig.IsInternalManagedAgentName(target) {
+		return aghconfig.AgentDef{}, fmt.Errorf("%w: %s", workspacepkg.ErrAgentNotAvailable, target)
 	}
 	for _, agent := range resolved.Agents {
 		if strings.TrimSpace(agent.Name) == target {
@@ -486,6 +493,9 @@ func (c *resourceAgentCatalog) GetAgent(ctx context.Context, name string) (aghco
 	if target == "" {
 		return aghconfig.AgentDef{}, errors.New("agent name is required")
 	}
+	if aghconfig.IsInternalManagedAgentName(target) {
+		return aghconfig.AgentDef{}, fmt.Errorf("%w: %s", os.ErrNotExist, target)
+	}
 	for _, agent := range c.agentsForWorkspace(nil) {
 		if strings.TrimSpace(agent.Name) == target {
 			return cloneAgentDef(agent), nil
@@ -508,7 +518,7 @@ func (c *resourceAgentCatalog) agentsForWorkspace(resolved *workspacepkg.Resolve
 			continue
 		}
 		name := strings.TrimSpace(record.Spec.Name)
-		if name != "" {
+		if name != "" && aghconfig.IsPublicAgentDef(record.Spec) {
 			merged[name] = cloneAgentDef(record.Spec)
 		}
 	}
@@ -523,7 +533,7 @@ func (c *resourceAgentCatalog) agentsForWorkspace(resolved *workspacepkg.Resolve
 				continue
 			}
 			name := strings.TrimSpace(record.Spec.Name)
-			if name != "" {
+			if name != "" && aghconfig.IsPublicAgentDef(record.Spec) {
 				merged[name] = cloneAgentDef(record.Spec)
 			}
 		}

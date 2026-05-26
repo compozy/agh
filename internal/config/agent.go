@@ -370,6 +370,28 @@ func ValidateAgentName(name string) error {
 	}
 }
 
+// IsInternalManagedAgentName reports whether name is reserved for daemon-owned internal flows.
+func IsInternalManagedAgentName(name string) bool {
+	return strings.EqualFold(NormalizeAgentName(name), OnboardingAgentName)
+}
+
+// IsPublicAgentDef reports whether an agent definition should appear on operator-visible surfaces.
+func IsPublicAgentDef(agent AgentDef) bool {
+	return !IsInternalManagedAgentName(agent.Name)
+}
+
+// ValidatePublicAgentName rejects internal managed names on public authoring surfaces.
+func ValidatePublicAgentName(name string) error {
+	trimmed := NormalizeAgentName(name)
+	if err := ValidateAgentName(trimmed); err != nil {
+		return err
+	}
+	if IsInternalManagedAgentName(trimmed) {
+		return fmt.Errorf("agent name %q is reserved for internal AGH use", trimmed)
+	}
+	return nil
+}
+
 func normalizeAgentSkillsConfig(config AgentSkillsConfig) AgentSkillsConfig {
 	if len(config.Disabled) == 0 {
 		return AgentSkillsConfig{}

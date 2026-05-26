@@ -1,5 +1,4 @@
 import {
-  AuiIf,
   ComposerPrimitive,
   type DataMessagePartProps,
   type EmptyMessagePartProps,
@@ -8,6 +7,8 @@ import {
   type TextMessagePartProps,
   ThreadPrimitive,
   type ToolCallMessagePartProps,
+  ReadonlyThreadProvider,
+  useAuiState,
 } from "@assistant-ui/react";
 import {
   Activity,
@@ -18,12 +19,21 @@ import {
   Square,
   Trash2,
 } from "lucide-react";
-import { type ComponentPropsWithoutRef, useCallback, useState } from "react";
+import {
+  type ComponentPropsWithoutRef,
+  type RefObject,
+  type ReactNode,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { cn } from "@/lib/utils";
 import { MessageMarkdown } from "@/systems/session/components/message-markdown";
 import { ThinkingBlock } from "@/systems/session/components/thinking-block";
 import { BackendToolPart } from "@/systems/session/lib/session-toolkit";
+import { useSessionTranscriptThreadMessages } from "@/systems/session/hooks/use-session-transcript-thread-messages";
 import {
   Button,
   Dialog,
@@ -36,8 +46,13 @@ import {
   Spinner,
 } from "@agh/ui";
 import { useSessionComposerState } from "./hooks/use-session-composer-state";
+import { useVirtualizedThreadMessages } from "./hooks/use-virtualized-thread-messages";
 
 type SessionBusyInputHandler = (message: string) => void | Promise<void>;
+
+export type SessionThreadContentInset = "px-4" | "px-8";
+
+const SESSION_THREAD_CONTENT_INSET_DEFAULT: SessionThreadContentInset = "px-4";
 
 interface SessionThreadProps {
   sessionId: string;
@@ -48,9 +63,33 @@ interface SessionThreadProps {
   onInterruptPrompt?: SessionBusyInputHandler;
   onSteerPrompt?: SessionBusyInputHandler;
   isBusyInputPending?: boolean;
+  isSessionRunning?: boolean;
+  allowBusyInput?: boolean;
   onClearConversation?: () => void;
   canClearConversation?: boolean;
   isClearingConversation?: boolean;
+  contentInset?: SessionThreadContentInset;
+}
+
+function ThreadContentRail({
+  inset,
+  className,
+  children,
+  ...props
+}: {
+  inset: SessionThreadContentInset;
+  className?: string;
+  children: ReactNode;
+} & Omit<ComponentPropsWithoutRef<"div">, "className" | "children">) {
+  return (
+    <div
+      className={cn("w-full min-w-0", inset, className)}
+      data-testid="thread-content-rail"
+      {...props}
+    >
+      {children}
+    </div>
+  );
 }
 
 function SessionTextPart({ text, state }: { text: string; state?: { type: string } }) {
@@ -90,7 +129,7 @@ function SessionDataPart(part: DataMessagePartProps<unknown>) {
     <div
       data-testid="session-data-part"
       className={cn(
-        "my-2 flex max-w-3xl items-start gap-2 rounded-lg border px-3 py-2",
+        "my-2 flex w-full min-w-0 items-start gap-2 rounded-lg border px-3 py-2",
         "border-line bg-canvas-soft text-form-input text-muted"
       )}
     >
@@ -125,9 +164,107 @@ function SessionMessageEmpty({ status }: { status: { type: string } }) {
   );
 }
 
+function textField(record: Record<string, unknown>, key: string): string | null {
+  const value = record[key];
+  if (typeof value !== "string") {
+    return null;
+  }
+  const message = value.trim();
+  return message.length > 0 ? message : null;
+}
+
+function recordField(record: Record<string, unknown>, key: string): Record<string, unknown> | null {
+  const value = record[key];
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function messageFromErrorRecord(record: Record<string, unknown>): string | null {
+  const data = recordField(record, "data");
+  if (data) {
+    const dataMessage = textField(data, "error") ?? textField(data, "message");
+    if (dataMessage) {
+      return dataMessage;
+    }
+  }
+
+  const failure = recordField(record, "failure");
+  if (failure) {
+    const failureMessage = textField(failure, "summary") ?? textField(failure, "message");
+    if (failureMessage) {
+      return failureMessage;
+    }
+  }
+
+  return (
+    textField(record, "error") ??
+    textField(record, "summary") ??
+    textField(record, "detail") ??
+    textField(record, "message")
+  );
+}
+
+export function formatMessageError(error: unknown): string | null {
+  if (error instanceof Error) {
+    return formatMessageError(error.message);
+  }
+
+  if (typeof error === "object" && error !== null && !Array.isArray(error)) {
+    return messageFromErrorRecord(error as Record<string, unknown>);
+  }
+
+  if (typeof error === "string") {
+    const message = error.trim();
+    if (message.length === 0) {
+      return null;
+    }
+
+    try {
+      const parsed = JSON.parse(message) as unknown;
+      return formatMessageError(parsed);
+    } catch {
+      // Non-JSON provider errors are already human-readable enough to display.
+    }
+
+    return message;
+  }
+
+  return null;
+}
+
+function SessionMessageErrorNotice() {
+  const error = useAuiState(state => {
+    const status = state.message.status;
+    if (status?.type !== "incomplete" || status.reason !== "error") {
+      return null;
+    }
+    return formatMessageError(status.error);
+  });
+
+  if (error === null) {
+    return null;
+  }
+
+  return (
+    <div
+      role="alert"
+      data-testid="session-message-error"
+      className={cn(
+        "rounded-md border px-3 py-2 text-sm",
+        "border-danger/30 bg-danger/8",
+        "text-danger"
+      )}
+    >
+      {error}
+    </div>
+  );
+}
+
 function UserMessage() {
   return (
-    <MessagePrimitive.Root className="mx-auto flex w-full max-w-3xl justify-end py-3">
+    <MessagePrimitive.Root className="flex w-full min-w-0 justify-end py-3">
       <div
         className={cn(
           "max-w-[min(80%,42rem)] rounded-xl border px-4 py-3",
@@ -151,7 +288,7 @@ function UserMessage() {
 
 function AssistantMessage() {
   return (
-    <MessagePrimitive.Root className="mx-auto flex w-full max-w-3xl py-3">
+    <MessagePrimitive.Root className="flex w-full min-w-0 py-3">
       <div className="flex min-w-0 flex-1 flex-col gap-3">
         <MessagePrimitive.Parts
           components={{
@@ -170,21 +307,7 @@ function AssistantMessage() {
             },
           }}
         />
-        <AuiIf
-          condition={state =>
-            state.message.status?.type === "incomplete" && state.message.status.reason === "error"
-          }
-        >
-          <div
-            className={cn(
-              "rounded-md border px-3 py-2 text-sm",
-              "border-danger/30 bg-danger/8",
-              "text-danger"
-            )}
-          >
-            <MessagePrimitive.Error />
-          </div>
-        </AuiIf>
+        <SessionMessageErrorNotice />
       </div>
     </MessagePrimitive.Root>
   );
@@ -192,24 +315,30 @@ function AssistantMessage() {
 
 function SessionComposer({
   sessionId,
+  contentInset,
   canPrompt,
   onCancelPrompt,
   onQueuePrompt,
   onInterruptPrompt,
   onSteerPrompt,
   isBusyInputPending = false,
+  isSessionRunning = false,
+  allowBusyInput = true,
   onClearConversation,
   canClearConversation = false,
   isClearingConversation = false,
 }: Pick<
   SessionThreadProps,
   | "sessionId"
+  | "contentInset"
   | "canPrompt"
   | "onCancelPrompt"
   | "onQueuePrompt"
   | "onInterruptPrompt"
   | "onSteerPrompt"
   | "isBusyInputPending"
+  | "isSessionRunning"
+  | "allowBusyInput"
   | "onClearConversation"
   | "canClearConversation"
   | "isClearingConversation"
@@ -217,9 +346,14 @@ function SessionComposer({
   const { clearComposer, composerText, isRunning } = useSessionComposerState(sessionId);
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
   const trimmedComposerText = composerText.trim();
+  const runtimeRunning = isRunning || isSessionRunning;
   const canSubmitBusyInput =
-    isRunning && canPrompt && trimmedComposerText.length > 0 && !isBusyInputPending;
-  const showBusyInputControls = isRunning || isBusyInputPending;
+    runtimeRunning &&
+    canPrompt &&
+    allowBusyInput &&
+    trimmedComposerText.length > 0 &&
+    !isBusyInputPending;
+  const showBusyInputControls = runtimeRunning || isBusyInputPending;
 
   const handleConfirmClear = useCallback(() => {
     setClearDialogOpen(false);
@@ -241,119 +375,124 @@ function SessionComposer({
 
   return (
     <>
-      <div className={cn("border-t px-4 py-3", "border-line bg-canvas-soft")}>
-        <ComposerPrimitive.Root
-          className={cn(
-            "flex flex-col gap-2 rounded-xl border px-3 pt-2.5 pb-2",
-            "border-line bg-canvas-soft",
-            "focus-within:border-accent transition-colors"
-          )}
+      <div className={cn("border-t border-line bg-canvas-soft")} data-testid="composer-shell">
+        <ThreadContentRail
+          inset={contentInset ?? SESSION_THREAD_CONTENT_INSET_DEFAULT}
+          className="py-3"
         >
-          <ComposerPrimitive.Input
-            aria-label="Session prompt"
-            data-testid="composer-textarea"
-            disabled={!canPrompt}
-            placeholder={canPrompt ? "Send a message…" : "Session is not active"}
-            rows={1}
-            maxRows={12}
-            submitMode="enter"
+          <ComposerPrimitive.Root
             className={cn(
-              "min-h-6 w-full resize-none border-none bg-transparent p-0 text-sm leading-relaxed",
-              "text-fg placeholder:text-subtle",
-              "outline-none focus-visible:border-transparent focus-visible:ring-0",
-              "dark:bg-transparent"
+              "flex flex-col gap-2 rounded-xl border px-3 pt-2.5 pb-2",
+              "border-line bg-canvas-soft",
+              "focus-within:border-accent transition-colors"
             )}
-          />
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              {onClearConversation ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setClearDialogOpen(true)}
-                  disabled={!canClearConversation || isRunning || isClearingConversation}
-                  data-testid="composer-clear-button"
-                >
-                  {isClearingConversation ? (
-                    <Spinner className="size-3" />
-                  ) : (
-                    <Trash2 className="size-3" />
-                  )}
-                  Clear conversation
-                </Button>
-              ) : null}
-            </div>
-
-            {showBusyInputControls ? (
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                {onQueuePrompt ? (
+          >
+            <ComposerPrimitive.Input
+              aria-label="Session prompt"
+              data-testid="composer-textarea"
+              disabled={!canPrompt}
+              placeholder={canPrompt ? "Send a message…" : "Session is not active"}
+              rows={1}
+              maxRows={12}
+              submitMode="enter"
+              className={cn(
+                "min-h-6 w-full resize-none border-none bg-transparent p-0 text-sm leading-relaxed",
+                "text-fg placeholder:text-subtle",
+                "outline-none focus-visible:border-transparent focus-visible:ring-0",
+                "dark:bg-transparent"
+              )}
+            />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                {onClearConversation ? (
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => handleBusyInputAction(onQueuePrompt)}
-                    disabled={!canSubmitBusyInput}
-                    data-testid="composer-queue-button"
+                    onClick={() => setClearDialogOpen(true)}
+                    disabled={!canClearConversation || runtimeRunning || isClearingConversation}
+                    data-testid="composer-clear-button"
                   >
-                    <ListPlus className="size-3" />
-                    Queue
-                  </Button>
-                ) : null}
-                {onSteerPrompt ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleBusyInputAction(onSteerPrompt)}
-                    disabled={!canSubmitBusyInput}
-                    data-testid="composer-steer-button"
-                  >
-                    <CornerDownRight className="size-3" />
-                    Steer
-                  </Button>
-                ) : null}
-                {onInterruptPrompt ? (
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleBusyInputAction(onInterruptPrompt)}
-                    disabled={!canSubmitBusyInput}
-                    data-testid="composer-interrupt-button"
-                  >
-                    <Scissors className="size-3" />
-                    Interrupt
-                  </Button>
-                ) : null}
-                {isRunning ? (
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    onClick={onCancelPrompt}
-                    data-testid="composer-stop-button"
-                  >
-                    <Square className="size-3 fill-current" />
-                    Stop
+                    {isClearingConversation ? (
+                      <Spinner className="size-3" />
+                    ) : (
+                      <Trash2 className="size-3" />
+                    )}
+                    Clear conversation
                   </Button>
                 ) : null}
               </div>
-            ) : (
-              <ComposerPrimitive.Send
-                aria-label="Send message"
-                className={cn(
-                  "inline-flex size-9 items-center justify-center rounded-full",
-                  "bg-accent text-accent-ink transition-colors",
-                  "hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
-                )}
-                data-testid="composer-send-button"
-              >
-                <SendHorizontal className="size-4" />
-              </ComposerPrimitive.Send>
-            )}
-          </div>
-        </ComposerPrimitive.Root>
+
+              {showBusyInputControls ? (
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {allowBusyInput && onQueuePrompt ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleBusyInputAction(onQueuePrompt)}
+                      disabled={!canSubmitBusyInput}
+                      data-testid="composer-queue-button"
+                    >
+                      <ListPlus className="size-3" />
+                      Queue
+                    </Button>
+                  ) : null}
+                  {allowBusyInput && onSteerPrompt ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleBusyInputAction(onSteerPrompt)}
+                      disabled={!canSubmitBusyInput}
+                      data-testid="composer-steer-button"
+                    >
+                      <CornerDownRight className="size-3" />
+                      Steer
+                    </Button>
+                  ) : null}
+                  {allowBusyInput && onInterruptPrompt ? (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleBusyInputAction(onInterruptPrompt)}
+                      disabled={!canSubmitBusyInput}
+                      data-testid="composer-interrupt-button"
+                    >
+                      <Scissors className="size-3" />
+                      Interrupt
+                    </Button>
+                  ) : null}
+                  {runtimeRunning ? (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={onCancelPrompt}
+                      data-testid="composer-stop-button"
+                    >
+                      <Square className="size-3 fill-current" />
+                      Stop
+                    </Button>
+                  ) : null}
+                </div>
+              ) : (
+                <ComposerPrimitive.Send
+                  aria-label="Send message"
+                  className={cn(
+                    "inline-flex size-9 items-center justify-center rounded-full",
+                    "bg-accent text-accent-ink transition-colors",
+                    "hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50"
+                  )}
+                  data-testid="composer-send-button"
+                >
+                  <SendHorizontal className="size-4" />
+                </ComposerPrimitive.Send>
+              )}
+            </div>
+          </ComposerPrimitive.Root>
+        </ThreadContentRail>
       </div>
 
       <Dialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
@@ -407,7 +546,7 @@ function SessionComposer({
 
 function ThreadEmpty({ agentName }: Pick<SessionThreadProps, "agentName">) {
   return (
-    <div className="mx-auto flex size-full max-w-3xl items-center justify-center px-4 py-12">
+    <div className="flex size-full w-full min-w-0 items-center justify-center py-12">
       <div className="max-w-md text-center">
         <Eyebrow className="text-subtle">{agentName}</Eyebrow>
         <p className="mt-2 text-sm text-muted">
@@ -421,14 +560,118 @@ function ThreadEmpty({ agentName }: Pick<SessionThreadProps, "agentName">) {
 
 type ThreadViewportProps = ComponentPropsWithoutRef<typeof ThreadPrimitive.Viewport>;
 
-function ThreadViewport(props: ThreadViewportProps) {
+function ThreadViewport({
+  agentName,
+  contentInset,
+  className,
+  ...props
+}: ThreadViewportProps & {
+  agentName: string;
+  contentInset: SessionThreadContentInset;
+}) {
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const transcriptMessages = useSessionTranscriptThreadMessages();
+  const runtimeMessageCount = useAuiState(state => state.thread.messages.length);
+  const readonlyThreadKey = useMemo(
+    () => transcriptMessages.map(message => message.id).join("\n"),
+    [transcriptMessages]
+  );
+  const source = runtimeMessageCount > 0 ? "runtime" : "transcript";
+  const messageCount = runtimeMessageCount > 0 ? runtimeMessageCount : transcriptMessages.length;
+
   return (
     <ThreadPrimitive.Viewport
       {...props}
-      className={cn("min-h-0 flex-1 overflow-y-auto px-4", props.className)}
+      ref={viewportRef}
+      className={cn("min-h-0 flex-1 overflow-y-auto", className)}
       data-testid="chat-view"
-    />
+    >
+      <ThreadContentRail inset={contentInset} className="min-h-full">
+        <VirtualizedThreadMessages
+          agentName={agentName}
+          viewportRef={viewportRef}
+          source={source}
+          messageCount={messageCount}
+          transcriptMessages={transcriptMessages}
+          readonlyThreadKey={readonlyThreadKey}
+        />
+      </ThreadContentRail>
+    </ThreadPrimitive.Viewport>
   );
+}
+
+const SESSION_MESSAGE_COMPONENTS = {
+  UserMessage,
+  AssistantMessage,
+};
+const VIRTUAL_MESSAGE_ESTIMATE = 144;
+type ThreadMessageSource = "runtime" | "transcript";
+
+function VirtualizedThreadMessages({
+  agentName,
+  viewportRef,
+  source,
+  messageCount,
+  transcriptMessages,
+  readonlyThreadKey,
+}: {
+  agentName: string;
+  viewportRef: RefObject<HTMLDivElement | null>;
+  source: ThreadMessageSource;
+  messageCount: number;
+  transcriptMessages: ReturnType<typeof useSessionTranscriptThreadMessages>;
+  readonlyThreadKey: string;
+}) {
+  const { virtualizer } = useVirtualizedThreadMessages(viewportRef, messageCount);
+
+  if (messageCount === 0) {
+    return <ThreadEmpty agentName={agentName} />;
+  }
+
+  const virtualItems = virtualizer.getVirtualItems();
+  const visibleItems =
+    virtualItems.length > 0
+      ? virtualItems
+      : Array.from({ length: Math.min(messageCount, 12) }, (_, index) => ({
+          index,
+          key: index,
+          start: index * VIRTUAL_MESSAGE_ESTIMATE,
+        }));
+  const totalSize = Math.max(virtualizer.getTotalSize(), messageCount * VIRTUAL_MESSAGE_ESTIMATE);
+
+  const rows = (
+    <div
+      className="relative w-full"
+      data-testid="virtualized-thread-messages"
+      style={{ height: totalSize }}
+    >
+      {visibleItems.map(item => (
+        <div
+          key={source + "-" + item.key}
+          ref={virtualizer.measureElement}
+          data-index={item.index}
+          data-testid="virtualized-thread-row"
+          className="absolute top-0 left-0 w-full"
+          style={{ transform: `translateY(${item.start}px)` }}
+        >
+          <ThreadPrimitive.MessageByIndex
+            index={item.index}
+            components={SESSION_MESSAGE_COMPONENTS}
+          />
+        </div>
+      ))}
+    </div>
+  );
+
+  if (source === "transcript") {
+    return (
+      <ReadonlyThreadProvider key={readonlyThreadKey} messages={transcriptMessages}>
+        {rows}
+      </ReadonlyThreadProvider>
+    );
+  }
+
+  return rows;
 }
 
 export function SessionThread({
@@ -440,31 +683,27 @@ export function SessionThread({
   onInterruptPrompt,
   onSteerPrompt,
   isBusyInputPending = false,
+  isSessionRunning = false,
+  allowBusyInput = true,
   onClearConversation,
   canClearConversation = false,
   isClearingConversation = false,
+  contentInset = SESSION_THREAD_CONTENT_INSET_DEFAULT,
 }: SessionThreadProps) {
   return (
     <ThreadPrimitive.Root className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <ThreadViewport>
-        <ThreadPrimitive.Empty>
-          <ThreadEmpty agentName={agentName} />
-        </ThreadPrimitive.Empty>
-        <ThreadPrimitive.Messages
-          components={{
-            UserMessage,
-            AssistantMessage,
-          }}
-        />
-      </ThreadViewport>
+      <ThreadViewport agentName={agentName} contentInset={contentInset} />
       <SessionComposer
         sessionId={sessionId}
+        contentInset={contentInset}
         canPrompt={canPrompt}
         onCancelPrompt={onCancelPrompt}
         onQueuePrompt={onQueuePrompt}
         onInterruptPrompt={onInterruptPrompt}
         onSteerPrompt={onSteerPrompt}
         isBusyInputPending={isBusyInputPending}
+        isSessionRunning={isSessionRunning}
+        allowBusyInput={allowBusyInput}
         onClearConversation={onClearConversation}
         canClearConversation={canClearConversation}
         isClearingConversation={isClearingConversation}

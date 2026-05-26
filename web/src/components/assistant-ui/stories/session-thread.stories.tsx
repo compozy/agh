@@ -203,6 +203,8 @@ export const BusyInputControls: Story = {
     sessionId: primarySessionFixture.id,
     agentName: primarySessionFixture.agent_name,
     canPrompt: true,
+    isSessionRunning: true,
+    allowBusyInput: true,
     onCancelPrompt: () => undefined,
     onQueuePrompt: () => undefined,
     onInterruptPrompt: () => undefined,
@@ -218,4 +220,49 @@ export const BusyInputControls: Story = {
       ],
     }),
   },
+};
+
+/**
+ * Wide panel — viewport and composer share the same full-width content rail.
+ */
+export const WidePanel: Story = {
+  ...MixedStreaming,
+  decorators: [
+    Story => (
+      <SessionChatRuntimeProvider
+        sessionId={primarySessionFixture.id}
+        workspaceId={primarySessionFixture.workspace_id}
+      >
+        <div className="flex h-[640px] w-[1200px] max-w-full flex-col border border-line bg-background">
+          <Story />
+        </div>
+      </SessionChatRuntimeProvider>
+    ),
+  ],
+};
+
+/**
+ * Onboarding inset — matches wizard header/footer horizontal padding (px-8).
+ */
+export const OnboardingInset: Story = {
+  ...MixedStreaming,
+  args: {
+    sessionId: primarySessionFixture.id,
+    agentName: primarySessionFixture.agent_name,
+    canPrompt: true,
+    contentInset: "px-8",
+    onCancelPrompt: () => undefined,
+  },
+  decorators: [
+    Story => (
+      <SessionChatRuntimeProvider
+        sessionId={primarySessionFixture.id}
+        workspaceId={primarySessionFixture.workspace_id}
+      >
+        <div className="flex h-[640px] w-[1200px] max-w-full flex-col border border-line bg-background">
+          <Story />
+        </div>
+      </SessionChatRuntimeProvider>
+    ),
+  ],
 };

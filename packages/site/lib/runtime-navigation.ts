@@ -64,6 +64,8 @@ export const API_SECTIONS: CoreSection[] = [
     ids: [
       "daemon",
       "diagnostics",
+      "onboarding",
+      "filesystem",
       "logs",
       "settings",
       "support",

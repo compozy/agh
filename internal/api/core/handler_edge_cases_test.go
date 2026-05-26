@@ -207,6 +207,18 @@ func TestConversionAndStatusHelpers(t *testing.T) {
 	sessions := core.SessionPayloadsForWorkspace([]*session.Info{
 		{ID: "sess-1", WorkspaceID: "ws_alpha"},
 		{ID: "sess-2", WorkspaceID: "ws_beta"},
+		{ID: "sess-3", WorkspaceID: "ws_alpha", Type: session.SessionTypeDream},
+		{
+			ID:          "sess-4",
+			WorkspaceID: "ws_alpha",
+			Type:        session.SessionTypeSpawned,
+			Lineage: &store.SessionLineage{
+				ParentSessionID: "sess-1",
+				RootSessionID:   "sess-1",
+				SpawnDepth:      1,
+				SpawnRole:       session.SpawnRoleMemoryExtractor,
+			},
+		},
 	}, "ws_alpha")
 	if len(sessions) != 1 || sessions[0].ID != "sess-1" {
 		t.Fatalf("SessionPayloadsForWorkspace() = %#v", sessions)
@@ -682,6 +694,179 @@ func TestBaseHandlersHealthAndDaemonStatusErrorBranches(t *testing.T) {
 		testutil.DecodeJSONResponse(t, resp, &payload)
 		if payload.Daemon.Network == nil || payload.Daemon.Network.Status != "unavailable" {
 			t.Fatalf("daemon network = %#v, want unavailable status", payload.Daemon.Network)
+		}
+	})
+}
+
+func TestBaseHandlersListSessionsHidesInternalMemorySessions(t *testing.T) {
+	t.Parallel()
+
+	createdAt := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
+	updatedAt := createdAt.Add(time.Minute)
+	memoryLineage := &store.SessionLineage{
+		ParentSessionID: "sess-user",
+		RootSessionID:   "sess-user",
+		SpawnDepth:      1,
+		SpawnRole:       session.SpawnRoleMemoryExtractor,
+	}
+	workerLineage := &store.SessionLineage{
+		ParentSessionID: "sess-user",
+		RootSessionID:   "sess-user",
+		SpawnDepth:      1,
+		SpawnRole:       "worker",
+	}
+
+	t.Run("Should omit internal memory sessions from active session lists", func(t *testing.T) {
+		t.Parallel()
+
+		manager := testutil.StubSessionManager{
+			ListAllFn: func(context.Context) ([]*session.Info, error) {
+				return []*session.Info{
+					{
+						ID:          "sess-user",
+						Name:        "Operator session",
+						AgentName:   "coder",
+						Provider:    "codex",
+						WorkspaceID: "ws_alpha",
+						Type:        session.SessionTypeUser,
+						State:       session.StateActive,
+						CreatedAt:   createdAt,
+						UpdatedAt:   updatedAt,
+					},
+					{
+						ID:          "sess-worker",
+						Name:        "Worker session",
+						AgentName:   "coder",
+						Provider:    "codex",
+						WorkspaceID: "ws_alpha",
+						Type:        session.SessionTypeSpawned,
+						Lineage:     workerLineage,
+						State:       session.StateActive,
+						CreatedAt:   createdAt,
+						UpdatedAt:   updatedAt,
+					},
+					{
+						ID:          "sess-dream",
+						Name:        "Memory extractor",
+						AgentName:   "coder",
+						Provider:    "codex",
+						WorkspaceID: "ws_alpha",
+						Type:        session.SessionTypeDream,
+						State:       session.StateStopped,
+						CreatedAt:   createdAt,
+						UpdatedAt:   updatedAt,
+					},
+					{
+						ID:          "sess-memory",
+						Name:        "Memory extractor",
+						AgentName:   "coder",
+						Provider:    "codex",
+						WorkspaceID: "ws_alpha",
+						Type:        session.SessionTypeSpawned,
+						Lineage:     memoryLineage,
+						State:       session.StateStopped,
+						CreatedAt:   createdAt,
+						UpdatedAt:   updatedAt,
+					},
+				}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions", nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("list sessions status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())
+		}
+		var payload contract.SessionsResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+
+		ids := make([]string, 0, len(payload.Sessions))
+		for _, sessionPayload := range payload.Sessions {
+			ids = append(ids, sessionPayload.ID)
+		}
+		if got, want := strings.Join(ids, ","), "sess-user,sess-worker"; got != want {
+			t.Fatalf("session ids = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should omit internal memory sessions from resumable lists", func(t *testing.T) {
+		t.Parallel()
+
+		manager := testutil.StubSessionManager{
+			ListSessionsFn: func(_ context.Context, query store.SessionListQuery) ([]store.SessionInfo, error) {
+				if !query.Resumable {
+					t.Fatalf("resumable query = false, want true")
+				}
+				return []store.SessionInfo{
+					{
+						ID:          "sess-user",
+						Name:        "Operator session",
+						AgentName:   "coder",
+						Provider:    "codex",
+						WorkspaceID: "ws_alpha",
+						SessionType: string(session.SessionTypeUser),
+						State:       string(session.StateStopped),
+						CreatedAt:   createdAt,
+						UpdatedAt:   updatedAt,
+					},
+					{
+						ID:          "sess-worker",
+						Name:        "Worker session",
+						AgentName:   "coder",
+						Provider:    "codex",
+						WorkspaceID: "ws_alpha",
+						SessionType: string(session.SessionTypeSpawned),
+						Lineage:     workerLineage,
+						State:       string(session.StateStopped),
+						CreatedAt:   createdAt,
+						UpdatedAt:   updatedAt,
+					},
+					{
+						ID:          "sess-dream",
+						Name:        "Memory extractor",
+						AgentName:   "coder",
+						Provider:    "codex",
+						WorkspaceID: "ws_alpha",
+						SessionType: string(session.SessionTypeDream),
+						State:       string(session.StateStopped),
+						CreatedAt:   createdAt,
+						UpdatedAt:   updatedAt,
+					},
+					{
+						ID:          "sess-memory",
+						Name:        "Memory extractor",
+						AgentName:   "coder",
+						Provider:    "codex",
+						WorkspaceID: "ws_alpha",
+						SessionType: string(session.SessionTypeSpawned),
+						Lineage:     memoryLineage,
+						State:       string(session.StateStopped),
+						CreatedAt:   createdAt,
+						UpdatedAt:   updatedAt,
+					},
+				}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+
+		resp := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?resumable=true", nil)
+		if resp.Code != http.StatusOK {
+			t.Fatalf(
+				"list resumable sessions status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusOK,
+				resp.Body.String(),
+			)
+		}
+		var payload contract.SessionsResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+
+		ids := make([]string, 0, len(payload.Sessions))
+		for _, sessionPayload := range payload.Sessions {
+			ids = append(ids, sessionPayload.ID)
+		}
+		if got, want := strings.Join(ids, ","), "sess-user,sess-worker"; got != want {
+			t.Fatalf("session ids = %q, want %q", got, want)
 		}
 	})
 }

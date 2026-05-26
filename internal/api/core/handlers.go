@@ -76,6 +76,7 @@ type BaseHandlerConfig struct {
 	SettingsUpdate               SettingsUpdateController
 	Vault                        VaultService
 	Workspaces                   WorkspaceService
+	Onboarding                   OnboardingStore
 	AgentCatalog                 AgentCatalog
 	ModelCatalog                 ModelCatalogService
 	ProviderAuthRunner           authproviders.ProviderAuthCommandRunner
@@ -134,6 +135,7 @@ type BaseHandlers struct {
 	SettingsUpdate               SettingsUpdateController
 	Vault                        VaultService
 	Workspaces                   WorkspaceService
+	Onboarding                   OnboardingStore
 	AgentCatalog                 AgentCatalog
 	ModelCatalog                 ModelCatalogService
 	ProviderAuthRunner           authproviders.ProviderAuthCommandRunner
@@ -200,6 +202,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		SettingsUpdate:               cfg.SettingsUpdate,
 		Vault:                        cfg.Vault,
 		Workspaces:                   cfg.Workspaces,
+		Onboarding:                   cfg.Onboarding,
 		AgentCatalog:                 cfg.AgentCatalog,
 		ModelCatalog:                 cfg.ModelCatalog,
 		ProviderAuthRunner:           defaults.providerAuthRunner,
@@ -346,6 +349,7 @@ func (h *BaseHandlers) ListSessions(c *gin.Context) {
 		}
 		infos = filterSessionInfosByWorkspaceIDInternal(infos, workspaceID)
 	}
+	infos = visibleSessionInfosInternal(infos)
 	includeHealth, err := parseBoolQuery(c, "include_health")
 	if err != nil {
 		h.respondError(c, http.StatusBadRequest, err)
@@ -390,6 +394,7 @@ func (h *BaseHandlers) listResumableSessions(c *gin.Context, workspaceFilter str
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
+	infos = visibleSessionStoreInfosInternal(infos)
 	payloads := make([]contract.SessionPayload, 0, len(infos))
 	for _, info := range infos {
 		payloads = append(payloads, SessionPayloadFromStoreInfo(info))
@@ -1116,6 +1121,9 @@ func (h *BaseHandlers) ListAgents(c *gin.Context) {
 		if name == "" {
 			continue
 		}
+		if aghconfig.IsInternalManagedAgentName(name) {
+			continue
+		}
 
 		agent, loadErr := h.AgentLoader(name, h.HomePaths)
 		if loadErr != nil {
@@ -1126,6 +1134,9 @@ func (h *BaseHandlers) ListAgents(c *gin.Context) {
 				handlersErrorKey,
 				loadErr,
 			)
+			continue
+		}
+		if !aghconfig.IsPublicAgentDef(agent) {
 			continue
 		}
 		agentDefs = append(agentDefs, agent)
@@ -1162,6 +1173,15 @@ func (h *BaseHandlers) CreateAgent(c *gin.Context) {
 
 // GetAgent returns one agent definition by name.
 func (h *BaseHandlers) GetAgent(c *gin.Context) {
+	if aghconfig.IsInternalManagedAgentName(c.Param("name")) {
+		h.respondError(
+			c,
+			http.StatusNotFound,
+			fmt.Errorf("%s: agent %q is not available: %w", h.transportName(), c.Param("name"), os.ErrNotExist),
+		)
+		return
+	}
+
 	if workspaceRef := strings.TrimSpace(c.Query("workspace")); workspaceRef != "" {
 		agent, err := h.workspaceAgentDef(c.Request.Context(), workspaceRef, c.Param("name"))
 		if err != nil {
@@ -1235,10 +1255,18 @@ func (h *BaseHandlers) createAgentDraftAndPath(
 
 func createAgentDraftFromRequest(req contract.CreateAgentRequest) (aghconfig.AgentDefinitionDraft, error) {
 	agent := req.Agent
-	if strings.TrimSpace(agent.Name) == "" {
+	agentName := aghconfig.NormalizeAgentName(agent.Name)
+	if agentName == "" {
 		return aghconfig.AgentDefinitionDraft{}, errors.Join(
 			errCreateAgentRequestInvalid,
 			errors.New("agent.name is required"),
+		)
+	}
+	if err := aghconfig.ValidatePublicAgentName(agentName); err != nil {
+		return aghconfig.AgentDefinitionDraft{}, errors.Join(
+			errCreateAgentRequestInvalid,
+			aghconfig.ErrInvalidAgentDefinition,
+			err,
 		)
 	}
 	if strings.TrimSpace(agent.Provider) == "" {
@@ -1258,7 +1286,7 @@ func createAgentDraftFromRequest(req contract.CreateAgentRequest) (aghconfig.Age
 		disabledSkills = append([]string(nil), agent.Skills.Disabled...)
 	}
 	return aghconfig.AgentDefinitionDraft{
-		Name:         agent.Name,
+		Name:         agentName,
 		Provider:     agent.Provider,
 		Command:      agent.Command,
 		Model:        agent.Model,
@@ -1276,46 +1304,7 @@ func (h *BaseHandlers) createAgentDefinitionPath(
 	ctx context.Context,
 	req contract.CreateAgentRequest,
 ) (string, error) {
-	name := aghconfig.NormalizeAgentName(req.Agent.Name)
-	switch req.Scope {
-	case contract.AgentCreateScopeGlobal:
-		return filepath.Join(h.HomePaths.AgentsDir, name, aghconfig.AgentDefinitionFileName), nil
-	case contract.AgentCreateScopeWorkspace:
-		workspaceRef := strings.TrimSpace(req.Workspace)
-		if workspaceRef == "" {
-			return "", errors.Join(
-				errCreateAgentRequestInvalid,
-				errors.New("workspace is required for workspace-scoped agents"),
-			)
-		}
-		if h.Workspaces == nil {
-			return "", fmt.Errorf("%s: %w", h.transportName(), workspacepkg.ErrWorkspaceResolverUnavailable)
-		}
-		resolved, err := h.Workspaces.Resolve(ctx, workspaceRef)
-		if err != nil {
-			return "", err
-		}
-		rootDir := strings.TrimSpace(resolved.RootDir)
-		if rootDir == "" {
-			return "", fmt.Errorf("%s: %w", h.transportName(), workspacepkg.ErrWorkspaceRootMissing)
-		}
-		return filepath.Join(
-			rootDir,
-			aghconfig.DirName,
-			aghconfig.AgentsDirName,
-			name,
-			aghconfig.AgentDefinitionFileName,
-		), nil
-	default:
-		return "", errors.Join(
-			errCreateAgentRequestInvalid,
-			fmt.Errorf(
-				"scope must be %q or %q",
-				contract.AgentCreateScopeWorkspace,
-				contract.AgentCreateScopeGlobal,
-			),
-		)
-	}
+	return createAgentDefinitionPathFor(ctx, req, h.HomePaths, h.Workspaces, h.transportName())
 }
 
 func (h *BaseHandlers) workspaceAgentDefs(ctx context.Context, workspaceRef string) ([]aghconfig.AgentDef, error) {
@@ -1380,10 +1369,16 @@ func (h *BaseHandlers) respondAgentDefs(
 	}
 	agents := make([]contract.AgentPayload, 0, len(agentDefs)+diagnosticCount)
 	for _, agent := range agentDefs {
+		if !aghconfig.IsPublicAgentDef(agent) {
+			continue
+		}
 		agents = append(agents, AgentPayloadFromDef(agent))
 	}
 	for _, group := range diagnostics {
 		for _, diagnostic := range group {
+			if aghconfig.IsInternalManagedAgentName(diagnostic.Name) {
+				continue
+			}
 			agents = append(agents, AgentPayloadFromDiagnostic(diagnostic))
 		}
 	}

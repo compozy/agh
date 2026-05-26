@@ -477,30 +477,3 @@ func TestExtractPromptMessageCoversContentFallbacks(t *testing.T) {
 		t.Fatal("extractPromptMessage(empty) error = nil, want non-nil")
 	}
 }
-
-func TestDrainPromptEventsAsyncIsTracked(t *testing.T) {
-	t.Parallel()
-
-	events := make(chan acp.AgentEvent)
-	handlers := &Handlers{
-		BaseHandlers: core.NewBaseHandlers(&core.BaseHandlerConfig{}),
-	}
-
-	canceled := make(chan struct{})
-	handlers.drainPromptEventsAsync(context.Background(), events, func() {
-		close(canceled)
-	})
-	events <- acp.AgentEvent{Type: acp.EventTypeRuntimeProgress}
-	close(events)
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	if err := handlers.waitForPromptDrains(ctx); err != nil {
-		t.Fatalf("waitForPromptDrains() error = %v", err)
-	}
-	select {
-	case <-canceled:
-	default:
-		t.Fatal("detached prompt cancel was not called after drain")
-	}
-}

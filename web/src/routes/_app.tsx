@@ -10,11 +10,12 @@ import {
 } from "@tanstack/react-router";
 import { AlertTriangle, Compass, RefreshCw } from "lucide-react";
 
-import { Button, Empty, buttonVariants } from "@agh/ui";
+import { Button, Empty, Spinner, buttonVariants } from "@agh/ui";
 
 import { TopbarShell } from "@/components/topbar-shell";
 import { useAppLayout } from "@/hooks/routes/use-app-layout";
 import { AgentCreateDialog } from "@/systems/agent";
+import { OnboardingWizard, useOnboardingStatus } from "@/systems/onboarding";
 import { AppSidebar } from "@/systems/runtime";
 import { SessionCreateDialog, SessionCreateProvider } from "@/systems/session";
 import { WorkspaceOnboarding, WorkspaceSetupDialog } from "@/systems/workspace";
@@ -26,6 +27,52 @@ export const Route = createFileRoute("/_app")({
 });
 
 function AppLayout() {
+  const onboarding = useOnboardingStatus();
+
+  if (onboarding.data?.completed === true) {
+    return <AppShell />;
+  }
+
+  if (onboarding.data?.completed === false) {
+    return <OnboardingWizard onComplete={() => void onboarding.refetch()} />;
+  }
+
+  if (onboarding.isError) {
+    return (
+      <OnboardingGateFrame testId="onboarding-gate-error">
+        <Empty
+          className="max-w-xl"
+          description={describeRouteError(
+            onboarding.error,
+            "AGH could not confirm whether first-run setup is complete."
+          )}
+          icon={AlertTriangle}
+          title="Unable to check onboarding"
+          titleAs="h1"
+          action={
+            <Button
+              onClick={() => void onboarding.refetch()}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              <RefreshCw className="size-3" />
+              Retry
+            </Button>
+          }
+        />
+      </OnboardingGateFrame>
+    );
+  }
+
+  return (
+    <OnboardingGateFrame testId="onboarding-gate-loading">
+      <Spinner />
+    </OnboardingGateFrame>
+  );
+}
+
+function AppShell() {
   const page = useAppLayout();
 
   if (!page.areWorkspacesLoading && !page.workspacesError && !page.hasWorkspaces) {
@@ -126,6 +173,18 @@ function AppLayout() {
         workspace={page.sessionCreate.workspace}
       />
     </SessionCreateProvider>
+  );
+}
+
+function OnboardingGateFrame({ children, testId }: { children: ReactNode; testId: string }) {
+  return (
+    <main
+      id="app-content"
+      data-testid={testId}
+      className="flex min-h-0 flex-1 items-center justify-center bg-canvas"
+    >
+      {children}
+    </main>
   );
 }
 

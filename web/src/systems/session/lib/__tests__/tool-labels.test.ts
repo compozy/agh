@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { getToolIcon, getToolLabel, getToolCompactSummary } from "../tool-labels";
+import {
+  getToolIcon,
+  getToolLabel,
+  getToolCompactSummary,
+  resolveRegisteredToolName,
+} from "../tool-labels";
 import { Terminal, FileText, FileEdit, Search, FolderSearch, Globe, Wrench } from "lucide-react";
 
 describe("getToolIcon", () => {
@@ -77,6 +82,23 @@ describe("getToolLabel", () => {
 
   it("returns fallback for unknown tool - failure", () => {
     expect(getToolLabel("CustomTool", "failure")).toBe("use CustomTool");
+  });
+});
+
+describe("resolveRegisteredToolName", () => {
+  it("returns the registry id for exact and ACP-style titles", () => {
+    expect(resolveRegisteredToolName("Read")).toBe("Read");
+    expect(resolveRegisteredToolName("Read routes.go")).toBe("Read");
+    expect(resolveRegisteredToolName("Bash")).toBe("Bash");
+  });
+
+  it("returns the trimmed name for unknown tools", () => {
+    expect(resolveRegisteredToolName("agh__skill_view")).toBe("agh__skill_view");
+    expect(resolveRegisteredToolName("  custom  ")).toBe("custom");
+  });
+
+  it("returns tool for empty input", () => {
+    expect(resolveRegisteredToolName("")).toBe("tool");
   });
 });
 

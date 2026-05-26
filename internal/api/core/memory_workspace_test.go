@@ -1244,6 +1244,11 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 					Provider: "codex",
 					Prompt:   "extension agent",
 				},
+				{
+					Name:     aghconfig.OnboardingAgentName,
+					Provider: "codex",
+					Prompt:   "internal onboarding",
+				},
 			},
 		}
 

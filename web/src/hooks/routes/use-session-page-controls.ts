@@ -11,6 +11,8 @@ import {
   useResumeSession,
   useSteerSessionPrompt,
   useStopSession,
+  isSessionRunning,
+  isUserControllableSession,
   type SessionPayload,
 } from "@/systems/session";
 
@@ -71,7 +73,7 @@ function describePromptActionError(error: unknown, fallback: string): string {
 
 export function useSessionPageControls(
   sessionId: string,
-  sessionState: SessionPayload["state"],
+  session: SessionPayload,
   options: UseSessionPageControlsOptions = {}
 ) {
   const aui = useAui();
@@ -89,10 +91,14 @@ export function useSessionPageControls(
   const [isCancellingPrompt, setIsCancellingPrompt] = useState(false);
   const [resumeFailure, setResumeFailure] = useState<SessionResumeFailure | null>(null);
 
-  const canPrompt = sessionState === "active";
+  const daemonRunning = isSessionRunning(session);
+  const userControllable = isUserControllableSession(session);
+  const effectiveRunning = isRunning || daemonRunning;
+  const promptControlsAvailable = effectiveRunning && userControllable;
+  const canPrompt = session.state === "active" && userControllable;
 
   const handleCancelPrompt = useCallback(() => {
-    if (!isRunning || isCancellingPrompt) {
+    if (!promptControlsAvailable || isCancellingPrompt) {
       return;
     }
 
@@ -104,7 +110,7 @@ export function useSessionPageControls(
       .finally(() => {
         setIsCancellingPrompt(false);
       });
-  }, [isCancellingPrompt, isRunning, sessionId, workspaceId]);
+  }, [isCancellingPrompt, promptControlsAvailable, sessionId, workspaceId]);
 
   const isStopping = stopMutation.isPending || isCancellingPrompt;
   const isResuming = resumeMutation.isPending;
@@ -115,12 +121,12 @@ export function useSessionPageControls(
     interruptPromptMutation.isPending ||
     steerPromptMutation.isPending;
   const controlsBusy = isStopping || isResuming || isDeleting || isClearing || isBusyInputPending;
-  const canClear = messages.length > 0 && !controlsBusy && !isRunning;
+  const canClear = messages.length > 0 && !controlsBusy && !effectiveRunning;
 
   const handleQueuePrompt = useCallback(
     async (message: string) => {
       const text = message.trim();
-      if (!isRunning || isBusyInputPending || text.length === 0) {
+      if (!promptControlsAvailable || isBusyInputPending || text.length === 0) {
         return;
       }
 
@@ -132,13 +138,13 @@ export function useSessionPageControls(
         throw error;
       }
     },
-    [isBusyInputPending, isRunning, queuePromptMutation, sessionId]
+    [isBusyInputPending, promptControlsAvailable, queuePromptMutation, sessionId]
   );
 
   const handleInterruptPrompt = useCallback(
     async (message: string) => {
       const text = message.trim();
-      if (!isRunning || isBusyInputPending || text.length === 0) {
+      if (!promptControlsAvailable || isBusyInputPending || text.length === 0) {
         return;
       }
 
@@ -150,13 +156,13 @@ export function useSessionPageControls(
         throw error;
       }
     },
-    [interruptPromptMutation, isBusyInputPending, isRunning, sessionId]
+    [interruptPromptMutation, isBusyInputPending, promptControlsAvailable, sessionId]
   );
 
   const handleSteerPrompt = useCallback(
     async (message: string) => {
       const text = message.trim();
-      if (!isRunning || isBusyInputPending || text.length === 0) {
+      if (!promptControlsAvailable || isBusyInputPending || text.length === 0) {
         return;
       }
 
@@ -168,7 +174,7 @@ export function useSessionPageControls(
         throw error;
       }
     },
-    [isBusyInputPending, isRunning, sessionId, steerPromptMutation]
+    [isBusyInputPending, promptControlsAvailable, sessionId, steerPromptMutation]
   );
 
   const handleStop = useCallback(() => {
@@ -176,13 +182,13 @@ export function useSessionPageControls(
       return;
     }
 
-    if (isRunning) {
+    if (promptControlsAvailable) {
       handleCancelPrompt();
       return;
     }
 
     stopMutation.mutate(sessionId);
-  }, [controlsBusy, handleCancelPrompt, isRunning, sessionId, stopMutation]);
+  }, [controlsBusy, handleCancelPrompt, promptControlsAvailable, sessionId, stopMutation]);
 
   const handleResume = useCallback(() => {
     if (controlsBusy) {
@@ -227,7 +233,7 @@ export function useSessionPageControls(
   }, [aui, controlsBusy, deleteMutation, onDeleteSuccess, sessionId]);
 
   const handleClear = useCallback(() => {
-    if (controlsBusy || isRunning) {
+    if (controlsBusy || effectiveRunning) {
       return;
     }
 
@@ -236,12 +242,13 @@ export function useSessionPageControls(
         aui.thread().reset();
       },
     });
-  }, [aui, clearMutation, controlsBusy, isRunning, sessionId]);
+  }, [aui, clearMutation, controlsBusy, effectiveRunning, sessionId]);
 
   return useMemo(
     () => ({
       canClear,
       canPrompt,
+      allowBusyInput: userControllable,
       handleCancelPrompt,
       handleClear,
       handleDismissResumeFailure,
@@ -255,6 +262,7 @@ export function useSessionPageControls(
       isClearing,
       isDeleting,
       isResuming,
+      isSessionRunning: daemonRunning,
       isStopping,
       messages,
       resumeFailure,
@@ -262,6 +270,7 @@ export function useSessionPageControls(
     [
       canClear,
       canPrompt,
+      userControllable,
       handleCancelPrompt,
       handleClear,
       handleDismissResumeFailure,
@@ -275,6 +284,7 @@ export function useSessionPageControls(
       isClearing,
       isDeleting,
       isResuming,
+      daemonRunning,
       isStopping,
       messages,
       resumeFailure,

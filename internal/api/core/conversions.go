@@ -116,6 +116,36 @@ func SessionPayloadFromStoreInfo(info store.SessionInfo) contract.SessionPayload
 	return SessionPayloadFromInfo(converted)
 }
 
+func visibleSessionInfosInternal(infos []*session.Info) []*session.Info {
+	visible := make([]*session.Info, 0, len(infos))
+	for _, info := range infos {
+		if info == nil || isInternalMemorySessionInfo(info.Type, info.Lineage) {
+			continue
+		}
+		visible = append(visible, info)
+	}
+	return visible
+}
+
+func visibleSessionStoreInfosInternal(infos []store.SessionInfo) []store.SessionInfo {
+	visible := make([]store.SessionInfo, 0, len(infos))
+	for _, info := range infos {
+		if isInternalMemorySessionInfo(session.Type(strings.TrimSpace(info.SessionType)), info.Lineage) {
+			continue
+		}
+		visible = append(visible, info)
+	}
+	return visible
+}
+
+func isInternalMemorySessionInfo(sessionType session.Type, lineage *store.SessionLineage) bool {
+	if sessionType == session.SessionTypeDream {
+		return true
+	}
+	normalized := store.NormalizeSessionLineage("", lineage)
+	return strings.EqualFold(strings.TrimSpace(normalized.SpawnRole), session.SpawnRoleMemoryExtractor)
+}
+
 func stringPointerValue(value *string) string {
 	if value == nil {
 		return ""
@@ -407,6 +437,9 @@ func AgentPayloadFromDiagnostic(diagnostic workspacepkg.AgentDiagnostic) contrac
 func AgentPayloadsFromDefs(agents []aghconfig.AgentDef) []contract.AgentPayload {
 	payload := make([]contract.AgentPayload, 0, len(agents))
 	for _, agent := range agents {
+		if !aghconfig.IsPublicAgentDef(agent) {
+			continue
+		}
 		payload = append(payload, AgentPayloadFromDef(agent))
 	}
 	return payload

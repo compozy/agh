@@ -79,6 +79,49 @@ describe("fetchSessions", () => {
     await expectFetchRequest({ path: "/api/sessions" });
   });
 
+  it("filters internal memory extraction sessions from list responses", async () => {
+    const visibleSession = { ...mockSession, id: "sess-visible", type: "user" };
+    const legacyDreamSession = {
+      ...mockSession,
+      id: "sess-dream",
+      name: "Memory extractor",
+      type: "dream",
+    };
+    const spawnedMemorySession = {
+      ...mockSession,
+      id: "sess-memory",
+      name: "Memory extractor",
+      type: "spawned",
+      lineage: {
+        parent_session_id: "sess-visible",
+        root_session_id: "sess-visible",
+        spawn_depth: 1,
+        spawn_role: "memory-extractor",
+        ttl_expires_at: "2026-04-17T20:00:00Z",
+        auto_stop_on_parent: true,
+        spawn_budget: {
+          max_children: 4,
+          max_depth: 1,
+          ttl_seconds: 7200,
+        },
+        permission_policy: {
+          tools: [],
+          skills: [],
+          mcp_servers: [],
+          workspace_paths: [],
+          network_channels: [],
+          sandbox_profiles: [],
+        },
+      },
+    };
+    mockJsonResponse({ sessions: [legacyDreamSession, spawnedMemorySession, visibleSession] });
+
+    const result = await fetchSessions();
+
+    expect(result.map(session => session.id)).toEqual(["sess-visible"]);
+    await expectFetchRequest({ path: "/api/sessions" });
+  });
+
   it("passes abort signal to fetch", async () => {
     mockJsonResponse({ sessions: [] });
 

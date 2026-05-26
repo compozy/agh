@@ -21,6 +21,7 @@ import type {
   TurnHistoryPayload,
 } from "../types";
 import { normalizeTranscriptMessages } from "../lib/message-schemas";
+import { filterVisibleSessions } from "../lib/session-visibility";
 
 export type {
   ApproveSessionParams,
@@ -79,7 +80,9 @@ export async function fetchSessions(
   if (apiRequestFailed(response, error)) {
     throwSessionRequestError(response, error, "Failed to fetch sessions");
   }
-  return requireResponseData(data, response, "Failed to fetch sessions").sessions;
+  return filterVisibleSessions(
+    requireResponseData(data, response, "Failed to fetch sessions").sessions
+  );
 }
 
 export async function createSession(
@@ -197,6 +200,18 @@ export async function sendSessionPrompt(
     throwSessionRequestError(response, error, `Failed to send prompt to session "${id}"`, id);
   }
   return requireResponseData(data, response, `Failed to send prompt to session "${id}"`).prompt;
+}
+
+export function buildSessionStreamUrl(
+  workspaceId: string,
+  id: string,
+  afterSequence?: number
+): string {
+  const path = `/api/workspaces/${encodeURIComponent(workspaceId)}/sessions/${encodeURIComponent(id)}/stream`;
+  if (afterSequence === undefined || afterSequence <= 0) {
+    return path;
+  }
+  return `${path}?after_sequence=${encodeURIComponent(String(afterSequence))}`;
 }
 
 export async function interruptSessionPrompt(

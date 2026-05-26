@@ -7,6 +7,7 @@ import {
   Eyebrow,
   Pill,
   Skeleton,
+  Spinner,
   Table,
   TableBody,
   TableCell,
@@ -17,7 +18,7 @@ import {
 } from "@agh/ui";
 
 import { getAgentSessionStatus } from "../lib/session-status";
-import type { SessionPayload } from "@/systems/session";
+import { isSessionRunning, type SessionPayload } from "@/systems/session";
 
 export interface AgentSessionsListProps {
   agentName: string;
@@ -100,6 +101,7 @@ interface AgentSessionRowProps {
 
 function AgentSessionRow({ agentName, session, now }: AgentSessionRowProps) {
   const status = getAgentSessionStatus(session);
+  const running = isSessionRunning(session);
   const title = session.name?.trim() || session.id.slice(0, 12);
   return (
     <TableRow data-testid={`agent-session-row-${session.id}`} data-state={status.kind}>
@@ -119,6 +121,7 @@ function AgentSessionRow({ agentName, session, now }: AgentSessionRowProps) {
       </TableCell>
       <TableCell>
         <Pill mono tone={status.tone} data-testid={`agent-session-status-${session.id}`}>
+          {running ? <Spinner className="size-3" /> : null}
           {status.label}
         </Pill>
       </TableCell>

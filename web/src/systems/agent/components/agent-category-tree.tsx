@@ -88,7 +88,10 @@ interface AgentCategoryTreeContentProps {
 }
 
 function AgentCategoryTreeContent({ agents, sessions }: AgentCategoryTreeContentProps) {
-  const { tree, activeAgentNames, matchRoute } = useAgentCategoryTreeModel(agents, sessions);
+  const { tree, runningAgentNames, idleAgentNames, matchRoute } = useAgentCategoryTreeModel(
+    agents,
+    sessions
+  );
 
   return (
     <Tree
@@ -121,7 +124,8 @@ function AgentCategoryTreeContent({ agents, sessions }: AgentCategoryTreeContent
               item={item}
               agent={agent}
               isActive={isActive}
-              hasActiveSession={activeAgentNames.has(agent.name)}
+              hasRunningSession={runningAgentNames.has(agent.name)}
+              hasIdleSession={idleAgentNames.has(agent.name)}
             />
           );
         }
@@ -164,10 +168,11 @@ interface LeafRowProps {
   item: ItemInstance<AgentCategoryTreeItemData>;
   agent: AgentPayload;
   isActive: boolean;
-  hasActiveSession: boolean;
+  hasRunningSession: boolean;
+  hasIdleSession: boolean;
 }
 
-function LeafRow({ item, agent, isActive, hasActiveSession }: LeafRowProps) {
+function LeafRow({ item, agent, isActive, hasRunningSession, hasIdleSession }: LeafRowProps) {
   const level = item.getItemMeta().level;
   return (
     <TreeItem
@@ -187,9 +192,15 @@ function LeafRow({ item, agent, isActive, hasActiveSession }: LeafRowProps) {
       ) : null}
       <AgentIcon provider={agent.provider} className="size-3 shrink-0 text-subtle" />
       <span className="truncate">{agent.name}</span>
-      {hasActiveSession ? (
+      {hasRunningSession ? (
+        <Spinner
+          aria-label={`${agent.name} has a running session`}
+          className="ml-auto size-3 text-info"
+          data-testid={`agent-running-spinner-${agent.name}`}
+        />
+      ) : hasIdleSession ? (
         <Pill.Dot
-          tone="success"
+          tone="neutral"
           size="sm"
           className="ml-auto"
           data-testid={`agent-status-dot-${agent.name}`}

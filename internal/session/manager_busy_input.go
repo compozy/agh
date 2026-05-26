@@ -25,8 +25,9 @@ const promptEvidenceQueueGenerationKey = "queue_generation"
 
 // SendPromptOpts carries one user-facing prompt plus optional busy-input mode.
 type SendPromptOpts struct {
-	Message string
-	Mode    BusyInputMode
+	Message         string
+	Mode            BusyInputMode
+	DeliveryContext context.Context
 }
 
 // SendPromptResult reports whether input streamed immediately or was staged.
@@ -59,7 +60,11 @@ func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	req, err := m.parsePromptRequest(ctx, id, PromptOpts{Message: opts.Message, TurnSource: TurnSourceUser})
+	req, err := m.parsePromptRequest(ctx, id, PromptOpts{
+		Message:         opts.Message,
+		TurnSource:      TurnSourceUser,
+		DeliveryContext: opts.DeliveryContext,
+	})
 	if err != nil {
 		return SendPromptResult{}, err
 	}

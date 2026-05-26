@@ -1,8 +1,16 @@
 import type { PillTone } from "@agh/ui";
 
-import type { SessionPayload } from "@/systems/session";
+import { isSessionRunning, type SessionPayload } from "@/systems/session";
 
-export type AgentSessionStatusKind = "active" | "starting" | "stopping" | "failed" | "done";
+export type AgentSessionStatusKind =
+  | "running"
+  | "active"
+  | "starting"
+  | "stopping"
+  | "failed"
+  | "done"
+  | "hung"
+  | "unhealthy";
 
 export interface AgentSessionStatus {
   kind: AgentSessionStatusKind;
@@ -11,6 +19,7 @@ export interface AgentSessionStatus {
 }
 
 const ACTIVE_STATUS: AgentSessionStatus = { kind: "active", label: "ACTIVE", tone: "success" };
+const RUNNING_STATUS: AgentSessionStatus = { kind: "running", label: "RUNNING", tone: "info" };
 const STARTING_STATUS: AgentSessionStatus = {
   kind: "starting",
   label: "STARTING",
@@ -23,6 +32,12 @@ const STOPPING_STATUS: AgentSessionStatus = {
 };
 const FAILED_STATUS: AgentSessionStatus = { kind: "failed", label: "FAILED", tone: "danger" };
 const DONE_STATUS: AgentSessionStatus = { kind: "done", label: "DONE", tone: "neutral" };
+const HUNG_STATUS: AgentSessionStatus = { kind: "hung", label: "HUNG", tone: "warning" };
+const UNHEALTHY_STATUS: AgentSessionStatus = {
+  kind: "unhealthy",
+  label: "UNHEALTHY",
+  tone: "warning",
+};
 
 export function isAgentSessionFailure(session: SessionPayload): boolean {
   return (
@@ -34,6 +49,16 @@ export function isAgentSessionFailure(session: SessionPayload): boolean {
 }
 
 export function getAgentSessionStatus(session: SessionPayload): AgentSessionStatus {
+  if (isSessionRunning(session)) {
+    return RUNNING_STATUS;
+  }
+  if (session.badge === "hung") {
+    return HUNG_STATUS;
+  }
+  if (session.badge === "unhealthy") {
+    return UNHEALTHY_STATUS;
+  }
+
   switch (session.state) {
     case "active":
       return ACTIVE_STATUS;

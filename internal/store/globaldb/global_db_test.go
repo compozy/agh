@@ -524,6 +524,11 @@ func expectedGlobalMigrationPrefix() []expectedGlobalMigrationIdentity {
 			name:     "add_notification_presets",
 			checksum: "2026-05-21-add-notification-presets",
 		},
+		{
+			version:  37,
+			name:     "add_app_metadata",
+			checksum: "2026-05-25-add-app-metadata",
+		},
 	}
 }
 

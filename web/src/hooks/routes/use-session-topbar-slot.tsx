@@ -4,7 +4,12 @@ import { Play, Square, Trash2 } from "lucide-react";
 
 import { Button, Pill, Spinner, useTopbarSlot, type PillTone } from "@agh/ui";
 
-import type { SessionBadge, SessionPayload, SessionState } from "@/systems/session";
+import {
+  isUserControllableSession,
+  type SessionBadge,
+  type SessionPayload,
+  type SessionState,
+} from "@/systems/session";
 
 interface StateSignal {
   tone: PillTone;
@@ -59,6 +64,7 @@ export function useSessionTopbarSlot({
   const providerLabel = session.provider?.trim();
   const isActive = session.state === "active" || session.state === "starting";
   const isAttachable = session.attachable === true;
+  const canResume = isAttachable && isUserControllableSession(session);
   const controlsBusy = isStopping || isResuming || isDeleting;
 
   const meta = useMemo<ReactNode>(
@@ -129,7 +135,7 @@ export function useSessionTopbarSlot({
             {isStopping ? <Spinner className="size-3" /> : <Square className="size-3" />}
           </Button>
         ) : null}
-        {isAttachable ? (
+        {canResume ? (
           <Button
             type="button"
             variant="ghost"
@@ -146,8 +152,8 @@ export function useSessionTopbarSlot({
     ),
     [
       controlsBusy,
+      canResume,
       isActive,
-      isAttachable,
       isDeleting,
       isStopping,
       isResuming,

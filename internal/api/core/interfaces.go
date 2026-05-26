@@ -204,6 +204,11 @@ type NetworkStore interface {
 	ListNetworkMessages(ctx context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error)
 }
 
+// OnboardingStore persists the global first-run onboarding completion flag.
+type OnboardingStore interface {
+	store.OnboardingStore
+}
+
 // DreamTrigger exposes consolidation controls and state to the API layer.
 type DreamTrigger interface {
 	Trigger(ctx context.Context, workspace string) (bool, string, error)

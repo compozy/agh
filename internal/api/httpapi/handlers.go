@@ -4,7 +4,6 @@ import (
 	"io/fs"
 	"log/slog"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/compozy/agh/internal/api/core"
@@ -38,6 +37,7 @@ type handlerConfig struct {
 	settingsUpdate    core.SettingsUpdateController
 	vault             core.VaultService
 	workspaces        core.WorkspaceService
+	onboarding        core.OnboardingStore
 	agentCatalog      core.AgentCatalog
 	modelCatalog      core.ModelCatalogService
 	agentContext      core.AgentContextService
@@ -72,11 +72,10 @@ type handlerConfig struct {
 // Handlers expose request/response and SSE endpoints for the AGH API.
 type Handlers struct {
 	*core.BaseHandlers
-	staticFS      fs.FS
-	resourceAuth  []gin.HandlerFunc
-	Extensions    ExtensionService
-	boundHost     string
-	promptDrainWG sync.WaitGroup
+	staticFS     fs.FS
+	resourceAuth []gin.HandlerFunc
+	Extensions   ExtensionService
+	boundHost    string
 }
 
 func newHandlers(cfg *handlerConfig) *Handlers {
@@ -124,6 +123,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			SettingsUpdate:               cfg.settingsUpdate,
 			Vault:                        cfg.vault,
 			Workspaces:                   cfg.workspaces,
+			Onboarding:                   cfg.onboarding,
 			AgentCatalog:                 cfg.agentCatalog,
 			ModelCatalog:                 cfg.modelCatalog,
 			AgentContextService:          cfg.agentContext,

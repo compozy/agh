@@ -115,6 +115,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newUninstallCommand(deps))
 	cmd.AddCommand(newStatusCommand(deps))
 	cmd.AddCommand(newDoctorCommand(deps))
+	cmd.AddCommand(newOnboardingCommand(deps))
 	cmd.AddCommand(newDaemonCommand(deps))
 	cmd.AddCommand(newNetworkCommand(deps))
 	cmd.AddCommand(newMeCommand(deps))

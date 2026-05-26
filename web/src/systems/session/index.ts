@@ -58,13 +58,16 @@ export {
   repairSession,
   resumeSession,
   sendSessionPrompt,
+  SessionApiError,
   SessionLedgerUnavailableError,
+  SessionNotFoundError,
   steerSessionPrompt,
   stopSession,
 } from "./adapters/session-api";
 
 // Query infrastructure
 export { sessionKeys } from "./lib/query-keys";
+export { filterVisibleSessions, isInternalSession } from "./lib/session-visibility";
 export {
   sessionDetailOptions,
   sessionEventsOptions,
@@ -74,6 +77,13 @@ export {
   sessionTranscriptOptions,
   sessionsListOptions,
 } from "./lib/query-options";
+export {
+  hasRunningSession,
+  idleAttachableAgentNames,
+  isSessionRunning,
+  isUserControllableSession,
+  runningAgentNames,
+} from "./lib/session-running";
 
 // Stores
 export { useSessionStore } from "./hooks/use-session-store";
