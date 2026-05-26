@@ -17,7 +17,7 @@ func TestGlobalDBTaskOrchestrationProfileSchemaMigration(t *testing.T) {
 	t.Run("Should create task orchestration profile schema on fresh DB", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openFreshTestGlobalDB(t)
 
 		assertTaskOrchestrationProfileSchema(t, globalDB.db)
 	})

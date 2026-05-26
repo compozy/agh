@@ -16,7 +16,7 @@ func TestGlobalDBReviewGateSchemaMigration(t *testing.T) {
 	t.Run("Should create review gate schema on fresh DB", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openFreshTestGlobalDB(t)
 
 		assertReviewGateSchema(t, globalDB.db)
 	})

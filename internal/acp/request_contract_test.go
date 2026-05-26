@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	aghconfig "github.com/compozy/agh/internal/config"
@@ -92,8 +91,7 @@ func TestACPBehaviorContracts(t *testing.T) {
 		root := t.TempDir()
 		additional := t.TempDir()
 		host := newContractLocalToolHost(t, root, additional)
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
+		ctx := testutil.Context(t)
 
 		response, err := host.CreateTerminal(ctx, acpsdk.CreateTerminalRequest{
 			SessionId: "sess-additional-terminal",
@@ -125,8 +123,7 @@ func TestACPBehaviorContracts(t *testing.T) {
 		binDir := t.TempDir()
 		writeExecutableScript(t, binDir, "agh-path-tool", "#!/bin/sh\nprintf path-env-ok")
 		host := newContractLocalToolHost(t, root)
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
+		ctx := testutil.Context(t)
 
 		response, err := host.CreateTerminal(ctx, acpsdk.CreateTerminalRequest{
 			SessionId: "sess-path",

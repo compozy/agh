@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -34,6 +35,8 @@ const GlobalDatabaseName = store.GlobalDatabaseName
 const defaultSessionType = "user"
 const sqliteDriverName = "sqlite"
 
+var testGlobalDBCurrentSchemaSeedPath string
+
 func formatTimestamp(value time.Time) string {
 	return store.FormatTimestamp(value)
 }
@@ -58,10 +61,52 @@ func ReadSessionMeta(path string) (store.SessionMeta, error) {
 	return store.ReadSessionMeta(path)
 }
 
+func TestMain(m *testing.M) {
+	code := runGlobalDBTests(m)
+	os.Exit(code)
+}
+
+func runGlobalDBTests(m *testing.M) (code int) {
+	dir, err := os.MkdirTemp("", "agh-globaldb-current-schema-*")
+	if err != nil {
+		reportTestMainError("MkdirTemp(globaldb seed) error = %v", err)
+		return 1
+	}
+	defer func() {
+		if err := os.RemoveAll(dir); err != nil {
+			reportTestMainError("RemoveAll(globaldb seed) error = %v", err)
+			if code == 0 {
+				code = 1
+			}
+		}
+	}()
+
+	ctx := context.Background()
+	path := filepath.Join(dir, GlobalDatabaseName)
+	globalDB, err := OpenGlobalDB(ctx, path)
+	if err != nil {
+		reportTestMainError("OpenGlobalDB(globaldb seed) error = %v", err)
+		return 1
+	}
+	if err := globalDB.Close(ctx); err != nil {
+		reportTestMainError("Close(globaldb seed) error = %v", err)
+		return 1
+	}
+
+	testGlobalDBCurrentSchemaSeedPath = path
+	return m.Run()
+}
+
+func reportTestMainError(format string, args ...any) {
+	if _, err := fmt.Fprintf(os.Stderr, format+"\n", args...); err != nil {
+		panic(err)
+	}
+}
+
 func TestOpenGlobalDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 	t.Parallel()
 
-	globalDB := openTestGlobalDB(t)
+	globalDB := openFreshTestGlobalDB(t)
 
 	assertTablesPresent(
 		t,
@@ -611,7 +656,7 @@ func assertAppliedGlobalMigrationPrefix(t *testing.T, records []store.MigrationR
 func TestOpenGlobalDBCreatesExtensionsTableWithExpectedColumns(t *testing.T) {
 	t.Parallel()
 
-	globalDB := openTestGlobalDB(t)
+	globalDB := openFreshTestGlobalDB(t)
 
 	assertTableColumns(t, globalDB.db, "extensions", []string{
 		"name",
@@ -3230,16 +3275,51 @@ func TestGlobalDBRecoversFromCorruption(t *testing.T) {
 func openTestGlobalDB(t *testing.T) *GlobalDB {
 	t.Helper()
 
-	globalDB, err := OpenGlobalDB(testutil.Context(t), filepath.Join(t.TempDir(), GlobalDatabaseName))
+	path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+	copyCurrentSchemaGlobalDBSeed(t, path)
+	return openGlobalDBForTest(t, path)
+}
+
+func openFreshTestGlobalDB(t *testing.T) *GlobalDB {
+	t.Helper()
+
+	return openGlobalDBForTest(t, filepath.Join(t.TempDir(), GlobalDatabaseName))
+}
+
+func openGlobalDBForTest(t *testing.T, path string) *GlobalDB {
+	t.Helper()
+
+	globalDB, err := OpenGlobalDB(testutil.Context(t), path)
 	if err != nil {
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
 	t.Cleanup(func() {
 		if err := globalDB.Close(testutil.Context(t)); err != nil {
-			t.Fatalf("Close() error = %v", err)
+			t.Errorf("Close() error = %v", err)
 		}
 	})
 	return globalDB
+}
+
+func copyCurrentSchemaGlobalDBSeed(t *testing.T, targetPath string) {
+	t.Helper()
+
+	if testGlobalDBCurrentSchemaSeedPath == "" {
+		t.Fatal("globaldb current schema seed path is empty")
+	}
+	for _, suffix := range []string{"", "-wal", "-shm"} {
+		sourcePath := testGlobalDBCurrentSchemaSeedPath + suffix
+		data, err := os.ReadFile(sourcePath)
+		if err != nil {
+			if suffix != "" && errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			t.Fatalf("ReadFile(%q) error = %v", sourcePath, err)
+		}
+		if err := os.WriteFile(targetPath+suffix, data, 0o600); err != nil {
+			t.Fatalf("WriteFile(%q) error = %v", targetPath+suffix, err)
+		}
+	}
 }
 
 func registerSessionForGlobalTests(t *testing.T, globalDB *GlobalDB, sessionID string) string {

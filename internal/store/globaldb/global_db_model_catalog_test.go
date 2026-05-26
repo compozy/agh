@@ -25,7 +25,7 @@ func TestGlobalDBModelCatalogSchemaMigration(t *testing.T) {
 	t.Run("Should create model catalog schema on fresh DB", func(t *testing.T) {
 		t.Parallel()
 
-		globalDB := openTestGlobalDB(t)
+		globalDB := openFreshTestGlobalDB(t)
 
 		assertModelCatalogSchema(t, globalDB.db)
 		assertAppliedMigrationVersion(t, globalDB.db, modelCatalogSourceConstraintMigrationVersion)
