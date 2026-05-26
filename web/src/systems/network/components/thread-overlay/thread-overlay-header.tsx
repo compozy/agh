@@ -58,10 +58,10 @@ export function ThreadOverlayHeader({
       data-testid="network-thread-overlay-header"
       meta={
         <>
-          {participantLabel ? <Eyebrow>{participantLabel}</Eyebrow> : null}
+          {participantLabel ? <Eyebrow className="text-subtle">{participantLabel}</Eyebrow> : null}
           <Button
             aria-label="Open thread in main pane"
-            className="h-7 text-xs text-muted"
+            className="text-muted"
             data-testid="network-thread-overlay-open-main"
             onClick={() => {
               if (workspaceId) {

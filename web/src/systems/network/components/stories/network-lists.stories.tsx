@@ -10,6 +10,7 @@ import {
 } from "@/systems/network/mocks";
 import type { OpenWorkEntry } from "@/systems/network/hooks/use-work";
 import type { ChannelMember } from "@/systems/network/hooks/use-channel-members";
+import type { NetworkThreadSummary } from "@/systems/network/types";
 
 import { ActivityFeed } from "../activity/activity-feed";
 import { DirectsList } from "../directs/directs-list";
@@ -89,6 +90,51 @@ export const Threads: Story = {
       channel={channel}
       threads={networkThreadsFixture}
       activeThreadId={networkThreadsFixture[0]?.thread_id ?? null}
+      isLoading={false}
+      onStartThread={fn()}
+    />
+  ),
+};
+
+const longContentThread: NetworkThreadSummary = {
+  ...(networkThreadsFixture[0] ?? {
+    channel: "design",
+    last_activity_at: "2026-05-26T01:42:00Z",
+    message_count: 4,
+    open_work_count: 0,
+    opened_at: "2026-05-26T01:00:00Z",
+    opened_by_peer_id: "design-lead",
+    opened_session_id: "sess-design",
+    participant_count: 3,
+    root_message_id: "msg-root",
+    thread_id: "thread-long-content",
+  }),
+  channel: "design",
+  thread_id: "thread-long-content",
+  title:
+    "Kicking off a new thread to coordinate a redesign of the network shell and recents rail with a very long title",
+  last_message_preview:
+    "Modernize the visual language and component system - Improve information architecture and key user flows - Raise accessibility (WCAG 2.2 AA) and Core Web Vitals across the app - Establish a token-driven design system that engineering can consume directly",
+};
+
+/**
+ * Worst-case long title and preview to verify truncation without horizontal scroll.
+ */
+export const ThreadsLongContent: Story = {
+  args: {},
+  decorators: [
+    Story => (
+      <PanelSurface className="min-h-[520px] max-w-md p-0">
+        <Story />
+      </PanelSurface>
+    ),
+  ],
+  render: () => (
+    <ThreadsList
+      workspaceId={storyDefaultWorkspaceId}
+      channel="design"
+      threads={[longContentThread]}
+      activeThreadId={longContentThread.thread_id}
       isLoading={false}
       onStartThread={fn()}
     />

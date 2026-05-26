@@ -9,10 +9,12 @@ import { ConversationError } from "../empty-states/conversation-error";
 import { DirectEmpty } from "../empty-states/direct-empty";
 import { Timeline } from "../timeline/timeline";
 import { MessageAvatar } from "../timeline/message-avatar";
+import { useMessageCopyActions } from "../timeline/use-message-copy-actions";
 import { WorkBanner } from "../work/work-banner";
 import { useDirectRoomView } from "./use-direct-room-view";
 
 export interface DirectRoomProps {
+  workspaceId: string;
   channel: string;
   directId: string;
   /** Used to render the *other* party's identity at the top per `_design.md` §5.6. */
@@ -65,12 +67,18 @@ function PresenceBadge({ presence }: PresenceBadgeProps) {
   );
 }
 
-export function DirectRoom({ channel, directId, selfPeerId }: DirectRoomProps) {
+export function DirectRoom({ workspaceId, channel, directId, selfPeerId }: DirectRoomProps) {
   const view = useDirectRoomView({ channel, directId, selfPeerId });
   const { room, session, disabledReason, openWork, handleRetry, handleDiscard } = view;
   const otherPeerId = room.otherPeerId;
   const detailError = room.detailError;
   const isResolvingDetail = !detailError && !room.detail;
+  const toolbarHandlers = useMessageCopyActions({
+    surface: "direct",
+    workspaceId,
+    channel,
+    conversationId: directId,
+  });
 
   return (
     <section
@@ -140,6 +148,7 @@ export function DirectRoom({ channel, directId, selfPeerId }: DirectRoomProps) {
             messages={room.messages}
             onDiscardOptimistic={handleDiscard}
             onRetryOptimistic={handleRetry}
+            toolbarHandlers={toolbarHandlers}
           />
 
           <DetailComposer

@@ -121,4 +121,39 @@ describe("ThreadsList", () => {
     );
     expect(screen.getByTestId("network-thread-list")).toHaveAttribute("data-dim", "true");
   });
+
+  it("Should truncate long title and preview without expanding row width", () => {
+    const longPreview =
+      "Modernize the visual language and component system - Improve information architecture and key user flows - Raise accessibility (WCAG 2.2 AA) and Core Web Vitals across the app - Establish a token-driven design system that engineering can consume directly";
+    const longTitle =
+      "Kicking off a new thread to coordinate a redesign of the network shell and recents rail with a very long title that must not overflow";
+    const longThread: NetworkThreadSummary = {
+      ...threads[0]!,
+      thread_id: "thread-long",
+      title: longTitle,
+      last_message_preview: longPreview,
+    };
+
+    const { container } = render(
+      <div className="max-w-sm">
+        <ThreadsList
+          activeThreadId={null}
+          channel="design"
+          isLoading={false}
+          threads={[longThread]}
+          workspaceId={WORKSPACE_ID}
+        />
+      </div>
+    );
+
+    const row = screen.getByTestId("network-thread-list-row-thread-long");
+    const title = screen.getByTestId("network-thread-list-row-title-thread-long");
+    const preview = screen.getByTestId("network-thread-list-row-preview-thread-long");
+
+    expect(title).toHaveClass("min-w-0", "truncate");
+    expect(title).toHaveAttribute("title", longTitle);
+    expect(preview).toHaveClass("min-w-0", "break-words", "line-clamp-2");
+    expect(preview).toHaveAttribute("title", longPreview);
+    expect(row.scrollWidth).toBeLessThanOrEqual(container.firstElementChild!.clientWidth + 1);
+  });
 });

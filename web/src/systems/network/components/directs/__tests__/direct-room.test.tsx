@@ -102,7 +102,12 @@ describe("DirectRoom headerless layout", () => {
     });
     return render(
       <QueryClientProvider client={client}>
-        <DirectRoom channel="ops" directId="direct_test" selfPeerId="peer-self" />
+        <DirectRoom
+          channel="ops"
+          directId="direct_test"
+          selfPeerId="peer-self"
+          workspaceId="ws_test"
+        />
       </QueryClientProvider>
     );
   }

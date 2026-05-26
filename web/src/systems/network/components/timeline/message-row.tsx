@@ -63,10 +63,8 @@ export function MessageRow({
   message,
   density = "channel",
   className,
-  onReply,
-  onPin,
-  onFork,
-  onMore,
+  onCopyLink,
+  onCopyText,
   onRetry,
   onDiscard,
   onWorkChipClick,
@@ -84,7 +82,7 @@ export function MessageRow({
     <article
       aria-label={`${displayName} message`}
       className={cn(
-        "group relative flex gap-3 px-5 py-1.5",
+        "group relative flex gap-3 px-5 py-2 transition-colors duration-fast ease-out hover:bg-row-hover",
         density === "overlay" && "px-4",
         optimisticState === "pending" && "opacity-70",
         optimisticState === "failed" && "rounded-chip bg-danger-tint",
@@ -104,11 +102,13 @@ export function MessageRow({
         sizePx={avatarSize}
       />
 
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <div className="flex items-baseline gap-2">
-          <span className="truncate text-sm font-medium text-fg">{displayName}</span>
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <div className="flex items-baseline gap-2 pr-14">
+          <span className="truncate text-item-title font-semibold text-fg-strong">
+            {displayName}
+          </span>
           <time
-            className="text-xs text-subtle"
+            className="shrink-0 font-mono text-mono-id tracking-mono-id text-subtle tabular-nums"
             data-testid="network-message-timestamp"
             dateTime={iso}
             title={iso}
@@ -156,10 +156,8 @@ export function MessageRow({
       </div>
 
       <HoverToolbar
-        onFork={onFork}
-        onMore={onMore}
-        onPin={onPin}
-        onReply={onReply}
+        onCopyLink={onCopyLink}
+        onCopyText={onCopyText}
         testIdSuffix={message.message_id}
       />
     </article>

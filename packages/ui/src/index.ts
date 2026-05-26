@@ -96,6 +96,14 @@ export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./comp
 export { Tabs, TabsContent, TabsList, TabsTrigger, type TabsTriggerProps } from "./components/tabs";
 export { ScrollArea, ScrollBar } from "./components/scroll-area";
 export {
+  type Layout,
+  type LayoutStorage,
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+  useDefaultLayout,
+} from "./components/resizable";
+export {
   Select,
   SelectContent,
   SelectGroup,

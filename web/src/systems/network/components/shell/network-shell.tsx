@@ -6,12 +6,23 @@ import type {
   NetworkDirectRoomSummary,
   NetworkRecentEntry,
 } from "../../types";
-import { RightRail, type RightRailMode } from "@agh/ui";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+  RightRail,
+  type RightRailMode,
+  useDefaultLayout,
+} from "@agh/ui";
 
 import { ChannelHeader } from "./channel-header";
 import { ChannelRail } from "./channel-rail";
 import type { ChannelTab } from "./channel-tabs-types";
 import { ChannelToolbar } from "./channel-toolbar";
+
+const MAIN_PANEL_ID = "network-main";
+const RAIL_PANEL_ID = "network-rail";
+const RAIL_PANEL_IDS = [MAIN_PANEL_ID, RAIL_PANEL_ID];
 
 export interface NetworkShellProps {
   workspaceId: string;
@@ -68,6 +79,13 @@ export function NetworkShell({
   hasUnread,
   children,
 }: NetworkShellProps) {
+  const storage = typeof window !== "undefined" ? window.localStorage : undefined;
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: "network:rail-layout",
+    panelIds: RAIL_PANEL_IDS,
+    storage,
+  });
+
   return (
     <div className="flex min-h-0 flex-1 bg-canvas" data-testid="network-shell">
       <ChannelRail
@@ -85,35 +103,61 @@ export function NetworkShell({
         unpinnedChannels={unpinnedChannels}
       />
 
-      <main className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="network-main-pane">
-        {activeChannel ? (
+      <ResizablePanelGroup
+        className="min-w-0 flex-1"
+        defaultLayout={defaultLayout}
+        onLayoutChanged={onLayoutChanged}
+        orientation="horizontal"
+      >
+        <ResizablePanel
+          className="flex min-h-0 min-w-0 flex-col"
+          id={MAIN_PANEL_ID}
+          minSize="360px"
+        >
+          <main className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="network-main-pane">
+            {activeChannel ? (
+              <>
+                <ChannelHeader
+                  workspaceId={workspaceId}
+                  channel={activeChannel}
+                  detail={activeChannelDetail}
+                  inspectorOpen={inspectorOpen}
+                  onInspectorToggle={onInspectorToggle}
+                  openWorkCount={openWorkCount}
+                />
+                <ChannelToolbar
+                  workspaceId={workspaceId}
+                  activeTab={activeTab}
+                  channel={activeChannel.channel}
+                  directCount={directCount}
+                  threadCount={threadCount}
+                />
+              </>
+            ) : null}
+
+            <div className="flex min-h-0 flex-1 flex-col" data-testid="network-tab-panel">
+              {children}
+            </div>
+          </main>
+        </ResizablePanel>
+
+        {rightRailOpen ? (
           <>
-            <ChannelHeader
-              workspaceId={workspaceId}
-              channel={activeChannel}
-              detail={activeChannelDetail}
-              inspectorOpen={inspectorOpen}
-              onInspectorToggle={onInspectorToggle}
-              openWorkCount={openWorkCount}
-            />
-            <ChannelToolbar
-              workspaceId={workspaceId}
-              activeTab={activeTab}
-              channel={activeChannel.channel}
-              directCount={directCount}
-              threadCount={threadCount}
-            />
+            <ResizableHandle withHandle />
+            <ResizablePanel
+              className="flex min-h-0 min-w-0 flex-col"
+              defaultSize="468px"
+              id={RAIL_PANEL_ID}
+              maxSize="640px"
+              minSize="320px"
+            >
+              <RightRail mode={rightRailMode} open={rightRailOpen}>
+                {rightRailContent}
+              </RightRail>
+            </ResizablePanel>
           </>
         ) : null}
-
-        <div className="flex min-h-0 flex-1 flex-col" data-testid="network-tab-panel">
-          {children}
-        </div>
-      </main>
-
-      <RightRail mode={rightRailMode} open={rightRailOpen}>
-        {rightRailContent}
-      </RightRail>
+      </ResizablePanelGroup>
     </div>
   );
 }

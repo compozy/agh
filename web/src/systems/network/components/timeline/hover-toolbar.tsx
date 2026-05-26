@@ -1,14 +1,14 @@
-import { CornerUpLeft, GitFork, MoreHorizontal, Pin } from "lucide-react";
+import { Copy, Link2 } from "lucide-react";
 
 import { Button } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
 export interface HoverToolbarHandlers {
-  onReply?: () => void;
-  onPin?: () => void;
-  onFork?: () => void;
-  onMore?: () => void;
+  /** Copy a deep link to this message. */
+  onCopyLink?: () => void;
+  /** Copy this message's text body. */
+  onCopyText?: () => void;
 }
 
 export interface HoverToolbarProps extends HoverToolbarHandlers {
@@ -18,10 +18,10 @@ export interface HoverToolbarProps extends HoverToolbarHandlers {
 }
 
 interface ToolbarButtonProps {
-  icon: typeof CornerUpLeft;
+  icon: typeof Copy;
   label: string;
   testId: string;
-  onClick?: () => void;
+  onClick: () => void;
 }
 
 function ToolbarButton({ icon: Icon, label, testId, onClick }: ToolbarButtonProps) {
@@ -43,45 +43,39 @@ function ToolbarButton({ icon: Icon, label, testId, onClick }: ToolbarButtonProp
 export function HoverToolbar({
   className,
   testIdSuffix,
-  onReply,
-  onPin,
-  onFork,
-  onMore,
+  onCopyLink,
+  onCopyText,
 }: HoverToolbarProps) {
+  if (!onCopyLink && !onCopyText) {
+    return null;
+  }
+
   return (
     <div
       aria-label="Message actions"
       className={cn(
-        "absolute -top-3 right-4 z-10 flex items-center gap-0.5 rounded-mono-badge border border-line bg-canvas p-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100",
+        "absolute top-1 right-3 z-10 flex items-center gap-0.5 rounded-md border border-line-strong bg-elevated p-0.5 opacity-0 shadow-overlay transition-opacity duration-fast ease-out group-hover:opacity-100 group-focus-within:opacity-100",
         className
       )}
       data-testid={`network-message-toolbar-${testIdSuffix}`}
       role="toolbar"
     >
-      <ToolbarButton
-        icon={CornerUpLeft}
-        label="Reply in thread"
-        onClick={onReply}
-        testId={`network-message-toolbar-reply-${testIdSuffix}`}
-      />
-      <ToolbarButton
-        icon={Pin}
-        label="Pin to capability"
-        onClick={onPin}
-        testId={`network-message-toolbar-pin-${testIdSuffix}`}
-      />
-      <ToolbarButton
-        icon={GitFork}
-        label="Fork thread"
-        onClick={onFork}
-        testId={`network-message-toolbar-fork-${testIdSuffix}`}
-      />
-      <ToolbarButton
-        icon={MoreHorizontal}
-        label="More actions"
-        onClick={onMore}
-        testId={`network-message-toolbar-more-${testIdSuffix}`}
-      />
+      {onCopyLink ? (
+        <ToolbarButton
+          icon={Link2}
+          label="Copy link"
+          onClick={onCopyLink}
+          testId={`network-message-toolbar-copy-link-${testIdSuffix}`}
+        />
+      ) : null}
+      {onCopyText ? (
+        <ToolbarButton
+          icon={Copy}
+          label="Copy message text"
+          onClick={onCopyText}
+          testId={`network-message-toolbar-copy-text-${testIdSuffix}`}
+        />
+      ) : null}
     </div>
   );
 }
