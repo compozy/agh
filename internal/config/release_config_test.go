@@ -260,6 +260,35 @@ func TestPackagingMetadataStaysAlignedWithRuntimeAndInstaller(t *testing.T) {
 		}
 	})
 
+	t.Run("Should bootstrap Bun dependencies before production GoReleaser hooks", func(t *testing.T) {
+		t.Parallel()
+
+		jobs := mapAt(t, releaseWorkflow, "jobs")
+		release := mapAt(t, jobs, "release")
+		steps := sliceAt(t, release, "steps")
+		setupBun := workflowStepByUses(t, steps, "./.github/actions/setup-bun")
+		with := mapAt(t, setupBun, "with")
+		assertEqualString(
+			t,
+			"release setup-bun bun-version",
+			stringAt(t, with, "bun-version"),
+			"${{ env.BUN_VERSION }}",
+		)
+		assertEqualString(t, "release setup-bun install-playwright", stringAt(t, with, "install-playwright"), "false")
+		switch installDependencies := with["install-dependencies"].(type) {
+		case string:
+			if installDependencies == "false" {
+				t.Fatal("release setup-bun disables dependency installation before GoReleaser")
+			}
+		case bool:
+			if !installDependencies {
+				t.Fatal("release setup-bun disables dependency installation before GoReleaser")
+			}
+		}
+		assertWorkflowUsesBefore(t, steps, "./.github/actions/setup-bun", "./.github/actions/setup-release")
+		assertWorkflowUsesBefore(t, steps, "./.github/actions/setup-bun", "goreleaser/goreleaser-action@v6")
+	})
+
 	t.Run("Should give CI verify enough budget for the full monorepo gate", func(t *testing.T) {
 		t.Parallel()
 
@@ -462,7 +491,7 @@ func TestReleaseWorkflowPreservesInstallerSourceTextGuards(t *testing.T) {
 			".goreleaser.yml must upload packages/site/public/install.sh as a release extra file",
 			`grep -q 'name: "@compozy/agh"' .goreleaser.yml`,
 			".goreleaser.yml must publish the @compozy/agh npm package",
-			`grep -q -- '--bundle=\${signature}' .goreleaser.yml`,
+			`grep -q -- "--bundle=\${signature}" .goreleaser.yml`,
 			".goreleaser.yml must sign checksums with a Sigstore bundle artifact",
 		} {
 			assertContainsText(t, "release workflow", workflow, snippet)
@@ -678,6 +707,42 @@ func workflowRunCommands(t *testing.T, steps []any) []string {
 		}
 	}
 	return commands
+}
+
+func workflowStepByUses(t *testing.T, steps []any, uses string) map[string]any {
+	t.Helper()
+
+	for _, entry := range steps {
+		step := asMap(t, entry, "workflow steps[]")
+		if got, ok := step["uses"].(string); ok && got == uses {
+			return step
+		}
+	}
+	t.Fatalf("workflow steps missing uses %q", uses)
+	return nil
+}
+
+func workflowStepIndexByUses(t *testing.T, steps []any, uses string) int {
+	t.Helper()
+
+	for index, entry := range steps {
+		step := asMap(t, entry, "workflow steps[]")
+		if got, ok := step["uses"].(string); ok && got == uses {
+			return index
+		}
+	}
+	t.Fatalf("workflow steps missing uses %q", uses)
+	return -1
+}
+
+func assertWorkflowUsesBefore(t *testing.T, steps []any, earlier string, later string) {
+	t.Helper()
+
+	earlierIndex := workflowStepIndexByUses(t, steps, earlier)
+	laterIndex := workflowStepIndexByUses(t, steps, later)
+	if earlierIndex >= laterIndex {
+		t.Fatalf("workflow step %q index = %d, want before %q index %d", earlier, earlierIndex, later, laterIndex)
+	}
 }
 
 func assertWorkflowJobCommand(t *testing.T, jobs map[string]any, jobName string, minimumTimeout int, command string) {

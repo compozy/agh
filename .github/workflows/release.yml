@@ -30,6 +30,7 @@ permissions:
   contents: write
   packages: write
   pull-requests: write
+  issues: write
   id-token: write
   attestations: write
 
@@ -121,7 +122,7 @@ jobs:
 
       - name: Run pr-release Dry-Run (goreleaser build validation)
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
           RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
@@ -265,6 +266,11 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           install-tools: "true"
 
+      - uses: ./.github/actions/setup-bun
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+          install-playwright: "false"
+
       - name: Setup Release Tools
         uses: ./.github/actions/setup-release
         with:
@@ -342,7 +348,7 @@ jobs:
             echo "::error::.goreleaser.yml must upload packages/site/public/install.sh as a release extra file"
             exit 1
           fi
-          if ! grep -q -- '--bundle=\${signature}' .goreleaser.yml; then
+          if ! grep -q -- "--bundle=\${signature}" .goreleaser.yml; then
             echo "::error::.goreleaser.yml must sign checksums with a Sigstore bundle artifact"
             exit 1
           fi
