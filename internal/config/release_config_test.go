@@ -300,6 +300,11 @@ func TestPackagingMetadataStaysAlignedWithRuntimeAndInstaller(t *testing.T) {
 			"func WebAssetsCheck() error",
 			"func ReleaseWebAssetsSync() error",
 			"func ReleaseInstallCheck() error",
+			"newWebAssetsGitCredentials(token)",
+			"cloneWebAssetsRepository(ctx, assetsRepoDir, gitCredentials.env)",
+			"publishWebAssetsModule(ctx, assetsRepoDir, metadata, gitCredentials.env)",
+			"runCommandInDirWithEnv(ctx, assetsRepoDir, gitEnv, \"git\", \"push\", \"origin\", \"HEAD:main\", nextTag)",
+			"runCommandInDirWithEnv(ctx, assetsRepoDir, gitEnv, \"git\", \"push\", \"origin\", nextTag)",
 			"WebAssetsPublicCheck",
 			"SourceInstallCheck",
 		} {

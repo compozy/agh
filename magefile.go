@@ -483,6 +483,11 @@ func releaseWebAssetsSync(ctx context.Context) error {
 	if token == "" {
 		return fmt.Errorf("%s or %s is required to publish %s", webAssetsTokenEnvVar, releaseTokenEnvVar, webAssetsModulePath)
 	}
+	gitCredentials, err := newWebAssetsGitCredentials(token)
+	if err != nil {
+		return err
+	}
+	defer gitCredentials.cleanup()
 
 	assetsRepoDir, err := os.MkdirTemp("", "agh-web-assets-release-sync-")
 	if err != nil {
@@ -490,7 +495,7 @@ func releaseWebAssetsSync(ctx context.Context) error {
 	}
 	defer os.RemoveAll(assetsRepoDir)
 
-	if err := cloneWebAssetsRepository(ctx, assetsRepoDir, token); err != nil {
+	if err := cloneWebAssetsRepository(ctx, assetsRepoDir, gitCredentials.env); err != nil {
 		return err
 	}
 	metadata := webAssetsMetadata{
@@ -498,7 +503,7 @@ func releaseWebAssetsSync(ctx context.Context) error {
 		SourceRepository: webAssetsSourceRepository,
 		SourceCommit:     sourceCommit,
 	}
-	tag, err := publishWebAssetsModule(ctx, assetsRepoDir, metadata)
+	tag, err := publishWebAssetsModule(ctx, assetsRepoDir, metadata, gitCredentials.env)
 	if err != nil {
 		return err
 	}
@@ -535,12 +540,16 @@ func webAssetsPublishToken() string {
 	return strings.TrimSpace(os.Getenv(releaseTokenEnvVar))
 }
 
-func cloneWebAssetsRepository(ctx context.Context, destDir string, token string) error {
+type webAssetsGitCredentials struct {
+	dir string
+	env map[string]string
+}
+
+func newWebAssetsGitCredentials(token string) (*webAssetsGitCredentials, error) {
 	askpassDir, err := os.MkdirTemp("", "agh-web-assets-askpass-")
 	if err != nil {
-		return fmt.Errorf("create web assets git credentials dir: %w", err)
+		return nil, fmt.Errorf("create web assets git credentials dir: %w", err)
 	}
-	defer os.RemoveAll(askpassDir)
 
 	askpassPath := filepath.Join(askpassDir, "askpass.sh")
 	askpassScript := strings.Join([]string{
@@ -553,21 +562,41 @@ func cloneWebAssetsRepository(ctx context.Context, destDir string, token string)
 		"",
 	}, "\n")
 	if err := os.WriteFile(askpassPath, []byte(askpassScript), 0o700); err != nil {
-		return fmt.Errorf("write web assets git credentials helper: %w", err)
+		return nil, fmt.Errorf("write web assets git credentials helper: %w", err)
 	}
-	env := map[string]string{
-		"AGH_WEB_ASSETS_GIT_TOKEN": token,
-		"GIT_ASKPASS":              askpassPath,
-		"GIT_TERMINAL_PROMPT":      "0",
+	return &webAssetsGitCredentials{
+		dir: askpassDir,
+		env: map[string]string{
+			"AGH_WEB_ASSETS_GIT_TOKEN": token,
+			"GIT_ASKPASS":              askpassPath,
+			"GIT_TERMINAL_PROMPT":      "0",
+		},
+	}, nil
+}
+
+func (c *webAssetsGitCredentials) cleanup() {
+	if c == nil || c.dir == "" {
+		return
 	}
-	if err := runCommandInDirWithEnv(ctx, ".", env, "git", "clone", "--no-single-branch", webAssetsRemoteURL, destDir); err != nil {
+	if err := os.RemoveAll(c.dir); err != nil {
+		fmt.Printf("Warning: remove web assets git credentials dir %s: %v\n", c.dir, err)
+	}
+}
+
+func cloneWebAssetsRepository(ctx context.Context, destDir string, gitEnv map[string]string) error {
+	if err := runCommandInDirWithEnv(ctx, ".", gitEnv, "git", "clone", "--no-single-branch", webAssetsRemoteURL, destDir); err != nil {
 		return fmt.Errorf("clone %s: %w", webAssetsRemoteURL, err)
 	}
 	return nil
 }
 
-func publishWebAssetsModule(ctx context.Context, assetsRepoDir string, metadata webAssetsMetadata) (string, error) {
-	if err := runCommandInDir(ctx, assetsRepoDir, "git", "fetch", "--tags", "origin"); err != nil {
+func publishWebAssetsModule(
+	ctx context.Context,
+	assetsRepoDir string,
+	metadata webAssetsMetadata,
+	gitEnv map[string]string,
+) (string, error) {
+	if err := runCommandInDirWithEnv(ctx, assetsRepoDir, gitEnv, "git", "fetch", "--tags", "origin"); err != nil {
 		return "", fmt.Errorf("fetch web assets tags: %w", err)
 	}
 	if err := runCommandInDir(ctx, assetsRepoDir, "git", "config", "user.name", "github-actions[bot]"); err != nil {
@@ -615,12 +644,12 @@ func publishWebAssetsModule(ctx context.Context, assetsRepoDir string, metadata 
 		return "", fmt.Errorf("tag web assets module %s: %w", nextTag, err)
 	}
 	if hasDiff {
-		if err := runCommandInDir(ctx, assetsRepoDir, "git", "push", "origin", "HEAD:main", nextTag); err != nil {
+		if err := runCommandInDirWithEnv(ctx, assetsRepoDir, gitEnv, "git", "push", "origin", "HEAD:main", nextTag); err != nil {
 			return "", fmt.Errorf("push web assets module update %s: %w", nextTag, err)
 		}
 		return nextTag, nil
 	}
-	if err := runCommandInDir(ctx, assetsRepoDir, "git", "push", "origin", nextTag); err != nil {
+	if err := runCommandInDirWithEnv(ctx, assetsRepoDir, gitEnv, "git", "push", "origin", nextTag); err != nil {
 		return "", fmt.Errorf("push web assets module tag %s: %w", nextTag, err)
 	}
 	return nextTag, nil

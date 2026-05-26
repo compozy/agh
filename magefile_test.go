@@ -230,6 +230,41 @@ func TestWebAssetsReleaseSyncHelpers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep Git credentials executable without writing the token to disk", func(t *testing.T) {
+		t.Parallel()
+
+		credentials, err := newWebAssetsGitCredentials("secret-token")
+		if err != nil {
+			t.Fatalf("newWebAssetsGitCredentials() error = %v", err)
+		}
+		t.Cleanup(credentials.cleanup)
+
+		if got := credentials.env["AGH_WEB_ASSETS_GIT_TOKEN"]; got != "secret-token" {
+			t.Fatalf("AGH_WEB_ASSETS_GIT_TOKEN = %q, want secret token", got)
+		}
+		if got := credentials.env["GIT_TERMINAL_PROMPT"]; got != "0" {
+			t.Fatalf("GIT_TERMINAL_PROMPT = %q, want 0", got)
+		}
+		askpassPath := credentials.env["GIT_ASKPASS"]
+		if askpassPath == "" {
+			t.Fatal("GIT_ASKPASS is empty")
+		}
+		info, err := os.Stat(askpassPath)
+		if err != nil {
+			t.Fatalf("stat askpass helper: %v", err)
+		}
+		if got := info.Mode().Perm(); got != 0o700 {
+			t.Fatalf("askpass helper mode = %v, want 0700", got)
+		}
+		askpassSource := readTestFile(t, filepath.Dir(askpassPath), filepath.Base(askpassPath))
+		if strings.Contains(askpassSource, "secret-token") {
+			t.Fatal("askpass helper wrote the token to disk")
+		}
+
+		assertAskpassOutput(t, credentials.env, askpassPath, "Username for https://github.com", "x-access-token")
+		assertAskpassOutput(t, credentials.env, askpassPath, "Password for https://github.com", "secret-token")
+	})
+
 	t.Run("Should force public module resolution through the Go proxy", func(t *testing.T) {
 		t.Parallel()
 
@@ -535,4 +570,18 @@ func readTestFile(t *testing.T, root string, rel string) string {
 		t.Fatalf("os.ReadFile(%s) error = %v", rel, err)
 	}
 	return string(data)
+}
+
+func assertAskpassOutput(t *testing.T, env map[string]string, askpassPath string, prompt string, want string) {
+	t.Helper()
+
+	cmd := exec.Command(askpassPath, prompt)
+	cmd.Env = mergeCommandEnv(env)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("askpass %q error = %v\n%s", prompt, err, output)
+	}
+	if got := strings.TrimSpace(string(output)); got != want {
+		t.Fatalf("askpass %q output = %q, want %q", prompt, got, want)
+	}
 }
