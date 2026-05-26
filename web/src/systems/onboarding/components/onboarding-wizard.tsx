@@ -5,10 +5,14 @@ import {
   Eyebrow,
   Spinner,
   Stepper,
+  StepperBody,
+  StepperDescription,
   StepperIndicator,
   StepperItem,
   StepperNav,
+  StepperRail,
   StepperSeparator,
+  StepperTitle,
   StepperTrigger,
 } from "@agh/ui";
 
@@ -37,9 +41,9 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   return (
     <div
       data-testid="onboarding-wizard"
-      className="grid h-dvh min-h-0 grid-cols-1 overflow-hidden bg-canvas md:grid-cols-[340px_minmax(0,1fr)]"
+      className="grid h-dvh min-h-0 grid-cols-1 overflow-hidden bg-canvas md:grid-cols-[360px_minmax(0,1fr)]"
     >
-      <aside className="relative hidden flex-col border-r border-line bg-canvas-soft p-7 md:flex">
+      <aside className="relative hidden flex-col border-r border-line bg-rail p-7 md:flex">
         <div className="flex items-center gap-3">
           <span
             aria-hidden="true"
@@ -73,14 +77,16 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                 completed={wizard.step > item.step}
                 disabled={item.step > wizard.maxStep}
               >
-                <StepperTrigger className="items-start gap-3 text-left">
-                  <StepperIndicator>{item.step}</StepperIndicator>
-                  <span className="flex flex-col">
-                    <span className="text-sm font-medium text-fg">{item.title}</span>
-                    <span className="mt-0.5 text-xs leading-5 text-faint">{item.description}</span>
-                  </span>
+                <StepperTrigger>
+                  <StepperRail>
+                    <StepperIndicator>{item.step}</StepperIndicator>
+                    {item.step < STEP_RAIL.length ? <StepperSeparator /> : null}
+                  </StepperRail>
+                  <StepperBody>
+                    <StepperTitle>{item.title}</StepperTitle>
+                    <StepperDescription>{item.description}</StepperDescription>
+                  </StepperBody>
                 </StepperTrigger>
-                {item.step < STEP_RAIL.length ? <StepperSeparator /> : null}
               </StepperItem>
             ))}
           </StepperNav>

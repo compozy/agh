@@ -276,6 +276,9 @@ func (d *Daemon) bootConfig(state *bootState, cleanup *bootCleanup) error {
 	if err := aghconfig.EnsureHomeLayout(d.homePaths); err != nil {
 		return fmt.Errorf("daemon: ensure home layout: %w", err)
 	}
+	if _, _, err := aghconfig.EnsureBootstrapAgent(d.homePaths); err != nil {
+		return fmt.Errorf("daemon: ensure bootstrap agent: %w", err)
+	}
 	if _, _, err := aghconfig.EnsureOnboardingAgent(d.homePaths); err != nil {
 		return fmt.Errorf("daemon: ensure onboarding agent: %w", err)
 	}

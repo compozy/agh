@@ -138,7 +138,7 @@ type Registry interface {
 	store.NetworkChannelStore
 	store.NetworkConversationStore
 	store.NetworkMessageStore
-	store.AppMetadataStore
+	store.OnboardingStore
 	workspacepkg.Store
 }
 

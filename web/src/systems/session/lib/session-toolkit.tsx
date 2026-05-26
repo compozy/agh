@@ -10,6 +10,7 @@ import { RuntimeActivityNotice } from "../components/runtime-activity-notice";
 import { ToolCallCard } from "../components/tool-call-card";
 import type { AgentEventPayload, AghPermissionData, UIMessage } from "../types";
 import { isAgentEventPayload, parseToolUseResult } from "./message-parts";
+import { resolveRegisteredToolName } from "./tool-labels";
 
 type SessionToolPartProps = ToolCallMessagePartProps<Record<string, unknown>, unknown>;
 
@@ -34,14 +35,16 @@ export function BackendToolPart(part: SessionToolPartProps) {
     return (
       <div
         className={cn(
-          "flex items-center gap-2 rounded-md border px-3 py-2",
+          "flex min-w-0 items-center gap-2 rounded-md border px-3 py-2",
           "border-line bg-canvas",
           "text-xs text-subtle"
         )}
       >
-        <Spinner className="size-3" />
-        <Eyebrow className="text-subtle">{part.toolName}</Eyebrow>
-        <span>preparing input</span>
+        <Spinner className="size-3 shrink-0" />
+        <Eyebrow className="min-w-0 truncate text-subtle" title={part.toolName}>
+          {resolveRegisteredToolName(part.toolName)}
+        </Eyebrow>
+        <span className="shrink-0">preparing input</span>
       </div>
     );
   }
@@ -50,13 +53,15 @@ export function BackendToolPart(part: SessionToolPartProps) {
     return (
       <div
         className={cn(
-          "flex items-center gap-2 rounded-md border px-3 py-2",
+          "flex min-w-0 items-center gap-2 rounded-md border px-3 py-2",
           "border-danger/30 bg-danger/8",
           "text-xs text-danger"
         )}
       >
-        <AlertCircle className="size-3" />
-        <span className="font-medium">{part.toolName}</span>
+        <AlertCircle className="size-3 shrink-0" />
+        <span className="min-w-0 truncate font-medium" title={part.toolName}>
+          {resolveRegisteredToolName(part.toolName)}
+        </span>
       </div>
     );
   }

@@ -55,6 +55,35 @@ describe("buildOnboardingProviderRequest", () => {
     expect(body.secrets).toBeUndefined();
   });
 
+  it("clears stale credential slots when switching back to native_cli", () => {
+    const body = buildOnboardingProviderRequest(
+      {
+        ...baseSettings,
+        auth_mode: "bound_secret",
+        credential_slots: [
+          {
+            name: "api_key",
+            target_env: "ANTHROPIC_API_KEY",
+            secret_ref: "env:ANTHROPIC_API_KEY",
+            kind: "api_key",
+            required: true,
+          },
+        ],
+      },
+      {
+        model: "claude-opus-4-7",
+        reasoning: "",
+        authMode: "native_cli",
+        envVar: "",
+        apiKey: "sk-should-be-ignored",
+        provider: "claude",
+      }
+    );
+    expect(body.settings?.auth_mode).toBe("native_cli");
+    expect(body.settings).not.toHaveProperty("credential_slots");
+    expect(body.secrets).toBeUndefined();
+  });
+
   it("binds an env-var reference without a secret value when no key is provided", () => {
     const body = buildOnboardingProviderRequest(baseSettings, {
       model: "claude-opus-4-7",
@@ -67,6 +96,46 @@ describe("buildOnboardingProviderRequest", () => {
     expect(body.settings?.auth_mode).toBe("bound_secret");
     expect(body.settings?.credential_slots?.[0]?.secret_ref).toBe("env:ANTHROPIC_API_KEY");
     expect(body.secrets).toBeUndefined();
+  });
+
+  it("rejects bound_secret when no target environment variable is known", () => {
+    expect(() =>
+      buildOnboardingProviderRequest(baseSettings, {
+        model: "claude-opus-4-7",
+        reasoning: "",
+        authMode: "bound_secret",
+        envVar: "",
+        apiKey: "sk-real-key",
+        provider: "claude",
+      })
+    ).toThrow("Enter the environment variable the provider expects.");
+  });
+
+  it("reuses an existing credential slot target when the operator keeps it blank", () => {
+    const body = buildOnboardingProviderRequest(
+      {
+        ...baseSettings,
+        credential_slots: [
+          {
+            name: "api_key",
+            target_env: "ANTHROPIC_API_KEY",
+            secret_ref: "env:ANTHROPIC_API_KEY",
+            kind: "api_key",
+            required: true,
+          },
+        ],
+      },
+      {
+        model: "claude-opus-4-7",
+        reasoning: "",
+        authMode: "bound_secret",
+        envVar: "",
+        apiKey: "",
+        provider: "claude",
+      }
+    );
+    expect(body.settings?.credential_slots?.[0]?.target_env).toBe("ANTHROPIC_API_KEY");
+    expect(body.settings?.credential_slots?.[0]?.secret_ref).toBe("env:ANTHROPIC_API_KEY");
   });
 
   it("stores a provided API key as a vault-backed secret", () => {

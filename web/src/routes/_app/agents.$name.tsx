@@ -1,8 +1,8 @@
 import { Outlet, createFileRoute, useChildMatches } from "@tanstack/react-router";
 import { AlertCircle, Compass, User2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
-import { Button, Empty, PillGroup, Spinner, useTopbarSlot } from "@agh/ui";
+import { Button, Empty, Spinner, useTopbarSlot } from "@agh/ui";
 
 import { useAgentDetailPage } from "@/hooks/routes/use-agent-detail-page";
 import {
@@ -11,8 +11,8 @@ import {
   AgentPageStatusPill,
   AgentSessionsList,
   AgentStatsGrid,
-  splitAgentSessions,
 } from "@/systems/agent";
+import { filterVisibleSessions } from "@/systems/session";
 import type { TopbarRouteContext } from "@/types/topbar";
 
 export const Route = createFileRoute("/_app/agents/$name")({
@@ -38,23 +38,13 @@ interface AgentDetailContentProps {
   name: string;
 }
 
-type AgentSessionView = "normal" | "memory_extraction";
-
 function AgentDetailContent({ name }: AgentDetailContentProps) {
   const page = useAgentDetailPage(name);
-  const [sessionView, setSessionView] = useState<AgentSessionView>("normal");
-  const { normalSessions, memoryExtractionSessions } = useMemo(
-    () => splitAgentSessions(page.sessions),
-    [page.sessions]
-  );
-  const hasMemoryExtractionSessions = memoryExtractionSessions.length > 0;
-  const activeSessionView: AgentSessionView = hasMemoryExtractionSessions ? sessionView : "normal";
-  const visibleSessions =
-    activeSessionView === "memory_extraction" ? memoryExtractionSessions : normalSessions;
+  const visibleSessions = useMemo(() => filterVisibleSessions(page.sessions), [page.sessions]);
 
   useTopbarSlot({
-    count: normalSessions.length,
-    tabs: page.agent ? <AgentPageStatusPill sessions={normalSessions} /> : undefined,
+    count: visibleSessions.length,
+    tabs: page.agent ? <AgentPageStatusPill sessions={visibleSessions} /> : undefined,
     actions: page.agent ? (
       <AgentPageActions
         agent={page.agent}
@@ -114,30 +104,7 @@ function AgentDetailContent({ name }: AgentDetailContentProps) {
         >
           {hasResolvedSessions ? (
             <div className="flex flex-col gap-3" data-testid="agent-session-summary">
-              <AgentStatsGrid sessions={normalSessions} />
-              {hasMemoryExtractionSessions ? (
-                <PillGroup<AgentSessionView>
-                  aria-label="Session view"
-                  value={activeSessionView}
-                  onChange={setSessionView}
-                  size="sm"
-                  data-testid="agent-session-view-toggle"
-                  items={[
-                    {
-                      value: "normal",
-                      label: "Sessions",
-                      badge: normalSessions.length,
-                      testId: "agent-session-view-normal",
-                    },
-                    {
-                      value: "memory_extraction",
-                      label: "Memory extraction",
-                      badge: memoryExtractionSessions.length,
-                      testId: "agent-session-view-memory-extraction",
-                    },
-                  ]}
-                />
-              ) : null}
+              <AgentStatsGrid sessions={visibleSessions} />
             </div>
           ) : null}
           <AgentSessionsList
@@ -145,16 +112,6 @@ function AgentDetailContent({ name }: AgentDetailContentProps) {
             sessions={visibleSessions}
             isLoading={page.sessionsLoading}
             isError={page.sessionsError}
-            emptyTitle={
-              activeSessionView === "memory_extraction"
-                ? "No memory extraction sessions"
-                : undefined
-            }
-            emptyDescription={
-              activeSessionView === "memory_extraction"
-                ? `Memory extraction sessions for ${name} appear after recall processing.`
-                : undefined
-            }
           />
         </div>
       </div>

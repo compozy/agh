@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { delay, http, HttpResponse } from "msw";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, within } from "storybook/test";
 
 import {
   storyAgentNames,
@@ -52,10 +52,31 @@ const memoryExtractionSession: SessionPayload = {
   ...failureBaseSession,
   id: "sess_fraud_memory_extraction",
   name: "Memory extractor",
-  type: "dream",
+  type: "spawned",
   state: "stopped",
   badge: "stopped",
   attachable: false,
+  lineage: {
+    parent_session_id: storySessionIds.fraud,
+    root_session_id: storySessionIds.fraud,
+    spawn_depth: 1,
+    spawn_role: "memory-extractor",
+    ttl_expires_at: "2026-04-17T20:00:00Z",
+    auto_stop_on_parent: true,
+    spawn_budget: {
+      max_children: 4,
+      max_depth: 1,
+      ttl_seconds: 7200,
+    },
+    permission_policy: {
+      tools: [],
+      skills: [],
+      mcp_servers: [],
+      workspace_paths: [],
+      network_channels: [],
+      sandbox_profiles: [],
+    },
+  },
   updated_at: "2026-04-17T18:44:00Z",
 };
 
@@ -79,7 +100,7 @@ export const Default: Story = {
 };
 
 /**
- * Mixed agent-detail data where memory extraction sessions are available through the view toggle.
+ * Mixed agent-detail data where internal memory extraction sessions are omitted from the public table.
  */
 export const WithMemoryExtractionSessions: Story = {
   args: {},
@@ -97,20 +118,9 @@ export const WithMemoryExtractionSessions: Story = {
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.findByTestId("agent-session-view-toggle")).resolves.toBeDefined();
-    await expect(canvas.findByTestId("agent-session-view-normal")).resolves.toHaveTextContent(
-      "Sessions"
-    );
-    await expect(
-      canvas.findByTestId("agent-session-view-memory-extraction")
-    ).resolves.toHaveTextContent("Memory extraction");
+    await expect(canvas.findByTestId("agent-sessions-table")).resolves.toBeDefined();
+    expect(canvas.queryByTestId("agent-session-view-toggle")).toBeNull();
     expect(canvas.queryByTestId("agent-session-row-sess_fraud_memory_extraction")).toBeNull();
-
-    await userEvent.click(await canvas.findByTestId("agent-session-view-memory-extraction"));
-
-    await expect(
-      canvas.findByTestId("agent-session-row-sess_fraud_memory_extraction")
-    ).resolves.toBeDefined();
   },
 };
 

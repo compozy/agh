@@ -169,12 +169,16 @@ export function StepDefaultModel({ model }: StepDefaultModelProps) {
                 spellCheck={false}
                 onChange={event => model.onEnvVarChange(event.currentTarget.value)}
                 placeholder="PROVIDER_API_KEY"
+                aria-invalid={
+                  model.configurationError ===
+                  "Enter the environment variable the provider expects."
+                }
                 data-testid="onboarding-env-var"
               />
             </Field>
             <Field>
               <FieldLabel>
-                API key <span className="font-normal text-faint">· optional now</span>
+                API key <span className="font-normal text-faint">(optional)</span>
               </FieldLabel>
               <div className="relative">
                 <KeyRound className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-subtle" />
@@ -190,6 +194,11 @@ export function StepDefaultModel({ model }: StepDefaultModelProps) {
               </div>
             </Field>
           </div>
+        ) : null}
+        {model.configurationError ? (
+          <p className="mt-3 text-xs text-danger" role="alert">
+            {model.configurationError}
+          </p>
         ) : null}
       </section>
     </div>

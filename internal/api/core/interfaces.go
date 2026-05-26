@@ -206,9 +206,7 @@ type NetworkStore interface {
 
 // OnboardingStore persists the global first-run onboarding completion flag.
 type OnboardingStore interface {
-	GetAppMetadata(ctx context.Context, key string) (string, bool, error)
-	SetAppMetadata(ctx context.Context, key string, value string) error
-	DeleteAppMetadata(ctx context.Context, key string) error
+	store.OnboardingStore
 }
 
 // DreamTrigger exposes consolidation controls and state to the API layer.

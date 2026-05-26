@@ -28,23 +28,52 @@ export const Route = createFileRoute("/_app")({
 
 function AppLayout() {
   const onboarding = useOnboardingStatus();
-  const page = useAppLayout();
 
-  if (onboarding.isLoading) {
+  if (onboarding.data?.completed === true) {
+    return <AppShell />;
+  }
+
+  if (onboarding.data?.completed === false) {
+    return <OnboardingWizard onComplete={() => void onboarding.refetch()} />;
+  }
+
+  if (onboarding.isError) {
     return (
-      <main
-        id="app-content"
-        data-testid="onboarding-gate-loading"
-        className="flex min-h-0 flex-1 items-center justify-center bg-canvas"
-      >
-        <Spinner />
-      </main>
+      <OnboardingGateFrame testId="onboarding-gate-error">
+        <Empty
+          className="max-w-xl"
+          description={describeRouteError(
+            onboarding.error,
+            "AGH could not confirm whether first-run setup is complete."
+          )}
+          icon={AlertTriangle}
+          title="Unable to check onboarding"
+          titleAs="h1"
+          action={
+            <Button
+              onClick={() => void onboarding.refetch()}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              <RefreshCw className="size-3" />
+              Retry
+            </Button>
+          }
+        />
+      </OnboardingGateFrame>
     );
   }
 
-  if (onboarding.data && !onboarding.data.completed) {
-    return <OnboardingWizard onComplete={() => void onboarding.refetch()} />;
-  }
+  return (
+    <OnboardingGateFrame testId="onboarding-gate-loading">
+      <Spinner />
+    </OnboardingGateFrame>
+  );
+}
+
+function AppShell() {
+  const page = useAppLayout();
 
   if (!page.areWorkspacesLoading && !page.workspacesError && !page.hasWorkspaces) {
     return <WorkspaceOnboarding onWorkspaceResolved={page.setActiveWorkspaceId} />;
@@ -144,6 +173,18 @@ function AppLayout() {
         workspace={page.sessionCreate.workspace}
       />
     </SessionCreateProvider>
+  );
+}
+
+function OnboardingGateFrame({ children, testId }: { children: ReactNode; testId: string }) {
+  return (
+    <main
+      id="app-content"
+      data-testid={testId}
+      className="flex min-h-0 flex-1 items-center justify-center bg-canvas"
+    >
+      {children}
+    </main>
   );
 }
 

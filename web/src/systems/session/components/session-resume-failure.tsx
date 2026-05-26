@@ -40,7 +40,7 @@ export function SessionResumeFailure({
   return (
     <Alert
       aria-live="assertive"
-      className="mx-4 mt-3 px-4 py-3"
+      className="mt-3 w-full px-4 py-3"
       data-testid="session-resume-failure"
       variant="danger"
     >

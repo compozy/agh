@@ -2390,6 +2390,30 @@ func TestOptionsConfigureDaemon(t *testing.T) {
 	}
 }
 
+func TestBootConfigEnsuresManagedAgents(t *testing.T) {
+	t.Parallel()
+
+	homePaths := testHomePaths(t)
+	cfg := testConfig(t, homePaths)
+	d := newTestDaemon(t, homePaths, &cfg)
+	state := &bootState{}
+	cleanup := &bootCleanup{}
+
+	if err := d.bootConfig(state, cleanup); err != nil {
+		t.Fatalf("bootConfig() error = %v", err)
+	}
+
+	for _, name := range []string{aghconfig.DefaultAgentName, aghconfig.OnboardingAgentName} {
+		agent, err := aghconfig.LoadAgentDef(name, homePaths)
+		if err != nil {
+			t.Fatalf("LoadAgentDef(%s) error = %v", name, err)
+		}
+		if agent.Name != name {
+			t.Fatalf("LoadAgentDef(%s).Name = %q, want %q", name, agent.Name, name)
+		}
+	}
+}
+
 func TestRunShutsDownOnInjectedSignal(t *testing.T) {
 	homePaths := testHomePaths(t)
 	cfg := testConfig(t, homePaths)
@@ -5706,6 +5730,18 @@ func (r *recordingRegistry) ListNetworkChannels(
 
 func (r *recordingRegistry) DeleteNetworkChannel(context.Context, store.NetworkChannelRef) error {
 	return nil
+}
+
+func (r *recordingRegistry) GetOnboardingStatus(context.Context) (store.OnboardingStatus, error) {
+	return store.OnboardingStatus{}, nil
+}
+
+func (r *recordingRegistry) CompleteOnboarding(context.Context, string) (store.OnboardingStatus, error) {
+	return store.OnboardingStatus{Completed: true}, nil
+}
+
+func (r *recordingRegistry) ResetOnboarding(context.Context) (store.OnboardingStatus, error) {
+	return store.OnboardingStatus{}, nil
 }
 
 func (r *recordingRegistry) GetAppMetadata(context.Context, string) (string, bool, error) {

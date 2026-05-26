@@ -2977,6 +2977,9 @@ func (n *daemonNativeTools) workspaceAgents(
 	}
 	merged := make(map[string]aghconfig.AgentDef, len(resolved.Agents))
 	for _, agent := range resolved.Agents {
+		if !aghconfig.IsPublicAgentDef(agent) {
+			continue
+		}
 		name := strings.TrimSpace(agent.Name)
 		if name == "" {
 			continue
@@ -2989,6 +2992,9 @@ func (n *daemonNativeTools) workspaceAgents(
 			return nil, err
 		}
 		for _, agent := range catalogAgents {
+			if !aghconfig.IsPublicAgentDef(agent) {
+				continue
+			}
 			name := strings.TrimSpace(agent.Name)
 			if name == "" {
 				continue
@@ -3930,7 +3936,7 @@ func (n *daemonNativeTools) nativeNetworkWorkspaceID(
 	if err != nil {
 		return "", err
 	}
-	workspaceID, err := nativeResolvedNetworkWorkspaceID(&resolved)
+	workspaceID, err := nativeResolvedRegistryWorkspaceID(&resolved)
 	if err != nil {
 		return "", nativeNetworkInputError(id, err)
 	}

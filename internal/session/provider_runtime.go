@@ -20,6 +20,9 @@ import (
 
 const (
 	providerRuntimeAPIKeyKey = "api_key"
+	codexAuthFileName        = "auth.json"
+	codexHomeEnvKey          = "CODEX_HOME"
+	providerCodexHomeEnvKey  = "PROVIDER_CODEX_HOME"
 )
 
 type envProviderSecretResolver struct {
@@ -29,6 +32,7 @@ type envProviderSecretResolver struct {
 const (
 	runtimeProviderAnthropic = "anthropic"
 	runtimeProviderClaude    = "claude"
+	runtimeProviderCodex     = "codex"
 )
 
 func (r envProviderSecretResolver) ResolveRef(ctx context.Context, ref string) (string, error) {
@@ -91,6 +95,12 @@ func (m *Manager) prepareProviderForStart(
 			return acp.StartOpts{}, fmt.Errorf("session: apply pi auth directory policy: %w", err)
 		}
 	}
+	if shouldUseManagedOnboardingCodexHome(session, resolved) {
+		opts.Env, err = m.applyManagedOnboardingCodexHome(ctx, session, opts.Env)
+		if err != nil {
+			return acp.StartOpts{}, fmt.Errorf("session: prepare onboarding codex home: %w", err)
+		}
+	}
 
 	secretBindings, err := m.injectProviderSecrets(ctx, resolved, opts.Env)
 	if err != nil {
@@ -114,6 +124,115 @@ func (m *Manager) prepareProviderForStart(
 	probeEnv := providerProbeEnvForStart(m, resolved, opts.Env)
 	opts.ProviderAuthEnv = &probeEnv
 	return opts, nil
+}
+
+func shouldUseManagedOnboardingCodexHome(session *Session, resolved aghconfig.ResolvedAgent) bool {
+	if session == nil {
+		return false
+	}
+	return sessionUsesManagedOnboardingAgent(session, resolved) &&
+		strings.TrimSpace(resolved.Provider) == runtimeProviderCodex &&
+		resolved.AuthMode == aghconfig.ProviderAuthModeNativeCLI &&
+		resolved.HomePolicy == aghconfig.ProviderHomePolicyOperator
+}
+
+func sessionUsesManagedOnboardingAgent(session *Session, resolved aghconfig.ResolvedAgent) bool {
+	return strings.TrimSpace(session.AgentName) == aghconfig.OnboardingAgentName ||
+		strings.TrimSpace(resolved.Name) == aghconfig.OnboardingAgentName
+}
+
+func (m *Manager) applyManagedOnboardingCodexHome(
+	ctx context.Context,
+	session *Session,
+	env []string,
+) ([]string, error) {
+	if ctx == nil {
+		return nil, errors.New("session: onboarding codex home context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if session == nil {
+		return nil, errors.New("session: onboarding codex home requires a session")
+	}
+	workspaceID := strings.TrimSpace(session.WorkspaceID)
+	if !providerenv.SafeProviderHomeSegment(workspaceID) {
+		return nil, fmt.Errorf("workspace %q cannot use managed onboarding codex home", workspaceID)
+	}
+	if strings.TrimSpace(m.homePaths.HomeDir) == "" {
+		return nil, errors.New("AGH home is required for managed onboarding codex home")
+	}
+
+	managedRoot := filepath.Clean(m.homePaths.HomeDir)
+	codexHome := filepath.Join(
+		managedRoot,
+		"providers",
+		runtimeProviderCodex,
+		"onboarding",
+		workspaceID,
+		runtimeProviderCodex,
+	)
+	if err := providerenv.EnsurePrivateDirUnder(managedRoot, codexHome); err != nil {
+		return nil, err
+	}
+	if err := materializeOnboardingCodexAuth(env, codexHome); err != nil {
+		return nil, err
+	}
+	env = setSessionStartEnvValue(env, codexHomeEnvKey, codexHome)
+	env = setSessionStartEnvValue(env, providerCodexHomeEnvKey, codexHome)
+	return env, nil
+}
+
+func materializeOnboardingCodexAuth(env []string, codexHome string) error {
+	sourceHome := operatorCodexHome(env)
+	if sourceHome == "" {
+		return nil
+	}
+	sourceAuth := filepath.Join(sourceHome, codexAuthFileName)
+	targetAuth := filepath.Join(codexHome, codexAuthFileName)
+	if sourceAuth == targetAuth {
+		return nil
+	}
+	payload, err := os.ReadFile(sourceAuth)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return fmt.Errorf("read operator codex auth %q: %w", sourceAuth, err)
+	}
+	if err := fileutil.AtomicWriteFile(targetAuth, payload, 0o600); err != nil {
+		return fmt.Errorf("write onboarding codex auth %q: %w", targetAuth, err)
+	}
+	if err := os.Chmod(targetAuth, 0o600); err != nil {
+		return fmt.Errorf("protect onboarding codex auth %q: %w", targetAuth, err)
+	}
+	return nil
+}
+
+func operatorCodexHome(env []string) string {
+	if value := providerEnvValue(env, codexHomeEnvKey); value != "" {
+		return filepath.Clean(value)
+	}
+	if value := providerEnvValue(env, providerCodexHomeEnvKey); value != "" {
+		return filepath.Clean(value)
+	}
+	if home := providerEnvValue(env, "HOME"); home != "" {
+		return filepath.Join(home, ".codex")
+	}
+	if home, err := os.UserHomeDir(); err == nil && strings.TrimSpace(home) != "" {
+		return filepath.Join(home, ".codex")
+	}
+	return ""
+}
+
+func providerEnvValue(env []string, key string) string {
+	prefix := key + "="
+	for _, entry := range env {
+		if value, ok := strings.CutPrefix(entry, prefix); ok {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 func providerProbeEnvForStart(

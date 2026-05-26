@@ -28,6 +28,10 @@ function queryToolName(): HTMLElement | null {
   return document.querySelector<HTMLElement>('[data-slot="tool-call-card-tool"]');
 }
 
+function queryFilePath(): HTMLElement | null {
+  return document.querySelector<HTMLElement>('[data-slot="tool-call-card-path"]');
+}
+
 function queryInputToggle(): HTMLButtonElement | null {
   return document.querySelector<HTMLButtonElement>('[data-slot="tool-call-card-input-toggle"]');
 }
@@ -44,6 +48,28 @@ describe("Session ToolCallCard — wraps <ToolCallCard> from @agh/ui", () => {
   it("Should expose the tool name through the header slot", () => {
     render(<ToolCallCard message={makeToolMessage()} />);
     expect(queryToolName()).toHaveTextContent("Read");
+  });
+
+  it("Should show the compact input summary in the header file path slot", () => {
+    render(<ToolCallCard message={makeToolMessage()} />);
+    expect(queryFilePath()).toHaveTextContent("/src/main.ts");
+  });
+
+  it("Should map Bash command summaries to the header file path slot", () => {
+    const longCommand = "agh tool invoke agh__tool_info --input " + '{"tool_id":"agh__skill_view"}';
+    render(
+      <ToolCallCard
+        message={makeToolMessage({
+          toolName: "Bash",
+          toolInput: { command: longCommand },
+        })}
+      />
+    );
+    expect(queryToolName()).toHaveTextContent("Bash");
+    const path = queryFilePath();
+    expect(path).not.toBeNull();
+    expect(path?.textContent).toContain("agh tool invoke");
+    expect(path?.className).toContain("truncate");
   });
 
   it("Should map in-flight (no result, no error) to status=in_progress with a Spinner", () => {

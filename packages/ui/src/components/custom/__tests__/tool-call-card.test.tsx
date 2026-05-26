@@ -219,6 +219,29 @@ describe("ToolCallCard", () => {
     expect(body?.className).not.toContain("border-t");
   });
 
+  it("Should truncate a long tool name to a single header line", () => {
+    const longToolName = "agh tool invoke agh__tool_info --input " + "x".repeat(200);
+    const { container } = render(<ToolCallCard toolName={longToolName} status="in_progress" />);
+    const cluster = container.querySelector<HTMLElement>(
+      '[data-slot="tool-call-card-title-cluster"]'
+    );
+    const tool = container.querySelector<HTMLElement>('[data-slot="tool-call-card-tool"]');
+    expect(cluster?.className).toContain("overflow-hidden");
+    expect(cluster?.className).toContain("min-w-0");
+    expect(tool?.className).toContain("truncate");
+    expect(tool?.getAttribute("title")).toBe(longToolName);
+  });
+
+  it("Should truncate long tool name and file path in the title cluster", () => {
+    const longPath = "/very/long/path/".repeat(12) + "routes.go";
+    const { container } = render(
+      <ToolCallCard toolName="Read" filePath={longPath} status="completed" />
+    );
+    const path = container.querySelector<HTMLElement>('[data-slot="tool-call-card-path"]');
+    expect(path?.className).toContain("truncate");
+    expect(path?.getAttribute("title")).toBe(longPath);
+  });
+
   it("Should forward className and extra props to the root container", () => {
     const { container } = render(
       <ToolCallCard toolName="t" status="in_progress" className="ring-1" data-testid="card" />

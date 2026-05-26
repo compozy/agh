@@ -363,22 +363,31 @@ func (e *PromptStreamEncoder) toolNameByID(toolCallID string) string {
 }
 
 func (e *PromptStreamEncoder) toolName(event acp.AgentEvent) string {
-	toolName := strings.TrimSpace(event.Title)
-	if toolName != "" {
-		return toolName
-	}
-
 	rawPayload := promptRawEventMap(event.Raw)
-	if toolName = strings.TrimSpace(promptStringValue(rawPayload["tool_name"])); toolName != "" {
+	if toolName := promptMetaToolName(rawPayload); toolName != "" {
 		return toolName
 	}
-	if toolName = strings.TrimSpace(promptStringValue(rawPayload["title"])); toolName != "" {
+	if toolName := strings.TrimSpace(promptStringValue(rawPayload["tool_name"])); toolName != "" {
 		return toolName
 	}
+	return strings.TrimSpace(event.Title)
+}
 
+func promptMetaToolName(rawPayload map[string]any) string {
 	meta := promptMapValue(rawPayload["_meta"])
-	claudeCode := promptMapValue(meta["claudeCode"])
-	return strings.TrimSpace(promptStringValue(claudeCode["toolName"]))
+	if meta == nil {
+		return ""
+	}
+	for _, value := range meta {
+		nested, ok := value.(map[string]any)
+		if !ok {
+			continue
+		}
+		if toolName := strings.TrimSpace(promptStringValue(nested["toolName"])); toolName != "" {
+			return toolName
+		}
+	}
+	return ""
 }
 
 func (e *PromptStreamEncoder) errorText(event acp.AgentEvent) string {

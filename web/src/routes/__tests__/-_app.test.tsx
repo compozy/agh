@@ -14,6 +14,7 @@ const workspaceFixture = {
 let mockHasWorkspaces = true;
 let mockOnboardingCompleted = true;
 let mockOnboardingLoading = false;
+let mockOnboardingError: Error | null = null;
 const mockOnboardingRefetch = vi.fn();
 let mockActiveWorkspaceId: string | null = "ws_alpha";
 let mockPathname = "/tasks";
@@ -232,8 +233,13 @@ vi.mock("@/systems/workspace", () => ({
 
 vi.mock("@/systems/onboarding", () => ({
   useOnboardingStatus: () => ({
-    data: mockOnboardingLoading ? undefined : { completed: mockOnboardingCompleted },
+    data:
+      mockOnboardingLoading || mockOnboardingError
+        ? undefined
+        : { completed: mockOnboardingCompleted },
     isLoading: mockOnboardingLoading,
+    isError: mockOnboardingError !== null,
+    error: mockOnboardingError,
     refetch: mockOnboardingRefetch,
   }),
   OnboardingWizard: ({ onComplete }: { onComplete: () => void }) => (
@@ -258,6 +264,7 @@ describe("AppLayout", () => {
     mockHasWorkspaces = true;
     mockOnboardingCompleted = true;
     mockOnboardingLoading = false;
+    mockOnboardingError = null;
     mockOnboardingRefetch.mockReset();
     mockActiveWorkspaceId = workspaceFixture.id;
     mockPathname = "/tasks";
@@ -324,6 +331,19 @@ describe("AppLayout", () => {
 
     expect(screen.getByTestId("onboarding-gate-loading")).toBeInTheDocument();
     expect(screen.queryByTestId("app-sidebar")).not.toBeInTheDocument();
+  });
+
+  it("fails closed with retry when onboarding status cannot be loaded", () => {
+    mockOnboardingError = new Error("daemon unavailable");
+
+    render(<AppLayout />);
+
+    expect(screen.getByTestId("onboarding-gate-error")).toBeInTheDocument();
+    expect(screen.getByText("daemon unavailable")).toBeInTheDocument();
+    expect(screen.queryByTestId("app-sidebar")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(mockOnboardingRefetch).toHaveBeenCalledTimes(1);
   });
 
   it("renders workspace recovery instead of the shell when no workspaces exist", () => {

@@ -432,6 +432,7 @@
         "humanizer": {
             "source": "pedronauck/skills",
             "sourceType": "github",
+            "skillPath": "skills/marketing/humanizer/SKILL.md",
             "computedHash": "34a38e6acc60d4529612d41ffe740bca0060d3c5e89e2a0d24ae795f67157fbb"
         },
         "hyperframes": {
@@ -462,7 +463,7 @@
             "source": "pbakaus/impeccable",
             "sourceType": "github",
             "skillPath": "skill/SKILL.md",
-            "computedHash": "8cdf2e788eaca3af7d02026ef9cec55b506100a00d130f938e3fb1ad669c0ad0"
+            "computedHash": "34e59a34b9705187e87039faa5d9585aebe0056ef657f761b905afef276a3362"
         },
         "inngest": {
             "source": "pedronauck/skills",

@@ -12,30 +12,35 @@ import (
 	"github.com/compozy/agh/internal/api/core"
 	"github.com/compozy/agh/internal/api/testutil"
 	aghconfig "github.com/compozy/agh/internal/config"
+	"github.com/compozy/agh/internal/store"
 	"github.com/gin-gonic/gin"
 )
 
 type fakeOnboardingStore struct {
-	data map[string]string
+	status store.OnboardingStatus
 }
 
 func newFakeOnboardingStore() *fakeOnboardingStore {
-	return &fakeOnboardingStore{data: map[string]string{}}
+	return &fakeOnboardingStore{}
 }
 
-func (f *fakeOnboardingStore) GetAppMetadata(_ context.Context, key string) (string, bool, error) {
-	value, ok := f.data[key]
-	return value, ok, nil
+func (f *fakeOnboardingStore) GetOnboardingStatus(context.Context) (store.OnboardingStatus, error) {
+	return f.status, nil
 }
 
-func (f *fakeOnboardingStore) SetAppMetadata(_ context.Context, key string, value string) error {
-	f.data[key] = value
-	return nil
+func (f *fakeOnboardingStore) CompleteOnboarding(
+	_ context.Context,
+	completedAt string,
+) (store.OnboardingStatus, error) {
+	if !f.status.Completed {
+		f.status = store.OnboardingStatus{Completed: true, CompletedAt: completedAt}
+	}
+	return f.status, nil
 }
 
-func (f *fakeOnboardingStore) DeleteAppMetadata(_ context.Context, key string) error {
-	delete(f.data, key)
-	return nil
+func (f *fakeOnboardingStore) ResetOnboarding(context.Context) (store.OnboardingStatus, error) {
+	f.status = store.OnboardingStatus{}
+	return f.status, nil
 }
 
 func newOnboardingFixture(t *testing.T, store core.OnboardingStore) *gin.Engine {
@@ -98,8 +103,8 @@ func TestOnboardingHandlers(t *testing.T) {
 
 	t.Run("Should mark completed and persist completed_at", func(t *testing.T) {
 		t.Parallel()
-		store := newFakeOnboardingStore()
-		engine := newOnboardingFixture(t, store)
+		fake := newFakeOnboardingStore()
+		engine := newOnboardingFixture(t, fake)
 
 		rec := httptest.NewRecorder()
 		engine.ServeHTTP(rec, onboardingRequest(http.MethodPost, "/api/onboarding/complete"))
@@ -121,12 +126,15 @@ func TestOnboardingHandlers(t *testing.T) {
 
 	t.Run("Should keep the original timestamp on repeated completion", func(t *testing.T) {
 		t.Parallel()
-		store := newFakeOnboardingStore()
-		store.data["onboarding.completed_at"] = "2026-01-01T00:00:00Z"
-		engine := newOnboardingFixture(t, store)
+		fake := newFakeOnboardingStore()
+		fake.status = store.OnboardingStatus{Completed: true, CompletedAt: "2026-01-01T00:00:00Z"}
+		engine := newOnboardingFixture(t, fake)
 
 		rec := httptest.NewRecorder()
 		engine.ServeHTTP(rec, onboardingRequest(http.MethodPost, "/api/onboarding/complete"))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("POST repeated complete = %d, want 200 (body=%s)", rec.Code, rec.Body.String())
+		}
 		payload := decodeOnboarding(t, rec.Body.Bytes())
 		if payload.CompletedAt != "2026-01-01T00:00:00Z" {
 			t.Fatalf("CompletedAt = %q, want preserved original", payload.CompletedAt)
@@ -135,9 +143,9 @@ func TestOnboardingHandlers(t *testing.T) {
 
 	t.Run("Should reset completion so the wizard runs again", func(t *testing.T) {
 		t.Parallel()
-		store := newFakeOnboardingStore()
-		store.data["onboarding.completed_at"] = "2026-01-01T00:00:00Z"
-		engine := newOnboardingFixture(t, store)
+		fake := newFakeOnboardingStore()
+		fake.status = store.OnboardingStatus{Completed: true, CompletedAt: "2026-01-01T00:00:00Z"}
+		engine := newOnboardingFixture(t, fake)
 
 		rec := httptest.NewRecorder()
 		engine.ServeHTTP(rec, onboardingRequest(http.MethodDelete, "/api/onboarding"))
@@ -148,8 +156,8 @@ func TestOnboardingHandlers(t *testing.T) {
 		if payload.Completed {
 			t.Fatalf("Completed = true after reset, want false")
 		}
-		if _, ok := store.data["onboarding.completed_at"]; ok {
-			t.Fatalf("completed_at still present after reset")
+		if fake.status.Completed || fake.status.CompletedAt != "" {
+			t.Fatalf("store status after reset = %#v, want empty", fake.status)
 		}
 	})
 

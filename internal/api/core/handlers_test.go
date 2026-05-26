@@ -782,6 +782,9 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 			nil,
 		)
 		testutil.WriteAgentDef(t, fixture.HomePaths, "coder")
+		if _, _, err := aghconfig.EnsureOnboardingAgent(fixture.HomePaths); err != nil {
+			t.Fatalf("EnsureOnboardingAgent() error = %v", err)
+		}
 
 		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/coder", nil)
 		if getResp.Code != http.StatusOK {
@@ -791,6 +794,17 @@ func TestBaseHandlersAgentEndpoints(t *testing.T) {
 		listResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents", nil)
 		if listResp.Code != http.StatusOK {
 			t.Fatalf("list agents status = %d, want %d", listResp.Code, http.StatusOK)
+		}
+		var listed contract.AgentsResponse
+		if err := json.Unmarshal(listResp.Body.Bytes(), &listed); err != nil {
+			t.Fatalf("json.Unmarshal(list agents) error = %v", err)
+		}
+		if len(listed.Agents) != 1 || listed.Agents[0].Name != "coder" {
+			t.Fatalf("listed agents = %#v, want only coder", listed.Agents)
+		}
+		onboardingResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/onboarding", nil)
+		if onboardingResp.Code != http.StatusNotFound {
+			t.Fatalf("get onboarding status = %d, want %d", onboardingResp.Code, http.StatusNotFound)
 		}
 
 		fixture.Handlers.AgentLoader = func(string, aghconfig.HomePaths) (aghconfig.AgentDef, error) {
@@ -982,6 +996,17 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 				},
 			},
 			{
+				name: "reserved internal name",
+				req: contract.CreateAgentRequest{
+					Scope: contract.AgentCreateScopeGlobal,
+					Agent: contract.CreateAgentPayload{
+						Name:     aghconfig.OnboardingAgentName,
+						Provider: "codex",
+						Prompt:   "Reserved.",
+					},
+				},
+			},
+			{
 				name: "invalid permission",
 				req: contract.CreateAgentRequest{
 					Scope: contract.AgentCreateScopeGlobal,
@@ -1096,9 +1121,11 @@ func TestBaseHandlersAgentCatalogEndpoints(t *testing.T) {
 			agents: []aghconfig.AgentDef{
 				{Name: "zeta", Prompt: "Zeta prompt"},
 				{Name: "alpha", Prompt: "Alpha prompt"},
+				{Name: aghconfig.OnboardingAgentName, Prompt: "Onboarding prompt"},
 			},
 			get: map[string]aghconfig.AgentDef{
-				"alpha": {Name: "alpha", Prompt: "Alpha prompt"},
+				"alpha":                       {Name: "alpha", Prompt: "Alpha prompt"},
+				aghconfig.OnboardingAgentName: {Name: aghconfig.OnboardingAgentName, Prompt: "Onboarding prompt"},
 			},
 		}
 
@@ -1117,6 +1144,10 @@ func TestBaseHandlersAgentCatalogEndpoints(t *testing.T) {
 		getResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/alpha", nil)
 		if getResp.Code != http.StatusOK {
 			t.Fatalf("get agent catalog status = %d, want %d", getResp.Code, http.StatusOK)
+		}
+		onboardingResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/onboarding", nil)
+		if onboardingResp.Code != http.StatusNotFound {
+			t.Fatalf("get onboarding catalog status = %d, want %d", onboardingResp.Code, http.StatusNotFound)
 		}
 
 		fixture.Handlers.AgentCatalog = stubAgentCatalog{getErr: os.ErrNotExist}
@@ -1166,11 +1197,17 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 						Workspace: workspacepkg.Workspace{ID: "ws-1", Name: workspaceRef},
 						Agents: []aghconfig.AgentDef{
 							{Name: "founder", Provider: "codex", Prompt: "Lead the startup."},
+							{Name: aghconfig.OnboardingAgentName, Provider: "codex", Prompt: "Internal onboarding."},
 							{Name: "qa", Provider: "codex", Prompt: "Stress test the release."},
 						},
 						AgentDiagnostics: []workspacepkg.AgentDiagnostic{{
 							Name:      "broken",
 							Path:      "/workspace/.agh/agents/broken/AGENT.md",
+							ErrorKind: "frontmatter.missing",
+							Message:   "config: missing YAML frontmatter",
+						}, {
+							Name:      aghconfig.OnboardingAgentName,
+							Path:      "/workspace/.agh/agents/onboarding/AGENT.md",
 							ErrorKind: "frontmatter.missing",
 							Message:   "config: missing YAML frontmatter",
 						}},
@@ -1183,6 +1220,7 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 		fixture.Handlers.AgentCatalog = stubAgentCatalog{
 			agents: []aghconfig.AgentDef{
 				{Name: "extension-agent", Provider: "codex", Prompt: "Projected by extension."},
+				{Name: aghconfig.OnboardingAgentName, Provider: "codex", Prompt: "Projected onboarding."},
 			},
 		}
 
@@ -1228,6 +1266,21 @@ func TestBaseHandlersWorkspaceAgentEndpoints(t *testing.T) {
 		}
 		if got.Agent.Name != "founder" || got.Agent.Provider != "codex" {
 			t.Fatalf("get workspace agent = %#v, want founder/codex", got.Agent)
+		}
+		onboardingResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/agents/onboarding?workspace="+workspaceRef,
+			nil,
+		)
+		if onboardingResp.Code != http.StatusNotFound {
+			t.Fatalf(
+				"get workspace onboarding status = %d, want %d; body = %s",
+				onboardingResp.Code,
+				http.StatusNotFound,
+				onboardingResp.Body.String(),
+			)
 		}
 
 		missingResp := performRequest(t, fixture.Engine, http.MethodGet, "/agents/missing?workspace="+workspaceRef, nil)

@@ -3,10 +3,29 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { SessionThread } from "@/components/assistant-ui/session-thread";
+import { formatMessageError, SessionThread } from "@/components/assistant-ui/session-thread";
 import { primarySessionFixture, sessionTranscriptFixture } from "@/systems/session/mocks/fixtures";
+import type { TranscriptMessage } from "@/systems/session/types";
 
 import { SessionChatRuntimeProvider } from "../session-chat-runtime-provider";
+
+describe("formatMessageError", () => {
+  it("extracts provider failure detail from JSON-RPC error envelopes", () => {
+    expect(
+      formatMessageError(
+        '{"code":-32603,"message":"Internal error","data":{"error":"peer disconnected before response"}}'
+      )
+    ).toBe("peer disconnected before response");
+  });
+
+  it("does not produce empty message chrome for blank provider errors", () => {
+    expect(formatMessageError("")).toBeNull();
+  });
+
+  it("does not render raw JSON when no provider error detail exists", () => {
+    expect(formatMessageError('{"type":"abort"}')).toBeNull();
+  });
+});
 
 function jsonResponse(body: unknown, init?: ResponseInit) {
   return new Response(JSON.stringify(body), {
@@ -61,6 +80,22 @@ function renderSessionThread() {
 }
 
 describe("SessionChatRuntimeProvider", () => {
+  it("Should align viewport and composer on the shared thread content rail", async () => {
+    renderSessionThread();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("chat-view")).toBeInTheDocument();
+    });
+
+    const chatView = screen.getByTestId("chat-view");
+    const viewportRail = within(chatView).getByTestId("thread-content-rail");
+    expect(viewportRail).toHaveClass("px-4");
+
+    const composerShell = screen.getByTestId("composer-shell");
+    const composerRail = within(composerShell).getByTestId("thread-content-rail");
+    expect(composerRail).toHaveClass("px-4");
+  });
+
   let transcriptMessages = sessionTranscriptFixture.slice(0, 2);
   let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -202,6 +237,40 @@ describe("SessionChatRuntimeProvider", () => {
     expect(screen.getByTestId("session-error-detail")).toHaveTextContent(
       "peer disconnected before response"
     );
+  }, 10_000);
+
+  it("does not render empty error chrome for incomplete message status without a detail", async () => {
+    transcriptMessages = [
+      ...sessionTranscriptFixture.slice(0, 1),
+      {
+        id: "transcript_empty_error_status_001",
+        role: "assistant",
+        status: {
+          type: "incomplete",
+          reason: "error",
+          error: "",
+        },
+        parts: [
+          {
+            type: "data-agh-event",
+            data: {
+              type: "error",
+            },
+          },
+        ],
+      } as unknown as TranscriptMessage,
+    ];
+
+    renderSessionThread();
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Summarize the launch blockers before the 18:30 UTC cutover.")
+      ).toBeInTheDocument();
+    });
+
+    expect(screen.queryByTestId("session-message-error")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("session-error-notice")).not.toBeInTheDocument();
   }, 10_000);
 
   it("renders only unresolved permission events as interactive prompts", async () => {

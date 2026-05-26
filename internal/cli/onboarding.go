@@ -9,6 +9,7 @@ import (
 
 const (
 	onboardingCommandKey     = "onboarding"
+	onboardingCompleteKey    = "complete"
 	onboardingCompletedKey   = "completed"
 	onboardingCompletedAtKey = "completed_at"
 	onboardingResetKey       = "reset"
@@ -51,7 +52,7 @@ func newOnboardingStatusCommand(deps commandDeps) *cobra.Command {
 
 func newOnboardingCompleteCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
-		Use:   "complete",
+		Use:   onboardingCompleteKey,
 		Short: "Mark first-run onboarding as completed",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, err := clientFromDeps(deps)

@@ -52,6 +52,7 @@ const baseModel: OnboardingDefaultModelApi = {
   defaultReasoning: "medium",
   catalogLoading: false,
   catalogError: null,
+  configurationError: null,
   isValid: true,
   isCommitting: false,
   onProviderChange: noop,
@@ -111,6 +112,20 @@ export const DefaultModelApiKey: Story = {
   render: () => (
     <StepDefaultModel
       model={{ ...baseModel, authMode: "bound_secret", envVar: "ANTHROPIC_API_KEY" }}
+    />
+  ),
+};
+
+export const DefaultModelApiKeyMissingEnv: Story = {
+  render: () => (
+    <StepDefaultModel
+      model={{
+        ...baseModel,
+        authMode: "bound_secret",
+        envVar: "",
+        configurationError: "Enter the environment variable the provider expects.",
+        isValid: false,
+      }}
     />
   ),
 };

@@ -2,7 +2,7 @@ import { memo, useMemo } from "react";
 
 import { CodeBlock, ToolCallCard as PrimitiveToolCallCard, type ToolCallStatus } from "@agh/ui";
 
-import { getToolLabel } from "../lib/tool-labels";
+import { getToolCompactSummary, getToolLabel, resolveRegisteredToolName } from "../lib/tool-labels";
 import type { UIMessage } from "../types";
 import { ExpandedToolContent } from "./tool-renderers/expanded-tool-content";
 
@@ -39,7 +39,7 @@ function labelTestIdFor(status: ToolCallStatus): string {
 }
 
 function progressLabelFor(message: UIMessage, status: ToolCallStatus): string {
-  const toolName = message.toolName ?? "tool";
+  const toolName = resolveRegisteredToolName(message.toolName ?? "tool");
   if (status === "in_progress") {
     return getToolLabel(toolName, "active");
   }
@@ -59,7 +59,8 @@ function progressLabelFor(message: UIMessage, status: ToolCallStatus): string {
 export const ToolCallCard = memo(
   function ToolCallCard({ message }: ToolCallCardProps) {
     const status = statusFromMessage(message);
-    const toolName = message.toolName ?? "tool";
+    const registryTool = resolveRegisteredToolName(message.toolName ?? "tool");
+    const compactSummary = getToolCompactSummary(registryTool, message.toolInput);
     const progressLabel = progressLabelFor(message, status);
     const labelTestId = labelTestIdFor(status);
     const inputJson = useMemo(() => formatJsonSource(message.toolInput), [message.toolInput]);
@@ -67,7 +68,12 @@ export const ToolCallCard = memo(
     const errorMessage = status === "failed" ? progressLabel : undefined;
     return (
       <div data-testid="tool-call-card">
-        <PrimitiveToolCallCard toolName={toolName} status={status} errorMessage={errorMessage}>
+        <PrimitiveToolCallCard
+          toolName={registryTool}
+          filePath={compactSummary}
+          status={status}
+          errorMessage={errorMessage}
+        >
           {inputJson ? (
             <PrimitiveToolCallCard.Input>
               <CodeBlock language="json" code={inputJson} />

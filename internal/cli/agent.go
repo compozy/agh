@@ -126,7 +126,7 @@ func createAgentDefinition(
 	flags agentCreateFlags,
 ) (aghconfig.AgentDef, error) {
 	agentName := aghconfig.NormalizeAgentName(name)
-	if err := aghconfig.ValidateAgentName(agentName); err != nil {
+	if err := aghconfig.ValidatePublicAgentName(agentName); err != nil {
 		return aghconfig.AgentDef{}, err
 	}
 	prompt, err := agentCreatePrompt(flags)

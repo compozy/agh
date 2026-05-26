@@ -573,6 +573,8 @@ export {
   Stepper,
   StepperItem,
   StepperTrigger,
+  StepperRail,
+  StepperBody,
   StepperIndicator,
   StepperSeparator,
   StepperTitle,

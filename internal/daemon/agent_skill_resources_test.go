@@ -20,11 +20,16 @@ func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 	t.Parallel()
 
 	catalog := newResourceCatalog(cloneAgentDef)
-	catalog.Replace(3, []resources.Record[aghconfig.AgentDef]{
+	catalog.Replace(5, []resources.Record[aghconfig.AgentDef]{
 		{
 			ID:    "global:alpha",
 			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
 			Spec:  aghconfig.AgentDef{Name: "alpha", Prompt: "global alpha"},
+		},
+		{
+			ID:    "global:onboarding",
+			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+			Spec:  aghconfig.AgentDef{Name: aghconfig.OnboardingAgentName, Prompt: "global onboarding"},
 		},
 		{
 			ID:    "global:coder",
@@ -35,6 +40,11 @@ func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 			ID:    "workspace:coder",
 			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"},
 			Spec:  aghconfig.AgentDef{Name: "coder", Prompt: "workspace coder", Tools: []string{"agh__lookup"}},
+		},
+		{
+			ID:    "workspace:onboarding",
+			Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-1"},
+			Spec:  aghconfig.AgentDef{Name: aghconfig.OnboardingAgentName, Prompt: "workspace onboarding"},
 		},
 	})
 
@@ -60,6 +70,12 @@ func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 	if _, err := dependency.GetAgent(context.Background(), "missing"); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("GetAgent(missing) error = %v, want os.ErrNotExist", err)
 	}
+	if _, err := dependency.GetAgent(
+		context.Background(),
+		aghconfig.OnboardingAgentName,
+	); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("GetAgent(onboarding) error = %v, want os.ErrNotExist", err)
+	}
 
 	resolved := &workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-1"}}
 	coder, err := dependency.ResolveAgent("coder", resolved)
@@ -69,16 +85,29 @@ func TestResourceAgentCatalogListsGetsAndResolvesByScope(t *testing.T) {
 	if coder.Prompt != "workspace coder" || len(coder.Tools) != 1 || coder.Tools[0] != "agh__lookup" {
 		t.Fatalf("ResolveAgent(coder) = %#v, want workspace override", coder)
 	}
+	onboarding, err := dependency.ResolveAgent(aghconfig.OnboardingAgentName, resolved)
+	if err != nil {
+		t.Fatalf("ResolveAgent(onboarding) error = %v", err)
+	}
+	if onboarding.Prompt != "global onboarding" {
+		t.Fatalf("ResolveAgent(onboarding).Prompt = %q, want global onboarding", onboarding.Prompt)
+	}
 }
 
 func TestResourceAgentCatalogFallsBackToResolvedWorkspaceSnapshot(t *testing.T) {
 	t.Parallel()
 
 	resolved := &workspacepkg.ResolvedWorkspace{
-		Agents: []aghconfig.AgentDef{{
-			Name:   "fallback",
-			Prompt: "resolved snapshot",
-		}},
+		Agents: []aghconfig.AgentDef{
+			{
+				Name:   "fallback",
+				Prompt: "resolved snapshot",
+			},
+			{
+				Name:   aghconfig.OnboardingAgentName,
+				Prompt: "workspace onboarding",
+			},
+		},
 	}
 	got, err := (&resourceAgentCatalog{}).ResolveAgent("fallback", resolved)
 	if err != nil {
@@ -95,6 +124,15 @@ func TestResourceAgentCatalogFallsBackToResolvedWorkspaceSnapshot(t *testing.T) 
 		workspacepkg.ErrAgentNotAvailable,
 	) {
 		t.Fatalf("ResolveAgent(missing) error = %v, want ErrAgentNotAvailable", err)
+	}
+	if _, err := (&resourceAgentCatalog{}).ResolveAgent(
+		aghconfig.OnboardingAgentName,
+		resolved,
+	); !errors.Is(
+		err,
+		workspacepkg.ErrAgentNotAvailable,
+	) {
+		t.Fatalf("ResolveAgent(onboarding) error = %v, want ErrAgentNotAvailable", err)
 	}
 }
 

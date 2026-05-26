@@ -51,10 +51,11 @@ Keep frontmatter grants narrow and intentional. Add extra tools only when the ag
 
 AGH ensures two managed agent definitions exist on first boot and during `agh install`:
 
-- `general` — the default general-purpose agent (`defaults.agent`).
-- `onboarding` — the first-run onboarding agent. It interviews the operator in the web onboarding wizard and provisions channels and agents through its `agh__coordination` + `agh__workspace` toolsets (which include `agh__network_channel_create` and `agh__agent_create`). It runs with `approve-all` over that narrow toolset.
+- `general` — the default public general-purpose agent (`defaults.agent`). It is the agent operators see in public agent lists and the workspace sidebar unless a workspace-local `general` overrides it.
+- `onboarding` — a reserved internal first-run setup agent. It stays hidden from public agent lists, workspace detail payloads, and `agh agent list/info`, but the onboarding wizard can still start sessions with `agent_name: "onboarding"`. It interviews the operator in the web onboarding wizard and provisions channels and agents through exact tool grants: `agh__workspace_list`, `agh__workspace_describe`, `agh__network_channels`, `agh__network_channel_create`, and `agh__agent_create`. It runs with `approve-all` over only those tools.
 
 Both are recreated only when missing; operator edits are preserved.
+Public authoring surfaces reject attempts to create an agent named `onboarding`.
 
 ## Providers And MCP
 

@@ -321,7 +321,7 @@ const (
 	ToolsetIDSessions ToolsetID = "agh__sessions"
 	// ToolsetIDAuthoredContext groups managed Soul/Heartbeat read and wake tools.
 	ToolsetIDAuthoredContext ToolsetID = "agh__authored_context"
-	// ToolsetIDWorkspace groups read-only workspace tools.
+	// ToolsetIDWorkspace groups workspace inspection and managed agent authoring tools.
 	ToolsetIDWorkspace ToolsetID = "agh__workspace"
 	// ToolsetIDProviderModels groups provider model catalog tools.
 	ToolsetIDProviderModels ToolsetID = "agh__provider_models"

@@ -48,15 +48,15 @@ describe("AgentSessionsList", () => {
         sessions={[]}
         isLoading={false}
         isError={false}
-        emptyTitle="No memory extraction sessions"
-        emptyDescription="Memory extraction sessions for codex-agent appear after recall processing."
+        emptyTitle="No archived sessions"
+        emptyDescription="Archived sessions for codex-agent appear after completed work."
       />
     );
 
     expect(screen.getByTestId("agent-sessions-empty")).toBeInTheDocument();
-    expect(screen.getByText("No memory extraction sessions")).toBeInTheDocument();
+    expect(screen.getByText("No archived sessions")).toBeInTheDocument();
     expect(
-      screen.getByText("Memory extraction sessions for codex-agent appear after recall processing.")
+      screen.getByText("Archived sessions for codex-agent appear after completed work.")
     ).toBeInTheDocument();
   });
 

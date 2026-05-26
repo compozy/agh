@@ -109,6 +109,12 @@ func EnsurePrivateDir(path string) error {
 	return ensurePrivateDirUnder(filepath.Dir(cleanPath), cleanPath)
 }
 
+// EnsurePrivateDirUnder creates or tightens an AGH-owned provider state
+// directory while proving the resolved path remains below root.
+func EnsurePrivateDirUnder(root string, path string) error {
+	return ensurePrivateDirUnder(root, path)
+}
+
 func ensurePrivateDirUnder(root string, path string) error {
 	cleanRoot := filepath.Clean(root)
 	cleanPath := filepath.Clean(path)

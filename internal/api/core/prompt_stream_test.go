@@ -174,6 +174,60 @@ func TestPromptStreamEncoderPartBoundaries(t *testing.T) {
 	})
 }
 
+func TestPromptStreamEncoderToolNameResolution(t *testing.T) {
+	t.Run("ShouldPreferMetaToolNameOverDescriptiveTitle", func(t *testing.T) {
+		t.Parallel()
+
+		writer := &bufferFlusher{}
+		encoder := core.NewPromptStreamEncoder(func() time.Time {
+			return time.Date(2026, 5, 25, 12, 0, 0, 0, time.UTC)
+		})
+
+		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
+			Type:       acp.EventTypeToolCall,
+			ToolCallID: "tool-read-1",
+			Title:      "Read routes.go",
+			Raw: json.RawMessage(
+				`{"_meta":{"claudeCode":{"toolName":"Read"}},"tool_input":{"file_path":"routes.go"}}`,
+			),
+		})
+
+		frames := promptToolFramesFromSSE(t, writer.String())
+		if len(frames) == 0 {
+			t.Fatal("expected at least one tool frame")
+		}
+		for _, frame := range frames {
+			if got, want := frame.ToolName, "Read"; got != want {
+				t.Fatalf("tool frame toolName = %q, want %q; frame=%#v", got, want, frame)
+			}
+		}
+	})
+
+	t.Run("ShouldFallBackToTitleWhenNoCanonicalToolName", func(t *testing.T) {
+		t.Parallel()
+
+		writer := &bufferFlusher{}
+		encoder := core.NewPromptStreamEncoder(func() time.Time {
+			return time.Date(2026, 5, 25, 12, 1, 0, 0, time.UTC)
+		})
+
+		mustEmitPromptEvent(t, encoder, writer, acp.AgentEvent{
+			Type:       acp.EventTypeToolCall,
+			ToolCallID: "tool-custom-1",
+			Title:      "agh__skill_view",
+			Raw:        json.RawMessage(`{"tool_input":{"tool_id":"agh__skill_view"}}`),
+		})
+
+		frames := promptToolFramesFromSSE(t, writer.String())
+		if len(frames) == 0 {
+			t.Fatal("expected at least one tool frame")
+		}
+		if got, want := frames[0].ToolName, "agh__skill_view"; got != want {
+			t.Fatalf("tool frame toolName = %q, want %q", got, want)
+		}
+	})
+}
+
 func mustEmitPromptEvent(
 	t *testing.T,
 	encoder *core.PromptStreamEncoder,
@@ -193,6 +247,43 @@ type promptPermissionFrame struct {
 		RequestID string `json:"request_id"`
 		Decision  string `json:"decision"`
 	} `json:"data"`
+}
+
+type promptToolFrame struct {
+	Type       string `json:"type"`
+	ToolCallID string `json:"toolCallId"`
+	ToolName   string `json:"toolName"`
+}
+
+func promptToolFramesFromSSE(t *testing.T, body string) []promptToolFrame {
+	t.Helper()
+
+	frames := make([]promptToolFrame, 0)
+	for record := range strings.SplitSeq(body, "\n\n") {
+		record = strings.TrimSpace(record)
+		if record == "" {
+			continue
+		}
+		data := ""
+		for line := range strings.SplitSeq(record, "\n") {
+			if after, ok := strings.CutPrefix(line, "data: "); ok {
+				data += after
+			}
+		}
+		if data == "" || data == "[DONE]" {
+			continue
+		}
+
+		var frame promptToolFrame
+		if err := json.Unmarshal([]byte(data), &frame); err != nil {
+			t.Fatalf("json.Unmarshal(%q) error = %v", data, err)
+		}
+		switch frame.Type {
+		case "tool-input-start", "tool-input-available":
+			frames = append(frames, frame)
+		}
+	}
+	return frames
 }
 
 func promptFrameSignatures(t *testing.T, body string) []string {

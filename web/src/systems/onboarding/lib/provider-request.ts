@@ -14,6 +14,11 @@ export interface ProviderRequestInputs {
 type ProviderSettings = NonNullable<SettingsProviderRequest["settings"]>;
 type ProviderModelsPayload = NonNullable<ProviderSettings["models"]>;
 
+function existingApiKeyTargetEnv(current: ProviderSettings): string {
+  const slot = current.credential_slots?.find(entry => entry.name === "api_key");
+  return slot?.target_env?.trim() ?? "";
+}
+
 function buildProviderModels(
   current: ProviderSettings,
   model: string,
@@ -52,11 +57,15 @@ export function buildOnboardingProviderRequest(
   };
 
   if (inputs.authMode !== "bound_secret") {
+    delete settings.credential_slots;
     return { settings };
   }
 
-  const targetEnv = inputs.envVar.length > 0 ? inputs.envVar : "API_KEY";
-  const hasKey = inputs.apiKey.length > 0;
+  const targetEnv = inputs.envVar.trim() || existingApiKeyTargetEnv(current);
+  if (targetEnv.length === 0) {
+    throw new Error("Enter the environment variable the provider expects.");
+  }
+  const hasKey = inputs.apiKey.trim().length > 0;
   const secretRef = hasKey ? `vault:providers/${inputs.provider}/api_key` : `env:${targetEnv}`;
   settings.credential_slots = [
     {
@@ -72,6 +81,8 @@ export function buildOnboardingProviderRequest(
   }
   return {
     settings,
-    secrets: [{ name: "api_key", secret_ref: secretRef, kind: "api_key", value: inputs.apiKey }],
+    secrets: [
+      { name: "api_key", secret_ref: secretRef, kind: "api_key", value: inputs.apiKey.trim() },
+    ],
   };
 }

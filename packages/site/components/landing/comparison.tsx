@@ -1,9 +1,9 @@
 import { Eyebrow } from "@agh/ui";
 import { cn } from "@agh/ui/lib/utils";
 import { Check, Minus } from "lucide-react";
+import { SUPPORTED_AGENT_COUNT } from "./provider-data";
 import { SectionFrame } from "./primitives/section-frame";
 import { SectionHeader } from "./primitives/section-header";
-import { PROVIDERS } from "./supported-agents";
 
 type Approach = {
   approach: string;
@@ -51,7 +51,7 @@ const APPROACHES: Approach[] = [
     agentModel: "Your existing ACP agents",
     coordination: "agh-network/v0, implemented",
     deployment: "Local-first, single binary",
-    agents: `${PROVIDERS.length} ACP drivers`,
+    agents: `${SUPPORTED_AGENT_COUNT} ACP drivers`,
     crossRuntime: true,
     highlight: true,
   },

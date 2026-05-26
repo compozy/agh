@@ -96,6 +96,19 @@ type AppMetadataStore interface {
 	DeleteAppMetadata(ctx context.Context, key string) error
 }
 
+// OnboardingStatus describes the global first-run onboarding completion state.
+type OnboardingStatus struct {
+	Completed   bool
+	CompletedAt string
+}
+
+// OnboardingStore manages the domain lifecycle for first-run onboarding.
+type OnboardingStore interface {
+	GetOnboardingStatus(ctx context.Context) (OnboardingStatus, error)
+	CompleteOnboarding(ctx context.Context, completedAt string) (OnboardingStatus, error)
+	ResetOnboarding(ctx context.Context) (OnboardingStatus, error)
+}
+
 // NetworkMessageStore manages persisted network timeline messages.
 type NetworkMessageStore interface {
 	WriteNetworkMessage(ctx context.Context, entry NetworkMessageEntry) error

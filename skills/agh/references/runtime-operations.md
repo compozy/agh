@@ -58,7 +58,7 @@ If an AGH-native session tool is visible, prefer the tool because it is policy-a
 First-run onboarding completion is a global instance flag (stored in the `app_metadata` table, not per-workspace). Inspect or manage it through the CLI or the HTTP/UDS `/api/onboarding` endpoints:
 
     agh onboarding status -o json
-    agh onboarding completed   # mark first-run onboarding as done
+    agh onboarding complete    # mark first-run onboarding as done
     agh onboarding reset       # clear the flag so the web wizard runs again
 
 The web first-run wizard blocks the dashboard until this flag is set. Resetting it surfaces the wizard again on next load.

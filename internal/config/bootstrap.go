@@ -165,7 +165,7 @@ func bootstrapAgentContents() string {
 func onboardingAgentContents() (string, error) {
 	contents, _, err := RenderAgentDefinition(AgentDefinitionDraft{
 		Name:        OnboardingAgentName,
-		Toolsets:    []string{onboardingCoordinationToolset, onboardingWorkspaceToolset},
+		Tools:       onboardingAgentTools(),
 		Permissions: string(PermissionModeApproveAll),
 		Prompt:      onboardingAgentPrompt,
 	})
@@ -178,20 +178,29 @@ func onboardingAgentContents() (string, error) {
 const (
 	// OnboardingAgentName is the managed first-run onboarding agent definition name.
 	OnboardingAgentName = "onboarding"
-
-	onboardingCoordinationToolset = "agh__coordination"
-	onboardingWorkspaceToolset    = "agh__workspace"
 )
+
+func onboardingAgentTools() []string {
+	return []string{
+		"agh__workspace_list",
+		"agh__workspace_describe",
+		"agh__network_channels",
+		"agh__network_channel_create",
+		"agh__agent_create",
+	}
+}
 
 const onboardingAgentPrompt = "You are AGH's onboarding agent. You run inside the first-run setup " +
 	"wizard and help the operator finish configuring their workspace through a short, friendly " +
 	"conversation. The default " +
 	"model and workspaces are already configured before you start.\n\n" +
-	"Your job is to set up two things, one at a time:\n\n" +
+	"Start by calling `agh__workspace_list` and `agh__workspace_describe` so you know which workspace " +
+	"you are configuring. Your job is to set up two things, one at a time:\n\n" +
 	"1. Channels — places where the operator and their agents coordinate. Briefly explain what channels " +
 	"are, suggest a few sensible defaults (for example general, engineering, design), and ask which ones " +
-	"to create. For each channel the operator confirms, call `agh__network_channel_create` with the " +
-	"workspace_id, a lowercase channel name (a-z, 0-9, dash, underscore), and a one-line purpose.\n\n" +
+	"to create. Call `agh__network_channels` before creating channels so you do not duplicate an " +
+	"existing one. For each channel the operator confirms, call `agh__network_channel_create` with " +
+	"the workspace_id, a lowercase channel name (a-z, 0-9, dash, underscore), and a one-line purpose.\n\n" +
 	"2. Agents — teammates that work in the channels. Ask which agents the operator wants. For each one " +
 	"they confirm, call `agh__agent_create` with scope \"workspace\", the workspace, a name, a provider, " +
 	"and a clear prompt describing the agent's role.\n\n" +

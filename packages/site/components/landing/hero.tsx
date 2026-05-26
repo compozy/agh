@@ -1,8 +1,11 @@
 import { Eyebrow } from "@agh/ui";
 
 import { HeroPlayer } from "./hero-player";
+import { SUPPORTED_AGENT_COUNT } from "./provider-data";
 import { CtaButton } from "./primitives/cta-button";
-import { PROVIDERS } from "./supported-agents";
+
+const featuredAgentNames = ["Claude Code", "OpenClaw", "Hermes"];
+const additionalAgentCount = SUPPORTED_AGENT_COUNT - featuredAgentNames.length;
 
 const signalItems = [
   {
@@ -10,8 +13,8 @@ const signalItems = [
     detail: "Seven message kinds. NATS-backed wire. Audited delivery.",
   },
   {
-    label: `${PROVIDERS.length} ACP drivers supported`,
-    detail: `Claude Code, OpenClaw, Hermes, and ${PROVIDERS.length - 3} more.`,
+    label: `${SUPPORTED_AGENT_COUNT} ACP drivers supported`,
+    detail: `${featuredAgentNames.join(", ")}, and ${additionalAgentCount} more.`,
   },
   {
     label: "Tool registry, one control path",

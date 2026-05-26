@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -356,19 +357,32 @@ func TestEnsureOnboardingAgentCreatesValidProvisioningAgent(t *testing.T) {
 	if agent.Name != OnboardingAgentName {
 		t.Fatalf("agent name = %q, want %q", agent.Name, OnboardingAgentName)
 	}
-	wantToolsets := map[string]bool{onboardingCoordinationToolset: false, onboardingWorkspaceToolset: false}
-	for _, toolset := range agent.Toolsets {
-		if _, ok := wantToolsets[toolset]; ok {
-			wantToolsets[toolset] = true
-		}
+	wantTools := []string{
+		"agh__workspace_list",
+		"agh__workspace_describe",
+		"agh__network_channels",
+		"agh__network_channel_create",
+		"agh__agent_create",
 	}
-	for toolset, present := range wantToolsets {
-		if !present {
-			t.Fatalf("onboarding agent missing toolset %q (got %v)", toolset, agent.Toolsets)
-		}
+	if !slices.Equal(agent.Tools, wantTools) {
+		t.Fatalf("onboarding agent tools = %#v, want %#v", agent.Tools, wantTools)
+	}
+	if len(agent.Toolsets) != 0 {
+		t.Fatalf("onboarding agent toolsets = %#v, want none", agent.Toolsets)
 	}
 	if agent.Permissions != string(PermissionModeApproveAll) {
 		t.Fatalf("onboarding agent permissions = %q, want %q", agent.Permissions, PermissionModeApproveAll)
+	}
+
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(onboarding agent) error = %v", err)
+	}
+	text := string(contents)
+	for _, denied := range []string{"toolsets:", "- agh__coordination", "- agh__workspace\n"} {
+		if strings.Contains(text, denied) {
+			t.Fatalf("onboarding agent contents included broad grant %q:\n%s", denied, text)
+		}
 	}
 
 	_, createdAgain, err := EnsureOnboardingAgent(homePaths)
@@ -378,5 +392,43 @@ func TestEnsureOnboardingAgentCreatesValidProvisioningAgent(t *testing.T) {
 	if createdAgain {
 		t.Fatal("EnsureOnboardingAgent() second created = true, want false")
 	}
-	_ = path
+}
+
+func TestValidatePublicAgentNameRejectsInternalManagedAgent(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject the reserved onboarding agent name", func(t *testing.T) {
+		t.Parallel()
+
+		err := ValidatePublicAgentName(OnboardingAgentName)
+		if err == nil {
+			t.Fatal("ValidatePublicAgentName(onboarding) error = nil, want reserved-name error")
+		}
+		if !strings.Contains(err.Error(), "reserved for internal AGH use") {
+			t.Fatalf("ValidatePublicAgentName(onboarding) error = %v, want reserved-name message", err)
+		}
+	})
+
+	t.Run("Should reject reserved internal agent names case insensitively", func(t *testing.T) {
+		t.Parallel()
+
+		for _, name := range []string{"Onboarding", "ONBOARDING", " onboarding "} {
+			t.Run("Should reject "+name, func(t *testing.T) {
+				t.Parallel()
+
+				err := ValidatePublicAgentName(name)
+				if err == nil {
+					t.Fatalf("ValidatePublicAgentName(%q) error = nil, want reserved-name error", name)
+				}
+			})
+		}
+	})
+
+	t.Run("Should allow normal public agent names", func(t *testing.T) {
+		t.Parallel()
+
+		if err := ValidatePublicAgentName(DefaultAgentName); err != nil {
+			t.Fatalf("ValidatePublicAgentName(general) error = %v", err)
+		}
+	})
 }

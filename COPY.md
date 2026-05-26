@@ -182,7 +182,7 @@ When public copy needs to name 2–3 specific agent CLIs as examples (hero subhe
 
 Why this trio: these are the most recognizable ACP-compatible CLIs in the current AGH ecosystem. Older copy used Claude Code, Codex, Gemini CLI, or Pi as the canonical examples. Replace those inline lists with the trio above unless the surrounding sentence has a specific reason to name a different driver (for example, a CLI-specific command example or a comparison to a named runtime).
 
-The full enumeration of supported drivers lives in `packages/site/components/landing/supported-agents.tsx` (`PROVIDERS`). When public copy needs the total count, derive it from `PROVIDERS.length` instead of hardcoding a number.
+The full enumeration of supported drivers lives in `packages/site/components/landing/provider-data.ts` (`SUPPORTED_AGENT_PROVIDERS`). When public copy needs the total count, derive it from `SUPPORTED_AGENT_COUNT` instead of hardcoding a number.
 
 ### Runtime Terms
 

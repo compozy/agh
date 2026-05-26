@@ -103,7 +103,7 @@ export function PermissionPrompt({
 
   return isResolved ? null : (
     <div
-      className="sticky top-2 z-10 px-4 py-2"
+      className="sticky top-2 z-10 w-full py-2"
       data-testid="permission-prompt"
       data-tone={tone}
       data-sticky="true"
@@ -112,7 +112,7 @@ export function PermissionPrompt({
     >
       <div
         className={cn(
-          "flex max-w-3xl gap-3 rounded-lg p-3 shadow-highlight",
+          "flex w-full min-w-0 gap-3 rounded-lg p-3 shadow-highlight",
           isHighStakes ? "bg-danger-tint" : "bg-warning-tint"
         )}
         data-testid="permission-prompt-card"
@@ -263,10 +263,10 @@ export function PermissionDataPart({
 
 function PermissionRejectedNotice({ permission }: { permission: PermissionRequest }) {
   return (
-    <div className="px-4 py-2" data-testid="permission-rejected-notice" role="status">
+    <div className="w-full py-2" data-testid="permission-rejected-notice" role="status">
       <div
         className={cn(
-          "flex max-w-3xl items-start gap-2 rounded-md border px-3 py-2",
+          "flex w-full min-w-0 items-start gap-2 rounded-md border px-3 py-2",
           "border-danger/30 bg-danger/8",
           "text-xs text-danger"
         )}

@@ -1,6 +1,7 @@
 package session
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -120,6 +121,118 @@ func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T)
 		}
 		assertProviderRuntimeFileMode(t, wantHome, 0o700)
 		assertProviderRuntimeFileMode(t, filepath.Join(wantHome, "codex"), 0o700)
+	})
+
+	t.Run("Should isolate onboarding codex home while preserving native auth", func(t *testing.T) {
+		t.Parallel()
+
+		aghHome, err := aghconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "agh-home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		operatorHome := t.TempDir()
+		operatorCodex := filepath.Join(operatorHome, ".codex")
+		authPayload := []byte("{\"token\":\"native\"}\n")
+		if err := os.MkdirAll(operatorCodex, 0o700); err != nil {
+			t.Fatalf("MkdirAll(operator codex) error = %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(operatorCodex, "auth.json"), authPayload, 0o600); err != nil {
+			t.Fatalf("WriteFile(operator auth) error = %v", err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(operatorCodex, "AGENTS.md"),
+			[]byte("Ledger Snapshot"),
+			0o600,
+		); err != nil {
+			t.Fatalf("WriteFile(operator agents) error = %v", err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(operatorCodex, "config.toml"),
+			[]byte("code_mode = true\n"),
+			0o600,
+		); err != nil {
+			t.Fatalf("WriteFile(operator config) error = %v", err)
+		}
+		manager := &Manager{
+			homePaths:       aghHome,
+			providerSecrets: fakeProviderSecretResolver{},
+		}
+		session := &Session{AgentName: aghconfig.OnboardingAgentName, WorkspaceID: "ws_test"}
+		resolved := aghconfig.ResolvedAgent{
+			Provider:   "codex",
+			Model:      "gpt-5.5",
+			Harness:    aghconfig.ProviderHarnessACP,
+			AuthMode:   aghconfig.ProviderAuthModeNativeCLI,
+			EnvPolicy:  aghconfig.ProviderEnvPolicyFiltered,
+			HomePolicy: aghconfig.ProviderHomePolicyOperator,
+		}
+
+		opts, err := manager.prepareProviderForStart(testutil.Context(t), session, resolved, acp.StartOpts{
+			Env: []string{
+				"HOME=" + operatorHome,
+				"CODEX_HOME=" + operatorCodex,
+				"KEEP=1",
+			},
+		})
+		if err != nil {
+			t.Fatalf("prepareProviderForStart(onboarding codex) error = %v", err)
+		}
+
+		wantCodexHome := filepath.Join(aghHome.HomeDir, "providers", "codex", "onboarding", "ws_test", "codex")
+		if got := envValue(opts.Env, "CODEX_HOME"); got != wantCodexHome {
+			t.Fatalf("CODEX_HOME = %q, want %q", got, wantCodexHome)
+		}
+		if got := envValue(opts.Env, "PROVIDER_CODEX_HOME"); got != wantCodexHome {
+			t.Fatalf("PROVIDER_CODEX_HOME = %q, want %q", got, wantCodexHome)
+		}
+		if got := envValue(opts.Env, "HOME"); got != operatorHome {
+			t.Fatalf("HOME = %q, want operator home unchanged", got)
+		}
+		assertProviderRuntimeFileMode(t, wantCodexHome, 0o700)
+		assertProviderRuntimeFileMode(t, filepath.Join(wantCodexHome, "auth.json"), 0o600)
+		copiedAuth, err := os.ReadFile(filepath.Join(wantCodexHome, "auth.json"))
+		if err != nil {
+			t.Fatalf("ReadFile(managed auth) error = %v", err)
+		}
+		if !bytes.Equal(copiedAuth, authPayload) {
+			t.Fatalf("managed auth = %q, want native auth copy", copiedAuth)
+		}
+		assertNoPath(t, filepath.Join(wantCodexHome, "AGENTS.md"))
+		assertNoPath(t, filepath.Join(wantCodexHome, "config.toml"))
+		if opts.ProviderAuthEnv == nil {
+			t.Fatal("ProviderAuthEnv = nil, want probe env")
+		}
+		if got := envValue(opts.ProviderAuthEnv.CommandEnv, "CODEX_HOME"); got != wantCodexHome {
+			t.Fatalf("ProviderAuthEnv CODEX_HOME = %q, want %q", got, wantCodexHome)
+		}
+	})
+
+	t.Run("Should preserve operator codex home for regular codex sessions", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &Manager{providerSecrets: fakeProviderSecretResolver{}}
+		resolved := aghconfig.ResolvedAgent{
+			Name:       "coder",
+			Provider:   "codex",
+			Model:      "gpt-5.5",
+			Harness:    aghconfig.ProviderHarnessACP,
+			AuthMode:   aghconfig.ProviderAuthModeNativeCLI,
+			EnvPolicy:  aghconfig.ProviderEnvPolicyFiltered,
+			HomePolicy: aghconfig.ProviderHomePolicyOperator,
+		}
+
+		opts, err := manager.prepareProviderForStart(testutil.Context(t), &Session{
+			AgentName:   "coder",
+			WorkspaceID: "ws_test",
+		}, resolved, acp.StartOpts{
+			Env: []string{"CODEX_HOME=/Users/operator/.codex"},
+		})
+		if err != nil {
+			t.Fatalf("prepareProviderForStart(regular codex) error = %v", err)
+		}
+		if got := envValue(opts.Env, "CODEX_HOME"); got != "/Users/operator/.codex" {
+			t.Fatalf("CODEX_HOME = %q, want operator codex home", got)
+		}
 	})
 
 	t.Run("Should preserve operator Pi auth directory for native Pi providers", func(t *testing.T) {

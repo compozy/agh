@@ -18,7 +18,9 @@ export interface OnboardingDraftState {
   envVar: string;
   apiKey: string;
   workspaces: OnboardingWorkspaceDraft[];
-  chatStarted: boolean;
+  onboardingSessionId: string;
+  onboardingWorkspaceId: string;
+  onboardingKickoffSessionId: string;
 }
 
 export interface OnboardingDraftStore extends OnboardingDraftState {
@@ -39,10 +41,12 @@ const initialState: OnboardingDraftState = {
   envVar: "",
   apiKey: "",
   workspaces: [],
-  chatStarted: false,
+  onboardingSessionId: "",
+  onboardingWorkspaceId: "",
+  onboardingKickoffSessionId: "",
 };
 
-const storageKey = "agh:onboarding:draft:v1";
+const storageKey = "agh:onboarding:draft:v2";
 
 const draftStorage = createJSONStorage<OnboardingDraftState>(() => {
   if (typeof window === "undefined") {
@@ -81,7 +85,9 @@ export const useOnboardingDraftStore = create<OnboardingDraftStore>()(
         envVar: state.envVar,
         apiKey: "",
         workspaces: state.workspaces,
-        chatStarted: state.chatStarted,
+        onboardingSessionId: state.onboardingSessionId,
+        onboardingWorkspaceId: state.onboardingWorkspaceId,
+        onboardingKickoffSessionId: state.onboardingKickoffSessionId,
       }),
     }
   )

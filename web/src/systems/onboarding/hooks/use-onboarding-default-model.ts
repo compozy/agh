@@ -39,6 +39,7 @@ export interface OnboardingDefaultModelApi {
   defaultReasoning: string | null;
   catalogLoading: boolean;
   catalogError: string | null;
+  configurationError: string | null;
   isValid: boolean;
   isCommitting: boolean;
   onProviderChange: (provider: string) => void;
@@ -78,6 +79,13 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
     () => catalogQuery.data?.models ?? [],
     [catalogQuery.data]
   );
+  const existingApiKeyTargetEnv = useMemo(
+    () =>
+      providerDetailQuery.data?.settings.credential_slots
+        ?.find(slot => slot.name === "api_key")
+        ?.target_env.trim() ?? "",
+    [providerDetailQuery.data]
+  );
 
   const derived = useMemo(
     () =>
@@ -108,6 +116,7 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
       model: "",
       reasoning: "",
       envVar: "",
+      apiKey: "",
     });
   }, []);
 
@@ -120,7 +129,9 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
   }, []);
 
   const onAuthModeChange = useCallback((authMode: OnboardingAuthMode) => {
-    useOnboardingDraftStore.getState().patch({ authMode });
+    useOnboardingDraftStore
+      .getState()
+      .patch(authMode === "native_cli" ? { authMode, envVar: "", apiKey: "" } : { authMode });
   }, []);
 
   const onEnvVarChange = useCallback((envVar: string) => {
@@ -137,24 +148,65 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
       throw new Error("Select a provider before continuing.");
     }
     const detail = providerDetailQuery.data;
-    if (detail) {
-      const body = buildOnboardingProviderRequest(detail.settings, {
-        model: draft.model.trim(),
-        reasoning: draft.reasoning.trim(),
-        authMode: draft.authMode,
-        envVar: draft.envVar.trim(),
-        apiKey: draft.apiKey.trim(),
-        provider: trimmedProvider,
-      });
-      await putProvider.mutateAsync({ name: trimmedProvider, body });
+    if (!detail) {
+      throw new Error(
+        providerDetailQuery.error
+          ? describeError("Failed to load provider settings.", providerDetailQuery.error)
+          : "Provider settings are still loading."
+      );
     }
     const config = generalQuery.data?.config;
-    if (config) {
-      await updateGeneral.mutateAsync({
-        config: { ...config, defaults: { ...config.defaults, provider: trimmedProvider } },
-      });
+    if (!config) {
+      throw new Error(
+        generalQuery.error
+          ? describeError("Failed to load general settings.", generalQuery.error)
+          : "General settings are still loading."
+      );
     }
-  }, [draft, generalQuery.data, providerDetailQuery.data, putProvider, updateGeneral]);
+    const body = buildOnboardingProviderRequest(detail.settings, {
+      model: draft.model.trim(),
+      reasoning: draft.reasoning.trim(),
+      authMode: draft.authMode,
+      envVar: draft.envVar.trim(),
+      apiKey: draft.apiKey.trim(),
+      provider: trimmedProvider,
+    });
+    await putProvider.mutateAsync({ name: trimmedProvider, body });
+    await updateGeneral.mutateAsync({
+      config: { ...config, defaults: { ...config.defaults, provider: trimmedProvider } },
+    });
+  }, [
+    draft,
+    generalQuery.data,
+    generalQuery.error,
+    providerDetailQuery.data,
+    providerDetailQuery.error,
+    putProvider,
+    updateGeneral,
+  ]);
+
+  const providerSettingsError =
+    provider.length > 0 && providerDetailQuery.error
+      ? describeError("Failed to load provider settings.", providerDetailQuery.error)
+      : null;
+  const generalSettingsError = generalQuery.error
+    ? describeError("Failed to load general settings.", generalQuery.error)
+    : null;
+  const missingBoundSecretTarget =
+    draft.authMode === "bound_secret" &&
+    draft.envVar.trim().length === 0 &&
+    existingApiKeyTargetEnv.length === 0;
+  const credentialTargetError =
+    provider.length > 0 && providerDetailQuery.isSuccess && missingBoundSecretTarget
+      ? "Enter the environment variable the provider expects."
+      : null;
+  const configurationError =
+    providerSettingsError ?? generalSettingsError ?? credentialTargetError ?? null;
+  const canCommit =
+    provider.trim().length > 0 &&
+    providerDetailQuery.isSuccess &&
+    generalQuery.isSuccess &&
+    !missingBoundSecretTarget;
 
   return {
     providers,
@@ -176,7 +228,8 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
     catalogError: catalogQuery.error
       ? describeError("Failed to load provider models.", catalogQuery.error)
       : null,
-    isValid: provider.length > 0,
+    configurationError,
+    isValid: canCommit,
     isCommitting: putProvider.isPending || updateGeneral.isPending,
     onProviderChange,
     onModelChange,
