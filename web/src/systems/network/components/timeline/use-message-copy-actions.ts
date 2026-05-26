@@ -53,28 +53,26 @@ export function useMessageCopyActions(
     (message: NetworkConversationMessage): HoverToolbarHandlers => {
       const text = readMessageBody(message);
       return {
-        onCopyLink: () => {
+        onCopyLink: async () => {
           const link = buildMessageLink(
             { surface, workspaceId, channel, conversationId },
             message.message_id
           );
-          void writeClipboard(link).then(ok => {
-            if (ok) {
-              toast.success("Link copied");
-            } else {
-              toast.error("Couldn't copy link");
-            }
-          });
+          const ok = await writeClipboard(link);
+          if (ok) {
+            toast.success("Link copied");
+          } else {
+            toast.error("Couldn't copy link");
+          }
         },
         onCopyText: text
-          ? () => {
-              void writeClipboard(text).then(ok => {
-                if (ok) {
-                  toast.success("Message copied");
-                } else {
-                  toast.error("Couldn't copy message");
-                }
-              });
+          ? async () => {
+              const ok = await writeClipboard(text);
+              if (ok) {
+                toast.success("Message copied");
+              } else {
+                toast.error("Couldn't copy message");
+              }
             }
           : undefined,
       };

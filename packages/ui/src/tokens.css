@@ -316,6 +316,7 @@
 
   /* Layout ladder. */
   --width-content-max: 1320px;
+  --width-right-rail-default: 468px;
   --width-message-bubble-max: 640px;
   --width-wire-card-max: 520px;
   --width-search-input-min: 220px;

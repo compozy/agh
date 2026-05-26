@@ -18,7 +18,7 @@ const meta: Meta<typeof RightRail> = {
     Story => (
       <div className="flex h-[400px] w-full bg-background border border-line">
         <div className="flex-1 p-4 text-[13px] text-muted">Main pane</div>
-        <div className="w-[468px] shrink-0">
+        <div className="w-(--width-right-rail-default) shrink-0">
           <Story />
         </div>
       </div>

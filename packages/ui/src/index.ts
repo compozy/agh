@@ -302,6 +302,12 @@ export {
   type OwnerColors,
   type OwnerKind,
 } from "./lib/owner-palette";
+export {
+  WIDTH_DETAIL_INSPECTOR_INLINE,
+  WIDTH_MESSAGE_BUBBLE_MAX,
+  WIDTH_RIGHT_RAIL_DEFAULT,
+  WIDTH_TABLE_CELL_LG,
+} from "./lib/layout-widths";
 export { Markdown, STREAMDOWN_SAFE_CONFIG, type MarkdownProps } from "./components/custom/markdown";
 export { DescriptionCard, type DescriptionCardProps } from "./components/custom/description-card";
 export { StreamMarkdown, type StreamMarkdownProps } from "./components/custom/stream-markdown";

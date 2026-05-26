@@ -93,7 +93,7 @@ function ThreadsListRow({ workspaceId, channel, thread, active }: ThreadsListRow
         </ItemHeader>
 
         <ItemDescription
-          className="min-w-0 break-words"
+          className="line-clamp-2 min-w-0 break-words"
           data-testid={`network-thread-list-row-preview-${thread.thread_id}`}
           title={thread.last_message_preview ?? undefined}
         >

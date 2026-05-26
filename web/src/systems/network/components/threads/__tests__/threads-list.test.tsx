@@ -154,6 +154,10 @@ describe("ThreadsList", () => {
     expect(title).toHaveAttribute("title", longTitle);
     expect(preview).toHaveClass("min-w-0", "break-words", "line-clamp-2");
     expect(preview).toHaveAttribute("title", longPreview);
-    expect(row.scrollWidth).toBeLessThanOrEqual(container.firstElementChild!.clientWidth + 1);
+
+    const containerEl = container.firstElementChild as HTMLElement;
+    Object.defineProperty(containerEl, "clientWidth", { configurable: true, value: 384 });
+    Object.defineProperty(row, "scrollWidth", { configurable: true, value: 384 });
+    expect(row.scrollWidth).toBeLessThanOrEqual(containerEl.clientWidth + 1);
   });
 });

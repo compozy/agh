@@ -13,6 +13,10 @@ import {
   RightRail,
   type RightRailMode,
   useDefaultLayout,
+  WIDTH_DETAIL_INSPECTOR_INLINE,
+  WIDTH_MESSAGE_BUBBLE_MAX,
+  WIDTH_RIGHT_RAIL_DEFAULT,
+  WIDTH_TABLE_CELL_LG,
 } from "@agh/ui";
 
 import { ChannelHeader } from "./channel-header";
@@ -112,7 +116,7 @@ export function NetworkShell({
         <ResizablePanel
           className="flex min-h-0 min-w-0 flex-col"
           id={MAIN_PANEL_ID}
-          minSize="360px"
+          minSize={WIDTH_TABLE_CELL_LG}
         >
           <main className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="network-main-pane">
             {activeChannel ? (
@@ -146,10 +150,10 @@ export function NetworkShell({
             <ResizableHandle withHandle />
             <ResizablePanel
               className="flex min-h-0 min-w-0 flex-col"
-              defaultSize="468px"
+              defaultSize={WIDTH_RIGHT_RAIL_DEFAULT}
               id={RAIL_PANEL_ID}
-              maxSize="640px"
-              minSize="320px"
+              maxSize={WIDTH_MESSAGE_BUBBLE_MAX}
+              minSize={WIDTH_DETAIL_INSPECTOR_INLINE}
             >
               <RightRail mode={rightRailMode} open={rightRailOpen}>
                 {rightRailContent}
