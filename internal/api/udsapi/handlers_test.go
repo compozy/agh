@@ -1478,7 +1478,7 @@ func TestPromptSessionHandlerReturnsSSEStream(t *testing.T) {
 	t.Run("ShouldReturnAnSSEStream", func(t *testing.T) {
 		homePaths := newTestHomePaths(t)
 		manager := stubSessionManager{
-			PromptFn: func(context.Context, string, string) (<-chan acp.AgentEvent, error) {
+			SendPromptFn: func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error) {
 				ch := make(chan acp.AgentEvent, 2)
 				ch <- acp.AgentEvent{
 					Type:      "agent_message",
@@ -1493,7 +1493,7 @@ func TestPromptSessionHandlerReturnsSSEStream(t *testing.T) {
 					StopReason: "end_turn",
 				}
 				close(ch)
-				return ch, nil
+				return session.SendPromptResult{Status: "accepted", Events: ch, NewTurnID: "turn-1"}, nil
 			},
 		}
 		handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
@@ -1543,6 +1543,41 @@ func TestPromptSessionHandlerReturnsSSEStream(t *testing.T) {
 		if !hasType("start") || !hasType("text-start") || !hasType("text-delta") ||
 			!hasType("text-end") || !hasType("finish") {
 			t.Fatalf("prompt part types = %#v", partTypes)
+		}
+	})
+}
+
+func TestPromptSessionHandlerRequiresAcceptedTurnIDForSSEStream(t *testing.T) {
+	t.Run("ShouldRejectAcceptedStreamWithoutDurableTurnID", func(t *testing.T) {
+		homePaths := newTestHomePaths(t)
+		manager := stubSessionManager{
+			SendPromptFn: func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error) {
+				ch := make(chan acp.AgentEvent)
+				close(ch)
+				return session.SendPromptResult{Status: "accepted", Events: ch}, nil
+			},
+		}
+		handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
+		engine := newTestRouter(t, handlers)
+
+		recorder := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
+			[]byte("{\"message\":\"hello\"}"),
+		)
+		if recorder.Code != http.StatusInternalServerError {
+			t.Fatalf(
+				"status = %d, want %d; body=%s",
+				recorder.Code,
+				http.StatusInternalServerError,
+				recorder.Body.String(),
+			)
+		}
+		wantBody := "accepted prompt stream missing turn id"
+		if body := recorder.Body.String(); !strings.Contains(body, wantBody) {
+			t.Fatalf("body = %q, want missing turn id error", body)
 		}
 	})
 }
@@ -1639,21 +1674,24 @@ func TestPromptSessionRawHandlerPreservesBusyInputMode(t *testing.T) {
 	})
 }
 
-func TestPromptSessionHandlerDrainsPromptAfterRequestCancellation(t *testing.T) {
-	t.Run("ShouldCancelTheDetachedPromptContextWhenTheRequestEnds", func(t *testing.T) {
+func TestPromptSessionHandlerSeparatesPromptExecutionFromDelivery(t *testing.T) {
+	t.Run("ShouldCancelDeliveryOnlyAfterRequestCancellation", func(t *testing.T) {
 		homePaths := newTestHomePaths(t)
-		promptCtxCh := make(chan context.Context, 1)
+		executionCtxCh := make(chan context.Context, 1)
+		deliveryCtxCh := make(chan context.Context, 1)
 		events := make(chan acp.AgentEvent)
 		manager := stubSessionManager{
-			PromptFn: func(ctx context.Context, _ string, _ string) (<-chan acp.AgentEvent, error) {
-				promptCtxCh <- ctx
-				return events, nil
+			SendPromptFn: func(ctx context.Context, _ string, opts session.SendPromptOpts) (session.SendPromptResult, error) {
+				executionCtxCh <- ctx
+				deliveryCtxCh <- opts.DeliveryContext
+				return session.SendPromptResult{Status: "accepted", Events: events, NewTurnID: "turn-accepted"}, nil
 			},
 		}
 		handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
 		engine := newTestRouter(t, handlers)
 
-		requestCtx, cancel := context.WithCancel(context.Background())
+		requestCtx, cancel := context.WithCancel(t.Context())
+		defer cancel()
 		req := httptest.NewRequestWithContext(
 			requestCtx,
 			http.MethodPost,
@@ -1669,11 +1707,17 @@ func TestPromptSessionHandlerDrainsPromptAfterRequestCancellation(t *testing.T) 
 			close(done)
 		}()
 
-		var promptCtx context.Context
+		var executionCtx context.Context
 		select {
-		case promptCtx = <-promptCtxCh:
+		case executionCtx = <-executionCtxCh:
 		case <-time.After(time.Second):
-			t.Fatal("Prompt() was not invoked")
+			t.Fatal("SendPrompt() was not invoked")
+		}
+		var deliveryCtx context.Context
+		select {
+		case deliveryCtx = <-deliveryCtxCh:
+		case <-time.After(time.Second):
+			t.Fatal("SendPrompt() did not receive a delivery context")
 		}
 
 		cancel()
@@ -1684,31 +1728,28 @@ func TestPromptSessionHandlerDrainsPromptAfterRequestCancellation(t *testing.T) 
 			t.Fatal("handler did not return after request cancellation")
 		}
 
-		if err := promptCtx.Err(); err != nil {
-			t.Fatalf("prompt context err = %v, want nil while detached drain is active", err)
+		if err := executionCtx.Err(); err != nil {
+			t.Fatalf("execution context err = %v, want nil after request cancellation", err)
 		}
-
+		if !errors.Is(deliveryCtx.Err(), context.Canceled) {
+			t.Fatalf("delivery context err = %v, want context.Canceled", deliveryCtx.Err())
+		}
+		if body := recorder.Body.String(); !strings.Contains(body, `"type":"start","messageId":"turn-accepted"`) {
+			t.Fatalf("response body = %q, want early start frame with accepted turn id", body)
+		}
 		close(events)
-
-		select {
-		case <-promptCtx.Done():
-		case <-time.After(time.Second):
-			t.Fatal("prompt context was not canceled after detached drain completed")
-		}
-
-		if !errors.Is(promptCtx.Err(), context.Canceled) {
-			t.Fatalf("prompt context err = %v, want context.Canceled after detached drain completed", promptCtx.Err())
-		}
 	})
 
-	t.Run("ShouldCancelTheDetachedPromptContextWhenStreamShutsDown", func(t *testing.T) {
+	t.Run("ShouldCancelDeliveryOnlyWhenStreamShutsDown", func(t *testing.T) {
 		homePaths := newTestHomePaths(t)
-		promptCtxCh := make(chan context.Context, 1)
+		executionCtxCh := make(chan context.Context, 1)
+		deliveryCtxCh := make(chan context.Context, 1)
 		events := make(chan acp.AgentEvent)
 		manager := stubSessionManager{
-			PromptFn: func(ctx context.Context, _ string, _ string) (<-chan acp.AgentEvent, error) {
-				promptCtxCh <- ctx
-				return events, nil
+			SendPromptFn: func(ctx context.Context, _ string, opts session.SendPromptOpts) (session.SendPromptResult, error) {
+				executionCtxCh <- ctx
+				deliveryCtxCh <- opts.DeliveryContext
+				return session.SendPromptResult{Status: "accepted", Events: events, NewTurnID: "turn-accepted"}, nil
 			},
 		}
 		handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
@@ -1716,7 +1757,8 @@ func TestPromptSessionHandlerDrainsPromptAfterRequestCancellation(t *testing.T) 
 		handlers.setStreamDone(streamDone)
 		engine := newTestRouter(t, handlers)
 
-		requestCtx, cancel := context.WithCancel(context.Background())
+		requestCtx, cancel := context.WithCancel(t.Context())
+		defer cancel()
 		req := httptest.NewRequestWithContext(
 			requestCtx,
 			http.MethodPost,
@@ -1732,36 +1774,34 @@ func TestPromptSessionHandlerDrainsPromptAfterRequestCancellation(t *testing.T) 
 			close(done)
 		}()
 
-		var promptCtx context.Context
+		var executionCtx context.Context
 		select {
-		case promptCtx = <-promptCtxCh:
+		case executionCtx = <-executionCtxCh:
 		case <-time.After(time.Second):
-			t.Fatal("Prompt() was not invoked")
+			t.Fatal("SendPrompt() was not invoked")
 		}
-
-		cancel()
-
+		var deliveryCtx context.Context
 		select {
-		case <-done:
+		case deliveryCtx = <-deliveryCtxCh:
 		case <-time.After(time.Second):
-			t.Fatal("handler did not return after request cancellation")
-		}
-
-		if err := promptCtx.Err(); err != nil {
-			t.Fatalf("prompt context err = %v, want nil before stream shutdown", err)
+			t.Fatal("SendPrompt() did not receive a delivery context")
 		}
 
 		close(streamDone)
 
 		select {
-		case <-promptCtx.Done():
+		case <-done:
 		case <-time.After(time.Second):
-			t.Fatal("prompt context was not canceled after stream shutdown")
+			t.Fatal("handler did not return after stream shutdown")
 		}
 
-		if !errors.Is(promptCtx.Err(), context.Canceled) {
-			t.Fatalf("prompt context err = %v, want context.Canceled after stream shutdown", promptCtx.Err())
+		if err := executionCtx.Err(); err != nil {
+			t.Fatalf("execution context err = %v, want nil after stream shutdown", err)
 		}
+		if !errors.Is(deliveryCtx.Err(), context.Canceled) {
+			t.Fatalf("delivery context err = %v, want context.Canceled after stream shutdown", deliveryCtx.Err())
+		}
+		close(events)
 	})
 }
 

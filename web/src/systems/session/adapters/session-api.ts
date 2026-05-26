@@ -202,6 +202,18 @@ export async function sendSessionPrompt(
   return requireResponseData(data, response, `Failed to send prompt to session "${id}"`).prompt;
 }
 
+export function buildSessionStreamUrl(
+  workspaceId: string,
+  id: string,
+  afterSequence?: number
+): string {
+  const path = `/api/workspaces/${encodeURIComponent(workspaceId)}/sessions/${encodeURIComponent(id)}/stream`;
+  if (afterSequence === undefined || afterSequence <= 0) {
+    return path;
+  }
+  return `${path}?after_sequence=${encodeURIComponent(String(afterSequence))}`;
+}
+
 export async function interruptSessionPrompt(
   workspaceId: string,
   id: string,

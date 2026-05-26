@@ -164,9 +164,8 @@ type handlerConfig struct {
 // Handlers expose request/response and SSE endpoints for the AGH API.
 type Handlers struct {
 	*core.BaseHandlers
-	Extensions    ExtensionService
-	HostedMCP     *mcppkg.HostedService
-	promptDrainWG sync.WaitGroup
+	Extensions ExtensionService
+	HostedMCP  *mcppkg.HostedService
 }
 
 // WithHomePaths overrides the resolved AGH home layout.
@@ -829,7 +828,6 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	serveDone := s.serveDone
 	streamCancel := s.streamCancel
 	socketPath := s.socketPath
-	handlers := s.handlers
 	s.state = serverStateStopping
 	s.mu.Unlock()
 
@@ -849,11 +847,6 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	}
 	if serveDone != nil {
 		if err := waitForServeDone(ctx, serveDone); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	if handlers != nil {
-		if err := handlers.waitForPromptDrains(ctx); err != nil {
 			errs = append(errs, err)
 		}
 	}

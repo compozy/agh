@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/compozy/agh/internal/acp"
 	"github.com/compozy/agh/internal/api/contract"
@@ -15,10 +14,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const detachedPromptDrainTimeout = 30 * time.Second
 const promptStreamFormatRaw = "raw"
 
 type promptRequest = contract.SendPromptRequest
+
+func acceptedPromptStreamTurnID(result session.SendPromptResult) (string, error) {
+	turnID := strings.TrimSpace(result.NewTurnID)
+	if turnID == "" {
+		return "", errors.New("accepted prompt stream missing turn id")
+	}
+	return turnID, nil
+}
 
 func (h *Handlers) promptSession(c *gin.Context) {
 	var req promptRequest
@@ -40,16 +46,13 @@ func (h *Handlers) promptSession(c *gin.Context) {
 		return
 	}
 
-	promptCtx, cancelPrompt := context.WithCancel(context.WithoutCancel(c.Request.Context()))
-	cancelOnReturn := cancelPrompt
-	defer func() {
-		if cancelOnReturn != nil {
-			cancelOnReturn()
-		}
-	}()
-	result, err := h.Sessions.SendPrompt(promptCtx, sessionID, session.SendPromptOpts{
-		Message: req.Message,
-		Mode:    session.BusyInputMode(req.Mode),
+	executionCtx := context.WithoutCancel(c.Request.Context())
+	deliveryCtx, cancelDelivery := context.WithCancel(c.Request.Context())
+	defer cancelDelivery()
+	result, err := h.Sessions.SendPrompt(executionCtx, sessionID, session.SendPromptOpts{
+		Message:         req.Message,
+		Mode:            session.BusyInputMode(req.Mode),
+		DeliveryContext: deliveryCtx,
 	})
 	if err != nil {
 		core.RespondError(c, core.StatusForSessionError(err), err, false)
@@ -64,6 +67,11 @@ func (h *Handlers) promptSession(c *gin.Context) {
 		return
 	}
 	events := result.Events
+	turnID, err := acceptedPromptStreamTurnID(result)
+	if err != nil {
+		core.RespondError(c, http.StatusInternalServerError, err, false)
+		return
+	}
 
 	c.Header("x-vercel-ai-ui-message-stream", "v1")
 	writer, err := core.PrepareSSE(c)
@@ -72,14 +80,18 @@ func (h *Handlers) promptSession(c *gin.Context) {
 		return
 	}
 	streamEncoder := core.NewPromptStreamEncoder(h.Now)
+	if err := streamEncoder.Start(writer, turnID); err != nil {
+		cancelDelivery()
+		return
+	}
 
 	for {
 		select {
 		case <-c.Request.Context().Done():
-			h.drainPromptEventsAsync(promptCtx, events, cancelOnReturn)
-			cancelOnReturn = nil
+			cancelDelivery()
 			return
 		case <-h.StreamDoneChannel():
+			cancelDelivery()
 			return
 		case event, ok := <-events:
 			if !ok {
@@ -89,8 +101,7 @@ func (h *Handlers) promptSession(c *gin.Context) {
 				return
 			}
 			if err := streamEncoder.Emit(writer, event); err != nil {
-				h.drainPromptEventsAsync(promptCtx, events, cancelOnReturn)
-				cancelOnReturn = nil
+				cancelDelivery()
 				return
 			}
 		}
@@ -103,16 +114,13 @@ func (h *Handlers) promptSessionRaw(
 	message string,
 	mode session.BusyInputMode,
 ) {
-	promptCtx, cancelPrompt := context.WithCancel(context.WithoutCancel(c.Request.Context()))
-	cancelOnReturn := cancelPrompt
-	defer func() {
-		if cancelOnReturn != nil {
-			cancelOnReturn()
-		}
-	}()
-	result, err := h.Sessions.SendPrompt(promptCtx, sessionID, session.SendPromptOpts{
-		Message: message,
-		Mode:    mode,
+	executionCtx := context.WithoutCancel(c.Request.Context())
+	deliveryCtx, cancelDelivery := context.WithCancel(c.Request.Context())
+	defer cancelDelivery()
+	result, err := h.Sessions.SendPrompt(executionCtx, sessionID, session.SendPromptOpts{
+		Message:         message,
+		Mode:            mode,
+		DeliveryContext: deliveryCtx,
 	})
 	if err != nil {
 		core.RespondError(c, core.StatusForSessionError(err), err, false)
@@ -137,10 +145,10 @@ func (h *Handlers) promptSessionRaw(
 	for {
 		select {
 		case <-c.Request.Context().Done():
-			h.drainPromptEventsAsync(promptCtx, events, cancelOnReturn)
-			cancelOnReturn = nil
+			cancelDelivery()
 			return
 		case <-h.StreamDoneChannel():
+			cancelDelivery()
 			return
 		case event, ok := <-events:
 			if !ok {
@@ -150,8 +158,7 @@ func (h *Handlers) promptSessionRaw(
 				Name: event.Type,
 				Data: core.AgentEventPayloadFromEvent(event),
 			}); err != nil {
-				h.drainPromptEventsAsync(promptCtx, events, cancelOnReturn)
-				cancelOnReturn = nil
+				cancelDelivery()
 				return
 			}
 		}
@@ -209,59 +216,4 @@ func (h *Handlers) cancelQueuedSessionPrompt(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, contract.SendPromptResultResponse{Prompt: core.PromptResultPayloadFromSession(result)})
-}
-
-func (h *Handlers) drainPromptEventsAsync(
-	ctx context.Context,
-	events <-chan acp.AgentEvent,
-	cancelPrompt context.CancelFunc,
-) {
-	if h == nil || cancelPrompt == nil {
-		return
-	}
-	if ctx == nil {
-		cancelPrompt()
-		return
-	}
-	drainCtx, cancelDrain := context.WithTimeout(ctx, detachedPromptDrainTimeout)
-	h.promptDrainWG.Go(func() {
-		defer cancelDrain()
-		defer cancelPrompt()
-		h.drainPromptEvents(drainCtx, events)
-	})
-}
-
-func (h *Handlers) drainPromptEvents(ctx context.Context, events <-chan acp.AgentEvent) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-h.StreamDoneChannel():
-			return
-		case _, ok := <-events:
-			if !ok {
-				return
-			}
-		}
-	}
-}
-
-func (h *Handlers) waitForPromptDrains(ctx context.Context) error {
-	if h == nil {
-		return nil
-	}
-	if ctx == nil {
-		return errors.New("udsapi: prompt drain wait context is required")
-	}
-	done := make(chan struct{})
-	go func() {
-		h.promptDrainWG.Wait()
-		close(done)
-	}()
-	select {
-	case <-done:
-		return nil
-	case <-ctx.Done():
-		return fmt.Errorf("udsapi: wait for prompt drains: %w", ctx.Err())
-	}
 }

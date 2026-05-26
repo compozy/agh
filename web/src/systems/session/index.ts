@@ -77,6 +77,13 @@ export {
   sessionTranscriptOptions,
   sessionsListOptions,
 } from "./lib/query-options";
+export {
+  hasRunningSession,
+  idleAttachableAgentNames,
+  isSessionRunning,
+  isUserControllableSession,
+  runningAgentNames,
+} from "./lib/session-running";
 
 // Stores
 export { useSessionStore } from "./hooks/use-session-store";

@@ -30,9 +30,10 @@ const (
 
 // PromptOpts carries per-turn metadata through the session prompt pipeline.
 type PromptOpts struct {
-	Message    string
-	TurnSource TurnSource
-	PromptMeta acp.PromptMeta
+	Message         string
+	TurnSource      TurnSource
+	PromptMeta      acp.PromptMeta
+	DeliveryContext context.Context
 }
 
 // NetworkPeerCapability is the runtime-owned capability projection shared with

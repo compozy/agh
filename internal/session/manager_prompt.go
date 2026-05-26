@@ -15,11 +15,12 @@ import (
 )
 
 type promptRequest struct {
-	turnID     string
-	target     string
-	message    string
-	turnSource TurnSource
-	meta       acp.PromptMeta
+	turnID      string
+	target      string
+	message     string
+	turnSource  TurnSource
+	meta        acp.PromptMeta
+	deliveryCtx context.Context
 }
 
 type promptSubmissionPath string
@@ -196,13 +197,25 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 	}
 
 	clearTurnSource = false
-	pumpCtx := m.fallbackLifecycleContext()
-	out := m.startPromptPump(pumpCtx, ctx, session, turnState, source, activity, cancelPromptExecution)
+	lifecycleCtx := m.fallbackLifecycleContext()
+	deliveryCtx := req.deliveryCtx
+	if deliveryCtx == nil {
+		deliveryCtx = ctx
+	}
+	out := m.startPromptPump(
+		lifecycleCtx,
+		deliveryCtx,
+		session,
+		turnState,
+		source,
+		activity,
+		cancelPromptExecution,
+	)
 	return out, nil
 }
 
 func (m *Manager) startPromptPump(
-	promptExecutionCtx context.Context,
+	lifecycleCtx context.Context,
 	callerCtx context.Context,
 	session *Session,
 	turnState *promptTurnDispatchState,
@@ -215,7 +228,7 @@ func (m *Manager) startPromptPump(
 	go func() {
 		defer finishDrain()
 		m.pumpPrompt(
-			promptExecutionCtx,
+			lifecycleCtx,
 			callerCtx,
 			session,
 			turnState,
@@ -272,11 +285,12 @@ func (m *Manager) parsePromptRequest(ctx context.Context, id string, opts Prompt
 	}
 
 	return promptRequest{
-		turnID:     m.newPromptTurnID(),
-		target:     target,
-		message:    message,
-		turnSource: turnSource,
-		meta:       meta,
+		turnID:      m.newPromptTurnID(),
+		target:      target,
+		message:     message,
+		turnSource:  turnSource,
+		meta:        meta,
+		deliveryCtx: opts.DeliveryContext,
 	}, nil
 }
 
@@ -525,7 +539,7 @@ func (m *Manager) RequestPermission(
 }
 
 func (m *Manager) pumpPrompt(
-	ctx context.Context,
+	lifecycleCtx context.Context,
 	deliveryCtx context.Context,
 	session *Session,
 	turnState *promptTurnDispatchState,
@@ -546,8 +560,8 @@ func (m *Manager) pumpPrompt(
 			activity.stop()
 			activity.finish(m.now())
 		}
-		m.finishPromptMessage(ctx, turnState, time.Time{})
-		m.dispatchTurnEnd(ctx, turnState, time.Time{})
+		m.finishPromptMessage(lifecycleCtx, turnState, time.Time{})
+		m.dispatchTurnEnd(lifecycleCtx, turnState, time.Time{})
 		if session != nil {
 			session.clearCurrentTurnID()
 			session.clearCurrentTurnSource()
@@ -561,7 +575,7 @@ func (m *Manager) pumpPrompt(
 		close(out)
 		if session != nil {
 			if fatalPromptFailure != nil {
-				m.stopSessionAfterFatalPromptFailure(ctx, session, fatalPromptFailure, fatalPromptError)
+				m.stopSessionAfterFatalPromptFailure(lifecycleCtx, session, fatalPromptFailure, fatalPromptError)
 			} else {
 				m.startNextQueuedInputPrompt(session.ID)
 				m.startNextQueuedSyntheticPrompt(session.ID)
@@ -571,12 +585,12 @@ func (m *Manager) pumpPrompt(
 
 	loop := promptPumpLoopState{source: source, runtime: runtime, activity: activity}
 	for loop.active() {
-		event, runtimeEvent, ok := nextPromptPumpEvent(ctx, &loop)
+		event, runtimeEvent, ok := nextPromptPumpEvent(lifecycleCtx, &loop)
 		if !ok {
 			return
 		}
 		failure, errorText, stop := m.handlePromptPumpEvent(
-			ctx,
+			lifecycleCtx,
 			deliveryCtx,
 			session,
 			turnState,

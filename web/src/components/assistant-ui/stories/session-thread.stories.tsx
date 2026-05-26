@@ -203,6 +203,8 @@ export const BusyInputControls: Story = {
     sessionId: primarySessionFixture.id,
     agentName: primarySessionFixture.agent_name,
     canPrompt: true,
+    isSessionRunning: true,
+    allowBusyInput: true,
     onCancelPrompt: () => undefined,
     onQueuePrompt: () => undefined,
     onInterruptPrompt: () => undefined,

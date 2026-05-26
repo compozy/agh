@@ -7,6 +7,7 @@ import {
   type TextMessagePartProps,
   ThreadPrimitive,
   type ToolCallMessagePartProps,
+  ReadonlyThreadProvider,
   useAuiState,
 } from "@assistant-ui/react";
 import {
@@ -18,12 +19,21 @@ import {
   Square,
   Trash2,
 } from "lucide-react";
-import { type ComponentPropsWithoutRef, type ReactNode, useCallback, useState } from "react";
+import {
+  type ComponentPropsWithoutRef,
+  type RefObject,
+  type ReactNode,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { cn } from "@/lib/utils";
 import { MessageMarkdown } from "@/systems/session/components/message-markdown";
 import { ThinkingBlock } from "@/systems/session/components/thinking-block";
 import { BackendToolPart } from "@/systems/session/lib/session-toolkit";
+import { useSessionTranscriptThreadMessages } from "@/systems/session/hooks/use-session-transcript-thread-messages";
 import {
   Button,
   Dialog,
@@ -36,6 +46,7 @@ import {
   Spinner,
 } from "@agh/ui";
 import { useSessionComposerState } from "./hooks/use-session-composer-state";
+import { useVirtualizedThreadMessages } from "./hooks/use-virtualized-thread-messages";
 
 type SessionBusyInputHandler = (message: string) => void | Promise<void>;
 
@@ -52,6 +63,8 @@ interface SessionThreadProps {
   onInterruptPrompt?: SessionBusyInputHandler;
   onSteerPrompt?: SessionBusyInputHandler;
   isBusyInputPending?: boolean;
+  isSessionRunning?: boolean;
+  allowBusyInput?: boolean;
   onClearConversation?: () => void;
   canClearConversation?: boolean;
   isClearingConversation?: boolean;
@@ -309,6 +322,8 @@ function SessionComposer({
   onInterruptPrompt,
   onSteerPrompt,
   isBusyInputPending = false,
+  isSessionRunning = false,
+  allowBusyInput = true,
   onClearConversation,
   canClearConversation = false,
   isClearingConversation = false,
@@ -322,6 +337,8 @@ function SessionComposer({
   | "onInterruptPrompt"
   | "onSteerPrompt"
   | "isBusyInputPending"
+  | "isSessionRunning"
+  | "allowBusyInput"
   | "onClearConversation"
   | "canClearConversation"
   | "isClearingConversation"
@@ -329,9 +346,14 @@ function SessionComposer({
   const { clearComposer, composerText, isRunning } = useSessionComposerState(sessionId);
   const [clearDialogOpen, setClearDialogOpen] = useState(false);
   const trimmedComposerText = composerText.trim();
+  const runtimeRunning = isRunning || isSessionRunning;
   const canSubmitBusyInput =
-    isRunning && canPrompt && trimmedComposerText.length > 0 && !isBusyInputPending;
-  const showBusyInputControls = isRunning || isBusyInputPending;
+    runtimeRunning &&
+    canPrompt &&
+    allowBusyInput &&
+    trimmedComposerText.length > 0 &&
+    !isBusyInputPending;
+  const showBusyInputControls = runtimeRunning || isBusyInputPending;
 
   const handleConfirmClear = useCallback(() => {
     setClearDialogOpen(false);
@@ -388,7 +410,7 @@ function SessionComposer({
                     variant="outline"
                     size="sm"
                     onClick={() => setClearDialogOpen(true)}
-                    disabled={!canClearConversation || isRunning || isClearingConversation}
+                    disabled={!canClearConversation || runtimeRunning || isClearingConversation}
                     data-testid="composer-clear-button"
                   >
                     {isClearingConversation ? (
@@ -403,7 +425,7 @@ function SessionComposer({
 
               {showBusyInputControls ? (
                 <div className="flex flex-wrap items-center justify-end gap-2">
-                  {onQueuePrompt ? (
+                  {allowBusyInput && onQueuePrompt ? (
                     <Button
                       type="button"
                       variant="outline"
@@ -416,7 +438,7 @@ function SessionComposer({
                       Queue
                     </Button>
                   ) : null}
-                  {onSteerPrompt ? (
+                  {allowBusyInput && onSteerPrompt ? (
                     <Button
                       type="button"
                       variant="outline"
@@ -429,7 +451,7 @@ function SessionComposer({
                       Steer
                     </Button>
                   ) : null}
-                  {onInterruptPrompt ? (
+                  {allowBusyInput && onInterruptPrompt ? (
                     <Button
                       type="button"
                       variant="destructive"
@@ -442,7 +464,7 @@ function SessionComposer({
                       Interrupt
                     </Button>
                   ) : null}
-                  {isRunning ? (
+                  {runtimeRunning ? (
                     <Button
                       type="button"
                       variant="destructive"
@@ -539,25 +561,117 @@ function ThreadEmpty({ agentName }: Pick<SessionThreadProps, "agentName">) {
 type ThreadViewportProps = ComponentPropsWithoutRef<typeof ThreadPrimitive.Viewport>;
 
 function ThreadViewport({
+  agentName,
   contentInset,
-  children,
   className,
   ...props
 }: ThreadViewportProps & {
+  agentName: string;
   contentInset: SessionThreadContentInset;
-  children: ReactNode;
 }) {
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const transcriptMessages = useSessionTranscriptThreadMessages();
+  const runtimeMessageCount = useAuiState(state => state.thread.messages.length);
+  const readonlyThreadKey = useMemo(
+    () => transcriptMessages.map(message => message.id).join("\n"),
+    [transcriptMessages]
+  );
+  const source = runtimeMessageCount > 0 ? "runtime" : "transcript";
+  const messageCount = runtimeMessageCount > 0 ? runtimeMessageCount : transcriptMessages.length;
+
   return (
     <ThreadPrimitive.Viewport
       {...props}
+      ref={viewportRef}
       className={cn("min-h-0 flex-1 overflow-y-auto", className)}
       data-testid="chat-view"
     >
       <ThreadContentRail inset={contentInset} className="min-h-full">
-        {children}
+        <VirtualizedThreadMessages
+          agentName={agentName}
+          viewportRef={viewportRef}
+          source={source}
+          messageCount={messageCount}
+          transcriptMessages={transcriptMessages}
+          readonlyThreadKey={readonlyThreadKey}
+        />
       </ThreadContentRail>
     </ThreadPrimitive.Viewport>
   );
+}
+
+const SESSION_MESSAGE_COMPONENTS = {
+  UserMessage,
+  AssistantMessage,
+};
+const VIRTUAL_MESSAGE_ESTIMATE = 144;
+type ThreadMessageSource = "runtime" | "transcript";
+
+function VirtualizedThreadMessages({
+  agentName,
+  viewportRef,
+  source,
+  messageCount,
+  transcriptMessages,
+  readonlyThreadKey,
+}: {
+  agentName: string;
+  viewportRef: RefObject<HTMLDivElement | null>;
+  source: ThreadMessageSource;
+  messageCount: number;
+  transcriptMessages: ReturnType<typeof useSessionTranscriptThreadMessages>;
+  readonlyThreadKey: string;
+}) {
+  const { virtualizer } = useVirtualizedThreadMessages(viewportRef, messageCount);
+
+  if (messageCount === 0) {
+    return <ThreadEmpty agentName={agentName} />;
+  }
+
+  const virtualItems = virtualizer.getVirtualItems();
+  const visibleItems =
+    virtualItems.length > 0
+      ? virtualItems
+      : Array.from({ length: Math.min(messageCount, 12) }, (_, index) => ({
+          index,
+          key: index,
+          start: index * VIRTUAL_MESSAGE_ESTIMATE,
+        }));
+  const totalSize = Math.max(virtualizer.getTotalSize(), messageCount * VIRTUAL_MESSAGE_ESTIMATE);
+
+  const rows = (
+    <div
+      className="relative w-full"
+      data-testid="virtualized-thread-messages"
+      style={{ height: totalSize }}
+    >
+      {visibleItems.map(item => (
+        <div
+          key={source + "-" + item.key}
+          ref={virtualizer.measureElement}
+          data-index={item.index}
+          data-testid="virtualized-thread-row"
+          className="absolute top-0 left-0 w-full"
+          style={{ transform: `translateY(${item.start}px)` }}
+        >
+          <ThreadPrimitive.MessageByIndex
+            index={item.index}
+            components={SESSION_MESSAGE_COMPONENTS}
+          />
+        </div>
+      ))}
+    </div>
+  );
+
+  if (source === "transcript") {
+    return (
+      <ReadonlyThreadProvider key={readonlyThreadKey} messages={transcriptMessages}>
+        {rows}
+      </ReadonlyThreadProvider>
+    );
+  }
+
+  return rows;
 }
 
 export function SessionThread({
@@ -569,6 +683,8 @@ export function SessionThread({
   onInterruptPrompt,
   onSteerPrompt,
   isBusyInputPending = false,
+  isSessionRunning = false,
+  allowBusyInput = true,
   onClearConversation,
   canClearConversation = false,
   isClearingConversation = false,
@@ -576,17 +692,7 @@ export function SessionThread({
 }: SessionThreadProps) {
   return (
     <ThreadPrimitive.Root className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <ThreadViewport contentInset={contentInset}>
-        <ThreadPrimitive.Empty>
-          <ThreadEmpty agentName={agentName} />
-        </ThreadPrimitive.Empty>
-        <ThreadPrimitive.Messages
-          components={{
-            UserMessage,
-            AssistantMessage,
-          }}
-        />
-      </ThreadViewport>
+      <ThreadViewport agentName={agentName} contentInset={contentInset} />
       <SessionComposer
         sessionId={sessionId}
         contentInset={contentInset}
@@ -596,6 +702,8 @@ export function SessionThread({
         onInterruptPrompt={onInterruptPrompt}
         onSteerPrompt={onSteerPrompt}
         isBusyInputPending={isBusyInputPending}
+        isSessionRunning={isSessionRunning}
+        allowBusyInput={allowBusyInput}
         onClearConversation={onClearConversation}
         canClearConversation={canClearConversation}
         isClearingConversation={isClearingConversation}

@@ -28,6 +28,10 @@ Session types include user sessions and daemon-managed sessions such as dream, s
 
 Attachability is explicit runtime state. Use `agh session list --resumable -o json` and `agh session resume` instead of assuming a stopped or idle session can be reused.
 
+After prompt admission, the daemon owns the turn lifetime. Closing a browser tab, navigating away from the web app, dropping an SSE stream, or disconnecting a CLI/UDS response only detaches that viewer; it does not cancel the accepted prompt. Use explicit runtime intent such as `agh session stop`, prompt cancel, or interrupt controls when cancellation is required.
+
+The event store and transcript are the durable source of truth for reattach. When reconnecting to an existing session, read `agh session history <session-id>` or the transcript API first, then follow session events from the latest cursor. Do not reconstruct session state from UI cache, memory notes, or JSONL sidecars.
+
 ## Session CLI
 
 Use structured output when agents need to inspect or route results.

@@ -61,6 +61,14 @@ vi.mock("sonner", () => ({
 
 vi.mock("@/systems/session", () => ({
   cancelSessionPrompt: routeHookMocks.cancelSessionPrompt,
+  isSessionRunning: (session: {
+    state?: string;
+    badge?: string;
+    activity?: { turn_id?: string };
+  }) =>
+    session.state !== "stopped" &&
+    (Boolean(session.activity?.turn_id) || session.badge === "running"),
+  isUserControllableSession: (session: { type?: string }) => (session.type ?? "user") === "user",
   useClearSessionConversation: () => routeHookMocks.clearMutation,
   useDeleteSession: () => routeHookMocks.deleteMutation,
   useInterruptSessionPrompt: () => routeHookMocks.interruptPromptMutation,
@@ -71,15 +79,32 @@ vi.mock("@/systems/session", () => ({
 }));
 
 import { useSessionPageControls } from "../use-session-page-controls";
+import type { SessionPayload } from "@/systems/session";
 
 const WORKSPACE_ID = "ws_alpha";
 
+function makeSession(state: SessionPayload["state"]): SessionPayload {
+  return {
+    id: "sess-1",
+    agent_name: "codex-agent",
+    provider: "codex",
+    workspace_id: WORKSPACE_ID,
+    workspace_path: "/workspace",
+    state,
+    badge: state === "stopped" ? "stopped" : "idle",
+    attachable: state !== "stopped",
+    type: "user",
+    created_at: "2026-04-17T10:00:00Z",
+    updated_at: "2026-04-17T10:00:00Z",
+  };
+}
+
 function renderControls(
-  state: Parameters<typeof useSessionPageControls>[1],
+  state: SessionPayload["state"],
   options: Parameters<typeof useSessionPageControls>[2] = {}
 ) {
   return renderHook(() =>
-    useSessionPageControls("sess-1", state, { workspaceId: WORKSPACE_ID, ...options })
+    useSessionPageControls("sess-1", makeSession(state), { workspaceId: WORKSPACE_ID, ...options })
   );
 }
 

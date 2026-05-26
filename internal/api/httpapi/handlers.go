@@ -4,7 +4,6 @@ import (
 	"io/fs"
 	"log/slog"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/compozy/agh/internal/api/core"
@@ -73,11 +72,10 @@ type handlerConfig struct {
 // Handlers expose request/response and SSE endpoints for the AGH API.
 type Handlers struct {
 	*core.BaseHandlers
-	staticFS      fs.FS
-	resourceAuth  []gin.HandlerFunc
-	Extensions    ExtensionService
-	boundHost     string
-	promptDrainWG sync.WaitGroup
+	staticFS     fs.FS
+	resourceAuth []gin.HandlerFunc
+	Extensions   ExtensionService
+	boundHost    string
 }
 
 func newHandlers(cfg *handlerConfig) *Handlers {

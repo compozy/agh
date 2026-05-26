@@ -11,6 +11,38 @@ import (
 	"github.com/compozy/agh/internal/api/core"
 )
 
+func TestPromptStreamEncoderStart(t *testing.T) {
+	t.Run("ShouldEmitAcceptedTurnIDImmediately", func(t *testing.T) {
+		t.Parallel()
+
+		writer := &bufferFlusher{}
+		encoder := core.NewPromptStreamEncoder(func() time.Time {
+			return time.Date(2026, 5, 26, 9, 0, 0, 0, time.UTC)
+		})
+
+		if err := encoder.Start(writer, " turn-accepted "); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		wantStart := "data: {\"type\":\"start\",\"messageId\":\"turn-accepted\"}\n\n"
+		if body := writer.String(); !strings.HasPrefix(body, wantStart) {
+			t.Fatalf("start frame = %q, want accepted turn id", body)
+		}
+	})
+
+	t.Run("ShouldRejectEmptyAcceptedTurnID", func(t *testing.T) {
+		t.Parallel()
+
+		writer := &bufferFlusher{}
+		encoder := core.NewPromptStreamEncoder(nil)
+		if err := encoder.Start(writer, "   "); err == nil {
+			t.Fatal("Start(empty) error = nil, want non-nil")
+		}
+		if body := writer.String(); body != "" {
+			t.Fatalf("writer body = %q, want empty", body)
+		}
+	})
+}
+
 func TestPromptStreamEncoderPermissionDataPartIdentity(t *testing.T) {
 	t.Run("ShouldReuseRequestIDForPendingAndFinalPermissionParts", func(t *testing.T) {
 		t.Parallel()

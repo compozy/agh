@@ -15,6 +15,83 @@ import (
 )
 
 func TestPromptCallerCancellationContract(t *testing.T) {
+	t.Run("Should keep accepted prompt execution after delivery context cancellation", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		driver := &promptContextCapturingDriver{fakeDriver: h.driver}
+		h.manager = newManagerWithHarness(t, h, WithDriver(driver))
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil &&
+				!errors.Is(err, ErrSessionNotFound) {
+				t.Errorf("Stop(%q) cleanup error = %v", session.ID, err)
+			}
+		})
+
+		source := make(chan acp.AgentEvent, 2)
+		var turnID string
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			turnID = req.TurnID
+			return source, nil
+		}
+
+		deliveryCtx, cancelDelivery := context.WithCancel(testutil.Context(t))
+		result, err := h.manager.SendPrompt(testutil.Context(t), session.ID, SendPromptOpts{
+			Message:         "hello",
+			DeliveryContext: deliveryCtx,
+		})
+		if err != nil {
+			t.Fatalf("SendPrompt() error = %v", err)
+		}
+		if result.Events == nil {
+			t.Fatal("SendPrompt().Events = nil, want accepted stream")
+		}
+		providerCtx := driver.lastPromptContext(t)
+		waitForCondition(t, "session prompting", func() bool {
+			return session.IsPrompting()
+		})
+
+		cancelDelivery()
+		if !errors.Is(deliveryCtx.Err(), context.Canceled) {
+			t.Fatalf("delivery context err = %v, want context.Canceled", deliveryCtx.Err())
+		}
+		select {
+		case <-providerCtx.Done():
+			t.Fatalf("provider context canceled with delivery context: %v", providerCtx.Err())
+		default:
+		}
+
+		source <- acp.AgentEvent{
+			Type:      acp.EventTypeAgentMessage,
+			SessionID: session.Info().ACPSessionID,
+			TurnID:    turnID,
+			Timestamp: time.Date(2026, 5, 17, 17, 0, 0, 0, time.UTC),
+			Text:      "still running after detach",
+		}
+		source <- acp.AgentEvent{
+			Type:      acp.EventTypeDone,
+			SessionID: session.Info().ACPSessionID,
+			TurnID:    turnID,
+			Timestamp: time.Date(2026, 5, 17, 17, 0, 1, 0, time.UTC),
+		}
+		close(source)
+
+		waitForCondition(t, "terminal persistence after delivery cancellation", func() bool {
+			events, queryErr := session.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
+			return queryErr == nil &&
+				countEventType(events, acp.EventTypeUserMessage) == 1 &&
+				countEventType(events, acp.EventTypeAgentMessage) == 1 &&
+				countEventType(events, acp.EventTypeDone) == 1
+		})
+		waitForCondition(t, "prompt state cleared after provider completion", func() bool {
+			return !session.IsPrompting()
+		})
+		if events := collectEvents(t, result.Events); len(events) != 0 {
+			t.Fatalf("delivered events after delivery cancellation = %d, want 0", len(events))
+		}
+	})
+
 	t.Run("Should keep accepted prompt execution after caller context cancellation", func(t *testing.T) {
 		t.Parallel()
 

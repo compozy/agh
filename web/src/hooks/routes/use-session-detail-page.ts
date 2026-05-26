@@ -33,7 +33,7 @@ export function useSessionDetailPage({
   session,
   onDeleteSuccess,
 }: UseSessionDetailPageInput): UseSessionDetailPageResult {
-  const controls = useSessionPageControls(sessionId, session.state, {
+  const controls = useSessionPageControls(sessionId, session, {
     onDeleteSuccess,
     workspaceId: session.workspace_id,
   });

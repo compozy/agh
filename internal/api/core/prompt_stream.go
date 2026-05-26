@@ -2,6 +2,7 @@ package core
 
 import (
 	"encoding/json"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -168,6 +169,24 @@ func (e *PromptStreamEncoder) Emit(writer FlushWriter, event acp.AgentEvent) err
 	default:
 		return e.emitGenericEvent(writer, event)
 	}
+}
+
+// Start emits the public prompt stream start frame as soon as the daemon has
+// accepted a durable turn. Later event frames reuse the same message id.
+func (e *PromptStreamEncoder) Start(writer FlushWriter, messageID string) error {
+	e.ensureInitialized()
+	messageID = strings.TrimSpace(messageID)
+	if messageID == "" {
+		return errors.New("prompt stream start requires message id")
+	}
+	if e.messageStarted {
+		return nil
+	}
+	e.messageID = messageID
+	e.messageStarted = true
+	return WriteSSE(writer, SSEMessage{
+		Data: promptStartPayload{Type: "start", MessageID: e.messageID},
+	})
 }
 
 // Finish closes any open blocks and emits the terminal finish frame followed by

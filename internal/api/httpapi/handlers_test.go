@@ -1399,7 +1399,7 @@ func TestStopSessionHandlerReturnsStopped(t *testing.T) {
 func TestPromptSessionHandlerReturnsAISDKSSEStream(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{
-		PromptFn: func(context.Context, string, string) (<-chan acp.AgentEvent, error) {
+		SendPromptFn: func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error) {
 			ch := make(chan acp.AgentEvent, 4)
 			ch <- acp.AgentEvent{
 				Type:      "agent_message",
@@ -1427,7 +1427,7 @@ func TestPromptSessionHandlerReturnsAISDKSSEStream(t *testing.T) {
 				StopReason: "end_turn",
 			}
 			close(ch)
-			return ch, nil
+			return session.SendPromptResult{Status: "accepted", Events: ch, NewTurnID: "turn-1"}, nil
 		},
 	}
 	handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
@@ -1515,13 +1515,47 @@ func TestPromptSessionHandlerReturnsAISDKSSEStream(t *testing.T) {
 	}
 }
 
+func TestPromptSessionHandlerRequiresAcceptedTurnIDForAISDKStream(t *testing.T) {
+	t.Run("ShouldRejectAcceptedStreamWithoutDurableTurnID", func(t *testing.T) {
+		homePaths := newTestHomePaths(t)
+		manager := stubSessionManager{
+			SendPromptFn: func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error) {
+				ch := make(chan acp.AgentEvent)
+				close(ch)
+				return session.SendPromptResult{Status: "accepted", Events: ch}, nil
+			},
+		}
+		handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
+		engine := newTestRouter(t, handlers)
+
+		recorder := performRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/workspaces/ws-workspace/sessions/sess-123/prompt",
+			[]byte("{\"message\":\"hello\"}"),
+		)
+		if recorder.Code != http.StatusInternalServerError {
+			t.Fatalf(
+				"status = %d, want %d; body=%s",
+				recorder.Code,
+				http.StatusInternalServerError,
+				recorder.Body.String(),
+			)
+		}
+		if body := recorder.Body.String(); !strings.Contains(body, "Internal Server Error") {
+			t.Fatalf("body = %q, want internal server error", body)
+		}
+	})
+}
+
 func TestPromptSessionHandlerPreservesToolInputAfterOutOfOrderToolResult(t *testing.T) {
 	t.Parallel()
 
 	t.Run("ShouldEmitRealToolInputAfterAForcedPlaceholder", func(t *testing.T) {
 		homePaths := newTestHomePaths(t)
 		manager := stubSessionManager{
-			PromptFn: func(context.Context, string, string) (<-chan acp.AgentEvent, error) {
+			SendPromptFn: func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error) {
 				ch := make(chan acp.AgentEvent, 3)
 				ch <- acp.AgentEvent{
 					Type:       "tool_result",
@@ -1548,7 +1582,7 @@ func TestPromptSessionHandlerPreservesToolInputAfterOutOfOrderToolResult(t *test
 					StopReason: "end_turn",
 				}
 				close(ch)
-				return ch, nil
+				return session.SendPromptResult{Status: "accepted", Events: ch, NewTurnID: "turn-1"}, nil
 			},
 		}
 		handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
@@ -1670,15 +1704,17 @@ func TestPromptSessionHandlerReturnsBusyInputDecision(t *testing.T) {
 	})
 }
 
-func TestPromptSessionHandlerDrainsPromptAfterRequestCancellation(t *testing.T) {
-	t.Run("ShouldKeepPromptAliveUntilDetachedDrainFinishes", func(t *testing.T) {
+func TestPromptSessionHandlerSeparatesPromptExecutionFromDelivery(t *testing.T) {
+	t.Run("ShouldCancelDeliveryOnlyAfterRequestCancellation", func(t *testing.T) {
 		homePaths := newTestHomePaths(t)
-		promptCtxCh := make(chan context.Context, 1)
+		executionCtxCh := make(chan context.Context, 1)
+		deliveryCtxCh := make(chan context.Context, 1)
 		events := make(chan acp.AgentEvent)
 		manager := stubSessionManager{
-			PromptFn: func(ctx context.Context, _ string, _ string) (<-chan acp.AgentEvent, error) {
-				promptCtxCh <- ctx
-				return events, nil
+			SendPromptFn: func(ctx context.Context, _ string, opts session.SendPromptOpts) (session.SendPromptResult, error) {
+				executionCtxCh <- ctx
+				deliveryCtxCh <- opts.DeliveryContext
+				return session.SendPromptResult{Status: "accepted", Events: events, NewTurnID: "turn-accepted"}, nil
 			},
 		}
 		handlers := newTestHandlers(t, manager, stubObserver{}, homePaths)
@@ -1700,11 +1736,17 @@ func TestPromptSessionHandlerDrainsPromptAfterRequestCancellation(t *testing.T) 
 			close(done)
 		}()
 
-		var promptCtx context.Context
+		var executionCtx context.Context
 		select {
-		case promptCtx = <-promptCtxCh:
+		case executionCtx = <-executionCtxCh:
 		case <-time.After(time.Second):
-			t.Fatal("Prompt() was not invoked")
+			t.Fatal("SendPrompt() was not invoked")
+		}
+		var deliveryCtx context.Context
+		select {
+		case deliveryCtx = <-deliveryCtxCh:
+		case <-time.After(time.Second):
+			t.Fatal("SendPrompt() did not receive a delivery context")
 		}
 
 		cancel()
@@ -1715,26 +1757,16 @@ func TestPromptSessionHandlerDrainsPromptAfterRequestCancellation(t *testing.T) 
 			t.Fatal("handler did not return after request cancellation")
 		}
 
-		select {
-		case <-promptCtx.Done():
-			t.Fatal("prompt context was canceled before detached drain completed")
-		default:
+		if err := executionCtx.Err(); err != nil {
+			t.Fatalf("execution context err = %v, want nil after request cancellation", err)
 		}
-
+		if !errors.Is(deliveryCtx.Err(), context.Canceled) {
+			t.Fatalf("delivery context err = %v, want context.Canceled", deliveryCtx.Err())
+		}
+		if body := recorder.Body.String(); !strings.Contains(body, `"type":"start","messageId":"turn-accepted"`) {
+			t.Fatalf("response body = %q, want early start frame with accepted turn id", body)
+		}
 		close(events)
-		waitCtx, waitCancel := context.WithTimeout(context.Background(), time.Second)
-		defer waitCancel()
-		if err := handlers.waitForPromptDrains(waitCtx); err != nil {
-			t.Fatalf("waitForPromptDrains() error = %v", err)
-		}
-		select {
-		case <-promptCtx.Done():
-		default:
-			t.Fatal("prompt context was not canceled after detached drain completed")
-		}
-		if !errors.Is(promptCtx.Err(), context.Canceled) {
-			t.Fatalf("prompt context err = %v, want context.Canceled after drain", promptCtx.Err())
-		}
 	})
 }
 

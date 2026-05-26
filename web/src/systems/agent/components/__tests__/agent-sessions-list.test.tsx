@@ -135,4 +135,133 @@ describe("AgentSessionsList", () => {
       within(screen.getByTestId("agent-session-row-sess_zero_duration")).getByText("0s")
     ).toBeInTheDocument();
   });
+
+  it("shows a running status spinner from daemon activity truth", () => {
+    render(
+      <AgentSessionsList
+        agentName="codex-agent"
+        sessions={[
+          makeSession({
+            id: "sess_user_running",
+            type: "user",
+            state: "active",
+            badge: "idle",
+            activity: {
+              turn_id: "turn_001",
+              elapsed_ms: 4_000,
+              elapsed_seconds: 4,
+              idle_seconds: 0,
+              iteration_current: 1,
+              iteration_max: 4,
+            },
+          }),
+          makeSession({ id: "sess_spawned_running", type: "spawned", badge: "running" }),
+          makeSession({ id: "sess_system_running", type: "system", badge: "running" }),
+          makeSession({ id: "sess_coordinator_running", type: "coordinator", badge: "running" }),
+        ]}
+        isLoading={false}
+        isError={false}
+      />
+    );
+
+    const status = screen.getByTestId("agent-session-status-sess_user_running");
+    expect(status).toHaveTextContent("RUNNING");
+    expect(screen.getByTestId("agent-session-status-sess_spawned_running")).toHaveTextContent(
+      "RUNNING"
+    );
+    expect(screen.getByTestId("agent-session-status-sess_system_running")).toHaveTextContent(
+      "RUNNING"
+    );
+    expect(screen.getByTestId("agent-session-status-sess_coordinator_running")).toHaveTextContent(
+      "RUNNING"
+    );
+  });
+
+  it("does not show the running spinner for idle active or stopped sessions", () => {
+    render(
+      <AgentSessionsList
+        agentName="codex-agent"
+        sessions={[
+          makeSession({ id: "sess_idle", state: "active", badge: "idle", attachable: true }),
+          makeSession({ id: "sess_stopped", state: "stopped", badge: "stopped" }),
+        ]}
+        isLoading={false}
+        isError={false}
+      />
+    );
+
+    expect(screen.getByTestId("agent-session-status-sess_idle")).toHaveTextContent("ACTIVE");
+    expect(screen.getByTestId("agent-session-status-sess_idle")).not.toHaveAttribute("aria-label");
+    expect(screen.getByTestId("agent-session-status-sess_stopped")).toHaveTextContent("DONE");
+    expect(screen.getByTestId("agent-session-status-sess_stopped")).not.toHaveAttribute(
+      "aria-label"
+    );
+  });
+
+  it("surfaces unhealthy daemon badges without treating them as running", () => {
+    render(
+      <AgentSessionsList
+        agentName="codex-agent"
+        sessions={[
+          makeSession({ id: "sess_hung", state: "active", badge: "hung" }),
+          makeSession({ id: "sess_unhealthy", state: "active", badge: "unhealthy" }),
+        ]}
+        isLoading={false}
+        isError={false}
+      />
+    );
+
+    expect(screen.getByTestId("agent-session-status-sess_hung")).toHaveTextContent("HUNG");
+    expect(screen.getByTestId("agent-session-status-sess_hung")).not.toHaveTextContent("RUNNING");
+    expect(screen.getByTestId("agent-session-status-sess_unhealthy")).toHaveTextContent(
+      "UNHEALTHY"
+    );
+    expect(screen.getByTestId("agent-session-status-sess_unhealthy")).not.toHaveTextContent(
+      "RUNNING"
+    );
+  });
+
+  it("does not mask hung or unhealthy sessions with stale activity", () => {
+    const staleActivity = {
+      turn_id: "turn_stale",
+      elapsed_ms: 20_000,
+      elapsed_seconds: 20,
+      idle_seconds: 0,
+      iteration_current: 2,
+      iteration_max: 4,
+    };
+
+    render(
+      <AgentSessionsList
+        agentName="codex-agent"
+        sessions={[
+          makeSession({
+            id: "sess_hung_activity",
+            state: "active",
+            badge: "hung",
+            activity: staleActivity,
+          }),
+          makeSession({
+            id: "sess_unhealthy_activity",
+            state: "active",
+            badge: "unhealthy",
+            activity: staleActivity,
+          }),
+        ]}
+        isLoading={false}
+        isError={false}
+      />
+    );
+
+    expect(screen.getByTestId("agent-session-status-sess_hung_activity")).toHaveTextContent("HUNG");
+    expect(screen.getByTestId("agent-session-status-sess_hung_activity")).not.toHaveTextContent(
+      "RUNNING"
+    );
+    expect(screen.getByTestId("agent-session-status-sess_unhealthy_activity")).toHaveTextContent(
+      "UNHEALTHY"
+    );
+    expect(
+      screen.getByTestId("agent-session-status-sess_unhealthy_activity")
+    ).not.toHaveTextContent("RUNNING");
+  });
 });

@@ -726,7 +726,6 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	serveDone := s.serveDone
 	streamCancel := s.streamCancel
 	serveErr := s.serveErr
-	handlers := s.handlers
 	s.httpServer = nil
 	s.listener = nil
 	s.serveDone = nil
@@ -752,11 +751,6 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	}
 	if serveDone != nil {
 		if err := waitForServeDone(ctx, serveDone); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	if handlers != nil {
-		if err := handlers.waitForPromptDrains(ctx); err != nil {
 			errs = append(errs, err)
 		}
 	}

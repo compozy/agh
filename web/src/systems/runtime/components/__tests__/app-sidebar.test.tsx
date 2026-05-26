@@ -291,7 +291,7 @@ describe("AppSidebar", () => {
       expect(screen.queryByTestId("session-row-s1")).not.toBeInTheDocument();
     });
 
-    it("Should show a status dot only on agents with at least one active session", () => {
+    it("Should show a static status dot only on agents with at least one idle attachable session", () => {
       renderSidebar(
         makeProps({
           agents: [
@@ -330,7 +330,44 @@ describe("AppSidebar", () => {
       );
 
       expect(screen.getByTestId("agent-status-dot-coder")).toBeInTheDocument();
+      expect(screen.queryByTestId("agent-running-spinner-coder")).not.toBeInTheDocument();
       expect(screen.queryByTestId("agent-status-dot-writer")).not.toBeInTheDocument();
+    });
+
+    it("Should show a spinner on agents with at least one running session", () => {
+      renderSidebar(
+        makeProps({
+          agents: [{ name: "coder", provider: "claude", prompt: "code" }],
+          sessions: [
+            {
+              id: "s_running",
+              name: "Running",
+              agent_name: "coder",
+              provider: "claude",
+              workspace_id: "ws_alpha",
+              workspace_path: "/workspace/alpha",
+              state: "active",
+              badge: "idle",
+              attachable: true,
+              activity: {
+                turn_id: "turn_001",
+                elapsed_ms: 1_000,
+                elapsed_seconds: 1,
+                idle_seconds: 0,
+                iteration_current: 1,
+                iteration_max: 4,
+              },
+              updated_at: "2026-04-06T10:00:00Z",
+              created_at: "2026-04-06T10:00:00Z",
+            },
+          ],
+        })
+      );
+
+      expect(screen.getByTestId("agent-running-spinner-coder")).toHaveAccessibleName(
+        "coder has a running session"
+      );
+      expect(screen.queryByTestId("agent-status-dot-coder")).not.toBeInTheDocument();
     });
 
     it("Should highlight the agent row whose route is active (fuzzy: covers nested session route)", () => {
@@ -398,7 +435,7 @@ describe("AppSidebar", () => {
               workspace_id: "ws_alpha",
               workspace_path: "/workspace/alpha",
               state: "active",
-              badge: "idle",
+              badge: "running",
               attachable: true,
               updated_at: "2026-04-06T10:00:00Z",
               created_at: "2026-04-06T10:00:00Z",
@@ -415,7 +452,7 @@ describe("AppSidebar", () => {
       expect(dealsRow).toHaveAttribute("href", "/agents/deals");
       expect(dealsRow).toHaveAttribute("data-active", "true");
       expect(screen.getByTestId("agent-active-deals")).toBeInTheDocument();
-      expect(screen.getByTestId("agent-status-dot-deals")).toBeInTheDocument();
+      expect(screen.getByTestId("agent-running-spinner-deals")).toBeInTheDocument();
 
       expect(screen.getByTestId("agent-row-writer")).toHaveAttribute("href", "/agents/writer");
 
@@ -452,7 +489,7 @@ describe("AppSidebar", () => {
               workspace_id: "ws_alpha",
               workspace_path: "/workspace/alpha",
               state: "active",
-              badge: "idle",
+              badge: "running",
               attachable: true,
               updated_at: "2026-04-06T10:00:00Z",
               created_at: "2026-04-06T10:00:00Z",
@@ -463,7 +500,7 @@ describe("AppSidebar", () => {
       expect(screen.getByTestId("agents-live-count")).toHaveTextContent("1/3 live");
     });
 
-    it("Should render 2/2 when every agent has an active session", () => {
+    it("Should render 2/2 when every agent has a running session", () => {
       renderSidebar(
         makeProps({
           agents: [
@@ -479,7 +516,7 @@ describe("AppSidebar", () => {
               workspace_id: "ws_alpha",
               workspace_path: "/workspace/alpha",
               state: "active",
-              badge: "idle",
+              badge: "running",
               attachable: true,
               updated_at: "2026-04-06T10:00:00Z",
               created_at: "2026-04-06T10:00:00Z",
@@ -492,7 +529,7 @@ describe("AppSidebar", () => {
               workspace_id: "ws_alpha",
               workspace_path: "/workspace/alpha",
               state: "active",
-              badge: "idle",
+              badge: "running",
               attachable: true,
               updated_at: "2026-04-06T10:00:00Z",
               created_at: "2026-04-06T10:00:00Z",
@@ -501,6 +538,31 @@ describe("AppSidebar", () => {
         })
       );
       expect(screen.getByTestId("agents-live-count")).toHaveTextContent("2/2 live");
+    });
+
+    it("Should not count idle attachable sessions as live", () => {
+      renderSidebar(
+        makeProps({
+          agents: [{ name: "coder", provider: "claude", prompt: "code" }],
+          sessions: [
+            {
+              id: "s_idle",
+              name: "Idle coder",
+              agent_name: "coder",
+              provider: "claude",
+              workspace_id: "ws_alpha",
+              workspace_path: "/workspace/alpha",
+              state: "active",
+              badge: "idle",
+              attachable: true,
+              updated_at: "2026-04-06T10:00:00Z",
+              created_at: "2026-04-06T10:00:00Z",
+            },
+          ],
+        })
+      );
+
+      expect(screen.getByTestId("agents-live-count")).toHaveTextContent("0/1 live");
     });
 
     it("Should not render the count chip when there are no agents", () => {
@@ -711,7 +773,7 @@ describe("AppSidebar", () => {
               workspace_id: "ws_alpha",
               workspace_path: "/workspace/alpha",
               state: "active",
-              badge: "idle",
+              badge: "running",
               attachable: true,
               updated_at: "2026-04-06T10:00:00Z",
               created_at: "2026-04-06T10:00:00Z",
@@ -724,7 +786,7 @@ describe("AppSidebar", () => {
               workspace_id: "ws_alpha",
               workspace_path: "/workspace/alpha",
               state: "active",
-              badge: "idle",
+              badge: "running",
               attachable: true,
               updated_at: "2026-04-06T10:00:00Z",
               created_at: "2026-04-06T10:00:00Z",
@@ -780,7 +842,7 @@ describe("computeAgentsCount", () => {
     expect(computeAgentsCount(undefined, undefined)).toEqual({ live: 0, total: 0 });
   });
 
-  it("Should only count agents whose name has at least one active session", () => {
+  it("Should only count agents whose name has at least one running session", () => {
     const result = computeAgentsCount(
       [
         { name: "alpha", provider: "claude", prompt: "" },
@@ -796,7 +858,7 @@ describe("computeAgentsCount", () => {
           workspace_id: "ws",
           workspace_path: "/",
           state: "active",
-          badge: "idle",
+          badge: "running",
           attachable: true,
           updated_at: "2026-04-06T10:00:00Z",
           created_at: "2026-04-06T10:00:00Z",
@@ -819,7 +881,7 @@ describe("computeAgentsCount", () => {
     expect(result).toEqual({ live: 1, total: 3 });
   });
 
-  it("Should de-duplicate by agent name when an agent has multiple active sessions", () => {
+  it("Should de-duplicate by agent name when an agent has multiple running sessions", () => {
     const result = computeAgentsCount(
       [{ name: "alpha", provider: "claude", prompt: "" }],
       [
@@ -844,7 +906,7 @@ describe("computeAgentsCount", () => {
           workspace_id: "ws",
           workspace_path: "/",
           state: "active",
-          badge: "idle",
+          badge: "running",
           attachable: true,
           updated_at: "2026-04-06T10:00:00Z",
           created_at: "2026-04-06T10:00:00Z",
@@ -866,7 +928,7 @@ describe("computeAgentsCount", () => {
           workspace_id: "ws",
           workspace_path: "/",
           state: "active",
-          badge: "idle",
+          badge: "running",
           attachable: true,
           updated_at: "2026-04-06T10:00:00Z",
           created_at: "2026-04-06T10:00:00Z",
