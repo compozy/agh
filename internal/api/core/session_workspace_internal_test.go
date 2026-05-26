@@ -154,6 +154,9 @@ func TestSessionWorkspaceStatusMappings(t *testing.T) {
 	); got != http.StatusServiceUnavailable {
 		t.Fatalf("statusForWorkspaceError(resolver unavailable) = %d, want %d", got, http.StatusServiceUnavailable)
 	}
+	if got := statusForWorkspaceError(context.Canceled); got != statusClientClosedRequest {
+		t.Fatalf("statusForWorkspaceError(context canceled) = %d, want %d", got, statusClientClosedRequest)
+	}
 	if got := statusForWorkspaceError(errors.New("boom")); got != http.StatusInternalServerError {
 		t.Fatalf("statusForWorkspaceError(default) = %d, want %d", got, http.StatusInternalServerError)
 	}
@@ -178,6 +181,9 @@ func TestSessionWorkspaceStatusMappings(t *testing.T) {
 	}
 	if got := statusForSessionError(session.ErrPendingPermissionConflict); got != http.StatusConflict {
 		t.Fatalf("statusForSessionError(conflict) = %d, want %d", got, http.StatusConflict)
+	}
+	if got := statusForSessionError(context.Canceled); got != statusClientClosedRequest {
+		t.Fatalf("statusForSessionError(context canceled) = %d, want %d", got, statusClientClosedRequest)
 	}
 	if got := statusForSessionError(errors.New("boom")); got != http.StatusInternalServerError {
 		t.Fatalf("statusForSessionError(default) = %d, want %d", got, http.StatusInternalServerError)

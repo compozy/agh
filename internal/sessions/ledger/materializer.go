@@ -119,6 +119,29 @@ func (m *Materializer) MaterializeSessionLedger(ctx context.Context, record stor
 	return err
 }
 
+// DiscardSessionLedger removes a deterministic materialized ledger if one
+// exists for the session. Clear Conversation uses this before replacing the
+// event store for the same session id.
+func (m *Materializer) DiscardSessionLedger(ctx context.Context, record store.SessionLedgerRecord) error {
+	if ctx == nil {
+		return errors.New("sessions/ledger: discard context is required")
+	}
+	if m == nil {
+		return errors.New("sessions/ledger: materializer is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("sessions/ledger: discard canceled: %w", err)
+	}
+	path, err := m.Path(record)
+	if err != nil {
+		return err
+	}
+	if err := fileutil.AtomicRemoveFile(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("sessions/ledger: discard ledger %q: %w", path, err)
+	}
+	return nil
+}
+
 // Materialize writes ledger.jsonl from existing durable session evidence.
 func (m *Materializer) Materialize(ctx context.Context, record store.SessionLedgerRecord) (result Result, err error) {
 	if ctx == nil {

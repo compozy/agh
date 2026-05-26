@@ -40,6 +40,7 @@ type sessionStartSpec struct {
 	cleanupSessionDir      bool
 	includePromptUpdatedAt bool
 	preserveStopReason     bool
+	clearEventStoreOnOpen  bool
 	createdAt              time.Time
 	acpSessionID           string
 	stopReason             store.StopReason
@@ -447,6 +448,13 @@ func (m *Manager) openSessionStartStorage(
 	if err != nil {
 		return sessionStartStorage{}, fmt.Errorf("session: open session store %q: %w", dbPath, err)
 	}
+	if spec.clearEventStoreOnOpen {
+		if err := clearSessionStartRecorder(ctx, recorder, dbPath); err != nil {
+			closeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
+			defer cancel()
+			return sessionStartStorage{}, errors.Join(err, recorder.Close(closeCtx))
+		}
+	}
 
 	return sessionStartStorage{
 		sessionDir: sessionDir,
@@ -454,6 +462,21 @@ func (m *Manager) openSessionStartStorage(
 		dbPath:     dbPath,
 		recorder:   recorder,
 	}, nil
+}
+
+type clearableEventRecorder interface {
+	Clear(context.Context) error
+}
+
+func clearSessionStartRecorder(ctx context.Context, recorder EventRecorder, dbPath string) error {
+	clearable, ok := recorder.(clearableEventRecorder)
+	if !ok {
+		return fmt.Errorf("session: event store %q does not support reset", dbPath)
+	}
+	if err := clearable.Clear(ctx); err != nil {
+		return fmt.Errorf("session: reset event store %q: %w", dbPath, err)
+	}
+	return nil
 }
 
 func (s *sessionStartSpec) newStartingSession(

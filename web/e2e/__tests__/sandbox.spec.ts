@@ -276,6 +276,7 @@ test("operator sees blocked sandbox diagnostics without leaking secrets or writi
   await appPage.goto(runtime.url(sessionPath(blockedAgent, session.id)), {
     waitUntil: "domcontentloaded",
   });
+  await useGlobalWorkspaceIfPrompted(appPage);
   const sessionUI = sessionLifecycleSelectors(appPage);
   await expect(sessionUI.chatHeader).toBeVisible();
   await sessionUI.composerTextarea.fill("exercise sandbox blocked path");

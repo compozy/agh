@@ -106,6 +106,7 @@ const (
 	sessionWriteEvent sessionWriteKind = iota + 1
 	sessionWriteUsage
 	sessionWriteHookRun
+	sessionWriteClear
 )
 
 type sessionWriteRequest struct {
@@ -270,6 +271,42 @@ func (s *SessionDB) RecordTokenUsage(ctx context.Context, usage store.TokenUsage
 		usage:  usage,
 		result: make(chan sessionWriteResult, 1),
 	})
+}
+
+// Clear removes all persisted per-session runtime records while preserving the
+// migrated database schema and the open writer. It is used by session reset
+// flows before the recorder is exposed to any live session goroutine.
+func (s *SessionDB) Clear(ctx context.Context) error {
+	if s == nil {
+		return errors.New("store: session database is required")
+	}
+	if ctx == nil {
+		return errors.New("store: clear session database context is required")
+	}
+
+	s.acceptMu.Lock()
+	defer s.acceptMu.Unlock()
+	if s.state.Load() != sessionStateOpen {
+		return store.ErrClosed
+	}
+
+	req := sessionWriteRequest{
+		ctx:    ctx,
+		kind:   sessionWriteClear,
+		result: make(chan sessionWriteResult, 1),
+	}
+	select {
+	case s.writeCh <- req:
+	case <-ctx.Done():
+		return fmt.Errorf("store: enqueue session clear: %w", ctx.Err())
+	}
+
+	select {
+	case result := <-req.result:
+		return result.err
+	case <-ctx.Done():
+		return fmt.Errorf("store: wait for session clear completion: %w", ctx.Err())
+	}
 }
 
 // RecordHookRun stores one hook execution audit record in the per-session store.
@@ -589,6 +626,12 @@ func (s *SessionDB) executeWrite(req sessionWriteRequest) sessionWriteResult {
 		return sessionWriteResult{err: s.writeTokenUsage(req.ctx, req.usage)}
 	case sessionWriteHookRun:
 		return sessionWriteResult{err: s.writeHookRun(req.ctx, req.hook)}
+	case sessionWriteClear:
+		err := clearSessionSQLite(req.ctx, s.db)
+		if err != nil {
+			err = fmt.Errorf("store: clear session database: %w", err)
+		}
+		return sessionWriteResult{err: err}
 	default:
 		return sessionWriteResult{err: fmt.Errorf("store: unsupported session write kind %d", req.kind)}
 	}
@@ -672,6 +715,27 @@ func (s *SessionDB) writeTokenUsage(ctx context.Context, usage store.TokenUsage)
 	}
 
 	return nil
+}
+
+func clearSessionSQLite(ctx context.Context, db *sql.DB) error {
+	if ctx == nil {
+		return errors.New("store: clear session sqlite context is required")
+	}
+	if db == nil {
+		return errors.New("store: clear session sqlite database is required")
+	}
+	return store.ExecuteWrite(ctx, db, func(ctx context.Context, tx *store.WriteTx) error {
+		for _, stmt := range []string{
+			"DELETE FROM hook_runs",
+			"DELETE FROM token_usage",
+			"DELETE FROM events",
+		} {
+			if _, err := tx.ExecContext(ctx, stmt); err != nil {
+				return fmt.Errorf("store: clear session table: %w", err)
+			}
+		}
+		return nil
+	})
 }
 
 func (s *SessionDB) writeHookRun(ctx context.Context, record hookspkg.HookRunRecord) error {

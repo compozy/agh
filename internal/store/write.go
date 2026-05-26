@@ -103,7 +103,7 @@ func executeWrite(
 			return maybeCheckpointAfterWrite(ctx, db, cfg)
 		}
 		lastErr = err
-		if !isSQLiteBusy(err) || attempt == cfg.maxAttempts {
+		if !IsSQLiteBusy(err) || attempt == cfg.maxAttempts {
 			return err
 		}
 		if waitErr := waitForWriteRetry(ctx, cfg.jitter(cfg.minRetryDelay, cfg.maxRetryDelay)); waitErr != nil {
@@ -230,7 +230,8 @@ func randomWriteRetryDelay(minDelay time.Duration, maxDelay time.Duration) time.
 	return minDelay + time.Duration(offset.Int64())
 }
 
-func isSQLiteBusy(err error) bool {
+// IsSQLiteBusy reports whether err is a SQLite BUSY or LOCKED condition.
+func IsSQLiteBusy(err error) bool {
 	if err == nil {
 		return false
 	}

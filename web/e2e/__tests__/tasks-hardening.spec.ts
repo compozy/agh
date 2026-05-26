@@ -353,6 +353,7 @@ test("operator inspects child and dependency graph, edits the task, and deletes 
   await appPage.goto(runtime.url(`/tasks/${encodeURIComponent(parent.id)}`), {
     waitUntil: "domcontentloaded",
   });
+  await useGlobalWorkspaceIfPrompted(appPage);
   await expect(ui.detailContent).toBeVisible();
   await ui.detailTab("children").click();
   await expect(ui.detailChildItem(child.id)).toBeVisible();

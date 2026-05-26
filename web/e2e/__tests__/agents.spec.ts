@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
-import { ensureGlobalWorkspace } from "../fixtures/workspace";
+import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 
 const browserLifecycleFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -19,7 +19,7 @@ const browserLifecycleFixture = path.resolve(
 
 test.use({ viewport: { width: 1440, height: 900 } });
 
-test("agent navigation renders the empty list state when no agents are installed", async ({
+test("agent navigation renders the managed default agent after first-run setup", async ({
   appPage,
   runtime,
 }) => {
@@ -29,13 +29,11 @@ test("agent navigation renders the empty list state when no agents are installed
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   await useGlobalWorkspaceIfPrompted(ui);
 
-  await expect(appPage.getByTestId("agents-empty")).toBeVisible();
-  await expect(appPage.getByTestId("agents-empty")).toContainText(
-    "Run `agh install` to bootstrap AGH"
-  );
+  await expect(appPage.getByTestId("agents-empty")).toHaveCount(0);
+  await expect(ui.agentRow("general")).toBeVisible();
 });
 
-test("agent navigation renders the error state when the agents endpoint fails", async ({
+test("dashboard reports the agents endpoint failure during shell bootstrap", async ({
   page,
   runtime,
 }) => {
@@ -52,8 +50,10 @@ test("agent navigation renders the error state when the agents endpoint fails", 
   const ui = sessionLifecycleSelectors(page);
   await useGlobalWorkspaceIfPrompted(ui);
 
-  await expect(page.getByTestId("agents-error")).toBeVisible({ timeout: 20_000 });
-  await expect(page.getByTestId("agents-error")).toContainText("Could not load agents");
+  await expect(page.getByRole("heading", { name: "Unable to load dashboard" })).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(page.getByText("agents unavailable")).toBeVisible();
 });
 
 test.describe("seeded agent detail", () => {
@@ -114,19 +114,3 @@ test.describe("seeded agent detail", () => {
     await expect(secondary).toHaveAttribute("data-checked", "true");
   });
 });
-
-async function useGlobalWorkspaceIfPrompted(
-  sessionUI: ReturnType<typeof sessionLifecycleSelectors>
-) {
-  await Promise.race([
-    sessionUI.workspaceOnboarding.waitFor({ state: "visible", timeout: 5_000 }).catch(() => null),
-    sessionUI.appSidebar.waitFor({ state: "visible", timeout: 5_000 }).catch(() => null),
-  ]);
-
-  if (await sessionUI.workspaceOnboarding.isVisible().catch(() => false)) {
-    await sessionUI.workspaceUseGlobal.click();
-    await expect(sessionUI.workspaceOnboarding).toBeHidden();
-  }
-
-  await expect(sessionUI.appSidebar).toBeVisible();
-}

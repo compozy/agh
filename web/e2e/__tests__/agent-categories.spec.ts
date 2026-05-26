@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
+import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 
 const browserLifecycleFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -45,9 +46,7 @@ test("categorized agents render through the sidebar tree, group inside the sessi
 }) => {
   const ui = sessionLifecycleSelectors(appPage);
 
-  await expect(ui.workspaceOnboarding).toBeVisible();
-  await ui.workspaceUseGlobal.click();
-  await expect(ui.workspaceOnboarding).toBeHidden();
+  await useGlobalWorkspaceIfPrompted(ui);
   await expect(ui.appSidebar).toBeVisible();
 
   // Sidebar: categorized agent appears under its folder; flat agent stays root-level.

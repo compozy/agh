@@ -8,6 +8,7 @@ const routeHookMocks = vi.hoisted(() => ({
       messages: [] as Array<{ id: string }>,
     },
   },
+  transcriptMessages: [] as Array<{ id: string }>,
   resetThread: vi.fn(),
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
@@ -76,6 +77,7 @@ vi.mock("@/systems/session", () => ({
   useResumeSession: () => routeHookMocks.resumeMutation,
   useSteerSessionPrompt: () => routeHookMocks.steerPromptMutation,
   useStopSession: () => routeHookMocks.stopMutation,
+  useSessionTranscriptThreadMessages: () => routeHookMocks.transcriptMessages,
 }));
 
 import { useSessionPageControls } from "../use-session-page-controls";
@@ -122,6 +124,7 @@ describe("useSessionPageControls", () => {
   beforeEach(() => {
     routeHookMocks.auiState.thread.isRunning = false;
     routeHookMocks.auiState.thread.messages = [];
+    routeHookMocks.transcriptMessages = [];
     routeHookMocks.resetThread.mockReset();
     routeHookMocks.toastError.mockReset();
     routeHookMocks.toastSuccess.mockReset();
@@ -190,6 +193,24 @@ describe("useSessionPageControls", () => {
     });
 
     expect(routeHookMocks.clearMutation.mutate).not.toHaveBeenCalled();
+  });
+
+  it("allows clear when only the durable transcript has rendered content", () => {
+    routeHookMocks.transcriptMessages = [{ id: "transcript-message-1" }];
+
+    const { result } = renderControls("active");
+
+    expect(result.current.canClear).toBe(true);
+
+    act(() => {
+      result.current.handleClear();
+    });
+
+    expect(routeHookMocks.clearMutation.mutate).toHaveBeenCalledTimes(1);
+    expect(routeHookMocks.clearMutation.mutate).toHaveBeenCalledWith(
+      "sess-1",
+      expect.objectContaining({ onSuccess: expect.any(Function) })
+    );
   });
 
   it("blocks stop while another control action is pending", () => {

@@ -15,6 +15,8 @@ const (
 	GlobalDatabaseName = "agh.db"
 	// SessionMetaName is the filename for quick session metadata lookups.
 	SessionMetaName = "meta.json"
+	// DefaultSQLiteBusyTimeoutMS is the shared SQLite busy timeout in milliseconds.
+	DefaultSQLiteBusyTimeoutMS = defaultBusyTimeoutMS
 
 	sqliteDriverName       = "sqlite"
 	defaultBusyTimeoutMS   = 5000

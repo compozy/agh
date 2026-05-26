@@ -9,7 +9,7 @@ import type { Page } from "@playwright/test";
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { ensureGlobalWorkspace } from "../fixtures/workspace";
+import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 
 const execFileAsync = promisify(execFile);
 
@@ -266,22 +266,6 @@ test("operator sees restart failure and active-session warning without losing re
   await browserArtifacts.persist(appPage);
   await assertNoSettingsSensitiveLeak(appPage, runtime, []);
 });
-
-async function useGlobalWorkspaceIfPrompted(
-  sessionUI: ReturnType<typeof sessionLifecycleSelectors>
-) {
-  await Promise.race([
-    sessionUI.workspaceOnboarding.waitFor({ state: "visible", timeout: 5_000 }).catch(() => null),
-    sessionUI.appSidebar.waitFor({ state: "visible", timeout: 5_000 }).catch(() => null),
-  ]);
-
-  if (await sessionUI.workspaceOnboarding.isVisible().catch(() => false)) {
-    await sessionUI.workspaceUseGlobal.click();
-    await expect(sessionUI.workspaceOnboarding).toBeHidden();
-  }
-
-  await expect(sessionUI.appSidebar).toBeVisible();
-}
 
 function assertLaunchRuntime(
   runtime: BrowserRuntime,

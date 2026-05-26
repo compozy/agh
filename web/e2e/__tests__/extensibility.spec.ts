@@ -21,6 +21,7 @@ import {
   sensitiveArtifactPattern,
 } from "../fixtures/scenario-contracts";
 import { expect, test } from "../fixtures/test";
+import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 
 const execFileAsync = promisify(execFile);
 
@@ -646,19 +647,6 @@ function assertLaunchRuntime(
   if (!runtime.paths) {
     throw new Error(`${label} requires launch-mode runtime paths`);
   }
-}
-
-async function useGlobalWorkspaceIfPrompted(page: Page): Promise<void> {
-  const ui = sessionLifecycleSelectors(page);
-  await Promise.race([
-    ui.workspaceOnboarding.waitFor({ state: "visible", timeout: 20_000 }).catch(() => null),
-    ui.appSidebar.waitFor({ state: "visible", timeout: 20_000 }).catch(() => null),
-  ]);
-  if (await ui.workspaceOnboarding.isVisible().catch(() => false)) {
-    await ui.workspaceUseGlobal.click();
-    await expect(ui.workspaceOnboarding).toBeHidden();
-  }
-  await expect(ui.appSidebar).toBeVisible({ timeout: 20_000 });
 }
 
 function canonicalizeJSON(value: unknown): string {

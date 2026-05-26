@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -12,24 +13,42 @@ import (
 
 // Transcript returns a canonical AI SDK replay transcript for the requested session.
 func (m *Manager) Transcript(ctx context.Context, id string) ([]transcript.UIMessage, error) {
-	recorder, cleanup, err := m.openQueryRecorder(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if cleanupErr := cleanup(); cleanupErr != nil {
-			logger := m.logger
-			if logger == nil {
-				logger = slog.Default()
-			}
-			logger.Warn("session: transcript cleanup failed", "session_id", strings.TrimSpace(id), "error", cleanupErr)
+	target := strings.TrimSpace(id)
+	var err error
+	for attempt := range 2 {
+		recorder, cleanup, openErr := m.openQueryRecorder(ctx, target)
+		if openErr != nil {
+			return nil, openErr
 		}
-	}()
 
-	events, err := recorder.Query(ctx, store.EventQuery{})
-	if err != nil {
-		return nil, fmt.Errorf("session: query transcript events for %q: %w", strings.TrimSpace(id), err)
+		var events []store.SessionEvent
+		events, err = recorder.Query(ctx, store.EventQuery{})
+		m.logTranscriptCleanupError(ctx, target, cleanup())
+		if err == nil {
+			return transcript.ToUIMessages(events)
+		}
+		if errors.Is(err, store.ErrClosed) && attempt == 0 {
+			if _, waitErr := m.waitForSessionFinalization(ctx, target); waitErr != nil {
+				return nil, fmt.Errorf(
+					"session: wait for finalization for %q after closed transcript recorder: %w",
+					target,
+					waitErr,
+				)
+			}
+			continue
+		}
+		return nil, fmt.Errorf("session: query transcript events for %q: %w", target, err)
 	}
+	return nil, fmt.Errorf("session: query transcript events for %q: %w", target, err)
+}
 
-	return transcript.ToUIMessages(events)
+func (m *Manager) logTranscriptCleanupError(ctx context.Context, sessionID string, err error) {
+	if err == nil {
+		return
+	}
+	logger := m.logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	logger.WarnContext(ctx, "session: transcript cleanup failed", "session_id", sessionID, "error", err)
 }

@@ -11,6 +11,7 @@ import {
   useResumeSession,
   useSteerSessionPrompt,
   useStopSession,
+  useSessionTranscriptThreadMessages,
   isSessionRunning,
   isUserControllableSession,
   type SessionPayload,
@@ -80,6 +81,7 @@ export function useSessionPageControls(
   const workspaceId = options.workspaceId ?? "";
   const onDeleteSuccess = options.onDeleteSuccess;
   const messages = useAuiState(state => state.thread.messages);
+  const transcriptMessages = useSessionTranscriptThreadMessages();
   const isRunning = useAuiState(state => state.thread.isRunning);
   const deleteMutation = useDeleteSession({ workspaceId });
   const stopMutation = useStopSession({ workspaceId });
@@ -121,7 +123,8 @@ export function useSessionPageControls(
     interruptPromptMutation.isPending ||
     steerPromptMutation.isPending;
   const controlsBusy = isStopping || isResuming || isDeleting || isClearing || isBusyInputPending;
-  const canClear = messages.length > 0 && !controlsBusy && !effectiveRunning;
+  const hasConversationContent = messages.length > 0 || transcriptMessages.length > 0;
+  const canClear = hasConversationContent && !controlsBusy && !effectiveRunning;
 
   const handleQueuePrompt = useCallback(
     async (message: string) => {

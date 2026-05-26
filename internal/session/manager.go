@@ -126,6 +126,7 @@ type Manager struct {
 	homePaths                    aghconfig.HomePaths
 	workspace                    workspacepkg.RuntimeResolver
 	openStore                    StoreOpener
+	openQueryStore               StoreOpener
 	assembler                    PromptAssembler
 	supervision                  aghconfig.SessionSupervisionConfig
 	busyInput                    aghconfig.SessionBusyInputConfig
@@ -158,6 +159,16 @@ func WithDriver(driver AgentDriver) Option {
 func WithStore(opener StoreOpener) Option {
 	return func(manager *Manager) {
 		manager.openStore = opener
+		manager.openQueryStore = opener
+	}
+}
+
+// WithQueryStore injects the opener used for stopped-session transcript/event
+// reads. Production uses a read-only no-create opener so stale viewers cannot
+// recreate events.db during clear/delete races.
+func WithQueryStore(opener StoreOpener) Option {
+	return func(manager *Manager) {
+		manager.openQueryStore = opener
 	}
 }
 
@@ -374,6 +385,9 @@ func NewManager(opts ...Option) (*Manager, error) {
 		openStore: func(ctx context.Context, sessionID string, path string) (EventRecorder, error) {
 			return sessiondb.OpenSessionDB(ctx, sessionID, path)
 		},
+		openQueryStore: func(ctx context.Context, sessionID string, path string) (EventRecorder, error) {
+			return sessiondb.OpenSessionDBReadOnly(ctx, sessionID, path)
+		},
 		supervision:                  aghconfig.DefaultSessionSupervisionConfig(),
 		busyInput:                    aghconfig.DefaultSessionBusyInputConfig(),
 		sessionHealthStaleAfter:      aghconfig.DefaultHeartbeatConfig().SessionHealthStaleAfter,
@@ -420,6 +434,9 @@ func (m *Manager) applyRuntimeDefaults() error {
 	}
 	if m.openStore == nil {
 		return errors.New("session: store opener is required")
+	}
+	if m.openQueryStore == nil {
+		return errors.New("session: query store opener is required")
 	}
 	if m.providerSecrets == nil {
 		m.providerSecrets = envProviderSecretResolver{lookupEnv: os.LookupEnv}

@@ -3763,6 +3763,9 @@ func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manag
 		WithStore(func(ctx context.Context, sessionID string, path string) (EventRecorder, error) {
 			return sessiondb.OpenSessionDB(ctx, sessionID, path)
 		}),
+		WithQueryStore(func(ctx context.Context, sessionID string, path string) (EventRecorder, error) {
+			return sessiondb.OpenSessionDBReadOnly(ctx, sessionID, path)
+		}),
 		WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		WithSessionIDGenerator(sequentialIDGenerator("sess")),
 		WithTurnIDGenerator(sequentialIDGenerator("turn")),

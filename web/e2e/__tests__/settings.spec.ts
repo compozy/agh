@@ -11,7 +11,7 @@ import {
   seedBrowserSettingsFixtures,
 } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
-import { ensureGlobalWorkspace } from "../fixtures/workspace";
+import { ensureGlobalWorkspace, useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 
 test.use({
   runtimeOptions: {
@@ -391,22 +391,6 @@ test("operator can distinguish restart-aware hook edits from immediate extension
     await cleanupBrowserSettingsFixtures(runtime, seeded);
   }
 });
-
-async function useGlobalWorkspaceIfPrompted(
-  sessionUI: ReturnType<typeof sessionLifecycleSelectors>
-) {
-  await Promise.race([
-    sessionUI.workspaceOnboarding.waitFor({ state: "visible", timeout: 20_000 }).catch(() => null),
-    sessionUI.appSidebar.waitFor({ state: "visible", timeout: 20_000 }).catch(() => null),
-  ]);
-
-  if (await sessionUI.workspaceOnboarding.isVisible().catch(() => false)) {
-    await sessionUI.workspaceUseGlobal.click();
-    await expect(sessionUI.workspaceOnboarding).toBeHidden();
-  }
-
-  await expect(sessionUI.appSidebar).toBeVisible({ timeout: 20_000 });
-}
 
 function normalizeTexts(values: string[]): string[] {
   return values.map(value => value.trim()).filter(value => value !== "");

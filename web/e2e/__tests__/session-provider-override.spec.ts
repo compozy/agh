@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
+import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 
 const execFileAsync = promisify(execFile);
 
@@ -88,6 +89,7 @@ test("operator can create a provider/model override session and attach without l
   );
 
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
+  await useGlobalWorkspaceIfPrompted(ui);
   await expect(ui.appSidebar).toBeVisible();
   await expect(ui.agentRow(browserLifecycleAgent)).toBeVisible();
 

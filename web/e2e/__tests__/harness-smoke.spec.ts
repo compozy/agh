@@ -17,7 +17,7 @@ test("boots against the daemon-served onboarding shell and captures a trace plus
   browserArtifacts,
   runtime,
 }) => {
-  await expect(appPage.getByTestId("workspace-onboarding")).toBeVisible();
+  await expect(appPage.getByTestId("onboarding-wizard")).toBeVisible();
 
   const manifest = await browserArtifacts.persist(appPage);
   expect(manifest.artifacts).toEqual(
@@ -39,7 +39,7 @@ test("records harness scenario contract, viewport evidence, and HTTP UDS CLI par
   browserArtifacts,
   runtime,
 }) => {
-  await expect(appPage.getByTestId("workspace-onboarding")).toBeVisible();
+  await expect(appPage.getByTestId("onboarding-wizard")).toBeVisible();
 
   const harnessContract = e2eScenarioContracts.find(contract => contract.id === "TC-HARNESS-001");
   expect(harnessContract).toMatchObject({
@@ -69,7 +69,7 @@ test("records harness scenario contract, viewport evidence, and HTTP UDS CLI par
 
   const viewportEvidence = await captureViewportEvidence({
     assertVisible: async () => {
-      await expect(appPage.getByTestId("workspace-onboarding")).toBeVisible();
+      await expect(appPage.getByTestId("onboarding-wizard")).toBeVisible();
     },
     browserArtifacts,
     moduleName: "harness-smoke",
@@ -113,7 +113,7 @@ test("captures console and network diagnostics after a forced failure path", asy
   browserArtifacts,
   runtime,
 }) => {
-  await expect(appPage.getByTestId("workspace-onboarding")).toBeVisible();
+  await expect(appPage.getByTestId("onboarding-wizard")).toBeVisible();
 
   const failure = await appPage.evaluate(async () => {
     console.error("agh-playwright-forced-console-error");

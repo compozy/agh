@@ -79,6 +79,7 @@ type PromptInputAugmenter func(ctx context.Context, session *Session, message st
 // LedgerMaterializer is the thin session-end seam for forensic ledger projection.
 type LedgerMaterializer interface {
 	MaterializeSessionLedger(ctx context.Context, record store.SessionLedgerRecord) error
+	DiscardSessionLedger(ctx context.Context, record store.SessionLedgerRecord) error
 }
 
 // AgentArtifacts returns an agent definition and optional resource-backed authored-context sidecars.
