@@ -138,21 +138,37 @@ func (m *Manager) Events(
 	id string,
 	query store.EventQuery,
 ) (events []store.SessionEvent, err error) {
-	recorder, cleanup, err := m.openQueryRecorder(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if cleanupErr := cleanup(); cleanupErr != nil && err == nil {
-			err = cleanupErr
+	target := strings.TrimSpace(id)
+	for attempt := range 2 {
+		recorder, cleanup, openErr := m.openQueryRecorder(ctx, id)
+		if openErr != nil {
+			return nil, openErr
 		}
-	}()
 
-	events, err = recorder.Query(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("session: query events for %q: %w", strings.TrimSpace(id), err)
+		events, err = recorder.Query(ctx, query)
+		cleanupErr := cleanup()
+		if err == nil {
+			if cleanupErr != nil {
+				return nil, cleanupErr
+			}
+			return events, nil
+		}
+		if cleanupErr != nil {
+			err = errors.Join(err, cleanupErr)
+		}
+		if errors.Is(err, store.ErrClosed) && attempt == 0 {
+			if _, waitErr := m.waitForSessionFinalization(ctx, target); waitErr != nil {
+				return nil, fmt.Errorf(
+					"session: wait for finalization for %q after closed recorder: %w",
+					target,
+					waitErr,
+				)
+			}
+			continue
+		}
+		return nil, fmt.Errorf("session: query events for %q: %w", target, err)
 	}
-	return events, nil
+	return nil, fmt.Errorf("session: query events for %q: %w", target, err)
 }
 
 // History returns turn-grouped persisted session events for active or stopped sessions.
@@ -161,26 +177,57 @@ func (m *Manager) History(
 	id string,
 	query store.EventQuery,
 ) (history []store.TurnHistory, err error) {
-	recorder, cleanup, err := m.openQueryRecorder(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if cleanupErr := cleanup(); cleanupErr != nil && err == nil {
-			err = cleanupErr
+	target := strings.TrimSpace(id)
+	for attempt := range 2 {
+		recorder, cleanup, openErr := m.openQueryRecorder(ctx, id)
+		if openErr != nil {
+			return nil, openErr
 		}
-	}()
 
-	history, err = recorder.History(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("session: query history for %q: %w", strings.TrimSpace(id), err)
+		history, err = recorder.History(ctx, query)
+		cleanupErr := cleanup()
+		if err == nil {
+			if cleanupErr != nil {
+				return nil, cleanupErr
+			}
+			return history, nil
+		}
+		if cleanupErr != nil {
+			err = errors.Join(err, cleanupErr)
+		}
+		if errors.Is(err, store.ErrClosed) && attempt == 0 {
+			if _, waitErr := m.waitForSessionFinalization(ctx, target); waitErr != nil {
+				return nil, fmt.Errorf(
+					"session: wait for finalization for %q after closed recorder: %w",
+					target,
+					waitErr,
+				)
+			}
+			continue
+		}
+		return nil, fmt.Errorf("session: query history for %q: %w", target, err)
 	}
-	return history, nil
+	return nil, fmt.Errorf("session: query history for %q: %w", target, err)
 }
 
 func (m *Manager) openQueryRecorder(ctx context.Context, id string) (EventRecorder, func() error, error) {
+	return m.openRecorder(ctx, id, m.openQueryStore)
+}
+
+func (m *Manager) openMutationRecorder(ctx context.Context, id string) (EventRecorder, func() error, error) {
+	return m.openRecorder(ctx, id, m.openStore)
+}
+
+func (m *Manager) openRecorder(
+	ctx context.Context,
+	id string,
+	opener StoreOpener,
+) (EventRecorder, func() error, error) {
 	if ctx == nil {
 		return nil, nil, errors.New("session: query context is required")
+	}
+	if opener == nil {
+		return nil, nil, errors.New("session: recorder opener is required")
 	}
 
 	target := strings.TrimSpace(id)
@@ -222,7 +269,7 @@ func (m *Manager) openQueryRecorder(ctx context.Context, id string) (EventRecord
 		return nil, nil, fmt.Errorf("session: stat events database for %q: %w", target, err)
 	}
 
-	recorder, err := m.openStore(ctx, target, dbPath)
+	recorder, err := opener(ctx, target, dbPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("session: open events database for %q: %w", target, err)
 	}

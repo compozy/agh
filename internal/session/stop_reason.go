@@ -44,6 +44,11 @@ func classifyStopReason(cause StopCause, waitErr error, detail string) (store.St
 			trimmedDetail = store.SessionStallReasonActivityTimeout
 		}
 		return store.StopTimeout, trimmedDetail
+	case CauseClearConversation:
+		if trimmedDetail == "" {
+			trimmedDetail = "conversation cleared"
+		}
+		return store.StopCompleted, trimmedDetail
 	case CauseCompleted:
 		return store.StopCompleted, ""
 	case CauseFailed:

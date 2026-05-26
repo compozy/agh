@@ -70,6 +70,7 @@ test.describe("network disabled state", () => {
     await ensureGlobalWorkspace(runtime);
 
     await appPage.goto(runtime.url("/network"), { waitUntil: "domcontentloaded" });
+    await useGlobalWorkspaceIfPrompted(ui);
     await expect(ui.disabledState).toBeVisible();
     await expect(appPage.getByTestId("network-empty")).toContainText("The network is off.");
     await expect(appPage.getByTestId("network-empty-open-settings")).toBeVisible();

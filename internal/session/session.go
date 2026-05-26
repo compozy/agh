@@ -747,7 +747,7 @@ func (s *Session) stopWasRequested() bool {
 	defer s.mu.RUnlock()
 
 	switch s.stopCause {
-	case CauseFailed, CauseUserRequested, CauseShutdown, CauseHookDenied, CauseTimeout:
+	case CauseFailed, CauseUserRequested, CauseShutdown, CauseHookDenied, CauseTimeout, CauseClearConversation:
 		return true
 	default:
 		return false

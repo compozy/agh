@@ -272,6 +272,28 @@ func (s *SessionDB) RecordTokenUsage(ctx context.Context, usage store.TokenUsage
 	})
 }
 
+// Clear removes all persisted per-session runtime records while preserving the
+// migrated database schema and the open writer. It is used by session reset
+// flows before the recorder is exposed to any live session goroutine.
+func (s *SessionDB) Clear(ctx context.Context) error {
+	if s == nil {
+		return errors.New("store: session database is required")
+	}
+	if ctx == nil {
+		return errors.New("store: clear session database context is required")
+	}
+
+	s.acceptMu.Lock()
+	defer s.acceptMu.Unlock()
+	if s.state.Load() != sessionStateOpen {
+		return store.ErrClosed
+	}
+	if err := clearSessionSQLite(ctx, s.db); err != nil {
+		return fmt.Errorf("store: clear session database: %w", err)
+	}
+	return nil
+}
+
 // RecordHookRun stores one hook execution audit record in the per-session store.
 func (s *SessionDB) RecordHookRun(ctx context.Context, record hookspkg.HookRunRecord) error {
 	if s == nil {
@@ -672,6 +694,27 @@ func (s *SessionDB) writeTokenUsage(ctx context.Context, usage store.TokenUsage)
 	}
 
 	return nil
+}
+
+func clearSessionSQLite(ctx context.Context, db *sql.DB) error {
+	if ctx == nil {
+		return errors.New("store: clear session sqlite context is required")
+	}
+	if db == nil {
+		return errors.New("store: clear session sqlite database is required")
+	}
+	return store.ExecuteWrite(ctx, db, func(ctx context.Context, tx *store.WriteTx) error {
+		for _, stmt := range []string{
+			"DELETE FROM hook_runs",
+			"DELETE FROM token_usage",
+			"DELETE FROM events",
+		} {
+			if _, err := tx.ExecContext(ctx, stmt); err != nil {
+				return fmt.Errorf("store: clear session table: %w", err)
+			}
+		}
+		return nil
+	})
 }
 
 func (s *SessionDB) writeHookRun(ctx context.Context, record hookspkg.HookRunRecord) error {

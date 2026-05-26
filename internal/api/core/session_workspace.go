@@ -16,6 +16,8 @@ import (
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
+const statusClientClosedRequest = 499
+
 // WorkspaceGetter resolves registered workspaces by reference.
 type WorkspaceGetter interface {
 	Get(ctx context.Context, ref string) (workspacepkg.Workspace, error)
@@ -127,6 +129,8 @@ func trimStringSliceInternal(values []string) []string {
 // StatusForWorkspaceError maps workspace-domain errors to transport statuses.
 func statusForWorkspaceError(err error) int {
 	switch {
+	case errors.Is(err, context.Canceled):
+		return statusClientClosedRequest
 	case errors.Is(err, workspacepkg.ErrWorkspaceNotFound):
 		return http.StatusNotFound
 	case errors.Is(err, workspacepkg.ErrWorkspaceRootMissing):
@@ -145,6 +149,8 @@ func statusForWorkspaceError(err error) int {
 // StatusForSessionError maps session and workspace-domain errors to transport statuses.
 func statusForSessionError(err error) int {
 	switch {
+	case errors.Is(err, context.Canceled):
+		return statusClientClosedRequest
 	case errors.Is(err, session.ErrSessionNotFound),
 		errors.Is(err, store.ErrSessionNotFound),
 		errors.Is(err, store.ErrSessionInputQueueEntryNotFound),

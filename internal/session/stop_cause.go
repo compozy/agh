@@ -12,4 +12,5 @@ const (
 	CauseHookDenied
 	CauseProcessExited
 	CauseTimeout
+	CauseClearConversation
 )

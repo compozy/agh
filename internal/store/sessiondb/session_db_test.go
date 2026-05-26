@@ -99,6 +99,109 @@ func TestOpenSessionDBRecordsSchemaMigrationAndRepeatedBootIsIdempotent(t *testi
 	})
 }
 
+func TestOpenSessionDBReadOnly(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should fail without creating a missing database", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		_, err := OpenSessionDBReadOnly(ctx, "sess-read-only-missing", path)
+		if err == nil {
+			t.Fatal("OpenSessionDBReadOnly(missing) error = nil, want non-nil")
+		}
+		if _, statErr := os.Stat(path); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("Stat(read-only missing path) error = %v, want os.ErrNotExist", statErr)
+		}
+	})
+
+	t.Run("Should query an existing database without accepting writes", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		writer, err := OpenSessionDB(ctx, "sess-read-only-existing", path)
+		if err != nil {
+			t.Fatalf("OpenSessionDB() error = %v", err)
+		}
+		if err := writer.Record(ctx, SessionEvent{
+			TurnID:    "turn-read-only",
+			Type:      "agent_message",
+			AgentName: "coder",
+			Content:   "{\"text\":\"persisted\"}",
+		}); err != nil {
+			t.Fatalf("Record() error = %v", err)
+		}
+		if err := writer.Close(ctx); err != nil {
+			t.Fatalf("Close(writer) error = %v", err)
+		}
+
+		reader, err := OpenSessionDBReadOnly(ctx, "sess-read-only-existing", path)
+		if err != nil {
+			t.Fatalf("OpenSessionDBReadOnly(existing) error = %v", err)
+		}
+		defer func() {
+			if closeErr := reader.Close(testutil.Context(t)); closeErr != nil {
+				t.Fatalf("Close(reader) error = %v", closeErr)
+			}
+		}()
+
+		events, err := reader.Query(ctx, EventQuery{})
+		if err != nil {
+			t.Fatalf("Query(read-only) error = %v", err)
+		}
+		if got, want := len(events), 1; got != want {
+			t.Fatalf("len(events) = %d, want %d", got, want)
+		}
+		if events[0].SessionID != "sess-read-only-existing" || events[0].TurnID != "turn-read-only" {
+			t.Fatalf("events[0] = %#v, want session/turn ids set", events[0])
+		}
+
+		err = reader.Record(ctx, SessionEvent{
+			TurnID:    "turn-forbidden",
+			Type:      "agent_message",
+			AgentName: "coder",
+			Content:   "{\"text\":\"forbidden\"}",
+		})
+		if err == nil || !strings.Contains(err.Error(), "cannot record events") {
+			t.Fatalf("Record(read-only) error = %v, want read-only write rejection", err)
+		}
+	})
+
+	t.Run("Should retry transient SQLite locks while opening", func(t *testing.T) {
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), SessionDatabaseName)
+		transientLock := errors.New("database is locked")
+		calls := 0
+
+		reader, err := openSessionDBReadOnlyWithRetry(
+			ctx,
+			"sess-read-only-locked",
+			path,
+			func(context.Context, string, string) (*ReadOnlySessionDB, error) {
+				calls++
+				if calls < 3 {
+					return nil, transientLock
+				}
+				return &ReadOnlySessionDB{sessionID: "sess-read-only-locked"}, nil
+			},
+			func(err error) bool {
+				return errors.Is(err, transientLock)
+			},
+		)
+		if err != nil {
+			t.Fatalf("openSessionDBReadOnlyWithRetry() error = %v", err)
+		}
+		if reader == nil || reader.sessionID != "sess-read-only-locked" {
+			t.Fatalf("openSessionDBReadOnlyWithRetry() reader = %#v, want session id", reader)
+		}
+		if got, want := calls, 3; got != want {
+			t.Fatalf("openSessionDBReadOnlyWithRetry() calls = %d, want %d", got, want)
+		}
+	})
+}
+
 func TestOpenSessionDBStripsCanonicalRawPayloadsAndVacuumsOldRows(t *testing.T) {
 	t.Run("Should strip canonical raw payloads and vacuum old session rows", func(t *testing.T) {
 		t.Parallel()

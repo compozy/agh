@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
+import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 
 const browserLifecycleFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -48,10 +49,7 @@ test("operator can onboard, create a session, submit work, approve a permission 
 }) => {
   const ui = sessionLifecycleSelectors(appPage);
 
-  await expect(ui.workspaceOnboarding).toBeVisible();
-  await ui.workspaceUseGlobal.click();
-
-  await expect(ui.workspaceOnboarding).toBeHidden();
+  await useGlobalWorkspaceIfPrompted(ui);
   await expect(ui.appSidebar).toBeVisible();
   await expect(ui.agentRow(browserLifecycleAgent)).toBeVisible();
 

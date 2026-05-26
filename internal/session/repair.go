@@ -126,7 +126,7 @@ func (m *Manager) RepairSession(
 		return nil, err
 	}
 
-	recorder, cleanup, err := m.openQueryRecorder(ctx, target)
+	recorder, cleanup, err := m.openMutationRecorder(ctx, target)
 	if err != nil {
 		return nil, err
 	}

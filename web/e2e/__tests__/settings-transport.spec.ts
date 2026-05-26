@@ -3,7 +3,6 @@ import path from "node:path";
 import process from "node:process";
 import { promisify } from "node:util";
 
-import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
 
@@ -27,10 +26,11 @@ test("operator sees non-loopback HTTP API restrictions with explicit operator me
   browserArtifacts,
   runtime,
 }) => {
-  const sessionUI = sessionLifecycleSelectors(appPage);
   assertLaunchRuntime(runtime);
 
-  await useGlobalWorkspaceIfPrompted(sessionUI);
+  await expect(appPage.getByTestId("onboarding-gate-error")).toContainText(
+    remoteHTTPAPIBlockedMessage
+  );
 
   const settingsResponse = await appPage.request.get(runtime.url("/api/settings/general"));
   expect(settingsResponse.status()).toBe(403);
@@ -40,13 +40,13 @@ test("operator sees non-loopback HTTP API restrictions with explicit operator me
 
   await appPage.goto(runtime.url("/settings/general"), { waitUntil: "domcontentloaded" });
 
-  await expect(appPage.getByTestId("settings-page-general-error")).toContainText(
+  await expect(appPage.getByTestId("onboarding-gate-error")).toContainText(
     remoteHTTPAPIBlockedMessage
   );
 
   await appPage.goto(runtime.url("/settings/hooks-extensions"), { waitUntil: "domcontentloaded" });
 
-  await expect(appPage.getByTestId("settings-page-hooks-extensions-error")).toContainText(
+  await expect(appPage.getByTestId("onboarding-gate-error")).toContainText(
     remoteHTTPAPIBlockedMessage
   );
 
@@ -82,22 +82,6 @@ test("operator sees non-loopback HTTP API restrictions with explicit operator me
   });
   await browserArtifacts.captureScreenshot("tc-int-013-non-loopback-http-restrictions", appPage);
 });
-
-async function useGlobalWorkspaceIfPrompted(
-  sessionUI: ReturnType<typeof sessionLifecycleSelectors>
-) {
-  await Promise.race([
-    sessionUI.workspaceOnboarding.waitFor({ state: "visible", timeout: 5_000 }).catch(() => null),
-    sessionUI.appSidebar.waitFor({ state: "visible", timeout: 5_000 }).catch(() => null),
-  ]);
-
-  if (await sessionUI.workspaceOnboarding.isVisible().catch(() => false)) {
-    await sessionUI.workspaceUseGlobal.click();
-    await expect(sessionUI.workspaceOnboarding).toBeHidden();
-  }
-
-  await expect(sessionUI.appSidebar).toBeVisible();
-}
 
 function assertLaunchRuntime(
   runtime: BrowserRuntime

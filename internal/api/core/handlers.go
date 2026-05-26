@@ -636,7 +636,17 @@ func (h *BaseHandlers) SessionEvents(c *gin.Context) {
 
 	events, err := h.Sessions.Events(c.Request.Context(), sessionID, query)
 	if err != nil {
-		h.logSessionReadError("events", sessionID, err)
+		h.logSessionReadError(
+			"events",
+			sessionID,
+			err,
+			"after_sequence",
+			query.AfterSequence,
+			"type",
+			query.Type,
+			"turn_id",
+			query.TurnID,
+		)
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
@@ -1714,7 +1724,7 @@ func (h *BaseHandlers) respondError(c *gin.Context, status int, err error) {
 	RespondError(c, status, err, h.MaskInternalErrors)
 }
 
-func (h *BaseHandlers) logSessionReadError(operation string, sessionID string, err error) {
+func (h *BaseHandlers) logSessionReadError(operation string, sessionID string, err error, attrs ...any) {
 	if err == nil {
 		return
 	}
@@ -1722,15 +1732,19 @@ func (h *BaseHandlers) logSessionReadError(operation string, sessionID string, e
 	if h != nil && h.Logger != nil {
 		logger = h.Logger
 	}
-	logger.Warn(
-		"api: session read failed",
+	logAttrs := []any{
 		"operation",
 		operation,
 		"session_id",
 		strings.TrimSpace(sessionID),
+	}
+	logAttrs = append(logAttrs, attrs...)
+	logAttrs = append(
+		logAttrs,
 		handlersErrorKey,
 		err,
 	)
+	logger.Warn("api: session read failed", logAttrs...)
 }
 
 func (h *BaseHandlers) transportName() string {

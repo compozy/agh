@@ -1,14 +1,18 @@
 package session
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/compozy/agh/internal/acp"
+	sessionledger "github.com/compozy/agh/internal/sessions/ledger"
 	"github.com/compozy/agh/internal/store"
+	"github.com/compozy/agh/internal/store/sessiondb"
 	"github.com/compozy/agh/internal/testutil"
 )
 
@@ -80,6 +84,137 @@ func TestClearConversationRestartsSameSessionWithFreshContext(t *testing.T) {
 			if strings.Contains(event.Content, "before clear") {
 				t.Fatalf("stored event content still contains cleared prompt: %s", event.Content)
 			}
+		}
+	})
+}
+
+func TestClearConversationDiscardsMaterializedLedger(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should remove stale materialized ledger before replacing the event store", func(t *testing.T) {
+		h := newHarness(t)
+		materializer, err := sessionledger.NewMaterializer(sessionledger.Config{
+			RootDir: h.homePaths.SessionsDir,
+		})
+		if err != nil {
+			t.Fatalf("NewMaterializer() error = %v", err)
+		}
+		h.manager = newManagerWithHarness(t, h, WithLedgerMaterializer(materializer))
+
+		session := createSession(t, h)
+		firstEvents, err := h.manager.Prompt(testutil.Context(t), session.ID, "before clear")
+		if err != nil {
+			t.Fatalf("Prompt(before clear) error = %v", err)
+		}
+		collectEvents(t, firstEvents)
+		if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("Stop(before clear) error = %v", err)
+		}
+
+		ledgerPath := filepath.Join(h.homePaths.SessionsDir, h.workspaceID, session.ID, "ledger.jsonl")
+		ledgerBefore, err := os.ReadFile(ledgerPath)
+		if err != nil {
+			t.Fatalf("ReadFile(ledger before clear) error = %v", err)
+		}
+		if !strings.Contains(string(ledgerBefore), "before clear") {
+			t.Fatalf("ledger before clear = %s, want original prompt content", ledgerBefore)
+		}
+
+		resumed, err := h.manager.Resume(testutil.Context(t), session.ID)
+		if err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		cleared, err := h.manager.ClearConversation(testutil.Context(t), resumed.ID)
+		if err != nil {
+			t.Fatalf("ClearConversation() error = %v", err)
+		}
+
+		if _, statErr := os.Stat(ledgerPath); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("Stat(discarded ledger) error = %v, want os.ErrNotExist", statErr)
+		}
+		events, err := h.manager.Events(testutil.Context(t), cleared.ID, store.EventQuery{})
+		if err != nil {
+			t.Fatalf("Events(after clear) error = %v", err)
+		}
+		if got := len(events); got != 0 {
+			t.Fatalf("Events(after clear) len = %d, want 0", got)
+		}
+		messages, err := h.manager.Transcript(testutil.Context(t), cleared.ID)
+		if err != nil {
+			t.Fatalf("Transcript(after clear) error = %v", err)
+		}
+		if got := len(messages); got != 0 {
+			t.Fatalf("Transcript(after clear) len = %d, want 0", got)
+		}
+
+		if err := h.manager.Stop(testutil.Context(t), cleared.ID); err != nil {
+			t.Fatalf("Stop(after clear) error = %v", err)
+		}
+		ledgerAfter, err := os.ReadFile(ledgerPath)
+		if err != nil {
+			t.Fatalf("ReadFile(ledger after clear stop) error = %v", err)
+		}
+		if strings.Contains(string(ledgerAfter), "before clear") {
+			t.Fatalf("ledger after clear stop still contains cleared prompt: %s", ledgerAfter)
+		}
+	})
+}
+
+func TestClearConversationResetsStoreOpenedWithStaleRows(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should clear stale rows present when the replacement store opens", func(t *testing.T) {
+		h := newHarness(t)
+		var openCount atomic.Int32
+		h.manager = newManagerWithHarness(
+			t,
+			h,
+			WithStore(func(ctx context.Context, sessionID string, path string) (EventRecorder, error) {
+				recorder, err := sessiondb.OpenSessionDB(ctx, sessionID, path)
+				if err != nil {
+					return nil, err
+				}
+				if openCount.Add(1) == 2 {
+					if err := recorder.Record(ctx, store.SessionEvent{
+						TurnID:    "turn-stale-reset",
+						Type:      acp.EventTypeUserMessage,
+						AgentName: "coder",
+						Content:   "{\"schema\":\"agh.session.event.v1\",\"type\":\"user_message\",\"text\":\"stale reset row\"}",
+					}); err != nil {
+						closeCtx := testutil.Context(t)
+						return nil, errors.Join(err, recorder.Close(closeCtx))
+					}
+				}
+				return recorder, nil
+			}),
+			WithQueryStore(func(ctx context.Context, sessionID string, path string) (EventRecorder, error) {
+				return sessiondb.OpenSessionDBReadOnly(ctx, sessionID, path)
+			}),
+		)
+
+		session := createSession(t, h)
+		firstEvents, err := h.manager.Prompt(testutil.Context(t), session.ID, "before clear")
+		if err != nil {
+			t.Fatalf("Prompt(before clear) error = %v", err)
+		}
+		collectEvents(t, firstEvents)
+
+		cleared, err := h.manager.ClearConversation(testutil.Context(t), session.ID)
+		if err != nil {
+			t.Fatalf("ClearConversation() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), cleared.ID); err != nil {
+				t.Fatalf("cleanup Stop() error = %v", err)
+			}
+		})
+
+		events, err := h.manager.Events(testutil.Context(t), cleared.ID, store.EventQuery{})
+		if err != nil {
+			t.Fatalf("Events(after clear) error = %v", err)
+		}
+		if got := len(events); got != 0 {
+			t.Fatalf("Events(after clear) len = %d, want 0: %#v", got, events)
 		}
 	})
 }

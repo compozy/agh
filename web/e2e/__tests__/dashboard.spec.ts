@@ -101,15 +101,18 @@ test("operator sees truthful Dashboard health, metrics, navigation, artifacts, a
     activeSessionStates.has(session.state)
   ).length;
   const expectedAgents = snapshot.workspaceDetail.agents?.length ?? snapshot.agents.agents.length;
+  const expectedDaemonStatus = dashboardStatusKey(snapshot.health.health.status);
 
   await expect(appPage.getByTestId("home-shell")).toBeVisible();
   await expect(appPage.getByTestId("home-connection-indicator")).toHaveAttribute(
     "data-status",
     "connected"
   );
-  await expect(appPage.getByTestId("home-daemon-card")).toHaveAttribute("data-status", "healthy", {
-    timeout: 15_000,
-  });
+  await expect(appPage.getByTestId("home-daemon-card")).toHaveAttribute(
+    "data-status",
+    expectedDaemonStatus,
+    { timeout: 15_000 }
+  );
   await expect(appPage.getByTestId("home-daemon-status-label")).toHaveText(/Healthy|Degraded/);
   expect(snapshot.health.health.version?.trim()).not.toBe("");
   await expect(appPage.getByTestId("home-daemon-version")).toContainText(
@@ -132,7 +135,7 @@ test("operator sees truthful Dashboard health, metrics, navigation, artifacts, a
   await assertDashboardFocus(appPage);
 
   await runtime.artifactCollector.captureJSON("browser_api_snapshots", snapshot);
-  await browserArtifacts.captureScreenshot("dashboard-healthy", appPage);
+  await browserArtifacts.captureScreenshot("dashboard-truthful", appPage);
   const manifest = await browserArtifacts.persist(appPage);
   expect(manifest.artifacts).toEqual(
     expect.arrayContaining([
@@ -149,7 +152,7 @@ test("operator sees truthful Dashboard health, metrics, navigation, artifacts, a
   expect(routeState).toMatchObject({
     home_view_visible: true,
     home_connection_status: "connected",
-    home_daemon_status: "healthy",
+    home_daemon_status: expectedDaemonStatus,
     home_active_sessions_value: String(expectedActiveSessions),
     home_workspaces_value: String(snapshot.workspaces.workspaces.length),
     home_agents_value: String(expectedAgents),
@@ -164,6 +167,8 @@ test("dashboard degrades one failed metric without hiding daemon health", async 
 }) => {
   await prepareDashboardRuntime(runtime);
   await useGlobalWorkspaceIfPrompted(workspaceShell(appPage));
+  const status = await runtime.requestJSON<DashboardSnapshot["health"]>("/api/status");
+  const expectedDaemonStatus = dashboardStatusKey(status.health.status);
   await appPage.route("**/api/sessions**", async route => {
     await route.fulfill({
       contentType: "application/json",
@@ -174,9 +179,11 @@ test("dashboard degrades one failed metric without hiding daemon health", async 
 
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
 
-  await expect(appPage.getByTestId("home-daemon-card")).toHaveAttribute("data-status", "healthy", {
-    timeout: 15_000,
-  });
+  await expect(appPage.getByTestId("home-daemon-card")).toHaveAttribute(
+    "data-status",
+    expectedDaemonStatus,
+    { timeout: 15_000 }
+  );
   await expect(metricValue(appPage, "home-metric-active-sessions")).toHaveText("—");
   await expect(appPage.getByTestId("home-metric-active-sessions")).toContainText("unavailable");
   await expect(appPage.getByTestId("home-error")).toBeHidden();
@@ -188,6 +195,8 @@ test("dashboard shows reconnecting state and recovers when health requests resum
 }) => {
   await prepareDashboardRuntime(runtime);
   await useGlobalWorkspaceIfPrompted(workspaceShell(appPage));
+  const status = await runtime.requestJSON<DashboardSnapshot["health"]>("/api/status");
+  const expectedDaemonStatus = dashboardStatusKey(status.health.status);
   await appPage.route("**/api/status", async route => {
     await route.abort("failed");
   });
@@ -216,7 +225,10 @@ test("dashboard shows reconnecting state and recovers when health requests resum
     "connected",
     { timeout: 20_000 }
   );
-  await expect(appPage.getByTestId("home-daemon-card")).toHaveAttribute("data-status", "healthy");
+  await expect(appPage.getByTestId("home-daemon-card")).toHaveAttribute(
+    "data-status",
+    expectedDaemonStatus
+  );
 });
 
 test("dashboard refreshes after daemon restart action without stale health", async ({
@@ -229,9 +241,12 @@ test("dashboard refreshes after daemon restart action without stale health", asy
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
 
   const beforeRestart = await captureDashboardSnapshot(runtime, workspace);
-  await expect(appPage.getByTestId("home-daemon-card")).toHaveAttribute("data-status", "healthy", {
-    timeout: 15_000,
-  });
+  const expectedBeforeRestartStatus = dashboardStatusKey(beforeRestart.health.health.status);
+  await expect(appPage.getByTestId("home-daemon-card")).toHaveAttribute(
+    "data-status",
+    expectedBeforeRestartStatus,
+    { timeout: 15_000 }
+  );
   await expect(metricValue(appPage, "home-metric-workspaces")).toHaveText(
     String(beforeRestart.workspaces.workspaces.length)
   );
@@ -259,11 +274,15 @@ test("dashboard refreshes after daemon restart action without stale health", asy
   await reloadDaemonServedPage(appPage, runtime, "/", { readyTestId: "home-shell" });
 
   const afterRestart = await captureDashboardSnapshot(runtime, workspace);
+  const expectedAfterRestartStatus = dashboardStatusKey(afterRestart.health.health.status);
   await expect(appPage.getByTestId("home-connection-indicator")).toHaveAttribute(
     "data-status",
     "connected"
   );
-  await expect(appPage.getByTestId("home-daemon-card")).toHaveAttribute("data-status", "healthy");
+  await expect(appPage.getByTestId("home-daemon-card")).toHaveAttribute(
+    "data-status",
+    expectedAfterRestartStatus
+  );
   await expect(metricValue(appPage, "home-metric-workspaces")).toHaveText(
     String(afterRestart.workspaces.workspaces.length)
   );
@@ -438,6 +457,14 @@ function workspaceShell(page: import("@playwright/test").Page) {
     workspaceOnboarding: page.getByTestId(sessionLifecycleTestIds.workspaceOnboarding),
     workspaceUseGlobal: page.getByTestId(sessionLifecycleTestIds.workspaceUseGlobal),
   };
+}
+
+function dashboardStatusKey(status: string | undefined): "healthy" | "degraded" {
+  const normalized = status?.trim().toLowerCase();
+  if (normalized === "ok" || normalized === "healthy" || normalized === "running") {
+    return "healthy";
+  }
+  return "degraded";
 }
 
 function metricValue(page: import("@playwright/test").Page, testId: string) {

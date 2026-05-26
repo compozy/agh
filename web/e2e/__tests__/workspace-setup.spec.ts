@@ -1,21 +1,13 @@
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
+import { useGlobalWorkspaceIfPrompted } from "../fixtures/workspace";
 
 test("operator runs onboarding, then re-opens the ruled workspace setup dialog from the sidebar add button", async ({
   appPage,
 }) => {
   const ui = sessionLifecycleSelectors(appPage);
 
-  await expect(ui.workspaceOnboarding).toBeVisible();
-
-  const optionCards = appPage.locator('[data-slot="option-card"]');
-  await expect(optionCards).toHaveCount(2);
-  const globalCard = appPage.getByTestId("workspace-setup-global-card");
-  await expect(globalCard).toHaveAttribute("data-slot", "option-card");
-  await expect(globalCard).toHaveAttribute("data-size", "comfortable");
-
-  await ui.workspaceUseGlobal.click();
-  await expect(ui.workspaceOnboarding).toBeHidden();
+  await useGlobalWorkspaceIfPrompted(ui);
   await expect(ui.appSidebar).toBeVisible();
 
   await appPage.getByTestId("add-workspace-btn").click();

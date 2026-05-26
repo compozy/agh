@@ -83,6 +83,12 @@ func TestClassifyStopReason(t *testing.T) {
 			wantReason: store.StopCompleted,
 		},
 		{
+			name:       "Should classify clear conversation as completed with detail",
+			cause:      CauseClearConversation,
+			wantReason: store.StopCompleted,
+			wantDetail: "conversation cleared",
+		},
+		{
 			name:       "Should classify failure",
 			cause:      CauseFailed,
 			detail:     "automation prompt failed",

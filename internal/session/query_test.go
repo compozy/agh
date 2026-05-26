@@ -437,6 +437,68 @@ func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 	}
 }
 
+func TestManagerEventsAndHistoryRetryClosedActiveRecorder(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should retry when finalization closes the active recorder during a query", func(t *testing.T) {
+		h := newHarness(t)
+		session := createSession(t, h)
+		originalRecorder := session.recorderHandle()
+		if originalRecorder == nil {
+			t.Fatal("recorderHandle() = nil, want active recorder")
+		}
+		if err := originalRecorder.Close(testutil.Context(t)); err != nil {
+			t.Fatalf("Close(original recorder) error = %v", err)
+		}
+
+		wantEvent := store.SessionEvent{
+			ID:        "ev-retry",
+			SessionID: session.ID,
+			Sequence:  1,
+			TurnID:    "turn-retry",
+			Type:      "agent_message",
+			AgentName: "coder",
+			Content:   "{}",
+		}
+		stub := &queryRecorderStub{
+			events:    []store.SessionEvent{wantEvent},
+			history:   []store.TurnHistory{{TurnID: wantEvent.TurnID, Events: []store.SessionEvent{wantEvent}}},
+			queryErrs: []error{store.ErrClosed},
+			historyErrs: []error{
+				store.ErrClosed,
+			},
+		}
+		session.setRecorder(stub)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+				t.Fatalf("cleanup Stop() error = %v", err)
+			}
+		})
+
+		events, err := h.manager.Events(testutil.Context(t), session.ID, store.EventQuery{})
+		if err != nil {
+			t.Fatalf("Events() error = %v", err)
+		}
+		if len(events) != 1 || events[0].ID != wantEvent.ID {
+			t.Fatalf("Events() = %#v, want retry event", events)
+		}
+		if got := len(stub.queryCalls); got != 2 {
+			t.Fatalf("Query() calls = %d, want 2", got)
+		}
+
+		history, err := h.manager.History(testutil.Context(t), session.ID, store.EventQuery{})
+		if err != nil {
+			t.Fatalf("History() error = %v", err)
+		}
+		if len(history) != 1 || history[0].TurnID != wantEvent.TurnID {
+			t.Fatalf("History() = %#v, want retry history", history)
+		}
+		if got := len(stub.historyCall); got != 2 {
+			t.Fatalf("History() calls = %d, want 2", got)
+		}
+	})
+}
+
 func TestManagerEventsRejectTraversalSessionID(t *testing.T) {
 	t.Parallel()
 
@@ -995,7 +1057,9 @@ type queryRecorderStub struct {
 	events      []store.SessionEvent
 	history     []store.TurnHistory
 	queryErr    error
+	queryErrs   []error
 	historyErr  error
+	historyErrs []error
 	closeCalls  int
 	queryCalls  []store.EventQuery
 	historyCall []store.EventQuery
@@ -1011,6 +1075,13 @@ func (s *queryRecorderStub) RecordTokenUsage(context.Context, store.TokenUsage) 
 
 func (s *queryRecorderStub) Query(_ context.Context, query store.EventQuery) ([]store.SessionEvent, error) {
 	s.queryCalls = append(s.queryCalls, query)
+	if len(s.queryErrs) > 0 {
+		err := s.queryErrs[0]
+		s.queryErrs = s.queryErrs[1:]
+		if err != nil {
+			return nil, err
+		}
+	}
 	if s.queryErr != nil {
 		return nil, s.queryErr
 	}
@@ -1019,6 +1090,13 @@ func (s *queryRecorderStub) Query(_ context.Context, query store.EventQuery) ([]
 
 func (s *queryRecorderStub) History(_ context.Context, query store.EventQuery) ([]store.TurnHistory, error) {
 	s.historyCall = append(s.historyCall, query)
+	if len(s.historyErrs) > 0 {
+		err := s.historyErrs[0]
+		s.historyErrs = s.historyErrs[1:]
+		if err != nil {
+			return nil, err
+		}
+	}
 	if s.historyErr != nil {
 		return nil, s.historyErr
 	}

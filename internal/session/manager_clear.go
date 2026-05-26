@@ -40,14 +40,8 @@ func (m *Manager) ClearConversation(ctx context.Context, id string) (_ *Session,
 		return nil, fmt.Errorf("%w: %s", ErrSessionNotActive, target)
 	}
 
-	active, activeBefore := m.Get(target)
-	if activeBefore {
-		if active.IsPrompting() {
-			return nil, fmt.Errorf("%w: %s", ErrPromptInProgress, target)
-		}
-		if stopErr := m.Stop(ctx, target); stopErr != nil {
-			return nil, stopErr
-		}
+	if stopErr := m.stopActiveSessionForClear(ctx, target); stopErr != nil {
+		return nil, stopErr
 	}
 
 	meta, err := m.readMetaWithContext(ctx, target)
@@ -60,22 +54,14 @@ func (m *Manager) ClearConversation(ctx context.Context, id string) (_ *Session,
 	if err != nil {
 		return nil, err
 	}
+	spec.clearEventStoreOnOpen = true
 
 	dbPath := store.SessionDBFile(filepath.Join(m.homePaths.SessionsDir, target))
 	metaPath := store.SessionMetaFile(filepath.Join(m.homePaths.SessionsDir, target))
-	backups, err := backupSessionDB(dbPath)
+	backups, err := m.backupSessionDBForClear(dbPath, target)
 	if err != nil {
 		return nil, err
 	}
-	m.clearLogger().Info(
-		"session.clear.backup_complete",
-		"session_id",
-		target,
-		"backup_count",
-		len(backups),
-		"db_path",
-		dbPath,
-	)
 
 	defer func() {
 		if err == nil {
@@ -89,6 +75,9 @@ func (m *Manager) ClearConversation(ctx context.Context, id string) (_ *Session,
 		}
 	}()
 
+	if discardErr := m.discardMaterializedSessionLedger(ctx, meta, dbPath); discardErr != nil {
+		return nil, discardErr
+	}
 	if writeErr := store.WriteSessionMeta(metaPath, sanitized); writeErr != nil {
 		return nil, fmt.Errorf("session: persist cleared metadata for %q: %w", target, writeErr)
 	}
@@ -109,6 +98,34 @@ func (m *Manager) ClearConversation(ctx context.Context, id string) (_ *Session,
 	)
 
 	return session, nil
+}
+
+func (m *Manager) stopActiveSessionForClear(ctx context.Context, target string) error {
+	active, activeBefore := m.Get(target)
+	if !activeBefore {
+		return nil
+	}
+	if active.IsPrompting() {
+		return fmt.Errorf("%w: %s", ErrPromptInProgress, target)
+	}
+	return m.StopWithCause(ctx, target, CauseClearConversation, "conversation cleared")
+}
+
+func (m *Manager) backupSessionDBForClear(dbPath string, target string) ([]sessionDBBackup, error) {
+	backups, err := backupSessionDB(dbPath)
+	if err != nil {
+		return nil, err
+	}
+	m.clearLogger().Info(
+		"session.clear.backup_complete",
+		"session_id",
+		target,
+		"backup_count",
+		len(backups),
+		"db_path",
+		dbPath,
+	)
+	return backups, nil
 }
 
 func (m *Manager) clearLogger() *slog.Logger {
