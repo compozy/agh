@@ -217,6 +217,18 @@ def git(repo: Path, *args: str, check: bool = True) -> str:
     return run(["git", *args], repo, check=check).stdout
 
 
+def require_local_commitish(repo: Path, ref: str) -> str:
+    target = ref.strip()
+    if not target:
+        raise SystemExit("branch review requires a base ref")
+    result = run(["git", "rev-parse", "--verify", "--quiet", f"{target}^{{commit}}"], repo, check=False)
+    if result.returncode == 0:
+        return target
+    raise SystemExit(
+        f"base ref {target!r} is not available locally; fetch it manually or rerun with --base pointing to an existing local ref"
+    )
+
+
 def repo_root() -> Path:
     result = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
@@ -309,7 +321,6 @@ def local_bundle(repo: Path) -> str:
 
 
 def branch_bundle(repo: Path, base_ref: str) -> str:
-    git(repo, "fetch", "origin", "--quiet", check=False)
     return "\n\n".join(
         [
             "# Branch Diff",
@@ -1118,6 +1129,7 @@ def main() -> int:
         bundle = local_bundle(repo)
     elif target == "branch":
         assert target_ref
+        target_ref = require_local_commitish(repo, target_ref)
         bundle = branch_bundle(repo, target_ref)
     else:
         bundle = commit_bundle(repo, args.commit)
