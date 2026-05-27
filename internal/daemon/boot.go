@@ -567,12 +567,52 @@ func (d *Daemon) bootRegistryState(
 	if state.harnessRecorder != nil {
 		state.harnessRecorder.SetStore(registry)
 	}
+	if err := d.ensureDefaultWorkspace(ctx, state); err != nil {
+		return err
+	}
 	memoryProviders, err := newDaemonMemoryProviderRegistry(ctx, state)
 	if err != nil {
 		return fmt.Errorf("daemon: create memory provider registry: %w", err)
 	}
 	state.memoryProviderRegistry = memoryProviders
 	return nil
+}
+
+func (d *Daemon) ensureDefaultWorkspace(ctx context.Context, state *bootState) error {
+	if state == nil || state.workspaceResolver == nil {
+		return errors.New("daemon: workspace resolver is required before default workspace registration")
+	}
+	operatorHome, err := d.operatorHomeDir()
+	if err != nil {
+		return fmt.Errorf("daemon: resolve default workspace root: %w", err)
+	}
+	resolved, err := state.workspaceResolver.ResolveOrRegister(ctx, operatorHome)
+	if err != nil {
+		return fmt.Errorf("daemon: register default workspace %q: %w", operatorHome, err)
+	}
+	if state.logger != nil {
+		state.logger.Info(
+			"daemon: default workspace ready",
+			"workspace_id",
+			resolved.ID,
+			"root_dir",
+			resolved.RootDir,
+			"name",
+			resolved.Name,
+		)
+	}
+	return nil
+}
+
+func (d *Daemon) operatorHomeDir() (string, error) {
+	getenv := d.getenv
+	if getenv == nil {
+		getenv = os.Getenv
+	}
+	return aghconfig.ResolveOperatorHomeDirWithLookup(d.homePaths, func(key string) (string, bool) {
+		value := getenv(key)
+		return value, strings.TrimSpace(value) != ""
+	})
 }
 
 func (d *Daemon) bootRuntimeServices(

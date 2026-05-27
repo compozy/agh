@@ -57,6 +57,8 @@ Workspace tools:
 - `agh__workspace_describe`
 - `agh__agent_create` — authors one public `AGENT.md` definition at `global` or `workspace` scope (mutating; reuses the same writer as `POST /api/agents`). Provide `scope`, `name`, `provider`, and `prompt`; workspace scope also needs `workspace`. Reserved internal managed names such as `onboarding` are rejected.
 
+Fresh daemon boot registers the operator `$HOME` as the default workspace through the resolver, so `agh__workspace_list` should return at least that workspace on a clean install.
+
 The managed `onboarding` agent is internal to first-run setup and is not granted the full workspace or coordination toolsets. It receives only `agh__workspace_list`, `agh__workspace_describe`, `agh__network_channels`, `agh__network_channel_create`, and `agh__agent_create`.
 
 Provider model tools:

@@ -65,7 +65,7 @@ First-run onboarding completion is a global instance flag (stored in the `app_me
     agh onboarding complete    # mark first-run onboarding as done
     agh onboarding reset       # clear the flag so the web wizard runs again
 
-The web first-run wizard blocks the dashboard until this flag is set. Resetting it surfaces the wizard again on next load.
+The web first-run wizard blocks the dashboard until this flag is set. Resetting it surfaces the wizard again on next load. Fresh daemon boot registers the operator `$HOME` as the default workspace before the wizard starts, so the workspace step should not require manual project registration on a clean machine.
 
 Native session tools are read-oriented. Recap, repair, approval, session inspect, and Soul refresh are CLI/HTTP management flows unless the live registry exposes a scoped native tool.
 

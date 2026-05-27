@@ -66,6 +66,70 @@ func ResolveHomeDir() (string, error) {
 	return resolveHomeDir(processEnvLookup)
 }
 
+// ResolveOperatorHomeDir resolves the operator user home directory for workspace defaults.
+func ResolveOperatorHomeDir(homePaths HomePaths) (string, error) {
+	return ResolveOperatorHomeDirWithLookup(homePaths, processEnvLookup)
+}
+
+// ResolveOperatorHomeDirWithLookup resolves the operator user home directory with injectable env lookup.
+func ResolveOperatorHomeDirWithLookup(
+	homePaths HomePaths,
+	lookup func(string) (string, bool),
+) (string, error) {
+	return resolveOperatorHomeDir(homePaths, lookup, os.UserHomeDir)
+}
+
+func resolveOperatorHomeDir(
+	homePaths HomePaths,
+	lookup func(string) (string, bool),
+	lookupUserHome func() (string, error),
+) (string, error) {
+	if lookup != nil {
+		if homeDir, ok := lookup("HOME"); ok && strings.TrimSpace(homeDir) != "" {
+			return resolveAbsoluteDir(homeDir)
+		}
+	}
+
+	if lookupUserHome != nil {
+		userHome, err := lookupUserHome()
+		if err != nil {
+			if fallback, ok := fallbackOperatorHomeDir(homePaths); ok {
+				return fallback, nil
+			}
+			return "", fmt.Errorf("resolve user home directory: %w", err)
+		}
+		resolvedUserHome, resolveErr := resolveAbsoluteDir(userHome)
+		if resolveErr == nil && strings.TrimSpace(resolvedUserHome) != "" {
+			return resolvedUserHome, nil
+		}
+		if fallback, ok := fallbackOperatorHomeDir(homePaths); ok {
+			return fallback, nil
+		}
+		if resolveErr != nil {
+			return "", fmt.Errorf("resolve user home directory: %w", resolveErr)
+		}
+		return "", errors.New("config: operator home directory is required")
+	}
+
+	if fallback, ok := fallbackOperatorHomeDir(homePaths); ok {
+		return fallback, nil
+	}
+	return "", errors.New("config: operator home directory is required")
+}
+
+func fallbackOperatorHomeDir(homePaths HomePaths) (string, bool) {
+	homeDir := strings.TrimSpace(homePaths.HomeDir)
+	if homeDir == "" || filepath.Base(homeDir) != DirName {
+		return "", false
+	}
+
+	parent := filepath.Dir(homeDir)
+	if parent == "." || parent == homeDir || strings.TrimSpace(parent) == "" {
+		return "", false
+	}
+	return parent, true
+}
+
 func resolveHomeDir(lookup envLookup) (string, error) {
 	if lookup != nil {
 		if override, ok := lookup("AGH_HOME"); ok && strings.TrimSpace(override) != "" {

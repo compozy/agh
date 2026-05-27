@@ -1,6 +1,6 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { useResolveWorkspace } from "@/systems/workspace";
+import { useResolveWorkspace, useWorkspaces } from "@/systems/workspace";
 
 import { useDirectoryBrowser } from "./use-directory-browser";
 import {
@@ -38,11 +38,25 @@ export function useOnboardingWorkspaces(): OnboardingWorkspacesApi {
   const addToDraft = useOnboardingDraftStore(state => state.addWorkspace);
   const removeFromDraft = useOnboardingDraftStore(state => state.removeWorkspace);
   const resolveWorkspace = useResolveWorkspace();
+  const registeredWorkspaces = useWorkspaces();
   const [currentPath, setCurrentPath] = useState<string>("");
   const [resolveError, setResolveError] = useState<string | null>(null);
 
   const browse = useDirectoryBrowser({ path: currentPath || undefined, dirsOnly: true });
   const data = browse.data;
+
+  useEffect(() => {
+    if (workspaces.length > 0) {
+      return;
+    }
+    for (const workspace of registeredWorkspaces.data ?? []) {
+      const path = workspace.root_dir.trim();
+      if (path.length === 0) {
+        continue;
+      }
+      addToDraft({ path, name: workspace.name || basename(path) });
+    }
+  }, [addToDraft, registeredWorkspaces.data, workspaces.length]);
 
   const navigateTo = useCallback((path: string) => {
     setCurrentPath(path);

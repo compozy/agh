@@ -349,6 +349,96 @@ func TestShutdownClosesResourceReconcileDriver(t *testing.T) {
 	}
 }
 
+func TestBootRegistersOperatorHomeAsDefaultWorkspace(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should register operator home before serving workspaces", func(t *testing.T) {
+		t.Parallel()
+
+		operatorHome := filepath.Join(t.TempDir(), "operator-home")
+		if err := os.MkdirAll(operatorHome, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(%q) error = %v", operatorHome, err)
+		}
+		homePaths, err := aghconfig.ResolveHomePathsFrom(filepath.Join(operatorHome, aghconfig.DirName))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		homePaths.DaemonSocket = shortSocketPath(t)
+		if err := aghconfig.EnsureHomeLayout(homePaths); err != nil {
+			t.Fatalf("EnsureHomeLayout() error = %v", err)
+		}
+		cfg := testConfig(t, homePaths)
+		cfg.Network.Enabled = false
+
+		d := newTestDaemon(t, homePaths, &cfg)
+		d.getenv = func(key string) string {
+			if key == "HOME" {
+				return operatorHome
+			}
+			return os.Getenv(key)
+		}
+		d.newSessionManager = func(context.Context, SessionManagerDeps) (SessionManager, error) {
+			return &fakeSessionManager{}, nil
+		}
+		d.newObserver = func(context.Context, RuntimeDeps) (Observer, error) {
+			return &fakeObserver{}, nil
+		}
+		d.httpFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "http"}, nil
+		}
+		d.udsFactory = func(context.Context, RuntimeDeps) (Server, error) {
+			return &fakeServer{name: "uds"}, nil
+		}
+
+		if err := d.boot(testutil.Context(t)); err != nil {
+			t.Fatalf("boot() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := d.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("Shutdown() error = %v", err)
+			}
+		})
+
+		wantRoot := canonicalDaemonRoot(t, operatorHome)
+		workspaces, err := d.registry.ListWorkspaces(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("ListWorkspaces() error = %v", err)
+		}
+		if len(workspaces) != 1 {
+			t.Fatalf("ListWorkspaces() = %#v, want one default workspace", workspaces)
+		}
+		if got := workspaces[0].RootDir; got != wantRoot {
+			t.Fatalf("default workspace root = %q, want operator home %q", got, wantRoot)
+		}
+		if got := workspaces[0].RootDir; got == homePaths.HomeDir {
+			t.Fatalf("default workspace root = AGH home %q, want operator home %q", got, wantRoot)
+		}
+
+		resolved, err := d.workspaceResolver.Resolve(testutil.Context(t), operatorHome)
+		if err != nil {
+			t.Fatalf("Resolve(operator home) error = %v", err)
+		}
+		if resolved.ID != workspaces[0].ID {
+			t.Fatalf("Resolve(operator home) ID = %q, want %q", resolved.ID, workspaces[0].ID)
+		}
+
+		again, err := d.workspaceResolver.ResolveOrRegister(testutil.Context(t), operatorHome)
+		if err != nil {
+			t.Fatalf("ResolveOrRegister(operator home) error = %v", err)
+		}
+		if again.ID != workspaces[0].ID {
+			t.Fatalf("ResolveOrRegister(operator home) ID = %q, want %q", again.ID, workspaces[0].ID)
+		}
+		after, err := d.registry.ListWorkspaces(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("ListWorkspaces(after idempotent resolve) error = %v", err)
+		}
+		if len(after) != 1 {
+			t.Fatalf("ListWorkspaces(after idempotent resolve) = %#v, want one workspace", after)
+		}
+	})
+}
+
 func TestBootEnabledNetworkLateBindsSessionCallbacksAndPersistsSafeDiagnostics(t *testing.T) {
 	homePaths := testHomePaths(t)
 	cfg := testConfig(t, homePaths)
@@ -5615,8 +5705,10 @@ func (f *fakeResourceReconcileDriver) Close(context.Context) error {
 }
 
 type recordingRegistry struct {
-	path    string
-	onClose func()
+	path       string
+	onClose    func()
+	mu         sync.Mutex
+	workspaces map[string]workspacepkg.Workspace
 }
 
 var (
@@ -5628,32 +5720,129 @@ func (r *recordingRegistry) Path() string {
 	return r.path
 }
 
-func (r *recordingRegistry) InsertWorkspace(context.Context, workspacepkg.Workspace) error {
+func (r *recordingRegistry) InsertWorkspace(_ context.Context, ws workspacepkg.Workspace) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.ensureWorkspaceMapLocked()
+	for _, existing := range r.workspaces {
+		if existing.RootDir == ws.RootDir {
+			return workspacepkg.ErrWorkspacePathTaken
+		}
+		if existing.Name == ws.Name {
+			return workspacepkg.ErrWorkspaceNameTaken
+		}
+	}
+	r.workspaces[ws.ID] = cloneRecordingWorkspace(ws)
 	return nil
 }
 
-func (r *recordingRegistry) UpdateWorkspace(context.Context, workspacepkg.Workspace) error {
+func (r *recordingRegistry) UpdateWorkspace(_ context.Context, ws workspacepkg.Workspace) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.ensureWorkspaceMapLocked()
+	if _, ok := r.workspaces[ws.ID]; !ok {
+		return workspacepkg.ErrWorkspaceNotFound
+	}
+	for id, existing := range r.workspaces {
+		if id == ws.ID {
+			continue
+		}
+		if existing.RootDir == ws.RootDir {
+			return workspacepkg.ErrWorkspacePathTaken
+		}
+		if existing.Name == ws.Name {
+			return workspacepkg.ErrWorkspaceNameTaken
+		}
+	}
+	r.workspaces[ws.ID] = cloneRecordingWorkspace(ws)
 	return nil
 }
 
-func (r *recordingRegistry) DeleteWorkspace(context.Context, string) error {
+func (r *recordingRegistry) DeleteWorkspace(_ context.Context, id string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.ensureWorkspaceMapLocked()
+	if _, ok := r.workspaces[id]; !ok {
+		return workspacepkg.ErrWorkspaceNotFound
+	}
+	delete(r.workspaces, id)
 	return nil
 }
 
-func (r *recordingRegistry) GetWorkspace(context.Context, string) (workspacepkg.Workspace, error) {
+func (r *recordingRegistry) GetWorkspace(_ context.Context, id string) (workspacepkg.Workspace, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.ensureWorkspaceMapLocked()
+	ws, ok := r.workspaces[id]
+	if ok {
+		return cloneRecordingWorkspace(ws), nil
+	}
 	return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
 }
 
-func (r *recordingRegistry) GetWorkspaceByPath(context.Context, string) (workspacepkg.Workspace, error) {
+func (r *recordingRegistry) GetWorkspaceByPath(
+	_ context.Context,
+	rootDir string,
+) (workspacepkg.Workspace, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.ensureWorkspaceMapLocked()
+	for _, ws := range r.workspaces {
+		if ws.RootDir == rootDir {
+			return cloneRecordingWorkspace(ws), nil
+		}
+	}
 	return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
 }
 
-func (r *recordingRegistry) GetWorkspaceByName(context.Context, string) (workspacepkg.Workspace, error) {
+func (r *recordingRegistry) GetWorkspaceByName(
+	_ context.Context,
+	name string,
+) (workspacepkg.Workspace, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.ensureWorkspaceMapLocked()
+	for _, ws := range r.workspaces {
+		if ws.Name == name {
+			return cloneRecordingWorkspace(ws), nil
+		}
+	}
 	return workspacepkg.Workspace{}, workspacepkg.ErrWorkspaceNotFound
 }
 
 func (r *recordingRegistry) ListWorkspaces(context.Context) ([]workspacepkg.Workspace, error) {
-	return nil, nil
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.ensureWorkspaceMapLocked()
+	workspaces := make([]workspacepkg.Workspace, 0, len(r.workspaces))
+	for _, ws := range r.workspaces {
+		workspaces = append(workspaces, cloneRecordingWorkspace(ws))
+	}
+	sort.Slice(workspaces, func(i, j int) bool {
+		if workspaces[i].Name == workspaces[j].Name {
+			return workspaces[i].ID < workspaces[j].ID
+		}
+		return workspaces[i].Name < workspaces[j].Name
+	})
+	return workspaces, nil
+}
+
+func (r *recordingRegistry) ensureWorkspaceMapLocked() {
+	if r.workspaces == nil {
+		r.workspaces = make(map[string]workspacepkg.Workspace)
+	}
+}
+
+func cloneRecordingWorkspace(ws workspacepkg.Workspace) workspacepkg.Workspace {
+	ws.AdditionalDirs = append([]string(nil), ws.AdditionalDirs...)
+	return ws
 }
 
 func (r *recordingRegistry) RegisterSession(context.Context, store.SessionInfo) error {

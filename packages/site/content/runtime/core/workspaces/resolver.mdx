@@ -32,6 +32,11 @@ travel with it.
   true`; commit it to git so collaborators share the same workspace identity.
 </OperatorNote>
 
+On a fresh install, daemon boot registers the operator home directory (`$HOME`) as the default
+workspace through the same resolver path. That gives first-run onboarding and `agh workspace list`
+a usable workspace before any manual project registration. Use `agh workspace add` for additional
+project roots that should have their own stable names, agents, skills, or config overlays.
+
 ## What Gets Stored
 
 AGH stores workspace registrations in the global catalog database at `~/.agh/agh.db`. The

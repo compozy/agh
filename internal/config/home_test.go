@@ -19,6 +19,53 @@ func TestResolveHomeDirUsesAGHHomeOverride(t *testing.T) {
 	}
 }
 
+func TestResolveOperatorHomeDirWithLookupUsesHome(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should use HOME from the injected lookup", func(t *testing.T) {
+		t.Parallel()
+
+		operatorHome := filepath.Join(t.TempDir(), "operator-home")
+
+		got, err := ResolveOperatorHomeDirWithLookup(HomePaths{}, func(key string) (string, bool) {
+			if key == "HOME" {
+				return operatorHome, true
+			}
+			return "", false
+		})
+		if err != nil {
+			t.Fatalf("ResolveOperatorHomeDirWithLookup() error = %v", err)
+		}
+		if got != operatorHome {
+			t.Fatalf("ResolveOperatorHomeDirWithLookup() = %q, want %q", got, operatorHome)
+		}
+	})
+}
+
+func TestResolveOperatorHomeDirWithLookupFallsBackFromAGHHome(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should fall back to the parent of AGH home", func(t *testing.T) {
+		t.Parallel()
+
+		operatorHome := filepath.Join(t.TempDir(), "operator-home")
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(operatorHome, DirName))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+
+		got, err := resolveOperatorHomeDir(homePaths, nil, func() (string, error) {
+			return "", os.ErrNotExist
+		})
+		if err != nil {
+			t.Fatalf("resolveOperatorHomeDir() error = %v", err)
+		}
+		if got != operatorHome {
+			t.Fatalf("resolveOperatorHomeDir() = %q, want %q", got, operatorHome)
+		}
+	})
+}
+
 func TestEnsureHomeLayoutCreatesRequiredDirectories(t *testing.T) {
 	paths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 	if err != nil {

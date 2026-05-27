@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -1636,7 +1635,7 @@ func (h *BaseHandlers) networkStatusPayload(ctx context.Context) (*contract.Netw
 }
 
 func (h *BaseHandlers) daemonUserHomeDir() string {
-	userHomeDir, err := resolveUserHomeDir(h.HomePaths, os.UserHomeDir)
+	userHomeDir, err := aghconfig.ResolveOperatorHomeDir(h.HomePaths)
 	if err == nil {
 		return userHomeDir
 	}
@@ -1647,59 +1646,6 @@ func (h *BaseHandlers) daemonUserHomeDir() string {
 	}
 	logger.Warn("api: daemon status user home directory unavailable", "err", err)
 	return ""
-}
-
-func resolveUserHomeDir(homePaths aghconfig.HomePaths, lookupHomeDir func() (string, error)) (string, error) {
-	return resolveUserHomeDirWithResolver(homePaths, lookupHomeDir, aghconfig.ResolvePath)
-}
-
-func resolveUserHomeDirWithResolver(
-	homePaths aghconfig.HomePaths,
-	lookupHomeDir func() (string, error),
-	resolvePath func(string) (string, error),
-) (string, error) {
-	if resolvePath == nil {
-		resolvePath = aghconfig.ResolvePath
-	}
-
-	if lookupHomeDir != nil {
-		userHomeDir, err := lookupHomeDir()
-		if err == nil {
-			resolvedUserHomeDir, resolveErr := resolvePath(userHomeDir)
-			if resolveErr == nil && strings.TrimSpace(resolvedUserHomeDir) != "" {
-				return resolvedUserHomeDir, nil
-			}
-			if fallback, ok := fallbackUserHomeDir(homePaths); ok {
-				return fallback, nil
-			}
-			if resolveErr != nil {
-				return "", fmt.Errorf("resolve user home directory: %w", resolveErr)
-			}
-			return "", nil
-		}
-		if fallback, ok := fallbackUserHomeDir(homePaths); ok {
-			return fallback, nil
-		}
-		return "", fmt.Errorf("resolve user home directory: %w", err)
-	}
-
-	if fallback, ok := fallbackUserHomeDir(homePaths); ok {
-		return fallback, nil
-	}
-	return "", nil
-}
-
-func fallbackUserHomeDir(homePaths aghconfig.HomePaths) (string, bool) {
-	homeDir := strings.TrimSpace(homePaths.HomeDir)
-	if homeDir == "" || filepath.Base(homeDir) != aghconfig.DirName {
-		return "", false
-	}
-
-	parent := filepath.Dir(homeDir)
-	if parent == "." || parent == homeDir || strings.TrimSpace(parent) == "" {
-		return "", false
-	}
-	return parent, true
 }
 
 // HTTPPortValue returns the configured HTTP port in a concurrency-safe way.
