@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.0.1 - 2026-05-26
+## 0.0.2 - 2026-05-27
 
 ### Other Changes
 
@@ -226,6 +226,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ignore docs on fmt
 - Build web assets before goreleaser
 - Extend release dry-run timeout
+- Fix release dry-run token contract
 
 ### 🔧 CI/CD
 
@@ -233,6 +234,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fint release pr
 - Fix goreleaser
 - Fix release
+- Fix release process
+- Fix release sync
+- Decouple release dry-run npm auth
+- Persist web assets git auth
+- Require npm auth before release merge
 
 ### 🧪 Testing
 
@@ -245,8 +251,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stabilize release integration gates
 - Stabilize release e2e markers
 - Stabilize release e2e flows
+- Improve suite speed
 
-[0.0.1]: https://github.com/compozy/agh/releases/tag/v0.0.1
+[0.0.2]: https://github.com/compozy/agh/releases/tag/v0.0.2
 
 ---
 
