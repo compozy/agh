@@ -499,6 +499,30 @@ func TestPackagingMetadataStaysAlignedWithRuntimeAndInstaller(t *testing.T) {
 		assertWorkflowUsesBefore(t, releaseSteps, "./.github/actions/setup-node", "goreleaser/goreleaser-action@v6")
 		dryRun := mapAt(t, jobs, "dry-run")
 		dryRunSteps := sliceAt(t, dryRun, "steps")
+		dryRunValidationStep := workflowStepByName(
+			t,
+			dryRunSteps,
+			"Run pr-release Dry-Run (goreleaser build validation)",
+		)
+		dryRunValidationEnv := mapAt(t, dryRunValidationStep, "env")
+		assertEqualString(
+			t,
+			"dry-run pr-release GITHUB_TOKEN",
+			stringAt(t, dryRunValidationEnv, "GITHUB_TOKEN"),
+			"${{ secrets.RELEASE_TOKEN }}",
+		)
+		assertEqualString(
+			t,
+			"dry-run pr-release RELEASE_TOKEN",
+			stringAt(t, dryRunValidationEnv, "RELEASE_TOKEN"),
+			"${{ secrets.RELEASE_TOKEN }}",
+		)
+		if _, ok := dryRunValidationEnv["GITHUB_ISSUE_NUMBER"]; ok {
+			t.Fatal(
+				"dry-run pr-release sets GITHUB_ISSUE_NUMBER, " +
+					"want release validation independent from optional PR comments",
+			)
+		}
 		assertWorkflowRunBeforeUses(
 			t,
 			dryRunSteps,
@@ -1006,6 +1030,19 @@ func workflowStepByUses(t *testing.T, steps []any, uses string) map[string]any {
 		}
 	}
 	t.Fatalf("workflow steps missing uses %q", uses)
+	return nil
+}
+
+func workflowStepByName(t *testing.T, steps []any, name string) map[string]any {
+	t.Helper()
+
+	for _, entry := range steps {
+		step := asMap(t, entry, "workflow steps[]")
+		if got, ok := step["name"].(string); ok && got == name {
+			return step
+		}
+	}
+	t.Fatalf("workflow steps missing name %q", name)
 	return nil
 }
 

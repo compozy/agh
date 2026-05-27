@@ -175,12 +175,11 @@ jobs:
 
       - name: Run pr-release Dry-Run (goreleaser build validation)
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
           GITHUB_HEAD_REF: ${{ github.head_ref }}
-          GITHUB_ISSUE_NUMBER: ${{ github.event.pull_request.number }}
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
           GOTMPDIR: ${{ runner.temp }}/go-tmp
         run: go run "${{ env.PR_RELEASE_MODULE }}" dry-run --ci-output
