@@ -39,8 +39,9 @@ type skillsCatalogAugmenter struct {
 }
 
 type skillsCatalogSessionState struct {
-	signature [sha256.Size]byte
-	lastUsed  uint64
+	acpSessionID string
+	signature    [sha256.Size]byte
+	lastUsed     uint64
 }
 
 func newSkillsCatalogAugmenter(
@@ -90,7 +91,7 @@ func (a *skillsCatalogAugmenter) Augment(ctx context.Context, sess *session.Sess
 		a.forgetSession(info.ID)
 		return message, nil
 	}
-	if a.catalogUnchanged(info.ID, catalog) {
+	if a.catalogUnchanged(info, catalog) {
 		catalog = skillspkg.BuildCurrentCatalogUnchanged()
 	}
 	if strings.TrimSpace(message) == "" {
@@ -99,12 +100,17 @@ func (a *skillsCatalogAugmenter) Augment(ctx context.Context, sess *session.Sess
 	return catalog + "\n\n" + message, nil
 }
 
-func (a *skillsCatalogAugmenter) catalogUnchanged(sessionID string, catalog string) bool {
-	key := strings.TrimSpace(sessionID)
+func (a *skillsCatalogAugmenter) catalogUnchanged(info *session.Info, catalog string) bool {
+	if info == nil {
+		return false
+	}
+
+	key := strings.TrimSpace(info.ID)
 	if key == "" {
 		return false
 	}
 
+	acpSessionID := strings.TrimSpace(info.ACPSessionID)
 	signature := sha256.Sum256([]byte(catalog))
 	sequence := a.sequence.Add(1)
 
@@ -112,8 +118,12 @@ func (a *skillsCatalogAugmenter) catalogUnchanged(sessionID string, catalog stri
 	defer a.mu.Unlock()
 
 	state, ok := a.states[key]
-	unchanged := ok && state.signature == signature
-	a.states[key] = skillsCatalogSessionState{signature: signature, lastUsed: sequence}
+	unchanged := ok && state.acpSessionID == acpSessionID && state.signature == signature
+	a.states[key] = skillsCatalogSessionState{
+		acpSessionID: acpSessionID,
+		signature:    signature,
+		lastUsed:     sequence,
+	}
 	a.evictOldestLocked()
 	return unchanged
 }

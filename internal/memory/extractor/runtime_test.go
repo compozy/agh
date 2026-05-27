@@ -261,8 +261,41 @@ func TestRuntime(t *testing.T) {
 		if turns[1].SinceMessageSeq != 4 || turns[1].UntilMessageSeq != 4 {
 			t.Fatalf("retained range = %d..%d, want newest 4..4", turns[1].SinceMessageSeq, turns[1].UntilMessageSeq)
 		}
-		if !events.containsOp(extractor.EventDropped) {
-			t.Fatalf("events = %#v, want %s", events.ops(), extractor.EventDropped)
+		if dropped := events.eventsForOp(extractor.EventDropped); len(dropped) != 2 {
+			t.Fatalf("dropped events = %#v, want one drop per overflowed queued turn", dropped)
+		}
+		if events.containsOp(extractor.EventCoalesced) {
+			t.Fatalf("events = %#v, want no coalescing after the configured cap", events.ops())
+		}
+	})
+
+	t.Run("Should reject new work while drain is in progress", func(t *testing.T) {
+		t.Parallel()
+
+		fake := newFakeExtractor()
+		fake.blockFirst()
+		runtime := newTestRuntime(t, t.TempDir(), fake, nil)
+		if err := runtime.Enqueue(testutil.Context(t), testTurn("sess-drain", 1)); err != nil {
+			t.Fatalf("Enqueue() error = %v", err)
+		}
+		fake.waitStarted(t)
+
+		drainErr := make(chan error, 1)
+		go func() {
+			drainErr <- runtime.Drain(testutil.Context(t))
+		}()
+
+		drainingTurn := testTurn("sess-drain-rejected", 2)
+		drainingTurn.Snapshot.Messages[0].Content = " \n\t "
+		waitUntilDrainBlocksEnqueue(t, runtime, drainingTurn)
+
+		fake.release()
+		if err := <-drainErr; err != nil {
+			t.Fatalf("Drain() error = %v", err)
+		}
+		turns := fake.turns()
+		if len(turns) != 1 || turns[0].UntilMessageSeq != 1 {
+			t.Fatalf("turns after drain = %#v, want only the original in-flight turn", turns)
 		}
 	})
 
@@ -933,7 +966,14 @@ func waitRuntimeStats(
 	match func(extractor.RuntimeStats) bool,
 ) extractor.RuntimeStats {
 	t.Helper()
-	deadline := time.After(time.Second)
+	timeout := 5 * time.Second
+	if testDeadline, ok := t.Deadline(); ok {
+		if remaining := time.Until(testDeadline) / 2; remaining > 0 && remaining < timeout {
+			timeout = remaining
+		}
+	}
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
 	tick := time.NewTicker(10 * time.Millisecond)
 	defer tick.Stop()
 	for {
@@ -942,8 +982,37 @@ func waitRuntimeStats(
 			return stats
 		}
 		select {
-		case <-deadline:
+		case <-deadline.C:
 			t.Fatalf("timed out waiting for runtime stats, last stats = %#v", stats)
+		case <-tick.C:
+		}
+	}
+}
+
+func waitUntilDrainBlocksEnqueue(
+	t *testing.T,
+	runtime *extractor.Runtime,
+	turn memcontract.TurnRecord,
+) {
+	t.Helper()
+	timeout := time.NewTimer(5 * time.Second)
+	defer timeout.Stop()
+	tick := time.NewTicker(10 * time.Millisecond)
+	defer tick.Stop()
+
+	for {
+		err := runtime.Enqueue(testutil.Context(t), turn)
+		switch {
+		case err == nil:
+		case err.Error() == "memory extractor: runtime is draining":
+			return
+		default:
+			t.Fatalf("Enqueue() while waiting for drain barrier error = %v", err)
+		}
+
+		select {
+		case <-timeout.C:
+			t.Fatalf("timed out waiting for drain to reject new work")
 		case <-tick.C:
 		}
 	}

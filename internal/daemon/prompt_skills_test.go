@@ -117,6 +117,54 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 			t.Fatalf("second prompt = %q, want original prompt preserved", second)
 		}
 	})
+
+	t.Run("Should replay the full catalog after the ACP session changes", func(t *testing.T) {
+		t.Parallel()
+
+		registry, augmenter := newPromptSkillsAugmenterForTest(t, []*skillspkg.Skill{
+			{
+				Meta: skillspkg.SkillMeta{
+					Name:        "qa-marker-skill",
+					Description: "Shows up while enabled.",
+				},
+				Enabled: true,
+			},
+		})
+		_ = registry
+		sess := newPromptSkillsSession("sess-resume")
+		sess.ACPSessionID = "acp-1"
+
+		first, err := augmenter(context.Background(), sess, "list current skills")
+		if err != nil {
+			t.Fatalf("augmenter(first) error = %v", err)
+		}
+		if !strings.Contains(first, `name="qa-marker-skill"`) {
+			t.Fatalf("first prompt = %q, want enabled skill entry", first)
+		}
+
+		second, err := augmenter(context.Background(), sess, "list current skills again")
+		if err != nil {
+			t.Fatalf("augmenter(second) error = %v", err)
+		}
+		if !strings.Contains(second, `<catalog-state unchanged="true">`) {
+			t.Fatalf("second prompt = %q, want unchanged catalog marker", second)
+		}
+
+		sess.ACPSessionID = "acp-2"
+		third, err := augmenter(context.Background(), sess, "list current skills after resume")
+		if err != nil {
+			t.Fatalf("augmenter(third) error = %v", err)
+		}
+		if strings.Contains(third, `<catalog-state unchanged="true">`) {
+			t.Fatalf("third prompt = %q, want full catalog after ACP session reset", third)
+		}
+		if !strings.Contains(third, `name="qa-marker-skill"`) {
+			t.Fatalf("third prompt = %q, want enabled skill entry after ACP session reset", third)
+		}
+		if !strings.HasSuffix(third, "list current skills after resume") {
+			t.Fatalf("third prompt = %q, want original prompt preserved", third)
+		}
+	})
 }
 
 func BenchmarkSkillsCatalogAugmenterCatalogReplayModes(b *testing.B) {

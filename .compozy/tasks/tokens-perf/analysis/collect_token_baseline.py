@@ -142,6 +142,8 @@ def collect_claude(project_dir: Path, start: datetime | None, end: datetime | No
                 usage = message.get("usage") if isinstance(message.get("usage"), dict) else None
                 if not usage:
                     continue
+                if not in_window(timestamp, start, end):
+                    continue
 
                 stats.raw_assistant_usage_rows += 1
                 raw_rows += 1
@@ -169,23 +171,24 @@ def collect_claude(project_dir: Path, start: datetime | None, end: datetime | No
         cls = stats.classify()
         if stats.first_timestamp and in_window(stats.first_timestamp, start, end):
             session_starts_by_class[cls] += 1
-        by_class[cls]["transcripts"] += 1
-        by_class[cls]["raw_assistant_usage_rows"] += stats.raw_assistant_usage_rows
-        by_class[cls]["deduped_assistant_calls"] += stats.deduped_assistant_calls
-        for field_name in TOKEN_FIELDS:
-            by_class[cls][field_name] += stats.usage[field_name]
+        if stats.raw_assistant_usage_rows > 0:
+            by_class[cls]["transcripts"] += 1
+            by_class[cls]["raw_assistant_usage_rows"] += stats.raw_assistant_usage_rows
+            by_class[cls]["deduped_assistant_calls"] += stats.deduped_assistant_calls
+            for field_name in TOKEN_FIELDS:
+                by_class[cls][field_name] += stats.usage[field_name]
 
-        top_files.append(
-            {
-                "file": path.name,
-                "class": cls,
-                "first_timestamp": iso_utc(stats.first_timestamp),
-                "deduped_assistant_calls": stats.deduped_assistant_calls,
-                "cache_creation_input_tokens": stats.usage["cache_creation_input_tokens"],
-                "cache_read_input_tokens": stats.usage["cache_read_input_tokens"],
-                "output_tokens": stats.usage["output_tokens"],
-            }
-        )
+            top_files.append(
+                {
+                    "file": path.name,
+                    "class": cls,
+                    "first_timestamp": iso_utc(stats.first_timestamp),
+                    "deduped_assistant_calls": stats.deduped_assistant_calls,
+                    "cache_creation_input_tokens": stats.usage["cache_creation_input_tokens"],
+                    "cache_read_input_tokens": stats.usage["cache_read_input_tokens"],
+                    "output_tokens": stats.usage["output_tokens"],
+                }
+            )
 
     context_total = (
         totals["input_tokens"]
@@ -416,4 +419,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

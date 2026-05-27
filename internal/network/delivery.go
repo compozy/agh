@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/compozy/agh/internal/acp"
@@ -72,11 +73,12 @@ type deliveryCoordinator struct {
 	retryMaxDelay  time.Duration
 	scheduleRetry  deliveryRetryScheduler
 
-	mu       sync.Mutex
-	queues   map[string]*inboundQueue
-	inFlight map[string]queuedEnvelope
-	waiters  map[string][]chan struct{}
-	guidance map[string]deliveryGuidanceState
+	mu            sync.Mutex
+	queues        map[string]*inboundQueue
+	inFlight      map[string]queuedEnvelope
+	waiters       map[string][]chan struct{}
+	guidance      map[string]deliveryGuidanceState
+	sessionTokens atomic.Uint64
 
 	deliveries sync.Map
 	wg         sync.WaitGroup
@@ -92,6 +94,7 @@ type deliveryState struct {
 type inboundQueue struct {
 	mu       sync.Mutex
 	maxDepth int
+	token    uint64
 	items    []queuedEnvelope
 }
 
@@ -106,6 +109,7 @@ type queuedEnvelope struct {
 	AcceptedAt   time.Time
 	DeliveryMode string
 	RetryAttempt int
+	SessionToken uint64
 }
 
 type deliveryGuidanceState struct {
@@ -387,6 +391,7 @@ func (c *deliveryCoordinator) dropSession(sessionID string) {
 	defer c.mu.Unlock()
 	target := strings.TrimSpace(sessionID)
 	delete(c.queues, target)
+	delete(c.inFlight, target)
 	delete(c.guidance, target)
 	waiters := c.waiters[target]
 	delete(c.waiters, target)
@@ -452,7 +457,7 @@ func (c *deliveryCoordinator) queueForSession(sessionID string) *inboundQueue {
 		return queue
 	}
 
-	queue := newInboundQueue(c.maxQueueDepth)
+	queue := newInboundQueueWithToken(c.maxQueueDepth, c.sessionTokens.Add(1))
 	c.queues[target] = queue
 	return queue
 }
@@ -479,7 +484,7 @@ func (c *deliveryCoordinator) guidanceModeForDelivery(
 	return networkMessageGuidanceCompact
 }
 
-func (c *deliveryCoordinator) markGuidanceDelivered(sessionID string, envelope Envelope) {
+func (c *deliveryCoordinator) markGuidanceDelivered(sessionID string, item queuedEnvelope) {
 	target := strings.TrimSpace(sessionID)
 	if target == "" {
 		return
@@ -487,10 +492,14 @@ func (c *deliveryCoordinator) markGuidanceDelivered(sessionID string, envelope E
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	queue := c.queues[target]
+	if queue == nil || queue.token != item.SessionToken {
+		return
+	}
 
 	state := c.guidance[target]
 	state.replyDelivered = true
-	if lifecycleWorkID(envelope) != "" {
+	if lifecycleWorkID(item.Envelope) != "" {
 		state.protocolDelivered = true
 	}
 	c.guidance[target] = state
@@ -607,7 +616,7 @@ func (c *deliveryCoordinator) handleRenderFailure(
 ) {
 	c.clearInFlight(sessionID)
 	item = item.withNextRetryAttempt()
-	c.requeueFront(sessionID, item)
+	requeued := c.requeueFront(sessionID, item)
 	c.logger.Warn(
 		"network.message.render_failed",
 		"session_id", sessionID,
@@ -615,7 +624,7 @@ func (c *deliveryCoordinator) handleRenderFailure(
 		"error", err,
 		"retry_attempt", item.RetryAttempt,
 	)
-	if json.Valid(item.Envelope.Body) {
+	if requeued && json.Valid(item.Envelope.Body) {
 		c.retryAfterWorkerExit(sessionID, item, state)
 	}
 }
@@ -628,7 +637,7 @@ func (c *deliveryCoordinator) handleDeliveryFailure(
 ) {
 	c.clearInFlight(sessionID)
 	item = item.withNextRetryAttempt()
-	c.requeueFront(sessionID, item)
+	requeued := c.requeueFront(sessionID, item)
 	c.logger.Warn(
 		"network.message.delivery_failed",
 		"session_id", sessionID,
@@ -636,7 +645,9 @@ func (c *deliveryCoordinator) handleDeliveryFailure(
 		"error", err,
 		"retry_attempt", item.RetryAttempt,
 	)
-	c.retryAfterWorkerExit(sessionID, item, state)
+	if requeued {
+		c.retryAfterWorkerExit(sessionID, item, state)
+	}
 }
 
 func (c *deliveryCoordinator) handleInterruptedDelivery(sessionID string, item queuedEnvelope) {
@@ -654,7 +665,7 @@ func (c *deliveryCoordinator) handleInterruptedDelivery(sessionID string, item q
 
 func (c *deliveryCoordinator) finishDeliveredMessage(sessionID string, item queuedEnvelope) {
 	c.clearInFlight(sessionID)
-	c.markGuidanceDelivered(sessionID, item.Envelope)
+	c.markGuidanceDelivered(sessionID, item)
 
 	latency := max(c.now().Sub(item.AcceptedAt), 0)
 
@@ -699,14 +710,15 @@ func (c *deliveryCoordinator) dequeue(sessionID string) (queuedEnvelope, bool) {
 	return queue.dequeue()
 }
 
-func (c *deliveryCoordinator) requeueFront(sessionID string, item queuedEnvelope) {
+func (c *deliveryCoordinator) requeueFront(sessionID string, item queuedEnvelope) bool {
 	c.mu.Lock()
 	queue := c.queues[strings.TrimSpace(sessionID)]
 	c.mu.Unlock()
-	if queue == nil {
-		return
+	if queue == nil || queue.token != item.SessionToken {
+		return false
 	}
 	queue.prepend(item)
+	return true
 }
 
 func (c *deliveryCoordinator) retryAfterWorkerExit(sessionID string, item queuedEnvelope, state *deliveryState) {
@@ -866,7 +878,11 @@ func (c *deliveryCoordinator) clearInFlight(sessionID string) {
 }
 
 func newInboundQueue(maxDepth int) *inboundQueue {
-	return &inboundQueue{maxDepth: maxDepth}
+	return newInboundQueueWithToken(maxDepth, 0)
+}
+
+func newInboundQueueWithToken(maxDepth int, token uint64) *inboundQueue {
+	return &inboundQueue{maxDepth: maxDepth, token: token}
 }
 
 func (q *inboundQueue) enqueue(envelope Envelope, acceptedAt time.Time, prompting bool) enqueueResult {
@@ -889,6 +905,7 @@ func (q *inboundQueue) enqueue(envelope Envelope, acceptedAt time.Time, promptin
 		Envelope:     cloneEnvelope(envelope),
 		AcceptedAt:   acceptedAt.UTC(),
 		DeliveryMode: deliveryMode,
+		SessionToken: q.token,
 	})
 
 	return enqueueResult{
@@ -1360,5 +1377,6 @@ func cloneQueuedEnvelope(item queuedEnvelope) queuedEnvelope {
 		AcceptedAt:   item.AcceptedAt,
 		DeliveryMode: item.DeliveryMode,
 		RetryAttempt: item.RetryAttempt,
+		SessionToken: item.SessionToken,
 	}
 }

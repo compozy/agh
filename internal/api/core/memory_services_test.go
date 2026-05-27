@@ -61,6 +61,9 @@ func TestMemoryExtractorHandlersUseInjectedService(t *testing.T) {
 		if got := statusPayload.Extractor.SkippedTurns; got != 5 {
 			t.Fatalf("Extractor.SkippedTurns = %d, want 5", got)
 		}
+		if got := statusPayload.Extractor.ActiveProviderSessions; got != 1 {
+			t.Fatalf("Extractor.ActiveProviderSessions = %d, want 1", got)
+		}
 		if got := statusPayload.Extractor.BackpressuredSessions; got != 6 {
 			t.Fatalf("Extractor.BackpressuredSessions = %d, want 6", got)
 		}

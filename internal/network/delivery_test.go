@@ -573,6 +573,62 @@ func TestDeliveryCoordinatorCompactsReplyGuidanceAfterFirstDelivery(t *testing.T
 		prompter.finishCall(1, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
 		coordinator.wait()
 	})
+
+	t.Run("Should ignore stale in-flight guidance completion after the session is dropped", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		prompter := newFakeDeliveryPrompter()
+		coordinator, err := newDeliveryCoordinator(ctx, 4, prompter)
+		if err != nil {
+			t.Fatalf("newDeliveryCoordinator() error = %v", err)
+		}
+
+		first := testDeliveryEnvelope(t, "msg-guidance-stale-1", "first before drop")
+		first.WorkID = new("work_guidance_stale")
+		if err := coordinator.acceptOne(ctx, Delivery{
+			SessionID: "sess-guidance-stale",
+			Envelope:  first,
+		}); err != nil {
+			t.Fatalf("acceptOne(first) error = %v", err)
+		}
+		prompter.waitForCalls(t, 1)
+
+		coordinator.dropSession("sess-guidance-stale")
+
+		second := testDeliveryEnvelope(t, "msg-guidance-stale-2", "first after drop")
+		second.WorkID = new("work_guidance_stale")
+		if err := coordinator.acceptOne(ctx, Delivery{
+			SessionID: "sess-guidance-stale",
+			Envelope:  second,
+		}); err != nil {
+			t.Fatalf("acceptOne(second) error = %v", err)
+		}
+
+		prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
+		prompter.waitForCalls(t, 2)
+
+		secondCall := prompter.call(1)
+		for _, snippet := range []string{
+			"Examples:",
+			"# Protocol receipt",
+			"# Protocol trace",
+			"# Protocol capability",
+			`--reply-to "msg-guidance-stale-2"`,
+			`--work "work_guidance_stale"`,
+		} {
+			if !strings.Contains(secondCall.message, snippet) {
+				t.Fatalf(
+					"delivery after stale completion missing reset verbose guidance snippet %q:\n%s",
+					snippet,
+					secondCall.message,
+				)
+			}
+		}
+
+		prompter.finishCall(1, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
+		coordinator.wait()
+	})
 }
 
 func TestDeliveryCoordinatorIdleAndBusyBehavior(t *testing.T) {

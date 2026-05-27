@@ -3883,6 +3883,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(memory_extractor_status) error = %v", err)
 		}
 		requireNativeStructuredContains(t, extractorResult, []byte(`"status":"idle"`))
+		requireNativeStructuredContains(t, extractorResult, []byte(`"active_provider_sessions":1`))
 		requireNativeStructuredContains(t, extractorResult, []byte(`"skipped_turns":5`))
 		requireNativeStructuredContains(t, extractorResult, []byte(`"backpressured_sessions":6`))
 		if extractor.statusCalls != 1 {

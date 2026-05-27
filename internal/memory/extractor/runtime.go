@@ -26,6 +26,8 @@ const (
 	sessionTypeSystem        = "system"
 )
 
+var errRuntimeDraining = errors.New("memory extractor: runtime is draining")
+
 // Runtime owns asynchronous transcript extraction and daemon inbox production.
 type Runtime struct {
 	root              string
@@ -51,6 +53,7 @@ type Runtime struct {
 	coalescedTurns        int64
 	backpressuredSessions int64
 	closed                bool
+	draining              bool
 	wg                    sync.WaitGroup
 }
 
@@ -339,6 +342,10 @@ func (r *Runtime) Enqueue(ctx context.Context, turn memcontract.TurnRecord) erro
 		r.mu.Unlock()
 		return errors.New("memory extractor: runtime is closed")
 	}
+	if r.draining {
+		r.mu.Unlock()
+		return errRuntimeDraining
+	}
 	if !turnHasExtractableContent(req.turn) {
 		r.skippedTurns++
 		r.mu.Unlock()
@@ -391,7 +398,7 @@ func (r *Runtime) queueRequestLocked(state *sessionState, req request) *Event {
 		state.queued = &queued
 		return nil
 	}
-	if state.queued.coalesceCount+1 > r.coalesceMax {
+	if state.queued.coalesceCount+2 > r.coalesceMax {
 		dropped := *state.queued
 		queued := req
 		state.queued = &queued
@@ -429,7 +436,7 @@ func (r *Runtime) queuedReady(req request) bool {
 }
 
 func (r *Runtime) scheduleThrottleFlushLocked(sessionID string, state *sessionState) {
-	if state == nil || state.flushTimer != nil || r.throttleTurns <= 1 {
+	if state == nil || state.flushTimer != nil || r.throttleTurns <= 1 || r.draining {
 		return
 	}
 	state.flushTimer = time.AfterFunc(r.throttleFlushWait, func() {
@@ -482,6 +489,21 @@ func (r *Runtime) Drain(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("memory extractor: drain context is required")
 	}
+	r.mu.Lock()
+	if r.draining {
+		r.mu.Unlock()
+		return errRuntimeDraining
+	}
+	r.draining = true
+	for _, state := range r.sessions {
+		r.stopThrottleFlushLocked(state)
+	}
+	r.mu.Unlock()
+	defer func() {
+		r.mu.Lock()
+		r.draining = false
+		r.mu.Unlock()
+	}()
 	for {
 		if err := r.flushQueuedSessions(ctx); err != nil {
 			return err
@@ -563,7 +585,7 @@ func (r *Runtime) flushQueuedSessions(ctx context.Context) error {
 func (r *Runtime) flushSession(sessionID string) {
 	r.mu.Lock()
 	state := r.sessions[sessionID]
-	if r.closed || state == nil || state.inFlight || state.queued == nil {
+	if r.closed || r.draining || state == nil || state.inFlight || state.queued == nil {
 		if state != nil {
 			state.flushTimer = nil
 		}

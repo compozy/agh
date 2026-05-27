@@ -3,15 +3,16 @@
 
 from __future__ import annotations
 
+import argparse
 import datetime as dt
 import json
+import os
 import pathlib
 import re
 from dataclasses import dataclass
 from typing import Any
 
-
-ROOT = pathlib.Path("/Users/pedronauck/.claude/projects/-Users-pedronauck-Desktop-test")
+CORPUS_DIR_ENV = "AGH_TOKEN_CORPUS_DIR"
 OPEN_CATALOG = "<current-available-skills>"
 CLOSE_CATALOG = "</current-available-skills>"
 BT = chr(96)
@@ -20,7 +21,19 @@ FINAL_CATALOG_LINE = (
     f"use {BT}agh skill view <name>{BT} as an operator fallback."
 )
 NETWORK_CLOSE = "</network-message>"
-COMPACT_CATALOG_BYTES = 301
+COMPACT_CATALOG_STATE_TEXT = (
+    "Previous catalog remains current; use `agh__skill_view` for full skill/resource instructions."
+)
+COMPACT_CATALOG_TEXT = "\n".join(
+    [
+        OPEN_CATALOG,
+        f'  <catalog-state unchanged="true">{COMPACT_CATALOG_STATE_TEXT}</catalog-state>',
+        CLOSE_CATALOG,
+        "",
+        FINAL_CATALOG_LINE,
+    ]
+)
+COMPACT_CATALOG_BYTES = len(COMPACT_CATALOG_TEXT.encode())
 COMPACT_GUIDANCE_TEXT = (
     f"Full protocol examples were already provided earlier in this session; "
     f"run {BT}agh network --help{BT} for command details."
@@ -33,6 +46,46 @@ class PromptEvent:
     text: str
     remaining_assistant_calls: int
     timestamp: dt.datetime | None
+
+
+def parse_args() -> pathlib.Path:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "corpus_dir",
+        nargs="?",
+        help=f"Directory containing *.jsonl transcripts. Defaults to {CORPUS_DIR_ENV} when set.",
+    )
+    parser.add_argument(
+        "--corpus-dir",
+        dest="corpus_dir_override",
+        help="Explicit transcript directory override.",
+    )
+    args = parser.parse_args()
+    raw_path = first_non_empty_path(
+        args.corpus_dir_override,
+        args.corpus_dir,
+        os.environ.get(CORPUS_DIR_ENV, ""),
+    )
+    if raw_path == "":
+        parser.error(
+            f"corpus directory is required via --corpus-dir, positional argument, or {CORPUS_DIR_ENV}"
+        )
+    root = pathlib.Path(raw_path).expanduser().resolve()
+    if not root.exists():
+        parser.error(f"corpus directory does not exist: {root}")
+    if not root.is_dir():
+        parser.error(f"corpus path is not a directory: {root}")
+    return root
+
+
+def first_non_empty_path(*values: str | None) -> str:
+    for value in values:
+        if value is None:
+            continue
+        trimmed = value.strip()
+        if trimmed:
+            return trimmed
+    return ""
 
 
 def content_text(message: dict[str, Any]) -> str:
@@ -134,6 +187,7 @@ def load_network_prompt_events(path: pathlib.Path) -> list[PromptEvent]:
 
 
 def main() -> None:
+    root = parse_args()
     totals = {
         "network_transcripts": 0,
         "network_prompt_turns_before": 0,
@@ -153,7 +207,7 @@ def main() -> None:
     gaps: list[float] = []
     top_files: list[dict[str, Any]] = []
 
-    for path in sorted(ROOT.glob("*.jsonl")):
+    for path in sorted(root.glob("*.jsonl")):
         prompts = load_network_prompt_events(path)
         if not prompts:
             continue
@@ -230,7 +284,7 @@ def main() -> None:
     replay_after = totals["network_prompt_replay_bytes_after_tasks_006_009"]
 
     result = {
-        "corpus": str(ROOT),
+        "corpus": str(root),
         "totals": totals,
         "direct_saved_bytes": direct_before - direct_after,
         "direct_saved_estimated_tokens_bytes_div_4": round((direct_before - direct_after) / 4),
