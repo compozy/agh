@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.0.3 - 2026-05-27
+
+### ♻️ Refactoring
+
+- Memory optimization (#215)
+
+### 📦 Build System
+
+- Sync web assets module (#210)
+
 ## 0.0.2 - 2026-05-27
 
 ### Other Changes
@@ -253,6 +263,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stabilize release e2e flows
 - Improve suite speed
 
+[0.0.3]: https://github.com/compozy/agh/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/compozy/agh/releases/tag/v0.0.2
 
 ---
