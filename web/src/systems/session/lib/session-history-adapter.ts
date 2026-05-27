@@ -4,6 +4,7 @@ import type {
   MessageFormatAdapter,
   MessageFormatItem,
   MessageFormatRepository,
+  MessageStorageEntry,
   ThreadHistoryAdapter,
 } from "@assistant-ui/react";
 import { ExportedMessageRepository } from "@assistant-ui/react";
@@ -16,10 +17,11 @@ type AISDKStorageFormat = Omit<SessionMessage, "id">;
 
 const aiSDKV6FormatAdapter: MessageFormatAdapter<SessionMessage, AISDKStorageFormat> = {
   format: "ai-sdk/v6",
-  encode({ message: { id: _id, ...message } }) {
+  encode(item: MessageFormatItem<SessionMessage>): AISDKStorageFormat {
+    const { id: _id, ...message } = item.message;
     return message;
   },
-  decode(stored) {
+  decode(stored: MessageStorageEntry<AISDKStorageFormat>): MessageFormatItem<SessionMessage> {
     return {
       parentId: stored.parent_id,
       message: {
@@ -28,7 +30,7 @@ const aiSDKV6FormatAdapter: MessageFormatAdapter<SessionMessage, AISDKStorageFor
       },
     };
   },
-  getId(message) {
+  getId(message: SessionMessage): string {
     return message.id;
   },
 };

@@ -377,6 +377,204 @@ func TestFormatNetworkMessageSayGuidanceKeepsCurrentThreadByDefault(t *testing.T
 	}
 }
 
+func TestDeliveryCoordinatorCompactsReplyGuidanceAfterFirstDelivery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep verbose examples only for the first successful delivery per session", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		prompter := newFakeDeliveryPrompter()
+		coordinator, err := newDeliveryCoordinator(ctx, 4, prompter)
+		if err != nil {
+			t.Fatalf("newDeliveryCoordinator() error = %v", err)
+		}
+
+		first := testDeliveryEnvelope(t, "msg-guidance-1", "first guidance message")
+		first.WorkID = new("work_guidance_01")
+		first.TraceID = new("trace-guidance-01")
+		second := testDeliveryEnvelope(t, "msg-guidance-2", "second guidance message")
+		second.WorkID = new("work_guidance_01")
+		second.TraceID = new("trace-guidance-01")
+
+		if err := coordinator.acceptOne(ctx, Delivery{
+			SessionID: "sess-guidance",
+			Envelope:  first,
+		}); err != nil {
+			t.Fatalf("acceptOne(first) error = %v", err)
+		}
+		prompter.waitForCalls(t, 1)
+
+		if err := coordinator.acceptOne(ctx, Delivery{
+			SessionID: "sess-guidance",
+			Envelope:  second,
+		}); err != nil {
+			t.Fatalf("acceptOne(second) error = %v", err)
+		}
+
+		firstCall := prompter.call(0)
+		for _, snippet := range []string{
+			"Examples:",
+			"# Protocol receipt",
+			"# Protocol trace",
+			"# Protocol capability",
+			`--reply-to "msg-guidance-1"`,
+			`--trace-id "trace-guidance-01"`,
+		} {
+			if !strings.Contains(firstCall.message, snippet) {
+				t.Fatalf("first delivery missing verbose guidance snippet %q:\n%s", snippet, firstCall.message)
+			}
+		}
+
+		prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
+		prompter.waitForCalls(t, 2)
+
+		secondCall := prompter.call(1)
+		for _, snippet := range []string{
+			"second guidance message",
+			`--reply-to "msg-guidance-2"`,
+			`--trace-id "trace-guidance-01"`,
+			compactReplyGuidanceText,
+			"Direct-room chat uses `--kind say --surface direct`.",
+		} {
+			if !strings.Contains(secondCall.message, snippet) {
+				t.Fatalf(
+					"second delivery missing compact guidance snippet %q:\n%s",
+					snippet,
+					secondCall.message,
+				)
+			}
+		}
+		for _, snippet := range []string{
+			"Examples:",
+			"# Protocol receipt",
+			"# Protocol trace",
+			"# Protocol capability",
+			`"capability":{"id":"reply-workflow"`,
+		} {
+			if strings.Contains(secondCall.message, snippet) {
+				t.Fatalf(
+					"second delivery unexpectedly repeated verbose guidance snippet %q:\n%s",
+					snippet,
+					secondCall.message,
+				)
+			}
+		}
+
+		prompter.finishCall(1, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
+		coordinator.wait()
+	})
+
+	t.Run("Should keep protocol examples until a lifecycle delivery succeeds", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		prompter := newFakeDeliveryPrompter()
+		coordinator, err := newDeliveryCoordinator(ctx, 4, prompter)
+		if err != nil {
+			t.Fatalf("newDeliveryCoordinator() error = %v", err)
+		}
+
+		first := testDeliveryEnvelope(t, "msg-guidance-non-work", "non lifecycle message")
+		second := testDeliveryEnvelope(t, "msg-guidance-work", "lifecycle message")
+		second.WorkID = new("work_guidance_02")
+
+		if err := coordinator.acceptOne(ctx, Delivery{
+			SessionID: "sess-lifecycle-guidance",
+			Envelope:  first,
+		}); err != nil {
+			t.Fatalf("acceptOne(first) error = %v", err)
+		}
+		prompter.waitForCalls(t, 1)
+		prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
+
+		if err := coordinator.acceptOne(ctx, Delivery{
+			SessionID: "sess-lifecycle-guidance",
+			Envelope:  second,
+		}); err != nil {
+			t.Fatalf("acceptOne(second) error = %v", err)
+		}
+		prompter.waitForCalls(t, 2)
+
+		secondCall := prompter.call(1)
+		for _, snippet := range []string{
+			"Examples:",
+			"# Protocol receipt",
+			"# Protocol trace",
+			"# Protocol capability",
+			`--work "work_guidance_02"`,
+			`--reply-to "msg-guidance-work"`,
+		} {
+			if !strings.Contains(secondCall.message, snippet) {
+				t.Fatalf(
+					"lifecycle delivery missing deferred protocol guidance snippet %q:\n%s",
+					snippet,
+					secondCall.message,
+				)
+			}
+		}
+
+		prompter.finishCall(1, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
+		coordinator.wait()
+	})
+
+	t.Run("Should reset guidance state when the session is dropped", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		prompter := newFakeDeliveryPrompter()
+		coordinator, err := newDeliveryCoordinator(ctx, 4, prompter)
+		if err != nil {
+			t.Fatalf("newDeliveryCoordinator() error = %v", err)
+		}
+
+		first := testDeliveryEnvelope(t, "msg-guidance-drop-1", "first before drop")
+		first.WorkID = new("work_guidance_drop")
+		if err := coordinator.acceptOne(ctx, Delivery{
+			SessionID: "sess-guidance-drop",
+			Envelope:  first,
+		}); err != nil {
+			t.Fatalf("acceptOne(first) error = %v", err)
+		}
+		prompter.waitForCalls(t, 1)
+		prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
+		coordinator.wait()
+
+		coordinator.dropSession("sess-guidance-drop")
+
+		second := testDeliveryEnvelope(t, "msg-guidance-drop-2", "first after drop")
+		second.WorkID = new("work_guidance_drop")
+		if err := coordinator.acceptOne(ctx, Delivery{
+			SessionID: "sess-guidance-drop",
+			Envelope:  second,
+		}); err != nil {
+			t.Fatalf("acceptOne(second) error = %v", err)
+		}
+		prompter.waitForCalls(t, 2)
+
+		secondCall := prompter.call(1)
+		for _, snippet := range []string{
+			"Examples:",
+			"# Protocol receipt",
+			"# Protocol trace",
+			"# Protocol capability",
+			`--reply-to "msg-guidance-drop-2"`,
+			`--work "work_guidance_drop"`,
+		} {
+			if !strings.Contains(secondCall.message, snippet) {
+				t.Fatalf(
+					"delivery after drop missing reset verbose guidance snippet %q:\n%s",
+					snippet,
+					secondCall.message,
+				)
+			}
+		}
+
+		prompter.finishCall(1, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
+		coordinator.wait()
+	})
+}
+
 func TestDeliveryCoordinatorIdleAndBusyBehavior(t *testing.T) {
 	t.Parallel()
 

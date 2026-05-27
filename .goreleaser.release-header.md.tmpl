@@ -24,8 +24,9 @@ go install github.com/compozy/agh@{{ .Tag }}
 curl -fsSL https://agh.network/install.sh | sh
 ```
 
-The installer downloads the release archive for macOS or Linux, verifies it against `checksums.txt`,
-installs `agh`, and starts `agh install` when an interactive terminal is available.
+The installer downloads the release archive for macOS or Linux, uses local `cosign` when present or a
+pinned temporary verifier when absent, verifies it against `checksums.txt`, installs `agh`, and
+starts `agh install` when an interactive terminal is available.
 
 #### Binary Download
 Download the appropriate `agh_<os>_<arch>.tar.gz` asset for your platform and extract it.

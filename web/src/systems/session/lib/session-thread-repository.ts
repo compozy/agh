@@ -9,6 +9,7 @@ import type { SessionMessage } from "../types";
 type SessionMessagePart = NonNullable<SessionMessage["parts"]>[number];
 type ThreadContentPart = Exclude<ThreadMessageLike["content"], string>[number];
 type SessionMessageWithStatus = SessionMessage & { status?: ThreadMessageLike["status"] };
+type ExportedThreadMessageItem = { message: ThreadMessage };
 type JSONValue = null | string | number | boolean | readonly JSONValue[] | JSONObject;
 type JSONObject = { readonly [key: string]: JSONValue };
 
@@ -135,9 +136,10 @@ export function toThreadMessageLikes(messages: SessionMessage[]): ThreadMessageL
 }
 
 export function toReadonlyThreadMessages(messages: SessionMessage[]): ThreadMessage[] {
-  return ExportedMessageRepository.fromArray(toThreadMessageLikes(messages)).messages.map(
-    item => item.message
+  const repository: { messages: ExportedThreadMessageItem[] } = ExportedMessageRepository.fromArray(
+    toThreadMessageLikes(messages)
   );
+  return repository.messages.map(item => item.message);
 }
 
 export function transcriptSignature(messages: SessionMessage[]): string {

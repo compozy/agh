@@ -422,6 +422,10 @@ jobs:
             echo "::error::install.sh must verify checksums.txt with checksums.txt.sigstore.json"
             exit 1
           fi
+          if ! grep -q 'COSIGN_VERSION="v2.2.4"' packages/site/public/install.sh; then
+            echo "::error::install.sh must bootstrap a pinned cosign verifier when cosign is absent"
+            exit 1
+          fi
           if ! grep -q 'refs/heads/main' packages/site/public/install.sh; then
             echo "::error::install.sh must verify checksums against the production release workflow identity"
             exit 1

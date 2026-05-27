@@ -27,7 +27,14 @@ type Story = StoryObj<typeof meta>;
  */
 export const Default: Story = {
   args: {},
-  parameters: appRouteParameters("/settings/memory"),
+  parameters: {
+    ...appRouteParameters("/settings/memory"),
+    ...storybookMswParameters({
+      daemon: [
+        http.get("/api/onboarding", () => HttpResponse.json({ onboarding: { completed: true } })),
+      ],
+    }),
+  },
   render: () => <StorybookWorkspaceSetup />,
 };
 

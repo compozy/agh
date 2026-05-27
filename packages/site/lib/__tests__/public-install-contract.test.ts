@@ -1,7 +1,10 @@
-import { mkdtempSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
-import { relative, resolve } from "node:path";
-import { spawnSync } from "node:child_process";
+import { basename, join, relative, resolve } from "node:path";
+import { spawn, spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import { siteRoot } from "../content-test-utils";
 
@@ -30,14 +33,33 @@ const retiredPackageInstallCommands = [
 ];
 const installOptions = ["--version", "--dir", "--skip-bootstrap", "--dry-run", "--help"];
 const installEnvVars = ["AGH_VERSION", "AGH_INSTALL_DIR", "AGH_SKIP_BOOTSTRAP"];
+const cosignVersion = "v2.2.4";
+const cosignDigests = {
+  "darwin/x64": "0e5a77a86115e4c00ba4243db01abceacb13cc06981c45e53ee71f2e1db8ce25",
+  "darwin/arm64": "fcd310e64ecddc1eaa13fe814ac1c9fc02f6f9eacd9a58480ab8160eb8ca381e",
+  "linux/x64": "97a6a1e15668a75fc4ff7a4dc4cb2f098f929cbea2f12faa9de31db6b42b17d7",
+  "linux/arm64": "658087351e1d4f9c396b5f59ee5437461c06128f4ce80ba899ccaa1c0b6a8a62",
+} as const;
 const installerReleaseGuaranteeSnippets = [
   verifiedInstallerCommand,
   "Requires:",
-  "curl, tar, cosign, and sha256sum or shasum.",
-  'command -v cosign >/dev/null 2>&1 || fail "cosign is required to verify release provenance"',
+  "curl, tar, and sha256sum or shasum.",
+  "Uses local cosign when available; otherwise downloads a pinned temporary cosign verifier.",
+  'COSIGN_VERSION="v2.2.4"',
+  'COSIGN_BASE_URL="https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}"',
+  "cosign-darwin-amd64",
+  "cosign-darwin-arm64",
+  "cosign-linux-amd64",
+  "cosign-linux-arm64",
+  ...Object.values(cosignDigests),
+  "resolve_cosign()",
+  'COSIGN_BIN="$(command -v cosign)"',
+  'curl -fsSL "$COSIGN_URL" -o "$COSIGN_PATH"',
+  'verify_file_sha256 "$COSIGN_PATH" "$COSIGN_SHA256" "cosign verifier"',
+  'COSIGN_BIN="$COSIGN_PATH"',
   'BUNDLE_URL="${BASE_URL}/checksums.txt.sigstore.json"',
   'log "verifying checksum provenance"',
-  'cosign verify-blob "$CHECKSUM_PATH"',
+  '"$COSIGN_BIN" verify-blob "$CHECKSUM_PATH"',
   '--bundle "$BUNDLE_PATH"',
   '--certificate-identity-regexp "$COSIGN_CERT_IDENTITY_REGEXP"',
   '--certificate-oidc-issuer "$COSIGN_CERT_OIDC_ISSUER"',
@@ -50,9 +72,10 @@ const installerCriticalErrorSnippets = [
   "latest release resolved to unexpected ref:",
   "unsupported operating system:",
   "unsupported architecture:",
+  "unsupported cosign verifier platform:",
   "curl is required",
   "tar is required",
-  "cosign is required to verify release provenance",
+  "checksum mismatch",
   "sha256sum or shasum is required to verify the download",
   "checksums.txt does not include",
   "archive did not contain an agh binary",
@@ -80,6 +103,126 @@ function runInstallScript(args: string[]) {
     encoding: "utf8",
     env: hermeticInstallEnv(),
   });
+}
+
+function currentInstallPlatform() {
+  if (process.platform !== "darwin" && process.platform !== "linux") {
+    throw new Error("unsupported test platform: " + process.platform);
+  }
+  if (process.arch !== "x64" && process.arch !== "arm64") {
+    throw new Error("unsupported test architecture: " + process.arch);
+  }
+
+  const os = process.platform;
+  const archiveArch = process.arch === "x64" ? "x86_64" : "arm64";
+  const cosignArch = process.arch === "x64" ? "amd64" : "arm64";
+  const digestKey = (os + "/" + process.arch) as keyof typeof cosignDigests;
+
+  return {
+    archiveName: "agh_" + os + "_" + archiveArch + ".tar.gz",
+    cosignName: "cosign-" + os + "-" + cosignArch,
+    cosignDigest: cosignDigests[digestKey],
+  };
+}
+
+function sha256(data: Buffer | string): string {
+  return createHash("sha256").update(data).digest("hex");
+}
+
+function createFixtureArchive(root: string): Buffer {
+  const sourceDir = join(root, "archive-src");
+  mkdirSync(sourceDir, { recursive: true });
+  const binaryPath = join(sourceDir, "agh");
+  writeFileSync(
+    binaryPath,
+    '#!/bin/sh\nif [ "${1:-}" = "version" ]; then exit 0; fi\nexit 0\n',
+    "utf8"
+  );
+  chmodSync(binaryPath, 0o755);
+
+  const archivePath = join(root, "agh.tar.gz");
+  const result = spawnSync("tar", ["-czf", archivePath, "-C", sourceDir, "agh"], {
+    encoding: "utf8",
+  });
+  if (result.status !== 0) {
+    throw new Error("tar failed: " + (result.stderr || result.stdout));
+  }
+  return readFileSync(archivePath);
+}
+
+function runInstallScriptAsync(
+  scriptPath: string,
+  args: string[],
+  env: NodeJS.ProcessEnv
+): Promise<{ status: number | null; stdout: string; stderr: string }> {
+  return new Promise(resolveRun => {
+    const child = spawn("sh", [scriptPath, ...args], {
+      cwd: siteRoot,
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const stdout: Buffer[] = [];
+    const stderr: Buffer[] = [];
+    let settled = false;
+
+    function finish(status: number | null) {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      resolveRun({
+        status,
+        stdout: Buffer.concat(stdout).toString("utf8"),
+        stderr: Buffer.concat(stderr).toString("utf8"),
+      });
+    }
+
+    child.stdout.on("data", chunk => stdout.push(Buffer.from(chunk)));
+    child.stderr.on("data", chunk => stderr.push(Buffer.from(chunk)));
+    child.on("error", error => {
+      stderr.push(Buffer.from(error.message));
+      finish(1);
+    });
+    child.on("close", status => finish(status));
+  });
+}
+
+async function withFixtureServer<T>(
+  routes: Map<string, Buffer | string>,
+  run: (baseURL: string) => Promise<T>
+): Promise<T> {
+  const server = createServer((request, response) => {
+    const routeName = basename((request.url ?? "").split("?")[0] ?? "");
+    const body = routes.get(routeName);
+    if (body === undefined) {
+      response.statusCode = 404;
+      response.end("missing fixture: " + routeName + "\n");
+      return;
+    }
+
+    response.statusCode = 200;
+    response.end(body);
+  });
+
+  await new Promise<void>((resolveListen, rejectListen) => {
+    server.once("error", rejectListen);
+    server.listen(0, "127.0.0.1", () => resolveListen());
+  });
+
+  try {
+    const address = server.address() as AddressInfo;
+    return await run("http://127.0.0.1:" + address.port);
+  } finally {
+    await new Promise<void>((resolveClose, rejectClose) => {
+      server.close(error => {
+        if (error) {
+          rejectClose(error);
+          return;
+        }
+        resolveClose();
+      });
+    });
+  }
 }
 
 function hermeticInstallEnv(source: InstallEnv = process.env): NodeJS.ProcessEnv {
@@ -132,9 +275,10 @@ describe("public install contract", () => {
     expect(script).not.toContain("http://");
     expect(script).toContain('command -v curl >/dev/null 2>&1 || fail "curl is required"');
     expect(script).toContain('command -v tar >/dev/null 2>&1 || fail "tar is required"');
-    expect(script).toContain(
-      'command -v cosign >/dev/null 2>&1 || fail "cosign is required to verify release provenance"'
-    );
+    expect(script).not.toContain('fail "cosign is required to verify release provenance"');
+    expect(script).toContain('COSIGN_VERSION="v2.2.4"');
+    expect(script).toContain("resolve_cosign()");
+    expect(script).toContain("if command -v cosign >/dev/null 2>&1; then");
     expect(script).toContain('BUNDLE_URL="${BASE_URL}/checksums.txt.sigstore.json"');
     expect(script).toContain(
       "COSIGN_CERT_IDENTITY_REGEXP='^https://github\\.com/compozy/agh/\\.github/workflows/release\\.yml@refs/heads/main$'"
@@ -145,7 +289,7 @@ describe("public install contract", () => {
     );
     expect(script).toContain("resolve_latest_release_tag()");
     expect(script).toContain('VERSION="$(resolve_latest_release_tag)"');
-    expect(script).toContain('cosign verify-blob "$CHECKSUM_PATH"');
+    expect(script).toContain('"$COSIGN_BIN" verify-blob "$CHECKSUM_PATH"');
     expect(script).toContain('--bundle "$BUNDLE_PATH"');
     expect(script).toContain('--certificate-identity-regexp "$COSIGN_CERT_IDENTITY_REGEXP"');
     expect(script).toContain('--certificate-oidc-issuer "$COSIGN_CERT_OIDC_ISSUER"');
@@ -214,6 +358,63 @@ describe("public install contract", () => {
       'printf \'%s\\n\' "$CHECKSUM_LINE" | (cd "$TMP_DIR" && shasum -a 256 -c - >/dev/null)'
     );
     expect(script).toContain('log "next: agh install"');
+  });
+
+  it("bootstraps a pinned temporary cosign verifier when none is on PATH", async () => {
+    const root = mkdtempSync(resolve(tmpdir(), "agh-install-cosign-bootstrap-"));
+    try {
+      const platform = currentInstallPlatform();
+      const installDir = join(root, "bin");
+      const cosignArgsPath = join(root, "cosign-args.txt");
+      const archiveBody = createFixtureArchive(root);
+      const cosignBody = '#!/bin/sh\nprintf \'%s\\n\' "$@" > "' + cosignArgsPath + '"\nexit 0\n';
+      const routes = new Map<string, Buffer | string>([
+        [platform.archiveName, archiveBody],
+        ["checksums.txt", sha256(archiveBody) + "  " + platform.archiveName + "\n"],
+        [
+          "checksums.txt.sigstore.json",
+          '{"mediaType":"application/vnd.dev.sigstore.bundle+json"}\n',
+        ],
+        [platform.cosignName, cosignBody],
+      ]);
+
+      await withFixtureServer(routes, async baseURL => {
+        const script = readSiteFile(installScriptPath)
+          .replace(
+            'COSIGN_BASE_URL="https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}"',
+            'COSIGN_BASE_URL="' + baseURL + "/cosign/" + cosignVersion + '"'
+          )
+          .replace(platform.cosignDigest, sha256(cosignBody))
+          .replace(
+            'BASE_URL="https://github.com/${RELEASE_REPO}/releases/download/${VERSION}"',
+            'BASE_URL="' + baseURL + '/releases/download/${VERSION}"'
+          );
+        const scriptPath = join(root, "install.sh");
+        writeFileSync(scriptPath, script, "utf8");
+        chmodSync(scriptPath, 0o755);
+
+        const result = await runInstallScriptAsync(
+          scriptPath,
+          ["--version", "v9.9.9", "--skip-bootstrap", "--dir", installDir],
+          {
+            HOME: root,
+            PATH: "/usr/bin:/bin",
+            TZ: "UTC",
+            LANG: "C.UTF-8",
+            LC_ALL: "C.UTF-8",
+            LC_CTYPE: "C.UTF-8",
+            NODE_ENV: "test",
+          }
+        );
+
+        expect(result.status, result.stderr || result.stdout).toBe(0);
+        expect(result.stdout).toContain("downloading pinned cosign verifier " + cosignVersion);
+        expect(readFileSync(cosignArgsPath, "utf8")).toContain("verify-blob");
+        expect(readFileSync(join(installDir, "agh"), "utf8")).toContain('"${1:-}" = "version"');
+      });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("runs install contract checks with a hermetic release environment", () => {
@@ -295,7 +496,7 @@ describe("public install contract", () => {
     for (const envVar of ["AGH_VERSION", "AGH_INSTALL_DIR", "AGH_SKIP_BOOTSTRAP"]) {
       expect(installPage, envVar).toContain(envVar);
     }
-    expect(installPage).toContain("cosign");
+    expect(installPage).toContain("pinned temporary cosign verifier");
     expect(installPage).toContain("checksums.txt.sigstore.json");
   });
 });

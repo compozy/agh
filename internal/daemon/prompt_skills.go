@@ -2,14 +2,19 @@ package daemon
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	"github.com/compozy/agh/internal/session"
 	skillspkg "github.com/compozy/agh/internal/skills"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
+
+const promptSkillsCatalogCacheMaxSessions = 2048
 
 type promptSkillsRegistry interface {
 	ForWorkspace(ctx context.Context, resolved *workspacepkg.ResolvedWorkspace) ([]*skillspkg.Skill, error)
@@ -24,6 +29,20 @@ type promptSkillsWorkspaceResolver interface {
 	Resolve(ctx context.Context, target string) (workspacepkg.ResolvedWorkspace, error)
 }
 
+type skillsCatalogAugmenter struct {
+	registry          promptSkillsRegistry
+	workspaceResolver func() promptSkillsWorkspaceResolver
+	sequence          atomic.Uint64
+
+	mu     sync.Mutex
+	states map[string]skillsCatalogSessionState
+}
+
+type skillsCatalogSessionState struct {
+	signature [sha256.Size]byte
+	lastUsed  uint64
+}
+
 func newSkillsCatalogAugmenter(
 	registry promptSkillsRegistry,
 	workspaceResolver func() promptSkillsWorkspaceResolver,
@@ -32,40 +51,99 @@ func newSkillsCatalogAugmenter(
 		return nil
 	}
 
-	return func(ctx context.Context, sess *session.Session, message string) (string, error) {
-		if sess == nil {
-			return message, nil
-		}
+	augmenter := &skillsCatalogAugmenter{
+		registry:          registry,
+		workspaceResolver: workspaceResolver,
+		states:            make(map[string]skillsCatalogSessionState),
+	}
+	return augmenter.Augment
+}
 
-		info := sess.Info()
-		if info == nil {
-			return message, nil
-		}
+func (a *skillsCatalogAugmenter) Augment(ctx context.Context, sess *session.Session, message string) (string, error) {
+	if a == nil || a.registry == nil || sess == nil {
+		return message, nil
+	}
 
-		workspace, err := resolvePromptSkillsWorkspace(ctx, workspaceResolver, info.WorkspaceID, info.Workspace)
-		if err != nil {
-			return "", fmt.Errorf("daemon: resolve prompt skills workspace: %w", err)
-		}
+	info := sess.Info()
+	if info == nil {
+		return message, nil
+	}
 
-		var skills []*skillspkg.Skill
-		agentName := strings.TrimSpace(info.AgentName)
-		if agentName != "" {
-			skills, err = registry.ForAgent(ctx, workspace, agentName)
-		} else {
-			skills, err = registry.ForWorkspace(ctx, workspace)
-		}
-		if err != nil {
-			return "", fmt.Errorf("daemon: load current skills catalog for session %q: %w", info.ID, err)
-		}
+	workspace, err := resolvePromptSkillsWorkspace(ctx, a.workspaceResolver, info.WorkspaceID, info.Workspace)
+	if err != nil {
+		return "", fmt.Errorf("daemon: resolve prompt skills workspace: %w", err)
+	}
 
-		catalog := skillspkg.BuildCurrentCatalog(skills)
-		if strings.TrimSpace(catalog) == "" {
-			return message, nil
+	var skills []*skillspkg.Skill
+	agentName := strings.TrimSpace(info.AgentName)
+	if agentName != "" {
+		skills, err = a.registry.ForAgent(ctx, workspace, agentName)
+	} else {
+		skills, err = a.registry.ForWorkspace(ctx, workspace)
+	}
+	if err != nil {
+		return "", fmt.Errorf("daemon: load current skills catalog for session %q: %w", info.ID, err)
+	}
+
+	catalog := skillspkg.BuildCurrentCatalog(skills)
+	if strings.TrimSpace(catalog) == "" {
+		a.forgetSession(info.ID)
+		return message, nil
+	}
+	if a.catalogUnchanged(info.ID, catalog) {
+		catalog = skillspkg.BuildCurrentCatalogUnchanged()
+	}
+	if strings.TrimSpace(message) == "" {
+		return catalog, nil
+	}
+	return catalog + "\n\n" + message, nil
+}
+
+func (a *skillsCatalogAugmenter) catalogUnchanged(sessionID string, catalog string) bool {
+	key := strings.TrimSpace(sessionID)
+	if key == "" {
+		return false
+	}
+
+	signature := sha256.Sum256([]byte(catalog))
+	sequence := a.sequence.Add(1)
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	state, ok := a.states[key]
+	unchanged := ok && state.signature == signature
+	a.states[key] = skillsCatalogSessionState{signature: signature, lastUsed: sequence}
+	a.evictOldestLocked()
+	return unchanged
+}
+
+func (a *skillsCatalogAugmenter) forgetSession(sessionID string) {
+	key := strings.TrimSpace(sessionID)
+	if key == "" {
+		return
+	}
+
+	a.mu.Lock()
+	delete(a.states, key)
+	a.mu.Unlock()
+}
+
+func (a *skillsCatalogAugmenter) evictOldestLocked() {
+	if len(a.states) <= promptSkillsCatalogCacheMaxSessions {
+		return
+	}
+
+	var oldestKey string
+	var oldestSequence uint64
+	for key, state := range a.states {
+		if oldestKey == "" || state.lastUsed < oldestSequence {
+			oldestKey = key
+			oldestSequence = state.lastUsed
 		}
-		if strings.TrimSpace(message) == "" {
-			return catalog, nil
-		}
-		return catalog + "\n\n" + message, nil
+	}
+	if oldestKey != "" {
+		delete(a.states, oldestKey)
 	}
 }
 

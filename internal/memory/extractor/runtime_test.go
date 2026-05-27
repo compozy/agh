@@ -115,6 +115,124 @@ func TestRuntime(t *testing.T) {
 		}
 	})
 
+	t.Run("Should backpressure provider sessions with queue capacity without dropping turns", func(t *testing.T) {
+		t.Parallel()
+
+		fake := newFakeExtractor()
+		fake.blockFirst()
+		runtime := newTestRuntime(t, t.TempDir(), fake, nil, extractor.WithQueueCapacity(1))
+
+		if err := runtime.Enqueue(testutil.Context(t), testTurn("sess-pressure-a", 1)); err != nil {
+			t.Fatalf("Enqueue(first session) error = %v", err)
+		}
+		fake.waitStarted(t)
+		if err := runtime.Enqueue(testutil.Context(t), testTurn("sess-pressure-b", 2)); err != nil {
+			t.Fatalf("Enqueue(second session) error = %v", err)
+		}
+		waitRuntimeStats(t, runtime, func(stats extractor.RuntimeStats) bool {
+			return stats.BackpressuredSessions == 1 && stats.InFlightSessions == 2
+		})
+		if turns := fake.turns(); len(turns) != 1 {
+			t.Fatalf("turns before release = %#v, want only the active provider turn", turns)
+		}
+
+		fake.release()
+		if err := runtime.Drain(testutil.Context(t)); err != nil {
+			t.Fatalf("Drain() error = %v", err)
+		}
+		turns := fake.turns()
+		if len(turns) != 2 {
+			t.Fatalf("turns after drain = %#v, want both sessions preserved", turns)
+		}
+		if turns[0].SessionID != "sess-pressure-a" || turns[1].SessionID != "sess-pressure-b" {
+			t.Fatalf("turn order = %#v, want queued provider work after the active session", turns)
+		}
+	})
+
+	t.Run("Should throttle same-session bursts by coalescing queued turns until ready", func(t *testing.T) {
+		t.Parallel()
+
+		fake := newFakeExtractor()
+		fake.blockFirst()
+		runtime := newTestRuntime(
+			t,
+			t.TempDir(),
+			fake,
+			nil,
+			extractor.WithThrottleTurns(3),
+			extractor.WithThrottleFlushWait(time.Hour),
+		)
+
+		if err := runtime.Enqueue(testutil.Context(t), testTurn("sess-throttle", 1)); err != nil {
+			t.Fatalf("Enqueue(1) error = %v", err)
+		}
+		fake.waitStarted(t)
+		if err := runtime.Enqueue(testutil.Context(t), testTurn("sess-throttle", 2)); err != nil {
+			t.Fatalf("Enqueue(2) error = %v", err)
+		}
+		fake.release()
+		waitRuntimeStats(t, runtime, func(stats extractor.RuntimeStats) bool {
+			return stats.InFlightSessions == 0 && stats.QueuedSessions == 1
+		})
+		if err := runtime.Enqueue(testutil.Context(t), testTurn("sess-throttle", 3)); err != nil {
+			t.Fatalf("Enqueue(3) error = %v", err)
+		}
+		if err := runtime.Enqueue(testutil.Context(t), testTurn("sess-throttle", 4)); err != nil {
+			t.Fatalf("Enqueue(4) error = %v", err)
+		}
+		if err := runtime.Drain(testutil.Context(t)); err != nil {
+			t.Fatalf("Drain() error = %v", err)
+		}
+
+		turns := fake.turns()
+		if len(turns) != 2 {
+			t.Fatalf("turns = %#v, want initial + throttled merged turn", turns)
+		}
+		if turns[1].SinceMessageSeq != 2 || turns[1].UntilMessageSeq != 4 {
+			t.Fatalf("throttled range = %d..%d, want 2..4", turns[1].SinceMessageSeq, turns[1].UntilMessageSeq)
+		}
+		if len(turns[1].Snapshot.Messages) != 3 {
+			t.Fatalf("throttled messages = %#v, want all queued messages preserved", turns[1].Snapshot.Messages)
+		}
+	})
+
+	t.Run("Should drain throttled turns before the threshold without silently dropping content", func(t *testing.T) {
+		t.Parallel()
+
+		fake := newFakeExtractor()
+		fake.blockFirst()
+		runtime := newTestRuntime(
+			t,
+			t.TempDir(),
+			fake,
+			nil,
+			extractor.WithThrottleTurns(3),
+			extractor.WithThrottleFlushWait(time.Hour),
+		)
+		if err := runtime.Enqueue(testutil.Context(t), testTurn("sess-throttle-drain", 1)); err != nil {
+			t.Fatalf("Enqueue(1) error = %v", err)
+		}
+		fake.waitStarted(t)
+		if err := runtime.Enqueue(testutil.Context(t), testTurn("sess-throttle-drain", 2)); err != nil {
+			t.Fatalf("Enqueue(2) error = %v", err)
+		}
+		fake.release()
+		waitRuntimeStats(t, runtime, func(stats extractor.RuntimeStats) bool {
+			return stats.InFlightSessions == 0 && stats.QueuedSessions == 1
+		})
+		if err := runtime.Drain(testutil.Context(t)); err != nil {
+			t.Fatalf("Drain() error = %v", err)
+		}
+
+		turns := fake.turns()
+		if len(turns) != 2 {
+			t.Fatalf("turns = %#v, want drain to flush the throttled queued turn", turns)
+		}
+		if turns[1].UntilMessageSeq != 2 || turns[1].Snapshot.Messages[0].Content != "message 2" {
+			t.Fatalf("drained turn = %#v, want queued non-empty content preserved", turns[1])
+		}
+	})
+
 	t.Run("Should drop the oldest queued range after the coalescing cap", func(t *testing.T) {
 		t.Parallel()
 
@@ -184,6 +302,39 @@ func TestRuntime(t *testing.T) {
 		}
 		if turns := fake.turns(); len(turns) != 0 {
 			t.Fatalf("extracted turns = %#v, want no extraction after tool write", turns)
+		}
+	})
+
+	t.Run("Should skip persisted messages without extractable content", func(t *testing.T) {
+		t.Parallel()
+
+		fake := newFakeExtractor()
+		events := &recordingEventSink{}
+		runtime := newTestRuntime(t, t.TempDir(), fake, events)
+		payload := testPersistedPayload("sess-empty", 1)
+		payload.Text = " \n\t "
+		if err := runtime.HandleSessionMessagePersisted(testutil.Context(t), payload); err != nil {
+			t.Fatalf("HandleSessionMessagePersisted(empty text) error = %v", err)
+		}
+		if err := runtime.Drain(testutil.Context(t)); err != nil {
+			t.Fatalf("Drain() error = %v", err)
+		}
+		if turns := fake.turns(); len(turns) != 0 {
+			t.Fatalf("extracted turns = %#v, want no extraction for empty persisted text", turns)
+		}
+		if events.containsOp(extractor.EventStarted) {
+			t.Fatalf("events = %#v, want no extractor start for empty persisted text", events.ops())
+		}
+		stats := runtime.Stats()
+		if stats.SkippedTurns != 1 {
+			t.Fatalf("Stats().SkippedTurns = %d, want 1", stats.SkippedTurns)
+		}
+		dropped := events.eventsForOp(extractor.EventDropped)
+		if len(dropped) != 1 {
+			t.Fatalf("dropped events = %#v, want one skipped-turn event", dropped)
+		}
+		if dropped[0].Metadata["reason"] != "empty_snapshot" || dropped[0].Metadata["message_count"] != "1" {
+			t.Fatalf("dropped metadata = %#v, want empty_snapshot skip without content", dropped[0].Metadata)
 		}
 	})
 
@@ -776,6 +927,28 @@ func missingContext() context.Context {
 	return nil
 }
 
+func waitRuntimeStats(
+	t *testing.T,
+	runtime *extractor.Runtime,
+	match func(extractor.RuntimeStats) bool,
+) extractor.RuntimeStats {
+	t.Helper()
+	deadline := time.After(time.Second)
+	tick := time.NewTicker(10 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		stats := runtime.Stats()
+		if match(stats) {
+			return stats
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("timed out waiting for runtime stats, last stats = %#v", stats)
+		case <-tick.C:
+		}
+	}
+}
+
 func TestEvent(t *testing.T) {
 	t.Parallel()
 
@@ -914,6 +1087,18 @@ func (s *recordingEventSink) RecordExtractorEvent(_ context.Context, event extra
 
 func (s *recordingEventSink) containsOp(op string) bool {
 	return slices.Contains(s.ops(), op)
+}
+
+func (s *recordingEventSink) eventsForOp(op string) []extractor.Event {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	events := make([]extractor.Event, 0)
+	for _, event := range s.events {
+		if event.Op == op {
+			events = append(events, event)
+		}
+	}
+	return events
 }
 
 func (s *recordingEventSink) ops() []string {

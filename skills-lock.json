@@ -93,6 +93,12 @@
             "sourceType": "github",
             "computedHash": "a7d41f6766192891ba7f0f4cd395df2ad576cf1af9a5ce718d1b5789305f2e90"
         },
+        "autoreview": {
+            "source": "openclaw/agent-skills",
+            "sourceType": "github",
+            "skillPath": "skills/autoreview/SKILL.md",
+            "computedHash": "12fde31c7d20540941bb054f6b66dd7ac541ad807e821fd980c33d9a58e270da"
+        },
         "better-auth-best-practices": {
             "source": "pedronauck/skills",
             "sourceType": "github",

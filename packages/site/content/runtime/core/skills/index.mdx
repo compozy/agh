@@ -188,6 +188,11 @@ When the runtime denies `agh__skill_view` for the active scope, agents fall back
 `agh skill view`. The conditional guidance is part of the rendered catalog so the prompt never
 advertises a CLI fallback when the dedicated tool is callable.
 
+Runtime prompts do not repeat the full current-skill catalog after every turn when the resolved
+catalog is unchanged for the session. The first prompt, and any later catalog change, carries the
+full `<current-available-skills>` block; repeated turns carry a compact unchanged marker that keeps
+the previous block authoritative and points agents back to `agh__skill_view` for full instructions.
+
 Important details:
 
 | Behavior            | Current implementation                                                                                     |

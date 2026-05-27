@@ -24261,11 +24261,14 @@ export interface operations {
         content: {
           "application/json": {
             extractor: {
+              active_provider_sessions: number;
+              backpressured_sessions: number;
               coalesced_turns: number;
               dropped_turns: number;
               failure_count: number;
               in_flight_sessions: number;
               queued_sessions: number;
+              skipped_turns: number;
               /** @enum {string} */
               status: "idle" | "running" | "draining" | "stopped";
             };

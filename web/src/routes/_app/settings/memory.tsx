@@ -1157,7 +1157,7 @@ function ExtractorSection({
       <SettingsFieldRow
         data-testid={`${TEST_PREFIX}-extractor-mode`}
         label="Mode"
-        description="post_message is the only Slice 1 mode; compaction_flush ships in Slice 2"
+        description="post_message is the supported extractor mode"
         control={
           <Input
             className="w-40 font-mono"

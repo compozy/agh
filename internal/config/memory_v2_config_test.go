@@ -59,7 +59,7 @@ func TestMemoryV2ConfigDefaultsAndOverlay(t *testing.T) {
 			memory.Decisions.MaxPostContentBytes != 65536 {
 			t.Fatalf("DefaultWithHome() Decisions = %#v", memory.Decisions)
 		}
-		if memory.Extractor.Mode != "post_message" ||
+		if memory.Extractor.Mode != configExtractorModePostMessage ||
 			memory.Extractor.Deadline != time.Minute ||
 			memory.Extractor.Queue.Capacity != 1 ||
 			memory.Extractor.Queue.CoalesceMax != 16 {
@@ -88,6 +88,7 @@ func TestMemoryV2ConfigDefaultsAndOverlay(t *testing.T) {
 		}
 	})
 
+	// not parallel: this subtest uses t.Setenv for AGH_HOME overlay resolution.
 	t.Run("Should merge every Memory v2 backend section from overlays", func(t *testing.T) {
 		workspaceRoot := t.TempDir()
 		homeRoot := filepath.Join(t.TempDir(), "home")
@@ -147,7 +148,7 @@ max_post_content_bytes = 32768
 
 [memory.extractor]
 enabled = true
-mode = "compaction_flush"
+mode = "post_message"
 throttle_turns = 2
 deadline = "45s"
 sandbox_inbox_only = false
@@ -383,6 +384,14 @@ func TestMemoryV2ConfigValidationCoversOptionalBranches(t *testing.T) {
 			want: "memory.extractor.queue.capacity",
 		},
 		{
+			name: "extractor coalesce below throttle",
+			patch: func(cfg *MemoryConfig) {
+				cfg.Extractor.ThrottleTurns = 4
+				cfg.Extractor.Queue.CoalesceMax = 3
+			},
+			want: configExtractorQueueCoalesceMaxPath,
+		},
+		{
 			name: "dream scoring weight sum",
 			patch: func(cfg *MemoryConfig) {
 				cfg.Dream.Scoring.Weights.Freshness = 0.50
@@ -439,35 +448,42 @@ func TestMemoryV2ConfigValidationCoversOptionalBranches(t *testing.T) {
 func TestMemoryV2ConfigValidationNormalizesAcceptedEnums(t *testing.T) {
 	t.Parallel()
 
-	homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
+	t.Run("Should normalize accepted enum values", func(t *testing.T) {
+		t.Parallel()
 
-	cfg := DefaultWithHome(homePaths).Memory
-	cfg.Controller.Mode = " Hybrid "
-	cfg.Controller.DefaultOpOnFail = " Reject "
-	cfg.Controller.Policy.AllowOrigins = []string{" CLI ", "Tool"}
-	cfg.Recall.Fusion = " RRF "
-	cfg.Extractor.Mode = " Hybrid "
-	cfg.Session.LedgerFormat = " Jsonl "
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
 
-	if err := cfg.Validate(); err != nil {
-		t.Fatalf("Validate() error = %v", err)
-	}
-	if cfg.Controller.Mode != "hybrid" || cfg.Controller.DefaultOpOnFail != "reject" {
-		t.Fatalf("controller enums = %#v, want canonical lowercase values", cfg.Controller)
-	}
-	if !slices.Equal(cfg.Controller.Policy.AllowOrigins, []string{"cli", "tool"}) {
-		t.Fatalf("controller allow origins = %#v, want canonical lowercase values", cfg.Controller.Policy.AllowOrigins)
-	}
-	if cfg.Recall.Fusion != "rrf" {
-		t.Fatalf("recall fusion = %q, want %q", cfg.Recall.Fusion, "rrf")
-	}
-	if cfg.Extractor.Mode != "hybrid" {
-		t.Fatalf("extractor mode = %q, want %q", cfg.Extractor.Mode, "hybrid")
-	}
-	if cfg.Session.LedgerFormat != "jsonl" {
-		t.Fatalf("session ledger format = %q, want %q", cfg.Session.LedgerFormat, "jsonl")
-	}
+		cfg := DefaultWithHome(homePaths).Memory
+		cfg.Controller.Mode = " Hybrid "
+		cfg.Controller.DefaultOpOnFail = " Reject "
+		cfg.Controller.Policy.AllowOrigins = []string{" CLI ", "Tool"}
+		cfg.Recall.Fusion = " RRF "
+		cfg.Extractor.Mode = " Post_Message "
+		cfg.Session.LedgerFormat = " Jsonl "
+
+		if err := cfg.Validate(); err != nil {
+			t.Fatalf("Validate() error = %v", err)
+		}
+		if cfg.Controller.Mode != "hybrid" || cfg.Controller.DefaultOpOnFail != "reject" {
+			t.Fatalf("controller enums = %#v, want canonical lowercase values", cfg.Controller)
+		}
+		if !slices.Equal(cfg.Controller.Policy.AllowOrigins, []string{"cli", "tool"}) {
+			t.Fatalf(
+				"controller allow origins = %#v, want canonical lowercase values",
+				cfg.Controller.Policy.AllowOrigins,
+			)
+		}
+		if cfg.Recall.Fusion != "rrf" {
+			t.Fatalf("recall fusion = %q, want %q", cfg.Recall.Fusion, "rrf")
+		}
+		if cfg.Extractor.Mode != configExtractorModePostMessage {
+			t.Fatalf("extractor mode = %q, want %q", cfg.Extractor.Mode, configExtractorModePostMessage)
+		}
+		if cfg.Session.LedgerFormat != "jsonl" {
+			t.Fatalf("session ledger format = %q, want %q", cfg.Session.LedgerFormat, "jsonl")
+		}
+	})
 }

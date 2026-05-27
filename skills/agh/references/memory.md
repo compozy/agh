@@ -7,6 +7,7 @@
 - CLI operations
 - Search, reindex, promote, and reload
 - Recall traces
+- Extractor diagnostics
 - Hygiene
 - When not to write memory
 
@@ -74,6 +75,15 @@ Use recall traces to inspect what memory entered a session turn without exposing
     agh memory recall trace <session_id> <turn_seq> -o json
 
 Recall traces are diagnostic evidence. They do not authorize task state changes, review verdicts, or durable memory writes by themselves.
+
+## Extractor Diagnostics
+
+Inspect asynchronous extractor pressure before retrying or tuning Memory runs:
+
+    agh memory extractor status -o json
+    agh memory extractor list-pending -o json
+
+`skipped_turns` counts transcript turns that had no non-whitespace content and were suppressed before provider work. `active_provider_sessions` shows extractor child sessions currently consuming provider work. `backpressured_sessions` increments when `memory.extractor.queue.capacity` is saturated and a session waits instead of spawning another child. `coalesced_turns`, `dropped_turns`, `failure_count`, and pending failures explain queue pressure and failed extractor handoff without exposing raw transcript text.
 
 ## Hygiene
 

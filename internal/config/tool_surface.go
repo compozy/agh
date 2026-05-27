@@ -185,7 +185,7 @@ var (
 		"memory.extractor.sandbox_inbox_only":                         ConfigValueBool,
 		"memory.extractor.model":                                      ConfigValueString,
 		"memory.extractor.queue.capacity":                             ConfigValueInt,
-		"memory.extractor.queue.coalesce_max":                         ConfigValueInt,
+		configExtractorQueueCoalesceMaxPath:                           ConfigValueInt,
 		"memory.dream.enabled":                                        ConfigValueBool,
 		"memory.dream.agent":                                          ConfigValueString,
 		"memory.dream.min_hours":                                      ConfigValueFloat,

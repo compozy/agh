@@ -1032,23 +1032,23 @@ The extractor consumes the `session.message_persisted` hook and writes structure
 controller. `inbox_path` and `dlq_path` are validation-locked to the canonical AGH-managed
 locations.
 
-| Field                | Type     | Default                                       | Valid values                                 | Description                                                                |
-| -------------------- | -------- | --------------------------------------------- | -------------------------------------------- | -------------------------------------------------------------------------- |
-| `enabled`            | boolean  | `true`                                        | `true` or `false`                            | Enables the extractor runtime.                                             |
-| `mode`               | string   | `post_message`                                | `post_message`, `compaction_flush`, `hybrid` | Extraction mode. `compaction_flush` and `hybrid` are reserved for slice 2. |
-| `throttle_turns`     | integer  | `1`                                           | Positive integer.                            | Minimum turns between extraction attempts on the same session.             |
-| `deadline`           | duration | `60s`                                         | Positive Go duration.                        | Per-extraction deadline before the runtime drops the candidate.            |
-| `sandbox_inbox_only` | boolean  | `true`                                        | `true` or `false`                            | Restricts extractor writes to `_inbox/` until the controller accepts them. |
-| `inbox_path`         | string   | `$AGH_HOME/memory/_inbox`                     | Daemon-managed.                              | Read-only display field; the daemon manages the inbox path.                |
-| `dlq_path`           | string   | `$AGH_HOME/memory/_system/extractor/failures` | Daemon-managed.                              | Read-only display field; the daemon manages the DLQ path.                  |
-| `model`              | string   | empty                                         | Empty or model id.                           | Optional override; empty forks from the main session model.                |
+| Field                | Type     | Default                                       | Valid values          | Description                                                                                                       |
+| -------------------- | -------- | --------------------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `enabled`            | boolean  | `true`                                        | `true` or `false`     | Enables the extractor runtime.                                                                                    |
+| `mode`               | string   | `post_message`                                | `post_message`        | Extraction mode. AGH currently supports only post-message extraction.                                             |
+| `throttle_turns`     | integer  | `1`                                           | Positive integer.     | Minimum same-session queued turns to coalesce before launching another extraction; drain flushes pending content. |
+| `deadline`           | duration | `60s`                                         | Positive Go duration. | Per-extraction deadline before the runtime drops the candidate.                                                   |
+| `sandbox_inbox_only` | boolean  | `true`                                        | `true` or `false`     | Restricts extractor writes to `_inbox/` until the controller accepts them.                                        |
+| `inbox_path`         | string   | `$AGH_HOME/memory/_inbox`                     | Daemon-managed.       | Read-only display field; the daemon manages the inbox path.                                                       |
+| `dlq_path`           | string   | `$AGH_HOME/memory/_system/extractor/failures` | Daemon-managed.       | Read-only display field; the daemon manages the DLQ path.                                                         |
+| `model`              | string   | empty                                         | Empty or model id.    | Optional model override for the extractor child session. Empty uses the agent/provider default.                   |
 
 ## `[memory.extractor.queue]`
 
-| Field          | Type    | Default | Valid values      | Description                                                                           |
-| -------------- | ------- | ------- | ----------------- | ------------------------------------------------------------------------------------- |
-| `capacity`     | integer | `1`     | Positive integer. | Bounded per-session extraction queue.                                                 |
-| `coalesce_max` | integer | `16`    | Positive integer. | Maximum coalesced turns when consecutive triggers arrive while the extractor is busy. |
+| Field          | Type    | Default | Valid values                                                | Description                                                                                                        |
+| -------------- | ------- | ------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `capacity`     | integer | `1`     | Positive integer.                                           | Maximum concurrent provider-backed extractor child sessions; additional sessions wait without losing queued turns. |
+| `coalesce_max` | integer | `16`    | Positive integer greater than or equal to `throttle_turns`. | Maximum coalesced turns when consecutive triggers arrive while the extractor is busy.                              |
 
 ## `[memory.dream]`
 

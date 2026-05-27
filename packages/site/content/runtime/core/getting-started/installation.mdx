@@ -13,8 +13,9 @@ Make sure you have:
 
 - **macOS or Linux**. AGH currently targets local-first Unix-like environments.
 - **An install method that fits your machine**. Use Homebrew, npm, or Go for managed installs.
-  The verified binary installer additionally requires `curl`, `tar`, `cosign`, and either
-  `sha256sum` or `shasum`.
+  The verified binary installer additionally requires `curl`, `tar`, and either `sha256sum` or
+  `shasum`. It uses a local `cosign` when available; otherwise it downloads a pinned temporary
+  cosign verifier before checking AGH release provenance.
 - **At least one supported agent CLI** such as Claude Code, OpenClaw, Hermes, or another
   ACP-compatible agent runtime you already use.
 - **At least one provider authenticated in its native way**. Direct ACP providers such as Claude
@@ -69,10 +70,10 @@ Use the verified installer when you want a standalone binary install on macOS or
 curl -fsSL https://agh.network/install.sh | sh
 ```
 
-The installer detects your platform, downloads the matching GitHub release archive, verifies
-`checksums.txt` against `checksums.txt.sigstore.json` with `cosign`, verifies the archive checksum,
-installs `agh`, runs `agh version`, and opens `agh install` when an interactive terminal is
-available.
+The installer detects your platform, downloads a pinned temporary cosign verifier when `cosign` is
+not already on `PATH`, downloads the matching GitHub release archive, verifies `checksums.txt`
+against `checksums.txt.sigstore.json`, verifies the archive checksum, installs `agh`, runs
+`agh version`, and opens `agh install` when an interactive terminal is available.
 
 Use flags when you need a pinned or scripted install:
 

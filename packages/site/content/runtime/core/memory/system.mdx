@@ -286,19 +286,25 @@ fit. Useful index entries are short and point to one file:
 
 Every controller decision and recall outcome is observable.
 
-| Surface                                                 | Use it for                                                                                                                                         |
-| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `agh memory health`                                     | Enabled state, controller backlog, provider circuit state, dreaming gate status, and per-scope catalog/file counts.                                |
-| `agh memory decisions list`                             | The Slice 1 truthful audit log: every committed/rejected/shadowed/reverted controller decision with redaction-safe traces.                         |
-| `agh memory recall trace <session_id> <turn_seq>`       | The deterministic recall pipeline trace for a specific session turn: candidate set, scoring weights, freshness banners, and shadow-by-id outcomes. |
-| `GET /api/memory/health`                                | Same data as `agh memory health` over HTTP/UDS.                                                                                                    |
-| `GET /api/memory/decisions`                             | Same data as `agh memory decisions list` with redaction-safe payloads (no `post_content`, `prior_content`, or raw LLM responses on the wire).      |
-| `GET /api/memory/recall-traces/{session_id}/{turn_seq}` | Same data as `agh memory recall trace` over HTTP/UDS.                                                                                              |
+| Surface                                                 | Use it for                                                                                                                                                                       |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agh memory health`                                     | Enabled state, controller backlog, provider circuit state, dreaming gate status, and per-scope catalog/file counts.                                                              |
+| `agh memory decisions list`                             | The Slice 1 truthful audit log: every committed/rejected/shadowed/reverted controller decision with redaction-safe traces.                                                       |
+| `agh memory recall trace <session_id> <turn_seq>`       | The deterministic recall pipeline trace for a specific session turn: candidate set, scoring weights, freshness banners, and shadow-by-id outcomes.                               |
+| `agh memory extractor status`                           | Queue and useful-work diagnostics: queued/in-flight sessions, active provider sessions, backpressured sessions, coalesced/dropped turns, skipped empty turns, and failure count. |
+| `GET /api/memory/health`                                | Same data as `agh memory health` over HTTP/UDS.                                                                                                                                  |
+| `GET /api/memory/decisions`                             | Same data as `agh memory decisions list` with redaction-safe payloads (no `post_content`, `prior_content`, or raw LLM responses on the wire).                                    |
+| `GET /api/memory/recall-traces/{session_id}/{turn_seq}` | Same data as `agh memory recall trace` over HTTP/UDS.                                                                                                                            |
+| `GET /api/memory/extractor/status`                      | Same extractor queue and useful-work diagnostics over HTTP/UDS.                                                                                                                  |
 
 `memory_events` rows have stable canonical op names (`memory.write.committed`,
 `memory.write.rejected`, `memory.recall.executed`, `memory.dream.run.promoted`,
 `memory.extractor.completed`, `memory.provider.collision`, etc.). They are queryable through the
 event store and feed `agh memory health` and the web Memory inspector.
+
+Skipped empty extractor turns are recorded as `memory.extractor.dropped` with
+`metadata.reason = "empty_snapshot"` and redaction-safe counters only. Extractor completion events
+carry `candidate_count`, and controller write decisions remain under `memory.write.*`.
 
 `agh memory history` returns the same audit material in the legacy summary shape as a thin
 compatibility view over `memory_events`. Use `agh memory decisions list` when you need

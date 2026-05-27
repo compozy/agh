@@ -22,12 +22,15 @@ func TestMemoryExtractorHandlersUseInjectedService(t *testing.T) {
 
 		extractor := &stubMemoryExtractorService{
 			status: contract.MemoryExtractorStatusPayload{
-				Status:           contract.MemoryExtractorStateRunning,
-				QueuedSessions:   2,
-				InFlightSessions: 1,
-				DroppedTurns:     3,
-				CoalescedTurns:   4,
-				FailureCount:     1,
+				Status:                 contract.MemoryExtractorStateRunning,
+				QueuedSessions:         2,
+				InFlightSessions:       1,
+				ActiveProviderSessions: 1,
+				DroppedTurns:           3,
+				CoalescedTurns:         4,
+				SkippedTurns:           5,
+				BackpressuredSessions:  6,
+				FailureCount:           1,
 			},
 			failures: []contract.MemoryExtractorFailurePayload{{
 				ID:        "failure-1",
@@ -54,6 +57,12 @@ func TestMemoryExtractorHandlersUseInjectedService(t *testing.T) {
 		}
 		if got := statusPayload.Extractor.FailureCount; got != 1 {
 			t.Fatalf("Extractor.FailureCount = %d, want 1", got)
+		}
+		if got := statusPayload.Extractor.SkippedTurns; got != 5 {
+			t.Fatalf("Extractor.SkippedTurns = %d, want 5", got)
+		}
+		if got := statusPayload.Extractor.BackpressuredSessions; got != 6 {
+			t.Fatalf("Extractor.BackpressuredSessions = %d, want 6", got)
 		}
 
 		failuresResp := performRequest(t, engine, http.MethodGet, "/memory/extractor/failures", nil)

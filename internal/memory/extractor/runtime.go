@@ -15,39 +15,49 @@ import (
 )
 
 const (
-	defaultCoalesceMax = 16
-	actorKindSubagent  = "agent_subagent"
-	actorKindRoot      = "agent_root"
-	messageRoleAgent   = "assistant"
-	sessionTypeDream   = "dream"
-	sessionTypeSystem  = "system"
+	defaultCoalesceMax       = 16
+	defaultQueueCapacity     = 1
+	defaultThrottleTurns     = 1
+	defaultThrottleFlushWait = 500 * time.Millisecond
+	actorKindSubagent        = "agent_subagent"
+	actorKindRoot            = "agent_root"
+	messageRoleAgent         = "assistant"
+	sessionTypeDream         = "dream"
+	sessionTypeSystem        = "system"
 )
 
 // Runtime owns asynchronous transcript extraction and daemon inbox production.
 type Runtime struct {
-	root         string
-	extractor    memcontract.Extractor
-	producer     *Producer
-	events       EventSink
-	logger       *slog.Logger
-	now          func() time.Time
-	coalesceMax  int
-	inboxPath    string
-	workerCtx    context.Context
-	cancelWorker context.CancelFunc
+	root              string
+	extractor         memcontract.Extractor
+	producer          *Producer
+	events            EventSink
+	logger            *slog.Logger
+	now               func() time.Time
+	coalesceMax       int
+	queueCapacity     int
+	throttleTurns     int
+	throttleFlushWait time.Duration
+	inboxPath         string
+	workerCtx         context.Context
+	cancelWorker      context.CancelFunc
+	providerSlots     chan struct{}
 
-	mu             sync.Mutex
-	sessions       map[string]*sessionState
-	toolWrites     map[string]toolWriteMarkers
-	droppedTurns   int64
-	coalescedTurns int64
-	closed         bool
-	wg             sync.WaitGroup
+	mu                    sync.Mutex
+	sessions              map[string]*sessionState
+	toolWrites            map[string]toolWriteMarkers
+	skippedTurns          int64
+	droppedTurns          int64
+	coalescedTurns        int64
+	backpressuredSessions int64
+	closed                bool
+	wg                    sync.WaitGroup
 }
 
 type sessionState struct {
-	inFlight bool
-	queued   *request
+	inFlight   bool
+	queued     *request
+	flushTimer *time.Timer
 }
 
 type request struct {
@@ -66,11 +76,14 @@ func (m toolWriteMarkers) empty() bool {
 
 // RuntimeStats exposes bounded operational state for daemon status APIs.
 type RuntimeStats struct {
-	QueuedSessions   int
-	InFlightSessions int
-	DroppedTurns     int64
-	CoalescedTurns   int64
-	Closed           bool
+	QueuedSessions         int
+	InFlightSessions       int
+	ActiveProviderSessions int
+	SkippedTurns           int64
+	DroppedTurns           int64
+	CoalescedTurns         int64
+	BackpressuredSessions  int64
+	Closed                 bool
 }
 
 // Option customizes the extractor runtime.
@@ -110,6 +123,33 @@ func WithCoalesceMax(limit int) Option {
 	}
 }
 
+// WithQueueCapacity bounds concurrent provider-backed extractor sessions.
+func WithQueueCapacity(limit int) Option {
+	return func(r *Runtime) {
+		if limit > 0 {
+			r.queueCapacity = limit
+		}
+	}
+}
+
+// WithThrottleTurns coalesces same-session bursts before launching another extraction.
+func WithThrottleTurns(limit int) Option {
+	return func(r *Runtime) {
+		if limit > 0 {
+			r.throttleTurns = limit
+		}
+	}
+}
+
+// WithThrottleFlushWait overrides the idle flush wait for tests and tightly controlled runtimes.
+func WithThrottleFlushWait(wait time.Duration) Option {
+	return func(r *Runtime) {
+		if wait > 0 {
+			r.throttleFlushWait = wait
+		}
+	}
+}
+
 // WithInboxPath overrides the default <root>/_inbox directory.
 func WithInboxPath(path string) Option {
 	return func(r *Runtime) {
@@ -141,20 +181,26 @@ func NewRuntime(
 	}
 	workerCtx, cancel := context.WithCancel(ctx)
 	runtime := &Runtime{
-		root:         clean,
-		extractor:    extractor,
-		logger:       slog.Default(),
-		now:          now,
-		coalesceMax:  defaultCoalesceMax,
-		workerCtx:    workerCtx,
-		cancelWorker: cancel,
-		sessions:     make(map[string]*sessionState),
-		toolWrites:   make(map[string]toolWriteMarkers),
+		root:              clean,
+		extractor:         extractor,
+		logger:            slog.Default(),
+		now:               now,
+		coalesceMax:       defaultCoalesceMax,
+		queueCapacity:     defaultQueueCapacity,
+		throttleTurns:     defaultThrottleTurns,
+		throttleFlushWait: defaultThrottleFlushWait,
+		workerCtx:         workerCtx,
+		cancelWorker:      cancel,
+		sessions:          make(map[string]*sessionState),
+		toolWrites:        make(map[string]toolWriteMarkers),
 	}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(runtime)
 		}
+	}
+	if runtime.queueCapacity > 0 {
+		runtime.providerSlots = make(chan struct{}, runtime.queueCapacity)
 	}
 	producer, err := NewProducer(clean, runtime.now, WithProducerInboxPath(runtime.inboxPath))
 	if err != nil {
@@ -293,22 +339,56 @@ func (r *Runtime) Enqueue(ctx context.Context, turn memcontract.TurnRecord) erro
 		r.mu.Unlock()
 		return errors.New("memory extractor: runtime is closed")
 	}
-	state := r.sessions[req.turn.SessionID]
+	if !turnHasExtractableContent(req.turn) {
+		r.skippedTurns++
+		r.mu.Unlock()
+		r.recordEvent(ctx, Event{
+			Op:   EventDropped,
+			Turn: req.turn,
+			Metadata: map[string]string{
+				"message_count": strconv.Itoa(len(req.turn.Snapshot.Messages)),
+				"reason":        "empty_snapshot",
+			},
+		})
+		return nil
+	}
+	sessionID := req.turn.SessionID
+	state := r.sessions[sessionID]
 	if state == nil {
 		state = &sessionState{}
-		r.sessions[req.turn.SessionID] = state
+		r.sessions[sessionID] = state
 	}
-	if !state.inFlight {
+	if !state.inFlight && state.queued == nil {
 		state.inFlight = true
 		r.wg.Add(1)
 		r.mu.Unlock()
-		go r.runSession(req.turn.SessionID, req)
+		go r.runSession(sessionID, req)
 		return nil
 	}
+	event := r.queueRequestLocked(state, req)
+	if !state.inFlight && state.queued != nil && r.queuedReady(*state.queued) {
+		next := *state.queued
+		state.queued = nil
+		r.stopThrottleFlushLocked(state)
+		state.inFlight = true
+		r.wg.Add(1)
+		r.mu.Unlock()
+		r.recordQueuedEvent(ctx, event)
+		go r.runSession(sessionID, next)
+		return nil
+	}
+	if !state.inFlight && state.queued != nil {
+		r.scheduleThrottleFlushLocked(sessionID, state)
+	}
+	r.mu.Unlock()
+	r.recordQueuedEvent(ctx, event)
+	return nil
+}
+
+func (r *Runtime) queueRequestLocked(state *sessionState, req request) *Event {
 	if state.queued == nil {
 		queued := req
 		state.queued = &queued
-		r.mu.Unlock()
 		return nil
 	}
 	if state.queued.coalesceCount+1 > r.coalesceMax {
@@ -316,29 +396,53 @@ func (r *Runtime) Enqueue(ctx context.Context, turn memcontract.TurnRecord) erro
 		queued := req
 		state.queued = &queued
 		r.droppedTurns++
-		r.mu.Unlock()
-		r.recordEvent(ctx, Event{
+		return &Event{
 			Op:   EventDropped,
 			Turn: dropped.turn,
 			Metadata: map[string]string{
 				"dropped_until_message_seq":  strconv.FormatInt(dropped.turn.UntilMessageSeq, 10),
 				"retained_until_message_seq": strconv.FormatInt(req.turn.UntilMessageSeq, 10),
 			},
-		})
-		return nil
+		}
 	}
 	merged := mergeRequests(*state.queued, req)
 	state.queued = &merged
 	r.coalescedTurns++
-	r.mu.Unlock()
-	r.recordEvent(ctx, Event{
+	return &Event{
 		Op:   EventCoalesced,
 		Turn: merged.turn,
 		Metadata: map[string]string{
 			"coalesced_count": strconv.Itoa(merged.coalesceCount),
 		},
+	}
+}
+
+func (r *Runtime) recordQueuedEvent(ctx context.Context, event *Event) {
+	if event == nil {
+		return
+	}
+	r.recordEvent(ctx, *event)
+}
+
+func (r *Runtime) queuedReady(req request) bool {
+	return r.throttleTurns <= 1 || req.coalesceCount+1 >= r.throttleTurns
+}
+
+func (r *Runtime) scheduleThrottleFlushLocked(sessionID string, state *sessionState) {
+	if state == nil || state.flushTimer != nil || r.throttleTurns <= 1 {
+		return
+	}
+	state.flushTimer = time.AfterFunc(r.throttleFlushWait, func() {
+		r.flushSession(sessionID)
 	})
-	return nil
+}
+
+func (r *Runtime) stopThrottleFlushLocked(state *sessionState) {
+	if state == nil || state.flushTimer == nil {
+		return
+	}
+	state.flushTimer.Stop()
+	state.flushTimer = nil
 }
 
 // Stats returns current queue counters without blocking workers.
@@ -349,9 +453,12 @@ func (r *Runtime) Stats() RuntimeStats {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	stats := RuntimeStats{
-		DroppedTurns:   r.droppedTurns,
-		CoalescedTurns: r.coalescedTurns,
-		Closed:         r.closed,
+		ActiveProviderSessions: len(r.providerSlots),
+		SkippedTurns:           r.skippedTurns,
+		DroppedTurns:           r.droppedTurns,
+		CoalescedTurns:         r.coalescedTurns,
+		BackpressuredSessions:  r.backpressuredSessions,
+		Closed:                 r.closed,
 	}
 	for _, state := range r.sessions {
 		if state == nil {
@@ -375,8 +482,16 @@ func (r *Runtime) Drain(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("memory extractor: drain context is required")
 	}
-	if err := r.waitWorkers(ctx); err != nil {
-		return err
+	for {
+		if err := r.flushQueuedSessions(ctx); err != nil {
+			return err
+		}
+		if err := r.waitWorkers(ctx); err != nil {
+			return err
+		}
+		if !r.hasPendingWork() {
+			break
+		}
 	}
 	if err := r.extractor.Drain(ctx); err != nil {
 		return fmt.Errorf("memory extractor: drain provider: %w", err)
@@ -422,15 +537,75 @@ func (r *Runtime) waitWorkers(ctx context.Context) error {
 	}
 }
 
+func (r *Runtime) flushQueuedSessions(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("memory extractor: flush queued sessions: %w", err)
+	}
+	starters := make(map[string]request)
+	r.mu.Lock()
+	for sessionID, state := range r.sessions {
+		if state == nil || state.inFlight || state.queued == nil {
+			continue
+		}
+		r.stopThrottleFlushLocked(state)
+		starters[sessionID] = *state.queued
+		state.queued = nil
+		state.inFlight = true
+		r.wg.Add(1)
+	}
+	r.mu.Unlock()
+	for sessionID, req := range starters {
+		go r.runSession(sessionID, req)
+	}
+	return nil
+}
+
+func (r *Runtime) flushSession(sessionID string) {
+	r.mu.Lock()
+	state := r.sessions[sessionID]
+	if r.closed || state == nil || state.inFlight || state.queued == nil {
+		if state != nil {
+			state.flushTimer = nil
+		}
+		r.mu.Unlock()
+		return
+	}
+	current := *state.queued
+	state.queued = nil
+	state.flushTimer = nil
+	state.inFlight = true
+	r.wg.Add(1)
+	r.mu.Unlock()
+	go r.runSession(sessionID, current)
+}
+
+func (r *Runtime) hasPendingWork() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return len(r.sessions) > 0
+}
+
 func (r *Runtime) runSession(sessionID string, req request) {
 	defer r.wg.Done()
 	current := req
 	for {
-		r.process(current)
+		if !r.process(current) {
+			r.clearSession(sessionID)
+			return
+		}
 		r.mu.Lock()
 		state := r.sessions[sessionID]
 		if state == nil || state.queued == nil {
+			if state != nil {
+				r.stopThrottleFlushLocked(state)
+			}
 			delete(r.sessions, sessionID)
+			r.mu.Unlock()
+			return
+		}
+		if !r.queuedReady(*state.queued) {
+			state.inFlight = false
+			r.scheduleThrottleFlushLocked(sessionID, state)
 			r.mu.Unlock()
 			return
 		}
@@ -440,7 +615,22 @@ func (r *Runtime) runSession(sessionID string, req request) {
 	}
 }
 
-func (r *Runtime) process(req request) {
+func (r *Runtime) clearSession(sessionID string) {
+	r.mu.Lock()
+	state := r.sessions[sessionID]
+	if state != nil {
+		r.stopThrottleFlushLocked(state)
+	}
+	delete(r.sessions, sessionID)
+	r.mu.Unlock()
+}
+
+func (r *Runtime) process(req request) bool {
+	release, ok := r.acquireProviderSlot()
+	if !ok {
+		return false
+	}
+	defer release()
 	r.recordEvent(r.workerCtx, Event{
 		Op:   EventStarted,
 		Turn: req.turn,
@@ -452,13 +642,13 @@ func (r *Runtime) process(req request) {
 	if err != nil {
 		r.recordEvent(r.workerCtx, Event{Op: EventFailed, Turn: req.turn, Error: err.Error()})
 		r.logger.Warn("memory extractor: extract failed", "session_id", req.turn.SessionID, "error", err)
-		return
+		return true
 	}
 	path, count, err := r.producer.Write(r.workerCtx, req.turn, candidates)
 	if err != nil {
 		r.recordEvent(r.workerCtx, Event{Op: EventFailed, Turn: req.turn, Error: err.Error()})
 		r.logger.Warn("memory extractor: write inbox failed", "session_id", req.turn.SessionID, "error", err)
-		return
+		return true
 	}
 	r.recordEvent(r.workerCtx, Event{
 		Op:       EventCompleted,
@@ -468,6 +658,34 @@ func (r *Runtime) process(req request) {
 			"candidate_count": strconv.Itoa(count),
 		},
 	})
+	return true
+}
+
+func (r *Runtime) acquireProviderSlot() (func(), bool) {
+	if r.providerSlots == nil {
+		return func() {}, true
+	}
+	select {
+	case r.providerSlots <- struct{}{}:
+		return r.releaseProviderSlot, true
+	default:
+	}
+	r.mu.Lock()
+	r.backpressuredSessions++
+	r.mu.Unlock()
+	select {
+	case r.providerSlots <- struct{}{}:
+		return r.releaseProviderSlot, true
+	case <-r.workerCtx.Done():
+		return nil, false
+	}
+}
+
+func (r *Runtime) releaseProviderSlot() {
+	select {
+	case <-r.providerSlots:
+	default:
+	}
 }
 
 func (r *Runtime) recordEvent(ctx context.Context, event Event) {
@@ -527,6 +745,15 @@ func normalizeTurn(turn memcontract.TurnRecord, now func() time.Time) (memcontra
 		}
 	}
 	return turn, nil
+}
+
+func turnHasExtractableContent(turn memcontract.TurnRecord) bool {
+	for _, message := range turn.Snapshot.Messages {
+		if strings.TrimSpace(message.Content) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func mergeRequests(existing request, next request) request {

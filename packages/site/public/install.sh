@@ -2,12 +2,17 @@
 set -eu
 
 RELEASE_REPO="compozy/agh"
+COSIGN_VERSION="v2.2.4"
+COSIGN_BASE_URL="https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}"
 COSIGN_CERT_IDENTITY_REGEXP='^https://github\.com/compozy/agh/\.github/workflows/release\.yml@refs/heads/main$'
 COSIGN_CERT_OIDC_ISSUER="https://token.actions.githubusercontent.com"
 VERSION="${AGH_VERSION:-latest}"
 INSTALL_DIR="${AGH_INSTALL_DIR:-}"
 SKIP_BOOTSTRAP="false"
 DRY_RUN="false"
+COSIGN_BIN=""
+COSIGN_NAME=""
+COSIGN_SHA256=""
 
 if [ "${AGH_SKIP_BOOTSTRAP:-}" != "" ] && [ "${AGH_SKIP_BOOTSTRAP:-}" != "0" ]; then
   SKIP_BOOTSTRAP="true"
@@ -34,7 +39,8 @@ Environment:
   AGH_SKIP_BOOTSTRAP=1  Same as --skip-bootstrap.
 
 Requires:
-  curl, tar, cosign, and sha256sum or shasum.
+  curl, tar, and sha256sum or shasum.
+  Uses local cosign when available; otherwise downloads a pinned temporary cosign verifier.
 USAGE
 }
 
@@ -61,6 +67,36 @@ resolve_latest_release_tag() {
       fail "latest release resolved to unexpected ref: ${resolved_url}"
       ;;
   esac
+}
+
+verify_file_sha256() {
+  file_path="$1"
+  expected_sha="$2"
+  label="$3"
+
+  if [ "$CHECKSUM_CMD" = "sha256sum" ]; then
+    actual_sha="$(sha256sum "$file_path" | awk '{ print $1 }')"
+  else
+    actual_sha="$(shasum -a 256 "$file_path" | awk '{ print $1 }')"
+  fi
+
+  [ "$actual_sha" = "$expected_sha" ] || fail "${label} checksum mismatch"
+}
+
+resolve_cosign() {
+  if command -v cosign >/dev/null 2>&1; then
+    COSIGN_BIN="$(command -v cosign)"
+    log "using cosign at ${COSIGN_BIN}"
+    return
+  fi
+
+  COSIGN_PATH="${TMP_DIR}/${COSIGN_NAME}"
+  COSIGN_URL="${COSIGN_BASE_URL}/${COSIGN_NAME}"
+  log "downloading pinned cosign verifier ${COSIGN_VERSION}"
+  curl -fsSL "$COSIGN_URL" -o "$COSIGN_PATH"
+  verify_file_sha256 "$COSIGN_PATH" "$COSIGN_SHA256" "cosign verifier"
+  chmod 0755 "$COSIGN_PATH"
+  COSIGN_BIN="$COSIGN_PATH"
 }
 
 need_arg() {
@@ -133,6 +169,28 @@ case "$(uname -m)" in
     ;;
 esac
 
+case "${OS}/${ARCH}" in
+  darwin/x86_64)
+    COSIGN_NAME="cosign-darwin-amd64"
+    COSIGN_SHA256="0e5a77a86115e4c00ba4243db01abceacb13cc06981c45e53ee71f2e1db8ce25"
+    ;;
+  darwin/arm64)
+    COSIGN_NAME="cosign-darwin-arm64"
+    COSIGN_SHA256="fcd310e64ecddc1eaa13fe814ac1c9fc02f6f9eacd9a58480ab8160eb8ca381e"
+    ;;
+  linux/x86_64)
+    COSIGN_NAME="cosign-linux-amd64"
+    COSIGN_SHA256="97a6a1e15668a75fc4ff7a4dc4cb2f098f929cbea2f12faa9de31db6b42b17d7"
+    ;;
+  linux/arm64)
+    COSIGN_NAME="cosign-linux-arm64"
+    COSIGN_SHA256="658087351e1d4f9c396b5f59ee5437461c06128f4ce80ba899ccaa1c0b6a8a62"
+    ;;
+  *)
+    fail "unsupported cosign verifier platform: ${OS}/${ARCH}"
+    ;;
+esac
+
 ARCHIVE_NAME="agh_${OS}_${ARCH}.tar.gz"
 
 if [ "$VERSION" = "latest" ]; then
@@ -169,7 +227,6 @@ fi
 
 command -v curl >/dev/null 2>&1 || fail "curl is required"
 command -v tar >/dev/null 2>&1 || fail "tar is required"
-command -v cosign >/dev/null 2>&1 || fail "cosign is required to verify release provenance"
 
 if [ "$VERSION" = "latest" ]; then
   VERSION="$(resolve_latest_release_tag)"
@@ -200,6 +257,8 @@ cleanup() {
 
 trap cleanup EXIT INT TERM
 
+resolve_cosign
+
 ARCHIVE_PATH="${TMP_DIR}/${ARCHIVE_NAME}"
 CHECKSUM_PATH="${TMP_DIR}/checksums.txt"
 BUNDLE_PATH="${TMP_DIR}/checksums.txt.sigstore.json"
@@ -211,7 +270,7 @@ curl -fsSL "$CHECKSUM_URL" -o "$CHECKSUM_PATH"
 curl -fsSL "$BUNDLE_URL" -o "$BUNDLE_PATH"
 
 log "verifying checksum provenance"
-cosign verify-blob "$CHECKSUM_PATH" \
+"$COSIGN_BIN" verify-blob "$CHECKSUM_PATH" \
   --bundle "$BUNDLE_PATH" \
   --certificate-identity-regexp "$COSIGN_CERT_IDENTITY_REGEXP" \
   --certificate-oidc-issuer "$COSIGN_CERT_OIDC_ISSUER" >/dev/null

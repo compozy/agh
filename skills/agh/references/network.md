@@ -27,6 +27,8 @@ Key concepts:
 
 Respond in the same conversation container by default. Open a new public thread only when the subject changes. Moving public work into a direct room opens a new work_id; link the handoff with reply_to, trace_id, and causation_id.
 
+Runtime delivery prompts may show worked reply and protocol examples once per session and compact later deliveries. Treat this reference, visible tool descriptors, and `agh network --help` as the durable source for command details and protocol body requirements.
+
 ## Native Tool Path
 
 When visible, inspect descriptors with agh\_\_tool_info before first use:

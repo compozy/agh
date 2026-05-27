@@ -86,6 +86,7 @@ func newDaemonMemoryExtractor(
 	forked := &forkedMemoryExtractor{
 		sessions:       forkSessions,
 		defaultAgent:   firstNonEmptyString(state.cfg.Defaults.Agent, state.cfg.Memory.Dream.Agent),
+		model:          state.cfg.Memory.Extractor.Model,
 		deadline:       state.cfg.Memory.Extractor.Deadline,
 		logger:         state.logger,
 		now:            now,
@@ -99,6 +100,8 @@ func newDaemonMemoryExtractor(
 		extractorpkg.WithLogger(state.logger),
 		extractorpkg.WithClock(now),
 		extractorpkg.WithCoalesceMax(state.cfg.Memory.Extractor.Queue.CoalesceMax),
+		extractorpkg.WithQueueCapacity(state.cfg.Memory.Extractor.Queue.Capacity),
+		extractorpkg.WithThrottleTurns(state.cfg.Memory.Extractor.ThrottleTurns),
 		extractorpkg.WithInboxPath(state.cfg.Memory.Extractor.InboxPath),
 	)
 	if err != nil {
@@ -246,12 +249,15 @@ func (e *daemonMemoryExtractor) Status(context.Context) (contract.MemoryExtracto
 		return contract.MemoryExtractorStatusPayload{}, err
 	}
 	return contract.MemoryExtractorStatusPayload{
-		Status:           status,
-		QueuedSessions:   stats.QueuedSessions,
-		InFlightSessions: stats.InFlightSessions,
-		DroppedTurns:     intFromInt64(stats.DroppedTurns),
-		CoalescedTurns:   intFromInt64(stats.CoalescedTurns),
-		FailureCount:     failureCount,
+		Status:                 status,
+		QueuedSessions:         stats.QueuedSessions,
+		InFlightSessions:       stats.InFlightSessions,
+		ActiveProviderSessions: stats.ActiveProviderSessions,
+		DroppedTurns:           intFromInt64(stats.DroppedTurns),
+		CoalescedTurns:         intFromInt64(stats.CoalescedTurns),
+		SkippedTurns:           intFromInt64(stats.SkippedTurns),
+		BackpressuredSessions:  intFromInt64(stats.BackpressuredSessions),
+		FailureCount:           failureCount,
 	}, nil
 }
 
@@ -572,6 +578,7 @@ func (s *daemonMemoryProposalSink) resolveWorkspace(
 type forkedMemoryExtractor struct {
 	sessions       memoryExtractorSessionManager
 	defaultAgent   string
+	model          string
 	deadline       time.Duration
 	logger         *slog.Logger
 	now            func() time.Time
@@ -598,6 +605,7 @@ func (e *forkedMemoryExtractor) Extract(
 	child, err := e.sessions.Spawn(runCtx, session.SpawnOpts{
 		ParentSessionID:    turn.SessionID,
 		AgentName:          firstNonEmptyString(turn.AgentID, e.defaultAgent),
+		Model:              strings.TrimSpace(e.model),
 		Name:               "Memory extractor",
 		PromptOverlay:      memoryExtractorOverlay(),
 		SpawnRole:          session.SpawnRoleMemoryExtractor,
@@ -736,10 +744,8 @@ func collectMemoryExtractorOutput(ctx context.Context, events <-chan acp.AgentEv
 			}
 			switch event.Type {
 			case acp.EventTypeAgentMessage:
+				// Agent messages are stream chunks; inserting separators can corrupt JSONL.
 				output.WriteString(event.Text)
-				if !strings.HasSuffix(event.Text, "\n") {
-					output.WriteByte('\n')
-				}
 			case acp.EventTypeError:
 				return "", fmt.Errorf("daemon: memory extractor agent error: %s", strings.TrimSpace(event.Error))
 			}

@@ -3826,7 +3826,13 @@ func TestDaemonNativeTools(t *testing.T) {
 		cfg.Memory.GlobalDir = globalDir
 		cfg.Memory.Dream.CheckInterval = time.Hour
 		extractor := &nativeMemoryExtractorService{
-			status: contract.MemoryExtractorStatusPayload{Status: contract.MemoryExtractorStateIdle, QueuedSessions: 2},
+			status: contract.MemoryExtractorStatusPayload{
+				Status:                 contract.MemoryExtractorStateIdle,
+				QueuedSessions:         2,
+				ActiveProviderSessions: 1,
+				SkippedTurns:           5,
+				BackpressuredSessions:  6,
+			},
 		}
 		providers := &nativeMemoryProviderService{
 			provider: contract.MemoryProviderPayload{
@@ -3877,6 +3883,8 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(memory_extractor_status) error = %v", err)
 		}
 		requireNativeStructuredContains(t, extractorResult, []byte(`"status":"idle"`))
+		requireNativeStructuredContains(t, extractorResult, []byte(`"skipped_turns":5`))
+		requireNativeStructuredContains(t, extractorResult, []byte(`"backpressured_sessions":6`))
 		if extractor.statusCalls != 1 {
 			t.Fatalf("extractor Status calls = %d, want 1", extractor.statusCalls)
 		}

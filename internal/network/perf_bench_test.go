@@ -8,30 +8,7 @@ import (
 )
 
 func BenchmarkFormatNetworkMessageDirect(b *testing.B) {
-	envelope := Envelope{
-		Protocol:    ProtocolV0,
-		WorkspaceID: testWorkspaceID,
-		ID:          "msg-bench-direct",
-		Kind:        KindSay,
-		Channel:     "builders",
-		Surface:     new(SurfaceDirect),
-		DirectID:    new(testDirectRef().DirectID),
-		From:        "coder.sess-bench",
-		To:          new("reviewer.sess-bench"),
-		WorkID:      new("work_bench-direct"),
-		ReplyTo:     new("msg-root-bench"),
-		TraceID:     new("trace-bench-direct"),
-		CausationID: new("msg-cause-bench"),
-		TS:          time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC).Unix(),
-		Body: benchmarkRawJSON(b, SayBody{
-			Text:   "Review the attached network benchmark payload and summarize the reply strategy.",
-			Intent: "review_request",
-			Artifacts: []json.RawMessage{
-				json.RawMessage(`{"kind":"capability","id":"artifact-1"}`),
-				json.RawMessage(`{"kind":"patch","id":"artifact-2"}`),
-			},
-		}),
-	}
+	envelope := benchmarkDirectEnvelope(b)
 
 	b.ReportAllocs()
 
@@ -43,6 +20,37 @@ func BenchmarkFormatNetworkMessageDirect(b *testing.B) {
 		if rendered == "" {
 			b.Fatal("formatNetworkMessage() = empty, want content")
 		}
+	}
+}
+
+func BenchmarkFormatNetworkMessageGuidanceModes(b *testing.B) {
+	envelope := benchmarkDirectEnvelope(b)
+	cases := []struct {
+		name string
+		mode networkMessageGuidanceMode
+	}{
+		{name: "verbose", mode: networkMessageGuidanceVerbose},
+		{name: "compact", mode: networkMessageGuidanceCompact},
+	}
+
+	for _, tc := range cases {
+		b.Run(tc.name, func(b *testing.B) {
+			b.ReportAllocs()
+
+			var rendered string
+			for b.Loop() {
+				var err error
+				rendered, err = formatNetworkMessageWithGuidance(envelope, tc.mode)
+				if err != nil {
+					b.Fatalf("formatNetworkMessageWithGuidance(%s) error = %v", tc.name, err)
+				}
+				if rendered == "" {
+					b.Fatal("formatNetworkMessageWithGuidance() = empty, want content")
+				}
+			}
+			b.ReportMetric(float64(len(rendered)), "bytes/message")
+			b.ReportMetric(float64((len(rendered)+3)/4), "est_tokens/message")
+		})
 	}
 }
 
@@ -118,6 +126,35 @@ func BenchmarkNetworkLogFields(b *testing.B) {
 		if len(fields) == 0 {
 			b.Fatal("networkLogFields() = empty, want structured fields")
 		}
+	}
+}
+
+func benchmarkDirectEnvelope(b *testing.B) Envelope {
+	b.Helper()
+
+	return Envelope{
+		Protocol:    ProtocolV0,
+		WorkspaceID: testWorkspaceID,
+		ID:          "msg-bench-direct",
+		Kind:        KindSay,
+		Channel:     "builders",
+		Surface:     new(SurfaceDirect),
+		DirectID:    new(testDirectRef().DirectID),
+		From:        "coder.sess-bench",
+		To:          new("reviewer.sess-bench"),
+		WorkID:      new("work_bench-direct"),
+		ReplyTo:     new("msg-root-bench"),
+		TraceID:     new("trace-bench-direct"),
+		CausationID: new("msg-cause-bench"),
+		TS:          time.Date(2026, 4, 17, 12, 0, 0, 0, time.UTC).Unix(),
+		Body: benchmarkRawJSON(b, SayBody{
+			Text:   "Review the attached network benchmark payload and summarize the reply strategy.",
+			Intent: "review_request",
+			Artifacts: []json.RawMessage{
+				json.RawMessage(`{"kind":"capability","id":"artifact-1"}`),
+				json.RawMessage(`{"kind":"patch","id":"artifact-2"}`),
+			},
+		}),
 	}
 }
 

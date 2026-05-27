@@ -27,8 +27,10 @@ const (
 	configDefaultsAgentPath                  = "defaults.agent"
 	configDreamingKey                        = "dreaming"
 	configExtractorKey                       = "extractor"
+	configExtractorModePostMessage           = "post_message"
 	configHybridKey                          = "hybrid"
 	configJsonlKey                           = "jsonl"
+	configExtractorQueueCoalesceMaxPath      = "memory.extractor.queue.coalesce_max"
 	configLogLevelDebug                      = "debug"
 	configLogLevelError                      = "error"
 	configLogLevelInfo                       = "info"
@@ -826,7 +828,7 @@ func defaultMemoryRecallConfig() MemoryRecallConfig {
 func defaultMemoryExtractorConfig(homePaths HomePaths) MemoryExtractorConfig {
 	return MemoryExtractorConfig{
 		Enabled:          true,
-		Mode:             "post_message",
+		Mode:             configExtractorModePostMessage,
 		ThrottleTurns:    1,
 		Deadline:         60 * time.Second,
 		SandboxInboxOnly: true,
@@ -1990,7 +1992,7 @@ func (c *MemoryExtractorConfig) Validate() error {
 	if !c.Enabled {
 		return nil
 	}
-	mode, err := validateEnum("memory.extractor.mode", c.Mode, "post_message", "compaction_flush", configHybridKey)
+	mode, err := validateEnum("memory.extractor.mode", c.Mode, configExtractorModePostMessage)
 	if err != nil {
 		return err
 	}
@@ -2007,7 +2009,18 @@ func (c *MemoryExtractorConfig) Validate() error {
 	if strings.TrimSpace(c.DLQPath) == "" {
 		return errors.New("memory.extractor.dlq_path is required")
 	}
-	return c.Queue.Validate()
+	if err := c.Queue.Validate(); err != nil {
+		return err
+	}
+	if c.Queue.CoalesceMax < c.ThrottleTurns {
+		return fmt.Errorf(
+			"%s must be greater than or equal to memory.extractor.throttle_turns: %d < %d",
+			configExtractorQueueCoalesceMaxPath,
+			c.Queue.CoalesceMax,
+			c.ThrottleTurns,
+		)
+	}
+	return nil
 }
 
 // Validate ensures extractor queue settings are usable.
@@ -2016,7 +2029,7 @@ func (c MemoryExtractorQueueConfig) Validate() error {
 		return fmt.Errorf("memory.extractor.queue.capacity must be positive: %d", c.Capacity)
 	}
 	if c.CoalesceMax <= 0 {
-		return fmt.Errorf("memory.extractor.queue.coalesce_max must be positive: %d", c.CoalesceMax)
+		return fmt.Errorf("%s must be positive: %d", configExtractorQueueCoalesceMaxPath, c.CoalesceMax)
 	}
 	return nil
 }

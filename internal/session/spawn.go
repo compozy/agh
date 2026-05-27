@@ -36,6 +36,7 @@ type SpawnOpts struct {
 	ParentSessionID    string
 	AgentName          string
 	Provider           string
+	Model              string
 	Name               string
 	Workspace          string
 	WorkspacePath      string
@@ -87,6 +88,7 @@ func (m *Manager) Spawn(ctx context.Context, opts SpawnOpts) (*Session, error) {
 	child, err := m.Create(ctx, CreateOpts{
 		AgentName:        normalized.AgentName,
 		Provider:         normalized.Provider,
+		Model:            normalized.Model,
 		Name:             normalized.Name,
 		Workspace:        workspaceRef,
 		WorkspacePath:    workspacePath,
@@ -147,6 +149,7 @@ func normalizeSpawnOpts(opts SpawnOpts) (SpawnOpts, error) {
 	normalized.ParentSessionID = strings.TrimSpace(normalized.ParentSessionID)
 	normalized.AgentName = strings.TrimSpace(normalized.AgentName)
 	normalized.Provider = strings.TrimSpace(normalized.Provider)
+	normalized.Model = strings.TrimSpace(normalized.Model)
 	normalized.Name = strings.TrimSpace(normalized.Name)
 	normalized.Workspace = strings.TrimSpace(normalized.Workspace)
 	normalized.WorkspacePath = strings.TrimSpace(normalized.WorkspacePath)

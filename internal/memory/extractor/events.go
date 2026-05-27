@@ -16,7 +16,7 @@ const (
 	EventFailed = "memory.extractor.failed"
 	// EventCoalesced records bounded queue merging for one session.
 	EventCoalesced = "memory.extractor.coalesced"
-	// EventDropped records a queued extraction range dropped by the hard coalescing cap.
+	// EventDropped records extractor work dropped before provider execution.
 	EventDropped = "memory.extractor.dropped"
 )
 

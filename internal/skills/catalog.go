@@ -12,16 +12,20 @@ import (
 )
 
 const (
-	catalogDescriptionLimit  = 200
-	catalogEllipsis          = "..."
-	currentCatalogOpen       = "<current-available-skills>"
-	currentCatalogClose      = "</current-available-skills>"
+	catalogDescriptionLimit               = 200
+	catalogEllipsis                       = "..."
+	currentCatalogOpen                    = "<current-available-skills>"
+	currentCatalogClose                   = "</current-available-skills>"
+	catalogToolPolicyFallbackInstructions = "" +
+		"If current tool policy denies `agh__skill_view`, use `agh skill view <name>` as an operator fallback."
 	catalogUsageInstructions = "Use `agh__skill_view` to load full instructions for any skill.\n" +
 		"Use `agh__skill_view` to read a specific skill resource file when the skill references one.\n" +
-		"If current tool policy denies `agh__skill_view`, use `agh skill view <name>` as an operator fallback."
+		catalogToolPolicyFallbackInstructions
 	currentCatalogInstructions = "" +
 		"The <current-available-skills> block above is the authoritative current skill state for this turn.\n" +
 		"If it differs from any earlier <available-skills> startup snapshot, trust the current block."
+	currentCatalogUnchangedInstructions = "" +
+		"Previous catalog remains current; use `agh__skill_view` for full skill/resource instructions."
 )
 
 var (
@@ -100,6 +104,18 @@ func BuildCurrentCatalog(skills []*Skill) string {
 		currentCatalogClose,
 		currentCatalogInstructions+"\n"+catalogUsageInstructions,
 	)
+}
+
+// BuildCurrentCatalogUnchanged renders the compact per-turn marker used when
+// the catalog did not change.
+func BuildCurrentCatalogUnchanged() string {
+	return strings.Join([]string{
+		currentCatalogOpen,
+		"  <catalog-state unchanged=\"true\">" + currentCatalogUnchangedInstructions + "</catalog-state>",
+		currentCatalogClose,
+		"",
+		catalogToolPolicyFallbackInstructions,
+	}, "\n")
 }
 
 func buildCatalog(skills []*Skill, openTag string, closeTag string, instructions string) string {

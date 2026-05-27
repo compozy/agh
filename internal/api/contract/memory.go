@@ -426,12 +426,15 @@ type MemoryDailyLogListResponse struct {
 
 // MemoryExtractorStatusPayload reports extractor queue/runtime status.
 type MemoryExtractorStatusPayload struct {
-	Status           MemoryExtractorState `json:"status"`
-	QueuedSessions   int                  `json:"queued_sessions"`
-	InFlightSessions int                  `json:"in_flight_sessions"`
-	DroppedTurns     int                  `json:"dropped_turns"`
-	CoalescedTurns   int                  `json:"coalesced_turns"`
-	FailureCount     int                  `json:"failure_count"`
+	Status                 MemoryExtractorState `json:"status"`
+	QueuedSessions         int                  `json:"queued_sessions"`
+	InFlightSessions       int                  `json:"in_flight_sessions"`
+	ActiveProviderSessions int                  `json:"active_provider_sessions"`
+	DroppedTurns           int                  `json:"dropped_turns"`
+	CoalescedTurns         int                  `json:"coalesced_turns"`
+	SkippedTurns           int                  `json:"skipped_turns"`
+	BackpressuredSessions  int                  `json:"backpressured_sessions"`
+	FailureCount           int                  `json:"failure_count"`
 }
 
 // MemoryExtractorStatusResponse wraps extractor queue/runtime status.

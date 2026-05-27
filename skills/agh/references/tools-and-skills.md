@@ -40,6 +40,8 @@ For resource files inside daemon-managed AGH sessions, use the native skill view
 
     agh skill view agh --file references/network.md
 
+When a session receives repeated prompts with the same resolved skill catalog, AGH may replace the full `<current-available-skills>` block with a compact unchanged marker. Treat the previous full block in that session as current until AGH sends a later full catalog block.
+
 ## Bundled Skill Resources
 
 Bundled AGH skills are compiled from the repository skills/<name>/ directories. The canonical AGH bundled skill is agh. It includes SKILL.md and flat references/\*.md resource files.
