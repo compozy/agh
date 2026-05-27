@@ -1,4 +1,4 @@
-## 0.0.1 - 2026-05-26
+## 0.0.2 - 2026-05-27
 
 ### Other Changes
 
@@ -226,6 +226,11 @@
 - Fint release pr
 - Fix goreleaser
 - Fix release
+- Fix release process
+- Fix release sync
+- Decouple release dry-run npm auth
+- Persist web assets git auth
+- Require npm auth before release merge
 
 ### 🧪 Testing
 
@@ -238,3 +243,4 @@
 - Stabilize release integration gates
 - Stabilize release e2e markers
 - Stabilize release e2e flows
+- Improve suite speed
