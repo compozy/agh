@@ -1,9 +1,9 @@
-## 0.0.3 - 2026-05-27
+## 0.0.4 - 2026-05-27
 
-### ♻️ Refactoring
+### 🐛 Bug Fixes
 
-- Memory optimization (#215)
+- Default workspace
 
-### 📦 Build System
+### 📚 Documentation
 
-- Sync web assets module (#210)
+- Remove old changelog from website
