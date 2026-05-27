@@ -1,9 +1,5 @@
-## 0.0.3 - 2026-05-27
+## 0.0.4 - 2026-05-27
 
-### ♻️ Refactoring
+### 📚 Documentation
 
-- Memory optimization (#215)
-
-### 📦 Build System
-
-- Sync web assets module (#210)
+- Remove old changelog from website

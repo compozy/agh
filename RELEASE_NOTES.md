@@ -1,3 +1,9 @@
+## 0.0.4 - 2026-05-27
+
+### 📚 Documentation
+
+- Remove old changelog from website
+
 ## 0.0.3 - 2026-05-27
 
 ### ♻️ Refactoring
