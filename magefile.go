@@ -322,67 +322,6 @@ func ensureWebDist() error {
 	return nil
 }
 
-func WebAssetsDigest() error {
-	if err := ensureWebDist(); err != nil {
-		return err
-	}
-	digest, err := directoryDigest(webDistDir)
-	if err != nil {
-		return fmt.Errorf("digest local web build: %w", err)
-	}
-	fmt.Println(digest)
-	return nil
-}
-
-func WebAssetsPrepare(assetsRepoDir string, sourceCommit string) error {
-	assetsRepoDir = strings.TrimSpace(assetsRepoDir)
-	if assetsRepoDir == "" {
-		return errors.New("assets repo directory is required")
-	}
-	sourceCommit = strings.TrimSpace(sourceCommit)
-	if sourceCommit == "" {
-		return errors.New("source commit is required")
-	}
-	if err := ensureWebDist(); err != nil {
-		return err
-	}
-	absAssetsRepoDir, err := filepath.Abs(assetsRepoDir)
-	if err != nil {
-		return fmt.Errorf("resolve assets repo dir %q: %w", assetsRepoDir, err)
-	}
-	digest, err := directoryDigest(webDistDir)
-	if err != nil {
-		return fmt.Errorf("digest local web build: %w", err)
-	}
-	metadata := webAssetsMetadata{
-		BuildDigest:      digest,
-		SourceRepository: webAssetsSourceRepository,
-		SourceCommit:     sourceCommit,
-	}
-	if err := prepareWebAssetsRepo(webDistDir, absAssetsRepoDir, metadata); err != nil {
-		return err
-	}
-	fmt.Println(digest)
-	return nil
-}
-
-func WebAssetsNextTag(assetsRepoDir string) error {
-	assetsRepoDir = strings.TrimSpace(assetsRepoDir)
-	if assetsRepoDir == "" {
-		return errors.New("assets repo directory is required")
-	}
-	tags, err := gitTags(assetsRepoDir)
-	if err != nil {
-		return err
-	}
-	next, err := nextWebAssetsTag(tags)
-	if err != nil {
-		return err
-	}
-	fmt.Println(next)
-	return nil
-}
-
 func WebAssetsCheck() error {
 	if err := ensureWebDist(); err != nil {
 		return err

@@ -195,7 +195,6 @@ func TestPackagingMetadataStaysAlignedWithRuntimeAndInstaller(t *testing.T) {
 	goreleaser := readYAMLMap(t, root, ".goreleaser.yml")
 	ciWorkflow := readYAMLMap(t, root, filepath.Join(".github", "workflows", "ci.yml"))
 	releaseWorkflow := readYAMLMap(t, root, filepath.Join(".github", "workflows", "release.yml"))
-	syncWebAssetsWorkflow := readYAMLMap(t, root, filepath.Join(".github", "workflows", "sync-web-assets.yml"))
 	setupBun := readYAMLMap(t, root, filepath.Join(".github", "actions", "setup-bun", "action.yml"))
 	setupGo := readYAMLMap(t, root, filepath.Join(".github", "actions", "setup-go", "action.yml"))
 	setupNode := readYAMLMap(t, root, filepath.Join(".github", "actions", "setup-node", "action.yml"))
@@ -204,7 +203,6 @@ func TestPackagingMetadataStaysAlignedWithRuntimeAndInstaller(t *testing.T) {
 	installScript := readTextFile(t, root, filepath.Join("packages", "site", "public", "install.sh"))
 	ciWorkflowText := readTextFile(t, root, filepath.Join(".github", "workflows", "ci.yml"))
 	releaseWorkflowText := readTextFile(t, root, filepath.Join(".github", "workflows", "release.yml"))
-	syncWebAssetsWorkflowText := readTextFile(t, root, filepath.Join(".github", "workflows", "sync-web-assets.yml"))
 	cliffConfig := readTextFile(t, root, "cliff.toml")
 	gitignore := readTextFile(t, root, ".gitignore")
 	goMod := readTextFile(t, root, "go.mod")
@@ -364,52 +362,6 @@ func TestPackagingMetadataStaysAlignedWithRuntimeAndInstaller(t *testing.T) {
 			90,
 			"go run github.com/magefile/mage@v1.17.0 releaseInstallCheck",
 		)
-	})
-
-	t.Run("Should keep privileged web assets sync out of pull request events", func(t *testing.T) {
-		t.Parallel()
-
-		assertNotContainsText(t, "sync web assets workflow", syncWebAssetsWorkflowText, "pull_request:")
-		assertNotContainsText(t, "sync web assets workflow", syncWebAssetsWorkflowText, "pull_request_target:")
-		assertContainsText(t, "sync web assets workflow", syncWebAssetsWorkflowText, "cancel-in-progress: false")
-		assertContainsText(t, "sync web assets workflow", syncWebAssetsWorkflowText, "origin/main")
-		assertContainsText(
-			t,
-			"sync web assets workflow",
-			syncWebAssetsWorkflowText,
-			"GOPROXY=https://proxy.golang.org,direct",
-		)
-		assertContainsText(t, "sync web assets workflow", syncWebAssetsWorkflowText, "GOPRIVATE=")
-		assertContainsText(t, "sync web assets workflow", syncWebAssetsWorkflowText, "GONOPROXY: \"\"")
-		assertNotContainsText(t, "sync web assets workflow", syncWebAssetsWorkflowText, "GOPROXY: direct")
-		waitIndex := strings.Index(syncWebAssetsWorkflowText, "- name: Wait for public module availability")
-		updateIndex := strings.Index(syncWebAssetsWorkflowText, "- name: Update pinned assets module")
-		if waitIndex == -1 || updateIndex == -1 {
-			t.Fatalf("sync web assets workflow missing wait/update steps")
-		}
-		if waitIndex > updateIndex {
-			t.Fatalf("sync web assets workflow updates go.mod before public proxy availability is proven")
-		}
-
-		permissions := mapAt(t, syncWebAssetsWorkflow, "permissions")
-		assertEqualString(t, "sync contents permission", stringAt(t, permissions, "contents"), "write")
-		assertEqualString(t, "sync pull request permission", stringAt(t, permissions, "pull-requests"), "write")
-
-		jobs := mapAt(t, syncWebAssetsWorkflow, "jobs")
-		syncJob := mapAt(t, jobs, "sync")
-		if got := stringAt(t, syncJob, "if"); !strings.Contains(got, "github.repository == 'compozy/agh'") {
-			t.Fatalf("sync job if = %q, want repository guard", got)
-		}
-		commands := strings.Join(workflowRunCommands(t, sliceAt(t, syncJob, "steps")), "\n")
-		for _, snippet := range []string{
-			"webAssetsDeterminismCheck",
-			"webAssetsPrepare",
-			"webAssetsNextTag",
-			"go get",
-			"releaseInstallCheck",
-		} {
-			assertContainsText(t, "sync web assets commands", commands, snippet)
-		}
 	})
 
 	t.Run("Should keep CI path filtering resilient to rollback pushes", func(t *testing.T) {
