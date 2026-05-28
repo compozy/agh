@@ -76,6 +76,8 @@ Use recall traces to inspect what memory entered a session turn without exposing
 
 Recall traces are diagnostic evidence. They do not authorize task state changes, review verdicts, or durable memory writes by themselves.
 
+When AGH injects recalled memory into a live prompt, it appears in a `<turn-recall>` block above the `<user-message>` block. Treat recalled memory as supporting context only; the live user request is the content inside `<user-message>`. If no recall block is present, treat the trailing prompt text as the live user request.
+
 ## Extractor Diagnostics
 
 Inspect asynchronous extractor pressure before retrying or tuning Memory runs:

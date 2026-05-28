@@ -347,6 +347,7 @@ func (d *Driver) newAgentProcess(
 		permissionTimeout:    d.permissionWait,
 		systemPrompt:         normalized.SystemPrompt,
 		systemPromptDelivery: normalized.SystemPromptDelivery,
+		promptCacheControl:   promptCacheControlForStartOpts(normalized),
 		steerSource:          d.steerSource,
 	}
 }
@@ -1055,7 +1056,7 @@ func buildWirePromptRequest(proc *AgentProcess, req PromptRequest) (acpsdk.Promp
 	promptText, includedSystemPrompt, promptDelivery := proc.nextPromptText(req.Message)
 	promptRequest := acpsdk.PromptRequest{
 		SessionId: acpsdk.SessionId(proc.SessionID),
-		Prompt:    []acpsdk.ContentBlock{acpsdk.TextBlock(promptText)},
+		Prompt:    []acpsdk.ContentBlock{textBlockWithPromptCacheControl(promptText, proc.promptCacheControl)},
 	}
 	meta := req.Meta.Normalize()
 	if includedSystemPrompt {

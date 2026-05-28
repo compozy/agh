@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	memcontract "github.com/compozy/agh/internal/memory/contract"
 	"github.com/compozy/agh/internal/session"
@@ -75,8 +76,49 @@ func TestNewRecallAugmenter(t *testing.T) {
 		if !strings.Contains(got, "Memory: Remember auth sessions and migration details.") {
 			t.Fatalf("Augment() = %q, want packaged memory body", got)
 		}
-		if !strings.Contains(got, "User message:\nauth migration sessions") {
+		if !strings.Contains(got, "<turn-recall>\nRelevant durable memory for this turn:") {
+			t.Fatalf("Augment() = %q, want tagged recall block", got)
+		}
+		if !strings.Contains(got, "</turn-recall>\n\n<user-message>\nauth migration sessions\n</user-message>") {
 			t.Fatalf("Augment() = %q, want preserved user message", got)
+		}
+		if strings.Contains(got, "User message:") {
+			t.Fatalf("Augment() = %q, want no legacy user message marker", got)
+		}
+	})
+}
+
+func TestBuildPackagedRecallBlock(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should cap final rendered recall block to the declared budget", func(t *testing.T) {
+		t.Parallel()
+
+		packaged := memcontract.Packaged{
+			Blocks: []memcontract.Block{{
+				Scope: memcontract.ScopeWorkspace,
+				Entries: []memcontract.PackagedEntry{{
+					Title:   "Large project note",
+					Type:    memcontract.TypeProject,
+					Body:    strings.Repeat("x", maxRecallCharacters*2),
+					ModTime: time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC),
+				}},
+			}},
+		}
+
+		got := buildPackagedRecallBlock(packaged)
+		if got == "" {
+			t.Fatal("buildPackagedRecallBlock() = empty, want capped recall block")
+		}
+		if runes := utf8.RuneCountInString(got); runes > maxRecallCharacters {
+			t.Fatalf(
+				"buildPackagedRecallBlock() runes = %d, want <= %d",
+				runes,
+				maxRecallCharacters,
+			)
+		}
+		if !strings.Contains(got, recallPromptSafetyFooter) {
+			t.Fatalf("buildPackagedRecallBlock() = %q, want safety footer", got)
 		}
 	})
 }

@@ -78,6 +78,59 @@ func TestRenderPromptPreservesSectionOrderAndOmitsUnavailableSections(t *testing
 	}
 }
 
+func TestRenderPromptProvenanceCacheStability(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should omit generated_at from prompt while preserving context payload provenance", func(t *testing.T) {
+		t.Parallel()
+
+		service := NewService(Deps{Now: fixedNow})
+		payload, err := service.ContextForSession(context.Background(), &session.Info{
+			ID:           "sess-1",
+			AgentName:    "coder",
+			Provider:     "codex",
+			Type:         session.SessionTypeUser,
+			State:        session.StateActive,
+			ACPSessionID: "acp-1",
+			CreatedAt:    fixedTime(),
+			UpdatedAt:    fixedTime(),
+		})
+		if err != nil {
+			t.Fatalf("ContextForSession() error = %v", err)
+		}
+		if got, want := payload.Provenance.GeneratedAt, fixedTime(); !got.Equal(want) {
+			t.Fatalf("Provenance.GeneratedAt = %s, want %s", got, want)
+		}
+		if got, want := payload.Provenance.Source, ProvenanceSource; got != want {
+			t.Fatalf("Provenance.Source = %q, want %q", got, want)
+		}
+
+		rendered, err := RenderPrompt(&payload)
+		if err != nil {
+			t.Fatalf("RenderPrompt() error = %v", err)
+		}
+		if strings.Contains(rendered, "generated_at") {
+			t.Fatalf("RenderPrompt() = %s, want no generated_at", rendered)
+		}
+		if !strings.Contains(rendered, `"source":"daemon.situation"`) {
+			t.Fatalf("RenderPrompt() = %s, want provenance source", rendered)
+		}
+
+		payload.Provenance.GeneratedAt = fixedTime().Add(time.Hour)
+		renderedLater, err := RenderPrompt(&payload)
+		if err != nil {
+			t.Fatalf("RenderPrompt(later generated_at) error = %v", err)
+		}
+		if renderedLater != rendered {
+			t.Fatalf(
+				"RenderPrompt() changed after generated_at-only change\nbefore: %s\nafter:  %s",
+				rendered,
+				renderedLater,
+			)
+		}
+	})
+}
+
 func TestContextForSessionBoundsListsAndIncludesTaskChannelProvenance(t *testing.T) {
 	t.Parallel()
 
@@ -1093,6 +1146,94 @@ func TestAugmentPrefixesFreshSituationWithoutRewritingMessage(t *testing.T) {
 	}
 }
 
+func TestAugmentCompactsRepeatedSituationSections(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should compact unchanged sections for the same ACP session and workspace", func(t *testing.T) {
+		t.Parallel()
+
+		service := NewService(Deps{Now: fixedNow, SectionLimit: 2})
+		sess := newSituationCompactionSession()
+		first, err := service.Augment(context.Background(), sess, "first prompt")
+		if err != nil {
+			t.Fatalf("Augment(first) error = %v", err)
+		}
+		if strings.Contains(first, `"unchanged":true`) {
+			t.Fatalf("Augment(first) = %s, want full sections", first)
+		}
+		if !strings.Contains(first, `"agent_name":"coder"`) {
+			t.Fatalf("Augment(first) = %s, want full self section", first)
+		}
+
+		second, err := service.Augment(context.Background(), sess, "second prompt")
+		if err != nil {
+			t.Fatalf("Augment(second) error = %v", err)
+		}
+		for _, want := range []string{
+			`"unchanged":true`,
+			`"section":"self"`,
+			`"reuse":"previous_full_section_same_acp_session"`,
+		} {
+			if !strings.Contains(second, want) {
+				t.Fatalf("Augment(second) = %s, want %q", second, want)
+			}
+		}
+		if strings.Contains(second, `"agent_name":"coder"`) {
+			t.Fatalf("Augment(second) = %s, want compact self section", second)
+		}
+		if !strings.HasSuffix(second, "second prompt") {
+			t.Fatalf("Augment(second) = %q, want second prompt suffix", second)
+		}
+	})
+
+	t.Run("Should refresh changed sections while compacting stable peers", func(t *testing.T) {
+		t.Parallel()
+
+		service := NewService(Deps{Now: fixedNow, SectionLimit: 2})
+		sess := newSituationCompactionSession()
+		if _, err := service.Augment(context.Background(), sess, "first prompt"); err != nil {
+			t.Fatalf("Augment(first) error = %v", err)
+		}
+		sess.UpdatedAt = fixedTime().Add(time.Minute)
+
+		second, err := service.Augment(context.Background(), sess, "second prompt")
+		if err != nil {
+			t.Fatalf("Augment(second) error = %v", err)
+		}
+		if !strings.Contains(second, `"section":"self"`) {
+			t.Fatalf("Augment(second) = %s, want stable self section compacted", second)
+		}
+		if strings.Contains(second, `"section":"session"`) {
+			t.Fatalf("Augment(second) = %s, want changed session section refreshed", second)
+		}
+		if !strings.Contains(second, `"updated_at":"2026-04-26T12:01:00Z"`) {
+			t.Fatalf("Augment(second) = %s, want refreshed session updated_at", second)
+		}
+	})
+
+	t.Run("Should reset compaction when ACP session changes", func(t *testing.T) {
+		t.Parallel()
+
+		service := NewService(Deps{Now: fixedNow, SectionLimit: 2})
+		sess := newSituationCompactionSession()
+		if _, err := service.Augment(context.Background(), sess, "first prompt"); err != nil {
+			t.Fatalf("Augment(first) error = %v", err)
+		}
+		sess.ACPSessionID = "acp-2"
+
+		second, err := service.Augment(context.Background(), sess, "second prompt")
+		if err != nil {
+			t.Fatalf("Augment(second) error = %v", err)
+		}
+		if strings.Contains(second, `"unchanged":true`) {
+			t.Fatalf("Augment(second after ACP reset) = %s, want full sections", second)
+		}
+		if !strings.Contains(second, `"agent_name":"coder"`) {
+			t.Fatalf("Augment(second after ACP reset) = %s, want full self section", second)
+		}
+	})
+}
+
 func TestPromptSectionAndHelperBranches(t *testing.T) {
 	t.Parallel()
 
@@ -1291,6 +1432,22 @@ func fixedNow() time.Time {
 
 func fixedTime() time.Time {
 	return time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
+}
+
+func newSituationCompactionSession() *session.Session {
+	return &session.Session{
+		ID:           "sess-compact",
+		Name:         "Compaction Session",
+		AgentName:    "coder",
+		Provider:     "codex",
+		WorkspaceID:  "ws-compact",
+		Workspace:    "/work/agh",
+		Type:         session.SessionTypeUser,
+		State:        session.StateActive,
+		ACPSessionID: "acp-1",
+		CreatedAt:    fixedTime(),
+		UpdatedAt:    fixedTime(),
+	}
 }
 
 func jsonRaw(t *testing.T, value string) json.RawMessage {

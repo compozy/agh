@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	memcontract "github.com/compozy/agh/internal/memory/contract"
 	"github.com/compozy/agh/internal/session"
@@ -13,9 +14,15 @@ import (
 const (
 	maxRecallResults    = 3
 	maxRecallCharacters = 1500
+	recallPromptOpen    = "<turn-recall>"
+	recallPromptClose   = "</turn-recall>"
+	userMessageOpen     = "<user-message>"
+	userMessageClose    = "</user-message>"
+	recallWrapperBytes  = len(recallPromptOpen) + len(recallPromptClose) +
+		len(userMessageOpen) + len(userMessageClose) + 6
 	// RecallAugmenterBudget is the declared daemon-side budget for durable
 	// memory recall when it participates in the prompt augmentation composite.
-	RecallAugmenterBudget = maxRecallCharacters
+	RecallAugmenterBudget = maxRecallCharacters + recallWrapperBytes
 )
 
 // NewRecallAugmenter returns a bounded prompt augmenter that prepends durable
@@ -57,7 +64,7 @@ func NewRecallAugmenter(store *Store) session.PromptInputAugmenter {
 		if block == "" {
 			return message, nil
 		}
-		return block + "\n\nUser message:\n" + query, nil
+		return formatRecallAugmentedPrompt(block, query), nil
 	}
 }
 
@@ -69,10 +76,41 @@ func sAgentName(store *Store) string {
 }
 
 func buildPackagedRecallBlock(packaged memcontract.Packaged) string {
-	return RenderRecallPromptSection(packaged, RecallPromptOptions{
+	block := strings.TrimSpace(RenderRecallPromptSection(packaged, RecallPromptOptions{
 		MaxEntries:    maxRecallResults,
 		MaxCharacters: maxRecallCharacters,
-	})
+	}))
+	if block == "" || utf8.RuneCountInString(block) <= maxRecallCharacters {
+		return block
+	}
+	return capRecallBlockWithSafetyFooter(block, maxRecallCharacters)
+}
+
+func capRecallBlockWithSafetyFooter(block string, budget int) string {
+	footerRunes := utf8.RuneCountInString(recallPromptSafetyFooter)
+	if budget <= footerRunes+1 {
+		return ""
+	}
+
+	body := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(block), recallPromptSafetyFooter))
+	bodyBudget := budget - footerRunes - 1
+	body = strings.TrimSpace(trimStringToRunes(body, bodyBudget))
+	if body == "" {
+		return ""
+	}
+	return body + "\n" + recallPromptSafetyFooter
+}
+
+func formatRecallAugmentedPrompt(block string, query string) string {
+	return strings.Join([]string{
+		recallPromptOpen,
+		strings.TrimSpace(block),
+		recallPromptClose,
+		"",
+		userMessageOpen,
+		strings.TrimSpace(query),
+		userMessageClose,
+	}, "\n")
 }
 
 func buildRecallBlock(results []memcontract.SearchResult, now time.Time) string {

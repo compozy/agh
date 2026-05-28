@@ -14,7 +14,8 @@ import (
 )
 
 const (
-	fixtureUserMessageValue = "User message:"
+	fixtureUserMessageOpen  = "<user-message>"
+	fixtureUserMessageClose = "</user-message>"
 	fixtureAllowAlwaysValue = "allow-always"
 )
 
@@ -30,8 +31,8 @@ const (
 	currentAvailableSkillsClose       = "</current-available-skills>"
 	currentAvailableSkillsSelfClosing = "<current-available-skills />"
 	currentSkillsCatalogFinalLine     = "If current tool policy denies `agh__skill_view`, use `agh skill view <name>` as an operator fallback."
-	durableMemoryPromptPrefix         = "Relevant durable memory for this turn:"
-	durableMemoryUserMessageMark      = "\n\nUser message:\n"
+	durableMemoryOpen                 = "<turn-recall>"
+	durableMemoryClose                = "</turn-recall>"
 	inboundBridgePromptPrefix         = "Inbound bridge message"
 )
 
@@ -430,7 +431,7 @@ func promptAfterLastUserMarker(prompt string) string {
 	trimmed := strings.TrimSpace(prompt)
 	markerIndex := -1
 	markerLength := 0
-	for _, marker := range []string{"User request:", fixtureUserMessageValue} {
+	for _, marker := range []string{"User request:"} {
 		index := lastLineMarkerIndex(trimmed, marker)
 		if index > markerIndex {
 			markerIndex = index
@@ -465,6 +466,7 @@ func stripKnownPromptAugmentation(prompt string) string {
 	next = stripLeadingSelfClosingPromptBlock(next, currentAvailableSkillsSelfClosing)
 	next = stripLeadingSelfClosingPromptBlock(next, availableSkillsSelfClosing)
 	next = stripLeadingDurableMemoryBlock(next)
+	next = stripLeadingUserMessageBlock(next)
 	next = stripLeadingInboundBridgePrompt(next)
 	return strings.TrimSpace(next)
 }
@@ -502,14 +504,31 @@ func stripLeadingSelfClosingPromptBlock(prompt string, block string) string {
 
 func stripLeadingDurableMemoryBlock(prompt string) string {
 	trimmed := strings.TrimSpace(prompt)
-	if !strings.HasPrefix(trimmed, durableMemoryPromptPrefix) {
+	if !strings.HasPrefix(trimmed, durableMemoryOpen) {
 		return trimmed
 	}
-	_, after, ok := strings.Cut(trimmed, durableMemoryUserMessageMark)
+	_, after, ok := strings.Cut(trimmed, durableMemoryClose)
 	if !ok {
 		return trimmed
 	}
-	return strings.TrimSpace(after)
+	return stripLeadingUserMessageBlock(after)
+}
+
+func stripLeadingUserMessageBlock(prompt string) string {
+	trimmed := strings.TrimSpace(prompt)
+	if !strings.HasPrefix(trimmed, fixtureUserMessageOpen) {
+		return trimmed
+	}
+	body := strings.TrimPrefix(trimmed, fixtureUserMessageOpen)
+	message, after, ok := strings.Cut(body, fixtureUserMessageClose)
+	if !ok {
+		return trimmed
+	}
+	tail := strings.TrimSpace(after)
+	if tail == "" {
+		return strings.TrimSpace(message)
+	}
+	return strings.TrimSpace(strings.TrimSpace(message) + "\n" + tail)
 }
 
 func stripLeadingInboundBridgePrompt(prompt string) string {

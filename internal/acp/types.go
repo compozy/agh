@@ -611,6 +611,7 @@ type AgentProcess struct {
 	systemPrompt         string
 	systemPromptSent     bool
 	systemPromptDelivery SystemPromptDeliveryMode
+	promptCacheControl   *promptCacheControl
 
 	turnSourceProviderMu sync.RWMutex
 	turnSourceProvider   func() string

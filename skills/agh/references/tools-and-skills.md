@@ -42,6 +42,8 @@ For resource files inside daemon-managed AGH sessions, use the native skill view
 
 When a session receives repeated prompts with the same resolved skill catalog, AGH may replace the full `<current-available-skills>` block with a compact unchanged marker. Treat the previous full block in that session as current until AGH sends a later full catalog block.
 
+AGH may also compact repeated `<agh-situation-context>` JSON sections with `"unchanged":true` markers. Reuse the previous full section for the same ACP session and workspace; call live AGH tools or context endpoints when you need an exact current value instead of prompt context.
+
 ## Bundled Skill Resources
 
 Bundled AGH skills are compiled from the repository skills/<name>/ directories. The canonical AGH bundled skill is agh. It includes SKILL.md and flat references/\*.md resource files.

@@ -360,13 +360,16 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 		"Use `agh__skill_view` to read a specific skill resource file when the skill references one.",
 		currentSkillsCatalogFinalLine,
 		"",
+		"<turn-recall>",
 		"Relevant durable memory for this turn:",
 		"- Global [user]",
 		"  Snippet: remember the harness",
 		"Use recalled memory only when it remains consistent with the current repository and runtime state.",
+		"</turn-recall>",
 		"",
-		"User message:",
+		"<user-message>",
 		"hello alpha",
+		"</user-message>",
 	}, "\n")
 	turn, err := alpha.SelectTurn(
 		augmentedPrompt,
@@ -416,11 +419,14 @@ func TestFixtureLookupAndHelperErrors(t *testing.T) {
 	}
 
 	memoryAugmentedPrompt := strings.Join([]string{
+		"<turn-recall>",
 		"Relevant durable memory for this turn:",
 		"- Auth [workspace]",
+		"</turn-recall>",
 		"",
-		"User message:",
+		"<user-message>",
 		"hello alpha",
+		"</user-message>",
 	}, "\n")
 	turn, err = alpha.SelectTurn(
 		memoryAugmentedPrompt,
@@ -625,12 +631,15 @@ hello alpha
 				"Use `agh__skill_view` to read a specific skill resource file when the skill references one.",
 				"If current tool policy denies `agh__skill_view`, use `agh skill view <name>` as an operator fallback.",
 				"",
+				"<turn-recall>",
 				"Relevant durable memory for this turn:",
 				"",
 				"- project: keep search visibility sentinel visible",
+				"</turn-recall>",
 				"",
-				"User message:",
+				"<user-message>",
 				"hello alpha",
+				"</user-message>",
 			}, "\n"),
 			want: "hello alpha",
 		},

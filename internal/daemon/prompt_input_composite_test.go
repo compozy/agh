@@ -514,8 +514,54 @@ Remember auth migration sessions and workspace-scoped handling.
 	if !strings.Contains(got, "Auth") {
 		t.Fatalf("Augment() = %q, want recalled memory metadata", got)
 	}
-	if !strings.Contains(got, "User message:\nauth migration sessions") {
+	if !strings.Contains(got, "</turn-recall>\n\n<user-message>\nauth migration sessions\n</user-message>") {
 		t.Fatalf("Augment() = %q, want preserved user message suffix", got)
+	}
+	if strings.Contains(got, "User message:") {
+		t.Fatalf("Augment() = %q, want no legacy user message marker", got)
+	}
+}
+
+func TestPromptInputCompositeOmitsOverBudgetDurableMemoryRecall(t *testing.T) {
+	t.Parallel()
+
+	resolver := &staticPromptInputAugmenterResolver{
+		resolved: ResolvedHarnessContext{
+			Policy: ResolvedHarnessPolicy{
+				EnableAugmenters: []HarnessAugmenter{HarnessAugmenterDurableMemory},
+			},
+		},
+	}
+	oversizedRecall := func(_ context.Context, _ *session.Session, message string) (string, error) {
+		return strings.Join([]string{
+			"<turn-recall>",
+			strings.Repeat("x", memory.RecallAugmenterBudget+32),
+			"</turn-recall>",
+			"",
+			"<user-message>",
+			message,
+			"</user-message>",
+		}, "\n"), nil
+	}
+	augmenter, err := newPromptInputCompositeAugmenter(
+		discardLogger(),
+		resolver,
+		nil,
+		defaultPromptInputAugmenterDescriptors(oversizedRecall, nil)...,
+	)
+	if err != nil {
+		t.Fatalf("newPromptInputCompositeAugmenter() error = %v", err)
+	}
+
+	got, err := augmenter(context.Background(), newPromptInputTestSession(""), "hello")
+	if err != nil {
+		t.Fatalf("Augment() error = %v", err)
+	}
+	if got != "hello" {
+		t.Fatalf("Augment() = %q, want original message after over-budget recall omission", got)
+	}
+	if strings.Contains(got, "<turn-recall>") || strings.Contains(got, "<user-message>") {
+		t.Fatalf("Augment() = %q, want no partially emitted recall wrappers", got)
 	}
 }
 

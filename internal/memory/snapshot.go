@@ -19,7 +19,9 @@ const (
 	defaultSnapshotMaxCharacters = 24_000
 	defaultRecallPromptEntries   = 3
 	defaultRecallPromptChars     = 1500
-	staleSnapshotAfter           = 24 * time.Hour
+	recallPromptSafetyFooter     = "Use recalled memory only when it remains consistent " +
+		"with the current repository and runtime state."
+	staleSnapshotAfter = 24 * time.Hour
 )
 
 // SnapshotProvider supplies prompt-safe provider blocks for frozen snapshots.
@@ -393,7 +395,7 @@ func RenderRecallPromptSection(packaged memcontract.Packaged, opts RecallPromptO
 	}
 	lines = append(
 		lines,
-		"Use recalled memory only when it remains consistent with the current repository and runtime state.",
+		recallPromptSafetyFooter,
 	)
 	return strings.Join(lines, "\n")
 }

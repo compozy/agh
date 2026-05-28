@@ -25,6 +25,10 @@ func RenderPrompt(payload *contract.AgentContextPayload) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return renderPromptFromSections(sections)
+}
+
+func renderPromptFromSections(sections []renderedSection) (string, error) {
 	if len(sections) == 0 {
 		return "", nil
 	}
@@ -158,7 +162,9 @@ func appendSupportSections(
 		}
 	}
 	if hasProvenance(payload.Provenance) {
-		sections, err = appendRenderedSection(sections, "provenance", payload.Provenance)
+		sections, err = appendRenderedSection(sections, "provenance", promptProvenancePayload{
+			Source: strings.TrimSpace(payload.Provenance.Source),
+		})
 		if err != nil {
 			return nil, err
 		}
@@ -217,5 +223,9 @@ func hasLimits(payload contract.AgentLimitsPayload) bool {
 }
 
 func hasProvenance(payload contract.AgentContextProvenancePayload) bool {
-	return !payload.GeneratedAt.IsZero() || strings.TrimSpace(payload.Source) != ""
+	return strings.TrimSpace(payload.Source) != ""
+}
+
+type promptProvenancePayload struct {
+	Source string `json:"source"`
 }

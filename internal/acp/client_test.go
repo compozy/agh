@@ -433,6 +433,144 @@ func TestPromptAttachesSystemPromptDeliveryMetadata(t *testing.T) {
 	})
 }
 
+func TestPromptCacheControlForStartOpts(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		opts    StartOpts
+		want    bool
+		wantTTL string
+	}{
+		{
+			name: "Should skip unsupported provider",
+			opts: StartOpts{ProviderName: "codex"},
+		},
+		{
+			name: "Should enable short-lived cache control for Claude provider",
+			opts: StartOpts{ProviderName: "claude"},
+			want: true,
+		},
+		{
+			name: "Should enable long-lived cache control for Anthropic endpoint",
+			opts: StartOpts{
+				ProviderName: "pi",
+				ProviderConfig: &aghconfig.ProviderConfig{
+					RuntimeProvider: "anthropic",
+					BaseURL:         "https://api.anthropic.com/v1",
+				},
+			},
+			want:    true,
+			wantTTL: "1h",
+		},
+		{
+			name: "Should enable long-lived cache control for Vertex Anthropic endpoint",
+			opts: StartOpts{
+				ProviderName: "pi",
+				ProviderConfig: &aghconfig.ProviderConfig{
+					RuntimeProvider: "anthropic",
+					BaseURL:         "https://us-east5-aiplatform.googleapis.com/v1",
+				},
+			},
+			want:    true,
+			wantTTL: "1h",
+		},
+		{
+			name: "Should skip OpenRouter even when a base URL is present",
+			opts: StartOpts{
+				ProviderName: "openrouter",
+				ProviderConfig: &aghconfig.ProviderConfig{
+					RuntimeProvider: "openrouter",
+					BaseURL:         "https://openrouter.ai/api/v1",
+				},
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := promptCacheControlForStartOpts(tc.opts)
+			if !tc.want {
+				if got != nil {
+					t.Fatalf("promptCacheControlForStartOpts() = %#v, want nil", got)
+				}
+				return
+			}
+			if got == nil {
+				t.Fatal("promptCacheControlForStartOpts() = nil, want cache control")
+			}
+			if got.Type != "ephemeral" {
+				t.Fatalf("cache control type = %q, want ephemeral", got.Type)
+			}
+			if got.TTL != tc.wantTTL {
+				t.Fatalf("cache control TTL = %q, want %q", got.TTL, tc.wantTTL)
+			}
+		})
+	}
+}
+
+func TestBuildWirePromptRequestAttachesPromptCacheControlMetadata(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should annotate text content without changing prompt text", func(t *testing.T) {
+		t.Parallel()
+
+		proc := &AgentProcess{
+			SessionID: "sess-cache",
+			promptCacheControl: &promptCacheControl{
+				Type: "ephemeral",
+				TTL:  "1h",
+			},
+		}
+		request, err := buildWirePromptRequest(proc, PromptRequest{
+			TurnID:  "turn-cache",
+			Message: "hello cache",
+		})
+		if err != nil {
+			t.Fatalf("buildWirePromptRequest() error = %v", err)
+		}
+		if got, want := len(request.Prompt), 1; got != want {
+			t.Fatalf("len(Prompt) = %d, want %d", got, want)
+		}
+		text := request.Prompt[0].Text
+		if text == nil {
+			t.Fatal("Prompt[0].Text = nil, want text block")
+		}
+		if got, want := text.Text, "hello cache"; got != want {
+			t.Fatalf("Prompt[0].Text.Text = %q, want %q", got, want)
+		}
+		cacheControl, ok := text.Meta["cache_control"].(map[string]any)
+		if !ok {
+			t.Fatalf("Prompt[0].Text.Meta = %#v, want cache_control map", text.Meta)
+		}
+		if got, want := cacheControl["type"], "ephemeral"; got != want {
+			t.Fatalf("cache_control.type = %#v, want %q", got, want)
+		}
+		if got, want := cacheControl["ttl"], "1h"; got != want {
+			t.Fatalf("cache_control.ttl = %#v, want %q", got, want)
+		}
+	})
+
+	t.Run("Should leave text content metadata empty when provider is unsupported", func(t *testing.T) {
+		t.Parallel()
+
+		request, err := buildWirePromptRequest(&AgentProcess{SessionID: "sess-cache"}, PromptRequest{
+			TurnID:  "turn-cache",
+			Message: "hello cache",
+		})
+		if err != nil {
+			t.Fatalf("buildWirePromptRequest() error = %v", err)
+		}
+		if request.Prompt[0].Text == nil {
+			t.Fatal("Prompt[0].Text = nil, want text block")
+		}
+		if len(request.Prompt[0].Text.Meta) != 0 {
+			t.Fatalf("Prompt[0].Text.Meta = %#v, want empty metadata", request.Prompt[0].Text.Meta)
+		}
+	})
+}
+
 func TestPromptSkipsFirstTurnPrefixForNativeSystemPromptDelivery(t *testing.T) {
 	t.Parallel()
 

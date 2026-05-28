@@ -124,6 +124,7 @@ type Service struct {
 	coordinatorConfigFunc func() CoordinatorConfigResolver
 	soulSnapshots         SoulSnapshotStore
 	soulSnapshotsFunc     func() SoulSnapshotStore
+	promptSections        *promptSectionCache
 }
 
 // NewService constructs a deterministic situation context assembler.
@@ -154,6 +155,7 @@ func NewService(deps Deps) *Service {
 		coordinatorConfigFunc: deps.CoordinatorConfigFunc,
 		soulSnapshots:         deps.SoulSnapshots,
 		soulSnapshotsFunc:     deps.SoulSnapshotsFunc,
+		promptSections:        newPromptSectionCache(),
 	}
 }
 
@@ -332,11 +334,17 @@ func (s *Service) Augment(
 	if s == nil || sess == nil {
 		return message, nil
 	}
-	payload, err := s.ContextForSession(ctx, sess.Info())
+	info := sess.Info()
+	payload, err := s.ContextForSession(ctx, info)
 	if err != nil {
 		return "", err
 	}
-	rendered, err := RenderPrompt(&payload)
+	sections, err := renderSections(&payload)
+	if err != nil {
+		return "", err
+	}
+	sections = s.promptSections.compact(info, sections)
+	rendered, err := renderPromptFromSections(sections)
 	if err != nil {
 		return "", err
 	}

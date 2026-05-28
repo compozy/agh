@@ -65,7 +65,7 @@ func defaultPromptInputAugmenterDescriptors(
 			Name:           HarnessAugmenterDurableMemory,
 			Order:          durableMemoryAugmenterOrder,
 			Budget:         memory.RecallAugmenterBudget,
-			BudgetBehavior: promptInputAugmenterBudgetBehaviorTrim,
+			BudgetBehavior: promptInputAugmenterBudgetBehaviorOmit,
 			Critical:       false,
 			Augmenter:      durableMemory,
 		})

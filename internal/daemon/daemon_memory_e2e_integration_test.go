@@ -334,8 +334,11 @@ func TestDaemonE2EMemoryRecallUsesCatalogSynthesisWithoutMutatingStoredUserMessa
 		if !strings.Contains(prompt, "auth migration uses sessions") {
 			t.Fatalf("mock prompt = %q, want recalled auth snippet", prompt)
 		}
-		if !strings.Contains(prompt, "\n\nUser message:\nremember me") {
+		if !strings.Contains(prompt, "</turn-recall>\n\n<user-message>\nremember me\n</user-message>") {
 			t.Fatalf("mock prompt = %q, want raw user message suffix", prompt)
+		}
+		if strings.Contains(prompt, "User message:") {
+			t.Fatalf("mock prompt = %q, want no legacy user message marker", prompt)
 		}
 		if strings.Contains(prompt, "missing.md") {
 			t.Fatalf("mock prompt = %q, want stale MEMORY.md entry ignored", prompt)

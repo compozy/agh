@@ -19,10 +19,13 @@ func TestExtractPromptTextPreservesAugmentedPromptDiagnostics(t *testing.T) {
 		prompt := "Session instructions\n\n" +
 			"User request:\n\n" +
 			"<agh-situation-context>{}</agh-situation-context>\n\n" +
+			"<turn-recall>\n" +
 			"Relevant durable memory for this turn:\n" +
-			"- Auth [workspace]\n\n" +
-			"User message:\n" +
-			"hello alpha"
+			"- Auth [workspace]\n" +
+			"</turn-recall>\n\n" +
+			"<user-message>\n" +
+			"hello alpha\n" +
+			"</user-message>"
 		blocks := []acpsdk.ContentBlock{
 			acpsdk.TextBlock("ignored"),
 			acpsdk.TextBlock(prompt),
