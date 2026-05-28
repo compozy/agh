@@ -1,3 +1,13 @@
+## 0.0.5 - 2026-05-28
+
+### ♻️ Refactoring
+
+- Optimize prompt consumption (#222)
+
+### 🔧 CI/CD
+
+- Web asset release
+
 ## 0.0.4 - 2026-05-27
 
 ### 🐛 Bug Fixes
