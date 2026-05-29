@@ -250,8 +250,15 @@ func (m *Service) autoEnqueueReadyDependents(
 			}
 		}
 		key := fmt.Sprintf("task.auto_enqueue.%s.%s", dependentID, strings.TrimSpace(triggerRunID))
-		if _, err := m.EnqueueRun(ctx, EnqueueRun{TaskID: dependentID, IdempotencyKey: key}, actor); err != nil {
-			slog.Warn("task: auto-enqueue dependent run skipped", "task_id", dependentID, "error", err)
+		_, enqErr := m.EnqueueRun(ctx, EnqueueRun{TaskID: dependentID, IdempotencyKey: key}, actor)
+		switch {
+		case enqErr == nil:
+		case errors.Is(enqErr, ErrInvalidStatusTransition) || errors.Is(enqErr, ErrConflict):
+			// Expected dedup: store rejects a second run (open run) or replayed idempotency key.
+			slog.Debug("task: auto-enqueue skipped; dependent already has an open run",
+				"task_id", dependentID, "error", enqErr)
+		default:
+			slog.Warn("task: auto-enqueue dependent run failed", "task_id", dependentID, "error", enqErr)
 		}
 	}
 }

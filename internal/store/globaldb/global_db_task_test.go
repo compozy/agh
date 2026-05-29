@@ -292,6 +292,7 @@ func TestGlobalDBTaskRoundTripPreservesNullableFields(t *testing.T) {
 	child.NetworkChannel = "finance"
 	child.Priority = taskpkg.PriorityUrgent
 	child.MaxAttempts = 5
+	child.AutoEnqueueOnReady = true
 	child.ApprovalPolicy = taskpkg.ApprovalPolicyManual
 	child.ApprovalState = taskpkg.ApprovalStateApproved
 	child.Owner = ownershipForTest(taskpkg.OwnerKindHuman, "alice")
@@ -2149,6 +2150,7 @@ func assertTaskEqual(t *testing.T, got taskpkg.Task, want taskpkg.Task) {
 		got.Description != want.Description ||
 		got.Priority != want.Priority ||
 		got.MaxAttempts != want.MaxAttempts ||
+		got.AutoEnqueueOnReady != want.AutoEnqueueOnReady ||
 		got.Status != want.Status ||
 		got.ApprovalPolicy != want.ApprovalPolicy ||
 		got.ApprovalState != want.ApprovalState ||
@@ -2176,6 +2178,7 @@ func assertTaskSummaryMatchesTask(t *testing.T, got taskpkg.Summary, want taskpk
 		got.Title != want.Title ||
 		got.Priority != want.Priority ||
 		got.MaxAttempts != want.MaxAttempts ||
+		got.AutoEnqueueOnReady != want.AutoEnqueueOnReady ||
 		got.Status != want.Status ||
 		got.ApprovalPolicy != want.ApprovalPolicy ||
 		got.ApprovalState != want.ApprovalState ||

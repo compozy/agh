@@ -678,19 +678,20 @@ func (h *HostAPIHandler) createTaskSpecFromRequest(
 	}
 
 	spec := taskpkg.CreateTask{
-		ID:             strings.TrimSpace(req.ID),
-		Identifier:     strings.TrimSpace(req.Identifier),
-		Scope:          scope,
-		WorkspaceID:    workspaceID,
-		NetworkChannel: strings.TrimSpace(req.NetworkChannel),
-		Title:          strings.TrimSpace(req.Title),
-		Description:    strings.TrimSpace(req.Description),
-		Priority:       req.Priority.Normalize(),
-		MaxAttempts:    req.MaxAttempts,
-		Draft:          req.Draft,
-		ApprovalPolicy: req.ApprovalPolicy.Normalize(),
-		Owner:          cloneOwnership(req.Owner),
-		Metadata:       cloneRawMessage(req.Metadata),
+		ID:                 strings.TrimSpace(req.ID),
+		Identifier:         strings.TrimSpace(req.Identifier),
+		Scope:              scope,
+		WorkspaceID:        workspaceID,
+		NetworkChannel:     strings.TrimSpace(req.NetworkChannel),
+		Title:              strings.TrimSpace(req.Title),
+		Description:        strings.TrimSpace(req.Description),
+		Priority:           req.Priority.Normalize(),
+		MaxAttempts:        req.MaxAttempts,
+		AutoEnqueueOnReady: req.AutoEnqueueOnReady,
+		Draft:              req.Draft,
+		ApprovalPolicy:     req.ApprovalPolicy.Normalize(),
+		Owner:              cloneOwnership(req.Owner),
+		Metadata:           cloneRawMessage(req.Metadata),
 	}
 	if err := spec.Validate("create_task"); err != nil {
 		return taskpkg.CreateTask{}, invalidParamsRPCError(err)
