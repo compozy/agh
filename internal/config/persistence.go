@@ -1088,6 +1088,7 @@ func (d *overlayDocument) tableBlockIncludingNested(path []string) (overlayBlock
 	return overlayBlock{}, false
 }
 
+// descendantTableBlocks treats an implicit parent table as its explicit descendants.
 func (d *overlayDocument) descendantTableBlocks(path []string) []overlayBlock {
 	blocks := make([]overlayBlock, 0)
 scan:

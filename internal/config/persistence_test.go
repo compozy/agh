@@ -813,6 +813,7 @@ provider = "openai"
 	}
 }
 
+// TestOverlayEditorDeleteImplicitTableSubtree verifies implicit parent table deletion.
 func TestOverlayEditorDeleteImplicitTableSubtree(t *testing.T) {
 	t.Parallel()
 

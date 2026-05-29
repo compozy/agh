@@ -1077,6 +1077,7 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 	}
 }
 
+// TestCollectionMutationsCodexNativeProviderOverlay verifies Codex onboarding persistence.
 func TestCollectionMutationsCodexNativeProviderOverlay(t *testing.T) {
 	t.Parallel()
 
