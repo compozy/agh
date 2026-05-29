@@ -34,18 +34,18 @@ provider = "codex"
 model = "gpt-5.4"
 default_ttl = "2h"
 max_children = 5
-max_active_per_workspace = 1
+max_active_sessions_per_workspace = 5
 ```
 
-| Field                      | Default       | Meaning                                                                                                   |
-| -------------------------- | ------------- | --------------------------------------------------------------------------------------------------------- |
-| `enabled`                  | `false`       | Enables spawn-on-run-enqueue coordinator bootstrap.                                                       |
-| `agent_name`               | `coordinator` | Agent definition name used for the coordinator session.                                                   |
-| `provider`                 | unset         | Optional provider override. Empty means fall through to the coordinator agent or global default provider. |
-| `model`                    | unset         | Optional model override. Empty means fall through to the coordinator agent or provider default model.     |
-| `default_ttl`              | `2h`          | Coordinator session TTL. Accepted range is `1m` through `24h`.                                            |
-| `max_children`             | `5`           | Maximum child sessions the coordinator may spawn. The MVP hard cap is `5`.                                |
-| `max_active_per_workspace` | `1`           | Must remain `1` in the MVP so each workspace has one active coordinator.                                  |
+| Field                               | Default       | Meaning                                                                                                   |
+| ----------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------- |
+| `enabled`                           | `false`       | Enables spawn-on-run-enqueue coordinator bootstrap.                                                       |
+| `agent_name`                        | `coordinator` | Agent definition name used for the coordinator session.                                                   |
+| `provider`                          | unset         | Optional provider override. Empty means fall through to the coordinator agent or global default provider. |
+| `model`                             | unset         | Optional model override. Empty means fall through to the coordinator agent or provider default model.     |
+| `default_ttl`                       | `2h`          | Coordinator session TTL. Accepted range is `1m` through `24h`.                                            |
+| `max_children`                      | `5`           | Maximum child sessions the coordinator may spawn. The MVP hard cap is `5`.                                |
+| `max_active_sessions_per_workspace` | `5`           | Maximum active autonomy-managed sessions in a workspace, counting the coordinator and spawned workers.    |
 
 ## Precedence
 
@@ -66,6 +66,8 @@ The coordinator is a root session with session type `coordinator`, its own TTL, 
 orchestration surface. It is idempotent per workspace: multiple run-enqueue events do not create
 multiple healthy coordinators for the same workspace. A coordinator cannot spawn another
 coordinator.
+
+Coordinator uniqueness is enforced by the daemon singleton check, not by the worker/session budget.
 
 When executable work remains after a coordinator stops or crashes, daemon recovery may start a new
 coordinator for that workspace if the same trigger conditions still hold. This recovery is still

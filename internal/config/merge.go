@@ -525,7 +525,6 @@ type coordinatorOverlay struct {
 	Model                         *string        `toml:"model"`
 	DefaultTTL                    *time.Duration `toml:"default_ttl"`
 	MaxChildren                   *int           `toml:"max_children"`
-	MaxActivePerWorkspace         *int           `toml:"max_active_per_workspace"`
 	MaxActiveSessionsPerWorkspace *int           `toml:"max_active_sessions_per_workspace"`
 }
 
@@ -1619,9 +1618,6 @@ func (o coordinatorOverlay) Apply(dst *CoordinatorConfig) {
 	}
 	if o.MaxChildren != nil {
 		dst.MaxChildren = *o.MaxChildren
-	}
-	if o.MaxActivePerWorkspace != nil {
-		dst.MaxActivePerWorkspace = *o.MaxActivePerWorkspace
 	}
 	if o.MaxActiveSessionsPerWorkspace != nil {
 		dst.MaxActiveSessionsPerWorkspace = *o.MaxActiveSessionsPerWorkspace

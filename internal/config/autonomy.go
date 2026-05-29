@@ -20,8 +20,6 @@ const (
 	DefaultCoordinatorMaxChildren = 5
 	// MaxCoordinatorChildren is the hard MVP cap for coordinator child sessions.
 	MaxCoordinatorChildren = 5
-	// DefaultCoordinatorMaxActivePerWorkspace preserves one active coordinator per workspace.
-	DefaultCoordinatorMaxActivePerWorkspace = 1
 	// DefaultCoordinatorMaxActiveSessionsPerWorkspace caps managed coordinator and worker sessions.
 	DefaultCoordinatorMaxActiveSessionsPerWorkspace = 5
 
@@ -78,7 +76,6 @@ type CoordinatorConfig struct {
 	Model                         string        `toml:"model,omitempty"`
 	DefaultTTL                    time.Duration `toml:"default_ttl"`
 	MaxChildren                   int           `toml:"max_children"`
-	MaxActivePerWorkspace         int           `toml:"max_active_per_workspace"`
 	MaxActiveSessionsPerWorkspace int           `toml:"max_active_sessions_per_workspace"`
 }
 
@@ -89,7 +86,6 @@ func DefaultCoordinatorConfig() CoordinatorConfig {
 		AgentName:                     DefaultCoordinatorAgentName,
 		DefaultTTL:                    DefaultCoordinatorTTL,
 		MaxChildren:                   DefaultCoordinatorMaxChildren,
-		MaxActivePerWorkspace:         DefaultCoordinatorMaxActivePerWorkspace,
 		MaxActiveSessionsPerWorkspace: DefaultCoordinatorMaxActiveSessionsPerWorkspace,
 	}
 }
@@ -162,19 +158,10 @@ func (c CoordinatorConfig) Validate(path string, resolver providerResolver) erro
 	if c.MaxChildren > MaxCoordinatorChildren {
 		return fmt.Errorf("%s.max_children must be <= %d: %d", path, MaxCoordinatorChildren, c.MaxChildren)
 	}
-	if c.MaxActivePerWorkspace != DefaultCoordinatorMaxActivePerWorkspace {
+	if c.MaxActiveSessionsPerWorkspace <= 0 {
 		return fmt.Errorf(
-			"%s.max_active_per_workspace must be %d to preserve coordinator uniqueness: %d",
+			"%s.max_active_sessions_per_workspace must be positive: %d",
 			path,
-			DefaultCoordinatorMaxActivePerWorkspace,
-			c.MaxActivePerWorkspace,
-		)
-	}
-	if c.MaxActiveSessionsPerWorkspace < c.MaxActivePerWorkspace {
-		return fmt.Errorf(
-			"%s.max_active_sessions_per_workspace must be >= %d (coordinator + workers): %d",
-			path,
-			c.MaxActivePerWorkspace,
 			c.MaxActiveSessionsPerWorkspace,
 		)
 	}

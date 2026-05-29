@@ -14,14 +14,14 @@ func CoordinatorConfigPayloadFromConfig(
 	workspaceID string,
 ) contract.CoordinatorConfigPayload {
 	return contract.CoordinatorConfigPayload{
-		Enabled:               cfg.Enabled,
-		AgentName:             strings.TrimSpace(cfg.AgentName),
-		Provider:              strings.TrimSpace(cfg.Provider),
-		Model:                 strings.TrimSpace(cfg.Model),
-		DefaultTTLSeconds:     int64(cfg.DefaultTTL.Seconds()),
-		MaxChildren:           cfg.MaxChildren,
-		MaxActivePerWorkspace: cfg.MaxActivePerWorkspace,
-		Source:                source,
-		WorkspaceID:           strings.TrimSpace(workspaceID),
+		Enabled:                       cfg.Enabled,
+		AgentName:                     strings.TrimSpace(cfg.AgentName),
+		Provider:                      strings.TrimSpace(cfg.Provider),
+		Model:                         strings.TrimSpace(cfg.Model),
+		DefaultTTLSeconds:             int64(cfg.DefaultTTL.Seconds()),
+		MaxChildren:                   cfg.MaxChildren,
+		MaxActiveSessionsPerWorkspace: cfg.MaxActiveSessionsPerWorkspace,
+		Source:                        source,
+		WorkspaceID:                   strings.TrimSpace(workspaceID),
 	}
 }

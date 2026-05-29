@@ -480,8 +480,6 @@ provider = ""
 model = ""
 default_ttl = "2h"
 max_children = 5
-max_active_per_workspace = 1
-# Concurrent autonomy-managed sessions (coordinator + spawned workers) per workspace.
 max_active_sessions_per_workspace = 5
 
 [task.orchestration]
@@ -1249,9 +1247,8 @@ Coordinator launch only applies to workspace-scoped coordinated runs with a stab
 | `provider`                          | string   | empty         | Empty or a configured provider key.       | Optional provider override for the coordinator agent.                                                                                                                                                    |
 | `model`                             | string   | empty         | Empty or provider-supported model string. | Optional model override. If set, `provider` or provider default resolution must exist.                                                                                                                   |
 | `default_ttl`                       | duration | `2h`          | `1m` through `24h`.                       | Lifetime assigned to managed coordinator sessions.                                                                                                                                                       |
-| `max_children`                      | integer  | `5`           | `0` through `5`.                          | Maximum safe-spawn children a coordinator may hold at once.                                                                                                                                              |
-| `max_active_per_workspace`          | integer  | `1`           | Must be `1` in the MVP.                   | Enforces one active managed coordinator per workspace.                                                                                                                                                   |
-| `max_active_sessions_per_workspace` | integer  | `5`           | `>= max_active_per_workspace`.            | Caps concurrent autonomy-managed sessions (coordinator + spawned workers) per workspace. Separate from coordinator uniqueness, which `max_active_per_workspace` plus the daemon singleton check enforce. |
+| `max_children`                      | integer  | `5`           | `1` through `5`.                          | Maximum safe-spawn children a coordinator may hold at once.                                                                                                                                              |
+| `max_active_sessions_per_workspace` | integer  | `5`           | Positive integer.                         | Caps concurrent autonomy-managed sessions (coordinator + spawned workers) per workspace. Coordinator uniqueness is enforced by the daemon singleton check.                                                |
 
 Provider and model resolution is intentionally narrow. The daemon applies:
 

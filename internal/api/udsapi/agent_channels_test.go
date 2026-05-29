@@ -94,13 +94,13 @@ func TestAgentCoordinatorConfigRouteReturnsResolvedPayload(t *testing.T) {
 					t.Fatalf("ResolveCoordinatorConfig() workspaceID = %q, want ws-1", workspaceID)
 				}
 				return aghconfig.CoordinatorConfig{
-					Enabled:               true,
-					AgentName:             "coordinator",
-					Provider:              "codex",
-					Model:                 "gpt-4o",
-					DefaultTTL:            45 * time.Minute,
-					MaxChildren:           5,
-					MaxActivePerWorkspace: 1,
+					Enabled:                       true,
+					AgentName:                     "coordinator",
+					Provider:                      "codex",
+					Model:                         "gpt-4o",
+					DefaultTTL:                    45 * time.Minute,
+					MaxChildren:                   5,
+					MaxActiveSessionsPerWorkspace: 5,
 				}, nil
 			},
 		)
