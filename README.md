@@ -93,6 +93,14 @@ make verify
 
 Contributions are welcome. Open an issue or pull request, and run `make verify` before sending changes.
 
+## Contributors
+
+Thanks to everyone who has contributed to AGH.
+
+<a href="https://github.com/compozy/agh/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=compozy/agh" alt="Contributors" />
+</a>
+
 ## License
 
 AGH is released under the [MIT License](LICENSE).
