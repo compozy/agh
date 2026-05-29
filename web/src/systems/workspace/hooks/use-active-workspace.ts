@@ -25,14 +25,17 @@ export function useActiveWorkspace() {
   }, [query.data, selectedWorkspaceId]);
 
   useEffect(() => {
-    if (!selectedWorkspaceId || !query.data) {
+    if (!query.data || query.data.length === 0) {
       return;
     }
-
+    if (!selectedWorkspaceId) {
+      setSelectedWorkspaceId(query.data[0].id);
+      return;
+    }
     if (!query.data.some(workspace => workspace.id === selectedWorkspaceId)) {
       clearSelectedWorkspaceId();
     }
-  }, [clearSelectedWorkspaceId, query.data, selectedWorkspaceId]);
+  }, [clearSelectedWorkspaceId, query.data, selectedWorkspaceId, setSelectedWorkspaceId]);
 
   return {
     ...query,

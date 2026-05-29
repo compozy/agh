@@ -16,6 +16,7 @@ import {
 
 import { SessionThread } from "@/components/assistant-ui/session-thread";
 import { useSessionDetailPage } from "@/hooks/routes/use-session-detail-page";
+import { useSessionWorkspaceGuard } from "@/hooks/routes/use-session-workspace-guard";
 import {
   SessionChatRuntimeProvider,
   SessionInspector,
@@ -161,6 +162,8 @@ export function SessionPage() {
   const { name, id } = Route.useParams();
   const navigate = useNavigate();
   const { data: session, isLoading, error } = useSession(id);
+
+  useSessionWorkspaceGuard({ sessionWorkspaceId: session?.workspace_id, agentName: name });
 
   useEffect(() => {
     if (error?.message?.includes("not found")) {
