@@ -85,7 +85,7 @@ func (g *GlobalDB) UpdateWorkspace(ctx context.Context, ws aghworkspace.Workspac
 // DeleteWorkspace removes a persisted workspace registration row.
 // It refuses to delete if any active sessions reference the workspace.
 // Stopped or orphaned sessions are cleaned up automatically before deletion.
-func (g *GlobalDB) DeleteWorkspace(ctx context.Context, id string) error {
+func (g *GlobalDB) DeleteWorkspace(ctx context.Context, id string) (retErr error) {
 	if err := g.checkReady(ctx, "delete workspace"); err != nil {
 		return err
 	}
@@ -100,7 +100,9 @@ func (g *GlobalDB) DeleteWorkspace(ctx context.Context, id string) error {
 		return fmt.Errorf("store: begin delete workspace transaction %q: %w", trimmedID, err)
 	}
 	defer func() {
-		_ = tx.Rollback()
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			retErr = rollbackErr
+		}
 	}()
 
 	activeSessions, err := g.listActiveSessionIDsByWorkspace(ctx, tx, trimmedID)
