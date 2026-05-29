@@ -757,6 +757,100 @@ func TestTaskManagerStartBoundaryCreatesChannelAndClaimableRunIntegration(t *tes
 	}
 }
 
+func TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	db := openTaskManagerGlobalDB(t)
+	manager := newTaskManagerIntegration(t, db)
+
+	actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task create")
+	if err != nil {
+		t.Fatalf("DeriveHumanActorContext() error = %v", err)
+	}
+
+	blocker, err := manager.CreateTask(ctx, taskpkg.CreateTask{Scope: taskpkg.ScopeGlobal, Title: "Blocker"}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask(blocker) error = %v", err)
+	}
+	optedIn, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+		Scope:              taskpkg.ScopeGlobal,
+		Title:              "Opted-in dependent",
+		AutoEnqueueOnReady: true,
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask(opted-in) error = %v", err)
+	}
+	optedOut, err := manager.CreateTask(
+		ctx,
+		taskpkg.CreateTask{Scope: taskpkg.ScopeGlobal, Title: "Opted-out dependent"},
+		actor,
+	)
+	if err != nil {
+		t.Fatalf("CreateTask(opted-out) error = %v", err)
+	}
+	for _, dependentID := range []string{optedIn.ID, optedOut.ID} {
+		if err := manager.AddDependency(ctx, taskpkg.AddDependency{
+			TaskID:          dependentID,
+			DependsOnTaskID: blocker.ID,
+			Kind:            taskpkg.DependencyKindBlocks,
+		}, actor); err != nil {
+			t.Fatalf("AddDependency(%s) error = %v", dependentID, err)
+		}
+	}
+
+	// Complete the blocker through the lease path (the autonomy worker flow that
+	// pool-owned phase workers use: claim_next -> ... -> task_run_complete).
+	blockerRun, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: blocker.ID}, actor)
+	if err != nil {
+		t.Fatalf("EnqueueRun(blocker) error = %v", err)
+	}
+	worker, err := taskpkg.DeriveAgentSessionActorContext("sess-worker")
+	if err != nil {
+		t.Fatalf("DeriveAgentSessionActorContext() error = %v", err)
+	}
+	claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		Scope:            taskpkg.ScopeGlobal,
+		ClaimerSessionID: "sess-worker",
+		LeaseDuration:    time.Minute,
+	}, worker)
+	if err != nil {
+		t.Fatalf("ClaimNextRun() error = %v", err)
+	}
+	if got, want := claim.Run.ID, blockerRun.ID; got != want {
+		t.Fatalf("claimed run = %q, want blocker run %q", got, want)
+	}
+	if _, err := manager.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+		RunID:      claim.Run.ID,
+		ClaimToken: claim.ClaimToken,
+		Result:     taskpkg.RunResult{Value: json.RawMessage(`{"ok":true}`)},
+	}, worker); err != nil {
+		t.Fatalf("CompleteRunLease() error = %v", err)
+	}
+
+	// The opted-in dependent should now have exactly one auto-enqueued queued run.
+	optedInRuns, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: optedIn.ID})
+	if err != nil {
+		t.Fatalf("ListTaskRuns(opted-in) error = %v", err)
+	}
+	if len(optedInRuns) != 1 {
+		t.Fatalf("opted-in dependent runs = %d, want 1 auto-enqueued run", len(optedInRuns))
+	}
+	if got, want := optedInRuns[0].Status, taskpkg.TaskRunStatusQueued; got != want {
+		t.Fatalf("auto-enqueued run status = %q, want %q", got, want)
+	}
+
+	// The opted-out dependent must NOT be auto-enqueued (default preserves the
+	// explicit-execution-boundary contract).
+	optedOutRuns, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: optedOut.ID})
+	if err != nil {
+		t.Fatalf("ListTaskRuns(opted-out) error = %v", err)
+	}
+	if len(optedOutRuns) != 0 {
+		t.Fatalf("opted-out dependent runs = %d, want 0", len(optedOutRuns))
+	}
+}
+
 func TestTaskManagerAgentCreatedTaskApprovesThenClaimsIntegration(t *testing.T) {
 	t.Parallel()
 
