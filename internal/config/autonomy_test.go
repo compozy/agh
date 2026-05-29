@@ -41,6 +41,43 @@ func TestDefaultWithHomeIncludesAutonomyCoordinatorDefaults(t *testing.T) {
 	if got, want := coordinator.MaxActivePerWorkspace, DefaultCoordinatorMaxActivePerWorkspace; got != want {
 		t.Fatalf("DefaultWithHome() coordinator MaxActivePerWorkspace = %d, want %d", got, want)
 	}
+	if got, want := coordinator.MaxActiveSessionsPerWorkspace, DefaultCoordinatorMaxActiveSessionsPerWorkspace; got != want {
+		t.Fatalf("DefaultWithHome() coordinator MaxActiveSessionsPerWorkspace = %d, want %d", got, want)
+	}
+}
+
+func TestCoordinatorConfigValidatesMaxActiveSessions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should validate defaults", func(t *testing.T) {
+		t.Parallel()
+		base := DefaultCoordinatorConfig()
+		if err := base.Validate("autonomy.coordinator", nil); err != nil {
+			t.Fatalf("default coordinator config should validate: %v", err)
+		}
+	})
+
+	t.Run("Should reject session cap below coordinator uniqueness cap", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultCoordinatorConfig()
+		cfg.MaxActiveSessionsPerWorkspace = 0
+		err := cfg.Validate("autonomy.coordinator", nil)
+		if err == nil {
+			t.Fatal("expected validation error")
+		}
+		if !strings.Contains(err.Error(), "max_active_sessions_per_workspace") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("Should accept higher session cap", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultCoordinatorConfig()
+		cfg.MaxActiveSessionsPerWorkspace = 8
+		if err := cfg.Validate("autonomy.coordinator", nil); err != nil {
+			t.Fatalf("max_active_sessions_per_workspace=8 should validate: %v", err)
+		}
+	})
 }
 
 func TestSchedulerConfigValidateMonotonic(t *testing.T) {
