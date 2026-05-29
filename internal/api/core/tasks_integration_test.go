@@ -86,7 +86,7 @@ func TestTaskHandlersCreateTaskAndListFiltersReachManagerIntegration(t *testing.
 		"POST",
 		"/tasks",
 		[]byte(
-			`{"scope":"workspace","workspace":"alpha","identifier":"TASK-1","network_channel":"builders","title":"Review task API","description":"Check handler wiring","owner":{"kind":"pool","ref":"reviewers"},"metadata":{"priority":"high"}}`,
+			`{"scope":"workspace","workspace":"alpha","identifier":"TASK-1","network_channel":"builders","title":"Review task API","description":"Check handler wiring","auto_enqueue_on_ready":true,"owner":{"kind":"pool","ref":"reviewers"},"metadata":{"priority":"high"}}`,
 		),
 	)
 	if createResp.Code != 201 {
@@ -99,6 +99,9 @@ func TestTaskHandlersCreateTaskAndListFiltersReachManagerIntegration(t *testing.
 	if capturedCreate.NetworkChannel != "builders" || capturedCreate.Owner == nil ||
 		capturedCreate.Owner.Ref != "reviewers" {
 		t.Fatalf("create spec = %#v", capturedCreate)
+	}
+	if !capturedCreate.AutoEnqueueOnReady {
+		t.Fatalf("create spec auto_enqueue_on_ready = false, want true; spec=%#v", capturedCreate)
 	}
 	if capturedCreateActor.Actor.Ref != "user-1" || capturedCreateActor.Origin.Ref != "tasks.create" {
 		t.Fatalf("create actor = %#v", capturedCreateActor)

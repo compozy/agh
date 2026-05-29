@@ -96,17 +96,18 @@ const (
 )
 
 type taskCreateInput struct {
-	ID           string
-	Identifier   string
-	ScopeRaw     string
-	WorkspaceRef string
-	NetworkRaw   string
-	Title        string
-	Description  string
-	PriorityRaw  string
-	OwnerKindRaw string
-	OwnerRef     string
-	MetadataRaw  string
+	ID                 string
+	Identifier         string
+	ScopeRaw           string
+	WorkspaceRef       string
+	NetworkRaw         string
+	Title              string
+	Description        string
+	PriorityRaw        string
+	OwnerKindRaw       string
+	OwnerRef           string
+	MetadataRaw        string
+	AutoEnqueueOnReady bool
 }
 
 type taskUpdateInput struct {
@@ -309,6 +310,7 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 		metadataRaw  string
 		priorityRaw  string
 		asAgent      bool
+		autoEnqueue  bool
 	)
 
 	cmd := &cobra.Command{
@@ -322,17 +324,18 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 			}
 
 			request, err := buildTaskCreateRequest(cmd, taskCreateInput{
-				ID:           id,
-				Identifier:   identifier,
-				ScopeRaw:     scopeRaw,
-				WorkspaceRef: workspaceRef,
-				NetworkRaw:   networkRaw,
-				Title:        title,
-				Description:  description,
-				PriorityRaw:  priorityRaw,
-				OwnerKindRaw: ownerKindRaw,
-				OwnerRef:     ownerRef,
-				MetadataRaw:  metadataRaw,
+				ID:                 id,
+				Identifier:         identifier,
+				ScopeRaw:           scopeRaw,
+				WorkspaceRef:       workspaceRef,
+				NetworkRaw:         networkRaw,
+				Title:              title,
+				Description:        description,
+				PriorityRaw:        priorityRaw,
+				OwnerKindRaw:       ownerKindRaw,
+				OwnerRef:           ownerRef,
+				MetadataRaw:        metadataRaw,
+				AutoEnqueueOnReady: autoEnqueue,
 			})
 			if err != nil {
 				return err
@@ -372,6 +375,8 @@ func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&ownerRef, "owner-ref", "", "Optional owner reference")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional metadata JSON")
 	cmd.Flags().BoolVar(&asAgent, "as-agent", false, "Create using the current AGH-managed agent session identity")
+	cmd.Flags().
+		BoolVar(&autoEnqueue, "auto-enqueue-on-ready", false, "Enqueue this task's run automatically when its blocking dependencies complete and it becomes ready")
 	mustMarkFlagRequired(cmd, taskScopeKey)
 	mustMarkFlagRequired(cmd, taskTitleKey)
 	return cmd
@@ -1783,6 +1788,7 @@ func newTaskChildCreateCommand(deps commandDeps) *cobra.Command {
 		ownerKindRaw string
 		ownerRef     string
 		metadataRaw  string
+		autoEnqueue  bool
 	)
 
 	cmd := &cobra.Command{
@@ -1796,17 +1802,18 @@ func newTaskChildCreateCommand(deps commandDeps) *cobra.Command {
 			}
 
 			baseRequest, err := buildTaskCreateRequest(cmd, taskCreateInput{
-				ID:           id,
-				Identifier:   identifier,
-				ScopeRaw:     scopeRaw,
-				WorkspaceRef: workspaceRef,
-				NetworkRaw:   networkRaw,
-				Title:        title,
-				Description:  description,
-				PriorityRaw:  priorityRaw,
-				OwnerKindRaw: ownerKindRaw,
-				OwnerRef:     ownerRef,
-				MetadataRaw:  metadataRaw,
+				ID:                 id,
+				Identifier:         identifier,
+				ScopeRaw:           scopeRaw,
+				WorkspaceRef:       workspaceRef,
+				NetworkRaw:         networkRaw,
+				Title:              title,
+				Description:        description,
+				PriorityRaw:        priorityRaw,
+				OwnerKindRaw:       ownerKindRaw,
+				OwnerRef:           ownerRef,
+				MetadataRaw:        metadataRaw,
+				AutoEnqueueOnReady: autoEnqueue,
 			})
 			if err != nil {
 				return err
@@ -1832,6 +1839,8 @@ func newTaskChildCreateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&ownerKindRaw, "owner-kind", "", "Optional child owner kind")
 	cmd.Flags().StringVar(&ownerRef, "owner-ref", "", "Optional child owner reference")
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional child metadata JSON")
+	cmd.Flags().
+		BoolVar(&autoEnqueue, "auto-enqueue-on-ready", false, "Enqueue this child task's run automatically when its blocking dependencies complete and it becomes ready")
 	mustMarkFlagRequired(cmd, taskScopeKey)
 	mustMarkFlagRequired(cmd, taskTitleKey)
 	return cmd
@@ -2547,16 +2556,17 @@ func buildTaskCreateRequest(cmd *cobra.Command, input taskCreateInput) (CreateTa
 	}
 
 	request := CreateTaskRequest{
-		ID:             strings.TrimSpace(input.ID),
-		Identifier:     strings.TrimSpace(input.Identifier),
-		Scope:          scope,
-		Workspace:      workspace,
-		NetworkChannel: strings.TrimSpace(input.NetworkRaw),
-		Title:          strings.TrimSpace(input.Title),
-		Description:    strings.TrimSpace(input.Description),
-		Priority:       priority,
-		Owner:          owner,
-		Metadata:       metadata,
+		ID:                 strings.TrimSpace(input.ID),
+		Identifier:         strings.TrimSpace(input.Identifier),
+		Scope:              scope,
+		Workspace:          workspace,
+		NetworkChannel:     strings.TrimSpace(input.NetworkRaw),
+		Title:              strings.TrimSpace(input.Title),
+		Description:        strings.TrimSpace(input.Description),
+		Priority:           priority,
+		AutoEnqueueOnReady: input.AutoEnqueueOnReady,
+		Owner:              owner,
+		Metadata:           metadata,
 	}
 	if request.Title == "" {
 		return CreateTaskRequest{}, errors.New("cli: --title is required")
