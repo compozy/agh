@@ -25,6 +25,7 @@ func TestWorkspaceErrorsMatchViaErrorsIs(t *testing.T) {
 		{name: "name taken", sentinel: workspace.ErrWorkspaceNameTaken},
 		{name: "path taken", sentinel: workspace.ErrWorkspacePathTaken},
 		{name: "has sessions", sentinel: workspace.ErrWorkspaceHasSessions},
+		{name: "has active sessions", sentinel: workspace.ErrWorkspaceHasActiveSessions},
 	}
 
 	for _, tt := range tests {
@@ -66,6 +67,11 @@ func TestWorkspaceErrorsAreDistinct(t *testing.T) {
 			name: "path taken does not match has sessions",
 			left: workspace.ErrWorkspacePathTaken,
 			want: workspace.ErrWorkspaceHasSessions,
+		},
+		{
+			name: "has sessions does not match has active sessions",
+			left: workspace.ErrWorkspaceHasSessions,
+			want: workspace.ErrWorkspaceHasActiveSessions,
 		},
 	}
 

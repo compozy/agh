@@ -83,6 +83,8 @@ func (g *GlobalDB) UpdateWorkspace(ctx context.Context, ws aghworkspace.Workspac
 }
 
 // DeleteWorkspace removes a persisted workspace registration row.
+// It refuses to delete if any active sessions reference the workspace.
+// Stopped or orphaned sessions are cleaned up automatically before deletion.
 func (g *GlobalDB) DeleteWorkspace(ctx context.Context, id string) error {
 	if err := g.checkReady(ctx, "delete workspace"); err != nil {
 		return err
@@ -93,7 +95,32 @@ func (g *GlobalDB) DeleteWorkspace(ctx context.Context, id string) error {
 		return errors.New("store: workspace id is required")
 	}
 
-	result, err := g.db.ExecContext(ctx, `DELETE FROM workspaces WHERE id = ?`, trimmedID)
+	tx, err := g.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("store: begin delete workspace transaction %q: %w", trimmedID, err)
+	}
+	defer func() {
+		_ = tx.Rollback()
+	}()
+
+	activeSessions, err := g.listActiveSessionIDsByWorkspace(ctx, tx, trimmedID)
+	if err != nil {
+		return err
+	}
+	if len(activeSessions) > 0 {
+		return fmt.Errorf(
+			"store: delete workspace %q: %w: %s",
+			trimmedID,
+			aghworkspace.ErrWorkspaceHasActiveSessions,
+			strings.Join(activeSessions, ", "),
+		)
+	}
+
+	if _, err := tx.ExecContext(ctx, `DELETE FROM sessions WHERE workspace_id = ?`, trimmedID); err != nil {
+		return fmt.Errorf("store: delete stopped sessions for workspace %q: %w", trimmedID, err)
+	}
+
+	result, err := tx.ExecContext(ctx, `DELETE FROM workspaces WHERE id = ?`, trimmedID)
 	if err != nil {
 		return fmt.Errorf("store: delete workspace %q: %w", trimmedID, mapWorkspaceConstraintError(err))
 	}
@@ -106,7 +133,43 @@ func (g *GlobalDB) DeleteWorkspace(ctx context.Context, id string) error {
 		return fmt.Errorf("store: workspace %q: %w", trimmedID, aghworkspace.ErrWorkspaceNotFound)
 	}
 
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("store: commit delete workspace %q: %w", trimmedID, err)
+	}
+
 	return nil
+}
+
+func (g *GlobalDB) listActiveSessionIDsByWorkspace(
+	ctx context.Context,
+	tx *sql.Tx,
+	workspaceID string,
+) ([]string, error) {
+	rows, err := tx.QueryContext(
+		ctx,
+		`SELECT id FROM sessions WHERE workspace_id = ? AND state = 'active'`,
+		workspaceID,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("store: list active sessions for workspace %q: %w", workspaceID, err)
+	}
+	defer func() {
+		_ = rows.Close()
+	}()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("store: scan active session id for workspace %q: %w", workspaceID, err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: iterate active sessions for workspace %q: %w", workspaceID, err)
+	}
+
+	return ids, nil
 }
 
 // GetWorkspace loads a workspace registration by primary key.

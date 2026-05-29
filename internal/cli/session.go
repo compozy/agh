@@ -62,6 +62,7 @@ func newSessionCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSessionCreateCommand(deps))
 	cmd.AddCommand(newSessionListCommand(deps))
 	cmd.AddCommand(newSessionStopCommand(deps))
+	cmd.AddCommand(newSessionRemoveCommand(deps))
 	cmd.AddCommand(newSessionSoulCommand(deps))
 	cmd.AddCommand(newSessionHealthCommand(deps))
 	cmd.AddCommand(newSessionStatusCommand(deps))
@@ -218,6 +219,33 @@ func newSessionStopCommand(deps commandDeps) *cobra.Command {
 
 			info, err := client.GetSession(cmd.Context(), args[0])
 			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, sessionBundle(info, deps.now))
+		},
+	}
+}
+
+func newSessionRemoveCommand(deps commandDeps) *cobra.Command {
+	return &cobra.Command{
+		Use:   "remove <id>",
+		Short: "Remove a session and its persisted history",
+		Example: `  # Remove a stopped session
+  agh session remove sess_1234
+
+  # Remove an active session (stops it first)
+  agh session remove sess_1234`,
+		Args: exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			info, err := client.GetSession(cmd.Context(), args[0])
+			if err != nil {
+				return err
+			}
+			if err := client.DeleteSession(cmd.Context(), args[0]); err != nil {
 				return err
 			}
 			return writeCommandOutput(cmd, sessionBundle(info, deps.now))

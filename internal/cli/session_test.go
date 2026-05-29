@@ -613,6 +613,46 @@ func TestSessionStopFetchesUpdatedSession(t *testing.T) {
 	}
 }
 
+func TestSessionRemoveDeletesSession(t *testing.T) {
+	t.Parallel()
+
+	var deletedID string
+
+	deps := newTestDeps(t, &stubClient{
+		getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
+			return SessionRecord{
+				ID:            id,
+				AgentName:     "coder",
+				WorkspaceID:   "ws-1",
+				WorkspacePath: "/workspace/project",
+				State:         session.StateStopped,
+				CreatedAt:     fixedTestNow,
+				UpdatedAt:     fixedTestNow,
+			}, nil
+		},
+		deleteSessionFn: func(_ context.Context, id string) error {
+			deletedID = id
+			return nil
+		},
+	})
+
+	stdout, _, err := executeRootCommand(t, deps, "session", "remove", "sess-1", "-o", "json")
+	if err != nil {
+		t.Fatalf("executeRootCommand() error = %v", err)
+	}
+	if deletedID != "sess-1" {
+		t.Fatalf("DeleteSession() id = %q, want %q", deletedID, "sess-1")
+	}
+
+	var decoded SessionRecord
+	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
+		t.Fatalf("json.Unmarshal() error = %v", err)
+	}
+	if decoded.ID != "sess-1" {
+		t.Fatalf("decoded.ID = %q, want %q", decoded.ID, "sess-1")
+	}
+}
+
 func TestSessionStatusReturnsHealthStatus(t *testing.T) {
 	t.Parallel()
 
