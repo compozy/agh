@@ -16,19 +16,14 @@ export function useSessionWorkspaceGuard({
   const { activeWorkspaceId } = useActiveWorkspace();
   const sessionWorkspaceRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    if (sessionWorkspaceId) {
-      sessionWorkspaceRef.current = sessionWorkspaceId;
-    }
-  }, [sessionWorkspaceId]);
+  if (sessionWorkspaceId) {
+    sessionWorkspaceRef.current = sessionWorkspaceId;
+  }
 
   useEffect(() => {
-    if (
-      sessionWorkspaceRef.current &&
-      activeWorkspaceId &&
-      activeWorkspaceId !== sessionWorkspaceRef.current
-    ) {
+    const knownWorkspaceId = sessionWorkspaceRef.current;
+    if (knownWorkspaceId && activeWorkspaceId && activeWorkspaceId !== knownWorkspaceId) {
       void navigate({ to: "/agents/$name", params: { name: agentName }, replace: true });
     }
-  }, [activeWorkspaceId, navigate, agentName]);
+  }, [activeWorkspaceId, sessionWorkspaceId, navigate, agentName]);
 }
