@@ -2005,7 +2005,11 @@ func TestOpenGlobalDBMigratesLegacyTaskEventsToStableSequences(t *testing.T) {
 }
 
 func TestGlobalDBRecoverTaskRun(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should terminalize a needs_attention run and queue a linked child", func(t *testing.T) {
+		t.Parallel()
+
 		globalDB := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 5, 28, 12, 0, 0, 0, time.UTC)
@@ -2061,6 +2065,8 @@ func TestGlobalDBRecoverTaskRun(t *testing.T) {
 	})
 
 	t.Run("Should reject recovering a non-needs_attention run", func(t *testing.T) {
+		t.Parallel()
+
 		globalDB := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		taskRecord := taskRecordForTest("task-recover-reject")

@@ -57,22 +57,47 @@ func TestSchedulerConfigValidateMonotonic(t *testing.T) {
 		t.Parallel()
 		base := DefaultSchedulerConfig()
 		cases := []struct {
-			name   string
-			mutate func(*SchedulerConfig)
+			name            string
+			wantErrContains string
+			mutate          func(*SchedulerConfig)
 		}{
-			{"non-positive fan_out", func(c *SchedulerConfig) { c.FanOutAfter = 0 }},
-			{"spawn before fan_out", func(c *SchedulerConfig) { c.SpawnAfter = c.FanOutAfter - 1 }},
-			{"event before spawn", func(c *SchedulerConfig) { c.EventAfter = c.SpawnAfter - 1 }},
-			{"needs_attention before event", func(c *SchedulerConfig) { c.NeedsAttentionAfter = c.EventAfter - 1 }},
-			{"non-positive min_queued_age", func(c *SchedulerConfig) { c.MinQueuedAge = 0 }},
+			{
+				"Should reject non-positive fan_out",
+				"fan_out_after must be positive",
+				func(c *SchedulerConfig) { c.FanOutAfter = 0 },
+			},
+			{
+				"Should reject spawn before fan_out",
+				"spawn_after must be >= fan_out_after",
+				func(c *SchedulerConfig) { c.SpawnAfter = c.FanOutAfter - 1 },
+			},
+			{
+				"Should reject event before spawn",
+				"event_after must be >= spawn_after",
+				func(c *SchedulerConfig) { c.EventAfter = c.SpawnAfter - 1 },
+			},
+			{
+				"Should reject needs_attention before event",
+				"needs_attention_after must be >= event_after",
+				func(c *SchedulerConfig) { c.NeedsAttentionAfter = c.EventAfter - 1 },
+			},
+			{
+				"Should reject non-positive min_queued_age",
+				"min_queued_age must be positive",
+				func(c *SchedulerConfig) { c.MinQueuedAge = 0 },
+			},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				cfg := base
 				tc.mutate(&cfg)
-				if err := cfg.Validate("autonomy.scheduler"); err == nil {
+				err := cfg.Validate("autonomy.scheduler")
+				if err == nil {
 					t.Fatalf("Validate(%s) error = nil, want rejection", tc.name)
+				}
+				if !strings.Contains(err.Error(), tc.wantErrContains) {
+					t.Fatalf("Validate(%s) error = %v, want substring %q", tc.name, err, tc.wantErrContains)
 				}
 			})
 		}

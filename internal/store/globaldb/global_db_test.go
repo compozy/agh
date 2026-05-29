@@ -808,7 +808,7 @@ func TestOpenGlobalDBDropsTaskRunStatusCheck(t *testing.T) {
 		if err != nil {
 			t.Fatalf("OpenSQLiteDatabase() error = %v", err)
 		}
-		preV39 := globalSchemaMigrations[:len(globalSchemaMigrations)-1]
+		preV39 := globalSchemaMigrations[:len(globalSchemaMigrations)-2]
 		if err := store.RunMigrations(ctx, db, preV39); err != nil {
 			t.Fatalf("RunMigrations(pre-v39) error = %v", err)
 		}

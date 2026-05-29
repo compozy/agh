@@ -109,51 +109,53 @@ func TestSpawnReaperSweepClassifiesReasonsReleasesLeasesAndStopsChildren(t *test
 }
 
 func TestSpawnReaperReapsTTLExpiredStarvationWorkers(t *testing.T) {
-	t.Parallel()
+	t.Run("Should reap only expired starvation workers", func(t *testing.T) {
+		t.Parallel()
 
-	now := time.Date(2026, 5, 28, 12, 0, 0, 0, time.UTC)
-	sessions := &fakeSessionManager{
-		infos: []*session.Info{
-			starvationReaperInfo("worker-expired", now.Add(-time.Minute)),
-			starvationReaperInfo("worker-live", now.Add(time.Hour)),
-			roleReaperInfo("role-session"),
-		},
-		stopWithCauseErr: func(string, session.StopCause, string) error { return nil },
-	}
-	leases := &fakeSpawnLeaseReleaser{resultCountBySession: map[string]int{"worker-expired": 1}}
-	hooks := &recordingSpawnHooks{}
+		now := time.Date(2026, 5, 28, 12, 0, 0, 0, time.UTC)
+		sessions := &fakeSessionManager{
+			infos: []*session.Info{
+				starvationReaperInfo("worker-expired", now.Add(-time.Minute)),
+				starvationReaperInfo("worker-live", now.Add(time.Hour)),
+				roleReaperInfo("role-session"),
+			},
+			stopWithCauseErr: func(string, session.StopCause, string) error { return nil },
+		}
+		leases := &fakeSpawnLeaseReleaser{resultCountBySession: map[string]int{"worker-expired": 1}}
+		hooks := &recordingSpawnHooks{}
 
-	reaper, err := newSpawnReaper(
-		context.Background(),
-		sessions,
-		leases,
-		hooks,
-		discardLogger(),
-		func() time.Time { return now },
-		time.Hour,
-	)
-	if err != nil {
-		t.Fatalf("newSpawnReaper() error = %v", err)
-	}
+		reaper, err := newSpawnReaper(
+			context.Background(),
+			sessions,
+			leases,
+			hooks,
+			discardLogger(),
+			func() time.Time { return now },
+			time.Hour,
+		)
+		if err != nil {
+			t.Fatalf("newSpawnReaper() error = %v", err)
+		}
 
-	report, err := reaper.Sweep(context.Background())
-	if err != nil {
-		t.Fatalf("Sweep() error = %v", err)
-	}
-	if report.Reaped != 1 || report.TTLExpired != 1 {
-		t.Fatalf("report = %#v, want exactly the expired starvation worker reaped", report)
-	}
-	if len(sessions.stopWithCauseCalls) != 1 {
-		t.Fatalf("stop calls = %#v, want only worker-expired (live worker + lineage-less role session untouched)",
-			sessions.stopWithCauseCalls)
-	}
-	assertStopWithCause(
-		t,
-		sessions.stopWithCauseCalls,
-		"worker-expired",
-		session.CauseTimeout,
-		"spawn_reaper:ttl_expired",
-	)
+		report, err := reaper.Sweep(context.Background())
+		if err != nil {
+			t.Fatalf("Sweep() error = %v", err)
+		}
+		if report.Reaped != 1 || report.TTLExpired != 1 {
+			t.Fatalf("report = %#v, want exactly the expired starvation worker reaped", report)
+		}
+		if len(sessions.stopWithCauseCalls) != 1 {
+			t.Fatalf("stop calls = %#v, want only worker-expired (live worker + lineage-less role session untouched)",
+				sessions.stopWithCauseCalls)
+		}
+		assertStopWithCause(
+			t,
+			sessions.stopWithCauseCalls,
+			"worker-expired",
+			session.CauseTimeout,
+			"spawn_reaper:ttl_expired",
+		)
+	})
 }
 
 func starvationReaperInfo(id string, ttl time.Time) *session.Info {

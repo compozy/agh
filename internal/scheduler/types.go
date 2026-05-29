@@ -92,6 +92,15 @@ func (t StarvationThresholds) normalize() StarvationThresholds {
 	if t.MinQueuedAge <= 0 {
 		t.MinQueuedAge = defaults.MinQueuedAge
 	}
+	if t.SpawnAfter < t.FanOutAfter {
+		t.SpawnAfter = t.FanOutAfter
+	}
+	if t.EventAfter < t.SpawnAfter {
+		t.EventAfter = t.SpawnAfter
+	}
+	if t.NeedsAttentionAfter < t.EventAfter {
+		t.NeedsAttentionAfter = t.EventAfter
+	}
 	return t
 }
 
@@ -279,6 +288,7 @@ func WithPauseStore(store PauseStore) Option {
 func WithStarvationAge(age time.Duration) Option {
 	return func(s *Scheduler) {
 		s.starvationAge = age
+		s.starveThresholds.MinQueuedAge = age
 	}
 }
 
@@ -302,5 +312,6 @@ func WithStarvationStore(store StarvationStore) Option {
 func WithStarvationThresholds(thresholds StarvationThresholds) Option {
 	return func(s *Scheduler) {
 		s.starveThresholds = thresholds.normalize()
+		s.starvationAge = s.starveThresholds.MinQueuedAge
 	}
 }

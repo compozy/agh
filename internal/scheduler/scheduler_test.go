@@ -296,8 +296,8 @@ func TestRunConvergenceEscalationLadder(t *testing.T) {
 		source := &fakeTaskSource{pending: []RunSnapshot{work}}
 		store := newFakeStarvationStore()
 		escalator := &fakeEscalationActor{emitErr: errors.New("emit boom")}
-		// Event tier fires on the first cycle; spawn/needs_attention disabled to isolate the emit.
-		scheduler, ctx := build(t, base, source, store, escalator, ladder(1, 99, 1, 99))
+		// Event emission must still surface its error even when the monotonic ladder also allows spawn.
+		scheduler, ctx := build(t, base, source, store, escalator, ladder(1, 1, 1, 99))
 
 		result, err := scheduler.RunOnce(ctx)
 		if err == nil {
@@ -417,6 +417,86 @@ func TestRunConvergenceEscalationLadder(t *testing.T) {
 				"wake_count = %d, want 2 (rebuild wiped in-memory state but not the durable budget)",
 				row.WakeCount,
 			)
+		}
+	})
+}
+
+func TestRunOnceUsesMinQueuedAgeFromThresholds(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should honor MinQueuedAge when only starvation thresholds are configured", func(t *testing.T) {
+		t.Parallel()
+
+		base := time.Date(2026, 5, 28, 15, 0, 0, 0, time.UTC)
+		source := &fakeTaskSource{
+			pending: []RunSnapshot{
+				workSnapshot(
+					"task-min-age",
+					"run-min-age",
+					taskpkg.ScopeWorkspace,
+					"ws-1",
+					[]string{"go"},
+					base,
+				),
+			},
+		}
+		sessions := &fakeSessionSource{}
+		scheduler := newTestScheduler(
+			t,
+			source,
+			sessions,
+			&fakeWaker{},
+			WithClock(clockwork.NewFakeClockAt(base.Add(30*time.Minute))),
+			WithStarvationThresholds(StarvationThresholds{
+				FanOutAfter:         1,
+				SpawnAfter:          2,
+				EventAfter:          3,
+				NeedsAttentionAfter: 4,
+				MinQueuedAge:        time.Hour,
+			}),
+		)
+
+		result, err := scheduler.RunOnce(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("RunOnce() error = %v", err)
+		}
+		if result.StarvedRuns != 0 {
+			t.Fatalf("StarvedRuns = %d, want 0 before the configured min queued age", result.StarvedRuns)
+		}
+		if result.NoMatchRuns != 1 {
+			t.Fatalf("NoMatchRuns = %d, want 1 with no eligible sessions", result.NoMatchRuns)
+		}
+	})
+}
+
+func TestStarvationThresholdsNormalize(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should clamp non-monotonic thresholds into a monotonic ladder", func(t *testing.T) {
+		t.Parallel()
+
+		normalized := (StarvationThresholds{
+			FanOutAfter:         4,
+			SpawnAfter:          2,
+			EventAfter:          1,
+			NeedsAttentionAfter: 3,
+			MinQueuedAge:        time.Minute,
+		}).normalize()
+
+		if got, want := normalized.FanOutAfter, 4; got != want {
+			t.Fatalf("FanOutAfter = %d, want %d", got, want)
+		}
+		if got, want := normalized.SpawnAfter, 4; got != want {
+			t.Fatalf("SpawnAfter = %d, want %d", got, want)
+		}
+		if got, want := normalized.EventAfter, 4; got != want {
+			t.Fatalf("EventAfter = %d, want %d", got, want)
+		}
+		if got, want := normalized.NeedsAttentionAfter, 4; got != want {
+			t.Fatalf("NeedsAttentionAfter = %d, want %d", got, want)
+		}
+		if got, want := normalized.MinQueuedAge, time.Minute; got != want {
+			t.Fatalf("MinQueuedAge = %s, want %s", got, want)
 		}
 	})
 }

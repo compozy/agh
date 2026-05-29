@@ -328,7 +328,7 @@ func (s *Scheduler) RunOnce(ctx context.Context) (CycleResult, error) {
 		s.logger.Warn(
 			"scheduler.wake.starved",
 			"runs", result.StarvedRunIDs,
-			"min_queued_age_ms", s.starvationAge.Milliseconds(),
+			"min_queued_age_ms", s.starveThresholds.MinQueuedAge.Milliseconds(),
 		)
 	}
 	return result, errors.Join(errs...)
@@ -543,8 +543,8 @@ func (s *Scheduler) selectWakeTargets(
 		// and fires for an eligible-but-uninterested session, not only when no session
 		// is eligible. A starved run escalates: every eligible session is woken (the
 		// atomic claim serializes the winner) and the run is reported for observability.
-		starved := s.starvationAge > 0 && !work.Run.QueuedAt.IsZero() &&
-			now.Sub(work.Run.QueuedAt) >= s.starvationAge
+		starved := s.starveThresholds.MinQueuedAge > 0 && !work.Run.QueuedAt.IsZero() &&
+			now.Sub(work.Run.QueuedAt) >= s.starveThresholds.MinQueuedAge
 		if starved {
 			result.convergenceCandidates = append(result.convergenceCandidates, *work)
 		}

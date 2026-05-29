@@ -455,11 +455,13 @@ func (r Run) Validate() error {
 	if err := r.Origin.Validate("task_run.origin"); err != nil {
 		return err
 	}
-	if r.Status.Normalize() == TaskRunStatusQueued && strings.TrimSpace(r.SessionID) != "" {
+	status := r.Status.Normalize()
+	if (status == TaskRunStatusQueued || status == TaskRunStatusNeedsAttention) &&
+		strings.TrimSpace(r.SessionID) != "" {
 		return fmt.Errorf(
 			"%w: task_run.session_id must be empty while status is %q",
 			ErrValidation,
-			TaskRunStatusQueued,
+			status,
 		)
 	}
 	if err := validateRunLeaseMetadata(r); err != nil {

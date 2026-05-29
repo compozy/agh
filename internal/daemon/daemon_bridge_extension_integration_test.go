@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -476,13 +477,10 @@ func relaxDaemonTelegramReferenceMinVersion(t *testing.T, extensionDir string) {
 	if err != nil {
 		t.Fatalf("read telegram reference manifest %q error = %v", manifestPath, err)
 	}
-	const (
-		productionMinVersion = `min_agh_version = "0.5.0"`
-		e2eMinVersion        = `min_agh_version = "0.0.0"`
-	)
-	updated := strings.Replace(string(contents), productionMinVersion, e2eMinVersion, 1)
+	rewriteMinVersion := regexp.MustCompile(`(?m)^(\s*min_agh_version\s*=\s*).*$`)
+	updated := rewriteMinVersion.ReplaceAllString(string(contents), `${1}"0.0.0"`)
 	if updated == string(contents) {
-		t.Fatalf("telegram reference manifest %q did not contain %q", manifestPath, productionMinVersion)
+		t.Fatalf("telegram reference manifest %q did not contain a min_agh_version assignment", manifestPath)
 	}
 	if err := os.WriteFile(manifestPath, []byte(updated), 0o644); err != nil {
 		t.Fatalf("write telegram reference manifest %q error = %v", manifestPath, err)

@@ -244,7 +244,11 @@ func TestGlobalDBClaimNextRunRespectsSchedulerPause(t *testing.T) {
 }
 
 func TestGlobalDBClaimNextRunSkipsNeedsAttention(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Should not return a run escalated to needs_attention", func(t *testing.T) {
+		t.Parallel()
+
 		globalDB := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 5, 28, 12, 0, 0, 0, time.UTC)
