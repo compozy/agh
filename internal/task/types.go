@@ -97,6 +97,9 @@ const (
 	TaskRunStatusFailed RunStatus = "failed"
 	// TaskRunStatusCanceled reports a run that was canceled.
 	TaskRunStatusCanceled RunStatus = "canceled"
+	// TaskRunStatusNeedsAttention reports a queued run the scheduler could not converge
+	// (no worker claimed it within the starvation budget); it awaits operator/agent recovery.
+	TaskRunStatusNeedsAttention RunStatus = "needs_attention"
 )
 
 const (
@@ -652,14 +655,16 @@ type SchedulerPauseState struct {
 
 // SchedulerStatus reports scheduler-wide pause state and live backlog counts.
 type SchedulerStatus struct {
-	Paused           bool      `json:"paused"`
-	PausedBy         string    `json:"paused_by,omitempty"`
-	PausedAt         time.Time `json:"paused_at,omitzero"`
-	PausedReason     string    `json:"paused_reason,omitempty"`
-	ActiveClaimCount int       `json:"active_claim_count"`
-	QueuedRunCount   int       `json:"queued_run_count"`
-	PausedTaskCount  int       `json:"paused_task_count"`
-	AsOf             time.Time `json:"as_of"`
+	Paused                 bool      `json:"paused"`
+	PausedBy               string    `json:"paused_by,omitempty"`
+	PausedAt               time.Time `json:"paused_at,omitzero"`
+	PausedReason           string    `json:"paused_reason,omitempty"`
+	ActiveClaimCount       int       `json:"active_claim_count"`
+	QueuedRunCount         int       `json:"queued_run_count"`
+	PausedTaskCount        int       `json:"paused_task_count"`
+	StarvedRunCount        int       `json:"starved_run_count"`
+	NeedsAttentionRunCount int       `json:"needs_attention_run_count"`
+	AsOf                   time.Time `json:"as_of"`
 }
 
 // SchedulerPauseRequest captures one scheduler-wide pause request.
@@ -743,6 +748,48 @@ type RetryRunMutation struct {
 	Origin      Origin          `json:"origin"`
 	Metadata    json.RawMessage `json:"metadata,omitempty"`
 	QueuedAt    time.Time       `json:"queued_at"`
+}
+
+// RecoverRunRequest captures one operator/agent recovery request for a needs_attention run.
+type RecoverRunRequest struct {
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// RecoverRunMutation captures one transactional recovery write (terminalize-then-requeue).
+type RecoverRunMutation struct {
+	SourceRunID string          `json:"source_run_id"`
+	NewRunID    string          `json:"new_run_id"`
+	Origin      Origin          `json:"origin"`
+	Reason      string          `json:"reason,omitempty"`
+	Metadata    json.RawMessage `json:"metadata,omitempty"`
+	QueuedAt    time.Time       `json:"queued_at"`
+}
+
+// RunStarvation is the durable per-run escalation budget the scheduler advances each cycle a
+// claimable run stays queued past the starvation threshold. It survives daemon restart so the
+// tier ladder resumes from the persisted count rather than restarting on every Rebuild.
+type RunStarvation struct {
+	RunID            string     `json:"run_id"`
+	WakeCount        int        `json:"wake_count"`
+	FirstStarvedAt   time.Time  `json:"first_starved_at"`
+	LastWakeAt       time.Time  `json:"last_wake_at,omitzero"`
+	EscalationTier   int        `json:"escalation_tier"`
+	SpawnRequestedAt *time.Time `json:"spawn_requested_at,omitempty"`
+	StarvedEventAt   *time.Time `json:"starved_event_at,omitempty"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+}
+
+// RunStarvationMutation captures one upsert of a run's escalation budget.
+type RunStarvationMutation struct {
+	RunID            string     `json:"run_id"`
+	WakeCount        int        `json:"wake_count"`
+	FirstStarvedAt   time.Time  `json:"first_starved_at"`
+	LastWakeAt       time.Time  `json:"last_wake_at,omitzero"`
+	EscalationTier   int        `json:"escalation_tier"`
+	SpawnRequestedAt *time.Time `json:"spawn_requested_at,omitempty"`
+	StarvedEventAt   *time.Time `json:"starved_event_at,omitempty"`
+	UpdatedAt        time.Time  `json:"updated_at"`
 }
 
 // Query captures the supported list filters for task reads.

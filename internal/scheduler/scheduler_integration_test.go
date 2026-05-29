@@ -642,6 +642,20 @@ func (s integrationTaskSource) ActiveRuns(ctx context.Context) ([]taskpkg.Run, e
 	})
 }
 
+func (s integrationTaskSource) GetRunStatus(
+	ctx context.Context,
+	runID string,
+) (taskpkg.RunStatus, bool, error) {
+	run, err := s.store.GetTaskRun(ctx, runID)
+	if err != nil {
+		if errors.Is(err, taskpkg.ErrTaskRunNotFound) {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	return run.Status, true, nil
+}
+
 func (s integrationTaskSource) RecoverExpiredRunLeases(
 	ctx context.Context,
 	recovery taskpkg.ExpiredLeaseRecovery,

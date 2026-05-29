@@ -6205,6 +6205,21 @@ func (r *recordingRegistry) RetryTaskRun(
 	return taskpkg.RetryRunResult{}, taskpkg.ErrTaskRunNotFound
 }
 
+func (r *recordingRegistry) RecoverTaskRun(
+	context.Context,
+	taskpkg.RecoverRunMutation,
+) (taskpkg.RetryRunResult, error) {
+	return taskpkg.RetryRunResult{}, taskpkg.ErrTaskRunNotFound
+}
+
+func (r *recordingRegistry) MarkTaskRunNeedsAttention(
+	context.Context,
+	string,
+	string,
+) (taskpkg.Run, error) {
+	return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
+}
+
 func (r *recordingRegistry) CompleteRunLease(
 	context.Context,
 	taskpkg.LeaseCompletion,

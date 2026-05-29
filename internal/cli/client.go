@@ -426,6 +426,7 @@ type DaemonClient interface {
 	ForceReleaseTaskRun(ctx context.Context, id string, request ForceReleaseTaskRunRequest) (TaskRunRecord, error)
 	ForceFailTaskRun(ctx context.Context, id string, request ForceFailTaskRunRequest) (TaskRunRecord, error)
 	RetryTaskRun(ctx context.Context, id string, request RetryTaskRunRequest) (RetryTaskRunRecord, error)
+	RecoverTaskRun(ctx context.Context, id string, request RecoverTaskRunRequest) (RetryTaskRunRecord, error)
 	BulkForceReleaseTaskRuns(ctx context.Context, request BulkForceTaskRunRequest) (BulkForceTaskRunRecord, error)
 	BulkForceFailTaskRuns(ctx context.Context, request BulkForceTaskRunRequest) (BulkForceTaskRunRecord, error)
 	SchedulerStatus(ctx context.Context) (SchedulerStatusRecord, error)
@@ -1135,6 +1136,9 @@ type ForceFailTaskRunRequest = contract.ForceFailTaskRunRequest
 
 // RetryTaskRunRequest captures the shared retry request payload.
 type RetryTaskRunRequest = contract.RetryTaskRunRequest
+
+// RecoverTaskRunRequest captures the shared recovery request payload.
+type RecoverTaskRunRequest = contract.RecoverTaskRunRequest
 
 // BulkForceTaskRunRequest captures the shared bounded bulk force-operation payload.
 type BulkForceTaskRunRequest = contract.BulkForceTaskRunRequest
@@ -4506,6 +4510,19 @@ func (c *unixSocketClient) RetryTaskRun(
 ) (RetryTaskRunRecord, error) {
 	var response contract.RetryTaskRunResponse
 	path := "/api/runs/" + url.PathEscape(strings.TrimSpace(id)) + "/retry"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return RetryTaskRunRecord{}, err
+	}
+	return response, nil
+}
+
+func (c *unixSocketClient) RecoverTaskRun(
+	ctx context.Context,
+	id string,
+	request RecoverTaskRunRequest,
+) (RetryTaskRunRecord, error) {
+	var response contract.RetryTaskRunResponse
+	path := "/api/runs/" + url.PathEscape(strings.TrimSpace(id)) + "/recover"
 	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
 		return RetryTaskRunRecord{}, err
 	}

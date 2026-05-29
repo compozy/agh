@@ -823,6 +823,8 @@ func taskRunClaimLeaseAuxiliarySchemaStatements() []string {
 	}
 }
 
+const migrationNameHealSchedulerPause = "heal_scheduler_pause_updated_at"
+
 var globalSchemaMigrations = []store.Migration{
 	{
 		Version:    1,
@@ -1045,6 +1047,24 @@ var globalSchemaMigrations = []store.Migration{
 		Name:     "add_app_metadata",
 		Up:       migrateAppMetadata,
 		Checksum: "2026-05-25-add-app-metadata",
+	},
+	{
+		Version:  38,
+		Name:     migrationNameHealSchedulerPause,
+		Up:       migrateHealSchedulerPauseUpdatedAt,
+		Checksum: "2026-05-28-heal-scheduler-pause-updated-at",
+	},
+	{
+		Version:  39,
+		Name:     "drop_task_run_status_check",
+		UpConn:   migrateDropTaskRunStatusCheck,
+		Checksum: "2026-05-28-drop-task-run-status-check",
+	},
+	{
+		Version:  40,
+		Name:     "add_task_run_starvation_tracking",
+		Up:       migrateTaskRunStarvation,
+		Checksum: "2026-05-28-add-task-run-starvation-tracking",
 	},
 }
 

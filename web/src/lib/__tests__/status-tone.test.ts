@@ -22,6 +22,7 @@ const EXPECTED_TASK_STATUS_KEYS: readonly TaskStatus[] = [
 const EXPECTED_RUN_STATUS_KEYS: readonly TaskRunStatus[] = [
   "pending",
   "in_progress",
+  "needs_attention",
   "completed",
   "failed",
   "canceled",
@@ -66,7 +67,7 @@ describe("TASK_STATUS_TONE", () => {
 });
 
 describe("RUN_STATUS_TONE", () => {
-  it("Should expose the five run lifecycle states with single-L Go convention", () => {
+  it("Should expose the six run lifecycle states with single-L Go convention", () => {
     expect(Object.keys(RUN_STATUS_TONE).sort()).toEqual([...EXPECTED_RUN_STATUS_KEYS].sort());
     expect(RUN_STATUS_TONE).toHaveProperty("canceled");
     expect(RUN_STATUS_TONE).not.toHaveProperty("cancelled");
@@ -81,6 +82,10 @@ describe("RUN_STATUS_TONE", () => {
     expect(RUN_STATUS_TONE.completed).toBe("success");
     expect(RUN_STATUS_TONE.in_progress).toBe("info");
     expect(RUN_STATUS_TONE.pending).toBe("neutral");
+  });
+
+  it("Should map needs_attention to the warning signal (operator action required)", () => {
+    expect(RUN_STATUS_TONE.needs_attention).toBe("warning");
   });
 });
 

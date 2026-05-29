@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -9,9 +10,12 @@ import (
 	"testing"
 	"time"
 
+	aghconfig "github.com/compozy/agh/internal/config"
 	hookspkg "github.com/compozy/agh/internal/hooks"
+	schedulerpkg "github.com/compozy/agh/internal/scheduler"
 	"github.com/compozy/agh/internal/session"
 	taskpkg "github.com/compozy/agh/internal/task"
+	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
 func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
@@ -106,6 +110,203 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 	})
 }
 
+var taskRoleRuntimeClock = time.Date(2026, 5, 6, 12, 5, 0, 0, time.UTC)
+
+func TestTaskRoleRuntimeActivateForStarvation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should spawn the pool owner with a TTL-bounded spawn budget lineage", func(t *testing.T) {
+		t.Parallel()
+
+		taskRecord := taskRoleRuntimeTask("task-starved", "frontend-engineer-agent", "design-review")
+		run := taskRoleRuntimeRun("run-starved", taskRecord.ID, "design-review")
+		store := newTaskRoleRuntimeStore(taskRecord, run)
+		sessions := &taskRoleRuntimeSessions{}
+		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
+
+		if err := runtime.activateForStarvation(
+			context.Background(),
+			taskRecord,
+			run,
+			starvationSpawner{},
+		); err != nil {
+			t.Fatalf("activateForStarvation() error = %v", err)
+		}
+		if got, want := sessions.createCount(), 1; got != want {
+			t.Fatalf("create count = %d, want %d", got, want)
+		}
+		call := sessions.createCall(0)
+		if got, want := call.AgentName, "frontend-engineer-agent"; got != want {
+			t.Fatalf("CreateOpts.AgentName = %q, want %q", got, want)
+		}
+		if got, want := call.Workspace, taskRecord.WorkspaceID; got != want {
+			t.Fatalf("CreateOpts.Workspace = %q, want run workspace %q", got, want)
+		}
+		if got, want := call.Type, session.SessionTypeSystem; got != want {
+			t.Fatalf("CreateOpts.Type = %q, want %q", got, want)
+		}
+		if call.Lineage == nil {
+			t.Fatal("CreateOpts.Lineage = nil, want TTL + spawn budget")
+		}
+		if call.Lineage.ParentSessionID != "" {
+			t.Fatalf(
+				"CreateOpts.Lineage.ParentSessionID = %q, want empty (parent-less worker)",
+				call.Lineage.ParentSessionID,
+			)
+		}
+		if call.Lineage.TTLExpiresAt == nil || !call.Lineage.TTLExpiresAt.After(taskRoleRuntimeClock) {
+			t.Fatalf("CreateOpts.Lineage.TTLExpiresAt = %v, want a future deadline", call.Lineage.TTLExpiresAt)
+		}
+		if call.Lineage.SpawnBudget.TTLSeconds <= 0 || call.Lineage.SpawnBudget.MaxChildren <= 0 {
+			t.Fatalf("CreateOpts.Lineage.SpawnBudget = %#v, want positive ttl + children", call.Lineage.SpawnBudget)
+		}
+	})
+
+	t.Run(
+		"Should prefer a capability-matched agent over the pool owner when the run requires capabilities",
+		func(t *testing.T) {
+			t.Parallel()
+
+			taskRecord := taskRoleRuntimeTask("task-cap-owner", "frontend-engineer-agent", "design-review")
+			run := taskRoleRuntimeRun("run-cap-owner", taskRecord.ID, "design-review")
+			run.RequiredCapabilities = []string{"sqlite"}
+			store := newTaskRoleRuntimeStore(taskRecord, run)
+			sessions := &taskRoleRuntimeSessions{}
+			runtime := newTaskRoleRuntimeForTest(t, store, sessions)
+			spawner := starvationSpawner{
+				workspaces: &fakeSpawnWorkspaceResolver{
+					resolved: workspacepkg.ResolvedWorkspace{Agents: []aghconfig.AgentDef{
+						spawnAgentDef("frontend-engineer-agent", "typescript"),
+						spawnAgentDef("storage-agent", "sqlite"),
+					}},
+				},
+				agents: reviewRouterAgentResolverStub{
+					"frontend-engineer-agent": spawnAgentDef("frontend-engineer-agent", "typescript"),
+					"storage-agent":           spawnAgentDef("storage-agent", "sqlite"),
+				},
+			}
+
+			if err := runtime.activateForStarvation(context.Background(), taskRecord, run, spawner); err != nil {
+				t.Fatalf("activateForStarvation() error = %v", err)
+			}
+			if got, want := sessions.createCount(), 1; got != want {
+				t.Fatalf("create count = %d, want %d", got, want)
+			}
+			if got, want := sessions.createCall(0).AgentName, "storage-agent"; got != want {
+				t.Fatalf("CreateOpts.AgentName = %q, want capability-matched %q", got, want)
+			}
+		},
+	)
+
+	t.Run(
+		"Should spawn an eligible workspace agent when the run has no required capabilities or owner",
+		func(t *testing.T) {
+			t.Parallel()
+
+			taskRecord := taskRoleRuntimeTask("task-no-cap-owner", "", "design-review")
+			taskRecord.Owner = nil
+			run := taskRoleRuntimeRun("run-no-cap-owner", taskRecord.ID, "design-review")
+			store := newTaskRoleRuntimeStore(taskRecord, run)
+			sessions := &taskRoleRuntimeSessions{}
+			runtime := newTaskRoleRuntimeForTest(t, store, sessions)
+			spawner := starvationSpawner{
+				workspaces: &fakeSpawnWorkspaceResolver{
+					resolved: workspacepkg.ResolvedWorkspace{Agents: []aghconfig.AgentDef{
+						spawnAgentDef("zeta-agent"),
+						spawnAgentDef("alpha-agent"),
+					}},
+				},
+				agents: reviewRouterAgentResolverStub{
+					"zeta-agent":  spawnAgentDef("zeta-agent"),
+					"alpha-agent": spawnAgentDef("alpha-agent"),
+				},
+			}
+
+			if err := runtime.activateForStarvation(context.Background(), taskRecord, run, spawner); err != nil {
+				t.Fatalf("activateForStarvation() error = %v", err)
+			}
+			if got, want := sessions.createCount(), 1; got != want {
+				t.Fatalf("create count = %d, want %d", got, want)
+			}
+			if got, want := sessions.createCall(0).AgentName, "alpha-agent"; got != want {
+				t.Fatalf("CreateOpts.AgentName = %q, want eligible workspace agent %q", got, want)
+			}
+		},
+	)
+
+	t.Run("Should skip spawning when no agent covers the required capabilities", func(t *testing.T) {
+		t.Parallel()
+
+		taskRecord := taskRoleRuntimeTask("task-cap", "", "design-review")
+		taskRecord.Owner = nil
+		run := taskRoleRuntimeRun("run-cap", taskRecord.ID, "design-review")
+		run.RequiredCapabilities = []string{"go"}
+		store := newTaskRoleRuntimeStore(taskRecord, run)
+		sessions := &taskRoleRuntimeSessions{}
+		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
+		spawner := starvationSpawner{
+			workspaces: &fakeSpawnWorkspaceResolver{
+				resolved: workspacepkg.ResolvedWorkspace{
+					Agents: []aghconfig.AgentDef{spawnAgentDef("docs-agent", "docs")},
+				},
+			},
+			agents: reviewRouterAgentResolverStub{"docs-agent": spawnAgentDef("docs-agent", "docs")},
+		}
+
+		err := runtime.activateForStarvation(context.Background(), taskRecord, run, spawner)
+		if !errors.Is(err, errStarvationSpawnUnresolvable) {
+			t.Fatalf("activateForStarvation() error = %v, want errStarvationSpawnUnresolvable", err)
+		}
+		if got := sessions.createCount(); got != 0 {
+			t.Fatalf("create count = %d, want 0 (no capable agent)", got)
+		}
+	})
+
+	t.Run("Should reuse an already-active role session instead of spawning a duplicate", func(t *testing.T) {
+		t.Parallel()
+
+		taskRecord := taskRoleRuntimeTask("task-dup", "frontend-engineer-agent", "design-review")
+		run := taskRoleRuntimeRun("run-dup", taskRecord.ID, "design-review")
+		store := newTaskRoleRuntimeStore(taskRecord, run)
+		sessions := &taskRoleRuntimeSessions{}
+		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
+
+		if err := runtime.activateForStarvation(
+			context.Background(),
+			taskRecord,
+			run,
+			starvationSpawner{},
+		); err != nil {
+			t.Fatalf("first activateForStarvation() error = %v", err)
+		}
+		if err := runtime.activateForStarvation(
+			context.Background(),
+			taskRecord,
+			run,
+			starvationSpawner{},
+		); err != nil {
+			t.Fatalf("second activateForStarvation() error = %v", err)
+		}
+		if got, want := sessions.createCount(), 1; got != want {
+			t.Fatalf("create count = %d, want %d (dedup is the per-role cap)", got, want)
+		}
+	})
+}
+
+func TestEscalationActorAdapterRequestWorkerSpawn(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should retry later instead of coalescing when task roles are not booted", func(t *testing.T) {
+		t.Parallel()
+
+		adapter := escalationActorAdapter{tasks: &taskRuntime{}}
+		err := adapter.RequestWorkerSpawn(context.Background(), &schedulerpkg.RunSnapshot{})
+		if !errors.Is(err, schedulerpkg.ErrSpawnUnresolvable) {
+			t.Fatalf("RequestWorkerSpawn() error = %v, want %v", err, schedulerpkg.ErrSpawnUnresolvable)
+		}
+	})
+}
+
 func newTaskRoleRuntimeForTest(
 	t *testing.T,
 	store *taskRoleRuntimeStore,
@@ -113,7 +314,13 @@ func newTaskRoleRuntimeForTest(
 ) *taskRoleRuntime {
 	t.Helper()
 
-	runtime, err := newTaskRoleRuntime(store, sessions, t.TempDir(), discardLogger())
+	runtime, err := newTaskRoleRuntime(
+		store,
+		sessions,
+		t.TempDir(),
+		discardLogger(),
+		func() time.Time { return taskRoleRuntimeClock },
+	)
 	if err != nil {
 		t.Fatalf("newTaskRoleRuntime() error = %v", err)
 	}

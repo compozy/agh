@@ -91,6 +91,11 @@ test("operator can create a provider/model override session and attach without l
   await appPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
   await useGlobalWorkspaceIfPrompted(ui);
   await expect(ui.appSidebar).toBeVisible();
+  await appPage.getByTestId(`workspace-avatar-${workspace.id}`).click();
+  await expect(appPage.getByTestId(`workspace-avatar-${workspace.id}`)).toHaveAttribute(
+    "data-active",
+    "true"
+  );
   await expect(ui.agentRow(browserLifecycleAgent)).toBeVisible();
 
   await ui.agentRow(browserLifecycleAgent).click();

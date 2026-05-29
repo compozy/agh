@@ -232,6 +232,7 @@ func newTaskCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newTaskFailCommand(deps))
 	cmd.AddCommand(newTaskReleaseCommand(deps))
 	cmd.AddCommand(newTaskRetryCommand(deps))
+	cmd.AddCommand(newTaskRecoverCommand(deps))
 	cmd.AddCommand(newTaskPauseCommand(deps))
 	cmd.AddCommand(newTaskResumeCommand(deps))
 	cmd.AddCommand(newTaskChildCommand(deps))
@@ -1636,6 +1637,46 @@ func newTaskRetryCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional retry metadata JSON")
+	return cmd
+}
+
+func newTaskRecoverCommand(deps commandDeps) *cobra.Command {
+	var (
+		reason      string
+		metadataRaw string
+	)
+
+	cmd := &cobra.Command{
+		Use:   "recover <run-id>",
+		Short: "Recover one needs_attention task run",
+		Args:  cobra.ExactArgs(1),
+		Example: `  # Re-enqueue one run stuck in needs_attention
+  agh task recover run-123 --reason "operator recovery"`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runIDs, err := requiredTaskRunIDs(args)
+			if err != nil {
+				return err
+			}
+			request := RecoverTaskRunRequest{Reason: strings.TrimSpace(reason)}
+			if cmd.Flags().Changed("metadata") {
+				request.Metadata, err = parseAgentTaskJSONFlag("metadata", metadataRaw)
+				if err != nil {
+					return err
+				}
+			}
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			record, err := client.RecoverTaskRun(cmd.Context(), runIDs[0], request)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, recoverTaskRunBundle(&record))
+		},
+	}
+	cmd.Flags().StringVar(&reason, "reason", "", "Optional recovery reason recorded in the audit event")
+	cmd.Flags().StringVar(&metadataRaw, "metadata", "", "Optional recovery metadata JSON")
 	return cmd
 }
 
@@ -3503,6 +3544,39 @@ func retryTaskRunBundle(record *RetryTaskRunRecord) outputBundle {
 			return renderToonObject("task_run_retry", []string{
 				"source_run_id",
 				"source_status",
+				"new_run_id",
+				taskTaskIDKey,
+				taskStatusKey,
+				taskAttemptKey,
+			}, []string{
+				record.PreviousRun.ID,
+				string(record.PreviousRun.Status),
+				record.Run.ID,
+				record.Run.TaskID,
+				string(record.Run.Status),
+				strconv.Itoa(record.Run.Attempt),
+			}), nil
+		},
+	}
+}
+
+func recoverTaskRunBundle(record *RetryTaskRunRecord) outputBundle {
+	return outputBundle{
+		jsonValue: record,
+		human: func() (string, error) {
+			return renderHumanSection("Task Run Recovery", []keyValue{
+				{Label: "Recovered Run", Value: stringOrDash(record.PreviousRun.ID)},
+				{Label: "Recovered Status", Value: stringOrDash(string(record.PreviousRun.Status))},
+				{Label: "New Run", Value: stringOrDash(record.Run.ID)},
+				{Label: taskTaskValue, Value: stringOrDash(record.Run.TaskID)},
+				{Label: taskStatusValue, Value: stringOrDash(string(record.Run.Status))},
+				{Label: taskAttemptValue, Value: intOrDash(record.Run.Attempt)},
+			}), nil
+		},
+		toon: func() (string, error) {
+			return renderToonObject("task_run_recovery", []string{
+				"recovered_run_id",
+				"recovered_status",
 				"new_run_id",
 				taskTaskIDKey,
 				taskStatusKey,

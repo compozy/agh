@@ -142,11 +142,10 @@ export function taskPriorityTone(_priority?: TaskPriority | null): PillTone {
 }
 
 /**
- * Maps a backend run status to its `PillTone` via `RUN_STATUS_TONE`
- *. The wire enum carries seven values (queued / claimed /
- * starting / running / completed / failed / canceled); `toRunCardStatus`
- * collapses them to the five-value frontend run-card enum, which is the key
- * shape of `RUN_STATUS_TONE`.
+ * Maps a backend run status to its `PillTone` via `RUN_STATUS_TONE`. The wire enum carries eight
+ * values (queued / claimed / starting / running / needs_attention / completed / failed / canceled);
+ * `toRunCardStatus` collapses them to the frontend run-card enum, which is the key shape of
+ * `RUN_STATUS_TONE`.
  */
 export function taskRunStatusTone(status?: TaskRunStatus | null): PillTone {
   if (!status) return "neutral";
@@ -161,6 +160,7 @@ const TASK_RUN_STATUS_LABELS: Record<TaskRunStatus, string> = {
   completed: "Completed",
   failed: "Failed",
   canceled: "Canceled",
+  needs_attention: "Needs Attention",
 };
 
 export function taskRunStatusLabel(status?: TaskRunStatus | null): string {
@@ -171,10 +171,9 @@ export function taskRunStatusLabel(status?: TaskRunStatus | null): string {
 }
 
 /**
- * Maps the wire `TaskRunStatus` enum (queued/claimed/starting/running/completed/
- * failed/canceled) to the `<RunCard>` `RunCardStatus` enum
- * (pending/in_progress/completed/failed/canceled) active-run
- * anatomy.
+ * Maps the wire `TaskRunStatus` enum (queued/claimed/starting/running/needs_attention/completed/
+ * failed/canceled) to the `<RunCard>` `RunCardStatus` enum. `needs_attention` keeps its own lane so
+ * the run-status chip carries the warning signal tone.
  */
 export function toRunCardStatus(status: TaskRunStatus): RunCardStatus {
   switch (status) {
@@ -184,6 +183,8 @@ export function toRunCardStatus(status: TaskRunStatus): RunCardStatus {
     case "starting":
     case "running":
       return "in_progress";
+    case "needs_attention":
+      return "needs_attention";
     case "completed":
       return "completed";
     case "failed":

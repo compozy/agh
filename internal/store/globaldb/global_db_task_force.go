@@ -19,6 +19,7 @@ type retryTaskRunArgs struct {
 	origin      taskpkg.Origin
 	metadata    json.RawMessage
 	queuedAt    time.Time
+	reason      string
 }
 
 // ForceReleaseTaskRun requeues one claimed run with snapshot fencing.
@@ -278,6 +279,148 @@ func (g *GlobalDB) insertRetryTaskRun(
 		return taskpkg.RetryRunResult{}, err
 	}
 	return taskpkg.RetryRunResult{PreviousRun: source, Run: normalizedRun}, nil
+}
+
+// RecoverTaskRun terminalizes a needs_attention run as failed and queues one fresh child in
+// the same transaction, so the source leaves the open-run set before the requeue reservation.
+func (g *GlobalDB) RecoverTaskRun(
+	ctx context.Context,
+	mutation taskpkg.RecoverRunMutation,
+) (taskpkg.RetryRunResult, error) {
+	if err := g.checkReady(ctx, "recover task run"); err != nil {
+		return taskpkg.RetryRunResult{}, err
+	}
+	args, err := normalizeRecoverTaskRunArgs(mutation, g.now)
+	if err != nil {
+		return taskpkg.RetryRunResult{}, err
+	}
+
+	var result taskpkg.RetryRunResult
+	if err := g.withTaskImmediateTransaction(ctx, "recover task run", func(exec taskSQLExecutor) error {
+		created, err := g.recoverTaskRunWithExecutor(ctx, exec, args)
+		if err == nil {
+			result = created
+		}
+		return err
+	}); err != nil {
+		return taskpkg.RetryRunResult{}, err
+	}
+	return result, nil
+}
+
+func normalizeRecoverTaskRunArgs(
+	mutation taskpkg.RecoverRunMutation,
+	now func() time.Time,
+) (retryTaskRunArgs, error) {
+	sourceRunID, err := requireTaskValue(mutation.SourceRunID, "source task run id")
+	if err != nil {
+		return retryTaskRunArgs{}, err
+	}
+	newRunID, err := requireTaskValue(mutation.NewRunID, "new task run id")
+	if err != nil {
+		return retryTaskRunArgs{}, err
+	}
+	origin := taskpkg.Origin{Kind: mutation.Origin.Kind.Normalize(), Ref: strings.TrimSpace(mutation.Origin.Ref)}
+	if err := origin.Validate("recover_run.origin"); err != nil {
+		return retryTaskRunArgs{}, err
+	}
+	metadata := normalizeTaskJSON(mutation.Metadata)
+	if err := taskpkg.ValidateMetadataSize(metadata, "recover_run.metadata"); err != nil {
+		return retryTaskRunArgs{}, err
+	}
+	return retryTaskRunArgs{
+		sourceRunID: sourceRunID,
+		newRunID:    newRunID,
+		origin:      origin,
+		metadata:    metadata,
+		queuedAt:    normalizedForceRunTime(mutation.QueuedAt, now),
+		reason:      strings.TrimSpace(mutation.Reason),
+	}, nil
+}
+
+func (g *GlobalDB) recoverTaskRunWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	args retryTaskRunArgs,
+) (taskpkg.RetryRunResult, error) {
+	source, err := g.getTaskRunWithExecutor(ctx, exec, args.sourceRunID)
+	if err != nil {
+		return taskpkg.RetryRunResult{}, err
+	}
+	if source.Status.Normalize() != taskpkg.TaskRunStatusNeedsAttention {
+		return taskpkg.RetryRunResult{}, fmt.Errorf(
+			"%w: task run %q is %s; only needs_attention runs can be recovered",
+			taskpkg.ErrInvalidStatusTransition,
+			source.ID,
+			source.Status.Normalize(),
+		)
+	}
+	if err := requireRetryDepthWithExecutor(ctx, exec, source); err != nil {
+		return taskpkg.RetryRunResult{}, err
+	}
+	if err := requireNoRetryChildWithExecutor(ctx, exec, source.ID); err != nil {
+		return taskpkg.RetryRunResult{}, err
+	}
+	failed := forceFailedTaskRun(source, args.reason, args.queuedAt)
+	if err := updateTaskRunRecordWithSnapshotCAS(ctx, exec, source, failed); err != nil {
+		return taskpkg.RetryRunResult{}, err
+	}
+	taskRecord, err := g.retryTaskRunTask(ctx, exec, failed.TaskID)
+	if err != nil {
+		return taskpkg.RetryRunResult{}, err
+	}
+	nextAttempt, err := nextTaskRunAttemptWithExecutor(ctx, exec, taskRecord)
+	if err != nil {
+		return taskpkg.RetryRunResult{}, err
+	}
+	return g.insertRetryTaskRun(ctx, exec, args, failed, taskRecord, nextAttempt)
+}
+
+// MarkTaskRunNeedsAttention transitions one queued run to needs_attention via a status CAS.
+func (g *GlobalDB) MarkTaskRunNeedsAttention(
+	ctx context.Context,
+	runID string,
+	diagnostic string,
+) (taskpkg.Run, error) {
+	if err := g.checkReady(ctx, "mark task run needs attention"); err != nil {
+		return taskpkg.Run{}, err
+	}
+	id, err := requireTaskValue(runID, "task run id")
+	if err != nil {
+		return taskpkg.Run{}, err
+	}
+	var run taskpkg.Run
+	if err := g.withTaskImmediateTransaction(
+		ctx,
+		"mark task run needs attention",
+		func(exec taskSQLExecutor) error {
+			result, err := exec.ExecContext(
+				ctx,
+				`UPDATE task_runs SET status = 'needs_attention', error = ? WHERE id = ? AND status = 'queued'`,
+				strings.TrimSpace(diagnostic),
+				id,
+			)
+			if err != nil {
+				return fmt.Errorf("store: mark task run needs attention: %w", err)
+			}
+			affected, err := result.RowsAffected()
+			if err != nil {
+				return fmt.Errorf("store: mark task run needs attention rows: %w", err)
+			}
+			if affected == 0 {
+				return fmt.Errorf("%w: task run %q is not queued", taskpkg.ErrInvalidStatusTransition, id)
+			}
+			updated, err := g.getTaskRunWithExecutor(ctx, exec, id)
+			if err != nil {
+				return err
+			}
+			run = updated
+			return nil
+		},
+	); err != nil {
+		return taskpkg.Run{}, err
+	}
+	return run, nil
 }
 
 func forceReleasedTaskRun(previous taskpkg.Run) taskpkg.Run {

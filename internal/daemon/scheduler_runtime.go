@@ -15,8 +15,13 @@ import (
 	schedulerpkg "github.com/compozy/agh/internal/scheduler"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/situation"
+	"github.com/compozy/agh/internal/store/globaldb"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
+
+// The production global store MUST satisfy the scheduler's StarvationStore so the convergence
+// backstop is statically wired, never silently disabled by a failed runtime type assertion.
+var _ schedulerpkg.StarvationStore = (*globaldb.GlobalDB)(nil)
 
 const (
 	schedulerRuntimeTaskKey = "task"
@@ -83,13 +88,18 @@ func (d *Daemon) bootScheduler(ctx context.Context, state *bootState, cleanup *b
 	if err := waker.configureHeartbeatWake(state.registry, state.sessions, state.cfg.Agents.Heartbeat); err != nil {
 		return err
 	}
+	spawner := starvationSpawner{
+		workspaces: state.workspaceResolver,
+		agents:     agentCatalogDependency(state.agentCatalog),
+	}
 	runtime, err := newSchedulerRuntime(
 		ctx,
-		state.tasks.manager,
-		state.tasks.store,
+		state.tasks,
 		state.sessions,
 		state.situationContext,
 		waker,
+		spawner,
+		starvationThresholdsFromConfig(state.cfg.Autonomy.Scheduler),
 		logger,
 	)
 	if err != nil {
@@ -151,21 +161,19 @@ func logSchedulerPauseState(ctx context.Context, store taskStore, logger *slog.L
 
 func newSchedulerRuntime(
 	ctx context.Context,
-	manager *taskpkg.Service,
-	store taskStore,
+	tasks *taskRuntime,
 	sessions SessionManager,
 	situation *situation.Service,
 	waker *schedulerSessionWaker,
+	spawner starvationSpawner,
+	thresholds schedulerpkg.StarvationThresholds,
 	logger *slog.Logger,
 ) (*schedulerRuntime, error) {
 	if ctx == nil {
 		return nil, errors.New("daemon: scheduler context is required")
 	}
-	if manager == nil {
-		return nil, errors.New("daemon: scheduler task manager is required")
-	}
-	if store == nil {
-		return nil, errors.New("daemon: scheduler task store is required")
+	if tasks == nil || tasks.manager == nil || tasks.store == nil {
+		return nil, errors.New("daemon: scheduler task runtime is required")
 	}
 	if sessions == nil {
 		return nil, errors.New("daemon: scheduler session manager is required")
@@ -176,9 +184,19 @@ func newSchedulerRuntime(
 	if logger == nil {
 		logger = slog.Default()
 	}
+	manager := tasks.manager
+	store := tasks.store
 	var pauseStore schedulerpkg.PauseStore
 	if candidate, ok := store.(schedulerpkg.PauseStore); ok {
 		pauseStore = candidate
+	}
+	var starvationStore schedulerpkg.StarvationStore
+	if candidate, ok := store.(schedulerpkg.StarvationStore); ok {
+		starvationStore = candidate
+	}
+	escalationActor, err := taskpkg.DeriveDaemonActorContext("scheduler", "daemon.scheduler")
+	if err != nil {
+		return nil, fmt.Errorf("daemon: derive scheduler escalation actor: %w", err)
 	}
 
 	scheduler, err := schedulerpkg.New(
@@ -191,11 +209,73 @@ func newSchedulerRuntime(
 		schedulerpkg.WithWakeReason(mechanicalSchedulerWakeReason),
 		schedulerpkg.WithSweepLimit(defaultMechanicalSchedulerSweepLimit),
 		schedulerpkg.WithPauseStore(pauseStore),
+		schedulerpkg.WithStarvationAge(thresholds.MinQueuedAge),
+		schedulerpkg.WithStarvationThresholds(thresholds),
+		schedulerpkg.WithStarvationStore(starvationStore),
+		schedulerpkg.WithEscalationActor(escalationActorAdapter{
+			manager: manager,
+			actor:   escalationActor,
+			tasks:   tasks,
+			spawner: spawner,
+		}),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create scheduler: %w", err)
 	}
 	return &schedulerRuntime{scheduler: scheduler, waker: waker}, nil
+}
+
+func starvationThresholdsFromConfig(cfg aghconfig.SchedulerConfig) schedulerpkg.StarvationThresholds {
+	return schedulerpkg.StarvationThresholds{
+		FanOutAfter:         cfg.FanOutAfter,
+		SpawnAfter:          cfg.SpawnAfter,
+		EventAfter:          cfg.EventAfter,
+		NeedsAttentionAfter: cfg.NeedsAttentionAfter,
+		MinQueuedAge:        cfg.MinQueuedAge,
+	}
+}
+
+// escalationActorAdapter bridges the scheduler's escalation seam to the task service. It
+// never claims work: it records observability events, marks needs_attention, and (in a
+// later increment) requests a capability-matched worker spawn that self-claims.
+type escalationActorAdapter struct {
+	manager *taskpkg.Service
+	actor   taskpkg.ActorContext
+	tasks   *taskRuntime
+	spawner starvationSpawner
+}
+
+func (a escalationActorAdapter) EmitRunStarved(
+	ctx context.Context,
+	work *schedulerpkg.RunSnapshot,
+	age time.Duration,
+) error {
+	return a.manager.RecordRunStarved(ctx, work.Run.ID, work.Run.QueuedAt, age, a.actor)
+}
+
+func (a escalationActorAdapter) RequestWorkerSpawn(ctx context.Context, work *schedulerpkg.RunSnapshot) error {
+	// roles is populated after bootScheduler (bootTaskRoles); convergence runs long after boot, so a
+	// momentary nil here only means "spawn not requested this cycle" — the budget retries next cycle.
+	if a.tasks == nil {
+		return schedulerpkg.ErrSpawnUnresolvable
+	}
+	roles := a.tasks.roles.Load()
+	if roles == nil {
+		return schedulerpkg.ErrSpawnUnresolvable
+	}
+	err := roles.activateForStarvation(ctx, work.Task, work.Run, a.spawner)
+	if errors.Is(err, errStarvationSpawnUnresolvable) {
+		return schedulerpkg.ErrSpawnUnresolvable
+	}
+	return err
+}
+
+func (a escalationActorAdapter) MarkRunNeedsAttention(
+	ctx context.Context,
+	runID string,
+	diagnostic string,
+) (taskpkg.Run, error) {
+	return a.manager.MarkRunNeedsAttention(ctx, runID, diagnostic, a.actor)
 }
 
 func (r *schedulerRuntime) shutdown(ctx context.Context) error {
@@ -242,6 +322,20 @@ func (s schedulerTaskSource) RecoverExpiredRunLeases(
 	actor taskpkg.ActorContext,
 ) ([]taskpkg.ExpiredLeaseRecoveryResult, error) {
 	return s.manager.RecoverExpiredRunLeases(ctx, recovery, actor)
+}
+
+func (s schedulerTaskSource) GetRunStatus(
+	ctx context.Context,
+	runID string,
+) (taskpkg.RunStatus, bool, error) {
+	run, err := s.store.GetTaskRun(ctx, strings.TrimSpace(runID))
+	if err != nil {
+		if errors.Is(err, taskpkg.ErrTaskRunNotFound) {
+			return "", false, nil
+		}
+		return "", false, fmt.Errorf("daemon: scheduler read run status %q: %w", runID, err)
+	}
+	return run.Status, true, nil
 }
 
 func (s schedulerTaskSource) joinRunsWithTasks(

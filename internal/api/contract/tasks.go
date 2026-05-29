@@ -752,6 +752,12 @@ type RetryTaskRunRequest struct {
 	Metadata json.RawMessage `json:"metadata,omitempty"`
 }
 
+// RecoverTaskRunRequest is the shared recovery request payload for a needs_attention run.
+type RecoverTaskRunRequest struct {
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
 // PauseTaskRequest captures one per-task pause request.
 type PauseTaskRequest struct {
 	Reason   string          `json:"reason"`

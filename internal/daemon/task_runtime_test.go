@@ -988,6 +988,93 @@ func TestBootTasksBuildsRuntimeWhenDependenciesAreAvailable(t *testing.T) {
 	}
 }
 
+func TestBootTasksWiresSchedulerStarvationAgeToTaskManager(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	db := openDaemonTestGlobalDB(t)
+	homePaths := testHomePaths(t)
+	resolver, err := workspacepkg.NewResolver(
+		db,
+		workspacepkg.WithHomePaths(homePaths),
+		workspacepkg.WithLogger(discardLogger()),
+		workspacepkg.WithConfigLoader(func(rootDir string) (aghconfig.Config, error) {
+			return aghconfig.LoadForHome(homePaths, aghconfig.WithWorkspaceRoot(rootDir))
+		}),
+	)
+	if err != nil {
+		t.Fatalf("workspace.NewResolver() error = %v", err)
+	}
+
+	cfg := aghconfig.DefaultWithHome(homePaths)
+	cfg.Autonomy.Scheduler.MinQueuedAge = time.Hour
+	daemon := &Daemon{homePaths: homePaths}
+	state := &bootState{
+		cfg:      cfg,
+		logger:   discardLogger(),
+		registry: db,
+		sessions: &fakeSessionManager{},
+		harnessResolver: NewHarnessContextResolver(HarnessRuntimeSignals{
+			MemoryPromptSectionEnabled: true,
+			SkillsPromptSectionEnabled: true,
+			SyntheticTurnsEnabled:      true,
+			DetachedTaskRuntimeEnabled: true,
+		}),
+		workspaceResolver: resolver,
+	}
+
+	if err := daemon.bootTasks(ctx, state); err != nil {
+		t.Fatalf("bootTasks() error = %v", err)
+	}
+	if state.tasks == nil || state.tasks.manager == nil {
+		t.Fatal("bootTasks() did not install a task manager")
+	}
+	t.Cleanup(state.tasks.shutdown)
+
+	actor, err := taskpkg.DeriveDaemonActorContext("scheduler-status-test", "daemon.test")
+	if err != nil {
+		t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+	}
+	taskRecord, err := state.tasks.manager.CreateTask(ctx, taskpkg.CreateTask{
+		Scope: taskpkg.ScopeGlobal,
+		Title: "Verify scheduler status threshold wiring",
+	}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	runRecord, err := state.tasks.manager.EnqueueRun(ctx, taskpkg.EnqueueRun{
+		TaskID:         taskRecord.ID,
+		IdempotencyKey: "scheduler-status-threshold",
+	}, actor)
+	if err != nil {
+		t.Fatalf("EnqueueRun() error = %v", err)
+	}
+
+	runRecord.QueuedAt = time.Now().Add(-30 * time.Minute).UTC()
+	if err := state.tasks.store.UpdateTaskRun(ctx, *runRecord); err != nil {
+		t.Fatalf("UpdateTaskRun(30m old) error = %v", err)
+	}
+	status, err := state.tasks.manager.SchedulerStatus(ctx, actor)
+	if err != nil {
+		t.Fatalf("SchedulerStatus(30m old) error = %v", err)
+	}
+	if status.StarvedRunCount != 0 {
+		t.Fatalf("StarvedRunCount for 30m old run = %d, want 0 with 1h min_queued_age", status.StarvedRunCount)
+	}
+
+	runRecord.QueuedAt = time.Now().Add(-2 * time.Hour).UTC()
+	if err := state.tasks.store.UpdateTaskRun(ctx, *runRecord); err != nil {
+		t.Fatalf("UpdateTaskRun(2h old) error = %v", err)
+	}
+	status, err = state.tasks.manager.SchedulerStatus(ctx, actor)
+	if err != nil {
+		t.Fatalf("SchedulerStatus(2h old) error = %v", err)
+	}
+	if status.StarvedRunCount != 1 {
+		t.Fatalf("StarvedRunCount for 2h old run = %d, want 1 with 1h min_queued_age", status.StarvedRunCount)
+	}
+}
+
 func TestBootHarnessReentryBridgeSkipsUnsupportedRegistryWithoutFailing(t *testing.T) {
 	t.Parallel()
 

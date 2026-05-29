@@ -574,6 +574,21 @@ func expectedGlobalMigrationPrefix() []expectedGlobalMigrationIdentity {
 			name:     "add_app_metadata",
 			checksum: "2026-05-25-add-app-metadata",
 		},
+		{
+			version:  38,
+			name:     "heal_scheduler_pause_updated_at",
+			checksum: "2026-05-28-heal-scheduler-pause-updated-at",
+		},
+		{
+			version:  39,
+			name:     "drop_task_run_status_check",
+			checksum: "2026-05-28-drop-task-run-status-check",
+		},
+		{
+			version:  40,
+			name:     "add_task_run_starvation_tracking",
+			checksum: "2026-05-28-add-task-run-starvation-tracking",
+		},
 	}
 }
 
@@ -650,6 +665,235 @@ func assertAppliedGlobalMigrationPrefix(t *testing.T, records []store.MigrationR
 				expected.checksum,
 			)
 		}
+	}
+}
+
+func TestOpenGlobalDBHealsSchedulerPauseUpdatedAt(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should heal the non-canonical updated_at left by the v29 seed", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		db, err := store.OpenSQLiteDatabase(ctx, path, nil)
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase() error = %v", err)
+		}
+		healIdx := -1
+		for index := range globalSchemaMigrations {
+			if globalSchemaMigrations[index].Name == migrationNameHealSchedulerPause {
+				healIdx = index
+				break
+			}
+		}
+		if healIdx < 0 {
+			t.Fatal("heal_scheduler_pause_updated_at migration not found in registry")
+		}
+		preHeal := globalSchemaMigrations[:healIdx]
+		if err := store.RunMigrations(ctx, db, preHeal); err != nil {
+			t.Fatalf("RunMigrations(pre-heal) error = %v", err)
+		}
+		var seeded string
+		if err := db.QueryRowContext(
+			ctx,
+			`SELECT updated_at FROM scheduler_pause WHERE id = 1`,
+		).Scan(&seeded); err != nil {
+			t.Fatalf("select seeded updated_at error = %v", err)
+		}
+		if _, parseErr := store.ParseTimestamp(seeded); parseErr == nil {
+			t.Fatalf("expected non-canonical seed updated_at, got parseable %q", seeded)
+		}
+		if err := db.Close(); err != nil {
+			t.Fatalf("pre-heal db.Close() error = %v", err)
+		}
+
+		globalDB, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(upgrade) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("Close() error = %v", closeErr)
+			}
+		})
+
+		var healed string
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT updated_at FROM scheduler_pause WHERE id = 1`,
+		).Scan(&healed); err != nil {
+			t.Fatalf("select healed updated_at error = %v", err)
+		}
+		if _, parseErr := store.ParseTimestamp(healed); parseErr != nil {
+			t.Fatalf("healed updated_at %q is not canonical: %v", healed, parseErr)
+		}
+		if _, err := globalDB.GetSchedulerPause(ctx); err != nil {
+			t.Fatalf("GetSchedulerPause() after heal error = %v", err)
+		}
+	})
+
+	t.Run("Should heal idempotently and match FormatTimestamp", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE scheduler_pause SET updated_at = '2026-05-28 15:50:25' WHERE id = 1`,
+		); err != nil {
+			t.Fatalf("seed non-canonical updated_at error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, healSchedulerPauseUpdatedAtSQL); err != nil {
+			t.Fatalf("first heal error = %v", err)
+		}
+		first := schedulerPauseUpdatedAtFromDB(ctx, t, globalDB)
+		if _, err := globalDB.db.ExecContext(ctx, healSchedulerPauseUpdatedAtSQL); err != nil {
+			t.Fatalf("second heal error = %v", err)
+		}
+		second := schedulerPauseUpdatedAtFromDB(ctx, t, globalDB)
+		if first != second {
+			t.Fatalf("heal is not idempotent: first %q, second %q", first, second)
+		}
+		if want := "2026-05-28T15:50:25.000000000Z"; second != want {
+			t.Fatalf("healed updated_at = %q, want %q", second, want)
+		}
+		if _, parseErr := store.ParseTimestamp(second); parseErr != nil {
+			t.Fatalf("healed updated_at %q is not canonical: %v", second, parseErr)
+		}
+	})
+}
+
+func schedulerPauseUpdatedAtFromDB(ctx context.Context, t *testing.T, globalDB *GlobalDB) string {
+	t.Helper()
+	var value string
+	if err := globalDB.db.QueryRowContext(
+		ctx,
+		`SELECT updated_at FROM scheduler_pause WHERE id = 1`,
+	).Scan(&value); err != nil {
+		t.Fatalf("select scheduler_pause updated_at error = %v", err)
+	}
+	return value
+}
+
+func TestOpenGlobalDBDropsTaskRunStatusCheck(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accept needs_attention status on a freshly bootstrapped DB", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		seedQueuedRunForStatusTest(ctx, t, globalDB, "task-na-fresh", "run-na-fresh")
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE task_runs SET status = 'needs_attention' WHERE id = ?`,
+			"run-na-fresh",
+		); err != nil {
+			t.Fatalf("UPDATE to needs_attention on fresh DB error = %v, want nil (CHECK must be dropped)", err)
+		}
+		assertIndexesPresent(
+			t, globalDB.db, "task_runs",
+			"idx_task_runs_status", "idx_task_runs_pending_claim",
+			"idx_task_runs_coordination_channel", "idx_task_runs_session_status",
+		)
+	})
+
+	t.Run("Should accept needs_attention status on a DB migrated from v38", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		db, err := store.OpenSQLiteDatabase(ctx, path, nil)
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase() error = %v", err)
+		}
+		preV39 := globalSchemaMigrations[:len(globalSchemaMigrations)-1]
+		if err := store.RunMigrations(ctx, db, preV39); err != nil {
+			t.Fatalf("RunMigrations(pre-v39) error = %v", err)
+		}
+		if err := db.Close(); err != nil {
+			t.Fatalf("pre-v39 db.Close() error = %v", err)
+		}
+
+		globalDB, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(upgrade) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := globalDB.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("Close() error = %v", closeErr)
+			}
+		})
+		seedQueuedRunForStatusTest(ctx, t, globalDB, "task-na-mig", "run-na-mig")
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE task_runs SET status = 'needs_attention' WHERE id = ?`,
+			"run-na-mig",
+		); err != nil {
+			t.Fatalf("UPDATE to needs_attention on migrated DB error = %v, want nil (CHECK must be dropped)", err)
+		}
+	})
+
+	t.Run("Should preserve non-status constraints and foreign keys after the rebuild", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		seedQueuedRunForStatusTest(ctx, t, globalDB, "task-na-keep", "run-na-keep")
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE task_runs SET attempt = 0 WHERE id = ?`,
+			"run-na-keep",
+		); err == nil {
+			t.Fatal("UPDATE attempt=0 succeeded, want CHECK(attempt > 0) violation (rebuild must keep it)")
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE task_runs SET session_id = 'sess-x' WHERE id = ?`,
+			"run-na-keep",
+		); err == nil {
+			t.Fatal("UPDATE session_id on a queued run succeeded, want compound CHECK violation (rebuild must keep it)")
+		}
+		var fkCount int
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT count(*) FROM pragma_foreign_key_list('task_runs')`,
+		).Scan(&fkCount); err != nil {
+			t.Fatalf("pragma_foreign_key_list error = %v", err)
+		}
+		if fkCount != 4 {
+			t.Fatalf("task_runs foreign key count = %d, want 4 (rebuild must preserve all FKs)", fkCount)
+		}
+	})
+
+	t.Run("Should keep the rebuilt task_runs columns aligned with the live schema", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		assertTableColumns(t, globalDB.db, "task_runs", taskRunColumnNamesForStatusMigration())
+	})
+}
+
+func taskRunColumnNamesForStatusMigration() []string {
+	parts := strings.Split(taskRunColumns, ",")
+	columns := make([]string, 0, len(parts))
+	for _, part := range parts {
+		columns = append(columns, strings.TrimSpace(part))
+	}
+	return columns
+}
+
+func seedQueuedRunForStatusTest(ctx context.Context, t *testing.T, globalDB *GlobalDB, taskID, runID string) {
+	t.Helper()
+	task := taskRecordForTest(taskID)
+	task.Status = taskpkg.TaskStatusReady
+	if err := globalDB.CreateTask(ctx, task); err != nil {
+		t.Fatalf("CreateTask(%q) error = %v", taskID, err)
+	}
+	run := taskRunForTest(runID, taskID)
+	if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+		t.Fatalf("CreateTaskRun(%q) error = %v", runID, err)
 	}
 }
 
@@ -3457,7 +3701,9 @@ func assertTableColumns(t *testing.T, db *sql.DB, table string, want []string) {
 		t.Fatalf("QueryContext(table_info %q) error = %v", table, err)
 	}
 	defer func() {
-		_ = rows.Close()
+		if closeErr := rows.Close(); closeErr != nil {
+			t.Fatalf("rows.Close(table_info %q) error = %v", table, closeErr)
+		}
 	}()
 
 	got := make([]string, 0)

@@ -85,6 +85,342 @@ func TestRunOnceRecordsNoMatchWithoutWakeMutation(t *testing.T) {
 	}
 }
 
+func TestRunOnceEscalatesStarvedRuns(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should fan out wakes to every eligible session for a starved run", func(t *testing.T) {
+		t.Parallel()
+
+		base := time.Date(2026, 5, 28, 12, 0, 0, 0, time.UTC)
+		work := workSnapshot("task-starved", "run-starved", taskpkg.ScopeWorkspace, "ws-1", []string{"go"}, base)
+		source := &fakeTaskSource{pending: []RunSnapshot{work}}
+		sessions := &fakeSessionSource{sessions: []SessionSnapshot{
+			sessionSnapshot("sess-a", "ws-1", "active", false, []string{"go"}, base.Add(time.Second)),
+			sessionSnapshot("sess-b", "ws-1", "active", false, []string{"go"}, base.Add(2*time.Second)),
+		}}
+		waker := &fakeWaker{}
+		clock := clockwork.NewFakeClockAt(base.Add(3 * time.Minute))
+		scheduler := newTestScheduler(t, source, sessions, waker, WithClock(clock))
+
+		result, err := scheduler.RunOnce(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("RunOnce() error = %v", err)
+		}
+		if result.StarvedRuns != 1 {
+			t.Fatalf("StarvedRuns = %d, want 1 (result %#v)", result.StarvedRuns, result)
+		}
+		if got, want := result.StarvedRunIDs, []string{"run-starved"}; !slices.Equal(got, want) {
+			t.Fatalf("StarvedRunIDs = %v, want %v", got, want)
+		}
+		targets := waker.targetsSnapshot()
+		if got, want := len(targets), 2; got != want {
+			t.Fatalf("wake targets = %d, want %d (fan out to all eligible)", got, want)
+		}
+		woken := make(map[string]struct{}, len(targets))
+		for idx := range targets {
+			if got := targets[idx].Work.Run.ID; got != "run-starved" {
+				t.Fatalf("woken run = %q, want run-starved", got)
+			}
+			woken[targets[idx].Session.ID] = struct{}{}
+		}
+		if _, ok := woken["sess-a"]; !ok {
+			t.Fatalf("sess-a not woken; woken = %v", woken)
+		}
+		if _, ok := woken["sess-b"]; !ok {
+			t.Fatalf("sess-b not woken; woken = %v", woken)
+		}
+	})
+
+	t.Run("Should wake only one session for a freshly queued run", func(t *testing.T) {
+		t.Parallel()
+
+		base := time.Date(2026, 5, 28, 13, 0, 0, 0, time.UTC)
+		work := workSnapshot("task-fresh", "run-fresh", taskpkg.ScopeWorkspace, "ws-1", []string{"go"}, base)
+		source := &fakeTaskSource{pending: []RunSnapshot{work}}
+		sessions := &fakeSessionSource{sessions: []SessionSnapshot{
+			sessionSnapshot("sess-a", "ws-1", "active", false, []string{"go"}, base.Add(time.Second)),
+			sessionSnapshot("sess-b", "ws-1", "active", false, []string{"go"}, base.Add(2*time.Second)),
+		}}
+		waker := &fakeWaker{}
+		scheduler := newTestScheduler(t, source, sessions, waker, WithClock(clockwork.NewFakeClockAt(base)))
+
+		result, err := scheduler.RunOnce(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("RunOnce() error = %v", err)
+		}
+		if result.StarvedRuns != 0 {
+			t.Fatalf("StarvedRuns = %d, want 0", result.StarvedRuns)
+		}
+		if got, want := len(waker.targetsSnapshot()), 1; got != want {
+			t.Fatalf("wake targets = %d, want %d (single pick for a fresh run)", got, want)
+		}
+	})
+
+	t.Run("Should report a starved run that has no eligible session", func(t *testing.T) {
+		t.Parallel()
+
+		base := time.Date(2026, 5, 28, 14, 0, 0, 0, time.UTC)
+		work := workSnapshot("task-none", "run-none", taskpkg.ScopeWorkspace, "ws-1", []string{"go"}, base)
+		source := &fakeTaskSource{pending: []RunSnapshot{work}}
+		sessions := &fakeSessionSource{sessions: []SessionSnapshot{
+			sessionSnapshot("sess-docs", "ws-1", "active", false, []string{"docs"}, base.Add(time.Second)),
+		}}
+		waker := &fakeWaker{}
+		clock := clockwork.NewFakeClockAt(base.Add(5 * time.Minute))
+		scheduler := newTestScheduler(t, source, sessions, waker, WithClock(clock))
+
+		result, err := scheduler.RunOnce(testutil.Context(t))
+		if err != nil {
+			t.Fatalf("RunOnce() error = %v", err)
+		}
+		if result.StarvedRuns != 1 {
+			t.Fatalf("StarvedRuns = %d, want 1", result.StarvedRuns)
+		}
+		if result.NoMatchRuns != 1 {
+			t.Fatalf("NoMatchRuns = %d, want 1 (starved but no eligible session)", result.NoMatchRuns)
+		}
+		if got := len(waker.targetsSnapshot()); got != 0 {
+			t.Fatalf("wake targets = %d, want 0", got)
+		}
+	})
+}
+
+func TestRunConvergenceEscalationLadder(t *testing.T) {
+	t.Parallel()
+
+	const minQueuedAge = 2 * time.Minute
+	ladder := func(fanOut, spawn, event, needsAttention int) StarvationThresholds {
+		return StarvationThresholds{
+			FanOutAfter:         fanOut,
+			SpawnAfter:          spawn,
+			EventAfter:          event,
+			NeedsAttentionAfter: needsAttention,
+			MinQueuedAge:        minQueuedAge,
+		}
+	}
+	build := func(
+		t *testing.T,
+		base time.Time,
+		source *fakeTaskSource,
+		store *fakeStarvationStore,
+		escalator *fakeEscalationActor,
+		thresholds StarvationThresholds,
+	) (*Scheduler, context.Context) {
+		t.Helper()
+		sessions := &fakeSessionSource{}
+		clock := clockwork.NewFakeClockAt(base.Add(3 * minQueuedAge))
+		scheduler := newTestScheduler(
+			t,
+			source,
+			sessions,
+			&fakeWaker{},
+			WithClock(clock),
+			WithEscalationActor(escalator),
+			WithStarvationStore(store),
+			WithStarvationThresholds(thresholds),
+			WithStarvationAge(minQueuedAge),
+		)
+		return scheduler, testutil.Context(t)
+	}
+
+	t.Run("Should climb fan-out, spawn, event, needs_attention and then clear the budget", func(t *testing.T) {
+		t.Parallel()
+		base := time.Date(2026, 5, 28, 15, 0, 0, 0, time.UTC)
+		work := workSnapshot("task-ladder", "run-ladder", taskpkg.ScopeWorkspace, "ws-1", []string{"go"}, base)
+		source := &fakeTaskSource{pending: []RunSnapshot{work}}
+		store := newFakeStarvationStore()
+		escalator := &fakeEscalationActor{}
+		scheduler, ctx := build(t, base, source, store, escalator, ladder(1, 2, 3, 4))
+
+		for cycle := 1; cycle <= 4; cycle++ {
+			if _, err := scheduler.RunOnce(ctx); err != nil {
+				t.Fatalf("RunOnce(cycle %d) error = %v", cycle, err)
+			}
+			switch cycle {
+			case 2:
+				if got := escalator.spawns(); !slices.Equal(got, []string{"run-ladder"}) {
+					t.Fatalf("cycle 2 spawns = %v, want [run-ladder]", got)
+				}
+			case 3:
+				if got := escalator.emitted(); !slices.Equal(got, []string{"run-ladder"}) {
+					t.Fatalf("cycle 3 emits = %v, want [run-ladder]", got)
+				}
+			}
+		}
+		if got := escalator.spawns(); !slices.Equal(got, []string{"run-ladder"}) {
+			t.Fatalf("spawn requested more than once (coalesce failed): %v", got)
+		}
+		if got := escalator.emitted(); !slices.Equal(got, []string{"run-ladder"}) {
+			t.Fatalf("event emitted more than once (set-once failed): %v", got)
+		}
+		if got := escalator.attention(); !slices.Equal(got, []string{"run-ladder"}) {
+			t.Fatalf("needs_attention = %v, want [run-ladder]", got)
+		}
+		if _, ok := store.snapshot("run-ladder"); ok {
+			t.Fatal("starvation budget not cleared after needs_attention")
+		}
+	})
+
+	t.Run("Should let an unresolvable spawn fall through to event and needs_attention", func(t *testing.T) {
+		t.Parallel()
+		base := time.Date(2026, 5, 28, 16, 0, 0, 0, time.UTC)
+		work := workSnapshot("task-unres", "run-unres", taskpkg.ScopeWorkspace, "ws-1", []string{"go"}, base)
+		source := &fakeTaskSource{pending: []RunSnapshot{work}}
+		store := newFakeStarvationStore()
+		escalator := &fakeEscalationActor{spawnErr: ErrSpawnUnresolvable}
+		scheduler, ctx := build(t, base, source, store, escalator, ladder(1, 2, 3, 4))
+
+		for cycle := 1; cycle <= 4; cycle++ {
+			if _, err := scheduler.RunOnce(ctx); err != nil {
+				t.Fatalf("RunOnce(cycle %d) error = %v", cycle, err)
+			}
+		}
+		if got := escalator.spawns(); len(got) != 0 {
+			t.Fatalf("unresolvable spawn recorded a request: %v", got)
+		}
+		if got := escalator.emitted(); !slices.Equal(got, []string{"run-unres"}) {
+			t.Fatalf("event not emitted despite unresolvable spawn: %v", got)
+		}
+		if got := escalator.attention(); !slices.Equal(got, []string{"run-unres"}) {
+			t.Fatalf("needs_attention not reached despite unresolvable spawn: %v", got)
+		}
+		if row, ok := store.snapshot("run-unres"); ok {
+			t.Fatalf("budget not cleared after needs_attention: %#v", row)
+		}
+	})
+
+	t.Run("Should retry a failing emitter without aborting the cycle", func(t *testing.T) {
+		t.Parallel()
+		base := time.Date(2026, 5, 28, 17, 0, 0, 0, time.UTC)
+		work := workSnapshot("task-emit-err", "run-emit-err", taskpkg.ScopeWorkspace, "ws-1", []string{"go"}, base)
+		source := &fakeTaskSource{pending: []RunSnapshot{work}}
+		store := newFakeStarvationStore()
+		escalator := &fakeEscalationActor{emitErr: errors.New("emit boom")}
+		// Event tier fires on the first cycle; spawn/needs_attention disabled to isolate the emit.
+		scheduler, ctx := build(t, base, source, store, escalator, ladder(1, 99, 1, 99))
+
+		result, err := scheduler.RunOnce(ctx)
+		if err == nil {
+			t.Fatal("RunOnce() error = nil, want joined emit error")
+		}
+		if result.StarvedRuns != 1 {
+			t.Fatalf("StarvedRuns = %d, want 1 (cycle must not abort on emit failure)", result.StarvedRuns)
+		}
+		row, ok := store.snapshot("run-emit-err")
+		if !ok {
+			t.Fatal("budget row missing after failed emit")
+		}
+		if row.StarvedEventAt != nil {
+			t.Fatal("starved_event_at set despite emit failure (must retry next cycle)")
+		}
+	})
+
+	t.Run("Should hold a paused run's clock and clear a departed run on re-read", func(t *testing.T) {
+		t.Parallel()
+		base := time.Date(2026, 5, 28, 18, 0, 0, 0, time.UTC)
+		source := &fakeTaskSource{}
+		source.setStatus("run-paused", taskpkg.TaskRunStatusQueued)
+		source.setStatus("run-claimed", taskpkg.TaskRunStatusClaimed)
+		store := newFakeStarvationStore()
+		seed := func(runID string) taskpkg.RunStarvationMutation {
+			return taskpkg.RunStarvationMutation{
+				RunID:          runID,
+				WakeCount:      3,
+				FirstStarvedAt: base,
+				LastWakeAt:     base,
+				EscalationTier: 1,
+				UpdatedAt:      base,
+			}
+		}
+		if _, err := store.UpsertRunStarvation(testutil.Context(t), seed("run-paused")); err != nil {
+			t.Fatalf("seed paused row: %v", err)
+		}
+		if _, err := store.UpsertRunStarvation(testutil.Context(t), seed("run-claimed")); err != nil {
+			t.Fatalf("seed claimed row: %v", err)
+		}
+		escalator := &fakeEscalationActor{}
+		scheduler, ctx := build(t, base, source, store, escalator, ladder(1, 2, 3, 4))
+
+		if _, err := scheduler.RunOnce(ctx); err != nil {
+			t.Fatalf("RunOnce() error = %v", err)
+		}
+		paused, ok := store.snapshot("run-paused")
+		if !ok {
+			t.Fatal("paused run budget cleared; the clock must hold while queued")
+		}
+		if paused.WakeCount != 3 {
+			t.Fatalf("paused wake_count = %d, want 3 (clock must not advance off-candidate)", paused.WakeCount)
+		}
+		if _, ok := store.snapshot("run-claimed"); ok {
+			t.Fatal("claimed run budget not cleared on re-read")
+		}
+	})
+
+	t.Run("Should re-read a current candidate before spawn or event side effects", func(t *testing.T) {
+		t.Parallel()
+		base := time.Date(2026, 5, 28, 18, 30, 0, 0, time.UTC)
+		work := workSnapshot("task-stale", "run-stale", taskpkg.ScopeWorkspace, "ws-1", []string{"go"}, base)
+		source := &fakeTaskSource{pending: []RunSnapshot{work}}
+		source.setStatus("run-stale", taskpkg.TaskRunStatusClaimed)
+		store := newFakeStarvationStore()
+		if _, err := store.UpsertRunStarvation(testutil.Context(t), taskpkg.RunStarvationMutation{
+			RunID:          "run-stale",
+			WakeCount:      2,
+			FirstStarvedAt: base,
+			LastWakeAt:     base,
+			EscalationTier: 1,
+			UpdatedAt:      base,
+		}); err != nil {
+			t.Fatalf("seed stale row: %v", err)
+		}
+		escalator := &fakeEscalationActor{}
+		scheduler, ctx := build(t, base, source, store, escalator, ladder(1, 1, 1, 99))
+
+		if _, err := scheduler.RunOnce(ctx); err != nil {
+			t.Fatalf("RunOnce() error = %v", err)
+		}
+		if got := escalator.spawns(); len(got) != 0 {
+			t.Fatalf("spawn side effects = %v, want none for a stale non-queued candidate", got)
+		}
+		if got := escalator.emitted(); len(got) != 0 {
+			t.Fatalf("starved events = %v, want none for a stale non-queued candidate", got)
+		}
+		if _, ok := store.snapshot("run-stale"); ok {
+			t.Fatal("stale non-queued candidate budget not cleared")
+		}
+	})
+
+	t.Run("Should preserve the durable budget across Rebuild", func(t *testing.T) {
+		t.Parallel()
+		base := time.Date(2026, 5, 28, 19, 0, 0, 0, time.UTC)
+		work := workSnapshot("task-rebuild", "run-rebuild", taskpkg.ScopeWorkspace, "ws-1", []string{"go"}, base)
+		source := &fakeTaskSource{pending: []RunSnapshot{work}}
+		store := newFakeStarvationStore()
+		escalator := &fakeEscalationActor{}
+		scheduler, ctx := build(t, base, source, store, escalator, ladder(1, 2, 3, 4))
+
+		if _, err := scheduler.RunOnce(ctx); err != nil {
+			t.Fatalf("RunOnce(first) error = %v", err)
+		}
+		if _, err := scheduler.Rebuild(ctx); err != nil {
+			t.Fatalf("Rebuild() error = %v", err)
+		}
+		if _, err := scheduler.RunOnce(ctx); err != nil {
+			t.Fatalf("RunOnce(after rebuild) error = %v", err)
+		}
+		row, ok := store.snapshot("run-rebuild")
+		if !ok {
+			t.Fatal("budget row missing after rebuild")
+		}
+		if row.WakeCount != 2 {
+			t.Fatalf(
+				"wake_count = %d, want 2 (rebuild wiped in-memory state but not the durable budget)",
+				row.WakeCount,
+			)
+		}
+	})
+}
+
 func TestRunOnceRequiresTaskOwnerMatch(t *testing.T) {
 	t.Parallel()
 
@@ -601,6 +937,7 @@ type fakeTaskSource struct {
 	mu            sync.Mutex
 	pending       []RunSnapshot
 	active        []taskpkg.Run
+	statuses      map[string]taskpkg.RunStatus
 	recovered     []taskpkg.ExpiredLeaseRecoveryResult
 	recoverErr    error
 	recoverCh     chan<- struct{}
@@ -624,6 +961,145 @@ func (f *fakeTaskSource) PendingRuns(context.Context) ([]RunSnapshot, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]RunSnapshot(nil), f.pending...), nil
+}
+
+func (f *fakeTaskSource) setStatus(runID string, status taskpkg.RunStatus) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.statuses == nil {
+		f.statuses = make(map[string]taskpkg.RunStatus)
+	}
+	f.statuses[runID] = status
+}
+
+func (f *fakeTaskSource) GetRunStatus(_ context.Context, runID string) (taskpkg.RunStatus, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if status, ok := f.statuses[runID]; ok {
+		return status, true, nil
+	}
+	for idx := range f.pending {
+		if f.pending[idx].Run.ID == runID {
+			return f.pending[idx].Run.Status, true, nil
+		}
+	}
+	return "", false, nil
+}
+
+type fakeEscalationActor struct {
+	mu            sync.Mutex
+	starvedEmits  []string
+	spawnRequests []string
+	attentionRuns []string
+	emitErr       error
+	spawnErr      error
+	attentionErr  error
+}
+
+func (f *fakeEscalationActor) EmitRunStarved(_ context.Context, work *RunSnapshot, _ time.Duration) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.emitErr != nil {
+		return f.emitErr
+	}
+	f.starvedEmits = append(f.starvedEmits, work.Run.ID)
+	return nil
+}
+
+func (f *fakeEscalationActor) RequestWorkerSpawn(_ context.Context, work *RunSnapshot) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.spawnErr != nil {
+		return f.spawnErr
+	}
+	f.spawnRequests = append(f.spawnRequests, work.Run.ID)
+	return nil
+}
+
+func (f *fakeEscalationActor) MarkRunNeedsAttention(
+	_ context.Context,
+	runID string,
+	_ string,
+) (taskpkg.Run, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.attentionErr != nil {
+		return taskpkg.Run{}, f.attentionErr
+	}
+	f.attentionRuns = append(f.attentionRuns, runID)
+	return taskpkg.Run{ID: runID, Status: taskpkg.TaskRunStatusNeedsAttention}, nil
+}
+
+func (f *fakeEscalationActor) emitted() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.starvedEmits...)
+}
+
+func (f *fakeEscalationActor) spawns() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.spawnRequests...)
+}
+
+func (f *fakeEscalationActor) attention() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]string(nil), f.attentionRuns...)
+}
+
+type fakeStarvationStore struct {
+	mu   sync.Mutex
+	rows map[string]taskpkg.RunStarvation
+}
+
+func newFakeStarvationStore() *fakeStarvationStore {
+	return &fakeStarvationStore{rows: make(map[string]taskpkg.RunStarvation)}
+}
+
+func (f *fakeStarvationStore) LoadRunStarvation(
+	_ context.Context,
+	runID string,
+) (taskpkg.RunStarvation, bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	row, ok := f.rows[runID]
+	return row, ok, nil
+}
+
+func (f *fakeStarvationStore) ListRunStarvation(_ context.Context) ([]taskpkg.RunStarvation, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	rows := make([]taskpkg.RunStarvation, 0, len(f.rows))
+	for _, row := range f.rows {
+		rows = append(rows, row)
+	}
+	return rows, nil
+}
+
+func (f *fakeStarvationStore) UpsertRunStarvation(
+	_ context.Context,
+	mutation taskpkg.RunStarvationMutation,
+) (taskpkg.RunStarvation, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	row := taskpkg.RunStarvation(mutation)
+	f.rows[mutation.RunID] = row
+	return row, nil
+}
+
+func (f *fakeStarvationStore) ClearRunStarvation(_ context.Context, runID string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.rows, runID)
+	return nil
+}
+
+func (f *fakeStarvationStore) snapshot(runID string) (taskpkg.RunStarvation, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	row, ok := f.rows[runID]
+	return row, ok
 }
 
 func (f *fakeTaskSource) ActiveRuns(context.Context) ([]taskpkg.Run, error) {

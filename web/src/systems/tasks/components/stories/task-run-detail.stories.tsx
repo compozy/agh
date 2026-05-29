@@ -213,6 +213,57 @@ export const Failed: Story = {
   ),
 };
 
+/**
+ * Needs-attention run detail with the scheduler diagnostic visible on the run card and timeline.
+ */
+export const NeedsAttention: Story = {
+  args: {},
+  render: () => (
+    <DetailSurface
+      isLive={false}
+      run={buildRun({
+        run: {
+          ...buildRun().run,
+          status: "needs_attention",
+          started_at: null,
+          session_id: undefined,
+          claimed_by: undefined,
+          error: "No capable agent claimed this run before escalation.",
+        },
+        session: undefined,
+      } as Partial<TaskRunDetailView>)}
+      items={[
+        sampleEvents[0],
+        {
+          event_id: "evt_007",
+          sequence: 18,
+          event_type: "task.run_starved",
+          timestamp: "2026-04-11T14:44:00Z",
+          payload: undefined,
+          run: { id: "run_7k2m9x", attempt: 2, status: "queued" },
+          origin: { kind: "scheduler", ref: "convergence" },
+          task: { id: "task_001", identifier: "TASK-42" },
+        } as unknown as TaskTimelineItem,
+        {
+          event_id: "evt_008",
+          sequence: 19,
+          event_type: "task.run_needs_attention",
+          timestamp: "2026-04-11T14:46:00Z",
+          payload: { diagnostic: "No capable agent claimed this run before escalation." },
+          run: {
+            id: "run_7k2m9x",
+            attempt: 2,
+            status: "needs_attention",
+            error: "No capable agent claimed this run before escalation.",
+          },
+          origin: { kind: "scheduler", ref: "convergence" },
+          task: { id: "task_001", identifier: "TASK-42" },
+        } as unknown as TaskTimelineItem,
+      ]}
+    />
+  ),
+};
+
 export const Empty: Story = {
   name: "Empty",
   render: () => <DetailSurface isLive={false} items={[]} run={buildRun()} />,

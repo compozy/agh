@@ -7,13 +7,12 @@
  * status surfaces in the UI, `make bun-typecheck` fails on the dictionary until
  * the entry is added.
  *
- * The local `TaskStatus` union deliberately scopes to the seven UI-renderable
- * states (matches `internal/task/types.go:23-37`). The backend Status enum also
- * publishes `canceled` (line 38), but task lanes do not render canceled tasks
- * today; downstream consumers map `canceled` to a neutral fallback at the call
- * site or route through `RUN_STATUS_TONE.canceled` instead. also
- * defers the `stuck` UI tone (the dashboard exposes a separate `stuck: bool`
- * field, not a Status value), and `queued` is not a Status value at all.
+ * The local `TaskStatus` union deliberately scopes to the UI-renderable
+ * states from the backend `Status` enum in `internal/task/types.go`. Task lanes
+ * do not render canceled tasks today; downstream consumers map `canceled` to a
+ * neutral fallback at the call site or route through `RUN_STATUS_TONE.canceled`.
+ * This also defers the `stuck` UI tone (the dashboard exposes a separate
+ * `stuck: bool` field, not a Status value), and `queued` is not a Status value.
  *
  * `TaskLane` is a UI vocabulary, not backend-bound (per N-004): it covers the
  * sidebar/topbar lane names, none of which exist in `internal/task/types.go`.
@@ -29,7 +28,13 @@ export type TaskStatus =
   | "completed"
   | "failed";
 
-export type TaskRunStatus = "pending" | "in_progress" | "completed" | "failed" | "canceled";
+export type TaskRunStatus =
+  | "pending"
+  | "in_progress"
+  | "needs_attention"
+  | "completed"
+  | "failed"
+  | "canceled";
 
 /** UI lane vocabulary, not backend-bound. */
 export type TaskLane =
@@ -55,6 +60,7 @@ export const TASK_STATUS_TONE = {
 export const RUN_STATUS_TONE = {
   pending: "neutral",
   in_progress: "info",
+  needs_attention: "warning",
   completed: "success",
   failed: "danger",
   canceled: "neutral",

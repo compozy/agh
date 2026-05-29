@@ -137,6 +137,7 @@ const (
 	CodeTargetUnknown          = "target_unknown"
 	CodeTaskRunAlreadyTerminal = "task_run_already_terminal"
 	CodeTaskRunCrashed         = "task_run_crashed"
+	CodeTaskRunNotRecoverable  = "task_run_not_recoverable"
 	CodeTaskRunNotReleasable   = "task_run_not_releasable"
 	CodeTaskRunOrphan          = "task_run_orphan"
 	CodeTaskRunStaleLease      = "task_run_stale_lease"
@@ -239,6 +240,7 @@ var diagnosticCodeSpecs = []DiagnosticCodeSpec{
 	{Code: CodeTargetUnknown, Category: CategoryBridge},
 	{Code: CodeTaskRunAlreadyTerminal, Category: CategoryTask},
 	{Code: CodeTaskRunCrashed, Category: CategoryTask},
+	{Code: CodeTaskRunNotRecoverable, Category: CategoryTask},
 	{Code: CodeTaskRunNotReleasable, Category: CategoryTask},
 	{Code: CodeTaskRunOrphan, Category: CategoryTask},
 	{Code: CodeTaskRunStaleLease, Category: CategoryTask},

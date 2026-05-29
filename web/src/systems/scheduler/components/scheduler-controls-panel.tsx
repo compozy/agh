@@ -137,6 +137,24 @@ export function SchedulerControlsPanel({
               ·
             </span>
             <span>{status?.paused_task_count ?? 0} paused tasks</span>
+            <span aria-hidden="true" className="text-faint">
+              ·
+            </span>
+            <span
+              className={(status?.starved_run_count ?? 0) > 0 ? "text-warning" : undefined}
+              data-testid="scheduler-controls-starved-count"
+            >
+              {status?.starved_run_count ?? 0} starved runs
+            </span>
+            <span aria-hidden="true" className="text-faint">
+              ·
+            </span>
+            <span
+              className={(status?.needs_attention_run_count ?? 0) > 0 ? "text-warning" : undefined}
+              data-testid="scheduler-controls-needs-attention-count"
+            >
+              {status?.needs_attention_run_count ?? 0} needs attention
+            </span>
             {status?.paused_at ? (
               <>
                 <span aria-hidden="true" className="text-faint">

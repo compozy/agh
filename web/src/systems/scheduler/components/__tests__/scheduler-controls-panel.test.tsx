@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  schedulerAttentionStatusFixture,
   schedulerBacklogFixture,
   schedulerPausedStatusFixture,
   schedulerStatusFixture,
@@ -16,8 +17,34 @@ describe("SchedulerControlsPanel", () => {
 
     expect(screen.getByTestId("scheduler-controls-state")).toHaveTextContent("Running");
     expect(screen.getByTestId("scheduler-controls-meta")).toHaveTextContent("1 active claims");
+    expect(screen.getByTestId("scheduler-controls-starved-count")).toHaveTextContent(
+      "0 starved runs"
+    );
+    expect(screen.getByTestId("scheduler-controls-needs-attention-count")).toHaveTextContent(
+      "0 needs attention"
+    );
     expect(screen.getByTestId("scheduler-backlog-total")).toHaveTextContent("2");
     expect(screen.getByTestId("scheduler-backlog-row-run_014")).toBeInTheDocument();
+  });
+
+  it("renders scheduler attention pressure with warning emphasis", () => {
+    render(
+      <SchedulerControlsPanel
+        backlog={schedulerBacklogFixture}
+        status={schedulerAttentionStatusFixture}
+      />
+    );
+
+    expect(screen.getByTestId("scheduler-controls-starved-count")).toHaveTextContent(
+      "2 starved runs"
+    );
+    expect(screen.getByTestId("scheduler-controls-starved-count")).toHaveClass("text-warning");
+    expect(screen.getByTestId("scheduler-controls-needs-attention-count")).toHaveTextContent(
+      "1 needs attention"
+    );
+    expect(screen.getByTestId("scheduler-controls-needs-attention-count")).toHaveClass(
+      "text-warning"
+    );
   });
 
   it("requires a reason before pausing scheduler dispatch", async () => {

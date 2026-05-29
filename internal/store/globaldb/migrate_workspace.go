@@ -195,6 +195,11 @@ func bootstrapFreshGlobalSchema(ctx context.Context, db *sql.DB) (err error) {
 	appliedAt := store.FormatTimestamp(time.Now().UTC())
 	for _, migration := range globalSchemaMigrations {
 		name := strings.TrimSpace(migration.Name)
+		// UpConn migrations rebuild tables and must toggle PRAGMA foreign_keys, which
+		// is a no-op inside a transaction; they run after this tx commits (phase 2).
+		if migration.UpConn != nil {
+			continue
+		}
 		if migration.Up != nil {
 			if err := migration.Up(ctx, tx); err != nil {
 				return fmt.Errorf("store: bootstrap fresh migration %d %q: %w", migration.Version, name, err)
@@ -224,6 +229,58 @@ func bootstrapFreshGlobalSchema(ctx context.Context, db *sql.DB) (err error) {
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("store: commit fresh global schema bootstrap: %w", err)
+	}
+	for _, migration := range globalSchemaMigrations {
+		if migration.UpConn == nil {
+			continue
+		}
+		if err := applyFreshConnMigration(ctx, db, migration); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// applyFreshConnMigration runs a UpConn migration on a dedicated connection after the
+// fresh-bootstrap transaction has committed, so its table rebuild sees the committed base
+// schema and can toggle PRAGMA foreign_keys outside any transaction.
+func applyFreshConnMigration(ctx context.Context, db *sql.DB, migration store.Migration) (err error) {
+	name := strings.TrimSpace(migration.Name)
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("store: open connection for fresh migration %d %q: %w", migration.Version, name, err)
+	}
+	defer func() {
+		if closeErr := conn.Close(); closeErr != nil {
+			closeErr = fmt.Errorf(
+				"store: close connection for fresh migration %d %q: %w",
+				migration.Version,
+				name,
+				closeErr,
+			)
+			if err == nil {
+				err = closeErr
+				return
+			}
+			err = errors.Join(err, closeErr)
+		}
+	}()
+	if err := migration.UpConn(ctx, conn); err != nil {
+		return fmt.Errorf("store: bootstrap fresh migration %d %q: %w", migration.Version, name, err)
+	}
+	checksum, err := store.MigrationChecksum(migration)
+	if err != nil {
+		return err
+	}
+	if _, err := conn.ExecContext(
+		ctx,
+		`INSERT INTO schema_migrations (version, name, checksum, applied_at) VALUES (?, ?, ?, ?)`,
+		migration.Version,
+		name,
+		checksum,
+		store.FormatTimestamp(time.Now().UTC()),
+	); err != nil {
+		return fmt.Errorf("store: record fresh global schema migration %d: %w", migration.Version, err)
 	}
 	return nil
 }

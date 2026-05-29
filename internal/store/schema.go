@@ -38,7 +38,11 @@ type Migration struct {
 	Name       string
 	Statements []string
 	Up         func(ctx context.Context, tx *sql.Tx) error
-	Checksum   string
+	// UpConn runs the migration on a dedicated connection OUTSIDE any wrapping
+	// transaction. It is the only way to perform a table rebuild that must toggle
+	// PRAGMA foreign_keys (a no-op inside a transaction), e.g. dropping a CHECK.
+	UpConn   func(ctx context.Context, conn *sql.Conn) error
+	Checksum string
 }
 
 // MigrationRecord describes one applied schema migration row.
@@ -187,8 +191,25 @@ func normalizeMigrations(migrations []Migration) ([]Migration, error) {
 				migration.Version,
 			)
 		}
-		if migration.Up == nil && len(migration.Statements) == 0 {
+		ops := 0
+		if migration.Up != nil {
+			ops++
+		}
+		if migration.UpConn != nil {
+			ops++
+		}
+		if len(migration.Statements) > 0 {
+			ops++
+		}
+		if ops == 0 {
 			return nil, fmt.Errorf("store: migration %d %q has no operation", migration.Version, name)
+		}
+		if ops > 1 {
+			return nil, fmt.Errorf(
+				"store: migration %d %q must set exactly one of Up, UpConn, or Statements",
+				migration.Version,
+				name,
+			)
 		}
 		versions[migration.Version] = name
 		names[name] = migration.Version
@@ -284,6 +305,9 @@ func validateAppliedMigrationRecords(applied map[int]MigrationRecord, expected m
 }
 
 func applyMigration(ctx context.Context, db *sql.DB, table string, migration Migration, checksum string) (err error) {
+	if migration.UpConn != nil {
+		return applyConnMigration(ctx, db, table, migration, checksum)
+	}
 	name := strings.TrimSpace(migration.Name)
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -318,6 +342,52 @@ func applyMigration(ctx context.Context, db *sql.DB, table string, migration Mig
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("store: commit migration %d %q: %w", migration.Version, name, err)
+	}
+	return nil
+}
+
+// applyConnMigration runs a UpConn migration on a dedicated connection (outside any
+// wrapping transaction so the migration can toggle PRAGMA foreign_keys), then records it.
+// The migration body owns its own inner transaction and foreign-key restoration.
+func applyConnMigration(
+	ctx context.Context,
+	db *sql.DB,
+	table string,
+	migration Migration,
+	checksum string,
+) (err error) {
+	name := strings.TrimSpace(migration.Name)
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("store: open connection for migration %d %q: %w", migration.Version, name, err)
+	}
+	defer func() {
+		if closeErr := conn.Close(); closeErr != nil {
+			closeErr = fmt.Errorf(
+				"store: close connection for migration %d %q: %w",
+				migration.Version,
+				name,
+				closeErr,
+			)
+			if err == nil {
+				err = closeErr
+				return
+			}
+			err = errors.Join(err, closeErr)
+		}
+	}()
+	if err := migration.UpConn(ctx, conn); err != nil {
+		return fmt.Errorf("store: apply migration %d %q: %w", migration.Version, name, err)
+	}
+	if _, err := conn.ExecContext(
+		ctx,
+		fmt.Sprintf(`INSERT INTO %s (version, name, checksum, applied_at) VALUES (?, ?, ?, ?)`, quoteIdentifier(table)),
+		migration.Version,
+		name,
+		checksum,
+		FormatTimestamp(time.Now().UTC()),
+	); err != nil {
+		return fmt.Errorf("store: record migration %d %q: %w", migration.Version, name, err)
 	}
 	return nil
 }

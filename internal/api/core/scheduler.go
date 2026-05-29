@@ -247,14 +247,16 @@ func (h *BaseHandlers) GetSchedulerBacklog(c *gin.Context) {
 // SchedulerStatusPayloadFromDomain keeps transports on one scheduler DTO shape.
 func SchedulerStatusPayloadFromDomain(status taskpkg.SchedulerStatus) contract.SchedulerStatusPayload {
 	return contract.SchedulerStatusPayload{
-		Paused:           status.Paused,
-		PausedBy:         status.PausedBy,
-		PausedAt:         optionalTime(status.PausedAt),
-		PausedReason:     status.PausedReason,
-		ActiveClaimCount: status.ActiveClaimCount,
-		QueuedRunCount:   status.QueuedRunCount,
-		PausedTaskCount:  status.PausedTaskCount,
-		AsOf:             status.AsOf,
+		Paused:                 status.Paused,
+		PausedBy:               status.PausedBy,
+		PausedAt:               optionalTime(status.PausedAt),
+		PausedReason:           status.PausedReason,
+		ActiveClaimCount:       status.ActiveClaimCount,
+		QueuedRunCount:         status.QueuedRunCount,
+		PausedTaskCount:        status.PausedTaskCount,
+		StarvedRunCount:        status.StarvedRunCount,
+		NeedsAttentionRunCount: status.NeedsAttentionRunCount,
+		AsOf:                   status.AsOf,
 	}
 }
 

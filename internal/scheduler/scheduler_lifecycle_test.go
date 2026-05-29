@@ -157,6 +157,13 @@ func (s *blockingRecoveryTaskSource) ActiveRuns(context.Context) ([]taskpkg.Run,
 	return nil, nil
 }
 
+func (s *blockingRecoveryTaskSource) GetRunStatus(
+	context.Context,
+	string,
+) (taskpkg.RunStatus, bool, error) {
+	return "", false, nil
+}
+
 func (s *blockingRecoveryTaskSource) RecoverExpiredRunLeases(
 	context.Context,
 	taskpkg.ExpiredLeaseRecovery,

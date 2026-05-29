@@ -277,6 +277,88 @@ func (m *Service) RetryRun(
 	return &result, nil
 }
 
+// RecoverRun terminalizes a needs_attention run and queues one fresh child to resume work.
+func (m *Service) RecoverRun(
+	ctx context.Context,
+	runID string,
+	req RecoverRunRequest,
+	actor ActorContext,
+) (*RetryRunResult, error) {
+	if err := m.requireForceRunAuthority(actor); err != nil {
+		return nil, err
+	}
+	normalized, err := normalizeRecoverRunRequest(req)
+	if err != nil {
+		return nil, err
+	}
+	source, taskRecord, err := m.loadRunWithTask(ctx, runID)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.requireForceRunRate(actor, taskRecord.ID); err != nil {
+		return nil, err
+	}
+	if source.Status.Normalize() != TaskRunStatusNeedsAttention {
+		suggested := fmt.Sprintf("agh task inspect %s", source.ID)
+		if source.Status.Normalize() == TaskRunStatusFailed {
+			suggested = fmt.Sprintf("agh task retry %s", source.ID)
+		}
+		return nil, forceRunDiagnosticError(
+			diagnosticcontract.CodeTaskRunNotRecoverable,
+			"Task run cannot be recovered",
+			fmt.Sprintf(
+				"Run %s is %s; only needs_attention runs can be recovered.",
+				source.ID,
+				source.Status.Normalize(),
+			),
+			diagnosticcontract.SeverityError,
+			suggested,
+			map[string]any{runEvidenceIDKey: source.ID, leaseStatusKey: string(source.Status.Normalize())},
+			ErrInvalidStatusTransition,
+		)
+	}
+	if err := m.requireRetryChainDepth(ctx, source); err != nil {
+		return nil, err
+	}
+
+	result, err := m.store.RecoverTaskRun(ctx, RecoverRunMutation{
+		SourceRunID: source.ID,
+		NewRunID:    m.newID("run"),
+		Origin:      actor.Origin,
+		Reason:      normalized.Reason,
+		Metadata:    normalized.Metadata,
+		QueuedAt:    m.now().UTC(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	reconciledTask, err := m.reconcileTaskCascade(ctx, taskRecord.ID)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.recordTaskEvent(
+		ctx,
+		result.Run.TaskID,
+		result.Run.ID,
+		taskEventRunRecoveredFromAttention,
+		actor,
+		recoveredFromAttentionPayload{
+			Manual:         true,
+			ActorKind:      actor.Actor.Kind.Normalize(),
+			ActorID:        actor.Actor.Ref,
+			SourceRunID:    result.PreviousRun.ID,
+			NewRunID:       result.Run.ID,
+			PreviousStatus: TaskRunStatusNeedsAttention,
+			Status:         result.Run.Status.Normalize(),
+			TaskStatus:     reconciledTask.Status,
+			Reason:         normalized.Reason,
+		},
+	); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // BulkForceReleaseRuns applies force release one row at a time to preserve per-row preconditions.
 func (m *Service) BulkForceReleaseRuns(
 	ctx context.Context,
@@ -499,6 +581,15 @@ func normalizeRetryRunRequest(req RetryRunRequest) (RetryRunRequest, error) {
 	return req, nil
 }
 
+func normalizeRecoverRunRequest(req RecoverRunRequest) (RecoverRunRequest, error) {
+	req.Reason = strings.TrimSpace(req.Reason)
+	req.Metadata = normalizeRawJSON(req.Metadata)
+	if err := ValidateMetadataSize(req.Metadata, "recover_run.metadata"); err != nil {
+		return RecoverRunRequest{}, err
+	}
+	return req, nil
+}
+
 func normalizeBulkForceRunRequest(req BulkForceRunRequest, requireReason bool) (BulkForceRunRequest, error) {
 	if len(req.RunIDs) == 0 {
 		return BulkForceRunRequest{}, fmt.Errorf("%w: bulk force run_ids is required", ErrValidation)
@@ -603,4 +694,16 @@ type operatorRetryPayload struct {
 	SourceRunID string    `json:"source_run_id"`
 	NewRunID    string    `json:"new_run_id"`
 	TaskStatus  Status    `json:"task_status"`
+}
+
+type recoveredFromAttentionPayload struct {
+	Manual         bool      `json:"manual"`
+	ActorKind      ActorKind `json:"actor_kind"`
+	ActorID        string    `json:"actor_id"`
+	SourceRunID    string    `json:"source_run_id"`
+	NewRunID       string    `json:"new_run_id"`
+	PreviousStatus RunStatus `json:"previous_status"`
+	Status         RunStatus `json:"status"`
+	TaskStatus     Status    `json:"task_status"`
+	Reason         string    `json:"reason,omitempty"`
 }

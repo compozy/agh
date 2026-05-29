@@ -2004,6 +2004,85 @@ func TestOpenGlobalDBMigratesLegacyTaskEventsToStableSequences(t *testing.T) {
 	}
 }
 
+func TestGlobalDBRecoverTaskRun(t *testing.T) {
+	t.Run("Should terminalize a needs_attention run and queue a linked child", func(t *testing.T) {
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 5, 28, 12, 0, 0, 0, time.UTC)
+		taskRecord := taskRecordForTest("task-recover")
+		taskRecord.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		source := taskRunForTest("run-recover-source", taskRecord.ID)
+		if err := globalDB.CreateTaskRun(ctx, source); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE task_runs SET status = 'needs_attention' WHERE id = ?`,
+			source.ID,
+		); err != nil {
+			t.Fatalf("escalate to needs_attention error = %v", err)
+		}
+
+		result, err := globalDB.RecoverTaskRun(ctx, taskpkg.RecoverRunMutation{
+			SourceRunID: source.ID,
+			NewRunID:    "run-recover-child",
+			Origin:      taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
+			Reason:      "operator unblocked",
+			QueuedAt:    now,
+		})
+		if err != nil {
+			t.Fatalf("RecoverTaskRun() error = %v", err)
+		}
+		if result.PreviousRun.Status.Normalize() != taskpkg.TaskRunStatusFailed {
+			t.Fatalf("PreviousRun.Status = %q, want failed", result.PreviousRun.Status)
+		}
+		if result.Run.Status.Normalize() != taskpkg.TaskRunStatusQueued {
+			t.Fatalf("Run.Status = %q, want queued", result.Run.Status)
+		}
+		if result.Run.PreviousRunID != source.ID {
+			t.Fatalf("Run.PreviousRunID = %q, want %q", result.Run.PreviousRunID, source.ID)
+		}
+		if result.Run.Attempt != source.Attempt+1 {
+			t.Fatalf("Run.Attempt = %d, want %d", result.Run.Attempt, source.Attempt+1)
+		}
+		if result.Run.ClaimToken != "" || !result.Run.LeaseUntil.IsZero() {
+			t.Fatalf("child carries claim/lease state: token=%q lease=%v", result.Run.ClaimToken, result.Run.LeaseUntil)
+		}
+		stored, err := globalDB.GetTaskRun(ctx, source.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun(source) error = %v", err)
+		}
+		if stored.Status.Normalize() != taskpkg.TaskRunStatusFailed {
+			t.Fatalf("source status = %q, want failed (terminalized in the same tx)", stored.Status)
+		}
+	})
+
+	t.Run("Should reject recovering a non-needs_attention run", func(t *testing.T) {
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		taskRecord := taskRecordForTest("task-recover-reject")
+		taskRecord.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		source := taskRunForTest("run-recover-reject", taskRecord.ID)
+		if err := globalDB.CreateTaskRun(ctx, source); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+		if _, err := globalDB.RecoverTaskRun(ctx, taskpkg.RecoverRunMutation{
+			SourceRunID: source.ID,
+			NewRunID:    "run-recover-reject-child",
+			Origin:      taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
+			QueuedAt:    time.Date(2026, 5, 28, 12, 0, 0, 0, time.UTC),
+		}); !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
+			t.Fatalf("RecoverTaskRun(queued) error = %v, want %v", err, taskpkg.ErrInvalidStatusTransition)
+		}
+	})
+}
+
 func taskRecordForTest(id string) taskpkg.Task {
 	now := time.Date(2026, 4, 14, 12, 0, 0, 0, time.UTC)
 	return taskpkg.Task{

@@ -41,6 +41,7 @@ const (
 	taskActionForceReleaseRun  = "force_release_run"
 	taskActionForceFailRun     = "force_fail_run"
 	taskActionRetryRun         = "retry_run"
+	taskActionRecoverRun       = "recover_run"
 	taskActionBulkReleaseRuns  = "bulk_release_runs"
 	taskActionBulkFailRuns     = "bulk_fail_runs"
 	taskActionCancelRun        = "cancel_run"
@@ -1458,6 +1459,44 @@ func (h *BaseHandlers) RetryTaskRun(c *gin.Context) {
 		c.Request.Context(),
 		runID,
 		taskpkg.RetryRunRequest{Metadata: req.Metadata},
+		actor,
+	)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	c.JSON(http.StatusCreated, RetryTaskRunResponseFromResult(result))
+}
+
+// RecoverTaskRun terminalizes one needs_attention run and queues a fresh child to resume work.
+func (h *BaseHandlers) RecoverTaskRun(c *gin.Context) {
+	manager, ok := h.requireTaskManager(c)
+	if !ok {
+		return
+	}
+	runID, err := requiredPathID(c.Param("id"), "run id")
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	var req contract.RecoverTaskRunRequest
+	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			NewTaskValidationError(fmt.Errorf("%s: decode recover run request: %w", h.transportName(), err)),
+		)
+		return
+	}
+	actor, err := h.taskActorContext(c, taskActionRecoverRun)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	result, err := manager.RecoverRun(
+		c.Request.Context(),
+		runID,
+		taskpkg.RecoverRunRequest{Reason: req.Reason, Metadata: req.Metadata},
 		actor,
 	)
 	if err != nil {

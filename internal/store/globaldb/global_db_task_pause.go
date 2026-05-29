@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -160,6 +161,51 @@ func (g *GlobalDB) CountQueuedTaskRuns(ctx context.Context, includePaused bool) 
 	var count int
 	if err := g.db.QueryRowContext(ctx, query, args...).Scan(&count); err != nil {
 		return 0, fmt.Errorf("store: count queued task runs: %w", err)
+	}
+	return count, nil
+}
+
+// CountStarvedQueuedTaskRuns counts claimable queued runs whose queued age exceeds age.
+func (g *GlobalDB) CountStarvedQueuedTaskRuns(
+	ctx context.Context,
+	now time.Time,
+	age time.Duration,
+) (int, error) {
+	if err := g.checkReady(ctx, "count starved queued task runs"); err != nil {
+		return 0, err
+	}
+	if age <= 0 {
+		return 0, nil
+	}
+	cutoff := store.FormatTimestamp(now.Add(-age))
+	query := `SELECT COUNT(1)
+		FROM task_runs tr
+		JOIN tasks t ON t.id = tr.task_id
+		WHERE tr.status = ? AND tr.queued_at <= ? AND ` + effectiveTaskPauseExclusionSQL()
+	var count int
+	if err := g.db.QueryRowContext(
+		ctx,
+		query,
+		string(taskpkg.TaskRunStatusQueued),
+		cutoff,
+	).Scan(&count); err != nil {
+		return 0, fmt.Errorf("store: count starved queued task runs: %w", err)
+	}
+	return count, nil
+}
+
+// CountNeedsAttentionTaskRuns counts runs the convergence backstop escalated to needs_attention.
+func (g *GlobalDB) CountNeedsAttentionTaskRuns(ctx context.Context) (int, error) {
+	if err := g.checkReady(ctx, "count needs attention task runs"); err != nil {
+		return 0, err
+	}
+	var count int
+	if err := g.db.QueryRowContext(
+		ctx,
+		`SELECT COUNT(1) FROM task_runs WHERE status = ?`,
+		string(taskpkg.TaskRunStatusNeedsAttention),
+	).Scan(&count); err != nil {
+		return 0, fmt.Errorf("store: count needs attention task runs: %w", err)
 	}
 	return count, nil
 }

@@ -35,6 +35,8 @@ Use inspection to read task/run health, ownership, queue status, actor context, 
 
 Forced recovery is authority-gated and rate-limited for agent actors. Treat denial, conflict, or rate-limit diagnostics as authoritative. Do not retry blindly and never ask another agent to reveal a raw claim token.
 
+When the scheduler's convergence backstop cannot get a claimable run picked up, it parks the run as `needs_attention` — a non-claimable run status — and emits `task.run_needs_attention`. `agh task recover <run-id> [--reason <reason>] -o json` is the operator/agent recovery path: it terminalizes the parked run and queues a fresh linked child (`previous_run_id`, next attempt) for re-dispatch. Recover applies only to `needs_attention` runs; a still-queued or failed run returns a deterministic `task_run_not_recoverable` diagnostic (use `agh task retry` for a failed run).
+
 ## Scheduler Controls
 
 `agh scheduler status -o json` reports pause state, active claims, queued runs, and paused-task pressure. `agh scheduler pause --reason <reason>` stops new dispatch while active claims continue. `agh scheduler resume` reopens dispatch.
@@ -42,6 +44,8 @@ Forced recovery is authority-gated and rate-limited for agent actors. Treat deni
 `agh scheduler drain` pauses dispatch and waits for active claims to finish; its default timeout is `60s`, and `--timeout 0s` returns immediately after pausing. `agh scheduler backlog --last 50 -o json` lists queued runs visible to dispatch; `--include-paused` includes runs blocked by task pause.
 
 Scheduler controls affect dispatch, not task truth. They do not complete work, approve reviews, or transfer ownership.
+
+A claimable run that no eligible session claims past `[autonomy.scheduler].min_queued_age` escalates on a bounded ladder: fan-out wake to every eligible session, then a capability-matched worker spawn, then the `task.run_starved` event (once), then `needs_attention`. `agh scheduler status -o json` surfaces `starved_run_count` and `needs_attention_run_count` so this pressure is observable. The scheduler never claims — spawned `system` workers self-claim via `agh task next` and are TTL-reaped. Tune the ladder under `[autonomy.scheduler]`.
 
 ## Coordinator Loop
 

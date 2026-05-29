@@ -108,6 +108,81 @@ func TestSpawnReaperSweepClassifiesReasonsReleasesLeasesAndStopsChildren(t *test
 	}
 }
 
+func TestSpawnReaperReapsTTLExpiredStarvationWorkers(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 5, 28, 12, 0, 0, 0, time.UTC)
+	sessions := &fakeSessionManager{
+		infos: []*session.Info{
+			starvationReaperInfo("worker-expired", now.Add(-time.Minute)),
+			starvationReaperInfo("worker-live", now.Add(time.Hour)),
+			roleReaperInfo("role-session"),
+		},
+		stopWithCauseErr: func(string, session.StopCause, string) error { return nil },
+	}
+	leases := &fakeSpawnLeaseReleaser{resultCountBySession: map[string]int{"worker-expired": 1}}
+	hooks := &recordingSpawnHooks{}
+
+	reaper, err := newSpawnReaper(
+		context.Background(),
+		sessions,
+		leases,
+		hooks,
+		discardLogger(),
+		func() time.Time { return now },
+		time.Hour,
+	)
+	if err != nil {
+		t.Fatalf("newSpawnReaper() error = %v", err)
+	}
+
+	report, err := reaper.Sweep(context.Background())
+	if err != nil {
+		t.Fatalf("Sweep() error = %v", err)
+	}
+	if report.Reaped != 1 || report.TTLExpired != 1 {
+		t.Fatalf("report = %#v, want exactly the expired starvation worker reaped", report)
+	}
+	if len(sessions.stopWithCauseCalls) != 1 {
+		t.Fatalf("stop calls = %#v, want only worker-expired (live worker + lineage-less role session untouched)",
+			sessions.stopWithCauseCalls)
+	}
+	assertStopWithCause(
+		t,
+		sessions.stopWithCauseCalls,
+		"worker-expired",
+		session.CauseTimeout,
+		"spawn_reaper:ttl_expired",
+	)
+}
+
+func starvationReaperInfo(id string, ttl time.Time) *session.Info {
+	return &session.Info{
+		ID:          id,
+		AgentName:   "coder",
+		WorkspaceID: "ws-1",
+		Workspace:   "/repo",
+		Type:        session.SessionTypeSystem,
+		State:       session.StateActive,
+		Lineage: &store.SessionLineage{
+			SpawnRole:    session.DefaultSpawnRole,
+			TTLExpiresAt: &ttl,
+			SpawnBudget:  store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 1, TTLSeconds: 900},
+		},
+	}
+}
+
+func roleReaperInfo(id string) *session.Info {
+	return &session.Info{
+		ID:          id,
+		AgentName:   "coder",
+		WorkspaceID: "ws-1",
+		Workspace:   "/repo",
+		Type:        session.SessionTypeSystem,
+		State:       session.StateActive,
+	}
+}
+
 type fakeSpawnLeaseReleaser struct {
 	resultCountBySession map[string]int
 	releases             []taskpkg.SessionLeaseRelease

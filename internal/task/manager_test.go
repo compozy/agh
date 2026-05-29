@@ -1101,6 +1101,79 @@ func (s *inMemoryManagerStore) RetryTaskRun(
 	return RetryRunResult{PreviousRun: cloneTaskRun(source), Run: cloneTaskRun(run)}, nil
 }
 
+func (s *inMemoryManagerStore) RecoverTaskRun(
+	_ context.Context,
+	mutation RecoverRunMutation,
+) (RetryRunResult, error) {
+	source, ok := s.runs[strings.TrimSpace(mutation.SourceRunID)]
+	if !ok {
+		return RetryRunResult{}, ErrTaskRunNotFound
+	}
+	if source.Status.Normalize() != TaskRunStatusNeedsAttention {
+		return RetryRunResult{}, ErrInvalidStatusTransition
+	}
+	for _, run := range s.runs {
+		if strings.TrimSpace(run.PreviousRunID) == source.ID {
+			return RetryRunResult{}, ErrInvalidStatusTransition
+		}
+	}
+	taskRecord, ok := s.tasks[source.TaskID]
+	if !ok {
+		return RetryRunResult{}, ErrTaskNotFound
+	}
+	attempt := 1
+	for _, run := range s.runs {
+		if run.TaskID == source.TaskID && run.Attempt >= attempt {
+			attempt = run.Attempt + 1
+		}
+	}
+	if attempt > taskRecord.MaxAttempts {
+		return RetryRunResult{}, ErrInvalidStatusTransition
+	}
+	queuedAt := mutation.QueuedAt.UTC()
+	if queuedAt.IsZero() {
+		queuedAt = time.Now().UTC()
+	}
+	failed := source
+	failed.Status = TaskRunStatusFailed
+	failed.FailureKind = FailureKindOperatorForced
+	failed.Error = strings.TrimSpace(mutation.Reason)
+	failed.EndedAt = queuedAt
+	s.runs[failed.ID] = cloneTaskRun(failed)
+	run := Run{
+		ID:                    strings.TrimSpace(mutation.NewRunID),
+		TaskID:                source.TaskID,
+		Status:                TaskRunStatusQueued,
+		Attempt:               attempt,
+		PreviousRunID:         source.ID,
+		Origin:                mutation.Origin,
+		NetworkChannel:        source.NetworkChannel,
+		CoordinationChannelID: source.CoordinationChannelID,
+		Metadata:              cloneRawJSON(mutation.Metadata),
+		QueuedAt:              queuedAt,
+	}
+	s.runs[run.ID] = cloneTaskRun(run)
+	return RetryRunResult{PreviousRun: cloneTaskRun(failed), Run: cloneTaskRun(run)}, nil
+}
+
+func (s *inMemoryManagerStore) MarkTaskRunNeedsAttention(
+	_ context.Context,
+	runID string,
+	diagnostic string,
+) (Run, error) {
+	run, ok := s.runs[strings.TrimSpace(runID)]
+	if !ok {
+		return Run{}, ErrTaskRunNotFound
+	}
+	if run.Status.Normalize() != TaskRunStatusQueued {
+		return Run{}, ErrInvalidStatusTransition
+	}
+	run.Status = TaskRunStatusNeedsAttention
+	run.Error = strings.TrimSpace(diagnostic)
+	s.runs[run.ID] = cloneTaskRun(run)
+	return cloneTaskRun(run), nil
+}
+
 func (s *inMemoryManagerStore) RecoverExpiredRunLeases(
 	_ context.Context,
 	recovery ExpiredLeaseRecovery,
@@ -4840,6 +4913,138 @@ func TestManagerForceRunOperations(t *testing.T) {
 		}
 		if got, want := len(events), 1; got != want {
 			t.Fatalf("retry event count = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should recover a needs_attention run and reject non-needs_attention sources", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		actor := validActorContext()
+		maxAttempts := 3
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope:       ScopeGlobal,
+			Title:       "Recover needs_attention",
+			MaxAttempts: &maxAttempts,
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+		if _, err := manager.RecoverRun(context.Background(), run.ID, RecoverRunRequest{}, actor); !errors.Is(
+			err,
+			ErrInvalidStatusTransition,
+		) {
+			t.Fatalf("RecoverRun(queued source) error = %v, want %v", err, ErrInvalidStatusTransition)
+		}
+		// A needs_attention run is produced by the scheduler convergence backstop; simulate it here.
+		escalated := store.runs[run.ID]
+		escalated.Status = TaskRunStatusNeedsAttention
+		store.runs[run.ID] = escalated
+
+		recovered, err := manager.RecoverRun(context.Background(), run.ID, RecoverRunRequest{
+			Reason:   "operator unblocked",
+			Metadata: json.RawMessage("{\"source\":\"operator\"}"),
+		}, actor)
+		if err != nil {
+			t.Fatalf("RecoverRun() error = %v", err)
+		}
+		if recovered.PreviousRun.ID != run.ID || recovered.PreviousRun.Status != TaskRunStatusFailed {
+			t.Fatalf("RecoverRun().PreviousRun = %#v, want failed source", recovered.PreviousRun)
+		}
+		if recovered.Run.PreviousRunID != run.ID || recovered.Run.Status != TaskRunStatusQueued {
+			t.Fatalf("RecoverRun().Run = %#v, want queued child linked to source", recovered.Run)
+		}
+		if recovered.Run.Attempt != run.Attempt+1 {
+			t.Fatalf("RecoverRun().Run.Attempt = %d, want %d", recovered.Run.Attempt, run.Attempt+1)
+		}
+		events, err := store.ListTaskEvents(context.Background(), EventQuery{
+			TaskID:    taskRecord.ID,
+			RunID:     recovered.Run.ID,
+			EventType: taskEventRunRecoveredFromAttention,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskEvents(recover) error = %v", err)
+		}
+		if got, want := len(events), 1; got != want {
+			t.Fatalf("recover event count = %d, want %d", got, want)
+		}
+		var payload recoveredFromAttentionPayload
+		if err := json.Unmarshal(events[0].Payload, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(recover payload) error = %v", err)
+		}
+		if payload.PreviousStatus != TaskRunStatusNeedsAttention || payload.SourceRunID != run.ID {
+			t.Fatalf("recover payload = %#v, want previous needs_attention + source", payload)
+		}
+	})
+
+	t.Run("Should record a starved signal and mark a queued run needs_attention idempotently", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		actor := validActorContext()
+		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+			Scope: ScopeGlobal,
+			Title: "Starved",
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, actor)
+		if err != nil {
+			t.Fatalf("EnqueueRun() error = %v", err)
+		}
+
+		err = manager.RecordRunStarved(context.Background(), run.ID, run.QueuedAt, 3*time.Minute, actor)
+		if err != nil {
+			t.Fatalf("RecordRunStarved() error = %v", err)
+		}
+		starvedEvents, err := store.ListTaskEvents(context.Background(), EventQuery{
+			TaskID:    taskRecord.ID,
+			RunID:     run.ID,
+			EventType: taskEventRunStarved,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskEvents(starved) error = %v", err)
+		}
+		if got, want := len(starvedEvents), 1; got != want {
+			t.Fatalf("starved event count = %d, want %d", got, want)
+		}
+
+		marked, err := manager.MarkRunNeedsAttention(
+			context.Background(),
+			run.ID,
+			"no eligible worker after starvation budget",
+			actor,
+		)
+		if err != nil {
+			t.Fatalf("MarkRunNeedsAttention() error = %v", err)
+		}
+		if marked.Status.Normalize() != TaskRunStatusNeedsAttention {
+			t.Fatalf("MarkRunNeedsAttention().Status = %q, want needs_attention", marked.Status)
+		}
+		again, err := manager.MarkRunNeedsAttention(context.Background(), run.ID, "second call", actor)
+		if err != nil {
+			t.Fatalf("MarkRunNeedsAttention(idempotent) error = %v", err)
+		}
+		if again.Status.Normalize() != TaskRunStatusNeedsAttention {
+			t.Fatalf("idempotent MarkRunNeedsAttention().Status = %q, want needs_attention", again.Status)
+		}
+		naEvents, err := store.ListTaskEvents(context.Background(), EventQuery{
+			TaskID:    taskRecord.ID,
+			RunID:     run.ID,
+			EventType: taskEventRunNeedsAttention,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskEvents(needs_attention) error = %v", err)
+		}
+		if got, want := len(naEvents), 1; got != want {
+			t.Fatalf("needs_attention event count = %d, want %d (idempotent must not re-emit)", got, want)
 		}
 	})
 

@@ -43,6 +43,42 @@ func TestDefaultWithHomeIncludesAutonomyCoordinatorDefaults(t *testing.T) {
 	}
 }
 
+func TestSchedulerConfigValidateMonotonic(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should accept the monotonic defaults", func(t *testing.T) {
+		t.Parallel()
+		if err := DefaultSchedulerConfig().Validate("autonomy.scheduler"); err != nil {
+			t.Fatalf("DefaultSchedulerConfig().Validate() error = %v, want nil", err)
+		}
+	})
+
+	t.Run("Should reject non-positive and non-monotonic thresholds", func(t *testing.T) {
+		t.Parallel()
+		base := DefaultSchedulerConfig()
+		cases := []struct {
+			name   string
+			mutate func(*SchedulerConfig)
+		}{
+			{"non-positive fan_out", func(c *SchedulerConfig) { c.FanOutAfter = 0 }},
+			{"spawn before fan_out", func(c *SchedulerConfig) { c.SpawnAfter = c.FanOutAfter - 1 }},
+			{"event before spawn", func(c *SchedulerConfig) { c.EventAfter = c.SpawnAfter - 1 }},
+			{"needs_attention before event", func(c *SchedulerConfig) { c.NeedsAttentionAfter = c.EventAfter - 1 }},
+			{"non-positive min_queued_age", func(c *SchedulerConfig) { c.MinQueuedAge = 0 }},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				cfg := base
+				tc.mutate(&cfg)
+				if err := cfg.Validate("autonomy.scheduler"); err == nil {
+					t.Fatalf("Validate(%s) error = nil, want rejection", tc.name)
+				}
+			})
+		}
+	})
+}
+
 func TestLoadWorkspaceOverridesAutonomyCoordinatorValues(t *testing.T) {
 	workspaceRoot, homePaths := prepareAutonomyConfigTestEnv(t)
 

@@ -268,7 +268,9 @@ test("operator creates edits reverts searches recalls and deletes workspace know
   expect(recalledPrompt).toContain("Relevant durable memory for this turn:");
   expect(recalledPrompt).toContain("auth migration uses sessions");
   expect(recalledPrompt).toContain(marker);
-  expect(recalledPrompt).toContain("\n\nUser message:\nremember me");
+  expect(recalledPrompt).toContain(
+    "</turn-recall>\n\n<user-message>\nremember me\n</user-message>"
+  );
   expect(recalledPrompt).not.toMatch(sensitivePattern);
   await assertStoredUserMessageClean(
     runtime,

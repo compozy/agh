@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	aghconfig "github.com/compozy/agh/internal/config"
@@ -40,7 +41,7 @@ type taskRuntime struct {
 	detached            *harnessDetachedWorkBridge
 	reentry             *harnessReentryBridge
 	bridgeNotifications *bridgeTerminalTaskNotificationObserver
-	roles               *taskRoleRuntime
+	roles               atomic.Pointer[taskRoleRuntime]
 }
 
 type taskBridgeSessionManager interface {
@@ -334,6 +335,7 @@ func (d *Daemon) bootTasks(ctx context.Context, state *bootState) error {
 			state.notifier,
 			reviewRequests,
 			state.cfg.Task.Recovery,
+			state.cfg.Autonomy.Scheduler,
 		)...,
 	)
 	if err != nil {
@@ -455,7 +457,7 @@ func (d *Daemon) bootTaskRoles(ctx context.Context, state *bootState) error {
 	if state == nil || state.tasks == nil || state.tasks.store == nil || state.sessions == nil {
 		return nil
 	}
-	runtime, err := newTaskRoleRuntime(state.tasks.store, state.sessions, d.homePaths.HomeDir, state.logger)
+	runtime, err := newTaskRoleRuntime(state.tasks.store, state.sessions, d.homePaths.HomeDir, state.logger, d.now)
 	if err != nil {
 		return err
 	}
@@ -463,7 +465,7 @@ func (d *Daemon) bootTaskRoles(ctx context.Context, state *bootState) error {
 		state.notifier.AddTaskRunEnqueuedObserver(runtime)
 	}
 	runtime.Recover(ctx)
-	state.tasks.roles = runtime
+	state.tasks.roles.Store(runtime)
 	return nil
 }
 
@@ -474,6 +476,7 @@ func taskManagerOptions(
 	hooks *hooksNotifier,
 	reviewRequests taskpkg.RunReviewRequestedObserver,
 	recovery aghconfig.TaskRecoveryConfig,
+	scheduler aghconfig.SchedulerConfig,
 ) []taskpkg.Option {
 	options := []taskpkg.Option{
 		taskpkg.WithStore(store),
@@ -485,6 +488,7 @@ func taskManagerOptions(
 		taskpkg.WithForceRecoveryOptions(taskpkg.ForceRecoveryOptions{
 			AllowAgentForce: recovery.AllowAgentForce,
 		}),
+		taskpkg.WithStarvationAge(scheduler.MinQueuedAge),
 	}
 	if hooks != nil {
 		options = append(options, taskpkg.WithTaskRunHooks(hooks))

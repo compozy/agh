@@ -53,6 +53,19 @@ export const Failed: Story = {
   },
 };
 
+export const NeedsAttention: Story = {
+  args: {
+    status: "needs_attention",
+    ...BASE,
+    attempt: 2,
+    elapsed: "11m 18s",
+    warning: {
+      tone: "warning",
+      message: "Queued past escalation budget — no agent claimed this run",
+    },
+  },
+};
+
 export const WithWarning: Story = {
   args: {
     status: "in_progress",

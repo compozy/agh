@@ -66,6 +66,7 @@ const (
 	specAPIRunsIDInspectPath                                 = "/api/runs/{id}/inspect"
 	specAPIRunsIDReleasePath                                 = "/api/runs/{id}/release"
 	specAPIRunsIDRetryPath                                   = "/api/runs/{id}/retry"
+	specAPIRunsIDRecoverPath                                 = "/api/runs/{id}/recover"
 	specAPISchedulerPath                                     = "/api/scheduler"
 	specAPISchedulerBacklogPath                              = "/api/scheduler/backlog"
 	specAPISchedulerDrainPath                                = "/api/scheduler/drain"
@@ -4140,6 +4141,28 @@ var operationRegistry = []OperationSpec{
 	},
 	{
 		Method:      httpMethodPost,
+		Path:        specAPIRunsIDRecoverPath,
+		OperationID: "recoverTaskRun",
+		Summary:     "Recover one needs_attention task run",
+		Tags:        []string{specTasksKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task run id"),
+		},
+		RequestBody: contract.RecoverTaskRunRequest{},
+		Responses: []ResponseSpec{
+			{Status: 201, Description: specCreatedDescription, Body: contract.RetryTaskRunResponse{}},
+			{Status: 403, Description: specForceOperationForbiddenDescription, Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specTaskRunNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Task-run recovery conflict", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid recovery request", Body: contract.ErrorPayload{}},
+			{Status: 429, Description: specForceOperationRateLimitExceededDescription, Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodPost,
 		Path:        specAPIRunsBulkReleasePath,
 		OperationID: "bulkForceReleaseTaskRuns",
 		Summary:     "Force release a bounded set of claimed task runs",
@@ -6333,6 +6356,7 @@ func taskRunStatusValues() []string {
 		string(taskpkg.TaskRunStatusCompleted),
 		string(taskpkg.TaskRunStatusFailed),
 		string(taskpkg.TaskRunStatusCanceled),
+		string(taskpkg.TaskRunStatusNeedsAttention),
 	}
 }
 

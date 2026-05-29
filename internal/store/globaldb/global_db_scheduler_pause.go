@@ -114,19 +114,16 @@ func (g *GlobalDB) scanSchedulerPauseState(
 		PausedBy: strings.TrimSpace(pausedBy),
 		Reason:   strings.TrimSpace(reason),
 	}
+	// paused_at and updated_at are observability fields; `paused` is the authoritative
+	// signal. A non-canonical timestamp (e.g. a SQLite CURRENT_TIMESTAMP default) must
+	// never disable the scheduler control plane, so both are parsed best-effort.
 	if pausedAtRaw.Valid {
-		pausedAt, parseErr := store.ParseNullableTimestamp(pausedAtRaw.String)
-		if parseErr != nil {
-			return taskpkg.SchedulerPauseState{}, parseErr
-		}
-		if pausedAt != nil {
+		if pausedAt, parseErr := store.ParseNullableTimestamp(pausedAtRaw.String); parseErr == nil && pausedAt != nil {
 			state.PausedAt = *pausedAt
 		}
 	}
-	updatedAt, parseErr := store.ParseTimestamp(updatedAtRaw)
-	if parseErr != nil {
-		return taskpkg.SchedulerPauseState{}, parseErr
+	if updatedAt, parseErr := store.ParseTimestamp(updatedAtRaw); parseErr == nil {
+		state.UpdatedAt = updatedAt
 	}
-	state.UpdatedAt = updatedAt
 	return state, nil
 }

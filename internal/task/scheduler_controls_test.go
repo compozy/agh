@@ -14,11 +14,13 @@ import (
 
 type schedulerControlTestStore struct {
 	*inMemoryManagerStore
-	pause            SchedulerPauseState
-	activeClaimCount []int
-	summaries        []storepkg.EventSummary
-	cancelAfterPause context.CancelFunc
-	requireDeadline  bool
+	pause                  SchedulerPauseState
+	activeClaimCount       []int
+	summaries              []storepkg.EventSummary
+	cancelAfterPause       context.CancelFunc
+	requireDeadline        bool
+	starvedRunCount        int
+	needsAttentionRunCount int
 }
 
 var _ taskPauseStore = (*schedulerControlTestStore)(nil)
@@ -144,6 +146,24 @@ func (s *schedulerControlTestStore) CountPausedTasks(ctx context.Context) (int, 
 		}
 	}
 	return count, nil
+}
+
+func (s *schedulerControlTestStore) CountStarvedQueuedTaskRuns(
+	ctx context.Context,
+	_ time.Time,
+	_ time.Duration,
+) (int, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	return s.starvedRunCount, nil
+}
+
+func (s *schedulerControlTestStore) CountNeedsAttentionTaskRuns(ctx context.Context) (int, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	return s.needsAttentionRunCount, nil
 }
 
 func (s *schedulerControlTestStore) SchedulerBacklog(

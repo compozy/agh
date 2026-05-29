@@ -2139,7 +2139,7 @@ function createBridgeAdapterMarkerPaths(rootDir: string): BridgeAdapterMarkerPat
 }
 
 function patchBridgeExtensionManifest(manifest: string, markers: BridgeAdapterMarkerPaths): string {
-  let next = manifest;
+  let next = manifest.replace('min_agh_version = "0.5.0"', 'min_agh_version = "0.0.0"');
   const values = {
     AGH_BRIDGE_ADAPTER_CRASH_ONCE_PATH: markers.crashOnce,
     AGH_BRIDGE_ADAPTER_DELIVERY_PATH: markers.delivery,

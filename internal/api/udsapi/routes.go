@@ -337,6 +337,7 @@ func registerTaskRunRoutes(api gin.IRouter, handlers *Handlers) {
 		runs.POST("/:id/release", handlers.ForceReleaseTaskRun)
 		runs.POST("/:id/fail", handlers.ForceFailTaskRun)
 		runs.POST("/:id/retry", handlers.RetryTaskRun)
+		runs.POST("/:id/recover", handlers.RecoverTaskRun)
 	}
 
 	scheduler := api.Group("/scheduler")

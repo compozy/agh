@@ -23,45 +23,48 @@ const (
 )
 
 const (
-	taskEventCreated               = eventspkg.TaskCreated
-	taskEventUpdated               = eventspkg.TaskUpdated
-	taskEventPublished             = eventspkg.TaskPublished
-	taskEventApproved              = eventspkg.TaskApproved
-	taskEventRejected              = eventspkg.TaskRejected
-	taskEventCanceled              = eventspkg.TaskCanceled
-	taskEventChildCreated          = eventspkg.TaskChildCreated
-	taskEventDependencyAdded       = eventspkg.TaskDependencyAdded
-	taskEventDependencyRemoved     = eventspkg.TaskDependencyRemoved
-	taskEventPaused                = eventspkg.TaskPaused
-	taskEventResumed               = eventspkg.TaskResumed
-	taskEventRunEnqueued           = eventspkg.TaskRunEnqueued
-	taskEventRunClaimed            = eventspkg.TaskRunClaimed
-	taskEventRunStarting           = eventspkg.TaskRunStarting
-	taskEventRunSessionBound       = eventspkg.TaskRunSessionBound
-	taskEventRunStarted            = eventspkg.TaskRunStarted
-	taskEventRunCompleted          = eventspkg.TaskRunCompleted
-	taskEventRunFailed             = eventspkg.TaskRunFailed
-	taskEventRunCanceled           = eventspkg.TaskRunCanceled
-	taskEventRunForceStopped       = eventspkg.TaskRunForceStopped
-	taskEventRunRecovered          = eventspkg.TaskRunRecovered
-	taskEventRunRejected           = eventspkg.TaskRunRejected
-	taskEventRunLeaseExtended      = eventspkg.TaskRunLeaseExtended
-	taskEventRunLeaseExpired       = eventspkg.TaskRunLeaseExpired
-	taskEventRunReleased           = eventspkg.TaskRunReleased
-	taskEventRunOperatorForcedFail = eventspkg.TaskRunOperatorForcedFail
-	taskEventRunOperatorRetry      = eventspkg.TaskRunOperatorRetry
-	taskEventProfileUpdated        = eventspkg.TaskExecutionProfileUpdated
-	taskEventProfileDeleted        = eventspkg.TaskExecutionProfileDeleted
-	taskEventRunReviewRequested    = eventspkg.TaskRunReviewRequested
-	taskEventRunReviewBound        = eventspkg.TaskRunReviewBound
-	taskEventRunReviewRecorded     = eventspkg.TaskRunReviewRecorded
-	taskEventRunReviewApproved     = eventspkg.TaskRunReviewApproved
-	taskEventRunReviewRejected     = eventspkg.TaskRunReviewRejected
-	taskEventRunReviewBlocked      = eventspkg.TaskRunReviewBlocked
-	taskEventRunReviewError        = eventspkg.TaskRunReviewError
-	taskEventRunReviewTimeout      = eventspkg.TaskRunReviewTimeout
-	taskEventRunReviewInvalid      = eventspkg.TaskRunReviewInvalidOutput
-	taskEventRunReviewRetry        = eventspkg.TaskRunReviewRetryEnqueued
+	taskEventCreated                   = eventspkg.TaskCreated
+	taskEventUpdated                   = eventspkg.TaskUpdated
+	taskEventPublished                 = eventspkg.TaskPublished
+	taskEventApproved                  = eventspkg.TaskApproved
+	taskEventRejected                  = eventspkg.TaskRejected
+	taskEventCanceled                  = eventspkg.TaskCanceled
+	taskEventChildCreated              = eventspkg.TaskChildCreated
+	taskEventDependencyAdded           = eventspkg.TaskDependencyAdded
+	taskEventDependencyRemoved         = eventspkg.TaskDependencyRemoved
+	taskEventPaused                    = eventspkg.TaskPaused
+	taskEventResumed                   = eventspkg.TaskResumed
+	taskEventRunEnqueued               = eventspkg.TaskRunEnqueued
+	taskEventRunClaimed                = eventspkg.TaskRunClaimed
+	taskEventRunStarting               = eventspkg.TaskRunStarting
+	taskEventRunSessionBound           = eventspkg.TaskRunSessionBound
+	taskEventRunStarted                = eventspkg.TaskRunStarted
+	taskEventRunCompleted              = eventspkg.TaskRunCompleted
+	taskEventRunFailed                 = eventspkg.TaskRunFailed
+	taskEventRunCanceled               = eventspkg.TaskRunCanceled
+	taskEventRunForceStopped           = eventspkg.TaskRunForceStopped
+	taskEventRunRecovered              = eventspkg.TaskRunRecovered
+	taskEventRunRejected               = eventspkg.TaskRunRejected
+	taskEventRunLeaseExtended          = eventspkg.TaskRunLeaseExtended
+	taskEventRunLeaseExpired           = eventspkg.TaskRunLeaseExpired
+	taskEventRunReleased               = eventspkg.TaskRunReleased
+	taskEventRunOperatorForcedFail     = eventspkg.TaskRunOperatorForcedFail
+	taskEventRunOperatorRetry          = eventspkg.TaskRunOperatorRetry
+	taskEventRunRecoveredFromAttention = eventspkg.TaskRunRecoveredFromAttention
+	taskEventRunStarved                = eventspkg.TaskRunStarved
+	taskEventRunNeedsAttention         = eventspkg.TaskRunNeedsAttention
+	taskEventProfileUpdated            = eventspkg.TaskExecutionProfileUpdated
+	taskEventProfileDeleted            = eventspkg.TaskExecutionProfileDeleted
+	taskEventRunReviewRequested        = eventspkg.TaskRunReviewRequested
+	taskEventRunReviewBound            = eventspkg.TaskRunReviewBound
+	taskEventRunReviewRecorded         = eventspkg.TaskRunReviewRecorded
+	taskEventRunReviewApproved         = eventspkg.TaskRunReviewApproved
+	taskEventRunReviewRejected         = eventspkg.TaskRunReviewRejected
+	taskEventRunReviewBlocked          = eventspkg.TaskRunReviewBlocked
+	taskEventRunReviewError            = eventspkg.TaskRunReviewError
+	taskEventRunReviewTimeout          = eventspkg.TaskRunReviewTimeout
+	taskEventRunReviewInvalid          = eventspkg.TaskRunReviewInvalidOutput
+	taskEventRunReviewRetry            = eventspkg.TaskRunReviewRetryEnqueued
 )
 
 // Option customizes Service construction.
@@ -81,6 +84,7 @@ type managerOptions struct {
 	now               func() time.Time
 	newID             func(prefix string) string
 	cancelGracePeriod time.Duration
+	starvationAge     time.Duration
 }
 
 // Service centralizes canonical task-domain creation, mutation, read, and
@@ -99,6 +103,7 @@ type Service struct {
 	now               func() time.Time
 	newID             func(prefix string) string
 	cancelGracePeriod time.Duration
+	starvationAge     time.Duration
 	forceRateLimiter  *forceRunRateLimiter
 	liveMu            sync.Mutex
 	liveSubscribers   map[uint64]*taskStreamSubscriber
@@ -214,12 +219,16 @@ func NewManager(opts ...Option) (*Service, error) {
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
-		newID: store.NewID,
+		newID:         store.NewID,
+		starvationAge: DefaultTaskStarvationAge,
 	}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(&options)
 		}
+	}
+	if options.starvationAge <= 0 {
+		options.starvationAge = DefaultTaskStarvationAge
 	}
 	if options.store == nil {
 		return nil, fmt.Errorf("task: manager store is required")
@@ -248,6 +257,7 @@ func NewManager(opts ...Option) (*Service, error) {
 		now:               options.now,
 		newID:             options.newID,
 		cancelGracePeriod: options.cancelGracePeriod,
+		starvationAge:     options.starvationAge,
 		forceRateLimiter:  newForceRunRateLimiter(),
 		liveSubscribers:   make(map[uint64]*taskStreamSubscriber),
 	}, nil

@@ -24,10 +24,12 @@ type wakeKey struct {
 }
 
 type selectionResult struct {
-	targets          []WakeTarget
-	noMatch          []RunSnapshot
-	recentlyNotified int
-	unclaimable      int
+	targets               []WakeTarget
+	noMatch               []RunSnapshot
+	starved               []RunSnapshot
+	convergenceCandidates []RunSnapshot
+	recentlyNotified      int
+	unclaimable           int
 }
 
 // Scheduler owns one mechanical sweep/notify loop.
@@ -36,15 +38,19 @@ type Scheduler struct {
 	sessions   SessionSource
 	waker      Waker
 	pauseStore PauseStore
+	escalator  EscalationActor
+	starvation StarvationStore
 
-	logger       *slog.Logger
-	clock        clockwork.Clock
-	interval     time.Duration
-	wakeCooldown time.Duration
-	sweepReason  string
-	wakeReason   string
-	sweepLimit   int
-	actor        taskpkg.ActorContext
+	logger           *slog.Logger
+	clock            clockwork.Clock
+	interval         time.Duration
+	wakeCooldown     time.Duration
+	starvationAge    time.Duration
+	starveThresholds StarvationThresholds
+	sweepReason      string
+	wakeReason       string
+	sweepLimit       int
+	actor            taskpkg.ActorContext
 
 	mu            sync.Mutex
 	runtimeCancel context.CancelFunc
@@ -74,18 +80,20 @@ func New(tasks TaskSource, sessions SessionSource, waker Waker, opts ...Option) 
 		return nil, fmt.Errorf("scheduler: derive daemon actor: %w", err)
 	}
 	s := &Scheduler{
-		tasks:        tasks,
-		sessions:     sessions,
-		waker:        waker,
-		logger:       slog.Default(),
-		clock:        clockwork.NewRealClock(),
-		interval:     defaultInterval,
-		wakeCooldown: defaultWakeCooldown,
-		sweepReason:  defaultSweepReason,
-		wakeReason:   defaultWakeReason,
-		sweepLimit:   defaultSweepLimit,
-		actor:        actor,
-		wakeState:    make(map[wakeKey]time.Time),
+		tasks:            tasks,
+		sessions:         sessions,
+		waker:            waker,
+		logger:           slog.Default(),
+		clock:            clockwork.NewRealClock(),
+		interval:         defaultInterval,
+		wakeCooldown:     defaultWakeCooldown,
+		starvationAge:    defaultStarvationAge,
+		starveThresholds: DefaultStarvationThresholds(),
+		sweepReason:      defaultSweepReason,
+		wakeReason:       defaultWakeReason,
+		sweepLimit:       defaultSweepLimit,
+		actor:            actor,
+		wakeState:        make(map[wakeKey]time.Time),
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -103,6 +111,9 @@ func New(tasks TaskSource, sessions SessionSource, waker Waker, opts ...Option) 
 	}
 	if s.wakeCooldown < 0 {
 		s.wakeCooldown = defaultWakeCooldown
+	}
+	if s.starvationAge < 0 {
+		s.starvationAge = 0
 	}
 	if strings.TrimSpace(s.sweepReason) == "" {
 		s.sweepReason = defaultSweepReason
@@ -305,10 +316,20 @@ func (s *Scheduler) RunOnce(ctx context.Context) (CycleResult, error) {
 	selection := s.selectWakeTargets(now, pending, sessions, active)
 	applySelection(&result, selection)
 	errs = append(errs, s.dispatchWakeTargets(ctx, now, selection.targets, &result)...)
+	if s.starvation != nil && s.escalator != nil {
+		errs = append(errs, s.runConvergence(ctx, now, selection.convergenceCandidates, &result)...)
+	}
 
 	s.recordCycle(now, result)
 	if result.NoMatchRuns > 0 {
 		s.logger.Info("scheduler.wake.no_match", "runs", result.NoMatchRunIDs)
+	}
+	if result.StarvedRuns > 0 {
+		s.logger.Warn(
+			"scheduler.wake.starved",
+			"runs", result.StarvedRunIDs,
+			"min_queued_age_ms", s.starvationAge.Milliseconds(),
+		)
 	}
 	return result, errors.Join(errs...)
 }
@@ -371,7 +392,9 @@ func applySelection(result *CycleResult, selection selectionResult) {
 	result.NoMatchRuns = len(selection.noMatch)
 	result.RecentlyNotified = selection.recentlyNotified
 	result.UnclaimableRuns = selection.unclaimable
+	result.StarvedRuns = len(selection.starved)
 	result.NoMatchRunIDs = runIDs(selection.noMatch)
+	result.StarvedRunIDs = runIDs(selection.starved)
 }
 
 func (s *Scheduler) dispatchWakeTargets(
@@ -515,8 +538,42 @@ func (s *Scheduler) selectWakeTargets(
 				eligible = append(eligible, candidate)
 			}
 		}
+
+		// Queued age is durable on the run, so starvation detection survives a rebuild
+		// and fires for an eligible-but-uninterested session, not only when no session
+		// is eligible. A starved run escalates: every eligible session is woken (the
+		// atomic claim serializes the winner) and the run is reported for observability.
+		starved := s.starvationAge > 0 && !work.Run.QueuedAt.IsZero() &&
+			now.Sub(work.Run.QueuedAt) >= s.starvationAge
+		if starved {
+			result.convergenceCandidates = append(result.convergenceCandidates, *work)
+		}
+
 		if len(eligible) == 0 {
 			result.noMatch = append(result.noMatch, *work)
+			if starved {
+				result.starved = append(result.starved, *work)
+			}
+			continue
+		}
+
+		if starved {
+			woke := 0
+			for _, candidate := range eligible {
+				id := strings.TrimSpace(candidate.ID)
+				targetedSessions[id] = struct{}{}
+				result.targets = append(result.targets, WakeTarget{
+					Work:    *work,
+					Session: candidate,
+					Reason:  s.wakeReason,
+				})
+				woke++
+			}
+			if woke > 0 {
+				result.starved = append(result.starved, *work)
+			} else {
+				result.recentlyNotified++
+			}
 			continue
 		}
 
@@ -594,6 +651,9 @@ func (s *Scheduler) recordCycle(now time.Time, result CycleResult) {
 	s.stats.NoMatchRuns += result.NoMatchRuns
 	s.stats.RecentlyNotified += result.RecentlyNotified
 	s.stats.UnclaimableRuns += result.UnclaimableRuns
+	s.stats.StarvedRuns += result.StarvedRuns
+	s.stats.SpawnRequested += result.SpawnRequested
+	s.stats.NeedsAttention += result.NeedsAttention
 	s.stats.LastCycleAt = now
 	s.mu.Unlock()
 }

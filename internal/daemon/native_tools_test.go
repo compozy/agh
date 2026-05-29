@@ -7115,6 +7115,15 @@ func (unsupportedNativeTaskManager) RetryRun(
 	return nil, errUnexpectedNativeTaskCall
 }
 
+func (unsupportedNativeTaskManager) RecoverRun(
+	context.Context,
+	string,
+	taskpkg.RecoverRunRequest,
+	taskpkg.ActorContext,
+) (*taskpkg.RetryRunResult, error) {
+	return nil, errUnexpectedNativeTaskCall
+}
+
 func (unsupportedNativeTaskManager) BulkForceReleaseRuns(
 	context.Context,
 	taskpkg.BulkForceRunRequest,

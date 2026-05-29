@@ -166,6 +166,11 @@ describe("useTaskStream", () => {
 
     expect(eventSource.hasListener("task.run_started")).toBe(true);
     expect(eventSource.hasListener("task.run_review_requested")).toBe(true);
+    expect(eventSource.hasListener("task.run_operator_forced_fail")).toBe(true);
+    expect(eventSource.hasListener("task.run_operator_retry")).toBe(true);
+    expect(eventSource.hasListener("task.run_recovered_from_attention")).toBe(true);
+    expect(eventSource.hasListener("task.run_starved")).toBe(true);
+    expect(eventSource.hasListener("task.run_needs_attention")).toBe(true);
     expect(eventSource.hasListener("task.notification_delivered")).toBe(true);
 
     const payload = buildStreamPayload();
@@ -201,11 +206,36 @@ describe("useTaskStream", () => {
       expect.any(Function)
     );
     expect(eventSource.removeEventListener).toHaveBeenCalledWith(
+      "task.run_operator_forced_fail",
+      expect.any(Function)
+    );
+    expect(eventSource.removeEventListener).toHaveBeenCalledWith(
+      "task.run_operator_retry",
+      expect.any(Function)
+    );
+    expect(eventSource.removeEventListener).toHaveBeenCalledWith(
+      "task.run_recovered_from_attention",
+      expect.any(Function)
+    );
+    expect(eventSource.removeEventListener).toHaveBeenCalledWith(
+      "task.run_starved",
+      expect.any(Function)
+    );
+    expect(eventSource.removeEventListener).toHaveBeenCalledWith(
+      "task.run_needs_attention",
+      expect.any(Function)
+    );
+    expect(eventSource.removeEventListener).toHaveBeenCalledWith(
       "task.notification_delivered",
       expect.any(Function)
     );
     expect(eventSource.hasListener("task.run_started")).toBe(false);
     expect(eventSource.hasListener("task.run_review_requested")).toBe(false);
+    expect(eventSource.hasListener("task.run_operator_forced_fail")).toBe(false);
+    expect(eventSource.hasListener("task.run_operator_retry")).toBe(false);
+    expect(eventSource.hasListener("task.run_recovered_from_attention")).toBe(false);
+    expect(eventSource.hasListener("task.run_starved")).toBe(false);
+    expect(eventSource.hasListener("task.run_needs_attention")).toBe(false);
     expect(eventSource.hasListener("task.notification_delivered")).toBe(false);
   });
 

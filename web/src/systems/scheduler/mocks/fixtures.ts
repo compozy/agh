@@ -3,9 +3,11 @@ import type { SchedulerBacklog, SchedulerDrainResult, SchedulerStatus } from "..
 export const schedulerStatusFixture: SchedulerStatus = {
   active_claim_count: 1,
   as_of: "2026-04-17T18:02:00Z",
+  needs_attention_run_count: 0,
   paused: false,
   paused_task_count: 1,
   queued_run_count: 3,
+  starved_run_count: 0,
 };
 
 export const schedulerPausedStatusFixture: SchedulerStatus = {
@@ -15,6 +17,12 @@ export const schedulerPausedStatusFixture: SchedulerStatus = {
   paused_at: "2026-04-17T18:00:00Z",
   paused_by: "human:storybook",
   paused_reason: "provider incident",
+};
+
+export const schedulerAttentionStatusFixture: SchedulerStatus = {
+  ...schedulerStatusFixture,
+  needs_attention_run_count: 1,
+  starved_run_count: 2,
 };
 
 export const schedulerBacklogFixture = {

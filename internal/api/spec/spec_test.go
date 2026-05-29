@@ -1181,6 +1181,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					string(taskpkg.TaskRunStatusCompleted),
 					string(taskpkg.TaskRunStatusFailed),
 					string(taskpkg.TaskRunStatusCanceled),
+					string(taskpkg.TaskRunStatusNeedsAttention),
 				)
 				assertEnumValues(t, propertySchema(t, propertySchema(t, runSchema, "origin"), "kind"),
 					string(taskpkg.OriginKindCLI),
@@ -1639,6 +1640,7 @@ func TestEnumHelpersReturnStableValues(t *testing.T) {
 				string(taskpkg.TaskRunStatusCompleted),
 				string(taskpkg.TaskRunStatusFailed),
 				string(taskpkg.TaskRunStatusCanceled),
+				string(taskpkg.TaskRunStatusNeedsAttention),
 			},
 		},
 		{

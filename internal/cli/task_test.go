@@ -1038,6 +1038,50 @@ func TestTaskForceCommandsMapRequests(t *testing.T) {
 			t.Fatalf("task retry output = %#v, want source run-1 and new run-2", output)
 		}
 	})
+
+	t.Run("Should map recover request with recover-specific text output", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{
+			recoverTaskRunFn: func(
+				_ context.Context,
+				runID string,
+				request RecoverTaskRunRequest,
+			) (RetryTaskRunRecord, error) {
+				if runID != "run-1" ||
+					request.Reason != "operator recovery" ||
+					string(request.Metadata) != `{"source":"operator"}` {
+					t.Fatalf("recover runID=%q request=%#v, want reason and metadata", runID, request)
+				}
+				return RetryTaskRunRecord{
+					PreviousRun: taskRunRecord("run-1", taskpkg.TaskRunStatusFailed),
+					Run:         taskRunRecord("run-2", taskpkg.TaskRunStatusQueued),
+				}, nil
+			},
+		})
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"task",
+			"recover",
+			"run-1",
+			"--reason",
+			"operator recovery",
+			"--metadata",
+			`{"source":"operator"}`,
+			"-o",
+			"human",
+		)
+		if err != nil {
+			t.Fatalf("task recover error = %v", err)
+		}
+		if !strings.Contains(stdout, "Task Run Recovery") {
+			t.Fatalf("task recover output = %q, want recovery heading", stdout)
+		}
+		if strings.Contains(stdout, "Task Run Retry") {
+			t.Fatalf("task recover output = %q, want no retry heading", stdout)
+		}
+	})
 }
 
 func TestAgentTaskCommandsValidateBeforeAgentCalls(t *testing.T) {

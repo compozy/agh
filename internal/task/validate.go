@@ -153,13 +153,14 @@ func (s RunStatus) Validate(path string) error {
 		TaskRunStatusRunning,
 		TaskRunStatusCompleted,
 		TaskRunStatusFailed,
-		TaskRunStatusCanceled:
+		TaskRunStatusCanceled,
+		TaskRunStatusNeedsAttention:
 		return nil
 	case "":
 		return fmt.Errorf("%w: %s is required", ErrValidation, path)
 	default:
 		return fmt.Errorf(
-			"%w: %s must be one of %q, %q, %q, %q, %q, %q, or %q: %q",
+			"%w: %s must be one of %q, %q, %q, %q, %q, %q, %q, or %q: %q",
 			ErrValidation,
 			path,
 			TaskRunStatusQueued,
@@ -169,6 +170,7 @@ func (s RunStatus) Validate(path string) error {
 			TaskRunStatusCompleted,
 			TaskRunStatusFailed,
 			TaskRunStatusCanceled,
+			TaskRunStatusNeedsAttention,
 			s,
 		)
 	}

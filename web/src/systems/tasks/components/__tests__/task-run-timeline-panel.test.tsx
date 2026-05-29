@@ -67,6 +67,28 @@ const eventOtherRun: TaskTimelineItem = {
   task: { id: "task_001", identifier: "TASK-42" },
 } as unknown as TaskTimelineItem;
 
+const eventNeedsAttention: TaskTimelineItem = {
+  event_id: "evt_needs_attention",
+  sequence: 14,
+  event_type: "task.run_needs_attention",
+  timestamp: "2026-04-11T14:45:45Z",
+  payload: { diagnostic: "No capable agent claimed this run before escalation." },
+  run: { id: "run_001", attempt: 2, status: "needs_attention" },
+  origin: { kind: "scheduler", ref: "starvation" },
+  task: { id: "task_001", identifier: "TASK-42" },
+} as unknown as TaskTimelineItem;
+
+const eventRecoveredFromAttention: TaskTimelineItem = {
+  event_id: "evt_recovered_from_attention",
+  sequence: 15,
+  event_type: "task.run_recovered_from_attention",
+  timestamp: "2026-04-11T14:46:45Z",
+  payload: { reason: "operator confirmed the dependency is now available" },
+  run: { id: "run_001", attempt: 3, status: "queued" },
+  origin: { kind: "cli", ref: "op" },
+  task: { id: "task_001", identifier: "TASK-42" },
+} as unknown as TaskTimelineItem;
+
 describe("TaskRunTimelinePanel", () => {
   it("Should render the RunCard with the run id", () => {
     render(<TaskRunTimelinePanel items={[eventA, eventB]} run={buildRun()} />);
@@ -94,6 +116,25 @@ describe("TaskRunTimelinePanel", () => {
     expect(screen.getByTestId("tasks-run-detail-timeline-loading")).toBeInTheDocument();
   });
 
+  it("Should describe needs_attention timeline diagnostics", () => {
+    render(
+      <TaskRunTimelinePanel
+        items={[eventNeedsAttention]}
+        run={buildRun({ status: "needs_attention" })}
+      />
+    );
+    expect(
+      screen.getByText("No capable agent claimed this run before escalation.")
+    ).toBeInTheDocument();
+  });
+
+  it("Should describe recovered-from-attention timeline reasons", () => {
+    render(<TaskRunTimelinePanel items={[eventRecoveredFromAttention]} run={buildRun()} />);
+    expect(
+      screen.getByText("operator confirmed the dependency is now available")
+    ).toBeInTheDocument();
+  });
+
   it("Should NOT render the old MetadataList Identity panel", () => {
     render(<TaskRunTimelinePanel items={[eventA, eventB]} run={buildRun()} />);
     expect(screen.queryByTestId("task-run-detail-identity")).not.toBeInTheDocument();
@@ -111,5 +152,22 @@ describe("TaskRunTimelinePanel", () => {
     const warning = document.querySelector("[data-slot='run-card-warning']");
     expect(warning).not.toBeNull();
     expect(warning?.textContent ?? "").toContain("partner export 429");
+    expect(warning).toHaveAttribute("data-tone", "danger");
+  });
+
+  it("Should surface needs_attention diagnostics as a warning strip on the card", () => {
+    render(
+      <TaskRunTimelinePanel
+        items={[]}
+        run={buildRun({
+          status: "needs_attention",
+          error: "No capable agent claimed this run before escalation.",
+        })}
+      />
+    );
+    const warning = document.querySelector("[data-slot='run-card-warning']");
+    expect(warning).not.toBeNull();
+    expect(warning?.textContent ?? "").toContain("No capable agent claimed this run");
+    expect(warning).toHaveAttribute("data-tone", "warning");
   });
 });

@@ -77,6 +77,8 @@ Any feature or refactor must state whether config.toml keys, defaults, docs, and
 
 If a rename touches code, storage, APIs, CLI, extensions, specs, docs, and task artifacts, update them together.
 
+`[autonomy.scheduler]` tunes the mechanical scheduler's convergence escalation ladder for starved runs. Keys are wake-cycle counts that must stay positive and monotonic (`fan_out_after` ≤ `spawn_after` ≤ `event_after` ≤ `needs_attention_after`) plus a `min_queued_age` duration. Defaults: `fan_out_after = 2`, `spawn_after = 4`, `event_after = 6`, `needs_attention_after = 10`, `min_queued_age = "2m"`. Validation rejects non-monotonic or non-positive values at load.
+
 ## Settings Apply Lifecycle
 
 `config.toml` is desired state. Runtime truth advances only when `ConfigApplyService` applies that desired change to the daemon active generation or records why it cannot.

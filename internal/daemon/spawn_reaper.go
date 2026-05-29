@@ -195,9 +195,41 @@ func (r *spawnReaper) reapCandidate(
 	info *session.Info,
 	parents map[string]*session.Info,
 ) (spawnReapCandidate, bool) {
-	if info == nil || info.Type != session.SessionTypeSpawned || !spawnReaperLiveState(info.State) {
+	if info == nil || !spawnReaperLiveState(info.State) {
 		return spawnReapCandidate{}, false
 	}
+	switch info.Type {
+	case session.SessionTypeSpawned:
+		return r.reapSpawnedCandidate(info, parents)
+	case session.SessionTypeSystem:
+		return r.reapTTLSystemCandidate(info)
+	default:
+		return spawnReapCandidate{}, false
+	}
+}
+
+// reapTTLSystemCandidate reaps a parent-less, TTL-bearing system session (a capability-matched
+// starvation worker) once its deadline passes. System sessions without a TTL lineage — ordinary
+// task-role and task sessions — carry no lineage and are never reaped here.
+func (r *spawnReaper) reapTTLSystemCandidate(info *session.Info) (spawnReapCandidate, bool) {
+	if info.Lineage == nil {
+		return spawnReapCandidate{}, false
+	}
+	lineage := store.NormalizeSessionLineage(info.ID, info.Lineage)
+	if strings.TrimSpace(lineage.ParentSessionID) != "" || lineage.TTLExpiresAt == nil {
+		return spawnReapCandidate{}, false
+	}
+	if lineage.TTLExpiresAt.After(r.now().UTC()) {
+		return spawnReapCandidate{}, false
+	}
+	info.Lineage = lineage
+	return spawnReapCandidate{child: info, reason: spawnReapReasonTTLExpired}, true
+}
+
+func (r *spawnReaper) reapSpawnedCandidate(
+	info *session.Info,
+	parents map[string]*session.Info,
+) (spawnReapCandidate, bool) {
 	lineage := store.NormalizeSessionLineage(info.ID, info.Lineage)
 	if lineage.ParentSessionID == "" {
 		info.Lineage = lineage

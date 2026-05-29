@@ -124,6 +124,22 @@ func migrateSchedulerPauseState(ctx context.Context, tx *sql.Tx) error {
 	return nil
 }
 
+// healSchedulerPauseUpdatedAtSQL rewrites a non-canonical scheduler_pause.updated_at (the
+// SQLite CURRENT_TIMESTAMP form the v29 seed produced) into the canonical RFC3339Nano layout.
+// The NOT LIKE '%T%' guard makes it idempotent: canonical values already contain 'T'.
+const healSchedulerPauseUpdatedAtSQL = `UPDATE scheduler_pause
+	SET updated_at = strftime('%Y-%m-%dT%H:%M:%S', updated_at) || '.000000000Z'
+	WHERE id = 1
+	  AND updated_at NOT LIKE '%T%'
+	  AND strftime('%Y-%m-%dT%H:%M:%S', updated_at) IS NOT NULL`
+
+func migrateHealSchedulerPauseUpdatedAt(ctx context.Context, tx *sql.Tx) error {
+	if _, err := tx.ExecContext(ctx, healSchedulerPauseUpdatedAtSQL); err != nil {
+		return fmt.Errorf("store: heal scheduler pause updated_at: %w", err)
+	}
+	return nil
+}
+
 func migrateTaskRunForceOps(ctx context.Context, tx *sql.Tx) error {
 	exists, err := tableExists(ctx, tx, "task_runs")
 	if err != nil {

@@ -243,6 +243,40 @@ func TestGlobalDBClaimNextRunRespectsSchedulerPause(t *testing.T) {
 	})
 }
 
+func TestGlobalDBClaimNextRunSkipsNeedsAttention(t *testing.T) {
+	t.Run("Should not return a run escalated to needs_attention", func(t *testing.T) {
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 5, 28, 12, 0, 0, 0, time.UTC)
+		taskRecord := taskRecordForTest("task-needs-attention")
+		taskRecord.Status = taskpkg.TaskStatusReady
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run := taskRunForTest("run-needs-attention", taskRecord.ID)
+		if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE task_runs SET status = 'needs_attention' WHERE id = ?`,
+			run.ID,
+		); err != nil {
+			t.Fatalf("escalate to needs_attention error = %v", err)
+		}
+
+		_, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+			Scope:            taskpkg.ScopeGlobal,
+			ClaimerSessionID: "sess-needs-attention",
+			LeaseDuration:    time.Minute,
+			Now:              now,
+		})
+		if !errors.Is(err, taskpkg.ErrNoClaimableRun) {
+			t.Fatalf("ClaimNextRun(needs_attention) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
+		}
+	})
+}
+
 func TestGlobalDBClaimNextRunRespectsEffectiveTaskPause(t *testing.T) {
 	t.Run("Should block descendants of a paused task without mutating child rows", func(t *testing.T) {
 		globalDB := openTestGlobalDB(t)

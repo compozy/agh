@@ -507,6 +507,15 @@ type networkOverlay struct {
 
 type autonomyOverlay struct {
 	Coordinator coordinatorOverlay `toml:"coordinator"`
+	Scheduler   schedulerOverlay   `toml:"scheduler"`
+}
+
+type schedulerOverlay struct {
+	FanOutAfter         *int           `toml:"fan_out_after"`
+	SpawnAfter          *int           `toml:"spawn_after"`
+	EventAfter          *int           `toml:"event_after"`
+	NeedsAttentionAfter *int           `toml:"needs_attention_after"`
+	MinQueuedAge        *time.Duration `toml:"min_queued_age"`
 }
 
 type coordinatorOverlay struct {
@@ -1570,6 +1579,25 @@ func (o networkOverlay) Apply(dst *NetworkConfig) {
 
 func (o autonomyOverlay) Apply(dst *AutonomyConfig) {
 	o.Coordinator.Apply(&dst.Coordinator)
+	o.Scheduler.Apply(&dst.Scheduler)
+}
+
+func (o schedulerOverlay) Apply(dst *SchedulerConfig) {
+	if o.FanOutAfter != nil {
+		dst.FanOutAfter = *o.FanOutAfter
+	}
+	if o.SpawnAfter != nil {
+		dst.SpawnAfter = *o.SpawnAfter
+	}
+	if o.EventAfter != nil {
+		dst.EventAfter = *o.EventAfter
+	}
+	if o.NeedsAttentionAfter != nil {
+		dst.NeedsAttentionAfter = *o.NeedsAttentionAfter
+	}
+	if o.MinQueuedAge != nil {
+		dst.MinQueuedAge = *o.MinQueuedAge
+	}
 }
 
 func (o coordinatorOverlay) Apply(dst *CoordinatorConfig) {

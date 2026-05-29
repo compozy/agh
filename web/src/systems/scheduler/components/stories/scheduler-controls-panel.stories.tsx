@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { PanelSurface } from "@/storybook/story-layout";
 import {
+  schedulerAttentionStatusFixture,
   schedulerBacklogFixture,
   schedulerPausedStatusFixture,
   schedulerStatusFixture,
@@ -46,6 +47,20 @@ export const Paused: Story = {
         onPause={() => undefined}
         onResume={() => undefined}
         status={schedulerPausedStatusFixture}
+      />
+    </Frame>
+  ),
+};
+
+export const AttentionPressure: Story = {
+  render: () => (
+    <Frame>
+      <SchedulerControlsPanel
+        backlog={schedulerBacklogFixture}
+        onDrain={() => undefined}
+        onPause={() => undefined}
+        onResume={() => undefined}
+        status={schedulerAttentionStatusFixture}
       />
     </Frame>
   ),

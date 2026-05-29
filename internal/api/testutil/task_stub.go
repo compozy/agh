@@ -28,6 +28,13 @@ type retryRunFunc func(
 	taskpkg.ActorContext,
 ) (*taskpkg.RetryRunResult, error)
 
+type recoverRunFunc func(
+	context.Context,
+	string,
+	taskpkg.RecoverRunRequest,
+	taskpkg.ActorContext,
+) (*taskpkg.RetryRunResult, error)
+
 type bulkForceRunFunc func(
 	context.Context,
 	taskpkg.BulkForceRunRequest,
@@ -136,6 +143,7 @@ type StubTaskManager struct {
 	ForceReleaseRunFn      forceReleaseRunFunc
 	ForceFailRunFn         forceFailRunFunc
 	RetryRunFn             retryRunFunc
+	RecoverRunFn           recoverRunFunc
 	BulkForceReleaseRunsFn bulkForceRunFunc
 	BulkForceFailRunsFn    bulkForceRunFunc
 	PauseTaskFn            pauseTaskFunc
@@ -570,6 +578,18 @@ func (s StubTaskManager) RetryRun(
 ) (*taskpkg.RetryRunResult, error) {
 	if s.RetryRunFn != nil {
 		return s.RetryRunFn(ctx, runID, retry, actor)
+	}
+	return nil, taskpkg.ErrTaskRunNotFound
+}
+
+func (s StubTaskManager) RecoverRun(
+	ctx context.Context,
+	runID string,
+	req taskpkg.RecoverRunRequest,
+	actor taskpkg.ActorContext,
+) (*taskpkg.RetryRunResult, error) {
+	if s.RecoverRunFn != nil {
+		return s.RecoverRunFn(ctx, runID, req, actor)
 	}
 	return nil, taskpkg.ErrTaskRunNotFound
 }

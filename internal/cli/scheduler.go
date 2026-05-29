@@ -23,6 +23,8 @@ const (
 	schedulerActiveClaimValue = "Active Claims"
 	schedulerQueuedRunValue   = "Queued Runs"
 	schedulerPausedTaskValue  = "Paused Tasks"
+	schedulerStarvedRunValue  = "Starved Runs"
+	schedulerNeedsAttnValue   = "Needs Attention Runs"
 	schedulerCompletedValue   = "Completed"
 	schedulerTimedOutValue    = "Timed Out"
 	schedulerRemainingValue   = "Remaining Claims"
@@ -210,6 +212,8 @@ func schedulerStatusBundle(record SchedulerStatusRecord) outputBundle {
 				{Label: schedulerActiveClaimValue, Value: strconv.Itoa(record.ActiveClaimCount)},
 				{Label: schedulerQueuedRunValue, Value: strconv.Itoa(record.QueuedRunCount)},
 				{Label: schedulerPausedTaskValue, Value: strconv.Itoa(record.PausedTaskCount)},
+				{Label: schedulerStarvedRunValue, Value: strconv.Itoa(record.StarvedRunCount)},
+				{Label: schedulerNeedsAttnValue, Value: strconv.Itoa(record.NeedsAttentionRunCount)},
 				{Label: "As Of", Value: stringOrDash(formatTime(record.AsOf))},
 			}), nil
 		},

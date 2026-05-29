@@ -742,6 +742,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		},
 		Autonomy: AutonomyConfig{
 			Coordinator: DefaultCoordinatorConfig(),
+			Scheduler:   DefaultSchedulerConfig(),
 		},
 	}
 }

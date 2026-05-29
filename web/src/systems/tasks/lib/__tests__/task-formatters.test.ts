@@ -113,6 +113,7 @@ describe("task semantic tones", () => {
     expect(taskRunStatusTone("queued")).toBe("neutral");
     expect(taskRunStatusTone("starting")).toBe("info");
     expect(taskRunStatusTone("claimed")).toBe("info");
+    expect(taskRunStatusTone("needs_attention")).toBe("warning");
     expect(taskRunStatusTone(null)).toBe("neutral");
   });
 

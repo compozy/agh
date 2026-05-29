@@ -9,6 +9,7 @@ import {
   Pause,
   PlayCircle,
   Plus,
+  RotateCw,
   Sparkles,
   XCircle,
   type LucideIcon,
@@ -54,6 +55,11 @@ const EVENT_VISUALS: Record<string, EventVisualMeta> = {
   "task.run_canceled": { tone: "warning", icon: Pause },
   "task.canceled": { tone: "warning", icon: Pause },
   "task.run_blocked": { tone: "warning", icon: AlertTriangle },
+  "task.run_operator_forced_fail": { tone: "danger", icon: XCircle },
+  "task.run_operator_retry": { tone: "info", icon: RotateCw },
+  "task.run_recovered_from_attention": { tone: "info", icon: RotateCw },
+  "task.run_starved": { tone: "warning", icon: Hourglass },
+  "task.run_needs_attention": { tone: "warning", icon: AlertTriangle },
   "task.dependency_added": { tone: "neutral", icon: GitBranch },
   "task.dependency_resolved": { tone: "success", icon: GitBranch },
 };
@@ -78,6 +84,11 @@ export function describeEvent(item: TaskTimelineItem): string {
   const payload = item.payload as Record<string, unknown> | undefined;
   const message = payload && typeof payload === "object" ? (payload.message as string) : undefined;
   if (typeof message === "string" && message.trim().length > 0) return message;
+  const diagnostic =
+    payload && typeof payload === "object" ? (payload.diagnostic as string) : undefined;
+  if (typeof diagnostic === "string" && diagnostic.trim().length > 0) return diagnostic;
+  const reason = payload && typeof payload === "object" ? (payload.reason as string) : undefined;
+  if (typeof reason === "string" && reason.trim().length > 0) return reason;
 
   switch (item.event_type) {
     case "task.created":
@@ -100,6 +111,20 @@ export function describeEvent(item: TaskTimelineItem): string {
           : "Run failed";
     case "task.run_canceled":
       return item.run ? `Run ${item.run.id} canceled` : "Run canceled";
+    case "task.run_operator_forced_fail":
+      return item.run ? `Run ${item.run.id} force failed` : "Run force failed";
+    case "task.run_operator_retry":
+      return item.run ? `Run ${item.run.id} retry queued` : "Run retry queued";
+    case "task.run_recovered_from_attention":
+      return item.run ? `Run ${item.run.id} recovered` : "Run recovered";
+    case "task.run_starved":
+      return item.run ? `Run ${item.run.id} is waiting for a claim` : "Run waiting for claim";
+    case "task.run_needs_attention":
+      return item.run?.error
+        ? item.run.error
+        : item.run
+          ? `Run ${item.run.id} needs attention`
+          : "Run needs attention";
     case "task.dependency_added":
       return "Dependency added";
     case "task.dependency_resolved":

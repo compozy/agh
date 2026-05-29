@@ -7,10 +7,22 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"time"
 
 	hookspkg "github.com/compozy/agh/internal/hooks"
 	"github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
+)
+
+const (
+	// defaultStarvationWorkerTTL bounds a capability-matched starvation worker's lifetime. The
+	// spawn reaper releases its leases and stops it past this deadline so a worker that claims
+	// nothing cannot pile up; released work re-queues and re-escalates from the durable budget.
+	defaultStarvationWorkerTTL = 15 * time.Minute
+	// defaultStarvationMaxActivePerWorkspace is advisory metadata on the spawn budget; the real
+	// per-(agent, channel, scope) cap is the role-session dedup in activeRoleSession.
+	defaultStarvationMaxActivePerWorkspace = 3
 )
 
 const (
@@ -38,6 +50,7 @@ type taskRoleRuntime struct {
 	sessions            taskRoleSessionManager
 	globalWorkspacePath string
 	logger              *slog.Logger
+	now                 func() time.Time
 }
 
 type taskRoleActivation struct {
@@ -58,6 +71,7 @@ func newTaskRoleRuntime(
 	sessions taskRoleSessionManager,
 	globalWorkspacePath string,
 	logger *slog.Logger,
+	now func() time.Time,
 ) (*taskRoleRuntime, error) {
 	if store == nil {
 		return nil, errors.New("daemon: task role runtime requires task store")
@@ -68,11 +82,15 @@ func newTaskRoleRuntime(
 	if logger == nil {
 		logger = slog.Default()
 	}
+	if now == nil {
+		now = time.Now
+	}
 	return &taskRoleRuntime{
 		store:               store,
 		sessions:            sessions,
 		globalWorkspacePath: strings.TrimSpace(globalWorkspacePath),
 		logger:              logger,
+		now:                 now,
 	}, nil
 }
 
@@ -224,28 +242,27 @@ func (r *taskRoleRuntime) activationForRun(
 		Channel:     taskRunSessionChannel(run),
 		Title:       strings.TrimSpace(taskRecord.Title),
 	}
+	if err := r.applyActivationScope(&activation, taskRecord.ID); err != nil {
+		return taskRoleActivation{}, false, err
+	}
+	return activation, true, nil
+}
+
+func (r *taskRoleRuntime) applyActivationScope(activation *taskRoleActivation, taskID string) error {
 	switch activation.Scope {
 	case taskpkg.ScopeWorkspace:
 		if activation.WorkspaceID == "" {
-			return taskRoleActivation{}, false, fmt.Errorf(
-				"%w: workspace-scoped task %q has no workspace id",
-				taskpkg.ErrValidation,
-				taskRecord.ID,
-			)
+			return fmt.Errorf("%w: workspace-scoped task %q has no workspace id", taskpkg.ErrValidation, taskID)
 		}
 	case taskpkg.ScopeGlobal:
 		if r.globalWorkspacePath == "" {
-			return taskRoleActivation{}, false, errors.New("daemon: task role global workspace path is required")
+			return errors.New("daemon: task role global workspace path is required")
 		}
 		activation.WorkspacePath = r.globalWorkspacePath
 	default:
-		return taskRoleActivation{}, false, fmt.Errorf(
-			"%w: unsupported task scope %q for role activation",
-			taskpkg.ErrValidation,
-			taskRecord.Scope,
-		)
+		return fmt.Errorf("%w: unsupported task scope %q for role activation", taskpkg.ErrValidation, activation.Scope)
 	}
-	return activation, true, nil
+	return nil
 }
 
 func (r *taskRoleRuntime) activeRoleSession(
@@ -268,9 +285,16 @@ func (r *taskRoleRuntime) startRoleSession(
 	ctx context.Context,
 	activation taskRoleActivation,
 ) (*session.Info, error) {
+	opts, err := taskRoleCreateOpts(activation)
+	if err != nil {
+		return nil, err
+	}
+	return r.createRoleSession(ctx, opts)
+}
+
+func taskRoleCreateOpts(activation taskRoleActivation) (session.CreateOpts, error) {
 	opts := session.CreateOpts{
 		AgentName:     activation.AgentName,
-		Provider:      "",
 		Name:          taskRoleSessionName(activation),
 		Channel:       activation.Channel,
 		PromptOverlay: taskRolePromptOverlay(activation),
@@ -282,13 +306,19 @@ func (r *taskRoleRuntime) startRoleSession(
 	case taskpkg.ScopeGlobal:
 		opts.WorkspacePath = activation.WorkspacePath
 	default:
-		return nil, fmt.Errorf(
+		return session.CreateOpts{}, fmt.Errorf(
 			"%w: unsupported task scope %q for role session start",
 			taskpkg.ErrValidation,
 			activation.Scope,
 		)
 	}
+	return opts, nil
+}
 
+func (r *taskRoleRuntime) createRoleSession(
+	ctx context.Context,
+	opts session.CreateOpts,
+) (*session.Info, error) {
 	created, err := r.sessions.Create(ctx, opts)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create task role session: %w", err)
@@ -301,6 +331,138 @@ func (r *taskRoleRuntime) startRoleSession(
 		return nil, errors.New("daemon: task role session create returned nil info")
 	}
 	return info, nil
+}
+
+// activateForStarvation spawns a capability-matched worker for a starved run that no agent has
+// claimed. The worker self-claims via `agh task next`; the scheduler never claims. It carries a
+// TTL + spawn budget so the reaper bounds its lifetime. Dedup on (agent, channel, scope) keeps the
+// effective per-workspace cap at one active worker per role.
+func (r *taskRoleRuntime) activateForStarvation(
+	ctx context.Context,
+	taskRecord taskpkg.Task,
+	run taskpkg.Run,
+	spawner starvationSpawner,
+) error {
+	if ctx == nil {
+		return errors.New("daemon: starvation activation context is required")
+	}
+	agentName, err := r.resolveStarvationAgent(ctx, taskRecord, run, spawner)
+	if err != nil {
+		return err
+	}
+	activation, ok, err := r.starvationActivation(taskRecord, run, agentName)
+	if err != nil || !ok {
+		return err
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	existing, err := r.activeRoleSession(ctx, activation)
+	if err != nil {
+		return err
+	}
+	if existing != nil {
+		r.logger.Info(
+			"daemon: starvation worker already active",
+			taskRoleRuntimeTaskIDKey, activation.TaskID,
+			"run_id", activation.RunID,
+			"agent_name", activation.AgentName,
+			"channel", activation.Channel,
+		)
+		return nil
+	}
+	info, err := r.startStarvationSession(ctx, activation)
+	if err != nil {
+		return err
+	}
+	r.logger.Info(
+		"daemon: starvation worker spawned",
+		"session_id", info.ID,
+		taskRoleRuntimeTaskIDKey, activation.TaskID,
+		"run_id", activation.RunID,
+		"agent_name", activation.AgentName,
+		"channel", activation.Channel,
+	)
+	return nil
+}
+
+func (r *taskRoleRuntime) resolveStarvationAgent(
+	ctx context.Context,
+	taskRecord taskpkg.Task,
+	run taskpkg.Run,
+	spawner starvationSpawner,
+) (string, error) {
+	required := trimmedNonEmptyStrings(run.RequiredCapabilities)
+	if len(required) == 0 &&
+		taskRecord.Owner != nil && !taskRecord.Owner.IsZero() &&
+		taskRecord.Owner.Kind.Normalize() == taskpkg.OwnerKindPool {
+		if name := strings.TrimSpace(taskRecord.Owner.Ref); name != "" {
+			return name, nil
+		}
+	}
+	name, ok, err := spawner.resolveAgent(ctx, strings.TrimSpace(taskRecord.WorkspaceID), required)
+	if err != nil {
+		return "", fmt.Errorf("daemon: resolve starvation agent: %w", err)
+	}
+	if ok {
+		return name, nil
+	}
+	return "", errStarvationSpawnUnresolvable
+}
+
+func (r *taskRoleRuntime) starvationActivation(
+	taskRecord taskpkg.Task,
+	run taskpkg.Run,
+	agentName string,
+) (taskRoleActivation, bool, error) {
+	agentName = strings.TrimSpace(agentName)
+	if agentName == "" {
+		return taskRoleActivation{}, false, nil
+	}
+	if run.Status.Normalize() != taskpkg.TaskRunStatusQueued {
+		return taskRoleActivation{}, false, nil
+	}
+	switch taskRecord.Status.Normalize() {
+	case taskpkg.TaskStatusDraft, taskpkg.TaskStatusBlocked, taskpkg.TaskStatusCanceled:
+		return taskRoleActivation{}, false, nil
+	default:
+	}
+	activation := taskRoleActivation{
+		TaskID:      strings.TrimSpace(taskRecord.ID),
+		RunID:       strings.TrimSpace(run.ID),
+		Scope:       taskRecord.Scope.Normalize(),
+		WorkspaceID: strings.TrimSpace(taskRecord.WorkspaceID),
+		AgentName:   agentName,
+		Channel:     taskRunSessionChannel(run),
+		Title:       strings.TrimSpace(taskRecord.Title),
+	}
+	if err := r.applyActivationScope(&activation, taskRecord.ID); err != nil {
+		return taskRoleActivation{}, false, err
+	}
+	return activation, true, nil
+}
+
+func (r *taskRoleRuntime) startStarvationSession(
+	ctx context.Context,
+	activation taskRoleActivation,
+) (*session.Info, error) {
+	opts, err := taskRoleCreateOpts(activation)
+	if err != nil {
+		return nil, err
+	}
+	ttlExpiresAt := r.now().UTC().Add(defaultStarvationWorkerTTL)
+	opts.Lineage = &store.SessionLineage{
+		SpawnRole:    session.DefaultSpawnRole,
+		TTLExpiresAt: &ttlExpiresAt,
+		SpawnBudget: store.SessionSpawnBudget{
+			MaxChildren:           session.DefaultSpawnMaxChildren,
+			MaxDepth:              session.DefaultSpawnMaxDepth,
+			TTLSeconds:            int64(defaultStarvationWorkerTTL / time.Second),
+			MaxActivePerWorkspace: defaultStarvationMaxActivePerWorkspace,
+		},
+	}
+	return r.createRoleSession(ctx, opts)
 }
 
 func taskRoleSessionMatches(info *session.Info, activation taskRoleActivation) bool {

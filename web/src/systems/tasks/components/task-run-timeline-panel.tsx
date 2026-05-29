@@ -37,6 +37,7 @@ const RUN_STATUS_MAP: Record<string, RunCardStatus> = {
   claimed: "in_progress",
   starting: "in_progress",
   running: "in_progress",
+  needs_attention: "needs_attention",
   completed: "completed",
   failed: "failed",
   canceled: "canceled",
@@ -59,6 +60,25 @@ function computeElapsed(startedAt?: string | null, endedAt?: string | null): str
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
   return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+}
+
+function runCardWarning(record: TaskRunDetailView["run"]) {
+  if (!record.error) {
+    return undefined;
+  }
+  if (record.status === "needs_attention") {
+    return {
+      tone: "warning" as const,
+      message: record.error,
+    };
+  }
+  if (record.status === "failed" || record.status === "canceled") {
+    return {
+      tone: "danger" as const,
+      message: record.error,
+    };
+  }
+  return undefined;
 }
 
 /**
@@ -90,13 +110,7 @@ export function TaskRunTimelinePanel({
     [items, record.id]
   );
 
-  const warning =
-    record.error && (record.status === "failed" || record.status === "canceled")
-      ? {
-          tone: "danger" as const,
-          message: record.error,
-        }
-      : undefined;
+  const warning = runCardWarning(record);
 
   return (
     <section

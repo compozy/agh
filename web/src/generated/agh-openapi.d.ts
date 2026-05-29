@@ -2107,6 +2107,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/runs/{id}/recover": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Recover one needs_attention task run */
+    post: operations["recoverTaskRun"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/runs/{id}/release": {
     parameters: {
       query?: never;
@@ -5407,7 +5424,8 @@ export interface operations {
                       | "running"
                       | "completed"
                       | "failed"
-                      | "canceled";
+                      | "canceled"
+                      | "needs_attention";
                     task_id: string;
                   } | null;
                   execution_profile?: {
@@ -5514,7 +5532,8 @@ export interface operations {
                       | "running"
                       | "completed"
                       | "failed"
-                      | "canceled";
+                      | "canceled"
+                      | "needs_attention";
                     task_id: string;
                   }[];
                   recent_events: {
@@ -5587,7 +5606,8 @@ export interface operations {
                         | "running"
                         | "completed"
                         | "failed"
-                        | "canceled";
+                        | "canceled"
+                        | "needs_attention";
                       task_id: string;
                     } | null;
                     /** Format: int64 */
@@ -5737,7 +5757,8 @@ export interface operations {
                     | "running"
                     | "completed"
                     | "failed"
-                    | "canceled";
+                    | "canceled"
+                    | "needs_attention";
                   task_id: string;
                 } | null;
                 task?: {
@@ -6153,7 +6174,8 @@ export interface operations {
                   | "running"
                   | "completed"
                   | "failed"
-                  | "canceled";
+                  | "canceled"
+                  | "needs_attention";
                 task_id: string;
               }[];
               capabilities: {
@@ -7326,7 +7348,8 @@ export interface operations {
                   | "running"
                   | "completed"
                   | "failed"
-                  | "canceled";
+                  | "canceled"
+                  | "needs_attention";
                 task_id: string;
               };
               run: {
@@ -7408,7 +7431,8 @@ export interface operations {
                   | "running"
                   | "completed"
                   | "failed"
-                  | "canceled";
+                  | "canceled"
+                  | "needs_attention";
                 task_id: string;
               };
               task: {
@@ -7691,7 +7715,8 @@ export interface operations {
                 | "running"
                 | "completed"
                 | "failed"
-                | "canceled";
+                | "canceled"
+                | "needs_attention";
               task_id: string;
             };
           };
@@ -7956,7 +7981,8 @@ export interface operations {
                 | "running"
                 | "completed"
                 | "failed"
-                | "canceled";
+                | "canceled"
+                | "needs_attention";
               task_id: string;
             };
           };
@@ -8221,7 +8247,8 @@ export interface operations {
                 | "running"
                 | "completed"
                 | "failed"
-                | "canceled";
+                | "canceled"
+                | "needs_attention";
               task_id: string;
             };
           };
@@ -8485,7 +8512,8 @@ export interface operations {
                 | "running"
                 | "completed"
                 | "failed"
-                | "canceled";
+                | "canceled"
+                | "needs_attention";
               task_id: string;
             };
           };
@@ -28116,7 +28144,8 @@ export interface operations {
                     | "running"
                     | "completed"
                     | "failed"
-                    | "canceled";
+                    | "canceled"
+                    | "needs_attention";
                   /** @enum {string} */
                   scope: "global" | "workspace";
                   session_id?: string;
@@ -28494,7 +28523,8 @@ export interface operations {
                       | "running"
                       | "completed"
                       | "failed"
-                      | "canceled";
+                      | "canceled"
+                      | "needs_attention";
                     task_id: string;
                   } | null;
                   task: {
@@ -30332,7 +30362,8 @@ export interface operations {
                   | "running"
                   | "completed"
                   | "failed"
-                  | "canceled";
+                  | "canceled"
+                  | "needs_attention";
                 task_id: string;
               } | null;
               run_id: string;
@@ -30596,7 +30627,8 @@ export interface operations {
                   | "running"
                   | "completed"
                   | "failed"
-                  | "canceled";
+                  | "canceled"
+                  | "needs_attention";
                 task_id: string;
               } | null;
               run_id: string;
@@ -30843,7 +30875,8 @@ export interface operations {
                 | "running"
                 | "completed"
                 | "failed"
-                | "canceled";
+                | "canceled"
+                | "needs_attention";
               task_id: string;
             };
           };
@@ -31096,7 +31129,8 @@ export interface operations {
                   | "running"
                   | "completed"
                   | "failed"
-                  | "canceled";
+                  | "canceled"
+                  | "needs_attention";
                 task_id: string;
               } | null;
               diagnostics?: {
@@ -31154,7 +31188,8 @@ export interface operations {
                   | "running"
                   | "completed"
                   | "failed"
-                  | "canceled";
+                  | "canceled"
+                  | "needs_attention";
                 task_id: string;
               }[];
               scheduler: {
@@ -31230,7 +31265,8 @@ export interface operations {
                     | "running"
                     | "completed"
                     | "failed"
-                    | "canceled";
+                    | "canceled"
+                    | "needs_attention";
                   task_id: string;
                 } | null;
                 /** @enum {string} */
@@ -31472,6 +31508,385 @@ export interface operations {
       };
     };
   };
+  recoverTaskRun: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description Task run id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          metadata?: unknown;
+          reason?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            previous_run: {
+              attempt: number;
+              claim_token_hash?: string;
+              /** Format: date-time */
+              claimed_at?: string | null;
+              claimed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              coordination_channel?: {
+                allowed_message_kinds: (
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request"
+                )[];
+                channel?: string;
+                display_name: string;
+                id: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                purpose?: string;
+                run_id?: string;
+                task_id?: string;
+                workflow_id?: string;
+                workspace_id?: string;
+              } | null;
+              coordination_channel_id?: string;
+              /** Format: date-time */
+              ended_at?: string | null;
+              error?: string;
+              failure_kind?: string;
+              /** Format: date-time */
+              heartbeat_at?: string | null;
+              id: string;
+              idempotency_key?: string;
+              /** Format: date-time */
+              lease_until?: string | null;
+              metadata?: unknown;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              previous_run_id?: string;
+              /** Format: date-time */
+              queued_at: string;
+              result?: unknown;
+              session_id?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "claimed"
+                | "starting"
+                | "running"
+                | "completed"
+                | "failed"
+                | "canceled"
+                | "needs_attention";
+              task_id: string;
+            };
+            run: {
+              attempt: number;
+              claim_token_hash?: string;
+              /** Format: date-time */
+              claimed_at?: string | null;
+              claimed_by?: {
+                /** @enum {string} */
+                kind:
+                  | "human"
+                  | "agent_session"
+                  | "automation"
+                  | "extension"
+                  | "network_peer"
+                  | "daemon";
+                ref: string;
+              } | null;
+              coordination_channel?: {
+                allowed_message_kinds: (
+                  | "status"
+                  | "request"
+                  | "reply"
+                  | "blocker"
+                  | "handoff"
+                  | "result"
+                  | "review_request"
+                )[];
+                channel?: string;
+                display_name: string;
+                id: string;
+                /** Format: date-time */
+                last_activity_at?: string | null;
+                purpose?: string;
+                run_id?: string;
+                task_id?: string;
+                workflow_id?: string;
+                workspace_id?: string;
+              } | null;
+              coordination_channel_id?: string;
+              /** Format: date-time */
+              ended_at?: string | null;
+              error?: string;
+              failure_kind?: string;
+              /** Format: date-time */
+              heartbeat_at?: string | null;
+              id: string;
+              idempotency_key?: string;
+              /** Format: date-time */
+              lease_until?: string | null;
+              metadata?: unknown;
+              network_channel?: string;
+              origin: {
+                /** @enum {string} */
+                kind:
+                  | "cli"
+                  | "web"
+                  | "uds"
+                  | "http"
+                  | "automation"
+                  | "extension"
+                  | "network"
+                  | "agent_session"
+                  | "daemon";
+                ref: string;
+              };
+              previous_run_id?: string;
+              /** Format: date-time */
+              queued_at: string;
+              result?: unknown;
+              session_id?: string;
+              /** Format: date-time */
+              started_at?: string | null;
+              /** @enum {string} */
+              status:
+                | "queued"
+                | "claimed"
+                | "starting"
+                | "running"
+                | "completed"
+                | "failed"
+                | "canceled"
+                | "needs_attention";
+              task_id: string;
+            };
+          };
+        };
+      };
+      /** @description Force operation forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task run not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task-run recovery conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Invalid recovery request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Force-operation rate limit exceeded */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      default: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   forceReleaseTaskRun: {
     parameters: {
       query?: never;
@@ -31578,7 +31993,8 @@ export interface operations {
                 | "running"
                 | "completed"
                 | "failed"
-                | "canceled";
+                | "canceled"
+                | "needs_attention";
               task_id: string;
             };
           };
@@ -31872,7 +32288,8 @@ export interface operations {
                 | "running"
                 | "completed"
                 | "failed"
-                | "canceled";
+                | "canceled"
+                | "needs_attention";
               task_id: string;
             };
             run: {
@@ -31954,7 +32371,8 @@ export interface operations {
                 | "running"
                 | "completed"
                 | "failed"
-                | "canceled";
+                | "canceled"
+                | "needs_attention";
               task_id: string;
             };
           };
@@ -32163,6 +32581,7 @@ export interface operations {
               active_claim_count: number;
               /** Format: date-time */
               as_of: string;
+              needs_attention_run_count: number;
               paused: boolean;
               /** Format: date-time */
               paused_at?: string | null;
@@ -32170,6 +32589,7 @@ export interface operations {
               paused_reason?: string;
               paused_task_count: number;
               queued_run_count: number;
+              starved_run_count: number;
             };
           };
         };
@@ -32361,7 +32781,8 @@ export interface operations {
                     | "running"
                     | "completed"
                     | "failed"
-                    | "canceled";
+                    | "canceled"
+                    | "needs_attention";
                   task_id: string;
                 };
                 task: {
@@ -32427,7 +32848,8 @@ export interface operations {
                       | "running"
                       | "completed"
                       | "failed"
-                      | "canceled";
+                      | "canceled"
+                      | "needs_attention";
                     task_id: string;
                   } | null;
                   /** @enum {string} */
@@ -32703,6 +33125,7 @@ export interface operations {
               active_claim_count: number;
               /** Format: date-time */
               as_of: string;
+              needs_attention_run_count: number;
               paused: boolean;
               /** Format: date-time */
               paused_at?: string | null;
@@ -32710,6 +33133,7 @@ export interface operations {
               paused_reason?: string;
               paused_task_count: number;
               queued_run_count: number;
+              starved_run_count: number;
             };
             /** Format: date-time */
             started_at: string;
@@ -32852,6 +33276,7 @@ export interface operations {
               active_claim_count: number;
               /** Format: date-time */
               as_of: string;
+              needs_attention_run_count: number;
               paused: boolean;
               /** Format: date-time */
               paused_at?: string | null;
@@ -32859,6 +33284,7 @@ export interface operations {
               paused_reason?: string;
               paused_task_count: number;
               queued_run_count: number;
+              starved_run_count: number;
             };
           };
         };
@@ -32998,6 +33424,7 @@ export interface operations {
               active_claim_count: number;
               /** Format: date-time */
               as_of: string;
+              needs_attention_run_count: number;
               paused: boolean;
               /** Format: date-time */
               paused_at?: string | null;
@@ -33005,6 +33432,7 @@ export interface operations {
               paused_reason?: string;
               paused_task_count: number;
               queued_run_count: number;
+              starved_run_count: number;
             };
           };
         };
@@ -42746,7 +43174,8 @@ export interface operations {
                 | "running"
                 | "completed"
                 | "failed"
-                | "canceled";
+                | "canceled"
+                | "needs_attention";
               task_id: string;
             } | null;
             review: {
@@ -43046,7 +43475,8 @@ export interface operations {
                   | "running"
                   | "completed"
                   | "failed"
-                  | "canceled";
+                  | "canceled"
+                  | "needs_attention";
                 task_id: string;
               };
               session?: {
@@ -43332,7 +43762,8 @@ export interface operations {
                 | "running"
                 | "completed"
                 | "failed"
-                | "canceled";
+                | "canceled"
+                | "needs_attention";
               task_id: string;
             };
           };
@@ -43577,7 +44008,8 @@ export interface operations {
                 | "running"
                 | "completed"
                 | "failed"
-                | "canceled";
+                | "canceled"
+                | "needs_attention";
               task_id: string;
             };
           };
@@ -43821,7 +44253,8 @@ export interface operations {
                 | "running"
                 | "completed"
                 | "failed"
-                | "canceled";
+                | "canceled"
+                | "needs_attention";
               task_id: string;
             };
           };
@@ -44065,7 +44498,8 @@ export interface operations {
                 | "running"
                 | "completed"
                 | "failed"
-                | "canceled";
+                | "canceled"
+                | "needs_attention";
               task_id: string;
             };
           };
@@ -44310,7 +44744,8 @@ export interface operations {
                 | "running"
                 | "completed"
                 | "failed"
-                | "canceled";
+                | "canceled"
+                | "needs_attention";
               task_id: string;
             };
           };
@@ -45060,7 +45495,8 @@ export interface operations {
                 | "running"
                 | "completed"
                 | "failed"
-                | "canceled";
+                | "canceled"
+                | "needs_attention";
               task_id: string;
             };
           };
@@ -45317,7 +45753,8 @@ export interface operations {
                   | "running"
                   | "completed"
                   | "failed"
-                  | "canceled";
+                  | "canceled"
+                  | "needs_attention";
                 task_id: string;
               } | null;
               /** @enum {string} */
@@ -45926,7 +46363,8 @@ export interface operations {
                     | "running"
                     | "completed"
                     | "failed"
-                    | "canceled";
+                    | "canceled"
+                    | "needs_attention";
                   task_id: string;
                 } | null;
                 /** @enum {string} */
@@ -46221,7 +46659,8 @@ export interface operations {
                   | "running"
                   | "completed"
                   | "failed"
-                  | "canceled";
+                  | "canceled"
+                  | "needs_attention";
                 task_id: string;
               }[];
               summary: {
@@ -46287,7 +46726,8 @@ export interface operations {
                     | "running"
                     | "completed"
                     | "failed"
-                    | "canceled";
+                    | "canceled"
+                    | "needs_attention";
                   task_id: string;
                 } | null;
                 /** @enum {string} */
@@ -47103,7 +47543,8 @@ export interface operations {
                 | "running"
                 | "completed"
                 | "failed"
-                | "canceled";
+                | "canceled"
+                | "needs_attention";
               task_id: string;
             };
             task: {
@@ -47949,7 +48390,8 @@ export interface operations {
                     | "running"
                     | "completed"
                     | "failed"
-                    | "canceled";
+                    | "canceled"
+                    | "needs_attention";
                   task_id: string;
                 } | null;
                 /** @enum {string} */
@@ -48244,7 +48686,8 @@ export interface operations {
                   | "running"
                   | "completed"
                   | "failed"
-                  | "canceled";
+                  | "canceled"
+                  | "needs_attention";
                 task_id: string;
               }[];
               summary: {
@@ -48310,7 +48753,8 @@ export interface operations {
                     | "running"
                     | "completed"
                     | "failed"
-                    | "canceled";
+                    | "canceled"
+                    | "needs_attention";
                   task_id: string;
                 } | null;
                 /** @enum {string} */
@@ -48744,7 +49188,8 @@ export interface operations {
                     | "running"
                     | "completed"
                     | "failed"
-                    | "canceled";
+                    | "canceled"
+                    | "needs_attention";
                   task_id: string;
                 } | null;
                 /** @enum {string} */
@@ -49039,7 +49484,8 @@ export interface operations {
                   | "running"
                   | "completed"
                   | "failed"
-                  | "canceled";
+                  | "canceled"
+                  | "needs_attention";
                 task_id: string;
               }[];
               summary: {
@@ -49105,7 +49551,8 @@ export interface operations {
                     | "running"
                     | "completed"
                     | "failed"
-                    | "canceled";
+                    | "canceled"
+                    | "needs_attention";
                   task_id: string;
                 } | null;
                 /** @enum {string} */
@@ -50071,7 +50518,8 @@ export interface operations {
                   | "running"
                   | "completed"
                   | "failed"
-                  | "canceled";
+                  | "canceled"
+                  | "needs_attention";
                 task_id: string;
               } | null;
               diagnostics?: {
@@ -50129,7 +50577,8 @@ export interface operations {
                   | "running"
                   | "completed"
                   | "failed"
-                  | "canceled";
+                  | "canceled"
+                  | "needs_attention";
                 task_id: string;
               }[];
               scheduler: {
@@ -50205,7 +50654,8 @@ export interface operations {
                     | "running"
                     | "completed"
                     | "failed"
-                    | "canceled";
+                    | "canceled"
+                    | "needs_attention";
                   task_id: string;
                 } | null;
                 /** @enum {string} */
@@ -51468,7 +51918,8 @@ export interface operations {
                 | "running"
                 | "completed"
                 | "failed"
-                | "canceled";
+                | "canceled"
+                | "needs_attention";
               task_id: string;
             };
             task: {
@@ -52430,7 +52881,8 @@ export interface operations {
           | "running"
           | "completed"
           | "failed"
-          | "canceled";
+          | "canceled"
+          | "needs_attention";
         /** @description Filter by attached session id */
         session_id?: string;
         /** @description Maximum number of records to return */
@@ -52531,7 +52983,8 @@ export interface operations {
                 | "running"
                 | "completed"
                 | "failed"
-                | "canceled";
+                | "canceled"
+                | "needs_attention";
               task_id: string;
             }[];
           };
@@ -52752,7 +53205,8 @@ export interface operations {
                 | "running"
                 | "completed"
                 | "failed"
-                | "canceled";
+                | "canceled"
+                | "needs_attention";
               task_id: string;
             };
           };
@@ -52998,7 +53452,8 @@ export interface operations {
                 | "running"
                 | "completed"
                 | "failed"
-                | "canceled";
+                | "canceled"
+                | "needs_attention";
               task_id: string;
             };
             task: {
@@ -53334,7 +53789,8 @@ export interface operations {
                   | "running"
                   | "completed"
                   | "failed"
-                  | "canceled";
+                  | "canceled"
+                  | "needs_attention";
                 task_id: string;
               } | null;
               /** Format: int64 */
@@ -53605,7 +54061,8 @@ export interface operations {
                   | "running"
                   | "completed"
                   | "failed"
-                  | "canceled";
+                  | "canceled"
+                  | "needs_attention";
                 task_id: string;
               } | null;
               /** Format: int64 */
@@ -53843,7 +54300,8 @@ export interface operations {
                     | "running"
                     | "completed"
                     | "failed"
-                    | "canceled";
+                    | "canceled"
+                    | "needs_attention";
                   task_id: string;
                 } | null;
                 child_count?: number;
@@ -53951,7 +54409,8 @@ export interface operations {
                     | "running"
                     | "completed"
                     | "failed"
-                    | "canceled";
+                    | "canceled"
+                    | "needs_attention";
                   task_id: string;
                 } | null;
                 child_count?: number;
@@ -64205,7 +64664,8 @@ export interface operations {
                   | "running"
                   | "completed"
                   | "failed"
-                  | "canceled";
+                  | "canceled"
+                  | "needs_attention";
                 task_id: string;
               } | null;
               pending_inputs: number;

@@ -8,14 +8,16 @@ import (
 
 // SchedulerStatusPayload exposes scheduler-wide pause state and queue pressure.
 type SchedulerStatusPayload struct {
-	Paused           bool       `json:"paused"`
-	PausedBy         string     `json:"paused_by,omitempty"`
-	PausedAt         *time.Time `json:"paused_at,omitempty"`
-	PausedReason     string     `json:"paused_reason,omitempty"`
-	ActiveClaimCount int        `json:"active_claim_count"`
-	QueuedRunCount   int        `json:"queued_run_count"`
-	PausedTaskCount  int        `json:"paused_task_count"`
-	AsOf             time.Time  `json:"as_of"`
+	Paused                 bool       `json:"paused"`
+	PausedBy               string     `json:"paused_by,omitempty"`
+	PausedAt               *time.Time `json:"paused_at,omitempty"`
+	PausedReason           string     `json:"paused_reason,omitempty"`
+	ActiveClaimCount       int        `json:"active_claim_count"`
+	QueuedRunCount         int        `json:"queued_run_count"`
+	PausedTaskCount        int        `json:"paused_task_count"`
+	StarvedRunCount        int        `json:"starved_run_count"`
+	NeedsAttentionRunCount int        `json:"needs_attention_run_count"`
+	AsOf                   time.Time  `json:"as_of"`
 }
 
 // SchedulerStatusResponse wraps scheduler status.

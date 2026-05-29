@@ -8,11 +8,18 @@ import { MonoId } from "./mono-id";
 import { Pill, type PillTone } from "./pill";
 import { Time } from "./time";
 
-export type RunCardStatus = "pending" | "in_progress" | "completed" | "failed" | "canceled";
+export type RunCardStatus =
+  | "pending"
+  | "in_progress"
+  | "needs_attention"
+  | "completed"
+  | "failed"
+  | "canceled";
 
 const RUN_STATUS_TONE: Record<RunCardStatus, PillTone> = {
   pending: "neutral",
   in_progress: "info",
+  needs_attention: "warning",
   completed: "success",
   failed: "danger",
   canceled: "neutral",
@@ -21,6 +28,7 @@ const RUN_STATUS_TONE: Record<RunCardStatus, PillTone> = {
 const RUN_STATUS_LABEL: Record<RunCardStatus, string> = {
   pending: "Pending",
   in_progress: "Running",
+  needs_attention: "Needs Attention",
   completed: "Completed",
   failed: "Failed",
   canceled: "Canceled",

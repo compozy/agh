@@ -684,49 +684,7 @@ func (r *reviewRouter) agentHasCapabilities(
 	agentName string,
 	required []string,
 ) (bool, error) {
-	if len(required) == 0 {
-		return true, nil
-	}
-	agentName = strings.TrimSpace(agentName)
-	if agentName == "" {
-		return false, nil
-	}
-	agent, err := r.resolveAgent(agentName, resolved)
-	if err != nil {
-		return false, err
-	}
-	available := make(map[string]struct{})
-	if agent.Capabilities != nil {
-		for _, capability := range agent.Capabilities.Capabilities {
-			id := strings.TrimSpace(capability.ID)
-			if id != "" {
-				available[id] = struct{}{}
-			}
-		}
-	}
-	for _, capability := range required {
-		if _, ok := available[strings.TrimSpace(capability)]; !ok {
-			return false, nil
-		}
-	}
-	return true, nil
-}
-
-func (r *reviewRouter) resolveAgent(
-	agentName string,
-	resolved *workspacepkg.ResolvedWorkspace,
-) (aghconfig.AgentDef, error) {
-	if r.agents != nil {
-		return r.agents.ResolveAgent(agentName, resolved)
-	}
-	if resolved != nil {
-		for _, agent := range resolved.Agents {
-			if strings.TrimSpace(agent.Name) == strings.TrimSpace(agentName) {
-				return agent, nil
-			}
-		}
-	}
-	return aghconfig.AgentDef{}, fmt.Errorf("%w: %s", workspacepkg.ErrAgentNotAvailable, agentName)
+	return agentCoversCapabilities(r.agents, resolved, agentName, required)
 }
 
 func (r *reviewRouter) resolveWorkspace(

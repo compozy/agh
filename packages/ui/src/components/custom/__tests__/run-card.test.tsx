@@ -46,6 +46,7 @@ describe("RunCard", () => {
     expect(RUN_STATUS_TONE).toEqual({
       pending: "neutral",
       in_progress: "info",
+      needs_attention: "warning",
       completed: "success",
       failed: "danger",
       canceled: "neutral",

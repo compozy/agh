@@ -276,6 +276,7 @@ type stubClient struct {
 	forceReleaseTaskRunFn  func(context.Context, string, ForceReleaseTaskRunRequest) (TaskRunRecord, error)
 	forceFailTaskRunFn     func(context.Context, string, ForceFailTaskRunRequest) (TaskRunRecord, error)
 	retryTaskRunFn         func(context.Context, string, RetryTaskRunRequest) (RetryTaskRunRecord, error)
+	recoverTaskRunFn       func(context.Context, string, RecoverTaskRunRequest) (RetryTaskRunRecord, error)
 	bulkForceReleaseRunsFn func(context.Context, BulkForceTaskRunRequest) (BulkForceTaskRunRecord, error)
 	bulkForceFailRunsFn    func(context.Context, BulkForceTaskRunRequest) (BulkForceTaskRunRecord, error)
 	schedulerStatusFn      func(context.Context) (SchedulerStatusRecord, error)
@@ -2440,6 +2441,17 @@ func (s *stubClient) RetryTaskRun(
 		return s.retryTaskRunFn(ctx, id, request)
 	}
 	return RetryTaskRunRecord{}, errors.New("unexpected RetryTaskRun call")
+}
+
+func (s *stubClient) RecoverTaskRun(
+	ctx context.Context,
+	id string,
+	request RecoverTaskRunRequest,
+) (RetryTaskRunRecord, error) {
+	if s.recoverTaskRunFn != nil {
+		return s.recoverTaskRunFn(ctx, id, request)
+	}
+	return RetryTaskRunRecord{}, errors.New("unexpected RecoverTaskRun call")
 }
 
 func (s *stubClient) BulkForceReleaseTaskRuns(
