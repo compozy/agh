@@ -85,7 +85,7 @@ func (g *GlobalDB) UpdateWorkspace(ctx context.Context, ws aghworkspace.Workspac
 // DeleteWorkspace removes a persisted workspace registration row.
 // It refuses to delete if any active sessions reference the workspace.
 // Stopped or orphaned sessions are cleaned up automatically before deletion.
-func (g *GlobalDB) DeleteWorkspace(ctx context.Context, id string) (retErr error) {
+func (g *GlobalDB) DeleteWorkspace(ctx context.Context, id string) error {
 	if err := g.checkReady(ctx, "delete workspace"); err != nil {
 		return err
 	}
@@ -95,56 +95,44 @@ func (g *GlobalDB) DeleteWorkspace(ctx context.Context, id string) (retErr error
 		return errors.New("store: workspace id is required")
 	}
 
-	tx, err := g.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("store: begin delete workspace transaction %q: %w", trimmedID, err)
-	}
-	defer func() {
-		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			retErr = rollbackErr
+	return store.ExecuteWrite(ctx, g.db, func(ctx context.Context, tx *store.WriteTx) error {
+		activeSessions, err := g.listActiveSessionIDsByWorkspace(ctx, tx, trimmedID)
+		if err != nil {
+			return err
 		}
-	}()
+		if len(activeSessions) > 0 {
+			return fmt.Errorf(
+				"store: delete workspace %q: %w: %s",
+				trimmedID,
+				aghworkspace.ErrWorkspaceHasActiveSessions,
+				strings.Join(activeSessions, ", "),
+			)
+		}
 
-	activeSessions, err := g.listActiveSessionIDsByWorkspace(ctx, tx, trimmedID)
-	if err != nil {
-		return err
-	}
-	if len(activeSessions) > 0 {
-		return fmt.Errorf(
-			"store: delete workspace %q: %w: %s",
-			trimmedID,
-			aghworkspace.ErrWorkspaceHasActiveSessions,
-			strings.Join(activeSessions, ", "),
-		)
-	}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM sessions WHERE workspace_id = ?`, trimmedID); err != nil {
+			return fmt.Errorf("store: delete stopped sessions for workspace %q: %w", trimmedID, err)
+		}
 
-	if _, err := tx.ExecContext(ctx, `DELETE FROM sessions WHERE workspace_id = ?`, trimmedID); err != nil {
-		return fmt.Errorf("store: delete stopped sessions for workspace %q: %w", trimmedID, err)
-	}
+		result, err := tx.ExecContext(ctx, `DELETE FROM workspaces WHERE id = ?`, trimmedID)
+		if err != nil {
+			return fmt.Errorf("store: delete workspace %q: %w", trimmedID, mapWorkspaceConstraintError(err))
+		}
 
-	result, err := tx.ExecContext(ctx, `DELETE FROM workspaces WHERE id = ?`, trimmedID)
-	if err != nil {
-		return fmt.Errorf("store: delete workspace %q: %w", trimmedID, mapWorkspaceConstraintError(err))
-	}
+		affected, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("store: rows affected for workspace %q: %w", trimmedID, err)
+		}
+		if affected == 0 {
+			return fmt.Errorf("store: workspace %q: %w", trimmedID, aghworkspace.ErrWorkspaceNotFound)
+		}
 
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("store: rows affected for workspace %q: %w", trimmedID, err)
-	}
-	if affected == 0 {
-		return fmt.Errorf("store: workspace %q: %w", trimmedID, aghworkspace.ErrWorkspaceNotFound)
-	}
-
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("store: commit delete workspace %q: %w", trimmedID, err)
-	}
-
-	return nil
+		return nil
+	})
 }
 
 func (g *GlobalDB) listActiveSessionIDsByWorkspace(
 	ctx context.Context,
-	tx *sql.Tx,
+	tx *store.WriteTx,
 	workspaceID string,
 ) ([]string, error) {
 	rows, err := tx.QueryContext(
@@ -155,9 +143,10 @@ func (g *GlobalDB) listActiveSessionIDsByWorkspace(
 	if err != nil {
 		return nil, fmt.Errorf("store: list active sessions for workspace %q: %w", workspaceID, err)
 	}
-	defer func() {
-		_ = rows.Close()
-	}()
+	// rows.Close error is not actionable here: any real failure is already
+	// captured by rows.Err() below, and the caller cannot recover from a
+	// close-only error on a read-only result set.
+	defer func() { _ = rows.Close() }()
 
 	var ids []string
 	for rows.Next() {
