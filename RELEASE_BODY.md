@@ -1,13 +1,18 @@
-## 0.0.4 - 2026-05-27
+## 0.0.5 - 2026-05-29
+
+### ♻️ Refactoring
+
+- Optimize prompt consumption (#222)
+- Orchestration improvements (#230)
 
 ### 🐛 Bug Fixes
 
-- Default workspace
+- Handle provider overlay subtables (#228)
 
 ### 📚 Documentation
 
-- Remove old changelog from website
+- Add contributors
 
-### 📦 Build System
+### 🔧 CI/CD
 
-- Sync web assets module (#217)
+- Web asset release
