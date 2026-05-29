@@ -519,13 +519,13 @@ type schedulerOverlay struct {
 }
 
 type coordinatorOverlay struct {
-	Enabled               *bool          `toml:"enabled"`
-	AgentName             *string        `toml:"agent_name"`
-	Provider              *string        `toml:"provider"`
-	Model                 *string        `toml:"model"`
-	DefaultTTL            *time.Duration `toml:"default_ttl"`
-	MaxChildren           *int           `toml:"max_children"`
-	MaxActivePerWorkspace *int           `toml:"max_active_per_workspace"`
+	Enabled                       *bool          `toml:"enabled"`
+	AgentName                     *string        `toml:"agent_name"`
+	Provider                      *string        `toml:"provider"`
+	Model                         *string        `toml:"model"`
+	DefaultTTL                    *time.Duration `toml:"default_ttl"`
+	MaxChildren                   *int           `toml:"max_children"`
+	MaxActiveSessionsPerWorkspace *int           `toml:"max_active_sessions_per_workspace"`
 }
 
 type marketplaceOverlay struct {
@@ -1619,8 +1619,8 @@ func (o coordinatorOverlay) Apply(dst *CoordinatorConfig) {
 	if o.MaxChildren != nil {
 		dst.MaxChildren = *o.MaxChildren
 	}
-	if o.MaxActivePerWorkspace != nil {
-		dst.MaxActivePerWorkspace = *o.MaxActivePerWorkspace
+	if o.MaxActiveSessionsPerWorkspace != nil {
+		dst.MaxActiveSessionsPerWorkspace = *o.MaxActiveSessionsPerWorkspace
 	}
 }
 

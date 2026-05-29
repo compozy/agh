@@ -38,9 +38,43 @@ func TestDefaultWithHomeIncludesAutonomyCoordinatorDefaults(t *testing.T) {
 	if got, want := coordinator.MaxChildren, DefaultCoordinatorMaxChildren; got != want {
 		t.Fatalf("DefaultWithHome() coordinator MaxChildren = %d, want %d", got, want)
 	}
-	if got, want := coordinator.MaxActivePerWorkspace, DefaultCoordinatorMaxActivePerWorkspace; got != want {
-		t.Fatalf("DefaultWithHome() coordinator MaxActivePerWorkspace = %d, want %d", got, want)
+	if got, want := coordinator.MaxActiveSessionsPerWorkspace, DefaultCoordinatorMaxActiveSessionsPerWorkspace; got != want {
+		t.Fatalf("DefaultWithHome() coordinator MaxActiveSessionsPerWorkspace = %d, want %d", got, want)
 	}
+}
+
+func TestCoordinatorConfigValidatesMaxActiveSessions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should validate defaults", func(t *testing.T) {
+		t.Parallel()
+		base := DefaultCoordinatorConfig()
+		if err := base.Validate("autonomy.coordinator", nil); err != nil {
+			t.Fatalf("default coordinator config should validate: %v", err)
+		}
+	})
+
+	t.Run("Should reject non-positive session cap", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultCoordinatorConfig()
+		cfg.MaxActiveSessionsPerWorkspace = 0
+		err := cfg.Validate("autonomy.coordinator", nil)
+		if err == nil {
+			t.Fatal("expected validation error")
+		}
+		if !strings.Contains(err.Error(), "max_active_sessions_per_workspace") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("Should accept higher session cap", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultCoordinatorConfig()
+		cfg.MaxActiveSessionsPerWorkspace = 8
+		if err := cfg.Validate("autonomy.coordinator", nil); err != nil {
+			t.Fatalf("max_active_sessions_per_workspace=8 should validate: %v", err)
+		}
+	})
 }
 
 func TestSchedulerConfigValidateMonotonic(t *testing.T) {
@@ -113,20 +147,20 @@ enabled = true
 agent_name = "global-coordinator"
 provider = "claude"
 model = "global-model"
-default_ttl = "2h"
-max_children = 5
-max_active_per_workspace = 1
-`)
+	default_ttl = "2h"
+	max_children = 5
+	max_active_sessions_per_workspace = 4
+	`)
 	writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), `
 [autonomy.coordinator]
 enabled = false
 agent_name = "workspace-coordinator"
 provider = "codex"
 model = "workspace-model"
-default_ttl = "3h"
-max_children = 2
-max_active_per_workspace = 1
-`)
+	default_ttl = "3h"
+	max_children = 2
+	max_active_sessions_per_workspace = 6
+	`)
 
 	cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
 	if err != nil {
@@ -151,6 +185,9 @@ max_active_per_workspace = 1
 	}
 	if got, want := coordinator.MaxChildren, 2; got != want {
 		t.Fatalf("Load() coordinator MaxChildren = %d, want %d", got, want)
+	}
+	if got, want := coordinator.MaxActiveSessionsPerWorkspace, 6; got != want {
+		t.Fatalf("Load() coordinator MaxActiveSessionsPerWorkspace = %d, want %d", got, want)
 	}
 }
 
@@ -228,12 +265,12 @@ max_children = 6
 			wantErr: "autonomy.coordinator.max_children",
 		},
 		{
-			name: "coordinator uniqueness limit",
+			name: "non-positive session cap",
 			config: `
 [autonomy.coordinator]
-max_active_per_workspace = 2
+max_active_sessions_per_workspace = 0
 `,
-			wantErr: "autonomy.coordinator.max_active_per_workspace",
+			wantErr: "autonomy.coordinator.max_active_sessions_per_workspace",
 		},
 	}
 
@@ -441,7 +478,7 @@ provider = "claude"
 model = "global-coordinator"
 default_ttl = "2h"
 max_children = 5
-max_active_per_workspace = 1
+max_active_sessions_per_workspace = 5
 	`)
 	writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), `
 	[providers.claude]

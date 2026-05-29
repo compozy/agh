@@ -441,7 +441,7 @@ func TestAgentCoordinatorConfigCoreHandlerReturnsResolvedWorkspaceConfig(t *test
 			response.Coordinator.AgentName != "coordinator" ||
 			response.Coordinator.DefaultTTLSeconds != 2700 ||
 			response.Coordinator.MaxChildren != 5 ||
-			response.Coordinator.MaxActivePerWorkspace != 1 ||
+			response.Coordinator.MaxActiveSessionsPerWorkspace != 5 ||
 			response.Coordinator.Source != contract.CoordinatorConfigSourceWorkspace ||
 			response.Coordinator.WorkspaceID != "ws-1" {
 			t.Fatalf("coordinator config = %#v, want resolved workspace config", response.Coordinator)
@@ -706,13 +706,13 @@ func (agentCoreCoordinatorConfigResolver) ResolveCoordinatorConfig(
 	_ string,
 ) (aghconfig.CoordinatorConfig, error) {
 	return aghconfig.CoordinatorConfig{
-		Enabled:               true,
-		AgentName:             "coordinator",
-		Provider:              "codex",
-		Model:                 "gpt-4o",
-		DefaultTTL:            45 * time.Minute,
-		MaxChildren:           5,
-		MaxActivePerWorkspace: 1,
+		Enabled:                       true,
+		AgentName:                     "coordinator",
+		Provider:                      "codex",
+		Model:                         "gpt-4o",
+		DefaultTTL:                    45 * time.Minute,
+		MaxChildren:                   5,
+		MaxActiveSessionsPerWorkspace: 5,
 	}, nil
 }
 

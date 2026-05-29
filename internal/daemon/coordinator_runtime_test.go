@@ -439,7 +439,7 @@ func coordinatorRuntimeConfig() aghconfig.CoordinatorConfig {
 	cfg.Model = "gpt-5"
 	cfg.DefaultTTL = 2 * time.Hour
 	cfg.MaxChildren = 5
-	cfg.MaxActivePerWorkspace = 1
+	cfg.MaxActiveSessionsPerWorkspace = 5
 	return cfg
 }
 

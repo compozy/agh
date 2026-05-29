@@ -128,15 +128,15 @@ type AgentLimitsPayload struct {
 
 // CoordinatorConfigPayload is the safe coordinator config read model.
 type CoordinatorConfigPayload struct {
-	Enabled               bool                    `json:"enabled"`
-	AgentName             string                  `json:"agent_name"`
-	Provider              string                  `json:"provider,omitempty"`
-	Model                 string                  `json:"model,omitempty"`
-	DefaultTTLSeconds     int64                   `json:"default_ttl_seconds"`
-	MaxChildren           int                     `json:"max_children"`
-	MaxActivePerWorkspace int                     `json:"max_active_per_workspace"`
-	Source                CoordinatorConfigSource `json:"source"`
-	WorkspaceID           string                  `json:"workspace_id,omitempty"`
+	Enabled                       bool                    `json:"enabled"`
+	AgentName                     string                  `json:"agent_name"`
+	Provider                      string                  `json:"provider,omitempty"`
+	Model                         string                  `json:"model,omitempty"`
+	DefaultTTLSeconds             int64                   `json:"default_ttl_seconds"`
+	MaxChildren                   int                     `json:"max_children"`
+	MaxActiveSessionsPerWorkspace int                     `json:"max_active_sessions_per_workspace"`
+	Source                        CoordinatorConfigSource `json:"source"`
+	WorkspaceID                   string                  `json:"workspace_id,omitempty"`
 }
 
 // CoordinationChannelPayload describes the stable task-run coordination channel binding.

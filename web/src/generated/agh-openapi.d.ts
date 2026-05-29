@@ -5964,7 +5964,7 @@ export interface operations {
               /** Format: int64 */
               default_ttl_seconds: number;
               enabled: boolean;
-              max_active_per_workspace: number;
+              max_active_sessions_per_workspace: number;
               max_children: number;
               model?: string;
               provider?: string;
@@ -6209,7 +6209,7 @@ export interface operations {
                 /** Format: int64 */
                 default_ttl_seconds: number;
                 enabled: boolean;
-                max_active_per_workspace: number;
+                max_active_sessions_per_workspace: number;
                 max_children: number;
                 model?: string;
                 provider?: string;

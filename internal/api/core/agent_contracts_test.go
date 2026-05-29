@@ -13,13 +13,13 @@ func TestCoordinatorConfigPayloadFromConfig(t *testing.T) {
 	t.Parallel()
 
 	baseConfig := aghconfig.CoordinatorConfig{
-		Enabled:               true,
-		AgentName:             " coordinator ",
-		Provider:              " codex ",
-		Model:                 " gpt-5.4 ",
-		DefaultTTL:            90 * time.Minute,
-		MaxChildren:           5,
-		MaxActivePerWorkspace: 1,
+		Enabled:                       true,
+		AgentName:                     " coordinator ",
+		Provider:                      " codex ",
+		Model:                         " gpt-5.4 ",
+		DefaultTTL:                    90 * time.Minute,
+		MaxChildren:                   5,
+		MaxActiveSessionsPerWorkspace: 5,
 	}
 
 	tests := []struct {
@@ -60,8 +60,12 @@ func TestCoordinatorConfigPayloadFromConfig(t *testing.T) {
 			workspaceID: "ws-1",
 			assert: func(t *testing.T, payload contract.CoordinatorConfigPayload) {
 				t.Helper()
-				if payload.MaxChildren != 5 || payload.MaxActivePerWorkspace != 1 {
-					t.Fatalf("limits = %d/%d, want 5/1", payload.MaxChildren, payload.MaxActivePerWorkspace)
+				if payload.MaxChildren != 5 || payload.MaxActiveSessionsPerWorkspace != 5 {
+					t.Fatalf(
+						"limits = %d/%d, want 5/5",
+						payload.MaxChildren,
+						payload.MaxActiveSessionsPerWorkspace,
+					)
 				}
 			},
 		},

@@ -1339,13 +1339,13 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 			},
 			Autonomy: aghconfig.AutonomyConfig{
 				Coordinator: aghconfig.CoordinatorConfig{
-					Enabled:               true,
-					AgentName:             "coordinator",
-					Provider:              "codex",
-					Model:                 "gpt-4o",
-					DefaultTTL:            45 * time.Minute,
-					MaxChildren:           5,
-					MaxActivePerWorkspace: 1,
+					Enabled:                       true,
+					AgentName:                     "coordinator",
+					Provider:                      "codex",
+					Model:                         "gpt-4o",
+					DefaultTTL:                    45 * time.Minute,
+					MaxChildren:                   5,
+					MaxActiveSessionsPerWorkspace: 5,
 				},
 			},
 			Providers: map[string]aghconfig.ProviderConfig{

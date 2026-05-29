@@ -1029,7 +1029,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					"agent_name",
 					"default_ttl_seconds",
 					"max_children",
-					"max_active_per_workspace",
+					"max_active_sessions_per_workspace",
 					"source",
 				)
 				assertEnumValues(t, propertySchema(t, configSchema, "source"), "workspace", "global", "default")

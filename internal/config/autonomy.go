@@ -20,8 +20,8 @@ const (
 	DefaultCoordinatorMaxChildren = 5
 	// MaxCoordinatorChildren is the hard MVP cap for coordinator child sessions.
 	MaxCoordinatorChildren = 5
-	// DefaultCoordinatorMaxActivePerWorkspace preserves one active coordinator per workspace.
-	DefaultCoordinatorMaxActivePerWorkspace = 1
+	// DefaultCoordinatorMaxActiveSessionsPerWorkspace caps managed coordinator and worker sessions.
+	DefaultCoordinatorMaxActiveSessionsPerWorkspace = 5
 
 	// DefaultSchedulerFanOutAfter is the wake count before the convergence ladder fans out.
 	DefaultSchedulerFanOutAfter = 2
@@ -70,23 +70,23 @@ func DefaultSchedulerConfig() SchedulerConfig {
 
 // CoordinatorConfig defines the resolved coordinator policy.
 type CoordinatorConfig struct {
-	Enabled               bool          `toml:"enabled"`
-	AgentName             string        `toml:"agent_name"`
-	Provider              string        `toml:"provider,omitempty"`
-	Model                 string        `toml:"model,omitempty"`
-	DefaultTTL            time.Duration `toml:"default_ttl"`
-	MaxChildren           int           `toml:"max_children"`
-	MaxActivePerWorkspace int           `toml:"max_active_per_workspace"`
+	Enabled                       bool          `toml:"enabled"`
+	AgentName                     string        `toml:"agent_name"`
+	Provider                      string        `toml:"provider,omitempty"`
+	Model                         string        `toml:"model,omitempty"`
+	DefaultTTL                    time.Duration `toml:"default_ttl"`
+	MaxChildren                   int           `toml:"max_children"`
+	MaxActiveSessionsPerWorkspace int           `toml:"max_active_sessions_per_workspace"`
 }
 
 // DefaultCoordinatorConfig returns the built-in coordinator policy defaults.
 func DefaultCoordinatorConfig() CoordinatorConfig {
 	return CoordinatorConfig{
-		Enabled:               false,
-		AgentName:             DefaultCoordinatorAgentName,
-		DefaultTTL:            DefaultCoordinatorTTL,
-		MaxChildren:           DefaultCoordinatorMaxChildren,
-		MaxActivePerWorkspace: DefaultCoordinatorMaxActivePerWorkspace,
+		Enabled:                       false,
+		AgentName:                     DefaultCoordinatorAgentName,
+		DefaultTTL:                    DefaultCoordinatorTTL,
+		MaxChildren:                   DefaultCoordinatorMaxChildren,
+		MaxActiveSessionsPerWorkspace: DefaultCoordinatorMaxActiveSessionsPerWorkspace,
 	}
 }
 
@@ -158,12 +158,11 @@ func (c CoordinatorConfig) Validate(path string, resolver providerResolver) erro
 	if c.MaxChildren > MaxCoordinatorChildren {
 		return fmt.Errorf("%s.max_children must be <= %d: %d", path, MaxCoordinatorChildren, c.MaxChildren)
 	}
-	if c.MaxActivePerWorkspace != DefaultCoordinatorMaxActivePerWorkspace {
+	if c.MaxActiveSessionsPerWorkspace <= 0 {
 		return fmt.Errorf(
-			"%s.max_active_per_workspace must be %d to preserve coordinator uniqueness: %d",
+			"%s.max_active_sessions_per_workspace must be positive: %d",
 			path,
-			DefaultCoordinatorMaxActivePerWorkspace,
-			c.MaxActivePerWorkspace,
+			c.MaxActiveSessionsPerWorkspace,
 		)
 	}
 

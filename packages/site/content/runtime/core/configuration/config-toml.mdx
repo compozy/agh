@@ -26,54 +26,54 @@ Use only `[sandboxes.<name>]` for session execution boundaries.
 
 ## Quick Reference
 
-| Section                              | Purpose                                                                         | Default                                                                            |
-| ------------------------------------ | ------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `[daemon]`                           | Unix domain socket path for CLI and UDS API traffic.                            | `socket = "$AGH_HOME/daemon.sock"`                                                 |
-| `[daemon.reload_timeouts]`           | Live reload timeout budgets for provider, MCP, and bridge subsystem applies.    | providers `5s`, MCP `10s`, bridges `30s`                                           |
-| `[http]`                             | HTTP and SSE bind address.                                                      | `host = "localhost"`, `port = 2123`                                                |
-| `[defaults]`                         | Default agent, provider, and sandbox resolution.                                | `agent = "general"`, `provider = ""`, `sandbox = ""`                               |
-| `[limits]`                           | Daemon-level concurrently running agent cap.                                    | `max_concurrent_agents = 20`                                                       |
-| `[session.limits]`                   | Session-scoped wall-clock timeout.                                              | `timeout = "0s"`                                                                   |
-| `[session.supervision]`              | Runtime activity heartbeat, progress, warning, and inactivity timeout controls. | heartbeat 30 seconds, progress 10 minutes, warning 15 minutes, timeout 30 minutes  |
-| `[agents.soul]`                      | Optional `SOUL.md` parsing, body limits, and compact projection budget.         | enabled, 32 KiB body, 2 KiB compact projection                                     |
-| `[agents.heartbeat]`                 | Optional `HEARTBEAT.md` policy bounds, wake cadence/limits, and health timing.  | enabled, 32 KiB body, 5 min/30 min intervals, 25 wakes per cycle, 168 h retention  |
-| `[permissions]`                      | Default permission mode.                                                        | `mode = "approve-all"`                                                             |
-| `[tools]`                            | Tool registry lifecycle, hosted MCP enablement, and result budget defaults.     | enabled, hosted MCP enabled, 256 KiB result default                                |
-| `[tools.hosted_mcp]`                 | Hosted MCP session bind nonce lifecycle.                                        | 30 seconds                                                                         |
-| `[tools.policy]`                     | External tool source defaults, approval timeout, and trusted sources.           | external tools disabled, 120 second approval timeout, no trusted sources           |
-| `[[mcp_servers]]`                    | Top-level MCP servers passed to agents.                                         | empty list                                                                         |
-| `[providers.<name>]`                 | Built-in provider override or custom provider definition.                       | empty map plus built-ins                                                           |
-| `[model_catalog.sources.models_dev]` | `models.dev` enrichment source (cross-provider).                                | enabled, `https://models.dev/api.json`, 24 h TTL, 10 s timeout                     |
-| `[sandboxes.<name>]`                 | Local or provider-backed execution sandbox profiles.                            | local backend when no profile is selected                                          |
-| `[observability]`                    | Event summary retention and global byte cap.                                    | enabled, 7 days, 1 GiB                                                             |
-| `[observability.transcripts]`        | Transcript segment sizing and per-session cap.                                  | enabled, 1 MiB segments, 256 MiB per session                                       |
-| `[log]`                              | Structured log level and daemon-owned rotation.                                 | `level = "info"`, 10 MiB, 5 backups, 30 days, compression off                      |
-| `[memory]`                           | Persistent memory runtime and global memory directory.                          | enabled, `$AGH_HOME/memory`                                                        |
-| `[memory.controller]`                | Hybrid write controller mode, latency, and fallback op.                         | hybrid, 300 ms, noop                                                               |
-| `[memory.controller.llm]`            | Controller LLM tiebreaker.                                                      | enabled, `anthropic/claude-haiku-4`, 250 ms, top_k 5                               |
-| `[memory.controller.policy]`         | Content/rate caps and allowed write origins.                                    | 4096 chars, 60 writes/min, all canonical origins                                   |
-| `[memory.recall]`                    | Deterministic recall: top-K, weights, freshness, signal queue.                  | top-K 5, raw 50, weighted fusion                                                   |
-| `[memory.decisions]`                 | Decision WAL retention and per-row body cap.                                    | 90 days, audit summary on, 64 KiB body cap                                         |
-| `[memory.extractor]`                 | Post-message extractor and bounded queue.                                       | enabled, post_message mode, capacity 1, coalesce 16                                |
-| `[memory.dream]`                     | Dreaming runtime, gates, and scoring.                                           | enabled, agent `dreaming-curator`, 24 h, 3 sessions, 30 min ticker                 |
-| `[memory.session]`                   | Forensic session ledger materialization, archive, and unbound partition.        | jsonl, `$AGH_HOME/sessions`, 24 h grace, 30-day cold archive, `_unbound` partition |
-| `[memory.daily]`                     | Daily-log retention and rotation.                                               | 1 MiB, 5000 lines, 7-day window, 30-day cold archive, sweep at 03:00               |
-| `[memory.file]`                      | Curated memory file body limits.                                                | 200 lines, 25 KiB                                                                  |
-| `[memory.provider]`                  | Active memory provider selection and circuit breaker.                           | bundled local, 2 s timeout, 5 failures, 30 s cooldown                              |
-| `[memory.workspace]`                 | Workspace identity file location and auto-creation.                             | `<workspace>/.agh/workspace.toml`, auto-create on first touch                      |
-| `[skills]`                           | Skill discovery, polling, disable list, and marketplace trust gates.            | enabled, poll every 3 seconds                                                      |
-| `[skills.marketplace]`               | Skill registry override.                                                        | unset                                                                              |
-| `[extensions.marketplace]`           | Extension registry override.                                                    | unset                                                                              |
-| `[automation]`                       | Automation scheduler defaults.                                                  | enabled, UTC, 5 concurrent jobs                                                    |
-| `[[automation.jobs]]`                | Scheduled automation jobs.                                                      | empty list                                                                         |
-| `[[automation.triggers]]`            | Event-driven automation triggers.                                               | empty list                                                                         |
-| `[autonomy.coordinator]`             | Coordinator session bootstrap for workspace-scoped task runs.                   | disabled, agent `coordinator`, TTL 2 hours, 5 children, 1 active per workspace     |
-| `[task.orchestration]`               | Bounds for run summaries, context bundles, scheduler health, and max-runtime.   | 4 KiB summaries, 8 KiB context, prior 5/recent 50 events, spawn fail limit 5       |
-| `[task.orchestration.profile]`       | Defaults and gates for task execution profiles.                                 | inherit coordinator/worker/sandbox; provider override + sandbox `none` allowed     |
-| `[task.orchestration.review]`        | Defaults and bounds for the post-terminal review gate.                          | policy `none`, max rounds 3, max attempts 2, timeout 20m, failure `block_task`     |
-| `[task.recovery]`                    | Gates agent access to task-run force recovery verbs.                            | agents may force release, force fail, and retry                                    |
-| `[[hooks.declarations]]`             | Config-defined runtime hooks.                                                   | empty list                                                                         |
-| `[network]`                          | Experimental AGH network runtime.                                               | enabled, channel `default`                                                         |
+| Section                              | Purpose                                                                         | Default                                                                                          |
+| ------------------------------------ | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `[daemon]`                           | Unix domain socket path for CLI and UDS API traffic.                            | `socket = "$AGH_HOME/daemon.sock"`                                                               |
+| `[daemon.reload_timeouts]`           | Live reload timeout budgets for provider, MCP, and bridge subsystem applies.    | providers `5s`, MCP `10s`, bridges `30s`                                                         |
+| `[http]`                             | HTTP and SSE bind address.                                                      | `host = "localhost"`, `port = 2123`                                                              |
+| `[defaults]`                         | Default agent, provider, and sandbox resolution.                                | `agent = "general"`, `provider = ""`, `sandbox = ""`                                             |
+| `[limits]`                           | Daemon-level concurrently running agent cap.                                    | `max_concurrent_agents = 20`                                                                     |
+| `[session.limits]`                   | Session-scoped wall-clock timeout.                                              | `timeout = "0s"`                                                                                 |
+| `[session.supervision]`              | Runtime activity heartbeat, progress, warning, and inactivity timeout controls. | heartbeat 30 seconds, progress 10 minutes, warning 15 minutes, timeout 30 minutes                |
+| `[agents.soul]`                      | Optional `SOUL.md` parsing, body limits, and compact projection budget.         | enabled, 32 KiB body, 2 KiB compact projection                                                   |
+| `[agents.heartbeat]`                 | Optional `HEARTBEAT.md` policy bounds, wake cadence/limits, and health timing.  | enabled, 32 KiB body, 5 min/30 min intervals, 25 wakes per cycle, 168 h retention                |
+| `[permissions]`                      | Default permission mode.                                                        | `mode = "approve-all"`                                                                           |
+| `[tools]`                            | Tool registry lifecycle, hosted MCP enablement, and result budget defaults.     | enabled, hosted MCP enabled, 256 KiB result default                                              |
+| `[tools.hosted_mcp]`                 | Hosted MCP session bind nonce lifecycle.                                        | 30 seconds                                                                                       |
+| `[tools.policy]`                     | External tool source defaults, approval timeout, and trusted sources.           | external tools disabled, 120 second approval timeout, no trusted sources                         |
+| `[[mcp_servers]]`                    | Top-level MCP servers passed to agents.                                         | empty list                                                                                       |
+| `[providers.<name>]`                 | Built-in provider override or custom provider definition.                       | empty map plus built-ins                                                                         |
+| `[model_catalog.sources.models_dev]` | `models.dev` enrichment source (cross-provider).                                | enabled, `https://models.dev/api.json`, 24 h TTL, 10 s timeout                                   |
+| `[sandboxes.<name>]`                 | Local or provider-backed execution sandbox profiles.                            | local backend when no profile is selected                                                        |
+| `[observability]`                    | Event summary retention and global byte cap.                                    | enabled, 7 days, 1 GiB                                                                           |
+| `[observability.transcripts]`        | Transcript segment sizing and per-session cap.                                  | enabled, 1 MiB segments, 256 MiB per session                                                     |
+| `[log]`                              | Structured log level and daemon-owned rotation.                                 | `level = "info"`, 10 MiB, 5 backups, 30 days, compression off                                    |
+| `[memory]`                           | Persistent memory runtime and global memory directory.                          | enabled, `$AGH_HOME/memory`                                                                      |
+| `[memory.controller]`                | Hybrid write controller mode, latency, and fallback op.                         | hybrid, 300 ms, noop                                                                             |
+| `[memory.controller.llm]`            | Controller LLM tiebreaker.                                                      | enabled, `anthropic/claude-haiku-4`, 250 ms, top_k 5                                             |
+| `[memory.controller.policy]`         | Content/rate caps and allowed write origins.                                    | 4096 chars, 60 writes/min, all canonical origins                                                 |
+| `[memory.recall]`                    | Deterministic recall: top-K, weights, freshness, signal queue.                  | top-K 5, raw 50, weighted fusion                                                                 |
+| `[memory.decisions]`                 | Decision WAL retention and per-row body cap.                                    | 90 days, audit summary on, 64 KiB body cap                                                       |
+| `[memory.extractor]`                 | Post-message extractor and bounded queue.                                       | enabled, post_message mode, capacity 1, coalesce 16                                              |
+| `[memory.dream]`                     | Dreaming runtime, gates, and scoring.                                           | enabled, agent `dreaming-curator`, 24 h, 3 sessions, 30 min ticker                               |
+| `[memory.session]`                   | Forensic session ledger materialization, archive, and unbound partition.        | jsonl, `$AGH_HOME/sessions`, 24 h grace, 30-day cold archive, `_unbound` partition               |
+| `[memory.daily]`                     | Daily-log retention and rotation.                                               | 1 MiB, 5000 lines, 7-day window, 30-day cold archive, sweep at 03:00                             |
+| `[memory.file]`                      | Curated memory file body limits.                                                | 200 lines, 25 KiB                                                                                |
+| `[memory.provider]`                  | Active memory provider selection and circuit breaker.                           | bundled local, 2 s timeout, 5 failures, 30 s cooldown                                            |
+| `[memory.workspace]`                 | Workspace identity file location and auto-creation.                             | `<workspace>/.agh/workspace.toml`, auto-create on first touch                                    |
+| `[skills]`                           | Skill discovery, polling, disable list, and marketplace trust gates.            | enabled, poll every 3 seconds                                                                    |
+| `[skills.marketplace]`               | Skill registry override.                                                        | unset                                                                                            |
+| `[extensions.marketplace]`           | Extension registry override.                                                    | unset                                                                                            |
+| `[automation]`                       | Automation scheduler defaults.                                                  | enabled, UTC, 5 concurrent jobs                                                                  |
+| `[[automation.jobs]]`                | Scheduled automation jobs.                                                      | empty list                                                                                       |
+| `[[automation.triggers]]`            | Event-driven automation triggers.                                               | empty list                                                                                       |
+| `[autonomy.coordinator]`             | Coordinator session bootstrap for workspace-scoped task runs.                   | disabled, agent `coordinator`, TTL 2 hours, 5 children, 1 coordinator + 5 sessions per workspace |
+| `[task.orchestration]`               | Bounds for run summaries, context bundles, scheduler health, and max-runtime.   | 4 KiB summaries, 8 KiB context, prior 5/recent 50 events, spawn fail limit 5                     |
+| `[task.orchestration.profile]`       | Defaults and gates for task execution profiles.                                 | inherit coordinator/worker/sandbox; provider override + sandbox `none` allowed                   |
+| `[task.orchestration.review]`        | Defaults and bounds for the post-terminal review gate.                          | policy `none`, max rounds 3, max attempts 2, timeout 20m, failure `block_task`                   |
+| `[task.recovery]`                    | Gates agent access to task-run force recovery verbs.                            | agents may force release, force fail, and retry                                                  |
+| `[[hooks.declarations]]`             | Config-defined runtime hooks.                                                   | empty list                                                                                       |
+| `[network]`                          | Experimental AGH network runtime.                                               | enabled, channel `default`                                                                       |
 
 ## Load And Merge Order
 
@@ -480,7 +480,7 @@ provider = ""
 model = ""
 default_ttl = "2h"
 max_children = 5
-max_active_per_workspace = 1
+max_active_sessions_per_workspace = 5
 
 [task.orchestration]
 # Bounds for task summaries, context bundles, scheduler health, and max-runtime watchdog.
@@ -1240,15 +1240,15 @@ run-enqueue APIs are the execution boundary.
 Coordinator launch only applies to workspace-scoped coordinated runs with a stable
 `coordination_channel_id`. Global runs and intent-only tasks do not start coordinators in the MVP.
 
-| Field                      | Type     | Default       | Valid values                              | Description                                                                            |
-| -------------------------- | -------- | ------------- | ----------------------------------------- | -------------------------------------------------------------------------------------- |
-| `enabled`                  | boolean  | `false`       | `true` or `false`                         | Allows coordinator bootstrap after a coordinated workspace run is enqueued.            |
-| `agent_name`               | string   | `coordinator` | Non-empty when enabled.                   | Agent definition used for managed coordinator sessions.                                |
-| `provider`                 | string   | empty         | Empty or a configured provider key.       | Optional provider override for the coordinator agent.                                  |
-| `model`                    | string   | empty         | Empty or provider-supported model string. | Optional model override. If set, `provider` or provider default resolution must exist. |
-| `default_ttl`              | duration | `2h`          | `1m` through `24h`.                       | Lifetime assigned to managed coordinator sessions.                                     |
-| `max_children`             | integer  | `5`           | `0` through `5`.                          | Maximum safe-spawn children a coordinator may hold at once.                            |
-| `max_active_per_workspace` | integer  | `1`           | Must be `1` in the MVP.                   | Enforces one active managed coordinator per workspace.                                 |
+| Field                               | Type     | Default       | Valid values                              | Description                                                                                                                                                                                              |
+| ----------------------------------- | -------- | ------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enabled`                           | boolean  | `false`       | `true` or `false`                         | Allows coordinator bootstrap after a coordinated workspace run is enqueued.                                                                                                                              |
+| `agent_name`                        | string   | `coordinator` | Non-empty when enabled.                   | Agent definition used for managed coordinator sessions.                                                                                                                                                  |
+| `provider`                          | string   | empty         | Empty or a configured provider key.       | Optional provider override for the coordinator agent.                                                                                                                                                    |
+| `model`                             | string   | empty         | Empty or provider-supported model string. | Optional model override. If set, `provider` or provider default resolution must exist.                                                                                                                   |
+| `default_ttl`                       | duration | `2h`          | `1m` through `24h`.                       | Lifetime assigned to managed coordinator sessions.                                                                                                                                                       |
+| `max_children`                      | integer  | `5`           | `1` through `5`.                          | Maximum safe-spawn children a coordinator may hold at once.                                                                                                                                              |
+| `max_active_sessions_per_workspace` | integer  | `5`           | Positive integer.                         | Caps concurrent autonomy-managed sessions (coordinator + spawned workers) per workspace. Coordinator uniqueness is enforced by the daemon singleton check.                                                |
 
 Provider and model resolution is intentionally narrow. The daemon applies:
 
