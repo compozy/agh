@@ -74,6 +74,7 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"last_review_outcome",
 		"review_circuit_opened_at",
 		"review_circuit_reason",
+		"auto_enqueue_on_ready",
 	})
 	assertTableColumns(t, globalDB.db, "task_triage_state", []string{
 		"task_id",

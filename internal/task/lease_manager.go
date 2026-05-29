@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -206,7 +207,53 @@ func (m *Service) CompleteRunLease(
 		return nil, err
 	}
 	m.dispatchTaskRunCompleted(ctx, run, reconciledTask, actor)
+	m.autoEnqueueReadyDependents(ctx, run.TaskID, run.ID, actor)
 	return &run, nil
+}
+
+// autoEnqueueReadyDependents enqueues runs for dependents that became ready due to the
+// completion of completedTaskID and opted in via AutoEnqueueOnReady. Best-effort: the
+// completion has already committed, so failures here are logged and skipped, never rolled
+// back. triggerRunID keeps each per-dependent enqueue idempotent across retried
+// completions; the store's queued-run reservation rejects duplicate or blocked enqueues.
+// A failed/expired blocker does not satisfy a "blocks" edge, so only completion calls this.
+func (m *Service) autoEnqueueReadyDependents(
+	ctx context.Context,
+	completedTaskID, triggerRunID string,
+	actor ActorContext,
+) {
+	dependents, err := m.store.ListDependents(ctx, completedTaskID)
+	if err != nil {
+		slog.Error("task: auto-enqueue list dependents failed", "task_id", completedTaskID, "error", err)
+		return
+	}
+	var pauseReader effectiveTaskPauseReader
+	if reader, ok := m.store.(effectiveTaskPauseReader); ok {
+		pauseReader = reader
+	}
+	for _, dep := range dependents {
+		dependentID := strings.TrimSpace(dep.TaskID)
+		if dependentID == "" {
+			continue
+		}
+		dependent, err := m.store.GetTask(ctx, dependentID)
+		if err != nil {
+			slog.Error("task: auto-enqueue load dependent failed", "task_id", dependentID, "error", err)
+			continue
+		}
+		if !dependent.AutoEnqueueOnReady || dependent.Status.Normalize() != TaskStatusReady {
+			continue
+		}
+		if pauseReader != nil {
+			if paused, _, perr := pauseReader.IsTaskEffectivelyPaused(ctx, dependentID); perr == nil && paused {
+				continue
+			}
+		}
+		key := fmt.Sprintf("task.auto_enqueue.%s.%s", dependentID, strings.TrimSpace(triggerRunID))
+		if _, err := m.EnqueueRun(ctx, EnqueueRun{TaskID: dependentID, IdempotencyKey: key}, actor); err != nil {
+			slog.Warn("task: auto-enqueue dependent run skipped", "task_id", dependentID, "error", err)
+		}
+	}
 }
 
 // FailRunLease marks one active task-run lease failed after token verification.
