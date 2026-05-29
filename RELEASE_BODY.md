@@ -1,13 +1,10 @@
-## 0.0.4 - 2026-05-27
+## 0.0.5 - 2026-05-29
 
-### 🐛 Bug Fixes
+### ♻️ Refactoring
 
-- Default workspace
+- Optimize prompt consumption (#222)
+- Orchestration improvements (#230)
 
-### 📚 Documentation
+### 🔧 CI/CD
 
-- Remove old changelog from website
-
-### 📦 Build System
-
-- Sync web assets module (#217)
+- Web asset release
