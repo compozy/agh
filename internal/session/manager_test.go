@@ -2408,6 +2408,94 @@ func TestPromptSyntheticQueuesBehindActiveTurnAndPreservesStoredOrder(t *testing
 	}
 }
 
+func TestPromptSyntheticInterruptsAgentWaitingTurnWhenRequested(t *testing.T) {
+	t.Run("Should interrupt agent waiting when synthetic prompt requests it", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+				t.Fatalf("failed to stop session %s: %v", session.ID, err)
+			}
+		})
+
+		firstPromptEntered := make(chan struct{})
+		releaseFirstPrompt := make(chan struct{})
+		var releaseOnce sync.Once
+		t.Cleanup(func() {
+			releaseOnce.Do(func() {
+				close(releaseFirstPrompt)
+			})
+		})
+		h.driver.cancelHook = func(*fakeProcess) error {
+			releaseOnce.Do(func() {
+				close(releaseFirstPrompt)
+			})
+			return nil
+		}
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			if req.Message == "user prompt" {
+				req.ActivityReporter(acp.PromptActivityReport{
+					Kind:   runtimeActivityKindAgentWaiting,
+					Detail: "waiting for detached work",
+				})
+				close(firstPromptEntered)
+				events := make(chan acp.AgentEvent)
+				go func() {
+					<-releaseFirstPrompt
+					close(events)
+				}()
+				return events, nil
+			}
+			events := make(chan acp.AgentEvent)
+			close(events)
+			return events, nil
+		}
+
+		userEventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "user prompt")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		<-firstPromptEntered
+		waitForCondition(t, "agent waiting activity", func() bool {
+			info := session.Info()
+			return info.Liveness != nil &&
+				info.Liveness.Activity != nil &&
+				info.Liveness.Activity.LastActivityKind == runtimeActivityKindAgentWaiting
+		})
+
+		syntheticEventsCh, err := h.manager.PromptSynthetic(testutil.Context(t), session.ID, SyntheticPromptOpts{
+			Message: "detached completion",
+			Metadata: acp.PromptSyntheticMeta{
+				TaskRunID: "run-detached",
+				Reason:    "task_run_completed",
+				Summary:   "detached work completed",
+			},
+			InterruptIfAgentWaiting: true,
+		})
+		if err != nil {
+			t.Fatalf("PromptSynthetic(interrupt waiting) error = %v", err)
+		}
+		_ = collectEvents(t, userEventsCh)
+		_ = collectEvents(t, syntheticEventsCh)
+
+		promptCalls := managerPromptCalls(h)
+		if got, want := len(promptCalls), 2; got != want {
+			t.Fatalf("len(promptCalls) = %d, want %d", got, want)
+		}
+		if got, want := promptCalls[1].Message, "detached completion"; got != want {
+			t.Fatalf("synthetic prompt message = %q, want %q", got, want)
+		}
+		if got := promptCalls[1].Meta.TurnSource; got != acp.PromptTurnSourceSynthetic {
+			t.Fatalf("synthetic turn source = %q, want %q", got, acp.PromptTurnSourceSynthetic)
+		}
+		if got := h.driver.cancelCalls; got != 1 {
+			t.Fatalf("cancel calls = %d, want 1", got)
+		}
+	})
+}
+
 func TestApprovePermissionRoutesToActiveSession(t *testing.T) {
 	t.Parallel()
 

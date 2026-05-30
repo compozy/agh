@@ -274,6 +274,7 @@ func (m *Service) RetryRun(
 	); err != nil {
 		return nil, err
 	}
+	m.dispatchTaskRunEnqueued(ctx, result.Run, reconciledTask, actor, "")
 	return &result, nil
 }
 
@@ -356,6 +357,7 @@ func (m *Service) RecoverRun(
 	); err != nil {
 		return nil, err
 	}
+	m.dispatchTaskRunEnqueued(ctx, result.Run, reconciledTask, actor, "")
 	return &result, nil
 }
 

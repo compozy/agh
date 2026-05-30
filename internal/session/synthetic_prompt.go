@@ -13,10 +13,11 @@ import (
 // SyntheticPromptOpts carries daemon-owned synthetic prompt input plus
 // wake-up metadata required for persistence and later reentry handling.
 type SyntheticPromptOpts struct {
-	Message    string
-	Metadata   acp.PromptSyntheticMeta
-	TurnID     string
-	SkipIfBusy bool
+	Message                 string
+	Metadata                acp.PromptSyntheticMeta
+	TurnID                  string
+	SkipIfBusy              bool
+	InterruptIfAgentWaiting bool
 }
 
 type queuedSyntheticPrompt struct {
@@ -43,6 +44,18 @@ func (m *Manager) PromptSynthetic(
 
 	dispatchCtx := context.WithoutCancel(ctx)
 	if session.IsPrompting() || m.hasQueuedSyntheticPrompt(req.target) {
+		if opts.InterruptIfAgentWaiting &&
+			!opts.SkipIfBusy &&
+			!m.hasQueuedSyntheticPrompt(req.target) &&
+			session.isCurrentPromptAgentWaiting() {
+			eventsCh, interruptErr := m.interruptAndSubmitSyntheticPrompt(dispatchCtx, session, req)
+			if interruptErr == nil {
+				return eventsCh, nil
+			}
+			if !isRetryableSyntheticInterruptError(interruptErr) {
+				return nil, interruptErr
+			}
+		}
 		if opts.SkipIfBusy {
 			return nil, ErrPromptInProgress
 		}
@@ -61,6 +74,37 @@ func (m *Manager) PromptSynthetic(
 	}
 
 	return m.enqueueSyntheticPrompt(dispatchCtx, req), nil
+}
+
+func (m *Manager) interruptAndSubmitSyntheticPrompt(
+	ctx context.Context,
+	session *Session,
+	req promptRequest,
+) (<-chan acp.AgentEvent, error) {
+	if m == nil {
+		return nil, errors.New("session: manager is required")
+	}
+	if session == nil {
+		return nil, errors.New("session: session is required")
+	}
+	if err := m.CancelPrompt(ctx, session.ID); err != nil {
+		return nil, err
+	}
+	waitCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), m.supervision.TimeoutCancelGrace)
+	defer cancel()
+	if err := waitForPromptIdle(waitCtx, session); err != nil {
+		return nil, err
+	}
+	return m.submitPromptRequest(ctx, req)
+}
+
+func isRetryableSyntheticInterruptError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return errors.Is(err, ErrPromptInProgress) ||
+		errors.Is(err, context.DeadlineExceeded) ||
+		errors.Is(err, context.Canceled)
 }
 
 func (m *Manager) parseSyntheticPromptRequest(

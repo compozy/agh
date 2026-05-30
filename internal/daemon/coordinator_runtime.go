@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/agh/internal/acp"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/coordinator"
 	hookspkg "github.com/compozy/agh/internal/hooks"
@@ -30,6 +31,7 @@ type coordinatorTaskStore interface {
 type coordinatorSessionManager interface {
 	Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error)
 	ListAll(ctx context.Context) ([]*session.Info, error)
+	PromptSynthetic(ctx context.Context, id string, opts session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error)
 }
 
 type coordinatorHookDispatcher interface {
@@ -303,6 +305,10 @@ func (r *coordinatorRuntime) bootstrapRun(
 	}
 	if existing != nil {
 		r.dispatchDecision(ctx, decision, reason, coordinator.DecisionExisting)
+		if err := r.promptCoordinator(ctx, existing, decision, reason); err != nil {
+			r.dispatchFailed(ctx, decision, reason, err)
+			return existing, false, err
+		}
 		return existing, false, nil
 	}
 
@@ -342,8 +348,98 @@ func (r *coordinatorRuntime) createCoordinatorSession(
 		r.dispatchFailed(ctx, decision, reason, err)
 		return nil, false, err
 	}
+	if err := r.promptCoordinator(ctx, info, decision, reason); err != nil {
+		r.dispatchFailed(ctx, decision, reason, err)
+		return nil, false, err
+	}
 	r.dispatchSpawned(ctx, decision, info, cfg, reason)
 	return info, true, nil
+}
+
+func (r *coordinatorRuntime) promptCoordinator(
+	ctx context.Context,
+	info *session.Info,
+	decision coordinator.Decision,
+	reason string,
+) error {
+	if info == nil {
+		return errors.New("daemon: coordinator prompt requires session info")
+	}
+	sessionID := strings.TrimSpace(info.ID)
+	if sessionID == "" {
+		return errors.New("daemon: coordinator prompt requires session id")
+	}
+	message := coordinatorWakeMessage(decision)
+	events, err := r.sessions.PromptSynthetic(ctx, sessionID, session.SyntheticPromptOpts{
+		Message: message,
+		Metadata: acp.PromptSyntheticMeta{
+			TaskID:               strings.TrimSpace(decision.TaskID),
+			TaskRunID:            strings.TrimSpace(decision.RunID),
+			WorkflowID:           strings.TrimSpace(decision.WorkflowID),
+			CoordinatorSessionID: sessionID,
+			Reason:               strings.TrimSpace(reason),
+			Summary:              coordinatorWakeSummary(decision),
+		},
+		InterruptIfAgentWaiting: true,
+	})
+	if err != nil {
+		return fmt.Errorf("daemon: prompt coordinator session %q: %w", sessionID, err)
+	}
+	go drainCoordinatorPromptEvents(ctx, r.logger, sessionID, strings.TrimSpace(decision.RunID), events)
+	return nil
+}
+
+func drainCoordinatorPromptEvents(
+	ctx context.Context,
+	logger *slog.Logger,
+	sessionID string,
+	runID string,
+	events <-chan acp.AgentEvent,
+) {
+	if events == nil {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case event, ok := <-events:
+			if !ok {
+				return
+			}
+			if event.Type == acp.EventTypeError && logger != nil {
+				logger.Warn(
+					"daemon: coordinator prompt returned agent error",
+					"session_id", sessionID,
+					"run_id", runID,
+				)
+			}
+		}
+	}
+}
+
+func coordinatorWakeMessage(decision coordinator.Decision) string {
+	taskID := strings.TrimSpace(decision.TaskID)
+	runID := strings.TrimSpace(decision.RunID)
+	return fmt.Sprintf(
+		"A task run is queued for this coordinator.\n\n"+
+			"Task: %s\nRun: %s\n\n"+
+			"Claim the run through the AGH task claim path by running `agh task next -o json` once without long-polling, then route from durable receipts. "+
+			"If the receipts require human input, park the run with the AGH task block path.",
+		taskID,
+		runID,
+	)
+}
+
+func coordinatorWakeSummary(decision coordinator.Decision) string {
+	return fmt.Sprintf(
+		"Coordinator wake for task %s run %s",
+		strings.TrimSpace(decision.TaskID),
+		strings.TrimSpace(decision.RunID),
+	)
 }
 
 func (r *coordinatorRuntime) startCoordinatorSession(

@@ -25,6 +25,7 @@ type sessionManagerStub struct {
 	resume            func(context.Context, string) (*session.Session, error)
 	clearConversation func(context.Context, string) (*session.Session, error)
 	prompt            func(context.Context, string, string) (<-chan acp.AgentEvent, error)
+	promptSynthetic   func(context.Context, string, session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error)
 	sendPrompt        func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error)
 	interruptPrompt   func(context.Context, string) (session.SendPromptResult, error)
 	steerPrompt       func(context.Context, string, string) (session.SendPromptResult, error)
@@ -150,6 +151,17 @@ func (s sessionManagerStub) ClearConversation(ctx context.Context, id string) (*
 func (s sessionManagerStub) Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {
 	if s.prompt != nil {
 		return s.prompt(ctx, id, msg)
+	}
+	return nil, session.ErrSessionNotFound
+}
+
+func (s sessionManagerStub) PromptSynthetic(
+	ctx context.Context,
+	id string,
+	opts session.SyntheticPromptOpts,
+) (<-chan acp.AgentEvent, error) {
+	if s.promptSynthetic != nil {
+		return s.promptSynthetic(ctx, id, opts)
 	}
 	return nil, session.ErrSessionNotFound
 }

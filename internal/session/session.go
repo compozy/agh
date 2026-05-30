@@ -344,6 +344,21 @@ func (s *Session) IsPrompting() bool {
 	return s.promptSetupCount > 0 || s.currentTurnSource != "" || s.currentTurnID != ""
 }
 
+func (s *Session) isCurrentPromptAgentWaiting() bool {
+	if s == nil {
+		return false
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.promptSetupCount > 0 || s.currentTurnSource == "" || s.currentTurnID == "" {
+		return false
+	}
+	return s.Liveness != nil &&
+		s.Liveness.Activity != nil &&
+		strings.TrimSpace(s.Liveness.Activity.LastActivityKind) == runtimeActivityKindAgentWaiting
+}
+
 func (s *Session) setCurrentTurnID(turnID string) {
 	if s == nil {
 		return

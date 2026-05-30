@@ -11,29 +11,34 @@ import (
 )
 
 type StubSessionManager struct {
-	CreateFn        func(context.Context, session.CreateOpts) (*session.Session, error)
-	ListFn          func() []*session.Info
-	ListAllFn       func(context.Context) ([]*session.Info, error)
-	ListSessionsFn  func(context.Context, store.SessionListQuery) ([]store.SessionInfo, error)
-	StatusFn        func(context.Context, string) (*session.Info, error)
-	EventsFn        func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
-	HistoryFn       func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
-	TranscriptFn    func(context.Context, string) ([]transcript.UIMessage, error)
-	RepairFn        func(context.Context, session.RepairOpts) (*session.RepairResult, error)
-	DeleteFn        func(context.Context, string) error
-	StopFn          func(context.Context, string) error
-	StopWithCauseFn func(context.Context, string, session.StopCause, string) error
-	ResumeFn        func(context.Context, string) (*session.Session, error)
-	AttachSessionFn func(context.Context, store.SessionAttachRequest) (store.SessionAttach, error)
-	ClearFn         func(context.Context, string) (*session.Session, error)
-	PromptFn        func(context.Context, string, string) (<-chan acp.AgentEvent, error)
-	SendPromptFn    func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error)
-	InterruptFn     func(context.Context, string) (session.SendPromptResult, error)
-	SteerFn         func(context.Context, string, string) (session.SendPromptResult, error)
-	CancelQueuedFn  func(context.Context, string, string) (session.SendPromptResult, error)
-	CancelPromptFn  func(context.Context, string) error
-	ApproveFn       func(context.Context, string, acp.ApproveRequest) error
-	InputQueueFn    func(context.Context, string) (session.InputQueueSummary, error)
+	CreateFn          func(context.Context, session.CreateOpts) (*session.Session, error)
+	ListFn            func() []*session.Info
+	ListAllFn         func(context.Context) ([]*session.Info, error)
+	ListSessionsFn    func(context.Context, store.SessionListQuery) ([]store.SessionInfo, error)
+	StatusFn          func(context.Context, string) (*session.Info, error)
+	EventsFn          func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
+	HistoryFn         func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
+	TranscriptFn      func(context.Context, string) ([]transcript.UIMessage, error)
+	RepairFn          func(context.Context, session.RepairOpts) (*session.RepairResult, error)
+	DeleteFn          func(context.Context, string) error
+	StopFn            func(context.Context, string) error
+	StopWithCauseFn   func(context.Context, string, session.StopCause, string) error
+	ResumeFn          func(context.Context, string) (*session.Session, error)
+	AttachSessionFn   func(context.Context, store.SessionAttachRequest) (store.SessionAttach, error)
+	ClearFn           func(context.Context, string) (*session.Session, error)
+	PromptFn          func(context.Context, string, string) (<-chan acp.AgentEvent, error)
+	PromptSyntheticFn func(
+		context.Context,
+		string,
+		session.SyntheticPromptOpts,
+	) (<-chan acp.AgentEvent, error)
+	SendPromptFn   func(context.Context, string, session.SendPromptOpts) (session.SendPromptResult, error)
+	InterruptFn    func(context.Context, string) (session.SendPromptResult, error)
+	SteerFn        func(context.Context, string, string) (session.SendPromptResult, error)
+	CancelQueuedFn func(context.Context, string, string) (session.SendPromptResult, error)
+	CancelPromptFn func(context.Context, string) error
+	ApproveFn      func(context.Context, string, acp.ApproveRequest) error
+	InputQueueFn   func(context.Context, string) (session.InputQueueSummary, error)
 }
 
 func (s StubSessionManager) Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error) {
@@ -199,6 +204,19 @@ func (s StubSessionManager) ClearConversation(
 func (s StubSessionManager) Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error) {
 	if s.PromptFn != nil {
 		return s.PromptFn(ctx, id, msg)
+	}
+	ch := make(chan acp.AgentEvent)
+	close(ch)
+	return ch, nil
+}
+
+func (s StubSessionManager) PromptSynthetic(
+	ctx context.Context,
+	id string,
+	opts session.SyntheticPromptOpts,
+) (<-chan acp.AgentEvent, error) {
+	if s.PromptSyntheticFn != nil {
+		return s.PromptSyntheticFn(ctx, id, opts)
 	}
 	ch := make(chan acp.AgentEvent)
 	close(ch)

@@ -768,7 +768,8 @@ func (b *harnessReentryBridge) dispatchWake(item harnessSyntheticWake) {
 	}
 
 	eventsCh, promptErr := b.sessions.PromptSynthetic(b.ctx, item.targetSessionID, session.SyntheticPromptOpts{
-		Message: item.syntheticMessage,
+		Message:                 item.syntheticMessage,
+		InterruptIfAgentWaiting: true,
 		Metadata: acp.PromptSyntheticMeta{
 			TaskID:         item.syntheticMeta.TaskID,
 			TaskRunID:      item.syntheticMeta.TaskRunID,
@@ -844,6 +845,18 @@ func (b *harnessReentryBridge) dispatchHeartbeatWake(item harnessSyntheticWake) 
 			item.targetSessionID,
 			item.targetAgentName,
 			harnessReentryOutcomeEmitted,
+			string(decision.Reason),
+		)
+	case heartbeat.WakeResultSkipped:
+		if decision.Reason == heartbeat.WakeReasonSessionPromptActive ||
+			decision.Reason == heartbeat.WakeReasonSessionPromptRace {
+			return false
+		}
+		b.finalizeRunOutcome(
+			item.runID,
+			item.targetSessionID,
+			item.targetAgentName,
+			harnessReentryOutcomeDropped,
 			string(decision.Reason),
 		)
 	case heartbeat.WakeResultFailed:

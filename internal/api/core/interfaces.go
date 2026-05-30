@@ -65,6 +65,7 @@ type SessionManager interface {
 	Resume(ctx context.Context, id string) (*session.Session, error)
 	ClearConversation(ctx context.Context, id string) (*session.Session, error)
 	Prompt(ctx context.Context, id string, msg string) (<-chan acp.AgentEvent, error)
+	PromptSynthetic(ctx context.Context, id string, opts session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error)
 	SendPrompt(ctx context.Context, id string, opts session.SendPromptOpts) (session.SendPromptResult, error)
 	InterruptPrompt(ctx context.Context, id string) (session.SendPromptResult, error)
 	SteerPrompt(ctx context.Context, id string, msg string) (session.SendPromptResult, error)

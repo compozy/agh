@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/agh/internal/acp"
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/coordinator"
 	hookspkg "github.com/compozy/agh/internal/hooks"
@@ -78,6 +79,22 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 		if !contains(call.PromptOverlay, required) {
 			t.Fatalf("PromptOverlay missing %q:\n%s", required, call.PromptOverlay)
 		}
+	}
+	if got := sessions.promptCount(); got != 1 {
+		t.Fatalf("PromptSynthetic count = %d, want 1", got)
+	}
+	prompt := sessions.promptCall(0)
+	if prompt.id != info.ID {
+		t.Fatalf("PromptSynthetic id = %q, want %q", prompt.id, info.ID)
+	}
+	assertCoordinatorPromptInterrupt(t, prompt)
+	if prompt.opts.Metadata.TaskID != "task-1" ||
+		prompt.opts.Metadata.TaskRunID != "run-1" ||
+		prompt.opts.Metadata.CoordinatorSessionID != info.ID {
+		t.Fatalf("PromptSynthetic metadata = %#v, want task/run/coordinator ids", prompt.opts.Metadata)
+	}
+	if !contains(prompt.opts.Message, "Claim the run through the AGH task claim path") {
+		t.Fatalf("PromptSynthetic message = %q, want claim instruction", prompt.opts.Message)
 	}
 	if hooks.preSpawnCount() != 1 || hooks.spawnedCount() != 1 {
 		t.Fatalf("hook counts pre_spawn/spawned = %d/%d, want 1/1", hooks.preSpawnCount(), hooks.spawnedCount())
@@ -257,6 +274,10 @@ func TestCoordinatorRuntimeObservesTaskRunEnqueuedButNotTaskCreation(t *testing.
 	if got := sessions.createCount(); got != 1 {
 		t.Fatalf("Create count after enqueue = %d, want 1", got)
 	}
+	if got := sessions.promptCount(); got != 1 {
+		t.Fatalf("PromptSynthetic count after enqueue = %d, want 1", got)
+	}
+	assertCoordinatorPromptInterrupt(t, sessions.promptCall(0))
 }
 
 func TestCoordinatorRuntimeManualSessionsCoexist(t *testing.T) {
@@ -294,6 +315,67 @@ func TestCoordinatorRuntimeManualSessionsCoexist(t *testing.T) {
 	}
 	if got := sessions.createCount(); got != 1 {
 		t.Fatalf("Create count = %d, want 1", got)
+	}
+	if got := sessions.promptCount(); got != 1 {
+		t.Fatalf("PromptSynthetic count = %d, want 1", got)
+	}
+	assertCoordinatorPromptInterrupt(t, sessions.promptCall(0))
+}
+
+func TestCoordinatorRuntimePromptsExistingCoordinatorForQueuedRun(t *testing.T) {
+	t.Parallel()
+
+	store := newCoordinatorRuntimeStore(coordinatorRuntimeTask(), coordinatorRuntimeRun())
+	ttl := time.Now().UTC().Add(time.Hour)
+	sessions := &coordinatorRuntimeSessions{
+		infos: []*session.Info{{
+			ID:          "coord-existing",
+			Type:        session.SessionTypeCoordinator,
+			AgentName:   "coordinator",
+			WorkspaceID: "ws-1",
+			Workspace:   "ws-1",
+			State:       session.StateActive,
+			Lineage: &storepkg.SessionLineage{
+				RootSessionID: "coord-existing",
+				SpawnRole:     string(session.SessionTypeCoordinator),
+				TTLExpiresAt:  &ttl,
+			},
+		}},
+	}
+	runtime := newCoordinatorRuntimeForTest(
+		t,
+		store,
+		sessions,
+		&recordingCoordinatorHooks{},
+		coordinatorRuntimeConfig(),
+		time.Now().UTC(),
+	)
+
+	info, created, err := runtime.bootstrapRun(
+		context.Background(),
+		store.tasks["task-1"],
+		store.runs["run-1"],
+		coordinator.ReasonRecovery,
+	)
+	if err != nil {
+		t.Fatalf("bootstrapRun(existing) error = %v", err)
+	}
+	if created {
+		t.Fatal("bootstrapRun(existing) created = true, want false")
+	}
+	if info == nil || info.ID != "coord-existing" {
+		t.Fatalf("bootstrapRun(existing) info = %#v, want existing coordinator", info)
+	}
+	if got := sessions.createCount(); got != 0 {
+		t.Fatalf("Create count = %d, want 0", got)
+	}
+	if got := sessions.promptCount(); got != 1 {
+		t.Fatalf("PromptSynthetic count = %d, want 1", got)
+	}
+	prompt := sessions.promptCall(0)
+	assertCoordinatorPromptInterrupt(t, prompt)
+	if got := prompt.opts.Metadata.TaskRunID; got != "run-1" {
+		t.Fatalf("PromptSynthetic run id = %q, want run-1", got)
 	}
 }
 
@@ -540,8 +622,15 @@ type coordinatorRuntimeSessions struct {
 	infos       []*session.Info
 	createCalls []session.CreateOpts
 	createErr   error
+	promptCalls []coordinatorRuntimePromptCall
+	promptErr   error
 	stopCalls   []coordinatorRuntimeStopCall
 	stopErr     error
+}
+
+type coordinatorRuntimePromptCall struct {
+	id   string
+	opts session.SyntheticPromptOpts
 }
 
 type coordinatorRuntimeStopCall struct {
@@ -597,6 +686,22 @@ func (s *coordinatorRuntimeSessions) ListAll(context.Context) ([]*session.Info, 
 	return infos, nil
 }
 
+func (s *coordinatorRuntimeSessions) PromptSynthetic(
+	_ context.Context,
+	id string,
+	opts session.SyntheticPromptOpts,
+) (<-chan acp.AgentEvent, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.promptCalls = append(s.promptCalls, coordinatorRuntimePromptCall{id: id, opts: opts})
+	if s.promptErr != nil {
+		return nil, s.promptErr
+	}
+	ch := make(chan acp.AgentEvent)
+	close(ch)
+	return ch, nil
+}
+
 func (s *coordinatorRuntimeSessions) StopWithCause(
 	_ context.Context,
 	id string,
@@ -625,6 +730,28 @@ func (s *coordinatorRuntimeSessions) createCall(index int) session.CreateOpts {
 		return session.CreateOpts{}
 	}
 	return s.createCalls[index]
+}
+
+func (s *coordinatorRuntimeSessions) promptCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.promptCalls)
+}
+
+func (s *coordinatorRuntimeSessions) promptCall(index int) coordinatorRuntimePromptCall {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if index < 0 || index >= len(s.promptCalls) {
+		return coordinatorRuntimePromptCall{}
+	}
+	return s.promptCalls[index]
+}
+
+func assertCoordinatorPromptInterrupt(t *testing.T, prompt coordinatorRuntimePromptCall) {
+	t.Helper()
+	if !prompt.opts.InterruptIfAgentWaiting {
+		t.Fatal("PromptSynthetic InterruptIfAgentWaiting = false, want true")
+	}
 }
 
 func (s *coordinatorRuntimeSessions) stopCount() int {

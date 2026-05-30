@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"maps"
 	"math"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	hookspkg "github.com/compozy/agh/internal/hooks"
 	storepkg "github.com/compozy/agh/internal/store"
 )
 
@@ -4863,7 +4865,16 @@ func TestManagerForceRunOperations(t *testing.T) {
 		t.Parallel()
 
 		store := newInMemoryManagerStore()
-		manager := newTaskManagerForTest(t, store)
+		enqueuedRunIDs := make([]string, 0)
+		manager := newTaskManagerForTestWithOptions(t, store, WithTaskRunHooks(recordingTaskRunHooks{
+			enqueued: func(
+				_ context.Context,
+				payload hookspkg.TaskRunEnqueuedPayload,
+			) (hookspkg.TaskRunEnqueuedPayload, error) {
+				enqueuedRunIDs = append(enqueuedRunIDs, payload.RunID)
+				return payload, nil
+			},
+		}))
 		actor := validActorContext()
 		maxAttempts := 3
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
@@ -4884,6 +4895,7 @@ func TestManagerForceRunOperations(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ForceFailRun() error = %v", err)
 		}
+		enqueuedRunIDs = enqueuedRunIDs[:0]
 
 		retry, err := manager.RetryRun(context.Background(), failed.ID, RetryRunRequest{
 			Metadata: json.RawMessage("{\"source\":\"operator\"}"),
@@ -4896,6 +4908,9 @@ func TestManagerForceRunOperations(t *testing.T) {
 		}
 		if retry.Run.PreviousRunID != failed.ID || retry.Run.Status != TaskRunStatusQueued {
 			t.Fatalf("RetryRun().Run = %#v, want queued run linked to previous", retry.Run)
+		}
+		if got, want := enqueuedRunIDs, []string{retry.Run.ID}; !slices.Equal(got, want) {
+			t.Fatalf("enqueued hook run ids = %v, want %v", got, want)
 		}
 		if _, err := manager.RetryRun(context.Background(), failed.ID, RetryRunRequest{}, actor); !errors.Is(
 			err,
@@ -4920,7 +4935,16 @@ func TestManagerForceRunOperations(t *testing.T) {
 		t.Parallel()
 
 		store := newInMemoryManagerStore()
-		manager := newTaskManagerForTest(t, store)
+		enqueuedRunIDs := make([]string, 0)
+		manager := newTaskManagerForTestWithOptions(t, store, WithTaskRunHooks(recordingTaskRunHooks{
+			enqueued: func(
+				_ context.Context,
+				payload hookspkg.TaskRunEnqueuedPayload,
+			) (hookspkg.TaskRunEnqueuedPayload, error) {
+				enqueuedRunIDs = append(enqueuedRunIDs, payload.RunID)
+				return payload, nil
+			},
+		}))
 		actor := validActorContext()
 		maxAttempts := 3
 		taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
@@ -4945,6 +4969,7 @@ func TestManagerForceRunOperations(t *testing.T) {
 		escalated := store.runs[run.ID]
 		escalated.Status = TaskRunStatusNeedsAttention
 		store.runs[run.ID] = escalated
+		enqueuedRunIDs = enqueuedRunIDs[:0]
 
 		recovered, err := manager.RecoverRun(context.Background(), run.ID, RecoverRunRequest{
 			Reason:   "operator unblocked",
@@ -4961,6 +4986,9 @@ func TestManagerForceRunOperations(t *testing.T) {
 		}
 		if recovered.Run.Attempt != run.Attempt+1 {
 			t.Fatalf("RecoverRun().Run.Attempt = %d, want %d", recovered.Run.Attempt, run.Attempt+1)
+		}
+		if got, want := enqueuedRunIDs, []string{recovered.Run.ID}; !slices.Equal(got, want) {
+			t.Fatalf("enqueued hook run ids = %v, want %v", got, want)
 		}
 		events, err := store.ListTaskEvents(context.Background(), EventQuery{
 			TaskID:    taskRecord.ID,
