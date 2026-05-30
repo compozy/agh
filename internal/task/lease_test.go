@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -514,6 +516,200 @@ func TestManagerClaimNextRunRequiresWriteAuthority(t *testing.T) {
 		ClaimerSessionID: "sess-agent",
 	}, actor); !errors.Is(err, ErrPermissionDenied) {
 		t.Fatalf("ClaimNextRun(read-only actor) error = %v, want %v", err, ErrPermissionDenied)
+	}
+}
+
+func TestManagerBlockRunLeaseParksRunNeedsAttention(t *testing.T) {
+	t.Parallel()
+
+	manager := newTaskManagerForTest(t, newInMemoryManagerStore())
+	operator := validActorContext()
+	agent := validActorContext()
+	agent.Actor = ActorIdentity{Kind: ActorKindAgentSession, Ref: "sess-block"}
+	agent.Origin = Origin{Kind: OriginKindAgentSession, Ref: "worker"}
+
+	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope: ScopeGlobal,
+		Title: "Human blocked task",
+	}, operator)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	if _, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, operator); err != nil {
+		t.Fatalf("EnqueueRun() error = %v", err)
+	}
+	now := time.Now().UTC()
+	claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+		Scope:            ScopeGlobal,
+		ClaimerSessionID: "sess-block",
+		LeaseDuration:    time.Minute,
+		Now:              now,
+	}, agent)
+	if err != nil {
+		t.Fatalf("ClaimNextRun() error = %v", err)
+	}
+
+	blocked, err := manager.BlockRunLease(context.Background(), LeaseBlock{
+		RunID:      claim.Run.ID,
+		ClaimToken: claim.ClaimToken,
+		Reason:     "blocked_on_human: Figma OAuth required",
+		Now:        now.Add(10 * time.Second),
+	}, agent)
+	if err != nil {
+		t.Fatalf("BlockRunLease() error = %v", err)
+	}
+	if got, want := blocked.Status, TaskRunStatusNeedsAttention; got != want {
+		t.Fatalf("blocked.Status = %q, want %q", got, want)
+	}
+	if blocked.ClaimTokenHash != "" ||
+		blocked.SessionID != "" ||
+		blocked.ClaimedBy != nil ||
+		!blocked.LeaseUntil.IsZero() {
+		t.Fatalf(
+			"blocked ownership fields = hash %q session %q claimed_by %#v lease %v, want cleared",
+			blocked.ClaimTokenHash,
+			blocked.SessionID,
+			blocked.ClaimedBy,
+			blocked.LeaseUntil,
+		)
+	}
+	view, err := manager.GetTask(context.Background(), taskRecord.ID, operator)
+	if err != nil {
+		t.Fatalf("GetTask() error = %v", err)
+	}
+	if got, want := view.Task.Status, TaskStatusBlocked; got != want {
+		t.Fatalf("task status after block = %q, want %q", got, want)
+	}
+	if _, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+		Scope:            ScopeGlobal,
+		ClaimerSessionID: "sess-other",
+		LeaseDuration:    time.Minute,
+		Now:              now.Add(20 * time.Second),
+	}, agent); !errors.Is(err, ErrNoClaimableRun) {
+		t.Fatalf("ClaimNextRun(after block) error = %v, want %v", err, ErrNoClaimableRun)
+	}
+}
+
+func TestManagerCompleteRunLeaseRequiresCompletionContractArtifacts(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	manager := newTaskManagerForTestWithOptions(
+		t,
+		newInMemoryManagerStore(),
+		WithCompletionContractRootResolver(func(context.Context, Task, Run) (string, error) {
+			return root, nil
+		}),
+	)
+	operator := validActorContext()
+	agent := validActorContext()
+	agent.Actor = ActorIdentity{Kind: ActorKindAgentSession, Ref: "sess-contract"}
+	agent.Origin = Origin{Kind: OriginKindAgentSession, Ref: "worker"}
+
+	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope: ScopeGlobal,
+		Title: "Receipt gated task",
+		Metadata: json.RawMessage(
+			`{"completion_contract":{"required_artifacts":[{"path":"receipts/phase.yaml"}]}}`,
+		),
+	}, operator)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	if _, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, operator); err != nil {
+		t.Fatalf("EnqueueRun() error = %v", err)
+	}
+	now := time.Now().UTC()
+	claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+		Scope:            ScopeGlobal,
+		ClaimerSessionID: "sess-contract",
+		LeaseDuration:    time.Minute,
+		Now:              now,
+	}, agent)
+	if err != nil {
+		t.Fatalf("ClaimNextRun() error = %v", err)
+	}
+	_, err = manager.CompleteRunLease(context.Background(), LeaseCompletion{
+		RunID:      claim.Run.ID,
+		ClaimToken: claim.ClaimToken,
+		Result:     RunResult{Value: json.RawMessage(`{"ok":true}`)},
+		Now:        now.Add(10 * time.Second),
+	}, agent)
+	if err == nil || !errors.Is(err, ErrValidation) {
+		t.Fatalf("CompleteRunLease(missing receipt) error = %v, want %v", err, ErrValidation)
+	}
+
+	if err := os.MkdirAll(root+"/receipts", 0o755); err != nil {
+		t.Fatalf("MkdirAll(receipts) error = %v", err)
+	}
+	if err := os.WriteFile(root+"/receipts/phase.yaml", []byte("status: completed\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(receipt) error = %v", err)
+	}
+	completed, err := manager.CompleteRunLease(context.Background(), LeaseCompletion{
+		RunID:      claim.Run.ID,
+		ClaimToken: claim.ClaimToken,
+		Result:     RunResult{Value: json.RawMessage(`{"ok":true}`)},
+		Now:        now.Add(20 * time.Second),
+	}, agent)
+	if err != nil {
+		t.Fatalf("CompleteRunLease(with receipt) error = %v", err)
+	}
+	if got, want := completed.Status, TaskRunStatusCompleted; got != want {
+		t.Fatalf("completed.Status = %q, want %q", got, want)
+	}
+}
+
+func TestManagerCompleteRunLeaseRejectsAbsoluteCompletionContractArtifacts(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	absoluteReceipt := root + "/receipt.yaml"
+	if err := os.WriteFile(absoluteReceipt, []byte("status: completed\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile(receipt) error = %v", err)
+	}
+	manager := newTaskManagerForTestWithOptions(
+		t,
+		newInMemoryManagerStore(),
+		WithCompletionContractRootResolver(func(context.Context, Task, Run) (string, error) {
+			return root, nil
+		}),
+	)
+	operator := validActorContext()
+	agent := validActorContext()
+	agent.Actor = ActorIdentity{Kind: ActorKindAgentSession, Ref: "sess-contract"}
+	agent.Origin = Origin{Kind: OriginKindAgentSession, Ref: "worker"}
+
+	taskRecord, err := manager.CreateTask(context.Background(), CreateTask{
+		Scope: ScopeGlobal,
+		Title: "Absolute receipt task",
+		Metadata: json.RawMessage(
+			`{"completion_contract":{"required_artifacts":[{"path":` + strconv.Quote(absoluteReceipt) + `}]}}`,
+		),
+	}, operator)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	if _, err := manager.EnqueueRun(context.Background(), EnqueueRun{TaskID: taskRecord.ID}, operator); err != nil {
+		t.Fatalf("EnqueueRun() error = %v", err)
+	}
+	now := time.Now().UTC()
+	claim, err := manager.ClaimNextRun(context.Background(), ClaimCriteria{
+		Scope:            ScopeGlobal,
+		ClaimerSessionID: "sess-contract",
+		LeaseDuration:    time.Minute,
+		Now:              now,
+	}, agent)
+	if err != nil {
+		t.Fatalf("ClaimNextRun() error = %v", err)
+	}
+	_, err = manager.CompleteRunLease(context.Background(), LeaseCompletion{
+		RunID:      claim.Run.ID,
+		ClaimToken: claim.ClaimToken,
+		Result:     RunResult{Value: json.RawMessage(`{"ok":true}`)},
+		Now:        now.Add(10 * time.Second),
+	}, agent)
+	if err == nil || !errors.Is(err, ErrValidation) {
+		t.Fatalf("CompleteRunLease(absolute receipt) error = %v, want %v", err, ErrValidation)
 	}
 }
 

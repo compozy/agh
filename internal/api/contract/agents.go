@@ -298,6 +298,11 @@ type AgentTaskReleaseRequest struct {
 	Reason string `json:"reason,omitempty"`
 }
 
+// AgentTaskBlockRequest parks the caller session's claimed task run in needs_attention.
+type AgentTaskBlockRequest struct {
+	Reason string `json:"reason,omitempty"`
+}
+
 // CoordinationMessageMetadataPayload carries typed task/run correlation for channel messages.
 type CoordinationMessageMetadataPayload struct {
 	TaskID                string                     `json:"task_id"`

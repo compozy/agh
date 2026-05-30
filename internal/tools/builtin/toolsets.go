@@ -164,6 +164,7 @@ var builtinToolsets = []toolspkg.Toolset{
 			toolspkg.ToolIDTaskRunComplete.String(),
 			toolspkg.ToolIDTaskRunFail.String(),
 			toolspkg.ToolIDTaskRunRelease.String(),
+			toolspkg.ToolIDTaskRunBlock.String(),
 			toolspkg.ToolIDTaskRunReviewSubmit.String(),
 		},
 	},

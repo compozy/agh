@@ -967,6 +967,30 @@ func (s *inMemoryManagerStore) ReleaseRunLease(_ context.Context, release LeaseR
 	return cloneTaskRun(run), nil
 }
 
+func (s *inMemoryManagerStore) BlockRunLease(_ context.Context, block LeaseBlock) (Run, error) {
+	normalized, err := block.Normalize(time.Now().UTC())
+	if err != nil {
+		return Run{}, err
+	}
+	run, err := s.requireCurrentTestLease(normalized.RunID, normalized.ClaimToken, normalized.Now)
+	if err != nil {
+		return Run{}, err
+	}
+	run.Status = TaskRunStatusNeedsAttention
+	run.ClaimedBy = nil
+	run.SessionID = ""
+	run.ClaimToken = ""
+	run.ClaimTokenHash = ""
+	run.LeaseUntil = time.Time{}
+	run.HeartbeatAt = time.Time{}
+	run.ClaimedAt = time.Time{}
+	run.EndedAt = time.Time{}
+	run.Error = strings.TrimSpace(normalized.Reason)
+	run.Result = nil
+	s.runs[run.ID] = cloneTaskRun(run)
+	return cloneTaskRun(run), nil
+}
+
 func (s *inMemoryManagerStore) CompleteRunLease(_ context.Context, completion LeaseCompletion) (Run, error) {
 	normalized, err := completion.Normalize(time.Now().UTC())
 	if err != nil {
@@ -5794,6 +5818,33 @@ func TestTaskStatusFromSnapshot(t *testing.T) {
 				{ID: "run-2", Status: TaskRunStatusCompleted, Attempt: 2, QueuedAt: base.Add(time.Second)},
 			},
 			want: TaskStatusCompleted,
+		},
+		{
+			name:          "older needs_attention run does not mask latest terminal run",
+			currentStatus: TaskStatusBlocked,
+			runs: []Run{
+				{ID: "run-1", Status: TaskRunStatusNeedsAttention, Attempt: 1, QueuedAt: base},
+				{ID: "run-2", Status: TaskRunStatusCompleted, Attempt: 2, QueuedAt: base.Add(time.Second)},
+			},
+			want: TaskStatusCompleted,
+		},
+		{
+			name:          "latest needs_attention run blocks older terminal run",
+			currentStatus: TaskStatusReady,
+			runs: []Run{
+				{ID: "run-1", Status: TaskRunStatusCompleted, Attempt: 1, QueuedAt: base},
+				{ID: "run-2", Status: TaskRunStatusNeedsAttention, Attempt: 2, QueuedAt: base.Add(time.Second)},
+			},
+			want: TaskStatusBlocked,
+		},
+		{
+			name:          "needs_attention run parks task ahead of queued sibling",
+			currentStatus: TaskStatusReady,
+			runs: []Run{
+				{ID: "run-1", Status: TaskRunStatusQueued, Attempt: 1, QueuedAt: base},
+				{ID: "run-2", Status: TaskRunStatusNeedsAttention, Attempt: 2, QueuedAt: base.Add(time.Second)},
+			},
+			want: TaskStatusBlocked,
 		},
 		{
 			name:                   "no runs with unresolved dependency is blocked",

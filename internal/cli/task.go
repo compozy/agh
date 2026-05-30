@@ -230,6 +230,7 @@ func newTaskCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newTaskHeartbeatCommand(deps))
 	cmd.AddCommand(newTaskCompleteCommand(deps))
 	cmd.AddCommand(newTaskFailCommand(deps))
+	cmd.AddCommand(newTaskBlockCommand(deps))
 	cmd.AddCommand(newTaskReleaseCommand(deps))
 	cmd.AddCommand(newTaskRetryCommand(deps))
 	cmd.AddCommand(newTaskRecoverCommand(deps))
@@ -1438,6 +1439,50 @@ func newTaskFailCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&flags.reason, "reason", "", "Forced-failure reason")
 	cmd.Flags().StringVar(&flags.errorMessage, taskErrorKey, "", "Session-bound failure message")
 	cmd.Flags().StringVar(&flags.metadataRaw, "metadata", "", "Optional failure metadata JSON")
+	return cmd
+}
+
+func newTaskBlockCommand(deps commandDeps) *cobra.Command {
+	var reason string
+
+	cmd := &cobra.Command{
+		Use:   "block <run-id>",
+		Short: "Park a claimed task run in needs_attention for human input",
+		Args:  cobra.ExactArgs(1),
+		Example: `  # Park the current session's claimed run with a specific blocker
+  agh task block run-123 --reason "Need product approval for the destructive migration"`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runID, err := requiredAgentTaskRunID(args[0])
+			if err != nil {
+				return err
+			}
+			request := AgentTaskBlockRequest{Reason: strings.TrimSpace(reason)}
+			if request.Reason == "" {
+				return errors.New("cli: --reason is required")
+			}
+
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			credentials, err := requireAgentCommandIdentity(
+				cmd.Context(),
+				deps,
+				client,
+				agentActionCLI("task.block"),
+			)
+			if err != nil {
+				return err
+			}
+			record, err := client.AgentTaskBlock(cmd.Context(), runID, request, credentials)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, agentTaskLeaseBundle(record))
+		},
+	}
+	cmd.Flags().StringVar(&reason, "reason", "", "Specific human-facing blocker or question")
+	mustMarkFlagRequired(cmd, "reason")
 	return cmd
 }
 

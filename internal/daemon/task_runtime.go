@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
+	aghworkspace "github.com/compozy/agh/internal/workspace"
 )
 
 const (
@@ -33,6 +34,10 @@ const (
 
 type taskStore interface {
 	taskpkg.Store
+}
+
+type taskWorkspaceGetter interface {
+	GetWorkspace(ctx context.Context, id string) (aghworkspace.Workspace, error)
 }
 
 type taskRuntime struct {
@@ -489,6 +494,21 @@ func taskManagerOptions(
 			AllowAgentForce: recovery.AllowAgentForce,
 		}),
 		taskpkg.WithStarvationAge(scheduler.MinQueuedAge),
+	}
+	if workspaceStore, ok := store.(taskWorkspaceGetter); ok {
+		options = append(options, taskpkg.WithCompletionContractRootResolver(
+			func(ctx context.Context, taskRecord taskpkg.Task, _ taskpkg.Run) (string, error) {
+				workspaceID := strings.TrimSpace(taskRecord.WorkspaceID)
+				if workspaceID == "" {
+					return "", fmt.Errorf("workspace_id is required")
+				}
+				workspaceRecord, err := workspaceStore.GetWorkspace(ctx, workspaceID)
+				if err != nil {
+					return "", err
+				}
+				return workspaceRecord.RootDir, nil
+			},
+		))
 	}
 	if hooks != nil {
 		options = append(options, taskpkg.WithTaskRunHooks(hooks))

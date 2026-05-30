@@ -57,6 +57,7 @@ var (
 		toolspkg.ToolIDTaskRunComplete.String(),
 		toolspkg.ToolIDTaskRunFail.String(),
 		toolspkg.ToolIDTaskRunRelease.String(),
+		toolspkg.ToolIDTaskRunBlock.String(),
 		toolspkg.ToolIDTaskCreate.String(),
 	}
 )
@@ -244,7 +245,7 @@ func PromptOverlay(input PromptInput) string {
 	b.WriteString("\nUse public AGH agent APIs only:\n")
 	b.WriteString("- `agh me context` for the Situation Surface.\n")
 	b.WriteString("- `agh task create` to persist follow-up task intent.\n")
-	b.WriteString("- `agh task next|heartbeat|complete|fail|release` for task ownership and terminal status.\n")
+	b.WriteString("- `agh task next|heartbeat|complete|fail|release|block` for task ownership and terminal status.\n")
 	b.WriteString("- `agh ch list|recv|send|reply` for operational worker communication.\n")
 	b.WriteString("- `agh spawn` for bounded worker delegation.\n")
 	b.WriteString("\nCreating a task only records follow-up intent. The current coordinator run is the active ")

@@ -120,6 +120,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDTaskRunComplete,
 			toolspkg.ToolIDTaskRunFail,
 			toolspkg.ToolIDTaskRunRelease,
+			toolspkg.ToolIDTaskRunBlock,
 			toolspkg.ToolIDTaskRunReviewSubmit,
 			toolspkg.ToolIDConfigShow,
 			toolspkg.ToolIDConfigList,
@@ -525,6 +526,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskRunFail], toolspkg.RiskMutating, false, false, false)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskRunRelease], toolspkg.RiskMutating, false, false, false)
+		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDTaskRunBlock], toolspkg.RiskMutating, false, false, false)
 		requireDescriptorRisk(
 			t,
 			descriptors[toolspkg.ToolIDTaskRunReviewSubmit],
@@ -829,6 +831,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 			t.Fatalf("Expand(autonomy) error = %v", err)
 		}
 		if want := []toolspkg.ToolID{
+			toolspkg.ToolIDTaskRunBlock,
 			toolspkg.ToolIDTaskRunClaimNext,
 			toolspkg.ToolIDTaskRunComplete,
 			toolspkg.ToolIDTaskRunFail,

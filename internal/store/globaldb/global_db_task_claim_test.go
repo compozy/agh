@@ -838,6 +838,73 @@ func TestGlobalDBClaimLeaseLifecycleFencing(t *testing.T) {
 	}
 }
 
+func TestGlobalDBBlockRunLeaseParksNeedsAttention(t *testing.T) {
+	globalDB := openTestGlobalDB(t)
+	ctx := testutil.Context(t)
+	now := time.Date(2026, 4, 26, 13, 0, 0, 0, time.UTC)
+	taskRecord := taskRecordForTest("task-block-lease")
+	taskRecord.Status = taskpkg.TaskStatusReady
+	if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	run := taskRunForTest("run-block-lease", taskRecord.ID)
+	if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+		t.Fatalf("CreateTaskRun() error = %v", err)
+	}
+	claim, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		Scope:            taskpkg.ScopeGlobal,
+		ClaimerSessionID: "sess-block-lease",
+		LeaseDuration:    time.Minute,
+		Now:              now,
+	})
+	if err != nil {
+		t.Fatalf("ClaimNextRun() error = %v", err)
+	}
+	blocked, err := globalDB.BlockRunLease(ctx, taskpkg.LeaseBlock{
+		RunID:      claim.Run.ID,
+		ClaimToken: claim.ClaimToken,
+		Reason:     "blocked_on_human",
+		Now:        now.Add(10 * time.Second),
+	})
+	if err != nil {
+		t.Fatalf("BlockRunLease() error = %v", err)
+	}
+	if got, want := blocked.Status, taskpkg.TaskRunStatusNeedsAttention; got != want {
+		t.Fatalf("blocked.Status = %q, want %q", got, want)
+	}
+	if blocked.ClaimTokenHash != "" ||
+		blocked.SessionID != "" ||
+		blocked.ClaimedBy != nil ||
+		!blocked.LeaseUntil.IsZero() {
+		t.Fatalf(
+			"blocked ownership fields = hash %q session %q claimed_by %#v lease %v, want cleared",
+			blocked.ClaimTokenHash,
+			blocked.SessionID,
+			blocked.ClaimedBy,
+			blocked.LeaseUntil,
+		)
+	}
+	if got, want := blocked.Error, "blocked_on_human"; got != want {
+		t.Fatalf("blocked.Error = %q, want %q", got, want)
+	}
+	var rawClaimToken sql.NullString
+	if err := globalDB.db.QueryRowContext(ctx, `SELECT claim_token FROM task_runs WHERE id = ?`, blocked.ID).
+		Scan(&rawClaimToken); err != nil {
+		t.Fatalf("query blocked claim_token error = %v", err)
+	}
+	if rawClaimToken.Valid {
+		t.Fatalf("blocked stored raw claim_token = %q, want NULL", rawClaimToken.String)
+	}
+	if _, err := globalDB.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+		Scope:            taskpkg.ScopeGlobal,
+		ClaimerSessionID: "sess-other",
+		LeaseDuration:    time.Minute,
+		Now:              now.Add(20 * time.Second),
+	}); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
+		t.Fatalf("ClaimNextRun(after block) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
+	}
+}
+
 func TestGlobalDBRecoverExpiredRunLeasesThenClaim(t *testing.T) {
 	globalDB := openTestGlobalDB(t)
 	ctx := testutil.Context(t)

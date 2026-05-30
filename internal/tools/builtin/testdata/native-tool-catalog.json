@@ -1460,6 +1460,17 @@
         "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
     },
     {
+        "tool_id": "agh__task_run_block",
+        "native_name": "task_run_block",
+        "toolsets": ["agh__autonomy"],
+        "risk": "mutating",
+        "read_only": false,
+        "destructive": false,
+        "open_world": false,
+        "input_schema_digest": "eb7f5aa18f88eb3c936c794640646b6c24dc72c0d3af6f65c44f4efccec768e9",
+        "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
+    },
+    {
         "tool_id": "agh__task_run_claim_next",
         "native_name": "task_run_claim_next",
         "toolsets": ["agh__autonomy"],

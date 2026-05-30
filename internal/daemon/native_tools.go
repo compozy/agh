@@ -916,6 +916,10 @@ func (n *daemonNativeTools) autonomyToolBindings(
 			call:         n.autonomyRelease,
 			availability: availability,
 		},
+		toolspkg.ToolIDTaskRunBlock: {
+			call:         n.autonomyBlock,
+			availability: availability,
+		},
 		toolspkg.ToolIDTaskRunReviewSubmit: {
 			call:         n.submitRunReview,
 			availability: n.submitRunReviewAvailability,
@@ -2763,6 +2767,43 @@ func (n *daemonNativeTools) autonomyRelease(
 	return structuredResult(map[string]any{nativeToolsLeaseKey: lease}, fmt.Sprintf("released %s", lease.RunID))
 }
 
+func (n *daemonNativeTools) autonomyBlock(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input autonomyBlockInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	actor, sessionID, err := autonomyActorContext(req.ToolID, scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	runID, err := requiredNativeString(req.ToolID, "run_id", input.RunID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	reason, err := requiredNativeString(req.ToolID, "reason", input.Reason)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	handle, err := n.lookupAutonomyLease(ctx, req.ToolID, sessionID, runID)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	run, err := n.deps.Tasks.BlockRunLease(ctx, taskpkg.LeaseBlock{
+		RunID:      runID,
+		ClaimToken: handle.ClaimToken,
+		Reason:     reason,
+	}, actor)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeAutonomyToolError(req.ToolID, err)
+	}
+	lease := core.AgentTaskLeasePayloadFromRun(run, nil)
+	return structuredResult(map[string]any{nativeToolsLeaseKey: lease}, fmt.Sprintf("blocked %s", lease.RunID))
+}
+
 func (n *daemonNativeTools) skillsFor(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -3566,6 +3607,11 @@ type autonomyFailInput struct {
 type autonomyReleaseInput struct {
 	RunID  string `json:"run_id"`
 	Reason string `json:"reason,omitempty"`
+}
+
+type autonomyBlockInput struct {
+	RunID  string `json:"run_id"`
+	Reason string `json:"reason"`
 }
 
 func decodeNativeInput(req toolspkg.CallRequest, dst any) error {

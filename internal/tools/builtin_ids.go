@@ -196,6 +196,8 @@ const (
 	ToolIDTaskRunFail ToolID = "agh__task_run_fail"
 	// ToolIDTaskRunRelease releases the caller session's active run lease.
 	ToolIDTaskRunRelease ToolID = "agh__task_run_release"
+	// ToolIDTaskRunBlock parks the caller session's active run lease in needs_attention.
+	ToolIDTaskRunBlock ToolID = "agh__task_run_block"
 	// ToolIDTaskRunReviewSubmit submits the caller session's bound task-run review verdict.
 	ToolIDTaskRunReviewSubmit ToolID = "agh__task_run_review_submit"
 	// ToolIDConfigShow shows the redacted effective config.

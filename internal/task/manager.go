@@ -70,6 +70,10 @@ const (
 // Option customizes Service construction.
 type Option func(*managerOptions)
 
+// CompletionContractRootResolver resolves the filesystem root used for relative
+// completion-contract artifact paths.
+type CompletionContractRootResolver func(ctx context.Context, task Task, run Run) (string, error)
+
 type managerOptions struct {
 	store             Store
 	sessions          SessionExecutor
@@ -81,6 +85,7 @@ type managerOptions struct {
 	channelValidator  func(string) error
 	profileValidation ExecutionProfileValidationOptions
 	forceRecovery     ForceRecoveryOptions
+	contractRoot      CompletionContractRootResolver
 	now               func() time.Time
 	newID             func(prefix string) string
 	cancelGracePeriod time.Duration
@@ -100,6 +105,7 @@ type Service struct {
 	channelValidator  func(string) error
 	profileValidation ExecutionProfileValidationOptions
 	forceRecovery     ForceRecoveryOptions
+	contractRoot      CompletionContractRootResolver
 	now               func() time.Time
 	newID             func(prefix string) string
 	cancelGracePeriod time.Duration
@@ -186,6 +192,14 @@ func WithForceRecoveryOptions(options ForceRecoveryOptions) Option {
 	}
 }
 
+// WithCompletionContractRootResolver injects workspace-root resolution for
+// relative completion-contract artifact paths.
+func WithCompletionContractRootResolver(resolver CompletionContractRootResolver) Option {
+	return func(opts *managerOptions) {
+		opts.contractRoot = resolver
+	}
+}
+
 // WithManagerNow overrides the manager clock for deterministic tests.
 func WithManagerNow(now func() time.Time) Option {
 	return func(opts *managerOptions) {
@@ -254,6 +268,7 @@ func NewManager(opts ...Option) (*Service, error) {
 		channelValidator:  options.channelValidator,
 		profileValidation: options.profileValidation,
 		forceRecovery:     normalizeForceRecoveryOptions(options.forceRecovery),
+		contractRoot:      options.contractRoot,
 		now:               options.now,
 		newID:             options.newID,
 		cancelGracePeriod: options.cancelGracePeriod,
@@ -1979,6 +1994,9 @@ func (m *Service) CompleteRun(
 	if err := requireRunTransition(run, TaskRunStatusCompleted); err != nil {
 		return nil, err
 	}
+	if err := m.validateCompletionContract(ctx, taskRecord, run); err != nil {
+		return nil, err
+	}
 
 	run.Status = TaskRunStatusCompleted
 	run.Result = cloneRawJSON(normalizedResult.Value)
@@ -2821,6 +2839,39 @@ func taskStatusFromSnapshot(currentStatus Status, unresolvedDependencies bool, r
 	return taskStatusFromPolicySnapshot(currentStatus, unresolvedDependencies, false, false, runs)
 }
 
+type taskRunPolicySnapshot struct {
+	hasQueuedOrClaimed   bool
+	hasNeedsAttention    bool
+	hasInProgress        bool
+	hasLatestTerminal    bool
+	latestTerminal       Run
+	latestNeedsAttention Run
+}
+
+func summarizeTaskRunPolicySnapshot(runs []Run) taskRunPolicySnapshot {
+	var snapshot taskRunPolicySnapshot
+	for idx := range runs {
+		run := runs[idx]
+		switch run.Status.Normalize() {
+		case TaskRunStatusStarting, TaskRunStatusRunning:
+			snapshot.hasInProgress = true
+		case TaskRunStatusQueued, TaskRunStatusClaimed:
+			snapshot.hasQueuedOrClaimed = true
+		case TaskRunStatusNeedsAttention:
+			snapshot.hasNeedsAttention = true
+			if snapshot.latestNeedsAttention.ID == "" || runComesAfter(run, snapshot.latestNeedsAttention) {
+				snapshot.latestNeedsAttention = run
+			}
+		case TaskRunStatusCompleted, TaskRunStatusFailed, TaskRunStatusCanceled:
+			if !snapshot.hasLatestTerminal || runComesAfter(run, snapshot.latestTerminal) {
+				snapshot.latestTerminal = run
+				snapshot.hasLatestTerminal = true
+			}
+		}
+	}
+	return snapshot
+}
+
 func taskStatusFromPolicySnapshot(
 	currentStatus Status,
 	unresolvedDependencies bool,
@@ -2834,33 +2885,25 @@ func taskStatusFromPolicySnapshot(
 	}
 
 	runnableBlocked := unresolvedDependencies || approvalBlocked
-	hasQueuedOrClaimed := false
-	var latestTerminal Run
-	hasLatestTerminal := false
-	for idx := range runs {
-		run := runs[idx]
-		switch run.Status.Normalize() {
-		case TaskRunStatusStarting, TaskRunStatusRunning:
-			return TaskStatusInProgress
-		case TaskRunStatusQueued, TaskRunStatusClaimed:
-			hasQueuedOrClaimed = true
-		case TaskRunStatusCompleted, TaskRunStatusFailed, TaskRunStatusCanceled:
-			if !hasLatestTerminal || runComesAfter(run, latestTerminal) {
-				latestTerminal = run
-				hasLatestTerminal = true
-			}
-		}
+	snapshot := summarizeTaskRunPolicySnapshot(runs)
+	if snapshot.hasInProgress {
+		return TaskStatusInProgress
 	}
 
-	if hasQueuedOrClaimed {
+	if snapshot.hasNeedsAttention &&
+		(!snapshot.hasLatestTerminal || runComesAfter(snapshot.latestNeedsAttention, snapshot.latestTerminal)) {
+		return TaskStatusBlocked
+	}
+
+	if snapshot.hasQueuedOrClaimed {
 		if runnableBlocked {
 			return TaskStatusBlocked
 		}
 		return TaskStatusReady
 	}
 
-	if hasLatestTerminal {
-		switch latestTerminal.Status.Normalize() {
+	if snapshot.hasLatestTerminal {
+		switch snapshot.latestTerminal.Status.Normalize() {
 		case TaskRunStatusCompleted:
 			return TaskStatusCompleted
 		case TaskRunStatusFailed:

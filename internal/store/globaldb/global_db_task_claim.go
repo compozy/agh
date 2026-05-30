@@ -193,6 +193,39 @@ func (g *GlobalDB) ReleaseRunLease(ctx context.Context, release taskpkg.LeaseRel
 	return updated, nil
 }
 
+// BlockRunLease parks an active task-run lease in needs_attention after token verification.
+func (g *GlobalDB) BlockRunLease(ctx context.Context, block taskpkg.LeaseBlock) (taskpkg.Run, error) {
+	if err := g.checkReady(ctx, "block task run lease"); err != nil {
+		return taskpkg.Run{}, err
+	}
+	normalized, err := block.Normalize(g.now())
+	if err != nil {
+		return taskpkg.Run{}, err
+	}
+
+	var updated taskpkg.Run
+	if err := g.withTaskImmediateTransaction(ctx, "block task run lease", func(exec taskSQLExecutor) error {
+		current, err := g.getTaskRunWithExecutor(ctx, exec, normalized.RunID)
+		if err != nil {
+			return err
+		}
+		if err := requireCurrentRunLease(current, normalized.ClaimToken, normalized.Now); err != nil {
+			return err
+		}
+		if err := blockLeasedRun(ctx, exec, current.ID, normalized.Reason); err != nil {
+			return err
+		}
+		if err := clearTaskCurrentRunProjection(ctx, exec, current.TaskID, current.ID); err != nil {
+			return err
+		}
+		updated, err = g.getTaskRunWithExecutor(ctx, exec, current.ID)
+		return err
+	}); err != nil {
+		return taskpkg.Run{}, err
+	}
+	return updated, nil
+}
+
 // CompleteRunLease marks one claimed run complete after token verification.
 func (g *GlobalDB) CompleteRunLease(ctx context.Context, completion taskpkg.LeaseCompletion) (taskpkg.Run, error) {
 	if err := g.checkReady(ctx, "complete task run lease"); err != nil {
@@ -813,6 +846,24 @@ func requeueLeasedRun(ctx context.Context, exec taskSQLExecutor, runID string) e
 	)
 	if err != nil {
 		return fmt.Errorf("store: requeue task run lease %q: %w", runID, err)
+	}
+	return requireRowsAffected(result, taskpkg.ErrTaskRunNotFound, runID, "task run lease")
+}
+
+func blockLeasedRun(ctx context.Context, exec taskSQLExecutor, runID string, reason string) error {
+	result, err := exec.ExecContext(
+		ctx,
+		`UPDATE task_runs
+		 SET status = ?, claimed_by_kind = NULL, claimed_by_ref = NULL, session_id = NULL,
+		     claim_token = NULL, claim_token_hash = NULL, lease_until = NULL, heartbeat_at = NULL,
+		     claimed_at = NULL, ended_at = NULL, error = ?, result_json = NULL
+		 WHERE id = ?`,
+		string(taskpkg.TaskRunStatusNeedsAttention),
+		strings.TrimSpace(reason),
+		runID,
+	)
+	if err != nil {
+		return fmt.Errorf("store: block task run lease %q: %w", runID, err)
 	}
 	return requireRowsAffected(result, taskpkg.ErrTaskRunNotFound, runID, "task run lease")
 }

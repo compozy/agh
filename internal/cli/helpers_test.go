@@ -295,6 +295,7 @@ type stubClient struct {
 	agentTaskHeartbeatFn   func(context.Context, string, AgentTaskHeartbeatRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error)
 	agentTaskCompleteFn    func(context.Context, string, AgentTaskCompleteRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error)
 	agentTaskFailFn        func(context.Context, string, AgentTaskFailRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error)
+	agentTaskBlockFn       func(context.Context, string, AgentTaskBlockRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error)
 	agentTaskReleaseFn     func(context.Context, string, AgentTaskReleaseRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error)
 }
 
@@ -2639,6 +2640,18 @@ func (s *stubClient) AgentTaskFail(
 		return s.agentTaskFailFn(ctx, runID, request, credentials)
 	}
 	return AgentTaskLeaseRecord{}, errors.New("unexpected AgentTaskFail call")
+}
+
+func (s *stubClient) AgentTaskBlock(
+	ctx context.Context,
+	runID string,
+	request AgentTaskBlockRequest,
+	credentials agentidentity.Credentials,
+) (AgentTaskLeaseRecord, error) {
+	if s.agentTaskBlockFn != nil {
+		return s.agentTaskBlockFn(ctx, runID, request, credentials)
+	}
+	return AgentTaskLeaseRecord{}, errors.New("unexpected AgentTaskBlock call")
 }
 
 func (s *stubClient) AgentTaskRelease(

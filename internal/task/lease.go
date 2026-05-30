@@ -104,6 +104,14 @@ type LeaseRelease struct {
 	Now        time.Time `json:"now"`
 }
 
+// LeaseBlock captures a token-fenced request to park an active lease in needs_attention.
+type LeaseBlock struct {
+	RunID      string    `json:"run_id"`
+	ClaimToken string    `json:"claim_token"`
+	Reason     string    `json:"reason,omitempty"`
+	Now        time.Time `json:"now"`
+}
+
 // LeaseCompletion captures a token-fenced successful terminal transition.
 type LeaseCompletion struct {
 	RunID      string    `json:"run_id"`
@@ -344,6 +352,30 @@ func (r LeaseRelease) Normalize(defaultNow time.Time) (LeaseRelease, error) {
 // Validate reports whether the release request is internally consistent.
 func (r LeaseRelease) Validate(path string) error {
 	return validateLeaseRunToken(r.RunID, r.ClaimToken, path)
+}
+
+// Normalize returns a validated block request with default time applied.
+func (b LeaseBlock) Normalize(defaultNow time.Time) (LeaseBlock, error) {
+	normalized := b
+	normalized.RunID = strings.TrimSpace(normalized.RunID)
+	normalized.ClaimToken = strings.TrimSpace(normalized.ClaimToken)
+	normalized.Reason = strings.TrimSpace(normalized.Reason)
+	normalized.Now = normalizeLeaseNow(normalized.Now, defaultNow)
+	if err := normalized.Validate("lease_block"); err != nil {
+		return LeaseBlock{}, err
+	}
+	return normalized, nil
+}
+
+// Validate reports whether the block request is internally consistent.
+func (b LeaseBlock) Validate(path string) error {
+	if err := validateLeaseRunToken(b.RunID, b.ClaimToken, path); err != nil {
+		return err
+	}
+	if strings.Contains(b.Reason, "agh_claim_") {
+		return fmt.Errorf("%w: %s must not embed a claim token", ErrValidation, nestedPath(path, "reason"))
+	}
+	return nil
 }
 
 // Normalize returns a validated structural session lease release request.

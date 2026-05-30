@@ -124,6 +124,45 @@ func (m *Service) ReleaseRunLease(
 	return &run, nil
 }
 
+// BlockRunLease parks one active task-run lease in needs_attention after token verification.
+func (m *Service) BlockRunLease(
+	ctx context.Context,
+	block LeaseBlock,
+	actor ActorContext,
+) (*Run, error) {
+	if err := requireWriteAuthority(actor); err != nil {
+		return nil, err
+	}
+	normalized, err := block.Normalize(m.now().UTC())
+	if err != nil {
+		return nil, err
+	}
+	previous, taskRecord, err := m.loadRunWithTask(ctx, normalized.RunID)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateActiveLeasePreconditions(previous, normalized.ClaimToken, normalized.Now); err != nil {
+		return nil, err
+	}
+	run, err := m.store.BlockRunLease(ctx, normalized)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := m.reconcileTaskCascade(ctx, taskRecord.ID); err != nil {
+		return nil, err
+	}
+	if err := m.recordTaskEvent(ctx, run.TaskID, run.ID, taskEventRunNeedsAttention, actor, runNeedsAttentionPayload{
+		PreviousStatus:      previous.Status,
+		Status:              run.Status,
+		Diagnostic:          normalized.Reason,
+		QueuedAt:            run.QueuedAt,
+		CoordinationChannel: run.CoordinationChannelID,
+	}); err != nil {
+		return nil, err
+	}
+	return &run, nil
+}
+
 // ReleaseSessionRunLeases structurally releases every active task-run lease
 // bound to one session without requiring the raw claim token. This is reserved
 // for daemon-owned runtime cleanup paths such as safe-spawn reaping.
@@ -187,6 +226,16 @@ func (m *Service) CompleteRunLease(
 	}
 	normalized, err := completion.Normalize(m.now().UTC())
 	if err != nil {
+		return nil, err
+	}
+	current, taskRecord, err := m.loadRunWithTask(ctx, normalized.RunID)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateActiveLeasePreconditions(current, normalized.ClaimToken, normalized.Now); err != nil {
+		return nil, err
+	}
+	if err := m.validateCompletionContract(ctx, taskRecord, current); err != nil {
 		return nil, err
 	}
 	run, err := m.store.CompleteRunLease(ctx, normalized)

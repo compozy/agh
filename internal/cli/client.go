@@ -482,6 +482,12 @@ type DaemonClient interface {
 		request AgentTaskFailRequest,
 		credentials agentidentity.Credentials,
 	) (AgentTaskLeaseRecord, error)
+	AgentTaskBlock(
+		ctx context.Context,
+		runID string,
+		request AgentTaskBlockRequest,
+		credentials agentidentity.Credentials,
+	) (AgentTaskLeaseRecord, error)
 	AgentTaskRelease(
 		ctx context.Context,
 		runID string,
@@ -1058,6 +1064,9 @@ type AgentTaskCompleteRequest = contract.AgentTaskCompleteRequest
 
 // AgentTaskFailRequest captures one agent lease failure request.
 type AgentTaskFailRequest = contract.AgentTaskFailRequest
+
+// AgentTaskBlockRequest captures one agent lease block request.
+type AgentTaskBlockRequest = contract.AgentTaskBlockRequest
 
 // AgentTaskReleaseRequest captures one agent lease release request.
 type AgentTaskReleaseRequest = contract.AgentTaskReleaseRequest
@@ -4776,6 +4785,15 @@ func (c *unixSocketClient) AgentTaskFail(
 	credentials agentidentity.Credentials,
 ) (AgentTaskLeaseRecord, error) {
 	return c.agentTaskLeaseAction(ctx, strings.TrimSpace(runID), "fail", request, credentials)
+}
+
+func (c *unixSocketClient) AgentTaskBlock(
+	ctx context.Context,
+	runID string,
+	request AgentTaskBlockRequest,
+	credentials agentidentity.Credentials,
+) (AgentTaskLeaseRecord, error) {
+	return c.agentTaskLeaseAction(ctx, strings.TrimSpace(runID), "block", request, credentials)
 }
 
 func (c *unixSocketClient) AgentTaskRelease(

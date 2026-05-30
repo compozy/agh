@@ -21,6 +21,7 @@ const (
 	agentTaskActionComplete  = "agent.task.complete"
 	agentTaskActionFail      = "agent.task.fail"
 	agentTaskActionRelease   = "agent.task.release"
+	agentTaskActionBlock     = "agent.task.block"
 )
 
 type agentSoulClaimLocker interface {
@@ -205,6 +206,41 @@ func (h *BaseHandlers) AgentTaskRelease(c *gin.Context) {
 		return
 	}
 	run, err := manager.ReleaseRunLease(c.Request.Context(), taskpkg.LeaseRelease{
+		RunID:      runID,
+		ClaimToken: handle.ClaimToken,
+		Reason:     req.Reason,
+	}, caller.Actor)
+	if err != nil {
+		h.respondError(c, statusForAgentTaskError(err), err)
+		return
+	}
+
+	c.JSON(http.StatusOK, contract.AgentTaskLeaseResponse{Lease: AgentTaskLeasePayloadFromRun(run, nil)})
+}
+
+// AgentTaskBlock parks one claimed task run in needs_attention.
+func (h *BaseHandlers) AgentTaskBlock(c *gin.Context) {
+	manager, caller, runID, ok := h.agentTaskLeaseMutationSetup(c, agentTaskActionBlock)
+	if !ok {
+		return
+	}
+
+	var req contract.AgentTaskBlockRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			NewTaskValidationError(fmt.Errorf("%s: decode agent task block request: %w", h.transportName(), err)),
+		)
+		return
+	}
+
+	handle, err := h.lookupAgentTaskLease(c.Request.Context(), manager, caller, runID)
+	if err != nil {
+		h.respondError(c, statusForAgentTaskError(err), err)
+		return
+	}
+	run, err := manager.BlockRunLease(c.Request.Context(), taskpkg.LeaseBlock{
 		RunID:      runID,
 		ClaimToken: handle.ClaimToken,
 		Reason:     req.Reason,

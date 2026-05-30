@@ -80,6 +80,20 @@ var autonomyTools = []toolspkg.Descriptor{
 		[]string{"release task run", "handoff work"},
 	),
 	nativeDescriptor(
+		toolspkg.ToolIDTaskRunBlock,
+		"task_run_block",
+		"Task Run Block",
+		"Park the caller session's active task-run lease in needs_attention.",
+		autonomyBlockInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDAutonomy},
+		[]string{autonomyAutonomyKey, tasksTasksKey, autonomyLeasesKey},
+		[]string{"block task run", "needs attention", "human blocked"},
+	),
+	nativeDescriptor(
 		toolspkg.ToolIDTaskRunReviewSubmit,
 		"submit_run_review",
 		"Submit Run Review",
@@ -144,6 +158,16 @@ const autonomyFailInputSchema = `{
 const autonomyReleaseInputSchema = `{
 	"type":"object",
 	"required":["run_id"],
+	"properties":{
+		"run_id":{"type":"string"},
+		"reason":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
+const autonomyBlockInputSchema = `{
+	"type":"object",
+	"required":["run_id","reason"],
 	"properties":{
 		"run_id":{"type":"string"},
 		"reason":{"type":"string"}

@@ -140,6 +140,7 @@ type StubTaskManager struct {
 	AttachRunSessionFn     func(context.Context, string, string, taskpkg.ActorContext) (*taskpkg.Run, error)
 	HeartbeatRunLeaseFn    func(context.Context, taskpkg.LeaseHeartbeat, taskpkg.ActorContext) (*taskpkg.Run, error)
 	ReleaseRunLeaseFn      func(context.Context, taskpkg.LeaseRelease, taskpkg.ActorContext) (*taskpkg.Run, error)
+	BlockRunLeaseFn        func(context.Context, taskpkg.LeaseBlock, taskpkg.ActorContext) (*taskpkg.Run, error)
 	ForceReleaseRunFn      forceReleaseRunFunc
 	ForceFailRunFn         forceFailRunFunc
 	RetryRunFn             retryRunFunc
@@ -542,6 +543,17 @@ func (s StubTaskManager) ReleaseRunLease(
 ) (*taskpkg.Run, error) {
 	if s.ReleaseRunLeaseFn != nil {
 		return s.ReleaseRunLeaseFn(ctx, release, actor)
+	}
+	return nil, taskpkg.ErrTaskRunNotFound
+}
+
+func (s StubTaskManager) BlockRunLease(
+	ctx context.Context,
+	block taskpkg.LeaseBlock,
+	actor taskpkg.ActorContext,
+) (*taskpkg.Run, error) {
+	if s.BlockRunLeaseFn != nil {
+		return s.BlockRunLeaseFn(ctx, block, actor)
 	}
 	return nil, taskpkg.ErrTaskRunNotFound
 }

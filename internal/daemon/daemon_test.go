@@ -6184,6 +6184,13 @@ func (r *recordingRegistry) ReleaseRunLease(
 	return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
 }
 
+func (r *recordingRegistry) BlockRunLease(
+	context.Context,
+	taskpkg.LeaseBlock,
+) (taskpkg.Run, error) {
+	return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
+}
+
 func (r *recordingRegistry) ForceReleaseTaskRun(
 	context.Context,
 	taskpkg.ForceReleaseRunMutation,

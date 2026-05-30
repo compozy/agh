@@ -176,6 +176,7 @@ func registerAgentKernelRoutes(api gin.IRouter, handlers *Handlers) {
 			tasks.POST("/:run_id/complete", handlers.AgentTaskComplete)
 			tasks.POST("/:run_id/fail", handlers.AgentTaskFail)
 			tasks.POST("/:run_id/release", handlers.AgentTaskRelease)
+			tasks.POST("/:run_id/block", handlers.AgentTaskBlock)
 		}
 	}
 }

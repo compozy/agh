@@ -79,6 +79,10 @@ func (fakeStore) ReleaseRunLease(context.Context, taskpkg.LeaseRelease) (taskpkg
 	return taskpkg.Run{}, nil
 }
 
+func (fakeStore) BlockRunLease(context.Context, taskpkg.LeaseBlock) (taskpkg.Run, error) {
+	return taskpkg.Run{}, nil
+}
+
 func (fakeStore) CompleteRunLease(context.Context, taskpkg.LeaseCompletion) (taskpkg.Run, error) {
 	return taskpkg.Run{}, nil
 }

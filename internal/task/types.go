@@ -766,6 +766,15 @@ type RecoverRunMutation struct {
 	QueuedAt    time.Time       `json:"queued_at"`
 }
 
+// BlockRunLeaseMutation captures one token-fenced transition from an active
+// lease into needs_attention when the run is blocked on external input.
+type BlockRunLeaseMutation struct {
+	RunID      string    `json:"run_id"`
+	ClaimToken string    `json:"claim_token"`
+	Reason     string    `json:"reason,omitempty"`
+	Now        time.Time `json:"now"`
+}
+
 // RunStarvation is the durable per-run escalation budget the scheduler advances each cycle a
 // claimable run stays queued past the starvation threshold. It survives daemon restart so the
 // tier ladder resumes from the persisted count rather than restarting on every Rebuild.

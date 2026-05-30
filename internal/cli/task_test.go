@@ -880,6 +880,38 @@ func TestAgentTaskCommandsMapLeaseRequests(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "Should map task block request",
+			args: []string{
+				"task",
+				"block",
+				"run-1",
+				"--reason",
+				"Need approval for the production migration",
+				"-o",
+				"json",
+			},
+			fn: func(t *testing.T) *stubClient {
+				t.Helper()
+				return &stubClient{
+					agentTaskBlockFn: func(
+						ctx context.Context,
+						runID string,
+						request AgentTaskBlockRequest,
+						credentials agentidentity.Credentials,
+					) (AgentTaskLeaseRecord, error) {
+						if ctx == nil {
+							t.Fatal("AgentTaskBlock context is nil")
+						}
+						assertAgentCredentials(t, credentials)
+						if runID != "run-1" || request.Reason != "Need approval for the production migration" {
+							t.Fatalf("block runID=%q request=%#v, want run-1 reason", runID, request)
+						}
+						return agentTaskLeaseRecord(taskpkg.TaskRunStatusNeedsAttention), nil
+					},
+				}
+			},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
@@ -1116,6 +1148,11 @@ func TestAgentTaskCommandsValidateBeforeAgentCalls(t *testing.T) {
 			wantErr: "--priority-min must be zero or positive",
 		},
 		{
+			name:    "Should reject block without reason",
+			args:    []string{"task", "block", "run-1", "-o", "json"},
+			wantErr: `required flag(s) "reason" not set`,
+		},
+		{
 			name: "Should reject invalid result json",
 			args: []string{
 				"task",
@@ -1181,6 +1218,10 @@ func TestAgentTaskCommandsValidateBeforeAgentCalls(t *testing.T) {
 				},
 				agentTaskFailFn: func(context.Context, string, AgentTaskFailRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error) {
 					t.Fatal("AgentTaskFail should not be called for local validation errors")
+					return AgentTaskLeaseRecord{}, nil
+				},
+				agentTaskBlockFn: func(context.Context, string, AgentTaskBlockRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error) {
+					t.Fatal("AgentTaskBlock should not be called for local validation errors")
 					return AgentTaskLeaseRecord{}, nil
 				},
 				agentTaskReleaseFn: func(context.Context, string, AgentTaskReleaseRequest, agentidentity.Credentials) (AgentTaskLeaseRecord, error) {
