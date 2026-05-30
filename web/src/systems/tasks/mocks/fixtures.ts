@@ -1222,6 +1222,7 @@ export function buildTaskExecutionProfileFixture(
   const taskId = overrides.task_id ?? "task_001";
   return {
     task_id: taskId,
+    ...overrides,
     coordinator: {
       mode: "guided",
       agent_name: storyCoordinatorAgentName,
@@ -1256,9 +1257,12 @@ export function buildTaskExecutionProfileFixture(
       preferred_agent_names: [storyAgentNames.copywriter],
       ...overrides.participants,
     },
-    created_at: "2026-04-17T08:00:00Z",
-    updated_at: "2026-04-17T17:30:00Z",
-    ...overrides,
+    runtime: {
+      mode: "default",
+      ...overrides.runtime,
+    },
+    created_at: overrides.created_at ?? "2026-04-17T08:00:00Z",
+    updated_at: overrides.updated_at ?? "2026-04-17T17:30:00Z",
   };
 }
 

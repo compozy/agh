@@ -48,6 +48,7 @@ type CreateOpts struct {
 	ReasoningEffort  string
 	SandboxRef       string
 	DisableSandbox   bool
+	Permissions      aghconfig.PermissionMode
 	Name             string
 	Workspace        string
 	WorkspacePath    string

@@ -140,6 +140,7 @@ func (b *taskSessionBridge) StartTaskSession(
 	}
 	applyTaskSessionWorkerProfile(&opts, spec.ExecutionProfile)
 	applyTaskSessionSandboxProfile(&opts, spec.ExecutionProfile)
+	applyTaskSessionRuntimeProfile(&opts, spec.ExecutionProfile)
 	switch spec.Task.Scope.Normalize() {
 	case taskpkg.ScopeWorkspace:
 		opts.Workspace = strings.TrimSpace(spec.Task.WorkspaceID)
@@ -216,6 +217,21 @@ func applyTaskSessionSandboxProfile(opts *session.CreateOpts, profile *taskpkg.E
 	default:
 		return
 	}
+}
+
+func applyTaskSessionRuntimeProfile(opts *session.CreateOpts, profile *taskpkg.ExecutionProfile) {
+	if opts == nil || profile == nil {
+		return
+	}
+	if profile.Runtime.Mode.Normalize() != taskpkg.RuntimeModeEvidence {
+		return
+	}
+	opts.Permissions = aghconfig.PermissionModeApproveAll
+	opts.PromptOverlay = joinPromptOverlays(
+		opts.PromptOverlay,
+		"Runtime evidence mode is enabled for this task. You may install dependencies, boot local app runtimes, "+
+			"run browser or simulator validation, and capture runtime evidence artifacts required by the task.",
+	)
 }
 
 func (b *taskSessionBridge) AttachTaskSession(

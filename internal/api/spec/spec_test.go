@@ -865,6 +865,17 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 						operationFor(t, doc, operation.path, operation.method)
 					})
 				}
+
+				setProfile := operationFor(t, doc, "/api/tasks/{id}/execution-profile", "PUT")
+				setProfileSchema := jsonRequestSchema(t, setProfile)
+				runtimeSchema := propertySchema(t, setProfileSchema, "runtime")
+				assertRequired(t, runtimeSchema, "mode")
+				assertEnumValues(
+					t,
+					propertySchema(t, runtimeSchema, "mode"),
+					string(taskpkg.RuntimeModeDefault),
+					string(taskpkg.RuntimeModeEvidence),
+				)
 			},
 		},
 		{
@@ -1550,6 +1561,7 @@ func TestSchemaCustomizerCoversAdditionalEnums(t *testing.T) {
 		{name: "TaskOwnerKind", typ: taskpkg.OwnerKindPool},
 		{name: "TaskOriginKind", typ: taskpkg.OriginKindHTTP},
 		{name: "TaskDependencyKind", typ: taskpkg.DependencyKindBlocks},
+		{name: "TaskRuntimeMode", typ: taskpkg.RuntimeModeDefault},
 		{name: "TaskInboxLane", typ: contract.TaskInboxLaneApprovals},
 		{name: "HookSkillSource", typ: hooks.HookSkillSourceBundled},
 		{name: "HookExecutorKind", typ: hooks.HookExecutorNative},

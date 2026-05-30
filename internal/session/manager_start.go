@@ -29,6 +29,7 @@ type sessionStartSpec struct {
 	provider               string
 	model                  string
 	reasoningEffort        string
+	permissions            aghconfig.PermissionMode
 	sandboxDisabled        bool
 	workspace              workspacepkg.ResolvedWorkspace
 	channel                string
@@ -106,6 +107,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		provider:          strings.TrimSpace(opts.Provider),
 		model:             strings.TrimSpace(opts.Model),
 		reasoningEffort:   strings.TrimSpace(opts.ReasoningEffort),
+		permissions:       opts.Permissions,
 		sandboxDisabled:   sandboxDisabled,
 		workspace:         resolvedWorkspace,
 		channel:           strings.TrimSpace(opts.Channel),
@@ -609,13 +611,20 @@ func (m *Manager) sessionStartOpts(
 		AdditionalDirs:  append([]string(nil), s.workspace.AdditionalDirs...),
 		Env:             sessionStartEnvForProvider(os.Environ(), session, resolved.EnvPolicy),
 		MCPServers:      mcpServers,
-		Permissions:     m.startPermissions(session.Type, resolved.Permissions),
+		Permissions:     m.startPermissions(session.Type, startSpecPermissions(s, resolved.Permissions)),
 		SystemPrompt:    resolved.Prompt,
 		PreferredModel:  preferredACPModel(resolved),
 		ReasoningEffort: strings.TrimSpace(session.ReasoningEffort),
 		ResumeSessionID: s.acpSessionID,
 		ToolGateway:     newProviderNativeToolGateway(m, session),
 	}
+}
+
+func startSpecPermissions(s *sessionStartSpec, fallback string) string {
+	if s == nil || strings.TrimSpace(string(s.permissions)) == "" {
+		return fallback
+	}
+	return string(s.permissions)
 }
 
 func preferredACPModel(resolved aghconfig.ResolvedAgent) string {

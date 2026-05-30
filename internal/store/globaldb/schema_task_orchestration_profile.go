@@ -27,6 +27,9 @@ func taskOrchestrationProfileSchemaStatements() []string {
 				sandbox_mode IN ('inherit', 'none', 'ref')
 			),
 			sandbox_ref              TEXT NOT NULL DEFAULT '',
+			runtime_mode             TEXT NOT NULL DEFAULT 'default' CHECK (
+				runtime_mode IN ('default', 'evidence')
+			),
 			created_at               TEXT NOT NULL,
 			updated_at               TEXT NOT NULL,
 			CHECK (

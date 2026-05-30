@@ -119,6 +119,7 @@ func assertTaskOrchestrationProfileSchema(t *testing.T, db *sql.DB) {
 		"review_model",
 		"sandbox_mode",
 		"sandbox_ref",
+		"runtime_mode",
 		"created_at",
 		"updated_at",
 	})
