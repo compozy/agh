@@ -34,7 +34,8 @@
         "test:e2e:runtime": "make test-e2e-runtime",
         "test:e2e:web": "make test-e2e-web",
         "tests": "bun run test",
-        "typecheck": "bun run bun:typecheck"
+        "typecheck": "bun run bun:typecheck",
+        "doctor": "npx react-doctor@latest"
     },
     "devDependencies": {
         "@commitlint/cli": "^21.0.1",
@@ -48,6 +49,7 @@
         "openapi-typescript": "^7.13.0",
         "oxfmt": "^0.50.0",
         "oxlint": "^1.65.0",
+        "react-doctor": "^0.2.14",
         "shadcn": "^4.7.0",
         "tailwindcss": "^4.3.0",
         "turbo": "^2.9.14",
