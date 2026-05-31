@@ -20,6 +20,7 @@ import (
 const (
 	coordinatorRuntimeTaskIDKey      = "task_id"
 	coordinatorRuntimeWorkspaceIDKey = "workspace_id"
+	coordinatorRuntimeCleanupTimeout = 5 * time.Second
 )
 
 type coordinatorTaskStore interface {
@@ -32,6 +33,7 @@ type coordinatorSessionManager interface {
 	Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error)
 	ListAll(ctx context.Context) ([]*session.Info, error)
 	PromptSynthetic(ctx context.Context, id string, opts session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error)
+	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error
 }
 
 type coordinatorHookDispatcher interface {
@@ -334,15 +336,55 @@ func (r *coordinatorRuntime) bootstrapRun(
 		}
 		return existing, false, nil
 	}
+	r.mu.Unlock()
 
 	info, createdCfg, created, err := r.createCoordinatorSession(ctx, decision, cfg, reason)
 	if err != nil {
-		r.mu.Unlock()
 		return nil, false, err
 	}
 	if !created {
-		r.mu.Unlock()
 		return nil, false, nil
+	}
+
+	r.mu.Lock()
+	existing, err = r.activeCoordinator(ctx, decision.WorkspaceID)
+	if err != nil {
+		r.mu.Unlock()
+		cleanupErr := r.cleanupCreatedCoordinatorSession(
+			ctx,
+			info,
+			"coordinator singleton reconciliation failed",
+		)
+		if cleanupErr != nil {
+			err = errors.Join(err, cleanupErr)
+		}
+		r.dispatchFailed(ctx, decision, reason, err)
+		return nil, false, err
+	}
+	if existing != nil && strings.TrimSpace(existing.ID) != strings.TrimSpace(info.ID) {
+		shouldPrompt := r.beginCoordinatorWakeLocked(existing, decision)
+		r.mu.Unlock()
+		r.dispatchDecision(ctx, decision, reason, coordinator.DecisionExisting)
+		if err := r.cleanupCreatedCoordinatorSession(
+			ctx,
+			info,
+			"duplicate coordinator session superseded",
+		); err != nil {
+			if shouldPrompt {
+				r.finishCoordinatorWake(existing, decision)
+			}
+			r.dispatchFailed(ctx, decision, reason, err)
+			return existing, false, err
+		}
+		if shouldPrompt {
+			if err := r.promptCoordinator(ctx, existing, decision, reason); err != nil {
+				r.finishCoordinatorWake(existing, decision)
+				r.dispatchFailed(ctx, decision, reason, err)
+				return existing, false, err
+			}
+			r.finishCoordinatorWake(existing, decision)
+		}
+		return existing, false, nil
 	}
 	shouldPrompt := r.beginCoordinatorWakeLocked(info, decision)
 	r.mu.Unlock()
@@ -356,6 +398,26 @@ func (r *coordinatorRuntime) bootstrapRun(
 	}
 	r.dispatchSpawned(ctx, decision, info, createdCfg, reason)
 	return info, created, nil
+}
+
+func (r *coordinatorRuntime) cleanupCreatedCoordinatorSession(
+	ctx context.Context,
+	info *session.Info,
+	detail string,
+) error {
+	if r == nil || info == nil {
+		return nil
+	}
+	sessionID := strings.TrimSpace(info.ID)
+	if sessionID == "" {
+		return nil
+	}
+	stopCtx, cancel := detachedDaemonOperationContext(ctx, coordinatorRuntimeCleanupTimeout)
+	defer cancel()
+	if err := r.sessions.StopWithCause(stopCtx, sessionID, session.CauseFailed, detail); err != nil {
+		return fmt.Errorf("daemon: stop coordinator session %q: %w", sessionID, err)
+	}
+	return nil
 }
 
 func (r *coordinatorRuntime) createCoordinatorSession(

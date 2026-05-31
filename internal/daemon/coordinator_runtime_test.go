@@ -214,7 +214,16 @@ func TestCoordinatorRuntimeSkipsIneligibleRuns(t *testing.T) {
 func TestCoordinatorRuntimePreventsDuplicateCoordinatorsUnderConcurrentEnqueue(t *testing.T) {
 	t.Parallel()
 
+	const attempts = 24
 	store := newCoordinatorRuntimeStore(coordinatorRuntimeTask(), coordinatorRuntimeRun())
+	createStarted := make(chan struct{}, attempts)
+	releaseCreate := make(chan struct{})
+	var releaseCreateOnce sync.Once
+	t.Cleanup(func() {
+		releaseCreateOnce.Do(func() {
+			close(releaseCreate)
+		})
+	})
 	promptStarted := make(chan struct{}, 1)
 	releasePrompt := make(chan struct{})
 	var releaseOnce sync.Once
@@ -224,6 +233,8 @@ func TestCoordinatorRuntimePreventsDuplicateCoordinatorsUnderConcurrentEnqueue(t
 		})
 	})
 	sessions := &coordinatorRuntimeSessions{
+		createStarted: createStarted,
+		createRelease: releaseCreate,
 		promptStarted: promptStarted,
 		promptRelease: releasePrompt,
 	}
@@ -236,7 +247,6 @@ func TestCoordinatorRuntimePreventsDuplicateCoordinatorsUnderConcurrentEnqueue(t
 		time.Now().UTC(),
 	)
 
-	const attempts = 24
 	errs := make(chan error, attempts)
 	for range attempts {
 		go func() {
@@ -249,6 +259,16 @@ func TestCoordinatorRuntimePreventsDuplicateCoordinatorsUnderConcurrentEnqueue(t
 			errs <- err
 		}()
 	}
+	for range 2 {
+		select {
+		case <-createStarted:
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for concurrent coordinator creates")
+		}
+	}
+	releaseCreateOnce.Do(func() {
+		close(releaseCreate)
+	})
 	select {
 	case <-promptStarted:
 	case <-time.After(2 * time.Second):
@@ -264,8 +284,15 @@ func TestCoordinatorRuntimePreventsDuplicateCoordinatorsUnderConcurrentEnqueue(t
 			t.Fatal("timed out waiting for concurrent bootstrap calls to coalesce")
 		}
 	}
-	if got := sessions.createCount(); got != 1 {
-		t.Fatalf("Create count = %d, want 1", got)
+	createCount := sessions.createCount()
+	if createCount < 2 {
+		t.Fatalf("Create count = %d, want at least 2 to prove create ran outside runtime mutex", createCount)
+	}
+	if got, want := sessions.stopCount(), createCount-1; got != want {
+		t.Fatalf("StopWithCause count = %d, want %d duplicate coordinators stopped", got, want)
+	}
+	if got := sessions.activeCoordinatorCount("ws-1"); got != 1 {
+		t.Fatalf("active coordinator count = %d, want 1", got)
 	}
 	if got := sessions.promptCount(); got != 1 {
 		t.Fatalf("PromptSynthetic count = %d, want 1", got)
@@ -699,6 +726,8 @@ type coordinatorRuntimeSessions struct {
 	infos         []*session.Info
 	createCalls   []session.CreateOpts
 	createErr     error
+	createStarted chan struct{}
+	createRelease <-chan struct{}
 	promptCalls   []coordinatorRuntimePromptCall
 	promptErr     error
 	promptEvents  <-chan acp.AgentEvent
@@ -719,7 +748,24 @@ type coordinatorRuntimeStopCall struct {
 	detail string
 }
 
-func (s *coordinatorRuntimeSessions) Create(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
+func (s *coordinatorRuntimeSessions) Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error) {
+	s.mu.Lock()
+	createStarted := s.createStarted
+	createRelease := s.createRelease
+	s.mu.Unlock()
+	if createStarted != nil {
+		select {
+		case createStarted <- struct{}{}:
+		default:
+		}
+	}
+	if createRelease != nil {
+		select {
+		case <-createRelease:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.createErr != nil {
@@ -762,7 +808,13 @@ func (s *coordinatorRuntimeSessions) ListAll(context.Context) ([]*session.Info, 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	infos := make([]*session.Info, len(s.infos))
-	copy(infos, s.infos)
+	for i, info := range s.infos {
+		if info == nil {
+			continue
+		}
+		cloned := *info
+		infos[i] = &cloned
+	}
 	return infos, nil
 }
 
@@ -814,6 +866,13 @@ func (s *coordinatorRuntimeSessions) StopWithCause(
 	if s.stopErr != nil {
 		return s.stopErr
 	}
+	for _, info := range s.infos {
+		if info == nil || strings.TrimSpace(info.ID) != strings.TrimSpace(id) {
+			continue
+		}
+		info.State = session.StateStopped
+		info.StopDetail = detail
+	}
 	return nil
 }
 
@@ -830,6 +889,22 @@ func (s *coordinatorRuntimeSessions) createCall(index int) session.CreateOpts {
 		return session.CreateOpts{}
 	}
 	return s.createCalls[index]
+}
+
+func (s *coordinatorRuntimeSessions) activeCoordinatorCount(workspaceID string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	count := 0
+	for _, info := range s.infos {
+		if info == nil ||
+			info.Type != session.SessionTypeCoordinator ||
+			info.State != session.StateActive ||
+			strings.TrimSpace(info.WorkspaceID) != strings.TrimSpace(workspaceID) {
+			continue
+		}
+		count++
+	}
+	return count
 }
 
 func (s *coordinatorRuntimeSessions) promptCount() int {
