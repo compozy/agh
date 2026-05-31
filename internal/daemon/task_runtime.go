@@ -226,12 +226,25 @@ func applyTaskSessionRuntimeProfile(opts *session.CreateOpts, profile *taskpkg.E
 	if profile.Runtime.Mode.Normalize() != taskpkg.RuntimeModeEvidence {
 		return
 	}
-	opts.Permissions = aghconfig.PermissionModeApproveAll
+	guidance := "Runtime evidence mode is enabled for this task. You may boot local app runtimes, " +
+		"run browser or simulator validation, and capture runtime evidence artifacts required by the task."
+	if taskRuntimeEvidenceCanAutoApprove(profile) {
+		opts.Permissions = aghconfig.PermissionModeApproveAll
+	} else {
+		guidance += " AGH keeps the configured permission mode because the task profile did not select a sandbox."
+	}
 	opts.PromptOverlay = joinPromptOverlays(
 		opts.PromptOverlay,
-		"Runtime evidence mode is enabled for this task. You may install dependencies, boot local app runtimes, "+
-			"run browser or simulator validation, and capture runtime evidence artifacts required by the task.",
+		guidance,
 	)
+}
+
+func taskRuntimeEvidenceCanAutoApprove(profile *taskpkg.ExecutionProfile) bool {
+	if profile == nil {
+		return false
+	}
+	return profile.Sandbox.Mode.Normalize() == taskpkg.SandboxModeRef &&
+		strings.TrimSpace(profile.Sandbox.SandboxRef) != ""
 }
 
 func (b *taskSessionBridge) AttachTaskSession(

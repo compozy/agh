@@ -64,13 +64,10 @@ func migrateTaskOrchestrationProfileSchema(ctx context.Context, tx *sql.Tx) erro
 	}); err != nil {
 		return err
 	}
-	for _, statement := range taskOrchestrationProfileSchemaStatements() {
+	for _, statement := range taskOrchestrationProfileMigrationSchemaStatements() {
 		if _, err := tx.ExecContext(ctx, statement); err != nil {
 			return fmt.Errorf("store: apply task orchestration profile schema: %w", err)
 		}
-	}
-	if err := addTaskExecutionProfileRuntimeModeColumn(ctx, tx); err != nil {
-		return err
 	}
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/compozy/agh/internal/store"
@@ -75,6 +76,26 @@ func TestTaskOrchestrationProfileSchemaStatements(t *testing.T) {
 			t.Fatalf("globalSchemaStatements contains current-run index %d times, want 1", got)
 		}
 	})
+
+	t.Run("Should add runtime mode only through the appended migration", func(t *testing.T) {
+		t.Parallel()
+
+		for _, statement := range taskOrchestrationProfileMigrationSchemaStatements() {
+			if strings.Contains(statement, taskExecutionProfileRuntimeModeColumn) {
+				t.Fatalf(
+					"historical profile migration statement contains %q: %s",
+					taskExecutionProfileRuntimeModeColumn,
+					statement,
+				)
+			}
+		}
+		if !schemaStatementsContainColumn(
+			taskOrchestrationProfileSchemaStatements(),
+			taskExecutionProfileRuntimeModeColumn,
+		) {
+			t.Fatalf("current profile schema statements missing %q", taskExecutionProfileRuntimeModeColumn)
+		}
+	})
 }
 
 func schemaStatementsContain(statements []string, want string) bool {
@@ -89,6 +110,15 @@ func countSchemaStatements(statements []string, want string) int {
 		}
 	}
 	return count
+}
+
+func schemaStatementsContainColumn(statements []string, column string) bool {
+	for _, statement := range statements {
+		if strings.Contains(statement, column) {
+			return true
+		}
+	}
+	return false
 }
 
 func assertTaskOrchestrationProfileSchema(t *testing.T, db *sql.DB) {
@@ -119,9 +149,9 @@ func assertTaskOrchestrationProfileSchema(t *testing.T, db *sql.DB) {
 		"review_model",
 		"sandbox_mode",
 		"sandbox_ref",
-		"runtime_mode",
 		"created_at",
 		"updated_at",
+		"runtime_mode",
 	})
 	assertTableColumns(t, db, "task_profile_agents", []string{
 		"task_id",

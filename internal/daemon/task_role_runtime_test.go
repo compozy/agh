@@ -78,7 +78,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		if got := call.Provider; got != "" {
 			t.Fatalf("CreateOpts.Provider = %q, want default provider resolution", got)
 		}
-		for _, required := range []string{"agh task next", "agh task run claim", run.ID, "design-review"} {
+		for _, required := range []string{"agh task next --wait -o json", "agh task run claim", run.ID, "design-review"} {
 			if !strings.Contains(call.PromptOverlay, required) {
 				t.Fatalf("PromptOverlay missing %q:\n%s", required, call.PromptOverlay)
 			}
@@ -123,6 +123,10 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 				Model:                "sonnet",
 				RequiredCapabilities: []string{"frontend"},
 			},
+			Sandbox: taskpkg.SandboxPolicy{
+				Mode:       taskpkg.SandboxModeRef,
+				SandboxRef: "evidence-lab",
+			},
 			Runtime: taskpkg.RuntimePolicy{Mode: taskpkg.RuntimeModeEvidence},
 		}
 		store := newTaskRoleRuntimeStore(taskRecord, run, profile)
@@ -149,10 +153,13 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		if got, want := call.Permissions, aghconfig.PermissionModeApproveAll; got != want {
 			t.Fatalf("CreateOpts.Permissions = %q, want %q", got, want)
 		}
+		if got, want := call.SandboxRef, "evidence-lab"; got != want {
+			t.Fatalf("CreateOpts.SandboxRef = %q, want %q", got, want)
+		}
 		if !strings.Contains(call.PromptOverlay, "Runtime evidence mode is enabled") {
 			t.Fatalf("PromptOverlay missing runtime evidence guidance:\n%s", call.PromptOverlay)
 		}
-		if !strings.Contains(call.PromptOverlay, "--capability 'frontend'") {
+		if !strings.Contains(call.PromptOverlay, "agh task next --wait -o json --capability 'frontend'") {
 			t.Fatalf("PromptOverlay missing required capability claim:\n%s", call.PromptOverlay)
 		}
 	})

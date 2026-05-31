@@ -280,6 +280,7 @@ func (r *taskRoleRuntime) workerTargetForRun(
 	if worker.Mode.Normalize() != taskpkg.WorkerModeSelect {
 		return "", "", "", nil, false, nil
 	}
+	// The exact worker name wins; selector lists only provide fallback candidates.
 	agentName = strings.TrimSpace(worker.AgentName)
 	if agentName == "" && len(worker.PreferredAgentNames) > 0 {
 		agentName = strings.TrimSpace(worker.PreferredAgentNames[0])
@@ -570,7 +571,7 @@ Use `+"`%s`"+` once to claim work for this session before changing files. Comple
 }
 
 func taskRoleClaimCommand(capabilities []string) string {
-	args := []string{"agh task next -o json"}
+	args := []string{"agh task next --wait -o json"}
 	for _, capability := range uniqueNonEmptyStrings(capabilities) {
 		args = append(args, "--capability "+shellQuoteSimple(capability))
 	}
