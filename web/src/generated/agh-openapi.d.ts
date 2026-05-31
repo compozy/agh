@@ -31273,6 +31273,7 @@ export interface operations {
                 approval_policy?: "none" | "manual";
                 /** @enum {string} */
                 approval_state?: "not_required" | "pending" | "approved" | "rejected";
+                auto_enqueue_on_ready?: boolean;
                 child_count?: number;
                 /** Format: date-time */
                 closed_at?: string | null;
@@ -32856,6 +32857,7 @@ export interface operations {
                   approval_policy?: "none" | "manual";
                   /** @enum {string} */
                   approval_state?: "not_required" | "pending" | "approved" | "rejected";
+                  auto_enqueue_on_ready?: boolean;
                   child_count?: number;
                   /** Format: date-time */
                   closed_at?: string | null;
@@ -45761,6 +45763,7 @@ export interface operations {
               approval_policy?: "none" | "manual";
               /** @enum {string} */
               approval_state?: "not_required" | "pending" | "approved" | "rejected";
+              auto_enqueue_on_ready?: boolean;
               child_count?: number;
               /** Format: date-time */
               closed_at?: string | null;
@@ -46008,6 +46011,7 @@ export interface operations {
         "application/json": {
           /** @enum {string} */
           approval_policy?: "none" | "manual";
+          auto_enqueue_on_ready?: boolean;
           description?: string;
           draft?: boolean;
           id?: string;
@@ -46042,6 +46046,7 @@ export interface operations {
               approval_policy?: "none" | "manual";
               /** @enum {string} */
               approval_state?: "not_required" | "pending" | "approved" | "rejected";
+              auto_enqueue_on_ready?: boolean;
               /** Format: date-time */
               closed_at?: string | null;
               /** Format: date-time */
@@ -46371,6 +46376,7 @@ export interface operations {
                 approval_policy?: "none" | "manual";
                 /** @enum {string} */
                 approval_state?: "not_required" | "pending" | "approved" | "rejected";
+                auto_enqueue_on_ready?: boolean;
                 child_count?: number;
                 /** Format: date-time */
                 closed_at?: string | null;
@@ -46734,6 +46740,7 @@ export interface operations {
                 approval_policy?: "none" | "manual";
                 /** @enum {string} */
                 approval_state?: "not_required" | "pending" | "approved" | "rejected";
+                auto_enqueue_on_ready?: boolean;
                 child_count?: number;
                 /** Format: date-time */
                 closed_at?: string | null;
@@ -46862,6 +46869,7 @@ export interface operations {
                 approval_policy?: "none" | "manual";
                 /** @enum {string} */
                 approval_state?: "not_required" | "pending" | "approved" | "rejected";
+                auto_enqueue_on_ready?: boolean;
                 /** Format: date-time */
                 closed_at?: string | null;
                 /** Format: date-time */
@@ -47194,6 +47202,7 @@ export interface operations {
         "application/json": {
           /** @enum {string} */
           approval_policy?: "none" | "manual";
+          auto_enqueue_on_ready?: boolean | null;
           clear_owner?: boolean;
           description?: string | null;
           max_attempts?: number | null;
@@ -47223,6 +47232,7 @@ export interface operations {
               approval_policy?: "none" | "manual";
               /** @enum {string} */
               approval_state?: "not_required" | "pending" | "approved" | "rejected";
+              auto_enqueue_on_ready?: boolean;
               /** Format: date-time */
               closed_at?: string | null;
               /** Format: date-time */
@@ -47552,6 +47562,7 @@ export interface operations {
               approval_policy?: "none" | "manual";
               /** @enum {string} */
               approval_state?: "not_required" | "pending" | "approved" | "rejected";
+              auto_enqueue_on_ready?: boolean;
               /** Format: date-time */
               closed_at?: string | null;
               /** Format: date-time */
@@ -47797,6 +47808,7 @@ export interface operations {
               approval_policy?: "none" | "manual";
               /** @enum {string} */
               approval_state?: "not_required" | "pending" | "approved" | "rejected";
+              auto_enqueue_on_ready?: boolean;
               /** Format: date-time */
               closed_at?: string | null;
               /** Format: date-time */
@@ -48026,6 +48038,7 @@ export interface operations {
         "application/json": {
           /** @enum {string} */
           approval_policy?: "none" | "manual";
+          auto_enqueue_on_ready?: boolean;
           description?: string;
           draft?: boolean;
           id?: string;
@@ -48060,6 +48073,7 @@ export interface operations {
               approval_policy?: "none" | "manual";
               /** @enum {string} */
               approval_state?: "not_required" | "pending" | "approved" | "rejected";
+              auto_enqueue_on_ready?: boolean;
               /** Format: date-time */
               closed_at?: string | null;
               /** Format: date-time */
@@ -48398,6 +48412,7 @@ export interface operations {
                 approval_policy?: "none" | "manual";
                 /** @enum {string} */
                 approval_state?: "not_required" | "pending" | "approved" | "rejected";
+                auto_enqueue_on_ready?: boolean;
                 child_count?: number;
                 /** Format: date-time */
                 closed_at?: string | null;
@@ -48761,6 +48776,7 @@ export interface operations {
                 approval_policy?: "none" | "manual";
                 /** @enum {string} */
                 approval_state?: "not_required" | "pending" | "approved" | "rejected";
+                auto_enqueue_on_ready?: boolean;
                 child_count?: number;
                 /** Format: date-time */
                 closed_at?: string | null;
@@ -48889,6 +48905,7 @@ export interface operations {
                 approval_policy?: "none" | "manual";
                 /** @enum {string} */
                 approval_state?: "not_required" | "pending" | "approved" | "rejected";
+                auto_enqueue_on_ready?: boolean;
                 /** Format: date-time */
                 closed_at?: string | null;
                 /** Format: date-time */
@@ -49196,6 +49213,7 @@ export interface operations {
                 approval_policy?: "none" | "manual";
                 /** @enum {string} */
                 approval_state?: "not_required" | "pending" | "approved" | "rejected";
+                auto_enqueue_on_ready?: boolean;
                 child_count?: number;
                 /** Format: date-time */
                 closed_at?: string | null;
@@ -49559,6 +49577,7 @@ export interface operations {
                 approval_policy?: "none" | "manual";
                 /** @enum {string} */
                 approval_state?: "not_required" | "pending" | "approved" | "rejected";
+                auto_enqueue_on_ready?: boolean;
                 child_count?: number;
                 /** Format: date-time */
                 closed_at?: string | null;
@@ -49687,6 +49706,7 @@ export interface operations {
                 approval_policy?: "none" | "manual";
                 /** @enum {string} */
                 approval_state?: "not_required" | "pending" | "approved" | "rejected";
+                auto_enqueue_on_ready?: boolean;
                 /** Format: date-time */
                 closed_at?: string | null;
                 /** Format: date-time */
@@ -50662,6 +50682,7 @@ export interface operations {
                 approval_policy?: "none" | "manual";
                 /** @enum {string} */
                 approval_state?: "not_required" | "pending" | "approved" | "rejected";
+                auto_enqueue_on_ready?: boolean;
                 child_count?: number;
                 /** Format: date-time */
                 closed_at?: string | null;
@@ -51548,6 +51569,7 @@ export interface operations {
               approval_policy?: "none" | "manual";
               /** @enum {string} */
               approval_state?: "not_required" | "pending" | "approved" | "rejected";
+              auto_enqueue_on_ready?: boolean;
               /** Format: date-time */
               closed_at?: string | null;
               /** Format: date-time */
@@ -51927,6 +51949,7 @@ export interface operations {
               approval_policy?: "none" | "manual";
               /** @enum {string} */
               approval_state?: "not_required" | "pending" | "approved" | "rejected";
+              auto_enqueue_on_ready?: boolean;
               /** Format: date-time */
               closed_at?: string | null;
               /** Format: date-time */
@@ -52164,6 +52187,7 @@ export interface operations {
               approval_policy?: "none" | "manual";
               /** @enum {string} */
               approval_state?: "not_required" | "pending" | "approved" | "rejected";
+              auto_enqueue_on_ready?: boolean;
               /** Format: date-time */
               closed_at?: string | null;
               /** Format: date-time */
@@ -52408,6 +52432,7 @@ export interface operations {
               approval_policy?: "none" | "manual";
               /** @enum {string} */
               approval_state?: "not_required" | "pending" | "approved" | "rejected";
+              auto_enqueue_on_ready?: boolean;
               /** Format: date-time */
               closed_at?: string | null;
               /** Format: date-time */
@@ -53461,6 +53486,7 @@ export interface operations {
               approval_policy?: "none" | "manual";
               /** @enum {string} */
               approval_state?: "not_required" | "pending" | "approved" | "rejected";
+              auto_enqueue_on_ready?: boolean;
               /** Format: date-time */
               closed_at?: string | null;
               /** Format: date-time */

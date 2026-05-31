@@ -38,6 +38,8 @@ const (
 	TaskFieldPriority = "priority"
 	// TaskFieldMaxAttempts identifies the mutable task attempt-policy field.
 	TaskFieldMaxAttempts = "max_attempts"
+	// TaskFieldAutoEnqueueOnReady identifies the mutable auto-enqueue policy field.
+	TaskFieldAutoEnqueueOnReady = "auto_enqueue_on_ready"
 	// TaskFieldApprovalPolicy identifies the mutable approval-policy field.
 	TaskFieldApprovalPolicy = "approval_policy"
 	// TaskFieldMetadata identifies the mutable task metadata field.
@@ -66,6 +68,7 @@ func MutableTaskFields() []string {
 		TaskFieldDescription,
 		TaskFieldPriority,
 		TaskFieldMaxAttempts,
+		TaskFieldAutoEnqueueOnReady,
 		TaskFieldApprovalPolicy,
 		TaskFieldMetadata,
 		TaskFieldNetworkChannel,
@@ -90,6 +93,7 @@ func IsMutableTaskField(field string) bool {
 		TaskFieldDescription,
 		TaskFieldPriority,
 		TaskFieldMaxAttempts,
+		TaskFieldAutoEnqueueOnReady,
 		TaskFieldApprovalPolicy,
 		TaskFieldMetadata,
 		TaskFieldNetworkChannel,

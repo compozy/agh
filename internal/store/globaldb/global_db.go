@@ -1066,6 +1066,12 @@ var globalSchemaMigrations = []store.Migration{
 		Up:       migrateTaskRunStarvation,
 		Checksum: "2026-05-28-add-task-run-starvation-tracking",
 	},
+	{
+		Version:  41,
+		Name:     "add_task_auto_enqueue",
+		Up:       migrateTaskAutoEnqueueSchema,
+		Checksum: "2026-05-29-add-task-auto-enqueue",
+	},
 }
 
 func migrateSessionInputQueue(ctx context.Context, tx *sql.Tx) error {

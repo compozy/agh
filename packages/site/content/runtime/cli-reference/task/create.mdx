@@ -14,19 +14,20 @@ agh task create [flags]
 ### Options
 
 ```
-      --as-agent             Create using the current AGH-managed agent session identity
-      --channel string       Optional network channel binding
-      --description string   Task description
-  -h, --help                 help for create
-      --id string            Explicit task ID
-      --identifier string    Human-friendly task identifier
-      --metadata string      Optional metadata JSON
-      --owner-kind string    Optional owner kind
-      --owner-ref string     Optional owner reference
-      --priority string      Task priority: low, medium, high, or urgent
-      --scope string         Task scope: global or workspace
-      --title string         Task title
-      --workspace string     Workspace path, name, or ID (required when --scope=workspace)
+      --as-agent                Create using the current AGH-managed agent session identity
+      --auto-enqueue-on-ready   Auto-enqueue the run once blocking dependencies complete
+      --channel string          Optional network channel binding
+      --description string      Task description
+  -h, --help                    help for create
+      --id string               Explicit task ID
+      --identifier string       Human-friendly task identifier
+      --metadata string         Optional metadata JSON
+      --owner-kind string       Optional owner kind
+      --owner-ref string        Optional owner reference
+      --priority string         Task priority: low, medium, high, or urgent
+      --scope string            Task scope: global or workspace
+      --title string            Task title
+      --workspace string        Workspace path, name, or ID (required when --scope=workspace)
 ```
 
 ### Options inherited from parent commands

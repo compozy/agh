@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -206,7 +207,67 @@ func (m *Service) CompleteRunLease(
 		return nil, err
 	}
 	m.dispatchTaskRunCompleted(ctx, run, reconciledTask, actor)
+	autoCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), autoEnqueueDispatchTimeout)
+	defer cancel()
+	m.autoEnqueueReadyDependents(autoCtx, run.TaskID, run.ID, actor)
 	return &run, nil
+}
+
+// autoEnqueueDispatchTimeout bounds the detached post-commit auto-enqueue side effect.
+// The completion is already durable, so this work must survive request cancellation
+// (context.WithoutCancel) but still cannot run unbounded across a large dependent set.
+const autoEnqueueDispatchTimeout = 30 * time.Second
+
+// autoEnqueueReadyDependents enqueues runs for dependents that became ready due to the
+// completion of completedTaskID and opted in via AutoEnqueueOnReady. Best-effort: the
+// completion has already committed, so failures here are logged and skipped, never rolled
+// back. triggerRunID keeps each per-dependent enqueue idempotent across retried
+// completions; the store's queued-run reservation rejects duplicate or blocked enqueues.
+// A failed/expired blocker does not satisfy a "blocks" edge, so only completion calls this.
+func (m *Service) autoEnqueueReadyDependents(
+	ctx context.Context,
+	completedTaskID, triggerRunID string,
+	actor ActorContext,
+) {
+	dependents, err := m.store.ListDependents(ctx, completedTaskID)
+	if err != nil {
+		slog.Error("task: auto-enqueue list dependents failed", "task_id", completedTaskID, "error", err)
+		return
+	}
+	var pauseReader effectiveTaskPauseReader
+	if reader, ok := m.store.(effectiveTaskPauseReader); ok {
+		pauseReader = reader
+	}
+	for _, dep := range dependents {
+		dependentID := strings.TrimSpace(dep.TaskID)
+		if dependentID == "" {
+			continue
+		}
+		dependent, err := m.store.GetTask(ctx, dependentID)
+		if err != nil {
+			slog.Error("task: auto-enqueue load dependent failed", "task_id", dependentID, "error", err)
+			continue
+		}
+		if !dependent.AutoEnqueueOnReady || dependent.Status.Normalize() != TaskStatusReady {
+			continue
+		}
+		if pauseReader != nil {
+			if paused, _, perr := pauseReader.IsTaskEffectivelyPaused(ctx, dependentID); perr == nil && paused {
+				continue
+			}
+		}
+		key := fmt.Sprintf("task.auto_enqueue.%s.%s", dependentID, strings.TrimSpace(triggerRunID))
+		_, enqErr := m.EnqueueRun(ctx, EnqueueRun{TaskID: dependentID, IdempotencyKey: key}, actor)
+		switch {
+		case enqErr == nil:
+		case errors.Is(enqErr, ErrInvalidStatusTransition) || errors.Is(enqErr, ErrConflict):
+			// Expected dedup: store rejects a second run (open run) or replayed idempotency key.
+			slog.Debug("task: auto-enqueue skipped; dependent already has an open run",
+				"task_id", dependentID, "error", enqErr)
+		default:
+			slog.Warn("task: auto-enqueue dependent run failed", "task_id", dependentID, "error", enqErr)
+		}
+	}
 }
 
 // FailRunLease marks one active task-run lease failed after token verification.

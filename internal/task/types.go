@@ -245,32 +245,37 @@ type ActorContext struct {
 
 // Task is the durable coordination record owned by the task domain.
 type Task struct {
-	ID             string          `json:"id"`
-	Identifier     string          `json:"identifier,omitempty"`
-	Scope          Scope           `json:"scope"`
-	WorkspaceID    string          `json:"workspace_id,omitempty"`
-	ParentTaskID   string          `json:"parent_task_id,omitempty"`
-	NetworkChannel string          `json:"network_channel,omitempty"`
-	Title          string          `json:"title"`
-	Description    string          `json:"description,omitempty"`
-	Priority       Priority        `json:"priority,omitempty"`
-	MaxAttempts    int             `json:"max_attempts,omitempty"`
-	Status         Status          `json:"status"`
-	ApprovalPolicy ApprovalPolicy  `json:"approval_policy,omitempty"`
-	ApprovalState  ApprovalState   `json:"approval_state,omitempty"`
-	Owner          *Ownership      `json:"owner,omitempty"`
-	CurrentRunID   string          `json:"current_run_id,omitempty"`
-	LatestEventSeq int64           `json:"latest_event_seq"`
-	Paused         bool            `json:"paused,omitempty"`
-	PausedBy       string          `json:"paused_by,omitempty"`
-	PausedAt       time.Time       `json:"paused_at,omitzero"`
-	PausedReason   string          `json:"paused_reason,omitempty"`
-	CreatedBy      ActorIdentity   `json:"created_by"`
-	Origin         Origin          `json:"origin"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
-	ClosedAt       time.Time       `json:"closed_at"`
-	Metadata       json.RawMessage `json:"metadata,omitempty"`
+	ID             string         `json:"id"`
+	Identifier     string         `json:"identifier,omitempty"`
+	Scope          Scope          `json:"scope"`
+	WorkspaceID    string         `json:"workspace_id,omitempty"`
+	ParentTaskID   string         `json:"parent_task_id,omitempty"`
+	NetworkChannel string         `json:"network_channel,omitempty"`
+	Title          string         `json:"title"`
+	Description    string         `json:"description,omitempty"`
+	Priority       Priority       `json:"priority,omitempty"`
+	MaxAttempts    int            `json:"max_attempts,omitempty"`
+	Status         Status         `json:"status"`
+	ApprovalPolicy ApprovalPolicy `json:"approval_policy,omitempty"`
+	ApprovalState  ApprovalState  `json:"approval_state,omitempty"`
+	Owner          *Ownership     `json:"owner,omitempty"`
+	CurrentRunID   string         `json:"current_run_id,omitempty"`
+	LatestEventSeq int64          `json:"latest_event_seq"`
+	// AutoEnqueueOnReady, when true, makes the runtime enqueue this task's run
+	// automatically once its blocking dependencies complete (opt-in; default
+	// false preserves the explicit-execution-boundary contract). Clustered with
+	// Paused to keep Task within the 512-byte gocritic copy threshold.
+	AutoEnqueueOnReady bool            `json:"auto_enqueue_on_ready,omitempty"`
+	Paused             bool            `json:"paused,omitempty"`
+	PausedBy           string          `json:"paused_by,omitempty"`
+	PausedAt           time.Time       `json:"paused_at,omitzero"`
+	PausedReason       string          `json:"paused_reason,omitempty"`
+	CreatedBy          ActorIdentity   `json:"created_by"`
+	Origin             Origin          `json:"origin"`
+	CreatedAt          time.Time       `json:"created_at"`
+	UpdatedAt          time.Time       `json:"updated_at"`
+	ClosedAt           time.Time       `json:"closed_at"`
+	Metadata           json.RawMessage `json:"metadata,omitempty"`
 }
 
 // Dependency is the durable edge record connecting one task to a blocking dependency.
@@ -382,14 +387,16 @@ type Summary struct {
 	LatestEventSeq  int64                 `json:"latest_event_seq"`
 	ChildCount      int                   `json:"child_count,omitempty"`
 	DependencyCount int                   `json:"dependency_count,omitempty"`
-	Draft           bool                  `json:"draft"`
-	Paused          bool                  `json:"paused,omitempty"`
-	EffectivePaused bool                  `json:"effective_paused,omitempty"`
-	PausedAt        time.Time             `json:"paused_at,omitzero"`
-	CreatedAt       time.Time             `json:"created_at"`
-	UpdatedAt       time.Time             `json:"updated_at"`
-	ClosedAt        time.Time             `json:"closed_at"`
-	LastActivityAt  time.Time             `json:"last_activity_at"`
+	// Bool fields are clustered to keep Summary within the 512-byte gocritic copy threshold.
+	AutoEnqueueOnReady bool      `json:"auto_enqueue_on_ready,omitempty"`
+	Draft              bool      `json:"draft"`
+	Paused             bool      `json:"paused,omitempty"`
+	EffectivePaused    bool      `json:"effective_paused,omitempty"`
+	PausedAt           time.Time `json:"paused_at,omitzero"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
+	ClosedAt           time.Time `json:"closed_at"`
+	LastActivityAt     time.Time `json:"last_activity_at"`
 }
 
 // Reference is the human-meaningful task identity used in enriched read models.
@@ -452,33 +459,35 @@ type View struct {
 
 // CreateTask captures the mutable inputs accepted when creating a new task.
 type CreateTask struct {
-	ID             string          `json:"id,omitempty"`
-	Identifier     string          `json:"identifier,omitempty"`
-	Scope          Scope           `json:"scope"`
-	WorkspaceID    string          `json:"workspace_id,omitempty"`
-	ParentTaskID   string          `json:"parent_task_id,omitempty"`
-	NetworkChannel string          `json:"network_channel,omitempty"`
-	Title          string          `json:"title"`
-	Description    string          `json:"description,omitempty"`
-	Priority       Priority        `json:"priority,omitempty"`
-	MaxAttempts    *int            `json:"max_attempts,omitempty"`
-	Draft          bool            `json:"draft,omitempty"`
-	ApprovalPolicy ApprovalPolicy  `json:"approval_policy,omitempty"`
-	Owner          *Ownership      `json:"owner,omitempty"`
-	Metadata       json.RawMessage `json:"metadata,omitempty"`
+	ID                 string          `json:"id,omitempty"`
+	Identifier         string          `json:"identifier,omitempty"`
+	Scope              Scope           `json:"scope"`
+	WorkspaceID        string          `json:"workspace_id,omitempty"`
+	ParentTaskID       string          `json:"parent_task_id,omitempty"`
+	NetworkChannel     string          `json:"network_channel,omitempty"`
+	Title              string          `json:"title"`
+	Description        string          `json:"description,omitempty"`
+	Priority           Priority        `json:"priority,omitempty"`
+	MaxAttempts        *int            `json:"max_attempts,omitempty"`
+	Draft              bool            `json:"draft,omitempty"`
+	AutoEnqueueOnReady bool            `json:"auto_enqueue_on_ready,omitempty"`
+	ApprovalPolicy     ApprovalPolicy  `json:"approval_policy,omitempty"`
+	Owner              *Ownership      `json:"owner,omitempty"`
+	Metadata           json.RawMessage `json:"metadata,omitempty"`
 }
 
 // Patch captures the mutable task fields accepted by update operations.
 type Patch struct {
-	Title          *string          `json:"title,omitempty"`
-	Description    *string          `json:"description,omitempty"`
-	Priority       *Priority        `json:"priority,omitempty"`
-	MaxAttempts    *int             `json:"max_attempts,omitempty"`
-	ApprovalPolicy *ApprovalPolicy  `json:"approval_policy,omitempty"`
-	Metadata       *json.RawMessage `json:"metadata,omitempty"`
-	NetworkChannel *string          `json:"network_channel,omitempty"`
-	Owner          *Ownership       `json:"owner,omitempty"`
-	ClearOwner     bool             `json:"clear_owner,omitempty"`
+	Title              *string          `json:"title,omitempty"`
+	Description        *string          `json:"description,omitempty"`
+	Priority           *Priority        `json:"priority,omitempty"`
+	MaxAttempts        *int             `json:"max_attempts,omitempty"`
+	AutoEnqueueOnReady *bool            `json:"auto_enqueue_on_ready,omitempty"`
+	ApprovalPolicy     *ApprovalPolicy  `json:"approval_policy,omitempty"`
+	Metadata           *json.RawMessage `json:"metadata,omitempty"`
+	NetworkChannel     *string          `json:"network_channel,omitempty"`
+	Owner              *Ownership       `json:"owner,omitempty"`
+	ClearOwner         bool             `json:"clear_owner,omitempty"`
 }
 
 // CancelTask captures the task-level cancellation request payload.

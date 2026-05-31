@@ -283,25 +283,26 @@ func (m *Service) CreateTask(ctx context.Context, spec CreateTask, actor ActorCo
 
 	now := m.now().UTC()
 	record := Task{
-		ID:             normalizedSpec.ID,
-		Identifier:     normalizedSpec.Identifier,
-		Scope:          normalizedSpec.Scope,
-		WorkspaceID:    normalizedSpec.WorkspaceID,
-		ParentTaskID:   normalizedSpec.ParentTaskID,
-		NetworkChannel: normalizedSpec.NetworkChannel,
-		Title:          normalizedSpec.Title,
-		Description:    normalizedSpec.Description,
-		Priority:       normalizedSpec.Priority,
-		MaxAttempts:    createTaskMaxAttempts(normalizedSpec),
-		Status:         createdTaskStatus(normalizedSpec),
-		ApprovalPolicy: normalizedSpec.ApprovalPolicy,
-		ApprovalState:  defaultApprovalStateForPolicy(normalizedSpec.ApprovalPolicy),
-		Owner:          cloneOwnership(normalizedSpec.Owner),
-		CreatedBy:      actor.Actor,
-		Origin:         actor.Origin,
-		CreatedAt:      now,
-		UpdatedAt:      now,
-		Metadata:       cloneRawJSON(normalizedSpec.Metadata),
+		ID:                 normalizedSpec.ID,
+		Identifier:         normalizedSpec.Identifier,
+		Scope:              normalizedSpec.Scope,
+		WorkspaceID:        normalizedSpec.WorkspaceID,
+		ParentTaskID:       normalizedSpec.ParentTaskID,
+		NetworkChannel:     normalizedSpec.NetworkChannel,
+		Title:              normalizedSpec.Title,
+		Description:        normalizedSpec.Description,
+		Priority:           normalizedSpec.Priority,
+		MaxAttempts:        createTaskMaxAttempts(normalizedSpec),
+		AutoEnqueueOnReady: normalizedSpec.AutoEnqueueOnReady,
+		Status:             createdTaskStatus(normalizedSpec),
+		ApprovalPolicy:     normalizedSpec.ApprovalPolicy,
+		ApprovalState:      defaultApprovalStateForPolicy(normalizedSpec.ApprovalPolicy),
+		Owner:              cloneOwnership(normalizedSpec.Owner),
+		CreatedBy:          actor.Actor,
+		Origin:             actor.Origin,
+		CreatedAt:          now,
+		UpdatedAt:          now,
+		Metadata:           cloneRawJSON(normalizedSpec.Metadata),
 	}
 	if strings.TrimSpace(record.ID) == "" {
 		record.ID = m.newID("task")
@@ -533,11 +534,19 @@ func applyTaskPatch(current Task, patch Patch) (Task, []string) {
 		updated.MaxAttempts = *patch.MaxAttempts
 		changedFields = append(changedFields, TaskFieldMaxAttempts)
 	}
+	if patch.AutoEnqueueOnReady != nil && updated.AutoEnqueueOnReady != *patch.AutoEnqueueOnReady {
+		updated.AutoEnqueueOnReady = *patch.AutoEnqueueOnReady
+		changedFields = append(changedFields, TaskFieldAutoEnqueueOnReady)
+	}
 	if patch.ApprovalPolicy != nil && updated.ApprovalPolicy != *patch.ApprovalPolicy {
 		updated.ApprovalPolicy = *patch.ApprovalPolicy
 		updated.ApprovalState = defaultApprovalStateForPolicy(*patch.ApprovalPolicy)
 		changedFields = append(changedFields, TaskFieldApprovalPolicy)
 	}
+	return applyTaskPatchReferences(updated, patch, changedFields)
+}
+
+func applyTaskPatchReferences(updated Task, patch Patch, changedFields []string) (Task, []string) {
 	if patch.Metadata != nil && !sameRawJSON(updated.Metadata, *patch.Metadata) {
 		updated.Metadata = cloneRawJSON(*patch.Metadata)
 		changedFields = append(changedFields, TaskFieldMetadata)
@@ -2451,6 +2460,10 @@ func normalizeTaskPatch(patch Patch) (Patch, error) {
 		maxAttempts := *normalized.MaxAttempts
 		normalized.MaxAttempts = &maxAttempts
 	}
+	if normalized.AutoEnqueueOnReady != nil {
+		autoEnqueue := *normalized.AutoEnqueueOnReady
+		normalized.AutoEnqueueOnReady = &autoEnqueue
+	}
 	if normalized.ApprovalPolicy != nil {
 		approvalPolicy := normalized.ApprovalPolicy.Normalize()
 		normalized.ApprovalPolicy = &approvalPolicy
@@ -3557,27 +3570,28 @@ func marshalTaskEventPayload(payload any) (json.RawMessage, error) {
 
 func summaryFromTaskRecord(record Task) Summary {
 	return Summary{
-		ID:              record.ID,
-		Identifier:      record.Identifier,
-		Scope:           record.Scope,
-		WorkspaceID:     record.WorkspaceID,
-		ParentTaskID:    record.ParentTaskID,
-		NetworkChannel:  record.NetworkChannel,
-		Title:           record.Title,
-		Priority:        record.Priority,
-		MaxAttempts:     record.MaxAttempts,
-		Status:          record.Status,
-		ApprovalPolicy:  record.ApprovalPolicy,
-		ApprovalState:   record.ApprovalState,
-		Draft:           record.Status.Normalize() == TaskStatusDraft,
-		Owner:           cloneOwnership(record.Owner),
-		CurrentRunID:    record.CurrentRunID,
-		LatestEventSeq:  record.LatestEventSeq,
-		Paused:          record.Paused,
-		PausedBy:        record.PausedBy,
-		PausedAt:        record.PausedAt,
-		PausedReason:    record.PausedReason,
-		EffectivePaused: record.Paused,
+		ID:                 record.ID,
+		Identifier:         record.Identifier,
+		Scope:              record.Scope,
+		WorkspaceID:        record.WorkspaceID,
+		ParentTaskID:       record.ParentTaskID,
+		NetworkChannel:     record.NetworkChannel,
+		Title:              record.Title,
+		Priority:           record.Priority,
+		MaxAttempts:        record.MaxAttempts,
+		AutoEnqueueOnReady: record.AutoEnqueueOnReady,
+		Status:             record.Status,
+		ApprovalPolicy:     record.ApprovalPolicy,
+		ApprovalState:      record.ApprovalState,
+		Draft:              record.Status.Normalize() == TaskStatusDraft,
+		Owner:              cloneOwnership(record.Owner),
+		CurrentRunID:       record.CurrentRunID,
+		LatestEventSeq:     record.LatestEventSeq,
+		Paused:             record.Paused,
+		PausedBy:           record.PausedBy,
+		PausedAt:           record.PausedAt,
+		PausedReason:       record.PausedReason,
+		EffectivePaused:    record.Paused,
 		PausedByTaskID: func() string {
 			if record.Paused {
 				return record.ID
@@ -3595,30 +3609,31 @@ func summaryFromTaskRecord(record Task) Summary {
 
 func taskRecordFromSummary(summary Summary) Task {
 	return Task{
-		ID:             summary.ID,
-		Identifier:     summary.Identifier,
-		Scope:          summary.Scope,
-		WorkspaceID:    summary.WorkspaceID,
-		ParentTaskID:   summary.ParentTaskID,
-		NetworkChannel: summary.NetworkChannel,
-		Title:          summary.Title,
-		Priority:       summary.Priority,
-		MaxAttempts:    summary.MaxAttempts,
-		Status:         summary.Status,
-		ApprovalPolicy: summary.ApprovalPolicy,
-		ApprovalState:  summary.ApprovalState,
-		Owner:          cloneOwnership(summary.Owner),
-		CurrentRunID:   summary.CurrentRunID,
-		LatestEventSeq: summary.LatestEventSeq,
-		Paused:         summary.Paused,
-		PausedBy:       summary.PausedBy,
-		PausedAt:       summary.PausedAt,
-		PausedReason:   summary.PausedReason,
-		CreatedBy:      summary.CreatedBy,
-		Origin:         summary.Origin,
-		CreatedAt:      summary.CreatedAt,
-		UpdatedAt:      summary.UpdatedAt,
-		ClosedAt:       summary.ClosedAt,
+		ID:                 summary.ID,
+		Identifier:         summary.Identifier,
+		Scope:              summary.Scope,
+		WorkspaceID:        summary.WorkspaceID,
+		ParentTaskID:       summary.ParentTaskID,
+		NetworkChannel:     summary.NetworkChannel,
+		Title:              summary.Title,
+		Priority:           summary.Priority,
+		MaxAttempts:        summary.MaxAttempts,
+		AutoEnqueueOnReady: summary.AutoEnqueueOnReady,
+		Status:             summary.Status,
+		ApprovalPolicy:     summary.ApprovalPolicy,
+		ApprovalState:      summary.ApprovalState,
+		Owner:              cloneOwnership(summary.Owner),
+		CurrentRunID:       summary.CurrentRunID,
+		LatestEventSeq:     summary.LatestEventSeq,
+		Paused:             summary.Paused,
+		PausedBy:           summary.PausedBy,
+		PausedAt:           summary.PausedAt,
+		PausedReason:       summary.PausedReason,
+		CreatedBy:          summary.CreatedBy,
+		Origin:             summary.Origin,
+		CreatedAt:          summary.CreatedAt,
+		UpdatedAt:          summary.UpdatedAt,
+		ClosedAt:           summary.ClosedAt,
 	}
 }
 

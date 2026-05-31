@@ -4050,6 +4050,7 @@ export interface Task {
   description?: string;
   priority?: Priority;
   max_attempts?: number;
+  auto_enqueue_on_ready?: boolean;
   status: Status;
   approval_policy?: ApprovalPolicy;
   approval_state?: ApprovalState;
@@ -4087,6 +4088,7 @@ export interface TaskCreateParams {
   description?: string;
   priority?: Priority;
   max_attempts?: number;
+  auto_enqueue_on_ready?: boolean;
   draft?: boolean;
   approval_policy?: ApprovalPolicy;
   owner?: Ownership;
@@ -4321,6 +4323,7 @@ export interface TaskSummary {
   title: string;
   priority?: Priority;
   max_attempts?: number;
+  auto_enqueue_on_ready?: boolean;
   status: Status;
   approval_policy?: ApprovalPolicy;
   approval_state?: ApprovalState;
@@ -4900,6 +4903,7 @@ export interface TaskUpdateParams {
   description?: string;
   priority?: Priority;
   max_attempts?: number;
+  auto_enqueue_on_ready?: boolean;
   approval_policy?: ApprovalPolicy;
   metadata?: JSONValue;
   network_channel?: string;

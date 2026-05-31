@@ -14,15 +14,16 @@ agh task update <id> [flags]
 ### Options
 
 ```
-      --channel string       Update the network channel; pass an empty value to clear it
-      --clear-owner          Remove the current owner
-      --description string   Update the task description
-  -h, --help                 help for update
-      --metadata string      Update metadata JSON
-      --owner-kind string    Update the owner kind
-      --owner-ref string     Update the owner reference
-      --priority string      Update the task priority: low, medium, high, or urgent
-      --title string         Update the task title
+      --auto-enqueue-on-ready   Toggle auto-enqueue once blocking dependencies complete
+      --channel string          Update the network channel; pass an empty value to clear it
+      --clear-owner             Remove the current owner
+      --description string      Update the task description
+  -h, --help                    help for update
+      --metadata string         Update metadata JSON
+      --owner-kind string       Update the owner kind
+      --owner-ref string        Update the owner reference
+      --priority string         Update the task priority: low, medium, high, or urgent
+      --title string            Update the task title
 ```
 
 ### Options inherited from parent commands

@@ -81,10 +81,10 @@ func (g *GlobalDB) CreateTask(ctx context.Context, record taskpkg.Task) error {
 		ctx,
 		`INSERT INTO tasks (
 			id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
-			priority, max_attempts, status, approval_policy, approval_state,
+			priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
 			owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
 			created_at, updated_at, closed_at, paused, paused_by, paused_at, paused_reason, metadata_json
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		normalized.ID,
 		store.NullableString(normalized.Identifier),
 		string(normalized.Scope),
@@ -95,6 +95,7 @@ func (g *GlobalDB) CreateTask(ctx context.Context, record taskpkg.Task) error {
 		store.NullableString(normalized.Description),
 		string(normalized.Priority),
 		normalized.MaxAttempts,
+		taskBoolToInt(normalized.AutoEnqueueOnReady),
 		string(normalized.Status),
 		string(normalized.ApprovalPolicy),
 		string(normalized.ApprovalState),
@@ -204,7 +205,7 @@ func (g *GlobalDB) updateTaskWithExecutor(
 		`UPDATE tasks
 		 SET identifier = ?, scope = ?, workspace_id = ?, parent_task_id = ?,
 		     network_channel = ?, title = ?, description = ?, priority = ?,
-		     max_attempts = ?, status = ?, approval_policy = ?, approval_state = ?,
+		     max_attempts = ?, auto_enqueue_on_ready = ?, status = ?, approval_policy = ?, approval_state = ?,
 		     owner_kind = ?, owner_ref = ?, created_by_kind = ?,
 		     created_by_ref = ?, origin_kind = ?, origin_ref = ?,
 		     created_at = ?, updated_at = ?, closed_at = ?,
@@ -219,6 +220,7 @@ func (g *GlobalDB) updateTaskWithExecutor(
 		store.NullableString(normalized.Description),
 		string(normalized.Priority),
 		normalized.MaxAttempts,
+		taskBoolToInt(normalized.AutoEnqueueOnReady),
 		string(normalized.Status),
 		string(normalized.ApprovalPolicy),
 		string(normalized.ApprovalState),
@@ -260,7 +262,7 @@ func (g *GlobalDB) GetTask(ctx context.Context, id string) (taskpkg.Task, error)
 		ctx,
 		`SELECT
 			id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
-			priority, max_attempts, status, approval_policy, approval_state,
+			priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
 			owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
 			created_at, updated_at, closed_at, current_run_id, `+taskLatestEventSeqSelectSQL+`,
 			paused, paused_by, paused_at, paused_reason, metadata_json
@@ -291,7 +293,7 @@ func (g *GlobalDB) ListTasks(ctx context.Context, query taskpkg.Query) ([]taskpk
 	normalized := normalizeTaskQuery(query)
 	sqlQuery := `SELECT
 		id, identifier, scope, workspace_id, parent_task_id, network_channel, title, description,
-		priority, max_attempts, status, approval_policy, approval_state,
+		priority, max_attempts, auto_enqueue_on_ready, status, approval_policy, approval_state,
 		owner_kind, owner_ref, created_by_kind, created_by_ref, origin_kind, origin_ref,
 		created_at, updated_at, closed_at, current_run_id, ` + taskLatestEventSeqSelectSQL + `,
 		paused, paused_by, paused_at, paused_reason, metadata_json
@@ -1049,6 +1051,7 @@ func scanTaskRecord(scanner rowScanner) (taskpkg.Task, error) {
 	)
 	record.CurrentRunID = strings.TrimSpace(fields.currentRunID.String)
 	record.LatestEventSeq = fields.latestEventSeq
+	record.AutoEnqueueOnReady = fields.autoEnqueueOnReady != 0
 	record.Paused = fields.paused != 0
 	record.PausedBy = strings.TrimSpace(fields.pausedBy)
 	record.PausedReason = strings.TrimSpace(fields.pausedReason)
@@ -1075,31 +1078,32 @@ func scanTaskRecord(scanner rowScanner) (taskpkg.Task, error) {
 }
 
 type taskScanFields struct {
-	identifier     sql.NullString
-	scope          string
-	workspaceID    sql.NullString
-	parentTaskID   sql.NullString
-	networkChannel sql.NullString
-	description    sql.NullString
-	priority       string
-	maxAttempts    int
-	status         string
-	approvalPolicy string
-	approvalState  string
-	ownerKind      sql.NullString
-	ownerRef       sql.NullString
-	createdByKind  string
-	originKind     string
-	createdAtRaw   string
-	updatedAtRaw   string
-	closedAtRaw    sql.NullString
-	currentRunID   sql.NullString
-	latestEventSeq int64
-	paused         int
-	pausedBy       string
-	pausedAtRaw    sql.NullString
-	pausedReason   string
-	metadataJSON   sql.NullString
+	identifier         sql.NullString
+	scope              string
+	workspaceID        sql.NullString
+	parentTaskID       sql.NullString
+	networkChannel     sql.NullString
+	description        sql.NullString
+	priority           string
+	maxAttempts        int
+	autoEnqueueOnReady int
+	status             string
+	approvalPolicy     string
+	approvalState      string
+	ownerKind          sql.NullString
+	ownerRef           sql.NullString
+	createdByKind      string
+	originKind         string
+	createdAtRaw       string
+	updatedAtRaw       string
+	closedAtRaw        sql.NullString
+	currentRunID       sql.NullString
+	latestEventSeq     int64
+	paused             int
+	pausedBy           string
+	pausedAtRaw        sql.NullString
+	pausedReason       string
+	metadataJSON       sql.NullString
 }
 
 func scanTaskRecordColumns(scanner rowScanner) (taskpkg.Task, taskScanFields, error) {
@@ -1116,6 +1120,7 @@ func scanTaskRecordColumns(scanner rowScanner) (taskpkg.Task, taskScanFields, er
 		&fields.description,
 		&fields.priority,
 		&fields.maxAttempts,
+		&fields.autoEnqueueOnReady,
 		&fields.status,
 		&fields.approvalPolicy,
 		&fields.approvalState,
@@ -1635,27 +1640,28 @@ func normalizeTaskRunQuery(query taskpkg.RunQuery) taskpkg.RunQuery {
 
 func taskSummaryFromRecord(record taskpkg.Task) taskpkg.Summary {
 	return taskpkg.Summary{
-		ID:              record.ID,
-		Identifier:      record.Identifier,
-		Scope:           record.Scope,
-		WorkspaceID:     record.WorkspaceID,
-		ParentTaskID:    record.ParentTaskID,
-		NetworkChannel:  record.NetworkChannel,
-		Title:           record.Title,
-		Priority:        record.Priority,
-		MaxAttempts:     record.MaxAttempts,
-		Status:          record.Status,
-		ApprovalPolicy:  record.ApprovalPolicy,
-		ApprovalState:   record.ApprovalState,
-		Draft:           record.Status.Normalize() == taskpkg.TaskStatusDraft,
-		Owner:           record.Owner,
-		CurrentRunID:    record.CurrentRunID,
-		LatestEventSeq:  record.LatestEventSeq,
-		Paused:          record.Paused,
-		PausedBy:        record.PausedBy,
-		PausedAt:        record.PausedAt,
-		PausedReason:    record.PausedReason,
-		EffectivePaused: record.Paused,
+		ID:                 record.ID,
+		Identifier:         record.Identifier,
+		Scope:              record.Scope,
+		WorkspaceID:        record.WorkspaceID,
+		ParentTaskID:       record.ParentTaskID,
+		NetworkChannel:     record.NetworkChannel,
+		Title:              record.Title,
+		Priority:           record.Priority,
+		MaxAttempts:        record.MaxAttempts,
+		AutoEnqueueOnReady: record.AutoEnqueueOnReady,
+		Status:             record.Status,
+		ApprovalPolicy:     record.ApprovalPolicy,
+		ApprovalState:      record.ApprovalState,
+		Draft:              record.Status.Normalize() == taskpkg.TaskStatusDraft,
+		Owner:              record.Owner,
+		CurrentRunID:       record.CurrentRunID,
+		LatestEventSeq:     record.LatestEventSeq,
+		Paused:             record.Paused,
+		PausedBy:           record.PausedBy,
+		PausedAt:           record.PausedAt,
+		PausedReason:       record.PausedReason,
+		EffectivePaused:    record.Paused,
 		PausedByTaskID: func() string {
 			if record.Paused {
 				return record.ID

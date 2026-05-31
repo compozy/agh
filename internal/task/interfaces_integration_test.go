@@ -87,6 +87,10 @@ func (fakeStore) FailRunLease(context.Context, taskpkg.LeaseFailure) (taskpkg.Ru
 	return taskpkg.Run{}, nil
 }
 
+func (fakeStore) MarkTaskRunNeedsAttention(context.Context, string, string) (taskpkg.Run, error) {
+	return taskpkg.Run{}, nil
+}
+
 func (fakeStore) ForceReleaseTaskRun(
 	context.Context,
 	taskpkg.ForceReleaseRunMutation,
@@ -102,6 +106,10 @@ func (fakeStore) ForceFailTaskRun(
 }
 
 func (fakeStore) RetryTaskRun(context.Context, taskpkg.RetryRunMutation) (taskpkg.RetryRunResult, error) {
+	return taskpkg.RetryRunResult{}, nil
+}
+
+func (fakeStore) RecoverTaskRun(context.Context, taskpkg.RecoverRunMutation) (taskpkg.RetryRunResult, error) {
 	return taskpkg.RetryRunResult{}, nil
 }
 
