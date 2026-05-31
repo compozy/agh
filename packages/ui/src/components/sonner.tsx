@@ -37,4 +37,3 @@ function Toaster({ closeButton = true, theme = "dark", ...props }: ToasterProps)
 }
 
 export { Toaster, type ToasterProps };
-export { toast } from "sonner";

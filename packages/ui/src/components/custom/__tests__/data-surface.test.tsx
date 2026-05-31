@@ -2,7 +2,8 @@ import { render, screen } from "@testing-library/react";
 import { KeyRound } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
-import { DataSurface, resolveDataSurfaceState } from "../data-surface";
+import { DataSurface } from "../data-surface";
+import { resolveDataSurfaceState } from "../data-surface-state";
 
 function renderSurface(state: React.ComponentProps<typeof DataSurface>["state"]) {
   return render(

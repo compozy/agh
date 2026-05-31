@@ -2,14 +2,13 @@
 
 import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
-import { cva, type VariantProps } from "class-variance-authority";
+import type { VariantProps } from "class-variance-authority";
 import { useReducedMotionConfig } from "motion/react";
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
-
-export type PillTone = "neutral" | "accent" | "success" | "warning" | "danger" | "info";
-export type PillSize = "xs" | "sm" | "md";
+import { pillVariants } from "./pill-variants";
+import type { PillSize, PillTone } from "./pill-types";
 
 const TONE_DOT_BG_CLASS: Record<PillTone, string> = {
   neutral: "bg-subtle",
@@ -28,57 +27,6 @@ type PillContextValue = {
 };
 
 const PillContext = React.createContext<PillContextValue | null>(null);
-
-const pillVariants = cva(
-  "inline-flex w-fit shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xs transition-colors duration-base ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-line-strong focus-visible:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 [&>svg]:pointer-events-none [&>svg]:size-3",
-  {
-    variants: {
-      tone: {
-        neutral: "bg-neutral-tint text-muted",
-        accent: "bg-accent-tint text-accent",
-        success: "bg-success-tint text-success",
-        warning: "bg-warning-tint text-warning",
-        danger: "bg-danger-tint text-danger",
-        info: "bg-info-tint text-info",
-      },
-      size: {
-        xs: "h-pill-xs px-1.5 leading-none",
-        sm: "h-pill-sm px-2 leading-none",
-        md: "h-pill-md px-2.5 leading-none",
-      },
-      mono: {
-        true: "font-mono",
-        false: "font-sans",
-      },
-      solid: { true: "", false: "" },
-      active: { true: "", false: "" },
-    },
-    compoundVariants: [
-      { mono: true, size: "xs", className: "text-mono-id font-semibold tracking-mono-id" },
-      { mono: true, size: "sm", className: "text-mono-id font-semibold tracking-mono-id" },
-      { mono: true, size: "md", className: "text-mono-id font-semibold tracking-mono-id" },
-      { mono: false, size: "xs", className: "text-eyebrow font-medium tracking-eyebrow" },
-      { mono: false, size: "sm", className: "text-eyebrow font-medium tracking-eyebrow" },
-      { mono: false, size: "md", className: "text-eyebrow font-medium tracking-eyebrow" },
-      { solid: true, tone: "neutral", className: "bg-muted text-canvas" },
-      { solid: true, tone: "accent", className: "bg-accent text-accent-ink" },
-      { solid: true, tone: "success", className: "bg-success text-canvas" },
-      { solid: true, tone: "warning", className: "bg-warning text-canvas" },
-      { solid: true, tone: "danger", className: "bg-danger text-canvas" },
-      { solid: true, tone: "info", className: "bg-info text-canvas" },
-      {
-        active: true,
-        className: "bg-elevated text-fg-strong",
-      },
-    ],
-    defaultVariants: {
-      tone: "neutral",
-      size: "sm",
-      mono: false,
-      solid: false,
-    },
-  }
-);
 
 type PillVariantOptions = VariantProps<typeof pillVariants>;
 
@@ -213,4 +161,5 @@ const PillRoot = Pill as typeof Pill & { Dot: typeof PillDot; Link: typeof PillL
 PillRoot.Dot = PillDot;
 PillRoot.Link = PillLink;
 
-export { PillRoot as Pill, PillDot, PillLink, pillVariants };
+export { PillRoot as Pill, PillDot, PillLink };
+export type { PillSize, PillTone };

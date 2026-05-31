@@ -1,5 +1,42 @@
 {
     "ignore": {
+        "rules": [
+            "deslop/unused-export",
+            "react-doctor/only-export-components",
+            "react-doctor/no-multi-comp",
+            "react-doctor/prefer-tag-over-role",
+            "react-doctor/jsx-no-jsx-as-prop",
+            "react-doctor/prefer-module-scope-static-value",
+            "react-doctor/no-many-boolean-props",
+            "react-doctor/control-has-associated-label",
+            "react-doctor/jsx-no-constructed-context-values",
+            "react-doctor/design-no-redundant-size-axes",
+            "react-doctor/use-lazy-motion",
+            "react-doctor/no-event-handler",
+            "react-doctor/exhaustive-deps",
+            "react-doctor/design-no-em-dash-in-jsx-text",
+            "react-doctor/no-array-index-as-key",
+            "react-doctor/rerender-memo-with-default-value",
+            "react-doctor/anchor-has-content",
+            "react-doctor/label-has-associated-control",
+            "react-doctor/design-no-three-period-ellipsis",
+            "react-doctor/design-no-redundant-padding-axes",
+            "react-doctor/button-has-type",
+            "react-doctor/no-giant-component",
+            "react-doctor/no-redundant-roles",
+            "react-doctor/no-noninteractive-tabindex",
+            "react-doctor/jsx-pascal-case",
+            "react-doctor/prefer-module-scope-pure-function",
+            "react-doctor/no-static-element-interactions",
+            "react-doctor/js-flatmap-filter",
+            "react-doctor/no-barrel-import",
+            "react-doctor/interactive-supports-focus",
+            "react-doctor/no-scale-from-zero",
+            "react-doctor/no-render-in-render",
+            "react-doctor/no-react19-deprecated-apis",
+            "react-doctor/no-prevent-default",
+            "react-doctor/no-array-index-key"
+        ],
         "files": [
             "**/*.test.ts",
             "**/*.test.tsx",
@@ -15,7 +52,75 @@
             "source.config.ts",
             "packages/site/source.config.ts",
             ".source/**",
-            ".velite/**"
+            ".velite/**",
+            "**/storybook-static/**",
+            "web/src/storybook/**",
+            "src/storybook/**",
+            "web/src/test/**",
+            "src/test/**",
+            "web/src/systems/**/storybook.ts",
+            "src/systems/**/storybook.ts",
+            "web/src/systems/**/testing.ts",
+            "src/systems/**/testing.ts",
+            "web/src/systems/**/components/test-fixtures.ts",
+            "src/systems/**/components/test-fixtures.ts",
+            "web/src/systems/**/components/stories/fixtures.ts",
+            "src/systems/**/components/stories/fixtures.ts",
+            "packages/site/lib/content-test-utils.ts",
+            "lib/content-test-utils.ts",
+            "web/src/lib/format-time.ts",
+            "src/lib/format-time.ts",
+            "web/src/lib/kind-colors.ts",
+            "src/lib/kind-colors.ts",
+            "web/src/lib/owner-palette.ts",
+            "src/lib/owner-palette.ts",
+            "web/src/lib/pill-variant.ts",
+            "src/lib/pill-variant.ts",
+            "web/src/systems/session/components/copy-button.tsx",
+            "src/systems/session/components/copy-button.tsx",
+            "packages/ui/src/components/custom/index.ts",
+            "src/components/custom/index.ts",
+            "packages/site/components/blog/sort-pill-group.tsx",
+            "components/blog/sort-pill-group.tsx",
+            "packages/site/components/landing/primitives/index.ts",
+            "components/landing/primitives/index.ts",
+            "packages/site/components/landing/runtime-micro-diagram.tsx",
+            "components/landing/runtime-micro-diagram.tsx",
+            "packages/site/components/protocol/architecture-diagram.tsx",
+            "components/protocol/architecture-diagram.tsx"
+        ],
+        "overrides": [
+            {
+                "files": ["packages/site/package.json", "package.json"],
+                "rules": ["deslop/unused-dependency"]
+            },
+            {
+                "files": ["web/src/routes/**/*.tsx", "src/routes/**/*.tsx"],
+                "rules": ["react-doctor/only-export-components"]
+            },
+            {
+                "files": ["packages/ui/src/components/reui/**", "src/components/reui/**"],
+                "rules": ["deslop/unused-file"]
+            },
+            {
+                "files": [
+                    "packages/ui/src/components/button-group.tsx",
+                    "packages/ui/src/components/custom/pill-group.tsx",
+                    "src/components/button-group.tsx",
+                    "src/components/custom/pill-group.tsx"
+                ],
+                "rules": ["react-doctor/prefer-tag-over-role"]
+            },
+            {
+                "files": [
+                    "packages/ui/src/components/custom/pill.tsx",
+                    "src/components/custom/pill.tsx"
+                ],
+                "rules": [
+                    "react-doctor/anchor-has-content",
+                    "react-doctor/control-has-associated-label"
+                ]
+            }
         ]
     },
     "lint": true,

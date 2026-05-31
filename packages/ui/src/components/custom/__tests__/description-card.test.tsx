@@ -1,7 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { DescriptionCard, STREAMDOWN_SAFE_CONFIG } from "../description-card";
+import { DescriptionCard } from "../description-card";
+import { STREAMDOWN_SAFE_CONFIG } from "../markdown";
 import { Markdown } from "../markdown";
 
 interface XssCase {

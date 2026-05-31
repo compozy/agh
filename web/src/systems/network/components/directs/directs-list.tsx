@@ -82,7 +82,7 @@ function DirectsListRow({
         <MessageAvatar
           initialFrom={otherPeerId}
           name={otherPeerId}
-          role={avatarRole}
+          ownerRole={avatarRole}
           seed={otherPeerId}
           sizePx={36}
         />

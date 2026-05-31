@@ -1,25 +1,10 @@
 "use client";
 
 import { Progress as ProgressPrimitive } from "@base-ui/react/progress";
-import { cva, type VariantProps } from "class-variance-authority";
+import type { VariantProps } from "class-variance-authority";
 
 import { cn } from "../lib/utils";
-
-const progressIndicatorVariants = cva("h-full transition-all", {
-  variants: {
-    tone: {
-      accent: "bg-accent",
-      success: "bg-success",
-      warning: "bg-warning",
-      danger: "bg-danger",
-      info: "bg-info",
-      neutral: "bg-neutral",
-    },
-  },
-  defaultVariants: {
-    tone: "accent",
-  },
-});
+import { progressIndicatorVariants } from "./progress-variants";
 
 interface ProgressProps extends ProgressPrimitive.Root.Props {
   tone?: VariantProps<typeof progressIndicatorVariants>["tone"];
@@ -85,11 +70,4 @@ function ProgressValue({ className, ...props }: ProgressPrimitive.Value.Props) {
   );
 }
 
-export {
-  Progress,
-  ProgressIndicator,
-  progressIndicatorVariants,
-  ProgressLabel,
-  ProgressTrack,
-  ProgressValue,
-};
+export { Progress, ProgressIndicator, ProgressLabel, ProgressTrack, ProgressValue };

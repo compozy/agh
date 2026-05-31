@@ -7,11 +7,12 @@ import { Toaster, TooltipProvider, UIProvider } from "@agh/ui";
 import type { TopbarRouteContext } from "@/types/topbar";
 import { routeTree } from "./routeTree.gen";
 
-import * as TanStackQueryProvider from "./integrations/tanstack-query/root-provider";
+import { getContext } from "./integrations/tanstack-query/root-context";
+import { Provider as TanStackQueryProvider } from "./integrations/tanstack-query/root-provider";
 
 import "./styles.css";
 
-const TanStackQueryProviderContext = TanStackQueryProvider.getContext();
+const TanStackQueryProviderContext = getContext();
 const router = createRouter({
   routeTree,
   context: {
@@ -46,9 +47,9 @@ if (rootElement && !rootElement.innerHTML) {
     <StrictMode>
       <UIProvider reducedMotion="user">
         <TooltipProvider>
-          <TanStackQueryProvider.Provider {...TanStackQueryProviderContext}>
+          <TanStackQueryProvider {...TanStackQueryProviderContext}>
             <RouterProvider router={router} />
-          </TanStackQueryProvider.Provider>
+          </TanStackQueryProvider>
           <Toaster />
         </TooltipProvider>
       </UIProvider>

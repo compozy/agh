@@ -1,29 +1,10 @@
 "use client";
 
-import { cva, type VariantProps } from "class-variance-authority";
+import type { VariantProps } from "class-variance-authority";
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
-
-const pillGroupSegmentVariants = cva(
-  "inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-xs text-form-label font-medium tracking-eyebrow transition-colors duration-base ease-out focus-visible:outline-none focus-visible:shadow-focus-ring disabled:cursor-not-allowed disabled:opacity-50",
-  {
-    variants: {
-      active: {
-        true: "bg-elevated text-fg-strong shadow-highlight",
-        false: "bg-transparent text-subtle hover:text-muted",
-      },
-      size: {
-        sm: "min-h-(--height-pill-group-segment-sm) px-(--space-pill-group-segment-sm-x)",
-        md: "min-h-(--height-pill-group-segment-md) px-(--space-pill-group-segment-md-x)",
-      },
-    },
-    defaultVariants: {
-      active: false,
-      size: "md",
-    },
-  }
-);
+import { pillGroupSegmentVariants } from "./pill-group-variants";
 
 export type PillGroupSize = NonNullable<VariantProps<typeof pillGroupSegmentVariants>["size"]>;
 
@@ -98,4 +79,4 @@ function PillGroup<V extends string = string>({
   );
 }
 
-export { PillGroup, pillGroupSegmentVariants };
+export { PillGroup };

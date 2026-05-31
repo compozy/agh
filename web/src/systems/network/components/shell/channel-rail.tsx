@@ -105,7 +105,7 @@ function DirectRoomRailRow({
       <MessageAvatar
         initialFrom={otherPeerId}
         name={otherPeerId}
-        role="agent"
+        ownerRole="agent"
         seed={otherPeerId}
         sizePx={20}
       />

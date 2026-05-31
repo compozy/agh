@@ -1357,11 +1357,11 @@ agh session list --active`;
       <div className="grid gap-4 pt-4 md:grid-cols-2">
         <CodeBlock code={sampleCode} language="shell" />
         <div className="flex flex-col gap-3">
-          <ChatMessageBubble role="user" meta={<span>YOU · 10:42</span>}>
+          <ChatMessageBubble messageRole="user" meta={<span>YOU · 10:42</span>}>
             Spin up a new run against the research workspace.
           </ChatMessageBubble>
           <ChatMessageBubble
-            role="agent"
+            messageRole="agent"
             meta={
               <>
                 <Pill.Dot tone="success" size="sm" />
@@ -1371,14 +1371,14 @@ agh session list --active`;
           >
             Starting run_01HQ8… against agh-core. Streaming events to the inspector.
           </ChatMessageBubble>
-          <ChatMessageBubble role="tool">
+          <ChatMessageBubble messageRole="tool">
             <ToolCallCard
               toolName="read_file"
               filePath="internal/daemon/daemon.go"
               status="in_progress"
             />
           </ChatMessageBubble>
-          <ChatMessageBubble role="system">Session idle · 2m</ChatMessageBubble>
+          <ChatMessageBubble messageRole="system">Session idle · 2m</ChatMessageBubble>
         </div>
       </div>
     </Section>

@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { Streamdown, defaultUrlTransform, type Components } from "streamdown";
+import { Streamdown, type Components } from "streamdown";
 
 import { cn } from "../../lib/utils";
+import { STREAMDOWN_SAFE_CONFIG } from "./markdown-config";
 
 /**
  * Markdown Safe-Mode Contract.
@@ -22,93 +23,6 @@ import { cn } from "../../lib/utils";
  * Owned by `<Markdown />` — every markdown surface in the runtime UI (description
  * cards, chat messages, tool-call panels) consumes the same contract.
  */
-const SAFE_DISALLOWED_ELEMENTS = [
-  "script",
-  "iframe",
-  "object",
-  "embed",
-  "form",
-  "input",
-  "button",
-  "style",
-  "link",
-  "meta",
-  "base",
-  "svg",
-  "math",
-] as const;
-
-function isExternalUrl(value: string): boolean {
-  if (!value) return false;
-  if (value.startsWith("//")) return true;
-  return /^[a-z][a-z0-9+.-]*:/i.test(value);
-}
-
-function SafeImage({
-  src,
-  alt,
-  width,
-  height,
-  title,
-  className,
-}: React.ImgHTMLAttributes<HTMLImageElement>) {
-  const url = typeof src === "string" ? src : "";
-  const altText = typeof alt === "string" && alt.length > 0 ? alt : "image";
-  if (isExternalUrl(url)) {
-    return (
-      <span
-        data-slot="markdown-image-fallback"
-        className="text-muted italic"
-      >{`[image: ${altText}]`}</span>
-    );
-  }
-  return (
-    <img
-      data-slot="markdown-image"
-      src={url}
-      alt={altText}
-      width={width}
-      height={height}
-      title={title}
-      className={cn("max-w-full rounded", className)}
-    />
-  );
-}
-
-/**
- * Component overrides that force streamdown to emit the canonical HTML elements named in
- * the safe-mode allowlist (`strong`, `em`, `code`, `kbd`, `s`, `del`, `ins`, `mark`,
- * `blockquote`, `a`) instead of streamdown's `<span data-streamdown="...">` wrappers.
- * Keeps prose styling addressable through `[&_<tag>]:` Tailwind selectors and ensures
- * the rendered DOM matches the TechSpec allowlist contract.
- */
-const SAFE_COMPONENT_OVERRIDES = {
-  strong: "strong",
-  em: "em",
-  code: "code",
-  kbd: "kbd",
-  s: "s",
-  del: "del",
-  ins: "ins",
-  mark: "mark",
-  blockquote: "blockquote",
-  img: SafeImage,
-} as const;
-
-export const STREAMDOWN_SAFE_CONFIG = {
-  /** Strip raw HTML markup from the input source. */
-  skipHtml: true as const,
-  /** Block security-sensitive elements at the output stage as defense-in-depth. */
-  disallowedElements: SAFE_DISALLOWED_ELEMENTS,
-  /** Allow only https/http/mailto/tel/internal-hash schemes; rewrite the rest. */
-  urlTransform: defaultUrlTransform,
-  /** Remove the in-rendered table copy/download dropdowns + line-numbers shipped by default. */
-  controls: false as const,
-  lineNumbers: false as const,
-  /** Force canonical HTML elements (per TechSpec allowlist) + safe `<img>` override. */
-  components: SAFE_COMPONENT_OVERRIDES,
-};
-
 /**
  * Canonical markdown primitive for the AGH runtime UI. Wraps `streamdown` with
  * the `STREAMDOWN_SAFE_CONFIG` security contract and a single set of prose
@@ -214,3 +128,4 @@ const Markdown = React.memo(MarkdownInner);
 Markdown.displayName = "Markdown";
 
 export { Markdown };
+export { STREAMDOWN_SAFE_CONFIG };

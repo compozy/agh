@@ -105,7 +105,7 @@ export function DirectRoom({ workspaceId, channel, directId, selfPeerId }: Direc
               <MessageAvatar
                 initialFrom={otherPeerId}
                 name={otherPeerId}
-                role="agent"
+                ownerRole="agent"
                 seed={otherPeerId}
                 sizePx={32}
               />
