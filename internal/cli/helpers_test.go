@@ -101,6 +101,7 @@ type stubClient struct {
 	inspectSessionFn             func(context.Context, string, SessionInspectQuery) (SessionInspectRecord, error)
 	refreshSessionSoulFn         func(context.Context, string, SessionSoulRefreshRequest) (AgentSoulRecord, error)
 	stopSessionFn                func(context.Context, string) error
+	deleteSessionFn              func(context.Context, string) error
 	resumeSessionFn              func(context.Context, string) (SessionRecord, error)
 	sessionRecapFn               func(context.Context, string, int) (SessionRecapRecord, error)
 	repairSessionFn              func(context.Context, string, SessionRepairQuery) (SessionRepairRecord, error)
@@ -1028,6 +1029,13 @@ func (s *stubClient) StopSession(ctx context.Context, id string) error {
 		return s.stopSessionFn(ctx, id)
 	}
 	return errors.New("unexpected StopSession call")
+}
+
+func (s *stubClient) DeleteSession(ctx context.Context, id string) error {
+	if s.deleteSessionFn != nil {
+		return s.deleteSessionFn(ctx, id)
+	}
+	return errors.New("unexpected DeleteSession call")
 }
 
 func (s *stubClient) ResumeSession(ctx context.Context, id string) (SessionRecord, error) {

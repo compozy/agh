@@ -1554,7 +1554,7 @@ func TestGlobalDBWorkspaceCRUDAndLookups(t *testing.T) {
 	}
 }
 
-func TestGlobalDBDeleteWorkspaceReturnsHasSessionsWhenReferenced(t *testing.T) {
+func TestGlobalDBDeleteWorkspaceCascadeDeletesStoppedSessions(t *testing.T) {
 	t.Parallel()
 
 	globalDB := openTestGlobalDB(t)
@@ -1568,6 +1568,58 @@ func TestGlobalDBDeleteWorkspaceReturnsHasSessionsWhenReferenced(t *testing.T) {
 		ID:          "sess-delete-guard",
 		AgentName:   "coder",
 		WorkspaceID: workspaceID,
+		State:       "stopped",
+		CreatedAt:   time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
+		UpdatedAt:   time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("RegisterSession() error = %v", err)
+	}
+
+	if err := globalDB.DeleteWorkspace(testutil.Context(t), workspaceID); err != nil {
+		t.Fatalf("DeleteWorkspace() error = %v, want nil", err)
+	}
+
+	sessions, err := globalDB.ListSessions(testutil.Context(t), SessionListQuery{
+		WorkspaceID: workspaceID,
+	})
+	if err != nil {
+		t.Fatalf("ListSessions() error = %v", err)
+	}
+	if len(sessions) != 0 {
+		t.Fatalf("ListSessions() = %d sessions, want 0 (cascade delete)", len(sessions))
+	}
+}
+
+func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		globalDB,
+		"ws-no-sessions",
+		filepath.Join(t.TempDir(), "ws-no-sessions"),
+	)
+
+	if err := globalDB.DeleteWorkspace(testutil.Context(t), workspaceID); err != nil {
+		t.Fatalf("DeleteWorkspace() error = %v, want nil", err)
+	}
+}
+
+func TestGlobalDBDeleteWorkspaceRejectsActiveSessions(t *testing.T) {
+	t.Parallel()
+
+	globalDB := openTestGlobalDB(t)
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		globalDB,
+		"ws-active-sessions",
+		filepath.Join(t.TempDir(), "ws-active-sessions"),
+	)
+	if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+		ID:          "sess-active-guard",
+		AgentName:   "coder",
+		WorkspaceID: workspaceID,
 		State:       "active",
 		CreatedAt:   time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
 		UpdatedAt:   time.Date(2026, 4, 3, 14, 0, 0, 0, time.UTC),
@@ -1575,14 +1627,9 @@ func TestGlobalDBDeleteWorkspaceReturnsHasSessionsWhenReferenced(t *testing.T) {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}
 
-	if err := globalDB.DeleteWorkspace(
-		testutil.Context(t),
-		workspaceID,
-	); !errors.Is(
-		err,
-		aghworkspace.ErrWorkspaceHasSessions,
-	) {
-		t.Fatalf("DeleteWorkspace() error = %v, want ErrWorkspaceHasSessions", err)
+	err := globalDB.DeleteWorkspace(testutil.Context(t), workspaceID)
+	if !errors.Is(err, aghworkspace.ErrWorkspaceHasActiveSessions) {
+		t.Fatalf("DeleteWorkspace() error = %v, want ErrWorkspaceHasActiveSessions", err)
 	}
 }
 

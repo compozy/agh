@@ -149,6 +149,9 @@ func TestSessionWorkspaceStatusMappings(t *testing.T) {
 	if got := statusForWorkspaceError(workspacepkg.ErrWorkspaceHasSessions); got != http.StatusConflict {
 		t.Fatalf("statusForWorkspaceError(has sessions) = %d, want %d", got, http.StatusConflict)
 	}
+	if got := statusForWorkspaceError(workspacepkg.ErrWorkspaceHasActiveSessions); got != http.StatusConflict {
+		t.Fatalf("statusForWorkspaceError(has active sessions) = %d, want %d", got, http.StatusConflict)
+	}
 	if got := statusForWorkspaceError(
 		workspacepkg.ErrWorkspaceResolverUnavailable,
 	); got != http.StatusServiceUnavailable {

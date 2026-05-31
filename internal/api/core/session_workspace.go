@@ -137,7 +137,8 @@ func statusForWorkspaceError(err error) int {
 		return http.StatusGone
 	case errors.Is(err, workspacepkg.ErrWorkspaceNameTaken),
 		errors.Is(err, workspacepkg.ErrWorkspacePathTaken),
-		errors.Is(err, workspacepkg.ErrWorkspaceHasSessions):
+		errors.Is(err, workspacepkg.ErrWorkspaceHasSessions),
+		errors.Is(err, workspacepkg.ErrWorkspaceHasActiveSessions):
 		return http.StatusConflict
 	case errors.Is(err, workspacepkg.ErrWorkspaceResolverUnavailable):
 		return http.StatusServiceUnavailable

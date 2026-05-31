@@ -142,6 +142,7 @@ func newRootCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newMCPCommand(deps))
 	cmd.AddCommand(newLogsCommand(deps))
 	cmd.AddCommand(newWhoamiCommand(deps))
+	cmd.AddCommand(newOpenCommand(deps))
 	cmd.AddCommand(newDocCommand())
 
 	return cmd

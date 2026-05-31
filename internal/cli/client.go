@@ -178,6 +178,7 @@ type DaemonClient interface {
 	InspectSession(ctx context.Context, id string, query SessionInspectQuery) (SessionInspectRecord, error)
 	RefreshSessionSoul(ctx context.Context, id string, request SessionSoulRefreshRequest) (AgentSoulRecord, error)
 	StopSession(ctx context.Context, id string) error
+	DeleteSession(ctx context.Context, id string) error
 	ResumeSession(ctx context.Context, id string) (SessionRecord, error)
 	SessionRecap(ctx context.Context, id string, limit int) (SessionRecapRecord, error)
 	RepairSession(ctx context.Context, id string, query SessionRepairQuery) (SessionRepairRecord, error)
@@ -2615,6 +2616,21 @@ func (c *unixSocketClient) StopSession(ctx context.Context, id string) error {
 	return c.doJSON(
 		ctx,
 		http.MethodPost,
+		path,
+		nil,
+		nil,
+		nil,
+	)
+}
+
+func (c *unixSocketClient) DeleteSession(ctx context.Context, id string) error {
+	path, err := c.sessionScopedPath(ctx, id, "")
+	if err != nil {
+		return err
+	}
+	return c.doJSON(
+		ctx,
+		http.MethodDelete,
 		path,
 		nil,
 		nil,

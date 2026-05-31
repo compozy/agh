@@ -26,6 +26,8 @@ var (
 	ErrWorkspacePathTaken = errors.New("workspace path already registered")
 	// ErrWorkspaceHasSessions reports that a workspace cannot be deleted because sessions still reference it.
 	ErrWorkspaceHasSessions = errors.New("workspace has sessions")
+	// ErrWorkspaceHasActiveSessions reports that a workspace cannot be deleted because active sessions are running.
+	ErrWorkspaceHasActiveSessions = errors.New("workspace has active sessions")
 	// ErrWorkspaceIdentityInvalid reports a malformed .agh/workspace.toml identity file.
 	ErrWorkspaceIdentityInvalid = errors.New("workspace identity invalid")
 	// ErrWorkspaceIdentityPermissionDenied reports a fail-closed identity file permission failure.
