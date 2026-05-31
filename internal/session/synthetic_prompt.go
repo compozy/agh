@@ -87,12 +87,12 @@ func (m *Manager) interruptAndSubmitSyntheticPrompt(
 	if session == nil {
 		return nil, errors.New("session: session is required")
 	}
-	if err := m.CancelPrompt(ctx, session.ID); err != nil {
+	interruptCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), m.supervision.TimeoutCancelGrace)
+	defer cancel()
+	if err := m.CancelPrompt(interruptCtx, session.ID); err != nil {
 		return nil, err
 	}
-	waitCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), m.supervision.TimeoutCancelGrace)
-	defer cancel()
-	if err := waitForPromptIdle(waitCtx, session); err != nil {
+	if err := waitForPromptIdle(interruptCtx, session); err != nil {
 		return nil, err
 	}
 	return m.submitPromptRequest(ctx, req)

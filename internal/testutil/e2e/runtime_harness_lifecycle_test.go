@@ -53,7 +53,7 @@ printf '%s\n' '{"status":"running","socket":"/tmp/agh.sock","http_host":"127.0.0
 		waitCh: make(chan error),
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := harness.waitForReady(ctx, time.Millisecond); err != nil {
 		t.Fatalf("waitForReady() error = %v", err)

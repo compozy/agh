@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"maps"
 	"math"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -4865,13 +4864,13 @@ func TestManagerForceRunOperations(t *testing.T) {
 		t.Parallel()
 
 		store := newInMemoryManagerStore()
-		enqueuedRunIDs := make([]string, 0)
+		enqueuedPayloads := make([]hookspkg.TaskRunEnqueuedPayload, 0)
 		manager := newTaskManagerForTestWithOptions(t, store, WithTaskRunHooks(recordingTaskRunHooks{
 			enqueued: func(
 				_ context.Context,
 				payload hookspkg.TaskRunEnqueuedPayload,
 			) (hookspkg.TaskRunEnqueuedPayload, error) {
-				enqueuedRunIDs = append(enqueuedRunIDs, payload.RunID)
+				enqueuedPayloads = append(enqueuedPayloads, payload)
 				return payload, nil
 			},
 		}))
@@ -4895,7 +4894,7 @@ func TestManagerForceRunOperations(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ForceFailRun() error = %v", err)
 		}
-		enqueuedRunIDs = enqueuedRunIDs[:0]
+		enqueuedPayloads = enqueuedPayloads[:0]
 
 		retry, err := manager.RetryRun(context.Background(), failed.ID, RetryRunRequest{
 			Metadata: json.RawMessage("{\"source\":\"operator\"}"),
@@ -4909,9 +4908,10 @@ func TestManagerForceRunOperations(t *testing.T) {
 		if retry.Run.PreviousRunID != failed.ID || retry.Run.Status != TaskRunStatusQueued {
 			t.Fatalf("RetryRun().Run = %#v, want queued run linked to previous", retry.Run)
 		}
-		if got, want := enqueuedRunIDs, []string{retry.Run.ID}; !slices.Equal(got, want) {
-			t.Fatalf("enqueued hook run ids = %v, want %v", got, want)
+		if got, want := len(enqueuedPayloads), 1; got != want {
+			t.Fatalf("enqueued hook payload count = %d, want %d", got, want)
 		}
+		assertTaskRunEnqueuedPayload(t, enqueuedPayloads[0], store.tasks[taskRecord.ID], retry.Run, actor)
 		if _, err := manager.RetryRun(context.Background(), failed.ID, RetryRunRequest{}, actor); !errors.Is(
 			err,
 			ErrInvalidStatusTransition,
@@ -4935,13 +4935,13 @@ func TestManagerForceRunOperations(t *testing.T) {
 		t.Parallel()
 
 		store := newInMemoryManagerStore()
-		enqueuedRunIDs := make([]string, 0)
+		enqueuedPayloads := make([]hookspkg.TaskRunEnqueuedPayload, 0)
 		manager := newTaskManagerForTestWithOptions(t, store, WithTaskRunHooks(recordingTaskRunHooks{
 			enqueued: func(
 				_ context.Context,
 				payload hookspkg.TaskRunEnqueuedPayload,
 			) (hookspkg.TaskRunEnqueuedPayload, error) {
-				enqueuedRunIDs = append(enqueuedRunIDs, payload.RunID)
+				enqueuedPayloads = append(enqueuedPayloads, payload)
 				return payload, nil
 			},
 		}))
@@ -4969,7 +4969,7 @@ func TestManagerForceRunOperations(t *testing.T) {
 		escalated := store.runs[run.ID]
 		escalated.Status = TaskRunStatusNeedsAttention
 		store.runs[run.ID] = escalated
-		enqueuedRunIDs = enqueuedRunIDs[:0]
+		enqueuedPayloads = enqueuedPayloads[:0]
 
 		recovered, err := manager.RecoverRun(context.Background(), run.ID, RecoverRunRequest{
 			Reason:   "operator unblocked",
@@ -4987,9 +4987,10 @@ func TestManagerForceRunOperations(t *testing.T) {
 		if recovered.Run.Attempt != run.Attempt+1 {
 			t.Fatalf("RecoverRun().Run.Attempt = %d, want %d", recovered.Run.Attempt, run.Attempt+1)
 		}
-		if got, want := enqueuedRunIDs, []string{recovered.Run.ID}; !slices.Equal(got, want) {
-			t.Fatalf("enqueued hook run ids = %v, want %v", got, want)
+		if got, want := len(enqueuedPayloads), 1; got != want {
+			t.Fatalf("enqueued hook payload count = %d, want %d", got, want)
 		}
+		assertTaskRunEnqueuedPayload(t, enqueuedPayloads[0], store.tasks[taskRecord.ID], recovered.Run, actor)
 		events, err := store.ListTaskEvents(context.Background(), EventQuery{
 			TaskID:    taskRecord.ID,
 			RunID:     recovered.Run.ID,
@@ -5441,6 +5442,50 @@ func TestManagerRecordTaskEventPostCommitNotifications(t *testing.T) {
 			t.Fatalf("live.Timeline.EventID = %q, want %q", got, want)
 		}
 	})
+}
+
+func assertTaskRunEnqueuedPayload(
+	t *testing.T,
+	payload hookspkg.TaskRunEnqueuedPayload,
+	taskRecord Task,
+	run Run,
+	actor ActorContext,
+) {
+	t.Helper()
+	if payload.Event != hookspkg.HookTaskRunEnqueued {
+		t.Fatalf("enqueued hook event = %q, want %q", payload.Event, hookspkg.HookTaskRunEnqueued)
+	}
+	if payload.Timestamp.IsZero() {
+		t.Fatal("enqueued hook timestamp = zero, want dispatch timestamp")
+	}
+	if payload.IdempotencyKey != "" {
+		t.Fatalf("enqueued hook idempotency key = %q, want empty force-op key", payload.IdempotencyKey)
+	}
+	coordinationChannelID := strings.TrimSpace(run.CoordinationChannelID)
+	if coordinationChannelID == "" {
+		coordinationChannelID = strings.TrimSpace(run.NetworkChannel)
+	}
+	want := hookspkg.TaskRunContext{
+		TaskID:                strings.TrimSpace(run.TaskID),
+		RunID:                 strings.TrimSpace(run.ID),
+		WorkspaceID:           strings.TrimSpace(taskRecord.WorkspaceID),
+		CoordinationChannelID: coordinationChannelID,
+		NetworkChannel:        strings.TrimSpace(run.NetworkChannel),
+		AgentName:             "",
+		SessionID:             strings.TrimSpace(run.SessionID),
+		ActorKind:             string(actor.Actor.Kind.Normalize()),
+		ActorID:               strings.TrimSpace(actor.Actor.Ref),
+		OriginKind:            string(actor.Origin.Kind.Normalize()),
+		OriginRef:             strings.TrimSpace(actor.Origin.Ref),
+		TaskStatus:            string(taskRecord.Status.Normalize()),
+		RunStatus:             string(run.Status.Normalize()),
+		Attempt:               run.Attempt,
+		LeaseUntil:            run.LeaseUntil,
+		Error:                 strings.TrimSpace(run.Error),
+	}
+	if payload.TaskRunContext != want {
+		t.Fatalf("enqueued hook context = %#v, want %#v", payload.TaskRunContext, want)
+	}
 }
 
 func TestManagerNetworkPeerEnqueueRunUsesOriginScopedIdempotency(t *testing.T) {

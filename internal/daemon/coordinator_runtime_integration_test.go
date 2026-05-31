@@ -115,6 +115,7 @@ func newCoordinatorTaskManagerIntegration(
 		},
 	}
 	runtime, err := newCoordinatorRuntime(
+		ctx,
 		db,
 		sessions,
 		&staticCoordinatorConfigResolver{cfg: coordinatorRuntimeConfig()},

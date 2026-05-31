@@ -2494,6 +2494,87 @@ func TestPromptSyntheticInterruptsAgentWaitingTurnWhenRequested(t *testing.T) {
 			t.Fatalf("cancel calls = %d, want 1", got)
 		}
 	})
+
+	t.Run("Should bound cancel when interrupting agent waiting for synthetic prompt", func(t *testing.T) {
+		t.Parallel()
+
+		supervision := aghconfig.DefaultSessionSupervisionConfig()
+		supervision.TimeoutCancelGrace = 20 * time.Millisecond
+		h := newHarness(t, WithSessionSupervision(supervision))
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+				t.Fatalf("failed to stop session %s: %v", session.ID, err)
+			}
+		})
+
+		firstPromptEntered := make(chan struct{})
+		releaseFirstPrompt := make(chan struct{})
+		var releaseOnce sync.Once
+		t.Cleanup(func() {
+			releaseOnce.Do(func() {
+				close(releaseFirstPrompt)
+			})
+		})
+		h.driver.cancelWithContextHook = func(ctx context.Context, _ *fakeProcess) error {
+			timer := time.NewTimer(5 * supervision.TimeoutCancelGrace)
+			defer timer.Stop()
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-timer.C:
+				return errors.New("cancel prompt did not receive bounded context")
+			}
+		}
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			if req.Message == "user prompt" {
+				req.ActivityReporter(acp.PromptActivityReport{
+					Kind:   runtimeActivityKindAgentWaiting,
+					Detail: "waiting for detached work",
+				})
+				close(firstPromptEntered)
+				events := make(chan acp.AgentEvent)
+				go func() {
+					<-releaseFirstPrompt
+					close(events)
+				}()
+				return events, nil
+			}
+			events := make(chan acp.AgentEvent)
+			close(events)
+			return events, nil
+		}
+
+		userEventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "user prompt")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		<-firstPromptEntered
+		waitForCondition(t, "agent waiting activity", func() bool {
+			info := session.Info()
+			return info.Liveness != nil &&
+				info.Liveness.Activity != nil &&
+				info.Liveness.Activity.LastActivityKind == runtimeActivityKindAgentWaiting
+		})
+
+		syntheticEventsCh, err := h.manager.PromptSynthetic(testutil.Context(t), session.ID, SyntheticPromptOpts{
+			Message: "detached completion",
+			Metadata: acp.PromptSyntheticMeta{
+				TaskRunID: "run-detached",
+				Reason:    "task_run_completed",
+				Summary:   "detached work completed",
+			},
+			InterruptIfAgentWaiting: true,
+		})
+		if err != nil {
+			t.Fatalf("PromptSynthetic(interrupt waiting) error = %v", err)
+		}
+		releaseOnce.Do(func() {
+			close(releaseFirstPrompt)
+		})
+		_ = collectEvents(t, userEventsCh)
+		_ = collectEvents(t, syntheticEventsCh)
+	})
 }
 
 func TestApprovePermissionRoutesToActiveSession(t *testing.T) {
@@ -4194,21 +4275,22 @@ func (r *fakeEventRecorder) Close(context.Context) error {
 }
 
 type fakeDriver struct {
-	mu               sync.Mutex
-	startCalls       []acp.StartOpts
-	promptCalls      []acp.PromptRequest
-	stopCalls        int
-	cancelCalls      int
-	processes        map[*AgentProcess]*fakeProcess
-	lastProc         *fakeProcess
-	promptHook       func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error)
-	cancelHook       func(proc *fakeProcess) error
-	approveHook      func(proc *fakeProcess, req acp.ApproveRequest) error
-	stopHook         func(proc *fakeProcess) error
-	startHook        func(opts acp.StartOpts, sequence int) (*fakeProcess, error)
-	interruptScopes  []toolruntime.InterruptScope
-	interruptErr     error
-	fallbackOnResume bool
+	mu                    sync.Mutex
+	startCalls            []acp.StartOpts
+	promptCalls           []acp.PromptRequest
+	stopCalls             int
+	cancelCalls           int
+	processes             map[*AgentProcess]*fakeProcess
+	lastProc              *fakeProcess
+	promptHook            func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error)
+	cancelHook            func(proc *fakeProcess) error
+	cancelWithContextHook func(context.Context, *fakeProcess) error
+	approveHook           func(proc *fakeProcess, req acp.ApproveRequest) error
+	stopHook              func(proc *fakeProcess) error
+	startHook             func(opts acp.StartOpts, sequence int) (*fakeProcess, error)
+	interruptScopes       []toolruntime.InterruptScope
+	interruptErr          error
+	fallbackOnResume      bool
 }
 
 type fakeWorkspaceResolver struct {
@@ -4601,15 +4683,19 @@ func (d *fakeDriver) Prompt(
 	return events, nil
 }
 
-func (d *fakeDriver) Cancel(_ context.Context, proc *AgentProcess) error {
+func (d *fakeDriver) Cancel(ctx context.Context, proc *AgentProcess) error {
 	d.mu.Lock()
 	fakeProc := d.processes[proc]
 	d.cancelCalls++
 	hook := d.cancelHook
+	contextHook := d.cancelWithContextHook
 	d.mu.Unlock()
 
 	if fakeProc == nil {
 		return errors.New("test: unknown fake process")
+	}
+	if contextHook != nil {
+		return contextHook(ctx, fakeProc)
 	}
 	if hook != nil {
 		return hook(fakeProc)

@@ -315,96 +315,143 @@ func TestHarnessHeartbeatWakeIntegration(t *testing.T) {
 		assertDaemonHeartbeatWakeEvent(t, db, workspaceID, agentName, heartbeat.WakeSourceHarnessReentry)
 	})
 
-	t.Run("Should fall back to direct reentry when heartbeat sees an active prompt", func(t *testing.T) {
+	t.Run("Should fall back to direct reentry when heartbeat cannot own the prompt", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t)
-		db := openDaemonTestGlobalDB(t)
-		workspaceID := "ws-heartbeat-busy-harness"
-		sessionID := "sess-heartbeat-busy-harness"
-		agentName := "coder"
-		base := time.Date(2026, 5, 2, 13, 0, 0, 0, time.UTC)
-		seedDaemonHeartbeatWakePolicy(ctx, t, db, workspaceID, sessionID, agentName, base)
-		health := daemonEligibleHeartbeatHealth(sessionID, workspaceID, agentName, base)
-		health.ActivePrompt = true
-		health.EligibleForWake = false
-		health.IneligibilityReason = string(heartbeat.SessionHealthReasonPromptActive)
-		sessions := &fakeSessionManager{
-			infos: []*session.Info{{
-				ID:          sessionID,
-				AgentName:   agentName,
-				WorkspaceID: workspaceID,
-				State:       session.StateActive,
-				CreatedAt:   base.Add(-time.Hour),
-			}},
-			healthRows: map[string]heartbeat.SessionHealth{sessionID: health},
-		}
-		bridge, err := newHarnessReentryBridge(
-			ctx,
-			NewHarnessContextResolver(HarnessRuntimeSignals{
-				SyntheticTurnsEnabled:      true,
-				DetachedTaskRuntimeEnabled: true,
-			}),
-			nil,
-			db,
-			sessions,
-			discardLogger(),
-			withHarnessHeartbeatWake(db, sessions, aghconfig.DefaultHeartbeatConfig()),
-		)
-		if err != nil {
-			t.Fatalf("newHarnessReentryBridge() error = %v", err)
-		}
-		t.Cleanup(bridge.shutdown)
-
-		wake := harnessSyntheticWake{
-			runID:             "run-heartbeat-busy-harness",
-			targetSessionID:   sessionID,
-			targetAgentName:   agentName,
-			targetWorkspaceID: workspaceID,
-			syntheticMessage:  "wake the busy session directly",
-			syntheticMeta: acp.PromptSyntheticMeta{
-				TaskID:    "task-heartbeat-busy-harness",
-				TaskRunID: "run-heartbeat-busy-harness",
+		tests := []struct {
+			name           string
+			suffix         string
+			configure      func(*heartbeat.SessionHealth, *fakeSessionManager)
+			wantReason     heartbeat.WakeReason
+			wantPrompts    int
+			wantWakeEvents int
+		}{
+			{
+				name:   "Should fall back after active prompt health",
+				suffix: "active",
+				configure: func(health *heartbeat.SessionHealth, _ *fakeSessionManager) {
+					health.ActivePrompt = true
+					health.EligibleForWake = false
+					health.IneligibilityReason = string(heartbeat.SessionHealthReasonPromptActive)
+				},
+				wantReason:     heartbeat.WakeReasonSessionPromptActive,
+				wantPrompts:    1,
+				wantWakeEvents: 1,
+			},
+			{
+				name:   "Should fall back after prompt race",
+				suffix: "race",
+				configure: func(_ *heartbeat.SessionHealth, sessions *fakeSessionManager) {
+					sessions.syntheticPromptHook = func(
+						_ context.Context,
+						_ string,
+						opts session.SyntheticPromptOpts,
+					) (<-chan acp.AgentEvent, error) {
+						if opts.SkipIfBusy {
+							return nil, session.ErrPromptInProgress
+						}
+						ch := make(chan acp.AgentEvent)
+						close(ch)
+						return ch, nil
+					}
+				},
+				wantReason:     heartbeat.WakeReasonSessionPromptRace,
+				wantPrompts:    2,
+				wantWakeEvents: 2,
 			},
 		}
-		handled := bridge.dispatchHeartbeatWake(wake)
-		if handled {
-			t.Fatal("dispatchHeartbeatWake() = true, want fallback for active prompt")
-		}
-		if got := sessions.syntheticPromptCount(); got != 0 {
-			t.Fatalf("synthetic prompt count = %d, want 0 before direct fallback", got)
-		}
-		events, err := db.ListHeartbeatWakeEvents(testutil.Context(t), heartbeat.WakeEventListQuery{
-			WorkspaceID: workspaceID,
-			AgentName:   agentName,
-			Source:      heartbeat.WakeSourceHarnessReentry,
-		})
-		if err != nil {
-			t.Fatalf("ListHeartbeatWakeEvents() error = %v", err)
-		}
-		if got, want := len(events), 1; got != want {
-			t.Fatalf("wake event count = %d, want %d: %#v", got, want, events)
-		}
-		if events[0].Result != heartbeat.WakeResultSkipped ||
-			events[0].Reason != heartbeat.WakeReasonSessionPromptActive {
-			t.Fatalf("wake event = %#v, want skipped active prompt", events[0])
-		}
 
-		bridge.dispatchWake(wake)
-		if got := sessions.syntheticPromptCount(); got != 1 {
-			t.Fatalf("synthetic prompt count = %d, want 1 after direct fallback", got)
-		}
-		sessions.mu.Lock()
-		syntheticCalls := append([]fakeSyntheticPromptCall(nil), sessions.syntheticPromptCalls...)
-		sessions.mu.Unlock()
-		if got := syntheticCalls[0].id; got != sessionID {
-			t.Fatalf("synthetic prompt session id = %q, want %q", got, sessionID)
-		}
-		if !syntheticCalls[0].opts.InterruptIfAgentWaiting {
-			t.Fatal("synthetic prompt InterruptIfAgentWaiting = false, want true")
-		}
-		if got, want := syntheticCalls[0].opts.Metadata.TaskRunID, "run-heartbeat-busy-harness"; got != want {
-			t.Fatalf("synthetic prompt task run id = %q, want %q", got, want)
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t)
+				db := openDaemonTestGlobalDB(t)
+				workspaceID := "ws-heartbeat-busy-harness-" + tc.suffix
+				sessionID := "sess-heartbeat-busy-harness-" + tc.suffix
+				agentName := "coder"
+				base := time.Date(2026, 5, 2, 13, 0, 0, 0, time.UTC)
+				seedDaemonHeartbeatWakePolicy(ctx, t, db, workspaceID, sessionID, agentName, base)
+				health := daemonEligibleHeartbeatHealth(sessionID, workspaceID, agentName, base)
+				sessions := &fakeSessionManager{
+					infos: []*session.Info{{
+						ID:          sessionID,
+						AgentName:   agentName,
+						WorkspaceID: workspaceID,
+						State:       session.StateActive,
+						CreatedAt:   base.Add(-time.Hour),
+					}},
+					healthRows: map[string]heartbeat.SessionHealth{sessionID: health},
+				}
+				tc.configure(&health, sessions)
+				sessions.healthRows[sessionID] = health
+				bridge, err := newHarnessReentryBridge(
+					ctx,
+					NewHarnessContextResolver(HarnessRuntimeSignals{
+						SyntheticTurnsEnabled:      true,
+						DetachedTaskRuntimeEnabled: true,
+					}),
+					nil,
+					db,
+					sessions,
+					discardLogger(),
+					withHarnessHeartbeatWake(db, sessions, aghconfig.DefaultHeartbeatConfig()),
+				)
+				if err != nil {
+					t.Fatalf("newHarnessReentryBridge() error = %v", err)
+				}
+				t.Cleanup(bridge.shutdown)
+
+				wake := harnessSyntheticWake{
+					runID:             "run-heartbeat-busy-harness-" + tc.suffix,
+					targetSessionID:   sessionID,
+					targetAgentName:   agentName,
+					targetWorkspaceID: workspaceID,
+					syntheticMessage:  "wake the busy session directly",
+					syntheticMeta: acp.PromptSyntheticMeta{
+						TaskID:    "task-heartbeat-busy-harness-" + tc.suffix,
+						TaskRunID: "run-heartbeat-busy-harness-" + tc.suffix,
+					},
+				}
+				bridge.dispatchWake(wake)
+				if got := sessions.syntheticPromptCount(); got != tc.wantPrompts {
+					t.Fatalf("synthetic prompt count = %d, want %d", got, tc.wantPrompts)
+				}
+				events, err := db.ListHeartbeatWakeEvents(testutil.Context(t), heartbeat.WakeEventListQuery{
+					WorkspaceID: workspaceID,
+					AgentName:   agentName,
+					Source:      heartbeat.WakeSourceHarnessReentry,
+				})
+				if err != nil {
+					t.Fatalf("ListHeartbeatWakeEvents() error = %v", err)
+				}
+				if got, want := len(events), tc.wantWakeEvents; got != want {
+					t.Fatalf("wake event count = %d, want %d: %#v", got, want, events)
+				}
+				matchingSkippedEvents := 0
+				for _, event := range events {
+					if event.Result == heartbeat.WakeResultSkipped && event.Reason == tc.wantReason {
+						matchingSkippedEvents++
+					}
+				}
+				if got, want := matchingSkippedEvents, 1; got != want {
+					t.Fatalf("skipped wake events = %d, want %d for reason %s: %#v", got, want, tc.wantReason, events)
+				}
+
+				sessions.mu.Lock()
+				syntheticCalls := append([]fakeSyntheticPromptCall(nil), sessions.syntheticPromptCalls...)
+				sessions.mu.Unlock()
+				directCall := syntheticCalls[len(syntheticCalls)-1]
+				if got := directCall.id; got != sessionID {
+					t.Fatalf("synthetic prompt session id = %q, want %q", got, sessionID)
+				}
+				if !directCall.opts.InterruptIfAgentWaiting {
+					t.Fatal("synthetic prompt InterruptIfAgentWaiting = false, want true")
+				}
+				if got, want := directCall.opts.Metadata.TaskRunID, wake.runID; got != want {
+					t.Fatalf("synthetic prompt task run id = %q, want %q", got, want)
+				}
+			})
 		}
 	})
 }

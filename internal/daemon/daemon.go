@@ -427,6 +427,7 @@ type Daemon struct {
 	situationContext             *situation.Service
 	sessions                     SessionManager
 	tasks                        *taskRuntime
+	coordinator                  *coordinatorRuntime
 	spawnReaper                  *spawnReaper
 	scheduler                    *schedulerRuntime
 	network                      networkRuntime
@@ -455,6 +456,7 @@ type Daemon struct {
 
 type shutdownTargets struct {
 	scheduler           *schedulerRuntime
+	coordinator         *coordinatorRuntime
 	spawnReaper         *spawnReaper
 	tasks               *taskRuntime
 	sessions            SessionManager
@@ -1290,6 +1292,7 @@ func (d *Daemon) detachShutdownTargets() shutdownTargets {
 
 	targets := shutdownTargets{
 		scheduler:           d.scheduler,
+		coordinator:         d.coordinator,
 		spawnReaper:         d.spawnReaper,
 		tasks:               d.tasks,
 		sessions:            d.sessions,
@@ -1324,6 +1327,7 @@ func (d *Daemon) detachShutdownTargets() shutdownTargets {
 func (d *Daemon) resetRuntimeStateLocked() {
 	d.sessions = nil
 	d.tasks = nil
+	d.coordinator = nil
 	d.spawnReaper = nil
 	d.scheduler = nil
 	d.hooks = nil
@@ -1406,6 +1410,9 @@ func (d *Daemon) shutdownRuntimeWorkers(ctx context.Context, targets shutdownTar
 	}
 	if err := d.stopSessions(ctx, targets.sessions); err != nil {
 		*errs = append(*errs, err)
+	}
+	if targets.coordinator != nil {
+		appendWrappedError(errs, "daemon: shutdown coordinator runtime", targets.coordinator.shutdown(ctx))
 	}
 	if targets.scheduler != nil {
 		appendWrappedError(errs, "daemon: shutdown scheduler wake dispatcher", targets.scheduler.shutdownWaker(ctx))

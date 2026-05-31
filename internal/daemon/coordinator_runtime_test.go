@@ -215,7 +215,18 @@ func TestCoordinatorRuntimePreventsDuplicateCoordinatorsUnderConcurrentEnqueue(t
 	t.Parallel()
 
 	store := newCoordinatorRuntimeStore(coordinatorRuntimeTask(), coordinatorRuntimeRun())
-	sessions := &coordinatorRuntimeSessions{}
+	promptStarted := make(chan struct{}, 1)
+	releasePrompt := make(chan struct{})
+	var releaseOnce sync.Once
+	t.Cleanup(func() {
+		releaseOnce.Do(func() {
+			close(releasePrompt)
+		})
+	})
+	sessions := &coordinatorRuntimeSessions{
+		promptStarted: promptStarted,
+		promptRelease: releasePrompt,
+	}
 	runtime := newCoordinatorRuntimeForTest(
 		t,
 		store,
@@ -226,10 +237,9 @@ func TestCoordinatorRuntimePreventsDuplicateCoordinatorsUnderConcurrentEnqueue(t
 	)
 
 	const attempts = 24
-	var wg sync.WaitGroup
 	errs := make(chan error, attempts)
 	for range attempts {
-		wg.Go(func() {
+		go func() {
 			_, _, err := runtime.bootstrapRun(
 				context.Background(),
 				store.tasks["task-1"],
@@ -237,17 +247,83 @@ func TestCoordinatorRuntimePreventsDuplicateCoordinatorsUnderConcurrentEnqueue(t
 				coordinator.ReasonRunEnqueued,
 			)
 			errs <- err
-		})
+		}()
 	}
-	wg.Wait()
-	close(errs)
-	for err := range errs {
-		if err != nil {
-			t.Fatalf("bootstrapRun() concurrent error = %v", err)
+	select {
+	case <-promptStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for first coordinator prompt")
+	}
+	for range attempts - 1 {
+		select {
+		case err := <-errs:
+			if err != nil {
+				t.Fatalf("bootstrapRun() concurrent error = %v", err)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("timed out waiting for concurrent bootstrap calls to coalesce")
 		}
 	}
 	if got := sessions.createCount(); got != 1 {
 		t.Fatalf("Create count = %d, want 1", got)
+	}
+	if got := sessions.promptCount(); got != 1 {
+		t.Fatalf("PromptSynthetic count = %d, want 1", got)
+	}
+	prompt := sessions.promptCall(0)
+	assertCoordinatorPromptInterrupt(t, prompt)
+	if prompt.id != "coord-1" {
+		t.Fatalf("PromptSynthetic id = %q, want coord-1", prompt.id)
+	}
+	if prompt.opts.Metadata.TaskID != "task-1" ||
+		prompt.opts.Metadata.TaskRunID != "run-1" ||
+		prompt.opts.Metadata.CoordinatorSessionID != "coord-1" ||
+		prompt.opts.Metadata.Reason != coordinator.ReasonRunEnqueued {
+		t.Fatalf("PromptSynthetic metadata = %#v, want task/run/coordinator/reason", prompt.opts.Metadata)
+	}
+	releaseOnce.Do(func() {
+		close(releasePrompt)
+	})
+	select {
+	case err := <-errs:
+		if err != nil {
+			t.Fatalf("bootstrapRun() prompt owner error = %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for prompt owner bootstrap")
+	}
+}
+
+func TestCoordinatorRuntimeShutdownStopsPromptEventDrains(t *testing.T) {
+	t.Parallel()
+
+	store := newCoordinatorRuntimeStore(coordinatorRuntimeTask(), coordinatorRuntimeRun())
+	events := make(chan acp.AgentEvent)
+	t.Cleanup(func() {
+		close(events)
+	})
+	sessions := &coordinatorRuntimeSessions{promptEvents: events}
+	runtime := newCoordinatorRuntimeForTest(
+		t,
+		store,
+		sessions,
+		&recordingCoordinatorHooks{},
+		coordinatorRuntimeConfig(),
+		time.Now().UTC(),
+	)
+	if err := runtime.promptCoordinator(
+		context.Background(),
+		&session.Info{ID: "coord-drain"},
+		coordinator.Decision{TaskID: "task-1", RunID: "run-1"},
+		coordinator.ReasonRunEnqueued,
+	); err != nil {
+		t.Fatalf("promptCoordinator() error = %v", err)
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	if err := runtime.shutdown(shutdownCtx); err != nil {
+		t.Fatalf("shutdown() error = %v", err)
 	}
 }
 
@@ -500,6 +576,7 @@ func newCoordinatorRuntimeForTest(
 ) *coordinatorRuntime {
 	t.Helper()
 	runtime, err := newCoordinatorRuntime(
+		context.Background(),
 		store,
 		sessions,
 		&staticCoordinatorConfigResolver{cfg: cfg},
@@ -618,14 +695,17 @@ func (s *coordinatorRuntimeStore) ListTaskRunsByStatus(
 }
 
 type coordinatorRuntimeSessions struct {
-	mu          sync.Mutex
-	infos       []*session.Info
-	createCalls []session.CreateOpts
-	createErr   error
-	promptCalls []coordinatorRuntimePromptCall
-	promptErr   error
-	stopCalls   []coordinatorRuntimeStopCall
-	stopErr     error
+	mu            sync.Mutex
+	infos         []*session.Info
+	createCalls   []session.CreateOpts
+	createErr     error
+	promptCalls   []coordinatorRuntimePromptCall
+	promptErr     error
+	promptEvents  <-chan acp.AgentEvent
+	promptStarted chan struct{}
+	promptRelease <-chan struct{}
+	stopCalls     []coordinatorRuntimeStopCall
+	stopErr       error
 }
 
 type coordinatorRuntimePromptCall struct {
@@ -687,15 +767,35 @@ func (s *coordinatorRuntimeSessions) ListAll(context.Context) ([]*session.Info, 
 }
 
 func (s *coordinatorRuntimeSessions) PromptSynthetic(
-	_ context.Context,
+	ctx context.Context,
 	id string,
 	opts session.SyntheticPromptOpts,
 ) (<-chan acp.AgentEvent, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.promptCalls = append(s.promptCalls, coordinatorRuntimePromptCall{id: id, opts: opts})
-	if s.promptErr != nil {
-		return nil, s.promptErr
+	promptErr := s.promptErr
+	promptEvents := s.promptEvents
+	promptStarted := s.promptStarted
+	promptRelease := s.promptRelease
+	s.mu.Unlock()
+	if promptStarted != nil {
+		select {
+		case promptStarted <- struct{}{}:
+		default:
+		}
+	}
+	if promptErr != nil {
+		return nil, promptErr
+	}
+	if promptRelease != nil {
+		select {
+		case <-promptRelease:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	if promptEvents != nil {
+		return promptEvents, nil
 	}
 	ch := make(chan acp.AgentEvent)
 	close(ch)

@@ -2183,6 +2183,7 @@ func (d *Daemon) publishBootState(state *bootState) {
 	d.situationContext = state.situationContext
 	d.sessions = state.sessions
 	d.tasks = state.tasks
+	d.coordinator = state.coordinator
 	d.spawnReaper = state.spawnReaper
 	d.scheduler = state.scheduler
 	d.network = state.network
