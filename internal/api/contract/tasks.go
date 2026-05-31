@@ -663,15 +663,16 @@ type CreateTaskChildRequest struct {
 
 // UpdateTaskRequest is the shared task patch payload.
 type UpdateTaskRequest struct {
-	Title          *string                 `json:"title,omitempty"`
-	Description    *string                 `json:"description,omitempty"`
-	Priority       *taskpkg.Priority       `json:"priority,omitempty"`
-	MaxAttempts    *int                    `json:"max_attempts,omitempty"`
-	ApprovalPolicy *taskpkg.ApprovalPolicy `json:"approval_policy,omitempty"`
-	Metadata       *json.RawMessage        `json:"metadata,omitempty"`
-	NetworkChannel *string                 `json:"network_channel,omitempty"`
-	Owner          *taskpkg.Ownership      `json:"owner,omitempty"`
-	ClearOwner     bool                    `json:"clear_owner,omitempty"`
+	Title              *string                 `json:"title,omitempty"`
+	Description        *string                 `json:"description,omitempty"`
+	Priority           *taskpkg.Priority       `json:"priority,omitempty"`
+	MaxAttempts        *int                    `json:"max_attempts,omitempty"`
+	AutoEnqueueOnReady *bool                   `json:"auto_enqueue_on_ready,omitempty"`
+	ApprovalPolicy     *taskpkg.ApprovalPolicy `json:"approval_policy,omitempty"`
+	Metadata           *json.RawMessage        `json:"metadata,omitempty"`
+	NetworkChannel     *string                 `json:"network_channel,omitempty"`
+	Owner              *taskpkg.Ownership      `json:"owner,omitempty"`
+	ClearOwner         bool                    `json:"clear_owner,omitempty"`
 }
 
 // HasChanges reports whether the patch includes any mutable task field.
@@ -680,6 +681,7 @@ func (r UpdateTaskRequest) HasChanges() bool {
 		r.Description != nil ||
 		r.Priority != nil ||
 		r.MaxAttempts != nil ||
+		r.AutoEnqueueOnReady != nil ||
 		r.ApprovalPolicy != nil ||
 		r.Metadata != nil ||
 		r.NetworkChannel != nil ||

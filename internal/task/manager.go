@@ -534,11 +534,19 @@ func applyTaskPatch(current Task, patch Patch) (Task, []string) {
 		updated.MaxAttempts = *patch.MaxAttempts
 		changedFields = append(changedFields, TaskFieldMaxAttempts)
 	}
+	if patch.AutoEnqueueOnReady != nil && updated.AutoEnqueueOnReady != *patch.AutoEnqueueOnReady {
+		updated.AutoEnqueueOnReady = *patch.AutoEnqueueOnReady
+		changedFields = append(changedFields, TaskFieldAutoEnqueueOnReady)
+	}
 	if patch.ApprovalPolicy != nil && updated.ApprovalPolicy != *patch.ApprovalPolicy {
 		updated.ApprovalPolicy = *patch.ApprovalPolicy
 		updated.ApprovalState = defaultApprovalStateForPolicy(*patch.ApprovalPolicy)
 		changedFields = append(changedFields, TaskFieldApprovalPolicy)
 	}
+	return applyTaskPatchReferences(updated, patch, changedFields)
+}
+
+func applyTaskPatchReferences(updated Task, patch Patch, changedFields []string) (Task, []string) {
 	if patch.Metadata != nil && !sameRawJSON(updated.Metadata, *patch.Metadata) {
 		updated.Metadata = cloneRawJSON(*patch.Metadata)
 		changedFields = append(changedFields, TaskFieldMetadata)
@@ -2451,6 +2459,10 @@ func normalizeTaskPatch(patch Patch) (Patch, error) {
 	if normalized.MaxAttempts != nil {
 		maxAttempts := *normalized.MaxAttempts
 		normalized.MaxAttempts = &maxAttempts
+	}
+	if normalized.AutoEnqueueOnReady != nil {
+		autoEnqueue := *normalized.AutoEnqueueOnReady
+		normalized.AutoEnqueueOnReady = &autoEnqueue
 	}
 	if normalized.ApprovalPolicy != nil {
 		approvalPolicy := normalized.ApprovalPolicy.Normalize()

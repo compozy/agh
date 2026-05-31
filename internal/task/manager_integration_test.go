@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -850,6 +851,107 @@ func TestTaskManagerAutoEnqueueOnReadyEnqueuesDependentOnCompletionIntegration(t
 		}
 		if len(optedOutRuns) != 0 {
 			t.Fatalf("opted-out dependent runs = %d, want 0", len(optedOutRuns))
+		}
+	})
+
+	t.Run("Should enqueue exactly one run when two distinct blockers of one dependent complete concurrently", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openTaskManagerGlobalDB(t)
+		manager := newTaskManagerIntegration(t, db)
+
+		actor, err := taskpkg.DeriveHumanActorContext("user-1", taskpkg.OriginKindCLI, "agh task create")
+		if err != nil {
+			t.Fatalf("DeriveHumanActorContext() error = %v", err)
+		}
+
+		blockerA, err := manager.CreateTask(ctx, taskpkg.CreateTask{Scope: taskpkg.ScopeGlobal, Title: "Blocker A"}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask(blocker A) error = %v", err)
+		}
+		blockerB, err := manager.CreateTask(ctx, taskpkg.CreateTask{Scope: taskpkg.ScopeGlobal, Title: "Blocker B"}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask(blocker B) error = %v", err)
+		}
+		dependent, err := manager.CreateTask(ctx, taskpkg.CreateTask{
+			Scope:              taskpkg.ScopeGlobal,
+			Title:              "Opted-in dependent",
+			AutoEnqueueOnReady: true,
+		}, actor)
+		if err != nil {
+			t.Fatalf("CreateTask(dependent) error = %v", err)
+		}
+		for _, blockerID := range []string{blockerA.ID, blockerB.ID} {
+			if err := manager.AddDependency(ctx, taskpkg.AddDependency{
+				TaskID:          dependent.ID,
+				DependsOnTaskID: blockerID,
+				Kind:            taskpkg.DependencyKindBlocks,
+			}, actor); err != nil {
+				t.Fatalf("AddDependency(%s) error = %v", blockerID, err)
+			}
+		}
+
+		// Claim both blocker runs up front so the two completions can race on the same
+		// ready dependent. Each blocker yields a distinct trigger run id (and idempotency
+		// key), so duplicate-enqueue prevention rests solely on the open-run reservation.
+		type leaseClaim struct {
+			runID string
+			token string
+			actor taskpkg.ActorContext
+		}
+		claims := make([]leaseClaim, 0, 2)
+		for i, blockerID := range []string{blockerA.ID, blockerB.ID} {
+			if _, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{TaskID: blockerID}, actor); err != nil {
+				t.Fatalf("EnqueueRun(%s) error = %v", blockerID, err)
+			}
+			session := "sess-worker-" + strconv.Itoa(i)
+			worker, err := taskpkg.DeriveAgentSessionActorContext(session)
+			if err != nil {
+				t.Fatalf("DeriveAgentSessionActorContext(%s) error = %v", session, err)
+			}
+			claim, err := manager.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+				Scope:            taskpkg.ScopeGlobal,
+				ClaimerSessionID: session,
+				LeaseDuration:    time.Minute,
+			}, worker)
+			if err != nil {
+				t.Fatalf("ClaimNextRun(%s) error = %v", session, err)
+			}
+			claims = append(claims, leaseClaim{runID: claim.Run.ID, token: claim.ClaimToken, actor: worker})
+		}
+
+		var wg sync.WaitGroup
+		errCh := make(chan error, len(claims))
+		for _, c := range claims {
+			wg.Add(1)
+			go func(c leaseClaim) {
+				defer wg.Done()
+				if _, err := manager.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
+					RunID:      c.runID,
+					ClaimToken: c.token,
+					Result:     taskpkg.RunResult{Value: json.RawMessage(`{"ok":true}`)},
+				}, c.actor); err != nil {
+					errCh <- err
+				}
+			}(c)
+		}
+		wg.Wait()
+		close(errCh)
+		for err := range errCh {
+			t.Fatalf("concurrent CompleteRunLease() error = %v", err)
+		}
+
+		// Exactly one queued run despite two distinct blocker completions racing to enqueue.
+		dependentRuns, err := db.ListTaskRuns(ctx, taskpkg.RunQuery{TaskID: dependent.ID})
+		if err != nil {
+			t.Fatalf("ListTaskRuns(dependent) error = %v", err)
+		}
+		if len(dependentRuns) != 1 {
+			t.Fatalf("dependent runs = %d, want exactly 1 auto-enqueued run", len(dependentRuns))
+		}
+		if got, want := dependentRuns[0].Status, taskpkg.TaskRunStatusQueued; got != want {
+			t.Fatalf("auto-enqueued run status = %q, want %q", got, want)
 		}
 	})
 }

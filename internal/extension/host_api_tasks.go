@@ -707,15 +707,16 @@ func taskPatchFromRequest(req apicontract.UpdateTaskRequest) (taskpkg.Patch, err
 	}
 
 	patch := taskpkg.Patch{
-		Title:          trimStringPtr(req.Title),
-		Description:    trimStringPtr(req.Description),
-		Priority:       normalizePriorityPtr(req.Priority),
-		MaxAttempts:    req.MaxAttempts,
-		ApprovalPolicy: normalizeApprovalPolicyPtr(req.ApprovalPolicy),
-		Metadata:       cloneRawMessagePtr(req.Metadata),
-		NetworkChannel: trimStringPtr(req.NetworkChannel),
-		Owner:          cloneOwnership(req.Owner),
-		ClearOwner:     req.ClearOwner,
+		Title:              trimStringPtr(req.Title),
+		Description:        trimStringPtr(req.Description),
+		Priority:           normalizePriorityPtr(req.Priority),
+		MaxAttempts:        req.MaxAttempts,
+		AutoEnqueueOnReady: req.AutoEnqueueOnReady,
+		ApprovalPolicy:     normalizeApprovalPolicyPtr(req.ApprovalPolicy),
+		Metadata:           cloneRawMessagePtr(req.Metadata),
+		NetworkChannel:     trimStringPtr(req.NetworkChannel),
+		Owner:              cloneOwnership(req.Owner),
+		ClearOwner:         req.ClearOwner,
 	}
 	if err := patch.Validate("task_patch"); err != nil {
 		return taskpkg.Patch{}, invalidParamsRPCError(err)

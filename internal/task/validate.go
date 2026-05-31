@@ -1167,6 +1167,7 @@ func taskPatchHasMutableFields(p Patch) bool {
 		p.Description != nil ||
 		p.Priority != nil ||
 		p.MaxAttempts != nil ||
+		p.AutoEnqueueOnReady != nil ||
 		p.ApprovalPolicy != nil ||
 		p.Metadata != nil ||
 		p.NetworkChannel != nil ||

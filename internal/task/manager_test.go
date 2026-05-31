@@ -3151,6 +3151,57 @@ func TestManagerUpdateTaskAllowsMutableOwnershipAndChannelFields(t *testing.T) {
 	}
 }
 
+func TestManagerUpdateTaskTogglesAutoEnqueueOnReady(t *testing.T) {
+	t.Parallel()
+
+	store := newInMemoryManagerStore()
+	manager := newTaskManagerForTest(t, store)
+	actor := validActorContext()
+
+	created, err := manager.CreateTask(context.Background(), CreateTask{Scope: ScopeGlobal, Title: "Toggle"}, actor)
+	if err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	if created.AutoEnqueueOnReady {
+		t.Fatal("created.AutoEnqueueOnReady = true, want false default")
+	}
+
+	// Ordered, state-sharing subtests: each step depends on the prior patch, so they
+	// run serially (no t.Parallel) to prove that omitting the field preserves it.
+	t.Run("Should enable the flag when patched to true", func(t *testing.T) {
+		enable := true
+		updated, err := manager.UpdateTask(context.Background(), created.ID, Patch{AutoEnqueueOnReady: &enable}, actor)
+		if err != nil {
+			t.Fatalf("UpdateTask(enable) error = %v", err)
+		}
+		if !updated.AutoEnqueueOnReady {
+			t.Fatal("updated.AutoEnqueueOnReady = false, want true")
+		}
+	})
+
+	t.Run("Should preserve the flag when the patch omits it", func(t *testing.T) {
+		title := "Renamed but auto-enqueue untouched"
+		updated, err := manager.UpdateTask(context.Background(), created.ID, Patch{Title: &title}, actor)
+		if err != nil {
+			t.Fatalf("UpdateTask(omit) error = %v", err)
+		}
+		if !updated.AutoEnqueueOnReady {
+			t.Fatal("updated.AutoEnqueueOnReady = false after omitted patch, want preserved true")
+		}
+	})
+
+	t.Run("Should disable the flag when patched to false", func(t *testing.T) {
+		disable := false
+		updated, err := manager.UpdateTask(context.Background(), created.ID, Patch{AutoEnqueueOnReady: &disable}, actor)
+		if err != nil {
+			t.Fatalf("UpdateTask(disable) error = %v", err)
+		}
+		if updated.AutoEnqueueOnReady {
+			t.Fatal("updated.AutoEnqueueOnReady = true, want false")
+		}
+	})
+}
+
 func TestManagerUpdateTaskPreservesCanonicalBlockedStatus(t *testing.T) {
 	t.Parallel()
 

@@ -90,6 +90,33 @@ agh task complete run-123 \
 
 The optional result JSON must not contain raw lease credentials.
 
+### Auto-enqueue on ready
+
+Tasks are opt-in for dependency-driven auto-enqueue. When a task carries
+`auto_enqueue_on_ready`, AGH enqueues its next run automatically as soon as a blocking dependency
+completes and the task becomes `ready` — no manual `enqueue` is required to advance the DAG.
+
+Set it at create time, or toggle it later on an assembled tree:
+
+```bash
+agh task create --scope global --title "Deploy" --auto-enqueue-on-ready
+agh task update task-123 --auto-enqueue-on-ready          # turn on
+agh task update task-123 --auto-enqueue-on-ready=false    # turn off
+```
+
+The behavior is deliberately conservative:
+
+- **Readiness gates it.** Only a successful completion reconciles dependents to `ready`; a failed or
+  expired blocker does not satisfy a `blocks` edge, so it never triggers a premature enqueue.
+- **Paused dependents are skipped.** An effectively paused dependent is left untouched until it
+  resumes.
+- **At most one open run.** Enqueue reuses the canonical `task_runs` path. The store's queued-run
+  reservation rejects a second open run, so concurrent completions of different blockers — or a
+  retried completion — converge on exactly one queued run, never duplicates.
+- **Completion never rolls back.** Auto-enqueue runs after the completion has durably committed and
+  is best-effort: it survives request cancellation and a failed enqueue is logged, not propagated
+  back to the completing caller.
+
 ## Failing a claimed run
 
 Use the session-bound fail path when the current claim cannot complete successfully. This path is

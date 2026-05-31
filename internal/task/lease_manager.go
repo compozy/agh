@@ -207,9 +207,16 @@ func (m *Service) CompleteRunLease(
 		return nil, err
 	}
 	m.dispatchTaskRunCompleted(ctx, run, reconciledTask, actor)
-	m.autoEnqueueReadyDependents(ctx, run.TaskID, run.ID, actor)
+	autoCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), autoEnqueueDispatchTimeout)
+	defer cancel()
+	m.autoEnqueueReadyDependents(autoCtx, run.TaskID, run.ID, actor)
 	return &run, nil
 }
+
+// autoEnqueueDispatchTimeout bounds the detached post-commit auto-enqueue side effect.
+// The completion is already durable, so this work must survive request cancellation
+// (context.WithoutCancel) but still cannot run unbounded across a large dependent set.
+const autoEnqueueDispatchTimeout = 30 * time.Second
 
 // autoEnqueueReadyDependents enqueues runs for dependents that became ready due to the
 // completion of completedTaskID and opted in via AutoEnqueueOnReady. Best-effort: the
