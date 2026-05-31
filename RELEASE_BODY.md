@@ -1,22 +1,10 @@
-## 0.0.5 - 2026-05-29
-
-### ♻️ Refactoring
-
-- Optimize prompt consumption (#222)
-- Orchestration improvements (#230)
+## 0.0.6 - 2026-05-31
 
 ### 🎉 Features
 
-- Decouple worker concurrency from coordinator uniqueness (#229)
+- Dependency-driven auto-enqueue (opt-in) (#232)
 
 ### 🐛 Bug Fixes
 
-- Handle provider overlay subtables (#228)
-
-### 📚 Documentation
-
-- Add contributors
-
-### 🔧 CI/CD
-
-- Web asset release
+- Wake coordinator sessions reliably (#240)
+- Enable runtime evidence profiles (#242)
