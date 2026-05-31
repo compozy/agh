@@ -81,33 +81,34 @@ type Info struct {
 type Session struct {
 	mu sync.RWMutex
 
-	ID               string
-	Name             string
-	AgentName        string
-	Provider         string
-	Model            string
-	ReasoningEffort  string
-	WorkspaceID      string
-	Workspace        string
-	Channel          string
-	Type             Type
-	Lineage          *store.SessionLineage
-	State            State
-	stopCause        StopCause
-	stopReason       store.StopReason
-	stopDetail       string
-	failure          *store.SessionFailure
-	ACPSessionID     string
-	ACPCaps          acp.Caps
-	Liveness         *store.SessionLivenessMeta
-	Sandbox          *store.SessionSandboxMeta
-	SoulSnapshotID   string
-	SoulDigest       string
-	ParentSoulDigest string
-	AttachedTo       string
-	AttachExpiresAt  *time.Time
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	ID                   string
+	Name                 string
+	AgentName            string
+	Provider             string
+	Model                string
+	ReasoningEffort      string
+	EffectivePermissions string
+	WorkspaceID          string
+	Workspace            string
+	Channel              string
+	Type                 Type
+	Lineage              *store.SessionLineage
+	State                State
+	stopCause            StopCause
+	stopReason           store.StopReason
+	stopDetail           string
+	failure              *store.SessionFailure
+	ACPSessionID         string
+	ACPCaps              acp.Caps
+	Liveness             *store.SessionLivenessMeta
+	Sandbox              *store.SessionSandboxMeta
+	SoulSnapshotID       string
+	SoulDigest           string
+	ParentSoulDigest     string
+	AttachedTo           string
+	AttachExpiresAt      *time.Time
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
 
 	sessionDir string
 	metaPath   string
@@ -897,28 +898,29 @@ func (s *Session) Meta() store.SessionMeta {
 	defer s.mu.RUnlock()
 
 	return store.SessionMeta{
-		ID:               s.ID,
-		Name:             s.Name,
-		AgentName:        s.AgentName,
-		Provider:         s.Provider,
-		Model:            s.Model,
-		ReasoningEffort:  s.ReasoningEffort,
-		WorkspaceID:      s.WorkspaceID,
-		Channel:          s.Channel,
-		SessionType:      string(normalizeSessionType(s.Type)),
-		Lineage:          store.NormalizeSessionLineage(s.ID, s.Lineage),
-		State:            string(s.State),
-		StopReason:       stopReasonPointer(s.stopReason),
-		StopDetail:       s.stopDetail,
-		Failure:          store.CloneSessionFailure(s.failure),
-		ACPSessionID:     stringPointer(s.ACPSessionID),
-		Liveness:         store.CloneSessionLivenessMeta(s.Liveness),
-		Sandbox:          cloneSessionSandboxMeta(s.Sandbox),
-		SoulSnapshotID:   s.SoulSnapshotID,
-		SoulDigest:       s.SoulDigest,
-		ParentSoulDigest: s.ParentSoulDigest,
-		CreatedAt:        s.CreatedAt,
-		UpdatedAt:        s.UpdatedAt,
+		ID:                   s.ID,
+		Name:                 s.Name,
+		AgentName:            s.AgentName,
+		Provider:             s.Provider,
+		Model:                s.Model,
+		ReasoningEffort:      s.ReasoningEffort,
+		EffectivePermissions: s.EffectivePermissions,
+		WorkspaceID:          s.WorkspaceID,
+		Channel:              s.Channel,
+		SessionType:          string(normalizeSessionType(s.Type)),
+		Lineage:              store.NormalizeSessionLineage(s.ID, s.Lineage),
+		State:                string(s.State),
+		StopReason:           stopReasonPointer(s.stopReason),
+		StopDetail:           s.stopDetail,
+		Failure:              store.CloneSessionFailure(s.failure),
+		ACPSessionID:         stringPointer(s.ACPSessionID),
+		Liveness:             store.CloneSessionLivenessMeta(s.Liveness),
+		Sandbox:              cloneSessionSandboxMeta(s.Sandbox),
+		SoulSnapshotID:       s.SoulSnapshotID,
+		SoulDigest:           s.SoulDigest,
+		ParentSoulDigest:     s.ParentSoulDigest,
+		CreatedAt:            s.CreatedAt,
+		UpdatedAt:            s.UpdatedAt,
 	}
 }
 

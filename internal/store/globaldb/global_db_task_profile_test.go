@@ -105,6 +105,9 @@ func TestGlobalDBExecutionProfileStore(t *testing.T) {
 		if !updated.UpdatedAt.Equal(updatedAt) {
 			t.Fatalf("updated.UpdatedAt = %v, want %v", updated.UpdatedAt, updatedAt)
 		}
+		if got, want := updated.Runtime.Mode, taskpkg.RuntimeModeDefault; got != want {
+			t.Fatalf("updated.Runtime.Mode = %q, want %q", got, want)
+		}
 		assertStringSliceGlobal(t, updated.Worker.AllowedAgentNames, []string{"runner"})
 		assertStringSliceGlobal(t, updated.Review.AllowedAgentNames, nil)
 

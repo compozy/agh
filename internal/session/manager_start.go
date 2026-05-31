@@ -142,6 +142,7 @@ func (m *Manager) prepareResumeStart(ctx context.Context, meta store.SessionMeta
 		provider:               strings.TrimSpace(meta.Provider),
 		model:                  strings.TrimSpace(meta.Model),
 		reasoningEffort:        strings.TrimSpace(meta.ReasoningEffort),
+		permissions:            aghconfig.PermissionMode(strings.TrimSpace(meta.EffectivePermissions)),
 		workspace:              resolvedWorkspace,
 		channel:                strings.TrimSpace(meta.Channel),
 		sessionType:            normalizeSessionType(Type(meta.SessionType)),
@@ -218,7 +219,7 @@ func (m *Manager) startSession(ctx context.Context, spec *sessionStartSpec) (_ *
 	if err != nil {
 		return nil, m.failSessionStart(ctx, spec, session, "session pre-start hook failed", err)
 	}
-
+	session.EffectivePermissions = strings.TrimSpace(string(startOpts.Permissions))
 	if err := m.writeMeta(session); err != nil {
 		m.sessionLogger(session).Warn("session.start.meta_write_failed", "phase", spec.startAction, "error", err)
 		return nil, err

@@ -26,10 +26,10 @@ func TestShellQuoteSimpleAlwaysSingleQuotes(t *testing.T) {
 		value string
 		want  string
 	}{
-		{name: "empty", value: "", want: "''"},
-		{name: "simple", value: "frontend", want: "'frontend'"},
-		{name: "metacharacters", value: "frontend; rm -rf /", want: "'frontend; rm -rf /'"},
-		{name: "single quote", value: "owner's-tool", want: "'owner'\\''s-tool'"},
+		{name: "Should quote empty input", value: "", want: "''"},
+		{name: "Should quote simple input", value: "frontend", want: "'frontend'"},
+		{name: "Should quote metacharacters", value: "frontend; rm -rf /", want: "'frontend; rm -rf /'"},
+		{name: "Should quote single-quote input", value: "owner's-tool", want: "'owner'\\''s-tool'"},
 	}
 
 	for _, tt := range tests {
@@ -105,6 +105,58 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 
 		if got, want := sessions.createCount(), 1; got != want {
 			t.Fatalf("create count = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should not reuse an active role session with different profile startup settings", func(t *testing.T) {
+		t.Parallel()
+
+		firstTask := taskRoleRuntimeTask("task-profile-a", "", "design-review")
+		firstTask.Owner = nil
+		firstRun := taskRoleRuntimeRun("run-profile-a", firstTask.ID, "design-review")
+		firstProfile := taskpkg.ExecutionProfile{
+			TaskID: firstTask.ID,
+			Worker: taskpkg.WorkerProfile{
+				Mode:      taskpkg.WorkerModeSelect,
+				AgentName: "frontend-engineer",
+				Provider:  "claude",
+				Model:     "sonnet",
+			},
+			Sandbox: taskpkg.SandboxPolicy{Mode: taskpkg.SandboxModeRef, SandboxRef: "evidence-lab-a"},
+			Runtime: taskpkg.RuntimePolicy{Mode: taskpkg.RuntimeModeEvidence},
+		}
+		secondTask := taskRoleRuntimeTask("task-profile-b", "", "design-review")
+		secondTask.Owner = nil
+		secondRun := taskRoleRuntimeRun("run-profile-b", secondTask.ID, "design-review")
+		secondProfile := taskpkg.ExecutionProfile{
+			TaskID: secondTask.ID,
+			Worker: taskpkg.WorkerProfile{
+				Mode:      taskpkg.WorkerModeSelect,
+				AgentName: "frontend-engineer",
+				Provider:  "claude",
+				Model:     "sonnet",
+			},
+			Sandbox: taskpkg.SandboxPolicy{Mode: taskpkg.SandboxModeRef, SandboxRef: "evidence-lab-b"},
+			Runtime: taskpkg.RuntimePolicy{Mode: taskpkg.RuntimeModeEvidence},
+		}
+		store := newTaskRoleRuntimeStore(firstTask, firstRun, firstProfile, secondTask, secondRun, secondProfile)
+		sessions := &taskRoleRuntimeSessions{}
+		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
+
+		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
+			TaskRunContext: hookspkg.TaskRunContext{TaskID: firstTask.ID, RunID: firstRun.ID},
+		})
+		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
+			TaskRunContext: hookspkg.TaskRunContext{TaskID: secondTask.ID, RunID: secondRun.ID},
+		})
+
+		if got, want := sessions.createCount(), 2; got != want {
+			t.Fatalf("create count = %d, want %d for different profile startup settings", got, want)
+		}
+		firstName := sessions.createCall(0).Name
+		secondName := sessions.createCall(1).Name
+		if firstName == secondName {
+			t.Fatalf("CreateOpts.Name = %q for both profile workers, want distinct profile fingerprints", firstName)
 		}
 	})
 

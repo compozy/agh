@@ -1559,28 +1559,29 @@ type SessionSandboxMeta struct {
 
 // SessionMeta is the atomically-written session metadata document.
 type SessionMeta struct {
-	ID               string               `json:"id"`
-	Name             string               `json:"name,omitempty"`
-	AgentName        string               `json:"agent_name"`
-	Provider         string               `json:"provider,omitempty"`
-	Model            string               `json:"model,omitempty"`
-	ReasoningEffort  string               `json:"reasoning_effort,omitempty"`
-	WorkspaceID      string               `json:"workspace_id,omitempty"`
-	Channel          string               `json:"channel,omitempty"`
-	SessionType      string               `json:"session_type,omitempty"`
-	Lineage          *SessionLineage      `json:"lineage,omitempty"`
-	State            string               `json:"state"`
-	StopReason       *StopReason          `json:"stop_reason,omitempty"`
-	StopDetail       string               `json:"stop_detail,omitempty"`
-	Failure          *SessionFailure      `json:"failure,omitempty"`
-	ACPSessionID     *string              `json:"acp_session_id,omitempty"`
-	Liveness         *SessionLivenessMeta `json:"liveness,omitempty"`
-	Sandbox          *SessionSandboxMeta  `json:"sandbox,omitempty"`
-	SoulSnapshotID   string               `json:"soul_snapshot_id,omitempty"`
-	SoulDigest       string               `json:"soul_digest,omitempty"`
-	ParentSoulDigest string               `json:"parent_soul_digest,omitempty"`
-	CreatedAt        time.Time            `json:"created_at"`
-	UpdatedAt        time.Time            `json:"updated_at"`
+	ID                   string               `json:"id"`
+	Name                 string               `json:"name,omitempty"`
+	AgentName            string               `json:"agent_name"`
+	Provider             string               `json:"provider,omitempty"`
+	Model                string               `json:"model,omitempty"`
+	ReasoningEffort      string               `json:"reasoning_effort,omitempty"`
+	EffectivePermissions string               `json:"effective_permissions,omitempty"`
+	WorkspaceID          string               `json:"workspace_id,omitempty"`
+	Channel              string               `json:"channel,omitempty"`
+	SessionType          string               `json:"session_type,omitempty"`
+	Lineage              *SessionLineage      `json:"lineage,omitempty"`
+	State                string               `json:"state"`
+	StopReason           *StopReason          `json:"stop_reason,omitempty"`
+	StopDetail           string               `json:"stop_detail,omitempty"`
+	Failure              *SessionFailure      `json:"failure,omitempty"`
+	ACPSessionID         *string              `json:"acp_session_id,omitempty"`
+	Liveness             *SessionLivenessMeta `json:"liveness,omitempty"`
+	Sandbox              *SessionSandboxMeta  `json:"sandbox,omitempty"`
+	SoulSnapshotID       string               `json:"soul_snapshot_id,omitempty"`
+	SoulDigest           string               `json:"soul_digest,omitempty"`
+	ParentSoulDigest     string               `json:"parent_soul_digest,omitempty"`
+	CreatedAt            time.Time            `json:"created_at"`
+	UpdatedAt            time.Time            `json:"updated_at"`
 }
 
 // Validate ensures the metadata file remains aligned with the session index schema.

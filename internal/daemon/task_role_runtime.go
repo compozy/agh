@@ -2,6 +2,8 @@ package daemon
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -528,6 +530,9 @@ func taskRoleSessionMatches(info *session.Info, activation taskRoleActivation) b
 	if strings.TrimSpace(info.Channel) != activation.Channel {
 		return false
 	}
+	if strings.TrimSpace(info.Name) != taskRoleSessionName(activation) {
+		return false
+	}
 	switch activation.Scope {
 	case taskpkg.ScopeWorkspace:
 		return strings.TrimSpace(info.WorkspaceID) == activation.WorkspaceID
@@ -549,7 +554,29 @@ func taskRoleSessionStateReusable(state session.State) bool {
 }
 
 func taskRoleSessionName(activation taskRoleActivation) string {
-	return fmt.Sprintf("task-role:%s:%s", activation.AgentName, firstNonEmpty(activation.Channel, "default"))
+	base := fmt.Sprintf("task-role:%s:%s", activation.AgentName, firstNonEmpty(activation.Channel, "default"))
+	fingerprint := taskRoleProfileFingerprint(activation)
+	if fingerprint == "" {
+		return base
+	}
+	return base + ":" + fingerprint
+}
+
+func taskRoleProfileFingerprint(activation taskRoleActivation) string {
+	if activation.Profile == nil {
+		return ""
+	}
+	profile := activation.Profile
+	parts := []string{
+		strings.TrimSpace(activation.Provider),
+		strings.TrimSpace(activation.Model),
+		string(profile.Sandbox.Mode.Normalize()),
+		strings.TrimSpace(profile.Sandbox.SandboxRef),
+		string(profile.Runtime.Mode.Normalize()),
+		strings.Join(uniqueNonEmptyStrings(profile.Worker.RequiredCapabilities), "\x1f"),
+	}
+	sum := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
+	return hex.EncodeToString(sum[:8])
 }
 
 func taskRolePromptOverlay(activation taskRoleActivation) string {
