@@ -48,6 +48,8 @@ var (
 	ErrNotFound = errors.New("skills marketplace: not found")
 	// ErrNotMarketplace classifies installed skills that lack marketplace provenance.
 	ErrNotMarketplace = errors.New("skills marketplace: not marketplace")
+	// ErrUnavailable classifies installs that are not visible through skill discovery.
+	ErrUnavailable = errors.New("skills marketplace: unavailable")
 	// ErrNotConfigured classifies missing or unsupported marketplace registry setup.
 	ErrNotConfigured = errors.New("skills marketplace: not configured")
 

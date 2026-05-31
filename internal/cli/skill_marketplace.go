@@ -15,6 +15,7 @@ import (
 	registryclawhub "github.com/compozy/agh/internal/registry/clawhub"
 	"github.com/compozy/agh/internal/skills"
 	skillmarketplace "github.com/compozy/agh/internal/skills/marketplace"
+	skillbundled "github.com/compozy/agh/skills"
 )
 
 const (
@@ -97,6 +98,9 @@ func installMarketplaceSkill(
 	if err != nil {
 		return skillInstallItem{}, err
 	}
+	if err := verifyInstalledMarketplaceSkill(ctx, runtime, result); err != nil {
+		return skillInstallItem{}, err
+	}
 	return skillInstallItem{
 		Name:     result.Name,
 		Slug:     result.Slug,
@@ -106,6 +110,68 @@ func installMarketplaceSkill(
 		Hash:     result.Hash,
 		Status:   result.Status,
 	}, nil
+}
+
+func verifyInstalledMarketplaceSkill(
+	ctx context.Context,
+	runtime *runtimeContext,
+	result skillmarketplace.InstallResult,
+) error {
+	if runtime == nil {
+		return errors.New("cli: skill runtime context is required")
+	}
+
+	registry := skills.NewRegistry(skills.RegistryConfig{
+		BundledFS:      skillbundled.FS(),
+		UserAgentsDir:  runtime.HomePaths.AgentsDir,
+		UserSkillsDir:  runtime.HomePaths.SkillsDir,
+		DisabledSkills: append([]string(nil), runtime.Config.Skills.DisabledSkills...),
+	})
+	if err := registry.LoadAll(ctx); err != nil {
+		return fmt.Errorf("cli: reload skill registry after marketplace install %q: %w", result.Name, err)
+	}
+
+	skill, err := findSkillByName(registry.List(), result.Name)
+	if err != nil {
+		return fmt.Errorf(
+			"cli: installed marketplace skill %q is not visible after registry reload; inspect %s and retry the install: %w",
+			result.Name,
+			result.Path,
+			err,
+		)
+	}
+	if skill.Source != skills.SourceMarketplace {
+		return fmt.Errorf(
+			"cli: installed marketplace skill %q resolved as %s after registry reload; "+
+				"remove the shadowing skill and retry the install",
+			result.Name,
+			skillSourceLabel(skill.Source),
+		)
+	}
+	if skill.Provenance == nil {
+		return fmt.Errorf(
+			"cli: installed marketplace skill %q is missing provenance after registry reload; inspect %s and retry the install",
+			result.Name,
+			result.Path,
+		)
+	}
+	if strings.TrimSpace(skill.Provenance.Slug) != strings.TrimSpace(result.Slug) {
+		return fmt.Errorf(
+			"cli: installed marketplace skill %q resolved slug %q after registry reload, want %q; "+
+				"remove the conflicting skill and retry the install",
+			result.Name,
+			skill.Provenance.Slug,
+			result.Slug,
+		)
+	}
+	if !skill.Enabled {
+		return fmt.Errorf(
+			"cli: installed marketplace skill %q is visible but disabled after registry reload; "+
+				"enable the skill and retry discovery",
+			result.Name,
+		)
+	}
+	return nil
 }
 
 func updateMarketplaceSkills(

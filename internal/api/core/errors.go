@@ -526,6 +526,8 @@ func StatusForSkillMarketplaceError(err error) int {
 		return http.StatusNotFound
 	case errors.Is(err, skillmarketplace.ErrNotMarketplace):
 		return http.StatusUnprocessableEntity
+	case errors.Is(err, skillmarketplace.ErrUnavailable):
+		return http.StatusServiceUnavailable
 	case errors.Is(err, skillmarketplace.ErrNotConfigured):
 		return http.StatusServiceUnavailable
 	default:

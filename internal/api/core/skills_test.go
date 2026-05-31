@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -364,6 +365,11 @@ func TestStatusForSkillMarketplaceError(t *testing.T) {
 			skillmarketplace.ErrNotConfigured,
 			http.StatusServiceUnavailable,
 		},
+		{
+			"Should return 503 when marketplace install is unavailable after discovery",
+			skillmarketplace.ErrUnavailable,
+			http.StatusServiceUnavailable,
+		},
 		{"Should return 500 for unknown error", http.ErrServerClosed, http.StatusInternalServerError},
 	}
 
@@ -516,10 +522,28 @@ func TestSkillMarketplaceHandlers(t *testing.T) {
 		t.Parallel()
 
 		refreshed := false
+		installedSkill := &skills.Skill{
+			Meta: skills.SkillMeta{
+				Name: "review",
+			},
+			Source:  skills.SourceMarketplace,
+			Enabled: true,
+			Provenance: &skills.Provenance{
+				Slug:     "@agh/review",
+				Registry: "clawhub",
+				Version:  "1.2.0",
+			},
+		}
 		registry := &stubSkillsRegistry{
 			RefreshGlobalFn: func(context.Context) error {
 				refreshed = true
 				return nil
+			},
+			GetFn: func(name string) (*skills.Skill, bool) {
+				if name == "review" {
+					return installedSkill, true
+				}
+				return nil, false
 			},
 		}
 		marketplace := &stubSkillMarketplaceService{
@@ -569,6 +593,59 @@ func TestSkillMarketplaceHandlers(t *testing.T) {
 		testutil.DecodeJSONResponse(t, rec, &resp)
 		if resp.Skill.Status != "installed" {
 			t.Fatalf("skill.Status = %q, want installed", resp.Skill.Status)
+		}
+	})
+
+	t.Run("Should reject marketplace install when refreshed registry cannot see skill", func(t *testing.T) {
+		t.Parallel()
+
+		registry := &stubSkillsRegistry{
+			RefreshGlobalFn: func(context.Context) error {
+				return nil
+			},
+			GetFn: func(string) (*skills.Skill, bool) {
+				return nil, false
+			},
+		}
+		marketplace := &stubSkillMarketplaceService{
+			InstallFn: func(context.Context, string, string) (skillmarketplace.InstallResult, error) {
+				return skillmarketplace.InstallResult{
+					Name:     "review",
+					Slug:     "@agh/review",
+					Version:  "1.2.0",
+					Registry: "clawhub",
+					Path:     "/tmp/agh/skills/review",
+					Hash:     "sha256:abc",
+					Status:   "installed",
+				}, nil
+			},
+		}
+		engine := newSkillsHandlerFixtureWithMarketplace(
+			t,
+			registry,
+			testutil.StubWorkspaceService{},
+			marketplace,
+		)
+		rec := testutil.PerformRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/skills/marketplace/install",
+			testutil.MustJSONBody(t, contract.SkillMarketplaceInstallRequest{
+				Slug: "@agh/review",
+			}),
+		)
+
+		if rec.Code != http.StatusServiceUnavailable {
+			t.Fatalf(
+				"status = %d, want %d; body=%s",
+				rec.Code,
+				http.StatusServiceUnavailable,
+				rec.Body.String(),
+			)
+		}
+		if !strings.Contains(rec.Body.String(), "not visible after registry refresh") {
+			t.Fatalf("body = %s, want registry visibility reason", rec.Body.String())
 		}
 	})
 

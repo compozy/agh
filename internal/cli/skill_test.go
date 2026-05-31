@@ -1514,6 +1514,53 @@ func TestSkillMarketplaceHelpers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should install-marketplace-skill-rejects-disabled-discovery", func(t *testing.T) {
+		server := newMarketplaceTestServer(t, marketplaceServerFixture{
+			downloads: map[string]marketplaceDownloadFixture{
+				"@agh/review": {
+					version: "1.1.0",
+					files: map[string]string{
+						"review/SKILL.md": skillDocument("review", "Review helper", "body"),
+					},
+				},
+			},
+		})
+		defer server.Close()
+
+		env := newSkillTestEnv(t, func(cfg *aghconfig.Config) {
+			cfg.Skills.DisabledSkills = []string{"review"}
+			cfg.Skills.Marketplace = aghconfig.MarketplaceConfig{
+				Registry: "clawhub",
+				BaseURL:  server.URL(),
+			}
+		})
+		runtime, registry, err := loadSkillRegistry(env.deps)
+		if err != nil {
+			t.Fatalf("loadSkillRegistry() error = %v", err)
+		}
+		defer func() {
+			if closeErr := registry.Close(); closeErr != nil {
+				t.Fatalf("registry.Close() error = %v", closeErr)
+			}
+		}()
+
+		_, err = installMarketplaceSkill(
+			testutil.Context(t),
+			runtime,
+			registry,
+			"@agh/review",
+			"",
+			"",
+			env.deps.now,
+		)
+		if err == nil {
+			t.Fatal("installMarketplaceSkill(disabled discovery) error = nil, want failure")
+		}
+		if !strings.Contains(err.Error(), "visible but disabled") {
+			t.Fatalf("installMarketplaceSkill(disabled discovery) error = %v, want disabled discovery reason", err)
+		}
+	})
+
 	t.Run("Should install-marketplace-skill-rejects-nil-archive", func(t *testing.T) {
 		env := newSkillTestEnv(t, nil)
 

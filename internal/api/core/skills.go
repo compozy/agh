@@ -316,6 +316,10 @@ func (h *BaseHandlers) InstallSkillMarketplace(c *gin.Context) {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
+	if err := h.verifyMarketplaceInstallVisible(result); err != nil {
+		h.respondError(c, StatusForSkillMarketplaceError(err), err)
+		return
+	}
 
 	c.JSON(http.StatusOK, contract.SkillMarketplaceInstallResponse{
 		Skill: SkillMarketplaceInstallPayloadFromResult(result),
@@ -488,6 +492,54 @@ func (h *BaseHandlers) refreshSkillsAfterMarketplaceMutation(c *gin.Context) err
 	}
 	if err := refresher.RefreshGlobal(c.Request.Context()); err != nil {
 		return fmt.Errorf("refresh skills registry after marketplace mutation: %w", err)
+	}
+	return nil
+}
+
+func (h *BaseHandlers) verifyMarketplaceInstallVisible(result skillmarketplace.InstallResult) error {
+	skill, ok := h.SkillsRegistry.Get(result.Name)
+	if !ok {
+		return fmt.Errorf(
+			"%w: installed marketplace skill %q is not visible after registry refresh; inspect %s and retry the install",
+			skillmarketplace.ErrUnavailable,
+			result.Name,
+			result.Path,
+		)
+	}
+	if skill.Source != skills.SourceMarketplace {
+		return fmt.Errorf(
+			"%w: installed marketplace skill %q resolved as %s after registry refresh; "+
+				"remove the shadowing skill and retry the install",
+			skillmarketplace.ErrUnavailable,
+			result.Name,
+			skills.SkillSourceName(skill.Source),
+		)
+	}
+	if skill.Provenance == nil {
+		return fmt.Errorf(
+			"%w: installed marketplace skill %q is missing provenance after registry refresh; inspect %s and retry the install",
+			skillmarketplace.ErrUnavailable,
+			result.Name,
+			result.Path,
+		)
+	}
+	if strings.TrimSpace(skill.Provenance.Slug) != strings.TrimSpace(result.Slug) {
+		return fmt.Errorf(
+			"%w: installed marketplace skill %q resolved slug %q after registry refresh, want %q; "+
+				"remove the conflicting skill and retry the install",
+			skillmarketplace.ErrUnavailable,
+			result.Name,
+			skill.Provenance.Slug,
+			result.Slug,
+		)
+	}
+	if !skill.Enabled {
+		return fmt.Errorf(
+			"%w: installed marketplace skill %q is visible but disabled after registry refresh; "+
+				"enable the skill and retry discovery",
+			skillmarketplace.ErrUnavailable,
+			result.Name,
+		)
 	}
 	return nil
 }
