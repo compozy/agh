@@ -1,19 +1,20 @@
 ---
 title: Task Execution Profiles
-description: Typed task-owned overlays for coordinator guidance, worker selection, reviewer routing, participant policy, and sandbox mode at session start.
+description: Typed task-owned overlays for coordinator guidance, worker selection, reviewer routing, participant policy, sandbox mode, and runtime evidence mode at session start.
 ---
 
 A task execution profile is a typed, task-owned overlay that shapes how the runtime executes one
 task without giving the profile any new authority. Profiles steer coordinator guidance, narrow which
-workers and reviewers are eligible, bound participant routing, and pick the session sandbox. Task
-ownership, lease authority, terminal state, and review verdicts stay in `task.Service` exactly as
+workers and reviewers are eligible, bound participant routing, and pick the session sandbox.
+Profiles can also opt into runtime evidence mode for browser, simulator, and local-app validation.
+Ownership, lease authority, terminal state, and review verdicts stay in `task.Service` exactly as
 described in [Task Runs and Leases](/runtime/core/autonomy/task-runs-and-leases) and
 [Coordinator Handoff](/runtime/core/autonomy/coordinator).
 
 <OperatorNote>
-  Execution profiles are selection input, not permission. They cannot grant channel/peer access,
-  bypass tool policy, override approval policy, or create a second task queue. They reject inputs
-  that the runtime would otherwise deny.
+  Execution profiles are selection input first. Runtime evidence mode is the only field that can
+  affect the session permission mode, and AGH widens it only when the same profile selects an
+  explicit sandbox reference.
 </OperatorNote>
 
 ## What a profile contains
@@ -67,6 +68,9 @@ and selector side tables (no `metadata_json`):
   "sandbox": {
     "mode": "inherit",
     "sandbox_ref": ""
+  },
+  "runtime": {
+    "mode": "default"
   }
 }
 ```
@@ -78,6 +82,7 @@ and selector side tables (no `metadata_json`):
 | `review`       | Reviewer hints (agent/provider/model) plus reviewer routing selectors (channels, peers, agents, capabilities) consumed by the review gate.                                    |
 | `participants` | Upper-bound routing policy for coordination surfaces and review routing. Allowed lists narrow; preferred lists rank. Never a permission grant.                                |
 | `sandbox`      | `inherit` falls through to workspace defaults. `none` skips sandbox startup when the runtime allows it. `ref` resolves a named `[sandboxes.<name>]` profile at session start. |
+| `runtime`      | `default` keeps normal task-session behavior. `evidence` injects runtime evidence guidance and can widen approvals only with `sandbox.mode = "ref"`.                          |
 
 Persistence and validation live in `internal/task/profile.go` and the typed selector tables in
 `internal/store/globaldb`; they ship as a numbered migration, not a JSON column.
@@ -101,8 +106,8 @@ Effective behavior at runtime is the result of layering, not negotiation. The or
 4. **Session start (load only).** When task service starts a worker session it loads the persisted
    normalized profile (or the default `inherit` profile when none is stored) and passes it into
    `StartTaskSession`. The daemon session bridge then maps `worker.agent_name`, `worker.provider`,
-   `worker.model`, and the sandbox policy into `session.CreateOpts`. Session start does not re-run
-   profile validation; provider and model still flow through
+   `worker.model`, the sandbox policy, and the runtime policy into `session.CreateOpts`. Session
+   start does not re-run profile validation; provider and model still flow through
    `config.ResolveSessionAgentWithRuntime`, so profile values never bypass provider authorization,
    credential slots, or session validation.
 5. **Coordinator routing.** The daemon `ReviewRouter` and coordinator runtime read review and
@@ -125,6 +130,17 @@ control-plane changes; they must not rewrite an active execution.
 
 Sandbox selection never bypasses tool allowlists, approval policy, or provider authorization. It
 only chooses which sandbox profile (if any) the session boots with.
+
+### Runtime mode behavior
+
+| Mode       | Effect at session start                                                                                                                                                                                                                                                                      |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `default`  | The session uses the normal task-session runtime contract. No extra prompt guidance or permission change is applied.                                                                                                                                                                         |
+| `evidence` | The daemon adds prompt guidance for browser, simulator, local-app, and artifact capture work. AGH sets session permissions to `approve-all` only when the same profile sets `sandbox.mode = "ref"` with a non-empty `sandbox_ref`. Otherwise, the configured permission mode stays in force. |
+
+Evidence mode does not create task authority. The agent still has to claim the run through
+`agh task next --wait -o json`, keep the lease alive, and complete or fail the run through the task
+lease APIs. It only changes the session runtime envelope used to gather evidence.
 
 ### Worker runtime selection
 
@@ -259,6 +275,8 @@ Behavior to keep in mind:
 - Provider/model overrides set on the profile are rejected at validation time when
   `allow_task_provider_override = false`. The same gate applies to `coordinator`, `worker`, and
   `review` blocks.
+- Runtime mode is not a config default. A task profile uses `runtime.mode = "default"` unless the
+  profile explicitly stores `runtime.mode = "evidence"`.
 
 The review-policy defaults under `[task.orchestration.review]` are documented with the review gate;
 they shape `task.review_policy` and the reviewer routing applied through `ReviewProfile`.

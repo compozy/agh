@@ -1072,6 +1072,12 @@ var globalSchemaMigrations = []store.Migration{
 		Up:       migrateTaskAutoEnqueueSchema,
 		Checksum: "2026-05-29-add-task-auto-enqueue",
 	},
+	{
+		Version:  42,
+		Name:     "add_task_execution_profile_runtime_mode",
+		Up:       migrateTaskExecutionProfileRuntimeMode,
+		Checksum: "2026-05-31-add-task-execution-profile-runtime-mode",
+	},
 }
 
 func migrateSessionInputQueue(ctx context.Context, tx *sql.Tx) error {

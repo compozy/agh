@@ -2,6 +2,8 @@ package daemon
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -36,6 +38,7 @@ const taskRoleActivationReasonRecovery = "recovery"
 type taskRoleStore interface {
 	GetTask(ctx context.Context, id string) (taskpkg.Task, error)
 	GetTaskRun(ctx context.Context, id string) (taskpkg.Run, error)
+	GetExecutionProfile(ctx context.Context, taskID string) (taskpkg.ExecutionProfile, error)
 	ListTaskRunsByStatus(ctx context.Context, statuses []taskpkg.RunStatus) ([]taskpkg.Run, error)
 }
 
@@ -60,8 +63,12 @@ type taskRoleActivation struct {
 	WorkspaceID   string
 	WorkspacePath string
 	AgentName     string
+	Provider      string
+	Model         string
 	Channel       string
 	Title         string
+	Profile       *taskpkg.ExecutionProfile
+	Capabilities  []string
 }
 
 var _ taskRunEnqueuedObserver = (*taskRoleRuntime)(nil)
@@ -169,7 +176,7 @@ func (r *taskRoleRuntime) activateRun(
 	if ctx == nil {
 		return errors.New("daemon: task role activation context is required")
 	}
-	activation, ok, err := r.activationForRun(taskRecord, run)
+	activation, ok, err := r.activationForRun(ctx, taskRecord, run)
 	if err != nil || !ok {
 		return err
 	}
@@ -210,6 +217,7 @@ func (r *taskRoleRuntime) activateRun(
 }
 
 func (r *taskRoleRuntime) activationForRun(
+	ctx context.Context,
 	taskRecord taskpkg.Task,
 	run taskpkg.Run,
 ) (taskRoleActivation, bool, error) {
@@ -221,14 +229,10 @@ func (r *taskRoleRuntime) activationForRun(
 		return taskRoleActivation{}, false, nil
 	default:
 	}
-	if taskRecord.Owner == nil || taskRecord.Owner.IsZero() {
-		return taskRoleActivation{}, false, nil
+	agentName, provider, model, profile, ok, err := r.workerTargetForRun(ctx, taskRecord)
+	if err != nil || !ok {
+		return taskRoleActivation{}, false, err
 	}
-	owner := *taskRecord.Owner
-	if owner.Kind.Normalize() != taskpkg.OwnerKindPool {
-		return taskRoleActivation{}, false, nil
-	}
-	agentName := strings.TrimSpace(owner.Ref)
 	if agentName == "" {
 		return taskRoleActivation{}, false, nil
 	}
@@ -239,13 +243,57 @@ func (r *taskRoleRuntime) activationForRun(
 		Scope:       taskRecord.Scope.Normalize(),
 		WorkspaceID: strings.TrimSpace(taskRecord.WorkspaceID),
 		AgentName:   agentName,
+		Provider:    provider,
+		Model:       model,
 		Channel:     taskRunSessionChannel(run),
 		Title:       strings.TrimSpace(taskRecord.Title),
+		Profile:     profile,
+		Capabilities: append(
+			append([]string(nil), run.RequiredCapabilities...),
+			profileRequiredWorkerCapabilities(profile)...,
+		),
 	}
 	if err := r.applyActivationScope(&activation, taskRecord.ID); err != nil {
 		return taskRoleActivation{}, false, err
 	}
 	return activation, true, nil
+}
+
+func (r *taskRoleRuntime) workerTargetForRun(
+	ctx context.Context,
+	taskRecord taskpkg.Task,
+) (agentName string, provider string, model string, profile *taskpkg.ExecutionProfile, ok bool, err error) {
+	if taskRecord.Owner != nil && !taskRecord.Owner.IsZero() {
+		owner := *taskRecord.Owner
+		if owner.Kind.Normalize() != taskpkg.OwnerKindPool {
+			return "", "", "", nil, false, nil
+		}
+		return strings.TrimSpace(owner.Ref), "", "", nil, true, nil
+	}
+
+	loaded, err := r.store.GetExecutionProfile(ctx, taskRecord.ID)
+	if err != nil {
+		if errors.Is(err, taskpkg.ErrExecutionProfileNotFound) {
+			return "", "", "", nil, false, nil
+		}
+		return "", "", "", nil, false, err
+	}
+	worker := loaded.Worker
+	if worker.Mode.Normalize() != taskpkg.WorkerModeSelect {
+		return "", "", "", nil, false, nil
+	}
+	// The exact worker name wins; selector lists only provide fallback candidates.
+	agentName = strings.TrimSpace(worker.AgentName)
+	if agentName == "" && len(worker.PreferredAgentNames) > 0 {
+		agentName = strings.TrimSpace(worker.PreferredAgentNames[0])
+	}
+	if agentName == "" && len(worker.AllowedAgentNames) == 1 {
+		agentName = strings.TrimSpace(worker.AllowedAgentNames[0])
+	}
+	if agentName == "" {
+		return "", "", "", nil, false, nil
+	}
+	return agentName, strings.TrimSpace(worker.Provider), strings.TrimSpace(worker.Model), &loaded, true, nil
 }
 
 func (r *taskRoleRuntime) applyActivationScope(activation *taskRoleActivation, taskID string) error {
@@ -295,11 +343,15 @@ func (r *taskRoleRuntime) startRoleSession(
 func taskRoleCreateOpts(activation taskRoleActivation) (session.CreateOpts, error) {
 	opts := session.CreateOpts{
 		AgentName:     activation.AgentName,
+		Provider:      activation.Provider,
+		Model:         activation.Model,
 		Name:          taskRoleSessionName(activation),
 		Channel:       activation.Channel,
 		PromptOverlay: taskRolePromptOverlay(activation),
 		Type:          session.SessionTypeSystem,
 	}
+	applyTaskSessionSandboxProfile(&opts, activation.Profile)
+	applyTaskSessionRuntimeProfile(&opts, activation.Profile)
 	switch activation.Scope {
 	case taskpkg.ScopeWorkspace:
 		opts.Workspace = activation.WorkspaceID
@@ -478,6 +530,9 @@ func taskRoleSessionMatches(info *session.Info, activation taskRoleActivation) b
 	if strings.TrimSpace(info.Channel) != activation.Channel {
 		return false
 	}
+	if strings.TrimSpace(info.Name) != taskRoleSessionName(activation) {
+		return false
+	}
 	switch activation.Scope {
 	case taskpkg.ScopeWorkspace:
 		return strings.TrimSpace(info.WorkspaceID) == activation.WorkspaceID
@@ -499,23 +554,86 @@ func taskRoleSessionStateReusable(state session.State) bool {
 }
 
 func taskRoleSessionName(activation taskRoleActivation) string {
-	return fmt.Sprintf("task-role:%s:%s", activation.AgentName, firstNonEmpty(activation.Channel, "default"))
+	base := fmt.Sprintf("task-role:%s:%s", activation.AgentName, firstNonEmpty(activation.Channel, "default"))
+	fingerprint := taskRoleProfileFingerprint(activation)
+	if fingerprint == "" {
+		return base
+	}
+	return base + ":" + fingerprint
+}
+
+func taskRoleProfileFingerprint(activation taskRoleActivation) string {
+	if activation.Profile == nil {
+		return ""
+	}
+	profile := activation.Profile
+	parts := []string{
+		strings.TrimSpace(activation.Provider),
+		strings.TrimSpace(activation.Model),
+		string(profile.Sandbox.Mode.Normalize()),
+		strings.TrimSpace(profile.Sandbox.SandboxRef),
+		string(profile.Runtime.Mode.Normalize()),
+		strings.Join(uniqueNonEmptyStrings(profile.Worker.RequiredCapabilities), "\x1f"),
+	}
+	sum := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
+	return hex.EncodeToString(sum[:8])
 }
 
 func taskRolePromptOverlay(activation taskRoleActivation) string {
 	title := firstNonEmpty(activation.Title, activation.TaskID)
 	channel := firstNonEmpty(activation.Channel, "default")
+	claimCommand := taskRoleClaimCommand(activation.Capabilities)
 	return fmt.Sprintf(`A queued AGH task run is assigned to this agent.
 
 Task: %s
 Run: %s
 Coordination channel: %s
 
-Use `+"`agh task next --wait -o json`"+` to claim work for this session before changing files. Complete or fail the claimed run through the AGH task lease commands from this same session. Do not use `+"`agh task run claim`"+` for autonomous work.`,
+Use `+"`%s`"+` once to claim work for this session before changing files. Complete or fail the claimed run through the AGH task lease commands from this same session. Do not use `+"`agh task run claim`"+` for autonomous work.`,
 		title,
 		activation.RunID,
 		channel,
+		claimCommand,
 	)
+}
+
+func taskRoleClaimCommand(capabilities []string) string {
+	args := []string{"agh task next --wait -o json"}
+	for _, capability := range uniqueNonEmptyStrings(capabilities) {
+		args = append(args, "--capability "+shellQuoteSimple(capability))
+	}
+	return strings.Join(args, " ")
+}
+
+func profileRequiredWorkerCapabilities(profile *taskpkg.ExecutionProfile) []string {
+	if profile == nil {
+		return nil
+	}
+	return append([]string(nil), profile.Worker.RequiredCapabilities...)
+}
+
+func uniqueNonEmptyStrings(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		result = append(result, trimmed)
+	}
+	return result
+}
+
+func shellQuoteSimple(value string) string {
+	if value == "" {
+		return "''"
+	}
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }
 
 func (r *taskRoleRuntime) logTaskRoleError(

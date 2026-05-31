@@ -144,6 +144,7 @@ func defaultExecutionProfile(taskID string) ExecutionProfile {
 		Coordinator: CoordinatorProfile{Mode: CoordinatorModeInherit},
 		Worker:      WorkerProfile{Mode: WorkerModeInherit},
 		Sandbox:     SandboxPolicy{Mode: SandboxModeInherit},
+		Runtime:     RuntimePolicy{Mode: RuntimeModeDefault},
 	}
 }
 

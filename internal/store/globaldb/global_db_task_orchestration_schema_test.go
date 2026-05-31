@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/compozy/agh/internal/store"
@@ -47,6 +48,56 @@ func TestGlobalDBTaskOrchestrationProfileSchemaMigration(t *testing.T) {
 		assertTaskOrchestrationProfileSchema(t, globalDB.db)
 		assertPreviousTaskOrchestrationRowsPreserved(t, globalDB.db)
 	})
+
+	t.Run("Should upgrade legacy execution profile rows with default runtime mode", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		dbPath := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		legacyDB := openPreviousTaskOrchestrationSchemaDB(t, dbPath)
+		insertPreviousTaskOrchestrationMigrationRecords(t, legacyDB)
+		insertPreviousTaskOrchestrationRows(t, legacyDB)
+		prefixEnd := migrationIndexByName(t, "add_task_execution_profile_runtime_mode")
+		if err := store.RunMigrations(ctx, legacyDB, globalSchemaMigrations[:prefixEnd]); err != nil {
+			t.Fatalf("RunMigrations(pre-runtime-mode prefix) error = %v", err)
+		}
+		columns, err := tableColumns(ctx, legacyDB, "task_execution_profiles")
+		if err != nil {
+			t.Fatalf("tableColumns(task_execution_profiles) error = %v", err)
+		}
+		if _, ok := columns[taskExecutionProfileRuntimeModeColumn]; ok {
+			t.Fatalf("legacy task_execution_profiles unexpectedly contains %q", taskExecutionProfileRuntimeModeColumn)
+		}
+		insertLegacyExecutionProfileWithoutRuntimeMode(t, legacyDB)
+		if err := legacyDB.Close(); err != nil {
+			t.Fatalf("legacyDB.Close() error = %v", err)
+		}
+
+		migratedDB, err := OpenGlobalDB(ctx, dbPath)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(migrate runtime mode) error = %v", err)
+		}
+		assertTaskOrchestrationProfileSchema(t, migratedDB.db)
+		if err := migratedDB.Close(ctx); err != nil {
+			t.Fatalf("Close(migratedDB) error = %v", err)
+		}
+		reopenedDB, err := OpenGlobalDB(ctx, dbPath)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := reopenedDB.Close(ctx); err != nil {
+				t.Fatalf("Close(reopenedDB) error = %v", err)
+			}
+		})
+		profile, err := reopenedDB.GetExecutionProfile(ctx, "task-profile-migration")
+		if err != nil {
+			t.Fatalf("GetExecutionProfile(migrated legacy row) error = %v", err)
+		}
+		if got, want := profile.Runtime.Mode, taskpkg.RuntimeModeDefault; got != want {
+			t.Fatalf("profile.Runtime.Mode = %q, want %q", got, want)
+		}
+	})
 }
 
 func TestTaskOrchestrationProfileSchemaStatements(t *testing.T) {
@@ -75,6 +126,26 @@ func TestTaskOrchestrationProfileSchemaStatements(t *testing.T) {
 			t.Fatalf("globalSchemaStatements contains current-run index %d times, want 1", got)
 		}
 	})
+
+	t.Run("Should add runtime mode only through the appended migration", func(t *testing.T) {
+		t.Parallel()
+
+		for _, statement := range taskOrchestrationProfileMigrationSchemaStatements() {
+			if strings.Contains(statement, taskExecutionProfileRuntimeModeColumn) {
+				t.Fatalf(
+					"historical profile migration statement contains %q: %s",
+					taskExecutionProfileRuntimeModeColumn,
+					statement,
+				)
+			}
+		}
+		if !schemaStatementsContainColumn(
+			taskOrchestrationProfileSchemaStatements(),
+			taskExecutionProfileRuntimeModeColumn,
+		) {
+			t.Fatalf("current profile schema statements missing %q", taskExecutionProfileRuntimeModeColumn)
+		}
+	})
 }
 
 func schemaStatementsContain(statements []string, want string) bool {
@@ -89,6 +160,27 @@ func countSchemaStatements(statements []string, want string) int {
 		}
 	}
 	return count
+}
+
+func schemaStatementsContainColumn(statements []string, column string) bool {
+	for _, statement := range statements {
+		if strings.Contains(statement, column) {
+			return true
+		}
+	}
+	return false
+}
+
+func migrationIndexByName(t *testing.T, name string) int {
+	t.Helper()
+
+	for index, migration := range globalSchemaMigrations {
+		if migration.Name == name {
+			return index
+		}
+	}
+	t.Fatalf("migration %q not found", name)
+	return 0
 }
 
 func assertTaskOrchestrationProfileSchema(t *testing.T, db *sql.DB) {
@@ -121,6 +213,7 @@ func assertTaskOrchestrationProfileSchema(t *testing.T, db *sql.DB) {
 		"sandbox_ref",
 		"created_at",
 		"updated_at",
+		"runtime_mode",
 	})
 	assertTableColumns(t, db, "task_profile_agents", []string{
 		"task_id",
@@ -340,6 +433,40 @@ func insertPreviousTaskOrchestrationRows(t *testing.T, db *sql.DB) {
 		nil,
 	); err != nil {
 		t.Fatalf("insert previous task run error = %v", err)
+	}
+}
+
+func insertLegacyExecutionProfileWithoutRuntimeMode(t *testing.T, db *sql.DB) {
+	t.Helper()
+
+	ctx := testutil.Context(t)
+	if _, err := db.ExecContext(
+		ctx,
+		`INSERT INTO task_execution_profiles (
+			task_id, coordinator_mode, coordinator_agent_name, coordinator_provider,
+			coordinator_model, coordinator_guidance, worker_mode, worker_agent_name,
+			worker_provider, worker_model, review_agent_name, review_provider,
+			review_model, sandbox_mode, sandbox_ref, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"task-profile-migration",
+		string(taskpkg.CoordinatorModeInherit),
+		"",
+		"",
+		"",
+		"",
+		string(taskpkg.WorkerModeSelect),
+		"legacy-worker",
+		"claude",
+		"sonnet",
+		"",
+		"",
+		"",
+		string(taskpkg.SandboxModeInherit),
+		"",
+		"2026-05-05T12:00:00.000000000Z",
+		"2026-05-05T12:00:00.000000000Z",
+	); err != nil {
+		t.Fatalf("insert legacy execution profile without runtime mode error = %v", err)
 	}
 }
 

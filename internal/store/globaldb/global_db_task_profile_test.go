@@ -70,6 +70,7 @@ func TestGlobalDBExecutionProfileStore(t *testing.T) {
 				PreferredCapabilities: []string{"review"},
 			},
 			Sandbox: taskpkg.SandboxPolicy{Mode: taskpkg.SandboxModeRef, SandboxRef: "workspace"},
+			Runtime: taskpkg.RuntimePolicy{Mode: taskpkg.RuntimeModeEvidence},
 		})
 		if err != nil {
 			t.Fatalf("UpsertExecutionProfile(create) error = %v", err)
@@ -103,6 +104,9 @@ func TestGlobalDBExecutionProfileStore(t *testing.T) {
 		}
 		if !updated.UpdatedAt.Equal(updatedAt) {
 			t.Fatalf("updated.UpdatedAt = %v, want %v", updated.UpdatedAt, updatedAt)
+		}
+		if got, want := updated.Runtime.Mode, taskpkg.RuntimeModeDefault; got != want {
+			t.Fatalf("updated.Runtime.Mode = %q, want %q", got, want)
 		}
 		assertStringSliceGlobal(t, updated.Worker.AllowedAgentNames, []string{"runner"})
 		assertStringSliceGlobal(t, updated.Review.AllowedAgentNames, nil)
@@ -173,6 +177,9 @@ func assertStoredProfileShape(t *testing.T, profile *taskpkg.ExecutionProfile) {
 	}
 	if got, want := profile.Sandbox.Mode, taskpkg.SandboxModeRef; got != want {
 		t.Fatalf("Sandbox.Mode = %q, want %q", got, want)
+	}
+	if got, want := profile.Runtime.Mode, taskpkg.RuntimeModeEvidence; got != want {
+		t.Fatalf("Runtime.Mode = %q, want %q", got, want)
 	}
 	assertStringSliceGlobal(t, profile.Participants.AllowedAgentNames, []string{"coder", "reviewer"})
 	assertStringSliceGlobal(t, profile.Review.AllowedChannelIDs, []string{"review-channel"})

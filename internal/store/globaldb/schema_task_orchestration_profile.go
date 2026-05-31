@@ -3,37 +3,17 @@ package globaldb
 const taskCurrentRunIndexStatement = `CREATE INDEX IF NOT EXISTS idx_tasks_current_run ON tasks(current_run_id);`
 
 func taskOrchestrationProfileSchemaStatements() []string {
+	return taskOrchestrationProfileSchemaStatementsForTable(taskExecutionProfilesTableStatement)
+}
+
+func taskOrchestrationProfileMigrationSchemaStatements() []string {
+	return taskOrchestrationProfileSchemaStatementsForTable(taskExecutionProfilesMigrationTableStatement)
+}
+
+func taskOrchestrationProfileSchemaStatementsForTable(profileTableStatement string) []string {
 	return []string{
 		taskCurrentRunIndexStatement,
-		`CREATE TABLE IF NOT EXISTS task_execution_profiles (
-			task_id                  TEXT PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
-			coordinator_mode         TEXT NOT NULL DEFAULT 'inherit' CHECK (
-				coordinator_mode IN ('inherit', 'guided')
-			),
-			coordinator_agent_name   TEXT NOT NULL DEFAULT '',
-			coordinator_provider     TEXT NOT NULL DEFAULT '',
-			coordinator_model        TEXT NOT NULL DEFAULT '',
-			coordinator_guidance     TEXT NOT NULL DEFAULT '',
-			worker_mode              TEXT NOT NULL DEFAULT 'inherit' CHECK (
-				worker_mode IN ('inherit', 'select')
-			),
-			worker_agent_name        TEXT NOT NULL DEFAULT '',
-			worker_provider          TEXT NOT NULL DEFAULT '',
-			worker_model             TEXT NOT NULL DEFAULT '',
-			review_agent_name        TEXT NOT NULL DEFAULT '',
-			review_provider          TEXT NOT NULL DEFAULT '',
-			review_model             TEXT NOT NULL DEFAULT '',
-			sandbox_mode             TEXT NOT NULL DEFAULT 'inherit' CHECK (
-				sandbox_mode IN ('inherit', 'none', 'ref')
-			),
-			sandbox_ref              TEXT NOT NULL DEFAULT '',
-			created_at               TEXT NOT NULL,
-			updated_at               TEXT NOT NULL,
-			CHECK (
-				(sandbox_mode = 'ref' AND sandbox_ref <> '') OR
-				(sandbox_mode <> 'ref' AND sandbox_ref = '')
-			)
-		);`,
+		profileTableStatement,
 		`CREATE INDEX IF NOT EXISTS task_execution_profiles_task_id_idx
 			ON task_execution_profiles(task_id);`,
 		`CREATE TABLE IF NOT EXISTS task_profile_agents (
@@ -74,3 +54,66 @@ func taskOrchestrationProfileSchemaStatements() []string {
 			ON task_profile_capabilities(role, preference, capability_id, task_id);`,
 	}
 }
+
+const taskExecutionProfilesMigrationTableStatement = `CREATE TABLE IF NOT EXISTS task_execution_profiles (
+			task_id                  TEXT PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+			coordinator_mode         TEXT NOT NULL DEFAULT 'inherit' CHECK (
+				coordinator_mode IN ('inherit', 'guided')
+			),
+			coordinator_agent_name   TEXT NOT NULL DEFAULT '',
+			coordinator_provider     TEXT NOT NULL DEFAULT '',
+			coordinator_model        TEXT NOT NULL DEFAULT '',
+			coordinator_guidance     TEXT NOT NULL DEFAULT '',
+			worker_mode              TEXT NOT NULL DEFAULT 'inherit' CHECK (
+				worker_mode IN ('inherit', 'select')
+			),
+			worker_agent_name        TEXT NOT NULL DEFAULT '',
+			worker_provider          TEXT NOT NULL DEFAULT '',
+			worker_model             TEXT NOT NULL DEFAULT '',
+			review_agent_name        TEXT NOT NULL DEFAULT '',
+			review_provider          TEXT NOT NULL DEFAULT '',
+			review_model             TEXT NOT NULL DEFAULT '',
+			sandbox_mode             TEXT NOT NULL DEFAULT 'inherit' CHECK (
+				sandbox_mode IN ('inherit', 'none', 'ref')
+			),
+			sandbox_ref              TEXT NOT NULL DEFAULT '',
+			created_at               TEXT NOT NULL,
+			updated_at               TEXT NOT NULL,
+			CHECK (
+				(sandbox_mode = 'ref' AND sandbox_ref <> '') OR
+				(sandbox_mode <> 'ref' AND sandbox_ref = '')
+			)
+		);`
+
+const taskExecutionProfilesTableStatement = `CREATE TABLE IF NOT EXISTS task_execution_profiles (
+			task_id                  TEXT PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
+			coordinator_mode         TEXT NOT NULL DEFAULT 'inherit' CHECK (
+				coordinator_mode IN ('inherit', 'guided')
+			),
+			coordinator_agent_name   TEXT NOT NULL DEFAULT '',
+			coordinator_provider     TEXT NOT NULL DEFAULT '',
+			coordinator_model        TEXT NOT NULL DEFAULT '',
+			coordinator_guidance     TEXT NOT NULL DEFAULT '',
+			worker_mode              TEXT NOT NULL DEFAULT 'inherit' CHECK (
+				worker_mode IN ('inherit', 'select')
+			),
+			worker_agent_name        TEXT NOT NULL DEFAULT '',
+			worker_provider          TEXT NOT NULL DEFAULT '',
+			worker_model             TEXT NOT NULL DEFAULT '',
+			review_agent_name        TEXT NOT NULL DEFAULT '',
+			review_provider          TEXT NOT NULL DEFAULT '',
+			review_model             TEXT NOT NULL DEFAULT '',
+			sandbox_mode             TEXT NOT NULL DEFAULT 'inherit' CHECK (
+				sandbox_mode IN ('inherit', 'none', 'ref')
+			),
+			sandbox_ref              TEXT NOT NULL DEFAULT '',
+			created_at               TEXT NOT NULL,
+			updated_at               TEXT NOT NULL,
+			runtime_mode             TEXT NOT NULL DEFAULT 'default' CHECK (
+				runtime_mode IN ('default', 'evidence')
+			),
+			CHECK (
+				(sandbox_mode = 'ref' AND sandbox_ref <> '') OR
+				(sandbox_mode <> 'ref' AND sandbox_ref = '')
+			)
+		);`

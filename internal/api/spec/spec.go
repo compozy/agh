@@ -192,6 +192,7 @@ var schemaEnumValues = map[reflect.Type][]string{
 	reflect.TypeFor[taskpkg.CoordinatorMode]():                   taskCoordinatorModeValues(),
 	reflect.TypeFor[taskpkg.WorkerMode]():                        taskWorkerModeValues(),
 	reflect.TypeFor[taskpkg.SandboxMode]():                       taskSandboxModeValues(),
+	reflect.TypeFor[taskpkg.RuntimeMode]():                       taskRuntimeModeValues(),
 	reflect.TypeFor[taskpkg.ReviewPolicy]():                      taskReviewPolicyValues(),
 	reflect.TypeFor[taskpkg.RunReviewStatus]():                   taskRunReviewStatusValues(),
 	reflect.TypeFor[taskpkg.RunReviewOutcome]():                  taskRunReviewOutcomeValues(),
@@ -6421,6 +6422,13 @@ func taskSandboxModeValues() []string {
 		string(taskpkg.SandboxModeInherit),
 		string(taskpkg.SandboxModeNone),
 		string(taskpkg.SandboxModeRef),
+	}
+}
+
+func taskRuntimeModeValues() []string {
+	return []string{
+		string(taskpkg.RuntimeModeDefault),
+		string(taskpkg.RuntimeModeEvidence),
 	}
 }
 

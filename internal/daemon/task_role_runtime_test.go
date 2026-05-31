@@ -18,6 +18,31 @@ import (
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
+func TestShellQuoteSimpleAlwaysSingleQuotes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		value string
+		want  string
+	}{
+		{name: "Should quote empty input", value: "", want: "''"},
+		{name: "Should quote simple input", value: "frontend", want: "'frontend'"},
+		{name: "Should quote metacharacters", value: "frontend; rm -rf /", want: "'frontend; rm -rf /'"},
+		{name: "Should quote single-quote input", value: "owner's-tool", want: "'owner'\\''s-tool'"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := shellQuoteSimple(tt.value); got != tt.want {
+				t.Fatalf("shellQuoteSimple(%q) = %q, want %q", tt.value, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 	t.Parallel()
 
@@ -53,7 +78,7 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 		if got := call.Provider; got != "" {
 			t.Fatalf("CreateOpts.Provider = %q, want default provider resolution", got)
 		}
-		for _, required := range []string{"agh task next", "agh task run claim", run.ID, "design-review"} {
+		for _, required := range []string{"agh task next --wait -o json", "agh task run claim", run.ID, "design-review"} {
 			if !strings.Contains(call.PromptOverlay, required) {
 				t.Fatalf("PromptOverlay missing %q:\n%s", required, call.PromptOverlay)
 			}
@@ -80,6 +105,114 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 
 		if got, want := sessions.createCount(), 1; got != want {
 			t.Fatalf("create count = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should not reuse an active role session with different profile startup settings", func(t *testing.T) {
+		t.Parallel()
+
+		firstTask := taskRoleRuntimeTask("task-profile-a", "", "design-review")
+		firstTask.Owner = nil
+		firstRun := taskRoleRuntimeRun("run-profile-a", firstTask.ID, "design-review")
+		firstProfile := taskpkg.ExecutionProfile{
+			TaskID: firstTask.ID,
+			Worker: taskpkg.WorkerProfile{
+				Mode:      taskpkg.WorkerModeSelect,
+				AgentName: "frontend-engineer",
+				Provider:  "claude",
+				Model:     "sonnet",
+			},
+			Sandbox: taskpkg.SandboxPolicy{Mode: taskpkg.SandboxModeRef, SandboxRef: "evidence-lab-a"},
+			Runtime: taskpkg.RuntimePolicy{Mode: taskpkg.RuntimeModeEvidence},
+		}
+		secondTask := taskRoleRuntimeTask("task-profile-b", "", "design-review")
+		secondTask.Owner = nil
+		secondRun := taskRoleRuntimeRun("run-profile-b", secondTask.ID, "design-review")
+		secondProfile := taskpkg.ExecutionProfile{
+			TaskID: secondTask.ID,
+			Worker: taskpkg.WorkerProfile{
+				Mode:      taskpkg.WorkerModeSelect,
+				AgentName: "frontend-engineer",
+				Provider:  "claude",
+				Model:     "sonnet",
+			},
+			Sandbox: taskpkg.SandboxPolicy{Mode: taskpkg.SandboxModeRef, SandboxRef: "evidence-lab-b"},
+			Runtime: taskpkg.RuntimePolicy{Mode: taskpkg.RuntimeModeEvidence},
+		}
+		store := newTaskRoleRuntimeStore(firstTask, firstRun, firstProfile, secondTask, secondRun, secondProfile)
+		sessions := &taskRoleRuntimeSessions{}
+		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
+
+		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
+			TaskRunContext: hookspkg.TaskRunContext{TaskID: firstTask.ID, RunID: firstRun.ID},
+		})
+		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
+			TaskRunContext: hookspkg.TaskRunContext{TaskID: secondTask.ID, RunID: secondRun.ID},
+		})
+
+		if got, want := sessions.createCount(), 2; got != want {
+			t.Fatalf("create count = %d, want %d for different profile startup settings", got, want)
+		}
+		firstName := sessions.createCall(0).Name
+		secondName := sessions.createCall(1).Name
+		if firstName == secondName {
+			t.Fatalf("CreateOpts.Name = %q for both profile workers, want distinct profile fingerprints", firstName)
+		}
+	})
+
+	t.Run("Should start the selected execution-profile worker when no owner is set", func(t *testing.T) {
+		t.Parallel()
+
+		taskRecord := taskRoleRuntimeTask("task-profile-worker", "", "design-review")
+		taskRecord.Owner = nil
+		run := taskRoleRuntimeRun("run-profile-worker", taskRecord.ID, "design-review")
+		profile := taskpkg.ExecutionProfile{
+			TaskID: taskRecord.ID,
+			Worker: taskpkg.WorkerProfile{
+				Mode:                 taskpkg.WorkerModeSelect,
+				AgentName:            "frontend-engineer",
+				Provider:             "claude",
+				Model:                "sonnet",
+				RequiredCapabilities: []string{"frontend"},
+			},
+			Sandbox: taskpkg.SandboxPolicy{
+				Mode:       taskpkg.SandboxModeRef,
+				SandboxRef: "evidence-lab",
+			},
+			Runtime: taskpkg.RuntimePolicy{Mode: taskpkg.RuntimeModeEvidence},
+		}
+		store := newTaskRoleRuntimeStore(taskRecord, run, profile)
+		sessions := &taskRoleRuntimeSessions{}
+		runtime := newTaskRoleRuntimeForTest(t, store, sessions)
+
+		runtime.OnTaskRunEnqueued(context.Background(), hookspkg.TaskRunEnqueuedPayload{
+			TaskRunContext: hookspkg.TaskRunContext{TaskID: taskRecord.ID, RunID: run.ID},
+		})
+
+		if got, want := sessions.createCount(), 1; got != want {
+			t.Fatalf("create count = %d, want %d", got, want)
+		}
+		call := sessions.createCall(0)
+		if got, want := call.AgentName, "frontend-engineer"; got != want {
+			t.Fatalf("CreateOpts.AgentName = %q, want %q", got, want)
+		}
+		if got, want := call.Provider, "claude"; got != want {
+			t.Fatalf("CreateOpts.Provider = %q, want %q", got, want)
+		}
+		if got, want := call.Model, "sonnet"; got != want {
+			t.Fatalf("CreateOpts.Model = %q, want %q", got, want)
+		}
+		if got, want := call.Permissions, aghconfig.PermissionModeApproveAll; got != want {
+			t.Fatalf("CreateOpts.Permissions = %q, want %q", got, want)
+		}
+		if got, want := call.SandboxRef, "evidence-lab"; got != want {
+			t.Fatalf("CreateOpts.SandboxRef = %q, want %q", got, want)
+		}
+		if !strings.Contains(call.PromptOverlay, "Runtime evidence mode is enabled") {
+			t.Fatalf("PromptOverlay missing runtime evidence guidance:\n%s", call.PromptOverlay)
+		}
+		if !strings.Contains(call.PromptOverlay, "agh task next --wait -o json --capability 'frontend'") {
+			t.Fatalf("PromptOverlay missing required capability claim:\n%s", call.PromptOverlay)
 		}
 	})
 
@@ -359,15 +492,17 @@ func taskRoleRuntimeRun(id string, taskID string, channel string) taskpkg.Run {
 }
 
 type taskRoleRuntimeStore struct {
-	mu    sync.Mutex
-	tasks map[string]taskpkg.Task
-	runs  map[string]taskpkg.Run
+	mu       sync.Mutex
+	tasks    map[string]taskpkg.Task
+	runs     map[string]taskpkg.Run
+	profiles map[string]taskpkg.ExecutionProfile
 }
 
 func newTaskRoleRuntimeStore(records ...any) *taskRoleRuntimeStore {
 	store := &taskRoleRuntimeStore{
-		tasks: make(map[string]taskpkg.Task),
-		runs:  make(map[string]taskpkg.Run),
+		tasks:    make(map[string]taskpkg.Task),
+		runs:     make(map[string]taskpkg.Run),
+		profiles: make(map[string]taskpkg.ExecutionProfile),
 	}
 	for _, record := range records {
 		switch value := record.(type) {
@@ -375,6 +510,8 @@ func newTaskRoleRuntimeStore(records ...any) *taskRoleRuntimeStore {
 			store.tasks[value.ID] = value
 		case taskpkg.Run:
 			store.runs[value.ID] = value
+		case taskpkg.ExecutionProfile:
+			store.profiles[value.TaskID] = value
 		}
 	}
 	return store
@@ -398,6 +535,19 @@ func (s *taskRoleRuntimeStore) GetTaskRun(_ context.Context, id string) (taskpkg
 		return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
 	}
 	return run, nil
+}
+
+func (s *taskRoleRuntimeStore) GetExecutionProfile(
+	_ context.Context,
+	taskID string,
+) (taskpkg.ExecutionProfile, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	profile, ok := s.profiles[strings.TrimSpace(taskID)]
+	if !ok {
+		return taskpkg.ExecutionProfile{}, taskpkg.ErrExecutionProfileNotFound
+	}
+	return profile, nil
 }
 
 func (s *taskRoleRuntimeStore) ListTaskRunsByStatus(

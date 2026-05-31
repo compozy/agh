@@ -1306,6 +1306,12 @@ profile is then stored. Session start loads the persisted profile (or the defaul
 when none exists) without re-running validation. Updates and deletes are rejected while the task has
 an active run (`tasks.current_run_id` is set); resolve or release the run before retrying.
 
+Per-task profiles also store `sandbox.mode` and `runtime.mode`. `sandbox.mode` accepts `inherit`,
+`none`, or `ref`; `ref` requires `sandbox.sandbox_ref` and resolves a named `[sandboxes.<name>]`.
+`runtime.mode` accepts `default` or `evidence`. Evidence mode adds runtime evidence guidance and
+widens session permissions only when the same profile explicitly selects `sandbox.mode = "ref"`;
+inherited or disabled sandbox modes keep the configured permission policy.
+
 ### `[task.orchestration.review]`
 
 Defaults and bounds for the post-terminal review gate. These values shape the `task.review_policy`

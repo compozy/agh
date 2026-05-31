@@ -5462,6 +5462,10 @@ export interface operations {
                       provider?: string;
                       required_capabilities?: string[];
                     };
+                    runtime: {
+                      /** @enum {string} */
+                      mode: "default" | "evidence";
+                    };
                     sandbox: {
                       /** @enum {string} */
                       mode: "inherit" | "none" | "ref";
@@ -49949,6 +49953,10 @@ export interface operations {
                 provider?: string;
                 required_capabilities?: string[];
               };
+              runtime: {
+                /** @enum {string} */
+                mode: "default" | "evidence";
+              };
               sandbox: {
                 /** @enum {string} */
                 mode: "inherit" | "none" | "ref";
@@ -50127,6 +50135,10 @@ export interface operations {
             provider?: string;
             required_capabilities?: string[];
           };
+          runtime: {
+            /** @enum {string} */
+            mode: "default" | "evidence";
+          };
           sandbox: {
             /** @enum {string} */
             mode: "inherit" | "none" | "ref";
@@ -50190,6 +50202,10 @@ export interface operations {
                 preferred_peer_ids?: string[];
                 provider?: string;
                 required_capabilities?: string[];
+              };
+              runtime: {
+                /** @enum {string} */
+                mode: "default" | "evidence";
               };
               sandbox: {
                 /** @enum {string} */

@@ -268,6 +268,95 @@ func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t
 			t.Fatalf("createCall.SandboxRef = %q, want empty", got)
 		}
 	})
+
+	t.Run("Should grant evidence permissions only with an explicit sandbox ref", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &fakeSessionManager{}
+		bridge, err := newTaskSessionBridge(sessions, t.TempDir(), discardLogger())
+		if err != nil {
+			t.Fatalf("newTaskSessionBridge() error = %v", err)
+		}
+
+		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+			Task: taskpkg.Task{
+				ID:          "task-evidence-sandbox",
+				Scope:       taskpkg.ScopeWorkspace,
+				WorkspaceID: "ws-profile",
+				Title:       "Evidence Sandbox Task",
+			},
+			Run: taskpkg.Run{
+				ID:       "run-evidence-sandbox",
+				TaskID:   "task-evidence-sandbox",
+				Status:   taskpkg.TaskRunStatusStarting,
+				Attempt:  1,
+				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				QueuedAt: time.Date(2026, 5, 5, 12, 20, 0, 0, time.UTC),
+			},
+			ExecutionProfile: &taskpkg.ExecutionProfile{
+				TaskID: "task-evidence-sandbox",
+				Sandbox: taskpkg.SandboxPolicy{
+					Mode:       taskpkg.SandboxModeRef,
+					SandboxRef: "evidence-lab",
+				},
+				Runtime: taskpkg.RuntimePolicy{Mode: taskpkg.RuntimeModeEvidence},
+			},
+		})
+		if err != nil {
+			t.Fatalf("StartTaskSession() error = %v", err)
+		}
+		createCall := sessions.createCall(0)
+		if got, want := createCall.Permissions, aghconfig.PermissionModeApproveAll; got != want {
+			t.Fatalf("createCall.Permissions = %q, want %q", got, want)
+		}
+		if got, want := createCall.SandboxRef, "evidence-lab"; got != want {
+			t.Fatalf("createCall.SandboxRef = %q, want %q", got, want)
+		}
+		if !strings.Contains(createCall.PromptOverlay, "Runtime evidence mode is enabled") {
+			t.Fatalf("PromptOverlay missing runtime evidence guidance:\n%s", createCall.PromptOverlay)
+		}
+	})
+
+	t.Run("Should keep configured permissions when evidence runtime does not select a sandbox", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &fakeSessionManager{}
+		bridge, err := newTaskSessionBridge(sessions, t.TempDir(), discardLogger())
+		if err != nil {
+			t.Fatalf("newTaskSessionBridge() error = %v", err)
+		}
+
+		_, err = bridge.StartTaskSession(context.Background(), &taskpkg.StartTaskSession{
+			Task: taskpkg.Task{
+				ID:          "task-evidence-inherit",
+				Scope:       taskpkg.ScopeWorkspace,
+				WorkspaceID: "ws-profile",
+				Title:       "Evidence Inherit Task",
+			},
+			Run: taskpkg.Run{
+				ID:       "run-evidence-inherit",
+				TaskID:   "task-evidence-inherit",
+				Status:   taskpkg.TaskRunStatusStarting,
+				Attempt:  1,
+				Origin:   taskpkg.Origin{Kind: taskpkg.OriginKindCLI, Ref: "agh task run"},
+				QueuedAt: time.Date(2026, 5, 5, 12, 25, 0, 0, time.UTC),
+			},
+			ExecutionProfile: &taskpkg.ExecutionProfile{
+				TaskID:  "task-evidence-inherit",
+				Runtime: taskpkg.RuntimePolicy{Mode: taskpkg.RuntimeModeEvidence},
+			},
+		})
+		if err != nil {
+			t.Fatalf("StartTaskSession() error = %v", err)
+		}
+		createCall := sessions.createCall(0)
+		if got := createCall.Permissions; got == aghconfig.PermissionModeApproveAll {
+			t.Fatalf("createCall.Permissions = %q, want configured permission fallback", got)
+		}
+		if !strings.Contains(createCall.PromptOverlay, "AGH keeps the configured permission mode") {
+			t.Fatalf("PromptOverlay missing permission boundary guidance:\n%s", createCall.PromptOverlay)
+		}
+	})
 }
 
 func TestTaskSessionBridgeStartTaskSessionInjectsTaskContextOverlay(t *testing.T) {

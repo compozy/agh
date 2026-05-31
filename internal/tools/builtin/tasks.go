@@ -494,7 +494,8 @@ const taskExecutionProfileSchema = `{
 		"worker":` + workerProfileSchema + `,
 		"review":` + reviewProfileSchema + `,
 		"participants":` + participantPolicySchema + `,
-		"sandbox":` + sandboxPolicySchema + `
+		"sandbox":` + sandboxPolicySchema + `,
+		"runtime":` + runtimePolicySchema + `
 	},
 	"additionalProperties":false
 }`
@@ -564,6 +565,15 @@ const sandboxPolicySchema = `{
 	"properties":{
 		"mode":{"type":"string","enum":["","inherit","none","ref"]},
 		"sandbox_ref":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
+const runtimePolicySchema = `{
+	"type":"object",
+	"required":["mode"],
+	"properties":{
+		"mode":{"type":"string","enum":["default","evidence"],"default":"default"}
 	},
 	"additionalProperties":false
 }`

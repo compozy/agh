@@ -594,6 +594,11 @@ func expectedGlobalMigrationPrefix() []expectedGlobalMigrationIdentity {
 			name:     "add_task_auto_enqueue",
 			checksum: "2026-05-29-add-task-auto-enqueue",
 		},
+		{
+			version:  42,
+			name:     "add_task_execution_profile_runtime_mode",
+			checksum: "2026-05-31-add-task-execution-profile-runtime-mode",
+		},
 	}
 }
 

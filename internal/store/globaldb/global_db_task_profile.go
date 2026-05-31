@@ -138,7 +138,7 @@ func loadExecutionProfile(
 			task_id, coordinator_mode, coordinator_agent_name, coordinator_provider,
 			coordinator_model, coordinator_guidance, worker_mode, worker_agent_name,
 			worker_provider, worker_model, review_agent_name, review_provider,
-			review_model, sandbox_mode, sandbox_ref, created_at, updated_at
+			review_model, sandbox_mode, sandbox_ref, runtime_mode, created_at, updated_at
 		 FROM task_execution_profiles
 		 WHERE task_id = ?`,
 		taskID,
@@ -189,6 +189,7 @@ func scanExecutionProfileRow(scanner rowScanner) (taskpkg.ExecutionProfile, erro
 		&row.profile.Review.Model,
 		&row.profile.Sandbox.Mode,
 		&row.profile.Sandbox.SandboxRef,
+		&row.profile.Runtime.Mode,
 		&row.createdAt,
 		&row.updatedAt,
 	); err != nil {
@@ -219,8 +220,8 @@ func upsertExecutionProfileRow(
 			task_id, coordinator_mode, coordinator_agent_name, coordinator_provider,
 			coordinator_model, coordinator_guidance, worker_mode, worker_agent_name,
 			worker_provider, worker_model, review_agent_name, review_provider,
-			review_model, sandbox_mode, sandbox_ref, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			review_model, sandbox_mode, sandbox_ref, runtime_mode, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(task_id) DO UPDATE SET
 			coordinator_mode = excluded.coordinator_mode,
 			coordinator_agent_name = excluded.coordinator_agent_name,
@@ -236,6 +237,7 @@ func upsertExecutionProfileRow(
 			review_model = excluded.review_model,
 			sandbox_mode = excluded.sandbox_mode,
 			sandbox_ref = excluded.sandbox_ref,
+			runtime_mode = excluded.runtime_mode,
 			updated_at = excluded.updated_at`,
 		profile.TaskID,
 		string(profile.Coordinator.Mode),
@@ -252,6 +254,7 @@ func upsertExecutionProfileRow(
 		profile.Review.Model,
 		string(profile.Sandbox.Mode),
 		profile.Sandbox.SandboxRef,
+		string(profile.Runtime.Mode),
 		store.FormatTimestamp(profile.CreatedAt),
 		store.FormatTimestamp(profile.UpdatedAt),
 	); err != nil {

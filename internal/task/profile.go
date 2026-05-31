@@ -25,6 +25,11 @@ const (
 	SandboxModeNone SandboxMode = "none"
 	// SandboxModeRef selects one named sandbox reference at session start.
 	SandboxModeRef SandboxMode = "ref"
+
+	// RuntimeModeDefault uses the normal task-session runtime contract.
+	RuntimeModeDefault RuntimeMode = "default"
+	// RuntimeModeEvidence explicitly allows runtime/browser/mobile evidence work.
+	RuntimeModeEvidence RuntimeMode = "evidence"
 )
 
 const (
@@ -41,6 +46,9 @@ type WorkerMode string
 // SandboxMode identifies task-level sandbox selection behavior.
 type SandboxMode string
 
+// RuntimeMode identifies task-level runtime evidence behavior.
+type RuntimeMode string
+
 // ExecutionProfile is the typed task-owned orchestration selection state.
 type ExecutionProfile struct {
 	TaskID       string             `json:"task_id"`
@@ -49,6 +57,7 @@ type ExecutionProfile struct {
 	Review       ReviewProfile      `json:"review"`
 	Participants ParticipantPolicy  `json:"participants"`
 	Sandbox      SandboxPolicy      `json:"sandbox"`
+	Runtime      RuntimePolicy      `json:"runtime"`
 	CreatedAt    time.Time          `json:"created_at"`
 	UpdatedAt    time.Time          `json:"updated_at"`
 }
@@ -107,6 +116,11 @@ type SandboxPolicy struct {
 	SandboxRef string      `json:"sandbox_ref,omitempty"`
 }
 
+// RuntimePolicy opts a task into broader runtime-evidence operations.
+type RuntimePolicy struct {
+	Mode RuntimeMode `json:"mode"`
+}
+
 // ExecutionProfileValidationOptions carries config-backed gates without coupling task to config.
 type ExecutionProfileValidationOptions struct {
 	AllowProviderOverride       bool
@@ -137,6 +151,7 @@ func (p *ExecutionProfile) Normalize(options ExecutionProfileValidationOptions) 
 	normalized.Review = normalizeReviewProfile(normalized.Review)
 	normalized.Participants = normalizeParticipantPolicy(normalized.Participants)
 	normalized.Sandbox = normalizeSandboxPolicy(normalized.Sandbox)
+	normalized.Runtime = normalizeRuntimePolicy(normalized.Runtime)
 
 	if err := (&normalized).Validate(options); err != nil {
 		return ExecutionProfile{}, err
@@ -164,7 +179,10 @@ func (p *ExecutionProfile) Validate(options ExecutionProfileValidationOptions) e
 	if err := validateParticipantPolicy(p.Participants); err != nil {
 		return err
 	}
-	return validateSandboxPolicy(p.Sandbox, options)
+	if err := validateSandboxPolicy(p.Sandbox, options); err != nil {
+		return err
+	}
+	return validateRuntimePolicy(p.Runtime)
 }
 
 // Normalize returns the normalized coordinator mode.
@@ -180,6 +198,11 @@ func (m WorkerMode) Normalize() WorkerMode {
 // Normalize returns the normalized sandbox mode.
 func (m SandboxMode) Normalize() SandboxMode {
 	return SandboxMode(strings.ToLower(strings.TrimSpace(string(m))))
+}
+
+// Normalize returns the normalized runtime mode.
+func (m RuntimeMode) Normalize() RuntimeMode {
+	return RuntimeMode(strings.ToLower(strings.TrimSpace(string(m))))
 }
 
 func normalizeCoordinatorProfile(profile CoordinatorProfile) CoordinatorProfile {
@@ -242,6 +265,14 @@ func normalizeSandboxPolicy(policy SandboxPolicy) SandboxPolicy {
 		policy.Mode = SandboxModeInherit
 	}
 	policy.SandboxRef = strings.TrimSpace(policy.SandboxRef)
+	return policy
+}
+
+func normalizeRuntimePolicy(policy RuntimePolicy) RuntimePolicy {
+	policy.Mode = policy.Mode.Normalize()
+	if policy.Mode == "" {
+		policy.Mode = RuntimeModeDefault
+	}
 	return policy
 }
 
@@ -439,6 +470,21 @@ func validateSandboxPolicy(policy SandboxPolicy, options ExecutionProfileValidat
 		)
 	}
 	return validateSelectorAtom(policy.SandboxRef, "task_execution_profile.sandbox.sandbox_ref", true)
+}
+
+func validateRuntimePolicy(policy RuntimePolicy) error {
+	switch policy.Mode.Normalize() {
+	case RuntimeModeDefault, RuntimeModeEvidence:
+		return nil
+	default:
+		return fmt.Errorf(
+			"%w: task_execution_profile.runtime.mode must be %q or %q: %q",
+			ErrValidation,
+			RuntimeModeDefault,
+			RuntimeModeEvidence,
+			policy.Mode,
+		)
+	}
 }
 
 func validateProviderModelGate(
