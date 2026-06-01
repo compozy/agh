@@ -1,9 +1,9 @@
 import { UIProvider } from "@agh/ui";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import type { MemoryDecision, MemoryHeader } from "../../types";
+import type { KnowledgeMemoryItem, MemoryDecision, MemoryHeader } from "../../types";
 
 import { KnowledgeDetailPanel } from "../knowledge-detail-panel";
 
@@ -171,6 +171,74 @@ describe("KnowledgeDetailPanel", () => {
     await user.type(screen.getByTestId("knowledge-delete-confirm-typing"), MEMORY.filename);
     await user.click(screen.getByTestId("confirm-delete-memory-btn"));
     expect(onDelete).toHaveBeenCalledWith(MEMORY);
+  });
+
+  it("Should reset dialog state when switching between memories that share scope and filename", async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn().mockResolvedValue(undefined);
+    const firstMemory: KnowledgeMemoryItem = {
+      ...MEMORY,
+      filename: "shared.md",
+      key: undefined,
+      name: "Shared Alpha",
+      scope: "workspace",
+      workspace_id: "ws_alpha",
+    };
+    const secondMemory: KnowledgeMemoryItem = {
+      ...MEMORY,
+      filename: "shared.md",
+      key: undefined,
+      name: "Shared Beta",
+      scope: "workspace",
+      workspace_id: "ws_beta",
+    };
+    const status = {
+      isDecisionsLoading: false,
+      isDeletePending: false,
+      isLoading: false,
+    };
+    const { rerender } = render(
+      <UIProvider reducedMotion="always">
+        <KnowledgeDetailPanel
+          content="# Shared Alpha"
+          decisions={[]}
+          decisionsError={null}
+          error={null}
+          memory={firstMemory}
+          onDelete={onDelete}
+          scope="workspace"
+          status={status}
+        />
+      </UIProvider>
+    );
+
+    await user.click(screen.getByTestId("delete-memory-btn"));
+    expect(screen.getByTestId("knowledge-delete-dialog")).toBeInTheDocument();
+
+    rerender(
+      <UIProvider reducedMotion="always">
+        <KnowledgeDetailPanel
+          content="# Shared Beta"
+          decisions={[]}
+          decisionsError={null}
+          error={null}
+          memory={secondMemory}
+          onDelete={onDelete}
+          scope="workspace"
+          status={status}
+        />
+      </UIProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("knowledge-delete-dialog")).toHaveAttribute("data-closed");
+    });
+
+    await user.click(screen.getByTestId("delete-memory-btn"));
+    await user.type(screen.getByTestId("knowledge-delete-confirm-typing"), secondMemory.filename);
+    await user.click(screen.getByTestId("confirm-delete-memory-btn"));
+
+    expect(onDelete).toHaveBeenCalledWith(secondMemory);
   });
 
   it("Should disable the delete button while a delete is pending", () => {

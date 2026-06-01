@@ -80,6 +80,19 @@ function setKnowledgeDialogOpen(
   setDialogState(previous => ({ ...previous, memoryIdentity, [key]: open }));
 }
 
+function knowledgeDialogMemoryIdentity(memory: KnowledgeMemoryItem | undefined): string {
+  if (!memory) return "";
+  if (memory.key) return memory.key;
+
+  return [
+    memory.scope,
+    memory.workspace_id ?? "",
+    memory.agent_name ?? "",
+    memory.agent_tier ?? "",
+    memory.filename,
+  ].join(":");
+}
+
 function buildContextEntries(memory: KnowledgeMemoryItem): ContextBoxEntry[] {
   const knowledgeType = knowledgeTypeFor(memory.type);
   const entries: ContextBoxEntry[] = [
@@ -217,7 +230,7 @@ function KnowledgeDetailPanel({
   revertError = null,
 }: KnowledgeDetailPanelProps) {
   const { isLoading, isDeletePending, isEditPending = false, isDecisionsLoading = false } = status;
-  const memoryIdentity = memory ? `${memory.scope}:${memory.filename}` : "";
+  const memoryIdentity = knowledgeDialogMemoryIdentity(memory);
   const [dialogState, setDialogState] = useState<KnowledgeDialogState>({
     memoryIdentity,
     confirmDeleteOpen: false,
