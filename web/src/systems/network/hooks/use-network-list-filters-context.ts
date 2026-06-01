@@ -1,6 +1,6 @@
 import { use } from "react";
 
-import { NetworkListFiltersContext } from "../contexts/network-list-filters-context";
+import { NetworkListFiltersContext } from "../contexts/network-list-filters-context-value";
 import type { UseNetworkListFiltersResult } from "./use-network-list-filters";
 
 export function useNetworkListFiltersContext(): UseNetworkListFiltersResult {

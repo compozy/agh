@@ -17,7 +17,6 @@ export {
   DataSurfaceEmpty,
   DataSurfaceError,
   DataSurfaceLoading,
-  resolveDataSurfaceState,
   type DataSurfaceContentProps,
   type DataSurfaceEmptyProps,
   type DataSurfaceErrorProps,
@@ -25,6 +24,7 @@ export {
   type DataSurfaceProps,
   type DataSurfaceState,
 } from "./data-surface";
+export { resolveDataSurfaceState } from "./data-surface-state";
 export {
   BlockLoading,
   type BlockLoadingProps,
@@ -54,20 +54,20 @@ export {
   Pill,
   PillDot,
   PillLink,
-  pillVariants,
   type PillDotProps,
   type PillLinkProps,
   type PillProps,
   type PillSize,
   type PillTone,
 } from "./pill";
+export { pillVariants } from "./pill-variants";
 export {
   PillGroup,
-  pillGroupSegmentVariants,
   type PillGroupItem,
   type PillGroupProps,
   type PillGroupSize,
 } from "./pill-group";
+export { pillGroupSegmentVariants } from "./pill-group-variants";
 export {
   ConnectionIndicator,
   STATUS_CONFIG,

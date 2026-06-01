@@ -1,5 +1,5 @@
 import { AlertCircle, BookOpen, Pencil, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { type Dispatch, type SetStateAction, useState } from "react";
 
 import {
   Button,
@@ -57,10 +57,27 @@ interface KnowledgeDetailPanelProps {
   revertError?: string | null;
 }
 
+type KnowledgeDialogKey = "confirmDeleteOpen" | "editOpen";
+
+interface KnowledgeDialogState {
+  memoryIdentity: string;
+  confirmDeleteOpen: boolean;
+  editOpen: boolean;
+}
+
 function statusDotToneFromScope(scope: KnowledgeScope): "warning" | "accent" | "faint" {
   if (scope === "agent") return "warning";
   if (scope === "workspace") return "accent";
   return "faint";
+}
+
+function setKnowledgeDialogOpen(
+  setDialogState: Dispatch<SetStateAction<KnowledgeDialogState>>,
+  memoryIdentity: string,
+  key: KnowledgeDialogKey,
+  open: boolean
+) {
+  setDialogState(previous => ({ ...previous, memoryIdentity, [key]: open }));
 }
 
 function buildContextEntries(memory: KnowledgeMemoryItem): ContextBoxEntry[] {
@@ -200,13 +217,20 @@ function KnowledgeDetailPanel({
   revertError = null,
 }: KnowledgeDetailPanelProps) {
   const { isLoading, isDeletePending, isEditPending = false, isDecisionsLoading = false } = status;
-  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
+  const memoryIdentity = memory ? `${memory.scope}:${memory.filename}` : "";
+  const [dialogState, setDialogState] = useState<KnowledgeDialogState>({
+    memoryIdentity,
+    confirmDeleteOpen: false,
+    editOpen: false,
+  });
 
-  useEffect(() => {
-    setConfirmDeleteOpen(false);
-    setEditOpen(false);
-  }, [memory?.filename, memory?.scope]);
+  if (dialogState.memoryIdentity !== memoryIdentity) {
+    setDialogState({ memoryIdentity, confirmDeleteOpen: false, editOpen: false });
+  }
+
+  const isCurrentDialogState = dialogState.memoryIdentity === memoryIdentity;
+  const confirmDeleteOpen = isCurrentDialogState && dialogState.confirmDeleteOpen;
+  const editOpen = isCurrentDialogState && dialogState.editOpen;
 
   if (isLoading) {
     return (
@@ -253,7 +277,7 @@ function KnowledgeDetailPanel({
   const handleConfirmDelete = async () => {
     try {
       await onDelete(memory);
-      setConfirmDeleteOpen(false);
+      setKnowledgeDialogOpen(setDialogState, memoryIdentity, "confirmDeleteOpen", false);
     } catch {
       // Error state is surfaced through `deleteError` and the dialog stays open.
     }
@@ -263,7 +287,7 @@ function KnowledgeDetailPanel({
     if (!onEdit) return;
     try {
       await onEdit(memory, input);
-      setEditOpen(false);
+      setKnowledgeDialogOpen(setDialogState, memoryIdentity, "editOpen", false);
     } catch {
       // Error state is surfaced through `editError` and the dialog stays open.
     }
@@ -333,7 +357,7 @@ function KnowledgeDetailPanel({
           <Button
             data-testid="edit-memory-btn"
             disabled={isEditPending || content === undefined}
-            onClick={() => setEditOpen(true)}
+            onClick={() => setKnowledgeDialogOpen(setDialogState, memoryIdentity, "editOpen", true)}
             size="sm"
             type="button"
             variant="outline"
@@ -345,7 +369,9 @@ function KnowledgeDetailPanel({
         <Button
           data-testid="delete-memory-btn"
           disabled={isDeletePending}
-          onClick={() => setConfirmDeleteOpen(true)}
+          onClick={() =>
+            setKnowledgeDialogOpen(setDialogState, memoryIdentity, "confirmDeleteOpen", true)
+          }
           size="sm"
           type="button"
           variant="outline"
@@ -370,7 +396,9 @@ function KnowledgeDetailPanel({
         filename={memory.filename}
         isPending={isDeletePending}
         onConfirm={handleConfirmDelete}
-        onOpenChange={setConfirmDeleteOpen}
+        onOpenChange={open =>
+          setKnowledgeDialogOpen(setDialogState, memoryIdentity, "confirmDeleteOpen", open)
+        }
         open={confirmDeleteOpen}
         scope={resolvedScope}
       />
@@ -383,7 +411,9 @@ function KnowledgeDetailPanel({
           initialDescription={memory.description ?? ""}
           isPending={isEditPending}
           onConfirm={handleConfirmEdit}
-          onOpenChange={setEditOpen}
+          onOpenChange={open =>
+            setKnowledgeDialogOpen(setDialogState, memoryIdentity, "editOpen", open)
+          }
           open={editOpen}
           scope={resolvedScope}
         />

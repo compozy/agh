@@ -6,7 +6,7 @@ import type { NetworkConversationMessage } from "../../types";
 import { formatTimelineClock, formatTimelineIso } from "../../lib/format-timestamp";
 import { WorkChip } from "../work/work-chip";
 import { HoverToolbar, type HoverToolbarHandlers } from "./hover-toolbar";
-import { MessageAvatar, type MessageAvatarRole } from "./message-avatar";
+import { MessageAvatar, type MessageAvatarOwnerRole } from "./message-avatar";
 import { MessageBodyText } from "./message-body";
 
 export type MessageRowDensity = "channel" | "overlay";
@@ -26,7 +26,7 @@ export interface MessageRowProps extends HoverToolbarHandlers, MessageRowOptimis
   className?: string;
 }
 
-function pickRoleLabel(message: NetworkConversationMessage): MessageAvatarRole {
+function pickRoleLabel(message: NetworkConversationMessage): MessageAvatarOwnerRole {
   if (message.session_id != null && message.session_id !== "") {
     return "agent";
   }
@@ -97,7 +97,7 @@ export function MessageRow({
       <MessageAvatar
         initialFrom={displayName}
         name={displayName}
-        role={role}
+        ownerRole={role}
         seed={authorSeed(message)}
         sizePx={avatarSize}
       />

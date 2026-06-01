@@ -4,9 +4,9 @@ import { cn } from "@/lib/utils";
 
 import { getIdentityInitial, pickIdentityPaletteColors } from "../../lib/palette";
 
-export type MessageAvatarRole = "agent" | "human" | "system";
+export type MessageAvatarOwnerRole = "agent" | "human" | "system";
 
-const ROLE_LABEL: Record<MessageAvatarRole, string> = {
+const ROLE_LABEL: Record<MessageAvatarOwnerRole, string> = {
   agent: "Agent",
   human: "Human",
   system: "System",
@@ -21,11 +21,11 @@ export interface MessageAvatarProps {
    */
   sizePx: 36 | 32 | 20;
   /**
-   * Owner role drives the `role="img"` aria-label When
+   * Owner role drives the `role="img"` aria-label. When
    * provided, the avatar announces `{Role} {Name}` so screen readers retain
    * the signal that previously came from the role pill on message rows.
    */
-  role?: MessageAvatarRole;
+  ownerRole?: MessageAvatarOwnerRole;
   /** Human-readable name for the aria-label (defaults to `initialFrom`). */
   name?: string;
   className?: string;
@@ -35,15 +35,15 @@ export function MessageAvatar({
   seed,
   initialFrom,
   sizePx,
-  role,
+  ownerRole,
   name,
   className,
 }: MessageAvatarProps) {
   const [background, foreground] = pickIdentityPaletteColors(seed);
   const initial = getIdentityInitial(initialFrom);
-  const labeled = role !== undefined;
+  const labeled = ownerRole !== undefined;
   const announcedName = name?.trim() || initialFrom;
-  const ariaLabel = labeled ? `${ROLE_LABEL[role]} ${announcedName}` : undefined;
+  const ariaLabel = labeled ? `${ROLE_LABEL[ownerRole]} ${announcedName}` : undefined;
 
   return (
     <div
@@ -53,7 +53,7 @@ export function MessageAvatar({
         "flex shrink-0 select-none items-center justify-center rounded-chip",
         className
       )}
-      data-owner-role={role}
+      data-owner-role={ownerRole}
       data-testid="network-message-avatar"
       role={labeled ? "img" : undefined}
       style={{

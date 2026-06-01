@@ -44,7 +44,7 @@ function AgentMeta() {
 
 export const UserRole: Story = {
   args: {
-    role: "user",
+    messageRole: "user",
     meta: "YOU · 12:02",
     children:
       "Find the event mapper that groups tool calls by turn and extract the grouping logic into a pure helper.",
@@ -53,7 +53,7 @@ export const UserRole: Story = {
 
 export const AgentRole: Story = {
   args: {
-    role: "agent",
+    messageRole: "agent",
     meta: <AgentMeta />,
     children:
       "I can see two candidates, `stream.ts` and `map.ts`. I'll extract the grouping into `groupToolCallsByTurn` and point the call site at it.",
@@ -62,14 +62,14 @@ export const AgentRole: Story = {
 
 export const SystemRole: Story = {
   args: {
-    role: "system",
+    messageRole: "system",
     children: "Session resumed from checkpoint 8471 · 3 prior tool calls replayed",
   },
 };
 
 export const ToolRole: Story = {
   args: {
-    role: "tool",
+    messageRole: "tool",
     children: (
       <ToolCallCard toolName="shell.safe-run" filePath="packages/runtime" status="completed">
         <pre className="font-mono text-[12px] leading-[1.6] text-muted">
@@ -82,7 +82,7 @@ export const ToolRole: Story = {
 
 export const DiffRole: Story = {
   args: {
-    role: "diff",
+    messageRole: "diff",
     children: (
       <div className="rounded-md border border-line bg-rail p-4 font-mono text-[12px] leading-[1.65]">
         <div className="text-success">+ const groups = groupToolCallsByTurn(tool.events);</div>
@@ -99,19 +99,19 @@ export const AllRoles: Story = {
       data-testid="all-roles"
       style={{ maxWidth: 820, margin: "0 auto" }}
     >
-      <ChatMessageBubble role="system" data-role-key="system">
+      <ChatMessageBubble messageRole="system" data-role-key="system">
         Session resumed · 3 prior tool calls replayed
       </ChatMessageBubble>
-      <ChatMessageBubble role="user" meta="YOU · 12:02" data-role-key="user">
+      <ChatMessageBubble messageRole="user" meta="YOU · 12:02" data-role-key="user">
         Find the event mapper that groups tool calls by turn.
       </ChatMessageBubble>
-      <ChatMessageBubble role="agent" meta={<AgentMeta />} data-role-key="agent">
+      <ChatMessageBubble messageRole="agent" meta={<AgentMeta />} data-role-key="agent">
         Two candidates, I&apos;ll extract the grouping into `groupToolCallsByTurn`.
       </ChatMessageBubble>
-      <ChatMessageBubble role="tool" data-role-key="tool">
+      <ChatMessageBubble messageRole="tool" data-role-key="tool">
         <ToolCallCard toolName="shell.safe-run" filePath="packages/runtime" status="completed" />
       </ChatMessageBubble>
-      <ChatMessageBubble role="diff" data-role-key="diff">
+      <ChatMessageBubble messageRole="diff" data-role-key="diff">
         <div className="rounded-md border border-line bg-rail p-3 font-mono text-[12px]">
           + apply diff to stream.ts
         </div>
@@ -130,7 +130,7 @@ export const RoleAlignmentInteraction: Story = {
       {ROLES.map(role => (
         <ChatMessageBubble
           key={role}
-          role={role}
+          messageRole={role}
           meta={role === "user" ? "YOU · 12:02" : role === "agent" ? <AgentMeta /> : undefined}
           data-role-key={role}
         >
@@ -177,7 +177,7 @@ export const StatusBadgeCycleInteraction: Story = {
       style={{ maxWidth: 820, margin: "0 auto" }}
     >
       {(["pending", "in_progress", "completed", "failed"] as ToolCallStatus[]).map(status => (
-        <ChatMessageBubble key={status} role="tool">
+        <ChatMessageBubble key={status} messageRole="tool">
           <ToolCallCard
             toolName="file.read"
             filePath="packages/runtime/src/session/stream.ts"

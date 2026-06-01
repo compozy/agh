@@ -2,7 +2,8 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 
 import { Button } from "../button";
-import { Toaster, toast } from "../sonner";
+import { Toaster } from "../sonner";
+import { toast } from "../sonner-toast";
 
 const meta: Meta<typeof Toaster> = {
   title: "components/ui/Sonner",

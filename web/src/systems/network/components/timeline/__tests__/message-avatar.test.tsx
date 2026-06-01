@@ -26,7 +26,7 @@ describe("MessageAvatar", () => {
 
   it("Should announce `{Role} {Name}` when `role` is provided", () => {
     render(
-      <MessageAvatar initialFrom="codex" name="Codex" role="agent" seed="codex" sizePx={32} />
+      <MessageAvatar initialFrom="codex" name="Codex" ownerRole="agent" seed="codex" sizePx={32} />
     );
     const avatar = screen.getByTestId("network-message-avatar");
     expect(avatar).toHaveAttribute("role", "img");

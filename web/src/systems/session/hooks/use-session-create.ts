@@ -3,7 +3,7 @@ import { useContext } from "react";
 import {
   SessionCreateContext,
   type SessionCreateContextValue,
-} from "../contexts/session-create-context";
+} from "../contexts/session-create-context-value";
 
 export function useSessionCreate(): SessionCreateContextValue {
   const value = useContext(SessionCreateContext);

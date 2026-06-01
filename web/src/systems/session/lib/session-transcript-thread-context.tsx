@@ -1,7 +1,7 @@
-import { createContext, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { ThreadMessage } from "@assistant-ui/react";
 
-export const SessionTranscriptThreadContext = createContext<readonly ThreadMessage[]>([]);
+import { SessionTranscriptThreadContext } from "./session-transcript-thread-context-value";
 
 export function SessionTranscriptThreadProvider({
   children,

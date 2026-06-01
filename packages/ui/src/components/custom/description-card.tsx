@@ -3,7 +3,7 @@
 import type * as React from "react";
 
 import { cn } from "../../lib/utils";
-import { Markdown, STREAMDOWN_SAFE_CONFIG } from "./markdown";
+import { Markdown } from "./markdown";
 
 export interface DescriptionCardProps extends Omit<React.ComponentProps<"section">, "children"> {
   /** Markdown source — operator-authored or model-streamed. */
@@ -35,4 +35,4 @@ function DescriptionCard({ children, bare = false, className, ...props }: Descri
   );
 }
 
-export { DescriptionCard, STREAMDOWN_SAFE_CONFIG };
+export { DescriptionCard };

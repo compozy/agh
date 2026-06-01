@@ -5,8 +5,7 @@ import * as React from "react";
 import { cn } from "../../lib/utils";
 import { Empty, type EmptyProps } from "../empty";
 import { BlockLoading, type BlockLoadingProps } from "./block-loading";
-
-type DataSurfaceState = "loading" | "error" | "empty" | "ready";
+import type { DataSurfaceState } from "./data-surface-state";
 
 interface DataSurfaceProps extends React.ComponentProps<"div"> {
   state: DataSurfaceState;
@@ -20,21 +19,6 @@ type DataSurfaceLoadingProps = BlockLoadingProps;
 type DataSurfaceEmptyProps = EmptyProps;
 type DataSurfaceErrorProps = EmptyProps;
 type DataSurfaceContentProps = React.ComponentProps<"div">;
-
-function resolveDataSurfaceState({
-  isLoading = false,
-  error = null,
-  isEmpty = false,
-}: {
-  isLoading?: boolean;
-  error?: Error | null;
-  isEmpty?: boolean;
-}): DataSurfaceState {
-  if (isLoading) return "loading";
-  if (error) return "error";
-  if (isEmpty) return "empty";
-  return "ready";
-}
 
 function isStateElement(child: React.ReactNode): child is React.ReactElement<DataSurfaceSlotProps> {
   return React.isValidElement(child) && getStateElementState(child) !== undefined;
@@ -103,7 +87,6 @@ export {
   DataSurfaceEmpty,
   DataSurfaceError,
   DataSurfaceContent,
-  resolveDataSurfaceState,
 };
 export type {
   DataSurfaceContentProps,

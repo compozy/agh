@@ -244,7 +244,7 @@ function GroupSection({ group, items, itemActionProps }: GroupSectionProps) {
       </header>
       <div className="flex flex-col">
         {items.map(item => (
-          <TasksInboxItem {...itemActionProps} group={group.id} item={item} key={item.task.id} />
+          <TasksInboxItem key={item.task.id} {...itemActionProps} group={group.id} item={item} />
         ))}
       </div>
     </section>

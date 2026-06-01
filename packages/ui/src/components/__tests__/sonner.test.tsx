@@ -1,7 +1,8 @@
 import { act, render, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { Toaster, toast } from "../sonner";
+import { Toaster } from "../sonner";
+import { toast } from "../sonner-toast";
 
 describe("Toaster", () => {
   it("Should mount the Sonner root region", () => {

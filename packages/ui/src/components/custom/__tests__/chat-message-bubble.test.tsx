@@ -6,7 +6,7 @@ import { ChatMessageBubble } from "../chat-message-bubble";
 describe("ChatMessageBubble", () => {
   it("Should render a right-aligned bubble for role='user'", () => {
     const { container } = render(
-      <ChatMessageBubble role="user" meta="YOU · 12:02">
+      <ChatMessageBubble messageRole="user" meta="YOU · 12:02">
         Find the event mapper.
       </ChatMessageBubble>
     );
@@ -22,7 +22,7 @@ describe("ChatMessageBubble", () => {
   it("Should render role='agent' left-aligned with no bubble wrapper", () => {
     const { container } = render(
       <ChatMessageBubble
-        role="agent"
+        messageRole="agent"
         meta={
           <>
             <span data-testid="dot" />
@@ -43,7 +43,7 @@ describe("ChatMessageBubble", () => {
 
   it("Should render role='system' as a divider row with hairlines flanking the body", () => {
     const { container } = render(
-      <ChatMessageBubble role="system">Session resumed</ChatMessageBubble>
+      <ChatMessageBubble messageRole="system">Session resumed</ChatMessageBubble>
     );
     const root = container.querySelector<HTMLElement>('[data-slot="chat-message"]');
     const body = container.querySelector<HTMLElement>('[data-slot="chat-message-body"]');
@@ -55,7 +55,7 @@ describe("ChatMessageBubble", () => {
 
   it("Should place the meta slot above the body for role='user'", () => {
     const { container } = render(
-      <ChatMessageBubble role="user" meta="YOU · 12:02">
+      <ChatMessageBubble messageRole="user" meta="YOU · 12:02">
         hello
       </ChatMessageBubble>
     );
@@ -68,7 +68,7 @@ describe("ChatMessageBubble", () => {
   it("Should place the meta slot beside the agent name (inline row) for role='agent'", () => {
     const { container } = render(
       <ChatMessageBubble
-        role="agent"
+        messageRole="agent"
         meta={
           <>
             <span data-testid="dot" />
@@ -90,7 +90,7 @@ describe("ChatMessageBubble", () => {
     "Should render role='%s' as a left-aligned pass-through container",
     role => {
       const { container } = render(
-        <ChatMessageBubble role={role}>
+        <ChatMessageBubble messageRole={role}>
           <div data-testid="inner-card">payload</div>
         </ChatMessageBubble>
       );
@@ -104,7 +104,7 @@ describe("ChatMessageBubble", () => {
 
   it("Should honour an explicit align override", () => {
     const { container } = render(
-      <ChatMessageBubble role="user" align="left">
+      <ChatMessageBubble messageRole="user" align="left">
         override
       </ChatMessageBubble>
     );
@@ -114,7 +114,7 @@ describe("ChatMessageBubble", () => {
 
   it.each(["agent", "tool", "diff"] as const)("Should honour align='right' for role='%s'", role => {
     const { container } = render(
-      <ChatMessageBubble role={role} align="right" meta="META">
+      <ChatMessageBubble messageRole={role} align="right" meta="META">
         payload
       </ChatMessageBubble>
     );
@@ -124,7 +124,7 @@ describe("ChatMessageBubble", () => {
 
   it("Should keep role='system' centered even when align is overridden", () => {
     const { container } = render(
-      <ChatMessageBubble role="system" align="right">
+      <ChatMessageBubble messageRole="system" align="right">
         Session resumed
       </ChatMessageBubble>
     );
@@ -134,7 +134,7 @@ describe("ChatMessageBubble", () => {
 
   it("Should forward extra HTML props to the root", () => {
     const { container } = render(
-      <ChatMessageBubble role="agent" data-testid="m1">
+      <ChatMessageBubble messageRole="agent" data-testid="m1">
         body
       </ChatMessageBubble>
     );

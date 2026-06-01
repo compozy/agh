@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 
@@ -101,11 +101,12 @@ export function NewDirectDialog({
   const { resolveRoom, isResolving, error } = useResolveNetworkDirectRoom();
   const [selectedPeerId, setSelectedPeerId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!open) {
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
       setSelectedPeerId(null);
     }
-  }, [open]);
+    onOpenChange(nextOpen);
+  };
 
   const handleSelect = async (peer: NetworkPeerSummary) => {
     setSelectedPeerId(peer.peer_id);
@@ -117,7 +118,7 @@ export function NewDirectDialog({
           session_id: sessionId,
         },
       });
-      onOpenChange(false);
+      handleOpenChange(false);
       if (activeWorkspaceId) {
         void navigate({
           to: "/network/$workspaceId/$channel/directs/$directId",
@@ -130,7 +131,7 @@ export function NewDirectDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md" data-testid="network-new-direct-dialog">
         <DialogHeader>
           <DialogTitle>New direct room</DialogTitle>
@@ -154,7 +155,7 @@ export function NewDirectDialog({
         ) : null}
 
         <DialogFooter>
-          <Button onClick={() => onOpenChange(false)} type="button" variant="outline">
+          <Button onClick={() => handleOpenChange(false)} type="button" variant="outline">
             Cancel
           </Button>
         </DialogFooter>
