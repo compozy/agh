@@ -1,11 +1,11 @@
 ---
 title: "agh task fail"
-description: "Force fail queued or claimed task runs"
+description: "Fail task runs through a session-bound lease or operator override"
 ---
 
 ## agh task fail
 
-Force fail queued or claimed task runs
+Fail task runs through a session-bound lease or operator override
 
 ```
 agh task fail <run-id> [run-id...] [flags]
@@ -14,6 +14,9 @@ agh task fail <run-id> [run-id...] [flags]
 ### Examples
 
 ```
+  # Fail the current session's claimed run
+  agh task fail run-123 --error "provider returned invalid JSON"
+
   # Force fail one run
   agh task fail run-123 --reason "operator recovery"
 
@@ -26,8 +29,9 @@ agh task fail <run-id> [run-id...] [flags]
 ### Options
 
 ```
+      --error string      Session-bound failure message
   -h, --help              help for fail
-      --metadata string   Optional forced-failure metadata JSON
+      --metadata string   Optional failure metadata JSON
       --reason string     Forced-failure reason
 ```
 

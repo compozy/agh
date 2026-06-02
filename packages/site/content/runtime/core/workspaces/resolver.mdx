@@ -27,9 +27,11 @@ travel with it.
 
 <OperatorNote>
   `agh workspace add` registers a directory. It does not create or own the directory, and `agh
-  workspace remove` only removes the registration. Your project files stay on disk. AGH creates
-  `<workspace>/.agh/workspace.toml` on first daemon touch when `[memory.workspace] auto_create =
-  true`; commit it to git so collaborators share the same workspace identity.
+  workspace remove` leaves your project files on disk. It removes the registration and AGH's
+  persisted history for stopped sessions in that workspace; active sessions must be stopped or
+  removed first. AGH creates `<workspace>/.agh/workspace.toml` on first daemon touch when
+  `[memory.workspace] auto_create = true`; commit it to git so collaborators share the same
+  workspace identity.
 </OperatorNote>
 
 On a fresh install, daemon boot registers the operator home directory (`$HOME`) as the default

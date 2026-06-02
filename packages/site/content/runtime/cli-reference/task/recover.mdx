@@ -1,27 +1,29 @@
 ---
-title: "agh workspace remove"
-description: "Remove a workspace registration and stopped session history"
+title: "agh task recover"
+description: "Recover one needs_attention task run"
 ---
 
-## agh workspace remove
+## agh task recover
 
-Remove a workspace registration and stopped session history
+Recover one needs_attention task run
 
 ```
-agh workspace remove <name-or-id> [flags]
+agh task recover <run-id> [flags]
 ```
 
 ### Examples
 
 ```
-  # Remove a workspace registration by name
-  agh workspace remove checkout-api
+  # Re-enqueue one run stuck in needs_attention
+  agh task recover run-123 --reason "operator recovery"
 ```
 
 ### Options
 
 ```
-  -h, --help   help for remove
+  -h, --help              help for recover
+      --metadata string   Optional recovery metadata JSON
+      --reason string     Optional recovery reason recorded in the audit event
 ```
 
 ### Options inherited from parent commands
@@ -43,5 +45,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh workspace remove <name-or-id> -o json
+agh task recover <run-id> -o json
 ```

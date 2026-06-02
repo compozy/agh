@@ -321,7 +321,7 @@ func newWorkspaceEditCommand(deps commandDeps) *cobra.Command {
 func newWorkspaceRemoveCommand(deps commandDeps) *cobra.Command {
 	return &cobra.Command{
 		Use:   "remove <name-or-id>",
-		Short: "Remove a workspace registration",
+		Short: "Remove a workspace registration and stopped session history",
 		Example: `  # Remove a workspace registration by name
   agh workspace remove checkout-api`,
 		Args: exactOneNonBlankArg(),

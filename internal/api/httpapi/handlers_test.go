@@ -1305,6 +1305,63 @@ func TestDeleteWorkspaceHandlerReturnsNoContent(t *testing.T) {
 	}
 }
 
+func TestDeleteWorkspaceHandlerRemovesStoppedWorkspaceSessions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should delete stopped workspace sessions before unregister", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newTestHomePaths(t)
+		var deleted []string
+		manager := stubSessionManager{
+			ListAllFn: func(context.Context) ([]*session.Info, error) {
+				matchingA := newSessionInfo("sess-a")
+				matchingA.WorkspaceID = "ws_alpha"
+				matchingA.State = session.StateStopped
+				matchingB := newSessionInfo("sess-b")
+				matchingB.WorkspaceID = "ws_alpha"
+				matchingB.State = session.StateStopped
+				otherWorkspace := newSessionInfo("sess-other")
+				otherWorkspace.WorkspaceID = "ws_beta"
+				otherWorkspace.State = session.StateStopped
+				return []*session.Info{matchingB, otherWorkspace, matchingA}, nil
+			},
+			DeleteFn: func(_ context.Context, id string) error {
+				deleted = append(deleted, id)
+				return nil
+			},
+		}
+		workspaces := stubWorkspaceService{
+			GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+				return workspacepkg.Workspace{ID: "ws_alpha", Name: "alpha"}, nil
+			},
+			UnregisterFn: func(_ context.Context, id string) error {
+				if id != "ws_alpha" {
+					t.Fatalf("Unregister() id = %q, want ws_alpha", id)
+				}
+				if !slices.Equal(deleted, []string{"sess-a", "sess-b"}) {
+					t.Fatalf("deleted before unregister = %#v, want sess-a and sess-b", deleted)
+				}
+				return nil
+			},
+		}
+		engine := newTestRouter(
+			t,
+			newTestHandlersWithWorkspace(t, manager, stubObserver{}, workspaces, homePaths),
+		)
+
+		recorder := performRequest(t, engine, http.MethodDelete, "/api/workspaces/ws_alpha", nil)
+		if recorder.Code != http.StatusNoContent {
+			t.Fatalf(
+				"status = %d, want %d; body=%s",
+				recorder.Code,
+				http.StatusNoContent,
+				recorder.Body.String(),
+			)
+		}
+	})
+}
+
 func TestResolveWorkspaceHandlerReturnsWorkspace(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	rootDir := t.TempDir()

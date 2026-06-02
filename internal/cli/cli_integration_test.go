@@ -36,6 +36,7 @@ import (
 	sandboxlocal "github.com/compozy/agh/internal/sandbox/local"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/soul"
+	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/store/globaldb"
 	taskpkg "github.com/compozy/agh/internal/task"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
@@ -272,6 +273,119 @@ func TestCLISessionChannelRoundTripIntegration(t *testing.T) {
 		t.Fatal("session resume stopped error = nil, want attach rejection")
 	} else if !strings.Contains(err.Error(), "session not attachable") {
 		t.Fatalf("session resume stopped error = %v, want not attachable", err)
+	}
+}
+
+func TestCLISessionRemoveAndWorkspaceRemoveIntegration(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should delete session artifacts through daemon routes", func(t *testing.T) {
+		t.Parallel()
+
+		h := newIntegrationHarness(t)
+		mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
+		t.Cleanup(func() {
+			if _, _, err := executeRootCommand(t, h.deps, "daemon", "stop", "-o", "json"); err != nil {
+				if !strings.Contains(err.Error(), "daemon is not running") {
+					t.Errorf("daemon stop cleanup error = %v", err)
+				}
+			}
+			if err := h.runner.waitForExit(); err != nil {
+				t.Errorf("waitForExit() cleanup error = %v", err)
+			}
+		})
+
+		workspaceOut := mustExecuteRoot(t, h.deps, "workspace", "add", h.workspace, "--name", "alpha", "-o", "json")
+		var registered WorkspaceRecord
+		if err := json.Unmarshal([]byte(workspaceOut), &registered); err != nil {
+			t.Fatalf("json.Unmarshal(workspace add) error = %v", err)
+		}
+		if registered.ID == "" {
+			t.Fatal("workspace add returned empty id")
+		}
+
+		active := createIntegrationSession(t, h, "delete-active", "alpha")
+		activeDir := filepath.Join(h.homePaths.SessionsDir, active.ID)
+		assertPathExists(t, store.SessionDBFile(activeDir))
+		removeOut := mustExecuteRoot(t, h.deps, "session", "remove", active.ID, "-o", "json")
+		var removed SessionRecord
+		if err := json.Unmarshal([]byte(removeOut), &removed); err != nil {
+			t.Fatalf("json.Unmarshal(session remove) error = %v", err)
+		}
+		if removed.ID != active.ID {
+			t.Fatalf("removed.ID = %q, want %q", removed.ID, active.ID)
+		}
+		assertPathMissing(t, activeDir)
+
+		cascade := createIntegrationSession(t, h, "workspace-cascade", "alpha")
+		cascadeStopOut := mustExecuteRoot(t, h.deps, "session", "stop", cascade.ID, "-o", "json")
+		var stoppedCascade SessionRecord
+		if err := json.Unmarshal([]byte(cascadeStopOut), &stoppedCascade); err != nil {
+			t.Fatalf("json.Unmarshal(session stop) error = %v", err)
+		}
+		if stoppedCascade.State != session.StateStopped {
+			t.Fatalf("stoppedCascade.State = %q, want %q", stoppedCascade.State, session.StateStopped)
+		}
+		cascadeDir := filepath.Join(h.homePaths.SessionsDir, cascade.ID)
+		assertPathExists(t, store.SessionDBFile(cascadeDir))
+
+		workspaceRemoveOut := mustExecuteRoot(t, h.deps, "workspace", "remove", "alpha", "-o", "json")
+		var removedWorkspace WorkspaceRecord
+		if err := json.Unmarshal([]byte(workspaceRemoveOut), &removedWorkspace); err != nil {
+			t.Fatalf("json.Unmarshal(workspace remove) error = %v", err)
+		}
+		if removedWorkspace.ID != registered.ID {
+			t.Fatalf("removedWorkspace.ID = %q, want %q", removedWorkspace.ID, registered.ID)
+		}
+		assertPathMissing(t, cascadeDir)
+
+		exitCode, _, stderr := executeRootCommandWithExit(t, h.deps, "session", "status", active.ID, "-o", "json")
+		if exitCode == 0 {
+			t.Fatalf("session status after remove exit code = 0, want failure; stderr=%s", stderr)
+		}
+	})
+}
+
+func createIntegrationSession(t *testing.T, h integrationHarness, name string, workspace string) SessionRecord {
+	t.Helper()
+
+	out := mustExecuteRoot(
+		t,
+		h.deps,
+		"session",
+		"new",
+		"--agent",
+		"coder",
+		"--name",
+		name,
+		"--workspace",
+		workspace,
+		"-o",
+		"json",
+	)
+	var created SessionRecord
+	if err := json.Unmarshal([]byte(out), &created); err != nil {
+		t.Fatalf("json.Unmarshal(session new) error = %v", err)
+	}
+	if created.ID == "" || created.State != session.StateActive {
+		t.Fatalf("created session = %#v, want active session with id", created)
+	}
+	return created
+}
+
+func assertPathExists(t *testing.T, path string) {
+	t.Helper()
+
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("Stat(%q) error = %v, want existing path", path, err)
+	}
+}
+
+func assertPathMissing(t *testing.T, path string) {
+	t.Helper()
+
+	if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Stat(%q) error = %v, want os.ErrNotExist", path, err)
 	}
 }
 

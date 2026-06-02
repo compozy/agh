@@ -1,21 +1,21 @@
 ---
-title: "agh workspace remove"
-description: "Remove a workspace registration and stopped session history"
+title: "agh session remove"
+description: "Remove a session and its persisted history"
 ---
 
-## agh workspace remove
+## agh session remove
 
-Remove a workspace registration and stopped session history
+Remove a session and its persisted history
 
 ```
-agh workspace remove <name-or-id> [flags]
+agh session remove <id> [flags]
 ```
 
 ### Examples
 
 ```
-  # Remove a workspace registration by name
-  agh workspace remove checkout-api
+  # Remove a stopped session
+  agh session remove sess_1234
 ```
 
 ### Options
@@ -43,5 +43,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh workspace remove <name-or-id> -o json
+agh session remove <id> -o json
 ```

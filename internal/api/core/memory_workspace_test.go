@@ -1142,6 +1142,7 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 			ListAllFn: func(context.Context) ([]*session.Info, error) {
 				info := testutil.NewSessionInfo("sess-a")
 				info.WorkspaceID = workspace.ID
+				info.State = session.StateStopped
 				return []*session.Info{info}, nil
 			},
 		}

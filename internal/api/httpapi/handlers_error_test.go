@@ -198,6 +198,51 @@ func TestDeleteWorkspaceHandlerReturnsConflictWhenWorkspaceHasSessions(t *testin
 	}
 }
 
+func TestDeleteWorkspaceHandlerReturnsConflictWhenWorkspaceHasActiveSession(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return conflict before unregistering active workspace sessions", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newTestHomePaths(t)
+		active := newSessionInfo("sess-active")
+		active.WorkspaceID = "ws_alpha"
+		active.State = session.StateActive
+		manager := stubSessionManager{
+			ListAllFn: func(context.Context) ([]*session.Info, error) {
+				return []*session.Info{active}, nil
+			},
+		}
+		unregisterCalled := false
+		workspaces := stubWorkspaceService{
+			GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+				return workspacepkg.Workspace{ID: "ws_alpha", Name: "alpha"}, nil
+			},
+			UnregisterFn: func(context.Context, string) error {
+				unregisterCalled = true
+				return nil
+			},
+		}
+		engine := newTestRouter(
+			t,
+			newTestHandlersWithWorkspace(t, manager, stubObserver{}, workspaces, homePaths),
+		)
+
+		resp := performRequest(t, engine, http.MethodDelete, "/api/workspaces/ws_alpha", nil)
+		if resp.Code != http.StatusConflict {
+			t.Fatalf(
+				"delete workspace status = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusConflict,
+				resp.Body.String(),
+			)
+		}
+		if unregisterCalled {
+			t.Fatal("Unregister() called despite active workspace session")
+		}
+	})
+}
+
 func TestCreateSessionHandlerMapsWorkspaceErrors(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := stubSessionManager{

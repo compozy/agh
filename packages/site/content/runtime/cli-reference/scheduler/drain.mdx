@@ -7,10 +7,6 @@ description: "Pause dispatch and wait for active task claims to finish"
 
 Pause dispatch and wait for active task claims to finish
 
-The v1 command is synchronous: it pauses scheduler dispatch, waits until active claims reach zero
-or the timeout expires, and returns one final structured result. It does not open an SSE progress
-stream.
-
 ```
 agh scheduler drain [flags]
 ```

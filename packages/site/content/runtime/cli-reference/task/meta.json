@@ -15,6 +15,7 @@
         "next",
         "pause",
         "publish",
+        "recover",
         "reject",
         "release",
         "resume",

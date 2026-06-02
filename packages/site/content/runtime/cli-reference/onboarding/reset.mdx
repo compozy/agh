@@ -1,27 +1,20 @@
 ---
-title: "agh workspace remove"
-description: "Remove a workspace registration and stopped session history"
+title: "agh onboarding reset"
+description: "Clear the onboarding completion flag so the wizard runs again"
 ---
 
-## agh workspace remove
+## agh onboarding reset
 
-Remove a workspace registration and stopped session history
-
-```
-agh workspace remove <name-or-id> [flags]
-```
-
-### Examples
+Clear the onboarding completion flag so the wizard runs again
 
 ```
-  # Remove a workspace registration by name
-  agh workspace remove checkout-api
+agh onboarding reset [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help   help for remove
+  -h, --help   help for reset
 ```
 
 ### Options inherited from parent commands
@@ -43,5 +36,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh workspace remove <name-or-id> -o json
+agh onboarding reset -o json
 ```

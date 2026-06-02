@@ -1,27 +1,20 @@
 ---
-title: "agh workspace remove"
-description: "Remove a workspace registration and stopped session history"
+title: "agh open"
+description: "Open the AGH web UI in the default browser"
 ---
 
-## agh workspace remove
+## agh open
 
-Remove a workspace registration and stopped session history
-
-```
-agh workspace remove <name-or-id> [flags]
-```
-
-### Examples
+Open the AGH web UI in the default browser
 
 ```
-  # Remove a workspace registration by name
-  agh workspace remove checkout-api
+agh open [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help   help for remove
+  -h, --help   help for open
 ```
 
 ### Options inherited from parent commands
@@ -43,5 +36,5 @@ Every AGH command supports `-o, --output`:
 Example:
 
 ```bash
-agh workspace remove <name-or-id> -o json
+agh open -o json
 ```

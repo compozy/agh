@@ -231,9 +231,6 @@ func newSessionRemoveCommand(deps commandDeps) *cobra.Command {
 		Use:   "remove <id>",
 		Short: "Remove a session and its persisted history",
 		Example: `  # Remove a stopped session
-  agh session remove sess_1234
-
-  # Remove an active session (stops it first)
   agh session remove sess_1234`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
