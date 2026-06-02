@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import {
@@ -11,3 +12,19 @@ export const useActiveWorkspaceStore = create<ActiveWorkspaceStore>()(
     partialize: state => ({ selectedWorkspaceId: state.selectedWorkspaceId }),
   })
 );
+
+export function useActiveWorkspaceStoreHasHydrated(): boolean {
+  const [hasHydrated, setHasHydrated] = useState(() =>
+    useActiveWorkspaceStore.persist.hasHydrated()
+  );
+
+  useEffect(() => {
+    const unsubscribe = useActiveWorkspaceStore.persist.onFinishHydration(() => {
+      setHasHydrated(true);
+    });
+    setHasHydrated(useActiveWorkspaceStore.persist.hasHydrated());
+    return unsubscribe;
+  }, []);
+
+  return hasHydrated;
+}

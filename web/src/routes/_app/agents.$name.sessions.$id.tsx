@@ -21,7 +21,7 @@ import {
   SessionChatRuntimeProvider,
   SessionInspector,
   SessionResumeFailure,
-  useSession,
+  useSessionById,
   type SessionPayload,
 } from "@/systems/session";
 import type { TopbarRouteContext } from "@/types/topbar";
@@ -161,7 +161,7 @@ interface SessionPageContentProps {
 export function SessionPage() {
   const { name, id } = Route.useParams();
   const navigate = useNavigate();
-  const { data: session, isLoading, error } = useSession(id);
+  const { data: session, isLoading, error } = useSessionById(id);
 
   useSessionWorkspaceGuard({ sessionWorkspaceId: session?.workspace_id, agentName: name });
 

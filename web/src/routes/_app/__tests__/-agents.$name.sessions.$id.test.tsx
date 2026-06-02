@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -8,6 +9,7 @@ import type {
   SessionLedgerResponse,
   SessionPayload,
 } from "@/systems/session";
+import { useActiveWorkspaceStore, type WorkspacePayload } from "@/systems/workspace";
 import type { VaultSecret } from "@/systems/vault";
 
 type SessionVaultQueryState = {
@@ -142,8 +144,15 @@ vi.mock("@/systems/session/components/session-inspector", () => ({
 
 vi.mock("@/systems/session/hooks/use-sessions", () => ({
   useSession: (id: string) => mockUseSession(id),
+  useSessionById: (id: string) => mockUseSession(id),
   useSessionLedger: (id: string, workspaceId?: string | null, options?: SessionLedgerHookOptions) =>
     mockUseSessionLedger(id, workspaceId, options),
+}));
+
+vi.mock("@/systems/workspace/adapters/workspace-api", () => ({
+  fetchWorkspace: vi.fn(),
+  fetchWorkspaces: vi.fn(),
+  resolveWorkspace: vi.fn(),
 }));
 
 vi.mock("@/systems/vault", () => ({
@@ -172,6 +181,7 @@ vi.mock("@assistant-ui/react", () => ({
 }));
 
 import { SessionPage } from "../agents.$name.sessions.$id";
+import { fetchWorkspaces } from "@/systems/workspace/adapters/workspace-api";
 
 function TopbarSlotProbe({ slotRef }: { slotRef: { current: TopbarSlotValue | null } }) {
   const slot = useTopbarSlotValue();
@@ -189,13 +199,30 @@ function TopbarSlotProbe({ slotRef }: { slotRef: { current: TopbarSlotValue | nu
 
 function renderSessionPage() {
   const slotRef: { current: TopbarSlotValue | null } = { current: null };
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   const utils = render(
-    <TopbarSlotProvider>
-      <SessionPage />
-      <TopbarSlotProbe slotRef={slotRef} />
-    </TopbarSlotProvider>
+    <QueryClientProvider client={queryClient}>
+      <TopbarSlotProvider>
+        <SessionPage />
+        <TopbarSlotProbe slotRef={slotRef} />
+      </TopbarSlotProvider>
+    </QueryClientProvider>
   );
   return { ...utils, slotRef };
+}
+
+function makeWorkspace(overrides: Partial<WorkspacePayload> = {}): WorkspacePayload {
+  return {
+    id: "ws_alpha",
+    name: "alpha",
+    root_dir: "/workspace/alpha",
+    add_dirs: [],
+    created_at: "2026-04-20T10:00:00Z",
+    updated_at: "2026-04-20T10:00:00Z",
+    ...overrides,
+  };
 }
 
 function makeSession(overrides: Partial<SessionPayload> = {}): SessionPayload {
@@ -235,6 +262,9 @@ describe("Nested agent session route — Topbar slot migration", () => {
     mockUseSessionLedger.mockReset();
     mockUseSessionLedger.mockReturnValue({ data: undefined, isLoading: false, error: null });
     mockSessionInspector.mockClear();
+    vi.mocked(fetchWorkspaces).mockReset();
+    vi.mocked(fetchWorkspaces).mockResolvedValue([makeWorkspace()]);
+    useActiveWorkspaceStore.setState({ selectedWorkspaceId: null });
     mockUseSession.mockReturnValue({
       data: makeSession(),
       isLoading: false,
@@ -332,6 +362,9 @@ describe("Nested agent session route — attach failure UX", () => {
     mockUseSessionLedger.mockReset();
     mockUseSessionLedger.mockReturnValue({ data: undefined, isLoading: false, error: null });
     mockSessionInspector.mockClear();
+    vi.mocked(fetchWorkspaces).mockReset();
+    vi.mocked(fetchWorkspaces).mockResolvedValue([makeWorkspace()]);
+    useActiveWorkspaceStore.setState({ selectedWorkspaceId: null });
     mockUseSession.mockReturnValue({
       data: makeSession({ state: "active", badge: "idle", attachable: true }),
       isLoading: false,
@@ -396,6 +429,27 @@ describe("Nested agent session route — attach failure UX", () => {
       to: "/agents/$name",
       params: { name: "claude-agent" },
       replace: true,
+    });
+  });
+
+  it("redirects when the loaded session belongs to a different active workspace", async () => {
+    vi.mocked(fetchWorkspaces).mockResolvedValue([
+      makeWorkspace({ id: "ws_beta", name: "beta", root_dir: "/workspace/beta" }),
+    ]);
+    mockUseSession.mockReturnValue({
+      data: makeSession({ workspace_id: "ws_alpha" }),
+      isLoading: false,
+      error: null,
+    });
+
+    renderSessionPage();
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/agents/$name",
+        params: { name: "claude-agent" },
+        replace: true,
+      });
     });
   });
 

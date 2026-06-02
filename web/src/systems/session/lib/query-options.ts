@@ -8,7 +8,9 @@ import {
   fetchSessionRecap,
   fetchSessionTranscript,
   fetchSessions,
+  SessionApiError,
   SessionLedgerUnavailableError,
+  SessionNotFoundError,
 } from "../adapters/session-api";
 import type { FetchSessionEventsParams } from "../adapters/session-api";
 import { sessionKeys } from "./query-keys";
@@ -32,6 +34,25 @@ export function sessionDetailOptions(workspace: string, id: string) {
     },
     staleTime: 2_000,
     enabled: !!workspace && !!id,
+  });
+}
+
+export function sessionWorkspaceResolutionOptions(id: string) {
+  return queryOptions({
+    queryKey: sessionKeys.resolveWorkspace(id),
+    queryFn: async ({ signal }) => {
+      const sessions = await fetchSessions(undefined, signal);
+      const session = sessions.find(candidate => candidate.id === id);
+      if (!session) {
+        throw new SessionNotFoundError(id);
+      }
+      if (!session.workspace_id) {
+        throw new SessionApiError(`Session missing workspace: ${id}`, 500, id);
+      }
+      return session.workspace_id;
+    },
+    staleTime: 2_000,
+    enabled: !!id,
   });
 }
 

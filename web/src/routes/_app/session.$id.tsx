@@ -4,7 +4,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import { Spinner } from "@agh/ui";
 import type { TopbarRouteContext } from "@/types/topbar";
-import { useSession } from "@/systems/session";
+import { useSessionById } from "@/systems/session";
 
 /**
  * Permalink-by-id redirect. Resolves the agent name for a session and
@@ -22,7 +22,7 @@ export const Route = createFileRoute("/_app/session/$id")({
 function SessionPermalinkPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
-  const { data: session, isLoading, error } = useSession(id);
+  const { data: session, isLoading, error } = useSessionById(id);
 
   useEffect(() => {
     if (session?.agent_name) {

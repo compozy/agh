@@ -16,6 +16,10 @@ export { workspaceKeys } from "./lib/query-keys";
 export { workspaceDetailOptions, workspacesListOptions } from "./lib/query-options";
 
 // Hooks
+export {
+  useActiveWorkspaceStore,
+  useActiveWorkspaceStoreHasHydrated,
+} from "./hooks/use-active-workspace-store";
 export { useActiveWorkspace } from "./hooks/use-active-workspace";
 export { useResolveWorkspace, useWorkspace, useWorkspaces } from "./hooks/use-workspaces";
 

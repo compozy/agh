@@ -74,6 +74,7 @@ export {
   sessionHistoryOptions,
   sessionLedgerOptions,
   sessionRecapOptions,
+  sessionWorkspaceResolutionOptions,
   sessionTranscriptOptions,
   sessionsListOptions,
 } from "./lib/query-options";
@@ -95,7 +96,13 @@ export type {
 } from "./stores/session-store";
 
 // Hooks
-export { useSession, useSessionLedger, useSessionRecap, useSessions } from "./hooks/use-sessions";
+export {
+  useSession,
+  useSessionById,
+  useSessionLedger,
+  useSessionRecap,
+  useSessions,
+} from "./hooks/use-sessions";
 export { useSessionTranscriptThreadMessages } from "./hooks/use-session-transcript-thread-messages";
 export {
   useClearSessionConversation,

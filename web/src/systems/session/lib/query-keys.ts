@@ -3,6 +3,7 @@ export const sessionKeys = {
   lists: () => [...sessionKeys.all, "list"] as const,
   list: (workspace: string | null = null) => [...sessionKeys.lists(), workspace ?? "all"] as const,
   workspace: (workspace: string) => [...sessionKeys.all, "workspace", workspace] as const,
+  resolveWorkspace: (id: string) => [...sessionKeys.all, "resolve-workspace", id] as const,
   detail: (workspace: string, id: string) =>
     [...sessionKeys.workspace(workspace), "detail", id] as const,
   events: (workspace: string, id: string) =>

@@ -1,8 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useActiveWorkspace } from "../use-active-workspace";
+import { useActiveWorkspaceStore } from "../use-active-workspace-store";
 import { useResolveWorkspace, useWorkspace, useWorkspaces } from "../use-workspaces";
 import { workspaceKeys } from "../../lib/query-keys";
 import {
@@ -22,15 +24,29 @@ import {
   fetchWorkspaces,
   resolveWorkspace,
 } from "@/systems/workspace/adapters/workspace-api";
+import type { WorkspacePayload } from "@/systems/workspace/types";
 
 function createWrapper(queryClient: QueryClient) {
   return ({ children }: { children: ReactNode }) =>
     createElement(QueryClientProvider, { client: queryClient }, children);
 }
 
+function makeWorkspace(overrides: Partial<WorkspacePayload> = {}): WorkspacePayload {
+  return {
+    id: "ws_alpha",
+    root_dir: "/workspace/alpha",
+    add_dirs: [],
+    name: "alpha",
+    created_at: "2026-04-06T10:00:00Z",
+    updated_at: "2026-04-06T10:00:00Z",
+    ...overrides,
+  };
+}
+
 describe("workspace hooks", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useActiveWorkspaceStore.setState({ selectedWorkspaceId: null });
   });
 
   afterEach(() => {
@@ -140,5 +156,67 @@ describe("workspace hooks", () => {
     expect(resolveWorkspace).toHaveBeenCalledWith({ path: "/workspace/alpha" });
     expect(queryClient.getQueryData(workspaceKeys.list())).toEqual([resolvedWorkspace]);
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: workspaceKeys.lists() });
+  });
+});
+
+describe("useActiveWorkspace", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useActiveWorkspaceStore.setState({ selectedWorkspaceId: null });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("waits for persisted selection hydration before auto-selecting the first workspace", async () => {
+    vi.spyOn(useActiveWorkspaceStore.persist, "hasHydrated").mockReturnValue(false);
+    vi.mocked(fetchWorkspaces).mockResolvedValue([
+      makeWorkspace({ id: "ws_alpha", name: "alpha" }),
+      makeWorkspace({ id: "ws_beta", name: "beta", root_dir: "/workspace/beta" }),
+    ]);
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    const { result } = renderHook(() => useActiveWorkspace(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => {
+      expect(result.current.workspaces).toHaveLength(2);
+    });
+
+    expect(result.current.activeWorkspaceId).toBeNull();
+    expect(useActiveWorkspaceStore.getState().selectedWorkspaceId).toBeNull();
+  });
+
+  it("uses the persisted selected workspace after rehydration", async () => {
+    window.localStorage.setItem(
+      "agh:active-workspace",
+      JSON.stringify({ state: { selectedWorkspaceId: "ws_beta" }, version: 0 })
+    );
+    await act(async () => {
+      await useActiveWorkspaceStore.persist.rehydrate();
+    });
+    vi.mocked(fetchWorkspaces).mockResolvedValue([
+      makeWorkspace({ id: "ws_alpha", name: "alpha" }),
+      makeWorkspace({ id: "ws_beta", name: "beta", root_dir: "/workspace/beta" }),
+    ]);
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    const { result } = renderHook(() => useActiveWorkspace(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    await waitFor(() => {
+      expect(result.current.activeWorkspaceId).toBe("ws_beta");
+    });
+
+    expect(result.current.activeWorkspace?.name).toBe("beta");
   });
 });

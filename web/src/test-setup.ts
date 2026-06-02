@@ -59,6 +59,7 @@ if (typeof window !== "undefined") {
   ensureWindowStorage("sessionStorage");
 
   beforeEach(() => {
+    window.localStorage.clear();
     window.sessionStorage.clear();
   });
 

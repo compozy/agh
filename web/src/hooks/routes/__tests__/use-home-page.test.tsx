@@ -21,12 +21,17 @@ vi.mock("@/systems/status/adapters/daemon-api", () => ({
 vi.mock("@/systems/session/adapters/session-api", () => ({
   fetchSessions: vi.fn(),
   fetchSession: vi.fn(),
+  fetchSessionLedger: vi.fn(),
+  fetchSessionRecap: vi.fn(),
   approveSession: vi.fn(),
   createSession: vi.fn(),
   fetchSessionEvents: vi.fn(),
   fetchSessionHistory: vi.fn(),
   fetchSessionTranscript: vi.fn(),
   resumeSession: vi.fn(),
+  SessionApiError: class SessionApiError extends Error {},
+  SessionLedgerUnavailableError: class SessionLedgerUnavailableError extends Error {},
+  SessionNotFoundError: class SessionNotFoundError extends Error {},
   stopSession: vi.fn(),
 }));
 
@@ -39,6 +44,7 @@ vi.mock("@/systems/workspace/adapters/workspace-api", () => ({
 let mockSelectedWorkspaceId: string | null = "ws_main";
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace-store", () => ({
+  useActiveWorkspaceStoreHasHydrated: () => true,
   useActiveWorkspaceStore: (selector?: (state: unknown) => unknown) => {
     const state = {
       selectedWorkspaceId: mockSelectedWorkspaceId,
