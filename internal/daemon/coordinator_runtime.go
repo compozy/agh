@@ -326,13 +326,9 @@ func (r *coordinatorRuntime) bootstrapRun(
 		shouldPrompt := r.beginCoordinatorWakeLocked(existing, decision)
 		r.mu.Unlock()
 		r.dispatchDecision(ctx, decision, reason, coordinator.DecisionExisting)
-		if shouldPrompt {
-			if err := r.promptCoordinator(ctx, existing, decision, reason); err != nil {
-				r.finishCoordinatorWake(existing, decision)
-				r.dispatchFailed(ctx, decision, reason, err)
-				return existing, false, err
-			}
-			r.finishCoordinatorWake(existing, decision)
+		if err := r.wakeCoordinatorIfNeeded(ctx, existing, decision, reason, shouldPrompt); err != nil {
+			r.dispatchFailed(ctx, decision, reason, err)
+			return existing, false, err
 		}
 		return existing, false, nil
 	}
@@ -345,9 +341,21 @@ func (r *coordinatorRuntime) bootstrapRun(
 	if !created {
 		return nil, false, nil
 	}
+	return r.reconcileCreatedCoordinator(ctx, info, decision, createdCfg, reason)
+}
 
+// reconcileCreatedCoordinator resolves the coordinator singleton after a fresh
+// session was created: it supersedes a concurrently created coordinator or
+// promotes the new session, dispatching the matching lifecycle decision.
+func (r *coordinatorRuntime) reconcileCreatedCoordinator(
+	ctx context.Context,
+	info *session.Info,
+	decision coordinator.Decision,
+	createdCfg aghconfig.CoordinatorConfig,
+	reason string,
+) (*session.Info, bool, error) {
 	r.mu.Lock()
-	existing, err = r.activeCoordinator(ctx, decision.WorkspaceID)
+	existing, err := r.activeCoordinator(ctx, decision.WorkspaceID)
 	if err != nil {
 		r.mu.Unlock()
 		cleanupErr := r.cleanupCreatedCoordinatorSession(
@@ -376,28 +384,40 @@ func (r *coordinatorRuntime) bootstrapRun(
 			r.dispatchFailed(ctx, decision, reason, err)
 			return existing, false, err
 		}
-		if shouldPrompt {
-			if err := r.promptCoordinator(ctx, existing, decision, reason); err != nil {
-				r.finishCoordinatorWake(existing, decision)
-				r.dispatchFailed(ctx, decision, reason, err)
-				return existing, false, err
-			}
-			r.finishCoordinatorWake(existing, decision)
+		if err := r.wakeCoordinatorIfNeeded(ctx, existing, decision, reason, shouldPrompt); err != nil {
+			r.dispatchFailed(ctx, decision, reason, err)
+			return existing, false, err
 		}
 		return existing, false, nil
 	}
 	shouldPrompt := r.beginCoordinatorWakeLocked(info, decision)
 	r.mu.Unlock()
-	if shouldPrompt {
-		if err := r.promptCoordinator(ctx, info, decision, reason); err != nil {
-			r.finishCoordinatorWake(info, decision)
-			r.dispatchFailed(ctx, decision, reason, err)
-			return nil, false, err
-		}
-		r.finishCoordinatorWake(info, decision)
+	if err := r.wakeCoordinatorIfNeeded(ctx, info, decision, reason, shouldPrompt); err != nil {
+		r.dispatchFailed(ctx, decision, reason, err)
+		return nil, false, err
 	}
 	r.dispatchSpawned(ctx, decision, info, createdCfg, reason)
-	return info, created, nil
+	return info, true, nil
+}
+
+// wakeCoordinatorIfNeeded prompts the coordinator when a wake was begun and
+// always clears the wake state afterwards. The caller owns failure dispatch.
+func (r *coordinatorRuntime) wakeCoordinatorIfNeeded(
+	ctx context.Context,
+	target *session.Info,
+	decision coordinator.Decision,
+	reason string,
+	shouldPrompt bool,
+) error {
+	if !shouldPrompt {
+		return nil
+	}
+	if err := r.promptCoordinator(ctx, target, decision, reason); err != nil {
+		r.finishCoordinatorWake(target, decision)
+		return err
+	}
+	r.finishCoordinatorWake(target, decision)
+	return nil
 }
 
 func (r *coordinatorRuntime) cleanupCreatedCoordinatorSession(

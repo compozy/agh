@@ -177,6 +177,13 @@ test("operator manages a local sandbox profile and binds it to real session exec
   await appPage.getByTestId("settings-sandboxes-delete-cancel").click();
 
   const session = await createSession(runtime, allowedAgent, workspace.id);
+  // The session lives in this freshly resolved workspace, while the active
+  // workspace is still the global one. The session route redirects away when
+  // the active workspace does not own the session, so activate the session's
+  // workspace first, exactly as an operator would before opening it.
+  await appPage.getByTestId("workspace-switcher").click();
+  await appPage.getByTestId(`workspace-command-item-${workspace.id}`).click();
+  await expect(appPage.getByTestId("workspace-switcher")).toHaveAttribute("aria-expanded", "false");
   await appPage.goto(runtime.url(sessionPath(allowedAgent, session.id)), {
     waitUntil: "domcontentloaded",
   });

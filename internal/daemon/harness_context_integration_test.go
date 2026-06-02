@@ -158,8 +158,11 @@ func TestHarnessContextIntegrationStartupAndPromptShareResolverPolicy(t *testing
 	if got := strings.Count(driver.startCalls[0].SystemPrompt, nativeToolsGuide); got != 1 {
 		t.Fatalf("native tools guide occurrences = %d, want 1", got)
 	}
-	if got := strings.Count(driver.startCalls[0].SystemPrompt, "<agh-situation-context>"); got != 1 {
-		t.Fatalf("situation context occurrences = %d, want 1", got)
+	// The startup prompt embeds the bundled tools guide, which documents the
+	// "<agh-situation-context>" open tag in prose; count the closing tag so the
+	// assertion measures rendered sections, not documentation mentions.
+	if got := strings.Count(driver.startCalls[0].SystemPrompt, "</agh-situation-context>"); got != 1 {
+		t.Fatalf("situation context section occurrences = %d, want 1", got)
 	}
 	if got := strings.Count(driver.startCalls[0].SystemPrompt, aghRuntimeEnvelopeStart); got != 1 {
 		t.Fatalf("AGH runtime envelope occurrences = %d, want 1", got)
