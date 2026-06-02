@@ -1303,16 +1303,19 @@ func TestDeleteWorkspaceHandlerReturnsNoContent(t *testing.T) {
 	if recorder.Code != http.StatusNoContent {
 		t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusNoContent, recorder.Body.String())
 	}
+	if recorder.Body.Len() != 0 {
+		t.Fatalf("body = %q, want empty", recorder.Body.String())
+	}
 }
 
 func TestDeleteWorkspaceHandlerRemovesStoppedWorkspaceSessions(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should delete stopped workspace sessions before unregister", func(t *testing.T) {
+	t.Run("Should delete stopped workspace sessions after unregister", func(t *testing.T) {
 		t.Parallel()
 
 		homePaths := newTestHomePaths(t)
-		var deleted []string
+		var calls []string
 		manager := stubSessionManager{
 			ListAllFn: func(context.Context) ([]*session.Info, error) {
 				matchingA := newSessionInfo("sess-a")
@@ -1327,7 +1330,7 @@ func TestDeleteWorkspaceHandlerRemovesStoppedWorkspaceSessions(t *testing.T) {
 				return []*session.Info{matchingB, otherWorkspace, matchingA}, nil
 			},
 			DeleteFn: func(_ context.Context, id string) error {
-				deleted = append(deleted, id)
+				calls = append(calls, "delete:"+id)
 				return nil
 			},
 		}
@@ -1339,9 +1342,7 @@ func TestDeleteWorkspaceHandlerRemovesStoppedWorkspaceSessions(t *testing.T) {
 				if id != "ws_alpha" {
 					t.Fatalf("Unregister() id = %q, want ws_alpha", id)
 				}
-				if !slices.Equal(deleted, []string{"sess-a", "sess-b"}) {
-					t.Fatalf("deleted before unregister = %#v, want sess-a and sess-b", deleted)
-				}
+				calls = append(calls, "unregister:"+id)
 				return nil
 			},
 		}
@@ -1358,6 +1359,13 @@ func TestDeleteWorkspaceHandlerRemovesStoppedWorkspaceSessions(t *testing.T) {
 				http.StatusNoContent,
 				recorder.Body.String(),
 			)
+		}
+		if recorder.Body.Len() != 0 {
+			t.Fatalf("body = %q, want empty", recorder.Body.String())
+		}
+		expectedCalls := []string{"unregister:ws_alpha", "delete:sess-a", "delete:sess-b"}
+		if !slices.Equal(calls, expectedCalls) {
+			t.Fatalf("calls = %#v, want %#v", calls, expectedCalls)
 		}
 	})
 }

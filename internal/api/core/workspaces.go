@@ -225,7 +225,8 @@ func (h *BaseHandlers) DeleteWorkspace(c *gin.Context) {
 		return
 	}
 
-	if err := h.deleteStoppedWorkspaceSessions(c.Request.Context(), workspace.ID); err != nil {
+	stoppedSessionIDs, err := h.stoppedWorkspaceSessionIDs(c.Request.Context(), workspace.ID)
+	if err != nil {
 		h.respondError(c, StatusForWorkspaceError(err), err)
 		return
 	}
@@ -235,17 +236,22 @@ func (h *BaseHandlers) DeleteWorkspace(c *gin.Context) {
 		return
 	}
 
+	if err := h.deleteStoppedWorkspaceSessions(c.Request.Context(), workspace.ID, stoppedSessionIDs); err != nil {
+		h.respondError(c, StatusForWorkspaceError(err), err)
+		return
+	}
+
 	c.Status(http.StatusNoContent)
 }
 
-func (h *BaseHandlers) deleteStoppedWorkspaceSessions(ctx context.Context, workspaceID string) error {
+func (h *BaseHandlers) stoppedWorkspaceSessionIDs(ctx context.Context, workspaceID string) ([]string, error) {
 	if h.Sessions == nil {
-		return errors.New("api: session manager is required")
+		return nil, errors.New("api: session manager is required")
 	}
 
 	infos, err := h.Sessions.ListAll(ctx)
 	if err != nil {
-		return fmt.Errorf("api: list sessions before deleting workspace %q: %w", workspaceID, err)
+		return nil, fmt.Errorf("api: list sessions before deleting workspace %q: %w", workspaceID, err)
 	}
 
 	active := make([]string, 0)
@@ -266,7 +272,7 @@ func (h *BaseHandlers) deleteStoppedWorkspaceSessions(ctx context.Context, works
 	}
 	if len(active) > 0 {
 		sort.Strings(active)
-		return fmt.Errorf(
+		return nil, fmt.Errorf(
 			"api: delete workspace %q: %w: %s",
 			workspaceID,
 			workspacepkg.ErrWorkspaceHasActiveSessions,
@@ -275,12 +281,24 @@ func (h *BaseHandlers) deleteStoppedWorkspaceSessions(ctx context.Context, works
 	}
 
 	sort.Strings(stopped)
-	for _, sessionID := range stopped {
+	return stopped, nil
+}
+
+func (h *BaseHandlers) deleteStoppedWorkspaceSessions(
+	ctx context.Context,
+	workspaceID string,
+	sessionIDs []string,
+) error {
+	if h.Sessions == nil {
+		return errors.New("api: session manager is required")
+	}
+
+	for _, sessionID := range sessionIDs {
 		if err := h.Sessions.Delete(ctx, sessionID); err != nil {
 			if errors.Is(err, session.ErrSessionNotFound) {
 				continue
 			}
-			return fmt.Errorf("api: delete session %q before workspace %q: %w", sessionID, workspaceID, err)
+			return fmt.Errorf("api: delete session %q after workspace %q: %w", sessionID, workspaceID, err)
 		}
 	}
 	return nil

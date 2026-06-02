@@ -179,6 +179,19 @@ func TestWorkspaceHandlersReturnExpectedErrors(t *testing.T) {
 
 func TestDeleteWorkspaceHandlerReturnsConflictWhenWorkspaceHasSessions(t *testing.T) {
 	homePaths := newTestHomePaths(t)
+	stopped := newSessionInfo("sess-stopped")
+	stopped.WorkspaceID = "ws_alpha"
+	stopped.State = session.StateStopped
+	var deleted []string
+	manager := stubSessionManager{
+		ListAllFn: func(context.Context) ([]*session.Info, error) {
+			return []*session.Info{stopped}, nil
+		},
+		DeleteFn: func(_ context.Context, id string) error {
+			deleted = append(deleted, id)
+			return nil
+		},
+	}
 	workspaces := stubWorkspaceService{
 		GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
 			return workspacepkg.Workspace{ID: "ws_alpha", Name: "alpha"}, nil
@@ -189,12 +202,25 @@ func TestDeleteWorkspaceHandlerReturnsConflictWhenWorkspaceHasSessions(t *testin
 	}
 	engine := newTestRouter(
 		t,
-		newTestHandlersWithWorkspace(t, stubSessionManager{}, stubObserver{}, workspaces, homePaths),
+		newTestHandlersWithWorkspace(t, manager, stubObserver{}, workspaces, homePaths),
 	)
 
 	resp := performRequest(t, engine, http.MethodDelete, "/api/workspaces/ws_alpha", nil)
 	if resp.Code != http.StatusConflict {
-		t.Fatalf("delete workspace status = %d, want %d", resp.Code, http.StatusConflict)
+		t.Fatalf(
+			"delete workspace status = %d, want %d; body=%s",
+			resp.Code,
+			http.StatusConflict,
+			resp.Body.String(),
+		)
+	}
+	var payload contract.ErrorPayload
+	decodeJSONResponse(t, resp, &payload)
+	if payload.Error != workspacepkg.ErrWorkspaceHasSessions.Error() {
+		t.Fatalf("error = %q, want %q", payload.Error, workspacepkg.ErrWorkspaceHasSessions.Error())
+	}
+	if len(deleted) != 0 {
+		t.Fatalf("Delete() calls = %#v, want none before failed unregister", deleted)
 	}
 }
 
@@ -236,6 +262,12 @@ func TestDeleteWorkspaceHandlerReturnsConflictWhenWorkspaceHasActiveSession(t *t
 				http.StatusConflict,
 				resp.Body.String(),
 			)
+		}
+		var payload contract.ErrorPayload
+		decodeJSONResponse(t, resp, &payload)
+		expectedError := "api: delete workspace \"ws_alpha\": workspace has active sessions: sess-active"
+		if payload.Error != expectedError {
+			t.Fatalf("error = %q, want %q", payload.Error, expectedError)
 		}
 		if unregisterCalled {
 			t.Fatal("Unregister() called despite active workspace session")
