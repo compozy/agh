@@ -2,10 +2,12 @@
 // Invariant: jobs and triggers create modals submit the visible draft through real page hooks, query hooks, adapters, and the selected workspace scope.
 // Boundary IN: jobs/triggers routes, AutomationOperationsPage, editor dialog/forms, TanStack Query hooks, and openapi-fetch.
 // Boundary OUT: AGH daemon HTTP implementation, replaced by MSW handlers at the fetch boundary.
+// Note: this historical *.e2e.test.tsx file runs in Vitest/jsdom with MSW; browser
+// dismissal parity for Dialog behavior is verified separately by visual/browser QA.
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
-import { http, HttpResponse, type HttpHandler } from "msw";
+import { delay, http, HttpResponse, type HttpHandler } from "msw";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -93,6 +95,12 @@ let triggers: AutomationTrigger[] = [];
 let runs: AutomationRun[] = [];
 let createJobRequests: CreateAutomationJobRequest[] = [];
 let createTriggerRequests: CreateAutomationTriggerRequest[] = [];
+let createJobResponseOverride:
+  | ((body: CreateAutomationJobRequest) => Response | Promise<Response>)
+  | null = null;
+let createTriggerResponseOverride:
+  | ((body: CreateAutomationTriggerRequest) => Response | Promise<Response>)
+  | null = null;
 
 function createQueryClient() {
   return new QueryClient({
@@ -138,6 +146,24 @@ function makeJob(overrides: Partial<AutomationJob> = {}): AutomationJob {
   };
 }
 
+function createdJobFromBody(body: CreateAutomationJobRequest): AutomationJob {
+  return makeJob({
+    agent_name: body.agent_name,
+    enabled: body.enabled ?? true,
+    fire_limit: body.fire_limit ?? { max: 12, window: "1h" },
+    id: slug("job", body.name),
+    name: body.name,
+    next_run: body.schedule.mode === "at" ? body.schedule.time : undefined,
+    prompt: body.prompt,
+    retry: body.retry ?? { strategy: "none", max_retries: 0, base_delay: "" },
+    schedule: body.schedule,
+    scheduler: undefined,
+    scope: body.scope,
+    task: body.task,
+    workspace_id: body.workspace_id,
+  });
+}
+
 function makeTrigger(overrides: Partial<AutomationTrigger> = {}): AutomationTrigger {
   return {
     ...primaryAutomationTriggerFixture,
@@ -160,6 +186,25 @@ function makeTrigger(overrides: Partial<AutomationTrigger> = {}): AutomationTrig
   };
 }
 
+function createdTriggerFromBody(body: CreateAutomationTriggerRequest): AutomationTrigger {
+  return makeTrigger({
+    agent_name: body.agent_name,
+    enabled: body.enabled ?? true,
+    endpoint_slug: body.endpoint_slug,
+    event: body.event,
+    filter: body.filter,
+    fire_limit: body.fire_limit ?? { max: 12, window: "1h" },
+    id: slug("trg", body.name),
+    name: body.name,
+    prompt: body.prompt,
+    retry: body.retry ?? { strategy: "none", max_retries: 0, base_delay: "" },
+    scope: body.scope,
+    webhook_id: body.webhook_id,
+    webhook_secret_present: Boolean(body.webhook_secret_value),
+    workspace_id: body.workspace_id,
+  });
+}
+
 function automationCreateHandlers(): HttpHandler[] {
   return [
     http.get("/api/workspaces", () => HttpResponse.json({ workspaces })),
@@ -179,21 +224,11 @@ function automationCreateHandlers(): HttpHandler[] {
     http.post("/api/automation/jobs", async ({ request }) => {
       const body = (await request.json()) as CreateAutomationJobRequest;
       createJobRequests.push(body);
-      const job = makeJob({
-        agent_name: body.agent_name,
-        enabled: body.enabled ?? true,
-        fire_limit: body.fire_limit ?? { max: 12, window: "1h" },
-        id: slug("job", body.name),
-        name: body.name,
-        next_run: body.schedule.mode === "at" ? body.schedule.time : undefined,
-        prompt: body.prompt,
-        retry: body.retry ?? { strategy: "none", max_retries: 0, base_delay: "" },
-        schedule: body.schedule,
-        scheduler: undefined,
-        scope: body.scope,
-        task: body.task,
-        workspace_id: body.workspace_id,
-      });
+      if (createJobResponseOverride) {
+        return createJobResponseOverride(body);
+      }
+
+      const job = createdJobFromBody(body);
       jobs = [job, ...jobs];
 
       return HttpResponse.json({ job }, { status: 201 });
@@ -213,22 +248,11 @@ function automationCreateHandlers(): HttpHandler[] {
     http.post("/api/automation/triggers", async ({ request }) => {
       const body = (await request.json()) as CreateAutomationTriggerRequest;
       createTriggerRequests.push(body);
-      const trigger = makeTrigger({
-        agent_name: body.agent_name,
-        enabled: body.enabled ?? true,
-        endpoint_slug: body.endpoint_slug,
-        event: body.event,
-        filter: body.filter,
-        fire_limit: body.fire_limit ?? { max: 12, window: "1h" },
-        id: slug("trg", body.name),
-        name: body.name,
-        prompt: body.prompt,
-        retry: body.retry ?? { strategy: "none", max_retries: 0, base_delay: "" },
-        scope: body.scope,
-        webhook_id: body.webhook_id,
-        webhook_secret_present: Boolean(body.webhook_secret_value),
-        workspace_id: body.workspace_id,
-      });
+      if (createTriggerResponseOverride) {
+        return createTriggerResponseOverride(body);
+      }
+
+      const trigger = createdTriggerFromBody(body);
       triggers = [trigger, ...triggers];
 
       return HttpResponse.json({ trigger }, { status: 201 });
@@ -252,6 +276,8 @@ beforeEach(() => {
   runs = [...automationRunFixtures];
   createJobRequests = [];
   createTriggerRequests = [];
+  createJobResponseOverride = null;
+  createTriggerResponseOverride = null;
   handlers = automationCreateHandlers();
   toast.error.mockReset();
   toast.success.mockReset();
@@ -374,6 +400,76 @@ describe("Jobs create modal", () => {
     expect(screen.getByTestId("submit-job-form")).toBeDisabled();
     expect(createJobRequests).toEqual([]);
   });
+
+  it("Should keep the job draft open on server failure and allow retry", async () => {
+    createJobResponseOverride = () =>
+      HttpResponse.json({ error: "automation job store unavailable" }, { status: 500 });
+    renderAutomationPage("jobs");
+
+    fireEvent.click(await screen.findByTestId("create-job-btn"));
+    fireEvent.change(screen.getByTestId("job-name-input"), { target: { value: "job-retry" } });
+    fireEvent.change(screen.getByTestId("job-agent-input"), { target: { value: "writer" } });
+    fireEvent.change(screen.getByTestId("job-prompt-input"), {
+      target: { value: "Summarize retry state." },
+    });
+
+    fireEvent.click(screen.getByTestId("submit-job-form"));
+
+    await waitFor(() => {
+      expect(createJobRequests).toHaveLength(1);
+    });
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("automation job store unavailable");
+    });
+    expect(screen.getByTestId("automation-editor-dialog")).toBeInTheDocument();
+    expect(screen.getByTestId("job-name-input")).toHaveValue("job-retry");
+    expect(screen.getByTestId("job-agent-input")).toHaveValue("writer");
+    expect(screen.getByTestId("job-prompt-input")).toHaveValue("Summarize retry state.");
+    expect(screen.queryByTestId("automation-item-job_job_retry")).not.toBeInTheDocument();
+
+    createJobResponseOverride = null;
+    fireEvent.click(screen.getByTestId("submit-job-form"));
+
+    await waitFor(() => {
+      expect(createJobRequests).toHaveLength(2);
+    });
+    await waitFor(() => {
+      expect(screen.queryByTestId("automation-editor-dialog")).not.toBeInTheDocument();
+    });
+    expect(await screen.findByTestId("automation-item-job_job_retry")).toBeInTheDocument();
+    expect(toast.success).toHaveBeenCalledWith("Created job job-retry.");
+  });
+
+  it("Should ignore a rapid second job submit while the first create is pending", async () => {
+    createJobResponseOverride = async body => {
+      await delay(50);
+      const job = createdJobFromBody(body);
+      jobs = [job, ...jobs];
+      return HttpResponse.json({ job }, { status: 201 });
+    };
+    renderAutomationPage("jobs");
+
+    fireEvent.click(await screen.findByTestId("create-job-btn"));
+    fireEvent.change(screen.getByTestId("job-name-input"), { target: { value: "single-job" } });
+    fireEvent.change(screen.getByTestId("job-agent-input"), { target: { value: "writer" } });
+    fireEvent.change(screen.getByTestId("job-prompt-input"), {
+      target: { value: "Create once." },
+    });
+
+    fireEvent.click(screen.getByTestId("submit-job-form"));
+    fireEvent.click(screen.getByTestId("submit-job-form"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("submit-job-form")).toBeDisabled();
+    });
+    await waitFor(() => {
+      expect(createJobRequests).toHaveLength(1);
+    });
+    await waitFor(() => {
+      expect(screen.queryByTestId("automation-editor-dialog")).not.toBeInTheDocument();
+    });
+    expect(await screen.findByTestId("automation-item-job_single_job")).toBeInTheDocument();
+  });
 });
 
 describe("Triggers create modal", () => {
@@ -389,6 +485,10 @@ describe("Triggers create modal", () => {
     fireEvent.click(screen.getByTestId("trigger-workspace-select"));
     fireEvent.click(screen.getByTestId("trigger-workspace-item-ws_beta"));
     fireEvent.click(screen.getByTestId("trigger-event-ext"));
+    expect(screen.getByTestId("automation-editor-dialog")).toBeInTheDocument();
+    expect(screen.getByTestId("trigger-ext-ext-input")).toBeInTheDocument();
+    expect(screen.getByTestId("submit-trigger-form")).toBeDisabled();
+
     fireEvent.change(screen.getByTestId("trigger-ext-ext-input"), { target: { value: "github" } });
     fireEvent.change(screen.getByTestId("trigger-ext-event-input"), { target: { value: "push" } });
     fireEvent.click(screen.getByRole("button", { name: "Add condition" }));
@@ -424,6 +524,167 @@ describe("Triggers create modal", () => {
     });
     expect(await screen.findByTestId("automation-item-trg_github_push_digest")).toBeInTheDocument();
     expect(toast.success).toHaveBeenCalledWith("Created trigger github-push-digest.");
+  });
+
+  it("Should create a global webhook trigger with endpoint identity and secret payload", async () => {
+    renderAutomationPage("triggers");
+
+    fireEvent.click(await screen.findByTestId("create-trigger-btn"));
+    fireEvent.change(screen.getByTestId("trigger-name-input"), {
+      target: { value: "ci-webhook" },
+    });
+    fireEvent.click(screen.getByTestId("trigger-workspace-select"));
+    fireEvent.click(screen.getByTestId("trigger-workspace-item-ws_beta"));
+    fireEvent.click(screen.getByTestId("trigger-event-webhook"));
+    expect(screen.queryByTestId("trigger-workspace-select")).not.toBeInTheDocument();
+    expect(screen.getByTestId("submit-trigger-form")).toBeDisabled();
+
+    fireEvent.change(screen.getByTestId("trigger-endpoint-slug-input"), {
+      target: { value: "ci-deploys" },
+    });
+    fireEvent.change(screen.getByTestId("trigger-webhook-id-input"), {
+      target: { value: "wbh_ci_deploys" },
+    });
+    fireEvent.change(screen.getByTestId("trigger-webhook-secret-value-input"), {
+      target: { value: "whsec_ci_deploys" },
+    });
+    fireEvent.change(screen.getByTestId("trigger-agent-input"), { target: { value: "release" } });
+    fireEvent.change(screen.getByTestId("trigger-prompt-input"), {
+      target: { value: "Inspect {{ .Kind }} before deploy." },
+    });
+    expect(screen.getByTestId("submit-trigger-form")).toBeEnabled();
+
+    fireEvent.click(screen.getByTestId("submit-trigger-form"));
+
+    await waitFor(() => {
+      expect(createTriggerRequests).toHaveLength(1);
+    });
+    expect(createTriggerRequests[0]).toEqual(
+      expect.objectContaining({
+        agent_name: "release",
+        endpoint_slug: "ci-deploys",
+        event: "webhook",
+        name: "ci-webhook",
+        prompt: "Inspect {{ .Kind }} before deploy.",
+        scope: "global",
+        webhook_id: "wbh_ci_deploys",
+        webhook_secret_value: "whsec_ci_deploys",
+      })
+    );
+    expect(createTriggerRequests[0]).not.toHaveProperty("workspace_id");
+    await waitFor(() => {
+      expect(screen.queryByTestId("automation-editor-dialog")).not.toBeInTheDocument();
+    });
+    expect(await screen.findByTestId("automation-item-trg_ci_webhook")).toBeInTheDocument();
+    expect(toast.success).toHaveBeenCalledWith("Created trigger ci-webhook.");
+  });
+
+  it("Should keep the trigger draft open on server failure and allow retry", async () => {
+    createTriggerResponseOverride = () =>
+      HttpResponse.json({ error: "automation trigger store unavailable" }, { status: 500 });
+    renderAutomationPage("triggers");
+
+    fireEvent.click(await screen.findByTestId("create-trigger-btn"));
+    fireEvent.change(screen.getByTestId("trigger-name-input"), {
+      target: { value: "store-retry" },
+    });
+    fireEvent.click(screen.getByTestId("trigger-event-ext"));
+    fireEvent.change(screen.getByTestId("trigger-ext-ext-input"), { target: { value: "github" } });
+    fireEvent.change(screen.getByTestId("trigger-ext-event-input"), { target: { value: "push" } });
+    fireEvent.change(screen.getByTestId("trigger-agent-input"), { target: { value: "reviewer" } });
+    fireEvent.change(screen.getByTestId("trigger-prompt-input"), {
+      target: { value: "Review failed create retry." },
+    });
+
+    fireEvent.click(screen.getByTestId("submit-trigger-form"));
+
+    await waitFor(() => {
+      expect(createTriggerRequests).toHaveLength(1);
+    });
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("automation trigger store unavailable");
+    });
+    expect(screen.getByTestId("automation-editor-dialog")).toBeInTheDocument();
+    expect(screen.getByTestId("trigger-name-input")).toHaveValue("store-retry");
+    expect(screen.getByTestId("trigger-ext-ext-input")).toHaveValue("github");
+    expect(screen.getByTestId("trigger-ext-event-input")).toHaveValue("push");
+    expect(screen.getByTestId("trigger-agent-input")).toHaveValue("reviewer");
+    expect(screen.getByTestId("trigger-prompt-input")).toHaveValue("Review failed create retry.");
+    expect(screen.queryByTestId("automation-item-trg_store_retry")).not.toBeInTheDocument();
+
+    createTriggerResponseOverride = null;
+    fireEvent.click(screen.getByTestId("submit-trigger-form"));
+
+    await waitFor(() => {
+      expect(createTriggerRequests).toHaveLength(2);
+    });
+    await waitFor(() => {
+      expect(screen.queryByTestId("automation-editor-dialog")).not.toBeInTheDocument();
+    });
+    expect(await screen.findByTestId("automation-item-trg_store_retry")).toBeInTheDocument();
+    expect(toast.success).toHaveBeenCalledWith("Created trigger store-retry.");
+  });
+
+  it("Should keep the trigger draft open on conflict without creating an item", async () => {
+    createTriggerResponseOverride = () =>
+      HttpResponse.json({ error: "automation trigger name already exists" }, { status: 409 });
+    renderAutomationPage("triggers");
+
+    fireEvent.click(await screen.findByTestId("create-trigger-btn"));
+    fireEvent.change(screen.getByTestId("trigger-name-input"), {
+      target: { value: "duplicate-trigger" },
+    });
+    fireEvent.change(screen.getByTestId("trigger-agent-input"), { target: { value: "reviewer" } });
+    fireEvent.change(screen.getByTestId("trigger-prompt-input"), {
+      target: { value: "Review duplicate guard." },
+    });
+
+    fireEvent.click(screen.getByTestId("submit-trigger-form"));
+
+    await waitFor(() => {
+      expect(createTriggerRequests).toHaveLength(1);
+    });
+    expect(toast.error).toHaveBeenCalledWith("automation trigger name already exists");
+    expect(screen.getByTestId("automation-editor-dialog")).toBeInTheDocument();
+    expect(screen.getByTestId("trigger-name-input")).toHaveValue("duplicate-trigger");
+    expect(screen.queryByTestId("automation-item-trg_duplicate_trigger")).not.toBeInTheDocument();
+    expect(toast.success).not.toHaveBeenCalled();
+  });
+
+  it("Should ignore a rapid second trigger submit while the first create is pending", async () => {
+    createTriggerResponseOverride = async body => {
+      await delay(50);
+      const trigger = createdTriggerFromBody(body);
+      triggers = [trigger, ...triggers];
+      return HttpResponse.json({ trigger }, { status: 201 });
+    };
+    renderAutomationPage("triggers");
+
+    fireEvent.click(await screen.findByTestId("create-trigger-btn"));
+    fireEvent.change(screen.getByTestId("trigger-name-input"), {
+      target: { value: "single-submit" },
+    });
+    fireEvent.click(screen.getByTestId("trigger-event-ext"));
+    fireEvent.change(screen.getByTestId("trigger-ext-ext-input"), { target: { value: "github" } });
+    fireEvent.change(screen.getByTestId("trigger-ext-event-input"), { target: { value: "push" } });
+    fireEvent.change(screen.getByTestId("trigger-agent-input"), { target: { value: "reviewer" } });
+    fireEvent.change(screen.getByTestId("trigger-prompt-input"), {
+      target: { value: "Review one create only." },
+    });
+
+    fireEvent.click(screen.getByTestId("submit-trigger-form"));
+    fireEvent.click(screen.getByTestId("submit-trigger-form"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("submit-trigger-form")).toBeDisabled();
+    });
+    await waitFor(() => {
+      expect(createTriggerRequests).toHaveLength(1);
+    });
+    await waitFor(() => {
+      expect(screen.queryByTestId("automation-editor-dialog")).not.toBeInTheDocument();
+    });
+    expect(await screen.findByTestId("automation-item-trg_single_submit")).toBeInTheDocument();
   });
 
   it("Should block incomplete event selection and missing workspace scope", async () => {

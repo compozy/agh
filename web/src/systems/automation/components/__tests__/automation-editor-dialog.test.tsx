@@ -213,6 +213,21 @@ describe("AutomationEditorDialog", () => {
     expect(within(header as HTMLElement).getByText("Create job")).toBeInTheDocument();
   });
 
+  it("Should keep the trigger editor open when selecting an extension event", async () => {
+    const user = userEvent.setup();
+    const onCancel = vi.fn();
+
+    render(<TriggerEditorHarness onCancel={onCancel} onSubmit={vi.fn()} />);
+
+    await user.click(screen.getByTestId("trigger-event-ext"));
+
+    expect(screen.getByTestId("automation-editor-dialog")).toBeInTheDocument();
+    expect(screen.getByTestId("trigger-ext-ext-input")).toBeInTheDocument();
+    expect(screen.getByTestId("trigger-ext-event-input")).toBeInTheDocument();
+    expect(screen.getByTestId("submit-trigger-form")).toBeDisabled();
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
   it("Should call onCancel when the dialog is dismissed", () => {
     const onCancel = vi.fn();
     const { rerender } = render(<JobEditorHarness onCancel={onCancel} onSubmit={vi.fn()} />);

@@ -93,6 +93,7 @@ export function AutomationEditorDialog({
 
   return (
     <Dialog
+      disablePointerDismissal
       handle={handle}
       open={isEditorOpen}
       onOpenChange={open => {

@@ -1,4 +1,4 @@
-import { startTransition, useDeferredValue, useMemo, useState } from "react";
+import { startTransition, useDeferredValue, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -163,6 +163,7 @@ function useAutomationJobsPage() {
   const page = useAutomationPageBase();
   const [editor, setEditor] = useState<JobEditorState | null>(null);
   const [queuedRun, setQueuedRun] = useState<{ jobId: string; run: AutomationRun } | null>(null);
+  const jobSubmitInFlightRef = useRef(false);
   const editorHandle = useMemo(() => createAutomationDialogHandle(), []);
 
   const jobsQuery = useAutomationJobs(page.listFilters);
@@ -242,10 +243,11 @@ function useAutomationJobsPage() {
   };
 
   const handleSubmit = async () => {
-    if (!editor) {
+    if (!editor || jobSubmitInFlightRef.current) {
       return;
     }
 
+    jobSubmitInFlightRef.current = true;
     try {
       const payload = {
         ...editor.draft,
@@ -266,6 +268,8 @@ function useAutomationJobsPage() {
       );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to save automation job");
+    } finally {
+      jobSubmitInFlightRef.current = false;
     }
   };
 
@@ -409,6 +413,7 @@ function useAutomationJobsPage() {
 function useAutomationTriggersPage() {
   const page = useAutomationPageBase();
   const [editor, setEditor] = useState<TriggerEditorState | null>(null);
+  const triggerSubmitInFlightRef = useRef(false);
   const editorHandle = useMemo(() => createAutomationDialogHandle(), []);
 
   const triggersQuery = useAutomationTriggers(page.listFilters);
@@ -473,10 +478,11 @@ function useAutomationTriggersPage() {
   };
 
   const handleSubmit = async () => {
-    if (!editor) {
+    if (!editor || triggerSubmitInFlightRef.current) {
       return;
     }
 
+    triggerSubmitInFlightRef.current = true;
     try {
       const payload = {
         ...editor.draft,
@@ -499,6 +505,8 @@ function useAutomationTriggersPage() {
       );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to save automation trigger");
+    } finally {
+      triggerSubmitInFlightRef.current = false;
     }
   };
 
