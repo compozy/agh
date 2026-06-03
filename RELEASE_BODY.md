@@ -1,22 +1,49 @@
-## 0.0.5 - 2026-05-29
-
-### ♻️ Refactoring
-
-- Optimize prompt consumption (#222)
-- Orchestration improvements (#230)
+## 0.0.6 - 2026-06-03
 
 ### 🎉 Features
 
-- Decouple worker concurrency from coordinator uniqueness (#229)
+- Dependency-driven auto-enqueue (opt-in) (#232)
 
 ### 🐛 Bug Fixes
 
-- Handle provider overlay subtables (#228)
+- Wake coordinator sessions reliably (#240)
+- Enable runtime evidence profiles (#242)
+- React doctor fixes (#245)
+- Verify marketplace skill installs (#244)
+- Persist active workspace and redirect on session/workspace mismatch (#238)
+- Safe workspace delete and agh session remove command (#239)
+- Unblock release CI (bootstrapRun complexity, stale gate tests) (#249)
 
 ### 📚 Documentation
 
-- Add contributors
+- Release notes
 
-### 🔧 CI/CD
+### Release Notes
 
-- Web asset release
+#### Features
+
+##### Dependency-driven auto-enqueue
+
+Tasks can now opt into dependency-driven auto-enqueue. When a task is marked `auto_enqueue_on_ready`, AGH enqueues its next task run automatically as soon as a blocking dependency completes and the task reconciles to `ready` — so a dependency graph advances without a manual `agh task enqueue` at each step. The behavior is conservative: only a successful completion satisfies a `blocks` edge, paused dependents are skipped, and the queued-run reservation keeps at most one open run per dependent under concurrent or retried completions. Enqueue happens only after the completion has durably committed and is best-effort — a failed enqueue is logged, never rolled back onto the completing run. It is off by default; enable it per task with `--auto-enqueue-on-ready` on `agh task create` / `agh task child create`, toggle it with `agh task update`, or set the `auto_enqueue_on_ready` field over HTTP/UDS and the extension SDK.
+
+##### Runtime evidence mode for task execution profiles
+
+Task execution profiles can now drive worker startup and opt into runtime evidence mode. A task with no pool owner but a `worker.mode = "select"` profile now starts the selected agent, provider, and model and propagates the profile's required capabilities into its claim command. Setting `runtime.mode = "evidence"` boots that worker with guidance to run browser, simulator, and local-app validation and to capture runtime evidence. AGH elevates the session to auto-approve permissions only when the profile also pins an explicit sandbox reference (`sandbox.mode = "ref"`); otherwise the configured permission policy stays in force, and evidence mode grants no extra task authority. The profile's new `runtime` block is surfaced through the execution-profile CLI, the HTTP/UDS endpoints, and the native task tools.
+
+#### Fixes
+
+##### Coordinator sessions wake reliably on new work
+
+Coordinator sessions now wake reliably when new work arrives. When a task run is enqueued for a workspace that already has a running coordinator session, AGH delivers a synthetic wake to that session — interrupting the agent's current turn if it is idle and waiting — so queued runs are picked up promptly instead of stalling. The same interrupt-if-waiting delivery now applies to harness re-entry and heartbeat wakes, force-retried and force-recovered runs re-trigger a coordinator wake, and heartbeat wakes skipped for non-transient reasons are recorded as dropped rather than silently lost. Wake delivery is de-duplicated per session and run and drained safely across daemon shutdown.
+
+##### Marketplace skill installs are verified end-to-end
+
+Marketplace skill installs are now verified end-to-end. After downloading and writing a skill, AGH confirms the runtime can actually discover it as an enabled marketplace skill with matching provenance, instead of reporting success for an install that would never resolve. Installs that are disabled, shadowed by a higher-precedence skill of the same name, missing provenance, or resolved to a different slug now fail with a clear, terminal error and remediation guidance across `agh skill install` and the daemon API. Use `agh skill where <name>` to inspect the winning source before retrying.
+
+##### Safe workspace deletion, plus agh session remove and agh open
+
+Workspace deletion is now safe: AGH refuses to delete a workspace while any of its sessions are still active — returning a 409 that names the blocking sessions — and cleans up the workspace's stopped session history transactionally when deletion proceeds. Two agent-manageable CLI commands ship alongside it: `agh session remove <id>` deletes a single session and its persisted history, and `agh open` opens the AGH web UI in your default browser. The CLI reference also gains documentation for `agh open`, `agh session remove`, and the existing `agh onboarding` command group.
+
+##### Web UI remembers your active workspace
+
+The web UI now remembers your active workspace across reloads and browser restarts, so a refresh no longer snaps you back to the first workspace. Direct and shared session links resolve a session's owning workspace from its ID and load reliably regardless of which workspace is selected, and the UI redirects to the agent page when an opened session belongs to a different workspace than the active one.

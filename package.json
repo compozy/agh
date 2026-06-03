@@ -1,5 +1,5 @@
 {
-    "version": "0.0.5",
+    "version": "0.0.6",
     "private": true,
     "workspaces": [
         "packages/ui",
@@ -19,6 +19,7 @@
         "codegen": "make codegen",
         "codegen-check": "make codegen-check",
         "dev": "turbo run dev --filter=./web",
+        "doctor": "npx react-doctor@latest",
         "format": "make fmt && oxfmt",
         "format:check": "bunx oxfmt --check",
         "go:lint": "go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4 run --allow-parallel-runners ./... && go run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@v0.21.1 ./...",
@@ -34,8 +35,7 @@
         "test:e2e:runtime": "make test-e2e-runtime",
         "test:e2e:web": "make test-e2e-web",
         "tests": "bun run test",
-        "typecheck": "bun run bun:typecheck",
-        "doctor": "npx react-doctor@latest"
+        "typecheck": "bun run bun:typecheck"
     },
     "devDependencies": {
         "@commitlint/cli": "^21.0.1",
