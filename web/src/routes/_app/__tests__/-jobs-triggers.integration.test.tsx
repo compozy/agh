@@ -520,11 +520,16 @@ describe("Triggers route integration", () => {
     fireEvent.change(screen.getByTestId("trigger-agent-input"), {
       target: { value: "reviewer" },
     });
-    fireEvent.change(screen.getByTestId("trigger-event-input"), {
-      target: { value: "ext.test.qa" },
+    // Select the extension event and compose its id from the inline sub-config.
+    fireEvent.click(screen.getByTestId("trigger-event-ext"));
+    fireEvent.change(screen.getByTestId("trigger-ext-ext-input"), {
+      target: { value: "test" },
+    });
+    fireEvent.change(screen.getByTestId("trigger-ext-event-input"), {
+      target: { value: "qa" },
     });
     fireEvent.change(screen.getByTestId("trigger-prompt-input"), {
-      target: { value: "Review {{ .EventName }}." },
+      target: { value: "Review {{ .Kind }}." },
     });
 
     await user.click(screen.getByTestId("submit-trigger-form"));

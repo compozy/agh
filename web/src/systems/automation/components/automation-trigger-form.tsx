@@ -1,29 +1,17 @@
-import type { FormEvent } from "react";
-import { useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { Bot, Box, Check, Clock, Filter, Info } from "lucide-react";
 
-import {
-  Button,
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-  DialogFooter,
-  Eyebrow,
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldLabel,
-  FieldTitle,
-  Input,
-  Pill,
-  PillGroup,
-  Section,
-  Switch,
-  Textarea,
-} from "@agh/ui";
+import { Button, DialogFooter, Field, FieldLabel, Input } from "@agh/ui";
 
-import { retryDraftForStrategy } from "../lib/automation-drafts";
-import type { AutomationTriggerFilter, CreateAutomationTriggerRequest } from "../types";
+import { useAutomationTriggerForm } from "../hooks/use-automation-trigger-form";
+import type { WorkspaceOption } from "../lib/trigger-preview";
+import type { CreateAutomationTriggerRequest } from "../types";
+import { AgentPromptStep } from "./trigger-form/agent-prompt-step";
+import { EventCatalog } from "./trigger-form/event-catalog";
+import { FilterConditions } from "./trigger-form/filter-conditions";
+import { FlowStep } from "./trigger-form/flow-step";
+import { ReliabilitySection } from "./trigger-form/reliability-section";
+import { ScopeStep } from "./trigger-form/scope-step";
+import { TriggerPreview } from "./trigger-form/preview/trigger-preview";
 
 interface AutomationTriggerFormProps {
   activeWorkspaceId?: string | null;
@@ -33,379 +21,168 @@ interface AutomationTriggerFormProps {
   onCancel: () => void;
   onChange: (draft: CreateAutomationTriggerRequest) => void;
   onSubmit: () => void;
+  /** Workspaces selectable for a workspace-scoped trigger. */
+  workspaces?: ReadonlyArray<WorkspaceOption>;
+  /** Known agent names; falls back to a free-text agent input when empty. */
+  agents?: string[];
 }
 
-function formatFilterText(filter?: AutomationTriggerFilter): string {
-  if (!filter || Object.keys(filter).length === 0) return "";
-  return Object.entries(filter)
-    .map(([key, value]) => `${key}=${value}`)
-    .join("\n");
-}
-
-function parseFilterText(text: string): AutomationTriggerFilter {
-  return text
-    .split("\n")
-    .flatMap(line => {
-      const trimmed = line.trim();
-      return trimmed ? [trimmed] : [];
-    })
-    .reduce<AutomationTriggerFilter>((accumulator, line) => {
-      const separatorIndex = line.indexOf("=");
-      if (separatorIndex === -1) {
-        accumulator[line] = "";
-        return accumulator;
-      }
-
-      const key = line.slice(0, separatorIndex).trim();
-      if (key === "") return accumulator;
-
-      accumulator[key] = line.slice(separatorIndex + 1).trim();
-      return accumulator;
-    }, {});
-}
-
-export function AutomationTriggerForm(props: AutomationTriggerFormProps) {
-  const { draft, isPending, mode, onSubmit } = props;
-  const [governanceExpanded, setGovernanceExpanded] = useState(mode === "edit");
-  const retry = retryDraftForStrategy(draft.retry?.strategy ?? "none", draft.retry ?? undefined);
-  const canSubmit =
-    draft.name.trim() !== "" &&
-    draft.agent_name.trim() !== "" &&
-    draft.prompt.trim() !== "" &&
-    draft.event.trim() !== "" &&
-    (draft.scope === "global" || Boolean(draft.workspace_id));
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!canSubmit || isPending) return;
-    onSubmit();
-  };
-
-  return renderAutomationTriggerForm({
-    ...props,
-    canSubmit,
-    governanceExpanded,
-    handleSubmit,
-    retry,
-    setGovernanceExpanded,
-  });
-}
-
-interface AutomationTriggerFormViewProps extends AutomationTriggerFormProps {
-  canSubmit: boolean;
-  governanceExpanded: boolean;
-  handleSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  retry: ReturnType<typeof retryDraftForStrategy>;
-  setGovernanceExpanded: (open: boolean) => void;
-}
-
-function renderAutomationTriggerForm({
+export function AutomationTriggerForm({
   activeWorkspaceId,
   draft,
   isPending,
   mode,
   onCancel,
   onChange,
-  canSubmit,
-  governanceExpanded,
-  handleSubmit,
-  retry,
-  setGovernanceExpanded,
-}: AutomationTriggerFormViewProps) {
+  onSubmit,
+  workspaces,
+  agents = [],
+}: AutomationTriggerFormProps) {
+  const form = useAutomationTriggerForm({
+    activeWorkspaceId,
+    draft,
+    isPending,
+    mode,
+    onChange,
+    onSubmit,
+    workspaces,
+  });
+
   return (
     <form
-      className="flex max-h-[min(84vh,var(--height-modal-wizard))] flex-col"
+      className="flex min-h-0 flex-col"
       data-testid="automation-trigger-form"
-      onSubmit={handleSubmit}
+      onSubmit={form.handleSubmit}
     >
-      <div className="flex-1 space-y-6 overflow-y-auto p-5">
-        <Section label="Core">
-          <div className="space-y-4 rounded-md border border-line bg-canvas-soft p-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field>
-                <FieldLabel htmlFor="trigger-name">Name</FieldLabel>
-                <Input
-                  data-testid="trigger-name-input"
-                  id="trigger-name"
-                  onChange={event => onChange({ ...draft, name: event.target.value })}
-                  placeholder="review-on-stop"
-                  value={draft.name}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="trigger-agent">Agent</FieldLabel>
-                <Input
-                  data-testid="trigger-agent-input"
-                  id="trigger-agent"
-                  onChange={event => onChange({ ...draft, agent_name: event.target.value })}
-                  placeholder="reviewer"
-                  value={draft.agent_name}
-                />
-              </Field>
-            </div>
-            <Field>
-              <FieldLabel htmlFor="trigger-event">Event</FieldLabel>
-              <Input
-                data-testid="trigger-event-input"
-                id="trigger-event"
-                onChange={event => onChange({ ...draft, event: event.target.value })}
-                placeholder="session.stopped or webhook"
-                value={draft.event}
-              />
-            </Field>
-            <Field>
-              <FieldTitle>Scope</FieldTitle>
-              <PillGroup
-                aria-label="Scope"
-                items={[
-                  { value: "global", label: "GLOBAL", testId: "trigger-scope-global" },
-                  { value: "workspace", label: "WORKSPACE", testId: "trigger-scope-workspace" },
-                ]}
-                onChange={next => {
-                  if (next === "global") {
-                    onChange({ ...draft, scope: "global", workspace_id: undefined });
-                  } else {
-                    onChange({
-                      ...draft,
-                      scope: "workspace",
-                      workspace_id: activeWorkspaceId ?? draft.workspace_id,
-                    });
-                  }
-                }}
-                value={draft.scope}
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="trigger-prompt">Prompt template</FieldLabel>
-              <div className="flex flex-wrap items-center gap-2">
-                <Pill mono tone="info">
-                  GO TEMPLATE
-                </Pill>
-                <span className="text-xs text-subtle">
-                  Variables: .EventName, .Source, .Data, .Timestamp
-                </span>
-              </div>
-              <Textarea
-                data-testid="trigger-prompt-input"
-                id="trigger-prompt"
-                onChange={event => onChange({ ...draft, prompt: event.target.value })}
-                placeholder="Review the session {{ .Data.session_id }} for agent {{ .Data.agent_name }}."
-                rows={4}
-                value={draft.prompt}
-              />
-            </Field>
-          </div>
-        </Section>
+      <div className="grid min-h-0 flex-1 grid-cols-[1fr_var(--width-right-rail-default)] max-lg:grid-cols-1 max-lg:grid-rows-[minmax(0,1fr)_auto]">
+        <section className="min-h-0 overflow-y-auto px-6 py-5">
+          <Field className="mb-1">
+            <FieldLabel htmlFor="trigger-name">Trigger name</FieldLabel>
+            <Input
+              className="font-mono"
+              data-testid="trigger-name-input"
+              id="trigger-name"
+              onChange={event => form.onName(event.target.value)}
+              placeholder="summarize-failures"
+              value={draft.name}
+            />
+          </Field>
 
-        <Section label="Activation">
-          <div className="space-y-4 rounded-md border border-line bg-canvas-soft p-4">
-            <Field>
-              <FieldLabel htmlFor="trigger-filter">Filter rules</FieldLabel>
-              <Textarea
-                data-testid="trigger-filter-input"
-                id="trigger-filter"
-                onChange={event =>
-                  onChange({
-                    ...draft,
-                    filter: parseFilterText(event.target.value),
-                  })
-                }
-                placeholder={"data.branch=main\ndata.author=pedro"}
-                rows={3}
-                value={formatFilterText(draft.filter)}
-              />
-              <FieldDescription>One key=value pair per line.</FieldDescription>
-            </Field>
-            {draft.event === "webhook" ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field>
-                  <FieldLabel htmlFor="trigger-endpoint-slug">Endpoint slug</FieldLabel>
-                  <Input
-                    data-testid="trigger-endpoint-slug-input"
-                    id="trigger-endpoint-slug"
-                    onChange={event => onChange({ ...draft, endpoint_slug: event.target.value })}
-                    placeholder="repo-push"
-                    value={draft.endpoint_slug ?? ""}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="trigger-webhook-id">Webhook id</FieldLabel>
-                  <Input
-                    data-testid="trigger-webhook-id-input"
-                    id="trigger-webhook-id"
-                    onChange={event => onChange({ ...draft, webhook_id: event.target.value })}
-                    placeholder="wbh_repo_push"
-                    value={draft.webhook_id ?? ""}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="trigger-webhook-secret-value">
-                    Webhook secret value
-                  </FieldLabel>
-                  <Input
-                    data-testid="trigger-webhook-secret-value-input"
-                    id="trigger-webhook-secret-value"
-                    onChange={event =>
-                      onChange({ ...draft, webhook_secret_value: event.target.value })
-                    }
-                    placeholder="write-only secret value"
-                    value={draft.webhook_secret_value ?? ""}
-                  />
-                </Field>
-              </div>
-            ) : null}
-          </div>
-        </Section>
-
-        <Collapsible open={governanceExpanded} onOpenChange={setGovernanceExpanded}>
-          <section className="rounded-md border border-line bg-canvas-soft p-4">
-            <CollapsibleTrigger
-              className="flex w-full items-center justify-between gap-3 text-left"
-              data-testid="trigger-governance-toggle"
-              type="button"
+          <div className="mt-5">
+            <FlowStep
+              active
+              icon={Box}
+              kicker="For"
+              subtitle="Choose where this trigger is active. A global trigger sees events from every workspace."
+              title="A workspace, or the whole runtime"
             >
-              <span className="flex items-center gap-2">
-                {governanceExpanded ? (
-                  <ChevronDown aria-hidden="true" className="size-4 text-subtle" />
-                ) : (
-                  <ChevronRight aria-hidden="true" className="size-4 text-subtle" />
-                )}
-                <Eyebrow className="text-muted">Governance</Eyebrow>
-              </span>
-              <span className="text-small-body text-muted">
-                Optional retry and rate limit settings
-              </span>
-            </CollapsibleTrigger>
+              <ScopeStep
+                isWebhook={form.isWebhook}
+                onScopeChange={form.onScopeChange}
+                onWorkspaceChange={form.onWorkspaceChange}
+                scope={draft.scope}
+                workspaceId={draft.workspace_id}
+                workspaces={form.resolvedWorkspaces}
+              />
+            </FlowStep>
 
-            <CollapsibleContent className="mt-4 space-y-4">
-              <div className="grid gap-4 md:grid-cols-3">
-                <Field>
-                  <FieldTitle>Retry policy</FieldTitle>
-                  <PillGroup
-                    aria-label="Retry policy"
-                    items={[
-                      { value: "none", label: "NONE", testId: "trigger-retry-strategy-none" },
-                      {
-                        value: "backoff",
-                        label: "BACKOFF",
-                        testId: "trigger-retry-strategy-backoff",
-                      },
-                    ]}
-                    onChange={next =>
-                      onChange({ ...draft, retry: retryDraftForStrategy(next, retry) })
-                    }
-                    size="sm"
-                    value={retry.strategy}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="trigger-retry-max">Max retries</FieldLabel>
-                  <Input
-                    data-testid="trigger-retry-max"
-                    disabled={retry.strategy !== "backoff"}
-                    id="trigger-retry-max"
-                    min={0}
-                    onChange={event =>
-                      onChange({
-                        ...draft,
-                        retry: {
-                          ...retryDraftForStrategy("backoff", retry),
-                          max_retries: Number(event.target.value || "0"),
-                        },
-                      })
-                    }
-                    type="number"
-                    value={retry.strategy === "backoff" ? retry.max_retries : 0}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="trigger-retry-delay">Base delay</FieldLabel>
-                  <Input
-                    data-testid="trigger-retry-delay"
-                    disabled={retry.strategy !== "backoff"}
-                    id="trigger-retry-delay"
-                    onChange={event =>
-                      onChange({
-                        ...draft,
-                        retry: {
-                          ...retryDraftForStrategy("backoff", retry),
-                          base_delay: event.target.value,
-                        },
-                      })
-                    }
-                    placeholder="2s"
-                    value={retry.strategy === "backoff" ? retry.base_delay : ""}
-                  />
-                </Field>
-              </div>
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field>
-                  <FieldLabel htmlFor="trigger-fire-limit-max">Max fires</FieldLabel>
-                  <Input
-                    data-testid="trigger-fire-limit-max"
-                    id="trigger-fire-limit-max"
-                    min={1}
-                    onChange={event =>
-                      onChange({
-                        ...draft,
-                        fire_limit: {
-                          ...(draft.fire_limit ?? { window: "1h" }),
-                          max: Number(event.target.value || "1"),
-                        },
-                      })
-                    }
-                    type="number"
-                    value={draft.fire_limit?.max ?? 12}
-                  />
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor="trigger-fire-limit-window">Window</FieldLabel>
-                  <Input
-                    data-testid="trigger-fire-limit-window"
-                    id="trigger-fire-limit-window"
-                    onChange={event =>
-                      onChange({
-                        ...draft,
-                        fire_limit: {
-                          ...(draft.fire_limit ?? { max: 12 }),
-                          window: event.target.value,
-                        },
-                      })
-                    }
-                    placeholder="1h"
-                    value={draft.fire_limit?.window ?? "1h"}
-                  />
-                </Field>
-              </div>
-              <Field orientation="horizontal">
-                <Switch
-                  checked={draft.enabled ?? true}
-                  data-testid="trigger-enabled-toggle"
-                  onCheckedChange={checked => onChange({ ...draft, enabled: checked })}
-                />
-                <FieldContent>
-                  <FieldTitle>Trigger enabled</FieldTitle>
-                  <FieldDescription>
-                    Disabled triggers stay visible but ignore matching activation envelopes.
-                  </FieldDescription>
-                </FieldContent>
-              </Field>
-            </CollapsibleContent>
-          </section>
-        </Collapsible>
+            <FlowStep
+              active={Boolean(form.selection.catalogId)}
+              icon={Clock}
+              kicker="When"
+              subtitle="Pick the runtime event this trigger listens for. A few events need one more detail, shown right under your choice."
+              title="An event happens"
+            >
+              <EventCatalog
+                onSelectEvent={form.onSelectEvent}
+                onSubConfigChange={form.onSubConfigChange}
+                selection={form.selection}
+                subConfigValues={form.subConfigValues}
+              />
+            </FlowStep>
+
+            <FlowStep
+              active={form.hasActiveFilters}
+              icon={Filter}
+              kicker="Only if"
+              subtitle="Narrow it down. Each condition is an exact match on a field from the event above."
+              title={
+                <>
+                  It matches these conditions
+                  <span className="ml-1.5 text-small-body font-normal text-faint">— optional</span>
+                </>
+              }
+            >
+              <FilterConditions
+                eventKind={form.eventKind}
+                filter={draft.filter ?? {}}
+                keyOptions={form.keyOptions}
+                onChange={form.onFilterChange}
+                openPayload={form.openPayload}
+              />
+            </FlowStep>
+
+            <FlowStep
+              active={draft.agent_name.trim() !== ""}
+              icon={Bot}
+              kicker="Then"
+              last
+              subtitle="The agent receives a prompt rendered from the event's data."
+              title="Run this agent"
+            >
+              <AgentPromptStep
+                agent={draft.agent_name}
+                agents={agents}
+                onAgentChange={form.onAgentChange}
+                onPromptChange={form.onPromptChange}
+                prompt={draft.prompt}
+                variables={form.variables}
+              />
+            </FlowStep>
+          </div>
+
+          <ReliabilitySection
+            badge={form.preview.reliabilityBadge}
+            defaultOpen={form.reliabilityDefaultOpen}
+            enabled={draft.enabled ?? true}
+            fireLimit={draft.fire_limit ?? undefined}
+            onEnabledChange={form.onEnabledChange}
+            onFireLimitChange={form.onFireLimitChange}
+            onRetryChange={form.onRetryChange}
+            retry={form.retry}
+          />
+        </section>
+
+        <TriggerPreview preview={form.preview} />
       </div>
 
       <DialogFooter variant="ruled">
+        <div className="flex flex-1 items-center gap-2 text-form-hint text-subtle">
+          <Info aria-hidden="true" className="size-3 shrink-0 text-faint" />
+          <span>
+            Created as a <b className="font-medium text-muted">dynamic</b> trigger — editable and
+            deletable anytime.
+          </span>
+        </div>
         <Button onClick={onCancel} type="button" variant="outline">
           Cancel
         </Button>
         <Button
           className="min-w-36"
           data-testid="submit-trigger-form"
-          disabled={!canSubmit || isPending}
+          disabled={!form.canSubmit || isPending}
           type="submit"
         >
-          {isPending ? "Saving..." : mode === "create" ? "Create Trigger" : "Save Changes"}
+          {isPending ? (
+            "Saving..."
+          ) : mode === "create" ? (
+            <>
+              <Check aria-hidden="true" className="size-4" />
+              Create trigger
+            </>
+          ) : (
+            "Save changes"
+          )}
         </Button>
       </DialogFooter>
     </form>

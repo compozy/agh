@@ -47,8 +47,20 @@ function renderTriggerForm({
   return { onCancel, onChange, onSubmit };
 }
 
+function fillIdentity() {
+  fireEvent.change(screen.getByTestId("trigger-name-input"), {
+    target: { value: "push-review" },
+  });
+  fireEvent.change(screen.getByTestId("trigger-agent-input"), {
+    target: { value: "reviewer" },
+  });
+  fireEvent.change(screen.getByTestId("trigger-prompt-input"), {
+    target: { value: "Review {{ .Kind }} for session {{ .Data.session_id }}." },
+  });
+}
+
 describe("AutomationTriggerForm", () => {
-  it("updates trigger fields, parses filters, and submits webhook triggers", () => {
+  it("selects a webhook event, forces global scope, and submits the webhook payload", () => {
     const { onCancel, onChange, onSubmit } = renderTriggerForm();
 
     const footer = document.body.querySelector('[data-slot="dialog-footer"]');
@@ -56,21 +68,16 @@ describe("AutomationTriggerForm", () => {
     expect(footer).toHaveAttribute("data-variant", "ruled");
     expect(screen.getByTestId("submit-trigger-form")).toBeDisabled();
 
-    fireEvent.change(screen.getByTestId("trigger-name-input"), {
-      target: { value: "push-review" },
-    });
-    fireEvent.change(screen.getByTestId("trigger-agent-input"), {
-      target: { value: "reviewer" },
-    });
-    fireEvent.change(screen.getByTestId("trigger-event-input"), {
-      target: { value: "webhook" },
-    });
-    fireEvent.change(screen.getByTestId("trigger-prompt-input"), {
-      target: { value: "Review push event {{ .Data.branch }}." },
-    });
-    fireEvent.change(screen.getByTestId("trigger-filter-input"), {
-      target: { value: "data.branch=main\nraw-line\n=ignored" },
-    });
+    fillIdentity();
+    // session.stopped (the default) in a workspace is already submittable.
+    expect(screen.getByTestId("submit-trigger-form")).toBeEnabled();
+
+    fireEvent.click(screen.getByTestId("trigger-event-webhook"));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ event: "webhook", scope: "global", workspace_id: undefined })
+    );
+    // webhook needs its signed-endpoint fields before it can be created.
+    expect(screen.getByTestId("submit-trigger-form")).toBeDisabled();
 
     fireEvent.change(screen.getByTestId("trigger-endpoint-slug-input"), {
       target: { value: "repo-push" },
@@ -82,28 +89,6 @@ describe("AutomationTriggerForm", () => {
       target: { value: "shared-secret" },
     });
 
-    fireEvent.click(screen.getByTestId("trigger-scope-global"));
-    expect(onChange).toHaveBeenLastCalledWith(
-      expect.objectContaining({ scope: "global", workspace_id: undefined })
-    );
-
-    fireEvent.click(screen.getByTestId("trigger-scope-workspace"));
-    fireEvent.click(screen.getByTestId("trigger-governance-toggle"));
-    fireEvent.click(screen.getByTestId("trigger-retry-strategy-backoff"));
-    fireEvent.change(screen.getByTestId("trigger-retry-max"), {
-      target: { value: "6" },
-    });
-    fireEvent.change(screen.getByTestId("trigger-retry-delay"), {
-      target: { value: "9s" },
-    });
-    fireEvent.change(screen.getByTestId("trigger-fire-limit-max"), {
-      target: { value: "11" },
-    });
-    fireEvent.change(screen.getByTestId("trigger-fire-limit-window"), {
-      target: { value: "3h" },
-    });
-    fireEvent.click(screen.getByTestId("trigger-enabled-toggle"));
-
     expect(screen.getByTestId("submit-trigger-form")).toBeEnabled();
 
     fireEvent.click(screen.getByTestId("submit-trigger-form"));
@@ -113,18 +98,65 @@ describe("AutomationTriggerForm", () => {
     expect(onCancel).toHaveBeenCalledOnce();
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        enabled: false,
+        event: "webhook",
+        scope: "global",
+        workspace_id: undefined,
         endpoint_slug: "repo-push",
         webhook_id: "wbh_repo_push",
         webhook_secret_value: "shared-secret",
-        filter: { "data.branch": "main", "raw-line": "" },
-        retry: { strategy: "backoff", max_retries: 6, base_delay: "9s" },
-        fire_limit: { max: 11, window: "3h" },
       })
     );
   });
 
-  it("hides webhook-only fields for non-webhook events", () => {
+  it("composes a hook event id from the inline sub-config", () => {
+    const { onChange } = renderTriggerForm();
+
+    fireEvent.click(screen.getByTestId("trigger-event-hook.completed"));
+    fireEvent.change(screen.getByTestId("trigger-hook-name-input"), {
+      target: { value: "transform" },
+    });
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ event: "hook.transform.completed" })
+    );
+  });
+
+  it("toggles scope between workspace and global for non-webhook events", () => {
+    const { onChange } = renderTriggerForm();
+
+    fireEvent.click(screen.getByTestId("trigger-scope-global"));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope: "global", workspace_id: undefined })
+    );
+
+    fireEvent.click(screen.getByTestId("trigger-scope-workspace"));
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope: "workspace", workspace_id: "ws_alpha" })
+    );
+  });
+
+  it("adds and edits structured filter conditions as an AND map", () => {
+    const { onChange } = renderTriggerForm();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add condition" }));
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ filter: { kind: "" } }));
+
+    fireEvent.change(screen.getByTestId("trigger-filter-value-0"), {
+      target: { value: "session.stopped" },
+    });
+    fireEvent.change(screen.getByTestId("trigger-filter-key-0"), {
+      target: { value: "data.stop_reason" },
+    });
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ filter: { "data.stop_reason": "session.stopped" } })
+    );
+
+    fireEvent.click(screen.getByTestId("trigger-filter-remove-0"));
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ filter: {} }));
+  });
+
+  it("hides webhook sub-config fields for non-webhook events", () => {
     renderTriggerForm({
       draft: {
         ...createAutomationTriggerDraft("ws_alpha"),
@@ -137,7 +169,6 @@ describe("AutomationTriggerForm", () => {
 
     expect(screen.queryByTestId("trigger-endpoint-slug-input")).not.toBeInTheDocument();
     expect(screen.queryByTestId("trigger-webhook-id-input")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("trigger-webhook-secret-ref-input")).not.toBeInTheDocument();
     expect(screen.queryByTestId("trigger-webhook-secret-value-input")).not.toBeInTheDocument();
   });
 
@@ -176,6 +207,7 @@ describe("AutomationTriggerForm", () => {
         name: "push-review",
         agent_name: "reviewer",
         prompt: "Review push event.",
+        event: "session.stopped",
       },
       isPending: true,
       mode: "edit",

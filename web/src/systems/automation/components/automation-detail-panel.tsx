@@ -14,6 +14,7 @@ import {
   type MetricTone,
 } from "@agh/ui";
 
+import { automationTriggerToDraft } from "../lib/automation-drafts";
 import {
   automationScopeLabel,
   automationSourceLabel,
@@ -25,6 +26,7 @@ import {
   formatDateTime,
   formatRelativeTime,
 } from "../lib/automation-formatters";
+import { buildTriggerPreview } from "../lib/trigger-preview";
 import type {
   AutomationJob,
   AutomationRun,
@@ -32,6 +34,7 @@ import type {
   AutomationTrigger,
 } from "../types";
 import { AutomationRunHistory } from "./automation-run-history";
+import { WebhookEndpointCard } from "./trigger-form/preview/webhook-endpoint-card";
 
 export interface AutomationDetailEmptyState {
   actionLabel?: string;
@@ -256,6 +259,10 @@ function JobSchedulerSection({ job }: { job: AutomationJob }) {
 
 function TriggerHookSection({ trigger }: { trigger: AutomationTrigger }) {
   const filters = Object.entries(trigger.filter ?? {});
+  const webhook =
+    trigger.event === "webhook"
+      ? buildTriggerPreview(automationTriggerToDraft(trigger)).webhook
+      : null;
 
   return (
     <Section label="Hook" right={<KindChip kind={trigger.event} />}>
@@ -302,6 +309,11 @@ function TriggerHookSection({ trigger }: { trigger: AutomationTrigger }) {
           </Pill>
         </div>
       </div>
+      {webhook ? (
+        <div className="mt-3">
+          <WebhookEndpointCard curl={webhook.curl} url={webhook.url} />
+        </div>
+      ) : null}
     </Section>
   );
 }

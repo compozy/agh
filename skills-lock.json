@@ -468,8 +468,8 @@
         "impeccable": {
             "source": "pbakaus/impeccable",
             "sourceType": "github",
-            "skillPath": "skill/SKILL.md",
-            "computedHash": "34e59a34b9705187e87039faa5d9585aebe0056ef657f761b905afef276a3362"
+            "skillPath": ".agents/skills/impeccable/SKILL.md",
+            "computedHash": "16180e7175cb29ef050926233b8514d7323294156890e1f1b17024ba8d9dab71"
         },
         "inngest": {
             "source": "pedronauck/skills",

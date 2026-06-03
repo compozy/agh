@@ -198,10 +198,12 @@ tokens:
       height-modal-md: "760px"
       height-modal-tall: "900px"
       height-modal-wizard: "960px"
+      height-modal-xl: "840px"
       overlay-blur: "3px"
       width-modal-sm: "560px"
       width-modal-md: "720px"
       width-modal-lg: "880px"
+      width-modal-xl: "1180px"
       size-catalog-logo: "1.5rem"
       size-provider-logo-well: "2.5rem"
       size-pill-group-badge: "14px"
@@ -551,26 +553,27 @@ widths come from `--site-*` tokens.
 
 <!-- BEGIN:tokens:component-sizes -->
 
-| Token                              | Value    | Token                             | Value    | Token                             | Value   |
-| ---------------------------------- | -------- | --------------------------------- | -------- | --------------------------------- | ------- |
-| `--height-button-xs`               | `22px`   | `--height-button-sm`              | `22px`   | `--height-button-default`         | `26px`  |
-| `--height-button-lg`               | `30px`   | `--size-button-icon-xs`           | `22px`   | `--size-button-icon-sm`           | `22px`  |
-| `--size-button-icon-default`       | `26px`   | `--size-button-icon-lg`           | `30px`   | `--height-switch-default`         | `18px`  |
-| `--width-switch-default`           | `32px`   | `--height-switch-sm`              | `14px`   | `--width-switch-sm`               | `24px`  |
-| `--height-pill-xs`                 | `17px`   | `--height-pill-sm`                | `19px`   | `--height-pill-md`                | `22px`  |
-| `--height-sidebar-row`             | `28px`   | `--height-tabs-list`              | `40px`   | `--size-tab-underline`            | `1.5px` |
-| `--size-count-chip`                | `19px`   | `--size-count-chip-sm`            | `17px`   | `--size-empty-icon`               | `38px`  |
-| `--width-menu-sub-min`             | `96px`   | `--height-form-textarea`          | `136px`  | `--height-editor-footer`          | `52px`  |
-| `--width-detail-inspector-inline`  | `320px`  | `--width-table-cell-sm`           | `224px`  | `--width-table-cell-md`           | `288px` |
-| `--width-table-cell-lg`            | `360px`  | `--width-content-max`             | `1320px` | `--width-right-rail-default`      | `468px` |
-| `--width-message-bubble-max`       | `640px`  | `--width-wire-card-max`           | `520px`  | `--width-search-input-min`        | `220px` |
-| `--width-filters-menu-default`     | `200px`  | `--width-filters-menu-stack`      | `220px`  | `--height-modal-md`               | `760px` |
-| `--height-modal-tall`              | `900px`  | `--height-modal-wizard`           | `960px`  | `--overlay-blur`                  | `3px`   |
-| `--width-modal-sm`                 | `560px`  | `--width-modal-md`                | `720px`  | `--width-modal-lg`                | `880px` |
-| `--size-catalog-logo`              | `1.5rem` | `--size-provider-logo-well`       | `2.5rem` | `--size-pill-group-badge`         | `14px`  |
-| `--height-pill-group-segment-md`   | `24px`   | `--height-pill-group-segment-sm`  | `20px`   | `--space-pill-group-track-gap`    | `1px`   |
-| `--space-pill-group-track-padding` | `2px`    | `--space-pill-group-segment-sm-x` | `8px`    | `--space-pill-group-segment-md-x` | `10px`  |
-| `--space-pill-group-badge-x`       | `4px`    | `--space-switch-thumb-inset`      | `2px`    |                                   |         |
+| Token                             | Value    | Token                             | Value    | Token                              | Value    |
+| --------------------------------- | -------- | --------------------------------- | -------- | ---------------------------------- | -------- |
+| `--height-button-xs`              | `22px`   | `--height-button-sm`              | `22px`   | `--height-button-default`          | `26px`   |
+| `--height-button-lg`              | `30px`   | `--size-button-icon-xs`           | `22px`   | `--size-button-icon-sm`            | `22px`   |
+| `--size-button-icon-default`      | `26px`   | `--size-button-icon-lg`           | `30px`   | `--height-switch-default`          | `18px`   |
+| `--width-switch-default`          | `32px`   | `--height-switch-sm`              | `14px`   | `--width-switch-sm`                | `24px`   |
+| `--height-pill-xs`                | `17px`   | `--height-pill-sm`                | `19px`   | `--height-pill-md`                 | `22px`   |
+| `--height-sidebar-row`            | `28px`   | `--height-tabs-list`              | `40px`   | `--size-tab-underline`             | `1.5px`  |
+| `--size-count-chip`               | `19px`   | `--size-count-chip-sm`            | `17px`   | `--size-empty-icon`                | `38px`   |
+| `--width-menu-sub-min`            | `96px`   | `--height-form-textarea`          | `136px`  | `--height-editor-footer`           | `52px`   |
+| `--width-detail-inspector-inline` | `320px`  | `--width-table-cell-sm`           | `224px`  | `--width-table-cell-md`            | `288px`  |
+| `--width-table-cell-lg`           | `360px`  | `--width-content-max`             | `1320px` | `--width-right-rail-default`       | `468px`  |
+| `--width-message-bubble-max`      | `640px`  | `--width-wire-card-max`           | `520px`  | `--width-search-input-min`         | `220px`  |
+| `--width-filters-menu-default`    | `200px`  | `--width-filters-menu-stack`      | `220px`  | `--height-modal-md`                | `760px`  |
+| `--height-modal-tall`             | `900px`  | `--height-modal-wizard`           | `960px`  | `--height-modal-xl`                | `840px`  |
+| `--overlay-blur`                  | `3px`    | `--width-modal-sm`                | `560px`  | `--width-modal-md`                 | `720px`  |
+| `--width-modal-lg`                | `880px`  | `--width-modal-xl`                | `1180px` | `--size-catalog-logo`              | `1.5rem` |
+| `--size-provider-logo-well`       | `2.5rem` | `--size-pill-group-badge`         | `14px`   | `--height-pill-group-segment-md`   | `24px`   |
+| `--height-pill-group-segment-sm`  | `20px`   | `--space-pill-group-track-gap`    | `1px`    | `--space-pill-group-track-padding` | `2px`    |
+| `--space-pill-group-segment-sm-x` | `8px`    | `--space-pill-group-segment-md-x` | `10px`   | `--space-pill-group-badge-x`       | `4px`    |
+| `--space-switch-thumb-inset`      | `2px`    |                                   |          |                                    |          |
 
 <!-- END:tokens:component-sizes -->
 

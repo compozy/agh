@@ -84,7 +84,7 @@ describe("automation draft helpers", () => {
 
   it("creates trigger drafts with the expected defaults", () => {
     expect(createAutomationTriggerDraft()).toMatchObject({
-      event: "webhook",
+      event: "session.stopped",
       filter: {},
       scope: "global",
       workspace_id: undefined,

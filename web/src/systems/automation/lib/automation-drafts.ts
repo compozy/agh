@@ -98,7 +98,7 @@ export function createAutomationTriggerDraft(
     name: "",
     agent_name: "",
     prompt: "",
-    event: "webhook",
+    event: "session.stopped",
     filter: {},
     scope: workspaceId ? "workspace" : "global",
     workspace_id: workspaceId,

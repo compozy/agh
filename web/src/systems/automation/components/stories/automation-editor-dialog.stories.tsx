@@ -43,15 +43,24 @@ function AutomationEditorJobHarness({ onSubmit = fn() }: { onSubmit?: () => void
   );
 }
 
-function AutomationEditorTriggerHarness({ onSubmit = fn() }: { onSubmit?: () => void }) {
+function AutomationEditorTriggerHarness({
+  mode = "edit",
+  onSubmit = fn(),
+}: {
+  mode?: "create" | "edit";
+  onSubmit?: () => void;
+}) {
   const activeWorkspaceId = storyDefaultWorkspaceId;
   const [draft, setDraft] = useState<ReturnType<typeof createAutomationTriggerDraft>>(() => ({
     ...createAutomationTriggerDraft(activeWorkspaceId),
-    name: "support-sla-breach",
+    name: "summarize-failures",
     agent_name: storyAgentNames.support,
-    event: "support.launch.sla_breach",
-    filter: { "data.sla_minutes": ">=4" },
-    prompt: "Investigate the launch support lane when SLA exceeds {{ .Data.sla_minutes }} minutes.",
+    event: "session.stopped",
+    scope: "workspace",
+    filter: { "data.stop_reason": "error" },
+    prompt:
+      'Session {{ .Data.session_id }} stopped with reason "{{ .Data.stop_reason }}". ' +
+      "Summarize what went wrong and one suggested next step.",
   }));
 
   return (
@@ -61,7 +70,7 @@ function AutomationEditorTriggerHarness({ onSubmit = fn() }: { onSubmit?: () => 
         draft,
         isPending: false,
         kind: "triggers",
-        mode: "edit",
+        mode,
         onCancel: () => undefined,
         onChange: nextDraft => setDraft(nextDraft),
         onSubmit,
@@ -78,6 +87,11 @@ export const CreateJob: Story = {
 export const EditTrigger: Story = {
   args: {},
   render: () => <AutomationEditorTriggerHarness />,
+};
+
+export const CreateTriggerOpen: Story = {
+  args: {},
+  render: () => <AutomationEditorTriggerHarness mode="create" />,
 };
 
 export const CreateJobSubmit: Story = {

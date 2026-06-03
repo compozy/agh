@@ -1,6 +1,14 @@
 import { useEffect } from "react";
+import { Zap } from "lucide-react";
 
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@agh/ui";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  Eyebrow,
+} from "@agh/ui";
 
 import { AutomationJobForm } from "./automation-job-form";
 import { AutomationTriggerForm } from "./automation-trigger-form";
@@ -40,12 +48,12 @@ function jobDialogCopy(mode: "create" | "edit") {
   };
 }
 
-function triggerDialogCopy(mode: "create" | "edit") {
-  return {
-    title: mode === "create" ? "Create trigger" : "Edit trigger",
-    description: "Event-driven triggers react to daemon events, webhooks, and extension signals.",
-  };
+function triggerDialogTitle(mode: "create" | "edit") {
+  return mode === "create" ? "Create trigger" : "Edit trigger";
 }
+
+const TRIGGER_CONTENT_CLASS =
+  "text-fg grid-rows-[auto_minmax(0,1fr)] w-(--width-modal-xl) sm:max-w-(--width-modal-xl) h-(--height-modal-xl) max-h-[92vh]";
 
 export function AutomationEditorDialog({
   activeWorkspaceId,
@@ -54,11 +62,7 @@ export function AutomationEditorDialog({
 }: AutomationEditorDialogProps) {
   const isControlled = handle === undefined;
   const isEditorOpen = editor !== null;
-  const copy = editor
-    ? editor.kind === "jobs"
-      ? jobDialogCopy(editor.mode)
-      : triggerDialogCopy(editor.mode)
-    : { title: "", description: "" };
+  const isTrigger = editor?.kind === "triggers";
 
   useEffect(() => {
     if (!handle) {
@@ -88,16 +92,15 @@ export function AutomationEditorDialog({
       {editor ? (
         <DialogContent
           unframed
-          className="text-fg sm:max-w-176"
+          className={isTrigger ? TRIGGER_CONTENT_CLASS : "text-fg sm:max-w-176"}
           data-testid="automation-editor-dialog"
         >
-          <>
-            <DialogHeader variant="ruled">
-              <DialogTitle>{copy.title}</DialogTitle>
-              <DialogDescription>{copy.description}</DialogDescription>
-            </DialogHeader>
-
-            {editor.kind === "jobs" ? (
+          {editor.kind === "jobs" ? (
+            <>
+              <DialogHeader variant="ruled">
+                <DialogTitle>{jobDialogCopy(editor.mode).title}</DialogTitle>
+                <DialogDescription>{jobDialogCopy(editor.mode).description}</DialogDescription>
+              </DialogHeader>
               <AutomationJobForm
                 activeWorkspaceId={activeWorkspaceId}
                 draft={editor.draft}
@@ -107,7 +110,25 @@ export function AutomationEditorDialog({
                 onChange={editor.onChange}
                 onSubmit={editor.onSubmit}
               />
-            ) : (
+            </>
+          ) : (
+            <>
+              <DialogHeader variant="ruled">
+                <div className="flex items-start gap-4">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent-tint text-accent-strong ring-1 ring-accent-dim ring-inset">
+                    <Zap aria-hidden="true" className="size-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <Eyebrow className="text-accent-strong">Automation · Trigger</Eyebrow>
+                    <DialogTitle className="mt-1">{triggerDialogTitle(editor.mode)}</DialogTitle>
+                    <DialogDescription className="mt-1">
+                      A trigger watches for a runtime event and, when it matches, runs an agent with
+                      a prompt built from that event.{" "}
+                      <b className="font-medium text-muted">When this happens → run that.</b>
+                    </DialogDescription>
+                  </div>
+                </div>
+              </DialogHeader>
               <AutomationTriggerForm
                 activeWorkspaceId={activeWorkspaceId}
                 draft={editor.draft}
@@ -117,8 +138,8 @@ export function AutomationEditorDialog({
                 onChange={editor.onChange}
                 onSubmit={editor.onSubmit}
               />
-            )}
-          </>
+            </>
+          )}
         </DialogContent>
       ) : null}
     </Dialog>
