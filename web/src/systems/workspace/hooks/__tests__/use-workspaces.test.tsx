@@ -5,7 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useActiveWorkspace } from "../use-active-workspace";
 import { useActiveWorkspaceStore } from "../use-active-workspace-store";
-import { useResolveWorkspace, useWorkspace, useWorkspaces } from "../use-workspaces";
+import {
+  useDeleteWorkspace,
+  useResolveWorkspace,
+  useWorkspace,
+  useWorkspaces,
+} from "../use-workspaces";
 import { workspaceKeys } from "../../lib/query-keys";
 import {
   WORKSPACE_REFETCH_INTERVAL,
@@ -14,12 +19,14 @@ import {
 } from "../../lib/query-options";
 
 vi.mock("@/systems/workspace/adapters/workspace-api", () => ({
+  deleteWorkspace: vi.fn(),
   fetchWorkspace: vi.fn(),
   fetchWorkspaces: vi.fn(),
   resolveWorkspace: vi.fn(),
 }));
 
 import {
+  deleteWorkspace,
   fetchWorkspace,
   fetchWorkspaces,
   resolveWorkspace,
@@ -155,6 +162,38 @@ describe("workspace hooks", () => {
 
     expect(resolveWorkspace).toHaveBeenCalledWith({ path: "/workspace/alpha" });
     expect(queryClient.getQueryData(workspaceKeys.list())).toEqual([resolvedWorkspace]);
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: workspaceKeys.lists() });
+  });
+
+  it("removes deleted workspaces from cached registry data", async () => {
+    vi.mocked(deleteWorkspace).mockResolvedValue();
+
+    const removedWorkspace = makeWorkspace({ id: "ws_removed", name: "removed" });
+    const keptWorkspace = makeWorkspace({
+      id: "ws_kept",
+      name: "kept",
+      root_dir: "/workspace/kept",
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    queryClient.setQueryData(workspaceKeys.list(), [removedWorkspace, keptWorkspace]);
+    queryClient.setQueryData(workspaceKeys.detail("ws_removed"), { workspace: removedWorkspace });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+
+    const { result } = renderHook(() => useDeleteWorkspace(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    result.current.mutate("ws_removed");
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(deleteWorkspace).toHaveBeenCalledWith("ws_removed");
+    expect(queryClient.getQueryData(workspaceKeys.list())).toEqual([keptWorkspace]);
+    expect(queryClient.getQueryData(workspaceKeys.detail("ws_removed"))).toBeUndefined();
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: workspaceKeys.lists() });
   });
 });

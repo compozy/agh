@@ -50,6 +50,19 @@ export async function fetchWorkspace(
   return requireResponseData(data, response, "Failed to fetch workspace");
 }
 
+export async function deleteWorkspace(workspaceID: string, signal?: AbortSignal): Promise<void> {
+  const { error, response } = await apiClient.DELETE("/api/workspaces/{id}", {
+    params: { path: { id: workspaceID } },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw new WorkspaceApiError(
+      defaultApiErrorMessage("Failed to delete workspace", response, error),
+      response.status
+    );
+  }
+}
+
 export async function resolveWorkspace(
   params: ResolveWorkspaceParams,
   signal?: AbortSignal

@@ -78,12 +78,13 @@ const baseWorkspaces: OnboardingWorkspacesApi = {
   browseError: null,
   workspaces: [{ path: "/Users/operator/Dev/compozy", name: "compozy" }],
   isResolving: false,
+  isRemoving: false,
   resolveError: null,
   navigateTo: noop,
   goToParent: noop,
   goHome: noop,
   addWorkspace: async () => {},
-  removeWorkspace: noop,
+  removeWorkspace: async () => {},
   isAdded: (path: string) => path === "/Users/operator/Dev/compozy",
 };
 

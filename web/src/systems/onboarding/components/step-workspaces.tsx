@@ -57,7 +57,8 @@ export function StepWorkspaces({ workspaces }: StepWorkspacesProps) {
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  onClick={() => workspaces.removeWorkspace(workspace.path)}
+                  disabled={workspaces.isRemoving}
+                  onClick={() => void workspaces.removeWorkspace(workspace.path)}
                   aria-label={`Remove ${workspace.name}`}
                 >
                   <X className="size-3.5" />

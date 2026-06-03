@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { expectFetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
+import { expectFetchRequest, mockEmptyResponse, mockJsonResponse } from "@/test/fetch-test-utils";
 
 import {
+  deleteWorkspace,
   fetchWorkspace,
   fetchWorkspaces,
   resolveWorkspace,
@@ -91,6 +92,19 @@ describe("fetchWorkspace", () => {
       expect((error as WorkspaceApiError).status).toBe(503);
       expect((error as WorkspaceApiError).message).toBe("Failed to fetch workspace: 503");
     }
+  });
+});
+
+describe("deleteWorkspace", () => {
+  it("deletes a registered workspace by id", async () => {
+    mockEmptyResponse({ status: 204 });
+
+    await deleteWorkspace("ws_alpha");
+
+    await expectFetchRequest({
+      method: "DELETE",
+      path: "/api/workspaces/ws_alpha",
+    });
   });
 });
 

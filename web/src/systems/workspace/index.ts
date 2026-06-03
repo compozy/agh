@@ -8,7 +8,12 @@ export type {
 } from "./types";
 
 // Adapters
-export { fetchWorkspace, fetchWorkspaces, resolveWorkspace } from "./adapters/workspace-api";
+export {
+  deleteWorkspace,
+  fetchWorkspace,
+  fetchWorkspaces,
+  resolveWorkspace,
+} from "./adapters/workspace-api";
 export type { ResolveWorkspaceParams } from "./adapters/workspace-api";
 
 // Query infrastructure
@@ -26,7 +31,12 @@ export {
 } from "./hooks/use-active-workspace-store";
 export { useUserHomeDir } from "./hooks/use-user-home-dir";
 export { resetUserHomeDirStore, useUserHomeDirStore } from "./hooks/use-user-home-dir-store";
-export { useResolveWorkspace, useWorkspace, useWorkspaces } from "./hooks/use-workspaces";
+export {
+  useDeleteWorkspace,
+  useResolveWorkspace,
+  useWorkspace,
+  useWorkspaces,
+} from "./hooks/use-workspaces";
 
 // Components
 export { OptionCard } from "./components/option-card";

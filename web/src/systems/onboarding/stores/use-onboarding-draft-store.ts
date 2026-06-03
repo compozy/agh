@@ -6,6 +6,7 @@ export type OnboardingAuthMode = "native_cli" | "bound_secret";
 export interface OnboardingWorkspaceDraft {
   path: string;
   name: string;
+  workspaceId?: string;
 }
 
 export interface OnboardingDraftState {
