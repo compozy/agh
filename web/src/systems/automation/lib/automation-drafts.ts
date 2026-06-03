@@ -69,6 +69,37 @@ export function createAutomationJobDraft(
   };
 }
 
+export type JobOutputMode = "agent" | "task";
+
+/** Derive the output mode from the draft: a task object means task mode. */
+export function jobOutputMode(draft: CreateAutomationJobRequest): JobOutputMode {
+  return draft.task ? "task" : "agent";
+}
+
+/** A blank task object for entering task mode. `network_channel` stays undefined. */
+export function emptyJobTask(): NonNullable<CreateAutomationJobRequest["task"]> {
+  return { title: "", description: "", owner: null };
+}
+
+/**
+ * Switch the draft between agent and task output modes. The runtime requires
+ * `retry.strategy === "none"` whenever a task is materialized, so task mode also
+ * forces the retry policy to none.
+ */
+export function setJobOutputMode(
+  draft: CreateAutomationJobRequest,
+  mode: JobOutputMode
+): CreateAutomationJobRequest {
+  if (mode === "task") {
+    return {
+      ...draft,
+      task: draft.task ?? emptyJobTask(),
+      retry: retryDraftForStrategy("none"),
+    };
+  }
+  return { ...draft, task: undefined };
+}
+
 export function automationJobToDraft(job: AutomationJob): CreateAutomationJobRequest {
   return {
     name: job.name,
@@ -80,6 +111,7 @@ export function automationJobToDraft(job: AutomationJob): CreateAutomationJobReq
     },
     scope: job.scope,
     workspace_id: job.workspace_id,
+    task: job.task ?? undefined,
     enabled: job.enabled,
     retry: normalizeAutomationRetry(job.retry),
     fire_limit: {

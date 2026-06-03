@@ -5,8 +5,11 @@ import {
   automationTriggerToDraft,
   createAutomationJobDraft,
   createAutomationTriggerDraft,
+  emptyJobTask,
+  jobOutputMode,
   normalizeAutomationRetry,
   retryDraftForStrategy,
+  setJobOutputMode,
 } from "../automation-drafts";
 
 const jobFixture = {
@@ -132,6 +135,53 @@ describe("automation draft helpers", () => {
       strategy: "backoff",
       max_retries: 3,
       base_delay: "2s",
+    });
+  });
+});
+
+describe("job output mode helpers", () => {
+  it("Should derive the output mode from the presence of a task object", () => {
+    const agentDraft = createAutomationJobDraft("ws_alpha");
+    expect(jobOutputMode(agentDraft)).toBe("agent");
+    expect(jobOutputMode({ ...agentDraft, task: emptyJobTask() })).toBe("task");
+  });
+
+  it("Should produce a blank unassigned task for entering task mode", () => {
+    expect(emptyJobTask()).toEqual({ title: "", description: "", owner: null });
+  });
+
+  it("Should force retry to none when switching to task mode (Go requires it)", () => {
+    const backoffDraft: ReturnType<typeof createAutomationJobDraft> = {
+      ...createAutomationJobDraft("ws_alpha"),
+      retry: { strategy: "backoff", max_retries: 5, base_delay: "5s" },
+    };
+    const taskDraft = setJobOutputMode(backoffDraft, "task");
+    expect(taskDraft.task).toEqual({ title: "", description: "", owner: null });
+    expect(taskDraft.retry).toEqual({ strategy: "none", max_retries: 0, base_delay: "" });
+  });
+
+  it("Should preserve an existing task object when re-entering task mode", () => {
+    const existing = { title: "review", description: "do it", owner: null };
+    const draft = { ...createAutomationJobDraft("ws_alpha"), task: existing };
+    expect(setJobOutputMode(draft, "task").task).toBe(existing);
+  });
+
+  it("Should clear the task object when switching back to agent mode", () => {
+    const draft = { ...createAutomationJobDraft("ws_alpha"), task: emptyJobTask() };
+    expect(setJobOutputMode(draft, "agent").task).toBeUndefined();
+  });
+
+  it("Should round-trip a task-delegating job back into a task-mode draft", () => {
+    const taskJob = {
+      ...jobFixture,
+      task: { title: "delegated-review", description: "review changes", owner: null },
+    };
+    const draft = automationJobToDraft(taskJob);
+    expect(jobOutputMode(draft)).toBe("task");
+    expect(draft.task).toEqual({
+      title: "delegated-review",
+      description: "review changes",
+      owner: null,
     });
   });
 });

@@ -97,3 +97,26 @@ web-typecheck:
 
 web-test:
 	@bunx turbo run test --filter=./web
+
+# Local daemon run
+#
+# `start` rebuilds the web bundle and launches the daemon with the
+# AGH_WEB_DIST_DIR override, so it serves your freshly-built web/dist from disk
+# instead of the stale embedded bundle (which `make build` does NOT refresh).
+# For live HMR while iterating on web/, prefer two terminals: `./bin/agh daemon
+# start` + `make web-dev`, then open http://localhost:3000.
+#
+# Go-only changes still need `make build` first; `start` does not rebuild Go.
+.PHONY: start stop restart
+
+start: web-build
+	@test -x ./bin/agh || { echo "bin/agh not found — run 'make build' first"; exit 1; }
+	@echo "Starting daemon serving local web bundle: $(CURDIR)/web/dist"
+	@AGH_WEB_DIST_DIR="$(CURDIR)/web/dist" ./bin/agh daemon start
+
+stop:
+	@./bin/agh daemon stop
+
+restart:
+	@$(MAKE) stop || true
+	@$(MAKE) start

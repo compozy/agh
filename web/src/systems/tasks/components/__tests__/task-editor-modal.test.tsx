@@ -1,49 +1,19 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import type { ReactNode } from "react";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("motion/react", async () => {
-  const actual = await vi.importActual<typeof import("motion/react")>("motion/react");
-  return {
-    ...actual,
-    AnimatePresence: ({ children }: { children: ReactNode }) => <>{children}</>,
-  };
-});
-
-import { TaskEditorModal } from "../task-editor-modal";
-import {
-  EMPTY_TASK_EDITOR_DRAFT,
-  createTaskEditorDraft,
-  type TaskEditorDraft,
-} from "../../lib/task-editor";
-import { getTaskTemplate } from "../../lib/task-templates";
+import { TaskEditorModal, type TaskEditorModalMode } from "../task-editor-modal";
+import { createTaskEditorDraft, type TaskEditorDraft } from "../../lib/task-editor";
+import { getTaskTemplate, type TaskTemplateId } from "../../lib/task-templates";
 import type { TaskRecord } from "../../types";
 
-function renderNewModal(overrides: Partial<React.ComponentProps<typeof TaskEditorModal>> = {}) {
-  const onOpenChange = vi.fn();
-  const onTemplateChange = vi.fn();
-  const onSubmit = vi.fn().mockResolvedValue(undefined);
-  const onDraftChange = vi.fn();
-  const draft: TaskEditorDraft = createTaskEditorDraft("one_shot", "ws_alpha");
-  const template = getTaskTemplate("one_shot");
-  const result = render(
-    <TaskEditorModal
-      canSubmit
-      draft={draft}
-      mode="new"
-      onDraftChange={onDraftChange}
-      onOpenChange={onOpenChange}
-      onSubmit={onSubmit}
-      onTemplateChange={onTemplateChange}
-      open
-      task={null}
-      template={template}
-      templateId="one_shot"
-      workspaceName="Alpha"
-      {...overrides}
-    />
-  );
-  return { ...result, onOpenChange, onTemplateChange, onSubmit, onDraftChange, draft, template };
+interface RenderModalOptions {
+  mode?: TaskEditorModalMode;
+  templateId?: TaskTemplateId;
+  draft?: TaskEditorDraft;
+  canSubmit?: boolean;
+  isSubmitting?: boolean;
+  task?: TaskRecord | null;
 }
 
 const editTask = {
@@ -56,140 +26,179 @@ const editTask = {
   workspace_id: "ws_alpha",
   created_at: "2026-04-11T09:00:00Z",
   updated_at: "2026-04-11T09:30:00Z",
-  created_by: { kind: "human", ref: "pedro@" },
+  created_by: { kind: "human", ref: "pedro" },
 } as unknown as TaskRecord;
 
-describe("TaskEditorModal", () => {
-  it("Should render the template picker first in new mode", () => {
-    renderNewModal();
-    expect(screen.getByTestId("task-editor-modal")).toBeInTheDocument();
-    expect(screen.getByTestId("task-editor-modal-template-picker")).toBeInTheDocument();
-    expect(screen.getByTestId("task-editor-template-one_shot")).toBeInTheDocument();
-    expect(screen.getByTestId("task-editor-template-recurring")).toBeInTheDocument();
-    expect(screen.getByTestId("task-editor-modal-title")).toHaveTextContent("New task");
-  });
+/**
+ * Controlled harness — holds the draft + active template in local state and
+ * syncs every `onDraftChange` (value or updater function) and `onTemplateChange`
+ * back into state so multi-step interactions (e.g. open Execution → flip Save as
+ * draft → read the submit label) persist across re-renders.
+ */
+function renderModal({
+  mode = "new",
+  templateId = "one_shot",
+  draft = createTaskEditorDraft(templateId, "ws_alpha"),
+  canSubmit,
+  isSubmitting = false,
+  task = null,
+}: RenderModalOptions = {}) {
+  const onOpenChange = vi.fn();
+  const onTemplateChange = vi.fn();
+  const onSubmit = vi.fn().mockResolvedValue(undefined);
+  const onDraftChange = vi.fn();
+  const isNewMode = mode === "new";
 
-  it("Should hide the template picker in edit mode and open directly on the form", () => {
-    const draft = {
-      ...EMPTY_TASK_EDITOR_DRAFT,
-      title: "Summarize review feedback",
-      maxAttempts: 1,
-    };
-    render(
+  function Harness() {
+    const [currentTemplate, setCurrentTemplate] = useState<TaskTemplateId>(templateId);
+    const [currentDraft, setCurrentDraft] = useState<TaskEditorDraft>(draft);
+
+    return (
       <TaskEditorModal
-        canSubmit
-        draft={draft}
-        mode="edit"
-        onDraftChange={vi.fn()}
-        onOpenChange={vi.fn()}
-        onSubmit={vi.fn().mockResolvedValue(undefined)}
+        canSubmit={canSubmit ?? currentDraft.title.trim().length > 0}
+        draft={currentDraft}
+        isSubmitting={isSubmitting}
+        mode={mode}
+        onDraftChange={next => {
+          setCurrentDraft(prev => {
+            const resolved = typeof next === "function" ? next(prev) : next;
+            onDraftChange(resolved);
+            return resolved;
+          });
+        }}
+        onOpenChange={onOpenChange}
+        onSubmit={onSubmit}
+        onTemplateChange={
+          isNewMode
+            ? next => {
+                onTemplateChange(next);
+                setCurrentTemplate(next);
+                setCurrentDraft(createTaskEditorDraft(next, "ws_alpha"));
+              }
+            : undefined
+        }
         open
-        task={editTask}
-        workspaceName="Alpha"
+        task={task}
+        template={isNewMode ? getTaskTemplate(currentTemplate) : undefined}
+        templateId={isNewMode ? currentTemplate : undefined}
+        workspaceName="launch-hq"
       />
     );
-    expect(screen.queryByTestId("task-editor-modal-template-picker")).not.toBeInTheDocument();
-    expect(screen.getByTestId("task-editor-modal-title")).toHaveTextContent("Edit task");
-    expect(screen.getByTestId("task-editor-title-input")).toHaveValue("Summarize review feedback");
-    expect(screen.getByTestId("task-editor-modal-submit")).toHaveTextContent("Save changes");
+  }
+
+  render(<Harness />);
+
+  return { onOpenChange, onTemplateChange, onSubmit, onDraftChange };
+}
+
+describe("TaskEditorModal", () => {
+  it("Should render the create header and Simple template grid by default", () => {
+    renderModal();
+
+    expect(screen.getByTestId("task-editor-modal")).toBeInTheDocument();
+    expect(screen.getByTestId("task-editor-modal-title")).toHaveTextContent("Create task");
+    expect(screen.getByTestId("task-mode-simple")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("task-template-one_shot")).toBeInTheDocument();
+    expect(screen.getByTestId("task-template-human_in_loop")).toBeInTheDocument();
+    expect(screen.getByTestId("task-template-epic")).toBeInTheDocument();
+    // Advanced-only sections stay hidden in Simple mode.
+    expect(screen.queryByTestId("task-parent-input")).not.toBeInTheDocument();
   });
 
-  it("Should render Enqueue task when enqueueOnSubmit is true", () => {
-    renderNewModal();
-    expect(screen.getByTestId("task-editor-modal-submit")).toHaveTextContent("Enqueue task");
+  it("Should switch to Advanced and reveal the advanced numbered sections", () => {
+    renderModal();
+
+    fireEvent.click(screen.getByTestId("task-mode-advanced"));
+
+    expect(screen.getByTestId("task-mode-advanced")).toHaveAttribute("aria-pressed", "true");
+    // Placement
+    expect(screen.getByTestId("task-parent-input")).toBeInTheDocument();
+    // Queue & ownership
+    expect(screen.getByTestId("task-owner-kind")).toBeInTheDocument();
+    expect(screen.getByTestId("task-attempts-options")).toBeInTheDocument();
+    // Ingress & identity
+    expect(screen.getByTestId("task-identifier-input")).toBeInTheDocument();
+    // Execution collapsible
+    expect(screen.getByTestId("task-execution-toggle")).toBeInTheDocument();
   });
 
-  it("Should render Save draft when enqueueOnSubmit is false (recurring template)", () => {
-    const template = getTaskTemplate("recurring");
-    const draft = createTaskEditorDraft("recurring", "ws_alpha");
-    renderNewModal({ template, templateId: "recurring", draft });
+  it("Should update the title and propagate it through onDraftChange", () => {
+    const { onDraftChange } = renderModal();
+
+    fireEvent.change(screen.getByTestId("task-title-input"), {
+      target: { value: "Generate API client for payments-v3" },
+    });
+
+    expect(onDraftChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ title: "Generate API client for payments-v3" })
+    );
+    expect(screen.getByTestId("task-title-input")).toHaveValue(
+      "Generate API client for payments-v3"
+    );
+  });
+
+  it("Should change the priority through the priority pill group", () => {
+    const { onDraftChange } = renderModal();
+
+    fireEvent.click(screen.getByTestId("task-priority-high"));
+
+    expect(onDraftChange).toHaveBeenLastCalledWith(expect.objectContaining({ priority: "high" }));
+    expect(screen.getByTestId("task-priority-high")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("Should select a template card and emit onTemplateChange", () => {
+    const { onTemplateChange } = renderModal();
+
+    fireEvent.click(screen.getByTestId("task-template-human_in_loop"));
+
+    expect(onTemplateChange).toHaveBeenCalledWith("human_in_loop");
+    expect(screen.getByTestId("task-template-human_in_loop")).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+  });
+
+  it("Should toggle Save as draft and flip the submit label to Save draft", () => {
+    const { onDraftChange } = renderModal();
+
+    fireEvent.click(screen.getByTestId("task-mode-advanced"));
+    // Execution panel is collapsed until expanded.
+    expect(screen.queryByTestId("task-save-draft-toggle")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("task-execution-toggle"));
+    fireEvent.click(screen.getByTestId("task-save-draft-toggle"));
+
+    expect(onDraftChange).toHaveBeenLastCalledWith(expect.objectContaining({ saveAsDraft: true }));
     expect(screen.getByTestId("task-editor-modal-submit")).toHaveTextContent("Save draft");
   });
 
-  it("Should render the canonical footer hint adopted from the proposal", () => {
-    renderNewModal();
-    expect(screen.getByTestId("task-editor-modal-hint")).toHaveTextContent(
-      "The contract is durable — runs descend from this task and respect dependencies."
-    );
+  it("Should call onSubmit when the form is submitted", () => {
+    const { onSubmit } = renderModal({
+      draft: { ...createTaskEditorDraft("one_shot", "ws_alpha"), title: "Ship it" },
+    });
+
+    fireEvent.submit(screen.getByTestId("task-editor-modal-form"));
+
+    expect(onSubmit).toHaveBeenCalledOnce();
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ title: "Ship it" }), false);
   });
 
-  it("Should keep Cancel on the left of the footer actions", () => {
-    renderNewModal();
-    const footer = screen.getByTestId("task-editor-modal-footer");
-    const buttons = footer.querySelectorAll("button");
-    expect(buttons.length).toBeGreaterThanOrEqual(2);
-    expect(buttons[0]).toHaveAttribute("data-testid", "task-editor-modal-cancel");
-    expect(buttons[buttons.length - 1]).toHaveAttribute("data-testid", "task-editor-modal-submit");
-  });
-
-  it("Should expose only 1 / 2 / 3 / 5 in the max attempts options", () => {
-    renderNewModal();
-    expect(screen.getByTestId("task-editor-attempts-1")).toBeInTheDocument();
-    expect(screen.getByTestId("task-editor-attempts-2")).toBeInTheDocument();
-    expect(screen.getByTestId("task-editor-attempts-3")).toBeInTheDocument();
-    expect(screen.getByTestId("task-editor-attempts-5")).toBeInTheDocument();
-    expect(screen.queryByTestId("task-editor-attempts-default")).not.toBeInTheDocument();
-    const attemptsGroup = screen.getByTestId("task-editor-attempts-options");
-    expect(attemptsGroup.textContent ?? "").not.toMatch(/Default/);
-  });
-
-  it("Should default maxAttempts to 1", () => {
-    const draft = createTaskEditorDraft("blank", "ws_alpha");
-    expect(draft.maxAttempts).toBe(1);
-  });
-
-  it("Should render user-facing owner options while preserving backend values", () => {
-    renderNewModal();
-    const select = screen.getByTestId("task-editor-owner-kind");
-    const options = Array.from(select.querySelectorAll("option")).map(option => ({
-      label: option.textContent,
-      value: option.value,
-    }));
-    expect(options).toEqual([
-      { label: "Unassigned", value: "" },
-      { label: "Agent / pool", value: "pool" },
-      { label: "Exact session", value: "agent_session" },
-      { label: "Human", value: "human" },
-      { label: "Automation", value: "automation" },
-      { label: "Extension", value: "extension" },
-      { label: "Network peer", value: "network_peer" },
-    ]);
-  });
-
-  it("Should explain that agent names use pool ownership instead of session ownership", () => {
+  it("Should render edit mode without the toolbar or templates and with the channel input", () => {
     const draft: TaskEditorDraft = {
-      ...createTaskEditorDraft("one_shot", "ws_alpha"),
-      ownerKind: "agent_session",
+      ...createTaskEditorDraft("blank", "ws_alpha"),
+      title: "Summarize review feedback",
+      maxAttempts: 3,
+      networkChannel: "launch-room",
     };
 
-    renderNewModal({ draft });
+    renderModal({ mode: "edit", draft, task: editTask });
 
-    expect(screen.getByTestId("task-editor-owner-ref")).toHaveAttribute(
-      "placeholder",
-      "Session id (e.g. sess-...)"
-    );
-    expect(screen.getByTestId("task-editor-owner-help")).toHaveTextContent(
-      "Use the exact session id. Agent names belong under Agent / pool."
-    );
-  });
-
-  it("Should disable owner reference input until an owner kind is selected", () => {
-    renderNewModal();
-    expect(screen.getByTestId("task-editor-owner-ref")).toBeDisabled();
-    expect(screen.getByTestId("task-editor-owner-help")).toHaveTextContent(
-      "Leave ownership empty unless a specific agent, session, human, automation, extension, or peer owns the work."
-    );
-  });
-
-  it("Should invoke onOpenChange when Cancel is clicked", () => {
-    const { onOpenChange } = renderNewModal();
-    fireEvent.click(screen.getByTestId("task-editor-modal-cancel"));
-    expect(onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it("Should invoke onTemplateChange when a template card is selected", () => {
-    const { onTemplateChange } = renderNewModal();
-    fireEvent.click(screen.getByTestId("task-editor-template-recurring"));
-    expect(onTemplateChange).toHaveBeenCalledWith("recurring");
+    expect(screen.getByTestId("task-editor-modal-title")).toHaveTextContent("Edit task");
+    expect(screen.queryByTestId("task-mode-simple")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("task-mode-advanced")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("task-template-one_shot")).not.toBeInTheDocument();
+    expect(screen.getByTestId("task-title-input")).toHaveValue("Summarize review feedback");
+    expect(screen.getByTestId("task-network-input")).toHaveValue("launch-room");
+    expect(screen.getByTestId("task-editor-modal-submit")).toHaveTextContent("Save changes");
   });
 });

@@ -52,10 +52,20 @@ export function useTasksCreateModalForm({
     [onDraftChange]
   );
 
+  const updateAutoEnqueue = useCallback(
+    (next: boolean) => onDraftChange(current => ({ ...current, autoEnqueueOnReady: next })),
+    [onDraftChange]
+  );
+
+  const updateSaveAsDraft = useCallback(
+    (next: boolean) => onDraftChange(current => ({ ...current, saveAsDraft: next })),
+    [onDraftChange]
+  );
+
   const submitForm = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      void onSubmit(draft, false);
+      void onSubmit(draft, draft.saveAsDraft);
     },
     [draft, onSubmit]
   );
@@ -68,9 +78,11 @@ export function useTasksCreateModalForm({
     submitDraft,
     submitForm,
     updateApprovalPolicy,
+    updateAutoEnqueue,
     updateMaxAttempts,
     updateOwnerKind,
     updatePriority,
+    updateSaveAsDraft,
     updateScope,
     updateText,
   };

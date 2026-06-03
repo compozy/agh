@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -12,9 +12,11 @@ import { createAutomationDialogHandle } from "../../lib/dialog-handle";
 import type { CreateAutomationJobRequest, CreateAutomationTriggerRequest } from "../../types";
 
 function JobEditorHarness({
+  mode = "create",
   onCancel,
   onSubmit,
 }: {
+  mode?: "create" | "edit";
   onCancel: () => void;
   onSubmit: (draft: CreateAutomationJobRequest) => void;
 }) {
@@ -29,7 +31,7 @@ function JobEditorHarness({
         draft,
         isPending: false,
         kind: "jobs",
-        mode: "create",
+        mode,
         onCancel,
         onChange: setDraft,
         onSubmit: () => onSubmit(draft),
@@ -39,9 +41,11 @@ function JobEditorHarness({
 }
 
 function TriggerEditorHarness({
+  mode = "create",
   onCancel,
   onSubmit,
 }: {
+  mode?: "create" | "edit";
   onCancel: () => void;
   onSubmit: (draft: CreateAutomationTriggerRequest) => void;
 }) {
@@ -56,7 +60,7 @@ function TriggerEditorHarness({
         draft,
         isPending: false,
         kind: "triggers",
-        mode: "edit",
+        mode,
         onCancel,
         onChange: setDraft,
         onSubmit: () => onSubmit(draft),
@@ -102,7 +106,7 @@ function DetachedTriggerHarness() {
 }
 
 describe("AutomationEditorDialog", () => {
-  it("renders the create-job dialog header and keeps submit disabled until every required field is valid", () => {
+  it("Should render the job editor with the Automation · Job eyebrow, Create job title, and job form", () => {
     const onCancel = vi.fn();
     const onSubmit = vi.fn();
 
@@ -111,10 +115,22 @@ describe("AutomationEditorDialog", () => {
     const dialog = screen.getByTestId("automation-editor-dialog");
     expect(dialog).toBeInTheDocument();
     expect(dialog).toHaveAttribute("data-frame", "unframed");
+
     const header = dialog.querySelector('[data-slot="dialog-header"]');
     expect(header).not.toBeNull();
     expect(header).toHaveAttribute("data-variant", "ruled");
-    expect(screen.getByText("Create job")).toBeInTheDocument();
+
+    expect(within(header as HTMLElement).getByText("Automation · Job")).toBeInTheDocument();
+    expect(within(header as HTMLElement).getByText("Create job")).toBeInTheDocument();
+    expect(screen.getByTestId("automation-job-form")).toBeInTheDocument();
+    expect(screen.queryByTestId("automation-trigger-form")).not.toBeInTheDocument();
+  });
+
+  it("Should keep submit disabled until every required field is valid and emit the job draft on submit", () => {
+    const onSubmit = vi.fn();
+
+    render(<JobEditorHarness onCancel={vi.fn()} onSubmit={onSubmit} />);
+
     expect(screen.getByTestId("submit-job-form")).toBeDisabled();
 
     fireEvent.change(screen.getByTestId("job-name-input"), {
@@ -142,26 +158,49 @@ describe("AutomationEditorDialog", () => {
     );
   });
 
-  it("renders the edit-trigger dialog header for the triggers kind", () => {
+  it("Should render the trigger editor with the Automation · Trigger eyebrow, Create trigger title, and trigger form", () => {
     render(<TriggerEditorHarness onCancel={vi.fn()} onSubmit={vi.fn()} />);
 
-    expect(screen.getByText("Edit trigger")).toBeInTheDocument();
+    const header = screen
+      .getByTestId("automation-editor-dialog")
+      .querySelector('[data-slot="dialog-header"]');
+    expect(header).not.toBeNull();
+    expect(within(header as HTMLElement).getByText("Automation · Trigger")).toBeInTheDocument();
+    expect(within(header as HTMLElement).getByText("Create trigger")).toBeInTheDocument();
+    expect(screen.getByTestId("automation-trigger-form")).toBeInTheDocument();
+    expect(screen.queryByTestId("automation-job-form")).not.toBeInTheDocument();
+  });
+
+  it("Should render the Edit trigger title for the triggers edit mode", () => {
+    render(<TriggerEditorHarness mode="edit" onCancel={vi.fn()} onSubmit={vi.fn()} />);
+
+    const header = screen
+      .getByTestId("automation-editor-dialog")
+      .querySelector('[data-slot="dialog-header"]');
+    expect(header).not.toBeNull();
+    expect(within(header as HTMLElement).getByText("Automation · Trigger")).toBeInTheDocument();
+    expect(within(header as HTMLElement).getByText("Edit trigger")).toBeInTheDocument();
     expect(screen.getByTestId("automation-trigger-form")).toBeInTheDocument();
   });
 
-  it("opens and stays open when editor state is driven by a detached trigger button", async () => {
+  it("Should open and stay open when editor state is driven by a detached trigger button", async () => {
     const user = userEvent.setup();
 
     render(<DetachedTriggerHarness />);
 
     await user.click(screen.getByTestId("open-detached-editor"));
 
-    expect(screen.getByTestId("automation-editor-dialog")).toBeInTheDocument();
+    const dialog = screen.getByTestId("automation-editor-dialog");
+    expect(dialog).toBeInTheDocument();
     expect(screen.getByTestId("automation-job-form")).toBeInTheDocument();
-    expect(screen.getByText("Create job")).toBeInTheDocument();
+
+    const header = dialog.querySelector('[data-slot="dialog-header"]');
+    expect(header).not.toBeNull();
+    expect(within(header as HTMLElement).getByText("Automation · Job")).toBeInTheDocument();
+    expect(within(header as HTMLElement).getByText("Create job")).toBeInTheDocument();
   });
 
-  it("invokes onCancel when the underlying dialog signals close", () => {
+  it("Should call onCancel when the dialog is dismissed", () => {
     const onCancel = vi.fn();
     const { rerender } = render(<JobEditorHarness onCancel={onCancel} onSubmit={vi.fn()} />);
 
@@ -174,7 +213,7 @@ describe("AutomationEditorDialog", () => {
     expect(screen.queryByTestId("automation-editor-dialog")).not.toBeInTheDocument();
   });
 
-  it("does not render the dialog content when editor is null", () => {
+  it("Should not render the dialog content when editor is null", () => {
     render(<AutomationEditorDialog editor={null} />);
 
     expect(screen.queryByTestId("automation-editor-dialog")).not.toBeInTheDocument();

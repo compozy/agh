@@ -12,8 +12,16 @@ export type TaskTemplateId =
 
 export interface TaskTemplate {
   id: TaskTemplateId;
+  /** Advanced-mode display name. */
   label: string;
+  /** Advanced-mode description. */
   description: string;
+  /** Whether the template surfaces in Simple mode. */
+  simple: boolean;
+  /** Simple-mode display name. */
+  simpleLabel: string;
+  /** Simple-mode description (empty when the template is advanced-only). */
+  simpleDescription: string;
   defaults: TaskTemplateDefaults;
   badges: TaskTemplateBadge[];
   preview: TaskTemplatePreview;
@@ -47,6 +55,9 @@ const ONE_SHOT_TEMPLATE: TaskTemplate = {
   id: "one_shot",
   label: "One-shot",
   description: "A single task with one run. Good default for ad-hoc work.",
+  simple: true,
+  simpleLabel: "Run once",
+  simpleDescription: "Do it now, once. Best for most things.",
   defaults: { draft: false, priority: "medium", max_attempts: 1 },
   badges: [{ label: "1 run", tone: "neutral" }],
   preview: { enqueueOnSubmit: true, notice: "Will enqueue 1 run immediately on submit." },
@@ -57,6 +68,9 @@ const RECURRING_TEMPLATE: TaskTemplate = {
   label: "Recurring via automation",
   description:
     "Bind a cron or schedule from Automation — re-enqueues a run every tick. Configure the schedule from the Automation area after the draft is saved.",
+  simple: false,
+  simpleLabel: "Recurring",
+  simpleDescription: "",
   defaults: { draft: true, priority: "medium" },
   badges: [{ label: "Automation", tone: "info" }],
   preview: {
@@ -70,6 +84,9 @@ const EPIC_TEMPLATE: TaskTemplate = {
   label: "Epic with children",
   description:
     "A parent task that decomposes into child tasks. Reconciled via dependencies; child tasks can be added after creation.",
+  simple: true,
+  simpleLabel: "Break into steps",
+  simpleDescription: "A big goal — add sub-tasks under it afterward.",
   defaults: { draft: false, priority: "high" },
   badges: [{ label: "Epic", tone: "warning" }],
   preview: { enqueueOnSubmit: true },
@@ -80,6 +97,9 @@ const REMOTE_PEER_TEMPLATE: TaskTemplate = {
   label: "Remote from peer",
   description:
     "Ingress from a network channel. Remote peers enqueue; local owner claims when ready.",
+  simple: false,
+  simpleLabel: "Remote",
+  simpleDescription: "",
   defaults: { draft: false, priority: "medium" },
   badges: [{ label: "Network", tone: "info" }],
   preview: { enqueueOnSubmit: true },
@@ -89,6 +109,9 @@ const HUMAN_IN_LOOP_TEMPLATE: TaskTemplate = {
   id: "human_in_loop",
   label: "Human-in-the-loop",
   description: "Agent proposes, human approves. Pauses on blocked until approved in Inbox.",
+  simple: true,
+  simpleLabel: "Needs approval",
+  simpleDescription: "The agent waits for your sign-off before acting.",
   defaults: { draft: false, priority: "high", approval_policy: "manual" },
   badges: [{ label: "Approvals", tone: "warning" }],
   preview: {
@@ -101,6 +124,9 @@ const BLANK_TEMPLATE: TaskTemplate = {
   id: "blank",
   label: "Blank task",
   description: "Start with an empty form. Full control over owner, origin, and metadata.",
+  simple: false,
+  simpleLabel: "Blank",
+  simpleDescription: "",
   defaults: { draft: false },
   badges: [{ label: "Custom", tone: "neutral" }],
   preview: { enqueueOnSubmit: true },
@@ -125,6 +151,9 @@ export const TASK_TEMPLATES: TaskTemplate[] = [
 ];
 
 export const DEFAULT_TASK_TEMPLATE_ID: TaskTemplateId = "one_shot";
+
+/** Templates surfaced in the Create-Task modal's Simple mode, in display order. */
+export const SIMPLE_TASK_TEMPLATE_IDS: TaskTemplateId[] = ["one_shot", "human_in_loop", "epic"];
 
 export function getTaskTemplate(id: TaskTemplateId): TaskTemplate {
   return TEMPLATE_BY_ID[id] ?? ONE_SHOT_TEMPLATE;

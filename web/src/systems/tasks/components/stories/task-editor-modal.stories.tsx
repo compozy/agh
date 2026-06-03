@@ -1,106 +1,164 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { TaskEditorModal } from "../task-editor-modal";
+import { storyWorkspaceIds, storyWorkspaceNames } from "@/storybook/fintech-scenario";
+import { CenteredSurface } from "@/storybook/story-layout";
+
+import { TaskEditorModal, type TaskEditorModalMode } from "../task-editor-modal";
+import { createTaskEditorDraft, type TaskEditorDraft } from "../../lib/task-editor";
 import {
-  EMPTY_TASK_EDITOR_DRAFT,
-  createTaskEditorDraft,
-  type TaskEditorDraft,
-} from "../../lib/task-editor";
-import { getTaskTemplate, type TaskTemplateId } from "../../lib/task-templates";
+  DEFAULT_TASK_TEMPLATE_ID,
+  getTaskTemplate,
+  type TaskTemplateId,
+} from "../../lib/task-templates";
 import type { TaskRecord } from "../../types";
 
 const meta: Meta<typeof TaskEditorModal> = {
   title: "systems/tasks/TaskEditorModal",
+  component: TaskEditorModal,
   parameters: {
     layout: "fullscreen",
   },
-  component: TaskEditorModal,
 };
 
 export default meta;
-type Story = StoryObj<typeof TaskEditorModal>;
+type Story = StoryObj<typeof meta>;
 
-function NewModeStory({ templateId = "one_shot" }: { templateId?: TaskTemplateId }) {
-  const [draft, setDraft] = useState<TaskEditorDraft>(() =>
-    createTaskEditorDraft(templateId, "ws_alpha")
-  );
+interface TaskEditorModalHarnessProps {
+  mode?: TaskEditorModalMode;
+  templateId?: TaskTemplateId;
+  initialDraft?: TaskEditorDraft;
+  isSubmitting?: boolean;
+  task?: TaskRecord | null;
+}
+
+/**
+ * Controlled Storybook harness — holds the editor draft and the active template
+ * id in local state, mirroring the live `useTasksPage` orchestration. The modal
+ * stays open and renders on the centered story surface; submit / open-change are
+ * no-ops so the surface is stable for visual capture.
+ */
+function TaskEditorModalHarness({
+  mode = "new",
+  templateId = DEFAULT_TASK_TEMPLATE_ID,
+  initialDraft,
+  isSubmitting = false,
+  task = null,
+}: TaskEditorModalHarnessProps) {
   const [activeTemplate, setActiveTemplate] = useState<TaskTemplateId>(templateId);
+  const [draft, setDraft] = useState<TaskEditorDraft>(
+    () => initialDraft ?? createTaskEditorDraft(templateId, storyWorkspaceIds.hq)
+  );
+
+  const isNewMode = mode === "new";
+  const canSubmit = draft.title.trim().length > 0;
+
   return (
-    <div className="min-h-screen bg-canvas p-6">
+    <CenteredSurface className="items-start justify-center p-0">
       <TaskEditorModal
-        canSubmit={draft.title.trim().length > 0}
+        canSubmit={canSubmit}
         draft={draft}
-        mode="new"
+        isSubmitting={isSubmitting}
+        mode={mode}
         onDraftChange={setDraft}
         onOpenChange={() => undefined}
         onSubmit={() => Promise.resolve()}
-        onTemplateChange={next => {
-          setActiveTemplate(next);
-          setDraft(createTaskEditorDraft(next, "ws_alpha"));
-        }}
+        onTemplateChange={
+          isNewMode
+            ? next => {
+                setActiveTemplate(next);
+                setDraft(createTaskEditorDraft(next, storyWorkspaceIds.hq));
+              }
+            : undefined
+        }
         open
-        task={null}
-        template={getTaskTemplate(activeTemplate)}
-        templateId={activeTemplate}
-        workspaceName="Alpha"
+        task={task}
+        template={isNewMode ? getTaskTemplate(activeTemplate) : undefined}
+        templateId={isNewMode ? activeTemplate : undefined}
+        workspaceName={storyWorkspaceNames.hq}
       />
-    </div>
+    </CenteredSurface>
   );
 }
 
 const editTask = {
   id: "task_42",
   identifier: "TASK-42",
-  title: "Summarize review feedback",
+  title: "Summarize launch-room escalations",
   status: "in_progress",
   scope: "workspace",
   origin: { kind: "cli", ref: "op" },
-  workspace_id: "ws_alpha",
-  created_at: "2026-04-11T09:00:00Z",
-  updated_at: "2026-04-11T09:30:00Z",
-  created_by: { kind: "human", ref: "pedro@" },
-  priority: "medium",
-  description: "Compress the long thread into 5 bullets the team can act on by Friday.",
+  workspace_id: storyWorkspaceIds.hq,
+  created_at: "2026-04-17T09:00:00Z",
+  updated_at: "2026-04-17T09:30:00Z",
+  created_by: { kind: "human", ref: "pedro" },
+  priority: "high",
+  description: "Compress the escalation thread into five bullets the launch room can act on.",
   max_attempts: 3,
 } as unknown as TaskRecord;
 
-function EditModeStory() {
-  const [draft, setDraft] = useState<TaskEditorDraft>(() => ({
-    ...EMPTY_TASK_EDITOR_DRAFT,
-    title: editTask.title,
-    description: "Compress the long thread into 5 bullets the team can act on by Friday.",
-    priority: "medium",
+function buildEditDraft(): TaskEditorDraft {
+  return {
+    ...createTaskEditorDraft("blank", storyWorkspaceIds.hq),
+    title: "Summarize launch-room escalations",
+    description: "Compress the escalation thread into five bullets the launch room can act on.",
+    priority: "high",
     maxAttempts: 3,
-  }));
-  return (
-    <div className="min-h-screen bg-canvas p-6">
-      <TaskEditorModal
-        canSubmit={draft.title.trim().length > 0}
-        draft={draft}
-        mode="edit"
-        onDraftChange={setDraft}
-        onOpenChange={() => undefined}
-        onSubmit={() => Promise.resolve()}
-        open
-        task={editTask}
-        workspaceName="Alpha"
-      />
-    </div>
-  );
+    networkChannel: "launch-room",
+  };
 }
 
-export const NewOneShot: Story = {
-  name: "New · one-shot (Enqueue)",
-  render: () => <NewModeStory templateId="one_shot" />,
+/**
+ * Default create surface — Simple mode with the three approachable template
+ * cards. Click the Advanced pill (`task-mode-advanced`) to reveal the numbered
+ * Placement / Queue / Ingress sections and the Execution collapsible.
+ */
+export const NewSimple: Story = {
+  render: () => <TaskEditorModalHarness />,
 };
 
-export const NewRecurring: Story = {
-  name: "New · recurring (Save draft)",
-  render: () => <NewModeStory templateId="recurring" />,
+/**
+ * Advanced create surface — drives the internal Simple/Advanced toggle through a
+ * play function so the numbered advanced sections render on load.
+ */
+export const NewAdvanced: Story = {
+  render: () => <TaskEditorModalHarness />,
+  play: async ({ canvasElement }) => {
+    const advancedPill = canvasElement.querySelector<HTMLButtonElement>(
+      "[data-testid='task-mode-advanced']"
+    );
+    advancedPill?.click();
+  },
 };
 
-export const Edit: Story = {
-  name: "Edit · existing task",
-  render: () => <EditModeStory />,
+/**
+ * Human-in-the-loop template — manual approval is preset; the Queue & ownership
+ * approval hint flips to the approval gate in Advanced mode.
+ */
+export const HumanInLoopTemplate: Story = {
+  render: () => <TaskEditorModalHarness templateId="human_in_loop" />,
+};
+
+/**
+ * Recurring template — saves as a draft so Automation can attach the schedule
+ * later; the submit label reads `Save draft`.
+ */
+export const RecurringDraft: Story = {
+  render: () => <TaskEditorModalHarness templateId="recurring" />,
+};
+
+/** Edit an existing task — no mode toolbar, no template grid, channel input present. */
+export const EditMode: Story = {
+  render: () => (
+    <TaskEditorModalHarness mode="edit" initialDraft={buildEditDraft()} task={editTask} />
+  ),
+};
+
+/** Validation disabled — empty title keeps the submit action disabled. */
+export const ValidationDisabled: Story = {
+  render: () => (
+    <TaskEditorModalHarness
+      initialDraft={createTaskEditorDraft(DEFAULT_TASK_TEMPLATE_ID, storyWorkspaceIds.hq)}
+    />
+  ),
 };
