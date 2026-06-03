@@ -198,7 +198,9 @@ describe("useHomePage", () => {
       skills: [],
       providers: [],
     });
-    vi.mocked(fetchAgents).mockResolvedValue(AGENTS_FIXTURE);
+    vi.mocked(fetchAgents).mockImplementation(async (workspace?: string | null) =>
+      workspace === "ws_main" ? WORKSPACE_AGENTS_FIXTURE : AGENTS_FIXTURE
+    );
     vi.mocked(fetchSessions).mockResolvedValue(SESSIONS_FIXTURE);
   });
 
@@ -230,6 +232,44 @@ describe("useHomePage", () => {
     expect(metricsByKey.workspaces.value).toBe("2");
     expect(metricsByKey.agents.value).toBe("3");
     expect(metricsByKey.uptime.value).toBe("1h 15m");
+  });
+
+  it("updates the agents metric when the active workspace changes", async () => {
+    const mainAgents: AgentPayload[] = [{ name: "main-only", provider: "claude", prompt: "" }];
+    const secondaryAgents: AgentPayload[] = [
+      { name: "secondary-one", provider: "codex", prompt: "" },
+      { name: "secondary-two", provider: "gemini", prompt: "" },
+    ];
+    vi.mocked(fetchAgents).mockImplementation(async (workspace?: string | null) => {
+      if (workspace === "ws_secondary") {
+        return secondaryAgents;
+      }
+      if (workspace === "ws_main") {
+        return mainAgents;
+      }
+      return AGENTS_FIXTURE;
+    });
+
+    const { result, rerender } = renderHook(() => useHomePage(), { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      const metricsByKey = Object.fromEntries(
+        result.current.metrics.map(metric => [metric.key, metric] as const)
+      );
+      expect(metricsByKey.agents.value).toBe("1");
+    });
+
+    mockSelectedWorkspaceId = "ws_secondary";
+    rerender();
+
+    await waitFor(() => {
+      const metricsByKey = Object.fromEntries(
+        result.current.metrics.map(metric => [metric.key, metric] as const)
+      );
+      expect(metricsByKey.agents.value).toBe("2");
+    });
+
+    expect(fetchAgents).toHaveBeenCalledWith("ws_secondary", expect.any(AbortSignal));
   });
 
   it("maps a non-ok health status to a warning/degraded descriptor", async () => {

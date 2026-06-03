@@ -61,6 +61,27 @@ function buildOkFetcher() {
   });
 }
 
+function capturedUrl(fetcher: ReturnType<typeof buildOkFetcher>, pathname: string): URL {
+  const match = fetcher.mock.calls
+    .map(([input]) => urlOf(input))
+    .find(url => new URL(url, "http://agh.test").pathname === pathname);
+  if (!match) {
+    throw new Error("No request captured for " + pathname);
+  }
+  return new URL(match, "http://agh.test");
+}
+
+function expectQueryParams(
+  fetcher: ReturnType<typeof buildOkFetcher>,
+  pathname: string,
+  expected: Record<string, string>
+): void {
+  const params = capturedUrl(fetcher, pathname).searchParams;
+  for (const [key, value] of Object.entries(expected)) {
+    expect(params.get(key), pathname + " query param " + key).toBe(value);
+  }
+}
+
 describe("createDefaultFetchers", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -75,6 +96,42 @@ describe("createDefaultFetchers", () => {
       const result = await fetchers[key](controller.signal);
       expect(result.count, key).toBe(EXPECTED_COUNTS[key]);
     }
+  });
+
+  it("Should pass workspace scope to endpoints that support workspace counts", async () => {
+    const fetcher = buildOkFetcher();
+    vi.stubGlobal("fetch", fetcher);
+    const fetchers = createDefaultFetchers("ws_alpha");
+    const controller = new AbortController();
+
+    for (const key of Object.keys(EXPECTED_COUNTS) as NavCountKey[]) {
+      const result = await fetchers[key](controller.signal);
+      expect(result.count, key).toBe(EXPECTED_COUNTS[key]);
+    }
+
+    expectQueryParams(fetcher, "/api/observe/tasks/dashboard", {
+      scope: "workspace",
+      workspace: "ws_alpha",
+    });
+    expectQueryParams(fetcher, "/api/automation/jobs", {
+      scope: "workspace",
+      workspace_id: "ws_alpha",
+    });
+    expectQueryParams(fetcher, "/api/automation/triggers", {
+      scope: "workspace",
+      workspace_id: "ws_alpha",
+    });
+    expectQueryParams(fetcher, "/api/agents", { workspace: "ws_alpha" });
+    expectQueryParams(fetcher, "/api/memory", {
+      scope: "workspace",
+      workspace_id: "ws_alpha",
+    });
+    expectQueryParams(fetcher, "/api/skills", { workspace: "ws_alpha" });
+    expectQueryParams(fetcher, "/api/bridges", {
+      scope: "workspace",
+      workspace_id: "ws_alpha",
+    });
+    expect([...capturedUrl(fetcher, "/api/network/status").searchParams.keys()]).toEqual([]);
   });
 
   it("Should throw when an endpoint returns a non-OK response", async () => {

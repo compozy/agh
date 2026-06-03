@@ -7,8 +7,15 @@ import { agentsListOptions, agentDetailOptions } from "../lib/query-options";
 import { agentKeys } from "../lib/query-keys";
 import type { AgentPayload, CreateAgentParams } from "../types";
 
-export function useAgents(workspace?: string | null) {
-  return useQuery(agentsListOptions(workspace));
+interface UseAgentsOptions {
+  enabled?: boolean;
+}
+
+export function useAgents(workspace?: string | null, options: UseAgentsOptions = {}) {
+  return useQuery({
+    ...agentsListOptions(workspace),
+    enabled: options.enabled ?? true,
+  });
 }
 
 export function useAgent(name: string, workspace?: string | null) {

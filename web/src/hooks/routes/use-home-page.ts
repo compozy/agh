@@ -6,7 +6,7 @@ import { useAgents } from "@/systems/agent";
 import { useDaemonHealth } from "@/systems/status";
 import type { HealthPayload } from "@/systems/status";
 import { useSessions, type SessionPayload } from "@/systems/session";
-import { useActiveWorkspace, useWorkspace } from "@/systems/workspace";
+import { useActiveWorkspace } from "@/systems/workspace";
 
 export type DaemonStatusKey = "healthy" | "degraded" | "disconnected" | "unknown";
 
@@ -142,12 +142,11 @@ function useHomePage(): HomePageView {
     isError: workspacesError,
     error: workspacesErrorObject,
   } = useActiveWorkspace();
-  const { data: agents, isLoading: agentsLoading, error: agentsError } = useAgents();
   const {
-    data: workspaceDetail,
-    isLoading: isWorkspaceDetailLoading,
-    error: workspaceDetailError,
-  } = useWorkspace(activeWorkspaceId ?? "", {
+    data: agents,
+    isLoading: agentsLoading,
+    error: agentsError,
+  } = useAgents(activeWorkspaceId, {
     enabled: activeWorkspaceId !== null,
   });
   const {
@@ -189,8 +188,7 @@ function useHomePage(): HomePageView {
     };
   }, [activeWorkspace, activeWorkspaceId, health?.active_sessions, sessions, sessionsError]);
 
-  const activeWorkspaceAgents = workspaceDetail?.agents ?? agents;
-  const agentsCount = activeWorkspaceAgents?.length ?? 0;
+  const agentsCount = agents?.length ?? 0;
   const workspacesCount = workspaces.length;
   const uptimeLabel = formatUptimeSeconds(health?.uptime_seconds);
 
@@ -219,17 +217,10 @@ function useHomePage(): HomePageView {
   const isLoading =
     isHealthInitialLoading ||
     areWorkspacesLoading ||
-    agentsLoading ||
-    (activeWorkspaceId !== null && isWorkspaceDetailLoading) ||
+    (activeWorkspaceId !== null && agentsLoading) ||
     (activeWorkspaceId !== null && areSessionsLoading);
 
-  const fatalError = workspacesError
-    ? workspacesErrorObject
-    : workspaceDetailError
-      ? workspaceDetailError
-      : agentsError
-        ? agentsError
-        : null;
+  const fatalError = workspacesError ? workspacesErrorObject : agentsError ? agentsError : null;
   const errorMessage = fatalError instanceof Error ? fatalError.message : null;
 
   return {

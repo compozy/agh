@@ -403,7 +403,12 @@ export function createDefaultFetchers(workspaceId?: string | null): NavCountFetc
       return { count: total };
     },
     jobs: async signal => {
-      const { data, error, response } = await apiClient.GET("/api/automation/jobs", { signal });
+      const { data, error, response } = await apiClient.GET("/api/automation/jobs", {
+        params: workspaceId
+          ? { query: { scope: "workspace" as const, workspace_id: workspaceId } }
+          : undefined,
+        signal,
+      });
       if (apiRequestFailed(response, error)) {
         throw new Error(`nav-counts jobs snapshot failed: ${response.status}`);
       }
@@ -420,35 +425,56 @@ export function createDefaultFetchers(workspaceId?: string | null): NavCountFetc
       return { count: peers + channels };
     },
     triggers: async signal => {
-      const { data, error, response } = await apiClient.GET("/api/automation/triggers", { signal });
+      const { data, error, response } = await apiClient.GET("/api/automation/triggers", {
+        params: workspaceId
+          ? { query: { scope: "workspace" as const, workspace_id: workspaceId } }
+          : undefined,
+        signal,
+      });
       if (apiRequestFailed(response, error)) {
         throw new Error(`nav-counts triggers snapshot failed: ${response.status}`);
       }
       return { count: data?.triggers?.length ?? 0 };
     },
     agents: async signal => {
-      const { data, error, response } = await apiClient.GET("/api/agents", { signal });
+      const { data, error, response } = await apiClient.GET("/api/agents", {
+        params: workspaceId ? { query: { workspace: workspaceId } } : undefined,
+        signal,
+      });
       if (apiRequestFailed(response, error)) {
         throw new Error(`nav-counts agents snapshot failed: ${response.status}`);
       }
       return { count: data?.agents?.length ?? 0 };
     },
     knowledge: async signal => {
-      const { data, error, response } = await apiClient.GET("/api/memory", { signal });
+      const { data, error, response } = await apiClient.GET("/api/memory", {
+        params: workspaceId
+          ? { query: { scope: "workspace" as const, workspace_id: workspaceId } }
+          : undefined,
+        signal,
+      });
       if (apiRequestFailed(response, error)) {
         throw new Error(`nav-counts knowledge snapshot failed: ${response.status}`);
       }
       return { count: data?.memories?.length ?? 0 };
     },
     skills: async signal => {
-      const { data, error, response } = await apiClient.GET("/api/skills", { signal });
+      const { data, error, response } = await apiClient.GET("/api/skills", {
+        params: workspaceId ? { query: { workspace: workspaceId } } : undefined,
+        signal,
+      });
       if (apiRequestFailed(response, error)) {
         throw new Error(`nav-counts skills snapshot failed: ${response.status}`);
       }
       return { count: data?.skills?.length ?? 0 };
     },
     bridges: async signal => {
-      const { data, error, response } = await apiClient.GET("/api/bridges", { signal });
+      const { data, error, response } = await apiClient.GET("/api/bridges", {
+        params: workspaceId
+          ? { query: { scope: "workspace" as const, workspace_id: workspaceId } }
+          : undefined,
+        signal,
+      });
       if (apiRequestFailed(response, error)) {
         throw new Error(`nav-counts bridges snapshot failed: ${response.status}`);
       }

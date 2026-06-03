@@ -9,6 +9,8 @@ const {
   mockWorkspaceQuery,
   mockOpenAgentCreate,
   mockUseCreateSessionPending,
+  mockUseAgents,
+  mockUseSessions,
 } = vi.hoisted(() => ({
   mockNavigate: vi.fn<(input: unknown) => Promise<void>>(),
   mockMutateAsync: vi.fn<(input: unknown) => Promise<{ id: string; agent_name: string }>>(),
@@ -17,6 +19,8 @@ const {
   mockWorkspaceQuery: vi.fn(),
   mockOpenAgentCreate: vi.fn<() => void>(),
   mockUseCreateSessionPending: { current: false as boolean },
+  mockUseAgents: vi.fn(),
+  mockUseSessions: vi.fn(),
 }));
 
 let mockActiveWorkspaceId: string | null = "ws_alpha";
@@ -51,11 +55,7 @@ vi.mock("@/systems/status", () => ({
 }));
 
 vi.mock("@/systems/agent", () => ({
-  useAgents: () => ({
-    data: mockAgents,
-    isLoading: mockAgentsLoading,
-    isError: mockAgentsError,
-  }),
+  useAgents: mockUseAgents,
   useAgentCreateDialog: () => ({
     open: false,
     draft: {
@@ -81,7 +81,12 @@ vi.mock("@/systems/agent", () => ({
     submitError: null,
     isSubmitting: false,
     hasActiveWorkspace: mockActiveWorkspaceId !== null,
-    workspaceName: mockActiveWorkspaceId === null ? null : "alpha",
+    workspaceName:
+      mockActiveWorkspaceId === null
+        ? null
+        : mockActiveWorkspaceId === "ws_beta"
+          ? "beta"
+          : "alpha",
     openDialog: mockOpenAgentCreate,
     onDraftChange: vi.fn(),
     onOpenChange: vi.fn(),
@@ -131,7 +136,7 @@ vi.mock("@/systems/session", async () => {
       mutateAsync: mockMutateAsync,
       isPending: mockUseCreateSessionPending.current,
     }),
-    useSessions: () => ({ data: [] }),
+    useSessions: mockUseSessions,
     useSessionCreateDialog: useSessionCreateDialogModule.useSessionCreateDialog,
   };
 });
@@ -150,16 +155,24 @@ vi.mock("@/systems/workspace", () => ({
               created_at: "2026-04-20T10:00:00Z",
               updated_at: "2026-04-20T10:00:00Z",
             },
+            {
+              id: "ws_beta",
+              root_dir: "/workspace/beta",
+              add_dirs: [],
+              name: "beta",
+              created_at: "2026-04-20T10:00:00Z",
+              updated_at: "2026-04-20T10:00:00Z",
+            },
           ],
     hasWorkspaces: mockActiveWorkspaceId !== null,
     activeWorkspace:
       mockActiveWorkspaceId === null
         ? undefined
         : {
-            id: "ws_alpha",
-            root_dir: "/workspace/alpha",
+            id: mockActiveWorkspaceId,
+            root_dir: mockActiveWorkspaceId === "ws_beta" ? "/workspace/beta" : "/workspace/alpha",
             add_dirs: [],
-            name: "alpha",
+            name: mockActiveWorkspaceId === "ws_beta" ? "beta" : "alpha",
             created_at: "2026-04-20T10:00:00Z",
             updated_at: "2026-04-20T10:00:00Z",
           },
@@ -183,6 +196,14 @@ describe("useAppLayout", () => {
     ];
     mockAgentsLoading = false;
     mockAgentsError = false;
+    mockUseAgents.mockReset();
+    mockUseAgents.mockImplementation(() => ({
+      data: mockAgents,
+      isLoading: mockAgentsLoading,
+      isError: mockAgentsError,
+    }));
+    mockUseSessions.mockReset();
+    mockUseSessions.mockReturnValue({ data: [] });
     mockNavigate.mockReset();
     mockMutateAsync.mockReset();
     mockSetActiveWorkspaceId.mockReset();
@@ -240,28 +261,21 @@ describe("useAppLayout", () => {
     expect(result.current.sessionCreate.selectedProvider).toBe("codex");
   });
 
-  it("uses workspace-scoped agents when the active workspace detail provides them", () => {
-    mockWorkspaceQuery.mockReturnValue({
-      data: {
-        workspace: {
-          id: "ws_alpha",
-          root_dir: "/workspace/alpha",
-          add_dirs: [],
-          name: "alpha",
-          created_at: "2026-04-20T10:00:00Z",
-          updated_at: "2026-04-20T10:00:00Z",
-        },
-        agents: [{ name: "workspace-review", provider: "gemini", prompt: "review" }],
-        providers: [{ name: "claude" }, { name: "codex" }, { name: "gemini" }],
-      },
+  it("uses the active workspace when querying agents and sessions", () => {
+    mockUseAgents.mockImplementation((workspace?: string | null) => ({
+      data:
+        workspace === "ws_alpha"
+          ? [{ name: "workspace-review", provider: "gemini", prompt: "review" }]
+          : [{ name: "global-only", provider: "claude", prompt: "global" }],
       isLoading: false,
       isError: false,
-      error: null,
-    });
+    }));
 
     const { result } = renderHook(() => useAppLayout());
 
     expect(result.current.agents?.map(agent => agent.name)).toEqual(["workspace-review"]);
+    expect(mockUseAgents).toHaveBeenCalledWith("ws_alpha", { enabled: true });
+    expect(mockUseSessions).toHaveBeenCalledWith("ws_alpha", { enabled: true });
 
     act(() => {
       result.current.handleNewSession("workspace-review");
@@ -271,56 +285,54 @@ describe("useAppLayout", () => {
     expect(result.current.sessionCreate.selectedProvider).toBe("gemini");
   });
 
-  it("ignores global agent loading when workspace-scoped agents are already present", () => {
-    mockAgentsLoading = true;
-    mockWorkspaceQuery.mockReturnValue({
-      data: {
-        workspace: {
-          id: "ws_alpha",
-          root_dir: "/workspace/alpha",
-          add_dirs: [],
-          name: "alpha",
-          created_at: "2026-04-20T10:00:00Z",
-          updated_at: "2026-04-20T10:00:00Z",
-        },
-        agents: [{ name: "workspace-review", provider: "gemini", prompt: "review" }],
-        providers: [{ name: "claude" }, { name: "codex" }, { name: "gemini" }],
-      },
+  it("refreshes the exposed agents when the active workspace changes", () => {
+    mockUseAgents.mockImplementation((workspace?: string | null) => ({
+      data:
+        workspace === "ws_beta"
+          ? [{ name: "beta-only", provider: "codex", prompt: "beta" }]
+          : workspace === "ws_alpha"
+            ? [{ name: "alpha-only", provider: "claude", prompt: "alpha" }]
+            : [{ name: "global-only", provider: "gemini", prompt: "global" }],
       isLoading: false,
       isError: false,
-      error: null,
-    });
+    }));
 
-    const { result } = renderHook(() => useAppLayout());
+    const { result, rerender } = renderHook(() => useAppLayout());
 
-    expect(result.current.agentsLoading).toBe(false);
-    expect(result.current.agents?.map(agent => agent.name)).toEqual(["workspace-review"]);
+    expect(result.current.agents?.map(agent => agent.name)).toEqual(["alpha-only"]);
+
+    mockActiveWorkspaceId = "ws_beta";
+    rerender();
+
+    expect(result.current.agents?.map(agent => agent.name)).toEqual(["beta-only"]);
+    expect(result.current.agents?.map(agent => agent.name)).not.toContain("alpha-only");
+    expect(result.current.agents?.map(agent => agent.name)).not.toContain("global-only");
+    expect(mockUseAgents).toHaveBeenCalledWith("ws_beta", { enabled: true });
+    expect(mockUseSessions).toHaveBeenCalledWith("ws_beta", { enabled: true });
   });
 
-  it("ignores global agent errors when workspace-scoped agents are already present", () => {
-    mockAgentsError = true;
-    mockWorkspaceQuery.mockReturnValue({
-      data: {
-        workspace: {
-          id: "ws_alpha",
-          root_dir: "/workspace/alpha",
-          add_dirs: [],
-          name: "alpha",
-          created_at: "2026-04-20T10:00:00Z",
-          updated_at: "2026-04-20T10:00:00Z",
-        },
-        agents: [{ name: "workspace-review", provider: "gemini", prompt: "review" }],
-        providers: [{ name: "claude" }, { name: "codex" }, { name: "gemini" }],
-      },
-      isLoading: false,
+  it("reports loading from the active workspace agents query", () => {
+    mockUseAgents.mockImplementation((workspace?: string | null) => ({
+      data: undefined,
+      isLoading: workspace === "ws_alpha",
       isError: false,
-      error: null,
-    });
+    }));
 
     const { result } = renderHook(() => useAppLayout());
 
-    expect(result.current.agentsError).toBe(false);
-    expect(result.current.agents?.map(agent => agent.name)).toEqual(["workspace-review"]);
+    expect(result.current.agentsLoading).toBe(true);
+  });
+
+  it("reports errors from the active workspace agents query", () => {
+    mockUseAgents.mockImplementation((workspace?: string | null) => ({
+      data: undefined,
+      isLoading: false,
+      isError: workspace === "ws_alpha",
+    }));
+
+    const { result } = renderHook(() => useAppLayout());
+
+    expect(result.current.agentsError).toBe(true);
   });
 
   it("submits the dialog with agent name, workspace, and selected provider", async () => {
