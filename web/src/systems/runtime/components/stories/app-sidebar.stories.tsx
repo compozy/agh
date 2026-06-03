@@ -82,6 +82,36 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
 
+export const WithHomeWorkspace: Story = {
+  args: {
+    // Mark a non-first fixture as the home/global workspace (root_dir === user_home_dir).
+    userHomeDir: workspaceFixtures[3].root_dir,
+    activeWorkspaceId: workspaceFixtures[3].id,
+    defaultWorkspaceId: workspaceFixtures[3].id,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "The home/global workspace (its `root_dir` equals the daemon `user_home_dir`) is pinned to the top of the rail with a home glyph instead of a letter avatar, and a hairline divider separates it from the project workspaces below.",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const home = await canvas.findByTestId(`workspace-avatar-${workspaceFixtures[3].id}`);
+    await expect(home).toHaveAttribute("data-home", "true");
+    await expect(home.querySelector("svg")).not.toBeNull();
+
+    const rail = canvasElement.querySelector<HTMLElement>("[data-testid=icon-rail]");
+    const avatarIds = Array.from(
+      rail?.querySelectorAll<HTMLElement>('[data-testid^="workspace-avatar-"]') ?? []
+    ).map(node => node.getAttribute("data-testid"));
+    await expect(avatarIds[0]).toBe(`workspace-avatar-${workspaceFixtures[3].id}`);
+    await expect(canvas.getByTestId("rail-home-divider")).toBeInTheDocument();
+  },
+};
+
 export const Categorized: Story = {
   args: {
     agents: categorizedAgentFixtures,

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
-import { storyWorkspaceNames } from "@/storybook/fintech-scenario";
+import { storyWorkspaceIds, storyWorkspaceNames } from "@/storybook/fintech-scenario";
 import { CenteredSurface } from "@/storybook/story-layout";
 import type { TaskScope } from "@/systems/tasks";
 
@@ -18,9 +18,16 @@ const meta: Meta<typeof ModeToolbar> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+const storyWorkspaces = [
+  { id: storyWorkspaceIds.hq, name: storyWorkspaceNames.hq },
+  { id: storyWorkspaceIds.risk, name: storyWorkspaceNames.risk },
+  { id: storyWorkspaceIds.growth, name: storyWorkspaceNames.growth },
+];
+
 function ModeToolbarHarness({ initialMode }: { initialMode: TaskFormMode }) {
   const [mode, setMode] = useState<TaskFormMode>(initialMode);
   const [scope, setScope] = useState<TaskScope>("workspace");
+  const [workspaceId, setWorkspaceId] = useState<string | null>(storyWorkspaceIds.hq);
 
   return (
     <CenteredSurface className="items-start justify-center p-6">
@@ -29,8 +36,10 @@ function ModeToolbarHarness({ initialMode }: { initialMode: TaskFormMode }) {
           mode={mode}
           onModeChange={setMode}
           onScopeChange={setScope}
+          onWorkspaceChange={setWorkspaceId}
           scope={scope}
-          workspaceName={storyWorkspaceNames.hq}
+          workspaceId={workspaceId}
+          workspaces={storyWorkspaces}
         />
       </div>
     </CenteredSurface>

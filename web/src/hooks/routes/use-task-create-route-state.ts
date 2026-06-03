@@ -18,7 +18,7 @@ import { useActiveWorkspace } from "@/systems/workspace";
 
 export function useTaskCreateRouteState(search: { template?: TaskTemplateId }) {
   const navigate = useNavigate({ from: "/tasks/new" });
-  const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
+  const { activeWorkspaceId, workspaces } = useActiveWorkspace();
   const createMutation = useCreateTask();
   const createChildMutation = useCreateChildTask();
   const enqueueMutation = useEnqueueTaskRun();
@@ -53,8 +53,8 @@ export function useTaskCreateRouteState(search: { template?: TaskTemplateId }) {
         return null;
       }
 
-      if (nextDraft.scope === "workspace" && !activeWorkspaceId) {
-        toast.error("Select an active workspace before creating a workspace task.");
+      if (nextDraft.scope === "workspace" && !nextDraft.workspaceId) {
+        toast.error("Select a workspace before creating a workspace task.");
         return null;
       }
 
@@ -66,14 +66,12 @@ export function useTaskCreateRouteState(search: { template?: TaskTemplateId }) {
           ? await createChildMutation.mutateAsync({
               parentId: parentTaskId,
               data: buildCreateChildTaskRequest(nextDraft, {
-                activeWorkspaceId,
                 asDraft,
                 templateId,
               }),
             })
           : await createMutation.mutateAsync(
               buildCreateTaskRequest(nextDraft, {
-                activeWorkspaceId,
                 asDraft,
                 templateId,
               })
@@ -104,7 +102,7 @@ export function useTaskCreateRouteState(search: { template?: TaskTemplateId }) {
         return null;
       }
     },
-    [activeWorkspaceId, createChildMutation, createMutation, enqueueMutation, navigate, templateId]
+    [createChildMutation, createMutation, enqueueMutation, navigate, templateId]
   );
 
   return {
@@ -116,6 +114,6 @@ export function useTaskCreateRouteState(search: { template?: TaskTemplateId }) {
     setDraft,
     template: getTaskTemplate(templateId),
     templateId,
-    workspaceName: activeWorkspace?.name ?? null,
+    workspaces: workspaces.map(workspace => ({ id: workspace.id, name: workspace.name })),
   };
 }

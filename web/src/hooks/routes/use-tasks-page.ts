@@ -80,7 +80,7 @@ interface UseTasksPageOptions {
 export type CreateTaskDraftInput = TaskEditorDraft;
 
 function useTasksPage(options: UseTasksPageOptions = {}) {
-  const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
+  const { activeWorkspace, activeWorkspaceId, workspaces } = useActiveWorkspace();
 
   const [mode, setMode] = useState<TaskViewMode>(options.initialMode ?? "list");
   const [scopeFilter, setScopeFilter] = useState<TaskScopeFilter>("all");
@@ -314,13 +314,12 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
         return null;
       }
 
-      if (draft.scope === "workspace" && !activeWorkspaceId) {
-        toast.error("Select an active workspace before creating a workspace task.");
+      if (draft.scope === "workspace" && !draft.workspaceId) {
+        toast.error("Select a workspace before creating a workspace task.");
         return null;
       }
 
       const payload = buildCreateTaskRequest(draft, {
-        activeWorkspaceId,
         asDraft,
         templateId: createTemplateId,
       });
@@ -355,7 +354,7 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
         return null;
       }
     },
-    [activeWorkspaceId, createMutation, createTemplateId, enqueueMutation]
+    [createMutation, createTemplateId, enqueueMutation]
   );
 
   const handlePublishTask = useCallback(
@@ -515,10 +514,13 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     activeWorkspaceId,
     activeWorkspaceName: activeWorkspace?.name ?? null,
     allTasks,
-    canSubmitCreate: createDraft.title.trim().length > 0,
+    canSubmitCreate:
+      createDraft.title.trim().length > 0 &&
+      (createDraft.scope === "global" || Boolean(createDraft.workspaceId)),
     createDraft,
     createTemplate: getTaskTemplate(createTemplateId),
     createTemplateId,
+    createWorkspaces: workspaces.map(workspace => ({ id: workspace.id, name: workspace.name })),
     dashboard: dashboardQuery.data ?? null,
     dashboardError: dashboardQuery.error ?? null,
     dashboardLoading: dashboardQuery.isLoading && !dashboardQuery.data,

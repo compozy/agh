@@ -11,6 +11,11 @@ import {
 import { createAutomationDialogHandle } from "../../lib/dialog-handle";
 import type { CreateAutomationJobRequest, CreateAutomationTriggerRequest } from "../../types";
 
+const WORKSPACES = [
+  { id: "ws_test", name: "test-workspace" },
+  { id: "ws_beta", name: "beta-workspace" },
+];
+
 function JobEditorHarness({
   mode = "create",
   onCancel,
@@ -36,6 +41,7 @@ function JobEditorHarness({
         onChange: setDraft,
         onSubmit: () => onSubmit(draft),
       }}
+      workspaces={WORKSPACES}
     />
   );
 }
@@ -65,6 +71,7 @@ function TriggerEditorHarness({
         onChange: setDraft,
         onSubmit: () => onSubmit(draft),
       }}
+      workspaces={WORKSPACES}
     />
   );
 }
@@ -100,7 +107,12 @@ function DetachedTriggerHarness() {
       >
         Open
       </button>
-      <AutomationEditorDialog activeWorkspaceId="ws_test" editor={editor} handle={handle} />
+      <AutomationEditorDialog
+        activeWorkspaceId="ws_test"
+        editor={editor}
+        handle={handle}
+        workspaces={WORKSPACES}
+      />
     </>
   );
 }
@@ -123,6 +135,7 @@ describe("AutomationEditorDialog", () => {
     expect(within(header as HTMLElement).getByText("Automation · Job")).toBeInTheDocument();
     expect(within(header as HTMLElement).getByText("Create job")).toBeInTheDocument();
     expect(screen.getByTestId("automation-job-form")).toBeInTheDocument();
+    expect(screen.getByTestId("workspace-switcher-name")).toHaveTextContent("test-workspace");
     expect(screen.queryByTestId("automation-trigger-form")).not.toBeInTheDocument();
   });
 

@@ -31,6 +31,11 @@ export function useTasksCreateModalForm({
     [onDraftChange]
   );
 
+  const updateWorkspace = useCallback(
+    (workspaceId: string) => onDraftChange(current => ({ ...current, workspaceId })),
+    [onDraftChange]
+  );
+
   const updatePriority = useCallback(
     (priority: TaskPriority) => onDraftChange(current => ({ ...current, priority })),
     [onDraftChange]
@@ -85,5 +90,6 @@ export function useTasksCreateModalForm({
     updateSaveAsDraft,
     updateScope,
     updateText,
+    updateWorkspace,
   };
 }

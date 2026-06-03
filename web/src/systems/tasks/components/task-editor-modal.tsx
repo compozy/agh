@@ -18,6 +18,8 @@ import {
   Spinner,
 } from "@agh/ui";
 
+import type { WorkspaceCommandSelectOption } from "@/systems/workspace";
+
 import type { TaskEditorDraft } from "../lib/task-editor";
 import {
   SIMPLE_TASK_TEMPLATE_IDS,
@@ -48,8 +50,8 @@ export interface TaskEditorModalProps {
   onSubmit: (draft: TaskEditorDraft, asDraft: boolean) => Promise<unknown> | void;
   canSubmit?: boolean;
   isSubmitting?: boolean;
-  /** Active workspace name — surfaces in the Scope pill label. */
-  workspaceName?: string | null;
+  /** Registered workspaces selectable for new workspace-scoped tasks. */
+  workspaces?: ReadonlyArray<WorkspaceCommandSelectOption>;
   /** Required in `new` mode — the selected template id. */
   templateId?: TaskTemplateId;
   /** Required in `new` mode — the resolved template metadata. */
@@ -82,7 +84,7 @@ export function TaskEditorModal({
   onSubmit,
   canSubmit = true,
   isSubmitting = false,
-  workspaceName,
+  workspaces,
   templateId,
   onTemplateChange,
 }: TaskEditorModalProps) {
@@ -151,8 +153,10 @@ export function TaskEditorModal({
               mode={formMode}
               onModeChange={handleModeChange}
               onScopeChange={form.updateScope}
+              onWorkspaceChange={form.updateWorkspace}
               scope={draft.scope}
-              workspaceName={workspaceName}
+              workspaceId={draft.workspaceId}
+              workspaces={workspaces}
             />
           ) : null}
 

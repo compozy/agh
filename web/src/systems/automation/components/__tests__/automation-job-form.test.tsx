@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -8,6 +9,10 @@ import type { CreateAutomationJobRequest } from "../../types";
 
 const WORKSPACE_ID = "ws_alpha";
 const STORY_AGENTS = ["reviewer", "writer", "auditor"];
+const WORKSPACES = [
+  { id: WORKSPACE_ID, name: "alpha" },
+  { id: "ws_beta", name: "beta" },
+];
 
 interface RenderJobFormOptions {
   activeWorkspaceId?: string | null;
@@ -15,6 +20,7 @@ interface RenderJobFormOptions {
   isPending?: boolean;
   mode?: "create" | "edit";
   agents?: string[];
+  workspaces?: typeof WORKSPACES;
 }
 
 /**
@@ -28,6 +34,7 @@ function renderJobForm({
   isPending = false,
   mode = "create" as "create" | "edit",
   agents = STORY_AGENTS,
+  workspaces = WORKSPACES,
 }: RenderJobFormOptions = {}) {
   const onCancel = vi.fn();
   const onChange = vi.fn();
@@ -49,6 +56,7 @@ function renderJobForm({
           setCurrentDraft(nextDraft);
         }}
         onSubmit={onSubmit}
+        workspaces={workspaces}
       />
     );
   }
@@ -80,6 +88,19 @@ describe("AutomationJobForm", () => {
     );
     expect(screen.getByTestId("job-scope-global")).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText(/Global jobs aren't bound to a workspace/i)).toBeInTheDocument();
+  });
+
+  it("Should choose a workspace from the command selector", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderJobForm();
+
+    await user.click(screen.getByTestId("job-workspace-select"));
+    await user.click(screen.getByTestId("job-workspace-item-ws_beta"));
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope: "workspace", workspace_id: "ws_beta" })
+    );
+    expect(screen.getByTestId("workspace-switcher-name")).toHaveTextContent("beta");
   });
 
   it("Should switch output mode to task, reveal task fields, set draft.task, and hide the agent prompt", () => {

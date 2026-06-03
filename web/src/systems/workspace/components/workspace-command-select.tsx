@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronsUpDown, Plus } from "lucide-react";
+import { ChevronsUpDown, Home, Plus } from "lucide-react";
 
 import {
   cn,
@@ -13,15 +13,22 @@ import {
   CommandSeparator,
 } from "@agh/ui";
 
-import type { WorkspacePayload } from "../types";
+import { isHomeWorkspace, splitHomeWorkspace } from "../lib/home-workspace";
 
 function workspaceInitial(name: string): string {
   return name.charAt(0).toUpperCase() || "·";
 }
 
+export interface WorkspaceCommandSelectOption {
+  id: string;
+  name: string;
+  root_dir?: string | null;
+}
+
 export interface WorkspaceCommandSelectProps {
-  workspaces: WorkspacePayload[] | undefined;
+  workspaces: ReadonlyArray<WorkspaceCommandSelectOption> | undefined;
   value: string | null;
+  userHomeDir?: string;
   onChange: (id: string) => void;
   onAddWorkspace?: () => void;
   disabled?: boolean;
@@ -30,11 +37,13 @@ export interface WorkspaceCommandSelectProps {
   testIdPrefix?: string;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  size?: "default" | "compact";
 }
 
 export function WorkspaceCommandSelect({
   workspaces,
   value,
+  userHomeDir,
   onChange,
   onAddWorkspace,
   disabled,
@@ -43,6 +52,7 @@ export function WorkspaceCommandSelect({
   testIdPrefix = "workspace-command",
   open: openProp,
   onOpenChange,
+  size = "default",
 }: WorkspaceCommandSelectProps) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = openProp ?? uncontrolledOpen;
@@ -51,12 +61,19 @@ export function WorkspaceCommandSelect({
     () => workspaces?.find(workspace => workspace.id === value) ?? null,
     [workspaces, value]
   );
+  const { homeWorkspace, projectWorkspaces } = useMemo(
+    () => splitHomeWorkspace(workspaces, userHomeDir),
+    [workspaces, userHomeDir]
+  );
+  const orderedWorkspaces = homeWorkspace
+    ? [homeWorkspace, ...projectWorkspaces]
+    : projectWorkspaces;
+  const selectedIsHome = Boolean(selected && isHomeWorkspace(selected, userHomeDir));
   const label = selected?.name ?? "No workspace";
-  const initial = workspaceInitial(label);
   const hasWorkspaces = (workspaces?.length ?? 0) > 0;
   const isDisabled = disabled || !hasWorkspaces;
 
-  const handleSelect = (workspace: WorkspacePayload) => {
+  const handleSelect = (workspace: WorkspaceCommandSelectOption) => {
     onChange(workspace.id);
     setOpen(false);
   };
@@ -71,12 +88,21 @@ export function WorkspaceCommandSelect({
       <CommandSelectTrigger
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-label={hasWorkspaces ? `Workspace: ${label}` : "No workspace"}
+        aria-label={
+          hasWorkspaces
+            ? selectedIsHome
+              ? `Home workspace: ${label}`
+              : `Workspace: ${label}`
+            : "No workspace"
+        }
+        data-size={size}
         data-testid={triggerTestId}
         disabled={isDisabled}
         selected={Boolean(selected)}
         className={cn(
-          "h-12 w-full gap-2.5 border-0 bg-transparent px-2 py-0 shadow-none hover:bg-hover focus-visible:border-0 focus-visible:shadow-none [&>svg:last-child]:hidden",
+          size === "compact"
+            ? "h-9 min-w-0 gap-2 border border-line bg-elevated px-2.5 py-0 shadow-none hover:bg-hover focus-visible:border-line-strong focus-visible:shadow-focus-ring [&>svg:last-child]:hidden"
+            : "h-12 w-full gap-2.5 border-0 bg-transparent px-2 py-0 shadow-none hover:bg-hover focus-visible:border-0 focus-visible:shadow-none [&>svg:last-child]:hidden",
           className
         )}
       >
@@ -84,13 +110,21 @@ export function WorkspaceCommandSelect({
           <span
             aria-hidden="true"
             data-testid="workspace-switcher-avatar"
-            className="inline-flex size-button-icon-xs shrink-0 items-center justify-center rounded-sm bg-elevated font-mono text-eyebrow font-medium tracking-mono text-fg"
+            data-home={selectedIsHome ? "true" : undefined}
+            className={cn(
+              "inline-flex shrink-0 items-center justify-center rounded-sm bg-elevated font-mono text-eyebrow font-medium tracking-mono text-fg",
+              size === "compact" ? "size-5" : "size-button-icon-xs"
+            )}
           >
-            {initial}
+            {selectedIsHome ? (
+              <Home aria-hidden="true" className={size === "compact" ? "size-3" : "size-3.5"} />
+            ) : (
+              workspaceInitial(label)
+            )}
           </span>
           <span
             data-testid="workspace-switcher-name"
-            className="min-w-0 flex-1 truncate text-small-body font-medium tracking-tight text-fg"
+            className="min-w-0 flex-1 truncate text-small-body font-medium tracking-normal text-fg"
           >
             {label}
           </span>
@@ -102,7 +136,7 @@ export function WorkspaceCommandSelect({
         </span>
       </CommandSelectTrigger>
       <CommandSelectShell
-        className="min-w-64"
+        className={cn(size === "compact" ? "min-w-56" : "min-w-64")}
         inputPlaceholder="Search workspaces..."
         inputProps={{ "data-testid": `${testIdPrefix}-input` }}
       >
@@ -111,23 +145,36 @@ export function WorkspaceCommandSelect({
             No workspaces match your search.
           </CommandEmpty>
           <CommandSelectGroup heading="Workspaces" data-testid={`${testIdPrefix}-group`}>
-            {workspaces?.map(workspace => {
+            {orderedWorkspaces.map(workspace => {
               const isActive = workspace.id === value;
+              const isHome = isHomeWorkspace(workspace, userHomeDir);
               return (
                 <CommandItem
                   key={workspace.id}
-                  value={workspace.name}
+                  value={isHome ? `home workspace ${workspace.name}` : workspace.name}
                   onSelect={() => handleSelect(workspace)}
                   data-checked={isActive ? "true" : "false"}
+                  data-home={isHome ? "true" : undefined}
                   data-testid={`${testIdPrefix}-item-${workspace.id}`}
                 >
                   <span
                     aria-hidden="true"
+                    data-home={isHome ? "true" : undefined}
+                    data-testid={`${testIdPrefix}-item-avatar-${workspace.id}`}
                     className="inline-flex size-button-icon-xs shrink-0 items-center justify-center rounded-sm bg-elevated font-mono text-eyebrow font-medium tracking-mono text-fg"
                   >
-                    {workspaceInitial(workspace.name)}
+                    {isHome ? (
+                      <Home aria-hidden="true" className="size-3.5" />
+                    ) : (
+                      workspaceInitial(workspace.name)
+                    )}
                   </span>
-                  <span className="truncate text-small-body text-fg">{workspace.name}</span>
+                  <span className="flex min-w-0 flex-1 items-center gap-2">
+                    <span className="truncate text-small-body text-fg">{workspace.name}</span>
+                    {isHome ? (
+                      <span className="shrink-0 text-badge text-muted">Home workspace</span>
+                    ) : null}
+                  </span>
                 </CommandItem>
               );
             })}

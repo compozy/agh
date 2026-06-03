@@ -54,7 +54,6 @@ function TaskEditRoute() {
       onSubmit={page.handleSubmit}
       open
       task={page.task}
-      workspaceName={page.workspaceName}
     />
   );
 }

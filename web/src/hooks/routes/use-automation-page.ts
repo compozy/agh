@@ -124,7 +124,7 @@ function automationUnavailableMessage(
 }
 
 function useAutomationPageBase() {
-  const { activeWorkspace, activeWorkspaceId } = useActiveWorkspace();
+  const { activeWorkspace, activeWorkspaceId, workspaces } = useActiveWorkspace();
   const settingsQuery = useSettingsAutomation();
   const [scopeFilter, setScopeFilter] = useState<AutomationScopeFilter>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -155,6 +155,7 @@ function useAutomationPageBase() {
     setScopeFilter,
     setSearchQuery,
     setSelectedId,
+    workspaces: workspaces.map(workspace => ({ id: workspace.id, name: workspace.name })),
   };
 }
 
@@ -370,6 +371,7 @@ function useAutomationJobsPage() {
   const editorDialogProps = {
     activeWorkspaceId: page.activeWorkspaceId,
     handle: editorHandle,
+    workspaces: page.workspaces,
     editor: editor
       ? {
           ...editor,
@@ -583,6 +585,7 @@ function useAutomationTriggersPage() {
   const editorDialogProps = {
     activeWorkspaceId: page.activeWorkspaceId,
     handle: editorHandle,
+    workspaces: page.workspaces,
     editor: editor
       ? {
           ...editor,

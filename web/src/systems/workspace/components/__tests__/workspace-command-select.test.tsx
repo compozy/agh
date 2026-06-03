@@ -42,6 +42,25 @@ describe("WorkspaceCommandSelect", () => {
     expect(screen.getByTestId("workspace-switcher-chevron")).toBeInTheDocument();
   });
 
+  it("Should render the selected home workspace with the home icon", () => {
+    render(
+      <UIProvider reducedMotion="always">
+        <WorkspaceCommandSelect
+          workspaces={workspaces}
+          value="ws_beta"
+          userHomeDir="/workspace/beta"
+          onChange={() => undefined}
+        />
+      </UIProvider>
+    );
+
+    const avatar = screen.getByTestId("workspace-switcher-avatar");
+    expect(avatar).toHaveAttribute("data-home", "true");
+    expect(avatar.querySelector("svg")).not.toBeNull();
+    expect(avatar).not.toHaveTextContent("B");
+    expect(screen.getByTestId("workspace-switcher")).toHaveAccessibleName("Home workspace: beta");
+  });
+
   it("Should show No workspace and disable the trigger when the registry is empty", () => {
     render(
       <UIProvider reducedMotion="always">
@@ -93,6 +112,39 @@ describe("WorkspaceCommandSelect", () => {
       "data-checked",
       "false"
     );
+  });
+
+  it("Should pin the home workspace first in the command list", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <UIProvider reducedMotion="always">
+        <WorkspaceCommandSelect
+          workspaces={workspaces}
+          value="ws_alpha"
+          userHomeDir="/workspace/beta"
+          onChange={() => undefined}
+        />
+      </UIProvider>
+    );
+
+    await user.click(screen.getByTestId("workspace-switcher"));
+
+    const group = screen.getByTestId("workspace-command-group");
+    const items = Array.from(group.querySelectorAll<HTMLElement>('[data-slot="command-item"]'));
+    expect(items.map(item => item.getAttribute("data-testid"))).toEqual([
+      "workspace-command-item-ws_beta",
+      "workspace-command-item-ws_alpha",
+    ]);
+    expect(screen.getByTestId("workspace-command-item-ws_beta")).toHaveAttribute(
+      "data-home",
+      "true"
+    );
+    expect(screen.getByTestId("workspace-command-item-avatar-ws_beta")).toHaveAttribute(
+      "data-home",
+      "true"
+    );
+    expect(screen.getByText("Home workspace")).toBeInTheDocument();
   });
 
   it("Should filter results via keyboard search", async () => {

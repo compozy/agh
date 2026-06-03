@@ -15,6 +15,7 @@ import {
 import { AutomationJobForm } from "./automation-job-form";
 import { AutomationTriggerForm } from "./automation-trigger-form";
 import type { AutomationDialogHandle } from "../lib/dialog-handle";
+import type { WorkspaceOption } from "../lib/trigger-preview";
 import type { CreateAutomationJobRequest, CreateAutomationTriggerRequest } from "../types";
 
 type AutomationDialogEditorState =
@@ -41,6 +42,7 @@ interface AutomationEditorDialogProps {
   activeWorkspaceId?: string | null;
   editor: AutomationDialogEditorState | null;
   handle?: AutomationDialogHandle;
+  workspaces?: ReadonlyArray<WorkspaceOption>;
 }
 
 interface EditorHeaderCopy {
@@ -86,6 +88,7 @@ export function AutomationEditorDialog({
   activeWorkspaceId,
   editor,
   handle,
+  workspaces,
 }: AutomationEditorDialogProps) {
   const isControlled = handle === undefined;
   const isEditorOpen = editor !== null;
@@ -135,6 +138,7 @@ export function AutomationEditorDialog({
               onCancel={editor.onCancel}
               onChange={editor.onChange}
               onSubmit={editor.onSubmit}
+              workspaces={workspaces}
             />
           ) : (
             <AutomationTriggerForm
@@ -145,6 +149,7 @@ export function AutomationEditorDialog({
               onCancel={editor.onCancel}
               onChange={editor.onChange}
               onSubmit={editor.onSubmit}
+              workspaces={workspaces}
             />
           )}
         </DialogContent>

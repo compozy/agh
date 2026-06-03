@@ -259,6 +259,46 @@ describe("AppSidebar", () => {
     });
   });
 
+  describe("Should distinguish the home/global workspace", () => {
+    function railAvatarIds(): string[] {
+      const rail = screen.getByTestId("icon-rail");
+      return Array.from(
+        rail.querySelectorAll<HTMLElement>('[data-testid^="workspace-avatar-"]')
+      ).map(node => node.getAttribute("data-testid") ?? "");
+    }
+
+    it("Should render the workspace matching user_home_dir first, ahead of project workspaces", () => {
+      // ws_beta lives at /workspace/beta; mark it as the home workspace.
+      renderSidebar(makeProps({ userHomeDir: "/workspace/beta" }));
+      expect(railAvatarIds()).toEqual(["workspace-avatar-ws_beta", "workspace-avatar-ws_alpha"]);
+    });
+
+    it("Should render a home icon (not a letter) for the home workspace", () => {
+      renderSidebar(makeProps({ userHomeDir: "/workspace/beta" }));
+      const home = screen.getByTestId("workspace-avatar-ws_beta");
+      expect(home).toHaveAttribute("data-home", "true");
+      // The home avatar carries the lucide home glyph instead of the "B" letter.
+      expect(home.querySelector("svg")).not.toBeNull();
+      expect(home).not.toHaveTextContent("B");
+      expect(home).toHaveAccessibleName("Home workspace: beta");
+    });
+
+    it("Should render a divider between the home workspace and the project workspaces", () => {
+      renderSidebar(makeProps({ userHomeDir: "/workspace/beta" }));
+      const rail = screen.getByTestId("icon-rail");
+      const divider = screen.getByTestId("rail-home-divider");
+      expect(rail).toContainElement(divider);
+    });
+
+    it("Should keep letter avatars and skip the divider when no workspace matches user_home_dir", () => {
+      renderSidebar(makeProps({ userHomeDir: "/somewhere/else" }));
+      expect(railAvatarIds()).toEqual(["workspace-avatar-ws_alpha", "workspace-avatar-ws_beta"]);
+      expect(screen.getByTestId("workspace-avatar-ws_alpha")).toHaveTextContent("A");
+      expect(screen.getByTestId("workspace-avatar-ws_alpha")).not.toHaveAttribute("data-home");
+      expect(screen.queryByTestId("rail-home-divider")).not.toBeInTheDocument();
+    });
+  });
+
   describe("Should render the agent tree", () => {
     it("Should render each agent as a flat link to /agents/$name", () => {
       renderSidebar(

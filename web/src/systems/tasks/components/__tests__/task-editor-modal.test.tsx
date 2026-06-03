@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -28,6 +29,11 @@ const editTask = {
   updated_at: "2026-04-11T09:30:00Z",
   created_by: { kind: "human", ref: "pedro" },
 } as unknown as TaskRecord;
+
+const workspaces = [
+  { id: "ws_alpha", name: "launch-hq" },
+  { id: "ws_beta", name: "risk-ops" },
+];
 
 /**
  * Controlled harness — holds the draft + active template in local state and
@@ -81,7 +87,7 @@ function renderModal({
         task={task}
         template={isNewMode ? getTaskTemplate(currentTemplate) : undefined}
         templateId={isNewMode ? currentTemplate : undefined}
-        workspaceName="launch-hq"
+        workspaces={workspaces}
       />
     );
   }
@@ -144,6 +150,19 @@ describe("TaskEditorModal", () => {
 
     expect(onDraftChange).toHaveBeenLastCalledWith(expect.objectContaining({ priority: "high" }));
     expect(screen.getByTestId("task-priority-high")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("Should select a workspace through the shared scope selector", async () => {
+    const user = userEvent.setup();
+    const { onDraftChange } = renderModal();
+
+    await user.click(screen.getByTestId("task-workspace-select"));
+    await user.click(screen.getByTestId("task-workspace-item-ws_beta"));
+
+    expect(onDraftChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope: "workspace", workspaceId: "ws_beta" })
+    );
+    expect(screen.getByTestId("workspace-switcher-name")).toHaveTextContent("risk-ops");
   });
 
   it("Should select a template card and emit onTemplateChange", () => {

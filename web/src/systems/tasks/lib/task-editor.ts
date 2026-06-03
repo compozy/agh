@@ -14,6 +14,7 @@ export interface TaskEditorDraft {
   title: string;
   description: string;
   scope: TaskScope;
+  workspaceId: string | null;
   priority: TaskPriority;
   ownerKind: TaskOwnerKind | "";
   ownerRef: string;
@@ -30,6 +31,7 @@ export const EMPTY_TASK_EDITOR_DRAFT: TaskEditorDraft = {
   title: "",
   description: "",
   scope: "workspace",
+  workspaceId: null,
   priority: "medium",
   ownerKind: "",
   ownerRef: "",
@@ -51,6 +53,7 @@ export function createTaskEditorDraft(
   return {
     ...EMPTY_TASK_EDITOR_DRAFT,
     scope: activeWorkspaceId ? "workspace" : "global",
+    workspaceId: activeWorkspaceId ?? null,
     priority: template.defaults.priority ?? "medium",
     maxAttempts:
       typeof template.defaults.max_attempts === "number" ? template.defaults.max_attempts : 1,
@@ -84,6 +87,7 @@ export function taskEditorDraftFromTask(task: TaskRecord): TaskEditorDraft {
     title: task.title,
     description: task.description ?? "",
     scope: task.scope,
+    workspaceId: task.workspace_id ?? null,
     priority: task.priority ?? "medium",
     ownerKind: task.owner?.kind ?? "",
     ownerRef: task.owner?.ref ?? "",
@@ -115,7 +119,6 @@ function resolveOwnerInput(draft: TaskEditorDraft) {
 export function buildCreateTaskRequest(
   draft: TaskEditorDraft,
   options: {
-    activeWorkspaceId?: string | null;
     templateId: TaskTemplateId;
     asDraft: boolean;
   }
@@ -126,7 +129,7 @@ export function buildCreateTaskRequest(
     title: draft.title.trim(),
     description: draft.description.trim() || undefined,
     scope: draft.scope,
-    workspace: draft.scope === "workspace" ? (options.activeWorkspaceId ?? undefined) : undefined,
+    workspace: draft.scope === "workspace" ? (draft.workspaceId ?? undefined) : undefined,
     priority: draft.priority,
     max_attempts: draft.maxAttempts ?? undefined,
     draft: options.asDraft || draft.saveAsDraft || options.templateId === "recurring",
@@ -143,7 +146,6 @@ export function buildCreateTaskRequest(
 export function buildCreateChildTaskRequest(
   draft: TaskEditorDraft,
   options: {
-    activeWorkspaceId?: string | null;
     templateId: TaskTemplateId;
     asDraft: boolean;
   }
@@ -154,7 +156,7 @@ export function buildCreateChildTaskRequest(
     title: draft.title.trim(),
     description: draft.description.trim() || undefined,
     scope: draft.scope,
-    workspace: draft.scope === "workspace" ? (options.activeWorkspaceId ?? undefined) : undefined,
+    workspace: draft.scope === "workspace" ? (draft.workspaceId ?? undefined) : undefined,
     priority: draft.priority,
     max_attempts: draft.maxAttempts ?? undefined,
     draft: options.asDraft || draft.saveAsDraft || options.templateId === "recurring",

@@ -3,6 +3,7 @@ import {
   Book,
   Boxes,
   Clock3,
+  Home,
   KeyRound,
   LayoutDashboard,
   ListChecks,
@@ -24,7 +25,11 @@ import {
 } from "@/components/sidebar-nav-classes";
 import { AgentCategoryTree, type AgentPayload } from "@/systems/agent";
 import { isSessionRunning, type SessionPayload } from "@/systems/session";
-import { WorkspaceCommandSelect, type WorkspacePayload } from "@/systems/workspace";
+import {
+  splitHomeWorkspace,
+  WorkspaceCommandSelect,
+  type WorkspacePayload,
+} from "@/systems/workspace";
 
 import { RuntimeConnectionIndicator } from "./connection-indicator";
 import { RestartDaemonButton } from "./restart-daemon-button";
@@ -32,16 +37,52 @@ import { RestartDaemonButton } from "./restart-daemon-button";
 interface RailSlotProps {
   workspaces: WorkspacePayload[] | undefined;
   activeWorkspaceId: string | null;
+  userHomeDir: string | undefined;
   onSelectWorkspace: (id: string) => void;
   onAddWorkspace: () => void;
+}
+
+interface WorkspaceRailItemProps {
+  workspace: WorkspacePayload;
+  isActive: boolean;
+  isHome: boolean;
+  onSelect: (id: string) => void;
+}
+
+function WorkspaceRailItem({ workspace, isActive, isHome, onSelect }: WorkspaceRailItemProps) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(workspace.id)}
+      data-testid={`workspace-avatar-${workspace.id}`}
+      data-active={isActive}
+      data-home={isHome ? "true" : undefined}
+      title={isHome ? "Home workspace" : workspace.name}
+      aria-label={isHome ? `Home workspace: ${workspace.name}` : `Workspace: ${workspace.name}`}
+      aria-pressed={isActive}
+      className={cn(
+        "inline-flex size-7 items-center justify-center rounded-md border border-transparent bg-elevated font-mono text-eyebrow font-medium text-muted transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+        isActive && "border-accent text-fg"
+      )}
+    >
+      {isHome ? (
+        <Home aria-hidden="true" className="size-3.5" />
+      ) : (
+        workspace.name.charAt(0).toUpperCase() || "·"
+      )}
+    </button>
+  );
 }
 
 function RailSlot({
   workspaces,
   activeWorkspaceId,
+  userHomeDir,
   onSelectWorkspace,
   onAddWorkspace,
 }: RailSlotProps) {
+  const { homeWorkspace, projectWorkspaces } = splitHomeWorkspace(workspaces, userHomeDir);
+
   return (
     <div data-testid="icon-rail" className="flex flex-1 flex-col items-center gap-1.5">
       <Link
@@ -52,28 +93,30 @@ function RailSlot({
       >
         <Logo variant="symbol" decorative className="size-7" />
       </Link>
-      {workspaces?.map(workspace => {
-        const isActive = workspace.id === activeWorkspaceId;
-        const letter = workspace.name.charAt(0).toUpperCase() || "·";
-        return (
-          <button
-            key={workspace.id}
-            type="button"
-            onClick={() => onSelectWorkspace(workspace.id)}
-            data-testid={`workspace-avatar-${workspace.id}`}
-            data-active={isActive}
-            title={workspace.name}
-            aria-label={`Workspace: ${workspace.name}`}
-            aria-pressed={isActive}
-            className={cn(
-              "inline-flex size-7 items-center justify-center rounded-md border border-transparent bg-elevated font-mono text-eyebrow font-medium text-muted transition-colors hover:bg-hover hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
-              isActive && "border-accent text-fg"
-            )}
-          >
-            {letter}
-          </button>
-        );
-      })}
+      {homeWorkspace && (
+        <WorkspaceRailItem
+          workspace={homeWorkspace}
+          isActive={homeWorkspace.id === activeWorkspaceId}
+          isHome
+          onSelect={onSelectWorkspace}
+        />
+      )}
+      {homeWorkspace && projectWorkspaces.length > 0 && (
+        <div
+          aria-hidden="true"
+          data-testid="rail-home-divider"
+          className="my-0.5 h-px w-5 rounded-full bg-line"
+        />
+      )}
+      {projectWorkspaces.map(workspace => (
+        <WorkspaceRailItem
+          key={workspace.id}
+          workspace={workspace}
+          isActive={workspace.id === activeWorkspaceId}
+          isHome={false}
+          onSelect={onSelectWorkspace}
+        />
+      ))}
       <button
         type="button"
         onClick={onAddWorkspace}
@@ -278,6 +321,7 @@ export interface AppSidebarProps {
   workspaces: WorkspacePayload[] | undefined;
   activeWorkspaceId: string | null;
   activeWorkspace: WorkspacePayload | undefined;
+  userHomeDir?: string;
   onSelectWorkspace: (id: string) => void;
   onAddWorkspace: () => void;
   onAddAgent: () => void;
@@ -293,6 +337,7 @@ function AppSidebar({
   onCollapseChange,
   workspaces,
   activeWorkspaceId,
+  userHomeDir,
   onSelectWorkspace,
   onAddWorkspace,
   onAddAgent,
@@ -313,6 +358,7 @@ function AppSidebar({
         <RailSlot
           workspaces={workspaces}
           activeWorkspaceId={activeWorkspaceId}
+          userHomeDir={userHomeDir}
           onSelectWorkspace={onSelectWorkspace}
           onAddWorkspace={onAddWorkspace}
         />
@@ -321,6 +367,7 @@ function AppSidebar({
         <WorkspaceCommandSelect
           workspaces={workspaces}
           value={activeWorkspaceId}
+          userHomeDir={userHomeDir}
           onChange={onSelectWorkspace}
           onAddWorkspace={onAddWorkspace}
         />

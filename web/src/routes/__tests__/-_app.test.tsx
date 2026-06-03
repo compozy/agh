@@ -105,6 +105,9 @@ vi.mock("@/systems/status", () => ({
     health: { version: "0.1.0" },
     connectionStatus: "connected",
   }),
+  useStatus: () => ({
+    data: { daemon: { version: "0.1.0" } },
+  }),
 }));
 
 vi.mock("@/systems/agent", () => ({

@@ -25,6 +25,24 @@ vi.mock("@/systems/workspace", () => ({
   useActiveWorkspace: () => ({
     activeWorkspace: { id: "ws_alpha", name: "Alpha" },
     activeWorkspaceId: "ws_alpha",
+    workspaces: [
+      {
+        add_dirs: [],
+        created_at: "2026-04-17T10:00:00Z",
+        id: "ws_alpha",
+        name: "Alpha",
+        root_dir: "/workspace/alpha",
+        updated_at: "2026-04-17T10:00:00Z",
+      },
+      {
+        add_dirs: [],
+        created_at: "2026-04-17T10:00:00Z",
+        id: "ws_beta",
+        name: "Beta",
+        root_dir: "/workspace/beta",
+        updated_at: "2026-04-17T10:00:00Z",
+      },
+    ],
   }),
 }));
 
@@ -49,6 +67,9 @@ vi.mock("@/systems/tasks/components/task-editor-modal", () => ({
       <span data-testid="task-editor-mode">{String(props.mode)}</span>
       <span data-testid="task-editor-template-prop">{String(props.templateId)}</span>
       <span data-testid="task-editor-open">{String(props.open)}</span>
+      <span data-testid="task-editor-workspaces">
+        {String((props.workspaces as Array<unknown> | undefined)?.length ?? 0)}
+      </span>
       <button
         data-testid="task-editor-template-change"
         onClick={() => (props.onTemplateChange as (templateId: string) => void)("recurring")}
@@ -123,6 +144,7 @@ describe("TaskCreateRoute", () => {
     expect(screen.getByTestId("task-editor-mode")).toHaveTextContent("new");
     expect(screen.getByTestId("task-editor-open")).toHaveTextContent("true");
     expect(screen.getByTestId("task-editor-template-prop")).toHaveTextContent("recurring");
+    expect(screen.getByTestId("task-editor-workspaces")).toHaveTextContent("2");
   });
 
   it("navigates back to /tasks when the modal closes", () => {
@@ -147,6 +169,12 @@ describe("TaskCreateRoute", () => {
     fireEvent.click(screen.getByTestId("task-editor-submit-trigger"));
 
     await waitFor(() => expect(createMutateAsync).toHaveBeenCalled());
+    expect(createMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Create API contract",
+        workspace: "ws_alpha",
+      })
+    );
     expect(navigateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         params: { id: "task_created" },

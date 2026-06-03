@@ -52,6 +52,7 @@ vi.mock("@/systems/status", () => ({
     health: { version: "0.1.0" },
     connectionStatus: "connected",
   }),
+  useStatus: () => ({ data: { user_home_dir: "/workspace/alpha" } }),
 }));
 
 vi.mock("@/systems/agent", () => ({
@@ -407,5 +408,11 @@ describe("useAppLayout", () => {
     });
 
     expect(mockOpenAgentCreate).toHaveBeenCalledOnce();
+  });
+
+  it("exposes the daemon user_home_dir so the rail can mark the home workspace", () => {
+    const { result } = renderHook(() => useAppLayout());
+
+    expect(result.current.userHomeDir).toBe("/workspace/alpha");
   });
 });

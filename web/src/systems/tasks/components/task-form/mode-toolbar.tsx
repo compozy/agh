@@ -1,6 +1,7 @@
 import { ArrowRight, SlidersHorizontal } from "lucide-react";
 
 import { PillGroup, type PillGroupItem } from "@agh/ui";
+import { ScopeSelector, type WorkspaceCommandSelectOption } from "@/systems/workspace";
 
 import type { TaskScope } from "../../types";
 
@@ -10,9 +11,10 @@ interface ModeToolbarProps {
   mode: TaskFormMode;
   onModeChange: (mode: TaskFormMode) => void;
   scope: TaskScope;
-  /** Active workspace name — surfaces inside the Workspace scope pill label. */
-  workspaceName?: string | null;
+  workspaceId: string | null;
+  workspaces: ReadonlyArray<WorkspaceCommandSelectOption> | undefined;
   onScopeChange: (scope: TaskScope) => void;
+  onWorkspaceChange: (workspaceId: string) => void;
 }
 
 const MODE_ITEMS: PillGroupItem<TaskFormMode>[] = [
@@ -38,32 +40,21 @@ const MODE_ITEMS: PillGroupItem<TaskFormMode>[] = [
   },
 ];
 
-function buildScopeItems(workspaceName?: string | null): PillGroupItem<TaskScope>[] {
-  return [
-    {
-      value: "workspace",
-      label: workspaceName ? `Workspace · ${workspaceName}` : "Workspace",
-      testId: "task-scope-workspace",
-    },
-    { value: "global", label: "Global", testId: "task-scope-global" },
-  ];
-}
-
 /**
  * Pinned mode toolbar — Simple/Advanced segmented control on the left and the
- * task Scope control on the right. The task binds to the active workspace, so
- * the workspace name lives inside the Workspace pill label rather than a
- * separate select (truthful UI: there is no workspace re-pick here).
+ * shared task scope control on the right.
  */
 export function ModeToolbar({
   mode,
   onModeChange,
   scope,
-  workspaceName,
+  workspaceId,
+  workspaces,
   onScopeChange,
+  onWorkspaceChange,
 }: ModeToolbarProps) {
   return (
-    <div className="flex items-center gap-3 border-y border-line-soft bg-canvas-tint px-6 py-3">
+    <div className="flex flex-wrap items-center gap-3 border-y border-line-soft bg-canvas-tint px-6 py-3">
       <PillGroup
         aria-label="Editor mode"
         items={MODE_ITEMS}
@@ -72,14 +63,18 @@ export function ModeToolbar({
         value={mode}
       />
       <div className="flex-1" />
-      <span className="text-form-hint text-subtle">Scope</span>
-      <PillGroup
-        aria-label="Task scope"
-        items={buildScopeItems(workspaceName)}
-        onChange={onScopeChange}
-        size="sm"
-        value={scope}
-      />
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <span className="text-form-hint text-subtle">Scope</span>
+        <ScopeSelector
+          ariaLabel="Task scope"
+          onScopeChange={onScopeChange}
+          onWorkspaceChange={onWorkspaceChange}
+          scope={scope}
+          testIdPrefix="task"
+          workspaceId={workspaceId}
+          workspaces={workspaces}
+        />
+      </div>
     </div>
   );
 }

@@ -24,6 +24,12 @@ const meta: Meta<typeof TaskEditorModal> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+const storyWorkspaces = [
+  { id: storyWorkspaceIds.hq, name: storyWorkspaceNames.hq },
+  { id: storyWorkspaceIds.risk, name: storyWorkspaceNames.risk },
+  { id: storyWorkspaceIds.growth, name: storyWorkspaceNames.growth },
+];
+
 interface TaskEditorModalHarnessProps {
   mode?: TaskEditorModalMode;
   templateId?: TaskTemplateId;
@@ -75,7 +81,7 @@ function TaskEditorModalHarness({
         task={task}
         template={isNewMode ? getTaskTemplate(activeTemplate) : undefined}
         templateId={isNewMode ? activeTemplate : undefined}
-        workspaceName={storyWorkspaceNames.hq}
+        workspaces={storyWorkspaces}
       />
     </CenteredSurface>
   );

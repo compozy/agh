@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -11,13 +12,20 @@ interface RenderTriggerFormOptions {
   draft?: CreateAutomationTriggerRequest;
   isPending?: boolean;
   mode?: "create" | "edit";
+  workspaces?: Array<{ id: string; name: string }>;
 }
+
+const WORKSPACES = [
+  { id: "ws_alpha", name: "alpha" },
+  { id: "ws_beta", name: "beta" },
+];
 
 function renderTriggerForm({
   activeWorkspaceId = "ws_alpha",
   draft = createAutomationTriggerDraft(activeWorkspaceId),
   isPending = false,
   mode = "create" as "create" | "edit",
+  workspaces = WORKSPACES,
 }: RenderTriggerFormOptions = {}) {
   const onCancel = vi.fn();
   const onChange = vi.fn();
@@ -38,6 +46,7 @@ function renderTriggerForm({
           setCurrentDraft(nextDraft);
         }}
         onSubmit={onSubmit}
+        workspaces={workspaces}
       />
     );
   }
@@ -133,6 +142,19 @@ describe("AutomationTriggerForm", () => {
     expect(onChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ scope: "workspace", workspace_id: "ws_alpha" })
     );
+  });
+
+  it("selects a different workspace from the command selector", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderTriggerForm();
+
+    await user.click(screen.getByTestId("trigger-workspace-select"));
+    await user.click(screen.getByTestId("trigger-workspace-item-ws_beta"));
+
+    expect(onChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope: "workspace", workspace_id: "ws_beta" })
+    );
+    expect(screen.getByTestId("workspace-switcher-name")).toHaveTextContent("beta");
   });
 
   it("adds and edits structured filter conditions as an AND map", () => {

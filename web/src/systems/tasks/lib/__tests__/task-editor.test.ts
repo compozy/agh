@@ -12,9 +12,9 @@ describe("buildCreateTaskRequest", () => {
       {
         ...EMPTY_TASK_EDITOR_DRAFT,
         title: "Standalone task",
+        workspaceId: "ws_signalforge",
       },
       {
-        activeWorkspaceId: "ws_signalforge",
         asDraft: false,
         templateId: "one_shot",
       }
@@ -35,12 +35,12 @@ describe("buildCreateChildTaskRequest", () => {
         title: "Web child creation probe 0425",
         description: "Probe task",
         scope: "workspace",
+        workspaceId: "ws_signalforge",
         parentTaskId: " task-44a84096bb3e51ea ",
         networkChannel: " launch-sprint-0425 ",
         identifier: " WEB-CHILD-0425 ",
       },
       {
-        activeWorkspaceId: "ws_signalforge",
         asDraft: false,
         templateId: "one_shot",
       }

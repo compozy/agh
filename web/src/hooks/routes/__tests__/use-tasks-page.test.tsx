@@ -46,6 +46,24 @@ vi.mock("@/systems/workspace", () => ({
   useActiveWorkspace: () => ({
     activeWorkspace: { id: "ws_alpha", name: "Alpha" },
     activeWorkspaceId: "ws_alpha",
+    workspaces: [
+      {
+        add_dirs: [],
+        created_at: "2026-04-17T10:00:00Z",
+        id: "ws_alpha",
+        name: "Alpha",
+        root_dir: "/workspace/alpha",
+        updated_at: "2026-04-17T10:00:00Z",
+      },
+      {
+        add_dirs: [],
+        created_at: "2026-04-17T10:00:00Z",
+        id: "ws_beta",
+        name: "Beta",
+        root_dir: "/workspace/beta",
+        updated_at: "2026-04-17T10:00:00Z",
+      },
+    ],
   }),
 }));
 
@@ -299,6 +317,7 @@ describe("useTasksPage", () => {
       expect.objectContaining({
         title: "New thing",
         scope: "workspace",
+        workspace: "ws_alpha",
         priority: "medium",
         max_attempts: 1,
         draft: false,

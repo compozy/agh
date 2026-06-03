@@ -38,7 +38,10 @@ function TaskCreateRoute() {
 
   return (
     <TaskEditorModal
-      canSubmit={page.draft.title.trim().length > 0}
+      canSubmit={
+        page.draft.title.trim().length > 0 &&
+        (page.draft.scope === "global" || Boolean(page.draft.workspaceId))
+      }
       draft={page.draft}
       isSubmitting={page.isSubmitting}
       mode="new"
@@ -50,7 +53,7 @@ function TaskCreateRoute() {
       task={null}
       template={page.template}
       templateId={page.templateId}
-      workspaceName={page.workspaceName}
+      workspaces={page.workspaces}
     />
   );
 }

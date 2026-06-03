@@ -14,6 +14,8 @@ export { fetchWorkspace, fetchWorkspaces, resolveWorkspace } from "./adapters/wo
 // Query infrastructure
 export { workspaceKeys } from "./lib/query-keys";
 export { workspaceDetailOptions, workspacesListOptions } from "./lib/query-options";
+export type { HomeWorkspacePartition, WorkspaceHomeCandidate } from "./lib/home-workspace";
+export { isHomeWorkspace, splitHomeWorkspace } from "./lib/home-workspace";
 
 // Hooks
 export {
@@ -35,5 +37,11 @@ export type {
 export { WorkspaceOnboarding, WorkspaceSetupDialog } from "./components/workspace-setup";
 export {
   WorkspaceCommandSelect,
+  type WorkspaceCommandSelectOption,
   type WorkspaceCommandSelectProps,
 } from "./components/workspace-command-select";
+export {
+  ScopeSelector,
+  type ScopeSelectorProps,
+  type ScopeSelectorScope,
+} from "./components/scope-selector";

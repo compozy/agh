@@ -26,6 +26,12 @@ type Story = StoryObj<typeof meta>;
 
 const ACTIVE_WORKSPACE_ID = storyWorkspaceIds.hq;
 
+const storyWorkspaces = [
+  { id: storyWorkspaceIds.hq, name: storyWorkspaceNames.hq },
+  { id: storyWorkspaceIds.risk, name: storyWorkspaceNames.risk },
+  { id: storyWorkspaceIds.growth, name: storyWorkspaceNames.growth },
+];
+
 const EDITED_JOB_PROMPT =
   "Summarize launch blockers, approvals, and the next cutover milestone for the " +
   `${storyWorkspaceNames.hq} launch room.`;
@@ -78,6 +84,7 @@ function AutomationEditorJobHarness({ mode }: { mode: "create" | "edit" }) {
         onChange: setDraft,
         onSubmit: () => undefined,
       }}
+      workspaces={storyWorkspaces}
     />
   );
 }
@@ -97,6 +104,7 @@ function AutomationEditorTriggerHarness({ mode }: { mode: "create" | "edit" }) {
         onChange: setDraft,
         onSubmit: () => undefined,
       }}
+      workspaces={storyWorkspaces}
     />
   );
 }
