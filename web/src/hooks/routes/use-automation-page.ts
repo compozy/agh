@@ -35,7 +35,7 @@ import type {
 } from "@/systems/automation";
 import { useSettingsAutomation } from "@/systems/settings";
 import type { SettingsAutomationSection } from "@/systems/settings";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { toWorkspaceCommandSelectOptions, useActiveWorkspace } from "@/systems/workspace";
 
 type JobEditorState =
   | {
@@ -155,7 +155,7 @@ function useAutomationPageBase() {
     setScopeFilter,
     setSearchQuery,
     setSelectedId,
-    workspaces: workspaces.map(workspace => ({ id: workspace.id, name: workspace.name })),
+    workspaces: toWorkspaceCommandSelectOptions(workspaces),
   };
 }
 

@@ -1,9 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@agh/ui";
 
+import { resetUserHomeDirStore, useUserHomeDirStore } from "../../hooks/use-user-home-dir-store";
 import type { WorkspacePayload } from "../../types";
 import { WorkspaceCommandSelect } from "../workspace-command-select";
 
@@ -25,6 +26,14 @@ const workspaces = [
 ];
 
 describe("WorkspaceCommandSelect", () => {
+  beforeEach(() => {
+    resetUserHomeDirStore();
+  });
+
+  afterEach(() => {
+    resetUserHomeDirStore();
+  });
+
   it("Should render the trigger with the selected workspace name and avatar initial", () => {
     render(
       <UIProvider reducedMotion="always">
@@ -43,12 +52,13 @@ describe("WorkspaceCommandSelect", () => {
   });
 
   it("Should render the selected home workspace with the home icon", () => {
+    useUserHomeDirStore.getState().setUserHomeDir("/workspace/beta");
+
     render(
       <UIProvider reducedMotion="always">
         <WorkspaceCommandSelect
           workspaces={workspaces}
           value="ws_beta"
-          userHomeDir="/workspace/beta"
           onChange={() => undefined}
         />
       </UIProvider>
@@ -59,6 +69,28 @@ describe("WorkspaceCommandSelect", () => {
     expect(avatar.querySelector("svg")).not.toBeNull();
     expect(avatar).not.toHaveTextContent("B");
     expect(screen.getByTestId("workspace-switcher")).toHaveAccessibleName("Home workspace: beta");
+  });
+
+  it("Should align compact trigger height with pill-group md track tokens", () => {
+    render(
+      <UIProvider reducedMotion="always">
+        <WorkspaceCommandSelect
+          workspaces={workspaces}
+          value="ws_alpha"
+          onChange={() => undefined}
+          size="compact"
+          triggerTestId="workspace-compact-switcher"
+        />
+      </UIProvider>
+    );
+
+    const trigger = screen.getByTestId("workspace-compact-switcher");
+    expect(trigger).toHaveAttribute("data-size", "compact");
+    expect(trigger.className).toContain(
+      "calc(var(--height-pill-group-segment-md)+2*var(--space-pill-group-track-padding))"
+    );
+    expect(trigger.className).not.toContain("h-9");
+    expect(screen.getByTestId("workspace-switcher-name")).toHaveClass("text-form-label");
   });
 
   it("Should show No workspace and disable the trigger when the registry is empty", () => {
@@ -116,13 +148,13 @@ describe("WorkspaceCommandSelect", () => {
 
   it("Should pin the home workspace first in the command list", async () => {
     const user = userEvent.setup();
+    useUserHomeDirStore.getState().setUserHomeDir("/workspace/beta");
 
     render(
       <UIProvider reducedMotion="always">
         <WorkspaceCommandSelect
           workspaces={workspaces}
           value="ws_alpha"
-          userHomeDir="/workspace/beta"
           onChange={() => undefined}
         />
       </UIProvider>

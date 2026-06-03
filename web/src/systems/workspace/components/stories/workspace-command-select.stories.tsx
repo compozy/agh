@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import { CenteredSurface } from "@/storybook/story-layout";
+import { StorybookUserHomeDirSetup } from "@/storybook/route-story";
 import { workspaceFixtures } from "@/systems/workspace/mocks";
 
 import { WorkspaceCommandSelect } from "../workspace-command-select";
@@ -33,10 +34,10 @@ function WorkspaceCommandSelectHarness({
 
   return (
     <Frame>
+      <StorybookUserHomeDirSetup userHomeDir={userHomeDir ?? null} />
       <WorkspaceCommandSelect
         workspaces={workspaceFixtures}
         value={workspaceId}
-        userHomeDir={userHomeDir}
         onChange={setWorkspaceId}
         onAddWorkspace={onAddWorkspace}
         open={open}
@@ -132,6 +133,14 @@ export const EmptyRegistry: Story = {
 };
 
 export const Compact: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Compact trigger for scope rows: pill-group md track height, form-label typography, and field border beside Global/Workspace toggles.",
+      },
+    },
+  },
   render: () => (
     <CenteredSurface className="items-start justify-center p-6">
       <div className="w-[220px] border border-line bg-canvas-soft p-3">

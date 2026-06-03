@@ -5,6 +5,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { UIProvider } from "@agh/ui";
 
+import {
+  resetUserHomeDirStore,
+  useUserHomeDirStore,
+} from "@/systems/workspace/hooks/use-user-home-dir-store";
+
 import { AppSidebar, type AppSidebarProps } from "../app-sidebar";
 import { computeAgentsCount } from "../app-sidebar";
 
@@ -140,6 +145,7 @@ function makeProps(overrides: Partial<AppSidebarProps> = {}): AppSidebarProps {
 
 describe("AppSidebar", () => {
   beforeEach(() => {
+    resetUserHomeDirStore();
     matchedRoute = {};
     matchedRouteFuzzy = {};
     mockConnectionStatus = "connected";
@@ -269,12 +275,14 @@ describe("AppSidebar", () => {
 
     it("Should render the workspace matching user_home_dir first, ahead of project workspaces", () => {
       // ws_beta lives at /workspace/beta; mark it as the home workspace.
-      renderSidebar(makeProps({ userHomeDir: "/workspace/beta" }));
+      useUserHomeDirStore.getState().setUserHomeDir("/workspace/beta");
+      renderSidebar(makeProps());
       expect(railAvatarIds()).toEqual(["workspace-avatar-ws_beta", "workspace-avatar-ws_alpha"]);
     });
 
     it("Should render a home icon (not a letter) for the home workspace", () => {
-      renderSidebar(makeProps({ userHomeDir: "/workspace/beta" }));
+      useUserHomeDirStore.getState().setUserHomeDir("/workspace/beta");
+      renderSidebar(makeProps());
       const home = screen.getByTestId("workspace-avatar-ws_beta");
       expect(home).toHaveAttribute("data-home", "true");
       // The home avatar carries the lucide home glyph instead of the "B" letter.
@@ -284,14 +292,16 @@ describe("AppSidebar", () => {
     });
 
     it("Should render a divider between the home workspace and the project workspaces", () => {
-      renderSidebar(makeProps({ userHomeDir: "/workspace/beta" }));
+      useUserHomeDirStore.getState().setUserHomeDir("/workspace/beta");
+      renderSidebar(makeProps());
       const rail = screen.getByTestId("icon-rail");
       const divider = screen.getByTestId("rail-home-divider");
       expect(rail).toContainElement(divider);
     });
 
     it("Should keep letter avatars and skip the divider when no workspace matches user_home_dir", () => {
-      renderSidebar(makeProps({ userHomeDir: "/somewhere/else" }));
+      useUserHomeDirStore.getState().setUserHomeDir("/somewhere/else");
+      renderSidebar(makeProps());
       expect(railAvatarIds()).toEqual(["workspace-avatar-ws_alpha", "workspace-avatar-ws_beta"]);
       expect(screen.getByTestId("workspace-avatar-ws_alpha")).toHaveTextContent("A");
       expect(screen.getByTestId("workspace-avatar-ws_alpha")).not.toHaveAttribute("data-home");

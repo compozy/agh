@@ -48,7 +48,7 @@ import type {
   TaskStatus,
   TaskViewMode,
 } from "@/systems/tasks";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { toWorkspaceCommandSelectOptions, useActiveWorkspace } from "@/systems/workspace";
 import { workspaceFilterForActiveScope } from "./workspace-scope-filter";
 
 type TaskScopeFilter = "all" | TaskScope;
@@ -520,7 +520,7 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     createDraft,
     createTemplate: getTaskTemplate(createTemplateId),
     createTemplateId,
-    createWorkspaces: workspaces.map(workspace => ({ id: workspace.id, name: workspace.name })),
+    createWorkspaces: toWorkspaceCommandSelectOptions(workspaces),
     dashboard: dashboardQuery.data ?? null,
     dashboardError: dashboardQuery.error ?? null,
     dashboardLoading: dashboardQuery.isLoading && !dashboardQuery.data,

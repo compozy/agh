@@ -27,6 +27,7 @@ import { AgentCategoryTree, type AgentPayload } from "@/systems/agent";
 import { isSessionRunning, type SessionPayload } from "@/systems/session";
 import {
   splitHomeWorkspace,
+  useUserHomeDir,
   WorkspaceCommandSelect,
   type WorkspacePayload,
 } from "@/systems/workspace";
@@ -37,7 +38,6 @@ import { RestartDaemonButton } from "./restart-daemon-button";
 interface RailSlotProps {
   workspaces: WorkspacePayload[] | undefined;
   activeWorkspaceId: string | null;
-  userHomeDir: string | undefined;
   onSelectWorkspace: (id: string) => void;
   onAddWorkspace: () => void;
 }
@@ -77,10 +77,10 @@ function WorkspaceRailItem({ workspace, isActive, isHome, onSelect }: WorkspaceR
 function RailSlot({
   workspaces,
   activeWorkspaceId,
-  userHomeDir,
   onSelectWorkspace,
   onAddWorkspace,
 }: RailSlotProps) {
+  const userHomeDir = useUserHomeDir();
   const { homeWorkspace, projectWorkspaces } = splitHomeWorkspace(workspaces, userHomeDir);
 
   return (
@@ -321,7 +321,6 @@ export interface AppSidebarProps {
   workspaces: WorkspacePayload[] | undefined;
   activeWorkspaceId: string | null;
   activeWorkspace: WorkspacePayload | undefined;
-  userHomeDir?: string;
   onSelectWorkspace: (id: string) => void;
   onAddWorkspace: () => void;
   onAddAgent: () => void;
@@ -337,7 +336,6 @@ function AppSidebar({
   onCollapseChange,
   workspaces,
   activeWorkspaceId,
-  userHomeDir,
   onSelectWorkspace,
   onAddWorkspace,
   onAddAgent,
@@ -358,7 +356,6 @@ function AppSidebar({
         <RailSlot
           workspaces={workspaces}
           activeWorkspaceId={activeWorkspaceId}
-          userHomeDir={userHomeDir}
           onSelectWorkspace={onSelectWorkspace}
           onAddWorkspace={onAddWorkspace}
         />
@@ -367,7 +364,6 @@ function AppSidebar({
         <WorkspaceCommandSelect
           workspaces={workspaces}
           value={activeWorkspaceId}
-          userHomeDir={userHomeDir}
           onChange={onSelectWorkspace}
           onAddWorkspace={onAddWorkspace}
         />

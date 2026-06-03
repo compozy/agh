@@ -2,8 +2,8 @@ import { Webhook } from "lucide-react";
 
 import { ScopeSelector } from "@/systems/workspace";
 
-import type { AutomationScope } from "../../types";
 import type { WorkspaceOption } from "../../lib/trigger-preview";
+import type { AutomationScope } from "../../types";
 
 interface ScopeStepProps {
   scope: AutomationScope;

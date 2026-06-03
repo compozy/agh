@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { useCreateChildTask, useCreateTask, useEnqueueTaskRun } from "@/systems/tasks";
@@ -14,7 +14,7 @@ import {
   getTaskTemplate,
   type TaskTemplateId,
 } from "@/systems/tasks/lib/task-templates";
-import { useActiveWorkspace } from "@/systems/workspace";
+import { toWorkspaceCommandSelectOptions, useActiveWorkspace } from "@/systems/workspace";
 
 export function useTaskCreateRouteState(search: { template?: TaskTemplateId }) {
   const navigate = useNavigate({ from: "/tasks/new" });
@@ -114,6 +114,6 @@ export function useTaskCreateRouteState(search: { template?: TaskTemplateId }) {
     setDraft,
     template: getTaskTemplate(templateId),
     templateId,
-    workspaces: workspaces.map(workspace => ({ id: workspace.id, name: workspace.name })),
+    workspaces: toWorkspaceCommandSelectOptions(workspaces),
   };
 }

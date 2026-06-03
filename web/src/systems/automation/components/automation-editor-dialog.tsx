@@ -1,7 +1,7 @@
-import { useEffect } from "react";
-import type { ReactNode } from "react";
-import { CalendarClock, Zap } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { CalendarClock, Zap } from "lucide-react";
+import type { ReactNode } from "react";
+import { useEffect } from "react";
 
 import {
   Dialog,
@@ -12,11 +12,11 @@ import {
   Eyebrow,
 } from "@agh/ui";
 
-import { AutomationJobForm } from "./automation-job-form";
-import { AutomationTriggerForm } from "./automation-trigger-form";
 import type { AutomationDialogHandle } from "../lib/dialog-handle";
 import type { WorkspaceOption } from "../lib/trigger-preview";
 import type { CreateAutomationJobRequest, CreateAutomationTriggerRequest } from "../types";
+import { AutomationJobForm } from "./automation-job-form";
+import { AutomationTriggerForm } from "./automation-trigger-form";
 
 type AutomationDialogEditorState =
   | {

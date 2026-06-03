@@ -1,6 +1,11 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  resetUserHomeDirStore,
+  useUserHomeDirStore,
+} from "@/systems/workspace/hooks/use-user-home-dir-store";
+
 const {
   mockNavigate,
   mockMutateAsync,
@@ -190,6 +195,7 @@ import { useAppLayout } from "../use-app-layout";
 
 describe("useAppLayout", () => {
   beforeEach(() => {
+    resetUserHomeDirStore();
     mockActiveWorkspaceId = "ws_alpha";
     mockAgents = [
       { name: "claude-agent", provider: "claude", prompt: "help" },
@@ -410,9 +416,9 @@ describe("useAppLayout", () => {
     expect(mockOpenAgentCreate).toHaveBeenCalledOnce();
   });
 
-  it("exposes the daemon user_home_dir so the rail can mark the home workspace", () => {
-    const { result } = renderHook(() => useAppLayout());
+  it("syncs daemon user_home_dir into the workspace store", () => {
+    renderHook(() => useAppLayout());
 
-    expect(result.current.userHomeDir).toBe("/workspace/alpha");
+    expect(useUserHomeDirStore.getState().userHomeDir).toBe("/workspace/alpha");
   });
 });

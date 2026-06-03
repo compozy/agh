@@ -100,7 +100,6 @@ function AppShell() {
             page.areWorkspacesLoading || page.workspacesError ? undefined : page.workspaces
           }
           activeWorkspaceId={page.activeWorkspaceId}
-          userHomeDir={page.userHomeDir}
           onSelectWorkspace={page.setActiveWorkspaceId}
           onAddWorkspace={page.openWorkspaceSetup}
           onAddAgent={page.agentCreate.openDialog}

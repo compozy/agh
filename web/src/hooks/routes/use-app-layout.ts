@@ -2,15 +2,16 @@ import { useCallback, useState } from "react";
 
 import { useSidebarStore } from "@/hooks/use-sidebar-store";
 import { useAgentCreateDialog, useAgents } from "@/systems/agent";
-import { useDaemonHealth, useStatus } from "@/systems/status";
+import { useDaemonHealth } from "@/systems/status";
 import { useSessionCreateDialog, useSessions } from "@/systems/session";
 import { useActiveWorkspace, useWorkspace } from "@/systems/workspace";
+import { useSyncUserHomeDir } from "@/systems/workspace/hooks/use-sync-user-home-dir";
 
 function useAppLayout() {
+  useSyncUserHomeDir();
   const collapsed = useSidebarStore(state => state.collapsed);
   const setCollapsed = useSidebarStore(state => state.setCollapsed);
   const { connectionStatus } = useDaemonHealth();
-  const { data: daemonStatus } = useStatus();
   const {
     workspaces,
     hasWorkspaces,
@@ -67,7 +68,6 @@ function useAppLayout() {
     hasWorkspaces,
     activeWorkspace,
     activeWorkspaceId,
-    userHomeDir: daemonStatus?.user_home_dir,
     setActiveWorkspaceId,
     areWorkspacesLoading,
     workspacesError,

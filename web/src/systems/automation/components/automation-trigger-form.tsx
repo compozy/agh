@@ -9,9 +9,9 @@ import { AgentPromptStep } from "./trigger-form/agent-prompt-step";
 import { EventCatalog } from "./trigger-form/event-catalog";
 import { FilterConditions } from "./trigger-form/filter-conditions";
 import { FlowStep } from "./trigger-form/flow-step";
+import { TriggerPreview } from "./trigger-form/preview/trigger-preview";
 import { ReliabilitySection } from "./trigger-form/reliability-section";
 import { ScopeStep } from "./trigger-form/scope-step";
-import { TriggerPreview } from "./trigger-form/preview/trigger-preview";
 
 interface AutomationTriggerFormProps {
   activeWorkspaceId?: string | null;

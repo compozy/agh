@@ -1,7 +1,7 @@
 import { ArrowRight, SlidersHorizontal } from "lucide-react";
 
-import { PillGroup, type PillGroupItem } from "@agh/ui";
 import { ScopeSelector, type WorkspaceCommandSelectOption } from "@/systems/workspace";
+import { PillGroup, type PillGroupItem } from "@agh/ui";
 
 import type { TaskScope } from "../../types";
 

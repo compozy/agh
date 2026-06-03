@@ -13,6 +13,8 @@ import {
   CommandSeparator,
 } from "@agh/ui";
 
+import { useUserHomeDir } from "../hooks/use-user-home-dir";
+import { useScopeSelectorContext } from "../hooks/use-scope-selector-context";
 import { isHomeWorkspace, splitHomeWorkspace } from "../lib/home-workspace";
 
 function workspaceInitial(name: string): string {
@@ -28,7 +30,6 @@ export interface WorkspaceCommandSelectOption {
 export interface WorkspaceCommandSelectProps {
   workspaces: ReadonlyArray<WorkspaceCommandSelectOption> | undefined;
   value: string | null;
-  userHomeDir?: string;
   onChange: (id: string) => void;
   onAddWorkspace?: () => void;
   disabled?: boolean;
@@ -43,7 +44,6 @@ export interface WorkspaceCommandSelectProps {
 export function WorkspaceCommandSelect({
   workspaces,
   value,
-  userHomeDir,
   onChange,
   onAddWorkspace,
   disabled,
@@ -54,6 +54,8 @@ export function WorkspaceCommandSelect({
   onOpenChange,
   size = "default",
 }: WorkspaceCommandSelectProps) {
+  const userHomeDir = useUserHomeDir();
+  const scopeSelector = useScopeSelectorContext();
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = openProp ?? uncontrolledOpen;
   const setOpen = onOpenChange ?? setUncontrolledOpen;
@@ -74,6 +76,11 @@ export function WorkspaceCommandSelect({
   const isDisabled = disabled || !hasWorkspaces;
 
   const handleSelect = (workspace: WorkspaceCommandSelectOption) => {
+    if (scopeSelector && isHomeWorkspace(workspace, userHomeDir)) {
+      scopeSelector.selectGlobalScope();
+      setOpen(false);
+      return;
+    }
     onChange(workspace.id);
     setOpen(false);
   };
@@ -101,19 +108,24 @@ export function WorkspaceCommandSelect({
         selected={Boolean(selected)}
         className={cn(
           size === "compact"
-            ? "h-9 min-w-0 gap-2 border border-line bg-elevated px-2.5 py-0 shadow-none hover:bg-hover focus-visible:border-line-strong focus-visible:shadow-focus-ring [&>svg:last-child]:hidden"
+            ? "h-[calc(var(--height-pill-group-segment-md)+2*var(--space-pill-group-track-padding))] min-w-0 gap-1.5 rounded-md border border-line bg-elevated px-(--space-pill-group-segment-md-x) py-0 shadow-none hover:bg-hover focus-visible:border-line-strong focus-visible:shadow-focus-ring [&>svg:last-child]:hidden"
             : "h-12 w-full gap-2.5 border-0 bg-transparent px-2 py-0 shadow-none hover:bg-hover focus-visible:border-0 focus-visible:shadow-none [&>svg:last-child]:hidden",
           className
         )}
       >
-        <span className="flex min-w-0 flex-1 items-center gap-2.5 text-left">
+        <span
+          className={cn(
+            "flex min-w-0 flex-1 items-center text-left",
+            size === "compact" ? "gap-1.5" : "gap-2.5"
+          )}
+        >
           <span
             aria-hidden="true"
             data-testid="workspace-switcher-avatar"
             data-home={selectedIsHome ? "true" : undefined}
             className={cn(
               "inline-flex shrink-0 items-center justify-center rounded-sm bg-elevated font-mono text-eyebrow font-medium tracking-mono text-fg",
-              size === "compact" ? "size-5" : "size-button-icon-xs"
+              size === "compact" ? "size-4" : "size-button-icon-xs"
             )}
           >
             {selectedIsHome ? (
@@ -124,7 +136,12 @@ export function WorkspaceCommandSelect({
           </span>
           <span
             data-testid="workspace-switcher-name"
-            className="min-w-0 flex-1 truncate text-small-body font-medium tracking-normal text-fg"
+            className={cn(
+              "min-w-0 flex-1 truncate font-medium text-fg",
+              size === "compact"
+                ? "text-form-label tracking-eyebrow"
+                : "text-small-body tracking-normal"
+            )}
           >
             {label}
           </span>

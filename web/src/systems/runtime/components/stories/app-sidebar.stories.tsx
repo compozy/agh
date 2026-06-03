@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
+import { StorybookUserHomeDirSetup } from "@/storybook/route-story";
 import { storyWorkspacePaths } from "@/storybook/fintech-scenario";
 import { agentFixtures } from "@/systems/agent/mocks";
 import { withStoryAgentCategories } from "@/systems/agent/components/stories/agent-command-select.stories";
@@ -26,12 +27,14 @@ function Frame({ children }: { children: React.ReactNode }) {
 type StoryArgs = Omit<AppSidebarProps, "collapsed" | "onCollapseChange" | "onSelectWorkspace"> & {
   defaultCollapsed?: boolean;
   defaultWorkspaceId?: string | null;
+  userHomeDir?: string | null;
 };
 
 function AppSidebarHarness({
   defaultCollapsed = false,
   defaultWorkspaceId,
   activeWorkspaceId,
+  userHomeDir = null,
   ...rest
 }: StoryArgs) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
@@ -41,6 +44,7 @@ function AppSidebarHarness({
 
   return (
     <Frame>
+      <StorybookUserHomeDirSetup userHomeDir={userHomeDir} />
       <AppSidebar
         {...rest}
         activeWorkspaceId={workspaceId}
