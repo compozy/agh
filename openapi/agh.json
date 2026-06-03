@@ -69483,6 +69483,15 @@
                         }
                     },
                     {
+                        "description": "Filter by task scope",
+                        "in": "query",
+                        "name": "scope",
+                        "schema": {
+                            "enum": ["global", "workspace"],
+                            "type": "string"
+                        }
+                    },
+                    {
                         "description": "Filter by workspace path, name, or ID",
                         "in": "query",
                         "name": "workspace",

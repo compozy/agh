@@ -133,7 +133,7 @@ export const Onboarding: Story = {
   parameters: {
     ...appRouteParameters("/"),
     ...storybookMswParameters({
-      daemon: [
+      onboarding: [
         http.get("/api/onboarding", () => HttpResponse.json({ onboarding: { completed: false } })),
       ],
       workspace: [http.get("/api/workspaces", () => HttpResponse.json({ workspaces: [] }))],

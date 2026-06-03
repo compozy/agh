@@ -1,8 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { PanelSurface } from "@/storybook/story-layout";
+import { TaskCard } from "../task-card";
+import { TaskGroup } from "../task-group";
 import { TasksListRow } from "../tasks-list-row";
-import { buildTaskFixture } from "./fixtures";
+import { buildTaskFixture, TASK_FIXTURES } from "./fixtures";
 
 const meta: Meta<typeof TasksListRow> = {
   title: "systems/tasks/TasksListRow",
@@ -76,5 +78,51 @@ export const WithLaneAndSelection: Story = {
         task={buildTaskFixture({ status: "ready", title: "Awaiting approval" })}
       />
     </Frame>
+  ),
+};
+
+/** Primitive demo: per-row status dots (list view uses group headers instead). */
+export const ShowStatusDot: Story = {
+  render: () => (
+    <Frame>
+      <TasksListRow
+        showStatusDot
+        task={buildTaskFixture({ status: "in_progress", title: "Running with row dot" })}
+      />
+      <TasksListRow
+        showStatusDot
+        task={buildTaskFixture({
+          status: "blocked",
+          title: "Blocked with row dot",
+          active_run: null,
+        })}
+      />
+    </Frame>
+  ),
+};
+
+/** List groups with header dots and flush-left task cards (production list layout). */
+export const ListGroups: Story = {
+  render: () => (
+    <PanelSurface className="max-w-[520px] p-0">
+      <TaskGroup count={1} id="active" label="Active">
+        <TaskCard task={TASK_FIXTURES[0]!} onSelect={() => {}} />
+      </TaskGroup>
+      <TaskGroup count={1} id="blocked" label="Blocked">
+        <TaskCard task={TASK_FIXTURES[5]!} onSelect={() => {}} />
+      </TaskGroup>
+      <TaskGroup count={1} id="queued" label="Queued">
+        <TaskCard task={TASK_FIXTURES[2]!} onSelect={() => {}} />
+      </TaskGroup>
+      <TaskGroup count={1} id="done" label="Done">
+        <TaskCard
+          task={buildTaskFixture({ status: "completed", title: "Done task", active_run: null })}
+          onSelect={() => {}}
+        />
+      </TaskGroup>
+      <TaskGroup count={1} id="failed" label="Failed">
+        <TaskCard task={TASK_FIXTURES[3]!} onSelect={() => {}} />
+      </TaskGroup>
+    </PanelSurface>
   ),
 };

@@ -7,6 +7,7 @@ import { handlers as bridgeHandlers } from "@/systems/bridges/mocks";
 import { handlers as daemonHandlers } from "@/systems/status/mocks";
 import { handlers as knowledgeHandlers } from "@/systems/knowledge/mocks";
 import { handlers as networkHandlers } from "@/systems/network/mocks";
+import { handlers as onboardingHandlers } from "@/systems/onboarding/mocks";
 import { handlers as sessionHandlers } from "@/systems/session/mocks";
 import { handlers as settingsHandlers } from "@/systems/settings/mocks";
 import { handlers as skillHandlers } from "@/systems/skill/mocks";
@@ -33,6 +34,7 @@ describe("web Storybook MSW contract", () => {
       daemon: daemonHandlers,
       knowledge: knowledgeHandlers,
       network: networkHandlers,
+      onboarding: onboardingHandlers,
       session: sessionHandlers,
       settings: settingsHandlers,
       skill: skillHandlers,
@@ -49,6 +51,7 @@ describe("web Storybook MSW contract", () => {
     expect(daemonHandlers.length).toBeGreaterThan(0);
     expect(knowledgeHandlers.length).toBeGreaterThan(0);
     expect(networkHandlers.length).toBeGreaterThan(0);
+    expect(onboardingHandlers.length).toBeGreaterThan(0);
     expect(sessionHandlers.length).toBeGreaterThan(0);
     expect(settingsHandlers.length).toBeGreaterThan(0);
     expect(skillHandlers.length).toBeGreaterThan(0);
@@ -62,5 +65,11 @@ describe("web Storybook MSW contract", () => {
     const uniqueSignatures = new Set(signatures);
 
     expect(uniqueSignatures.size).toBe(signatures.length);
+  });
+
+  it("registers the onboarding status handler required by app route stories", () => {
+    const signatures = storybookSystemHandlers.map(handlerSignature);
+
+    expect(signatures).toContain("GET /api/onboarding");
   });
 });

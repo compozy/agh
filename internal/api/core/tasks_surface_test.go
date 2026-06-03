@@ -488,13 +488,16 @@ func TestSchedulerControlHandlersDelegateToTaskService(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodGet,
-			"/scheduler/backlog?limit=2&workspace=ws-alpha&include_paused=true",
+			"/scheduler/backlog?limit=2&scope=workspace&workspace=ws-alpha&include_paused=true",
 			nil,
 		)
 		if backlogResp.Code != http.StatusOK {
 			t.Fatalf("backlog status = %d, want 200; body=%s", backlogResp.Code, backlogResp.Body.String())
 		}
-		if backlogQuery.Limit != 2 || backlogQuery.WorkspaceID != "ws-alpha" || !backlogQuery.IncludePaused {
+		if backlogQuery.Limit != 2 ||
+			backlogQuery.Scope != taskpkg.ScopeWorkspace ||
+			backlogQuery.WorkspaceID != "ws-alpha" ||
+			!backlogQuery.IncludePaused {
 			t.Fatalf("backlog query = %#v", backlogQuery)
 		}
 	})

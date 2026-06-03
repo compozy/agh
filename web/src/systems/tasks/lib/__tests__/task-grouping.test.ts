@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { getKanbanColumns, groupTasksForKanban, resolveKanbanColumnId } from "../task-grouping";
+import {
+  getKanbanColumns,
+  getTaskListGroups,
+  groupTasksForKanban,
+  listGroupDotProps,
+  resolveKanbanColumnId,
+} from "../task-grouping";
 import type { TaskListItem } from "../../types";
 
 function buildTask(id: string, status: TaskListItem["status"]): TaskListItem {
@@ -17,6 +23,23 @@ function buildTask(id: string, status: TaskListItem["status"]): TaskListItem {
 }
 
 describe("task-grouping", () => {
+  it("Should attach a stable StatusDot tone and variant to every list group", () => {
+    const expected: Record<string, { tone: string; variant: string }> = {
+      active: { tone: "accent", variant: "ring" },
+      blocked: { tone: "warning", variant: "solid" },
+      stuck: { tone: "warning", variant: "ring" },
+      queued: { tone: "faint", variant: "ring" },
+      done: { tone: "faint", variant: "solid" },
+      failed: { tone: "danger", variant: "solid" },
+    };
+
+    for (const group of getTaskListGroups()) {
+      expect(listGroupDotProps(group.id)).toEqual(expected[group.id]);
+      expect(group.dotTone).toBe(expected[group.id]?.tone);
+      expect(group.dotVariant).toBe(expected[group.id]?.variant);
+    }
+  });
+
   it("Should return the canonical Pending / In progress / Blocked / Done columns in declared order", () => {
     const columns = getKanbanColumns();
     expect(columns.map(column => column.id)).toEqual(["pending", "in_progress", "blocked", "done"]);

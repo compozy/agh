@@ -44,14 +44,16 @@ import type {
   TaskListItem,
   TaskOwnerKind,
   TaskPriority,
-  TaskScope,
   TaskStatus,
   TaskViewMode,
 } from "@/systems/tasks";
-import { toWorkspaceCommandSelectOptions, useActiveWorkspace } from "@/systems/workspace";
-import { workspaceFilterForActiveScope } from "./workspace-scope-filter";
+import {
+  toWorkspaceCommandSelectOptions,
+  useActiveWorkspace,
+  useUserHomeDir,
+} from "@/systems/workspace";
+import { taskScopeForActiveWorkspace } from "./workspace-scope-filter";
 
-type TaskScopeFilter = "all" | TaskScope;
 type InboxLaneFilter = InboxLaneFilterId;
 
 export type TaskListSortKey = "recent" | "priority";
@@ -81,9 +83,9 @@ export type CreateTaskDraftInput = TaskEditorDraft;
 
 function useTasksPage(options: UseTasksPageOptions = {}) {
   const { activeWorkspace, activeWorkspaceId, workspaces } = useActiveWorkspace();
+  const userHomeDir = useUserHomeDir();
 
   const [mode, setMode] = useState<TaskViewMode>(options.initialMode ?? "list");
-  const [scopeFilter, setScopeFilter] = useState<TaskScopeFilter>("all");
   const [statusFilter, setStatusFilter] = useState<TaskStatus | null>(null);
   const [ownerFilter, setOwnerFilter] = useState<string | null>(null);
   const [priorityFilter, setPriorityFilter] = useState<TaskPriority | null>(null);
@@ -104,8 +106,15 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
 
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const deferredInboxQuery = useDeferredValue(inboxSearchQuery);
-  const scopedWorkspace = workspaceFilterForActiveScope(scopeFilter, activeWorkspaceId);
-  const backendScope = scopeFilter === "all" ? undefined : scopeFilter;
+  const activeTaskScope = useMemo(
+    () => taskScopeForActiveWorkspace(activeWorkspace, userHomeDir),
+    [activeWorkspace, userHomeDir]
+  );
+  const backendScope = activeTaskScope?.scope;
+  const scopedWorkspace = activeTaskScope?.workspace;
+  const hasActiveTaskScope = activeTaskScope !== null;
+  const createDraftWorkspaceId =
+    activeTaskScope?.scope === "workspace" ? activeTaskScope.workspace : undefined;
 
   const listFilters: TaskListFilter = useMemo(
     () => ({
@@ -129,11 +138,12 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
 
   const schedulerBacklogFilters = useMemo(
     () => ({
+      scope: backendScope,
       limit: 5,
       workspace: scopedWorkspace,
       include_paused: true,
     }),
-    [scopedWorkspace]
+    [backendScope, scopedWorkspace]
   );
 
   const inboxFilters: TaskInboxFilter = useMemo(
@@ -147,14 +157,19 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     [backendScope, deferredInboxQuery, inboxUnreadOnly, scopedWorkspace]
   );
 
-  const isListTab = mode === "list" || mode === "kanban" || options.forceListData === true;
+  const isListTab =
+    hasActiveTaskScope && (mode === "list" || mode === "kanban" || options.forceListData === true);
   const tasksQuery = useTasks(listFilters, { enabled: isListTab });
-  const dashboardQuery = useTaskDashboard(dashboardFilters, { enabled: mode === "dashboard" });
+  const dashboardQuery = useTaskDashboard(dashboardFilters, {
+    enabled: hasActiveTaskScope && mode === "dashboard",
+  });
   const schedulerStatusQuery = useSchedulerStatus({ enabled: mode === "dashboard" });
   const schedulerBacklogQuery = useSchedulerBacklog(schedulerBacklogFilters, {
-    enabled: mode === "dashboard",
+    enabled: hasActiveTaskScope && mode === "dashboard",
   });
-  const inboxQuery = useTaskInbox(inboxFilters, { enabled: mode === "inbox" });
+  const inboxQuery = useTaskInbox(inboxFilters, {
+    enabled: hasActiveTaskScope && mode === "inbox",
+  });
 
   const createMutation = useCreateTask();
   const deleteMutation = useDeleteTask();
@@ -252,11 +267,6 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     setSearchQuery("");
   }, []);
 
-  const handleScopeChange = useCallback((next: TaskScopeFilter) => {
-    setScopeFilter(next);
-    setSelectedTaskId(null);
-  }, []);
-
   const handleStatusChange = useCallback((next: TaskStatus | null) => {
     setStatusFilter(next);
   }, []);
@@ -292,10 +302,10 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
   const handleOpenCreateModal = useCallback(
     (templateId: TaskTemplateId = DEFAULT_TASK_TEMPLATE_ID) => {
       setCreateTemplateId(templateId);
-      setCreateDraft(createTaskEditorDraft(templateId, activeWorkspaceId));
+      setCreateDraft(createTaskEditorDraft(templateId, createDraftWorkspaceId));
       setCreateModalOpen(true);
     },
-    [activeWorkspaceId]
+    [createDraftWorkspaceId]
   );
 
   const handleCloseCreateModal = useCallback(() => setCreateModalOpen(false), []);
@@ -554,7 +564,6 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     handlePauseScheduler,
     handleRetryTask,
     handleResumeScheduler,
-    handleScopeChange,
     handleSortChange,
     handleStatusChange,
     handleTemplateChange,
@@ -594,7 +603,6 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
     ownerFilter,
     ownerOptions,
     priorityFilter,
-    scopeFilter,
     searchQuery,
     selectedTask,
     setCreateDraft,
@@ -611,4 +619,4 @@ function useTasksPage(options: UseTasksPageOptions = {}) {
 }
 
 export { useTasksPage };
-export type { InboxLaneFilter, TaskScopeFilter, UseTasksPageOptions };
+export type { InboxLaneFilter, UseTasksPageOptions };

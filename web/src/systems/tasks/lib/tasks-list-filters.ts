@@ -1,11 +1,9 @@
 import type { Filter, FilterFieldsConfig } from "@agh/ui/components/reui/filters";
 
-import type { TaskPriority, TaskScope, TaskStatus } from "../types";
+import type { TaskPriority, TaskStatus } from "../types";
 import { taskOwnerKindLabel, taskPriorityLabel, taskStatusLabel } from "./task-formatters";
 
-export type TaskFilterFieldKey = "status" | "owner" | "priority" | "scope";
-
-export type TaskScopeFilter = "all" | TaskScope;
+export type TaskFilterFieldKey = "status" | "owner" | "priority";
 
 export interface TaskFilterOwnerOption {
   ref: string;
@@ -16,14 +14,12 @@ export interface TaskFilterState {
   statusFilter: TaskStatus | null;
   ownerFilter: string | null;
   priorityFilter: TaskPriority | null;
-  scopeFilter: TaskScopeFilter;
 }
 
 export interface TaskFilterHandlers {
   onStatusChange: (next: TaskStatus | null) => void;
   onOwnerChange: (next: string | null) => void;
   onPriorityChange: (next: TaskPriority | null) => void;
-  onScopeChange: (next: TaskScopeFilter) => void;
 }
 
 const STATUS_OPTIONS: TaskStatus[] = [
@@ -39,17 +35,9 @@ const STATUS_OPTIONS: TaskStatus[] = [
 
 const PRIORITY_OPTIONS: TaskPriority[] = ["urgent", "high", "medium", "low"];
 
-const SCOPE_OPTIONS: TaskScopeFilter[] = ["all", "workspace", "global"];
-
-const SCOPE_LABELS: Record<TaskScopeFilter, string> = {
-  all: "All scopes",
-  workspace: "Workspace",
-  global: "Global",
-};
-
 /**
- * Build the `FilterFieldsConfig` consumed by `<Filters>` — four single-select
- * chip fields covering status, owner, priority, and scope. Owner options come
+ * Build the `FilterFieldsConfig` consumed by `<Filters>` — three single-select
+ * chip fields covering status, owner, and priority. Owner options come
  * from the live task list (`ownerOptions` in `useTasksPage`) so the menu only
  * surfaces owners that actually exist in the active workspace.
  */
@@ -79,12 +67,6 @@ export function buildTaskFilterFields(
         label: owner.ref || taskOwnerKindLabel(owner.kind),
       })),
     },
-    {
-      key: "scope",
-      label: "Scope",
-      type: "select",
-      options: SCOPE_OPTIONS.map(value => ({ value, label: SCOPE_LABELS[value] })),
-    },
   ];
 }
 
@@ -104,9 +86,6 @@ export function taskFiltersToChips(state: TaskFilterState): Filter<string>[] {
   if (state.ownerFilter) {
     chips.push(buildChip("owner", state.ownerFilter));
   }
-  if (state.scopeFilter !== "all") {
-    chips.push(buildChip("scope", state.scopeFilter));
-  }
   return chips;
 }
 
@@ -122,7 +101,7 @@ function buildChip(field: TaskFilterFieldKey, value: string): Filter<string> {
 /**
  * Decode the `<Filters>` chip array back into the typed setters owned by
  * `useTasksPage`. Filters that disappear from the array reset their slot to
- * `null` / `"all"` so removing a chip restores the default.
+ * `null` so removing a chip restores the default.
  */
 export function applyTaskFilterChips(chips: Filter<string>[], handlers: TaskFilterHandlers): void {
   const lookup = new Map<string, string | undefined>();
@@ -133,7 +112,6 @@ export function applyTaskFilterChips(chips: Filter<string>[], handlers: TaskFilt
   handlers.onStatusChange(asTaskStatus(lookup.get("status")));
   handlers.onPriorityChange(asTaskPriority(lookup.get("priority")));
   handlers.onOwnerChange(lookup.get("owner") ?? null);
-  handlers.onScopeChange(asScopeFilter(lookup.get("scope")));
 }
 
 function asTaskStatus(value: string | undefined): TaskStatus | null {
@@ -144,9 +122,4 @@ function asTaskStatus(value: string | undefined): TaskStatus | null {
 function asTaskPriority(value: string | undefined): TaskPriority | null {
   if (!value) return null;
   return (PRIORITY_OPTIONS as readonly string[]).includes(value) ? (value as TaskPriority) : null;
-}
-
-function asScopeFilter(value: string | undefined): TaskScopeFilter {
-  if (!value) return "all";
-  return (SCOPE_OPTIONS as readonly string[]).includes(value) ? (value as TaskScopeFilter) : "all";
 }

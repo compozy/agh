@@ -6,6 +6,7 @@ import { handlers as bridgeHandlers } from "@/systems/bridges/mocks";
 import { handlers as daemonHandlers } from "@/systems/status/mocks";
 import { handlers as knowledgeHandlers } from "@/systems/knowledge/mocks";
 import { handlers as networkHandlers } from "@/systems/network/mocks";
+import { handlers as onboardingHandlers } from "@/systems/onboarding/mocks";
 import { handlers as sessionHandlers } from "@/systems/session/mocks";
 import { handlers as settingsHandlers } from "@/systems/settings/mocks";
 import { handlers as skillHandlers } from "@/systems/skill/mocks";
@@ -20,6 +21,7 @@ export type StorybookHandlerGroupName =
   | "daemon"
   | "knowledge"
   | "network"
+  | "onboarding"
   | "session"
   | "settings"
   | "skill"
@@ -37,6 +39,7 @@ export const storybookSystemHandlerGroups: StorybookHandlerGroups = {
   daemon: daemonHandlers,
   knowledge: knowledgeHandlers,
   network: networkHandlers,
+  onboarding: onboardingHandlers,
   session: sessionHandlers,
   settings: settingsHandlers,
   skill: skillHandlers,

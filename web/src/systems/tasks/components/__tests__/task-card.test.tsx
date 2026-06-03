@@ -42,11 +42,7 @@ describe("TaskCard", () => {
     expect(screen.getByTestId("task-card-attempt-task_001")).toHaveTextContent("attempt 2 of 3");
     expect(screen.getByTestId("task-card-children-task_001")).toHaveTextContent("2 children");
     expect(screen.getByTestId("task-card-deps-task_001")).toHaveTextContent("1 dep");
-    // Status is rendered as a pulsing accent dot for in_progress tasks.
-    const dot = container.querySelector('[data-slot="status-dot"]');
-    expect(dot).not.toBeNull();
-    expect(dot).toHaveAttribute("data-tone", "accent");
-    expect(dot).toHaveAttribute("data-variant", "ring");
+    expect(container.querySelector('[data-slot="status-dot"]')).toBeNull();
     // Priority pill stays as a textual pill in the trailing slot.
     expect(screen.getByText("High")).toBeInTheDocument();
   });

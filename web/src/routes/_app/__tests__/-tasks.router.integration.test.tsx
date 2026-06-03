@@ -240,7 +240,6 @@ function buildSelectionRouter(initialUrl: string) {
         <TasksListSurface
           onOwnerChange={() => {}}
           onPriorityChange={() => {}}
-          onScopeChange={() => {}}
           onSearchQueryChange={() => {}}
           onSelectTask={taskId => {
             void navigate({ params: { id: taskId }, to: "/tasks/$id" });
@@ -251,7 +250,6 @@ function buildSelectionRouter(initialUrl: string) {
           ownerOptions={[]}
           priorityFilter={null}
           searchQuery=""
-          scopeFilter="all"
           sortBy="recent"
           statusFilter={null}
           tasks={FIXTURE_TASKS}

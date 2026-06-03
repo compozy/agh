@@ -14,23 +14,32 @@ import {
   getTaskTemplate,
   type TaskTemplateId,
 } from "@/systems/tasks/lib/task-templates";
-import { toWorkspaceCommandSelectOptions, useActiveWorkspace } from "@/systems/workspace";
+import {
+  toWorkspaceCommandSelectOptions,
+  useActiveWorkspace,
+  useUserHomeDir,
+} from "@/systems/workspace";
+import { taskScopeForActiveWorkspace } from "./workspace-scope-filter";
 
 export function useTaskCreateRouteState(search: { template?: TaskTemplateId }) {
   const navigate = useNavigate({ from: "/tasks/new" });
-  const { activeWorkspaceId, workspaces } = useActiveWorkspace();
+  const { activeWorkspace, workspaces } = useActiveWorkspace();
+  const userHomeDir = useUserHomeDir();
   const createMutation = useCreateTask();
   const createChildMutation = useCreateChildTask();
   const enqueueMutation = useEnqueueTaskRun();
 
   const templateId = search.template ?? DEFAULT_TASK_TEMPLATE_ID;
+  const activeTaskScope = taskScopeForActiveWorkspace(activeWorkspace, userHomeDir);
+  const createDraftWorkspaceId =
+    activeTaskScope?.scope === "workspace" ? activeTaskScope.workspace : undefined;
   const [draft, setDraft] = useState<TaskEditorDraft>(() =>
-    createTaskEditorDraft(templateId, activeWorkspaceId)
+    createTaskEditorDraft(templateId, createDraftWorkspaceId)
   );
 
   useEffect(() => {
-    setDraft(createTaskEditorDraft(templateId, activeWorkspaceId));
-  }, [activeWorkspaceId, templateId]);
+    setDraft(createTaskEditorDraft(templateId, createDraftWorkspaceId));
+  }, [createDraftWorkspaceId, templateId]);
 
   const handleTemplateChange = useCallback(
     (nextTemplateId: TaskTemplateId) => {

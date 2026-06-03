@@ -56,6 +56,7 @@ describe("storybook msw helpers", () => {
       ...storybookSystemHandlerGroups.daemon,
       ...storybookSystemHandlerGroups.knowledge,
       ...storybookSystemHandlerGroups.network,
+      ...storybookSystemHandlerGroups.onboarding,
       ...storybookSystemHandlerGroups.session,
       ...storybookSystemHandlerGroups.settings,
       ...storybookSystemHandlerGroups.skill,

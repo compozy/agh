@@ -1,8 +1,25 @@
-export type WorkspaceScopeFilter = "all" | "global" | "workspace";
+import { isHomeWorkspace } from "@/systems/workspace";
 
-export function workspaceFilterForActiveScope(
-  scopeFilter: WorkspaceScopeFilter,
-  activeWorkspaceId: string | null | undefined
-): string | undefined {
-  return scopeFilter === "workspace" ? (activeWorkspaceId ?? undefined) : undefined;
+interface ActiveWorkspaceScopeCandidate {
+  id: string;
+  root_dir?: string | null;
+}
+
+export type ActiveTaskScopeFilter =
+  | { scope: "global"; workspace?: undefined }
+  | { scope: "workspace"; workspace: string };
+
+export function taskScopeForActiveWorkspace(
+  activeWorkspace: ActiveWorkspaceScopeCandidate | null | undefined,
+  userHomeDir: string | undefined
+): ActiveTaskScopeFilter | null {
+  if (!activeWorkspace || !userHomeDir) {
+    return null;
+  }
+
+  if (isHomeWorkspace(activeWorkspace, userHomeDir)) {
+    return { scope: "global" };
+  }
+
+  return { scope: "workspace", workspace: activeWorkspace.id };
 }

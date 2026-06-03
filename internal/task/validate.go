@@ -900,6 +900,14 @@ func (q Query) Validate(path string) error {
 	return nil
 }
 
+// Validate reports whether the scheduler backlog filters are internally consistent.
+func (q SchedulerBacklogQuery) Validate(path string) error {
+	if q.Scope.Normalize() == "" {
+		return nil
+	}
+	return ValidateScopeBinding(q.Scope, q.WorkspaceID, path, "workspace_id")
+}
+
 // Validate reports whether the task-run query filters are internally consistent.
 func (q RunQuery) Validate(path string) error {
 	if q.Status.Normalize() != "" {

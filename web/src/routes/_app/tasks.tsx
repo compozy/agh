@@ -150,7 +150,6 @@ function TasksRoute() {
             listUpdatedAt={page.listUpdatedAt}
             onOwnerChange={page.handleOwnerChange}
             onPriorityChange={page.handlePriorityChange}
-            onScopeChange={page.handleScopeChange}
             onSelectTask={handleSelectTask}
             onSortChange={page.handleSortChange}
             onStatusChange={page.handleStatusChange}
@@ -159,7 +158,6 @@ function TasksRoute() {
             ownerOptions={page.ownerOptions}
             priorityFilter={page.priorityFilter}
             searchQuery={page.searchQuery}
-            scopeFilter={page.scopeFilter}
             sortBy={page.sortBy}
             statusFilter={page.statusFilter}
             tasks={page.visibleTasks}

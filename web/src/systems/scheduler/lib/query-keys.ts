@@ -20,6 +20,7 @@ export const schedulerKeys = {
       ...schedulerKeys.all,
       "backlog",
       normalizeNumber(query.limit),
+      normalizeText(query.scope),
       normalizeText(query.workspace),
       normalizeFlag(query.include_paused),
     ] as const,

@@ -4270,6 +4270,7 @@ var operationRegistry = []OperationSpec{
 		Transports:  []Transport{TransportHTTP, TransportUDS},
 		Parameters: []ParameterSpec{
 			intQueryParam("limit", "Maximum number of queued runs to return"),
+			enumQueryParam("scope", "Filter by task scope", taskScopeValues()),
 			queryParam(specWorkspaceKey, "Filter by workspace path, name, or ID", false),
 			boolQueryParam("include_paused", "Include runs blocked by task pause state"),
 		},

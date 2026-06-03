@@ -713,6 +713,7 @@ type SchedulerDrainResult struct {
 // SchedulerBacklogQuery captures read filters for queued scheduler backlog.
 type SchedulerBacklogQuery struct {
 	Limit         int    `json:"limit,omitempty"`
+	Scope         Scope  `json:"scope,omitempty"`
 	WorkspaceID   string `json:"workspace_id,omitempty"`
 	IncludePaused bool   `json:"include_paused,omitempty"`
 }

@@ -28,6 +28,8 @@ export interface TasksListRowProps extends Omit<React.ComponentProps<"div">, "on
   meta?: React.ReactNode;
   /** Optional test-id override. Defaults to `task-card-${task.id}` for back-compat. */
   testId?: string;
+  /** When false, omits the leading status-dot column entirely (list view default). */
+  showStatusDot?: boolean;
 }
 
 const LANE_LABELS: Record<TaskInboxLane, string> = {
@@ -77,7 +79,7 @@ function rowStatusDotTone(tone: ReturnType<typeof taskStatusSignal>["tone"]): St
 /**
  * Shared list-row primitive built on the proposal's `.task-row` grammar
  * (`docs/design/new-proposal/agh-refined-7.html` lines 260-269). 3-column grid:
- * `[ status-dot ] [ main (title + meta) ] [ trailing ]`. Identifier renders
+ * `[ status-dot? ] [ main (title + meta) ] [ trailing ]`. Identifier renders
  * via `<MonoId>` per the row-context contract. Optional `meta` slot accepts
  * ReactNodes joined by `·` separators inline. The Kanban and Inbox build
  * dedicated row primitives instead of reusing this one.
@@ -91,11 +93,12 @@ function TasksListRow({
   trailing,
   meta,
   testId,
+  showStatusDot = false,
   className,
   ...props
 }: TasksListRowProps) {
-  const signal = taskStatusSignal(task.status);
-  const dotTone = rowStatusDotTone(signal.tone);
+  const signal = showStatusDot ? taskStatusSignal(task.status) : null;
+  const dotTone = signal === null ? null : rowStatusDotTone(signal.tone);
   const identifier = taskShortId(task);
   const lastActivity = task.last_activity_at ?? task.updated_at;
   const timestamp = formatRelativeTime(lastActivity);
@@ -127,7 +130,8 @@ function TasksListRow({
       aria-disabled={!clickable}
       tabIndex={clickable ? 0 : undefined}
       className={cn(
-        "relative grid grid-cols-[10px_minmax(0,1fr)_auto] items-center gap-3 border-b border-line-soft py-2.5 pr-3 pl-3.5 text-left transition-colors duration-base ease-out",
+        "relative grid items-center gap-3 border-b border-line-soft py-2.5 pr-3 pl-3.5 text-left transition-colors duration-base ease-out",
+        showStatusDot ? "grid-cols-[10px_minmax(0,1fr)_auto]" : "grid-cols-[minmax(0,1fr)_auto]",
         clickable &&
           "cursor-pointer hover:bg-row-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-line-strong focus-visible:ring-inset",
         selected && "bg-row-selected",
@@ -142,20 +146,22 @@ function TasksListRow({
         />
       ) : null}
 
-      <span
-        aria-hidden={dotTone === null ? "true" : undefined}
-        className="flex shrink-0 items-center justify-center"
-        data-slot="tasks-list-row-dot"
-      >
-        {dotTone === null ? null : (
-          <StatusDot
-            tone={dotTone}
-            variant={signal.pulse ? "ring" : "solid"}
-            size="default"
-            label={signal.pulse ? "Running" : undefined}
-          />
-        )}
-      </span>
+      {showStatusDot ? (
+        <span
+          aria-hidden={dotTone === null ? "true" : undefined}
+          className="flex shrink-0 items-center justify-center"
+          data-slot="tasks-list-row-dot"
+        >
+          {dotTone === null ? null : (
+            <StatusDot
+              tone={dotTone}
+              variant={signal?.pulse ? "ring" : "solid"}
+              size="default"
+              label={signal?.pulse ? "Running" : undefined}
+            />
+          )}
+        </span>
+      ) : null}
 
       <div className="flex min-w-0 flex-col gap-1">
         <div className="flex min-w-0 items-center gap-2">

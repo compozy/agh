@@ -23,6 +23,10 @@ function queryDot(container: HTMLElement): HTMLElement | null {
   return container.querySelector('[data-slot="status-dot"]');
 }
 
+function queryDotSlot(container: HTMLElement): HTMLElement | null {
+  return container.querySelector('[data-slot="tasks-list-row-dot"]');
+}
+
 function getDot(container: HTMLElement): HTMLElement {
   const dot = queryDot(container);
   expect(dot).not.toBeNull();
@@ -30,48 +34,62 @@ function getDot(container: HTMLElement): HTMLElement {
 }
 
 describe("TasksListRow", () => {
-  it("reserves the dot column without decoration for terminal + normal statuses", () => {
+  it("omits the status-dot column by default", () => {
     const { container, rerender } = render(
       <TasksListRow task={buildTask({ status: "completed" })} />
     );
     expect(queryDot(container)).toBeNull();
+    expect(queryDotSlot(container)).toBeNull();
 
-    rerender(<TasksListRow task={buildTask({ status: "ready" })} />);
+    rerender(<TasksListRow task={buildTask({ status: "in_progress" })} />);
     expect(queryDot(container)).toBeNull();
-
-    rerender(<TasksListRow task={buildTask({ status: "pending" })} />);
-    expect(queryDot(container)).toBeNull();
-
-    // Accepts the mock shorthand ("done") for cross-layer interop.
-    rerender(<TasksListRow task={buildTask({ status: "done" as never })} />);
-    expect(queryDot(container)).toBeNull();
+    expect(queryDotSlot(container)).toBeNull();
   });
 
-  it("renders StatusDot with tone=accent and ring variant when task.status is the running equivalent", () => {
-    const { container, rerender } = render(
-      <TasksListRow task={buildTask({ status: "in_progress" })} />
-    );
-    const dot = getDot(container);
-    expect(dot).toHaveAttribute("data-tone", "accent");
-    expect(dot).toHaveAttribute("data-variant", "ring");
+  describe("with showStatusDot", () => {
+    it("reserves the dot column without decoration for terminal + normal statuses", () => {
+      const { container, rerender } = render(
+        <TasksListRow showStatusDot task={buildTask({ status: "completed" })} />
+      );
+      expect(queryDot(container)).toBeNull();
+      expect(queryDotSlot(container)).not.toBeNull();
 
-    rerender(<TasksListRow task={buildTask({ status: "running" as never })} />);
-    const dot2 = getDot(container);
-    expect(dot2).toHaveAttribute("data-tone", "accent");
-    expect(dot2).toHaveAttribute("data-variant", "ring");
-  });
+      rerender(<TasksListRow showStatusDot task={buildTask({ status: "ready" })} />);
+      expect(queryDot(container)).toBeNull();
 
-  it("renders attention-demanding tones only for statuses that actually demand attention", () => {
-    const { container, rerender } = render(
-      <TasksListRow task={buildTask({ status: "blocked" })} />
-    );
-    expect(getDot(container)).toHaveAttribute("data-tone", "warning");
+      rerender(<TasksListRow showStatusDot task={buildTask({ status: "pending" })} />);
+      expect(queryDot(container)).toBeNull();
 
-    rerender(<TasksListRow task={buildTask({ status: "failed" })} />);
-    expect(getDot(container)).toHaveAttribute("data-tone", "danger");
+      rerender(<TasksListRow showStatusDot task={buildTask({ status: "done" as never })} />);
+      expect(queryDot(container)).toBeNull();
+    });
 
-    rerender(<TasksListRow task={buildTask({ status: "canceled" })} />);
-    expect(getDot(container)).toHaveAttribute("data-tone", "danger");
+    it("renders StatusDot with tone=accent and ring variant when task.status is the running equivalent", () => {
+      const { container, rerender } = render(
+        <TasksListRow showStatusDot task={buildTask({ status: "in_progress" })} />
+      );
+      const dot = getDot(container);
+      expect(dot).toHaveAttribute("data-tone", "accent");
+      expect(dot).toHaveAttribute("data-variant", "ring");
+
+      rerender(<TasksListRow showStatusDot task={buildTask({ status: "running" as never })} />);
+      const dot2 = getDot(container);
+      expect(dot2).toHaveAttribute("data-tone", "accent");
+      expect(dot2).toHaveAttribute("data-variant", "ring");
+    });
+
+    it("renders attention-demanding tones only for statuses that actually demand attention", () => {
+      const { container, rerender } = render(
+        <TasksListRow showStatusDot task={buildTask({ status: "blocked" })} />
+      );
+      expect(getDot(container)).toHaveAttribute("data-tone", "warning");
+
+      rerender(<TasksListRow showStatusDot task={buildTask({ status: "failed" })} />);
+      expect(getDot(container)).toHaveAttribute("data-tone", "danger");
+
+      rerender(<TasksListRow showStatusDot task={buildTask({ status: "canceled" })} />);
+      expect(getDot(container)).toHaveAttribute("data-tone", "danger");
+    });
   });
 
   it("renders the identifier as bare mono text (proposal `.task-row__id`, not a Pill)", () => {
@@ -83,7 +101,6 @@ describe("TasksListRow", () => {
 
   it("falls back to the 7-character short id when the identifier is absent", () => {
     render(<TasksListRow task={buildTask({ identifier: undefined })} />);
-    // id = "task_abcdef0_tail" → short id "task_ab"
     const id = screen.getByText("task_ab").closest('[data-slot="tasks-list-row-id"]');
     expect(id).not.toBeNull();
     expect(id).toHaveAttribute("data-slot", "tasks-list-row-id");

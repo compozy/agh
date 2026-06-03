@@ -35,6 +35,14 @@ vi.mock("@/systems/tasks/adapters/tasks-api", () => ({
   dismissTask: vi.fn(),
 }));
 
+vi.mock("@/systems/scheduler/adapters/scheduler-api", () => ({
+  getScheduler: vi.fn(),
+  getSchedulerBacklog: vi.fn(),
+  pauseScheduler: vi.fn(),
+  resumeScheduler: vi.fn(),
+  drainScheduler: vi.fn(),
+}));
+
 vi.mock("sonner", () => ({
   toast: {
     success: vi.fn(),
@@ -42,33 +50,53 @@ vi.mock("sonner", () => ({
   },
 }));
 
+const workspaceMockState = vi.hoisted(() => ({
+  selectedWorkspaceId: "ws_alpha",
+  userHomeDir: "/Users/operator",
+}));
+
 vi.mock("@/systems/workspace", async importOriginal => {
   const actual = await importOriginal<typeof import("@/systems/workspace")>();
+  const workspaces = [
+    {
+      add_dirs: [],
+      created_at: "2026-04-17T10:00:00Z",
+      id: "ws_home",
+      name: "Home",
+      root_dir: "/Users/operator",
+      updated_at: "2026-04-17T10:00:00Z",
+    },
+    {
+      add_dirs: [],
+      created_at: "2026-04-17T10:00:00Z",
+      id: "ws_alpha",
+      name: "Alpha",
+      root_dir: "/workspace/alpha",
+      updated_at: "2026-04-17T10:00:00Z",
+    },
+    {
+      add_dirs: [],
+      created_at: "2026-04-17T10:00:00Z",
+      id: "ws_beta",
+      name: "Beta",
+      root_dir: "/workspace/beta",
+      updated_at: "2026-04-17T10:00:00Z",
+    },
+  ];
 
   return {
     ...actual,
-    useActiveWorkspace: () => ({
-      activeWorkspace: { id: "ws_alpha", name: "Alpha" },
-      activeWorkspaceId: "ws_alpha",
-      workspaces: [
-        {
-          add_dirs: [],
-          created_at: "2026-04-17T10:00:00Z",
-          id: "ws_alpha",
-          name: "Alpha",
-          root_dir: "/workspace/alpha",
-          updated_at: "2026-04-17T10:00:00Z",
-        },
-        {
-          add_dirs: [],
-          created_at: "2026-04-17T10:00:00Z",
-          id: "ws_beta",
-          name: "Beta",
-          root_dir: "/workspace/beta",
-          updated_at: "2026-04-17T10:00:00Z",
-        },
-      ],
-    }),
+    useActiveWorkspace: () => {
+      const activeWorkspace =
+        workspaces.find(workspace => workspace.id === workspaceMockState.selectedWorkspaceId) ??
+        workspaces[0];
+      return {
+        activeWorkspace,
+        activeWorkspaceId: activeWorkspace.id,
+        workspaces,
+      };
+    },
+    useUserHomeDir: () => workspaceMockState.userHomeDir,
   };
 });
 
@@ -85,6 +113,7 @@ import {
   publishTask,
   rejectTask,
 } from "@/systems/tasks/adapters/tasks-api";
+import { getScheduler, getSchedulerBacklog } from "@/systems/scheduler/adapters/scheduler-api";
 
 import { useTasksPage } from "../use-tasks-page";
 
@@ -111,6 +140,8 @@ const taskFixture = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  workspaceMockState.selectedWorkspaceId = "ws_alpha";
+  workspaceMockState.userHomeDir = "/Users/operator";
   vi.mocked(listTasks).mockResolvedValue([
     taskFixture,
     { ...taskFixture, id: "task_002", title: "Fix bug", status: "failed" },
@@ -128,6 +159,14 @@ beforeEach(() => {
     archived_total: 0,
     unread_total: 0,
   } as never);
+  vi.mocked(getScheduler).mockResolvedValue({
+    paused: false,
+    queued_run_count: 0,
+    active_claim_count: 0,
+    paused_task_count: 0,
+    as_of: "2026-04-17T10:00:00Z",
+  } as never);
+  vi.mocked(getSchedulerBacklog).mockResolvedValue({ runs: [], total: 0 } as never);
   vi.mocked(createTask).mockResolvedValue({ id: "task_999", title: "Generated" } as never);
   vi.mocked(publishTask).mockResolvedValue({ id: "task_003", title: "Draft" } as never);
   vi.mocked(enqueueTaskRun).mockResolvedValue({ id: "run_001" } as never);
@@ -162,10 +201,24 @@ describe("useTasksPage", () => {
       2
     );
     const [listFilters] = vi.mocked(listTasks).mock.calls.at(-1) ?? [];
-    expect(listFilters?.scope).toBeUndefined();
-    expect(listFilters?.workspace).toBeUndefined();
+    expect(listFilters?.scope).toBe("workspace");
+    expect(listFilters?.workspace).toBe("ws_alpha");
     expect(result.current.activeWorkspaceName).toBe("Alpha");
     expect(result.current.isEmpty).toBe(false);
+  });
+
+  it("maps the home workspace to global task queries", async () => {
+    workspaceMockState.selectedWorkspaceId = "ws_home";
+    const { result } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(result.current.visibleTasks).toHaveLength(3);
+    });
+
+    const [listFilters] = vi.mocked(listTasks).mock.calls.at(-1) ?? [];
+    expect(listFilters?.scope).toBe("global");
+    expect(listFilters?.workspace).toBeUndefined();
+    expect(result.current.activeWorkspaceName).toBe("Home");
   });
 
   it("only fetches list reads when the list/kanban tab is active", async () => {
@@ -175,12 +228,16 @@ describe("useTasksPage", () => {
 
     await waitFor(() => {
       expect(getTaskDashboard).toHaveBeenCalled();
+      expect(getSchedulerBacklog).toHaveBeenCalled();
     });
 
     expect(result.current.mode).toBe("dashboard");
     const [dashboardFilters] = vi.mocked(getTaskDashboard).mock.calls.at(-1) ?? [];
-    expect(dashboardFilters?.scope).toBeUndefined();
-    expect(dashboardFilters?.workspace).toBeUndefined();
+    expect(dashboardFilters?.scope).toBe("workspace");
+    expect(dashboardFilters?.workspace).toBe("ws_alpha");
+    const [backlogFilters] = vi.mocked(getSchedulerBacklog).mock.calls.at(-1) ?? [];
+    expect(backlogFilters?.scope).toBe("workspace");
+    expect(backlogFilters?.workspace).toBe("ws_alpha");
     expect(listTasks).not.toHaveBeenCalled();
     expect(getTaskInbox).not.toHaveBeenCalled();
   });
@@ -198,8 +255,8 @@ describe("useTasksPage", () => {
 
     expect(result.current.mode).toBe("inbox");
     const [inboxFilters] = vi.mocked(getTaskInbox).mock.calls.at(-1) ?? [];
-    expect(inboxFilters?.scope).toBeUndefined();
-    expect(inboxFilters?.workspace).toBeUndefined();
+    expect(inboxFilters?.scope).toBe("workspace");
+    expect(inboxFilters?.workspace).toBe("ws_alpha");
   });
 
   it("maps inbox unread + search state into the backend query (lane stays client-side)", async () => {
@@ -233,7 +290,7 @@ describe("useTasksPage", () => {
     }
   });
 
-  it("maps scope and workspace into the dashboard query", async () => {
+  it("maps the active workspace scope into the dashboard query", async () => {
     const { result } = renderHook(() => useTasksPage({ initialMode: "dashboard" }), {
       wrapper: createWrapper(),
     });
@@ -242,19 +299,33 @@ describe("useTasksPage", () => {
       expect(getTaskDashboard).toHaveBeenCalled();
     });
 
-    act(() => {
-      result.current.handleScopeChange("workspace");
+    expect(result.current.mode).toBe("dashboard");
+    expect(getTaskDashboard).toHaveBeenLastCalledWith(
+      expect.objectContaining({ scope: "workspace", workspace: "ws_alpha" }),
+      expect.any(AbortSignal)
+    );
+  });
+
+  it("maps the home workspace into global dashboard and backlog queries", async () => {
+    workspaceMockState.selectedWorkspaceId = "ws_home";
+    renderHook(() => useTasksPage({ initialMode: "dashboard" }), {
+      wrapper: createWrapper(),
     });
 
     await waitFor(() => {
-      expect(getTaskDashboard).toHaveBeenLastCalledWith(
-        expect.objectContaining({ scope: "workspace", workspace: "ws_alpha" }),
-        expect.any(AbortSignal)
-      );
+      expect(getTaskDashboard).toHaveBeenCalled();
+      expect(getSchedulerBacklog).toHaveBeenCalled();
     });
+
+    const [dashboardFilters] = vi.mocked(getTaskDashboard).mock.calls.at(-1) ?? [];
+    expect(dashboardFilters?.scope).toBe("global");
+    expect(dashboardFilters?.workspace).toBeUndefined();
+    const [backlogFilters] = vi.mocked(getSchedulerBacklog).mock.calls.at(-1) ?? [];
+    expect(backlogFilters?.scope).toBe("global");
+    expect(backlogFilters?.workspace).toBeUndefined();
   });
 
-  it("updates scope and search params without losing active workspace id", async () => {
+  it("updates search params without losing active workspace scope", async () => {
     const { result } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
 
     await waitFor(() => {
@@ -262,12 +333,7 @@ describe("useTasksPage", () => {
     });
 
     act(() => {
-      result.current.handleScopeChange("workspace");
       result.current.setSearchQuery("Fix");
-    });
-
-    await waitFor(() => {
-      expect(result.current.scopeFilter).toBe("workspace");
     });
 
     await waitFor(() => {
@@ -300,6 +366,18 @@ describe("useTasksPage", () => {
       result.current.handleCloseCreateModal();
     });
     expect(result.current.isCreateModalOpen).toBe(false);
+  });
+
+  it("opens the create modal as a global task from the home workspace", () => {
+    workspaceMockState.selectedWorkspaceId = "ws_home";
+    const { result } = renderHook(() => useTasksPage(), { wrapper: createWrapper() });
+
+    act(() => {
+      result.current.handleOpenCreateModal("human_in_loop");
+    });
+
+    expect(result.current.createDraft.scope).toBe("global");
+    expect(result.current.createDraft.workspaceId).toBeNull();
   });
 
   it("submits the create payload, enqueues the first run, and closes the modal", async () => {

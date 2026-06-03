@@ -32687,6 +32687,8 @@ export interface operations {
       query?: {
         /** @description Maximum number of queued runs to return */
         limit?: number;
+        /** @description Filter by task scope */
+        scope?: "global" | "workspace";
         /** @description Filter by workspace path, name, or ID */
         workspace?: string;
         /** @description Include runs blocked by task pause state */

@@ -41,7 +41,6 @@ function renderSurface(options: RenderOptions = {}) {
         listUpdatedAt={options.listUpdatedAt}
         onOwnerChange={() => {}}
         onPriorityChange={() => {}}
-        onScopeChange={() => {}}
         onSearchQueryChange={() => {}}
         onSelectTask={options.onSelectTask ?? (() => {})}
         onSortChange={() => {}}
@@ -50,7 +49,6 @@ function renderSurface(options: RenderOptions = {}) {
         ownerOptions={[]}
         priorityFilter={null}
         searchQuery=""
-        scopeFilter="all"
         sortBy="recent"
         statusFilter={options.statusFilter ?? null}
         tasks={options.tasks ?? []}
@@ -71,7 +69,7 @@ describe("TasksListSurface", () => {
       buildTask({ id: "e", title: "Failed task", status: "failed" }),
     ];
 
-    renderSurface({ tasks, totalCount: tasks.length });
+    const { container } = renderSurface({ tasks, totalCount: tasks.length });
 
     expect(screen.getByTestId("task-group-active-label")).toHaveTextContent(/active/i);
     expect(screen.getByTestId("task-group-active-count")).toHaveTextContent("1");
@@ -79,6 +77,20 @@ describe("TasksListSurface", () => {
     expect(screen.getByTestId("task-group-queued")).toBeInTheDocument();
     expect(screen.getByTestId("task-group-done")).toBeInTheDocument();
     expect(screen.getByTestId("task-group-failed")).toBeInTheDocument();
+
+    expect(screen.getByTestId("task-group-dot-active")).toHaveAttribute("data-tone", "accent");
+    expect(screen.getByTestId("task-group-dot-active")).toHaveAttribute("data-variant", "ring");
+    expect(screen.getByTestId("task-group-dot-blocked")).toHaveAttribute("data-tone", "warning");
+    expect(screen.getByTestId("task-group-dot-queued")).toHaveAttribute("data-tone", "faint");
+    expect(screen.getByTestId("task-group-dot-queued")).toHaveAttribute("data-variant", "ring");
+    expect(screen.getByTestId("task-group-dot-done")).toHaveAttribute("data-tone", "faint");
+    expect(screen.getByTestId("task-group-dot-done")).toHaveAttribute("data-variant", "solid");
+    expect(screen.getByTestId("task-group-dot-failed")).toHaveAttribute("data-tone", "danger");
+
+    const rowDots = container.querySelectorAll(
+      '[data-slot="tasks-list-row"] [data-slot="status-dot"]'
+    );
+    expect(rowDots).toHaveLength(0);
   });
 
   it("Should forward row selection to onSelectTask with the task id", () => {
@@ -100,7 +112,6 @@ describe("TasksListSurface", () => {
         <TasksListSurface
           onOwnerChange={() => {}}
           onPriorityChange={() => {}}
-          onScopeChange={() => {}}
           onSearchQueryChange={handleSearchQueryChange}
           onSelectTask={() => {}}
           onSortChange={() => {}}
@@ -109,7 +120,6 @@ describe("TasksListSurface", () => {
           ownerOptions={[]}
           priorityFilter={null}
           searchQuery="api"
-          scopeFilter="all"
           sortBy="recent"
           statusFilter={null}
           tasks={[buildTask({ id: "task_search" })]}

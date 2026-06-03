@@ -57,7 +57,6 @@ function Stateful(props: Partial<TasksListSurfaceProps>) {
   const [ownerFilter, setOwnerFilter] = useState<TasksListSurfaceProps["ownerFilter"]>(null);
   const [priorityFilter, setPriorityFilter] =
     useState<TasksListSurfaceProps["priorityFilter"]>(null);
-  const [scopeFilter, setScopeFilter] = useState<TasksListSurfaceProps["scopeFilter"]>("all");
   const [sortBy, setSortBy] = useState<TasksListSurfaceProps["sortBy"]>("recent");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -68,7 +67,6 @@ function Stateful(props: Partial<TasksListSurfaceProps>) {
           listUpdatedAt={Date.now() - 120_000}
           onOwnerChange={setOwnerFilter}
           onPriorityChange={setPriorityFilter}
-          onScopeChange={setScopeFilter}
           onSearchQueryChange={setSearchQuery}
           onSelectTask={() => {}}
           onSortChange={setSortBy}
@@ -77,7 +75,6 @@ function Stateful(props: Partial<TasksListSurfaceProps>) {
           ownerOptions={OWNER_OPTIONS}
           priorityFilter={priorityFilter}
           searchQuery={searchQuery}
-          scopeFilter={scopeFilter}
           sortBy={sortBy}
           statusFilter={statusFilter}
           tasks={FIXTURE_TASKS}

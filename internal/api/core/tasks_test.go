@@ -1271,13 +1271,16 @@ func TestBaseHandlersTaskSchedulerControlEndpoints(t *testing.T) {
 			t,
 			fixture.Engine,
 			http.MethodGet,
-			"/scheduler/backlog?limit=7&workspace=ws-alpha&include_paused=true",
+			"/scheduler/backlog?limit=7&scope=workspace&workspace=ws-alpha&include_paused=true",
 			nil,
 		)
 		if backlogResp.Code != http.StatusOK {
 			t.Fatalf("scheduler backlog response status = %d body = %s", backlogResp.Code, backlogResp.Body.String())
 		}
-		if backlogQuery.Limit != 7 || backlogQuery.WorkspaceID != "ws-alpha" || !backlogQuery.IncludePaused {
+		if backlogQuery.Limit != 7 ||
+			backlogQuery.Scope != taskpkg.ScopeWorkspace ||
+			backlogQuery.WorkspaceID != "ws-alpha" ||
+			!backlogQuery.IncludePaused {
 			t.Fatalf("SchedulerBacklog query = %#v, want parsed filters", backlogQuery)
 		}
 		var backlog contract.SchedulerBacklogResponse

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/compozy/agh/internal/testutil"
+	aghworkspace "github.com/compozy/agh/internal/workspace"
 )
 
 func TestGlobalDBClaimNextRunConcurrentSingleWinner(t *testing.T) {
@@ -1520,6 +1522,87 @@ func TestGlobalDBTaskPauseControlsClaimEligibilityAndBacklog(t *testing.T) {
 			t.Fatalf("ClaimNextRun(child after resume) run = %q, want %q", got, want)
 		}
 	})
+
+	t.Run("Should filter scheduler backlog by task scope and workspace", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		insertWorkspaceForGlobalTests(t, globalDB, aghworkspace.Workspace{
+			ID:      "ws-alpha",
+			RootDir: filepath.Join(t.TempDir(), "alpha"),
+			Name:    "Alpha",
+		})
+		insertWorkspaceForGlobalTests(t, globalDB, aghworkspace.Workspace{
+			ID:      "ws-beta",
+			RootDir: filepath.Join(t.TempDir(), "beta"),
+			Name:    "Beta",
+		})
+
+		globalTask := taskRecordForTest("task-backlog-global")
+		globalTask.Status = taskpkg.TaskStatusReady
+
+		workspaceTask := taskRecordForTest("task-backlog-alpha")
+		workspaceTask.Status = taskpkg.TaskStatusReady
+		workspaceTask.Scope = taskpkg.ScopeWorkspace
+		workspaceTask.WorkspaceID = "ws-alpha"
+
+		otherWorkspaceTask := taskRecordForTest("task-backlog-beta")
+		otherWorkspaceTask.Status = taskpkg.TaskStatusReady
+		otherWorkspaceTask.Scope = taskpkg.ScopeWorkspace
+		otherWorkspaceTask.WorkspaceID = "ws-beta"
+
+		for _, record := range []taskpkg.Task{globalTask, workspaceTask, otherWorkspaceTask} {
+			if err := globalDB.CreateTask(ctx, record); err != nil {
+				t.Fatalf("CreateTask(%q) error = %v", record.ID, err)
+			}
+		}
+		for _, run := range []taskpkg.Run{
+			taskRunForTest("run-backlog-global", globalTask.ID),
+			taskRunForTest("run-backlog-alpha", workspaceTask.ID),
+			taskRunForTest("run-backlog-beta", otherWorkspaceTask.ID),
+		} {
+			if err := globalDB.CreateTaskRun(ctx, run); err != nil {
+				t.Fatalf("CreateTaskRun(%q) error = %v", run.ID, err)
+			}
+		}
+
+		globalBacklog, err := globalDB.SchedulerBacklog(ctx, taskpkg.SchedulerBacklogQuery{
+			Scope: taskpkg.ScopeGlobal,
+		})
+		if err != nil {
+			t.Fatalf("SchedulerBacklog(global) error = %v", err)
+		}
+		if got, want := schedulerBacklogRunIDs(globalBacklog), []string{"run-backlog-global"}; !slices.Equal(
+			got,
+			want,
+		) {
+			t.Fatalf("SchedulerBacklog(global) runs = %v, want %v", got, want)
+		}
+
+		workspaceBacklog, err := globalDB.SchedulerBacklog(ctx, taskpkg.SchedulerBacklogQuery{
+			Scope:       taskpkg.ScopeWorkspace,
+			WorkspaceID: "ws-alpha",
+		})
+		if err != nil {
+			t.Fatalf("SchedulerBacklog(workspace) error = %v", err)
+		}
+		if got, want := schedulerBacklogRunIDs(workspaceBacklog), []string{"run-backlog-alpha"}; !slices.Equal(
+			got,
+			want,
+		) {
+			t.Fatalf("SchedulerBacklog(workspace) runs = %v, want %v", got, want)
+		}
+	})
+}
+
+func schedulerBacklogRunIDs(backlog taskpkg.SchedulerBacklog) []string {
+	ids := make([]string, 0, len(backlog.Runs))
+	for idx := range backlog.Runs {
+		item := &backlog.Runs[idx]
+		ids = append(ids, item.Run.ID)
+	}
+	return ids
 }
 
 func setupCurrentRunProjectionTest(

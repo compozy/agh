@@ -1,3 +1,5 @@
+import type { StatusDotProps, StatusDotTone, StatusDotVariant } from "@agh/ui";
+
 import type { TaskListItem, TaskStatus } from "../types";
 
 /**
@@ -38,16 +40,53 @@ export interface TaskListGroupDefinition {
   id: TaskListGroupId;
   label: string;
   statuses: TaskStatus[];
+  dotTone: StatusDotTone;
+  dotVariant: StatusDotVariant;
 }
 
 const LIST_GROUPS: TaskListGroupDefinition[] = [
-  { id: "active", label: "Active", statuses: ["in_progress"] },
-  { id: "blocked", label: "Blocked", statuses: ["blocked"] },
-  { id: "stuck", label: "Stuck", statuses: [] },
-  { id: "queued", label: "Queued", statuses: ["ready", "pending", "draft"] },
-  { id: "done", label: "Done", statuses: ["completed"] },
-  { id: "failed", label: "Failed", statuses: ["failed", "canceled"] },
+  {
+    id: "active",
+    label: "Active",
+    statuses: ["in_progress"],
+    dotTone: "accent",
+    dotVariant: "ring",
+  },
+  {
+    id: "blocked",
+    label: "Blocked",
+    statuses: ["blocked"],
+    dotTone: "warning",
+    dotVariant: "solid",
+  },
+  { id: "stuck", label: "Stuck", statuses: [], dotTone: "warning", dotVariant: "ring" },
+  {
+    id: "queued",
+    label: "Queued",
+    statuses: ["ready", "pending", "draft"],
+    dotTone: "faint",
+    dotVariant: "ring",
+  },
+  { id: "done", label: "Done", statuses: ["completed"], dotTone: "faint", dotVariant: "solid" },
+  {
+    id: "failed",
+    label: "Failed",
+    statuses: ["failed", "canceled"],
+    dotTone: "danger",
+    dotVariant: "solid",
+  },
 ];
+
+/** Convenience accessor for `<StatusDot>` props derived from a list group id. */
+export function listGroupDotProps(
+  groupId: TaskListGroupId
+): Pick<StatusDotProps, "tone" | "variant"> {
+  const definition = LIST_GROUPS.find(entry => entry.id === groupId);
+  return {
+    tone: definition?.dotTone ?? "faint",
+    variant: definition?.dotVariant ?? "ring",
+  };
+}
 
 export interface TaskListGroupBucket {
   group: TaskListGroupDefinition;

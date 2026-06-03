@@ -70,15 +70,17 @@ type SchedulerBacklogResponse struct {
 
 // SchedulerBacklogQuery captures transport query filters.
 type SchedulerBacklogQuery struct {
-	Limit         int    `form:"limit"          json:"limit,omitempty"`
-	WorkspaceID   string `form:"workspace"      json:"workspace,omitempty"`
-	IncludePaused bool   `form:"include_paused" json:"include_paused,omitempty"`
+	Limit         int           `form:"limit"          json:"limit,omitempty"`
+	Scope         taskpkg.Scope `form:"scope"          json:"scope,omitempty"`
+	WorkspaceID   string        `form:"workspace"      json:"workspace,omitempty"`
+	IncludePaused bool          `form:"include_paused" json:"include_paused,omitempty"`
 }
 
 // SchedulerBacklogDomainQuery converts API filters into task-domain filters.
 func SchedulerBacklogDomainQuery(query SchedulerBacklogQuery) taskpkg.SchedulerBacklogQuery {
 	return taskpkg.SchedulerBacklogQuery{
 		Limit:         query.Limit,
+		Scope:         query.Scope,
 		WorkspaceID:   query.WorkspaceID,
 		IncludePaused: query.IncludePaused,
 	}

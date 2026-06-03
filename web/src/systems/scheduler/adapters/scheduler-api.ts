@@ -38,6 +38,7 @@ function normalizeBacklogQuery(query: SchedulerBacklogQuery = {}): SchedulerBack
   return {
     include_paused: query.include_paused,
     limit: query.limit,
+    scope: query.scope,
     workspace: normalizeOptionalText(query.workspace),
   };
 }

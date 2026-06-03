@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { Empty, SearchInput, Skeleton } from "@agh/ui";
 
 import { groupTasksForList } from "../lib/task-grouping";
-import type { TaskFilterOwnerOption, TaskScopeFilter } from "../lib/tasks-list-filters";
+import type { TaskFilterOwnerOption } from "../lib/tasks-list-filters";
 import type { TaskListItem, TaskPriority, TaskStatus } from "../types";
 import { TaskCard } from "./task-card";
 import { TaskGroup } from "./task-group";
@@ -31,14 +31,12 @@ export interface TasksListSurfaceProps {
   statusFilter: TaskStatus | null;
   ownerFilter: string | null;
   priorityFilter: TaskPriority | null;
-  scopeFilter: TaskScopeFilter;
   ownerOptions: TaskFilterOwnerOption[];
   sortBy: TaskListSortKey;
   searchQuery: string;
   onStatusChange: (next: TaskStatus | null) => void;
   onOwnerChange: (next: string | null) => void;
   onPriorityChange: (next: TaskPriority | null) => void;
-  onScopeChange: (next: TaskScopeFilter) => void;
   onSortChange: (next: TaskListSortKey) => void;
   onSearchQueryChange: (next: string) => void;
 }
@@ -61,14 +59,12 @@ export function TasksListSurface({
   statusFilter,
   ownerFilter,
   priorityFilter,
-  scopeFilter,
   ownerOptions,
   sortBy,
   searchQuery,
   onStatusChange,
   onOwnerChange,
   onPriorityChange,
-  onScopeChange,
   onSortChange,
   onSearchQueryChange,
 }: TasksListSurfaceProps) {
@@ -78,11 +74,7 @@ export function TasksListSurface({
   );
 
   const visibleCount = tasks.length;
-  const hasFilters =
-    Boolean(statusFilter) ||
-    Boolean(ownerFilter) ||
-    Boolean(priorityFilter) ||
-    scopeFilter !== "all";
+  const hasFilters = Boolean(statusFilter) || Boolean(ownerFilter) || Boolean(priorityFilter);
 
   return (
     <div
@@ -107,13 +99,11 @@ export function TasksListSurface({
         <TasksListFilters
           onOwnerChange={onOwnerChange}
           onPriorityChange={onPriorityChange}
-          onScopeChange={onScopeChange}
           onSortChange={onSortChange}
           onStatusChange={onStatusChange}
           ownerFilter={ownerFilter}
           ownerOptions={ownerOptions}
           priorityFilter={priorityFilter}
-          scopeFilter={scopeFilter}
           sortBy={sortBy}
           statusFilter={statusFilter}
         />

@@ -219,16 +219,10 @@ func (g *GlobalDB) SchedulerBacklog(
 		return taskpkg.SchedulerBacklog{}, err
 	}
 	normalized := normalizeSchedulerBacklogQuery(query)
-	where := []string{"tr.status = ?"}
-	args := []any{string(taskpkg.TaskRunStatusQueued)}
-	if normalized.WorkspaceID != "" {
-		where = append(where, "t.workspace_id = ?")
-		args = append(args, normalized.WorkspaceID)
+	if err := normalized.Validate("scheduler_backlog"); err != nil {
+		return taskpkg.SchedulerBacklog{}, err
 	}
-	if !normalized.IncludePaused {
-		where = append(where, effectiveTaskPauseExclusionSQL())
-	}
-	whereSQL := strings.Join(where, " AND ")
+	whereSQL, args := schedulerBacklogWhere(normalized)
 
 	var total int
 	var countBuilder strings.Builder
@@ -309,8 +303,26 @@ func effectiveTaskPauseExclusionSQL() string {
 		)`
 }
 
+func schedulerBacklogWhere(query taskpkg.SchedulerBacklogQuery) (string, []any) {
+	where := []string{"tr.status = ?"}
+	args := []any{string(taskpkg.TaskRunStatusQueued)}
+	if query.Scope.Normalize() != "" {
+		where = append(where, "t.scope = ?")
+		args = append(args, string(query.Scope))
+	}
+	if query.WorkspaceID != "" {
+		where = append(where, "t.workspace_id = ?")
+		args = append(args, query.WorkspaceID)
+	}
+	if !query.IncludePaused {
+		where = append(where, effectiveTaskPauseExclusionSQL())
+	}
+	return strings.Join(where, " AND "), args
+}
+
 func normalizeSchedulerBacklogQuery(query taskpkg.SchedulerBacklogQuery) taskpkg.SchedulerBacklogQuery {
 	normalized := query
+	normalized.Scope = normalized.Scope.Normalize()
 	normalized.WorkspaceID = strings.TrimSpace(normalized.WorkspaceID)
 	if normalized.Limit <= 0 {
 		normalized.Limit = 50

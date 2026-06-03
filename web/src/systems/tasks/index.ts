@@ -328,7 +328,6 @@ export type {
   TaskFilterHandlers,
   TaskFilterOwnerOption,
   TaskFilterState,
-  TaskScopeFilter,
 } from "./lib/tasks-list-filters";
 export {
   applyInboxFilterChips,

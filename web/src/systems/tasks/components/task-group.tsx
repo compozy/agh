@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 
-import { Eyebrow } from "@agh/ui";
+import { Eyebrow, StatusDot } from "@agh/ui";
 import { cn } from "@/lib/utils";
 
-import type { TaskListGroupId } from "../lib/task-grouping";
+import { listGroupDotProps, type TaskListGroupId } from "../lib/task-grouping";
 
 export interface TaskGroupProps {
   /** Canonical list-view group id (active / blocked / stuck / queued / done / failed). */
@@ -23,12 +23,13 @@ export interface TaskGroupProps {
  * Tasks index — List-view status group. Renders a six-group anatomy per
  * (`Active` · `Blocked` · `Stuck` · `Queued` · `Done` · `Failed`).
  *
- * Header composition: `<Eyebrow>` label + bare mono count + optional actions
- * slot. The proposal's leading colored dot is deliberately omitted on the list
- * view — task rows already render a `<Pill.Dot>` per row, and accent overload
- * on the group header would compete with the row-level signal.
+ * Header composition: `<StatusDot>` + `<Eyebrow>` label + bare mono count +
+ * optional actions slot. One dot per group replaces per-row status dots on the
+ * list surface (see `TasksListRow` `showStatusDot`).
  */
 function TaskGroup({ id, label, count, children, actions, className }: TaskGroupProps) {
+  const { tone, variant } = listGroupDotProps(id);
+
   return (
     <section
       aria-label={label}
@@ -38,6 +39,12 @@ function TaskGroup({ id, label, count, children, actions, className }: TaskGroup
       className={cn("flex min-w-0 flex-col gap-1", className)}
     >
       <header className="flex items-center gap-2 px-3 pb-2 pt-4" data-slot="task-group-head">
+        <StatusDot
+          data-testid={`task-group-dot-${id}`}
+          label={label}
+          tone={tone}
+          variant={variant}
+        />
         <Eyebrow className="text-muted" data-testid={`task-group-${id}-label`}>
           {label}
         </Eyebrow>

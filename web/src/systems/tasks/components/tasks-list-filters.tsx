@@ -18,7 +18,6 @@ import {
   type TaskFilterHandlers,
   type TaskFilterOwnerOption,
   type TaskFilterState,
-  type TaskScopeFilter,
 } from "../lib/tasks-list-filters";
 
 const SORT_LABELS: Record<TaskListSortKey, string> = {
@@ -34,7 +33,6 @@ export interface TasksListFiltersProps extends TaskFilterState {
   onStatusChange: TaskFilterHandlers["onStatusChange"];
   onOwnerChange: TaskFilterHandlers["onOwnerChange"];
   onPriorityChange: TaskFilterHandlers["onPriorityChange"];
-  onScopeChange: (next: TaskScopeFilter) => void;
   onSortChange: (next: TaskListSortKey) => void;
 }
 
@@ -50,20 +48,18 @@ export function TasksListFilters({
   statusFilter,
   ownerFilter,
   priorityFilter,
-  scopeFilter,
   ownerOptions,
   sortBy,
   onStatusChange,
   onOwnerChange,
   onPriorityChange,
-  onScopeChange,
   onSortChange,
 }: TasksListFiltersProps) {
   const fields = useMemo(() => buildTaskFilterFields(ownerOptions), [ownerOptions]);
 
   const chips = useMemo(
-    () => taskFiltersToChips({ statusFilter, ownerFilter, priorityFilter, scopeFilter }),
-    [statusFilter, ownerFilter, priorityFilter, scopeFilter]
+    () => taskFiltersToChips({ statusFilter, ownerFilter, priorityFilter }),
+    [statusFilter, ownerFilter, priorityFilter]
   );
 
   const handleFiltersChange = (next: Filter<string>[]) => {
@@ -71,7 +67,6 @@ export function TasksListFilters({
       onStatusChange,
       onOwnerChange,
       onPriorityChange,
-      onScopeChange,
     });
   };
 

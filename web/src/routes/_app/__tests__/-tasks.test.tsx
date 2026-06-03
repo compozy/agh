@@ -86,30 +86,36 @@ vi.mock("@/systems/scheduler/adapters/scheduler-api", () => ({
   drainScheduler: (...args: unknown[]) => drainSchedulerMock(...args),
 }));
 
-vi.mock("@/systems/workspace", () => ({
-  useActiveWorkspace: () => ({
-    activeWorkspace: { id: "ws_alpha", name: "Alpha" },
-    activeWorkspaceId: "ws_alpha",
-    workspaces: [
-      {
-        add_dirs: [],
-        created_at: "2026-04-17T10:00:00Z",
-        id: "ws_alpha",
-        name: "Alpha",
-        root_dir: "/workspace/alpha",
-        updated_at: "2026-04-17T10:00:00Z",
-      },
-      {
-        add_dirs: [],
-        created_at: "2026-04-17T10:00:00Z",
-        id: "ws_beta",
-        name: "Beta",
-        root_dir: "/workspace/beta",
-        updated_at: "2026-04-17T10:00:00Z",
-      },
-    ],
-  }),
-}));
+vi.mock("@/systems/workspace", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/systems/workspace")>();
+
+  return {
+    ...actual,
+    useActiveWorkspace: () => ({
+      activeWorkspace: { id: "ws_alpha", name: "Alpha" },
+      activeWorkspaceId: "ws_alpha",
+      workspaces: [
+        {
+          add_dirs: [],
+          created_at: "2026-04-17T10:00:00Z",
+          id: "ws_alpha",
+          name: "Alpha",
+          root_dir: "/workspace/alpha",
+          updated_at: "2026-04-17T10:00:00Z",
+        },
+        {
+          add_dirs: [],
+          created_at: "2026-04-17T10:00:00Z",
+          id: "ws_beta",
+          name: "Beta",
+          root_dir: "/workspace/beta",
+          updated_at: "2026-04-17T10:00:00Z",
+        },
+      ],
+    }),
+    useUserHomeDir: () => "/Users/operator",
+  };
+});
 
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },

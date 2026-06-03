@@ -1337,6 +1337,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 
 				backlog := operationFor(t, doc, "/api/scheduler/backlog", "GET")
 				assertParameter(t, backlog, "limit", openapi3.ParameterInQuery, false)
+				assertParameter(t, backlog, "scope", openapi3.ParameterInQuery, false)
 				assertParameter(t, backlog, "workspace", openapi3.ParameterInQuery, false)
 				assertParameter(t, backlog, "include_paused", openapi3.ParameterInQuery, false)
 				backlogResponse := jsonResponseSchema(t, backlog, 200)
