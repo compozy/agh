@@ -7,7 +7,7 @@ import {
   StorybookWorkspaceSetup,
   appRouteParameters,
   createRouteStoryMeta,
-} from "@/storybook/route-story";
+} from "@/storybook/route-story-meta";
 import { statusFixture } from "@/systems/status/mocks/fixtures";
 
 const meta: Meta<typeof StorybookRouteCanvas> = {

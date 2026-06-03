@@ -18,6 +18,7 @@ export default defineConfig({
   test: {
     name: "site",
     environment: "jsdom",
+    setupFiles: ["./vitest.setup.tsx"],
     env: {
       AGH_SITE_ROOT: siteRoot,
     },

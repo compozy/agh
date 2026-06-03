@@ -33,8 +33,9 @@ export function EventSubConfig({ family, values, onChange }: EventSubConfigProps
           <FieldLabel htmlFor="trigger-hook-name">
             Hook name
             <span className="font-normal text-faint">
-              {" — fires on "}
+              {" (fires on "}
               <code className="font-mono text-mono-id text-muted">hook.&lt;name&gt;.completed</code>
+              {")"}
             </span>
           </FieldLabel>
           <Input
@@ -121,7 +122,7 @@ export function EventSubConfig({ family, values, onChange }: EventSubConfigProps
             Signing secret
             <span className="font-normal text-faint">
               {" "}
-              — write-only, used for HMAC verification
+              (write-only, used for HMAC verification)
             </span>
           </FieldLabel>
           <Input

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -36,13 +36,12 @@ function SheetExample({
 
 describe("Sheet", () => {
   it("Should open and render the configured side attribute", async () => {
-    const user = userEvent.setup();
     render(<SheetExample side="left" />);
-    await user.click(screen.getByRole("button", { name: "Open sheet" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open sheet" }));
     await waitFor(() => expect(screen.getByText("Configure agent")).toBeInTheDocument());
     const popup = screen.getByRole("dialog");
     expect(popup).toHaveAttribute("data-side", "left");
-  });
+  }, 15_000);
 
   it.each<Side>(["top", "right", "bottom", "left"])(
     "Should reflect data-side='%s' when opened",

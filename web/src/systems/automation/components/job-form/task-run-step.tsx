@@ -119,7 +119,7 @@ export function TaskRunStep({
       <div className="flex items-start gap-2 text-form-hint leading-snug text-subtle">
         <Info aria-hidden="true" className="mt-0.5 size-3 shrink-0" />
         <span>
-          Each tick creates a fresh task run instead of a session — the run shows as delegated. The
+          Each tick creates a fresh task run instead of a session; the run shows as delegated. The
           task owns its retries, so job-level retry is None.
         </span>
       </div>

@@ -15,6 +15,7 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
+import { useMemo } from "react";
 
 import { Button, Logo, Sidebar, SidebarSectionLabel, cn } from "@agh/ui";
 
@@ -34,6 +35,7 @@ import {
 
 import { RuntimeConnectionIndicator } from "./connection-indicator";
 import { RestartDaemonButton } from "./restart-daemon-button";
+import { computeAgentsCount } from "./app-sidebar-counts";
 
 interface RailSlotProps {
   workspaces: WorkspacePayload[] | undefined;
@@ -187,30 +189,6 @@ const SYSTEM_NAV_ITEMS: NavItemProps[] = [
   { to: "/settings", icon: Settings, label: "Settings", fuzzy: true },
 ];
 
-interface AgentsCount {
-  live: number;
-  total: number;
-}
-
-function computeAgentsCount(
-  agents: AgentPayload[] | undefined,
-  sessions: SessionPayload[] | undefined
-): AgentsCount {
-  const total = agents?.length ?? 0;
-  if (total === 0) return { live: 0, total: 0 };
-  const liveNames = new Set<string>();
-  for (const session of sessions ?? []) {
-    if (isSessionRunning(session)) {
-      liveNames.add(session.agent_name);
-    }
-  }
-  let live = 0;
-  for (const agent of agents ?? []) {
-    if (liveNames.has(agent.name)) live += 1;
-  }
-  return { live, total };
-}
-
 function countActiveSessions(sessions: SessionPayload[] | undefined): number {
   if (!sessions) return 0;
   let count = 0;
@@ -346,40 +324,57 @@ function AppSidebar({
   className,
 }: AppSidebarProps) {
   const activeSessionCount = countActiveSessions(sessions);
+  const rail = useMemo(
+    () => (
+      <RailSlot
+        workspaces={workspaces}
+        activeWorkspaceId={activeWorkspaceId}
+        onSelectWorkspace={onSelectWorkspace}
+        onAddWorkspace={onAddWorkspace}
+      />
+    ),
+    [activeWorkspaceId, onAddWorkspace, onSelectWorkspace, workspaces]
+  );
+  const header = useMemo(
+    () => (
+      <WorkspaceCommandSelect
+        workspaces={workspaces}
+        value={activeWorkspaceId}
+        onChange={onSelectWorkspace}
+        onAddWorkspace={onAddWorkspace}
+      />
+    ),
+    [activeWorkspaceId, onAddWorkspace, onSelectWorkspace, workspaces]
+  );
+  const nav = useMemo(
+    () => (
+      <NavSlot
+        agents={agents}
+        agentsLoading={agentsLoading}
+        agentsError={agentsError}
+        sessions={sessions}
+        onAddAgent={onAddAgent}
+      />
+    ),
+    [agents, agentsError, agentsLoading, onAddAgent, sessions]
+  );
+  const footer = useMemo(
+    () => <FooterSlot activeSessionCount={activeSessionCount} />,
+    [activeSessionCount]
+  );
+
   return (
     <Sidebar
       data-testid="app-sidebar"
       className={className}
       collapsed={collapsed}
       onCollapse={onCollapseChange}
-      rail={
-        <RailSlot
-          workspaces={workspaces}
-          activeWorkspaceId={activeWorkspaceId}
-          onSelectWorkspace={onSelectWorkspace}
-          onAddWorkspace={onAddWorkspace}
-        />
-      }
-      header={
-        <WorkspaceCommandSelect
-          workspaces={workspaces}
-          value={activeWorkspaceId}
-          onChange={onSelectWorkspace}
-          onAddWorkspace={onAddWorkspace}
-        />
-      }
-      nav={
-        <NavSlot
-          agents={agents}
-          agentsLoading={agentsLoading}
-          agentsError={agentsError}
-          sessions={sessions}
-          onAddAgent={onAddAgent}
-        />
-      }
-      footer={<FooterSlot activeSessionCount={activeSessionCount} />}
+      rail={rail}
+      header={header}
+      nav={nav}
+      footer={footer}
     />
   );
 }
 
-export { AppSidebar, computeAgentsCount };
+export { AppSidebar };

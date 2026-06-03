@@ -67,7 +67,7 @@ export function AgentRunStep({
           value={prompt}
         />
         <p className="text-form-hint leading-snug text-subtle">
-          Sent to the agent verbatim — jobs don&apos;t template, there&apos;s no event to
+          Sent to the agent verbatim; jobs don&apos;t template, there&apos;s no event to
           interpolate.
         </p>
       </Field>

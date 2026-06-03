@@ -39,7 +39,7 @@ export function FilterConditions({
     return (
       <div>
         <div className="mb-2 rounded-md border border-dashed border-line-soft bg-canvas-tint px-3 py-2.5 text-form-label text-subtle">
-          No conditions — fires on every{" "}
+          No conditions, fires on every{" "}
           <b className="font-mono text-form-hint font-medium text-fg">{eventKind}</b> event.
         </div>
         <Button onClick={handleAdd} size="xs" type="button" variant="neutral">
@@ -55,7 +55,9 @@ export function FilterConditions({
       {openPayload ? (
         <datalist id={datalistId}>
           {keyOptions.map(option => (
-            <option key={option} value={option} />
+            <option key={option} value={option}>
+              {option}
+            </option>
           ))}
         </datalist>
       ) : null}
@@ -64,8 +66,7 @@ export function FilterConditions({
           conditionKey={conditionKey}
           datalistId={datalistId}
           index={index}
-          // Row identity follows position; key edits rebuild the map below.
-          key={index}
+          key={conditionKey || "empty-condition"}
           keyOptions={keyOptions}
           onKeyChange={next => commit(rows.map((row, i) => (i === index ? [next, row[1]] : row)))}
           onRemove={() => commit(rows.filter((_, i) => i !== index))}
@@ -76,7 +77,7 @@ export function FilterConditions({
       ))}
       {openPayload ? (
         <p className="text-form-hint leading-snug text-subtle">
-          <span className="font-mono text-fg">{eventKind}</span> payloads are open — type any{" "}
+          <span className="font-mono text-fg">{eventKind}</span> payloads are open; type any{" "}
           <code className="rounded-xs bg-badge-fill px-1 font-mono text-mono-id text-fg">
             data.&lt;path&gt;
           </code>{" "}

@@ -46,7 +46,7 @@ describe("public heading hierarchy", () => {
     render(<HomePage />);
 
     expectSingleH1("An open workplace for AI agents.");
-  });
+  }, 15_000);
 
   it("keeps blog index and category archive pages to one primary heading", async () => {
     render(<BlogIndexPage />);

@@ -33,7 +33,7 @@ export function StepWorkspaces({ workspaces }: StepWorkspacesProps) {
         </div>
         {selected.length === 0 ? (
           <p className="rounded-md border border-dashed border-line px-4 py-5 text-center text-sm text-faint">
-            No folders yet — browse above and add at least one workspace to continue.
+            No folders yet. Browse above and add at least one workspace to continue.
           </p>
         ) : (
           <ul className="flex flex-col gap-2">

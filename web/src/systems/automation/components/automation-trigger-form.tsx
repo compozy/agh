@@ -27,6 +27,8 @@ interface AutomationTriggerFormProps {
   agents?: string[];
 }
 
+const EMPTY_AGENTS: string[] = [];
+
 export function AutomationTriggerForm({
   activeWorkspaceId,
   draft,
@@ -36,7 +38,7 @@ export function AutomationTriggerForm({
   onChange,
   onSubmit,
   workspaces,
-  agents = [],
+  agents = EMPTY_AGENTS,
 }: AutomationTriggerFormProps) {
   const form = useAutomationTriggerForm({
     activeWorkspaceId,
@@ -109,7 +111,7 @@ export function AutomationTriggerForm({
               title={
                 <>
                   It matches these conditions
-                  <span className="ml-1.5 text-small-body font-normal text-faint">— optional</span>
+                  <span className="ml-1.5 text-small-body font-normal text-faint">(optional)</span>
                 </>
               }
             >
@@ -160,7 +162,7 @@ export function AutomationTriggerForm({
         <div className="flex flex-1 items-center gap-2 text-form-hint text-subtle">
           <Info aria-hidden="true" className="size-3 shrink-0 text-faint" />
           <span>
-            Created as a <b className="font-medium text-muted">dynamic</b> trigger — editable and
+            Created as a <b className="font-medium text-muted">dynamic</b> trigger: editable and
             deletable anytime.
           </span>
         </div>

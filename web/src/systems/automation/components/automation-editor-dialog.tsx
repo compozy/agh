@@ -1,7 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { CalendarClock, Zap } from "lucide-react";
 import type { ReactNode } from "react";
-import { useEffect } from "react";
 
 import {
   Dialog,
@@ -59,7 +58,7 @@ function jobHeaderCopy(mode: "create" | "edit"): EditorHeaderCopy {
     title: mode === "create" ? "Create job" : "Edit job",
     description: (
       <>
-        A job runs an agent on a schedule — no operator in the loop. It answers three things:{" "}
+        A job runs an agent on a schedule, no operator in the loop. It answers three things:{" "}
         <b className="font-medium text-muted">which agent, what prompt, and when to dispatch.</b>
       </>
     ),
@@ -90,30 +89,12 @@ export function AutomationEditorDialog({
   handle,
   workspaces,
 }: AutomationEditorDialogProps) {
-  const isControlled = handle === undefined;
   const isEditorOpen = editor !== null;
-
-  useEffect(() => {
-    if (!handle) {
-      return;
-    }
-
-    if (isEditorOpen) {
-      if (!handle.isOpen) {
-        handle.open(null);
-      }
-      return;
-    }
-
-    if (handle.isOpen) {
-      handle.close();
-    }
-  }, [handle, isEditorOpen]);
 
   return (
     <Dialog
       handle={handle}
-      open={isControlled ? isEditorOpen : undefined}
+      open={isEditorOpen}
       onOpenChange={open => {
         if (!open) editor?.onCancel();
       }}

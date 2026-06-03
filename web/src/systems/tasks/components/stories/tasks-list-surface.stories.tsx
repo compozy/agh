@@ -52,6 +52,8 @@ const OWNER_OPTIONS: TaskFilterOwnerOption[] = [
   { ref: "pedro@", kind: "human" },
 ];
 
+const LIST_UPDATED_AT = Date.UTC(2026, 3, 18, 1, 0, 0);
+
 function Stateful(props: Partial<TasksListSurfaceProps>) {
   const [statusFilter, setStatusFilter] = useState<TasksListSurfaceProps["statusFilter"]>(null);
   const [ownerFilter, setOwnerFilter] = useState<TasksListSurfaceProps["ownerFilter"]>(null);
@@ -64,7 +66,7 @@ function Stateful(props: Partial<TasksListSurfaceProps>) {
     <UIProvider reducedMotion="always">
       <div className="flex h-screen flex-col bg-canvas">
         <TasksListSurface
-          listUpdatedAt={Date.now() - 120_000}
+          listUpdatedAt={LIST_UPDATED_AT}
           onOwnerChange={setOwnerFilter}
           onPriorityChange={setPriorityFilter}
           onSearchQueryChange={setSearchQuery}

@@ -8,7 +8,7 @@ import {
   StorybookWorkspaceSetup,
   appRouteParameters,
   createRouteStoryMeta,
-} from "@/storybook/route-story";
+} from "@/storybook/route-story-meta";
 import { networkStatusFixture } from "@/systems/network/mocks";
 
 const storybookNetworkStatus = networkStatusFixture;

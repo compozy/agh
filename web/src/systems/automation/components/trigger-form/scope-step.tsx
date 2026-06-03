@@ -38,7 +38,7 @@ export function ScopeStep({
       {isWebhook ? (
         <div className="mt-3 flex items-center gap-2 text-form-hint text-subtle">
           <Webhook aria-hidden="true" className="size-3 shrink-0 text-warning" />
-          Webhook triggers are always global — they aren&apos;t tied to a workspace.
+          Webhook triggers are always global; they aren&apos;t tied to a workspace.
         </div>
       ) : null}
     </div>

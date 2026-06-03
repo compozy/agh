@@ -11,7 +11,7 @@ import {
 } from "@/systems/workspace/hooks/use-user-home-dir-store";
 
 import { AppSidebar, type AppSidebarProps } from "../app-sidebar";
-import { computeAgentsCount } from "../app-sidebar";
+import { computeAgentsCount } from "../app-sidebar-counts";
 
 const onSelectWorkspace = vi.fn();
 const onCollapseChange = vi.fn();

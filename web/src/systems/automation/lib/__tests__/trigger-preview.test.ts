@@ -129,9 +129,9 @@ describe("trigger-template", () => {
       "Session {{ .Data.session_id }} on {{ .Kind }} ({{ .Data.missing }})",
       env
     );
-    expect(tokens).toContainEqual({ type: "var", value: "sess_9f2a1c" });
-    expect(tokens).toContainEqual({ type: "var", value: "session.stopped" });
-    expect(tokens).toContainEqual({ type: "missing", name: "Data.missing" });
+    expect(tokens).toContainEqual({ id: "var:8", type: "var", value: "sess_9f2a1c" });
+    expect(tokens).toContainEqual({ id: "var:34", type: "var", value: "session.stopped" });
+    expect(tokens).toContainEqual({ id: "missing:47", type: "missing", name: "Data.missing" });
   });
 
   it("resolves the `index .Data` template form", () => {
@@ -143,14 +143,14 @@ describe("trigger-template", () => {
       data: { "weird.key": "value" },
     };
     const tokens = renderTemplate('{{ index .Data "weird.key" }}', env);
-    expect(tokens).toEqual([{ type: "var", value: "value" }]);
+    expect(tokens).toEqual([{ id: "var:0", type: "var", value: "value" }]);
   });
 
   it("tokenizes the raw template for the tinted source view", () => {
     expect(tokenizeTemplate("hi {{ .Kind }}!")).toEqual([
-      { type: "text", value: "hi " },
-      { type: "var", value: "{{ .Kind }}" },
-      { type: "text", value: "!" },
+      { id: "text:0", type: "text", value: "hi " },
+      { id: "var:3", type: "var", value: "{{ .Kind }}" },
+      { id: "text:14", type: "text", value: "!" },
     ]);
   });
 });
@@ -184,7 +184,7 @@ describe("buildTriggerPreview", () => {
     expect(highlighted).toHaveLength(1);
     expect(highlighted[0]).toMatchObject({ keyName: "stop_reason", value: "error" });
 
-    expect(preview.rendered).toContainEqual({ type: "var", value: "sess_9f2a1c" });
+    expect(preview.rendered).toContainEqual({ id: "var:8", type: "var", value: "sess_9f2a1c" });
     expect(preview.webhook).toBeNull();
   });
 

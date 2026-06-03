@@ -134,7 +134,7 @@ export function QueueOwnershipSection({
       <Field>
         <FieldLabel htmlFor="task-owner-kind">
           Owner
-          <span className="font-normal text-faint"> — leave unassigned to let a pool claim it</span>
+          <span className="font-normal text-faint"> (leave unassigned to let a pool claim it)</span>
         </FieldLabel>
         <NativeSelect
           aria-describedby={ownerHelpId}

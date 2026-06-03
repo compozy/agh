@@ -27,9 +27,9 @@ export function buildVariableChips(dataFields: string[]): string[] {
 }
 
 export type RenderToken =
-  | { type: "text"; value: string }
-  | { type: "var"; value: string }
-  | { type: "missing"; name: string };
+  | { id: string; type: "text"; value: string }
+  | { id: string; type: "var"; value: string }
+  | { id: string; type: "missing"; name: string };
 
 const TEMPLATE_PATTERN = /\{\{\s*(?:index\s+\.Data\s+"([^"]+)"|\.([\w.]+))\s*\}\}/g;
 
@@ -57,35 +57,46 @@ export function renderTemplate(template: string, env: TriggerEnvelope): RenderTo
   let match: RegExpExecArray | null = TEMPLATE_PATTERN.exec(template);
   while (match !== null) {
     if (match.index > lastIndex) {
-      tokens.push({ type: "text", value: template.slice(lastIndex, match.index) });
+      tokens.push({
+        id: `text:${lastIndex}`,
+        type: "text",
+        value: template.slice(lastIndex, match.index),
+      });
     }
     const dataKey = match[1];
     const path = dataKey ? `Data.${dataKey}` : match[2];
     const value = lookup(env, path);
     if (value === undefined) {
-      tokens.push({ type: "missing", name: dataKey ?? match[2] ?? "" });
+      tokens.push({
+        id: `missing:${match.index}`,
+        type: "missing",
+        name: dataKey ?? match[2] ?? "",
+      });
     } else {
-      tokens.push({ type: "var", value });
+      tokens.push({ id: `var:${match.index}`, type: "var", value });
     }
     lastIndex = TEMPLATE_PATTERN.lastIndex;
     match = TEMPLATE_PATTERN.exec(template);
   }
 
   if (lastIndex < template.length) {
-    tokens.push({ type: "text", value: template.slice(lastIndex) });
+    tokens.push({ id: `text:${lastIndex}`, type: "text", value: template.slice(lastIndex) });
   }
   return tokens;
 }
 
-export type TemplateToken = { type: "text" | "var"; value: string };
+export type TemplateToken = { id: string; type: "text" | "var"; value: string };
 
 /** Splits the raw template into text/variable tokens for the tinted source view. */
 export function tokenizeTemplate(template: string): TemplateToken[] {
   const tokens: TemplateToken[] = [];
   const parts = template.split(/(\{\{[^}]*\}\})/);
+  let offset = 0;
   for (const part of parts) {
     if (part === "") continue;
-    tokens.push({ type: part.startsWith("{{") ? "var" : "text", value: part });
+    const type = part.startsWith("{{") ? "var" : "text";
+    tokens.push({ id: `${type}:${offset}`, type, value: part });
+    offset += part.length;
   }
   return tokens;
 }

@@ -98,6 +98,13 @@ function parseTime(value: string): { hour: number; minute: number } | null {
   return { hour, minute };
 }
 
+function handleTime(value: string, commit: (hour: number, minute: number) => void) {
+  const parsed = parseTime(value);
+  if (parsed) {
+    commit(parsed.hour, parsed.minute);
+  }
+}
+
 /**
  * Visual 5-field cron builder. Pure and presentational: every value and handler
  * arrives via props. The parent owns the {@link CronModel} ↔ raw-string sync;
@@ -123,13 +130,6 @@ export function CronBuilder({
   const isCustom = model.frequency === "custom";
   const clock = formatClock(model.hour, model.minute);
   const showMonthWarning = model.frequency === "monthly" && model.monthDay >= 29;
-
-  const handleTime = (value: string, commit: (hour: number, minute: number) => void) => {
-    const parsed = parseTime(value);
-    if (parsed) {
-      commit(parsed.hour, parsed.minute);
-    }
-  };
 
   return (
     <div>
@@ -160,7 +160,8 @@ export function CronBuilder({
 
       <div className="eyebrow mb-2 mt-3.5 text-faint">Or build the rhythm</div>
 
-      <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label="Frequency">
+      <fieldset className="mb-3 flex flex-wrap gap-1.5">
+        <legend className="sr-only">Frequency</legend>
         {FREQUENCIES.map(({ freq, label, icon: Icon }) => {
           const pressed = model.frequency === freq;
           return (
@@ -176,7 +177,7 @@ export function CronBuilder({
             </button>
           );
         })}
-      </div>
+      </fieldset>
 
       {model.frequency === "minutes" ? (
         <div className={ROW_SHELL}>
@@ -230,13 +231,15 @@ export function CronBuilder({
 
       {model.frequency === "weekly" ? (
         <div className={cn(ROW_SHELL, "flex-col items-stretch gap-3")}>
-          <div className="grid grid-cols-7 gap-1.5" role="group" aria-label="Days of week">
+          <fieldset className="grid grid-cols-7 gap-1.5">
+            <legend className="sr-only">Days of week</legend>
             {SCHEDULE_CONSTANTS.DOW_SHORT.map((label, day) => {
               const pressed = model.weekdays.includes(day);
+              const weekday = SCHEDULE_CONSTANTS.DOW_LONG[day];
               return (
                 <button
-                  key={day}
-                  aria-label={SCHEDULE_CONSTANTS.DOW_LONG[day]}
+                  key={weekday}
+                  aria-label={weekday}
                   aria-pressed={pressed}
                   className={cn(
                     "h-9 rounded-sm border text-small-body font-semibold transition-colors outline-none focus-visible:shadow-focus-ring",
@@ -251,7 +254,7 @@ export function CronBuilder({
                 </button>
               );
             })}
-          </div>
+          </fieldset>
           <div className="flex flex-wrap items-center justify-between gap-2.5">
             <div className="flex flex-wrap gap-1.5">
               {(
@@ -342,14 +345,13 @@ export function CronBuilder({
         </div>
       </div>
 
-      <div
+      <output
         aria-live="polite"
         className={cn(
           "mt-2.5 flex items-center gap-1.5 text-small-body leading-snug",
           valid ? "text-success" : "text-danger"
         )}
         id="job-cron-readout"
-        role="status"
       >
         {valid ? (
           <Check aria-hidden="true" className="size-3 shrink-0" />
@@ -357,21 +359,19 @@ export function CronBuilder({
           <AlertTriangle aria-hidden="true" className="size-3 shrink-0" />
         )}
         <span>{readout}</span>
-      </div>
+      </output>
 
       {showMonthWarning ? (
         <div className="mt-2 flex items-center gap-1.5 text-form-hint leading-snug text-warning">
           <AlertTriangle aria-hidden="true" className="size-3 shrink-0" />
-          <span>
-            Months shorter than this day are skipped — the run won&apos;t fire that month.
-          </span>
+          <span>Months shorter than this day are skipped; the run won&apos;t fire that month.</span>
         </div>
       ) : null}
 
       <p className="mt-3 text-form-hint leading-snug text-subtle">
         Pick a frequency and we compile the <span className="font-medium text-muted">5-field</span>{" "}
         cron for you. Choose <span className="font-medium text-muted">Custom</span> to write the
-        expression directly — no seconds field, no{" "}
+        expression directly: no seconds field, no{" "}
         <code className="font-mono text-mono-id">@daily</code> macros.
       </p>
     </div>

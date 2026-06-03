@@ -11,7 +11,7 @@ import {
   StorybookWorkspaceSetup,
   appRouteParameters,
   createRouteStoryMeta,
-} from "@/storybook/route-story";
+} from "@/storybook/route-story-meta";
 
 const meta: Meta<typeof StorybookRouteCanvas> = {
   ...createRouteStoryMeta(

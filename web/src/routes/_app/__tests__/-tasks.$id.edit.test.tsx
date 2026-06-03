@@ -25,6 +25,9 @@ vi.mock("@tanstack/react-router", () => ({
     component: opts.component,
     useParams: () => routeParams,
   }),
+  getRouteApi: () => ({
+    useParams: () => routeParams,
+  }),
   useNavigate: () => navigateMock,
 }));
 

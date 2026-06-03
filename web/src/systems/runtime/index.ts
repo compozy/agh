@@ -12,7 +12,8 @@ export {
   type RuntimeConnectionIndicatorState,
   type RuntimeConnectionTone,
 } from "./components/connection-indicator";
-export { AppSidebar, computeAgentsCount, type AppSidebarProps } from "./components/app-sidebar";
+export { AppSidebar, type AppSidebarProps } from "./components/app-sidebar";
+export { computeAgentsCount, type AgentsCount } from "./components/app-sidebar-counts";
 export type { ModelSelectOption, ProviderSelectOption, ReasoningSelectOption } from "./types";
 export {
   ProviderCommandSelect,

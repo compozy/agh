@@ -46,9 +46,10 @@ export interface SummarySegment {
 export type MatchState = "all" | "match" | "nomatch";
 
 export type JsonRow =
-  | { kind: "open"; indent: number; label?: string }
-  | { kind: "close"; indent: number; comma: boolean }
+  | { id: string; kind: "open"; indent: number; label?: string }
+  | { id: string; kind: "close"; indent: number; comma: boolean }
   | {
+      id: string;
       kind: "pair";
       indent: number;
       keyName: string;
@@ -145,11 +146,12 @@ function appendObject(
     const comma = index < entries.length - 1;
     const fullKey = prefix ? `${prefix}.${key}` : key;
     if (value !== null && typeof value === "object") {
-      rows.push({ kind: "open", indent, label: key });
+      rows.push({ id: `open:${fullKey}`, kind: "open", indent, label: key });
       appendObject(value as Record<string, unknown>, indent + 1, fullKey, filteredKeys, rows);
-      rows.push({ kind: "close", indent, comma });
+      rows.push({ id: `close:${fullKey}`, kind: "close", indent, comma });
     } else {
       rows.push({
+        id: `pair:${fullKey}`,
         kind: "pair",
         indent,
         keyName: key,
@@ -162,9 +164,9 @@ function appendObject(
 }
 
 function buildJsonRows(env: TriggerEnvelope, filteredKeys: ReadonlySet<string>): JsonRow[] {
-  const rows: JsonRow[] = [{ kind: "open", indent: 0 }];
+  const rows: JsonRow[] = [{ id: "open:$", kind: "open", indent: 0 }];
   appendObject(env as unknown as Record<string, unknown>, 1, "", filteredKeys, rows);
-  rows.push({ kind: "close", indent: 0, comma: false });
+  rows.push({ id: "close:$", kind: "close", indent: 0, comma: false });
   return rows;
 }
 

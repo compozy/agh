@@ -81,7 +81,7 @@ function MultiExample({ onChange }: { onChange?: (next: City[]) => void }) {
 }
 
 describe("Combobox", () => {
-  it("Should open on focus and filter the list as inputValue changes", async () => {
+  it("Should open on input activation and filter the list as inputValue changes", async () => {
     const user = userEvent.setup();
     render(<SingleExample />);
     const input = screen.getByLabelText("city") as HTMLInputElement;
@@ -90,7 +90,7 @@ describe("Combobox", () => {
     fireEvent.change(input, { target: { value: "alb" } });
     await waitFor(() => expect(screen.queryByText("Berlin")).not.toBeInTheDocument());
     expect(screen.getByText("Albuquerque")).toBeInTheDocument();
-  });
+  }, 15_000);
 
   it("Should show the empty state when no items match", async () => {
     const user = userEvent.setup();

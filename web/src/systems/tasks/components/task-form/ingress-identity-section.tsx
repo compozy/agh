@@ -22,7 +22,7 @@ export function IngressIdentitySection({
       <Field>
         <FieldLabel htmlFor="task-network-input">
           Network channel
-          <span className="font-normal text-faint"> — peer ingress</span>
+          <span className="font-normal text-faint"> (peer ingress)</span>
         </FieldLabel>
         <Input
           className="font-mono"
@@ -37,7 +37,7 @@ export function IngressIdentitySection({
       <Field>
         <FieldLabel htmlFor="task-identifier-input">
           Identifier
-          <span className="font-normal text-faint"> — override</span>
+          <span className="font-normal text-faint"> (override)</span>
         </FieldLabel>
         <Input
           className="font-mono"

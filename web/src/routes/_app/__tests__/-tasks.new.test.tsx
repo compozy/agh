@@ -18,6 +18,9 @@ vi.mock("@tanstack/react-router", () => ({
       component: opts.component,
       useSearch: () => (opts.validateSearch ? opts.validateSearch(searchParams) : searchParams),
     }),
+  getRouteApi: () => ({
+    useSearch: () => searchParams,
+  }),
   useNavigate: () => navigateMock,
 }));
 

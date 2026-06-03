@@ -8,15 +8,14 @@ import { PreviewCard } from "./preview-card";
 function RenderedTokens({ tokens }: { tokens: RenderToken[] }) {
   return (
     <>
-      {tokens.map((token, index) => {
+      {tokens.map(token => {
         if (token.type === "text") {
-          // Plain template text is positional and stable per render.
-          return <span key={index}>{token.value}</span>;
+          return <span key={token.id}>{token.value}</span>;
         }
         if (token.type === "var") {
           return (
             <span
-              key={index}
+              key={token.id}
               className="rounded-[3px] bg-badge-fill px-0.5 font-mono text-form-hint text-fg-strong ring-1 ring-line-soft ring-inset"
             >
               {token.value}
@@ -25,7 +24,7 @@ function RenderedTokens({ tokens }: { tokens: RenderToken[] }) {
         }
         return (
           <span
-            key={index}
+            key={token.id}
             className="rounded-[3px] bg-danger-tint px-0.5 font-mono text-form-hint text-danger"
           >
             {`‹${token.name}?›`}
@@ -51,14 +50,13 @@ export function RenderedPrompt({ rendered, templateTokens }: RenderedPromptProps
       <div className="mt-2.5 border-t border-line-soft pt-2.5">
         <Eyebrow className="text-faint">Template</Eyebrow>
         <p className="mt-1.5 font-mono text-mono-id leading-relaxed whitespace-pre-wrap text-subtle">
-          {templateTokens.map((token, index) =>
+          {templateTokens.map(token =>
             token.type === "var" ? (
-              // Template tokens are positional and stable per render.
-              <span key={index} className="text-accent-strong">
+              <span key={token.id} className="text-accent-strong">
                 {token.value}
               </span>
             ) : (
-              <span key={index}>{token.value}</span>
+              <span key={token.id}>{token.value}</span>
             )
           )}
         </p>

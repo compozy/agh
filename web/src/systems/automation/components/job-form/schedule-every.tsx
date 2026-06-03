@@ -57,14 +57,13 @@ export function ScheduleEvery({
         value={interval}
       />
 
-      <div
+      <output
         aria-live="polite"
         className={cn(
           "mt-2.5 flex items-center gap-1.5 text-small-body leading-snug",
           valid ? "text-success" : "text-danger"
         )}
         id="job-every-readout"
-        role="status"
       >
         {valid ? (
           <Check aria-hidden="true" className="size-3 shrink-0" />
@@ -72,10 +71,10 @@ export function ScheduleEvery({
           <AlertTriangle aria-hidden="true" className="size-3 shrink-0" />
         )}
         <span>{readout}</span>
-      </div>
+      </output>
 
       <p className="mt-3 text-form-hint leading-snug text-subtle">
-        Positive Go duration — <code className="font-mono text-mono-id">30m</code>,{" "}
+        Positive Go duration: <code className="font-mono text-mono-id">30m</code>,{" "}
         <code className="font-mono text-mono-id">1h</code>,{" "}
         <code className="font-mono text-mono-id">2h30m</code>,{" "}
         <code className="font-mono text-mono-id">45s</code>.

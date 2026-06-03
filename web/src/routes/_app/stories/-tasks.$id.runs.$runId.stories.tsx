@@ -8,7 +8,7 @@ import {
   StorybookWorkspaceSetup,
   appRouteParameters,
   createRouteStoryMeta,
-} from "@/storybook/route-story";
+} from "@/storybook/route-story-meta";
 import { buildTaskRunDetailFixture } from "@/systems/tasks/mocks";
 
 const meta: Meta<typeof StorybookRouteCanvas> = {

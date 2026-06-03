@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 
 import { MonoId, Pill } from "@agh/ui";
 
@@ -86,24 +86,27 @@ export function TaskCard({ task, selected = false, onSelect }: TaskCardProps) {
     );
   }
 
-  const trailing = (
-    <>
-      {task.priority ? (
-        <Pill size="sm" tone={taskPriorityTone(task.priority)}>
-          {taskPriorityLabel(task.priority)}
-        </Pill>
-      ) : null}
-      {showApproval ? (
-        <Pill size="sm" tone="accent">
-          {taskApprovalStateLabel(task.approval_state)}
-        </Pill>
-      ) : null}
-      {isBlocked ? (
-        <Pill data-testid={`task-card-blocked-${task.id}`} mono size="sm" tone="warning">
-          Blocked
-        </Pill>
-      ) : null}
-    </>
+  const trailing = useMemo(
+    () => (
+      <>
+        {task.priority ? (
+          <Pill size="sm" tone={taskPriorityTone(task.priority)}>
+            {taskPriorityLabel(task.priority)}
+          </Pill>
+        ) : null}
+        {showApproval ? (
+          <Pill size="sm" tone="accent">
+            {taskApprovalStateLabel(task.approval_state)}
+          </Pill>
+        ) : null}
+        {isBlocked ? (
+          <Pill data-testid={`task-card-blocked-${task.id}`} mono size="sm" tone="warning">
+            Blocked
+          </Pill>
+        ) : null}
+      </>
+    ),
+    [isBlocked, showApproval, task.approval_state, task.id, task.priority]
   );
 
   return (

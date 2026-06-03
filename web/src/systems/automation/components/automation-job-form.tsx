@@ -43,6 +43,8 @@ interface AutomationJobFormProps {
   agents?: string[];
 }
 
+const EMPTY_AGENTS: string[] = [];
+
 const SCHEDULE_MODE_ITEMS: PillGroupItem<AutomationScheduleMode>[] = [
   {
     value: "cron",
@@ -98,7 +100,7 @@ export function AutomationJobForm({
   onChange,
   onSubmit,
   workspaces,
-  agents = [],
+  agents = EMPTY_AGENTS,
 }: AutomationJobFormProps) {
   const form = useAutomationJobForm({
     activeWorkspaceId,
@@ -184,7 +186,7 @@ export function AutomationJobForm({
               icon={Clock}
               kicker="When"
               last
-              subtitle="All times evaluate in UTC — the runtime's automation timezone."
+              subtitle="All times evaluate in UTC, the runtime's automation timezone."
               title="On this schedule"
             >
               <div className="space-y-4">
@@ -260,7 +262,7 @@ export function AutomationJobForm({
         <div className="flex flex-1 items-center gap-2 text-form-hint text-subtle">
           <Info aria-hidden="true" className="size-3 shrink-0 text-faint" />
           <span>
-            Created as a <b className="font-medium text-muted">dynamic</b> job — editable,
+            Created as a <b className="font-medium text-muted">dynamic</b> job: editable,
             disable-able, and deletable anytime.
           </span>
         </div>

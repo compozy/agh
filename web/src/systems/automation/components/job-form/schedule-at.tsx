@@ -33,14 +33,13 @@ export function ScheduleAt({ time, valid, readout, onTime }: ScheduleAtProps) {
         <span className="font-mono text-form-hint whitespace-nowrap text-subtle">{iso}</span>
       </div>
 
-      <div
+      <output
         aria-live="polite"
         className={cn(
           "mt-2.5 flex items-center gap-1.5 text-small-body leading-snug",
           valid ? "text-success" : "text-danger"
         )}
         id="job-at-readout"
-        role="status"
       >
         {valid ? (
           <Check aria-hidden="true" className="size-3 shrink-0" />
@@ -48,7 +47,7 @@ export function ScheduleAt({ time, valid, readout, onTime }: ScheduleAtProps) {
           <AlertTriangle aria-hidden="true" className="size-3 shrink-0" />
         )}
         <span>{readout}</span>
-      </div>
+      </output>
 
       <p className="mt-3 text-form-hint leading-snug text-subtle">
         One-time run, then the job unregisters. If the time is already past when you save, it never

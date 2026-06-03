@@ -74,7 +74,7 @@ export function ReliabilitySection({
         <Field className="col-span-2">
           <FieldTitle>
             Retry policy
-            {locked ? <span className="font-normal text-faint">— owned by the task</span> : null}
+            {locked ? <span className="font-normal text-faint">(owned by the task)</span> : null}
           </FieldTitle>
           <PillGroup
             aria-label="Retry policy"

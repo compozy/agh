@@ -11,7 +11,10 @@ import {
 } from "../lib/task-formatters";
 import type { TaskInboxLane, TaskListItem } from "../types";
 
-export interface TasksListRowProps extends Omit<React.ComponentProps<"div">, "onSelect"> {
+export interface TasksListRowProps extends Omit<
+  React.ComponentProps<"button">,
+  "onClick" | "onSelect" | "type"
+> {
   task: TaskListItem;
   selected?: boolean;
   rail?: boolean;
@@ -105,30 +108,18 @@ function TasksListRow({
   const resolvedTestId = testId ?? `task-card-${task.id}`;
 
   const clickable = onSelect !== undefined;
-  const handleKeyDown = clickable
-    ? (event: React.KeyboardEvent<HTMLDivElement>) => {
-        if (event.target !== event.currentTarget) return;
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onSelect?.(task.id);
-        }
-      }
-    : undefined;
-
   const showRail = rail || selected;
 
   return (
-    <div
+    <button
       aria-pressed={selected}
       data-slot="tasks-list-row"
       data-selected={selected ? "true" : undefined}
       data-status={task.status}
       data-testid={resolvedTestId}
+      disabled={!clickable}
       onClick={clickable ? () => onSelect?.(task.id) : undefined}
-      onKeyDown={handleKeyDown}
-      role="button"
-      aria-disabled={!clickable}
-      tabIndex={clickable ? 0 : undefined}
+      type="button"
       className={cn(
         "relative grid items-center gap-3 border-b border-line-soft py-2.5 pr-3 pl-3.5 text-left transition-colors duration-base ease-out",
         showStatusDot ? "grid-cols-[10px_minmax(0,1fr)_auto]" : "grid-cols-[minmax(0,1fr)_auto]",
@@ -204,7 +195,7 @@ function TasksListRow({
           {trailing}
         </div>
       ) : null}
-    </div>
+    </button>
   );
 }
 

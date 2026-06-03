@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -248,7 +248,9 @@ describe("SessionChatRuntimeProvider", () => {
       expect(screen.getByText("Launch readiness snapshot")).toBeInTheDocument();
     });
 
-    await user.type(screen.getByTestId("composer-textarea"), "Continue from the reattached thread");
+    fireEvent.change(screen.getByTestId("composer-textarea"), {
+      target: { value: "Continue from the reattached thread" },
+    });
     await user.click(screen.getByTestId("composer-send-button"));
 
     await waitFor(() => {

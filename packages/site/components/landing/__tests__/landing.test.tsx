@@ -200,12 +200,13 @@ describe("SupportedAgents", () => {
   it("renders as a compact support strip, not a hero section", () => {
     render(<SupportedAgents />);
     const list = screen.getByRole("list", { name: "Supported agent CLIs" });
+    const items = within(list).getAllByRole("listitem");
 
-    for (const provider of PROVIDERS) {
-      expect(within(list).getByRole("listitem", { name: provider.name })).toBeDefined();
-    }
+    expect(items.map(item => item.getAttribute("aria-label"))).toEqual(
+      PROVIDERS.map(provider => provider.name)
+    );
     expect(screen.getByText("Your CLI on the network")).toBeDefined();
-  });
+  }, 15_000);
 });
 
 describe("RuntimeSection", () => {

@@ -35,7 +35,7 @@ export function ScopeStep({
       {scope === "global" ? (
         <div className="mt-3 flex items-center gap-2 text-form-hint text-subtle">
           <Info aria-hidden="true" className="size-3 shrink-0" />
-          Global jobs aren&apos;t bound to a workspace — leave the workspace field empty.
+          Global jobs aren&apos;t bound to a workspace; leave the workspace field empty.
         </div>
       ) : null}
     </div>

@@ -75,9 +75,8 @@ export function SampleEventCard({ json, matchState, matchLabel }: SampleEventCar
   return (
     <PreviewCard label="Sample event" right={<MatchBadge label={matchLabel} state={matchState} />}>
       <pre className="overflow-x-auto rounded border border-line-soft bg-rail p-3 font-mono text-form-hint leading-relaxed whitespace-pre text-fg">
-        {json.map((row, index) => (
-          // JSON rows are positional and stable per render.
-          <JsonRowLine key={index} row={row} />
+        {json.map(row => (
+          <JsonRowLine key={row.id} row={row} />
         ))}
       </pre>
     </PreviewCard>

@@ -291,12 +291,12 @@ export function TaskEditorModal({
               <span>
                 {draft.saveAsDraft ? (
                   <>
-                    Saved as a <b className="font-medium text-muted">draft</b> — no run is queued
+                    Saved as a <b className="font-medium text-muted">draft</b>; no run is queued
                     until you enqueue it.
                   </>
                 ) : (
                   <>
-                    The contract is durable — runs descend from this task and respect dependencies.
+                    The contract is durable; runs descend from this task and respect dependencies.
                   </>
                 )}
               </span>

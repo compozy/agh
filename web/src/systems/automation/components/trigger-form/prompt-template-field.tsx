@@ -34,7 +34,7 @@ export function PromptTemplateField({ value, variables, onChange }: PromptTempla
     <Field>
       <FieldLabel htmlFor="trigger-prompt">
         Prompt template
-        <span className="font-normal text-faint"> — click a variable to insert it</span>
+        <span className="font-normal text-faint"> (click a variable to insert it)</span>
       </FieldLabel>
       <VariableBar onInsert={insertVariable} variables={variables} />
       <Textarea
@@ -48,7 +48,7 @@ export function PromptTemplateField({ value, variables, onChange }: PromptTempla
       />
       <FieldDescription>
         Go <code className="font-mono text-mono-id text-muted">text/template</code> syntax.
-        Variables resolve against the matched event — see the rendered result on the right.
+        Variables resolve against the matched event; see the rendered result on the right.
       </FieldDescription>
     </Field>
   );

@@ -1,4 +1,3 @@
-import type { Meta } from "@storybook/react-vite";
 import { useEffect } from "react";
 
 import { useSidebarStore } from "@/hooks/use-sidebar-store";
@@ -10,34 +9,6 @@ import { storyDefaultWorkspaceId } from "@/storybook/fintech-scenario";
 
 export function StorybookRouteCanvas() {
   return null;
-}
-
-export function createRouteStoryMeta(
-  title: string,
-  description: string
-): Meta<typeof StorybookRouteCanvas> {
-  return {
-    title,
-    component: StorybookRouteCanvas,
-    parameters: {
-      layout: "fullscreen",
-      docs: {
-        description: {
-          component: description,
-        },
-      },
-    },
-  };
-}
-
-export function appRouteParameters(path: string) {
-  return {
-    layout: "fullscreen" as const,
-    router: {
-      kind: "app" as const,
-      initialEntries: [path],
-    },
-  };
 }
 
 export function StorybookWorkspaceSetup({

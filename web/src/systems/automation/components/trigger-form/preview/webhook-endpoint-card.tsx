@@ -47,12 +47,11 @@ export function WebhookEndpointCard({ url, curl }: WebhookEndpointCardProps) {
         </Button>
       </div>
       <pre className="overflow-x-auto rounded border border-line-soft bg-rail p-3 font-mono text-form-hint leading-relaxed whitespace-pre text-fg">
-        {curl.map((line, lineIndex) => (
-          // Curl lines are positional and stable per render.
-          <div key={lineIndex}>
-            {line.map((segment, segmentIndex) => (
+        {curl.map(line => (
+          <div key={line.map(segment => segment.text).join("")}>
+            {line.map(segment => (
               <span
-                key={segmentIndex}
+                key={segment.text}
                 className={cn(
                   segment.tone === "keyword" && "text-info",
                   segment.tone === "string" && "text-success"
