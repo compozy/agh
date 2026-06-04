@@ -1,3 +1,9 @@
+## 0.0.7 - 2026-06-04
+
+### ♻️ Refactoring
+
+- Improvements on create modals (#252)
+
 ## 0.0.6 - 2026-06-03
 
 ### 🎉 Features
