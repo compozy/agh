@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { useCreateChildTask, useCreateTask, useEnqueueTaskRun } from "@/systems/tasks";
@@ -28,6 +28,7 @@ export function useTaskCreateRouteState(search: { template?: TaskTemplateId }) {
   const createMutation = useCreateTask();
   const createChildMutation = useCreateChildTask();
   const enqueueMutation = useEnqueueTaskRun();
+  const submitInFlightRef = useRef(false);
 
   const templateId = search.template ?? DEFAULT_TASK_TEMPLATE_ID;
   const activeTaskScope = taskScopeForActiveWorkspace(activeWorkspace, userHomeDir);
@@ -56,6 +57,10 @@ export function useTaskCreateRouteState(search: { template?: TaskTemplateId }) {
 
   const handleSubmit = useCallback(
     async (nextDraft: TaskEditorDraft, asDraft: boolean) => {
+      if (submitInFlightRef.current) {
+        return null;
+      }
+
       const trimmedTitle = nextDraft.title.trim();
       if (!trimmedTitle) {
         toast.error("Provide a title before creating the task.");
@@ -70,6 +75,7 @@ export function useTaskCreateRouteState(search: { template?: TaskTemplateId }) {
       const parentTaskId = nextDraft.parentTaskId.trim();
       const isChildTask = parentTaskId.length > 0;
 
+      submitInFlightRef.current = true;
       try {
         const created = isChildTask
           ? await createChildMutation.mutateAsync({
@@ -109,6 +115,8 @@ export function useTaskCreateRouteState(search: { template?: TaskTemplateId }) {
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Failed to create task");
         return null;
+      } finally {
+        submitInFlightRef.current = false;
       }
     },
     [createChildMutation, createMutation, enqueueMutation, navigate, templateId]

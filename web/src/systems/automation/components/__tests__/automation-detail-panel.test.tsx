@@ -241,4 +241,34 @@ describe("AutomationDetailPanel", () => {
     expect(screen.queryByTestId("delete-automation-btn")).not.toBeInTheDocument();
     expect(screen.queryByTestId("trigger-job-btn")).not.toBeInTheDocument();
   });
+
+  it("renders a dynamic webhook trigger endpoint URL and curl copy affordance", () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    renderPanel({
+      item: {
+        ...triggerFixture,
+        source: "dynamic" as const,
+        scope: "global" as const,
+        workspace_id: undefined,
+      },
+      kind: "triggers",
+      runs: [],
+    });
+
+    expect(screen.getByText("Webhook endpoint")).toBeInTheDocument();
+    expect(
+      screen.getByText("/api/webhooks/global/push-review--wbh_push_review")
+    ).toBeInTheDocument();
+    expect(screen.getByText("curl")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy webhook URL" }));
+
+    expect(writeText).toHaveBeenCalledWith("/api/webhooks/global/push-review--wbh_push_review");
+    expect(screen.getByTestId("edit-automation-btn")).toBeInTheDocument();
+    expect(screen.getByTestId("delete-automation-btn")).toBeInTheDocument();
+  });
 });

@@ -27,6 +27,7 @@ import {
   useUpdateAutomationTrigger,
   AutomationApiError,
 } from "@/systems/automation";
+import { localInputToDate, toRfc3339 } from "@/systems/automation/lib/cron-engine";
 import type {
   AutomationRun,
   AutomationScopeFilter,
@@ -121,6 +122,19 @@ function automationUnavailableMessage(
   }
 
   return null;
+}
+
+function normalizeAutomationSchedule(
+  schedule: CreateAutomationJobRequest["schedule"]
+): CreateAutomationJobRequest["schedule"] {
+  if (schedule.mode !== "at") {
+    return schedule;
+  }
+
+  return {
+    ...schedule,
+    time: toRfc3339(localInputToDate(schedule.time ?? "")),
+  };
 }
 
 function useAutomationPageBase() {
@@ -252,6 +266,7 @@ function useAutomationJobsPage() {
       const payload = {
         ...editor.draft,
         retry: normalizeAutomationRetry(editor.draft.retry ?? undefined),
+        schedule: normalizeAutomationSchedule(editor.draft.schedule),
       };
       const job =
         editor.mode === "create"
