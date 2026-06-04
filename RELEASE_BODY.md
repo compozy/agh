@@ -1,9 +1,5 @@
-## 0.0.7 - 2026-06-04
+## 0.0.8 - 2026-06-04
 
-### ♻️ Refactoring
+### 🧪 Testing
 
-- Improvements on create modals (#252)
-
-### 🐛 Bug Fixes
-
-- Repair daemon-served e2e flows
+- Remove not needed test

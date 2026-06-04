@@ -1,3 +1,9 @@
+## 0.0.8 - 2026-06-04
+
+### 🧪 Testing
+
+- Remove not needed test
+
 ## 0.0.7 - 2026-06-04
 
 ### ♻️ Refactoring
