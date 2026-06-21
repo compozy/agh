@@ -270,7 +270,6 @@ func SessionFailurePayloadFromStore(failure *store.SessionFailure) *contract.Ses
 func ACPCapsPayloadFromInfo(caps acp.Caps) *contract.ACPCapsPayload {
 	if !caps.SupportsLoadSession &&
 		len(caps.SupportedModes) == 0 &&
-		len(caps.SupportedModels) == 0 &&
 		len(caps.ConfigOptions) == 0 {
 		return nil
 	}
@@ -278,7 +277,6 @@ func ACPCapsPayloadFromInfo(caps acp.Caps) *contract.ACPCapsPayload {
 	return &contract.ACPCapsPayload{
 		SupportsLoadSession: caps.SupportsLoadSession,
 		SupportedModes:      append([]string(nil), caps.SupportedModes...),
-		SupportedModels:     append([]string(nil), caps.SupportedModels...),
 		ConfigOptions:       SessionConfigOptionPayloadsFromInfo(caps.ConfigOptions),
 	}
 }

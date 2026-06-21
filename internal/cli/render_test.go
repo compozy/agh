@@ -24,7 +24,6 @@ func TestBundlesRenderHumanAndToon(t *testing.T) {
 		ACPCaps: &ACPCapsRecord{
 			SupportsLoadSession: true,
 			SupportedModes:      []string{"chat"},
-			SupportedModels:     []string{"gpt-5.4"},
 		},
 		CreatedAt: fixedTestNow.Add(-10 * time.Minute),
 		UpdatedAt: fixedTestNow,

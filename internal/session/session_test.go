@@ -83,7 +83,14 @@ func TestSessionInfoCopiesCapabilities(t *testing.T) {
 		ACPCaps: acp.Caps{
 			SupportsLoadSession: true,
 			SupportedModes:      []string{"chat"},
-			SupportedModels:     []string{"gpt"},
+			ConfigOptions: []acp.SessionConfigOption{{
+				ID:      "model",
+				Kind:    acp.SessionConfigOptionKindSelect,
+				Current: "gpt",
+				Values: []acp.SessionConfigOptionValue{
+					{Value: "gpt", Label: "GPT"},
+				},
+			}},
 		},
 		CreatedAt: time.Now().UTC(),
 		UpdatedAt: time.Now().UTC(),
@@ -91,14 +98,16 @@ func TestSessionInfoCopiesCapabilities(t *testing.T) {
 
 	info := session.Info()
 	info.ACPCaps.SupportedModes[0] = "mutated"
-	info.ACPCaps.SupportedModels[0] = "mutated"
+	info.ACPCaps.ConfigOptions[0].Current = "mutated"
+	info.ACPCaps.ConfigOptions[0].Values[0].Value = "mutated"
 
 	latest := session.Info()
 	if latest.ACPCaps.SupportedModes[0] != "chat" {
 		t.Fatalf("SupportedModes mutated through Info() copy: %#v", latest.ACPCaps.SupportedModes)
 	}
-	if latest.ACPCaps.SupportedModels[0] != "gpt" {
-		t.Fatalf("SupportedModels mutated through Info() copy: %#v", latest.ACPCaps.SupportedModels)
+	if latest.ACPCaps.ConfigOptions[0].Current != "gpt" ||
+		latest.ACPCaps.ConfigOptions[0].Values[0].Value != "gpt" {
+		t.Fatalf("ConfigOptions mutated through Info() copy: %#v", latest.ACPCaps.ConfigOptions)
 	}
 }
 

@@ -735,7 +735,6 @@ func newHarnessIntegrationProcess(
 		Caps: acp.Caps{
 			SupportsLoadSession: true,
 			SupportedModes:      []string{"chat"},
-			SupportedModels:     []string{"gpt-4o"},
 		},
 		StartedAt: time.Now().UTC(),
 		Done:      proc.done,

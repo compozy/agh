@@ -293,3 +293,4 @@ Backend architecture, autonomy contracts, security invariants, package layout, a
 - **Institutional memory**: `docs/_memory/` — see the **Memory & Lessons Learned** section above for the per-surface map.
 - **Authoritative design tokens**: `packages/ui/src/tokens.css`; generated spec/rationale: `DESIGN.md` (repo root).
 - **Authoritative copy system**: `COPY.md` (repo root).
+- **Product/register context**: `PRODUCT.md` (repo root) — strategic who/what/why: default register (`product` = runtime UI in `web/` + `packages/ui`; per-task `brand` override for the `packages/site` marketing/docs site), users, design principles, and WCAG 2.2 AA floor. Complements `DESIGN.md` (how it looks) and `COPY.md` (what it says); consumed by the `impeccable` design skill, which reads all three and never overrides the generated `DESIGN.md`/`COPY.md`.

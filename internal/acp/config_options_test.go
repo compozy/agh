@@ -1,7 +1,6 @@
 package acp
 
 import (
-	"slices"
 	"testing"
 
 	acpsdk "github.com/coder/acp-go-sdk"
@@ -129,34 +128,6 @@ func TestConfigOptionMatching(t *testing.T) {
 		}
 		if configOptionAllowsValue(options[0], "true") {
 			t.Fatal("configOptionAllowsValue() accepted boolean option as select")
-		}
-	})
-}
-
-func TestLegacyModelStateAllows(t *testing.T) {
-	t.Parallel()
-
-	caps := Caps{SupportedModels: []string{"model-a", "model-b"}}
-
-	t.Run("Should allow only advertised legacy models", func(t *testing.T) {
-		t.Parallel()
-
-		if !legacyModelStateAllows(caps, "model-b") {
-			t.Fatal("legacyModelStateAllows() rejected advertised model")
-		}
-		if legacyModelStateAllows(caps, "model-c") {
-			t.Fatal("legacyModelStateAllows() accepted unadvertised model")
-		}
-		if legacyModelStateAllows(Caps{}, "model-a") {
-			t.Fatal("legacyModelStateAllows() accepted model without legacy state")
-		}
-	})
-
-	t.Run("Should preserve legacy model lists when cloning caps", func(t *testing.T) {
-		t.Parallel()
-
-		if !slices.Equal(CloneCaps(caps).SupportedModels, caps.SupportedModels) {
-			t.Fatalf("CloneCaps() did not preserve models")
 		}
 	})
 }

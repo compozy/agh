@@ -52,7 +52,6 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 			ACPCaps: acp.Caps{
 				SupportsLoadSession: true,
 				SupportedModes:      []string{"chat"},
-				SupportedModels:     []string{"gpt-test"},
 				ConfigOptions: []acp.SessionConfigOption{
 					{
 						ID:      "model",

@@ -43,6 +43,8 @@ var (
 	ErrAgentDoesNotSupportSession = errors.New("acp: agent does not support session/load")
 	// ErrLoadSessionFailed reports that ACP session/load failed during resume.
 	ErrLoadSessionFailed = errors.New("acp: load session failed")
+	// errModelConfigOptionRequired reports that a requested model needs an advertised ACP model option.
+	errModelConfigOptionRequired = errors.New("acp: model config option required")
 	// errProcessConnectionUninitialized reports that the driver received a process without an ACP connection.
 	errProcessConnectionUninitialized = errors.New("acp: process connection is not initialized")
 	// errProcessLifecycleUninitialized reports that the driver received a process without a managed lifecycle.
@@ -479,7 +481,6 @@ func (d *Driver) loadSession(ctx context.Context, process *AgentProcess, normali
 	process.setCaps(captureCaps(
 		process.CapsSnapshot().SupportsLoadSession,
 		loadResponse.Modes,
-		loadResponse.Models,
 		loadResponse.ConfigOptions,
 	))
 	if err := d.applySessionMode(ctx, process, normalized.Permissions); err != nil {
@@ -537,7 +538,6 @@ func (d *Driver) createSession(ctx context.Context, process *AgentProcess, norma
 	process.setCaps(captureCaps(
 		process.CapsSnapshot().SupportsLoadSession,
 		newResponse.Modes,
-		newResponse.Models,
 		newResponse.ConfigOptions,
 	))
 	if err := d.applySessionMode(ctx, process, normalized.Permissions); err != nil {
@@ -607,20 +607,11 @@ func (d *Driver) applySessionModel(ctx context.Context, process *AgentProcess, p
 		return d.applySessionConfigOption(ctx, process, option.ID, modelID)
 	}
 
-	if !legacyModelStateAllows(caps, modelID) {
-		return fmt.Errorf("acp: model %q is not available in legacy ACP model state", modelID)
-	}
-
-	_, err := acpsdk.SendRequest[acpsdk.UnstableSetSessionModelResponse](
-		process.conn,
-		ctx,
-		acpsdk.AgentMethodSessionSetModel,
-		acpsdk.UnstableSetSessionModelRequest{
-			SessionId: acpsdk.SessionId(process.SessionID),
-			ModelId:   acpsdk.UnstableModelId(modelID),
-		},
+	return fmt.Errorf(
+		"acp: model %q requires an ACP model config option; agent did not advertise one: %w",
+		modelID,
+		errModelConfigOptionRequired,
 	)
-	return err
 }
 
 func (d *Driver) applySessionReasoningEffort(ctx context.Context, process *AgentProcess, effort string) error {
@@ -1426,7 +1417,6 @@ func toSDKMCPServers(servers []aghconfig.MCPServer) []acpsdk.McpServer {
 func captureCaps(
 	loadSession bool,
 	modes *acpsdk.SessionModeState,
-	models *acpsdk.SessionModelState,
 	configOptions []acpsdk.SessionConfigOption,
 ) Caps {
 	caps := Caps{SupportsLoadSession: loadSession}
@@ -1434,12 +1424,6 @@ func captureCaps(
 		caps.SupportedModes = make([]string, 0, len(modes.AvailableModes))
 		for _, mode := range modes.AvailableModes {
 			caps.SupportedModes = append(caps.SupportedModes, string(mode.Id))
-		}
-	}
-	if models != nil {
-		caps.SupportedModels = make([]string, 0, len(models.AvailableModels))
-		for _, model := range models.AvailableModels {
-			caps.SupportedModels = append(caps.SupportedModels, string(model.ModelId))
 		}
 	}
 	caps.ConfigOptions = sessionConfigOptionsFromSDK(configOptions)

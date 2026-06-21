@@ -130,16 +130,3 @@ func configOptionAllowsValue(option SessionConfigOption, value string) bool {
 	}
 	return false
 }
-
-func legacyModelStateAllows(caps Caps, modelID string) bool {
-	modelID = strings.TrimSpace(modelID)
-	if modelID == "" {
-		return false
-	}
-	for _, candidate := range caps.SupportedModels {
-		if strings.TrimSpace(candidate) == modelID {
-			return true
-		}
-	}
-	return false
-}

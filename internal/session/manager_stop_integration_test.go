@@ -614,6 +614,10 @@ func (sessionStopACPAgent) Authenticate(
 	return acpsdk.AuthenticateResponse{}, nil
 }
 
+func (sessionStopACPAgent) Logout(context.Context, acpsdk.LogoutRequest) (acpsdk.LogoutResponse, error) {
+	return acpsdk.LogoutResponse{}, nil
+}
+
 func (sessionStopACPAgent) Initialize(context.Context, acpsdk.InitializeRequest) (acpsdk.InitializeResponse, error) {
 	return acpsdk.InitializeResponse{
 		ProtocolVersion: acpsdk.ProtocolVersionNumber,

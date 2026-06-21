@@ -6959,7 +6959,6 @@ export interface operations {
                       value: string;
                     }[];
                   }[];
-                  supported_models?: string[];
                   supported_modes?: string[];
                   supports_load_session: boolean;
                 } | null;
@@ -33594,7 +33593,6 @@ export interface operations {
                     value: string;
                   }[];
                 }[];
-                supported_models?: string[];
                 supported_modes?: string[];
                 supports_load_session: boolean;
               } | null;
@@ -33830,7 +33828,6 @@ export interface operations {
                     value: string;
                   }[];
                 }[];
-                supported_models?: string[];
                 supported_modes?: string[];
                 supports_load_session: boolean;
               } | null;
@@ -59335,7 +59332,6 @@ export interface operations {
                     value: string;
                   }[];
                 }[];
-                supported_models?: string[];
                 supported_modes?: string[];
                 supports_load_session: boolean;
               } | null;
@@ -60329,7 +60325,6 @@ export interface operations {
                       value: string;
                     }[];
                   }[];
-                  supported_models?: string[];
                   supported_modes?: string[];
                   supports_load_session: boolean;
                 } | null;
@@ -60661,7 +60656,6 @@ export interface operations {
                       value: string;
                     }[];
                   }[];
-                  supported_models?: string[];
                   supported_modes?: string[];
                   supports_load_session: boolean;
                 } | null;
@@ -62814,7 +62808,6 @@ export interface operations {
                     value: string;
                   }[];
                 }[];
-                supported_models?: string[];
                 supported_modes?: string[];
                 supports_load_session: boolean;
               } | null;
@@ -63253,7 +63246,6 @@ export interface operations {
                     value: string;
                   }[];
                 }[];
-                supported_models?: string[];
                 supported_modes?: string[];
                 supports_load_session: boolean;
               } | null;
@@ -64758,7 +64750,6 @@ export interface operations {
                       value: string;
                     }[];
                   }[];
-                  supported_models?: string[];
                   supported_modes?: string[];
                   supports_load_session: boolean;
                 } | null;

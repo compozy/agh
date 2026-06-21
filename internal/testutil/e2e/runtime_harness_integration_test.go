@@ -302,6 +302,10 @@ func (a *e2eACPAgent) Authenticate(
 	return acpsdk.AuthenticateResponse{}, nil
 }
 
+func (a *e2eACPAgent) Logout(context.Context, acpsdk.LogoutRequest) (acpsdk.LogoutResponse, error) {
+	return acpsdk.LogoutResponse{}, nil
+}
+
 func (a *e2eACPAgent) Initialize(
 	context.Context,
 	acpsdk.InitializeRequest,

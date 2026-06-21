@@ -492,6 +492,13 @@ func (a *daemonNightlyCombinedACPAgent) Authenticate(
 	return acpsdk.AuthenticateResponse{}, nil
 }
 
+func (a *daemonNightlyCombinedACPAgent) Logout(
+	context.Context,
+	acpsdk.LogoutRequest,
+) (acpsdk.LogoutResponse, error) {
+	return acpsdk.LogoutResponse{}, nil
+}
+
 func (a *daemonNightlyCombinedACPAgent) Initialize(
 	context.Context,
 	acpsdk.InitializeRequest,

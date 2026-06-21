@@ -246,6 +246,10 @@ func (a *mockAgent) SetSessionMode(
 	return acpsdk.SetSessionModeResponse{}, nil
 }
 
+func (a *mockAgent) Logout(context.Context, acpsdk.LogoutRequest) (acpsdk.LogoutResponse, error) {
+	return acpsdk.LogoutResponse{}, nil
+}
+
 func (a *mockAgent) SetSessionConfigOption(
 	_ context.Context,
 	request acpsdk.SetSessionConfigOptionRequest,
@@ -265,13 +269,6 @@ func (a *mockAgent) SetSessionConfigOption(
 	return acpsdk.SetSessionConfigOptionResponse{
 		ConfigOptions: a.sessionConfigOptions(string(request.ValueId.SessionId)),
 	}, nil
-}
-
-func (a *mockAgent) UnstableSetSessionModel(
-	context.Context,
-	acpsdk.UnstableSetSessionModelRequest,
-) (acpsdk.UnstableSetSessionModelResponse, error) {
-	return acpsdk.UnstableSetSessionModelResponse{}, nil
 }
 
 func sessionConfigOptionsFromFixture(

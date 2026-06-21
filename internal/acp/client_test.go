@@ -815,9 +815,6 @@ func TestPromptStreamsSessionUpdates(t *testing.T) {
 	if !slices.Equal(proc.Caps.SupportedModes, []string{"new-mode"}) {
 		t.Fatalf("Start() supported modes = %#v, want %#v", proc.Caps.SupportedModes, []string{"new-mode"})
 	}
-	if !slices.Equal(proc.Caps.SupportedModels, []string{"new-model"}) {
-		t.Fatalf("Start() supported models = %#v, want %#v", proc.Caps.SupportedModels, []string{"new-model"})
-	}
 }
 
 func TestStartResumeUsesLoadSession(t *testing.T) {
@@ -837,9 +834,6 @@ func TestStartResumeUsesLoadSession(t *testing.T) {
 	}
 	if !slices.Equal(proc.Caps.SupportedModes, []string{"loaded-mode"}) {
 		t.Fatalf("Start() supported modes = %#v, want %#v", proc.Caps.SupportedModes, []string{"loaded-mode"})
-	}
-	if !slices.Equal(proc.Caps.SupportedModels, []string{"loaded-model"}) {
-		t.Fatalf("Start() supported models = %#v, want %#v", proc.Caps.SupportedModels, []string{"loaded-model"})
 	}
 }
 
@@ -965,56 +959,6 @@ func TestStartDenyAllWithToolGatewayPrefersApprovalMediatedSessionMode(t *testin
 	}
 }
 
-func TestStartSetsPreferredSessionModelWhenProvided(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name          string
-		scenario      string
-		resumeSession string
-		preferred     string
-		wantSession   string
-	}{
-		{
-			name:        "Should set preferred model for new sessions",
-			scenario:    "stream_updates",
-			preferred:   "new-model",
-			wantSession: "sess-new",
-		},
-		{
-			name:          "Should set preferred model for resumed sessions",
-			scenario:      "load_session",
-			resumeSession: "sess-existing",
-			preferred:     "loaded-model",
-			wantSession:   "sess-existing",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			driver := New()
-			captureFile := filepath.Join(t.TempDir(), "session-set-model.jsonl")
-			proc := startHelperProcess(t, driver, tc.scenario, "", StartOpts{
-				ResumeSessionID: tc.resumeSession,
-				PreferredModel:  tc.preferred,
-				Env:             helperEnvWithCapture(tc.scenario, "", captureFile),
-			})
-			defer stopProcess(t, driver, proc)
-
-			params := captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetModel)
-			request := decodeCapturedSetSessionModelRequest(t, params)
-			if got := request.SessionID; got != tc.wantSession {
-				t.Fatalf("set-model session id = %q, want %q", got, tc.wantSession)
-			}
-			if got := request.ModelID; got != tc.preferred {
-				t.Fatalf("set-model model id = %q, want %q", got, tc.preferred)
-			}
-		})
-	}
-}
-
 func TestStartCapturesSessionConfigOptions(t *testing.T) {
 	t.Parallel()
 
@@ -1081,9 +1025,6 @@ func TestStartUsesSetConfigOptionForPreferredModelWhenAvailable(t *testing.T) {
 	if got := request.Value; got != "other-model" {
 		t.Fatalf("set-config value = %q, want other-model", got)
 	}
-	if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetModel) {
-		t.Fatal("legacy set_model was sent when model config option was available")
-	}
 	assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "model", "other-model", "other-model")
 }
 
@@ -1125,35 +1066,37 @@ func TestStartDoesNotInventReasoningConfigOptionWhenAbsent(t *testing.T) {
 	if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
 		t.Fatal("set_config_option was sent without a reasoning config option")
 	}
-	if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetModel) {
-		t.Fatal("legacy set_model was sent for a reasoning-only override")
-	}
 }
 
-func TestStartFallsBackToLegacySetModelWhenModelConfigOptionIsAbsent(t *testing.T) {
+func TestStartRejectsPreferredModelWhenModelConfigOptionIsAbsent(t *testing.T) {
 	t.Parallel()
 
-	driver := New()
-	captureFile := filepath.Join(t.TempDir(), "session-no-model-config.jsonl")
-	proc := startHelperProcess(t, driver, "config_options_no_model", "", StartOpts{
-		PreferredModel: "new-model",
-		Env:            helperEnvWithCapture("config_options_no_model", "", captureFile),
-	})
-	defer stopProcess(t, driver, proc)
+	t.Run("Should reject preferred model without ACP model config option", func(t *testing.T) {
+		t.Parallel()
 
-	request := decodeCapturedSetSessionModelRequest(
-		t,
-		captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetModel),
-	)
-	if got := request.SessionID; got != "sess-new" {
-		t.Fatalf("set-model session id = %q, want sess-new", got)
-	}
-	if got := request.ModelID; got != "new-model" {
-		t.Fatalf("set-model model id = %q, want new-model", got)
-	}
-	if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
-		t.Fatal("set_config_option was sent when no model config option was available")
-	}
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "session-no-model-config.jsonl")
+		proc, err := driver.Start(testutil.Context(t), StartOpts{
+			AgentName:      "helper",
+			Command:        helperCommand(t),
+			Cwd:            t.TempDir(),
+			Env:            helperEnvWithCapture("config_options_no_model", "", captureFile),
+			Permissions:    aghconfig.PermissionModeApproveAll,
+			PreferredModel: "new-model",
+		})
+		if proc != nil {
+			defer stopProcess(t, driver, proc)
+		}
+		if err == nil {
+			t.Fatal("Start() error = nil, want missing model config option error")
+		}
+		if !errors.Is(err, errModelConfigOptionRequired) {
+			t.Fatalf("Start() error = %v, want model config option required", err)
+		}
+		if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
+			t.Fatal("set_config_option was sent when no model config option was available")
+		}
+	})
 }
 
 func TestStartRejectsUnavailableSessionConfigOptionValues(t *testing.T) {
@@ -1171,7 +1114,7 @@ func TestStartRejectsUnavailableSessionConfigOptionValues(t *testing.T) {
 				PreferredModel: "missing-model",
 			},
 			wantError:       `model "missing-model" is not available in config option "model"`,
-			forbiddenMethod: acpsdk.AgentMethodSessionSetModel,
+			forbiddenMethod: acpsdk.AgentMethodSessionSetConfigOption,
 		},
 		{
 			name: "Should reject reasoning effort absent from reasoning config option values",
@@ -1212,33 +1155,6 @@ func TestStartRejectsUnavailableSessionConfigOptionValues(t *testing.T) {
 				t.Fatalf("forbidden method %q was sent after unavailable config value", tc.forbiddenMethod)
 			}
 		})
-	}
-}
-
-func TestStartRejectsUnsupportedLegacyPreferredModel(t *testing.T) {
-	t.Parallel()
-
-	driver := New()
-	captureFile := filepath.Join(t.TempDir(), "session-unsupported-legacy-model.jsonl")
-	proc, err := driver.Start(testutil.Context(t), StartOpts{
-		AgentName:      "helper",
-		Command:        helperCommand(t),
-		Cwd:            t.TempDir(),
-		Env:            helperEnvWithCapture("stream_updates", "", captureFile),
-		Permissions:    aghconfig.PermissionModeApproveAll,
-		PreferredModel: "missing-model",
-	})
-	if proc != nil {
-		defer stopProcess(t, driver, proc)
-	}
-	if err == nil {
-		t.Fatal("Start() error = nil, want unsupported legacy model error")
-	}
-	if !strings.Contains(err.Error(), `model "missing-model" is not available in legacy ACP model state`) {
-		t.Fatalf("Start() error = %v", err)
-	}
-	if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetModel) {
-		t.Fatal("legacy set_model was sent for an unsupported legacy model")
 	}
 }
 
@@ -2079,11 +1995,6 @@ type capturedSetSessionModeRequest struct {
 	ModeID    string `json:"modeId"`
 }
 
-type capturedSetSessionModelRequest struct {
-	SessionID string `json:"sessionId"`
-	ModelID   string `json:"modelId"`
-}
-
 type capturedSetSessionConfigOptionRequest struct {
 	SessionID string `json:"sessionId"`
 	ConfigID  string `json:"configId"`
@@ -2180,23 +2091,6 @@ func decodeCapturedSetSessionModeRequest(
 	var request capturedSetSessionModeRequest
 	if err := json.Unmarshal(raw, &request); err != nil {
 		t.Fatalf("json.Unmarshal(set-session-mode request) error = %v", err)
-	}
-	return request
-}
-
-func decodeCapturedSetSessionModelRequest(
-	t *testing.T,
-	params map[string]json.RawMessage,
-) capturedSetSessionModelRequest {
-	t.Helper()
-
-	raw, err := json.Marshal(params)
-	if err != nil {
-		t.Fatalf("json.Marshal(set-session-model params) error = %v", err)
-	}
-	var request capturedSetSessionModelRequest
-	if err := json.Unmarshal(raw, &request); err != nil {
-		t.Fatalf("json.Unmarshal(set-session-model request) error = %v", err)
 	}
 	return request
 }
@@ -2312,6 +2206,10 @@ func (a *helperACPAgent) CloseSession(
 	return acpsdk.CloseSessionResponse{}, nil
 }
 
+func (a *helperACPAgent) Logout(context.Context, acpsdk.LogoutRequest) (acpsdk.LogoutResponse, error) {
+	return acpsdk.LogoutResponse{}, nil
+}
+
 func (a *helperACPAgent) ListSessions(
 	context.Context,
 	acpsdk.ListSessionsRequest,
@@ -2331,7 +2229,6 @@ func (a *helperACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (
 		return acpsdk.NewSessionResponse{
 			SessionId: "sess-new",
 			Modes:     helperModeStateWithCurrent("default", "default", "plan", "bypassPermissions"),
-			Models:    helperModelState("new-model"),
 		}, nil
 	}
 	if a.scenario == "config_options" ||
@@ -2358,14 +2255,12 @@ func (a *helperACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (
 		return acpsdk.NewSessionResponse{
 			SessionId:     "sess-new",
 			Modes:         helperModeState("new-mode"),
-			Models:        helperModelState("new-model"),
 			ConfigOptions: configOptions,
 		}, nil
 	}
 	return acpsdk.NewSessionResponse{
 		SessionId: "sess-new",
 		Modes:     helperModeState("new-mode"),
-		Models:    helperModelState("new-model"),
 	}, nil
 }
 
@@ -2375,8 +2270,7 @@ func (a *helperACPAgent) LoadSession(context.Context, acpsdk.LoadSessionRequest)
 	}
 	if a.scenario == "load_mode_mapping" {
 		return acpsdk.LoadSessionResponse{
-			Modes:  helperModeStateWithCurrent("default", "default", "plan", "bypassPermissions"),
-			Models: helperModelState("loaded-model"),
+			Modes: helperModeStateWithCurrent("default", "default", "plan", "bypassPermissions"),
 		}, nil
 	}
 	if a.scenario == "load_config_options" {
@@ -2384,13 +2278,11 @@ func (a *helperACPAgent) LoadSession(context.Context, acpsdk.LoadSessionRequest)
 		a.setHelperConfigOptions(configOptions)
 		return acpsdk.LoadSessionResponse{
 			Modes:         helperModeState("loaded-mode"),
-			Models:        helperModelState("loaded-model"),
 			ConfigOptions: configOptions,
 		}, nil
 	}
 	return acpsdk.LoadSessionResponse{
-		Modes:  helperModeState("loaded-mode"),
-		Models: helperModelState("loaded-model"),
+		Modes: helperModeState("loaded-mode"),
 	}, nil
 }
 
@@ -2680,13 +2572,6 @@ func (a *helperACPAgent) SetSessionConfigOption(
 	}, nil
 }
 
-func (a *helperACPAgent) UnstableSetSessionModel(
-	context.Context,
-	acpsdk.UnstableSetSessionModelRequest,
-) (acpsdk.UnstableSetSessionModelResponse, error) {
-	return acpsdk.UnstableSetSessionModelResponse{}, nil
-}
-
 func (a *helperACPAgent) setHelperConfigOptions(options []acpsdk.SessionConfigOption) {
 	a.configOptionsMu.Lock()
 	defer a.configOptionsMu.Unlock()
@@ -2755,14 +2640,5 @@ func helperModeStateWithCurrent(current string, available ...string) *acpsdk.Ses
 	return &acpsdk.SessionModeState{
 		CurrentModeId:  acpsdk.SessionModeId(current),
 		AvailableModes: modes,
-	}
-}
-
-func helperModelState(id string) *acpsdk.SessionModelState {
-	return &acpsdk.SessionModelState{
-		CurrentModelId: acpsdk.ModelId(id),
-		AvailableModels: []acpsdk.ModelInfo{
-			{ModelId: acpsdk.ModelId(id), Name: id},
-		},
 	}
 }

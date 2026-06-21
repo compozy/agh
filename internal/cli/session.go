@@ -808,7 +808,6 @@ func appendSessionCapsBlock(blocks []string, info SessionRecord) []string {
 	return append(blocks, renderHumanSection("Capabilities", []keyValue{
 		{Label: "Supports Load", Value: strconv.FormatBool(info.ACPCaps.SupportsLoadSession)},
 		{Label: "Modes", Value: stringOrDash(strings.Join(info.ACPCaps.SupportedModes, ", "))},
-		{Label: "Models", Value: stringOrDash(strings.Join(info.ACPCaps.SupportedModels, ", "))},
 	}))
 }
 

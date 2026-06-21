@@ -55,7 +55,6 @@ export const sessionFixtures: SessionPayload[] = [
     updated_at: "2026-04-17T18:09:00Z",
     acp_caps: {
       supports_load_session: true,
-      supported_models: ["gpt-5.4"],
       supported_modes: ["chat"],
     },
   },
