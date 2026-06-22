@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.0.8 - 2026-06-22
+
+### 🐛 Bug Fixes
+
+- Acp update and general fixes (#256)
+
+### 🧪 Testing
+
+- Remove not needed test
+
 ## 0.0.7 - 2026-06-04
 
 ### ♻️ Refactoring
@@ -330,6 +340,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stabilize release e2e flows
 - Improve suite speed
 
+[0.0.8]: https://github.com/compozy/agh/compare/v0.0.7...v0.0.8
 [0.0.7]: https://github.com/compozy/agh/compare/v0.0.6...v0.0.7
 [0.0.6]: https://github.com/compozy/agh/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/compozy/agh/compare/v0.0.4...v0.0.5
