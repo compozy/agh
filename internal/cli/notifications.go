@@ -42,6 +42,7 @@ func newNotificationPresetCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.AddCommand(newNotificationPresetShowCommand(deps))
 	cmd.AddCommand(newNotificationPresetCreateCommand(deps))
+	cmd.AddCommand(newNotificationPresetUpdateCommand(deps))
 	cmd.AddCommand(newNotificationPresetEnableCommand(deps))
 	cmd.AddCommand(newNotificationPresetDisableCommand(deps))
 	cmd.AddCommand(newNotificationPresetDeleteCommand(deps))
@@ -148,6 +149,93 @@ func newNotificationPresetCreateCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().BoolVar(&enabled, "enabled", false, "Create the preset as enabled")
 	mustMarkFlagRequired(cmd, "event")
 	return cmd
+}
+
+func newNotificationPresetUpdateCommand(deps commandDeps) *cobra.Command {
+	var (
+		events   []string
+		targets  []string
+		filter   string
+		enabled  bool
+		disabled bool
+	)
+	cmd := &cobra.Command{
+		Use:   "update <name>",
+		Short: "Update a notification preset",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, err := clientFromDeps(deps)
+			if err != nil {
+				return err
+			}
+			request, err := buildNotificationPresetUpdateRequest(cmd, events, targets, filter, enabled, disabled)
+			if err != nil {
+				return err
+			}
+			preset, err := client.UpdateNotificationPreset(cmd.Context(), args[0], request)
+			if err != nil {
+				return err
+			}
+			return writeCommandOutput(cmd, notificationPresetBundle(preset))
+		},
+	}
+	cmd.Flags().
+		StringArrayVar(&events, "event", nil, "Replace event patterns; repeat for multiple patterns")
+	cmd.Flags().
+		StringArrayVar(&targets, "target", nil, "Replace targets using bridge_id:canonical_route")
+	cmd.Flags().StringVar(&filter, "filter", "", "Replace the optional filter expression")
+	cmd.Flags().BoolVar(&enabled, "enabled", false, "Mark the preset enabled")
+	cmd.Flags().BoolVar(&disabled, "disabled", false, "Mark the preset disabled")
+	return cmd
+}
+
+func buildNotificationPresetUpdateRequest(
+	cmd *cobra.Command,
+	events []string,
+	targets []string,
+	filter string,
+	enabled bool,
+	disabled bool,
+) (UpdateNotificationPresetRequest, error) {
+	if cmd == nil {
+		return UpdateNotificationPresetRequest{}, errors.New("cli: notification preset update command is required")
+	}
+	eventsChanged := cmd.Flags().Changed("event")
+	targetsChanged := cmd.Flags().Changed("target")
+	filterChanged := cmd.Flags().Changed("filter")
+	enabledChanged := cmd.Flags().Changed("enabled")
+	disabledChanged := cmd.Flags().Changed("disabled")
+	if enabledChanged && disabledChanged {
+		return UpdateNotificationPresetRequest{}, errors.New("cli: use either --enabled or --disabled, not both")
+	}
+	if !eventsChanged && !targetsChanged && !filterChanged && !enabledChanged && !disabledChanged {
+		return UpdateNotificationPresetRequest{}, errors.New("cli: at least one update flag is required")
+	}
+
+	request := UpdateNotificationPresetRequest{}
+	if eventsChanged {
+		values := normalizeNotificationPresetStrings(events)
+		request.Events = &values
+	}
+	if targetsChanged {
+		payloadTargets, err := parseNotificationPresetTargets(targets)
+		if err != nil {
+			return UpdateNotificationPresetRequest{}, err
+		}
+		request.Targets = &payloadTargets
+	}
+	if filterChanged {
+		value := strings.TrimSpace(filter)
+		request.Filter = &value
+	}
+	if enabledChanged || disabledChanged {
+		value := enabledChanged && enabled
+		if disabledChanged {
+			value = !disabled
+		}
+		request.Enabled = &value
+	}
+	return request, nil
 }
 
 func newNotificationPresetEnableCommand(deps commandDeps) *cobra.Command {

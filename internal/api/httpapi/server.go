@@ -78,6 +78,7 @@ type Server struct {
 	sessionHealth     core.SessionHealthReader
 	wakeEvents        core.HeartbeatWakeEventReader
 	skillsRegistry    core.SkillsRegistry
+	skillResources    core.SkillResourceSyncer
 	memoryStore       *memory.Store
 	dreamTrigger      core.DreamTrigger
 	memoryExtractor   core.MemoryExtractorService
@@ -313,6 +314,13 @@ func WithMemoryStore(store *memory.Store) Option {
 func WithSkillsRegistry(registry core.SkillsRegistry) Option {
 	return func(server *Server) {
 		server.skillsRegistry = registry
+	}
+}
+
+// WithSkillResourceSyncer injects the resource-backed skill syncer surfaced by the daemon.
+func WithSkillResourceSyncer(syncer core.SkillResourceSyncer) Option {
+	return func(server *Server) {
+		server.skillResources = syncer
 	}
 }
 
@@ -611,6 +619,7 @@ func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 		sessionHealth:     s.sessionHealth,
 		wakeEvents:        s.wakeEvents,
 		skillsRegistry:    s.skillsRegistry,
+		skillResources:    s.skillResources,
 		memoryStore:       s.memoryStore,
 		dreamTrigger:      s.dreamTrigger,
 		memoryExtractor:   s.memoryExtractor,

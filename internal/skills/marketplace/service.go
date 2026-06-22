@@ -388,16 +388,30 @@ func (r SourceBackedRegistry) CheckUpdate(
 	}, nil
 }
 
-// NormalizeSkillSlug validates the canonical marketplace skill slug shape.
+// NormalizeSkillSlug validates marketplace slugs accepted by configured registries.
 func NormalizeSkillSlug(slug string) (string, error) {
 	trimmed := strings.TrimSpace(slug)
 	if trimmed == "" {
 		return "", classifiedf(ErrValidation, "skill slug is required")
 	}
-	if !validSkillSlugPattern.MatchString(trimmed) {
-		return "", classifiedf(ErrValidation, `skill slug must match "@author/name"`)
+	if validSkillSlugPattern.MatchString(trimmed) {
+		return trimmed, nil
 	}
-	return trimmed, nil
+	switch {
+	case trimmed == ".", trimmed == "..":
+		return "", classifiedf(ErrValidation, "skill slug must not be a relative path segment")
+	case filepath.IsAbs(trimmed):
+		return "", classifiedf(ErrValidation, "skill slug must be relative")
+	case strings.Contains(trimmed, "/"), strings.Contains(trimmed, `\`):
+		return "", classifiedf(ErrValidation, "skill slug must not include path separators")
+	case !validSkillNamePattern.MatchString(trimmed):
+		return "", classifiedf(
+			ErrValidation,
+			`skill slug must match "@author/name" or contain only letters, numbers, dots, underscores, and hyphens`,
+		)
+	default:
+		return trimmed, nil
+	}
 }
 
 // NormalizeSkillName validates one local skill name.

@@ -2504,7 +2504,7 @@ func settingsInstalledExtensionPayloads(
 
 func settingsProviderItemPayloads(values []settingspkg.ProviderItem) []contract.SettingsProviderItemPayload {
 	if len(values) == 0 {
-		return nil
+		return []contract.SettingsProviderItemPayload{}
 	}
 	payloads := make([]contract.SettingsProviderItemPayload, 0, len(values))
 	for idx := range values {
@@ -2685,7 +2685,7 @@ func settingsProviderCredentialStatusPayloads(
 
 func settingsMCPServerItemPayloads(values []settingspkg.MCPServerItem) []contract.SettingsMCPServerItemPayload {
 	if len(values) == 0 {
-		return nil
+		return []contract.SettingsMCPServerItemPayload{}
 	}
 	payloads := make([]contract.SettingsMCPServerItemPayload, 0, len(values))
 	for _, value := range values {
@@ -2766,7 +2766,7 @@ func settingsMCPAuthStatusPayload(value *settingspkg.MCPAuthStatus) *contract.Se
 
 func settingsSandboxItemPayloads(values []settingspkg.SandboxItem) []contract.SettingsSandboxItemPayload {
 	if len(values) == 0 {
-		return nil
+		return []contract.SettingsSandboxItemPayload{}
 	}
 	payloads := make([]contract.SettingsSandboxItemPayload, 0, len(values))
 	for _, value := range values {
@@ -2842,7 +2842,7 @@ func settingsSandboxDaytonaPayload(
 
 func settingsHookItemPayloads(values []settingspkg.HookItem) []contract.SettingsHookItemPayload {
 	if len(values) == 0 {
-		return nil
+		return []contract.SettingsHookItemPayload{}
 	}
 	payloads := make([]contract.SettingsHookItemPayload, 0, len(values))
 	for i := range values {

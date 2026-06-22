@@ -537,7 +537,7 @@ agent = "general"
 		}
 	})
 
-	t.Run("Should reject replacement when nested subtables exist", func(t *testing.T) {
+	t.Run("Should replace table including nested subtables", func(t *testing.T) {
 		t.Parallel()
 
 		editor, err := newOverlayEditor(ConfigName, []byte(`
@@ -552,16 +552,27 @@ default = "gpt-4o"
 		}
 
 		err = editor.SetTable([]string{"providers", "openai"}, map[string]any{
-			"models": map[string]any{"default": "gpt-5"},
+			"command": "openai-next",
 		})
-		if err == nil {
-			t.Fatal("editor.SetTable() error = nil, want nested-subtable rejection")
+		if err != nil {
+			t.Fatalf("editor.SetTable() error = %v", err)
 		}
-		if !errors.Is(err, ErrUnsupportedTOMLMutation) {
-			t.Fatalf("editor.SetTable() error = %v, want ErrUnsupportedTOMLMutation", err)
+
+		rendered, err := editor.Bytes()
+		if err != nil {
+			t.Fatalf("editor.Bytes() error = %v", err)
 		}
-		if !strings.Contains(err.Error(), `providers.openai`) {
-			t.Fatalf("editor.SetTable() error = %q, want path context", err.Error())
+		text := string(rendered)
+		if !strings.Contains(text, `command = "openai-next"`) {
+			t.Fatalf("rendered config missing replacement command:\n%s", text)
+		}
+		for _, stale := range []string{
+			"[providers.openai.models]",
+			`default = "gpt-4o"`,
+		} {
+			if strings.Contains(text, stale) {
+				t.Fatalf("rendered config still contains stale nested value %q:\n%s", stale, text)
+			}
 		}
 	})
 

@@ -30,6 +30,7 @@ const (
 
 const (
 	cliAuthModeKey     = "auth_mode"
+	cliPriorityValue   = "Priority"
 	cliCodeValue       = "Code"
 	cliCommandValue    = "Command"
 	cliDurationMSKey   = "duration_ms"

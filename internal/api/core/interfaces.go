@@ -306,6 +306,11 @@ type SkillsRegistryRefresher interface {
 	RefreshGlobal(ctx context.Context) error
 }
 
+// SkillResourceSyncer synchronizes resource-backed skill declarations after on-disk mutations.
+type SkillResourceSyncer interface {
+	SyncSkills(ctx context.Context) error
+}
+
 // SkillMarketplaceService exposes remote skill marketplace lifecycle operations.
 type SkillMarketplaceService interface {
 	Search(ctx context.Context, query string, limit int) ([]registrypkg.Listing, error)

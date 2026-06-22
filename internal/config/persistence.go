@@ -725,10 +725,7 @@ func setTableInOverlayDocument(source []byte, path []string, values map[string]a
 		return nil, err
 	}
 
-	block, ok, err := document.tableBlock(path)
-	if err != nil {
-		return nil, err
-	}
+	block, ok := document.tableBlockIncludingNested(path)
 	if !ok {
 		return appendFragment(source, fragment), nil
 	}
@@ -1006,47 +1003,6 @@ func (d *overlayDocument) tableInsertOffset(path []string) (int, error) {
 	}
 
 	return 0, unsupportedTOMLMutation(path, "table does not exist")
-}
-
-func (d *overlayDocument) tableBlock(path []string) (overlayBlock, bool, error) {
-	for idx := range d.expressions {
-		expr := d.expressions[idx]
-		if expr.kind != tomlast.Table || !pathsEqual(expr.path, path) {
-			continue
-		}
-
-		block := overlayBlock{
-			path:     clonePath(path),
-			startIdx: idx,
-			endIdx:   idx,
-			start:    rangeStart(expr.raw),
-			end:      rangeEnd(expr.raw),
-		}
-
-		for nextIdx := idx + 1; nextIdx < len(d.expressions); nextIdx++ {
-			next := d.expressions[nextIdx]
-			switch next.kind {
-			case tomlast.KeyValue, tomlast.Comment:
-				if pathsEqual(next.containerPath, path) {
-					block.endIdx = nextIdx
-					block.end = lineEndOffset(d.source, next.raw)
-					continue
-				}
-				return block, true, nil
-			case tomlast.Table, tomlast.ArrayTable:
-				if pathHasPrefix(next.path, path) && len(next.path) > len(path) {
-					return overlayBlock{}, false, unsupportedTOMLMutation(
-						path,
-						"nested subtables are not supported for table replacement",
-					)
-				}
-				return block, true, nil
-			}
-		}
-		return block, true, nil
-	}
-
-	return overlayBlock{}, false, nil
 }
 
 func (d *overlayDocument) tableBlockIncludingNested(path []string) (overlayBlock, bool) {

@@ -183,6 +183,7 @@ type RuntimeDeps struct {
 	WakeEvents          core.HeartbeatWakeEventReader
 	CoordinatorConfig   CoordinatorConfigResolver
 	SkillsRegistry      core.SkillsRegistry
+	SkillResources      core.SkillResourceSyncer
 	DreamTrigger        DreamTrigger
 	Settings            core.SettingsService
 	SettingsRestart     core.SettingsRestartController
@@ -1081,6 +1082,7 @@ func httpServerOptions(deps *RuntimeDeps) []httpapi.Option {
 		httpapi.WithSessionHealthReader(deps.SessionHealth),
 		httpapi.WithHeartbeatWakeEventReader(deps.WakeEvents),
 		httpapi.WithSkillsRegistry(deps.SkillsRegistry),
+		httpapi.WithSkillResourceSyncer(deps.SkillResources),
 		httpapi.WithMemoryStore(deps.MemoryStore),
 		httpapi.WithDreamTrigger(deps.DreamTrigger),
 		httpapi.WithMemoryExtractorService(deps.MemoryExtractor),
@@ -1136,6 +1138,7 @@ func udsServerOptions(deps *RuntimeDeps) []udsapi.Option {
 		udsapi.WithHeartbeatWakeEventReader(deps.WakeEvents),
 		udsapi.WithCoordinatorConfig(deps.CoordinatorConfig),
 		udsapi.WithSkillsRegistry(deps.SkillsRegistry),
+		udsapi.WithSkillResourceSyncer(deps.SkillResources),
 		udsapi.WithMemoryStore(deps.MemoryStore),
 		udsapi.WithDreamTrigger(deps.DreamTrigger),
 		udsapi.WithMemoryExtractorService(deps.MemoryExtractor),

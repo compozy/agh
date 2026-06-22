@@ -266,6 +266,103 @@ level = "debug"
 	})
 }
 
+func TestConfigApplyServiceReloadUsesBootedConfigAsActiveState(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should not skip restart-required reload after booting a blocked config", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		db, err := globaldb.OpenGlobalDB(ctx, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(ctx); err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+		})
+
+		service := testService(t, homePaths, Dependencies{
+			SkillsRuntime: newFakeSkillsRuntime(testSkill("alpha", false)),
+			ApplyRecords:  NewConfigApplyRecordRepository(db.DB(), nil),
+		})
+
+		cfg, err := aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(initial) error = %v", err)
+		}
+		cfg.Skills.DisabledSkills = []string{"alpha"}
+		applied, err := service.ApplySection(WithMutationSource(ctx, "http"), SectionUpdateRequest{
+			SectionRequest: SectionRequest{Section: SectionSkills},
+			Skills:         &cfg.Skills,
+		})
+		if err != nil {
+			t.Fatalf("ApplySection(skills) error = %v", err)
+		}
+		if !applied.Applied {
+			t.Fatal("ApplySection(skills).Applied = false, want true")
+		}
+
+		cfg, err = aghconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(before automation) error = %v", err)
+		}
+		automation := automationSettingsFromConfig(&cfg)
+		automation.Enabled = false
+		blocked, err := service.ApplySection(WithMutationSource(ctx, "http"), SectionUpdateRequest{
+			SectionRequest: SectionRequest{Section: SectionAutomation},
+			Automation:     &automation,
+		})
+		if err != nil {
+			t.Fatalf("ApplySection(automation) error = %v", err)
+		}
+		if blocked.Applied {
+			t.Fatal("ApplySection(automation).Applied = true, want false")
+		}
+
+		restarted := testService(t, homePaths, Dependencies{
+			SkillsRuntime: newFakeSkillsRuntime(testSkill("alpha", false)),
+			ApplyRecords:  NewConfigApplyRecordRepository(db.DB(), nil),
+		})
+		active, err := restarted.ActiveConfig(ctx)
+		if err != nil {
+			t.Fatalf("ActiveConfig(after restart) error = %v", err)
+		}
+		if active.Automation.Enabled {
+			t.Fatal("ActiveConfig(after restart).Automation.Enabled = true, want false")
+		}
+		target, err := aghconfig.ResolveConfigWriteTarget(homePaths, "", aghconfig.WriteScopeGlobal)
+		if err != nil {
+			t.Fatalf("ResolveConfigWriteTarget() error = %v", err)
+		}
+		if _, err := aghconfig.EditConfigOverlay(homePaths, "", target, func(editor *aghconfig.OverlayEditor) error {
+			return editor.SetValue([]string{"automation", "enabled"}, true)
+		}); err != nil {
+			t.Fatalf("EditConfigOverlay(automation.enabled=true) error = %v", err)
+		}
+
+		result, err := restarted.Reload(WithMutationSource(ctx, "cli"))
+		if err != nil {
+			t.Fatalf("Reload(after booted blocked config) error = %v", err)
+		}
+		if result.Applied {
+			t.Fatal("Reload(after booted blocked config).Applied = true, want false")
+		}
+		if !result.RestartRequired {
+			t.Fatal("Reload(after booted blocked config).RestartRequired = false, want true")
+		}
+		if got, want := result.Record.Lifecycle, lifecycle.RestartRequired; got != want {
+			t.Fatalf("Lifecycle = %q, want %q", got, want)
+		}
+		if got, want := result.Record.Status, lifecycle.StatusBlocked; got != want {
+			t.Fatalf("Status = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestConfigApplyServiceRecordsRuntimeReconcileFailures(t *testing.T) {
 	t.Parallel()
 

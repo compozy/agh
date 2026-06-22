@@ -89,6 +89,7 @@ type BaseHandlerConfig struct {
 	HeartbeatWakeEvents          HeartbeatWakeEventReader
 	CoordinatorConfig            CoordinatorConfigResolver
 	SkillsRegistry               SkillsRegistry
+	SkillResources               SkillResourceSyncer
 	SkillMarketplace             SkillMarketplaceService
 	TaskActorContextResolver     TaskActorContextResolver
 	MemoryStore                  *memory.Store
@@ -148,6 +149,7 @@ type BaseHandlers struct {
 	HeartbeatWakeEvents          HeartbeatWakeEventReader
 	CoordinatorConfig            CoordinatorConfigResolver
 	SkillsRegistry               SkillsRegistry
+	SkillResources               SkillResourceSyncer
 	SkillMarketplace             SkillMarketplaceService
 	TaskActorContextResolver     TaskActorContextResolver
 	MemoryStore                  *memory.Store
@@ -208,6 +210,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 		AgentContextService:          cfg.AgentContextService,
 		CoordinatorConfig:            cfg.CoordinatorConfig,
 		SkillsRegistry:               cfg.SkillsRegistry,
+		SkillResources:               cfg.SkillResources,
 		SkillMarketplace:             cfg.SkillMarketplace,
 		TaskActorContextResolver:     cfg.TaskActorContextResolver,
 		MemoryStore:                  cfg.MemoryStore,

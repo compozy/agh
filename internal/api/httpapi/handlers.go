@@ -50,6 +50,7 @@ type handlerConfig struct {
 	sessionHealth     core.SessionHealthReader
 	wakeEvents        core.HeartbeatWakeEventReader
 	skillsRegistry    core.SkillsRegistry
+	skillResources    core.SkillResourceSyncer
 	memoryStore       *memory.Store
 	dreamTrigger      core.DreamTrigger
 	memoryExtractor   core.MemoryExtractorService
@@ -136,6 +137,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			SessionHealth:                cfg.sessionHealth,
 			HeartbeatWakeEvents:          cfg.wakeEvents,
 			SkillsRegistry:               cfg.skillsRegistry,
+			SkillResources:               cfg.skillResources,
 			MemoryStore:                  cfg.memoryStore,
 			DreamTrigger:                 cfg.dreamTrigger,
 			MemoryExtractor:              cfg.memoryExtractor,

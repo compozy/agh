@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/agh/internal/agentidentity"
 	"github.com/compozy/agh/internal/api/contract"
+	registrypkg "github.com/compozy/agh/internal/registry"
 	"github.com/compozy/agh/internal/session"
 )
 
@@ -152,6 +153,175 @@ func TestSkillWorkspaceCommandsUseDaemon(t *testing.T) {
 		if !strings.Contains(stdout, `<skill_content name="extension-review">`) ||
 			!strings.Contains(stdout, "Use extension evidence.") {
 			t.Fatalf("skill view --workspace output = %q, want rendered daemon content", stdout)
+		}
+	})
+}
+
+func TestSkillMarketplaceCommandsUseDaemonWhenRunning(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should search marketplace through daemon client", func(t *testing.T) {
+		t.Parallel()
+
+		called := false
+		deps := newTestDeps(t, &stubClient{
+			searchSkillMarketplaceFn: func(
+				_ context.Context,
+				query string,
+				limit int,
+			) ([]SkillMarketplaceRecord, error) {
+				called = true
+				if query != "review" || limit != 7 {
+					t.Fatalf("SearchSkillMarketplace(%q, %d), want review 7", query, limit)
+				}
+				return []SkillMarketplaceRecord{{
+					Slug:        "review",
+					Name:        "review",
+					Description: "Review helper",
+					Author:      "agh",
+					Version:     "1.2.0",
+					Downloads:   42,
+					Source:      "clawhub",
+				}}, nil
+			},
+		})
+		markExtensionDaemonRunning(&deps)
+
+		stdout, _, err := executeRootCommand(t, deps, "skill", "search", "review", "--limit", "7", "-o", "json")
+		if err != nil {
+			t.Fatalf("skill search error = %v", err)
+		}
+		if !called {
+			t.Fatal("SearchSkillMarketplace was not called")
+		}
+		var payload []registrypkg.Listing
+		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(skill search) error = %v; stdout=%s", err, stdout)
+		}
+		if len(payload) != 1 || payload[0].Slug != "review" || payload[0].Source != "clawhub" {
+			t.Fatalf("skill search payload = %#v, want daemon marketplace review", payload)
+		}
+	})
+
+	t.Run("Should install marketplace skill through daemon client", func(t *testing.T) {
+		t.Parallel()
+
+		var captured SkillMarketplaceInstallRequest
+		deps := newTestDeps(t, &stubClient{
+			installSkillMarketplaceFn: func(
+				_ context.Context,
+				request SkillMarketplaceInstallRequest,
+			) (SkillMarketplaceInstallRecord, error) {
+				captured = request
+				return SkillMarketplaceInstallRecord{
+					Name:     "review",
+					Slug:     "review",
+					Version:  "1.2.0",
+					Registry: "clawhub",
+					Path:     "/agh-home/skills/review",
+					Hash:     "sha256:review",
+					Status:   "installed",
+				}, nil
+			},
+		})
+		markExtensionDaemonRunning(&deps)
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"skill",
+			"install",
+			"review",
+			"--version",
+			"1.2.0",
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatalf("skill install error = %v", err)
+		}
+		want := SkillMarketplaceInstallRequest{Slug: "review", Version: "1.2.0"}
+		if captured != want {
+			t.Fatalf("InstallSkillMarketplace request = %#v, want %#v", captured, want)
+		}
+		var payload skillInstallItem
+		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(skill install) error = %v; stdout=%s", err, stdout)
+		}
+		if payload.Status != "installed" || payload.Name != "review" || payload.Registry != "clawhub" {
+			t.Fatalf("skill install payload = %#v, want daemon install result", payload)
+		}
+	})
+
+	t.Run("Should remove marketplace skill through daemon client", func(t *testing.T) {
+		t.Parallel()
+
+		removedName := ""
+		deps := newTestDeps(t, &stubClient{
+			removeSkillMarketplaceFn: func(_ context.Context, name string) (SkillMarketplaceRemoveRecord, error) {
+				removedName = name
+				return SkillMarketplaceRemoveRecord{
+					Name:   name,
+					Slug:   "review",
+					Path:   "/agh-home/skills/review",
+					Status: "removed",
+				}, nil
+			},
+		})
+		markExtensionDaemonRunning(&deps)
+
+		stdout, _, err := executeRootCommand(t, deps, "skill", "remove", "review", "-o", "json")
+		if err != nil {
+			t.Fatalf("skill remove error = %v", err)
+		}
+		if removedName != "review" {
+			t.Fatalf("RemoveSkillMarketplace name = %q, want review", removedName)
+		}
+		var payload skillRemoveItem
+		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(skill remove) error = %v; stdout=%s", err, stdout)
+		}
+		if payload.Status != "removed" || payload.Name != "review" {
+			t.Fatalf("skill remove payload = %#v, want daemon remove result", payload)
+		}
+	})
+
+	t.Run("Should update marketplace skill through daemon client", func(t *testing.T) {
+		t.Parallel()
+
+		var captured SkillMarketplaceUpdateRequest
+		deps := newTestDeps(t, &stubClient{
+			updateSkillMarketplaceFn: func(
+				_ context.Context,
+				request SkillMarketplaceUpdateRequest,
+			) ([]SkillMarketplaceUpdateRecord, error) {
+				captured = request
+				return []SkillMarketplaceUpdateRecord{{
+					Name:           "review",
+					Slug:           "review",
+					CurrentVersion: "1.0.0",
+					LatestVersion:  "1.2.0",
+					Path:           "/agh-home/skills/review",
+					Status:         "update available",
+				}}, nil
+			},
+		})
+		markExtensionDaemonRunning(&deps)
+
+		stdout, _, err := executeRootCommand(t, deps, "skill", "update", "review", "--check", "-o", "json")
+		if err != nil {
+			t.Fatalf("skill update error = %v", err)
+		}
+		want := SkillMarketplaceUpdateRequest{Name: "review", CheckOnly: true}
+		if captured != want {
+			t.Fatalf("UpdateSkillMarketplace request = %#v, want %#v", captured, want)
+		}
+		var payload []skillUpdateItem
+		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(skill update) error = %v; stdout=%s", err, stdout)
+		}
+		if len(payload) != 1 || payload[0].Status != "update available" {
+			t.Fatalf("skill update payload = %#v, want daemon update result", payload)
 		}
 	})
 }

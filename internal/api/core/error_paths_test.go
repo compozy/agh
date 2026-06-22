@@ -65,7 +65,11 @@ func TestBaseHandlersRejectInvalidRequestsAndMapErrors(t *testing.T) {
 		ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
 			if ref == "ws-workspace" {
 				return workspacepkg.ResolvedWorkspace{
-					Workspace:   workspacepkg.Workspace{ID: ref, RootDir: "/workspace", Name: "Workspace"},
+					Workspace: workspacepkg.Workspace{
+						ID:      ref,
+						RootDir: "/workspace",
+						Name:    "Workspace",
+					},
 					WorkspaceID: ref,
 				}, nil
 			}
@@ -96,15 +100,31 @@ func TestBaseHandlersRejectInvalidRequestsAndMapErrors(t *testing.T) {
 			body:   []byte(`{"agent_name":"coder","workspace":"alpha"}`),
 			want:   http.StatusNotFound,
 		},
-		{method: http.MethodGet, path: "/workspaces/ws-workspace/sessions/missing", want: http.StatusNotFound},
-		{method: http.MethodPost, path: "/workspaces/ws-workspace/sessions/missing/attach", want: http.StatusNotFound},
-		{method: http.MethodDelete, path: "/workspaces/ws-workspace/sessions/missing", want: http.StatusNotFound},
+		{
+			method: http.MethodGet,
+			path:   "/workspaces/ws-workspace/sessions/missing",
+			want:   http.StatusNotFound,
+		},
+		{
+			method: http.MethodPost,
+			path:   "/workspaces/ws-workspace/sessions/missing/attach",
+			want:   http.StatusNotFound,
+		},
+		{
+			method: http.MethodDelete,
+			path:   "/workspaces/ws-workspace/sessions/missing",
+			want:   http.StatusNotFound,
+		},
 		{
 			method: http.MethodGet,
 			path:   "/workspaces/ws-workspace/sessions/missing/events?since=bad",
 			want:   http.StatusBadRequest,
 		},
-		{method: http.MethodGet, path: "/logs?workspace_id=ws-workspace", want: http.StatusInternalServerError},
+		{
+			method: http.MethodGet,
+			path:   "/logs?workspace_id=ws-workspace",
+			want:   http.StatusInternalServerError,
+		},
 		{method: http.MethodGet, path: "/status", want: http.StatusInternalServerError},
 		{method: http.MethodGet, path: "/doctor", want: http.StatusOK},
 		{
@@ -156,7 +176,14 @@ func TestSessionHistoryEventsAndTranscriptErrorBranches(t *testing.T) {
 			return nil, session.ErrSessionNotFound
 		},
 	}
-	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+	fixture := newHandlerFixture(
+		t,
+		manager,
+		testutil.StubObserver{},
+		testutil.StubWorkspaceService{},
+		nil,
+		nil,
+	)
 
 	for _, path := range []string{
 		"/workspaces/ws-workspace/sessions/sess-a/events",
@@ -184,7 +211,14 @@ func TestStreamSessionAndObserveErrorBranches(t *testing.T) {
 			return nil, nil
 		},
 	}
-	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{}, nil, nil)
+	fixture := newHandlerFixture(
+		t,
+		manager,
+		testutil.StubObserver{},
+		testutil.StubWorkspaceService{},
+		nil,
+		nil,
+	)
 
 	badStream := performRequest(
 		t,
@@ -226,7 +260,11 @@ func TestStreamSessionAndObserveErrorBranches(t *testing.T) {
 		map[string]string{"Last-Event-ID": "bad"},
 	)
 	if observeBadHeader.Code != http.StatusBadRequest {
-		t.Fatalf("observe bad header status = %d, want %d", observeBadHeader.Code, http.StatusBadRequest)
+		t.Fatalf(
+			"observe bad header status = %d, want %d",
+			observeBadHeader.Code,
+			http.StatusBadRequest,
+		)
 	}
 }
 
@@ -254,34 +292,43 @@ func TestListAgentsHandlesMissingDirectory(t *testing.T) {
 func TestListAgentsWorkspaceResolverUnavailable(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should return service unavailable when workspace resolver is missing", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should return service unavailable when workspace resolver is missing",
+		func(t *testing.T) {
+			t.Parallel()
 
-		fixture := newHandlerFixture(
-			t,
-			testutil.StubSessionManager{},
-			testutil.StubObserver{},
-			testutil.StubWorkspaceService{},
-			nil,
-			nil,
-		)
-		fixture.Handlers.Workspaces = nil
-
-		resp := performRequest(t, fixture.Engine, http.MethodGet, "/agents?workspace=alpha", nil)
-		if resp.Code != http.StatusServiceUnavailable {
-			t.Fatalf(
-				"workspace agents status = %d, want %d; body=%s",
-				resp.Code,
-				http.StatusServiceUnavailable,
-				resp.Body.String(),
+			fixture := newHandlerFixture(
+				t,
+				testutil.StubSessionManager{},
+				testutil.StubObserver{},
+				testutil.StubWorkspaceService{},
+				nil,
+				nil,
 			)
-		}
-		var payload contract.ErrorPayload
-		testutil.DecodeJSONResponse(t, resp, &payload)
-		if !strings.Contains(payload.Error, "workspace resolver unavailable") {
-			t.Fatalf("workspace agents error = %#v, want resolver unavailable detail", payload)
-		}
-	})
+			fixture.Handlers.Workspaces = nil
+
+			resp := performRequest(
+				t,
+				fixture.Engine,
+				http.MethodGet,
+				"/agents?workspace=alpha",
+				nil,
+			)
+			if resp.Code != http.StatusServiceUnavailable {
+				t.Fatalf(
+					"workspace agents status = %d, want %d; body=%s",
+					resp.Code,
+					http.StatusServiceUnavailable,
+					resp.Body.String(),
+				)
+			}
+			var payload contract.ErrorPayload
+			testutil.DecodeJSONResponse(t, resp, &payload)
+			if !strings.Contains(payload.Error, "workspace resolver unavailable") {
+				t.Fatalf("workspace agents error = %#v, want resolver unavailable detail", payload)
+			}
+		},
+	)
 }
 
 func TestListAgentsSkipsUnreadableDefinitions(t *testing.T) {
@@ -352,7 +399,10 @@ func TestMemoryHelpersAndMissingStoreBranches(t *testing.T) {
 	) {
 		t.Fatalf("ResolveMemoryLocation(shared) error = %v, want validation", err)
 	}
-	if _, _, err := core.ResolveMemoryWriteScope(contract.MemoryWriteRequest{}); !errors.Is(err, memory.ErrValidation) {
+	if _, _, err := core.ResolveMemoryWriteScope(contract.MemoryWriteRequest{}); !errors.Is(
+		err,
+		memory.ErrValidation,
+	) {
 		t.Fatalf("ResolveMemoryWriteScope(empty) error = %v, want validation", err)
 	}
 
@@ -380,7 +430,13 @@ func TestMemoryHelpersAndMissingStoreBranches(t *testing.T) {
 	}
 	for _, request := range requests {
 		t.Run(request.method+" "+request.path, func(t *testing.T) {
-			resp := performRequest(t, noStoreFixture.Engine, request.method, request.path, request.body)
+			resp := performRequest(
+				t,
+				noStoreFixture.Engine,
+				request.method,
+				request.path,
+				request.body,
+			)
 			if resp.Code != http.StatusInternalServerError {
 				t.Fatalf(
 					"%s %s status = %d, want %d",
@@ -397,29 +453,115 @@ func TestMemoryHelpersAndMissingStoreBranches(t *testing.T) {
 func TestWorkspaceUpdateValidationAndDeleteErrors(t *testing.T) {
 	t.Parallel()
 
-	workspace := workspacepkg.Workspace{ID: "ws_alpha", RootDir: t.TempDir(), Name: "alpha"}
-	workspaces := testutil.StubWorkspaceService{
-		GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
-			return workspace, nil
-		},
-		UnregisterFn: func(context.Context, string) error {
-			return workspacepkg.ErrWorkspaceHasSessions
-		},
-		UpdateFn: func(context.Context, string, workspacepkg.UpdateOptions) error {
-			return nil
-		},
-	}
-	fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, workspaces, nil, nil)
-
-	badUpdate := performRequest(t, fixture.Engine, http.MethodPatch, "/workspaces/ws_alpha", []byte(`{"name":""}`))
-	if badUpdate.Code != http.StatusBadRequest {
-		t.Fatalf("bad update status = %d, want %d", badUpdate.Code, http.StatusBadRequest)
+	newFixture := func(t *testing.T, workspaces testutil.StubWorkspaceService) handlerFixture {
+		t.Helper()
+		return newHandlerFixture(
+			t,
+			testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			workspaces,
+			nil,
+			nil,
+		)
 	}
 
-	deleteResp := performRequest(t, fixture.Engine, http.MethodDelete, "/workspaces/ws_alpha", nil)
-	if deleteResp.Code != http.StatusConflict {
-		t.Fatalf("delete conflict status = %d, want %d", deleteResp.Code, http.StatusConflict)
-	}
+	t.Run("Should reject empty workspace names", func(t *testing.T) {
+		t.Parallel()
+
+		workspace := workspacepkg.Workspace{ID: "ws_alpha", RootDir: t.TempDir(), Name: "alpha"}
+		workspaces := testutil.StubWorkspaceService{
+			GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+				return workspace, nil
+			},
+			UpdateFn: func(context.Context, string, workspacepkg.UpdateOptions) error {
+				return nil
+			},
+		}
+		fixture := newFixture(t, workspaces)
+
+		badUpdate := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPatch,
+			"/workspaces/ws_alpha",
+			[]byte(`{"name":""}`),
+		)
+		if badUpdate.Code != http.StatusBadRequest {
+			t.Fatalf("bad update status = %d, want %d", badUpdate.Code, http.StatusBadRequest)
+		}
+		if !strings.Contains(badUpdate.Body.String(), "name is required") {
+			t.Fatalf("bad update body = %s, want name validation message", badUpdate.Body.String())
+		}
+	})
+
+	t.Run("Should map workspace delete conflicts", func(t *testing.T) {
+		t.Parallel()
+
+		workspace := workspacepkg.Workspace{ID: "ws_alpha", RootDir: t.TempDir(), Name: "alpha"}
+		workspaces := testutil.StubWorkspaceService{
+			GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+				return workspace, nil
+			},
+			UnregisterFn: func(context.Context, string) error {
+				return workspacepkg.ErrWorkspaceHasSessions
+			},
+		}
+		fixture := newFixture(t, workspaces)
+
+		deleteResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodDelete,
+			"/workspaces/ws_alpha",
+			nil,
+		)
+		if deleteResp.Code != http.StatusConflict {
+			t.Fatalf("delete conflict status = %d, want %d", deleteResp.Code, http.StatusConflict)
+		}
+		if !strings.Contains(deleteResp.Body.String(), "workspace has sessions") {
+			t.Fatalf(
+				"delete conflict body = %s, want workspace sessions message",
+				deleteResp.Body.String(),
+			)
+		}
+	})
+
+	t.Run("Should reject unknown workspace sandbox refs as client errors", func(t *testing.T) {
+		t.Parallel()
+
+		workspace := workspacepkg.Workspace{ID: "ws_alpha", RootDir: t.TempDir(), Name: "alpha"}
+		workspaces := testutil.StubWorkspaceService{
+			GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+				return workspace, nil
+			},
+			UpdateFn: func(context.Context, string, workspacepkg.UpdateOptions) error {
+				return aghconfig.ErrSandboxProfileNotFound
+			},
+		}
+		fixture := newFixture(t, workspaces)
+
+		badUpdate := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPatch,
+			"/workspaces/ws_alpha",
+			[]byte(`{"sandbox_ref":"missing-profile"}`),
+		)
+		if badUpdate.Code != http.StatusBadRequest {
+			t.Fatalf(
+				"bad update status = %d, want %d; body=%s",
+				badUpdate.Code,
+				http.StatusBadRequest,
+				badUpdate.Body.String(),
+			)
+		}
+		if !strings.Contains(badUpdate.Body.String(), "sandbox profile not found") {
+			t.Fatalf(
+				"bad update body = %s, want sandbox profile validation message",
+				badUpdate.Body.String(),
+			)
+		}
+	})
 }
 
 func TestWorkspaceValidationBranches(t *testing.T) {
@@ -431,7 +573,14 @@ func TestWorkspaceValidationBranches(t *testing.T) {
 			return workspace, nil
 		},
 	}
-	fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, workspaces, nil, nil)
+	fixture := newHandlerFixture(
+		t,
+		testutil.StubSessionManager{},
+		testutil.StubObserver{},
+		workspaces,
+		nil,
+		nil,
+	)
 
 	createResp := performRequest(
 		t,
@@ -441,7 +590,11 @@ func TestWorkspaceValidationBranches(t *testing.T) {
 		[]byte(`{"root_dir":"`+workspace.RootDir+`","add_dirs":["relative"]}`),
 	)
 	if createResp.Code != http.StatusBadRequest {
-		t.Fatalf("create invalid add_dirs status = %d, want %d", createResp.Code, http.StatusBadRequest)
+		t.Fatalf(
+			"create invalid add_dirs status = %d, want %d",
+			createResp.Code,
+			http.StatusBadRequest,
+		)
 	}
 
 	updateResp := performRequest(
@@ -452,7 +605,11 @@ func TestWorkspaceValidationBranches(t *testing.T) {
 		[]byte(`{"add_dirs":["relative"]}`),
 	)
 	if updateResp.Code != http.StatusBadRequest {
-		t.Fatalf("update invalid add_dirs status = %d, want %d", updateResp.Code, http.StatusBadRequest)
+		t.Fatalf(
+			"update invalid add_dirs status = %d, want %d",
+			updateResp.Code,
+			http.StatusBadRequest,
+		)
 	}
 
 	resolveResp := performRequest(
@@ -463,7 +620,11 @@ func TestWorkspaceValidationBranches(t *testing.T) {
 		[]byte(`{"path":"relative"}`),
 	)
 	if resolveResp.Code != http.StatusBadRequest {
-		t.Fatalf("resolve invalid path status = %d, want %d", resolveResp.Code, http.StatusBadRequest)
+		t.Fatalf(
+			"resolve invalid path status = %d, want %d",
+			resolveResp.Code,
+			http.StatusBadRequest,
+		)
 	}
 }
 
@@ -483,12 +644,24 @@ func TestMemoryErrorAndDisabledBranches(t *testing.T) {
 		nil,
 	)
 
-	readMissing := performRequest(t, fixture.Engine, http.MethodGet, "/memory/missing.md?scope=global", nil)
+	readMissing := performRequest(
+		t,
+		fixture.Engine,
+		http.MethodGet,
+		"/memory/missing.md?scope=global",
+		nil,
+	)
 	if readMissing.Code != http.StatusNotFound {
 		t.Fatalf("read missing status = %d, want %d", readMissing.Code, http.StatusNotFound)
 	}
 
-	deleteMissing := performRequest(t, fixture.Engine, http.MethodDelete, "/memory/missing.md?scope=global", nil)
+	deleteMissing := performRequest(
+		t,
+		fixture.Engine,
+		http.MethodDelete,
+		"/memory/missing.md?scope=global",
+		nil,
+	)
 	if deleteMissing.Code != http.StatusNotFound {
 		t.Fatalf("delete missing status = %d, want %d", deleteMissing.Code, http.StatusNotFound)
 	}
@@ -504,13 +677,29 @@ func TestMemoryErrorAndDisabledBranches(t *testing.T) {
 		t.Fatalf("bad write status = %d, want %d", badWrite.Code, http.StatusBadRequest)
 	}
 
-	badConsolidate := performRequest(t, fixture.Engine, http.MethodPost, "/memory/dreams/trigger", []byte(`{`))
+	badConsolidate := performRequest(
+		t,
+		fixture.Engine,
+		http.MethodPost,
+		"/memory/dreams/trigger",
+		[]byte(`{`),
+	)
 	if badConsolidate.Code != http.StatusBadRequest {
 		t.Fatalf("bad consolidate status = %d, want %d", badConsolidate.Code, http.StatusBadRequest)
 	}
 
-	disabledConsolidate := performRequest(t, fixture.Engine, http.MethodPost, "/memory/dreams/trigger", nil)
+	disabledConsolidate := performRequest(
+		t,
+		fixture.Engine,
+		http.MethodPost,
+		"/memory/dreams/trigger",
+		nil,
+	)
 	if disabledConsolidate.Code != http.StatusOK {
-		t.Fatalf("disabled consolidate status = %d, want %d", disabledConsolidate.Code, http.StatusOK)
+		t.Fatalf(
+			"disabled consolidate status = %d, want %d",
+			disabledConsolidate.Code,
+			http.StatusOK,
+		)
 	}
 }

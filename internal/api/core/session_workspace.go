@@ -140,6 +140,8 @@ func statusForWorkspaceError(err error) int {
 		errors.Is(err, workspacepkg.ErrWorkspaceHasSessions),
 		errors.Is(err, workspacepkg.ErrWorkspaceHasActiveSessions):
 		return http.StatusConflict
+	case errors.Is(err, aghconfig.ErrSandboxProfileNotFound):
+		return http.StatusBadRequest
 	case errors.Is(err, workspacepkg.ErrWorkspaceResolverUnavailable):
 		return http.StatusServiceUnavailable
 	default:
@@ -162,6 +164,8 @@ func statusForSessionError(err error) int {
 	case errors.Is(err, workspacepkg.ErrWorkspaceRootMissing):
 		return http.StatusGone
 	case errors.Is(err, workspacepkg.ErrAgentNotAvailable):
+		return http.StatusBadRequest
+	case errors.Is(err, aghconfig.ErrSandboxProfileNotFound):
 		return http.StatusBadRequest
 	case errors.Is(err, aghconfig.ErrProviderUnavailable):
 		return http.StatusBadRequest

@@ -268,6 +268,16 @@ type DaemonClient interface {
 	GetSkillShadows(ctx context.Context, name string, query SkillQuery) (SkillShadowsRecord, error)
 	EnableSkill(ctx context.Context, name string, query SkillQuery) (SkillActionRecord, error)
 	DisableSkill(ctx context.Context, name string, query SkillQuery) (SkillActionRecord, error)
+	SearchSkillMarketplace(ctx context.Context, query string, limit int) ([]SkillMarketplaceRecord, error)
+	InstallSkillMarketplace(
+		ctx context.Context,
+		request SkillMarketplaceInstallRequest,
+	) (SkillMarketplaceInstallRecord, error)
+	UpdateSkillMarketplace(
+		ctx context.Context,
+		request SkillMarketplaceUpdateRequest,
+	) ([]SkillMarketplaceUpdateRecord, error)
+	RemoveSkillMarketplace(ctx context.Context, name string) (SkillMarketplaceRemoveRecord, error)
 	ListTools(ctx context.Context, query ToolQuery) (ToolsResponseRecord, error)
 	SearchTools(ctx context.Context, request ToolSearchRequest) (ToolsResponseRecord, error)
 	GetTool(ctx context.Context, id string, query ToolQuery) (ToolResponseRecord, error)
@@ -418,6 +428,7 @@ type DaemonClient interface {
 	RemoveTaskDependency(ctx context.Context, id string, dependsOnID string) (TaskDetailRecord, error)
 	EnqueueTaskRun(ctx context.Context, id string, request EnqueueTaskRunRequest) (TaskRunRecord, error)
 	ListTaskRuns(ctx context.Context, id string, query TaskRunListQuery) ([]TaskRunRecord, error)
+	GetTaskRun(ctx context.Context, id string) (TaskRunDetailRecord, error)
 	ClaimTaskRun(ctx context.Context, id string, request ClaimTaskRunRequest) (TaskRunRecord, error)
 	StartTaskRun(ctx context.Context, id string, request StartTaskRunRequest) (TaskRunRecord, error)
 	AttachTaskRunSession(ctx context.Context, id string, request AttachTaskRunSessionRequest) (TaskRunRecord, error)
@@ -671,6 +682,24 @@ type SkillQuery struct {
 
 // SkillActionRecord is the shared skill enable/disable response payload.
 type SkillActionRecord = contract.SkillActionResponse
+
+// SkillMarketplaceRecord is one daemon marketplace search result.
+type SkillMarketplaceRecord = contract.SkillMarketplaceListingPayload
+
+// SkillMarketplaceInstallRequest captures one daemon marketplace install request.
+type SkillMarketplaceInstallRequest = contract.SkillMarketplaceInstallRequest
+
+// SkillMarketplaceUpdateRequest captures one daemon marketplace update request.
+type SkillMarketplaceUpdateRequest = contract.SkillMarketplaceUpdateRequest
+
+// SkillMarketplaceInstallRecord is one daemon marketplace install result.
+type SkillMarketplaceInstallRecord = contract.SkillMarketplaceInstallPayload
+
+// SkillMarketplaceUpdateRecord is one daemon marketplace update result.
+type SkillMarketplaceUpdateRecord = contract.SkillMarketplaceUpdatePayload
+
+// SkillMarketplaceRemoveRecord is one daemon marketplace remove result.
+type SkillMarketplaceRemoveRecord = contract.SkillMarketplaceRemovePayload
 
 // WorkspaceCreateRequest captures the shared workspace registration payload.
 type WorkspaceCreateRequest = contract.CreateWorkspaceRequest
@@ -943,6 +972,9 @@ type TaskDependencyRecord = contract.TaskDependencyPayload
 
 // TaskRunRecord is the shared task-run payload.
 type TaskRunRecord = contract.TaskRunPayload
+
+// TaskRunDetailRecord is the shared expanded task-run payload.
+type TaskRunDetailRecord = contract.TaskRunDetailPayload
 
 // PauseTaskRequest captures the shared task-pause payload.
 type PauseTaskRequest = contract.PauseTaskRequest
@@ -3387,6 +3419,73 @@ func (c *unixSocketClient) DisableSkill(ctx context.Context, name string, query 
 	return c.skillAction(ctx, strings.TrimSpace(name), "disable", query)
 }
 
+func (c *unixSocketClient) SearchSkillMarketplace(
+	ctx context.Context,
+	query string,
+	limit int,
+) ([]SkillMarketplaceRecord, error) {
+	values := url.Values{}
+	if trimmed := strings.TrimSpace(query); trimmed != "" {
+		values.Set("query", trimmed)
+	}
+	if limit > 0 {
+		values.Set("limit", strconv.Itoa(limit))
+	}
+	var response struct {
+		Skills []SkillMarketplaceRecord `json:"skills"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, "/api/skills/marketplace/search", values, nil, &response); err != nil {
+		return nil, err
+	}
+	return response.Skills, nil
+}
+
+func (c *unixSocketClient) InstallSkillMarketplace(
+	ctx context.Context,
+	request SkillMarketplaceInstallRequest,
+) (SkillMarketplaceInstallRecord, error) {
+	var response struct {
+		Skill SkillMarketplaceInstallRecord `json:"skill"`
+	}
+	if err := c.doJSON(ctx, http.MethodPost, "/api/skills/marketplace/install", nil, request, &response); err != nil {
+		return SkillMarketplaceInstallRecord{}, err
+	}
+	return response.Skill, nil
+}
+
+func (c *unixSocketClient) UpdateSkillMarketplace(
+	ctx context.Context,
+	request SkillMarketplaceUpdateRequest,
+) ([]SkillMarketplaceUpdateRecord, error) {
+	var response struct {
+		Skills []SkillMarketplaceUpdateRecord `json:"skills"`
+	}
+	if err := c.doJSON(ctx, http.MethodPost, "/api/skills/marketplace/update", nil, request, &response); err != nil {
+		return nil, err
+	}
+	return response.Skills, nil
+}
+
+func (c *unixSocketClient) RemoveSkillMarketplace(
+	ctx context.Context,
+	name string,
+) (SkillMarketplaceRemoveRecord, error) {
+	var response struct {
+		Skill SkillMarketplaceRemoveRecord `json:"skill"`
+	}
+	if err := c.doJSON(
+		ctx,
+		http.MethodDelete,
+		"/api/skills/marketplace/"+url.PathEscape(strings.TrimSpace(name)),
+		nil,
+		nil,
+		&response,
+	); err != nil {
+		return SkillMarketplaceRemoveRecord{}, err
+	}
+	return response.Skill, nil
+}
+
 func (c *unixSocketClient) HookCatalog(ctx context.Context, query HookCatalogQuery) ([]HookCatalogRecord, error) {
 	var response struct {
 		Hooks []HookCatalogRecord `json:"hooks"`
@@ -4453,6 +4552,15 @@ func (c *unixSocketClient) ListTaskRuns(
 		return nil, err
 	}
 	return response.Runs, nil
+}
+
+func (c *unixSocketClient) GetTaskRun(ctx context.Context, id string) (TaskRunDetailRecord, error) {
+	var response contract.TaskRunDetailResponse
+	path := "/api/task-runs/" + url.PathEscape(strings.TrimSpace(id))
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
+		return TaskRunDetailRecord{}, err
+	}
+	return response.Run, nil
 }
 
 func (c *unixSocketClient) ClaimTaskRun(

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/api/contract"
+	core "github.com/compozy/agh/internal/api/core"
 	apitest "github.com/compozy/agh/internal/api/testutil"
 	bridgepkg "github.com/compozy/agh/internal/bridges"
 	bundlepkg "github.com/compozy/agh/internal/bundles"
@@ -218,7 +219,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			}},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			BundleService: bundleService,
+			BundleService: func() core.BundleService { return bundleService },
 			Resources:     resourceService,
 		}, nativeApproveAllPolicyInputs())
 
@@ -241,6 +242,35 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(resources_snapshot) error = %v", err)
 		}
 		requireNativeStructuredContains(t, resourceResult, []byte(`"mcp.github"`))
+	})
+
+	t.Run("Should resolve bundle service after native registry boot", func(t *testing.T) {
+		t.Parallel()
+
+		var bundleService core.BundleService
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			BundleService: func() core.BundleService { return bundleService },
+		}, nativeApproveAllPolicyInputs())
+		operatorScope := toolspkg.Scope{Operator: true}
+
+		views, err := registry.OperatorProjection(t.Context(), operatorScope)
+		if err != nil {
+			t.Fatalf("OperatorProjection() error = %v", err)
+		}
+		requireNativeToolUnavailableReason(t, views, toolspkg.ToolIDBundlesList)
+
+		bundleService = &nativeBundleServiceStub{
+			catalog: []bundlepkg.CatalogEntry{{ExtensionName: "ext-bundle"}},
+		}
+		result, err := registry.Call(
+			t.Context(),
+			operatorScope,
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDBundlesList},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(bundles_list) after late service error = %v", err)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"ext-bundle"`))
 	})
 
 	t.Run("Should bind bundle and resource native tools to the caller workspace", func(t *testing.T) {
@@ -288,7 +318,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			BundleService: bundleService,
+			BundleService: func() core.BundleService { return bundleService },
 			Resources:     resourceService,
 		}, nativeApproveAllPolicyInputs())
 		scope := toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1", AgentName: "coder"}
@@ -422,7 +452,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		bundleService := &nativeBundleServiceStub{}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			BundleService: bundleService,
+			BundleService: func() core.BundleService { return bundleService },
 		}, nativeApproveAllPolicyInputs())
 
 		_, err := registry.Call(

@@ -74,6 +74,9 @@ const (
 	daemonReloadTimeoutBridgesPath   = "daemon.reload_timeouts.bridges"
 )
 
+// ErrSandboxProfileNotFound reports a sandbox profile reference that is not configured.
+var ErrSandboxProfileNotFound = errors.New("sandbox profile not found")
+
 // DaemonConfig controls daemon-local socket and hot-reload settings.
 type DaemonConfig struct {
 	Socket         string                     `toml:"socket"`
@@ -1025,7 +1028,7 @@ func (c *Config) ResolveSandbox(ref string) (sandbox.Resolved, error) {
 		if profileName == string(sandbox.BackendLocal) {
 			return defaultLocalSandbox(), nil
 		}
-		return sandbox.Resolved{}, fmt.Errorf("sandbox profile %q not found", profileName)
+		return sandbox.Resolved{}, fmt.Errorf("%w: %q", ErrSandboxProfileNotFound, profileName)
 	}
 
 	resolved, err := profile.Resolve(profileName)

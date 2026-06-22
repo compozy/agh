@@ -95,6 +95,92 @@ func TestNotificationPresetCommands(t *testing.T) {
 		}
 	})
 
+	t.Run("Should update preset with mutable fields", func(t *testing.T) {
+		t.Parallel()
+
+		var capturedName string
+		var captured UpdateNotificationPresetRequest
+		deps := newTestDeps(t, &stubClient{
+			updateNotificationPresetFn: func(
+				_ context.Context,
+				name string,
+				request UpdateNotificationPresetRequest,
+			) (NotificationPresetRecord, error) {
+				capturedName = name
+				captured = request
+				record := notificationPresetRecordForTest(name)
+				if request.Events != nil {
+					record.Events = *request.Events
+				}
+				if request.Targets != nil {
+					record.Targets = *request.Targets
+				}
+				if request.Filter != nil {
+					record.Filter = *request.Filter
+				}
+				record.Enabled = request.Enabled != nil && *request.Enabled
+				return record, nil
+			},
+		})
+
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"notifications", "preset", "update", "task_terminal",
+			"--event", "task.run_failed",
+			"--target", "brg-1:slack:channel:ops",
+			"--filter", "outcome = failure",
+			"--enabled",
+			"-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("notifications preset update error = %v", err)
+		}
+		if capturedName != "task_terminal" ||
+			captured.Events == nil ||
+			len(*captured.Events) != 1 ||
+			(*captured.Events)[0] != "task.run_failed" ||
+			captured.Targets == nil ||
+			len(*captured.Targets) != 1 ||
+			(*captured.Targets)[0].BridgeID != "brg-1" ||
+			(*captured.Targets)[0].CanonicalRoute != "slack:channel:ops" ||
+			captured.Filter == nil ||
+			*captured.Filter != "outcome = failure" ||
+			captured.Enabled == nil ||
+			!*captured.Enabled {
+			t.Fatalf("captured update = name %q request %#v", capturedName, captured)
+		}
+		var payload NotificationPresetRecord
+		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(update stdout) error = %v\nstdout=%s", err, stdout)
+		}
+		if payload.Name != "task_terminal" || !payload.Enabled || payload.Filter != "outcome = failure" {
+			t.Fatalf("payload = %#v, want enabled filtered task_terminal", payload)
+		}
+	})
+
+	t.Run("Should reject update without changed fields or with conflicting enable flags", func(t *testing.T) {
+		t.Parallel()
+
+		deps := newTestDeps(t, &stubClient{})
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"notifications", "preset", "update", "task_terminal",
+		); err == nil {
+			t.Fatal("notifications preset update without flags error = nil, want error")
+		}
+		if _, _, err := executeRootCommand(
+			t,
+			deps,
+			"notifications", "preset", "update", "task_terminal",
+			"--enabled",
+			"--disabled",
+		); err == nil {
+			t.Fatal("notifications preset update --enabled --disabled error = nil, want error")
+		}
+	})
+
 	t.Run("Should enable preset with replacement targets", func(t *testing.T) {
 		t.Parallel()
 

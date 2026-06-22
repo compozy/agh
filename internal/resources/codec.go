@@ -116,14 +116,14 @@ func (c *jsonCodec[T]) DecodeAndValidate(ctx context.Context, scope ResourceScop
 
 	var spec T
 	if err := json.Unmarshal(trimmed, &spec); err != nil {
-		return zero, fmt.Errorf("resources: decode %q spec: %w", c.kind, err)
+		return zero, fmt.Errorf("resources: decode %q spec: %w: %w", c.kind, ErrValidation, err)
 	}
 	if c.validator == nil {
 		return spec, nil
 	}
 	validated, err := c.validator(ctx, scope, spec)
 	if err != nil {
-		return zero, fmt.Errorf("resources: validate %q spec: %w", c.kind, err)
+		return zero, wrapCodecValidationError(c.kind, err)
 	}
 	return validated, nil
 }
@@ -152,6 +152,31 @@ func validateCodecPayloadSize(size int, maxBytes int, kind ResourceKind, operati
 		)
 	}
 	return nil
+}
+
+func wrapCodecValidationError(kind ResourceKind, err error) error {
+	if err == nil {
+		return nil
+	}
+	if isClassifiedResourceError(err) {
+		return fmt.Errorf("resources: validate %q spec: %w", kind, err)
+	}
+	return fmt.Errorf("resources: validate %q spec: %w: %w", kind, ErrValidation, err)
+}
+
+func isClassifiedResourceError(err error) bool {
+	return errors.Is(err, ErrNotFound) ||
+		errors.Is(err, ErrValidation) ||
+		errors.Is(err, ErrInvalidScopeBinding) ||
+		errors.Is(err, ErrPermissionDenied) ||
+		errors.Is(err, ErrDirectMutationNotAllowed) ||
+		errors.Is(err, ErrConflict) ||
+		errors.Is(err, ErrPayloadTooLarge) ||
+		errors.Is(err, ErrRateLimited) ||
+		errors.Is(err, ErrSessionNotActive) ||
+		errors.Is(err, ErrStaleSourceVersion) ||
+		errors.Is(err, ErrCodecNotFound) ||
+		errors.Is(err, ErrCodecTypeMismatch)
 }
 
 type codecRegistration struct {

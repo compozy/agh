@@ -315,6 +315,11 @@ func hasAny(value string, needles ...string) bool {
 	return false
 }
 
+// MissingCredentialClassification builds the canonical missing-credential classifier.
+func MissingCredentialClassification(missing CredentialStatus) Classification {
+	return missingCredentialClassification(missing)
+}
+
 func missingCredentialClassification(missing CredentialStatus) Classification {
 	target := strings.TrimSpace(missing.TargetEnv)
 	if target == "" {

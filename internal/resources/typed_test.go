@@ -154,6 +154,60 @@ func TestCodecRegistryRegistrationAndResolve(t *testing.T) {
 	}
 }
 
+func TestJSONCodecValidationClassification(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should wrap plain validator errors as resource validation", func(t *testing.T) {
+		t.Parallel()
+
+		codec := mustJSONCodec(
+			t,
+			testResourceKind,
+			1024,
+			func(context.Context, ResourceScope, testTypedSpec) (testTypedSpec, error) {
+				return testTypedSpec{}, errors.New("name is required")
+			},
+		)
+
+		_, err := codec.DecodeAndValidate(
+			testutil.Context(t),
+			ResourceScope{Kind: ResourceScopeKindGlobal},
+			[]byte("{\"name\":\"\"}"),
+		)
+		if !errors.Is(err, ErrValidation) {
+			t.Fatalf("DecodeAndValidate() error = %v, want ErrValidation", err)
+		}
+		if !strings.Contains(err.Error(), "name is required") {
+			t.Fatalf("DecodeAndValidate() error = %v, want validator context", err)
+		}
+	})
+
+	t.Run("Should preserve classified validator errors", func(t *testing.T) {
+		t.Parallel()
+
+		codec := mustJSONCodec(
+			t,
+			testResourceKind,
+			1024,
+			func(context.Context, ResourceScope, testTypedSpec) (testTypedSpec, error) {
+				return testTypedSpec{}, ErrPayloadTooLarge
+			},
+		)
+
+		_, err := codec.DecodeAndValidate(
+			testutil.Context(t),
+			ResourceScope{Kind: ResourceScopeKindGlobal},
+			[]byte("{\"name\":\"oversized\"}"),
+		)
+		if !errors.Is(err, ErrPayloadTooLarge) {
+			t.Fatalf("DecodeAndValidate() error = %v, want ErrPayloadTooLarge", err)
+		}
+		if errors.Is(err, ErrValidation) {
+			t.Fatalf("DecodeAndValidate() error = %v, should not add ErrValidation", err)
+		}
+	})
+}
+
 func TestTypedStoreReadAuthorityBoundaries(t *testing.T) {
 	t.Parallel()
 

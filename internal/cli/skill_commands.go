@@ -513,21 +513,13 @@ func newSkillInstallCommand(deps commandDeps) *cobra.Command {
 		Example: `  # Install the latest marketplace version of a skill
   agh skill install @acme/code-review`,
 		Args: exactOneNonBlankArg(),
-		RunE: func(cmd *cobra.Command, args []string) (err error) {
+		RunE: func(cmd *cobra.Command, args []string) error {
 			slug, err := normalizeSkillSlug(args[0])
 			if err != nil {
 				return err
 			}
 
-			runtime, registry, err := loadSkillRegistry(deps)
-			if err != nil {
-				return err
-			}
-			defer func() {
-				err = errors.Join(err, registry.Close())
-			}()
-
-			item, err := installMarketplaceSkill(cmd.Context(), runtime, registry, slug, version, "", deps.now)
+			item, err := installMarketplaceSkillForCommand(cmd.Context(), deps, slug, version)
 			if err != nil {
 				return err
 			}
@@ -552,12 +544,7 @@ func newSkillRemoveCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 
-			runtime, err := loadRuntimeContext(deps)
-			if err != nil {
-				return err
-			}
-
-			item, err := removeMarketplaceSkill(runtime.HomePaths.SkillsDir, name)
+			item, err := removeMarketplaceSkillForCommand(cmd.Context(), deps, name)
 			if err != nil {
 				if bundledSkillExists(name) {
 					return fmt.Errorf("skill %q is not a marketplace-installed skill", name)
@@ -600,23 +587,13 @@ func newSkillUpdateCommand(deps commandDeps) *cobra.Command {
 			}
 			return nil
 		},
-		RunE: func(cmd *cobra.Command, args []string) (err error) {
-			runtime, registry, err := loadSkillRegistry(deps)
-			if err != nil {
-				return err
-			}
-			defer func() {
-				err = errors.Join(err, registry.Close())
-			}()
-
-			items, err := updateMarketplaceSkills(
+		RunE: func(cmd *cobra.Command, args []string) error {
+			items, err := updateMarketplaceSkillsForCommand(
 				cmd.Context(),
-				runtime,
-				registry,
+				deps,
 				args,
 				updateAll,
 				checkOnly,
-				deps.now,
 			)
 			if err != nil {
 				return err

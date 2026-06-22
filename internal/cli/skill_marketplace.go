@@ -77,6 +77,38 @@ func normalizeSkillSlug(slug string) (string, error) {
 	return skillmarketplace.NormalizeSkillSlug(slug)
 }
 
+func installMarketplaceSkillForCommand(
+	ctx context.Context,
+	deps commandDeps,
+	slug string,
+	version string,
+) (_ skillInstallItem, err error) {
+	client, running, err := extensionClientIfRunning(deps)
+	if err != nil {
+		return skillInstallItem{}, err
+	}
+	if running {
+		item, err := client.InstallSkillMarketplace(ctx, SkillMarketplaceInstallRequest{
+			Slug:    slug,
+			Version: strings.TrimSpace(version),
+		})
+		if err != nil {
+			return skillInstallItem{}, err
+		}
+		return skillInstallItemFromRecord(item), nil
+	}
+
+	runtime, registry, err := loadSkillRegistry(deps)
+	if err != nil {
+		return skillInstallItem{}, err
+	}
+	defer func() {
+		err = errors.Join(err, registry.Close())
+	}()
+
+	return installMarketplaceSkill(ctx, runtime, registry, slug, version, "", deps.now)
+}
+
 func installMarketplaceSkill(
 	ctx context.Context,
 	runtime *runtimeContext,
@@ -190,6 +222,52 @@ func updateMarketplaceSkills(
 	return items, nil
 }
 
+func updateMarketplaceSkillsForCommand(
+	ctx context.Context,
+	deps commandDeps,
+	args []string,
+	updateAll bool,
+	checkOnly bool,
+) (_ []skillUpdateItem, err error) {
+	client, running, err := extensionClientIfRunning(deps)
+	if err != nil {
+		return nil, err
+	}
+	if running {
+		name := ""
+		if len(args) > 0 {
+			name = strings.TrimSpace(args[0])
+		}
+		items, err := client.UpdateSkillMarketplace(ctx, SkillMarketplaceUpdateRequest{
+			Name:      name,
+			All:       updateAll,
+			CheckOnly: checkOnly,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return skillUpdateItemsFromRecords(items), nil
+	}
+
+	runtime, registry, err := loadSkillRegistry(deps)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		err = errors.Join(err, registry.Close())
+	}()
+
+	return updateMarketplaceSkills(
+		ctx,
+		runtime,
+		registry,
+		args,
+		updateAll,
+		checkOnly,
+		deps.now,
+	)
+}
+
 func updateMarketplaceSkill(
 	ctx context.Context,
 	runtime *runtimeContext,
@@ -229,6 +307,18 @@ func searchMarketplaceSkills(
 		return nil, fmt.Errorf("cli: search limit must be positive: %d", limit)
 	}
 
+	client, running, err := extensionClientIfRunning(deps)
+	if err != nil {
+		return nil, err
+	}
+	if running {
+		items, err := client.SearchSkillMarketplace(ctx, query, limit)
+		if err != nil {
+			return nil, err
+		}
+		return skillMarketplaceListingsFromRecords(items), nil
+	}
+
 	_, registry, err := loadSkillRegistry(deps)
 	if err != nil {
 		return nil, err
@@ -250,6 +340,26 @@ func searchMarketplaceSkills(
 
 func versionIsNewer(current string, latest string) bool {
 	return registrypkg.VersionIsNewer(current, latest)
+}
+
+func removeMarketplaceSkillForCommand(ctx context.Context, deps commandDeps, name string) (skillRemoveItem, error) {
+	client, running, err := extensionClientIfRunning(deps)
+	if err != nil {
+		return skillRemoveItem{}, err
+	}
+	if running {
+		item, err := client.RemoveSkillMarketplace(ctx, name)
+		if err != nil {
+			return skillRemoveItem{}, err
+		}
+		return skillRemoveItemFromRecord(item), nil
+	}
+
+	runtime, err := loadRuntimeContext(deps)
+	if err != nil {
+		return skillRemoveItem{}, err
+	}
+	return removeMarketplaceSkill(runtime.HomePaths.SkillsDir, name)
 }
 
 func removeMarketplaceSkill(skillsDir string, name string) (skillRemoveItem, error) {
@@ -274,6 +384,59 @@ func findInstalledMarketplaceSkill(
 
 func listInstalledMarketplaceSkills(skillsDir string) ([]installedMarketplaceSkill, error) {
 	return skillmarketplace.ListInstalledSkills(skillsDir)
+}
+
+func skillMarketplaceListingsFromRecords(items []SkillMarketplaceRecord) []registrypkg.Listing {
+	listings := make([]registrypkg.Listing, 0, len(items))
+	for _, item := range items {
+		listings = append(listings, registrypkg.Listing{
+			Slug:        item.Slug,
+			Name:        item.Name,
+			Description: item.Description,
+			Author:      item.Author,
+			Version:     item.Version,
+			Downloads:   item.Downloads,
+			Source:      item.Source,
+			Type:        registrypkg.PackageTypeSkill,
+		})
+	}
+	return listings
+}
+
+func skillInstallItemFromRecord(item SkillMarketplaceInstallRecord) skillInstallItem {
+	return skillInstallItem{
+		Name:     item.Name,
+		Slug:     item.Slug,
+		Version:  item.Version,
+		Registry: item.Registry,
+		Path:     item.Path,
+		Hash:     item.Hash,
+		Status:   item.Status,
+	}
+}
+
+func skillUpdateItemsFromRecords(items []SkillMarketplaceUpdateRecord) []skillUpdateItem {
+	updates := make([]skillUpdateItem, 0, len(items))
+	for _, item := range items {
+		updates = append(updates, skillUpdateItem{
+			Name:           item.Name,
+			Slug:           item.Slug,
+			CurrentVersion: item.CurrentVersion,
+			LatestVersion:  item.LatestVersion,
+			Path:           item.Path,
+			Status:         item.Status,
+		})
+	}
+	return updates
+}
+
+func skillRemoveItemFromRecord(item SkillMarketplaceRemoveRecord) skillRemoveItem {
+	return skillRemoveItem{
+		Name:   item.Name,
+		Slug:   item.Slug,
+		Path:   item.Path,
+		Status: item.Status,
+	}
 }
 
 func extractMarketplaceArchive(reader io.Reader, destRoot string) error {

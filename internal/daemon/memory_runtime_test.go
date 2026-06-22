@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/acp"
+	extensionpkg "github.com/compozy/agh/internal/extension"
 	"github.com/compozy/agh/internal/memory"
 	memcontract "github.com/compozy/agh/internal/memory/contract"
 	"github.com/compozy/agh/internal/session"
@@ -132,6 +134,28 @@ func TestCollectMemoryExtractorOutput(t *testing.T) {
 		}
 		if candidate.Metadata["workspace_root"] != "/workspace/test" {
 			t.Fatalf("candidate metadata = %#v, want workspace_root", candidate.Metadata)
+		}
+	})
+}
+
+func TestDaemonMemoryProviderService(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve missing provider sentinels for settings validation", func(t *testing.T) {
+		t.Parallel()
+
+		registry := extensionpkg.NewMemoryProviderRegistry()
+		service := daemonMemoryProviderService{registry: registry}
+
+		_, err := service.Get(testutil.Context(t), "", "missing-provider")
+		if err == nil {
+			t.Fatal("Get(missing-provider) error = nil, want not found")
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("Get(missing-provider) error = %v, want os.ErrNotExist", err)
+		}
+		if !errors.Is(err, extensionpkg.ErrMemoryProviderNotFound) {
+			t.Fatalf("Get(missing-provider) error = %v, want ErrMemoryProviderNotFound", err)
 		}
 	})
 }

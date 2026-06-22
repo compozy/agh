@@ -1829,6 +1829,90 @@ func TestUnixSocketClientRepairSession(t *testing.T) {
 	})
 }
 
+func TestUnixSocketClientSkillMarketplaceMethods(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should map skill marketplace endpoints", func(t *testing.T) {
+		t.Parallel()
+
+		client := &unixSocketClient{
+			socketPath: "/tmp/agh.sock",
+			httpClient: &http.Client{
+				Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+					switch {
+					case req.Method == http.MethodGet && req.URL.Path == "/api/skills/marketplace/search":
+						if got := req.URL.Query().Get("query"); got != "review" {
+							t.Fatalf("skill marketplace search query = %q, want review", got)
+						}
+						if got := req.URL.Query().Get("limit"); got != "7" {
+							t.Fatalf("skill marketplace search limit = %q, want 7", got)
+						}
+						return newHTTPResponse(
+							http.StatusOK,
+							`{"skills":[{"slug":"review","name":"review","description":"Review helper","author":"agh","version":"1.2.0","downloads":42,"source":"clawhub"}]}`,
+						), nil
+					case req.Method == http.MethodPost && req.URL.Path == "/api/skills/marketplace/install":
+						var body SkillMarketplaceInstallRequest
+						if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+							t.Fatalf("decode skill marketplace install request error = %v", err)
+						}
+						if body.Slug != "review" || body.Version != "1.2.0" {
+							t.Fatalf("skill marketplace install body = %#v, want review 1.2.0", body)
+						}
+						return newHTTPResponse(
+							http.StatusOK,
+							`{"skill":{"name":"review","slug":"review","version":"1.2.0","registry":"clawhub","path":"/tmp/review","hash":"sha256:review","status":"installed"}}`,
+						), nil
+					case req.Method == http.MethodPost && req.URL.Path == "/api/skills/marketplace/update":
+						var body SkillMarketplaceUpdateRequest
+						if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+							t.Fatalf("decode skill marketplace update request error = %v", err)
+						}
+						if body.Name != "review" || !body.CheckOnly || body.All {
+							t.Fatalf("skill marketplace update body = %#v, want review check-only", body)
+						}
+						return newHTTPResponse(
+							http.StatusOK,
+							`{"skills":[{"name":"review","slug":"review","current_version":"1.0.0","latest_version":"1.2.0","path":"/tmp/review","status":"update available"}]}`,
+						), nil
+					case req.Method == http.MethodDelete && req.URL.Path == "/api/skills/marketplace/review":
+						return newHTTPResponse(
+							http.StatusOK,
+							`{"skill":{"name":"review","slug":"review","path":"/tmp/review","status":"removed"}}`,
+						), nil
+					default:
+						return newHTTPResponse(http.StatusNotFound, `{"error":"missing"}`), nil
+					}
+				}),
+			},
+		}
+
+		ctx := context.Background()
+		search, err := client.SearchSkillMarketplace(ctx, "review", 7)
+		if err != nil || len(search) != 1 || search[0].Slug != "review" {
+			t.Fatalf("SearchSkillMarketplace() = %#v, %v", search, err)
+		}
+		installed, err := client.InstallSkillMarketplace(ctx, SkillMarketplaceInstallRequest{
+			Slug:    "review",
+			Version: "1.2.0",
+		})
+		if err != nil || installed.Status != "installed" {
+			t.Fatalf("InstallSkillMarketplace() = %#v, %v", installed, err)
+		}
+		updates, err := client.UpdateSkillMarketplace(ctx, SkillMarketplaceUpdateRequest{
+			Name:      "review",
+			CheckOnly: true,
+		})
+		if err != nil || len(updates) != 1 || updates[0].Status != "update available" {
+			t.Fatalf("UpdateSkillMarketplace() = %#v, %v", updates, err)
+		}
+		removed, err := client.RemoveSkillMarketplace(ctx, " review ")
+		if err != nil || removed.Status != "removed" {
+			t.Fatalf("RemoveSkillMarketplace() = %#v, %v", removed, err)
+		}
+	})
+}
+
 func TestUnixSocketClientExtensionMethods(t *testing.T) {
 	t.Parallel()
 
@@ -2389,6 +2473,11 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 						},
 					)
 					return newHTTPResponse(http.StatusOK, string(body)), nil
+				case req.Method == http.MethodGet && req.URL.Path == "/api/task-runs/run-1":
+					body := mustJSON(t, contract.TaskRunDetailResponse{
+						Run: sampleTaskRunDetailRecord(taskpkg.TaskRunStatusQueued),
+					})
+					return newHTTPResponse(http.StatusOK, string(body)), nil
 				case req.Method == http.MethodPost && req.URL.Path == "/api/task-runs/run-1/claim":
 					var payload contract.ClaimTaskRunRequest
 					if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
@@ -2559,6 +2648,14 @@ func TestUnixSocketClientTaskMethods(t *testing.T) {
 		})
 		if err != nil || len(runs) != 1 || runs[0].Status != taskpkg.TaskRunStatusRunning {
 			t.Fatalf("ListTaskRuns() = %#v, %v", runs, err)
+		}
+
+		shown, err := client.GetTaskRun(ctx, "run-1")
+		if err != nil ||
+			shown.Run.ID != "run-1" ||
+			shown.Run.Status != taskpkg.TaskRunStatusQueued ||
+			shown.Task.ID != "task-1" {
+			t.Fatalf("GetTaskRun() = %#v, %v", shown, err)
 		}
 
 		claimed, err := client.ClaimTaskRun(ctx, "run-1", ClaimTaskRunRequest{IdempotencyKey: "idem-claim"})

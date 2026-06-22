@@ -458,6 +458,35 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 			},
 		},
 		{
+			name: "Should show task run",
+			run: func(t *testing.T) {
+				t.Helper()
+
+				var gotID string
+				deps := newTestDeps(t, &stubClient{
+					getTaskRunFn: func(_ context.Context, id string) (TaskRunDetailRecord, error) {
+						gotID = id
+						return sampleTaskRunDetailRecord(taskpkg.TaskRunStatusQueued), nil
+					},
+				})
+
+				stdout, _, err := executeRootCommand(t, deps, "task", "run", "show", "run-1", "-o", "json")
+				if err != nil {
+					t.Fatalf("task run show error = %v", err)
+				}
+				var output TaskRunDetailRecord
+				if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+					t.Fatalf("json.Unmarshal(task run show) error = %v", err)
+				}
+				if gotID != "run-1" ||
+					output.Run.ID != "run-1" ||
+					output.Run.Status != taskpkg.TaskRunStatusQueued ||
+					output.Task.ID != "task-1" {
+					t.Fatalf("gotID/output = %q / %#v, want queued run-1", gotID, output)
+				}
+			},
+		},
+		{
 			name: "Should parse task run enqueue request",
 			run: func(t *testing.T) {
 				t.Helper()
@@ -2285,6 +2314,21 @@ func TestTaskBundlesRenderTaskRunAndDetailSections(t *testing.T) {
 		}
 	})
 
+	t.Run("Should render task run detail human sections", func(t *testing.T) {
+		t.Parallel()
+
+		detail := sampleTaskRunDetailRecord(taskpkg.TaskRunStatusRunning)
+		detailHuman, err := taskRunDetailBundle(&detail).human()
+		if err != nil {
+			t.Fatalf("taskRunDetailBundle().human() error = %v", err)
+		}
+		if !strings.Contains(detailHuman, "Task Run") ||
+			!strings.Contains(detailHuman, "Operational Summary") ||
+			!strings.Contains(detailHuman, "Tool Calls") {
+			t.Fatalf("task run detail human output = %q, want run/task/summary sections", detailHuman)
+		}
+	})
+
 	t.Run("Should render task run toon array", func(t *testing.T) {
 		t.Parallel()
 
@@ -2533,6 +2577,41 @@ func sampleTaskRunRecord(status taskpkg.RunStatus) TaskRunRecord {
 	}
 
 	return record
+}
+
+func sampleTaskRunDetailRecord(status taskpkg.RunStatus) TaskRunDetailRecord {
+	toolCallCount := int64(3)
+	turnCount := int64(2)
+	return TaskRunDetailRecord{
+		Run: sampleTaskRunRecord(status),
+		Task: contract.TaskReferencePayload{
+			ID:             "task-1",
+			Identifier:     "OPS-42",
+			Title:          "Investigate flaky task runs",
+			Status:         taskpkg.TaskStatusReady,
+			Priority:       taskpkg.PriorityHigh,
+			Owner:          &taskpkg.Ownership{Kind: taskpkg.OwnerKindPool, Ref: "triage"},
+			Scope:          taskpkg.ScopeWorkspace,
+			WorkspaceID:    "ws-alpha",
+			LatestEventSeq: 7,
+		},
+		Session: &contract.TaskRunSessionPayload{
+			SessionID:   "sess-1",
+			WorkspaceID: "ws-alpha",
+			AgentName:   "coder",
+			Name:        "QA coder",
+			Channel:     "builders",
+			State:       "active",
+			CreatedAt:   fixedTestNow,
+			UpdatedAt:   fixedTestNow.Add(time.Minute),
+		},
+		Summary: contract.TaskRunOperationalSummaryPayload{
+			LastActivityAt: fixedTestNow.Add(2 * time.Minute),
+			LastEventType:  "agent_message",
+			ToolCallCount:  &toolCallCount,
+			TurnCount:      &turnCount,
+		},
+	}
 }
 
 func sampleTaskExecutionRecord() TaskExecutionRecord {

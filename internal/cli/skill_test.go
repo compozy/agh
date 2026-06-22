@@ -804,11 +804,11 @@ func TestSkillInstallCommandValidatesSlug(t *testing.T) {
 
 	env := newSkillTestEnv(t, nil)
 
-	_, _, err := executeRootCommand(t, env.deps, "skill", "install", "invalid")
+	_, _, err := executeRootCommand(t, env.deps, "skill", "install", "bad/slug")
 	if err == nil {
 		t.Fatal("skill install invalid slug error = nil, want validation failure")
 	}
-	if !strings.Contains(err.Error(), `skill slug must match "@author/name"`) {
+	if !strings.Contains(err.Error(), "skill slug must not include path separators") {
 		t.Fatalf("skill install invalid slug error = %v, want slug validation", err)
 	}
 }
@@ -2193,7 +2193,7 @@ func TestSkillHelpersAndBundles(t *testing.T) {
 	if _, err := normalizeSkillSlug("@agh/review"); err != nil {
 		t.Fatalf("normalizeSkillSlug(valid) error = %v", err)
 	}
-	if _, err := normalizeSkillSlug("invalid"); err == nil {
+	if _, err := normalizeSkillSlug("bad/slug"); err == nil {
 		t.Fatal("normalizeSkillSlug(invalid) error = nil, want failure")
 	}
 	if _, err := normalizeSkillName(""); err == nil {

@@ -264,6 +264,48 @@ func (r *bridgeRuntime) DeliverBridge(
 	return transport.DeliverBridge(ctx, extensionName, req)
 }
 
+func (r *bridgeRuntime) ListBridgeTargets(
+	ctx context.Context,
+	query bridgepkg.BridgeTargetQuery,
+) (bridgepkg.BridgeTargetsResult, error) {
+	if r == nil || r.Service == nil {
+		return bridgepkg.BridgeTargetsResult{}, bridgepkg.ErrBridgeTargetDirectoryUnavailable
+	}
+	result, err := r.Service.ListBridgeTargets(ctx, query)
+	if err != nil || !result.CacheStale {
+		return result, err
+	}
+	if err := r.refreshBridgeTargetDirectoryForInstance(ctx, query.BridgeID); err != nil {
+		return result, nil
+	}
+	return r.Service.ListBridgeTargets(ctx, query)
+}
+
+func (r *bridgeRuntime) ResolveBridgeTarget(
+	ctx context.Context,
+	bridgeID string,
+	query string,
+) (bridgepkg.ResolveBridgeTargetResult, error) {
+	if r == nil || r.Service == nil {
+		return bridgepkg.ResolveBridgeTargetResult{}, bridgepkg.ErrBridgeTargetDirectoryUnavailable
+	}
+	if err := r.refreshStaleBridgeTargetDirectory(ctx, bridgeID); err != nil {
+		return bridgepkg.ResolveBridgeTargetResult{}, err
+	}
+	return r.Service.ResolveBridgeTarget(ctx, bridgeID, query)
+}
+
+func (r *bridgeRuntime) refreshStaleBridgeTargetDirectory(ctx context.Context, bridgeID string) error {
+	result, err := r.Service.ListBridgeTargets(ctx, bridgepkg.BridgeTargetQuery{BridgeID: bridgeID})
+	if err != nil || !result.CacheStale {
+		return err
+	}
+	if err := r.refreshBridgeTargetDirectoryForInstance(ctx, bridgeID); err != nil {
+		return nil
+	}
+	return nil
+}
+
 func (r *bridgeRuntime) BridgeTargetSnapshots(
 	ctx context.Context,
 	extensionName string,
@@ -1018,6 +1060,45 @@ func (r *bridgeRuntime) refreshBridgeTargetDirectory(ctx context.Context) error 
 			logger.Warn("daemon: persist bridge target snapshot failed", "bridge_id", instance.ID, "error", err)
 			continue
 		}
+	}
+	return nil
+}
+
+func (r *bridgeRuntime) refreshBridgeTargetDirectoryForInstance(ctx context.Context, bridgeInstanceID string) error {
+	if r == nil {
+		return errors.New("daemon: bridge runtime is required")
+	}
+	if ctx == nil {
+		return errors.New("daemon: bridge target refresh context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	trimmedID := strings.TrimSpace(bridgeInstanceID)
+	if trimmedID == "" {
+		return errors.New("daemon: bridge target refresh bridge instance id is required")
+	}
+	transport, ok := r.extensionRuntime().(bridgepkg.TargetSnapshotTransport)
+	if !ok || transport == nil {
+		return bridgepkg.ErrBridgeTargetDirectoryUnavailable
+	}
+	instance, err := r.GetInstance(ctx, trimmedID)
+	if err != nil {
+		return fmt.Errorf("daemon: load bridge instance %q for target refresh: %w", trimmedID, err)
+	}
+	if instance == nil || !bridgeInstanceNeedsTargetRefresh(*instance) {
+		return nil
+	}
+	snapshots, err := transport.BridgeTargetSnapshots(
+		ctx,
+		instance.ExtensionName,
+		bridgepkg.BridgeTargetSnapshotRequest{BridgeInstanceID: instance.ID},
+	)
+	if err != nil {
+		return fmt.Errorf("daemon: bridge target snapshot for %q: %w", instance.ID, err)
+	}
+	if _, err := r.RefreshBridgeTargets(ctx, instance.ID, snapshots); err != nil {
+		return fmt.Errorf("daemon: persist bridge target snapshot for %q: %w", instance.ID, err)
 	}
 	return nil
 }

@@ -187,6 +187,10 @@ func (h *BaseHandlers) NetworkSend(c *gin.Context) {
 		h.respondError(c, statusForWorkspaceScopedResourceError(err), err)
 		return
 	}
+	if err := h.populateNetworkDirectSendTarget(c.Request.Context(), service, &scope, &req); err != nil {
+		h.respondError(c, StatusForNetworkError(err), err)
+		return
+	}
 
 	sendReq, err := NetworkSendRequestFromPayload(req)
 	if err != nil {
@@ -200,6 +204,67 @@ func (h *BaseHandlers) NetworkSend(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, contract.NetworkSendResponse{Message: NetworkSendPayloadFromRequest(id, req)})
+}
+
+func (h *BaseHandlers) populateNetworkDirectSendTarget(
+	ctx context.Context,
+	service NetworkService,
+	scope *workspaceScope,
+	req *contract.NetworkSendRequest,
+) error {
+	if req == nil ||
+		strings.TrimSpace(req.Surface) != string(network.SurfaceDirect) ||
+		strings.TrimSpace(req.To) != "" ||
+		strings.TrimSpace(req.DirectID) == "" {
+		return nil
+	}
+	if h == nil || h.NetworkStore == nil {
+		return errors.New("api: network store is required to resolve direct send target")
+	}
+	channel, err := normalizeNetworkChannel(req.Channel)
+	if err != nil {
+		return err
+	}
+	directID := strings.TrimSpace(req.DirectID)
+	if err := network.ValidateConversationID(directID, "direct_id"); err != nil {
+		return err
+	}
+	direct, err := h.NetworkStore.GetDirectRoom(ctx, scope.NetworkChannelRef(channel), directID)
+	if err != nil {
+		return err
+	}
+	peers, err := service.ListPeers(ctx, scope.NetworkWorkspaceID(), channel)
+	if err != nil {
+		return err
+	}
+	sessionID := strings.TrimSpace(req.SessionID)
+	for _, peer := range peers {
+		if peer.SessionID == nil || strings.TrimSpace(*peer.SessionID) != sessionID {
+			continue
+		}
+		peerID := strings.TrimSpace(peer.PeerID)
+		switch peerID {
+		case strings.TrimSpace(direct.PeerA):
+			req.To = strings.TrimSpace(direct.PeerB)
+			return nil
+		case strings.TrimSpace(direct.PeerB):
+			req.To = strings.TrimSpace(direct.PeerA)
+			return nil
+		default:
+			return fmt.Errorf(
+				"%w: session peer %q is not part of direct room %q",
+				network.ErrInvalidField,
+				peerID,
+				directID,
+			)
+		}
+	}
+	return fmt.Errorf(
+		"%w: session=%q channel=%q",
+		network.ErrLocalPeerNotFound,
+		sessionID,
+		channel,
+	)
 }
 
 // NetworkInbox returns the queued inbound envelopes for one local session.

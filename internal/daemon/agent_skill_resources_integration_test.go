@@ -101,6 +101,7 @@ func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 		agentCodec,
 		skillStore,
 		skillCodec,
+		newSkillProjector(initialSkillRegistry),
 		mcpStore,
 		mcpCodec,
 		agentSkillSyncActor(),

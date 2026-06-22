@@ -249,6 +249,31 @@ func TestShouldSkipMCPSourceWhenAuthBlocksDiscovery(t *testing.T) {
 	})
 }
 
+func TestShouldSkipMCPSourceWhenDiscoveryFails(t *testing.T) {
+	t.Run("Should Skip MCP Source When Discovery Fails", func(t *testing.T) {
+		t.Parallel()
+
+		executor := newFakeMCPExecutor([]MCPToolDescriptor{{
+			RawName:     "lookup",
+			InputSchema: json.RawMessage("{\"type\":\"object\",\"properties\":{}}"),
+		}})
+		executor.listErr = errors.New("transport closed")
+		provider := newTestMCPProvider(t, executor, []SourceRef{{
+			Kind:          SourceMCP,
+			Owner:         "broken",
+			RawServerName: "broken",
+		}})
+
+		descriptors, err := provider.List(context.Background(), Scope{Operator: true})
+		if err != nil {
+			t.Fatalf("provider.List() error = %v", err)
+		}
+		if len(descriptors) != 0 {
+			t.Fatalf("provider.List() descriptors = %#v, want empty while source discovery fails", descriptors)
+		}
+	})
+}
+
 func TestShouldCallMCPProviderThroughRegistry(t *testing.T) {
 	t.Run("Should Call MCP Provider Through Registry", func(t *testing.T) {
 		t.Parallel()
