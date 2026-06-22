@@ -2,10 +2,6 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LLMCopyButton } from "@/components/docs/page-actions/llm-copy-button";
 
-vi.mock("fumadocs-ui/utils/use-copy-button", () => ({
-  useCopyButton: (callback: () => Promise<void>) => [false, callback] as const,
-}));
-
 function deferred<T>() {
   let resolve!: (value: T | PromiseLike<T>) => void;
   const promise = new Promise<T>(res => {
@@ -52,7 +48,7 @@ describe("LLMCopyButton", () => {
     expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith("cached markdown");
   });
 
-  it("does not cache non-OK responses before retrying", async () => {
+  it("does not cache non-OK responses and leaves the action retryable", async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock
       .mockResolvedValueOnce({
@@ -70,6 +66,7 @@ describe("LLMCopyButton", () => {
     const button = screen.getByRole("button", { name: "Copy as Markdown" });
     fireEvent.click(button);
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(button.textContent).toContain("Retry copy"));
     expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
 
     fireEvent.click(button);
