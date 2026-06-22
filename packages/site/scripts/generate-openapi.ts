@@ -1,7 +1,7 @@
 import path from "node:path";
 import { promises as fs } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { generateFiles, type Document } from "fumadocs-openapi";
+import { generateFiles } from "fumadocs-openapi";
 import { createOpenAPI } from "fumadocs-openapi/server";
 import { AGH_OPENAPI_ID, AGH_OPENAPI_PATH } from "../lib/openapi";
 import { API_SECTIONS } from "../lib/runtime-navigation";
@@ -25,6 +25,14 @@ type APIRoute = {
   method: string;
   path: string;
 };
+
+type OpenAPIOptions = NonNullable<Parameters<typeof createOpenAPI>[0]>;
+type OpenAPIInput = NonNullable<OpenAPIOptions["input"]>;
+type OpenAPISchemaRecord = Exclude<OpenAPIInput, string[]>;
+type OpenAPISchemaValue = OpenAPISchemaRecord[string];
+type ResolveSchemaValue<T> = T extends () => infer Output ? Awaited<Output> : T;
+type OpenAPISchemaOutput = ResolveSchemaValue<OpenAPISchemaValue>;
+type FumadocsDocument = Exclude<OpenAPISchemaOutput, string>;
 
 let referenceDocument: OpenAPIDocument | null = null;
 
@@ -151,7 +159,7 @@ async function loadReferenceDocument(): Promise<OpenAPIDocument> {
 }
 
 const referenceOpenAPI = createOpenAPI({
-  input: async () => ({ [AGH_OPENAPI_ID]: (await loadReferenceDocument()) as Document }),
+  input: { [AGH_OPENAPI_ID]: async () => (await loadReferenceDocument()) as FumadocsDocument },
 });
 
 async function readUsedTags(): Promise<string[]> {

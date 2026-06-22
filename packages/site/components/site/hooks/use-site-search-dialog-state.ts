@@ -1,15 +1,22 @@
 "use client";
 
 import { useDocsSearch } from "fumadocs-core/search/client";
-import type { DefaultSearchDialogProps } from "fumadocs-ui/components/dialog/search-default";
+import { fetchClient } from "fumadocs-core/search/client/fetch";
+import { oramaStaticClient } from "fumadocs-core/search/client/orama-static";
+import type { SearchLink } from "fumadocs-ui/contexts/search";
 import { useI18n } from "fumadocs-ui/contexts/i18n";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSiteSearch } from "@/components/site/hooks/use-site-search";
 
-type SiteSearchDialogStateOptions = Pick<
-  DefaultSearchDialogProps,
-  "api" | "defaultTag" | "delayMs" | "links" | "type"
->;
+export type SiteSearchType = "fetch" | "static";
+
+type SiteSearchDialogStateOptions = {
+  api?: string;
+  defaultTag?: string;
+  delayMs?: number;
+  links?: SearchLink[];
+  type?: SiteSearchType;
+};
 
 export function useSiteSearchDialogState({
   api,
@@ -22,23 +29,11 @@ export function useSiteSearchDialogState({
   const { seed, setQuery } = useSiteSearch();
   const [tag, setTag] = useState(defaultTag);
   const appliedSeedVersion = useRef(-1);
-  const { search, setSearch, query } = useDocsSearch(
+  const client =
     type === "fetch"
-      ? {
-          type: "fetch",
-          api,
-          locale,
-          tag,
-          delayMs,
-        }
-      : {
-          type: "static",
-          from: api,
-          locale,
-          tag,
-          delayMs,
-        }
-  );
+      ? fetchClient({ api, locale, tag })
+      : oramaStaticClient({ from: api, locale, tag });
+  const { search, setSearch, query } = useDocsSearch({ client, delayMs }, [type, api, locale, tag]);
 
   useEffect(() => {
     setTag(defaultTag);

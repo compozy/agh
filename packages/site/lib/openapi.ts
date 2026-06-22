@@ -8,5 +8,5 @@ export const AGH_OPENAPI_ID = "agh";
 export const AGH_OPENAPI_PATH = path.resolve(HERE, "../../../openapi/agh.json");
 
 export const openapi = createOpenAPI({
-  input: () => ({ [AGH_OPENAPI_ID]: AGH_OPENAPI_PATH }),
+  input: { [AGH_OPENAPI_ID]: AGH_OPENAPI_PATH },
 });

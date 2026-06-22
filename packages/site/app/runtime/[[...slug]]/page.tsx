@@ -10,6 +10,7 @@ import {
   type BreadcrumbItem,
 } from "@/components/seo/structured-data";
 import { getMDXComponents } from "@/mdx-components";
+import { openapi } from "@/lib/openapi";
 import { absoluteUrl, createPageMetadata, docsSourceUrl } from "@/lib/site-config";
 
 interface PageProps {
@@ -60,6 +61,8 @@ export default async function Page(props: PageProps) {
   const actions = buildActionUrls(slug, page.path);
   const breadcrumbs = buildBreadcrumbs(slug, page.data.title);
   const ogImagePath = `/og/runtime/${slug.length ? `${slug.join("/")}/` : ""}image.png`;
+  const openapiPreload =
+    slug[0] === "api-reference" ? await openapi.preloadOpenAPIPage(page) : undefined;
 
   return (
     <DocsPage
@@ -87,7 +90,7 @@ export default async function Page(props: PageProps) {
         githubUrl={actions.githubUrl}
       />
       <DocsBody className="site-doc-body mt-8 max-w-none">
-        <MDX components={getMDXComponents()} />
+        <MDX components={getMDXComponents(openapiPreload)} />
       </DocsBody>
     </DocsPage>
   );

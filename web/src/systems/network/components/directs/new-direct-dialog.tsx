@@ -44,12 +44,13 @@ interface PickerProps {
 function PeerPickerList({ channel, selfPeerId, onSelect, selectedPeerId, disabled }: PickerProps) {
   const { activeWorkspaceId } = useActiveWorkspace();
   const workspaceId = activeWorkspaceId ?? "";
-  const peersQuery = useQuery(networkPeersOptions(workspaceId, channel, activeWorkspaceId != null));
+  const { data, isLoading } = useQuery(
+    networkPeersOptions(workspaceId, channel, activeWorkspaceId != null)
+  );
   const candidates = useMemo(() => {
-    const peers = peersQuery.data ?? [];
+    const peers = data ?? [];
     return peers.filter(peer => peer.peer_id !== selfPeerId);
-  }, [peersQuery.data, selfPeerId]);
-  const isLoading = peersQuery.isLoading;
+  }, [data, selfPeerId]);
 
   if (isLoading) {
     return <p className="px-2 py-3 text-xs text-subtle">Loading peers…</p>;

@@ -1,4 +1,5 @@
 import { AlertCircle, Download, RotateCw, Search, Trash2, Wrench } from "lucide-react";
+import type { ReactNode } from "react";
 
 import {
   Alert,
@@ -34,25 +35,28 @@ interface MarketplaceViewProps {
 
 interface MarketplaceCatalogItemProps {
   listing: SkillMarketplaceListingPayload;
-  isInstalled: boolean;
-  onInstall: () => void;
-  onUpdate: () => void;
-  onRemove: () => void;
-  isInstalling: boolean;
-  isUpdating: boolean;
-  isRemoving: boolean;
+  children: ReactNode;
 }
 
-function MarketplaceCatalogItem({
-  listing,
-  isInstalled,
-  onInstall,
-  onUpdate,
-  onRemove,
-  isInstalling,
-  isUpdating,
-  isRemoving,
-}: MarketplaceCatalogItemProps) {
+type InstallActionState = "idle" | "installing";
+type UpdateActionState = "idle" | "updating";
+type RemoveActionState = "idle" | "removing";
+
+interface InstallableMarketplaceCatalogItemProps {
+  listing: SkillMarketplaceListingPayload;
+  onInstall: () => void;
+  installState: InstallActionState;
+}
+
+interface InstalledMarketplaceCatalogItemProps {
+  listing: SkillMarketplaceListingPayload;
+  onUpdate: () => void;
+  onRemove: () => void;
+  updateState: UpdateActionState;
+  removeState: RemoveActionState;
+}
+
+function MarketplaceCatalogItem({ listing, children }: MarketplaceCatalogItemProps) {
   return (
     <CatalogCard data-testid={`marketplace-row-${listing.name}`}>
       <div className="flex items-start gap-3">
@@ -72,87 +76,117 @@ function MarketplaceCatalogItem({
         </div>
       </div>
       <CatalogCard.Description>{listing.description}</CatalogCard.Description>
-      <CatalogCard.Actions>
-        {isInstalled ? (
+      <CatalogCard.Actions>{children}</CatalogCard.Actions>
+    </CatalogCard>
+  );
+}
+
+function InstallActionIcon({ state }: { state: InstallActionState }) {
+  if (state === "installing") {
+    return <Spinner aria-hidden="true" className="size-3" />;
+  }
+  return <Download aria-hidden="true" className="size-3" />;
+}
+
+function UpdateActionIcon({ state }: { state: UpdateActionState }) {
+  if (state === "updating") {
+    return <Spinner aria-hidden="true" className="size-3" />;
+  }
+  return <RotateCw aria-hidden="true" className="size-3" />;
+}
+
+function RemoveActionIcon({ state }: { state: RemoveActionState }) {
+  if (state === "removing") {
+    return <Spinner aria-hidden="true" className="size-3" />;
+  }
+  return <Trash2 aria-hidden="true" className="size-3" />;
+}
+
+function InstallableMarketplaceCatalogItem({
+  listing,
+  onInstall,
+  installState,
+}: InstallableMarketplaceCatalogItemProps) {
+  const installPending = installState === "installing";
+  return (
+    <MarketplaceCatalogItem listing={listing}>
+      <Button
+        data-testid={`install-btn-${listing.name}`}
+        disabled={installPending}
+        onClick={onInstall}
+        size="sm"
+        type="button"
+        variant="neutral"
+      >
+        <InstallActionIcon state={installState} />
+        {installPending ? "Installing" : "Install"}
+      </Button>
+    </MarketplaceCatalogItem>
+  );
+}
+
+function InstalledMarketplaceCatalogItem({
+  listing,
+  onUpdate,
+  onRemove,
+  updateState,
+  removeState,
+}: InstalledMarketplaceCatalogItemProps) {
+  const updatePending = updateState === "updating";
+  const removePending = removeState === "removing";
+  return (
+    <MarketplaceCatalogItem listing={listing}>
+      <Pill mono data-testid={`installed-pill-${listing.name}`} tone="success">
+        installed
+      </Pill>
+      <Button
+        data-testid={`update-btn-${listing.name}`}
+        disabled={updatePending || removePending}
+        onClick={onUpdate}
+        size="sm"
+        type="button"
+        variant="neutral"
+      >
+        <UpdateActionIcon state={updateState} />
+        {updatePending ? "Updating" : "Update"}
+      </Button>
+      <ConfirmDialog
+        cancelButtonProps={{
+          "data-testid": `cancel-remove-${listing.name}`,
+          disabled: removePending,
+        }}
+        cancelLabel="Cancel"
+        confirmButtonProps={{ "data-testid": `confirm-remove-${listing.name}` }}
+        confirmIcon={Trash2}
+        confirmLabel={removePending ? "Removing" : "Remove skill"}
+        contentProps={{ "data-testid": `remove-dialog-${listing.name}` }}
+        description={
           <>
-            <Pill mono data-testid={`installed-pill-${listing.name}`} tone="success">
-              installed
-            </Pill>
+            This removes <strong>{listing.name}</strong> from the workspace. Marketplace metadata
+            stays available so you can reinstall later.
+          </>
+        }
+        isPending={removePending}
+        onConfirm={onRemove}
+        title="Remove marketplace skill?"
+        tone="danger"
+      >
+        <DialogTrigger
+          render={
             <Button
-              data-testid={`update-btn-${listing.name}`}
-              disabled={isUpdating || isRemoving}
-              onClick={onUpdate}
+              data-testid={`remove-btn-${listing.name}`}
+              disabled={removePending || updatePending}
               size="sm"
               type="button"
-              variant="neutral"
-            >
-              {isUpdating ? (
-                <Spinner aria-hidden="true" className="size-3" />
-              ) : (
-                <RotateCw aria-hidden="true" className="size-3" />
-              )}
-              {isUpdating ? "Updating" : "Update"}
-            </Button>
-            <ConfirmDialog
-              cancelButtonProps={{
-                "data-testid": `cancel-remove-${listing.name}`,
-                disabled: isRemoving,
-              }}
-              cancelLabel="Cancel"
-              confirmButtonProps={{ "data-testid": `confirm-remove-${listing.name}` }}
-              confirmIcon={Trash2}
-              confirmLabel={isRemoving ? "Removing" : "Remove skill"}
-              contentProps={{ "data-testid": `remove-dialog-${listing.name}` }}
-              description={
-                <>
-                  This removes <strong>{listing.name}</strong> from the workspace. Marketplace
-                  metadata stays available so you can reinstall later.
-                </>
-              }
-              isPending={isRemoving}
-              onConfirm={onRemove}
-              title="Remove marketplace skill?"
-              tone="danger"
-            >
-              <DialogTrigger
-                render={
-                  <Button
-                    data-testid={`remove-btn-${listing.name}`}
-                    disabled={isRemoving || isUpdating}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  />
-                }
-              >
-                {isRemoving ? (
-                  <Spinner aria-hidden="true" className="size-3" />
-                ) : (
-                  <Trash2 aria-hidden="true" className="size-3" />
-                )}
-                Remove
-              </DialogTrigger>
-            </ConfirmDialog>
-          </>
-        ) : (
-          <Button
-            data-testid={`install-btn-${listing.name}`}
-            disabled={isInstalling}
-            onClick={onInstall}
-            size="sm"
-            type="button"
-            variant="neutral"
-          >
-            {isInstalling ? (
-              <Spinner aria-hidden="true" className="size-3" />
-            ) : (
-              <Download aria-hidden="true" className="size-3" />
-            )}
-            {isInstalling ? "Installing" : "Install"}
-          </Button>
-        )}
-      </CatalogCard.Actions>
-    </CatalogCard>
+              variant="outline"
+            />
+          }
+        >
+          <RemoveActionIcon state={removeState} />
+          Remove
+        </DialogTrigger>
+      </ConfirmDialog>
+    </MarketplaceCatalogItem>
   );
 }
 
@@ -229,19 +263,25 @@ function MarketplaceView({
             className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3"
             data-testid="marketplace-grid"
           >
-            {listings.map(listing => (
-              <MarketplaceCatalogItem
-                isInstalled={installedSkillNames.has(listing.name)}
-                isInstalling={isInstalling}
-                isRemoving={isRemoving}
-                isUpdating={isUpdating}
-                key={listing.slug}
-                listing={listing}
-                onInstall={() => onInstall(listing.slug)}
-                onRemove={() => onRemove(listing.name)}
-                onUpdate={() => onUpdate(listing.name)}
-              />
-            ))}
+            {listings.map(listing =>
+              installedSkillNames.has(listing.name) ? (
+                <InstalledMarketplaceCatalogItem
+                  key={listing.slug}
+                  listing={listing}
+                  onRemove={() => onRemove(listing.name)}
+                  onUpdate={() => onUpdate(listing.name)}
+                  removeState={isRemoving ? "removing" : "idle"}
+                  updateState={isUpdating ? "updating" : "idle"}
+                />
+              ) : (
+                <InstallableMarketplaceCatalogItem
+                  installState={isInstalling ? "installing" : "idle"}
+                  key={listing.slug}
+                  listing={listing}
+                  onInstall={() => onInstall(listing.slug)}
+                />
+              )
+            )}
           </div>
         )}
       </div>

@@ -97,7 +97,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             search={{
               SearchDialog: SiteSearchDialog,
               options: {
-                type: "fetch",
                 api: "/api/search",
               },
             }}

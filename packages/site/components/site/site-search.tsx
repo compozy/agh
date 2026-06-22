@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import {
   SearchDialog,
   SearchDialogClose,
@@ -13,10 +14,24 @@ import {
   TagsList,
   TagsListItem,
 } from "fumadocs-ui/components/dialog/search";
-import type { DefaultSearchDialogProps } from "fumadocs-ui/components/dialog/search-default";
-import { useSiteSearchDialogState } from "@/components/site/hooks/use-site-search-dialog-state";
+import type { SearchLink, SharedProps, TagItem } from "fumadocs-ui/contexts/search";
+import {
+  useSiteSearchDialogState,
+  type SiteSearchType,
+} from "@/components/site/hooks/use-site-search-dialog-state";
 
 export { SiteSearchProvider } from "@/components/site/site-search-provider";
+
+export interface SiteSearchDialogProps extends SharedProps {
+  allowClear?: boolean;
+  api?: string;
+  defaultTag?: string;
+  delayMs?: number;
+  footer?: ReactNode;
+  links?: SearchLink[];
+  tags?: TagItem[];
+  type?: SiteSearchType;
+}
 
 export function SiteSearchDialog({
   defaultTag,
@@ -28,7 +43,7 @@ export function SiteSearchDialog({
   links = [],
   footer,
   ...props
-}: DefaultSearchDialogProps) {
+}: SiteSearchDialogProps) {
   const { defaultItems, handleSearchChange, isLoading, results, search, setTag, tag } =
     useSiteSearchDialogState({
       api,

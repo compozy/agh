@@ -1,8 +1,4 @@
-import { AGH_CODE_THEMES } from "@agh/ui/lib/code-theme";
 import defaultMdxComponents from "fumadocs-ui/mdx";
-import { createAPIPage } from "fumadocs-openapi/ui";
-import { defaultShikiFactory } from "fumadocs-core/highlight/shiki/full";
-import { openapi } from "@/lib/openapi";
 import {
   GuideCard,
   GuideGrid,
@@ -13,19 +9,31 @@ import {
   WorkflowStep,
 } from "@/components/docs/mdx-blocks";
 import { Mermaid } from "@/components/docs/mermaid";
+import {
+  OpenAPIPage as OpenAPIPageClient,
+  type OpenAPIPageProps_Preloaded,
+} from "@/components/docs/openapi-page";
 
-const APIPage = createAPIPage(openapi, {
-  shiki: defaultShikiFactory,
-  shikiOptions: {
-    themes: { light: AGH_CODE_THEMES.light, dark: AGH_CODE_THEMES.dark },
-  },
-  playground: { enabled: false },
-});
+type OpenAPIPagePreload = Pick<OpenAPIPageProps_Preloaded, "preloaded">;
+type GeneratedOpenAPIPageProps = Omit<OpenAPIPageProps_Preloaded, "preloaded">;
 
-export function getMDXComponents() {
+function createPreloadedOpenAPIPage(openapiPreload: OpenAPIPagePreload | undefined) {
+  function OpenAPIPage(props: GeneratedOpenAPIPageProps) {
+    if (!openapiPreload) {
+      throw new Error("OpenAPIPage rendered without preloaded OpenAPI documents.");
+    }
+    return <OpenAPIPageClient {...props} preloaded={openapiPreload.preloaded} />;
+  }
+
+  return OpenAPIPage;
+}
+
+export function getMDXComponents(openapiPreload?: OpenAPIPagePreload) {
+  const OpenAPIPage = createPreloadedOpenAPIPage(openapiPreload);
   return {
     ...defaultMdxComponents,
-    APIPage,
+    OpenAPIPage,
+    APIPage: OpenAPIPage,
     Mermaid,
     GuideCard,
     GuideGrid,

@@ -4,8 +4,31 @@ interface JsonLdScriptProps {
   data: Record<string, unknown>;
 }
 
+const jsonLdScriptEscapePattern = /[<>&\u2028\u2029]/g;
+
+function escapeJsonLdScriptCharacter(character: string): string {
+  switch (character) {
+    case "<":
+      return "\\u003c";
+    case ">":
+      return "\\u003e";
+    case "&":
+      return "\\u0026";
+    case "\u2028":
+      return "\\u2028";
+    case "\u2029":
+      return "\\u2029";
+    default:
+      return character;
+  }
+}
+
+function serializeJsonLd(data: Record<string, unknown>): string {
+  return JSON.stringify(data).replace(jsonLdScriptEscapePattern, escapeJsonLdScriptCharacter);
+}
+
 function JsonLdScript({ data }: JsonLdScriptProps) {
-  return <script type="application/ld+json">{JSON.stringify(data)}</script>;
+  return <script type="application/ld+json">{serializeJsonLd(data)}</script>;
 }
 
 export interface BreadcrumbItem {
