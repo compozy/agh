@@ -86,6 +86,16 @@ func TestCreateCleansUpOnStartFailure(t *testing.T) {
 	if len(all) != 1 || all[0].Failure == nil || all[0].Failure.Kind != store.FailureStartup {
 		t.Fatalf("ListAll() after failed create = %#v, want one startup failure", all)
 	}
+	if got := h.notifier.createdCount(); got != 1 {
+		t.Fatalf("created notifications after failed create = %d, want 1", got)
+	}
+	if got := h.notifier.stoppedCount(); got != 1 {
+		t.Fatalf("stopped notifications after failed create = %d, want 1", got)
+	}
+	wantOrder := []string{"created:sess-1", "stopped:sess-1"}
+	if got := h.notifier.notificationOrder(); !slices.Equal(got, wantOrder) {
+		t.Fatalf("notification order after failed create = %#v, want %#v", got, wantOrder)
+	}
 }
 
 func TestCreateErrorBranches(t *testing.T) {

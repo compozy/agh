@@ -37,6 +37,16 @@ func newSkillsHandlerFixtureWithMarketplace(
 	workspaces testutil.StubWorkspaceService,
 	marketplace core.SkillMarketplaceService,
 ) *gin.Engine {
+	return newSkillsHandlerFixtureWithMarketplaceAndResources(t, registry, workspaces, marketplace, nil)
+}
+
+func newSkillsHandlerFixtureWithMarketplaceAndResources(
+	t *testing.T,
+	registry core.SkillsRegistry,
+	workspaces testutil.StubWorkspaceService,
+	marketplace core.SkillMarketplaceService,
+	skillResources core.SkillResourceSyncer,
+) *gin.Engine {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
@@ -52,6 +62,7 @@ func newSkillsHandlerFixtureWithMarketplace(
 		Observer:         testutil.StubObserver{},
 		Workspaces:       workspaces,
 		SkillsRegistry:   registry,
+		SkillResources:   skillResources,
 		SkillMarketplace: marketplace,
 		HomePaths:        homePaths,
 		Config:           cfg,
@@ -139,6 +150,19 @@ func (s stubSkillMarketplaceService) Remove(
 }
 
 var _ core.SkillMarketplaceService = (*stubSkillMarketplaceService)(nil)
+
+type stubSkillResourceSyncer struct {
+	SyncSkillsFn func(ctx context.Context) error
+}
+
+func (s stubSkillResourceSyncer) SyncSkills(ctx context.Context) error {
+	if s.SyncSkillsFn != nil {
+		return s.SyncSkillsFn(ctx)
+	}
+	return nil
+}
+
+var _ core.SkillResourceSyncer = (*stubSkillResourceSyncer)(nil)
 
 func testSkill() *skills.Skill {
 	return &skills.Skill{
@@ -593,6 +617,78 @@ func TestSkillMarketplaceHandlers(t *testing.T) {
 		testutil.DecodeJSONResponse(t, rec, &resp)
 		if resp.Skill.Status != "installed" {
 			t.Fatalf("skill.Status = %q, want installed", resp.Skill.Status)
+		}
+	})
+
+	t.Run("Should sync skill resources before verifying marketplace install visibility", func(t *testing.T) {
+		t.Parallel()
+
+		synced := false
+		installedSkill := &skills.Skill{
+			Meta: skills.SkillMeta{
+				Name: "review",
+			},
+			Source:  skills.SourceMarketplace,
+			Enabled: true,
+			Provenance: &skills.Provenance{
+				Slug:     "@agh/review",
+				Registry: "clawhub",
+				Version:  "1.2.0",
+			},
+		}
+		registry := &stubSkillsRegistry{
+			RefreshGlobalFn: func(context.Context) error {
+				t.Fatal("RefreshGlobal() should not be used when skill resource syncer is configured")
+				return nil
+			},
+			GetFn: func(name string) (*skills.Skill, bool) {
+				if name == "review" && synced {
+					return installedSkill, true
+				}
+				return nil, false
+			},
+		}
+		marketplace := &stubSkillMarketplaceService{
+			InstallFn: func(context.Context, string, string) (skillmarketplace.InstallResult, error) {
+				return skillmarketplace.InstallResult{
+					Name:     "review",
+					Slug:     "@agh/review",
+					Version:  "1.2.0",
+					Registry: "clawhub",
+					Path:     "/tmp/agh/skills/review",
+					Hash:     "sha256:abc",
+					Status:   "installed",
+				}, nil
+			},
+		}
+		skillResources := &stubSkillResourceSyncer{
+			SyncSkillsFn: func(context.Context) error {
+				synced = true
+				return nil
+			},
+		}
+		engine := newSkillsHandlerFixtureWithMarketplaceAndResources(
+			t,
+			registry,
+			testutil.StubWorkspaceService{},
+			marketplace,
+			skillResources,
+		)
+		rec := testutil.PerformRequest(
+			t,
+			engine,
+			http.MethodPost,
+			"/api/skills/marketplace/install",
+			testutil.MustJSONBody(t, contract.SkillMarketplaceInstallRequest{
+				Slug: "@agh/review",
+			}),
+		)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", rec.Code, http.StatusOK, rec.Body.String())
+		}
+		if !synced {
+			t.Fatal("SyncSkills() was not called before install visibility verification")
 		}
 	})
 

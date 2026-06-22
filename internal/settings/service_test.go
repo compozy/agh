@@ -1021,6 +1021,12 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 			SyncMode:    "session-bidirectional",
 			Persistence: "transient",
 			RuntimeRoot: "/tmp/staging",
+			Env: map[string]string{
+				"QA_VISIBLE": "yes",
+			},
+			Network: aghconfig.NetworkProfile{
+				AllowOutbound: true,
+			},
 		},
 	})
 	if err != nil {
@@ -1031,8 +1037,30 @@ func TestCollectionMutationsProviderSandboxAndHook(t *testing.T) {
 	}
 	configPayload = readFile(t, homePaths.ConfigFile)
 	if !strings.Contains(configPayload, "[sandboxes.staging]") ||
-		!strings.Contains(configPayload, `runtime_root = "/tmp/staging"`) {
+		!strings.Contains(configPayload, `runtime_root = "/tmp/staging"`) ||
+		!strings.Contains(configPayload, `[sandboxes.staging.env]`) ||
+		!strings.Contains(configPayload, `QA_VISIBLE = "yes"`) ||
+		!strings.Contains(configPayload, `[sandboxes.staging.network]`) ||
+		!strings.Contains(configPayload, "allow_outbound = true") {
 		t.Fatalf("config payload missing sandbox overlay:\n%s", configPayload)
+	}
+	_, err = service.PutCollectionItem(ctx, CollectionItemPutRequest{
+		CollectionRequest: CollectionRequest{Collection: CollectionSandboxes},
+		Name:              "staging",
+		Sandbox: &aghconfig.SandboxProfile{
+			Backend: "local",
+		},
+	})
+	if err != nil {
+		t.Fatalf("PutCollectionItem(replace sandbox) error = %v", err)
+	}
+	configPayload = readFile(t, homePaths.ConfigFile)
+	if strings.Contains(configPayload, `runtime_root = "/tmp/staging"`) ||
+		strings.Contains(configPayload, `[sandboxes.staging.env]`) ||
+		strings.Contains(configPayload, `QA_VISIBLE = "yes"`) ||
+		strings.Contains(configPayload, `[sandboxes.staging.network]`) ||
+		strings.Contains(configPayload, "allow_outbound = true") {
+		t.Fatalf("config payload still contains stale sandbox fields after replace:\n%s", configPayload)
 	}
 	if _, err := service.DeleteCollectionItem(ctx, CollectionItemDeleteRequest{
 		CollectionRequest: CollectionRequest{Collection: CollectionSandboxes},

@@ -64,7 +64,10 @@ const (
 	bridgeWorkspaceIDKey    = "workspace_id"
 )
 
-const bridgeDeliveryDefaultsFlag = "delivery-defaults"
+const (
+	bridgeDeliveryDefaultsFlag = "delivery-defaults"
+	bridgeProviderConfigFlag   = "provider-config"
+)
 
 func newBridgeCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
@@ -138,6 +141,7 @@ func newBridgeCreateCommand(deps commandDeps) *cobra.Command {
 		includeThread    bool
 		includeGroup     bool
 		notificationMute bool
+		providerConfig   string
 		deliveryDefaults string
 	)
 
@@ -161,6 +165,7 @@ func newBridgeCreateCommand(deps commandDeps) *cobra.Command {
 				includeThread,
 				includeGroup,
 				notificationMute,
+				providerConfig,
 				deliveryDefaults,
 			)
 			if err != nil {
@@ -193,6 +198,8 @@ func newBridgeCreateCommand(deps commandDeps) *cobra.Command {
 		"Suppress notification deliveries to this bridge",
 	)
 	cmd.Flags().
+		StringVar(&providerConfig, bridgeProviderConfigFlag, "", "JSON object or null for provider runtime config")
+	cmd.Flags().
 		StringVar(&deliveryDefaults, bridgeDeliveryDefaultsFlag, "", "JSON object or null for delivery target defaults")
 	mustMarkFlagRequired(cmd, "platform")
 	mustMarkFlagRequired(cmd, "extension")
@@ -211,6 +218,7 @@ func buildBridgeCreatePayload(
 	includeThread bool,
 	includeGroup bool,
 	notificationSuppress bool,
+	providerConfig string,
 	deliveryDefaults string,
 ) (CreateBridgeRequest, error) {
 	scope, err := parseBridgeScope(scopeRaw)
@@ -238,6 +246,13 @@ func buildBridgeCreatePayload(
 		NotificationSuppress: notificationSuppress,
 	}
 
+	providerRaw, err := parseOptionalBridgeJSONWithLabel(providerConfig, "provider config")
+	if err != nil {
+		return CreateBridgeRequest{}, err
+	}
+	if providerRaw != nil {
+		payload.ProviderConfig = contract.BridgeProviderConfigPayload(*providerRaw)
+	}
 	raw, err := parseOptionalBridgeJSON(deliveryDefaults)
 	if err != nil {
 		return CreateBridgeRequest{}, err
@@ -277,6 +292,8 @@ func newBridgeUpdateCommand(deps commandDeps) *cobra.Command {
 		"Override whether notification deliveries are suppressed",
 	)
 	cmd.Flags().
+		StringVar(&flags.providerConfig, bridgeProviderConfigFlag, "", "JSON object or null for provider runtime config")
+	cmd.Flags().
 		StringVar(&flags.deliveryDefaults, bridgeDeliveryDefaultsFlag, "", "JSON object or null for delivery target defaults")
 	return cmd
 }
@@ -287,6 +304,7 @@ type bridgeUpdateFlags struct {
 	includeThread        bool
 	includeGroup         bool
 	notificationSuppress bool
+	providerConfig       string
 	deliveryDefaults     string
 }
 
@@ -320,8 +338,9 @@ func buildBridgeUpdateRequest(
 	displayChanged := cmd.Flags().Changed("display-name")
 	routingChanged := bridgeRoutingFlagsChanged(cmd)
 	deliveryChanged := cmd.Flags().Changed(bridgeDeliveryDefaultsFlag)
+	providerChanged := cmd.Flags().Changed(bridgeProviderConfigFlag)
 	notificationChanged := cmd.Flags().Changed("notification-suppress")
-	if !displayChanged && !routingChanged && !deliveryChanged && !notificationChanged {
+	if !displayChanged && !routingChanged && !deliveryChanged && !providerChanged && !notificationChanged {
 		return UpdateBridgeRequest{}, errors.New("cli: at least one update flag is required")
 	}
 
@@ -346,6 +365,13 @@ func buildBridgeUpdateRequest(
 			return UpdateBridgeRequest{}, err
 		}
 		req.DeliveryDefaults = &value
+	}
+	if providerChanged {
+		value, err := bridgeProviderConfigForUpdate(flags.providerConfig)
+		if err != nil {
+			return UpdateBridgeRequest{}, err
+		}
+		req.ProviderConfig = &value
 	}
 	if notificationChanged {
 		req.NotificationSuppress = &flags.notificationSuppress
@@ -384,6 +410,16 @@ func bridgeDeliveryDefaultsForUpdate(
 		return nil, err
 	}
 	return contract.BridgeDeliveryDefaultsPayload(*raw), nil
+}
+
+func bridgeProviderConfigForUpdate(
+	rawValue string,
+) (contract.BridgeProviderConfigPayload, error) {
+	raw, err := parseRequiredBridgeJSONWithLabel(strings.TrimSpace(rawValue), "provider config")
+	if err != nil {
+		return nil, err
+	}
+	return contract.BridgeProviderConfigPayload(*raw), nil
 }
 
 func newBridgeEnableCommand(deps commandDeps) *cobra.Command {
@@ -1104,26 +1140,38 @@ func bridgeRoutingFlagsChanged(cmd *cobra.Command) bool {
 }
 
 func parseOptionalBridgeJSON(raw string) (*json.RawMessage, error) {
+	return parseOptionalBridgeJSONWithLabel(raw, "delivery defaults")
+}
+
+func parseOptionalBridgeJSONWithLabel(raw string, label string) (*json.RawMessage, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
 		return nil, nil
 	}
-	return parseRequiredBridgeJSON(trimmed)
+	return parseRequiredBridgeJSONWithLabel(trimmed, label)
 }
 
 func parseRequiredBridgeJSON(raw string) (*json.RawMessage, error) {
+	return parseRequiredBridgeJSONWithLabel(raw, "delivery defaults")
+}
+
+func parseRequiredBridgeJSONWithLabel(raw string, label string) (*json.RawMessage, error) {
 	trimmed := strings.TrimSpace(raw)
+	trimmedLabel := strings.TrimSpace(label)
+	if trimmedLabel == "" {
+		trimmedLabel = "JSON payload"
+	}
 	if trimmed == "" {
-		return nil, errors.New("cli: delivery defaults must be valid JSON; use null to clear")
+		return nil, fmt.Errorf("cli: %s must be valid JSON; use null to clear", trimmedLabel)
 	}
 	var decoded any
 	if err := json.Unmarshal([]byte(trimmed), &decoded); err != nil {
-		return nil, errors.New("cli: delivery defaults must be valid JSON")
+		return nil, fmt.Errorf("cli: %s must be valid JSON", trimmedLabel)
 	}
 	switch decoded.(type) {
 	case nil, map[string]any:
 	default:
-		return nil, errors.New("cli: delivery defaults must be a JSON object or null")
+		return nil, fmt.Errorf("cli: %s must be a JSON object or null", trimmedLabel)
 	}
 	value := json.RawMessage(trimmed)
 	return &value, nil

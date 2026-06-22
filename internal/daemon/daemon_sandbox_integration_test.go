@@ -244,6 +244,10 @@ func (a *daemonSandboxACPAgent) Authenticate(
 	return acpsdk.AuthenticateResponse{}, nil
 }
 
+func (a *daemonSandboxACPAgent) Logout(context.Context, acpsdk.LogoutRequest) (acpsdk.LogoutResponse, error) {
+	return acpsdk.LogoutResponse{}, nil
+}
+
 func (a *daemonSandboxACPAgent) Initialize(
 	context.Context,
 	acpsdk.InitializeRequest,

@@ -154,6 +154,64 @@ func TestCodecRegistryRegistrationAndResolve(t *testing.T) {
 	}
 }
 
+func TestJSONCodecValidationClassification(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name            string
+		input           []byte
+		validatorErr    error
+		wantErr         error
+		wantErrContains string
+		wantErrExcludes error
+	}{
+		{
+			name:            "Should wrap plain validator errors as resource validation",
+			input:           []byte("{\"name\":\"\"}"),
+			validatorErr:    errors.New("name is required"),
+			wantErr:         ErrValidation,
+			wantErrContains: "name is required",
+		},
+		{
+			name:            "Should preserve classified validator errors",
+			input:           []byte("{\"name\":\"oversized\"}"),
+			validatorErr:    ErrPayloadTooLarge,
+			wantErr:         ErrPayloadTooLarge,
+			wantErrExcludes: ErrValidation,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			codec := mustJSONCodec(
+				t,
+				testResourceKind,
+				1024,
+				func(context.Context, ResourceScope, testTypedSpec) (testTypedSpec, error) {
+					return testTypedSpec{}, tc.validatorErr
+				},
+			)
+
+			_, err := codec.DecodeAndValidate(
+				testutil.Context(t),
+				ResourceScope{Kind: ResourceScopeKindGlobal},
+				tc.input,
+			)
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("DecodeAndValidate() error = %v, want %v", err, tc.wantErr)
+			}
+			if tc.wantErrContains != "" && !strings.Contains(err.Error(), tc.wantErrContains) {
+				t.Fatalf("DecodeAndValidate() error = %v, want validator context %q", err, tc.wantErrContains)
+			}
+			if tc.wantErrExcludes != nil && errors.Is(err, tc.wantErrExcludes) {
+				t.Fatalf("DecodeAndValidate() error = %v, should not include %v", err, tc.wantErrExcludes)
+			}
+		})
+	}
+}
+
 func TestTypedStoreReadAuthorityBoundaries(t *testing.T) {
 	t.Parallel()
 

@@ -61,6 +61,8 @@ Public authoring surfaces reject attempts to create an agent named `onboarding`.
 
 Built-in provider names include claude, codex, gemini, opencode, copilot, cursor, kiro, and pi. Provider config can supply launch command, default model, API key environment, and provider-level MCP servers.
 
+Agent `model` values are launch-time preferences. After a session starts, AGH can change model or reasoning controls only through active ACP `configOptions` advertised by the provider. If no model override is requested and the agent does not advertise a model config option, the session keeps its launch/default model. If a model override is requested without an advertised model config option, session start or resume fails with an explicit error; AGH does not call a legacy model-switch RPC.
+
 Per-agent MCP servers belong in AGENT.md or an agent-local mcp.json sidecar. mcp.json replaces same-name frontmatter servers. Use provider-level MCP when every agent for that provider needs the server; use agent-level MCP when one agent needs it.
 
 ## Setup Workflow

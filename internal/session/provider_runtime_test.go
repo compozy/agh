@@ -12,7 +12,9 @@ import (
 
 	"github.com/compozy/agh/internal/acp"
 	aghconfig "github.com/compozy/agh/internal/config"
+	diagcontract "github.com/compozy/agh/internal/diagnosticcontract"
 	"github.com/compozy/agh/internal/diagnostics"
+	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/testutil"
 	"github.com/compozy/agh/internal/vault"
 )
@@ -41,87 +43,103 @@ func (r fakeProviderSecretResolver) ResolveRef(ctx context.Context, ref string) 
 func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should expose provider auth metadata without injecting native credentials", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should expose provider auth metadata without injecting native credentials",
+		func(t *testing.T) {
+			t.Parallel()
 
-		manager := &Manager{providerSecrets: fakeProviderSecretResolver{}}
-		resolved := aghconfig.ResolvedAgent{
-			Provider:   "claude",
-			Model:      "claude-sonnet-4-6",
-			Harness:    aghconfig.ProviderHarnessACP,
-			AuthMode:   aghconfig.ProviderAuthModeNativeCLI,
-			EnvPolicy:  aghconfig.ProviderEnvPolicyFiltered,
-			HomePolicy: aghconfig.ProviderHomePolicyOperator,
-		}
+			manager := &Manager{providerSecrets: fakeProviderSecretResolver{}}
+			resolved := aghconfig.ResolvedAgent{
+				Provider:   "claude",
+				Model:      "claude-sonnet-4-6",
+				Harness:    aghconfig.ProviderHarnessACP,
+				AuthMode:   aghconfig.ProviderAuthModeNativeCLI,
+				EnvPolicy:  aghconfig.ProviderEnvPolicyFiltered,
+				HomePolicy: aghconfig.ProviderHomePolicyOperator,
+			}
 
-		opts, err := manager.prepareProviderForStart(testutil.Context(t), &Session{}, resolved, acp.StartOpts{
-			Env: []string{"ANTHROPIC_API_KEY=parent-secret", "KEEP=1"},
-		})
-		if err != nil {
-			t.Fatalf("prepareProviderForStart(native auth) error = %v", err)
-		}
-		if got := envValue(opts.Env, "ANTHROPIC_API_KEY"); got != "parent-secret" {
-			t.Fatalf("ANTHROPIC_API_KEY = %q, want untouched native CLI env", got)
-		}
-		if got := envValue(opts.Env, "ANTHROPIC_MODEL"); got != "claude-sonnet-4-6" {
-			t.Fatalf("ANTHROPIC_MODEL = %q, want claude-sonnet-4-6", got)
-		}
-		if got := envValue(opts.Env, "AGH_MODEL"); got != "claude-sonnet-4-6" {
-			t.Fatalf("AGH_MODEL = %q, want claude-sonnet-4-6", got)
-		}
-		if got := envValue(opts.Env, "AGH_PROVIDER_AUTH_MODE"); got != "native_cli" {
-			t.Fatalf("AGH_PROVIDER_AUTH_MODE = %q, want native_cli", got)
-		}
-		if got := envValue(opts.Env, "AGH_PROVIDER_ENV_POLICY"); got != "filtered" {
-			t.Fatalf("AGH_PROVIDER_ENV_POLICY = %q, want filtered", got)
-		}
-		if got := envValue(opts.Env, "AGH_PROVIDER_HOME_POLICY"); got != "operator" {
-			t.Fatalf("AGH_PROVIDER_HOME_POLICY = %q, want operator", got)
-		}
-	})
+			opts, err := manager.prepareProviderForStart(
+				testutil.Context(t),
+				&Session{},
+				resolved,
+				acp.StartOpts{
+					Env: []string{"ANTHROPIC_API_KEY=parent-secret", "KEEP=1"},
+				},
+			)
+			if err != nil {
+				t.Fatalf("prepareProviderForStart(native auth) error = %v", err)
+			}
+			if got := envValue(opts.Env, "ANTHROPIC_API_KEY"); got != "parent-secret" {
+				t.Fatalf("ANTHROPIC_API_KEY = %q, want untouched native CLI env", got)
+			}
+			if got := envValue(opts.Env, "ANTHROPIC_MODEL"); got != "claude-sonnet-4-6" {
+				t.Fatalf("ANTHROPIC_MODEL = %q, want claude-sonnet-4-6", got)
+			}
+			if got := envValue(opts.Env, "AGH_MODEL"); got != "claude-sonnet-4-6" {
+				t.Fatalf("AGH_MODEL = %q, want claude-sonnet-4-6", got)
+			}
+			if got := envValue(opts.Env, "AGH_PROVIDER_AUTH_MODE"); got != "native_cli" {
+				t.Fatalf("AGH_PROVIDER_AUTH_MODE = %q, want native_cli", got)
+			}
+			if got := envValue(opts.Env, "AGH_PROVIDER_ENV_POLICY"); got != "filtered" {
+				t.Fatalf("AGH_PROVIDER_ENV_POLICY = %q, want filtered", got)
+			}
+			if got := envValue(opts.Env, "AGH_PROVIDER_HOME_POLICY"); got != "operator" {
+				t.Fatalf("AGH_PROVIDER_HOME_POLICY = %q, want operator", got)
+			}
+		},
+	)
 
-	t.Run("Should set an AGH-owned provider home when isolated home policy is selected", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should set an AGH-owned provider home when isolated home policy is selected",
+		func(t *testing.T) {
+			t.Parallel()
 
-		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
-		if err != nil {
-			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-		}
-		manager := &Manager{
-			homePaths:       homePaths,
-			providerSecrets: fakeProviderSecretResolver{},
-		}
-		resolved := aghconfig.ResolvedAgent{
-			Provider:   "codex",
-			Model:      "gpt-5.4",
-			Harness:    aghconfig.ProviderHarnessACP,
-			AuthMode:   aghconfig.ProviderAuthModeNativeCLI,
-			EnvPolicy:  aghconfig.ProviderEnvPolicyIsolated,
-			HomePolicy: aghconfig.ProviderHomePolicyIsolated,
-		}
+			homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+			if err != nil {
+				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+			}
+			manager := &Manager{
+				homePaths:       homePaths,
+				providerSecrets: fakeProviderSecretResolver{},
+			}
+			resolved := aghconfig.ResolvedAgent{
+				Provider:   "codex",
+				Model:      "gpt-5.4",
+				Harness:    aghconfig.ProviderHarnessACP,
+				AuthMode:   aghconfig.ProviderAuthModeNativeCLI,
+				EnvPolicy:  aghconfig.ProviderEnvPolicyIsolated,
+				HomePolicy: aghconfig.ProviderHomePolicyIsolated,
+			}
 
-		opts, err := manager.prepareProviderForStart(testutil.Context(t), &Session{}, resolved, acp.StartOpts{
-			Env: []string{"HOME=/Users/operator", "CODEX_HOME=/Users/operator/.codex"},
-		})
-		if err != nil {
-			t.Fatalf("prepareProviderForStart(isolated home) error = %v", err)
-		}
-		wantHome := filepath.Join(homePaths.HomeDir, "providers", "codex")
-		if got := envValue(opts.Env, "PROVIDER_HOME"); got != wantHome {
-			t.Fatalf("PROVIDER_HOME = %q, want %q", got, wantHome)
-		}
-		if got := envValue(opts.Env, "HOME"); got != wantHome {
-			t.Fatalf("HOME = %q, want %q", got, wantHome)
-		}
-		if got := envValue(opts.Env, "CODEX_HOME"); got != filepath.Join(wantHome, "codex") {
-			t.Fatalf("CODEX_HOME = %q, want isolated codex home", got)
-		}
-		if got := envValue(opts.Env, "ANTHROPIC_MODEL"); got != "" {
-			t.Fatalf("ANTHROPIC_MODEL = %q, want empty for codex provider", got)
-		}
-		assertProviderRuntimeFileMode(t, wantHome, 0o700)
-		assertProviderRuntimeFileMode(t, filepath.Join(wantHome, "codex"), 0o700)
-	})
+			opts, err := manager.prepareProviderForStart(
+				testutil.Context(t),
+				&Session{},
+				resolved,
+				acp.StartOpts{
+					Env: []string{"HOME=/Users/operator", "CODEX_HOME=/Users/operator/.codex"},
+				},
+			)
+			if err != nil {
+				t.Fatalf("prepareProviderForStart(isolated home) error = %v", err)
+			}
+			wantHome := filepath.Join(homePaths.HomeDir, "providers", "codex")
+			if got := envValue(opts.Env, "PROVIDER_HOME"); got != wantHome {
+				t.Fatalf("PROVIDER_HOME = %q, want %q", got, wantHome)
+			}
+			if got := envValue(opts.Env, "HOME"); got != wantHome {
+				t.Fatalf("HOME = %q, want %q", got, wantHome)
+			}
+			if got := envValue(opts.Env, "CODEX_HOME"); got != filepath.Join(wantHome, "codex") {
+				t.Fatalf("CODEX_HOME = %q, want isolated codex home", got)
+			}
+			if got := envValue(opts.Env, "ANTHROPIC_MODEL"); got != "" {
+				t.Fatalf("ANTHROPIC_MODEL = %q, want empty for codex provider", got)
+			}
+			assertProviderRuntimeFileMode(t, wantHome, 0o700)
+			assertProviderRuntimeFileMode(t, filepath.Join(wantHome, "codex"), 0o700)
+		},
+	)
 
 	// The onboarding agent narrows inherited native Codex credentials into an AGH-owned home.
 	t.Run("Should isolate onboarding codex home while preserving native auth", func(t *testing.T) {
@@ -168,18 +186,30 @@ func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T)
 			HomePolicy: aghconfig.ProviderHomePolicyOperator,
 		}
 
-		opts, err := manager.prepareProviderForStart(testutil.Context(t), session, resolved, acp.StartOpts{
-			Env: []string{
-				"HOME=" + operatorHome,
-				"CODEX_HOME=" + operatorCodex,
-				"KEEP=1",
+		opts, err := manager.prepareProviderForStart(
+			testutil.Context(t),
+			session,
+			resolved,
+			acp.StartOpts{
+				Env: []string{
+					"HOME=" + operatorHome,
+					"CODEX_HOME=" + operatorCodex,
+					"KEEP=1",
+				},
 			},
-		})
+		)
 		if err != nil {
 			t.Fatalf("prepareProviderForStart(onboarding codex) error = %v", err)
 		}
 
-		wantCodexHome := filepath.Join(aghHome.HomeDir, "providers", "codex", "onboarding", "ws_test", "codex")
+		wantCodexHome := filepath.Join(
+			aghHome.HomeDir,
+			"providers",
+			"codex",
+			"onboarding",
+			"ws_test",
+			"codex",
+		)
 		if got := envValue(opts.Env, "CODEX_HOME"); got != wantCodexHome {
 			t.Fatalf("CODEX_HOME = %q, want %q", got, wantCodexHome)
 		}
@@ -208,20 +238,25 @@ func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T)
 		}
 	})
 
-	t.Run("Should treat runtime provider codex as onboarding codex for managed home", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should treat runtime provider codex as onboarding codex for managed home",
+		func(t *testing.T) {
+			t.Parallel()
 
-		session := &Session{AgentName: aghconfig.OnboardingAgentName, WorkspaceID: "ws_test"}
-		resolved := aghconfig.ResolvedAgent{
-			Provider:        "pi",
-			RuntimeProvider: "codex",
-			AuthMode:        aghconfig.ProviderAuthModeNativeCLI,
-			HomePolicy:      aghconfig.ProviderHomePolicyOperator,
-		}
-		if !shouldUseManagedOnboardingCodexHome(session, resolved) {
-			t.Fatal("shouldUseManagedOnboardingCodexHome() = false, want true for runtime provider codex")
-		}
-	})
+			session := &Session{AgentName: aghconfig.OnboardingAgentName, WorkspaceID: "ws_test"}
+			resolved := aghconfig.ResolvedAgent{
+				Provider:        "pi",
+				RuntimeProvider: "codex",
+				AuthMode:        aghconfig.ProviderAuthModeNativeCLI,
+				HomePolicy:      aghconfig.ProviderHomePolicyOperator,
+			}
+			if !shouldUseManagedOnboardingCodexHome(session, resolved) {
+				t.Fatal(
+					"shouldUseManagedOnboardingCodexHome() = false, want true for runtime provider codex",
+				)
+			}
+		},
+	)
 
 	t.Run("Should preserve operator codex home for regular codex sessions", func(t *testing.T) {
 		t.Parallel()
@@ -266,9 +301,14 @@ func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T)
 			HomePolicy:      aghconfig.ProviderHomePolicyOperator,
 		}
 
-		opts, err := manager.prepareProviderForStart(testutil.Context(t), session, resolved, acp.StartOpts{
-			Env: []string{"KEEP=1"},
-		})
+		opts, err := manager.prepareProviderForStart(
+			testutil.Context(t),
+			session,
+			resolved,
+			acp.StartOpts{
+				Env: []string{"KEEP=1"},
+			},
+		)
 		if err != nil {
 			t.Fatalf("prepareProviderForStart(native pi operator home) error = %v", err)
 		}
@@ -281,45 +321,56 @@ func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T)
 		assertNoPath(t, filepath.Join(session.sessionDir, "provider-runtime", "pi"))
 	})
 
-	t.Run("Should isolate Pi auth directory when isolated home policy is selected", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should isolate Pi auth directory when isolated home policy is selected",
+		func(t *testing.T) {
+			t.Parallel()
 
-		homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
-		if err != nil {
-			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-		}
-		manager := &Manager{
-			homePaths:       homePaths,
-			providerSecrets: fakeProviderSecretResolver{},
-		}
-		session := &Session{sessionDir: t.TempDir()}
-		resolved := aghconfig.ResolvedAgent{
-			Provider:        "pi",
-			Model:           "claude-opus-4-7",
-			Harness:         aghconfig.ProviderHarnessPiACP,
-			RuntimeProvider: "anthropic",
-			AuthMode:        aghconfig.ProviderAuthModeNativeCLI,
-			EnvPolicy:       aghconfig.ProviderEnvPolicyIsolated,
-			HomePolicy:      aghconfig.ProviderHomePolicyIsolated,
-		}
+			homePaths, err := aghconfig.ResolveHomePathsFrom(t.TempDir())
+			if err != nil {
+				t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+			}
+			manager := &Manager{
+				homePaths:       homePaths,
+				providerSecrets: fakeProviderSecretResolver{},
+			}
+			session := &Session{sessionDir: t.TempDir()}
+			resolved := aghconfig.ResolvedAgent{
+				Provider:        "pi",
+				Model:           "claude-opus-4-7",
+				Harness:         aghconfig.ProviderHarnessPiACP,
+				RuntimeProvider: "anthropic",
+				AuthMode:        aghconfig.ProviderAuthModeNativeCLI,
+				EnvPolicy:       aghconfig.ProviderEnvPolicyIsolated,
+				HomePolicy:      aghconfig.ProviderHomePolicyIsolated,
+			}
 
-		opts, err := manager.prepareProviderForStart(testutil.Context(t), session, resolved, acp.StartOpts{
-			Env: []string{"HOME=/Users/operator", "PI_CODING_AGENT_DIR=/Users/operator/.pi/agent"},
-		})
-		if err != nil {
-			t.Fatalf("prepareProviderForStart(native pi isolated home) error = %v", err)
-		}
-		wantHome := filepath.Join(homePaths.HomeDir, "providers", "pi")
-		wantAgentDir := filepath.Join(wantHome, ".pi", "agent")
-		if got := envValue(opts.Env, "HOME"); got != wantHome {
-			t.Fatalf("HOME = %q, want %q", got, wantHome)
-		}
-		if got := envValue(opts.Env, "PI_CODING_AGENT_DIR"); got != wantAgentDir {
-			t.Fatalf("PI_CODING_AGENT_DIR = %q, want %q", got, wantAgentDir)
-		}
-		assertProviderRuntimeFileMode(t, wantAgentDir, 0o700)
-		assertNoPath(t, filepath.Join(session.sessionDir, "provider-runtime", "pi"))
-	})
+			opts, err := manager.prepareProviderForStart(
+				testutil.Context(t),
+				session,
+				resolved,
+				acp.StartOpts{
+					Env: []string{
+						"HOME=/Users/operator",
+						"PI_CODING_AGENT_DIR=/Users/operator/.pi/agent",
+					},
+				},
+			)
+			if err != nil {
+				t.Fatalf("prepareProviderForStart(native pi isolated home) error = %v", err)
+			}
+			wantHome := filepath.Join(homePaths.HomeDir, "providers", "pi")
+			wantAgentDir := filepath.Join(wantHome, ".pi", "agent")
+			if got := envValue(opts.Env, "HOME"); got != wantHome {
+				t.Fatalf("HOME = %q, want %q", got, wantHome)
+			}
+			if got := envValue(opts.Env, "PI_CODING_AGENT_DIR"); got != wantAgentDir {
+				t.Fatalf("PI_CODING_AGENT_DIR = %q, want %q", got, wantAgentDir)
+			}
+			assertProviderRuntimeFileMode(t, wantAgentDir, 0o700)
+			assertNoPath(t, filepath.Join(session.sessionDir, "provider-runtime", "pi"))
+		},
+	)
 }
 
 func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testing.T) {
@@ -366,9 +417,14 @@ func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testin
 			},
 		}
 
-		opts, err := manager.prepareProviderForStart(testutil.Context(t), session, resolved, acp.StartOpts{
-			Env: []string{"OPENROUTER_API_KEY=old", "KEEP=1"},
-		})
+		opts, err := manager.prepareProviderForStart(
+			testutil.Context(t),
+			session,
+			resolved,
+			acp.StartOpts{
+				Env: []string{"OPENROUTER_API_KEY=old", "KEEP=1"},
+			},
+		)
 		if err != nil {
 			t.Fatalf("prepareProviderForStart() error = %v", err)
 		}
@@ -409,62 +465,71 @@ func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testin
 		}
 	})
 
-	t.Run("Should replace stale pi runtime files with private file and directory modes", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should replace stale pi runtime files with private file and directory modes",
+		func(t *testing.T) {
+			t.Parallel()
 
-		secret := "sk-provider-runtime-replacement-secret"
-		manager := &Manager{
-			providerSecrets: fakeProviderSecretResolver{
-				values: map[string]string{
-					"vault:providers/openrouter/api-key": secret,
+			secret := "sk-provider-runtime-replacement-secret"
+			manager := &Manager{
+				providerSecrets: fakeProviderSecretResolver{
+					values: map[string]string{
+						"vault:providers/openrouter/api-key": secret,
+					},
 				},
-			},
-		}
-		sessionDir := t.TempDir()
-		runtimeDir := filepath.Join(sessionDir, "provider-runtime", "pi")
-		if err := os.MkdirAll(runtimeDir, 0o755); err != nil {
-			t.Fatalf("MkdirAll(runtimeDir) error = %v", err)
-		}
-		if err := os.Chmod(runtimeDir, 0o755); err != nil {
-			t.Fatalf("Chmod(runtimeDir) error = %v", err)
-		}
-		settingsPath := filepath.Join(runtimeDir, "settings.json")
-		if err := os.WriteFile(settingsPath, []byte("{\"defaultProvider\":\"stale\"}"), 0o644); err != nil {
-			t.Fatalf("WriteFile(stale settings) error = %v", err)
-		}
-		session := &Session{sessionDir: sessionDir}
-		t.Cleanup(session.clearProviderSecretRedactions)
-		resolved := aghconfig.ResolvedAgent{
-			Provider:        "openrouter",
-			Model:           "openai/gpt-5.4",
-			Harness:         aghconfig.ProviderHarnessPiACP,
-			RuntimeProvider: "openrouter",
-			Transport:       "openai",
-			AuthMode:        aghconfig.ProviderAuthModeBoundSecret,
-			CredentialSlots: []aghconfig.ProviderCredentialSlot{{
-				Name:      "api_key",
-				TargetEnv: "OPENROUTER_API_KEY",
-				SecretRef: "vault:providers/openrouter/api-key",
-				Kind:      "api_key",
-				Required:  true,
-			}},
-		}
+			}
+			sessionDir := t.TempDir()
+			runtimeDir := filepath.Join(sessionDir, "provider-runtime", "pi")
+			if err := os.MkdirAll(runtimeDir, 0o755); err != nil {
+				t.Fatalf("MkdirAll(runtimeDir) error = %v", err)
+			}
+			if err := os.Chmod(runtimeDir, 0o755); err != nil {
+				t.Fatalf("Chmod(runtimeDir) error = %v", err)
+			}
+			settingsPath := filepath.Join(runtimeDir, "settings.json")
+			if err := os.WriteFile(settingsPath, []byte("{\"defaultProvider\":\"stale\"}"), 0o644); err != nil {
+				t.Fatalf("WriteFile(stale settings) error = %v", err)
+			}
+			session := &Session{sessionDir: sessionDir}
+			t.Cleanup(session.clearProviderSecretRedactions)
+			resolved := aghconfig.ResolvedAgent{
+				Provider:        "openrouter",
+				Model:           "openai/gpt-5.4",
+				Harness:         aghconfig.ProviderHarnessPiACP,
+				RuntimeProvider: "openrouter",
+				Transport:       "openai",
+				AuthMode:        aghconfig.ProviderAuthModeBoundSecret,
+				CredentialSlots: []aghconfig.ProviderCredentialSlot{{
+					Name:      "api_key",
+					TargetEnv: "OPENROUTER_API_KEY",
+					SecretRef: "vault:providers/openrouter/api-key",
+					Kind:      "api_key",
+					Required:  true,
+				}},
+			}
 
-		opts, err := manager.prepareProviderForStart(testutil.Context(t), session, resolved, acp.StartOpts{})
-		if err != nil {
-			t.Fatalf("prepareProviderForStart() error = %v", err)
-		}
+			opts, err := manager.prepareProviderForStart(
+				testutil.Context(t),
+				session,
+				resolved,
+				acp.StartOpts{},
+			)
+			if err != nil {
+				t.Fatalf("prepareProviderForStart() error = %v", err)
+			}
 
-		if got := envValue(opts.Env, "PI_CODING_AGENT_DIR"); got != runtimeDir {
-			t.Fatalf("PI_CODING_AGENT_DIR = %q, want %q", got, runtimeDir)
-		}
-		assertProviderRuntimeFileMode(t, runtimeDir, 0o700)
-		assertProviderRuntimeFileMode(t, settingsPath, 0o600)
-		settings := readProviderJSON[piSettingsFile](t, settingsPath)
-		if settings.DefaultProvider != "openrouter" || settings.DefaultModel != "openai/gpt-5.4" {
-			t.Fatalf("settings.json = %#v, want replacement runtime config", settings)
-		}
-	})
+			if got := envValue(opts.Env, "PI_CODING_AGENT_DIR"); got != runtimeDir {
+				t.Fatalf("PI_CODING_AGENT_DIR = %q, want %q", got, runtimeDir)
+			}
+			assertProviderRuntimeFileMode(t, runtimeDir, 0o700)
+			assertProviderRuntimeFileMode(t, settingsPath, 0o600)
+			settings := readProviderJSON[piSettingsFile](t, settingsPath)
+			if settings.DefaultProvider != "openrouter" ||
+				settings.DefaultModel != "openai/gpt-5.4" {
+				t.Fatalf("settings.json = %#v, want replacement runtime config", settings)
+			}
+		},
+	)
 
 	t.Run("Should omit pi apiKey when optional credential is missing", func(t *testing.T) {
 		t.Parallel()
@@ -494,9 +559,14 @@ func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testin
 			},
 		}
 
-		opts, err := manager.prepareProviderForStart(testutil.Context(t), session, resolved, acp.StartOpts{
-			Env: []string{"OPENROUTER_API_KEY=parent-shell-secret"},
-		})
+		opts, err := manager.prepareProviderForStart(
+			testutil.Context(t),
+			session,
+			resolved,
+			acp.StartOpts{
+				Env: []string{"OPENROUTER_API_KEY=parent-shell-secret"},
+			},
+		)
 		if err != nil {
 			t.Fatalf("prepareProviderForStart(optional missing) error = %v", err)
 		}
@@ -509,7 +579,10 @@ func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testin
 		}
 		models := readProviderJSON[piModelsFile](t, filepath.Join(runtimeDir, "models.json"))
 		if got := models.Providers["openrouter"].APIKey; got != "" {
-			t.Fatalf("models.json apiKey = %q, want omitted apiKey for missing optional secret", got)
+			t.Fatalf(
+				"models.json apiKey = %q, want omitted apiKey for missing optional secret",
+				got,
+			)
 		}
 		payload, err := os.ReadFile(filepath.Join(runtimeDir, "models.json"))
 		if err != nil {
@@ -520,53 +593,113 @@ func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testin
 		}
 	})
 
-	t.Run("Should pass native Pi model selection through session start options", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should classify missing required bound secret as provider auth failure",
+		func(t *testing.T) {
+			t.Parallel()
 
-		h := newHarness(t)
-		resolved, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
-		if err != nil {
-			t.Fatalf("Resolve(workspace) error = %v", err)
-		}
-		resolved.Agents = []aghconfig.AgentDef{
-			{
-				Name:     "coder",
-				Provider: "pi",
-				Model:    "claude-opus-4-7",
-				Prompt:   "You are a coding assistant.",
-			},
-		}
-		h.resolver.upsert(&resolved)
-		h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
-			if !strings.Contains(opts.Command, "pi-acp@latest") {
-				t.Fatalf("StartOpts.Command = %q, want pi-acp command", opts.Command)
+			manager := &Manager{
+				providerSecrets: fakeProviderSecretResolver{
+					errs: map[string]error{
+						"vault:providers/openrouter/api-key": vault.ErrMissingSecret,
+					},
+				},
 			}
-			if got := opts.PreferredModel; got != "anthropic/claude-opus-4-7" {
-				t.Fatalf("StartOpts.PreferredModel = %q, want anthropic/claude-opus-4-7", got)
+			resolved := aghconfig.ResolvedAgent{
+				Provider: "openrouter",
+				Model:    "openai/gpt-5.4",
+				Harness:  aghconfig.ProviderHarnessACP,
+				AuthMode: aghconfig.ProviderAuthModeBoundSecret,
+				CredentialSlots: []aghconfig.ProviderCredentialSlot{{
+					Name:      "api_key",
+					TargetEnv: "OPENROUTER_API_KEY",
+					SecretRef: "vault:providers/openrouter/api-key",
+					Kind:      "api_key",
+					Required:  true,
+				}},
 			}
-			if got := envValue(opts.Env, "PI_CODING_AGENT_DIR"); got != "" {
-				t.Fatalf("PI_CODING_AGENT_DIR = %q, want operator Pi auth path untouched", got)
-			}
-			if got := envValue(opts.Env, "AGH_PROVIDER_AUTH_MODE"); got != "native_cli" {
-				t.Fatalf("AGH_PROVIDER_AUTH_MODE = %q, want native_cli", got)
-			}
-			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-pi-runtime"), nil
-		}
 
-		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName: "coder",
-			Name:      "pi-native-model-contract",
-			Workspace: h.workspaceID,
-		})
-		if err != nil {
-			t.Fatalf("Create(pi native model contract) error = %v", err)
-		}
-		t.Cleanup(func() {
-			if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
-				t.Fatalf("Stop(pi native model contract cleanup) error = %v", err)
+			_, err := manager.prepareProviderForStart(
+				testutil.Context(t),
+				&Session{sessionDir: t.TempDir()},
+				resolved,
+				acp.StartOpts{},
+			)
+			if err == nil {
+				t.Fatal(
+					"prepareProviderForStart(missing required secret) error = nil, want provider auth failure",
+				)
 			}
-		})
-	})
+			var failure *acp.FailureError
+			if !errors.As(err, &failure) || failure == nil {
+				t.Fatalf(
+					"prepareProviderForStart(missing required secret) error = %v, want FailureError",
+					err,
+				)
+			}
+			if got, want := failure.Kind, store.FailureProviderAuth; got != want {
+				t.Fatalf("FailureError.Kind = %q, want %q", got, want)
+			}
+			item, ok := diagnostics.ItemFromError(err)
+			if !ok {
+				t.Fatalf("diagnostics.ItemFromError() ok = false for %v", err)
+			}
+			if got, want := item.Code, diagcontract.CodeProviderCredentialUnresolved; got != want {
+				t.Fatalf("Diagnostic.Code = %q, want %q", got, want)
+			}
+		},
+	)
+
+	t.Run(
+		"Should pass native Pi model selection through session start options",
+		func(t *testing.T) {
+			t.Parallel()
+
+			h := newHarness(t)
+			resolved, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+			if err != nil {
+				t.Fatalf("Resolve(workspace) error = %v", err)
+			}
+			resolved.Agents = []aghconfig.AgentDef{
+				{
+					Name:     "coder",
+					Provider: "pi",
+					Model:    "claude-opus-4-7",
+					Prompt:   "You are a coding assistant.",
+				},
+			}
+			h.resolver.upsert(&resolved)
+			h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
+				if !strings.Contains(opts.Command, "pi-acp@latest") {
+					t.Fatalf("StartOpts.Command = %q, want pi-acp command", opts.Command)
+				}
+				if got := opts.PreferredModel; got != "anthropic/claude-opus-4-7" {
+					t.Fatalf("StartOpts.PreferredModel = %q, want anthropic/claude-opus-4-7", got)
+				}
+				if got := envValue(opts.Env, "PI_CODING_AGENT_DIR"); got != "" {
+					t.Fatalf("PI_CODING_AGENT_DIR = %q, want operator Pi auth path untouched", got)
+				}
+				if got := envValue(opts.Env, "AGH_PROVIDER_AUTH_MODE"); got != "native_cli" {
+					t.Fatalf("AGH_PROVIDER_AUTH_MODE = %q, want native_cli", got)
+				}
+				return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-pi-runtime"), nil
+			}
+
+			session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+				AgentName: "coder",
+				Name:      "pi-native-model-contract",
+				Workspace: h.workspaceID,
+			})
+			if err != nil {
+				t.Fatalf("Create(pi native model contract) error = %v", err)
+			}
+			t.Cleanup(func() {
+				if err := h.manager.Stop(testutil.Context(t), session.ID); err != nil {
+					t.Fatalf("Stop(pi native model contract cleanup) error = %v", err)
+				}
+			})
+		},
+	)
 }
 
 func TestShouldSkipMissingProviderSecret(t *testing.T) {
@@ -665,7 +798,12 @@ func assertNoPath(t *testing.T, path string) {
 	}
 }
 
-func assertPiRuntimeEnvContract(t *testing.T, opts acp.StartOpts, providerName string, wantSecret string) {
+func assertPiRuntimeEnvContract(
+	t *testing.T,
+	opts acp.StartOpts,
+	providerName string,
+	wantSecret string,
+) {
 	t.Helper()
 
 	runtimeDir := envValue(opts.Env, "PI_CODING_AGENT_DIR")

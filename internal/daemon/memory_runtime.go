@@ -928,7 +928,7 @@ func (s daemonMemoryProviderService) Get(
 	registration, err := s.registry.Select(ctx, workspaceID, name)
 	if err != nil {
 		if isMemoryProviderNotFound(err) {
-			return contract.MemoryProviderPayload{}, fmt.Errorf("%w: %s", os.ErrNotExist, err.Error())
+			return contract.MemoryProviderPayload{}, fmt.Errorf("%w: %w", os.ErrNotExist, err)
 		}
 		return contract.MemoryProviderPayload{}, err
 	}
@@ -945,7 +945,7 @@ func (s daemonMemoryProviderService) Select(
 	}
 	if err := s.registry.SetActive(ctx, workspaceID, name); err != nil {
 		if isMemoryProviderNotFound(err) {
-			return contract.MemoryProviderPayload{}, fmt.Errorf("%w: %s", os.ErrNotExist, err.Error())
+			return contract.MemoryProviderPayload{}, fmt.Errorf("%w: %w", os.ErrNotExist, err)
 		}
 		return contract.MemoryProviderPayload{}, err
 	}

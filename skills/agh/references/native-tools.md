@@ -167,10 +167,10 @@ Use CLI or HTTP/UDS with structured output for these current management surfaces
 
 - Runtime diagnostics: `agh status -o json`, `agh doctor -o json`, and `GET /api/status` / `GET /api/doctor`.
 - Session repair and recap: `agh session recap`, `agh session repair`, `agh session approve`, `agh session inspect`, and `agh session soul refresh`.
-- Task management gaps: `agh task inspect`, `agh task pause`, `agh task resume`, forced `agh task release`, and forced `agh task fail --reason`.
+- Task management gaps: `agh task inspect`, `agh task run show`, `agh task pause`, `agh task resume`, forced `agh task release`, and forced `agh task fail --reason`.
 - Scheduler controls: `agh scheduler status`, `pause`, `resume`, `drain`, and `backlog`.
 - Config apply lifecycle history: `agh config reload`, `agh config apply-history`, and `GET /api/settings/apply`.
-- Notification preset management: `agh notifications presets list` and `agh notifications preset show/create/enable/disable/delete`.
+- Notification preset management: `agh notifications presets list` and `agh notifications preset show/create/update/enable/disable/delete`.
 - Support bundles: `agh support bundle --yes` plus the HTTP create/get/download support-bundle endpoints.
 
 Task notification subscription tools are native, but notification preset management is not. Do not invent `agh__scheduler_*`, `agh__support_*`, `agh__doctor`, `agh__status`, `agh__task_inspect`, or `agh__notifications_*` calls unless the live registry exposes them.

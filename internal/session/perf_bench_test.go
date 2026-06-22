@@ -131,7 +131,6 @@ func BenchmarkSessionInfo(b *testing.B) {
 		ACPCaps: acp.Caps{
 			SupportsLoadSession: true,
 			SupportedModes:      []string{"chat", "agentic"},
-			SupportedModels:     []string{"gpt-5.4"},
 		},
 		Sandbox: &store.SessionSandboxMeta{
 			SandboxID:             "env-bench",

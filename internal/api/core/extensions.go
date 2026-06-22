@@ -232,6 +232,8 @@ func ExtensionStatusCode(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, extensionpkg.ErrExtensionHasActiveBundles):
 		return http.StatusConflict
+	case errors.Is(err, extensionpkg.ErrMarketplaceSourceUnavailable):
+		return http.StatusServiceUnavailable
 	case errors.Is(err, os.ErrNotExist):
 		return http.StatusBadRequest
 	default:

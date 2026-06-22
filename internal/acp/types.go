@@ -407,7 +407,6 @@ func (m PromptSyntheticMeta) Validate() error {
 type Caps struct {
 	SupportsLoadSession bool
 	SupportedModes      []string
-	SupportedModels     []string
 	ConfigOptions       []SessionConfigOption
 }
 
@@ -443,7 +442,6 @@ func CloneCaps(caps Caps) Caps {
 	return Caps{
 		SupportsLoadSession: caps.SupportsLoadSession,
 		SupportedModes:      append([]string(nil), caps.SupportedModes...),
-		SupportedModels:     append([]string(nil), caps.SupportedModels...),
 		ConfigOptions:       CloneSessionConfigOptions(caps.ConfigOptions),
 	}
 }

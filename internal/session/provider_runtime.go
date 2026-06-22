@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/agh/internal/fileutil"
 	"github.com/compozy/agh/internal/providerenv"
 	authproviders "github.com/compozy/agh/internal/providers"
+	"github.com/compozy/agh/internal/store"
 	"github.com/compozy/agh/internal/vault"
 )
 
@@ -63,13 +64,7 @@ func (m *Manager) prepareProviderForStart(
 	resolved aghconfig.ResolvedAgent,
 	opts acp.StartOpts,
 ) (acp.StartOpts, error) {
-	opts.Env = setSessionStartEnvValue(opts.Env, "AGH_PROVIDER", strings.TrimSpace(resolved.Provider))
-	opts.Env = setSessionStartEnvValue(opts.Env, "AGH_PROVIDER_HARNESS", string(resolved.Harness))
-	opts.Env = setSessionStartEnvValue(opts.Env, "AGH_PROVIDER_AUTH_MODE", string(resolved.AuthMode))
-	opts.Env = setSessionStartEnvValue(opts.Env, "AGH_PROVIDER_ENV_POLICY", string(resolved.EnvPolicy))
-	opts.Env = setSessionStartEnvValue(opts.Env, "AGH_PROVIDER_HOME_POLICY", string(resolved.HomePolicy))
-	opts.Env = setSessionStartEnvValue(opts.Env, "AGH_MODEL", strings.TrimSpace(resolved.Model))
-	opts.Env = setProviderModelEnv(opts.Env, resolved)
+	opts.Env = setProviderStartEnv(opts.Env, resolved)
 
 	var err error
 	if resolved.HomePolicy == aghconfig.ProviderHomePolicyIsolated {
@@ -112,7 +107,11 @@ func (m *Manager) prepareProviderForStart(
 	}
 	if resolved.Harness == aghconfig.ProviderHarnessPiACP &&
 		resolved.AuthMode == aghconfig.ProviderAuthModeBoundSecret {
-		runtimeDir, err := m.materializePiRuntime(session, resolved, secretBindings.injectedTargetEnvs)
+		runtimeDir, err := m.materializePiRuntime(
+			session,
+			resolved,
+			secretBindings.injectedTargetEnvs,
+		)
 		if err != nil {
 			return acp.StartOpts{}, err
 		}
@@ -124,6 +123,16 @@ func (m *Manager) prepareProviderForStart(
 	probeEnv := providerProbeEnvForStart(m, resolved, opts.Env)
 	opts.ProviderAuthEnv = &probeEnv
 	return opts, nil
+}
+
+func setProviderStartEnv(env []string, resolved aghconfig.ResolvedAgent) []string {
+	env = setSessionStartEnvValue(env, "AGH_PROVIDER", strings.TrimSpace(resolved.Provider))
+	env = setSessionStartEnvValue(env, "AGH_PROVIDER_HARNESS", string(resolved.Harness))
+	env = setSessionStartEnvValue(env, "AGH_PROVIDER_AUTH_MODE", string(resolved.AuthMode))
+	env = setSessionStartEnvValue(env, "AGH_PROVIDER_ENV_POLICY", string(resolved.EnvPolicy))
+	env = setSessionStartEnvValue(env, "AGH_PROVIDER_HOME_POLICY", string(resolved.HomePolicy))
+	env = setSessionStartEnvValue(env, "AGH_MODEL", strings.TrimSpace(resolved.Model))
+	return setProviderModelEnv(env, resolved)
 }
 
 func shouldUseManagedOnboardingCodexHome(session *Session, resolved aghconfig.ResolvedAgent) bool {
@@ -271,7 +280,9 @@ func providerConfigFromResolvedAgent(resolved aghconfig.ResolvedAgent) aghconfig
 		NoneSecurity:    resolved.NoneSecurity,
 		AuthStatusCmd:   resolved.AuthStatusCmd,
 		AuthLoginCmd:    resolved.AuthLoginCmd,
-		CredentialSlots: append([]aghconfig.ProviderCredentialSlot(nil), resolved.CredentialSlots...),
+		CredentialSlots: append(
+			[]aghconfig.ProviderCredentialSlot(nil),
+			resolved.CredentialSlots...),
 	}
 }
 
@@ -299,7 +310,10 @@ type providerSecretMetadataResolver struct {
 	resolver ProviderSecretResolver
 }
 
-func (r providerSecretMetadataResolver) GetMetadata(ctx context.Context, ref string) (vault.Metadata, error) {
+func (r providerSecretMetadataResolver) GetMetadata(
+	ctx context.Context,
+	ref string,
+) (vault.Metadata, error) {
 	if r.resolver == nil {
 		return vault.Metadata{}, vault.ErrSecretNotFound
 	}
@@ -354,7 +368,12 @@ func (m *Manager) injectProviderSecrets(
 		return bindings, nil
 	}
 	for _, slot := range resolved.CredentialSlots {
-		updated, targetEnv, cleanup, err := m.injectProviderSecret(ctx, resolved, slot, bindings.env)
+		updated, targetEnv, cleanup, err := m.injectProviderSecret(
+			ctx,
+			resolved,
+			slot,
+			bindings.env,
+		)
 		if err != nil {
 			runProviderSecretRedactions(bindings.redactionCleanups)
 			return providerSecretBindings{}, err
@@ -390,14 +409,52 @@ func (m *Manager) injectProviderSecret(
 		if shouldSkipMissingProviderSecret(resolved, secretRef, slot, err) {
 			return env, "", nil, nil
 		}
-		return nil, "", nil, fmt.Errorf(
+		resolveErr := fmt.Errorf(
 			"session: resolve provider credential %q for %q: %w",
 			slot.Name,
 			resolved.Provider,
 			err,
 		)
+		if isMissingRequiredProviderSecret(slot, err) {
+			return nil, "", nil, providerCredentialFailure(resolved, slot, resolveErr)
+		}
+		return nil, "", nil, resolveErr
 	}
-	return setSessionStartEnvValue(env, targetEnv, value), targetEnv, diagnostics.RegisterDynamicSecret(value), nil
+	return setSessionStartEnvValue(
+			env,
+			targetEnv,
+			value,
+		), targetEnv, diagnostics.RegisterDynamicSecret(
+			value,
+		), nil
+}
+
+func isMissingRequiredProviderSecret(slot aghconfig.ProviderCredentialSlot, err error) bool {
+	return slot.Required &&
+		(errors.Is(err, vault.ErrMissingSecret) || errors.Is(err, vault.ErrSecretNotFound))
+}
+
+func providerCredentialFailure(
+	resolved aghconfig.ResolvedAgent,
+	slot aghconfig.ProviderCredentialSlot,
+	err error,
+) error {
+	status := authproviders.CredentialStatus{
+		Name:      strings.TrimSpace(slot.Name),
+		TargetEnv: strings.TrimSpace(slot.TargetEnv),
+		SecretRef: vault.NormalizeRef(slot.SecretRef),
+		Kind:      strings.TrimSpace(slot.Kind),
+		Required:  slot.Required,
+	}
+	item := authproviders.DiagnosticItem(
+		strings.TrimSpace(resolved.Provider),
+		authproviders.MissingCredentialClassification(status),
+	)
+	return acp.WrapFailure(
+		store.FailureProviderAuth,
+		"provider auth pre-start probe failed",
+		diagnostics.NewStructuredError(item, err),
+	)
 }
 
 func shouldSkipMissingProviderSecret(
@@ -407,7 +464,8 @@ func shouldSkipMissingProviderSecret(
 	err error,
 ) bool {
 	if resolved.Harness == aghconfig.ProviderHarnessPiACP {
-		return !slot.Required && (errors.Is(err, vault.ErrMissingSecret) || errors.Is(err, vault.ErrSecretNotFound))
+		return !slot.Required &&
+			(errors.Is(err, vault.ErrMissingSecret) || errors.Is(err, vault.ErrSecretNotFound))
 	}
 	if vault.IsSecretRef(secretRef) {
 		return !slot.Required && errors.Is(err, vault.ErrSecretNotFound)
@@ -491,7 +549,10 @@ func (m *Manager) materializePiRuntime(
 	return runtimeDir, nil
 }
 
-func piCredentialEnv(slots []aghconfig.ProviderCredentialSlot, injectedTargetEnvs map[string]struct{}) string {
+func piCredentialEnv(
+	slots []aghconfig.ProviderCredentialSlot,
+	injectedTargetEnvs map[string]struct{},
+) string {
 	for _, slot := range slots {
 		targetEnv := strings.TrimSpace(slot.TargetEnv)
 		if strings.TrimSpace(slot.Kind) == providerRuntimeAPIKeyKey &&

@@ -4784,7 +4784,6 @@ func newFakeProcess(agentName string, command string, cwd string, sessionID stri
 		Caps: acp.Caps{
 			SupportsLoadSession: true,
 			SupportedModes:      []string{"chat"},
-			SupportedModels:     []string{"gpt-4o"},
 		},
 		StartedAt: time.Now().UTC(),
 		done:      proc.done,

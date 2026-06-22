@@ -6773,12 +6773,6 @@
                                                                     },
                                                                     "type": "array"
                                                                 },
-                                                                "supported_models": {
-                                                                    "items": {
-                                                                        "type": "string"
-                                                                    },
-                                                                    "type": "array"
-                                                                },
                                                                 "supported_modes": {
                                                                     "items": {
                                                                         "type": "string"
@@ -71609,12 +71603,6 @@
                                                                 },
                                                                 "type": "array"
                                                             },
-                                                            "supported_models": {
-                                                                "items": {
-                                                                    "type": "string"
-                                                                },
-                                                                "type": "array"
-                                                            },
                                                             "supported_modes": {
                                                                 "items": {
                                                                     "type": "string"
@@ -72258,12 +72246,6 @@
                                                                 },
                                                                 "required": ["id", "kind"],
                                                                 "type": "object"
-                                                            },
-                                                            "type": "array"
-                                                        },
-                                                        "supported_models": {
-                                                            "items": {
-                                                                "type": "string"
                                                             },
                                                             "type": "array"
                                                         },
@@ -131006,12 +130988,6 @@
                                                                 },
                                                                 "type": "array"
                                                             },
-                                                            "supported_models": {
-                                                                "items": {
-                                                                    "type": "string"
-                                                                },
-                                                                "type": "array"
-                                                            },
                                                             "supported_modes": {
                                                                 "items": {
                                                                     "type": "string"
@@ -133155,12 +133131,6 @@
                                                                         },
                                                                         "type": "array"
                                                                     },
-                                                                    "supported_models": {
-                                                                        "items": {
-                                                                            "type": "string"
-                                                                        },
-                                                                        "type": "array"
-                                                                    },
                                                                     "supported_modes": {
                                                                         "items": {
                                                                             "type": "string"
@@ -134109,12 +134079,6 @@
                                                                                 "kind"
                                                                             ],
                                                                             "type": "object"
-                                                                        },
-                                                                        "type": "array"
-                                                                    },
-                                                                    "supported_models": {
-                                                                        "items": {
-                                                                            "type": "string"
                                                                         },
                                                                         "type": "array"
                                                                     },
@@ -139573,12 +139537,6 @@
                                                             },
                                                             "type": "array"
                                                         },
-                                                        "supported_models": {
-                                                            "items": {
-                                                                "type": "string"
-                                                            },
-                                                            "type": "array"
-                                                        },
                                                         "supported_modes": {
                                                             "items": {
                                                                 "type": "string"
@@ -140506,12 +140464,6 @@
                                                                 },
                                                                 "required": ["id", "kind"],
                                                                 "type": "object"
-                                                            },
-                                                            "type": "array"
-                                                        },
-                                                        "supported_models": {
-                                                            "items": {
-                                                                "type": "string"
                                                             },
                                                             "type": "array"
                                                         },
@@ -144187,12 +144139,6 @@
                                                                         },
                                                                         "required": ["id", "kind"],
                                                                         "type": "object"
-                                                                    },
-                                                                    "type": "array"
-                                                                },
-                                                                "supported_models": {
-                                                                    "items": {
-                                                                        "type": "string"
                                                                     },
                                                                     "type": "array"
                                                                 },

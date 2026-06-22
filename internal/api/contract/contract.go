@@ -205,7 +205,6 @@ type SessionSandboxPayload struct {
 type ACPCapsPayload struct {
 	SupportsLoadSession bool                         `json:"supports_load_session"`
 	SupportedModes      []string                     `json:"supported_modes,omitempty"`
-	SupportedModels     []string                     `json:"supported_models,omitempty"`
 	ConfigOptions       []SessionConfigOptionPayload `json:"config_options,omitempty"`
 }
 

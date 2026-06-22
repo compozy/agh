@@ -51,10 +51,18 @@ func NewMCPProvider(
 	auth MCPAuthStatusProvider,
 ) (*MCPProvider, error) {
 	if isNilInterface(exec) {
-		return nil, NewValidationError("executor", ReasonDependencyMissing, "mcp executor is required")
+		return nil, NewValidationError(
+			"executor",
+			ReasonDependencyMissing,
+			"mcp executor is required",
+		)
 	}
 	if isNilInterface(sources) {
-		return nil, NewValidationError("sources", ReasonDependencyMissing, "mcp source lister is required")
+		return nil, NewValidationError(
+			"sources",
+			ReasonDependencyMissing,
+			"mcp source lister is required",
+		)
 	}
 	provider := &MCPProvider{
 		source: SourceRef{
@@ -82,7 +90,11 @@ func (p *MCPProvider) ID() SourceRef {
 // List discovers configured MCP tools and normalizes them into registry descriptors.
 func (p *MCPProvider) List(ctx context.Context, _ Scope) ([]Descriptor, error) {
 	if p == nil || isNilInterface(p.exec) || isNilInterface(p.sources) {
-		return nil, NewValidationError("provider", ReasonDependencyMissing, "mcp provider is required")
+		return nil, NewValidationError(
+			"provider",
+			ReasonDependencyMissing,
+			"mcp provider is required",
+		)
 	}
 	if err := contextErr(ctx, ""); err != nil {
 		return nil, err
@@ -95,10 +107,10 @@ func (p *MCPProvider) List(ctx context.Context, _ Scope) ([]Descriptor, error) {
 	for _, source := range sources {
 		tools, err := p.exec.ListTools(ctx, source)
 		if err != nil {
-			if reason, ok := ReasonOf(err); ok && isMCPAuthBlockingReason(reason) {
-				continue
+			if contextError := contextErrFromError("", err); contextError != nil {
+				return nil, contextError
 			}
-			return nil, fmt.Errorf("tools: list mcp source %q: %w", mcpSourceName(source), err)
+			continue
 		}
 		for i := range tools {
 			descriptor, err := mcpRegistryDescriptor(source, tools[i])
@@ -112,19 +124,6 @@ func (p *MCPProvider) List(ctx context.Context, _ Scope) ([]Descriptor, error) {
 		return strings.Compare(left.ID.String(), right.ID.String())
 	})
 	return descriptors, nil
-}
-
-func isMCPAuthBlockingReason(reason ReasonCode) bool {
-	switch reason {
-	case ReasonMCPAuthUnconfigured,
-		ReasonMCPAuthRequired,
-		ReasonMCPAuthExpired,
-		ReasonMCPAuthInvalid,
-		ReasonMCPAuthRefreshFailed:
-		return true
-	default:
-		return false
-	}
 }
 
 // Resolve returns a handle for one discovered MCP tool.
@@ -229,7 +228,11 @@ func Canonicalize(rawServer, rawTool string) (ToolID, error) {
 	}
 	id := ToolID(mcpNamespace + "__" + server + "__" + tool)
 	if len(id) > maxSegmentedIDLength {
-		return "", NewValidationError("tool_id", ReasonIDTooLong, "mcp tool id exceeds 64 characters")
+		return "", NewValidationError(
+			"tool_id",
+			ReasonIDTooLong,
+			"mcp tool id exceeds 64 characters",
+		)
 	}
 	if err := id.Validate(); err != nil {
 		return "", err
@@ -341,7 +344,11 @@ func canonicalMCPSegment(field string, raw string) (string, error) {
 		case r == '-' || r == '.':
 			builder.WriteRune('_')
 		default:
-			return "", NewValidationError(field, ReasonIDInvalidFormat, "mcp name contains an unsupported character")
+			return "", NewValidationError(
+				field,
+				ReasonIDInvalidFormat,
+				"mcp name contains an unsupported character",
+			)
 		}
 	}
 	segment := builder.String()
@@ -349,11 +356,23 @@ func canonicalMCPSegment(field string, raw string) (string, error) {
 	case segment == "":
 		return "", NewValidationError(field, ReasonIDEmptySegment, "mcp name segment is required")
 	case segment[0] < 'a' || segment[0] > 'z':
-		return "", NewValidationError(field, ReasonIDInvalidFormat, "segment must start with a lowercase letter")
+		return "", NewValidationError(
+			field,
+			ReasonIDInvalidFormat,
+			"segment must start with a lowercase letter",
+		)
 	case strings.HasPrefix(segment, "_") || strings.HasSuffix(segment, "_"):
-		return "", NewValidationError(field, ReasonIDReservedConflict, "segment uses reserved underscore boundary")
+		return "", NewValidationError(
+			field,
+			ReasonIDReservedConflict,
+			"segment uses reserved underscore boundary",
+		)
 	case strings.Contains(segment, "__"):
-		return "", NewValidationError(field, ReasonIDReservedConflict, "segment contains reserved separator")
+		return "", NewValidationError(
+			field,
+			ReasonIDReservedConflict,
+			"segment contains reserved separator",
+		)
 	default:
 		return segment, nil
 	}
@@ -372,10 +391,6 @@ func mcpOwnerFromID(id ToolID) (string, error) {
 		)
 	}
 	return segments[1], nil
-}
-
-func mcpSourceName(source SourceRef) string {
-	return firstNonEmpty(source.RawServerName, source.Owner)
 }
 
 func firstNonEmpty(values ...string) string {

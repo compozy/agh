@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"errors"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -512,6 +513,20 @@ auto_archive = "24h"
 	if got, want := resolved.Daytona.StartupRef, "snap-agent-base"; got != want {
 		t.Fatalf("resolved Daytona startup ref = %q, want %q", got, want)
 	}
+}
+
+func TestResolveSandboxErrorContract(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose missing sandbox profiles through a sentinel error", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := Config{Sandboxes: map[string]SandboxProfile{}}
+		_, err := cfg.ResolveSandbox("missing-profile")
+		if !errors.Is(err, ErrSandboxProfileNotFound) {
+			t.Fatalf("ResolveSandbox() error = %v, want ErrSandboxProfileNotFound", err)
+		}
+	})
 }
 
 func TestDaytonaSnapshotWinsOverImageInResolvedProfile(t *testing.T) {

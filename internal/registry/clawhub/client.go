@@ -2,7 +2,9 @@
 package clawhub
 
 import (
+	"archive/tar"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -27,6 +29,7 @@ const (
 	defaultMaxRetries     = 3
 	maxErrorBodyBytes     = 64 << 10
 	maxJSONResponseBytes  = 1 << 20
+	applicationGzipType   = "application/gzip"
 )
 
 var errResponseTooLarge = errors.New("clawhub: response exceeds max size")
@@ -197,15 +200,14 @@ func (c *Client) Info(ctx context.Context, slug string) (*registry.Detail, error
 		return nil, fmt.Errorf("clawhub: close info response for %q: %w", trimmedSlug, closeErr)
 	}
 
-	var detail registry.Detail
-	if err := json.Unmarshal(payload, &detail); err != nil {
+	detail, err := decodeDetail(payload, trimmedSlug)
+	if err != nil {
 		return nil, fmt.Errorf("clawhub: decode info response for %q: %w", trimmedSlug, err)
 	}
 
-	detail.Slug = firstNonEmpty(strings.TrimSpace(detail.Slug), trimmedSlug)
 	detail.Source = c.Name()
 	detail.Type = registry.PackageTypeSkill
-	return &detail, nil
+	return detail, nil
 }
 
 // Download fetches the archived skill package stream for one skill slug.
@@ -226,6 +228,13 @@ func (c *Client) Download(
 
 	response, err := c.doRequest(ctx, requestPath, nil, "download", trimmedSlug)
 	if err != nil {
+		if errors.Is(err, registry.ErrPackageNotFound) {
+			result, fallbackErr := c.downloadSkillArchiveFromInfo(ctx, trimmedSlug, opts, err)
+			if fallbackErr == nil {
+				return result, nil
+			}
+			return nil, fallbackErr
+		}
 		return nil, err
 	}
 	maxArchiveSize := normalizeArchiveSizeLimit(opts.MaxArchiveSize)
@@ -471,6 +480,215 @@ func decodeListings(body io.Reader) ([]registry.Listing, error) {
 	}
 }
 
+func decodeDetail(payload []byte, fallbackSlug string) (*registry.Detail, error) {
+	var envelope clawhubDetailEnvelope
+	if err := json.Unmarshal(payload, &envelope); err == nil && envelope.Skill != nil {
+		detail := envelope.Skill.registryDetail(
+			fallbackSlug,
+			envelope.Owner.Handle,
+			envelope.LatestVersion.Version,
+			envelope.LatestVersion.License,
+		)
+		return &detail, nil
+	}
+
+	var detail registry.Detail
+	if err := json.Unmarshal(payload, &detail); err != nil {
+		return nil, err
+	}
+	return normalizeDetail(detail, fallbackSlug), nil
+}
+
+func (c *Client) downloadSkillArchiveFromInfo(
+	ctx context.Context,
+	slug string,
+	opts registry.DownloadOpts,
+	downloadErr error,
+) (*registry.DownloadResult, error) {
+	detail, err := c.Info(ctx, slug)
+	if err != nil {
+		return nil, downloadErr
+	}
+	requestedVersion := strings.TrimSpace(opts.Version)
+	resolvedVersion := strings.TrimSpace(detail.Version)
+	if requestedVersion != "" && requestedVersion != resolvedVersion {
+		return nil, downloadErr
+	}
+	archive, err := buildSkillArchiveFromDetail(detail, slug)
+	if err != nil {
+		return nil, errors.Join(downloadErr, err)
+	}
+	maxArchiveSize := normalizeArchiveSizeLimit(opts.MaxArchiveSize)
+	if int64(len(archive)) > maxArchiveSize {
+		return nil, fmt.Errorf(
+			"clawhub: synthesized download for %q: %w: size=%d limit=%d",
+			slug,
+			registry.ErrArchiveTooLargeCompressed,
+			len(archive),
+			maxArchiveSize,
+		)
+	}
+	return &registry.DownloadResult{
+		Reader:      io.NopCloser(bytes.NewReader(archive)),
+		Slug:        strings.TrimSpace(slug),
+		Version:     resolvedVersion,
+		ContentSize: int64(len(archive)),
+		ContentType: applicationGzipType,
+	}, nil
+}
+
+func buildSkillArchiveFromDetail(detail *registry.Detail, slug string) ([]byte, error) {
+	if detail == nil {
+		return nil, fmt.Errorf("clawhub: skill detail is required for %q", slug)
+	}
+	content := detail.Readme
+	if strings.TrimSpace(content) == "" {
+		return nil, fmt.Errorf("clawhub: skill %q has no downloadable content", slug)
+	}
+	rootName, err := skillArchiveRootName(detail, slug)
+	if err != nil {
+		return nil, err
+	}
+
+	var buffer bytes.Buffer
+	gzipWriter := gzip.NewWriter(&buffer)
+	tarWriter := tar.NewWriter(gzipWriter)
+	if err := tarWriter.WriteHeader(&tar.Header{
+		Name:     rootName + "/",
+		Mode:     0o755,
+		Typeflag: tar.TypeDir,
+	}); err != nil {
+		return nil, fmt.Errorf("write skill archive directory header for %q: %w", slug, err)
+	}
+	contentBytes := []byte(content)
+	if err := tarWriter.WriteHeader(&tar.Header{
+		Name:     rootName + "/SKILL.md",
+		Mode:     0o644,
+		Size:     int64(len(contentBytes)),
+		Typeflag: tar.TypeReg,
+	}); err != nil {
+		return nil, fmt.Errorf("write skill archive manifest header for %q: %w", slug, err)
+	}
+	if _, err := tarWriter.Write(contentBytes); err != nil {
+		return nil, fmt.Errorf("write skill archive manifest for %q: %w", slug, err)
+	}
+	if err := tarWriter.Close(); err != nil {
+		return nil, fmt.Errorf("close skill archive tar stream for %q: %w", slug, err)
+	}
+	if err := gzipWriter.Close(); err != nil {
+		return nil, fmt.Errorf("close skill archive gzip stream for %q: %w", slug, err)
+	}
+	return buffer.Bytes(), nil
+}
+
+func skillArchiveRootName(detail *registry.Detail, slug string) (string, error) {
+	rootName := firstNonEmpty(detail.Name, listingNameFromSlug(detail.Slug), listingNameFromSlug(slug))
+	switch {
+	case rootName == "":
+		return "", fmt.Errorf("clawhub: skill archive root is required for %q", slug)
+	case rootName == ".", rootName == "..":
+		return "", fmt.Errorf("clawhub: skill archive root %q must not be a relative path segment", rootName)
+	case strings.Contains(rootName, "/"), strings.Contains(rootName, "\\"):
+		return "", fmt.Errorf("clawhub: skill archive root %q must not include path separators", rootName)
+	default:
+		return rootName, nil
+	}
+}
+
+func normalizeDetail(detail registry.Detail, fallbackSlug string) *registry.Detail {
+	detail.Slug = firstNonEmpty(detail.Slug, fallbackSlug)
+	detail.Name = firstNonEmpty(detail.Name, listingNameFromSlug(detail.Slug))
+	detail.Source = sourceName
+	detail.Type = registry.PackageTypeSkill
+	return &detail
+}
+
+type clawhubDetailEnvelope struct {
+	Skill         *clawhubSkillDetail  `json:"skill"`
+	LatestVersion clawhubDetailVersion `json:"latestVersion"`
+	Owner         clawhubDetailOwner   `json:"owner"`
+}
+
+type clawhubDetailVersion struct {
+	Version string `json:"version"`
+	License string `json:"license"`
+}
+
+type clawhubDetailOwner struct {
+	Handle string `json:"handle"`
+}
+
+type clawhubSkillDetail struct {
+	Slug          string              `json:"slug"`
+	Name          string              `json:"name"`
+	DisplayName   string              `json:"displayName"`
+	Summary       string              `json:"summary"`
+	Description   string              `json:"description"`
+	Author        string              `json:"author"`
+	OwnerHandle   string              `json:"ownerHandle"`
+	Version       string              `json:"version"`
+	Downloads     int                 `json:"downloads"`
+	Readme        string              `json:"readme"`
+	MCPServers    []string            `json:"mcp_servers"`
+	Tags          clawhubListingTags  `json:"tags"`
+	Stats         clawhubListingStats `json:"stats"`
+	License       string              `json:"license"`
+	Repository    string              `json:"repository"`
+	Versions      []string            `json:"versions"`
+	LatestVersion struct {
+		Version string `json:"version"`
+	} `json:"latestVersion"`
+	Owner struct {
+		Handle string `json:"handle"`
+	} `json:"owner"`
+}
+
+func (detail clawhubSkillDetail) registryDetail(
+	fallbackSlug string,
+	envelopeOwner string,
+	envelopeVersion string,
+	envelopeLicense string,
+) registry.Detail {
+	slug := firstNonEmpty(detail.Slug, fallbackSlug)
+	return registry.Detail{
+		Listing: registry.Listing{
+			Slug: slug,
+			Name: firstNonEmpty(
+				detail.Name,
+				listingNameFromSlug(slug),
+				detail.DisplayName,
+			),
+			Description: firstNonEmpty(detail.Summary, detail.DisplayName),
+			Author: firstNonEmpty(
+				detail.Author,
+				detail.OwnerHandle,
+				detail.Owner.Handle,
+				envelopeOwner,
+				listingAuthorFromSlug(slug),
+			),
+			Version: firstNonEmpty(
+				detail.Version,
+				detail.Tags.Latest,
+				detail.LatestVersion.Version,
+				envelopeVersion,
+			),
+			Downloads: firstPositiveInt(
+				detail.Downloads,
+				detail.Stats.Downloads,
+				detail.Stats.InstallsAllTime,
+				detail.Stats.InstallsCurrent,
+			),
+			Source: sourceName,
+			Type:   registry.PackageTypeSkill,
+		},
+		Readme:     firstNonBlankPreserve(detail.Readme, detail.Description),
+		MCPServers: detail.MCPServers,
+		License:    firstNonEmpty(detail.License, envelopeLicense),
+		Repository: strings.TrimSpace(detail.Repository),
+		Versions:   detail.Versions,
+	}
+}
+
 type clawhubListing struct {
 	registry.Listing
 	DisplayName   string              `json:"displayName"`
@@ -592,7 +810,9 @@ func spoolDownloadResponse(body io.Reader, slug string, maxBytes int64) (_ io.Re
 	}
 	defer func() {
 		if err != nil {
-			_ = os.Remove(file.Name())
+			if removeErr := os.Remove(file.Name()); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+				err = errors.Join(err, fmt.Errorf("remove temp download file %q: %w", file.Name(), removeErr))
+			}
 		}
 	}()
 
@@ -723,6 +943,15 @@ func firstNonEmpty(values ...string) string {
 	for _, value := range values {
 		if trimmed := strings.TrimSpace(value); trimmed != "" {
 			return trimmed
+		}
+	}
+	return ""
+}
+
+func firstNonBlankPreserve(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
 		}
 	}
 	return ""

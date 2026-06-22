@@ -149,6 +149,12 @@
             "sourceType": "github",
             "computedHash": "49104982a9de3b6a7718f1c34866ca2a435ec826a523f0e8e0ee97b64409de2d"
         },
+        "cmux-orchestration": {
+            "source": "pedronauck/skills",
+            "sourceType": "github",
+            "skillPath": "skills/mine/cmux-orchestration/SKILL.md",
+            "computedHash": "5ea0eccfcf5e08b2bd85841ab2183f77dfbfdda0732a8ff9285653cbef504264"
+        },
         "colorize": {
             "source": "pbakaus/impeccable",
             "sourceType": "github",

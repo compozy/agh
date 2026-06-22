@@ -177,7 +177,8 @@ func newHooksRunsCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&query.Session, "session", "", "Session ID")
 	cmd.Flags().StringVar(&query.Event, hooksEventKey, "", "Filter by hook event")
 	cmd.Flags().StringVar(&query.Outcome, cliOutcomeKey, "", "Filter by hook outcome")
-	cmd.Flags().StringVar(&sinceRaw, "since", "", "Show runs since an RFC3339 timestamp or relative duration")
+	cmd.Flags().
+		StringVar(&sinceRaw, "since", "", "Show runs since an RFC3339 timestamp or relative duration")
 	cmd.Flags().IntVar(&query.Last, "last", 0, "Show only the most recent N runs")
 	cmd.Flags().StringVar(&workspaceRef, "workspace", "", "Workspace name, ID, or path")
 	return cmd
@@ -188,7 +189,14 @@ func hookListBundle(hooks []HookCatalogRecord) outputBundle {
 		hooks,
 		hooks,
 		"Hooks",
-		[]string{"Order", automationNameValue, hooksEventValue, authoredContextSourceValue, taskModeValue, "Priority"},
+		[]string{
+			"Order",
+			automationNameValue,
+			hooksEventValue,
+			authoredContextSourceValue,
+			taskModeValue,
+			cliPriorityValue,
+		},
 		"hooks",
 		[]string{
 			hooksOrderKey,
@@ -229,76 +237,105 @@ func hookInfoBundle(hooks []HookCatalogRecord) outputBundle {
 	return outputBundle{
 		jsonValue: hooks,
 		human: func() (string, error) {
-			blocks := make([]string, 0, len(hooks))
-			for _, item := range hooks {
-				blocks = append(blocks, renderHumanBlocks(
-					renderHumanSection("Hook", []keyValue{
-						{Label: automationNameValue, Value: stringOrDash(item.Name)},
-						{Label: "Order", Value: strconv.Itoa(item.Order)},
-						{Label: hooksEventValue, Value: stringOrDash(item.Event)},
-						{Label: authoredContextSourceValue, Value: stringOrDash(item.Source)},
-						{Label: "Skill Source", Value: stringOrDash(item.SkillSource)},
-						{Label: taskModeValue, Value: stringOrDash(item.Mode)},
-						{Label: "Required", Value: strconv.FormatBool(item.Required)},
-						{Label: "Priority", Value: strconv.Itoa(item.Priority)},
-						{Label: "Timeout (ms)", Value: int64OrDash(item.TimeoutMS)},
-						{Label: "Executor Kind", Value: stringOrDash(item.ExecutorKind)},
-					}),
-					renderHumanTable("Matcher", []string{"Field", hooksValueValue}, hookMatcherRows(item.Matcher)),
-					renderHumanTable("Metadata", []string{"Key", hooksValueValue}, hookMetadataRows(item.Metadata)),
-				))
-			}
-			return renderHumanBlocks(blocks...), nil
+			return renderHookInfoHuman(hooks)
 		},
 		toon: func() (string, error) {
-			rows := make([][]string, 0, len(hooks))
-			for _, item := range hooks {
-				rows = append(rows, []string{
-					item.Name,
-					strconv.Itoa(item.Order),
-					item.Event,
-					item.Source,
-					item.SkillSource,
-					item.Mode,
-					strconv.FormatBool(item.Required),
-					strconv.Itoa(item.Priority),
-					strconv.FormatInt(item.TimeoutMS, 10),
-					item.ExecutorKind,
-				})
-			}
-
-			blocks := []string{
-				renderToonArray(
-					"hooks",
-					[]string{
-						automationNameKey,
-						hooksOrderKey,
-						hooksEventKey,
-						automationSourceKey,
-						"skill_source",
-						hooksModeKey,
-						"required",
-						"priority",
-						"timeout_ms",
-						"executor_kind",
-					},
-					rows,
-				),
-			}
-			for _, item := range hooks {
-				blocks = append(blocks, renderHumanBlocks(
-					renderToonObject("hook", []string{automationNameKey, hooksOrderKey, hooksEventKey}, []string{
-						item.Name,
-						strconv.Itoa(item.Order),
-						item.Event,
-					}),
-					renderToonArray("matcher", []string{"field", hooksValueKey}, hookMatcherRows(item.Matcher)),
-					renderToonArray("metadata", []string{"key", hooksValueKey}, hookMetadataRows(item.Metadata)),
-				))
-			}
-			return renderHumanBlocks(blocks...), nil
+			return renderHookInfoToon(hooks)
 		},
 	}
+}
+
+func renderHookInfoHuman(hooks []HookCatalogRecord) (string, error) {
+	blocks := make([]string, 0, len(hooks))
+	for _, item := range hooks {
+		blocks = append(blocks, renderHumanBlocks(
+			renderHumanSection("Hook", hookInfoRows(item)),
+			renderHumanTable(
+				"Matcher",
+				[]string{"Field", hooksValueValue},
+				hookMatcherRows(item.Matcher),
+			),
+			renderHumanTable(
+				"Metadata",
+				[]string{"Key", hooksValueValue},
+				hookMetadataRows(item.Metadata),
+			),
+		))
+	}
+	return renderHumanBlocks(blocks...), nil
+}
+
+func hookInfoRows(item HookCatalogRecord) []keyValue {
+	return []keyValue{
+		{Label: automationNameValue, Value: stringOrDash(item.Name)},
+		{Label: "Order", Value: strconv.Itoa(item.Order)},
+		{Label: hooksEventValue, Value: stringOrDash(item.Event)},
+		{Label: authoredContextSourceValue, Value: stringOrDash(item.Source)},
+		{Label: "Skill Source", Value: stringOrDash(item.SkillSource)},
+		{Label: taskModeValue, Value: stringOrDash(item.Mode)},
+		{Label: "Required", Value: strconv.FormatBool(item.Required)},
+		{Label: cliPriorityValue, Value: strconv.Itoa(item.Priority)},
+		{Label: "Timeout (ms)", Value: int64OrDash(item.TimeoutMS)},
+		{Label: "Executor Kind", Value: stringOrDash(item.ExecutorKind)},
+	}
+}
+
+func renderHookInfoToon(hooks []HookCatalogRecord) (string, error) {
+	blocks := []string{renderToonArray("hooks", hookInfoToonColumns(), hookInfoToonRows(hooks))}
+	for _, item := range hooks {
+		blocks = append(blocks, renderHookInfoToonDetails(item))
+	}
+	return renderHumanBlocks(blocks...), nil
+}
+
+func hookInfoToonColumns() []string {
+	return []string{
+		automationNameKey,
+		hooksOrderKey,
+		hooksEventKey,
+		automationSourceKey,
+		"skill_source",
+		hooksModeKey,
+		"required",
+		"priority",
+		"timeout_ms",
+		"executor_kind",
+	}
+}
+
+func hookInfoToonRows(hooks []HookCatalogRecord) [][]string {
+	rows := make([][]string, 0, len(hooks))
+	for _, item := range hooks {
+		rows = append(rows, []string{
+			item.Name,
+			strconv.Itoa(item.Order),
+			item.Event,
+			item.Source,
+			item.SkillSource,
+			item.Mode,
+			strconv.FormatBool(item.Required),
+			strconv.Itoa(item.Priority),
+			strconv.FormatInt(item.TimeoutMS, 10),
+			item.ExecutorKind,
+		})
+	}
+	return rows
+}
+
+func renderHookInfoToonDetails(item HookCatalogRecord) string {
+	return renderHumanBlocks(
+		renderToonObject(
+			"hook",
+			[]string{automationNameKey, hooksOrderKey, hooksEventKey},
+			[]string{item.Name, strconv.Itoa(item.Order), item.Event},
+		),
+		renderToonArray("matcher", []string{"field", hooksValueKey}, hookMatcherRows(item.Matcher)),
+		renderToonArray(
+			"metadata",
+			[]string{"key", hooksValueKey},
+			hookMetadataRows(item.Metadata),
+		),
+	)
 }
 
 func hookEventsBundle(events []HookEventRecord) outputBundle {
@@ -337,7 +374,14 @@ func hookRunsBundle(runs []HookRunRecord) outputBundle {
 		"Hook Runs",
 		[]string{"Hook", hooksEventValue, "Outcome", cliDurationValue, hooksErrorValue},
 		"runs",
-		[]string{"hook_name", hooksEventKey, cliOutcomeKey, cliDurationMSKey, hooksErrorKey, "recorded_at"},
+		[]string{
+			"hook_name",
+			hooksEventKey,
+			cliOutcomeKey,
+			cliDurationMSKey,
+			hooksErrorKey,
+			"recorded_at",
+		},
 		func(item HookRunRecord) []string {
 			return []string{
 				stringOrDash(item.HookName),

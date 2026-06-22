@@ -554,7 +554,6 @@ export const networkChannelFixture: NetworkChannel = {
       workspace_path: storyWorkspacePaths.hq,
       acp_caps: {
         supports_load_session: true,
-        supported_models: ["gemini-2.5-pro"],
         supported_modes: ["chat"],
       },
     },
@@ -573,7 +572,6 @@ export const networkChannelFixture: NetworkChannel = {
       workspace_path: storyWorkspacePaths.hq,
       acp_caps: {
         supports_load_session: true,
-        supported_models: ["claude-sonnet-4-6"],
         supported_modes: ["chat"],
       },
     },
@@ -592,7 +590,6 @@ export const networkChannelFixture: NetworkChannel = {
       workspace_path: storyWorkspacePaths.finance,
       acp_caps: {
         supports_load_session: true,
-        supported_models: ["claude-sonnet-4-6"],
         supported_modes: ["chat"],
       },
     },
@@ -611,7 +608,6 @@ export const networkChannelFixture: NetworkChannel = {
       workspace_path: storyWorkspacePaths.risk,
       acp_caps: {
         supports_load_session: true,
-        supported_models: ["qwen3.6-plus"],
         supported_modes: ["chat"],
       },
     },
@@ -630,7 +626,6 @@ export const networkChannelFixture: NetworkChannel = {
       workspace_path: storyWorkspacePaths.product,
       acp_caps: {
         supports_load_session: true,
-        supported_models: ["gpt-5.4"],
         supported_modes: ["chat"],
       },
     },
@@ -649,7 +644,6 @@ export const networkChannelFixture: NetworkChannel = {
       workspace_path: storyWorkspacePaths.support,
       acp_caps: {
         supports_load_session: true,
-        supported_models: ["claude-sonnet-4-6"],
         supported_modes: ["chat"],
       },
     },

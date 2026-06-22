@@ -3893,7 +3893,6 @@ func (d *integrationDriver) Start(_ context.Context, opts acp.StartOpts) (*sessi
 		SessionID: sessionID,
 		Caps: acp.Caps{
 			SupportsLoadSession: true,
-			SupportedModels:     []string{"fake-model"},
 		},
 		StartedAt: time.Now().UTC(),
 		Done:      done,

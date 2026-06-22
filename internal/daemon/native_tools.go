@@ -107,7 +107,7 @@ type daemonNativeToolsDeps struct {
 	ToolMCP             toolMCPPublisher
 	MCPAuth             func() toolspkg.MCPAuthStatusProvider
 	BundleResources     bundleResourcePublisher
-	BundleService       core.BundleService
+	BundleService       func() core.BundleService
 	Resources           core.ResourceService
 }
 
@@ -287,8 +287,10 @@ func (d *Daemon) nativeToolsDeps(
 		AgentSkills:       state.agentSkillResources,
 		ToolMCP:           state.toolMCPResources,
 		BundleResources:   state.bundleResources,
-		BundleService:     state.deps.Bundles,
-		Resources:         state.deps.Resources,
+		BundleService: func() core.BundleService {
+			return state.deps.Bundles
+		},
+		Resources: state.deps.Resources,
 	}
 }
 
@@ -564,10 +566,17 @@ func (n *daemonNativeTools) nativeToolAvailability() nativeToolAvailabilitySet {
 		extensions: n.dependencyAvailability(func() bool {
 			return n.deps.ExtensionRegistry != nil && strings.TrimSpace(n.deps.HomePaths.HomeDir) != ""
 		}),
-		bundles:   n.dependencyAvailability(func() bool { return n.deps.BundleService != nil }),
+		bundles:   n.dependencyAvailability(func() bool { return n.bundleService() != nil }),
 		resources: n.dependencyAvailability(func() bool { return n.deps.Resources != nil }),
 		mcpAuth:   n.dependencyAvailability(func() bool { return n.mcpAuthProvider() != nil }),
 	}
+}
+
+func (n *daemonNativeTools) bundleService() core.BundleService {
+	if n == nil || n.deps == nil || n.deps.BundleService == nil {
+		return nil
+	}
+	return n.deps.BundleService()
 }
 
 func extensionRegistryDependency(registry Registry) *extensionpkg.Registry {

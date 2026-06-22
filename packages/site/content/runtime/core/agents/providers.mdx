@@ -173,9 +173,12 @@ and `xhigh`. The effective model catalog uses explicit source/config `reasoning_
 exist, supplies the canonical effort list when a model advertises `supports_reasoning` without levels,
 and applies the same fallback to known GPT and Claude model families when upstream metadata is
 incomplete; explicit `supports_reasoning=false` disables that fallback. After the session starts, AGH
-switches to active ACP `configOptions` (or legacy `session/set_model` when the agent does not
-advertise config options); the catalog informs pre-session selection, while live ACP options govern
-controls inside the running session.
+switches to active ACP `configOptions` for live model and reasoning controls. Agents that do not
+advertise a model config option keep the launch/default model when no model override is requested.
+If a session requests a model override and the agent does not advertise a model config option,
+session start or resume fails with an explicit error; AGH does not call a legacy model-switch RPC.
+The catalog informs pre-session selection, while live ACP options govern controls inside the
+running session.
 
 Native provider auth state belongs to the provider. Run the provider's own login command, such as
 `claude auth login`, `codex login`, `opencode auth login`, or Pi's `/login`, outside AGH or through

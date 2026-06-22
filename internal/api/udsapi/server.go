@@ -92,6 +92,7 @@ type Server struct {
 	wakeEvents        core.HeartbeatWakeEventReader
 	coordinatorConfig core.CoordinatorConfigResolver
 	skillsRegistry    core.SkillsRegistry
+	skillResources    core.SkillResourceSyncer
 	memoryStore       *memory.Store
 	dreamTrigger      core.DreamTrigger
 	memoryExtractor   core.MemoryExtractorService
@@ -145,6 +146,7 @@ type handlerConfig struct {
 	wakeEvents        core.HeartbeatWakeEventReader
 	coordinatorConfig core.CoordinatorConfigResolver
 	skillsRegistry    core.SkillsRegistry
+	skillResources    core.SkillResourceSyncer
 	memoryStore       *memory.Store
 	dreamTrigger      core.DreamTrigger
 	memoryExtractor   core.MemoryExtractorService
@@ -381,6 +383,13 @@ func WithMemoryStore(store *memory.Store) Option {
 func WithSkillsRegistry(registry core.SkillsRegistry) Option {
 	return func(server *Server) {
 		server.skillsRegistry = registry
+	}
+}
+
+// WithSkillResourceSyncer injects the resource-backed skill syncer surfaced by the daemon.
+func WithSkillResourceSyncer(syncer core.SkillResourceSyncer) Option {
+	return func(server *Server) {
+		server.skillResources = syncer
 	}
 }
 
@@ -688,6 +697,7 @@ func (s *Server) handlerConfig() *handlerConfig {
 		wakeEvents:        s.wakeEvents,
 		coordinatorConfig: s.coordinatorConfig,
 		skillsRegistry:    s.skillsRegistry,
+		skillResources:    s.skillResources,
 		memoryStore:       s.memoryStore,
 		dreamTrigger:      s.dreamTrigger,
 		memoryExtractor:   s.memoryExtractor,
@@ -967,6 +977,7 @@ func newHandlers(cfg *handlerConfig) *Handlers {
 			HeartbeatWakeEvents:          cfg.wakeEvents,
 			CoordinatorConfig:            cfg.coordinatorConfig,
 			SkillsRegistry:               cfg.skillsRegistry,
+			SkillResources:               cfg.skillResources,
 			MemoryStore:                  cfg.memoryStore,
 			DreamTrigger:                 cfg.dreamTrigger,
 			MemoryExtractor:              cfg.memoryExtractor,

@@ -4103,6 +4103,10 @@ func (daemonSessionStopACPAgent) Authenticate(
 	return acpsdk.AuthenticateResponse{}, nil
 }
 
+func (daemonSessionStopACPAgent) Logout(context.Context, acpsdk.LogoutRequest) (acpsdk.LogoutResponse, error) {
+	return acpsdk.LogoutResponse{}, nil
+}
+
 func (daemonSessionStopACPAgent) Initialize(
 	context.Context,
 	acpsdk.InitializeRequest,

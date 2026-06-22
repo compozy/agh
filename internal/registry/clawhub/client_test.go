@@ -156,46 +156,208 @@ func TestDecodeListingsSupportsCurrentItemsEnvelope(t *testing.T) {
 func TestClientInfoParsesSkillDetail(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path != "/api/v1/skills/@agh%2Freview" {
-			t.Fatalf("request.URL.Path = %q, want %q", request.URL.Path, "/api/v1/skills/@agh%2Freview")
+	t.Run("Should parse direct registry detail responses", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			if request.URL.Path != "/api/v1/skills/@agh%2Freview" {
+				t.Fatalf("request.URL.Path = %q, want %q", request.URL.Path, "/api/v1/skills/@agh%2Freview")
+			}
+
+			writer.Header().Set("Content-Type", "application/json")
+			if _, err := writer.Write([]byte(`{
+				"slug":"@agh/review",
+				"name":"Review",
+				"description":"Review code",
+				"author":"agh",
+				"version":"1.2.0",
+				"downloads":42,
+				"readme":"# Review",
+				"mcp_servers":["github"],
+				"tags":["quality","code"]
+			}`)); err != nil {
+				t.Fatalf("writer.Write() error = %v", err)
+			}
+		}))
+		t.Cleanup(server.Close)
+
+		client := NewClient(server.URL)
+
+		detail, err := client.Info(context.Background(), "@agh/review")
+		if err != nil {
+			t.Fatalf("Info() error = %v", err)
 		}
+		if detail == nil {
+			t.Fatal("Info() = nil, want detail")
+		}
+		if detail.Slug != "@agh/review" || detail.Name != "Review" || detail.Readme != "# Review" ||
+			!slices.Equal(detail.MCPServers, []string{"github"}) ||
+			!slices.Equal(detail.Tags, []string{"quality", "code"}) {
+			t.Fatalf("Info() detail = %#v", detail)
+		}
+		if detail.Source != "clawhub" {
+			t.Fatalf("Info() source = %q, want clawhub", detail.Source)
+		}
+		if detail.Type != registry.PackageTypeSkill {
+			t.Fatalf("Info() type = %q, want %q", detail.Type, registry.PackageTypeSkill)
+		}
+	})
 
-		writer.Header().Set("Content-Type", "application/json")
-		_, _ = writer.Write([]byte(`{
-			"slug":"@agh/review",
-			"name":"Review",
-			"description":"Review code",
-			"author":"agh",
-			"version":"1.2.0",
-			"downloads":42,
-			"readme":"# Review",
-			"mcp_servers":["github"],
-			"tags":["quality","code"]
-		}`))
-	}))
-	defer server.Close()
+	t.Run("Should parse current ClawHub skill envelopes", func(t *testing.T) {
+		t.Parallel()
 
-	client := NewClient(server.URL)
+		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			if request.URL.Path != "/api/v1/skills/review" {
+				t.Fatalf("request.URL.Path = %q, want %q", request.URL.Path, "/api/v1/skills/review")
+			}
 
-	detail, err := client.Info(context.Background(), "@agh/review")
-	if err != nil {
-		t.Fatalf("Info() error = %v", err)
-	}
-	if detail == nil {
-		t.Fatal("Info() = nil, want detail")
-	}
-	if detail.Slug != "@agh/review" || detail.Readme != "# Review" ||
-		!slices.Equal(detail.MCPServers, []string{"github"}) ||
-		!slices.Equal(detail.Tags, []string{"quality", "code"}) {
-		t.Fatalf("Info() detail = %#v", detail)
-	}
-	if detail.Source != "clawhub" {
-		t.Fatalf("Info() source = %q, want clawhub", detail.Source)
-	}
-	if detail.Type != registry.PackageTypeSkill {
-		t.Fatalf("Info() type = %q, want %q", detail.Type, registry.PackageTypeSkill)
-	}
+			writer.Header().Set("Content-Type", "application/json")
+			if _, err := writer.Write([]byte(`{
+				"skill":{
+					"slug":"review",
+					"displayName":"Review",
+					"summary":"Review code",
+					"description":"# Review body",
+					"stats":{"downloads":42}
+				},
+				"latestVersion":{"version":"1.2.0","license":"MIT"},
+				"owner":{"handle":"ethagent"}
+			}`)); err != nil {
+				t.Fatalf("writer.Write() error = %v", err)
+			}
+		}))
+		t.Cleanup(server.Close)
+
+		client := NewClient(server.URL)
+
+		detail, err := client.Info(context.Background(), "review")
+		if err != nil {
+			t.Fatalf("Info() error = %v", err)
+		}
+		if detail == nil {
+			t.Fatal("Info() = nil, want detail")
+		}
+		if detail.Slug != "review" || detail.Name != "review" || detail.Author != "ethagent" ||
+			detail.Description != "Review code" || detail.Version != "1.2.0" ||
+			detail.Downloads != 42 || detail.Readme != "# Review body" || detail.License != "MIT" {
+			t.Fatalf("Info() detail = %#v", detail)
+		}
+		if detail.Source != "clawhub" {
+			t.Fatalf("Info() source = %q, want clawhub", detail.Source)
+		}
+		if detail.Type != registry.PackageTypeSkill {
+			t.Fatalf("Info() type = %q, want %q", detail.Type, registry.PackageTypeSkill)
+		}
+	})
+}
+
+func TestClientDownloadSynthesizesSkillArchiveFromInfo(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should synthesize skill archives from info when the download endpoint is unavailable", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			switch request.URL.Path {
+			case "/api/v1/skills/review/download":
+				writer.Header().Set("Content-Type", "application/json")
+				writer.WriteHeader(http.StatusNotFound)
+				if _, err := writer.Write([]byte(`{"error":"Not found"}`)); err != nil {
+					t.Fatalf("writer.Write(download not found) error = %v", err)
+				}
+			case "/api/v1/skills/review":
+				writer.Header().Set("Content-Type", "application/json")
+				if _, err := writer.Write([]byte(`{
+					"skill":{
+						"slug":"review",
+						"displayName":"Review",
+						"summary":"Review code",
+						"description":"---\nname: review\ndescription: Review code\n---\n# Review body\n",
+						"stats":{"downloads":42}
+					},
+					"latestVersion":{"version":"1.0.0"},
+					"owner":{"handle":"ethagent"}
+				}`)); err != nil {
+					t.Fatalf("writer.Write(info envelope) error = %v", err)
+				}
+			default:
+				t.Fatalf("request.URL.Path = %q, want download or info path", request.URL.Path)
+			}
+		}))
+		t.Cleanup(server.Close)
+
+		result, err := NewClient(server.URL).Download(context.Background(), "review", registry.DownloadOpts{})
+		if err != nil {
+			t.Fatalf("Download() error = %v", err)
+		}
+		if result == nil || result.Reader == nil {
+			t.Fatal("Download() result = nil, want synthesized archive")
+		}
+		t.Cleanup(func() {
+			if err := result.Reader.Close(); err != nil {
+				t.Errorf("result.Reader.Close() error = %v", err)
+			}
+		})
+
+		if result.Slug != "review" || result.Version != "1.0.0" {
+			t.Fatalf("Download() result = %#v, want raw slug and latest version", result)
+		}
+		if result.ContentType != "application/gzip" {
+			t.Fatalf("Download() content type = %q, want application/gzip", result.ContentType)
+		}
+		files := readTarGz(t, result.Reader)
+		if got := files["review/SKILL.md"]; got != "---\nname: review\ndescription: Review code\n---\n# Review body\n" {
+			t.Fatalf("synthesized SKILL.md = %q, want ClawHub info description", got)
+		}
+	})
+}
+
+func TestClientDownloadPropagatesFallbackSynthesisErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return synthesized archive validation failures from the info fallback", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			switch request.URL.Path {
+			case "/api/v1/skills/review/download":
+				writer.Header().Set("Content-Type", "application/json")
+				writer.WriteHeader(http.StatusNotFound)
+				if _, err := writer.Write([]byte(`{"error":"Not found"}`)); err != nil {
+					t.Fatalf("writer.Write(download not found) error = %v", err)
+				}
+			case "/api/v1/skills/review":
+				writer.Header().Set("Content-Type", "application/json")
+				if _, err := writer.Write([]byte(`{
+					"skill":{
+						"slug":"review",
+						"displayName":"Review",
+						"summary":"Review code",
+						"description":"   ",
+						"stats":{"downloads":42}
+					},
+					"latestVersion":{"version":"1.0.0"},
+					"owner":{"handle":"ethagent"}
+				}`)); err != nil {
+					t.Fatalf("writer.Write(info envelope) error = %v", err)
+				}
+			default:
+				t.Fatalf("request.URL.Path = %q, want download or info path", request.URL.Path)
+			}
+		}))
+		t.Cleanup(server.Close)
+
+		_, err := NewClient(server.URL).Download(context.Background(), "review", registry.DownloadOpts{})
+		if err == nil {
+			t.Fatal("Download() error = nil, want synthesized fallback failure")
+		}
+		if !errors.Is(err, registry.ErrPackageNotFound) {
+			t.Fatalf("Download() error = %v, want ErrPackageNotFound ancestry", err)
+		}
+		if !strings.Contains(err.Error(), `skill "review" has no downloadable content`) {
+			t.Fatalf("Download() error = %v, want synthesized archive detail", err)
+		}
+	})
 }
 
 func TestClientDownloadUsesLatestEndpointWhenVersionEmpty(t *testing.T) {

@@ -802,15 +802,19 @@ func TestSkillSearchCommandReturnsOfflineError(t *testing.T) {
 func TestSkillInstallCommandValidatesSlug(t *testing.T) {
 	t.Parallel()
 
-	env := newSkillTestEnv(t, nil)
+	t.Run("Should reject install requests with invalid raw skill slugs", func(t *testing.T) {
+		t.Parallel()
 
-	_, _, err := executeRootCommand(t, env.deps, "skill", "install", "invalid")
-	if err == nil {
-		t.Fatal("skill install invalid slug error = nil, want validation failure")
-	}
-	if !strings.Contains(err.Error(), `skill slug must match "@author/name"`) {
-		t.Fatalf("skill install invalid slug error = %v, want slug validation", err)
-	}
+		env := newSkillTestEnv(t, nil)
+
+		_, _, err := executeRootCommand(t, env.deps, "skill", "install", "bad/slug")
+		if err == nil {
+			t.Fatal("skill install invalid slug error = nil, want validation failure")
+		}
+		if !strings.Contains(err.Error(), "skill slug must not include path separators") {
+			t.Fatalf("skill install invalid slug error = %v, want slug validation", err)
+		}
+	})
 }
 
 func TestSkillInstallCommandBlocksCriticalContent(t *testing.T) {
@@ -2190,12 +2194,16 @@ func TestSkillHelpersAndBundles(t *testing.T) {
 	if got, err := normalizeSkillSourceFilter("marketplace"); err != nil || got != "marketplace" {
 		t.Fatalf("normalizeSkillSourceFilter(marketplace) = %q, %v, want marketplace", got, err)
 	}
-	if _, err := normalizeSkillSlug("@agh/review"); err != nil {
-		t.Fatalf("normalizeSkillSlug(valid) error = %v", err)
-	}
-	if _, err := normalizeSkillSlug("invalid"); err == nil {
-		t.Fatal("normalizeSkillSlug(invalid) error = nil, want failure")
-	}
+	t.Run("Should validate helper skill slug normalization", func(t *testing.T) {
+		t.Parallel()
+
+		if _, err := normalizeSkillSlug("@agh/review"); err != nil {
+			t.Fatalf("normalizeSkillSlug(valid) error = %v", err)
+		}
+		if _, err := normalizeSkillSlug("bad/slug"); err == nil {
+			t.Fatal("normalizeSkillSlug(invalid) error = nil, want failure")
+		}
+	})
 	if _, err := normalizeSkillName(""); err == nil {
 		t.Fatal("normalizeSkillName(empty) error = nil, want failure")
 	}

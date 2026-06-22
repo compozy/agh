@@ -69,11 +69,12 @@ func (n *daemonNativeTools) bundlesList(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	catalog, err := n.deps.BundleService.Catalog(ctx)
+	service := n.bundleService()
+	catalog, err := service.Catalog(ctx)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeBundleToolError(req.ToolID, err)
 	}
-	activations, err := n.deps.BundleService.ListActivations(ctx)
+	activations, err := service.ListActivations(ctx)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeBundleToolError(req.ToolID, err)
 	}
@@ -98,7 +99,7 @@ func (n *daemonNativeTools) bundlesInfo(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	activation, err := n.deps.BundleService.GetActivation(ctx, id)
+	activation, err := n.bundleService().GetActivation(ctx, id)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeBundleToolError(req.ToolID, err)
 	}
@@ -121,7 +122,7 @@ func (n *daemonNativeTools) bundlesActivate(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	activation, err := n.deps.BundleService.Activate(ctx, bundlepkg.ActivateRequest{
+	activation, err := n.bundleService().Activate(ctx, bundlepkg.ActivateRequest{
 		ExtensionName:               strings.TrimSpace(input.ExtensionName),
 		BundleName:                  strings.TrimSpace(input.BundleName),
 		ProfileName:                 strings.TrimSpace(input.ProfileName),
@@ -151,14 +152,14 @@ func (n *daemonNativeTools) bundlesDeactivate(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	activation, err := n.deps.BundleService.GetActivation(ctx, id)
+	activation, err := n.bundleService().GetActivation(ctx, id)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeBundleToolError(req.ToolID, err)
 	}
 	if !nativeBundleActivationAllowed(scope, activation.Activation) {
 		return toolspkg.ToolResult{}, nativeScopeMismatchError(req.ToolID, "id")
 	}
-	if err := n.deps.BundleService.Deactivate(ctx, id); err != nil {
+	if err := n.bundleService().Deactivate(ctx, id); err != nil {
 		return toolspkg.ToolResult{}, nativeBundleToolError(req.ToolID, err)
 	}
 	return structuredResult(map[string]any{"id": id, "deactivated": true}, id)
@@ -169,15 +170,16 @@ func (n *daemonNativeTools) bundlesStatus(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	catalog, err := n.deps.BundleService.Catalog(ctx)
+	service := n.bundleService()
+	catalog, err := service.Catalog(ctx)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeBundleToolError(req.ToolID, err)
 	}
-	activations, err := n.deps.BundleService.ListActivations(ctx)
+	activations, err := service.ListActivations(ctx)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeBundleToolError(req.ToolID, err)
 	}
-	network, err := n.deps.BundleService.NetworkSettings(ctx)
+	network, err := service.NetworkSettings(ctx)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeBundleToolError(req.ToolID, err)
 	}

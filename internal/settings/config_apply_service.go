@@ -327,8 +327,11 @@ func (s *service) ensureActiveConfigState(ctx context.Context) (activeSnapshot, 
 			return activeSnapshot{}, latestErr
 		}
 		if latest != nil {
-			hash = latest.ActiveHash
 			generation = latest.Generation
+			// A daemon boot makes the current file active even when the last applied record predates restart.
+			if strings.TrimSpace(latest.ActiveHash) != "" && latest.ActiveHash != hash {
+				generation++
+			}
 		}
 	}
 	s.activeConfig.initialized = true

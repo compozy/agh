@@ -146,6 +146,86 @@ func TestPathInsideRoot(t *testing.T) {
 	})
 }
 
+func TestNormalizeSkillSlug(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name            string
+		input           string
+		want            string
+		wantErr         error
+		wantErrContains string
+	}{
+		{
+			name:  "Should accept scoped marketplace slugs",
+			input: "@acme/review",
+			want:  "@acme/review",
+		},
+		{
+			name:  "Should accept raw registry skill slugs",
+			input: "review",
+			want:  "review",
+		},
+		{
+			name:  "Should trim accepted registry slugs",
+			input: "  agentvibes-openclaw-skill  ",
+			want:  "agentvibes-openclaw-skill",
+		},
+		{
+			name:            "Should reject empty slugs",
+			input:           "   ",
+			wantErr:         ErrValidation,
+			wantErrContains: "skill slug is required",
+		},
+		{
+			name:            "Should reject raw slugs with path separators",
+			input:           "acme/review",
+			wantErr:         ErrValidation,
+			wantErrContains: "skill slug must not include path separators",
+		},
+		{
+			name:            "Should reject raw relative path segments",
+			input:           "..",
+			wantErr:         ErrValidation,
+			wantErrContains: "skill slug must not be a relative path segment",
+		},
+		{
+			name:            "Should reject raw slugs with unsupported characters",
+			input:           "bad slug",
+			wantErr:         ErrValidation,
+			wantErrContains: `skill slug must match "@author/name"`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := NormalizeSkillSlug(tc.input)
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("NormalizeSkillSlug(%q) error = %v, want %v", tc.input, err, tc.wantErr)
+				}
+				if tc.wantErrContains != "" && (err == nil || !strings.Contains(err.Error(), tc.wantErrContains)) {
+					t.Fatalf(
+						"NormalizeSkillSlug(%q) error = %v, want message containing %q",
+						tc.input,
+						err,
+						tc.wantErrContains,
+					)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("NormalizeSkillSlug(%q) error = %v", tc.input, err)
+			}
+			if got != tc.want {
+				t.Fatalf("NormalizeSkillSlug(%q) = %q, want %q", tc.input, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestInstallWithRegistryRejectsUnsafeTargets(t *testing.T) {
 	t.Parallel()
 

@@ -312,7 +312,7 @@ func (h *BaseHandlers) InstallSkillMarketplace(c *gin.Context) {
 		h.respondError(c, StatusForSkillMarketplaceError(err), err)
 		return
 	}
-	if err := h.refreshSkillsAfterMarketplaceMutation(c); err != nil {
+	if err := h.syncSkillsAfterMarketplaceMutation(c); err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
@@ -345,7 +345,7 @@ func (h *BaseHandlers) UpdateSkillMarketplace(c *gin.Context) {
 		return
 	}
 	if !req.CheckOnly {
-		if err := h.refreshSkillsAfterMarketplaceMutation(c); err != nil {
+		if err := h.syncSkillsAfterMarketplaceMutation(c); err != nil {
 			h.respondError(c, http.StatusInternalServerError, err)
 			return
 		}
@@ -372,7 +372,7 @@ func (h *BaseHandlers) RemoveSkillMarketplace(c *gin.Context) {
 		h.respondError(c, StatusForSkillMarketplaceError(err), err)
 		return
 	}
-	if err := h.refreshSkillsAfterMarketplaceMutation(c); err != nil {
+	if err := h.syncSkillsAfterMarketplaceMutation(c); err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
 		return
 	}
@@ -495,6 +495,16 @@ func (h *BaseHandlers) refreshSkillsAfterMarketplaceMutation(c *gin.Context) err
 		return fmt.Errorf("refresh skills registry after marketplace mutation: %w", err)
 	}
 	return nil
+}
+
+func (h *BaseHandlers) syncSkillsAfterMarketplaceMutation(c *gin.Context) error {
+	if h.SkillResources != nil {
+		if err := h.SkillResources.SyncSkills(c.Request.Context()); err != nil {
+			return fmt.Errorf("sync skill resources after marketplace mutation: %w", err)
+		}
+		return nil
+	}
+	return h.refreshSkillsAfterMarketplaceMutation(c)
 }
 
 func (h *BaseHandlers) logSkillMarketplaceInstallVerificationFailure(

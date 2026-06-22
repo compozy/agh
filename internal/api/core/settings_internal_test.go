@@ -117,6 +117,85 @@ func TestSettingsConversionErrorBranches(t *testing.T) {
 	}
 }
 
+func TestSettingsCollectionResponseFromEnvelopeUsesEmptyArrays(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		envelope   settingspkg.CollectionEnvelope
+		assertList func(t *testing.T, payload any)
+	}{
+		{
+			name:     "providers",
+			envelope: settingspkg.CollectionEnvelope{Collection: settingspkg.CollectionProviders},
+			assertList: func(t *testing.T, payload any) {
+				t.Helper()
+				response, ok := payload.(contract.SettingsProvidersResponse)
+				if !ok {
+					t.Fatalf("payload type = %T, want SettingsProvidersResponse", payload)
+				}
+				if response.Providers == nil || len(response.Providers) != 0 {
+					t.Fatalf("Providers = %#v, want empty non-nil array", response.Providers)
+				}
+			},
+		},
+		{
+			name:     "mcp servers",
+			envelope: settingspkg.CollectionEnvelope{Collection: settingspkg.CollectionMCPServers},
+			assertList: func(t *testing.T, payload any) {
+				t.Helper()
+				response, ok := payload.(contract.SettingsMCPServersResponse)
+				if !ok {
+					t.Fatalf("payload type = %T, want SettingsMCPServersResponse", payload)
+				}
+				if response.MCPServers == nil || len(response.MCPServers) != 0 {
+					t.Fatalf("MCPServers = %#v, want empty non-nil array", response.MCPServers)
+				}
+			},
+		},
+		{
+			name:     "sandboxes",
+			envelope: settingspkg.CollectionEnvelope{Collection: settingspkg.CollectionSandboxes},
+			assertList: func(t *testing.T, payload any) {
+				t.Helper()
+				response, ok := payload.(contract.SettingsSandboxesResponse)
+				if !ok {
+					t.Fatalf("payload type = %T, want SettingsSandboxesResponse", payload)
+				}
+				if response.Sandboxes == nil || len(response.Sandboxes) != 0 {
+					t.Fatalf("Sandboxes = %#v, want empty non-nil array", response.Sandboxes)
+				}
+			},
+		},
+		{
+			name:     "hooks",
+			envelope: settingspkg.CollectionEnvelope{Collection: settingspkg.CollectionHooks},
+			assertList: func(t *testing.T, payload any) {
+				t.Helper()
+				response, ok := payload.(contract.SettingsHooksResponse)
+				if !ok {
+					t.Fatalf("payload type = %T, want SettingsHooksResponse", payload)
+				}
+				if response.Hooks == nil || len(response.Hooks) != 0 {
+					t.Fatalf("Hooks = %#v, want empty non-nil array", response.Hooks)
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run("Should return empty array for "+tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			payload, err := SettingsCollectionResponseFromEnvelope(tc.envelope)
+			if err != nil {
+				t.Fatalf("SettingsCollectionResponseFromEnvelope() error = %v", err)
+			}
+			tc.assertList(t, payload)
+		})
+	}
+}
+
 func TestSettingsSectionResponseFromEnvelopeRequiresConcreteSectionPayload(t *testing.T) {
 	t.Parallel()
 

@@ -28,6 +28,7 @@ const (
 
 type agentSkillPublisher interface {
 	Sync(context.Context) error
+	SyncSkills(context.Context) error
 }
 
 type agentSkillPublisherFunc func(context.Context) error
@@ -37,6 +38,10 @@ func (f agentSkillPublisherFunc) Sync(ctx context.Context) error {
 		return nil
 	}
 	return f(ctx)
+}
+
+func (f agentSkillPublisherFunc) SyncSkills(ctx context.Context) error {
+	return f.Sync(ctx)
 }
 
 type agentSkillDeclarationProvider func(context.Context) (agentSkillDesiredResources, error)
@@ -60,17 +65,18 @@ type agentSkillDesiredResources struct {
 }
 
 type agentSkillSourceSyncer struct {
-	raw        resources.RawStore
-	agentStore resources.Store[aghconfig.AgentDef]
-	agentCodec resources.KindCodec[aghconfig.AgentDef]
-	skillStore resources.Store[skillspkg.SkillResourceSpec]
-	skillCodec resources.KindCodec[skillspkg.SkillResourceSpec]
-	mcpStore   resources.Store[aghconfig.MCPServer]
-	mcpCodec   resources.KindCodec[aghconfig.MCPServer]
-	actor      resources.MutationActor
-	logger     *slog.Logger
-	trigger    func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
-	providers  []agentSkillDeclarationProvider
+	raw            resources.RawStore
+	agentStore     resources.Store[aghconfig.AgentDef]
+	agentCodec     resources.KindCodec[aghconfig.AgentDef]
+	skillStore     resources.Store[skillspkg.SkillResourceSpec]
+	skillCodec     resources.KindCodec[skillspkg.SkillResourceSpec]
+	skillProjector resources.TypedProjector[skillspkg.SkillResourceSpec]
+	mcpStore       resources.Store[aghconfig.MCPServer]
+	mcpCodec       resources.KindCodec[aghconfig.MCPServer]
+	actor          resources.MutationActor
+	logger         *slog.Logger
+	trigger        func(context.Context, resources.ResourceKind, resources.ReconcileReason) error
+	providers      []agentSkillDeclarationProvider
 }
 
 type skillResourceProjectionPlan struct {
@@ -556,6 +562,7 @@ func newAgentSkillSourceSyncer(
 	agentCodec resources.KindCodec[aghconfig.AgentDef],
 	skillStore resources.Store[skillspkg.SkillResourceSpec],
 	skillCodec resources.KindCodec[skillspkg.SkillResourceSpec],
+	skillProjector resources.TypedProjector[skillspkg.SkillResourceSpec],
 	mcpStore resources.Store[aghconfig.MCPServer],
 	mcpCodec resources.KindCodec[aghconfig.MCPServer],
 	actor resources.MutationActor,
@@ -571,17 +578,18 @@ func newAgentSkillSourceSyncer(
 		logger = slog.Default()
 	}
 	return &agentSkillSourceSyncer{
-		raw:        raw,
-		agentStore: agentStore,
-		agentCodec: agentCodec,
-		skillStore: skillStore,
-		skillCodec: skillCodec,
-		mcpStore:   mcpStore,
-		mcpCodec:   mcpCodec,
-		actor:      actor,
-		logger:     logger,
-		trigger:    trigger,
-		providers:  append([]agentSkillDeclarationProvider(nil), providers...),
+		raw:            raw,
+		agentStore:     agentStore,
+		agentCodec:     agentCodec,
+		skillStore:     skillStore,
+		skillCodec:     skillCodec,
+		skillProjector: skillProjector,
+		mcpStore:       mcpStore,
+		mcpCodec:       mcpCodec,
+		actor:          actor,
+		logger:         logger,
+		trigger:        trigger,
+		providers:      append([]agentSkillDeclarationProvider(nil), providers...),
 	}
 }
 
@@ -617,6 +625,11 @@ func (s *agentSkillSourceSyncer) Sync(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if skillChanged {
+		if err := s.projectSkills(ctx); err != nil {
+			return err
+		}
+	}
 	mcpChanged, err := s.syncMCPServers(ctx, desired.mcpServers)
 	if err != nil {
 		return err
@@ -636,6 +649,50 @@ func (s *agentSkillSourceSyncer) Sync(ctx context.Context) error {
 		if err := s.trigger(ctx, aghconfig.MCPServerResourceKind, resources.ReconcileReasonWrite); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (s *agentSkillSourceSyncer) SyncSkills(ctx context.Context) error {
+	if s == nil {
+		return nil
+	}
+	if ctx == nil {
+		return errors.New("daemon: skill sync context is required")
+	}
+	desired, err := s.desiredResources(ctx)
+	if err != nil {
+		return err
+	}
+	skillChanged, err := s.syncSkills(ctx, desired.skills)
+	if err != nil {
+		return err
+	}
+	if err := s.projectSkills(ctx); err != nil {
+		return err
+	}
+	if skillChanged && s.trigger != nil {
+		if err := s.trigger(ctx, skillspkg.SkillResourceKind, resources.ReconcileReasonWrite); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *agentSkillSourceSyncer) projectSkills(ctx context.Context) error {
+	if s == nil || s.skillProjector == nil {
+		return nil
+	}
+	records, err := s.skillStore.List(ctx, resourceReconcileActor(), resources.ResourceFilter{})
+	if err != nil {
+		return fmt.Errorf("daemon: list skill resources for projection: %w", err)
+	}
+	plan, err := s.skillProjector.Build(ctx, records)
+	if err != nil {
+		return fmt.Errorf("daemon: build skill resource projection: %w", err)
+	}
+	if err := s.skillProjector.Apply(ctx, plan); err != nil {
+		return fmt.Errorf("daemon: apply skill resource projection: %w", err)
 	}
 	return nil
 }
@@ -922,6 +979,7 @@ func (d *Daemon) newAgentSkillPublisher(
 		agentCodec,
 		skillStore,
 		skillCodec,
+		newSkillProjector(state.skillsRegistry),
 		mcpStore,
 		mcpCodec,
 		agentSkillSyncActor(),

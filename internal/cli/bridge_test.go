@@ -53,7 +53,8 @@ func TestBridgeGetReturnsStructuredJSONOutput(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
 		t.Fatalf("json.Unmarshal(bridge get) error = %v", err)
 	}
-	if decoded.ID != expected.ID || decoded.Scope != expected.Scope || decoded.Status != expected.Status ||
+	if decoded.ID != expected.ID || decoded.Scope != expected.Scope ||
+		decoded.Status != expected.Status ||
 		decoded.WorkspaceID != expected.WorkspaceID {
 		t.Fatalf("decoded = %#v, want %#v", decoded, expected)
 	}
@@ -78,6 +79,7 @@ func TestBridgeCreateBuildsSharedRequestAndDerivesDisabledStatus(t *testing.T) {
 			record.ExtensionName = request.ExtensionName
 			record.DisplayName = request.DisplayName
 			record.RoutingPolicy = request.RoutingPolicy
+			record.ProviderConfig = json.RawMessage(request.ProviderConfig)
 			record.DeliveryDefaults = json.RawMessage(request.DeliveryDefaults)
 			return record, nil
 		},
@@ -95,6 +97,7 @@ func TestBridgeCreateBuildsSharedRequestAndDerivesDisabledStatus(t *testing.T) {
 		"--enabled=false",
 		"--include-peer",
 		"--include-group",
+		"--provider-config", `{"api_base_url":"https://slack.test/api"}`,
 		"--delivery-defaults", `{"mode":"reply","group_id":"group-1"}`,
 		"-o", "json",
 	)
@@ -114,6 +117,9 @@ func TestBridgeCreateBuildsSharedRequestAndDerivesDisabledStatus(t *testing.T) {
 	}
 	if string(captured.DeliveryDefaults) != `{"mode":"reply","group_id":"group-1"}` {
 		t.Fatalf("captured delivery defaults = %s", string(captured.DeliveryDefaults))
+	}
+	if string(captured.ProviderConfig) != `{"api_base_url":"https://slack.test/api"}` {
+		t.Fatalf("captured provider config = %s", string(captured.ProviderConfig))
 	}
 
 	var decoded BridgeRecord
@@ -144,7 +150,8 @@ func TestBridgeCreateRejectsWorkspaceScopeWithoutWorkspaceID(t *testing.T) {
 		"--extension", "ext-telegram",
 		"--display-name", "Support",
 	)
-	if err == nil || !strings.Contains(err.Error(), "--workspace-id is required when --scope=workspace") {
+	if err == nil ||
+		!strings.Contains(err.Error(), "--workspace-id is required when --scope=workspace") {
 		t.Fatalf("bridge create error = %v, want missing workspace-id validation", err)
 	}
 }
@@ -157,7 +164,9 @@ func TestBridgeCreateRejectsOperationalStatusFlag(t *testing.T) {
 
 		deps := newTestDeps(t, &stubClient{
 			createBridgeFn: func(context.Context, CreateBridgeRequest) (BridgeRecord, error) {
-				t.Fatal("CreateBridge() should not be called when operational status flag is provided")
+				t.Fatal(
+					"CreateBridge() should not be called when operational status flag is provided",
+				)
 				return BridgeRecord{}, nil
 			},
 		})
@@ -208,6 +217,7 @@ func TestBridgeUpdateMergesRoutingPolicyAndAllowsNullDeliveryDefaults(t *testing
 			updated := current
 			updated.DisplayName = *request.DisplayName
 			updated.RoutingPolicy = *request.RoutingPolicy
+			updated.ProviderConfig = json.RawMessage(*request.ProviderConfig)
 			updated.DeliveryDefaults = json.RawMessage(*request.DeliveryDefaults)
 			return updated, nil
 		},
@@ -219,6 +229,7 @@ func TestBridgeUpdateMergesRoutingPolicyAndAllowsNullDeliveryDefaults(t *testing
 		"bridge", "update", current.ID,
 		"--display-name", "Support Ops",
 		"--include-thread",
+		"--provider-config", `{"api_base_url":"https://slack.test/api"}`,
 		"--delivery-defaults", "null",
 		"-o", "json",
 	)
@@ -232,12 +243,17 @@ func TestBridgeUpdateMergesRoutingPolicyAndAllowsNullDeliveryDefaults(t *testing
 	if captured.DisplayName == nil || *captured.DisplayName != "Support Ops" {
 		t.Fatalf("captured display name = %#v", captured.DisplayName)
 	}
-	if captured.RoutingPolicy == nil || !captured.RoutingPolicy.IncludePeer || !captured.RoutingPolicy.IncludeThread ||
+	if captured.RoutingPolicy == nil || !captured.RoutingPolicy.IncludePeer ||
+		!captured.RoutingPolicy.IncludeThread ||
 		!captured.RoutingPolicy.IncludeGroup {
 		t.Fatalf("captured routing policy = %#v", captured.RoutingPolicy)
 	}
 	if captured.DeliveryDefaults == nil || string(*captured.DeliveryDefaults) != "null" {
 		t.Fatalf("captured delivery defaults = %#v", captured.DeliveryDefaults)
+	}
+	if captured.ProviderConfig == nil ||
+		string(*captured.ProviderConfig) != `{"api_base_url":"https://slack.test/api"}` {
+		t.Fatalf("captured provider config = %#v", captured.ProviderConfig)
 	}
 
 	var decoded BridgeRecord
@@ -436,7 +452,16 @@ func TestBridgeResolveUsesDaemonClientAndReportsAmbiguity(t *testing.T) {
 		},
 	})
 
-	stdout, _, err := executeRootCommand(t, deps, "bridge", "resolve", "brg-1", "support", "-o", "human")
+	stdout, _, err := executeRootCommand(
+		t,
+		deps,
+		"bridge",
+		"resolve",
+		"brg-1",
+		"support",
+		"-o",
+		"human",
+	)
 	if err != nil {
 		t.Fatalf("bridge resolve human error = %v", err)
 	}
@@ -502,7 +527,8 @@ func TestBridgeTestDeliveryUsesTypedTargetPayload(t *testing.T) {
 	if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
 		t.Fatalf("json.Unmarshal(bridge test-delivery) error = %v", err)
 	}
-	if decoded.DeliveryTarget.ThreadID != "thread-1" || decoded.DeliveryTarget.Mode != bridgepkg.DeliveryModeReply {
+	if decoded.DeliveryTarget.ThreadID != "thread-1" ||
+		decoded.DeliveryTarget.Mode != bridgepkg.DeliveryModeReply {
 		t.Fatalf("decoded = %#v, want typed delivery target", decoded)
 	}
 }
@@ -552,7 +578,10 @@ func TestParseRequiredBridgeJSONEnforcesObjectOrNull(t *testing.T) {
 		t.Fatalf("parseRequiredBridgeJSON(object) error = %v", err)
 	}
 	if string(*validObject) != `{"mode":"reply"}` {
-		t.Fatalf("parseRequiredBridgeJSON(object) = %s, want preserved object", string(*validObject))
+		t.Fatalf(
+			"parseRequiredBridgeJSON(object) = %s, want preserved object",
+			string(*validObject),
+		)
 	}
 
 	validNull, err := parseRequiredBridgeJSON(`null`)
@@ -568,7 +597,11 @@ func TestParseRequiredBridgeJSONEnforcesObjectOrNull(t *testing.T) {
 			raw,
 		); err == nil ||
 			!strings.Contains(err.Error(), "must be a JSON object or null") {
-			t.Fatalf("parseRequiredBridgeJSON(%s) error = %v, want object-or-null validation", raw, err)
+			t.Fatalf(
+				"parseRequiredBridgeJSON(%s) error = %v, want object-or-null validation",
+				raw,
+				err,
+			)
 		}
 	}
 }

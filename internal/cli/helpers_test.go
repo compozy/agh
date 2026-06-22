@@ -149,6 +149,10 @@ type stubClient struct {
 	getSkillShadowsFn             func(context.Context, string, SkillQuery) (SkillShadowsRecord, error)
 	enableSkillFn                 func(context.Context, string, SkillQuery) (SkillActionRecord, error)
 	disableSkillFn                func(context.Context, string, SkillQuery) (SkillActionRecord, error)
+	searchSkillMarketplaceFn      func(context.Context, string, int) ([]SkillMarketplaceRecord, error)
+	installSkillMarketplaceFn     func(context.Context, SkillMarketplaceInstallRequest) (SkillMarketplaceInstallRecord, error)
+	updateSkillMarketplaceFn      func(context.Context, SkillMarketplaceUpdateRequest) ([]SkillMarketplaceUpdateRecord, error)
+	removeSkillMarketplaceFn      func(context.Context, string) (SkillMarketplaceRemoveRecord, error)
 	listToolsFn                   func(context.Context, ToolQuery) (ToolsResponseRecord, error)
 	searchToolsFn                 func(context.Context, ToolSearchRequest) (ToolsResponseRecord, error)
 	getToolFn                     func(context.Context, string, ToolQuery) (ToolResponseRecord, error)
@@ -268,6 +272,7 @@ type stubClient struct {
 	removeTaskDependencyFn func(context.Context, string, string) (TaskDetailRecord, error)
 	enqueueTaskRunFn       func(context.Context, string, EnqueueTaskRunRequest) (TaskRunRecord, error)
 	listTaskRunsFn         func(context.Context, string, TaskRunListQuery) ([]TaskRunRecord, error)
+	getTaskRunFn           func(context.Context, string) (TaskRunDetailRecord, error)
 	claimTaskRunFn         func(context.Context, string, ClaimTaskRunRequest) (TaskRunRecord, error)
 	startTaskRunFn         func(context.Context, string, StartTaskRunRequest) (TaskRunRecord, error)
 	attachTaskRunSessionFn func(context.Context, string, AttachTaskRunSessionRequest) (TaskRunRecord, error)
@@ -1459,6 +1464,47 @@ func (s *stubClient) DisableSkill(ctx context.Context, name string, query SkillQ
 	return SkillActionRecord{}, errors.New("unexpected DisableSkill call")
 }
 
+func (s *stubClient) SearchSkillMarketplace(
+	ctx context.Context,
+	query string,
+	limit int,
+) ([]SkillMarketplaceRecord, error) {
+	if s.searchSkillMarketplaceFn != nil {
+		return s.searchSkillMarketplaceFn(ctx, query, limit)
+	}
+	return nil, errors.New("unexpected SearchSkillMarketplace call")
+}
+
+func (s *stubClient) InstallSkillMarketplace(
+	ctx context.Context,
+	request SkillMarketplaceInstallRequest,
+) (SkillMarketplaceInstallRecord, error) {
+	if s.installSkillMarketplaceFn != nil {
+		return s.installSkillMarketplaceFn(ctx, request)
+	}
+	return SkillMarketplaceInstallRecord{}, errors.New("unexpected InstallSkillMarketplace call")
+}
+
+func (s *stubClient) UpdateSkillMarketplace(
+	ctx context.Context,
+	request SkillMarketplaceUpdateRequest,
+) ([]SkillMarketplaceUpdateRecord, error) {
+	if s.updateSkillMarketplaceFn != nil {
+		return s.updateSkillMarketplaceFn(ctx, request)
+	}
+	return nil, errors.New("unexpected UpdateSkillMarketplace call")
+}
+
+func (s *stubClient) RemoveSkillMarketplace(
+	ctx context.Context,
+	name string,
+) (SkillMarketplaceRemoveRecord, error) {
+	if s.removeSkillMarketplaceFn != nil {
+		return s.removeSkillMarketplaceFn(ctx, name)
+	}
+	return SkillMarketplaceRemoveRecord{}, errors.New("unexpected RemoveSkillMarketplace call")
+}
+
 func (s *stubClient) ListTools(ctx context.Context, query ToolQuery) (ToolsResponseRecord, error) {
 	if s.listToolsFn != nil {
 		return s.listToolsFn(ctx, query)
@@ -2350,6 +2396,13 @@ func (s *stubClient) ListTaskRuns(
 		return s.listTaskRunsFn(ctx, id, query)
 	}
 	return nil, errors.New("unexpected ListTaskRuns call")
+}
+
+func (s *stubClient) GetTaskRun(ctx context.Context, id string) (TaskRunDetailRecord, error) {
+	if s.getTaskRunFn != nil {
+		return s.getTaskRunFn(ctx, id)
+	}
+	return TaskRunDetailRecord{}, errors.New("unexpected GetTaskRun call")
 }
 
 func (s *stubClient) ClaimTaskRun(

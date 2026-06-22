@@ -405,7 +405,16 @@ func (m *Manager) persistFailedStart(ctx context.Context, session *Session, star
 	errs = appendLifecycleErr(errs, bundleErr)
 	errs = appendLifecycleErr(errs, m.writeMeta(session))
 	errs = appendLifecycleErr(errs, m.recordFailedStartEvents(ctx, session, failure, summary, stopReason))
+	m.notifyFailedStart(ctx, session)
 	return errors.Join(errs...)
+}
+
+func (m *Manager) notifyFailedStart(ctx context.Context, session *Session) {
+	if m.notifier == nil {
+		return
+	}
+	m.notifier.OnSessionCreated(ctx, session)
+	m.notifier.OnSessionStopped(ctx, session)
 }
 
 func (m *Manager) recordFailedStartEvents(

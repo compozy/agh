@@ -6,6 +6,9 @@
         "module": "ESNext",
         "lib": ["ES2022", "DOM", "DOM.Iterable"],
         "moduleResolution": "bundler",
+        "paths": {
+            "storybook/test": ["./node_modules/storybook/dist/test/index.d.ts"]
+        },
         "allowImportingTsExtensions": true,
         "verbatimModuleSyntax": true,
         "noEmit": true,

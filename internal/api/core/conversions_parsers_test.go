@@ -87,7 +87,6 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 			ACPCaps: acp.Caps{
 				SupportsLoadSession: true,
 				SupportedModes:      []string{"chat"},
-				SupportedModels:     []string{"gpt-test"},
 				ConfigOptions: []acp.SessionConfigOption{
 					{
 						ID:      "reasoning_effort",
@@ -143,8 +142,11 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 			payload.Failure.CrashBundlePath != "/tmp/agh-crash.json" {
 			t.Fatalf("payload failure = %#v", payload.Failure)
 		}
-		if payload.ACPCaps == nil || !payload.ACPCaps.SupportsLoadSession || len(payload.ACPCaps.SupportedModels) != 1 {
+		if payload.ACPCaps == nil || !payload.ACPCaps.SupportsLoadSession {
 			t.Fatalf("caps = %#v", payload.ACPCaps)
+		}
+		if got := payload.ACPCaps.SupportedModes; len(got) != 1 || got[0] != "chat" {
+			t.Fatalf("supported modes = %#v, want [chat]", got)
 		}
 		if len(payload.ACPCaps.ConfigOptions) != 1 {
 			t.Fatalf("config options = %#v", payload.ACPCaps.ConfigOptions)

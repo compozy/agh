@@ -575,6 +575,10 @@ func (referenceACPAgent) Authenticate(
 	return acpsdk.AuthenticateResponse{}, nil
 }
 
+func (referenceACPAgent) Logout(context.Context, acpsdk.LogoutRequest) (acpsdk.LogoutResponse, error) {
+	return acpsdk.LogoutResponse{}, nil
+}
+
 func (referenceACPAgent) Initialize(context.Context, acpsdk.InitializeRequest) (acpsdk.InitializeResponse, error) {
 	return acpsdk.InitializeResponse{
 		ProtocolVersion: acpsdk.ProtocolVersionNumber,

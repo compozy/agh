@@ -386,6 +386,157 @@ func TestBridgeRuntimeStartInstance(t *testing.T) {
 			t.Fatal("newBridgeRuntime() broker = nil, want non-nil")
 		}
 	})
+
+	t.Run("ShouldRefreshTargetDirectoryOnStaleListAfterSuccessfulStart", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		now := time.Date(2026, 4, 11, 12, 19, 0, 0, time.UTC)
+		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, nil)
+		extensions := &targetSnapshotExtensionRuntime{
+			snapshots: []bridgepkg.BridgeTargetSnapshot{
+				{
+					CanonicalRoute: "slack:channel:qa-shared",
+					DisplayName:    "#qa-shared",
+					TargetType:     bridgepkg.BridgeTargetTypeChannel,
+					Qualifier:      "slack",
+					Capabilities:   []string{string(bridgepkg.DeliveryModeDirectSend)},
+				},
+			},
+		}
+		runtime.mu.Lock()
+		runtime.extensions = extensions
+		runtime.mu.Unlock()
+
+		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ID:            "brg-start-targets",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "ext-start-targets",
+			DisplayName:   "Start Targets Bridge",
+			Enabled:       false,
+			Status:        bridgepkg.BridgeStatusDisabled,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		})
+
+		if _, err := runtime.StartInstance(testutil.Context(t), instance.ID); err != nil {
+			t.Fatalf("StartInstance() error = %v", err)
+		}
+		if got, want := extensions.reloadCalls, 1; got != want {
+			t.Fatalf("reload calls = %d, want %d", got, want)
+		}
+		if got, want := extensions.snapshotCalls, 0; got != want {
+			t.Fatalf("target snapshot calls before list = %d, want %d", got, want)
+		}
+
+		result, err := runtime.ListBridgeTargets(testutil.Context(t), bridgepkg.BridgeTargetQuery{
+			BridgeID: instance.ID,
+		})
+		if err != nil {
+			t.Fatalf("ListBridgeTargets() error = %v", err)
+		}
+		if got, want := extensions.snapshotCalls, 1; got != want {
+			t.Fatalf("target snapshot calls after stale list = %d, want %d", got, want)
+		}
+		if got, want := extensions.snapshotExtensionName, "ext-start-targets"; got != want {
+			t.Fatalf("snapshot extension name = %q, want %q", got, want)
+		}
+		if got, want := extensions.snapshotBridgeID, instance.ID; got != want {
+			t.Fatalf("snapshot bridge id = %q, want %q", got, want)
+		}
+		if result.CacheStale {
+			t.Fatal("ListBridgeTargets().CacheStale = true, want false after on-demand refresh")
+		}
+		if got, want := len(result.Items), 1; got != want {
+			t.Fatalf("len(ListBridgeTargets().Items) = %d, want %d", got, want)
+		}
+		if got, want := result.Items[0].CanonicalRoute, "slack:channel:qa-shared"; got != want {
+			t.Fatalf("target canonical route = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("ShouldRefreshTargetDirectoryBeforeResolvingStaleTarget", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		now := time.Date(2026, 4, 11, 12, 19, 30, 0, time.UTC)
+		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, nil)
+		extensions := &targetSnapshotExtensionRuntime{
+			snapshots: []bridgepkg.BridgeTargetSnapshot{
+				{
+					CanonicalRoute: "slack:channel:qa-shared",
+					DisplayName:    "#qa-shared",
+					TargetType:     bridgepkg.BridgeTargetTypeChannel,
+					Qualifier:      "slack",
+					Capabilities:   []string{string(bridgepkg.DeliveryModeDirectSend)},
+				},
+			},
+		}
+		runtime.mu.Lock()
+		runtime.extensions = extensions
+		runtime.mu.Unlock()
+
+		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ID:            "brg-resolve-targets",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "ext-resolve-targets",
+			DisplayName:   "Resolve Targets Bridge",
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusReady,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		})
+
+		result, err := runtime.ResolveBridgeTarget(testutil.Context(t), instance.ID, "qa-shared")
+		if err != nil {
+			t.Fatalf("ResolveBridgeTarget() error = %v", err)
+		}
+		if got, want := extensions.snapshotCalls, 1; got != want {
+			t.Fatalf("target snapshot calls after stale resolve = %d, want %d", got, want)
+		}
+		if result.Match == nil {
+			t.Fatal("ResolveBridgeTarget().Match = nil, want refreshed match")
+		}
+		if got, want := result.Match.CanonicalRoute, "slack:channel:qa-shared"; got != want {
+			t.Fatalf("resolved canonical route = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should return refresh errors when resolving a stale target directory", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		now := time.Date(2026, 4, 11, 12, 19, 45, 0, time.UTC)
+		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, nil)
+		extensions := &targetSnapshotExtensionRuntime{
+			snapshotErr: errors.New("snapshot failed"),
+		}
+		runtime.mu.Lock()
+		runtime.extensions = extensions
+		runtime.mu.Unlock()
+
+		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ID:            "brg-resolve-targets-failure",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "ext-resolve-targets-failure",
+			DisplayName:   "Resolve Targets Failure Bridge",
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusReady,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		})
+
+		_, err := runtime.ResolveBridgeTarget(testutil.Context(t), instance.ID, "qa-shared")
+		if err == nil {
+			t.Fatal("ResolveBridgeTarget() error = nil, want refresh failure")
+		}
+		if !strings.Contains(err.Error(), "snapshot failed") {
+			t.Fatalf("ResolveBridgeTarget() error = %v, want snapshot failure detail", err)
+		}
+		if got, want := extensions.snapshotCalls, 1; got != want {
+			t.Fatalf("target snapshot calls after stale resolve error = %d, want %d", got, want)
+		}
+	})
 }
 
 func TestBridgeRuntimeCreateInstance(t *testing.T) {
@@ -1792,6 +1943,16 @@ type resolvingReloadExtensionRuntime struct {
 	launch        *subprocess.InitializeBridgeRuntime
 }
 
+type targetSnapshotExtensionRuntime struct {
+	fakeExtensionRuntime
+	reloadCalls           int
+	snapshotCalls         int
+	snapshotExtensionName string
+	snapshotBridgeID      string
+	snapshots             []bridgepkg.BridgeTargetSnapshot
+	snapshotErr           error
+}
+
 func newBlockingReloadExtensionRuntime(reloadErr error) *blockingReloadExtensionRuntime {
 	return &blockingReloadExtensionRuntime{
 		reloadErr:     reloadErr,
@@ -1825,6 +1986,31 @@ func (r *resolvingReloadExtensionRuntime) Get(string) (*extensionpkg.Extension, 
 
 func (r *resolvingReloadExtensionRuntime) HookDeclarations(context.Context) ([]hookspkg.HookDecl, error) {
 	return nil, nil
+}
+
+func (r *targetSnapshotExtensionRuntime) Reload(context.Context) error {
+	r.reloadCalls++
+	return r.reloadErr
+}
+
+func (r *targetSnapshotExtensionRuntime) BridgeTargetSnapshots(
+	ctx context.Context,
+	extensionName string,
+	req bridgepkg.BridgeTargetSnapshotRequest,
+) ([]bridgepkg.BridgeTargetSnapshot, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
+	r.snapshotCalls++
+	r.snapshotExtensionName = extensionName
+	r.snapshotBridgeID = req.BridgeInstanceID
+	if r.snapshotErr != nil {
+		return nil, r.snapshotErr
+	}
+	return slices.Clone(r.snapshots), nil
 }
 
 type daemonExtensionFixture struct {
