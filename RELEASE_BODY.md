@@ -1,9 +1,14 @@
-## 0.0.7 - 2026-06-04
-
-### ♻️ Refactoring
-
-- Improvements on create modals (#252)
+## 0.0.8 - 2026-06-22
 
 ### 🐛 Bug Fixes
 
-- Repair daemon-served e2e flows
+- Acp update and general fixes (#256)
+
+### 📦 Build System
+
+- Update deps
+- Fix msw setup
+
+### 🧪 Testing
+
+- Remove not needed test
