@@ -150,10 +150,11 @@ func TestNormalizeSkillSlug(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name    string
-		input   string
-		want    string
-		wantErr error
+		name            string
+		input           string
+		want            string
+		wantErr         error
+		wantErrContains string
 	}{
 		{
 			name:  "Should accept scoped marketplace slugs",
@@ -171,24 +172,28 @@ func TestNormalizeSkillSlug(t *testing.T) {
 			want:  "agentvibes-openclaw-skill",
 		},
 		{
-			name:    "Should reject empty slugs",
-			input:   "   ",
-			wantErr: ErrValidation,
+			name:            "Should reject empty slugs",
+			input:           "   ",
+			wantErr:         ErrValidation,
+			wantErrContains: "skill slug is required",
 		},
 		{
-			name:    "Should reject raw slugs with path separators",
-			input:   "acme/review",
-			wantErr: ErrValidation,
+			name:            "Should reject raw slugs with path separators",
+			input:           "acme/review",
+			wantErr:         ErrValidation,
+			wantErrContains: "skill slug must not include path separators",
 		},
 		{
-			name:    "Should reject raw relative path segments",
-			input:   "..",
-			wantErr: ErrValidation,
+			name:            "Should reject raw relative path segments",
+			input:           "..",
+			wantErr:         ErrValidation,
+			wantErrContains: "skill slug must not be a relative path segment",
 		},
 		{
-			name:    "Should reject raw slugs with unsupported characters",
-			input:   "bad slug",
-			wantErr: ErrValidation,
+			name:            "Should reject raw slugs with unsupported characters",
+			input:           "bad slug",
+			wantErr:         ErrValidation,
+			wantErrContains: `skill slug must match "@author/name"`,
 		},
 	}
 
@@ -200,6 +205,14 @@ func TestNormalizeSkillSlug(t *testing.T) {
 			if tc.wantErr != nil {
 				if !errors.Is(err, tc.wantErr) {
 					t.Fatalf("NormalizeSkillSlug(%q) error = %v, want %v", tc.input, err, tc.wantErr)
+				}
+				if tc.wantErrContains != "" && (err == nil || !strings.Contains(err.Error(), tc.wantErrContains)) {
+					t.Fatalf(
+						"NormalizeSkillSlug(%q) error = %v, want message containing %q",
+						tc.input,
+						err,
+						tc.wantErrContains,
+					)
 				}
 				return
 			}

@@ -233,6 +233,7 @@ func (c *Client) Download(
 			if fallbackErr == nil {
 				return result, nil
 			}
+			return nil, fallbackErr
 		}
 		return nil, err
 	}

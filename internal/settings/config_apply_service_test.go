@@ -202,6 +202,9 @@ func TestConfigApplyServiceProviderOverlayForBuiltinRequiresRestart(t *testing.T
 		if got, want := result.Record.Status, lifecycle.StatusBlocked; got != want {
 			t.Fatalf("Status = %q, want %q", got, want)
 		}
+		if got, want := result.Record.Generation, int64(0); got != want {
+			t.Fatalf("Generation = %d, want %d", got, want)
+		}
 	})
 }
 

@@ -74,41 +74,45 @@ func TestSessionInvalidTransitionRejected(t *testing.T) {
 func TestSessionInfoCopiesCapabilities(t *testing.T) {
 	t.Parallel()
 
-	session := &Session{
-		ID:           "sess-1",
-		AgentName:    "coder",
-		Workspace:    t.TempDir(),
-		State:        StateActive,
-		ACPSessionID: "acp-1",
-		ACPCaps: acp.Caps{
-			SupportsLoadSession: true,
-			SupportedModes:      []string{"chat"},
-			ConfigOptions: []acp.SessionConfigOption{{
-				ID:      "model",
-				Kind:    acp.SessionConfigOptionKindSelect,
-				Current: "gpt",
-				Values: []acp.SessionConfigOptionValue{
-					{Value: "gpt", Label: "GPT"},
-				},
-			}},
-		},
-		CreatedAt: time.Now().UTC(),
-		UpdatedAt: time.Now().UTC(),
-	}
+	t.Run("Should return deep-copied ACP capabilities from Info", func(t *testing.T) {
+		t.Parallel()
 
-	info := session.Info()
-	info.ACPCaps.SupportedModes[0] = "mutated"
-	info.ACPCaps.ConfigOptions[0].Current = "mutated"
-	info.ACPCaps.ConfigOptions[0].Values[0].Value = "mutated"
+		session := &Session{
+			ID:           "sess-1",
+			AgentName:    "coder",
+			Workspace:    t.TempDir(),
+			State:        StateActive,
+			ACPSessionID: "acp-1",
+			ACPCaps: acp.Caps{
+				SupportsLoadSession: true,
+				SupportedModes:      []string{"chat"},
+				ConfigOptions: []acp.SessionConfigOption{{
+					ID:      "model",
+					Kind:    acp.SessionConfigOptionKindSelect,
+					Current: "gpt",
+					Values: []acp.SessionConfigOptionValue{
+						{Value: "gpt", Label: "GPT"},
+					},
+				}},
+			},
+			CreatedAt: time.Now().UTC(),
+			UpdatedAt: time.Now().UTC(),
+		}
 
-	latest := session.Info()
-	if latest.ACPCaps.SupportedModes[0] != "chat" {
-		t.Fatalf("SupportedModes mutated through Info() copy: %#v", latest.ACPCaps.SupportedModes)
-	}
-	if latest.ACPCaps.ConfigOptions[0].Current != "gpt" ||
-		latest.ACPCaps.ConfigOptions[0].Values[0].Value != "gpt" {
-		t.Fatalf("ConfigOptions mutated through Info() copy: %#v", latest.ACPCaps.ConfigOptions)
-	}
+		info := session.Info()
+		info.ACPCaps.SupportedModes[0] = "mutated"
+		info.ACPCaps.ConfigOptions[0].Current = "mutated"
+		info.ACPCaps.ConfigOptions[0].Values[0].Value = "mutated"
+
+		latest := session.Info()
+		if latest.ACPCaps.SupportedModes[0] != "chat" {
+			t.Fatalf("SupportedModes mutated through Info() copy: %#v", latest.ACPCaps.SupportedModes)
+		}
+		if latest.ACPCaps.ConfigOptions[0].Current != "gpt" ||
+			latest.ACPCaps.ConfigOptions[0].Values[0].Value != "gpt" {
+			t.Fatalf("ConfigOptions mutated through Info() copy: %#v", latest.ACPCaps.ConfigOptions)
+		}
+	})
 }
 
 func TestSessionActivateCanPreserveRecoveredStopClassification(t *testing.T) {

@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
@@ -169,6 +170,8 @@ func TestNotificationPresetCommands(t *testing.T) {
 			"notifications", "preset", "update", "task_terminal",
 		); err == nil {
 			t.Fatal("notifications preset update without flags error = nil, want error")
+		} else if !strings.Contains(err.Error(), "at least one update flag is required") {
+			t.Fatalf("notifications preset update without flags error = %v, want no-op validation", err)
 		}
 		if _, _, err := executeRootCommand(
 			t,
@@ -178,6 +181,8 @@ func TestNotificationPresetCommands(t *testing.T) {
 			"--disabled",
 		); err == nil {
 			t.Fatal("notifications preset update --enabled --disabled error = nil, want error")
+		} else if !strings.Contains(err.Error(), "use either --enabled or --disabled, not both") {
+			t.Fatalf("notifications preset update --enabled --disabled error = %v, want conflict validation", err)
 		}
 	})
 

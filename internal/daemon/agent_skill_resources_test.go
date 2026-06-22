@@ -484,59 +484,63 @@ func TestAgentSkillSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 func TestAgentSkillSourceSyncerSyncSkillsProjectsRegistrySynchronously(t *testing.T) {
 	t.Parallel()
 
-	rawStore, agentStore, agentCodec, skillStore, skillCodec, mcpStore, mcpCodec := agentSkillSyncStores(t)
-	registry := skillspkg.NewRegistry(skillspkg.RegistryConfig{}, skillspkg.WithLogger(discardLogger()))
-	desired := agentSkillDesiredResources{
-		skills: []skillPublicationInput{{
-			sourceKey: "test/skill/review",
-			scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
-			spec: skillspkg.SkillResourceSpec{
-				Name:        "review",
-				Description: "Review skill",
-				Source:      skillspkg.SkillSourceName(skillspkg.SourceMarketplace),
-				Enabled:     true,
-			},
-		}},
-	}
-	triggered := 0
-	syncer := newAgentSkillSourceSyncer(
-		rawStore,
-		agentStore,
-		agentCodec,
-		skillStore,
-		skillCodec,
-		newSkillProjector(registry),
-		mcpStore,
-		mcpCodec,
-		agentSkillSyncActor(),
-		discardLogger(),
-		func(_ context.Context, kind resources.ResourceKind, _ resources.ReconcileReason) error {
-			if kind == skillspkg.SkillResourceKind {
-				triggered++
-			}
-			return nil
-		},
-		func(context.Context) (agentSkillDesiredResources, error) {
-			return desired, nil
-		},
-	)
+	t.Run("Should project synchronized marketplace skills into the registry immediately", func(t *testing.T) {
+		t.Parallel()
 
-	if _, ok := registry.Get("review"); ok {
-		t.Fatal("registry.Get(review) ok = true before SyncSkills, want false")
-	}
-	if err := syncer.SyncSkills(context.Background()); err != nil {
-		t.Fatalf("SyncSkills() error = %v", err)
-	}
-	skill, ok := registry.Get("review")
-	if !ok {
-		t.Fatal("registry.Get(review) ok = false after SyncSkills, want projected skill")
-	}
-	if skill.Source != skillspkg.SourceMarketplace {
-		t.Fatalf("skill.Source = %v, want marketplace", skill.Source)
-	}
-	if triggered != 1 {
-		t.Fatalf("skill trigger count = %d, want 1", triggered)
-	}
+		rawStore, agentStore, agentCodec, skillStore, skillCodec, mcpStore, mcpCodec := agentSkillSyncStores(t)
+		registry := skillspkg.NewRegistry(skillspkg.RegistryConfig{}, skillspkg.WithLogger(discardLogger()))
+		desired := agentSkillDesiredResources{
+			skills: []skillPublicationInput{{
+				sourceKey: "test/skill/review",
+				scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindGlobal},
+				spec: skillspkg.SkillResourceSpec{
+					Name:        "review",
+					Description: "Review skill",
+					Source:      skillspkg.SkillSourceName(skillspkg.SourceMarketplace),
+					Enabled:     true,
+				},
+			}},
+		}
+		triggered := 0
+		syncer := newAgentSkillSourceSyncer(
+			rawStore,
+			agentStore,
+			agentCodec,
+			skillStore,
+			skillCodec,
+			newSkillProjector(registry),
+			mcpStore,
+			mcpCodec,
+			agentSkillSyncActor(),
+			discardLogger(),
+			func(_ context.Context, kind resources.ResourceKind, _ resources.ReconcileReason) error {
+				if kind == skillspkg.SkillResourceKind {
+					triggered++
+				}
+				return nil
+			},
+			func(context.Context) (agentSkillDesiredResources, error) {
+				return desired, nil
+			},
+		)
+
+		if _, ok := registry.Get("review"); ok {
+			t.Fatal("registry.Get(review) ok = true before SyncSkills, want false")
+		}
+		if err := syncer.SyncSkills(context.Background()); err != nil {
+			t.Fatalf("SyncSkills() error = %v", err)
+		}
+		skill, ok := registry.Get("review")
+		if !ok {
+			t.Fatal("registry.Get(review) ok = false after SyncSkills, want projected skill")
+		}
+		if skill.Source != skillspkg.SourceMarketplace {
+			t.Fatalf("skill.Source = %v, want marketplace", skill.Source)
+		}
+		if triggered != 1 {
+			t.Fatalf("skill trigger count = %d, want 1", triggered)
+		}
+	})
 }
 
 func TestAgentSkillSourceSyncerRepairsLegacyManagedAgentRecordsBeforeDecode(t *testing.T) {

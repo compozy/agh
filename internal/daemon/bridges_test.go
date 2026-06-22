@@ -501,6 +501,42 @@ func TestBridgeRuntimeStartInstance(t *testing.T) {
 			t.Fatalf("resolved canonical route = %q, want %q", got, want)
 		}
 	})
+
+	t.Run("Should return refresh errors when resolving a stale target directory", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		now := time.Date(2026, 4, 11, 12, 19, 45, 0, time.UTC)
+		runtime := newBridgeRuntime(db, discardLogger(), func() time.Time { return now }, nil)
+		extensions := &targetSnapshotExtensionRuntime{
+			snapshotErr: errors.New("snapshot failed"),
+		}
+		runtime.mu.Lock()
+		runtime.extensions = extensions
+		runtime.mu.Unlock()
+
+		instance := mustCreateDaemonBridgeInstance(t, runtime, bridgepkg.CreateInstanceRequest{
+			ID:            "brg-resolve-targets-failure",
+			Scope:         bridgepkg.ScopeGlobal,
+			Platform:      "slack",
+			ExtensionName: "ext-resolve-targets-failure",
+			DisplayName:   "Resolve Targets Failure Bridge",
+			Enabled:       true,
+			Status:        bridgepkg.BridgeStatusReady,
+			RoutingPolicy: bridgepkg.RoutingPolicy{IncludePeer: true},
+		})
+
+		_, err := runtime.ResolveBridgeTarget(testutil.Context(t), instance.ID, "qa-shared")
+		if err == nil {
+			t.Fatal("ResolveBridgeTarget() error = nil, want refresh failure")
+		}
+		if !strings.Contains(err.Error(), "snapshot failed") {
+			t.Fatalf("ResolveBridgeTarget() error = %v, want snapshot failure detail", err)
+		}
+		if got, want := extensions.snapshotCalls, 1; got != want {
+			t.Fatalf("target snapshot calls after stale resolve error = %d, want %d", got, want)
+		}
+	})
 }
 
 func TestBridgeRuntimeCreateInstance(t *testing.T) {

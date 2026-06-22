@@ -131,46 +131,50 @@ func TestListExtensionsRespectsMaskInternalErrors(t *testing.T) {
 func TestSearchExtensionMarketplaceMapsUnavailableSourceToServiceUnavailable(t *testing.T) {
 	t.Parallel()
 
-	homePaths := testutil.NewTestHomePaths(t)
-	cfg := testConfigWithDisabledNetwork(homePaths)
-	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
-		TransportName:      "api-core-test",
-		MaskInternalErrors: true,
-		Extensions: extensionServiceStub{
-			searchFn: func(context.Context, string, string, int) ([]contract.ExtensionMarketplaceEntry, error) {
-				return nil, fmt.Errorf(
-					"%w: no marketplace registry sources are configured",
-					extensionpkg.ErrMarketplaceSourceUnavailable,
-				)
+	t.Run("Should map unavailable marketplace source to service unavailable", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testutil.NewTestHomePaths(t)
+		cfg := testConfigWithDisabledNetwork(homePaths)
+		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
+			TransportName:      "api-core-test",
+			MaskInternalErrors: true,
+			Extensions: extensionServiceStub{
+				searchFn: func(context.Context, string, string, int) ([]contract.ExtensionMarketplaceEntry, error) {
+					return nil, fmt.Errorf(
+						"%w: no marketplace registry sources are configured",
+						extensionpkg.ErrMarketplaceSourceUnavailable,
+					)
+				},
 			},
-		},
-		HomePaths: homePaths,
-		Config:    cfg,
-		Logger:    testutil.DiscardLogger(),
-		StartedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-		Now: func() time.Time {
-			return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC)
-		},
-		HTTPPort: cfg.HTTP.Port,
+			HomePaths: homePaths,
+			Config:    cfg,
+			Logger:    testutil.DiscardLogger(),
+			StartedAt: time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+			Now: func() time.Time {
+				return time.Date(2026, 4, 3, 12, 0, 1, 0, time.UTC)
+			},
+			HTTPPort: cfg.HTTP.Port,
+		})
+
+		engine := gin.New()
+		engine.Use(gin.Recovery())
+		engine.GET("/extensions/marketplace", handlers.SearchExtensionMarketplace)
+
+		response := performRequest(t, engine, http.MethodGet, "/extensions/marketplace?q=telemetry", nil)
+		if response.Code != http.StatusServiceUnavailable {
+			t.Fatalf(
+				"status = %d, want %d; body=%s",
+				response.Code,
+				http.StatusServiceUnavailable,
+				response.Body.String(),
+			)
+		}
+		if !strings.Contains(response.Body.String(), http.StatusText(http.StatusServiceUnavailable)) {
+			t.Fatalf("response body = %s, want masked service unavailable detail", response.Body.String())
+		}
+		if strings.Contains(response.Body.String(), http.StatusText(http.StatusInternalServerError)) {
+			t.Fatalf("response body = %s, want no internal server error masking", response.Body.String())
+		}
 	})
-
-	engine := gin.New()
-	engine.Use(gin.Recovery())
-	engine.GET("/extensions/marketplace", handlers.SearchExtensionMarketplace)
-
-	response := performRequest(t, engine, http.MethodGet, "/extensions/marketplace?q=telemetry", nil)
-	if response.Code != http.StatusServiceUnavailable {
-		t.Fatalf(
-			"status = %d, want %d; body=%s",
-			response.Code,
-			http.StatusServiceUnavailable,
-			response.Body.String(),
-		)
-	}
-	if !strings.Contains(response.Body.String(), http.StatusText(http.StatusServiceUnavailable)) {
-		t.Fatalf("response body = %s, want masked service unavailable detail", response.Body.String())
-	}
-	if strings.Contains(response.Body.String(), http.StatusText(http.StatusInternalServerError)) {
-		t.Fatalf("response body = %s, want no internal server error masking", response.Body.String())
-	}
 }

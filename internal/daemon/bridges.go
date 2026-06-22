@@ -301,7 +301,7 @@ func (r *bridgeRuntime) refreshStaleBridgeTargetDirectory(ctx context.Context, b
 		return err
 	}
 	if err := r.refreshBridgeTargetDirectoryForInstance(ctx, bridgeID); err != nil {
-		return nil
+		return fmt.Errorf("daemon: refresh stale bridge target directory for %q: %w", strings.TrimSpace(bridgeID), err)
 	}
 	return nil
 }

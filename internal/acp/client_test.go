@@ -776,65 +776,73 @@ func TestDaemonMatchedEnvPinsCurrentBinary(t *testing.T) {
 func TestPromptStreamsSessionUpdates(t *testing.T) {
 	t.Parallel()
 
-	driver := New()
-	proc := startHelperProcess(t, driver, "stream_updates", "", StartOpts{})
-	defer stopProcess(t, driver, proc)
+	t.Run("Should stream session updates and refresh session metadata from prompt events", func(t *testing.T) {
+		t.Parallel()
 
-	eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
-		TurnID:  "turn-stream",
-		Message: "hello",
+		driver := New()
+		proc := startHelperProcess(t, driver, "stream_updates", "", StartOpts{})
+		defer stopProcess(t, driver, proc)
+
+		eventsCh, err := driver.Prompt(testutil.Context(t), proc, PromptRequest{
+			TurnID:  "turn-stream",
+			Message: "hello",
+		})
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+
+		events := collectEvents(t, eventsCh)
+		if len(events) == 0 {
+			t.Fatal("Prompt() returned no events")
+		}
+
+		var eventTypes []string
+		for _, event := range events {
+			eventTypes = append(eventTypes, event.Type)
+		}
+		if !slices.Contains(eventTypes, EventTypeAgentMessage) {
+			t.Fatalf("Prompt() event types = %#v, want agent message", eventTypes)
+		}
+		if !slices.Contains(eventTypes, EventTypeThought) {
+			t.Fatalf("Prompt() event types = %#v, want thought", eventTypes)
+		}
+		if !slices.Contains(eventTypes, EventTypeToolCall) {
+			t.Fatalf("Prompt() event types = %#v, want tool call", eventTypes)
+		}
+		if !slices.Contains(eventTypes, EventTypeDone) {
+			t.Fatalf("Prompt() event types = %#v, want done", eventTypes)
+		}
+		if proc.SessionID != "sess-new" {
+			t.Fatalf("Start() session id = %q, want %q", proc.SessionID, "sess-new")
+		}
+		if !slices.Equal(proc.Caps.SupportedModes, []string{"new-mode"}) {
+			t.Fatalf("Start() supported modes = %#v, want %#v", proc.Caps.SupportedModes, []string{"new-mode"})
+		}
 	})
-	if err != nil {
-		t.Fatalf("Prompt() error = %v", err)
-	}
-
-	events := collectEvents(t, eventsCh)
-	if len(events) == 0 {
-		t.Fatal("Prompt() returned no events")
-	}
-
-	var eventTypes []string
-	for _, event := range events {
-		eventTypes = append(eventTypes, event.Type)
-	}
-	if !slices.Contains(eventTypes, EventTypeAgentMessage) {
-		t.Fatalf("Prompt() event types = %#v, want agent message", eventTypes)
-	}
-	if !slices.Contains(eventTypes, EventTypeThought) {
-		t.Fatalf("Prompt() event types = %#v, want thought", eventTypes)
-	}
-	if !slices.Contains(eventTypes, EventTypeToolCall) {
-		t.Fatalf("Prompt() event types = %#v, want tool call", eventTypes)
-	}
-	if !slices.Contains(eventTypes, EventTypeDone) {
-		t.Fatalf("Prompt() event types = %#v, want done", eventTypes)
-	}
-	if proc.SessionID != "sess-new" {
-		t.Fatalf("Start() session id = %q, want %q", proc.SessionID, "sess-new")
-	}
-	if !slices.Equal(proc.Caps.SupportedModes, []string{"new-mode"}) {
-		t.Fatalf("Start() supported modes = %#v, want %#v", proc.Caps.SupportedModes, []string{"new-mode"})
-	}
 }
 
 func TestStartResumeUsesLoadSession(t *testing.T) {
 	t.Parallel()
 
-	driver := New()
-	proc := startHelperProcess(t, driver, "load_session", "", StartOpts{
-		ResumeSessionID: "sess-existing",
-	})
-	defer stopProcess(t, driver, proc)
+	t.Run("Should resume through loadSession when a prior session ID is provided", func(t *testing.T) {
+		t.Parallel()
 
-	if proc.SessionID != "sess-existing" {
-		t.Fatalf("Start() session id = %q, want %q", proc.SessionID, "sess-existing")
-	}
-	if !proc.Caps.SupportsLoadSession {
-		t.Fatal("Start() SupportsLoadSession = false, want true")
-	}
-	if !slices.Equal(proc.Caps.SupportedModes, []string{"loaded-mode"}) {
-		t.Fatalf("Start() supported modes = %#v, want %#v", proc.Caps.SupportedModes, []string{"loaded-mode"})
-	}
+		driver := New()
+		proc := startHelperProcess(t, driver, "load_session", "", StartOpts{
+			ResumeSessionID: "sess-existing",
+		})
+		defer stopProcess(t, driver, proc)
+
+		if proc.SessionID != "sess-existing" {
+			t.Fatalf("Start() session id = %q, want %q", proc.SessionID, "sess-existing")
+		}
+		if !proc.Caps.SupportsLoadSession {
+			t.Fatal("Start() SupportsLoadSession = false, want true")
+		}
+		if !slices.Equal(proc.Caps.SupportedModes, []string{"loaded-mode"}) {
+			t.Fatalf("Start() supported modes = %#v, want %#v", proc.Caps.SupportedModes, []string{"loaded-mode"})
+		}
+	})
 }
 
 func TestStartApproveAllSetsPermissiveSessionModeWhenSupported(t *testing.T) {

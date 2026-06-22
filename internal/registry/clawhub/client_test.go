@@ -254,58 +254,110 @@ func TestClientInfoParsesSkillDetail(t *testing.T) {
 func TestClientDownloadSynthesizesSkillArchiveFromInfo(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		switch request.URL.Path {
-		case "/api/v1/skills/review/download":
-			writer.Header().Set("Content-Type", "application/json")
-			writer.WriteHeader(http.StatusNotFound)
-			if _, err := writer.Write([]byte(`{"error":"Not found"}`)); err != nil {
-				t.Fatalf("writer.Write(download not found) error = %v", err)
-			}
-		case "/api/v1/skills/review":
-			writer.Header().Set("Content-Type", "application/json")
-			if _, err := writer.Write([]byte(`{
-				"skill":{
-					"slug":"review",
-					"displayName":"Review",
-					"summary":"Review code",
-					"description":"---\nname: review\ndescription: Review code\n---\n# Review body\n",
-					"stats":{"downloads":42}
-				},
-				"latestVersion":{"version":"1.0.0"},
-				"owner":{"handle":"ethagent"}
-			}`)); err != nil {
-				t.Fatalf("writer.Write(info envelope) error = %v", err)
-			}
-		default:
-			t.Fatalf("request.URL.Path = %q, want download or info path", request.URL.Path)
-		}
-	}))
-	t.Cleanup(server.Close)
+	t.Run("Should synthesize skill archives from info when the download endpoint is unavailable", func(t *testing.T) {
+		t.Parallel()
 
-	result, err := NewClient(server.URL).Download(context.Background(), "review", registry.DownloadOpts{})
-	if err != nil {
-		t.Fatalf("Download() error = %v", err)
-	}
-	if result == nil || result.Reader == nil {
-		t.Fatal("Download() result = nil, want synthesized archive")
-	}
-	t.Cleanup(func() {
-		if err := result.Reader.Close(); err != nil {
-			t.Errorf("result.Reader.Close() error = %v", err)
+		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			switch request.URL.Path {
+			case "/api/v1/skills/review/download":
+				writer.Header().Set("Content-Type", "application/json")
+				writer.WriteHeader(http.StatusNotFound)
+				if _, err := writer.Write([]byte(`{"error":"Not found"}`)); err != nil {
+					t.Fatalf("writer.Write(download not found) error = %v", err)
+				}
+			case "/api/v1/skills/review":
+				writer.Header().Set("Content-Type", "application/json")
+				if _, err := writer.Write([]byte(`{
+					"skill":{
+						"slug":"review",
+						"displayName":"Review",
+						"summary":"Review code",
+						"description":"---\nname: review\ndescription: Review code\n---\n# Review body\n",
+						"stats":{"downloads":42}
+					},
+					"latestVersion":{"version":"1.0.0"},
+					"owner":{"handle":"ethagent"}
+				}`)); err != nil {
+					t.Fatalf("writer.Write(info envelope) error = %v", err)
+				}
+			default:
+				t.Fatalf("request.URL.Path = %q, want download or info path", request.URL.Path)
+			}
+		}))
+		t.Cleanup(server.Close)
+
+		result, err := NewClient(server.URL).Download(context.Background(), "review", registry.DownloadOpts{})
+		if err != nil {
+			t.Fatalf("Download() error = %v", err)
+		}
+		if result == nil || result.Reader == nil {
+			t.Fatal("Download() result = nil, want synthesized archive")
+		}
+		t.Cleanup(func() {
+			if err := result.Reader.Close(); err != nil {
+				t.Errorf("result.Reader.Close() error = %v", err)
+			}
+		})
+
+		if result.Slug != "review" || result.Version != "1.0.0" {
+			t.Fatalf("Download() result = %#v, want raw slug and latest version", result)
+		}
+		if result.ContentType != "application/gzip" {
+			t.Fatalf("Download() content type = %q, want application/gzip", result.ContentType)
+		}
+		files := readTarGz(t, result.Reader)
+		if got := files["review/SKILL.md"]; got != "---\nname: review\ndescription: Review code\n---\n# Review body\n" {
+			t.Fatalf("synthesized SKILL.md = %q, want ClawHub info description", got)
 		}
 	})
+}
 
-	if result.Slug != "review" || result.Version != "1.0.0" {
-		t.Fatalf("Download() result = %#v, want raw slug and latest version", result)
-	}
-	if result.ContentType != "application/gzip" {
-		t.Fatalf("Download() content type = %q, want application/gzip", result.ContentType)
-	}
-	files := readTarGz(t, result.Reader)
-	if got := files["review/SKILL.md"]; got != "---\nname: review\ndescription: Review code\n---\n# Review body\n" {
-		t.Fatalf("synthesized SKILL.md = %q, want ClawHub info description", got)
-	}
+func TestClientDownloadPropagatesFallbackSynthesisErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should return synthesized archive validation failures from the info fallback", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			switch request.URL.Path {
+			case "/api/v1/skills/review/download":
+				writer.Header().Set("Content-Type", "application/json")
+				writer.WriteHeader(http.StatusNotFound)
+				if _, err := writer.Write([]byte(`{"error":"Not found"}`)); err != nil {
+					t.Fatalf("writer.Write(download not found) error = %v", err)
+				}
+			case "/api/v1/skills/review":
+				writer.Header().Set("Content-Type", "application/json")
+				if _, err := writer.Write([]byte(`{
+					"skill":{
+						"slug":"review",
+						"displayName":"Review",
+						"summary":"Review code",
+						"description":"   ",
+						"stats":{"downloads":42}
+					},
+					"latestVersion":{"version":"1.0.0"},
+					"owner":{"handle":"ethagent"}
+				}`)); err != nil {
+					t.Fatalf("writer.Write(info envelope) error = %v", err)
+				}
+			default:
+				t.Fatalf("request.URL.Path = %q, want download or info path", request.URL.Path)
+			}
+		}))
+		t.Cleanup(server.Close)
+
+		_, err := NewClient(server.URL).Download(context.Background(), "review", registry.DownloadOpts{})
+		if err == nil {
+			t.Fatal("Download() error = nil, want synthesized fallback failure")
+		}
+		if !errors.Is(err, registry.ErrPackageNotFound) {
+			t.Fatalf("Download() error = %v, want ErrPackageNotFound ancestry", err)
+		}
+		if !strings.Contains(err.Error(), `skill "review" has no downloadable content`) {
+			t.Fatalf("Download() error = %v, want synthesized archive detail", err)
+		}
+	})
 }
 
 func TestClientDownloadUsesLatestEndpointWhenVersionEmpty(t *testing.T) {

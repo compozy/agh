@@ -83,58 +83,89 @@ func TestBaseHandlersRejectInvalidRequestsAndMapErrors(t *testing.T) {
 	fixture := newHandlerFixture(t, manager, observer, workspaces, nil, nil)
 
 	requests := []struct {
-		method string
-		path   string
-		body   []byte
-		want   int
+		name             string
+		method           string
+		path             string
+		body             []byte
+		want             int
+		wantBodyContains string
 	}{
 		{
+			name:   "Should reject session create requests without workspace context",
 			method: http.MethodPost,
 			path:   "/sessions",
 			body:   []byte(`{"agent_name":"coder"}`),
 			want:   http.StatusBadRequest,
 		},
 		{
+			name:   "Should return not found when session creation fallback resolves to a missing session",
 			method: http.MethodPost,
 			path:   "/sessions",
 			body:   []byte(`{"agent_name":"coder","workspace":"alpha"}`),
 			want:   http.StatusNotFound,
 		},
 		{
+			name:             "Should return not found when reading a missing session",
+			method:           http.MethodGet,
+			path:             "/workspaces/ws-workspace/sessions/missing",
+			want:             http.StatusNotFound,
+			wantBodyContains: "session not found",
+		},
+		{
+			name:             "Should return not found when attaching to a missing session",
+			method:           http.MethodPost,
+			path:             "/workspaces/ws-workspace/sessions/missing/attach",
+			want:             http.StatusNotFound,
+			wantBodyContains: "session not found",
+		},
+		{
+			name:             "Should return not found when deleting a missing session",
+			method:           http.MethodDelete,
+			path:             "/workspaces/ws-workspace/sessions/missing",
+			want:             http.StatusNotFound,
+			wantBodyContains: "session not found",
+		},
+		{
+			name:             "Should return bad request for invalid session event since filters",
+			method:           http.MethodGet,
+			path:             "/workspaces/ws-workspace/sessions/missing/events?since=bad",
+			want:             http.StatusBadRequest,
+			wantBodyContains: "invalid",
+		},
+		{
+			name:             "Should return internal server error when log queries fail",
+			method:           http.MethodGet,
+			path:             "/logs?workspace_id=ws-workspace",
+			want:             http.StatusInternalServerError,
+			wantBodyContains: "boom",
+		},
+		{
+			name:   "Should return internal server error when health queries fail",
 			method: http.MethodGet,
-			path:   "/workspaces/ws-workspace/sessions/missing",
-			want:   http.StatusNotFound,
-		},
-		{
-			method: http.MethodPost,
-			path:   "/workspaces/ws-workspace/sessions/missing/attach",
-			want:   http.StatusNotFound,
-		},
-		{
-			method: http.MethodDelete,
-			path:   "/workspaces/ws-workspace/sessions/missing",
-			want:   http.StatusNotFound,
-		},
-		{
-			method: http.MethodGet,
-			path:   "/workspaces/ws-workspace/sessions/missing/events?since=bad",
-			want:   http.StatusBadRequest,
-		},
-		{
-			method: http.MethodGet,
-			path:   "/logs?workspace_id=ws-workspace",
+			path:   "/status",
 			want:   http.StatusInternalServerError,
 		},
-		{method: http.MethodGet, path: "/status", want: http.StatusInternalServerError},
-		{method: http.MethodGet, path: "/doctor", want: http.StatusOK},
 		{
+			name:   "Should return ok for doctor endpoint without dependencies",
+			method: http.MethodGet,
+			path:   "/doctor",
+			want:   http.StatusOK,
+		},
+		{
+			name:   "Should reject workspace registration with relative root paths",
 			method: http.MethodPost,
 			path:   "/workspaces",
 			body:   []byte(`{"root_dir":"relative"}`),
 			want:   http.StatusBadRequest,
 		},
-		{method: http.MethodGet, path: "/workspaces/ws-missing", want: http.StatusGone},
 		{
+			name:   "Should map missing workspace roots to gone",
+			method: http.MethodGet,
+			path:   "/workspaces/ws-missing",
+			want:   http.StatusGone,
+		},
+		{
+			name:   "Should map resolve failures for missing workspace roots to gone",
 			method: http.MethodPost,
 			path:   "/workspaces/resolve",
 			body:   []byte(`{"path":"/workspace"}`),
@@ -143,17 +174,16 @@ func TestBaseHandlersRejectInvalidRequestsAndMapErrors(t *testing.T) {
 	}
 
 	for _, request := range requests {
-		t.Run(request.method+" "+request.path, func(t *testing.T) {
+		t.Run(request.name, func(t *testing.T) {
+			t.Parallel()
+
 			resp := performRequest(t, fixture.Engine, request.method, request.path, request.body)
+			if request.wantBodyContains != "" {
+				assertAPIErrorResponse(t, resp, request.want, request.wantBodyContains)
+				return
+			}
 			if resp.Code != request.want {
-				t.Fatalf(
-					"%s %s status = %d, want %d; body=%s",
-					request.method,
-					request.path,
-					resp.Code,
-					request.want,
-					resp.Body.String(),
-				)
+				t.Fatalf("%s status = %d, want %d; body=%s", request.name, resp.Code, request.want, resp.Body.String())
 			}
 		})
 	}

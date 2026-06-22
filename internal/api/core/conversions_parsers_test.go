@@ -145,6 +145,9 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		if payload.ACPCaps == nil || !payload.ACPCaps.SupportsLoadSession {
 			t.Fatalf("caps = %#v", payload.ACPCaps)
 		}
+		if got := payload.ACPCaps.SupportedModes; len(got) != 1 || got[0] != "chat" {
+			t.Fatalf("supported modes = %#v, want [chat]", got)
+		}
 		if len(payload.ACPCaps.ConfigOptions) != 1 {
 			t.Fatalf("config options = %#v", payload.ACPCaps.ConfigOptions)
 		}
