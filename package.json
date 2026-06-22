@@ -24,6 +24,7 @@
         "format:check": "bunx oxfmt --check",
         "go:lint": "go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4 run --allow-parallel-runners ./... && go run golang.org/x/tools/gopls/internal/analysis/modernize/cmd/modernize@v0.21.1 ./...",
         "lint": "bun run go:lint && bun run bun:lint",
+        "msw:update": "bun --cwd web msw init public --no-save && bunx oxfmt web/public/mockServiceWorker.js",
         "postinstall": "bash scripts/postinstall.sh",
         "prepare": "husky",
         "prs:scrape": "bun run scripts/scrape-prs.ts",
@@ -68,10 +69,5 @@
             "oxlint --deny-warnings"
         ]
     },
-    "packageManager": "bun@1.3.4",
-    "msw": {
-        "workerDirectory": [
-            "web/public"
-        ]
-    }
+    "packageManager": "bun@1.3.4"
 }
