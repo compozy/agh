@@ -1,3 +1,9 @@
+## 0.0.9 - 2026-06-27
+
+### 📦 Build System
+
+- Update go deps
+
 ## 0.0.8 - 2026-06-22
 
 ### 🐛 Bug Fixes
