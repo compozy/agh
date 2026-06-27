@@ -327,9 +327,6 @@
                             }
                         },
                         "description": "Service unavailable - dependent service missing"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List coordination channels visible to the calling agent",
@@ -862,9 +859,6 @@
                             }
                         },
                         "description": "Service unavailable - dependent service missing"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Reply to one delivered coordination channel message",
@@ -1426,9 +1420,6 @@
                             }
                         },
                         "description": "Service unavailable - dependent service missing"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Receive task-bound coordination channel messages",
@@ -1969,9 +1960,6 @@
                             }
                         },
                         "description": "Service unavailable - dependent service missing"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Send one task-bound coordination channel message",
@@ -4073,9 +4061,6 @@
                             }
                         },
                         "description": "Service unavailable - dependent service missing"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Return the bounded calling-agent situation context",
@@ -4461,9 +4446,6 @@
                             }
                         },
                         "description": "Service unavailable - dependent service missing"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Read resolved coordinator config for the calling agent workspace",
@@ -5266,9 +5248,6 @@
                             }
                         },
                         "description": "Service unavailable - dependent service missing"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Resolve the calling agent session",
@@ -5783,9 +5762,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Inspect the resolved Soul read model for the calling agent",
@@ -6454,9 +6430,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Validate a proposed Soul body or the calling agent's current Soul",
@@ -7568,9 +7541,6 @@
                             }
                         },
                         "description": "Service unavailable - dependent service missing"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Spawn a narrowed child session for the calling agent",
@@ -8458,9 +8428,6 @@
                             }
                         },
                         "description": "Service unavailable - dependent service missing"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Atomically claim the next matching task run for the calling agent",
@@ -9063,9 +9030,6 @@
                             }
                         },
                         "description": "Service unavailable - dependent service missing"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Complete a claimed task run for the calling agent",
@@ -9672,9 +9636,6 @@
                             }
                         },
                         "description": "Service unavailable - dependent service missing"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Fail a claimed task run for the calling agent",
@@ -10280,9 +10241,6 @@
                             }
                         },
                         "description": "Service unavailable - dependent service missing"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Extend a claimed task-run lease for the calling agent",
@@ -10887,9 +10845,6 @@
                             }
                         },
                         "description": "Service unavailable - dependent service missing"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Release a claimed task run for the calling agent",
@@ -11133,9 +11088,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List all readable agent definitions, optionally resolved for a workspace",
@@ -11760,9 +11712,6 @@
                             }
                         },
                         "description": "Workspace resolver unavailable"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Create a global or workspace-local AGENT.md definition",
@@ -12686,9 +12635,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Delete HEARTBEAT.md through managed authoring",
@@ -13878,9 +13824,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Inspect the resolved Heartbeat policy for an agent definition",
@@ -15234,9 +15177,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Create or replace HEARTBEAT.md through managed authoring",
@@ -15607,9 +15547,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List managed HEARTBEAT.md authoring revisions",
@@ -16968,9 +16905,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Rollback HEARTBEAT.md through managed authoring",
@@ -17657,9 +17591,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Read Heartbeat policy status, wake state, and optional session health",
@@ -18863,9 +18794,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Validate a proposed HEARTBEAT.md body",
@@ -19375,9 +19303,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Request one advisory Heartbeat wake for an eligible session",
@@ -20040,9 +19965,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Delete SOUL.md through managed authoring",
@@ -20512,9 +20434,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Inspect the resolved Soul read model for an agent definition",
@@ -21313,9 +21232,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Create or replace SOUL.md through managed authoring",
@@ -21735,9 +21651,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List managed SOUL.md authoring revisions",
@@ -22538,9 +22451,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Rollback SOUL.md through managed authoring",
@@ -23155,9 +23065,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Validate a proposed Soul body for an agent definition",
@@ -23469,9 +23376,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one agent definition by name, optionally resolved for a workspace",
@@ -23919,9 +23823,6 @@
                             }
                         },
                         "description": "Automation manager is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List automation jobs",
@@ -24508,9 +24409,6 @@
                             }
                         },
                         "description": "Automation manager is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Create an automation job",
@@ -24783,9 +24681,6 @@
                             }
                         },
                         "description": "Automation manager is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Delete one automation job",
@@ -25202,9 +25097,6 @@
                             }
                         },
                         "description": "Automation manager is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one automation job",
@@ -25864,9 +25756,6 @@
                             }
                         },
                         "description": "Automation manager is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Update one automation job",
@@ -26262,9 +26151,6 @@
                             }
                         },
                         "description": "Automation manager is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List run history for one automation job",
@@ -26614,9 +26500,6 @@
                             }
                         },
                         "description": "Automation manager is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Trigger one automation job immediately",
@@ -26957,9 +26840,6 @@
                             }
                         },
                         "description": "Automation manager is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List automation runs",
@@ -27247,9 +27127,6 @@
                             }
                         },
                         "description": "Automation manager is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one automation run",
@@ -27614,9 +27491,6 @@
                             }
                         },
                         "description": "Automation manager is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List automation triggers",
@@ -28075,9 +27949,6 @@
                             }
                         },
                         "description": "Automation manager is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Create an automation trigger",
@@ -28350,9 +28221,6 @@
                             }
                         },
                         "description": "Automation manager is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Delete one automation trigger",
@@ -28678,9 +28546,6 @@
                             }
                         },
                         "description": "Automation manager is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one automation trigger",
@@ -29215,9 +29080,6 @@
                             }
                         },
                         "description": "Automation manager is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Update one automation trigger",
@@ -29613,9 +29475,6 @@
                             }
                         },
                         "description": "Automation manager is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List run history for one automation trigger",
@@ -30142,9 +30001,6 @@
                             }
                         },
                         "description": "Bridge service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List persisted bridge instances",
@@ -30789,9 +30645,6 @@
                             }
                         },
                         "description": "Bridge service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Create a bridge instance",
@@ -31009,9 +30862,6 @@
                             }
                         },
                         "description": "Bridge service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List installed bridge-capable providers",
@@ -31516,9 +31366,6 @@
                             }
                         },
                         "description": "Bridge service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one bridge instance",
@@ -32176,9 +32023,6 @@
                             }
                         },
                         "description": "Bridge service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Update mutable bridge instance fields",
@@ -32745,9 +32589,6 @@
                             }
                         },
                         "description": "Bridge service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Disable a bridge instance",
@@ -33314,9 +33155,6 @@
                             }
                         },
                         "description": "Bridge service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Enable a bridge instance",
@@ -34048,9 +33886,6 @@
                             }
                         },
                         "description": "Bridge service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Resolve a bridge target name without sending",
@@ -34617,9 +34452,6 @@
                             }
                         },
                         "description": "Bridge service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Restart a bridge instance",
@@ -34898,9 +34730,6 @@
                             }
                         },
                         "description": "Bridge service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List routes owned by a bridge instance",
@@ -35157,9 +34986,6 @@
                             }
                         },
                         "description": "Bridge service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List persisted secret bindings for a bridge instance",
@@ -35379,9 +35205,6 @@
                             }
                         },
                         "description": "Bridge service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Delete one bridge secret binding",
@@ -35790,9 +35613,6 @@
                             }
                         },
                         "description": "Bridge service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Create or update one bridge secret binding",
@@ -36104,9 +35924,6 @@
                             }
                         },
                         "description": "Bridge service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List discovered targets for a bridge instance",
@@ -36517,9 +36334,6 @@
                             }
                         },
                         "description": "Bridge service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Resolve a typed outbound delivery target for a bridge instance",
@@ -36900,9 +36714,6 @@
                             }
                         },
                         "description": "Bundle service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List active bundle preset activations",
@@ -37560,9 +37371,6 @@
                             }
                         },
                         "description": "Bundle service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Activate one extension bundle preset",
@@ -37773,9 +37581,6 @@
                             }
                         },
                         "description": "Bundle service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Deactivate one bundle preset and remove owned projected resources",
@@ -38221,9 +38026,6 @@
                             }
                         },
                         "description": "Bundle service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one bundle activation",
@@ -38810,9 +38612,6 @@
                             }
                         },
                         "description": "Bundle service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Update mutable bundle activation overlays",
@@ -39026,9 +38825,6 @@
                             }
                         },
                         "description": "Bundle service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List available extension bundle presets",
@@ -39223,9 +39019,6 @@
                             }
                         },
                         "description": "Bundle service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get bundle-derived network defaults and declared channels",
@@ -39885,9 +39678,6 @@
                             }
                         },
                         "description": "Bundle service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Preview one bundle activation without mutating runtime resources",
@@ -40083,9 +39873,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Run runtime diagnostics",
@@ -40621,9 +40408,6 @@
                             }
                         },
                         "description": "Extension service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List installed extensions",
@@ -41374,9 +41158,6 @@
                             }
                         },
                         "description": "Extension service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Install a local or marketplace extension",
@@ -41718,9 +41499,6 @@
                             }
                         },
                         "description": "Extension service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Search configured extension marketplace sources",
@@ -42080,9 +41858,6 @@
                             }
                         },
                         "description": "Extension service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Remove one managed extension",
@@ -42686,9 +42461,6 @@
                             }
                         },
                         "description": "Extension service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one installed extension",
@@ -43148,9 +42920,6 @@
                             }
                         },
                         "description": "Extension service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Update one marketplace-installed extension",
@@ -43818,9 +43587,6 @@
                             }
                         },
                         "description": "Extension service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Disable an installed extension",
@@ -44488,9 +44254,6 @@
                             }
                         },
                         "description": "Extension service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Enable an installed extension",
@@ -44879,9 +44642,6 @@
                             }
                         },
                         "description": "Extension service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get extension provenance and trust evidence",
@@ -45206,9 +44966,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List directory entries for the workspace folder picker",
@@ -45708,9 +45465,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List the resolved hook catalog",
@@ -45917,9 +45671,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List supported hook taxonomy metadata",
@@ -46287,9 +46038,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List runtime logs",
@@ -46648,9 +46396,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Stream runtime logs",
@@ -46875,9 +46620,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List Memory v2 curated entries",
@@ -47292,9 +47034,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Create or propose one Memory v2 curated entry",
@@ -47431,9 +47170,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Create a Memory v2 ad-hoc note for dreaming reconciliation",
@@ -48031,9 +47767,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get Memory v2 config metadata and provider registry state",
@@ -48193,9 +47926,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List Memory v2 daily operation logs",
@@ -48553,9 +48283,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List Memory v2 controller decisions",
@@ -48859,9 +48586,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one Memory v2 controller decision",
@@ -49236,9 +48960,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Revert one applied Memory v2 controller decision",
@@ -49436,9 +49157,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List Memory v2 dreaming runs",
@@ -49560,9 +49278,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get Memory v2 dreaming status",
@@ -49763,9 +49478,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Trigger Memory v2 dreaming immediately",
@@ -49918,9 +49630,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one Memory v2 dreaming run",
@@ -50118,9 +49827,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Retry a failed Memory v2 dreaming run",
@@ -50174,9 +49880,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Drain Memory v2 extractor queue",
@@ -50302,9 +50005,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List Memory v2 extractor DLQ records",
@@ -50399,9 +50099,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Retry Memory v2 extractor DLQ records",
@@ -50497,9 +50194,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get Memory v2 extractor queue status",
@@ -50683,9 +50377,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get memory health",
@@ -50862,9 +50553,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List redacted memory operation history",
@@ -51272,9 +50960,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Promote a Memory v2 entry between scopes or agent tiers",
@@ -51371,9 +51056,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List registered Memory v2 providers",
@@ -51553,9 +51235,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Select the active Memory v2 provider",
@@ -51683,9 +51362,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one Memory v2 provider",
@@ -51855,9 +51531,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Disable a Memory v2 provider",
@@ -52050,9 +51723,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Enable a Memory v2 provider",
@@ -52311,9 +51981,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one Memory v2 recall trace",
@@ -52434,9 +52101,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Rebuild Memory v2 derived catalog indexes",
@@ -52491,9 +52155,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Invalidate Memory v2 frozen snapshots for the next session boot",
@@ -52638,9 +52299,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Reset Memory v2 derived state or curated storage",
@@ -52818,9 +52476,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Resolve the effective Memory v2 scope/tier and precedence chain",
@@ -53155,9 +52810,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Run deterministic Memory v2 recall/search",
@@ -53256,9 +52908,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Prune materialized Memory v2 session ledger state",
@@ -53319,9 +52968,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Repair materialized Memory v2 session ledgers",
@@ -53708,9 +53354,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Delete one memory document",
@@ -53943,9 +53586,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Read one memory document",
@@ -54375,9 +54015,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Edit one Memory v2 curated entry through the controller",
@@ -54805,9 +54442,6 @@
                             }
                         },
                         "description": "Model catalog unavailable"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List provider model catalog entries across providers",
@@ -55157,9 +54791,6 @@
                             }
                         },
                         "description": "Model catalog refresh unavailable"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Refresh provider model catalog sources across providers",
@@ -55588,9 +55219,6 @@
                             }
                         },
                         "description": "Model catalog unavailable"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List provider model catalog entries for one provider",
@@ -55951,9 +55579,6 @@
                             }
                         },
                         "description": "Model catalog refresh unavailable"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Refresh provider model catalog sources for one provider",
@@ -56286,9 +55911,6 @@
                             }
                         },
                         "description": "Model catalog unavailable"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List provider model catalog source status for one provider",
@@ -56610,9 +56232,6 @@
                             }
                         },
                         "description": "Model catalog unavailable"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List provider model catalog source status across providers",
@@ -56855,9 +56474,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get the network runtime status snapshot",
@@ -57187,9 +56803,6 @@
                             }
                         },
                         "description": "Notification preset service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List notification presets",
@@ -57584,9 +57197,6 @@
                             }
                         },
                         "description": "Notification preset service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Create a notification preset",
@@ -57859,9 +57469,6 @@
                             }
                         },
                         "description": "Notification preset service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Delete one custom notification preset",
@@ -58155,9 +57762,6 @@
                             }
                         },
                         "description": "Notification preset service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one notification preset",
@@ -58625,9 +58229,6 @@
                             }
                         },
                         "description": "Notification preset service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Update one notification preset",
@@ -59528,9 +59129,6 @@
                             }
                         },
                         "description": "Observe service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get the observer-backed task dashboard",
@@ -60282,9 +59880,6 @@
                             }
                         },
                         "description": "Observe service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get the observer-backed task inbox",
@@ -60444,9 +60039,6 @@
                             }
                         },
                         "description": "Onboarding store is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Clear the onboarding completion flag",
@@ -60542,9 +60134,6 @@
                             }
                         },
                         "description": "Onboarding store is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get the first-run onboarding completion status",
@@ -60704,9 +60293,6 @@
                             }
                         },
                         "description": "Onboarding store is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Mark first-run onboarding as completed",
@@ -61024,9 +60610,6 @@
                             }
                         },
                         "description": "Model catalog unavailable"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List provider models using the OpenAI-compatible model shape",
@@ -61170,9 +60753,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List providers and declared auth status",
@@ -61380,9 +60960,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one provider and declared auth status",
@@ -61666,9 +61243,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Run a non-interactive provider auth status probe",
@@ -62021,9 +61595,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List desired-state resources on the local operator control plane",
@@ -62377,9 +61948,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List one desired-state resource kind on the local operator control plane",
@@ -62803,9 +62371,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Delete one desired-state resource on the local operator control plane",
@@ -63167,9 +62732,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Read one desired-state resource on the local operator control plane",
@@ -63772,9 +63334,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Create or replace one desired-state resource on the local operator control plane",
@@ -64393,9 +63952,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Force fail a bounded set of queued or claimed task runs",
@@ -65014,9 +64570,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Force release a bounded set of claimed task runs",
@@ -65692,9 +65245,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Force fail one queued or claimed task run",
@@ -66788,9 +66338,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Inspect one task run with diagnostics",
@@ -67654,9 +67201,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Recover one needs_attention task run",
@@ -68331,9 +67875,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Force release one claimed task run",
@@ -69194,9 +68735,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Retry one failed task run",
@@ -69453,9 +68991,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get scheduler pause state and queue pressure",
@@ -70456,9 +69991,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List queued scheduler backlog rows",
@@ -70819,9 +70351,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Pause the scheduler and wait for active claims to drain",
@@ -71155,9 +70684,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Pause scheduler dispatch and task-run claims",
@@ -71491,9 +71017,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Resume scheduler dispatch and task-run claims",
@@ -72148,9 +71671,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List sessions",
@@ -72916,9 +72436,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Create a session",
@@ -73091,9 +72608,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Trigger a daemon restart using the persisted relaunch helper flow",
@@ -73307,9 +72821,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get the persisted status for one daemon restart operation",
@@ -73621,9 +73132,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List config apply records for desired and active generation reconciliation",
@@ -73830,9 +73338,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Read the automation settings section",
@@ -74286,9 +73791,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Update the automation settings section",
@@ -74603,9 +74105,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Read the general settings section",
@@ -75117,9 +74616,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Update the general settings section",
@@ -75587,9 +75083,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List settings-backed hook declarations",
@@ -76205,9 +75698,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Read the hooks and extensions settings section",
@@ -76696,9 +76186,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Update the hooks and extensions settings section",
@@ -77057,9 +76544,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Delete one settings-backed hook declaration",
@@ -77739,9 +77223,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Create or replace one settings-backed hook declaration",
@@ -78270,9 +77751,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List settings-backed MCP servers",
@@ -78781,9 +78259,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Delete one settings-backed MCP server",
@@ -79392,9 +78867,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Create or replace one settings-backed MCP server",
@@ -80044,9 +79516,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Read the memory settings section",
@@ -80949,9 +80418,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Update the memory settings section",
@@ -81164,9 +80630,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Read the network settings section",
@@ -81623,9 +81086,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Update the network settings section",
@@ -81835,9 +81295,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Read the observability settings section",
@@ -82300,9 +81757,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Update the observability settings section",
@@ -82378,9 +81832,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Stream daemon log output for the observability settings screen",
@@ -83050,9 +82501,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List settings-backed providers",
@@ -83411,9 +82859,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Delete one settings-backed provider overlay",
@@ -84124,9 +83569,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Read one settings-backed provider",
@@ -84732,9 +84174,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Create or replace one settings-backed provider overlay",
@@ -85082,9 +84521,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Reconcile config.toml with the daemon active generation",
@@ -85389,9 +84825,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List settings-backed execution sandboxes",
@@ -85750,9 +85183,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Delete one settings-backed execution sandbox overlay",
@@ -86100,9 +85530,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Read one settings-backed execution sandbox",
@@ -86619,9 +86046,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Create or replace one settings-backed execution sandbox",
@@ -87100,9 +86524,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Read the skills settings section",
@@ -87717,9 +87138,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Update the skills settings section",
@@ -87917,9 +87335,6 @@
                             }
                         },
                         "description": "Update surface unavailable"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Read the current AGH software update status",
@@ -88449,9 +87864,6 @@
                             }
                         },
                         "description": "Skills registry is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List effective skills for the selected global, workspace, or agent scope",
@@ -88795,9 +88207,6 @@
                             }
                         },
                         "description": "Skill marketplace is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get remote marketplace skill detail",
@@ -89123,9 +88532,6 @@
                             }
                         },
                         "description": "Skill marketplace is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Install one remote marketplace skill",
@@ -89392,9 +88798,6 @@
                             }
                         },
                         "description": "Skill marketplace is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Search remote marketplace skills",
@@ -89777,9 +89180,6 @@
                             }
                         },
                         "description": "Skill marketplace is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Check or apply updates for marketplace skills",
@@ -90142,9 +89542,6 @@
                             }
                         },
                         "description": "Skills registry is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Remove one installed marketplace skill",
@@ -90680,9 +90077,6 @@
                             }
                         },
                         "description": "Skills registry is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one skill definition",
@@ -91046,9 +90440,6 @@
                             }
                         },
                         "description": "Skills registry is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get the raw content for one skill",
@@ -91412,9 +90803,6 @@
                             }
                         },
                         "description": "Skills registry is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Disable one skill",
@@ -91778,9 +91166,6 @@
                             }
                         },
                         "description": "Skills registry is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Enable one skill",
@@ -92195,9 +91580,6 @@
                             }
                         },
                         "description": "Skills registry is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get resolver provenance and shadow declarations for one skill",
@@ -93586,9 +92968,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get the runtime status snapshot",
@@ -93945,9 +93324,6 @@
                             }
                         },
                         "description": "Support bundle service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Create a support bundle",
@@ -94294,9 +93670,6 @@
                             }
                         },
                         "description": "Support bundle service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get support bundle operation status",
@@ -94577,9 +93950,6 @@
                             }
                         },
                         "description": "Support bundle service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Download a completed support bundle archive",
@@ -94949,9 +94319,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one task-run review",
@@ -95695,9 +95062,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Submit one task-run review verdict",
@@ -96343,9 +95707,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one task run detail",
@@ -96896,9 +96257,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Attach an existing session to one task run",
@@ -97449,9 +96807,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Cancel one task run",
@@ -98001,9 +97356,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Claim one queued task run",
@@ -98551,9 +97903,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Complete one running task run",
@@ -99105,9 +98454,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Fail one task run",
@@ -99575,9 +98921,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List reviews for one task run",
@@ -100277,9 +99620,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Request review for one terminal task run",
@@ -100829,9 +100169,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Start one claimed task run",
@@ -101699,9 +101036,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List enriched tasks",
@@ -102356,9 +101690,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Create a task",
@@ -102631,9 +101962,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Delete one task",
@@ -104481,9 +103809,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one task with detail",
@@ -105077,9 +104402,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Update one task",
@@ -105817,9 +105139,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Approve one approval-gated task and enqueue executable work",
@@ -106366,9 +105685,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Cancel one task tree",
@@ -107036,9 +106352,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Create one child task",
@@ -108971,9 +108284,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Add one task dependency",
@@ -110832,9 +110142,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Remove one task dependency",
@@ -111107,9 +110414,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Delete one task execution profile",
@@ -111620,9 +110924,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one task execution profile",
@@ -112433,9 +111734,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Replace one task execution profile",
@@ -113529,9 +112827,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Inspect one task with diagnostics",
@@ -113964,9 +113259,6 @@
                             }
                         },
                         "description": "Task or bridge service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List bridge terminal notification subscriptions for one task",
@@ -114400,9 +113692,6 @@
                             }
                         },
                         "description": "Task or bridge service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Create one bridge terminal notification subscription for a task",
@@ -114622,9 +113911,6 @@
                             }
                         },
                         "description": "Task or bridge service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Delete one bridge terminal notification subscription for a task",
@@ -114965,9 +114251,6 @@
                             }
                         },
                         "description": "Task or bridge service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one bridge terminal notification subscription for a task",
@@ -115639,9 +114922,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Pause one task for future scheduler claims",
@@ -116380,9 +115660,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Publish one draft task and enqueue executable work",
@@ -116912,9 +116189,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Reject one approval-gated task",
@@ -117581,9 +116855,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Resume one paused task for future scheduler claims",
@@ -118051,9 +117322,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List task-run reviews for one task",
@@ -118563,9 +117831,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List runs for one task",
@@ -119117,9 +118382,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Enqueue one task run",
@@ -119858,9 +119120,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Start one task by enqueueing executable work",
@@ -120477,9 +119736,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Stream task-native live events for one task",
@@ -121101,9 +120357,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one task timeline",
@@ -121936,9 +121189,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one task tree live view",
@@ -122275,9 +121525,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Archive one task inbox item",
@@ -122614,9 +121861,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Dismiss one task inbox item",
@@ -122953,9 +122197,6 @@
                             }
                         },
                         "description": "Task service is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Mark one task inbox item as read",
@@ -123530,9 +122771,6 @@
                             }
                         },
                         "description": "Tool registry unavailable"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List operator-visible registry tools",
@@ -124201,9 +123439,6 @@
                             }
                         },
                         "description": "Tool registry unavailable"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Search operator-visible registry tools",
@@ -124978,9 +124213,6 @@
                             }
                         },
                         "description": "Tool registry unavailable"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one operator-visible registry tool",
@@ -125524,9 +124756,6 @@
                             }
                         },
                         "description": "Tool approval service unavailable"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Mint a local single-use approval token for one tool invocation",
@@ -126788,9 +126017,6 @@
                             }
                         },
                         "description": "Tool registry unavailable"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Invoke a registry tool through executable dispatch",
@@ -127094,9 +126320,6 @@
                             }
                         },
                         "description": "Toolset registry unavailable"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List named toolsets and expansion status",
@@ -127604,9 +126827,6 @@
                             }
                         },
                         "description": "Toolset registry unavailable"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Inspect one named toolset expansion",
@@ -127941,9 +127161,6 @@
                             }
                         },
                         "description": "Vault service unavailable"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Delete one vault secret",
@@ -128266,9 +127483,6 @@
                             }
                         },
                         "description": "Vault service unavailable"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List redacted vault secret metadata",
@@ -128593,9 +127807,6 @@
                             }
                         },
                         "description": "Vault service unavailable"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Create or update one write-only vault secret",
@@ -128972,9 +128183,6 @@
                             }
                         },
                         "description": "Vault service unavailable"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Read redacted vault secret metadata",
@@ -129428,9 +128636,6 @@
                             }
                         },
                         "description": "Automation manager is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Deliver one global automation webhook",
@@ -129893,9 +129098,6 @@
                             }
                         },
                         "description": "Automation manager is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Deliver one workspace-scoped automation webhook",
@@ -130026,9 +129228,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List registered workspaces",
@@ -130310,9 +129509,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Register a workspace",
@@ -130581,9 +129777,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Resolve or register a workspace from a path",
@@ -130732,9 +129925,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Delete a registered workspace",
@@ -131593,9 +130783,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one resolved workspace with related data",
@@ -131889,9 +131076,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Update a registered workspace",
@@ -132288,9 +131472,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List hook run history for one session",
@@ -132454,9 +131635,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one materialized Memory v2 session ledger",
@@ -132619,9 +131797,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Replay one materialized Memory v2 session ledger",
@@ -132840,9 +132015,6 @@
                             }
                         },
                         "description": "Network runtime is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List materialized network channels",
@@ -133809,9 +132981,6 @@
                             }
                         },
                         "description": "Network runtime is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Create a network channel by spawning agent sessions",
@@ -134760,9 +133929,6 @@
                             }
                         },
                         "description": "Network runtime is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one network channel detail",
@@ -135067,9 +134233,6 @@
                             }
                         },
                         "description": "Network runtime is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List direct rooms in one network channel",
@@ -135490,9 +134653,6 @@
                             }
                         },
                         "description": "Network runtime is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Create or return a deterministic direct room",
@@ -135840,9 +135000,6 @@
                             }
                         },
                         "description": "Network runtime is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one direct-room summary",
@@ -136279,9 +135436,6 @@
                             }
                         },
                         "description": "Network runtime is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List messages in one direct room",
@@ -136587,9 +135741,6 @@
                             }
                         },
                         "description": "Network runtime is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List public threads in one network channel",
@@ -136946,9 +136097,6 @@
                             }
                         },
                         "description": "Network runtime is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one public-thread summary",
@@ -137385,9 +136533,6 @@
                             }
                         },
                         "description": "Network runtime is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List messages in one public thread",
@@ -137764,9 +136909,6 @@
                             }
                         },
                         "description": "Network runtime is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List queued network inbox messages for one local session",
@@ -138108,9 +137250,6 @@
                             }
                         },
                         "description": "Network runtime is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List visible network peers",
@@ -138538,9 +137677,6 @@
                             }
                         },
                         "description": "Network runtime is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one visible network peer detail",
@@ -138940,9 +138076,6 @@
                             }
                         },
                         "description": "Network runtime is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Send one network message",
@@ -139285,9 +138418,6 @@
                             }
                         },
                         "description": "Network runtime is not configured"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one network work item",
@@ -139445,9 +138575,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Delete one session and remove it from persisted history",
@@ -140080,9 +139207,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get one session snapshot",
@@ -140338,9 +139462,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Approve or deny an interactive permission request",
@@ -141072,9 +140193,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Attach to a resumable live session",
@@ -141485,9 +140603,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List persisted session events",
@@ -141799,9 +140914,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Read metadata-only session health and wake eligibility",
@@ -142224,9 +141336,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List grouped session turn history",
@@ -142743,9 +141852,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Inspect session health, wake audit, and policy correlation metadata",
@@ -143023,9 +142129,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Interrupt the active prompt turn for a session",
@@ -143536,9 +142639,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Send, queue, interrupt, or steer a session prompt",
@@ -143763,9 +142863,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Cancel a queued session prompt entry",
@@ -144789,9 +143886,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get a deterministic session recap",
@@ -145109,9 +144203,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Inspect and repair an interrupted session transcript",
@@ -145798,9 +144889,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Refresh an idle session's Soul snapshot through body-level CAS",
@@ -146159,9 +145247,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Read compact session status and wake eligibility",
@@ -146518,9 +145603,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Stage steering input for the active session turn",
@@ -146678,9 +145760,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Stop a session without deleting persisted history",
@@ -147249,9 +146328,6 @@
                             }
                         },
                         "description": "Tool registry unavailable"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "List session-callable registry tools",
@@ -147940,9 +147016,6 @@
                             }
                         },
                         "description": "Tool registry unavailable"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Search session-callable registry tools",
@@ -148166,9 +147239,6 @@
                             }
                         },
                         "description": "Internal server error"
-                    },
-                    "default": {
-                        "description": ""
                     }
                 },
                 "summary": "Get the canonical transcript for one session",

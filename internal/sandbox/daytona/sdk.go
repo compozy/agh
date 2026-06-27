@@ -118,14 +118,17 @@ func (c *sdkClient) Get(ctx context.Context, id string) (daytonaSandbox, error) 
 
 func (c *sdkClient) FindOne(ctx context.Context, labels map[string]string) (daytonaSandbox, error) {
 	limit := 1
-	result, err := c.client.List(ctx, labels, nil, &limit)
-	if err != nil {
-		return nil, fmt.Errorf("sandbox/daytona: list sandboxes by labels: %w", err)
-	}
-	if result == nil || len(result.Items) == 0 {
+	iter := c.client.List(ctx, &daytonasdk.ListSandboxesQuery{
+		Labels: labels,
+		Limit:  &limit,
+	})
+	if !iter.Next() {
+		if err := iter.Err(); err != nil {
+			return nil, fmt.Errorf("sandbox/daytona: list sandboxes by labels: %w", err)
+		}
 		return nil, errSandboxNotFound
 	}
-	return sdkSandbox{sandbox: result.Items[0]}, nil
+	return sdkSandbox{sandbox: iter.Value()}, nil
 }
 
 type sdkSandbox struct {

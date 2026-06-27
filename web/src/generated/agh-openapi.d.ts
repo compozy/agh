@@ -4482,12 +4482,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   replyAgentChannelMessage: {
@@ -4714,12 +4708,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -4953,12 +4941,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   sendAgentChannelMessage: {
@@ -5187,12 +5169,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -5936,12 +5912,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getAgentCoordinatorConfig: {
@@ -6103,12 +6073,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -6404,12 +6368,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getAgentSoul: {
@@ -6609,12 +6567,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -6863,12 +6815,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -7242,12 +7188,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -7635,12 +7575,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   completeAgentTaskRun: {
@@ -7899,12 +7833,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -8166,12 +8094,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   heartbeatAgentTaskRun: {
@@ -8432,12 +8354,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   releaseAgentTaskRun: {
@@ -8697,12 +8613,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listAgents: {
@@ -8792,12 +8702,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -9035,12 +8939,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -9425,12 +9323,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -9867,12 +9759,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   deleteAgentHeartbeat: {
@@ -10185,12 +10071,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listAgentHeartbeatHistory: {
@@ -10339,12 +10219,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -10782,12 +10656,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getAgentHeartbeatStatus: {
@@ -11054,12 +10922,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -11450,12 +11312,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   wakeAgentHeartbeat: {
@@ -11678,12 +11534,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getAgentDefinitionSoul: {
@@ -11864,12 +11714,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -12156,12 +12000,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   deleteAgentSoul: {
@@ -12406,12 +12244,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listAgentSoulHistory: {
@@ -12574,12 +12406,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -12866,12 +12692,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   validateAgentDefinitionSoul: {
@@ -13097,12 +12917,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getAgent: {
@@ -13220,12 +13034,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -13401,12 +13209,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -13645,12 +13447,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getAutomationJob: {
@@ -13820,12 +13616,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   deleteAutomationJob: {
@@ -13946,12 +13736,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -14216,12 +14000,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listAutomationJobRuns: {
@@ -14377,12 +14155,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   triggerAutomationJob: {
@@ -14529,12 +14301,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listAutomationRuns: {
@@ -14666,12 +14432,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getAutomationRun: {
@@ -14792,12 +14552,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -14939,12 +14693,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -15131,12 +14879,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getAutomationTrigger: {
@@ -15270,12 +15012,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   deleteAutomationTrigger: {
@@ -15396,12 +15132,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -15614,12 +15344,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listAutomationTriggerRuns: {
@@ -15774,12 +15498,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -15990,12 +15708,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -16248,12 +15960,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listBridgeProviders: {
@@ -16343,12 +16049,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -16547,12 +16247,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -16813,12 +16507,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   disableBridge: {
@@ -17042,12 +16730,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   enableBridge: {
@@ -17270,12 +16952,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -17535,12 +17211,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   restartBridge: {
@@ -17764,12 +17434,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listBridgeRoutes: {
@@ -17887,12 +17551,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listBridgeSecretBindings: {
@@ -18001,12 +17659,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -18178,12 +17830,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   deleteBridgeSecretBinding: {
@@ -18281,12 +17927,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -18411,12 +18051,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -18592,12 +18226,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listBundleActivations: {
@@ -18727,12 +18355,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -18976,12 +18598,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getBundleActivation: {
@@ -19140,12 +18756,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   deleteBundleActivation: {
@@ -19241,12 +18851,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -19463,12 +19067,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listBundleCatalog: {
@@ -19559,12 +19157,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getBundleNetworkSettings: {
@@ -19650,12 +19242,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -19899,12 +19485,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getDoctor: {
@@ -19983,12 +19563,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -20165,12 +19739,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -20436,12 +20004,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   searchExtensionMarketplace: {
@@ -20574,12 +20136,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -20785,12 +20341,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   updateExtension: {
@@ -20983,12 +20533,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   removeExtension: {
@@ -21142,12 +20686,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -21378,12 +20916,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   enableExtension: {
@@ -21613,12 +21145,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getExtensionProvenance: {
@@ -21765,12 +21291,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   browseDirectory: {
@@ -21906,12 +21426,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -22147,12 +21661,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getHookEvents: {
@@ -22245,12 +21753,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -22384,12 +21886,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   streamLogs: {
@@ -22520,12 +22016,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listMemory: {
@@ -22629,12 +22119,6 @@ export interface operations {
             message: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -22818,12 +22302,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   createMemoryAdhocNote: {
@@ -22907,12 +22385,6 @@ export interface operations {
             message: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -23098,12 +22570,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listMemoryDailyLogs: {
@@ -23178,12 +22644,6 @@ export interface operations {
             message: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -23324,12 +22784,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getMemoryDecision: {
@@ -23456,12 +22910,6 @@ export interface operations {
             message: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -23630,12 +23078,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listMemoryDreams: {
@@ -23722,12 +23164,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getMemoryDreamStatus: {
@@ -23785,12 +23221,6 @@ export interface operations {
             message: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -23895,12 +23325,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getMemoryDream: {
@@ -23976,12 +23400,6 @@ export interface operations {
             message: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -24083,12 +23501,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   drainMemoryExtractor: {
@@ -24127,12 +23539,6 @@ export interface operations {
             message: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -24200,12 +23606,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   retryMemoryExtractor: {
@@ -24267,12 +23667,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getMemoryExtractorStatus: {
@@ -24320,12 +23714,6 @@ export interface operations {
             message: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -24410,12 +23798,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listMemoryHistory: {
@@ -24496,12 +23878,6 @@ export interface operations {
             message: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -24684,12 +24060,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listMemoryProviders: {
@@ -24737,12 +24107,6 @@ export interface operations {
             message: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -24844,12 +24208,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getMemoryProvider: {
@@ -24915,12 +24273,6 @@ export interface operations {
             message: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -25010,12 +24362,6 @@ export interface operations {
             message: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -25121,12 +24467,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getMemoryRecallTrace: {
@@ -25231,12 +24571,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   reindexMemory: {
@@ -25310,12 +24644,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   reloadMemory: {
@@ -25355,12 +24683,6 @@ export interface operations {
             message: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -25446,12 +24768,6 @@ export interface operations {
             message: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -25546,12 +24862,6 @@ export interface operations {
             message: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -25685,12 +24995,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   pruneMemorySessions: {
@@ -25753,12 +25057,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   repairMemorySessions: {
@@ -25798,12 +25096,6 @@ export interface operations {
             message: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -25912,12 +25204,6 @@ export interface operations {
             message: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -26085,12 +25371,6 @@ export interface operations {
             message: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -26288,12 +25568,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listProviderModels: {
@@ -26458,12 +25732,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   refreshProviderModels: {
@@ -26606,12 +25874,6 @@ export interface operations {
             }[];
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -26778,12 +26040,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   refreshProviderModelsByProvider: {
@@ -26930,12 +26186,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getProviderModelStatusByProvider: {
@@ -27073,12 +26323,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getProviderModelStatus: {
@@ -27213,12 +26457,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getNetworkStatus: {
@@ -27325,12 +26563,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -27460,12 +26692,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -27625,12 +26851,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getNotificationPreset: {
@@ -27750,12 +26970,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -27944,12 +27158,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   deleteNotificationPreset: {
@@ -28070,12 +27278,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -28403,12 +27605,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getTaskInbox: {
@@ -28698,12 +27894,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getOnboardingStatus: {
@@ -28753,12 +27943,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -28835,12 +28019,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   completeOnboarding: {
@@ -28915,12 +28093,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -29061,12 +28233,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listProviders: {
@@ -29129,12 +28295,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -29224,12 +28384,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -29349,12 +28503,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -29493,12 +28641,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listResourcesByKind: {
@@ -29636,12 +28778,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -29792,12 +28928,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -30047,12 +29177,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   deleteResource: {
@@ -30233,12 +29357,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -30499,12 +29617,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   bulkForceReleaseTaskRuns: {
@@ -30763,12 +29875,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -31059,12 +30165,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -31504,12 +30604,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   recoverTaskRun: {
@@ -31883,12 +30977,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   forceReleaseTaskRun: {
@@ -32178,12 +31266,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -32557,12 +31639,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getScheduler: {
@@ -32672,12 +31748,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -33092,12 +32162,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   drainScheduler: {
@@ -33248,12 +32312,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   pauseScheduler: {
@@ -33396,12 +32454,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   resumeScheduler: {
@@ -33543,12 +32595,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -33775,12 +32821,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -34061,12 +33101,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   triggerSettingsRestart: {
@@ -34142,12 +33176,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -34238,12 +33266,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -34369,12 +33391,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getSettingsAutomation: {
@@ -34458,12 +33474,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -34650,12 +33660,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getSettingsGeneral: {
@@ -34771,12 +33775,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -34980,12 +33978,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -35214,12 +34206,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -35495,12 +34481,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   updateSettingsHooksExtensions: {
@@ -35697,12 +34677,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -36017,12 +34991,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   deleteSettingsHook: {
@@ -36170,12 +35138,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -36377,12 +35339,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -36625,12 +35581,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   deleteSettingsMCPServer: {
@@ -36835,12 +35785,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -37048,12 +35992,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -37365,12 +36303,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getSettingsNetwork: {
@@ -37454,12 +36386,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -37646,12 +36572,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getSettingsObservability: {
@@ -37739,12 +36659,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -37934,12 +36848,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   streamSettingsObservabilityLogTail: {
@@ -37982,12 +36890,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -38222,12 +37124,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -38486,12 +37382,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   putSettingsProvider: {
@@ -38724,12 +37614,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   deleteSettingsProvider: {
@@ -38878,12 +37762,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   reloadSettings: {
@@ -39029,12 +37907,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listSettingsSandboxes: {
@@ -39157,12 +38029,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -39309,12 +38175,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -39523,12 +38383,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   deleteSettingsSandbox: {
@@ -39676,12 +38530,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -39864,12 +38712,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -40115,12 +38957,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getSettingsUpdate: {
@@ -40204,12 +39040,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -40412,12 +39242,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getSkillMarketplaceInfo: {
@@ -40557,12 +39381,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   installSkillMarketplace: {
@@ -40701,12 +39519,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   searchSkillMarketplace: {
@@ -40816,12 +39628,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -40986,12 +39792,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   removeSkillMarketplace: {
@@ -41146,12 +39946,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -41357,12 +40151,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getSkillContent: {
@@ -41517,12 +40305,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -41679,12 +40461,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   enableSkill: {
@@ -41839,12 +40615,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -42014,12 +40784,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -42463,12 +41227,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   createSupportBundle: {
@@ -42613,12 +41371,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getSupportBundle: {
@@ -42758,12 +41510,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   downloadSupportBundle: {
@@ -42886,12 +41632,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -43053,12 +41793,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -43373,12 +42107,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getTaskRun: {
@@ -43654,12 +42382,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   attachTaskRunSession: {
@@ -43898,12 +42620,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -44145,12 +42861,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   claimTaskRun: {
@@ -44390,12 +43100,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   completeTaskRun: {
@@ -44634,12 +43338,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -44881,12 +43579,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listTaskRunReviews: {
@@ -45079,12 +43771,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -45387,12 +44073,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   startTaskRun: {
@@ -45631,12 +44311,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -45993,12 +44667,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   createTask: {
@@ -46279,12 +44947,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -47054,12 +45716,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   deleteTask: {
@@ -47180,12 +45836,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -47440,12 +46090,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -47771,12 +46415,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   cancelTask: {
@@ -48016,12 +46654,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -48306,12 +46938,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -49115,12 +47741,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   removeTaskDependency: {
@@ -49891,12 +48511,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getTaskExecutionProfile: {
@@ -50078,12 +48692,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -50354,12 +48962,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   deleteTaskExecutionProfile: {
@@ -50480,12 +49082,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -50925,12 +49521,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listTaskBridgeNotificationSubscriptions: {
@@ -51104,12 +49694,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -51292,12 +49876,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getTaskBridgeNotificationSubscription: {
@@ -51440,12 +50018,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   deleteTaskBridgeNotificationSubscription: {
@@ -51543,12 +50115,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -51839,12 +50405,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -52170,12 +50730,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   rejectTask: {
@@ -52407,12 +50961,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -52703,12 +51251,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listTaskReviews: {
@@ -52901,12 +51443,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -53129,12 +51665,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -53376,12 +51906,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -53707,12 +52231,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   streamTask: {
@@ -53979,12 +52497,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getTaskTimeline: {
@@ -54249,12 +52761,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -54600,12 +53106,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   archiveTask: {
@@ -54750,12 +53250,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -54902,12 +53396,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   markTaskRead: {
@@ -55052,12 +53540,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -55348,12 +53830,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -55722,12 +54198,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -56174,12 +54644,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   createToolApproval: {
@@ -56550,12 +55014,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -57405,12 +55863,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listToolsets: {
@@ -57594,12 +56046,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -57940,12 +56386,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listVaultSecrets: {
@@ -58081,12 +56521,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -58227,12 +56661,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -58379,12 +56807,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -58544,12 +56966,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -58736,12 +57152,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -58931,12 +57341,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listWorkspaces: {
@@ -58994,12 +57398,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -59120,12 +57518,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   resolveWorkspace: {
@@ -59240,12 +57632,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -59532,12 +57918,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   deleteWorkspace: {
@@ -59608,12 +57988,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -59735,12 +58109,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -59939,12 +58307,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getMemorySessionLedger: {
@@ -60024,12 +58386,6 @@ export interface operations {
             message: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -60120,12 +58476,6 @@ export interface operations {
             message: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -60220,12 +58570,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -60560,12 +58904,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getNetworkChannel: {
@@ -60891,12 +59229,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listNetworkDirectRooms: {
@@ -61018,12 +59350,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -61198,12 +59524,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getNetworkDirectRoom: {
@@ -61345,12 +59665,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -61521,12 +59835,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listNetworkThreads: {
@@ -61649,12 +59957,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -61800,12 +60102,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -61976,12 +60272,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listNetworkInbox: {
@@ -62136,12 +60426,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listNetworkPeers: {
@@ -62274,12 +60558,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -62436,12 +60714,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -62612,12 +60884,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getNetworkWork: {
@@ -62761,12 +61027,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -62991,12 +61251,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   deleteSession: {
@@ -63069,12 +61323,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -63186,12 +61434,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -63454,12 +61696,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   listSessionEvents: {
@@ -63622,12 +61858,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getSessionHealth: {
@@ -63756,12 +61986,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -63927,12 +62151,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -64146,12 +62364,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   interruptSessionPrompt: {
@@ -64269,12 +62481,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -64487,12 +62693,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   cancelQueuedSessionPrompt: {
@@ -64587,12 +62787,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -64970,12 +63164,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   repairSession: {
@@ -65100,12 +63288,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -65359,12 +63541,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getSessionStatus: {
@@ -65519,12 +63695,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   steerSessionPrompt: {
@@ -65675,12 +63845,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   stopSession: {
@@ -65753,12 +63917,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -66048,12 +64206,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
@@ -66428,12 +64580,6 @@ export interface operations {
           };
         };
       };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
-      };
     };
   };
   getSessionTranscript: {
@@ -66529,12 +64675,6 @@ export interface operations {
             error: string;
           };
         };
-      };
-      default: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content?: never;
       };
     };
   };
