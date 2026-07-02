@@ -13,6 +13,7 @@ import (
 
 const (
 	toolInvokeStatusCompleted = "completed"
+	toolInvokeStatusCanceled  = "canceled"
 	toolsetStatusExpanded     = "expanded"
 	toolsetStatusDegraded     = "degraded"
 )

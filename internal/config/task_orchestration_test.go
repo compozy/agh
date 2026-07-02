@@ -47,6 +47,15 @@ func TestTaskOrchestrationConfigDefaultsAndValidation(t *testing.T) {
 		if got, want := orchestration.BridgeNotificationTimeout, 10*time.Second; got != want {
 			t.Fatalf("DefaultWithHome() Task.Orchestration.BridgeNotificationTimeout = %s, want %s", got, want)
 		}
+		if got, want := orchestration.DesignatedRunMax, DefaultTaskDesignatedRunMax; got != want {
+			t.Fatalf("DefaultWithHome() Task.Orchestration.DesignatedRunMax = %d, want %d", got, want)
+		}
+		if got, want := orchestration.NetworkStatusQueueSize, DefaultTaskNetworkStatusQueueSize; got != want {
+			t.Fatalf("DefaultWithHome() Task.Orchestration.NetworkStatusQueueSize = %d, want %d", got, want)
+		}
+		if got, want := orchestration.NetworkStatusTimeout, DefaultTaskNetworkStatusTimeout; got != want {
+			t.Fatalf("DefaultWithHome() Task.Orchestration.NetworkStatusTimeout = %s, want %s", got, want)
+		}
 		if got, want := orchestration.Profile.DefaultCoordinatorMode, TaskCoordinatorModeInherit; got != want {
 			t.Fatalf("DefaultWithHome() profile DefaultCoordinatorMode = %q, want %q", got, want)
 		}
@@ -158,6 +167,21 @@ func TestTaskOrchestrationConfigDefaultsAndValidation(t *testing.T) {
 			name:    "Should reject zero bridge notification timeout",
 			mutate:  func(cfg *TaskConfig) { cfg.Orchestration.BridgeNotificationTimeout = 0 },
 			wantErr: "task.orchestration.bridge_notification_timeout",
+		},
+		{
+			name:    "Should reject designated run max above the configured cap",
+			mutate:  func(cfg *TaskConfig) { cfg.Orchestration.DesignatedRunMax = MaxTaskDesignatedRunMax + 1 },
+			wantErr: "task.orchestration.designated_run_max",
+		},
+		{
+			name:    "Should reject zero network status queue size",
+			mutate:  func(cfg *TaskConfig) { cfg.Orchestration.NetworkStatusQueueSize = 0 },
+			wantErr: "task.orchestration.network_status_queue_size",
+		},
+		{
+			name:    "Should reject fractional network status timeout",
+			mutate:  func(cfg *TaskConfig) { cfg.Orchestration.NetworkStatusTimeout = 1500 * time.Millisecond },
+			wantErr: "task.orchestration.network_status_timeout",
 		},
 		{
 			name: "Should reject unknown coordinator default mode",
@@ -324,6 +348,8 @@ spawn_failure_limit = 4
 scheduler_bad_tick_threshold = 5
 scheduler_bad_tick_cooldown = "4m"
 default_max_runtime = "1h"
+network_status_queue_size = 17
+network_status_timeout = "7s"
 
 [task.recovery]
 allow_agent_force = false
@@ -353,6 +379,7 @@ failure_policy = "fail_task"
 [task.orchestration]
 summary_max_bytes = 3000
 default_max_runtime = "0s"
+network_status_timeout = "3s"
 
 [task.recovery]
 allow_agent_force = true
@@ -376,6 +403,12 @@ timeout = "10m"
 		}
 		if got := orchestration.DefaultMaxRuntime; got != 0 {
 			t.Fatalf("LoadForHome() DefaultMaxRuntime = %s, want workspace disabled runtime", got)
+		}
+		if got, want := orchestration.NetworkStatusQueueSize, 17; got != want {
+			t.Fatalf("LoadForHome() NetworkStatusQueueSize = %d, want global value %d", got, want)
+		}
+		if got, want := orchestration.NetworkStatusTimeout, 3*time.Second; got != want {
+			t.Fatalf("LoadForHome() NetworkStatusTimeout = %s, want workspace override %s", got, want)
 		}
 		if got, want := orchestration.Profile.DefaultCoordinatorMode, TaskCoordinatorModeGuided; got != want {
 			t.Fatalf("LoadForHome() DefaultCoordinatorMode = %q, want %q", got, want)

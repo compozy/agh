@@ -75,6 +75,11 @@ export const settingsNetworkSectionFixture: SettingsNetworkSection = {
     max_payload: 131072,
     max_queue_depth: 1024,
     max_replay_age: 86400,
+    activation_top_k: 3,
+    digest_flush_interval: "250ms",
+    digest_max_envelopes: 10,
+    response_guidance_max_bytes: 512,
+    delivery_structured_body_max_bytes: 4096,
   },
   runtime: {
     available: true,

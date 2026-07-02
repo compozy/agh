@@ -1,4 +1,6 @@
-import { Button, Textarea } from "@agh/ui";
+import { AtSign } from "lucide-react";
+
+import { Button, Pill, Textarea } from "@agh/ui";
 
 import { cn } from "@/lib/utils";
 
@@ -71,6 +73,28 @@ function ComposerView({
         style={{ maxHeight: `${TEXTAREA_MAX_ROWS * 1.5}rem` }}
         value={state.value}
       />
+
+      {state.mentions.length > 0 ? (
+        <div
+          aria-label="Mention recipients"
+          className="flex min-h-5 flex-wrap items-center gap-1.5"
+          data-testid={`network-composer-mentions-${testIdSuffix}`}
+          role="group"
+        >
+          {state.mentions.map(peerId => (
+            <Pill
+              data-testid={`network-composer-mention-${testIdSuffix}-${peerId}`}
+              key={peerId}
+              mono
+              size="xs"
+              tone="info"
+            >
+              <AtSign aria-hidden="true" className="size-3" />
+              {peerId}
+            </Pill>
+          ))}
+        </div>
+      ) : null}
 
       <div className="flex items-end justify-between gap-2">
         <ComposerToolbar onSlash={state.handleToolbarSlash} testIdSuffix={testIdSuffix} />

@@ -4,16 +4,28 @@ import { toast } from "@agh/ui";
 
 import {
   createNetworkChannel,
+  deleteNetworkSubscription,
   NetworkApiError,
+  promoteNetworkThreadTask,
   resolveNetworkDirectRoom,
   sendNetworkMessage,
+  updateNetworkChannel,
+  upsertNetworkSubscription,
 } from "@/systems/network/adapters/network-api";
 import { networkKeys } from "@/systems/network/lib/query-keys";
 import { sessionKeys } from "@/systems/session";
+import { tasksKeys } from "@/systems/tasks";
 import { useActiveWorkspace } from "@/systems/workspace";
 import type {
   CreateNetworkChannelRequest,
+  NetworkChannelUpdateRequest,
+  NetworkChannelUpdateResponse,
   NetworkConversationMessage,
+  NetworkSubscriptionMode,
+  NetworkSubscriptionRequest,
+  NetworkSubscriptionResponse,
+  PromoteNetworkThreadTaskRequest,
+  PromoteNetworkThreadTaskResponse,
   NetworkResolveDirectRoomRequest,
   NetworkResolveDirectRoomResponse,
   NetworkSendRequest,
@@ -59,6 +71,9 @@ function buildSendRequest(
     surface: input.surface,
     workspace_id: workspaceId,
   };
+  if (input.mentions && input.mentions.length > 0) {
+    base.mentions = input.mentions;
+  }
   if (input.surface === "thread" && input.threadId) {
     return { ...base, thread_id: input.threadId };
   }
@@ -89,6 +104,9 @@ function buildOptimisticMessage(
     text: input.text,
     timestamp,
   };
+  if (input.mentions && input.mentions.length > 0) {
+    base.mentions = input.mentions;
+  }
   if (input.surface === "thread") {
     base.thread_id = input.threadId;
   }
@@ -199,6 +217,7 @@ export interface SendNetworkMessageThreadInput {
   threadId: string;
   sessionId: string;
   text: string;
+  mentions?: string[];
   peerFrom: string;
   displayName?: string;
   /** When provided, replaces an existing optimistic message id (used by retry). */
@@ -211,6 +230,7 @@ export interface SendNetworkMessageDirectInput {
   directId: string;
   sessionId: string;
   text: string;
+  mentions?: string[];
   peerFrom: string;
   peerTo?: string;
   displayName?: string;
@@ -233,6 +253,32 @@ export interface UseSendNetworkMessageResult {
   ) => Promise<SendNetworkMessageResult>;
   discard: (input: SendNetworkMessageInput, clientMessageId: string) => void;
   isSending: boolean;
+}
+
+export interface UpdateNetworkChannelInput {
+  workspaceId: string;
+  channel: string;
+  data: NetworkChannelUpdateRequest;
+}
+
+export interface UpsertNetworkSubscriptionInput {
+  workspaceId: string;
+  channel: string;
+  data: NetworkSubscriptionRequest;
+}
+
+export interface DeleteNetworkSubscriptionInput {
+  workspaceId: string;
+  channel: string;
+  peerId: string;
+  threadId?: string;
+}
+
+export interface PromoteNetworkThreadTaskInput {
+  workspaceId: string;
+  channel: string;
+  threadId: string;
+  data: PromoteNetworkThreadTaskRequest;
 }
 
 function invalidateContainerQueries(
@@ -355,6 +401,7 @@ export interface CreateNetworkThreadInput {
   channel: string;
   sessionId: string;
   text: string;
+  mentions?: string[];
   peerFrom: string;
   displayName?: string;
 }
@@ -390,6 +437,7 @@ async function attemptCreateThread(
     threadId: args.threadId,
     sessionId: args.sessionId,
     text: args.text,
+    mentions: args.mentions,
     peerFrom: args.peerFrom,
     displayName: args.displayName,
     workspaceId: args.workspaceId,
@@ -529,6 +577,90 @@ export function useCreateNetworkChannel() {
         queryClient.invalidateQueries({ queryKey: networkKeys.all }),
         queryClient.invalidateQueries({ queryKey: sessionKeys.lists() }),
       ]),
+  });
+}
+
+export function useUpdateNetworkChannel() {
+  const queryClient = useQueryClient();
+
+  return useMutation<NetworkChannelUpdateResponse["channel"], Error, UpdateNetworkChannelInput>({
+    mutationFn: ({ workspaceId, channel, data }) =>
+      updateNetworkChannel(workspaceId, channel, data),
+    onSuccess: (_channel, { workspaceId, channel }) => {
+      toast.success("Channel policy updated.");
+      return Promise.all([
+        queryClient.invalidateQueries({ queryKey: networkKeys.channels(workspaceId) }),
+        queryClient.invalidateQueries({ queryKey: networkKeys.channelScope(workspaceId, channel) }),
+        queryClient.invalidateQueries({ queryKey: sessionKeys.lists() }),
+      ]);
+    },
+    onError: error => {
+      toast.error(error instanceof Error ? error.message : "Failed to update channel policy");
+    },
+  });
+}
+
+export function useUpsertNetworkSubscription() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    NetworkSubscriptionResponse["subscription"],
+    Error,
+    UpsertNetworkSubscriptionInput
+  >({
+    mutationFn: ({ workspaceId, channel, data }) =>
+      upsertNetworkSubscription(workspaceId, channel, data),
+    onSuccess: (_subscription, { workspaceId, channel, data }) => {
+      const mode = data.mode as NetworkSubscriptionMode;
+      toast.success(`Thread delivery set to ${mode}.`);
+      return queryClient.invalidateQueries({
+        queryKey: networkKeys.subscriptionsRoot(workspaceId, channel),
+      });
+    },
+    onError: error => {
+      toast.error(error instanceof Error ? error.message : "Failed to update subscription");
+    },
+  });
+}
+
+export function useDeleteNetworkSubscription() {
+  const queryClient = useQueryClient();
+
+  return useMutation<void, Error, DeleteNetworkSubscriptionInput>({
+    mutationFn: ({ workspaceId, channel, peerId, threadId }) =>
+      deleteNetworkSubscription(workspaceId, channel, peerId, { thread_id: threadId }),
+    onSuccess: (_result, { workspaceId, channel }) => {
+      toast.success("Thread delivery reset.");
+      return queryClient.invalidateQueries({
+        queryKey: networkKeys.subscriptionsRoot(workspaceId, channel),
+      });
+    },
+    onError: error => {
+      toast.error(error instanceof Error ? error.message : "Failed to reset subscription");
+    },
+  });
+}
+
+export function usePromoteNetworkThreadTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation<PromoteNetworkThreadTaskResponse, Error, PromoteNetworkThreadTaskInput>({
+    mutationFn: ({ workspaceId, channel, threadId, data }) =>
+      promoteNetworkThreadTask(workspaceId, channel, threadId, data),
+    onSuccess: (result, { workspaceId, channel, threadId }) => {
+      toast.success("Thread promoted to task.");
+      return Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: networkKeys.threadDetail(workspaceId, channel, threadId),
+        }),
+        queryClient.invalidateQueries({ queryKey: networkKeys.threadsList(workspaceId, channel) }),
+        queryClient.invalidateQueries({ queryKey: tasksKeys.lists() }),
+        queryClient.invalidateQueries({ queryKey: tasksKeys.detail(result.task.id) }),
+      ]);
+    },
+    onError: error => {
+      toast.error(error instanceof Error ? error.message : "Failed to promote thread");
+    },
   });
 }
 

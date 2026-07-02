@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/compozy/agh/internal/api/contract"
 	"github.com/compozy/agh/internal/network"
 	"github.com/compozy/agh/internal/store"
+	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/gin-gonic/gin"
 )
 
@@ -69,9 +71,390 @@ func (h *BaseHandlers) NetworkThread(c *gin.Context) {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
+	peerCosts, err := h.networkThreadPeerCosts(c.Request.Context(), scope.NetworkWorkspaceID(), channel, threadID)
+	if err != nil {
+		h.respondError(c, StatusForNetworkError(err), err)
+		return
+	}
+	taskLinks, err := h.networkThreadTaskLinks(c.Request.Context(), scope.NetworkWorkspaceID(), channel, threadID)
+	if err != nil {
+		h.respondError(c, StatusForNetworkError(err), err)
+		return
+	}
 	c.JSON(http.StatusOK, contract.NetworkThreadResponse{
-		Thread: NetworkThreadSummaryPayloadFromStore(thread),
+		Thread:    NetworkThreadSummaryPayloadFromStore(thread),
+		PeerCosts: NetworkThreadPeerCostPayloadsFromStore(peerCosts),
+		TaskLinks: NetworkTaskThreadOriginPayloadsFromStore(taskLinks),
 	})
+}
+
+// PromoteNetworkThreadTask creates a durable task from a public-thread message.
+func (h *BaseHandlers) PromoteNetworkThreadTask(c *gin.Context) {
+	manager, ok := h.requireTaskManager(c)
+	if !ok {
+		return
+	}
+	if _, ok := h.requireNetworkReadDependencies(c); !ok {
+		return
+	}
+	channel, err := normalizeNetworkChannel(c.Param("channel"))
+	if err != nil {
+		h.respondError(c, StatusForNetworkError(err), err)
+		return
+	}
+	scope, ok := h.resolveWorkspaceScope(c)
+	if !ok {
+		return
+	}
+	threadID := strings.TrimSpace(c.Param("thread_id"))
+	if err := network.ValidateConversationID(threadID, "thread_id"); err != nil {
+		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
+		return
+	}
+	var req contract.PromoteNetworkThreadTaskRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			fmt.Errorf("%s: decode promote network thread task request: %w", h.transportName(), err),
+		)
+		return
+	}
+	originMessageID := strings.TrimSpace(req.OriginMessageID)
+	if originMessageID == "" {
+		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(errors.New("origin_message_id is required")))
+		return
+	}
+	source, err := h.networkThreadPromotionSource(
+		c.Request.Context(),
+		scope.NetworkWorkspaceID(),
+		channel,
+		threadID,
+		originMessageID,
+	)
+	if err != nil {
+		h.respondError(c, StatusForNetworkError(err), err)
+		return
+	}
+	actor, err := h.taskActorContextForWorkspace(c, taskActionPromoteNetwork, scope.NetworkWorkspaceID())
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	taskRecord, err := h.createPromotedNetworkThreadTask(c.Request.Context(), manager, actor, source, req)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	origin, err := h.writePromotedNetworkThreadOrigin(c.Request.Context(), taskRecord.ID, source)
+	if err != nil {
+		if cleanupErr := manager.DeleteTask(c.Request.Context(), taskRecord.ID, actor); cleanupErr != nil {
+			err = errors.Join(err, fmt.Errorf("rollback promoted network task %q: %w", taskRecord.ID, cleanupErr))
+		}
+		h.respondError(c, StatusForNetworkError(err), err)
+		return
+	}
+	c.JSON(http.StatusCreated, contract.PromoteNetworkThreadTaskResponse{
+		Task:   TaskPayloadFromTask(taskRecord),
+		Origin: NetworkTaskThreadOriginPayloadFromStore(origin),
+	})
+}
+
+type networkThreadPromotionSource struct {
+	workspaceID      string
+	channel          string
+	threadID         string
+	originMessageID  string
+	digest           string
+	sourceMessageIDs []string
+	thread           store.NetworkThreadSummary
+}
+
+func (h *BaseHandlers) networkThreadPromotionSource(
+	ctx context.Context,
+	workspaceID string,
+	channel string,
+	threadID string,
+	originMessageID string,
+) (networkThreadPromotionSource, error) {
+	ref := store.NetworkConversationRef{
+		WorkspaceID: workspaceID,
+		Channel:     channel,
+		Surface:     store.NetworkSurfaceThread,
+		ThreadID:    threadID,
+	}
+	messages, err := h.NetworkStore.ListConversationMessages(
+		ctx,
+		ref,
+		store.NetworkConversationMessageQuery{Limit: 200},
+	)
+	if err != nil {
+		return networkThreadPromotionSource{}, err
+	}
+	digest, sourceMessageIDs, found := networkThreadPromotionDigest(messages, originMessageID)
+	if !found {
+		return networkThreadPromotionSource{}, NewNetworkValidationError(
+			fmt.Errorf("origin_message_id %q is not part of thread %q", originMessageID, threadID),
+		)
+	}
+	channelRef := store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: channel}
+	thread, err := h.NetworkStore.GetThread(ctx, channelRef, threadID)
+	if err != nil {
+		return networkThreadPromotionSource{}, err
+	}
+	return networkThreadPromotionSource{
+		workspaceID:      workspaceID,
+		channel:          channel,
+		threadID:         threadID,
+		originMessageID:  originMessageID,
+		digest:           digest,
+		sourceMessageIDs: sourceMessageIDs,
+		thread:           thread,
+	}, nil
+}
+
+func (h *BaseHandlers) createPromotedNetworkThreadTask(
+	ctx context.Context,
+	manager TaskService,
+	actor taskpkg.ActorContext,
+	source networkThreadPromotionSource,
+	req contract.PromoteNetworkThreadTaskRequest,
+) (*taskpkg.Task, error) {
+	spec := taskpkg.CreateTask{
+		Scope:          taskpkg.ScopeWorkspace,
+		WorkspaceID:    source.workspaceID,
+		NetworkChannel: source.channel,
+		Title:          promotedNetworkThreadTaskTitle(req, source),
+		Description:    firstNonEmpty(strings.TrimSpace(req.Description), source.digest),
+		Priority:       taskpkg.Priority(strings.TrimSpace(req.Priority)).Normalize(),
+		Metadata:       cloneRawMessage(req.Metadata),
+	}
+	if err := spec.Validate("promote_network_thread"); err != nil {
+		return nil, err
+	}
+	return manager.CreateTask(ctx, spec, actor)
+}
+
+func promotedNetworkThreadTaskTitle(
+	req contract.PromoteNetworkThreadTaskRequest,
+	source networkThreadPromotionSource,
+) string {
+	return firstNonEmpty(
+		strings.TrimSpace(req.Title),
+		strings.TrimSpace(source.thread.Title),
+		"Network thread "+source.threadID,
+	)
+}
+
+func (h *BaseHandlers) writePromotedNetworkThreadOrigin(
+	ctx context.Context,
+	taskID string,
+	source networkThreadPromotionSource,
+) (store.NetworkTaskThreadOrigin, error) {
+	now := h.nowUTC()
+	origin := store.NetworkTaskThreadOrigin{
+		TaskID:           taskID,
+		WorkspaceID:      source.workspaceID,
+		Channel:          source.channel,
+		ThreadID:         source.threadID,
+		OriginMessageID:  source.originMessageID,
+		Digest:           source.digest,
+		SourceMessageIDs: source.sourceMessageIDs,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+	}
+	if err := origin.Validate(); err != nil {
+		return store.NetworkTaskThreadOrigin{}, err
+	}
+	return origin, h.NetworkStore.PutNetworkTaskThreadOrigin(ctx, origin)
+}
+
+// NetworkSubscriptions returns peer delivery preferences for a channel or thread.
+func (h *BaseHandlers) NetworkSubscriptions(c *gin.Context) {
+	if _, ok := h.requireNetworkReadDependencies(c); !ok {
+		return
+	}
+	channel, err := normalizeNetworkChannel(c.Param("channel"))
+	if err != nil {
+		h.respondError(c, StatusForNetworkError(err), err)
+		return
+	}
+	scope, ok := h.resolveWorkspaceScope(c)
+	if !ok {
+		return
+	}
+	limit, err := parsePositiveIntQuery(c)
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
+		return
+	}
+	if limit == 0 {
+		limit = 100
+	}
+	query := store.NetworkSubscriptionQuery{
+		WorkspaceID: scope.NetworkWorkspaceID(),
+		Channel:     channel,
+		ThreadID:    strings.TrimSpace(c.Query("thread_id")),
+		PeerID:      strings.TrimSpace(c.Query("peer_id")),
+		Limit:       limit,
+	}
+	if err := query.Validate(); err != nil {
+		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
+		return
+	}
+	subscriptions, err := h.NetworkStore.ListNetworkSubscriptions(c.Request.Context(), query)
+	if err != nil {
+		h.respondError(c, StatusForNetworkError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.NetworkSubscriptionsResponse{
+		Subscriptions: NetworkSubscriptionPayloadsFromStore(subscriptions),
+	})
+}
+
+// UpsertNetworkSubscription sets one peer delivery preference for a channel or thread.
+func (h *BaseHandlers) UpsertNetworkSubscription(c *gin.Context) {
+	if _, ok := h.requireNetworkReadDependencies(c); !ok {
+		return
+	}
+	channel, err := normalizeNetworkChannel(c.Param("channel"))
+	if err != nil {
+		h.respondError(c, StatusForNetworkError(err), err)
+		return
+	}
+	scope, ok := h.resolveWorkspaceScope(c)
+	if !ok {
+		return
+	}
+	var req contract.NetworkSubscriptionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			fmt.Errorf("%s: decode network subscription request: %w", h.transportName(), err),
+		)
+		return
+	}
+	now := h.nowUTC()
+	entry := store.NetworkSubscriptionEntry{
+		WorkspaceID:    scope.NetworkWorkspaceID(),
+		Channel:        channel,
+		ThreadID:       strings.TrimSpace(req.ThreadID),
+		PeerID:         strings.TrimSpace(req.PeerID),
+		Mode:           strings.TrimSpace(req.Mode),
+		KeywordFilters: cloneTrimmedStrings(req.KeywordFilters),
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	if err := entry.Validate(); err != nil {
+		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
+		return
+	}
+	channelMetadata, err := h.networkChannelMetadataForUpdate(
+		c.Request.Context(),
+		h.NetworkStore,
+		store.NetworkChannelRef{WorkspaceID: entry.WorkspaceID, Channel: entry.Channel},
+	)
+	if err != nil {
+		h.respondError(c, StatusForNetworkError(err), err)
+		return
+	}
+	if err := h.NetworkStore.WriteNetworkChannel(c.Request.Context(), channelMetadata); err != nil {
+		h.respondError(c, StatusForNetworkError(err), err)
+		return
+	}
+	if err := h.NetworkStore.PutNetworkSubscription(c.Request.Context(), entry); err != nil {
+		h.respondError(c, StatusForNetworkError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.NetworkSubscriptionResponse{
+		Subscription: NetworkSubscriptionPayloadFromStore(entry),
+	})
+}
+
+// DeleteNetworkSubscription removes one peer delivery preference.
+func (h *BaseHandlers) DeleteNetworkSubscription(c *gin.Context) {
+	if _, ok := h.requireNetworkReadDependencies(c); !ok {
+		return
+	}
+	channel, err := normalizeNetworkChannel(c.Param("channel"))
+	if err != nil {
+		h.respondError(c, StatusForNetworkError(err), err)
+		return
+	}
+	scope, ok := h.resolveWorkspaceScope(c)
+	if !ok {
+		return
+	}
+	ref := store.NetworkSubscriptionRef{
+		WorkspaceID: scope.NetworkWorkspaceID(),
+		Channel:     channel,
+		ThreadID:    strings.TrimSpace(c.Query("thread_id")),
+		PeerID:      strings.TrimSpace(c.Param("peer_id")),
+	}
+	if err := ref.Validate(); err != nil {
+		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
+		return
+	}
+	if err := h.NetworkStore.DeleteNetworkSubscription(c.Request.Context(), ref); err != nil {
+		h.respondError(c, StatusForNetworkError(err), err)
+		return
+	}
+	c.Status(http.StatusNoContent)
+}
+
+type networkThreadPeerCostStore interface {
+	ListNetworkThreadPeerTokenStats(
+		ctx context.Context,
+		query store.NetworkThreadPeerTokenStatsQuery,
+	) ([]store.NetworkThreadPeerTokenStats, error)
+}
+
+type networkThreadTaskLinkStore interface {
+	ListNetworkTaskThreadOrigins(
+		ctx context.Context,
+		query store.NetworkTaskThreadOriginQuery,
+	) ([]store.NetworkTaskThreadOrigin, error)
+}
+
+func (h *BaseHandlers) networkThreadPeerCosts(
+	ctx context.Context,
+	workspaceID string,
+	channel string,
+	threadID string,
+) ([]store.NetworkThreadPeerTokenStats, error) {
+	costStore, ok := h.NetworkStore.(networkThreadPeerCostStore)
+	if !ok {
+		return nil, nil
+	}
+	return costStore.ListNetworkThreadPeerTokenStats(
+		ctx,
+		store.NetworkThreadPeerTokenStatsQuery{
+			WorkspaceID: workspaceID,
+			Channel:     channel,
+			ThreadID:    threadID,
+		},
+	)
+}
+
+func (h *BaseHandlers) networkThreadTaskLinks(
+	ctx context.Context,
+	workspaceID string,
+	channel string,
+	threadID string,
+) ([]store.NetworkTaskThreadOrigin, error) {
+	linkStore, ok := h.NetworkStore.(networkThreadTaskLinkStore)
+	if !ok {
+		return nil, nil
+	}
+	return linkStore.ListNetworkTaskThreadOrigins(
+		ctx,
+		store.NetworkTaskThreadOriginQuery{
+			WorkspaceID: strings.TrimSpace(workspaceID),
+			Channel:     strings.TrimSpace(channel),
+			ThreadID:    strings.TrimSpace(threadID),
+		},
+	)
 }
 
 // NetworkThreadMessages returns messages isolated to one public thread.
@@ -415,6 +798,65 @@ func parseNetworkConversationMessageQuery(c *gin.Context) (store.NetworkConversa
 	return query, nil
 }
 
+func networkThreadPromotionDigest(
+	messages []store.NetworkConversationMessage,
+	originMessageID string,
+) (string, []string, bool) {
+	target := strings.TrimSpace(originMessageID)
+	sourceIDs := make([]string, 0, len(messages))
+	var builder strings.Builder
+	found := false
+	for _, message := range messages {
+		messageID := strings.TrimSpace(message.MessageID)
+		if messageID == "" {
+			continue
+		}
+		sourceIDs = append(sourceIDs, messageID)
+		if messageID == target {
+			found = true
+		}
+		if builder.Len() >= 4000 {
+			continue
+		}
+		line := networkThreadPromotionMessageLine(message)
+		if line == "" {
+			continue
+		}
+		if builder.Len() > 0 {
+			builder.WriteByte('\n')
+		}
+		builder.WriteString(line)
+	}
+	digest := strings.TrimSpace(builder.String())
+	if len(digest) > 4000 {
+		digest = truncateNetworkPromotionDigest(digest, 4000)
+	}
+	return digest, sourceIDs, found
+}
+
+func truncateNetworkPromotionDigest(value string, maxBytes int) string {
+	if maxBytes <= 0 || len(value) <= maxBytes {
+		return strings.TrimSpace(value)
+	}
+	truncated := value[:maxBytes]
+	for !utf8.ValidString(truncated) && truncated != "" {
+		truncated = truncated[:len(truncated)-1]
+	}
+	return strings.TrimSpace(truncated)
+}
+
+func networkThreadPromotionMessageLine(message store.NetworkConversationMessage) string {
+	preview := strings.TrimSpace(message.PreviewText)
+	if preview == "" {
+		preview = strings.TrimSpace(message.Text)
+	}
+	if preview == "" {
+		return ""
+	}
+	peer := firstNonEmpty(strings.TrimSpace(message.PeerFrom), strings.TrimSpace(message.SessionID), "unknown")
+	return peer + ": " + preview
+}
+
 // NetworkThreadSummaryPayloadsFromStore converts stored thread summaries into public payloads.
 func NetworkThreadSummaryPayloadsFromStore(
 	threads []store.NetworkThreadSummary,
@@ -441,7 +883,47 @@ func NetworkThreadSummaryPayloadFromStore(thread store.NetworkThreadSummary) con
 		MessageCount:       thread.MessageCount,
 		ParticipantCount:   thread.ParticipantCount,
 		OpenWorkCount:      thread.OpenWorkCount,
+		CoordinationCost:   NetworkCoordinationCostPayloadFromStore(thread),
 		LastMessagePreview: strings.TrimSpace(thread.LastMessagePreview),
+	}
+}
+
+// NetworkCoordinationCostPayloadFromStore converts stored thread cost counters into public payloads.
+func NetworkCoordinationCostPayloadFromStore(
+	thread store.NetworkThreadSummary,
+) *contract.NetworkCoordinationCostPayload {
+	if thread.DeliveredCount == 0 && thread.PromptSizeBytes == 0 && thread.EstimatedPromptTokens == 0 {
+		return nil
+	}
+	return &contract.NetworkCoordinationCostPayload{
+		DeliveredCount:        thread.DeliveredCount,
+		PromptSizeBytes:       thread.PromptSizeBytes,
+		EstimatedPromptTokens: thread.EstimatedPromptTokens,
+	}
+}
+
+// NetworkThreadPeerCostPayloadsFromStore converts stored thread peer cost rows into public payloads.
+func NetworkThreadPeerCostPayloadsFromStore(
+	stats []store.NetworkThreadPeerTokenStats,
+) []contract.NetworkThreadPeerCostPayload {
+	payload := make([]contract.NetworkThreadPeerCostPayload, 0, len(stats))
+	for _, stat := range stats {
+		payload = append(payload, NetworkThreadPeerCostPayloadFromStore(stat))
+	}
+	return payload
+}
+
+// NetworkThreadPeerCostPayloadFromStore converts one stored thread peer cost row into a public payload.
+func NetworkThreadPeerCostPayloadFromStore(
+	stat store.NetworkThreadPeerTokenStats,
+) contract.NetworkThreadPeerCostPayload {
+	return contract.NetworkThreadPeerCostPayload{
+		PeerID:                strings.TrimSpace(stat.PeerID),
+		DeliveredCount:        stat.DeliveredCount,
+		PromptSizeBytes:       stat.PromptSizeBytes,
+		EstimatedPromptTokens: stat.EstimatedPromptTokens,
+		FirstDeliveredAt:      cloneTimePtr(&stat.FirstDeliveredAt),
+		LastDeliveredAt:       cloneTimePtr(&stat.LastDeliveredAt),
 	}
 }
 
@@ -498,6 +980,7 @@ func NetworkConversationMessagePayloadFromStore(
 		Direction:   strings.TrimSpace(message.Direction),
 		PeerFrom:    strings.TrimSpace(message.PeerFrom),
 		PeerTo:      strings.TrimSpace(message.PeerTo),
+		Mentions:    cloneTrimmedStrings(message.Mentions),
 		SessionID:   strings.TrimSpace(message.SessionID),
 		WorkID:      strings.TrimSpace(message.WorkID),
 		ReplyTo:     strings.TrimSpace(message.ReplyTo),
@@ -506,8 +989,64 @@ func NetworkConversationMessagePayloadFromStore(
 		Intent:      strings.TrimSpace(message.Intent),
 		Text:        strings.TrimSpace(message.Text),
 		PreviewText: networkMessagePreview(message),
+		SizeBytes:   message.SizeBytes,
 		Body:        cloneRawMessage(message.Body),
 		Timestamp:   message.Timestamp.UTC(),
+	}
+}
+
+// NetworkSubscriptionPayloadsFromStore converts delivery preferences into public payloads.
+func NetworkSubscriptionPayloadsFromStore(
+	subscriptions []store.NetworkSubscriptionEntry,
+) []contract.NetworkSubscriptionPayload {
+	payload := make([]contract.NetworkSubscriptionPayload, 0, len(subscriptions))
+	for _, subscription := range subscriptions {
+		payload = append(payload, NetworkSubscriptionPayloadFromStore(subscription))
+	}
+	return payload
+}
+
+// NetworkSubscriptionPayloadFromStore converts one delivery preference into a public payload.
+func NetworkSubscriptionPayloadFromStore(
+	subscription store.NetworkSubscriptionEntry,
+) contract.NetworkSubscriptionPayload {
+	return contract.NetworkSubscriptionPayload{
+		WorkspaceID:    strings.TrimSpace(subscription.WorkspaceID),
+		Channel:        strings.TrimSpace(subscription.Channel),
+		ThreadID:       strings.TrimSpace(subscription.ThreadID),
+		PeerID:         strings.TrimSpace(subscription.PeerID),
+		Mode:           strings.TrimSpace(subscription.Mode),
+		KeywordFilters: cloneTrimmedStrings(subscription.KeywordFilters),
+		CreatedAt:      cloneTimePtr(&subscription.CreatedAt),
+		UpdatedAt:      cloneTimePtr(&subscription.UpdatedAt),
+	}
+}
+
+// NetworkTaskThreadOriginPayloadsFromStore converts promoted-task origin links into public payloads.
+func NetworkTaskThreadOriginPayloadsFromStore(
+	origins []store.NetworkTaskThreadOrigin,
+) []contract.NetworkTaskThreadOriginPayload {
+	payload := make([]contract.NetworkTaskThreadOriginPayload, 0, len(origins))
+	for _, origin := range origins {
+		payload = append(payload, NetworkTaskThreadOriginPayloadFromStore(origin))
+	}
+	return payload
+}
+
+// NetworkTaskThreadOriginPayloadFromStore converts one promoted-task origin link into a public payload.
+func NetworkTaskThreadOriginPayloadFromStore(
+	origin store.NetworkTaskThreadOrigin,
+) contract.NetworkTaskThreadOriginPayload {
+	return contract.NetworkTaskThreadOriginPayload{
+		TaskID:           strings.TrimSpace(origin.TaskID),
+		WorkspaceID:      strings.TrimSpace(origin.WorkspaceID),
+		Channel:          strings.TrimSpace(origin.Channel),
+		ThreadID:         strings.TrimSpace(origin.ThreadID),
+		OriginMessageID:  strings.TrimSpace(origin.OriginMessageID),
+		Digest:           strings.TrimSpace(origin.Digest),
+		SourceMessageIDs: cloneTrimmedStrings(origin.SourceMessageIDs),
+		CreatedAt:        cloneTimePtr(&origin.CreatedAt),
+		UpdatedAt:        cloneTimePtr(&origin.UpdatedAt),
 	}
 }
 

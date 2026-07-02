@@ -43,6 +43,35 @@ describe("Composer", () => {
     expect(textarea.value).toBe("");
   });
 
+  it("Should surface mention chips and include mentions in submit args", async () => {
+    const onSubmit = vi.fn().mockImplementation(({ reset }: { reset: () => void }) => reset());
+    const user = userEvent.setup();
+    render(
+      <Composer
+        onSubmit={onSubmit}
+        placeholder="Reply..."
+        sendLabel="Send to #ops"
+        testIdSuffix="thread"
+      />
+    );
+
+    await user.type(
+      screen.getByTestId("network-composer-textarea-thread"),
+      "@peer.alpha @peer.beta coordinate status"
+    );
+
+    expect(screen.getByTestId("network-composer-mention-thread-peer.alpha")).toHaveTextContent(
+      "peer.alpha"
+    );
+    expect(screen.getByTestId("network-composer-mention-thread-peer.beta")).toHaveTextContent(
+      "peer.beta"
+    );
+    expect(screen.getByRole("group", { name: "Mention recipients" })).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("network-composer-send-thread"));
+    expect(onSubmit.mock.calls[0]?.[0]?.mentions).toEqual(["peer.alpha", "peer.beta"]);
+  });
+
   it("Should open the slash popover when the user types `/`", async () => {
     const user = userEvent.setup();
     render(

@@ -372,7 +372,13 @@ func TestDeliveryQueueDepthMetricUsesLowCardinalityLabels(t *testing.T) {
 	t.Parallel()
 
 	queue := newInboundQueue(4)
-	queue.enqueue(networkHookTestEnvelope(t), time.Date(2026, 5, 5, 12, 20, 0, 0, time.UTC), true)
+	queue.enqueue(
+		"coder.sess-coder",
+		networkHookTestEnvelope(t),
+		store.NetworkSubscriptionModeFull,
+		time.Date(2026, 5, 5, 12, 20, 0, 0, time.UTC),
+		true,
+	)
 	coordinator := &deliveryCoordinator{
 		queues: map[string]*inboundQueue{"sess-coder": queue},
 	}

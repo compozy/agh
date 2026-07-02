@@ -276,6 +276,7 @@ func normalizeTimelineMessageEntry(
 		Direction:   strings.TrimSpace(direction),
 		PeerFrom:    strings.TrimSpace(envelope.From),
 		PeerTo:      peerTo,
+		Mentions:    normalizeEnvelopeMentions(envelope.Mentions),
 		Kind:        strings.TrimSpace(string(envelope.Kind)),
 		PreviewText: previewForBody(body),
 		Body:        cloneRawMessage(envelope.Body),

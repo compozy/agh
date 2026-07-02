@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -192,6 +193,71 @@ func TestNativeNetworkChannelCreate(t *testing.T) {
 			),
 		})
 		requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+	})
+}
+
+func TestNativeNetworkChannelUpdate(t *testing.T) {
+	t.Parallel()
+
+	entry := store.NetworkChannelEntry{
+		WorkspaceID:  nativeNetworkTestWorkspaceID,
+		Channel:      "design",
+		Purpose:      "UI reviews",
+		FanoutPolicy: store.NetworkFanoutPolicyCapabilityMatch,
+		CreatedBy:    "test",
+	}
+	patchCalls := 0
+	netStore := apitest.StubNetworkStore{
+		GetNetworkChannelFn: func(_ context.Context, ref store.NetworkChannelRef) (store.NetworkChannelEntry, error) {
+			if ref.WorkspaceID != nativeNetworkTestWorkspaceID || ref.Channel != "design" {
+				return store.NetworkChannelEntry{}, fmt.Errorf(
+					"GetNetworkChannel() ref = %#v, want native design channel",
+					ref,
+				)
+			}
+			return entry, nil
+		},
+		PatchNetworkChannelFn: func(_ context.Context, ref store.NetworkChannelRef, patch store.NetworkChannelPatch) error {
+			if ref.WorkspaceID != nativeNetworkTestWorkspaceID || ref.Channel != "design" {
+				return fmt.Errorf("PatchNetworkChannel() ref = %#v, want native design channel", ref)
+			}
+			patchCalls++
+			entry = patch.Apply(entry)
+			if err := entry.Validate(); err != nil {
+				return fmt.Errorf("patched entry Validate(): %w", err)
+			}
+			return nil
+		},
+		WriteNetworkChannelFn: func(context.Context, store.NetworkChannelEntry) error {
+			return fmt.Errorf("WriteNetworkChannel() should not be called for a partial update")
+		},
+	}
+	registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+		Network:      &nativeNetworkStub{},
+		NetworkStore: netStore,
+		Workspaces:   nativeNetworkTestWorkspaceService(t),
+		Sessions:     nativeNetworkTestSessionManager(nativeNetworkTestWorkspaceID),
+	}, nativeApproveAllPolicyInputs())
+
+	t.Run("Should return the public snake case channel payload", func(t *testing.T) {
+		t.Parallel()
+
+		result, err := registry.Call(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDNetworkChannelUpdate,
+			Input: json.RawMessage(
+				`{"workspace_id":"ws-native-network","channel":"design","purpose":"Pair reviews","fanout_policy":"coordinator","coordinator_peer_id":"reviewer.sess-a"}`,
+			),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(network_channel_update) error = %v", err)
+		}
+		if patchCalls != 1 {
+			t.Fatalf("PatchNetworkChannel calls = %d, want 1", patchCalls)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"workspace_id":"ws-native-network"`))
+		requireNativeStructuredContains(t, result, []byte(`"fanout_policy":"coordinator"`))
+		requireNativeStructuredContains(t, result, []byte(`"coordinator_peer_id":"reviewer.sess-a"`))
+		requireNativeStructuredExcludes(t, result, []byte(`"WorkspaceID"`))
 	})
 }
 

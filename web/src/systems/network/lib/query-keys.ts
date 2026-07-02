@@ -44,6 +44,19 @@ export const networkKeys = {
   channelScope: (workspaceId: string, channel: string) =>
     [...networkKeys.workspace(workspaceId), "channel", normalizeText(channel)] as const,
 
+  subscriptionsRoot: (workspaceId: string, channel: string) =>
+    [...networkKeys.channelScope(workspaceId, channel), "subscriptions"] as const,
+  subscriptions: (
+    workspaceId: string,
+    channel: string,
+    query?: { peer_id?: string | null; thread_id?: string | null }
+  ) =>
+    [
+      ...networkKeys.subscriptionsRoot(workspaceId, channel),
+      normalizeText(query?.peer_id),
+      normalizeText(query?.thread_id),
+    ] as const,
+
   threadsList: (
     workspaceId: string,
     channel: string,

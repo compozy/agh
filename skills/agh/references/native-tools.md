@@ -93,12 +93,19 @@ Coordination tools:
 
 - `agh__network_status`
 - `agh__network_channels`
-- `agh__network_channel_create` — registers one channel with a stated `purpose` for a workspace (mutating). Channel names are lowercase `[a-z0-9][a-z0-9_-]{0,63}`.
+- `agh__network_channel_create` — registers one channel with a stated `purpose` for a workspace (mutating). Channel names are lowercase `[a-z0-9][a-z0-9_-]{0,63}`. Coordinator fanout requires `coordinator_peer_id`.
+- `agh__network_channel_update` — changes a channel `purpose`, `fanout_policy`, or `coordinator_peer_id` without clearing omitted fields (mutating). Coordinator fanout requires `coordinator_peer_id`.
 - `agh__network_inbox`
 - `agh__network_peers`
 - `agh__network_send`
 - `agh__network_threads`
 - `agh__network_thread_messages`
+- `agh__task_promote_from_thread`
+- `agh__network_subscriptions`
+- `agh__network_subscribe`
+- `agh__network_digest_mode`
+- `agh__network_mute`
+- `agh__network_unmute`
 - `agh__network_directs`
 - `agh__network_direct_resolve`
 - `agh__network_direct_messages`
@@ -116,6 +123,8 @@ Task tools:
 - `agh__task_child_create`
 - `agh__task_update`
 - `agh__task_cancel`
+- `agh__task_promote_from_thread`
+- `agh__task_fanout_runs`
 - `agh__task_run_list`
 - `agh__task_run_review_request`
 - `agh__task_run_review_list`

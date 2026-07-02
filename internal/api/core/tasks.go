@@ -11,68 +11,75 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/api/contract"
+	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/network"
+	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 	"github.com/gin-gonic/gin"
 )
 
 const (
-	defaultTaskActorRef        = "local-user"
-	taskDraftOverfetchMaxLimit = 500
-	taskActionCreate           = "create"
-	taskActionGet              = "get"
-	taskActionInspect          = "inspect"
-	taskActionDelete           = "delete"
-	taskActionPublish          = "publish"
-	taskActionStart            = "start"
-	taskActionUpdate           = "update"
-	taskActionCancel           = "cancel"
-	taskActionCreateChild      = "create_child"
-	taskActionAddDependency    = "add_dependency"
-	taskActionRemoveDependency = "remove_dependency"
-	taskActionListRuns         = "list_runs"
-	taskActionGetRun           = "get_run"
-	taskActionEnqueueRun       = "enqueue_run"
-	taskActionClaimRun         = "claim_run"
-	taskActionStartRun         = "start_run"
-	taskActionAttachRun        = "attach_run_session"
-	taskActionCompleteRun      = "complete_run"
-	taskActionFailRun          = "fail_run"
-	taskActionForceReleaseRun  = "force_release_run"
-	taskActionForceFailRun     = "force_fail_run"
-	taskActionRetryRun         = "retry_run"
-	taskActionRecoverRun       = "recover_run"
-	taskActionBulkReleaseRuns  = "bulk_release_runs"
-	taskActionBulkFailRuns     = "bulk_fail_runs"
-	taskActionCancelRun        = "cancel_run"
-	taskActionTimeline         = "timeline"
-	taskActionStream           = "stream"
-	taskActionTree             = "tree"
-	taskActionGetProfile       = "get_profile"
-	taskActionSetProfile       = "set_profile"
-	taskActionDeleteProfile    = "delete_profile"
-	taskActionRequestReview    = "request_review"
-	taskActionListReviews      = "list_reviews"
-	taskActionGetReview        = "get_review"
-	taskActionSubmitReview     = "submit_review"
-	taskActionCreateBridgeSub  = "create_bridge_notification_subscription"
-	taskActionListBridgeSubs   = "list_bridge_notification_subscriptions"
-	taskActionGetBridgeSub     = "get_bridge_notification_subscription"
-	taskActionDeleteBridgeSub  = "delete_bridge_notification_subscription"
-	taskActionDashboard        = "dashboard"
-	taskActionInbox            = "inbox"
-	taskActionApprove          = "approve"
-	taskActionReject           = "reject"
-	taskActionTriageRead       = "triage_read"
-	taskActionTriageArchive    = "triage_archive"
-	taskActionTriageDismiss    = "triage_dismiss"
-	taskActionPauseTask        = "pause_task"
-	taskActionResumeTask       = "resume_task"
-	taskActionSchedulerStatus  = "scheduler_status"
-	taskActionSchedulerPause   = "scheduler_pause"
-	taskActionSchedulerResume  = "scheduler_resume"
-	taskActionSchedulerDrain   = "scheduler_drain"
-	taskActionSchedulerBacklog = "scheduler_backlog"
+	defaultTaskActorRef              = "local-user"
+	taskDraftOverfetchMaxLimit       = 500
+	taskDesignationRollupDetailLimit = 20
+	taskDesignationRollupCompleted   = "completed"
+	taskDesignationRollupCanceled    = "canceled"
+	taskActionCreate                 = "create"
+	taskActionGet                    = "get"
+	taskActionInspect                = "inspect"
+	taskActionDelete                 = "delete"
+	taskActionPublish                = "publish"
+	taskActionStart                  = "start"
+	taskActionUpdate                 = "update"
+	taskActionCancel                 = "cancel"
+	taskActionCreateChild            = "create_child"
+	taskActionAddDependency          = "add_dependency"
+	taskActionRemoveDependency       = "remove_dependency"
+	taskActionListRuns               = "list_runs"
+	taskActionGetRun                 = "get_run"
+	taskActionEnqueueRun             = "enqueue_run"
+	taskActionFanOutRuns             = "fan_out_runs"
+	taskActionClaimRun               = "claim_run"
+	taskActionStartRun               = "start_run"
+	taskActionAttachRun              = "attach_run_session"
+	taskActionCompleteRun            = "complete_run"
+	taskActionFailRun                = "fail_run"
+	taskActionForceReleaseRun        = "force_release_run"
+	taskActionForceFailRun           = "force_fail_run"
+	taskActionRetryRun               = "retry_run"
+	taskActionRecoverRun             = "recover_run"
+	taskActionBulkReleaseRuns        = "bulk_release_runs"
+	taskActionBulkFailRuns           = "bulk_fail_runs"
+	taskActionCancelRun              = "cancel_run"
+	taskActionTimeline               = "timeline"
+	taskActionStream                 = "stream"
+	taskActionTree                   = "tree"
+	taskActionGetProfile             = "get_profile"
+	taskActionSetProfile             = "set_profile"
+	taskActionDeleteProfile          = "delete_profile"
+	taskActionRequestReview          = "request_review"
+	taskActionListReviews            = "list_reviews"
+	taskActionGetReview              = "get_review"
+	taskActionSubmitReview           = "submit_review"
+	taskActionCreateBridgeSub        = "create_bridge_notification_subscription"
+	taskActionListBridgeSubs         = "list_bridge_notification_subscriptions"
+	taskActionGetBridgeSub           = "get_bridge_notification_subscription"
+	taskActionDeleteBridgeSub        = "delete_bridge_notification_subscription"
+	taskActionPromoteNetwork         = "promote_network_thread"
+	taskActionDashboard              = "dashboard"
+	taskActionInbox                  = "inbox"
+	taskActionApprove                = "approve"
+	taskActionReject                 = "reject"
+	taskActionTriageRead             = "triage_read"
+	taskActionTriageArchive          = "triage_archive"
+	taskActionTriageDismiss          = "triage_dismiss"
+	taskActionPauseTask              = "pause_task"
+	taskActionResumeTask             = "resume_task"
+	taskActionSchedulerStatus        = "scheduler_status"
+	taskActionSchedulerPause         = "scheduler_pause"
+	taskActionSchedulerResume        = "scheduler_resume"
+	taskActionSchedulerDrain         = "scheduler_drain"
+	taskActionSchedulerBacklog       = "scheduler_backlog"
 )
 
 func (h *BaseHandlers) requireTaskManager(c *gin.Context) (TaskService, bool) {
@@ -247,7 +254,28 @@ func (h *BaseHandlers) GetTask(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.TaskDetailResponse{Task: TaskDetailPayloadFromView(view)})
+	payload, err := h.taskDetailPayload(c.Request.Context(), view)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.TaskDetailResponse{Task: payload})
+}
+
+func (h *BaseHandlers) taskDetailPayload(ctx context.Context, view *taskpkg.View) (contract.TaskDetailPayload, error) {
+	payload := TaskDetailPayloadFromView(view)
+	if h == nil || h.NetworkStore == nil || view == nil || strings.TrimSpace(view.Task.ID) == "" {
+		return payload, nil
+	}
+	rollups, err := h.NetworkStore.ListTaskDesignationRollups(ctx, store.TaskDesignationRollupQuery{
+		TaskID: strings.TrimSpace(view.Task.ID),
+		Limit:  taskDesignationRollupDetailLimit,
+	})
+	if err != nil {
+		return contract.TaskDetailPayload{}, fmt.Errorf("api: list task designation rollups: %w", err)
+	}
+	payload.DesignationRollups = TaskDesignationRollupPayloadsFromStore(rollups)
+	return payload, nil
 }
 
 // InspectTask returns a diagnostic snapshot for one task.
@@ -703,7 +731,12 @@ func (h *BaseHandlers) AddTaskDependency(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.TaskDetailResponse{Task: TaskDetailPayloadFromView(view)})
+	payload, err := h.taskDetailPayload(c.Request.Context(), view)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.TaskDetailResponse{Task: payload})
 }
 
 // RemoveTaskDependency removes one blocking dependency edge.
@@ -741,7 +774,12 @@ func (h *BaseHandlers) RemoveTaskDependency(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, contract.TaskDetailResponse{Task: TaskDetailPayloadFromView(view)})
+	payload, err := h.taskDetailPayload(c.Request.Context(), view)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, contract.TaskDetailResponse{Task: payload})
 }
 
 // ListTaskRuns returns the filtered run list for one task.
@@ -1132,6 +1170,135 @@ func (h *BaseHandlers) EnqueueTaskRun(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, contract.TaskRunResponse{Run: TaskRunPayloadFromRun(run)})
+}
+
+// FanOutTaskRuns creates designated sibling runs for one task.
+func (h *BaseHandlers) FanOutTaskRuns(c *gin.Context) {
+	manager, ok := h.requireTaskManager(c)
+	if !ok {
+		return
+	}
+	networkStore, err := h.networkStoreRequired()
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	taskID, err := requiredPathID(c.Param("id"), "task id")
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	var req contract.FanOutTaskRunsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			NewTaskValidationError(fmt.Errorf("%s: decode fan-out task runs request: %w", h.transportName(), err)),
+		)
+		return
+	}
+	maxDesignations := h.Config.Task.Orchestration.DesignatedRunMax
+	if maxDesignations <= 0 {
+		maxDesignations = aghconfig.DefaultTaskDesignatedRunMax
+	}
+	prepared, err := prepareFanOutTaskRunsRequest(req, maxDesignations)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	actor, err := h.taskActorContext(c, taskActionFanOutRuns)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	groupID := store.NewID("tdg")
+	runs, err := enqueueFanOutTaskRuns(c.Request.Context(), manager, actor, taskID, groupID, req, prepared)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	now := h.nowUTC()
+	if err := networkStore.PutTaskDesignationRollup(
+		c.Request.Context(),
+		store.TaskDesignationRollup{
+			DesignationGroupID: groupID,
+			TaskID:             taskID,
+			SummaryJSON:        fanOutDesignationRollupJSON(runs, now),
+			CreatedAt:          now,
+		},
+	); err != nil {
+		h.respondError(c, StatusForNetworkError(err), err)
+		return
+	}
+	c.JSON(http.StatusCreated, contract.FanOutTaskRunsResponse{
+		DesignationGroupID: groupID,
+		Runs:               TaskRunPayloadsFromRuns(runs),
+	})
+}
+
+type preparedFanOutDesignation struct {
+	idempotencyKey string
+	metadata       json.RawMessage
+}
+
+func prepareFanOutTaskRunsRequest(
+	req contract.FanOutTaskRunsRequest,
+	maxDesignations int,
+) ([]preparedFanOutDesignation, error) {
+	if len(req.Designations) == 0 {
+		return nil, NewTaskValidationError(errors.New("designations are required"))
+	}
+	if len(req.Designations) > maxDesignations {
+		return nil, NewTaskValidationError(fmt.Errorf("designations cannot exceed %d", maxDesignations))
+	}
+	if err := validateTaskChannel("fan_out_runs.network_channel", req.NetworkChannel); err != nil {
+		return nil, err
+	}
+	prepared := make([]preparedFanOutDesignation, 0, len(req.Designations))
+	for index, designation := range req.Designations {
+		metadata, err := fanOutDesignationMetadata(index, designation)
+		if err != nil {
+			return nil, err
+		}
+		idempotencyKey := fanOutDesignationIdempotencyKey(req.IdempotencyKey, designation, index)
+		if idempotencyKey == "" {
+			return nil, NewTaskValidationError(fmt.Errorf(
+				"designations[%d].idempotency_key is required when fan_out_runs.idempotency_key is empty",
+				index,
+			))
+		}
+		prepared = append(prepared, preparedFanOutDesignation{
+			idempotencyKey: idempotencyKey,
+			metadata:       metadata,
+		})
+	}
+	return prepared, nil
+}
+
+func enqueueFanOutTaskRuns(
+	ctx context.Context,
+	manager TaskService,
+	actor taskpkg.ActorContext,
+	taskID string,
+	groupID string,
+	req contract.FanOutTaskRunsRequest,
+	prepared []preparedFanOutDesignation,
+) ([]taskpkg.Run, error) {
+	runs := make([]taskpkg.Run, 0, len(req.Designations))
+	for index := range req.Designations {
+		run, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{
+			TaskID:             taskID,
+			IdempotencyKey:     prepared[index].idempotencyKey,
+			NetworkChannel:     strings.TrimSpace(req.NetworkChannel),
+			DesignationGroupID: groupID,
+			Metadata:           prepared[index].metadata,
+		}, actor)
+		if err != nil {
+			return nil, err
+		}
+		runs = append(runs, *run)
+	}
+	return runs, nil
 }
 
 // ClaimTaskRun claims one queued run.
@@ -1894,6 +2061,113 @@ func enqueueTaskRunFromRequest(taskID string, req contract.EnqueueTaskRunRequest
 	return spec, nil
 }
 
+type fanOutDesignationMetadataPayload struct {
+	Designation fanOutDesignationMetadataDetail `json:"designation"`
+	Metadata    json.RawMessage                 `json:"metadata,omitempty"`
+}
+
+type fanOutDesignationMetadataDetail struct {
+	Index int    `json:"index"`
+	Brief string `json:"brief"`
+}
+
+func fanOutDesignationMetadata(
+	index int,
+	designation contract.TaskFanOutRunDesignationRequest,
+) (json.RawMessage, error) {
+	brief := strings.TrimSpace(designation.Brief)
+	if brief == "" {
+		return nil, NewTaskValidationError(fmt.Errorf("designations[%d].brief is required", index))
+	}
+	metadata := cloneRawMessage(designation.Metadata)
+	if len(metadata) > 0 && !json.Valid(metadata) {
+		return nil, NewTaskValidationError(fmt.Errorf("designations[%d].metadata must be valid JSON", index))
+	}
+	payload := fanOutDesignationMetadataPayload{
+		Designation: fanOutDesignationMetadataDetail{Index: index, Brief: brief},
+		Metadata:    metadata,
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("task fan-out metadata: %w", err)
+	}
+	return encoded, nil
+}
+
+func fanOutDesignationIdempotencyKey(
+	requestKey string,
+	designation contract.TaskFanOutRunDesignationRequest,
+	index int,
+) string {
+	if key := strings.TrimSpace(designation.IdempotencyKey); key != "" {
+		return key
+	}
+	if key := strings.TrimSpace(requestKey); key != "" {
+		return fmt.Sprintf("%s:%d", key, index)
+	}
+	return ""
+}
+
+func fanOutDesignationRollupJSON(runs []taskpkg.Run, now time.Time) json.RawMessage {
+	runIDs := make([]string, 0, len(runs))
+	statuses := make(map[string]int)
+	var taskID string
+	var groupID string
+	completed := 0
+	failed := 0
+	canceled := 0
+	running := 0
+	queued := 0
+	needsAttention := 0
+	terminalCount := 0
+	for _, run := range runs {
+		if id := strings.TrimSpace(run.ID); id != "" {
+			runIDs = append(runIDs, id)
+		}
+		taskID = firstNonEmpty(taskID, strings.TrimSpace(run.TaskID))
+		groupID = firstNonEmpty(groupID, strings.TrimSpace(run.DesignationGroupID))
+		status := run.Status.Normalize()
+		statuses[string(status)]++
+		switch status {
+		case taskpkg.TaskRunStatusCompleted:
+			completed++
+			terminalCount++
+		case taskpkg.TaskRunStatusFailed:
+			failed++
+			terminalCount++
+		case taskpkg.TaskRunStatusCanceled:
+			canceled++
+			terminalCount++
+		case taskpkg.TaskRunStatusQueued:
+			queued++
+		case taskpkg.TaskRunStatusNeedsAttention:
+			needsAttention++
+		default:
+			running++
+		}
+	}
+	encoded, err := json.Marshal(map[string]any{
+		"designation_group_id":         groupID,
+		"task_id":                      taskID,
+		"run_ids":                      runIDs,
+		"total":                        len(runIDs),
+		"terminal_count":               terminalCount,
+		taskDesignationRollupCompleted: completed,
+		"failed":                       failed,
+		taskDesignationRollupCanceled:  canceled,
+		"running":                      running,
+		"queued":                       queued,
+		"needs_attention":              needsAttention,
+		"statuses":                     statuses,
+		"complete":                     len(runIDs) > 0 && terminalCount == len(runIDs),
+		"updated_at":                   now.UTC().Format(time.RFC3339Nano),
+	})
+	if err != nil {
+		return json.RawMessage(`{"run_ids":[],"total":0,"terminal_count":0,"complete":false}`)
+	}
+	return encoded
+}
+
 func taskExecutionRequestFromRequest(req contract.TaskExecutionRequest) (taskpkg.ExecutionRequest, error) {
 	if err := validateTaskChannel("task_execution.network_channel", req.NetworkChannel); err != nil {
 		return taskpkg.ExecutionRequest{}, err
@@ -2150,6 +2424,7 @@ func TaskRunPayloadFromRun(run *taskpkg.Run) contract.TaskRunPayload {
 		Origin:                run.Origin,
 		IdempotencyKey:        run.IdempotencyKey,
 		NetworkChannel:        run.NetworkChannel,
+		DesignationGroupID:    run.DesignationGroupID,
 		ClaimTokenHash:        run.ClaimTokenHash,
 		LeaseUntil:            optionalTime(run.LeaseUntil),
 		HeartbeatAt:           optionalTime(run.HeartbeatAt),
@@ -2290,6 +2565,25 @@ func TaskDetailPayloadFromView(view *taskpkg.View) contract.TaskDetailPayload {
 		Runs:                 TaskRunPayloadsFromRuns(view.Runs),
 		Events:               TaskEventPayloadsFromEvents(view.Events),
 	}
+}
+
+// TaskDesignationRollupPayloadsFromStore converts persisted designation rollups into shared payloads.
+func TaskDesignationRollupPayloadsFromStore(
+	rollups []store.TaskDesignationRollup,
+) []contract.TaskDesignationRollupPayload {
+	if len(rollups) == 0 {
+		return nil
+	}
+	payloads := make([]contract.TaskDesignationRollupPayload, 0, len(rollups))
+	for _, rollup := range rollups {
+		payloads = append(payloads, contract.TaskDesignationRollupPayload{
+			DesignationGroupID: strings.TrimSpace(rollup.DesignationGroupID),
+			TaskID:             strings.TrimSpace(rollup.TaskID),
+			Summary:            cloneRawMessage(rollup.SummaryJSON),
+			CreatedAt:          rollup.CreatedAt,
+		})
+	}
+	return payloads
 }
 
 // TaskInspectPayloadFromView converts one inspect view into the shared payload.

@@ -208,19 +208,23 @@ type PromptSystemMeta struct {
 
 // PromptNetworkMeta captures stable AGH network envelope correlation fields.
 type PromptNetworkMeta struct {
-	MessageID   string `json:"message_id,omitempty"`
-	Kind        string `json:"kind,omitempty"`
-	Channel     string `json:"channel,omitempty"`
-	Surface     string `json:"surface,omitempty"`
-	ThreadID    string `json:"thread_id,omitempty"`
-	DirectID    string `json:"direct_id,omitempty"`
-	From        string `json:"from,omitempty"`
-	To          string `json:"to,omitempty"`
-	WorkID      string `json:"work_id,omitempty"`
-	ReplyTo     string `json:"reply_to,omitempty"`
-	TraceID     string `json:"trace_id,omitempty"`
-	CausationID string `json:"causation_id,omitempty"`
-	Trust       string `json:"trust,omitempty"`
+	MessageID             string   `json:"message_id,omitempty"`
+	Kind                  string   `json:"kind,omitempty"`
+	Channel               string   `json:"channel,omitempty"`
+	Surface               string   `json:"surface,omitempty"`
+	ThreadID              string   `json:"thread_id,omitempty"`
+	DirectID              string   `json:"direct_id,omitempty"`
+	From                  string   `json:"from,omitempty"`
+	To                    string   `json:"to,omitempty"`
+	Mentions              []string `json:"mentions,omitempty"`
+	WorkID                string   `json:"work_id,omitempty"`
+	ReplyTo               string   `json:"reply_to,omitempty"`
+	TraceID               string   `json:"trace_id,omitempty"`
+	CausationID           string   `json:"causation_id,omitempty"`
+	Trust                 string   `json:"trust,omitempty"`
+	DeliveryMode          string   `json:"delivery_mode,omitempty"`
+	PromptSizeBytes       int64    `json:"prompt_size_bytes,omitempty"`
+	EstimatedPromptTokens int64    `json:"estimated_prompt_tokens,omitempty"`
 }
 
 // PromptSyntheticMeta captures stable daemon-owned metadata for one synthetic prompt turn.
@@ -349,26 +353,64 @@ func (m PromptSystemMeta) Validate() error {
 // Normalize returns a trimmed copy of the network metadata.
 func (m PromptNetworkMeta) Normalize() PromptNetworkMeta {
 	return PromptNetworkMeta{
-		MessageID:   strings.TrimSpace(m.MessageID),
-		Kind:        strings.TrimSpace(m.Kind),
-		Channel:     strings.TrimSpace(m.Channel),
-		Surface:     strings.TrimSpace(m.Surface),
-		ThreadID:    strings.TrimSpace(m.ThreadID),
-		DirectID:    strings.TrimSpace(m.DirectID),
-		From:        strings.TrimSpace(m.From),
-		To:          strings.TrimSpace(m.To),
-		WorkID:      strings.TrimSpace(m.WorkID),
-		ReplyTo:     strings.TrimSpace(m.ReplyTo),
-		TraceID:     strings.TrimSpace(m.TraceID),
-		CausationID: strings.TrimSpace(m.CausationID),
-		Trust:       strings.TrimSpace(m.Trust),
+		MessageID:             strings.TrimSpace(m.MessageID),
+		Kind:                  strings.TrimSpace(m.Kind),
+		Channel:               strings.TrimSpace(m.Channel),
+		Surface:               strings.TrimSpace(m.Surface),
+		ThreadID:              strings.TrimSpace(m.ThreadID),
+		DirectID:              strings.TrimSpace(m.DirectID),
+		From:                  strings.TrimSpace(m.From),
+		To:                    strings.TrimSpace(m.To),
+		Mentions:              normalizePromptMetaStrings(m.Mentions),
+		WorkID:                strings.TrimSpace(m.WorkID),
+		ReplyTo:               strings.TrimSpace(m.ReplyTo),
+		TraceID:               strings.TrimSpace(m.TraceID),
+		CausationID:           strings.TrimSpace(m.CausationID),
+		Trust:                 strings.TrimSpace(m.Trust),
+		DeliveryMode:          strings.TrimSpace(m.DeliveryMode),
+		PromptSizeBytes:       max(m.PromptSizeBytes, 0),
+		EstimatedPromptTokens: max(m.EstimatedPromptTokens, 0),
 	}
 }
 
 // IsZero reports whether the network metadata carries any fields.
 func (m PromptNetworkMeta) IsZero() bool {
 	normalized := m.Normalize()
-	return normalized == (PromptNetworkMeta{})
+	return normalized.MessageID == "" &&
+		normalized.Kind == "" &&
+		normalized.Channel == "" &&
+		normalized.Surface == "" &&
+		normalized.ThreadID == "" &&
+		normalized.DirectID == "" &&
+		normalized.From == "" &&
+		normalized.To == "" &&
+		len(normalized.Mentions) == 0 &&
+		normalized.WorkID == "" &&
+		normalized.ReplyTo == "" &&
+		normalized.TraceID == "" &&
+		normalized.CausationID == "" &&
+		normalized.Trust == "" &&
+		normalized.DeliveryMode == "" &&
+		normalized.PromptSizeBytes == 0 &&
+		normalized.EstimatedPromptTokens == 0
+}
+
+func normalizePromptMetaStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		normalized = append(normalized, trimmed)
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	return normalized
 }
 
 // Normalize returns a trimmed copy of the synthetic metadata.

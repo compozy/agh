@@ -84,6 +84,65 @@ func TestNetworkConversationRefValidation(t *testing.T) {
 	}
 }
 
+func TestNetworkChannelEntryValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		entry   NetworkChannelEntry
+		wantErr string
+	}{
+		{
+			name: "Should accept coordinator fanout with a coordinator peer",
+			entry: NetworkChannelEntry{
+				WorkspaceID:       networkConversationTestWorkspaceID,
+				Channel:           "builders",
+				Purpose:           "Pair reviews",
+				FanoutPolicy:      NetworkFanoutPolicyCoordinator,
+				CoordinatorPeerID: "reviewer.sess-a",
+			},
+		},
+		{
+			name: "Should reject coordinator fanout without a coordinator peer",
+			entry: NetworkChannelEntry{
+				WorkspaceID:  networkConversationTestWorkspaceID,
+				Channel:      "builders",
+				Purpose:      "Pair reviews",
+				FanoutPolicy: NetworkFanoutPolicyCoordinator,
+			},
+			wantErr: "coordinator_peer_id",
+		},
+		{
+			name: "Should reject coordinator peers on non coordinator fanout",
+			entry: NetworkChannelEntry{
+				WorkspaceID:       networkConversationTestWorkspaceID,
+				Channel:           "builders",
+				Purpose:           "Pair reviews",
+				FanoutPolicy:      NetworkFanoutPolicyCapabilityMatch,
+				CoordinatorPeerID: "reviewer.sess-a",
+			},
+			wantErr: "requires coordinator fanout policy",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := tt.entry.Validate()
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("Validate() error = %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("Validate() error = %v, want %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestNormalizeNetworkDirectRoomPeers(t *testing.T) {
 	t.Parallel()
 
@@ -130,17 +189,20 @@ func TestNetworkConversationSummaryValidation(t *testing.T) {
 		t.Parallel()
 
 		summary := NetworkThreadSummary{
-			WorkspaceID:        networkConversationTestWorkspaceID,
-			Channel:            "builders",
-			ThreadID:           "thread_patch_42",
-			RootMessageID:      "msg_patch_42",
-			OpenedByPeerID:     "coder.sess-abc",
-			OpenedAt:           now,
-			LastActivityAt:     now,
-			MessageCount:       1,
-			ParticipantCount:   1,
-			OpenWorkCount:      0,
-			LastMessagePreview: "hello",
+			WorkspaceID:           networkConversationTestWorkspaceID,
+			Channel:               "builders",
+			ThreadID:              "thread_patch_42",
+			RootMessageID:         "msg_patch_42",
+			OpenedByPeerID:        "coder.sess-abc",
+			OpenedAt:              now,
+			LastActivityAt:        now,
+			MessageCount:          1,
+			ParticipantCount:      1,
+			OpenWorkCount:         0,
+			DeliveredCount:        1,
+			PromptSizeBytes:       128,
+			EstimatedPromptTokens: 32,
+			LastMessagePreview:    "hello",
 		}
 		if err := summary.Validate(); err != nil {
 			t.Fatalf("Validate(thread summary) error = %v", err)
@@ -149,6 +211,11 @@ func TestNetworkConversationSummaryValidation(t *testing.T) {
 		summary.ParticipantCount = -1
 		if err := summary.Validate(); err == nil || !strings.Contains(err.Error(), "participant_count") {
 			t.Fatalf("Validate(thread summary) error = %v, want participant_count rejection", err)
+		}
+		summary.ParticipantCount = 1
+		summary.PromptSizeBytes = -1
+		if err := summary.Validate(); err == nil || !strings.Contains(err.Error(), "prompt_size_bytes") {
+			t.Fatalf("Validate(thread summary) error = %v, want prompt_size_bytes rejection", err)
 		}
 	})
 

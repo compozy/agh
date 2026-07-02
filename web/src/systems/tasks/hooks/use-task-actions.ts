@@ -15,6 +15,7 @@ import {
   deleteTask,
   dismissTask,
   enqueueTaskRun,
+  fanOutTaskRuns,
   failTaskRun,
   forceFailTaskRun,
   forceReleaseTaskRun,
@@ -40,6 +41,7 @@ import type {
   CreateTaskRequest,
   EnqueueTaskRunRequest,
   FailTaskRunRequest,
+  FanOutTaskRunsRequest,
   ForceFailTaskRunRequest,
   ForceReleaseTaskRunRequest,
   PauseTaskRequest,
@@ -90,6 +92,10 @@ interface RemoveTaskDependencyParams extends TaskIdParams {
 
 interface EnqueueTaskRunParams extends TaskIdParams {
   data?: EnqueueTaskRunRequest;
+}
+
+interface FanOutTaskRunsParams extends TaskIdParams {
+  data: FanOutTaskRunsRequest;
 }
 
 interface AttachTaskRunSessionParams extends TaskRunIdParams {
@@ -323,6 +329,19 @@ export function useEnqueueTaskRun() {
 
   return useMutation({
     mutationFn: ({ id, data }: EnqueueTaskRunParams) => enqueueTaskRun(id, data ?? {}),
+    onSettled: (_result, _error, { id }) =>
+      Promise.all([
+        invalidateTaskQueries(queryClient, id),
+        invalidateAggregateQueries(queryClient),
+      ]),
+  });
+}
+
+export function useFanOutTaskRuns() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: FanOutTaskRunsParams) => fanOutTaskRuns(id, data),
     onSettled: (_result, _error, { id }) =>
       Promise.all([
         invalidateTaskQueries(queryClient, id),

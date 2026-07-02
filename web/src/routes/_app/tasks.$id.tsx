@@ -162,6 +162,11 @@ function TaskDetailRoute() {
         ) : null}
         {page.panel === "orchestration" ? (
           <TasksDetailOrchestrationPanel
+            fanOut={{
+              defaultNetworkChannel: detail.task.network_channel,
+              isPending: orchestration.isFanOutPending,
+              onFanOut: orchestration.handleFanOutRuns,
+            }}
             notifications={{
               subscriptions: orchestration.subscriptions,
               isLoading: orchestration.subscriptionsLoading,

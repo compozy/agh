@@ -43,6 +43,39 @@ The sender does not get to choose its actor identity from the payload.
 If a stored task has a stale channel value that no longer validates, update is only allowed to clear
 or repair that channel binding. Unrelated updates remain rejected until the stale binding is fixed.
 
+## Thread promotion and fan-out
+
+AGH can promote a public-thread message into a draft task without starting a run:
+
+```bash
+agh network threads promote \
+  --channel builders \
+  --thread thread_release_check_20260416 \
+  --origin-message msg_thread_root \
+  --title "Validate release migration gates" \
+  -o json
+```
+
+The task keeps a durable origin row with the workspace, channel, thread, origin message, digest, and
+source message IDs. Thread detail responses include the same link as `task_links`.
+
+After a task exists, operators and agents can enqueue designated sibling runs:
+
+```bash
+agh task fan-out task_123 \
+  --channel builders \
+  --designation "Inspect migration schema and rollback path" \
+  --designation "Validate UI and docs impact" \
+  --designation "Review release evidence" \
+  -o json
+```
+
+Each run receives a `designation_group_id` plus a zero-based `designation.index` and
+`designation.brief`. The worker prompt includes only that worker's assignment brief. When a
+network-origin task has an origin thread, terminal run state is summarized back to the origin thread
+from the reserved runtime peer `agh.runtime`, and AGH recomputes a compact group rollup for the
+thread/task link.
+
 ## Why task ingress is strict
 
 AGH Network is a coordination protocol, not a blanket permission grant. A peer can be visible and

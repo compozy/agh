@@ -21,12 +21,18 @@ export type NetworkChannelSummary = NetworkChannelsResponse["channels"][number];
 
 export type NetworkChannelDetailResponse = OperationResponse<"getNetworkChannel", 200>;
 export type NetworkChannel = NetworkChannelDetailResponse["channel"];
+export type NetworkChannelUpdateRequest = OperationRequestBody<"updateNetworkChannel">;
+export type NetworkChannelUpdateResponse = OperationResponse<"updateNetworkChannel", 200>;
+export type NetworkFanoutPolicy = "capability_match" | "coordinator" | "all_members";
 
 export type NetworkThreadsResponse = OperationResponse<"listNetworkThreads", 200>;
 export type NetworkThreadSummary = NetworkThreadsResponse["threads"][number];
 
 export type NetworkThreadDetailResponse = OperationResponse<"getNetworkThread", 200>;
-export type NetworkThreadDetail = NetworkThreadDetailResponse["thread"];
+export type NetworkThreadTaskLink = NonNullable<NetworkThreadDetailResponse["task_links"]>[number];
+export type NetworkThreadDetail = NetworkThreadDetailResponse["thread"] & {
+  task_links?: NetworkThreadTaskLink[];
+};
 
 export type NetworkThreadMessagesResponse = OperationResponse<"listNetworkThreadMessages", 200>;
 export type NetworkThreadMessage = NetworkThreadMessagesResponse["messages"][number];
@@ -45,6 +51,15 @@ export type NetworkDirectRoomMessage = NetworkDirectRoomMessagesResponse["messag
 
 export type NetworkResolveDirectRoomRequest = OperationRequestBody<"resolveNetworkDirectRoom">;
 export type NetworkResolveDirectRoomResponse = OperationResponse<"resolveNetworkDirectRoom", 200>;
+
+export type NetworkSubscriptionsResponse = OperationResponse<"listNetworkSubscriptions", 200>;
+export type NetworkSubscription = NetworkSubscriptionsResponse["subscriptions"][number];
+export type NetworkSubscriptionRequest = OperationRequestBody<"upsertNetworkSubscription">;
+export type NetworkSubscriptionResponse = OperationResponse<"upsertNetworkSubscription", 200>;
+export type NetworkSubscriptionMode = "mute" | "digest" | "full";
+
+export type PromoteNetworkThreadTaskRequest = OperationRequestBody<"promoteNetworkThreadTask">;
+export type PromoteNetworkThreadTaskResponse = OperationResponse<"promoteNetworkThreadTask", 201>;
 
 export type NetworkWorkResponse = OperationResponse<"getNetworkWork", 200>;
 export type NetworkWorkDetail = NetworkWorkResponse["work"];

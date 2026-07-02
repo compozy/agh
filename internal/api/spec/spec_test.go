@@ -159,6 +159,22 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 			},
 		},
 		{
+			name: "ShouldDescribeNetworkSubscriptionFilters",
+			check: func(t *testing.T, doc *openapi3.T) {
+				t.Helper()
+
+				listSubscriptions := operationFor(
+					t,
+					doc,
+					"/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions",
+					"GET",
+				)
+				assertParameter(t, listSubscriptions, "peer_id", openapi3.ParameterInQuery, false)
+				assertParameter(t, listSubscriptions, "thread_id", openapi3.ParameterInQuery, false)
+				assertParameter(t, listSubscriptions, "limit", openapi3.ParameterInQuery, false)
+			},
+		},
+		{
 			name: "ShouldDescribeCreateSessionOptionalFields",
 			check: func(t *testing.T, doc *openapi3.T) {
 				t.Helper()

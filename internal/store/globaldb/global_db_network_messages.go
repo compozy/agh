@@ -29,6 +29,7 @@ type networkMessageNullableFields struct {
 	intent       sql.NullString
 	text         sql.NullString
 	previewText  string
+	mentionsRaw  string
 	extRaw       string
 	bodyRaw      string
 	timestampRaw string
@@ -67,10 +68,11 @@ func (g *GlobalDB) WriteNetworkMessage(ctx context.Context, entry store.NetworkM
 			intent,
 			text,
 			preview_text,
+			mentions_json,
 			ext_json,
 			body_json,
 			timestamp
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT(workspace_id, message_id) DO NOTHING`,
 		entry.MessageID,
 		store.NullableString(entry.SessionID),
@@ -90,6 +92,7 @@ func (g *GlobalDB) WriteNetworkMessage(ctx context.Context, entry store.NetworkM
 		store.NullableString(entry.Intent),
 		store.NullableString(entry.Text),
 		entry.PreviewText,
+		networkMentionsJSONString(entry.Mentions),
 		networkMessageExtJSONString(entry.ExtJSON),
 		string(entry.Body),
 		store.FormatTimestamp(entry.Timestamp),
@@ -166,8 +169,15 @@ func (g *GlobalDB) buildNetworkMessageListQuery(
 		intent,
 		text,
 		preview_text,
+		mentions_json,
 		ext_json,
 		body_json,
+		COALESCE((
+			SELECT MAX(audit.size)
+			FROM network_audit_log AS audit
+			WHERE audit.workspace_id = network_timeline_log.workspace_id
+				AND audit.message_id = network_timeline_log.message_id
+		), 0),
 		timestamp
 	FROM network_timeline_log`
 
@@ -302,8 +312,10 @@ func scanNetworkMessage(scanner rowScanner) (store.NetworkMessageEntry, error) {
 		&nullable.intent,
 		&nullable.text,
 		&nullable.previewText,
+		&nullable.mentionsRaw,
 		&nullable.extRaw,
 		&nullable.bodyRaw,
+		&entry.SizeBytes,
 		&nullable.timestampRaw,
 	); err != nil {
 		return store.NetworkMessageEntry{}, fmt.Errorf("store: scan network message: %w", err)
@@ -354,6 +366,7 @@ func applyNetworkMessageNullableFields(entry *store.NetworkMessageEntry, nullabl
 		entry.Text = *value
 	}
 	entry.PreviewText = strings.TrimSpace(nullable.previewText)
+	entry.Mentions = networkMentionsFromJSONString(nullable.mentionsRaw)
 	entry.ExtJSON = []byte(networkMessageExtJSONString([]byte(nullable.extRaw)))
 	entry.Body = []byte(nullable.bodyRaw)
 }
@@ -364,4 +377,28 @@ func networkMessageExtJSONString(raw json.RawMessage) string {
 		return "{}"
 	}
 	return trimmed
+}
+
+func networkMentionsJSONString(values []string) string {
+	normalized, err := store.NormalizeNetworkPeerIDs(values, "mentions")
+	if err != nil || len(normalized) == 0 {
+		return "[]"
+	}
+	raw, err := json.Marshal(normalized)
+	if err != nil {
+		return "[]"
+	}
+	return string(raw)
+}
+
+func networkMentionsFromJSONString(raw string) []string {
+	var values []string
+	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &values); err != nil {
+		return nil
+	}
+	normalized, err := store.NormalizeNetworkPeerIDs(values, "mentions")
+	if err != nil {
+		return nil
+	}
+	return normalized
 }

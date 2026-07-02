@@ -197,12 +197,10 @@ type CoordinatorConfigResolver interface {
 // NetworkStore exposes persisted network audit, channel metadata CRUD, and timeline queries to the API layer.
 type NetworkStore interface {
 	store.NetworkConversationStore
-	ListNetworkAudit(ctx context.Context, query store.NetworkAuditQuery) ([]store.NetworkAuditEntry, error)
-	GetNetworkChannel(ctx context.Context, ref store.NetworkChannelRef) (store.NetworkChannelEntry, error)
-	ListNetworkChannels(ctx context.Context, query store.NetworkChannelQuery) ([]store.NetworkChannelEntry, error)
-	WriteNetworkChannel(ctx context.Context, entry store.NetworkChannelEntry) error
-	DeleteNetworkChannel(ctx context.Context, ref store.NetworkChannelRef) error
-	ListNetworkMessages(ctx context.Context, query store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error)
+	store.NetworkAuditStore
+	store.NetworkChannelStore
+	store.NetworkMessageStore
+	store.NetworkPreferenceStore
 }
 
 // OnboardingStore persists the global first-run onboarding completion flag.

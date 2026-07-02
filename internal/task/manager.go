@@ -1684,6 +1684,7 @@ func (m *Service) EnqueueRun(ctx context.Context, spec EnqueueRun, actor ActorCo
 		normalizedSpec.NetworkChannel,
 		normalizedSpec.Metadata,
 		m.now().UTC(),
+		normalizedSpec.DesignationGroupID,
 	)
 	if err != nil {
 		return nil, err
@@ -2529,6 +2530,7 @@ func normalizeEnqueueRunSpec(spec EnqueueRun) (EnqueueRun, error) {
 	normalized.TaskID = strings.TrimSpace(normalized.TaskID)
 	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
 	normalized.NetworkChannel = strings.TrimSpace(normalized.NetworkChannel)
+	normalized.DesignationGroupID = strings.TrimSpace(normalized.DesignationGroupID)
 	normalized.Metadata = normalizeRawJSON(normalized.Metadata)
 	if err := normalized.Validate("enqueue_run"); err != nil {
 		return EnqueueRun{}, err
@@ -3744,7 +3746,7 @@ func activeRunSummary(runs []Run, maxAttempts int) *RunSummary {
 	if current == nil {
 		return nil
 	}
-	return &RunSummary{
+	summary := &RunSummary{
 		ID:                    current.ID,
 		TaskID:                current.TaskID,
 		Status:                current.Status,
@@ -3758,12 +3760,15 @@ func activeRunSummary(runs []Run, maxAttempts int) *RunSummary {
 		LeaseUntil:            current.LeaseUntil,
 		HeartbeatAt:           current.HeartbeatAt,
 		CoordinationChannelID: current.CoordinationChannelID,
+		DesignationGroupID:    current.DesignationGroupID,
 		QueuedAt:              current.QueuedAt,
 		ClaimedAt:             current.ClaimedAt,
 		StartedAt:             current.StartedAt,
 		EndedAt:               current.EndedAt,
 		Error:                 current.Error,
 	}
+	ApplyRunDesignationSummary(summary, *current)
+	return summary
 }
 
 func prefersActiveRun(candidate Run, current Run) bool {

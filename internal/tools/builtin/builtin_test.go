@@ -37,6 +37,12 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDNetworkPeers,
 			toolspkg.ToolIDNetworkSend,
 			toolspkg.ToolIDNetworkChannelCreate,
+			toolspkg.ToolIDNetworkChannelUpdate,
+			toolspkg.ToolIDNetworkSubscriptions,
+			toolspkg.ToolIDNetworkSubscribe,
+			toolspkg.ToolIDNetworkMute,
+			toolspkg.ToolIDNetworkDigestMode,
+			toolspkg.ToolIDNetworkUnmute,
 			toolspkg.ToolIDNetworkThreads,
 			toolspkg.ToolIDNetworkThreadMessages,
 			toolspkg.ToolIDNetworkDirects,
@@ -115,6 +121,8 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDTaskNotificationList,
 			toolspkg.ToolIDTaskNotificationShow,
 			toolspkg.ToolIDTaskNotificationDelete,
+			toolspkg.ToolIDTaskPromoteFromThread,
+			toolspkg.ToolIDTaskFanOutRuns,
 			toolspkg.ToolIDTaskRunClaimNext,
 			toolspkg.ToolIDTaskRunHeartbeat,
 			toolspkg.ToolIDTaskRunComplete,
@@ -293,6 +301,54 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.RiskMutating,
 			false,
 			false,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDNetworkChannelUpdate],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDNetworkSubscriptions],
+			toolspkg.RiskRead,
+			true,
+			false,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDNetworkSubscribe],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDNetworkMute],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDNetworkDigestMode],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDNetworkUnmute],
+			toolspkg.RiskDestructive,
+			false,
+			true,
 			false,
 		)
 		requireDescriptorRisk(t, descriptors[toolspkg.ToolIDSessionList], toolspkg.RiskRead, true, false, false)
@@ -497,6 +553,22 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.RiskDestructive,
 			false,
 			true,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDTaskPromoteFromThread],
+			toolspkg.RiskMutating,
+			false,
+			false,
+			false,
+		)
+		requireDescriptorRisk(
+			t,
+			descriptors[toolspkg.ToolIDTaskFanOutRuns],
+			toolspkg.RiskMutating,
+			false,
+			false,
 			false,
 		)
 		requireDescriptorRisk(
@@ -845,16 +917,22 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		}
 		if want := []toolspkg.ToolID{
 			toolspkg.ToolIDNetworkChannelCreate,
+			toolspkg.ToolIDNetworkChannelUpdate,
 			toolspkg.ToolIDNetworkChannels,
+			toolspkg.ToolIDNetworkDigestMode,
 			toolspkg.ToolIDNetworkDirectMessages,
 			toolspkg.ToolIDNetworkDirectResolve,
 			toolspkg.ToolIDNetworkDirects,
 			toolspkg.ToolIDNetworkInbox,
+			toolspkg.ToolIDNetworkMute,
 			toolspkg.ToolIDNetworkPeers,
 			toolspkg.ToolIDNetworkSend,
 			toolspkg.ToolIDNetworkStatus,
+			toolspkg.ToolIDNetworkSubscribe,
+			toolspkg.ToolIDNetworkSubscriptions,
 			toolspkg.ToolIDNetworkThreadMessages,
 			toolspkg.ToolIDNetworkThreads,
+			toolspkg.ToolIDNetworkUnmute,
 			toolspkg.ToolIDNetworkWork,
 		}; !slices.Equal(coordination, want) {
 			t.Fatalf("coordination expansion = %#v, want %#v", coordination, want)

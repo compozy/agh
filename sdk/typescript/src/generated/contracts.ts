@@ -2253,6 +2253,8 @@ export interface NetworkChannelPayload {
   channel: string;
   workspace_id?: string;
   purpose?: string;
+  fanout_policy?: string;
+  coordinator_peer_id?: string;
   created_by?: string;
   created_at?: ISODateTime;
   peer_count: number;
@@ -2282,6 +2284,7 @@ export interface NetworkConversationMessagePayload {
   direction: string;
   peer_from: string;
   peer_to?: string;
+  mentions?: string[];
   display_name?: string;
   session_id?: string;
   local?: boolean;
@@ -2292,6 +2295,7 @@ export interface NetworkConversationMessagePayload {
   intent?: string;
   text?: string;
   preview_text?: string;
+  size_bytes?: number;
   presence_count?: number;
   presence_started_at?: ISODateTime;
   presence_last_seen_at?: ISODateTime;
@@ -2504,6 +2508,7 @@ export interface NetworkSendParams {
   direct_id?: string;
   kind: string;
   to?: string;
+  mentions?: string[];
   body: JSONValue;
   work_id?: string;
   reply_to?: string;
@@ -2524,6 +2529,7 @@ export interface NetworkSendPayload {
   direct_id?: string;
   kind: string;
   to?: string;
+  mentions?: string[];
   work_id?: string;
   reply_to?: string;
   trace_id?: string;
@@ -2615,6 +2621,12 @@ export interface NetworkThreadOpenedPayload {
   causation_id?: string;
 }
 
+export interface NetworkCoordinationCostPayload {
+  delivered_count?: number;
+  prompt_size_bytes?: number;
+  estimated_prompt_tokens?: number;
+}
+
 export interface NetworkThreadSummaryPayload {
   workspace_id?: string;
   channel: string;
@@ -2628,6 +2640,7 @@ export interface NetworkThreadSummaryPayload {
   message_count: number;
   participant_count: number;
   open_work_count: number;
+  coordination_cost?: NetworkCoordinationCostPayload;
   last_message_preview?: string;
 }
 
@@ -4291,6 +4304,11 @@ export interface CoordinationChannelPayload {
   last_activity_at?: ISODateTime;
 }
 
+export interface RunDesignationSummary {
+  index: number;
+  brief?: string;
+}
+
 export interface TaskRunSummaryPayload {
   id: string;
   task_id: string;
@@ -4306,6 +4324,8 @@ export interface TaskRunSummaryPayload {
   heartbeat_at?: ISODateTime;
   coordination_channel_id?: string;
   coordination_channel?: CoordinationChannelPayload;
+  designation_group_id?: string;
+  designation?: RunDesignationSummary;
   queued_at: ISODateTime;
   claimed_at?: ISODateTime;
   started_at?: ISODateTime;
@@ -4368,11 +4388,13 @@ export interface TaskRun {
   origin: Origin;
   idempotency_key?: string;
   network_channel?: string;
+  designation_group_id?: string;
   claim_token_hash?: string;
   lease_until?: ISODateTime;
   heartbeat_at?: ISODateTime;
   coordination_channel_id?: string;
   coordination_channel?: CoordinationChannelPayload;
+  designation?: RunDesignationSummary;
   queued_at: ISODateTime;
   claimed_at?: ISODateTime;
   started_at?: ISODateTime;
@@ -4380,6 +4402,13 @@ export interface TaskRun {
   error?: string;
   metadata?: JSONValue;
   result?: JSONValue;
+}
+
+export interface TaskDesignationRollupPayload {
+  designation_group_id: string;
+  task_id: string;
+  summary: JSONValue;
+  created_at: ISODateTime;
 }
 
 export interface TaskEventPayload {
@@ -4400,6 +4429,7 @@ export interface TaskDetail {
   dependencies?: TaskDependencyPayload[];
   dependency_references?: TaskDependencyReferencePayload[];
   runs?: TaskRun[];
+  designation_rollups?: TaskDesignationRollupPayload[];
   events?: TaskEventPayload[];
 }
 

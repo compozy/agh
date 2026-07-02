@@ -1,9 +1,11 @@
 package network
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"reflect"
 	"slices"
 	"strings"
@@ -12,6 +14,7 @@ import (
 	"time"
 
 	sessionpkg "github.com/compozy/agh/internal/session"
+	"github.com/compozy/agh/internal/store"
 )
 
 func withCanonicalDirectedEnvelope(t *testing.T, env Envelope) Envelope {
@@ -112,7 +115,26 @@ func TestRouterRoutesBroadcastAndDirectToCorrectSubjectsAndTargets(t *testing.T)
 	}
 
 	transport := &spyRouterTransport{}
-	router, err := NewRouter(registry, transport, DefaultMaxReplayAge, WithRouterClock(func() time.Time { return now }))
+	router, err := NewRouter(
+		registry,
+		transport,
+		DefaultMaxReplayAge,
+		WithRouterClock(func() time.Time { return now }),
+		WithRouterThreadParticipantResolver(threadParticipantResolverFunc(
+			func(
+				context.Context,
+				store.NetworkChannelRef,
+				string,
+			) ([]store.NetworkThreadParticipant, error) {
+				return []store.NetworkThreadParticipant{{
+					WorkspaceID: testWorkspaceID,
+					Channel:     "builders",
+					ThreadID:    testThreadRef().ThreadID,
+					PeerID:      target.PeerID,
+				}}, nil
+			},
+		)),
+	)
 	if err != nil {
 		t.Fatalf("NewRouter() error = %v", err)
 	}
@@ -315,6 +337,531 @@ func TestRouterRoutesDirectSurfaceBroadcastByRoomMembership(t *testing.T) {
 		}
 		if got, want := len(result.Deliveries), 0; got != want {
 			t.Fatalf("len(mismatched direct deliveries) = %d, want %d", got, want)
+		}
+	})
+}
+
+func TestRouterRoutesThreadBroadcastByPersistedParticipants(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should deliver only to persisted thread participants", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 6, 12, 0, 0, 0, time.UTC)
+		registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+		if err != nil {
+			t.Fatalf("NewPeerRegistry() error = %v", err)
+		}
+		if _, err := registry.RegisterLocal(
+			"sess-reviewer",
+			testWorkspaceID,
+			"builders",
+			mustPeerCard(t, "reviewer.sess-b"),
+			now,
+		); err != nil {
+			t.Fatalf("RegisterLocal(reviewer) error = %v", err)
+		}
+		if _, err := registry.RegisterLocal(
+			"sess-observer",
+			testWorkspaceID,
+			"builders",
+			mustPeerCard(t, "observer.sess-c"),
+			now,
+		); err != nil {
+			t.Fatalf("RegisterLocal(observer) error = %v", err)
+		}
+
+		router, err := NewRouter(
+			registry,
+			&spyRouterTransport{},
+			DefaultMaxReplayAge,
+			WithRouterClock(func() time.Time { return now }),
+			WithRouterThreadParticipantResolver(threadParticipantResolverFunc(
+				func(
+					_ context.Context,
+					ref store.NetworkChannelRef,
+					threadID string,
+				) ([]store.NetworkThreadParticipant, error) {
+					if ref.WorkspaceID != testWorkspaceID || ref.Channel != "builders" ||
+						threadID != "thread_review_scope" {
+						t.Fatalf("ListThreadParticipants() ref=%#v threadID=%q, want builders thread", ref, threadID)
+					}
+					return []store.NetworkThreadParticipant{{
+						WorkspaceID: testWorkspaceID,
+						Channel:     "builders",
+						ThreadID:    "thread_review_scope",
+						PeerID:      "reviewer.sess-b",
+					}}, nil
+				},
+			)),
+		)
+		if err != nil {
+			t.Fatalf("NewRouter() error = %v", err)
+		}
+
+		payload, err := json.Marshal(Envelope{
+			Protocol:    ProtocolV0,
+			WorkspaceID: testWorkspaceID,
+			ID:          "msg_thread_scope",
+			Kind:        KindSay,
+			Channel:     "builders",
+			Surface:     new(SurfaceThread),
+			ThreadID:    new("thread_review_scope"),
+			From:        "coder.sess-remote",
+			Mentions:    []string{"observer.sess-c"},
+			TS:          now.Unix(),
+			Body:        mustRawJSON(t, SayBody{Text: "thread-scoped update"}),
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(thread broadcast) error = %v", err)
+		}
+
+		result, err := router.Receive(context.Background(), payload)
+		if err != nil {
+			t.Fatalf("Receive(thread broadcast) error = %v", err)
+		}
+		if got, want := len(result.Deliveries), 2; got != want {
+			t.Fatalf("len(thread deliveries) = %d, want %d", got, want)
+		}
+		gotPeers := map[string]string{}
+		for _, delivery := range result.Deliveries {
+			gotPeers[delivery.PeerID] = delivery.SessionID
+		}
+		if got, want := gotPeers["reviewer.sess-b"], "sess-reviewer"; got != want {
+			t.Fatalf("thread participant delivery session = %q, want %q", got, want)
+		}
+		if got, want := gotPeers["observer.sess-c"], "sess-observer"; got != want {
+			t.Fatalf("thread mention delivery session = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should digest fallback to channel peers when capability match has no positive score", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 6, 12, 1, 0, 0, time.UTC)
+		registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+		if err != nil {
+			t.Fatalf("NewPeerRegistry() error = %v", err)
+		}
+		if _, err := registry.RegisterLocal(
+			"sess-reviewer",
+			testWorkspaceID,
+			"builders",
+			mustPeerCard(t, "reviewer.sess-b"),
+			now,
+		); err != nil {
+			t.Fatalf("RegisterLocal(reviewer) error = %v", err)
+		}
+
+		router, err := NewRouter(
+			registry,
+			&spyRouterTransport{},
+			DefaultMaxReplayAge,
+			WithRouterClock(func() time.Time { return now }),
+			WithRouterThreadParticipantResolver(threadParticipantResolverFunc(
+				func(
+					context.Context,
+					store.NetworkChannelRef,
+					string,
+				) ([]store.NetworkThreadParticipant, error) {
+					return nil, nil
+				},
+			)),
+		)
+		if err != nil {
+			t.Fatalf("NewRouter() error = %v", err)
+		}
+
+		payload, err := json.Marshal(Envelope{
+			Protocol:    ProtocolV0,
+			WorkspaceID: testWorkspaceID,
+			ID:          "msg_thread_empty_scope",
+			Kind:        KindSay,
+			Channel:     "builders",
+			Surface:     new(SurfaceThread),
+			ThreadID:    new("thread_empty_scope"),
+			From:        "coder.sess-remote",
+			TS:          now.Unix(),
+			Body:        mustRawJSON(t, SayBody{Text: "unjoined thread update"}),
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(thread broadcast) error = %v", err)
+		}
+
+		result, err := router.Receive(context.Background(), payload)
+		if err != nil {
+			t.Fatalf("Receive(thread broadcast) error = %v", err)
+		}
+		if got, want := len(result.Deliveries), 1; got != want {
+			t.Fatalf("len(thread deliveries without participants) = %d, want %d", got, want)
+		}
+		if got, want := result.Deliveries[0].PeerID, "reviewer.sess-b"; got != want {
+			t.Fatalf("digest fallback peer_id = %q, want %q", got, want)
+		}
+		if got, want := result.Deliveries[0].Mode, store.NetworkSubscriptionModeDigest; got != want {
+			t.Fatalf("digest fallback mode = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should digest fallback without a participant resolver", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 6, 12, 2, 0, 0, time.UTC)
+		registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+		if err != nil {
+			t.Fatalf("NewPeerRegistry() error = %v", err)
+		}
+		if _, err := registry.RegisterLocal(
+			"sess-reviewer",
+			testWorkspaceID,
+			"builders",
+			mustPeerCard(t, "reviewer.sess-b"),
+			now,
+		); err != nil {
+			t.Fatalf("RegisterLocal(reviewer) error = %v", err)
+		}
+
+		router, err := NewRouter(
+			registry,
+			&spyRouterTransport{},
+			DefaultMaxReplayAge,
+			WithRouterClock(func() time.Time { return now }),
+		)
+		if err != nil {
+			t.Fatalf("NewRouter() error = %v", err)
+		}
+
+		payload, err := json.Marshal(Envelope{
+			Protocol:    ProtocolV0,
+			WorkspaceID: testWorkspaceID,
+			ID:          "msg_thread_missing_resolver",
+			Kind:        KindSay,
+			Channel:     "builders",
+			Surface:     new(SurfaceThread),
+			ThreadID:    new("thread_missing_resolver"),
+			From:        "coder.sess-remote",
+			TS:          now.Unix(),
+			Body:        mustRawJSON(t, SayBody{Text: "unresolved thread update"}),
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(thread broadcast without resolver) error = %v", err)
+		}
+
+		result, err := router.Receive(context.Background(), payload)
+		if err != nil {
+			t.Fatalf("Receive(thread broadcast without resolver) error = %v", err)
+		}
+		if got, want := len(result.Deliveries), 1; got != want {
+			t.Fatalf("len(thread deliveries without resolver) = %d, want %d", got, want)
+		}
+		if got, want := result.Deliveries[0].PeerID, "reviewer.sess-b"; got != want {
+			t.Fatalf("digest fallback peer_id without resolver = %q, want %q", got, want)
+		}
+		if got, want := result.Deliveries[0].Mode, store.NetworkSubscriptionModeDigest; got != want {
+			t.Fatalf("digest fallback mode without resolver = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should digest fallback when participant lookup fails", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 6, 12, 2, 30, 0, time.UTC)
+		var logs bytes.Buffer
+		registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+		if err != nil {
+			t.Fatalf("NewPeerRegistry() error = %v", err)
+		}
+		if _, err := registry.RegisterLocal(
+			"sess-reviewer",
+			testWorkspaceID,
+			"builders",
+			mustPeerCard(t, "reviewer.sess-b"),
+			now,
+		); err != nil {
+			t.Fatalf("RegisterLocal(reviewer) error = %v", err)
+		}
+
+		router, err := NewRouter(
+			registry,
+			&spyRouterTransport{},
+			DefaultMaxReplayAge,
+			WithRouterClock(func() time.Time { return now }),
+			WithRouterLogger(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn}))),
+			WithRouterThreadParticipantResolver(threadParticipantResolverFunc(
+				func(context.Context, store.NetworkChannelRef, string) ([]store.NetworkThreadParticipant, error) {
+					return nil, errors.New("participants unavailable")
+				},
+			)),
+		)
+		if err != nil {
+			t.Fatalf("NewRouter() error = %v", err)
+		}
+
+		payload, err := json.Marshal(Envelope{
+			Protocol:    ProtocolV0,
+			WorkspaceID: testWorkspaceID,
+			ID:          "msg_thread_participant_error",
+			Kind:        KindSay,
+			Channel:     "builders",
+			Surface:     new(SurfaceThread),
+			ThreadID:    new("thread_participant_error"),
+			From:        "coder.sess-remote",
+			TS:          now.Unix(),
+			Body:        mustRawJSON(t, SayBody{Text: "thread update during participant outage"}),
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(thread broadcast) error = %v", err)
+		}
+
+		result, err := router.Receive(context.Background(), payload)
+		if err != nil {
+			t.Fatalf("Receive(thread broadcast) error = %v", err)
+		}
+		if got, want := len(result.Deliveries), 1; got != want {
+			t.Fatalf("len(thread deliveries with participant error) = %d, want %d", got, want)
+		}
+		if got, want := result.Deliveries[0].PeerID, "reviewer.sess-b"; got != want {
+			t.Fatalf("participant error fallback peer_id = %q, want %q", got, want)
+		}
+		if got, want := result.Deliveries[0].Mode, store.NetworkSubscriptionModeDigest; got != want {
+			t.Fatalf("participant error fallback mode = %q, want %q", got, want)
+		}
+		logOutput := logs.String()
+		if !strings.Contains(logOutput, "network.router.thread_participants_lookup_failed") ||
+			!strings.Contains(logOutput, "participants unavailable") {
+			t.Fatalf("participant fallback log = %q, want lookup warning with error", logOutput)
+		}
+	})
+
+	t.Run("Should digest fallback when channel policy lookup fails", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 6, 12, 2, 45, 0, time.UTC)
+		var logs bytes.Buffer
+		registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+		if err != nil {
+			t.Fatalf("NewPeerRegistry() error = %v", err)
+		}
+		if _, err := registry.RegisterLocal(
+			"sess-reviewer",
+			testWorkspaceID,
+			"builders",
+			mustPeerCard(t, "reviewer.sess-b"),
+			now,
+		); err != nil {
+			t.Fatalf("RegisterLocal(reviewer) error = %v", err)
+		}
+
+		router, err := NewRouter(
+			registry,
+			&spyRouterTransport{},
+			DefaultMaxReplayAge,
+			WithRouterClock(func() time.Time { return now }),
+			WithRouterLogger(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn}))),
+			WithRouterThreadParticipantResolver(threadParticipantResolverFunc(
+				func(context.Context, store.NetworkChannelRef, string) ([]store.NetworkThreadParticipant, error) {
+					return nil, nil
+				},
+			)),
+			WithRouterChannelPolicyResolver(channelPolicyResolverFunc(
+				func(context.Context, store.NetworkChannelRef) (store.NetworkChannelEntry, error) {
+					return store.NetworkChannelEntry{}, errors.New("channel policy unavailable")
+				},
+			)),
+		)
+		if err != nil {
+			t.Fatalf("NewRouter() error = %v", err)
+		}
+
+		payload, err := json.Marshal(Envelope{
+			Protocol:    ProtocolV0,
+			WorkspaceID: testWorkspaceID,
+			ID:          "msg_thread_policy_error",
+			Kind:        KindSay,
+			Channel:     "builders",
+			Surface:     new(SurfaceThread),
+			ThreadID:    new("thread_policy_error"),
+			From:        "coder.sess-remote",
+			TS:          now.Unix(),
+			Body:        mustRawJSON(t, SayBody{Text: "thread update during policy outage"}),
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(thread broadcast) error = %v", err)
+		}
+
+		result, err := router.Receive(context.Background(), payload)
+		if err != nil {
+			t.Fatalf("Receive(thread broadcast) error = %v", err)
+		}
+		if got, want := len(result.Deliveries), 1; got != want {
+			t.Fatalf("len(thread deliveries with policy error) = %d, want %d", got, want)
+		}
+		if got, want := result.Deliveries[0].PeerID, "reviewer.sess-b"; got != want {
+			t.Fatalf("policy error fallback peer_id = %q, want %q", got, want)
+		}
+		if got, want := result.Deliveries[0].Mode, store.NetworkSubscriptionModeDigest; got != want {
+			t.Fatalf("policy error fallback mode = %q, want %q", got, want)
+		}
+		logOutput := logs.String()
+		if !strings.Contains(logOutput, "network.router.channel_policy_lookup_failed") ||
+			!strings.Contains(logOutput, "channel policy unavailable") {
+			t.Fatalf("channel policy fallback log = %q, want lookup warning with error", logOutput)
+		}
+	})
+
+	t.Run("Should enforce coordinator channel fanout policy", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 6, 12, 3, 0, 0, time.UTC)
+		registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+		if err != nil {
+			t.Fatalf("NewPeerRegistry() error = %v", err)
+		}
+		reviewer := mustPeerCard(t, "reviewer.sess-b")
+		observer := mustPeerCard(t, "observer.sess-c")
+		if _, err := registry.RegisterLocal("sess-reviewer", testWorkspaceID, "builders", reviewer, now); err != nil {
+			t.Fatalf("RegisterLocal(reviewer) error = %v", err)
+		}
+		if _, err := registry.RegisterLocal("sess-observer", testWorkspaceID, "builders", observer, now); err != nil {
+			t.Fatalf("RegisterLocal(observer) error = %v", err)
+		}
+
+		router, err := NewRouter(
+			registry,
+			&spyRouterTransport{},
+			DefaultMaxReplayAge,
+			WithRouterClock(func() time.Time { return now }),
+			WithRouterThreadParticipantResolver(threadParticipantResolverFunc(
+				func(context.Context, store.NetworkChannelRef, string) ([]store.NetworkThreadParticipant, error) {
+					return nil, nil
+				},
+			)),
+			WithRouterChannelPolicyResolver(channelPolicyResolverFunc(
+				func(context.Context, store.NetworkChannelRef) (store.NetworkChannelEntry, error) {
+					return store.NetworkChannelEntry{
+						WorkspaceID:       testWorkspaceID,
+						Channel:           "builders",
+						Purpose:           "network_channel",
+						FanoutPolicy:      store.NetworkFanoutPolicyCoordinator,
+						CoordinatorPeerID: reviewer.PeerID,
+					}, nil
+				},
+			)),
+		)
+		if err != nil {
+			t.Fatalf("NewRouter() error = %v", err)
+		}
+
+		payload, err := json.Marshal(Envelope{
+			Protocol:    ProtocolV0,
+			WorkspaceID: testWorkspaceID,
+			ID:          "msg_thread_coordinator_policy",
+			Kind:        KindSay,
+			Channel:     "builders",
+			Surface:     new(SurfaceThread),
+			ThreadID:    new("thread_coordinator_policy"),
+			From:        "coder.sess-remote",
+			TS:          now.Unix(),
+			Body:        mustRawJSON(t, SayBody{Text: "unjoined thread update"}),
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(thread broadcast) error = %v", err)
+		}
+
+		result, err := router.Receive(context.Background(), payload)
+		if err != nil {
+			t.Fatalf("Receive(thread broadcast) error = %v", err)
+		}
+		if got, want := len(result.Deliveries), 1; got != want {
+			t.Fatalf("len(coordinator deliveries) = %d, want %d", got, want)
+		}
+		if got, want := result.Deliveries[0].PeerID, reviewer.PeerID; got != want {
+			t.Fatalf("coordinator delivery peer_id = %q, want %q", got, want)
+		}
+		if got := result.Deliveries[0].Mode; got != store.NetworkSubscriptionModeFull && got != "" {
+			t.Fatalf("coordinator delivery mode = %q, want full/empty", got)
+		}
+	})
+
+	t.Run("Should enforce all members channel fanout policy", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 6, 12, 4, 0, 0, time.UTC)
+		registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+		if err != nil {
+			t.Fatalf("NewPeerRegistry() error = %v", err)
+		}
+		for _, peer := range []struct {
+			sessionID string
+			peerID    string
+		}{
+			{sessionID: "sess-reviewer", peerID: "reviewer.sess-b"},
+			{sessionID: "sess-observer", peerID: "observer.sess-c"},
+			{sessionID: "sess-runner", peerID: "runner.sess-d"},
+		} {
+			if _, err := registry.RegisterLocal(
+				peer.sessionID,
+				testWorkspaceID,
+				"builders",
+				mustPeerCard(t, peer.peerID),
+				now,
+			); err != nil {
+				t.Fatalf("RegisterLocal(%s) error = %v", peer.peerID, err)
+			}
+		}
+
+		router, err := NewRouter(
+			registry,
+			&spyRouterTransport{},
+			DefaultMaxReplayAge,
+			WithRouterClock(func() time.Time { return now }),
+			WithRouterThreadParticipantResolver(threadParticipantResolverFunc(
+				func(context.Context, store.NetworkChannelRef, string) ([]store.NetworkThreadParticipant, error) {
+					return nil, nil
+				},
+			)),
+			WithRouterChannelPolicyResolver(channelPolicyResolverFunc(
+				func(context.Context, store.NetworkChannelRef) (store.NetworkChannelEntry, error) {
+					return store.NetworkChannelEntry{
+						WorkspaceID:  testWorkspaceID,
+						Channel:      "builders",
+						Purpose:      "network_channel",
+						FanoutPolicy: store.NetworkFanoutPolicyAllMembers,
+					}, nil
+				},
+			)),
+		)
+		if err != nil {
+			t.Fatalf("NewRouter() error = %v", err)
+		}
+
+		payload, err := json.Marshal(Envelope{
+			Protocol:    ProtocolV0,
+			WorkspaceID: testWorkspaceID,
+			ID:          "msg_thread_all_members_policy",
+			Kind:        KindSay,
+			Channel:     "builders",
+			Surface:     new(SurfaceThread),
+			ThreadID:    new("thread_all_members_policy"),
+			From:        "coder.sess-remote",
+			TS:          now.Unix(),
+			Body:        mustRawJSON(t, SayBody{Text: "unjoined thread update"}),
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(thread broadcast) error = %v", err)
+		}
+
+		result, err := router.Receive(context.Background(), payload)
+		if err != nil {
+			t.Fatalf("Receive(thread broadcast) error = %v", err)
+		}
+		if got, want := len(result.Deliveries), 3; got != want {
+			t.Fatalf("len(all-members deliveries) = %d, want %d", got, want)
+		}
+		for _, delivery := range result.Deliveries {
+			if delivery.Mode != store.NetworkSubscriptionModeFull && delivery.Mode != "" {
+				t.Fatalf("all-members delivery mode = %q, want full/empty", delivery.Mode)
+			}
 		}
 	})
 }
@@ -2118,6 +2665,29 @@ type badRouterBody struct {
 }
 
 func (badRouterBody) Kind() Kind { return KindSay }
+
+type threadParticipantResolverFunc func(
+	context.Context,
+	store.NetworkChannelRef,
+	string,
+) ([]store.NetworkThreadParticipant, error)
+
+func (fn threadParticipantResolverFunc) ListThreadParticipants(
+	ctx context.Context,
+	ref store.NetworkChannelRef,
+	threadID string,
+) ([]store.NetworkThreadParticipant, error) {
+	return fn(ctx, ref, threadID)
+}
+
+type channelPolicyResolverFunc func(context.Context, store.NetworkChannelRef) (store.NetworkChannelEntry, error)
+
+func (fn channelPolicyResolverFunc) GetNetworkChannel(
+	ctx context.Context,
+	ref store.NetworkChannelRef,
+) (store.NetworkChannelEntry, error) {
+	return fn(ctx, ref)
+}
 
 func (s *spyRouterTransport) Publish(_ context.Context, subject string, payload []byte) error {
 	s.mu.Lock()

@@ -12,6 +12,7 @@ vi.mock("sonner", () => ({
 }));
 
 import { handlers } from "@/systems/tasks/mocks/handlers";
+import { toast } from "sonner";
 
 import { useTaskDetailOrchestrationTab } from "../use-task-detail-orchestration-tab";
 
@@ -183,5 +184,22 @@ describe("useTaskDetailOrchestrationTab", () => {
         task_id: "task_001",
       });
     });
+  });
+
+  it("Should pluralize the fan-out success toast for one run", async () => {
+    const { result } = renderHook(
+      () => useTaskDetailOrchestrationTab("task_001", { enabled: true, latestEventSeq: 0 }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => expect(result.current.profile?.task_id).toBe("task_001"));
+
+    await act(async () => {
+      await result.current.handleFanOutRuns({
+        designations: [{ brief: "Review subscription error handling" }],
+      });
+    });
+
+    expect(toast.success).toHaveBeenCalledWith("1 designated run queued.");
   });
 });

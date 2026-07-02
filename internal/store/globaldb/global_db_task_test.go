@@ -100,6 +100,7 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"origin_ref",
 		"idempotency_key",
 		"network_channel",
+		"designation_group_id",
 		"queued_at",
 		"claimed_at",
 		"started_at",
@@ -198,6 +199,7 @@ func TestOpenGlobalDBCreatesTaskSchemaAndIndexes(t *testing.T) {
 		"idx_task_runs_review_request",
 		"uq_task_runs_review_id",
 		"idx_task_runs_task_review_round",
+		"idx_task_runs_designation_group",
 	)
 	assertIndexesPresent(t, globalDB.db, "task_run_required_capabilities",
 		"idx_task_run_required_capabilities_capability",
@@ -1227,6 +1229,119 @@ func TestGlobalDBReserveQueuedRunRejectsConcurrentOpenRun(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGlobalDBReserveQueuedRunAllowsDesignatedSiblingRuns(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should allow designated sibling runs and reject conflicting reservations", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		taskRecord := taskRecordForTest("task-run-designated-siblings")
+		taskRecord.MaxAttempts = 5
+		if err := globalDB.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+
+		origin := taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "fanout"}
+		queuedAt := time.Date(2026, 7, 1, 16, 0, 0, 0, time.UTC)
+		_, firstRun, firstExisting, err := globalDB.ReserveQueuedRun(
+			ctx,
+			taskRecord.ID,
+			"run-designated-sibling-a",
+			"designated-key-a",
+			origin,
+			"ops",
+			nil,
+			queuedAt,
+			"designation-group-a",
+		)
+		if err != nil {
+			t.Fatalf("ReserveQueuedRun(first) error = %v", err)
+		}
+		if firstExisting {
+			t.Fatal("ReserveQueuedRun(first) existing = true, want false")
+		}
+		_, secondRun, secondExisting, err := globalDB.ReserveQueuedRun(
+			ctx,
+			taskRecord.ID,
+			"run-designated-sibling-b",
+			"designated-key-b",
+			origin,
+			"ops",
+			nil,
+			queuedAt.Add(time.Second),
+			"designation-group-a",
+		)
+		if err != nil {
+			t.Fatalf("ReserveQueuedRun(second same group) error = %v", err)
+		}
+		if secondExisting {
+			t.Fatal("ReserveQueuedRun(second same group) existing = true, want false")
+		}
+		if firstRun.ID == secondRun.ID {
+			t.Fatalf("designated sibling run IDs are equal: %q", firstRun.ID)
+		}
+		for _, run := range []taskpkg.Run{firstRun, secondRun} {
+			if got, want := run.DesignationGroupID, "designation-group-a"; got != want {
+				t.Fatalf("DesignationGroupID(%s) = %q, want %q", run.ID, got, want)
+			}
+		}
+
+		_, undesignatedRun, undesignatedExisting, err := globalDB.ReserveQueuedRun(
+			ctx,
+			taskRecord.ID,
+			"run-designated-sibling-undesignated",
+			"designated-key-undesignated",
+			origin,
+			"ops",
+			nil,
+			queuedAt.Add(2*time.Second),
+		)
+		if undesignatedExisting {
+			t.Fatal("ReserveQueuedRun(undesignated) existing = true, want false")
+		}
+		if undesignatedRun.ID != "" {
+			t.Fatalf("ReserveQueuedRun(undesignated) run = %#v, want zero value", undesignatedRun)
+		}
+		if !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
+			t.Fatalf("ReserveQueuedRun(undesignated) error = %v, want %v", err, taskpkg.ErrInvalidStatusTransition)
+		}
+
+		_, otherGroupRun, otherGroupExisting, err := globalDB.ReserveQueuedRun(
+			ctx,
+			taskRecord.ID,
+			"run-designated-sibling-other-group",
+			"designated-key-other-group",
+			origin,
+			"ops",
+			nil,
+			queuedAt.Add(3*time.Second),
+			"designation-group-b",
+		)
+		if otherGroupExisting {
+			t.Fatal("ReserveQueuedRun(other group) existing = true, want false")
+		}
+		if otherGroupRun.ID != "" {
+			t.Fatalf("ReserveQueuedRun(other group) run = %#v, want zero value", otherGroupRun)
+		}
+		if !errors.Is(err, taskpkg.ErrInvalidStatusTransition) {
+			t.Fatalf("ReserveQueuedRun(other group) error = %v, want %v", err, taskpkg.ErrInvalidStatusTransition)
+		}
+
+		runs, err := globalDB.ListTaskRuns(ctx, taskpkg.RunQuery{
+			TaskID:             taskRecord.ID,
+			DesignationGroupID: "designation-group-a",
+		})
+		if err != nil {
+			t.Fatalf("ListTaskRuns(designation group) error = %v", err)
+		}
+		if got, want := len(runs), 2; got != want {
+			t.Fatalf("len(ListTaskRuns(designation group)) = %d, want %d", got, want)
+		}
+	})
 }
 
 func TestGlobalDBUpdateTaskRunRejectsSessionRebinding(t *testing.T) {

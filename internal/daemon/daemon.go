@@ -26,6 +26,7 @@ import (
 	mcppkg "github.com/compozy/agh/internal/mcp"
 	"github.com/compozy/agh/internal/memory"
 	"github.com/compozy/agh/internal/memory/consolidation"
+	"github.com/compozy/agh/internal/network"
 	"github.com/compozy/agh/internal/observe"
 	"github.com/compozy/agh/internal/procutil"
 	"github.com/compozy/agh/internal/resources"
@@ -138,6 +139,7 @@ type Registry interface {
 	store.NetworkChannelStore
 	store.NetworkConversationStore
 	store.NetworkMessageStore
+	store.NetworkPreferenceStore
 	store.OnboardingStore
 	workspacepkg.Store
 }
@@ -217,6 +219,7 @@ type networkRuntime interface {
 	session.NetworkPeerLifecycle
 	Shutdown(context.Context) error
 	OnTurnEnd(string)
+	SendFromRuntimePeer(context.Context, network.RuntimeSendRequest) (string, error)
 }
 
 type networkBindableSessionManager interface {

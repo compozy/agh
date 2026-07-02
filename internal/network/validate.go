@@ -15,6 +15,7 @@ import (
 	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/diagnostics"
 	"github.com/compozy/agh/internal/network/rules"
+	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
@@ -395,6 +396,7 @@ func normalizeEnvelopeCopy(env Envelope) Envelope {
 		ThreadID:    normalizeOptionalIdentifier(env.ThreadID),
 		DirectID:    normalizeOptionalIdentifier(env.DirectID),
 		From:        strings.TrimSpace(env.From),
+		Mentions:    normalizeEnvelopeMentions(env.Mentions),
 		TS:          env.TS,
 		Body:        cloneRawMessage(env.Body),
 		Proof:       cloneProof(env.Proof),
@@ -441,6 +443,9 @@ func validateEnvelopeParticipants(env Envelope) error {
 		if err := ValidatePeerID(*env.To); err != nil {
 			return fmt.Errorf("%w: to", err)
 		}
+	}
+	if _, err := store.NormalizeNetworkPeerIDs(env.Mentions, "mentions"); err != nil {
+		return err
 	}
 	return nil
 }
@@ -1024,6 +1029,14 @@ func normalizeOptionalIdentifier(value *string) *string {
 		return nil
 	}
 	return &trimmed
+}
+
+func normalizeEnvelopeMentions(values []string) []string {
+	normalized, err := store.NormalizeNetworkPeerIDs(values, "mentions")
+	if err != nil {
+		return append([]string(nil), values...)
+	}
+	return normalized
 }
 
 func containsControlCharacter(value string) bool {

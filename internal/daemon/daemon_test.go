@@ -5385,18 +5385,19 @@ func (m nonBindableHarnessSessionManager) PromptSynthetic(
 }
 
 type fakeNetworkRuntime struct {
-	mu          sync.Mutex
-	status      *network.Status
-	statusErr   error
-	sendID      string
-	sendErr     error
-	sendCalls   []network.SendRequest
-	joinCalls   []fakeNetworkJoinCall
-	leaveCalls  []string
-	turnEnds    []string
-	inboxes     map[string][]network.Envelope
-	shutdownErr error
-	onShutdown  func()
+	mu               sync.Mutex
+	status           *network.Status
+	statusErr        error
+	sendID           string
+	sendErr          error
+	sendCalls        []network.SendRequest
+	runtimeSendCalls []network.RuntimeSendRequest
+	joinCalls        []fakeNetworkJoinCall
+	leaveCalls       []string
+	turnEnds         []string
+	inboxes          map[string][]network.Envelope
+	shutdownErr      error
+	onShutdown       func()
 }
 
 type fakeNetworkJoinCall struct {
@@ -5439,6 +5440,22 @@ func (f *fakeNetworkRuntime) Send(_ context.Context, req network.SendRequest) (s
 		return f.sendID, nil
 	}
 	return "msg-test", nil
+}
+
+func (f *fakeNetworkRuntime) SendFromRuntimePeer(
+	_ context.Context,
+	req network.RuntimeSendRequest,
+) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.runtimeSendCalls = append(f.runtimeSendCalls, req)
+	if f.sendErr != nil {
+		return "", f.sendErr
+	}
+	if strings.TrimSpace(f.sendID) != "" {
+		return f.sendID, nil
+	}
+	return "msg-runtime-test", nil
 }
 
 func (f *fakeNetworkRuntime) ListPeers(context.Context, string, string) ([]network.PeerInfo, error) {
@@ -5907,6 +5924,14 @@ func (r *recordingRegistry) WriteNetworkChannel(context.Context, store.NetworkCh
 	return nil
 }
 
+func (r *recordingRegistry) PatchNetworkChannel(
+	context.Context,
+	store.NetworkChannelRef,
+	store.NetworkChannelPatch,
+) error {
+	return nil
+}
+
 func (r *recordingRegistry) GetNetworkChannel(
 	context.Context,
 	store.NetworkChannelRef,
@@ -6016,6 +6041,57 @@ func (r *recordingRegistry) ListConversationMessages(
 
 func (r *recordingRegistry) GetWork(context.Context, string, string) (store.NetworkWorkEntry, error) {
 	return store.NetworkWorkEntry{}, store.ErrNetworkConversationNotFound
+}
+
+func (r *recordingRegistry) PutNetworkSubscription(context.Context, store.NetworkSubscriptionEntry) error {
+	return nil
+}
+
+func (r *recordingRegistry) ListNetworkSubscriptions(
+	context.Context,
+	store.NetworkSubscriptionQuery,
+) ([]store.NetworkSubscriptionEntry, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) DeleteNetworkSubscription(context.Context, store.NetworkSubscriptionRef) error {
+	return nil
+}
+
+func (r *recordingRegistry) GetNetworkDeliveryGuidanceState(
+	context.Context,
+	string,
+) (store.NetworkDeliveryGuidanceState, error) {
+	return store.NetworkDeliveryGuidanceState{}, sql.ErrNoRows
+}
+
+func (r *recordingRegistry) PutNetworkDeliveryGuidanceState(
+	context.Context,
+	store.NetworkDeliveryGuidanceState,
+) error {
+	return nil
+}
+
+func (r *recordingRegistry) PutNetworkTaskThreadOrigin(context.Context, store.NetworkTaskThreadOrigin) error {
+	return nil
+}
+
+func (r *recordingRegistry) ListNetworkTaskThreadOrigins(
+	context.Context,
+	store.NetworkTaskThreadOriginQuery,
+) ([]store.NetworkTaskThreadOrigin, error) {
+	return nil, nil
+}
+
+func (r *recordingRegistry) PutTaskDesignationRollup(context.Context, store.TaskDesignationRollup) error {
+	return nil
+}
+
+func (r *recordingRegistry) ListTaskDesignationRollups(
+	context.Context,
+	store.TaskDesignationRollupQuery,
+) ([]store.TaskDesignationRollup, error) {
+	return nil, nil
 }
 
 func (r *recordingRegistry) CreateTask(context.Context, taskpkg.Task) error {
@@ -6250,6 +6326,7 @@ func (r *recordingRegistry) ReserveQueuedRun(
 	string,
 	json.RawMessage,
 	time.Time,
+	...string,
 ) (taskpkg.Task, taskpkg.Run, bool, error) {
 	return taskpkg.Task{}, taskpkg.Run{}, false, taskpkg.ErrTaskNotFound
 }

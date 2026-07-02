@@ -8,6 +8,14 @@ import (
 const (
 	// MaxTaskOrchestrationRuntime is the largest accepted runtime watchdog budget.
 	MaxTaskOrchestrationRuntime = 24 * time.Hour
+	// DefaultTaskDesignatedRunMax is the default bounded sibling-run fan-out size.
+	DefaultTaskDesignatedRunMax = 5
+	// MaxTaskDesignatedRunMax is the largest accepted sibling-run fan-out size.
+	MaxTaskDesignatedRunMax = 5
+	// DefaultTaskNetworkStatusQueueSize is the default observer queue depth.
+	DefaultTaskNetworkStatusQueueSize = 64
+	// DefaultTaskNetworkStatusTimeout is the default per-event observer timeout.
+	DefaultTaskNetworkStatusTimeout = 5 * time.Second
 
 	TaskCoordinatorModeInherit = "inherit"
 	TaskCoordinatorModeGuided  = "guided"
@@ -44,6 +52,9 @@ type TaskOrchestrationConfig struct {
 	SchedulerBadTickCooldown  time.Duration                  `toml:"scheduler_bad_tick_cooldown"`
 	DefaultMaxRuntime         time.Duration                  `toml:"default_max_runtime"`
 	BridgeNotificationTimeout time.Duration                  `toml:"bridge_notification_timeout"`
+	DesignatedRunMax          int                            `toml:"designated_run_max"`
+	NetworkStatusQueueSize    int                            `toml:"network_status_queue_size"`
+	NetworkStatusTimeout      time.Duration                  `toml:"network_status_timeout"`
 	Profile                   TaskOrchestrationProfileConfig `toml:"profile"`
 	Review                    TaskOrchestrationReviewConfig  `toml:"review"`
 }
@@ -86,6 +97,9 @@ func DefaultTaskConfig() TaskConfig {
 			SchedulerBadTickCooldown:  5 * time.Minute,
 			DefaultMaxRuntime:         0,
 			BridgeNotificationTimeout: 10 * time.Second,
+			DesignatedRunMax:          DefaultTaskDesignatedRunMax,
+			NetworkStatusQueueSize:    DefaultTaskNetworkStatusQueueSize,
+			NetworkStatusTimeout:      DefaultTaskNetworkStatusTimeout,
 			Profile: TaskOrchestrationProfileConfig{
 				DefaultCoordinatorMode:    TaskCoordinatorModeInherit,
 				DefaultWorkerMode:         TaskWorkerModeInherit,
@@ -166,6 +180,20 @@ func (c TaskOrchestrationConfig) Validate(path string) error {
 		c.BridgeNotificationTimeout,
 		false,
 	); err != nil {
+		return err
+	}
+	if c.DesignatedRunMax <= 0 || c.DesignatedRunMax > MaxTaskDesignatedRunMax {
+		return fmt.Errorf(
+			"%s.designated_run_max must be between 1 and %d: %d",
+			path,
+			MaxTaskDesignatedRunMax,
+			c.DesignatedRunMax,
+		)
+	}
+	if c.NetworkStatusQueueSize <= 0 {
+		return fmt.Errorf("%s.network_status_queue_size must be positive: %d", path, c.NetworkStatusQueueSize)
+	}
+	if err := validateWholeSecondDuration(path+".network_status_timeout", c.NetworkStatusTimeout, false); err != nil {
 		return err
 	}
 	if err := c.Profile.Validate(path + ".profile"); err != nil {

@@ -1224,7 +1224,7 @@ func sessionPromptRows(result SessionPromptResultRecord) []keyValue {
 		{Label: sessionStatusValue, Value: stringOrDash(result.Status)},
 	}
 	if result.Mode != "" {
-		rows = append(rows, keyValue{Label: "Mode", Value: string(result.Mode)})
+		rows = append(rows, keyValue{Label: bridgeModeValue, Value: string(result.Mode)})
 	}
 	if result.QueueEntryID != "" {
 		rows = append(rows, keyValue{Label: "Queue Entry", Value: result.QueueEntryID})
@@ -1258,7 +1258,7 @@ func sessionPromptRows(result SessionPromptResultRecord) []keyValue {
 func sessionPromptFields() []string {
 	return []string{
 		sessionStatusKey,
-		"mode",
+		bridgeModeKey,
 		"queued",
 		"staged",
 		"interrupted",

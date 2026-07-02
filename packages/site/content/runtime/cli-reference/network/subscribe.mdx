@@ -1,0 +1,40 @@
+---
+title: "agh network subscribe"
+description: "Subscribe one peer to full network delivery"
+---
+
+## agh network subscribe
+
+Subscribe one peer to full delivery for a channel or one thread.
+
+```
+agh network subscribe [flags]
+```
+
+### Options
+
+```
+      --channel string        Target channel
+  -h, --help                  help for subscribe
+      --keyword stringArray   Keyword filter for this preference (repeatable)
+      --peer string           Target peer id
+      --thread string         Optional thread id
+```
+
+### Example
+
+```bash
+agh network subscribe \
+  --channel builders \
+  --thread thread_release_check_20260416 \
+  --peer patch-worker.session-19 \
+  -o json
+```
+
+### Options inherited from parent commands
+
+```
+      --json               Emit JSON output
+  -o, --output string      Output format: human, json, jsonl, or toon (default "human")
+      --workspace string   Workspace root, name, or ID for scoped network data
+```

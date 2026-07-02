@@ -83,7 +83,7 @@ var taskTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
-		[]string{tasksTasksKey, "update"},
+		[]string{tasksTasksKey, descriptorKeywordUpdate},
 		[]string{"edit task", "patch task"},
 	),
 	nativeDescriptor(
@@ -253,6 +253,34 @@ var taskTools = []toolspkg.Descriptor{
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
 		[]string{tasksTasksKey, tasksNotificationsKey, tasksBridgesKey},
 		[]string{"task notification delete", "unsubscribe bridge task notification"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDTaskPromoteFromThread,
+		"task_promote_from_thread",
+		"Task Promote From Thread",
+		"Promote one AGH network thread message into a durable workspace task.",
+		taskPromoteFromThreadInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks, toolspkg.ToolsetIDCoordination},
+		[]string{tasksTasksKey, "network", "promote"},
+		[]string{"promote network thread", "thread to task"},
+	),
+	nativeDescriptor(
+		toolspkg.ToolIDTaskFanOutRuns,
+		"task_fanout_runs",
+		"Task Fan-Out Runs",
+		"Create designated sibling runs for one task.",
+		taskFanOutRunsInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDTasks},
+		[]string{tasksTasksKey, tasksRunsKey, "fanout"},
+		[]string{"task fan-out", "designated task runs"},
 	),
 }
 
@@ -482,6 +510,47 @@ const taskNotificationDeleteInputSchema = `{
 	"properties":{
 		"task_id":{"type":"string"},
 		"subscription_id":{"type":"string"}
+	},
+	"additionalProperties":false
+}`
+
+const taskPromoteFromThreadInputSchema = `{
+	"type":"object",
+	"required":["workspace_id","channel","thread_id","origin_message_id"],
+	"properties":{
+		"workspace_id":{"type":"string"},
+		"channel":{"type":"string"},
+		"thread_id":{"type":"string"},
+		"origin_message_id":{"type":"string"},
+		"title":{"type":"string"},
+		"description":{"type":"string"},
+		"priority":{"type":"string"},
+		"metadata":{}
+	},
+	"additionalProperties":false
+}`
+
+const taskFanOutRunsInputSchema = `{
+	"type":"object",
+	"required":["task_id","designations"],
+	"properties":{
+		"task_id":{"type":"string"},
+		"network_channel":{"type":"string"},
+		"designations":{
+			"type":"array",
+			"minItems":1,
+			"items":{
+				"type":"object",
+				"required":["brief"],
+				"properties":{
+					"brief":{"type":"string","minLength":1},
+					"metadata":{},
+					"idempotency_key":{"type":"string"}
+				},
+				"additionalProperties":false
+			}
+		},
+		"idempotency_key":{"type":"string"}
 	},
 	"additionalProperties":false
 }`

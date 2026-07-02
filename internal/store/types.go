@@ -31,6 +31,20 @@ const (
 	// NetworkSurfaceDirect stores a two-party direct-room conversation container.
 	NetworkSurfaceDirect = "direct"
 
+	// NetworkFanoutPolicyCapabilityMatch activates peers by declared capability.
+	NetworkFanoutPolicyCapabilityMatch = "capability_match"
+	// NetworkFanoutPolicyCoordinator activates the configured channel coordinator.
+	NetworkFanoutPolicyCoordinator = "coordinator"
+	// NetworkFanoutPolicyAllMembers activates every eligible local channel member.
+	NetworkFanoutPolicyAllMembers = "all_members"
+
+	// NetworkSubscriptionModeMute suppresses unmentioned matching traffic.
+	NetworkSubscriptionModeMute = "mute"
+	// NetworkSubscriptionModeDigest converts matching traffic to compact digests.
+	NetworkSubscriptionModeDigest = "digest"
+	// NetworkSubscriptionModeFull preserves full prompt injection.
+	NetworkSubscriptionModeFull = "full"
+
 	// NetworkKindGreet stores a presence announcement.
 	NetworkKindGreet = "greet"
 	// NetworkKindWhois stores a peer identity request or response.
@@ -782,12 +796,45 @@ func (q NetworkAuditQuery) Validate() error {
 // NetworkChannelEntry stores durable channel metadata for the operator-facing
 // network workspace.
 type NetworkChannelEntry struct {
-	Channel     string
-	WorkspaceID string
-	Purpose     string
-	CreatedBy   string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	Channel           string
+	WorkspaceID       string
+	Purpose           string
+	FanoutPolicy      string
+	CoordinatorPeerID string
+	CreatedBy         string
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
+// NetworkChannelPatch describes a partial channel metadata update. Nil fields
+// are left unchanged by store implementations.
+type NetworkChannelPatch struct {
+	Purpose           *string
+	FanoutPolicy      *string
+	CoordinatorPeerID *string
+	UpdatedAt         time.Time
+}
+
+// Apply returns the entry that would result from applying the patch.
+func (p NetworkChannelPatch) Apply(entry NetworkChannelEntry) NetworkChannelEntry {
+	if p.Purpose != nil {
+		entry.Purpose = strings.TrimSpace(*p.Purpose)
+	}
+	if p.FanoutPolicy != nil {
+		entry.FanoutPolicy = NormalizeNetworkFanoutPolicy(*p.FanoutPolicy)
+	}
+	if p.CoordinatorPeerID != nil {
+		entry.CoordinatorPeerID = strings.TrimSpace(*p.CoordinatorPeerID)
+	}
+	if !p.UpdatedAt.IsZero() {
+		entry.UpdatedAt = p.UpdatedAt.UTC()
+	}
+	return entry
+}
+
+// HasChanges reports whether the patch includes at least one mutable field.
+func (p NetworkChannelPatch) HasChanges() bool {
+	return p.Purpose != nil || p.FanoutPolicy != nil || p.CoordinatorPeerID != nil
 }
 
 // NetworkChannelRef identifies one workspace-qualified network channel.
@@ -815,7 +862,54 @@ func (e NetworkChannelEntry) Validate() error {
 	if err := requireField(e.Purpose, "network channel purpose"); err != nil {
 		return err
 	}
+	if err := ValidateNetworkChannelFanoutConfiguration(e.FanoutPolicy, e.CoordinatorPeerID); err != nil {
+		return err
+	}
+	if strings.TrimSpace(e.CoordinatorPeerID) != "" {
+		if err := validateNetworkPeerID(e.CoordinatorPeerID, "network channel coordinator_peer_id"); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+// ValidateNetworkChannelFanoutConfiguration checks policy and coordinator
+// coupling for channel metadata.
+func ValidateNetworkChannelFanoutConfiguration(policy string, coordinatorPeerID string) error {
+	normalized := NormalizeNetworkFanoutPolicy(policy)
+	if err := ValidateNetworkFanoutPolicy(normalized); err != nil {
+		return err
+	}
+	coordinator := strings.TrimSpace(coordinatorPeerID)
+	if normalized == NetworkFanoutPolicyCoordinator {
+		if coordinator == "" {
+			return errors.New("store: network channel coordinator_peer_id is required for coordinator fanout policy")
+		}
+		return nil
+	}
+	if coordinator != "" {
+		return errors.New("store: network channel coordinator_peer_id requires coordinator fanout policy")
+	}
+	return nil
+}
+
+// NormalizeNetworkFanoutPolicy applies the default channel activation policy.
+func NormalizeNetworkFanoutPolicy(policy string) string {
+	trimmed := strings.TrimSpace(policy)
+	if trimmed == "" {
+		return NetworkFanoutPolicyCapabilityMatch
+	}
+	return trimmed
+}
+
+// ValidateNetworkFanoutPolicy checks one channel activation policy value.
+func ValidateNetworkFanoutPolicy(policy string) error {
+	switch NormalizeNetworkFanoutPolicy(policy) {
+	case NetworkFanoutPolicyCapabilityMatch, NetworkFanoutPolicyCoordinator, NetworkFanoutPolicyAllMembers:
+		return nil
+	default:
+		return fmt.Errorf("store: unsupported network fanout policy %q", policy)
+	}
 }
 
 // NetworkChannelQuery filters persisted network channel metadata lookups.
@@ -831,6 +925,111 @@ func (q NetworkChannelQuery) Validate() error {
 		return err
 	}
 	return requirePositiveLimit(q.Limit, "network channel limit")
+}
+
+// NetworkSubscriptionRef identifies one peer's channel or thread delivery mode.
+type NetworkSubscriptionRef struct {
+	WorkspaceID string
+	Channel     string
+	ThreadID    string
+	PeerID      string
+}
+
+// Validate ensures the subscription target is workspace-qualified.
+func (r NetworkSubscriptionRef) Validate() error {
+	if err := (NetworkChannelRef{WorkspaceID: r.WorkspaceID, Channel: r.Channel}).Validate(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(r.ThreadID) != "" {
+		if err := validateNetworkConversationID(r.ThreadID, typesThreadIDKey); err != nil {
+			return err
+		}
+	}
+	return validateNetworkPeerID(r.PeerID, "network subscription peer_id")
+}
+
+// NetworkSubscriptionEntry stores one peer delivery preference.
+type NetworkSubscriptionEntry struct {
+	WorkspaceID    string
+	Channel        string
+	ThreadID       string
+	PeerID         string
+	Mode           string
+	KeywordFilters []string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+// Validate ensures one subscription row is usable by zero-token routing.
+func (e NetworkSubscriptionEntry) Validate() error {
+	if err := (NetworkSubscriptionRef{
+		WorkspaceID: e.WorkspaceID,
+		Channel:     e.Channel,
+		ThreadID:    e.ThreadID,
+		PeerID:      e.PeerID,
+	}).Validate(); err != nil {
+		return err
+	}
+	if err := ValidateNetworkSubscriptionMode(e.Mode); err != nil {
+		return err
+	}
+	for _, filter := range e.KeywordFilters {
+		if strings.TrimSpace(filter) == "" {
+			return fmt.Errorf("store: network subscription keyword filter cannot be blank")
+		}
+	}
+	return nil
+}
+
+// NetworkSubscriptionQuery filters peer delivery preferences.
+type NetworkSubscriptionQuery struct {
+	WorkspaceID string
+	Channel     string
+	ThreadID    string
+	PeerID      string
+	Limit       int
+}
+
+// Validate ensures subscription reads remain workspace-scoped.
+func (q NetworkSubscriptionQuery) Validate() error {
+	if err := (NetworkChannelRef{WorkspaceID: q.WorkspaceID, Channel: q.Channel}).Validate(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(q.ThreadID) != "" {
+		if err := validateNetworkConversationID(q.ThreadID, typesThreadIDKey); err != nil {
+			return err
+		}
+	}
+	if strings.TrimSpace(q.PeerID) != "" {
+		if err := validateNetworkPeerID(q.PeerID, "network subscription peer_id"); err != nil {
+			return err
+		}
+	}
+	return requirePositiveLimit(q.Limit, "network subscription limit")
+}
+
+// ValidateNetworkSubscriptionMode checks one delivery preference mode.
+func ValidateNetworkSubscriptionMode(mode string) error {
+	switch strings.TrimSpace(mode) {
+	case NetworkSubscriptionModeMute, NetworkSubscriptionModeDigest, NetworkSubscriptionModeFull:
+		return nil
+	default:
+		return fmt.Errorf("store: unsupported network subscription mode %q", mode)
+	}
+}
+
+// NetworkDeliveryGuidanceState records which network guidance a session has already seen.
+type NetworkDeliveryGuidanceState struct {
+	SessionID                 string
+	ReplyGuidanceDelivered    bool
+	ProtocolGuidanceDelivered bool
+	CreatedAt                 time.Time
+	UpdatedAt                 time.Time
+}
+
+// Validate ensures guidance state is keyed by one session.
+func (s NetworkDeliveryGuidanceState) Validate() error {
+	return requireField(s.SessionID, "network delivery guidance session_id")
 }
 
 // NetworkConversationRef identifies one persisted network conversation container.
@@ -888,19 +1087,149 @@ func (r NetworkConversationRef) ContainerID() string {
 
 // NetworkThreadSummary is the list/detail projection for a public thread.
 type NetworkThreadSummary struct {
-	WorkspaceID        string
-	Channel            string
-	ThreadID           string
-	RootMessageID      string
-	Title              string
-	OpenedByPeerID     string
-	OpenedSessionID    string
-	OpenedAt           time.Time
-	LastActivityAt     time.Time
-	MessageCount       int
-	ParticipantCount   int
-	OpenWorkCount      int
-	LastMessagePreview string
+	WorkspaceID           string
+	Channel               string
+	ThreadID              string
+	RootMessageID         string
+	Title                 string
+	OpenedByPeerID        string
+	OpenedSessionID       string
+	OpenedAt              time.Time
+	LastActivityAt        time.Time
+	MessageCount          int
+	ParticipantCount      int
+	OpenWorkCount         int
+	DeliveredCount        int64
+	PromptSizeBytes       int64
+	EstimatedPromptTokens int64
+	LastMessagePreview    string
+}
+
+// NetworkThreadParticipant is one peer recorded as present in a public thread.
+type NetworkThreadParticipant struct {
+	WorkspaceID    string
+	Channel        string
+	ThreadID       string
+	PeerID         string
+	FirstMessageID string
+	FirstSeenAt    time.Time
+	LastSeenAt     time.Time
+}
+
+// Validate ensures the participant belongs to one concrete public thread.
+func (p NetworkThreadParticipant) Validate() error {
+	ref := NetworkConversationRef{
+		WorkspaceID: p.WorkspaceID,
+		Channel:     p.Channel,
+		Surface:     NetworkSurfaceThread,
+		ThreadID:    p.ThreadID,
+	}
+	if err := ref.Validate(); err != nil {
+		return err
+	}
+	if err := validateNetworkPeerID(p.PeerID, "network thread participant peer_id"); err != nil {
+		return err
+	}
+	if err := requireField(p.FirstMessageID, "network thread participant first_message_id"); err != nil {
+		return err
+	}
+	if p.FirstSeenAt.IsZero() {
+		return fmt.Errorf("store: network thread participant first_seen_at is required")
+	}
+	if p.LastSeenAt.IsZero() {
+		return fmt.Errorf("store: network thread participant last_seen_at is required")
+	}
+	return nil
+}
+
+// NetworkThreadPeerTokenStats aggregates delivered prompt cost by thread peer.
+type NetworkThreadPeerTokenStats struct {
+	WorkspaceID           string
+	Channel               string
+	ThreadID              string
+	PeerID                string
+	DeliveredCount        int64
+	PromptSizeBytes       int64
+	EstimatedPromptTokens int64
+	FirstDeliveredAt      time.Time
+	LastDeliveredAt       time.Time
+	UpdatedAt             time.Time
+}
+
+// NetworkThreadPeerTokenStatsUpdate increments one thread/peer prompt-cost row.
+type NetworkThreadPeerTokenStatsUpdate struct {
+	WorkspaceID           string
+	Channel               string
+	ThreadID              string
+	PeerID                string
+	DeliveredCount        int64
+	PromptSizeBytes       int64
+	EstimatedPromptTokens int64
+	DeliveredAt           time.Time
+	UpdatedAt             time.Time
+}
+
+// Validate ensures the prompt-cost update is scoped and additive.
+func (u NetworkThreadPeerTokenStatsUpdate) Validate() error {
+	ref := NetworkConversationRef{
+		WorkspaceID: u.WorkspaceID,
+		Channel:     u.Channel,
+		Surface:     NetworkSurfaceThread,
+		ThreadID:    u.ThreadID,
+	}
+	if err := ref.Validate(); err != nil {
+		return err
+	}
+	if err := validateNetworkPeerID(u.PeerID, "network thread peer token stats peer_id"); err != nil {
+		return err
+	}
+	if u.DeliveredCount < 0 {
+		return fmt.Errorf(
+			"store: network thread peer token stats delivered_count must be zero or positive: %d",
+			u.DeliveredCount,
+		)
+	}
+	if u.PromptSizeBytes < 0 {
+		return fmt.Errorf(
+			"store: network thread peer token stats prompt_size_bytes must be zero or positive: %d",
+			u.PromptSizeBytes,
+		)
+	}
+	if u.EstimatedPromptTokens < 0 {
+		return fmt.Errorf(
+			"store: network thread peer token stats estimated_prompt_tokens must be zero or positive: %d",
+			u.EstimatedPromptTokens,
+		)
+	}
+	return nil
+}
+
+// NetworkThreadPeerTokenStatsQuery filters thread/peer prompt-cost aggregates.
+type NetworkThreadPeerTokenStatsQuery struct {
+	WorkspaceID string
+	Channel     string
+	ThreadID    string
+	PeerID      string
+	Limit       int
+}
+
+// Validate ensures aggregate reads cannot cross workspace/thread boundaries.
+func (q NetworkThreadPeerTokenStatsQuery) Validate() error {
+	ref := NetworkConversationRef{
+		WorkspaceID: q.WorkspaceID,
+		Channel:     q.Channel,
+		Surface:     NetworkSurfaceThread,
+		ThreadID:    q.ThreadID,
+	}
+	if err := ref.Validate(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(q.PeerID) != "" {
+		if err := validateNetworkPeerID(q.PeerID, "network thread peer token stats peer_id"); err != nil {
+			return err
+		}
+	}
+	return requirePositiveLimit(q.Limit, "network thread peer token stats limit")
 }
 
 // Validate ensures the public-thread summary is internally consistent.
@@ -934,6 +1263,18 @@ func (s NetworkThreadSummary) Validate() error {
 	}
 	if s.OpenWorkCount < 0 {
 		return fmt.Errorf("store: network thread open_work_count must be zero or positive: %d", s.OpenWorkCount)
+	}
+	if s.DeliveredCount < 0 {
+		return fmt.Errorf("store: network thread delivered_count must be zero or positive: %d", s.DeliveredCount)
+	}
+	if s.PromptSizeBytes < 0 {
+		return fmt.Errorf("store: network thread prompt_size_bytes must be zero or positive: %d", s.PromptSizeBytes)
+	}
+	if s.EstimatedPromptTokens < 0 {
+		return fmt.Errorf(
+			"store: network thread estimated_prompt_tokens must be zero or positive: %d",
+			s.EstimatedPromptTokens,
+		)
 	}
 	return nil
 }
@@ -1067,8 +1408,10 @@ type NetworkConversationMessage struct {
 	Intent      string
 	Text        string
 	PreviewText string
+	Mentions    []string
 	ExtJSON     json.RawMessage
 	Body        json.RawMessage
+	SizeBytes   int64
 	Timestamp   time.Time
 }
 
@@ -1105,6 +1448,9 @@ func (e NetworkConversationMessage) Validate() error {
 		return err
 	}
 	if err := e.validateConversationFields(); err != nil {
+		return err
+	}
+	if _, err := NormalizeNetworkPeerIDs(e.Mentions, "network message mentions"); err != nil {
 		return err
 	}
 	if len(e.Body) == 0 {
@@ -1192,6 +1538,108 @@ type NetworkConversationWriteResult struct {
 	WorkTransitioned   bool
 	WorkState          string
 	LastActivityAt     time.Time
+}
+
+// NetworkTaskThreadOrigin links a promoted task back to its source thread.
+type NetworkTaskThreadOrigin struct {
+	TaskID           string
+	WorkspaceID      string
+	Channel          string
+	ThreadID         string
+	OriginMessageID  string
+	Digest           string
+	SourceMessageIDs []string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
+// NetworkTaskThreadOriginQuery filters promoted task origin links.
+type NetworkTaskThreadOriginQuery struct {
+	TaskID      string
+	WorkspaceID string
+	Channel     string
+	ThreadID    string
+	Limit       int
+}
+
+// Validate ensures origin reads are either task-specific or thread-specific.
+func (q NetworkTaskThreadOriginQuery) Validate() error {
+	if strings.TrimSpace(q.TaskID) != "" {
+		return requirePositiveLimit(q.Limit, "network task thread origin limit")
+	}
+	if err := (NetworkConversationRef{
+		WorkspaceID: q.WorkspaceID,
+		Channel:     q.Channel,
+		Surface:     NetworkSurfaceThread,
+		ThreadID:    q.ThreadID,
+	}).Validate(); err != nil {
+		return err
+	}
+	return requirePositiveLimit(q.Limit, "network task thread origin limit")
+}
+
+// Validate ensures the origin is thread-scoped and compact.
+func (o NetworkTaskThreadOrigin) Validate() error {
+	if err := requireField(o.TaskID, "network task thread origin task_id"); err != nil {
+		return err
+	}
+	if err := (NetworkConversationRef{
+		WorkspaceID: o.WorkspaceID,
+		Channel:     o.Channel,
+		Surface:     NetworkSurfaceThread,
+		ThreadID:    o.ThreadID,
+	}).Validate(); err != nil {
+		return err
+	}
+	if err := requireField(o.OriginMessageID, "network task thread origin origin_message_id"); err != nil {
+		return err
+	}
+	if err := requireField(o.Digest, "network task thread origin digest"); err != nil {
+		return err
+	}
+	for _, messageID := range o.SourceMessageIDs {
+		if err := requireField(messageID, "network task thread origin source_message_id"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// TaskDesignationRollup stores the terminal summary for a designated run group.
+type TaskDesignationRollup struct {
+	DesignationGroupID string
+	TaskID             string
+	SummaryJSON        json.RawMessage
+	CreatedAt          time.Time
+}
+
+// TaskDesignationRollupQuery filters designation rollup reads.
+type TaskDesignationRollupQuery struct {
+	DesignationGroupID string
+	TaskID             string
+	Limit              int
+}
+
+// Validate ensures rollup reads cannot become unbounded.
+func (q TaskDesignationRollupQuery) Validate() error {
+	if strings.TrimSpace(q.DesignationGroupID) == "" && strings.TrimSpace(q.TaskID) == "" {
+		return fmt.Errorf("store: task designation rollup query requires group_id or task_id")
+	}
+	return requirePositiveLimit(q.Limit, "task designation rollup limit")
+}
+
+// Validate ensures the rollup can be retrieved by task and group.
+func (r TaskDesignationRollup) Validate() error {
+	if err := requireField(r.DesignationGroupID, "task designation rollup group_id"); err != nil {
+		return err
+	}
+	if err := requireField(r.TaskID, "task designation rollup task_id"); err != nil {
+		return err
+	}
+	if len(r.SummaryJSON) == 0 || !json.Valid(r.SummaryJSON) {
+		return fmt.Errorf("store: task designation rollup summary_json must be valid JSON")
+	}
+	return nil
 }
 
 // NetworkMessageQuery filters persisted network timeline lookups.
@@ -1418,6 +1866,28 @@ func validateNetworkPeerID(peerID string, field string) error {
 	return nil
 }
 
+// NormalizeNetworkPeerIDs trims, validates, deduplicates, and sorts peer ids.
+func NormalizeNetworkPeerIDs(values []string, field string) ([]string, error) {
+	seen := make(map[string]struct{}, len(values))
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		if err := validateNetworkPeerID(trimmed, field); err != nil {
+			return nil, err
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		normalized = append(normalized, trimmed)
+	}
+	slices.Sort(normalized)
+	return normalized, nil
+}
+
 func containsControlCharacter(value string) bool {
 	for _, r := range value {
 		if r < 0x20 || r == 0x7f {
@@ -1457,6 +1927,7 @@ func networkConversationMessageContainsRawClaimToken(entry NetworkConversationMe
 		entry.Direction,
 		entry.PeerFrom,
 		entry.PeerTo,
+		strings.Join(entry.Mentions, ","),
 		entry.Kind,
 		entry.WorkID,
 		entry.ReplyTo,

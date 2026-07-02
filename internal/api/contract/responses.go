@@ -285,6 +285,16 @@ type NetworkChannelResponse struct {
 	Channel NetworkChannelDetailPayload `json:"channel"`
 }
 
+// NetworkSubscriptionsResponse wraps channel/thread subscription preferences.
+type NetworkSubscriptionsResponse struct {
+	Subscriptions []NetworkSubscriptionPayload `json:"subscriptions"`
+}
+
+// NetworkSubscriptionResponse wraps one subscription preference.
+type NetworkSubscriptionResponse struct {
+	Subscription NetworkSubscriptionPayload `json:"subscription"`
+}
+
 // NetworkChannelMessagesResponse wraps the read-only channel timeline payload.
 type NetworkChannelMessagesResponse struct {
 	Messages []NetworkConversationMessagePayload `json:"messages"`
@@ -312,12 +322,20 @@ type NetworkThreadsResponse struct {
 
 // NetworkThreadResponse wraps one public-thread summary.
 type NetworkThreadResponse struct {
-	Thread NetworkThreadSummaryPayload `json:"thread"`
+	Thread    NetworkThreadSummaryPayload      `json:"thread"`
+	PeerCosts []NetworkThreadPeerCostPayload   `json:"peer_costs,omitempty"`
+	TaskLinks []NetworkTaskThreadOriginPayload `json:"task_links,omitempty"`
 }
 
 // NetworkThreadMessagesResponse wraps one public-thread message timeline.
 type NetworkThreadMessagesResponse struct {
 	Messages []NetworkConversationMessagePayload `json:"messages"`
+}
+
+// PromoteNetworkThreadTaskResponse wraps a promoted task and its network origin link.
+type PromoteNetworkThreadTaskResponse struct {
+	Task   TaskPayload                    `json:"task"`
+	Origin NetworkTaskThreadOriginPayload `json:"origin"`
 }
 
 // NetworkDirectRoomsResponse wraps direct-room summaries.
@@ -343,6 +361,12 @@ type NetworkWorkResponse struct {
 // NetworkInboxResponse wraps the queued inbox payload.
 type NetworkInboxResponse struct {
 	Messages []NetworkEnvelopePayload `json:"messages"`
+}
+
+// FanOutTaskRunsResponse wraps designated sibling runs enqueued for one task.
+type FanOutTaskRunsResponse struct {
+	DesignationGroupID string           `json:"designation_group_id"`
+	Runs               []TaskRunPayload `json:"runs"`
 }
 
 // WorkspacesResponse wraps the shared workspace list payload.

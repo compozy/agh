@@ -1268,6 +1268,7 @@ func (s *inMemoryManagerStore) ReserveQueuedRun(
 	requestedChannel string,
 	metadata json.RawMessage,
 	queuedAt time.Time,
+	designationGroupID ...string,
 ) (Task, Run, bool, error) {
 	taskRecord, ok := s.tasks[strings.TrimSpace(taskID)]
 	if !ok {
@@ -1301,7 +1302,8 @@ func (s *inMemoryManagerStore) ReserveQueuedRun(
 	if err != nil {
 		return Task{}, Run{}, false, err
 	}
-	if hasOpenRun(existingRuns) {
+	requestedDesignationGroupID := firstInMemoryDesignationGroupID(designationGroupID)
+	if hasBlockingOpenRunForDesignation(existingRuns, requestedDesignationGroupID) {
 		return Task{}, Run{}, false, fmtTestError(
 			"%w: task %q has open run; finish or cancel it before enqueueing another run",
 			ErrInvalidStatusTransition,
@@ -1328,6 +1330,7 @@ func (s *inMemoryManagerStore) ReserveQueuedRun(
 		Origin:                origin,
 		IdempotencyKey:        trimmedKey,
 		NetworkChannel:        networkChannel,
+		DesignationGroupID:    requestedDesignationGroupID,
 		CoordinationChannelID: testCoordinationChannelIDForQueuedRun(taskRecord, networkChannel, runID),
 		Metadata:              normalizeRawJSON(metadata),
 		QueuedAt:              queuedAt.UTC(),
@@ -1346,6 +1349,29 @@ func (s *inMemoryManagerStore) ReserveQueuedRun(
 		}
 	}
 	return taskRecord, run, false, nil
+}
+
+func firstInMemoryDesignationGroupID(values []string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func hasBlockingOpenRunForDesignation(runs []Run, designationGroupID string) bool {
+	targetDesignationGroupID := strings.TrimSpace(designationGroupID)
+	for _, run := range runs {
+		if isTerminalRunStatus(run.Status) {
+			continue
+		}
+		if targetDesignationGroupID != "" && strings.TrimSpace(run.DesignationGroupID) == targetDesignationGroupID {
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 func testCoordinationChannelIDForQueuedRun(taskRecord Task, networkChannel string, runID string) string {

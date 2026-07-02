@@ -311,6 +311,7 @@ func registerTaskRoutes(api gin.IRouter, handlers *Handlers) {
 		tasks.POST("/:id/triage/archive", handlers.ArchiveTask)
 		tasks.POST("/:id/triage/dismiss", handlers.DismissTask)
 		tasks.POST("/:id/runs", handlers.EnqueueTaskRun)
+		tasks.POST("/:id/runs/fan-out", handlers.FanOutTaskRuns)
 		tasks.GET("/:id/runs", handlers.ListTaskRuns)
 	}
 }
@@ -432,8 +433,13 @@ func registerNetworkRoutes(api gin.IRouter, handlers *Handlers) {
 		workspaceNetwork.GET("/channels", handlers.NetworkChannels)
 		workspaceNetwork.POST("/channels", handlers.CreateNetworkChannel)
 		workspaceNetwork.GET("/channels/:channel", handlers.NetworkChannel)
+		workspaceNetwork.PATCH("/channels/:channel", handlers.UpdateNetworkChannel)
+		workspaceNetwork.GET("/channels/:channel/subscriptions", handlers.NetworkSubscriptions)
+		workspaceNetwork.PUT("/channels/:channel/subscriptions", handlers.UpsertNetworkSubscription)
+		workspaceNetwork.DELETE("/channels/:channel/subscriptions/:peer_id", handlers.DeleteNetworkSubscription)
 		workspaceNetwork.GET("/channels/:channel/threads", handlers.NetworkThreads)
 		workspaceNetwork.GET("/channels/:channel/threads/:thread_id", handlers.NetworkThread)
+		workspaceNetwork.POST("/channels/:channel/threads/:thread_id/promote-task", handlers.PromoteNetworkThreadTask)
 		workspaceNetwork.GET("/channels/:channel/threads/:thread_id/messages", handlers.NetworkThreadMessages)
 		workspaceNetwork.GET("/channels/:channel/directs", handlers.NetworkDirectRooms)
 		workspaceNetwork.POST("/channels/:channel/directs/resolve", handlers.ResolveNetworkDirectRoom)

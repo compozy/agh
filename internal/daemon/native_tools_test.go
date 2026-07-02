@@ -2447,6 +2447,126 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should roll back promoted task when thread origin persistence fails", func(t *testing.T) {
+		t.Parallel()
+
+		tasks := &nativeTaskManager{}
+		originErr := errors.New("origin persistence failed")
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Tasks: tasks,
+			NetworkStore: apitest.StubNetworkStore{
+				ListConversationMessagesFn: func(
+					_ context.Context,
+					ref store.NetworkConversationRef,
+					query store.NetworkConversationMessageQuery,
+				) ([]store.NetworkConversationMessage, error) {
+					if ref.WorkspaceID != nativeNetworkTestWorkspaceID || ref.Channel != "builders" ||
+						ref.ThreadID != "thread_promote" || query.Limit != 200 {
+						t.Fatalf("ListConversationMessages() ref=%#v query=%#v", ref, query)
+					}
+					return []store.NetworkConversationMessage{{
+						MessageID: "msg-origin",
+						PeerFrom:  "reviewer.sess-a",
+						Text:      "promote this",
+					}}, nil
+				},
+				GetThreadFn: func(
+					_ context.Context,
+					ref store.NetworkChannelRef,
+					threadID string,
+				) (store.NetworkThreadSummary, error) {
+					if ref.WorkspaceID != nativeNetworkTestWorkspaceID || ref.Channel != "builders" ||
+						threadID != "thread_promote" {
+						t.Fatalf("GetThread() ref=%#v threadID=%q", ref, threadID)
+					}
+					return store.NetworkThreadSummary{
+						WorkspaceID: nativeNetworkTestWorkspaceID,
+						Channel:     "builders",
+						ThreadID:    "thread_promote",
+						Title:       "Promoted task",
+					}, nil
+				},
+				PutNetworkTaskThreadOriginFn: func(context.Context, store.NetworkTaskThreadOrigin) error {
+					return originErr
+				},
+			},
+			Sessions:   nativeNetworkTestSessionManager(nativeNetworkTestWorkspaceID),
+			Workspaces: nativeNetworkTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskPromoteFromThread,
+				Input: json.RawMessage(
+					`{"workspace_id":"ws-native-network","channel":"builders","thread_id":"thread_promote","origin_message_id":"msg-origin"}`,
+				),
+			},
+		)
+		if !errors.Is(err, originErr) {
+			t.Fatalf("Registry.Call(task_promote_from_thread) error = %v, want origin error", err)
+		}
+		if tasks.createCalls != 1 {
+			t.Fatalf("CreateTask calls = %d, want 1", tasks.createCalls)
+		}
+		if tasks.deleteCalls != 1 || tasks.lastDeleteID != "task-created" {
+			t.Fatalf(
+				"DeleteTask calls/id = %d/%q, want rollback of task-created",
+				tasks.deleteCalls,
+				tasks.lastDeleteID,
+			)
+		}
+	})
+
+	t.Run("Should keep scanning native thread promotion source ids after digest limit", func(t *testing.T) {
+		t.Parallel()
+
+		digest, sourceIDs, found := nativeNetworkThreadPromotionDigest([]store.NetworkConversationMessage{
+			{
+				MessageID: "msg-large",
+				PeerFrom:  "coordinator.sess-a",
+				Text:      strings.Repeat("large preview ", 420),
+			},
+			{
+				MessageID: "msg-target",
+				PeerFrom:  "reviewer.sess-b",
+				Text:      "target message",
+			},
+		}, "msg-target")
+		if !found {
+			t.Fatal("nativeNetworkThreadPromotionDigest() found = false, want true")
+		}
+		if !slices.Contains(sourceIDs, "msg-target") {
+			t.Fatalf("sourceIDs = %#v, want target id after digest limit", sourceIDs)
+		}
+		if len(digest) > 4000 {
+			t.Fatalf("len(digest) = %d, want <= 4000", len(digest))
+		}
+	})
+
+	t.Run("Should reject native fan-out designations before enqueue metadata is used", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := prepareNativeFanOutDesignations(taskFanOutRunsInput{
+			IdempotencyKey: "fanout-key",
+			Designations: []contract.TaskFanOutRunDesignationRequest{
+				{Brief: "Valid lane"},
+				{Brief: "   "},
+			},
+		}, aghconfig.DefaultTaskDesignatedRunMax)
+		if err == nil || !strings.Contains(err.Error(), "designations[1].brief") {
+			t.Fatalf("prepareNativeFanOutDesignations() error = %v, want second designation validation", err)
+		}
+
+		_, err = prepareNativeFanOutDesignations(taskFanOutRunsInput{
+			Designations: []contract.TaskFanOutRunDesignationRequest{{Brief: "Missing idempotency"}},
+		}, aghconfig.DefaultTaskDesignatedRunMax)
+		if err == nil || !strings.Contains(err.Error(), "idempotency_key") {
+			t.Fatalf("prepareNativeFanOutDesignations() error = %v, want idempotency validation", err)
+		}
+	})
+
 	t.Run("Should list network peers through the existing network service boundary", func(t *testing.T) {
 		t.Parallel()
 
@@ -6393,6 +6513,9 @@ type nativeTaskManager struct {
 	unsupportedNativeTaskManager
 	createCalls             int
 	lastCreateSpec          taskpkg.CreateTask
+	deleteCalls             int
+	lastDeleteID            string
+	deleteErr               error
 	childCreateCalls        int
 	childParentID           string
 	childSpec               taskpkg.CreateTask
@@ -6481,6 +6604,16 @@ func (m *nativeTaskManager) CreateTask(
 		Title:       spec.Title,
 		Status:      taskpkg.TaskStatusPending,
 	}, nil
+}
+
+func (m *nativeTaskManager) DeleteTask(
+	_ context.Context,
+	id string,
+	_ taskpkg.ActorContext,
+) error {
+	m.deleteCalls++
+	m.lastDeleteID = id
+	return m.deleteErr
 }
 
 func (m *nativeTaskManager) UpdateTask(

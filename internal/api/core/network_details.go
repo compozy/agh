@@ -52,10 +52,12 @@ type networkMessageHistorySummary struct {
 }
 
 type networkChannelMetadataFields struct {
-	createdAt   *time.Time
-	purpose     string
-	workspaceID string
-	createdBy   string
+	createdAt         *time.Time
+	purpose           string
+	fanoutPolicy      string
+	coordinatorPeerID string
+	workspaceID       string
+	createdBy         string
 }
 
 type networkPresenceEpisodeKey struct {
@@ -125,6 +127,10 @@ func (h *BaseHandlers) CreateNetworkChannel(c *gin.Context) {
 		h.respondError(c, statusForCreateNetworkChannelError(err), err)
 		return
 	}
+	fanoutPolicy, coordinatorPeerID, ok := h.createNetworkChannelFanoutFields(c, req)
+	if !ok {
+		return
+	}
 
 	createdIDs, err := h.createNetworkChannelSessions(
 		c.Request.Context(),
@@ -142,10 +148,12 @@ func (h *BaseHandlers) CreateNetworkChannel(c *gin.Context) {
 		service,
 		networkStore,
 		store.NetworkChannelEntry{
-			Channel:     channel,
-			WorkspaceID: networkWorkspaceID,
-			Purpose:     purpose,
-			CreatedBy:   agentNames[0],
+			Channel:           channel,
+			WorkspaceID:       networkWorkspaceID,
+			Purpose:           purpose,
+			FanoutPolicy:      fanoutPolicy,
+			CoordinatorPeerID: coordinatorPeerID,
+			CreatedBy:         agentNames[0],
 		},
 		createdIDs,
 	)
@@ -155,6 +163,19 @@ func (h *BaseHandlers) CreateNetworkChannel(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, contract.CreateNetworkChannelResponse{Channel: detail})
+}
+
+func (h *BaseHandlers) createNetworkChannelFanoutFields(
+	c *gin.Context,
+	req contract.CreateNetworkChannelRequest,
+) (string, string, bool) {
+	fanoutPolicy := store.NormalizeNetworkFanoutPolicy(req.FanoutPolicy)
+	coordinatorPeerID := strings.TrimSpace(req.CoordinatorPeerID)
+	if err := store.ValidateNetworkChannelFanoutConfiguration(fanoutPolicy, coordinatorPeerID); err != nil {
+		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
+		return "", "", false
+	}
+	return fanoutPolicy, coordinatorPeerID, true
 }
 
 // NetworkChannel returns one network channel detail payload.
@@ -185,6 +206,74 @@ func (h *BaseHandlers) NetworkChannel(c *gin.Context) {
 		return
 	}
 
+	c.JSON(http.StatusOK, contract.NetworkChannelResponse{Channel: detail})
+}
+
+// UpdateNetworkChannel mutates the channel metadata and delivery policy.
+func (h *BaseHandlers) UpdateNetworkChannel(c *gin.Context) {
+	service, err := h.networkServiceRequired()
+	if err != nil {
+		h.respondError(c, http.StatusServiceUnavailable, err)
+		return
+	}
+	networkStore, err := h.networkStoreRequired()
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	channel, err := normalizeNetworkChannel(c.Param("channel"))
+	if err != nil {
+		h.respondError(c, StatusForNetworkError(err), err)
+		return
+	}
+	scope, ok := h.resolveWorkspaceScope(c)
+	if !ok {
+		return
+	}
+	var req contract.UpdateNetworkChannelRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			fmt.Errorf("%s: decode update network channel request: %w", h.transportName(), err),
+		)
+		return
+	}
+	if req.Purpose == nil && req.FanoutPolicy == nil && req.CoordinatorPeerID == nil {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			NewNetworkValidationError(errors.New("network channel update must include at least one field")),
+		)
+		return
+	}
+	ref := scope.NetworkChannelRef(channel)
+	patch := store.NetworkChannelPatch{UpdatedAt: h.nowUTC()}
+	if req.Purpose != nil {
+		purpose := strings.TrimSpace(*req.Purpose)
+		patch.Purpose = &purpose
+	}
+	if req.FanoutPolicy != nil {
+		fanoutPolicy := store.NormalizeNetworkFanoutPolicy(*req.FanoutPolicy)
+		if err := store.ValidateNetworkFanoutPolicy(fanoutPolicy); err != nil {
+			h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
+			return
+		}
+		patch.FanoutPolicy = &fanoutPolicy
+	}
+	if req.CoordinatorPeerID != nil {
+		coordinatorPeerID := strings.TrimSpace(*req.CoordinatorPeerID)
+		patch.CoordinatorPeerID = &coordinatorPeerID
+	}
+	if err := networkStore.PatchNetworkChannel(c.Request.Context(), ref, patch); err != nil {
+		h.respondError(c, StatusForNetworkError(err), err)
+		return
+	}
+	detail, err := h.networkChannelDetailPayload(c.Request.Context(), service, ref.WorkspaceID, ref.Channel)
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
 	c.JSON(http.StatusOK, contract.NetworkChannelResponse{Channel: detail})
 }
 
@@ -266,6 +355,30 @@ func (h *BaseHandlers) NetworkChannelMessages(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, contract.NetworkChannelMessagesResponse{Messages: payload})
+}
+
+func (h *BaseHandlers) networkChannelMetadataForUpdate(
+	ctx context.Context,
+	networkStore NetworkStore,
+	ref store.NetworkChannelRef,
+) (store.NetworkChannelEntry, error) {
+	metadata, err := h.loadNetworkChannelMetadata(ctx, networkStore, ref)
+	if err != nil {
+		return store.NetworkChannelEntry{}, err
+	}
+	if metadata != nil {
+		return *metadata, nil
+	}
+	now := h.nowUTC()
+	return store.NetworkChannelEntry{
+		WorkspaceID:  strings.TrimSpace(ref.WorkspaceID),
+		Channel:      strings.TrimSpace(ref.Channel),
+		Purpose:      "network_channel",
+		FanoutPolicy: store.NetworkFanoutPolicyCapabilityMatch,
+		CreatedBy:    "api",
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}, nil
 }
 
 // NetworkPeerMessages returns the directed message timeline for one network peer.
@@ -670,8 +783,7 @@ func applyNetworkChannelMessages(
 ) {
 	for _, message := range messages {
 		aggregate := ensureNetworkChannelAggregate(aggregates, message.WorkspaceID, message.Channel)
-		aggregate.recordHistoricalParticipant(message.PeerFrom)
-		aggregate.recordHistoricalParticipant(message.PeerTo)
+		recordNetworkMessageParticipants(aggregate.recordHistoricalParticipant, message)
 		if !isPublicChannelTimelineMessage(message) {
 			continue
 		}
@@ -686,6 +798,14 @@ func applyNetworkChannelMessages(
 		if preview := networkMessagePreview(message); preview != "" && aggregateMessageIsLatest(aggregate, message) {
 			aggregate.lastMessagePreview = preview
 		}
+	}
+}
+
+func recordNetworkMessageParticipants(record func(string), message store.NetworkMessageEntry) {
+	record(message.PeerFrom)
+	record(message.PeerTo)
+	for _, peerID := range message.Mentions {
+		record(peerID)
 	}
 }
 
@@ -881,6 +1001,8 @@ func (h *BaseHandlers) networkChannelDetailPayload(
 		Channel:                    channel,
 		WorkspaceID:                firstNonEmpty(metadataFields.workspaceID, trimmedWorkspaceID),
 		Purpose:                    metadataFields.purpose,
+		FanoutPolicy:               metadataFields.fanoutPolicy,
+		CoordinatorPeerID:          metadataFields.coordinatorPeerID,
 		CreatedBy:                  metadataFields.createdBy,
 		CreatedAt:                  metadataFields.createdAt,
 		PeerCount:                  len(peers),
@@ -921,10 +1043,12 @@ func networkChannelMetadataPayloadFields(metadata *store.NetworkChannelEntry) ne
 		return networkChannelMetadataFields{}
 	}
 	return networkChannelMetadataFields{
-		createdAt:   cloneTimePtr(&metadata.CreatedAt),
-		purpose:     strings.TrimSpace(metadata.Purpose),
-		workspaceID: strings.TrimSpace(metadata.WorkspaceID),
-		createdBy:   strings.TrimSpace(metadata.CreatedBy),
+		createdAt:         cloneTimePtr(&metadata.CreatedAt),
+		purpose:           strings.TrimSpace(metadata.Purpose),
+		fanoutPolicy:      strings.TrimSpace(metadata.FanoutPolicy),
+		coordinatorPeerID: strings.TrimSpace(metadata.CoordinatorPeerID),
+		workspaceID:       strings.TrimSpace(metadata.WorkspaceID),
+		createdBy:         strings.TrimSpace(metadata.CreatedBy),
 	}
 }
 
@@ -1043,6 +1167,8 @@ func networkChannelPayloadFromAggregate(
 		strings.TrimSpace(aggregate.workspaceID),
 	)
 	payload.Purpose = strings.TrimSpace(aggregate.metadata.Purpose)
+	payload.FanoutPolicy = strings.TrimSpace(aggregate.metadata.FanoutPolicy)
+	payload.CoordinatorPeerID = strings.TrimSpace(aggregate.metadata.CoordinatorPeerID)
 	payload.CreatedBy = strings.TrimSpace(aggregate.metadata.CreatedBy)
 	payload.CreatedAt = cloneTimePtr(&aggregate.metadata.CreatedAt)
 	return payload
@@ -1262,6 +1388,7 @@ func NetworkConversationMessagePayloadFromView(
 		Direction:          strings.TrimSpace(entry.Direction),
 		PeerFrom:           strings.TrimSpace(entry.PeerFrom),
 		PeerTo:             strings.TrimSpace(entry.PeerTo),
+		Mentions:           cloneTrimmedStrings(entry.Mentions),
 		DisplayName:        displayName,
 		SessionID:          payloadSessionID,
 		Local:              local,
@@ -1272,6 +1399,7 @@ func NetworkConversationMessagePayloadFromView(
 		Intent:             strings.TrimSpace(entry.Intent),
 		Text:               strings.TrimSpace(entry.Text),
 		PreviewText:        networkMessagePreview(entry),
+		SizeBytes:          entry.SizeBytes,
 		PresenceCount:      view.presenceCount,
 		PresenceStartedAt:  cloneTimePtr(view.presenceStartedAt),
 		PresenceLastSeenAt: cloneTimePtr(view.presenceLastSeenAt),
@@ -1296,8 +1424,9 @@ func summarizeNetworkMessageHistory(
 	openEpisodes := make(map[networkPresenceEpisodeKey]int)
 
 	for _, message := range messages {
-		recordHistoricalParticipant(participants, message.PeerFrom)
-		recordHistoricalParticipant(participants, message.PeerTo)
+		recordNetworkMessageParticipants(func(peerID string) {
+			recordHistoricalParticipant(participants, peerID)
+		}, message)
 		if isPresenceMessage(message) {
 			summary.presenceCount++
 			summary.lastPresenceAt = laterTimePtr(summary.lastPresenceAt, message.Timestamp)
@@ -1330,8 +1459,9 @@ func summarizeNetworkMessageHistory(
 func summarizeHistoricalParticipantCount(messages []store.NetworkMessageEntry) int {
 	participants := make(map[string]struct{})
 	for _, message := range messages {
-		recordHistoricalParticipant(participants, message.PeerFrom)
-		recordHistoricalParticipant(participants, message.PeerTo)
+		recordNetworkMessageParticipants(func(peerID string) {
+			recordHistoricalParticipant(participants, peerID)
+		}, message)
 	}
 	return len(participants)
 }
@@ -1508,7 +1638,9 @@ func cloneNetworkMessageEntry(entry store.NetworkMessageEntry) store.NetworkMess
 		Intent:      strings.TrimSpace(entry.Intent),
 		Text:        entry.Text,
 		PreviewText: strings.TrimSpace(entry.PreviewText),
+		Mentions:    cloneTrimmedStrings(entry.Mentions),
 		Body:        cloneRawMessage(entry.Body),
+		SizeBytes:   entry.SizeBytes,
 		Timestamp:   entry.Timestamp.UTC(),
 	}
 }
@@ -1678,15 +1810,21 @@ func summarizePeerMetrics(peer network.PeerInfo, entries []store.NetworkAuditEnt
 		if !networkAuditMatchesPeer(peer, entry) {
 			continue
 		}
+		entrySize := int64(entry.Size)
+		metrics.TotalSizeBytes += entrySize
 		switch strings.TrimSpace(entry.Direction) {
 		case network.AuditDirectionSent:
 			metrics.Sent++
+			metrics.SentSizeBytes += entrySize
 		case network.AuditDirectionReceived:
 			metrics.Received++
+			metrics.ReceivedSizeBytes += entrySize
 		case network.AuditDirectionRejected:
 			metrics.Rejected++
+			metrics.RejectedSizeBytes += entrySize
 		case network.AuditDirectionDelivered:
 			metrics.Delivered++
+			metrics.DeliveredSizeBytes += entrySize
 		}
 	}
 	return metrics

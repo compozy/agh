@@ -76,7 +76,7 @@ describe("ChannelThreadComposer", () => {
 
     await user.type(
       screen.getByTestId("network-composer-textarea-channel-thread"),
-      "Open the launch thread"
+      "Open the launch thread with @peer.remote"
     );
     await user.click(screen.getByTestId("network-composer-send-channel-thread"));
 
@@ -87,6 +87,7 @@ describe("ChannelThreadComposer", () => {
     expect(typeof sent.thread_id).toBe("string");
     expect((sent.thread_id as string).startsWith("thread_")).toBe(true);
     expect(sent.kind).toBe("say");
+    expect(sent.mentions).toEqual(["peer.remote"]);
     expect(sent).not.toHaveProperty("interaction_id");
 
     await waitFor(() => expect(navigateMock).toHaveBeenCalledTimes(1));

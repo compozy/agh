@@ -94,12 +94,29 @@ threads, direct rooms, or work items reference that channel.
 The channel detail payload can include:
 
 - workspace and purpose metadata
+- fanout policy and coordinator peer metadata
 - active local sessions
 - visible peers
 - public-thread and direct-room counts plus aggregate work counters
 - last activity and preview text drawn from thread and direct-room summaries
 
 This keeps the UI honest: an empty name alone is not treated as active coordination.
+
+## Delivery policy
+
+Each channel stores a human-readable `purpose`, a `fanout_policy`, and an optional
+`coordinator_peer_id`. These fields guide prompt activation for unaddressed public-thread traffic;
+they do not change who can read durable channel history.
+
+`fanout_policy` accepts:
+
+- `capability_match` to select a small capability/text-matched peer set
+- `coordinator` to route unaddressed traffic to one named peer
+- `all_members` to deliver unaddressed traffic to every eligible local member
+
+Update the policy with `agh network channels update` or the Network UI. Use `coordinator` only when
+one peer is responsible for triage; use `capability_match` for general collaboration where the
+runtime should avoid prompting every local session.
 
 ## Task-run coordination channels
 

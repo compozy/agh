@@ -39,6 +39,7 @@ const (
 	configProviderKey                        = "provider"
 	configToolKey                            = "tool"
 	configUDSKey                             = "uds"
+	maxNetworkByteSize                       = 1<<31 - 1
 )
 
 const (
@@ -457,13 +458,18 @@ type ExtensionsResourceRateLimitConfig struct {
 
 // NetworkConfig controls the embedded AGH network runtime.
 type NetworkConfig struct {
-	Enabled        bool   `toml:"enabled"`
-	DefaultChannel string `toml:"default_channel"`
-	Port           int    `toml:"port"`
-	MaxPayload     int    `toml:"max_payload"`
-	GreetInterval  int    `toml:"greet_interval"`
-	MaxReplayAge   int    `toml:"max_replay_age"`
-	MaxQueueDepth  int    `toml:"max_queue_depth"`
+	Enabled                        bool          `toml:"enabled"`
+	DefaultChannel                 string        `toml:"default_channel"`
+	Port                           int           `toml:"port"`
+	MaxPayload                     int           `toml:"max_payload"`
+	GreetInterval                  int           `toml:"greet_interval"`
+	MaxReplayAge                   int           `toml:"max_replay_age"`
+	MaxQueueDepth                  int           `toml:"max_queue_depth"`
+	ActivationTopK                 int           `toml:"activation_top_k"`
+	DigestFlushInterval            time.Duration `toml:"digest_flush_interval"`
+	DigestMaxEnvelopes             int           `toml:"digest_max_envelopes"`
+	ResponseGuidanceMaxBytes       int           `toml:"response_guidance_max_bytes"`
+	DeliveryStructuredBodyMaxBytes int           `toml:"delivery_structured_body_max_bytes"`
 }
 
 // SandboxProfile defines one reusable execution sandbox profile.
@@ -733,20 +739,30 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			MaxConcurrentJobs: automationpkg.DefaultMaxConcurrentJobs,
 			DefaultFireLimit:  automationpkg.DefaultFireLimitConfig(),
 		},
-		Task: DefaultTaskConfig(),
-		Network: NetworkConfig{
-			Enabled:        true,
-			DefaultChannel: configDefaultKey,
-			Port:           -1,
-			MaxPayload:     1 << 20,
-			GreetInterval:  30,
-			MaxReplayAge:   300,
-			MaxQueueDepth:  100,
-		},
+		Task:    DefaultTaskConfig(),
+		Network: DefaultNetworkConfig(),
 		Autonomy: AutonomyConfig{
 			Coordinator: DefaultCoordinatorConfig(),
 			Scheduler:   DefaultSchedulerConfig(),
 		},
+	}
+}
+
+// DefaultNetworkConfig returns built-in AGH Network runtime defaults.
+func DefaultNetworkConfig() NetworkConfig {
+	return NetworkConfig{
+		Enabled:                        true,
+		DefaultChannel:                 configDefaultKey,
+		Port:                           -1,
+		MaxPayload:                     1 << 20,
+		GreetInterval:                  30,
+		MaxReplayAge:                   300,
+		MaxQueueDepth:                  100,
+		ActivationTopK:                 3,
+		DigestFlushInterval:            250 * time.Millisecond,
+		DigestMaxEnvelopes:             10,
+		ResponseGuidanceMaxBytes:       512,
+		DeliveryStructuredBodyMaxBytes: 4096,
 	}
 }
 
@@ -1698,8 +1714,8 @@ func (c NetworkConfig) Validate() error {
 	if c.MaxPayload <= 0 {
 		return fmt.Errorf("network.max_payload must be positive: %d", c.MaxPayload)
 	}
-	if c.MaxPayload > (1<<31 - 1) {
-		return fmt.Errorf("network.max_payload must be <= %d: %d", 1<<31-1, c.MaxPayload)
+	if c.MaxPayload > maxNetworkByteSize {
+		return fmt.Errorf("network.max_payload must be <= %d: %d", maxNetworkByteSize, c.MaxPayload)
 	}
 	if c.GreetInterval <= 0 {
 		return fmt.Errorf("network.greet_interval must be positive seconds: %d", c.GreetInterval)
@@ -1723,6 +1739,41 @@ func (c NetworkConfig) Validate() error {
 	}
 	if c.MaxQueueDepth <= 0 {
 		return fmt.Errorf("network.max_queue_depth must be positive: %d", c.MaxQueueDepth)
+	}
+	if c.ActivationTopK <= 0 {
+		return fmt.Errorf("network.activation_top_k must be positive: %d", c.ActivationTopK)
+	}
+	if c.DigestFlushInterval <= 0 {
+		return fmt.Errorf("network.digest_flush_interval must be positive: %s", c.DigestFlushInterval)
+	}
+	if c.DigestMaxEnvelopes <= 0 {
+		return fmt.Errorf("network.digest_max_envelopes must be positive: %d", c.DigestMaxEnvelopes)
+	}
+	if c.ResponseGuidanceMaxBytes <= 0 {
+		return fmt.Errorf(
+			"network.response_guidance_max_bytes must be positive: %d",
+			c.ResponseGuidanceMaxBytes,
+		)
+	}
+	if c.ResponseGuidanceMaxBytes > maxNetworkByteSize {
+		return fmt.Errorf(
+			"network.response_guidance_max_bytes must be <= %d: %d",
+			maxNetworkByteSize,
+			c.ResponseGuidanceMaxBytes,
+		)
+	}
+	if c.DeliveryStructuredBodyMaxBytes <= 0 {
+		return fmt.Errorf(
+			"network.delivery_structured_body_max_bytes must be positive: %d",
+			c.DeliveryStructuredBodyMaxBytes,
+		)
+	}
+	if c.DeliveryStructuredBodyMaxBytes > maxNetworkByteSize {
+		return fmt.Errorf(
+			"network.delivery_structured_body_max_bytes must be <= %d: %d",
+			maxNetworkByteSize,
+			c.DeliveryStructuredBodyMaxBytes,
+		)
 	}
 
 	return nil

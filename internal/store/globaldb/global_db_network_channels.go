@@ -13,6 +13,8 @@ import (
 // WriteNetworkChannel upserts durable network channel metadata.
 func (g *GlobalDB) WriteNetworkChannel(ctx context.Context, entry store.NetworkChannelEntry) error {
 	entry.Channel = strings.TrimSpace(entry.Channel)
+	entry.FanoutPolicy = store.NormalizeNetworkFanoutPolicy(entry.FanoutPolicy)
+	entry.CoordinatorPeerID = strings.TrimSpace(entry.CoordinatorPeerID)
 	entry.CreatedBy = strings.TrimSpace(entry.CreatedBy)
 	if err := g.checkReady(ctx, "write network channel"); err != nil {
 		return err
@@ -33,12 +35,16 @@ func (g *GlobalDB) WriteNetworkChannel(ctx context.Context, entry store.NetworkC
 			channel,
 			workspace_id,
 			purpose,
+			fanout_policy,
+			coordinator_peer_id,
 			created_by,
 			created_at,
 			updated_at
-		) VALUES (?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 			ON CONFLICT(workspace_id, channel) DO UPDATE SET
 				purpose = excluded.purpose,
+				fanout_policy = excluded.fanout_policy,
+				coordinator_peer_id = excluded.coordinator_peer_id,
 				updated_at = excluded.updated_at,
 				created_by = CASE
 				WHEN TRIM(network_channels.created_by) = '' THEN excluded.created_by
@@ -47,6 +53,8 @@ func (g *GlobalDB) WriteNetworkChannel(ctx context.Context, entry store.NetworkC
 		entry.Channel,
 		entry.WorkspaceID,
 		entry.Purpose,
+		entry.FanoutPolicy,
+		entry.CoordinatorPeerID,
 		entry.CreatedBy,
 		store.FormatTimestamp(entry.CreatedAt),
 		store.FormatTimestamp(entry.UpdatedAt),
@@ -73,23 +81,69 @@ func (g *GlobalDB) GetNetworkChannel(
 		return store.NetworkChannelEntry{}, err
 	}
 
-	row := g.db.QueryRowContext(
-		ctx,
-		`SELECT channel, workspace_id, purpose, created_by, created_at, updated_at
-		FROM network_channels
-		WHERE workspace_id = ? AND channel = ?`,
-		normalized.WorkspaceID,
-		normalized.Channel,
-	)
+	return getNetworkChannel(ctx, g.db, normalized)
+}
 
-	entry, err := scanNetworkChannel(row)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return store.NetworkChannelEntry{}, err
-		}
-		return store.NetworkChannelEntry{}, err
+// PatchNetworkChannel applies one partial metadata update without overwriting
+// unspecified channel fields.
+func (g *GlobalDB) PatchNetworkChannel(
+	ctx context.Context,
+	ref store.NetworkChannelRef,
+	patch store.NetworkChannelPatch,
+) error {
+	if err := g.checkReady(ctx, "patch network channel"); err != nil {
+		return err
 	}
-	return entry, nil
+	normalized := store.NetworkChannelRef{
+		WorkspaceID: strings.TrimSpace(ref.WorkspaceID),
+		Channel:     strings.TrimSpace(ref.Channel),
+	}
+	if err := normalized.Validate(); err != nil {
+		return err
+	}
+	if !patch.HasChanges() {
+		return errors.New("store: network channel patch must include at least one field")
+	}
+	return g.withNetworkImmediateTransaction(ctx, "patch network channel", func(exec networkSQLExecutor) error {
+		current, err := getNetworkChannel(ctx, exec, normalized)
+		if err != nil {
+			return err
+		}
+		next := patch.Apply(current)
+		if next.UpdatedAt.IsZero() {
+			next.UpdatedAt = g.now()
+		}
+		if err := next.Validate(); err != nil {
+			return fmt.Errorf("store: validate network channel patch: %w", err)
+		}
+
+		result, err := exec.ExecContext(
+			ctx,
+			`UPDATE network_channels SET
+				purpose = ?,
+				fanout_policy = ?,
+				coordinator_peer_id = ?,
+				updated_at = ?
+			WHERE workspace_id = ? AND channel = ?`,
+			next.Purpose,
+			next.FanoutPolicy,
+			next.CoordinatorPeerID,
+			store.FormatTimestamp(next.UpdatedAt),
+			normalized.WorkspaceID,
+			normalized.Channel,
+		)
+		if err != nil {
+			return fmt.Errorf("store: patch network channel: %w", err)
+		}
+		affected, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("store: inspect patched network channel rows: %w", err)
+		}
+		if affected == 0 {
+			return sql.ErrNoRows
+		}
+		return nil
+	})
 }
 
 // ListNetworkChannels returns persisted network channel metadata rows.
@@ -104,7 +158,7 @@ func (g *GlobalDB) ListNetworkChannels(
 		return nil, fmt.Errorf("store: validate network channel query: %w", err)
 	}
 
-	sqlQuery := `SELECT channel, workspace_id, purpose, created_by, created_at, updated_at FROM network_channels`
+	sqlQuery := `SELECT channel, workspace_id, purpose, fanout_policy, coordinator_peer_id, created_by, created_at, updated_at FROM network_channels`
 	where, args := store.BuildClauses(
 		store.StringClause("channel", query.Channel),
 		store.StringClause("workspace_id", query.WorkspaceID),
@@ -167,9 +221,31 @@ func (g *GlobalDB) DeleteNetworkChannel(ctx context.Context, ref store.NetworkCh
 	return nil
 }
 
+func getNetworkChannel(
+	ctx context.Context,
+	exec networkSQLExecutor,
+	normalized store.NetworkChannelRef,
+) (store.NetworkChannelEntry, error) {
+	row := exec.QueryRowContext(
+		ctx,
+		`SELECT channel, workspace_id, purpose, fanout_policy, coordinator_peer_id, created_by, created_at, updated_at
+			FROM network_channels
+			WHERE workspace_id = ? AND channel = ?`,
+		normalized.WorkspaceID,
+		normalized.Channel,
+	)
+
+	entry, err := scanNetworkChannel(row)
+	if err != nil {
+		return store.NetworkChannelEntry{}, err
+	}
+	return entry, nil
+}
+
 func scanNetworkChannel(scanner rowScanner) (store.NetworkChannelEntry, error) {
 	var (
 		entry        store.NetworkChannelEntry
+		coordinator  sql.NullString
 		createdBy    sql.NullString
 		createdAtRaw string
 		updatedAtRaw string
@@ -178,6 +254,8 @@ func scanNetworkChannel(scanner rowScanner) (store.NetworkChannelEntry, error) {
 		&entry.Channel,
 		&entry.WorkspaceID,
 		&entry.Purpose,
+		&entry.FanoutPolicy,
+		&coordinator,
 		&createdBy,
 		&createdAtRaw,
 		&updatedAtRaw,
@@ -191,6 +269,10 @@ func scanNetworkChannel(scanner rowScanner) (store.NetworkChannelEntry, error) {
 	if value := store.NullString(createdBy); value != nil {
 		entry.CreatedBy = *value
 	}
+	if value := store.NullString(coordinator); value != nil {
+		entry.CoordinatorPeerID = *value
+	}
+	entry.FanoutPolicy = store.NormalizeNetworkFanoutPolicy(entry.FanoutPolicy)
 
 	createdAt, err := store.ParseTimestamp(createdAtRaw)
 	if err != nil {

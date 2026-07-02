@@ -129,6 +129,7 @@ func (fakeStore) ReserveQueuedRun(
 	string,
 	json.RawMessage,
 	time.Time,
+	...string,
 ) (taskpkg.Task, taskpkg.Run, bool, error) {
 	return taskpkg.Task{
 			ID:             "task-1",

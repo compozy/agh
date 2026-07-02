@@ -6,10 +6,12 @@ import {
   TasksExecutionProfileCard,
   type TasksExecutionProfileCardProps,
 } from "./tasks-execution-profile-card";
+import { TasksFanOutRunsCard, type TasksFanOutRunsCardProps } from "./tasks-fan-out-runs-card";
 import { TasksReviewsCard, type TasksReviewsCardProps } from "./tasks-reviews-card";
 import { TasksStreamResumeCard, type TasksStreamResumeCardProps } from "./tasks-stream-resume-card";
 
 export interface TasksDetailOrchestrationPanelProps {
+  fanOut: TasksFanOutRunsCardProps;
   profile: TasksExecutionProfileCardProps;
   reviews: TasksReviewsCardProps;
   notifications: TasksBridgeNotificationsCardProps;
@@ -24,6 +26,7 @@ export interface TasksDetailOrchestrationPanelProps {
  * task detail tabs.
  */
 export function TasksDetailOrchestrationPanel({
+  fanOut,
   profile,
   reviews,
   notifications,
@@ -34,6 +37,7 @@ export function TasksDetailOrchestrationPanel({
       className="flex w-full flex-col gap-6 px-6 py-5"
       data-testid="tasks-detail-orchestration-panel"
     >
+      <TasksFanOutRunsCard {...fanOut} />
       <TasksExecutionProfileCard {...profile} />
       <TasksReviewsCard {...reviews} />
       <TasksBridgeNotificationsCard {...notifications} />

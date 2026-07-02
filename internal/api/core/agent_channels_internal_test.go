@@ -623,6 +623,28 @@ func (s agentCoreNetworkStore) GetThread(
 	return store.NetworkThreadSummary{}, nil
 }
 
+func (s agentCoreNetworkStore) ListThreadParticipants(
+	context.Context,
+	store.NetworkChannelRef,
+	string,
+) ([]store.NetworkThreadParticipant, error) {
+	return nil, nil
+}
+
+func (s agentCoreNetworkStore) UpdateNetworkThreadPeerTokenStats(
+	context.Context,
+	store.NetworkThreadPeerTokenStatsUpdate,
+) error {
+	return nil
+}
+
+func (s agentCoreNetworkStore) ListNetworkThreadPeerTokenStats(
+	context.Context,
+	store.NetworkThreadPeerTokenStatsQuery,
+) ([]store.NetworkThreadPeerTokenStats, error) {
+	return nil, nil
+}
+
 func (s agentCoreNetworkStore) ListDirectRooms(
 	context.Context,
 	store.NetworkChannelRef,
@@ -658,6 +680,10 @@ func (s agentCoreNetworkStore) ListNetworkAudit(
 	return nil, nil
 }
 
+func (s agentCoreNetworkStore) WriteNetworkAudit(context.Context, store.NetworkAuditEntry) error {
+	return nil
+}
+
 func (s agentCoreNetworkStore) GetNetworkChannel(
 	context.Context,
 	store.NetworkChannelRef,
@@ -676,7 +702,76 @@ func (s agentCoreNetworkStore) WriteNetworkChannel(context.Context, store.Networ
 	return nil
 }
 
+func (s agentCoreNetworkStore) PatchNetworkChannel(
+	context.Context,
+	store.NetworkChannelRef,
+	store.NetworkChannelPatch,
+) error {
+	return nil
+}
+
 func (s agentCoreNetworkStore) DeleteNetworkChannel(context.Context, store.NetworkChannelRef) error {
+	return nil
+}
+
+func (s agentCoreNetworkStore) PutNetworkSubscription(
+	context.Context,
+	store.NetworkSubscriptionEntry,
+) error {
+	return nil
+}
+
+func (s agentCoreNetworkStore) ListNetworkSubscriptions(
+	context.Context,
+	store.NetworkSubscriptionQuery,
+) ([]store.NetworkSubscriptionEntry, error) {
+	return nil, nil
+}
+
+func (s agentCoreNetworkStore) DeleteNetworkSubscription(context.Context, store.NetworkSubscriptionRef) error {
+	return nil
+}
+
+func (s agentCoreNetworkStore) GetNetworkDeliveryGuidanceState(
+	context.Context,
+	string,
+) (store.NetworkDeliveryGuidanceState, error) {
+	return store.NetworkDeliveryGuidanceState{}, nil
+}
+
+func (s agentCoreNetworkStore) PutNetworkDeliveryGuidanceState(
+	context.Context,
+	store.NetworkDeliveryGuidanceState,
+) error {
+	return nil
+}
+
+func (s agentCoreNetworkStore) PutNetworkTaskThreadOrigin(
+	context.Context,
+	store.NetworkTaskThreadOrigin,
+) error {
+	return nil
+}
+
+func (s agentCoreNetworkStore) ListNetworkTaskThreadOrigins(
+	context.Context,
+	store.NetworkTaskThreadOriginQuery,
+) ([]store.NetworkTaskThreadOrigin, error) {
+	return nil, nil
+}
+
+func (s agentCoreNetworkStore) PutTaskDesignationRollup(context.Context, store.TaskDesignationRollup) error {
+	return nil
+}
+
+func (s agentCoreNetworkStore) ListTaskDesignationRollups(
+	context.Context,
+	store.TaskDesignationRollupQuery,
+) ([]store.TaskDesignationRollup, error) {
+	return nil, nil
+}
+
+func (s agentCoreNetworkStore) WriteNetworkMessage(context.Context, store.NetworkMessageEntry) error {
 	return nil
 }
 

@@ -36,6 +36,10 @@ const (
 )
 
 const (
+	specNetworkThreadNotFoundDescription = "Network thread not found"
+)
+
+const (
 	specAPIAutomationJobsIDPath                              = "/api/automation/jobs/{id}"
 	specAPIAutomationTriggersIDPath                          = "/api/automation/triggers/{id}"
 	specAPIBundlesActivationsIDPath                          = "/api/bundles/activations/{id}"
@@ -82,6 +86,7 @@ const (
 	specAPITasksIDPausePath                                  = "/api/tasks/{id}/pause"
 	specAPITasksIDResumePath                                 = "/api/tasks/{id}/resume"
 	specAPITasksIDRunsPath                                   = "/api/tasks/{id}/runs"
+	specAPITasksIDRunsFanOutPath                             = specAPITasksIDRunsPath + "/fan-out"
 	specAPIVaultEntriesPath                                  = "/api/vault/secrets"
 	specAPIWorkspacesIDPath                                  = "/api/workspaces/{id}"
 	specAcceptedDescription                                  = "Accepted"
@@ -1603,6 +1608,86 @@ var operationRegistry = []OperationSpec{
 		},
 	},
 	{
+		Method:      httpMethodPatch,
+		Path:        "/api/workspaces/{workspace_id}/network/channels/{channel}",
+		OperationID: "updateNetworkChannel",
+		Summary:     "Update mutable delivery policy for one network channel",
+		Tags:        []string{specNetworkKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("channel", "Network channel"),
+		},
+		RequestBody: contract.UpdateNetworkChannelRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.NetworkChannelResponse{}},
+			{Status: 400, Description: "Invalid network channel policy", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Network channel not found", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specNetworkRuntimeIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodGet,
+		Path:        "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions",
+		OperationID: "listNetworkSubscriptions",
+		Summary:     "List delivery subscriptions for one network channel",
+		Tags:        []string{specNetworkKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("channel", "Network channel"),
+			queryParam("peer_id", "Filter subscriptions by peer id", false),
+			queryParam("thread_id", "Filter subscriptions by thread id", false),
+			intQueryParam("limit", "Maximum number of subscriptions to return"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.NetworkSubscriptionsResponse{}},
+			{Status: 400, Description: "Invalid network subscription filter", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specNetworkRuntimeIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodPut,
+		Path:        "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions",
+		OperationID: "upsertNetworkSubscription",
+		Summary:     "Create or update one network delivery subscription",
+		Tags:        []string{specNetworkKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("channel", "Network channel"),
+		},
+		RequestBody: contract.NetworkSubscriptionRequest{},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.NetworkSubscriptionResponse{}},
+			{Status: 400, Description: "Invalid network subscription", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specNetworkRuntimeIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodDelete,
+		Path:        "/api/workspaces/{workspace_id}/network/channels/{channel}/subscriptions/{peer_id}",
+		OperationID: "deleteNetworkSubscription",
+		Summary:     "Delete one network delivery subscription",
+		Tags:        []string{specNetworkKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("channel", "Network channel"),
+			pathParam("peer_id", "Network peer id"),
+			queryParam("thread_id", "Delete the thread-scoped subscription for this peer", false),
+		},
+		Responses: []ResponseSpec{
+			{Status: 204, Description: specNoContentDescription},
+			{Status: 400, Description: "Invalid network subscription", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specNetworkRuntimeIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
 		Method:      httpMethodGet,
 		Path:        "/api/workspaces/{workspace_id}/network/channels/{channel}/threads",
 		OperationID: "listNetworkThreads",
@@ -1637,8 +1722,33 @@ var operationRegistry = []OperationSpec{
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.NetworkThreadResponse{}},
 			{Status: 400, Description: "Invalid public thread", Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "Network thread not found", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specNetworkThreadNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specNetworkRuntimeIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodPost,
+		Path:        "/api/workspaces/{workspace_id}/network/channels/{channel}/threads/{thread_id}/promote-task",
+		OperationID: "promoteNetworkThreadTask",
+		Summary:     "Promote one network thread message into a durable task",
+		Tags:        []string{specNetworkKey, specTasksKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("channel", "Network channel"),
+			pathParam("thread_id", "Public thread id"),
+		},
+		RequestBody: contract.PromoteNetworkThreadTaskRequest{},
+		Responses: []ResponseSpec{
+			{Status: 201, Description: specCreatedDescription, Body: contract.PromoteNetworkThreadTaskResponse{}},
+			{Status: 400, Description: "Invalid thread promotion request", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specNetworkThreadNotFoundDescription, Body: contract.ErrorPayload{}},
+			{
+				Status:      503,
+				Description: specTaskOrBridgeServiceIsNotConfiguredDescription,
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	},
@@ -1662,7 +1772,7 @@ var operationRegistry = []OperationSpec{
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.NetworkThreadMessagesResponse{}},
 			{Status: 400, Description: "Invalid public-thread messages request", Body: contract.ErrorPayload{}},
-			{Status: 404, Description: "Network thread not found", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: specNetworkThreadNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specNetworkRuntimeIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
@@ -4070,6 +4180,26 @@ var operationRegistry = []OperationSpec{
 			{Status: 200, Description: "OK", Body: contract.TaskInspectResponse{}},
 			{Status: 404, Description: specTaskRunNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 422, Description: "Invalid task-run id", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	},
+	{
+		Method:      httpMethodPost,
+		Path:        specAPITasksIDRunsFanOutPath,
+		OperationID: "fanOutTaskRuns",
+		Summary:     "Enqueue designated sibling runs for one task",
+		Tags:        []string{specTasksKey, specNetworkKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task id"),
+		},
+		RequestBody: contract.FanOutTaskRunsRequest{},
+		Responses: []ResponseSpec{
+			{Status: 201, Description: specCreatedDescription, Body: contract.FanOutTaskRunsResponse{}},
+			{Status: 404, Description: specTaskNotFoundDescription, Body: contract.ErrorPayload{}},
+			{Status: 409, Description: "Task fan-out conflict", Body: contract.ErrorPayload{}},
+			{Status: 422, Description: "Invalid fan-out request", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},

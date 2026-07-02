@@ -422,13 +422,18 @@ type SettingsAutomationConfigPayload struct {
 }
 
 type SettingsNetworkConfigPayload struct {
-	Enabled        bool   `json:"enabled"`
-	DefaultChannel string `json:"default_channel"`
-	Port           int    `json:"port"`
-	MaxPayload     int    `json:"max_payload"`
-	GreetInterval  int    `json:"greet_interval"`
-	MaxReplayAge   int    `json:"max_replay_age"`
-	MaxQueueDepth  int    `json:"max_queue_depth"`
+	Enabled                        bool   `json:"enabled"`
+	DefaultChannel                 string `json:"default_channel"`
+	Port                           int    `json:"port"`
+	MaxPayload                     int    `json:"max_payload"`
+	GreetInterval                  int    `json:"greet_interval"`
+	MaxReplayAge                   int    `json:"max_replay_age"`
+	MaxQueueDepth                  int    `json:"max_queue_depth"`
+	ActivationTopK                 int    `json:"activation_top_k"`
+	DigestFlushInterval            string `json:"digest_flush_interval"`
+	DigestMaxEnvelopes             int    `json:"digest_max_envelopes"`
+	ResponseGuidanceMaxBytes       int    `json:"response_guidance_max_bytes"`
+	DeliveryStructuredBodyMaxBytes int    `json:"delivery_structured_body_max_bytes"`
 }
 
 type SettingsObservabilityConfigPayload struct {

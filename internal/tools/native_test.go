@@ -87,6 +87,69 @@ func TestNativeProviderDispatch(t *testing.T) {
 		}
 	})
 
+	t.Run("Should enforce array items and length schema keywords before native handler invocation", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := validDispatchDescriptor()
+		descriptor.InputSchema = json.RawMessage(`{
+			"type":"object",
+			"required":["designations"],
+			"properties":{
+				"designations":{
+					"type":"array",
+					"minItems":1,
+					"items":{
+						"type":"object",
+						"required":["brief"],
+						"properties":{"brief":{"type":"string","minLength":1}},
+						"additionalProperties":false
+					}
+				}
+			},
+			"additionalProperties":false
+		}`)
+		calls := 0
+		provider, err := NewNativeProvider(descriptor.Source, NativeTool{
+			Descriptor: descriptor,
+			Call: func(context.Context, Scope, CallRequest) (ToolResult, error) {
+				calls++
+				return ToolResult{Structured: json.RawMessage(`{"ok":true}`)}, nil
+			},
+		})
+		if err != nil {
+			t.Fatalf("NewNativeProvider() error = %v", err)
+		}
+		registry, err := NewRegistry(WithProviders(provider))
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+
+		for _, input := range []json.RawMessage{
+			json.RawMessage(`{"designations":[]}`),
+			json.RawMessage(`{"designations":[{"brief":""}]}`),
+			json.RawMessage(`{"designations":[{"brief":7}]}`),
+		} {
+			_, err := registry.Call(t.Context(), Scope{}, CallRequest{ToolID: descriptor.ID, Input: input})
+			if !errors.Is(err, ErrToolInvalidInput) {
+				t.Fatalf("RuntimeRegistry.Call(%s) error = %v, want ErrToolInvalidInput", input, err)
+			}
+		}
+		if calls != 0 {
+			t.Fatalf("native handler calls after invalid inputs = %d, want 0", calls)
+		}
+
+		if _, err := registry.Call(
+			t.Context(),
+			Scope{},
+			CallRequest{ToolID: descriptor.ID, Input: json.RawMessage(`{"designations":[{"brief":"Investigate"}]}`)},
+		); err != nil {
+			t.Fatalf("RuntimeRegistry.Call(valid) error = %v, want nil", err)
+		}
+		if calls != 1 {
+			t.Fatalf("native handler calls after valid input = %d, want 1", calls)
+		}
+	})
+
 	t.Run("Should reject unsupported schema type declarations before native handler registration", func(t *testing.T) {
 		t.Parallel()
 

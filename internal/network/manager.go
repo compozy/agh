@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -21,6 +22,13 @@ import (
 
 const (
 	managerChannelKey = "channel"
+)
+
+const (
+	// RuntimePeerID is the reserved first-party AGH runtime network peer.
+	RuntimePeerID = "agh.runtime"
+
+	runtimePeerSessionID = "runtime:agh.runtime"
 )
 
 const (
@@ -75,6 +83,17 @@ type managerOptions struct {
 	tasks         TaskService
 	conversations store.NetworkConversationStore
 	hooks         HookDispatcher
+}
+
+type networkSubscriptionStore interface {
+	ListNetworkSubscriptions(
+		ctx context.Context,
+		query store.NetworkSubscriptionQuery,
+	) ([]store.NetworkSubscriptionEntry, error)
+}
+
+type threadPeerTokenStatsUpdater interface {
+	UpdateNetworkThreadPeerTokenStats(ctx context.Context, update store.NetworkThreadPeerTokenStatsUpdate) error
 }
 
 type managedSession struct {
@@ -298,11 +317,23 @@ func (m *Manager) initConversationStore(auditStore AuditStore) {
 }
 
 func (m *Manager) initRouter(cfg aghconfig.NetworkConfig) error {
+	var participantResolver ThreadParticipantResolver
+	if resolver, ok := m.conversations.(ThreadParticipantResolver); ok {
+		participantResolver = resolver
+	}
+	var channelPolicyResolver ChannelPolicyResolver
+	if resolver, ok := m.conversations.(ChannelPolicyResolver); ok {
+		channelPolicyResolver = resolver
+	}
 	router, err := NewRouter(
 		m.peers,
 		m.transport,
 		cfg.MaxReplayAgeDuration(),
 		WithRouterClock(m.now),
+		WithRouterThreadParticipantResolver(participantResolver),
+		WithRouterChannelPolicyResolver(channelPolicyResolver),
+		WithRouterActivationTopK(cfg.ActivationTopK),
+		WithRouterLogger(m.logger),
 	)
 	if err != nil {
 		return err
@@ -333,12 +364,23 @@ func (m *Manager) initDeliveries(cfg aghconfig.NetworkConfig, prompter deliveryP
 		withDeliveryClock(m.now),
 		withDeliveryDeliveredHook(m.recordDelivered),
 		withDeliveryDroppedHook(m.recordDropped),
+		withDeliveryGuidanceStore(deliveryGuidanceStoreFromCandidate(m.conversations)),
+		withDeliveryDigestCoalescing(cfg.DigestFlushInterval, cfg.DigestMaxEnvelopes),
+		withDeliveryStructuredBodyMaxBytes(cfg.DeliveryStructuredBodyMaxBytes),
 	)
 	if err != nil {
 		return err
 	}
 	m.deliveries = deliveries
 	return nil
+}
+
+func deliveryGuidanceStoreFromCandidate(candidate any) deliveryGuidanceStore {
+	guidanceStore, ok := candidate.(deliveryGuidanceStore)
+	if !ok {
+		return nil
+	}
+	return guidanceStore
 }
 
 func (m *Manager) rollbackInit(ctx context.Context, initErr error) error {
@@ -669,6 +711,112 @@ func (m *Manager) Send(ctx context.Context, req SendRequest) (string, error) {
 	return result.ID, nil
 }
 
+// SendFromRuntimePeer publishes one outbound envelope from the reserved AGH runtime peer.
+func (m *Manager) SendFromRuntimePeer(ctx context.Context, req RuntimeSendRequest) (string, error) {
+	if ctx == nil {
+		return "", errors.New("network: runtime send context is required")
+	}
+	if m == nil || m.router == nil {
+		return "", errors.New("network: manager router is required")
+	}
+	m.sweepExpiredRemotePeers(ctx, m.now())
+
+	prepared, err := m.prepareRuntimeSend(req)
+	if err != nil {
+		return "", err
+	}
+	writeResult, wrote, err := m.writeConversationMessage(
+		ctx,
+		runtimePeerSessionID,
+		AuditDirectionSent,
+		prepared.Envelope,
+	)
+	if err != nil {
+		m.recordAuditRejected(ctx, runtimePeerSessionID, prepared.Envelope, conversationPersistenceReason(err))
+		return "", err
+	}
+	if wrote && writeResult.Duplicate {
+		m.logger.Info(
+			"network.runtime_message.send_duplicate",
+			networkLogFields(prepared.Envelope, "session_id", runtimePeerSessionID)...)
+		return prepared.ID, nil
+	}
+
+	result, err := m.router.PublishPrepared(ctx, prepared)
+	if err != nil {
+		m.recordAuditRejected(ctx, runtimePeerSessionID, prepared.Envelope, "publish_failed")
+		return "", err
+	}
+	m.recordSentDelivery(ctx, runtimePeerSessionID, result.Envelope, wrote)
+	return result.ID, nil
+}
+
+func (m *Manager) prepareRuntimeSend(req RuntimeSendRequest) (SendResult, error) {
+	if m == nil || m.router == nil {
+		return SendResult{}, errors.New("network: manager router is required")
+	}
+	now := m.now().UTC()
+	workspaceID := strings.TrimSpace(req.WorkspaceID)
+	if err := ValidateWorkspaceID(workspaceID); err != nil {
+		return SendResult{}, err
+	}
+	channel := strings.TrimSpace(req.Channel)
+	if err := ValidateChannel(channel); err != nil {
+		return SendResult{}, err
+	}
+	id := normalizeOptionalIdentifier(req.ID)
+	if id == nil {
+		id = ptrString(store.NewID("msg"))
+	}
+	envelope := Envelope{
+		Protocol:    ProtocolV0,
+		ID:          *id,
+		WorkspaceID: workspaceID,
+		Kind:        Kind(strings.TrimSpace(string(req.Kind))),
+		Channel:     channel,
+		Surface:     normalizeOptionalSurface(req.Surface),
+		ThreadID:    normalizeOptionalIdentifier(req.ThreadID),
+		DirectID:    normalizeOptionalIdentifier(req.DirectID),
+		From:        RuntimePeerID,
+		To:          normalizeOptionalIdentifier(req.To),
+		Mentions:    normalizeEnvelopeMentions(req.Mentions),
+		WorkID:      normalizeOptionalIdentifier(req.WorkID),
+		ReplyTo:     normalizeOptionalIdentifier(req.ReplyTo),
+		TraceID:     normalizeOptionalIdentifier(req.TraceID),
+		CausationID: normalizeOptionalIdentifier(req.CausationID),
+		TS:          now.Unix(),
+		ExpiresAt:   cloneInt64Ptr(req.ExpiresAt),
+		Body:        cloneRawMessage(req.Body),
+		Ext:         cloneExtensionMap(req.Ext),
+	}
+	if isConversationKind(envelope.Kind) &&
+		envelope.Surface != nil &&
+		*envelope.Surface == SurfaceDirect &&
+		envelope.To != nil {
+		directID, _, _, err := DirectRoomIdentity(envelope.WorkspaceID, channel, envelope.From, *envelope.To)
+		if err != nil {
+			return SendResult{}, err
+		}
+		envelope.DirectID = ptrString(directID)
+	}
+	if envelope.IsDirected() && !m.peers.HasPresence(envelope.WorkspaceID, envelope.Channel, *envelope.To, now) {
+		return SendResult{}, fmt.Errorf(
+			"%w: peer_id=%q channel=%q",
+			ErrTargetPeerNotFound,
+			*envelope.To,
+			envelope.Channel,
+		)
+	}
+	if err := ValidateEnvelope(envelope, ValidateOptions{Now: now, MaxReplayAge: m.router.maxReplayAge}); err != nil {
+		return SendResult{}, err
+	}
+	subject, err := subjectForEnvelope(envelope)
+	if err != nil {
+		return SendResult{}, err
+	}
+	return SendResult{ID: envelope.ID, Subject: subject, Envelope: envelope}, nil
+}
+
 func (m *Manager) startAuditedHeartbeat(sessionID string, summary string) (*Heartbeat, error) {
 	if m == nil || m.router == nil || m.peers == nil {
 		return nil, errors.New("network: manager heartbeat dependencies are required")
@@ -991,8 +1139,209 @@ func (m *Manager) handleInboundMessage(payload []byte) {
 	if len(result.Deliveries) == 0 {
 		return
 	}
-	if err := m.deliveries.accept(m.lifecycleCtx, result.Deliveries); err != nil {
+	deliveries := m.applyDeliverySubscriptions(m.lifecycleCtx, result.Deliveries)
+	if len(deliveries) == 0 {
+		return
+	}
+	if err := m.deliveries.accept(m.lifecycleCtx, deliveries); err != nil {
 		m.logger.Warn("network.message.accept_failed", "error", err)
+	}
+}
+
+func (m *Manager) applyDeliverySubscriptions(ctx context.Context, deliveries []Delivery) []Delivery {
+	if len(deliveries) == 0 {
+		return nil
+	}
+	subscriptions := networkSubscriptionStoreFromCandidate(m.conversations)
+	filtered := make([]Delivery, 0, len(deliveries))
+	for _, delivery := range deliveries {
+		next := delivery
+		next.Mode = normalizedDeliverySubscriptionMode(delivery.Mode)
+		if subscriptions != nil {
+			mode, err := deliverySubscriptionMode(ctx, subscriptions, delivery)
+			if err != nil {
+				if m.logger != nil {
+					m.logger.Warn(
+						"network.message.subscription_lookup_failed",
+						"peer_id",
+						delivery.PeerID,
+						"error",
+						err,
+					)
+				}
+				filtered = append(filtered, next)
+				continue
+			}
+			if mode == store.NetworkSubscriptionModeMute {
+				continue
+			}
+			next.Mode = mode
+		}
+		filtered = append(filtered, next)
+	}
+	return filtered
+}
+
+func networkSubscriptionStoreFromCandidate(candidate any) networkSubscriptionStore {
+	subscriptions, ok := candidate.(networkSubscriptionStore)
+	if !ok {
+		return nil
+	}
+	return subscriptions
+}
+
+func deliverySubscriptionMode(
+	ctx context.Context,
+	subscriptions networkSubscriptionStore,
+	delivery Delivery,
+) (string, error) {
+	if subscriptions == nil {
+		return store.NetworkSubscriptionModeFull, nil
+	}
+	if deliveryMentionsPeer(delivery.Envelope, delivery.PeerID) || deliveryAddressedToPeer(delivery) {
+		return store.NetworkSubscriptionModeFull, nil
+	}
+	workspaceID := strings.TrimSpace(delivery.Envelope.WorkspaceID)
+	channel := strings.TrimSpace(delivery.Envelope.Channel)
+	peerID := strings.TrimSpace(delivery.PeerID)
+	if workspaceID == "" || channel == "" || peerID == "" {
+		return store.NetworkSubscriptionModeFull, nil
+	}
+	if delivery.Envelope.ThreadID != nil {
+		threadID := strings.TrimSpace(*delivery.Envelope.ThreadID)
+		if threadID != "" {
+			threadEntry, ok, err := firstApplicableSubscription(
+				ctx,
+				subscriptions,
+				store.NetworkSubscriptionQuery{
+					WorkspaceID: workspaceID,
+					Channel:     channel,
+					ThreadID:    threadID,
+					PeerID:      peerID,
+					Limit:       10,
+				},
+				threadID,
+				delivery.Envelope,
+			)
+			if err != nil {
+				return "", err
+			}
+			if ok {
+				return normalizedDeliverySubscriptionMode(threadEntry.Mode), nil
+			}
+		}
+	}
+	channelEntry, ok, err := firstApplicableSubscription(
+		ctx,
+		subscriptions,
+		store.NetworkSubscriptionQuery{
+			WorkspaceID: workspaceID,
+			Channel:     channel,
+			PeerID:      peerID,
+			Limit:       50,
+		},
+		"",
+		delivery.Envelope,
+	)
+	if err != nil {
+		return "", err
+	}
+	if ok {
+		return normalizedDeliverySubscriptionMode(channelEntry.Mode), nil
+	}
+	return normalizedDeliverySubscriptionMode(delivery.Mode), nil
+}
+
+func firstApplicableSubscription(
+	ctx context.Context,
+	subscriptions networkSubscriptionStore,
+	query store.NetworkSubscriptionQuery,
+	threadID string,
+	envelope Envelope,
+) (store.NetworkSubscriptionEntry, bool, error) {
+	entries, err := subscriptions.ListNetworkSubscriptions(ctx, query)
+	if err != nil {
+		return store.NetworkSubscriptionEntry{}, false, fmt.Errorf("network: list delivery subscriptions: %w", err)
+	}
+	for _, entry := range entries {
+		if strings.TrimSpace(entry.ThreadID) != strings.TrimSpace(threadID) {
+			continue
+		}
+		if !subscriptionKeywordFiltersMatch(entry.KeywordFilters, envelope) {
+			continue
+		}
+		return entry, true, nil
+	}
+	return store.NetworkSubscriptionEntry{}, false, nil
+}
+
+func subscriptionKeywordFiltersMatch(filters []string, envelope Envelope) bool {
+	normalizedFilters := normalizeSubscriptionKeywordFilters(filters)
+	if len(normalizedFilters) == 0 {
+		return true
+	}
+	text := strings.ToLower(deliverySubscriptionSearchText(envelope))
+	if text == "" {
+		return false
+	}
+	for _, filter := range normalizedFilters {
+		if strings.Contains(text, strings.ToLower(filter)) {
+			return true
+		}
+	}
+	return false
+}
+
+func normalizeSubscriptionKeywordFilters(filters []string) []string {
+	normalized := make([]string, 0, len(filters))
+	seen := make(map[string]struct{}, len(filters))
+	for _, filter := range filters {
+		trimmed := strings.TrimSpace(filter)
+		if trimmed == "" {
+			continue
+		}
+		key := strings.ToLower(trimmed)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		normalized = append(normalized, trimmed)
+	}
+	return normalized
+}
+
+func deliverySubscriptionSearchText(envelope Envelope) string {
+	body, err := envelope.DecodeBody()
+	if err != nil {
+		return strings.TrimSpace(string(envelope.Body))
+	}
+	return previewForBody(body)
+}
+
+func deliveryMentionsPeer(envelope Envelope, peerID string) bool {
+	target := strings.TrimSpace(peerID)
+	if target == "" {
+		return false
+	}
+	return slices.Contains(normalizeEnvelopeMentions(envelope.Mentions), target)
+}
+
+func deliveryAddressedToPeer(delivery Delivery) bool {
+	if delivery.Envelope.To == nil {
+		return false
+	}
+	return strings.TrimSpace(*delivery.Envelope.To) != "" &&
+		strings.TrimSpace(*delivery.Envelope.To) == strings.TrimSpace(delivery.PeerID)
+}
+
+func normalizedDeliverySubscriptionMode(mode string) string {
+	switch strings.TrimSpace(mode) {
+	case store.NetworkSubscriptionModeMute:
+		return store.NetworkSubscriptionModeMute
+	case store.NetworkSubscriptionModeDigest:
+		return store.NetworkSubscriptionModeDigest
+	default:
+		return store.NetworkSubscriptionModeFull
 	}
 }
 
@@ -1524,7 +1873,14 @@ func (m *Manager) recordAuditRejected(ctx context.Context, sessionID string, env
 	m.logger.Info("network.message.rejected", fields...)
 }
 
-func (m *Manager) recordDelivered(sessionID string, envelope Envelope, _ string, _ time.Duration) {
+func (m *Manager) recordDelivered(
+	sessionID string,
+	peerID string,
+	envelope Envelope,
+	_ string,
+	_ time.Duration,
+	cost deliveredPromptCost,
+) {
 	if m == nil {
 		return
 	}
@@ -1541,10 +1897,58 @@ func (m *Manager) recordDelivered(sessionID string, envelope Envelope, _ string,
 			)
 		}
 	}
+	m.recordThreadPeerPromptCost(peerID, envelope, cost)
 	if m.stats == nil {
 		return
 	}
 	m.stats.recordDelivered(envelope)
+}
+
+func (m *Manager) recordThreadPeerPromptCost(peerID string, envelope Envelope, cost deliveredPromptCost) {
+	if m == nil || m.conversations == nil || !envelopeTargetsThread(envelope) {
+		return
+	}
+	updater, ok := m.conversations.(threadPeerTokenStatsUpdater)
+	if !ok {
+		return
+	}
+	targetPeerID := strings.TrimSpace(peerID)
+	if targetPeerID == "" {
+		return
+	}
+	deliveredAt := m.now().UTC()
+	err := updater.UpdateNetworkThreadPeerTokenStats(
+		m.lifecycleCtx,
+		store.NetworkThreadPeerTokenStatsUpdate{
+			WorkspaceID:           strings.TrimSpace(envelope.WorkspaceID),
+			Channel:               strings.TrimSpace(envelope.Channel),
+			ThreadID:              strings.TrimSpace(*envelope.ThreadID),
+			PeerID:                targetPeerID,
+			DeliveredCount:        1,
+			PromptSizeBytes:       cost.PromptSizeBytes,
+			EstimatedPromptTokens: cost.EstimatedPromptTokens,
+			DeliveredAt:           deliveredAt,
+			UpdatedAt:             deliveredAt,
+		},
+	)
+	if err != nil {
+		m.logger.Warn(
+			"network.thread_peer_token_stats.update_failed",
+			"peer_id",
+			targetPeerID,
+			"envelope_id",
+			envelope.ID,
+			"error",
+			err,
+		)
+	}
+}
+
+func envelopeTargetsThread(envelope Envelope) bool {
+	return envelope.Surface != nil &&
+		*envelope.Surface == SurfaceThread &&
+		envelope.ThreadID != nil &&
+		strings.TrimSpace(*envelope.ThreadID) != ""
 }
 
 func (m *Manager) recordDropped(sessionID string, envelope Envelope, reason string) {
@@ -1587,6 +1991,9 @@ func networkLogFields(envelope Envelope, extra ...any) []any {
 	}
 	if envelope.To != nil {
 		fields = append(fields, "to", strings.TrimSpace(*envelope.To))
+	}
+	if len(envelope.Mentions) > 0 {
+		fields = append(fields, "mentions", strings.Join(normalizeEnvelopeMentions(envelope.Mentions), ","))
 	}
 	if envelope.ReplyTo != nil {
 		fields = append(fields, "reply_to", strings.TrimSpace(*envelope.ReplyTo))

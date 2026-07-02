@@ -1,0 +1,46 @@
+---
+title: "agh task fan-out"
+description: "Enqueue designated sibling runs for one task"
+---
+
+## agh task fan-out
+
+Enqueue designated sibling runs for one task. Each `--designation` creates one queued run with a
+shared `designation_group_id` and a worker-specific assignment brief.
+
+```
+agh task fan-out <task-id> [flags]
+```
+
+### Aliases
+
+```
+fanout
+```
+
+### Options
+
+```
+      --channel string          Optional coordination channel override
+      --designation stringArray Designation brief for one sibling run; repeatable
+  -h, --help                    help for fan-out
+      --idempotency-key string  Optional fan-out idempotency key
+```
+
+### Example
+
+```bash
+agh task fan-out task_123 \
+  --channel builders \
+  --designation "Inspect migration schema and rollback path" \
+  --designation "Validate UI and docs impact" \
+  --designation "Review release evidence" \
+  -o json
+```
+
+### Options inherited from parent commands
+
+```
+      --json            Emit JSON output
+  -o, --output string   Output format: human, json, jsonl, or toon (default "human")
+```

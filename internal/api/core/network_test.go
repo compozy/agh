@@ -3,14 +3,17 @@ package core_test
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -24,6 +27,7 @@ import (
 	"github.com/compozy/agh/internal/network"
 	"github.com/compozy/agh/internal/session"
 	"github.com/compozy/agh/internal/store"
+	taskpkg "github.com/compozy/agh/internal/task"
 	workspacepkg "github.com/compozy/agh/internal/workspace"
 )
 
@@ -67,6 +71,18 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 			len(payload.KindMetrics) != 1 ||
 			payload.KindMetrics[0].Kind != string(network.KindSay) {
 			t.Fatalf("NetworkStatusPayloadFromStatus() = %#v", payload)
+		}
+	})
+
+	t.Run("Should omit empty coordination cost payloads", func(t *testing.T) {
+		t.Parallel()
+
+		if got := core.NetworkCoordinationCostPayloadFromStore(store.NetworkThreadSummary{}); got != nil {
+			t.Fatalf("NetworkCoordinationCostPayloadFromStore(empty) = %#v, want nil", got)
+		}
+		cost := core.NetworkCoordinationCostPayloadFromStore(store.NetworkThreadSummary{DeliveredCount: 1})
+		if cost == nil || cost.DeliveredCount != 1 {
+			t.Fatalf("NetworkCoordinationCostPayloadFromStore(non-empty) = %#v, want delivered count", cost)
 		}
 	})
 
@@ -600,6 +616,51 @@ func TestNetworkConversionHelpersPreserveMetadata(t *testing.T) {
 			}
 		},
 	)
+
+	t.Run("Should reject coordinator fanout without a coordinator peer before creating sessions", func(t *testing.T) {
+		t.Parallel()
+
+		manager := testutil.StubSessionManager{
+			CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
+				t.Fatal("Create() should not be called for invalid coordinator fanout")
+				return nil, nil
+			},
+		}
+		workspaces := testutil.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				if ref != "ws-workspace" {
+					t.Fatalf("Resolve() ref = %q, want ws-workspace", ref)
+				}
+				return workspacepkg.ResolvedWorkspace{
+					Workspace:   workspacepkg.Workspace{ID: "ws-workspace", Name: "Workspace"},
+					WorkspaceID: "ws-workspace",
+					Agents:      []aghconfig.AgentDef{{Name: "coder"}},
+				}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces, nil, nil)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{}
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+			WriteNetworkChannelFn: func(context.Context, store.NetworkChannelEntry) error {
+				t.Fatal("WriteNetworkChannel() should not be called for invalid coordinator fanout")
+				return nil
+			},
+		}
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/workspaces/ws-workspace/network/channels",
+			[]byte(
+				`{"channel":"builders","workspace_id":"ws-workspace","purpose":"Cross-agent coordination","agent_names":["coder"],"fanout_policy":"coordinator"}`,
+			),
+		)
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf("create channel code = %d, want %d; body=%s", resp.Code, http.StatusBadRequest, resp.Body.String())
+		}
+	})
 }
 
 func networkTestSessionManager(
@@ -764,18 +825,21 @@ func TestBaseHandlersNetworkConversationReadPaths(t *testing.T) {
 				)
 			}
 			return []store.NetworkThreadSummary{{
-				WorkspaceID:      ref.WorkspaceID,
-				Channel:          ref.Channel,
-				ThreadID:         threadID,
-				RootMessageID:    "msg-root",
-				Title:            "Launch DB",
-				OpenedByPeerID:   "coder.sess-abc",
-				OpenedSessionID:  "sess-local",
-				OpenedAt:         openedAt,
-				LastActivityAt:   openedAt,
-				MessageCount:     2,
-				ParticipantCount: 2,
-				OpenWorkCount:    1,
+				WorkspaceID:           ref.WorkspaceID,
+				Channel:               ref.Channel,
+				ThreadID:              threadID,
+				RootMessageID:         "msg-root",
+				Title:                 "Launch DB",
+				OpenedByPeerID:        "coder.sess-abc",
+				OpenedSessionID:       "sess-local",
+				OpenedAt:              openedAt,
+				LastActivityAt:        openedAt,
+				MessageCount:          2,
+				ParticipantCount:      2,
+				OpenWorkCount:         1,
+				DeliveredCount:        3,
+				PromptSizeBytes:       1024,
+				EstimatedPromptTokens: 256,
 			}}, nil
 		},
 		GetThreadFn: func(_ context.Context, ref store.NetworkChannelRef, gotThreadID string) (store.NetworkThreadSummary, error) {
@@ -788,13 +852,35 @@ func TestBaseHandlersNetworkConversationReadPaths(t *testing.T) {
 				)
 			}
 			return store.NetworkThreadSummary{
-				WorkspaceID:    ref.WorkspaceID,
-				Channel:        ref.Channel,
-				ThreadID:       gotThreadID,
-				RootMessageID:  "msg-root",
-				OpenedAt:       openedAt,
-				LastActivityAt: openedAt,
+				WorkspaceID:           ref.WorkspaceID,
+				Channel:               ref.Channel,
+				ThreadID:              gotThreadID,
+				RootMessageID:         "msg-root",
+				OpenedAt:              openedAt,
+				LastActivityAt:        openedAt,
+				DeliveredCount:        2,
+				PromptSizeBytes:       640,
+				EstimatedPromptTokens: 160,
 			}, nil
+		},
+		ListNetworkThreadPeerTokenStatsFn: func(
+			_ context.Context,
+			query store.NetworkThreadPeerTokenStatsQuery,
+		) ([]store.NetworkThreadPeerTokenStats, error) {
+			if query.WorkspaceID == "" || query.Channel != "builders" || query.ThreadID != threadID {
+				t.Fatalf("ListNetworkThreadPeerTokenStats() query=%#v, want builders/%s", query, threadID)
+			}
+			return []store.NetworkThreadPeerTokenStats{{
+				WorkspaceID:           query.WorkspaceID,
+				Channel:               query.Channel,
+				ThreadID:              query.ThreadID,
+				PeerID:                "reviewer.sess-xyz",
+				DeliveredCount:        2,
+				PromptSizeBytes:       640,
+				EstimatedPromptTokens: 160,
+				FirstDeliveredAt:      openedAt,
+				LastDeliveredAt:       openedAt.Add(time.Minute),
+			}}, nil
 		},
 		ListDirectRoomsFn: func(
 			_ context.Context,
@@ -877,6 +963,7 @@ func TestBaseHandlersNetworkConversationReadPaths(t *testing.T) {
 				Kind:        string(network.KindSay),
 				WorkID:      workID,
 				PreviewText: "hello",
+				SizeBytes:   123,
 				Body:        json.RawMessage(`{"text":"hello"}`),
 				Timestamp:   openedAt,
 			}}, nil
@@ -924,6 +1011,12 @@ func TestBaseHandlersNetworkConversationReadPaths(t *testing.T) {
 		if len(payload.Threads) != 1 || payload.Threads[0].ThreadID != threadID {
 			t.Fatalf("threads payload = %#v, want thread %s", payload.Threads, threadID)
 		}
+		if payload.Threads[0].CoordinationCost == nil {
+			t.Fatalf("threads[0].CoordinationCost = nil, want prompt cost payload")
+		}
+		if got, want := payload.Threads[0].CoordinationCost.PromptSizeBytes, int64(1024); got != want {
+			t.Fatalf("threads[0].CoordinationCost.PromptSizeBytes = %d, want %d", got, want)
+		}
 	})
 
 	t.Run("Should show thread", func(t *testing.T) {
@@ -947,6 +1040,18 @@ func TestBaseHandlersNetworkConversationReadPaths(t *testing.T) {
 		if payload.Thread.ThreadID != threadID {
 			t.Fatalf("thread payload = %#v, want %s", payload.Thread, threadID)
 		}
+		if payload.Thread.CoordinationCost == nil {
+			t.Fatalf("thread.CoordinationCost = nil, want prompt cost payload")
+		}
+		if got, want := payload.Thread.CoordinationCost.EstimatedPromptTokens, int64(160); got != want {
+			t.Fatalf("thread.CoordinationCost.EstimatedPromptTokens = %d, want %d", got, want)
+		}
+		if len(payload.PeerCosts) != 1 || payload.PeerCosts[0].PeerID != "reviewer.sess-xyz" {
+			t.Fatalf("thread peer_costs = %#v, want reviewer cost", payload.PeerCosts)
+		}
+		if got, want := payload.PeerCosts[0].PromptSizeBytes, int64(640); got != want {
+			t.Fatalf("thread peer_costs[0].PromptSizeBytes = %d, want %d", got, want)
+		}
 	})
 
 	t.Run("Should list thread messages", func(t *testing.T) {
@@ -969,6 +1074,9 @@ func TestBaseHandlersNetworkConversationReadPaths(t *testing.T) {
 		testutil.DecodeJSONResponse(t, resp, &payload)
 		if len(payload.Messages) != 1 || payload.Messages[0].Surface != store.NetworkSurfaceThread {
 			t.Fatalf("thread messages payload = %#v, want thread message", payload.Messages)
+		}
+		if got, want := payload.Messages[0].SizeBytes, int64(123); got != want {
+			t.Fatalf("thread messages[0].SizeBytes = %d, want %d", got, want)
 		}
 	})
 
@@ -1222,6 +1330,22 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 			}}, nil
 		},
 	}
+	networkChannelKey := func(workspaceID string, channel string) string {
+		return strings.TrimSpace(workspaceID) + "\x00" + strings.TrimSpace(channel)
+	}
+	networkChannels := map[string]store.NetworkChannelEntry{
+		networkChannelKey("ws-workspace", "builders"): {
+			WorkspaceID:  "ws-workspace",
+			Channel:      "builders",
+			Purpose:      "Build coordination",
+			FanoutPolicy: store.NetworkFanoutPolicyCapabilityMatch,
+			CreatedBy:    "test",
+			CreatedAt:    fixedNow,
+			UpdatedAt:    fixedNow,
+		},
+	}
+	networkSubscriptions := make([]store.NetworkSubscriptionEntry, 0)
+	var networkStateMu sync.Mutex
 	fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
 		GetDirectRoomFn: func(_ context.Context, ref store.NetworkChannelRef, gotDirectID string) (store.NetworkDirectRoomSummary, error) {
 			if ref.WorkspaceID != "ws-workspace" || ref.Channel != "builders" ||
@@ -1241,11 +1365,63 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 				PeerB:       directPeerB,
 			}, nil
 		},
+		GetNetworkChannelFn: func(_ context.Context, ref store.NetworkChannelRef) (store.NetworkChannelEntry, error) {
+			networkStateMu.Lock()
+			defer networkStateMu.Unlock()
+			entry, ok := networkChannels[networkChannelKey(ref.WorkspaceID, ref.Channel)]
+			if !ok {
+				return store.NetworkChannelEntry{}, sql.ErrNoRows
+			}
+			return entry, nil
+		},
+		WriteNetworkChannelFn: func(_ context.Context, entry store.NetworkChannelEntry) error {
+			networkStateMu.Lock()
+			defer networkStateMu.Unlock()
+			networkChannels[networkChannelKey(entry.WorkspaceID, entry.Channel)] = entry
+			return nil
+		},
+		PatchNetworkChannelFn: func(_ context.Context, ref store.NetworkChannelRef, patch store.NetworkChannelPatch) error {
+			networkStateMu.Lock()
+			defer networkStateMu.Unlock()
+			key := networkChannelKey(ref.WorkspaceID, ref.Channel)
+			entry, ok := networkChannels[key]
+			if !ok {
+				return sql.ErrNoRows
+			}
+			networkChannels[key] = patch.Apply(entry)
+			return nil
+		},
 		ListNetworkChannelsFn: func(context.Context, store.NetworkChannelQuery) ([]store.NetworkChannelEntry, error) {
 			return nil, nil
 		},
 		ListNetworkMessagesFn: func(context.Context, store.NetworkMessageQuery) ([]store.NetworkMessageEntry, error) {
 			return nil, nil
+		},
+		PutNetworkSubscriptionFn: func(_ context.Context, entry store.NetworkSubscriptionEntry) error {
+			networkStateMu.Lock()
+			defer networkStateMu.Unlock()
+			networkSubscriptions = append(networkSubscriptions, entry)
+			return nil
+		},
+		ListNetworkSubscriptionsFn: func(
+			_ context.Context,
+			query store.NetworkSubscriptionQuery,
+		) ([]store.NetworkSubscriptionEntry, error) {
+			networkStateMu.Lock()
+			defer networkStateMu.Unlock()
+			out := make([]store.NetworkSubscriptionEntry, 0, len(networkSubscriptions))
+			for _, entry := range networkSubscriptions {
+				if entry.WorkspaceID != query.WorkspaceID ||
+					entry.Channel != query.Channel ||
+					entry.PeerID != query.PeerID {
+					continue
+				}
+				if strings.TrimSpace(query.ThreadID) != "" && entry.ThreadID != query.ThreadID {
+					continue
+				}
+				out = append(out, entry)
+			}
+			return out, nil
 		},
 	}
 
@@ -1320,6 +1496,101 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 			channelsPayload.Channels[0].Channel != "builders" ||
 			channelsPayload.Channels[0].PeerCount != 2 {
 			t.Fatalf("channels payload = %#v", channelsPayload.Channels)
+		}
+	})
+
+	t.Run("Should update network channel policy", func(t *testing.T) {
+		t.Parallel()
+
+		updateResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPatch,
+			"/workspaces/ws-workspace/network/channels/builders",
+			[]byte(
+				`{"purpose":"Pair reviews","fanout_policy":"coordinator","coordinator_peer_id":"reviewer.sess-a"}`,
+			),
+		)
+		if updateResp.Code != http.StatusOK {
+			t.Fatalf(
+				"update channel code = %d, want %d; body=%s",
+				updateResp.Code,
+				http.StatusOK,
+				updateResp.Body.String(),
+			)
+		}
+		var updatePayload contract.NetworkChannelResponse
+		testutil.DecodeJSONResponse(t, updateResp, &updatePayload)
+		if updatePayload.Channel.FanoutPolicy != store.NetworkFanoutPolicyCoordinator ||
+			updatePayload.Channel.CoordinatorPeerID != "reviewer.sess-a" ||
+			updatePayload.Channel.Purpose != "Pair reviews" {
+			t.Fatalf("updated channel payload = %#v", updatePayload.Channel)
+		}
+		networkStateMu.Lock()
+		stored := networkChannels[networkChannelKey("ws-workspace", "builders")]
+		networkStateMu.Unlock()
+		if stored.FanoutPolicy != store.NetworkFanoutPolicyCoordinator ||
+			stored.CoordinatorPeerID != "reviewer.sess-a" ||
+			stored.Purpose != "Pair reviews" {
+			t.Fatalf("stored channel = %#v", stored)
+		}
+	})
+
+	t.Run("Should upsert and list network subscriptions with default channel metadata", func(t *testing.T) {
+		t.Parallel()
+
+		upsertResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPut,
+			"/workspaces/ws-workspace/network/channels/quiet/subscriptions",
+			[]byte(
+				`{"thread_id":"thread_quiet","peer_id":"reviewer.sess-a","mode":"digest","keyword_filters":["urgent"]}`,
+			),
+		)
+		if upsertResp.Code != http.StatusOK {
+			t.Fatalf(
+				"upsert subscription code = %d, want %d; body=%s",
+				upsertResp.Code,
+				http.StatusOK,
+				upsertResp.Body.String(),
+			)
+		}
+		var upsertPayload contract.NetworkSubscriptionResponse
+		testutil.DecodeJSONResponse(t, upsertResp, &upsertPayload)
+		if upsertPayload.Subscription.Channel != "quiet" ||
+			upsertPayload.Subscription.ThreadID != "thread_quiet" ||
+			upsertPayload.Subscription.Mode != store.NetworkSubscriptionModeDigest {
+			t.Fatalf("upsert subscription payload = %#v", upsertPayload.Subscription)
+		}
+		networkStateMu.Lock()
+		_, ok := networkChannels[networkChannelKey("ws-workspace", "quiet")]
+		networkStateMu.Unlock()
+		if !ok {
+			t.Fatal("subscription upsert did not materialize default channel metadata")
+		}
+
+		listResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/workspaces/ws-workspace/network/channels/quiet/subscriptions?peer_id=reviewer.sess-a&thread_id=thread_quiet",
+			nil,
+		)
+		if listResp.Code != http.StatusOK {
+			t.Fatalf(
+				"list subscription code = %d, want %d; body=%s",
+				listResp.Code,
+				http.StatusOK,
+				listResp.Body.String(),
+			)
+		}
+		var listPayload contract.NetworkSubscriptionsResponse
+		testutil.DecodeJSONResponse(t, listResp, &listPayload)
+		if len(listPayload.Subscriptions) != 1 ||
+			listPayload.Subscriptions[0].PeerID != "reviewer.sess-a" ||
+			listPayload.Subscriptions[0].Mode != store.NetworkSubscriptionModeDigest {
+			t.Fatalf("list subscriptions payload = %#v", listPayload.Subscriptions)
 		}
 	})
 
@@ -1405,6 +1676,124 @@ func TestBaseHandlersNetworkEndpoints(t *testing.T) {
 		}
 		if got := inboxPayload.Messages[0].ExpiresAt; got != nil {
 			t.Fatalf("ExpiresAt = %#v, want nil for non-expiring inbox message", got)
+		}
+	})
+}
+
+func TestBaseHandlersPromoteNetworkThreadTask(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should promote a thread message into a task", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 7, 1, 17, 0, 0, 0, time.UTC)
+		var createdSpec taskpkg.CreateTask
+		var writtenOrigin store.NetworkTaskThreadOrigin
+		tasks := testutil.StubTaskManager{
+			CreateTaskFn: func(_ context.Context, spec taskpkg.CreateTask, actor taskpkg.ActorContext) (*taskpkg.Task, error) {
+				createdSpec = spec
+				return &taskpkg.Task{
+					ID:             "task-promoted",
+					Scope:          spec.Scope,
+					WorkspaceID:    spec.WorkspaceID,
+					NetworkChannel: spec.NetworkChannel,
+					Title:          spec.Title,
+					Description:    spec.Description,
+					Priority:       spec.Priority,
+					Status:         taskpkg.TaskStatusReady,
+					CreatedBy:      actor.Actor,
+					Origin:         actor.Origin,
+					CreatedAt:      now,
+					UpdatedAt:      now,
+					Metadata:       spec.Metadata,
+				}, nil
+			},
+		}
+		fixture := newHandlerFixtureWithTasks(
+			t,
+			networkTestSessionManager("ws-workspace", "sess-a"),
+			testutil.StubObserver{},
+			tasks,
+			testutil.StubWorkspaceService{},
+			nil,
+			nil,
+		)
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{}
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+			ListConversationMessagesFn: func(
+				_ context.Context,
+				ref store.NetworkConversationRef,
+				query store.NetworkConversationMessageQuery,
+			) ([]store.NetworkConversationMessage, error) {
+				if ref.WorkspaceID != "ws-workspace" || ref.Channel != "builders" ||
+					ref.ThreadID != "thread_promote" || query.Limit != 200 {
+					t.Fatalf("ListConversationMessages ref=%#v query=%#v", ref, query)
+				}
+				return []store.NetworkConversationMessage{
+					{
+						MessageID: "msg-origin",
+						PeerFrom:  "coordinator.sess-a",
+						Text:      strings.Repeat("Investigate high token usage. ", 220),
+					},
+					{
+						MessageID: "msg-followup",
+						PeerFrom:  "reviewer.sess-b",
+						Text:      "Check digest routing",
+					},
+				}, nil
+			},
+			GetThreadFn: func(
+				_ context.Context,
+				ref store.NetworkChannelRef,
+				threadID string,
+			) (store.NetworkThreadSummary, error) {
+				if ref.WorkspaceID != "ws-workspace" || ref.Channel != "builders" || threadID != "thread_promote" {
+					t.Fatalf("GetThread ref=%#v threadID=%q", ref, threadID)
+				}
+				return store.NetworkThreadSummary{
+					WorkspaceID: "ws-workspace",
+					Channel:     "builders",
+					ThreadID:    "thread_promote",
+					Title:       "Token optimization",
+				}, nil
+			},
+			PutNetworkTaskThreadOriginFn: func(_ context.Context, origin store.NetworkTaskThreadOrigin) error {
+				writtenOrigin = origin
+				return nil
+			},
+		}
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/workspaces/ws-workspace/network/channels/builders/threads/thread_promote/promote-task",
+			[]byte(`{"origin_message_id":"msg-followup","priority":"high","metadata":{"source":"test"}}`),
+		)
+		if resp.Code != http.StatusCreated {
+			t.Fatalf("promote status = %d, want %d; body=%s", resp.Code, http.StatusCreated, resp.Body.String())
+		}
+		var payload contract.PromoteNetworkThreadTaskResponse
+		testutil.DecodeJSONResponse(t, resp, &payload)
+		if payload.Task.ID != "task-promoted" ||
+			payload.Task.NetworkChannel != "builders" ||
+			payload.Origin.OriginMessageID != "msg-followup" ||
+			payload.Origin.TaskID != "task-promoted" {
+			t.Fatalf("promote payload = %#v", payload)
+		}
+		if createdSpec.Scope != taskpkg.ScopeWorkspace ||
+			createdSpec.WorkspaceID != "ws-workspace" ||
+			createdSpec.NetworkChannel != "builders" ||
+			createdSpec.Title != "Token optimization" ||
+			createdSpec.Priority != taskpkg.PriorityHigh {
+			t.Fatalf("created promoted task spec = %#v", createdSpec)
+		}
+		if writtenOrigin.TaskID != "task-promoted" ||
+			writtenOrigin.ThreadID != "thread_promote" ||
+			writtenOrigin.OriginMessageID != "msg-followup" ||
+			!slices.Contains(writtenOrigin.SourceMessageIDs, "msg-followup") {
+			t.Fatalf("written origin = %#v", writtenOrigin)
 		}
 	})
 }
@@ -5238,7 +5627,7 @@ func TestBaseHandlersNetworkPeerDetailUsesAuditMetrics(t *testing.T) {
 						Channel:   "builders",
 						PeerFrom:  "coder.sess-coder",
 						MessageID: "msg-1",
-						Size:      1,
+						Size:      11,
 					},
 					{
 						SessionID: coderSessionID,
@@ -5247,7 +5636,7 @@ func TestBaseHandlersNetworkPeerDetailUsesAuditMetrics(t *testing.T) {
 						Channel:   "builders",
 						PeerFrom:  "reviewer.sess-remote",
 						MessageID: "msg-2",
-						Size:      1,
+						Size:      22,
 					},
 					{
 						SessionID: coderSessionID,
@@ -5256,7 +5645,7 @@ func TestBaseHandlersNetworkPeerDetailUsesAuditMetrics(t *testing.T) {
 						Channel:   "builders",
 						PeerFrom:  "coder.sess-coder",
 						MessageID: "msg-1",
-						Size:      1,
+						Size:      33,
 					},
 					{
 						SessionID: coderSessionID,
@@ -5266,7 +5655,7 @@ func TestBaseHandlersNetworkPeerDetailUsesAuditMetrics(t *testing.T) {
 						PeerFrom:  "reviewer.sess-remote",
 						MessageID: "msg-3",
 						Reason:    "busy",
-						Size:      1,
+						Size:      44,
 					},
 				}, nil
 			},
@@ -5299,6 +5688,21 @@ func TestBaseHandlersNetworkPeerDetailUsesAuditMetrics(t *testing.T) {
 		}
 		if got, want := payload.Peer.Metrics.Rejected, int64(1); got != want {
 			t.Fatalf("payload.Peer.Metrics.Rejected = %d, want %d", got, want)
+		}
+		if got, want := payload.Peer.Metrics.SentSizeBytes, int64(11); got != want {
+			t.Fatalf("payload.Peer.Metrics.SentSizeBytes = %d, want %d", got, want)
+		}
+		if got, want := payload.Peer.Metrics.ReceivedSizeBytes, int64(22); got != want {
+			t.Fatalf("payload.Peer.Metrics.ReceivedSizeBytes = %d, want %d", got, want)
+		}
+		if got, want := payload.Peer.Metrics.DeliveredSizeBytes, int64(33); got != want {
+			t.Fatalf("payload.Peer.Metrics.DeliveredSizeBytes = %d, want %d", got, want)
+		}
+		if got, want := payload.Peer.Metrics.RejectedSizeBytes, int64(44); got != want {
+			t.Fatalf("payload.Peer.Metrics.RejectedSizeBytes = %d, want %d", got, want)
+		}
+		if got, want := payload.Peer.Metrics.TotalSizeBytes, int64(110); got != want {
+			t.Fatalf("payload.Peer.Metrics.TotalSizeBytes = %d, want %d", got, want)
 		}
 		if payload.Peer.PeerCard.ProfilesSupported == nil {
 			t.Fatal("payload.Peer.PeerCard.ProfilesSupported = nil, want slice")
@@ -5417,7 +5821,7 @@ func TestBaseHandlersNetworkPeerDetailUsesAuditMetrics(t *testing.T) {
 						Channel:   "builders",
 						PeerFrom:  "reviewer.sess-remote",
 						MessageID: "msg-remote-1",
-						Size:      1,
+						Size:      77,
 					},
 					{
 						Direction: network.AuditDirectionDelivered,
@@ -5425,7 +5829,7 @@ func TestBaseHandlersNetworkPeerDetailUsesAuditMetrics(t *testing.T) {
 						Channel:   "builders",
 						PeerTo:    "reviewer.sess-remote",
 						MessageID: "msg-remote-2",
-						Size:      1,
+						Size:      88,
 					},
 					{
 						Direction: network.AuditDirectionRejected,
@@ -5433,7 +5837,7 @@ func TestBaseHandlersNetworkPeerDetailUsesAuditMetrics(t *testing.T) {
 						Channel:   "builders",
 						PeerFrom:  "other.sess-peer",
 						MessageID: "msg-other",
-						Size:      1,
+						Size:      99,
 					},
 				}, nil
 			},
@@ -5463,6 +5867,18 @@ func TestBaseHandlersNetworkPeerDetailUsesAuditMetrics(t *testing.T) {
 		}
 		if got, want := payload.Peer.Metrics.Rejected, int64(0); got != want {
 			t.Fatalf("payload.Peer.Metrics.Rejected = %d, want %d", got, want)
+		}
+		if got, want := payload.Peer.Metrics.ReceivedSizeBytes, int64(77); got != want {
+			t.Fatalf("payload.Peer.Metrics.ReceivedSizeBytes = %d, want %d", got, want)
+		}
+		if got, want := payload.Peer.Metrics.DeliveredSizeBytes, int64(88); got != want {
+			t.Fatalf("payload.Peer.Metrics.DeliveredSizeBytes = %d, want %d", got, want)
+		}
+		if got, want := payload.Peer.Metrics.RejectedSizeBytes, int64(0); got != want {
+			t.Fatalf("payload.Peer.Metrics.RejectedSizeBytes = %d, want %d", got, want)
+		}
+		if got, want := payload.Peer.Metrics.TotalSizeBytes, int64(165); got != want {
+			t.Fatalf("payload.Peer.Metrics.TotalSizeBytes = %d, want %d", got, want)
 		}
 	})
 }
