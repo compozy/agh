@@ -1236,7 +1236,7 @@ func (r *Router) deliveriesFromLocalPeers(ctx context.Context, envelope Envelope
 	}
 	participants, err := r.threadParticipantSet(ctx, envelope)
 	if err != nil {
-		return nil, err
+		return r.selectEmptyThreadDeliveries(ctx, peers, envelope, nil, mentioned)
 	}
 	if len(participants) == 0 {
 		return r.selectEmptyThreadDeliveries(ctx, peers, envelope, nil, mentioned)
@@ -1258,10 +1258,7 @@ func (r *Router) selectEmptyThreadDeliveries(
 	participants map[string]bool,
 	mentioned map[string]bool,
 ) ([]Delivery, error) {
-	decision, err := r.selectEmptyThreadPeers(ctx, peers, envelope, participants, mentioned)
-	if err != nil {
-		return nil, err
-	}
+	decision := r.selectEmptyThreadPeers(ctx, peers, envelope, participants, mentioned)
 	deliveries := deliveriesFromLocalPeers(decision.fullPeers, envelope)
 	deliveries = append(
 		deliveries,
@@ -1284,35 +1281,36 @@ func (r *Router) selectEmptyThreadPeers(
 	envelope Envelope,
 	participants map[string]bool,
 	mentioned map[string]bool,
-) (emptyThreadDeliveryDecision, error) {
+) emptyThreadDeliveryDecision {
 	policy, coordinatorPeerID, err := r.channelFanoutPolicy(ctx, envelope)
 	if err != nil {
-		return emptyThreadDeliveryDecision{}, err
+		policy = store.NetworkFanoutPolicyCapabilityMatch
+		coordinatorPeerID = ""
 	}
 	baseFull := r.participantMentionPeers(peers, envelope, participants, mentioned)
 	switch policy {
 	case store.NetworkFanoutPolicyAllMembers:
 		full := append(cloneLocalPeers(baseFull.peers), r.allEligibleThreadPeers(peers, envelope, baseFull.seen)...)
-		return emptyThreadDeliveryDecision{fullPeers: sortLocalPeers(full)}, nil
+		return emptyThreadDeliveryDecision{fullPeers: sortLocalPeers(full)}
 	case store.NetworkFanoutPolicyCoordinator:
 		selected, ok := r.coordinatorPeer(peers, envelope, coordinatorPeerID, baseFull.seen)
 		if ok {
 			full := append(cloneLocalPeers(baseFull.peers), selected)
-			return emptyThreadDeliveryDecision{fullPeers: sortLocalPeers(full)}, nil
+			return emptyThreadDeliveryDecision{fullPeers: sortLocalPeers(full)}
 		}
 		return emptyThreadDeliveryDecision{
 			fullPeers:   sortLocalPeers(baseFull.peers),
 			digestPeers: r.threadDigestFallbackPeers(peers, envelope, baseFull.seen),
-		}, nil
+		}
 	default:
 		full := r.selectCapabilityMatchedThreadPeers(peers, envelope, baseFull.peers, baseFull.seen)
 		if len(full) > len(baseFull.peers) {
-			return emptyThreadDeliveryDecision{fullPeers: sortLocalPeers(full)}, nil
+			return emptyThreadDeliveryDecision{fullPeers: sortLocalPeers(full)}
 		}
 		return emptyThreadDeliveryDecision{
 			fullPeers:   sortLocalPeers(baseFull.peers),
 			digestPeers: r.threadDigestFallbackPeers(peers, envelope, baseFull.seen),
-		}, nil
+		}
 	}
 }
 

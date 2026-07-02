@@ -66,6 +66,7 @@ describe("Composer", () => {
     expect(screen.getByTestId("network-composer-mention-thread-peer.beta")).toHaveTextContent(
       "peer.beta"
     );
+    expect(screen.getByRole("group", { name: "Mention recipients" })).toBeInTheDocument();
 
     await user.click(screen.getByTestId("network-composer-send-thread"));
     expect(onSubmit.mock.calls[0]?.[0]?.mentions).toEqual(["peer.alpha", "peer.beta"]);

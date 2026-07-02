@@ -538,11 +538,12 @@ const taskFanOutRunsInputSchema = `{
 		"network_channel":{"type":"string"},
 		"designations":{
 			"type":"array",
+			"minItems":1,
 			"items":{
 				"type":"object",
 				"required":["brief"],
 				"properties":{
-					"brief":{"type":"string"},
+					"brief":{"type":"string","minLength":1},
 					"metadata":{},
 					"idempotency_key":{"type":"string"}
 				},

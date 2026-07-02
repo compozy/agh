@@ -71,11 +71,11 @@ func assertOpenGlobalDBCreatesNetworkChannelsSchema(t *testing.T) {
 		"workspace_id",
 		"channel",
 		"purpose",
-		"fanout_policy",
-		"coordinator_peer_id",
 		"created_by",
 		"created_at",
 		"updated_at",
+		"fanout_policy",
+		"coordinator_peer_id",
 	})
 	hasWorkspaceFK, err := tableHasForeignKey(testutil.Context(t), globalDB.db, "network_channels", "workspaces")
 	if err != nil {

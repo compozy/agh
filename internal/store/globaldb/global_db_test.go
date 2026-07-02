@@ -447,6 +447,87 @@ func TestGlobalSchemaMigrationsAreAppendOnlyContract(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("Should introduce network activation fields only through tail migrations", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		db, err := store.OpenSQLiteDatabase(ctx, path, nil)
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(prefix) error = %v", err)
+		}
+		if err := store.RunMigrations(ctx, db, globalSchemaMigrations[:25]); err != nil {
+			t.Fatalf("RunMigrations(v25 prefix) error = %v", err)
+		}
+
+		channelColumns, err := tableColumns(ctx, db, "network_channels")
+		if err != nil {
+			t.Fatalf("tableColumns(network_channels) error = %v", err)
+		}
+		for _, column := range []string{"fanout_policy", "coordinator_peer_id"} {
+			if _, ok := channelColumns[column]; ok {
+				t.Fatalf("network_channels has %q before activation policy migration", column)
+			}
+		}
+		timelineColumns, err := tableColumns(ctx, db, "network_timeline_log")
+		if err != nil {
+			t.Fatalf("tableColumns(network_timeline_log) error = %v", err)
+		}
+		for _, column := range []string{"mentions_json", "ext_json"} {
+			if _, ok := timelineColumns[column]; ok {
+				t.Fatalf("network_timeline_log has %q before its owning migration", column)
+			}
+		}
+		for _, table := range []string{
+			"network_thread_peer_token_stats",
+			"network_subscriptions",
+			"network_delivery_guidance_state",
+			"network_task_thread_origins",
+		} {
+			exists, err := tableExists(ctx, db, table)
+			if err != nil {
+				t.Fatalf("tableExists(%s) error = %v", table, err)
+			}
+			if exists {
+				t.Fatalf("%s exists before its owning tail migration", table)
+			}
+		}
+
+		if err := store.RunMigrations(ctx, db, globalSchemaMigrations); err != nil {
+			t.Fatalf("RunMigrations(full upgrade) error = %v", err)
+		}
+		assertTableColumns(t, db, "network_channels", []string{
+			"workspace_id",
+			"channel",
+			"purpose",
+			"created_by",
+			"created_at",
+			"updated_at",
+			"fanout_policy",
+			"coordinator_peer_id",
+		})
+		timelineColumns, err = tableColumns(ctx, db, "network_timeline_log")
+		if err != nil {
+			t.Fatalf("tableColumns(network_timeline_log after upgrade) error = %v", err)
+		}
+		for _, column := range []string{"mentions_json", "ext_json"} {
+			if _, ok := timelineColumns[column]; !ok {
+				t.Fatalf("network_timeline_log missing %q after full upgrade", column)
+			}
+		}
+		assertTablesPresent(
+			t,
+			db,
+			"network_thread_peer_token_stats",
+			"network_subscriptions",
+			"network_delivery_guidance_state",
+			"network_task_thread_origins",
+		)
+		if err := db.Close(); err != nil {
+			t.Fatalf("db.Close() error = %v", err)
+		}
+	})
 }
 
 type expectedGlobalMigrationIdentity struct {

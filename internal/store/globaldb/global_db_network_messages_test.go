@@ -40,10 +40,10 @@ func TestOpenGlobalDBCreatesNetworkTimelineLogSchema(t *testing.T) {
 			"intent",
 			"text",
 			"preview_text",
-			"mentions_json",
 			"body_json",
 			"timestamp",
 			"ext_json",
+			"mentions_json",
 		})
 		assertTableHasNoForeignKeys(t, globalDB.db, "network_timeline_log")
 	})

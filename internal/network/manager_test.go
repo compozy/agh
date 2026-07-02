@@ -1985,6 +1985,43 @@ func TestDeliverySubscriptionModeResolvesPrecedenceAndExemptions(t *testing.T) {
 	})
 }
 
+func TestManagerApplyDeliverySubscriptions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should fail open per delivery when subscription lookup fails", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &Manager{
+			conversations: fakeNetworkSubscriptionStore{err: errors.New("subscription store busy")},
+			logger:        discardManagerLogger(),
+		}
+		deliveries := []Delivery{
+			{
+				SessionID: "sess-reviewer",
+				PeerID:    "reviewer.sess-xyz",
+				Envelope:  testDeliveryEnvelope(t, "msg-subscription-fallback-a", "first"),
+			},
+			{
+				SessionID: "sess-observer",
+				PeerID:    "observer.sess-xyz",
+				Envelope:  testDeliveryEnvelope(t, "msg-subscription-fallback-b", "second"),
+				Mode:      store.NetworkSubscriptionModeDigest,
+			},
+		}
+
+		got := manager.applyDeliverySubscriptions(t.Context(), deliveries)
+		if len(got) != len(deliveries) {
+			t.Fatalf("len(applyDeliverySubscriptions()) = %d, want %d", len(got), len(deliveries))
+		}
+		if got[0].PeerID != "reviewer.sess-xyz" || got[0].Mode != store.NetworkSubscriptionModeFull {
+			t.Fatalf("first delivery = %#v, want normalized full fallback", got[0])
+		}
+		if got[1].PeerID != "observer.sess-xyz" || got[1].Mode != store.NetworkSubscriptionModeDigest {
+			t.Fatalf("second delivery = %#v, want preserved digest fallback", got[1])
+		}
+	})
+}
+
 func discardManagerLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
@@ -2005,13 +2042,18 @@ type recordingConversationStore struct {
 }
 
 type fakeNetworkSubscriptionStore struct {
+	store.NetworkConversationStore
 	entries []store.NetworkSubscriptionEntry
+	err     error
 }
 
 func (s fakeNetworkSubscriptionStore) ListNetworkSubscriptions(
 	_ context.Context,
 	query store.NetworkSubscriptionQuery,
 ) ([]store.NetworkSubscriptionEntry, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
 	out := make([]store.NetworkSubscriptionEntry, 0, len(s.entries))
 	for _, entry := range s.entries {
 		if strings.TrimSpace(entry.WorkspaceID) != strings.TrimSpace(query.WorkspaceID) ||

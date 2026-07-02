@@ -560,6 +560,139 @@ func TestRouterRoutesThreadBroadcastByPersistedParticipants(t *testing.T) {
 		}
 	})
 
+	t.Run("Should digest fallback when participant lookup fails", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 6, 12, 2, 30, 0, time.UTC)
+		registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+		if err != nil {
+			t.Fatalf("NewPeerRegistry() error = %v", err)
+		}
+		if _, err := registry.RegisterLocal(
+			"sess-reviewer",
+			testWorkspaceID,
+			"builders",
+			mustPeerCard(t, "reviewer.sess-b"),
+			now,
+		); err != nil {
+			t.Fatalf("RegisterLocal(reviewer) error = %v", err)
+		}
+
+		router, err := NewRouter(
+			registry,
+			&spyRouterTransport{},
+			DefaultMaxReplayAge,
+			WithRouterClock(func() time.Time { return now }),
+			WithRouterThreadParticipantResolver(threadParticipantResolverFunc(
+				func(context.Context, store.NetworkChannelRef, string) ([]store.NetworkThreadParticipant, error) {
+					return nil, errors.New("participants unavailable")
+				},
+			)),
+		)
+		if err != nil {
+			t.Fatalf("NewRouter() error = %v", err)
+		}
+
+		payload, err := json.Marshal(Envelope{
+			Protocol:    ProtocolV0,
+			WorkspaceID: testWorkspaceID,
+			ID:          "msg_thread_participant_error",
+			Kind:        KindSay,
+			Channel:     "builders",
+			Surface:     new(SurfaceThread),
+			ThreadID:    new("thread_participant_error"),
+			From:        "coder.sess-remote",
+			TS:          now.Unix(),
+			Body:        mustRawJSON(t, SayBody{Text: "thread update during participant outage"}),
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(thread broadcast) error = %v", err)
+		}
+
+		result, err := router.Receive(context.Background(), payload)
+		if err != nil {
+			t.Fatalf("Receive(thread broadcast) error = %v", err)
+		}
+		if got, want := len(result.Deliveries), 1; got != want {
+			t.Fatalf("len(thread deliveries with participant error) = %d, want %d", got, want)
+		}
+		if got, want := result.Deliveries[0].PeerID, "reviewer.sess-b"; got != want {
+			t.Fatalf("participant error fallback peer_id = %q, want %q", got, want)
+		}
+		if got, want := result.Deliveries[0].Mode, store.NetworkSubscriptionModeDigest; got != want {
+			t.Fatalf("participant error fallback mode = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should digest fallback when channel policy lookup fails", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 6, 12, 2, 45, 0, time.UTC)
+		registry, err := NewPeerRegistry(10*time.Second, WithPeerRegistryClock(func() time.Time { return now }))
+		if err != nil {
+			t.Fatalf("NewPeerRegistry() error = %v", err)
+		}
+		if _, err := registry.RegisterLocal(
+			"sess-reviewer",
+			testWorkspaceID,
+			"builders",
+			mustPeerCard(t, "reviewer.sess-b"),
+			now,
+		); err != nil {
+			t.Fatalf("RegisterLocal(reviewer) error = %v", err)
+		}
+
+		router, err := NewRouter(
+			registry,
+			&spyRouterTransport{},
+			DefaultMaxReplayAge,
+			WithRouterClock(func() time.Time { return now }),
+			WithRouterThreadParticipantResolver(threadParticipantResolverFunc(
+				func(context.Context, store.NetworkChannelRef, string) ([]store.NetworkThreadParticipant, error) {
+					return nil, nil
+				},
+			)),
+			WithRouterChannelPolicyResolver(channelPolicyResolverFunc(
+				func(context.Context, store.NetworkChannelRef) (store.NetworkChannelEntry, error) {
+					return store.NetworkChannelEntry{}, errors.New("channel policy unavailable")
+				},
+			)),
+		)
+		if err != nil {
+			t.Fatalf("NewRouter() error = %v", err)
+		}
+
+		payload, err := json.Marshal(Envelope{
+			Protocol:    ProtocolV0,
+			WorkspaceID: testWorkspaceID,
+			ID:          "msg_thread_policy_error",
+			Kind:        KindSay,
+			Channel:     "builders",
+			Surface:     new(SurfaceThread),
+			ThreadID:    new("thread_policy_error"),
+			From:        "coder.sess-remote",
+			TS:          now.Unix(),
+			Body:        mustRawJSON(t, SayBody{Text: "thread update during policy outage"}),
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(thread broadcast) error = %v", err)
+		}
+
+		result, err := router.Receive(context.Background(), payload)
+		if err != nil {
+			t.Fatalf("Receive(thread broadcast) error = %v", err)
+		}
+		if got, want := len(result.Deliveries), 1; got != want {
+			t.Fatalf("len(thread deliveries with policy error) = %d, want %d", got, want)
+		}
+		if got, want := result.Deliveries[0].PeerID, "reviewer.sess-b"; got != want {
+			t.Fatalf("policy error fallback peer_id = %q, want %q", got, want)
+		}
+		if got, want := result.Deliveries[0].Mode, store.NetworkSubscriptionModeDigest; got != want {
+			t.Fatalf("policy error fallback mode = %q, want %q", got, want)
+		}
+	})
+
 	t.Run("Should enforce coordinator channel fanout policy", func(t *testing.T) {
 		t.Parallel()
 

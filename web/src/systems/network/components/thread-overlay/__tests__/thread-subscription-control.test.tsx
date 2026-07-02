@@ -137,4 +137,29 @@ describe("ThreadSubscriptionControl", () => {
       thread_id: "thread_ops",
     });
   });
+
+  it("shows an unavailable disabled state when subscriptions cannot load", async () => {
+    listNetworkSubscriptionsMock.mockRejectedValue(new Error("subscription lookup failed"));
+
+    renderWithClient(
+      <ThreadSubscriptionControl
+        channel="ops"
+        peerId="peer-self"
+        threadId="thread_ops"
+        workspaceId="ws_1"
+      />
+    );
+
+    await waitFor(() =>
+      expect(screen.getByTestId("network-thread-subscription-trigger")).toHaveTextContent(
+        "Unavailable"
+      )
+    );
+    expect(screen.getByTestId("network-thread-subscription-trigger")).toBeDisabled();
+    expect(screen.getByTestId("network-thread-subscription-trigger")).not.toHaveTextContent(
+      "Default"
+    );
+    expect(upsertNetworkSubscriptionMock).not.toHaveBeenCalled();
+    expect(deleteNetworkSubscriptionMock).not.toHaveBeenCalled();
+  });
 });

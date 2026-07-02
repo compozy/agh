@@ -53,7 +53,11 @@ export function ThreadSubscriptionControl({
   peerId,
 }: ThreadSubscriptionControlProps) {
   const enabled = workspaceId !== "" && channel !== "" && threadId !== "" && Boolean(peerId);
-  const subscriptions = useQuery(
+  const {
+    data: subscriptions = [],
+    isError: hasSubscriptionError,
+    isFetching: isSubscriptionsFetching,
+  } = useQuery(
     networkSubscriptionsOptions(
       workspaceId,
       channel,
@@ -63,10 +67,13 @@ export function ThreadSubscriptionControl({
   );
   const upsert = useUpsertNetworkSubscription();
   const remove = useDeleteNetworkSubscription();
-  const current = subscriptions.data?.[0] ?? null;
-  const isBusy = upsert.isPending || remove.isPending || subscriptions.isFetching;
-  const label = modeLabel(current?.mode);
-  const Icon = current?.mode === "mute" ? BellOff : Bell;
+  const current = subscriptions[0] ?? null;
+  const isBusy = upsert.isPending || remove.isPending || isSubscriptionsFetching;
+  const label = hasSubscriptionError ? "Unavailable" : modeLabel(current?.mode);
+  const Icon = hasSubscriptionError || current?.mode === "mute" ? BellOff : Bell;
+  const triggerLabel = hasSubscriptionError
+    ? "Thread delivery mode unavailable"
+    : "Thread delivery mode";
 
   const setMode = (mode: NetworkSubscriptionMode) => {
     if (!peerId) {
@@ -95,9 +102,9 @@ export function ThreadSubscriptionControl({
       <DropdownMenuTrigger
         render={
           <Button
-            aria-label="Thread delivery mode"
+            aria-label={triggerLabel}
             data-testid="network-thread-subscription-trigger"
-            disabled={!enabled || isBusy}
+            disabled={!enabled || isBusy || hasSubscriptionError}
             size="sm"
             type="button"
             variant="ghost"

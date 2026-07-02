@@ -3767,10 +3767,7 @@ func activeRunSummary(runs []Run, maxAttempts int) *RunSummary {
 		EndedAt:               current.EndedAt,
 		Error:                 current.Error,
 	}
-	if designation, ok := DesignationFromRun(*current); ok {
-		summary.DesignationGroupID = designation.GroupID
-		summary.Designation = designation.Summary()
-	}
+	ApplyRunDesignationSummary(summary, *current)
 	return summary
 }
 

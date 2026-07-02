@@ -121,7 +121,8 @@ function useTaskDetailOrchestrationTab(
       }
       try {
         const result = await fanOutMutation.mutateAsync({ id: taskId, data });
-        toast.success(`${result.runs.length} designated runs queued.`);
+        const runCount = result.runs.length;
+        toast.success(`${runCount} designated ${runCount === 1 ? "run" : "runs"} queued.`);
         return result;
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Failed to fan out task runs");

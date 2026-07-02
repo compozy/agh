@@ -577,9 +577,9 @@ func (c *deliveryCoordinator) markGuidanceDelivered(sessionID string, item queue
 	}
 
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	queue := c.queues[target]
 	if queue == nil || queue.token != item.SessionToken {
+		c.mu.Unlock()
 		return
 	}
 
@@ -590,23 +590,26 @@ func (c *deliveryCoordinator) markGuidanceDelivered(sessionID string, item queue
 		state.protocolDelivered = true
 	}
 	c.guidance[target] = state
-	if c.guidanceStore != nil {
-		if err := c.guidanceStore.PutNetworkDeliveryGuidanceState(
-			c.lifecycleCtx,
-			store.NetworkDeliveryGuidanceState{
-				SessionID:                 target,
-				ReplyGuidanceDelivered:    state.replyDelivered,
-				ProtocolGuidanceDelivered: state.protocolDelivered,
-			},
-		); err != nil && c.logger != nil {
-			c.logger.Warn(
-				"network.delivery_guidance.persist_failed",
-				"session_id",
-				target,
-				"error",
-				err,
-			)
-		}
+	guidanceStore := c.guidanceStore
+	persistedState := store.NetworkDeliveryGuidanceState{
+		SessionID:                 target,
+		ReplyGuidanceDelivered:    state.replyDelivered,
+		ProtocolGuidanceDelivered: state.protocolDelivered,
+	}
+	c.mu.Unlock()
+
+	if guidanceStore == nil {
+		return
+	}
+	err := guidanceStore.PutNetworkDeliveryGuidanceState(c.lifecycleCtx, persistedState)
+	if err != nil && c.logger != nil {
+		c.logger.Warn(
+			"network.delivery_guidance.persist_failed",
+			"session_id",
+			target,
+			"error",
+			err,
+		)
 	}
 }
 

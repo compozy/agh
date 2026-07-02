@@ -614,7 +614,7 @@ func taskRoleDesignationOverlay(activation taskRoleActivation) string {
 	if brief := strings.TrimSpace(activation.Designation.Brief); brief != "" {
 		parts = append(parts, fmt.Sprintf("brief %q", brief))
 	}
-	return "Designated fan-out assignment: " + strings.Join(parts, ", ") + ".\n"
+	return "Designated fan-out assignment: " + strings.Join(parts, ", ") + "."
 }
 
 func applyTaskRoleDesignation(activation *taskRoleActivation, run taskpkg.Run) {

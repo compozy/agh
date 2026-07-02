@@ -115,6 +115,9 @@ func TestTaskRoleRuntimeActivatesPoolOwnerSessions(t *testing.T) {
 				t.Fatalf("PromptOverlay missing %q:\n%s", required, overlay)
 			}
 		}
+		if strings.Contains(overlay, ".\n\nUse `") {
+			t.Fatalf("PromptOverlay includes a blank line after designation:\n%s", overlay)
+		}
 	})
 
 	t.Run("Should reuse an active matching role session for duplicate queued runs", func(t *testing.T) {

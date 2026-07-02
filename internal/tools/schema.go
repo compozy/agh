@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"unicode/utf8"
 )
 
 const (
@@ -98,10 +99,59 @@ func validateSchemaNode(path string, schema map[string]json.RawMessage, value an
 	if err := validateSchemaNot(path, schema["not"], value); err != nil {
 		return err
 	}
-	if !slices.Contains(types, schemaTypeObject) && jsonValueType(value) != schemaTypeObject {
+	if err := validateSchemaStringNode(path, schema, value); err != nil {
+		return err
+	}
+	if err := validateSchemaArrayNode(path, schema, value); err != nil {
+		return err
+	}
+	if slices.Contains(types, schemaTypeObject) || jsonValueType(value) == schemaTypeObject {
+		return validateSchemaObjectNode(path, schema, value)
+	}
+	return nil
+}
+
+func validateSchemaStringNode(path string, schema map[string]json.RawMessage, value any) error {
+	stringValue, ok := value.(string)
+	if !ok {
 		return nil
 	}
-	return validateSchemaObjectNode(path, schema, value)
+	minLength, ok, err := schemaNonNegativeInteger(schema["minLength"])
+	if err != nil {
+		return fmt.Errorf("%s.minLength: %w", path, err)
+	}
+	stringLength := utf8.RuneCountInString(stringValue)
+	if ok && stringLength < minLength {
+		return fmt.Errorf("%s: string length %d is less than minLength %d", path, stringLength, minLength)
+	}
+	return nil
+}
+
+func validateSchemaArrayNode(path string, schema map[string]json.RawMessage, value any) error {
+	arrayValue, ok := value.([]any)
+	if !ok {
+		return nil
+	}
+	minItems, ok, err := schemaNonNegativeInteger(schema["minItems"])
+	if err != nil {
+		return fmt.Errorf("%s.minItems: %w", path, err)
+	}
+	if ok && len(arrayValue) < minItems {
+		return fmt.Errorf("%s: array length %d is less than minItems %d", path, len(arrayValue), minItems)
+	}
+	items, ok, err := schemaNode(schema["items"])
+	if err != nil {
+		return fmt.Errorf("%s.items: %w", path, err)
+	}
+	if !ok {
+		return nil
+	}
+	for idx, item := range arrayValue {
+		if err := validateSchemaNode(fmt.Sprintf("%s[%d]", path, idx), items, item); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func validateSchemaObjectNode(path string, schema map[string]json.RawMessage, value any) error {
@@ -236,6 +286,21 @@ func validateJSONSchemaDocument(path string, schema map[string]json.RawMessage) 
 			return err
 		}
 	}
+	if _, _, err := schemaNonNegativeInteger(schema["minLength"]); err != nil {
+		return fmt.Errorf("%s.minLength: %w", path, err)
+	}
+	if _, _, err := schemaNonNegativeInteger(schema["minItems"]); err != nil {
+		return fmt.Errorf("%s.minItems: %w", path, err)
+	}
+	items, ok, err := schemaNode(schema["items"])
+	if err != nil {
+		return fmt.Errorf("%s.items: %w", path, err)
+	}
+	if ok {
+		if err := validateJSONSchemaDocument(path+".items", items); err != nil {
+			return err
+		}
+	}
 
 	if err := validateJSONSchemaDocumentArray(path+".allOf", schema["allOf"]); err != nil {
 		return err
@@ -352,6 +417,20 @@ func schemaNodeArray(raw json.RawMessage) ([]map[string]json.RawMessage, error) 
 		return nil, err
 	}
 	return values, nil
+}
+
+func schemaNonNegativeInteger(raw json.RawMessage) (int, bool, error) {
+	if len(bytes.TrimSpace(raw)) == 0 {
+		return 0, false, nil
+	}
+	var value int
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return 0, false, err
+	}
+	if value < 0 {
+		return 0, false, fmt.Errorf("value must be non-negative")
+	}
+	return value, true, nil
 }
 
 func additionalPropertiesFalse(raw json.RawMessage) bool {

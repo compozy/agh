@@ -42,6 +42,19 @@ func DesignationFromRun(run Run) (RunDesignation, bool) {
 	return designation, true
 }
 
+// ApplyRunDesignationSummary projects designation metadata from a run into a summary.
+func ApplyRunDesignationSummary(summary *RunSummary, run Run) {
+	if summary == nil {
+		return
+	}
+	designation, ok := DesignationFromRun(run)
+	if !ok {
+		return
+	}
+	summary.DesignationGroupID = designation.GroupID
+	summary.Designation = designation.Summary()
+}
+
 // Summary returns the prompt/API-safe projection of a run designation.
 func (d RunDesignation) Summary() *RunDesignationSummary {
 	return &RunDesignationSummary{

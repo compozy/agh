@@ -1261,10 +1261,7 @@ func taskInboxRunSummary(run *taskpkg.Run, maxAttempts int) *taskpkg.RunSummary 
 		EndedAt:            run.EndedAt,
 		Error:              strings.TrimSpace(run.Error),
 	}
-	if designation, ok := taskpkg.DesignationFromRun(*run); ok {
-		summary.DesignationGroupID = designation.GroupID
-		summary.Designation = designation.Summary()
-	}
+	taskpkg.ApplyRunDesignationSummary(summary, *run)
 	return summary
 }
 

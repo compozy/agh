@@ -1138,11 +1138,7 @@ func (m *Manager) handleInboundMessage(payload []byte) {
 	if len(result.Deliveries) == 0 {
 		return
 	}
-	deliveries, err := m.applyDeliverySubscriptions(m.lifecycleCtx, result.Deliveries)
-	if err != nil {
-		m.logger.Warn("network.message.subscription_filter_failed", "error", err)
-		return
-	}
+	deliveries := m.applyDeliverySubscriptions(m.lifecycleCtx, result.Deliveries)
 	if len(deliveries) == 0 {
 		return
 	}
@@ -1151,9 +1147,9 @@ func (m *Manager) handleInboundMessage(payload []byte) {
 	}
 }
 
-func (m *Manager) applyDeliverySubscriptions(ctx context.Context, deliveries []Delivery) ([]Delivery, error) {
+func (m *Manager) applyDeliverySubscriptions(ctx context.Context, deliveries []Delivery) []Delivery {
 	if len(deliveries) == 0 {
-		return nil, nil
+		return nil
 	}
 	subscriptions := networkSubscriptionStoreFromCandidate(m.conversations)
 	filtered := make([]Delivery, 0, len(deliveries))
@@ -1163,7 +1159,17 @@ func (m *Manager) applyDeliverySubscriptions(ctx context.Context, deliveries []D
 		if subscriptions != nil {
 			mode, err := deliverySubscriptionMode(ctx, subscriptions, delivery)
 			if err != nil {
-				return nil, err
+				if m.logger != nil {
+					m.logger.Warn(
+						"network.message.subscription_lookup_failed",
+						"peer_id",
+						delivery.PeerID,
+						"error",
+						err,
+					)
+				}
+				filtered = append(filtered, next)
+				continue
 			}
 			if mode == store.NetworkSubscriptionModeMute {
 				continue
@@ -1172,7 +1178,7 @@ func (m *Manager) applyDeliverySubscriptions(ctx context.Context, deliveries []D
 		}
 		filtered = append(filtered, next)
 	}
-	return filtered, nil
+	return filtered
 }
 
 func networkSubscriptionStoreFromCandidate(candidate any) networkSubscriptionStore {

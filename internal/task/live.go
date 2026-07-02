@@ -445,10 +445,7 @@ func runSummaryFromRun(run Run, maxAttempts int) *RunSummary {
 		EndedAt:               run.EndedAt,
 		Error:                 run.Error,
 	}
-	if designation, ok := DesignationFromRun(run); ok {
-		summary.DesignationGroupID = designation.GroupID
-		summary.Designation = designation.Summary()
-	}
+	ApplyRunDesignationSummary(summary, run)
 	return summary
 }
 

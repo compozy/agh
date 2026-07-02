@@ -271,54 +271,58 @@ func TestPromptNetworkMetaMatchesWrappedConversationFields(t *testing.T) {
 func TestFormatNetworkMessageCapsStructuredBody(t *testing.T) {
 	t.Parallel()
 
-	envelope := Envelope{
-		Protocol:    ProtocolV0,
-		WorkspaceID: testWorkspaceID,
-		ID:          "msg-trace-large",
-		Kind:        KindTrace,
-		Channel:     "builders",
-		Surface:     new(SurfaceDirect),
-		DirectID:    new("direct_0123456789abcdef0123456789abcdef"),
-		From:        "coder.sess-abc",
-		To:          new("reviewer.sess-xyz"),
-		WorkID:      new("work-large-trace"),
-		TS:          time.Date(2026, 4, 11, 13, 0, 0, 0, time.UTC).Unix(),
-		Body: mustRawJSON(t, TraceBody{
-			State:   WorkStateWorking,
-			Message: strings.Repeat("large structured body ", 40),
-		}),
-	}
+	t.Run("Should cap structured network bodies with valid truncation metadata", func(t *testing.T) {
+		t.Parallel()
 
-	rendered, err := formatNetworkMessageWithDeliveryModeAndLimit(
-		envelope,
-		networkMessageGuidanceCompact,
-		store.NetworkSubscriptionModeFull,
-		96,
-	)
-	if err != nil {
-		t.Fatalf("formatNetworkMessageWithDeliveryModeAndLimit() error = %v", err)
-	}
-	if !strings.Contains(rendered, `<network-body-truncated`) {
-		t.Fatalf("rendered message missing truncation marker:\n%s", rendered)
-	}
-	decoded, err := base64.StdEncoding.DecodeString(extractNetworkBodyBase64(t, rendered))
-	if err != nil {
-		t.Fatalf("DecodeString(network body) error = %v", err)
-	}
-	var payload struct {
-		Truncated     bool `json:"truncated"`
-		OriginalBytes int  `json:"original_bytes"`
-		DeliveredMax  int  `json:"delivered_max_bytes"`
-	}
-	if err := json.Unmarshal(decoded, &payload); err != nil {
-		t.Fatalf("json.Unmarshal(truncated body) error = %v; decoded=%s", err, decoded)
-	}
-	if len(decoded) > 96 {
-		t.Fatalf("decoded truncated body bytes = %d, want <= 96: %s", len(decoded), decoded)
-	}
-	if !payload.Truncated || payload.OriginalBytes <= payload.DeliveredMax || payload.DeliveredMax != 96 {
-		t.Fatalf("truncated payload = %#v, want capped valid JSON", payload)
-	}
+		envelope := Envelope{
+			Protocol:    ProtocolV0,
+			WorkspaceID: testWorkspaceID,
+			ID:          "msg-trace-large",
+			Kind:        KindTrace,
+			Channel:     "builders",
+			Surface:     new(SurfaceDirect),
+			DirectID:    new("direct_0123456789abcdef0123456789abcdef"),
+			From:        "coder.sess-abc",
+			To:          new("reviewer.sess-xyz"),
+			WorkID:      new("work-large-trace"),
+			TS:          time.Date(2026, 4, 11, 13, 0, 0, 0, time.UTC).Unix(),
+			Body: mustRawJSON(t, TraceBody{
+				State:   WorkStateWorking,
+				Message: strings.Repeat("large structured body ", 40),
+			}),
+		}
+
+		rendered, err := formatNetworkMessageWithDeliveryModeAndLimit(
+			envelope,
+			networkMessageGuidanceCompact,
+			store.NetworkSubscriptionModeFull,
+			96,
+		)
+		if err != nil {
+			t.Fatalf("formatNetworkMessageWithDeliveryModeAndLimit() error = %v", err)
+		}
+		if !strings.Contains(rendered, `<network-body-truncated`) {
+			t.Fatalf("rendered message missing truncation marker:\n%s", rendered)
+		}
+		decoded, err := base64.StdEncoding.DecodeString(extractNetworkBodyBase64(t, rendered))
+		if err != nil {
+			t.Fatalf("DecodeString(network body) error = %v", err)
+		}
+		var payload struct {
+			Truncated     bool `json:"truncated"`
+			OriginalBytes int  `json:"original_bytes"`
+			DeliveredMax  int  `json:"delivered_max_bytes"`
+		}
+		if err := json.Unmarshal(decoded, &payload); err != nil {
+			t.Fatalf("json.Unmarshal(truncated body) error = %v; decoded=%s", err, decoded)
+		}
+		if len(decoded) > 96 {
+			t.Fatalf("decoded truncated body bytes = %d, want <= 96: %s", len(decoded), decoded)
+		}
+		if !payload.Truncated || payload.OriginalBytes <= payload.DeliveredMax || payload.DeliveredMax != 96 {
+			t.Fatalf("truncated payload = %#v, want capped valid JSON", payload)
+		}
+	})
 }
 
 func TestFormatNetworkMessageFallsBackToCompactRawJSONWithoutPreview(t *testing.T) {
@@ -689,6 +693,42 @@ func TestDeliveryCoordinatorCompactsReplyGuidanceAfterFirstDelivery(t *testing.T
 		}
 
 		prompter.finishCall(1, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
+		coordinator.wait()
+	})
+
+	t.Run("Should persist guidance state outside the coordinator lock", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		prompter := newFakeDeliveryPrompter()
+		guidanceStore := newBlockingDeliveryGuidanceStore()
+		defer guidanceStore.release()
+		coordinator, err := newDeliveryCoordinator(
+			ctx,
+			4,
+			prompter,
+			withDeliveryGuidanceStore(guidanceStore),
+		)
+		if err != nil {
+			t.Fatalf("newDeliveryCoordinator() error = %v", err)
+		}
+
+		if err := coordinator.acceptOne(ctx, Delivery{
+			SessionID: "sess-guidance-persist",
+			Envelope:  testDeliveryEnvelope(t, "msg-guidance-persist", "persist guidance outside lock"),
+		}); err != nil {
+			t.Fatalf("acceptOne() error = %v", err)
+		}
+		prompter.waitForCalls(t, 1)
+		prompter.finishCall(0, acp.AgentEvent{Type: acp.EventTypeDone, Timestamp: time.Now().UTC()})
+		guidanceStore.waitForPut(t)
+
+		if !coordinator.mu.TryLock() {
+			t.Fatal("coordinator mutex is locked while guidance persistence is blocked")
+		}
+		coordinator.mu.Unlock()
+
+		guidanceStore.release()
 		coordinator.wait()
 	})
 }
@@ -1530,6 +1570,60 @@ func (p *fakeDeliveryPrompter) waitForCalls(t *testing.T, want int) {
 			t.Fatalf("timed out waiting for %d prompt calls; got %d", want, p.callCount())
 		}
 	}
+}
+
+type blockingDeliveryGuidanceStore struct {
+	putStarted  chan struct{}
+	releasePut  chan struct{}
+	releaseOnce sync.Once
+}
+
+func newBlockingDeliveryGuidanceStore() *blockingDeliveryGuidanceStore {
+	return &blockingDeliveryGuidanceStore{
+		putStarted: make(chan struct{}, 1),
+		releasePut: make(chan struct{}),
+	}
+}
+
+func (s *blockingDeliveryGuidanceStore) GetNetworkDeliveryGuidanceState(
+	context.Context,
+	string,
+) (store.NetworkDeliveryGuidanceState, error) {
+	return store.NetworkDeliveryGuidanceState{}, nil
+}
+
+func (s *blockingDeliveryGuidanceStore) PutNetworkDeliveryGuidanceState(
+	ctx context.Context,
+	_ store.NetworkDeliveryGuidanceState,
+) error {
+	select {
+	case s.putStarted <- struct{}{}:
+	default:
+	}
+	select {
+	case <-s.releasePut:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (s *blockingDeliveryGuidanceStore) waitForPut(t *testing.T) {
+	t.Helper()
+
+	timer := time.NewTimer(2 * time.Second)
+	defer timer.Stop()
+	select {
+	case <-s.putStarted:
+	case <-timer.C:
+		t.Fatal("timed out waiting for guidance persistence")
+	}
+}
+
+func (s *blockingDeliveryGuidanceStore) release() {
+	s.releaseOnce.Do(func() {
+		close(s.releasePut)
+	})
 }
 
 func extractNetworkBodyBase64(t *testing.T, rendered string) string {

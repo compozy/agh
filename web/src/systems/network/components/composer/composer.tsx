@@ -79,6 +79,7 @@ function ComposerView({
           aria-label="Mention recipients"
           className="flex min-h-5 flex-wrap items-center gap-1.5"
           data-testid={`network-composer-mentions-${testIdSuffix}`}
+          role="group"
         >
           {state.mentions.map(peerId => (
             <Pill

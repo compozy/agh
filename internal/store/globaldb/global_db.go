@@ -113,7 +113,7 @@ const networkAuditLogTableStatement = `CREATE TABLE IF NOT EXISTS network_audit_
 		timestamp  TEXT NOT NULL
 	);`
 
-const networkTimelineLogTableStatement = `CREATE TABLE IF NOT EXISTS network_timeline_log (
+const networkTimelineLogPrePolicyMentionsStatement = `CREATE TABLE IF NOT EXISTS network_timeline_log (
 			message_id    TEXT NOT NULL,
 			session_id    TEXT,
 			workspace_id  TEXT NOT NULL,
@@ -132,7 +132,6 @@ const networkTimelineLogTableStatement = `CREATE TABLE IF NOT EXISTS network_tim
 		intent        TEXT,
 		text          TEXT,
 		preview_text  TEXT NOT NULL DEFAULT '',
-		mentions_json TEXT NOT NULL DEFAULT '[]',
 		body_json     TEXT NOT NULL,
 		timestamp     TEXT NOT NULL,
 		CHECK (
@@ -184,6 +183,13 @@ const networkDeliveryGuidanceStateTableStatement = `CREATE TABLE IF NOT EXISTS n
 			updated_at                   TEXT NOT NULL
 		);`
 
+const (
+	networkChannelCoordinatorPeerIDColumn = "coordinator_peer_id"
+	networkChannelFanoutPolicyColumn      = "fanout_policy"
+	networkTimelineExtJSONColumn          = "ext_json"
+	networkTimelineMentionsJSONColumn     = "mentions_json"
+)
+
 const networkTaskThreadOriginsTableStatement = `CREATE TABLE IF NOT EXISTS network_task_thread_origins (
 			task_id                 TEXT PRIMARY KEY REFERENCES tasks(id) ON DELETE CASCADE,
 			workspace_id            TEXT NOT NULL,
@@ -206,7 +212,7 @@ const taskDesignationRollupsTableStatement = `CREATE TABLE IF NOT EXISTS task_de
 			created_at            TEXT NOT NULL
 		);`
 
-var networkConversationSchemaStatements = []string{
+var networkConversationSchemaStatementsBeforeNetworkFeatureTail = []string{
 	networkAuditLogTableStatement,
 	`CREATE INDEX IF NOT EXISTS idx_net_audit_ts ON network_audit_log(timestamp);`,
 	`CREATE INDEX IF NOT EXISTS idx_net_audit_workspace_session ON network_audit_log(workspace_id, session_id);`,
@@ -215,7 +221,7 @@ var networkConversationSchemaStatements = []string{
 	`CREATE INDEX IF NOT EXISTS idx_net_audit_work
 			ON network_audit_log(workspace_id, work_id, timestamp)
 			WHERE work_id IS NOT NULL;`,
-	networkTimelineLogTableStatement,
+	networkTimelineLogPrePolicyMentionsStatement,
 	`CREATE INDEX IF NOT EXISTS idx_net_timeline_thread_ts
 			ON network_timeline_log(workspace_id, channel, thread_id, timestamp, message_id)
 			WHERE surface = 'thread';`,
@@ -263,16 +269,6 @@ var networkConversationSchemaStatements = []string{
 		);`,
 	`CREATE INDEX IF NOT EXISTS idx_network_thread_participants_peer
 			ON network_thread_participants(workspace_id, peer_id, last_seen_at DESC);`,
-	networkThreadPeerTokenStatsTableStatement,
-	`CREATE INDEX IF NOT EXISTS idx_network_thread_peer_token_stats_peer
-			ON network_thread_peer_token_stats(workspace_id, channel, peer_id, last_delivered_at DESC);`,
-	networkSubscriptionsTableStatement,
-	`CREATE INDEX IF NOT EXISTS idx_network_subscriptions_peer
-			ON network_subscriptions(workspace_id, peer_id, channel, thread_id);`,
-	networkDeliveryGuidanceStateTableStatement,
-	networkTaskThreadOriginsTableStatement,
-	`CREATE INDEX IF NOT EXISTS idx_network_task_thread_origins_thread
-			ON network_task_thread_origins(workspace_id, channel, thread_id, created_at DESC);`,
 	`CREATE TABLE IF NOT EXISTS network_direct_rooms (
 			workspace_id         TEXT NOT NULL,
 			channel              TEXT NOT NULL,
@@ -1193,13 +1189,13 @@ var globalSchemaMigrations = []store.Migration{
 func migrateNetworkActivationPolicyMentions(ctx context.Context, tx *sql.Tx) error {
 	if err := addMissingMigrationColumns(ctx, tx, "network_channels", []migrationColumnSpec{
 		{
-			name: "fanout_policy",
+			name: networkChannelFanoutPolicyColumn,
 			sql: `ALTER TABLE network_channels ADD COLUMN fanout_policy TEXT NOT NULL DEFAULT 'capability_match' CHECK (
-				fanout_policy IN ('capability_match', 'coordinator', 'all_members')
-			)`,
+					fanout_policy IN ('capability_match', 'coordinator', 'all_members')
+				)`,
 		},
 		{
-			name: "coordinator_peer_id",
+			name: networkChannelCoordinatorPeerIDColumn,
 			sql:  `ALTER TABLE network_channels ADD COLUMN coordinator_peer_id TEXT NOT NULL DEFAULT ''`,
 		},
 	}); err != nil {
@@ -1207,7 +1203,7 @@ func migrateNetworkActivationPolicyMentions(ctx context.Context, tx *sql.Tx) err
 	}
 	if err := addMissingMigrationColumns(ctx, tx, "network_timeline_log", []migrationColumnSpec{
 		{
-			name: "mentions_json",
+			name: networkTimelineMentionsJSONColumn,
 			sql:  `ALTER TABLE network_timeline_log ADD COLUMN mentions_json TEXT NOT NULL DEFAULT '[]'`,
 		},
 	}); err != nil {
@@ -1369,7 +1365,7 @@ func migrateSessionAttachLock(ctx context.Context, tx *sql.Tx) error {
 func migrateNetworkTimelineExtensions(ctx context.Context, tx *sql.Tx) error {
 	return addMissingMigrationColumns(ctx, tx, "network_timeline_log", []migrationColumnSpec{
 		{
-			name: "ext_json",
+			name: networkTimelineExtJSONColumn,
 			sql:  `ALTER TABLE network_timeline_log ADD COLUMN ext_json TEXT NOT NULL DEFAULT '{}'`,
 		},
 	})
@@ -1486,10 +1482,6 @@ func workspaceQualifiedNetworkIdentityStatements() []string {
 			workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
 			channel      TEXT NOT NULL,
 			purpose      TEXT NOT NULL,
-			fanout_policy TEXT NOT NULL DEFAULT 'capability_match' CHECK (
-				fanout_policy IN ('capability_match', 'coordinator', 'all_members')
-			),
-			coordinator_peer_id TEXT NOT NULL DEFAULT '',
 			created_by   TEXT NOT NULL DEFAULT '',
 			created_at   TEXT NOT NULL,
 			updated_at   TEXT NOT NULL,
@@ -1506,7 +1498,7 @@ func workspaceQualifiedNetworkIdentityStatements() []string {
 		FROM network_channels_v25_keep;`,
 		`DROP TABLE IF EXISTS temp.network_channels_v25_keep;`,
 	}
-	return append(statements, networkConversationSchemaStatements...)
+	return append(statements, networkConversationSchemaStatementsBeforeNetworkFeatureTail...)
 }
 
 func migrateModelCatalogSourceConstraints(ctx context.Context, tx *sql.Tx) error {
@@ -1546,7 +1538,7 @@ func migrateNetworkTimelineLogConversationColumns(ctx context.Context, tx *sql.T
 		return err
 	}
 	if !exists {
-		if _, err := tx.ExecContext(ctx, networkTimelineLogTableStatement); err != nil {
+		if _, err := tx.ExecContext(ctx, networkTimelineLogPrePolicyMentionsStatement); err != nil {
 			return fmt.Errorf("store: create network_timeline_log: %w", err)
 		}
 		return nil
@@ -1574,7 +1566,12 @@ func migrateNetworkTimelineLogConversationColumns(ctx context.Context, tx *sql.T
 func networkTimelineLogConversationColumnStatements() []string {
 	return []string{
 		`DROP TABLE IF EXISTS network_timeline_log_new`,
-		strings.Replace(networkTimelineLogTableStatement, "network_timeline_log", "network_timeline_log_new", 1),
+		strings.Replace(
+			networkTimelineLogPrePolicyMentionsStatement,
+			"network_timeline_log",
+			"network_timeline_log_new",
+			1,
+		),
 		`INSERT INTO network_timeline_log_new (
 			message_id,
 			session_id,
@@ -1594,7 +1591,6 @@ func networkTimelineLogConversationColumnStatements() []string {
 			intent,
 			text,
 			preview_text,
-			mentions_json,
 			body_json,
 			timestamp
 		)
@@ -1617,7 +1613,6 @@ func networkTimelineLogConversationColumnStatements() []string {
 				intent,
 				text,
 				preview_text,
-				'[]',
 				body_json,
 				timestamp
 			FROM network_timeline_log
@@ -1700,7 +1695,7 @@ func migrateNetworkAuditLogConversationColumns(ctx context.Context, tx *sql.Tx) 
 }
 
 func ensureNetworkConversationSchema(ctx context.Context, tx *sql.Tx) error {
-	for _, stmt := range networkConversationSchemaStatements {
+	for _, stmt := range networkConversationSchemaStatementsBeforeNetworkFeatureTail {
 		if _, err := tx.ExecContext(ctx, stmt); err != nil {
 			return fmt.Errorf("store: ensure network conversation schema: %w", err)
 		}
