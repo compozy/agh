@@ -237,9 +237,6 @@ func getNetworkChannel(
 
 	entry, err := scanNetworkChannel(row)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return store.NetworkChannelEntry{}, err
-		}
 		return store.NetworkChannelEntry{}, err
 	}
 	return entry, nil
