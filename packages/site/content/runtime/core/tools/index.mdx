@@ -82,7 +82,8 @@ The registry gives those actions one shape:
 
 ## Default discovery tools
 
-The normal managed-agent path starts with discovery, not blind invocation:
+The normal managed-agent path starts with discovery, not blind invocation. These canonical IDs help
+agents orient and inspect the registry:
 
 - `agh__bootstrap`
 - `agh__catalog`
@@ -90,6 +91,16 @@ The normal managed-agent path starts with discovery, not blind invocation:
 - `agh__tool_info`
 - `agh__skill_search`
 - `agh__skill_view`
+
+For a bare managed session, hosted MCP projects the full availability-gated callable catalog. AGH
+does not add an automatic bootstrap/catalog allowlist over that hosted projection. Agent
+definitions, session lineage, disabled sources, denylists, and approval/risk gates still narrow or
+block invocation.
+
+`agh__tool_list` returns only the currently callable projection. `agh__tool_search` and
+`agh__tool_info` are diagnostic: they can return known descriptors with callable or denied status so
+an agent can explain whether a tool is absent, unavailable, or policy-denied before falling back to
+CLI or HTTP.
 
 These are canonical AGH ToolIDs. They are stable for registry, policy, CLI, and descriptor use, but
 the active agent harness owns the actual invocation name. Managed agents should search or load by

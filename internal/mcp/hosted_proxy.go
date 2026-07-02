@@ -147,11 +147,22 @@ func applyHostedTools(
 	toolsForServer := make([]server.ServerTool, 0, len(views))
 	for i := range views {
 		view := views[i]
+		readOnly := view.Descriptor.ReadOnly
+		destructive := view.Descriptor.Destructive
+		openWorld := view.Descriptor.OpenWorld
 		tool := sdkmcp.Tool{
 			Name:            view.Descriptor.ID.String(),
+			Title:           view.Descriptor.DisplayTitle,
 			Description:     hostedToolDescription(view.Descriptor),
 			RawInputSchema:  cloneRaw(view.Descriptor.InputSchema),
 			RawOutputSchema: cloneRaw(view.Descriptor.OutputSchema),
+			Annotations: sdkmcp.ToolAnnotation{
+				Title:           view.Descriptor.DisplayTitle,
+				ReadOnlyHint:    &readOnly,
+				DestructiveHint: &destructive,
+				OpenWorldHint:   &openWorld,
+			},
+			Meta: hostedToolMeta(view.Descriptor),
 		}
 		toolsForServer = append(toolsForServer, server.ServerTool{
 			Tool: tool,
@@ -213,6 +224,38 @@ func hostedToolDescription(descriptor tools.Descriptor) string {
 	return strings.Join(sections, "\n\n")
 }
 
+func hostedToolMeta(descriptor tools.Descriptor) *sdkmcp.Meta {
+	fields := map[string]any{
+		"anthropic/searchHint": hostedSearchHint(descriptor),
+	}
+	switch descriptor.ID {
+	case tools.ToolIDToolList, tools.ToolIDToolSearch, tools.ToolIDToolInfo:
+		fields["anthropic/alwaysLoad"] = true
+	}
+	return sdkmcp.NewMetaFromMap(fields)
+}
+
+func hostedSearchHint(descriptor tools.Descriptor) string {
+	values := make([]string, 0, 6+len(descriptor.SearchHints)+len(descriptor.Tags)+len(descriptor.Toolsets))
+	if id := strings.TrimSpace(descriptor.ID.String()); id != "" {
+		values = append(values, id)
+	}
+	if title := strings.TrimSpace(descriptor.DisplayTitle); title != "" {
+		values = append(values, title)
+	}
+	if description := strings.TrimSpace(descriptor.Description); description != "" {
+		values = append(values, description)
+	}
+	values = append(values, cleanedValues(descriptor.SearchHints)...)
+	values = append(values, cleanedValues(descriptor.Tags)...)
+	for _, toolset := range descriptor.Toolsets {
+		if value := strings.TrimSpace(toolset.String()); value != "" {
+			values = append(values, value)
+		}
+	}
+	return strings.Join(values, " | ")
+}
+
 func hostedToolsetNames(toolsets []tools.ToolsetID) string {
 	values := make([]string, 0, len(toolsets))
 	for _, toolset := range toolsets {
@@ -224,13 +267,17 @@ func hostedToolsetNames(toolsets []tools.ToolsetID) string {
 }
 
 func hostedDescriptionValues(values []string) string {
+	return strings.Join(cleanedValues(values), ", ")
+}
+
+func cleanedValues(values []string) []string {
 	cleaned := make([]string, 0, len(values))
 	for _, value := range values {
 		if trimmed := strings.TrimSpace(value); trimmed != "" {
 			cleaned = append(cleaned, trimmed)
 		}
 	}
-	return strings.Join(cleaned, ", ")
+	return cleaned
 }
 
 func rawArguments(args any) (json.RawMessage, error) {

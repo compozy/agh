@@ -19,7 +19,6 @@ type nativeToolPolicyResolverDeps struct {
 	WorkspaceResolver workspacepkg.RuntimeResolver
 	AgentResolver     nativeToolPolicyAgentResolver
 	ApprovalAvailable bool
-	DefaultToolsets   []toolspkg.ToolsetID
 }
 
 type nativeToolPolicySessionReader interface {
@@ -36,7 +35,6 @@ type nativeToolPolicyResolver struct {
 	workspaceResolver workspacepkg.RuntimeResolver
 	agentResolver     nativeToolPolicyAgentResolver
 	approvalAvailable bool
-	defaultToolsets   []toolspkg.ToolsetID
 }
 
 var _ toolspkg.PolicyInputResolver = (*nativeToolPolicyResolver)(nil)
@@ -45,19 +43,12 @@ func newNativeToolPolicyResolver(deps nativeToolPolicyResolverDeps) (*nativeTool
 	if deps.Config == nil {
 		return nil, errors.New("daemon: native tool policy config is required")
 	}
-	defaultToolsets := append([]toolspkg.ToolsetID(nil), deps.DefaultToolsets...)
-	for i, id := range defaultToolsets {
-		if err := id.Validate(); err != nil {
-			return nil, fmt.Errorf("daemon: default toolsets[%d]: %w", i, err)
-		}
-	}
 	return &nativeToolPolicyResolver{
 		cfg:               deps.Config,
 		sessions:          deps.Sessions,
 		workspaceResolver: deps.WorkspaceResolver,
 		agentResolver:     deps.AgentResolver,
 		approvalAvailable: deps.ApprovalAvailable,
-		defaultToolsets:   defaultToolsets,
 	}, nil
 }
 
@@ -71,10 +62,6 @@ func newNativeToolPolicyResolverForBoot(state *bootState) (*nativeToolPolicyReso
 			heartbeat: state.heartbeatCatalog,
 		}),
 		ApprovalAvailable: true,
-		DefaultToolsets: []toolspkg.ToolsetID{
-			toolspkg.ToolsetIDBootstrap,
-			toolspkg.ToolsetIDCatalog,
-		},
 	})
 }
 
@@ -111,16 +98,6 @@ func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.S
 		}
 	}
 	return inputs, nil
-}
-
-func (r *nativeToolPolicyResolver) DefaultToolsets(
-	_ context.Context,
-	_ toolspkg.Scope,
-) ([]toolspkg.ToolsetID, error) {
-	if r == nil {
-		return nil, nil
-	}
-	return append([]toolspkg.ToolsetID(nil), r.defaultToolsets...), nil
 }
 
 func (r *nativeToolPolicyResolver) sessionInfo(

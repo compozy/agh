@@ -30,10 +30,14 @@ const (
 	currentAvailableSkillsOpen        = "<current-available-skills>"
 	currentAvailableSkillsClose       = "</current-available-skills>"
 	currentAvailableSkillsSelfClosing = "<current-available-skills />"
-	currentSkillsCatalogFinalLine     = "If current tool policy denies `agh__skill_view`, use `agh skill view <name>` as an operator fallback."
-	durableMemoryOpen                 = "<turn-recall>"
-	durableMemoryClose                = "</turn-recall>"
-	inboundBridgePromptPrefix         = "Inbound bridge message"
+	currentSkillsCatalogOpeningLine   = "The <current-available-skills> block above is " +
+		"the authoritative current skill state for this turn."
+	currentSkillsCatalogFinalLine = "If current tool policy denies canonical `agh__skill_view`, " +
+		"use `agh skill view <name>` as an operator fallback."
+	durableMemoryOpen             = "<turn-recall>"
+	durableMemoryClose            = "</turn-recall>"
+	networkResponseRegisterPrefix = "Network response register:"
+	inboundBridgePromptPrefix     = "Inbound bridge message"
 )
 
 type StepKind string
@@ -460,7 +464,8 @@ func lastLineMarkerIndex(text string, marker string) int {
 }
 
 func stripKnownPromptAugmentation(prompt string) string {
-	next := stripLeadingPromptBlock(prompt, aghSituationContextOpen, aghSituationContextClose)
+	next := stripLeadingNetworkResponseRegister(prompt)
+	next = stripLeadingPromptBlock(next, aghSituationContextOpen, aghSituationContextClose)
 	next = stripLeadingSkillsCatalogBlock(next, currentAvailableSkillsOpen, currentAvailableSkillsClose)
 	next = stripLeadingSkillsCatalogBlock(next, availableSkillsOpen, availableSkillsClose)
 	next = stripLeadingSelfClosingPromptBlock(next, currentAvailableSkillsSelfClosing)
@@ -488,10 +493,37 @@ func stripLeadingSkillsCatalogBlock(prompt string, open string, closeTag string)
 	if after == strings.TrimSpace(prompt) {
 		return after
 	}
+	if stripped, ok := stripLeadingSkillsCatalogInstructions(after); ok {
+		return stripped
+	}
 	if _, rest, ok := strings.Cut(after, currentSkillsCatalogFinalLine); ok {
 		return strings.TrimSpace(rest)
 	}
 	return after
+}
+
+func stripLeadingSkillsCatalogInstructions(prompt string) (string, bool) {
+	trimmed := strings.TrimSpace(prompt)
+	if !strings.HasPrefix(trimmed, currentSkillsCatalogOpeningLine) {
+		return trimmed, false
+	}
+	_, rest, ok := strings.Cut(trimmed, "\n\n")
+	if !ok {
+		return trimmed, false
+	}
+	return strings.TrimSpace(rest), true
+}
+
+func stripLeadingNetworkResponseRegister(prompt string) string {
+	trimmed := strings.TrimSpace(prompt)
+	if !strings.HasPrefix(trimmed, networkResponseRegisterPrefix) {
+		return trimmed
+	}
+	_, after, ok := strings.Cut(trimmed, "\n\n")
+	if !ok {
+		return trimmed
+	}
+	return strings.TrimSpace(after)
 }
 
 func stripLeadingSelfClosingPromptBlock(prompt string, block string) string {

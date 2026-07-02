@@ -29,6 +29,11 @@ Use this sequence for AGH-native work:
 
 `agh__*` names are canonical IDs, not harness call names. Use them for registry, policy, CLI, descriptors, and `tool_id`; call only the reference the harness returns.
 
+Hosted MCP projects the full availability-gated callable catalog for a bare managed session. AGH no
+longer caps that projection to bootstrap/catalog tools unless the agent definition or session
+lineage explicitly narrows it. Use `agh__tool_search` and `agh__tool_info` to diagnose known but
+denied tools; use `agh__tool_list` when you need only the currently callable set.
+
 For skills, resolve canonical `agh__skill_search`/`agh__skill_view`, then call returned references. Use CLI fallback only when denied, absent, or explicitly requested.
 
 ## Skill Loading

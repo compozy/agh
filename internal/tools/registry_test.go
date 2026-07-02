@@ -293,7 +293,6 @@ func TestRuntimeRegistryDynamicPolicyResolver(t *testing.T) {
 			SystemPermissionMode: PermissionModeApproveAll,
 			ApprovalAvailable:    true,
 		},
-		defaultToolsets: []ToolsetID{ToolsetIDBootstrap, ToolsetIDCatalog},
 	}
 	registry, err := NewRegistry(
 		WithProviders(provider),
@@ -304,17 +303,16 @@ func TestRuntimeRegistryDynamicPolicyResolver(t *testing.T) {
 	}
 	sessionScope := Scope{SessionID: "sess-1", AgentName: "coder"}
 
-	t.Run("Should apply default discovery until agent policy narrows the allowlist", func(t *testing.T) {
+	t.Run("Should project full catalog until agent policy narrows the allowlist", func(t *testing.T) {
 		resolver.inputs = PolicyInputs{
 			SystemPermissionMode: PermissionModeApproveAll,
 			ApprovalAvailable:    true,
 		}
 		views, err := registry.SessionProjection(ctx, sessionScope)
 		if err != nil {
-			t.Fatalf("SessionProjection(default discovery) error = %v", err)
+			t.Fatalf("SessionProjection(full default) error = %v", err)
 		}
-		requireToolIDs(t, views, ToolIDToolInfo, ToolIDToolList, ToolIDSkillView)
-		requireNoToolID(t, views, ToolIDTaskRead)
+		requireToolIDs(t, views, ToolIDToolInfo, ToolIDToolList, ToolIDSkillView, ToolIDTaskRead)
 
 		operatorViews, err := registry.OperatorProjection(ctx, Scope{
 			SessionID: "sess-1",
@@ -324,7 +322,7 @@ func TestRuntimeRegistryDynamicPolicyResolver(t *testing.T) {
 		if err != nil {
 			t.Fatalf("OperatorProjection(scoped diagnostics) error = %v", err)
 		}
-		requireViewReason(t, operatorViews, ToolIDTaskRead, ReasonPolicyDenied)
+		requireToolIDs(t, operatorViews, ToolIDToolInfo, ToolIDToolList, ToolIDSkillView, ToolIDTaskRead)
 
 		resolver.inputs.Agent.Toolsets = []ToolsetID{ToolsetIDTasks}
 		views, err = registry.SessionProjection(ctx, sessionScope)
@@ -334,9 +332,23 @@ func TestRuntimeRegistryDynamicPolicyResolver(t *testing.T) {
 		requireToolIDs(t, views, ToolIDTaskRead)
 		requireNoToolID(t, views, ToolIDSkillView)
 		requireNoToolID(t, views, ToolIDToolList)
+
+		diagnostic, err := registry.DiagnosticGet(ctx, sessionScope, ToolIDToolInfo)
+		if err != nil {
+			t.Fatalf("DiagnosticGet(narrowed agent) error = %v", err)
+		}
+		if diagnostic.Decision.Callable {
+			t.Fatalf("DiagnosticGet(%s).Callable = true, want denied diagnostic view", ToolIDToolInfo)
+		}
+		requireDecisionReason(t, diagnostic.Decision, ReasonPolicyDenied)
+		diagnostics, err := registry.DiagnosticSearch(ctx, sessionScope, SearchQuery{Query: "Tool Info"})
+		if err != nil {
+			t.Fatalf("DiagnosticSearch(narrowed agent) error = %v", err)
+		}
+		requireToolIDs(t, diagnostics, ToolIDToolInfo)
 	})
 
-	t.Run("Should let explicit denies and session lineage override default discovery", func(t *testing.T) {
+	t.Run("Should let explicit denies and session lineage override full default projection", func(t *testing.T) {
 		denySkill, err := ParseToolPattern(ToolIDSkillView.String())
 		if err != nil {
 			t.Fatalf("ParseToolPattern(skill_view) error = %v", err)
@@ -350,11 +362,10 @@ func TestRuntimeRegistryDynamicPolicyResolver(t *testing.T) {
 		}
 		views, err := registry.SessionProjection(ctx, sessionScope)
 		if err != nil {
-			t.Fatalf("SessionProjection(denied default) error = %v", err)
+			t.Fatalf("SessionProjection(denied full default) error = %v", err)
 		}
-		requireToolIDs(t, views, ToolIDToolInfo, ToolIDToolList)
+		requireToolIDs(t, views, ToolIDToolInfo, ToolIDToolList, ToolIDTaskRead)
 		requireNoToolID(t, views, ToolIDSkillView)
-		requireNoToolID(t, views, ToolIDTaskRead)
 
 		resolver.inputs = PolicyInputs{
 			SystemPermissionMode: PermissionModeApproveAll,
@@ -538,9 +549,8 @@ func requireViewReason(t *testing.T, views []ToolView, id ToolID, reason ReasonC
 }
 
 type mutablePolicyInputResolver struct {
-	inputs          PolicyInputs
-	defaultToolsets []ToolsetID
-	resolveCalls    int
+	inputs       PolicyInputs
+	resolveCalls int
 }
 
 var _ PolicyInputResolver = (*mutablePolicyInputResolver)(nil)
@@ -548,10 +558,6 @@ var _ PolicyInputResolver = (*mutablePolicyInputResolver)(nil)
 func (r *mutablePolicyInputResolver) Resolve(_ context.Context, _ Scope) (PolicyInputs, error) {
 	r.resolveCalls++
 	return clonePolicyInputs(r.inputs), nil
-}
-
-func (r *mutablePolicyInputResolver) DefaultToolsets(_ context.Context, _ Scope) ([]ToolsetID, error) {
-	return append([]ToolsetID(nil), r.defaultToolsets...), nil
 }
 
 func descriptorWithID(id ToolID, title string, toolsets ...ToolsetID) Descriptor {

@@ -43,9 +43,13 @@ Do not use categories or slash strings for hierarchy. They are not runtime seman
 
 ## Tool Grants
 
-Do not add `agh__bootstrap` or `agh__catalog` only for discovery. AGH adds those default discovery toolsets unless policy denies them.
+Do not add `agh__bootstrap` or `agh__catalog` only for discovery. Leaving `tools` and
+`toolsets` empty means the agent has no agent-local allowlist; hosted MCP then projects the full
+availability-gated callable catalog subject to runtime policy, denylists, session lineage, and
+approval gates.
 
-Keep frontmatter grants narrow and intentional. Add extra tools only when the agent needs those runtime capabilities.
+Keep frontmatter grants narrow and intentional. Add `tools` or `toolsets` only when the agent should
+be limited to that explicit runtime surface.
 
 ## Managed Bundled Agents
 

@@ -1093,6 +1093,11 @@ func (n *daemonNativeTools) registry() toolspkg.Registry {
 	return n.deps.Registry()
 }
 
+type nativeToolDiagnosticRegistry interface {
+	DiagnosticSearch(ctx context.Context, scope toolspkg.Scope, q toolspkg.SearchQuery) ([]toolspkg.ToolView, error)
+	DiagnosticGet(ctx context.Context, scope toolspkg.Scope, id toolspkg.ToolID) (toolspkg.ToolView, error)
+}
+
 func (n *daemonNativeTools) mcpAuthProvider() toolspkg.MCPAuthStatusProvider {
 	if n == nil || n.deps.MCPAuth == nil {
 		return nil
@@ -1139,7 +1144,17 @@ func (n *daemonNativeTools) toolSearch(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	views, err := n.registry().Search(ctx, scope, toolspkg.SearchQuery{
+	registry, ok := n.registry().(nativeToolDiagnosticRegistry)
+	if !ok {
+		return toolspkg.ToolResult{}, toolspkg.NewToolError(
+			toolspkg.ErrorCodeUnavailable,
+			req.ToolID,
+			"tool diagnostic registry is unavailable",
+			toolspkg.ErrToolUnavailable,
+			toolspkg.ReasonDependencyMissing,
+		)
+	}
+	views, err := registry.DiagnosticSearch(ctx, scope, toolspkg.SearchQuery{
 		Query: input.Query,
 		Limit: input.Limit,
 	})
@@ -1159,7 +1174,17 @@ func (n *daemonNativeTools) toolInfo(
 		return toolspkg.ToolResult{}, err
 	}
 	id := toolspkg.ToolID(strings.TrimSpace(input.ToolID))
-	view, err := n.registry().Get(ctx, scope, id)
+	registry, ok := n.registry().(nativeToolDiagnosticRegistry)
+	if !ok {
+		return toolspkg.ToolResult{}, toolspkg.NewToolError(
+			toolspkg.ErrorCodeUnavailable,
+			req.ToolID,
+			"tool diagnostic registry is unavailable",
+			toolspkg.ErrToolUnavailable,
+			toolspkg.ReasonDependencyMissing,
+		)
+	}
+	view, err := registry.DiagnosticGet(ctx, scope, id)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}

@@ -30,9 +30,9 @@ agh toolsets info agh__catalog -o json
 What happened: AGH resolved the toolset through the registry and returned the expanded tool IDs plus
 diagnostics. Use diagnostics when an expected tool is missing or unavailable in the current scope.
 
-## Default catalog shape
+## Bootstrap and catalog shape
 
-The default discovery surface is intentionally small:
+Bootstrap and catalog toolsets identify the registry tools that help an agent orient itself:
 
 | Toolset or tool    | Job                                                                    |
 | ------------------ | ---------------------------------------------------------------------- |
@@ -41,9 +41,15 @@ The default discovery surface is intentionally small:
 | `agh__tool_search` | Searches for tools by descriptor text.                                 |
 | `agh__tool_info`   | Returns one descriptor, schema, and diagnostics before invocation.     |
 
-The goal is progressive disclosure. Agents should not load every tool schema into context on every
-turn. They resolve the canonical discovery ToolID through the active harness, search, inspect, then
-invoke the returned tool reference.
+These toolsets no longer cap the hosted MCP projection for a bare managed session. When no agent or
+session policy narrows the tool surface, hosted MCP projects the full availability-gated callable
+catalog. Explicit `tools`, `toolsets`, `deny_tools`, session lineage, disabled sources, and approval
+gates still restrict invocation.
+
+The goal is precise discovery. Agents should not load every tool schema into context on every turn.
+They resolve the canonical discovery ToolID through the active harness, search, inspect, then invoke
+the returned tool reference. `agh__tool_list` shows the currently callable projection;
+`agh__tool_search` and `agh__tool_info` can also report known but denied tools with reason codes.
 
 ## Operational toolsets
 
@@ -71,7 +77,7 @@ includes `agh__memory_admin_history` for operation-history inspection.
 
 Toolsets answer practical questions:
 
-- Which tools are exposed by default?
+- Which tools are grouped for a policy grant?
 - Which concrete tool IDs are in this catalog?
 - Is a tool unavailable because of scope, policy, missing daemon state, or configuration?
 - Which tools should a managed agent inspect first?
@@ -82,7 +88,7 @@ Agents should treat toolsets as navigation, not as permission to call everything
 
 Recommended flow:
 
-1. Use the bootstrap/catalog surface.
+1. Use the bootstrap/catalog discovery tools.
 2. Search for the task-specific tool family.
 3. Inspect the descriptor and input schema.
 4. Invoke only after the target and required fields are clear.
