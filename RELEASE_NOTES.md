@@ -1,3 +1,17 @@
+## 0.0.9 - 2026-07-02
+
+### 🐛 Bug Fixes
+
+- Network optimizations (#263)
+
+### 📚 Documentation
+
+- Update skills
+
+### 📦 Build System
+
+- Update go deps
+
 ## 0.0.8 - 2026-06-22
 
 ### 🐛 Bug Fixes
