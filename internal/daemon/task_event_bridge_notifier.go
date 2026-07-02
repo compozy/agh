@@ -122,7 +122,14 @@ func (d *Daemon) composeTaskEventObserver(
 		d.now,
 		state.cfg.Task.Orchestration.BridgeNotificationTimeout,
 	)
-	networkStatusObserver := newNetworkTaskStatusObserver(state.network, store, state.logger, d.now)
+	networkStatusObserver := newNetworkTaskStatusObserver(
+		state.network,
+		store,
+		state.logger,
+		d.now,
+		state.cfg.Task.Orchestration.NetworkStatusQueueSize,
+		state.cfg.Task.Orchestration.NetworkStatusTimeout,
+	)
 	return newTaskEventObserverFanout(
 		state.logger,
 		reentry,

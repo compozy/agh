@@ -129,6 +129,123 @@ func TestNetworkTaskStatusObserver(t *testing.T) {
 			t.Fatalf("rollup summary = %#v, want complete 1/1 split across two runs", summary)
 		}
 	})
+
+	t.Run("Should construct with configured queue size and timeout", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		now := time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
+		observer := newNetworkTaskStatusObserver(
+			&fakeNetworkRuntime{},
+			db,
+			discardLogger(),
+			func() time.Time { return now },
+			7,
+			2*time.Second,
+		)
+		if observer == nil {
+			t.Fatal("newNetworkTaskStatusObserver() = nil, want observer")
+		}
+		t.Cleanup(observer.shutdown)
+		if got, want := cap(observer.queue), 7; got != want {
+			t.Fatalf("cap(observer.queue) = %d, want %d", got, want)
+		}
+		if got, want := observer.timeout, 2*time.Second; got != want {
+			t.Fatalf("observer.timeout = %s, want %s", got, want)
+		}
+	})
+
+	t.Run("Should not include raw run errors in network status messages", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		db := openDaemonTestGlobalDB(t)
+		now := time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
+		seedNetworkStatusObserverThread(ctx, t, db, now)
+		actor := taskpkg.ActorIdentity{Kind: taskpkg.ActorKindDaemon, Ref: "daemon.test"}
+		origin := taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "network-status-test"}
+		taskRecord := taskpkg.Task{
+			ID:          "task-secret-status",
+			Scope:       taskpkg.ScopeGlobal,
+			Title:       "Investigate secret leak",
+			MaxAttempts: 3,
+			Status:      taskpkg.TaskStatusInProgress,
+			CreatedBy:   actor,
+			Origin:      origin,
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		}
+		if err := db.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		run := networkStatusObserverRun(
+			t,
+			"run-secret-status",
+			taskRecord.ID,
+			taskpkg.TaskRunStatusFailed,
+			0,
+			"Inspect API latency",
+			now,
+			origin,
+		)
+		run.DesignationGroupID = ""
+		run.Error = "agh_claim_secret-123 leaked from provider stderr"
+		if err := db.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+		if err := db.PutNetworkTaskThreadOrigin(ctx, store.NetworkTaskThreadOrigin{
+			TaskID:           taskRecord.ID,
+			WorkspaceID:      "wks_status",
+			Channel:          "builders",
+			ThreadID:         "thread_status",
+			OriginMessageID:  "msg-origin",
+			Digest:           "Investigate secret leak",
+			SourceMessageIDs: []string{"msg-origin"},
+			CreatedAt:        now,
+			UpdatedAt:        now,
+		}); err != nil {
+			t.Fatalf("PutNetworkTaskThreadOrigin() error = %v", err)
+		}
+
+		runtime := &fakeNetworkRuntime{}
+		observer := &networkTaskStatusObserver{
+			network: runtime,
+			tasks:   db,
+			prefs:   db,
+			logger:  discardLogger(),
+			now: func() time.Time {
+				return now.Add(time.Minute)
+			},
+		}
+		err := observer.processWithContext(ctx, taskpkg.EventRecord{Event: taskpkg.Event{
+			ID:        "evt-run-secret-failed",
+			TaskID:    taskRecord.ID,
+			RunID:     run.ID,
+			EventType: taskEventRunFailed,
+			Actor:     actor,
+			Origin:    origin,
+			Timestamp: now.Add(time.Second),
+		}})
+		if err != nil {
+			t.Fatalf("processWithContext() error = %v", err)
+		}
+
+		runtime.mu.Lock()
+		calls := append([]network.RuntimeSendRequest(nil), runtime.runtimeSendCalls...)
+		runtime.mu.Unlock()
+		if got, want := len(calls), 1; got != want {
+			t.Fatalf("len(runtime sends) = %d, want %d: %#v", got, want, calls)
+		}
+		assertNetworkTaskStatusSend(t, calls[0], "task_status", "failed.")
+		var body network.SayBody
+		if err := json.Unmarshal(calls[0].Body, &body); err != nil {
+			t.Fatalf("Unmarshal(RuntimeSendRequest.Body) error = %v", err)
+		}
+		if strings.Contains(body.Text, "agh_claim_secret-123") ||
+			strings.Contains(body.Text, "provider stderr") {
+			t.Fatalf("SayBody.Text = %q, want no raw run error", body.Text)
+		}
+	})
 }
 
 func seedNetworkStatusObserverThread(

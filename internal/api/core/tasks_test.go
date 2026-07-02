@@ -2071,6 +2071,44 @@ func TestBaseHandlersTaskHappyPathEndpoints(t *testing.T) {
 		t.Fatalf("fan-out runs missing group id: %#v", fanoutResp.Runs)
 	}
 
+	enqueuedBeforeInvalidFanout := len(enqueuedRuns)
+	resp = performRequest(
+		t,
+		fixture.Engine,
+		http.MethodPost,
+		"/tasks/task-1/runs/fan-out",
+		[]byte(
+			`{"network_channel":"builders","idempotency_key":"invalid-fanout","designations":[{"brief":"Valid lane"},{"brief":"   "}]}`,
+		),
+	)
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf("invalid fan-out status = %d, want %d; body=%s", resp.Code, http.StatusBadRequest, resp.Body.String())
+	}
+	if got := len(enqueuedRuns); got != enqueuedBeforeInvalidFanout {
+		t.Fatalf("enqueued runs after invalid fan-out = %d, want %d", got, enqueuedBeforeInvalidFanout)
+	}
+
+	resp = performRequest(
+		t,
+		fixture.Engine,
+		http.MethodPost,
+		"/tasks/task-1/runs/fan-out",
+		[]byte(
+			`{"network_channel":"builders","designations":[{"brief":"Missing idempotency"}]}`,
+		),
+	)
+	if resp.Code != http.StatusBadRequest {
+		t.Fatalf(
+			"missing idempotency fan-out status = %d, want %d; body=%s",
+			resp.Code,
+			http.StatusBadRequest,
+			resp.Body.String(),
+		)
+	}
+	if got := len(enqueuedRuns); got != enqueuedBeforeInvalidFanout {
+		t.Fatalf("enqueued runs after missing idempotency = %d, want %d", got, enqueuedBeforeInvalidFanout)
+	}
+
 	resp = performRequest(t, fixture.Engine, http.MethodGet, "/tasks/task-1", nil)
 	if resp.Code != http.StatusOK {
 		t.Fatalf("get after fan-out status = %d, want %d; body=%s", resp.Code, http.StatusOK, resp.Body.String())

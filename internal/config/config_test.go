@@ -2450,6 +2450,20 @@ func TestNetworkConfigValidateRejectsInvalidValues(t *testing.T) {
 			wantErr: "network.max_queue_depth",
 		},
 		{
+			name: "Should reject response guidance bytes over int32",
+			mutate: func(cfg *Config) {
+				cfg.Network.ResponseGuidanceMaxBytes = 1 << 31
+			},
+			wantErr: "network.response_guidance_max_bytes",
+		},
+		{
+			name: "Should reject delivery structured body bytes over int32",
+			mutate: func(cfg *Config) {
+				cfg.Network.DeliveryStructuredBodyMaxBytes = 1 << 31
+			},
+			wantErr: "network.delivery_structured_body_max_bytes",
+		},
+		{
 			name: "ShouldRejectInvalidDefaultChannel",
 			mutate: func(cfg *Config) {
 				cfg.Network.DefaultChannel = "Bad Channel"

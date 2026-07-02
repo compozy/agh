@@ -1639,6 +1639,7 @@ var operationRegistry = []OperationSpec{
 			pathParam("channel", "Network channel"),
 			queryParam("peer_id", "Filter subscriptions by peer id", false),
 			queryParam("thread_id", "Filter subscriptions by thread id", false),
+			intQueryParam("limit", "Maximum number of subscriptions to return"),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.NetworkSubscriptionsResponse{}},

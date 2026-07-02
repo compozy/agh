@@ -83,6 +83,8 @@ Non-directed thread messages prefer recorded participants. If you need a specifi
 message, include that peer in `mentions` or target it with `to`; mentions force full delivery for
 the named peer. When AGH needs to activate peers beyond participants, the channel fanout policy
 controls the bounded activation: `capability_match`, `coordinator`, or `all_members`.
+Channels using `fanout_policy:"coordinator"` must also name `coordinator_peer_id`; create and
+update calls reject the policy when the coordinator peer is absent.
 
 Delivery preferences can be channel- or thread-scoped:
 

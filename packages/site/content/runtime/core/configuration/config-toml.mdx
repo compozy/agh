@@ -493,6 +493,10 @@ scheduler_bad_tick_threshold = 6
 scheduler_bad_tick_cooldown = "5m"
 # Zero disables the per-task max-runtime watchdog default. Tasks may still set a per-task override.
 default_max_runtime = "0s"
+bridge_notification_timeout = "10s"
+designated_run_max = 5
+network_status_queue_size = 64
+network_status_timeout = "5s"
 
 [task.orchestration.profile]
 # Defaults that apply when a task does not persist its own execution profile.
@@ -1277,6 +1281,10 @@ when neither the global file nor a workspace overlay sets a value.
 | `scheduler_bad_tick_threshold` | integer  | `6`     | Positive integer.                                                     | Bad-tick count before the scheduler health watchdog flags a degraded scheduler tick.                       |
 | `scheduler_bad_tick_cooldown`  | duration | `5m`    | Positive Go duration with whole-second precision.                     | Cooldown between scheduler bad-tick health emissions.                                                      |
 | `default_max_runtime`          | duration | `0s`    | Zero or positive Go duration up to `24h` with whole-second precision. | Default per-task max-runtime watchdog. Zero disables the default; tasks may still set a per-task override. |
+| `bridge_notification_timeout`  | duration | `10s`   | Positive Go duration with whole-second precision.                     | Timeout budget for bridge task notification delivery.                                                      |
+| `designated_run_max`           | integer  | `5`     | Positive integer up to `5`.                                           | Maximum sibling runs a single designated fan-out request may enqueue.                                      |
+| `network_status_queue_size`    | integer  | `64`    | Positive integer.                                                     | Queue depth for network-origin task status observer events.                                                |
+| `network_status_timeout`       | duration | `5s`    | Positive Go duration with whole-second precision.                     | Per-event timeout for summarizing task run status back to the AGH Network origin thread.                   |
 
 `[task.orchestration]` keys are agent-mutable through the existing config tool surface
 (`agh config set` and the `agh__config_*` native tools). Workspace overlays apply through the

@@ -702,6 +702,14 @@ func (s agentCoreNetworkStore) WriteNetworkChannel(context.Context, store.Networ
 	return nil
 }
 
+func (s agentCoreNetworkStore) PatchNetworkChannel(
+	context.Context,
+	store.NetworkChannelRef,
+	store.NetworkChannelPatch,
+) error {
+	return nil
+}
+
 func (s agentCoreNetworkStore) DeleteNetworkChannel(context.Context, store.NetworkChannelRef) error {
 	return nil
 }

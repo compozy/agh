@@ -39,6 +39,7 @@ const (
 	configProviderKey                        = "provider"
 	configToolKey                            = "tool"
 	configUDSKey                             = "uds"
+	maxNetworkByteSize                       = 1<<31 - 1
 )
 
 const (
@@ -1713,8 +1714,8 @@ func (c NetworkConfig) Validate() error {
 	if c.MaxPayload <= 0 {
 		return fmt.Errorf("network.max_payload must be positive: %d", c.MaxPayload)
 	}
-	if c.MaxPayload > (1<<31 - 1) {
-		return fmt.Errorf("network.max_payload must be <= %d: %d", 1<<31-1, c.MaxPayload)
+	if c.MaxPayload > maxNetworkByteSize {
+		return fmt.Errorf("network.max_payload must be <= %d: %d", maxNetworkByteSize, c.MaxPayload)
 	}
 	if c.GreetInterval <= 0 {
 		return fmt.Errorf("network.greet_interval must be positive seconds: %d", c.GreetInterval)
@@ -1754,9 +1755,23 @@ func (c NetworkConfig) Validate() error {
 			c.ResponseGuidanceMaxBytes,
 		)
 	}
+	if c.ResponseGuidanceMaxBytes > maxNetworkByteSize {
+		return fmt.Errorf(
+			"network.response_guidance_max_bytes must be <= %d: %d",
+			maxNetworkByteSize,
+			c.ResponseGuidanceMaxBytes,
+		)
+	}
 	if c.DeliveryStructuredBodyMaxBytes <= 0 {
 		return fmt.Errorf(
 			"network.delivery_structured_body_max_bytes must be positive: %d",
+			c.DeliveryStructuredBodyMaxBytes,
+		)
+	}
+	if c.DeliveryStructuredBodyMaxBytes > maxNetworkByteSize {
+		return fmt.Errorf(
+			"network.delivery_structured_body_max_bytes must be <= %d: %d",
+			maxNetworkByteSize,
 			c.DeliveryStructuredBodyMaxBytes,
 		)
 	}

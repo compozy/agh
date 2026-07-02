@@ -469,6 +469,8 @@ type taskOrchestrationOverlay struct {
 	DefaultMaxRuntime         *time.Duration                  `toml:"default_max_runtime"`
 	BridgeNotificationTimeout *time.Duration                  `toml:"bridge_notification_timeout"`
 	DesignatedRunMax          *int                            `toml:"designated_run_max"`
+	NetworkStatusQueueSize    *int                            `toml:"network_status_queue_size"`
+	NetworkStatusTimeout      *time.Duration                  `toml:"network_status_timeout"`
 	Profile                   taskOrchestrationProfileOverlay `toml:"profile"`
 	Review                    taskOrchestrationReviewOverlay  `toml:"review"`
 }
@@ -1500,6 +1502,12 @@ func (o taskOrchestrationOverlay) Apply(dst *TaskOrchestrationConfig) {
 	}
 	if o.DesignatedRunMax != nil {
 		dst.DesignatedRunMax = *o.DesignatedRunMax
+	}
+	if o.NetworkStatusQueueSize != nil {
+		dst.NetworkStatusQueueSize = *o.NetworkStatusQueueSize
+	}
+	if o.NetworkStatusTimeout != nil {
+		dst.NetworkStatusTimeout = *o.NetworkStatusTimeout
 	}
 	o.Profile.Apply(&dst.Profile)
 	o.Review.Apply(&dst.Review)

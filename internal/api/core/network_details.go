@@ -170,11 +170,12 @@ func (h *BaseHandlers) createNetworkChannelFanoutFields(
 	req contract.CreateNetworkChannelRequest,
 ) (string, string, bool) {
 	fanoutPolicy := store.NormalizeNetworkFanoutPolicy(req.FanoutPolicy)
-	if err := store.ValidateNetworkFanoutPolicy(fanoutPolicy); err != nil {
-		h.respondError(c, StatusForNetworkError(err), NewNetworkValidationError(err))
+	coordinatorPeerID := strings.TrimSpace(req.CoordinatorPeerID)
+	if err := store.ValidateNetworkChannelFanoutConfiguration(fanoutPolicy, coordinatorPeerID); err != nil {
+		h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
 		return "", "", false
 	}
-	return fanoutPolicy, strings.TrimSpace(req.CoordinatorPeerID), true
+	return fanoutPolicy, coordinatorPeerID, true
 }
 
 // NetworkChannel returns one network channel detail payload.
@@ -247,29 +248,24 @@ func (h *BaseHandlers) UpdateNetworkChannel(c *gin.Context) {
 		return
 	}
 	ref := scope.NetworkChannelRef(channel)
-	entry, err := h.networkChannelMetadataForUpdate(c.Request.Context(), networkStore, ref)
-	if err != nil {
-		h.respondError(c, StatusForNetworkError(err), err)
-		return
-	}
+	patch := store.NetworkChannelPatch{UpdatedAt: h.nowUTC()}
 	if req.Purpose != nil {
-		entry.Purpose = strings.TrimSpace(*req.Purpose)
+		purpose := strings.TrimSpace(*req.Purpose)
+		patch.Purpose = &purpose
 	}
 	if req.FanoutPolicy != nil {
-		entry.FanoutPolicy = store.NormalizeNetworkFanoutPolicy(*req.FanoutPolicy)
-		if err := store.ValidateNetworkFanoutPolicy(entry.FanoutPolicy); err != nil {
+		fanoutPolicy := store.NormalizeNetworkFanoutPolicy(*req.FanoutPolicy)
+		if err := store.ValidateNetworkFanoutPolicy(fanoutPolicy); err != nil {
 			h.respondError(c, http.StatusBadRequest, NewNetworkValidationError(err))
 			return
 		}
+		patch.FanoutPolicy = &fanoutPolicy
 	}
 	if req.CoordinatorPeerID != nil {
-		entry.CoordinatorPeerID = strings.TrimSpace(*req.CoordinatorPeerID)
+		coordinatorPeerID := strings.TrimSpace(*req.CoordinatorPeerID)
+		patch.CoordinatorPeerID = &coordinatorPeerID
 	}
-	entry.UpdatedAt = h.nowUTC()
-	if entry.CreatedAt.IsZero() {
-		entry.CreatedAt = entry.UpdatedAt
-	}
-	if err := networkStore.WriteNetworkChannel(c.Request.Context(), entry); err != nil {
+	if err := networkStore.PatchNetworkChannel(c.Request.Context(), ref, patch); err != nil {
 		h.respondError(c, StatusForNetworkError(err), err)
 		return
 	}
@@ -787,11 +783,7 @@ func applyNetworkChannelMessages(
 ) {
 	for _, message := range messages {
 		aggregate := ensureNetworkChannelAggregate(aggregates, message.WorkspaceID, message.Channel)
-		aggregate.recordHistoricalParticipant(message.PeerFrom)
-		aggregate.recordHistoricalParticipant(message.PeerTo)
-		for _, peerID := range message.Mentions {
-			aggregate.recordHistoricalParticipant(peerID)
-		}
+		recordNetworkMessageParticipants(aggregate.recordHistoricalParticipant, message)
 		if !isPublicChannelTimelineMessage(message) {
 			continue
 		}
@@ -806,6 +798,14 @@ func applyNetworkChannelMessages(
 		if preview := networkMessagePreview(message); preview != "" && aggregateMessageIsLatest(aggregate, message) {
 			aggregate.lastMessagePreview = preview
 		}
+	}
+}
+
+func recordNetworkMessageParticipants(record func(string), message store.NetworkMessageEntry) {
+	record(message.PeerFrom)
+	record(message.PeerTo)
+	for _, peerID := range message.Mentions {
+		record(peerID)
 	}
 }
 
@@ -1424,11 +1424,9 @@ func summarizeNetworkMessageHistory(
 	openEpisodes := make(map[networkPresenceEpisodeKey]int)
 
 	for _, message := range messages {
-		recordHistoricalParticipant(participants, message.PeerFrom)
-		recordHistoricalParticipant(participants, message.PeerTo)
-		for _, peerID := range message.Mentions {
+		recordNetworkMessageParticipants(func(peerID string) {
 			recordHistoricalParticipant(participants, peerID)
-		}
+		}, message)
 		if isPresenceMessage(message) {
 			summary.presenceCount++
 			summary.lastPresenceAt = laterTimePtr(summary.lastPresenceAt, message.Timestamp)
@@ -1461,11 +1459,9 @@ func summarizeNetworkMessageHistory(
 func summarizeHistoricalParticipantCount(messages []store.NetworkMessageEntry) int {
 	participants := make(map[string]struct{})
 	for _, message := range messages {
-		recordHistoricalParticipant(participants, message.PeerFrom)
-		recordHistoricalParticipant(participants, message.PeerTo)
-		for _, peerID := range message.Mentions {
+		recordNetworkMessageParticipants(func(peerID string) {
 			recordHistoricalParticipant(participants, peerID)
-		}
+		}, message)
 	}
 	return len(participants)
 }
@@ -1642,6 +1638,7 @@ func cloneNetworkMessageEntry(entry store.NetworkMessageEntry) store.NetworkMess
 		Intent:      strings.TrimSpace(entry.Intent),
 		Text:        entry.Text,
 		PreviewText: strings.TrimSpace(entry.PreviewText),
+		Mentions:    cloneTrimmedStrings(entry.Mentions),
 		Body:        cloneRawMessage(entry.Body),
 		SizeBytes:   entry.SizeBytes,
 		Timestamp:   entry.Timestamp.UTC(),

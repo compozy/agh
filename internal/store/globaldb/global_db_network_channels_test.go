@@ -28,6 +28,10 @@ func TestNetworkChannels(t *testing.T) {
 			run:  assertGlobalDBWriteAndListNetworkChannels,
 		},
 		{
+			name: "Should patch network channels without replacing unspecified fields",
+			run:  assertGlobalDBPatchNetworkChannelsPreservesUnspecifiedFields,
+		},
+		{
 			name: "Should return sql.ErrNoRows for missing network channels",
 			run:  assertGlobalDBGetNetworkChannelNotFound,
 		},
@@ -157,6 +161,78 @@ func assertGlobalDBWriteAndListNetworkChannels(t *testing.T) {
 	}
 	if got, want := entries[0].Channel, "ops.alerts"; got != want {
 		t.Fatalf("entries[0].Channel = %q, want %q", got, want)
+	}
+}
+
+func assertGlobalDBPatchNetworkChannelsPreservesUnspecifiedFields(t *testing.T) {
+	t.Helper()
+
+	globalDB := openTestGlobalDB(t)
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		globalDB,
+		"ws-alpha",
+		filepath.Join(t.TempDir(), "ws-alpha"),
+	)
+	recordedAt := time.Date(2026, 4, 11, 12, 0, 0, 0, time.UTC)
+	if err := globalDB.WriteNetworkChannel(testutil.Context(t), store.NetworkChannelEntry{
+		Channel:           "coord.core",
+		WorkspaceID:       workspaceID,
+		Purpose:           "Original purpose",
+		FanoutPolicy:      store.NetworkFanoutPolicyCoordinator,
+		CoordinatorPeerID: "reviewer.sess-a",
+		CreatedBy:         "codex",
+		CreatedAt:         recordedAt,
+		UpdatedAt:         recordedAt,
+	}); err != nil {
+		t.Fatalf("WriteNetworkChannel() error = %v", err)
+	}
+
+	purpose := "Pair reviews"
+	if err := globalDB.PatchNetworkChannel(
+		testutil.Context(t),
+		store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: "coord.core"},
+		store.NetworkChannelPatch{Purpose: &purpose, UpdatedAt: recordedAt.Add(time.Minute)},
+	); err != nil {
+		t.Fatalf("PatchNetworkChannel(purpose) error = %v", err)
+	}
+	entry, err := globalDB.GetNetworkChannel(testutil.Context(t), store.NetworkChannelRef{
+		WorkspaceID: workspaceID,
+		Channel:     "coord.core",
+	})
+	if err != nil {
+		t.Fatalf("GetNetworkChannel(after purpose patch) error = %v", err)
+	}
+	if entry.Purpose != "Pair reviews" ||
+		entry.FanoutPolicy != store.NetworkFanoutPolicyCoordinator ||
+		entry.CoordinatorPeerID != "reviewer.sess-a" {
+		t.Fatalf("entry after purpose patch = %#v", entry)
+	}
+
+	fanoutPolicy := store.NetworkFanoutPolicyCapabilityMatch
+	coordinatorPeerID := ""
+	if err := globalDB.PatchNetworkChannel(
+		testutil.Context(t),
+		store.NetworkChannelRef{WorkspaceID: workspaceID, Channel: "coord.core"},
+		store.NetworkChannelPatch{
+			FanoutPolicy:      &fanoutPolicy,
+			CoordinatorPeerID: &coordinatorPeerID,
+			UpdatedAt:         recordedAt.Add(2 * time.Minute),
+		},
+	); err != nil {
+		t.Fatalf("PatchNetworkChannel(policy) error = %v", err)
+	}
+	entry, err = globalDB.GetNetworkChannel(testutil.Context(t), store.NetworkChannelRef{
+		WorkspaceID: workspaceID,
+		Channel:     "coord.core",
+	})
+	if err != nil {
+		t.Fatalf("GetNetworkChannel(after policy patch) error = %v", err)
+	}
+	if entry.Purpose != "Pair reviews" ||
+		entry.FanoutPolicy != store.NetworkFanoutPolicyCapabilityMatch ||
+		entry.CoordinatorPeerID != "" {
+		t.Fatalf("entry after policy patch = %#v", entry)
 	}
 }
 

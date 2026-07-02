@@ -50,6 +50,8 @@ const (
 	toolSurfaceTaskOrchestrationContextRecentEventsPath           = "task.orchestration.context_recent_events"
 	toolSurfaceTaskOrchestrationDefaultMaxRuntimePath             = "task.orchestration.default_max_runtime"
 	toolSurfaceTaskOrchestrationDesignatedRunMaxPath              = "task.orchestration.designated_run_max"
+	toolSurfaceTaskOrchestrationNetworkStatusQueueSizePath        = "task.orchestration.network_status_queue_size"
+	toolSurfaceTaskOrchestrationNetworkStatusTimeoutPath          = "task.orchestration.network_status_timeout"
 	toolSurfaceTaskOrchestrationProfileDefaultCoordinatorModePath = "task.orchestration.profile.default_coordinator_mode"
 	toolSurfaceTaskOrchestrationProfileDefaultSandboxModePath     = "task.orchestration.profile.default_sandbox_mode"
 	toolSurfaceTaskOrchestrationProfileDefaultWorkerModePath      = "task.orchestration.profile.default_worker_mode"
@@ -254,6 +256,8 @@ var (
 		toolSurfaceTaskOrchestrationSchedulerBadTickCooldownPath:      ConfigValueDuration,
 		toolSurfaceTaskOrchestrationDefaultMaxRuntimePath:             ConfigValueDuration,
 		toolSurfaceTaskOrchestrationDesignatedRunMaxPath:              ConfigValueInt,
+		toolSurfaceTaskOrchestrationNetworkStatusQueueSizePath:        ConfigValueInt,
+		toolSurfaceTaskOrchestrationNetworkStatusTimeoutPath:          ConfigValueDuration,
 		toolSurfaceTaskOrchestrationProfileDefaultCoordinatorModePath: ConfigValueString,
 		toolSurfaceTaskOrchestrationProfileDefaultWorkerModePath:      ConfigValueString,
 		toolSurfaceTaskOrchestrationProfileDefaultSandboxModePath:     ConfigValueString,

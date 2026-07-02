@@ -2860,15 +2860,33 @@ func (n *daemonNativeTools) taskPromoteFromThread(
 		UpdatedAt:        now,
 	}
 	if err := origin.Validate(); err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+		return toolspkg.ToolResult{}, nativeNetworkInputError(
+			req.ToolID,
+			n.rollbackPromotedThreadTask(ctx, taskRecord.ID, actor, err),
+		)
 	}
 	if err := n.deps.NetworkStore.PutNetworkTaskThreadOrigin(ctx, origin); err != nil {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
+		return toolspkg.ToolResult{}, nativeNetworkInputError(
+			req.ToolID,
+			n.rollbackPromotedThreadTask(ctx, taskRecord.ID, actor, err),
+		)
 	}
 	return structuredResult(
 		map[string]any{"task": taskRecord, "origin": core.NetworkTaskThreadOriginPayloadFromStore(origin)},
 		taskRecord.Title,
 	)
+}
+
+func (n *daemonNativeTools) rollbackPromotedThreadTask(
+	ctx context.Context,
+	taskID string,
+	actor taskpkg.ActorContext,
+	cause error,
+) error {
+	if err := n.deps.Tasks.DeleteTask(ctx, taskID, actor); err != nil {
+		return errors.Join(cause, fmt.Errorf("rollback promoted network task %q: %w", taskID, err))
+	}
+	return cause
 }
 
 type nativeThreadPromotionSource struct {
@@ -2974,16 +2992,14 @@ func (n *daemonNativeTools) taskFanOutRuns(
 	}
 	maxDesignations := n.deps.Config.Task.Orchestration.DesignatedRunMax
 	if maxDesignations <= 0 {
-		maxDesignations = 5
+		maxDesignations = aghconfig.DefaultTaskDesignatedRunMax
 	}
 	if len(input.Designations) == 0 {
 		return toolspkg.ToolResult{}, nativeRequiredInputError(req.ToolID, "designations")
 	}
-	if len(input.Designations) > maxDesignations {
-		return toolspkg.ToolResult{}, nativeNetworkInputError(
-			req.ToolID,
-			fmt.Errorf("designations cannot exceed %d", maxDesignations),
-		)
+	prepared, err := prepareNativeFanOutDesignations(input, maxDesignations)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, err)
 	}
 	actor, err := actorContextFromScope(scope)
 	if err != nil {
@@ -2991,17 +3007,13 @@ func (n *daemonNativeTools) taskFanOutRuns(
 	}
 	groupID := store.NewID("tdg")
 	runs := make([]taskpkg.Run, 0, len(input.Designations))
-	for index, designation := range input.Designations {
-		metadata, metadataErr := nativeFanOutDesignationMetadata(index, designation)
-		if metadataErr != nil {
-			return toolspkg.ToolResult{}, nativeNetworkInputError(req.ToolID, metadataErr)
-		}
+	for index := range input.Designations {
 		run, enqueueErr := n.deps.Tasks.EnqueueRun(ctx, taskpkg.EnqueueRun{
 			TaskID:             taskID,
-			IdempotencyKey:     nativeFanOutDesignationIdempotencyKey(input.IdempotencyKey, designation, index),
+			IdempotencyKey:     prepared[index].idempotencyKey,
 			NetworkChannel:     strings.TrimSpace(input.NetworkChannel),
 			DesignationGroupID: groupID,
-			Metadata:           metadata,
+			Metadata:           prepared[index].metadata,
 		}, actor)
 		if enqueueErr != nil {
 			return toolspkg.ToolResult{}, enqueueErr
@@ -3022,6 +3034,42 @@ func (n *daemonNativeTools) taskFanOutRuns(
 	)
 }
 
+type nativePreparedFanOutDesignation struct {
+	idempotencyKey string
+	metadata       json.RawMessage
+}
+
+func prepareNativeFanOutDesignations(
+	input taskFanOutRunsInput,
+	maxDesignations int,
+) ([]nativePreparedFanOutDesignation, error) {
+	if len(input.Designations) == 0 {
+		return nil, errors.New("designations are required")
+	}
+	if len(input.Designations) > maxDesignations {
+		return nil, fmt.Errorf("designations cannot exceed %d", maxDesignations)
+	}
+	prepared := make([]nativePreparedFanOutDesignation, 0, len(input.Designations))
+	for index, designation := range input.Designations {
+		metadata, err := nativeFanOutDesignationMetadata(index, designation)
+		if err != nil {
+			return nil, err
+		}
+		idempotencyKey := nativeFanOutDesignationIdempotencyKey(input.IdempotencyKey, designation, index)
+		if idempotencyKey == "" {
+			return nil, fmt.Errorf(
+				"designations[%d].idempotency_key is required when task fan-out idempotency_key is empty",
+				index,
+			)
+		}
+		prepared = append(prepared, nativePreparedFanOutDesignation{
+			idempotencyKey: idempotencyKey,
+			metadata:       metadata,
+		})
+	}
+	return prepared, nil
+}
+
 func nativeNetworkThreadPromotionDigest(
 	messages []store.NetworkConversationMessage,
 	originMessageID string,
@@ -3039,6 +3087,9 @@ func nativeNetworkThreadPromotionDigest(
 		if messageID == target {
 			found = true
 		}
+		if builder.Len() >= 4000 {
+			continue
+		}
 		line := nativeNetworkThreadPromotionMessageLine(message)
 		if line == "" {
 			continue
@@ -3047,9 +3098,6 @@ func nativeNetworkThreadPromotionDigest(
 			builder.WriteByte('\n')
 		}
 		builder.WriteString(line)
-		if builder.Len() >= 4000 {
-			break
-		}
 	}
 	digest := strings.TrimSpace(builder.String())
 	if len(digest) > 4000 {

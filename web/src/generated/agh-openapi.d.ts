@@ -60763,6 +60763,8 @@ export interface operations {
         peer_id?: string;
         /** @description Filter subscriptions by thread id */
         thread_id?: string;
+        /** @description Maximum number of subscriptions to return */
+        limit?: number;
       };
       header?: never;
       path: {

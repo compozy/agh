@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/compozy/agh/internal/api/contract"
+	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/network"
 	"github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
@@ -21,6 +22,8 @@ const (
 	defaultTaskActorRef              = "local-user"
 	taskDraftOverfetchMaxLimit       = 500
 	taskDesignationRollupDetailLimit = 20
+	taskDesignationRollupCompleted   = "completed"
+	taskDesignationRollupCanceled    = "canceled"
 	taskActionCreate                 = "create"
 	taskActionGet                    = "get"
 	taskActionInspect                = "inspect"
@@ -1196,9 +1199,10 @@ func (h *BaseHandlers) FanOutTaskRuns(c *gin.Context) {
 	}
 	maxDesignations := h.Config.Task.Orchestration.DesignatedRunMax
 	if maxDesignations <= 0 {
-		maxDesignations = 5
+		maxDesignations = aghconfig.DefaultTaskDesignatedRunMax
 	}
-	if err := validateFanOutTaskRunsRequest(req, maxDesignations); err != nil {
+	prepared, err := prepareFanOutTaskRunsRequest(req, maxDesignations)
+	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
 	}
@@ -1208,7 +1212,7 @@ func (h *BaseHandlers) FanOutTaskRuns(c *gin.Context) {
 		return
 	}
 	groupID := store.NewID("tdg")
-	runs, err := enqueueFanOutTaskRuns(c.Request.Context(), manager, actor, taskID, groupID, req)
+	runs, err := enqueueFanOutTaskRuns(c.Request.Context(), manager, actor, taskID, groupID, req, prepared)
 	if err != nil {
 		h.respondError(c, StatusForTaskError(err), err)
 		return
@@ -1232,14 +1236,43 @@ func (h *BaseHandlers) FanOutTaskRuns(c *gin.Context) {
 	})
 }
 
-func validateFanOutTaskRunsRequest(req contract.FanOutTaskRunsRequest, maxDesignations int) error {
+type preparedFanOutDesignation struct {
+	idempotencyKey string
+	metadata       json.RawMessage
+}
+
+func prepareFanOutTaskRunsRequest(
+	req contract.FanOutTaskRunsRequest,
+	maxDesignations int,
+) ([]preparedFanOutDesignation, error) {
 	if len(req.Designations) == 0 {
-		return NewTaskValidationError(errors.New("designations are required"))
+		return nil, NewTaskValidationError(errors.New("designations are required"))
 	}
 	if len(req.Designations) > maxDesignations {
-		return NewTaskValidationError(fmt.Errorf("designations cannot exceed %d", maxDesignations))
+		return nil, NewTaskValidationError(fmt.Errorf("designations cannot exceed %d", maxDesignations))
 	}
-	return validateTaskChannel("fan_out_runs.network_channel", req.NetworkChannel)
+	if err := validateTaskChannel("fan_out_runs.network_channel", req.NetworkChannel); err != nil {
+		return nil, err
+	}
+	prepared := make([]preparedFanOutDesignation, 0, len(req.Designations))
+	for index, designation := range req.Designations {
+		metadata, err := fanOutDesignationMetadata(index, designation)
+		if err != nil {
+			return nil, err
+		}
+		idempotencyKey := fanOutDesignationIdempotencyKey(req.IdempotencyKey, designation, index)
+		if idempotencyKey == "" {
+			return nil, NewTaskValidationError(fmt.Errorf(
+				"designations[%d].idempotency_key is required when fan_out_runs.idempotency_key is empty",
+				index,
+			))
+		}
+		prepared = append(prepared, preparedFanOutDesignation{
+			idempotencyKey: idempotencyKey,
+			metadata:       metadata,
+		})
+	}
+	return prepared, nil
 }
 
 func enqueueFanOutTaskRuns(
@@ -1249,19 +1282,16 @@ func enqueueFanOutTaskRuns(
 	taskID string,
 	groupID string,
 	req contract.FanOutTaskRunsRequest,
+	prepared []preparedFanOutDesignation,
 ) ([]taskpkg.Run, error) {
 	runs := make([]taskpkg.Run, 0, len(req.Designations))
-	for index, designation := range req.Designations {
-		metadata, err := fanOutDesignationMetadata(index, designation)
-		if err != nil {
-			return nil, err
-		}
+	for index := range req.Designations {
 		run, err := manager.EnqueueRun(ctx, taskpkg.EnqueueRun{
 			TaskID:             taskID,
-			IdempotencyKey:     fanOutDesignationIdempotencyKey(req.IdempotencyKey, designation, index),
+			IdempotencyKey:     prepared[index].idempotencyKey,
 			NetworkChannel:     strings.TrimSpace(req.NetworkChannel),
 			DesignationGroupID: groupID,
-			Metadata:           metadata,
+			Metadata:           prepared[index].metadata,
 		}, actor)
 		if err != nil {
 			return nil, err
@@ -2117,20 +2147,20 @@ func fanOutDesignationRollupJSON(runs []taskpkg.Run, now time.Time) json.RawMess
 		}
 	}
 	encoded, err := json.Marshal(map[string]any{
-		"designation_group_id":    groupID,
-		"task_id":                 taskID,
-		"run_ids":                 runIDs,
-		"total":                   len(runIDs),
-		"terminal_count":          terminalCount,
-		toolInvokeStatusCompleted: completed,
-		"failed":                  failed,
-		toolInvokeStatusCanceled:  canceled,
-		"running":                 running,
-		"queued":                  queued,
-		"needs_attention":         needsAttention,
-		"statuses":                statuses,
-		"complete":                len(runIDs) > 0 && terminalCount == len(runIDs),
-		"updated_at":              now.UTC().Format(time.RFC3339Nano),
+		"designation_group_id":         groupID,
+		"task_id":                      taskID,
+		"run_ids":                      runIDs,
+		"total":                        len(runIDs),
+		"terminal_count":               terminalCount,
+		taskDesignationRollupCompleted: completed,
+		"failed":                       failed,
+		taskDesignationRollupCanceled:  canceled,
+		"running":                      running,
+		"queued":                       queued,
+		"needs_attention":              needsAttention,
+		"statuses":                     statuses,
+		"complete":                     len(runIDs) > 0 && terminalCount == len(runIDs),
+		"updated_at":                   now.UTC().Format(time.RFC3339Nano),
 	})
 	if err != nil {
 		return json.RawMessage(`{"run_ids":[],"total":0,"terminal_count":0,"complete":false}`)

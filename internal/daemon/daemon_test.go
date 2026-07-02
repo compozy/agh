@@ -5924,6 +5924,14 @@ func (r *recordingRegistry) WriteNetworkChannel(context.Context, store.NetworkCh
 	return nil
 }
 
+func (r *recordingRegistry) PatchNetworkChannel(
+	context.Context,
+	store.NetworkChannelRef,
+	store.NetworkChannelPatch,
+) error {
+	return nil
+}
+
 func (r *recordingRegistry) GetNetworkChannel(
 	context.Context,
 	store.NetworkChannelRef,

@@ -815,6 +815,9 @@ func networkThreadPromotionDigest(
 		if messageID == target {
 			found = true
 		}
+		if builder.Len() >= 4000 {
+			continue
+		}
 		line := networkThreadPromotionMessageLine(message)
 		if line == "" {
 			continue
@@ -823,9 +826,6 @@ func networkThreadPromotionDigest(
 			builder.WriteByte('\n')
 		}
 		builder.WriteString(line)
-		if builder.Len() >= 4000 {
-			break
-		}
 	}
 	digest := strings.TrimSpace(builder.String())
 	if len(digest) > 4000 {
@@ -892,6 +892,9 @@ func NetworkThreadSummaryPayloadFromStore(thread store.NetworkThreadSummary) con
 func NetworkCoordinationCostPayloadFromStore(
 	thread store.NetworkThreadSummary,
 ) *contract.NetworkCoordinationCostPayload {
+	if thread.DeliveredCount == 0 && thread.PromptSizeBytes == 0 && thread.EstimatedPromptTokens == 0 {
+		return nil
+	}
 	return &contract.NetworkCoordinationCostPayload{
 		DeliveredCount:        thread.DeliveredCount,
 		PromptSizeBytes:       thread.PromptSizeBytes,

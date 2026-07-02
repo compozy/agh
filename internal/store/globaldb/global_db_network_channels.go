@@ -100,6 +100,66 @@ func (g *GlobalDB) GetNetworkChannel(
 	return entry, nil
 }
 
+// PatchNetworkChannel applies one partial metadata update without overwriting
+// unspecified channel fields.
+func (g *GlobalDB) PatchNetworkChannel(
+	ctx context.Context,
+	ref store.NetworkChannelRef,
+	patch store.NetworkChannelPatch,
+) error {
+	if err := g.checkReady(ctx, "patch network channel"); err != nil {
+		return err
+	}
+	normalized := store.NetworkChannelRef{
+		WorkspaceID: strings.TrimSpace(ref.WorkspaceID),
+		Channel:     strings.TrimSpace(ref.Channel),
+	}
+	if err := normalized.Validate(); err != nil {
+		return err
+	}
+	if !patch.HasChanges() {
+		return errors.New("store: network channel patch must include at least one field")
+	}
+	current, err := g.GetNetworkChannel(ctx, normalized)
+	if err != nil {
+		return err
+	}
+	next := patch.Apply(current)
+	if next.UpdatedAt.IsZero() {
+		next.UpdatedAt = g.now()
+	}
+	if err := next.Validate(); err != nil {
+		return fmt.Errorf("store: validate network channel patch: %w", err)
+	}
+
+	result, err := g.db.ExecContext(
+		ctx,
+		`UPDATE network_channels SET
+			purpose = COALESCE(?, purpose),
+			fanout_policy = COALESCE(?, fanout_policy),
+			coordinator_peer_id = COALESCE(?, coordinator_peer_id),
+			updated_at = ?
+		WHERE workspace_id = ? AND channel = ?`,
+		patchNullString(patch.Purpose, strings.TrimSpace),
+		patchNullString(patch.FanoutPolicy, store.NormalizeNetworkFanoutPolicy),
+		patchNullString(patch.CoordinatorPeerID, strings.TrimSpace),
+		store.FormatTimestamp(next.UpdatedAt),
+		normalized.WorkspaceID,
+		normalized.Channel,
+	)
+	if err != nil {
+		return fmt.Errorf("store: patch network channel: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("store: inspect patched network channel rows: %w", err)
+	}
+	if affected == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
 // ListNetworkChannels returns persisted network channel metadata rows.
 func (g *GlobalDB) ListNetworkChannels(
 	ctx context.Context,
@@ -173,6 +233,13 @@ func (g *GlobalDB) DeleteNetworkChannel(ctx context.Context, ref store.NetworkCh
 		return fmt.Errorf("store: delete network channel: %w", err)
 	}
 	return nil
+}
+
+func patchNullString(value *string, normalize func(string) string) sql.NullString {
+	if value == nil {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: normalize(*value), Valid: true}
 }
 
 func scanNetworkChannel(scanner rowScanner) (store.NetworkChannelEntry, error) {

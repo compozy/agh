@@ -69,10 +69,12 @@ When one task should run as several scoped sibling assignments, use the designat
 
     agh task fan-out <task-id> --designation "Inspect data path" --designation "Validate UI and docs" -o json
 
-Each sibling run gets a shared `designation_group_id` and one assignment brief. If the task came from
-an AGH Network thread, terminal run state is summarized back to the origin thread by `agh.runtime`;
-do not manually duplicate raw worker logs into the thread. Read aggregated designation results from
-task detail JSON (`agh task get <id> -o json`, field `designation_rollups`).
+Fan-out is bounded by `task.orchestration.designated_run_max`, and every sibling assignment must
+carry a non-empty designation and idempotency identity before AGH enqueues any run. Each sibling run
+gets a shared `designation_group_id` and one assignment brief. If the task came from an AGH Network
+thread, terminal run state is summarized back to the origin thread by `agh.runtime`; do not manually
+duplicate raw worker logs into the thread. Read aggregated designation results from task detail JSON
+(`agh task get <id> -o json`, field `designation_rollups`).
 
 For dependency DAGs, opt a dependent task into auto-enqueue so it starts on its own the moment its blockers finish: `agh task create … --auto-enqueue-on-ready`, or toggle it on an assembled tree with `agh task update <id> --auto-enqueue-on-ready` (`--auto-enqueue-on-ready=false` turns it off). When set, a blocking dependency completing and the task reaching `ready` enqueues exactly one run through the canonical path — no manual start. It is conservative by design: a failed or expired blocker never triggers it, paused dependents are skipped, and the open-run reservation guarantees one queued run even under concurrent blocker completions. Read the flag back from `agh task inspect <id> -o json` (`auto_enqueue_on_ready`).
 

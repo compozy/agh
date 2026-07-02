@@ -10,15 +10,13 @@ import (
 	"sync"
 	"time"
 
+	aghconfig "github.com/compozy/agh/internal/config"
 	"github.com/compozy/agh/internal/network"
 	storepkg "github.com/compozy/agh/internal/store"
 	taskpkg "github.com/compozy/agh/internal/task"
 )
 
 const (
-	defaultNetworkTaskStatusQueueSize = 64
-	networkTaskStatusTimeout          = 5 * time.Second
-
 	taskEventCanceled     = "task.canceled"
 	taskEventRunStarted   = "task.run_started"
 	taskEventRunCompleted = "task.run_completed"
@@ -36,6 +34,7 @@ type networkTaskStatusObserver struct {
 	cancel  context.CancelFunc
 	wg      sync.WaitGroup
 	queue   chan taskpkg.EventRecord
+	timeout time.Duration
 }
 
 var _ taskpkg.EventObserver = (*networkTaskStatusObserver)(nil)
@@ -45,6 +44,8 @@ func newNetworkTaskStatusObserver(
 	tasks taskStore,
 	logger *slog.Logger,
 	now func() time.Time,
+	queueSize int,
+	timeout time.Duration,
 ) *networkTaskStatusObserver {
 	prefs, ok := tasks.(storepkg.NetworkPreferenceStore)
 	if networkRuntime == nil || tasks == nil || !ok {
@@ -56,6 +57,12 @@ func newNetworkTaskStatusObserver(
 	if now == nil {
 		now = time.Now
 	}
+	if queueSize <= 0 {
+		queueSize = aghconfig.DefaultTaskNetworkStatusQueueSize
+	}
+	if timeout <= 0 {
+		timeout = aghconfig.DefaultTaskNetworkStatusTimeout
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	observer := &networkTaskStatusObserver{
 		network: networkRuntime,
@@ -65,7 +72,8 @@ func newNetworkTaskStatusObserver(
 		now:     now,
 		ctx:     ctx,
 		cancel:  cancel,
-		queue:   make(chan taskpkg.EventRecord, defaultNetworkTaskStatusQueueSize),
+		queue:   make(chan taskpkg.EventRecord, queueSize),
+		timeout: timeout,
 	}
 	observer.start()
 	return observer
@@ -114,7 +122,7 @@ func (o *networkTaskStatusObserver) start() {
 }
 
 func (o *networkTaskStatusObserver) process(record taskpkg.EventRecord) {
-	ctx, cancel := context.WithTimeout(o.ctx, networkTaskStatusTimeout)
+	ctx, cancel := context.WithTimeout(o.ctx, o.timeout)
 	defer cancel()
 	if err := o.processWithContext(ctx, record); err != nil {
 		o.logger.Warn(
@@ -217,9 +225,6 @@ func (o *networkTaskStatusObserver) taskStatusText(
 	case taskEventRunFailed:
 		if run == nil {
 			return ""
-		}
-		if reason := truncateStatusText(run.Error, 160); reason != "" {
-			return fmt.Sprintf("Task status: %s run %s failed: %s", taskLabel, shortTaskRunID(run.ID), reason)
 		}
 		return fmt.Sprintf("Task status: %s run %s failed.", taskLabel, shortTaskRunID(run.ID))
 	case taskEventRunCanceled:

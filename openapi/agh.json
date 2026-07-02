@@ -137909,6 +137909,15 @@
                         "schema": {
                             "type": "string"
                         }
+                    },
+                    {
+                        "description": "Maximum number of subscriptions to return",
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "format": "int32",
+                            "type": "integer"
+                        }
                     }
                 ],
                 "responses": {

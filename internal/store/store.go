@@ -88,6 +88,7 @@ type NetworkChannelStore interface {
 	WriteNetworkChannel(ctx context.Context, entry NetworkChannelEntry) error
 	GetNetworkChannel(ctx context.Context, ref NetworkChannelRef) (NetworkChannelEntry, error)
 	ListNetworkChannels(ctx context.Context, query NetworkChannelQuery) ([]NetworkChannelEntry, error)
+	PatchNetworkChannel(ctx context.Context, ref NetworkChannelRef, patch NetworkChannelPatch) error
 	DeleteNetworkChannel(ctx context.Context, ref NetworkChannelRef) error
 }
 
